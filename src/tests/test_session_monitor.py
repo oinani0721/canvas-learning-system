@@ -40,21 +40,21 @@ class TestSessionMonitor:
     def monitor(self):
         """Create a monitor instance for testing"""
         config = {
-            'check_interval': 1,  # 1 second for fast testing
-            'health_timeout': 5,  # 5 seconds
-            'max_recovery_attempts': 2,
-            'alert_threshold': {
-                'memory_failure': 1,
-                'canvas_update_failure': 1,
-                'file_reference_error': 1,
-                'agent_call_failure': 1,
-                'mcp_service_unavailable': 1
+            "check_interval": 1,  # 1 second for fast testing
+            "health_timeout": 5,  # 5 seconds
+            "max_recovery_attempts": 2,
+            "alert_threshold": {
+                "memory_failure": 1,
+                "canvas_update_failure": 1,
+                "file_reference_error": 1,
+                "agent_call_failure": 1,
+                "mcp_service_unavailable": 1,
             },
-            'monitoring': {
-                'enable_auto_recovery': True,
-                'enable_notifications': True,
-                'log_level': 'ERROR'  # Reduce log noise during tests
-            }
+            "monitoring": {
+                "enable_auto_recovery": True,
+                "enable_notifications": True,
+                "log_level": "ERROR",  # Reduce log noise during tests
+            },
         }
         return SessionMonitor(config)
 
@@ -63,9 +63,9 @@ class TestSessionMonitor:
         """Test starting and stopping session monitoring"""
         session_id = "test_session_001"
         session_info = {
-            'canvas_path': 'test.canvas',
-            'user_id': 'test_user',
-            'metadata': {'test': True}
+            "canvas_path": "test.canvas",
+            "user_id": "test_user",
+            "metadata": {"test": True},
         }
 
         # Start monitoring
@@ -78,9 +78,9 @@ class TestSessionMonitor:
         # Check session details
         session = monitor.active_sessions[session_id]
         assert session.id == session_id
-        assert session.canvas_path == 'test.canvas'
-        assert session.user_id == 'test_user'
-        assert session.status == 'active'
+        assert session.canvas_path == "test.canvas"
+        assert session.user_id == "test_user"
+        assert session.status == "active"
 
         # Get monitoring status
         status = await monitor.get_monitoring_status()
@@ -92,7 +92,7 @@ class TestSessionMonitor:
         # Stop monitoring
         report = await monitor.stop_monitoring(session_id)
         assert report is not None
-        assert report['session_id'] == session_id
+        assert report["session_id"] == session_id
         assert session_id not in monitor.active_sessions
         assert session_id not in monitor.session_health
 
@@ -102,7 +102,7 @@ class TestSessionMonitor:
         sessions = [
             ("session_1", {"canvas_path": "test1.canvas", "user_id": "user1"}),
             ("session_2", {"canvas_path": "test2.canvas", "user_id": "user2"}),
-            ("session_3", {"canvas_path": "test3.canvas", "user_id": "user3"})
+            ("session_3", {"canvas_path": "test3.canvas", "user_id": "user3"}),
         ]
 
         # Start all sessions
@@ -126,40 +126,39 @@ class TestSessionMonitor:
     async def test_health_checks(self, monitor):
         """Test health check methods"""
         session_id = "test_health"
-        await monitor.start_monitoring(session_id, {
-            'canvas_path': 'test.canvas',
-            'user_id': 'test'
-        })
+        await monitor.start_monitoring(
+            session_id, {"canvas_path": "test.canvas", "user_id": "test"}
+        )
 
         # Test memory system check
         result = await monitor._check_memory_system(session_id)
         assert isinstance(result, HealthCheckResult)
-        assert result.component == 'memory_system'
+        assert result.component == "memory_system"
 
         # Test canvas update check (with fake canvas)
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump({"nodes": [], "edges": []}, f)
             canvas_path = f.name
 
         monitor.active_sessions[session_id].canvas_path = canvas_path
         result = await monitor._check_canvas_updates(session_id)
         assert isinstance(result, HealthCheckResult)
-        assert result.component == 'canvas_update'
+        assert result.component == "canvas_update"
 
         # Test file reference check
         result = await monitor._check_file_references(session_id)
         assert isinstance(result, HealthCheckResult)
-        assert result.component == 'file_reference'
+        assert result.component == "file_reference"
 
         # Test agent health check
         result = await monitor._check_agent_health(session_id)
         assert isinstance(result, HealthCheckResult)
-        assert result.component == 'agent_call'
+        assert result.component == "agent_call"
 
         # Test MCP service check
         result = await monitor._check_mcp_services(session_id)
         assert isinstance(result, HealthCheckResult)
-        assert result.component == 'mcp_service'
+        assert result.component == "mcp_service"
 
         # Clean up
         Path(canvas_path).unlink(missing_ok=True)
@@ -176,15 +175,14 @@ class TestSessionMonitor:
         monitor.add_alert_handler(alert_handler)
 
         session_id = "test_alert"
-        await monitor.start_monitoring(session_id, {
-            'canvas_path': 'test.canvas',
-            'user_id': 'test'
-        })
+        await monitor.start_monitoring(
+            session_id, {"canvas_path": "test.canvas", "user_id": "test"}
+        )
 
         # Send test alert
-        await monitor._send_alert(session_id, "test_alert", {
-            "message": "Test alert message"
-        })
+        await monitor._send_alert(
+            session_id, "test_alert", {"message": "Test alert message"}
+        )
 
         # Check alert was received
         assert len(alerts_received) == 1
@@ -196,7 +194,9 @@ class TestSessionMonitor:
 
         # Remove handler
         monitor.remove_alert_handler(alert_handler)
-        await monitor._send_alert(session_id, "test_alert_2", {"message": "Should not receive"})
+        await monitor._send_alert(
+            session_id, "test_alert_2", {"message": "Should not receive"}
+        )
 
         # Check no new alerts
         assert len(alerts_received) == 1
@@ -215,7 +215,7 @@ class TestRecoveryStrategies:
             start_time=datetime.now(),
             canvas_path="test.canvas",
             user_id="test_user",
-            status="active"
+            status="active",
         )
 
     @pytest.mark.asyncio
@@ -224,10 +224,7 @@ class TestRecoveryStrategies:
         recovery = MemorySystemRecovery()
 
         # Test with healthy result (should still work)
-        health_result = HealthCheckResult(
-            component='memory_system',
-            healthy=True
-        )
+        health_result = HealthCheckResult(component="memory_system", healthy=True)
         result = await recovery.recover(test_session, health_result)
         assert isinstance(result, RecoveryResult)
 
@@ -237,7 +234,7 @@ class TestRecoveryStrategies:
         recovery = CanvasUpdateRecovery()
 
         # Create a temporary canvas file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             # Write invalid canvas data
             json.dump({"invalid": "data"}, f)
             canvas_path = f.name
@@ -246,18 +243,16 @@ class TestRecoveryStrategies:
 
         # Test recovery with invalid canvas
         health_result = HealthCheckResult(
-            component='canvas_update',
-            healthy=False,
-            issue="Canvas file invalid"
+            component="canvas_update", healthy=False, issue="Canvas file invalid"
         )
         result = await recovery.recover(test_session, health_result)
         assert isinstance(result, RecoveryResult)
 
         # Check if canvas was repaired
-        with open(canvas_path, 'r') as f:
+        with open(canvas_path, "r") as f:
             canvas_data = json.load(f)
-        assert 'nodes' in canvas_data
-        assert 'edges' in canvas_data
+        assert "nodes" in canvas_data
+        assert "edges" in canvas_data
 
         # Clean up
         Path(canvas_path).unlink(missing_ok=True)
@@ -271,9 +266,7 @@ class TestRecoveryStrategies:
         test_session.canvas_path = "non_existent_file.canvas"
 
         health_result = HealthCheckResult(
-            component='canvas_update',
-            healthy=False,
-            issue="Canvas file not found"
+            component="canvas_update", healthy=False, issue="Canvas file not found"
         )
         result = await recovery.recover(test_session, health_result)
         assert isinstance(result, RecoveryResult)
@@ -290,9 +283,7 @@ class TestRecoveryStrategies:
         recovery = PathReferenceRecovery()
 
         health_result = HealthCheckResult(
-            component='file_reference',
-            healthy=False,
-            issue="Missing paths"
+            component="file_reference", healthy=False, issue="Missing paths"
         )
         result = await recovery.recover(test_session, health_result)
         assert isinstance(result, RecoveryResult)
@@ -303,9 +294,7 @@ class TestRecoveryStrategies:
         recovery = AgentCallRecovery()
 
         health_result = HealthCheckResult(
-            component='agent_call',
-            healthy=False,
-            issue="Agent files missing"
+            component="agent_call", healthy=False, issue="Agent files missing"
         )
         result = await recovery.recover(test_session, health_result)
         assert isinstance(result, RecoveryResult)
@@ -316,9 +305,7 @@ class TestRecoveryStrategies:
         recovery = MCPServiceRecovery()
 
         health_result = HealthCheckResult(
-            component='mcp_service',
-            healthy=False,
-            issue="MCP services unavailable"
+            component="mcp_service", healthy=False, issue="MCP services unavailable"
         )
         result = await recovery.recover(test_session, health_result)
         assert isinstance(result, RecoveryResult)
@@ -334,7 +321,7 @@ class TestDataClasses:
             start_time=datetime.now(),
             canvas_path="test.canvas",
             user_id="user",
-            status="active"
+            status="active",
         )
         assert session.id == "test"
         assert session.canvas_path == "test.canvas"
@@ -370,10 +357,7 @@ class TestDataClasses:
 
     def test_health_check_result(self):
         """Test HealthCheckResult data class"""
-        result = HealthCheckResult(
-            component="test",
-            healthy=True
-        )
+        result = HealthCheckResult(component="test", healthy=True)
         assert result.component == "test"
         assert result.healthy is True
         assert result.issue is None
@@ -382,7 +366,7 @@ class TestDataClasses:
             component="test",
             healthy=False,
             issue="Test error",
-            suggestion="Test suggestion"
+            suggestion="Test suggestion",
         )
         assert result.healthy is False
         assert result.issue == "Test error"
@@ -390,18 +374,12 @@ class TestDataClasses:
 
     def test_recovery_result(self):
         """Test RecoveryResult data class"""
-        result = RecoveryResult(
-            success=True,
-            message="Success message"
-        )
+        result = RecoveryResult(success=True, message="Success message")
         assert result.success is True
         assert result.message == "Success message"
         assert result.error is None
 
-        result = RecoveryResult(
-            success=False,
-            error="Error message"
-        )
+        result = RecoveryResult(success=False, error="Error message")
         assert result.success is False
         assert result.error == "Error message"
 
@@ -412,7 +390,7 @@ class TestDataClasses:
             type="test_type",
             timestamp=datetime.now(),
             details={"key": "value"},
-            severity="high"
+            severity="high",
         )
         assert alert.session_id == "test_session"
         assert alert.type == "test_type"
@@ -426,7 +404,7 @@ class TestDataClasses:
             monitoring_active=True,
             uptime=timedelta(hours=1),
             total_recoveries=10,
-            successful_recoveries=8
+            successful_recoveries=8,
         )
         assert status.active_sessions == 5
         assert status.monitoring_active is True
@@ -439,7 +417,7 @@ class TestDataClasses:
             "score": 90.0,
             "issues": ["test"],
             "last_check": datetime.now().isoformat(),
-            "last_recovery": None
+            "last_recovery": None,
         }
         assert "session1" in status.session_health
         assert status.session_health["session1"]["score"] == 90.0
@@ -452,31 +430,29 @@ class TestSessionTimeout:
     async def test_session_timeout_detection(self):
         """Test session timeout detection"""
         config = {
-            'check_interval': 0.5,
-            'health_timeout': 1,  # 1 second timeout
-            'monitoring': {
-                'enable_auto_recovery': False,
-                'enable_notifications': True
-            }
+            "check_interval": 0.5,
+            "health_timeout": 1,  # 1 second timeout
+            "monitoring": {"enable_auto_recovery": False, "enable_notifications": True},
         }
         monitor = SessionMonitor(config)
 
         # Start session
         session_id = "timeout_test"
-        await monitor.start_monitoring(session_id, {
-            'canvas_path': 'test.canvas',
-            'user_id': 'test'
-        })
+        await monitor.start_monitoring(
+            session_id, {"canvas_path": "test.canvas", "user_id": "test"}
+        )
 
         # Manually set start time to trigger timeout
-        monitor.active_sessions[session_id].start_time = datetime.now() - timedelta(seconds=2)
+        monitor.active_sessions[session_id].start_time = datetime.now() - timedelta(
+            seconds=2
+        )
 
         # Check health - should detect timeout
         await monitor._check_session_health(session_id)
 
         # Check if timeout issue was added
         health = monitor.session_health[session_id]
-        assert 'session_timeout' in health.issues
+        assert "session_timeout" in health.issues
 
         await monitor.stop_monitoring(session_id)
 
@@ -488,37 +464,30 @@ class TestRecoveryAttemptLimits:
     async def test_max_recovery_attempts(self):
         """Test maximum recovery attempts enforcement"""
         config = {
-            'check_interval': 0.1,
-            'max_recovery_attempts': 2,
-            'monitoring': {
-                'enable_auto_recovery': True,
-                'enable_notifications': True
-            }
+            "check_interval": 0.1,
+            "max_recovery_attempts": 2,
+            "monitoring": {"enable_auto_recovery": True, "enable_notifications": True},
         }
         monitor = SessionMonitor(config)
 
         session_id = "recovery_limit_test"
-        await monitor.start_monitoring(session_id, {
-            'canvas_path': 'non_existent.canvas',
-            'user_id': 'test'
-        })
+        await monitor.start_monitoring(
+            session_id, {"canvas_path": "non_existent.canvas", "user_id": "test"}
+        )
 
         # Mock a failing recovery strategy
         class FailingRecovery(RecoveryStrategy):
             async def recover(self, session, health_result):
                 return RecoveryResult(
-                    success=False,
-                    error="Intentional failure for testing"
+                    success=False, error="Intentional failure for testing"
                 )
 
         # Replace the canvas_update strategy with failing one
-        monitor.recovery_strategies['canvas_update'] = FailingRecovery()
+        monitor.recovery_strategies["canvas_update"] = FailingRecovery()
 
         # Create a health result that will always fail recovery
         health_result = HealthCheckResult(
-            component='canvas_update',
-            healthy=False,
-            issue="Persistent issue"
+            component="canvas_update", healthy=False, issue="Persistent issue"
         )
 
         # Attempt recovery multiple times
@@ -549,13 +518,10 @@ class TestIntegration:
     async def test_full_monitoring_cycle(self):
         """Test a complete monitoring cycle with failures and recovery"""
         config = {
-            'check_interval': 0.5,
-            'health_timeout': 10,
-            'max_recovery_attempts': 2,
-            'monitoring': {
-                'enable_auto_recovery': True,
-                'enable_notifications': True
-            }
+            "check_interval": 0.5,
+            "health_timeout": 10,
+            "max_recovery_attempts": 2,
+            "monitoring": {"enable_auto_recovery": True, "enable_notifications": True},
         }
         monitor = SessionMonitor(config)
 
@@ -564,10 +530,13 @@ class TestIntegration:
 
         # Start monitoring with problematic canvas
         session_id = "integration_test"
-        await monitor.start_monitoring(session_id, {
-            'canvas_path': 'invalid.canvas',  # Non-existent file - will be created by recovery
-            'user_id': 'test'
-        })
+        await monitor.start_monitoring(
+            session_id,
+            {
+                "canvas_path": "invalid.canvas",  # Non-existent file - will be created by recovery
+                "user_id": "test",
+            },
+        )
 
         # Wait a few check cycles
         await asyncio.sleep(1.5)
@@ -580,11 +549,11 @@ class TestIntegration:
 
         # Check that recovery was attempted for at least one component
         total_recoveries = (
-            health.memory_system_recovery_count +
-            health.canvas_update_recovery_count +
-            health.file_reference_recovery_count +
-            health.agent_call_recovery_count +
-            health.mcp_service_recovery_count
+            health.memory_system_recovery_count
+            + health.canvas_update_recovery_count
+            + health.file_reference_recovery_count
+            + health.agent_call_recovery_count
+            + health.mcp_service_recovery_count
         )
         assert total_recoveries >= 0  # Some recoveries may have happened
 
@@ -594,47 +563,49 @@ class TestIntegration:
         # Stop monitoring
         report = await monitor.stop_monitoring(session_id)
         assert report is not None
-        assert report['session_id'] == session_id
+        assert report["session_id"] == session_id
 
         # Clean up created file
-        Path('invalid.canvas').unlink(missing_ok=True)
+        Path("invalid.canvas").unlink(missing_ok=True)
 
     @pytest.mark.asyncio
     async def test_monitoring_with_real_canvas(self):
         """Test monitoring with a real canvas file"""
         # Create a temporary canvas file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
-            json.dump({
-                "nodes": [
-                    {
-                        "id": "node1",
-                        "type": "text",
-                        "x": 100,
-                        "y": 100,
-                        "width": 200,
-                        "height": 100,
-                        "color": "1",
-                        "text": "Test node"
-                    }
-                ],
-                "edges": []
-            }, f)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
+            json.dump(
+                {
+                    "nodes": [
+                        {
+                            "id": "node1",
+                            "type": "text",
+                            "x": 100,
+                            "y": 100,
+                            "width": 200,
+                            "height": 100,
+                            "color": "1",
+                            "text": "Test node",
+                        }
+                    ],
+                    "edges": [],
+                },
+                f,
+            )
             canvas_path = f.name
 
         config = {
-            'check_interval': 0.5,
-            'monitoring': {
-                'enable_auto_recovery': True,
-                'enable_notifications': False  # Disable to reduce noise
-            }
+            "check_interval": 0.5,
+            "monitoring": {
+                "enable_auto_recovery": True,
+                "enable_notifications": False,  # Disable to reduce noise
+            },
         }
         monitor = SessionMonitor(config)
 
         session_id = "real_canvas_test"
-        await monitor.start_monitoring(session_id, {
-            'canvas_path': canvas_path,
-            'user_id': 'test'
-        })
+        await monitor.start_monitoring(
+            session_id, {"canvas_path": canvas_path, "user_id": "test"}
+        )
 
         # Wait a few check cycles
         await asyncio.sleep(1)
@@ -658,11 +629,11 @@ class TestPerformance:
     async def test_many_sessions_performance(self):
         """Test monitoring many sessions simultaneously"""
         config = {
-            'check_interval': 1,
-            'monitoring': {
-                'enable_auto_recovery': False,
-                'enable_notifications': False
-            }
+            "check_interval": 1,
+            "monitoring": {
+                "enable_auto_recovery": False,
+                "enable_notifications": False,
+            },
         }
         monitor = SessionMonitor(config)
 
@@ -674,10 +645,9 @@ class TestPerformance:
         for i in range(num_sessions):
             session_id = f"perf_test_{i}"
             session_ids.append(session_id)
-            await monitor.start_monitoring(session_id, {
-                'canvas_path': f'test_{i}.canvas',
-                'user_id': f'user_{i}'
-            })
+            await monitor.start_monitoring(
+                session_id, {"canvas_path": f"test_{i}.canvas", "user_id": f"user_{i}"}
+            )
 
         start_duration = time.time() - start_time
 
@@ -712,20 +682,20 @@ class TestPerformance:
             "test.canvas",
             "笔记库/test.canvas",
             "data/test.canvas",
-            "./test.canvas"
+            "./test.canvas",
         ]
 
         for path in valid_paths:
             sanitized = monitor._sanitize_canvas_path(path)
             assert sanitized is not None
-            assert not any('..' in part for part in sanitized.parts)
+            assert not any(".." in part for part in sanitized.parts)
 
         # Test invalid paths (path traversal attempts)
         invalid_paths = [
             "../../../etc/passwd",
             "..\\..\\windows\\system32\\config\\sam",
             "/etc/shadow",
-            "C:\\Windows\\System32\\config\\SAM"
+            "C:\\Windows\\System32\\config\\SAM",
         ]
 
         for path in invalid_paths:
@@ -737,6 +707,6 @@ class TestPerformance:
         assert monitor._sanitize_canvas_path(None) is None
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run tests
-    pytest.main([__file__, '-v', '--tb=short'])
+    pytest.main([__file__, "-v", "--tb=short"])

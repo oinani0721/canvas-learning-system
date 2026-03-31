@@ -24,6 +24,7 @@ from typing import Optional, Tuple
 # Verified from Context7 MoviePy documentation
 try:
     from moviepy import VideoFileClip
+
     MOVIEPY_AVAILABLE = True
 except ImportError:
     MOVIEPY_AVAILABLE = False
@@ -32,6 +33,7 @@ except ImportError:
 # Verified from image_processor.py
 try:
     from PIL import Image
+
     PILLOW_AVAILABLE = True
 except ImportError:
     PILLOW_AVAILABLE = False
@@ -68,15 +70,16 @@ class VideoMetadata:
         thumbnail_base64: Base64-encoded thumbnail (optional)
         created_at: Timestamp when metadata was created
     """
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     file_path: str = ""
     file_name: str = ""
-    file_size: int = 0       # bytes
-    format: str = ""         # mp4, webm, mkv, etc.
-    duration: float = 0.0    # seconds
-    width: int = 0           # pixels
-    height: int = 0          # pixels
-    fps: float = 0.0         # frames per second
+    file_size: int = 0  # bytes
+    format: str = ""  # mp4, webm, mkv, etc.
+    duration: float = 0.0  # seconds
+    width: int = 0  # pixels
+    height: int = 0  # pixels
+    fps: float = 0.0  # frames per second
     codec: Optional[str] = None
     mime_type: str = ""
     thumbnail_base64: Optional[str] = None
@@ -147,21 +150,25 @@ class VideoProcessorError(Exception):
 
     [Source: ADR-009]
     """
+
     pass
 
 
 class VideoValidationError(VideoProcessorError):
     """Raised when video format validation fails."""
+
     pass
 
 
 class VideoSizeError(VideoProcessorError):
     """Raised when video file exceeds size limit."""
+
     pass
 
 
 class VideoCorruptError(VideoProcessorError):
     """Raised when video file is corrupted or unreadable."""
+
     pass
 
 
@@ -460,7 +467,12 @@ class VideoProcessor:
 
         # Feature flag check for ENABLE_VIDEO_UNDERSTANDING
         import os
-        if not os.getenv("ENABLE_VIDEO_UNDERSTANDING", "").lower() in ("true", "1", "yes"):
+
+        if not os.getenv("ENABLE_VIDEO_UNDERSTANDING", "").lower() in (
+            "true",
+            "1",
+            "yes",
+        ):
             logger.debug("ENABLE_VIDEO_UNDERSTANDING feature flag not set")
             return None
 

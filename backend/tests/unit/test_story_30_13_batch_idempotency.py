@@ -38,6 +38,7 @@ def mock_learning_memory():
 @pytest.fixture
 async def memory_service(mock_neo4j, mock_learning_memory):
     from app.services.memory_service import MemoryService
+
     service = MemoryService(
         neo4j_client=mock_neo4j,
     )
@@ -46,20 +47,25 @@ async def memory_service(mock_neo4j, mock_learning_memory):
     return service
 
 
-def _make_event(canvas_path="test/a.canvas", node_id="n1",
-                event_type="scoring", timestamp="2026-02-09T10:00:00"):
+def _make_event(
+    canvas_path="test/a.canvas",
+    node_id="n1",
+    event_type="scoring",
+    timestamp="2026-02-09T10:00:00",
+):
     return {
         "event_type": event_type,
         "timestamp": timestamp,
         "canvas_path": canvas_path,
         "node_id": node_id,
-        "metadata": {"concept": "test_concept"}
+        "metadata": {"concept": "test_concept"},
     }
 
 
 # ============================================================================
 # Task 1: Idempotency Tests (AC-30.13.1)
 # ============================================================================
+
 
 class TestBatchIdempotency:
     """AC-30.13.1: Idempotent batch writes."""
@@ -81,7 +87,11 @@ class TestBatchIdempotency:
 
         # Only 1 unique episode in memory
         unique_ids = set(ep.get("episode_id") for ep in memory_service._episodes)
-        matching = [ep for ep in memory_service._episodes if ep.get("episode_id") == r1["episode_ids"][0]]
+        matching = [
+            ep
+            for ep in memory_service._episodes
+            if ep.get("episode_id") == r1["episode_ids"][0]
+        ]
         assert len(matching) == 1
 
     @pytest.mark.asyncio
@@ -97,7 +107,11 @@ class TestBatchIdempotency:
             for _ in range(3):
                 await memory_service.record_batch_learning_events([event])
 
-        matching = [ep for ep in memory_service._episodes if ep.get("canvas_path") == "test/a.canvas"]
+        matching = [
+            ep
+            for ep in memory_service._episodes
+            if ep.get("canvas_path") == "test/a.canvas"
+        ]
         assert len(matching) == 1
 
     @pytest.mark.asyncio
@@ -119,8 +133,11 @@ class TestBatchIdempotency:
         assert r2["processed"] == 100
 
         # Count unique episode_ids in _episodes
-        all_ids = [ep.get("episode_id") for ep in memory_service._episodes
-                   if ep.get("canvas_path") == "test/a.canvas"]
+        all_ids = [
+            ep.get("episode_id")
+            for ep in memory_service._episodes
+            if ep.get("canvas_path") == "test/a.canvas"
+        ]
         assert len(all_ids) == len(set(all_ids))  # No dups
         assert len(all_ids) == 100
 
@@ -144,6 +161,7 @@ class TestBatchIdempotency:
 # ============================================================================
 # Task 2: Performance Benchmark Tests (AC-30.13.2)
 # ============================================================================
+
 
 class TestBatchPerformance:
     """AC-30.13.2: Performance benchmarks."""
@@ -174,7 +192,7 @@ class TestBatchPerformance:
             _make_event(
                 node_id=f"n_{i}",
                 canvas_path=f"test/c_{i // 100}.canvas",
-                timestamp=f"2026-02-09T{(i // 60) % 24:02d}:{i % 60:02d}:00"
+                timestamp=f"2026-02-09T{(i // 60) % 24:02d}:{i % 60:02d}:00",
             )
             for i in range(1000)
         ]
@@ -191,8 +209,10 @@ class TestBatchPerformance:
     @pytest.mark.asyncio
     async def test_batch_memory_metrics(self, memory_service, mock_neo4j):
         """Stats fields are populated after batch processing."""
-        events = [_make_event(node_id=f"n_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
-                  for i in range(10)]
+        events = [
+            _make_event(node_id=f"n_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
+            for i in range(10)
+        ]
 
         with patch("app.services.memory_service.settings") as mock_settings:
             mock_settings.BATCH_NEO4J_CONCURRENCY = 10
@@ -207,10 +227,14 @@ class TestBatchPerformance:
     @pytest.mark.asyncio
     async def test_concurrent_batch_requests(self, memory_service, mock_neo4j):
         """Two concurrent batch requests don't corrupt data."""
-        events_a = [_make_event(node_id=f"a_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
-                    for i in range(10)]
-        events_b = [_make_event(node_id=f"b_{i}", timestamp=f"2026-02-09T11:{i:02d}:00")
-                    for i in range(10)]
+        events_a = [
+            _make_event(node_id=f"a_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
+            for i in range(10)
+        ]
+        events_b = [
+            _make_event(node_id=f"b_{i}", timestamp=f"2026-02-09T11:{i:02d}:00")
+            for i in range(10)
+        ]
 
         with patch("app.services.memory_service.settings") as mock_settings:
             mock_settings.BATCH_NEO4J_CONCURRENCY = 10
@@ -224,14 +248,18 @@ class TestBatchPerformance:
         assert r_a["processed"] == 10
         assert r_b["processed"] == 10
         # All 20 unique episodes should be in _episodes
-        all_ids = set(ep.get("episode_id") for ep in memory_service._episodes
-                      if ep.get("canvas_path") == "test/a.canvas")
+        all_ids = set(
+            ep.get("episode_id")
+            for ep in memory_service._episodes
+            if ep.get("canvas_path") == "test/a.canvas"
+        )
         assert len(all_ids) >= 20
 
 
 # ============================================================================
 # Task 3: Partial Failure Recovery Tests (AC-30.13.3)
 # ============================================================================
+
 
 class TestBatchPartialFailureRecovery:
     """AC-30.13.3: Partial failure recovery."""
@@ -250,7 +278,7 @@ class TestBatchPartialFailureRecovery:
         # Interleave: valid[0..8], invalid[0], valid[9..17], invalid[1], ...
         events = []
         for i in range(5):
-            events.extend(valid[i*9:(i+1)*9])
+            events.extend(valid[i * 9 : (i + 1) * 9])
             events.append(invalid[i])
 
         with patch("app.services.memory_service.settings") as mock_settings:

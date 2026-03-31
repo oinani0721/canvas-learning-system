@@ -26,21 +26,35 @@ from unittest.mock import Mock
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 添加canvas_utils目录到path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "canvas_utils"))
+sys.path.insert(
+    0,
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "canvas_utils"
+    ),
+)
 
 # 导入Canvas操作器 (从主canvas_utils.py文件)
 import sys
 
-from canvas_validator import CanvasUpdateResult, CanvasValidator, OperationResult, ValidationReport, ValidationResult
+from canvas_validator import (
+    CanvasUpdateResult,
+    CanvasValidator,
+    OperationResult,
+    ValidationReport,
+    ValidationResult,
+)
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 直接导入canvas_utils.py而不是包
 import importlib.util
 
-spec = importlib.util.spec_from_file_location("canvas_utils_module",
-                                             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                                        "canvas_utils.py"))
+spec = importlib.util.spec_from_file_location(
+    "canvas_utils_module",
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "canvas_utils.py"
+    ),
+)
 canvas_utils_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(canvas_utils_module)
 CanvasJSONOperator = canvas_utils_module.CanvasJSONOperator
@@ -52,9 +66,7 @@ class TestValidationResult(unittest.TestCase):
     def test_validation_result_creation(self):
         """测试验证结果创建"""
         result = ValidationResult(
-            success=True,
-            message="Validation passed",
-            operation_type="add_node"
+            success=True, message="Validation passed", operation_type="add_node"
         )
 
         self.assertTrue(result.success)
@@ -68,7 +80,7 @@ class TestValidationResult(unittest.TestCase):
             success=False,
             error="Invalid color",
             details={"color": "9"},
-            operation_type="add_node"
+            operation_type="add_node",
         )
 
         self.assertFalse(result.success)
@@ -81,11 +93,7 @@ class TestOperationResult(unittest.TestCase):
 
     def test_operation_result_creation(self):
         """测试操作结果创建"""
-        result = OperationResult(
-            type="add_node",
-            node_id="test-123",
-            success=True
-        )
+        result = OperationResult(type="add_node", node_id="test-123", success=True)
 
         self.assertEqual(result.type, "add_node")
         self.assertEqual(result.node_id, "test-123")
@@ -96,10 +104,7 @@ class TestOperationResult(unittest.TestCase):
     def test_operation_result_retry(self):
         """测试操作结果重试计数"""
         result = OperationResult(
-            type="add_edge",
-            edge_id="edge-456",
-            success=False,
-            retry_count=2
+            type="add_edge", edge_id="edge-456", success=False, retry_count=2
         )
 
         self.assertEqual(result.type, "add_edge")
@@ -119,7 +124,7 @@ class TestCanvasUpdateResult(unittest.TestCase):
             edges_before=5,
             edges_after=6,
             expected_nodes=2,
-            expected_edges=1
+            expected_edges=1,
         )
 
         self.assertTrue(result.success())
@@ -134,7 +139,7 @@ class TestCanvasUpdateResult(unittest.TestCase):
             edges_before=5,
             edges_after=6,
             expected_nodes=2,
-            expected_edges=1
+            expected_edges=1,
         )
 
         self.assertFalse(result.success())
@@ -148,7 +153,7 @@ class TestCanvasUpdateResult(unittest.TestCase):
             edges_after=6,
             expected_nodes=2,
             expected_edges=1,
-            repair_attempts=1
+            repair_attempts=1,
         )
 
         summary = result.get_summary()
@@ -182,7 +187,7 @@ class TestCanvasValidator(unittest.TestCase):
                     "width": 200,
                     "height": 100,
                     "color": "1",
-                    "text": "Test node 1"
+                    "text": "Test node 1",
                 },
                 {
                     "id": "node-2",
@@ -192,21 +197,16 @@ class TestCanvasValidator(unittest.TestCase):
                     "width": 200,
                     "height": 100,
                     "color": "2",
-                    "text": "Test node 2"
-                }
+                    "text": "Test node 2",
+                },
             ],
             "edges": [
-                {
-                    "id": "edge-1",
-                    "fromNode": "node-1",
-                    "toNode": "node-2",
-                    "color": "6"
-                }
-            ]
+                {"id": "edge-1", "fromNode": "node-1", "toNode": "node-2", "color": "6"}
+            ],
         }
 
         # 写入测试Canvas文件
-        with open(self.test_canvas_path, 'w', encoding='utf-8') as f:
+        with open(self.test_canvas_path, "w", encoding="utf-8") as f:
             json.dump(self.test_canvas_data, f, indent=2)
 
         # 配置模拟操作器的行为
@@ -245,10 +245,12 @@ class TestCanvasValidator(unittest.TestCase):
             "width": 200,
             "height": 100,
             "color": "6",
-            "text": "New node"
+            "text": "New node",
         }
 
-        result = self.validator.validate_operation("add_node", node_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_node", node_data, self.test_canvas_path
+        )
 
         self.assertTrue(result.success)
         self.assertEqual(result.message, "Node validation passed")
@@ -263,7 +265,9 @@ class TestCanvasValidator(unittest.TestCase):
             # 缺少 id, width, height, color
         }
 
-        result = self.validator.validate_operation("add_node", node_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_node", node_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Missing required field", result.error)
@@ -278,10 +282,12 @@ class TestCanvasValidator(unittest.TestCase):
             "y": 300,
             "width": 200,
             "height": 100,
-            "color": "6"
+            "color": "6",
         }
 
-        result = self.validator.validate_operation("add_node", node_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_node", node_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Invalid node type", result.error)
@@ -295,10 +301,12 @@ class TestCanvasValidator(unittest.TestCase):
             "y": 300,
             "width": 200,
             "height": 100,
-            "color": "9"  # 无效颜色
+            "color": "9",  # 无效颜色
         }
 
-        result = self.validator.validate_operation("add_node", node_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_node", node_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Invalid color", result.error)
@@ -312,10 +320,12 @@ class TestCanvasValidator(unittest.TestCase):
             "y": 300,
             "width": 200,
             "height": 100,
-            "color": "6"
+            "color": "6",
         }
 
-        result = self.validator.validate_operation("add_node", node_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_node", node_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Node already exists", result.error)
@@ -329,10 +339,12 @@ class TestCanvasValidator(unittest.TestCase):
             "y": 300,
             "width": 200,
             "height": 100,
-            "color": "6"
+            "color": "6",
         }
 
-        result = self.validator.validate_operation("add_node", node_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_node", node_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Invalid position or size", result.error)
@@ -343,10 +355,12 @@ class TestCanvasValidator(unittest.TestCase):
             "id": "edge-2",
             "fromNode": "node-1",
             "toNode": "node-2",
-            "color": "6"
+            "color": "6",
         }
 
-        result = self.validator.validate_operation("add_edge", edge_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_edge", edge_data, self.test_canvas_path
+        )
 
         self.assertTrue(result.success)
         self.assertEqual(result.message, "Edge validation passed")
@@ -359,7 +373,9 @@ class TestCanvasValidator(unittest.TestCase):
             # 缺少 toNode, id, color
         }
 
-        result = self.validator.validate_operation("add_edge", edge_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_edge", edge_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Missing required field", result.error)
@@ -370,10 +386,12 @@ class TestCanvasValidator(unittest.TestCase):
             "id": "edge-3",
             "fromNode": "nonexistent-node",
             "toNode": "node-2",
-            "color": "6"
+            "color": "6",
         }
 
-        result = self.validator.validate_operation("add_edge", edge_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_edge", edge_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Source node not found", result.error)
@@ -384,10 +402,12 @@ class TestCanvasValidator(unittest.TestCase):
             "id": "edge-3",
             "fromNode": "node-1",
             "toNode": "nonexistent-node",
-            "color": "6"
+            "color": "6",
         }
 
-        result = self.validator.validate_operation("add_edge", edge_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_edge", edge_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Target node not found", result.error)
@@ -398,10 +418,12 @@ class TestCanvasValidator(unittest.TestCase):
             "id": "edge-self",
             "fromNode": "node-1",
             "toNode": "node-1",  # 自循环
-            "color": "6"
+            "color": "6",
         }
 
-        result = self.validator.validate_operation("add_edge", edge_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "add_edge", edge_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Self-loops are not allowed", result.error)
@@ -419,8 +441,8 @@ class TestCanvasValidator(unittest.TestCase):
                         "y": 400,
                         "width": 200,
                         "height": 100,
-                        "color": "6"
-                    }
+                        "color": "6",
+                    },
                 },
                 {
                     "type": "add_edge",
@@ -428,9 +450,9 @@ class TestCanvasValidator(unittest.TestCase):
                         "id": "batch-edge-1",
                         "fromNode": "batch-node-1",
                         "toNode": "node-1",
-                        "color": "6"
-                    }
-                }
+                        "color": "6",
+                    },
+                },
             ]
         }
 
@@ -442,7 +464,9 @@ class TestCanvasValidator(unittest.TestCase):
 
         self.mock_canvas_operator.find_node_by_id.side_effect = mock_find_node_new
 
-        result = self.validator.validate_operation("batch_operation", batch_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "batch_operation", batch_data, self.test_canvas_path
+        )
 
         self.assertTrue(result.success)
         self.assertIn("Batch validation passed", result.message)
@@ -452,22 +476,26 @@ class TestCanvasValidator(unittest.TestCase):
         # 创建超过最大批量大小的操作列表
         operations = []
         for i in range(150):  # 超过100的限制
-            operations.append({
-                "type": "add_node",
-                "data": {
-                    "id": f"batch-node-{i}",
-                    "type": "text",
-                    "x": 100,
-                    "y": 100,
-                    "width": 200,
-                    "height": 100,
-                    "color": "6"
+            operations.append(
+                {
+                    "type": "add_node",
+                    "data": {
+                        "id": f"batch-node-{i}",
+                        "type": "text",
+                        "x": 100,
+                        "y": 100,
+                        "width": 200,
+                        "height": 100,
+                        "color": "6",
+                    },
                 }
-            })
+            )
 
         batch_data = {"operations": operations}
 
-        result = self.validator.validate_operation("batch_operation", batch_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "batch_operation", batch_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Batch size too large", result.error)
@@ -476,40 +504,43 @@ class TestCanvasValidator(unittest.TestCase):
         """测试节点更新验证"""
         update_data = {
             "id": "node-1",
-            "color": "2"  # 更新颜色
+            "color": "2",  # 更新颜色
         }
 
-        result = self.validator.validate_operation("update_node", update_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "update_node", update_data, self.test_canvas_path
+        )
 
         self.assertTrue(result.success)
         self.assertEqual(result.message, "Node update validation passed")
 
     def test_validate_node_update_not_found(self):
         """测试更新不存在的节点"""
-        update_data = {
-            "id": "nonexistent-node",
-            "color": "2"
-        }
+        update_data = {"id": "nonexistent-node", "color": "2"}
 
-        result = self.validator.validate_operation("update_node", update_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "update_node", update_data, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Node not found", result.error)
 
     def test_validate_node_deletion(self):
         """测试节点删除验证"""
-        delete_data = {
-            "id": "node-1"
-        }
+        delete_data = {"id": "node-1"}
 
-        result = self.validator.validate_operation("delete_node", delete_data, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "delete_node", delete_data, self.test_canvas_path
+        )
 
         self.assertTrue(result.success)
         self.assertEqual(result.message, "Node deletion validation passed")
 
     def test_validate_unknown_operation(self):
         """测试未知操作类型验证"""
-        result = self.validator.validate_operation("unknown_op", {}, self.test_canvas_path)
+        result = self.validator.validate_operation(
+            "unknown_op", {}, self.test_canvas_path
+        )
 
         self.assertFalse(result.success)
         self.assertIn("Unknown operation", result.error)
@@ -518,26 +549,25 @@ class TestCanvasValidator(unittest.TestCase):
         """测试确保Canvas更新成功"""
         operations = [
             OperationResult(type="add_node", node_id="new-node", success=True),
-            OperationResult(type="add_edge", edge_id="new-edge", success=True)
+            OperationResult(type="add_edge", edge_id="new-edge", success=True),
         ]
 
         # 模拟更新后的Canvas数据
         updated_canvas = self.test_canvas_data.copy()
-        updated_canvas["nodes"].append({
-            "id": "new-node",
-            "type": "text",
-            "x": 100,
-            "y": 400,
-            "width": 200,
-            "height": 100,
-            "color": "6"
-        })
-        updated_canvas["edges"].append({
-            "id": "new-edge",
-            "fromNode": "new-node",
-            "toNode": "node-1",
-            "color": "6"
-        })
+        updated_canvas["nodes"].append(
+            {
+                "id": "new-node",
+                "type": "text",
+                "x": 100,
+                "y": 400,
+                "width": 200,
+                "height": 100,
+                "color": "6",
+            }
+        )
+        updated_canvas["edges"].append(
+            {"id": "new-edge", "fromNode": "new-node", "toNode": "node-1", "color": "6"}
+        )
 
         # 配置模拟返回更新后的数据
         def mock_read_updated(path):
@@ -558,10 +588,14 @@ class TestCanvasValidator(unittest.TestCase):
         operations = [
             OperationResult(type="add_node", node_id="node-1", success=True),
             OperationResult(type="add_edge", edge_id="edge-1", success=True),
-            OperationResult(type="add_node", node_id="node-2", success=False, error="Test error")
+            OperationResult(
+                type="add_node", node_id="node-2", success=False, error="Test error"
+            ),
         ]
 
-        report = self.validator.generate_validation_report(operations, self.test_canvas_path)
+        report = self.validator.generate_validation_report(
+            operations, self.test_canvas_path
+        )
 
         self.assertEqual(report.canvas_path, self.test_canvas_path)
         self.assertEqual(report.total_operations, 3)
@@ -579,11 +613,11 @@ class TestCanvasValidator(unittest.TestCase):
 
     def test_save_validation_report(self):
         """测试保存验证报告"""
-        operations = [
-            OperationResult(type="add_node", node_id="node-1", success=True)
-        ]
+        operations = [OperationResult(type="add_node", node_id="node-1", success=True)]
 
-        report = self.validator.generate_validation_report(operations, self.test_canvas_path)
+        report = self.validator.generate_validation_report(
+            operations, self.test_canvas_path
+        )
 
         # 保存报告
         report_path = self.validator.save_validation_report(report)
@@ -592,7 +626,7 @@ class TestCanvasValidator(unittest.TestCase):
         self.assertTrue(os.path.exists(report_path))
 
         # 验证文件内容
-        with open(report_path, 'r', encoding='utf-8') as f:
+        with open(report_path, "r", encoding="utf-8") as f:
             saved_data = json.load(f)
 
         self.assertEqual(saved_data["canvas_path"], self.test_canvas_path)
@@ -605,25 +639,33 @@ class TestCanvasValidator(unittest.TestCase):
     def test_get_validation_stats(self):
         """测试获取验证统计"""
         # 执行一些验证操作
-        self.validator.validate_operation("add_node", {
-            "id": "test1",
-            "type": "text",
-            "x": 100,
-            "y": 100,
-            "width": 200,
-            "height": 100,
-            "color": "6"
-        }, self.test_canvas_path)
+        self.validator.validate_operation(
+            "add_node",
+            {
+                "id": "test1",
+                "type": "text",
+                "x": 100,
+                "y": 100,
+                "width": 200,
+                "height": 100,
+                "color": "6",
+            },
+            self.test_canvas_path,
+        )
 
-        self.validator.validate_operation("add_node", {
-            "id": "node-1",  # 已存在，会失败
-            "type": "text",
-            "x": 100,
-            "y": 100,
-            "width": 200,
-            "height": 100,
-            "color": "6"
-        }, self.test_canvas_path)
+        self.validator.validate_operation(
+            "add_node",
+            {
+                "id": "node-1",  # 已存在，会失败
+                "type": "text",
+                "x": 100,
+                "y": 100,
+                "width": 200,
+                "height": 100,
+                "color": "6",
+            },
+            self.test_canvas_path,
+        )
 
         stats = self.validator.get_validation_stats()
 
@@ -635,15 +677,19 @@ class TestCanvasValidator(unittest.TestCase):
     def test_reset_stats(self):
         """测试重置统计"""
         # 执行验证操作
-        self.validator.validate_operation("add_node", {
-            "id": "test1",
-            "type": "text",
-            "x": 100,
-            "y": 100,
-            "width": 200,
-            "height": 100,
-            "color": "6"
-        }, self.test_canvas_path)
+        self.validator.validate_operation(
+            "add_node",
+            {
+                "id": "test1",
+                "type": "text",
+                "x": 100,
+                "y": 100,
+                "width": 200,
+                "height": 100,
+                "color": "6",
+            },
+            self.test_canvas_path,
+        )
 
         # 重置统计
         self.validator.reset_stats()
@@ -662,13 +708,11 @@ class TestValidationReport(unittest.TestCase):
         operations = [
             OperationResult(type="add_node", success=True),
             OperationResult(type="add_node", success=True),
-            OperationResult(type="add_edge", success=False)
+            OperationResult(type="add_edge", success=False),
         ]
 
         report = ValidationReport(
-            canvas_path="test.canvas",
-            timestamp=datetime.now(),
-            operations=operations
+            canvas_path="test.canvas", timestamp=datetime.now(), operations=operations
         )
 
         report.total_operations = len(operations)
@@ -676,7 +720,7 @@ class TestValidationReport(unittest.TestCase):
         report.failed_operations = 1
         report.operations_by_type = {
             "add_node": {"total": 2, "success": 2},
-            "add_edge": {"total": 1, "success": 0}
+            "add_edge": {"total": 1, "success": 0},
         }
 
         summary = report.generate_summary()
@@ -687,6 +731,6 @@ class TestValidationReport(unittest.TestCase):
         self.assertEqual(summary["failed_operations"], 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 运行测试
     unittest.main(verbosity=2)

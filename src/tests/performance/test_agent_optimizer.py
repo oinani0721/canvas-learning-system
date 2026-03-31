@@ -36,8 +36,7 @@ class TestAgentPerformanceOptimizer:
         try:
             # 提交任务
             task_id = optimizer.submit_task(
-                agent_type="basic-decomposition",
-                input_data={"concept": "机器学习"}
+                agent_type="basic-decomposition", input_data={"concept": "机器学习"}
             )
 
             # 等待任务完成
@@ -63,7 +62,7 @@ class TestAgentPerformanceOptimizer:
                 {
                     "agent_type": "basic-decomposition",
                     "input_data": {"concept": f"概念{i}"},
-                    "priority": i % 3
+                    "priority": i % 3,
                 }
                 for i in range(8)
             ]
@@ -96,15 +95,13 @@ class TestAgentPerformanceOptimizer:
         try:
             # 第一次执行任务
             task_id1 = optimizer.submit_task(
-                agent_type="basic-decomposition",
-                input_data={"concept": "缓存测试概念"}
+                agent_type="basic-decomposition", input_data={"concept": "缓存测试概念"}
             )
             result1 = optimizer.wait_for_task(task_id1)
 
             # 第二次执行相同任务（应该命中缓存）
             task_id2 = optimizer.submit_task(
-                agent_type="basic-decomposition",
-                input_data={"concept": "缓存测试概念"}
+                agent_type="basic-decomposition", input_data={"concept": "缓存测试概念"}
             )
             result2 = optimizer.wait_for_task(task_id2)
 
@@ -129,13 +126,13 @@ class TestAgentPerformanceOptimizer:
             low_priority_id = optimizer.submit_task(
                 agent_type="basic-decomposition",
                 input_data={"concept": "低优先级"},
-                priority=10
+                priority=10,
             )
 
             high_priority_id = optimizer.submit_task(
                 agent_type="basic-decomposition",
                 input_data={"concept": "高优先级"},
-                priority=1
+                priority=1,
             )
 
             # 等待任务完成
@@ -156,8 +153,7 @@ class TestAgentPerformanceOptimizer:
         try:
             # 提交一个会失败的任务（使用不存在的Agent类型）
             task_id = optimizer.submit_task(
-                agent_type="non-existent-agent",
-                input_data={"concept": "测试"}
+                agent_type="non-existent-agent", input_data={"concept": "测试"}
             )
 
             # 等待任务完成（应该失败）
@@ -178,8 +174,7 @@ class TestAgentPerformanceOptimizer:
     def test_context_pooling(self):
         """测试上下文池管理"""
         optimizer = AgentPerformanceOptimizer(
-            max_workers=3,
-            enable_context_pooling=True
+            max_workers=3, enable_context_pooling=True
         )
 
         try:
@@ -188,7 +183,7 @@ class TestAgentPerformanceOptimizer:
             for i in range(5):
                 task_id = optimizer.submit_task(
                     agent_type="scoring-agent",
-                    input_data={"user_text": f"用户理解 {i}"}
+                    input_data={"user_text": f"用户理解 {i}"},
                 )
                 task_ids.append(task_id)
 
@@ -218,7 +213,7 @@ class TestAgentPerformanceOptimizer:
             for i in range(6):
                 task_id = optimizer.submit_task(
                     agent_type="oral-explanation",
-                    input_data={"concept": f"性能测试概念 {i}"}
+                    input_data={"concept": f"性能测试概念 {i}"},
                 )
                 task_ids.append(task_id)
 
@@ -250,7 +245,7 @@ class TestAgentPerformanceOptimizer:
                 {
                     "agent_type": "basic-decomposition",
                     "input_data": {"concept": f"批量概念 {i}"},
-                    "priority": i % 2
+                    "priority": i % 2,
                 }
                 for i in range(6)
             ]
@@ -282,8 +277,7 @@ class TestAgentPerformanceOptimizer:
         try:
             # 提交任务
             task_id = optimizer.submit_task(
-                agent_type="clarification-path",
-                input_data={"concept": "状态测试"}
+                agent_type="clarification-path", input_data={"concept": "状态测试"}
             )
 
             # 检查初始状态
@@ -314,8 +308,7 @@ class TestAgentPerformanceOptimizer:
 
         # 测试便捷任务提交
         task_id = submit_agent_task(
-            agent_type="basic-decomposition",
-            input_data={"concept": "便捷函数测试"}
+            agent_type="basic-decomposition", input_data={"concept": "便捷函数测试"}
         )
 
         # 验证任务ID格式
@@ -328,7 +321,7 @@ class TestAgentPerformanceOptimizer:
         tasks = [
             {
                 "agent_type": "basic-decomposition",
-                "input_data": {"concept": f"便捷并行测试 {i}"}
+                "input_data": {"concept": f"便捷并行测试 {i}"},
             }
             for i in range(3)
         ]
@@ -356,14 +349,13 @@ class TestAgentPerformanceOptimizer:
                 "memory-anchor",
                 "four-level-explanation",
                 "example-teaching",
-                "verification-question"
+                "verification-question",
             ]
 
             results = []
             for agent_type in agent_types:
                 task_id = optimizer.submit_task(
-                    agent_type=agent_type,
-                    input_data={"concept": f"{agent_type}测试"}
+                    agent_type=agent_type, input_data={"concept": f"{agent_type}测试"}
                 )
                 result = optimizer.wait_for_task(task_id)
                 results.append((agent_type, result))
@@ -386,7 +378,7 @@ class TestAgentPerformanceOptimizer:
             for i in range(5):
                 task_id = optimizer.submit_task(
                     agent_type="basic-decomposition",
-                    input_data={"concept": f"资源测试 {i}"}
+                    input_data={"concept": f"资源测试 {i}"},
                 )
                 optimizer.wait_for_task(task_id)
 
@@ -404,14 +396,14 @@ class TestAgentPerformanceOptimizer:
 
     def test_async_compatibility(self):
         """测试异步兼容性"""
+
         async def test_async_operations():
             optimizer = AgentPerformanceOptimizer(max_workers=2)
 
             try:
                 # 在异步环境中提交任务
                 task_id = optimizer.submit_task(
-                    agent_type="basic-decomposition",
-                    input_data={"concept": "异步测试"}
+                    agent_type="basic-decomposition", input_data={"concept": "异步测试"}
                 )
 
                 # 使用异步等待

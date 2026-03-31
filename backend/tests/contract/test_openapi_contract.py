@@ -11,8 +11,10 @@ the schema and validates responses match the expected format.
 """
 
 import os
+
 import pytest
-import schemathesis
+
+schemathesis = pytest.importorskip("schemathesis", reason="schemathesis not installed")
 from app.main import app
 from hypothesis import Phase, settings
 
@@ -28,6 +30,7 @@ schema = schemathesis.openapi.from_asgi("/api/v1/openapi.json", app)
 # ═══════════════════════════════════════════════════════════════════════════════
 # Contract Tests
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 # ✅ Verified from Context7:/schemathesis/schemathesis (topic: call_and_validate)
 # Pattern: Use call_and_validate() with specific checks for placeholder implementation
@@ -66,6 +69,7 @@ def test_api_contract(case):
 # Stateful Testing (Optional - for complex workflows)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestCanvasWorkflow:
     """
     Stateful tests for canvas workflow.
@@ -78,11 +82,12 @@ class TestCanvasWorkflow:
     def test_canvas_name(self):
         """Generate unique canvas name for testing."""
         import uuid
+
         return f"test-canvas-{uuid.uuid4().hex[:8]}"
 
     @pytest.mark.skipif(
         not os.environ.get("RUN_E2E_TESTS"),
-        reason="E2E tests require RUN_E2E_TESTS=1 and running backend"
+        reason="E2E tests require RUN_E2E_TESTS=1 and running backend",
     )
     def test_canvas_crud_workflow(self, test_canvas_name):
         """
@@ -106,7 +111,7 @@ class TestCanvasWorkflow:
         # Note: Real implementation should return 201
         response = test_client.post(
             f"/api/v1/canvas/{test_canvas_name}/nodes",
-            json={"text": "Test Node", "x": 0, "y": 0}
+            json={"text": "Test Node", "x": 0, "y": 0},
         )
         # Accept both 200 (placeholder) and 201 (real implementation)
         assert response.status_code in [200, 201]

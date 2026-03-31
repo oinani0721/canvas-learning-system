@@ -47,10 +47,7 @@ class TestProviderRecovery:
         assert provider.is_available is True
 
     def test_recovered_provider_rejoins_pool(
-        self,
-        mock_healthy_provider,
-        mock_unhealthy_provider,
-        provider_factory_clean
+        self, mock_healthy_provider, mock_unhealthy_provider, provider_factory_clean
     ):
         """AC-20.4.5: Recovered provider is re-added to selection pool."""
         from app.clients.provider_factory import ProviderFactory
@@ -72,8 +69,7 @@ class TestProviderRecovery:
 
         # Act 2 - Simulate recovery
         mock_unhealthy_provider.health = ProviderHealth(
-            status=ProviderStatus.HEALTHY,
-            consecutive_failures=0
+            status=ProviderStatus.HEALTHY, consecutive_failures=0
         )
         mock_unhealthy_provider.is_available = True
 
@@ -84,10 +80,7 @@ class TestProviderRecovery:
     def test_gradual_recovery_through_degraded(self):
         """Test recovery path: UNHEALTHY → DEGRADED → HEALTHY."""
         # Arrange
-        health = ProviderHealth(
-            status=ProviderStatus.UNHEALTHY,
-            consecutive_failures=3
-        )
+        health = ProviderHealth(status=ProviderStatus.UNHEALTHY, consecutive_failures=3)
 
         # Act - First successful request
         health.consecutive_failures = 2
@@ -114,7 +107,7 @@ class TestProviderRecovery:
         health = ProviderHealth(
             status=ProviderStatus.UNHEALTHY,
             latency_ms=None,  # No latency when unhealthy
-            consecutive_failures=3
+            consecutive_failures=3,
         )
 
         # Act - Recovery with new latency
@@ -149,18 +142,14 @@ class TestProviderRecoveryAsync:
             async def health_check(self):
                 return self.health
 
-        config = ProviderConfig(
-            name="test",
-            api_key="test-key",
-            model="test-model"
-        )
+        config = ProviderConfig(name="test", api_key="test-key", model="test-model")
         provider = TestProvider(config)
 
         # Start with unhealthy
         provider.health = ProviderHealth(
             status=ProviderStatus.UNHEALTHY,
             consecutive_failures=5,
-            error_message="Previous error"
+            error_message="Previous error",
         )
 
         # Act - Single successful update should recover
@@ -173,8 +162,7 @@ class TestProviderRecoveryAsync:
         assert provider.health.error_message is None
 
     async def test_periodic_health_check_recovers_provider(
-        self,
-        provider_factory_clean
+        self, provider_factory_clean
     ):
         """AC-20.4.5: Periodic health check re-enables recovered provider."""
         from app.clients.provider_factory import ProviderFactory
@@ -187,17 +175,16 @@ class TestProviderRecoveryAsync:
 
         # Initially unhealthy
         mock_provider.health = ProviderHealth(
-            status=ProviderStatus.UNHEALTHY,
-            consecutive_failures=3
+            status=ProviderStatus.UNHEALTHY, consecutive_failures=3
         )
         mock_provider.is_available = False
 
         # Health check returns healthy (simulating recovery)
-        mock_provider.health_check = AsyncMock(return_value=ProviderHealth(
-            status=ProviderStatus.HEALTHY,
-            latency_ms=50.0,
-            consecutive_failures=0
-        ))
+        mock_provider.health_check = AsyncMock(
+            return_value=ProviderHealth(
+                status=ProviderStatus.HEALTHY, latency_ms=50.0, consecutive_failures=0
+            )
+        )
 
         factory = ProviderFactory()
         factory._providers = {"recovering": mock_provider}
@@ -210,9 +197,7 @@ class TestProviderRecoveryAsync:
         assert results["recovering"].consecutive_failures == 0
 
     async def test_recovery_does_not_interrupt_active_requests(
-        self,
-        mock_healthy_provider,
-        provider_factory_clean
+        self, mock_healthy_provider, provider_factory_clean
     ):
         """Test that recovery process doesn't interrupt active requests."""
         from app.clients.provider_factory import ProviderFactory
@@ -225,17 +210,12 @@ class TestProviderRecoveryAsync:
 
         # Simulate concurrent request during recovery
         async def simulate_request():
-            response = await factory.complete(
-                system_prompt="Test",
-                user_prompt="Hello"
-            )
+            response = await factory.complete(system_prompt="Test", user_prompt="Hello")
             return response
 
         # Act - Multiple concurrent requests
         results = await asyncio.gather(
-            simulate_request(),
-            simulate_request(),
-            simulate_request()
+            simulate_request(), simulate_request(), simulate_request()
         )
 
         # Assert - All requests should complete
@@ -250,11 +230,11 @@ class TestProviderRecoveryAsync:
         health = ProviderHealth(
             status=ProviderStatus.UNHEALTHY,
             consecutive_failures=3,
-            last_check=datetime.now() - timedelta(seconds=10)
+            last_check=datetime.now() - timedelta(seconds=10),
         )
 
         # Calculate expected backoff (2^failures seconds, max 300)
-        expected_backoff = min(2 ** 3, 300)  # 8 seconds
+        expected_backoff = min(2**3, 300)  # 8 seconds
 
         # Assert - Time since last check
         time_since_check = (datetime.now() - health.last_check).total_seconds()
@@ -265,10 +245,7 @@ class TestProviderRecoveryAsync:
         assert can_retry is True
 
     async def test_recovery_emits_log_event(
-        self,
-        mock_unhealthy_provider,
-        provider_factory_clean,
-        caplog
+        self, mock_unhealthy_provider, provider_factory_clean, caplog
     ):
         """Test that recovery emits appropriate log messages."""
         import logging
@@ -280,8 +257,7 @@ class TestProviderRecoveryAsync:
 
         # Simulate recovery
         mock_unhealthy_provider.health = ProviderHealth(
-            status=ProviderStatus.HEALTHY,
-            consecutive_failures=0
+            status=ProviderStatus.HEALTHY, consecutive_failures=0
         )
         mock_unhealthy_provider.is_available = True
         mock_unhealthy_provider.health_check = AsyncMock(
@@ -324,8 +300,7 @@ class TestRecoveryScenarios:
 
         # Phase 2: Degraded (1 failure)
         provider.health = ProviderHealth(
-            status=ProviderStatus.DEGRADED,
-            consecutive_failures=1
+            status=ProviderStatus.DEGRADED, consecutive_failures=1
         )
         provider.is_available = True
         selected = factory.get_provider()
@@ -333,15 +308,13 @@ class TestRecoveryScenarios:
 
         # Phase 3: Unhealthy (3 failures)
         provider.health = ProviderHealth(
-            status=ProviderStatus.UNHEALTHY,
-            consecutive_failures=3
+            status=ProviderStatus.UNHEALTHY, consecutive_failures=3
         )
         provider.is_available = False
 
         # Phase 4: Recovery
         provider.health = ProviderHealth(
-            status=ProviderStatus.HEALTHY,
-            consecutive_failures=0
+            status=ProviderStatus.HEALTHY, consecutive_failures=0
         )
         provider.is_available = True
         selected = factory.get_provider()
@@ -359,8 +332,7 @@ class TestRecoveryScenarios:
             p.priority = i + 1
             p.is_enabled = True
             p.health = ProviderHealth(
-                status=ProviderStatus.UNHEALTHY,
-                consecutive_failures=3
+                status=ProviderStatus.UNHEALTHY, consecutive_failures=3
             )
             p.is_available = False
             providers[name] = p
@@ -371,8 +343,7 @@ class TestRecoveryScenarios:
 
         # Act - Recover OpenAI first (priority 2)
         providers["openai"].health = ProviderHealth(
-            status=ProviderStatus.HEALTHY,
-            consecutive_failures=0
+            status=ProviderStatus.HEALTHY, consecutive_failures=0
         )
         providers["openai"].is_available = True
 
@@ -381,8 +352,7 @@ class TestRecoveryScenarios:
 
         # Act - Recover Google (priority 1)
         providers["google"].health = ProviderHealth(
-            status=ProviderStatus.HEALTHY,
-            consecutive_failures=0
+            status=ProviderStatus.HEALTHY, consecutive_failures=0
         )
         providers["google"].is_available = True
 

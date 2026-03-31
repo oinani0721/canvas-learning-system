@@ -16,13 +16,10 @@ Run with:
 import logging
 import os
 import uuid
-from datetime import datetime
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
 from app.services.memory_service import MemoryService
-
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -58,6 +55,7 @@ async def _cleanup_prefix(client: Neo4jClient, prefix: str) -> None:
 # =============================================================================
 # Helpers
 # =============================================================================
+
 
 async def _insert_learning_data(neo4j_client, prefix, user_id, records):
     """Insert User -> LEARNED -> Concept relationships into Neo4j.
@@ -105,6 +103,7 @@ def _make_real_service(neo4j_client):
 # [Source: docs/stories/31.A.2.story.md#AC-31.A.2.1]
 # =============================================================================
 
+
 class TestAC31A21_Neo4jQueryPriority_Real:
     """AC-31.A.2.1: get_learning_history() must query Neo4j first (real DB)."""
 
@@ -119,18 +118,31 @@ class TestAC31A21_Neo4jQueryPriority_Real:
             user_id = f"{prefix}u1"
 
             # Insert one record into real Neo4j
-            await _insert_learning_data(client, prefix, user_id, [
-                {"concept": "矩阵", "score": 95, "timestamp": "2026-02-05T10:00:00"},
-            ])
+            await _insert_learning_data(
+                client,
+                prefix,
+                user_id,
+                [
+                    {
+                        "concept": "矩阵",
+                        "score": 95,
+                        "timestamp": "2026-02-05T10:00:00",
+                    },
+                ],
+            )
 
             service = _make_real_service(client)
             await service.initialize()
 
             # Add a different concept to in-memory store (simulating memory supplement)
-            service._episodes.append({
-                "user_id": user_id, "concept": f"{prefix}Memory-向量",
-                "score": 50, "timestamp": "2026-02-05T09:00:00"
-            })
+            service._episodes.append(
+                {
+                    "user_id": user_id,
+                    "concept": f"{prefix}Memory-向量",
+                    "score": 50,
+                    "timestamp": "2026-02-05T09:00:00",
+                }
+            )
 
             result = await service.get_learning_history(user_id=user_id)
 
@@ -140,7 +152,9 @@ class TestAC31A21_Neo4jQueryPriority_Real:
             )
             concepts = [item["concept"] for item in result["items"]]
             assert any("矩阵" in c for c in concepts), "Neo4j concept missing"
-            assert any("Memory-向量" in c for c in concepts), "In-memory concept missing"
+            assert any("Memory-向量" in c for c in concepts), (
+                "In-memory concept missing"
+            )
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -154,12 +168,25 @@ class TestAC31A21_Neo4jQueryPriority_Real:
             user_id = f"{prefix}u1"
 
             # Insert records spanning different dates, concepts, and group_ids
-            await _insert_learning_data(client, prefix, user_id, [
-                {"concept": "矩阵乘法", "score": 90,
-                 "timestamp": "2026-01-15T10:00:00", "group_id": "math"},
-                {"concept": "贝叶斯", "score": 80,
-                 "timestamp": "2026-02-10T10:00:00", "group_id": "stats"},
-            ])
+            await _insert_learning_data(
+                client,
+                prefix,
+                user_id,
+                [
+                    {
+                        "concept": "矩阵乘法",
+                        "score": 90,
+                        "timestamp": "2026-01-15T10:00:00",
+                        "group_id": "math",
+                    },
+                    {
+                        "concept": "贝叶斯",
+                        "score": 80,
+                        "timestamp": "2026-02-10T10:00:00",
+                        "group_id": "stats",
+                    },
+                ],
+            )
 
             service = _make_real_service(client)
             await service.initialize()
@@ -203,10 +230,14 @@ class TestAC31A21_Neo4jQueryPriority_Real:
             service._initialized = True
             service._episodes_recovered = True  # skip recovery attempt on broken client
 
-            service._episodes.append({
-                "user_id": user_id, "concept": "内存数据",
-                "score": 70, "timestamp": "2026-02-05T08:00:00"
-            })
+            service._episodes.append(
+                {
+                    "user_id": user_id,
+                    "concept": "内存数据",
+                    "score": 70,
+                    "timestamp": "2026-02-05T08:00:00",
+                }
+            )
 
             result = await service.get_learning_history(user_id=user_id)
 
@@ -241,7 +272,8 @@ class TestAC31A21_Neo4jQueryPriority_Real:
                 await service.get_learning_history(user_id=user_id)
 
             assert any(
-                "Neo4j query failed" in record.message and "falling back" in record.message
+                "Neo4j query failed" in record.message
+                and "falling back" in record.message
                 for record in caplog.records
             ), "Should log warning about Neo4j failure and fallback"
         finally:
@@ -260,10 +292,14 @@ class TestAC31A21_Neo4jQueryPriority_Real:
             service = _make_real_service(client)
             await service.initialize()
 
-            service._episodes.append({
-                "user_id": user_id, "concept": "内存回退",
-                "score": 60, "timestamp": "2026-02-05T07:00:00"
-            })
+            service._episodes.append(
+                {
+                    "user_id": user_id,
+                    "concept": "内存回退",
+                    "score": 60,
+                    "timestamp": "2026-02-05T07:00:00",
+                }
+            )
 
             result = await service.get_learning_history(user_id=user_id)
 
@@ -286,26 +322,34 @@ class TestAC31A21_Neo4jQueryPriority_Real:
             ts = "2026-02-05T10:00:00"
 
             # Insert into Neo4j
-            await _insert_learning_data(client, prefix, user_id, [
-                {"concept": "Dedup-A", "score": 90, "timestamp": ts},
-            ])
+            await _insert_learning_data(
+                client,
+                prefix,
+                user_id,
+                [
+                    {"concept": "Dedup-A", "score": 90, "timestamp": ts},
+                ],
+            )
 
             service = _make_real_service(client)
             await service.initialize()
 
             # Same event in memory (same node_id + timestamp = deduped)
-            service._episodes.append({
-                "user_id": user_id, "concept": concept_name,
-                "score": 90, "timestamp": ts,
-                "node_id": f"{prefix}cid_Dedup-A",
-            })
+            service._episodes.append(
+                {
+                    "user_id": user_id,
+                    "concept": concept_name,
+                    "score": 90,
+                    "timestamp": ts,
+                    "node_id": f"{prefix}cid_Dedup-A",
+                }
+            )
 
             result = await service.get_learning_history(user_id=user_id)
 
             # If dedup works, concept_name should appear at most once
             matching = [
-                item for item in result["items"]
-                if "Dedup-A" in item.get("concept", "")
+                item for item in result["items"] if "Dedup-A" in item.get("concept", "")
             ]
             # Neo4j returns concept_id in a separate field; the dedup key is (node_id, timestamp).
             # With same node_id and timestamp, should be deduped to 1 entry.

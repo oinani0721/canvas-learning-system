@@ -40,7 +40,7 @@ class TestConcurrentAgentProcessorFixed:
             agent_name="clarification-path",
             node_content="测试节点内容",
             canvas_path="test.canvas",
-            node_id="node123"
+            node_id="node123",
         )
 
         # 验证结果
@@ -62,9 +62,7 @@ class TestConcurrentAgentProcessorFixed:
         """测试 _call_subagent() 错误处理"""
         # Mock Anthropic client to raise exception
         mock_client = MagicMock()
-        mock_client.messages.create = MagicMock(
-            side_effect=Exception("API调用失败")
-        )
+        mock_client.messages.create = MagicMock(side_effect=Exception("API调用失败"))
 
         processor._anthropic_client = mock_client
 
@@ -73,7 +71,7 @@ class TestConcurrentAgentProcessorFixed:
             agent_name="clarification-path",
             node_content="测试节点内容",
             canvas_path="test.canvas",
-            node_id="node123"
+            node_id="node123",
         )
 
         # 验证错误处理
@@ -93,9 +91,9 @@ class TestConcurrentAgentProcessorFixed:
             "metadata": {
                 "timestamp": "2025-11-04T10:00:00",
                 "model": "claude-sonnet-4-5-20250929",
-                "word_count": 500
+                "word_count": 500,
             },
-            "success": True
+            "success": True,
         }
 
         processor._call_subagent = AsyncMock(return_value=mock_agent_result)
@@ -104,14 +102,12 @@ class TestConcurrentAgentProcessorFixed:
         task_info = {
             "agent_name": "clarification-path",
             "node_id": "node123",
-            "node_text": "测试节点文本内容"
+            "node_text": "测试节点文本内容",
         }
 
         # 调用方法
         result = await processor._execute_with_semaphore(
-            task_info=task_info,
-            canvas_path="test.canvas",
-            execution_id="exec123"
+            task_info=task_info, canvas_path="test.canvas", execution_id="exec123"
         )
 
         # 验证结果
@@ -127,7 +123,7 @@ class TestConcurrentAgentProcessorFixed:
             agent_name="clarification-path",
             node_content="测试节点文本内容",
             canvas_path="test.canvas",
-            node_id="node123"
+            node_id="node123",
         )
 
     @pytest.mark.asyncio
@@ -139,7 +135,7 @@ class TestConcurrentAgentProcessorFixed:
             "content": None,
             "node_id": "node123",
             "error": "Agent生成失败",
-            "success": False
+            "success": False,
         }
 
         processor._call_subagent = AsyncMock(return_value=mock_agent_result)
@@ -148,14 +144,12 @@ class TestConcurrentAgentProcessorFixed:
         task_info = {
             "agent_name": "clarification-path",
             "node_id": "node123",
-            "node_text": "测试节点文本内容"
+            "node_text": "测试节点文本内容",
         }
 
         # 调用方法
         result = await processor._execute_with_semaphore(
-            task_info=task_info,
-            canvas_path="test.canvas",
-            execution_id="exec123"
+            task_info=task_info, canvas_path="test.canvas", execution_id="exec123"
         )
 
         # 验证错误处理

@@ -36,7 +36,9 @@ skills_router = APIRouter()
 class SkillListItem(BaseModel):
     """Single skill in the skills list response."""
 
-    skill_id: str = Field(..., description="Skill identifier (file stem, e.g., 'basic-decompose')")
+    skill_id: str = Field(
+        ..., description="Skill identifier (file stem, e.g., 'basic-decompose')"
+    )
     name: str = Field(..., description="Display name (e.g., '基础拆解')")
     description: str = Field(..., description="One-line description")
     icon: str = Field(default="file-text", description="Icon identifier")

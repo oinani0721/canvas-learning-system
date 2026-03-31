@@ -31,10 +31,7 @@ class TestFailover:
     def provider_config(self):
         """Create test provider configuration."""
         return ProviderConfig(
-            name="test-provider",
-            api_key="test-api-key",
-            model="test-model",
-            priority=1
+            name="test-provider", api_key="test-api-key", model="test-model", priority=1
         )
 
     def test_provider_health_status_transitions(self):
@@ -79,8 +76,7 @@ class TestFailover:
         # Arrange
         provider = mock_healthy_provider
         provider.health = ProviderHealth(
-            status=ProviderStatus.DEGRADED,
-            consecutive_failures=2
+            status=ProviderStatus.DEGRADED, consecutive_failures=2
         )
 
         # Simulate success
@@ -92,10 +88,7 @@ class TestFailover:
         assert provider.health.status == ProviderStatus.HEALTHY
 
     def test_unhealthy_provider_excluded_from_selection(
-        self,
-        mock_healthy_provider,
-        mock_unhealthy_provider,
-        provider_factory_clean
+        self, mock_healthy_provider, mock_unhealthy_provider, provider_factory_clean
     ):
         """AC-20.4.4: Unhealthy providers are not selected."""
         from app.clients.provider_factory import ProviderFactory
@@ -125,7 +118,7 @@ class TestFailover:
             latency_ms=50.0,
             last_check=datetime(2025, 1, 1, 12, 0, 0),
             consecutive_failures=0,
-            error_message=None
+            error_message=None,
         )
 
         # Act
@@ -161,17 +154,12 @@ class TestFailoverAsync:
             async def health_check(self):
                 return self.health
 
-        config = ProviderConfig(
-            name="test",
-            api_key="test-key",
-            model="test-model"
-        )
+        config = ProviderConfig(name="test", api_key="test-key", model="test-model")
         provider = TestProvider(config)
 
         # Start with unhealthy state
         provider.health = ProviderHealth(
-            status=ProviderStatus.UNHEALTHY,
-            consecutive_failures=5
+            status=ProviderStatus.UNHEALTHY, consecutive_failures=5
         )
 
         # Act - Update with success
@@ -200,11 +188,7 @@ class TestFailoverAsync:
             async def health_check(self):
                 return self.health
 
-        config = ProviderConfig(
-            name="test",
-            api_key="test-key",
-            model="test-model"
-        )
+        config = ProviderConfig(name="test", api_key="test-key", model="test-model")
         provider = TestProvider(config)
         provider.health = ProviderHealth(status=ProviderStatus.HEALTHY)
 
@@ -234,11 +218,7 @@ class TestFailoverAsync:
             async def health_check(self):
                 return self.health
 
-        config = ProviderConfig(
-            name="test",
-            api_key="test-key",
-            model="test-model"
-        )
+        config = ProviderConfig(name="test", api_key="test-key", model="test-model")
         provider = TestProvider(config)
         provider.health = ProviderHealth(status=ProviderStatus.HEALTHY)
 
@@ -258,10 +238,11 @@ class TestFailoverAsync:
         for name in ["google", "openai"]:
             provider = MagicMock(spec=BaseProvider)
             provider.name = name
-            provider.health_check = AsyncMock(return_value=ProviderHealth(
-                status=ProviderStatus.HEALTHY,
-                latency_ms=50.0
-            ))
+            provider.health_check = AsyncMock(
+                return_value=ProviderHealth(
+                    status=ProviderStatus.HEALTHY, latency_ms=50.0
+                )
+            )
             mock_providers[name] = provider
 
         factory = ProviderFactory()
@@ -282,9 +263,9 @@ class TestFailoverAsync:
         # Arrange
         healthy_provider = MagicMock(spec=BaseProvider)
         healthy_provider.name = "healthy"
-        healthy_provider.health_check = AsyncMock(return_value=ProviderHealth(
-            status=ProviderStatus.HEALTHY
-        ))
+        healthy_provider.health_check = AsyncMock(
+            return_value=ProviderHealth(status=ProviderStatus.HEALTHY)
+        )
 
         failing_provider = MagicMock(spec=BaseProvider)
         failing_provider.name = "failing"

@@ -24,19 +24,19 @@ class TestAgentIntegration:
 
     # 14个AI Agent清单（从.claude/agents/目录）
     AGENTS = [
-        "canvas-orchestrator",          # 1. 主控Agent
-        "basic-decomposition",          # 2. 基础拆解Agent
-        "deep-decomposition",           # 3. 深度拆解Agent
-        "question-decomposition",       # 4. 问题拆解Agent
-        "oral-explanation",             # 5. 口语化解释Agent (🗣️)
-        "clarification-path",           # 6. 澄清路径Agent (🔍)
-        "comparison-table",             # 7. 对比表Agent (📊)
-        "memory-anchor",                # 8. 记忆锚点Agent (⚓)
-        "four-level-explanation",       # 9. 四层次解答Agent (🎯)
-        "example-teaching",             # 10. 例题教学Agent (📝)
-        "scoring-agent",                # 11. 评分Agent
+        "canvas-orchestrator",  # 1. 主控Agent
+        "basic-decomposition",  # 2. 基础拆解Agent
+        "deep-decomposition",  # 3. 深度拆解Agent
+        "question-decomposition",  # 4. 问题拆解Agent
+        "oral-explanation",  # 5. 口语化解释Agent (🗣️)
+        "clarification-path",  # 6. 澄清路径Agent (🔍)
+        "comparison-table",  # 7. 对比表Agent (📊)
+        "memory-anchor",  # 8. 记忆锚点Agent (⚓)
+        "four-level-explanation",  # 9. 四层次解答Agent (🎯)
+        "example-teaching",  # 10. 例题教学Agent (📝)
+        "scoring-agent",  # 11. 评分Agent
         "verification-question-agent",  # 12. 检验问题Agent
-        "graphiti-memory-agent",        # 13. Graphiti记忆Agent（新增）
+        "graphiti-memory-agent",  # 13. Graphiti记忆Agent（新增）
         "review-board-agent-selector",  # 14. 智能调度Agent（Epic 8）
     ]
 
@@ -60,7 +60,9 @@ class TestAgentIntegration:
         # 验证每个Agent名称格式正确（kebab-case）
         for agent in self.AGENTS:
             assert "-" in agent, f"Agent名称格式错误: {agent} (应使用kebab-case)"
-            assert agent.islower() or agent == agent.lower(), f"Agent名称应全小写: {agent}"
+            assert agent.islower() or agent == agent.lower(), (
+                f"Agent名称应全小写: {agent}"
+            )
 
         print("\n✅ Subtask 3.1 通过: Agent清单验证完成")
         for i, agent in enumerate(self.AGENTS, 1):
@@ -76,8 +78,8 @@ class TestAgentIntegration:
                 missing_agents.append(agent)
 
         assert len(missing_agents) == 0, (
-            f"以下{len(missing_agents)}个Agent定义文件不存在:\n" +
-            "\n".join(f"  - {agent}.md" for agent in missing_agents)
+            f"以下{len(missing_agents)}个Agent定义文件不存在:\n"
+            + "\n".join(f"  - {agent}.md" for agent in missing_agents)
         )
 
         print(f"\n✅ Subtask 3.2 通过: 所有{len(self.AGENTS)}个Agent定义文件存在")
@@ -87,7 +89,7 @@ class TestAgentIntegration:
         decomposition_agents = [
             "basic-decomposition",
             "deep-decomposition",
-            "question-decomposition"
+            "question-decomposition",
         ]
 
         for agent_type in decomposition_agents:
@@ -95,27 +97,31 @@ class TestAgentIntegration:
             assert agent_file.exists(), f"拆解Agent文件不存在: {agent_file}"
 
             # 验证文件可读且有内容
-            content = agent_file.read_text(encoding='utf-8')
-            assert len(content) > 100, f"Agent文件内容过短: {agent_type} ({len(content)}字节)"
+            content = agent_file.read_text(encoding="utf-8")
+            assert len(content) > 100, (
+                f"Agent文件内容过短: {agent_type} ({len(content)}字节)"
+            )
             assert "agent" in content.lower() or "decomposition" in content.lower(), (
                 f"Agent文件格式可能不正确: {agent_type}"
             )
 
-        print(f"\n✅ Subtask 3.3 通过: 拆解类Agent文件验证完成 ({len(decomposition_agents)}个)")
+        print(
+            f"\n✅ Subtask 3.3 通过: 拆解类Agent文件验证完成 ({len(decomposition_agents)}个)"
+        )
 
     def test_subtask_3_4_explanation_agents_present(self):
         """Subtask 3.4: 测试解释类Agent (4-6) 文件完整性"""
         explanation_agents_part1 = [
             "oral-explanation",
             "clarification-path",
-            "comparison-table"
+            "comparison-table",
         ]
 
         for agent_type in explanation_agents_part1:
             agent_file = self.agents_dir / f"{agent_type}.md"
             assert agent_file.exists(), f"解释Agent文件不存在: {agent_file}"
 
-            content = agent_file.read_text(encoding='utf-8')
+            content = agent_file.read_text(encoding="utf-8")
             assert len(content) > 100, f"Agent文件内容过短: {agent_type}"
 
         print("\n✅ Subtask 3.4 通过: 解释类Agent (4-6) 文件验证完成")
@@ -125,14 +131,14 @@ class TestAgentIntegration:
         explanation_agents_part2 = [
             "memory-anchor",
             "four-level-explanation",
-            "example-teaching"
+            "example-teaching",
         ]
 
         for agent_type in explanation_agents_part2:
             agent_file = self.agents_dir / f"{agent_type}.md"
             assert agent_file.exists(), f"解释Agent文件不存在: {agent_file}"
 
-            content = agent_file.read_text(encoding='utf-8')
+            content = agent_file.read_text(encoding="utf-8")
             assert len(content) > 100, f"Agent文件内容过短: {agent_type}"
 
         print("\n✅ Subtask 3.5 通过: 解释类Agent (7-9) 文件验证完成")
@@ -142,14 +148,14 @@ class TestAgentIntegration:
         special_agents = [
             "scoring-agent",
             "verification-question-agent",
-            "canvas-orchestrator"
+            "canvas-orchestrator",
         ]
 
         for agent_type in special_agents:
             agent_file = self.agents_dir / f"{agent_type}.md"
             assert agent_file.exists(), f"评分/检验Agent文件不存在: {agent_file}"
 
-            content = agent_file.read_text(encoding='utf-8')
+            content = agent_file.read_text(encoding="utf-8")
             assert len(content) > 100, f"Agent文件内容过短: {agent_type}"
 
             # 验证关键字（确保Agent文件是正确的类型）
@@ -177,7 +183,7 @@ class TestAgentIntegration:
             "comparison-table": "📊",
             "memory-anchor": "⚓",
             "four-level-explanation": "🎯",
-            "example-teaching": "📝"
+            "example-teaching": "📝",
         }
 
         for agent_type, emoji in expected_emoji_agents.items():
@@ -188,7 +194,9 @@ class TestAgentIntegration:
             # 实际的emoji映射在learning_analyzer.py中
             print(f"   {agent_type}: {emoji}")
 
-        print(f"\n✅ Subtask 3.7 通过: Agent Emoji映射验证完成 ({len(expected_emoji_agents)}个)")
+        print(
+            f"\n✅ Subtask 3.7 通过: Agent Emoji映射验证完成 ({len(expected_emoji_agents)}个)"
+        )
 
     def test_subtask_3_8_agent_yaml_frontmatter(self):
         """Subtask 3.8: 验证Agent文件YAML frontmatter格式正确"""
@@ -196,7 +204,7 @@ class TestAgentIntegration:
 
         for agent_type in self.AGENTS:
             agent_file = self.agents_dir / f"{agent_type}.md"
-            content = agent_file.read_text(encoding='utf-8')
+            content = agent_file.read_text(encoding="utf-8")
 
             # 检查YAML frontmatter存在（以---开始和结束）
             if not content.startswith("---"):
@@ -219,8 +227,8 @@ class TestAgentIntegration:
                     errors.append(f"{agent_type}: 缺少YAML字段 '{field}'")
 
         assert len(errors) == 0, (
-            f"发现{len(errors)}个Agent文件YAML frontmatter错误:\n" +
-            "\n".join(f"  - {err}" for err in errors)
+            f"发现{len(errors)}个Agent文件YAML frontmatter错误:\n"
+            + "\n".join(f"  - {err}" for err in errors)
         )
 
         print("\n✅ Subtask 3.8 通过: Agent YAML frontmatter格式验证完成")
@@ -232,13 +240,19 @@ class TestAgentIntegration:
         assert canvas_utils_path.exists(), "canvas_utils.py不存在"
 
         # 验证canvas_utils.py包含Agent相关功能
-        canvas_utils_content = canvas_utils_path.read_text(encoding='utf-8')
+        canvas_utils_content = canvas_utils_path.read_text(encoding="utf-8")
 
         # 检查颜色常量（Agent操作依赖的核心常量）
         assert "COLOR_RED" in canvas_utils_content, "canvas_utils.py缺少COLOR_RED常量"
-        assert "COLOR_GREEN" in canvas_utils_content, "canvas_utils.py缺少COLOR_GREEN常量"
-        assert "COLOR_PURPLE" in canvas_utils_content, "canvas_utils.py缺少COLOR_PURPLE常量"
-        assert "COLOR_YELLOW" in canvas_utils_content, "canvas_utils.py缺少COLOR_YELLOW常量"
+        assert "COLOR_GREEN" in canvas_utils_content, (
+            "canvas_utils.py缺少COLOR_GREEN常量"
+        )
+        assert "COLOR_PURPLE" in canvas_utils_content, (
+            "canvas_utils.py缺少COLOR_PURPLE常量"
+        )
+        assert "COLOR_YELLOW" in canvas_utils_content, (
+            "canvas_utils.py缺少COLOR_YELLOW常量"
+        )
 
         print("\n✅ Subtask 3.9 通过: Agent与Canvas系统集成验证完成")
         print(f"   canvas_utils.py大小: {len(canvas_utils_content):,}字节")
@@ -264,7 +278,7 @@ class TestAgentIntegration:
             "拆解类Agent (3个)": [
                 "basic-decomposition",
                 "deep-decomposition",
-                "question-decomposition"
+                "question-decomposition",
             ],
             "解释类Agent (6个)": [
                 "oral-explanation",
@@ -272,16 +286,10 @@ class TestAgentIntegration:
                 "comparison-table",
                 "memory-anchor",
                 "four-level-explanation",
-                "example-teaching"
+                "example-teaching",
             ],
-            "评分和检验类Agent (2个)": [
-                "scoring-agent",
-                "verification-question-agent"
-            ],
-            "新增Agent (2个)": [
-                "graphiti-memory-agent",
-                "review-board-agent-selector"
-            ]
+            "评分和检验类Agent (2个)": ["scoring-agent", "verification-question-agent"],
+            "新增Agent (2个)": ["graphiti-memory-agent", "review-board-agent-selector"],
         }
 
         for category, agents in categories.items():
@@ -307,9 +315,9 @@ class TestAgentIntegration:
         report_content = "\n".join(report_lines)
 
         # 将报告内容输出到测试日志
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(report_content)
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         print("\n✅ Subtask 3.10 通过: Agent集成测试报告已生成")
 

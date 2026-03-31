@@ -11,8 +11,9 @@ ReviewService factory/instance fixtures used by:
 - test_card_state_concurrent_write.py (indirectly)
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 @pytest.fixture
@@ -34,12 +35,15 @@ def mock_task_manager():
 @pytest.fixture
 def review_service_factory(mock_canvas_service, mock_task_manager):
     """Factory to create ReviewService with mocked dependencies."""
+
     def _create():
         from app.services.review_service import ReviewService
+
         return ReviewService(
             canvas_service=mock_canvas_service,
             task_manager=mock_task_manager,
         )
+
     return _create
 
 
@@ -53,6 +57,7 @@ def review_service(review_service_factory):
 def fallback_service(mock_canvas_service, mock_task_manager):
     """ReviewService with FSRS disabled (Ebbinghaus fallback mode)."""
     from app.services.review_service import ReviewService
+
     with patch("app.services.review_service.create_fsrs_manager", return_value=None):
         return ReviewService(
             canvas_service=mock_canvas_service,

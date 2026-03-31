@@ -46,7 +46,13 @@ if str(project_root) not in sys.path:
 
 # 导入Canvas工具库
 try:
-    from canvas_utils import COLOR_BLUE, COLOR_YELLOW, CanvasBusinessLogic, CanvasJSONOperator
+    from canvas_utils import (
+        COLOR_BLUE,
+        COLOR_YELLOW,
+        CanvasBusinessLogic,
+        CanvasJSONOperator,
+    )
+
     CANVAS_UTILS_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: canvas_utils not available - {e}")
@@ -55,6 +61,7 @@ except ImportError as e:
 # 导入AsyncExecutionEngine (Story 10.2.1依赖)
 try:
     from command_handlers.async_execution_engine import AsyncExecutionEngine, AsyncTask
+
     ASYNC_ENGINE_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: AsyncExecutionEngine not available - {e}")
@@ -63,6 +70,7 @@ except ImportError as e:
 # 导入IntelligentParallelScheduler (Story 10.2.4依赖)
 try:
     from schedulers.intelligent_parallel_scheduler import IntelligentParallelScheduler
+
     INTELLIGENT_SCHEDULER_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: IntelligentParallelScheduler not available - {e}")
@@ -97,33 +105,33 @@ class IntelligentParallelCommandHandler:
             "clarification-path": {
                 "name": "clarification-path",
                 "emoji": "🔍",
-                "description": "生成1500+词深度澄清文档"
+                "description": "生成1500+词深度澄清文档",
             },
             "memory-anchor": {
                 "name": "memory-anchor",
                 "emoji": "⚓",
-                "description": "生成生动类比和记忆锚点"
+                "description": "生成生动类比和记忆锚点",
             },
             "oral-explanation": {
                 "name": "oral-explanation",
                 "emoji": "🗣️",
-                "description": "生成800-1200词口语化教授式解释"
+                "description": "生成800-1200词口语化教授式解释",
             },
             "comparison-table": {
                 "name": "comparison-table",
                 "emoji": "📊",
-                "description": "生成结构化对比表格,区分易混淆概念"
+                "description": "生成结构化对比表格,区分易混淆概念",
             },
             "four-level-explanation": {
                 "name": "four-level-explanation",
                 "emoji": "🎯",
-                "description": "生成渐进式4层次解释(新手→专家)"
+                "description": "生成渐进式4层次解释(新手→专家)",
             },
             "example-teaching": {
                 "name": "example-teaching",
                 "emoji": "📝",
-                "description": "生成完整例题教学(~1000词)"
-            }
+                "description": "生成完整例题教学(~1000词)",
+            },
         }
 
         # 执行统计
@@ -132,7 +140,7 @@ class IntelligentParallelCommandHandler:
             "processed_nodes": 0,
             "generated_docs": 0,
             "created_blue_nodes": 0,
-            "errors": []
+            "errors": [],
         }
 
     def _generate_session_id(self) -> str:
@@ -178,7 +186,9 @@ class IntelligentParallelCommandHandler:
             # Step 2: 智能分组 (Story 10.2.4: 使用IntelligentParallelScheduler)
             grouping_mode = options.get("grouping", "intelligent")
             task_groups = self._perform_grouping(yellow_nodes, grouping_mode)
-            print(f"🧠 智能分组完成 ({grouping_mode}模式)，生成 {len(task_groups)} 个任务组")
+            print(
+                f"🧠 智能分组完成 ({grouping_mode}模式)，生成 {len(task_groups)} 个任务组"
+            )
 
             # Dry run模式: 只预览
             if options.get("dry_run", False):
@@ -210,14 +220,11 @@ class IntelligentParallelCommandHandler:
             return {
                 "success": False,
                 "error": error_msg,
-                "traceback": traceback.format_exc()
+                "traceback": traceback.format_exc(),
             }
 
-
     async def execute_async(
-        self,
-        canvas_path: str,
-        options: Dict[str, Any] = None
+        self, canvas_path: str, options: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
         异步执行智能并行处理 (Story 10.2.2 - AC1)
@@ -252,7 +259,7 @@ class IntelligentParallelCommandHandler:
             "processed_nodes": 0,
             "generated_docs": 0,
             "created_blue_nodes": 0,
-            "errors": []
+            "errors": [],
         }
 
         try:
@@ -269,7 +276,9 @@ class IntelligentParallelCommandHandler:
             # Step 2: 智能分组 (Story 10.2.4: 使用IntelligentParallelScheduler)
             grouping_mode = options.get("grouping", "intelligent")
             task_groups = self._perform_grouping(yellow_nodes, grouping_mode)
-            print(f"🧠 智能分组完成 ({grouping_mode}模式)，生成 {len(task_groups)} 个任务组")
+            print(
+                f"🧠 智能分组完成 ({grouping_mode}模式)，生成 {len(task_groups)} 个任务组"
+            )
 
             # Dry run模式: 只预览
             if options.get("dry_run", False):
@@ -298,18 +307,19 @@ class IntelligentParallelCommandHandler:
             print(f"\n❌ {error_msg}")
             if options.get("verbose", False):
                 import traceback
+
                 traceback.print_exc()
             return {
                 "success": False,
                 "error": error_msg,
-                "traceback": traceback.format_exc()
+                "traceback": traceback.format_exc(),
             }
 
     async def _execute_tasks_async(
         self,
         task_groups: List[Dict[str, Any]],
         canvas_path: str,
-        options: Dict[str, Any]
+        options: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """
         使用AsyncExecutionEngine异步并发执行任务 (Story 10.2.2 - AC3)
@@ -351,7 +361,7 @@ class IntelligentParallelCommandHandler:
                     task_id=f"task-{task_id_counter}",
                     agent_name=agent_name,
                     node_data=node,
-                    priority=priority
+                    priority=priority,
                 )
                 async_tasks.append(async_task)
 
@@ -360,10 +370,7 @@ class IntelligentParallelCommandHandler:
         # Step 3: 定义executor函数
         async def execute_agent_call(task: AsyncTask) -> Dict[str, Any]:
             return await self._call_agent_async(
-                task.agent_name,
-                task.node_data,
-                canvas_path,
-                options
+                task.agent_name, task.node_data, canvas_path, options
             )
 
         # Step 4: 定义进度回调
@@ -379,14 +386,16 @@ class IntelligentParallelCommandHandler:
             else:
                 agent_name = result.get("agent", "unknown")
                 node_id = result.get("node_id", "unknown")
-                print(f"   [{progress:.0f}%] ✅ 任务 {task_id} 完成 ({agent_name} → {node_id})")
+                print(
+                    f"   [{progress:.0f}%] ✅ 任务 {task_id} 完成 ({agent_name} → {node_id})"
+                )
 
         # Step 5: 执行并发任务
         print("\n🚀 开始并发执行...")
         execution_result = await engine.execute_parallel(
             tasks=async_tasks,
             executor_func=execute_agent_call,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
         )
 
         # Step 6: 转换结果格式
@@ -397,7 +406,9 @@ class IntelligentParallelCommandHandler:
                 self.stats["processed_nodes"] += 1
                 self.stats["generated_docs"] += 1
 
-        print(f"\n✅ 异步执行完成: {execution_result['success']}/{execution_result['total']} 成功")
+        print(
+            f"\n✅ 异步执行完成: {execution_result['success']}/{execution_result['total']} 成功"
+        )
         return results
 
     async def _call_agent_async(
@@ -405,7 +416,7 @@ class IntelligentParallelCommandHandler:
         agent_name: str,
         node: Dict[str, Any],
         canvas_path: str,
-        options: Dict[str, Any]
+        options: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         异步调用Agent生成解释文档 (Story 10.2.2 - AC4)
@@ -445,7 +456,7 @@ class IntelligentParallelCommandHandler:
                 "success": False,
                 "node_id": node_id,
                 "agent": agent_name,
-                "error": f"Unsupported agent: {agent_name}"
+                "error": f"Unsupported agent: {agent_name}",
             }
 
         agent_info = self.supported_agents[agent_name]
@@ -453,14 +464,11 @@ class IntelligentParallelCommandHandler:
         # Step 3: 生成文档内容 (Phase 2: 占位符)
         try:
             doc_content = await self._generate_agent_content_async(
-                agent_name,
-                node_id,
-                content,
-                agent_info
+                agent_name, node_id, content, agent_info
             )
 
             # Step 4: 保存文档
-            with open(doc_path, 'w', encoding='utf-8') as f:
+            with open(doc_path, "w", encoding="utf-8") as f:
                 f.write(doc_content)
 
             return {
@@ -470,7 +478,7 @@ class IntelligentParallelCommandHandler:
                 "doc_path": str(doc_path),
                 "content": doc_content,
                 "word_count": len(doc_content.split()),
-                "node_data": node  # 关键: 保留原始节点数据
+                "node_data": node,  # 关键: 保留原始节点数据
             }
 
         except Exception as e:
@@ -478,15 +486,11 @@ class IntelligentParallelCommandHandler:
                 "success": False,
                 "node_id": node_id,
                 "agent": agent_name,
-                "error": str(e)
+                "error": str(e),
             }
 
     async def _generate_agent_content_async(
-        self,
-        agent_name: str,
-        node_id: str,
-        content: str,
-        agent_info: Dict[str, Any]
+        self, agent_name: str, node_id: str, content: str, agent_info: Dict[str, Any]
     ) -> str:
         """
         异步生成Agent内容 (Phase 2: 高质量占位符)
@@ -505,7 +509,7 @@ class IntelligentParallelCommandHandler:
 
         timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        return f"""# {agent_info['emoji']} AI解释: {node_id}
+        return f"""# {agent_info["emoji"]} AI解释: {node_id}
 
 **Agent**: {agent_name}
 **生成时间**: {timestamp_str}
@@ -523,7 +527,7 @@ class IntelligentParallelCommandHandler:
 
 **⚠️ Phase 2 临时实现**: 当前版本生成结构化占位符。Phase 3将通过Task tool调用真实的 {agent_name} Agent。
 
-### {agent_info['description']}
+### {agent_info["description"]}
 
 [真实Agent将在此生成1500+词的专业解释]
 
@@ -540,8 +544,9 @@ class IntelligentParallelCommandHandler:
 **Quality**: Placeholder (awaiting Task tool integration)
 """
 
-
-    def _scan_yellow_nodes(self, canvas_path: str, options: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _scan_yellow_nodes(
+        self, canvas_path: str, options: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """
         扫描Canvas中的黄色节点 (color="6")
 
@@ -577,16 +582,18 @@ class IntelligentParallelCommandHandler:
                 content = self._extract_node_content(node)
 
                 if content:  # 只处理有内容的节点
-                    yellow_nodes.append({
-                        "id": node_id,
-                        "type": node.get("type"),
-                        "content": content,
-                        "x": node.get("x", 0),
-                        "y": node.get("y", 0),
-                        "width": node.get("width", 300),
-                        "height": node.get("height", 150),
-                        "raw_node": node
-                    })
+                    yellow_nodes.append(
+                        {
+                            "id": node_id,
+                            "type": node.get("type"),
+                            "content": content,
+                            "x": node.get("x", 0),
+                            "y": node.get("y", 0),
+                            "width": node.get("width", 300),
+                            "height": node.get("height", 150),
+                            "raw_node": node,
+                        }
+                    )
 
         print(f"✅ 扫描完成，发现 {len(yellow_nodes)} 个黄色节点")
         return yellow_nodes
@@ -613,9 +620,7 @@ class IntelligentParallelCommandHandler:
             return ""
 
     def _perform_grouping(
-        self,
-        yellow_nodes: List[Dict[str, Any]],
-        grouping_mode: str = "intelligent"
+        self, yellow_nodes: List[Dict[str, Any]], grouping_mode: str = "intelligent"
     ) -> List[Dict[str, Any]]:
         """
         执行节点分组 - 支持智能和简单两种模式 (Story 10.2.4 AC5)
@@ -648,7 +653,9 @@ class IntelligentParallelCommandHandler:
                 print("⚠️  IntelligentParallelScheduler不可用，回退到简单分组模式")
             return self._simple_grouping(yellow_nodes)
 
-    def _simple_grouping(self, yellow_nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _simple_grouping(
+        self, yellow_nodes: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         简单分组算法: 按数量均分到6个Agent (Fallback模式)
 
@@ -669,7 +676,7 @@ class IntelligentParallelCommandHandler:
             "memory-anchor",
             "comparison-table",
             "four-level-explanation",
-            "example-teaching"
+            "example-teaching",
         ]
 
         # 计算每个Agent应该处理的节点数
@@ -687,12 +694,14 @@ class IntelligentParallelCommandHandler:
                 end_idx = start_idx + num_nodes
                 group_nodes = yellow_nodes[start_idx:end_idx]
 
-                task_groups.append({
-                    "agent": agent_name,
-                    "agent_info": self.supported_agents[agent_name],
-                    "nodes": group_nodes,
-                    "priority": "high" if i < 2 else "normal"  # 前2个Agent高优先级
-                })
+                task_groups.append(
+                    {
+                        "agent": agent_name,
+                        "agent_info": self.supported_agents[agent_name],
+                        "nodes": group_nodes,
+                        "priority": "high" if i < 2 else "normal",  # 前2个Agent高优先级
+                    }
+                )
 
                 start_idx = end_idx
 
@@ -702,7 +711,9 @@ class IntelligentParallelCommandHandler:
 
         return task_groups
 
-    def _preview_plan(self, task_groups: List[Dict[str, Any]], options: Dict[str, Any]) -> Dict[str, Any]:
+    def _preview_plan(
+        self, task_groups: List[Dict[str, Any]], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         预览执行计划 (dry-run模式)
 
@@ -713,9 +724,9 @@ class IntelligentParallelCommandHandler:
         Returns:
             预览结果
         """
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("🚀 智能并行处理计划预览 (Dry Run)")
-        print("="*60)
+        print("=" * 60)
 
         for idx, group in enumerate(task_groups, 1):
             agent_info = group["agent_info"]
@@ -727,18 +738,22 @@ class IntelligentParallelCommandHandler:
             print(f"   描述: {agent_info['description']}")
             print("\n   处理节点:")
             for node in nodes:
-                content_preview = node['content'][:50] + "..." if len(node['content']) > 50 else node['content']
+                content_preview = (
+                    node["content"][:50] + "..."
+                    if len(node["content"]) > 50
+                    else node["content"]
+                )
                 print(f"     - {node['id']}: {content_preview}")
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("💡 提示: 使用 --auto 参数跳过确认直接执行")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
         return {
             "success": True,
             "mode": "dry_run",
             "task_groups": len(task_groups),
-            "total_nodes": sum(len(g["nodes"]) for g in task_groups)
+            "total_nodes": sum(len(g["nodes"]) for g in task_groups),
         }
 
     def _confirm_execution(self, task_groups: List[Dict[str, Any]]) -> bool:
@@ -751,18 +766,23 @@ class IntelligentParallelCommandHandler:
         Returns:
             是否确认执行
         """
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("⚠️  执行确认")
-        print("="*60)
+        print("=" * 60)
         print(f"将处理 {sum(len(g['nodes']) for g in task_groups)} 个黄色节点")
         print(f"生成 {len(task_groups)} 组AI解释文档")
-        print("="*60)
+        print("=" * 60)
 
         # 在Claude Code环境中，我们返回True自动确认
         # 实际环境中可以使用input()
         return True
 
-    def _execute_tasks(self, task_groups: List[Dict[str, Any]], canvas_path: str, options: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _execute_tasks(
+        self,
+        task_groups: List[Dict[str, Any]],
+        canvas_path: str,
+        options: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
         """
         执行任务组 (Phase 1: 顺序执行，不实现真并发)
 
@@ -787,49 +807,61 @@ class IntelligentParallelCommandHandler:
             agent_info = group["agent_info"]
             nodes = group["nodes"]
 
-            print(f"\n📦 Task Group {group_idx}/{len(task_groups)}: {agent_info['emoji']} {agent_name}")
+            print(
+                f"\n📦 Task Group {group_idx}/{len(task_groups)}: {agent_info['emoji']} {agent_name}"
+            )
 
             for node_idx, node in enumerate(nodes, 1):
                 completed += 1
                 progress = (completed / total_tasks) * 100
 
-                print(f"   [{progress:.0f}%] 处理节点 {node_idx}/{len(nodes)}: {node['id']}")
+                print(
+                    f"   [{progress:.0f}%] 处理节点 {node_idx}/{len(nodes)}: {node['id']}"
+                )
 
                 try:
                     # 调用真实Agent生成文档
-                    doc_result = self._call_agent(agent_name, node, canvas_path, options)
+                    doc_result = self._call_agent(
+                        agent_name, node, canvas_path, options
+                    )
 
                     if doc_result["success"]:
-                        results.append({
-                            "node_id": node["id"],
-                            "agent": agent_name,
-                            "doc_path": doc_result["doc_path"],
-                            "doc_content": doc_result.get("content", ""),
-                            "node_data": node,
-                            "success": True
-                        })
+                        results.append(
+                            {
+                                "node_id": node["id"],
+                                "agent": agent_name,
+                                "doc_path": doc_result["doc_path"],
+                                "doc_content": doc_result.get("content", ""),
+                                "node_data": node,
+                                "success": True,
+                            }
+                        )
                         self.stats["processed_nodes"] += 1
                         self.stats["generated_docs"] += 1
                         print(f"      ✅ 成功: {doc_result['doc_path']}")
                     else:
                         error_msg = doc_result.get("error", "Unknown error")
-                        results.append({
-                            "node_id": node["id"],
-                            "agent": agent_name,
-                            "success": False,
-                            "error": error_msg
-                        })
+                        results.append(
+                            {
+                                "node_id": node["id"],
+                                "agent": agent_name,
+                                "success": False,
+                                "error": error_msg,
+                            }
+                        )
                         self.stats["errors"].append(f"Node {node['id']}: {error_msg}")
                         print(f"      ❌ 失败: {error_msg}")
 
                 except Exception as e:
                     error_msg = f"Agent调用异常: {str(e)}"
-                    results.append({
-                        "node_id": node["id"],
-                        "agent": agent_name,
-                        "success": False,
-                        "error": error_msg
-                    })
+                    results.append(
+                        {
+                            "node_id": node["id"],
+                            "agent": agent_name,
+                            "success": False,
+                            "error": error_msg,
+                        }
+                    )
                     self.stats["errors"].append(f"Node {node['id']}: {error_msg}")
                     print(f"      ❌ 异常: {error_msg}")
                     if options.get("verbose", False):
@@ -838,7 +870,13 @@ class IntelligentParallelCommandHandler:
         print(f"\n✅ 任务执行完成: {self.stats['processed_nodes']}/{total_tasks} 成功")
         return results
 
-    def _call_agent(self, agent_name: str, node: Dict[str, Any], canvas_path: str, options: Dict[str, Any]) -> Dict[str, Any]:
+    def _call_agent(
+        self,
+        agent_name: str,
+        node: Dict[str, Any],
+        canvas_path: str,
+        options: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """
         调用真实Agent生成解释文档
 
@@ -871,7 +909,7 @@ class IntelligentParallelCommandHandler:
         # Phase 2将调用真实Agent
         agent_info = self.supported_agents[agent_name]
 
-        doc_content = f"""# {agent_info['emoji']} AI解释: {node_id}
+        doc_content = f"""# {agent_info["emoji"]} AI解释: {node_id}
 
 **Agent**: {agent_name}
 **生成时间**: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
@@ -891,7 +929,7 @@ class IntelligentParallelCommandHandler:
 
 ### 概述
 
-本节点需要{agent_info['description']}。
+本节点需要{agent_info["description"]}。
 
 ### 详细解释
 
@@ -907,18 +945,13 @@ class IntelligentParallelCommandHandler:
             with open(doc_path, "w", encoding="utf-8") as f:
                 f.write(doc_content)
 
-            return {
-                "success": True,
-                "doc_path": str(doc_path),
-                "content": doc_content
-            }
+            return {"success": True, "doc_path": str(doc_path), "content": doc_content}
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"文件写入失败: {str(e)}"
-            }
+            return {"success": False, "error": f"文件写入失败: {str(e)}"}
 
-    def _update_canvas(self, canvas_path: str, results: List[Dict[str, Any]], options: Dict[str, Any]) -> None:
+    def _update_canvas(
+        self, canvas_path: str, results: List[Dict[str, Any]], options: Dict[str, Any]
+    ) -> None:
         """
         修改Canvas文件，添加蓝色AI解释节点
 
@@ -959,7 +992,7 @@ class IntelligentParallelCommandHandler:
                     width=350,
                     height=200,
                     color="5",  # COLOR_BLUE = "5"
-                    file_path=Path(doc_path).name  # 只存储文件名
+                    file_path=Path(doc_path).name,  # 只存储文件名
                 )
 
                 # 创建边连接: 黄色节点 -> 蓝色节点
@@ -972,7 +1005,7 @@ class IntelligentParallelCommandHandler:
                     to_node=blue_node_id,
                     to_side="left",
                     color="5",
-                    label=f"AI解释 ({agent_info['emoji']})"
+                    label=f"AI解释 ({agent_info['emoji']})",
                 )
 
                 self.stats["created_blue_nodes"] += 1
@@ -988,7 +1021,9 @@ class IntelligentParallelCommandHandler:
         # 保存修改后的Canvas
         try:
             self.canvas_ops.write_canvas(canvas_path, canvas_data)
-            print(f"✅ Canvas文件更新成功: {self.stats['created_blue_nodes']} 个蓝色节点")
+            print(
+                f"✅ Canvas文件更新成功: {self.stats['created_blue_nodes']} 个蓝色节点"
+            )
         except Exception as e:
             error_msg = f"Canvas保存失败: {str(e)}"
             self.stats["errors"].append(error_msg)
@@ -996,10 +1031,7 @@ class IntelligentParallelCommandHandler:
             raise
 
     def _update_canvas_correct_structure(
-        self,
-        canvas_path: str,
-        results: List[Dict[str, Any]],
-        options: Dict[str, Any]
+        self, canvas_path: str, results: List[Dict[str, Any]], options: Dict[str, Any]
     ) -> None:
         """
         修复后的Canvas更新方法 - 使用正确的3层结构 (Story 10.2.3)
@@ -1097,7 +1129,7 @@ class IntelligentParallelCommandHandler:
                     "memory-anchor": "记忆锚点",
                     "comparison-table": "对比表格",
                     "four-level-explanation": "四层次解释",
-                    "example-teaching": "例题教学"
+                    "example-teaching": "例题教学",
                 }.get(agent_type, "AI解释")
 
                 blue_text_content = f"{agent_info['emoji']} {agent_name_cn}\n\nAgent: {agent_type}\n生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -1111,7 +1143,7 @@ class IntelligentParallelCommandHandler:
                     width=250,
                     height=150,
                     color="5",  # Blue
-                    text=blue_text_content
+                    text=blue_text_content,
                 )
 
                 # 手动设置节点ID (create_node生成的ID需要替换)
@@ -1135,7 +1167,7 @@ class IntelligentParallelCommandHandler:
                     y=file_y,
                     width=350,
                     height=200,
-                    file=file_path_str
+                    file=file_path_str,
                 )
 
                 # 手动设置节点ID
@@ -1148,7 +1180,7 @@ class IntelligentParallelCommandHandler:
                     to_node=blue_text_node_id,
                     from_side="right",
                     to_side="left",
-                    label=f"AI解释 ({agent_info['emoji']})"
+                    label=f"AI解释 ({agent_info['emoji']})",
                 )
 
                 # 手动设置边ID
@@ -1161,7 +1193,7 @@ class IntelligentParallelCommandHandler:
                     from_node=blue_text_node_id,
                     to_node=file_node_id,
                     from_side="right",
-                    to_side="left"
+                    to_side="left",
                     # 注意: 不传label参数，保持无标签
                 )
 
@@ -1174,7 +1206,9 @@ class IntelligentParallelCommandHandler:
                 self.stats["created_blue_nodes"] += 2
 
                 print("   ✅ 创建3层结构:")
-                print(f"      Yellow({node_id[:16]}...) → BlueText({blue_text_node_id[:16]}...) → File({file_node_id[:16]}...)")
+                print(
+                    f"      Yellow({node_id[:16]}...) → BlueText({blue_text_node_id[:16]}...) → File({file_node_id[:16]}...)"
+                )
 
             except Exception as e:
                 error_msg = f"Canvas修改失败 (节点 {node_id}): {str(e)}"
@@ -1182,6 +1216,7 @@ class IntelligentParallelCommandHandler:
                 print(f"   ❌ {error_msg}")
                 if options.get("verbose", False):
                     import traceback
+
                     traceback.print_exc()
 
                 # 发生错误时回滚 (AC5)
@@ -1249,7 +1284,9 @@ class IntelligentParallelCommandHandler:
         except Exception as e:
             raise IOError(f"从备份恢复失败: {str(e)}")
 
-    def _store_to_graphiti(self, canvas_path: str, results: List[Dict[str, Any]]) -> None:
+    def _store_to_graphiti(
+        self, canvas_path: str, results: List[Dict[str, Any]]
+    ) -> None:
         """
         存储处理记录到Graphiti知识图谱
 
@@ -1271,17 +1308,17 @@ class IntelligentParallelCommandHandler:
                     "processed_nodes": self.stats["processed_nodes"],
                     "generated_docs": self.stats["generated_docs"],
                     "created_blue_nodes": self.stats["created_blue_nodes"],
-                    "errors": len(self.stats["errors"])
+                    "errors": len(self.stats["errors"]),
                 },
                 "results": [
                     {
                         "node_id": r["node_id"],
                         "agent": r["agent"],
                         "success": r["success"],
-                        "doc_path": r.get("doc_path", "")
+                        "doc_path": r.get("doc_path", ""),
                     }
                     for r in results
-                ]
+                ],
             }
 
             # 调用Graphiti MCP工具
@@ -1305,7 +1342,9 @@ class IntelligentParallelCommandHandler:
             self.stats["errors"].append(error_msg)
             print(f"⚠️  {error_msg}")
 
-    def _generate_report(self, results: List[Dict[str, Any]], options: Dict[str, Any]) -> Dict[str, Any]:
+    def _generate_report(
+        self, results: List[Dict[str, Any]], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         生成执行报告
 
@@ -1316,9 +1355,9 @@ class IntelligentParallelCommandHandler:
         Returns:
             报告字典
         """
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("✅ 智能并行处理完成!")
-        print("="*60)
+        print("=" * 60)
         print("📊 执行统计:")
         print(f"   - 总节点数: {self.stats['total_nodes']}")
         print(f"   - 成功处理: {self.stats['processed_nodes']}")
@@ -1326,27 +1365,27 @@ class IntelligentParallelCommandHandler:
         print(f"   - 创建蓝色节点: {self.stats['created_blue_nodes']}")
         print(f"   - 错误数: {len(self.stats['errors'])}")
 
-        if self.stats['errors'] and options.get("verbose", False):
+        if self.stats["errors"] and options.get("verbose", False):
             print("\n⚠️  错误详情:")
-            for error in self.stats['errors']:
+            for error in self.stats["errors"]:
                 print(f"   - {error}")
 
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
         return {
             "success": True,
             "session_id": self.session_id,
             "stats": self.stats,
-            "results": results
+            "results": results,
         }
 
 
 # Phase 1 MVP测试函数
 def test_mvp():
     """测试Phase 1 MVP功能"""
-    print("="*60)
+    print("=" * 60)
     print("🧪 IntelligentParallelCommandHandler Phase 1 MVP Test")
-    print("="*60)
+    print("=" * 60)
 
     # 测试Canvas路径
     test_canvas = r"C:\Users\ROG\托福\笔记库\Canvas\Math53\Lecture5.canvas"
@@ -1360,11 +1399,7 @@ def test_mvp():
         handler = IntelligentParallelCommandHandler()
 
         # 执行测试
-        options = {
-            "auto": True,
-            "dry_run": False,
-            "verbose": True
-        }
+        options = {"auto": True, "dry_run": False, "verbose": True}
 
         result = handler.execute(test_canvas, options)
 

@@ -156,7 +156,9 @@ class OpenAIProvider(BaseProvider):
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
 
-            response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            response_text = (
+                data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
             usage = data.get("usage", {})
 
             await self.update_health(success=True, latency_ms=latency_ms)
@@ -179,7 +181,9 @@ class OpenAIProvider(BaseProvider):
         except httpx.HTTPStatusError as e:
             latency_ms = (time.time() - start_time) * 1000
             error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
-            await self.update_health(success=False, latency_ms=latency_ms, error=error_msg)
+            await self.update_health(
+                success=False, latency_ms=latency_ms, error=error_msg
+            )
 
             logger.error(f"OpenAI API error: {error_msg}")
             raise ProviderError(
@@ -245,18 +249,22 @@ class OpenAIProvider(BaseProvider):
             for img in images:
                 media_type = img.get("media_type", "image/png")
                 data = img.get("data", "")
-                user_content.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{media_type};base64,{data}",
-                    },
-                })
+                user_content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{media_type};base64,{data}",
+                        },
+                    }
+                )
 
             # Add text prompt
-            user_content.append({
-                "type": "text",
-                "text": user_prompt,
-            })
+            user_content.append(
+                {
+                    "type": "text",
+                    "text": user_prompt,
+                }
+            )
 
             payload: Dict[str, Any] = {
                 "model": self.config.model,
@@ -276,7 +284,9 @@ class OpenAIProvider(BaseProvider):
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
 
-            response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            response_text = (
+                data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
             usage = data.get("usage", {})
 
             await self.update_health(success=True, latency_ms=latency_ms)
@@ -298,7 +308,9 @@ class OpenAIProvider(BaseProvider):
         except httpx.HTTPStatusError as e:
             latency_ms = (time.time() - start_time) * 1000
             error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
-            await self.update_health(success=False, latency_ms=latency_ms, error=error_msg)
+            await self.update_health(
+                success=False, latency_ms=latency_ms, error=error_msg
+            )
 
             logger.error(f"OpenAI vision API error: {error_msg}")
             raise ProviderError(

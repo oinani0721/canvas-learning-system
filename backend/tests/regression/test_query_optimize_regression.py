@@ -101,7 +101,9 @@ class TestQueryOptimizeRegression:
         content = prompt_registry.get("query_optimize")
         assert "{{user_intent}}" in content, "Missing {{user_intent}} placeholder"
         assert "{{user_prompt}}" in content, "Missing {{user_prompt}} placeholder"
-        assert "{{original_queries}}" in content, "Missing {{original_queries}} placeholder"
+        assert "{{original_queries}}" in content, (
+            "Missing {{original_queries}} placeholder"
+        )
 
     def test_replay_format_compliance(
         self,

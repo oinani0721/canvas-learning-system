@@ -6,21 +6,18 @@ Tests the complete flow from Canvas reading to question generation to answer sco
 [Source: docs/stories/31.1.story.md#Testing]
 """
 
-import asyncio
 import json
 import os
 import tempfile
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 import app.services.verification_service as vs_module
+import pytest
 from app.services.verification_service import (
     VerificationService,
     VerificationStatus,
 )
-
 
 # ===========================================================================
 # Test Fixtures
@@ -54,7 +51,7 @@ def sample_canvas_data() -> Dict[str, Any]:
                 "x": 0,
                 "y": 0,
                 "width": 200,
-                "height": 100
+                "height": 100,
             },
             {
                 "id": "node-2",
@@ -64,7 +61,7 @@ def sample_canvas_data() -> Dict[str, Any]:
                 "x": 250,
                 "y": 0,
                 "width": 200,
-                "height": 100
+                "height": 100,
             },
             {
                 "id": "node-3",
@@ -74,7 +71,7 @@ def sample_canvas_data() -> Dict[str, Any]:
                 "x": 500,
                 "y": 0,
                 "width": 200,
-                "height": 100
+                "height": 100,
             },
             {
                 "id": "node-4",
@@ -84,12 +81,10 @@ def sample_canvas_data() -> Dict[str, Any]:
                 "x": 0,
                 "y": 150,
                 "width": 200,
-                "height": 100
-            }
+                "height": 100,
+            },
         ],
-        "edges": [
-            {"id": "edge-1", "fromNode": "node-1", "toNode": "node-2"}
-        ]
+        "edges": [{"id": "edge-1", "fromNode": "node-1", "toNode": "node-2"}],
     }
 
 
@@ -97,10 +92,7 @@ def sample_canvas_data() -> Dict[str, Any]:
 def temp_canvas_file(sample_canvas_data: Dict[str, Any]) -> str:
     """Create a temporary Canvas file."""
     with tempfile.NamedTemporaryFile(
-        mode='w',
-        suffix='.canvas',
-        delete=False,
-        encoding='utf-8'
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
     ) as f:
         json.dump(sample_canvas_data, f)
         return f.name
@@ -115,14 +107,16 @@ def mock_agent_service() -> MagicMock:
     question_result = MagicMock()
     question_result.success = True
     question_result.data = {
-        "questions": [{
-            "source_node_id": "verification_e2e",
-            "question_text": "为什么机器学习模型需要大量数据进行训练？请解释数据量与模型性能之间的关系。",
-            "question_type": "检验型",
-            "difficulty": "基础",
-            "guidance": "",
-            "rationale": "测试概念理解"
-        }]
+        "questions": [
+            {
+                "source_node_id": "verification_e2e",
+                "question_text": "为什么机器学习模型需要大量数据进行训练？请解释数据量与模型性能之间的关系。",
+                "question_type": "检验型",
+                "difficulty": "基础",
+                "guidance": "",
+                "rationale": "测试概念理解",
+            }
+        ]
     }
     service.call_agent = AsyncMock(return_value=question_result)
 
@@ -138,7 +132,7 @@ def mock_agent_service() -> MagicMock:
                 "imagery": 20,
                 "completeness": 23,
                 "originality": 20,
-                "color": "2"
+                "color": "2",
             }
         elif len(user_understanding) > 100:
             scoring_data = {
@@ -147,7 +141,7 @@ def mock_agent_service() -> MagicMock:
                 "imagery": 17,
                 "completeness": 18,
                 "originality": 17,
-                "color": "3"
+                "color": "3",
             }
         else:
             scoring_data = {
@@ -156,7 +150,7 @@ def mock_agent_service() -> MagicMock:
                 "imagery": 11,
                 "completeness": 12,
                 "originality": 10,
-                "color": "4"
+                "color": "4",
             }
         result = MagicMock()
         result.success = True
@@ -180,13 +174,13 @@ def mock_rag_service() -> MagicMock:
                 "learning_history": "用户之前学习过统计学基础和Python编程",
                 "textbook_excerpts": "机器学习是人工智能的一个子领域...",
                 "related_concepts": ["统计学习", "深度学习", "监督学习"],
-                "common_mistakes": "容易混淆过拟合和欠拟合的概念"
+                "common_mistakes": "容易混淆过拟合和欠拟合的概念",
             }
         return {
             "learning_history": "无相关学习历史",
             "textbook_excerpts": "无教材引用",
             "related_concepts": [],
-            "common_mistakes": "无已知错误模式"
+            "common_mistakes": "无已知错误模式",
         }
 
     service.query = AsyncMock(side_effect=mock_query)
@@ -195,14 +189,13 @@ def mock_rag_service() -> MagicMock:
 
 @pytest.fixture
 def verification_service(
-    mock_agent_service: MagicMock,
-    mock_rag_service: MagicMock
+    mock_agent_service: MagicMock, mock_rag_service: MagicMock
 ) -> VerificationService:
     """Create VerificationService with mock dependencies."""
     return VerificationService(
         rag_service=mock_rag_service,
         agent_service=mock_agent_service,
-        canvas_base_path=tempfile.gettempdir()
+        canvas_base_path=tempfile.gettempdir(),
     )
 
 
@@ -219,7 +212,7 @@ class TestEndToEndVerificationFlow:
         self,
         verification_service: VerificationService,
         temp_canvas_file: str,
-        mock_agent_service: MagicMock
+        mock_agent_service: MagicMock,
     ):
         """
         E2E Test: Canvas reading → Concept extraction → Question generation
@@ -232,8 +225,7 @@ class TestEndToEndVerificationFlow:
         """
         # Start session
         result = await verification_service.start_session(
-            canvas_name="ml_concepts",
-            canvas_path=temp_canvas_file
+            canvas_name="ml_concepts", canvas_path=temp_canvas_file
         )
 
         # Verify session created
@@ -257,7 +249,7 @@ class TestEndToEndVerificationFlow:
         self,
         verification_service: VerificationService,
         temp_canvas_file: str,
-        mock_agent_service: MagicMock
+        mock_agent_service: MagicMock,
     ):
         """
         E2E Test: Answer submission → Scoring agent → Progress update
@@ -270,20 +262,21 @@ class TestEndToEndVerificationFlow:
         """
         # Start session
         session = await verification_service.start_session(
-            canvas_name="ml_concepts",
-            canvas_path=temp_canvas_file
+            canvas_name="ml_concepts", canvas_path=temp_canvas_file
         )
 
         # Submit a detailed answer
-        detailed_answer = """
+        detailed_answer = (
+            """
         机器学习是人工智能的一个分支，它使计算机能够通过数据学习模式和规律，
         而不需要明确编程。核心原理包括：特征提取、模型训练、参数优化等。
         通过大量数据训练，模型可以自动发现数据中的隐藏规律。
-        """ * 2  # Make it >200 chars
+        """
+            * 2
+        )  # Make it >200 chars
 
         result = await verification_service.process_answer(
-            session_id=session["session_id"],
-            user_answer=detailed_answer
+            session_id=session["session_id"], user_answer=detailed_answer
         )
 
         # Verify scoring agent was called
@@ -300,9 +293,7 @@ class TestEndToEndVerificationFlow:
 
     @pytest.mark.asyncio
     async def test_e2e_complete_session_all_concepts(
-        self,
-        verification_service: VerificationService,
-        temp_canvas_file: str
+        self, verification_service: VerificationService, temp_canvas_file: str
     ):
         """
         E2E Test: Complete verification session through all concepts
@@ -311,8 +302,7 @@ class TestEndToEndVerificationFlow:
         """
         # Start session
         session = await verification_service.start_session(
-            canvas_name="ml_concepts",
-            canvas_path=temp_canvas_file
+            canvas_name="ml_concepts", canvas_path=temp_canvas_file
         )
 
         total_concepts = session["total_concepts"]
@@ -322,7 +312,7 @@ class TestEndToEndVerificationFlow:
         for i in range(total_concepts):
             result = await verification_service.process_answer(
                 session_id=session_id,
-                user_answer="这是一个详细的回答，包含对概念的深入分析和理解。" * 5
+                user_answer="这是一个详细的回答，包含对概念的深入分析和理解。" * 5,
             )
 
             if i < total_concepts - 1:
@@ -340,7 +330,7 @@ class TestEndToEndVerificationFlow:
         self,
         verification_service: VerificationService,
         temp_canvas_file: str,
-        mock_rag_service: MagicMock
+        mock_rag_service: MagicMock,
     ):
         """
         E2E Test: RAG context flows through entire pipeline
@@ -351,8 +341,7 @@ class TestEndToEndVerificationFlow:
         """
         # Start session
         session = await verification_service.start_session(
-            canvas_name="ml_concepts",
-            canvas_path=temp_canvas_file
+            canvas_name="ml_concepts", canvas_path=temp_canvas_file
         )
 
         # RAG should be called during question generation
@@ -360,8 +349,7 @@ class TestEndToEndVerificationFlow:
 
         # Submit answer
         await verification_service.process_answer(
-            session_id=session["session_id"],
-            user_answer="测试回答"
+            session_id=session["session_id"], user_answer="测试回答"
         )
 
         # RAG should be called again during scoring
@@ -373,7 +361,7 @@ class TestEndToEndVerificationFlow:
         self,
         verification_service: VerificationService,
         temp_canvas_file: str,
-        mock_agent_service: MagicMock
+        mock_agent_service: MagicMock,
     ):
         """
         E2E Test: Hint provided after partial answer
@@ -391,20 +379,18 @@ class TestEndToEndVerificationFlow:
             "accuracy": 10,
             "imagery": 8,
             "completeness": 9,
-            "originality": 8
+            "originality": 8,
         }
         mock_agent_service.call_scoring = AsyncMock(return_value=low_score_result)
 
         # Start session
         session = await verification_service.start_session(
-            canvas_name="ml_concepts",
-            canvas_path=temp_canvas_file
+            canvas_name="ml_concepts", canvas_path=temp_canvas_file
         )
 
         # Submit a short answer
         result = await verification_service.process_answer(
-            session_id=session["session_id"],
-            user_answer="不太确定"
+            session_id=session["session_id"], user_answer="不太确定"
         )
 
         # Should get hint (score 35.0 < 60 threshold)
@@ -424,10 +410,7 @@ class TestPerformanceRequirements:
 
     @pytest.mark.performance
     @pytest.mark.asyncio
-    async def test_response_time_under_500ms_mock_mode(
-        self,
-        temp_canvas_file: str
-    ):
+    async def test_response_time_under_500ms_mock_mode(self, temp_canvas_file: str):
         """Test that mock mode responds within timeout."""
         # H2 fix: Use direct patching instead of importlib.reload to avoid
         # module-level class duplication and test isolation poisoning.
@@ -437,11 +420,11 @@ class TestPerformanceRequirements:
             )
 
             import time
+
             start = time.time()
 
             await service.start_session(
-                canvas_name="test",
-                canvas_path=temp_canvas_file
+                canvas_name="test", canvas_path=temp_canvas_file
             )
 
             elapsed = time.time() - start

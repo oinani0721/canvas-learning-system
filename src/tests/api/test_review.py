@@ -78,7 +78,9 @@ class TestGetReviewSchedule:
 class TestGenerateVerificationCanvas:
     """Tests for POST /api/v1/review/generate endpoint."""
 
-    def test_generate_review_success(self, client, api_v1_prefix, valid_generate_review_request):
+    def test_generate_review_success(
+        self, client, api_v1_prefix, valid_generate_review_request
+    ):
         """
         Test generating verification canvas returns 201.
 
@@ -86,8 +88,7 @@ class TestGenerateVerificationCanvas:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         response = client.post(
-            f"{api_v1_prefix}/review/generate",
-            json=valid_generate_review_request()
+            f"{api_v1_prefix}/review/generate", json=valid_generate_review_request()
         )
 
         assert response.status_code == 201
@@ -97,19 +98,16 @@ class TestGenerateVerificationCanvas:
         assert "node_count" in data
         assert data["node_count"] >= 0
 
-    def test_generate_review_with_node_ids(self, client, api_v1_prefix, valid_generate_review_request):
+    def test_generate_review_with_node_ids(
+        self, client, api_v1_prefix, valid_generate_review_request
+    ):
         """
         Test generating verification canvas with specific nodes.
 
         AC: Optional node_ids parameter specifies nodes to include.
         """
-        request_data = valid_generate_review_request(
-            node_ids=["a1b2c3d4", "e5f6g7h8"]
-        )
-        response = client.post(
-            f"{api_v1_prefix}/review/generate",
-            json=request_data
-        )
+        request_data = valid_generate_review_request(node_ids=["a1b2c3d4", "e5f6g7h8"])
+        response = client.post(f"{api_v1_prefix}/review/generate", json=request_data)
 
         assert response.status_code == 201
         data = response.json()
@@ -124,7 +122,7 @@ class TestGenerateVerificationCanvas:
         """
         response = client.post(
             f"{api_v1_prefix}/review/generate",
-            json={"source_canvas": "nonexistent-canvas"}
+            json={"source_canvas": "nonexistent-canvas"},
         )
 
         assert response.status_code == 404
@@ -135,10 +133,7 @@ class TestGenerateVerificationCanvas:
 
         AC: Returns 422 validation error for invalid data.
         """
-        response = client.post(
-            f"{api_v1_prefix}/review/generate",
-            json={}
-        )
+        response = client.post(f"{api_v1_prefix}/review/generate", json={})
 
         assert response.status_code == 422
 
@@ -147,7 +142,9 @@ class TestGenerateVerificationCanvas:
 class TestRecordReviewResult:
     """Tests for PUT /api/v1/review/record endpoint."""
 
-    def test_record_review_high_score(self, client, api_v1_prefix, valid_record_review_request):
+    def test_record_review_high_score(
+        self, client, api_v1_prefix, valid_record_review_request
+    ):
         """
         Test recording high score extends interval.
 
@@ -155,10 +152,7 @@ class TestRecordReviewResult:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         request_data = valid_record_review_request(score=35.0)  # High score
-        response = client.put(
-            f"{api_v1_prefix}/review/record",
-            json=request_data
-        )
+        response = client.put(f"{api_v1_prefix}/review/record", json=request_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -168,34 +162,32 @@ class TestRecordReviewResult:
         # High score should give longer interval
         assert data["new_interval"] == 30
 
-    def test_record_review_medium_score(self, client, api_v1_prefix, valid_record_review_request):
+    def test_record_review_medium_score(
+        self, client, api_v1_prefix, valid_record_review_request
+    ):
         """
         Test recording medium score gives standard interval.
 
         AC: Score 24-31 gives 7-day interval.
         """
         request_data = valid_record_review_request(score=28.0)
-        response = client.put(
-            f"{api_v1_prefix}/review/record",
-            json=request_data
-        )
+        response = client.put(f"{api_v1_prefix}/review/record", json=request_data)
 
         assert response.status_code == 200
         data = response.json()
 
         assert data["new_interval"] == 7
 
-    def test_record_review_low_score(self, client, api_v1_prefix, valid_record_review_request):
+    def test_record_review_low_score(
+        self, client, api_v1_prefix, valid_record_review_request
+    ):
         """
         Test recording low score gives short interval.
 
         AC: Score <24 gives 1-day interval.
         """
         request_data = valid_record_review_request(score=18.0)
-        response = client.put(
-            f"{api_v1_prefix}/review/record",
-            json=request_data
-        )
+        response = client.put(f"{api_v1_prefix}/review/record", json=request_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -213,8 +205,8 @@ class TestRecordReviewResult:
             json={
                 "canvas_name": "test",
                 "node_id": "node1",
-                "score": 50.0  # Invalid: > 40
-            }
+                "score": 50.0,  # Invalid: > 40
+            },
         )
 
         assert response.status_code == 422
@@ -227,7 +219,7 @@ class TestRecordReviewResult:
         """
         response = client.put(
             f"{api_v1_prefix}/review/record",
-            json={"canvas_name": "test"}  # Missing node_id and score
+            json={"canvas_name": "test"},  # Missing node_id and score
         )
 
         assert response.status_code == 422

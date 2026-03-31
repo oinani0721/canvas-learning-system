@@ -11,7 +11,7 @@ Tests for record_batch_learning_events() concept field resolution:
 [Source: docs/stories/30.9.story.md#Task-8.6]
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -38,6 +38,7 @@ class TestRecordBatchLearningEventsConcept:
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         """Create a MemoryService with mocked dependencies."""
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -58,10 +59,12 @@ class TestRecordBatchLearningEventsConcept:
     @pytest.mark.asyncio
     async def test_concept_field_used_when_present(self, memory_service, mock_neo4j):
         """AC-30.9.3: concept field from metadata is used directly."""
-        event = self._make_event({
-            "concept": "监督学习",
-            "node_text": "监督学习的定义和分类",
-        })
+        event = self._make_event(
+            {
+                "concept": "监督学习",
+                "node_text": "监督学习的定义和分类",
+            }
+        )
 
         result = await memory_service.record_batch_learning_events([event])
 
@@ -75,11 +78,13 @@ class TestRecordBatchLearningEventsConcept:
     @pytest.mark.asyncio
     async def test_concept_fallback_to_node_text(self, memory_service, mock_neo4j):
         """Story 30.9: When concept absent, fallback to node_text."""
-        event = self._make_event({
-            "node_text": "逆否命题的定义",
-            "old_color": "1",
-            "new_color": "2",
-        })
+        event = self._make_event(
+            {
+                "node_text": "逆否命题的定义",
+                "old_color": "1",
+                "new_color": "2",
+            }
+        )
 
         result = await memory_service.record_batch_learning_events([event])
 
@@ -92,10 +97,12 @@ class TestRecordBatchLearningEventsConcept:
     @pytest.mark.asyncio
     async def test_concept_fallback_to_unknown(self, memory_service, mock_neo4j):
         """Story 30.9: When neither concept nor node_text, default to 'unknown'."""
-        event = self._make_event({
-            "old_color": "1",
-            "new_color": "2",
-        })
+        event = self._make_event(
+            {
+                "old_color": "1",
+                "new_color": "2",
+            }
+        )
 
         result = await memory_service.record_batch_learning_events([event])
 
@@ -108,11 +115,13 @@ class TestRecordBatchLearningEventsConcept:
     @pytest.mark.asyncio
     async def test_color_removed_event_type(self, memory_service, mock_neo4j):
         """Story 30.9: color_removed event type processed correctly."""
-        event = self._make_event({
-            "concept": "递归定义",
-            "old_color": "1",
-            "new_color": None,
-        })
+        event = self._make_event(
+            {
+                "concept": "递归定义",
+                "old_color": "1",
+                "new_color": None,
+            }
+        )
         event["event_type"] = "color_removed"
 
         result = await memory_service.record_batch_learning_events([event])
@@ -125,11 +134,13 @@ class TestRecordBatchLearningEventsConcept:
     @pytest.mark.asyncio
     async def test_node_removed_event_type(self, memory_service, mock_neo4j):
         """Story 30.9: node_removed event type processed correctly."""
-        event = self._make_event({
-            "old_color": "3",
-            "new_color": None,
-            "node_text": "已删除节点",
-        })
+        event = self._make_event(
+            {
+                "old_color": "3",
+                "new_color": None,
+                "node_text": "已删除节点",
+            }
+        )
         event["event_type"] = "node_removed"
 
         result = await memory_service.record_batch_learning_events([event])

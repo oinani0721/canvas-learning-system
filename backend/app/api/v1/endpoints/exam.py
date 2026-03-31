@@ -115,7 +115,9 @@ async def list_exams_by_canvas(canvas_id: str) -> ExamSessionListResponse:
     "/exam/{exam_id}/status",
     response_model=ExamSessionResponse,
 )
-async def update_exam_status(exam_id: str, update: ExamStatusUpdate) -> ExamSessionResponse:
+async def update_exam_status(
+    exam_id: str, update: ExamStatusUpdate
+) -> ExamSessionResponse:
     """Update exam session status.
 
     Story 6.1 AC-5: Status transitions (idle -> in_progress -> paused/completed).
@@ -237,7 +239,9 @@ async def skip_exam_question(exam_id: str, request: SkipRequest) -> SkipResponse
 )
 async def get_cognitive_load(
     exam_id: str,
-    elapsed_minutes: int = Query(..., ge=0, description="Elapsed active exam time in minutes"),
+    elapsed_minutes: int = Query(
+        ..., ge=0, description="Elapsed active exam time in minutes"
+    ),
 ) -> dict:
     """Check if a cognitive load rest reminder should be shown.
 

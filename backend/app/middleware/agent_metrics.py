@@ -39,7 +39,7 @@ AGENT_EXECUTION_TIME = Histogram(
     "canvas_agent_execution_seconds",
     "Agent execution time in seconds",
     ["agent_type"],
-    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0],
 )
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Counter with labels)
@@ -47,7 +47,7 @@ AGENT_EXECUTION_TIME = Histogram(
 AGENT_ERRORS = Counter(
     "canvas_agent_errors_total",
     "Total Agent execution errors",
-    ["agent_type", "error_type"]
+    ["agent_type", "error_type"],
 )
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Counter with labels)
@@ -55,7 +55,7 @@ AGENT_ERRORS = Counter(
 AGENT_INVOCATIONS = Counter(
     "canvas_agent_invocations_total",
     "Total Agent invocations",
-    ["agent_type", "status"]
+    ["agent_type", "status"],
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -64,25 +64,29 @@ AGENT_INVOCATIONS = Counter(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # 14 Agent types as defined in the system
-VALID_AGENT_TYPES = frozenset([
-    "basic-decomposition",
-    "clarification-path",
-    "comparison-table",
-    "deep-decomposition",
-    "example-teaching",
-    "four-level-explanation",
-    "graphiti-memory-agent",
-    "memory-anchor",
-    "oral-explanation",
-    "question-decomposition",
-    "scoring-agent",
-    "verification-question-agent",
-    "canvas-orchestrator",
-    "general-purpose",
-])
+VALID_AGENT_TYPES = frozenset(
+    [
+        "basic-decomposition",
+        "clarification-path",
+        "comparison-table",
+        "deep-decomposition",
+        "example-teaching",
+        "four-level-explanation",
+        "graphiti-memory-agent",
+        "memory-anchor",
+        "oral-explanation",
+        "question-decomposition",
+        "scoring-agent",
+        "verification-question-agent",
+        "canvas-orchestrator",
+        "general-purpose",
+    ]
+)
 
 
-def track_agent_execution(agent_type: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
+def track_agent_execution(
+    agent_type: str,
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """
     Decorator for tracking Agent execution metrics.
 
@@ -112,7 +116,7 @@ def track_agent_execution(agent_type: str) -> Callable[[Callable[P, R]], Callabl
         logger.warning(
             "agent_metrics.unknown_agent_type",
             agent_type=agent_type,
-            valid_types=list(VALID_AGENT_TYPES)
+            valid_types=list(VALID_AGENT_TYPES),
         )
 
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
@@ -128,14 +132,11 @@ def track_agent_execution(agent_type: str) -> Callable[[Callable[P, R]], Callabl
                 result = await func(*args, **kwargs)
 
                 # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
-                AGENT_INVOCATIONS.labels(
-                    agent_type=agent_type,
-                    status="success"
-                ).inc()
+                AGENT_INVOCATIONS.labels(agent_type=agent_type, status="success").inc()
 
                 log.debug(
                     "agent_metrics.execution_success",
-                    duration_s=time.perf_counter() - start
+                    duration_s=time.perf_counter() - start,
                 )
 
                 return result
@@ -145,21 +146,15 @@ def track_agent_execution(agent_type: str) -> Callable[[Callable[P, R]], Callabl
                 error_type = type(e).__name__
 
                 # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
-                AGENT_ERRORS.labels(
-                    agent_type=agent_type,
-                    error_type=error_type
-                ).inc()
+                AGENT_ERRORS.labels(agent_type=agent_type, error_type=error_type).inc()
 
-                AGENT_INVOCATIONS.labels(
-                    agent_type=agent_type,
-                    status="error"
-                ).inc()
+                AGENT_INVOCATIONS.labels(agent_type=agent_type, status="error").inc()
 
                 log.error(
                     "agent_metrics.execution_error",
                     error_type=error_type,
                     error_message=str(e),
-                    duration_s=time.perf_counter() - start
+                    duration_s=time.perf_counter() - start,
                 )
 
                 raise
@@ -169,9 +164,7 @@ def track_agent_execution(agent_type: str) -> Callable[[Callable[P, R]], Callabl
                 duration = time.perf_counter() - start
 
                 # ✅ Verified from Context7:/prometheus/client_python (Histogram.labels().observe())
-                AGENT_EXECUTION_TIME.labels(
-                    agent_type=agent_type
-                ).observe(duration)
+                AGENT_EXECUTION_TIME.labels(agent_type=agent_type).observe(duration)
 
         @functools.wraps(func)
         def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -182,14 +175,11 @@ def track_agent_execution(agent_type: str) -> Callable[[Callable[P, R]], Callabl
             try:
                 result = func(*args, **kwargs)
 
-                AGENT_INVOCATIONS.labels(
-                    agent_type=agent_type,
-                    status="success"
-                ).inc()
+                AGENT_INVOCATIONS.labels(agent_type=agent_type, status="success").inc()
 
                 log.debug(
                     "agent_metrics.execution_success",
-                    duration_s=time.perf_counter() - start
+                    duration_s=time.perf_counter() - start,
                 )
 
                 return result
@@ -197,33 +187,26 @@ def track_agent_execution(agent_type: str) -> Callable[[Callable[P, R]], Callabl
             except Exception as e:
                 error_type = type(e).__name__
 
-                AGENT_ERRORS.labels(
-                    agent_type=agent_type,
-                    error_type=error_type
-                ).inc()
+                AGENT_ERRORS.labels(agent_type=agent_type, error_type=error_type).inc()
 
-                AGENT_INVOCATIONS.labels(
-                    agent_type=agent_type,
-                    status="error"
-                ).inc()
+                AGENT_INVOCATIONS.labels(agent_type=agent_type, status="error").inc()
 
                 log.error(
                     "agent_metrics.execution_error",
                     error_type=error_type,
                     error_message=str(e),
-                    duration_s=time.perf_counter() - start
+                    duration_s=time.perf_counter() - start,
                 )
 
                 raise
 
             finally:
                 duration = time.perf_counter() - start
-                AGENT_EXECUTION_TIME.labels(
-                    agent_type=agent_type
-                ).observe(duration)
+                AGENT_EXECUTION_TIME.labels(agent_type=agent_type).observe(duration)
 
         # Return appropriate wrapper based on function type
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper  # type: ignore
         else:
@@ -236,7 +219,7 @@ def record_agent_invocation(
     agent_type: str,
     status: str = "success",
     duration_s: float = 0.0,
-    error_type: str | None = None
+    error_type: str | None = None,
 ) -> None:
     """
     Manually record an Agent invocation metric.
@@ -257,30 +240,22 @@ def record_agent_invocation(
         >>> record_agent_invocation("scoring-agent", "error", 0.5, "TimeoutError")
     """
     # Record invocation count
-    AGENT_INVOCATIONS.labels(
-        agent_type=agent_type,
-        status=status
-    ).inc()
+    AGENT_INVOCATIONS.labels(agent_type=agent_type, status=status).inc()
 
     # Record execution time
     if duration_s > 0:
-        AGENT_EXECUTION_TIME.labels(
-            agent_type=agent_type
-        ).observe(duration_s)
+        AGENT_EXECUTION_TIME.labels(agent_type=agent_type).observe(duration_s)
 
     # Record error if applicable
     if status == "error" and error_type:
-        AGENT_ERRORS.labels(
-            agent_type=agent_type,
-            error_type=error_type
-        ).inc()
+        AGENT_ERRORS.labels(agent_type=agent_type, error_type=error_type).inc()
 
     logger.debug(
         "agent_metrics.manual_record",
         agent_type=agent_type,
         status=status,
         duration_s=duration_s,
-        error_type=error_type
+        error_type=error_type,
     )
 
 
@@ -322,7 +297,7 @@ def get_agent_metrics_snapshot() -> dict[str, Any]:
                             "count": 0,
                             "success_count": 0,
                             "error_count": 0,
-                            "avg_time_s": 0.0
+                            "avg_time_s": 0.0,
                         }
 
                     by_type[agent_type]["count"] += count
@@ -359,5 +334,5 @@ def get_agent_metrics_snapshot() -> dict[str, Any]:
     return {
         "invocations_total": invocations_total,
         "avg_execution_time_s": round(avg_execution_time_s, 4),
-        "by_type": by_type
+        "by_type": by_type,
     }

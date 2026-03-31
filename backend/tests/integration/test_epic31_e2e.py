@@ -21,18 +21,16 @@ import json
 import os
 import tempfile
 from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
-
-from tests.conftest import simulate_async_delay
+from unittest.mock import AsyncMock, MagicMock
 
 import app.services.verification_service as vs_module
+import pytest
 from app.services.verification_service import (
     VerificationService,
     VerificationStatus,
 )
 
+from tests.conftest import simulate_async_delay
 
 # ===========================================================================
 # Fixtures
@@ -58,28 +56,40 @@ def e2e_canvas_data() -> Dict[str, Any]:
                 "type": "text",
                 "text": "梯度下降法",
                 "color": "4",  # Red
-                "x": 0, "y": 0, "width": 200, "height": 100,
+                "x": 0,
+                "y": 0,
+                "width": 200,
+                "height": 100,
             },
             {
                 "id": "node-b",
                 "type": "text",
                 "text": "损失函数",
                 "color": "3",  # Purple
-                "x": 250, "y": 0, "width": 200, "height": 100,
+                "x": 250,
+                "y": 0,
+                "width": 200,
+                "height": 100,
             },
             {
                 "id": "node-c",
                 "type": "text",
                 "text": "正则化技术",
                 "color": "4",  # Red
-                "x": 500, "y": 0, "width": 200, "height": 100,
+                "x": 500,
+                "y": 0,
+                "width": 200,
+                "height": 100,
             },
             {
                 "id": "node-d",
                 "type": "text",
                 "text": "已掌握概念",
                 "color": "2",  # Green – ignored
-                "x": 0, "y": 150, "width": 200, "height": 100,
+                "x": 0,
+                "y": 150,
+                "width": 200,
+                "height": 100,
             },
         ],
         "edges": [],
@@ -111,14 +121,16 @@ def _make_question_result(text: str = "请解释梯度下降法的核心原理")
     result = MagicMock()
     result.success = True
     result.data = {
-        "questions": [{
-            "source_node_id": "e2e_test",
-            "question_text": text,
-            "question_type": "检验型",
-            "difficulty": "基础",
-            "guidance": "",
-            "rationale": "E2E测试",
-        }],
+        "questions": [
+            {
+                "source_node_id": "e2e_test",
+                "question_text": text,
+                "question_type": "检验型",
+                "difficulty": "基础",
+                "guidance": "",
+                "rationale": "E2E测试",
+            }
+        ],
     }
     return result
 
@@ -161,12 +173,14 @@ def mock_agent() -> MagicMock:
 def mock_rag() -> MagicMock:
     """Mock RAG service."""
     service = MagicMock()
-    service.query = AsyncMock(return_value={
-        "learning_history": "用户之前学习过线性代数基础",
-        "textbook_excerpts": "梯度下降是一种迭代优化算法...",
-        "related_concepts": ["凸优化", "学习率"],
-        "common_mistakes": "容易混淆梯度和导数",
-    })
+    service.query = AsyncMock(
+        return_value={
+            "learning_history": "用户之前学习过线性代数基础",
+            "textbook_excerpts": "梯度下降是一种迭代优化算法...",
+            "related_concepts": ["凸优化", "学习率"],
+            "common_mistakes": "容易混淆梯度和导数",
+        }
+    )
     return service
 
 
@@ -219,7 +233,8 @@ class TestCompleteVerificationFlow:
 
         result = await service.process_answer(
             session_id=session["session_id"],
-            user_answer="这是一个详细的回答，包含对概念的深入分析和理解" * 15,  # >200 chars → 85.0
+            user_answer="这是一个详细的回答，包含对概念的深入分析和理解"
+            * 15,  # >200 chars → 85.0
         )
 
         assert 0 <= result["score"] <= 100
@@ -275,9 +290,7 @@ class TestCompleteVerificationFlow:
         High score (>=60) → action='next'; low score (<60, hints available) → action='hint'.
         """
         # Configure agent to return high score for first call
-        mock_agent.call_scoring = AsyncMock(
-            return_value=_make_scoring_result(85.0)
-        )
+        mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(85.0))
 
         session = await service.start_session(
             canvas_name="e2e_test", canvas_path=temp_canvas
@@ -291,9 +304,7 @@ class TestCompleteVerificationFlow:
         assert result["action"] == "next"
 
         # Now configure low score
-        mock_agent.call_scoring = AsyncMock(
-            return_value=_make_scoring_result(35.0)
-        )
+        mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(35.0))
 
         # Low score → hint
         result = await service.process_answer(
@@ -325,9 +336,7 @@ class TestPauseResumeFlow:
     ):
         """After pause+resume, the stored question is returned (not a template)."""
         # Configure high score so first answer advances
-        mock_agent.call_scoring = AsyncMock(
-            return_value=_make_scoring_result(85.0)
-        )
+        mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(85.0))
 
         session = await service.start_session(
             canvas_name="e2e_test", canvas_path=temp_canvas
@@ -432,9 +441,7 @@ class TestConsecutiveLowRecommendation:
         Flow: low→hint, low→hint, low→hint, low→next (hints exhausted)
         """
         # Always return low score
-        mock_agent.call_scoring = AsyncMock(
-            return_value=_make_scoring_result(30.0)
-        )
+        mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(30.0))
 
         session = await service.start_session(
             canvas_name="e2e_test", canvas_path=temp_canvas
@@ -448,7 +455,7 @@ class TestConsecutiveLowRecommendation:
                 user_answer="不确定",
             )
             assert result["action"] == "hint", (
-                f"Attempt {i+1}: expected 'hint', got '{result['action']}'"
+                f"Attempt {i + 1}: expected 'hint', got '{result['action']}'"
             )
             assert result["hint"] is not None
             assert result["score"] == 30.0
@@ -471,9 +478,7 @@ class TestConsecutiveLowRecommendation:
         mock_agent: MagicMock,
     ):
         """Even with all low scores, session eventually reaches COMPLETED."""
-        mock_agent.call_scoring = AsyncMock(
-            return_value=_make_scoring_result(25.0)
-        )
+        mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(25.0))
 
         session = await service.start_session(
             canvas_name="e2e_test", canvas_path=temp_canvas
@@ -527,40 +532,30 @@ class TestConsecutiveLowRecommendation:
         session_id = session["session_id"]
 
         # Concept 1: excellent (85)
-        mock_agent.call_scoring = AsyncMock(
-            return_value=_make_scoring_result(85.0)
-        )
+        mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(85.0))
         await service.process_answer(
             session_id=session_id,
             user_answer="完美回答" * 50,
         )
 
         # Concept 2: good (70)
-        mock_agent.call_scoring = AsyncMock(
-            return_value=_make_scoring_result(70.0)
-        )
+        mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(70.0))
         await service.process_answer(
             session_id=session_id,
             user_answer="不错的回答" * 50,
         )
 
         # Concept 3: wrong (25) — exhaust hints then advance
-        mock_agent.call_scoring = AsyncMock(
-            return_value=_make_scoring_result(25.0)
-        )
+        mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(25.0))
         for _ in range(3):  # hints
-            await service.process_answer(
-                session_id=session_id, user_answer="不知道"
-            )
+            await service.process_answer(session_id=session_id, user_answer="不知道")
         # Force advance on 4th
-        await service.process_answer(
-            session_id=session_id, user_answer="不知道"
-        )
+        await service.process_answer(session_id=session_id, user_answer="不知道")
 
         progress = await service.get_progress(session_id)
-        assert progress["green_count"] == 1   # 85 → green
+        assert progress["green_count"] == 1  # 85 → green
         assert progress["yellow_count"] == 1  # 70 → yellow
-        assert progress["red_count"] == 1     # 25 → red
+        assert progress["red_count"] == 1  # 25 → red
         assert progress["completed_concepts"] == 3
 
 
@@ -585,12 +580,8 @@ class TestDegradationVisibility:
     ):
         """When scoring agent times out, mock evaluation is used."""
         mock_agent = MagicMock()
-        mock_agent.call_agent = AsyncMock(
-            return_value=_make_question_result()
-        )
-        mock_agent.call_scoring = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
+        mock_agent.call_agent = AsyncMock(return_value=_make_question_result())
+        mock_agent.call_scoring = AsyncMock(side_effect=asyncio.TimeoutError())
 
         svc = VerificationService(
             rag_service=mock_rag,
@@ -621,9 +612,7 @@ class TestDegradationVisibility:
     ):
         """When scoring agent throws an exception, mock evaluation is used."""
         mock_agent = MagicMock()
-        mock_agent.call_agent = AsyncMock(
-            return_value=_make_question_result()
-        )
+        mock_agent.call_agent = AsyncMock(return_value=_make_question_result())
         mock_agent.call_scoring = AsyncMock(
             side_effect=RuntimeError("API quota exceeded")
         )
@@ -655,12 +644,8 @@ class TestDegradationVisibility:
     ):
         """When question generation times out, a fallback question is produced."""
         mock_agent = MagicMock()
-        mock_agent.call_agent = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
-        mock_agent.call_scoring = AsyncMock(
-            return_value=_make_scoring_result(80.0)
-        )
+        mock_agent.call_agent = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(80.0))
 
         svc = VerificationService(
             rag_service=mock_rag,
@@ -712,9 +697,7 @@ class TestDegradationVisibility:
     ):
         """Full session completes even when all AI calls are degraded."""
         mock_agent = MagicMock()
-        mock_agent.call_agent = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
+        mock_agent.call_agent = AsyncMock(side_effect=asyncio.TimeoutError())
         mock_agent.call_scoring = AsyncMock(
             side_effect=RuntimeError("Service unavailable")
         )

@@ -23,7 +23,10 @@ def test_layout_preferences_creation():
     """测试布局偏好配置创建"""
     # Import here to avoid syntax errors from main file
     try:
-        from canvas_utils import LAYOUT_OPTIMIZATION_DEFAULT_ALIGNMENT, LayoutPreferences
+        from canvas_utils import (
+            LAYOUT_OPTIMIZATION_DEFAULT_ALIGNMENT,
+            LayoutPreferences,
+        )
 
         # Test default preferences
         prefs = LayoutPreferences()
@@ -82,7 +85,7 @@ def test_basic_canvas_operations():
                     "width": 400,
                     "height": 120,
                     "color": "1",
-                    "text": "测试问题"
+                    "text": "测试问题",
                 },
                 {
                     "id": "yellow-1",
@@ -92,8 +95,8 @@ def test_basic_canvas_operations():
                     "width": 350,
                     "height": 150,
                     "color": "6",
-                    "text": "个人理解"
-                }
+                    "text": "个人理解",
+                },
             ],
             "edges": [
                 {
@@ -102,13 +105,15 @@ def test_basic_canvas_operations():
                     "toNode": "yellow-1",
                     "fromSide": "bottom",
                     "toSide": "top",
-                    "label": "个人理解"
+                    "label": "个人理解",
                 }
-            ]
+            ],
         }
 
         # Test file operations
-        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False)
+        temp_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False
+        )
         json.dump(canvas_data, temp_file, indent=2, ensure_ascii=False)
         temp_file.close()
 
@@ -119,7 +124,9 @@ def test_basic_canvas_operations():
             assert len(loaded_data["edges"]) == 1
 
             # Test finding nodes
-            question_node = CanvasJSONOperator.find_node_by_id(loaded_data, "question-1")
+            question_node = CanvasJSONOperator.find_node_by_id(
+                loaded_data, "question-1"
+            )
             assert question_node is not None
             assert question_node["text"] == "测试问题"
 
@@ -135,18 +142,24 @@ def test_basic_canvas_operations():
 def test_yellow_position_calculation():
     """测试黄色节点位置计算逻辑"""
     try:
-        from canvas_utils import QUESTION_NODE_HEIGHT, YELLOW_NODE_WIDTH, YELLOW_OFFSET_Y
+        from canvas_utils import (
+            QUESTION_NODE_HEIGHT,
+            YELLOW_NODE_WIDTH,
+            YELLOW_OFFSET_Y,
+        )
 
         # Test question node
         question_node = {
             "x": 100,
             "y": 200,
             "width": 400,
-            "height": QUESTION_NODE_HEIGHT
+            "height": QUESTION_NODE_HEIGHT,
         }
 
         # Test center alignment
-        expected_x = question_node["x"] + (question_node["width"] - YELLOW_NODE_WIDTH) // 2
+        expected_x = (
+            question_node["x"] + (question_node["width"] - YELLOW_NODE_WIDTH) // 2
+        )
         expected_y = question_node["y"] + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y
 
         assert expected_x == 175  # 100 + (400 - 350) // 2
@@ -168,13 +181,14 @@ def test_yellow_position_calculation():
 
 def test_overlap_detection_logic():
     """测试重叠检测逻辑"""
+
     def check_overlap(node1, node2):
         """简单的重叠检测逻辑"""
         return not (
-            node1["x"] + node1["width"] <= node2["x"] or
-            node2["x"] + node2["width"] <= node1["x"] or
-            node1["y"] + node1["height"] <= node2["y"] or
-            node2["y"] + node2["height"] <= node1["y"]
+            node1["x"] + node1["width"] <= node2["x"]
+            or node2["x"] + node2["width"] <= node1["x"]
+            or node1["y"] + node1["height"] <= node2["y"]
+            or node2["y"] + node2["height"] <= node1["y"]
         )
 
     # Test non-overlapping nodes
@@ -191,6 +205,7 @@ def test_overlap_detection_logic():
 
 def test_layout_quality_scoring_logic():
     """测试布局质量评分逻辑"""
+
     def calculate_alignment_score(question_yellow_pairs):
         """简单的对齐评分逻辑"""
         if not question_yellow_pairs:

@@ -13,14 +13,12 @@ Tests verify:
 """
 
 from typing import List
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app
 from app.services.memory_service import MemoryService
-
+from fastapi.testclient import TestClient
 
 # ===========================================================================
 # Fixtures
@@ -36,6 +34,7 @@ def _clear_request_cache():
     are rejected as duplicate requests.
     """
     from app.core.request_cache import request_cache
+
     request_cache.clear()
     yield
     request_cache.clear()
@@ -45,10 +44,12 @@ def _clear_request_cache():
 def mock_memory_service():
     """Mock MemoryService for history queries."""
     svc = MagicMock(spec=MemoryService)
-    svc.get_learning_history = AsyncMock(return_value={
-        "items": [],
-        "total": 0,
-    })
+    svc.get_learning_history = AsyncMock(
+        return_value={
+            "items": [],
+            "total": 0,
+        }
+    )
     return svc
 
 
@@ -69,11 +70,13 @@ def _make_history_items(scores: List[int]):
     """Build mock history items from a list of scores."""
     items = []
     for i, s in enumerate(scores):
-        items.append({
-            "score": s,
-            "timestamp": f"2026-01-{15 - i:02d}T10:00:00Z",
-            "concept": "逆否命题",
-        })
+        items.append(
+            {
+                "score": s,
+                "timestamp": f"2026-01-{15 - i:02d}T10:00:00Z",
+                "concept": "逆否命题",
+            }
+        )
     return {"items": items, "total": len(items)}
 
 
@@ -372,9 +375,7 @@ class TestHistoryTrendConsideration:
     def test_history_context_in_response(self, client_with_mock):
         """AC-31.3.4: Response includes history_context when available."""
         client, mock_ms = client_with_mock
-        mock_ms.get_learning_history.return_value = _make_history_items(
-            [75, 70, 65]
-        )
+        mock_ms.get_learning_history.return_value = _make_history_items([75, 70, 65])
         response = client.post(
             "/api/v1/agents/recommend-action",
             json={
@@ -477,6 +478,7 @@ class TestCalculateTrend:
         """< 3 scores → stable trend."""
         from app.api.v1.endpoints.agents import _calculate_trend
         from app.models.schemas import ActionTrend
+
         assert _calculate_trend([80, 70]) == ActionTrend.stable
         assert _calculate_trend([80]) == ActionTrend.stable
         assert _calculate_trend([]) == ActionTrend.stable
@@ -485,6 +487,7 @@ class TestCalculateTrend:
         """Recent scores higher than older → improving."""
         from app.api.v1.endpoints.agents import _calculate_trend
         from app.models.schemas import ActionTrend
+
         # Recent: [90, 85] avg=87.5, Older: [60, 55, 50] avg=55
         assert _calculate_trend([90, 85, 60, 55, 50]) == ActionTrend.improving
 
@@ -492,6 +495,7 @@ class TestCalculateTrend:
         """Recent scores lower than older → declining."""
         from app.api.v1.endpoints.agents import _calculate_trend
         from app.models.schemas import ActionTrend
+
         # Recent: [50, 55] avg=52.5, Older: [80, 85, 90] avg=85
         assert _calculate_trend([50, 55, 80, 85, 90]) == ActionTrend.declining
 
@@ -499,6 +503,7 @@ class TestCalculateTrend:
         """Scores roughly equal → stable."""
         from app.api.v1.endpoints.agents import _calculate_trend
         from app.models.schemas import ActionTrend
+
         assert _calculate_trend([72, 70, 71, 73, 70]) == ActionTrend.stable
 
 
@@ -512,6 +517,7 @@ class TestRecommendActionFromScore:
         """score < 60 → decompose."""
         from app.api.v1.endpoints.agents import _recommend_action_from_score
         from app.models.schemas import ActionType
+
         action, reason, agent, priority, review, alts = _recommend_action_from_score(30)
         assert action == ActionType.decompose
 
@@ -519,6 +525,7 @@ class TestRecommendActionFromScore:
         """60 <= score < 80 → explain."""
         from app.api.v1.endpoints.agents import _recommend_action_from_score
         from app.models.schemas import ActionType
+
         action, reason, agent, priority, review, alts = _recommend_action_from_score(70)
         assert action == ActionType.explain
 
@@ -526,6 +533,7 @@ class TestRecommendActionFromScore:
         """score >= 80 → next."""
         from app.api.v1.endpoints.agents import _recommend_action_from_score
         from app.models.schemas import ActionType
+
         action, reason, agent, priority, review, alts = _recommend_action_from_score(85)
         assert action == ActionType.next
 
@@ -533,6 +541,7 @@ class TestRecommendActionFromScore:
         """Declining history → review_suggested=True."""
         from app.api.v1.endpoints.agents import _recommend_action_from_score
         from app.models.schemas import ActionTrend, HistoryContext
+
         ctx = HistoryContext(
             recent_scores=[50, 60, 70],
             average_score=60.0,

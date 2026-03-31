@@ -516,9 +516,7 @@ class TestErrorHandlingE2E:
     def test_invalid_canvas_path_characters(self, test_client):
         """Test handling of invalid canvas path characters."""
         # Most special characters should be URL-encoded
-        response = test_client.get(
-            "/api/v1/rollback/history/test%20canvas.canvas"
-        )
+        response = test_client.get("/api/v1/rollback/history/test%20canvas.canvas")
         # Should handle gracefully
         assert response.status_code in [200, 400, 404]
 
@@ -626,7 +624,12 @@ class TestAPIContractValidation:
 
         data = response.json()
         # Validate required fields
-        required_fields = ["success", "rollback_type", "canvas_path", "graph_sync_status"]
+        required_fields = [
+            "success",
+            "rollback_type",
+            "canvas_path",
+            "graph_sync_status",
+        ]
         for field in required_fields:
             assert field in data, f"Missing required field: {field}"
 

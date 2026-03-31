@@ -46,7 +46,11 @@ logger = logging.getLogger(__name__)
 # ✅ Story 12.1-12.4: 使用真实客户端
 from agentic_rag.clients import GraphitiClient, LanceDBClient, TemporalClient  # noqa: E402
 from agentic_rag.config import DEFAULT_FUSION_GROUPS, CanvasRAGConfig  # noqa: E402
-from agentic_rag.reranking import COHERE_AVAILABLE, CROSS_ENCODER_AVAILABLE, get_reranker  # noqa: E402
+from agentic_rag.reranking import (
+    COHERE_AVAILABLE,
+    CROSS_ENCODER_AVAILABLE,
+    get_reranker,
+)  # noqa: E402
 from agentic_rag.state import CanvasRAGState, SearchResult  # noqa: E402
 
 # Story 2.2: Lazy-loaded reranker singleton (Cohere only — local uses get_reranker)
@@ -58,7 +62,9 @@ _lancedb_client: Optional[LanceDBClient] = None
 _temporal_client: Optional[TemporalClient] = None
 
 
-def _safe_get_config(runtime: Runtime[CanvasRAGConfig], key: str, default: Any = None) -> Any:
+def _safe_get_config(
+    runtime: Runtime[CanvasRAGConfig], key: str, default: Any = None
+) -> Any:
     """
     Safely access runtime context with None protection.
 
@@ -77,7 +83,9 @@ def _safe_get_config(runtime: Runtime[CanvasRAGConfig], key: str, default: Any =
         logger.warning(f"[_safe_get_config] runtime is None, using default for '{key}'")
         return default
     if runtime.context is None:
-        logger.warning(f"[_safe_get_config] runtime.context is None, using default for '{key}'")
+        logger.warning(
+            f"[_safe_get_config] runtime.context is None, using default for '{key}'"
+        )
         return default
     return runtime.context.get(key, default)
 
@@ -129,7 +137,9 @@ async def _get_temporal_client() -> TemporalClient:
 # ========================================
 
 
-async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+async def retrieve_graphiti(
+    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
     """
     Graphiti知识图谱检索节点
 
@@ -158,12 +168,18 @@ async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGCon
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
     else:
         query = ""
 
     # ✅ Story 23.3: 节点入口日志
-    logger.debug(f"[retrieve_graphiti] START - query='{query[:50]}...' canvas={state.get('canvas_file')}")
+    logger.debug(
+        f"[retrieve_graphiti] START - query='{query[:50]}...' canvas={state.get('canvas_file')}"
+    )
 
     # 获取配置 (Story 12.K.2: Safe config access)
     batch_size = _safe_get_config(runtime, "graphiti_batch_size") or _safe_get_config(
@@ -187,7 +203,9 @@ async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGCon
     # ✅ Story 12.1: 使用真实Graphiti客户端
     try:
         client = await _get_graphiti_client()
-        graphiti_results = await client.search_nodes(query=query, canvas_file=scoped_canvas, num_results=batch_size)
+        graphiti_results = await client.search_nodes(
+            query=query, canvas_file=scoped_canvas, num_results=batch_size
+        )
     except Exception as e:
         # Fallback: 返回空结果
         logger.warning(f"[retrieve_graphiti] Fallback triggered: {e}")
@@ -196,7 +214,9 @@ async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGCon
     latency_ms = (time.perf_counter() - start_time) * 1000
 
     # ✅ Story 23.3: 节点出口日志
-    logger.debug(f"[retrieve_graphiti] END - results={len(graphiti_results)}, latency={latency_ms:.2f}ms")
+    logger.debug(
+        f"[retrieve_graphiti] END - results={len(graphiti_results)}, latency={latency_ms:.2f}ms"
+    )
 
     return {"graphiti_results": graphiti_results, "graphiti_latency_ms": latency_ms}
 
@@ -206,7 +226,9 @@ async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGCon
 # ========================================
 
 
-async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+async def retrieve_lancedb(
+    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
     """
     LanceDB向量检索节点
 
@@ -234,12 +256,18 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
     else:
         query = ""
 
     # ✅ Story 23.3: 节点入口日志
-    logger.debug(f"[retrieve_lancedb] START - query='{query[:50]}...' canvas={state.get('canvas_file')}")
+    logger.debug(
+        f"[retrieve_lancedb] START - query='{query[:50]}...' canvas={state.get('canvas_file')}"
+    )
 
     # 获取配置 (Story 12.K.2: Safe config access)
     batch_size = _safe_get_config(runtime, "lancedb_batch_size") or _safe_get_config(
@@ -275,11 +303,17 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
                     neo4j_driver=neo4j_client._driver,
                     threshold=0.3,
                 )
-                logger.info(f"[retrieve_lancedb] Cross-subject expansion: {subject} -> {subjects_to_search}")
+                logger.info(
+                    f"[retrieve_lancedb] Cross-subject expansion: {subject} -> {subjects_to_search}"
+                )
         except ImportError:
-            logger.debug("[retrieve_lancedb] cross_subject_bridge not available, searching current subject only")
+            logger.debug(
+                "[retrieve_lancedb] cross_subject_bridge not available, searching current subject only"
+            )
         except Exception as e:
-            logger.warning(f"[retrieve_lancedb] Cross-subject expansion failed, using current subject: {e}")
+            logger.warning(
+                f"[retrieve_lancedb] Cross-subject expansion failed, using current subject: {e}"
+            )
 
     # ✅ Story 12.2 + Story 2.4: 使用真实LanceDB客户端 with hybrid search
     # Story 2-8 H1+H2: When course_id is present, use progressive_scope_search
@@ -332,9 +366,13 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
         seen_ids: dict = {}
         for r in lancedb_results:
             doc_id = r.get("doc_id", "")
-            if doc_id not in seen_ids or r.get("score", 0) > seen_ids[doc_id].get("score", 0):
+            if doc_id not in seen_ids or r.get("score", 0) > seen_ids[doc_id].get(
+                "score", 0
+            ):
                 seen_ids[doc_id] = r
-        lancedb_results = sorted(seen_ids.values(), key=lambda x: x.get("score", 0), reverse=True)
+        lancedb_results = sorted(
+            seen_ids.values(), key=lambda x: x.get("score", 0), reverse=True
+        )
 
         # 限制总结果数
         lancedb_results = lancedb_results[:batch_size]
@@ -347,7 +385,9 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
     latency_ms = (time.perf_counter() - start_time) * 1000
 
     # ✅ Story 23.3: 节点出口日志
-    logger.debug(f"[retrieve_lancedb] END - results={len(lancedb_results)}, latency={latency_ms:.2f}ms")
+    logger.debug(
+        f"[retrieve_lancedb] END - results={len(lancedb_results)}, latency={latency_ms:.2f}ms"
+    )
 
     return {"lancedb_results": lancedb_results, "lancedb_latency_ms": latency_ms}
 
@@ -356,23 +396,24 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
 # Node 3: 融合算法 (Story 23.4 扩展为5源融合)
 # ========================================
 
-# Story 23.4: 默认权重配置
+# Story 23.4: 默认权重配置 (Feature 2.2: textbook removed per GDA-2)
 DEFAULT_SOURCE_WEIGHTS = {
-    "graphiti": 0.20,
-    "lancedb": 0.20,
-    "textbook": 0.15,
+    "graphiti": 0.25,
+    "lancedb": 0.25,
     "cross_canvas": 0.10,
     "multimodal": 0.15,
-    "vault_notes": 0.20,
+    "vault_notes": 0.25,
 }
 
 
-async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+async def fuse_results(
+    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
     """
-    融合算法节点 (Story 23.4: 五源加权融合)
+    融合算法节点 (Feature 2.2: 四源加权融合, textbook removed per GDA-2)
 
     根据fusion_strategy选择融合算法:
-    - rrf: Reciprocal Rank Fusion (5源)
+    - rrf: Reciprocal Rank Fusion (4源 + cross_canvas)
     - weighted: 加权融合 (使用source_weights配置)
     - cascade: 级联融合 (Tier 1: Graphiti, Tier 2: others)
 
@@ -393,13 +434,12 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
     """
     start_time = time.perf_counter()
 
-    # Story 23.4: 获取6个数据源的结果
+    # Feature 2.2: 获取5个数据源的结果 (textbook removed per GDA-2)
     graphiti_results = state.get("graphiti_results", [])
     lancedb_results = state.get("lancedb_results", [])
-    # ✅ Story 23.3: 获取多模态结果
+    # Story 23.3: 获取多模态结果
     multimodal_results = state.get("multimodal_results", [])
-    # Story 23.4: 获取教材和跨Canvas结果
-    textbook_results = state.get("textbook_results", [])
+    # Story 23.4: 获取跨Canvas结果
     cross_canvas_results = state.get("cross_canvas_results", [])
     # Vault-wide .md note results
     vault_notes_results = state.get("vault_notes_results", [])
@@ -415,12 +455,11 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
     # Story 23.4 AC 2: 对Graphiti结果应用时间衰减
     graphiti_results = _apply_time_decay(graphiti_results, time_decay_factor)
 
-    # 构建6源结果字典
+    # 构建5源结果字典 (Feature 2.2: textbook removed per GDA-2)
     all_source_results = {
         "graphiti": graphiti_results,
         "lancedb": lancedb_results,
         "multimodal": multimodal_results,
-        "textbook": textbook_results,
         "cross_canvas": cross_canvas_results,
         "vault_notes": vault_notes_results,
     }
@@ -430,14 +469,13 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
         "graphiti": len(graphiti_results),
         "lancedb": len(lancedb_results),
         "multimodal": len(multimodal_results),
-        "textbook": len(textbook_results),
         "cross_canvas": len(cross_canvas_results),
         "vault_notes": len(vault_notes_results),
     }
     active_channels = sum(1 for count in channel_status.values() if count > 0)
     total_results = sum(channel_status.values())
     logger.info(
-        f"[fuse_results] Channel health: {active_channels}/6 active, "
+        f"[fuse_results] Channel health: {active_channels}/5 active, "
         f"total_results={total_results}, per_channel={channel_status}"
     )
 
@@ -470,7 +508,9 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
     return {"fused_results": fused_results, "fusion_latency_ms": latency_ms}
 
 
-def _apply_time_decay(results: List[SearchResult], decay_factor: float = 0.05) -> List[SearchResult]:
+def _apply_time_decay(
+    results: List[SearchResult], decay_factor: float = 0.05
+) -> List[SearchResult]:
     """
     Story 23.4 AC 2: 对学习历史结果应用时间衰减
 
@@ -499,7 +539,9 @@ def _apply_time_decay(results: List[SearchResult], decay_factor: float = 0.05) -
             try:
                 # 尝试解析ISO格式时间
                 if isinstance(timestamp_str, str):
-                    timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                    timestamp = datetime.fromisoformat(
+                        timestamp_str.replace("Z", "+00:00")
+                    )
                 else:
                     timestamp = timestamp_str
 
@@ -528,7 +570,9 @@ def _apply_time_decay(results: List[SearchResult], decay_factor: float = 0.05) -
     return decayed_results
 
 
-def _fuse_rrf_multi_source(all_source_results: Dict[str, List[SearchResult]], k: int = 60) -> List[SearchResult]:
+def _fuse_rrf_multi_source(
+    all_source_results: Dict[str, List[SearchResult]], k: int = 60
+) -> List[SearchResult]:
     """
     RRF (Reciprocal Rank Fusion) 多源算法
 
@@ -562,7 +606,9 @@ def _fuse_rrf_multi_source(all_source_results: Dict[str, List[SearchResult]], k:
                 # Merge scores by using the first-seen doc_id
                 existing_doc_id = content_fingerprints[fingerprint]
                 rrf_score = 1.0 / (k + rank)
-                doc_scores[existing_doc_id] = doc_scores.get(existing_doc_id, 0.0) + rrf_score
+                doc_scores[existing_doc_id] = (
+                    doc_scores.get(existing_doc_id, 0.0) + rrf_score
+                )
                 logger.debug(
                     f"[_fuse_rrf] Dedup: {source_name} result merged into {existing_doc_id} (content fingerprint match)"
                 )
@@ -644,7 +690,9 @@ def _fuse_layered_rrf(
 
                 if fp in content_fps:
                     existing_id = content_fps[fp]
-                    doc_scores[existing_id] = doc_scores.get(existing_id, 0.0) + 1.0 / (k + rank)
+                    doc_scores[existing_id] = doc_scores.get(existing_id, 0.0) + 1.0 / (
+                        k + rank
+                    )
                     continue
 
                 content_fps[fp] = doc_id
@@ -659,7 +707,9 @@ def _fuse_layered_rrf(
 
         # Build group result list with RRF scores
         group_fused: List[SearchResult] = []
-        for doc_id, rrf_score in sorted(doc_scores.items(), key=lambda x: x[1], reverse=True):
+        for doc_id, rrf_score in sorted(
+            doc_scores.items(), key=lambda x: x[1], reverse=True
+        ):
             result = doc_data[doc_id]
             result["score"] = rrf_score
             result["metadata"]["fusion_group"] = group_name
@@ -670,7 +720,9 @@ def _fuse_layered_rrf(
 
         # Story 2.5 AC-5: Log group stats
         top1_score = group_fused[0]["score"] if group_fused else 0.0
-        logger.debug(f"[_fuse_layered_rrf] Group '{group_name}': {len(group_fused)} docs, top-1 RRF={top1_score:.4f}")
+        logger.debug(
+            f"[_fuse_layered_rrf] Group '{group_name}': {len(group_fused)} docs, top-1 RRF={top1_score:.4f}"
+        )
 
     # Step 2: Z-score cross-group normalization
     # Collect all group RRF scores to compute a global fallback mean/std for single-doc groups
@@ -681,7 +733,9 @@ def _fuse_layered_rrf(
 
     global_mean = sum(all_rrf_scores) / len(all_rrf_scores) if all_rrf_scores else 0.0
     global_std = (
-        math.sqrt(sum((s - global_mean) ** 2 for s in all_rrf_scores) / len(all_rrf_scores))
+        math.sqrt(
+            sum((s - global_mean) ** 2 for s in all_rrf_scores) / len(all_rrf_scores)
+        )
         if len(all_rrf_scores) > 1
         else 1.0
     )
@@ -741,7 +795,9 @@ def _fuse_layered_rrf(
         deduped.append(result)
 
     if dedup_count > 0:
-        logger.debug(f"[_fuse_layered_rrf] Cross-group dedup removed {dedup_count} duplicates")
+        logger.debug(
+            f"[_fuse_layered_rrf] Cross-group dedup removed {dedup_count} duplicates"
+        )
 
     # Step 4: Global sort by normalized z-score
     deduped.sort(key=lambda x: x["score"], reverse=True)
@@ -758,11 +814,10 @@ def _fuse_weighted_multi_source(
 
     score = Σ(weight[source] * norm(score))
 
-    支持source_weights配置:
-    - graphiti: 0.25
-    - lancedb: 0.25
-    - textbook: 0.20
-    - cross_canvas: 0.15
+    支持source_weights配置 (Feature 2.2: textbook removed per GDA-2):
+    - graphiti: 0.30
+    - lancedb: 0.30
+    - vault_notes: 0.25
     - multimodal: 0.15
     """
     doc_scores: Dict[str, float] = {}
@@ -812,19 +867,21 @@ def _fuse_weighted_multi_source(
 
 
 def _fuse_cascade_multi_source(
-    all_source_results: Dict[str, List[SearchResult]], tier1_threshold: int = 5, score_threshold: float = 0.7
+    all_source_results: Dict[str, List[SearchResult]],
+    tier1_threshold: int = 5,
+    score_threshold: float = 0.7,
 ) -> List[SearchResult]:
     """
     Cascade融合算法 (多源)
 
-    Tier 1: Graphiti + Textbook (权威来源)
+    Tier 1: Graphiti (权威来源)
     Tier 2触发条件: len(Tier1) < 5 OR max(score) < 0.7
 
-    Story 23.4: 教材作为权威来源加入Tier1
+    Feature 2.2: textbook removed from Tier 1 per GDA-2 decision.
     """
-    # Tier 1: 权威来源 (Graphiti + Textbook)
+    # Tier 1: 権威来源 (Graphiti)
     tier1_results = []
-    for source in ["graphiti", "textbook"]:
+    for source in ["graphiti"]:
         results = all_source_results.get(source, [])
         for r in results:
             result = dict(r)
@@ -846,9 +903,9 @@ def _fuse_cascade_multi_source(
             r["metadata"]["fusion_method"] = "cascade"
         return tier1_results[:10]
 
-    # Tier 2: 补充来源 (LanceDB, Multimodal, CrossCanvas)
+    # Tier 2: 补充来源 (LanceDB, Multimodal, CrossCanvas, VaultNotes)
     tier2_results = []
-    for source in ["lancedb", "multimodal", "cross_canvas"]:
+    for source in ["lancedb", "multimodal", "cross_canvas", "vault_notes"]:
         results = all_source_results.get(source, [])
         for r in results:
             result = dict(r)
@@ -895,7 +952,9 @@ def _adaptive_k_truncate(
     Reference: EMNLP 2025 Megagon Labs — Adaptive-k reduces 99% useless tokens.
     """
     if len(results) <= min_k:
-        logger.debug(f"[adaptive_k] Results ({len(results)}) <= min_k ({min_k}), returning all")
+        logger.debug(
+            f"[adaptive_k] Results ({len(results)}) <= min_k ({min_k}), returning all"
+        )
         return results
 
     # Compute gaps between adjacent scores
@@ -933,7 +992,9 @@ def _adaptive_k_truncate(
 # ========================================
 
 
-async def rerank_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+async def rerank_results(
+    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
     """
     Reranking节点
 
@@ -960,7 +1021,9 @@ async def rerank_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig
     reranking_strategy = _safe_get_config(runtime, "reranking_strategy", "hybrid_auto")
 
     # ✅ Story 23.3: 节点入口日志
-    logger.debug(f"[rerank_results] START - strategy={reranking_strategy}, input_count={len(fused_results)}")
+    logger.debug(
+        f"[rerank_results] START - strategy={reranking_strategy}, input_count={len(fused_results)}"
+    )
 
     # 自动选择策略
     if reranking_strategy == "hybrid_auto":
@@ -1022,7 +1085,11 @@ async def _rerank_local(
     query = ""
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
 
     if not query:
         logger.warning("[_rerank_local] No query found in state, skipping rerank")
@@ -1051,7 +1118,9 @@ async def _rerank_local(
 
     reranker = get_reranker(model_name=model_name, torch_dtype=torch_dtype)
     if reranker is None:
-        logger.warning("[_rerank_local] Reranker not available, returning original ordering")
+        logger.warning(
+            "[_rerank_local] Reranker not available, returning original ordering"
+        )
         for r in results:
             if "metadata" not in r:
                 r["metadata"] = {}
@@ -1071,7 +1140,9 @@ async def _rerank_local(
         )
         return reranked
     except Exception as e:
-        logger.error(f"[_rerank_local] Reranking failed: {e}, returning original ordering")
+        logger.error(
+            f"[_rerank_local] Reranking failed: {e}, returning original ordering"
+        )
         for r in results:
             if "metadata" not in r:
                 r["metadata"] = {}
@@ -1079,7 +1150,9 @@ async def _rerank_local(
         return results
 
 
-async def _rerank_cohere(results: List[SearchResult], state: CanvasRAGState) -> List[SearchResult]:
+async def _rerank_cohere(
+    results: List[SearchResult], state: CanvasRAGState
+) -> List[SearchResult]:
     """
     Cohere API Reranking using rerank-multilingual-v3.0.
 
@@ -1096,7 +1169,11 @@ async def _rerank_cohere(results: List[SearchResult], state: CanvasRAGState) -> 
     query = ""
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
 
     if not query:
         logger.warning("[_rerank_cohere] No query found in state, skipping rerank")
@@ -1119,10 +1196,14 @@ async def _rerank_cohere(results: List[SearchResult], state: CanvasRAGState) -> 
                 search_results=results,
                 top_k=len(results),
             )
-            logger.debug(f"[_rerank_cohere] Reranked {len(results)} results via Cohere API")
+            logger.debug(
+                f"[_rerank_cohere] Reranked {len(results)} results via Cohere API"
+            )
             return reranked
         except Exception as e:
-            logger.error(f"[_rerank_cohere] Cohere reranking failed: {e}, falling back to local")
+            logger.error(
+                f"[_rerank_cohere] Cohere reranking failed: {e}, falling back to local"
+            )
 
     # Fallback to local reranking
     logger.info("[_rerank_cohere] Falling back to local reranking")
@@ -1134,7 +1215,9 @@ async def _rerank_cohere(results: List[SearchResult], state: CanvasRAGState) -> 
 # ========================================
 
 
-async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+async def check_quality(
+    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
     """
     质量评估节点 — Story 2.6: CRAG 二元 LLM 评分 + 安全降级
 
@@ -1162,14 +1245,20 @@ async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
     max_rewrite = _safe_get_config(runtime, "max_rewrite_iterations", 2)
     quality_history = list(state.get("quality_history", []))
 
-    logger.debug(f"[check_quality] START - results_count={len(reranked_results)}, rewrite_count={rewrite_count}")
+    logger.debug(
+        f"[check_quality] START - results_count={len(reranked_results)}, rewrite_count={rewrite_count}"
+    )
 
     # Extract query for LLM binary grading
     messages = state.get("messages", [])
     query = ""
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
 
     # Preserve original_query on first invocation
     original_query = state.get("original_query") or query
@@ -1195,7 +1284,9 @@ async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
         quality_history.append(history_entry)
 
         # Story 2.6 AC-6: Structured [CRAG-GRADE] log for every iteration
-        logger.info(f"[CRAG-GRADE] iteration={rewrite_count}, grade=low, binary=False, results=0, top3_scores=[]")
+        logger.info(
+            f"[CRAG-GRADE] iteration={rewrite_count}, grade=low, binary=False, results=0, top3_scores=[]"
+        )
 
         # Safe degradation check
         safe_degradation = False
@@ -1228,7 +1319,9 @@ async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
     try:
         import litellm
 
-        quality_check_model = _safe_get_config(runtime, "quality_check_model", "gemini/gemini-2.0-flash")
+        quality_check_model = _safe_get_config(
+            runtime, "quality_check_model", "gemini/gemini-2.0-flash"
+        )
 
         # Grade each top-k document with binary yes/no
         top_k_docs = reranked_results[:3]
@@ -1298,10 +1391,14 @@ async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
             )
         else:
             # LLM returned non-standard format, fall through to numeric
-            logger.warning("[check_quality] LLM binary response unparseable, falling back to numeric threshold")
+            logger.warning(
+                "[check_quality] LLM binary response unparseable, falling back to numeric threshold"
+            )
 
     except Exception as e:
-        logger.warning(f"[check_quality] LLM binary grading failed: {e}, falling back to numeric threshold")
+        logger.warning(
+            f"[check_quality] LLM binary grading failed: {e}, falling back to numeric threshold"
+        )
 
     # --- Fallback: numeric threshold (Story 2.2 original logic) ---
     if quality_grade is None:
@@ -1313,7 +1410,9 @@ async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
         if reranked_results:
             first_result_metadata = reranked_results[0].get("metadata", {})
             is_reranker_degraded = first_result_metadata.get("reranked") is False
-            max_score = max(r["score"] for r in reranked_results) if reranked_results else 0.0
+            max_score = (
+                max(r["score"] for r in reranked_results) if reranked_results else 0.0
+            )
             if max_score < 0.15:
                 is_reranker_degraded = True
 
@@ -1379,7 +1478,9 @@ async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
 # ========================================
 
 
-async def retrieve_weak_concepts(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+async def retrieve_weak_concepts(
+    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
     """
     Temporal Memory 薄弱概念检索节点
 
@@ -1406,7 +1507,9 @@ async def retrieve_weak_concepts(state: CanvasRAGState, runtime: Runtime[CanvasR
 
     try:
         client = await _get_temporal_client()
-        weak_concepts = await client.get_weak_concepts(canvas_file=canvas_file, limit=limit)
+        weak_concepts = await client.get_weak_concepts(
+            canvas_file=canvas_file, limit=limit
+        )
     except Exception:
         # Fallback: 返回空结果
         weak_concepts = []
@@ -1416,7 +1519,9 @@ async def retrieve_weak_concepts(state: CanvasRAGState, runtime: Runtime[CanvasR
     return {"weak_concepts": weak_concepts, "temporal_latency_ms": latency_ms}
 
 
-async def update_learning_behavior(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+async def update_learning_behavior(
+    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
     """
     更新学习行为节点
 
@@ -1446,7 +1551,10 @@ async def update_learning_behavior(state: CanvasRAGState, runtime: Runtime[Canva
     try:
         client = await _get_temporal_client()
         updated_card = await client.update_behavior(
-            concept=concept, rating=rating, canvas_file=canvas_file, session_id=session_id
+            concept=concept,
+            rating=rating,
+            canvas_file=canvas_file,
+            session_id=session_id,
         )
         return {"behavior_updated": True, "updated_card": updated_card}
     except Exception:
@@ -1458,7 +1566,9 @@ async def update_learning_behavior(state: CanvasRAGState, runtime: Runtime[Canva
 # ========================================
 
 
-async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+async def compress_context_node(
+    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
     """
     Story 2.10: Context compression + mastery injection + learning memory.
 
@@ -1486,11 +1596,17 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
     query = ""
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
 
     reranked = state.get("reranked_results", [])
 
-    logger.debug(f"[compress_context] START - {len(reranked)} results, max_tokens={max_tokens}")
+    logger.debug(
+        f"[compress_context] START - {len(reranked)} results, max_tokens={max_tokens}"
+    )
 
     # Step 1: Staleness check (non-blocking)
     stale_count = 0
@@ -1507,7 +1623,9 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
 
             if fingerprints:
                 reranked = staleness_check(reranked, fingerprints)
-                stale_count = sum(1 for r in reranked if r.get("metadata", {}).get("stale", False))
+                stale_count = sum(
+                    1 for r in reranked if r.get("metadata", {}).get("stale", False)
+                )
         except Exception as e:
             logger.debug(f"[compress_context] Staleness check skipped: {e}")
 
@@ -1539,7 +1657,9 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
                 # Extract concept from query context
                 canvas_file = state.get("canvas_file", "")
                 concept_query = query[:50]
-                mastery_data = await temporal_client.get_mastery(concept=concept_query, canvas_file=canvas_file)
+                mastery_data = await temporal_client.get_mastery(
+                    concept=concept_query, canvas_file=canvas_file
+                )
                 if mastery_data:
                     mastery_prefix = build_mastery_prefix(
                         p_mastery=mastery_data.get("p_mastery"),
@@ -1594,7 +1714,9 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
 # ========================================
 
 
-async def multi_query_rewrite_node(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+async def multi_query_rewrite_node(
+    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
     """
     Story 2.10 AC-5: Multi-Query + Decomposition rewrite node.
 
@@ -1618,20 +1740,28 @@ async def multi_query_rewrite_node(state: CanvasRAGState, runtime: Runtime[Canva
     start_time = time.perf_counter()
 
     multi_query_enabled = _safe_get_config(runtime, "multi_query_enabled", True)
-    multi_query_model = _safe_get_config(runtime, "multi_query_model", "gemini/gemini-2.0-flash")
+    multi_query_model = _safe_get_config(
+        runtime, "multi_query_model", "gemini/gemini-2.0-flash"
+    )
 
     # Extract current query
     messages = state.get("messages", [])
     query = ""
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
 
     if not query:
         logger.debug("[multi_query_rewrite] No query found, skipping")
         return {"multi_queries": None}
 
-    logger.debug(f"[multi_query_rewrite] START - query='{query[:60]}', enabled={multi_query_enabled}")
+    logger.debug(
+        f"[multi_query_rewrite] START - query='{query[:60]}', enabled={multi_query_enabled}"
+    )
 
     try:
         from agentic_rag.mastery_injection import multi_query_rewrite
@@ -1642,11 +1772,15 @@ async def multi_query_rewrite_node(state: CanvasRAGState, runtime: Runtime[Canva
             enabled=multi_query_enabled,
         )
     except Exception as e:
-        logger.warning(f"[multi_query_rewrite] Rewrite failed: {e}, using original query")
+        logger.warning(
+            f"[multi_query_rewrite] Rewrite failed: {e}, using original query"
+        )
         queries = [query]
 
     latency_ms = (time.perf_counter() - start_time) * 1000
-    logger.debug(f"[multi_query_rewrite] END - {len(queries)} queries, latency={latency_ms:.0f}ms")
+    logger.debug(
+        f"[multi_query_rewrite] END - {len(queries)} queries, latency={latency_ms:.0f}ms"
+    )
 
     return {
         "multi_queries": queries,

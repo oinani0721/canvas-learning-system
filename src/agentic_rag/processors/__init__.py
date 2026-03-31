@@ -31,6 +31,14 @@ from .association_engine import (
     euclidean_similarity,
     recommend_media,
 )
+from .audio_processor import (
+    AudioCorruptError,
+    AudioProcessor,
+    AudioProcessorError,
+    AudioSizeError,
+    AudioValidationError,
+    process_audio,
+)
 from .gemini_vision import (
     GeminiAPIError,
     GeminiConfigError,
@@ -81,14 +89,6 @@ from .video_processor import (
     VideoSizeError,
     VideoValidationError,
     process_video,
-)
-from .audio_processor import (
-    AudioCorruptError,
-    AudioProcessor,
-    AudioProcessorError,
-    AudioSizeError,
-    AudioValidationError,
-    process_audio,
 )
 
 __all__ = [

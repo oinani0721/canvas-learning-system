@@ -21,11 +21,7 @@ def test_settings() -> Settings:
     Returns:
         Settings: Test configuration
     """
-    return Settings(
-        DEBUG=True,
-        LOG_LEVEL="DEBUG",
-        CANVAS_BASE_PATH="./test_data"
-    )
+    return Settings(DEBUG=True, LOG_LEVEL="DEBUG", CANVAS_BASE_PATH="./test_data")
 
 
 @pytest.fixture(scope="session")
@@ -70,9 +66,11 @@ def session_client(test_app) -> TestClient:
 # Test Data Factories
 # ============================================================================
 
+
 @pytest.fixture
 def valid_text_node():
     """Factory for creating valid text node data."""
+
     def _create(text="测试节点", color="1", x=100, y=200):
         return {
             "type": "text",
@@ -81,14 +79,16 @@ def valid_text_node():
             "y": y,
             "width": 300,
             "height": 100,
-            "color": color
+            "color": color,
         }
+
     return _create
 
 
 @pytest.fixture
 def valid_file_node():
     """Factory for creating valid file node data."""
+
     def _create(file_path="笔记库/test.md", x=100, y=200):
         return {
             "type": "file",
@@ -96,83 +96,84 @@ def valid_file_node():
             "x": x,
             "y": y,
             "width": 300,
-            "height": 400
+            "height": 400,
         }
+
     return _create
 
 
 @pytest.fixture
 def valid_edge():
     """Factory for creating valid edge data."""
+
     def _create(from_node="a1b2c3d4", to_node="e5f6g7h8"):
         return {
             "fromNode": from_node,
             "toNode": to_node,
             "fromSide": "bottom",
-            "toSide": "top"
+            "toSide": "top",
         }
+
     return _create
 
 
 @pytest.fixture
 def valid_decompose_request():
     """Factory for creating valid decompose request."""
+
     def _create(canvas_name="test-canvas", node_id="a1b2c3d4"):
-        return {
-            "canvas_name": canvas_name,
-            "node_id": node_id
-        }
+        return {"canvas_name": canvas_name, "node_id": node_id}
+
     return _create
 
 
 @pytest.fixture
 def valid_score_request():
     """Factory for creating valid score request."""
+
     def _create(canvas_name="test-canvas", node_ids=None):
         return {
             "canvas_name": canvas_name,
-            "node_ids": node_ids or ["a1b2c3d4", "e5f6g7h8"]
+            "node_ids": node_ids or ["a1b2c3d4", "e5f6g7h8"],
         }
+
     return _create
 
 
 @pytest.fixture
 def valid_explain_request():
     """Factory for creating valid explain request."""
+
     def _create(canvas_name="test-canvas", node_id="a1b2c3d4"):
-        return {
-            "canvas_name": canvas_name,
-            "node_id": node_id
-        }
+        return {"canvas_name": canvas_name, "node_id": node_id}
+
     return _create
 
 
 @pytest.fixture
 def valid_generate_review_request():
     """Factory for creating valid generate review request."""
+
     def _create(source_canvas="test-canvas", node_ids=None):
-        return {
-            "source_canvas": source_canvas,
-            "node_ids": node_ids
-        }
+        return {"source_canvas": source_canvas, "node_ids": node_ids}
+
     return _create
 
 
 @pytest.fixture
 def valid_record_review_request():
     """Factory for creating valid record review request."""
+
     def _create(canvas_name="test-canvas", node_id="a1b2c3d4", score=30.0):
-        return {
-            "canvas_name": canvas_name,
-            "node_id": node_id,
-            "score": score
-        }
+        return {"canvas_name": canvas_name, "node_id": node_id, "score": score}
+
     return _create
 
 
 # ============================================================================
 # Test Data Constants
 # ============================================================================
+
 
 @pytest.fixture(scope="session")
 def api_v1_prefix():

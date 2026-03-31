@@ -21,9 +21,11 @@ from typing import Any, Dict, List, Optional, Protocol
 
 try:
     from loguru import logger
+
     LOGURU_ENABLED = True
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
     LOGURU_ENABLED = False
 
@@ -32,19 +34,23 @@ except ImportError:
 # Exceptions
 # ============================================================
 
+
 class VaultNotesRetrieverError(Exception):
     """Base exception for VaultNotesRetriever errors."""
+
     pass
 
 
 class VaultNotesRetrievalTimeout(VaultNotesRetrieverError):
     """Raised when retrieval times out."""
+
     pass
 
 
 # ============================================================
 # Configuration
 # ============================================================
+
 
 @dataclass
 class VaultNotesRetrieverConfig:
@@ -58,6 +64,7 @@ class VaultNotesRetrieverConfig:
         vault_notes_table: LanceDB表名
         enable_cache: 是否启用缓存
     """
+
     top_k: int = 10
     min_score: float = 0.3
     timeout_ms: int = 500
@@ -69,6 +76,7 @@ class VaultNotesRetrieverConfig:
 # Protocol for dependency injection
 # ============================================================
 
+
 class LanceDBClientProtocol(Protocol):
     """Protocol for LanceDB client dependency injection."""
 
@@ -78,7 +86,7 @@ class LanceDBClientProtocol(Protocol):
         table_name: str,
         canvas_file: Optional[str] = None,
         num_results: int = 10,
-        metric: str = "cosine"
+        metric: str = "cosine",
     ) -> List[Dict[str, Any]]:
         """Search for similar vectors."""
         ...
@@ -87,6 +95,7 @@ class LanceDBClientProtocol(Protocol):
 # ============================================================
 # VaultNotesService
 # ============================================================
+
 
 class VaultNotesService:
     """
@@ -104,7 +113,7 @@ class VaultNotesService:
     def __init__(
         self,
         lancedb_client: LanceDBClientProtocol,
-        config: Optional[VaultNotesRetrieverConfig] = None
+        config: Optional[VaultNotesRetrieverConfig] = None,
     ):
         self.lancedb = lancedb_client
         self.config = config or VaultNotesRetrieverConfig()
@@ -114,11 +123,7 @@ class VaultNotesService:
         self._initialized = True
         return True
 
-    async def search(
-        self,
-        query: str,
-        num_results: int = 10
-    ) -> List[Dict[str, Any]]:
+    async def search(self, query: str, num_results: int = 10) -> List[Dict[str, Any]]:
         """
         搜索 vault 笔记内容
 
@@ -141,9 +146,9 @@ class VaultNotesService:
                 self.lancedb.search(
                     query=query,
                     table_name=self.config.vault_notes_table,
-                    num_results=num_results
+                    num_results=num_results,
                 ),
-                timeout=timeout_seconds
+                timeout=timeout_seconds,
             )
 
             # 添加来源标注 + 解析 metadata_json
@@ -157,6 +162,7 @@ class VaultNotesService:
                 if metadata_json_str and isinstance(metadata_json_str, str):
                     try:
                         import json
+
                         parsed = json.loads(metadata_json_str)
                         r["metadata"]["file_path"] = parsed.get("file_path")
                         r["metadata"]["heading"] = parsed.get("heading")
@@ -190,7 +196,9 @@ class VaultNotesService:
 
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.debug(f"Vault notes search failed (table may not exist yet): {e}")
+                logger.debug(
+                    f"Vault notes search failed (table may not exist yet): {e}"
+                )
             return []
 
 
@@ -208,10 +216,9 @@ async def _get_vault_notes_service() -> VaultNotesService:
         try:
             from agentic_rag.clients import LanceDBClient
             from agentic_rag.config import LANCEDB_CONFIG
+
             lancedb_client = LanceDBClient(
-                db_path=LANCEDB_CONFIG["db_path"],
-                timeout_ms=400,
-                enable_fallback=True
+                db_path=LANCEDB_CONFIG["db_path"], timeout_ms=400, enable_fallback=True
             )
             await lancedb_client.initialize()
 
@@ -226,8 +233,7 @@ async def _get_vault_notes_service() -> VaultNotesService:
 
 
 async def vault_notes_retrieval_node(
-    state: Dict[str, Any],
-    runtime: Optional[Any] = None
+    state: Dict[str, Any], runtime: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     LangGraph vault notes 检索节点
@@ -248,7 +254,11 @@ async def vault_notes_retrieval_node(
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
     else:
         query = ""
 
@@ -258,10 +268,7 @@ async def vault_notes_retrieval_node(
 
     try:
         service = await _get_vault_notes_service()
-        vault_notes_results = await service.search(
-            query=query,
-            num_results=batch_size
-        )
+        vault_notes_results = await service.search(query=query, num_results=batch_size)
     except Exception as e:
         if LOGURU_ENABLED:
             logger.error(f"vault_notes_retrieval_node error: {e}")
@@ -271,7 +278,7 @@ async def vault_notes_retrieval_node(
 
     return {
         "vault_notes_results": vault_notes_results,
-        "vault_notes_latency_ms": latency_ms
+        "vault_notes_latency_ms": latency_ms,
     }
 
 

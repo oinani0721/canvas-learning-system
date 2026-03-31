@@ -25,6 +25,7 @@ from typing import Dict, Optional, Set
 
 class AgentMemoryType(str, Enum):
     """Memory event types aligned with temporal-event.schema.json."""
+
     DECOMPOSITION_COMPLETED = "decomposition_completed"
     SCORING_COMPLETED = "scoring_completed"
     EXPLANATION_GENERATED = "explanation_generated"
@@ -42,7 +43,6 @@ AGENT_MEMORY_MAPPING: Dict[str, AgentMemoryType] = {
     "basic-decomposition": AgentMemoryType.DECOMPOSITION_COMPLETED,
     "deep-decomposition": AgentMemoryType.DECOMPOSITION_COMPLETED,
     "question-decomposition": AgentMemoryType.DECOMPOSITION_COMPLETED,
-
     # Explanation agents -> explanation_generated
     "four-level-explanation": AgentMemoryType.EXPLANATION_GENERATED,
     "oral-explanation": AgentMemoryType.EXPLANATION_GENERATED,
@@ -51,16 +51,12 @@ AGENT_MEMORY_MAPPING: Dict[str, AgentMemoryType] = {
     "comparison-table": AgentMemoryType.EXPLANATION_GENERATED,
     "verification-question-agent": AgentMemoryType.EXPLANATION_GENERATED,
     "hint-generation": AgentMemoryType.EXPLANATION_GENERATED,  # Story 30.12 fix: was missing, trigger in verification_service.py
-
     # Scoring agent -> scoring_completed
     "scoring-agent": AgentMemoryType.SCORING_COMPLETED,
-
     # Memory anchor -> node_created
     "memory-anchor": AgentMemoryType.NODE_CREATED,
-
     # Canvas orchestrator -> canvas_opened
     "canvas-orchestrator": AgentMemoryType.CANVAS_OPENED,
-
     # System agents -> concept_reviewed
     # Reserved: no active call site yet (Story 30.12 AC-30.12.3)
     "review-board-agent-selector": AgentMemoryType.CONCEPT_REVIEWED,

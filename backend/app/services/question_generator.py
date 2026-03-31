@@ -146,7 +146,9 @@ class QuestionGenerator:
 
         mastery_results, kg_results = await asyncio.gather(
             asyncio.gather(*(self._get_mastery_data(nid) for nid in node_ids)),
-            asyncio.gather(*(self._get_kg_relevance(nid, source_canvas_id) for nid in node_ids)),
+            asyncio.gather(
+                *(self._get_kg_relevance(nid, source_canvas_id) for nid in node_ids)
+            ),
         )
 
         priorities: List[NodePriority] = list()
@@ -261,7 +263,9 @@ class QuestionGenerator:
             Complete prompt string for LLM.
         """
         # Layer 1: Role
-        layer1 = self._layer1 or "你是一位经验丰富的学习考官，通过精准提问检验学生理解深度。"
+        layer1 = (
+            self._layer1 or "你是一位经验丰富的学习考官，通过精准提问检验学生理解深度。"
+        )
 
         # Layer 2: Mode (substitute variable)
         layer2 = (
@@ -453,7 +457,9 @@ class QuestionGenerator:
             logger.error(f"[Story 6.3] LLM question generation failed: {e}")
             # Fallback to template-based question
             concept = acp.node_content[:50] if acp.node_content else "this concept"
-            fallback_q = self._generate_fallback_question(concept, acp.effective_proficiency)
+            fallback_q = self._generate_fallback_question(
+                concept, acp.effective_proficiency
+            )
             return QuestionGenerationResult(
                 question_text=fallback_q,
                 question_type="explanation",
@@ -497,7 +503,9 @@ class QuestionGenerator:
             from app.services.canvas_service import CanvasService
 
             canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
-            _canvas_name, node_data = await canvas_svc.find_node_across_canvases(node_id)
+            _canvas_name, node_data = await canvas_svc.find_node_across_canvases(
+                node_id
+            )
             return node_data if node_data else dict()
         except (ImportError, OSError, json.JSONDecodeError, ValueError) as e:
             logger.debug(f"[Story 6.3] Failed to get node content: {e}")
@@ -514,7 +522,9 @@ class QuestionGenerator:
                 return {
                     "p_mastery": getattr(concept, "p_mastery", 0.1),
                     "retrievability": getattr(concept, "retrievability", 1.0),
-                    "effective_proficiency": getattr(concept, "effective_proficiency", 0.0),
+                    "effective_proficiency": getattr(
+                        concept, "effective_proficiency", 0.0
+                    ),
                     "mastery_level": getattr(concept, "mastery_level", 0.0),
                     "mastery_label": getattr(concept, "mastery_label", "Not Assessed"),
                 }
@@ -543,7 +553,9 @@ class QuestionGenerator:
             WHERE neighbor.canvas_id = $canvas_id
             RETURN count(neighbor) AS degree
             """
-            records = await client.run_query(query, node_id=node_id, canvas_id=canvas_id)
+            records = await client.run_query(
+                query, node_id=node_id, canvas_id=canvas_id
+            )
             if records:
                 data = records[0] if isinstance(records[0], dict) else records[0].data()
                 degree = data.get("degree", 0)

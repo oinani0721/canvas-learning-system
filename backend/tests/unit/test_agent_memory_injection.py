@@ -17,14 +17,15 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import pytest
+from app.services.agent_service import AgentService
 
 from tests.conftest import simulate_async_delay
-from app.services.agent_service import AgentService
 
 
 @dataclass
 class MockLearningMemory:
     """Mock LearningMemory for testing."""
+
     concept: str
     understanding: str
     score: int
@@ -53,7 +54,7 @@ class MockLearningMemoryClient:
         query: str,
         canvas_name: Optional[str] = None,
         node_id: Optional[str] = None,
-        limit: int = 5
+        limit: int = 5,
     ) -> List[MockLearningMemory]:
         """Mock search_memories with configurable delay."""
         self.call_count += 1
@@ -71,18 +72,22 @@ class MockLearningMemoryClient:
                 score=75,
                 timestamp="2025-12-14T10:00:00Z",
                 canvas_name=canvas_name,
-                node_id=node_id
+                node_id=node_id,
             )
         ]
 
-    def format_for_context(self, memories: List[MockLearningMemory], max_chars: int = 1000) -> str:
+    def format_for_context(
+        self, memories: List[MockLearningMemory], max_chars: int = 1000
+    ) -> str:
         """Mock format_for_context."""
         if not memories:
             return ""
-        return "\n".join([
-            f"[{m.timestamp}] {m.concept} (得分: {m.score}/100)\n  理解: {m.understanding}"
-            for m in memories
-        ])
+        return "\n".join(
+            [
+                f"[{m.timestamp}] {m.concept} (得分: {m.score}/100)\n  理解: {m.understanding}"
+                for m in memories
+            ]
+        )
 
 
 class TestMemoryInjection:
@@ -114,15 +119,15 @@ class TestMemoryInjection:
     # ==========================================================================
 
     @pytest.mark.asyncio
-    async def test_get_learning_memories_with_cache_hit(self, agent_service_with_mock_memory):
+    async def test_get_learning_memories_with_cache_hit(
+        self, agent_service_with_mock_memory
+    ):
         """AC6: Cache hit scenario - 30s内相同查询应使用缓存."""
         service, mock_memory = agent_service_with_mock_memory
 
         # First call - should query memory client
         result1 = await service._get_learning_memories(
-            content="逆否命题的定义",
-            canvas_name="Math53",
-            node_id="node1"
+            content="逆否命题的定义", canvas_name="Math53", node_id="node1"
         )
         assert result1 != ""
         assert "逆否命题" in result1
@@ -130,23 +135,21 @@ class TestMemoryInjection:
 
         # Second call with same parameters - should use cache
         result2 = await service._get_learning_memories(
-            content="逆否命题的定义",
-            canvas_name="Math53",
-            node_id="node1"
+            content="逆否命题的定义", canvas_name="Math53", node_id="node1"
         )
         assert result2 == result1
         assert mock_memory.call_count == 1  # No additional query
 
     @pytest.mark.asyncio
-    async def test_get_learning_memories_cache_expired(self, agent_service_with_mock_memory):
+    async def test_get_learning_memories_cache_expired(
+        self, agent_service_with_mock_memory
+    ):
         """AC6: Cache expired scenario - 30秒后应重新查询."""
         service, mock_memory = agent_service_with_mock_memory
 
         # First call
         await service._get_learning_memories(
-            content="逆否命题的定义",
-            canvas_name="Math53",
-            node_id="node1"
+            content="逆否命题的定义", canvas_name="Math53", node_id="node1"
         )
         assert mock_memory.call_count == 1
 
@@ -158,9 +161,7 @@ class TestMemoryInjection:
 
         # Third call after expiration - should query again
         await service._get_learning_memories(
-            content="逆否命题的定义",
-            canvas_name="Math53",
-            node_id="node1"
+            content="逆否命题的定义", canvas_name="Math53", node_id="node1"
         )
         assert mock_memory.call_count == 2  # Fresh query after expiration
 
@@ -171,9 +172,7 @@ class TestMemoryInjection:
 
         # Query with parameter set 1
         await service._get_learning_memories(
-            content="逆否命题的定义",
-            canvas_name="Math53",
-            node_id="node1"
+            content="逆否命题的定义", canvas_name="Math53", node_id="node1"
         )
         assert mock_memory.call_count == 1
 
@@ -181,7 +180,7 @@ class TestMemoryInjection:
         await service._get_learning_memories(
             content="逆否命题的定义",
             canvas_name="Math54",  # Different canvas
-            node_id="node1"
+            node_id="node1",
         )
         assert mock_memory.call_count == 2
 
@@ -189,7 +188,7 @@ class TestMemoryInjection:
         await service._get_learning_memories(
             content="充分必要条件",  # Different content
             canvas_name="Math53",
-            node_id="node1"
+            node_id="node1",
         )
         assert mock_memory.call_count == 3
 
@@ -204,9 +203,7 @@ class TestMemoryInjection:
 
         start_time = time.time()
         result = await service._get_learning_memories(
-            content="逆否命题的定义",
-            canvas_name="Math53",
-            node_id="node1"
+            content="逆否命题的定义", canvas_name="Math53", node_id="node1"
         )
         elapsed = time.time() - start_time
 
@@ -216,15 +213,16 @@ class TestMemoryInjection:
         assert elapsed < 0.65  # Allow some tolerance
 
     @pytest.mark.asyncio
-    async def test_get_learning_memories_timeout_graceful_degradation(self, agent_service_with_slow_memory):
+    async def test_get_learning_memories_timeout_graceful_degradation(
+        self, agent_service_with_slow_memory
+    ):
         """AC5: Timeout graceful degradation - 超时不应阻塞Agent响应."""
         service, mock_memory = agent_service_with_slow_memory
 
         # Even with timeout, should not raise exception
         try:
             result = await service._get_learning_memories(
-                content="逆否命题的定义",
-                canvas_name="Math53"
+                content="逆否命题的定义", canvas_name="Math53"
             )
             # Should gracefully return empty string
             assert result == ""
@@ -242,9 +240,7 @@ class TestMemoryInjection:
 
         # First call to populate cache
         await service._get_learning_memories(
-            content="逆否命题的定义",
-            canvas_name="Math53",
-            node_id="node1"
+            content="逆否命题的定义", canvas_name="Math53", node_id="node1"
         )
 
         # Measure cache hit performance
@@ -252,14 +248,14 @@ class TestMemoryInjection:
         start_time = time.time()
         for _ in range(iterations):
             await service._get_learning_memories(
-                content="逆否命题的定义",
-                canvas_name="Math53",
-                node_id="node1"
+                content="逆否命题的定义", canvas_name="Math53", node_id="node1"
             )
         elapsed = time.time() - start_time
 
         avg_time_ms = (elapsed / iterations) * 1000
-        assert avg_time_ms < 10, f"Cache hit took {avg_time_ms:.2f}ms on average, expected < 10ms"
+        assert avg_time_ms < 10, (
+            f"Cache hit took {avg_time_ms:.2f}ms on average, expected < 10ms"
+        )
         assert mock_memory.call_count == 1  # Only first call should query
 
     # ==========================================================================
@@ -267,14 +263,15 @@ class TestMemoryInjection:
     # ==========================================================================
 
     @pytest.mark.asyncio
-    async def test_graceful_degradation_on_exception(self, agent_service_with_failing_memory):
+    async def test_graceful_degradation_on_exception(
+        self, agent_service_with_failing_memory
+    ):
         """AC4: Exception should not propagate, return empty string."""
         service, mock_memory = agent_service_with_failing_memory
 
         # Should not raise exception
         result = await service._get_learning_memories(
-            content="逆否命题的定义",
-            canvas_name="Math53"
+            content="逆否命题的定义", canvas_name="Math53"
         )
         assert result == ""
 
@@ -284,20 +281,18 @@ class TestMemoryInjection:
         service = AgentService(memory_client=None)
 
         result = await service._get_learning_memories(
-            content="逆否命题的定义",
-            canvas_name="Math53"
+            content="逆否命题的定义", canvas_name="Math53"
         )
         assert result == ""
 
     @pytest.mark.asyncio
-    async def test_graceful_degradation_empty_content(self, agent_service_with_mock_memory):
+    async def test_graceful_degradation_empty_content(
+        self, agent_service_with_mock_memory
+    ):
         """Empty content should return empty string without query."""
         service, mock_memory = agent_service_with_mock_memory
 
-        result = await service._get_learning_memories(
-            content="",
-            canvas_name="Math53"
-        )
+        result = await service._get_learning_memories(content="", canvas_name="Math53")
         assert result == ""
         assert mock_memory.call_count == 0  # No query should be made
 
@@ -314,9 +309,7 @@ class TestCacheKeyGeneration:
         long_content = "A" * 100  # 100 character content
 
         await service._get_learning_memories(
-            content=long_content,
-            canvas_name="Math53",
-            node_id="node1"
+            content=long_content, canvas_name="Math53", node_id="node1"
         )
 
         # Cache key should use truncated content
@@ -330,9 +323,7 @@ class TestCacheKeyGeneration:
         service = AgentService(memory_client=mock_memory)
 
         await service._get_learning_memories(
-            content="测试内容",
-            canvas_name=None,
-            node_id=None
+            content="测试内容", canvas_name=None, node_id=None
         )
 
         expected_key = "None:None:测试内容"

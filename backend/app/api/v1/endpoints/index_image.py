@@ -28,14 +28,17 @@ index_image_router = APIRouter()
 # Request / Response Models
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class ImageIndexRequest(BaseModel):
     """Request body for image OCR indexing."""
+
     node_id: str = Field(..., description="Canvas node ID")
     image_data: str = Field(..., description="Base64 DataURL of the image")
 
 
 class ImageIndexResponse(BaseModel):
     """Response from image OCR indexing."""
+
     node_id: str
     ocr_text: str
     summary: str
@@ -65,6 +68,7 @@ EXTRACTION_PROMPT = """请分析这张图片，提取以下信息并以 JSON 格
 # API Endpoint
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @index_image_router.post(
     "/index/image",
     response_model=ImageIndexResponse,
@@ -85,14 +89,19 @@ async def index_image(request: ImageIndexRequest) -> ImageIndexResponse:
     start_time = time.time()
 
     # Validate base64 DataURL format
-    if not request.image_data.startswith('data:image/'):
+    if not request.image_data.startswith("data:image/"):
         raise HTTPException(
             status_code=400,
             detail="Invalid image data: must be a base64 DataURL starting with 'data:image/'",
         )
 
     # Determine supported image types
-    supported_types = ('data:image/png', 'data:image/jpeg', 'data:image/jpg', 'data:image/webp')
+    supported_types = (
+        "data:image/png",
+        "data:image/jpeg",
+        "data:image/jpg",
+        "data:image/webp",
+    )
     if not any(request.image_data.startswith(t) for t in supported_types):
         raise HTTPException(
             status_code=400,
@@ -103,17 +112,21 @@ async def index_image(request: ImageIndexRequest) -> ImageIndexResponse:
         import litellm
 
         # Use the configured vision model, fallback to chat model
-        vision_model = getattr(settings, 'VISION_MODEL', None) or getattr(settings, 'CHAT_MODEL', 'gemini/gemini-2.0-flash')
+        vision_model = getattr(settings, "VISION_MODEL", None) or getattr(
+            settings, "CHAT_MODEL", "gemini/gemini-2.0-flash"
+        )
 
         response = await litellm.acompletion(
             model=vision_model,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": EXTRACTION_PROMPT},
-                    {"type": "image_url", "image_url": {"url": request.image_data}},
-                ],
-            }],
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": EXTRACTION_PROMPT},
+                        {"type": "image_url", "image_url": {"url": request.image_data}},
+                    ],
+                }
+            ],
             timeout=30,
             response_format={"type": "json_object"},
         )

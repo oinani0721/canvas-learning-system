@@ -10,25 +10,21 @@ Fix #4: WebSocket URL not hardcoded to localhost
 [Source: docs/stories/33.10.story.md]
 """
 
-import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from app.models.intelligent_parallel_models import (
-    GroupProgress,
     GroupStatus,
-    NodeResult,
-    ParallelTaskStatus,
     SessionResponse,
-    SingleAgentResponse,
     SingleAgentStatus,
 )
 from app.services.intelligent_parallel_service import IntelligentParallelService
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 def _make_session_info(
     node_results: dict = None,
@@ -39,8 +35,8 @@ def _make_session_info(
     node_count: int = 6,
 ):
     """Create a mock SessionInfo-like object."""
-    from unittest.mock import MagicMock
     from enum import Enum
+    from unittest.mock import MagicMock
 
     class MockStatus(str, Enum):
         value_str = status_value
@@ -66,12 +62,14 @@ def _make_node_result(node_id: str, status: str = "success", result=None, error=
     nr.status = status
     nr.result = result
     nr.error = error
-    nr.to_dict = MagicMock(return_value={
-        "node_id": node_id,
-        "status": status,
-        "result": result,
-        "error": error,
-    })
+    nr.to_dict = MagicMock(
+        return_value={
+            "node_id": node_id,
+            "status": status,
+            "result": result,
+            "error": error,
+        }
+    )
     return nr
 
 
@@ -94,6 +92,7 @@ def service_with_mocks():
 # Fix #3: GroupProgress reflects actual session progress
 # =============================================================================
 
+
 class TestGroupProgressComputation:
     """Story 33.10 AC-33.10.3: GroupProgress reflects actual session progress."""
 
@@ -106,7 +105,11 @@ class TestGroupProgressComputation:
             node_results={},
             metadata={
                 "groups": [
-                    {"group_id": "g1", "agent_type": "comparison-table", "node_ids": ["n1", "n2", "n3"]},
+                    {
+                        "group_id": "g1",
+                        "agent_type": "comparison-table",
+                        "node_ids": ["n1", "n2", "n3"],
+                    },
                 ]
             },
             status_value="running",
@@ -135,7 +138,11 @@ class TestGroupProgressComputation:
             },
             metadata={
                 "groups": [
-                    {"group_id": "g1", "agent_type": "oral-explanation", "node_ids": ["n1", "n2", "n3"]},
+                    {
+                        "group_id": "g1",
+                        "agent_type": "oral-explanation",
+                        "node_ids": ["n1", "n2", "n3"],
+                    },
                 ]
             },
             status_value="running",
@@ -165,7 +172,11 @@ class TestGroupProgressComputation:
             },
             metadata={
                 "groups": [
-                    {"group_id": "g1", "agent_type": "comparison-table", "node_ids": ["n1", "n2", "n3"]},
+                    {
+                        "group_id": "g1",
+                        "agent_type": "comparison-table",
+                        "node_ids": ["n1", "n2", "n3"],
+                    },
                 ]
             },
             status_value="completed",
@@ -193,7 +204,11 @@ class TestGroupProgressComputation:
             },
             metadata={
                 "groups": [
-                    {"group_id": "g1", "agent_type": "deep-decomposition", "node_ids": ["n1", "n2", "n3"]},
+                    {
+                        "group_id": "g1",
+                        "agent_type": "deep-decomposition",
+                        "node_ids": ["n1", "n2", "n3"],
+                    },
                 ]
             },
             status_value="partial_failure",
@@ -224,8 +239,16 @@ class TestGroupProgressComputation:
             },
             metadata={
                 "groups": [
-                    {"group_id": "g1", "agent_type": "comparison-table", "node_ids": ["n1", "n2"]},
-                    {"group_id": "g2", "agent_type": "oral-explanation", "node_ids": ["n3"]},
+                    {
+                        "group_id": "g1",
+                        "agent_type": "comparison-table",
+                        "node_ids": ["n1", "n2"],
+                    },
+                    {
+                        "group_id": "g2",
+                        "agent_type": "oral-explanation",
+                        "node_ids": ["n3"],
+                    },
                 ]
             },
             status_value="running",
@@ -319,6 +342,7 @@ class TestGroupProgressComputation:
 # Fix #2: retry_single_node uses real node content
 # =============================================================================
 
+
 class TestRetrySingleNodeRealContent:
     """Story 33.10 AC-33.10.2: retry_single_node uses real node content."""
 
@@ -328,11 +352,13 @@ class TestRetrySingleNodeRealContent:
         svc, _, agent_service, canvas_service = service_with_mocks
 
         # Mock canvas_service to return real node content
-        canvas_service.read_canvas = AsyncMock(return_value={
-            "nodes": [
-                {"id": "node-1", "type": "text", "text": "实数的完备性定义与性质"},
-            ]
-        })
+        canvas_service.read_canvas = AsyncMock(
+            return_value={
+                "nodes": [
+                    {"id": "node-1", "type": "text", "text": "实数的完备性定义与性质"},
+                ]
+            }
+        )
         canvas_service.canvas_base_path = "/vault"
 
         # Mock get_node_content to return the text
@@ -412,6 +438,7 @@ class TestRetrySingleNodeRealContent:
 # Fix #4: WebSocket URL not hardcoded
 # =============================================================================
 
+
 class TestWebSocketURLNotHardcoded:
     """Story 33.10 AC-33.10.4: WebSocket URL not hardcoded."""
 
@@ -423,6 +450,7 @@ class TestWebSocketURLNotHardcoded:
         session_manager.create_session = AsyncMock(return_value="session-123")
 
         from app.models.intelligent_parallel_models import GroupExecuteConfig
+
         groups = [
             GroupExecuteConfig(
                 group_id="g1",
@@ -448,6 +476,7 @@ class TestWebSocketURLNotHardcoded:
         session_manager.create_session = AsyncMock(return_value="session-456")
 
         from app.models.intelligent_parallel_models import GroupExecuteConfig
+
         groups = [
             GroupExecuteConfig(
                 group_id="g1",
@@ -470,12 +499,15 @@ class TestWebSocketURLNotHardcoded:
 # Fix #1: Frontend URL verification (backend route check)
 # =============================================================================
 
+
 class TestBackendRouteExists:
     """Story 33.10 AC-33.10.1: Backend route matches frontend expectation."""
 
     def test_get_progress_route_has_no_status_segment(self):
         """Verify backend route is /{session_id} not /status/{session_id}."""
-        from app.api.v1.endpoints.intelligent_parallel import intelligent_parallel_router
+        from app.api.v1.endpoints.intelligent_parallel import (
+            intelligent_parallel_router,
+        )
 
         routes = [r.path for r in intelligent_parallel_router.routes]
         assert "/{session_id}" in routes

@@ -39,6 +39,7 @@ import pytest
 try:
     import numpy as np
     import psutil
+
     PERF_LIBS_AVAILABLE = True
 except ImportError:
     PERF_LIBS_AVAILABLE = False
@@ -46,11 +47,15 @@ except ImportError:
 
 # Import canvas monitoring components
 try:
-    from canvas_progress_tracker.canvas_monitor_engine import CanvasMonitorEngine, MonitorConfig
+    from canvas_progress_tracker.canvas_monitor_engine import (
+        CanvasMonitorEngine,
+        MonitorConfig,
+    )
     from canvas_progress_tracker.data_stores import ColdDataStore, HotDataStore
     from canvas_progress_tracker.report_generator import LearningReportGenerator
 
     from canvas_utils import CanvasJSONOperator
+
     MODULES_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Required modules not available: {e}")
@@ -64,15 +69,15 @@ class TestMonitoringPerformance(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """测试类初始化"""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("Canvas Monitoring Performance Benchmarks - Story 11.8")
-        print("="*80)
+        print("=" * 80)
         print("Performance Targets:")
         print("  - P50 < 800ms")
         print("  - P95 < 1200ms")
         print("  - CPU < 5% (avg)")
         print("  - Memory < 100MB")
-        print("="*80)
+        print("=" * 80)
 
     def setUp(self):
         """每个测试用例前的设置"""
@@ -90,6 +95,7 @@ class TestMonitoringPerformance(unittest.TestCase):
     def tearDown(self):
         """每个测试用例后的清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_canvas_with_nodes(self, node_count: int, name: str = "test") -> str:
@@ -106,22 +112,24 @@ class TestMonitoringPerformance(unittest.TestCase):
                 "y": (i // 10) * 150,
                 "width": 200,
                 "height": 100,
-                "color": colors[i % len(colors)]
+                "color": colors[i % len(colors)],
             }
             canvas_data["nodes"].append(node)
 
             # Add some edges
             if i > 0 and i % 3 == 0:
-                canvas_data["edges"].append({
-                    "id": f"edge-{i}",
-                    "fromNode": f"node-{i-1}",
-                    "toNode": f"node-{i}",
-                    "fromSide": "right",
-                    "toSide": "left"
-                })
+                canvas_data["edges"].append(
+                    {
+                        "id": f"edge-{i}",
+                        "fromNode": f"node-{i - 1}",
+                        "toNode": f"node-{i}",
+                        "fromSide": "right",
+                        "toSide": "left",
+                    }
+                )
 
         canvas_path = os.path.join(self.canvas_dir, f"{name}.canvas")
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False, indent=2)
 
         return canvas_path
@@ -133,6 +141,7 @@ class TestMonitoringPerformance(unittest.TestCase):
 
         if PERF_LIBS_AVAILABLE:
             import numpy as np
+
             return {
                 "p50": np.percentile(times, 50),
                 "p95": np.percentile(times, 95),
@@ -140,19 +149,19 @@ class TestMonitoringPerformance(unittest.TestCase):
                 "mean": np.mean(times),
                 "min": np.min(times),
                 "max": np.max(times),
-                "count": len(times)
+                "count": len(times),
             }
         else:
             # Fallback to basic statistics
             sorted_times = sorted(times)
             return {
-                "p50": sorted_times[len(sorted_times)//2],
-                "p95": sorted_times[int(len(sorted_times)*0.95)],
-                "p99": sorted_times[int(len(sorted_times)*0.99)],
+                "p50": sorted_times[len(sorted_times) // 2],
+                "p95": sorted_times[int(len(sorted_times) * 0.95)],
+                "p99": sorted_times[int(len(sorted_times) * 0.99)],
                 "mean": statistics.mean(times),
                 "min": min(times),
                 "max": max(times),
-                "count": len(times)
+                "count": len(times),
             }
 
     def test_basic_canvas_parsing(self):
@@ -199,7 +208,7 @@ class TestMonitoringPerformance(unittest.TestCase):
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "canvas_id": "test",
                 "event_type": "test_event",
-                "details": {"index": i}
+                "details": {"index": i},
             }
 
             start = time.time()
@@ -240,14 +249,17 @@ class TestMonitoringPerformance(unittest.TestCase):
 
         # Insert 1000 test records
         events = [
-            (f"canvas_{i % 10}", "test", json.dumps({"i": i}),
-             datetime.now(timezone.utc).isoformat())
+            (
+                f"canvas_{i % 10}",
+                "test",
+                json.dumps({"i": i}),
+                datetime.now(timezone.utc).isoformat(),
+            )
             for i in range(1000)
         ]
 
         cursor.executemany(
-            "INSERT INTO learning_events VALUES (NULL, ?, ?, ?, ?)",
-            events
+            "INSERT INTO learning_events VALUES (NULL, ?, ?, ?, ?)", events
         )
         conn.commit()
 
@@ -257,7 +269,7 @@ class TestMonitoringPerformance(unittest.TestCase):
             start = time.time()
             cursor.execute(
                 "SELECT * FROM learning_events WHERE canvas_id = ? LIMIT 100",
-                ("canvas_1",)
+                ("canvas_1",),
             )
             cursor.fetchall()
             end = time.time()
@@ -282,6 +294,7 @@ class TestMonitoringPerformance(unittest.TestCase):
             self.skipTest("psutil not available")
 
         import psutil
+
         process = psutil.Process()
 
         # Baseline
@@ -297,13 +310,15 @@ class TestMonitoringPerformance(unittest.TestCase):
 
         for i in range(30):
             CanvasJSONOperator.read_canvas(canvas_path)
-            hot_store.append_event({
-                "event_id": f"resource-test-{i}",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "canvas_id": "test",
-                "event_type": "op",
-                "details": {"i": i}
-            })
+            hot_store.append_event(
+                {
+                    "event_id": f"resource-test-{i}",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "canvas_id": "test",
+                    "event_type": "op",
+                    "details": {"i": i},
+                }
+            )
 
             cpu_samples.append(process.cpu_percent(interval=0.05))
             mem_samples.append(process.memory_info().rss / 1024 / 1024)
@@ -324,12 +339,12 @@ class TestMonitoringPerformance(unittest.TestCase):
 
     def test_performance_summary(self):
         """打印性能测试总结"""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("PERFORMANCE TESTS SUMMARY")
-        print("="*80)
+        print("=" * 80)
         print("All basic performance tests completed successfully ✓")
         print("For comprehensive benchmarks, run full test suite")
-        print("="*80)
+        print("=" * 80)
 
 
 if __name__ == "__main__":

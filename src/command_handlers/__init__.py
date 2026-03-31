@@ -18,33 +18,33 @@ from .utilities_commands import *
 # 处理器注册表
 HANDLER_REGISTRY = {
     # Canvas命令处理器
-    'handle_canvas_command': handle_canvas_command,
-    'handle_status_command': handle_status_command,
-    'handle_help_command': handle_help_command,
-    'handle_batch_explain_command': handle_batch_explain_command,
-    'handle_generate_review_command': handle_generate_review_command,
-    'handle_optimize_layout_command': handle_optimize_layout_command,
-
+    "handle_canvas_command": handle_canvas_command,
+    "handle_status_command": handle_status_command,
+    "handle_help_command": handle_help_command,
+    "handle_batch_explain_command": handle_batch_explain_command,
+    "handle_generate_review_command": handle_generate_review_command,
+    "handle_optimize_layout_command": handle_optimize_layout_command,
     # 记忆系统命令处理器
-    'handle_memory_search_command': handle_memory_search_command,
-    'handle_memory_stats_command': handle_memory_stats_command,
-
+    "handle_memory_search_command": handle_memory_search_command,
+    "handle_memory_stats_command": handle_memory_stats_command,
     # 分析命令处理器
-    'handle_analyze_command': handle_analyze_command,
-    'handle_graph_command': handle_graph_command,
-
+    "handle_analyze_command": handle_analyze_command,
+    "handle_graph_command": handle_graph_command,
     # 实用工具命令处理器
-    'handle_validate_command': handle_validate_command,
-    'handle_export_command': handle_export_command,
+    "handle_validate_command": handle_validate_command,
+    "handle_export_command": handle_export_command,
 }
+
 
 def get_all_handlers():
     """获取所有处理器函数"""
     return HANDLER_REGISTRY
 
+
 def register_handler(name: str, handler_func):
     """注册新的处理器"""
     HANDLER_REGISTRY[name] = handler_func
+
 
 def get_handler(name: str):
     """获取指定名称的处理器"""

@@ -13,7 +13,6 @@ Covers edge cases NOT in ATDD tests:
 """
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -39,7 +38,7 @@ class TestQAFallbackFileAppend:
                 await service._trigger_memory_event(
                     event_type=CanvasEventType.NODE_CREATED,
                     canvas_name="test_canvas",
-                    node_id=f"node-{i}"
+                    node_id=f"node-{i}",
                 )
 
         events = json.loads(fallback_file.read_text(encoding="utf-8"))
@@ -68,7 +67,7 @@ class TestQACorruptedFallbackRecovery:
             await service._trigger_memory_event(
                 event_type=CanvasEventType.NODE_CREATED,
                 canvas_name="test_canvas",
-                node_id="node-recovery"
+                node_id="node-recovery",
             )
 
         events = json.loads(fallback_file.read_text(encoding="utf-8"))
@@ -100,10 +99,12 @@ class TestQAFallbackCountAccuracy:
                 await service._trigger_memory_event(
                     event_type=CanvasEventType.NODE_CREATED,
                     canvas_name="test",
-                    node_id="n1"
+                    node_id="n1",
                 )
 
-        assert service._fallback_count == 5, f"Expected 5, got {service._fallback_count}"
+        assert service._fallback_count == 5, (
+            f"Expected 5, got {service._fallback_count}"
+        )
 
 
 class TestQAIsFallbackActiveLifecycle:
@@ -129,7 +130,7 @@ class TestQAIsFallbackActiveLifecycle:
             await service._trigger_memory_event(
                 event_type=CanvasEventType.NODE_CREATED,
                 canvas_name="test",
-                node_id="n1"
+                node_id="n1",
             )
 
         assert service.is_fallback_active is True, "Should be True after fallback"
@@ -149,9 +150,7 @@ class TestQATryFallbackRespectsFlag:
         service._fallback_file_path = fallback_file
         service._fallback_count = 0
 
-        context = CanvasEventContext(
-            canvas_name="test", node_id="n1"
-        )
+        context = CanvasEventContext(canvas_name="test", node_id="n1")
 
         with patch("app.services.canvas_service.settings") as mock_settings:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
@@ -181,7 +180,7 @@ class TestQAFallbackEventFields:
             await service._trigger_memory_event(
                 event_type=CanvasEventType.NODE_UPDATED,
                 canvas_name="math53",
-                node_id="node-42"
+                node_id="node-42",
             )
 
         events = json.loads(fallback_file.read_text(encoding="utf-8"))
@@ -205,8 +204,7 @@ class TestQAFallbackEventFields:
         mock_memory.neo4j = None
 
         service = CanvasService(
-            canvas_base_path=str(tmp_path),
-            memory_client=mock_memory
+            canvas_base_path=str(tmp_path), memory_client=mock_memory
         )
         service._fallback_file_path = fallback_file
 
@@ -217,7 +215,7 @@ class TestQAFallbackEventFields:
                 canvas_path="math53.canvas",
                 edge_id="edge-99",
                 from_node_id="src-node",
-                to_node_id="dst-node"
+                to_node_id="dst-node",
             )
 
         events = json.loads(fallback_file.read_text(encoding="utf-8"))

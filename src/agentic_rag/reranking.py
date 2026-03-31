@@ -82,7 +82,9 @@ class LocalReranker:
         torch_dtype: str = "float16",
     ):
         if not CROSS_ENCODER_AVAILABLE:
-            raise ImportError("sentence-transformers not installed. Install with: pip install sentence-transformers")
+            raise ImportError(
+                "sentence-transformers not installed. Install with: pip install sentence-transformers"
+            )
 
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -151,7 +153,9 @@ class LocalReranker:
         latency_ms = (time.perf_counter() - start_t) * 1000
 
         # Story 2.5 AC-5: Log reranking latency
-        logger.debug(f"[LocalReranker] predict latency={latency_ms:.1f}ms for {len(documents)} docs")
+        logger.debug(
+            f"[LocalReranker] predict latency={latency_ms:.1f}ms for {len(documents)} docs"
+        )
 
         scored_docs = [
             {
@@ -363,8 +367,15 @@ def get_reranker(
             return get_reranker(model_name=model_name, torch_dtype=torch_dtype)
         dtype_map = {"float16": "float16", "bfloat16": "bfloat16", "float32": "float32"}
         cached_dtype = next(
-            (k for k, v in {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32}.items()
-             if _reranker_instance._torch_dtype == v),
+            (
+                k
+                for k, v in {
+                    "float16": torch.float16,
+                    "bfloat16": torch.bfloat16,
+                    "float32": torch.float32,
+                }.items()
+                if _reranker_instance._torch_dtype == v
+            ),
             "unknown",
         )
         if cached_dtype != dtype_map.get(torch_dtype, torch_dtype):

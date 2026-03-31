@@ -5,17 +5,16 @@ Verifies: Canvas CRUD -> LanceDB index -> learning event -> score -> FSRS.
 
 Split from test_story_38_7_e2e_integration.py for maintainability.
 """
+
 import json
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.services.agent_service import MEMORY_WRITE_TIMEOUT
 from app.services.memory_service import MemoryService
 
-from tests.integration.conftest import make_mock_neo4j, make_mock_learning_memory
-
+from tests.integration.conftest import make_mock_learning_memory, make_mock_neo4j
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC-2: Full Learning Flow Integration
@@ -36,23 +35,21 @@ class TestAC2FullLearningFlow:
         canvas_dir = tmp_path / "canvases"
         canvas_dir.mkdir()
         canvas_file = canvas_dir / "test.canvas"
-        canvas_file.write_text(
-            json.dumps({"nodes": [], "edges": []}),
-            encoding="utf-8"
-        )
+        canvas_file.write_text(json.dumps({"nodes": [], "edges": []}), encoding="utf-8")
 
-        svc = CanvasService(
-            canvas_base_path=str(canvas_dir),
-            memory_client=None
-        )
+        svc = CanvasService(canvas_base_path=str(canvas_dir), memory_client=None)
 
         with patch.object(svc, "_trigger_lancedb_index") as mock_idx:
-            await svc.add_node("test", {
-                "id": "node-1",
-                "type": "text",
-                "text": "Test concept",
-                "x": 0, "y": 0
-            })
+            await svc.add_node(
+                "test",
+                {
+                    "id": "node-1",
+                    "type": "text",
+                    "text": "Test concept",
+                    "x": 0,
+                    "y": 0,
+                },
+            )
             mock_idx.assert_called_once()
             args, kwargs = mock_idx.call_args
             assert args[0] == "test"
@@ -69,8 +66,15 @@ class TestAC2FullLearningFlow:
         canvas_dir.mkdir()
         canvas_file = canvas_dir / "test.canvas"
         canvas_file.write_text(
-            json.dumps({"nodes": [{"id": "n1", "type": "text", "text": "Old", "x": 0, "y": 0}], "edges": []}),
-            encoding="utf-8"
+            json.dumps(
+                {
+                    "nodes": [
+                        {"id": "n1", "type": "text", "text": "Old", "x": 0, "y": 0}
+                    ],
+                    "edges": [],
+                }
+            ),
+            encoding="utf-8",
         )
 
         svc = CanvasService(canvas_base_path=str(canvas_dir), memory_client=None)
@@ -91,7 +95,9 @@ class TestAC2FullLearningFlow:
 
         svc = LanceDBIndexService()
 
-        with patch.object(svc, "_debounced_index", new_callable=AsyncMock) as mock_debounce:
+        with patch.object(
+            svc, "_debounced_index", new_callable=AsyncMock
+        ) as mock_debounce:
             svc.schedule_index("test-canvas", "/tmp/canvases")
             assert "test-canvas" in svc._pending_tasks
             # Cleanup: cancel the created task
@@ -136,7 +142,7 @@ class TestAC2FullLearningFlow:
         [P0] Story 38.3 AC-4: After card creation, get_fsrs_state()
         returns {found: True} with real FSRS data.
         """
-        from app.services.review_service import ReviewService, FSRS_AVAILABLE
+        from app.services.review_service import FSRS_AVAILABLE, ReviewService
 
         if not FSRS_AVAILABLE:
             pytest.skip("py-fsrs not installed")
@@ -145,15 +151,17 @@ class TestAC2FullLearningFlow:
         task_mgr = MagicMock()
         rs = ReviewService(canvas_service=canvas_svc, task_manager=task_mgr)
 
-        card_json = json.dumps({
-            "due": datetime.now().isoformat(),
-            "stability": 1.0,
-            "difficulty": 5.0,
-            "state": 1,
-            "reps": 1,
-            "lapses": 0,
-            "last_review": datetime.now().isoformat(),
-        })
+        card_json = json.dumps(
+            {
+                "due": datetime.now().isoformat(),
+                "stability": 1.0,
+                "difficulty": 5.0,
+                "state": 1,
+                "reps": 1,
+                "lapses": 0,
+                "last_review": datetime.now().isoformat(),
+            }
+        )
         rs._card_states["test-concept"] = card_json
 
         result = await rs.get_fsrs_state("test-concept")
@@ -170,8 +178,10 @@ class TestAC2FullLearningFlow:
         """
         from app.services.review_service import ReviewService
 
-        with patch("app.services.review_service.FSRS_AVAILABLE", False), \
-             patch("app.services.review_service.FSRSManager", None):
+        with (
+            patch("app.services.review_service.FSRS_AVAILABLE", False),
+            patch("app.services.review_service.FSRSManager", None),
+        ):
             canvas_svc = MagicMock()
             task_mgr = MagicMock()
             rs = ReviewService(canvas_service=canvas_svc, task_manager=task_mgr)

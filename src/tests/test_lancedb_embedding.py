@@ -28,6 +28,7 @@ from agentic_rag.config import EMBEDDING_MODELS, LANCEDB_CONFIG
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def temp_db_path(tmp_path: Path) -> str:
     """Create a temporary directory for LanceDB."""
@@ -49,7 +50,7 @@ def sample_canvas_file(tmp_path: Path) -> str:
                 "y": 0,
                 "width": 300,
                 "height": 200,
-                "color": "1"
+                "color": "1",
             },
             {
                 "id": "node2",
@@ -59,7 +60,7 @@ def sample_canvas_file(tmp_path: Path) -> str:
                 "y": 0,
                 "width": 300,
                 "height": 150,
-                "color": "2"
+                "color": "2",
             },
             {
                 "id": "node3",
@@ -69,27 +70,18 @@ def sample_canvas_file(tmp_path: Path) -> str:
                 "y": 0,
                 "width": 250,
                 "height": 100,
-                "color": "3"
+                "color": "3",
             },
-            {
-                "id": "node4",
-                "type": "file",
-                "file": "笔记/test.md",
-                "x": 300,
-                "y": 0
-            },
-            {
-                "id": "node5",
-                "type": "group",
-                "x": 400,
-                "y": 0
-            }
+            {"id": "node4", "type": "file", "file": "笔记/test.md", "x": 300, "y": 0},
+            {"id": "node5", "type": "group", "x": 400, "y": 0},
         ],
-        "edges": []
+        "edges": [],
     }
 
     canvas_path = tmp_path / "test.canvas"
-    canvas_path.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding='utf-8')
+    canvas_path.write_text(
+        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
+    )
     return str(canvas_path)
 
 
@@ -99,7 +91,7 @@ async def client(temp_db_path: str) -> LanceDBClient:
     client = LanceDBClient(
         db_path=temp_db_path,
         embedding_model="sentence-transformers/all-MiniLM-L6-v2",
-        embedding_dim=384
+        embedding_dim=384,
     )
     await client.initialize()
     return client
@@ -108,6 +100,7 @@ async def client(temp_db_path: str) -> LanceDBClient:
 # ============================================================================
 # AC 1: 文本向量化测试
 # ============================================================================
+
 
 class TestEmbedMethod:
     """Test embed() method for text vectorization (AC 1)."""
@@ -128,8 +121,7 @@ class TestEmbedMethod:
 
     @pytest.mark.asyncio
     async def test_embed_different_texts_produce_different_vectors(
-        self,
-        client: LanceDBClient
+        self, client: LanceDBClient
     ):
         """Test that different texts produce different vectors."""
         vector1 = await client.embed("逆否命题")
@@ -139,8 +131,7 @@ class TestEmbedMethod:
 
     @pytest.mark.asyncio
     async def test_embed_similar_texts_produce_similar_vectors(
-        self,
-        client: LanceDBClient
+        self, client: LanceDBClient
     ):
         """Test that similar texts produce similar vectors."""
         vector1 = await client.embed("逆否命题的定义")
@@ -189,14 +180,13 @@ class TestEmbedMethod:
 # AC 2: Canvas节点批量索引测试
 # ============================================================================
 
+
 class TestIndexCanvas:
     """Test index_canvas() method for batch indexing (AC 2)."""
 
     @pytest.mark.asyncio
     async def test_index_canvas_basic(
-        self,
-        client: LanceDBClient,
-        sample_canvas_file: str
+        self, client: LanceDBClient, sample_canvas_file: str
     ):
         """
         Test basic Canvas indexing.
@@ -209,28 +199,26 @@ class TestIndexCanvas:
         assert count == 3
 
     @pytest.mark.asyncio
-    async def test_index_canvas_with_nodes_list(
-        self,
-        client: LanceDBClient
-    ):
+    async def test_index_canvas_with_nodes_list(self, client: LanceDBClient):
         """Test indexing with provided nodes list."""
         nodes = [
             {"id": "n1", "type": "text", "text": "命题A", "x": 0, "y": 0, "color": "1"},
-            {"id": "n2", "type": "text", "text": "命题B", "x": 100, "y": 0, "color": "2"},
+            {
+                "id": "n2",
+                "type": "text",
+                "text": "命题B",
+                "x": 100,
+                "y": 0,
+                "color": "2",
+            },
         ]
 
-        count = await client.index_canvas(
-            canvas_path="test.canvas",
-            nodes=nodes
-        )
+        count = await client.index_canvas(canvas_path="test.canvas", nodes=nodes)
 
         assert count == 2
 
     @pytest.mark.asyncio
-    async def test_index_canvas_filters_non_text_nodes(
-        self,
-        client: LanceDBClient
-    ):
+    async def test_index_canvas_filters_non_text_nodes(self, client: LanceDBClient):
         """Test that non-text nodes are filtered out."""
         nodes = [
             {"id": "n1", "type": "text", "text": "文本节点", "x": 0, "y": 0},
@@ -239,19 +227,13 @@ class TestIndexCanvas:
             {"id": "n4", "type": "link", "url": "http://test.com", "x": 300, "y": 0},
         ]
 
-        count = await client.index_canvas(
-            canvas_path="test.canvas",
-            nodes=nodes
-        )
+        count = await client.index_canvas(canvas_path="test.canvas", nodes=nodes)
 
         # Only text node should be indexed
         assert count == 1
 
     @pytest.mark.asyncio
-    async def test_index_canvas_skips_empty_text(
-        self,
-        client: LanceDBClient
-    ):
+    async def test_index_canvas_skips_empty_text(self, client: LanceDBClient):
         """Test that nodes with empty text are skipped."""
         nodes = [
             {"id": "n1", "type": "text", "text": "有内容", "x": 0, "y": 0},
@@ -259,19 +241,13 @@ class TestIndexCanvas:
             {"id": "n3", "type": "text", "text": "   ", "x": 200, "y": 0},
         ]
 
-        count = await client.index_canvas(
-            canvas_path="test.canvas",
-            nodes=nodes
-        )
+        count = await client.index_canvas(canvas_path="test.canvas", nodes=nodes)
 
         # Only non-empty text node should be indexed
         assert count == 1
 
     @pytest.mark.asyncio
-    async def test_index_canvas_file_not_found(
-        self,
-        client: LanceDBClient
-    ):
+    async def test_index_canvas_file_not_found(self, client: LanceDBClient):
         """Test handling of non-existent Canvas file."""
         count = await client.index_canvas("nonexistent.canvas")
 
@@ -279,9 +255,7 @@ class TestIndexCanvas:
 
     @pytest.mark.asyncio
     async def test_index_canvas_performance(
-        self,
-        client: LanceDBClient,
-        tmp_path: Path
+        self, client: LanceDBClient, tmp_path: Path
     ):
         """
         Test indexing performance: < 1秒/10节点
@@ -296,7 +270,7 @@ class TestIndexCanvas:
                 "text": f"This is test node {i} with some sample text content.",
                 "x": i * 100,
                 "y": 0,
-                "color": str((i % 6) + 1)
+                "color": str((i % 6) + 1),
             }
             for i in range(20)
         ]
@@ -305,8 +279,7 @@ class TestIndexCanvas:
         canvas_path = tmp_path / "performance_test.canvas"
         # Explicitly specify UTF-8 encoding for proper JSON write
         canvas_path.write_text(
-            json.dumps(canvas_data, ensure_ascii=False),
-            encoding='utf-8'
+            json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
         )
 
         start = time.perf_counter()
@@ -322,14 +295,13 @@ class TestIndexCanvas:
 # AC 3: 语义搜索测试
 # ============================================================================
 
+
 class TestSemanticSearch:
     """Test semantic search functionality (AC 3)."""
 
     @pytest.mark.asyncio
     async def test_search_returns_results(
-        self,
-        client: LanceDBClient,
-        sample_canvas_file: str
+        self, client: LanceDBClient, sample_canvas_file: str
     ):
         """
         Test that search returns results.
@@ -340,10 +312,7 @@ class TestSemanticSearch:
         await client.index_canvas(sample_canvas_file)
 
         # Then search
-        results = await client.search(
-            query="什么是逆否命题",
-            table_name="canvas_nodes"
-        )
+        results = await client.search(query="什么是逆否命题", table_name="canvas_nodes")
 
         assert len(results) > 0
         assert "doc_id" in results[0]
@@ -352,9 +321,7 @@ class TestSemanticSearch:
 
     @pytest.mark.asyncio
     async def test_search_score_range(
-        self,
-        client: LanceDBClient,
-        sample_canvas_file: str
+        self, client: LanceDBClient, sample_canvas_file: str
     ):
         """
         Test that search scores are in 0-1 range.
@@ -363,10 +330,7 @@ class TestSemanticSearch:
         """
         await client.index_canvas(sample_canvas_file)
 
-        results = await client.search(
-            query="逆否命题",
-            table_name="canvas_nodes"
-        )
+        results = await client.search(query="逆否命题", table_name="canvas_nodes")
 
         for result in results:
             score = result.get("score", 0)
@@ -374,9 +338,7 @@ class TestSemanticSearch:
 
     @pytest.mark.asyncio
     async def test_search_results_sorted_by_score(
-        self,
-        client: LanceDBClient,
-        sample_canvas_file: str
+        self, client: LanceDBClient, sample_canvas_file: str
     ):
         """
         Test that results are sorted by score descending.
@@ -385,10 +347,7 @@ class TestSemanticSearch:
         """
         await client.index_canvas(sample_canvas_file)
 
-        results = await client.search(
-            query="逆否命题的定义",
-            table_name="canvas_nodes"
-        )
+        results = await client.search(query="逆否命题的定义", table_name="canvas_nodes")
 
         if len(results) >= 2:
             scores = [r.get("score", 0) for r in results]
@@ -398,18 +357,14 @@ class TestSemanticSearch:
 
     @pytest.mark.asyncio
     async def test_search_with_canvas_filter(
-        self,
-        client: LanceDBClient,
-        sample_canvas_file: str
+        self, client: LanceDBClient, sample_canvas_file: str
     ):
         """Test search with Canvas file filter."""
         await client.index_canvas(sample_canvas_file)
 
         # Search with filter
         results = await client.search(
-            query="逆否命题",
-            table_name="canvas_nodes",
-            canvas_file=sample_canvas_file
+            query="逆否命题", table_name="canvas_nodes", canvas_file=sample_canvas_file
         )
 
         # All results should be from the same canvas file
@@ -420,6 +375,7 @@ class TestSemanticSearch:
 # ============================================================================
 # AC 4: 配置测试
 # ============================================================================
+
 
 class TestConfiguration:
     """Test configuration functionality (AC 4)."""
@@ -437,8 +393,7 @@ class TestConfiguration:
         ✅ Story 23.2 AC 4: 支持切换embedding模型
         """
         client = LanceDBClient(
-            embedding_model="sentence-transformers/all-mpnet-base-v2",
-            embedding_dim=768
+            embedding_model="sentence-transformers/all-mpnet-base-v2", embedding_dim=768
         )
         assert client.embedding_model == "sentence-transformers/all-mpnet-base-v2"
         assert client.embedding_dim == 768
@@ -471,14 +426,13 @@ class TestConfiguration:
 # AC 5: 持久化测试
 # ============================================================================
 
+
 class TestPersistence:
     """Test index persistence (AC 5)."""
 
     @pytest.mark.asyncio
     async def test_persistence_across_restarts(
-        self,
-        temp_db_path: str,
-        sample_canvas_file: str
+        self, temp_db_path: str, sample_canvas_file: str
     ):
         """
         Test that indexed data persists across client restarts.
@@ -504,9 +458,7 @@ class TestPersistence:
 
     @pytest.mark.asyncio
     async def test_lancedb_files_created(
-        self,
-        temp_db_path: str,
-        sample_canvas_file: str
+        self, temp_db_path: str, sample_canvas_file: str
     ):
         """
         Test that LanceDB files are created on disk.
@@ -525,11 +477,7 @@ class TestPersistence:
         assert len(contents) > 0
 
     @pytest.mark.asyncio
-    async def test_get_stats(
-        self,
-        client: LanceDBClient,
-        sample_canvas_file: str
-    ):
+    async def test_get_stats(self, client: LanceDBClient, sample_canvas_file: str):
         """Test get_stats method returns correct information."""
         await client.index_canvas(sample_canvas_file)
 
@@ -544,15 +492,12 @@ class TestPersistence:
 # Integration Tests
 # ============================================================================
 
+
 class TestIntegration:
     """Integration tests for the full embedding pipeline."""
 
     @pytest.mark.asyncio
-    async def test_full_pipeline(
-        self,
-        client: LanceDBClient,
-        sample_canvas_file: str
-    ):
+    async def test_full_pipeline(self, client: LanceDBClient, sample_canvas_file: str):
         """Test the complete embedding pipeline: index -> search."""
         # Step 1: Index Canvas
         index_count = await client.index_canvas(sample_canvas_file)
@@ -560,8 +505,7 @@ class TestIntegration:
 
         # Step 2: Search for related content
         results = await client.search(
-            query="逆否命题与原命题的关系",
-            table_name="canvas_nodes"
+            query="逆否命题与原命题的关系", table_name="canvas_nodes"
         )
 
         # Should find relevant results
@@ -572,10 +516,7 @@ class TestIntegration:
         assert "逆否命题" in top_result.get("content", "")
 
     @pytest.mark.asyncio
-    async def test_embed_and_search_consistency(
-        self,
-        client: LanceDBClient
-    ):
+    async def test_embed_and_search_consistency(self, client: LanceDBClient):
         """Test that embedding and search use consistent vectors."""
         # Add a document directly with embed()
         text = "测试向量一致性"
@@ -584,17 +525,19 @@ class TestIntegration:
         # Manually add document
         await client.add_documents(
             table_name="test_consistency",
-            documents=[{
-                "doc_id": "test_1",
-                "content": text,
-                "vector": vector,
-            }]
+            documents=[
+                {
+                    "doc_id": "test_1",
+                    "content": text,
+                    "vector": vector,
+                }
+            ],
         )
 
         # Search should find the document
         results = await client.search(
             query=text,  # Same text as indexed
-            table_name="test_consistency"
+            table_name="test_consistency",
         )
 
         assert len(results) > 0

@@ -222,7 +222,9 @@ class TestMasteryFusionEngine:
         assert bkt_detail.value == 0.8
         assert bkt_detail.normalized_weight > 0
 
-        fsrs_detail = next(sd for sd in result.signal_details if sd.signal_name == "fsrs")
+        fsrs_detail = next(
+            sd for sd in result.signal_details if sd.signal_name == "fsrs"
+        )
         assert fsrs_detail.value is None
         assert fsrs_detail.normalized_weight == 0.0
 

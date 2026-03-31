@@ -2,10 +2,7 @@
 # Split from test_intelligent_grouping_service.py (EPIC-33 P1-6)
 """Tests for duration, priority, agent recommendation, and cluster mapping."""
 
-from typing import Any, Dict
-from unittest.mock import MagicMock
-
-import pytest
+from typing import Dict
 
 from app.models.intelligent_parallel_models import (
     GroupPriority,

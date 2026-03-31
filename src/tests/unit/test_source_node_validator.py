@@ -34,7 +34,7 @@ def sample_canvas_file(tmp_path):
                 "y": 0,
                 "width": 100,
                 "height": 50,
-                "color": "4"
+                "color": "4",
             },
             {
                 "id": "e5f6a7b8",
@@ -44,7 +44,7 @@ def sample_canvas_file(tmp_path):
                 "y": 0,
                 "width": 100,
                 "height": 50,
-                "color": "2"
+                "color": "2",
             },
             {
                 "id": "12345678",
@@ -54,14 +54,14 @@ def sample_canvas_file(tmp_path):
                 "y": 0,
                 "width": 100,
                 "height": 50,
-                "color": "1"
-            }
+                "color": "1",
+            },
         ],
-        "edges": []
+        "edges": [],
     }
 
     canvas_path = tmp_path / "test.canvas"
-    with open(canvas_path, 'w', encoding='utf-8') as f:
+    with open(canvas_path, "w", encoding="utf-8") as f:
         json.dump(canvas_data, f)
 
     return str(canvas_path)
@@ -81,7 +81,7 @@ def review_canvas_file(tmp_path, sample_canvas_file):
                 "width": 100,
                 "height": 50,
                 "color": "4",
-                "sourceNodeId": "a1b2c3d4"  # Valid reference
+                "sourceNodeId": "a1b2c3d4",  # Valid reference
             },
             {
                 "id": "q2",
@@ -92,7 +92,7 @@ def review_canvas_file(tmp_path, sample_canvas_file):
                 "width": 100,
                 "height": 50,
                 "color": "2",
-                "sourceNodeId": "e5f6a7b8"  # Valid reference
+                "sourceNodeId": "e5f6a7b8",  # Valid reference
             },
             {
                 "id": "q3",
@@ -103,14 +103,14 @@ def review_canvas_file(tmp_path, sample_canvas_file):
                 "width": 100,
                 "height": 50,
                 "color": "4",
-                "sourceNodeId": "invalid12"  # Invalid reference
-            }
+                "sourceNodeId": "invalid12",  # Invalid reference
+            },
         ],
-        "edges": []
+        "edges": [],
     }
 
     review_path = tmp_path / "test-review.canvas"
-    with open(review_path, 'w', encoding='utf-8') as f:
+    with open(review_path, "w", encoding="utf-8") as f:
         json.dump(review_data, f)
 
     return str(review_path)
@@ -144,8 +144,7 @@ class TestSourceNodeValidatorSingle:
     def test_valid_source_node_id(self, validator, sample_canvas_file):
         """Valid sourceNodeId should pass validation."""
         result = validator.validate_source_node_id(
-            canvas_path=sample_canvas_file,
-            source_node_id="a1b2c3d4"
+            canvas_path=sample_canvas_file, source_node_id="a1b2c3d4"
         )
 
         assert result.is_valid is True
@@ -157,8 +156,7 @@ class TestSourceNodeValidatorSingle:
     def test_invalid_format_source_node_id(self, validator, sample_canvas_file):
         """Invalid format should fail validation."""
         result = validator.validate_source_node_id(
-            canvas_path=sample_canvas_file,
-            source_node_id="invalid"
+            canvas_path=sample_canvas_file, source_node_id="invalid"
         )
 
         assert result.is_valid is False
@@ -169,7 +167,7 @@ class TestSourceNodeValidatorSingle:
         """Non-existent node ID should fail validation."""
         result = validator.validate_source_node_id(
             canvas_path=sample_canvas_file,
-            source_node_id="ffffffff"  # Valid format but doesn't exist
+            source_node_id="ffffffff",  # Valid format but doesn't exist
         )
 
         assert result.is_valid is False
@@ -179,8 +177,7 @@ class TestSourceNodeValidatorSingle:
     def test_nonexistent_canvas_file(self, validator, tmp_path):
         """Non-existent canvas file should fail validation."""
         result = validator.validate_source_node_id(
-            canvas_path=str(tmp_path / "nonexistent.canvas"),
-            source_node_id="a1b2c3d4"
+            canvas_path=str(tmp_path / "nonexistent.canvas"), source_node_id="a1b2c3d4"
         )
 
         assert result.is_valid is False
@@ -193,8 +190,7 @@ class TestSourceNodeValidatorBatch:
     def test_batch_all_valid(self, validator, sample_canvas_file):
         """Batch with all valid IDs should pass."""
         result = validator.validate_batch(
-            canvas_path=sample_canvas_file,
-            source_node_ids=["a1b2c3d4", "e5f6a7b8"]
+            canvas_path=sample_canvas_file, source_node_ids=["a1b2c3d4", "e5f6a7b8"]
         )
 
         assert result.total_count == 2
@@ -205,8 +201,7 @@ class TestSourceNodeValidatorBatch:
     def test_batch_some_invalid(self, validator, sample_canvas_file):
         """Batch with some invalid IDs should report correctly."""
         result = validator.validate_batch(
-            canvas_path=sample_canvas_file,
-            source_node_ids=["a1b2c3d4", "invalid12"]
+            canvas_path=sample_canvas_file, source_node_ids=["a1b2c3d4", "invalid12"]
         )
 
         assert result.total_count == 2
@@ -217,8 +212,7 @@ class TestSourceNodeValidatorBatch:
     def test_batch_empty_list(self, validator, sample_canvas_file):
         """Empty batch should return empty result."""
         result = validator.validate_batch(
-            canvas_path=sample_canvas_file,
-            source_node_ids=[]
+            canvas_path=sample_canvas_file, source_node_ids=[]
         )
 
         assert result.total_count == 0
@@ -235,7 +229,7 @@ class TestSourceNodeValidatorReviewCanvas:
         """Review canvas should be validated against original."""
         result = validator.validate_review_canvas(
             review_canvas_path=review_canvas_file,
-            original_canvas_path=sample_canvas_file
+            original_canvas_path=sample_canvas_file,
         )
 
         assert result.total_count == 3
@@ -248,19 +242,20 @@ class TestSourceNodeValidatorReviewCanvas:
         assert "a1b2c3d4" in valid_ids
         assert "e5f6a7b8" in valid_ids
 
-    def test_validate_empty_review_canvas(self, validator, sample_canvas_file, tmp_path):
+    def test_validate_empty_review_canvas(
+        self, validator, sample_canvas_file, tmp_path
+    ):
         """Review canvas with no sourceNodeIds should pass."""
         empty_review = {
             "nodes": [{"id": "q1", "type": "text", "text": "No source"}],
-            "edges": []
+            "edges": [],
         }
         review_path = tmp_path / "empty-review.canvas"
-        with open(review_path, 'w') as f:
+        with open(review_path, "w") as f:
             json.dump(empty_review, f)
 
         result = validator.validate_review_canvas(
-            review_canvas_path=str(review_path),
-            original_canvas_path=sample_canvas_file
+            review_canvas_path=str(review_path), original_canvas_path=sample_canvas_file
         )
 
         assert result.total_count == 0

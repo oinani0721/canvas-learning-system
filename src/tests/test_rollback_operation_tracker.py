@@ -79,7 +79,11 @@ def mock_canvas_service():
     mock.add_node.return_value = {"id": "node1", "text": "New Node", "color": "1"}
     mock.delete_node.return_value = True
     mock.get_node.return_value = {"id": "node1", "text": "Old Node", "color": "2"}
-    mock.update_node.return_value = {"id": "node1", "text": "Updated Node", "color": "3"}
+    mock.update_node.return_value = {
+        "id": "node1",
+        "text": "Updated Node",
+        "color": "3",
+    }
     mock.add_edge.return_value = {"id": "edge1", "fromNode": "node1", "toNode": "node2"}
     mock.delete_edge.return_value = True
     mock.get_edge.return_value = {"id": "edge1", "fromNode": "node1", "toNode": "node2"}
@@ -490,7 +494,9 @@ class TestTrackedCanvasOperator:
         assert history[0].data.before is not None
         assert history[0].data.after is not None
 
-    def test_change_node_color_tracks_operation(self, tracked_operator, operation_tracker):
+    def test_change_node_color_tracks_operation(
+        self, tracked_operator, operation_tracker
+    ):
         """Test that change_node_color tracks with NODE_COLOR_CHANGE type."""
         result = tracked_operator.change_node_color(
             canvas_path="test.canvas",
@@ -531,7 +537,9 @@ class TestTrackedCanvasOperator:
         assert len(history) == 1
         assert history[0].type == OperationType.EDGE_DELETE
 
-    def test_batch_operation_tracks_operation(self, tracked_operator, operation_tracker):
+    def test_batch_operation_tracks_operation(
+        self, tracked_operator, operation_tracker
+    ):
         """Test that batch_operation tracks with BATCH_OPERATION type."""
         operations = [
             {"type": "add_node", "node_id": "n1"},

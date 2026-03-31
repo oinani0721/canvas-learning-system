@@ -6,17 +6,15 @@ Gap 2: AC-4 degraded dual-write must verify actual data persistence
 Gap 3: Health endpoint uses FSRS_AVAILABLE not _fsrs_init_ok — test real endpoint
 Gap 4: Scoring write integration path (score → failed_writes.jsonl → recovery)
 """
+
 import json
-import pytest
-import tempfile
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from app.config import Settings, get_settings
 from app.main import app
 from fastapi.testclient import TestClient
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
@@ -90,7 +88,9 @@ class TestHealthEndpointHTTP:
         data = resp.json()
         assert data["components"]["fsrs"] == "ok"
 
-    def test_health_fsrs_degraded_when_library_unavailable(self, qa_client, monkeypatch):
+    def test_health_fsrs_degraded_when_library_unavailable(
+        self, qa_client, monkeypatch
+    ):
         """
         [P0] Story 38.3 AC-3: /health shows fsrs: "degraded" when
         FSRS is unavailable.
@@ -166,7 +166,9 @@ class TestDegradedDualWriteStrengthened:
         )
 
     @pytest.mark.asyncio
-    async def test_canvas_crud_fallback_file_contains_correct_event_structure(self, tmp_path):
+    async def test_canvas_crud_fallback_file_contains_correct_event_structure(
+        self, tmp_path
+    ):
         """
         [P0] Story 38.5 AC-1 (strengthened): JSON fallback file contains
         properly structured event with all required fields.
@@ -176,8 +178,7 @@ class TestDegradedDualWriteStrengthened:
         canvas_dir = tmp_path / "canvases"
         canvas_dir.mkdir()
         (canvas_dir / "verify.canvas").write_text(
-            json.dumps({"nodes": [], "edges": []}),
-            encoding="utf-8"
+            json.dumps({"nodes": [], "edges": []}), encoding="utf-8"
         )
 
         svc = CanvasService(canvas_base_path=str(canvas_dir), memory_client=None)
@@ -187,10 +188,16 @@ class TestDegradedDualWriteStrengthened:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = True
             mock_settings.ENABLE_LANCEDB_AUTO_INDEX = False
 
-            await svc.add_node("verify", {
-                "id": "qa-node", "type": "text", "text": "QA test",
-                "x": 100, "y": 200
-            })
+            await svc.add_node(
+                "verify",
+                {
+                    "id": "qa-node",
+                    "type": "text",
+                    "text": "QA test",
+                    "x": 100,
+                    "y": 200,
+                },
+            )
 
         assert svc._fallback_file_path.exists()
         content = json.loads(svc._fallback_file_path.read_text(encoding="utf-8"))
@@ -249,8 +256,13 @@ class TestScoringWriteRecoveryFlow:
         assert entry["concept"] == "Integration Testing"
         assert "timestamp" in entry
         # Optional fields that help replay
-        assert entry.get("user_understanding") == "I think it's about testing modules together"
-        assert entry.get("agent_feedback") == "Good understanding of integration concepts"
+        assert (
+            entry.get("user_understanding")
+            == "I think it's about testing modules together"
+        )
+        assert (
+            entry.get("agent_feedback") == "Good understanding of integration concepts"
+        )
 
     def test_multiple_failed_writes_are_appended_not_overwritten(self, tmp_path):
         """
@@ -292,6 +304,7 @@ class TestConfigDefaultsSafety:
         Validates at import level, not runtime.
         """
         from app.services.agent_service import MEMORY_WRITE_TIMEOUT
+
         assert isinstance(MEMORY_WRITE_TIMEOUT, (int, float))
         assert MEMORY_WRITE_TIMEOUT >= 10.0, (
             f"MEMORY_WRITE_TIMEOUT={MEMORY_WRITE_TIMEOUT} is too low, must be >= 10s"
@@ -310,7 +323,9 @@ class TestConfigDefaultsSafety:
         Fixed: config.py default changed from 0.5s to 15.0s.
         """
         field_info = Settings.model_fields.get("VERIFICATION_AI_TIMEOUT")
-        assert field_info is not None, "VERIFICATION_AI_TIMEOUT field should exist in Settings"
+        assert field_info is not None, (
+            "VERIFICATION_AI_TIMEOUT field should exist in Settings"
+        )
         assert field_info.default >= 5.0, (
             f"VERIFICATION_AI_TIMEOUT default={field_info.default}s is too low (should be >= 5s)"
         )

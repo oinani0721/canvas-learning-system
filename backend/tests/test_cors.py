@@ -26,13 +26,15 @@ class TestCORSConfiguration:
             "/api/v1/health",
             headers={
                 "Origin": "http://localhost:3000",
-                "Access-Control-Request-Method": "GET"
-            }
+                "Access-Control-Request-Method": "GET",
+            },
         )
 
         assert response.status_code == 200
         assert "access-control-allow-origin" in response.headers
-        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        assert (
+            response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        )
 
     def test_cors_allows_127_0_0_1(self, client: TestClient):
         """Test that CORS allows requests from 127.0.0.1."""
@@ -40,13 +42,15 @@ class TestCORSConfiguration:
             "/api/v1/health",
             headers={
                 "Origin": "http://127.0.0.1:3000",
-                "Access-Control-Request-Method": "GET"
-            }
+                "Access-Control-Request-Method": "GET",
+            },
         )
 
         assert response.status_code == 200
         assert "access-control-allow-origin" in response.headers
-        assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:3000"
+        assert (
+            response.headers["access-control-allow-origin"] == "http://127.0.0.1:3000"
+        )
 
     def test_cors_allows_credentials(self, client: TestClient):
         """Test that CORS allows credentials."""
@@ -54,8 +58,8 @@ class TestCORSConfiguration:
             "/api/v1/health",
             headers={
                 "Origin": "http://localhost:3000",
-                "Access-Control-Request-Method": "GET"
-            }
+                "Access-Control-Request-Method": "GET",
+            },
         )
 
         assert "access-control-allow-credentials" in response.headers
@@ -68,16 +72,15 @@ class TestCORSConfiguration:
                 "/api/v1/health",
                 headers={
                     "Origin": "http://localhost:3000",
-                    "Access-Control-Request-Method": method
-                }
+                    "Access-Control-Request-Method": method,
+                },
             )
             assert response.status_code == 200
 
     def test_cors_headers_in_response(self, client: TestClient):
         """Test that CORS headers are included in regular responses."""
         response = client.get(
-            "/api/v1/health",
-            headers={"Origin": "http://localhost:3000"}
+            "/api/v1/health", headers={"Origin": "http://localhost:3000"}
         )
 
         assert response.status_code == 200

@@ -21,6 +21,7 @@ from canvas_utils import CanvasJSONOperator
 
 # ========== Helper Functions ==========
 
+
 def find_yellow_node_for_question(canvas_data: dict, question_node_id: str) -> dict:
     """
     查找问题节点关联的黄色节点（个人理解区）
@@ -36,7 +37,9 @@ def find_yellow_node_for_question(canvas_data: dict, question_node_id: str) -> d
     """
     for edge in canvas_data["edges"]:
         if edge["fromNode"] == question_node_id:
-            to_node = next((n for n in canvas_data["nodes"] if n["id"] == edge["toNode"]), None)
+            to_node = next(
+                (n for n in canvas_data["nodes"] if n["id"] == edge["toNode"]), None
+            )
             if to_node and to_node.get("color") == "6":  # "6" = 黄色
                 return to_node
     return None
@@ -60,7 +63,9 @@ def detect_scoring_need(canvas_data: dict, question_node_id: str) -> tuple:
         tuple: (needs_scoring: bool, reason: str, yellow_node: dict, question_node: dict)
     """
     # 获取问题节点
-    question_node = next((n for n in canvas_data["nodes"] if n["id"] == question_node_id), None)
+    question_node = next(
+        (n for n in canvas_data["nodes"] if n["id"] == question_node_id), None
+    )
 
     # 查找关联的黄色节点
     yellow_node = find_yellow_node_for_question(canvas_data, question_node_id)
@@ -83,6 +88,7 @@ def detect_scoring_need(canvas_data: dict, question_node_id: str) -> tuple:
 
 
 # ========== Fixtures ==========
+
 
 @pytest.fixture
 def test_canvas_path():
@@ -111,6 +117,7 @@ def temp_canvas_path(tmp_path):
 
 # ========== 测试用例1: 黄色节点已填写，自动评分触发 ==========
 
+
 def test_auto_scoring_trigger_on_decomposition_request(canvas_data):
     """
     场景: 用户填写了黄色节点，请求"拆解问题"，系统自动评分
@@ -123,7 +130,9 @@ def test_auto_scoring_trigger_on_decomposition_request(canvas_data):
     """
     # Arrange & Act
     question_node_id = "question-unscored"
-    needs_scoring, reason, yellow_node, question_node = detect_scoring_need(canvas_data, question_node_id)
+    needs_scoring, reason, yellow_node, question_node = detect_scoring_need(
+        canvas_data, question_node_id
+    )
 
     # Assert
     assert needs_scoring is True, f"应该触发评分，但检测结果为: {reason}"
@@ -134,6 +143,7 @@ def test_auto_scoring_trigger_on_decomposition_request(canvas_data):
 
 
 # ========== 测试用例2: 黄色节点为空，提醒填写 ==========
+
 
 def test_empty_yellow_node_reminder(canvas_data):
     """
@@ -147,7 +157,9 @@ def test_empty_yellow_node_reminder(canvas_data):
     """
     # Arrange & Act
     question_node_id = "question-empty-yellow"
-    needs_scoring, reason, yellow_node, question_node = detect_scoring_need(canvas_data, question_node_id)
+    needs_scoring, reason, yellow_node, question_node = detect_scoring_need(
+        canvas_data, question_node_id
+    )
 
     # Assert
     assert needs_scoring is False, "黄色节点为空时不应触发评分"
@@ -158,6 +170,7 @@ def test_empty_yellow_node_reminder(canvas_data):
 
 
 # ========== 测试用例3: 黄色节点已评分，不重复评分 ==========
+
 
 def test_skip_scoring_if_already_scored(canvas_data):
     """
@@ -171,7 +184,9 @@ def test_skip_scoring_if_already_scored(canvas_data):
     """
     # Arrange & Act
     question_node_id = "question-already-scored-green"
-    needs_scoring, reason, yellow_node, question_node = detect_scoring_need(canvas_data, question_node_id)
+    needs_scoring, reason, yellow_node, question_node = detect_scoring_need(
+        canvas_data, question_node_id
+    )
 
     # Assert
     assert needs_scoring is False, "已评分的节点不应重复评分"
@@ -183,6 +198,7 @@ def test_skip_scoring_if_already_scored(canvas_data):
 
 
 # ========== 测试用例4: 无关联黄色节点，直接执行 ==========
+
 
 def test_no_yellow_node_direct_execution(canvas_data):
     """
@@ -196,7 +212,9 @@ def test_no_yellow_node_direct_execution(canvas_data):
     """
     # Arrange & Act
     question_node_id = "question-no-yellow"
-    needs_scoring, reason, yellow_node, question_node = detect_scoring_need(canvas_data, question_node_id)
+    needs_scoring, reason, yellow_node, question_node = detect_scoring_need(
+        canvas_data, question_node_id
+    )
 
     # Assert
     assert needs_scoring is False, "无关联黄色节点时不应触发评分"
@@ -206,6 +224,7 @@ def test_no_yellow_node_direct_execution(canvas_data):
 
 
 # ========== 测试用例5: 智能建议匹配最弱维度 ==========
+
 
 def test_intelligent_suggestion_matches_weakness():
     """
@@ -221,7 +240,7 @@ def test_intelligent_suggestion_matches_weakness():
         "accuracy": ["澄清路径", "口语化解释", "例题教学"],
         "imagery": ["记忆锚点", "对比表"],
         "completeness": ["澄清路径", "四层次答案"],
-        "originality": ["口语化解释", "记忆锚点"]
+        "originality": ["口语化解释", "记忆锚点"],
     }
 
     # Test Case 1: 形象性最弱
@@ -231,13 +250,15 @@ def test_intelligent_suggestion_matches_weakness():
             "accuracy": 22,
             "imagery": 15,  # 最弱
             "completeness": 20,
-            "originality": 15
+            "originality": 15,
         },
-        "pass": False
+        "pass": False,
     }
 
     # Act: 找到最弱维度
-    weakest_dim_1 = min(score_result_1["breakdown"], key=score_result_1["breakdown"].get)
+    weakest_dim_1 = min(
+        score_result_1["breakdown"], key=score_result_1["breakdown"].get
+    )
     recommended_agents_1 = dimension_agent_map[weakest_dim_1]
 
     # Assert
@@ -253,12 +274,14 @@ def test_intelligent_suggestion_matches_weakness():
             "accuracy": 12,  # 最弱
             "imagery": 18,
             "completeness": 20,
-            "originality": 15
+            "originality": 15,
         },
-        "pass": False
+        "pass": False,
     }
 
-    weakest_dim_2 = min(score_result_2["breakdown"], key=score_result_2["breakdown"].get)
+    weakest_dim_2 = min(
+        score_result_2["breakdown"], key=score_result_2["breakdown"].get
+    )
     recommended_agents_2 = dimension_agent_map[weakest_dim_2]
 
     assert weakest_dim_2 == "accuracy", "应该识别出准确性最弱"
@@ -267,6 +290,7 @@ def test_intelligent_suggestion_matches_weakness():
 
 
 # ========== 测试用例6: 评分结果正确更新节点颜色 ==========
+
 
 def test_scoring_result_updates_node_color_correctly(temp_canvas_path):
     """
@@ -291,10 +315,14 @@ def test_scoring_result_updates_node_color_correctly(temp_canvas_path):
 
     # 验证
     updated_data_1 = CanvasJSONOperator.read_canvas(temp_canvas_path)
-    updated_node_1 = next((n for n in updated_data_1["nodes"] if n["id"] == question_node_id_1), None)
+    updated_node_1 = next(
+        (n for n in updated_data_1["nodes"] if n["id"] == question_node_id_1), None
+    )
 
     assert updated_node_1 is not None, "应该找到更新后的节点"
-    assert updated_node_1.get("color") == "2", f"高分(≥80)应该变绿色，实际: {updated_node_1.get('color')}"
+    assert updated_node_1.get("color") == "2", (
+        f"高分(≥80)应该变绿色，实际: {updated_node_1.get('color')}"
+    )
     print("✅ 测试通过: 85分 → 绿色('2')")
 
     # Test Case 2: 中等分数 (60-79) → 紫色
@@ -308,9 +336,13 @@ def test_scoring_result_updates_node_color_correctly(temp_canvas_path):
     CanvasJSONOperator.write_canvas(temp_canvas_path, canvas_data_2)
 
     updated_data_2 = CanvasJSONOperator.read_canvas(temp_canvas_path)
-    updated_node_2 = next((n for n in updated_data_2["nodes"] if n["id"] == question_node_id_2), None)
+    updated_node_2 = next(
+        (n for n in updated_data_2["nodes"] if n["id"] == question_node_id_2), None
+    )
 
-    assert updated_node_2.get("color") == "3", f"中等分数(60-79)应该变紫色，实际: {updated_node_2.get('color')}"
+    assert updated_node_2.get("color") == "3", (
+        f"中等分数(60-79)应该变紫色，实际: {updated_node_2.get('color')}"
+    )
     print("✅ 测试通过: 72分 → 紫色('3')")
 
     # Test Case 3: 低分 (<60) → 保持红色
@@ -324,13 +356,18 @@ def test_scoring_result_updates_node_color_correctly(temp_canvas_path):
     CanvasJSONOperator.write_canvas(temp_canvas_path, canvas_data_3)
 
     updated_data_3 = CanvasJSONOperator.read_canvas(temp_canvas_path)
-    updated_node_3 = next((n for n in updated_data_3["nodes"] if n["id"] == question_node_id_3), None)
+    updated_node_3 = next(
+        (n for n in updated_data_3["nodes"] if n["id"] == question_node_id_3), None
+    )
 
-    assert updated_node_3.get("color") == "1", f"低分(<60)应该保持红色，实际: {updated_node_3.get('color')}"
+    assert updated_node_3.get("color") == "1", (
+        f"低分(<60)应该保持红色，实际: {updated_node_3.get('color')}"
+    )
     print("✅ 测试通过: 45分 → 红色('1')")
 
 
 # ========== 边界条件测试 ==========
+
 
 def test_edge_case_exactly_10_characters(canvas_data):
     """
@@ -358,6 +395,7 @@ def test_edge_case_9_characters():
 
 
 # ========== Story 2.9: 增强智能建议引擎测试 ==========
+
 
 def generate_enhanced_intelligent_suggestion(score_result: dict) -> dict:
     """
@@ -396,7 +434,7 @@ def generate_enhanced_intelligent_suggestion(score_result: dict) -> dict:
             "suggestion_text": "理解良好!(≥80分)\n\n建议:\nA. 继续拆解更深层次\nB. 进入无纸化检验阶段\nC. 继续原计划",
             "recommended_agent": None,
             "reasoning": "您的理解已达标,可以进入下一学习阶段。",
-            "options": ["A", "B", "C"]
+            "options": ["A", "B", "C"],
         }
 
     # 档位2: 60-79分 - 维度导向
@@ -410,20 +448,20 @@ def generate_enhanced_intelligent_suggestion(score_result: dict) -> dict:
         dimension_to_agents = {
             "accuracy": {
                 "agents": ["clarification-path", "oral-explanation"],
-                "reason": "通过详细解释纠正理解偏差"
+                "reason": "通过详细解释纠正理解偏差",
             },
             "imagery": {
                 "agents": ["memory-anchor", "comparison-table"],
-                "reason": "通过生动类比加深记忆"
+                "reason": "通过生动类比加深记忆",
             },
             "completeness": {
                 "agents": ["clarification-path", "four-level-answer"],
-                "reason": "填补知识盲区,覆盖完整知识点"
+                "reason": "填补知识盲区,覆盖完整知识点",
             },
             "originality": {
                 "agents": ["oral-explanation", "memory-anchor"],
-                "reason": "引导用自己的语言表达"
-            }
+                "reason": "引导用自己的语言表达",
+            },
         }
 
         recommendation = dimension_to_agents[weakest_dim]
@@ -434,13 +472,15 @@ def generate_enhanced_intelligent_suggestion(score_result: dict) -> dict:
             "accuracy": "准确性",
             "imagery": "形象性",
             "completeness": "完整性",
-            "originality": "原创性"
+            "originality": "原创性",
         }
 
         # 格式化维度分析
         analysis_lines = []
         for dim, score in breakdown.items():
-            indicator = "⚠️ (最弱)" if dim == weakest_dim else ("✅" if score >= 20 else "")
+            indicator = (
+                "⚠️ (最弱)" if dim == weakest_dim else ("✅" if score >= 20 else "")
+            )
             analysis_lines.append(f"- {dim_names[dim]}: {score}/25 {indicator}")
         analysis = "\n".join(analysis_lines)
 
@@ -460,7 +500,7 @@ C. 取消操作
             "suggestion_text": suggestion_text,
             "recommended_agent": recommended_agent,
             "reasoning": f"{dim_names[weakest_dim]}较弱,需要针对性提升",
-            "options": ["A", "B", "C"]
+            "options": ["A", "B", "C"],
         }
 
     # 档位3: <60分
@@ -477,7 +517,7 @@ D. 取消操作
 推荐理由:您的理解有基础性错误,需要详细的重新解释。建议从澄清路径开始,它会提供最完整的4步骤解释。""",
             "recommended_agent": "clarification-path",
             "reasoning": "理解有基础性错误,需要最详细的解释",
-            "options": ["A", "B", "C", "D"]
+            "options": ["A", "B", "C", "D"],
         }
 
 
@@ -493,11 +533,12 @@ B. 继续原操作(不推荐,可能影响学习效果)
 💡 提示:费曼学习法的核心是输出。只有尝试用自己的语言解释,才能发现理解盲区。""",
         "recommended_agent": None,
         "reasoning": "输出是最好的学习",
-        "options": ["A", "B"]
+        "options": ["A", "B"],
     }
 
 
 # ========== 测试用例7: 维度分析准确性 ==========
+
 
 def test_dimension_analysis_identifies_weakest():
     """
@@ -515,24 +556,28 @@ def test_dimension_analysis_identifies_weakest():
             "accuracy": 21,
             "imagery": 16,  # 最弱
             "completeness": 20,
-            "originality": 15
+            "originality": 15,
         },
         "pass": False,
-        "feedback": "基本正确但形象性较弱"
+        "feedback": "基本正确但形象性较弱",
     }
 
     suggestion = generate_enhanced_intelligent_suggestion(score_result)
 
-    assert suggestion["recommended_agent"] in ["memory-anchor", "comparison-table"], \
+    assert suggestion["recommended_agent"] in ["memory-anchor", "comparison-table"], (
         f"应该推荐memory-anchor或comparison-table,实际推荐: {suggestion['recommended_agent']}"
-    assert "形象性" in suggestion["reasoning"], \
+    )
+    assert "形象性" in suggestion["reasoning"], (
         f"建议理由应该提到'形象性',实际: {suggestion['reasoning']}"
-    assert "16/25" in suggestion["suggestion_text"], \
+    )
+    assert "16/25" in suggestion["suggestion_text"], (
         f"建议文本应该包含最弱维度得分'16/25',实际: {suggestion['suggestion_text']}"
+    )
     print(f"✅ 测试通过: 形象性最弱 → 推荐 {suggestion['recommended_agent']}")
 
 
 # ========== 测试用例8: 准确性低推荐oral-explanation ==========
+
 
 def test_low_accuracy_recommends_explanation():
     """
@@ -547,22 +592,28 @@ def test_low_accuracy_recommends_explanation():
             "accuracy": 12,  # 最弱
             "imagery": 18,
             "completeness": 19,
-            "originality": 16
+            "originality": 16,
         },
         "pass": False,
-        "feedback": "准确性较弱"
+        "feedback": "准确性较弱",
     }
 
     suggestion = generate_enhanced_intelligent_suggestion(score_result)
 
-    assert suggestion["recommended_agent"] in ["oral-explanation", "clarification-path"], \
+    assert suggestion["recommended_agent"] in [
+        "oral-explanation",
+        "clarification-path",
+    ], (
         f"应该推荐oral-explanation或clarification-path,实际推荐: {suggestion['recommended_agent']}"
-    assert "准确性" in suggestion["reasoning"], \
+    )
+    assert "准确性" in suggestion["reasoning"], (
         f"建议理由应该提到'准确性',实际: {suggestion['reasoning']}"
+    )
     print(f"✅ 测试通过: 准确性最弱 → 推荐 {suggestion['recommended_agent']}")
 
 
 # ========== 测试用例9: 高分推荐进入下一阶段 ==========
+
 
 def test_high_score_recommends_next_stage():
     """
@@ -579,22 +630,26 @@ def test_high_score_recommends_next_stage():
             "accuracy": 22,
             "imagery": 21,
             "completeness": 23,
-            "originality": 19
+            "originality": 19,
         },
         "pass": True,
-        "feedback": "理解良好"
+        "feedback": "理解良好",
     }
 
     suggestion = generate_enhanced_intelligent_suggestion(score_result)
 
-    assert suggestion["recommended_agent"] is None, \
+    assert suggestion["recommended_agent"] is None, (
         f"高分(≥80)不应推荐补充解释Agent,实际推荐: {suggestion['recommended_agent']}"
-    assert "继续拆解" in suggestion["suggestion_text"] or "检验阶段" in suggestion["suggestion_text"], \
-        f"应该建议继续拆解或检验阶段,实际: {suggestion['suggestion_text']}"
+    )
+    assert (
+        "继续拆解" in suggestion["suggestion_text"]
+        or "检验阶段" in suggestion["suggestion_text"]
+    ), f"应该建议继续拆解或检验阶段,实际: {suggestion['suggestion_text']}"
     print("✅ 测试通过: 85分(≥80) → 不推荐补充Agent,建议进入下一阶段")
 
 
 # ========== 测试用例10: 低分推荐clarification-path ==========
+
 
 def test_low_score_recommends_detailed_explanation():
     """
@@ -609,22 +664,25 @@ def test_low_score_recommends_detailed_explanation():
             "accuracy": 10,
             "imagery": 12,
             "completeness": 11,
-            "originality": 12
+            "originality": 12,
         },
         "pass": False,
-        "feedback": "理解存在明显问题"
+        "feedback": "理解存在明显问题",
     }
 
     suggestion = generate_enhanced_intelligent_suggestion(score_result)
 
-    assert suggestion["recommended_agent"] == "clarification-path", \
+    assert suggestion["recommended_agent"] == "clarification-path", (
         f"低分(<60)应该推荐clarification-path,实际推荐: {suggestion['recommended_agent']}"
-    assert "详细" in suggestion["reasoning"] or "基础性错误" in suggestion["reasoning"], \
-        f"建议理由应该提到'详细'或'基础性错误',实际: {suggestion['reasoning']}"
+    )
+    assert (
+        "详细" in suggestion["reasoning"] or "基础性错误" in suggestion["reasoning"]
+    ), f"建议理由应该提到'详细'或'基础性错误',实际: {suggestion['reasoning']}"
     print("✅ 测试通过: 45分(<60) → 推荐 clarification-path")
 
 
 # ========== 测试用例11: 黄色节点为空的建议 ==========
+
 
 def test_empty_yellow_node_suggestion():
     """
@@ -638,18 +696,23 @@ def test_empty_yellow_node_suggestion():
     """
     suggestion = handle_empty_yellow_node()
 
-    assert "填写个人理解" in suggestion["suggestion_text"], \
+    assert "填写个人理解" in suggestion["suggestion_text"], (
         f"应该提示填写个人理解,实际: {suggestion['suggestion_text']}"
-    assert "输出" in suggestion["reasoning"], \
+    )
+    assert "输出" in suggestion["reasoning"], (
         f"建议理由应该强调'输出',实际: {suggestion['reasoning']}"
-    assert len(suggestion["options"]) == 2, \
+    )
+    assert len(suggestion["options"]) == 2, (
         f"应该提供2个选项(A和B),实际: {len(suggestion['options'])}个"
-    assert "费曼学习法" in suggestion["suggestion_text"], \
+    )
+    assert "费曼学习法" in suggestion["suggestion_text"], (
         f"应该提到费曼学习法,实际: {suggestion['suggestion_text']}"
+    )
     print("✅ 测试通过: 黄色节点为空 → 提示填写理解,强调输出重要性")
 
 
 # ========== 测试用例12: 建议理由清晰度 ==========
+
 
 def test_suggestion_includes_clear_reasoning():
     """
@@ -667,22 +730,25 @@ def test_suggestion_includes_clear_reasoning():
             "accuracy": 18,
             "imagery": 14,  # 最弱
             "completeness": 19,
-            "originality": 17
+            "originality": 17,
         },
         "pass": False,
-        "feedback": "形象性较弱"
+        "feedback": "形象性较弱",
     }
 
     suggestion = generate_enhanced_intelligent_suggestion(score_result)
 
-    assert "推荐理由" in suggestion["suggestion_text"], \
+    assert "推荐理由" in suggestion["suggestion_text"], (
         f"建议文本应该包含'推荐理由'部分,实际: {suggestion['suggestion_text']}"
-    assert "14/25" in suggestion["suggestion_text"] or "形象性" in suggestion["reasoning"], \
-        f"建议应该关联到具体的维度得分,实际: {suggestion['suggestion_text']}"
+    )
+    assert (
+        "14/25" in suggestion["suggestion_text"] or "形象性" in suggestion["reasoning"]
+    ), f"建议应该关联到具体的维度得分,实际: {suggestion['suggestion_text']}"
     print("✅ 测试通过: 建议包含清晰的推荐理由,关联到最弱维度得分")
 
 
 # ========== 测试用例13: 边界情况-4维度得分相同 ==========
+
 
 def test_tied_dimensions():
     """
@@ -700,24 +766,30 @@ def test_tied_dimensions():
             "accuracy": 16,
             "imagery": 16,
             "completeness": 16,
-            "originality": 16
+            "originality": 16,
         },
         "pass": False,
-        "feedback": "各维度均衡但得分不高"
+        "feedback": "各维度均衡但得分不高",
     }
 
     suggestion = generate_enhanced_intelligent_suggestion(score_result)
 
-    assert suggestion["recommended_agent"] is not None, \
+    assert suggestion["recommended_agent"] is not None, (
         "即使维度得分相同,也应该推荐一个Agent"
-    assert len(suggestion["options"]) >= 2, \
+    )
+    assert len(suggestion["options"]) >= 2, (
         f"应该提供至少2个选项,实际: {len(suggestion['options'])}个"
-    assert "建议" in suggestion["suggestion_text"], \
+    )
+    assert "建议" in suggestion["suggestion_text"], (
         f"建议文本应该合理,实际: {suggestion['suggestion_text']}"
-    print(f"✅ 测试通过: 4维度得分相同(16/25) → 推荐 {suggestion['recommended_agent']},不崩溃")
+    )
+    print(
+        f"✅ 测试通过: 4维度得分相同(16/25) → 推荐 {suggestion['recommended_agent']},不崩溃"
+    )
 
 
 # ========== 测试用例14: 完整性最弱推荐clarification-path ==========
+
 
 def test_completeness_weakness_recommends_clarification_path():
     """
@@ -732,22 +804,28 @@ def test_completeness_weakness_recommends_clarification_path():
             "accuracy": 19,
             "imagery": 18,
             "completeness": 13,  # 最弱
-            "originality": 16
+            "originality": 16,
         },
         "pass": False,
-        "feedback": "完整性较弱"
+        "feedback": "完整性较弱",
     }
 
     suggestion = generate_enhanced_intelligent_suggestion(score_result)
 
-    assert suggestion["recommended_agent"] in ["clarification-path", "four-level-answer"], \
+    assert suggestion["recommended_agent"] in [
+        "clarification-path",
+        "four-level-answer",
+    ], (
         f"完整性最弱应该推荐clarification-path或four-level-answer,实际推荐: {suggestion['recommended_agent']}"
-    assert "完整性" in suggestion["reasoning"], \
+    )
+    assert "完整性" in suggestion["reasoning"], (
         f"建议理由应该提到'完整性',实际: {suggestion['reasoning']}"
+    )
     print(f"✅ 测试通过: 完整性最弱 → 推荐 {suggestion['recommended_agent']}")
 
 
 # ========== 测试用例15: 原创性最弱推荐oral-explanation ==========
+
 
 def test_originality_weakness_recommends_oral_explanation():
     """
@@ -762,18 +840,20 @@ def test_originality_weakness_recommends_oral_explanation():
             "accuracy": 20,
             "imagery": 19,
             "completeness": 18,
-            "originality": 13  # 最弱
+            "originality": 13,  # 最弱
         },
         "pass": False,
-        "feedback": "原创性较弱"
+        "feedback": "原创性较弱",
     }
 
     suggestion = generate_enhanced_intelligent_suggestion(score_result)
 
-    assert suggestion["recommended_agent"] in ["oral-explanation", "memory-anchor"], \
+    assert suggestion["recommended_agent"] in ["oral-explanation", "memory-anchor"], (
         f"原创性最弱应该推荐oral-explanation或memory-anchor,实际推荐: {suggestion['recommended_agent']}"
-    assert "原创性" in suggestion["reasoning"], \
+    )
+    assert "原创性" in suggestion["reasoning"], (
         f"建议理由应该提到'原创性',实际: {suggestion['reasoning']}"
+    )
     print(f"✅ 测试通过: 原创性最弱 → 推荐 {suggestion['recommended_agent']}")
 
 

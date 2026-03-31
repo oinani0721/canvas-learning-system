@@ -23,13 +23,16 @@ from unittest.mock import Mock, patch
 # 尝试导入系统健康监控模块
 try:
     from system_health_monitor import ComponentHealth, HealthStatus, SystemHealthMonitor
+
     SYSTEM_HEALTH_MONITOR_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: System health monitor not available: {e}")
     SYSTEM_HEALTH_MONITOR_AVAILABLE = False
 
 
-@unittest.skipUnless(SYSTEM_HEALTH_MONITOR_AVAILABLE, "System health monitor not available")
+@unittest.skipUnless(
+    SYSTEM_HEALTH_MONITOR_AVAILABLE, "System health monitor not available"
+)
 class TestSystemHealthMonitor(unittest.TestCase):
     """系统健康监控器测试"""
 
@@ -41,6 +44,7 @@ class TestSystemHealthMonitor(unittest.TestCase):
     def tearDown(self):
         """测试后清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_initialization(self):
@@ -52,12 +56,15 @@ class TestSystemHealthMonitor(unittest.TestCase):
     def test_component_health_registration(self):
         """测试组件健康状态注册"""
         # 注册新组件
-        self.health_monitor.register_component("test_component", {
-            "type": "service",
-            "description": "Test component for health monitoring",
-            "check_interval": 30,
-            "timeout": 5
-        })
+        self.health_monitor.register_component(
+            "test_component",
+            {
+                "type": "service",
+                "description": "Test component for health monitoring",
+                "check_interval": 30,
+                "timeout": 5,
+            },
+        )
 
         self.assertIn("test_component", self.health_monitor.component_status)
         component_status = self.health_monitor.component_status["test_component"]
@@ -67,11 +74,14 @@ class TestSystemHealthMonitor(unittest.TestCase):
     def test_health_check_execution(self):
         """测试健康检查执行"""
         # 注册测试组件
-        self.health_monitor.register_component("test_service", {
-            "type": "service",
-            "check_function": self._mock_health_check,
-            "timeout": 5
-        })
+        self.health_monitor.register_component(
+            "test_service",
+            {
+                "type": "service",
+                "check_function": self._mock_health_check,
+                "timeout": 5,
+            },
+        )
 
         # 执行健康检查
         result = self.health_monitor.check_component_health("test_service")
@@ -82,18 +92,15 @@ class TestSystemHealthMonitor(unittest.TestCase):
     def test_system_health_overview(self):
         """测试系统健康概览"""
         # 注册多个组件
-        self.health_monitor.register_component("component1", {
-            "type": "service",
-            "status": "healthy"
-        })
-        self.health_monitor.register_component("component2", {
-            "type": "database",
-            "status": "healthy"
-        })
-        self.health_monitor.register_component("component3", {
-            "type": "cache",
-            "status": "warning"
-        })
+        self.health_monitor.register_component(
+            "component1", {"type": "service", "status": "healthy"}
+        )
+        self.health_monitor.register_component(
+            "component2", {"type": "database", "status": "healthy"}
+        )
+        self.health_monitor.register_component(
+            "component3", {"type": "cache", "status": "warning"}
+        )
 
         # 获取系统健康概览
         overview = self.health_monitor.get_system_health()
@@ -143,7 +150,7 @@ class TestSystemHealthMonitor(unittest.TestCase):
     def test_alert_generation(self):
         """测试预警生成"""
         # 模拟高CPU使用率
-        with patch('psutil.cpu_percent', return_value=95.0):
+        with patch("psutil.cpu_percent", return_value=95.0):
             metrics = self.health_monitor.collect_system_metrics()
             alerts = self.health_monitor.check_thresholds(metrics)
 
@@ -157,11 +164,14 @@ class TestSystemHealthMonitor(unittest.TestCase):
     def test_component_failure_handling(self):
         """测试组件故障处理"""
         # 注册会失败的组件
-        self.health_monitor.register_component("failing_component", {
-            "type": "service",
-            "check_function": self._failing_health_check,
-            "timeout": 1
-        })
+        self.health_monitor.register_component(
+            "failing_component",
+            {
+                "type": "service",
+                "check_function": self._failing_health_check,
+                "timeout": 1,
+            },
+        )
 
         # 执行健康检查
         result = self.health_monitor.check_component_health("failing_component")
@@ -192,10 +202,9 @@ class TestSystemHealthMonitor(unittest.TestCase):
         """测试健康报告生成"""
         # 收集一些数据
         self.health_monitor.collect_system_metrics()
-        self.health_monitor.register_component("test_component", {
-            "type": "service",
-            "status": "healthy"
-        })
+        self.health_monitor.register_component(
+            "test_component", {"type": "service", "status": "healthy"}
+        )
 
         # 生成报告
         report = self.health_monitor.generate_health_report()
@@ -215,12 +224,15 @@ class TestSystemHealthMonitor(unittest.TestCase):
     def test_automatic_recovery_triggers(self):
         """测试自动恢复触发器"""
         # 注册带恢复机制的组件
-        self.health_monitor.register_component("recoverable_component", {
-            "type": "service",
-            "check_function": self._recoverable_health_check,
-            "recovery_function": self._mock_recovery_function,
-            "max_recovery_attempts": 3
-        })
+        self.health_monitor.register_component(
+            "recoverable_component",
+            {
+                "type": "service",
+                "check_function": self._recoverable_health_check,
+                "recovery_function": self._mock_recovery_function,
+                "max_recovery_attempts": 3,
+            },
+        )
 
         # 执行健康检查（应该触发恢复）
         result = self.health_monitor.check_component_health("recoverable_component")
@@ -232,7 +244,7 @@ class TestSystemHealthMonitor(unittest.TestCase):
             "status": "healthy",
             "message": "Component is running normally",
             "response_time_ms": 50,
-            "metadata": {"version": "1.0.0"}
+            "metadata": {"version": "1.0.0"},
         }
 
     def _failing_health_check(self) -> Dict:
@@ -252,7 +264,7 @@ class TestSystemHealthMonitor(unittest.TestCase):
             return {
                 "status": "healthy",
                 "message": "Service recovered",
-                "response_time_ms": 100
+                "response_time_ms": 100,
             }
 
     def _mock_recovery_function(self) -> bool:
@@ -261,7 +273,9 @@ class TestSystemHealthMonitor(unittest.TestCase):
         return True
 
 
-@unittest.skipUnless(SYSTEM_HEALTH_MONITOR_AVAILABLE, "System health monitor not available")
+@unittest.skipUnless(
+    SYSTEM_HEALTH_MONITOR_AVAILABLE, "System health monitor not available"
+)
 class TestComponentHealth(unittest.TestCase):
     """组件健康状态测试"""
 
@@ -272,6 +286,7 @@ class TestComponentHealth(unittest.TestCase):
     def tearDown(self):
         """测试后清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_database_component_health(self):
@@ -279,14 +294,17 @@ class TestComponentHealth(unittest.TestCase):
         monitor = SystemHealthMonitor()
 
         # 注册数据库组件
-        monitor.register_component("test_database", {
-            "type": "database",
-            "connection_string": "sqlite:///:memory:",
-            "check_query": "SELECT 1"
-        })
+        monitor.register_component(
+            "test_database",
+            {
+                "type": "database",
+                "connection_string": "sqlite:///:memory:",
+                "check_query": "SELECT 1",
+            },
+        )
 
         # 模拟数据库健康检查
-        with patch('sqlite3.connect') as mock_connect:
+        with patch("sqlite3.connect") as mock_connect:
             mock_conn = Mock()
             mock_cursor = Mock()
             mock_cursor.fetchone.return_value = (1,)
@@ -301,11 +319,10 @@ class TestComponentHealth(unittest.TestCase):
         monitor = SystemHealthMonitor()
 
         # 注册文件系统组件
-        monitor.register_component("file_system", {
-            "type": "filesystem",
-            "path": self.temp_dir,
-            "min_free_space_mb": 100
-        })
+        monitor.register_component(
+            "file_system",
+            {"type": "filesystem", "path": self.temp_dir, "min_free_space_mb": 100},
+        )
 
         # 检查文件系统健康状态
         result = monitor.check_component_health("file_system")
@@ -316,14 +333,17 @@ class TestComponentHealth(unittest.TestCase):
         monitor = SystemHealthMonitor()
 
         # 注册网络组件
-        monitor.register_component("external_api", {
-            "type": "http_service",
-            "url": "https://httpbin.org/status/200",
-            "timeout": 5
-        })
+        monitor.register_component(
+            "external_api",
+            {
+                "type": "http_service",
+                "url": "https://httpbin.org/status/200",
+                "timeout": 5,
+            },
+        )
 
         # 模拟网络健康检查
-        with patch('requests.get') as mock_get:
+        with patch("requests.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.elapsed.total_seconds.return_value = 0.1
@@ -364,10 +384,9 @@ class TestHealthMetrics(unittest.TestCase):
         monitor = SystemHealthMonitor()
 
         # 设置阈值监控
-        monitor.set_metric_threshold("response_time", {
-            "warning": 1000,
-            "critical": 5000
-        })
+        monitor.set_metric_threshold(
+            "response_time", {"warning": 1000, "critical": 5000}
+        )
 
         # 记录超过阈值的指标
         alerts = monitor.check_metric_threshold("response_time", 2000)

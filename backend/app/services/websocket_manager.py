@@ -331,13 +331,10 @@ class ConnectionManager:
                 - oldest_session: Oldest active session info
                 - newest_session: Newest active session info
         """
-        total_connections = sum(
-            len(conns) for conns in self._connections.values()
-        )
+        total_connections = sum(len(conns) for conns in self._connections.values())
 
         connections_per_session = {
-            session_id: len(conns)
-            for session_id, conns in self._connections.items()
+            session_id: len(conns) for session_id, conns in self._connections.items()
         }
 
         oldest_session = None
@@ -433,8 +430,7 @@ class ConnectionManager:
         # Close connections outside lock
         for session_id in sessions_to_cleanup:
             await self.close_session_connections(
-                session_id,
-                reason=f"Inactivity timeout ({timeout_minutes} minutes)"
+                session_id, reason=f"Inactivity timeout ({timeout_minutes} minutes)"
             )
             cleaned_sessions.append(session_id)
 

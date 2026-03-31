@@ -7,17 +7,14 @@ Story 30.1 - AC 4: Neo4j健康检查端点测试
 [Source: specs/data/neo4j-health-response.schema.json]
 """
 
-import pytest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest_asyncio
-
+import pytest
 from app.api.v1.endpoints.health import (
     Neo4jHealthChecks,
     Neo4jHealthResponse,
     check_neo4j_health,
-    _test_neo4j_connection,
 )
 
 
@@ -33,10 +30,10 @@ class TestNeo4jHealthResponse:
                 neo4j_connection=True,
                 driver_initialized=True,
                 database_accessible=True,
-                uri="bolt://localhost:7687"
+                uri="bolt://localhost:7687",
             ),
             cached=False,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         assert response.status == "healthy"
@@ -50,11 +47,10 @@ class TestNeo4jHealthResponse:
         response = Neo4jHealthResponse(
             status="degraded",
             checks=Neo4jHealthChecks(
-                neo4j_enabled=False,
-                reason="Neo4j is disabled in configuration"
+                neo4j_enabled=False, reason="Neo4j is disabled in configuration"
             ),
             cached=False,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         assert response.status == "degraded"
@@ -68,10 +64,10 @@ class TestNeo4jHealthResponse:
             checks=Neo4jHealthChecks(
                 neo4j_enabled=True,
                 neo4j_connection=False,
-                error="Connection timeout (>500ms)"
+                error="Connection timeout (>500ms)",
             ),
             cached=False,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         assert response.status == "unhealthy"
@@ -104,8 +100,7 @@ class TestNeo4jHealthEndpoint:
         mock_settings.neo4j_uri = "bolt://localhost:7687"
 
         with patch(
-            "app.api.v1.endpoints.health._test_neo4j_connection",
-            new_callable=AsyncMock
+            "app.api.v1.endpoints.health._test_neo4j_connection", new_callable=AsyncMock
         ) as mock_test:
             mock_test.return_value = True
 
@@ -126,8 +121,7 @@ class TestNeo4jHealthEndpoint:
         mock_settings.neo4j_enabled = True
 
         with patch(
-            "app.api.v1.endpoints.health._test_neo4j_connection",
-            new_callable=AsyncMock
+            "app.api.v1.endpoints.health._test_neo4j_connection", new_callable=AsyncMock
         ) as mock_test:
             mock_test.side_effect = asyncio.TimeoutError()
 
@@ -145,8 +139,7 @@ class TestNeo4jHealthEndpoint:
         mock_settings.neo4j_enabled = True
 
         with patch(
-            "app.api.v1.endpoints.health._test_neo4j_connection",
-            new_callable=AsyncMock
+            "app.api.v1.endpoints.health._test_neo4j_connection", new_callable=AsyncMock
         ) as mock_test:
             mock_test.side_effect = Exception("Connection refused")
 
@@ -169,7 +162,7 @@ class TestNeo4jHealthResponseSchema:
                 status=status,
                 checks=Neo4jHealthChecks(),
                 cached=False,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(timezone.utc),
             )
             assert response.status == status
 
@@ -179,7 +172,7 @@ class TestNeo4jHealthResponseSchema:
             status="healthy",
             checks=Neo4jHealthChecks(neo4j_enabled=True),
             cached=False,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         # Should be able to serialize to ISO format
@@ -196,10 +189,7 @@ class TestNeo4jHealthResponseSchema:
         assert checks.error is None
 
         # Can set individual fields
-        checks_with_data = Neo4jHealthChecks(
-            neo4j_enabled=True,
-            neo4j_connection=True
-        )
+        checks_with_data = Neo4jHealthChecks(neo4j_enabled=True, neo4j_connection=True)
         assert checks_with_data.neo4j_enabled is True
         assert checks_with_data.neo4j_connection is True
         assert checks_with_data.uri is None

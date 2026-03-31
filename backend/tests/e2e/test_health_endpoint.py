@@ -15,7 +15,6 @@ Endpoints tested:
 [Source: docs/stories/36.10.story.md]
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 

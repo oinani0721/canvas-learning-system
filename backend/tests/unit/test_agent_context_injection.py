@@ -12,7 +12,6 @@ Verifies:
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.services.context_enrichment_service import ContextEnrichmentService
 
 
@@ -50,9 +49,11 @@ class TestGraphitiSearchDelegation:
         self, enrichment_service, mock_graphiti_service
     ):
         """AC-36.7.2: _search_graphiti_relations calls graphiti_service.search_memories()."""
-        mock_graphiti_service.search_memories = AsyncMock(return_value=[
-            {"concept": "矩阵乘法", "relevance": 0.9, "timestamp": "2026-02-10"},
-        ])
+        mock_graphiti_service.search_memories = AsyncMock(
+            return_value=[
+                {"concept": "矩阵乘法", "relevance": 0.9, "timestamp": "2026-02-10"},
+            ]
+        )
 
         results = await enrichment_service._search_graphiti_relations(
             query="矩阵乘法定义",

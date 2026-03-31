@@ -16,8 +16,7 @@ from typing import Optional
 
 
 def setup_logging(
-    log_level: str = "INFO",
-    log_format: Optional[str] = None
+    log_level: str = "INFO", log_format: Optional[str] = None
 ) -> logging.Logger:
     """
     Configure application-wide logging.
@@ -40,9 +39,7 @@ def setup_logging(
     # Default structured log format
     # [Source: docs/architecture/coding-standards.md#日志规范]
     if log_format is None:
-        log_format = (
-            "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s"
-        )
+        log_format = "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s"
 
     # Get numeric log level
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
@@ -59,7 +56,7 @@ def setup_logging(
     # [Source: Story 12.I.1 - Fix Windows GBK encoding issue with emoji/unicode]
     # Wrap stdout with UTF-8 encoding to prevent UnicodeEncodeError on Windows
     utf8_stdout = io.TextIOWrapper(
-        sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
     )
     console_handler = logging.StreamHandler(utf8_stdout)
     console_handler.setLevel(numeric_level)
@@ -67,7 +64,7 @@ def setup_logging(
     # Add stderr UTF-8 wrapper for ERROR level logs
     # [Source: Story 12.J.1 - Complete UTF-8 wrapping for stderr]
     utf8_stderr = io.TextIOWrapper(
-        sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
     )
 
     # Create formatter

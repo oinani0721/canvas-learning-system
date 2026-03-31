@@ -44,8 +44,7 @@ class TestReviewBoardAgentSelector:
 
         # 执行分析
         result = await selector.analyze_understanding_quality_advanced(
-            node_text,
-            context=context
+            node_text, context=context
         )
 
         # 验证结果
@@ -76,13 +75,12 @@ class TestReviewBoardAgentSelector:
             "completeness_score": 0.68,
             "clarity_score": 0.82,
             "originality_score": 0.60,
-            "overall_quality": 0.71
+            "overall_quality": 0.71,
         }
 
         # 执行推荐
         result = await selector.recommend_multiple_agents(
-            quality_analysis,
-            max_recommendations=3
+            quality_analysis, max_recommendations=3
         )
 
         # 验证结果结构
@@ -123,13 +121,12 @@ class TestReviewBoardAgentSelector:
             "completeness_score": 0.4,
             "clarity_score": 0.2,
             "originality_score": 0.3,
-            "overall_quality": 0.3
+            "overall_quality": 0.3,
         }
 
         # 执行推荐
         result = await selector.recommend_multiple_agents(
-            quality_analysis,
-            max_recommendations=5
+            quality_analysis, max_recommendations=5
         )
 
         # 验证推荐了基础拆解类型的Agent
@@ -149,18 +146,20 @@ class TestReviewBoardAgentSelector:
             "completeness_score": 0.90,
             "clarity_score": 0.92,
             "originality_score": 0.88,
-            "overall_quality": 0.91
+            "overall_quality": 0.91,
         }
 
         # 执行推荐
         result = await selector.recommend_multiple_agents(
-            quality_analysis,
-            max_recommendations=3
+            quality_analysis, max_recommendations=3
         )
 
         # 验证推荐了应用类型的Agent
         agent_names = [agent["agent_name"] for agent in result["recommended_agents"]]
-        assert "example-teaching" in agent_names or "verification-question-agent" in agent_names
+        assert (
+            "example-teaching" in agent_names
+            or "verification-question-agent" in agent_names
+        )
 
         # 验证置信度较高
         for agent in result["recommended_agents"]:
@@ -169,8 +168,8 @@ class TestReviewBoardAgentSelector:
     def test_backward_compatibility_single_agent(self, selector):
         """测试向后兼容的单Agent推荐功能"""
         # 测试原有方法是否仍然存在
-        assert hasattr(selector, 'analyze_understanding_quality')
-        assert hasattr(selector, 'recommend_agents')
+        assert hasattr(selector, "analyze_understanding_quality")
+        assert hasattr(selector, "recommend_agents")
 
         # 执行单Agent推荐
         node_text = "测试文本内容"
@@ -196,28 +195,24 @@ class TestConcurrentAgentProcessor:
             {
                 "agent_name": "oral-explanation",
                 "node_id": "node-1",
-                "node_text": "测试内容1"
+                "node_text": "测试内容1",
             },
             {
                 "agent_name": "clarification-path",
                 "node_id": "node-2",
-                "node_text": "测试内容2"
+                "node_text": "测试内容2",
             },
             {
                 "agent_name": "comparison-table",
                 "node_id": "node-3",
-                "node_text": "测试内容3"
-            }
+                "node_text": "测试内容3",
+            },
         ]
 
         canvas_path = "test_canvas.canvas"
 
         # 执行并行任务
-        result = await processor.execute_parallel(
-            agent_tasks,
-            canvas_path,
-            timeout=10
-        )
+        result = await processor.execute_parallel(agent_tasks, canvas_path, timeout=10)
 
         # 验证结果
         assert result["status"] == "completed"
@@ -241,19 +236,13 @@ class TestConcurrentAgentProcessor:
         """测试并行执行超时处理"""
         # 准备耗时任务
         agent_tasks = [
-            {
-                "agent_name": "slow-agent",
-                "node_id": "node-1",
-                "node_text": "测试内容"
-            }
+            {"agent_name": "slow-agent", "node_id": "node-1", "node_text": "测试内容"}
         ]
 
         # 使用短超时时间
-        with patch('asyncio.sleep', side_effect=asyncio.sleep(2)):
+        with patch("asyncio.sleep", side_effect=asyncio.sleep(2)):
             result = await processor.execute_parallel(
-                agent_tasks,
-                "test_canvas.canvas",
-                timeout=1
+                agent_tasks, "test_canvas.canvas", timeout=1
             )
 
         # 验证超时错误
@@ -266,18 +255,18 @@ class TestConcurrentAgentProcessor:
         # 创建超过并发限制的任务数量
         agent_tasks = []
         for i in range(10):  # 10个任务，超过max_concurrent=5
-            agent_tasks.append({
-                "agent_name": f"agent-{i}",
-                "node_id": f"node-{i}",
-                "node_text": f"测试内容{i}"
-            })
+            agent_tasks.append(
+                {
+                    "agent_name": f"agent-{i}",
+                    "node_id": f"node-{i}",
+                    "node_text": f"测试内容{i}",
+                }
+            )
 
         # 执行并行任务
         start_time = time.time()
         result = await processor.execute_parallel(
-            agent_tasks,
-            "test_canvas.canvas",
-            timeout=30
+            agent_tasks, "test_canvas.canvas", timeout=30
         )
         execution_time = time.time() - start_time
 
@@ -298,9 +287,7 @@ class TestConcurrentAgentProcessor:
 
         # 更新指标
         processor._update_performance_metrics(
-            total_tasks=5,
-            successful_tasks=4,
-            execution_time=2.5
+            total_tasks=5, successful_tasks=4, execution_time=2.5
         )
 
         # 验证指标更新
@@ -314,11 +301,13 @@ class TestConcurrentAgentProcessor:
         """测试执行历史管理"""
         # 添加执行历史
         execution_id = f"test-{uuid.uuid4().hex[:8]}"
-        processor.execution_history.append({
-            "execution_id": execution_id,
-            "summary": {"test": "data"},
-            "timestamp": datetime.now().isoformat()
-        })
+        processor.execution_history.append(
+            {
+                "execution_id": execution_id,
+                "summary": {"test": "data"},
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         # 验证历史记录
         history = processor.get_execution_history(limit=5)
@@ -328,6 +317,7 @@ class TestConcurrentAgentProcessor:
     @pytest.mark.asyncio
     async def test_cancel_all_tasks(self, processor):
         """测试取消所有任务"""
+
         # 创建一些模拟任务
         async def mock_task():
             await asyncio.sleep(10)
@@ -361,36 +351,36 @@ class TestCanvasOrchestratorIntegration:
                     "y": 200,
                     "width": 300,
                     "height": 150,
-                    "color": COLOR_YELLOW
+                    "color": COLOR_YELLOW,
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
     @pytest.fixture
     def orchestrator(self):
         """创建CanvasOrchestrator实例"""
-        with patch('canvas_utils.CanvasJSONOperator.read_canvas') as mock_read:
-            mock_read.return_value = {
-                "nodes": [],
-                "edges": []
-            }
+        with patch("canvas_utils.CanvasJSONOperator.read_canvas") as mock_read:
+            mock_read.return_value = {"nodes": [], "edges": []}
             return CanvasOrchestrator("test_canvas.canvas")
 
     @pytest.mark.asyncio
-    async def test_process_multiple_agents_for_node(self, orchestrator, mock_canvas_data):
+    async def test_process_multiple_agents_for_node(
+        self, orchestrator, mock_canvas_data
+    ):
         """测试单个节点的多Agent处理"""
         # 模拟Canvas数据读取
-        with patch.object(orchestrator.operator, 'read_canvas', return_value=mock_canvas_data), \
-             patch.object(orchestrator.operator, 'find_node_by_id') as mock_find:
-
+        with (
+            patch.object(
+                orchestrator.operator, "read_canvas", return_value=mock_canvas_data
+            ),
+            patch.object(orchestrator.operator, "find_node_by_id") as mock_find,
+        ):
             mock_find.return_value = mock_canvas_data["nodes"][0]
 
             # 执行处理
             result = await orchestrator.process_multiple_agents_for_node(
-                "test_canvas.canvas",
-                "test-node-123",
-                max_concurrent=3
+                "test_canvas.canvas", "test-node-123", max_concurrent=3
             )
 
             # 验证结果结构
@@ -410,11 +400,9 @@ class TestCanvasOrchestratorIntegration:
     async def test_process_multiple_agents_for_node_not_found(self, orchestrator):
         """测试处理不存在的节点"""
         # 模拟节点不存在
-        with patch.object(orchestrator.operator, 'find_node_by_id', return_value=None):
+        with patch.object(orchestrator.operator, "find_node_by_id", return_value=None):
             result = await orchestrator.process_multiple_agents_for_node(
-                "test_canvas.canvas",
-                "non-existent-node",
-                max_concurrent=3
+                "test_canvas.canvas", "non-existent-node", max_concurrent=3
             )
 
             # 验证错误状态
@@ -422,21 +410,24 @@ class TestCanvasOrchestratorIntegration:
             assert "不存在" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_process_multiple_agents_for_node_empty_text(self, orchestrator, mock_canvas_data):
+    async def test_process_multiple_agents_for_node_empty_text(
+        self, orchestrator, mock_canvas_data
+    ):
         """测试处理空文本节点"""
         # 修改节点为空文本
         mock_canvas_data["nodes"][0]["text"] = ""
 
-        with patch.object(orchestrator.operator, 'read_canvas', return_value=mock_canvas_data), \
-             patch.object(orchestrator.operator, 'find_node_by_id') as mock_find:
-
+        with (
+            patch.object(
+                orchestrator.operator, "read_canvas", return_value=mock_canvas_data
+            ),
+            patch.object(orchestrator.operator, "find_node_by_id") as mock_find,
+        ):
             mock_find.return_value = mock_canvas_data["nodes"][0]
 
             # 执行处理
             result = await orchestrator.process_multiple_agents_for_node(
-                "test_canvas.canvas",
-                "test-node-123",
-                max_concurrent=3
+                "test_canvas.canvas", "test-node-123", max_concurrent=3
             )
 
             # 验证错误状态
@@ -447,22 +438,27 @@ class TestCanvasOrchestratorIntegration:
     async def test_batch_process_nodes(self, orchestrator, mock_canvas_data):
         """测试批量处理多个节点"""
         # 准备多个节点
-        mock_canvas_data["nodes"].append({
-            "id": "test-node-456",
-            "type": "text",
-            "text": "我对德摩根定律的理解是：(A∧B)' = A'∨B'",
-            "x": 500,
-            "y": 200,
-            "width": 300,
-            "height": 150,
-            "color": COLOR_YELLOW
-        })
+        mock_canvas_data["nodes"].append(
+            {
+                "id": "test-node-456",
+                "type": "text",
+                "text": "我对德摩根定律的理解是：(A∧B)' = A'∨B'",
+                "x": 500,
+                "y": 200,
+                "width": 300,
+                "height": 150,
+                "color": COLOR_YELLOW,
+            }
+        )
 
         node_ids = ["test-node-123", "test-node-456"]
 
-        with patch.object(orchestrator.operator, 'read_canvas', return_value=mock_canvas_data), \
-             patch.object(orchestrator.operator, 'find_node_by_id') as mock_find:
-
+        with (
+            patch.object(
+                orchestrator.operator, "read_canvas", return_value=mock_canvas_data
+            ),
+            patch.object(orchestrator.operator, "find_node_by_id") as mock_find,
+        ):
             # 模拟节点查找
             def find_node_by_id(canvas_data, node_id):
                 for node in canvas_data["nodes"]:
@@ -474,9 +470,7 @@ class TestCanvasOrchestratorIntegration:
 
             # 执行批量处理
             result = await orchestrator.batch_process_nodes(
-                "test_canvas.canvas",
-                node_ids,
-                max_concurrent=6
+                "test_canvas.canvas", node_ids, max_concurrent=6
             )
 
             # 验证结果结构
@@ -521,7 +515,7 @@ class TestPerformanceConstraints:
             "completeness_score": 0.68,
             "clarity_score": 0.82,
             "originality_score": 0.60,
-            "overall_quality": 0.71
+            "overall_quality": 0.71,
         }
 
         start_time = time.time()
@@ -539,18 +533,18 @@ class TestPerformanceConstraints:
         # 创建5个任务
         agent_tasks = []
         for i in range(5):
-            agent_tasks.append({
-                "agent_name": f"agent-{i}",
-                "node_id": f"node-{i}",
-                "node_text": f"测试内容{i}"
-            })
+            agent_tasks.append(
+                {
+                    "agent_name": f"agent-{i}",
+                    "node_id": f"node-{i}",
+                    "node_text": f"测试内容{i}",
+                }
+            )
 
         start_time = time.time()
 
         result = await processor.execute_parallel(
-            agent_tasks,
-            "test_canvas.canvas",
-            timeout=10
+            agent_tasks, "test_canvas.canvas", timeout=10
         )
 
         execution_time = result["execution_summary"]["total_execution_time"]
@@ -596,11 +590,13 @@ class TestErrorHandlingAndEdgeCases:
         # 创建多个任务
         agent_tasks = []
         for i in range(3):
-            agent_tasks.append({
-                "agent_name": f"agent-{i}",
-                "node_id": f"node-{i}",
-                "node_text": f"测试内容{i}"
-            })
+            agent_tasks.append(
+                {
+                    "agent_name": f"agent-{i}",
+                    "node_id": f"node-{i}",
+                    "node_text": f"测试内容{i}",
+                }
+            )
 
         # 验证并发限制
         assert processor.max_concurrent == 1
@@ -608,9 +604,7 @@ class TestErrorHandlingAndEdgeCases:
         # 执行并验证顺序执行（由于限制为1）
         start_time = time.time()
         result = await processor.execute_parallel(
-            agent_tasks,
-            "test_canvas.canvas",
-            timeout=30
+            agent_tasks, "test_canvas.canvas", timeout=30
         )
         execution_time = time.time() - start_time
 
@@ -651,29 +645,30 @@ class TestEndToEndIntegration:
 
         # 2. 分析理解质量
         node_text = "我对逻辑门的理解是：AND门只有当所有输入都为1时输出才为1"
-        quality_analysis = await selector.analyze_understanding_quality_advanced(node_text)
+        quality_analysis = await selector.analyze_understanding_quality_advanced(
+            node_text
+        )
 
         # 3. 获取多Agent推荐
         recommendations = await selector.recommend_multiple_agents(
-            quality_analysis,
-            max_recommendations=3
+            quality_analysis, max_recommendations=3
         )
 
         # 4. 准备并行执行任务
         agent_tasks = []
         for agent_rec in recommendations["recommended_agents"]:
-            agent_tasks.append({
-                "agent_name": agent_rec["agent_name"],
-                "node_id": "integration-test-node",
-                "node_text": node_text,
-                "confidence_score": agent_rec["confidence_score"]
-            })
+            agent_tasks.append(
+                {
+                    "agent_name": agent_rec["agent_name"],
+                    "node_id": "integration-test-node",
+                    "node_text": node_text,
+                    "confidence_score": agent_rec["confidence_score"],
+                }
+            )
 
         # 5. 并行执行
         execution_result = await processor.execute_parallel(
-            agent_tasks,
-            "integration_test_canvas.canvas",
-            timeout=10
+            agent_tasks, "integration_test_canvas.canvas", timeout=10
         )
 
         # 6. 验证完整流程
@@ -693,28 +688,22 @@ class TestEndToEndIntegration:
 
         # 创建包含失败任务的混合任务列表
         agent_tasks = [
-            {
-                "agent_name": "valid-agent",
-                "node_id": "node-1",
-                "node_text": "有效内容"
-            },
+            {"agent_name": "valid-agent", "node_id": "node-1", "node_text": "有效内容"},
             {
                 "agent_name": "",  # 无效Agent名称
                 "node_id": "node-2",
-                "node_text": "无效Agent测试"
+                "node_text": "无效Agent测试",
             },
             {
                 "agent_name": "another-valid-agent",
                 "node_id": "node-3",
-                "node_text": "另一个有效内容"
-            }
+                "node_text": "另一个有效内容",
+            },
         ]
 
         # 执行并处理错误
         result = await processor.execute_parallel(
-            agent_tasks,
-            "error_test_canvas.canvas",
-            timeout=10
+            agent_tasks, "error_test_canvas.canvas", timeout=10
         )
 
         # 验证部分成功
@@ -730,9 +719,4 @@ class TestEndToEndIntegration:
 
 if __name__ == "__main__":
     # 运行测试
-    pytest.main([
-        __file__,
-        "-v",
-        "--tb=short",
-        "--durations=10"
-    ])
+    pytest.main([__file__, "-v", "--tb=short", "--durations=10"])

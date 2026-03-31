@@ -2,13 +2,11 @@
 """Unit tests for Cost Tracker SQLite persistence (Task 6.2)."""
 
 import pytest
-
 from app.middleware.cost_tracker import CostTracker
 from app.middleware.llm_call_logger import LLMCallLog
 
 
 class TestCostTracker:
-
     @pytest.fixture
     async def tracker(self, tmp_path):
         db_path = str(tmp_path / "test_llm_logs.db")
@@ -20,6 +18,7 @@ class TestCostTracker:
     @pytest.mark.asyncio
     async def test_initialize_creates_tables(self, tracker):
         import aiosqlite
+
         async with aiosqlite.connect(tracker._db_path) as db:
             cursor = await db.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
@@ -97,7 +96,9 @@ class TestCostTracker:
             LLMCallLog(request_id=f"h-{i}", status="success", latency_ms=100)
             for i in range(10)
         ]
-        entries.append(LLMCallLog(request_id="h-fail", status="failure", latency_ms=500))
+        entries.append(
+            LLMCallLog(request_id="h-fail", status="failure", latency_ms=500)
+        )
         await tracker.insert_logs(entries)
         probe = await tracker.get_health_probe()
         assert probe["total_recent"] == 11

@@ -10,13 +10,13 @@ Tests verify:
 
 [Source: docs/stories/36.3.story.md#Task-4]
 """
-import asyncio
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from app.services.canvas_service import CanvasService
 
 from tests.conftest import simulate_async_delay
-from app.services.canvas_service import CanvasService
 
 
 @pytest.fixture
@@ -33,8 +33,7 @@ def mock_memory_client():
 def canvas_service_with_memory(mock_memory_client, tmp_path):
     """Create CanvasService with mock memory client."""
     return CanvasService(
-        canvas_base_path=str(tmp_path),
-        memory_client=mock_memory_client
+        canvas_base_path=str(tmp_path), memory_client=mock_memory_client
     )
 
 
@@ -44,9 +43,9 @@ def sample_canvas_data():
     return {
         "nodes": [
             {"id": "node-1", "type": "text", "text": "Concept A", "x": 0, "y": 0},
-            {"id": "node-2", "type": "text", "text": "Concept B", "x": 100, "y": 100}
+            {"id": "node-2", "type": "text", "text": "Concept B", "x": 100, "y": 100},
         ],
-        "edges": []
+        "edges": [],
     }
 
 
@@ -54,7 +53,9 @@ class TestSyncEdgeToNeo4j:
     """Tests for _sync_edge_to_neo4j method."""
 
     @pytest.mark.asyncio
-    async def test_sync_edge_calls_neo4j_client(self, canvas_service_with_memory, mock_memory_client):
+    async def test_sync_edge_calls_neo4j_client(
+        self, canvas_service_with_memory, mock_memory_client
+    ):
         """AC-5: Verify CONNECTS_TO relationship created in Neo4j."""
         # Act
         result = await canvas_service_with_memory._sync_edge_to_neo4j(
@@ -62,7 +63,7 @@ class TestSyncEdgeToNeo4j:
             edge_id="edge-123",
             from_node_id="node-1",
             to_node_id="node-2",
-            edge_label="relates_to"
+            edge_label="relates_to",
         )
 
         # Assert
@@ -72,7 +73,7 @@ class TestSyncEdgeToNeo4j:
             edge_id="edge-123",
             from_node_id="node-1",
             to_node_id="node-2",
-            edge_label="relates_to"
+            edge_label="relates_to",
         )
 
     @pytest.mark.asyncio
@@ -84,7 +85,7 @@ class TestSyncEdgeToNeo4j:
             canvas_path="test.canvas",
             edge_id="edge-123",
             from_node_id="node-1",
-            to_node_id="node-2"
+            to_node_id="node-2",
         )
 
         assert result is False
@@ -94,25 +95,29 @@ class TestSyncEdgeToNeo4j:
         """Verify graceful degradation when neo4j is None in memory_client."""
         memory_client = MagicMock()
         memory_client.neo4j = None
-        service = CanvasService(canvas_base_path=str(tmp_path), memory_client=memory_client)
+        service = CanvasService(
+            canvas_base_path=str(tmp_path), memory_client=memory_client
+        )
 
         result = await service._sync_edge_to_neo4j(
             canvas_path="test.canvas",
             edge_id="edge-123",
             from_node_id="node-1",
-            to_node_id="node-2"
+            to_node_id="node-2",
         )
 
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_sync_edge_with_optional_label(self, canvas_service_with_memory, mock_memory_client):
+    async def test_sync_edge_with_optional_label(
+        self, canvas_service_with_memory, mock_memory_client
+    ):
         """Verify edge sync works without label."""
         result = await canvas_service_with_memory._sync_edge_to_neo4j(
             canvas_path="test.canvas",
             edge_id="edge-456",
             from_node_id="node-a",
-            to_node_id="node-b"
+            to_node_id="node-b",
             # No edge_label provided
         )
 
@@ -122,7 +127,7 @@ class TestSyncEdgeToNeo4j:
             edge_id="edge-456",
             from_node_id="node-a",
             to_node_id="node-b",
-            edge_label=None
+            edge_label=None,
         )
 
 
@@ -131,22 +136,31 @@ class TestAddEdgeWithNeo4jSync:
 
     @pytest.mark.asyncio
     async def test_add_edge_triggers_sync_task(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_data,
-        wait_for_call
+        self,
+        canvas_service_with_memory,
+        mock_memory_client,
+        tmp_path,
+        sample_canvas_data,
+        wait_for_call,
     ):
         """AC-1: Verify async sync_edge_to_neo4j() triggered after add_edge()."""
         # Setup: Create canvas file
         canvas_path = tmp_path / "test.canvas"
         import json
+
         canvas_path.write_text(json.dumps(sample_canvas_data))
 
         # Act
         with patch.object(
-            canvas_service_with_memory, '_sync_edge_to_neo4j', new_callable=AsyncMock
+            canvas_service_with_memory, "_sync_edge_to_neo4j", new_callable=AsyncMock
         ) as mock_sync:
             result = await canvas_service_with_memory.add_edge(
                 canvas_name="test",
-                edge_data={"fromNode": "node-1", "toNode": "node-2", "label": "test_edge"}
+                edge_data={
+                    "fromNode": "node-1",
+                    "toNode": "node-2",
+                    "label": "test_edge",
+                },
             )
 
             # Wait for fire-and-forget background task to call the mock
@@ -162,7 +176,11 @@ class TestAddEdgeWithNeo4jSync:
 
     @pytest.mark.asyncio
     async def test_add_edge_returns_immediately(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_data
+        self,
+        canvas_service_with_memory,
+        mock_memory_client,
+        tmp_path,
+        sample_canvas_data,
     ):
         """AC-2: Verify Canvas operation returns without waiting for sync."""
         import json
@@ -181,18 +199,23 @@ class TestAddEdgeWithNeo4jSync:
         # Act: Time the add_edge operation
         start = time.monotonic()
         result = await canvas_service_with_memory.add_edge(
-            canvas_name="test",
-            edge_data={"fromNode": "node-1", "toNode": "node-2"}
+            canvas_name="test", edge_data={"fromNode": "node-1", "toNode": "node-2"}
         )
         elapsed = time.monotonic() - start
 
         # Assert: Operation completed quickly (< 0.1s, not waiting for 200ms sync)
-        assert elapsed < 0.1, f"add_edge took {elapsed}s, should be < 0.1s (fire-and-forget)"
+        assert elapsed < 0.1, (
+            f"add_edge took {elapsed}s, should be < 0.1s (fire-and-forget)"
+        )
         assert result["fromNode"] == "node-1"
 
     @pytest.mark.asyncio
     async def test_add_edge_succeeds_when_sync_fails(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_data
+        self,
+        canvas_service_with_memory,
+        mock_memory_client,
+        tmp_path,
+        sample_canvas_data,
     ):
         """AC-4: Verify Canvas operation succeeds even if Neo4j sync fails."""
         import json
@@ -207,8 +230,7 @@ class TestAddEdgeWithNeo4jSync:
 
         # Act: add_edge should succeed despite sync failure
         result = await canvas_service_with_memory.add_edge(
-            canvas_name="test",
-            edge_data={"fromNode": "node-1", "toNode": "node-2"}
+            canvas_name="test", edge_data={"fromNode": "node-1", "toNode": "node-2"}
         )
 
         # Assert: Edge was created successfully
@@ -225,7 +247,9 @@ class TestRetryMechanism:
     """Tests for retry mechanism with tenacity."""
 
     @pytest.mark.asyncio
-    async def test_retry_on_neo4j_failure(self, canvas_service_with_memory, mock_memory_client):
+    async def test_retry_on_neo4j_failure(
+        self, canvas_service_with_memory, mock_memory_client
+    ):
         """AC-3: Verify 3 retry attempts on failure."""
         call_count = 0
 
@@ -243,7 +267,7 @@ class TestRetryMechanism:
             canvas_path="test.canvas",
             edge_id="edge-retry",
             from_node_id="node-1",
-            to_node_id="node-2"
+            to_node_id="node-2",
         )
 
         # Assert: Succeeded after retries
@@ -269,7 +293,7 @@ class TestRetryMechanism:
             canvas_path="test.canvas",
             edge_id="edge-fail",
             from_node_id="node-1",
-            to_node_id="node-2"
+            to_node_id="node-2",
         )
 
         # Assert: Silent failure (no exception raised)

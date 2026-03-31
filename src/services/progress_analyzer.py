@@ -33,6 +33,7 @@ class SingleReviewProgress:
 
     [Source: docs/prd/CANVAS-LEARNING-SYSTEM-OBSIDIAN-NATIVE-MIGRATION-PRD.md:2662-2682]
     """
+
     total_concepts: int
     red_nodes_total: int = 0
     red_nodes_passed: int = 0
@@ -48,6 +49,7 @@ class ReviewHistoryEntry:
 
     [Source: docs/prd/CANVAS-LEARNING-SYSTEM-OBSIDIAN-NATIVE-MIGRATION-PRD.md:2727-2826]
     """
+
     review_canvas: str
     timestamp: str
     progress_rate: float
@@ -68,6 +70,7 @@ class ConceptTrend:
 
     [Source: docs/prd/CANVAS-LEARNING-SYSTEM-OBSIDIAN-NATIVE-MIGRATION-PRD.md:2790-2810]
     """
+
     concept_id: str
     concept_text: str = ""
     attempts: int = 0
@@ -87,6 +90,7 @@ class MultiReviewProgress:
 
     [Source: docs/prd/CANVAS-LEARNING-SYSTEM-OBSIDIAN-NATIVE-MIGRATION-PRD.md:2727-2826]
     """
+
     review_history: List[ReviewHistoryEntry] = field(default_factory=list)
     concept_trends: Dict[str, ConceptTrend] = field(default_factory=dict)
     overall_trend: str = "insufficient_data"
@@ -115,14 +119,14 @@ class ProgressAnalyzer:
     """
 
     # Color codes in Obsidian Canvas
-    COLOR_RED = "4"      # 红色 - 完全不懂
-    COLOR_PURPLE = "3"   # 紫色 - 半懂不懂
-    COLOR_GREEN = "2"    # 绿色 - 通过/掌握
-    COLOR_YELLOW = "6"   # 黄色 - 用户回答区 (与canvas_utils.py一致)
+    COLOR_RED = "4"  # 红色 - 完全不懂
+    COLOR_PURPLE = "3"  # 紫色 - 半懂不懂
+    COLOR_GREEN = "2"  # 绿色 - 通过/掌握
+    COLOR_YELLOW = "6"  # 黄色 - 用户回答区 (与canvas_utils.py一致)
 
     # Trend thresholds
     IMPROVEMENT_THRESHOLD = 0.1  # > 10% improvement = improving
-    DECLINE_THRESHOLD = -0.1    # < -10% = declining
+    DECLINE_THRESHOLD = -0.1  # < -10% = declining
 
     def __init__(self, graphiti_client: Optional[Any] = None):
         """
@@ -154,7 +158,7 @@ class ProgressAnalyzer:
             return None
 
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 canvas_data = json.load(f)
                 self._canvas_cache[canvas_path] = canvas_data
                 return canvas_data
@@ -162,8 +166,7 @@ class ProgressAnalyzer:
             return None
 
     def _get_node_color_map(
-        self,
-        canvas_data: Dict[str, Any]
+        self, canvas_data: Dict[str, Any]
     ) -> Dict[str, Tuple[str, str]]:
         """
         Extract node ID to (color, text) mapping from canvas data.
@@ -175,17 +178,16 @@ class ProgressAnalyzer:
             Dict mapping node ID to (color, text) tuple
         """
         result = {}
-        for node in canvas_data.get('nodes', []):
-            node_id = node.get('id')
+        for node in canvas_data.get("nodes", []):
+            node_id = node.get("id")
             if node_id:
-                color = node.get('color', '')
-                text = node.get('text', '')[:100]  # Truncate for readability
+                color = node.get("color", "")
+                text = node.get("text", "")[:100]  # Truncate for readability
                 result[node_id] = (color, text)
         return result
 
     def _extract_source_nodes_with_colors(
-        self,
-        review_data: Dict[str, Any]
+        self, review_data: Dict[str, Any]
     ) -> Dict[str, str]:
         """
         Extract sourceNodeId to current color mapping from review canvas.
@@ -197,15 +199,13 @@ class ProgressAnalyzer:
             Dict mapping sourceNodeId to current color
         """
         return {
-            node['sourceNodeId']: node.get('color', '')
-            for node in review_data.get('nodes', [])
-            if 'sourceNodeId' in node
+            node["sourceNodeId"]: node.get("color", "")
+            for node in review_data.get("nodes", [])
+            if "sourceNodeId" in node
         }
 
     async def analyze_review_progress(
-        self,
-        review_canvas_path: str,
-        original_canvas_path: str
+        self, review_canvas_path: str, original_canvas_path: str
     ) -> SingleReviewProgress:
         """
         Analyze progress for a single review session.
@@ -268,12 +268,11 @@ class ProgressAnalyzer:
             purple_nodes_total=purple_total,
             purple_nodes_passed=purple_passed,
             passed_count=passed_count,
-            coverage_rate=round(coverage_rate, 4)
+            coverage_rate=round(coverage_rate, 4),
         )
 
     async def query_review_history_from_graphiti(
-        self,
-        original_canvas_path: str
+        self, original_canvas_path: str
     ) -> Dict[str, Any]:
         """
         Query review history from Graphiti knowledge graph.
@@ -300,8 +299,8 @@ class ProgressAnalyzer:
 
             reviews = []
             for result in results:
-                if hasattr(result, 'data') and 'review_data' in result.data:
-                    reviews.append(result.data['review_data'])
+                if hasattr(result, "data") and "review_data" in result.data:
+                    reviews.append(result.data["review_data"])
 
             return {"reviews": reviews}
         except Exception:
@@ -310,7 +309,7 @@ class ProgressAnalyzer:
     async def analyze_multi_review_progress(
         self,
         original_canvas_path: str,
-        review_history: Optional[List[Dict[str, Any]]] = None
+        review_history: Optional[List[Dict[str, Any]]] = None,
     ) -> MultiReviewProgress:
         """
         Analyze progress across multiple review sessions.
@@ -332,7 +331,7 @@ class ProgressAnalyzer:
             history_data = await self.query_review_history_from_graphiti(
                 original_canvas_path
             )
-            reviews = history_data.get('reviews', [])
+            reviews = history_data.get("reviews", [])
         else:
             reviews = review_history
 
@@ -341,24 +340,28 @@ class ProgressAnalyzer:
 
         # Build review history entries
         review_entries: List[ReviewHistoryEntry] = []
-        concept_results: Dict[str, List[bool]] = {}  # concept_id -> [passed, passed, ...]
+        concept_results: Dict[
+            str, List[bool]
+        ] = {}  # concept_id -> [passed, passed, ...]
 
         for review in reviews:
-            results = review.get('results', {})
-            total = results.get('total_nodes', 0)
-            passed = results.get('passed_nodes', 0)
+            results = review.get("results", {})
+            total = results.get("total_nodes", 0)
+            passed = results.get("passed_nodes", 0)
             progress_rate = passed / total if total > 0 else 0.0
 
-            review_entries.append(ReviewHistoryEntry(
-                review_canvas=review.get('review_canvas', ''),
-                timestamp=review.get('timestamp', ''),
-                progress_rate=round(progress_rate, 4),
-                passed_count=passed,
-                total_count=total
-            ))
+            review_entries.append(
+                ReviewHistoryEntry(
+                    review_canvas=review.get("review_canvas", ""),
+                    timestamp=review.get("timestamp", ""),
+                    progress_rate=round(progress_rate, 4),
+                    passed_count=passed,
+                    total_count=total,
+                )
+            )
 
             # Track per-concept results
-            for concept_id, is_passed in results.get('concept_results', {}).items():
+            for concept_id, is_passed in results.get("concept_results", {}).items():
                 if concept_id not in concept_results:
                     concept_results[concept_id] = []
                 concept_results[concept_id].append(is_passed)
@@ -377,7 +380,7 @@ class ProgressAnalyzer:
                 concept_id=concept_id,
                 attempts=len(results),
                 history=history,
-                first_pass_review=first_pass
+                first_pass_review=first_pass,
             )
 
         # Calculate overall trend
@@ -400,14 +403,14 @@ class ProgressAnalyzer:
             review_history=review_entries,
             concept_trends=concept_trends,
             overall_trend=overall_trend,
-            improvement_rate=round(improvement_rate, 4)
+            improvement_rate=round(improvement_rate, 4),
         )
 
     async def store_review_to_graphiti(
         self,
         original_canvas_path: str,
         review_canvas_path: str,
-        progress: SingleReviewProgress
+        progress: SingleReviewProgress,
     ) -> bool:
         """
         Store a review session to Graphiti knowledge graph.
@@ -449,10 +452,10 @@ class ProgressAnalyzer:
                             "red_total": progress.red_nodes_total,
                             "red_passed": progress.red_nodes_passed,
                             "purple_total": progress.purple_nodes_total,
-                            "purple_passed": progress.purple_nodes_passed
-                        }
-                    }
-                }
+                            "purple_passed": progress.purple_nodes_passed,
+                        },
+                    },
+                },
             )
             return True
         except Exception:

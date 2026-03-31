@@ -17,26 +17,23 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 if TYPE_CHECKING:
+    from app.services.agent_routing_engine import AgentRoutingEngine
+    from app.services.agent_service import AgentService
+    from app.services.batch_orchestrator import BatchOrchestrator
+    from app.services.canvas_service import CanvasService
     from app.services.intelligent_grouping_service import IntelligentGroupingService
     from app.services.session_manager import SessionManager
-    from app.services.batch_orchestrator import BatchOrchestrator
-    from app.services.agent_service import AgentService
-    from app.services.agent_routing_engine import AgentRoutingEngine
-    from app.services.canvas_service import CanvasService
 
 from app.models.intelligent_parallel_models import (
     CancelResponse,
     GroupExecuteConfig,
-    GroupPriority,
     GroupProgress,
     GroupStatus,
     IntelligentParallelResponse,
     NodeError,
-    NodeGroup,
-    NodeInGroup,
     NodeResult,
     ParallelTaskStatus,
     PerformanceMetrics,
@@ -44,7 +41,6 @@ from app.models.intelligent_parallel_models import (
     SessionResponse,
     SingleAgentResponse,
     SingleAgentStatus,
-    WebSocketMessage,
     create_ws_complete_event,
     create_ws_error_event,
     create_ws_group_complete_event,
@@ -121,7 +117,9 @@ class IntelligentParallelService:
                 "auto-routing disabled for retry_single_node()"
             )
 
-        logger.info("IntelligentParallelService initialized with real service dependencies")
+        logger.info(
+            "IntelligentParallelService initialized with real service dependencies"
+        )
 
     async def analyze_canvas(
         self,
@@ -149,9 +147,7 @@ class IntelligentParallelService:
             FileNotFoundError: If canvas file not found
             RuntimeError: If grouping_service not injected
         """
-        logger.info(
-            f"analyze_canvas called: path={canvas_path}, color={target_color}"
-        )
+        logger.info(f"analyze_canvas called: path={canvas_path}, color={target_color}")
 
         if self._grouping_service is None:
             raise RuntimeError(
@@ -214,10 +210,19 @@ class IntelligentParallelService:
             canvas_path=canvas_path,
             node_count=total_nodes,
             metadata={
-                "groups": [g.model_dump() if hasattr(g, 'model_dump') else {"group_id": g.group_id, "agent_type": g.agent_type, "node_ids": g.node_ids} for g in groups],
+                "groups": [
+                    g.model_dump()
+                    if hasattr(g, "model_dump")
+                    else {
+                        "group_id": g.group_id,
+                        "agent_type": g.agent_type,
+                        "node_ids": g.node_ids,
+                    }
+                    for g in groups
+                ],
                 "max_concurrent": max_concurrent or 12,
                 "timeout": timeout,
-            }
+            },
         )
 
         now = datetime.now()
@@ -245,7 +250,9 @@ class IntelligentParallelService:
                     timeout=timeout,
                 )
             )
-            logger.info(f"Batch execution launched as background task for session {session_id}")
+            logger.info(
+                f"Batch execution launched as background task for session {session_id}"
+            )
         else:
             logger.warning(
                 f"batch_orchestrator not injected — session {session_id} created "
@@ -315,14 +322,12 @@ class IntelligentParallelService:
         logger.info(f"get_session_status called: session_id={session_id}")
 
         if self._session_manager is None:
-            logger.warning(
-                "session_manager not injected — cannot get session status"
-            )
+            logger.warning("session_manager not injected — cannot get session status")
             return None
 
         try:
             session = await self._session_manager.get_session(session_id)
-        except (RuntimeError, ConnectionError, KeyError, ValueError) as exc:
+        except (RuntimeError, ConnectionError, KeyError, ValueError):
             # SessionNotFoundError or similar
             return None
 
@@ -437,7 +442,8 @@ class IntelligentParallelService:
             total_groups=len(groups_progress) if groups_progress else 0,
             total_nodes=total_nodes,
             completed_groups=sum(
-                1 for g in groups_progress
+                1
+                for g in groups_progress
                 if g.status in (GroupStatus.completed, GroupStatus.failed)
             ),
             completed_nodes=completed_nodes,
@@ -477,14 +483,12 @@ class IntelligentParallelService:
         # Check session exists
         try:
             session = await self._session_manager.get_session(session_id)
-        except (RuntimeError, ConnectionError, KeyError, ValueError) as exc:
+        except (RuntimeError, ConnectionError, KeyError, ValueError):
             return None
 
         # Check if already terminal (completed, partial_failure, failed, cancelled)
         if session.status.is_terminal:
-            raise ValueError(
-                f"Session already {session.status.value}, cannot cancel"
-            )
+            raise ValueError(f"Session already {session.status.value}, cannot cancel")
 
         completed_count = session.completed_nodes
 
@@ -499,6 +503,7 @@ class IntelligentParallelService:
         # persist the terminal state so GET /progress reflects it right away)
         try:
             from app.models.session_models import SessionStatus
+
             await self._session_manager.transition_state(
                 session_id, SessionStatus.CANCELLED
             )
@@ -563,7 +568,9 @@ class IntelligentParallelService:
             from .context_enrichment_service import get_node_content
 
             vault_path = ""
-            if self._canvas_service and hasattr(self._canvas_service, 'canvas_base_path'):
+            if self._canvas_service and hasattr(
+                self._canvas_service, "canvas_base_path"
+            ):
                 vault_path = self._canvas_service.canvas_base_path or ""
 
             # Wrap sync file I/O in thread to avoid blocking event loop
@@ -576,7 +583,13 @@ class IntelligentParallelService:
                 )
             return content
 
-        except (OSError, json.JSONDecodeError, KeyError, ValueError, AttributeError) as e:
+        except (
+            OSError,
+            json.JSONDecodeError,
+            KeyError,
+            ValueError,
+            AttributeError,
+        ) as e:
             logger.warning(
                 f"[Story 33.10] Failed to get node content (non-blocking): {e}"
             )
@@ -607,9 +620,7 @@ class IntelligentParallelService:
             FileNotFoundError: If node or canvas not found
             RuntimeError: If agent_service not injected
         """
-        logger.info(
-            f"retry_single_node called: node={node_id}, agent={agent_type}"
-        )
+        logger.info(f"retry_single_node called: node={node_id}, agent={agent_type}")
 
         if self._agent_service is None:
             raise RuntimeError(
@@ -636,7 +647,7 @@ class IntelligentParallelService:
             )
 
             if result.success:
-                file_path = result.file_path if hasattr(result, 'file_path') else None
+                file_path = result.file_path if hasattr(result, "file_path") else None
                 if not file_path:
                     file_path = f"{canvas_path.replace('.canvas', '')}/{node_id}-{agent_type}.md"
 
@@ -647,7 +658,11 @@ class IntelligentParallelService:
                     error_message=None,
                 )
             else:
-                error_msg = result.error if hasattr(result, 'error') else "Agent execution failed"
+                error_msg = (
+                    result.error
+                    if hasattr(result, "error")
+                    else "Agent execution failed"
+                )
                 return SingleAgentResponse(
                     node_id=node_id,
                     file_path=None,
@@ -680,7 +695,9 @@ class IntelligentParallelService:
             bool: True if session exists
         """
         if self._session_manager is None:
-            logger.warning("session_manager not injected — session_exists returns False")
+            logger.warning(
+                "session_manager not injected — session_exists returns False"
+            )
             return False
 
         try:
@@ -837,12 +854,13 @@ class IntelligentParallelService:
             success_count=success_count,
             failure_count=failure_count,
         )
-        sent_count = await self._connection_manager.broadcast_to_session(session_id, event)
+        sent_count = await self._connection_manager.broadcast_to_session(
+            session_id, event
+        )
 
         # Auto-close connection when session completes
         await self._connection_manager.close_session_connections(
-            session_id,
-            reason="Session completed"
+            session_id, reason="Session completed"
         )
 
         return sent_count

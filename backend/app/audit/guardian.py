@@ -186,7 +186,10 @@ class AuditGuardian:
 
         async with self._lock:
             for key, state in self._active_pipelines.items():
-                if state.last_step == "score_answer" and now - state.last_step_time > MAX_STEP_INTERVAL_SECONDS:
+                if (
+                    state.last_step == "score_answer"
+                    and now - state.last_step_time > MAX_STEP_INTERVAL_SECONDS
+                ):
                     await self._record_violation(
                         violation_type="signal_loss",
                         tool_name="score_answer",

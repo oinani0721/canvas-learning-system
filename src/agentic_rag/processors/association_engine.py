@@ -28,6 +28,7 @@ from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, Union
 
 try:
     import numpy as np
+
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
@@ -37,23 +38,28 @@ except ImportError:
 # Error Definitions
 # ============================================================
 
+
 class AssociationEngineError(Exception):
     """Base exception for association engine errors."""
+
     pass
 
 
 class SimilarityCalculationError(AssociationEngineError):
     """Raised when similarity calculation fails."""
+
     pass
 
 
 class RecommendationError(AssociationEngineError):
     """Raised when recommendation fails."""
+
     pass
 
 
 class RelationCreationError(AssociationEngineError):
     """Raised when Neo4j relation creation fails."""
+
     pass
 
 
@@ -61,8 +67,10 @@ class RelationCreationError(AssociationEngineError):
 # Enums and Constants
 # ============================================================
 
+
 class SimilarityMetric(str, Enum):
     """Similarity metric options."""
+
     COSINE = "cosine"
     EUCLIDEAN = "euclidean"
     DOT_PRODUCT = "dot_product"
@@ -70,6 +78,7 @@ class SimilarityMetric(str, Enum):
 
 class MediaType(str, Enum):
     """Media type options."""
+
     IMAGE = "image"
     PDF = "pdf"
     PDF_CHUNK = "pdf_chunk"
@@ -88,6 +97,7 @@ DEFAULT_BATCH_SIZE = 10
 # Data Classes
 # ============================================================
 
+
 @dataclass
 class MediaRecommendation:
     """
@@ -95,6 +105,7 @@ class MediaRecommendation:
 
     Verified from Story 6.7 (AC 6.7.2): 自动关联推荐
     """
+
     media_id: str
     media_type: str
     file_path: str
@@ -110,7 +121,7 @@ class MediaRecommendation:
             "file_path": self.file_path,
             "similarity_score": self.similarity_score,
             "description": self.description,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
     @classmethod
@@ -122,7 +133,7 @@ class MediaRecommendation:
             file_path=data.get("file_path", ""),
             similarity_score=data.get("similarity_score", 0.0),
             description=data.get("description"),
-            metadata=data.get("metadata", {})
+            metadata=data.get("metadata", {}),
         )
 
 
@@ -133,6 +144,7 @@ class AssociationResult:
 
     Verified from Story 6.7 (AC 6.7.3): 建立Neo4j关系
     """
+
     concept_id: str
     concept_name: str
     recommendations: List[MediaRecommendation] = field(default_factory=list)
@@ -148,13 +160,14 @@ class AssociationResult:
             "recommendations": [r.to_dict() for r in self.recommendations],
             "created_relations": self.created_relations,
             "processing_time_ms": self.processing_time_ms,
-            "error": self.error
+            "error": self.error,
         }
 
 
 @dataclass
 class AssociationStats:
     """Statistics for association operations."""
+
     total_concepts_processed: int = 0
     total_recommendations: int = 0
     total_relations_created: int = 0
@@ -172,13 +185,14 @@ class AssociationStats:
             "average_similarity_score": self.average_similarity_score,
             "average_processing_time_ms": self.average_processing_time_ms,
             "cache_hits": self.cache_hits,
-            "cache_misses": self.cache_misses
+            "cache_misses": self.cache_misses,
         }
 
 
 # ============================================================
 # Protocol Definitions (for type hints)
 # ============================================================
+
 
 class LanceDBClientProtocol(Protocol):
     """Protocol for LanceDB client."""
@@ -188,32 +202,26 @@ class LanceDBClientProtocol(Protocol):
         query: Union[str, List[float]],
         table_name: str,
         num_results: int,
-        metric: str
-    ) -> List[Dict[str, Any]]:
-        ...
+        metric: str,
+    ) -> List[Dict[str, Any]]: ...
 
-    async def initialize(self) -> bool:
-        ...
+    async def initialize(self) -> bool: ...
 
 
 class GraphitiClientProtocol(Protocol):
     """Protocol for Graphiti client."""
 
     async def add_relationship(
-        self,
-        entity1: str,
-        entity2: str,
-        relationship_type: str
-    ) -> bool:
-        ...
+        self, entity1: str, entity2: str, relationship_type: str
+    ) -> bool: ...
 
-    async def initialize(self) -> bool:
-        ...
+    async def initialize(self) -> bool: ...
 
 
 # ============================================================
 # Association Engine Implementation
 # ============================================================
+
 
 class AssociationEngine:
     """
@@ -249,7 +257,7 @@ class AssociationEngine:
         timeout_ms: int = DEFAULT_RECOMMENDATION_TIMEOUT_MS,
         metric: SimilarityMetric = SimilarityMetric.COSINE,
         enable_cache: bool = True,
-        cache_size: int = DEFAULT_CACHE_SIZE
+        cache_size: int = DEFAULT_CACHE_SIZE,
     ):
         """
         Initialize Association Engine.
@@ -311,7 +319,7 @@ class AssociationEngine:
         self,
         vector1: List[float],
         vector2: List[float],
-        metric: Optional[SimilarityMetric] = None
+        metric: Optional[SimilarityMetric] = None,
     ) -> float:
         """
         Calculate similarity between two vectors.
@@ -374,10 +382,7 @@ class AssociationEngine:
             raise SimilarityCalculationError(f"Similarity calculation failed: {e}")
 
     def _calculate_similarity_pure_python(
-        self,
-        vector1: List[float],
-        vector2: List[float],
-        metric: SimilarityMetric
+        self, vector1: List[float], vector2: List[float], metric: SimilarityMetric
     ) -> float:
         """Pure Python fallback for similarity calculation."""
         if len(vector1) != len(vector2):
@@ -415,7 +420,7 @@ class AssociationEngine:
         concept_vector: List[float],
         concept_name: Optional[str] = None,
         filter_existing: bool = True,
-        existing_media_ids: Optional[List[str]] = None
+        existing_media_ids: Optional[List[str]] = None,
     ) -> List[MediaRecommendation]:
         """
         Recommend media for a concept based on vector similarity.
@@ -461,9 +466,9 @@ class AssociationEngine:
                     concept_id=concept_id,
                     concept_vector=concept_vector,
                     filter_existing=filter_existing,
-                    existing_media_ids=existing_media_ids
+                    existing_media_ids=existing_media_ids,
                 ),
-                timeout=timeout_seconds
+                timeout=timeout_seconds,
             )
 
             # Update cache
@@ -490,7 +495,7 @@ class AssociationEngine:
         concept_id: str,
         concept_vector: List[float],
         filter_existing: bool,
-        existing_media_ids: Optional[List[str]]
+        existing_media_ids: Optional[List[str]],
     ) -> List[MediaRecommendation]:
         """Internal recommendation implementation."""
         recommendations = []
@@ -505,7 +510,7 @@ class AssociationEngine:
             query=concept_vector,
             table_name=self.MULTIMODAL_TABLE,
             num_results=self.top_k * 2,  # Get extra for filtering
-            metric=self.metric.value
+            metric=self.metric.value,
         )
 
         # Convert results to recommendations
@@ -530,10 +535,10 @@ class AssociationEngine:
 
             # Get media ID
             media_id = (
-                result.get("id") or
-                result.get("doc_id") or
-                result.get("content_id") or
-                ""
+                result.get("id")
+                or result.get("doc_id")
+                or result.get("content_id")
+                or ""
             )
 
             # Filter existing associations
@@ -551,7 +556,7 @@ class AssociationEngine:
                     "content": result.get("content", ""),
                     "key_concepts": result.get("key_concepts", []),
                     "vector_id": result.get("vector_id", ""),
-                }
+                },
             )
 
             recommendations.append(rec)
@@ -569,7 +574,7 @@ class AssociationEngine:
         self,
         concepts: List[Tuple[str, List[float], Optional[str]]],  # (id, vector, name)
         max_concurrent: int = DEFAULT_BATCH_SIZE,
-        progress_callback: Optional[Callable[[int, int], None]] = None
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> List[AssociationResult]:
         """
         Batch recommend media for multiple concepts.
@@ -589,7 +594,7 @@ class AssociationEngine:
             idx: int,
             concept_id: str,
             concept_vector: List[float],
-            concept_name: Optional[str]
+            concept_name: Optional[str],
         ) -> AssociationResult:
             async with semaphore:
                 start_time = time.perf_counter()
@@ -598,7 +603,7 @@ class AssociationEngine:
                     recommendations = await self.recommend_media_for_concept(
                         concept_id=concept_id,
                         concept_vector=concept_vector,
-                        concept_name=concept_name
+                        concept_name=concept_name,
                     )
 
                     processing_time = int((time.perf_counter() - start_time) * 1000)
@@ -607,14 +612,14 @@ class AssociationEngine:
                         concept_id=concept_id,
                         concept_name=concept_name or concept_id,
                         recommendations=recommendations,
-                        processing_time_ms=processing_time
+                        processing_time_ms=processing_time,
                     )
 
                 except Exception as e:
                     result = AssociationResult(
                         concept_id=concept_id,
                         concept_name=concept_name or concept_id,
-                        error=str(e)
+                        error=str(e),
                     )
 
                 if progress_callback:
@@ -635,9 +640,7 @@ class AssociationEngine:
     # ============================================================
 
     async def create_associations(
-        self,
-        concept_id: str,
-        recommendations: List[MediaRecommendation]
+        self, concept_id: str, recommendations: List[MediaRecommendation]
     ) -> int:
         """
         Create Neo4j relationships for recommendations.
@@ -667,7 +670,7 @@ class AssociationEngine:
                 success = await self.graphiti.add_relationship(
                     entity1=concept_id,
                     entity2=rec.media_id,
-                    relationship_type=self.HAS_MEDIA_RELATION
+                    relationship_type=self.HAS_MEDIA_RELATION,
                 )
 
                 if success:
@@ -682,8 +685,7 @@ class AssociationEngine:
         return created_count
 
     async def batch_create_associations(
-        self,
-        association_results: List[AssociationResult]
+        self, association_results: List[AssociationResult]
     ) -> int:
         """
         Batch create Neo4j relationships for multiple concepts.
@@ -699,8 +701,7 @@ class AssociationEngine:
         for result in association_results:
             if result.recommendations:
                 created = await self.create_associations(
-                    concept_id=result.concept_id,
-                    recommendations=result.recommendations
+                    concept_id=result.concept_id, recommendations=result.recommendations
                 )
                 result.created_relations = created
                 total_created += created
@@ -716,7 +717,7 @@ class AssociationEngine:
         concept_id: str,
         concept_vector: List[float],
         concept_name: Optional[str] = None,
-        create_relations: bool = True
+        create_relations: bool = True,
     ) -> AssociationResult:
         """
         Full pipeline: recommend media and create relationships.
@@ -737,15 +738,14 @@ class AssociationEngine:
             recommendations = await self.recommend_media_for_concept(
                 concept_id=concept_id,
                 concept_vector=concept_vector,
-                concept_name=concept_name
+                concept_name=concept_name,
             )
 
             # Create relationships if requested
             created_count = 0
             if create_relations and recommendations:
                 created_count = await self.create_associations(
-                    concept_id=concept_id,
-                    recommendations=recommendations
+                    concept_id=concept_id, recommendations=recommendations
                 )
 
             processing_time = int((time.perf_counter() - start_time) * 1000)
@@ -755,36 +755,28 @@ class AssociationEngine:
                 concept_name=concept_name or concept_id,
                 recommendations=recommendations,
                 created_relations=created_count,
-                processing_time_ms=processing_time
+                processing_time_ms=processing_time,
             )
 
         except Exception as e:
             return AssociationResult(
                 concept_id=concept_id,
                 concept_name=concept_name or concept_id,
-                error=str(e)
+                error=str(e),
             )
 
     # ============================================================
     # Cache Management
     # ============================================================
 
-    def _get_cache_key(
-        self,
-        concept_id: str,
-        concept_vector: List[float]
-    ) -> str:
+    def _get_cache_key(self, concept_id: str, concept_vector: List[float]) -> str:
         """Generate cache key from concept ID and vector."""
         # Use first 8 elements of vector for key (for efficiency)
-        vector_hash = hashlib.md5(
-            str(concept_vector[:8]).encode()
-        ).hexdigest()[:8]
+        vector_hash = hashlib.md5(str(concept_vector[:8]).encode()).hexdigest()[:8]
         return f"{concept_id}_{vector_hash}"
 
     def _update_cache(
-        self,
-        key: str,
-        recommendations: List[MediaRecommendation]
+        self, key: str, recommendations: List[MediaRecommendation]
     ) -> None:
         """Update cache with new recommendations."""
         # Evict old entries if cache is full
@@ -811,9 +803,7 @@ class AssociationEngine:
     # ============================================================
 
     def _update_stats(
-        self,
-        recommendations: List[MediaRecommendation],
-        processing_time_ms: float
+        self, recommendations: List[MediaRecommendation], processing_time_ms: float
     ) -> None:
         """Update statistics after a recommendation."""
         self._stats.total_concepts_processed += 1
@@ -821,7 +811,9 @@ class AssociationEngine:
 
         # Update average similarity
         if recommendations:
-            avg_sim = sum(r.similarity_score for r in recommendations) / len(recommendations)
+            avg_sim = sum(r.similarity_score for r in recommendations) / len(
+                recommendations
+            )
             n = self._stats.total_concepts_processed
             old_avg = self._stats.average_similarity_score
             self._stats.average_similarity_score = (old_avg * (n - 1) + avg_sim) / n
@@ -849,7 +841,7 @@ class AssociationEngine:
             "cache_enabled": self.enable_cache,
             "cache_size": len(self._cache),
             "max_cache_size": self.cache_size,
-            **self._stats.to_dict()
+            **self._stats.to_dict(),
         }
 
     def reset_stats(self) -> None:
@@ -861,12 +853,13 @@ class AssociationEngine:
 # Convenience Functions
 # ============================================================
 
+
 async def recommend_media(
     concept_vector: List[float],
     lancedb_client: LanceDBClientProtocol,
     similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
     top_k: int = DEFAULT_TOP_K,
-    **kwargs
+    **kwargs,
 ) -> List[MediaRecommendation]:
     """
     Convenience function to recommend media for a concept.
@@ -885,15 +878,14 @@ async def recommend_media(
         lancedb_client=lancedb_client,
         similarity_threshold=similarity_threshold,
         top_k=top_k,
-        **kwargs
+        **kwargs,
     )
 
     # Generate a temporary concept ID
     concept_id = f"temp_{hashlib.md5(str(concept_vector[:8]).encode()).hexdigest()[:8]}"
 
     return await engine.recommend_media_for_concept(
-        concept_id=concept_id,
-        concept_vector=concept_vector
+        concept_id=concept_id, concept_vector=concept_vector
     )
 
 
@@ -909,10 +901,7 @@ def cosine_similarity(vector1: List[float], vector2: List[float]) -> float:
         Cosine similarity (-1 to 1, higher is more similar)
     """
     engine = AssociationEngine()
-    return engine.calculate_similarity(
-        vector1, vector2,
-        metric=SimilarityMetric.COSINE
-    )
+    return engine.calculate_similarity(vector1, vector2, metric=SimilarityMetric.COSINE)
 
 
 def euclidean_similarity(vector1: List[float], vector2: List[float]) -> float:
@@ -928,6 +917,5 @@ def euclidean_similarity(vector1: List[float], vector2: List[float]) -> float:
     """
     engine = AssociationEngine()
     return engine.calculate_similarity(
-        vector1, vector2,
-        metric=SimilarityMetric.EUCLIDEAN
+        vector1, vector2, metric=SimilarityMetric.EUCLIDEAN
     )

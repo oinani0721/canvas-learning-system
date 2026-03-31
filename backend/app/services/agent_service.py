@@ -11,6 +11,7 @@ wrapping the Gemini API functionality with async support.
 [Source: docs/prd/sprint-change-proposal-20251208.md - Story 20.4]
 [Source: Gemini Migration - Using google.genai instead of anthropic]
 """
+
 import asyncio
 import json
 import logging
@@ -21,7 +22,6 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from cachetools import TTLCache
@@ -41,7 +41,9 @@ from app.models.enums import AgentErrorType
 # ✅ Story 12.C.1: 环境变量开关 - 上下文增强开关
 # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.1]
 # ✅ Fixed 2025-12-24: Default to False - enable context enrichment to fix hallucination
-DISABLE_CONTEXT_ENRICHMENT = os.getenv("DISABLE_CONTEXT_ENRICHMENT", "false").lower() == "true"
+DISABLE_CONTEXT_ENRICHMENT = (
+    os.getenv("DISABLE_CONTEXT_ENRICHMENT", "false").lower() == "true"
+)
 
 if TYPE_CHECKING:
     from app.clients.gemini_client import GeminiClient
@@ -52,6 +54,7 @@ if TYPE_CHECKING:
 try:
     from app.services.tool_definitions import EXPLANATION_TOOLS
     from app.services.tool_executor import ToolExecutor
+
     TOOL_CALLING_AVAILABLE = True
 except ImportError:
     TOOL_CALLING_AVAILABLE = False
@@ -137,6 +140,7 @@ class AgentType(str, Enum):
     Agent类型枚举
     [Source: helpers.md#Section-1-14-agents详细说明]
     """
+
     BASIC_DECOMPOSITION = "basic-decomposition"
     DEEP_DECOMPOSITION = "deep-decomposition"
     QUESTION_DECOMPOSITION = "question-decomposition"
@@ -161,6 +165,7 @@ class AgentResult:
     [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
     [Enhanced: Story 12.G.2 - error_type field for classified errors]
     """
+
     agent_type: AgentType
     node_id: str = ""
     success: bool = True
@@ -205,6 +210,7 @@ class AgentResult:
 # Context Filtering: remove explanation file references from React Agent context
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def _filter_explanation_refs(context: str) -> str:
     """Remove explanation file content from context to prevent the LLM
     from citing old AI-generated explanations instead of using search tools.
@@ -212,7 +218,6 @@ def _filter_explanation_refs(context: str) -> str:
     Filters out context blocks that reference '-explanations/' paths,
     which are generated explanation files (not original lecture notes).
     """
-    import re
 
     lines = context.split("\n")
     filtered = []
@@ -238,6 +243,7 @@ def _filter_explanation_refs(context: str) -> str:
 # Round 4 Step 3a: JSON extraction from LLM text responses
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def _extract_json_from_text(text: str) -> Optional[Dict]:
     """Extract JSON from LLM response text that may contain preamble or markdown.
 
@@ -258,7 +264,7 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
         pass
 
     # Try 2: Extract from ```json ... ``` block
-    json_block = re.search(r'```(?:json|JSON)?\s*\n([\s\S]*?)\n```', text)
+    json_block = re.search(r"```(?:json|JSON)?\s*\n([\s\S]*?)\n```", text)
     if json_block:
         try:
             return json.loads(json_block.group(1).strip())
@@ -270,7 +276,7 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
     last_brace = text.rfind("}")
     if first_brace != -1 and last_brace > first_brace:
         try:
-            return json.loads(text[first_brace:last_brace + 1])
+            return json.loads(text[first_brace : last_brace + 1])
         except (json.JSONDecodeError, ValueError):
             pass
 
@@ -280,6 +286,7 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Reference Post-Processing: ensure wikilink format in final output
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def _convert_refs_to_wikilinks(text: str) -> str:
     """Convert various reference formats to Obsidian [[wikilinks]] in the
@@ -292,11 +299,13 @@ def _convert_refs_to_wikilinks(text: str) -> str:
     import re
 
     # Find the "## 相关资料" section (or similar headings)
-    ref_match = re.search(r'(##\s*(?:相关资料|参考资料|References|相关笔记).*)', text, re.DOTALL)
+    ref_match = re.search(
+        r"(##\s*(?:相关资料|参考资料|References|相关笔记).*)", text, re.DOTALL
+    )
     if not ref_match:
         return text
 
-    before = text[:ref_match.start()]
+    before = text[: ref_match.start()]
     ref_section = ref_match.group(1)
 
     def _to_wikilink(path: str, heading: str = "") -> str:
@@ -317,7 +326,7 @@ def _convert_refs_to_wikilinks(text: str) -> str:
         if inner.startswith("["):
             return m.group(0)
         # Skip markdown links like [text](url)
-        if m.end() < len(ref_section) and ref_section[m.end():m.end()+1] == "(":
+        if m.end() < len(ref_section) and ref_section[m.end() : m.end() + 1] == "(":
             return m.group(0)
         if " > " in inner:
             path, heading = inner.rsplit(" > ", 1)
@@ -333,9 +342,7 @@ def _convert_refs_to_wikilinks(text: str) -> str:
             return m.group(0)  # Don't convert non-path brackets
 
     ref_section = re.sub(
-        r'(?<!\[)\[([^\[\]]+)\](?!\])',
-        _convert_bracket_ref,
-        ref_section
+        r"(?<!\[)\[([^\[\]]+)\](?!\])", _convert_bracket_ref, ref_section
     )
 
     # Pattern 2: bare paths in list items like "- videos/lectures/foo.md"
@@ -347,7 +354,7 @@ def _convert_refs_to_wikilinks(text: str) -> str:
         return f"{prefix}{_to_wikilink(path, heading)}"
 
     ref_section = re.sub(
-        r'^([-*]\s+)((?:videos|past_exams|lectures|discussions)/[^\s#\]]+\.md)(#(\S+))?',
+        r"^([-*]\s+)((?:videos|past_exams|lectures|discussions)/[^\s#\]]+\.md)(#(\S+))?",
         _convert_bare_path,
         ref_section,
         flags=re.MULTILINE,
@@ -360,6 +367,7 @@ def _convert_refs_to_wikilinks(text: str) -> str:
 # R2b: Programmatic reference building from tool results
 # [Source: Round 2 Deep Fix — R2 wikilink fabrication fix]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def _build_references_from_tools(tool_results: List[Dict]) -> str:
     """Build ## 相关资料 section from actual tool search results.
@@ -384,7 +392,7 @@ def _build_references_from_tools(tool_results: List[Dict]) -> str:
 
         if name in ("search_obsidian_cli", "search_vault_notes"):
             # Extract wikilinks from formatted search results
-            for match in re.finditer(r'\[\[([^\]]+)\]\]', content):
+            for match in re.finditer(r"\[\[([^\]]+)\]\]", content):
                 wikilink = match.group(0)  # e.g. [[Note Name#Heading|Display]]
                 if wikilink in seen:
                     continue
@@ -398,12 +406,16 @@ def _build_references_from_tools(tool_results: List[Dict]) -> str:
 
                 # Get a content snippet (next non-empty line after the wikilink)
                 pos = match.end()
-                snippet_lines = content[pos:pos + 300].strip().split('\n')
+                snippet_lines = content[pos : pos + 300].strip().split("\n")
                 snippet = next(
-                    (line.strip() for line in snippet_lines
-                     if line.strip() and not line.strip().startswith('###')
-                     and not line.strip().startswith('---')),
-                    ""
+                    (
+                        line.strip()
+                        for line in snippet_lines
+                        if line.strip()
+                        and not line.strip().startswith("###")
+                        and not line.strip().startswith("---")
+                    ),
+                    "",
                 )
                 if snippet and len(snippet) > 100:
                     snippet = snippet[:100] + "..."
@@ -412,7 +424,7 @@ def _build_references_from_tools(tool_results: List[Dict]) -> str:
         elif name == "search_knowledge_graph":
             # Extract entity citations (Misconception/ProblemTrap/etc.)
             for match in re.finditer(
-                r'\[(Misconception|ProblemTrap|LogicalFallacy|GuidedThinking):\s*([^\]]+)\]',
+                r"\[(Misconception|ProblemTrap|LogicalFallacy|GuidedThinking):\s*([^\]]+)\]",
                 content,
             ):
                 entity_type, entity_name = match.group(1), match.group(2).strip()
@@ -426,7 +438,9 @@ def _build_references_from_tools(tool_results: List[Dict]) -> str:
 
     # Sort by source priority (lectures > discussions > others > KG)
     from fnmatch import fnmatch
-    from app.core.reference_config import get_source_priorities, get_max_references
+
+    from app.core.reference_config import get_max_references, get_source_priorities
+
     priorities = get_source_priorities()
 
     def _ref_weight(wikilink: str) -> float:
@@ -455,6 +469,7 @@ def _build_references_from_tools(tool_results: List[Dict]) -> str:
 # Story 21.3: 多重fallback文本提取和友好错误处理
 # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-3]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def extract_explanation_text(response: Any) -> Tuple[str, bool]:
     """
@@ -489,6 +504,7 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
     # [Source: docs/stories/story-12.G.1-api-response-logging.md#Task-3]
     # ✅ Verified from ADR-010: structlog dual-format logging
     from app.config import settings
+
     debug_enabled = settings.DEBUG_AGENT_RESPONSE
 
     if debug_enabled:
@@ -497,13 +513,20 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
             extra={
                 "input_type": type(response).__name__,
                 "input_preview": str(response)[:200] if response else "None",
-            }
+            },
         )
 
     extractors = [
         # === 精确匹配 (高优先级) ===
         # 优先级1: response字段（Gemini常用格式）
-        ("response", lambda r: r.get("response") if isinstance(r, dict) and isinstance(r.get("response"), str) else None),
+        (
+            "response",
+            lambda r: (
+                r.get("response")
+                if isinstance(r, dict) and isinstance(r.get("response"), str)
+                else None
+            ),
+        ),
         # 优先级2: 嵌套 response.text (Story 12.G.4 AC2)
         # ✅ Verified from Epic 12.G definition
         ("nested_response_text", lambda r: _extract_nested_response_text(r)),
@@ -519,7 +542,10 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
         # 优先级7: dict的content字段
         ("content", lambda r: r.get("content") if isinstance(r, dict) else None),
         # 优先级8: dict的explanation字段
-        ("explanation", lambda r: r.get("explanation") if isinstance(r, dict) else None),
+        (
+            "explanation",
+            lambda r: r.get("explanation") if isinstance(r, dict) else None,
+        ),
         # 优先级9: dict的message字段
         ("message", lambda r: r.get("message") if isinstance(r, dict) else None),
         # 优先级10: dict的output字段
@@ -545,10 +571,12 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
                     "[Story 12.G.1] extractor_attempt",
                     extra={
                         "extractor_name": name,
-                        "success": text is not None and len(str(text).strip()) > 0 if text else False,
+                        "success": text is not None and len(str(text).strip()) > 0
+                        if text
+                        else False,
                         "result_length": len(str(text)) if text else 0,
                         "result_preview": str(text)[:100] if text else None,
-                    }
+                    },
                 )
 
             if text and isinstance(text, str) and text.strip():
@@ -559,7 +587,7 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
                         "extractor_name": name,
                         "result_length": len(text.strip()),
                         "response_type": type(response).__name__,
-                    }
+                    },
                 )
                 return text.strip(), True
         except (AttributeError, KeyError, TypeError, ValueError) as e:
@@ -570,7 +598,7 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
                     extra={
                         "extractor_name": name,
                         "error": str(e),
-                    }
+                    },
                 )
             logger.debug(f"extract_explanation_text: Extractor '{name}' failed: {e}")
 
@@ -584,7 +612,7 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
                 "input_type": type(response).__name__,
                 "input_content": str(response)[:1000] if response else "None",
                 "extractors_tried": len(extractors),
-            }
+            },
         )
 
     logger.warning(
@@ -592,7 +620,7 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
         extra={
             "response_type": type(response).__name__,
             "response_preview": str(response)[:1000] if response else "None",
-        }
+        },
     )
     return "", False
 
@@ -601,6 +629,7 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
 # Story 12.G.4: 响应格式自适应 - 辅助提取函数
 # [Source: docs/stories/story-12.G.4-response-format-adaptive.md]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def _extract_nested_response_text(r: Any) -> Optional[str]:
     """
@@ -690,7 +719,7 @@ def _extract_json_from_markdown(r: Any) -> Optional[str]:
         return None
 
     # 匹配 ```json ... ``` 或 ```JSON ... ``` 或 ``` ... ```
-    pattern = r'```(?:json|JSON)?\s*\n([\s\S]*?)\n```'
+    pattern = r"```(?:json|JSON)?\s*\n([\s\S]*?)\n```"
     match = re.search(pattern, r)
     if not match:
         return None
@@ -803,29 +832,33 @@ def create_error_response(
             "error_type": error_type_str,
             "bug_id": bug_id,
             "is_retryable": is_retryable,
-        }
+        },
     )
 
     response = {
-        "created_nodes": [{
-            "id": error_node_id,
-            "type": "text",
-            "text": error_text,
-            "color": "1",  # 红色表示错误 (Story 12.G.2 AC4)
-            "x": error_x,
-            "y": error_y,
-            "width": 400,
-            "height": 250  # 增加高度以显示更多信息
-        }],
-        "created_edges": [{
-            "id": f"edge-error-{uuid.uuid4().hex[:8]}",
-            "fromNode": source_node_id,
-            "toNode": error_node_id,
-            "fromSide": "right",
-            "toSide": "left",
-            "label": "错误",
-            "color": "1"  # 红色
-        }],
+        "created_nodes": [
+            {
+                "id": error_node_id,
+                "type": "text",
+                "text": error_text,
+                "color": "1",  # 红色表示错误 (Story 12.G.2 AC4)
+                "x": error_x,
+                "y": error_y,
+                "width": 400,
+                "height": 250,  # 增加高度以显示更多信息
+            }
+        ],
+        "created_edges": [
+            {
+                "id": f"edge-error-{uuid.uuid4().hex[:8]}",
+                "fromNode": source_node_id,
+                "toNode": error_node_id,
+                "fromSide": "right",
+                "toSide": "left",
+                "label": "错误",
+                "color": "1",  # 红色
+            }
+        ],
         "error": True,
         "error_message": error_message,
         "agent_type": agent_type,
@@ -838,11 +871,17 @@ def create_error_response(
 
     # Story 12.G.2 AC2 & AC5: 仅在debug模式下返回详细信息
     from app.config import settings
+
     if settings.DEBUG_AGENT_RESPONSE and details:
         # AC5: 安全处理 - 不暴露敏感信息
-        safe_details = {k: v for k, v in details.items()
-                       if not any(sensitive in k.lower()
-                                 for sensitive in ['key', 'secret', 'password', 'token'])}
+        safe_details = {
+            k: v
+            for k, v in details.items()
+            if not any(
+                sensitive in k.lower()
+                for sensitive in ["key", "secret", "password", "token"]
+            )
+        }
         response["details"] = safe_details
 
     return response
@@ -897,15 +936,12 @@ class AgentCallLogger:
             extra={
                 **self.extra,
                 "event": "agent_call_start",
-                "request_params": self._summarize(request_params)
-            }
+                "request_params": self._summarize(request_params),
+            },
         )
 
     def log_response(
-        self,
-        response: Any,
-        success: bool,
-        response_length: int = 0
+        self, response: Any, success: bool, response_length: int = 0
     ) -> None:
         """
         记录响应信息。
@@ -922,20 +958,20 @@ class AgentCallLogger:
             "event": "agent_call_end",
             "success": success,
             "latency_ms": latency_ms,
-            "response_length": response_length
+            "response_length": response_length,
         }
 
         if success:
             logger.info(
                 f"[Agent Call SUCCESS] {self.agent_type} completed in {latency_ms}ms",
-                extra=log_data
+                extra=log_data,
             )
         else:
             # 失败时记录更多详情
             log_data["response_preview"] = self._truncate(str(response))
             logger.warning(
                 f"[Agent Call FAILED] {self.agent_type} failed after {latency_ms}ms",
-                extra=log_data
+                extra=log_data,
             )
 
     def log_error(self, error: Exception) -> None:
@@ -954,9 +990,9 @@ class AgentCallLogger:
                 "event": "agent_call_error",
                 "latency_ms": latency_ms,
                 "error_type": type(error).__name__,
-                "error_message": str(error)[:500]
+                "error_message": str(error)[:500],
             },
-            exc_info=True
+            exc_info=True,
         )
 
     @staticmethod
@@ -983,11 +1019,13 @@ class AgentCallLogger:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # 配置常量（可通过环境变量覆盖）
-AUTO_CREATE_PERSONAL_NODE = os.getenv("AUTO_CREATE_PERSONAL_NODE", "true").lower() == "true"
+AUTO_CREATE_PERSONAL_NODE = (
+    os.getenv("AUTO_CREATE_PERSONAL_NODE", "true").lower() == "true"
+)
 PERSONAL_NODE_VERTICAL_OFFSET = int(os.getenv("PERSONAL_NODE_VERTICAL_OFFSET", "50"))
 PERSONAL_NODE_PROMPT_TEXT = os.getenv(
     "PERSONAL_NODE_PROMPT_TEXT",
-    "在此填写你的个人理解...\n\n💡 提示：用自己的话解释这个概念"
+    "在此填写你的个人理解...\n\n💡 提示：用自己的话解释这个概念",
 )
 
 # 个人理解节点模板
@@ -996,7 +1034,7 @@ PERSONAL_UNDERSTANDING_TEMPLATE = {
     "text": PERSONAL_NODE_PROMPT_TEXT,
     "width": 400,
     "height": 150,
-    "color": "6"  # Yellow - 个人理解区域 (canvas_utils: "6"=Yellow)
+    "color": "6",  # Yellow - 个人理解区域 (canvas_utils: "6"=Yellow)
 }
 
 
@@ -1006,7 +1044,7 @@ def create_personal_understanding_node(
     explanation_y: int,
     explanation_height: int,
     vertical_offset: Optional[int] = None,
-    custom_prompt: Optional[str] = None
+    custom_prompt: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], str]:
     """
     创建个人理解节点。
@@ -1036,21 +1074,21 @@ def create_personal_understanding_node(
         "id": personal_node_id,
         **PERSONAL_UNDERSTANDING_TEMPLATE,
         "x": explanation_x,  # 与解释节点水平对齐
-        "y": explanation_y + explanation_height + vertical_offset  # 在解释节点下方
+        "y": explanation_y + explanation_height + vertical_offset,  # 在解释节点下方
     }
 
     # 使用自定义提示文字
     if custom_prompt:
         node["text"] = custom_prompt
 
-    logger.debug(f"Created personal understanding node {personal_node_id} at ({node['x']}, {node['y']})")
+    logger.debug(
+        f"Created personal understanding node {personal_node_id} at ({node['x']}, {node['y']})"
+    )
     return node, personal_node_id
 
 
 def create_personal_understanding_edge(
-    explanation_node_id: str,
-    personal_node_id: str,
-    label: str = "个人理解"
+    explanation_node_id: str, personal_node_id: str, label: str = "个人理解"
 ) -> Dict[str, Any]:
     """
     创建解释节点到个人理解节点的Edge连接。
@@ -1072,10 +1110,12 @@ def create_personal_understanding_edge(
         "fromSide": "bottom",
         "toSide": "top",
         "label": label,
-        "color": "6"  # Yellow - 个人理解边 (canvas_utils: "6"=Yellow)
+        "color": "6",  # Yellow - 个人理解边 (canvas_utils: "6"=Yellow)
     }
 
-    logger.debug(f"Created personal understanding edge: {explanation_node_id} → {personal_node_id}")
+    logger.debug(
+        f"Created personal understanding edge: {explanation_node_id} → {personal_node_id}"
+    )
     return edge
 
 
@@ -1083,6 +1123,7 @@ def create_personal_understanding_edge(
 # Story 21.6: Edge连接逻辑修复 - 统一Edge创建函数
 # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class EdgeLabels:
     """
@@ -1092,6 +1133,7 @@ class EdgeLabels:
 
     [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
     """
+
     BASIC_DECOMPOSE = "基础拆解"
     DEEP_DECOMPOSE = "深度拆解"
     ORAL_EXPLANATION = "口语解释"
@@ -1146,11 +1188,12 @@ class EdgeColors:
 
     [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
     """
-    DEFAULT = "5"       # 蓝色 - 默认
-    EXPLANATION = "4"   # 绿色 - 解释类Edge
-    PERSONAL = "3"      # 黄色 - 个人理解Edge
-    ERROR = "1"         # 红色 - 错误/问题
-    PURPLE = "6"        # 紫色 - 部分理解
+
+    DEFAULT = "5"  # 蓝色 - 默认
+    EXPLANATION = "4"  # 绿色 - 解释类Edge
+    PERSONAL = "3"  # 黄色 - 个人理解Edge
+    ERROR = "1"  # 红色 - 错误/问题
+    PURPLE = "6"  # 紫色 - 部分理解
 
 
 def create_edge(
@@ -1159,7 +1202,7 @@ def create_edge(
     label: str = "",
     color: str = EdgeColors.DEFAULT,
     from_side: str = "right",
-    to_side: str = "left"
+    to_side: str = "left",
 ) -> Dict[str, Any]:
     """
     统一的Edge创建函数。
@@ -1201,7 +1244,7 @@ def edge_exists(
     edges: List[Dict[str, Any]],
     from_node_id: str,
     to_node_id: str,
-    label: Optional[str] = None
+    label: Optional[str] = None,
 ) -> bool:
     """
     检查Edge是否已存在。
@@ -1220,8 +1263,7 @@ def edge_exists(
     [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
     """
     for edge in edges:
-        if (edge.get("fromNode") == from_node_id and
-            edge.get("toNode") == to_node_id):
+        if edge.get("fromNode") == from_node_id and edge.get("toNode") == to_node_id:
             # 如果不检查标签，或标签匹配，则认为存在
             if label is None or edge.get("label") == label:
                 return True
@@ -1235,7 +1277,7 @@ def create_edge_if_not_exists(
     label: str = "",
     color: str = EdgeColors.DEFAULT,
     from_side: str = "right",
-    to_side: str = "left"
+    to_side: str = "left",
 ) -> Optional[Dict[str, Any]]:
     """
     如果Edge不存在则创建。
@@ -1257,7 +1299,9 @@ def create_edge_if_not_exists(
     [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
     """
     if edge_exists(existing_edges, from_node_id, to_node_id, label if label else None):
-        logger.debug(f"Edge already exists: {from_node_id} → {to_node_id} [{label}], skipping")
+        logger.debug(
+            f"Edge already exists: {from_node_id} → {to_node_id} [{label}], skipping"
+        )
         return None
 
     return create_edge(
@@ -1266,7 +1310,7 @@ def create_edge_if_not_exists(
         label=label,
         color=color,
         from_side=from_side,
-        to_side=to_side
+        to_side=to_side,
     )
 
 
@@ -1337,23 +1381,29 @@ class AgentService:
         # [Source: docs/stories/story-12.A.4-memory-injection.md#Task-6]
         # NFR-P0: Bounded TTLCache replaces bare dict to prevent unbounded memory growth
         # Story 36.13 AC-3: maxsize and ttl configurable via Settings
-        self._memory_cache: TTLCache = TTLCache(maxsize=memory_cache_maxsize, ttl=memory_cache_ttl)
+        self._memory_cache: TTLCache = TTLCache(
+            maxsize=memory_cache_maxsize, ttl=memory_cache_ttl
+        )
         # NFR-P0: Lock for cache stampede protection
         self._memory_cache_lock = asyncio.Lock()
 
         # Log AI configuration
         if ai_config:
-            provider = getattr(ai_config, 'provider', 'unknown')
-            model = getattr(ai_config, 'model_name', 'unknown')
+            provider = getattr(ai_config, "provider", "unknown")
+            model = getattr(ai_config, "model_name", "unknown")
             logger.info(f"AgentService AI config: provider={provider}, model={model}")
 
         if self._use_real_api:
             logger.info("AgentService initialized with REAL AI API calls")
         else:
-            logger.warning("AgentService initialized without configured AI client - API calls will fail")
+            logger.warning(
+                "AgentService initialized without configured AI client - API calls will fail"
+            )
 
         if self._memory_client:
-            logger.info("AgentService will use LearningMemoryClient for historical context")
+            logger.info(
+                "AgentService will use LearningMemoryClient for historical context"
+            )
         else:
             logger.warning(
                 "AgentService initialized without LearningMemoryClient - "
@@ -1364,26 +1414,40 @@ class AgentService:
         if self._neo4j_client:
             logger.info("AgentService will use Neo4jClient for learning memory queries")
         else:
-            logger.debug("AgentService initialized without Neo4jClient - will fallback to memory_client")
+            logger.debug(
+                "AgentService initialized without Neo4jClient - will fallback to memory_client"
+            )
 
         if self._canvas_service:
-            logger.info("AgentService will use CanvasService for writing nodes to Canvas")
+            logger.info(
+                "AgentService will use CanvasService for writing nodes to Canvas"
+            )
         else:
-            logger.warning("AgentService initialized without CanvasService - nodes will not be written to Canvas")
+            logger.warning(
+                "AgentService initialized without CanvasService - nodes will not be written to Canvas"
+            )
 
         # Phase 2: Tool executor for function calling (lazy-initialized)
         self._tool_executor: Optional[Any] = None
         self._tool_calling_enabled = ENABLE_TOOL_CALLING and TOOL_CALLING_AVAILABLE
         if self._tool_calling_enabled:
-            logger.info("AgentService Phase 2: Tool calling ENABLED (ENABLE_TOOL_CALLING=true)")
+            logger.info(
+                "AgentService Phase 2: Tool calling ENABLED (ENABLE_TOOL_CALLING=true)"
+            )
         else:
-            reason = "ENABLE_TOOL_CALLING=false" if not ENABLE_TOOL_CALLING else "imports unavailable"
+            reason = (
+                "ENABLE_TOOL_CALLING=false"
+                if not ENABLE_TOOL_CALLING
+                else "imports unavailable"
+            )
             logger.info(f"AgentService Phase 2: Tool calling disabled ({reason})")
 
         # Phase 4: React Agent (lazy-initialized)
         self._react_agent_initialized = False
         if ENABLE_REACT_AGENT:
-            logger.info("AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)")
+            logger.info(
+                "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)"
+            )
 
         logger.debug(f"AgentService max_concurrent={max_concurrent}")
 
@@ -1417,12 +1481,13 @@ class AgentService:
 
         try:
             # Import agentic_rag clients at runtime
-            from src.agentic_rag.clients.lancedb_client import LanceDBClient
             from src.agentic_rag.clients.graphiti_client import GraphitiClient
+            from src.agentic_rag.clients.lancedb_client import LanceDBClient
+
             from app.config import get_settings
 
             settings = get_settings()
-            vault_path = getattr(settings, 'CANVAS_BASE_PATH', None)
+            vault_path = getattr(settings, "CANVAS_BASE_PATH", None)
 
             # Try to get existing client singletons
             lancedb_client = None
@@ -1470,23 +1535,26 @@ class AgentService:
             return True
 
         try:
-            from app.services.react_agent import init_react_tools
-            from src.agentic_rag.clients.lancedb_client import LanceDBClient
             from src.agentic_rag.clients.graphiti_client import GraphitiClient
+            from src.agentic_rag.clients.lancedb_client import LanceDBClient
+
             from app.config import get_settings
+            from app.services.react_agent import init_react_tools
 
             settings = get_settings()
-            vault_path = getattr(settings, 'CANVAS_BASE_PATH', None)
+            vault_path = getattr(settings, "CANVAS_BASE_PATH", None)
 
             lancedb_client = None
             graphiti_client = None
 
             # LanceDB: create client with configured path and initialize
             try:
-                lancedb_path = getattr(settings, 'LANCEDB_PATH', 'data/lancedb')
+                lancedb_path = getattr(settings, "LANCEDB_PATH", "data/lancedb")
                 lancedb_client = LanceDBClient(db_path=lancedb_path)
                 await lancedb_client.initialize()
-                logger.debug(f"Phase 4: LanceDB client created and initialized at {lancedb_path}")
+                logger.debug(
+                    f"Phase 4: LanceDB client created and initialized at {lancedb_path}"
+                )
             except (RuntimeError, OSError, ConnectionError) as e:
                 logger.debug(f"Phase 4: LanceDB client not available: {e}")
 
@@ -1612,12 +1680,25 @@ class AgentService:
         if not DISABLE_CONTEXT_ENRICHMENT:
             try:
                 # Fix B3: Extract topic from JSON prompt instead of passing raw JSON
-                memory_query = self._extract_topic_for_memory(user_prompt) if user_prompt else ""
+                memory_query = (
+                    self._extract_topic_for_memory(user_prompt) if user_prompt else ""
+                )
                 memory_context = await self._get_learning_memories(content=memory_query)
                 if memory_context:
-                    context = f"{context}\n\n## 学习历史记忆\n{memory_context}" if context else f"## 学习历史记忆\n{memory_context}"
-                    logger.debug("[Phase2.5] Preloaded learning memories into React Agent context")
-            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
+                    context = (
+                        f"{context}\n\n## 学习历史记忆\n{memory_context}"
+                        if context
+                        else f"## 学习历史记忆\n{memory_context}"
+                    )
+                    logger.debug(
+                        "[Phase2.5] Preloaded learning memories into React Agent context"
+                    )
+            except (
+                RuntimeError,
+                ConnectionError,
+                asyncio.TimeoutError,
+                ValueError,
+            ) as e:
                 logger.warning(f"[Phase2.5] Memory preload failed for React Agent: {e}")
 
         # NOTE: thinking_budget disabled for React Agent — Gemini's thinking mode
@@ -1663,7 +1744,7 @@ class AgentService:
         must return valid JSON. Falls back to AgentResult(success=False) if
         JSON extraction fails, triggering the caller to use direct Gemini.
         """
-        from app.services.react_agent import run_react_agent, SCORING_TOOLS
+        from app.services.react_agent import SCORING_TOOLS, run_react_agent
 
         if not self._gemini_client:
             raise RuntimeError("GeminiClient required for React Agent scoring")
@@ -1689,16 +1770,27 @@ class AgentService:
         if context:
             filtered_context = _filter_explanation_refs(context)
             if filtered_context.strip():
-                system_prompt = f"{system_prompt}\n\n## Scoring Context\n{filtered_context}"
+                system_prompt = (
+                    f"{system_prompt}\n\n## Scoring Context\n{filtered_context}"
+                )
 
         # Preload learning memories
         if not DISABLE_CONTEXT_ENRICHMENT:
             try:
-                memory_query = self._extract_topic_for_memory(json_prompt) if json_prompt else ""
+                memory_query = (
+                    self._extract_topic_for_memory(json_prompt) if json_prompt else ""
+                )
                 memory_context = await self._get_learning_memories(content=memory_query)
                 if memory_context:
-                    system_prompt = f"{system_prompt}\n\n## 学习历史记忆\n{memory_context}"
-            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
+                    system_prompt = (
+                        f"{system_prompt}\n\n## 学习历史记忆\n{memory_context}"
+                    )
+            except (
+                RuntimeError,
+                ConnectionError,
+                asyncio.TimeoutError,
+                ValueError,
+            ) as e:
                 logger.warning(f"[Score-React] Memory preload failed: {e}")
 
         api_key = self._gemini_client.api_key
@@ -1744,7 +1836,9 @@ class AgentService:
     # Phase 2.5: Two-Phase Multimodal Helpers
     # ═══════════════════════════════════════════════════════════════════════════════
 
-    def _extract_react_context(self, react_result: AgentResult, original_context: Optional[str] = None) -> str:
+    def _extract_react_context(
+        self, react_result: AgentResult, original_context: Optional[str] = None
+    ) -> str:
         """Extract gathered context from React Agent result for Vision phase.
 
         In two-phase multimodal mode, Phase 4a (React Agent) searches notes and
@@ -1794,7 +1888,9 @@ class AgentService:
 
             old_meaning = get_color_meaning(old_color)
             new_meaning = get_color_meaning(new_color)
-            name = build_entity_name("ColorTransition", f"{concept} ({old_meaning}→{new_meaning})")
+            name = build_entity_name(
+                "ColorTransition", f"{concept} ({old_meaning}→{new_meaning})"
+            )
             body = build_episode_body(
                 "ColorTransition",
                 topic=topic,
@@ -1875,7 +1971,7 @@ class AgentService:
         self,
         content: str,
         canvas_name: Optional[str] = None,
-        node_id: Optional[str] = None
+        node_id: Optional[str] = None,
     ) -> str:
         """
         Get learning history with cache and timeout support.
@@ -1918,13 +2014,17 @@ class AgentService:
         async with self._memory_cache_lock:
             cached_data = self._memory_cache.get(cache_key)
             if cached_data is not None:
-                logger.debug(f"[Story 36.7] Memory cache HIT (after lock) for key: {cache_key[:30]}...")
+                logger.debug(
+                    f"[Story 36.7] Memory cache HIT (after lock) for key: {cache_key[:30]}..."
+                )
                 if isinstance(cached_data, str):
                     return cached_data
                 return self._format_learning_memories(cached_data)
 
         # Story 36.7: Determine which data source to use
-        use_neo4j = self._neo4j_client and not getattr(self._neo4j_client, '_use_json_fallback', True)
+        use_neo4j = self._neo4j_client and not getattr(
+            self._neo4j_client, "_use_json_fallback", True
+        )
 
         # Story 36.7 AC5: Query with 500ms timeout
         try:
@@ -1932,45 +2032,55 @@ class AgentService:
                 # Story 36.7 AC2: Real Neo4j query path
                 result = await asyncio.wait_for(
                     self._query_neo4j_memories(content, canvas_name),
-                    timeout=0.5  # 500ms timeout
+                    timeout=0.5,  # 500ms timeout
                 )
-                logger.debug(f"[Story 36.7] Neo4j query returned {len(result) if result else 0} memories")
+                logger.debug(
+                    f"[Story 36.7] Neo4j query returned {len(result) if result else 0} memories"
+                )
             elif self._memory_client:
                 # Story 36.7 AC6: Fallback to memory_client (JSON storage)
-                logger.debug("[Story 36.7] Fallback to memory_client (NEO4J_MOCK=true or Neo4j unavailable)")
+                logger.debug(
+                    "[Story 36.7] Fallback to memory_client (NEO4J_MOCK=true or Neo4j unavailable)"
+                )
                 memories = await asyncio.wait_for(
                     self._memory_client.search_memories(
                         query=content[:100],
                         canvas_name=canvas_name,
                         node_id=node_id,
-                        limit=5
+                        limit=5,
                     ),
-                    timeout=0.5
+                    timeout=0.5,
                 )
-                result = self._memory_client.format_for_context(memories) if memories else ""
+                result = (
+                    self._memory_client.format_for_context(memories) if memories else ""
+                )
             else:
-                logger.debug("[Story 36.7] No memory source available (no Neo4jClient or memory_client)")
+                logger.debug(
+                    "[Story 36.7] No memory source available (no Neo4jClient or memory_client)"
+                )
                 return ""
 
             # Story 36.7 AC4: Store in cache
             if result:
                 self._memory_cache[cache_key] = result
-                logger.debug(f"[Story 36.7] Cached memories for key: {cache_key[:30]}...")
+                logger.debug(
+                    f"[Story 36.7] Cached memories for key: {cache_key[:30]}..."
+                )
                 return result
 
             return ""
 
         except asyncio.TimeoutError:
-            logger.warning(f"[Story 36.7] Memory query timeout (500ms) for: {content[:30]}...")
+            logger.warning(
+                f"[Story 36.7] Memory query timeout (500ms) for: {content[:30]}..."
+            )
             return ""
         except (RuntimeError, ConnectionError, ValueError) as e:
             logger.warning(f"[Story 36.7] Memory query failed: {e}")
             return ""
 
     async def _query_neo4j_memories(
-        self,
-        content: str,
-        canvas_name: Optional[str] = None
+        self, content: str, canvas_name: Optional[str] = None
     ) -> str:
         """
         Query learning memories from Neo4j.
@@ -2062,6 +2172,7 @@ class AgentService:
             if timestamp:
                 try:
                     from datetime import datetime
+
                     if isinstance(timestamp, str):
                         dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                         timestamp_str = dt.strftime("%Y-%m-%d")
@@ -2077,7 +2188,11 @@ class AgentService:
 
             # Format understanding snippet (300 chars to preserve problem context for Canvas Agent)
             understanding = m.get("user_understanding", "")
-            snippet = (understanding[:300] + "...") if understanding and len(understanding) > 300 else (understanding or "")
+            snippet = (
+                (understanding[:300] + "...")
+                if understanding and len(understanding) > 300
+                else (understanding or "")
+            )
 
             lines.append(f"- [{timestamp_str}] {type_tag} {concept}: {snippet}")
 
@@ -2089,10 +2204,7 @@ class AgentService:
     # ═══════════════════════════════════════════════════════════════════════════════
 
     async def _write_nodes_to_canvas(
-        self,
-        canvas_name: str,
-        nodes: List[Dict[str, Any]],
-        edges: List[Dict[str, Any]]
+        self, canvas_name: str, nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]
     ) -> bool:
         """
         将生成的节点和边写入 Canvas 文件。
@@ -2112,7 +2224,9 @@ class AgentService:
         [Source: FIX-Canvas-Write: Backend直接写入Canvas文件]
         """
         if not self._canvas_service:
-            logger.warning("[FIX-Canvas-Write] No canvas_service available, nodes will not be written to Canvas")
+            logger.warning(
+                "[FIX-Canvas-Write] No canvas_service available, nodes will not be written to Canvas"
+            )
             return False
 
         if not nodes and not edges:
@@ -2122,28 +2236,38 @@ class AgentService:
         try:
             # 读取现有 Canvas 数据
             canvas_data = await self._canvas_service.read_canvas(canvas_name)
-            logger.debug(f"[FIX-Canvas-Write] Read canvas {canvas_name}, has {len(canvas_data.get('nodes', []))} existing nodes")
+            logger.debug(
+                f"[FIX-Canvas-Write] Read canvas {canvas_name}, has {len(canvas_data.get('nodes', []))} existing nodes"
+            )
 
             # 添加新节点
             if nodes:
                 canvas_data.setdefault("nodes", []).extend(nodes)
-                logger.info(f"[FIX-Canvas-Write] Adding {len(nodes)} new nodes to {canvas_name}")
+                logger.info(
+                    f"[FIX-Canvas-Write] Adding {len(nodes)} new nodes to {canvas_name}"
+                )
 
             # 添加新边
             if edges:
                 canvas_data.setdefault("edges", []).extend(edges)
-                logger.info(f"[FIX-Canvas-Write] Adding {len(edges)} new edges to {canvas_name}")
+                logger.info(
+                    f"[FIX-Canvas-Write] Adding {len(edges)} new edges to {canvas_name}"
+                )
 
             # 写回 Canvas 文件
             await self._canvas_service.write_canvas(canvas_name, canvas_data)
             # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
-            logger.info(f"[FIX-Canvas-Write] SUCCESS: Written {len(nodes)} nodes and {len(edges)} edges to {canvas_name}")
+            logger.info(
+                f"[FIX-Canvas-Write] SUCCESS: Written {len(nodes)} nodes and {len(edges)} edges to {canvas_name}"
+            )
 
             return True
 
         except (OSError, RuntimeError, ValueError) as e:
             # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
-            logger.error(f"[FIX-Canvas-Write] FAILED: Could not write nodes to canvas {canvas_name}: {e}")
+            logger.error(
+                f"[FIX-Canvas-Write] FAILED: Could not write nodes to canvas {canvas_name}: {e}"
+            )
             return False
 
     # Thinking budget per agent type (None = disabled, -1 = dynamic)
@@ -2161,7 +2285,7 @@ class AgentService:
         prompt: str,
         context: Optional[str] = None,
         canvas_name: Optional[str] = None,
-        node_id: Optional[str] = None
+        node_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Call Gemini API through GeminiClient.
@@ -2199,13 +2323,17 @@ class AgentService:
             )
         else:
             memory_context = await self._get_learning_memories(
-                content=prompt or "",
-                canvas_name=canvas_name,
-                node_id=node_id
+                content=prompt or "", canvas_name=canvas_name, node_id=node_id
             )
             if memory_context:
-                enriched_context = f"{enriched_context}\n\n{memory_context}" if enriched_context else memory_context
-                logger.debug("Added historical memories to context via _get_learning_memories()")
+                enriched_context = (
+                    f"{enriched_context}\n\n{memory_context}"
+                    if enriched_context
+                    else memory_context
+                )
+                logger.debug(
+                    "Added historical memories to context via _get_learning_memories()"
+                )
 
         # Phase 1 FIX: 强制真实API调用，不再回退到Mock
         # [Source: C:\Users\ROG\.claude\plans\wild-purring-umbrella.md - Phase 1]
@@ -2275,7 +2403,9 @@ class AgentService:
 
                     # Handle markdown code block wrappers
                     if "```json" in json_text:
-                        json_text = json_text.split("```json")[1].split("```")[0].strip()
+                        json_text = (
+                            json_text.split("```json")[1].split("```")[0].strip()
+                        )
                     elif "```" in json_text:
                         # Handle code blocks without language marker
                         parts = json_text.split("```")
@@ -2288,11 +2418,15 @@ class AgentService:
                     # Merge parsed data into result
                     if isinstance(parsed, dict):
                         result.update(parsed)
-                        logger.debug(f"Parsed AI response JSON keys: {list(parsed.keys())}")
+                        logger.debug(
+                            f"Parsed AI response JSON keys: {list(parsed.keys())}"
+                        )
                 except (json.JSONDecodeError, IndexError, ValueError) as e:
                     # Catch more exception types for robustness
                     logger.warning(f"Failed to parse AI response as JSON: {e}")
-                    logger.debug(f"Raw response (first 500 chars): {response_text[:500] if response_text else 'empty'}...")
+                    logger.debug(
+                        f"Raw response (first 500 chars): {response_text[:500] if response_text else 'empty'}..."
+                    )
 
             # 添加来源标记，便于验证是真实API调用
             result["_source"] = "gemini_api"
@@ -2303,6 +2437,7 @@ class AgentService:
             # [Source: docs/stories/story-12.G.1-api-response-logging.md#Task-2]
             # ✅ Verified from ADR-010: structlog dual-format logging
             from app.config import settings
+
             if settings.DEBUG_AGENT_RESPONSE:
                 response_preview = str(result)[:500] if result else "None"
                 logger.debug(
@@ -2310,10 +2445,14 @@ class AgentService:
                     extra={
                         "agent_type": agent_type.value,
                         "response_type": type(result).__name__,
-                        "response_keys": list(result.keys()) if isinstance(result, dict) else "N/A",
+                        "response_keys": list(result.keys())
+                        if isinstance(result, dict)
+                        else "N/A",
                         "response_preview": response_preview,
-                        "has_response_field": "response" in result if isinstance(result, dict) else False,
-                    }
+                        "has_response_field": "response" in result
+                        if isinstance(result, dict)
+                        else False,
+                    },
                 )
 
             return result
@@ -2336,7 +2475,7 @@ class AgentService:
         self,
         original_content: str,
         adjacent_data: Dict[str, Any],
-        max_context_length: int = 200
+        max_context_length: int = 200,
     ) -> str:
         """
         Enrich agent prompt with adjacent node content.
@@ -2364,7 +2503,10 @@ class AgentService:
         if not parents and not children:
             return original_content
 
-        context_parts = [original_content, "\n\n### Adjacent Concept Context (相邻概念上下文):"]
+        context_parts = [
+            original_content,
+            "\n\n### Adjacent Concept Context (相邻概念上下文):",
+        ]
 
         # Add parent context
         for parent_info in parents:
@@ -2374,7 +2516,9 @@ class AgentService:
             node_type = parent_node.get("type", "text")
 
             if text:
-                context_parts.append(f"\n- Parent [{label or 'prerequisite'}] ({node_type}): {text}")
+                context_parts.append(
+                    f"\n- Parent [{label or 'prerequisite'}] ({node_type}): {text}"
+                )
 
         # Add child context
         for child_info in children:
@@ -2384,7 +2528,9 @@ class AgentService:
             node_type = child_node.get("type", "text")
 
             if text:
-                context_parts.append(f"\n- Child [{label or 'extends'}] ({node_type}): {text}")
+                context_parts.append(
+                    f"\n- Child [{label or 'extends'}] ({node_type}): {text}"
+                )
 
         return "\n".join(context_parts)
 
@@ -2410,21 +2556,21 @@ class AgentService:
             return "Unknown"
 
         # Get first line
-        first_line = content.strip().split('\n')[0].strip()
+        first_line = content.strip().split("\n")[0].strip()
 
         # Remove markdown heading markers
-        if first_line.startswith('#'):
-            first_line = first_line.lstrip('#').strip()
+        if first_line.startswith("#"):
+            first_line = first_line.lstrip("#").strip()
 
         # Remove bold/italic markers
-        first_line = first_line.replace('**', '').replace('*', '').replace('_', ' ')
+        first_line = first_line.replace("**", "").replace("*", "").replace("_", " ")
 
         # Clean up extra whitespace
-        first_line = ' '.join(first_line.split())
+        first_line = " ".join(first_line.split())
 
         # Truncate if too long
         if len(first_line) > max_length:
-            first_line = first_line[:max_length].rsplit(' ', 1)[0] + '...'
+            first_line = first_line[:max_length].rsplit(" ", 1)[0] + "..."
 
         return first_line if first_line else "Unknown"
 
@@ -2449,6 +2595,7 @@ class AgentService:
             List of at least 1 concept (ideally 2+ for comparison)
         """
         import re
+
         concepts: List[str] = []
 
         if not content or not content.strip():
@@ -2456,20 +2603,20 @@ class AgentService:
 
         # Strategy 1: Extract from Markdown table header row
         # Pattern: | 概念A | 概念B | 概念C | (first row with |)
-        table_header_match = re.search(r'^\|(.+)\|', content, re.MULTILINE)
+        table_header_match = re.search(r"^\|(.+)\|", content, re.MULTILINE)
         if table_header_match:
-            header_cells = table_header_match.group(1).split('|')
+            header_cells = table_header_match.group(1).split("|")
             for cell in header_cells:
                 cell = cell.strip()
                 # Skip separator rows (---, :--:, etc.) and empty cells
-                if cell and not re.match(r'^[-:]+$', cell):
+                if cell and not re.match(r"^[-:]+$", cell):
                     # Skip common header labels like "对比维度", "维度"
-                    if cell not in ['对比维度', '维度', '比较', '项目', '属性']:
+                    if cell not in ["对比维度", "维度", "比较", "项目", "属性"]:
                         concepts.append(cell)
 
         # Strategy 2: Extract from Markdown lists (- item or * item)
         if len(concepts) < 2:
-            list_matches = re.findall(r'^[\-\*]\s+(.+)$', content, re.MULTILINE)
+            list_matches = re.findall(r"^[\-\*]\s+(.+)$", content, re.MULTILINE)
             for item in list_matches[:5]:  # Limit to first 5 items
                 item = item.strip()
                 if item and item not in concepts:
@@ -2477,9 +2624,9 @@ class AgentService:
 
         # Strategy 3: Extract from ## headings (level 2-3 headings)
         if len(concepts) < 2:
-            heading_matches = re.findall(r'^#{2,3}\s+(.+)$', content, re.MULTILINE)
+            heading_matches = re.findall(r"^#{2,3}\s+(.+)$", content, re.MULTILINE)
             for heading in heading_matches[:5]:  # Limit to first 5
-                heading = heading.strip().lstrip('#').strip()
+                heading = heading.strip().lstrip("#").strip()
                 if heading and heading not in concepts:
                     concepts.append(heading)
 
@@ -2494,7 +2641,9 @@ class AgentService:
 
         # If we got at least 2 concepts, return them
         if len(concepts) >= 2:
-            logger.debug(f"[Story 12.E.1] Extracted {len(concepts)} comparison concepts: {concepts}")
+            logger.debug(
+                f"[Story 12.E.1] Extracted {len(concepts)} comparison concepts: {concepts}"
+            )
             return concepts[:5]  # Limit to max 5 concepts
 
         # Fallback: Return [topic] as single element array
@@ -2558,14 +2707,28 @@ class AgentService:
             try:
                 if timeout:
                     data = await asyncio.wait_for(
-                        self._call_gemini_api(agent_type, prompt, context, canvas_name=canvas_name, node_id=node_id),
-                        timeout=timeout
+                        self._call_gemini_api(
+                            agent_type,
+                            prompt,
+                            context,
+                            canvas_name=canvas_name,
+                            node_id=node_id,
+                        ),
+                        timeout=timeout,
                     )
                 else:
-                    data = await self._call_gemini_api(agent_type, prompt, context, canvas_name=canvas_name, node_id=node_id)
+                    data = await self._call_gemini_api(
+                        agent_type,
+                        prompt,
+                        context,
+                        canvas_name=canvas_name,
+                        node_id=node_id,
+                    )
 
                 # Story 3.13 AC-4: Output safety check after LLM response
-                response_text = data.get("response", "") if isinstance(data, dict) else ""
+                response_text = (
+                    data.get("response", "") if isinstance(data, dict) else ""
+                )
                 if response_text:
                     output_result = check_output(response_text)
                     if not output_result.is_safe:
@@ -2590,7 +2753,7 @@ class AgentService:
                 error_type = AgentErrorType.LLM_TIMEOUT
                 logger.warning(
                     f"Agent call timed out: {agent_type.value}",
-                    extra={"bug_id": bug_id, "error_type": error_type.value}
+                    extra={"bug_id": bug_id, "error_type": error_type.value},
                 )
                 return AgentResult(
                     agent_type=agent_type,
@@ -2605,7 +2768,11 @@ class AgentService:
                 error_type = AgentErrorType.FILE_NOT_FOUND
                 logger.error(
                     f"Agent template missing: {agent_type.value}",
-                    extra={"bug_id": bug_id, "error_type": error_type.value, "error": str(e)}
+                    extra={
+                        "bug_id": bug_id,
+                        "error_type": error_type.value,
+                        "error": str(e),
+                    },
                 )
                 return AgentResult(
                     agent_type=agent_type,
@@ -2621,7 +2788,7 @@ class AgentService:
                 # Story 12.G.2 AC5: 不记录敏感信息
                 logger.error(
                     f"Configuration missing for agent: {agent_type.value}",
-                    extra={"bug_id": bug_id, "error_type": error_type.value}
+                    extra={"bug_id": bug_id, "error_type": error_type.value},
                 )
                 return AgentResult(
                     agent_type=agent_type,
@@ -2636,7 +2803,7 @@ class AgentService:
                 error_type = AgentErrorType.NETWORK_TIMEOUT
                 logger.warning(
                     f"Network error for agent: {agent_type.value}",
-                    extra={"bug_id": bug_id, "error_type": error_type.value}
+                    extra={"bug_id": bug_id, "error_type": error_type.value},
                 )
                 return AgentResult(
                     agent_type=agent_type,
@@ -2651,7 +2818,11 @@ class AgentService:
                 error_type = AgentErrorType.LLM_INVALID_RESPONSE
                 logger.error(
                     f"Invalid response from agent: {agent_type.value}",
-                    extra={"bug_id": bug_id, "error_type": error_type.value, "error": str(e)[:200]}
+                    extra={
+                        "bug_id": bug_id,
+                        "error_type": error_type.value,
+                        "error": str(e)[:200],
+                    },
                 )
                 return AgentResult(
                     agent_type=agent_type,
@@ -2675,7 +2846,7 @@ class AgentService:
 
                 logger.error(
                     f"Agent call failed: {agent_type.value} - {type(e).__name__}",
-                    extra={"bug_id": bug_id, "error_type": error_type.value}
+                    extra={"bug_id": bug_id, "error_type": error_type.value},
                 )
                 return AgentResult(
                     agent_type=agent_type,
@@ -2730,7 +2901,8 @@ class AgentService:
                     if memory_context:
                         enriched_context = (
                             f"{enriched_context}\n\n{memory_context}"
-                            if enriched_context else memory_context
+                            if enriched_context
+                            else memory_context
                         )
 
                 logger.info(
@@ -2777,7 +2949,7 @@ class AgentService:
 
                 logger.error(
                     f"[Phase2] Tool-enabled call failed: {agent_type.value} - {type(e).__name__}: {e}",
-                    extra={"bug_id": bug_id, "error_type": error_type.value}
+                    extra={"bug_id": bug_id, "error_type": error_type.value},
                 )
                 raise  # Re-raise so caller can fall back to standard call
             finally:
@@ -2861,14 +3033,18 @@ class AgentService:
 
             data = {
                 "response": final_answer,
-                "model": self._gemini_client.model if self._gemini_client else "unknown",
+                "model": self._gemini_client.model
+                if self._gemini_client
+                else "unknown",
                 "agent_type": agent_type.value,
                 "usage": {"input_tokens": 0, "output_tokens": 0},
                 "phase3_metadata": {
                     "citations": citations,
                     "retry_count": retry_count,
                     "user_intent": result_state.get("user_intent"),
-                    "relevant_docs_count": len(result_state.get("relevant_documents", [])),
+                    "relevant_docs_count": len(
+                        result_state.get("relevant_documents", [])
+                    ),
                 },
             }
 
@@ -2893,7 +3069,7 @@ class AgentService:
         prompt: str,
         images: Optional[List[Dict[str, Any]]] = None,
         timeout: Optional[float] = None,
-        context: Optional[str] = None
+        context: Optional[str] = None,
     ) -> AgentResult:
         """
         Call a single agent with images (multimodal support).
@@ -2921,9 +3097,18 @@ class AgentService:
                 memory_query = self._extract_topic_for_memory(prompt) if prompt else ""
                 memory_context = await self._get_learning_memories(content=memory_query)
                 if memory_context:
-                    context = f"{context}\n\n{memory_context}" if context else memory_context
-                    logger.debug("[Phase2.5] Injected learning memories into multimodal context")
-            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
+                    context = (
+                        f"{context}\n\n{memory_context}" if context else memory_context
+                    )
+                    logger.debug(
+                        "[Phase2.5] Injected learning memories into multimodal context"
+                    )
+            except (
+                RuntimeError,
+                ConnectionError,
+                asyncio.TimeoutError,
+                ValueError,
+            ) as e:
                 logger.warning(f"[Phase2.5] Memory preload failed for multimodal: {e}")
 
         start_time = datetime.now()
@@ -2950,14 +3135,18 @@ class AgentService:
             self._total_calls += 1
             try:
                 if self._gemini_client:
-                    agent_type_str = agent_type.value if isinstance(agent_type, AgentType) else agent_type
+                    agent_type_str = (
+                        agent_type.value
+                        if isinstance(agent_type, AgentType)
+                        else agent_type
+                    )
 
                     if timeout:
                         data = await asyncio.wait_for(
                             self._gemini_client.call_agent_with_images(
                                 agent_type_str, prompt, images=images, context=context
                             ),
-                            timeout=timeout
+                            timeout=timeout,
                         )
                     else:
                         data = await self._gemini_client.call_agent_with_images(
@@ -3005,9 +3194,7 @@ class AgentService:
                 self._active_calls -= 1
 
     async def call_agents_batch(
-        self,
-        requests: List[Dict[str, Any]],
-        return_exceptions: bool = False
+        self, requests: List[Dict[str, Any]], return_exceptions: bool = False
     ) -> List[AgentResult]:
         """
         Call multiple agents concurrently.
@@ -3019,10 +3206,7 @@ class AgentService:
         Returns:
             List of AgentResult objects
         """
-        tasks = [
-            self.call_agent(req["agent_type"], req["prompt"])
-            for req in requests
-        ]
+        tasks = [self.call_agent(req["agent_type"], req["prompt"]) for req in requests]
 
         if return_exceptions:
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -3030,11 +3214,13 @@ class AgentService:
             processed = []
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    processed.append(AgentResult(
-                        agent_type=requests[i]["agent_type"],
-                        success=False,
-                        error=str(result),
-                    ))
+                    processed.append(
+                        AgentResult(
+                            agent_type=requests[i]["agent_type"],
+                            success=False,
+                            error=str(result),
+                        )
+                    )
                 else:
                     processed.append(result)
             return processed
@@ -3046,7 +3232,7 @@ class AgentService:
         content: str,
         deep: bool = False,
         context: Optional[str] = None,  # Story 12.A.2: RAG context
-        user_understanding: Optional[str] = None
+        user_understanding: Optional[str] = None,
     ) -> AgentResult:
         """
         Call decomposition agent.
@@ -3062,17 +3248,25 @@ class AgentService:
 
         [Source: Story 12.B.3 - Agent Prompt格式统一]
         """
-        agent_type = AgentType.DEEP_DECOMPOSITION if deep else AgentType.BASIC_DECOMPOSITION
+        agent_type = (
+            AgentType.DEEP_DECOMPOSITION if deep else AgentType.BASIC_DECOMPOSITION
+        )
 
         # ✅ Story 12.B.3: Construct JSON-formatted prompt
         topic = self._extract_topic_from_content(content)
-        json_prompt = json.dumps({
-            "material_content": content,
-            "topic": topic,
-            "user_understanding": user_understanding
-        }, ensure_ascii=False, indent=2)
+        json_prompt = json.dumps(
+            {
+                "material_content": content,
+                "topic": topic,
+                "user_understanding": user_understanding,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
-        logger.debug(f"[Story 12.B.3] Constructed JSON prompt for {agent_type.value}: topic={topic}")
+        logger.debug(
+            f"[Story 12.B.3] Constructed JSON prompt for {agent_type.value}: topic={topic}"
+        )
         return await self.call_agent(agent_type, json_prompt, context=context)
 
     async def call_scoring(
@@ -3100,11 +3294,16 @@ class AgentService:
         [Source: Story 12.B.3 - Agent Prompt格式统一]
         """
         # ✅ Story 12.B.3: Construct JSON-formatted prompt for scoring agent
-        json_prompt = json.dumps({
-            "question_text": question_text or self._extract_topic_from_content(node_content),
-            "user_understanding": user_understanding,
-            "reference_material": node_content
-        }, ensure_ascii=False, indent=2)
+        json_prompt = json.dumps(
+            {
+                "question_text": question_text
+                or self._extract_topic_from_content(node_content),
+                "user_understanding": user_understanding,
+                "reference_material": node_content,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
         logger.debug("[Story 12.B.3] Constructed JSON prompt for scoring agent")
 
@@ -3115,36 +3314,76 @@ class AgentService:
         if images and len(images) > 0 and not DISABLE_CONTEXT_ENRICHMENT:
             try:
                 # Fix B3: Extract topic — scoring uses user_understanding, not JSON
-                memory_query = self._extract_topic_for_memory(user_understanding) if user_understanding else ""
+                memory_query = (
+                    self._extract_topic_for_memory(user_understanding)
+                    if user_understanding
+                    else ""
+                )
                 memory_context = await self._get_learning_memories(content=memory_query)
                 if memory_context:
-                    context = f"{context}\n\n{memory_context}" if context else memory_context
+                    context = (
+                        f"{context}\n\n{memory_context}" if context else memory_context
+                    )
                     logger.debug("[Phase2.5] Preloaded memories for multimodal scoring")
             except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError):
                 pass  # Non-blocking
 
         # Initial scoring call — use multimodal path when images are available
         if images and len(images) > 0:
-            logger.info(f"[Score] Calling scoring agent with {len(images)} images (multimodal)")
+            logger.info(
+                f"[Score] Calling scoring agent with {len(images)} images (multimodal)"
+            )
             initial_result = await self.call_agent_with_images(
                 AgentType.SCORING_AGENT, json_prompt, images=images, context=context
             )
-        elif ENABLE_REACT_AGENT and self._gemini_client and not getattr(self._gemini_client, 'base_url', None):
+        elif (
+            ENABLE_REACT_AGENT
+            and self._gemini_client
+            and not getattr(self._gemini_client, "base_url", None)
+        ):
             # Round 4 Step 3e: Use React Agent for scoring (tool-augmented)
             if await self._init_react_agent():
                 try:
-                    initial_result = await self._run_react_agent_for_scoring(json_prompt, context=context)
+                    initial_result = await self._run_react_agent_for_scoring(
+                        json_prompt, context=context
+                    )
                     if not initial_result.success:
                         logger.info("[Score] React Agent fallback → direct Gemini")
-                        initial_result = await self.call_agent(AgentType.SCORING_AGENT, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
+                        initial_result = await self.call_agent(
+                            AgentType.SCORING_AGENT,
+                            json_prompt,
+                            context=context,
+                            canvas_name=canvas_name,
+                            node_id=node_id,
+                        )
                 except Exception as e:
-                    logger.warning(f"[Score] React Agent failed: {e}. Fallback to direct.")
-                    initial_result = await self.call_agent(AgentType.SCORING_AGENT, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
+                    logger.warning(
+                        f"[Score] React Agent failed: {e}. Fallback to direct."
+                    )
+                    initial_result = await self.call_agent(
+                        AgentType.SCORING_AGENT,
+                        json_prompt,
+                        context=context,
+                        canvas_name=canvas_name,
+                        node_id=node_id,
+                    )
             else:
-                initial_result = await self.call_agent(AgentType.SCORING_AGENT, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
+                initial_result = await self.call_agent(
+                    AgentType.SCORING_AGENT,
+                    json_prompt,
+                    context=context,
+                    canvas_name=canvas_name,
+                    node_id=node_id,
+                )
         else:
             # canvas_name/node_id enable memory injection in _call_gemini_api
-            initial_result = await self.call_agent(AgentType.SCORING_AGENT, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
+            initial_result = await self.call_agent(
+                AgentType.SCORING_AGENT,
+                json_prompt,
+                context=context,
+                canvas_name=canvas_name,
+                node_id=node_id,
+            )
 
         # Self-reflection for boundary scores (60-89): improves accuracy from 78.6% to 97.1%
         if (
@@ -3152,25 +3391,45 @@ class AgentService:
             and initial_result.data
             and os.getenv("ENABLE_SCORING_REFLECTION", "true").lower() == "true"
         ):
-            initial_score = initial_result.data.get("total_score", initial_result.data.get("total", 0))
+            initial_score = initial_result.data.get(
+                "total_score", initial_result.data.get("total", 0)
+            )
             if isinstance(initial_score, (int, float)) and 60 <= initial_score < 90:
-                logger.info(f"[Reflection] Boundary score {initial_score}, triggering self-reflection")
-                reflection_prompt = json.dumps({
-                    "question_text": question_text or self._extract_topic_from_content(node_content),
-                    "user_understanding": user_understanding,
-                    "reference_material": node_content,
-                    "self_reflection": (
-                        f"你刚才给出了 {initial_score} 分。请自我检查：\n"
-                        f"1. 准确性 {initial_result.data.get('accuracy', '?')}/25 — 是否有高估或低估？\n"
-                        f"2. 各维度评分是否独立？有无循环论证？\n"
-                        f"3. 如果学生看到这个分数，是否公平？\n"
-                        f"重新给出最终评分。"
-                    ),
-                }, ensure_ascii=False, indent=2)
+                logger.info(
+                    f"[Reflection] Boundary score {initial_score}, triggering self-reflection"
+                )
+                reflection_prompt = json.dumps(
+                    {
+                        "question_text": question_text
+                        or self._extract_topic_from_content(node_content),
+                        "user_understanding": user_understanding,
+                        "reference_material": node_content,
+                        "self_reflection": (
+                            f"你刚才给出了 {initial_score} 分。请自我检查：\n"
+                            f"1. 准确性 {initial_result.data.get('accuracy', '?')}/25 — 是否有高估或低估？\n"
+                            f"2. 各维度评分是否独立？有无循环论证？\n"
+                            f"3. 如果学生看到这个分数，是否公平？\n"
+                            f"重新给出最终评分。"
+                        ),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
                 if images and len(images) > 0:
-                    refined = await self.call_agent_with_images(AgentType.SCORING_AGENT, reflection_prompt, images=images, context=context)
+                    refined = await self.call_agent_with_images(
+                        AgentType.SCORING_AGENT,
+                        reflection_prompt,
+                        images=images,
+                        context=context,
+                    )
                 else:
-                    refined = await self.call_agent(AgentType.SCORING_AGENT, reflection_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
+                    refined = await self.call_agent(
+                        AgentType.SCORING_AGENT,
+                        reflection_prompt,
+                        context=context,
+                        canvas_name=canvas_name,
+                        node_id=node_id,
+                    )
                 if refined.success:
                     return refined
 
@@ -3226,12 +3485,16 @@ class AgentService:
         # When content is only an image embed reference, the text is meaningless for LLM.
         # Replace with a descriptive instruction so LLM knows to analyze the attached image.
         import re as _re
+
         _IMAGE_EMBED_ONLY = _re.compile(
-            r'^\s*!\[\[.+?\.(png|jpg|jpeg|gif|bmp|svg|webp)(\|[^\]]*?)?\]\]\s*$', _re.IGNORECASE
+            r"^\s*!\[\[.+?\.(png|jpg|jpeg|gif|bmp|svg|webp)(\|[^\]]*?)?\]\]\s*$",
+            _re.IGNORECASE,
         )
         is_image_only_content = bool(images) and bool(_IMAGE_EMBED_ONLY.match(content))
         if is_image_only_content:
-            logger.info(f"[Image-Fix] Content is pure image embed: {content[:80]}. Rewriting prompt for multimodal analysis.")
+            logger.info(
+                f"[Image-Fix] Content is pure image embed: {content[:80]}. Rewriting prompt for multimodal analysis."
+            )
             material_content = (
                 "请仔细分析附带的图片内容。图片可能包含题目、公式、图表、算法伪代码或概念解释。\n"
                 "请基于图片中的实际内容进行分析和解释。"
@@ -3240,27 +3503,39 @@ class AgentService:
         else:
             material_content = content
 
-        topic = topic if is_image_only_content else self._extract_topic_from_content(content)
+        topic = (
+            topic
+            if is_image_only_content
+            else self._extract_topic_from_content(content)
+        )
 
         # ✅ Story 12.E.1: comparison-table Agent expects 'concepts' array, not 'concept' string
         # [Source: .claude/agents/comparison-table.md:14-21 - Agent expects concepts array]
         if agent_type == AgentType.COMPARISON_TABLE:
             concepts = self._extract_comparison_concepts(content, topic)
-            json_prompt = json.dumps({
-                "material_content": material_content,
-                "topic": topic,
-                "concepts": concepts,  # ✅ Array for comparison-table Agent
-                "user_understanding": user_understanding
-            }, ensure_ascii=False, indent=2)
+            json_prompt = json.dumps(
+                {
+                    "material_content": material_content,
+                    "topic": topic,
+                    "concepts": concepts,  # ✅ Array for comparison-table Agent
+                    "user_understanding": user_understanding,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
             logger.info(f"[Story 12.E.1] comparison-table concepts: {concepts}")
         else:
             # Other agents use 'concept' string (backward compatibility)
-            json_prompt = json.dumps({
-                "material_content": material_content,
-                "topic": topic,
-                "concept": topic,  # Some agents use 'concept' instead of 'topic'
-                "user_understanding": user_understanding
-            }, ensure_ascii=False, indent=2)
+            json_prompt = json.dumps(
+                {
+                    "material_content": material_content,
+                    "topic": topic,
+                    "concept": topic,  # Some agents use 'concept' instead of 'topic'
+                    "user_understanding": user_understanding,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
 
         # ✅ Story 12.C.2: 添加调试日志追踪实际发送的内容
         # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.2]
@@ -3276,18 +3551,26 @@ class AgentService:
             f"  - user_understanding: {type(user_understanding).__name__} ({len(user_understanding) if user_understanding else 'null'})\n"
             f"  - json_prompt preview: {json_prompt[:300]}..."
         )
-        logger.debug(f"[Story 12.B.3] Constructed JSON prompt for {agent_type.value}: topic={topic}")
+        logger.debug(
+            f"[Story 12.B.3] Constructed JSON prompt for {agent_type.value}: topic={topic}"
+        )
 
         # ═══════════════════════════════════════════════════════════════════════
         # Phase 4: React Agent (BEFORE images check — fixes Phase 2.5 bypass)
         # React Agent searches notes + KG. For multimodal: two-phase pipeline.
         # [Source: Phase 2.5 — Agent Dual Bypass Fix]
         # ═══════════════════════════════════════════════════════════════════════
-        if ENABLE_REACT_AGENT and self._gemini_client and not self._gemini_client.base_url:
+        if (
+            ENABLE_REACT_AGENT
+            and self._gemini_client
+            and not self._gemini_client.base_url
+        ):
             if await self._init_react_agent():
                 if images and len(images) > 0:
                     # Two-phase multimodal: React Agent gathers context → Vision generates
-                    logger.info(f"[Phase4-MM] Two-phase multimodal for {agent_type.value} with {len(images)} images")
+                    logger.info(
+                        f"[Phase4-MM] Two-phase multimodal for {agent_type.value} with {len(images)} images"
+                    )
 
                     # R1 Fix: Pre-inject memory into context BEFORE React Agent
                     # so it survives the two-phase handoff to Vision.
@@ -3296,30 +3579,62 @@ class AgentService:
                     if not DISABLE_CONTEXT_ENRICHMENT:
                         try:
                             memory_query = self._extract_topic_for_memory(json_prompt)
-                            memory_context = await self._get_learning_memories(content=memory_query)
+                            memory_context = await self._get_learning_memories(
+                                content=memory_query
+                            )
                             if memory_context:
-                                context = f"{context}\n\n## 学习历史记忆\n{memory_context}" if context else f"## 学习历史记忆\n{memory_context}"
-                                logger.debug("[R1-Fix] Pre-injected memory before two-phase pipeline")
-                        except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
+                                context = (
+                                    f"{context}\n\n## 学习历史记忆\n{memory_context}"
+                                    if context
+                                    else f"## 学习历史记忆\n{memory_context}"
+                                )
+                                logger.debug(
+                                    "[R1-Fix] Pre-injected memory before two-phase pipeline"
+                                )
+                        except (
+                            RuntimeError,
+                            ConnectionError,
+                            asyncio.TimeoutError,
+                            ValueError,
+                        ) as e:
                             logger.warning(f"[R1-Fix] Memory pre-injection failed: {e}")
 
                     try:
                         react_result = await self._run_react_agent(
-                            agent_type.value, json_prompt, context=context, gather_only=True
+                            agent_type.value,
+                            json_prompt,
+                            context=context,
+                            gather_only=True,
                         )
-                        react_context = self._extract_react_context(react_result, context)
-                        logger.info(f"[Phase4-MM] Phase 4a complete. React context: {len(react_context)} chars")
+                        react_context = self._extract_react_context(
+                            react_result, context
+                        )
+                        logger.info(
+                            f"[Phase4-MM] Phase 4a complete. React context: {len(react_context)} chars"
+                        )
                         vision_result = await self.call_agent_with_images(
-                            agent_type, json_prompt, images=images, context=react_context
+                            agent_type,
+                            json_prompt,
+                            images=images,
+                            context=react_context,
                         )
                         # R2: Propagate tool_results from React phase to Vision result
                         # so generate_explanation() can build programmatic references
-                        if (react_result.data and isinstance(react_result.data, dict)
-                                and react_result.data.get("tool_results")):
-                            if vision_result.data and isinstance(vision_result.data, dict):
-                                vision_result.data["tool_results"] = react_result.data["tool_results"]
+                        if (
+                            react_result.data
+                            and isinstance(react_result.data, dict)
+                            and react_result.data.get("tool_results")
+                        ):
+                            if vision_result.data and isinstance(
+                                vision_result.data, dict
+                            ):
+                                vision_result.data["tool_results"] = react_result.data[
+                                    "tool_results"
+                                ]
                             elif vision_result.data is None:
-                                vision_result.data = {"tool_results": react_result.data["tool_results"]}
+                                vision_result.data = {
+                                    "tool_results": react_result.data["tool_results"]
+                                }
                         return vision_result
                     except Exception as e:
                         logger.warning(
@@ -3341,7 +3656,9 @@ class AgentService:
 
         # ✅ FIX-2.1: Direct multimodal fallback (React Agent disabled or failed)
         if images and len(images) > 0:
-            logger.info(f"Calling {agent_type.value} with {len(images)} images (direct fallback)")
+            logger.info(
+                f"Calling {agent_type.value} with {len(images)} images (direct fallback)"
+            )
             return await self.call_agent_with_images(
                 agent_type, json_prompt, images=images, context=context
             )
@@ -3350,7 +3667,11 @@ class AgentService:
         # Phase 3: LangGraph Agent Graph (Adaptive + Corrective RAG)
         # Takes precedence over Phase 2 when enabled.
         # ═══════════════════════════════════════════════════════════════════════
-        if ENABLE_AGENT_GRAPH and self._gemini_client and not self._gemini_client.base_url:
+        if (
+            ENABLE_AGENT_GRAPH
+            and self._gemini_client
+            and not self._gemini_client.base_url
+        ):
             logger.info(f"[Phase3] Using agent graph for {agent_type.value}")
             try:
                 return await self._run_agent_graph(
@@ -3373,7 +3694,10 @@ class AgentService:
             logger.info(f"[Phase2] Using tool-enabled call for {agent_type.value}")
             try:
                 return await self._call_agent_with_tools(
-                    agent_type, json_prompt, context=context, tool_executor=tool_executor
+                    agent_type,
+                    json_prompt,
+                    context=context,
+                    tool_executor=tool_executor,
                 )
             except Exception as e:
                 logger.warning(
@@ -3383,7 +3707,13 @@ class AgentService:
                 # Fall through to standard call on any error
 
         # ✅ FIX-1.1: Pass context to call_agent for adjacent node enrichment
-        return await self.call_agent(agent_type, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
+        return await self.call_agent(
+            agent_type,
+            json_prompt,
+            context=context,
+            canvas_name=canvas_name,
+            node_id=node_id,
+        )
 
     async def decompose_basic(
         self,
@@ -3392,7 +3722,7 @@ class AgentService:
         content: str,
         source_x: float = 0,
         source_y: float = 0,
-        rag_context: Optional[str] = None  # Story 12.A.2: RAG context injection
+        rag_context: Optional[str] = None,  # Story 12.A.2: RAG context injection
     ) -> Dict[str, Any]:
         """
         Perform basic decomposition on a concept node.
@@ -3414,7 +3744,9 @@ class AgentService:
         """
         import uuid
 
-        logger.debug(f"Basic decomposition for node {node_id}, has_rag_context={rag_context is not None}")
+        logger.debug(
+            f"Basic decomposition for node {node_id}, has_rag_context={rag_context is not None}"
+        )
         result = await self.call_decomposition(content, deep=False, context=rag_context)
 
         # Extract questions from AI result
@@ -3455,27 +3787,33 @@ class AgentService:
 
                 # Create node object matching frontend NodeRead type
                 question_node_id = f"q-{node_id}-{idx}-{uuid.uuid4().hex[:8]}"
-                created_nodes.append({
-                    "id": question_node_id,
-                    "type": "text",
-                    "text": node_text,
-                    "x": x,
-                    "y": y,
-                    "width": node_width,
-                    "height": node_height,
-                    "color": "6",  # Yellow - question/understanding area (canvas_utils: "6"=Yellow)
-                })
+                created_nodes.append(
+                    {
+                        "id": question_node_id,
+                        "type": "text",
+                        "text": node_text,
+                        "x": x,
+                        "y": y,
+                        "width": node_width,
+                        "height": node_height,
+                        "color": "6",  # Yellow - question/understanding area (canvas_utils: "6"=Yellow)
+                    }
+                )
 
                 # Story 12.M.2: Create edge from source node to question node
-                created_edges.append({
-                    "id": f"edge-basic-{uuid.uuid4().hex[:8]}",
-                    "fromNode": node_id,
-                    "toNode": question_node_id,
-                    "fromSide": "bottom",
-                    "toSide": "top"
-                })
+                created_edges.append(
+                    {
+                        "id": f"edge-basic-{uuid.uuid4().hex[:8]}",
+                        "fromNode": node_id,
+                        "toNode": question_node_id,
+                        "fromSide": "bottom",
+                        "toSide": "top",
+                    }
+                )
 
-        logger.info(f"Basic decomposition created {len(created_nodes)} nodes and {len(created_edges)} edges")
+        logger.info(
+            f"Basic decomposition created {len(created_nodes)} nodes and {len(created_edges)} edges"
+        )
 
         # Story 30.4: Fire-and-forget memory write for basic-decomposition
         await self._trigger_memory_write(
@@ -3484,7 +3822,7 @@ class AgentService:
             node_id=node_id,
             concept=content[:50] if content else "Unknown",
             user_understanding=content,
-            agent_feedback=f"Decomposed into {len(questions)} basic questions"
+            agent_feedback=f"Decomposed into {len(questions)} basic questions",
         )
 
         return {
@@ -3503,7 +3841,9 @@ class AgentService:
         content: str,
         source_x: float = 0,
         source_y: float = 0,
-        rag_context: Optional[str] = None  # Story 12.F.1: RAG context injection (was missing)
+        rag_context: Optional[
+            str
+        ] = None,  # Story 12.F.1: RAG context injection (was missing)
     ) -> Dict[str, Any]:
         """
         Perform deep decomposition for verification questions.
@@ -3523,7 +3863,10 @@ class AgentService:
         [Story 12.F.1: Fixed missing rag_context parameter that caused HTTP 500]
         """
         import uuid
-        logger.debug(f"Deep decomposition for node {node_id}, has_rag_context={rag_context is not None}")
+
+        logger.debug(
+            f"Deep decomposition for node {node_id}, has_rag_context={rag_context is not None}"
+        )
         result = await self.call_decomposition(content, deep=True, context=rag_context)
 
         verification_questions = []
@@ -3564,27 +3907,33 @@ class AgentService:
                 # Create node object matching frontend NodeRead type
                 # Deep decomposition uses purple color (indicating "partially understood")
                 question_node_id = f"vq-{node_id}-{idx}-{uuid.uuid4().hex[:8]}"
-                created_nodes.append({
-                    "id": question_node_id,
-                    "type": "text",
-                    "text": node_text,
-                    "x": x,
-                    "y": y,
-                    "width": node_width,
-                    "height": node_height,
-                    "color": "3",  # Purple - indicates verification/deep question
-                })
+                created_nodes.append(
+                    {
+                        "id": question_node_id,
+                        "type": "text",
+                        "text": node_text,
+                        "x": x,
+                        "y": y,
+                        "width": node_width,
+                        "height": node_height,
+                        "color": "3",  # Purple - indicates verification/deep question
+                    }
+                )
 
                 # Story 12.M.2: Create edge from source node to question node
-                created_edges.append({
-                    "id": f"edge-deep-{uuid.uuid4().hex[:8]}",
-                    "fromNode": node_id,
-                    "toNode": question_node_id,
-                    "fromSide": "bottom",
-                    "toSide": "top"
-                })
+                created_edges.append(
+                    {
+                        "id": f"edge-deep-{uuid.uuid4().hex[:8]}",
+                        "fromNode": node_id,
+                        "toNode": question_node_id,
+                        "fromSide": "bottom",
+                        "toSide": "top",
+                    }
+                )
 
-        logger.info(f"Deep decomposition created {len(created_nodes)} nodes and {len(created_edges)} edges")
+        logger.info(
+            f"Deep decomposition created {len(created_nodes)} nodes and {len(created_edges)} edges"
+        )
 
         # Story 30.4: Fire-and-forget memory write for deep-decomposition
         await self._trigger_memory_write(
@@ -3593,7 +3942,7 @@ class AgentService:
             node_id=node_id,
             concept=content[:50] if content else "Unknown",
             user_understanding=content,
-            agent_feedback=f"Deep decomposed into {len(verification_questions)} verification questions"
+            agent_feedback=f"Deep decomposed into {len(verification_questions)} verification questions",
         )
 
         return {
@@ -3630,7 +3979,9 @@ class AgentService:
         [Source: FIX-5.1 修复score_node签名不匹配]
         [Source: Story 12.A.2 Agent-RAG Bridge Layer]
         """
-        logger.debug(f"Scoring {len(node_ids)} nodes, has_rag_context={rag_context is not None}")
+        logger.debug(
+            f"Scoring {len(node_ids)} nodes, has_rag_context={rag_context is not None}"
+        )
 
         # Story 12.A.2: Handle node_contents being None
         if node_contents is None:
@@ -3645,32 +3996,52 @@ class AgentService:
             # Fix B: Inject mastery level into scoring context
             scoring_context = rag_context or ""
             try:
+                from app.clients.neo4j_client import get_neo4j_client
                 from app.services.mastery_engine import get_mastery_engine
                 from app.services.mastery_store import MasteryStore
-                from app.clients.neo4j_client import get_neo4j_client
+
                 _m_engine = get_mastery_engine()  # Uses fusion-enabled singleton
                 _m_store = MasteryStore(get_neo4j_client())
-                _m_concept = await _m_store.get_concept(node_id, group_id=DEFAULT_GROUP_ID)
+                _m_concept = await _m_store.get_concept(
+                    node_id, group_id=DEFAULT_GROUP_ID
+                )
                 if _m_concept and _m_concept.interaction_count > 0:
                     _eff = _m_engine.effective_proficiency(_m_concept)
                     _label = _m_engine.mastery_label(_m_concept)
                     mastery_ctx = f"\n\n[学生掌握度] {_label} ({_eff:.0%}), 交互次数: {_m_concept.interaction_count}"
-                    scoring_context = f"{scoring_context}{mastery_ctx}" if scoring_context else mastery_ctx
+                    scoring_context = (
+                        f"{scoring_context}{mastery_ctx}"
+                        if scoring_context
+                        else mastery_ctx
+                    )
             except (ImportError, RuntimeError, AttributeError, ValueError):
                 pass  # Non-blocking: mastery context is optional for scoring
-            result = await self.call_scoring("", content, context=scoring_context, canvas_name=canvas_name, node_id=node_id, images=images)
+            result = await self.call_scoring(
+                "",
+                content,
+                context=scoring_context,
+                canvas_name=canvas_name,
+                node_id=node_id,
+                images=images,
+            )
 
             # Debug: Log Agent response for troubleshooting
-            logger.info(f"[Story 2.8] Scoring Agent response: success={result.success}, data_keys={list(result.data.keys()) if result.data else 'None'}")
+            logger.info(
+                f"[Story 2.8] Scoring Agent response: success={result.success}, data_keys={list(result.data.keys()) if result.data else 'None'}"
+            )
             if result.data:
-                logger.info(f"[Story 2.8] Scoring data: total_score={result.data.get('total_score')}, feedback_len={len(result.data.get('feedback', ''))}")
+                logger.info(
+                    f"[Story 2.8] Scoring data: total_score={result.data.get('total_score')}, feedback_len={len(result.data.get('feedback', ''))}"
+                )
 
             # Determine color based on score
             # scoring.md template uses "total_score" (0-100 scale), fallback to "total" for compatibility
             total_score = 0.0
             if result.success and result.data:
                 # Try both field names for compatibility
-                total_score = result.data.get("total_score", result.data.get("total", 0.0))
+                total_score = result.data.get(
+                    "total_score", result.data.get("total", 0.0)
+                )
                 # Ensure score is in 0-100 range (normalize if needed)
                 # Use < 2 threshold: scores of 0-1 on 0-100 scale are impossible given
                 # the rubric (each of 4 dims scores 0-25, min real answer ~20 total).
@@ -3698,10 +4069,16 @@ class AgentService:
                 breakdown = result.data.get("breakdown", {})
                 if breakdown:
                     # Use breakdown values if available (0-25 scale per dimension)
-                    accuracy = breakdown.get("accuracy", result.data.get("accuracy", 0.0))
+                    accuracy = breakdown.get(
+                        "accuracy", result.data.get("accuracy", 0.0)
+                    )
                     imagery = breakdown.get("imagery", result.data.get("imagery", 0.0))
-                    completeness = breakdown.get("completeness", result.data.get("completeness", 0.0))
-                    originality = breakdown.get("originality", result.data.get("originality", 0.0))
+                    completeness = breakdown.get(
+                        "completeness", result.data.get("completeness", 0.0)
+                    )
+                    originality = breakdown.get(
+                        "originality", result.data.get("originality", 0.0)
+                    )
                 else:
                     accuracy = result.data.get("accuracy", 0.0)
                     imagery = result.data.get("imagery", 0.0)
@@ -3713,9 +4090,9 @@ class AgentService:
             # Mastery engine update (BKT + FSRS hybrid)
             mastery_data = {}
             try:
+                from app.clients.neo4j_client import get_neo4j_client
                 from app.services.mastery_engine import get_mastery_engine
                 from app.services.mastery_store import MasteryStore
-                from app.clients.neo4j_client import get_neo4j_client
                 from memory.temporal.fsrs_manager import get_rating_from_score
 
                 grade = get_rating_from_score(total_score)
@@ -3724,27 +4101,37 @@ class AgentService:
                 store = MasteryStore(get_neo4j_client())
                 concept = await store.get_or_create_concept(
                     concept_id,
-                    topic=self._extract_topic_from_content(content) if content else "Unknown",
+                    topic=self._extract_topic_from_content(content)
+                    if content
+                    else "Unknown",
                     name=content[:50] if content else "Unknown",
                 )
                 concept = engine.update_on_interaction(concept, grade)
                 await store.save_concept(concept)
                 mastery_data = engine.concept_to_response(concept)
-            except (ImportError, RuntimeError, ConnectionError, AttributeError, ValueError) as mastery_err:
+            except (
+                ImportError,
+                RuntimeError,
+                ConnectionError,
+                AttributeError,
+                ValueError,
+            ) as mastery_err:
                 logger.warning(f"Mastery update failed (non-blocking): {mastery_err}")
 
-            scores.append({
-                "node_id": node_id,
-                "accuracy": accuracy,
-                "imagery": imagery,
-                "completeness": completeness,
-                "originality": originality,
-                "total": total_score,
-                "new_color": new_color,  # Kept for backward compat; plugin should use mastery_data
-                "feedback": feedback,  # Story 2.8: Pass feedback to frontend
-                "color_action": color_action,  # Story 2.8: Pass color_action to frontend
-                "mastery": mastery_data,  # Mastery proficiency data for Sidebar
-            })
+            scores.append(
+                {
+                    "node_id": node_id,
+                    "accuracy": accuracy,
+                    "imagery": imagery,
+                    "completeness": completeness,
+                    "originality": originality,
+                    "total": total_score,
+                    "new_color": new_color,  # Kept for backward compat; plugin should use mastery_data
+                    "feedback": feedback,  # Story 2.8: Pass feedback to frontend
+                    "color_action": color_action,  # Story 2.8: Pass color_action to frontend
+                    "mastery": mastery_data,  # Mastery proficiency data for Sidebar
+                }
+            )
 
             # Record learning episode (Story 30.4: fire-and-forget pattern)
             await self._trigger_memory_write(
@@ -3754,7 +4141,7 @@ class AgentService:
                 concept=content[:50] if content else "Unknown",
                 user_understanding=content,
                 score=total_score,
-                agent_feedback=str(result.data) if result.data else None
+                agent_feedback=str(result.data) if result.data else None,
             )
 
             # Record color transition to Graphiti knowledge graph
@@ -3772,7 +4159,9 @@ class AgentService:
                     pass  # Use default
 
             if old_color != new_color:
-                topic = self._extract_topic_from_content(content) if content else "Unknown"
+                topic = (
+                    self._extract_topic_from_content(content) if content else "Unknown"
+                )
                 asyncio.create_task(
                     self._record_color_transition(
                         concept=content[:50] if content else "Unknown",
@@ -3793,10 +4182,7 @@ class AgentService:
         return {"scores": scores}
 
     async def find_related_understanding_content(
-        self,
-        canvas_name: str,
-        source_node_id: str,
-        canvas_data: Dict[str, Any]
+        self, canvas_name: str, source_node_id: str, canvas_data: Dict[str, Any]
     ) -> List[str]:
         """
         FIX-4.4: 查找与源节点关联的所有黄色理解节点内容。
@@ -3836,14 +4222,20 @@ class AgentService:
                         visited.add(to_node_id)
                         queue.append(to_node_id)
 
-        logger.info(f"[FIX-4.4] Found {len(related_node_ids)} related nodes for {source_node_id}")
+        logger.info(
+            f"[FIX-4.4] Found {len(related_node_ids)} related nodes for {source_node_id}"
+        )
 
         # 从关联节点中找出黄色节点（color: "3"）并读取内容
         # 颜色定义 (canvas_utils.py): 1=Gray, 2=Green, 3=Purple, 4=Red, 5=Blue, 6=Yellow(个人理解)
         for node_id in related_node_ids:
             node = nodes.get(node_id)
-            if node and node.get("color") == "6":  # Yellow node (个人理解, Color 6=Yellow)
-                logger.debug(f"[FIX-4.4] Found yellow node: {node_id}, type={node.get('type')}")
+            if (
+                node and node.get("color") == "6"
+            ):  # Yellow node (个人理解, Color 6=Yellow)
+                logger.debug(
+                    f"[FIX-4.4] Found yellow node: {node_id}, type={node.get('type')}"
+                )
 
                 if node.get("type") == "file" and node.get("file"):
                     # FIX-4.4: Read file content from vault
@@ -3851,20 +4243,24 @@ class AgentService:
                     content = await self._canvas_service.read_file_content(node["file"])
                     if content:
                         understanding_contents.append(content)
-                        logger.info(f"[FIX-4.4] Read understanding from file: {node['file']}")
+                        logger.info(
+                            f"[FIX-4.4] Read understanding from file: {node['file']}"
+                        )
                 elif node.get("type") == "text" and node.get("text"):
                     text = node["text"].strip()
                     if text and "[请在此填写" not in text:
                         understanding_contents.append(text)
-                        logger.info(f"[FIX-4.4] Read understanding from text node: {node_id}")
+                        logger.info(
+                            f"[FIX-4.4] Read understanding from text node: {node_id}"
+                        )
 
-        logger.info(f"[FIX-4.4] Total user understandings found: {len(understanding_contents)}")
+        logger.info(
+            f"[FIX-4.4] Total user understandings found: {len(understanding_contents)}"
+        )
         return understanding_contents
 
     def _find_adjacent_content_nodes(
-        self,
-        node_id: str,
-        canvas_data: Dict[str, Any]
+        self, node_id: str, canvas_data: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         FIX-4.5: 查找与指定节点直接相连的内容节点（非黄色节点）。
@@ -3896,9 +4292,13 @@ class AgentService:
                 # 只返回非黄色节点（教材/解释节点）
                 if connected_node.get("color") != "3":
                     adjacent_nodes.append(connected_node)
-                    logger.debug(f"[FIX-4.5] Found adjacent content node: {connected_node_id}, color={connected_node.get('color')}")
+                    logger.debug(
+                        f"[FIX-4.5] Found adjacent content node: {connected_node_id}, color={connected_node.get('color')}"
+                    )
 
-        logger.info(f"[FIX-4.5] Found {len(adjacent_nodes)} adjacent content nodes for yellow node {node_id}")
+        logger.info(
+            f"[FIX-4.5] Found {len(adjacent_nodes)} adjacent content nodes for yellow node {node_id}"
+        )
         return adjacent_nodes
 
     async def generate_explanation(
@@ -3913,7 +4313,7 @@ class AgentService:
         source_y: float = 0,
         source_width: float = 400,
         source_height: float = 200,
-        rag_context: Optional[str] = None  # Story 12.A.2: RAG context injection
+        rag_context: Optional[str] = None,  # Story 12.A.2: RAG context injection
     ) -> Dict[str, Any]:
         """
         Generate an explanation for a concept with adjacent node context and optional images.
@@ -3946,52 +4346,76 @@ class AgentService:
         context_len = len(adjacent_context) if adjacent_context else 0
         images_count = len(images) if images else 0
         rag_len = len(rag_context) if rag_context else 0  # Story 12.A.2
-        logger.debug(f"Generating {explanation_type} explanation for node {node_id}, context_len={context_len}, images={images_count}, rag_context_len={rag_len}")
+        logger.debug(
+            f"Generating {explanation_type} explanation for node {node_id}, context_len={context_len}, images={images_count}, rag_context_len={rag_len}"
+        )
 
         # ✅ FIX-4.4: 读取用户之前填写的个人理解
         user_understandings = []
         try:
             from app.config import settings
+
             canvas_path = os.path.join(settings.CANVAS_BASE_PATH, canvas_name)
-            if not canvas_path.endswith('.canvas'):
-                canvas_path += '.canvas'
+            if not canvas_path.endswith(".canvas"):
+                canvas_path += ".canvas"
 
             if os.path.exists(canvas_path):
-                with open(canvas_path, 'r', encoding='utf-8') as f:
+                with open(canvas_path, "r", encoding="utf-8") as f:
                     canvas_data = json_module.load(f)
 
                 # ✅ FIX-4.5: 检测当前节点是否为黄色节点（用户理解节点）
                 # 当用户右键黄色节点调用Agent时，黄色节点内容应作为user_understanding
-                current_node = next((n for n in canvas_data.get("nodes", []) if n.get("id") == node_id), None)
+                current_node = next(
+                    (n for n in canvas_data.get("nodes", []) if n.get("id") == node_id),
+                    None,
+                )
                 is_yellow_node = current_node and current_node.get("color") == "6"
-                logger.info(f"[FIX-4.5] Node {node_id} is_yellow={is_yellow_node}, color={current_node.get('color') if current_node else 'N/A'}")
+                logger.info(
+                    f"[FIX-4.5] Node {node_id} is_yellow={is_yellow_node}, color={current_node.get('color') if current_node else 'N/A'}"
+                )
 
                 if is_yellow_node:
                     # ✅ FIX-4.5: 当前节点是黄色理解节点
                     # 将当前节点内容作为 user_understanding，从邻接节点获取教材内容
-                    logger.info("[FIX-4.5] Yellow node detected! content will be treated as user_understanding")
+                    logger.info(
+                        "[FIX-4.5] Yellow node detected! content will be treated as user_understanding"
+                    )
                     user_understandings = [content]  # 黄色节点内容作为用户理解
 
                     # 从邻接节点中查找教材内容（非黄色节点）
-                    adjacent_content_nodes = self._find_adjacent_content_nodes(node_id, canvas_data)
+                    adjacent_content_nodes = self._find_adjacent_content_nodes(
+                        node_id, canvas_data
+                    )
                     if adjacent_content_nodes:
                         # 用邻接教材节点内容替换 content
-                        material_texts = [n.get("text", "") for n in adjacent_content_nodes if n.get("type") == "text" and n.get("text")]
+                        material_texts = [
+                            n.get("text", "")
+                            for n in adjacent_content_nodes
+                            if n.get("type") == "text" and n.get("text")
+                        ]
                         if material_texts:
                             # 更新 content 为教材内容，用于后续 topic 提取和 call_explanation
                             content = "\n\n---\n\n".join(material_texts)
-                            logger.info(f"[FIX-4.5] Replaced content with {len(adjacent_content_nodes)} adjacent teaching nodes ({len(content)} chars)")
+                            logger.info(
+                                f"[FIX-4.5] Replaced content with {len(adjacent_content_nodes)} adjacent teaching nodes ({len(content)} chars)"
+                            )
                         else:
-                            logger.warning("[FIX-4.5] Adjacent nodes found but no text content")
+                            logger.warning(
+                                "[FIX-4.5] Adjacent nodes found but no text content"
+                            )
                     else:
-                        logger.warning(f"[FIX-4.5] No adjacent content nodes found for yellow node {node_id}")
+                        logger.warning(
+                            f"[FIX-4.5] No adjacent content nodes found for yellow node {node_id}"
+                        )
                 else:
                     # 原有逻辑：当前节点是教材节点，从邻居查找黄色节点
                     # 查找关联的黄色理解节点内容
                     user_understandings = await self.find_related_understanding_content(
                         canvas_name, node_id, canvas_data
                     )
-                logger.info(f"[FIX-4.4] Found {len(user_understandings)} user understandings for node {node_id}")
+                logger.info(
+                    f"[FIX-4.4] Found {len(user_understandings)} user understandings for node {node_id}"
+                )
         except (OSError, json.JSONDecodeError, ValueError, KeyError) as e:
             logger.warning(f"[FIX-4.4] Failed to read user understandings: {e}")
 
@@ -4000,7 +4424,9 @@ class AgentService:
         user_understanding: Optional[str] = None
         if user_understandings:
             user_understanding = "\n\n".join(user_understandings)
-            logger.info(f"[Story 12.E.2] user_understanding prepared: {len(user_understanding)} chars")
+            logger.info(
+                f"[Story 12.E.2] user_understanding prepared: {len(user_understanding)} chars"
+            )
 
         # ✅ FIX-4.4: 构建包含用户理解的增强上下文
         # ✅ Story 12.C.1: 可禁用上下文增强以消除污染
@@ -4021,13 +4447,25 @@ class AgentService:
                 for i, understanding in enumerate(user_understandings, 1):
                     user_context += f"### 理解 {i}\n{understanding}\n\n"
                 user_context += "请结合用户的这些理解，生成更贴合用户认知水平的解释。如果用户理解有误，请在解释中委婉纠正。\n"
-                enhanced_context = (enhanced_context + user_context) if enhanced_context else user_context
-                logger.info(f"[FIX-4.4] Enhanced context with {len(user_understandings)} user understandings")
+                enhanced_context = (
+                    (enhanced_context + user_context)
+                    if enhanced_context
+                    else user_context
+                )
+                logger.info(
+                    f"[FIX-4.4] Enhanced context with {len(user_understandings)} user understandings"
+                )
 
             # ✅ Story 12.A.2: 添加 RAG 上下文到增强上下文
             if rag_context:
-                enhanced_context = f"{enhanced_context}\n\n{rag_context}" if enhanced_context else rag_context
-                logger.info(f"[Story 12.A.2] Enhanced context with RAG ({len(rag_context)} chars)")
+                enhanced_context = (
+                    f"{enhanced_context}\n\n{rag_context}"
+                    if enhanced_context
+                    else rag_context
+                )
+                logger.info(
+                    f"[Story 12.A.2] Enhanced context with RAG ({len(rag_context)} chars)"
+                )
 
         # ✅ FIX-1.1: Pass adjacent_context to call_explanation
         # ✅ FIX-2.1: Pass images for multimodal support
@@ -4041,9 +4479,13 @@ class AgentService:
             f"  - content length: {len(user_understanding) if user_understanding else 0}"
         )
         result = await self.call_explanation(
-            content, explanation_type, context=enhanced_context, images=images,
+            content,
+            explanation_type,
+            context=enhanced_context,
+            images=images,
             user_understanding=user_understanding,  # ✅ Story 12.E.2: Pass to JSON field
-            canvas_name=canvas_name, node_id=node_id,  # Fix D: Memory context threading
+            canvas_name=canvas_name,
+            node_id=node_id,  # Fix D: Memory context threading
         )
 
         # ✅ Story 21.3: Use multi-fallback extraction with friendly error handling
@@ -4062,14 +4504,16 @@ class AgentService:
             if tool_results:
                 # Strip LLM's potentially fabricated ## 相关资料 section
                 explanation_text = re.sub(
-                    r'\n+##\s*(?:相关资料|参考资料|References).*$',
-                    '',
+                    r"\n+##\s*(?:相关资料|参考资料|References).*$",
+                    "",
                     explanation_text,
                     flags=re.DOTALL,
                 )
                 # Append programmatic references from real search results
                 explanation_text += _build_references_from_tools(tool_results)
-                logger.debug(f"[R2c-Fix] Replaced LLM refs with programmatic refs from {len(tool_results)} tool results")
+                logger.debug(
+                    f"[R2c-Fix] Replaced LLM refs with programmatic refs from {len(tool_results)} tool results"
+                )
 
         if not extraction_success or not explanation_text:
             logger.error(
@@ -4077,8 +4521,10 @@ class AgentService:
                 extra={
                     "node_id": node_id,
                     "explanation_type": explanation_type,
-                    "result_data_type": type(result.data).__name__ if result.data else "None"
-                }
+                    "result_data_type": type(result.data).__name__
+                    if result.data
+                    else "None",
+                },
             )
             # ✅ FIX: Create error response and write to Canvas before returning
             error_response = create_error_response(
@@ -4096,7 +4542,7 @@ class AgentService:
                 await self._write_nodes_to_canvas(
                     canvas_name=canvas_name,
                     nodes=error_response.get("created_nodes", []),
-                    edges=error_response.get("created_edges", [])
+                    edges=error_response.get("created_edges", []),
                 )
 
             return error_response
@@ -4114,14 +4560,20 @@ class AgentService:
 
         from app.config import settings
 
-        vault_path = settings.CANVAS_BASE_PATH  # e.g., "C:/Users/ROG/托福/Canvas/笔记库"
+        vault_path = (
+            settings.CANVAS_BASE_PATH
+        )  # e.g., "C:/Users/ROG/托福/Canvas/笔记库"
         # canvas_name is relative path like "Canvas/Math53/Lecture5.canvas"
         canvas_dir = os.path.dirname(canvas_name)  # "Canvas/Math53" or "" if root
-        canvas_basename = os.path.splitext(os.path.basename(canvas_name))[0]  # "Lecture5"
+        canvas_basename = os.path.splitext(os.path.basename(canvas_name))[
+            0
+        ]  # "Lecture5"
         # FIX: Use os.path.join to avoid leading "/" when canvas_dir is empty
         # f-string f"{''}/name" produces "/name" which os.path.join treats as absolute on Windows
         # Normalize to forward slashes for Obsidian canvas file references
-        explanations_dir = os.path.join(canvas_dir, f"{canvas_basename}-explanations").replace("\\", "/")
+        explanations_dir = os.path.join(
+            canvas_dir, f"{canvas_basename}-explanations"
+        ).replace("\\", "/")
 
         # Create explanations directory if it doesn't exist
         full_explanations_dir = os.path.join(vault_path, explanations_dir)
@@ -4132,8 +4584,12 @@ class AgentService:
 
         if explanation_text:
             # Check if this is a four-level explanation (contains level headers)
-            is_four_level = explanation_type in ["four-level", "four_level", "four-level-explanation"]
-            level_pattern = r'##\s*(新手层|进阶层|专家层|创新层).*?\n'
+            is_four_level = explanation_type in [
+                "four-level",
+                "four_level",
+                "four-level-explanation",
+            ]
+            level_pattern = r"##\s*(新手层|进阶层|专家层|创新层).*?\n"
 
             if is_four_level and re.search(level_pattern, explanation_text):
                 # ✅ FIX-4.8: Create ONE .md file containing ALL 4 levels
@@ -4150,78 +4606,100 @@ class AgentService:
                 node_y = source_y + source_height + gap_y
 
                 # ✅ FIX-4.8: Create single .md file with all 4 levels
-                explain_node_id = f"explain-four-level-{node_id[:8]}-{uuid.uuid4().hex[:4]}"
+                explain_node_id = (
+                    f"explain-four-level-{node_id[:8]}-{uuid.uuid4().hex[:4]}"
+                )
                 explain_filename = f"四层次解释-{node_id[:8]}-{timestamp}.md"
-                explain_file_path = os.path.join(explanations_dir, explain_filename).replace("\\", "/")
+                explain_file_path = os.path.join(
+                    explanations_dir, explain_filename
+                ).replace("\\", "/")
                 explain_full_path = os.path.join(vault_path, explain_file_path)
 
                 # Write ALL levels to single .md file
-                with open(explain_full_path, 'w', encoding='utf-8') as f:
+                with open(explain_full_path, "w", encoding="utf-8") as f:
                     f.write(f"# 四层次解释\n\n{explanation_text}")
-                logger.info(f"[FIX-4.8] Created SINGLE four-level explanation file: {explain_file_path}")
+                logger.info(
+                    f"[FIX-4.8] Created SINGLE four-level explanation file: {explain_file_path}"
+                )
 
                 # Round 4 Fix E2: Do NOT index explanation files to vault_notes —
                 # they pollute search results and cause circular references.
                 # Explanation files are still stored on disk as Canvas file nodes.
 
                 # Create file type node (green for explanation)
-                created_nodes.append({
-                    "id": explain_node_id,
-                    "type": "file",
-                    "file": explain_file_path,
-                    "x": node_x,
-                    "y": node_y,
-                    "width": node_width,
-                    "height": node_height,
-                    "color": "5",  # Blue - AI生成的说明节点
-                })
+                created_nodes.append(
+                    {
+                        "id": explain_node_id,
+                        "type": "file",
+                        "file": explain_file_path,
+                        "x": node_x,
+                        "y": node_y,
+                        "width": node_width,
+                        "height": node_height,
+                        "color": "5",  # Blue - AI生成的说明节点
+                    }
+                )
                 logger.info(f"[FIX-4.8] Created four-level file node {explain_node_id}")
 
                 # Create edge: Source → Explanation
                 edge1_id = f"edge-src-explain-{uuid.uuid4().hex[:8]}"
-                created_edges.append({
-                    "id": edge1_id,
-                    "fromNode": node_id,
-                    "toNode": explain_node_id,
-                    "fromSide": "bottom",
-                    "toSide": "top",
-                    "label": "四层次解释",
-                })
+                created_edges.append(
+                    {
+                        "id": edge1_id,
+                        "fromNode": node_id,
+                        "toNode": explain_node_id,
+                        "fromSide": "bottom",
+                        "toSide": "top",
+                        "label": "四层次解释",
+                    }
+                )
 
                 # ✅ Story 21.5: Conditionally create personal understanding node
                 # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-5]
                 if AUTO_CREATE_PERSONAL_NODE:
                     # ✅ FIX-4.9: Create ONE yellow understanding node
-                    yellow_node_id = f"understand-four-level-{node_id[:8]}-{uuid.uuid4().hex[:4]}"
+                    yellow_node_id = (
+                        f"understand-four-level-{node_id[:8]}-{uuid.uuid4().hex[:4]}"
+                    )
                     yellow_y = node_y + node_height + gap_y
-                    created_nodes.append({
-                        "id": yellow_node_id,
-                        "type": "text",
-                        "text": "# 💡 我的理解\n\n[请在此填写你对四层次解释的整体理解...]\n\n## 新手层理解\n\n\n## 进阶层理解\n\n\n## 专家层理解\n\n\n## 创新层理解\n\n",
-                        "x": node_x,
-                        "y": yellow_y,
-                        "width": node_width,
-                        "height": yellow_height,
-                        "color": "3",  # Purple node (验证问题/待检验) - 修复: "3"=Purple
-                    })
-                    logger.info(f"[Story 21.5] Created PURPLE understanding node {yellow_node_id}")
+                    created_nodes.append(
+                        {
+                            "id": yellow_node_id,
+                            "type": "text",
+                            "text": "# 💡 我的理解\n\n[请在此填写你对四层次解释的整体理解...]\n\n## 新手层理解\n\n\n## 进阶层理解\n\n\n## 专家层理解\n\n\n## 创新层理解\n\n",
+                            "x": node_x,
+                            "y": yellow_y,
+                            "width": node_width,
+                            "height": yellow_height,
+                            "color": "3",  # Purple node (验证问题/待检验) - 修复: "3"=Purple
+                        }
+                    )
+                    logger.info(
+                        f"[Story 21.5] Created PURPLE understanding node {yellow_node_id}"
+                    )
 
                     # Create edge: Explanation → Personal Understanding
                     edge2_id = f"edge-explain-yellow-{uuid.uuid4().hex[:8]}"
-                    created_edges.append({
-                        "id": edge2_id,
-                        "fromNode": explain_node_id,
-                        "toNode": yellow_node_id,
-                        "fromSide": "bottom",
-                        "toSide": "top",
-                        "label": "个人理解",  # ✅ FIX-4.10: Add edge label
-                        "color": "3",  # Purple edge - 修复: "3"=Purple
-                    })
+                    created_edges.append(
+                        {
+                            "id": edge2_id,
+                            "fromNode": explain_node_id,
+                            "toNode": yellow_node_id,
+                            "fromSide": "bottom",
+                            "toSide": "top",
+                            "label": "个人理解",  # ✅ FIX-4.10: Add edge label
+                            "color": "3",  # Purple edge - 修复: "3"=Purple
+                        }
+                    )
                 else:
-                    logger.debug("[Story 21.5] AUTO_CREATE_PERSONAL_NODE=False, skipping personal node")
+                    logger.debug(
+                        "[Story 21.5] AUTO_CREATE_PERSONAL_NODE=False, skipping personal node"
+                    )
 
                 created_node_id = explain_node_id
-                logger.info("[FIX-4.8/4.9] Four-level explanation complete: 1 file, 1 yellow node, 2 edges")
+                logger.info(
+                    "[FIX-4.8/4.9] Four-level explanation complete: 1 file, 1 yellow node, 2 edges"
+                )
 
             else:
                 # ✅ FIX-4.3: Standard single-node explanation (oral, basic, etc.) - create .md files
@@ -4234,12 +4712,16 @@ class AgentService:
                 node_y = source_y + source_height + gap_y
 
                 # ✅ FIX-4.3: Create .md file for explanation node
-                explain_filename = f"{explanation_type}-解释-{node_id[:8]}-{timestamp}.md"
-                explain_file_path = os.path.join(explanations_dir, explain_filename).replace("\\", "/")
+                explain_filename = (
+                    f"{explanation_type}-解释-{node_id[:8]}-{timestamp}.md"
+                )
+                explain_file_path = os.path.join(
+                    explanations_dir, explain_filename
+                ).replace("\\", "/")
                 explain_full_path = os.path.join(vault_path, explain_file_path)
 
                 # Write explanation content to .md file
-                with open(explain_full_path, 'w', encoding='utf-8') as f:
+                with open(explain_full_path, "w", encoding="utf-8") as f:
                     f.write(f"# {explanation_type.title()} 解释\n\n{explanation_text}")
                 logger.info(f"[FIX-4.3] Created explanation file: {explain_file_path}")
 
@@ -4247,28 +4729,36 @@ class AgentService:
                 # they pollute search results and cause circular references.
 
                 # Create file type node
-                created_nodes.append({
-                    "id": created_node_id,
-                    "type": "file",
-                    "file": explain_file_path,  # Relative to vault
-                    "x": node_x,
-                    "y": node_y,
-                    "width": node_width,
-                    "height": node_height,
-                    "color": "5",  # Blue - AI生成的说明节点
-                })
-                logger.info(f"[FIX-4.3] Created explanation file node {created_node_id} at ({node_x}, {node_y})")
+                created_nodes.append(
+                    {
+                        "id": created_node_id,
+                        "type": "file",
+                        "file": explain_file_path,  # Relative to vault
+                        "x": node_x,
+                        "y": node_y,
+                        "width": node_width,
+                        "height": node_height,
+                        "color": "5",  # Blue - AI生成的说明节点
+                    }
+                )
+                logger.info(
+                    f"[FIX-4.3] Created explanation file node {created_node_id} at ({node_x}, {node_y})"
+                )
 
                 # Create edge: Source → Explanation
-                edge1_id = f"edge-{node_id[:8]}-{created_node_id[:8]}-{uuid.uuid4().hex[:4]}"
-                created_edges.append({
-                    "id": edge1_id,
-                    "fromNode": node_id,
-                    "toNode": created_node_id,
-                    "fromSide": "bottom",
-                    "toSide": "top",
-                    "label": explanation_type,
-                })
+                edge1_id = (
+                    f"edge-{node_id[:8]}-{created_node_id[:8]}-{uuid.uuid4().hex[:4]}"
+                )
+                created_edges.append(
+                    {
+                        "id": edge1_id,
+                        "fromNode": node_id,
+                        "toNode": created_node_id,
+                        "fromSide": "bottom",
+                        "toSide": "top",
+                        "label": explanation_type,
+                    }
+                )
 
                 # ✅ Story 21.5: Conditionally create personal understanding node
                 # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-5]
@@ -4276,47 +4766,59 @@ class AgentService:
                     # ✅ FIX-4.5: Create text type yellow understanding node (directly editable in Canvas)
                     yellow_node_id = f"understand-{node_id[:8]}-{uuid.uuid4().hex[:4]}"
                     yellow_y = node_y + node_height + PERSONAL_NODE_VERTICAL_OFFSET
-                    created_nodes.append({
-                        "id": yellow_node_id,
-                        "type": "text",
-                        "text": PERSONAL_NODE_PROMPT_TEXT,  # ✅ Story 21.5: Use configurable prompt
-                        "x": node_x,
-                        "y": yellow_y,
-                        "width": node_width,
-                        "height": 120,
-                        "color": "6",  # Yellow - 个人理解区域 (canvas_utils: "6"=Yellow)
-                    })
-                    logger.info(f"[Story 21.5] Created yellow text node {yellow_node_id}")
+                    created_nodes.append(
+                        {
+                            "id": yellow_node_id,
+                            "type": "text",
+                            "text": PERSONAL_NODE_PROMPT_TEXT,  # ✅ Story 21.5: Use configurable prompt
+                            "x": node_x,
+                            "y": yellow_y,
+                            "width": node_width,
+                            "height": 120,
+                            "color": "6",  # Yellow - 个人理解区域 (canvas_utils: "6"=Yellow)
+                        }
+                    )
+                    logger.info(
+                        f"[Story 21.5] Created yellow text node {yellow_node_id}"
+                    )
 
                     # Create edge: Explanation → Personal Understanding
                     edge2_id = f"edge-{created_node_id[:8]}-{yellow_node_id[:8]}-{uuid.uuid4().hex[:4]}"
-                    created_edges.append({
-                        "id": edge2_id,
-                        "fromNode": created_node_id,
-                        "toNode": yellow_node_id,
-                        "fromSide": "bottom",
-                        "toSide": "top",
-                        "label": "个人理解",  # ✅ Story 21.5: Add edge label
-                        "color": "6",  # Yellow edge - 个人理解 (canvas_utils: "6"=Yellow)
-                    })
-                    logger.info("[Story 21.5] Created edges for standard explanation with personal node")
+                    created_edges.append(
+                        {
+                            "id": edge2_id,
+                            "fromNode": created_node_id,
+                            "toNode": yellow_node_id,
+                            "fromSide": "bottom",
+                            "toSide": "top",
+                            "label": "个人理解",  # ✅ Story 21.5: Add edge label
+                            "color": "6",  # Yellow edge - 个人理解 (canvas_utils: "6"=Yellow)
+                        }
+                    )
+                    logger.info(
+                        "[Story 21.5] Created edges for standard explanation with personal node"
+                    )
                 else:
-                    logger.debug("[Story 21.5] AUTO_CREATE_PERSONAL_NODE=False, skipping personal node")
+                    logger.debug(
+                        "[Story 21.5] AUTO_CREATE_PERSONAL_NODE=False, skipping personal node"
+                    )
 
         # ✅ FIX-Canvas-Write: 写入节点到 Canvas 文件（核心修复）
         # [Source: Plan cozy-sniffing-shamir.md]
         # 这是解决 "Agent 生成成功但 Canvas 不显示任何节点" 问题的关键
         write_success = await self._write_nodes_to_canvas(
-            canvas_name=canvas_name,
-            nodes=created_nodes,
-            edges=created_edges
+            canvas_name=canvas_name, nodes=created_nodes, edges=created_edges
         )
         if write_success:
             # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
-            logger.info(f"[FIX-Canvas-Write] SUCCESS: Canvas {canvas_name} updated with {len(created_nodes)} nodes and {len(created_edges)} edges")
+            logger.info(
+                f"[FIX-Canvas-Write] SUCCESS: Canvas {canvas_name} updated with {len(created_nodes)} nodes and {len(created_edges)} edges"
+            )
         else:
             # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
-            logger.warning(f"[FIX-Canvas-Write] WARNING: Failed to write to Canvas {canvas_name}, nodes returned in response but not persisted")
+            logger.warning(
+                f"[FIX-Canvas-Write] WARNING: Failed to write to Canvas {canvas_name}, nodes returned in response but not persisted"
+            )
 
         # Story 30.4: Fire-and-forget memory write for explanation agents
         # Map explanation_type to proper agent name for memory tracking
@@ -4330,14 +4832,16 @@ class AgentService:
             "memory": "memory-anchor",
             "clarification": "clarification-path",
         }
-        agent_name = explanation_type_to_agent.get(explanation_type, f"{explanation_type}-explanation")
+        agent_name = explanation_type_to_agent.get(
+            explanation_type, f"{explanation_type}-explanation"
+        )
         await self._trigger_memory_write(
             agent_type=agent_name,
             canvas_name=canvas_name,
             node_id=node_id,
             concept=content[:50] if content else "Unknown",
             user_understanding=user_understanding,
-            agent_feedback=f"Generated {explanation_type} explanation ({len(explanation_text)} chars)"
+            agent_feedback=f"Generated {explanation_type} explanation ({len(explanation_text)} chars)",
         )
 
         return {
@@ -4361,7 +4865,7 @@ class AgentService:
         concept: str,
         user_understanding: Optional[str] = None,
         score: Optional[float] = None,
-        agent_feedback: Optional[str] = None
+        agent_feedback: Optional[str] = None,
     ) -> bool:
         """
         Record a learning episode to the memory system.
@@ -4395,7 +4899,7 @@ class AgentService:
                 concept=concept,
                 user_understanding=user_understanding,
                 score=score,
-                agent_feedback=agent_feedback
+                agent_feedback=agent_feedback,
             )
 
             success = await self._memory_client.add_learning_episode(memory)
@@ -4420,7 +4924,7 @@ class AgentService:
         concept: str,
         user_understanding: Optional[str] = None,
         score: Optional[float] = None,
-        agent_feedback: Optional[str] = None
+        agent_feedback: Optional[str] = None,
     ) -> None:
         """
         Fire-and-forget memory write trigger for post-agent execution.
@@ -4453,7 +4957,9 @@ class AgentService:
         # AC-30.4.4: Check if this agent has memory write enabled
         memory_type = get_memory_type_for_agent(agent_type)
         if memory_type is None:
-            logger.debug(f"[Story 30.4] Agent {agent_type} not in memory mapping, skipping")
+            logger.debug(
+                f"[Story 30.4] Agent {agent_type} not in memory mapping, skipping"
+            )
             return
 
         # AC-30.4.2: Fire-and-forget async pattern
@@ -4468,19 +4974,19 @@ class AgentService:
                         concept=concept,
                         user_understanding=user_understanding,
                         score=score,
-                        agent_feedback=agent_feedback
+                        agent_feedback=agent_feedback,
                     ),
-                    timeout=MEMORY_WRITE_TIMEOUT  # Story 38.6: 15s to allow inner retries
+                    timeout=MEMORY_WRITE_TIMEOUT,  # Story 38.6: 15s to allow inner retries
                 )
                 logger.debug(
                     f"[Story 30.4] Memory write completed for {agent_type}",
-                    extra={"agent_type": agent_type, "memory_type": memory_type.value}
+                    extra={"agent_type": agent_type, "memory_type": memory_type.value},
                 )
             except asyncio.TimeoutError:
                 # AC-30.4.3 + Story 38.6 AC-2: Log and track failed write
                 logger.warning(
                     f"[Story 38.6] Memory write timeout for {agent_type} after {MEMORY_WRITE_TIMEOUT}s",
-                    extra={"agent_type": agent_type, "timeout_s": MEMORY_WRITE_TIMEOUT}
+                    extra={"agent_type": agent_type, "timeout_s": MEMORY_WRITE_TIMEOUT},
                 )
                 _record_failed_write(
                     event_type=agent_type,
@@ -4496,7 +5002,7 @@ class AgentService:
                 # AC-30.4.3 + Story 38.6 AC-2: Log and track failed write
                 logger.warning(
                     f"[Story 38.6] Memory write failed for {agent_type}: {e}",
-                    extra={"agent_type": agent_type, "error": str(e)[:200]}
+                    extra={"agent_type": agent_type, "error": str(e)[:200]},
                 )
                 _record_failed_write(
                     event_type=agent_type,
@@ -4525,7 +5031,7 @@ class AgentService:
         concept: str,
         user_understanding: Optional[str] = None,
         score: Optional[float] = None,
-        agent_feedback: Optional[str] = None
+        agent_feedback: Optional[str] = None,
     ) -> None:
         """
         Synchronous wrapper for triggering memory write.
@@ -4557,7 +5063,7 @@ class AgentService:
                         concept=concept,
                         user_understanding=user_understanding,
                         score=score,
-                        agent_feedback=agent_feedback
+                        agent_feedback=agent_feedback,
                     )
                 )
             else:
@@ -4570,7 +5076,7 @@ class AgentService:
                         concept=concept,
                         user_understanding=user_understanding,
                         score=score,
-                        agent_feedback=agent_feedback
+                        agent_feedback=agent_feedback,
                     )
                 )
         except (RuntimeError, TypeError) as e:
@@ -4608,8 +5114,8 @@ class AgentService:
         from app.config import settings
 
         # Get current AI configuration
-        provider = getattr(settings, 'AI_PROVIDER', 'google')
-        model = getattr(settings, 'AI_MODEL_NAME', 'gemini-2.0-flash-exp')
+        provider = getattr(settings, "AI_PROVIDER", "google")
+        model = getattr(settings, "AI_MODEL_NAME", "gemini-2.0-flash-exp")
 
         # Check if client is configured
         if not self._use_real_api or not self._gemini_client:
@@ -4618,7 +5124,7 @@ class AgentService:
                 "model": model,
                 "provider": provider,
                 "error": "AI client not configured. Check API key settings.",
-                "error_code": "LLM_AUTH_FAILED"
+                "error_code": "LLM_AUTH_FAILED",
             }
 
         start_time = time.time()
@@ -4638,9 +5144,9 @@ class AgentService:
                 self._gemini_client.call_agent(
                     agent_type="basic-decomposition",  # Use simplest agent
                     user_prompt="Reply with exactly: OK",
-                    context=None
+                    context=None,
                 ),
-                timeout=AI_HEALTH_CHECK_TIMEOUT
+                timeout=AI_HEALTH_CHECK_TIMEOUT,
             )
 
             latency_ms = (time.time() - start_time) * 1000
@@ -4655,7 +5161,7 @@ class AgentService:
                     "status": "ok",
                     "model": model,
                     "provider": provider,
-                    "latency_ms": round(latency_ms, 2)
+                    "latency_ms": round(latency_ms, 2),
                 }
             else:
                 return {
@@ -4663,7 +5169,7 @@ class AgentService:
                     "model": model,
                     "provider": provider,
                     "error": "Empty response from AI API",
-                    "error_code": "LLM_EMPTY_RESPONSE"
+                    "error_code": "LLM_EMPTY_RESPONSE",
                 }
 
         except asyncio.TimeoutError:
@@ -4681,7 +5187,7 @@ class AgentService:
                 "provider": provider,
                 "error": f"AI health check timeout ({AI_HEALTH_CHECK_TIMEOUT}s exceeded)",
                 "error_code": "LLM_TIMEOUT",
-                "latency_ms": round(latency_ms, 2)
+                "latency_ms": round(latency_ms, 2),
             }
 
         except Exception as e:
@@ -4690,7 +5196,10 @@ class AgentService:
 
             # Classify error type
             error_code = "LLM_UNKNOWN_ERROR"
-            if "api key" in error_message.lower() or "authentication" in error_message.lower():
+            if (
+                "api key" in error_message.lower()
+                or "authentication" in error_message.lower()
+            ):
                 error_code = "LLM_AUTH_FAILED"
             elif "timeout" in error_message.lower():
                 error_code = "LLM_TIMEOUT"
@@ -4710,7 +5219,7 @@ class AgentService:
                 "provider": provider,
                 "error": error_message,
                 "error_code": error_code,
-                "latency_ms": round(latency_ms, 2)
+                "latency_ms": round(latency_ms, 2),
             }
 
     # ═══════════════════════════════════════════════════════════════════════════════
@@ -4763,24 +5272,26 @@ class AgentService:
         from datetime import datetime
 
         call_logger = AgentCallLogger(
-            agent_type="verification-question",
-            node_id=node_id,
-            canvas_name=canvas_name
+            agent_type="verification-question", node_id=node_id, canvas_name=canvas_name
         )
 
         # Build input for the verification-question agent
         input_data = {
-            "nodes": [{
-                "id": node_id,
-                "content": content,
-                "type": node_type,
-                "related_yellow": related_yellow or [],
-                "parent_content": parent_content or ""
-            }]
+            "nodes": [
+                {
+                    "id": node_id,
+                    "content": content,
+                    "type": node_type,
+                    "related_yellow": related_yellow or [],
+                    "parent_content": parent_content or "",
+                }
+            ]
         }
 
         prompt = json.dumps(input_data, ensure_ascii=False, indent=2)
-        call_logger.log_request({"content_length": len(content), "node_type": node_type})
+        call_logger.log_request(
+            {"content_length": len(content), "node_type": node_type}
+        )
 
         try:
             # AC3a: Adjacent context is passed via adjacent_context parameter
@@ -4789,20 +5300,28 @@ class AgentService:
 
             # Story 12.A.2: Add RAG context to enriched context
             if rag_context:
-                enriched_context = f"{enriched_context}\n\n{rag_context}" if enriched_context else rag_context
-                logger.info(f"[Story 12.A.2] Enhanced verification questions context with RAG ({len(rag_context)} chars)")
+                enriched_context = (
+                    f"{enriched_context}\n\n{rag_context}"
+                    if enriched_context
+                    else rag_context
+                )
+                logger.info(
+                    f"[Story 12.A.2] Enhanced verification questions context with RAG ({len(rag_context)} chars)"
+                )
 
             result = await self._call_gemini_api(
                 agent_type=AgentType.VERIFICATION_QUESTION,
                 prompt=prompt,
                 context=enriched_context,
                 canvas_name=canvas_name,
-                node_id=node_id
+                node_id=node_id,
             )
 
             # Parse questions from result
             questions = result.get("questions", [])
-            call_logger.log_response(result, success=True, response_length=len(str(questions)))
+            call_logger.log_response(
+                result, success=True, response_length=len(str(questions))
+            )
 
             # Generate Canvas nodes for questions
             created_nodes = []
@@ -4828,30 +5347,36 @@ class AgentService:
                 node_x = source_x
                 node_y = source_y + source_height + gap_y + idx * (node_height + gap_y)
 
-                created_nodes.append({
-                    "id": question_node_id,
-                    "type": "text",
-                    "text": node_text,
-                    "x": node_x,
-                    "y": node_y,
-                    "width": node_width,
-                    "height": node_height,
-                    "color": "3",  # Purple - verification question (修复: "3"=Purple)
-                })
+                created_nodes.append(
+                    {
+                        "id": question_node_id,
+                        "type": "text",
+                        "text": node_text,
+                        "x": node_x,
+                        "y": node_y,
+                        "width": node_width,
+                        "height": node_height,
+                        "color": "3",  # Purple - verification question (修复: "3"=Purple)
+                    }
+                )
 
                 # Create edge from source to question
-                created_edges.append({
-                    "id": f"edge-vq-{uuid.uuid4().hex[:8]}",
-                    "fromNode": node_id,
-                    "toNode": question_node_id,
-                    "fromSide": "bottom",
-                    "toSide": "top",
-                    "label": EdgeLabels.VERIFICATION,
-                })
+                created_edges.append(
+                    {
+                        "id": f"edge-vq-{uuid.uuid4().hex[:8]}",
+                        "fromNode": node_id,
+                        "toNode": question_node_id,
+                        "fromSide": "bottom",
+                        "toSide": "top",
+                        "label": EdgeLabels.VERIFICATION,
+                    }
+                )
 
             # Write nodes to Canvas
             if created_nodes:
-                await self._write_nodes_to_canvas(canvas_name, created_nodes, created_edges)
+                await self._write_nodes_to_canvas(
+                    canvas_name, created_nodes, created_edges
+                )
 
             # AC3c: Record learning episode (Story 30.4: fire-and-forget pattern)
             await self._trigger_memory_write(
@@ -4860,7 +5385,7 @@ class AgentService:
                 node_id=node_id,
                 concept=content[:50] if content else "Unknown",
                 user_understanding=str(related_yellow) if related_yellow else None,
-                agent_feedback=f"Generated {len(questions)} verification questions"
+                agent_feedback=f"Generated {len(questions)} verification questions",
             )
 
             return {
@@ -4869,7 +5394,7 @@ class AgentService:
                 "generated_at": datetime.now().isoformat(),
                 "created_nodes": created_nodes,
                 "created_edges": created_edges,
-                "status": "completed"
+                "status": "completed",
             }
 
         except Exception as e:
@@ -4920,18 +5445,23 @@ class AgentService:
         call_logger = AgentCallLogger(
             agent_type="question-decomposition",
             node_id=node_id,
-            canvas_name=canvas_name
+            canvas_name=canvas_name,
         )
 
         # Build input for the question-decomposition agent
         input_data = {
             "material_content": content,
             "topic": topic or content[:50] if content else "Unknown",
-            "user_understanding": user_understanding
+            "user_understanding": user_understanding,
         }
 
         prompt = json.dumps(input_data, ensure_ascii=False, indent=2)
-        call_logger.log_request({"content_length": len(content), "understanding_length": len(user_understanding)})
+        call_logger.log_request(
+            {
+                "content_length": len(content),
+                "understanding_length": len(user_understanding),
+            }
+        )
 
         try:
             # AC3a: Adjacent context is passed via adjacent_context parameter
@@ -4940,20 +5470,28 @@ class AgentService:
 
             # Story 12.A.2: Add RAG context to enriched context
             if rag_context:
-                enriched_context = f"{enriched_context}\n\n{rag_context}" if enriched_context else rag_context
-                logger.info(f"[Story 12.A.2] Enhanced question decomposition context with RAG ({len(rag_context)} chars)")
+                enriched_context = (
+                    f"{enriched_context}\n\n{rag_context}"
+                    if enriched_context
+                    else rag_context
+                )
+                logger.info(
+                    f"[Story 12.A.2] Enhanced question decomposition context with RAG ({len(rag_context)} chars)"
+                )
 
             result = await self._call_gemini_api(
                 agent_type=AgentType.QUESTION_DECOMPOSITION,
                 prompt=prompt,
                 context=enriched_context,
                 canvas_name=canvas_name,
-                node_id=node_id
+                node_id=node_id,
             )
 
             # Parse questions from result
             questions = result.get("questions", [])
-            call_logger.log_response(result, success=True, response_length=len(str(questions)))
+            call_logger.log_response(
+                result, success=True, response_length=len(str(questions))
+            )
 
             # Generate Canvas nodes for questions
             created_nodes = []
@@ -4983,30 +5521,36 @@ class AgentService:
                 node_x = source_x + col * (node_width + gap_x)
                 node_y = source_y + source_height + gap_y + row * (node_height + gap_y)
 
-                created_nodes.append({
-                    "id": question_node_id,
-                    "type": "text",
-                    "text": node_text,
-                    "x": node_x,
-                    "y": node_y,
-                    "width": node_width,
-                    "height": node_height,
-                    "color": "3",  # Purple - verification question (修复: "3"=Purple)
-                })
+                created_nodes.append(
+                    {
+                        "id": question_node_id,
+                        "type": "text",
+                        "text": node_text,
+                        "x": node_x,
+                        "y": node_y,
+                        "width": node_width,
+                        "height": node_height,
+                        "color": "3",  # Purple - verification question (修复: "3"=Purple)
+                    }
+                )
 
                 # Create edge from source to question
-                created_edges.append({
-                    "id": f"edge-qd-{uuid.uuid4().hex[:8]}",
-                    "fromNode": node_id,
-                    "toNode": question_node_id,
-                    "fromSide": "bottom",
-                    "toSide": "top",
-                    "label": EdgeLabels.QUESTION,
-                })
+                created_edges.append(
+                    {
+                        "id": f"edge-qd-{uuid.uuid4().hex[:8]}",
+                        "fromNode": node_id,
+                        "toNode": question_node_id,
+                        "fromSide": "bottom",
+                        "toSide": "top",
+                        "label": EdgeLabels.QUESTION,
+                    }
+                )
 
             # Write nodes to Canvas
             if created_nodes:
-                await self._write_nodes_to_canvas(canvas_name, created_nodes, created_edges)
+                await self._write_nodes_to_canvas(
+                    canvas_name, created_nodes, created_edges
+                )
 
             # AC3c: Record learning episode (Story 30.4: fire-and-forget pattern)
             await self._trigger_memory_write(
@@ -5015,14 +5559,14 @@ class AgentService:
                 node_id=node_id,
                 concept=topic or content[:50] if content else "Unknown",
                 user_understanding=user_understanding,
-                agent_feedback=f"Decomposed into {len(questions)} verification questions"
+                agent_feedback=f"Decomposed into {len(questions)} verification questions",
             )
 
             return {
                 "questions": questions,
                 "created_nodes": created_nodes,
                 "created_edges": created_edges,
-                "status": "completed"
+                "status": "completed",
             }
 
         except Exception as e:

@@ -115,7 +115,14 @@ class BehaviorTracker:
                     (session_id, canvas_file, concept, action_type, timestamp, metadata)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (session_id, canvas_file, concept, action_type, timestamp, metadata_json),
+                    (
+                        session_id,
+                        canvas_file,
+                        concept,
+                        action_type,
+                        timestamp,
+                        metadata_json,
+                    ),
                 )
                 conn.commit()
                 logger.debug(
@@ -123,7 +130,9 @@ class BehaviorTracker:
                 )
             except sqlite3.IntegrityError:
                 # Duplicate entry, skip
-                logger.debug(f"Duplicate behavior entry skipped: {action_type} for {concept}")
+                logger.debug(
+                    f"Duplicate behavior entry skipped: {action_type} for {concept}"
+                )
 
         return session_id
 
@@ -180,9 +189,7 @@ class BehaviorTracker:
 
         return results
 
-    def get_concept_stats(
-        self, canvas_file: str, concept: str
-    ) -> Dict[str, Any]:
+    def get_concept_stats(self, canvas_file: str, concept: str) -> Dict[str, Any]:
         """
         Get statistics for a specific concept.
 
@@ -204,7 +211,9 @@ class BehaviorTracker:
                 """,
                 (canvas_file, concept),
             )
-            action_counts = {row["action_type"]: row["count"] for row in cursor.fetchall()}
+            action_counts = {
+                row["action_type"]: row["count"] for row in cursor.fetchall()
+            }
 
             # Get last activity
             cursor = conn.execute(
@@ -259,9 +268,7 @@ class BehaviorTracker:
             )
             return [row["concept"] for row in cursor.fetchall()]
 
-    def get_error_rate(
-        self, canvas_file: str, concept: str
-    ) -> float:
+    def get_error_rate(self, canvas_file: str, concept: str) -> float:
         """
         Calculate error rate for a concept based on answer attempts.
 

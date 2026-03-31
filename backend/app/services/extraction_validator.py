@@ -276,14 +276,18 @@ class ExtractionValidator:
             if cursor.rowcount == 0:
                 return False
 
-        logger.info(f"[Story 7.4] Annotated extraction record {record_id} as '{annotation}'")
+        logger.info(
+            f"[Story 7.4] Annotated extraction record {record_id} as '{annotation}'"
+        )
         return True
 
     # ───────────────────────────────────────────────────────────────────────
     # Write: update content (Story 5.8 Task 1.1)
     # ───────────────────────────────────────────────────────────────────────
 
-    async def update_content(self, record_id: str, new_content: str) -> Optional[ExtractionRecord]:
+    async def update_content(
+        self, record_id: str, new_content: str
+    ) -> Optional[ExtractionRecord]:
         """Update the extracted_content field of a record.
 
         Args:

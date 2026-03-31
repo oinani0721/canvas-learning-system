@@ -14,7 +14,6 @@ Provides endpoints for:
 
 import logging
 import time
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -28,7 +27,6 @@ from app.models.metadata_models import (
     CanvasIndexResponse,
     CanvasIndexStatusResponse,
     CanvasMetadataResponse,
-    MetadataSource,
     SubjectMappingConfig,
 )
 from app.services.subject_resolver import SubjectResolver, get_subject_resolver
@@ -53,6 +51,7 @@ metadata_router = APIRouter(
 # Dependencies
 # =============================================================================
 
+
 def get_resolver() -> SubjectResolver:
     """Get SubjectResolver dependency."""
     return get_subject_resolver()
@@ -67,8 +66,9 @@ def get_lancedb_client():
     ✅ Story 38.1 Fix: 使用实际存储数据的路径
     """
     try:
-        from agentic_rag.clients.lancedb_client import LanceDBClient
         import os
+
+        from agentic_rag.clients.lancedb_client import LanceDBClient
 
         # 直接使用默认相对路径 - LanceDBClient 默认使用 'backend/data/lancedb'
         # 当从 backend/ 目录运行时，实际路径是 backend/backend/data/lancedb
@@ -87,6 +87,7 @@ def get_lancedb_client():
 # Canvas Metadata Endpoints
 # =============================================================================
 
+
 @metadata_router.get(
     "/metadata",
     response_model=CanvasMetadataResponse,
@@ -97,9 +98,9 @@ async def get_canvas_metadata(
     canvas_path: str = Query(
         ...,
         description="Canvas file path (relative to vault)",
-        example="Math 54/离散数学.canvas"
+        example="Math 54/离散数学.canvas",
     ),
-    resolver: SubjectResolver = Depends(get_resolver)
+    resolver: SubjectResolver = Depends(get_resolver),
 ) -> CanvasMetadataResponse:
     """
     Get metadata for a Canvas file.
@@ -125,20 +126,21 @@ async def get_canvas_metadata(
             subject=info.subject,
             category=info.category,
             group_id=info.group_id,
-            source=info.source
+            source=info.source,
         )
 
     except Exception as e:
         logger.error(f"Failed to resolve metadata for {canvas_path}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to resolve metadata: {str(e)}"
+            detail=f"Failed to resolve metadata: {str(e)}",
         )
 
 
 # =============================================================================
 # LanceDB Index Status Endpoints
 # =============================================================================
+
 
 @metadata_router.get(
     "/index-status",
@@ -148,15 +150,10 @@ async def get_canvas_metadata(
 )
 async def get_canvas_index_status(
     canvas_path: str = Query(
-        ...,
-        description="Canvas file path",
-        example="Math 54/离散数学.canvas"
+        ..., description="Canvas file path", example="Math 54/离散数学.canvas"
     ),
-    table_name: str = Query(
-        default="canvas_nodes",
-        description="LanceDB table name"
-    ),
-    resolver: SubjectResolver = Depends(get_resolver)
+    table_name: str = Query(default="canvas_nodes", description="LanceDB table name"),
+    resolver: SubjectResolver = Depends(get_resolver),
 ) -> CanvasIndexStatusResponse:
     """
     Get LanceDB index status for a Canvas file.
@@ -180,7 +177,7 @@ async def get_canvas_index_status(
                 node_count=0,
                 last_indexed=None,
                 subject=None,
-                table_name=table_name
+                table_name=table_name,
             )
 
         # Initialize client if needed
@@ -197,7 +194,7 @@ async def get_canvas_index_status(
                 node_count=0,
                 last_indexed=None,
                 subject=None,
-                table_name=table_name
+                table_name=table_name,
             )
 
         # ✅ Story 38.1 Fix: 使用 count_documents_by_canvas 替代空查询向量搜索
@@ -205,8 +202,7 @@ async def get_canvas_index_status(
         # 解决：使用 pandas WHERE 子句直接查询，不依赖向量搜索
         try:
             doc_info = await lancedb_client.count_documents_by_canvas(
-                canvas_path=canvas_path,
-                table_name=table_name
+                canvas_path=canvas_path, table_name=table_name
             )
 
             if doc_info["count"] > 0:
@@ -216,7 +212,7 @@ async def get_canvas_index_status(
                     node_count=doc_info["count"],
                     last_indexed=doc_info.get("last_indexed"),
                     subject=doc_info.get("subject"),
-                    table_name=table_name
+                    table_name=table_name,
                 )
             else:
                 return CanvasIndexStatusResponse(
@@ -225,7 +221,7 @@ async def get_canvas_index_status(
                     node_count=0,
                     last_indexed=None,
                     subject=None,
-                    table_name=table_name
+                    table_name=table_name,
                 )
 
         except (RuntimeError, ConnectionError, OSError) as e:
@@ -236,20 +232,21 @@ async def get_canvas_index_status(
                 node_count=0,
                 last_indexed=None,
                 subject=None,
-                table_name=table_name
+                table_name=table_name,
             )
 
     except Exception as e:
         logger.error(f"Failed to get index status for {canvas_path}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get index status: {str(e)}"
+            detail=f"Failed to get index status: {str(e)}",
         )
 
 
 # =============================================================================
 # Canvas Indexing Endpoints
 # =============================================================================
+
 
 @metadata_router.post(
     "/index",
@@ -260,7 +257,7 @@ async def get_canvas_index_status(
 async def index_canvas(
     request: CanvasIndexRequest,
     settings: SettingsDep,
-    resolver: SubjectResolver = Depends(get_resolver)
+    resolver: SubjectResolver = Depends(get_resolver),
 ) -> CanvasIndexResponse:
     """
     Index a Canvas file to LanceDB.
@@ -280,7 +277,7 @@ async def index_canvas(
         info = resolver.resolve(
             request.canvas_path,
             manual_subject=request.subject,
-            manual_category=request.category
+            manual_category=request.category,
         )
 
         # Get LanceDB client
@@ -295,7 +292,7 @@ async def index_canvas(
                 category=info.category,
                 group_id=info.group_id,
                 duration_ms=(time.perf_counter() - start_time) * 1000,
-                message="LanceDB client not available"
+                message="LanceDB client not available",
             )
 
         # Initialize client
@@ -308,6 +305,7 @@ async def index_canvas(
 
         # Check if file exists
         import os
+
         if not os.path.exists(full_path):
             return CanvasIndexResponse(
                 canvas_path=request.canvas_path,
@@ -317,15 +315,16 @@ async def index_canvas(
                 category=info.category,
                 group_id=info.group_id,
                 duration_ms=(time.perf_counter() - start_time) * 1000,
-                message=f"Canvas file not found: {full_path}"
+                message=f"Canvas file not found: {full_path}",
             )
 
         # Index Canvas
         # ✅ Story 38.1 Fix: 读取节点后传递相对路径用于存储
         # 问题：之前传递 full_path 导致存储绝对路径，查询时用相对路径无法匹配
         import json
+
         try:
-            with open(full_path, 'r', encoding='utf-8') as f:
+            with open(full_path, "r", encoding="utf-8") as f:
                 canvas_data = json.load(f)
             nodes = canvas_data.get("nodes", [])
         except (json.JSONDecodeError, OSError, ValueError) as e:
@@ -336,7 +335,7 @@ async def index_canvas(
             canvas_path=request.canvas_path,  # ✅ 使用相对路径存储
             nodes=nodes,  # ✅ 传递已读取的节点
             table_name="canvas_nodes",
-            subject=info.subject
+            subject=info.subject,
         )
 
         duration_ms = (time.perf_counter() - start_time) * 1000
@@ -354,7 +353,7 @@ async def index_canvas(
             category=info.category,
             group_id=info.group_id,
             duration_ms=duration_ms,
-            message=None
+            message=None,
         )
 
     except Exception as e:
@@ -367,7 +366,7 @@ async def index_canvas(
             category=request.category or "unknown",
             group_id="unknown",
             duration_ms=(time.perf_counter() - start_time) * 1000,
-            message=str(e)
+            message=str(e),
         )
 
 
@@ -380,7 +379,7 @@ async def index_canvas(
 async def batch_index_canvas(
     request: BatchIndexRequest,
     settings: SettingsDep,
-    resolver: SubjectResolver = Depends(get_resolver)
+    resolver: SubjectResolver = Depends(get_resolver),
 ) -> BatchIndexResponse:
     """
     Index multiple Canvas files to LanceDB.
@@ -398,15 +397,12 @@ async def batch_index_canvas(
         try:
             # Create individual request
             individual_request = CanvasIndexRequest(
-                canvas_path=canvas_path,
-                force=request.force
+                canvas_path=canvas_path, force=request.force
             )
 
             # Index
             result = await index_canvas(
-                request=individual_request,
-                settings=settings,
-                resolver=resolver
+                request=individual_request, settings=settings, resolver=resolver
             )
 
             results.append(result)
@@ -419,29 +415,32 @@ async def batch_index_canvas(
         except Exception as e:
             logger.error(f"Batch index error for {canvas_path}: {e}")
             failed_count += 1
-            results.append(CanvasIndexResponse(
-                canvas_path=canvas_path,
-                success=False,
-                node_count=0,
-                subject="unknown",
-                category="unknown",
-                group_id="unknown",
-                duration_ms=0,
-                message=str(e)
-            ))
+            results.append(
+                CanvasIndexResponse(
+                    canvas_path=canvas_path,
+                    success=False,
+                    node_count=0,
+                    subject="unknown",
+                    category="unknown",
+                    group_id="unknown",
+                    duration_ms=0,
+                    message=str(e),
+                )
+            )
 
     return BatchIndexResponse(
         total=len(request.canvas_paths),
         success_count=success_count,
         failed_count=failed_count,
         results=results,
-        total_duration_ms=(time.perf_counter() - start_time) * 1000
+        total_duration_ms=(time.perf_counter() - start_time) * 1000,
     )
 
 
 # =============================================================================
 # Vault-wide Note Indexing Endpoints
 # =============================================================================
+
 
 @metadata_router.post(
     "/index/vault",
@@ -474,10 +473,12 @@ async def index_vault_notes(
             await lancedb_client.initialize()
 
         vault_path = settings.canvas_base_path
-        skip_dirs_str = getattr(settings, 'VAULT_INDEX_SKIP_DIRS', '.obsidian,.git,.trash,node_modules')
+        skip_dirs_str = getattr(
+            settings, "VAULT_INDEX_SKIP_DIRS", ".obsidian,.git,.trash,node_modules"
+        )
         skip_dirs = [d.strip() for d in skip_dirs_str.split(",")]
-        chunk_size = getattr(settings, 'VAULT_INDEX_CHUNK_SIZE', 500)
-        chunk_overlap = getattr(settings, 'VAULT_INDEX_OVERLAP', 50)
+        chunk_size = getattr(settings, "VAULT_INDEX_CHUNK_SIZE", 500)
+        chunk_overlap = getattr(settings, "VAULT_INDEX_OVERLAP", 50)
 
         chunk_count = await lancedb_client.index_vault_notes(
             vault_path=vault_path,
@@ -485,19 +486,21 @@ async def index_vault_notes(
             table_name="vault_notes",
             max_tokens=chunk_size,
             overlap_tokens=chunk_overlap,
-            subject=DEFAULT_GROUP_ID
+            subject=DEFAULT_GROUP_ID,
         )
 
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        logger.info(f"Vault indexing complete: {chunk_count} chunks, {duration_ms:.2f}ms")
+        logger.info(
+            f"Vault indexing complete: {chunk_count} chunks, {duration_ms:.2f}ms"
+        )
 
         return {
             "success": True,
             "chunk_count": chunk_count,
             "vault_path": vault_path,
             "duration_ms": round(duration_ms, 2),
-            "message": f"Indexed {chunk_count} chunks from vault .md files"
+            "message": f"Indexed {chunk_count} chunks from vault .md files",
         }
 
     except Exception as e:
@@ -506,7 +509,7 @@ async def index_vault_notes(
             "success": False,
             "chunk_count": 0,
             "duration_ms": (time.perf_counter() - start_time) * 1000,
-            "message": str(e)
+            "message": str(e),
         }
 
 
@@ -529,7 +532,7 @@ async def vault_index_status():
         # Check if vault_notes table exists and get count
         if "vault_notes" in lancedb_client._tables_cache:
             table = lancedb_client._tables_cache["vault_notes"]
-            count = len(table.to_pandas()) if hasattr(table, 'to_pandas') else 0
+            count = len(table.to_pandas()) if hasattr(table, "to_pandas") else 0
             return {
                 "indexed": True,
                 "chunk_count": count,
@@ -539,7 +542,7 @@ async def vault_index_status():
             return {
                 "indexed": False,
                 "chunk_count": 0,
-                "message": "vault_notes table not found. Call POST /index/vault first."
+                "message": "vault_notes table not found. Call POST /index/vault first.",
             }
 
     except Exception as e:
@@ -596,6 +599,7 @@ async def index_vault_incremental(
 
         for rel_path in file_paths:
             import os
+
             abs_path = os.path.join(vault_path, rel_path)
             if not os.path.isfile(abs_path):
                 logger.warning(f"Incremental index: file not found: {abs_path}")
@@ -638,6 +642,7 @@ async def index_vault_incremental(
 # Subject Mapping Configuration Endpoints
 # =============================================================================
 
+
 @metadata_router.get(
     "/config/subject-mapping",
     response_model=SubjectMappingConfig,
@@ -645,7 +650,7 @@ async def index_vault_incremental(
     operation_id="get_subject_mapping",
 )
 async def get_subject_mapping(
-    resolver: SubjectResolver = Depends(get_resolver)
+    resolver: SubjectResolver = Depends(get_resolver),
 ) -> SubjectMappingConfig:
     """
     Get the current subject mapping configuration.
@@ -664,8 +669,7 @@ async def get_subject_mapping(
     operation_id="update_subject_mapping",
 )
 async def update_subject_mapping(
-    config: SubjectMappingConfig,
-    resolver: SubjectResolver = Depends(get_resolver)
+    config: SubjectMappingConfig, resolver: SubjectResolver = Depends(get_resolver)
 ) -> SubjectMappingConfig:
     """
     Update the subject mapping configuration.
@@ -679,7 +683,7 @@ async def update_subject_mapping(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save configuration"
+            detail="Failed to save configuration",
         )
 
     return resolver.get_config()
@@ -695,7 +699,7 @@ async def add_subject_mapping_rule(
     pattern: str = Query(..., description="Folder pattern"),
     subject: str = Query(..., description="Subject identifier"),
     category: str = Query(..., description="Category identifier"),
-    resolver: SubjectResolver = Depends(get_resolver)
+    resolver: SubjectResolver = Depends(get_resolver),
 ) -> SubjectMappingConfig:
     """
     Add or update a subject mapping rule.
@@ -707,7 +711,7 @@ async def add_subject_mapping_rule(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to add mapping"
+            detail="Failed to add mapping",
         )
 
     return resolver.get_config()
@@ -721,7 +725,7 @@ async def add_subject_mapping_rule(
 )
 async def remove_subject_mapping_rule(
     pattern: str = Query(..., description="Pattern to remove"),
-    resolver: SubjectResolver = Depends(get_resolver)
+    resolver: SubjectResolver = Depends(get_resolver),
 ) -> SubjectMappingConfig:
     """
     Remove a subject mapping rule by pattern.
@@ -731,7 +735,7 @@ async def remove_subject_mapping_rule(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Mapping with pattern '{pattern}' not found"
+            detail=f"Mapping with pattern '{pattern}' not found",
         )
 
     return resolver.get_config()

@@ -41,7 +41,6 @@ from app.api.v1.endpoints.skills import skills_router  # Story 3.5
 from app.api.v1.endpoints.subjects import subjects_router  # Story 1.9
 from app.api.v1.endpoints.suggestions import suggestions_router  # Story 3.7
 from app.api.v1.endpoints.sync import sync_router  # Story 1.5
-from app.api.v1.endpoints.textbook import textbook_router
 from app.api.v1.endpoints.tips import tips_router  # Story 3.6
 from app.api.v1.system import router as system_router  # Story 1.1
 
@@ -54,7 +53,11 @@ router = APIRouter()
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: include_router tags)
-router.include_router(health.router, tags=["System"], responses={500: {"description": "Internal server error"}})
+router.include_router(
+    health.router,
+    tags=["System"],
+    responses={500: {"description": "Internal server error"}},
+)
 
 # Ping endpoint — simple connectivity check
 router.include_router(ping.router, tags=["System"])
@@ -63,14 +66,19 @@ router.include_router(ping.router, tags=["System"])
 # System Infrastructure Health (Story 1.1)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-router.include_router(system_router, responses={500: {"description": "System health check error"}})
+router.include_router(
+    system_router, responses={500: {"description": "System health check error"}}
+)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Config Routes (AI Configuration Runtime Override)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 router.include_router(
-    config_router, prefix="/config", tags=["Config"], responses={500: {"description": "Configuration error"}}
+    config_router,
+    prefix="/config",
+    tags=["Config"],
+    responses={500: {"description": "Configuration error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -96,7 +104,10 @@ router.include_router(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 router.include_router(
-    canvas_router, prefix="/canvas", tags=["Canvas"], responses={404: {"description": "Canvas not found"}}
+    canvas_router,
+    prefix="/canvas",
+    tags=["Canvas"],
+    responses={404: {"description": "Canvas not found"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -104,7 +115,10 @@ router.include_router(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 router.include_router(
-    agents_router, prefix="/agents", tags=["Agents"], responses={500: {"description": "Agent call failed"}}
+    agents_router,
+    prefix="/agents",
+    tags=["Agents"],
+    responses={500: {"description": "Agent call failed"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -150,7 +164,10 @@ router.include_router(
     rollback_router,
     prefix="/rollback",
     tags=["Rollback"],
-    responses={404: {"description": "Operation/snapshot not found"}, 500: {"description": "Rollback service error"}},
+    responses={
+        404: {"description": "Operation/snapshot not found"},
+        500: {"description": "Rollback service error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -164,7 +181,10 @@ router.include_router(
     memory_router,
     prefix="/memory",
     tags=["Memory"],
-    responses={404: {"description": "Episode/concept not found"}, 500: {"description": "Memory service error"}},
+    responses={
+        404: {"description": "Episode/concept not found"},
+        500: {"description": "Memory service error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -178,7 +198,10 @@ router.include_router(
     debug.router,
     prefix="/debug",
     tags=["Debug"],
-    responses={404: {"description": "Bug not found"}, 500: {"description": "Debug service error"}},
+    responses={
+        404: {"description": "Bug not found"},
+        500: {"description": "Debug service error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -192,20 +215,10 @@ router.include_router(
     rag_router,
     prefix="/rag",
     tags=["RAG"],
-    responses={503: {"description": "RAG service unavailable"}, 500: {"description": "RAG query failed"}},
-)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Textbook Routes (方案A: 前端同步到后端)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# [Source: 计划文件 - 关键架构缺陷修复]
-# Bridges frontend localStorage to backend .canvas-links.json
-router.include_router(
-    textbook_router,
-    prefix="/textbook",
-    tags=["Textbook"],
-    responses={404: {"description": "Textbook not found"}, 500: {"description": "Textbook sync failed"}},
+    responses={
+        503: {"description": "RAG service unavailable"},
+        500: {"description": "RAG query failed"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -250,7 +263,10 @@ router.include_router(
     single_agent_router,
     prefix="/canvas",
     tags=["Intelligent Parallel"],
-    responses={404: {"description": "Node or canvas not found"}, 500: {"description": "Agent execution error"}},
+    responses={
+        404: {"description": "Node or canvas not found"},
+        500: {"description": "Agent execution error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -274,7 +290,10 @@ router.include_router(
 router.include_router(
     profile_router,
     tags=["Profile"],
-    responses={404: {"description": "Node not found"}, 500: {"description": "Profile query error"}},
+    responses={
+        404: {"description": "Node not found"},
+        500: {"description": "Profile query error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -282,7 +301,9 @@ router.include_router(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 router.include_router(
-    exam_sessions_router, tags=["Exam Sessions"], responses={500: {"description": "Exam sessions query error"}}
+    exam_sessions_router,
+    tags=["Exam Sessions"],
+    responses={500: {"description": "Exam sessions query error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -324,7 +345,10 @@ router.include_router(
     sync_router,
     prefix="/sync",
     tags=["Sync"],
-    responses={503: {"description": "Neo4j connection unavailable"}, 500: {"description": "Sync processing error"}},
+    responses={
+        503: {"description": "Neo4j connection unavailable"},
+        500: {"description": "Sync processing error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -393,7 +417,10 @@ router.include_router(
     skills_router,
     prefix="/skills",
     tags=["Skills"],
-    responses={404: {"description": "Skill not found"}, 500: {"description": "Skill registry error"}},
+    responses={
+        404: {"description": "Skill not found"},
+        500: {"description": "Skill registry error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

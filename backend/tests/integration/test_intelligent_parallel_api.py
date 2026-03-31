@@ -13,28 +13,27 @@ Test Workflows:
 [Source: specs/api/parallel-api.openapi.yml]
 """
 
-import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from httpx import AsyncClient, ASGITransport
-
-from tests.conftest import simulate_async_delay
-
 from app.main import app
 from app.models.intelligent_parallel_models import (
     IntelligentParallelResponse,
     NodeGroup,
     NodeInGroup,
-    ParallelTaskStatus,
 )
+from httpx import ASGITransport, AsyncClient
 
+from tests.conftest import simulate_async_delay
 
 # =============================================================================
 # Test Data Factory
 # =============================================================================
 
-def _make_analyze_response(canvas_path: str = "test.canvas") -> IntelligentParallelResponse:
+
+def _make_analyze_response(
+    canvas_path: str = "test.canvas",
+) -> IntelligentParallelResponse:
     """Create a realistic analyze response for testing."""
     return IntelligentParallelResponse(
         canvas_path=canvas_path,
@@ -69,10 +68,12 @@ def _make_analyze_response(canvas_path: str = "test.canvas") -> IntelligentParal
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_service_singleton():
     """Reset the intelligent parallel service singleton between tests."""
     from app.api.v1.endpoints.intelligent_parallel import reset_service
+
     reset_service()
     yield
     reset_service()
@@ -90,7 +91,9 @@ def mock_grouping_service():
         "app.services.intelligent_grouping_service.IntelligentGroupingService.analyze_canvas",
         new_callable=AsyncMock,
     ) as mock_analyze:
-        mock_analyze.side_effect = lambda canvas_path, **kwargs: _make_analyze_response(canvas_path)
+        mock_analyze.side_effect = lambda canvas_path, **kwargs: _make_analyze_response(
+            canvas_path
+        )
         yield mock_analyze
 
 
@@ -104,7 +107,9 @@ def mock_agent_service_call():
     mock_result = MagicMock()
     mock_result.success = True
     mock_result.content = "Generated analysis content"
-    mock_result.file_path = None  # Service generates path from canvas_path + node_id + agent_type
+    mock_result.file_path = (
+        None  # Service generates path from canvas_path + node_id + agent_type
+    )
     mock_result.error = None
 
     async def _slow_agent(*args, **kwargs):
@@ -124,8 +129,7 @@ def mock_agent_service_call():
 async def async_client():
     """Provide async client for integration tests."""
     async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
+        transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
 
@@ -133,6 +137,7 @@ async def async_client():
 # =============================================================================
 # Test: Full Workflow (analyze → confirm → progress → complete)
 # =============================================================================
+
 
 class TestFullWorkflow:
     """Integration tests for complete batch processing workflow."""
@@ -153,7 +158,7 @@ class TestFullWorkflow:
             json={
                 "canvas_path": "test.canvas",
                 "target_color": "3",
-            }
+            },
         )
 
         assert analyze_response.status_code == 200
@@ -175,7 +180,7 @@ class TestFullWorkflow:
             json={
                 "canvas_path": "test.canvas",
                 "groups": groups_config,
-            }
+            },
         )
 
         assert confirm_response.status_code == 202
@@ -202,8 +207,7 @@ class TestFullWorkflow:
         """
         # Analyze canvas
         analyze_response = await async_client.post(
-            "/api/v1/canvas/intelligent-parallel/",
-            json={"canvas_path": "test.canvas"}
+            "/api/v1/canvas/intelligent-parallel/", json={"canvas_path": "test.canvas"}
         )
         analyze_data = analyze_response.json()
 
@@ -222,7 +226,7 @@ class TestFullWorkflow:
             json={
                 "canvas_path": "test.canvas",
                 "groups": groups_config,
-            }
+            },
         )
 
         assert confirm_response.status_code == 202
@@ -239,6 +243,7 @@ class TestFullWorkflow:
 # =============================================================================
 # Test: Cancellation Workflow
 # =============================================================================
+
 
 class TestCancellationWorkflow:
     """Integration tests for session cancellation."""
@@ -259,7 +264,7 @@ class TestCancellationWorkflow:
             # Create session
             analyze_response = await async_client.post(
                 "/api/v1/canvas/intelligent-parallel/",
-                json={"canvas_path": "test.canvas"}
+                json={"canvas_path": "test.canvas"},
             )
             analyze_data = analyze_response.json()
 
@@ -267,7 +272,9 @@ class TestCancellationWorkflow:
                 {
                     "group_id": analyze_data["groups"][0]["group_id"],
                     "agent_type": analyze_data["groups"][0]["recommended_agent"],
-                    "node_ids": [n["node_id"] for n in analyze_data["groups"][0]["nodes"]],
+                    "node_ids": [
+                        n["node_id"] for n in analyze_data["groups"][0]["nodes"]
+                    ],
                 }
             ]
 
@@ -276,7 +283,7 @@ class TestCancellationWorkflow:
                 json={
                     "canvas_path": "test.canvas",
                     "groups": groups_config,
-                }
+                },
             )
             session_id = confirm_response.json()["session_id"]
 
@@ -310,7 +317,7 @@ class TestCancellationWorkflow:
             # Create and cancel session
             analyze_response = await async_client.post(
                 "/api/v1/canvas/intelligent-parallel/",
-                json={"canvas_path": "test.canvas"}
+                json={"canvas_path": "test.canvas"},
             )
             groups_config = [
                 {
@@ -325,7 +332,7 @@ class TestCancellationWorkflow:
                 json={
                     "canvas_path": "test.canvas",
                     "groups": groups_config,
-                }
+                },
             )
             session_id = confirm_response.json()["session_id"]
 
@@ -346,6 +353,7 @@ class TestCancellationWorkflow:
 # Test: Retry Workflow (Single Agent)
 # =============================================================================
 
+
 class TestRetryWorkflow:
     """Integration tests for single agent retry."""
 
@@ -362,7 +370,7 @@ class TestRetryWorkflow:
                 "node_id": "node-001",
                 "agent_type": "oral-explanation",
                 "canvas_path": "test.canvas",
-            }
+            },
         )
 
         assert response.status_code == 200
@@ -390,7 +398,7 @@ class TestRetryWorkflow:
                     "node_id": "node-001",
                     "agent_type": agent_type,
                     "canvas_path": "test.canvas",
-                }
+                },
             )
 
             assert response.status_code == 200
@@ -401,6 +409,7 @@ class TestRetryWorkflow:
 # =============================================================================
 # Test: Error Handling Across Workflow
 # =============================================================================
+
 
 class TestWorkflowErrorHandling:
     """Integration tests for error handling across workflow."""
@@ -422,7 +431,7 @@ class TestWorkflowErrorHandling:
         # Analyze with nonexistent canvas
         analyze_response = await async_client.post(
             "/api/v1/canvas/intelligent-parallel/",
-            json={"canvas_path": "nonexistent.canvas"}
+            json={"canvas_path": "nonexistent.canvas"},
         )
         assert analyze_response.status_code == 404
 
@@ -448,6 +457,7 @@ class TestWorkflowErrorHandling:
 # Test: Multiple Sessions
 # =============================================================================
 
+
 class TestMultipleSessions:
     """Integration tests for handling multiple concurrent sessions."""
 
@@ -462,7 +472,7 @@ class TestMultipleSessions:
         for i in range(3):
             analyze_response = await async_client.post(
                 "/api/v1/canvas/intelligent-parallel/",
-                json={"canvas_path": f"test{i}.canvas"}
+                json={"canvas_path": f"test{i}.canvas"},
             )
             groups_config = [
                 {
@@ -477,7 +487,7 @@ class TestMultipleSessions:
                 json={
                     "canvas_path": f"test{i}.canvas",
                     "groups": groups_config,
-                }
+                },
             )
             session_ids.append(confirm_response.json()["session_id"])
 
@@ -507,7 +517,7 @@ class TestMultipleSessions:
             for i in range(2):
                 analyze_response = await async_client.post(
                     "/api/v1/canvas/intelligent-parallel/",
-                    json={"canvas_path": f"test{i}.canvas"}
+                    json={"canvas_path": f"test{i}.canvas"},
                 )
                 groups_config = [
                     {
@@ -522,7 +532,7 @@ class TestMultipleSessions:
                     json={
                         "canvas_path": f"test{i}.canvas",
                         "groups": groups_config,
-                    }
+                    },
                 )
                 sessions.append(confirm_response.json()["session_id"])
 

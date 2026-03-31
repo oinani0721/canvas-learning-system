@@ -24,7 +24,10 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from component_health_checkers import CanvasOperationsChecker, ComponentHealthCheckers
+    from component_health_checkers import (
+        CanvasOperationsChecker,
+        ComponentHealthCheckers,
+    )
     from health_monitor_commands import (
         CommandOptions,
         HealthMonitorCommands,
@@ -64,8 +67,8 @@ class TestSystemHealthMonitor(unittest.TestCase):
                     "error_rate_warning": 5.0,
                     "response_time_warning": 3000,
                     "memory_usage_warning": 80.0,
-                    "cpu_usage_warning": 80.0
-                }
+                    "cpu_usage_warning": 80.0,
+                },
             },
             "health_scoring": {
                 "weights": {
@@ -73,19 +76,20 @@ class TestSystemHealthMonitor(unittest.TestCase):
                     "reliability": 0.3,
                     "availability": 0.2,
                     "usage": 0.1,
-                    "efficiency": 0.1
+                    "efficiency": 0.1,
                 },
                 "thresholds": {
                     "excellent": 90.0,
                     "good": 75.0,
                     "warning": 60.0,
-                    "critical": 0.0
-                }
-            }
+                    "critical": 0.0,
+                },
+            },
         }
 
         import yaml
-        with open(self.config_path, 'w', encoding='utf-8') as f:
+
+        with open(self.config_path, "w", encoding="utf-8") as f:
             yaml.dump(test_config, f)
 
         self.monitor = SystemHealthMonitor(self.config_path)
@@ -124,19 +128,22 @@ class TestSystemHealthMonitor(unittest.TestCase):
                 status=HealthStatus.HEALTHY,
                 response_time_ms=45.0,
                 success_rate=99.2,
-                error_rate_24h=0.8
+                error_rate_24h=0.8,
             ),
             "agent_system": ComponentHealth(
                 component_name="agent_system",
                 status=HealthStatus.WARNING,
                 response_time_ms=3200.0,
                 success_rate=95.0,
-                error_rate_24h=2.0
-            )
+                error_rate_24h=2.0,
+            ),
         }
 
         overall_status = self.monitor._calculate_overall_status(component_statuses)
-        self.assertIn(overall_status, [HealthStatus.HEALTHY, HealthStatus.WARNING, HealthStatus.CRITICAL])
+        self.assertIn(
+            overall_status,
+            [HealthStatus.HEALTHY, HealthStatus.WARNING, HealthStatus.CRITICAL],
+        )
 
     def test_calculate_health_score(self):
         """测试健康评分计算"""
@@ -149,13 +156,13 @@ class TestSystemHealthMonitor(unittest.TestCase):
                 response_time_ms=45.0,
                 success_rate=99.2,
                 error_rate_24h=0.8,
-                performance_score=95.0
+                performance_score=95.0,
             )
         }
 
         system_metrics = {
             "performance": {"memory_usage_mb": 256},
-            "reliability": {"uptime_percentage": 99.8}
+            "reliability": {"uptime_percentage": 99.8},
         }
 
         score = self.monitor._calculate_health_score(component_statuses, system_metrics)
@@ -163,7 +170,7 @@ class TestSystemHealthMonitor(unittest.TestCase):
         self.assertGreaterEqual(score, 0.0)
         self.assertLessEqual(score, 100.0)
 
-    @patch('system_health_monitor.psutil')
+    @patch("system_health_monitor.psutil")
     def test_get_system_metrics(self, mock_psutil):
         """测试系统指标获取"""
         # 模拟psutil返回值
@@ -228,8 +235,8 @@ class TestComponentHealthCheckers(unittest.TestCase):
         self.assertIsInstance(all_checkers, dict)
         self.assertGreater(len(all_checkers), 0)
 
-    @patch('component_health_checkers.os.path.exists')
-    @patch('component_health_checkers.os.makedirs')
+    @patch("component_health_checkers.os.path.exists")
+    @patch("component_health_checkers.os.makedirs")
     def test_canvas_operations_checker(self, mock_makedirs, mock_exists):
         """测试Canvas操作检查器"""
         # 模拟文件存在检查返回False（文件不存在）
@@ -306,18 +313,9 @@ class TestHealthMonitorCommands(unittest.TestCase):
     def test_calculate_error_summary(self):
         """测试错误统计计算"""
         errors = [
-            {
-                "severity": "critical",
-                "resolution_status": "resolved"
-            },
-            {
-                "severity": "high",
-                "resolution_status": "unresolved"
-            },
-            {
-                "severity": "medium",
-                "resolution_status": "resolved"
-            }
+            {"severity": "critical", "resolution_status": "resolved"},
+            {"severity": "high", "resolution_status": "unresolved"},
+            {"severity": "medium", "resolution_status": "resolved"},
         ]
 
         summary = self.commands._calculate_error_summary(errors)
@@ -327,7 +325,7 @@ class TestHealthMonitorCommands(unittest.TestCase):
         self.assertEqual(summary["resolved_errors"], 2)
         self.assertEqual(summary["unresolved_errors"], 1)
 
-    @patch('health_monitor_commands.SystemHealthMonitor')
+    @patch("health_monitor_commands.SystemHealthMonitor")
     def test_canvas_status_command_no_monitor(self, mock_monitor_class):
         """测试没有健康监控器时的canvas状态命令"""
         mock_monitor_class.side_effect = Exception("Monitor unavailable")
@@ -348,14 +346,12 @@ class TestHealthMonitorCommands(unittest.TestCase):
                     "performance_score": 95.0,
                     "response_time_ms": 45,
                     "success_rate": 99.2,
-                    "error_rate_24h": 0.8
+                    "error_rate_24h": 0.8,
                 }
             },
             "alerts": [],
             "recent_errors": [],
-            "diagnostic_recommendations": [
-                {"recommendation": "系统运行良好"}
-            ]
+            "diagnostic_recommendations": [{"recommendation": "系统运行良好"}],
         }
 
         result = self.commands._format_summary_status(health_status)
@@ -407,7 +403,9 @@ class TestIntegration(unittest.TestCase):
 
     def setUp(self):
         """测试前准备"""
-        if not all([SystemHealthMonitor, ComponentHealthCheckers, HealthMonitorCommands]):
+        if not all(
+            [SystemHealthMonitor, ComponentHealthCheckers, HealthMonitorCommands]
+        ):
             self.skipTest("健康监控组件不完整")
 
     def test_end_to_end_canvas_status(self):
@@ -422,13 +420,14 @@ class TestIntegration(unittest.TestCase):
                     "check_interval_seconds": 60,
                     "components": {
                         "canvas_operations": {"enabled": True},
-                        "agent_system": {"enabled": True}
-                    }
+                        "agent_system": {"enabled": True},
+                    },
                 }
             }
 
             import yaml
-            with open(config_path, 'w', encoding='utf-8') as f:
+
+            with open(config_path, "w", encoding="utf-8") as f:
                 yaml.dump(test_config, f)
 
             # 测试完整流程
@@ -448,6 +447,6 @@ class TestIntegration(unittest.TestCase):
             print(f"集成测试跳过: {e}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 运行测试
     unittest.main(verbosity=2)

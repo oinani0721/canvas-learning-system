@@ -11,7 +11,6 @@ Provides endpoints for operation history, snapshots, and rollback functionality.
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -36,6 +35,7 @@ try:
         SnapshotManager,
         SnapshotType,
     )
+
     _rollback_available = True
 except (ImportError, ModuleNotFoundError):
     logging.getLogger(__name__).warning(
@@ -187,7 +187,9 @@ def _operation_to_response(op) -> OperationResponse:
 )
 async def get_operation_history(
     canvas_path: str,
-    limit: int = Query(50, ge=1, le=100, description="Maximum number of records to return"),
+    limit: int = Query(
+        50, ge=1, le=100, description="Maximum number of records to return"
+    ),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
 ) -> OperationHistoryResponse:
     """
@@ -305,7 +307,9 @@ def _snapshot_entry_to_response(entry: dict) -> SnapshotResponse:
 )
 async def list_snapshots(
     canvas_path: str,
-    limit: int = Query(20, ge=1, le=100, description="Maximum number of snapshots to return"),
+    limit: int = Query(
+        20, ge=1, le=100, description="Maximum number of snapshots to return"
+    ),
     offset: int = Query(0, ge=0, description="Number of snapshots to skip"),
 ) -> SnapshotListResponse:
     """
@@ -627,20 +631,24 @@ def _compute_diff(
     # 查找新增的节点 (在当前但不在快照中)
     for node_id, node in current_nodes.items():
         if node_id not in snapshot_nodes:
-            nodes_added.append({
-                "id": node_id,
-                "text": node.get("text", "")[:100] if node.get("text") else None,
-                "color": node.get("color"),
-            })
+            nodes_added.append(
+                {
+                    "id": node_id,
+                    "text": node.get("text", "")[:100] if node.get("text") else None,
+                    "color": node.get("color"),
+                }
+            )
 
     # 查找删除的节点 (在快照但不在当前中)
     for node_id, node in snapshot_nodes.items():
         if node_id not in current_nodes:
-            nodes_removed.append({
-                "id": node_id,
-                "text": node.get("text", "")[:100] if node.get("text") else None,
-                "color": node.get("color"),
-            })
+            nodes_removed.append(
+                {
+                    "id": node_id,
+                    "text": node.get("text", "")[:100] if node.get("text") else None,
+                    "color": node.get("color"),
+                }
+            )
 
     # 查找修改的节点 (在两者中但内容不同)
     for node_id in set(snapshot_nodes.keys()) & set(current_nodes.keys()):
@@ -657,11 +665,13 @@ def _compute_diff(
                 }
 
         if changes:
-            nodes_modified.append({
-                "id": node_id,
-                "before": {k: snap_node.get(k) for k in changes.keys()},
-                "after": {k: curr_node.get(k) for k in changes.keys()},
-            })
+            nodes_modified.append(
+                {
+                    "id": node_id,
+                    "before": {k: snap_node.get(k) for k in changes.keys()},
+                    "after": {k: curr_node.get(k) for k in changes.keys()},
+                }
+            )
 
     # 边差异
     snapshot_edges = {e.get("id"): e for e in snapshot_data.get("edges", [])}
@@ -673,20 +683,24 @@ def _compute_diff(
     # 查找新增的边
     for edge_id, edge in current_edges.items():
         if edge_id not in snapshot_edges:
-            edges_added.append({
-                "id": edge_id,
-                "from_node": edge.get("fromNode", ""),
-                "to_node": edge.get("toNode", ""),
-            })
+            edges_added.append(
+                {
+                    "id": edge_id,
+                    "from_node": edge.get("fromNode", ""),
+                    "to_node": edge.get("toNode", ""),
+                }
+            )
 
     # 查找删除的边
     for edge_id, edge in snapshot_edges.items():
         if edge_id not in current_edges:
-            edges_removed.append({
-                "id": edge_id,
-                "from_node": edge.get("fromNode", ""),
-                "to_node": edge.get("toNode", ""),
-            })
+            edges_removed.append(
+                {
+                    "id": edge_id,
+                    "from_node": edge.get("fromNode", ""),
+                    "to_node": edge.get("toNode", ""),
+                }
+            )
 
     return {
         "nodes": {

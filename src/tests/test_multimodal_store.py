@@ -346,13 +346,15 @@ class TestMultimodalStore:
     @pytest.mark.asyncio
     async def test_get_content(self, store, mock_lancedb_client):
         """Test retrieving content by ID."""
-        mock_lancedb_client.search.return_value = [{
-            "id": "content-123",
-            "media_type": "image",
-            "file_path": "/path/to/image.png",
-            "related_concept_id": "concept-456",
-            "created_at": "2025-01-01T12:00:00",
-        }]
+        mock_lancedb_client.search.return_value = [
+            {
+                "id": "content-123",
+                "media_type": "image",
+                "file_path": "/path/to/image.png",
+                "related_concept_id": "concept-456",
+                "created_at": "2025-01-01T12:00:00",
+            }
+        ]
 
         result = await store.get("content-123")
 

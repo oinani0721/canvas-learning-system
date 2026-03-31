@@ -22,12 +22,12 @@ search_vault_notes_decl = types.FunctionDeclaration(
         "properties": {
             "query": {
                 "type": "string",
-                "description": "搜索关键词或问题，如 'A* 搜索算法' 或 'MDP 值迭代'"
+                "description": "搜索关键词或问题，如 'A* 搜索算法' 或 'MDP 值迭代'",
             },
             "num_results": {
                 "type": "integer",
                 "description": "返回结果数量，默认5",
-            }
+            },
         },
         "required": ["query"],
     },
@@ -47,7 +47,7 @@ search_knowledge_graph_decl = types.FunctionDeclaration(
         "properties": {
             "query": {
                 "type": "string",
-                "description": "搜索关键词，如 'value iteration mistake' 或 'CSP误解'"
+                "description": "搜索关键词，如 'value iteration mistake' 或 'CSP误解'",
             },
             "entity_types": {
                 "type": "array",
@@ -61,7 +61,7 @@ search_knowledge_graph_decl = types.FunctionDeclaration(
             "num_results": {
                 "type": "integer",
                 "description": "返回结果数量，默认5",
-            }
+            },
         },
         "required": ["query"],
     },
@@ -81,16 +81,13 @@ get_note_content_decl = types.FunctionDeclaration(
         "properties": {
             "file_path": {
                 "type": "string",
-                "description": "笔记文件的相对路径，如 'lectures/lec09-notes.md'"
+                "description": "笔记文件的相对路径，如 'lectures/lec09-notes.md'",
             },
             "line_start": {
                 "type": "integer",
-                "description": "起始行号（可选，从1开始）"
+                "description": "起始行号（可选，从1开始）",
             },
-            "line_end": {
-                "type": "integer",
-                "description": "结束行号（可选）"
-            }
+            "line_end": {"type": "integer", "description": "结束行号（可选）"},
         },
         "required": ["file_path"],
     },

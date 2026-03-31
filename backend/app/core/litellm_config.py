@@ -40,7 +40,9 @@ class ModelTaskConfig(BaseModel):
     [Source: Story 1.3 Task 9.1]
     """
 
-    provider: str = Field(..., description="LLM provider: gemini, anthropic, openai, ollama")
+    provider: str = Field(
+        ..., description="LLM provider: gemini, anthropic, openai, ollama"
+    )
     model_name: str = Field(..., description="Model identifier (e.g. gemini-2.0-flash)")
     api_key: str = Field(default="", description="API key for this provider")
 
@@ -52,9 +54,15 @@ class SystemModelConfig(BaseModel):
     [Source: architecture.md — dual-layer key separation]
     """
 
-    chat: Optional[ModelTaskConfig] = Field(default=None, description="Chat / conversation model (outer layer)")
-    scoring: Optional[ModelTaskConfig] = Field(default=None, description="Scoring / extraction model (inner layer)")
-    embedding: Optional[ModelTaskConfig] = Field(default=None, description="Embedding model (read-only, Ollama bge-m3)")
+    chat: Optional[ModelTaskConfig] = Field(
+        default=None, description="Chat / conversation model (outer layer)"
+    )
+    scoring: Optional[ModelTaskConfig] = Field(
+        default=None, description="Scoring / extraction model (inner layer)"
+    )
+    embedding: Optional[ModelTaskConfig] = Field(
+        default=None, description="Embedding model (read-only, Ollama bge-m3)"
+    )
 
 
 # ── Provider → LiteLLM model-name prefix mapping ─────────────────────────────
@@ -131,7 +139,9 @@ class RuntimeModelConfigManager:
     def get_chat_model(self) -> Optional[str]:
         """Return the LiteLLM-formatted chat model string, or None."""
         if self._config.chat and self._config.chat.model_name:
-            return format_litellm_model(self._config.chat.provider, self._config.chat.model_name)
+            return format_litellm_model(
+                self._config.chat.provider, self._config.chat.model_name
+            )
         return None
 
     def get_chat_api_key(self) -> Optional[str]:
@@ -147,7 +157,9 @@ class RuntimeModelConfigManager:
         matching the frontend UI hint "leave empty to reuse Chat API Key".
         """
         if self._config.scoring and self._config.scoring.model_name:
-            return format_litellm_model(self._config.scoring.provider, self._config.scoring.model_name)
+            return format_litellm_model(
+                self._config.scoring.provider, self._config.scoring.model_name
+            )
         return self.get_chat_model()
 
     def get_scoring_api_key(self) -> Optional[str]:
@@ -212,7 +224,9 @@ def register_litellm_callbacks() -> bool:
         # Disable LiteLLM's own telemetry to avoid noise
         litellm.telemetry = False
 
-        logger.info("[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks")
+        logger.info(
+            "[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks"
+        )
         return True
 
     except ImportError:

@@ -119,8 +119,10 @@ class TestQueryRewriteRegression:
             )
 
         compliance_rate = compliant_count / len(scenarios)
-        assert compliance_rate >= 0.90, "Format compliance {v:.4f} below 90 percent threshold".format(
-            v=compliance_rate,
+        assert compliance_rate >= 0.90, (
+            "Format compliance {v:.4f} below 90 percent threshold".format(
+                v=compliance_rate,
+            )
         )
 
     def test_replay_rewrite_diversity(
@@ -137,8 +139,10 @@ class TestQueryRewriteRegression:
                 diverse_count += 1
 
         diversity_rate = diverse_count / len(scenarios)
-        assert diversity_rate >= 0.80, "Rewrite diversity rate {v:.4f} below 80 percent threshold".format(
-            v=diversity_rate,
+        assert diversity_rate >= 0.80, (
+            "Rewrite diversity rate {v:.4f} below 80 percent threshold".format(
+                v=diversity_rate,
+            )
         )
 
     def test_replay_count_compliance(
@@ -159,8 +163,10 @@ class TestQueryRewriteRegression:
                 count_ok += 1
 
         count_rate = count_ok / len(scenarios)
-        assert count_rate >= 0.80, "Count compliance {v:.4f} below 80 percent threshold".format(
-            v=count_rate,
+        assert count_rate >= 0.80, (
+            "Count compliance {v:.4f} below 80 percent threshold".format(
+                v=count_rate,
+            )
         )
 
     def test_generate_report(

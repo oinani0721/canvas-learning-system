@@ -93,7 +93,9 @@ async def _fetch_mastery(node_id: str, group_id: str) -> dict:
             if concept.last_interaction_ts and concept.fsrs_stability > 0:
                 from datetime import timedelta
 
-                next_dt = concept.last_interaction_ts + timedelta(days=concept.fsrs_stability)
+                next_dt = concept.last_interaction_ts + timedelta(
+                    days=concept.fsrs_stability
+                )
                 result["next_review"] = next_dt.isoformat()
         else:
             # Fallback: try to get node name from Neo4j directly
@@ -135,7 +137,9 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
             max_results=MAX_TIPS + MAX_ERRORS,
         )
         for episode in episodes:
-            ep_node_id = episode.get("node_id") or episode.get("metadata", {}).get("node_id", "")
+            ep_node_id = episode.get("node_id") or episode.get("metadata", {}).get(
+                "node_id", ""
+            )
             if ep_node_id != node_id:
                 continue
 
@@ -148,7 +152,9 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
                 tips.append(
                     {
                         "content": meta.get("content") or content,
-                        "category": (", ".join(meta["tags"]) if meta.get("tags") else "general"),
+                        "category": (
+                            ", ".join(meta["tags"]) if meta.get("tags") else "general"
+                        ),
                         "annotated_at": meta.get("created_at") or timestamp,
                     }
                 )
@@ -173,7 +179,11 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
             # Avoid duplicates: skip if content already in tips
             existing_contents = {t["content"] for t in tips}
             mem_content = mem.get("user_understanding") or mem.get("concept", "")
-            if mem_content and mem_content not in existing_contents and len(tips) < MAX_TIPS:
+            if (
+                mem_content
+                and mem_content not in existing_contents
+                and len(tips) < MAX_TIPS
+            ):
                 tips.append(
                     {
                         "content": mem_content,
@@ -317,6 +327,7 @@ async def get_node_context(
     # Fetch mastery, tips/errors, and neighbors in parallel using asyncio.gather.
     # V7 validation found sequential queries added 4x unnecessary latency.
     import asyncio
+
     mastery_data, (tips, errors), neighbor_records = await asyncio.gather(
         _fetch_mastery(node_id, group_id),
         _fetch_tips_and_errors(node_id),
@@ -325,7 +336,10 @@ async def get_node_context(
 
     # Tier 1: edge reasons extracted from neighbor records
     edge_reasons = [
-        {"neighbor_name": rec["name"], "reason": rec.get("reason") or rec.get("label") or ""}
+        {
+            "neighbor_name": rec["name"],
+            "reason": rec.get("reason") or rec.get("label") or "",
+        }
         for rec in neighbor_records
         if rec.get("name")
     ]
@@ -517,7 +531,9 @@ def format_as_markdown(ctx: dict) -> str:
                     line += f"\n  - {insight}"
             inh_lines.append(line)
         if inh_lines:
-            sections.append("### 关联知识上下文（通过 Edge 继承）\n" + "\n".join(inh_lines))
+            sections.append(
+                "### 关联知识上下文（通过 Edge 继承）\n" + "\n".join(inh_lines)
+            )
 
     # Tier 2: Neighbors
     neighbors = tier2.get("neighbors", list())

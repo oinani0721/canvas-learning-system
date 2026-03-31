@@ -3,11 +3,10 @@
 """Tests for analyze_canvas, silhouette score, and subject isolation."""
 
 import copy
-from typing import Any, Dict
+from typing import Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from app.models.intelligent_parallel_models import (
     IntelligentParallelResponse,
 )
@@ -97,7 +96,9 @@ class TestSilhouetteScore:
                 result = await service.analyze_canvas("test.canvas")
 
         assert result.silhouette_score == 0.2
-        assert any("Low clustering quality" in record.message for record in caplog.records)
+        assert any(
+            "Low clustering quality" in record.message for record in caplog.records
+        )
 
 
 class TestSubjectIsolation:

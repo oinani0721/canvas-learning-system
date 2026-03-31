@@ -151,9 +151,7 @@ class TestUnicodeErrorHandling:
         from app.api.v1.endpoints.agents import _create_encoding_error_response
 
         # 创建 UnicodeEncodeError
-        error = UnicodeEncodeError(
-            "gbk", "测试🔥", 2, 3, "illegal multibyte sequence"
-        )
+        error = UnicodeEncodeError("gbk", "测试🔥", 2, 3, "illegal multibyte sequence")
 
         # 调用辅助函数
         http_exception = _create_encoding_error_response(
@@ -165,7 +163,9 @@ class TestUnicodeErrorHandling:
         detail = http_exception.detail
         assert detail.get("error_type") == "ENCODING_ERROR"
         assert "diagnostic" in detail
-        assert detail.get("is_retryable") is True  # ENCODING_ERROR is retryable per ADR-009
+        assert (
+            detail.get("is_retryable") is True
+        )  # ENCODING_ERROR is retryable per ADR-009
 
     def test_encoding_error_diagnostic_is_ascii_safe(self):
         """诊断信息应为 ASCII 安全格式."""

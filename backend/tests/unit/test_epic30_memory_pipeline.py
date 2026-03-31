@@ -23,21 +23,20 @@ Does NOT duplicate existing tests in:
 [Source: docs/stories/30.1.story.md]
 """
 
-import asyncio
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
 from tests.conftest import simulate_async_delay
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_valid_event(**overrides) -> Dict[str, Any]:
     """Factory for a valid batch event dict with unique IDs."""
@@ -104,6 +103,7 @@ async def _create_memory_service(neo4j=None):
 # Gap 1 [P0]: record_batch_learning_events() full flow
 # Story 30.3 AC-30.3.10
 # ===========================================================================
+
 
 class TestBatchLearningEventsFullFlow:
     """Gap 1 — full lifecycle of record_batch_learning_events().
@@ -284,6 +284,7 @@ class TestBatchLearningEventsFullFlow:
 # Story 30.5 AC-30.5.1-4
 # ===========================================================================
 
+
 class TestRecordTemporalEventLifecycle:
     """Gap 2 — record_temporal_event() for all three event types,
     Neo4j degradation, and relationship graph creation.
@@ -454,6 +455,7 @@ class TestRecordTemporalEventLifecycle:
 # Story 30.4 AC-30.4.1
 # ===========================================================================
 
+
 class TestAgentMemoryMappingCompleteness:
     """Gap 3 — verify all 14 agent types are present in AGENT_MEMORY_MAPPING
     and each maps to a valid AgentMemoryType."""
@@ -501,7 +503,10 @@ class TestAgentMemoryMappingCompleteness:
 
     def test_p1_get_memory_type_for_known_agent(self):
         """[P1] get_memory_type_for_agent() returns correct type for known agent."""
-        from app.core.agent_memory_mapping import AgentMemoryType, get_memory_type_for_agent
+        from app.core.agent_memory_mapping import (
+            AgentMemoryType,
+            get_memory_type_for_agent,
+        )
 
         result = get_memory_type_for_agent("scoring-agent")
         assert result == AgentMemoryType.SCORING_COMPLETED
@@ -523,7 +528,9 @@ class TestAgentMemoryMappingCompleteness:
             "question-decomposition",
         ]
         for agent in decomp_agents:
-            assert AGENT_MEMORY_MAPPING[agent] == AgentMemoryType.DECOMPOSITION_COMPLETED
+            assert (
+                AGENT_MEMORY_MAPPING[agent] == AgentMemoryType.DECOMPOSITION_COMPLETED
+            )
 
     def test_p1_explanation_agents_map_to_explanation_generated(self):
         """[P1] All explanation agents must map to EXPLANATION_GENERATED."""
@@ -545,6 +552,7 @@ class TestAgentMemoryMappingCompleteness:
 # Gap 4 [P1]: get_health_status() degradation logic
 # Story 30.3 AC-30.3.5
 # ===========================================================================
+
 
 class TestHealthStatusDegradation:
     """Gap 4 — overall status transitions: healthy / degraded / unhealthy."""
@@ -568,7 +576,9 @@ class TestHealthStatusDegradation:
     async def test_p1_json_fallback_mode_still_ok(self):
         """[P1] When Neo4j mode=JSON_FALLBACK -> graphiti status ok, backend=json_fallback."""
         # Given
-        neo4j = _build_mock_neo4j(mode="JSON_FALLBACK", initialized=True, health_status=False)
+        neo4j = _build_mock_neo4j(
+            mode="JSON_FALLBACK", initialized=True, health_status=False
+        )
         svc = await _create_memory_service(neo4j=neo4j)
 
         # When
@@ -644,6 +654,7 @@ class TestHealthStatusDegradation:
 # Story 30.2 AC-30.2.4
 # ===========================================================================
 
+
 class TestNeo4jWriteLatencyMetrics:
     """Gap 5 — Neo4jClient._metrics tracks latency; warnings on >200ms."""
 
@@ -715,7 +726,9 @@ class TestNeo4jWriteLatencyMetrics:
                 pass
 
         # Then — should contain latency warning
-        warning_msgs = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+        warning_msgs = [
+            r.message for r in caplog.records if r.levelno >= logging.WARNING
+        ]
         assert any("200ms" in msg for msg in warning_msgs), (
             f"Expected >200ms latency warning. Got: {warning_msgs}"
         )
@@ -725,6 +738,7 @@ class TestNeo4jWriteLatencyMetrics:
 # Gap 6 [P2]: Settings Neo4j configuration validation
 # Story 30.1 AC-30.1.2
 # ===========================================================================
+
 
 class TestSettingsNeo4jConfig:
     """Gap 6 — Settings model parses NEO4J_* environment variables correctly.

@@ -27,6 +27,7 @@ from typing import Optional, Tuple
 # ✅ Verified from pydub documentation (https://github.com/jiaaro/pydub)
 try:
     from pydub import AudioSegment
+
     PYDUB_AVAILABLE = True
 except ImportError:
     PYDUB_AVAILABLE = False
@@ -43,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 # ===== Exception Classes (符合 ADR-009 错误处理策略) =====
+
 
 class AudioProcessorError(Exception):
     """
@@ -85,6 +87,7 @@ class AudioCorruptError(AudioProcessorError):
 
 
 # ===== Main Processor Class =====
+
 
 class AudioProcessor:
     """
@@ -343,7 +346,8 @@ class AudioProcessor:
         try:
             # Try to import matplotlib for visualization
             import matplotlib
-            matplotlib.use('Agg')  # Non-interactive backend
+
+            matplotlib.use("Agg")  # Non-interactive backend
             import matplotlib.pyplot as plt
             import numpy as np
 
@@ -362,10 +366,12 @@ class AudioProcessor:
             if len(samples) > target_points:
                 # Take max absolute value in each chunk for waveform envelope
                 chunk_size = len(samples) // target_points
-                samples = np.array([
-                    np.max(np.abs(samples[i:i + chunk_size]))
-                    for i in range(0, len(samples) - chunk_size, chunk_size)
-                ])
+                samples = np.array(
+                    [
+                        np.max(np.abs(samples[i : i + chunk_size]))
+                        for i in range(0, len(samples) - chunk_size, chunk_size)
+                    ]
+                )
 
             # Normalize
             if np.max(np.abs(samples)) > 0:
@@ -374,15 +380,11 @@ class AudioProcessor:
             # Create figure
             fig, ax = plt.subplots(figsize=(size[0] / 50, size[1] / 50), dpi=50)
             ax.fill_between(
-                range(len(samples)),
-                samples,
-                -samples,
-                color='#4A90D9',
-                alpha=0.7
+                range(len(samples)), samples, -samples, color="#4A90D9", alpha=0.7
             )
             ax.set_xlim(0, len(samples))
             ax.set_ylim(-1.1, 1.1)
-            ax.axis('off')
+            ax.axis("off")
             fig.patch.set_alpha(0)
             ax.patch.set_alpha(0)
 
@@ -390,15 +392,15 @@ class AudioProcessor:
             buffer = BytesIO()
             plt.savefig(
                 buffer,
-                format='png',
-                bbox_inches='tight',
+                format="png",
+                bbox_inches="tight",
                 pad_inches=0,
-                transparent=True
+                transparent=True,
             )
             plt.close(fig)
             buffer.seek(0)
 
-            return base64.b64encode(buffer.read()).decode('utf-8')
+            return base64.b64encode(buffer.read()).decode("utf-8")
 
         except ImportError:
             logger.warning(
@@ -445,21 +447,20 @@ class AudioProcessor:
             mime_type = self.get_mime_type(audio_path)
 
             # Use Gemini for transcription
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel("gemini-1.5-flash")
 
             # Upload audio for processing
-            audio_file = genai.upload_file(
-                audio_path,
-                mime_type=mime_type
-            )
+            audio_file = genai.upload_file(audio_path, mime_type=mime_type)
 
             # Generate transcription
-            response = model.generate_content([
-                "Please transcribe this audio file accurately. "
-                "If the audio contains speech in a language other than English, "
-                "transcribe it in its original language.",
-                audio_file
-            ])
+            response = model.generate_content(
+                [
+                    "Please transcribe this audio file accurately. "
+                    "If the audio contains speech in a language other than English, "
+                    "transcribe it in its original language.",
+                    audio_file,
+                ]
+            )
 
             # Clean up uploaded file
             try:
@@ -484,6 +485,7 @@ class AudioProcessor:
 
 
 # ===== Convenience Function =====
+
 
 async def process_audio(
     audio_path: str | Path,

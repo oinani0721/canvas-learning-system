@@ -25,6 +25,7 @@ import psutil
 
 try:
     import jinja2
+
     JINJA2_ENABLED = True
 except ImportError:
     JINJA2_ENABLED = False
@@ -40,6 +41,7 @@ from canvas_utils import CanvasJSONOperator, LayoutOptimizer
 @dataclass
 class PerformanceTestResult:
     """性能测试结果数据模型"""
+
     test_name: str
     node_count: int
     edge_count: int
@@ -57,6 +59,7 @@ class PerformanceTestResult:
 @dataclass
 class StressTestResult:
     """压力测试结果数据模型"""
+
     test_session_id: str
     node_counts: List[int]
     results: List[PerformanceTestResult]
@@ -67,6 +70,7 @@ class StressTestResult:
 @dataclass
 class TestEnvironment:
     """测试环境信息"""
+
     python_version: str
     platform: str
     cpu_count: int
@@ -115,13 +119,15 @@ class TestCanvasGenerator:
             "2": 0.35,  # 绿色节点
             "3": 0.25,  # 紫色节点
             "5": 0.15,  # 蓝色节点
-            "6": 0.10   # 黄色节点
+            "6": 0.10,  # 黄色节点
         }
 
-    def generate_test_canvas(self,
-                           node_count: int,
-                           complexity: str = "medium",
-                           output_path: Optional[str] = None) -> str:
+    def generate_test_canvas(
+        self,
+        node_count: int,
+        complexity: str = "medium",
+        output_path: Optional[str] = None,
+    ) -> str:
         """
         生成指定节点数和复杂度的测试Canvas文件
 
@@ -135,13 +141,12 @@ class TestCanvasGenerator:
         """
         if output_path is None:
             temp_dir = tempfile.mkdtemp()
-            output_path = os.path.join(temp_dir, f"test_canvas_{node_count}_{complexity}.canvas")
+            output_path = os.path.join(
+                temp_dir, f"test_canvas_{node_count}_{complexity}.canvas"
+            )
 
         # 创建基础Canvas结构
-        canvas_data = {
-            "nodes": [],
-            "edges": []
-        }
+        canvas_data = {"nodes": [], "edges": []}
 
         # 根据复杂度选择生成策略
         if complexity == "simple":
@@ -160,7 +165,7 @@ class TestCanvasGenerator:
 
         # 写入文件
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False, indent=2)
 
         return output_path
@@ -187,7 +192,7 @@ class TestCanvasGenerator:
                 "width": 180,
                 "height": 100,
                 "color": color,
-                "text": f"测试节点 {i+1}"
+                "text": f"测试节点 {i + 1}",
             }
             nodes.append(node)
 
@@ -196,8 +201,8 @@ class TestCanvasGenerator:
             edge = {
                 "id": str(uuid.uuid4()),
                 "from": nodes[i]["id"],
-                "to": nodes[i+1]["id"],
-                "color": "1"
+                "to": nodes[i + 1]["id"],
+                "color": "1",
             }
             edges.append(edge)
 
@@ -225,7 +230,7 @@ class TestCanvasGenerator:
             for i in range(start_idx, end_idx):
                 # 在聚类中心附近随机分布
                 x = center_x + (hash(i) % 200 - 100)
-                y = center_y + (hash(i*2) % 150 - 75)
+                y = center_y + (hash(i * 2) % 150 - 75)
                 color = self._get_node_color()
 
                 node = {
@@ -235,7 +240,7 @@ class TestCanvasGenerator:
                     "width": 180,
                     "height": 100,
                     "color": color,
-                    "text": f"聚类{cluster_id+1}-节点{i-start_idx+1}"
+                    "text": f"聚类{cluster_id + 1}-节点{i - start_idx + 1}",
                 }
                 nodes.append(node)
                 cluster_nodes.append(node)
@@ -245,14 +250,16 @@ class TestCanvasGenerator:
                 edge = {
                     "id": str(uuid.uuid4()),
                     "from": cluster_nodes[i]["id"],
-                    "to": cluster_nodes[i+1]["id"],
-                    "color": "1"
+                    "to": cluster_nodes[i + 1]["id"],
+                    "color": "1",
                 }
                 edges.append(edge)
 
         return nodes, edges
 
-    def _generate_complex_layout(self, node_count: int) -> Tuple[List[Dict], List[Dict]]:
+    def _generate_complex_layout(
+        self, node_count: int
+    ) -> Tuple[List[Dict], List[Dict]]:
         """生成复杂布局（多层级结构）"""
         # 简化实现，基于中等布局增加更多连接
         nodes, edges = self._generate_medium_layout(node_count)
@@ -266,13 +273,15 @@ class TestCanvasGenerator:
                     "id": str(uuid.uuid4()),
                     "from": nodes[from_idx]["id"],
                     "to": nodes[to_idx]["id"],
-                    "color": "2"
+                    "color": "2",
                 }
                 edges.append(edge)
 
         return nodes, edges
 
-    def _generate_chaotic_layout(self, node_count: int) -> Tuple[List[Dict], List[Dict]]:
+    def _generate_chaotic_layout(
+        self, node_count: int
+    ) -> Tuple[List[Dict], List[Dict]]:
         """生成混乱布局（随机分布和大量重叠）"""
         nodes = []
         edges = []
@@ -290,7 +299,7 @@ class TestCanvasGenerator:
                 "width": 180,
                 "height": 100,
                 "color": color,
-                "text": f"混乱节点 {i+1}"
+                "text": f"混乱节点 {i + 1}",
             }
             nodes.append(node)
 
@@ -304,7 +313,7 @@ class TestCanvasGenerator:
                     "id": str(uuid.uuid4()),
                     "from": nodes[from_idx]["id"],
                     "to": nodes[to_idx]["id"],
-                    "color": "1"
+                    "color": "1",
                 }
                 edges.append(edge)
 
@@ -313,6 +322,7 @@ class TestCanvasGenerator:
     def _get_node_color(self) -> str:
         """根据分布概率获取节点颜色"""
         import random
+
         rand_val = random.random()
         cumulative = 0
         for color, prob in self.color_distribution.items():
@@ -349,12 +359,10 @@ class CanvasPerformanceTester:
             python_version=sys.version,
             platform=platform.system(),
             cpu_count=psutil.cpu_count(),
-            memory_gb=psutil.virtual_memory().total / 1024 / 1024 / 1024
+            memory_gb=psutil.virtual_memory().total / 1024 / 1024 / 1024,
         )
 
-    def generate_test_canvas(self,
-                           node_count: int,
-                           complexity: str = "medium") -> str:
+    def generate_test_canvas(self, node_count: int, complexity: str = "medium") -> str:
         """
         生成指定节点数和复杂度的测试Canvas文件
 
@@ -365,14 +373,17 @@ class CanvasPerformanceTester:
         Returns:
             str: 生成的Canvas文件路径
         """
-        output_path = self.output_dir / f"test_canvas_{node_count}_{complexity}_{self.current_session_id}.canvas"
+        output_path = (
+            self.output_dir
+            / f"test_canvas_{node_count}_{complexity}_{self.current_session_id}.canvas"
+        )
         return self.canvas_generator.generate_test_canvas(
             node_count, complexity, str(output_path)
         )
 
-    def run_performance_test(self,
-                           canvas_path: str,
-                           test_config: Dict = None) -> PerformanceTestResult:
+    def run_performance_test(
+        self, canvas_path: str, test_config: Dict = None
+    ) -> PerformanceTestResult:
         """
         运行性能测试
 
@@ -384,14 +395,14 @@ class CanvasPerformanceTester:
             PerformanceTestResult: 详细的性能测试结果
         """
         config = test_config or {}
-        test_name = config.get('test_name', f"performance_test_{uuid.uuid4().hex[:8]}")
+        test_name = config.get("test_name", f"performance_test_{uuid.uuid4().hex[:8]}")
 
         # 读取Canvas文件
         canvas_op = CanvasJSONOperator(canvas_path)
         canvas_data = canvas_op.read_canvas()
 
-        node_count = len(canvas_data.get('nodes', []))
-        edge_count = len(canvas_data.get('edges', []))
+        node_count = len(canvas_data.get("nodes", []))
+        edge_count = len(canvas_data.get("edges", []))
 
         # 开始性能监控
         memory_monitor = MemoryMonitor()
@@ -407,7 +418,9 @@ class CanvasPerformanceTester:
             processing_time_ms = (end_time - start_time) * 1000
 
             # 获取内存使用情况
-            current_memory, peak_memory, memory_growth = memory_monitor.get_memory_usage()
+            current_memory, peak_memory, memory_growth = (
+                memory_monitor.get_memory_usage()
+            )
 
             # 计算布局质量评分（简化实现）
             layout_quality_score = self._calculate_layout_quality(canvas_path)
@@ -416,7 +429,7 @@ class CanvasPerformanceTester:
             overlap_count = self._count_overlaps(canvas_path)
 
             # 获取优化应用数量
-            optimizations_applied = getattr(result, 'optimizations_applied', 0)
+            optimizations_applied = getattr(result, "optimizations_applied", 0)
 
             test_result = PerformanceTestResult(
                 test_name=test_name,
@@ -428,7 +441,7 @@ class CanvasPerformanceTester:
                 layout_quality_score=layout_quality_score,
                 overlap_count=overlap_count,
                 optimizations_applied=optimizations_applied,
-                success=True
+                success=True,
             )
 
         except Exception as e:
@@ -447,15 +460,15 @@ class CanvasPerformanceTester:
                 overlap_count=0,
                 optimizations_applied=0,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )
 
         self.test_results.append(test_result)
         return test_result
 
-    def run_stress_test(self,
-                       node_counts: List[int],
-                       iterations: int = 3) -> StressTestResult:
+    def run_stress_test(
+        self, node_counts: List[int], iterations: int = 3
+    ) -> StressTestResult:
         """
         运行压力测试
 
@@ -480,16 +493,16 @@ class CanvasPerformanceTester:
                     result = self.run_performance_test(
                         canvas_path,
                         {
-                            'test_name': f'stress_test_{node_count}nodes_iter{iteration+1}',
-                            'session_id': test_session_id
-                        }
+                            "test_name": f"stress_test_{node_count}nodes_iter{iteration + 1}",
+                            "session_id": test_session_id,
+                        },
                     )
                     results.append(result)
 
                 except Exception as e:
                     # 创建失败结果
                     failed_result = PerformanceTestResult(
-                        test_name=f'stress_test_{node_count}nodes_iter{iteration+1}',
+                        test_name=f"stress_test_{node_count}nodes_iter{iteration + 1}",
                         node_count=node_count,
                         edge_count=0,
                         processing_time_ms=0.0,
@@ -499,7 +512,7 @@ class CanvasPerformanceTester:
                         overlap_count=0,
                         optimizations_applied=0,
                         success=False,
-                        error_message=str(e)
+                        error_message=str(e),
                     )
                     results.append(failed_result)
 
@@ -518,7 +531,7 @@ class CanvasPerformanceTester:
             test_session_id=test_session_id,
             node_counts=node_counts,
             results=results,
-            summary_statistics=summary_statistics
+            summary_statistics=summary_statistics,
         )
 
     def monitor_memory_usage(self, canvas_path: str) -> Dict:
@@ -544,13 +557,13 @@ class CanvasPerformanceTester:
 
             return {
                 "canvas_path": canvas_path,
-                "node_count": len(canvas_data.get('nodes', [])),
+                "node_count": len(canvas_data.get("nodes", [])),
                 "memory_usage_mb": current_memory,
                 "memory_peak_mb": peak_memory,
                 "memory_growth_mb": growth,
                 "memory_measurements": memory_monitor.measurements,
                 "memory_leak_detected": growth > 100,  # 100MB增长阈值
-                "monitoring_timestamp": datetime.now().isoformat()
+                "monitoring_timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
@@ -562,7 +575,7 @@ class CanvasPerformanceTester:
                 "memory_peak_mb": peak_memory,
                 "memory_growth_mb": 0,
                 "error": str(e),
-                "monitoring_timestamp": datetime.now().isoformat()
+                "monitoring_timestamp": datetime.now().isoformat(),
             }
 
     def _calculate_layout_quality(self, canvas_path: str) -> float:
@@ -570,7 +583,7 @@ class CanvasPerformanceTester:
         try:
             canvas_op = CanvasJSONOperator(canvas_path)
             canvas_data = canvas_op.read_canvas()
-            nodes = canvas_data.get('nodes', [])
+            nodes = canvas_data.get("nodes", [])
 
             if not nodes:
                 return 0.0
@@ -580,11 +593,15 @@ class CanvasPerformanceTester:
             overlap_penalty = min(overlap_count * 0.5, 5.0)
 
             # 计算节点分布均匀性
-            x_positions = [node.get('x', 0) for node in nodes]
-            y_positions = [node.get('y', 0) for node in nodes]
+            x_positions = [node.get("x", 0) for node in nodes]
+            y_positions = [node.get("y", 0) for node in nodes]
 
-            x_variance = max(x_positions) - min(x_positions) if len(set(x_positions)) > 1 else 1
-            y_variance = max(y_positions) - min(y_positions) if len(set(y_positions)) > 1 else 1
+            x_variance = (
+                max(x_positions) - min(x_positions) if len(set(x_positions)) > 1 else 1
+            )
+            y_variance = (
+                max(y_positions) - min(y_positions) if len(set(y_positions)) > 1 else 1
+            )
 
             distribution_score = min((x_variance + y_variance) / 1000, 5.0)
 
@@ -599,11 +616,11 @@ class CanvasPerformanceTester:
         try:
             canvas_op = CanvasJSONOperator(canvas_path)
             canvas_data = canvas_op.read_canvas()
-            nodes = canvas_data.get('nodes', [])
+            nodes = canvas_data.get("nodes", [])
 
             overlap_count = 0
             for i, node1 in enumerate(nodes):
-                for node2 in nodes[i+1:]:
+                for node2 in nodes[i + 1 :]:
                     if self._nodes_overlap(node1, node2):
                         overlap_count += 1
 
@@ -614,11 +631,11 @@ class CanvasPerformanceTester:
 
     def _nodes_overlap(self, node1: Dict, node2: Dict) -> bool:
         """检查两个节点是否重叠"""
-        x1, y1 = node1.get('x', 0), node1.get('y', 0)
-        w1, h1 = node1.get('width', 180), node1.get('height', 100)
+        x1, y1 = node1.get("x", 0), node1.get("y", 0)
+        w1, h1 = node1.get("width", 180), node1.get("height", 100)
 
-        x2, y2 = node2.get('x', 0), node2.get('y', 0)
-        w2, h2 = node2.get('width', 180), node2.get('height', 100)
+        x2, y2 = node2.get("x", 0), node2.get("y", 0)
+        w2, h2 = node2.get("width", 180), node2.get("height", 100)
 
         return not (x1 + w1 < x2 or x2 + w2 < x1 or y1 + h1 < y2 or y2 + h2 < y1)
 
@@ -633,7 +650,9 @@ class CanvasPerformanceTester:
         else:
             return "chaotic"
 
-    def _calculate_summary_statistics(self, results: List[PerformanceTestResult]) -> Dict[str, Any]:
+    def _calculate_summary_statistics(
+        self, results: List[PerformanceTestResult]
+    ) -> Dict[str, Any]:
         """计算汇总统计信息"""
         successful_results = [r for r in results if r.success]
 
@@ -642,7 +661,7 @@ class CanvasPerformanceTester:
                 "total_tests": len(results),
                 "successful_tests": 0,
                 "failed_tests": len(results),
-                "success_rate": 0.0
+                "success_rate": 0.0,
             }
 
         processing_times = [r.processing_time_ms for r in successful_results]
@@ -657,19 +676,20 @@ class CanvasPerformanceTester:
                 "min_ms": min(processing_times),
                 "max_ms": max(processing_times),
                 "avg_ms": sum(processing_times) / len(processing_times),
-                "median_ms": sorted(processing_times)[len(processing_times) // 2]
+                "median_ms": sorted(processing_times)[len(processing_times) // 2],
             },
             "memory_usage_stats": {
                 "min_mb": min(memory_usages),
                 "max_mb": max(memory_usages),
                 "avg_mb": sum(memory_usages) / len(memory_usages),
-                "median_mb": sorted(memory_usages)[len(memory_usages) // 2]
+                "median_mb": sorted(memory_usages)[len(memory_usages) // 2],
             },
             "node_count_range": {
                 "min": min(r.node_count for r in successful_results),
                 "max": max(r.node_count for r in successful_results),
-                "avg": sum(r.node_count for r in successful_results) / len(successful_results)
-            }
+                "avg": sum(r.node_count for r in successful_results)
+                / len(successful_results),
+            },
         }
 
 
@@ -691,17 +711,19 @@ class PerformanceReportGenerator:
             template_loader = jinja2.FileSystemLoader(str(self.template_dir))
             self.jinja_env = jinja2.Environment(
                 loader=template_loader,
-                autoescape=jinja2.select_autoescape(['html', 'xml'])
+                autoescape=jinja2.select_autoescape(["html", "xml"]),
             )
         else:
             self.jinja_env = None
             print("警告: Jinja2未安装，HTML报告生成功能受限")
 
-    def generate_performance_report(self,
-                                   test_results: List[PerformanceTestResult],
-                                   test_environment: TestEnvironment,
-                                   regression_result = None,
-                                   output_path: Optional[str] = None) -> str:
+    def generate_performance_report(
+        self,
+        test_results: List[PerformanceTestResult],
+        test_environment: TestEnvironment,
+        regression_result=None,
+        output_path: Optional[str] = None,
+    ) -> str:
         """
         生成性能报告
 
@@ -728,11 +750,13 @@ class PerformanceReportGenerator:
         # 准备模板数据
         template_data = {
             "report_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "session_id": test_results[0].test_name.split('_')[-1] if test_results else "unknown",
+            "session_id": test_results[0].test_name.split("_")[-1]
+            if test_results
+            else "unknown",
             "test_results": test_results,
             "test_environment": test_environment,
             "summary": summary,
-            "regression_result": regression_result
+            "regression_result": regression_result,
         }
 
         # 生成HTML报告
@@ -742,17 +766,19 @@ class PerformanceReportGenerator:
             html_content = self._generate_simple_html_report(template_data)
 
         # 写入文件
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write(html_content)
 
         # 生成JSON报告
-        json_output_path = output_file.with_suffix('.json')
+        json_output_path = output_file.with_suffix(".json")
         self._generate_json_report(template_data, str(json_output_path))
 
         print(f"性能报告已生成: {output_file}")
         return str(output_file)
 
-    def _calculate_summary_statistics(self, results: List[PerformanceTestResult]) -> Dict[str, Any]:
+    def _calculate_summary_statistics(
+        self, results: List[PerformanceTestResult]
+    ) -> Dict[str, Any]:
         """计算汇总统计信息"""
         if not results:
             return {
@@ -762,7 +788,7 @@ class PerformanceReportGenerator:
                 "success_rate": 0.0,
                 "processing_time_stats": {},
                 "memory_usage_stats": {},
-                "node_count_range": {}
+                "node_count_range": {},
             }
 
         successful_results = [r for r in results if r.success]
@@ -775,10 +801,12 @@ class PerformanceReportGenerator:
             "total_tests": len(results),
             "successful_tests": len(successful_results),
             "failed_tests": len(failed_results),
-            "success_rate": len(successful_results) / len(results) * 100 if results else 0,
+            "success_rate": len(successful_results) / len(results) * 100
+            if results
+            else 0,
             "processing_time_stats": {},
             "memory_usage_stats": {},
-            "node_count_range": {}
+            "node_count_range": {},
         }
 
         if processing_times:
@@ -787,7 +815,9 @@ class PerformanceReportGenerator:
                 "max_ms": max(processing_times),
                 "avg_ms": sum(processing_times) / len(processing_times),
                 "median_ms": sorted(processing_times)[len(processing_times) // 2],
-                "p95_ms": sorted(processing_times)[int(len(processing_times) * 0.95)] if len(processing_times) > 1 else processing_times[0]
+                "p95_ms": sorted(processing_times)[int(len(processing_times) * 0.95)]
+                if len(processing_times) > 1
+                else processing_times[0],
             }
 
         if memory_usages:
@@ -795,7 +825,7 @@ class PerformanceReportGenerator:
                 "min_mb": min(memory_usages),
                 "max_mb": max(memory_usages),
                 "avg_mb": sum(memory_usages) / len(memory_usages),
-                "median_mb": sorted(memory_usages)[len(memory_usages) // 2]
+                "median_mb": sorted(memory_usages)[len(memory_usages) // 2],
             }
 
         if successful_results:
@@ -803,7 +833,7 @@ class PerformanceReportGenerator:
             summary["node_count_range"] = {
                 "min": min(node_counts),
                 "max": max(node_counts),
-                "avg": sum(node_counts) / len(node_counts)
+                "avg": sum(node_counts) / len(node_counts),
             }
 
         return summary
@@ -838,20 +868,20 @@ class PerformanceReportGenerator:
         <body>
             <div class="header">
                 <h1>Canvas性能测试报告</h1>
-                <p>生成时间: {template_data['report_timestamp']}</p>
+                <p>生成时间: {template_data["report_timestamp"]}</p>
             </div>
 
             <div class="summary">
                 <div class="metric">
-                    <h3>{template_data['summary']['total_tests']}</h3>
+                    <h3>{template_data["summary"]["total_tests"]}</h3>
                     <p>总测试数</p>
                 </div>
                 <div class="metric">
-                    <h3>{template_data['summary']['success_rate']:.1f}%</h3>
+                    <h3>{template_data["summary"]["success_rate"]:.1f}%</h3>
                     <p>成功率</p>
                 </div>
                 <div class="metric">
-                    <h3>{template_data['summary']['processing_time_stats'].get('avg_ms', 0):.0f}ms</h3>
+                    <h3>{template_data["summary"]["processing_time_stats"].get("avg_ms", 0):.0f}ms</h3>
                     <p>平均处理时间</p>
                 </div>
             </div>
@@ -870,7 +900,7 @@ class PerformanceReportGenerator:
                 <tbody>
         """
 
-        for result in template_data['test_results']:
+        for result in template_data["test_results"]:
             status = "✅ 成功" if result.success else "❌ 失败"
             html += f"""
                     <tr>
@@ -891,10 +921,12 @@ class PerformanceReportGenerator:
 
         return html
 
-    def _generate_json_report(self, template_data: Dict[str, Any], output_path: str) -> None:
+    def _generate_json_report(
+        self, template_data: Dict[str, Any], output_path: str
+    ) -> None:
         """生成JSON格式的详细报告"""
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(template_data, f, ensure_ascii=False, indent=2, default=str)
         except Exception as e:
             print(f"警告: JSON报告生成失败 - {e}")
@@ -902,10 +934,10 @@ class PerformanceReportGenerator:
 
 # 导出主要类
 __all__ = [
-    'CanvasPerformanceTester',
-    'TestCanvasGenerator',
-    'PerformanceTestResult',
-    'StressTestResult',
-    'MemoryMonitor',
-    'PerformanceReportGenerator'
+    "CanvasPerformanceTester",
+    "TestCanvasGenerator",
+    "PerformanceTestResult",
+    "StressTestResult",
+    "MemoryMonitor",
+    "PerformanceReportGenerator",
 ]

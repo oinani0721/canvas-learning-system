@@ -25,10 +25,12 @@ from app.middleware.memory_metrics import (
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture(autouse=True)
 def reset_metrics():
     """Reset Prometheus metrics before each test."""
     from tests.conftest import clear_prometheus_metrics
+
     clear_prometheus_metrics()
     yield
     clear_prometheus_metrics()
@@ -37,6 +39,7 @@ def reset_metrics():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Valid Memory Types and Operations
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_valid_memory_types():
     """Test that expected memory types are defined."""
@@ -55,6 +58,7 @@ def test_valid_operations():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: track_memory_query Context Manager - Success
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_track_memory_query_success():
     """Test that successful queries are tracked."""
@@ -84,6 +88,7 @@ def test_track_memory_query_all_memory_types():
 # Test: track_memory_query Context Manager - Errors
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_track_memory_query_error():
     """Test that errors are tracked and re-raised."""
     with pytest.raises(ValueError, match="Query failed"):
@@ -109,6 +114,7 @@ def test_track_memory_query_timeout():
 # Test: Unknown Types Warning
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_unknown_memory_type_logs_warning():
     """Test that unknown memory type logs warning but doesn't fail."""
     with track_memory_query("unknown-memory", "read"):
@@ -125,13 +131,11 @@ def test_unknown_operation_logs_warning():
 # Test: record_memory_query
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_record_memory_query_success():
     """Test recording a successful memory query."""
     record_memory_query(
-        memory_type="graphiti",
-        operation="search",
-        status="success",
-        duration_s=0.5
+        memory_type="graphiti", operation="search", status="success", duration_s=0.5
     )
 
 
@@ -142,17 +146,14 @@ def test_record_memory_query_error():
         operation="write",
         status="error",
         duration_s=0.1,
-        error_type="ConnectionError"
+        error_type="ConnectionError",
     )
 
 
 def test_record_memory_query_zero_duration():
     """Test recording with zero duration."""
     record_memory_query(
-        memory_type="temporal",
-        operation="read",
-        status="success",
-        duration_s=0.0
+        memory_type="temporal", operation="read", status="success", duration_s=0.0
     )
 
 
@@ -172,6 +173,7 @@ def test_record_memory_query_all_combinations():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: get_memory_metrics_snapshot
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_get_memory_metrics_snapshot_structure():
     """Test that snapshot returns expected structure."""
@@ -217,6 +219,7 @@ def test_get_memory_metrics_snapshot_by_type_structure():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Metric Labels
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_histogram_labels():
     """Test that histogram has expected labels."""

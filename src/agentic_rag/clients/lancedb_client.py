@@ -104,7 +104,9 @@ def _jieba_tokenize(text: str) -> str:
     return " ".join(tokens)
 
 
-def _chunk_text(text: str, max_tokens: int = 512, overlap_tokens: int = 50) -> List[str]:
+def _chunk_text(
+    text: str, max_tokens: int = 512, overlap_tokens: int = 50
+) -> List[str]:
     """
     Story 2.3: 智能分块 — tiktoken token 计数 + 句子边界 + 原子保护
 
@@ -309,7 +311,9 @@ class LanceDBClient:
     """
 
     # 默认表名
-    DEFAULT_TABLES = ["canvas_nodes", "vault_notes"]
+    # Story 2.3 Fix: vault_notes removed — it has a dedicated retrieve_vault_notes
+    # node in state_graph.py. Including it here caused dual-search duplication.
+    DEFAULT_TABLES = ["canvas_nodes"]
 
     # Story 2.3: bge-m3 1024d Dense 向量
     DEFAULT_EMBEDDING_DIM = 1024
@@ -387,7 +391,9 @@ class LanceDBClient:
             await self._init_vectorizer()
 
             if LOGURU_ENABLED:
-                logger.info(f"LanceDBClient initialized: path={self.db_path}, tables={list(self._tables_cache.keys())}")
+                logger.info(
+                    f"LanceDBClient initialized: path={self.db_path}, tables={list(self._tables_cache.keys())}"
+                )
 
             return True
 
@@ -413,7 +419,9 @@ class LanceDBClient:
 
             # Story 2.3 Task 6: Auto-detect dimension mismatch on startup
             # Check vector tables against expected embedding_dim
-            vector_tables = [t for t in self._tables_cache if t != self.FINGERPRINT_TABLE]
+            vector_tables = [
+                t for t in self._tables_cache if t != self.FINGERPRINT_TABLE
+            ]
             for tname in vector_tables:
                 self._check_and_fix_dimension_mismatch(tname, self.embedding_dim)
 
@@ -460,7 +468,9 @@ class LanceDBClient:
         try:
             existing_tables = self._db.table_names()
             if self.FINGERPRINT_TABLE in existing_tables:
-                self._tables_cache[self.FINGERPRINT_TABLE] = self._db.open_table(self.FINGERPRINT_TABLE)
+                self._tables_cache[self.FINGERPRINT_TABLE] = self._db.open_table(
+                    self.FINGERPRINT_TABLE
+                )
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.debug(f"[fingerprint] Error checking fingerprint table: {e}")
@@ -570,7 +580,9 @@ class LanceDBClient:
                 self._tables_cache[self.FINGERPRINT_TABLE] = tbl
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.error(f"[fingerprint] Failed to update fingerprint for {file_path}: {e}")
+                logger.error(
+                    f"[fingerprint] Failed to update fingerprint for {file_path}: {e}"
+                )
 
     def _remove_fingerprint(self, file_path: str):
         """
@@ -588,7 +600,9 @@ class LanceDBClient:
             tbl.delete(f"file_path = '{escaped}'")
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.debug(f"[fingerprint] Failed to remove fingerprint for {file_path}: {e}")
+                logger.debug(
+                    f"[fingerprint] Failed to remove fingerprint for {file_path}: {e}"
+                )
 
     def _delete_file_chunks(self, table_name: str, file_path: str) -> int:
         """
@@ -619,11 +633,15 @@ class LanceDBClient:
             escaped = file_path.replace("'", "''")
             tbl.delete(f"canvas_file = '{escaped}'")
             if LOGURU_ENABLED:
-                logger.debug(f"[index] Deleted old chunks for '{file_path}' from '{table_name}'")
+                logger.debug(
+                    f"[index] Deleted old chunks for '{file_path}' from '{table_name}'"
+                )
             return 1
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.warning(f"[index] Failed to delete chunks for '{file_path}': {e}")
+                logger.warning(
+                    f"[index] Failed to delete chunks for '{file_path}': {e}"
+                )
             return 0
 
     async def rebuild_index(
@@ -696,7 +714,9 @@ class LanceDBClient:
             total_files += sum(1 for f in files if f.endswith(".md"))
 
         if LOGURU_ENABLED:
-            logger.info(f"[REBUILD] Complete: {total_files} files, {total_chunks} chunks in {duration_ms:.0f}ms")
+            logger.info(
+                f"[REBUILD] Complete: {total_files} files, {total_chunks} chunks in {duration_ms:.0f}ms"
+            )
 
         return {
             "total_files": total_files,
@@ -742,7 +762,9 @@ class LanceDBClient:
         await self._init_vectorizer()
         if self._vectorizer is None:
             if LOGURU_ENABLED:
-                logger.warning("Vectorizer not available, skipping image content indexing")
+                logger.warning(
+                    "Vectorizer not available, skipping image content indexing"
+                )
             return 0
 
         # Build indexable text from OCR result
@@ -760,7 +782,9 @@ class LanceDBClient:
         combined_text = "\n".join(text_parts)
         if not combined_text.strip():
             if LOGURU_ENABLED:
-                logger.debug(f"[IMAGE-INDEX] No text content from OCR for node {node_id}")
+                logger.debug(
+                    f"[IMAGE-INDEX] No text content from OCR for node {node_id}"
+                )
             return 0
 
         # Vectorize
@@ -768,12 +792,16 @@ class LanceDBClient:
             vec_result = await self._vectorizer.vectorize_text(combined_text)
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.error(f"[IMAGE-INDEX] Vectorization failed for node {node_id}: {e}")
+                logger.error(
+                    f"[IMAGE-INDEX] Vectorization failed for node {node_id}: {e}"
+                )
             return 0
 
         # Build document
         content_type = ocr_result.get("content_type", "text")
-        chunk_id = hashlib.md5(f"image_ocr:{node_id}:{combined_text[:100]}".encode()).hexdigest()
+        chunk_id = hashlib.md5(
+            f"image_ocr:{node_id}:{combined_text[:100]}".encode()
+        ).hexdigest()
         metadata = {
             "file_path": image_path,
             "source": "image_ocr",
@@ -853,7 +881,9 @@ class LanceDBClient:
 
         try:
             # Import MultimodalVectorizer lazily
-            from agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+            from agentic_rag.processors.multimodal_vectorizer import (
+                MultimodalVectorizer,
+            )
 
             self._vectorizer = MultimodalVectorizer(
                 model_name=self.embedding_model,
@@ -910,7 +940,9 @@ class LanceDBClient:
                 logger.debug(f"Ollama embed unavailable: {e}")
         return None
 
-    async def _ollama_embed_batch(self, texts: List[str]) -> Optional[List[List[float]]]:
+    async def _ollama_embed_batch(
+        self, texts: List[str]
+    ) -> Optional[List[List[float]]]:
         """
         Batch embed texts via Ollama API (GPU-accelerated).
 
@@ -933,7 +965,9 @@ class LanceDBClient:
                         if embeddings and len(embeddings) == len(texts):
                             return embeddings
                     if LOGURU_ENABLED:
-                        logger.debug(f"Ollama batch embed returned status {resp.status}")
+                        logger.debug(
+                            f"Ollama batch embed returned status {resp.status}"
+                        )
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.debug(f"Ollama batch embed unavailable: {e}")
@@ -1021,7 +1055,11 @@ class LanceDBClient:
             nodes = self._read_canvas_nodes(canvas_path)
 
         # 过滤出有文本内容的text类型节点
-        text_nodes = [node for node in nodes if node.get("type") == "text" and node.get("text", "").strip()]
+        text_nodes = [
+            node
+            for node in nodes
+            if node.get("type") == "text" and node.get("text", "").strip()
+        ]
 
         if not text_nodes:
             if LOGURU_ENABLED:
@@ -1143,16 +1181,23 @@ class LanceDBClient:
         # Story 2.7 AC-1: Fingerprint-based change detection
         if force_rebuild:
             # Force: treat all files as new
-            new_files_rel = [os.path.relpath(fp, vault_path).replace("\\", "/") for fp in md_files]
+            new_files_rel = [
+                os.path.relpath(fp, vault_path).replace("\\", "/") for fp in md_files
+            ]
             changed_files_rel: List[str] = []
             deleted_files_rel: List[str] = []
             files_to_index = md_files
         else:
-            new_files_rel, changed_files_rel, deleted_files_rel = self._get_changed_files(vault_path, md_files)
+            new_files_rel, changed_files_rel, deleted_files_rel = (
+                self._get_changed_files(vault_path, md_files)
+            )
             # Build abs paths for files that need indexing
             files_to_index_rel = set(new_files_rel) | set(changed_files_rel)
             files_to_index = [
-                fp for fp in md_files if os.path.relpath(fp, vault_path).replace("\\", "/") in files_to_index_rel
+                fp
+                for fp in md_files
+                if os.path.relpath(fp, vault_path).replace("\\", "/")
+                in files_to_index_rel
             ]
 
         skipped = total_scanned - len(files_to_index) - len(deleted_files_rel)
@@ -1201,7 +1246,9 @@ class LanceDBClient:
                 continue
 
             rel_path = os.path.relpath(md_file, vault_path).replace("\\", "/")
-            chunks = self._split_md_by_heading(content, rel_path, max_tokens, overlap_tokens)
+            chunks = self._split_md_by_heading(
+                content, rel_path, max_tokens, overlap_tokens
+            )
 
             if not chunks:
                 continue
@@ -1212,11 +1259,14 @@ class LanceDBClient:
             if ollama_vectors is not None:
                 # Wrap in namedtuple-like objects for compatibility
                 from types import SimpleNamespace
+
                 vectorized = [SimpleNamespace(vector=v) for v in ollama_vectors]
             else:
                 if self._vectorizer is None:
                     if LOGURU_ENABLED:
-                        logger.error(f"Both Ollama and CPU vectorizer unavailable, skipping {rel_path}")
+                        logger.error(
+                            f"Both Ollama and CPU vectorizer unavailable, skipping {rel_path}"
+                        )
                     continue
                 try:
                     vectorized = await self._vectorizer.batch_vectorize(texts)
@@ -1241,7 +1291,9 @@ class LanceDBClient:
                     "source": "vault_note",
                     "subject": subject,
                     "source_type": (
-                        "video_transcript" if LanceDBClient._is_video_transcript(chunk["file_path"]) else "note"
+                        "video_transcript"
+                        if LanceDBClient._is_video_transcript(chunk["file_path"])
+                        else "note"
                     ),
                     # Story 2.8: Frontmatter metadata
                     "course": chunk.get("course", ""),
@@ -1250,7 +1302,9 @@ class LanceDBClient:
                 }
 
                 if LanceDBClient._is_video_transcript(chunk["file_path"]):
-                    ts_info = LanceDBClient._extract_timestamps_from_section(chunk.get("heading", ""), chunk["content"])
+                    ts_info = LanceDBClient._extract_timestamps_from_section(
+                        chunk.get("heading", ""), chunk["content"]
+                    )
                     metadata.update(ts_info)
 
                 doc = {
@@ -1399,7 +1453,9 @@ class LanceDBClient:
 
         if len(vectorized) != len(chunks):
             if LOGURU_ENABLED:
-                logger.error(f"Vectorization mismatch: {len(chunks)} chunks vs {len(vectorized)} vectors")
+                logger.error(
+                    f"Vectorization mismatch: {len(chunks)} chunks vs {len(vectorized)} vectors"
+                )
             return 0
 
         # Build documents
@@ -1420,7 +1476,11 @@ class LanceDBClient:
                 "line_end": chunk.get("line_end", 0),
                 "source": "vault_note",
                 "subject": subject,
-                "source_type": ("video_transcript" if LanceDBClient._is_video_transcript(file_path) else "note"),
+                "source_type": (
+                    "video_transcript"
+                    if LanceDBClient._is_video_transcript(file_path)
+                    else "note"
+                ),
                 # Story 2.8: Frontmatter metadata
                 "course": chunk.get("course", ""),
                 "tags_str": chunk.get("tags_str", ""),
@@ -1428,7 +1488,9 @@ class LanceDBClient:
             }
 
             if LanceDBClient._is_video_transcript(file_path):
-                ts_info = LanceDBClient._extract_timestamps_from_section(chunk.get("heading", ""), chunk["content"])
+                ts_info = LanceDBClient._extract_timestamps_from_section(
+                    chunk.get("heading", ""), chunk["content"]
+                )
                 metadata.update(ts_info)
 
             doc = {
@@ -1463,7 +1525,9 @@ class LanceDBClient:
         self._rebuild_fts_index(table_name)
 
         if LOGURU_ENABLED:
-            logger.info(f"[INDEX] Indexed {count} chunks from {rel_path} (delete-before-insert)")
+            logger.info(
+                f"[INDEX] Indexed {count} chunks from {rel_path} (delete-before-insert)"
+            )
 
         return count
 
@@ -1588,7 +1652,9 @@ class LanceDBClient:
                             continue
                         existing_doc_ids.add(doc_id)
                         orig_score = neighbor_doc.get("_distance", 0.5)
-                        decayed_distance = orig_score / score_decay if score_decay > 0 else orig_score
+                        decayed_distance = (
+                            orig_score / score_decay if score_decay > 0 else orig_score
+                        )
                         neighbor_doc["_distance"] = decayed_distance
                         neighbor_doc["_source_type"] = "neighbor_expansion"
                         neighbor_results.append(neighbor_doc)
@@ -1615,7 +1681,10 @@ class LanceDBClient:
         return intersection / union if union > 0 else 0.0
 
     async def find_related_courses(
-        self, current_course: str, table_name: str = "vault_notes", threshold: float = 0.3
+        self,
+        current_course: str,
+        table_name: str = "vault_notes",
+        threshold: float = 0.3,
     ) -> List[str]:
         """
         Story 2.8 AC-5: Find courses with Tag Jaccard similarity above threshold.
@@ -1645,7 +1714,9 @@ class LanceDBClient:
                 if course not in course_tags:
                     course_tags[course] = set()
                 if tags_str:
-                    course_tags[course].update(t.strip() for t in tags_str.split(",") if t.strip())
+                    course_tags[course].update(
+                        t.strip() for t in tags_str.split(",") if t.strip()
+                    )
 
             current_tags = course_tags.get(current_course, set())
             if not current_tags:
@@ -1739,7 +1810,9 @@ class LanceDBClient:
 
         if len(all_results) >= min_results_threshold:
             if LOGURU_ENABLED:
-                logger.debug(f"[progressive] Stage 1 sufficient: {len(all_results)} results for course={course_id}")
+                logger.debug(
+                    f"[progressive] Stage 1 sufficient: {len(all_results)} results for course={course_id}"
+                )
             return all_results[:num_results]
 
         # Stage 2: Related courses via Tag Jaccard
@@ -1786,7 +1859,9 @@ class LanceDBClient:
             _tag_and_collect(stage3, scope=3)
 
             if LOGURU_ENABLED:
-                logger.debug(f"[progressive] Stage 3 done: {len(all_results)} results (category={category})")
+                logger.debug(
+                    f"[progressive] Stage 3 done: {len(all_results)} results (category={category})"
+                )
 
             if len(all_results) >= min_results_threshold:
                 return all_results[:num_results]
@@ -1804,7 +1879,9 @@ class LanceDBClient:
         _tag_and_collect(stage4, scope=4)
 
         if LOGURU_ENABLED:
-            logger.debug(f"[progressive] Stage 4 done: {len(all_results)} total results")
+            logger.debug(
+                f"[progressive] Stage 4 done: {len(all_results)} total results"
+            )
 
         return all_results[:num_results]
 
@@ -1869,14 +1946,18 @@ class LanceDBClient:
 
             try:
                 tokenized_query = _jieba_tokenize(query)
-                fq = table.search(tokenized_query, query_type="fts").limit(num_results * 2)
+                fq = table.search(tokenized_query, query_type="fts").limit(
+                    num_results * 2
+                )
                 fq = self._apply_where_clauses(fq, clauses)
                 fts_results = fq.to_list()
             except Exception:
                 pass
 
             if vector_results or fts_results:
-                all_raw = self._rrf_fuse(vector_results, fts_results, num_results, k=rrf_k)
+                all_raw = self._rrf_fuse(
+                    vector_results, fts_results, num_results, k=rrf_k
+                )
                 return self._convert_to_search_results(all_raw)
 
         # Fallback to vector search
@@ -2024,7 +2105,9 @@ class LanceDBClient:
         return "/videos/" in file_path.replace("\\", "/")
 
     @staticmethod
-    def _extract_timestamps_from_section(heading: str, content: str) -> Dict[str, Optional[str]]:
+    def _extract_timestamps_from_section(
+        heading: str, content: str
+    ) -> Dict[str, Optional[str]]:
         """
         Extract video timestamps from a section heading and content.
 
@@ -2045,7 +2128,9 @@ class LanceDBClient:
         }
 
         # Pattern 1: Range in heading [MM:SS]()-[MM:SS]()
-        range_match = re.search(r"\[(\d{1,2}:\d{2})\]\(\)[—–-]\[(\d{1,2}:\d{2})\]\(\)", heading)
+        range_match = re.search(
+            r"\[(\d{1,2}:\d{2})\]\(\)[—–-]\[(\d{1,2}:\d{2})\]\(\)", heading
+        )
         if range_match:
             result["timestamp_start"] = range_match.group(1)
             result["timestamp_end"] = range_match.group(2)
@@ -2247,7 +2332,9 @@ class LanceDBClient:
             clauses.append(f"course = '{self._escape_sql(course_id)}'")
         if tags:
             # Story 2-8 H4: Use _escape_like for LIKE patterns to escape % and _
-            tag_conditions = " OR ".join(f"tags_str LIKE '%{self._escape_like(tag)}%'" for tag in tags)
+            tag_conditions = " OR ".join(
+                f"tags_str LIKE '%{self._escape_like(tag)}%'" for tag in tags
+            )
             clauses.append(f"({tag_conditions})")
         return clauses
 
@@ -2323,26 +2410,36 @@ class LanceDBClient:
             try:
                 tokenized_query = _jieba_tokenize(query)
                 if LOGURU_ENABLED:
-                    logger.debug(f"[search] FTS jieba tokenized: '{query[:40]}' -> '{tokenized_query[:60]}'")
-                fq = table.search(tokenized_query, query_type="fts").limit(num_results * 2)
+                    logger.debug(
+                        f"[search] FTS jieba tokenized: '{query[:40]}' -> '{tokenized_query[:60]}'"
+                    )
+                fq = table.search(tokenized_query, query_type="fts").limit(
+                    num_results * 2
+                )
                 fq = self._apply_where_clauses(fq, where_clauses)
                 fts_results = fq.to_list()
             except Exception as e:
                 # FTS unavailable (no index yet, no content_tokenized column, etc.)
                 # Hybrid degrades to Dense-only — still returns results via vector branch
                 if LOGURU_ENABLED:
-                    logger.warning(f"[search] FTS branch unavailable, degrading to Dense-only: {e}")
+                    logger.warning(
+                        f"[search] FTS branch unavailable, degrading to Dense-only: {e}"
+                    )
 
             # Story 2.4 AC-4: RRF fusion with single-path degradation
             # When only one branch has results, RRF still works correctly
             # (single-source ranking = original rank order)
             if vector_results or fts_results:
-                all_raw = self._rrf_fuse(vector_results, fts_results, num_results, k=rrf_k)
+                all_raw = self._rrf_fuse(
+                    vector_results, fts_results, num_results, k=rrf_k
+                )
                 return self._convert_to_search_results(all_raw, canvas_file=canvas_file)
 
             # Both hybrid branches returned nothing — degrade to pure vector
             if LOGURU_ENABLED:
-                logger.warning("[search] Both hybrid branches empty, degrading to vector")
+                logger.warning(
+                    "[search] Both hybrid branches empty, degrading to vector"
+                )
 
         # Pure vector search (fallback or explicit query_type="vector")
         query_vector = await self._get_query_vector(query)
@@ -2396,7 +2493,9 @@ class LanceDBClient:
         except RuntimeError:
             # Vectorizer not available - return None instead of random vector
             if LOGURU_ENABLED:
-                logger.warning("Vectorizer not available. Install sentence-transformers.")
+                logger.warning(
+                    "Vectorizer not available. Install sentence-transformers."
+                )
             return None
         except Exception as e:
             if LOGURU_ENABLED:
@@ -2454,7 +2553,9 @@ class LanceDBClient:
 
         for i, item in enumerate(raw_results):
             # 提取内容
-            content = item.get("content") or item.get("text") or item.get("document") or ""
+            content = (
+                item.get("content") or item.get("text") or item.get("document") or ""
+            )
 
             # 生成文档ID
             doc_id = item.get("doc_id") or item.get("id") or f"lancedb_{i}"
@@ -2502,7 +2603,14 @@ class LanceDBClient:
             elif "source_type" in item:
                 metadata["source_type"] = item["source_type"]
 
-            search_results.append({"doc_id": doc_id, "content": content, "score": score, "metadata": metadata})
+            search_results.append(
+                {
+                    "doc_id": doc_id,
+                    "content": content,
+                    "score": score,
+                    "metadata": metadata,
+                }
+            )
 
         return search_results
 
@@ -2515,7 +2623,9 @@ class LanceDBClient:
         """
         self._embedder = embedder
 
-    def _check_and_fix_dimension_mismatch(self, table_name: str, new_vector_dim: int) -> bool:
+    def _check_and_fix_dimension_mismatch(
+        self, table_name: str, new_vector_dim: int
+    ) -> bool:
         """
         Story 2.3 Task 6: Detect vector dimension mismatch and auto drop+recreate.
 
@@ -2567,7 +2677,9 @@ class LanceDBClient:
                 logger.debug(f"[SCHEMA] Dimension check failed for '{table_name}': {e}")
             return False
 
-    async def add_documents(self, table_name: str, documents: List[Dict[str, Any]]) -> int:
+    async def add_documents(
+        self, table_name: str, documents: List[Dict[str, Any]]
+    ) -> int:
         """
         添加文档到表
 
@@ -2587,7 +2699,11 @@ class LanceDBClient:
             for doc in documents:
                 # canvas_file: check top-level first (index_vault_notes),
                 # then metadata dict (legacy callers)
-                canvas_file = doc.get("canvas_file") or doc.get("metadata", {}).get("canvas_file", "") or ""
+                canvas_file = (
+                    doc.get("canvas_file")
+                    or doc.get("metadata", {}).get("canvas_file", "")
+                    or ""
+                )
 
                 content = doc.get("content", "")
                 lance_doc = {
@@ -2628,7 +2744,9 @@ class LanceDBClient:
                 elif "metadata" in doc:
                     import json
 
-                    lance_doc["metadata_json"] = json.dumps(doc["metadata"], ensure_ascii=False)
+                    lance_doc["metadata_json"] = json.dumps(
+                        doc["metadata"], ensure_ascii=False
+                    )
 
                 data.append(lance_doc)
 
@@ -2636,7 +2754,9 @@ class LanceDBClient:
             if data and table_name in self._tables_cache:
                 sample_vector = data[0].get("vector")
                 if sample_vector is not None:
-                    self._check_and_fix_dimension_mismatch(table_name, len(sample_vector))
+                    self._check_and_fix_dimension_mismatch(
+                        table_name, len(sample_vector)
+                    )
 
             # 检查表是否存在
             if table_name in self._tables_cache:
@@ -2716,7 +2836,9 @@ class LanceDBClient:
 
         return all_results
 
-    async def count_documents_by_canvas(self, canvas_path: str, table_name: str = "canvas_nodes") -> Dict[str, Any]:
+    async def count_documents_by_canvas(
+        self, canvas_path: str, table_name: str = "canvas_nodes"
+    ) -> Dict[str, Any]:
         """
         统计指定 Canvas 的已索引文档数量
 
@@ -2764,8 +2886,12 @@ class LanceDBClient:
             # 过滤匹配的文档
             if "canvas_file" in df.columns:
                 # 标准化 DataFrame 中的路径
-                df["canvas_file_normalized"] = df["canvas_file"].str.replace("\\\\", "/", regex=False)
-                df["canvas_file_normalized"] = df["canvas_file_normalized"].str.replace("\\", "/", regex=False)
+                df["canvas_file_normalized"] = df["canvas_file"].str.replace(
+                    "\\\\", "/", regex=False
+                )
+                df["canvas_file_normalized"] = df["canvas_file_normalized"].str.replace(
+                    "\\", "/", regex=False
+                )
 
                 # 使用 endswith 匹配
                 mask = df["canvas_file_normalized"].str.endswith(normalized_path)
@@ -2793,7 +2919,11 @@ class LanceDBClient:
                     if len(subjects) > 0:
                         subject = subjects.iloc[0]
 
-                return {"count": count, "last_indexed": last_indexed, "subject": subject}
+                return {
+                    "count": count,
+                    "last_indexed": last_indexed,
+                    "subject": subject,
+                }
             else:
                 return {"count": 0, "last_indexed": None, "subject": None}
 

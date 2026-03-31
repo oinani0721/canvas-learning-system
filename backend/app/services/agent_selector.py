@@ -40,25 +40,27 @@ logger = logging.getLogger(__name__)
 
 class AnswerQuality(str, Enum):
     """回答质量等级"""
-    EXCELLENT = "excellent"       # 完全正确，深刻理解
-    GOOD = "good"                 # 基本正确，理解到位
-    PARTIAL = "partial"           # 部分正确，有遗漏
-    WRONG = "wrong"               # 完全错误
-    CONFUSED = "confused"         # 概念混淆
-    NO_IDEA = "no_idea"           # 完全不知道
+
+    EXCELLENT = "excellent"  # 完全正确，深刻理解
+    GOOD = "good"  # 基本正确，理解到位
+    PARTIAL = "partial"  # 部分正确，有遗漏
+    WRONG = "wrong"  # 完全错误
+    CONFUSED = "confused"  # 概念混淆
+    NO_IDEA = "no_idea"  # 完全不知道
     REASONING_ERROR = "reasoning_error"  # 推理错误
-    SKIPPED = "skipped"           # 跳过
+    SKIPPED = "skipped"  # 跳过
 
 
 class ConceptType(str, Enum):
     """概念类型"""
-    DEFINITION = "definition"     # 定义类概念
-    ABSTRACT = "abstract"         # 抽象概念
-    SIMILAR = "similar"           # 易混淆概念
-    COMPLEX = "complex"           # 复杂概念
-    PROOF = "proof"               # 证明/推导
-    APPLICATION = "application"   # 应用类概念
-    COMPARISON = "comparison"     # 对比类概念
+
+    DEFINITION = "definition"  # 定义类概念
+    ABSTRACT = "abstract"  # 抽象概念
+    SIMILAR = "similar"  # 易混淆概念
+    COMPLEX = "complex"  # 复杂概念
+    PROOF = "proof"  # 证明/推导
+    APPLICATION = "application"  # 应用类概念
+    COMPARISON = "comparison"  # 对比类概念
 
 
 class GuidanceAgent(str, Enum):
@@ -71,6 +73,7 @@ class GuidanceAgent(str, Enum):
     - basic-decomposition: 基础拆解，分解难点
     - clarification-path: 澄清路径，系统性解释
     """
+
     MEMORY_ANCHOR = "memory-anchor"
     EXAMPLE_TEACHING = "example-teaching"
     COMPARISON_TABLE = "comparison-table"
@@ -84,6 +87,7 @@ class SelectionContext:
 
     包含做出Agent选择所需的所有信息。
     """
+
     answer_quality: AnswerQuality
     answer_score: float
     concept_text: str
@@ -103,6 +107,7 @@ class SelectionResult:
 
     包含选中的Agent及选择原因。
     """
+
     agent: GuidanceAgent
     reason: str
     confidence: float  # 0.0 - 1.0
@@ -114,7 +119,9 @@ class SelectionResult:
             "agent": self.agent.value,
             "reason": self.reason,
             "confidence": round(self.confidence, 2),
-            "fallback_agent": self.fallback_agent.value if self.fallback_agent else None,
+            "fallback_agent": self.fallback_agent.value
+            if self.fallback_agent
+            else None,
         }
 
 
@@ -149,9 +156,9 @@ class AgentSelector:
     # 基于回答质量的默认选择
     QUALITY_DEFAULT_MAP: Dict[AnswerQuality, GuidanceAgent] = {
         AnswerQuality.EXCELLENT: GuidanceAgent.MEMORY_ANCHOR,  # 加深记忆
-        AnswerQuality.GOOD: GuidanceAgent.EXAMPLE_TEACHING,    # 巩固练习
-        AnswerQuality.PARTIAL: GuidanceAgent.MEMORY_ANCHOR,    # 补充理解
-        AnswerQuality.WRONG: GuidanceAgent.EXAMPLE_TEACHING,   # 重新学习
+        AnswerQuality.GOOD: GuidanceAgent.EXAMPLE_TEACHING,  # 巩固练习
+        AnswerQuality.PARTIAL: GuidanceAgent.MEMORY_ANCHOR,  # 补充理解
+        AnswerQuality.WRONG: GuidanceAgent.EXAMPLE_TEACHING,  # 重新学习
         AnswerQuality.CONFUSED: GuidanceAgent.COMPARISON_TABLE,  # 区分概念
         AnswerQuality.NO_IDEA: GuidanceAgent.BASIC_DECOMPOSITION,  # 从头拆解
         AnswerQuality.REASONING_ERROR: GuidanceAgent.CLARIFICATION_PATH,  # 澄清思路
@@ -164,26 +171,40 @@ class AgentSelector:
         (AnswerQuality.PARTIAL, ConceptType.DEFINITION): GuidanceAgent.MEMORY_ANCHOR,
         (AnswerQuality.PARTIAL, ConceptType.ABSTRACT): GuidanceAgent.MEMORY_ANCHOR,
         (AnswerQuality.PARTIAL, ConceptType.COMPLEX): GuidanceAgent.BASIC_DECOMPOSITION,
-
         # 错误场景
         (AnswerQuality.WRONG, ConceptType.ABSTRACT): GuidanceAgent.EXAMPLE_TEACHING,
         (AnswerQuality.WRONG, ConceptType.DEFINITION): GuidanceAgent.CLARIFICATION_PATH,
         (AnswerQuality.WRONG, ConceptType.APPLICATION): GuidanceAgent.EXAMPLE_TEACHING,
-
         # 混淆场景
         (AnswerQuality.CONFUSED, ConceptType.SIMILAR): GuidanceAgent.COMPARISON_TABLE,
-        (AnswerQuality.CONFUSED, ConceptType.COMPARISON): GuidanceAgent.COMPARISON_TABLE,
-        (AnswerQuality.CONFUSED, ConceptType.DEFINITION): GuidanceAgent.COMPARISON_TABLE,
-
+        (
+            AnswerQuality.CONFUSED,
+            ConceptType.COMPARISON,
+        ): GuidanceAgent.COMPARISON_TABLE,
+        (
+            AnswerQuality.CONFUSED,
+            ConceptType.DEFINITION,
+        ): GuidanceAgent.COMPARISON_TABLE,
         # 完全不知场景
         (AnswerQuality.NO_IDEA, ConceptType.COMPLEX): GuidanceAgent.BASIC_DECOMPOSITION,
-        (AnswerQuality.NO_IDEA, ConceptType.ABSTRACT): GuidanceAgent.BASIC_DECOMPOSITION,
+        (
+            AnswerQuality.NO_IDEA,
+            ConceptType.ABSTRACT,
+        ): GuidanceAgent.BASIC_DECOMPOSITION,
         (AnswerQuality.NO_IDEA, ConceptType.PROOF): GuidanceAgent.BASIC_DECOMPOSITION,
-
         # 推理错误场景
-        (AnswerQuality.REASONING_ERROR, ConceptType.PROOF): GuidanceAgent.CLARIFICATION_PATH,
-        (AnswerQuality.REASONING_ERROR, ConceptType.APPLICATION): GuidanceAgent.EXAMPLE_TEACHING,
-        (AnswerQuality.REASONING_ERROR, ConceptType.COMPLEX): GuidanceAgent.CLARIFICATION_PATH,
+        (
+            AnswerQuality.REASONING_ERROR,
+            ConceptType.PROOF,
+        ): GuidanceAgent.CLARIFICATION_PATH,
+        (
+            AnswerQuality.REASONING_ERROR,
+            ConceptType.APPLICATION,
+        ): GuidanceAgent.EXAMPLE_TEACHING,
+        (
+            AnswerQuality.REASONING_ERROR,
+            ConceptType.COMPLEX,
+        ): GuidanceAgent.CLARIFICATION_PATH,
     }
 
     def __init__(self):
@@ -200,8 +221,10 @@ class AgentSelector:
         Returns:
             SelectionResult: 包含选中Agent和选择理由
         """
-        logger.debug(f"Selecting agent for quality={context.answer_quality}, "
-                    f"concept_type={context.concept_type}")
+        logger.debug(
+            f"Selecting agent for quality={context.answer_quality}, "
+            f"concept_type={context.concept_type}"
+        )
 
         # 1. 尝试精确匹配 (质量 + 概念类型)
         if context.concept_type:
@@ -234,9 +257,7 @@ class AgentSelector:
         )
 
     def _get_fallback(
-        self,
-        primary: GuidanceAgent,
-        context: SelectionContext
+        self, primary: GuidanceAgent, context: SelectionContext
     ) -> Optional[GuidanceAgent]:
         """获取备选Agent"""
         # 排除主选和已使用的Agent
@@ -258,9 +279,7 @@ class AgentSelector:
         return None
 
     async def analyze_concept_type(
-        self,
-        concept_text: str,
-        rag_context: Optional[str] = None
+        self, concept_text: str, rag_context: Optional[str] = None
     ) -> ConceptType:
         """
         分析概念类型
@@ -299,9 +318,7 @@ class AgentSelector:
         return ConceptType.ABSTRACT
 
     async def infer_quality_from_score(
-        self,
-        score: float,
-        hints_given: int = 0
+        self, score: float, hints_given: int = 0
     ) -> AnswerQuality:
         """
         从评分推断回答质量

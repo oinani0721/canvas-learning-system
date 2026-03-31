@@ -6,9 +6,6 @@ Tests for days and limit parameter validation.
 - Story 34.9 AC1: limit must be validated via Query(ge=1, le=100)
 """
 
-import pytest
-from unittest.mock import AsyncMock
-
 from .helpers import mock_review_history
 
 

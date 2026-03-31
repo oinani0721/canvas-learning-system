@@ -25,8 +25,7 @@ class TestVerificationDedup:
     def service_with_graphiti(self, mock_graphiti_client, mock_agent_service):
         """Create VerificationService with mock Graphiti client"""
         return VerificationService(
-            graphiti_client=mock_graphiti_client,
-            agent_service=mock_agent_service
+            graphiti_client=mock_graphiti_client, agent_service=mock_agent_service
         )
 
     @pytest.mark.asyncio
@@ -43,8 +42,7 @@ class TestVerificationDedup:
 
         # Act
         question = await service_with_graphiti.generate_question_with_rag(
-            concept="逆否命题",
-            canvas_name="离散数学"
+            concept="逆否命题", canvas_name="离散数学"
         )
 
         # Assert: Graphiti was queried
@@ -71,14 +69,13 @@ class TestVerificationDedup:
                 "question_id": "vq_001",
                 "question_text": "请解释什么是逆否命题？",
                 "question_type": "standard",
-                "asked_at": datetime(2025, 1, 15, 10, 30, 0).isoformat()
+                "asked_at": datetime(2025, 1, 15, 10, 30, 0).isoformat(),
             }
         ]
 
         # Act
         question = await service_with_graphiti.generate_question_with_rag(
-            concept="逆否命题",
-            canvas_name="离散数学"
+            concept="逆否命题", canvas_name="离散数学"
         )
 
         # Assert: Graphiti was queried
@@ -86,6 +83,7 @@ class TestVerificationDedup:
 
         # Assert: Question was generated (should be different angle)
         assert question is not None
+
 
 class TestAlternativeQuestionGeneration:
     """Test new angle question generation (AC-31.4.2)"""
@@ -122,16 +120,11 @@ class TestAlternativeQuestionGeneration:
         [Source: docs/stories/31.4.story.md#Task-3.2]
         """
         # History with standard and application questions
-        history = [
-            {"question_type": "standard"},
-            {"question_type": "application"}
-        ]
+        history = [{"question_type": "standard"}, {"question_type": "application"}]
 
         # Mock internal method to test angle selection
         question = await service._generate_alternative_question(
-            concept="逆否命题",
-            canvas_name="离散数学",
-            history_questions=history
+            concept="逆否命题", canvas_name="离散数学", history_questions=history
         )
 
         # Should generate question (comparison is next unused angle)
@@ -150,13 +143,11 @@ class TestAlternativeQuestionGeneration:
             {"question_type": "application"},
             {"question_type": "comparison"},
             {"question_type": "counterexample"},
-            {"question_type": "synthesis"}
+            {"question_type": "synthesis"},
         ]
 
         question = await service._generate_alternative_question(
-            concept="逆否命题",
-            canvas_name="离散数学",
-            history_questions=history
+            concept="逆否命题", canvas_name="离散数学", history_questions=history
         )
 
         # Should still generate a question (cycles back)
@@ -174,9 +165,7 @@ class TestAngleSpecificPrompts:
     def test_build_application_prompt(self, service):
         """Test application angle prompt contains expected content"""
         prompt = service._build_angle_specific_prompt(
-            concept="逆否命题",
-            angle="application",
-            history_questions=[]
+            concept="逆否命题", angle="application", history_questions=[]
         )
 
         assert "应用" in prompt or "application" in prompt.lower()
@@ -185,9 +174,7 @@ class TestAngleSpecificPrompts:
     def test_build_comparison_prompt(self, service):
         """Test comparison angle prompt contains expected content"""
         prompt = service._build_angle_specific_prompt(
-            concept="逆否命题",
-            angle="comparison",
-            history_questions=[]
+            concept="逆否命题", angle="comparison", history_questions=[]
         )
 
         assert "比较" in prompt or "comparison" in prompt.lower()
@@ -196,9 +183,7 @@ class TestAngleSpecificPrompts:
     def test_build_counterexample_prompt(self, service):
         """Test counterexample angle prompt contains expected content"""
         prompt = service._build_angle_specific_prompt(
-            concept="逆否命题",
-            angle="counterexample",
-            history_questions=[]
+            concept="逆否命题", angle="counterexample", history_questions=[]
         )
 
         assert "反例" in prompt or "counterexample" in prompt.lower()
@@ -207,9 +192,7 @@ class TestAngleSpecificPrompts:
     def test_build_synthesis_prompt(self, service):
         """Test synthesis angle prompt contains expected content"""
         prompt = service._build_angle_specific_prompt(
-            concept="逆否命题",
-            angle="synthesis",
-            history_questions=[]
+            concept="逆否命题", angle="synthesis", history_questions=[]
         )
 
         assert "综合" in prompt or "synthesis" in prompt.lower()
@@ -219,13 +202,11 @@ class TestAngleSpecificPrompts:
         """Test prompt includes history to avoid repetition"""
         history = [
             {"question_text": "Previous question 1", "question_type": "standard"},
-            {"question_text": "Previous question 2", "question_type": "application"}
+            {"question_text": "Previous question 2", "question_type": "application"},
         ]
 
         prompt = service._build_angle_specific_prompt(
-            concept="逆否命题",
-            angle="comparison",
-            history_questions=history
+            concept="逆否命题", angle="comparison", history_questions=history
         )
 
         # Should mention avoiding repetition
@@ -240,13 +221,16 @@ class TestFallbackQuestions:
         """Create VerificationService"""
         return VerificationService()
 
-    @pytest.mark.parametrize("angle,expected_keyword", [
-        ("application", "应用"),
-        ("comparison", "比较"),
-        ("counterexample", "反例"),
-        ("synthesis", "关联"),
-        ("standard", "解释"),
-    ])
+    @pytest.mark.parametrize(
+        "angle,expected_keyword",
+        [
+            ("application", "应用"),
+            ("comparison", "比较"),
+            ("counterexample", "反例"),
+            ("synthesis", "关联"),
+            ("standard", "解释"),
+        ],
+    )
     def test_fallback_question_by_angle(self, service, angle, expected_keyword):
         """Test each angle has appropriate fallback question"""
         fallback = service._get_fallback_angle_question("逆否命题", angle)

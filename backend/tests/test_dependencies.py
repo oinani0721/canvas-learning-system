@@ -11,9 +11,11 @@ Tests all dependency functions including:
 
 [Source: docs/stories/15.3.story.md#Testing]
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from app.clients.neo4j_client import Neo4jClient
 
 # Import the modules under test
 from app.config import Settings, get_settings
@@ -30,13 +32,13 @@ from app.dependencies import (
 from app.main import app
 from app.services.agent_service import AgentService
 from app.services.canvas_service import CanvasService
-from app.clients.neo4j_client import Neo4jClient
 from app.services.review_service import ReviewService
 from fastapi.testclient import TestClient
 
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def client():
@@ -55,7 +57,7 @@ def mock_settings():
         PROJECT_NAME="Test App",
         VERSION="0.0.1",
         DEBUG=True,
-        CANVAS_BASE_PATH="/test/path"
+        CANVAS_BASE_PATH="/test/path",
     )
 
 
@@ -86,6 +88,7 @@ def clean_overrides():
 # =============================================================================
 # Test: get_settings() - Singleton Behavior
 # =============================================================================
+
 
 class TestGetSettings:
     """Tests for get_settings() dependency."""
@@ -146,6 +149,7 @@ class TestGetSettings:
 # Test: get_canvas_service() - Yield Dependency
 # =============================================================================
 
+
 class TestGetCanvasService:
     """Tests for get_canvas_service() dependency."""
 
@@ -156,6 +160,7 @@ class TestGetCanvasService:
 
         [Source: docs/stories/15.3.story.md#Testing - AC: 3]
         """
+
         async def _test():
             async for service in get_canvas_service(mock_settings):
                 assert isinstance(service, CanvasService)
@@ -190,7 +195,7 @@ class TestGetCanvasService:
             cleanup_called = True
             await original_cleanup(self)
 
-        with patch.object(CanvasService, 'cleanup', mock_cleanup):
+        with patch.object(CanvasService, "cleanup", mock_cleanup):
             async for service in get_canvas_service(mock_settings):
                 pass  # Exit the context
 
@@ -200,6 +205,7 @@ class TestGetCanvasService:
 # =============================================================================
 # Test: get_agent_service() - Yield Dependency
 # =============================================================================
+
 
 class TestGetAgentService:
     """Tests for get_agent_service() dependency."""
@@ -236,7 +242,7 @@ class TestGetAgentService:
             cleanup_called = True
             await original_cleanup(self)
 
-        with patch.object(AgentService, 'cleanup', mock_cleanup):
+        with patch.object(AgentService, "cleanup", mock_cleanup):
             async for service in get_agent_service(
                 mock_settings, mock_canvas_service, mock_neo4j_client
             ):
@@ -248,6 +254,7 @@ class TestGetAgentService:
 # =============================================================================
 # Test: get_review_service() - Chained Dependencies
 # =============================================================================
+
 
 class TestGetReviewService:
     """Tests for get_review_service() chained dependency."""
@@ -264,7 +271,9 @@ class TestGetReviewService:
         # First get canvas_service
         async for canvas_service in get_canvas_service(mock_settings):
             # Then get review_service with canvas_service and task_manager
-            async for review_service in get_review_service(canvas_service, task_manager):
+            async for review_service in get_review_service(
+                canvas_service, task_manager
+            ):
                 assert isinstance(review_service, ReviewService)
                 break
             break
@@ -278,7 +287,9 @@ class TestGetReviewService:
         """
         task_manager = get_task_manager()
         async for canvas_service in get_canvas_service(mock_settings):
-            async for review_service in get_review_service(canvas_service, task_manager):
+            async for review_service in get_review_service(
+                canvas_service, task_manager
+            ):
                 assert review_service.canvas_service is canvas_service
                 assert review_service.task_manager is task_manager
                 break
@@ -300,9 +311,11 @@ class TestGetReviewService:
             await original_cleanup(self)
 
         task_manager = get_task_manager()
-        with patch.object(ReviewService, 'cleanup', mock_cleanup):
+        with patch.object(ReviewService, "cleanup", mock_cleanup):
             async for canvas_service in get_canvas_service(mock_settings):
-                async for review_service in get_review_service(canvas_service, task_manager):
+                async for review_service in get_review_service(
+                    canvas_service, task_manager
+                ):
                     pass
                 break
 
@@ -312,6 +325,7 @@ class TestGetReviewService:
 # =============================================================================
 # Test: dependency_overrides - Testing Support
 # =============================================================================
+
 
 class TestDependencyOverrides:
     """Tests for dependency_overrides functionality."""
@@ -333,9 +347,7 @@ class TestDependencyOverrides:
 
         # Create mock settings with uppercase attribute names
         mock_settings = Settings(
-            PROJECT_NAME="Overridden App",
-            VERSION="9.9.9",
-            DEBUG=True
+            PROJECT_NAME="Overridden App", VERSION="9.9.9", DEBUG=True
         )
 
         def override_get_settings():
@@ -365,11 +377,9 @@ class TestDependencyOverrides:
         """
         # Create mock service
         mock_service = MagicMock(spec=CanvasService)
-        mock_service.read_canvas = AsyncMock(return_value={
-            "name": "test-canvas",
-            "nodes": [],
-            "edges": []
-        })
+        mock_service.read_canvas = AsyncMock(
+            return_value={"name": "test-canvas", "nodes": [], "edges": []}
+        )
 
         async def override_canvas_service():
             yield mock_service
@@ -391,10 +401,9 @@ class TestDependencyOverrides:
         [Source: docs/stories/15.3.story.md#Testing - AC: 8]
         """
         mock_service = MagicMock(spec=AgentService)
-        mock_service.decompose_basic = AsyncMock(return_value={
-            "questions": ["Q1", "Q2"],
-            "created_nodes": []
-        })
+        mock_service.decompose_basic = AsyncMock(
+            return_value={"questions": ["Q1", "Q2"], "created_nodes": []}
+        )
 
         async def override_agent_service():
             yield mock_service
@@ -402,10 +411,10 @@ class TestDependencyOverrides:
         app.dependency_overrides[get_agent_service] = override_agent_service
 
         # Test endpoint returns data (placeholder implementation)
-        response = client.post("/api/v1/agents/decompose/basic", json={
-            "canvas_name": "test",
-            "node_id": "test-node"
-        })
+        response = client.post(
+            "/api/v1/agents/decompose/basic",
+            json={"canvas_name": "test", "node_id": "test-node"},
+        )
         assert response.status_code == 200
         assert "questions" in response.json()
 
@@ -434,6 +443,7 @@ class TestDependencyOverrides:
 # =============================================================================
 # Test: API Endpoint Integration
 # =============================================================================
+
 
 class TestAPIEndpointIntegration:
     """Integration tests for dependency injection in API endpoints."""
@@ -465,11 +475,9 @@ class TestAPIEndpointIntegration:
         """
         # Create mock to verify dependency override mechanism works
         mock_service = MagicMock(spec=CanvasService)
-        mock_service.read_canvas = AsyncMock(return_value={
-            "name": "test",
-            "nodes": [],
-            "edges": []
-        })
+        mock_service.read_canvas = AsyncMock(
+            return_value={"name": "test", "nodes": [], "edges": []}
+        )
 
         async def override():
             yield mock_service
@@ -493,12 +501,19 @@ class TestAPIEndpointIntegration:
         [Source: docs/stories/15.3.story.md#Testing - AC: 9]
         """
         mock_service = MagicMock(spec=AgentService)
-        mock_service.score_node = AsyncMock(return_value={
-            "node_id": "test",
-            "scores": {"accuracy": 80.0, "imagery": 70.0, "completeness": 75.0, "originality": 65.0},
-            "overall_score": 72.5,
-            "color_recommendation": "purple"
-        })
+        mock_service.score_node = AsyncMock(
+            return_value={
+                "node_id": "test",
+                "scores": {
+                    "accuracy": 80.0,
+                    "imagery": 70.0,
+                    "completeness": 75.0,
+                    "originality": 65.0,
+                },
+                "overall_score": 72.5,
+                "color_recommendation": "purple",
+            }
+        )
 
         async def override():
             yield mock_service
@@ -507,10 +522,10 @@ class TestAPIEndpointIntegration:
         app.dependency_overrides[get_agent_service] = override
 
         # Test existing decompose endpoint (placeholder implementation)
-        response = client.post("/api/v1/agents/decompose/basic", json={
-            "canvas_name": "test",
-            "node_id": "test-node"
-        })
+        response = client.post(
+            "/api/v1/agents/decompose/basic",
+            json={"canvas_name": "test", "node_id": "test-node"},
+        )
         assert response.status_code == 200
         assert "questions" in response.json()
 
@@ -542,6 +557,7 @@ class TestAPIEndpointIntegration:
 # =============================================================================
 # Test: Type Alias Exports
 # =============================================================================
+
 
 class TestTypeAliasExports:
     """Tests for Annotated type alias exports."""

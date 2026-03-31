@@ -13,21 +13,14 @@ Task 1: SubjectResolver unit tests
 [Source: docs/epics/EPIC-30-MEMORY-SYSTEM-COMPLETE-ACTIVATION.md]
 """
 
-import os
-import tempfile
-from pathlib import Path
-
 import pytest
 import yaml
-
 from app.models.metadata_models import (
     MetadataSource,
-    SubjectInfo,
     SubjectMappingConfig,
     SubjectMappingRule,
 )
 from app.services.subject_resolver import SubjectResolver
-
 
 # =============================================================================
 # Fixtures

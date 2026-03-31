@@ -3,16 +3,17 @@ Unit tests for RAGAS Faithfulness Check (Story 7.1)
 Tests claim extraction, NLI verification, score calculation, degradation.
 """
 
-import pytest
 from unittest import mock as _mock
 
+import pytest
+
 from agentic_rag.faithfulness_check import (
-    calculate_faithfulness,
-    apply_degradation,
-    faithfulness_check,
     ClaimVerdict,
     FaithfulnessResult,
     _parse_json_response,
+    apply_degradation,
+    calculate_faithfulness,
+    faithfulness_check,
 )
 
 
@@ -45,8 +46,7 @@ class TestCalculateFaithfulness:
 
     def test_high_faithfulness(self):
         verdicts = [
-            ClaimVerdict(claim=f"claim_{i}", verdict="SUPPORTED")
-            for i in range(9)
+            ClaimVerdict(claim=f"claim_{i}", verdict="SUPPORTED") for i in range(9)
         ] + [ClaimVerdict(claim="claim_9", verdict="NOT_SUPPORTED")]
         assert calculate_faithfulness(verdicts) == 0.9
 
@@ -90,7 +90,9 @@ class TestFaithfulnessCheckNode:
     @pytest.mark.asyncio
     async def test_disabled_returns_none_score(self):
         with _mock.patch("agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", False):
-            result = await faithfulness_check({"messages": list(), "reranked_results": list()})
+            result = await faithfulness_check(
+                {"messages": list(), "reranked_results": list()}
+            )
             assert result["faithfulness_score"] is None
             assert result["faithfulness_degraded"] is False
 
@@ -101,7 +103,9 @@ class TestFaithfulnessCheckNode:
             "reranked_results": list(),
         }
         with _mock.patch("agentic_rag.faithfulness_check.LITELLM_AVAILABLE", True):
-            with _mock.patch("agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True):
+            with _mock.patch(
+                "agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True
+            ):
                 result = await faithfulness_check(state)
                 assert result["faithfulness_score"] == 1.0
 
@@ -112,7 +116,9 @@ class TestFaithfulnessCheckNode:
             "reranked_results": list(),
         }
         with _mock.patch("agentic_rag.faithfulness_check.LITELLM_AVAILABLE", True):
-            with _mock.patch("agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True):
+            with _mock.patch(
+                "agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True
+            ):
                 result = await faithfulness_check(state)
                 assert result["faithfulness_score"] == 0.0
                 assert result["faithfulness_degraded"] is True

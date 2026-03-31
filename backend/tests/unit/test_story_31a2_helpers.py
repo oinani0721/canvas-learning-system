@@ -15,14 +15,13 @@ NOT a test file — contains only helpers used by:
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
 from app.services.memory_service import MemoryService
-
 
 # =============================================================================
 # Shared Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def mock_graphiti_memory():

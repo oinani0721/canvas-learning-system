@@ -15,16 +15,15 @@ Verifies:
 import asyncio
 import json
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 from app.services.review_service import ReviewService
-
 
 # =============================================================================
 # Mock FSRSManager
 # =============================================================================
+
 
 def _make_mock_fsrs_manager():
     """Create a mock FSRSManager that returns realistic FSRS responses.
@@ -55,6 +54,7 @@ def _make_mock_fsrs_manager():
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def review_service_with_fsrs(isolate_card_states_file):
     """ReviewService with mock FSRSManager for concurrent write testing."""
@@ -73,6 +73,7 @@ def review_service_with_fsrs(isolate_card_states_file):
 # =============================================================================
 # AC-32.11.3: 并发 card state 写入安全
 # =============================================================================
+
 
 class TestConcurrentCardStateWrite:
     """Verify asyncio.Lock protects _save_card_states from corruption."""
@@ -171,4 +172,6 @@ class TestConcurrentCardStateWrite:
         assert len(state) > 0, "Card state should not be empty"
         # M3 Fix: Verify state is a complete, valid JSON (not corrupted by partial writes)
         parsed = json.loads(state)
-        assert isinstance(parsed, dict), f"Card state should deserialize to dict, got {type(parsed)}"
+        assert isinstance(parsed, dict), (
+            f"Card state should deserialize to dict, got {type(parsed)}"
+        )

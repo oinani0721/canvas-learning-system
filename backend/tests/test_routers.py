@@ -19,6 +19,7 @@ client = TestClient(app)
 # System Router Tests
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestHealthEndpoint:
     """Tests for health check endpoint."""
 
@@ -43,13 +44,16 @@ class TestHealthEndpoint:
         data = response.json()
 
         assert data["status"] == "healthy"
-        assert data["app_name"] == "Canvas Learning System API"  # Updated to match config
+        assert (
+            data["app_name"] == "Canvas Learning System API"
+        )  # Updated to match config
         assert data["version"] == "1.0.0"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Canvas Router Tests
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestCanvasRouter:
     """Tests for Canvas router endpoints."""
@@ -148,6 +152,7 @@ class TestCanvasRouter:
 # Agents Router Tests
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestAgentsRouter:
     """Tests for Agents router endpoints."""
 
@@ -219,7 +224,9 @@ class TestAgentsRouter:
             "canvas_name": "test-canvas",
             "node_id": "node123",
         }
-        response = client.post("/api/v1/agents/explain/clarification", json=request_data)
+        response = client.post(
+            "/api/v1/agents/explain/clarification", json=request_data
+        )
         assert response.status_code == 200
 
     def test_explain_comparison(self):
@@ -262,6 +269,7 @@ class TestAgentsRouter:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Review Router Tests
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestReviewRouter:
     """Tests for Review router endpoints."""
@@ -368,6 +376,7 @@ class TestReviewRouter:
 # OpenAPI Schema Tests
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestOpenAPISchema:
     """Tests for OpenAPI schema generation."""
 
@@ -451,6 +460,7 @@ class TestOpenAPISchema:
         When DEBUG=True, docs are enabled and return 200.
         """
         from app.config import settings
+
         response = client.get("/docs")
         if settings.DEBUG:
             assert response.status_code == 200
@@ -465,6 +475,7 @@ class TestOpenAPISchema:
         When DEBUG=True, redoc is enabled and return 200.
         """
         from app.config import settings
+
         response = client.get("/redoc")
         if settings.DEBUG:
             assert response.status_code == 200

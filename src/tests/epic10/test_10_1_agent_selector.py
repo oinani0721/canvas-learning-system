@@ -15,6 +15,7 @@ import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
+
 # Mock imports for testing
 class MockReviewBoardAgentSelector:
     """Mock ReviewBoardAgentSelector for testing"""
@@ -24,14 +25,14 @@ class MockReviewBoardAgentSelector:
             "recommendations": {
                 "max_recommendations": 5,
                 "default_confidence_threshold": 0.7,
-                "min_confidence_threshold": 0.5
+                "min_confidence_threshold": 0.5,
             },
             "quality_weights": {
                 "accuracy": 0.3,
                 "completeness": 0.3,
                 "clarity": 0.2,
-                "originality": 0.2
-            }
+                "originality": 0.2,
+            },
         }
 
         self.agent_priority_weights = {
@@ -44,7 +45,7 @@ class MockReviewBoardAgentSelector:
             "basic-decomposition": 0.85,
             "deep-decomposition": 0.80,
             "verification-question-agent": 0.83,
-            "scoring-agent": 0.93
+            "scoring-agent": 0.93,
         }
 
         self.all_agent_types = [
@@ -57,13 +58,11 @@ class MockReviewBoardAgentSelector:
             "four-level-explanation",
             "example-teaching",
             "scoring-agent",
-            "verification-question-agent"
+            "verification-question-agent",
         ]
 
     async def analyze_understanding_quality_advanced(
-        self,
-        node_text: str,
-        context: Dict = None
+        self, node_text: str, context: Dict = None
     ) -> Dict[str, Any]:
         """Mock implementation of advanced analysis"""
         # Simulate analysis time
@@ -81,10 +80,10 @@ class MockReviewBoardAgentSelector:
         # Calculate overall quality
         weights = self.config["quality_weights"]
         overall_quality = (
-            accuracy_score * weights["accuracy"] +
-            completeness_score * weights["completeness"] +
-            clarity_score * weights["clarity"] +
-            originality_score * weights["originality"]
+            accuracy_score * weights["accuracy"]
+            + completeness_score * weights["completeness"]
+            + clarity_score * weights["clarity"]
+            + originality_score * weights["originality"]
         )
 
         return {
@@ -95,19 +94,21 @@ class MockReviewBoardAgentSelector:
             "overall_quality": round(overall_quality, 2),
             "word_count": word_count,
             "has_content": len(node_text.strip()) > 0,
-            "analysis_time_ms": round(time.time() * 1000) % 100
+            "analysis_time_ms": round(time.time() * 1000) % 100,
         }
 
     async def recommend_multiple_agents(
         self,
         quality_analysis: Dict,
         max_recommendations: int = None,
-        context: Dict = None
+        context: Dict = None,
     ) -> Dict[str, Any]:
         """Mock implementation of multi-agent recommendation"""
         import uuid
 
-        max_rec = max_recommendations or self.config["recommendations"]["max_recommendations"]
+        max_rec = (
+            max_recommendations or self.config["recommendations"]["max_recommendations"]
+        )
         overall_quality = quality_analysis.get("overall_quality", 0.5)
 
         # Generate candidates based on quality
@@ -129,17 +130,21 @@ class MockReviewBoardAgentSelector:
         agent_recommendations = []
         for agent_type in candidates[:max_rec]:
             base_confidence = self.agent_priority_weights.get(agent_type, 0.5)
-            confidence = base_confidence * (1.5 - overall_quality)  # Adjust based on quality
+            confidence = base_confidence * (
+                1.5 - overall_quality
+            )  # Adjust based on quality
 
             if confidence >= self.config["recommendations"]["min_confidence_threshold"]:
-                agent_recommendations.append({
-                    "agent_name": agent_type,
-                    "confidence_score": round(confidence, 2),
-                    "reasoning": f"Mock reasoning for {agent_type}",
-                    "priority": len(agent_recommendations) + 1,
-                    "estimated_duration": "10-20秒",
-                    "suggested_follow_up": [f"Follow up for {agent_type}"]
-                })
+                agent_recommendations.append(
+                    {
+                        "agent_name": agent_type,
+                        "confidence_score": round(confidence, 2),
+                        "reasoning": f"Mock reasoning for {agent_type}",
+                        "priority": len(agent_recommendations) + 1,
+                        "estimated_duration": "10-20秒",
+                        "suggested_follow_up": [f"Follow up for {agent_type}"],
+                    }
+                )
 
         return {
             "analysis_id": f"rec-{uuid.uuid4().hex}",
@@ -150,8 +155,8 @@ class MockReviewBoardAgentSelector:
             "processing_strategy": {
                 "execution_mode": "parallel",
                 "max_concurrent": len(agent_recommendations),
-                "total_estimated_duration": f"{len(agent_recommendations) * 10}-{len(agent_recommendations) * 20}秒"
-            }
+                "total_estimated_duration": f"{len(agent_recommendations) * 10}-{len(agent_recommendations) * 20}秒",
+            },
         }
 
     async def process_agents_parallel(
@@ -159,7 +164,7 @@ class MockReviewBoardAgentSelector:
         agent_recommendations: Dict,
         canvas_path: str,
         node_id: str,
-        max_concurrent: int = 20
+        max_concurrent: int = 20,
     ) -> Dict[str, Any]:
         """Mock implementation of parallel processing"""
         import uuid
@@ -174,7 +179,7 @@ class MockReviewBoardAgentSelector:
                 "execution_id": execution_id,
                 "status": "failed",
                 "error": "No agents to execute",
-                "results": []
+                "results": [],
             }
 
         # Simulate parallel execution
@@ -192,7 +197,7 @@ class MockReviewBoardAgentSelector:
                     "result": f"Mock result for {agent_info['agent_name']}",
                     "execution_time": execution_time,
                     "confidence": agent_info.get("confidence_score", 0.5),
-                    "priority": agent_info.get("priority", 1)
+                    "priority": agent_info.get("priority", 1),
                 }
 
         # Execute all agents in parallel
@@ -200,12 +205,22 @@ class MockReviewBoardAgentSelector:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Process results
-        successful_results = [r for r in results if isinstance(r, dict) and r.get("success")]
-        failed_results = [r for r in results if isinstance(r, dict) and not r.get("success")]
+        successful_results = [
+            r for r in results if isinstance(r, dict) and r.get("success")
+        ]
+        failed_results = [
+            r for r in results if isinstance(r, dict) and not r.get("success")
+        ]
 
         total_execution_time = time.time() - start_time
-        sequential_time_estimate = sum(r.get("execution_time", 0) for r in successful_results)
-        parallel_efficiency = sequential_time_estimate / total_execution_time if total_execution_time > 0 else 1.0
+        sequential_time_estimate = sum(
+            r.get("execution_time", 0) for r in successful_results
+        )
+        parallel_efficiency = (
+            sequential_time_estimate / total_execution_time
+            if total_execution_time > 0
+            else 1.0
+        )
 
         return {
             "execution_id": execution_id,
@@ -221,9 +236,9 @@ class MockReviewBoardAgentSelector:
                 "average_time_per_agent": round(total_execution_time / len(agents), 2),
                 "parallel_efficiency": round(parallel_efficiency, 2),
                 "success_rate": round(len(successful_results) / len(agents), 2),
-                "max_concurrent_used": min(max_concurrent, len(agents))
+                "max_concurrent_used": min(max_concurrent, len(agents)),
             },
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 
@@ -241,7 +256,7 @@ def sample_node_texts():
         "poor": "不理解",
         "basic": "这是基本概念",
         "good": "我认为这个概念很重要，因为它包括多个方面。例如，在实际应用中...",
-        "excellent": "我的理解是：这个概念的核心原理是基于XXX理论，因为它能够解决YYY问题。具体来说，首先...其次...最后...综上所述..."
+        "excellent": "我的理解是：这个概念的核心原理是基于XXX理论，因为它能够解决YYY问题。具体来说，首先...其次...最后...综上所述...",
     }
 
 
@@ -250,9 +265,7 @@ class TestStory10_1_MultiAgentRecommendation:
 
     @pytest.mark.asyncio
     async def test_analyze_understanding_quality_advanced(
-        self,
-        agent_selector,
-        sample_node_texts
+        self, agent_selector, sample_node_texts
     ):
         """测试高级理解质量分析"""
         # 测试空文本
@@ -284,18 +297,20 @@ class TestStory10_1_MultiAgentRecommendation:
 
         # 验证所有必需字段
         required_fields = [
-            "accuracy_score", "completeness_score",
-            "clarity_score", "originality_score",
-            "overall_quality", "word_count", "has_content"
+            "accuracy_score",
+            "completeness_score",
+            "clarity_score",
+            "originality_score",
+            "overall_quality",
+            "word_count",
+            "has_content",
         ]
         for field in required_fields:
             assert field in result
 
     @pytest.mark.asyncio
     async def test_recommend_multiple_agents_basic(
-        self,
-        agent_selector,
-        sample_node_texts
+        self, agent_selector, sample_node_texts
     ):
         """测试基础多Agent推荐功能"""
         # 分析质量
@@ -305,8 +320,7 @@ class TestStory10_1_MultiAgentRecommendation:
 
         # 推荐多个Agent
         recommendations = await agent_selector.recommend_multiple_agents(
-            quality_analysis,
-            max_recommendations=3
+            quality_analysis, max_recommendations=3
         )
 
         # 验证返回格式
@@ -327,9 +341,7 @@ class TestStory10_1_MultiAgentRecommendation:
 
     @pytest.mark.asyncio
     async def test_recommend_multiple_agents_with_context(
-        self,
-        agent_selector,
-        sample_node_texts
+        self, agent_selector, sample_node_texts
     ):
         """测试带上下文的多Agent推荐"""
         quality_analysis = await agent_selector.analyze_understanding_quality_advanced(
@@ -339,8 +351,7 @@ class TestStory10_1_MultiAgentRecommendation:
         context = {"node_id": "test-node-123", "canvas_file": "test.canvas"}
 
         recommendations = await agent_selector.recommend_multiple_agents(
-            quality_analysis,
-            context=context
+            quality_analysis, context=context
         )
 
         # 验证上下文被正确使用
@@ -352,27 +363,27 @@ class TestStory10_1_MultiAgentRecommendation:
 
         # 高质量理解应该推荐进阶Agent
         agent_names = [a["agent_name"] for a in agents]
-        assert any(agent in agent_names for agent in ["memory-anchor", "example-teaching", "four-level-explanation"])
+        assert any(
+            agent in agent_names
+            for agent in ["memory-anchor", "example-teaching", "four-level-explanation"]
+        )
 
     @pytest.mark.asyncio
-    async def test_process_agents_parallel_single(
-        self,
-        agent_selector
-    ):
+    async def test_process_agents_parallel_single(self, agent_selector):
         """测试单个Agent并行处理"""
         # 创建单个推荐
         agent_recommendations = {
-            "recommended_agents": [{
-                "agent_name": "clarification-path",
-                "confidence_score": 0.85,
-                "priority": 1
-            }]
+            "recommended_agents": [
+                {
+                    "agent_name": "clarification-path",
+                    "confidence_score": 0.85,
+                    "priority": 1,
+                }
+            ]
         }
 
         result = await agent_selector.process_agents_parallel(
-            agent_recommendations,
-            "test.canvas",
-            "node-123"
+            agent_recommendations, "test.canvas", "node-123"
         )
 
         # 验证执行结果
@@ -383,10 +394,7 @@ class TestStory10_1_MultiAgentRecommendation:
         assert len(result["successful_results"]) == 1
 
     @pytest.mark.asyncio
-    async def test_process_agents_parallel_multiple(
-        self,
-        agent_selector
-    ):
+    async def test_process_agents_parallel_multiple(self, agent_selector):
         """测试多个Agent并行处理"""
         # 创建多个推荐
         agent_recommendations = {
@@ -394,26 +402,23 @@ class TestStory10_1_MultiAgentRecommendation:
                 {
                     "agent_name": "clarification-path",
                     "confidence_score": 0.92,
-                    "priority": 1
+                    "priority": 1,
                 },
                 {
                     "agent_name": "oral-explanation",
                     "confidence_score": 0.85,
-                    "priority": 2
+                    "priority": 2,
                 },
                 {
                     "agent_name": "comparison-table",
                     "confidence_score": 0.78,
-                    "priority": 3
-                }
+                    "priority": 3,
+                },
             ]
         }
 
         result = await agent_selector.process_agents_parallel(
-            agent_recommendations,
-            "test.canvas",
-            "node-456",
-            max_concurrent=5
+            agent_recommendations, "test.canvas", "node-456", max_concurrent=5
         )
 
         # 验证执行结果
@@ -430,25 +435,18 @@ class TestStory10_1_MultiAgentRecommendation:
         assert summary["parallel_efficiency"] > 1.0  # 并行应该比串行快
 
     @pytest.mark.asyncio
-    async def test_process_agents_parallel_max_concurrent(
-        self,
-        agent_selector
-    ):
+    async def test_process_agents_parallel_max_concurrent(self, agent_selector):
         """测试最大并发数限制"""
         # 创建5个推荐
         agent_recommendations = {
             "recommended_agents": [
-                {"agent_name": f"agent-{i}", "priority": i}
-                for i in range(5)
+                {"agent_name": f"agent-{i}", "priority": i} for i in range(5)
             ]
         }
 
         # 设置最大并发数为2
         result = await agent_selector.process_agents_parallel(
-            agent_recommendations,
-            "test.canvas",
-            "node-789",
-            max_concurrent=2
+            agent_recommendations, "test.canvas", "node-789", max_concurrent=2
         )
 
         # 验证并发限制被遵守
@@ -456,19 +454,12 @@ class TestStory10_1_MultiAgentRecommendation:
         assert summary["max_concurrent_used"] == 2
 
     @pytest.mark.asyncio
-    async def test_process_agents_parallel_empty_recommendations(
-        self,
-        agent_selector
-    ):
+    async def test_process_agents_parallel_empty_recommendations(self, agent_selector):
         """测试空推荐列表的处理"""
-        agent_recommendations = {
-            "recommended_agents": []
-        }
+        agent_recommendations = {"recommended_agents": []}
 
         result = await agent_selector.process_agents_parallel(
-            agent_recommendations,
-            "test.canvas",
-            "node-000"
+            agent_recommendations, "test.canvas", "node-000"
         )
 
         # 验证错误处理
@@ -507,11 +498,7 @@ class TestStory10_1_MultiAgentRecommendation:
         assert sum(quality_weights.values()) == pytest.approx(1.0, rel=1e-2)
 
     @pytest.mark.asyncio
-    async def test_end_to_end_workflow(
-        self,
-        agent_selector,
-        sample_node_texts
-    ):
+    async def test_end_to_end_workflow(self, agent_selector, sample_node_texts):
         """测试端到端工作流程"""
         # 步骤1: 分析理解质量
         quality_analysis = await agent_selector.analyze_understanding_quality_advanced(
@@ -520,16 +507,12 @@ class TestStory10_1_MultiAgentRecommendation:
 
         # 步骤2: 推荐多个Agent
         recommendations = await agent_selector.recommend_multiple_agents(
-            quality_analysis,
-            max_recommendations=3,
-            context={"node_id": "test-e2e"}
+            quality_analysis, max_recommendations=3, context={"node_id": "test-e2e"}
         )
 
         # 步骤3: 并行执行Agent
         execution_result = await agent_selector.process_agents_parallel(
-            recommendations,
-            "test.canvas",
-            "test-e2e"
+            recommendations, "test.canvas", "test-e2e"
         )
 
         # 验证端到端流程成功
@@ -541,18 +524,16 @@ class TestStory10_1_MultiAgentRecommendation:
         # 验证数据流完整性
         assert recommendations["analysis_id"] is not None
         assert execution_result["execution_id"] is not None
-        assert len(execution_result["results"]) == len(recommendations["recommended_agents"])
+        assert len(execution_result["results"]) == len(
+            recommendations["recommended_agents"]
+        )
 
 
 class TestStory10_1_Performance:
     """测试Story 10.1性能要求"""
 
     @pytest.mark.asyncio
-    async def test_analysis_response_time(
-        self,
-        agent_selector,
-        sample_node_texts
-    ):
+    async def test_analysis_response_time(self, agent_selector, sample_node_texts):
         """测试分析响应时间 < 1秒"""
         start_time = time.time()
 
@@ -561,13 +542,13 @@ class TestStory10_1_Performance:
         )
 
         response_time = time.time() - start_time
-        assert response_time < 1.0, f"Analysis took {response_time:.2f}s, should be < 1s"
+        assert response_time < 1.0, (
+            f"Analysis took {response_time:.2f}s, should be < 1s"
+        )
 
     @pytest.mark.asyncio
     async def test_recommendation_response_time(
-        self,
-        agent_selector,
-        sample_node_texts
+        self, agent_selector, sample_node_texts
     ):
         """测试推荐响应时间 < 0.5秒"""
         quality_analysis = await agent_selector.analyze_understanding_quality_advanced(
@@ -576,53 +557,48 @@ class TestStory10_1_Performance:
 
         start_time = time.time()
         await agent_selector.recommend_multiple_agents(
-            quality_analysis,
-            max_recommendations=5
+            quality_analysis, max_recommendations=5
         )
         response_time = time.time() - start_time
 
-        assert response_time < 0.5, f"Recommendation took {response_time:.2f}s, should be < 0.5s"
+        assert response_time < 0.5, (
+            f"Recommendation took {response_time:.2f}s, should be < 0.5s"
+        )
 
     @pytest.mark.asyncio
-    async def test_parallel_execution_performance(
-        self,
-        agent_selector
-    ):
+    async def test_parallel_execution_performance(self, agent_selector):
         """测试并行执行效率 > 200%"""
 
         # 创建5个Agent的任务
         agent_recommendations = {
             "recommended_agents": [
-                {"agent_name": f"agent-{i}", "priority": i}
-                for i in range(5)
+                {"agent_name": f"agent-{i}", "priority": i} for i in range(5)
             ]
         }
 
         # 测试并行执行
         start_parallel = time.time()
         result_parallel = await agent_selector.process_agents_parallel(
-            agent_recommendations,
-            "test.canvas",
-            "test-perf",
-            max_concurrent=5
+            agent_recommendations, "test.canvas", "test-perf", max_concurrent=5
         )
         parallel_time = time.time() - start_parallel
 
         # 验证性能提升
         summary = result_parallel["execution_summary"]
-        assert summary["parallel_efficiency"] > 2.0, \
+        assert summary["parallel_efficiency"] > 2.0, (
             f"Parallel efficiency: {summary['parallel_efficiency']:.2f}, should be > 2.0"
+        )
 
-    def test_recommendation_accuracy(
-        self,
-        agent_selector
-    ):
+    def test_recommendation_accuracy(self, agent_selector):
         """测试推荐准确率 > 85%"""
         # 模拟不同质量的理解
         test_cases = [
             {"quality": 0.1, "expected": ["basic-decomposition", "oral-explanation"]},
-            {"quality": 0.4, "expected": ["clarification-path", "four-level-explanation"]},
-            {"quality": 0.8, "expected": ["memory-anchor", "example-teaching"]}
+            {
+                "quality": 0.4,
+                "expected": ["clarification-path", "four-level-explanation"],
+            },
+            {"quality": 0.8, "expected": ["memory-anchor", "example-teaching"]},
         ]
 
         accurate_count = 0
@@ -633,10 +609,10 @@ class TestStory10_1_Performance:
 
             # 异步运行测试（简化）
             import asyncio
+
             async def run_test():
                 return await agent_selector.recommend_multiple_agents(
-                    quality_analysis,
-                    max_recommendations=3
+                    quality_analysis, max_recommendations=3
                 )
 
             # Run in event loop
@@ -648,7 +624,9 @@ class TestStory10_1_Performance:
                 loop.close()
 
             # 检查推荐的合理性
-            agent_names = [a["agent_name"] for a in recommendations["recommended_agents"]]
+            agent_names = [
+                a["agent_name"] for a in recommendations["recommended_agents"]
+            ]
 
             # 简单的准确性检查：推荐的Agent类型应该符合预期
             for expected_agent in case["expected"]:
@@ -657,18 +635,16 @@ class TestStory10_1_Performance:
                     break
 
         accuracy = accurate_count / total_tests
-        assert accuracy > 0.85, f"Recommendation accuracy: {accuracy:.2f}, should be > 0.85"
+        assert accuracy > 0.85, (
+            f"Recommendation accuracy: {accuracy:.2f}, should be > 0.85"
+        )
 
 
 class TestStory10_1_BackwardCompatibility:
     """测试向后兼容性"""
 
     @pytest.mark.asyncio
-    async def test_single_agent_compatibility(
-        self,
-        agent_selector,
-        sample_node_texts
-    ):
+    async def test_single_agent_compatibility(self, agent_selector, sample_node_texts):
         """测试单Agent推荐的向后兼容性"""
         # 新方法应该能够处理单Agent场景
         quality_analysis = await agent_selector.analyze_understanding_quality_advanced(
@@ -677,8 +653,7 @@ class TestStory10_1_BackwardCompatibility:
 
         # 请求只推荐1个Agent
         recommendations = await agent_selector.recommend_multiple_agents(
-            quality_analysis,
-            max_recommendations=1
+            quality_analysis, max_recommendations=1
         )
 
         # 验证格式兼容性
@@ -692,9 +667,9 @@ class TestStory10_1_BackwardCompatibility:
     def test_legacy_method_preservation(self, agent_selector):
         """测试保留原有方法"""
         # 验证原有方法仍然存在
-        assert hasattr(agent_selector, 'analyze_understanding_quality')
-        assert hasattr(agent_selector, 'recommend_agents')
-        assert hasattr(agent_selector, 'get_agent_selection_for_review_node')
+        assert hasattr(agent_selector, "analyze_understanding_quality")
+        assert hasattr(agent_selector, "recommend_agents")
+        assert hasattr(agent_selector, "get_agent_selection_for_review_node")
 
 
 if __name__ == "__main__":

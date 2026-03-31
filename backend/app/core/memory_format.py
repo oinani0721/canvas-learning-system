@@ -12,8 +12,7 @@ Color reference (canvas_utils.py authoritative, plugin CSS remapped):
 """
 
 from collections import defaultdict
-from typing import Dict, Optional, Set
-
+from typing import Dict, Optional
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Entity Type Registry
@@ -25,8 +24,7 @@ ENTITY_TYPES: Dict[str, dict] = {
         "source_description": "misconception-record",
         "keywords": {"知识", "概念", "理论", "定义", "不理解", "不懂"},
         "body_template": (
-            "[Topic: {topic}] 误解内容: {error} | "
-            "正确理解: {correct} | 来源: {source}"
+            "[Topic: {topic}] 误解内容: {error} | 正确理解: {correct} | 来源: {source}"
         ),
     },
     "ProblemTrap": {
@@ -63,8 +61,7 @@ ENTITY_TYPES: Dict[str, dict] = {
         "source_description": "concept-record",
         "keywords": set(),
         "body_template": (
-            "[Topic: {topic}] 概念: {concept} | "
-            "定义: {definition} | 关联: {relations}"
+            "[Topic: {topic}] 概念: {concept} | 定义: {definition} | 关联: {relations}"
         ),
     },
     "Problem": {

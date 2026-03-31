@@ -6,13 +6,11 @@ Unit tests for the unified storage health endpoint.
 [Source: docs/stories/36.10.story.md - Task 7]
 """
 
-import asyncio
 import time
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from app.api.v1.endpoints.health import (
     LatencyTracker,
     StorageBackendStatus,
@@ -24,10 +22,10 @@ from app.api.v1.endpoints.health import (
     _get_neo4j_pool_stats,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Status Aggregation Logic (AC-36.10.5)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestStatusAggregation:
     """Test status aggregation logic per AC-36.10.5."""
@@ -45,7 +43,9 @@ class TestStatusAggregation:
     def test_neo4j_error_returns_unhealthy(self):
         """✅ AC-36.10.5: Neo4j error → status="unhealthy" (critical)."""
         backends = [
-            StorageBackendStatus(name="neo4j", status="error", error="Connection refused"),
+            StorageBackendStatus(
+                name="neo4j", status="error", error="Connection refused"
+            ),
             StorageBackendStatus(name="mcp", status="ok", latency_ms=120),
             StorageBackendStatus(name="json", status="ok", latency_ms=5),
         ]
@@ -67,7 +67,9 @@ class TestStatusAggregation:
         backends = [
             StorageBackendStatus(name="neo4j", status="ok", latency_ms=45),
             StorageBackendStatus(name="mcp", status="ok", latency_ms=120),
-            StorageBackendStatus(name="json", status="error", error="Permission denied"),
+            StorageBackendStatus(
+                name="json", status="error", error="Permission denied"
+            ),
         ]
         result = _aggregate_storage_status(backends)
         assert result == "degraded"
@@ -77,7 +79,9 @@ class TestStatusAggregation:
         backends = [
             StorageBackendStatus(name="neo4j", status="ok", latency_ms=45),
             StorageBackendStatus(name="mcp", status="error", error="Timeout"),
-            StorageBackendStatus(name="json", status="error", error="Permission denied"),
+            StorageBackendStatus(
+                name="json", status="error", error="Permission denied"
+            ),
         ]
         result = _aggregate_storage_status(backends)
         assert result == "degraded"
@@ -85,9 +89,13 @@ class TestStatusAggregation:
     def test_all_backends_error_with_neo4j_returns_unhealthy(self):
         """✅ AC-36.10.5: All errors including Neo4j → status="unhealthy"."""
         backends = [
-            StorageBackendStatus(name="neo4j", status="error", error="Connection refused"),
+            StorageBackendStatus(
+                name="neo4j", status="error", error="Connection refused"
+            ),
             StorageBackendStatus(name="mcp", status="error", error="Timeout"),
-            StorageBackendStatus(name="json", status="error", error="Permission denied"),
+            StorageBackendStatus(
+                name="json", status="error", error="Permission denied"
+            ),
         ]
         result = _aggregate_storage_status(backends)
         assert result == "unhealthy"
@@ -96,6 +104,7 @@ class TestStatusAggregation:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: P95 Latency Calculation (AC-36.10.3)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestLatencyTracker:
     """Test P95 latency tracking per AC-36.10.3."""
@@ -167,6 +176,7 @@ class TestLatencyTracker:
 # Test: Connection Pool Metrics (AC-36.10.2)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestConnectionPoolMetrics:
     """Test connection pool metrics extraction per AC-36.10.2."""
 
@@ -194,6 +204,7 @@ class TestConnectionPoolMetrics:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Individual Backend Health Checks
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestBackendHealthChecks:
     """Test individual backend health check functions."""
@@ -237,12 +248,14 @@ class TestBackendHealthChecks:
 # Test: Cache Behavior (AC-36.10.4)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestCacheBehavior:
     """Test response caching per AC-36.10.4."""
 
     def test_cache_ttl_constant_is_30_seconds(self):
         """✅ AC-36.10.4: Cache TTL is 30 seconds per ADR-007."""
         from app.api.v1.endpoints.health import _STORAGE_HEALTH_CACHE_TTL
+
         assert _STORAGE_HEALTH_CACHE_TTL == 30
 
     def test_cached_field_is_correctly_set(self):
@@ -254,7 +267,7 @@ class TestCacheBehavior:
             latency_metrics={"p95_ms": 0, "window_seconds": 300},
             cached=True,
             cache_ttl_remaining_seconds=15,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
         assert response.cached is True
         assert response.cache_ttl_remaining_seconds == 15
@@ -263,6 +276,7 @@ class TestCacheBehavior:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Graceful Degradation
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestGracefulDegradation:
     """Test graceful degradation when backends unavailable."""
@@ -273,7 +287,9 @@ class TestGracefulDegradation:
         with patch("app.config.settings") as mock_settings:
             mock_settings.json_data_dir = "/nonexistent/path"
             with patch("pathlib.Path.exists", return_value=False):
-                with patch("pathlib.Path.mkdir", side_effect=PermissionError("Access denied")):
+                with patch(
+                    "pathlib.Path.mkdir", side_effect=PermissionError("Access denied")
+                ):
                     result = await _check_json_health()
                     assert result.name == "json"
                     assert result.status == "error"
@@ -294,6 +310,7 @@ class TestGracefulDegradation:
 # Test: Response Model Validation
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestResponseModelValidation:
     """Test response model validation."""
 
@@ -311,18 +328,18 @@ class TestResponseModelValidation:
                     "active": 3,
                     "idle": 7,
                     "max_size": 50,
-                    "utilization_percent": 6.0
+                    "utilization_percent": 6.0,
                 }
             },
             latency_metrics={
                 "p95_ms": 85,
                 "p50_ms": 42,
                 "sample_count": 150,
-                "window_seconds": 300
+                "window_seconds": 300,
             },
             cached=False,
             cache_ttl_remaining_seconds=0,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
         assert response.status == "healthy"
         assert len(response.storage_backends) == 3

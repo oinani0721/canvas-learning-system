@@ -69,6 +69,7 @@ AGENT_API_SPEC = SPECS_DIR / "agent-api.openapi.yml"
 # pytest Fixtures
 # ============================================================================
 
+
 @pytest.fixture(scope="session")
 def project_root() -> Path:
     """返回项目根目录路径"""
@@ -153,7 +154,7 @@ def sample_canvas_data() -> Dict[str, Any]:
                 "width": 300,
                 "height": 100,
                 "color": "1",  # 红色（不理解）
-                "text": "什么是逆否命题？"
+                "text": "什么是逆否命题？",
             },
             {
                 "id": "test-yellow-001",
@@ -163,7 +164,7 @@ def sample_canvas_data() -> Dict[str, Any]:
                 "width": 300,
                 "height": 100,
                 "color": "6",  # 黄色（个人理解）
-                "text": "逆否命题是将原命题的条件和结论都否定后再交换位置"
+                "text": "逆否命题是将原命题的条件和结论都否定后再交换位置",
             },
             {
                 "id": "test-file-001",
@@ -173,8 +174,8 @@ def sample_canvas_data() -> Dict[str, Any]:
                 "width": 400,
                 "height": 300,
                 "color": "5",  # 蓝色（AI解释）
-                "file": "docs/逆否命题-口语化解释-20250115.md"
-            }
+                "file": "docs/逆否命题-口语化解释-20250115.md",
+            },
         ],
         "edges": [
             {
@@ -182,9 +183,9 @@ def sample_canvas_data() -> Dict[str, Any]:
                 "fromNode": "test-question-001",
                 "toNode": "test-yellow-001",
                 "fromSide": "bottom",
-                "toSide": "top"
+                "toSide": "top",
             }
-        ]
+        ],
     }
 
 
@@ -201,13 +202,10 @@ def sample_agent_invoke_request() -> Dict[str, Any]:
             "canvas_path": "笔记库/离散数学/离散数学.canvas",
             "node_id": "test-yellow-001",
             "concept": "逆否命题",
-            "user_understanding": "逆否命题是将原命题的条件和结论都否定后再交换位置"
+            "user_understanding": "逆否命题是将原命题的条件和结论都否定后再交换位置",
         },
         "timeout": 60,
-        "metadata": {
-            "user_id": "test-user-001",
-            "session_id": "test-session-001"
-        }
+        "metadata": {"user_id": "test-user-001", "session_id": "test-session-001"},
     }
 
 
@@ -231,7 +229,7 @@ settings.register_profile(
     suppress_health_check=[  # 抑制某些健康检查（加快测试）
         # HealthCheck.too_slow,
         # HealthCheck.data_too_large,
-    ]
+    ],
 )
 
 # 激活contract_testing配置
@@ -241,6 +239,7 @@ settings.load_profile("contract_testing")
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 def validate_color_code(color: str) -> bool:
     """
@@ -314,23 +313,17 @@ def validate_edge_structure(edge: Dict[str, Any]) -> bool:
 # pytest Hooks
 # ============================================================================
 
+
 def pytest_configure(config):
     """pytest配置hook - 注册自定义marker"""
     config.addinivalue_line(
         "markers",
-        "contract: Contract testing marker (OpenAPI specification validation)"
+        "contract: Contract testing marker (OpenAPI specification validation)",
     )
+    config.addinivalue_line("markers", "canvas_api: Canvas API contract tests")
+    config.addinivalue_line("markers", "agent_api: Agent API contract tests")
     config.addinivalue_line(
-        "markers",
-        "canvas_api: Canvas API contract tests"
-    )
-    config.addinivalue_line(
-        "markers",
-        "agent_api: Agent API contract tests"
-    )
-    config.addinivalue_line(
-        "markers",
-        "slow: Slow running tests (may take >10 seconds)"
+        "markers", "slow: Slow running tests (may take >10 seconds)"
     )
 
 

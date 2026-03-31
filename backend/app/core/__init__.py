@@ -9,14 +9,14 @@ This package contains shared infrastructure components:
 - agent_memory_mapping: Agent to memory type mapping (Story 30.4)
 """
 
-from app.core.request_cache import RequestCache, request_cache
 from app.core.agent_memory_mapping import (
-    AgentMemoryType,
     AGENT_MEMORY_MAPPING,
     ALL_AGENT_NAMES,
+    AgentMemoryType,
     get_memory_type_for_agent,
     is_memory_enabled_agent,
 )
+from app.core.request_cache import RequestCache, request_cache
 
 __all__ = [
     "RequestCache",

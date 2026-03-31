@@ -9,22 +9,17 @@ Tests full workflow: connect → receive events → disconnect.
 """
 
 import asyncio
-from datetime import datetime
-from typing import List
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import FastAPI, WebSocket
-from fastapi.testclient import TestClient
-
 from app.models.intelligent_parallel_models import (
     ParallelTaskStatus,
-    WSEventType,
     create_ws_progress_event,
 )
 from app.services.intelligent_parallel_service import IntelligentParallelService
 from app.services.websocket_manager import ConnectionManager, reset_connection_manager
-
+from fastapi import FastAPI, WebSocket
+from fastapi.testclient import TestClient
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test Application Setup
@@ -35,8 +30,8 @@ from app.services.websocket_manager import ConnectionManager, reset_connection_m
 def test_app():
     """Create test FastAPI application with WebSocket endpoint."""
     from app.api.v1.endpoints.websocket import (
-        websocket_intelligent_parallel,
         set_session_validator,
+        websocket_intelligent_parallel,
     )
 
     app = FastAPI()
@@ -140,8 +135,8 @@ class TestWebSocketSessionValidation:
     def test_websocket_reject_invalid_session(self):
         """Test WebSocket rejects connection for invalid session."""
         from app.api.v1.endpoints.websocket import (
-            websocket_intelligent_parallel,
             set_session_validator,
+            websocket_intelligent_parallel,
         )
 
         # Create app with validator that rejects specific sessions
@@ -223,13 +218,12 @@ class TestWebSocketBroadcasting:
 
         # Create a session first
         from app.models.intelligent_parallel_models import GroupExecuteConfig
+
         await service.start_batch_session(
             canvas_path="test.canvas",
             groups=[
                 GroupExecuteConfig(
-                    group_id="g1",
-                    agent_type="comparison-table",
-                    node_ids=["n1", "n2"]
+                    group_id="g1", agent_type="comparison-table", node_ids=["n1", "n2"]
                 )
             ],
         )
@@ -269,13 +263,12 @@ class TestWebSocketServiceIntegration:
 
         # Create a session
         from app.models.intelligent_parallel_models import GroupExecuteConfig
+
         response = await service.start_batch_session(
             canvas_path="test.canvas",
             groups=[
                 GroupExecuteConfig(
-                    group_id="g1",
-                    agent_type="comparison-table",
-                    node_ids=["n1"]
+                    group_id="g1", agent_type="comparison-table", node_ids=["n1"]
                 )
             ],
         )
@@ -393,8 +386,8 @@ class TestPollingFallback:
 
     def test_polling_endpoint_returns_progress(self):
         """Test GET /api/v1/canvas/intelligent-parallel/{session_id} works."""
-        from fastapi.testclient import TestClient
         from app.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
 
@@ -407,11 +400,11 @@ class TestPollingFallback:
                     {
                         "group_id": "g1",
                         "agent_type": "comparison-table",
-                        "node_ids": ["n1", "n2"]
+                        "node_ids": ["n1", "n2"],
                     }
                 ],
-                "timeout": 600
-            }
+                "timeout": 600,
+            },
         )
 
         assert confirm_response.status_code == 202
@@ -430,14 +423,12 @@ class TestPollingFallback:
 
     def test_polling_endpoint_404_for_invalid_session(self):
         """Test polling returns 404 for invalid session."""
-        from fastapi.testclient import TestClient
         from app.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
 
-        response = client.get(
-            "/api/v1/canvas/intelligent-parallel/nonexistent-session"
-        )
+        response = client.get("/api/v1/canvas/intelligent-parallel/nonexistent-session")
 
         assert response.status_code == 404
 
@@ -501,8 +492,7 @@ class TestConcurrentStress:
 
         # Connect all concurrently
         connect_tasks = [
-            connection_manager.connect(session_id, ws)
-            for ws in websockets
+            connection_manager.connect(session_id, ws) for ws in websockets
         ]
         results = await asyncio.gather(*connect_tasks)
 
@@ -517,8 +507,7 @@ class TestConcurrentStress:
 
         # Disconnect all concurrently
         disconnect_tasks = [
-            connection_manager.disconnect(session_id, ws)
-            for ws in websockets
+            connection_manager.disconnect(session_id, ws) for ws in websockets
         ]
         await asyncio.gather(*disconnect_tasks)
 
@@ -557,7 +546,10 @@ class TestConcurrentStress:
 
         # Verify each session has correct count
         for session_id in session_websockets:
-            assert connection_manager.get_connection_count(session_id) == connections_per_session
+            assert (
+                connection_manager.get_connection_count(session_id)
+                == connections_per_session
+            )
 
     @pytest.mark.asyncio
     async def test_concurrent_broadcast_under_load(self, connection_manager):
@@ -612,8 +604,7 @@ class TestConcurrentStress:
             websockets = [AsyncMock() for _ in range(batch_size)]
 
             connect_tasks = [
-                connection_manager.connect(session_id, ws)
-                for ws in websockets
+                connection_manager.connect(session_id, ws) for ws in websockets
             ]
             await asyncio.gather(*connect_tasks)
 
@@ -628,10 +619,16 @@ class TestConcurrentStress:
             # Verify remaining count
             expected_remaining = batch_size - half
             if i == 0:
-                assert connection_manager.get_connection_count(session_id) == expected_remaining
+                assert (
+                    connection_manager.get_connection_count(session_id)
+                    == expected_remaining
+                )
             else:
                 # Previous iterations may have left connections
-                assert connection_manager.get_connection_count(session_id) >= expected_remaining
+                assert (
+                    connection_manager.get_connection_count(session_id)
+                    >= expected_remaining
+                )
 
         # Cleanup all
         await connection_manager.close_session_connections(session_id)

@@ -174,8 +174,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
         await memory_svc.record_knowledge_entity(
             event_type="learning_tip",
             content=(
-                f"Tip: {request.title} | Content: {request.content} | "
-                f"Tags: {tags_str}"
+                f"Tip: {request.title} | Content: {request.content} | Tags: {tags_str}"
             ),
             metadata={
                 "tip_id": tip_id,

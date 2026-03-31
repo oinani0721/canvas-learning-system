@@ -78,7 +78,7 @@ async def search_vault_notes(query: str, num_results: int = 8) -> str:
             num_results=num_results,
             query_type="hybrid",
         )
-    except (RuntimeError, ConnectionError, ValueError) as e:
+    except (RuntimeError, ConnectionError, ValueError):
         # Fallback to vector-only if hybrid not available
         try:
             results = await _lancedb_client.search(
@@ -92,9 +92,13 @@ async def search_vault_notes(query: str, num_results: int = 8) -> str:
     if not results:
         # Fix B4: Check if table exists — empty results may mean table not indexed
         try:
-            table_exists = hasattr(_lancedb_client, 'table_exists') and await _lancedb_client.table_exists("vault_notes")
+            table_exists = hasattr(
+                _lancedb_client, "table_exists"
+            ) and await _lancedb_client.table_exists("vault_notes")
             if not table_exists:
-                logger.warning("[ReactAgent] vault_notes table not indexed. Run POST /api/v1/metadata/index/vault")
+                logger.warning(
+                    "[ReactAgent] vault_notes table not indexed. Run POST /api/v1/metadata/index/vault"
+                )
                 return "[Warning] vault_notes table not indexed yet. Use search_obsidian_cli instead, or run POST /api/v1/metadata/index/vault to populate."
         except Exception:
             pass
@@ -102,10 +106,12 @@ async def search_vault_notes(query: str, num_results: int = 8) -> str:
 
     # Apply source priority weighting (boost lectures, penalize explanations)
     from app.core.reference_config import apply_source_priority
+
     results = apply_source_priority(results)
 
     # Filter out explanation files — agent should cite original lecture notes
     import json as _json
+
     filtered = []
     for r in results:
         meta = r.get("metadata", {})
@@ -171,7 +177,9 @@ async def search_knowledge_graph(
         ORDER BY n.updated_at DESC
         LIMIT $limit
         """
-        records = await _neo4j_client.run_query(cypher, query=query, limit=num_results, group_id=DEFAULT_GROUP_ID)
+        records = await _neo4j_client.run_query(
+            cypher, query=query, limit=num_results, group_id=DEFAULT_GROUP_ID
+        )
 
         if not records:
             return f"[No results] No knowledge graph entities found for: '{query}'"
@@ -179,16 +187,18 @@ async def search_knowledge_graph(
         # Format as KnowledgeGraph results for _format_results compatibility
         formatted = []
         for r in records:
-            formatted.append({
-                "name": r.get("name", ""),
-                "content": r.get("body", ""),
-                "episode_body": r.get("body", ""),
-                "score": 1.0,
-                "metadata": {
-                    "entity_type": r.get("entity_type", "Entity"),
+            formatted.append(
+                {
                     "name": r.get("name", ""),
-                },
-            })
+                    "content": r.get("body", ""),
+                    "episode_body": r.get("body", ""),
+                    "score": 1.0,
+                    "metadata": {
+                        "entity_type": r.get("entity_type", "Entity"),
+                        "name": r.get("name", ""),
+                    },
+                }
+            )
 
         return _format_results(formatted, "KnowledgeGraph")
 
@@ -237,17 +247,17 @@ def get_note_content(
             end = line_end or len(lines)
             selected = lines[start:end]
             numbered = [f"{start + i + 1}: {line}" for i, line in enumerate(selected)]
-            return f"[File: {file_path}, lines {start+1}-{end}]\n" + "\n".join(numbered)
+            return f"[File: {file_path}, lines {start + 1}-{end}]\n" + "\n".join(
+                numbered
+            )
 
         if len(lines) > 200:
             truncated = lines[:200]
-            return (
-                f"[File: {file_path}, first 200/{len(lines)} lines]\n"
-                + "\n".join(f"{i+1}: {line}" for i, line in enumerate(truncated))
+            return f"[File: {file_path}, first 200/{len(lines)} lines]\n" + "\n".join(
+                f"{i + 1}: {line}" for i, line in enumerate(truncated)
             )
-        return (
-            f"[File: {file_path}, {len(lines)} lines]\n"
-            + "\n".join(f"{i+1}: {line}" for i, line in enumerate(lines))
+        return f"[File: {file_path}, {len(lines)} lines]\n" + "\n".join(
+            f"{i + 1}: {line}" for i, line in enumerate(lines)
         )
     except UnicodeDecodeError:
         return f"[Error] Cannot read (not UTF-8): {file_path}"
@@ -283,7 +293,9 @@ async def record_learning_memory(
 
     valid_types = {"Misconception", "ProblemTrap", "LogicalFallacy", "GuidedThinking"}
     if entity_type not in valid_types:
-        return f"[Error] Invalid entity_type: {entity_type}. Must be one of {valid_types}"
+        return (
+            f"[Error] Invalid entity_type: {entity_type}. Must be one of {valid_types}"
+        )
 
     if not _neo4j_client:
         return "[Error] Neo4j client not available for memory recording."
@@ -329,6 +341,7 @@ async def record_learning_memory(
 # Obsidian CLI Tools (primary search — precise matching via native index)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @tool
 async def search_obsidian_cli(query: str, limit: int = 10) -> str:
     """使用 Obsidian CLI 精确搜索 vault 笔记（主搜索工具）。
@@ -344,14 +357,25 @@ async def search_obsidian_cli(query: str, limit: int = 10) -> str:
     import os
     import subprocess
 
-    obs_path = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com")
+    obs_path = os.path.join(
+        os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com"
+    )
     if not os.path.exists(obs_path):
         return "[Error] Obsidian CLI not available. Use search_vault_notes instead."
 
     try:
         result = subprocess.run(
-            [obs_path, "search:context", f'query={query}', f'vault={DEFAULT_GROUP_ID.upper()}', f'limit={limit}'],
-            capture_output=True, text=True, timeout=5, encoding="utf-8",
+            [
+                obs_path,
+                "search:context",
+                f"query={query}",
+                f"vault={DEFAULT_GROUP_ID.upper()}",
+                f"limit={limit}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            encoding="utf-8",
         )
         if result.returncode == 0 and result.stdout.strip():
             return _format_cli_results(result.stdout, query)
@@ -372,14 +396,24 @@ async def get_note_outline(file_name: str) -> str:
     import os
     import subprocess
 
-    obs_path = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com")
+    obs_path = os.path.join(
+        os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com"
+    )
     if not os.path.exists(obs_path):
         return "[Error] Obsidian CLI not available."
 
     try:
         result = subprocess.run(
-            [obs_path, "outline", f'file={file_name}', f'vault={DEFAULT_GROUP_ID.upper()}'],
-            capture_output=True, text=True, timeout=5, encoding="utf-8",
+            [
+                obs_path,
+                "outline",
+                f"file={file_name}",
+                f"vault={DEFAULT_GROUP_ID.upper()}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            encoding="utf-8",
         )
         if result.returncode == 0 and result.stdout.strip():
             return f"[Outline: {file_name}]\n{result.stdout.strip()}"
@@ -398,14 +432,24 @@ async def find_backlinks(file_name: str) -> str:
     import os
     import subprocess
 
-    obs_path = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com")
+    obs_path = os.path.join(
+        os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com"
+    )
     if not os.path.exists(obs_path):
         return "[Error] Obsidian CLI not available."
 
     try:
         result = subprocess.run(
-            [obs_path, "backlinks", f'file={file_name}', f'vault={DEFAULT_GROUP_ID.upper()}'],
-            capture_output=True, text=True, timeout=5, encoding="utf-8",
+            [
+                obs_path,
+                "backlinks",
+                f"file={file_name}",
+                f"vault={DEFAULT_GROUP_ID.upper()}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            encoding="utf-8",
         )
         if result.returncode == 0 and result.stdout.strip():
             return f"[Backlinks: {file_name}]\n{result.stdout.strip()}"
@@ -438,9 +482,9 @@ def _format_cli_results(raw_output: str, query: str) -> str:
 
             if current_heading:
                 # Clean heading: remove wikilinks, markdown links, trailing ()
-                clean_h = re.sub(r'\[\[.*?\]\]', '', current_heading).strip()
-                clean_h = re.sub(r'\[.*?\]\(.*?\)', '', clean_h).strip()
-                clean_h = re.sub(r'\(\)\s*$', '', clean_h).strip()
+                clean_h = re.sub(r"\[\[.*?\]\]", "", current_heading).strip()
+                clean_h = re.sub(r"\[.*?\]\(.*?\)", "", clean_h).strip()
+                clean_h = re.sub(r"\(\)\s*$", "", clean_h).strip()
                 if clean_h:
                     wikilink = f"[[{display}#{clean_h}|{clean_h}]]"
                 else:
@@ -455,7 +499,7 @@ def _format_cli_results(raw_output: str, query: str) -> str:
         skip_file = False
 
     for line in lines:
-        match = re.match(r'^(.+?\.md):(\d+):\s*(.*)', line)
+        match = re.match(r"^(.+?\.md):(\d+):\s*(.*)", line)
         if match:
             file_path = match.group(1)
             content = match.group(3)
@@ -469,7 +513,7 @@ def _format_cli_results(raw_output: str, query: str) -> str:
                 continue
 
             # Capture first heading as anchor
-            heading_match = re.match(r'^(#{1,6})\s+(.+)', content)
+            heading_match = re.match(r"^(#{1,6})\s+(.+)", content)
             if heading_match and not current_heading:
                 current_heading = heading_match.group(2).strip()
 
@@ -481,12 +525,15 @@ def _format_cli_results(raw_output: str, query: str) -> str:
 
     if not parts:
         return f"[No results] Obsidian CLI found nothing for: '{query}'"
-    return f"[Obsidian CLI: {len(parts)} files matched '{query}']\n\n" + "\n\n".join(parts)
+    return f"[Obsidian CLI: {len(parts)} files matched '{query}']\n\n" + "\n\n".join(
+        parts
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Result Formatting (shared with tool_executor.py)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def _format_results(results: List[Dict[str, Any]], source_label: str) -> str:
     """Format search results into readable string for the LLM."""
@@ -537,11 +584,12 @@ def _format_results(results: List[Dict[str, Any]], source_label: str) -> str:
             # Clean heading: remove embedded wikilinks like [[01:19]]
             # and markdown link syntax like [text](url) to prevent nesting
             import re
+
             if heading:
-                heading = re.sub(r'\[\[.*?\]\]', '', heading).strip()
-                heading = re.sub(r'\[.*?\]\(.*?\)', '', heading).strip()
+                heading = re.sub(r"\[\[.*?\]\]", "", heading).strip()
+                heading = re.sub(r"\[.*?\]\(.*?\)", "", heading).strip()
                 # Remove trailing empty parens
-                heading = re.sub(r'\(\)\s*$', '', heading).strip()
+                heading = re.sub(r"\(\)\s*$", "", heading).strip()
 
             if heading and heading != file_display:
                 citation = f"[[{file_display}#{heading}|{heading}]]"
@@ -554,7 +602,9 @@ def _format_results(results: List[Dict[str, Any]], source_label: str) -> str:
         if len(content) > 500:
             content = content[:500] + "..."
 
-        parts.append(f"### Result {i} (score: {score:.3f}) {type_tag}{citation}\n{content}")
+        parts.append(
+            f"### Result {i} (score: {score:.3f}) {type_tag}{citation}\n{content}"
+        )
 
     return "\n\n".join(parts)
 
@@ -565,13 +615,13 @@ def _format_results(results: List[Dict[str, Any]], source_label: str) -> str:
 
 # CLI tools listed first so the agent prefers them over LanceDB search
 REACT_TOOLS = [
-    search_obsidian_cli,      # Primary search (CLI precise matching)
-    search_knowledge_graph,    # Student knowledge graph (Graphiti)
-    get_note_content,          # Read specific note content
-    find_backlinks,            # Discover note connections
-    get_note_outline,          # Note structure overview
-    search_vault_notes,        # Semantic fallback (LanceDB embeddings)
-    record_learning_memory,    # Record misconceptions/traps
+    search_obsidian_cli,  # Primary search (CLI precise matching)
+    search_knowledge_graph,  # Student knowledge graph (Graphiti)
+    get_note_content,  # Read specific note content
+    find_backlinks,  # Discover note connections
+    get_note_outline,  # Note structure overview
+    search_vault_notes,  # Semantic fallback (LanceDB embeddings)
+    record_learning_memory,  # Record misconceptions/traps
 ]
 
 # Round 4 Step 3b: Scoring agent needs search tools but not recording
@@ -616,6 +666,7 @@ async def run_react_agent(
     model_kwargs = {}
     if thinking_budget is not None:
         from app.clients.gemini_client import _get_thinking_config
+
         config_params = _get_thinking_config(model_name, thinking_budget)
         if config_params:
             model_kwargs.update(config_params)
@@ -649,21 +700,37 @@ async def run_react_agent(
     tool_results = []  # R2a: Collect tool results for programmatic reference building
 
     for msg in messages:
-        logger.debug(f"[ReactAgent] msg type={type(msg).__name__}, has_tool_calls={hasattr(msg, 'tool_calls') and bool(getattr(msg, 'tool_calls', None))}")
+        logger.debug(
+            f"[ReactAgent] msg type={type(msg).__name__}, has_tool_calls={hasattr(msg, 'tool_calls') and bool(getattr(msg, 'tool_calls', None))}"
+        )
         if hasattr(msg, "tool_calls") and msg.tool_calls:
             for tc in msg.tool_calls:
-                tool_calls_made.append({
-                    "name": tc.get("name", ""),
-                    "args": tc.get("args", {}),
-                })
-                logger.info(f"[ReactAgent] Tool call: {tc.get('name', '')} args={tc.get('args', {})}")
+                tool_calls_made.append(
+                    {
+                        "name": tc.get("name", ""),
+                        "args": tc.get("args", {}),
+                    }
+                )
+                logger.info(
+                    f"[ReactAgent] Tool call: {tc.get('name', '')} args={tc.get('args', {})}"
+                )
         # R2a: Collect ToolMessage results (search outputs with real wikilinks)
-        if type(msg).__name__ == "ToolMessage" and hasattr(msg, "content") and msg.content:
-            tool_results.append({
-                "name": getattr(msg, "name", ""),
-                "content": msg.content,
-            })
-        if hasattr(msg, "content") and msg.content and type(msg).__name__ != "ToolMessage":
+        if (
+            type(msg).__name__ == "ToolMessage"
+            and hasattr(msg, "content")
+            and msg.content
+        ):
+            tool_results.append(
+                {
+                    "name": getattr(msg, "name", ""),
+                    "content": msg.content,
+                }
+            )
+        if (
+            hasattr(msg, "content")
+            and msg.content
+            and type(msg).__name__ != "ToolMessage"
+        ):
             response_text = msg.content  # Last non-tool content message is the answer
 
     logger.info(

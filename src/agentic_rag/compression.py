@@ -119,7 +119,11 @@ def _tokenize_text(text: str) -> set:
         import jieba
 
         # jieba.cut handles mixed Chinese/English text
-        return {w.strip().lower() for w in jieba.cut(text) if w.strip() and len(w.strip()) > 0}
+        return {
+            w.strip().lower()
+            for w in jieba.cut(text)
+            if w.strip() and len(w.strip()) > 0
+        }
     except ImportError:
         return set(re.findall(r"\w+", text.lower()))
 
@@ -192,7 +196,9 @@ def compress_context(
             unit["doc_idx"] = doc_idx
             unit["unit_idx"] = unit_idx
             # Staleness penalty
-            is_stale = doc.get("metadata", {}).get("stale", False) or doc.get("stale", False)
+            is_stale = doc.get("metadata", {}).get("stale", False) or doc.get(
+                "stale", False
+            )
             relevance = _score_relevance(unit["text"], query)
             if is_stale:
                 relevance *= 0.5
@@ -226,7 +232,9 @@ def compress_context(
             protected_blocks += 1
 
     # Reassemble in original order
-    selected_units = [u for u in all_units if (u["doc_idx"], u["unit_idx"]) in selected_indices]
+    selected_units = [
+        u for u in all_units if (u["doc_idx"], u["unit_idx"]) in selected_indices
+    ]
     # Already in original order from all_units iteration
 
     compressed = "\n".join(u["text"] for u in selected_units)
@@ -304,6 +312,8 @@ def staleness_check(
         checked.append(r_copy)
 
     if stale_count > 0:
-        logger.info(f"[STALENESS] Detected {stale_count} stale results out of {len(results)}")
+        logger.info(
+            f"[STALENESS] Detected {stale_count} stale results out of {len(results)}"
+        )
 
     return checked

@@ -44,26 +44,62 @@ from agentic_rag.state import SearchResult
 # Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def sample_search_results() -> Dict[str, List[SearchResult]]:
     """Sample search results from 5 sources"""
     return {
         "graphiti": [
-            {"doc_id": "g1", "content": "Graphiti result 1", "score": 0.9, "metadata": {"source": "graphiti"}},
-            {"doc_id": "g2", "content": "Graphiti result 2", "score": 0.8, "metadata": {"source": "graphiti"}},
+            {
+                "doc_id": "g1",
+                "content": "Graphiti result 1",
+                "score": 0.9,
+                "metadata": {"source": "graphiti"},
+            },
+            {
+                "doc_id": "g2",
+                "content": "Graphiti result 2",
+                "score": 0.8,
+                "metadata": {"source": "graphiti"},
+            },
         ],
         "lancedb": [
-            {"doc_id": "l1", "content": "LanceDB result 1", "score": 0.85, "metadata": {"source": "lancedb"}},
-            {"doc_id": "l2", "content": "LanceDB result 2", "score": 0.75, "metadata": {"source": "lancedb"}},
+            {
+                "doc_id": "l1",
+                "content": "LanceDB result 1",
+                "score": 0.85,
+                "metadata": {"source": "lancedb"},
+            },
+            {
+                "doc_id": "l2",
+                "content": "LanceDB result 2",
+                "score": 0.75,
+                "metadata": {"source": "lancedb"},
+            },
         ],
         "textbook": [
-            {"doc_id": "t1", "content": "Textbook result 1", "score": 0.88, "metadata": {"source": "textbook"}},
+            {
+                "doc_id": "t1",
+                "content": "Textbook result 1",
+                "score": 0.88,
+                "metadata": {"source": "textbook"},
+            },
         ],
         "cross_canvas": [
-            {"doc_id": "c1", "content": "Cross-canvas result 1", "score": 0.7, "metadata": {"source": "cross_canvas"}},
+            {
+                "doc_id": "c1",
+                "content": "Cross-canvas result 1",
+                "score": 0.7,
+                "metadata": {"source": "cross_canvas"},
+            },
         ],
         "multimodal": [
-            {"doc_id": "m1", "content": "Multimodal result 1", "score": 0.6, "metadata": {"source": "multimodal"}},
+            {
+                "doc_id": "m1",
+                "content": "Multimodal result 1",
+                "score": 0.6,
+                "metadata": {"source": "multimodal"},
+            },
         ],
     }
 
@@ -72,9 +108,11 @@ def sample_search_results() -> Dict[str, List[SearchResult]]:
 def mock_lancedb_client():
     """Mock LanceDB client for testing"""
     client = AsyncMock()
-    client.search = AsyncMock(return_value=[
-        {"doc_id": "test1", "content": "Test content", "score": 0.9, "metadata": {}}
-    ])
+    client.search = AsyncMock(
+        return_value=[
+            {"doc_id": "test1", "content": "Test content", "score": 0.9, "metadata": {}}
+        ]
+    )
     client.initialize = AsyncMock(return_value=True)
     return client
 
@@ -82,6 +120,7 @@ def mock_lancedb_client():
 # ============================================================
 # AC 1: Textbook Context Injection Tests
 # ============================================================
+
 
 class TestTextbookContextService:
     """AC 1: 教材上下文注入测试"""
@@ -105,26 +144,33 @@ class TestTextbookContextService:
         await service.initialize()
 
         results = await service.search(
-            query="什么是逆否命题",
-            canvas_file="离散数学.canvas",
-            num_results=5
+            query="什么是逆否命题", canvas_file="离散数学.canvas", num_results=5
         )
 
         assert len(results) == 1
         assert results[0]["metadata"]["source"] == "textbook"
 
     @pytest.mark.asyncio
-    async def test_textbook_retrieval_node_returns_correct_state(self, mock_lancedb_client):
+    async def test_textbook_retrieval_node_returns_correct_state(
+        self, mock_lancedb_client
+    ):
         """AC 1: textbook_retrieval_node返回正确的state更新"""
         state = {
             "messages": [{"role": "user", "content": "什么是逆否命题"}],
-            "canvas_file": "离散数学.canvas"
+            "canvas_file": "离散数学.canvas",
         }
 
-        with patch("agentic_rag.retrievers.textbook_retriever._get_textbook_service") as mock_get_service:
+        with patch(
+            "agentic_rag.retrievers.textbook_retriever._get_textbook_service"
+        ) as mock_get_service:
             mock_service = AsyncMock()
             mock_service.search.return_value = [
-                {"doc_id": "tb1", "content": "教材内容", "score": 0.9, "metadata": {"source": "textbook"}}
+                {
+                    "doc_id": "tb1",
+                    "content": "教材内容",
+                    "score": 0.9,
+                    "metadata": {"source": "textbook"},
+                }
             ]
             mock_get_service.return_value = mock_service
 
@@ -138,6 +184,7 @@ class TestTextbookContextService:
 # ============================================================
 # AC 2: Time Decay Tests
 # ============================================================
+
 
 class TestTimeDecay:
     """AC 2: 学习历史时间衰减测试"""
@@ -153,7 +200,7 @@ class TestTimeDecay:
                 "doc_id": "test1",
                 "content": "Test content",
                 "score": 1.0,
-                "metadata": {"timestamp": seven_days_ago}
+                "metadata": {"timestamp": seven_days_ago},
             }
         ]
 
@@ -168,9 +215,7 @@ class TestTimeDecay:
 
     def test_time_decay_no_timestamp(self):
         """AC 2: 无时间戳时保持原分数"""
-        results = [
-            {"doc_id": "test1", "content": "Test", "score": 0.8, "metadata": {}}
-        ]
+        results = [{"doc_id": "test1", "content": "Test", "score": 0.8, "metadata": {}}]
 
         decayed = _apply_time_decay(results, 0.05)
         assert decayed[0]["score"] == 0.8
@@ -179,10 +224,18 @@ class TestTimeDecay:
         """AC 2: 最近的结果分数更高"""
         now = datetime.now(timezone.utc)
         results = [
-            {"doc_id": "old", "content": "Old", "score": 1.0,
-             "metadata": {"timestamp": (now - timedelta(days=30)).isoformat()}},
-            {"doc_id": "new", "content": "New", "score": 1.0,
-             "metadata": {"timestamp": (now - timedelta(days=1)).isoformat()}},
+            {
+                "doc_id": "old",
+                "content": "Old",
+                "score": 1.0,
+                "metadata": {"timestamp": (now - timedelta(days=30)).isoformat()},
+            },
+            {
+                "doc_id": "new",
+                "content": "New",
+                "score": 1.0,
+                "metadata": {"timestamp": (now - timedelta(days=1)).isoformat()},
+            },
         ]
 
         decayed = _apply_time_decay(results, 0.05)
@@ -197,6 +250,7 @@ class TestTimeDecay:
 # AC 3: Cross-Canvas Association Tests
 # ============================================================
 
+
 class TestCrossCanvasService:
     """AC 3: 跨Canvas关联检索测试"""
 
@@ -209,7 +263,9 @@ class TestCrossCanvasService:
         assert service._initialized is True
 
     @pytest.mark.asyncio
-    async def test_cross_canvas_search_adds_source_annotation(self, mock_lancedb_client):
+    async def test_cross_canvas_search_adds_source_annotation(
+        self, mock_lancedb_client
+    ):
         """AC 3: 检索结果包含source='cross_canvas'标注"""
         mock_lancedb_client.search.return_value = [
             {"doc_id": "cc1", "content": "跨Canvas内容", "score": 0.8, "metadata": {}}
@@ -219,9 +275,7 @@ class TestCrossCanvasService:
         await service.initialize()
 
         results = await service.search(
-            query="什么是命题逻辑",
-            canvas_file="离散数学.canvas",
-            num_results=5
+            query="什么是命题逻辑", canvas_file="离散数学.canvas", num_results=5
         )
 
         assert len(results) == 1
@@ -241,6 +295,7 @@ class TestCrossCanvasService:
 # ============================================================
 # AC 4: Source Weights Configuration Tests
 # ============================================================
+
 
 class TestSourceWeightsConfiguration:
     """AC 4: 数据源权重配置测试"""
@@ -264,7 +319,7 @@ class TestSourceWeightsConfiguration:
             "lancedb": 0.3,
             "textbook": 0.15,
             "cross_canvas": 0.1,
-            "multimodal": 0.05
+            "multimodal": 0.05,
         }
 
         user_config = CanvasRAGConfig(source_weights=custom_weights)
@@ -280,7 +335,7 @@ class TestSourceWeightsConfiguration:
             "lancedb": 0.2,
             "textbook": 0.15,
             "cross_canvas": 0.1,
-            "multimodal": 0.05
+            "multimodal": 0.05,
         }
 
         results = _fuse_weighted_multi_source(sample_search_results, custom_weights)
@@ -297,6 +352,7 @@ class TestSourceWeightsConfiguration:
 # AC 5: Source Annotation Tests
 # ============================================================
 
+
 class TestSourceAnnotation:
     """AC 5: 融合结果source标注测试"""
 
@@ -307,12 +363,18 @@ class TestSourceAnnotation:
         for r in results:
             assert "source" in r["metadata"]
             assert r["metadata"]["source"] in [
-                "graphiti", "lancedb", "textbook", "cross_canvas", "multimodal"
+                "graphiti",
+                "lancedb",
+                "textbook",
+                "cross_canvas",
+                "multimodal",
             ]
 
     def test_weighted_fusion_preserves_source(self, sample_search_results):
         """AC 5: Weighted融合保留source标注"""
-        results = _fuse_weighted_multi_source(sample_search_results, DEFAULT_SOURCE_WEIGHTS)
+        results = _fuse_weighted_multi_source(
+            sample_search_results, DEFAULT_SOURCE_WEIGHTS
+        )
 
         for r in results:
             assert "source" in r["metadata"]
@@ -330,8 +392,10 @@ class TestSourceAnnotation:
 # Integration Tests
 # ============================================================
 
+
 class MockContext:
     """Mock context that supports .get() method"""
+
     def __init__(self, data: Dict[str, Any]):
         self._data = data
 
@@ -356,11 +420,13 @@ class TestFuseResultsIntegration:
 
         # Mock runtime with proper context
         runtime = MagicMock()
-        runtime.context = MockContext({
-            "fusion_strategy": "rrf",
-            "source_weights": DEFAULT_SOURCE_WEIGHTS,
-            "time_decay_factor": 0.05
-        })
+        runtime.context = MockContext(
+            {
+                "fusion_strategy": "rrf",
+                "source_weights": DEFAULT_SOURCE_WEIGHTS,
+                "time_decay_factor": 0.05,
+            }
+        )
 
         result = await fuse_results(state, runtime)
 
@@ -381,11 +447,13 @@ class TestFuseResultsIntegration:
         }
 
         runtime = MagicMock()
-        runtime.context = MockContext({
-            "fusion_strategy": "weighted",
-            "source_weights": DEFAULT_SOURCE_WEIGHTS,
-            "time_decay_factor": 0.05
-        })
+        runtime.context = MockContext(
+            {
+                "fusion_strategy": "weighted",
+                "source_weights": DEFAULT_SOURCE_WEIGHTS,
+                "time_decay_factor": 0.05,
+            }
+        )
 
         result = await fuse_results(state, runtime)
 
@@ -397,6 +465,7 @@ class TestFuseResultsIntegration:
 # ============================================================
 # State Graph Integration Tests
 # ============================================================
+
 
 class TestStateGraphIntegration:
     """StateGraph集成测试"""
@@ -423,6 +492,7 @@ class TestStateGraphIntegration:
 # Performance Tests
 # ============================================================
 
+
 class TestPerformance:
     """性能测试"""
 
@@ -441,11 +511,13 @@ class TestPerformance:
         }
 
         runtime = MagicMock()
-        runtime.context = MockContext({
-            "fusion_strategy": "rrf",
-            "source_weights": DEFAULT_SOURCE_WEIGHTS,
-            "time_decay_factor": 0.05
-        })
+        runtime.context = MockContext(
+            {
+                "fusion_strategy": "rrf",
+                "source_weights": DEFAULT_SOURCE_WEIGHTS,
+                "time_decay_factor": 0.05,
+            }
+        )
 
         start = time.perf_counter()
         result = await fuse_results(state, runtime)

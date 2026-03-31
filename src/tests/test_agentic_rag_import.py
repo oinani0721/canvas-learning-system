@@ -31,6 +31,7 @@ if _src_path not in sys.path:
 # AC 1: agentic_rag模块导入成功
 # ============================================================
 
+
 class TestAgenticRagImport:
     """Test AC 1: agentic_rag模块导入成功"""
 
@@ -54,7 +55,9 @@ class TestAgenticRagImport:
         if AGENTIC_RAG_AVAILABLE:
             assert CanvasRAGState is not None, "CanvasRAGState should not be None"
             assert CanvasRAGConfig is not None, "CanvasRAGConfig should not be None"
-            assert canvas_agentic_rag is not None, "canvas_agentic_rag should not be None"
+            assert canvas_agentic_rag is not None, (
+                "canvas_agentic_rag should not be None"
+            )
 
     def test_state_import(self):
         """测试CanvasRAGState导入"""
@@ -82,6 +85,7 @@ class TestAgenticRagImport:
 # AC 1 Extension: StateGraph编译验证
 # ============================================================
 
+
 class TestStateGraphCompiled:
     """Test StateGraph is properly compiled"""
 
@@ -94,8 +98,9 @@ class TestStateGraphCompiled:
         from agentic_rag import AGENTIC_RAG_AVAILABLE, canvas_agentic_rag
 
         if AGENTIC_RAG_AVAILABLE:
-            assert hasattr(canvas_agentic_rag, 'invoke'), \
+            assert hasattr(canvas_agentic_rag, "invoke"), (
                 "Compiled StateGraph should have invoke method"
+            )
 
     def test_stategraph_has_ainvoke(self):
         """
@@ -106,8 +111,9 @@ class TestStateGraphCompiled:
         from agentic_rag import AGENTIC_RAG_AVAILABLE, canvas_agentic_rag
 
         if AGENTIC_RAG_AVAILABLE:
-            assert hasattr(canvas_agentic_rag, 'ainvoke'), \
+            assert hasattr(canvas_agentic_rag, "ainvoke"), (
                 "Compiled StateGraph should have ainvoke method"
+            )
 
     def test_stategraph_type(self):
         """测试StateGraph类型"""
@@ -116,13 +122,15 @@ class TestStateGraphCompiled:
         if AGENTIC_RAG_AVAILABLE:
             # Should be a CompiledStateGraph
             type_name = type(canvas_agentic_rag).__name__
-            assert "CompiledStateGraph" in type_name or "CompiledGraph" in type_name, \
+            assert "CompiledStateGraph" in type_name or "CompiledGraph" in type_name, (
                 f"Expected CompiledStateGraph, got {type_name}"
+            )
 
 
 # ============================================================
 # AC 2: RAGService中LANGGRAPH_AVAILABLE为True
 # ============================================================
+
 
 class TestLangGraphAvailable:
     """Test AC 2: LANGGRAPH_AVAILABLE标志"""
@@ -136,8 +144,9 @@ class TestLangGraphAvailable:
         from agentic_rag import AGENTIC_RAG_AVAILABLE
 
         # Should be True if all dependencies installed
-        assert AGENTIC_RAG_AVAILABLE is True, \
+        assert AGENTIC_RAG_AVAILABLE is True, (
             "AGENTIC_RAG_AVAILABLE should be True when dependencies are installed"
+        )
 
     def test_rag_service_langgraph_available(self):
         """
@@ -154,8 +163,9 @@ class TestLangGraphAvailable:
 
         from app.services.rag_service import LANGGRAPH_AVAILABLE
 
-        assert LANGGRAPH_AVAILABLE is True, \
+        assert LANGGRAPH_AVAILABLE is True, (
             "LANGGRAPH_AVAILABLE should be True in rag_service"
+        )
 
     def test_rag_service_singleton(self):
         """测试RAGService单例获取"""
@@ -174,27 +184,32 @@ class TestLangGraphAvailable:
 # AC 3: 依赖版本验证
 # ============================================================
 
+
 class TestDependencies:
     """Test AC 3: 所有依赖版本记录在requirements.txt"""
 
     def test_langgraph_installed(self):
         """测试langgraph已安装"""
         import langgraph
+
         assert langgraph is not None
 
     def test_langchain_core_installed(self):
         """测试langchain-core已安装"""
         import langchain_core
+
         assert langchain_core is not None
 
     def test_lancedb_installed(self):
         """测试lancedb已安装"""
         import lancedb
+
         assert lancedb is not None
 
     def test_neo4j_installed(self):
         """测试neo4j已安装"""
         import neo4j
+
         assert neo4j is not None
 
     def test_check_dependencies_function(self):
@@ -220,6 +235,7 @@ class TestDependencies:
 # AC 4: 导入诊断日志
 # ============================================================
 
+
 class TestDiagnostics:
     """Test AC 4: 导入诊断功能"""
 
@@ -229,8 +245,9 @@ class TestDiagnostics:
 
         if AGENTIC_RAG_AVAILABLE:
             error = get_import_error()
-            assert error is None, \
+            assert error is None, (
                 f"get_import_error should return None when available, got: {error}"
+            )
 
     def test_all_exports_present(self):
         """测试所有导出都存在"""
@@ -262,6 +279,7 @@ class TestDiagnostics:
 # ============================================================
 # Integration Tests
 # ============================================================
+
 
 class TestIntegration:
     """Integration tests for full import chain"""

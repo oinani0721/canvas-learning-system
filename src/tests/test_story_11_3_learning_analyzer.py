@@ -36,6 +36,7 @@ from canvas_progress_tracker.learning_analyzer import (
 
 # ==================== Fixtures ====================
 
+
 @pytest.fixture
 def learning_analyzer():
     """LearningAnalyzer实例"""
@@ -51,10 +52,20 @@ def sample_red_to_purple_change():
         change_type=CanvasChangeType.UPDATE,
         node_id="node_abc123",
         node_type="text",
-        old_content={"id": "node_abc123", "type": "text", "color": COLOR_RED, "text": "问题"},
-        new_content={"id": "node_abc123", "type": "text", "color": COLOR_PURPLE, "text": "问题"},
+        old_content={
+            "id": "node_abc123",
+            "type": "text",
+            "color": COLOR_RED,
+            "text": "问题",
+        },
+        new_content={
+            "id": "node_abc123",
+            "type": "text",
+            "color": COLOR_PURPLE,
+            "text": "问题",
+        },
         timestamp=datetime.now(),
-        file_path="/path/to/test.canvas"
+        file_path="/path/to/test.canvas",
     )
 
 
@@ -67,10 +78,20 @@ def sample_purple_to_green_change():
         change_type=CanvasChangeType.UPDATE,
         node_id="node_def456",
         node_type="text",
-        old_content={"id": "node_def456", "type": "text", "color": COLOR_PURPLE, "text": "问题"},
-        new_content={"id": "node_def456", "type": "text", "color": COLOR_GREEN, "text": "问题"},
+        old_content={
+            "id": "node_def456",
+            "type": "text",
+            "color": COLOR_PURPLE,
+            "text": "问题",
+        },
+        new_content={
+            "id": "node_def456",
+            "type": "text",
+            "color": COLOR_GREEN,
+            "text": "问题",
+        },
         timestamp=datetime.now(),
-        file_path="/path/to/test.canvas"
+        file_path="/path/to/test.canvas",
     )
 
 
@@ -83,10 +104,20 @@ def sample_red_to_green_change():
         change_type=CanvasChangeType.UPDATE,
         node_id="node_ghi789",
         node_type="text",
-        old_content={"id": "node_ghi789", "type": "text", "color": COLOR_RED, "text": "问题"},
-        new_content={"id": "node_ghi789", "type": "text", "color": COLOR_GREEN, "text": "问题"},
+        old_content={
+            "id": "node_ghi789",
+            "type": "text",
+            "color": COLOR_RED,
+            "text": "问题",
+        },
+        new_content={
+            "id": "node_ghi789",
+            "type": "text",
+            "color": COLOR_GREEN,
+            "text": "问题",
+        },
         timestamp=datetime.now(),
-        file_path="/path/to/test.canvas"
+        file_path="/path/to/test.canvas",
     )
 
 
@@ -99,10 +130,20 @@ def sample_green_to_purple_change():
         change_type=CanvasChangeType.UPDATE,
         node_id="node_jkl012",
         node_type="text",
-        old_content={"id": "node_jkl012", "type": "text", "color": COLOR_GREEN, "text": "问题"},
-        new_content={"id": "node_jkl012", "type": "text", "color": COLOR_PURPLE, "text": "问题"},
+        old_content={
+            "id": "node_jkl012",
+            "type": "text",
+            "color": COLOR_GREEN,
+            "text": "问题",
+        },
+        new_content={
+            "id": "node_jkl012",
+            "type": "text",
+            "color": COLOR_PURPLE,
+            "text": "问题",
+        },
         timestamp=datetime.now(),
-        file_path="/path/to/test.canvas"
+        file_path="/path/to/test.canvas",
     )
 
 
@@ -116,9 +157,14 @@ def sample_node_create_change():
         node_id="node_new001",
         node_type="text",
         old_content=None,
-        new_content={"id": "node_new001", "type": "text", "color": COLOR_RED, "text": "新问题"},
+        new_content={
+            "id": "node_new001",
+            "type": "text",
+            "color": COLOR_RED,
+            "text": "新问题",
+        },
         timestamp=datetime.now(),
-        file_path="/path/to/test.canvas"
+        file_path="/path/to/test.canvas",
     )
 
 
@@ -131,14 +177,25 @@ def sample_yellow_text_update():
         change_type=CanvasChangeType.UPDATE,
         node_id="node_yellow001",
         node_type="text",
-        old_content={"id": "node_yellow001", "type": "text", "color": COLOR_YELLOW, "text": "旧理解"},
-        new_content={"id": "node_yellow001", "type": "text", "color": COLOR_YELLOW, "text": "新理解内容更详细"},
+        old_content={
+            "id": "node_yellow001",
+            "type": "text",
+            "color": COLOR_YELLOW,
+            "text": "旧理解",
+        },
+        new_content={
+            "id": "node_yellow001",
+            "type": "text",
+            "color": COLOR_YELLOW,
+            "text": "新理解内容更详细",
+        },
         timestamp=datetime.now(),
-        file_path="/path/to/test.canvas"
+        file_path="/path/to/test.canvas",
     )
 
 
 # ==================== AC 1测试: 正确识别4种颜色流转类型 ====================
+
 
 class TestColorTransitionDetection:
     """测试颜色流转检测功能"""
@@ -150,7 +207,9 @@ class TestColorTransitionDetection:
 
     def test_detect_purple_to_green_understanding_mastered(self, learning_analyzer):
         """测试紫→绿 = understanding_mastered"""
-        event_type = learning_analyzer._detect_color_transition(COLOR_PURPLE, COLOR_GREEN)
+        event_type = learning_analyzer._detect_color_transition(
+            COLOR_PURPLE, COLOR_GREEN
+        )
         assert event_type == LearningEventType.UNDERSTANDING_MASTERED
 
     def test_detect_red_to_green_breakthrough(self, learning_analyzer):
@@ -160,7 +219,9 @@ class TestColorTransitionDetection:
 
     def test_detect_green_to_purple_understanding_regressed(self, learning_analyzer):
         """测试绿→紫 = understanding_regressed"""
-        event_type = learning_analyzer._detect_color_transition(COLOR_GREEN, COLOR_PURPLE)
+        event_type = learning_analyzer._detect_color_transition(
+            COLOR_GREEN, COLOR_PURPLE
+        )
         assert event_type == LearningEventType.UNDERSTANDING_REGRESSED
 
     def test_detect_purple_to_red_understanding_regressed(self, learning_analyzer):
@@ -171,11 +232,16 @@ class TestColorTransitionDetection:
     def test_detect_no_transition_for_blue_yellow(self, learning_analyzer):
         """测试蓝色和黄色不触发颜色流转"""
         assert learning_analyzer._detect_color_transition(COLOR_RED, COLOR_BLUE) is None
-        assert learning_analyzer._detect_color_transition(COLOR_RED, COLOR_YELLOW) is None
-        assert learning_analyzer._detect_color_transition(COLOR_BLUE, COLOR_GREEN) is None
+        assert (
+            learning_analyzer._detect_color_transition(COLOR_RED, COLOR_YELLOW) is None
+        )
+        assert (
+            learning_analyzer._detect_color_transition(COLOR_BLUE, COLOR_GREEN) is None
+        )
 
 
 # ==================== AC 2测试: 每种流转类型写入不同事件 ====================
+
 
 class TestLearningEventGeneration:
     """测试学习事件生成功能"""
@@ -247,7 +313,9 @@ class TestLearningEventGeneration:
         assert event is not None
         assert event.event_type == LearningEventType.PERSONAL_UNDERSTANDING_UPDATED
         assert event.details["old_text_length"] == 3  # "旧理解" (3 characters)
-        assert event.details["new_text_length"] == 8  # "新理解内容更详细" (8 characters)
+        assert (
+            event.details["new_text_length"] == 8
+        )  # "新理解内容更详细" (8 characters)
         assert event.details["text_delta"] == 5
 
     def test_event_id_format(self, learning_analyzer, sample_red_to_purple_change):
@@ -260,6 +328,7 @@ class TestLearningEventGeneration:
 
 
 # ==================== AC 3测试: 实时更新学习统计 ====================
+
 
 class TestLearningStatistics:
     """测试学习统计功能"""
@@ -288,7 +357,7 @@ class TestLearningStatistics:
                 old_content={"id": f"node_{i}", "color": COLOR_RED, "text": "问题"},
                 new_content={"id": f"node_{i}", "color": COLOR_PURPLE, "text": "问题"},
                 timestamp=datetime.now(),
-                file_path="/path/to/test.canvas"
+                file_path="/path/to/test.canvas",
             )
             for i in range(3)
         ]
@@ -301,10 +370,18 @@ class TestLearningStatistics:
                 change_type=CanvasChangeType.UPDATE,
                 node_id="node_regress",
                 node_type="text",
-                old_content={"id": "node_regress", "color": COLOR_GREEN, "text": "问题"},
-                new_content={"id": "node_regress", "color": COLOR_PURPLE, "text": "问题"},
+                old_content={
+                    "id": "node_regress",
+                    "color": COLOR_GREEN,
+                    "text": "问题",
+                },
+                new_content={
+                    "id": "node_regress",
+                    "color": COLOR_PURPLE,
+                    "text": "问题",
+                },
                 timestamp=datetime.now(),
-                file_path="/path/to/test.canvas"
+                file_path="/path/to/test.canvas",
             )
         )
 
@@ -333,7 +410,7 @@ class TestLearningStatistics:
             old_content={"id": "node_1", "color": COLOR_RED, "text": "问题"},
             new_content={"id": "node_1", "color": COLOR_PURPLE, "text": "问题"},
             timestamp=time1,
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         change2 = CanvasChange(
@@ -345,7 +422,7 @@ class TestLearningStatistics:
             old_content={"id": "node_2", "color": COLOR_PURPLE, "text": "问题"},
             new_content={"id": "node_2", "color": COLOR_GREEN, "text": "问题"},
             timestamp=time2,
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         learning_analyzer.analyze_change(change1)
@@ -365,7 +442,7 @@ class TestLearningStatistics:
             old_content={"id": "node_1", "color": COLOR_RED, "text": "问题"},
             new_content={"id": "node_1", "color": COLOR_PURPLE, "text": "问题"},
             timestamp=datetime.now(),
-            file_path="/path/to/canvas1.canvas"
+            file_path="/path/to/canvas1.canvas",
         )
 
         change2 = CanvasChange(
@@ -377,7 +454,7 @@ class TestLearningStatistics:
             old_content={"id": "node_2", "color": COLOR_RED, "text": "问题"},
             new_content={"id": "node_2", "color": COLOR_GREEN, "text": "问题"},
             timestamp=datetime.now(),
-            file_path="/path/to/canvas2.canvas"
+            file_path="/path/to/canvas2.canvas",
         )
 
         learning_analyzer.analyze_change(change1)
@@ -393,6 +470,7 @@ class TestLearningStatistics:
 
 
 # ==================== AC 4测试: 分析耗时 < 50ms ====================
+
 
 class TestPerformance:
     """测试性能指标"""
@@ -427,9 +505,13 @@ class TestPerformance:
             node_id="node_complex",
             node_type="text",
             old_content={"id": "node_complex", "color": COLOR_YELLOW, "text": "旧内容"},
-            new_content={"id": "node_complex", "color": COLOR_YELLOW, "text": long_text},
+            new_content={
+                "id": "node_complex",
+                "color": COLOR_YELLOW,
+                "text": long_text,
+            },
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         start_time = time.perf_counter()
@@ -440,6 +522,7 @@ class TestPerformance:
 
 
 # ==================== AC 5测试: 支持批量分析 ====================
+
 
 class TestBatchAnalysis:
     """测试批量分析功能"""
@@ -456,7 +539,7 @@ class TestBatchAnalysis:
                 old_content={"id": f"node_{i}", "color": COLOR_RED, "text": "问题"},
                 new_content={"id": f"node_{i}", "color": COLOR_PURPLE, "text": "问题"},
                 timestamp=datetime.now(),
-                file_path="/path/to/test.canvas"
+                file_path="/path/to/test.canvas",
             )
             for i in range(10)
         ]
@@ -480,7 +563,7 @@ class TestBatchAnalysis:
                 old_content={"id": f"node_{i}", "color": COLOR_RED, "text": "问题"},
                 new_content={"id": f"node_{i}", "color": COLOR_PURPLE, "text": "问题"},
                 timestamp=datetime.now(),
-                file_path="/path/to/test.canvas"
+                file_path="/path/to/test.canvas",
             )
             for i in range(100)
         ]
@@ -505,10 +588,18 @@ class TestBatchAnalysis:
                         change_type=CanvasChangeType.UPDATE,
                         node_id=f"node_{i}",
                         node_type="text",
-                        old_content={"id": f"node_{i}", "color": COLOR_RED, "text": "问题"},
-                        new_content={"id": f"node_{i}", "color": COLOR_PURPLE, "text": "问题"},
+                        old_content={
+                            "id": f"node_{i}",
+                            "color": COLOR_RED,
+                            "text": "问题",
+                        },
+                        new_content={
+                            "id": f"node_{i}",
+                            "color": COLOR_PURPLE,
+                            "text": "问题",
+                        },
                         timestamp=datetime.now(),
-                        file_path=f"/path/to/canvas{canvas_num}.canvas"
+                        file_path=f"/path/to/canvas{canvas_num}.canvas",
                     )
                 )
 
@@ -522,6 +613,7 @@ class TestBatchAnalysis:
 
 
 # ==================== AC 6测试: 边缘情况处理 ====================
+
 
 class TestEdgeCases:
     """测试边缘情况处理"""
@@ -537,7 +629,7 @@ class TestEdgeCases:
             old_content={"id": "node_deleted", "color": COLOR_RED, "text": "问题"},
             new_content=None,
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         event = learning_analyzer.analyze_change(delete_change)
@@ -551,10 +643,22 @@ class TestEdgeCases:
             change_type=CanvasChangeType.UPDATE,
             node_id="node_moved",
             node_type="text",
-            old_content={"id": "node_moved", "color": COLOR_RED, "text": "问题", "x": 0, "y": 0},
-            new_content={"id": "node_moved", "color": COLOR_RED, "text": "问题", "x": 100, "y": 100},
+            old_content={
+                "id": "node_moved",
+                "color": COLOR_RED,
+                "text": "问题",
+                "x": 0,
+                "y": 0,
+            },
+            new_content={
+                "id": "node_moved",
+                "color": COLOR_RED,
+                "text": "问题",
+                "x": 100,
+                "y": 100,
+            },
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         event = learning_analyzer.analyze_change(position_change)
@@ -571,7 +675,7 @@ class TestEdgeCases:
             old_content=None,
             new_content={"id": "node_invalid", "color": COLOR_RED, "text": "问题"},
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         event = learning_analyzer.analyze_change(invalid_change)
@@ -588,7 +692,7 @@ class TestEdgeCases:
             old_content={"id": "node_no_color", "text": "问题"},  # 无color字段
             new_content={"id": "node_no_color", "text": "问题更新"},
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         event = learning_analyzer.analyze_change(no_color_change)
@@ -605,7 +709,7 @@ class TestEdgeCases:
             old_content={"id": "node_invalid_color", "color": "99", "text": "问题"},
             new_content={"id": "node_invalid_color", "color": "88", "text": "问题"},
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         event = learning_analyzer.analyze_change(invalid_color_change)
@@ -616,7 +720,7 @@ class TestEdgeCases:
         color_transitions = [
             (COLOR_RED, COLOR_PURPLE),
             (COLOR_PURPLE, COLOR_GREEN),
-            (COLOR_GREEN, COLOR_PURPLE)
+            (COLOR_GREEN, COLOR_PURPLE),
         ]
 
         changes = [
@@ -629,7 +733,7 @@ class TestEdgeCases:
                 old_content={"id": "node_rapid", "color": colors[0], "text": "问题"},
                 new_content={"id": "node_rapid", "color": colors[1], "text": "问题"},
                 timestamp=datetime.now(),
-                file_path="/path/to/test.canvas"
+                file_path="/path/to/test.canvas",
             )
             for i, colors in enumerate(color_transitions)
         ]
@@ -650,10 +754,18 @@ class TestEdgeCases:
             change_type=CanvasChangeType.UPDATE,
             node_id="node_yellow_same",
             node_type="text",
-            old_content={"id": "node_yellow_same", "color": COLOR_YELLOW, "text": "理解内容"},
-            new_content={"id": "node_yellow_same", "color": COLOR_YELLOW, "text": "理解内容"},
+            old_content={
+                "id": "node_yellow_same",
+                "color": COLOR_YELLOW,
+                "text": "理解内容",
+            },
+            new_content={
+                "id": "node_yellow_same",
+                "color": COLOR_YELLOW,
+                "text": "理解内容",
+            },
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         event = learning_analyzer.analyze_change(same_text_change)
@@ -662,12 +774,15 @@ class TestEdgeCases:
 
 # ==================== 集成测试 (IV1, IV2, IV3) ====================
 
+
 class TestIntegration:
     """集成验证测试"""
 
     def test_callback_function_integration(self, sample_red_to_purple_change):
         """IV1: 端到端测试 - Canvas变更 → 监控检测 → 学习分析 → 事件写入"""
-        with patch('canvas_progress_tracker.data_stores.get_hot_data_store') as mock_store:
+        with patch(
+            "canvas_progress_tracker.data_stores.get_hot_data_store"
+        ) as mock_store:
             mock_hot_store = MagicMock()
             mock_store.return_value = mock_hot_store
 
@@ -704,7 +819,7 @@ class TestIntegration:
                     old_content={"id": "node_test", "color": old_color, "text": "问题"},
                     new_content={"id": "node_test", "color": new_color, "text": "问题"},
                     timestamp=datetime.now(),
-                    file_path="/path/to/test.canvas"
+                    file_path="/path/to/test.canvas",
                 )
 
                 # 不应该抛出异常
@@ -727,10 +842,10 @@ class TestIntegration:
             new_content={
                 "id": "node_ai_blue",
                 "color": COLOR_BLUE,
-                "text": "🗣️ Oral Explanation: ..."
+                "text": "🗣️ Oral Explanation: ...",
             },
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         # 不应该生成学习事件（蓝色节点是AI补充）
@@ -747,7 +862,7 @@ class TestIntegration:
             old_content={"id": "node_student", "color": COLOR_RED, "text": "问题"},
             new_content={"id": "node_student", "color": COLOR_PURPLE, "text": "问题"},
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         event = learning_analyzer.analyze_change(student_change)
@@ -763,7 +878,7 @@ class TestIntegration:
             for transition_type in [
                 (COLOR_RED, COLOR_PURPLE, LearningEventType.UNDERSTANDING_IMPROVING),
                 (COLOR_PURPLE, COLOR_GREEN, LearningEventType.UNDERSTANDING_MASTERED),
-                (COLOR_RED, COLOR_GREEN, LearningEventType.BREAKTHROUGH)
+                (COLOR_RED, COLOR_GREEN, LearningEventType.BREAKTHROUGH),
             ]:
                 old_color, new_color, expected_type = transition_type
                 changes.append(
@@ -773,10 +888,18 @@ class TestIntegration:
                         change_type=CanvasChangeType.UPDATE,
                         node_id=f"node_{old_color}_{new_color}",
                         node_type="text",
-                        old_content={"id": f"node_{old_color}_{new_color}", "color": old_color, "text": "问题"},
-                        new_content={"id": f"node_{old_color}_{new_color}", "color": new_color, "text": "问题"},
+                        old_content={
+                            "id": f"node_{old_color}_{new_color}",
+                            "color": old_color,
+                            "text": "问题",
+                        },
+                        new_content={
+                            "id": f"node_{old_color}_{new_color}",
+                            "color": new_color,
+                            "text": "问题",
+                        },
                         timestamp=datetime.now(),
-                        file_path=f"/path/to/canvas{canvas_num}.canvas"
+                        file_path=f"/path/to/canvas{canvas_num}.canvas",
                     )
                 )
 
@@ -798,6 +921,7 @@ class TestIntegration:
 
 
 # ==================== 全局单例测试 ====================
+
 
 class TestGlobalSingleton:
     """测试全局单例功能"""
@@ -822,7 +946,7 @@ class TestGlobalSingleton:
             old_content={"id": "node_singleton", "color": COLOR_RED, "text": "问题"},
             new_content={"id": "node_singleton", "color": COLOR_PURPLE, "text": "问题"},
             timestamp=datetime.now(),
-            file_path="/path/to/test.canvas"
+            file_path="/path/to/test.canvas",
         )
 
         analyzer1.analyze_change(change)
@@ -836,12 +960,15 @@ class TestGlobalSingleton:
 
 # ==================== 回调函数错误处理测试 ====================
 
+
 class TestCallbackErrorHandling:
     """测试回调函数错误处理"""
 
     def test_callback_handles_analysis_error(self, sample_red_to_purple_change):
         """测试回调函数处理分析错误"""
-        with patch('canvas_progress_tracker.learning_analyzer.get_learning_analyzer') as mock_analyzer:
+        with patch(
+            "canvas_progress_tracker.learning_analyzer.get_learning_analyzer"
+        ) as mock_analyzer:
             # 模拟分析失败
             mock_instance = MagicMock()
             mock_instance.analyze_change.side_effect = Exception("分析失败")
@@ -853,7 +980,9 @@ class TestCallbackErrorHandling:
 
     def test_callback_performance_logging(self, sample_red_to_purple_change):
         """测试回调函数性能日志"""
-        with patch('canvas_progress_tracker.data_stores.get_hot_data_store') as mock_store:
+        with patch(
+            "canvas_progress_tracker.data_stores.get_hot_data_store"
+        ) as mock_store:
             mock_hot_store = MagicMock()
             mock_store.return_value = mock_hot_store
 

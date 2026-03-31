@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ===========================================================================
 # Constants
 # ===========================================================================
@@ -121,20 +120,24 @@ class TestAgentTypeEnum:
     def test_hint_generation_enum_exists(self):
         """AgentType.HINT_GENERATION enum value must exist."""
         from app.services.agent_service import AgentType
+
         assert hasattr(AgentType, "HINT_GENERATION")
         assert AgentType.HINT_GENERATION.value == "hint-generation"
 
     def test_verification_question_enum_exists(self):
         """AgentType.VERIFICATION_QUESTION enum value must exist."""
         from app.services.agent_service import AgentType
+
         assert hasattr(AgentType, "VERIFICATION_QUESTION")
 
     def test_scoring_enum_exists(self):
         """AgentType.SCORING enum value must exist."""
         from app.services.agent_service import AgentType
+
         assert hasattr(AgentType, "SCORING")
 
     def test_basic_decomposition_enum_exists(self):
         """AgentType.BASIC_DECOMPOSITION enum value must exist."""
         from app.services.agent_service import AgentType
+
         assert hasattr(AgentType, "BASIC_DECOMPOSITION")

@@ -38,13 +38,9 @@ struct_logger = structlog.get_logger("faithfulness_check")
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Faithfulness threshold (AC #1: >= 0.85)
-FAITHFULNESS_THRESHOLD_HIGH = float(
-    os.getenv("FAITHFULNESS_THRESHOLD", "0.85")
-)
+FAITHFULNESS_THRESHOLD_HIGH = float(os.getenv("FAITHFULNESS_THRESHOLD", "0.85"))
 # Below this triggers full degradation (AC #4)
-FAITHFULNESS_THRESHOLD_LOW = float(
-    os.getenv("FAITHFULNESS_THRESHOLD_LOW", "0.5")
-)
+FAITHFULNESS_THRESHOLD_LOW = float(os.getenv("FAITHFULNESS_THRESHOLD_LOW", "0.5"))
 # Model for faithfulness checks (defaults to project AI model)
 FAITHFULNESS_MODEL = os.getenv(
     "FAITHFULNESS_MODEL",
@@ -59,6 +55,7 @@ FAITHFULNESS_ENABLED = os.getenv("FAITHFULNESS_ENABLED", "true").lower() == "tru
 LITELLM_AVAILABLE = False
 try:
     import litellm
+
     litellm.set_verbose = False  # Suppress litellm debug output
     LITELLM_AVAILABLE = True
 except ImportError:
@@ -118,9 +115,11 @@ For each claim, return a JSON object with this exact format:
 # Data Classes
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ClaimVerdict:
     """Verification result for a single claim."""
+
     claim: str
     verdict: str  # "SUPPORTED" or "NOT_SUPPORTED"
     reason: str = ""
@@ -129,6 +128,7 @@ class ClaimVerdict:
 @dataclass
 class FaithfulnessResult:
     """Complete faithfulness check result."""
+
     score: float
     total_claims: int
     supported_claims: int
@@ -167,13 +167,10 @@ def _parse_json_response(text: str) -> dict:
     return json.loads(cleaned)
 
 
-def _make_unsupported_verdicts(
-    claims: List[str], reason: str
-) -> List[ClaimVerdict]:
+def _make_unsupported_verdicts(claims: List[str], reason: str) -> List[ClaimVerdict]:
     """Create NOT_SUPPORTED verdicts for all claims with a shared reason."""
     return [
-        ClaimVerdict(claim=c, verdict="NOT_SUPPORTED", reason=reason)
-        for c in claims
+        ClaimVerdict(claim=c, verdict="NOT_SUPPORTED", reason=reason) for c in claims
     ]
 
 
@@ -232,9 +229,7 @@ async def extract_claims(answer: str) -> List[str]:
         return list(_EMPTY_CLAIMS)
 
 
-async def verify_claims_nli(
-    claims: List[str], context: str
-) -> List[ClaimVerdict]:
+async def verify_claims_nli(claims: List[str], context: str) -> List[ClaimVerdict]:
     """
     Stage 2: NLI verification of each claim against context.
 
@@ -262,9 +257,7 @@ async def verify_claims_nli(
 
     model = _get_litellm_model()
     claims_json = json.dumps(claims, ensure_ascii=False)
-    user_prompt = NLI_VERIFICATION_USER.format(
-        context=context, claims_json=claims_json
-    )
+    user_prompt = NLI_VERIFICATION_USER.format(context=context, claims_json=claims_json)
 
     try:
         response = await litellm.acompletion(
@@ -383,6 +376,7 @@ def apply_degradation(
 # LangGraph Node Function
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 async def faithfulness_check(state: dict) -> dict:
     """
     LangGraph node: RAGAS Faithfulness Check.
@@ -421,9 +415,7 @@ async def faithfulness_check(state: dict) -> dict:
         }
 
     if not LITELLM_AVAILABLE:
-        logger.warning(
-            "[faithfulness_check] LiteLLM not available, skipping check"
-        )
+        logger.warning("[faithfulness_check] LiteLLM not available, skipping check")
         return {
             "faithfulness_score": None,
             "faithfulness_details": {"status": "litellm_unavailable"},
@@ -551,6 +543,7 @@ async def faithfulness_check(state: dict) -> dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Logging Helpers
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def _result_to_details(result: FaithfulnessResult) -> Dict[str, Any]:
     """Convert FaithfulnessResult to a serializable dict for state storage."""

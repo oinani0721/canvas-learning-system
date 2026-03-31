@@ -26,6 +26,7 @@ from src.agentic_rag.clients.lancedb_client import LanceDBClient
 # Story 12.2 AC 2.1: LanceDB连接测试
 # ============================================================
 
+
 class TestLanceDBClientInitialization:
     """测试 LanceDBClient 初始化和连接"""
 
@@ -49,7 +50,7 @@ class TestLanceDBClientInitialization:
                 embedding_dim=768,
                 timeout_ms=500,
                 batch_size=20,
-                enable_fallback=False
+                enable_fallback=False,
             )
 
             assert client.db_path == tmpdir
@@ -59,7 +60,9 @@ class TestLanceDBClientInitialization:
             assert client.enable_fallback is False
 
     @pytest.mark.asyncio
-    async def test_initialize_creates_connection(self, mock_lancedb_connection, lancedb_available):
+    async def test_initialize_creates_connection(
+        self, mock_lancedb_connection, lancedb_available
+    ):
         """AC 2.1: 初始化创建数据库连接"""
         if not lancedb_available:
             pytest.skip("LanceDB not installed")
@@ -67,7 +70,9 @@ class TestLanceDBClientInitialization:
         with tempfile.TemporaryDirectory() as tmpdir:
             client = LanceDBClient(db_path=tmpdir)
 
-            with patch('src.agentic_rag.clients.lancedb_client.lancedb') as mock_lancedb:
+            with patch(
+                "src.agentic_rag.clients.lancedb_client.lancedb"
+            ) as mock_lancedb:
                 mock_lancedb.connect.return_value = mock_lancedb_connection
 
                 await client.initialize()
@@ -78,7 +83,7 @@ class TestLanceDBClientInitialization:
     @pytest.mark.asyncio
     async def test_initialize_without_lancedb(self):
         """AC 2.1: 无LanceDB环境初始化"""
-        with patch('src.agentic_rag.clients.lancedb_client.LANCEDB_AVAILABLE', False):
+        with patch("src.agentic_rag.clients.lancedb_client.LANCEDB_AVAILABLE", False):
             client = LanceDBClient()
 
             result = await client.initialize()
@@ -88,12 +93,21 @@ class TestLanceDBClientInitialization:
 
     def test_default_tables_defined(self):
         """AC 2.1: 默认表名已定义"""
-        assert LanceDBClient.DEFAULT_TABLES == ["canvas_nodes", "vault_notes"]
+        assert LanceDBClient.DEFAULT_TABLES == ["canvas_nodes"]
+
+    def test_vault_notes_not_in_default_tables(self):
+        """AC 2.3: vault_notes must NOT be in DEFAULT_TABLES (dual-search bug fix).
+
+        vault_notes has a dedicated retrieve_vault_notes node in state_graph.py.
+        Including it in DEFAULT_TABLES causes it to be queried twice per search request.
+        """
+        assert "vault_notes" not in LanceDBClient.DEFAULT_TABLES
 
 
 # ============================================================
 # Story 12.2 AC 2.2: 向量检索接口
 # ============================================================
+
 
 class TestLanceDBClientSearch:
     """测试向量检索接口"""
@@ -116,10 +130,7 @@ class TestLanceDBClientSearch:
         client._db = mock_lancedb_connection
         client._initialized = True
 
-        results = await client.search(
-            query="逆否命题",
-            table_name="canvas_concepts"
-        )
+        results = await client.search(query="逆否命题", table_name="canvas_concepts")
 
         assert isinstance(results, list)
 
@@ -130,18 +141,17 @@ class TestLanceDBClientSearch:
         client._db = mock_lancedb_connection
         client._initialized = True
 
-        results = await client.search(
-            query="逆否命题",
-            canvas_file="离散数学.canvas"
-        )
+        results = await client.search(query="逆否命题", canvas_file="离散数学.canvas")
 
         assert isinstance(results, list)
 
     @pytest.mark.asyncio
     async def test_search_auto_initializes(self, mock_lancedb_connection):
         """AC 2.2: search自动初始化"""
-        with patch('src.agentic_rag.clients.lancedb_client.LANCEDB_AVAILABLE', True):
-            with patch('src.agentic_rag.clients.lancedb_client.lancedb') as mock_lancedb:
+        with patch("src.agentic_rag.clients.lancedb_client.LANCEDB_AVAILABLE", True):
+            with patch(
+                "src.agentic_rag.clients.lancedb_client.lancedb"
+            ) as mock_lancedb:
                 mock_lancedb.connect.return_value = mock_lancedb_connection
 
                 client = LanceDBClient()
@@ -167,11 +177,13 @@ class TestLanceDBClientSearch:
         ]
         client._tables_cache = {
             "canvas_explanations": mock_table,
-            "canvas_concepts": mock_table
+            "canvas_concepts": mock_table,
         }
 
         # Mock _get_query_vector
-        with patch.object(client, '_get_query_vector', new_callable=AsyncMock) as mock_vector:
+        with patch.object(
+            client, "_get_query_vector", new_callable=AsyncMock
+        ) as mock_vector:
             mock_vector.return_value = [0.1] * 1536
 
             results = await client.search_multiple_tables("逆否命题")
@@ -183,6 +195,7 @@ class TestLanceDBClientSearch:
 # Story 12.2 AC 2.3: 性能基准 (P95 < 400ms)
 # ============================================================
 
+
 class TestLanceDBClientPerformance:
     """测试性能相关功能"""
 
@@ -193,7 +206,9 @@ class TestLanceDBClientPerformance:
         client._initialized = True
         client._db = MagicMock()
 
-        with patch.object(client, '_search_internal', new_callable=AsyncMock) as mock_search:
+        with patch.object(
+            client, "_search_internal", new_callable=AsyncMock
+        ) as mock_search:
             mock_search.side_effect = asyncio.TimeoutError()
 
             results = await client.search("测试")
@@ -207,7 +222,9 @@ class TestLanceDBClientPerformance:
         client._initialized = True
         client._db = MagicMock()
 
-        with patch.object(client, '_search_internal', new_callable=AsyncMock) as mock_search:
+        with patch.object(
+            client, "_search_internal", new_callable=AsyncMock
+        ) as mock_search:
             mock_search.side_effect = asyncio.TimeoutError()
 
             with pytest.raises(asyncio.TimeoutError):
@@ -220,7 +237,9 @@ class TestLanceDBClientPerformance:
         client._initialized = True
         client._db = MagicMock()
 
-        with patch.object(client, '_search_internal', new_callable=AsyncMock) as mock_search:
+        with patch.object(
+            client, "_search_internal", new_callable=AsyncMock
+        ) as mock_search:
             mock_search.side_effect = Exception("Test error")
 
             results = await client.search("测试")
@@ -231,6 +250,7 @@ class TestLanceDBClientPerformance:
 # ============================================================
 # Story 12.2 AC 2.4: 结果转换为SearchResult
 # ============================================================
+
 
 class TestLanceDBClientResultConversion:
     """测试结果转换"""
@@ -244,7 +264,7 @@ class TestLanceDBClientResultConversion:
                 "doc_id": "doc_001",
                 "content": "口语化解释-逆否命题",
                 "_distance": 0.12,
-                "canvas_file": "离散数学.canvas"
+                "canvas_file": "离散数学.canvas",
             }
         ]
 
@@ -262,29 +282,26 @@ class TestLanceDBClientResultConversion:
         client = LanceDBClient()
 
         raw_results = [
-            {"doc_id": "1", "content": "test", "_distance": 0.0},   # Perfect match
-            {"doc_id": "2", "content": "test", "_distance": 0.5},   # Medium
-            {"doc_id": "3", "content": "test", "_distance": 1.0},   # Lower
+            {"doc_id": "1", "content": "test", "_distance": 0.0},  # Perfect match
+            {"doc_id": "2", "content": "test", "_distance": 0.5},  # Medium
+            {"doc_id": "3", "content": "test", "_distance": 1.0},  # Lower
         ]
 
         results = client._convert_to_search_results(raw_results)
 
         # score = 1 / (1 + distance)
-        assert results[0]["score"] == 1.0        # 1 / (1 + 0) = 1.0
+        assert results[0]["score"] == 1.0  # 1 / (1 + 0) = 1.0
         assert results[1]["score"] == pytest.approx(0.6667, rel=0.01)  # 1 / (1 + 0.5)
-        assert results[2]["score"] == 0.5        # 1 / (1 + 1) = 0.5
+        assert results[2]["score"] == 0.5  # 1 / (1 + 1) = 0.5
 
     def test_convert_to_search_results_with_canvas_file(self):
         """AC 2.4: 转换时包含canvas_file"""
         client = LanceDBClient()
 
-        raw_results = [
-            {"doc_id": "1", "content": "test", "_distance": 0.1}
-        ]
+        raw_results = [{"doc_id": "1", "content": "test", "_distance": 0.1}]
 
         results = client._convert_to_search_results(
-            raw_results,
-            canvas_file="离散数学.canvas"
+            raw_results, canvas_file="离散数学.canvas"
         )
 
         assert results[0]["metadata"]["canvas_file"] == "离散数学.canvas"
@@ -301,7 +318,7 @@ class TestLanceDBClientResultConversion:
                 "concept": "逆否命题",
                 "agent_type": "oral-explanation",
                 "node_id": "node_123",
-                "metadata_json": "{\"key\": \"value\"}"
+                "metadata_json": '{"key": "value"}',
             }
         ]
 
@@ -310,7 +327,7 @@ class TestLanceDBClientResultConversion:
         assert results[0]["metadata"]["concept"] == "逆否命题"
         assert results[0]["metadata"]["agent_type"] == "oral-explanation"
         assert results[0]["metadata"]["node_id"] == "node_123"
-        assert results[0]["metadata"]["metadata_json"] == "{\"key\": \"value\"}"
+        assert results[0]["metadata"]["metadata_json"] == '{"key": "value"}'
 
     def test_convert_to_search_results_extracts_content(self):
         """AC 2.4: 从多个字段提取content"""
@@ -332,6 +349,7 @@ class TestLanceDBClientResultConversion:
 # ============================================================
 # Additional Tests: Embedder and Add Documents
 # ============================================================
+
 
 class TestLanceDBClientEmbedder:
     """测试嵌入器相关功能"""
@@ -390,7 +408,7 @@ class TestLanceDBClientAddDocuments:
                 "doc_id": "doc_001",
                 "content": "测试内容",
                 "vector": [0.1] * 1536,
-                "metadata": {"canvas_file": "test.canvas"}
+                "metadata": {"canvas_file": "test.canvas"},
             }
         ]
 
@@ -417,11 +435,7 @@ class TestLanceDBClientStats:
     def test_get_stats(self):
         """get_stats返回客户端统计信息"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            client = LanceDBClient(
-                db_path=tmpdir,
-                timeout_ms=500,
-                batch_size=15
-            )
+            client = LanceDBClient(db_path=tmpdir, timeout_ms=500, batch_size=15)
 
             stats = client.get_stats()
 

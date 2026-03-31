@@ -31,7 +31,7 @@ class MockSentenceTransformer:
         sentences,
         batch_size: int = 32,
         normalize_embeddings: bool = True,
-        show_progress_bar: bool = False
+        show_progress_bar: bool = False,
     ):
         """Mock encode method."""
         import numpy as np
@@ -63,11 +63,11 @@ def mock_sentence_transformer():
     """Fixture to mock SentenceTransformer."""
     with patch(
         "src.agentic_rag.processors.multimodal_vectorizer.SentenceTransformer",
-        MockSentenceTransformer
+        MockSentenceTransformer,
     ):
         with patch(
             "src.agentic_rag.processors.multimodal_vectorizer.SENTENCE_TRANSFORMERS_AVAILABLE",
-            True
+            True,
         ):
             yield
 
@@ -76,8 +76,7 @@ def mock_sentence_transformer():
 def mock_numpy():
     """Fixture to ensure numpy is available."""
     with patch(
-        "src.agentic_rag.processors.multimodal_vectorizer.NUMPY_AVAILABLE",
-        True
+        "src.agentic_rag.processors.multimodal_vectorizer.NUMPY_AVAILABLE", True
     ):
         yield
 
@@ -86,22 +85,28 @@ def mock_numpy():
 # Import Tests
 # =============================================================================
 
+
 class TestImports:
     """Test module imports."""
 
     def test_import_multimodal_vectorizer(self):
         """Test importing MultimodalVectorizer."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
+
         assert MultimodalVectorizer is not None
 
     def test_import_vectorized_content(self):
         """Test importing VectorizedContent."""
         from src.agentic_rag.processors.multimodal_vectorizer import VectorizedContent
+
         assert VectorizedContent is not None
 
     def test_import_fused_vector(self):
         """Test importing FusedVector."""
         from src.agentic_rag.processors.multimodal_vectorizer import FusedVector
+
         assert FusedVector is not None
 
     def test_import_exceptions(self):
@@ -111,6 +116,7 @@ class TestImports:
             MultimodalVectorizerError,
             VectorizationError,
         )
+
         assert MultimodalVectorizerError is not None
         assert EmbeddingModelError is not None
         assert VectorizationError is not None
@@ -122,6 +128,7 @@ class TestImports:
             MultimodalVectorizer,
             VectorizedContent,
         )
+
         assert MultimodalVectorizer is not None
         assert VectorizedContent is not None
         assert FusedVector is not None
@@ -130,6 +137,7 @@ class TestImports:
 # =============================================================================
 # VectorizedContent Tests
 # =============================================================================
+
 
 class TestVectorizedContent:
     """Test VectorizedContent dataclass."""
@@ -146,7 +154,7 @@ class TestVectorizedContent:
             vector=[0.1, 0.2, 0.3],
             vector_dim=3,
             metadata={"key": "value"},
-            processing_time_ms=50
+            processing_time_ms=50,
         )
 
         assert content.id == "test_123"
@@ -166,7 +174,7 @@ class TestVectorizedContent:
             source_path="/path/to/image.png",
             text_content="OCR text here",
             vector=[0.5, 0.5],
-            vector_dim=2
+            vector_dim=2,
         )
 
         d = content.to_dict()
@@ -186,7 +194,7 @@ class TestVectorizedContent:
             "source_path": "/path/to/doc.pdf",
             "text_content": "Chapter 1 content",
             "vector": [0.1, 0.2],
-            "vector_dim": 2
+            "vector_dim": 2,
         }
 
         content = VectorizedContent.from_dict(data)
@@ -198,6 +206,7 @@ class TestVectorizedContent:
 # =============================================================================
 # FusedVector Tests
 # =============================================================================
+
 
 class TestFusedVector:
     """Test FusedVector dataclass."""
@@ -211,7 +220,7 @@ class TestFusedVector:
             vectors=[[0.1, 0.2], [0.3, 0.4]],
             weights=[0.4, 0.6],
             fused_vector=[0.22, 0.32],
-            sources=["ocr", "description"]
+            sources=["ocr", "description"],
         )
 
         assert fused.id == "fused_1"
@@ -228,7 +237,7 @@ class TestFusedVector:
             vectors=[[0.5, 0.5]],
             weights=[1.0],
             fused_vector=[0.5, 0.5],
-            sources=["single"]
+            sources=["single"],
         )
 
         d = fused.to_dict()
@@ -242,13 +251,16 @@ class TestFusedVector:
 # MultimodalVectorizer Initialization Tests
 # =============================================================================
 
+
 class TestMultimodalVectorizerInit:
     """Test MultimodalVectorizer initialization."""
 
     @pytest.mark.asyncio
     async def test_init_default_params(self, mock_sentence_transformer, mock_numpy):
         """Test initialization with default parameters."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -261,14 +273,16 @@ class TestMultimodalVectorizerInit:
     @pytest.mark.asyncio
     async def test_init_custom_params(self, mock_sentence_transformer, mock_numpy):
         """Test initialization with custom parameters."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer(
             model_name="custom-model",
             device="cuda",
             ocr_weight=0.3,
             desc_weight=0.7,
-            batch_size=64
+            batch_size=64,
         )
 
         assert vectorizer.model_name == "custom-model"
@@ -280,7 +294,9 @@ class TestMultimodalVectorizerInit:
     @pytest.mark.asyncio
     async def test_initialize_success(self, mock_sentence_transformer, mock_numpy):
         """Test successful initialization."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         result = await vectorizer.initialize()
@@ -292,7 +308,9 @@ class TestMultimodalVectorizerInit:
     @pytest.mark.asyncio
     async def test_double_initialize(self, mock_sentence_transformer, mock_numpy):
         """Test that double initialization returns True without reloading."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -307,13 +325,16 @@ class TestMultimodalVectorizerInit:
 # Text Vectorization Tests
 # =============================================================================
 
+
 class TestTextVectorization:
     """Test plain text vectorization."""
 
     @pytest.mark.asyncio
     async def test_vectorize_text_basic(self, mock_sentence_transformer, mock_numpy):
         """Test basic text vectorization."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -329,30 +350,34 @@ class TestTextVectorization:
     @pytest.mark.asyncio
     async def test_vectorize_text_with_id(self, mock_sentence_transformer, mock_numpy):
         """Test text vectorization with custom ID."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_text(
-            "Test content",
-            content_id="custom_id_123"
+            "Test content", content_id="custom_id_123"
         )
 
         assert result.id == "custom_id_123"
 
     @pytest.mark.asyncio
-    async def test_vectorize_text_with_metadata(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_text_with_metadata(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test text vectorization with metadata."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         metadata = {"source": "test", "page": 5}
         result = await vectorizer.vectorize_text(
-            "Content with metadata",
-            metadata=metadata
+            "Content with metadata", metadata=metadata
         )
 
         assert result.metadata["source"] == "test"
@@ -361,7 +386,9 @@ class TestTextVectorization:
     @pytest.mark.asyncio
     async def test_vectorize_empty_text(self, mock_sentence_transformer, mock_numpy):
         """Test vectorization of empty text returns zero vector."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -374,12 +401,16 @@ class TestTextVectorization:
     @pytest.mark.asyncio
     async def test_vectorize_chinese_text(self, mock_sentence_transformer, mock_numpy):
         """Test vectorization of Chinese text."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
-        result = await vectorizer.vectorize_text("这是一段中文文本，用于测试向量化功能。")
+        result = await vectorizer.vectorize_text(
+            "这是一段中文文本，用于测试向量化功能。"
+        )
 
         assert result is not None
         assert len(result.vector) == 384
@@ -389,20 +420,24 @@ class TestTextVectorization:
 # Image Content Vectorization Tests (AC 6.6.1)
 # =============================================================================
 
+
 class TestImageContentVectorization:
     """Test image content vectorization (AC 6.6.1)."""
 
     @pytest.mark.asyncio
-    async def test_vectorize_image_content_basic(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_image_content_basic(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test basic image content vectorization."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_image_content(
-            ocr_text="公式: E = mc²",
-            description="一张包含质能方程的物理公式图片"
+            ocr_text="公式: E = mc²", description="一张包含质能方程的物理公式图片"
         )
 
         assert result is not None
@@ -412,9 +447,13 @@ class TestImageContentVectorization:
         assert len(result.vector) == 384
 
     @pytest.mark.asyncio
-    async def test_vectorize_image_with_path(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_image_with_path(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test image vectorization with source path."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -422,15 +461,19 @@ class TestImageContentVectorization:
         result = await vectorizer.vectorize_image_content(
             ocr_text="Text from image",
             description="Image description",
-            image_path="/path/to/image.png"
+            image_path="/path/to/image.png",
         )
 
         assert result.source_path == "/path/to/image.png"
 
     @pytest.mark.asyncio
-    async def test_vectorize_image_with_concepts(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_image_with_concepts(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test image vectorization with key concepts."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -438,16 +481,20 @@ class TestImageContentVectorization:
         result = await vectorizer.vectorize_image_content(
             ocr_text="微积分公式",
             description="积分公式图",
-            key_concepts=["积分", "微积分", "数学公式"]
+            key_concepts=["积分", "微积分", "数学公式"],
         )
 
         assert "[Concepts]" in result.text_content
         assert result.metadata["key_concepts"] == ["积分", "微积分", "数学公式"]
 
     @pytest.mark.asyncio
-    async def test_vectorize_image_with_type(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_image_with_type(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test image vectorization with image type."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -455,22 +502,25 @@ class TestImageContentVectorization:
         result = await vectorizer.vectorize_image_content(
             ocr_text="Screenshot text",
             description="A screenshot",
-            image_type="screenshot"
+            image_type="screenshot",
         )
 
         assert result.metadata["image_type"] == "screenshot"
 
     @pytest.mark.asyncio
-    async def test_vectorize_image_fusion_weights(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_image_fusion_weights(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test that fusion weights are stored in metadata."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer(ocr_weight=0.3, desc_weight=0.7)
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_image_content(
-            ocr_text="OCR text",
-            description="Description"
+            ocr_text="OCR text", description="Description"
         )
 
         assert result.metadata["ocr_weight"] == 0.3
@@ -478,32 +528,38 @@ class TestImageContentVectorization:
         assert result.metadata["fusion_method"] == "weighted_average"
 
     @pytest.mark.asyncio
-    async def test_vectorize_image_ocr_only(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_image_ocr_only(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test image vectorization with OCR only."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_image_content(
-            ocr_text="Only OCR text",
-            description=""
+            ocr_text="Only OCR text", description=""
         )
 
         assert result is not None
         assert len(result.vector) == 384
 
     @pytest.mark.asyncio
-    async def test_vectorize_image_description_only(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_image_description_only(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test image vectorization with description only."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_image_content(
-            ocr_text="",
-            description="Only description text"
+            ocr_text="", description="Only description text"
         )
 
         assert result is not None
@@ -514,13 +570,18 @@ class TestImageContentVectorization:
 # PDF Chunk Vectorization Tests (AC 6.6.2)
 # =============================================================================
 
+
 class TestPDFChunkVectorization:
     """Test PDF chunk vectorization (AC 6.6.2)."""
 
     @pytest.mark.asyncio
-    async def test_vectorize_pdf_chunk_basic(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_pdf_chunk_basic(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test basic PDF chunk vectorization."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -534,93 +595,113 @@ class TestPDFChunkVectorization:
         assert len(result.vector) == 384
 
     @pytest.mark.asyncio
-    async def test_vectorize_pdf_chunk_with_title(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_pdf_chunk_with_title(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test PDF chunk vectorization with chapter title."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_pdf_chunk(
             chunk_text="Content of the introduction...",
-            chapter_title="Chapter 1: Introduction"
+            chapter_title="Chapter 1: Introduction",
         )
 
         assert result.metadata["chapter_title"] == "Chapter 1: Introduction"
 
     @pytest.mark.asyncio
-    async def test_vectorize_pdf_chunk_with_path(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_pdf_chunk_with_path(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test PDF chunk vectorization with PDF path."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_pdf_chunk(
-            chunk_text="PDF content",
-            pdf_path="/docs/textbook.pdf"
+            chunk_text="PDF content", pdf_path="/docs/textbook.pdf"
         )
 
         assert result.source_path == "/docs/textbook.pdf"
 
     @pytest.mark.asyncio
-    async def test_vectorize_pdf_chunk_with_pages(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_pdf_chunk_with_pages(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test PDF chunk vectorization with page numbers."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_pdf_chunk(
-            chunk_text="Content spanning pages",
-            page_numbers=[10, 11, 12]
+            chunk_text="Content spanning pages", page_numbers=[10, 11, 12]
         )
 
         assert result.metadata["page_numbers"] == [10, 11, 12]
 
     @pytest.mark.asyncio
-    async def test_vectorize_pdf_chunk_with_index(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_pdf_chunk_with_index(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test PDF chunk vectorization with chunk index."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_pdf_chunk(
-            chunk_text="Chunk content",
-            chunk_index=5,
-            total_chunks=20
+            chunk_text="Chunk content", chunk_index=5, total_chunks=20
         )
 
         assert result.metadata["chunk_index"] == 5
         assert result.metadata["total_chunks"] == 20
 
     @pytest.mark.asyncio
-    async def test_vectorize_pdf_chunk_with_heading_path(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_pdf_chunk_with_heading_path(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test PDF chunk vectorization with heading path."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_pdf_chunk(
             chunk_text="Section content",
-            heading_path=["Part 1", "Chapter 2", "Section 2.1"]
+            heading_path=["Part 1", "Chapter 2", "Section 2.1"],
         )
 
         assert result.metadata["heading_path"] == ["Part 1", "Chapter 2", "Section 2.1"]
 
     @pytest.mark.asyncio
-    async def test_vectorize_pdf_chunk_chinese(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_pdf_chunk_chinese(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test PDF chunk vectorization with Chinese content."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_pdf_chunk(
             chunk_text="第一章 绪论\n本章介绍了微积分的基本概念和历史发展...",
-            chapter_title="第一章 绪论"
+            chapter_title="第一章 绪论",
         )
 
         assert result is not None
@@ -631,13 +712,16 @@ class TestPDFChunkVectorization:
 # Batch Vectorization Tests
 # =============================================================================
 
+
 class TestBatchVectorization:
     """Test batch vectorization."""
 
     @pytest.mark.asyncio
     async def test_batch_vectorize_basic(self, mock_sentence_transformer, mock_numpy):
         """Test basic batch vectorization."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -650,9 +734,13 @@ class TestBatchVectorization:
             assert len(result.vector) == 384
 
     @pytest.mark.asyncio
-    async def test_batch_vectorize_with_metadata(self, mock_sentence_transformer, mock_numpy):
+    async def test_batch_vectorize_with_metadata(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test batch vectorization with metadata."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -660,18 +748,19 @@ class TestBatchVectorization:
         texts = ["Text A", "Text B"]
         metadata_list = [{"index": 0}, {"index": 1}]
 
-        results = await vectorizer.batch_vectorize(
-            texts,
-            metadata_list=metadata_list
-        )
+        results = await vectorizer.batch_vectorize(texts, metadata_list=metadata_list)
 
         assert results[0].metadata["index"] == 0
         assert results[1].metadata["index"] == 1
 
     @pytest.mark.asyncio
-    async def test_batch_vectorize_empty_list(self, mock_sentence_transformer, mock_numpy):
+    async def test_batch_vectorize_empty_list(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test batch vectorization with empty list."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -681,9 +770,13 @@ class TestBatchVectorization:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_batch_vectorize_large_batch(self, mock_sentence_transformer, mock_numpy):
+    async def test_batch_vectorize_large_batch(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test batch vectorization with large batch."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer(batch_size=32)
         await vectorizer.initialize()
@@ -698,12 +791,15 @@ class TestBatchVectorization:
 # Vector Fusion Tests
 # =============================================================================
 
+
 class TestVectorFusion:
     """Test vector fusion methods."""
 
     def test_weighted_average_fusion(self, mock_sentence_transformer, mock_numpy):
         """Test weighted average fusion."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -717,9 +813,13 @@ class TestVectorFusion:
         assert len(fused) == 3
         assert fused[0] < fused[1]  # Weight 0.6 > 0.4
 
-    def test_weighted_average_fusion_equal_weights(self, mock_sentence_transformer, mock_numpy):
+    def test_weighted_average_fusion_equal_weights(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test weighted average fusion with equal weights."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -733,7 +833,9 @@ class TestVectorFusion:
 
     def test_fusion_with_none_vector1(self, mock_sentence_transformer, mock_numpy):
         """Test fusion when first vector is None."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -744,7 +846,9 @@ class TestVectorFusion:
 
     def test_fusion_with_none_vector2(self, mock_sentence_transformer, mock_numpy):
         """Test fusion when second vector is None."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -755,7 +859,9 @@ class TestVectorFusion:
 
     def test_fusion_both_none(self, mock_sentence_transformer, mock_numpy):
         """Test fusion when both vectors are None."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -765,7 +871,9 @@ class TestVectorFusion:
 
     def test_create_fused_vector(self, mock_sentence_transformer, mock_numpy):
         """Test creating FusedVector object."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -774,19 +882,21 @@ class TestVectorFusion:
         sources = ["source1", "source2", "source3"]
 
         fused = vectorizer.create_fused_vector(
-            vectors=vectors,
-            weights=weights,
-            sources=sources,
-            content_id="fused_test"
+            vectors=vectors, weights=weights, sources=sources, content_id="fused_test"
         )
 
         assert fused.id == "fused_test"
         assert len(fused.fused_vector) == 2
         assert fused.sources == sources
 
-    def test_create_fused_vector_mismatched_lengths(self, mock_sentence_transformer, mock_numpy):
+    def test_create_fused_vector_mismatched_lengths(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test that mismatched lengths raise error."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer, VectorizationError
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+            VectorizationError,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -795,9 +905,7 @@ class TestVectorFusion:
 
         with pytest.raises(VectorizationError):
             vectorizer.create_fused_vector(
-                vectors=vectors,
-                weights=weights,
-                sources=["s1", "s2"]
+                vectors=vectors, weights=weights, sources=["s1", "s2"]
             )
 
 
@@ -805,12 +913,15 @@ class TestVectorFusion:
 # L2 Normalization Tests
 # =============================================================================
 
+
 class TestL2Normalization:
     """Test L2 normalization."""
 
     def test_l2_normalize(self, mock_sentence_transformer, mock_numpy):
         """Test L2 normalization."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -822,7 +933,9 @@ class TestL2Normalization:
 
     def test_l2_normalize_zero_vector(self, mock_sentence_transformer, mock_numpy):
         """Test L2 normalization of zero vector."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -836,13 +949,18 @@ class TestL2Normalization:
 # Performance Tests (AC 6.6.4)
 # =============================================================================
 
+
 class TestPerformance:
     """Test performance requirements (AC 6.6.4: ≤1秒/内容)."""
 
     @pytest.mark.asyncio
-    async def test_vectorization_under_1_second(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorization_under_1_second(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test that vectorization completes under 1 second."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -853,16 +971,19 @@ class TestPerformance:
         assert result.processing_time_ms < 1000
 
     @pytest.mark.asyncio
-    async def test_image_vectorization_performance(self, mock_sentence_transformer, mock_numpy):
+    async def test_image_vectorization_performance(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test image vectorization performance."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
 
         result = await vectorizer.vectorize_image_content(
-            ocr_text="Long OCR text " * 100,
-            description="Long description " * 100
+            ocr_text="Long OCR text " * 100, description="Long description " * 100
         )
 
         assert result.processing_time_ms < 1000
@@ -870,7 +991,9 @@ class TestPerformance:
     @pytest.mark.asyncio
     async def test_stats_tracking(self, mock_sentence_transformer, mock_numpy):
         """Test that statistics are tracked correctly."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -890,30 +1013,34 @@ class TestPerformance:
 # Convenience Function Tests
 # =============================================================================
 
+
 class TestConvenienceFunctions:
     """Test convenience functions."""
 
     @pytest.mark.asyncio
-    async def test_vectorize_image_function(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_image_function(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test vectorize_image convenience function."""
         from src.agentic_rag.processors.multimodal_vectorizer import vectorize_image
 
-        result = await vectorize_image(
-            ocr_text="OCR text",
-            description="Description"
-        )
+        result = await vectorize_image(ocr_text="OCR text", description="Description")
 
         assert result is not None
         assert result.content_type == "image"
 
     @pytest.mark.asyncio
-    async def test_vectorize_pdf_chunks_function(self, mock_sentence_transformer, mock_numpy):
+    async def test_vectorize_pdf_chunks_function(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test vectorize_pdf_chunks convenience function."""
-        from src.agentic_rag.processors.multimodal_vectorizer import vectorize_pdf_chunks
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            vectorize_pdf_chunks,
+        )
 
         chunks = [
             {"text": "Chapter 1 content", "title": "Chapter 1"},
-            {"text": "Chapter 2 content", "title": "Chapter 2"}
+            {"text": "Chapter 2 content", "title": "Chapter 2"},
         ]
 
         results = await vectorize_pdf_chunks(chunks, pdf_path="/test.pdf")
@@ -927,6 +1054,7 @@ class TestConvenienceFunctions:
 # Error Handling Tests
 # =============================================================================
 
+
 class TestErrorHandling:
     """Test error handling."""
 
@@ -935,9 +1063,11 @@ class TestErrorHandling:
         """Test behavior when sentence-transformers not installed."""
         with patch(
             "src.agentic_rag.processors.multimodal_vectorizer.SENTENCE_TRANSFORMERS_AVAILABLE",
-            False
+            False,
         ):
-            from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+            from src.agentic_rag.processors.multimodal_vectorizer import (
+                MultimodalVectorizer,
+            )
 
             vectorizer = MultimodalVectorizer()
 
@@ -948,10 +1078,11 @@ class TestErrorHandling:
     async def test_import_error_numpy(self, mock_sentence_transformer):
         """Test behavior when numpy not installed."""
         with patch(
-            "src.agentic_rag.processors.multimodal_vectorizer.NUMPY_AVAILABLE",
-            False
+            "src.agentic_rag.processors.multimodal_vectorizer.NUMPY_AVAILABLE", False
         ):
-            from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+            from src.agentic_rag.processors.multimodal_vectorizer import (
+                MultimodalVectorizer,
+            )
 
             vectorizer = MultimodalVectorizer()
 
@@ -963,12 +1094,15 @@ class TestErrorHandling:
 # ID Generation Tests
 # =============================================================================
 
+
 class TestIDGeneration:
     """Test content ID generation."""
 
     def test_generate_content_id(self, mock_sentence_transformer, mock_numpy):
         """Test content ID generation."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -979,7 +1113,9 @@ class TestIDGeneration:
 
     def test_content_ids_are_unique(self, mock_sentence_transformer, mock_numpy):
         """Test that different content generates different IDs."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -996,13 +1132,16 @@ class TestIDGeneration:
 # Stats Tests
 # =============================================================================
 
+
 class TestStats:
     """Test statistics methods."""
 
     @pytest.mark.asyncio
     async def test_get_stats_initial(self, mock_sentence_transformer, mock_numpy):
         """Test initial stats."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
 
@@ -1012,9 +1151,13 @@ class TestStats:
         assert stats["initialized"] is False
 
     @pytest.mark.asyncio
-    async def test_get_stats_after_initialization(self, mock_sentence_transformer, mock_numpy):
+    async def test_get_stats_after_initialization(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test stats after initialization."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()
@@ -1026,9 +1169,13 @@ class TestStats:
         assert stats["device"] == "cpu"
 
     @pytest.mark.asyncio
-    async def test_exceeded_target_tracking(self, mock_sentence_transformer, mock_numpy):
+    async def test_exceeded_target_tracking(
+        self, mock_sentence_transformer, mock_numpy
+    ):
         """Test that exceeding target time is tracked."""
-        from src.agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+        from src.agentic_rag.processors.multimodal_vectorizer import (
+            MultimodalVectorizer,
+        )
 
         vectorizer = MultimodalVectorizer()
         await vectorizer.initialize()

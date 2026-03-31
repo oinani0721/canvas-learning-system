@@ -23,20 +23,18 @@ from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
 from app.config import Settings
 from app.dependencies import get_settings
 from app.main import app
 from app.services.memory_service import MemoryService
-
+from httpx import ASGITransport, AsyncClient
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_mock_neo4j(*, mode="JSON_FALLBACK", initialized=False,
-                     health_status=True):
+
+def _make_mock_neo4j(*, mode="JSON_FALLBACK", initialized=False, health_status=True):
     """Create mock Neo4j client.
 
     Note: initialized=False by default so batch Phase 2 skips real Neo4j
@@ -75,9 +73,11 @@ def _make_mock_lm():
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def _reset_memory_singleton():
     import backend.app.services.memory_service as mod
+
     original = mod._memory_service_instance
     mod._memory_service_instance = None
     try:
@@ -132,8 +132,9 @@ async def client(memory_service) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides.clear()
 
 
-def _batch_event(*, event_type="color_changed", canvas_path="test/math.canvas",
-                 node_id=None):
+def _batch_event(
+    *, event_type="color_changed", canvas_path="test/math.canvas", node_id=None
+):
     return {
         "event_type": event_type,
         "timestamp": datetime.now().isoformat(),
@@ -311,11 +312,10 @@ class TestLearningFlowE2E:
     async def test_batch_then_health_stable(self, client: AsyncClient):
         """Batch operation doesn't destabilize health endpoint."""
         # Send a batch
-        payload = {
-            "events": [_batch_event(node_id=f"n-{i}") for i in range(3)]
-        }
+        payload = {"events": [_batch_event(node_id=f"n-{i}") for i in range(3)]}
         batch_resp = await client.post(
-            "/api/v1/memory/episodes/batch", json=payload,
+            "/api/v1/memory/episodes/batch",
+            json=payload,
         )
         assert batch_resp.status_code == 200
 

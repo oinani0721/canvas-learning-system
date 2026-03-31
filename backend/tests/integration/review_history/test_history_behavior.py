@@ -4,8 +4,6 @@ Tests for pagination behavior (has_more logic, show_all, custom limit),
 filtering by canvas_path/concept_name, and graceful error degradation.
 """
 
-import pytest
-
 from .helpers import mock_review_history
 
 
@@ -51,6 +49,7 @@ class TestReviewHistoryPaginationBehavior:
 
             # Story 34.8 AC3: show_all now passes MAX_HISTORY_RECORDS instead of None
             from app.services.review_service import MAX_HISTORY_RECORDS
+
             mock_service.get_history.assert_called_once()
             call_kwargs = mock_service.get_history.call_args.kwargs
             assert call_kwargs.get("limit") == MAX_HISTORY_RECORDS

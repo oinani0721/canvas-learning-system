@@ -147,7 +147,11 @@ async def sync_node_to_source_canvas(
                     depth_query, node_id=current_source, exam_id=request.exam_id
                 )
                 if depth_records:
-                    data = depth_records[0] if isinstance(depth_records[0], dict) else depth_records[0].data()
+                    data = (
+                        depth_records[0]
+                        if isinstance(depth_records[0], dict)
+                        else depth_records[0].data()
+                    )
                     stored_depth = data.get("stored_depth")
                     if stored_depth is not None:
                         depth = int(stored_depth) + 1
@@ -186,7 +190,13 @@ async def sync_node_to_source_canvas(
             group_id=group_id,
             created_at=now_iso,
         )
-    except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError, TypeError) as e:
+    except (
+        RuntimeError,
+        ConnectionError,
+        asyncio.TimeoutError,
+        ValueError,
+        TypeError,
+    ) as e:
         logger.debug(f"[Story 6.5] DiscoveredNode record save failed (non-fatal): {e}")
 
     logger.info(
@@ -277,8 +287,17 @@ async def generate_hint(self, request: HintRequest) -> HintResponse:
                     first_line = first_line.lstrip("#").strip()
                 if first_line:
                     concept_name = first_line[:100]
-    except (OSError, json.JSONDecodeError, RuntimeError, ValueError, TypeError, AttributeError) as e:
-        logger.debug(f"[Story 6.6] Failed to resolve node title for {request.node_id}: {e}")
+    except (
+        OSError,
+        json.JSONDecodeError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        AttributeError,
+    ) as e:
+        logger.debug(
+            f"[Story 6.6] Failed to resolve node title for {request.node_id}: {e}"
+        )
 
     system_prompt = template.replace("{{question}}", request.question_context)
     system_prompt = system_prompt.replace("{{concept}}", concept_name)
@@ -315,7 +334,9 @@ async def generate_hint(self, request: HintRequest) -> HintResponse:
         logger.error(f"[Story 6.6] Hint generation LLM call failed: {e}")
         hint_text = _get_fallback_hint(level)
 
-    logger.info(f"[Story 6.6] Generated Level {level} hint for node {request.node_id} in exam {request.exam_id}")
+    logger.info(
+        f"[Story 6.6] Generated Level {level} hint for node {request.node_id} in exam {request.exam_id}"
+    )
 
     return HintResponse(
         hint_text=hint_text,
@@ -367,7 +388,9 @@ async def _get_max_hint_level_by_mastery(node_id: str) -> int:
         return 4  # Full scaffolding
 
     except (RuntimeError, AttributeError, ConnectionError) as e:
-        logger.debug(f"[F12] Mastery lookup failed for {node_id}, defaulting to full hints: {e}")
+        logger.debug(
+            f"[F12] Mastery lookup failed for {node_id}, defaulting to full hints: {e}"
+        )
         return 4
 
 
@@ -441,10 +464,18 @@ async def skip_question(self, request: SkipRequest) -> SkipResponse:
             exam_id=request.exam_id,
             skipped_json=json.dumps(existing, ensure_ascii=False),
         )
-    except (RuntimeError, ConnectionError, asyncio.TimeoutError, json.JSONDecodeError, TypeError) as e:
+    except (
+        RuntimeError,
+        ConnectionError,
+        asyncio.TimeoutError,
+        json.JSONDecodeError,
+        TypeError,
+    ) as e:
         logger.warning(f"[Story 6.6] Skip record save failed (non-fatal): {e}")
 
-    logger.info(f"[Story 6.6] Skipped node {request.node_id} in exam {request.exam_id} -- no BKT/FSRS penalty")
+    logger.info(
+        f"[Story 6.6] Skipped node {request.node_id} in exam {request.exam_id} -- no BKT/FSRS penalty"
+    )
 
     return SkipResponse(
         skipped=True,
@@ -469,7 +500,9 @@ async def resume_exam(self, exam_id: str) -> ExamStatusUpdateResponse:
     return await self._update_exam_lifecycle_status(exam_id, ExamStatus.IN_PROGRESS)
 
 
-async def _update_exam_lifecycle_status(self, exam_id: str, new_status: ExamStatus) -> ExamStatusUpdateResponse:
+async def _update_exam_lifecycle_status(
+    self, exam_id: str, new_status: ExamStatus
+) -> ExamStatusUpdateResponse:
     """Update exam session status in both memory and Neo4j. [Story 6.7 AC-6]"""
     from app.clients.neo4j_client import get_neo4j_client
 
@@ -529,7 +562,9 @@ def get_cognitive_load_message(self, elapsed_minutes: int) -> Optional[str]:
 # ======================================================================
 
 
-async def complete_exam(self, request: ExamCompleteRequest, group_id: str = DEFAULT_GROUP_ID) -> ExamCompleteResponse:
+async def complete_exam(
+    self, request: ExamCompleteRequest, group_id: str = DEFAULT_GROUP_ID
+) -> ExamCompleteResponse:
     """Save a complete exam record permanently to Neo4j.
 
     Records are immutable. Stores scoring, conversation, discovery, skip data.
@@ -542,13 +577,18 @@ async def complete_exam(self, request: ExamCompleteRequest, group_id: str = DEFA
 
     mastery_trend = "stable"
     if request.mastery_changes:
-        total_delta = sum(mc.proficiency_after - mc.proficiency_before for mc in request.mastery_changes)
+        total_delta = sum(
+            mc.proficiency_after - mc.proficiency_before
+            for mc in request.mastery_changes
+        )
         if total_delta > 0.01:
             mastery_trend = "up"
         elif total_delta < -0.01:
             mastery_trend = "down"
 
-    score_history_json = json.dumps([s.model_dump() for s in request.score_history], ensure_ascii=False)
+    score_history_json = json.dumps(
+        [s.model_dump() for s in request.score_history], ensure_ascii=False
+    )
     discovered_nodes_json = json.dumps(
         [d.model_dump(mode="json") for d in request.discovered_nodes],
         ensure_ascii=False,
@@ -557,8 +597,12 @@ async def complete_exam(self, request: ExamCompleteRequest, group_id: str = DEFA
         [s.model_dump(mode="json") for s in request.skipped_nodes],
         ensure_ascii=False,
     )
-    conversation_json = json.dumps([c.model_dump() for c in request.conversation_log], ensure_ascii=False)
-    mastery_changes_json = json.dumps([m.model_dump() for m in request.mastery_changes], ensure_ascii=False)
+    conversation_json = json.dumps(
+        [c.model_dump() for c in request.conversation_log], ensure_ascii=False
+    )
+    mastery_changes_json = json.dumps(
+        [m.model_dump() for m in request.mastery_changes], ensure_ascii=False
+    )
 
     query = """
     MERGE (e:EpisodicNode {uuid: $exam_id})
@@ -699,23 +743,33 @@ async def get_exam_records(
         count_records = await client.run_query(count_query, group_id=group_id)
         total = 0
         if count_records:
-            data = count_records[0] if isinstance(count_records[0], dict) else count_records[0].data()
+            data = (
+                count_records[0]
+                if isinstance(count_records[0], dict)
+                else count_records[0].data()
+            )
             total = data.get("total", 0)
 
-        records = await client.run_query(list_query, group_id=group_id, skip_count=skip_count, limit=limit)
+        records = await client.run_query(
+            list_query, group_id=group_id, skip_count=skip_count, limit=limit
+        )
 
         summaries: List[ExamRecordSummary] = list()
         for record in records or list():
             data = record if isinstance(record, dict) else record.data()
             summaries.append(ExamRecordSummary(**data))
 
-        return ExamRecordListResponse(records=summaries, total=total, page=page, limit=limit)
+        return ExamRecordListResponse(
+            records=summaries, total=total, page=page, limit=limit
+        )
     except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning(f"[Story 6.8] Failed to list exam records: {e}")
         return ExamRecordListResponse(records=list(), total=0, page=page, limit=limit)
 
 
-async def get_exam_record(self, exam_id: str, group_id: str = DEFAULT_GROUP_ID) -> Optional[ExamRecordDetail]:
+async def get_exam_record(
+    self, exam_id: str, group_id: str = DEFAULT_GROUP_ID
+) -> Optional[ExamRecordDetail]:
     """Get a single exam record with full detail. [Story 6.8 AC-7]"""
     from app.clients.neo4j_client import get_neo4j_client
 
@@ -762,12 +816,22 @@ async def get_exam_record(self, exam_id: str, group_id: str = DEFAULT_GROUP_ID) 
             conversation_log=_safe_json_to_list(data.get("conversation_log_json")),
             mastery_changes=_safe_json_to_list(data.get("mastery_changes_json")),
         )
-    except (RuntimeError, ConnectionError, asyncio.TimeoutError, json.JSONDecodeError, ValueError, TypeError, AttributeError) as e:
+    except (
+        RuntimeError,
+        ConnectionError,
+        asyncio.TimeoutError,
+        json.JSONDecodeError,
+        ValueError,
+        TypeError,
+        AttributeError,
+    ) as e:
         logger.error(f"[Story 6.8] Failed to get exam record {exam_id}: {e}")
         return None
 
 
-async def get_records_by_canvas(self, canvas_id: str, group_id: str = DEFAULT_GROUP_ID) -> ExamRecordListResponse:
+async def get_records_by_canvas(
+    self, canvas_id: str, group_id: str = DEFAULT_GROUP_ID
+) -> ExamRecordListResponse:
     """Get all exam records for a specific source canvas. [Story 6.8 AC-6, AC-7]"""
     from app.clients.neo4j_client import get_neo4j_client
 

@@ -96,7 +96,7 @@ class BugTracker:
         endpoint: str,
         error: Exception,
         request_params: dict,
-        user_action: Optional[str] = None
+        user_action: Optional[str] = None,
     ) -> str:
         """
         Log an error to the bug log file.
@@ -135,7 +135,7 @@ class BugTracker:
             error_message=str(error),
             request_params=request_params,
             stack_trace=traceback.format_exc(),
-            user_action=user_action
+            user_action=user_action,
         )
 
         # Append to JSONL file
@@ -148,14 +148,12 @@ class BugTracker:
                 "bug_logged",
                 bug_id=bug_id,
                 endpoint=endpoint,
-                error_type=type(error).__name__
+                error_type=type(error).__name__,
             )
         except OSError as write_error:
             # Don't fail the request if bug logging fails
             logger.error(
-                "bug_log_write_failed",
-                bug_id=bug_id,
-                write_error=str(write_error)
+                "bug_log_write_failed", bug_id=bug_id, write_error=str(write_error)
             )
 
         return bug_id
@@ -197,13 +195,10 @@ class BugTracker:
                             logger.warning(
                                 "bug_log_parse_error",
                                 line_preview=line[:100],
-                                error=str(parse_error)
+                                error=str(parse_error),
                             )
         except OSError as read_error:
-            logger.error(
-                "bug_log_read_failed",
-                error=str(read_error)
-            )
+            logger.error("bug_log_read_failed", error=str(read_error))
             return []
 
         # Return last N records in reverse order (newest first)

@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 try:
     from canvas_utils.session_monitor import (
@@ -29,6 +29,7 @@ try:
         SessionReport,
         SessionStatus,
     )
+
     CANVAS_UTILS_AVAILABLE = True
 except ImportError:
     CANVAS_UTILS_AVAILABLE = False
@@ -36,7 +37,9 @@ except ImportError:
     SessionInfo = Mock
 
 
-@pytest.mark.skipif(not CANVAS_UTILS_AVAILABLE, reason="canvas_utils.session_monitor not available")
+@pytest.mark.skipif(
+    not CANVAS_UTILS_AVAILABLE, reason="canvas_utils.session_monitor not available"
+)
 class TestSessionMonitor:
     """Test suite for SessionMonitor"""
 
@@ -49,10 +52,10 @@ class TestSessionMonitor:
     def sample_session_info(self):
         """Sample session info for testing"""
         return {
-            'canvas_path': 'test_canvas.canvas',
-            'user_id': 'test_user',
-            'model': 'opus-4.1',
-            'start_time': datetime.now().isoformat()
+            "canvas_path": "test_canvas.canvas",
+            "user_id": "test_user",
+            "model": "opus-4.1",
+            "start_time": datetime.now().isoformat(),
         }
 
     @pytest.fixture
@@ -65,9 +68,9 @@ class TestSessionMonitor:
     def test_initialization(self, monitor):
         """Test monitor initialization"""
         assert monitor is not None
-        assert hasattr(monitor, 'active_sessions')
-        assert hasattr(monitor, 'session_history')
-        assert hasattr(monitor, 'health_checker')
+        assert hasattr(monitor, "active_sessions")
+        assert hasattr(monitor, "session_history")
+        assert hasattr(monitor, "health_checker")
         assert len(monitor.active_sessions) == 0
 
     @pytest.mark.asyncio
@@ -81,7 +84,7 @@ class TestSessionMonitor:
         assert session_id in monitor.active_sessions
         session = monitor.active_sessions[session_id]
         assert session.status == SessionStatus.ACTIVE
-        assert session.canvas_path == sample_session_info['canvas_path']
+        assert session.canvas_path == sample_session_info["canvas_path"]
 
     @pytest.mark.asyncio
     async def test_start_monitoring_duplicate(self, monitor, sample_session_info):
@@ -154,10 +157,10 @@ class TestSessionMonitor:
 
         # Update health
         health_data = {
-            'cpu_usage': 50.0,
-            'memory_usage': 60.0,
-            'response_time': 100,
-            'error_count': 0
+            "cpu_usage": 50.0,
+            "memory_usage": 60.0,
+            "response_time": 100,
+            "error_count": 0,
         }
 
         await monitor.update_session_health(session_id, health_data)
@@ -193,7 +196,9 @@ class TestSessionMonitor:
 
         # Record some events
         await monitor.record_event(session_id, "node_added", {"node_id": "node1"})
-        await monitor.record_event(session_id, "explanation_generated", {"doc_id": "doc1"})
+        await monitor.record_event(
+            session_id, "explanation_generated", {"doc_id": "doc1"}
+        )
 
         # Get metrics
         metrics = await monitor.get_session_metrics(session_id)
@@ -213,7 +218,7 @@ class TestSessionMonitor:
         await monitor.start_monitoring(session_id, sample_session_info)
 
         # Mock health check
-        with patch.object(monitor, '_check_session_health') as mock_check:
+        with patch.object(monitor, "_check_session_health") as mock_check:
             mock_check.return_value = asyncio.Future()
             mock_check.return_value.set_result(None)
 
@@ -224,11 +229,13 @@ class TestSessionMonitor:
             mock_check.assert_called_with(session_id)
 
     @pytest.mark.asyncio
-    async def test_auto_save_sessions(self, monitor, sample_session_info, temp_monitor_dir):
+    async def test_auto_save_sessions(
+        self, monitor, sample_session_info, temp_monitor_dir
+    ):
         """Test automatic session saving"""
         session_id = "test_session_001"
 
-        with patch('canvas_utils.session_monitor.SESSION_DATA_PATH', temp_monitor_dir):
+        with patch("canvas_utils.session_monitor.SESSION_DATA_PATH", temp_monitor_dir):
             # Start monitoring
             await monitor.start_monitoring(session_id, sample_session_info)
 
@@ -243,40 +250,40 @@ class TestSessionMonitor:
             assert session_file.exists()
 
             # Verify content
-            with open(session_file, 'r', encoding='utf-8') as f:
+            with open(session_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                assert data['session_id'] == session_id
-                assert len(data['events']) > 0
+                assert data["session_id"] == session_id
+                assert len(data["events"]) > 0
 
     @pytest.mark.asyncio
     async def test_load_session_history(self, monitor, temp_monitor_dir):
         """Test loading session history from disk"""
         # Create a saved session file
         session_data = {
-            'session_id': 'historical_session',
-            'canvas_path': 'old_canvas.canvas',
-            'user_id': 'old_user',
-            'start_time': datetime.now().isoformat(),
-            'events': [
+            "session_id": "historical_session",
+            "canvas_path": "old_canvas.canvas",
+            "user_id": "old_user",
+            "start_time": datetime.now().isoformat(),
+            "events": [
                 {
-                    'type': 'test_event',
-                    'timestamp': datetime.now().isoformat(),
-                    'data': {'test': True}
+                    "type": "test_event",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {"test": True},
                 }
-            ]
+            ],
         }
 
         session_file = Path(temp_monitor_dir) / "historical_session.json"
-        with open(session_file, 'w', encoding='utf-8') as f:
+        with open(session_file, "w", encoding="utf-8") as f:
             json.dump(session_data, f, ensure_ascii=False, indent=2)
 
         # Load history
-        with patch('canvas_utils.session_monitor.SESSION_DATA_PATH', temp_monitor_dir):
+        with patch("canvas_utils.session_monitor.SESSION_DATA_PATH", temp_monitor_dir):
             await monitor.load_session_history()
 
-            assert 'historical_session' in monitor.session_history
-            history = monitor.session_history['historical_session']
-            assert history.canvas_path == 'old_canvas.canvas'
+            assert "historical_session" in monitor.session_history
+            history = monitor.session_history["historical_session"]
+            assert history.canvas_path == "old_canvas.canvas"
             assert len(history.events) == 1
 
     @pytest.mark.asyncio
@@ -289,16 +296,21 @@ class TestSessionMonitor:
 
         # Record various events
         await monitor.record_event(session_id, "node_added", {"node_id": "node1"})
-        await monitor.record_event(session_id, "explanation_generated", {"doc_id": "doc1"})
+        await monitor.record_event(
+            session_id, "explanation_generated", {"doc_id": "doc1"}
+        )
         await monitor.record_event(session_id, "error", {"error": "test error"})
 
         # Update health
-        await monitor.update_session_health(session_id, {
-            'cpu_usage': 75.0,
-            'memory_usage': 80.0,
-            'response_time': 150,
-            'error_count': 1
-        })
+        await monitor.update_session_health(
+            session_id,
+            {
+                "cpu_usage": 75.0,
+                "memory_usage": 80.0,
+                "response_time": 150,
+                "error_count": 1,
+            },
+        )
 
         # Generate report
         report = await monitor.generate_session_report(session_id)
@@ -317,15 +329,12 @@ class TestSessionMonitor:
         old_date = (datetime.now() - timedelta(days=30)).isoformat()
 
         for i in range(3):
-            session_data = {
-                'session_id': f'old_session_{i}',
-                'end_time': old_date
-            }
+            session_data = {"session_id": f"old_session_{i}", "end_time": old_date}
             session_file = Path(temp_monitor_dir) / f"old_session_{i}.json"
-            with open(session_file, 'w', encoding='utf-8') as f:
+            with open(session_file, "w", encoding="utf-8") as f:
                 json.dump(session_data, f)
 
-        with patch('canvas_utils.session_monitor.SESSION_DATA_PATH', temp_monitor_dir):
+        with patch("canvas_utils.session_monitor.SESSION_DATA_PATH", temp_monitor_dir):
             # Cleanup sessions older than 7 days
             cleaned = await monitor.cleanup_old_sessions(days_old=7)
 
@@ -340,20 +349,14 @@ class TestSessionMonitor:
         """Test health score calculation"""
         # Good health
         health_good = SessionHealth(
-            cpu_usage=30.0,
-            memory_usage=40.0,
-            response_time=50,
-            error_count=0
+            cpu_usage=30.0, memory_usage=40.0, response_time=50, error_count=0
         )
         score_good = monitor._calculate_health_score(health_good)
         assert score_good >= 90
 
         # Poor health
         health_poor = SessionHealth(
-            cpu_usage=90.0,
-            memory_usage=85.0,
-            response_time=500,
-            error_count=10
+            cpu_usage=90.0, memory_usage=85.0, response_time=500, error_count=10
         )
         score_poor = monitor._calculate_health_score(health_poor)
         assert score_poor < 50
@@ -365,16 +368,16 @@ class TestSessionMonitor:
         # Create session with known start time
         start_time = datetime.now() - timedelta(minutes=30)
         session_info_copy = sample_session_info.copy()
-        session_info_copy['start_time'] = start_time.isoformat()
+        session_info_copy["start_time"] = start_time.isoformat()
 
         # Add to active sessions (simulating start_monitoring)
         session = SessionInfo(
             session_id=session_id,
-            canvas_path=session_info_copy['canvas_path'],
-            user_id=session_info_copy['user_id'],
-            model=session_info_copy.get('model'),
+            canvas_path=session_info_copy["canvas_path"],
+            user_id=session_info_copy["user_id"],
+            model=session_info_copy.get("model"),
             start_time=start_time,
-            status=SessionStatus.ACTIVE
+            status=SessionStatus.ACTIVE,
         )
         monitor.active_sessions[session_id] = session
 
@@ -392,8 +395,8 @@ class TestSessionMonitor:
         for i in range(5):
             session_id = f"concurrent_session_{i}"
             session_info = sample_session_info.copy()
-            session_info['canvas_path'] = f"canvas_{i}.canvas"
-            session_info['user_id'] = f"user_{i}"
+            session_info["canvas_path"] = f"canvas_{i}.canvas"
+            session_info["user_id"] = f"user_{i}"
 
             await monitor.start_monitoring(session_id, session_info)
             sessions.append(session_id)
@@ -403,9 +406,7 @@ class TestSessionMonitor:
         for session_id in sessions:
             for j in range(3):
                 task = monitor.record_event(
-                    session_id,
-                    f"event_{j}",
-                    {"data": f"test_{j}"}
+                    session_id, f"event_{j}", {"data": f"test_{j}"}
                 )
                 tasks.append(task)
 
@@ -433,7 +434,9 @@ class TestSessionMonitor:
         await monitor.start_monitoring(session_id, sample_session_info)
 
         # Simulate error in event recording
-        with patch.object(monitor, '_save_event_to_disk', side_effect=Exception("Disk error")):
+        with patch.object(
+            monitor, "_save_event_to_disk", side_effect=Exception("Disk error")
+        ):
             # Should not raise exception, but handle gracefully
             result = await monitor.record_event(session_id, "error_event", {})
             assert result  # Event should still be recorded in memory
@@ -444,21 +447,20 @@ class TestSessionMonitor:
     def test_validate_session_info(self, monitor):
         """Test session info validation"""
         # Valid info
-        valid_info = {
-            'canvas_path': 'test.canvas',
-            'user_id': 'test_user'
-        }
+        valid_info = {"canvas_path": "test.canvas", "user_id": "test_user"}
         assert monitor._validate_session_info(valid_info)
 
         # Missing required fields
-        invalid_info = {'user_id': 'test_user'}  # Missing canvas_path
+        invalid_info = {"user_id": "test_user"}  # Missing canvas_path
         assert not monitor._validate_session_info(invalid_info)
 
         # Empty info
         assert not monitor._validate_session_info({})
 
     @pytest.mark.asyncio
-    async def test_export_session_data(self, monitor, sample_session_info, temp_monitor_dir):
+    async def test_export_session_data(
+        self, monitor, sample_session_info, temp_monitor_dir
+    ):
         """Test exporting session data"""
         session_id = "test_session_001"
 
@@ -467,54 +469,54 @@ class TestSessionMonitor:
         await monitor.record_event(session_id, "test_event", {"data": "test"})
 
         # Export data
-        with patch('canvas_utils.session_monitor.SESSION_DATA_PATH', temp_monitor_dir):
+        with patch("canvas_utils.session_monitor.SESSION_DATA_PATH", temp_monitor_dir):
             export_path = await monitor.export_session_data(session_id)
 
             assert export_path is not None
             assert Path(export_path).exists()
 
             # Verify export content
-            with open(export_path, 'r', encoding='utf-8') as f:
+            with open(export_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                assert data['session_id'] == session_id
-                assert 'events' in data
-                assert 'export_timestamp' in data
+                assert data["session_id"] == session_id
+                assert "events" in data
+                assert "export_timestamp" in data
 
     @pytest.mark.asyncio
     async def test_import_session_data(self, monitor, temp_monitor_dir):
         """Test importing session data"""
         # Create export file
         export_data = {
-            'session_id': 'imported_session',
-            'canvas_path': 'imported.canvas',
-            'user_id': 'import_user',
-            'start_time': datetime.now().isoformat(),
-            'events': [
+            "session_id": "imported_session",
+            "canvas_path": "imported.canvas",
+            "user_id": "import_user",
+            "start_time": datetime.now().isoformat(),
+            "events": [
                 {
-                    'type': 'imported_event',
-                    'timestamp': datetime.now().isoformat(),
-                    'data': {'imported': True}
+                    "type": "imported_event",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {"imported": True},
                 }
             ],
-            'export_timestamp': datetime.now().isoformat()
+            "export_timestamp": datetime.now().isoformat(),
         }
 
         export_file = Path(temp_monitor_dir) / "import_session.json"
-        with open(export_file, 'w', encoding='utf-8') as f:
+        with open(export_file, "w", encoding="utf-8") as f:
             json.dump(export_data, f, ensure_ascii=False, indent=2)
 
         # Import data
-        with patch('canvas_utils.session_monitor.SESSION_DATA_PATH', temp_monitor_dir):
+        with patch("canvas_utils.session_monitor.SESSION_DATA_PATH", temp_monitor_dir):
             result = await monitor.import_session_data(str(export_file))
 
             assert result
-            assert 'imported_session' in monitor.session_history
+            assert "imported_session" in monitor.session_history
 
-            history = monitor.session_history['imported_session']
-            assert history.canvas_path == 'imported.canvas'
+            history = monitor.session_history["imported_session"]
+            assert history.canvas_path == "imported.canvas"
             assert len(history.events) == 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run tests when script is executed directly
-    pytest.main([__file__, '-v'])
+    pytest.main([__file__, "-v"])

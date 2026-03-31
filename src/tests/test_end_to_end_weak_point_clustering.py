@@ -24,6 +24,7 @@ from canvas_utils import CanvasBusinessLogic
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def sample_cluster_results() -> Dict:
     """
@@ -39,37 +40,37 @@ def sample_cluster_results() -> Dict:
                 "cluster_id": 42,
                 "concepts": [
                     {"id": 101, "name": "逆否命题", "score": 55, "reviews": 5},
-                    {"id": 102, "name": "充分条件", "score": 58, "reviews": 4}
+                    {"id": 102, "name": "充分条件", "score": 58, "reviews": 4},
                 ],
                 "cluster_score": 56.5,
                 "cluster_size": 2,
-                "recommended_review_urgency": "urgent"
+                "recommended_review_urgency": "urgent",
             },
             {
                 "cluster_id": 88,
                 "concepts": [
                     {"id": 201, "name": "德摩根律", "score": 65, "reviews": 3},
                     {"id": 202, "name": "真值表", "score": 68, "reviews": 3},
-                    {"id": 203, "name": "合取范式", "score": 62, "reviews": 4}
+                    {"id": 203, "name": "合取范式", "score": 62, "reviews": 4},
                 ],
                 "cluster_score": 65.0,
                 "cluster_size": 3,
-                "recommended_review_urgency": "high"
+                "recommended_review_urgency": "high",
             },
             {
                 "cluster_id": 99,
                 "concepts": [
                     {"id": 301, "name": "全称量词", "score": 72, "reviews": 2},
-                    {"id": 302, "name": "存在量词", "score": 75, "reviews": 2}
+                    {"id": 302, "name": "存在量词", "score": 75, "reviews": 2},
                 ],
                 "cluster_score": 73.5,
                 "cluster_size": 2,
-                "recommended_review_urgency": "medium"
-            }
+                "recommended_review_urgency": "medium",
+            },
         ],
         "total_weak_concepts": 7,
         "total_clusters": 3,
-        "timestamp": "2025-01-15T10:30:00"
+        "timestamp": "2025-01-15T10:30:00",
     }
 
 
@@ -82,12 +83,9 @@ def temp_canvas_file(tmp_path) -> str:
     canvas_path = canvas_dir / "离散数学.canvas"
 
     # 创建最小Canvas结构
-    canvas_data = {
-        "nodes": [],
-        "edges": []
-    }
+    canvas_data = {"nodes": [], "edges": []}
 
-    with open(canvas_path, 'w', encoding='utf-8') as f:
+    with open(canvas_path, "w", encoding="utf-8") as f:
         json.dump(canvas_data, f, ensure_ascii=False, indent=2)
 
     return str(canvas_path)
@@ -97,13 +95,12 @@ def temp_canvas_file(tmp_path) -> str:
 # Test Cases - Task 3.3
 # ============================================================================
 
+
 class TestEndToEndWeakPointClustering:
     """端到端测试: 薄弱点聚类完整流程"""
 
     def test_full_workflow_clustering_to_review_canvas(
-        self,
-        temp_canvas_file: str,
-        sample_cluster_results: Dict
+        self, temp_canvas_file: str, sample_cluster_results: Dict
     ):
         """
         测试用例1: 完整流程（Canvas → 聚类结果 → 生成检验白板）
@@ -140,9 +137,7 @@ class TestEndToEndWeakPointClustering:
         assert "薄弱点检验" in review_canvas_path
 
     def test_review_canvas_file_structure_correct(
-        self,
-        temp_canvas_file: str,
-        sample_cluster_results: Dict
+        self, temp_canvas_file: str, sample_cluster_results: Dict
     ):
         """
         测试用例2: 验证检验白板文件结构正确
@@ -163,7 +158,7 @@ class TestEndToEndWeakPointClustering:
 
         # 读取生成的Canvas文件
         review_canvas_path = result["review_canvas_path"]
-        with open(review_canvas_path, 'r', encoding='utf-8') as f:
+        with open(review_canvas_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         # Assert - 验证Canvas结构
@@ -180,9 +175,7 @@ class TestEndToEndWeakPointClustering:
         assert len(canvas_data["edges"]) == 7
 
     def test_community_grouping_with_separators(
-        self,
-        temp_canvas_file: str,
-        sample_cluster_results: Dict
+        self, temp_canvas_file: str, sample_cluster_results: Dict
     ):
         """
         测试用例3: 验证社区概念正确分组（手动检查Canvas JSON）
@@ -205,7 +198,7 @@ class TestEndToEndWeakPointClustering:
 
         # 读取生成的Canvas文件
         review_canvas_path = result["review_canvas_path"]
-        with open(review_canvas_path, 'r', encoding='utf-8') as f:
+        with open(review_canvas_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         # 提取节点
@@ -243,13 +236,15 @@ class TestEndToEndWeakPointClustering:
         assert "当前分数:" in first_question["text"]
 
         # 验证黄色理解节点
-        yellow_nodes = [n for n in nodes if n["color"] == "6" and n["id"].startswith("understanding-")]
+        yellow_nodes = [
+            n
+            for n in nodes
+            if n["color"] == "6" and n["id"].startswith("understanding-")
+        ]
         assert len(yellow_nodes) == 7  # 每个问题配套1个黄色节点
 
     def test_urgency_based_separator_colors(
-        self,
-        temp_canvas_file: str,
-        sample_cluster_results: Dict
+        self, temp_canvas_file: str, sample_cluster_results: Dict
     ):
         """
         测试用例4: 验证紧急度颜色映射正确
@@ -268,17 +263,19 @@ class TestEndToEndWeakPointClustering:
         )
 
         # 读取Canvas
-        with open(result["review_canvas_path"], 'r', encoding='utf-8') as f:
+        with open(result["review_canvas_path"], "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         # 提取分隔符
-        separators = [n for n in canvas_data["nodes"] if n["id"].startswith("separator-")]
+        separators = [
+            n for n in canvas_data["nodes"] if n["id"].startswith("separator-")
+        ]
 
         # 验证紧急度映射
         urgency_color_map = {
-            "urgent": "1",   # 红色
-            "high": "3",     # 紫色
-            "medium": "6"    # 黄色
+            "urgent": "1",  # 红色
+            "high": "3",  # 紫色
+            "medium": "6",  # 黄色
         }
 
         # 社区42 (urgent) → 红色分隔符
@@ -294,9 +291,7 @@ class TestEndToEndWeakPointClustering:
         assert cluster_99_sep["color"] == urgency_color_map["medium"]
 
     def test_performance_full_workflow_under_2_seconds(
-        self,
-        temp_canvas_file: str,
-        sample_cluster_results: Dict
+        self, temp_canvas_file: str, sample_cluster_results: Dict
     ):
         """
         测试用例5: 性能测试 - 完整流程<2秒
@@ -322,10 +317,7 @@ class TestEndToEndWeakPointClustering:
         # 验证返回的generation_time也在合理范围内
         assert result["generation_time"] < 2.0
 
-    def test_backward_compatibility_with_story_4_3(
-        self,
-        temp_canvas_file: str
-    ):
+    def test_backward_compatibility_with_story_4_3(self, temp_canvas_file: str):
         """
         测试用例6: 验证向后兼容性 - Story 4.3原有功能不受影响
 
@@ -341,11 +333,9 @@ class TestEndToEndWeakPointClustering:
         story_4_3_questions = {
             "逻辑基础": [
                 {"question_text": "什么是逆否命题？"},
-                {"question_text": "充分条件如何判断？"}
+                {"question_text": "充分条件如何判断？"},
             ],
-            "集合论": [
-                {"question_text": "德摩根律的应用？"}
-            ]
+            "集合论": [{"question_text": "德摩根律的应用？"}],
         }
 
         # Act
@@ -364,10 +354,7 @@ class TestEndToEndWeakPointClustering:
         assert result["cluster_count"] == 2
         assert result["total_questions"] == 3
 
-    def test_empty_cluster_results_handling(
-        self,
-        temp_canvas_file: str
-    ):
+    def test_empty_cluster_results_handling(self, temp_canvas_file: str):
         """
         测试用例7: 空聚类结果处理
 
@@ -384,7 +371,7 @@ class TestEndToEndWeakPointClustering:
             "clusters": [],
             "total_weak_concepts": 0,
             "total_clusters": 0,
-            "timestamp": "2025-01-15T10:30:00"
+            "timestamp": "2025-01-15T10:30:00",
         }
 
         # Act
@@ -398,17 +385,14 @@ class TestEndToEndWeakPointClustering:
         assert os.path.exists(result["review_canvas_path"])
 
         # 验证Canvas只有说明节点
-        with open(result["review_canvas_path"], 'r', encoding='utf-8') as f:
+        with open(result["review_canvas_path"], "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         # 只有1个说明节点
         assert len(canvas_data["nodes"]) == 1
         assert len(canvas_data["edges"]) == 0
 
-    def test_validation_error_when_both_parameters_none(
-        self,
-        temp_canvas_file: str
-    ):
+    def test_validation_error_when_both_parameters_none(self, temp_canvas_file: str):
         """
         测试用例8: 验证输入参数校验
 
@@ -419,16 +403,15 @@ class TestEndToEndWeakPointClustering:
         logic = CanvasBusinessLogic(temp_canvas_file)
 
         # Act & Assert
-        with pytest.raises(ValueError, match="clustered_questions和cluster_results不能同时为空"):
+        with pytest.raises(
+            ValueError, match="clustered_questions和cluster_results不能同时为空"
+        ):
             logic.generate_review_canvas_file(
-                clustered_questions=None,
-                cluster_results=None
+                clustered_questions=None, cluster_results=None
             )
 
     def test_metadata_in_description_node(
-        self,
-        temp_canvas_file: str,
-        sample_cluster_results: Dict
+        self, temp_canvas_file: str, sample_cluster_results: Dict
     ):
         """
         测试用例9: 验证说明节点元数据完整
@@ -448,11 +431,13 @@ class TestEndToEndWeakPointClustering:
         )
 
         # 读取Canvas
-        with open(result["review_canvas_path"], 'r', encoding='utf-8') as f:
+        with open(result["review_canvas_path"], "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         # 提取说明节点
-        description = [n for n in canvas_data["nodes"] if "薄弱点检验白板" in n.get("text", "")][0]
+        description = [
+            n for n in canvas_data["nodes"] if "薄弱点检验白板" in n.get("text", "")
+        ][0]
 
         # Assert
         assert description["triggerPoint"] == 4
@@ -474,13 +459,12 @@ class TestEndToEndWeakPointClustering:
 # Test Cases - Helper Functions
 # ============================================================================
 
+
 class TestHelperFunctions:
     """测试新增的辅助函数"""
 
     def test_convert_cluster_results_to_questions(
-        self,
-        temp_canvas_file: str,
-        sample_cluster_results: Dict
+        self, temp_canvas_file: str, sample_cluster_results: Dict
     ):
         """
         测试_convert_cluster_results_to_questions()格式转换
@@ -522,13 +506,12 @@ class TestHelperFunctions:
         assert "concept_score" in first_question
 
         # 验证问题文本格式
-        assert "请解释【逆否命题】的核心原理和应用场景" in first_question["question_text"]
+        assert (
+            "请解释【逆否命题】的核心原理和应用场景" in first_question["question_text"]
+        )
         assert "当前分数: 55" in first_question["question_text"]
 
-    def test_generate_weak_point_review_canvas_filename(
-        self,
-        temp_canvas_file: str
-    ):
+    def test_generate_weak_point_review_canvas_filename(self, temp_canvas_file: str):
         """
         测试_generate_weak_point_review_canvas_filename()文件名生成
 
@@ -549,6 +532,7 @@ class TestHelperFunctions:
 
         # 验证日期格式 (YYYYMMDD)
         import re
+
         assert re.search(r"-\d{8}\.canvas$", filename) is not None
 
 

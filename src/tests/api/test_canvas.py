@@ -50,7 +50,9 @@ class TestReadCanvas:
 class TestCreateNode:
     """Tests for POST /api/v1/canvas/{canvas_name}/nodes endpoint."""
 
-    def test_create_node_success(self, client, api_v1_prefix, test_canvas_name, valid_text_node):
+    def test_create_node_success(
+        self, client, api_v1_prefix, test_canvas_name, valid_text_node
+    ):
         """
         Test creating a new node returns 201.
 
@@ -59,8 +61,7 @@ class TestCreateNode:
         """
         node_data = valid_text_node()
         response = client.post(
-            f"{api_v1_prefix}/canvas/{test_canvas_name}/nodes",
-            json=node_data
+            f"{api_v1_prefix}/canvas/{test_canvas_name}/nodes", json=node_data
         )
 
         assert response.status_code == 201
@@ -81,13 +82,14 @@ class TestCreateNode:
         AC: Returns 404 when canvas doesn't exist.
         """
         response = client.post(
-            f"{api_v1_prefix}/canvas/{nonexistent_canvas}/nodes",
-            json=valid_text_node()
+            f"{api_v1_prefix}/canvas/{nonexistent_canvas}/nodes", json=valid_text_node()
         )
 
         assert response.status_code == 404
 
-    def test_create_node_validation_error(self, client, api_v1_prefix, test_canvas_name):
+    def test_create_node_validation_error(
+        self, client, api_v1_prefix, test_canvas_name
+    ):
         """
         Test creating node with invalid data returns 422.
 
@@ -95,8 +97,7 @@ class TestCreateNode:
         """
         invalid_node = {"type": "invalid_type", "x": 100}  # Missing required fields
         response = client.post(
-            f"{api_v1_prefix}/canvas/{test_canvas_name}/nodes",
-            json=invalid_node
+            f"{api_v1_prefix}/canvas/{test_canvas_name}/nodes", json=invalid_node
         )
 
         assert response.status_code == 422
@@ -106,7 +107,9 @@ class TestCreateNode:
 class TestUpdateNode:
     """Tests for PUT /api/v1/canvas/{canvas_name}/nodes/{node_id} endpoint."""
 
-    def test_update_node_success(self, client, api_v1_prefix, test_canvas_name, test_node_id):
+    def test_update_node_success(
+        self, client, api_v1_prefix, test_canvas_name, test_node_id
+    ):
         """
         Test updating existing node returns 200.
 
@@ -116,7 +119,7 @@ class TestUpdateNode:
         update_data = {"text": "更新后的文本", "color": "2"}
         response = client.put(
             f"{api_v1_prefix}/canvas/{test_canvas_name}/nodes/{test_node_id}",
-            json=update_data
+            json=update_data,
         )
 
         assert response.status_code == 200
@@ -124,7 +127,9 @@ class TestUpdateNode:
         assert data["text"] == update_data["text"]
         assert data["color"] == update_data["color"]
 
-    def test_update_node_not_found(self, client, api_v1_prefix, test_canvas_name, nonexistent_node_id):
+    def test_update_node_not_found(
+        self, client, api_v1_prefix, test_canvas_name, nonexistent_node_id
+    ):
         """
         Test updating non-existent node returns 404.
 
@@ -132,7 +137,7 @@ class TestUpdateNode:
         """
         response = client.put(
             f"{api_v1_prefix}/canvas/{test_canvas_name}/nodes/{nonexistent_node_id}",
-            json={"text": "test"}
+            json={"text": "test"},
         )
 
         assert response.status_code == 404
@@ -142,7 +147,9 @@ class TestUpdateNode:
 class TestDeleteNode:
     """Tests for DELETE /api/v1/canvas/{canvas_name}/nodes/{node_id} endpoint."""
 
-    def test_delete_node_success(self, client, api_v1_prefix, test_canvas_name, valid_text_node):
+    def test_delete_node_success(
+        self, client, api_v1_prefix, test_canvas_name, valid_text_node
+    ):
         """
         Test deleting existing node returns 204.
 
@@ -152,8 +159,7 @@ class TestDeleteNode:
         # First create a node to delete
         node_data = valid_text_node(text="节点待删除")
         create_response = client.post(
-            f"{api_v1_prefix}/canvas/{test_canvas_name}/nodes",
-            json=node_data
+            f"{api_v1_prefix}/canvas/{test_canvas_name}/nodes", json=node_data
         )
         assert create_response.status_code == 201
         node_id = create_response.json()["id"]
@@ -165,7 +171,9 @@ class TestDeleteNode:
 
         assert response.status_code == 204
 
-    def test_delete_node_not_found(self, client, api_v1_prefix, test_canvas_name, nonexistent_node_id):
+    def test_delete_node_not_found(
+        self, client, api_v1_prefix, test_canvas_name, nonexistent_node_id
+    ):
         """
         Test deleting non-existent node returns 404.
 
@@ -182,7 +190,9 @@ class TestDeleteNode:
 class TestCreateEdge:
     """Tests for POST /api/v1/canvas/{canvas_name}/edges endpoint."""
 
-    def test_create_edge_success(self, client, api_v1_prefix, test_canvas_name, valid_edge):
+    def test_create_edge_success(
+        self, client, api_v1_prefix, test_canvas_name, valid_edge
+    ):
         """
         Test creating a new edge returns 201.
 
@@ -191,8 +201,7 @@ class TestCreateEdge:
         """
         edge_data = valid_edge()
         response = client.post(
-            f"{api_v1_prefix}/canvas/{test_canvas_name}/edges",
-            json=edge_data
+            f"{api_v1_prefix}/canvas/{test_canvas_name}/edges", json=edge_data
         )
 
         assert response.status_code == 201
@@ -202,7 +211,9 @@ class TestCreateEdge:
         assert data["fromNode"] == edge_data["fromNode"]
         assert data["toNode"] == edge_data["toNode"]
 
-    def test_create_edge_validation_error(self, client, api_v1_prefix, test_canvas_name):
+    def test_create_edge_validation_error(
+        self, client, api_v1_prefix, test_canvas_name
+    ):
         """
         Test creating edge with missing fields returns 422.
 
@@ -210,8 +221,7 @@ class TestCreateEdge:
         """
         invalid_edge = {"fromNode": "node1"}  # Missing toNode
         response = client.post(
-            f"{api_v1_prefix}/canvas/{test_canvas_name}/edges",
-            json=invalid_edge
+            f"{api_v1_prefix}/canvas/{test_canvas_name}/edges", json=invalid_edge
         )
 
         assert response.status_code == 422
@@ -221,7 +231,9 @@ class TestCreateEdge:
 class TestDeleteEdge:
     """Tests for DELETE /api/v1/canvas/{canvas_name}/edges/{edge_id} endpoint."""
 
-    def test_delete_edge_success(self, client, api_v1_prefix, test_canvas_name, valid_edge):
+    def test_delete_edge_success(
+        self, client, api_v1_prefix, test_canvas_name, valid_edge
+    ):
         """
         Test deleting existing edge returns 204.
 
@@ -231,8 +243,7 @@ class TestDeleteEdge:
         # First create an edge to delete
         edge_data = valid_edge()
         create_response = client.post(
-            f"{api_v1_prefix}/canvas/{test_canvas_name}/edges",
-            json=edge_data
+            f"{api_v1_prefix}/canvas/{test_canvas_name}/edges", json=edge_data
         )
         assert create_response.status_code == 201
         edge_id = create_response.json()["id"]

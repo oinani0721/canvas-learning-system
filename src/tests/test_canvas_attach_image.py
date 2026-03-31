@@ -7,12 +7,11 @@ Verified from Story 6.1:
 - AC 6.1.3: 图片元数据存储
 """
 
-import pytest
-from copy import deepcopy
-
 # Import the module under test
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -35,7 +34,7 @@ class TestAttachImage:
                     "y": 0,
                     "width": 200,
                     "height": 100,
-                    "text": "示例节点"
+                    "text": "示例节点",
                 },
                 {
                     "id": "text-def456",
@@ -44,18 +43,16 @@ class TestAttachImage:
                     "y": 0,
                     "width": 200,
                     "height": 100,
-                    "text": "第二个节点"
-                }
+                    "text": "第二个节点",
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
     def test_attach_png_image(self, sample_canvas_data):
         """Test attaching PNG image to node (AC 6.1.1)."""
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "images/diagram.png"
+            sample_canvas_data, "text-abc123", "images/diagram.png"
         )
 
         assert attachment is not None
@@ -74,9 +71,7 @@ class TestAttachImage:
     def test_attach_jpg_image(self, sample_canvas_data):
         """Test attaching JPG image (AC 6.1.1)."""
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "photo.jpg"
+            sample_canvas_data, "text-abc123", "photo.jpg"
         )
 
         assert attachment["format"] == "jpg"
@@ -85,9 +80,7 @@ class TestAttachImage:
     def test_attach_jpeg_image(self, sample_canvas_data):
         """Test attaching JPEG image (AC 6.1.1)."""
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "photo.jpeg"
+            sample_canvas_data, "text-abc123", "photo.jpeg"
         )
 
         assert attachment["format"] == "jpeg"
@@ -95,9 +88,7 @@ class TestAttachImage:
     def test_attach_gif_image(self, sample_canvas_data):
         """Test attaching GIF image (AC 6.1.1)."""
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "animation.gif"
+            sample_canvas_data, "text-abc123", "animation.gif"
         )
 
         assert attachment["format"] == "gif"
@@ -105,9 +96,7 @@ class TestAttachImage:
     def test_attach_svg_image(self, sample_canvas_data):
         """Test attaching SVG image (AC 6.1.1)."""
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "icon.svg"
+            sample_canvas_data, "text-abc123", "icon.svg"
         )
 
         assert attachment["format"] == "svg"
@@ -120,7 +109,7 @@ class TestAttachImage:
             sample_canvas_data,
             "text-abc123",
             "diagram.png",
-            thumbnail_base64=thumbnail_b64
+            thumbnail_base64=thumbnail_b64,
         )
 
         assert "thumbnail" in attachment
@@ -133,14 +122,11 @@ class TestAttachImage:
             "height": 150,
             "format": "png",
             "file_size": 1024,
-            "mime_type": "image/png"
+            "mime_type": "image/png",
         }
 
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "diagram.png",
-            metadata=metadata
+            sample_canvas_data, "text-abc123", "diagram.png", metadata=metadata
         )
 
         assert "metadata" in attachment
@@ -150,37 +136,17 @@ class TestAttachImage:
 
     def test_attach_multiple_images(self, sample_canvas_data):
         """Test attaching multiple images to same node."""
-        CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "image1.png"
-        )
-        CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "image2.jpg"
-        )
-        CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "image3.gif"
-        )
+        CanvasJSONOperator.attach_image(sample_canvas_data, "text-abc123", "image1.png")
+        CanvasJSONOperator.attach_image(sample_canvas_data, "text-abc123", "image2.jpg")
+        CanvasJSONOperator.attach_image(sample_canvas_data, "text-abc123", "image3.gif")
 
         node = sample_canvas_data["nodes"][0]
         assert len(node["attachments"]) == 3
 
     def test_attach_image_to_different_nodes(self, sample_canvas_data):
         """Test attaching images to different nodes."""
-        CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "image1.png"
-        )
-        CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-def456",
-            "image2.png"
-        )
+        CanvasJSONOperator.attach_image(sample_canvas_data, "text-abc123", "image1.png")
+        CanvasJSONOperator.attach_image(sample_canvas_data, "text-def456", "image2.png")
 
         assert len(sample_canvas_data["nodes"][0]["attachments"]) == 1
         assert len(sample_canvas_data["nodes"][1]["attachments"]) == 1
@@ -189,44 +155,34 @@ class TestAttachImage:
         """Test attaching image to non-existent node raises KeyError."""
         with pytest.raises(KeyError, match="节点不存在"):
             CanvasJSONOperator.attach_image(
-                sample_canvas_data,
-                "nonexistent-node",
-                "image.png"
+                sample_canvas_data, "nonexistent-node", "image.png"
             )
 
     def test_attach_unsupported_format(self, sample_canvas_data):
         """Test attaching unsupported format raises ValueError."""
         with pytest.raises(ValueError, match="不支持的图片格式"):
             CanvasJSONOperator.attach_image(
-                sample_canvas_data,
-                "text-abc123",
-                "document.pdf"
+                sample_canvas_data, "text-abc123", "document.pdf"
             )
 
     def test_attach_unsupported_bmp(self, sample_canvas_data):
         """Test BMP format is not supported."""
         with pytest.raises(ValueError, match="不支持的图片格式"):
             CanvasJSONOperator.attach_image(
-                sample_canvas_data,
-                "text-abc123",
-                "image.bmp"
+                sample_canvas_data, "text-abc123", "image.bmp"
             )
 
     def test_attach_unsupported_webp(self, sample_canvas_data):
         """Test WebP format is not supported."""
         with pytest.raises(ValueError, match="不支持的图片格式"):
             CanvasJSONOperator.attach_image(
-                sample_canvas_data,
-                "text-abc123",
-                "image.webp"
+                sample_canvas_data, "text-abc123", "image.webp"
             )
 
     def test_attach_image_case_insensitive_extension(self, sample_canvas_data):
         """Test extension matching is case insensitive."""
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "IMAGE.PNG"
+            sample_canvas_data, "text-abc123", "IMAGE.PNG"
         )
 
         assert attachment["format"] == "png"
@@ -234,27 +190,22 @@ class TestAttachImage:
     def test_attach_image_has_created_at(self, sample_canvas_data):
         """Test attachment has created_at timestamp."""
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "image.png"
+            sample_canvas_data, "text-abc123", "image.png"
         )
 
         assert "created_at" in attachment
         # Verify it's a valid ISO format timestamp
         from datetime import datetime
+
         datetime.fromisoformat(attachment["created_at"])
 
     def test_attach_image_unique_ids(self, sample_canvas_data):
         """Test each attachment gets unique ID."""
         att1 = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "image1.png"
+            sample_canvas_data, "text-abc123", "image1.png"
         )
         att2 = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "image2.png"
+            sample_canvas_data, "text-abc123", "image2.png"
         )
 
         assert att1["id"] != att2["id"]
@@ -262,9 +213,7 @@ class TestAttachImage:
     def test_attach_image_with_path_containing_spaces(self, sample_canvas_data):
         """Test attaching image with spaces in path."""
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "my images/test file.png"
+            sample_canvas_data, "text-abc123", "my images/test file.png"
         )
 
         assert attachment["path"] == "my images/test file.png"
@@ -272,9 +221,7 @@ class TestAttachImage:
     def test_attach_image_with_absolute_path(self, sample_canvas_data):
         """Test attaching image with absolute path."""
         attachment = CanvasJSONOperator.attach_image(
-            sample_canvas_data,
-            "text-abc123",
-            "/home/user/images/photo.jpg"
+            sample_canvas_data, "text-abc123", "/home/user/images/photo.jpg"
         )
 
         assert attachment["path"] == "/home/user/images/photo.jpg"
@@ -297,26 +244,24 @@ class TestDetachImage:
                     "attachments": [
                         {"id": "img-11111111", "path": "image1.png", "type": "image"},
                         {"id": "img-22222222", "path": "image2.jpg", "type": "image"},
-                        {"id": "img-33333333", "path": "image3.gif", "type": "image"}
-                    ]
+                        {"id": "img-33333333", "path": "image3.gif", "type": "image"},
+                    ],
                 },
                 {
                     "id": "text-def456",
                     "type": "text",
                     "x": 300,
                     "y": 0,
-                    "text": "节点2"
-                }
+                    "text": "节点2",
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
     def test_detach_by_attachment_id(self, canvas_with_attachments):
         """Test removing attachment by ID."""
         removed = CanvasJSONOperator.detach_image(
-            canvas_with_attachments,
-            "text-abc123",
-            attachment_id="img-22222222"
+            canvas_with_attachments, "text-abc123", attachment_id="img-22222222"
         )
 
         assert removed == 1
@@ -331,9 +276,7 @@ class TestDetachImage:
     def test_detach_by_image_path(self, canvas_with_attachments):
         """Test removing attachment by path."""
         removed = CanvasJSONOperator.detach_image(
-            canvas_with_attachments,
-            "text-abc123",
-            image_path="image1.png"
+            canvas_with_attachments, "text-abc123", image_path="image1.png"
         )
 
         assert removed == 1
@@ -345,8 +288,7 @@ class TestDetachImage:
     def test_detach_all_attachments(self, canvas_with_attachments):
         """Test removing all attachments when no ID/path specified."""
         removed = CanvasJSONOperator.detach_image(
-            canvas_with_attachments,
-            "text-abc123"
+            canvas_with_attachments, "text-abc123"
         )
 
         assert removed == 3
@@ -357,19 +299,13 @@ class TestDetachImage:
         """Test that empty attachments array is removed from node."""
         # Remove all attachments one by one
         CanvasJSONOperator.detach_image(
-            canvas_with_attachments,
-            "text-abc123",
-            attachment_id="img-11111111"
+            canvas_with_attachments, "text-abc123", attachment_id="img-11111111"
         )
         CanvasJSONOperator.detach_image(
-            canvas_with_attachments,
-            "text-abc123",
-            attachment_id="img-22222222"
+            canvas_with_attachments, "text-abc123", attachment_id="img-22222222"
         )
         CanvasJSONOperator.detach_image(
-            canvas_with_attachments,
-            "text-abc123",
-            attachment_id="img-33333333"
+            canvas_with_attachments, "text-abc123", attachment_id="img-33333333"
         )
 
         node = canvas_with_attachments["nodes"][0]
@@ -378,16 +314,13 @@ class TestDetachImage:
     def test_detach_from_nonexistent_node(self, canvas_with_attachments):
         """Test detaching from non-existent node raises KeyError."""
         with pytest.raises(KeyError, match="节点不存在"):
-            CanvasJSONOperator.detach_image(
-                canvas_with_attachments,
-                "nonexistent-node"
-            )
+            CanvasJSONOperator.detach_image(canvas_with_attachments, "nonexistent-node")
 
     def test_detach_from_node_without_attachments(self, canvas_with_attachments):
         """Test detaching from node without attachments returns 0."""
         removed = CanvasJSONOperator.detach_image(
             canvas_with_attachments,
-            "text-def456"  # This node has no attachments
+            "text-def456",  # This node has no attachments
         )
 
         assert removed == 0
@@ -395,9 +328,7 @@ class TestDetachImage:
     def test_detach_nonexistent_attachment_id(self, canvas_with_attachments):
         """Test detaching non-existent attachment ID."""
         removed = CanvasJSONOperator.detach_image(
-            canvas_with_attachments,
-            "text-abc123",
-            attachment_id="img-nonexistent"
+            canvas_with_attachments, "text-abc123", attachment_id="img-nonexistent"
         )
 
         assert removed == 0
@@ -407,9 +338,7 @@ class TestDetachImage:
     def test_detach_nonexistent_image_path(self, canvas_with_attachments):
         """Test detaching non-existent image path."""
         removed = CanvasJSONOperator.detach_image(
-            canvas_with_attachments,
-            "text-abc123",
-            image_path="nonexistent.png"
+            canvas_with_attachments, "text-abc123", image_path="nonexistent.png"
         )
 
         assert removed == 0
@@ -424,16 +353,8 @@ class TestAttachDetachIntegration:
     def empty_canvas(self):
         """Create empty canvas data."""
         return {
-            "nodes": [
-                {
-                    "id": "node-1",
-                    "type": "text",
-                    "x": 0,
-                    "y": 0,
-                    "text": "Test"
-                }
-            ],
-            "edges": []
+            "nodes": [{"id": "node-1", "type": "text", "x": 0, "y": 0, "text": "Test"}],
+            "edges": [],
         }
 
     def test_attach_then_detach_by_id(self, empty_canvas):
@@ -444,7 +365,7 @@ class TestAttachDetachIntegration:
             "node-1",
             "test.png",
             thumbnail_base64="base64data",
-            metadata={"width": 100, "height": 100}
+            metadata={"width": 100, "height": 100},
         )
 
         # Verify attached
@@ -453,9 +374,7 @@ class TestAttachDetachIntegration:
 
         # Detach by ID
         removed = CanvasJSONOperator.detach_image(
-            empty_canvas,
-            "node-1",
-            attachment_id=attachment["id"]
+            empty_canvas, "node-1", attachment_id=attachment["id"]
         )
 
         # Verify detached
@@ -465,17 +384,11 @@ class TestAttachDetachIntegration:
     def test_attach_then_detach_by_path(self, empty_canvas):
         """Test complete attach-detach workflow by path."""
         # Attach
-        CanvasJSONOperator.attach_image(
-            empty_canvas,
-            "node-1",
-            "my_image.png"
-        )
+        CanvasJSONOperator.attach_image(empty_canvas, "node-1", "my_image.png")
 
         # Detach by path
         removed = CanvasJSONOperator.detach_image(
-            empty_canvas,
-            "node-1",
-            image_path="my_image.png"
+            empty_canvas, "node-1", image_path="my_image.png"
         )
 
         assert removed == 1
@@ -492,9 +405,7 @@ class TestAttachDetachIntegration:
 
         # Detach one
         CanvasJSONOperator.detach_image(
-            empty_canvas,
-            "node-1",
-            attachment_id=att2["id"]
+            empty_canvas, "node-1", attachment_id=att2["id"]
         )
 
         assert len(empty_canvas["nodes"][0]["attachments"]) == 2

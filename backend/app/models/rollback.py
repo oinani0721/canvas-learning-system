@@ -176,9 +176,7 @@ class SnapshotResponse(BaseModel):
     timestamp: datetime = Field(..., description="创建时间戳")
     type: SnapshotTypeEnum = Field(..., description="快照类型")
     last_operation_id: Optional[str] = Field(None, description="关联的最后操作ID")
-    metadata: SnapshotMetadataResponse = Field(
-        default_factory=SnapshotMetadataResponse
-    )
+    metadata: SnapshotMetadataResponse = Field(default_factory=SnapshotMetadataResponse)
 
 
 class SnapshotListResponse(BaseModel):

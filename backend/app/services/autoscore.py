@@ -142,16 +142,24 @@ class AutoScorer:
                 question_id=question_id,
                 evidence_points=["Input blocked by safety filter"],
                 concept_accuracy=RubricDimension(
-                    score=0, justification="Safety filter blocked input", low_confidence=True
+                    score=0,
+                    justification="Safety filter blocked input",
+                    low_confidence=True,
                 ),
                 reasoning_quality=RubricDimension(
-                    score=0, justification="Safety filter blocked input", low_confidence=True
+                    score=0,
+                    justification="Safety filter blocked input",
+                    low_confidence=True,
                 ),
                 knowledge_coverage=RubricDimension(
-                    score=0, justification="Safety filter blocked input", low_confidence=True
+                    score=0,
+                    justification="Safety filter blocked input",
+                    low_confidence=True,
                 ),
                 knowledge_integration=RubricDimension(
-                    score=0, justification="Safety filter blocked input", low_confidence=True
+                    score=0,
+                    justification="Safety filter blocked input",
+                    low_confidence=True,
                 ),
                 overall_score=0,
                 grade=1,
@@ -219,7 +227,9 @@ class AutoScorer:
         # Story 6.9: Scoring faithfulness deep check (AC-1 through AC-4)
         # Runs asynchronously after scoring; gates SCORE_SUBMITTED event emission.
         try:
-            from app.services.scoring_faithfulness import get_scoring_faithfulness_checker
+            from app.services.scoring_faithfulness import (
+                get_scoring_faithfulness_checker,
+            )
 
             checker = get_scoring_faithfulness_checker()
             faith_result = await checker.run_full_check(result, conversation_segment)
@@ -231,7 +241,9 @@ class AutoScorer:
             result.faithfulness_details = faith_result.to_dict()
             result.verified = faith_result.faithfulness_passed
         except Exception as faith_err:
-            logger.warning(f"[Story 6.9] Scoring faithfulness check failed (non-fatal): {faith_err}")
+            logger.warning(
+                f"[Story 6.9] Scoring faithfulness check failed (non-fatal): {faith_err}"
+            )
             # On failure, default to verified=True (don't block scoring pipeline)
 
         logger.info(
@@ -242,7 +254,9 @@ class AutoScorer:
 
         return result
 
-    async def _extract_evidence(self, question_text: str, student_answer: str) -> Dict[str, Any]:
+    async def _extract_evidence(
+        self, question_text: str, student_answer: str
+    ) -> Dict[str, Any]:
         """Stage 1: Extract evidence from student response.
 
         Independent LLM call to avoid bias in scoring stage.
@@ -317,7 +331,9 @@ class AutoScorer:
                 "all_evidence": [f"Evidence extraction failed: {e}"],
             }
 
-    async def _score_with_rubric(self, evidence: Dict[str, Any], sample_index: int) -> Dict[str, int]:
+    async def _score_with_rubric(
+        self, evidence: Dict[str, Any], sample_index: int
+    ) -> Dict[str, int]:
         """Stage 2: Score on 4-dimension rubric (single sample).
 
         Each call is independent with temperature > 0 for diversity.
@@ -351,7 +367,10 @@ class AutoScorer:
             response = await acompletion(
                 model=model,
                 messages=[
-                    {"role": "system", "content": "You are an academic rubric scorer. Respond in valid JSON only."},
+                    {
+                        "role": "system",
+                        "content": "You are an academic rubric scorer. Respond in valid JSON only.",
+                    },
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,  # Slight diversity for self-consistency
@@ -375,15 +394,21 @@ class AutoScorer:
                     score = 0
                 dimension_scores[dim] = max(0, min(3, score))
 
-            logger.debug(f"[Story 6.4] Rubric sample {sample_index}: {dimension_scores}")
+            logger.debug(
+                f"[Story 6.4] Rubric sample {sample_index}: {dimension_scores}"
+            )
             return dimension_scores
 
         except Exception as e:
-            logger.error(f"[Story 6.4] Stage 2 rubric scoring failed (sample {sample_index}): {e}")
+            logger.error(
+                f"[Story 6.4] Stage 2 rubric scoring failed (sample {sample_index}): {e}"
+            )
             # Conservative scoring on failure
             return dict.fromkeys(RUBRIC_DIMENSIONS, 1)
 
-    def _majority_vote(self, samples: List[Dict[str, int]]) -> tuple[Dict[str, int], List[str]]:
+    def _majority_vote(
+        self, samples: List[Dict[str, int]]
+    ) -> tuple[Dict[str, int], List[str]]:
         """Apply majority vote across 3 samples per dimension.
 
         Story 6.4 AC-3: If max-min > 1 for any dimension, mark as low-confidence.

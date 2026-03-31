@@ -5,10 +5,11 @@
 用于记录 Neo4j/LanceDB/Graphiti 连接状态和错误，
 方便通过前端 UI 查看和调试。
 """
+
 import logging
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from datetime import datetime
 
 
 def setup_memory_system_logger() -> logging.Logger:
@@ -41,14 +42,14 @@ def setup_memory_system_logger() -> logging.Logger:
         log_file,
         maxBytes=10 * 1024 * 1024,  # 10MB
         backupCount=14,
-        encoding='utf-8'
+        encoding="utf-8",
     )
     file_handler.setLevel(logging.DEBUG)
 
     # 日志格式
     formatter = logging.Formatter(
         "[%(asctime)s] | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     file_handler.setFormatter(formatter)
 
@@ -70,7 +71,9 @@ memory_logger = setup_memory_system_logger()
 # 便捷函数
 def log_neo4j_init(uri: str, pool_size: int, timeout: float):
     """记录 Neo4j 初始化"""
-    memory_logger.info(f"NEO4J_INIT | uri={uri} | pool_size={pool_size} | timeout={timeout}s")
+    memory_logger.info(
+        f"NEO4J_INIT | uri={uri} | pool_size={pool_size} | timeout={timeout}s"
+    )
 
 
 def log_neo4j_auth_failed(uri: str, error: str):
@@ -86,7 +89,9 @@ def log_neo4j_connection_failed(uri: str, error: str):
 def log_neo4j_health_check(status: str, latency_ms: float = None, error: str = None):
     """记录 Neo4j 健康检查结果"""
     if status == "success":
-        memory_logger.info(f"NEO4J_HEALTH_CHECK | status=SUCCESS | latency={latency_ms:.2f}ms")
+        memory_logger.info(
+            f"NEO4J_HEALTH_CHECK | status=SUCCESS | latency={latency_ms:.2f}ms"
+        )
     else:
         memory_logger.warning(f"NEO4J_HEALTH_CHECK | status=FAILED | error={error}")
 
@@ -101,7 +106,6 @@ def log_neo4j_query_failed(query: str, error: str):
     # 截断长查询
     query_preview = query[:100] + "..." if len(query) > 100 else query
     memory_logger.error(f"NEO4J_QUERY_FAILED | query={query_preview} | error={error}")
-
 
 
 def log_lancedb_status(status: str, path: str = None, error: str = None):

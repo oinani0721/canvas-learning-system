@@ -19,7 +19,6 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
 from app.services.memory_service import MemoryService
 
@@ -111,7 +110,9 @@ class TestAC31A24_PaginationAndFiltering:
             svc2 = MemoryService(neo4j_client=client)
             await svc2.initialize()
             result = await svc2.get_learning_history(
-                user_id=user_id, page=1, page_size=2,
+                user_id=user_id,
+                page=1,
+                page_size=2,
             )
 
             assert result["page"] == 1
@@ -137,7 +138,9 @@ class TestAC31A24_PaginationAndFiltering:
             svc2 = MemoryService(neo4j_client=client)
             await svc2.initialize()
             result = await svc2.get_learning_history(
-                user_id=user_id, page=2, page_size=2,
+                user_id=user_id,
+                page=2,
+                page_size=2,
             )
 
             assert result["page"] == 2
@@ -162,7 +165,9 @@ class TestAC31A24_PaginationAndFiltering:
             svc2 = MemoryService(neo4j_client=client)
             await svc2.initialize()
             result = await svc2.get_learning_history(
-                user_id=user_id, page=1, page_size=2,
+                user_id=user_id,
+                page=1,
+                page_size=2,
             )
 
             assert result["total"] >= 5
@@ -187,7 +192,9 @@ class TestAC31A24_PaginationAndFiltering:
             svc2 = MemoryService(neo4j_client=client)
             await svc2.initialize()
             result = await svc2.get_learning_history(
-                user_id=user_id, page=1, page_size=2,
+                user_id=user_id,
+                page=1,
+                page_size=2,
             )
 
             # 5+ items / 2 per page = at least 3 pages
@@ -212,7 +219,9 @@ class TestAC31A24_PaginationAndFiltering:
             svc2 = MemoryService(neo4j_client=client)
             await svc2.initialize()
             result = await svc2.get_learning_history(
-                user_id=user_id, page=3, page_size=2,
+                user_id=user_id,
+                page=3,
+                page_size=2,
             )
 
             # 5 items, page 3 with size 2 -> 1 remaining item (may be more from memory merge)
@@ -286,7 +295,8 @@ class TestAC31A24_PaginationAndFiltering:
             svc2 = MemoryService(neo4j_client=client)
             await svc2.initialize()
             result = await svc2.get_learning_history(
-                user_id=user_id, concept=f"{prefix}matrix",
+                user_id=user_id,
+                concept=f"{prefix}matrix",
             )
 
             concepts = [str(i.get("concept", "")) for i in result["items"]]
@@ -337,7 +347,8 @@ class TestAC31A24_PaginationAndFiltering:
             svc2 = MemoryService(neo4j_client=client)
             await svc2.initialize()
             result = await svc2.get_learning_history(
-                user_id=user_id, subject=f"{prefix}math_subject",
+                user_id=user_id,
+                subject=f"{prefix}math_subject",
             )
 
             concepts = [str(i.get("concept", "")) for i in result["items"]]
@@ -425,7 +436,9 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 start_date=datetime(2020, 1, 1, tzinfo=timezone.utc),
             )
-            include_concepts = [str(i.get("concept", "")) for i in result_include["items"]]
+            include_concepts = [
+                str(i.get("concept", "")) for i in result_include["items"]
+            ]
             assert any("recent_concept" in c for c in include_concepts), (
                 f"Past start_date should include recent records, got: {include_concepts}"
             )
@@ -435,7 +448,9 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 start_date=datetime(2099, 1, 1, tzinfo=timezone.utc),
             )
-            exclude_concepts = [str(i.get("concept", "")) for i in result_exclude["items"]]
+            exclude_concepts = [
+                str(i.get("concept", "")) for i in result_exclude["items"]
+            ]
             assert not any("recent_concept" in c for c in exclude_concepts), (
                 f"Far-future start_date should exclude our record, got: {exclude_concepts}"
             )
@@ -445,7 +460,9 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 start_date=datetime(2099, 1, 1, tzinfo=timezone.utc),
             )
-            assert len(raw_exclude) == 0, "Neo4j should return 0 with far-future start_date"
+            assert len(raw_exclude) == 0, (
+                "Neo4j should return 0 with far-future start_date"
+            )
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -481,7 +498,9 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 end_date=datetime(2099, 12, 31, tzinfo=timezone.utc),
             )
-            include_concepts = [str(i.get("concept", "")) for i in result_include["items"]]
+            include_concepts = [
+                str(i.get("concept", "")) for i in result_include["items"]
+            ]
             assert any("todays_concept" in c for c in include_concepts), (
                 f"Far-future end_date should include our record, got: {include_concepts}"
             )
@@ -491,7 +510,9 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 end_date=datetime(2000, 1, 1, tzinfo=timezone.utc),
             )
-            exclude_concepts = [str(i.get("concept", "")) for i in result_exclude["items"]]
+            exclude_concepts = [
+                str(i.get("concept", "")) for i in result_exclude["items"]
+            ]
             assert not any("todays_concept" in c for c in exclude_concepts), (
                 f"Past end_date should exclude our record, got: {exclude_concepts}"
             )
@@ -595,7 +616,9 @@ class TestAC31A24_PaginationAndFiltering:
             u1_concepts = [str(i.get("concept", "")) for i in result_u1["items"]]
             u2_concepts = [str(i.get("concept", "")) for i in result_u2["items"]]
 
-            assert any("my_concept" in c for c in u1_concepts), "user1 should see my_concept"
+            assert any("my_concept" in c for c in u1_concepts), (
+                "user1 should see my_concept"
+            )
             assert not any("their_concept" in c for c in u1_concepts), (
                 "user1 should NOT see user2's data"
             )
@@ -683,7 +706,9 @@ class TestAC31A24_PaginationAndFiltering:
 
             # Page 100 with 5 records should return nothing
             result = await svc2.get_learning_history(
-                user_id=user_id, page=100, page_size=2,
+                user_id=user_id,
+                page=100,
+                page_size=2,
             )
 
             assert len(result["items"]) == 0, "Page beyond total should return no items"

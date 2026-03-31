@@ -28,7 +28,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 import yaml
 
-sys.path.append('..')
+sys.path.append("..")
 
 from context7_technology_validator import (
     Context7TechnologyValidator,
@@ -37,7 +37,11 @@ from context7_technology_validator import (
     create_context7_validator,
     run_context7_validation,
 )
-from monitoring_dashboard import DashboardConfig, MonitoringDashboard, create_monitoring_dashboard
+from monitoring_dashboard import (
+    DashboardConfig,
+    MonitoringDashboard,
+    create_monitoring_dashboard,
+)
 from technical_validation_monitoring_system import (
     SystemHealthMetrics,
     TechnicalValidationMonitoringSystem,
@@ -59,17 +63,17 @@ class TestTechnicalValidationMonitoringSystem:
                 "monitoring": {
                     "enabled": True,
                     "monitoring_interval_seconds": 5,
-                    "data_retention_days": 7
+                    "data_retention_days": 7,
                 },
                 "context7_validations": {
                     "confidence_threshold": 7.0,
                     "validated_technologies": {
                         "test_tech": {"expected_confidence": 8.0}
-                    }
-                }
+                    },
+                },
             }
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 yaml.dump(test_config, f)
 
             yield str(config_path)
@@ -219,7 +223,7 @@ class TestTechnicalValidationMonitoringSystem:
             component_name="Test Component",
             health_score=85.0,
             status="good",
-            key_metrics={"metric1": 100.0}
+            key_metrics={"metric1": 100.0},
         )
 
         result = await monitoring_system.generate_health_assessment()
@@ -253,7 +257,7 @@ class TestTechnicalValidationMonitoringSystem:
         alert_config = {
             "enabled": True,
             "alert_levels": ["critical", "warning"],
-            "performance_degradation": {"threshold_percentage": 25}
+            "performance_degradation": {"threshold_percentage": 25},
         }
 
         success = monitoring_system.setup_alert_system(alert_config)
@@ -278,7 +282,10 @@ class TestTechnicalValidationMonitoringSystem:
 
         assert success is True
         assert monitoring_system.config["predictive_maintenance"]["enabled"] is True
-        assert monitoring_system.config["predictive_maintenance"]["failure_prediction"] is True
+        assert (
+            monitoring_system.config["predictive_maintenance"]["failure_prediction"]
+            is True
+        )
 
     def test_monitoring_summary(self, monitoring_system):
         """测试监控摘要"""
@@ -314,7 +321,9 @@ class TestTechnicalValidationMonitoringSystem:
         assert isinstance(system, TechnicalValidationMonitoringSystem)
 
         # 测试run_quick_health_check
-        with patch('technical_validation_monitoring_system.create_technical_monitoring_system') as mock_create:
+        with patch(
+            "technical_validation_monitoring_system.create_technical_monitoring_system"
+        ) as mock_create:
             mock_system = AsyncMock()
             mock_system.run_comprehensive_validation.return_value = {"test": "result"}
             mock_create.return_value = mock_system
@@ -451,7 +460,11 @@ class TestContext7TechnologyValidator:
 
         for tech, validation_result in result.items():
             assert isinstance(validation_result, Context7ValidationResult)
-            assert validation_result.technology_name in ["Graphiti", "MCP Memory Service", "aiomultiprocess"]
+            assert validation_result.technology_name in [
+                "Graphiti",
+                "MCP Memory Service",
+                "aiomultiprocess",
+            ]
 
     def test_risk_trend_analysis(self, validator):
         """测试风险趋势分析"""
@@ -475,7 +488,7 @@ class TestContext7TechnologyValidator:
         risk_assessment = {
             "risk_details": [
                 {"probability": 0.5, "impact_score": 0.8},
-                {"probability": 0.3, "impact_score": 0.6}
+                {"probability": 0.3, "impact_score": 0.6},
             ]
         }
 
@@ -493,9 +506,13 @@ class TestContext7TechnologyValidator:
         assert validator.confidence_threshold == 8.0
 
         # 测试run_context7_validation
-        with patch('context7_technology_validator.create_context7_validator') as mock_create:
+        with patch(
+            "context7_technology_validator.create_context7_validator"
+        ) as mock_create:
             mock_validator = AsyncMock()
-            mock_validator.run_comprehensive_validation.return_value = {"test": "result"}
+            mock_validator.run_comprehensive_validation.return_value = {
+                "test": "result"
+            }
             mock_create.return_value = mock_validator
 
             result = await run_context7_validation()
@@ -536,7 +553,7 @@ class TestMonitoringDashboard:
             "performance_charts",
             "alerts_timeline",
             "technical_debt",
-            "component_health"
+            "component_health",
         ]
 
         for expected_panel in expected_panels:
@@ -583,8 +600,7 @@ class TestMonitoringDashboard:
 
         # 获取特定面板数据
         panel_data = await dashboard.get_dashboard_data(
-            config.dashboard_id,
-            "system_overview"
+            config.dashboard_id, "system_overview"
         )
 
         assert "system_overview" in panel_data
@@ -686,7 +702,9 @@ class TestMonitoringDashboard:
         session_id = dashboard.create_dashboard_session(config.dashboard_id)
 
         # 模拟过期会话
-        dashboard.active_sessions[session_id]["last_activity"] = datetime.now() - timedelta(hours=25)
+        dashboard.active_sessions[session_id]["last_activity"] = (
+            datetime.now() - timedelta(hours=25)
+        )
 
         # 清理过期会话
         dashboard.cleanup_expired_sessions(max_inactive_hours=24)
@@ -737,7 +755,9 @@ class TestMonitoringDashboard:
 
         # 测试不存在的面板
         with pytest.raises(ValueError):
-            await dashboard.get_dashboard_data(config.dashboard_id, "non_existent_panel")
+            await dashboard.get_dashboard_data(
+                config.dashboard_id, "non_existent_panel"
+            )
 
     @pytest.mark.asyncio
     async def test_convenience_function(self):
@@ -763,13 +783,15 @@ class TestIntegration:
 
         # 将验证结果添加到监控系统
         for tech_name, result in validation_results.items():
-            monitoring_system.technology_validations[tech_name] = TechnologyValidationResult(
-                technology_name=result.technology_name,
-                context7_confidence_score=result.context7_confidence_score,
-                validation_status=result.validation_status,
-                performance_benchmarks=result.performance_benchmarks,
-                integration_health={},
-                risk_assessment=result.risk_assessment
+            monitoring_system.technology_validations[tech_name] = (
+                TechnologyValidationResult(
+                    technology_name=result.technology_name,
+                    context7_confidence_score=result.context7_confidence_score,
+                    validation_status=result.validation_status,
+                    performance_benchmarks=result.performance_benchmarks,
+                    integration_health={},
+                    risk_assessment=result.risk_assessment,
+                )
             )
 
         # 生成健康评估
@@ -801,15 +823,10 @@ class TestIntegration:
     def test_configuration_integration(self):
         """测试配置集成"""
         # 创建临时配置文件
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             test_config = {
-                "monitoring": {
-                    "enabled": True,
-                    "monitoring_interval_seconds": 10
-                },
-                "context7_validations": {
-                    "confidence_threshold": 8.0
-                }
+                "monitoring": {"enabled": True, "monitoring_interval_seconds": 10},
+                "context7_validations": {"confidence_threshold": 8.0},
             }
             yaml.dump(test_config, f)
             config_path = f.name
@@ -818,10 +835,15 @@ class TestIntegration:
             # 使用配置创建系统
             monitoring_system = TechnicalValidationMonitoringSystem(config_path)
             validator = Context7TechnologyValidator(
-                confidence_threshold=monitoring_system.config["context7_validations"]["confidence_threshold"]
+                confidence_threshold=monitoring_system.config["context7_validations"][
+                    "confidence_threshold"
+                ]
             )
 
-            assert monitoring_system.config["monitoring"]["monitoring_interval_seconds"] == 10
+            assert (
+                monitoring_system.config["monitoring"]["monitoring_interval_seconds"]
+                == 10
+            )
             assert validator.confidence_threshold == 8.0
 
         finally:

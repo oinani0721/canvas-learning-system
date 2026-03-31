@@ -416,11 +416,13 @@ def list_backups(canvas_path: str) -> List[Dict[str, Any]]:
     backups = []
     for backup_path in sorted(backup_dir.glob(pattern), reverse=True):
         stat = backup_path.stat()
-        backups.append({
-            "path": str(backup_path),
-            "name": backup_path.name,
-            "size": stat.st_size,
-            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-        })
+        backups.append(
+            {
+                "path": str(backup_path),
+                "name": backup_path.name,
+                "size": stat.st_size,
+                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            }
+        )
 
     return backups

@@ -84,13 +84,19 @@ class CanvasEvent(BaseModel):
     - metadata: 额外元数据
     """
 
-    event_id: str = Field(default_factory=lambda: str(uuid4()), description="事件唯一标识 (UUID)")
+    event_id: str = Field(
+        default_factory=lambda: str(uuid4()), description="事件唯一标识 (UUID)"
+    )
     session_id: str = Field(..., description="会话ID")
     event_type: CanvasEventType = Field(..., description="事件类型")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="事件发生时间")
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow, description="事件发生时间"
+    )
     canvas_path: str = Field(..., description="关联Canvas路径")
     node_id: Optional[str] = Field(default=None, description="关联节点ID（可选）")
-    edge_id: Optional[str] = Field(default=None, description="关联边ID（可选）(Story 30.5 AC-30.5.2)")
+    edge_id: Optional[str] = Field(
+        default=None, description="关联边ID（可选）(Story 30.5 AC-30.5.2)"
+    )
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="事件元数据")
 
     model_config = {
@@ -236,7 +242,9 @@ class LearningEvent:
     @property
     def tier(self) -> EventTier:
         """Tier is determined by event_type, not overridable."""
-        return LEARNING_EVENT_TIER_MAP.get(self.event_type, EventTier.TIER_3_BEST_EFFORT)
+        return LEARNING_EVENT_TIER_MAP.get(
+            self.event_type, EventTier.TIER_3_BEST_EFFORT
+        )
 
     @property
     def node_id(self) -> Optional[str]:

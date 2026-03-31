@@ -37,6 +37,7 @@ from agentic_rag.state_graph import (
 # Test Group 1: StateGraph Compilation (AC 1)
 # ========================================
 
+
 class TestStateGraphCompilation:
     """AC 1: StateGraph编译成功测试"""
 
@@ -46,10 +47,10 @@ class TestStateGraphCompilation:
 
     def test_graph_has_invoke_methods(self):
         """AC 1.2: 测试图具有invoke方法"""
-        assert hasattr(canvas_agentic_rag, 'invoke')
-        assert hasattr(canvas_agentic_rag, 'ainvoke')
-        assert hasattr(canvas_agentic_rag, 'stream')
-        assert hasattr(canvas_agentic_rag, 'astream')
+        assert hasattr(canvas_agentic_rag, "invoke")
+        assert hasattr(canvas_agentic_rag, "ainvoke")
+        assert hasattr(canvas_agentic_rag, "stream")
+        assert hasattr(canvas_agentic_rag, "astream")
 
     def test_graph_has_expected_nodes(self):
         """AC 1.3: 测试图包含所有预期节点
@@ -75,6 +76,7 @@ class TestStateGraphCompilation:
 # ========================================
 # Test Group 2: Parallel Retrieval (AC 2)
 # ========================================
+
 
 class TestParallelRetrieval:
     """AC 2: 并行检索 (Send模式) 测试"""
@@ -178,6 +180,7 @@ class TestParallelRetrieval:
 # Test Group 3: Fusion Strategy Switching (AC 3)
 # ========================================
 
+
 class TestFusionStrategies:
     """AC 3: 融合算法可切换测试"""
 
@@ -215,6 +218,7 @@ class TestFusionStrategies:
 # ========================================
 # Test Group 4: Quality Control Loop (AC 4)
 # ========================================
+
 
 class TestQualityControlLoop:
     """AC 4: 质量控制循环测试"""
@@ -383,6 +387,7 @@ class TestQualityControlLoop:
 # ========================================
 # Test Group 5: End-to-End Performance (AC 5)
 # ========================================
+
 
 class TestEndToEndPerformance:
     """AC 5: 端到端性能测试"""

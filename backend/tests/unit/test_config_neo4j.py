@@ -8,7 +8,6 @@ Story 30.1 - AC 2: NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, NEO4J_
 """
 
 import os
-import pytest
 from unittest.mock import patch
 
 from app.config import Settings

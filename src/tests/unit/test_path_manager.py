@@ -14,10 +14,17 @@ from unittest.mock import Mock, patch
 import pytest
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 try:
-    from canvas_utils.path_manager import PathError, PathManager, PathResolutionResult, PathType, PathValidationError
+    from canvas_utils.path_manager import (
+        PathError,
+        PathManager,
+        PathResolutionResult,
+        PathType,
+        PathValidationError,
+    )
+
     CANVAS_UTILS_AVAILABLE = True
 except ImportError:
     CANVAS_UTILS_AVAILABLE = False
@@ -25,7 +32,9 @@ except ImportError:
     PathType = Mock
 
 
-@pytest.mark.skipif(not CANVAS_UTILS_AVAILABLE, reason="canvas_utils.path_manager not available")
+@pytest.mark.skipif(
+    not CANVAS_UTILS_AVAILABLE, reason="canvas_utils.path_manager not available"
+)
 class TestPathManager:
     """Test suite for PathManager"""
 
@@ -58,9 +67,9 @@ class TestPathManager:
     def test_initialization(self, path_manager):
         """Test PathManager initialization"""
         assert path_manager is not None
-        assert hasattr(path_manager, 'current_canvas')
-        assert hasattr(path_manager, 'workspace_root')
-        assert hasattr(path_manager, 'path_cache')
+        assert hasattr(path_manager, "current_canvas")
+        assert hasattr(path_manager, "workspace_root")
+        assert hasattr(path_manager, "path_cache")
 
     def test_set_current_canvas(self, path_manager, sample_canvas_path):
         """Test setting current canvas"""
@@ -68,7 +77,9 @@ class TestPathManager:
         assert path_manager.current_canvas == sample_canvas_path
         assert path_manager.canvas_name == "微积分"
 
-    def test_set_current_canvas_with_path_object(self, path_manager, sample_canvas_path):
+    def test_set_current_canvas_with_path_object(
+        self, path_manager, sample_canvas_path
+    ):
         """Test setting current canvas with Path object"""
         canvas_path = Path(sample_canvas_path)
         path_manager.set_current_canvas(canvas_path)
@@ -76,7 +87,9 @@ class TestPathManager:
 
     def test_generate_consistent_path(self, path_manager, temp_workspace):
         """Test generating consistent paths"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Generate path for markdown document
         doc_path = path_manager.generate_consistent_path("费曼学习法.md")
@@ -86,12 +99,16 @@ class TestPathManager:
         assert "费曼学习法" in doc_path
         assert doc_path.endswith(".md")
 
-    def test_generate_consistent_path_with_timestamp(self, path_manager, temp_workspace):
+    def test_generate_consistent_path_with_timestamp(
+        self, path_manager, temp_workspace
+    ):
         """Test generating paths with timestamp"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Mock datetime
-        with patch('canvas_utils.path_manager.datetime') as mock_datetime:
+        with patch("canvas_utils.path_manager.datetime") as mock_datetime:
             mock_datetime.now.return_value.strftime.return_value = "20251028120000"
 
             doc_path = path_manager.generate_consistent_path("test.md")
@@ -101,7 +118,9 @@ class TestPathManager:
 
     def test_generate_consistent_path_custom_type(self, path_manager, temp_workspace):
         """Test generating paths for different file types"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Test different file types
         pdf_path = path_manager.generate_consistent_path("document.pdf")
@@ -112,7 +131,9 @@ class TestPathManager:
 
     def test_resolve_relative_path(self, path_manager, temp_workspace):
         """Test resolving relative paths"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Resolve relative path
         relative_path = "./Docs/document.md"
@@ -159,10 +180,17 @@ class TestPathManager:
 
     def test_validate_and_fix_path(self, path_manager, temp_workspace):
         """Test validating and fixing broken paths"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Create a test file with correct name but wrong timestamp
-        test_file = Path(temp_workspace) / "Canvas" / "TestCanvas" / "Test-文档-20251028120000.md"
+        test_file = (
+            Path(temp_workspace)
+            / "Canvas"
+            / "TestCanvas"
+            / "Test-文档-20251028120000.md"
+        )
         test_file.parent.mkdir(parents=True, exist_ok=True)
         test_file.write_text("Test content")
 
@@ -176,7 +204,9 @@ class TestPathManager:
 
     def test_validate_and_fix_path_not_found(self, path_manager, temp_workspace):
         """Test fixing path when file doesn't exist"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         broken_path = "./NonExistent-文档-20251028120000.md"
         fixed_path = path_manager.validate_and_fix_path(broken_path)
@@ -203,7 +233,7 @@ class TestPathManager:
     def test_sanitize_filename(self, path_manager):
         """Test filename sanitization"""
         # Test with invalid characters
-        invalid_name = "文件名<>:\"|?*"
+        invalid_name = '文件名<>:"|?*'
         sanitized = path_manager._sanitize_filename(invalid_name)
 
         assert "<" not in sanitized
@@ -216,7 +246,9 @@ class TestPathManager:
 
     def test_create_directory_structure(self, path_manager, temp_workspace):
         """Test creating directory structure"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         doc_path = path_manager.generate_consistent_path("Docs/test.md")
 
@@ -245,14 +277,16 @@ class TestPathManager:
 
     def test_find_similar_files(self, path_manager, temp_workspace):
         """Test finding similar files"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Create test files
         canvas_dir = Path(temp_workspace) / "Canvas" / "TestCanvas"
         test_files = [
             "Test-概念-20251028120000.md",
             "Test-概念-20251028121000.md",
-            "Test-其他-20251028120000.md"
+            "Test-其他-20251028120000.md",
         ]
 
         for file in test_files:
@@ -266,7 +300,9 @@ class TestPathManager:
 
     def test_cleanup_old_files(self, path_manager, temp_workspace):
         """Test cleaning up old files"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         canvas_dir = Path(temp_workspace) / "Canvas" / "TestCanvas"
 
@@ -279,6 +315,7 @@ class TestPathManager:
 
         # Set old file modification time
         import time
+
         old_time = time.time() - (30 * 24 * 60 * 60)  # 30 days ago
         os.utime(old_file, (old_time, old_time))
 
@@ -290,7 +327,9 @@ class TestPathManager:
 
     def test_get_path_statistics(self, path_manager, temp_workspace):
         """Test getting path statistics"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Create some files
         canvas_dir = Path(temp_workspace) / "Canvas" / "TestCanvas"
@@ -301,15 +340,17 @@ class TestPathManager:
 
         stats = path_manager.get_path_statistics()
 
-        assert 'total_files' in stats
-        assert 'total_directories' in stats
-        assert 'total_size' in stats
-        assert stats['total_files'] >= 3
-        assert stats['total_directories'] >= 1
+        assert "total_files" in stats
+        assert "total_directories" in stats
+        assert "total_size" in stats
+        assert stats["total_files"] >= 3
+        assert stats["total_directories"] >= 1
 
     def test_backup_path(self, path_manager, temp_workspace):
         """Test creating path backup"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Create a test file
         original_path = path_manager.generate_consistent_path("test.md")
@@ -325,7 +366,9 @@ class TestPathManager:
 
     def test_restore_from_backup(self, path_manager, temp_workspace):
         """Test restoring from backup"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Create original file
         original_path = path_manager.generate_consistent_path("test.md")
@@ -361,7 +404,7 @@ class TestPathManager:
             "document.md",
             "文件名.txt",
             "file_with_underscores.pdf",
-            "file-with-dashes.json"
+            "file-with-dashes.json",
         ]
 
         for name in valid_names:
@@ -373,9 +416,9 @@ class TestPathManager:
             "file|name.txt",
             "file?.txt",
             "file*.txt",
-            "file\".txt",
+            'file".txt',
             "CON.txt",  # Windows reserved name
-            "file\t.txt"  # Contains tab
+            "file\t.txt",  # Contains tab
         ]
 
         for name in invalid_names:
@@ -393,7 +436,9 @@ class TestPathManager:
 
     def test_caching(self, path_manager, temp_workspace):
         """Test path caching mechanism"""
-        path_manager.set_current_canvas(f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas")
+        path_manager.set_current_canvas(
+            f"{temp_workspace}/Canvas/TestCanvas/TestCanvas.canvas"
+        )
 
         # Generate path first time
         path1 = path_manager.generate_consistent_path("test.md")
@@ -405,6 +450,6 @@ class TestPathManager:
         assert path_manager._is_cached("test.md")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run tests when script is executed directly
-    pytest.main([__file__, '-v'])
+    pytest.main([__file__, "-v"])

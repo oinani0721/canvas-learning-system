@@ -78,18 +78,14 @@ class BaselineLoader:
     def load_all(self) -> List[Dict[str, Any]]:
         """Load all scenario JSON files, sorted by filename."""
         if not self._dir.exists():
-            raise FileNotFoundError(
-                f"Baseline directory not found: {self._dir}"
-            )
+            raise FileNotFoundError(f"Baseline directory not found: {self._dir}")
         scenarios = list()
         for f in sorted(self._dir.glob("scenario_*.json")):
             data = json.loads(f.read_text(encoding="utf-8"))
             data["_source_file"] = f.name
             scenarios.append(data)
         if not scenarios:
-            raise FileNotFoundError(
-                f"No scenario_*.json files found in {self._dir}"
-            )
+            raise FileNotFoundError(f"No scenario_*.json files found in {self._dir}")
         return scenarios
 
     def load_one(self, filename: str) -> Dict[str, Any]:
@@ -160,14 +156,16 @@ class RegressionMetricsCollector:
         passed: bool,
         details: str = "",
     ):
-        self.results.append({
-            "scenario_id": scenario_id,
-            "prompt_name": prompt_name,
-            "prompt_version": prompt_version,
-            "metrics": metrics,
-            "passed": passed,
-            "details": details,
-        })
+        self.results.append(
+            {
+                "scenario_id": scenario_id,
+                "prompt_name": prompt_name,
+                "prompt_version": prompt_version,
+                "metrics": metrics,
+                "passed": passed,
+                "details": details,
+            }
+        )
 
     def summary(self) -> Dict[str, Any]:
         total = len(self.results)

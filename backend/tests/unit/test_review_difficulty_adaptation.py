@@ -11,11 +11,10 @@ Tests the new difficulty-related functions added to the review router:
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 
 # ===========================================================================
 # Local stubs for DifficultyResult/DifficultyLevel/ForgettingStatus
@@ -56,10 +55,9 @@ class TestGetDifficultyEnhancedQuestionText:
     @pytest.fixture(autouse=True)
     def patch_difficulty_imports(self):
         """Patch DifficultyLevel into review module for function to work."""
-        with patch(
-            "app.api.v1.endpoints.review.DifficultyLevel", _DifficultyLevel
-        ), patch(
-            "app.api.v1.endpoints.review._difficulty_available", True
+        with (
+            patch("app.api.v1.endpoints.review.DifficultyLevel", _DifficultyLevel),
+            patch("app.api.v1.endpoints.review._difficulty_available", True),
         ):
             yield
 
@@ -67,6 +65,7 @@ class TestGetDifficultyEnhancedQuestionText:
         from app.api.v1.endpoints.review import (
             _get_difficulty_enhanced_question_text,
         )
+
         return _get_difficulty_enhanced_question_text(
             original_text, node_color, node_id, difficulty_map
         )
@@ -110,7 +109,9 @@ class TestGetDifficultyEnhancedQuestionText:
             average_score=60.0,
             sample_size=3,
             question_type="verification",
-            forgetting_status=_ForgettingStatus(needs_review=True, decay_percentage=30.0),
+            forgetting_status=_ForgettingStatus(
+                needs_review=True, decay_percentage=30.0
+            ),
         )
         result = self._call("统计", "3", "node4", {"node4": diff})
         assert "遗忘趋势" in result
@@ -121,7 +122,9 @@ class TestGetDifficultyEnhancedQuestionText:
             average_score=85.0,
             sample_size=5,
             question_type="breakthrough",
-            forgetting_status=_ForgettingStatus(needs_review=False, decay_percentage=5.0),
+            forgetting_status=_ForgettingStatus(
+                needs_review=False, decay_percentage=5.0
+            ),
         )
         result = self._call("集合论", "4", "node5", {"node5": diff})
         assert "遗忘趋势" not in result
@@ -164,6 +167,7 @@ class TestGetDifficultyData:
     async def test_returns_none_when_difficulty_unavailable(self):
         with patch("app.api.v1.endpoints.review._difficulty_available", False):
             from app.api.v1.endpoints.review import _get_difficulty_data
+
             result = await _get_difficulty_data([], "test_canvas")
             assert result is None
 
@@ -173,9 +177,15 @@ class TestGetDifficultyData:
         mock_memory = MagicMock()
         mock_memory.neo4j = None  # Neo4j not configured
 
-        with patch("app.api.v1.endpoints.review._difficulty_available", True), \
-             patch("app.services.memory_service.get_memory_service", return_value=mock_memory):
+        with (
+            patch("app.api.v1.endpoints.review._difficulty_available", True),
+            patch(
+                "app.services.memory_service.get_memory_service",
+                return_value=mock_memory,
+            ),
+        ):
             from app.api.v1.endpoints.review import _get_difficulty_data
+
             result = await _get_difficulty_data(
                 [{"id": "n1", "text": "test"}], "canvas"
             )
@@ -188,9 +198,15 @@ class TestGetDifficultyData:
         mock_memory.neo4j = MagicMock()  # Neo4j is configured
         mock_memory.get_concept_score_history = AsyncMock(return_value=None)
 
-        with patch("app.api.v1.endpoints.review._difficulty_available", True), \
-             patch("app.services.memory_service.get_memory_service", return_value=mock_memory):
+        with (
+            patch("app.api.v1.endpoints.review._difficulty_available", True),
+            patch(
+                "app.services.memory_service.get_memory_service",
+                return_value=mock_memory,
+            ),
+        ):
             from app.api.v1.endpoints.review import _get_difficulty_data
+
             result = await _get_difficulty_data(
                 [{"id": "n1", "text": "test"}], "canvas"
             )
@@ -201,6 +217,7 @@ class TestGetDifficultyData:
         """Empty node list returns None without calling memory service."""
         with patch("app.api.v1.endpoints.review._difficulty_available", True):
             from app.api.v1.endpoints.review import _get_difficulty_data
+
             result = await _get_difficulty_data([], "canvas")
             # Should return None since no nodes to query
             assert result is None
@@ -212,12 +229,16 @@ class TestGetDifficultyData:
         mock_memory.neo4j = MagicMock()
         mock_memory.get_concept_score_history = AsyncMock(return_value=None)
 
-        with patch("app.api.v1.endpoints.review._difficulty_available", True), \
-             patch("app.services.memory_service.get_memory_service", return_value=mock_memory):
+        with (
+            patch("app.api.v1.endpoints.review._difficulty_available", True),
+            patch(
+                "app.services.memory_service.get_memory_service",
+                return_value=mock_memory,
+            ),
+        ):
             from app.api.v1.endpoints.review import _get_difficulty_data
-            result = await _get_difficulty_data(
-                [{"text": "no id node"}], "canvas"
-            )
+
+            result = await _get_difficulty_data([{"text": "no id node"}], "canvas")
             assert result is None
 
 
@@ -240,23 +261,36 @@ class TestSkipMasteredFiltering:
         # n1 and n3 are mastered
         difficulty_map = {
             "n1": _DifficultyResult(
-                level=_DifficultyLevel.EASY, average_score=90,
-                sample_size=5, question_type="breakthrough", is_mastered=True
+                level=_DifficultyLevel.EASY,
+                average_score=90,
+                sample_size=5,
+                question_type="breakthrough",
+                is_mastered=True,
             ),
             "n2": _DifficultyResult(
-                level=_DifficultyLevel.MEDIUM, average_score=65,
-                sample_size=3, question_type="verification", is_mastered=False
+                level=_DifficultyLevel.MEDIUM,
+                average_score=65,
+                sample_size=3,
+                question_type="verification",
+                is_mastered=False,
             ),
             "n3": _DifficultyResult(
-                level=_DifficultyLevel.EASY, average_score=95,
-                sample_size=5, question_type="breakthrough", is_mastered=True
+                level=_DifficultyLevel.EASY,
+                average_score=95,
+                sample_size=5,
+                question_type="breakthrough",
+                is_mastered=True,
             ),
         }
 
         # Simulate the filtering logic from review.py Step 3.6
         filtered = [
-            n for n in nodes
-            if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)
+            n
+            for n in nodes
+            if not (
+                n.get("id") in difficulty_map
+                and difficulty_map[n.get("id")].is_mastered
+            )
         ]
 
         assert len(filtered) == 1
@@ -271,18 +305,28 @@ class TestSkipMasteredFiltering:
 
         difficulty_map = {
             "n1": _DifficultyResult(
-                level=_DifficultyLevel.HARD, average_score=40,
-                sample_size=2, question_type="application", is_mastered=False
+                level=_DifficultyLevel.HARD,
+                average_score=40,
+                sample_size=2,
+                question_type="application",
+                is_mastered=False,
             ),
             "n2": _DifficultyResult(
-                level=_DifficultyLevel.MEDIUM, average_score=60,
-                sample_size=3, question_type="verification", is_mastered=False
+                level=_DifficultyLevel.MEDIUM,
+                average_score=60,
+                sample_size=3,
+                question_type="verification",
+                is_mastered=False,
             ),
         }
 
         filtered = [
-            n for n in nodes
-            if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)
+            n
+            for n in nodes
+            if not (
+                n.get("id") in difficulty_map
+                and difficulty_map[n.get("id")].is_mastered
+            )
         ]
 
         assert len(filtered) == 2
@@ -297,14 +341,21 @@ class TestSkipMasteredFiltering:
         # Only n1 has difficulty data, n2 does not
         difficulty_map = {
             "n1": _DifficultyResult(
-                level=_DifficultyLevel.EASY, average_score=90,
-                sample_size=5, question_type="breakthrough", is_mastered=True
+                level=_DifficultyLevel.EASY,
+                average_score=90,
+                sample_size=5,
+                question_type="breakthrough",
+                is_mastered=True,
             ),
         }
 
         filtered = [
-            n for n in nodes
-            if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)
+            n
+            for n in nodes
+            if not (
+                n.get("id") in difficulty_map
+                and difficulty_map[n.get("id")].is_mastered
+            )
         ]
 
         assert len(filtered) == 1

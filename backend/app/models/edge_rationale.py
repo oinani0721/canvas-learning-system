@@ -41,7 +41,9 @@ class EdgeRationaleCreate(BaseModel):
         ...,
         description="Extracted relationship type (e.g. '是前提条件', '是特殊情况', '相互对比')",
     )
-    rationale_text: str = Field(..., description="User's original explanation of the relationship")
+    rationale_text: str = Field(
+        ..., description="User's original explanation of the relationship"
+    )
     confidence: float = Field(
         ...,
         ge=0.0,

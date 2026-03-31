@@ -35,6 +35,7 @@ from fastapi.testclient import TestClient
 def reset_metrics():
     """Reset Prometheus metrics before each test."""
     from tests.conftest import clear_prometheus_metrics
+
     clear_prometheus_metrics()
     yield
     clear_prometheus_metrics()
@@ -210,7 +211,10 @@ class TestEndpointNormalization:
         middleware = MetricsMiddleware(app=None)
 
         # Numeric IDs
-        assert middleware._normalize_endpoint("/api/v1/agents/123") == "/api/v1/agents/{id}"
+        assert (
+            middleware._normalize_endpoint("/api/v1/agents/123")
+            == "/api/v1/agents/{id}"
+        )
         assert middleware._normalize_endpoint("/test/456") == "/test/{id}"
 
         # UUIDs

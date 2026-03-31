@@ -28,6 +28,7 @@ class SourceNodeValidationResult:
         original_node_color: Color of the original node if found
         error_message: Error message if validation failed
     """
+
     source_node_id: str
     is_valid: bool
     exists_in_original: bool = False
@@ -47,6 +48,7 @@ class BatchValidationResult:
         results: Individual validation results
         all_valid: Whether all sourceNodeIds are valid
     """
+
     total_count: int
     valid_count: int
     invalid_count: int
@@ -127,7 +129,7 @@ class SourceNodeValidator:
             return None
 
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 canvas_data = json.load(f)
                 self._canvas_cache[canvas_path] = canvas_data
                 return canvas_data
@@ -135,9 +137,7 @@ class SourceNodeValidator:
             return None
 
     def _get_node_by_id(
-        self,
-        canvas_data: Dict[str, Any],
-        node_id: str
+        self, canvas_data: Dict[str, Any], node_id: str
     ) -> Optional[Dict[str, Any]]:
         """
         Find a node by ID in canvas data.
@@ -149,16 +149,14 @@ class SourceNodeValidator:
         Returns:
             Node dict or None if not found
         """
-        nodes = canvas_data.get('nodes', [])
+        nodes = canvas_data.get("nodes", [])
         for node in nodes:
-            if node.get('id') == node_id:
+            if node.get("id") == node_id:
                 return node
         return None
 
     def validate_source_node_id(
-        self,
-        canvas_path: str,
-        source_node_id: str
+        self, canvas_path: str, source_node_id: str
     ) -> SourceNodeValidationResult:
         """
         Validate a single sourceNodeId against the original canvas.
@@ -182,7 +180,7 @@ class SourceNodeValidator:
                 source_node_id=source_node_id,
                 is_valid=False,
                 exists_in_original=False,
-                error_message=f"Invalid ID format: '{source_node_id}' is not a valid UUID or 8-char hex ID"
+                error_message=f"Invalid ID format: '{source_node_id}' is not a valid UUID or 8-char hex ID",
             )
 
         # Load canvas
@@ -192,7 +190,7 @@ class SourceNodeValidator:
                 source_node_id=source_node_id,
                 is_valid=False,
                 exists_in_original=False,
-                error_message=f"Cannot load canvas file: '{canvas_path}'"
+                error_message=f"Cannot load canvas file: '{canvas_path}'",
             )
 
         # Find node in original canvas
@@ -202,7 +200,7 @@ class SourceNodeValidator:
                 source_node_id=source_node_id,
                 is_valid=False,
                 exists_in_original=False,
-                error_message=f"Node '{source_node_id}' not found in original canvas"
+                error_message=f"Node '{source_node_id}' not found in original canvas",
             )
 
         # Valid!
@@ -210,14 +208,12 @@ class SourceNodeValidator:
             source_node_id=source_node_id,
             is_valid=True,
             exists_in_original=True,
-            original_node_type=node.get('type'),
-            original_node_color=node.get('color')
+            original_node_type=node.get("type"),
+            original_node_color=node.get("color"),
         )
 
     def validate_batch(
-        self,
-        canvas_path: str,
-        source_node_ids: List[str]
+        self, canvas_path: str, source_node_ids: List[str]
     ) -> BatchValidationResult:
         """
         Validate multiple sourceNodeIds against the original canvas.
@@ -246,13 +242,11 @@ class SourceNodeValidator:
             valid_count=valid_count,
             invalid_count=total - valid_count,
             results=results,
-            all_valid=(valid_count == total)
+            all_valid=(valid_count == total),
         )
 
     def validate_review_canvas(
-        self,
-        review_canvas_path: str,
-        original_canvas_path: str
+        self, review_canvas_path: str, original_canvas_path: str
     ) -> BatchValidationResult:
         """
         Validate all sourceNodeIds in a review canvas against the original.
@@ -286,13 +280,13 @@ class SourceNodeValidator:
                 valid_count=0,
                 invalid_count=0,
                 results=[],
-                all_valid=False
+                all_valid=False,
             )
 
         # Extract all sourceNodeIds
         source_node_ids = []
-        for node in review_data.get('nodes', []):
-            source_id = node.get('sourceNodeId')
+        for node in review_data.get("nodes", []):
+            source_id = node.get("sourceNodeId")
             if source_id:
                 source_node_ids.append(source_id)
 
@@ -302,7 +296,7 @@ class SourceNodeValidator:
                 valid_count=0,
                 invalid_count=0,
                 results=[],
-                all_valid=True  # No sourceNodeIds means nothing to validate
+                all_valid=True,  # No sourceNodeIds means nothing to validate
             )
 
         # Validate all

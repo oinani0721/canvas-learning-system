@@ -31,42 +31,26 @@ class TestGetNodeContentTextNode:
             "type": "text",
             "text": "This is test content",
             "x": 100,
-            "y": 200
+            "y": 200,
         }
         result = get_node_content(node, "/fake/vault")
         assert result == "This is test content"
 
     def test_text_node_empty_text(self):
         """Text node with empty text returns empty string."""
-        node = {
-            "id": "test123",
-            "type": "text",
-            "text": "",
-            "x": 100,
-            "y": 200
-        }
+        node = {"id": "test123", "type": "text", "text": "", "x": 100, "y": 200}
         result = get_node_content(node, "/fake/vault")
         assert result == ""
 
     def test_text_node_missing_text_field(self):
         """Text node missing text field returns empty string."""
-        node = {
-            "id": "test123",
-            "type": "text",
-            "x": 100,
-            "y": 200
-        }
+        node = {"id": "test123", "type": "text", "x": 100, "y": 200}
         result = get_node_content(node, "/fake/vault")
         assert result == ""
 
     def test_default_type_is_text(self):
         """Node without type defaults to text type."""
-        node = {
-            "id": "test123",
-            "text": "Default text content",
-            "x": 100,
-            "y": 200
-        }
+        node = {"id": "test123", "text": "Default text content", "x": 100, "y": 200}
         result = get_node_content(node, "/fake/vault")
         assert result == "Default text content"
 
@@ -79,14 +63,16 @@ class TestGetNodeContentFileNode:
         # Create test file
         test_file = tmp_path / "notes" / "oral-explanation.md"
         test_file.parent.mkdir(parents=True, exist_ok=True)
-        test_file.write_text("# Oral Explanation\n\nThis is the explanation content.", encoding="utf-8")
+        test_file.write_text(
+            "# Oral Explanation\n\nThis is the explanation content.", encoding="utf-8"
+        )
 
         node = {
             "id": "file123",
             "type": "file",
             "file": "notes/oral-explanation.md",
             "x": 500,
-            "y": 300
+            "y": 300,
         }
         result = get_node_content(node, str(tmp_path))
         assert "# Oral Explanation" in result
@@ -103,7 +89,7 @@ class TestGetNodeContentFileNode:
             "type": "file",
             "file": "笔记/测试文件.md",
             "x": 500,
-            "y": 300
+            "y": 300,
         }
         result = get_node_content(node, str(tmp_path))
         assert "# 中文测试" in result
@@ -116,31 +102,20 @@ class TestGetNodeContentFileNode:
             "type": "file",
             "file": "nonexistent/file.md",
             "x": 500,
-            "y": 300
+            "y": 300,
         }
         result = get_node_content(node, str(tmp_path))
         assert result == ""
 
     def test_file_node_missing_file_path(self):
         """File node without file field returns empty string."""
-        node = {
-            "id": "file000",
-            "type": "file",
-            "x": 500,
-            "y": 300
-        }
+        node = {"id": "file000", "type": "file", "x": 500, "y": 300}
         result = get_node_content(node, "/fake/vault")
         assert result == ""
 
     def test_file_node_empty_file_path(self):
         """File node with empty file field returns empty string."""
-        node = {
-            "id": "file001",
-            "type": "file",
-            "file": "",
-            "x": 500,
-            "y": 300
-        }
+        node = {"id": "file001", "type": "file", "file": "", "x": 500, "y": 300}
         result = get_node_content(node, "/fake/vault")
         assert result == ""
 
@@ -151,11 +126,13 @@ class TestGetNodeContentFileNode:
             "type": "file",
             "file": "protected/file.md",
             "x": 500,
-            "y": 300
+            "y": 300,
         }
 
         # Mock Path.read_text to raise PermissionError
-        with patch.object(Path, 'read_text', side_effect=PermissionError("Access denied")):
+        with patch.object(
+            Path, "read_text", side_effect=PermissionError("Access denied")
+        ):
             result = get_node_content(node, str(tmp_path))
             assert result == ""
 
@@ -170,31 +147,20 @@ class TestGetNodeContentLinkNode:
             "type": "link",
             "url": "https://example.com/resource",
             "x": 100,
-            "y": 200
+            "y": 200,
         }
         result = get_node_content(node, "/fake/vault")
         assert result == "https://example.com/resource"
 
     def test_link_node_missing_url(self):
         """Link node without url returns empty string."""
-        node = {
-            "id": "link456",
-            "type": "link",
-            "x": 100,
-            "y": 200
-        }
+        node = {"id": "link456", "type": "link", "x": 100, "y": 200}
         result = get_node_content(node, "/fake/vault")
         assert result == ""
 
     def test_link_node_empty_url(self):
         """Link node with empty url returns empty string."""
-        node = {
-            "id": "link789",
-            "type": "link",
-            "url": "",
-            "x": 100,
-            "y": 200
-        }
+        node = {"id": "link789", "type": "link", "url": "", "x": 100, "y": 200}
         result = get_node_content(node, "/fake/vault")
         assert result == ""
 
@@ -210,7 +176,7 @@ class TestGetNodeContentGroupNode:
             "x": 0,
             "y": 0,
             "width": 500,
-            "height": 400
+            "height": 400,
         }
         result = get_node_content(node, "/fake/vault")
         assert result == ""
@@ -224,7 +190,7 @@ class TestGetNodeContentGroupNode:
             "x": 0,
             "y": 0,
             "width": 500,
-            "height": 400
+            "height": 400,
         }
         result = get_node_content(node, "/fake/vault")
         assert result == ""
@@ -235,12 +201,7 @@ class TestGetNodeContentUnknownType:
 
     def test_unknown_type_returns_empty_string(self):
         """Unknown type returns empty string, logs warning."""
-        node = {
-            "id": "unknown123",
-            "type": "unknown_type",
-            "x": 100,
-            "y": 200
-        }
+        node = {"id": "unknown123", "type": "unknown_type", "x": 100, "y": 200}
         result = get_node_content(node, "/fake/vault")
         assert result == ""
 
@@ -250,7 +211,7 @@ class TestGetNodeContentUnknownType:
             "id": "invalid123",
             "type": 12345,  # Invalid: type should be string
             "x": 100,
-            "y": 200
+            "y": 200,
         }
         result = get_node_content(node, "/fake/vault")
         assert result == ""
@@ -267,10 +228,7 @@ class TestGetNodeContentEdgeCases:
 
     def test_node_without_id(self):
         """Node without id still works (uses 'unknown' for logging)."""
-        node = {
-            "type": "text",
-            "text": "No ID node"
-        }
+        node = {"type": "text", "text": "No ID node"}
         result = get_node_content(node, "/fake/vault")
         assert result == "No ID node"
 
@@ -286,7 +244,7 @@ class TestGetNodeContentEdgeCases:
             "type": "file",
             "file": "folder/file.md",  # Canvas uses forward slashes
             "x": 500,
-            "y": 300
+            "y": 300,
         }
         result = get_node_content(node, str(tmp_path))
         assert result == "Windows path test"

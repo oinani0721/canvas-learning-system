@@ -19,13 +19,12 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.services.memory_service import MemoryService
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_neo4j(*, mode="JSON_FALLBACK", initialized=True):
     """Create a mock Neo4jClient for unit testing."""
@@ -53,6 +52,7 @@ def _make_mock_learning_memory():
 @pytest.fixture(autouse=True)
 def _reset_memory_singleton():
     import backend.app.services.memory_service as mod
+
     original = mod._memory_service_instance
     mod._memory_service_instance = None
     try:
@@ -72,8 +72,14 @@ def memory_service():
     return svc
 
 
-def _color_event(*, event_type="color_changed", canvas_path="test/math.canvas",
-                 node_id=None, metadata=None, timestamp=None):
+def _color_event(
+    *,
+    event_type="color_changed",
+    canvas_path="test/math.canvas",
+    node_id=None,
+    metadata=None,
+    timestamp=None,
+):
     """Build a single color event dict."""
     return {
         "event_type": event_type,
@@ -112,17 +118,20 @@ class TestStory306ColorChangeEvents:
         are preserved in the stored episode.
         """
         meta = {"old_color": "0", "new_color": "6", "level": "beginner"}
-        events = [_color_event(
-            event_type="color_changed",
-            node_id="node-meta-test",
-            metadata=meta,
-        )]
+        events = [
+            _color_event(
+                event_type="color_changed",
+                node_id="node-meta-test",
+                metadata=meta,
+            )
+        ]
 
         await memory_service.record_batch_learning_events(events)
 
         # Find the stored episode
         stored = [
-            ep for ep in memory_service._episodes
+            ep
+            for ep in memory_service._episodes
             if ep.get("node_id") == "node-meta-test"
         ]
         assert len(stored) == 1
@@ -153,8 +162,7 @@ class TestStory306ColorChangeEvents:
 
         # But only 1 episode stored
         matching = [
-            ep for ep in memory_service._episodes
-            if ep.get("node_id") == "node-dup"
+            ep for ep in memory_service._episodes if ep.get("node_id") == "node-dup"
         ]
         assert len(matching) == 1
 
@@ -164,11 +172,13 @@ class TestStory306ColorChangeEvents:
         AC-30.6.2: color_removed event with old_color only -> processed.
         """
         meta = {"old_color": "6"}
-        events = [_color_event(
-            event_type="color_removed",
-            node_id="node-removed",
-            metadata=meta,
-        )]
+        events = [
+            _color_event(
+                event_type="color_removed",
+                node_id="node-removed",
+                metadata=meta,
+            )
+        ]
 
         result = await memory_service.record_batch_learning_events(events)
 
@@ -176,8 +186,7 @@ class TestStory306ColorChangeEvents:
         assert result["success"] is True
 
         stored = [
-            ep for ep in memory_service._episodes
-            if ep.get("node_id") == "node-removed"
+            ep for ep in memory_service._episodes if ep.get("node_id") == "node-removed"
         ]
         assert len(stored) == 1
         assert stored[0]["metadata"]["old_color"] == "6"

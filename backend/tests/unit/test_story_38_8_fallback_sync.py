@@ -8,21 +8,20 @@
 #   AC-5: File rotation (rotate synced files, preserve learning_memories)
 
 import json
-import pytest
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from app.services.fallback_sync_service import (
-    FallbackSyncService,
-    SYNC_CHECKPOINT_FILE,
     _SYNCED_FILE_RETENTION_DAYS,
+    FallbackSyncService,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────
 # Fixtures
 # ─────────────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def mock_neo4j():
@@ -93,6 +92,7 @@ def write_jsonl(path: Path, entries: list):
 # AC-1: Startup Replay
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestAC1StartupReplay:
     """AC-1: On startup, replay fallback entries to Neo4j."""
 
@@ -113,8 +113,13 @@ class TestAC1StartupReplay:
 
     @pytest.mark.asyncio
     async def test_replays_failed_writes_to_neo4j(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """failed_writes.jsonl entries are replayed via run_query."""
         entries = [
@@ -140,8 +145,10 @@ class TestAC1StartupReplay:
         write_jsonl(tmp_failed_writes, entries)
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -153,8 +160,13 @@ class TestAC1StartupReplay:
 
     @pytest.mark.asyncio
     async def test_replays_canvas_node_events(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Canvas node events are replayed via create_canvas_node_relationship."""
         events = [
@@ -180,8 +192,10 @@ class TestAC1StartupReplay:
         )
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -191,8 +205,13 @@ class TestAC1StartupReplay:
 
     @pytest.mark.asyncio
     async def test_replays_canvas_edge_events(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Canvas edge_sync events are replayed via create_edge_relationship."""
         events = [
@@ -212,8 +231,10 @@ class TestAC1StartupReplay:
         )
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -223,8 +244,13 @@ class TestAC1StartupReplay:
 
     @pytest.mark.asyncio
     async def test_replays_learning_memories(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Learning memories are replayed via run_query (last-write-wins MERGE)."""
         data = {
@@ -253,8 +279,10 @@ class TestAC1StartupReplay:
         )
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -263,15 +291,21 @@ class TestAC1StartupReplay:
         # Now uses run_query with last-write-wins MERGE (not create_learning_relationship)
         # run_query called: 2 for learning_memories (may also have failed_writes calls)
         learning_calls = [
-            c for c in mock_neo4j.run_query.call_args_list
+            c
+            for c in mock_neo4j.run_query.call_args_list
             if "LEARNED" in str(c) and "concept" in str(c).lower()
         ]
         assert len(learning_calls) >= 2
 
     @pytest.mark.asyncio
     async def test_chronological_order(
-        self, sync_service, mock_neo4j, tmp_canvas_events,
-        tmp_failed_writes, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_canvas_events,
+        tmp_failed_writes,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Canvas events are sorted by timestamp before replay."""
         events = [
@@ -306,8 +340,10 @@ class TestAC1StartupReplay:
         sync_service._replay_canvas_event_to_neo4j = tracking_replay
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             await sync_service.sync_all_fallbacks()
@@ -320,13 +356,19 @@ class TestAC1StartupReplay:
 # AC-2: Idempotency
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestAC2Idempotency:
     """AC-2: MERGE-based replay is idempotent."""
 
     @pytest.mark.asyncio
     async def test_replay_same_entry_twice_is_safe(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Replaying the same scoring entry twice does not create duplicates."""
         entry = {
@@ -342,8 +384,10 @@ class TestAC2Idempotency:
         write_jsonl(tmp_failed_writes, [entry, entry])
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -354,7 +398,9 @@ class TestAC2Idempotency:
 
     @pytest.mark.asyncio
     async def test_learning_memory_merge_no_duplicates(
-        self, sync_service, mock_neo4j,
+        self,
+        sync_service,
+        mock_neo4j,
     ):
         """Learning memory replay uses MERGE (idempotent) with last-write-wins."""
         mem = {
@@ -375,13 +421,19 @@ class TestAC2Idempotency:
 # AC-3: Checkpoint
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestAC3Checkpoint:
     """AC-3: Checkpoint saves progress; resumes from last success."""
 
     @pytest.mark.asyncio
     async def test_checkpoint_created_during_sync(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Checkpoint file is created during sync of large batches."""
         # Create > _CHECKPOINT_INTERVAL entries
@@ -401,8 +453,10 @@ class TestAC3Checkpoint:
 
         checkpoint_path = tmp_path / "sync_checkpoint.json"
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, checkpoint_path,
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            checkpoint_path,
         )
 
         checkpoints_saved = []
@@ -422,8 +476,13 @@ class TestAC3Checkpoint:
 
     @pytest.mark.asyncio
     async def test_resumes_from_checkpoint(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Sync resumes from checkpoint index, skipping already-synced entries."""
         entries = [
@@ -448,8 +507,10 @@ class TestAC3Checkpoint:
         )
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, checkpoint_path,
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            checkpoint_path,
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -460,8 +521,13 @@ class TestAC3Checkpoint:
 
     @pytest.mark.asyncio
     async def test_checkpoint_cleared_after_full_sync(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Checkpoint entry is removed after successful full sync."""
         entries = [
@@ -479,8 +545,10 @@ class TestAC3Checkpoint:
 
         checkpoint_path = tmp_path / "sync_checkpoint.json"
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, checkpoint_path,
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            checkpoint_path,
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             await sync_service.sync_all_fallbacks()
@@ -492,6 +560,7 @@ class TestAC3Checkpoint:
 # ═══════════════════════════════════════════════════════════════════════════
 # AC-4: Conflict Resolution
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestAC4ConflictResolution:
     """AC-4: Last-write-wins conflict resolution."""
@@ -545,6 +614,7 @@ class TestAC4ConflictResolution:
             "concept": "Calculus",
         }
         import logging
+
         with caplog.at_level(logging.INFO):
             await sync_service._replay_scoring_entry_to_neo4j(entry)
 
@@ -552,7 +622,9 @@ class TestAC4ConflictResolution:
 
     @pytest.mark.asyncio
     async def test_learning_memory_older_fallback_preserves_neo4j(
-        self, sync_service, mock_neo4j,
+        self,
+        sync_service,
+        mock_neo4j,
     ):
         """When Neo4j has newer learning memory data, fallback doesn't overwrite."""
         mock_neo4j.run_query = AsyncMock(return_value=[{"should_update": False}])
@@ -570,7 +642,10 @@ class TestAC4ConflictResolution:
 
     @pytest.mark.asyncio
     async def test_learning_memory_conflict_logged(
-        self, sync_service, mock_neo4j, caplog,
+        self,
+        sync_service,
+        mock_neo4j,
+        caplog,
     ):
         """Learning memory conflict with Neo4j emits log message."""
         mock_neo4j.run_query = AsyncMock(return_value=[{"should_update": False}])
@@ -582,6 +657,7 @@ class TestAC4ConflictResolution:
             "timestamp": "2026-01-01T10:00:00",
         }
         import logging
+
         with caplog.at_level(logging.INFO):
             await sync_service._replay_learning_memory_to_neo4j(mem)
 
@@ -592,13 +668,19 @@ class TestAC4ConflictResolution:
 # AC-5: File Rotation
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestAC5FileRotation:
     """AC-5: Synced files are rotated; learning_memories preserved."""
 
     @pytest.mark.asyncio
     async def test_failed_writes_rotated_after_full_sync(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """failed_writes.jsonl is renamed to .synced.YYYY-MM-DD after full sync."""
         entries = [
@@ -615,8 +697,10 @@ class TestAC5FileRotation:
         write_jsonl(tmp_failed_writes, entries)
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             await sync_service.sync_all_fallbacks()
@@ -629,8 +713,13 @@ class TestAC5FileRotation:
 
     @pytest.mark.asyncio
     async def test_canvas_events_rotated_after_full_sync(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """canvas_events_fallback.json is rotated after all events synced."""
         events = [
@@ -648,8 +737,10 @@ class TestAC5FileRotation:
         )
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             await sync_service.sync_all_fallbacks()
@@ -658,8 +749,13 @@ class TestAC5FileRotation:
 
     @pytest.mark.asyncio
     async def test_learning_memories_not_rotated(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """learning_memories.json is NOT rotated (still needed at runtime)."""
         data = {
@@ -680,8 +776,10 @@ class TestAC5FileRotation:
         )
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             await sync_service.sync_all_fallbacks()
@@ -692,8 +790,10 @@ class TestAC5FileRotation:
     def test_old_synced_files_cleaned_up(self, tmp_path):
         """Synced files older than retention period are deleted."""
         # Create old .synced file (new format with HHMMSS)
-        old_date = (datetime.now() - timedelta(days=_SYNCED_FILE_RETENTION_DAYS + 5))
-        old_synced = tmp_path / f"failed_writes.synced.{old_date.strftime('%Y-%m-%d-%H%M%S')}"
+        old_date = datetime.now() - timedelta(days=_SYNCED_FILE_RETENTION_DAYS + 5)
+        old_synced = (
+            tmp_path / f"failed_writes.synced.{old_date.strftime('%Y-%m-%d-%H%M%S')}"
+        )
         old_synced.write_text("old data", encoding="utf-8")
 
         # Create old .synced file (legacy format without HHMMSS)
@@ -701,7 +801,10 @@ class TestAC5FileRotation:
         old_legacy.write_text("old legacy data", encoding="utf-8")
 
         # Create recent .synced file
-        recent = tmp_path / f"failed_writes.synced.{datetime.now().strftime('%Y-%m-%d-%H%M%S')}"
+        recent = (
+            tmp_path
+            / f"failed_writes.synced.{datetime.now().strftime('%Y-%m-%d-%H%M%S')}"
+        )
         recent.write_text("recent data", encoding="utf-8")
 
         FallbackSyncService._cleanup_old_synced_files(tmp_path, "failed_writes")
@@ -712,8 +815,13 @@ class TestAC5FileRotation:
 
     @pytest.mark.asyncio
     async def test_pending_entries_rewritten(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """When some entries fail, only pending entries are kept in file."""
         # First entry will succeed, second will fail
@@ -751,8 +859,10 @@ class TestAC5FileRotation:
         mock_neo4j.run_query = AsyncMock(side_effect=run_query_side_effect)
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -772,13 +882,19 @@ class TestAC5FileRotation:
 # Edge Cases
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestEdgeCases:
     """Edge cases: empty files, missing files, malformed data."""
 
     @pytest.mark.asyncio
     async def test_empty_files(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Empty fallback files produce zero-count results."""
         tmp_failed_writes.write_text("", encoding="utf-8")
@@ -788,8 +904,10 @@ class TestEdgeCases:
         )
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -800,7 +918,10 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_nonexistent_files(
-        self, sync_service, mock_neo4j, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_path,
     ):
         """Non-existent fallback files produce zero-count results."""
         patches = _patch_paths(
@@ -818,16 +939,23 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_malformed_jsonl_entries_skipped(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Malformed JSONL lines are preserved as pending (not lost)."""
         content = 'NOT VALID JSON\n{"timestamp":"2026-02-07","concept":"X","concept_id":"c1","canvas_name":"test","score":80,"event_type":"scoring","error_reason":"err"}\n'
         tmp_failed_writes.write_text(content, encoding="utf-8")
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -838,15 +966,22 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_malformed_canvas_events_json(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """Malformed canvas events file produces zero-count result."""
         tmp_canvas_events.write_text("NOT JSON", encoding="utf-8")
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -855,8 +990,13 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_partial_failure_continues(
-        self, sync_service, mock_neo4j, tmp_failed_writes,
-        tmp_canvas_events, tmp_learning_memories, tmp_path,
+        self,
+        sync_service,
+        mock_neo4j,
+        tmp_failed_writes,
+        tmp_canvas_events,
+        tmp_learning_memories,
+        tmp_path,
     ):
         """If one file sync errors, other files still sync."""
         # Set up canvas events to error
@@ -879,8 +1019,10 @@ class TestEdgeCases:
         )
 
         patches = _patch_paths(
-            tmp_failed_writes, tmp_canvas_events,
-            tmp_learning_memories, tmp_path / "sync_checkpoint.json",
+            tmp_failed_writes,
+            tmp_canvas_events,
+            tmp_learning_memories,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
@@ -904,7 +1046,9 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_edge_event_without_node_ids_skipped(
-        self, sync_service, mock_neo4j,
+        self,
+        sync_service,
+        mock_neo4j,
     ):
         """Edge event missing from/to node IDs is skipped."""
         event = {
@@ -919,7 +1063,9 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_learning_memory_without_concept_skipped(
-        self, sync_service, mock_neo4j,
+        self,
+        sync_service,
+        mock_neo4j,
     ):
         """Learning memory with empty concept is skipped."""
         mem = {

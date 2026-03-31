@@ -9,10 +9,7 @@ and validates settings from environment variables.
 [Source: docs/stories/21.5.2.story.md - AC-5 Unit Tests]
 """
 
-import os
-
 import pytest
-
 from app.config import Settings, get_settings
 
 
@@ -26,8 +23,14 @@ class TestSettings:
         override defaults (DEBUG, AI_PROVIDER, AI_MODEL_NAME, etc.).
         """
         # Clear env vars that override defaults
-        for key in ("DEBUG", "LOG_LEVEL", "AI_PROVIDER", "AI_MODEL_NAME",
-                     "AI_API_KEY", "AI_BASE_URL"):
+        for key in (
+            "DEBUG",
+            "LOG_LEVEL",
+            "AI_PROVIDER",
+            "AI_MODEL_NAME",
+            "AI_API_KEY",
+            "AI_BASE_URL",
+        ):
             monkeypatch.delenv(key, raising=False)
 
         settings = Settings()
@@ -96,10 +99,7 @@ class TestSettingsOverride:
     def test_settings_can_be_overridden(self):
         """Test that settings can be created with custom values."""
         custom_settings = Settings(
-            PROJECT_NAME="Test App",
-            VERSION="2.0.0",
-            DEBUG=True,
-            LOG_LEVEL="DEBUG"
+            PROJECT_NAME="Test App", VERSION="2.0.0", DEBUG=True, LOG_LEVEL="DEBUG"
         )
 
         assert custom_settings.PROJECT_NAME == "Test App"
@@ -178,7 +178,9 @@ class TestAIModelNameValidator:
         Then: AI_MODEL_NAME 被清理为 "gemini-2.0-flash-exp"
         """
         monkeypatch.delenv("AI_PROVIDER", raising=False)
-        settings = Settings(AI_MODEL_NAME="[K1]gemini-2.0-flash-exp", AI_PROVIDER="gemini")
+        settings = Settings(
+            AI_MODEL_NAME="[K1]gemini-2.0-flash-exp", AI_PROVIDER="gemini"
+        )
         assert settings.AI_MODEL_NAME == "gemini-2.0-flash-exp"
 
     def test_model_name_with_k2_prefix(self, monkeypatch):
@@ -212,7 +214,9 @@ class TestAIModelNameValidator:
             "ENV_prefix_qwen",
         ],
     )
-    def test_model_name_various_prefixes(self, monkeypatch, prefixed_name: str, expected_clean_name: str):
+    def test_model_name_various_prefixes(
+        self, monkeypatch, prefixed_name: str, expected_clean_name: str
+    ):
         """
         各种方括号前缀都应被正确清理（非 custom provider）。
 
@@ -255,5 +259,7 @@ class TestAIModelNameValidator:
         Then: AI_MODEL_NAME 被清理为 "gemini-2.0-flash-exp"
         """
         monkeypatch.delenv("AI_PROVIDER", raising=False)
-        settings = Settings(AI_MODEL_NAME="[]gemini-2.0-flash-exp", AI_PROVIDER="gemini")
+        settings = Settings(
+            AI_MODEL_NAME="[]gemini-2.0-flash-exp", AI_PROVIDER="gemini"
+        )
         assert settings.AI_MODEL_NAME == "gemini-2.0-flash-exp"

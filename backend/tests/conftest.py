@@ -22,7 +22,6 @@ from app.main import app
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing TestClient)
 from fastapi.testclient import TestClient
 
-
 # ============================================================================
 # Shared Test Utilities
 # ============================================================================
@@ -180,16 +179,21 @@ def clear_prometheus_metrics():
     )
 
     labeled_metrics = [
-        AGENT_EXECUTION_TIME, AGENT_ERRORS, AGENT_INVOCATIONS,
-        MEMORY_QUERY_LATENCY, MEMORY_ERRORS, MEMORY_QUERIES,
-        REQUEST_COUNT, REQUEST_LATENCY,
+        AGENT_EXECUTION_TIME,
+        AGENT_ERRORS,
+        AGENT_INVOCATIONS,
+        MEMORY_QUERY_LATENCY,
+        MEMORY_ERRORS,
+        MEMORY_QUERIES,
+        REQUEST_COUNT,
+        REQUEST_LATENCY,
     ]
     for metric in labeled_metrics:
-        if hasattr(metric, '_metrics'):
+        if hasattr(metric, "_metrics"):
             metric._metrics.clear()
 
     # Unlabeled Gauge — reset value to 0
-    if hasattr(CONCURRENT_REQUESTS, '_value'):
+    if hasattr(CONCURRENT_REQUESTS, "_value"):
         CONCURRENT_REQUESTS._value.set(0)
 
 
@@ -219,6 +223,7 @@ def isolate_card_states_file(tmp_path):
         pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
     """
     from unittest.mock import patch
+
     tmp_file = tmp_path / "fsrs_card_states.json"
     with patch("app.services.review_service._CARD_STATES_FILE", tmp_file):
         yield tmp_file
@@ -318,6 +323,7 @@ def test_settings() -> Settings:
 # Story 15.5 Fixtures - Service Layer Tests
 # ============================================================================
 
+
 @pytest.fixture
 def temp_dir():
     """Create a temporary directory for test files."""
@@ -338,7 +344,7 @@ def sample_canvas_data() -> dict:
                 "y": 0,
                 "width": 250,
                 "height": 60,
-                "color": "1"  # Gray (Obsidian Canvas: "1"=gray)
+                "color": "1",  # Gray (Obsidian Canvas: "1"=gray)
             },
             {
                 "id": "node2",
@@ -348,7 +354,7 @@ def sample_canvas_data() -> dict:
                 "y": 0,
                 "width": 250,
                 "height": 60,
-                "color": "3"  # Purple (Obsidian Canvas: "3"=purple)
+                "color": "3",  # Purple (Obsidian Canvas: "3"=purple)
             },
             {
                 "id": "node3",
@@ -358,16 +364,10 @@ def sample_canvas_data() -> dict:
                 "y": 0,
                 "width": 250,
                 "height": 60,
-                "color": "4"  # Red (Obsidian Canvas: "4"=red)
-            }
+                "color": "4",  # Red (Obsidian Canvas: "4"=red)
+            },
         ],
-        "edges": [
-            {
-                "id": "edge1",
-                "fromNode": "node1",
-                "toNode": "node2"
-            }
-        ]
+        "edges": [{"id": "edge1", "fromNode": "node1", "toNode": "node2"}],
     }
 
 
@@ -375,7 +375,7 @@ def sample_canvas_data() -> dict:
 def canvas_file(temp_dir: Path, sample_canvas_data: dict) -> Path:
     """Create a test canvas file."""
     canvas_path = temp_dir / "test.canvas"
-    with open(canvas_path, 'w', encoding='utf-8') as f:
+    with open(canvas_path, "w", encoding="utf-8") as f:
         json.dump(sample_canvas_data, f)
     return canvas_path
 
@@ -384,6 +384,7 @@ def canvas_file(temp_dir: Path, sample_canvas_data: dict) -> Path:
 def canvas_service(temp_dir: Path):
     """Create a CanvasService instance for testing."""
     from app.services.canvas_service import CanvasService
+
     return CanvasService(canvas_base_path=str(temp_dir))
 
 
@@ -391,6 +392,7 @@ def canvas_service(temp_dir: Path):
 def agent_service():
     """Create an AgentService instance for testing."""
     from app.services.agent_service import AgentService
+
     return AgentService()
 
 
@@ -398,6 +400,7 @@ def agent_service():
 def task_manager():
     """Create a BackgroundTaskManager instance for testing."""
     from app.services.background_task_manager import BackgroundTaskManager
+
     # Reset singleton to ensure clean state for each test
     BackgroundTaskManager.reset_instance()
     return BackgroundTaskManager.get_instance()
@@ -407,12 +410,14 @@ def task_manager():
 def review_service(canvas_service, task_manager):
     """Create a ReviewService instance for testing."""
     from app.services.review_service import ReviewService
+
     return ReviewService(canvas_service=canvas_service, task_manager=task_manager)
 
 
 # ============================================================================
 # Story 20.6 Fixtures - Multi-Provider Integration Tests
 # ============================================================================
+
 
 @pytest.fixture
 def mock_settings_multi_provider():
@@ -479,27 +484,27 @@ def mock_healthy_provider():
     provider.priority = 1
     provider.is_enabled = True
     provider.health = ProviderHealth(
-        status=ProviderStatus.HEALTHY,
-        latency_ms=100.0,
-        consecutive_failures=0
+        status=ProviderStatus.HEALTHY, latency_ms=100.0, consecutive_failures=0
     )
     provider.is_available = True
     provider.config = ProviderConfig(
         name="test-google",
         api_key="test-api-key",
         model="gemini-2.0-flash-exp",
-        priority=1
+        priority=1,
     )
 
     # Mock async methods
     provider.initialize = AsyncMock(return_value=True)
     provider.health_check = AsyncMock(return_value=provider.health)
-    provider.complete = AsyncMock(return_value=ProviderResponse(
-        text="Test response",
-        model="gemini-2.0-flash-exp",
-        provider="test-google",
-        latency_ms=100.0
-    ))
+    provider.complete = AsyncMock(
+        return_value=ProviderResponse(
+            text="Test response",
+            model="gemini-2.0-flash-exp",
+            provider="test-google",
+            latency_ms=100.0,
+        )
+    )
     provider.close = AsyncMock()
 
     return provider
@@ -529,14 +534,11 @@ def mock_unhealthy_provider():
         status=ProviderStatus.UNHEALTHY,
         latency_ms=None,
         error_message="Connection timeout",
-        consecutive_failures=3
+        consecutive_failures=3,
     )
     provider.is_available = False
     provider.config = ProviderConfig(
-        name="test-unhealthy",
-        api_key="test-api-key",
-        model="gpt-4o",
-        priority=2
+        name="test-unhealthy", api_key="test-api-key", model="gpt-4o", priority=2
     )
 
     # Mock async methods - health_check fails
@@ -589,6 +591,7 @@ def provider_factory_clean():
 # ============================================================================
 
 import os
+
 
 @pytest.fixture(scope="session")
 async def neo4j_available():
@@ -676,6 +679,7 @@ async def neo4j_test_session(real_neo4j_client):
     cleaned up automatically after the test, preventing data collision.
     """
     import uuid
+
     prefix = f"test_{uuid.uuid4().hex[:8]}_"
     yield real_neo4j_client, prefix
     try:
@@ -715,6 +719,7 @@ async def real_memory_service(real_neo4j_client):
 def test_user_id():
     """Generate unique test user ID to prevent data collision."""
     import uuid
+
     return f"test_user_{uuid.uuid4().hex[:8]}"
 
 
@@ -728,6 +733,7 @@ def test_canvas_path():
 def test_node_id():
     """Generate unique test node ID."""
     import uuid
+
     return f"test_node_{uuid.uuid4().hex[:8]}"
 
 
@@ -735,6 +741,7 @@ def test_node_id():
 # Story 31.A.10 Fixtures - Shared Mock Fixtures (Deduplication)
 # [Source: docs/stories/31.A.10.story.md#AC-31.A.10.1]
 # ============================================================================
+
 
 @pytest.fixture
 def mock_graphiti_client():

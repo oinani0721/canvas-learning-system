@@ -32,7 +32,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.core.agent_memory_mapping import AGENT_MEMORY_MAPPING, ALL_AGENT_NAMES
+from app.core.agent_memory_mapping import ALL_AGENT_NAMES
 from app.models.agent_routing_models import (
     BatchRoutingRequest,
     BatchRoutingResponse,
@@ -58,107 +58,107 @@ CONTENT_PATTERN_MAP: Dict[str, Dict[str, Any]] = {
     "comparison-table": {
         "patterns": [
             # Chinese patterns (more specific first)
-            r".*和.*的?区别.*",       # "A和B的区别"
-            r".*区别.*",              # "...区别..."
-            r".*对比.*",              # "...对比..."
-            r".*异同.*",              # "...异同..."
-            r".*比较.*和.*",          # "比较A和B"
+            r".*和.*的?区别.*",  # "A和B的区别"
+            r".*区别.*",  # "...区别..."
+            r".*对比.*",  # "...对比..."
+            r".*异同.*",  # "...异同..."
+            r".*比较.*和.*",  # "比较A和B"
             # English patterns
-            r".*\bvs\.?\s+.*",        # "A vs B"
+            r".*\bvs\.?\s+.*",  # "A vs B"
             r".*difference\s+between.*",  # "difference between A and B"
-            r".*compare.*and.*",      # "compare A and B"
+            r".*compare.*and.*",  # "compare A and B"
         ],
         "weight": 1.0,
         "priority": 1,  # Higher priority for specific patterns
-        "description": "Comparison table - for comparing similar/confusing concepts"
+        "description": "Comparison table - for comparing similar/confusing concepts",
     },
     "deep-decomposition": {
         "patterns": [
             # Chinese patterns
-            r"深度剖析.*",            # "深度剖析X"
-            r".*深度剖析.*",          # "...深度剖析..."
-            r"深入分析.*",            # "深入分析X"
-            r".*深入分析.*",          # "...深入分析..."
-            r"详细分析.*",            # "详细分析X"
+            r"深度剖析.*",  # "深度剖析X"
+            r".*深度剖析.*",  # "...深度剖析..."
+            r"深入分析.*",  # "深入分析X"
+            r".*深入分析.*",  # "...深入分析..."
+            r"详细分析.*",  # "详细分析X"
             # English patterns
-            r".*deep\s+analysis.*",   # "deep analysis of X"
+            r".*deep\s+analysis.*",  # "deep analysis of X"
             r".*in-depth.*analysis.*",  # "in-depth analysis"
         ],
         "weight": 1.0,
         "priority": 2,
-        "description": "Deep decomposition - for complex analytical breakdown"
+        "description": "Deep decomposition - for complex analytical breakdown",
     },
     "memory-anchor": {
         "patterns": [
             # Chinese patterns
-            r"记忆.*",                # "记忆X"
-            r".*记忆.*",              # "...记忆..."
-            r"记住.*",                # "记住X"
-            r".*记住.*",              # "...记住..."
-            r"背诵.*",                # "背诵X"
-            r".*背诵.*",              # "...背诵..."
-            r"怎么记.*",              # "怎么记X"
+            r"记忆.*",  # "记忆X"
+            r".*记忆.*",  # "...记忆..."
+            r"记住.*",  # "记住X"
+            r".*记住.*",  # "...记住..."
+            r"背诵.*",  # "背诵X"
+            r".*背诵.*",  # "...背诵..."
+            r"怎么记.*",  # "怎么记X"
             # English patterns
-            r".*memorize.*",          # "memorize X"
-            r".*remember.*",          # "remember X"
+            r".*memorize.*",  # "memorize X"
+            r".*remember.*",  # "remember X"
         ],
         "weight": 1.0,
         "priority": 3,
-        "description": "Memory anchor - for creating mnemonics and analogies"
+        "description": "Memory anchor - for creating mnemonics and analogies",
     },
     "example-teaching": {
         "patterns": [
             # Chinese patterns
-            r"举例说明.*",            # "举例说明X"
-            r".*举例.*",              # "...举例..."
-            r"例子.*",                # "例子..."
-            r".*例子.*",              # "...例子..."
-            r"举个例子.*",            # "举个例子..."
-            r".*实例.*",              # "...实例..."
+            r"举例说明.*",  # "举例说明X"
+            r".*举例.*",  # "...举例..."
+            r"例子.*",  # "例子..."
+            r".*例子.*",  # "...例子..."
+            r"举个例子.*",  # "举个例子..."
+            r".*实例.*",  # "...实例..."
             # English patterns
-            r".*give.*example.*",     # "give example of X"
-            r".*example.*of.*",       # "example of X"
-            r".*for\s+example.*",     # "for example"
+            r".*give.*example.*",  # "give example of X"
+            r".*example.*of.*",  # "example of X"
+            r".*for\s+example.*",  # "for example"
         ],
         "weight": 1.0,
         "priority": 4,
-        "description": "Example teaching - for concrete examples and problem-solving"
+        "description": "Example teaching - for concrete examples and problem-solving",
     },
     "clarification-path": {
         "patterns": [
             # Chinese patterns
-            r"如何理解.*",            # "如何理解X"
-            r"怎么理解.*",            # "怎么理解X"
-            r".*怎么理解.*",          # "...怎么理解..."
-            r".*如何理解.*",          # "...如何理解..."
-            r"理解.*",                # "理解X"
-            r"解释.*怎么.*",          # "解释...怎么..."
+            r"如何理解.*",  # "如何理解X"
+            r"怎么理解.*",  # "怎么理解X"
+            r".*怎么理解.*",  # "...怎么理解..."
+            r".*如何理解.*",  # "...如何理解..."
+            r"理解.*",  # "理解X"
+            r"解释.*怎么.*",  # "解释...怎么..."
             # English patterns
             r".*how\s+to\s+understand.*",  # "how to understand X"
-            r".*explain.*how.*",      # "explain how"
+            r".*explain.*how.*",  # "explain how"
         ],
         "weight": 1.0,
         "priority": 5,
-        "description": "Clarification path - systematic 1500+ word explanation"
+        "description": "Clarification path - systematic 1500+ word explanation",
     },
     "oral-explanation": {
         "patterns": [
             # Chinese patterns (general definition questions)
-            r"什么是.*",              # "什么是X"
-            r".*是什么.*",            # "X是什么"
-            r"定义.*",                # "定义X"
-            r".*定义.*",              # "...定义..."
-            r"解释.*",                # "解释X"
-            r".*解释.*什么.*",        # "...解释...什么..."
-            r".*是.*吗.*",            # "X是...吗"
+            r"什么是.*",  # "什么是X"
+            r".*是什么.*",  # "X是什么"
+            r"定义.*",  # "定义X"
+            r".*定义.*",  # "...定义..."
+            r"解释.*",  # "解释X"
+            r".*解释.*什么.*",  # "...解释...什么..."
+            r".*是.*吗.*",  # "X是...吗"
             # English patterns
-            r".*what\s+is.*",         # "what is X"
-            r".*define.*",            # "define X"
-            r".*explain.*what.*",     # "explain what"
+            r".*what\s+is.*",  # "what is X"
+            r".*define.*",  # "define X"
+            r".*explain.*what.*",  # "explain what"
         ],
         "weight": ORAL_EXPLANATION_WEIGHT,
         "priority": 6,  # Lower priority - used as default fallback
-        "description": "Oral explanation - professor-style verbal explanation"
+        "description": "Oral explanation - professor-style verbal explanation",
     },
 }
 
@@ -179,8 +179,7 @@ AGENT_DESCRIPTIONS: Dict[str, str] = {
 }
 
 INTENT_CLASSIFICATION_SYSTEM = (
-    "你是教育内容分类器。根据学习主题选择最合适的教学方式。"
-    "只返回JSON，不要其他文字。"
+    "你是教育内容分类器。根据学习主题选择最合适的教学方式。只返回JSON，不要其他文字。"
 )
 
 INTENT_CLASSIFICATION_USER = (
@@ -197,46 +196,46 @@ INTENT_CLASSIFICATION_USER = (
 # --- Routing decision thresholds (AC2) ---
 # NOTE: MEDIUM and LOW are intentionally equal — there is no "low but keep match" band.
 # >= 0.85 = high confidence, 0.70-0.85 = medium confidence, < 0.70 = fallback to default.
-CONFIDENCE_HIGH_THRESHOLD = 0.85    # Strong match, single dominant agent
+CONFIDENCE_HIGH_THRESHOLD = 0.85  # Strong match, single dominant agent
 CONFIDENCE_MEDIUM_THRESHOLD = 0.70  # Medium confidence lower bound (for batch counting)
-CONFIDENCE_LOW_THRESHOLD = 0.70     # Below this, use fallback agent
+CONFIDENCE_LOW_THRESHOLD = 0.70  # Below this, use fallback agent
 
 # --- _calculate_confidence() scoring parameters ---
-CONFIDENCE_NO_MATCH = 0.50          # Confidence when no patterns match at all
-CONFIDENCE_BASE = 0.60              # Base confidence for multi-match scoring
-CONFIDENCE_SCORE_WEIGHT = 0.30      # Weight applied to top match score
-CONFIDENCE_SINGLE_MATCH_BASE = 0.85 # Base confidence for single-match case
+CONFIDENCE_NO_MATCH = 0.50  # Confidence when no patterns match at all
+CONFIDENCE_BASE = 0.60  # Base confidence for multi-match scoring
+CONFIDENCE_SCORE_WEIGHT = 0.30  # Weight applied to top match score
+CONFIDENCE_SINGLE_MATCH_BASE = 0.85  # Base confidence for single-match case
 CONFIDENCE_SINGLE_MATCH_SCALE = 0.50  # Scale factor for single-match quality bonus
 CONFIDENCE_SINGLE_MATCH_OFFSET = 0.75  # Score offset for single-match calculation
-CONFIDENCE_MAX = 0.98               # Absolute ceiling for confidence
-CONFIDENCE_MIN = 0.40               # Absolute floor for confidence
+CONFIDENCE_MAX = 0.98  # Absolute ceiling for confidence
+CONFIDENCE_MIN = 0.40  # Absolute floor for confidence
 
 # Dominance detection: how far top match must exceed second match
-DOMINANCE_RATIO_HIGH = 0.30         # Score gap ratio for clear dominance
-DOMINANCE_RATIO_MODERATE = 0.15     # Score gap ratio for moderate dominance
-CONFIDENCE_CLEAR_DOMINANCE_BONUS = 0.15   # Bonus when top match clearly dominates
+DOMINANCE_RATIO_HIGH = 0.30  # Score gap ratio for clear dominance
+DOMINANCE_RATIO_MODERATE = 0.15  # Score gap ratio for moderate dominance
+CONFIDENCE_CLEAR_DOMINANCE_BONUS = 0.15  # Bonus when top match clearly dominates
 CONFIDENCE_MODERATE_DOMINANCE_BONUS = 0.08  # Bonus when top match moderately dominates
 
 # Competing pattern penalty
-COMPETING_SCORE_RATIO = 0.70        # Fraction of top score to count as "competing"
-COMPETING_THRESHOLD = 2             # Number of competing matches before penalty applies
-CONFIDENCE_COMPETING_PENALTY = 0.05 # Penalty per extra competing pattern
+COMPETING_SCORE_RATIO = 0.70  # Fraction of top score to count as "competing"
+COMPETING_THRESHOLD = 2  # Number of competing matches before penalty applies
+CONFIDENCE_COMPETING_PENALTY = 0.05  # Penalty per extra competing pattern
 
 # --- _calculate_match_quality() parameters ---
-MATCH_QUALITY_BASE = 0.75           # Default quality for any pattern match
-MATCH_QUALITY_NO_LEADING_WILDCARD_BONUS = 0.10   # Bonus for anchored start
+MATCH_QUALITY_BASE = 0.75  # Default quality for any pattern match
+MATCH_QUALITY_NO_LEADING_WILDCARD_BONUS = 0.10  # Bonus for anchored start
 MATCH_QUALITY_NO_TRAILING_WILDCARD_BONUS = 0.05  # Bonus for anchored end
-MATCH_QUALITY_LONG_PATTERN_BONUS = 0.05   # Bonus for specific (long) patterns
-MATCH_QUALITY_LONG_PATTERN_MIN_LEN = 6    # Minimum cleaned pattern length for bonus
+MATCH_QUALITY_LONG_PATTERN_BONUS = 0.05  # Bonus for specific (long) patterns
+MATCH_QUALITY_LONG_PATTERN_MIN_LEN = 6  # Minimum cleaned pattern length for bonus
 
 # --- analyze_content() pattern bonus ---
-PATTERN_COUNT_BONUS_PER_EXTRA = 0.05      # Score bonus per additional matched pattern
-PATTERN_COUNT_BONUS_MAX = 1.15            # Maximum pattern count multiplier
+PATTERN_COUNT_BONUS_PER_EXTRA = 0.05  # Score bonus per additional matched pattern
+PATTERN_COUNT_BONUS_MAX = 1.15  # Maximum pattern count multiplier
 
 # --- route_batch() accuracy weights ---
-BATCH_ACCURACY_HIGH_WEIGHT = 0.95   # Weight for high-confidence matches
-BATCH_ACCURACY_MEDIUM_WEIGHT = 0.80 # Weight for medium-confidence matches
-BATCH_ACCURACY_LOW_WEIGHT = 0.60    # Weight for low-confidence matches
+BATCH_ACCURACY_HIGH_WEIGHT = 0.95  # Weight for high-confidence matches
+BATCH_ACCURACY_MEDIUM_WEIGHT = 0.80  # Weight for medium-confidence matches
+BATCH_ACCURACY_LOW_WEIGHT = 0.60  # Weight for low-confidence matches
 
 
 class AgentRoutingEngine:
@@ -265,7 +264,9 @@ class AgentRoutingEngine:
         """
         self.pattern_config = pattern_config or CONTENT_PATTERN_MAP
         self.pattern_version = PATTERN_VERSION
-        logger.info(f"AgentRoutingEngine initialized with pattern version {self.pattern_version}")
+        logger.info(
+            f"AgentRoutingEngine initialized with pattern version {self.pattern_version}"
+        )
 
     def analyze_content(self, node_text: str) -> List[Tuple[str, float]]:
         """
@@ -285,7 +286,9 @@ class AgentRoutingEngine:
         normalized_text = node_text.strip()
         normalized_lower = normalized_text.lower()
 
-        matches: List[Tuple[str, float, int, List[str]]] = []  # (agent, score, priority, patterns)
+        matches: List[
+            Tuple[str, float, int, List[str]]
+        ] = []  # (agent, score, priority, patterns)
 
         for agent_name, config in self.pattern_config.items():
             patterns = config.get("patterns", [])
@@ -301,7 +304,9 @@ class AgentRoutingEngine:
                     if re.search(pattern, normalized_text, re.IGNORECASE):
                         matched_patterns.append(pattern)
                         # Calculate match quality based on pattern specificity
-                        match_quality = self._calculate_match_quality(pattern, normalized_text)
+                        match_quality = self._calculate_match_quality(
+                            pattern, normalized_text
+                        )
                         max_match_quality = max(max_match_quality, match_quality)
                 except re.error as e:
                     logger.warning(f"Invalid regex pattern '{pattern}': {e}")
@@ -343,16 +348,14 @@ class AgentRoutingEngine:
             quality += MATCH_QUALITY_NO_TRAILING_WILDCARD_BONUS
 
         # Boost for longer specific patterns (more characters excluding wildcards)
-        clean_pattern = re.sub(r'\.\*|\.\+|\\s\+|\\s\*', '', pattern)
+        clean_pattern = re.sub(r"\.\*|\.\+|\\s\+|\\s\*", "", pattern)
         if len(clean_pattern) > MATCH_QUALITY_LONG_PATTERN_MIN_LEN:
             quality += MATCH_QUALITY_LONG_PATTERN_BONUS
 
         return min(quality, 1.0)
 
     def _calculate_confidence(
-        self,
-        matches: List[Tuple[str, float]],
-        has_override: bool = False
+        self, matches: List[Tuple[str, float]], has_override: bool = False
     ) -> float:
         """
         Calculate confidence score based on match analysis.
@@ -380,7 +383,8 @@ class AgentRoutingEngine:
             score = matches[0][1]
             return min(
                 CONFIDENCE_SINGLE_MATCH_BASE
-                + (score - CONFIDENCE_SINGLE_MATCH_OFFSET) * CONFIDENCE_SINGLE_MATCH_SCALE,
+                + (score - CONFIDENCE_SINGLE_MATCH_OFFSET)
+                * CONFIDENCE_SINGLE_MATCH_SCALE,
                 CONFIDENCE_MAX,
             )
 
@@ -408,7 +412,9 @@ class AgentRoutingEngine:
             1 for _, score in matches if score >= top_score * COMPETING_SCORE_RATIO
         )
         if competing_count > COMPETING_THRESHOLD:
-            base_confidence -= CONFIDENCE_COMPETING_PENALTY * (competing_count - COMPETING_THRESHOLD)
+            base_confidence -= CONFIDENCE_COMPETING_PENALTY * (
+                competing_count - COMPETING_THRESHOLD
+            )
 
         return max(min(base_confidence, CONFIDENCE_MAX), CONFIDENCE_MIN)
 
@@ -427,14 +433,16 @@ class AgentRoutingEngine:
         # Task 4: Handle manual override (AC3)
         if request.agent_override:
             if request.agent_override in ALL_AGENT_NAMES:
-                logger.info(f"Manual override to {request.agent_override} for node {request.node_id}")
+                logger.info(
+                    f"Manual override to {request.agent_override} for node {request.node_id}"
+                )
                 return RoutingResult(
                     node_id=request.node_id,
                     recommended_agent=request.agent_override,
                     confidence=1.0,
                     patterns_matched=[],
                     fallback_agent=DEFAULT_FALLBACK_AGENT,
-                    reason="manual_override"
+                    reason="manual_override",
                 )
             else:
                 logger.warning(
@@ -447,14 +455,16 @@ class AgentRoutingEngine:
 
         if not matches:
             # No matches - use fallback
-            logger.debug(f"No pattern matches for node {request.node_id}, using fallback")
+            logger.debug(
+                f"No pattern matches for node {request.node_id}, using fallback"
+            )
             return RoutingResult(
                 node_id=request.node_id,
                 recommended_agent=DEFAULT_FALLBACK_AGENT,
                 confidence=CONFIDENCE_NO_MATCH,
                 patterns_matched=[],
                 fallback_agent=None,
-                reason="no_pattern_match"
+                reason="no_pattern_match",
             )
 
         # Get top match
@@ -486,7 +496,7 @@ class AgentRoutingEngine:
                 confidence=confidence,
                 patterns_matched=patterns_matched,
                 fallback_agent=top_agent,  # Original top match as fallback
-                reason=f"low_confidence_fallback (original: {top_agent})"
+                reason=f"low_confidence_fallback (original: {top_agent})",
             )
 
         # Determine reason based on confidence level
@@ -501,7 +511,7 @@ class AgentRoutingEngine:
             confidence=confidence,
             patterns_matched=patterns_matched,
             fallback_agent=fallback_agent,
-            reason=reason
+            reason=reason,
         )
 
     async def _llm_classify_intent(self, node_text: str) -> Optional[Tuple[str, float]]:
@@ -525,6 +535,7 @@ class AgentRoutingEngine:
 
         try:
             from app.core.litellm_config import get_litellm_config
+
             config = get_litellm_config()
             model = config.get_scoring_model()
         except Exception:
@@ -566,7 +577,10 @@ class AgentRoutingEngine:
         result = self.route_single_node(request)
 
         # If high/medium confidence or manual override, return immediately
-        if result.confidence >= CONFIDENCE_LOW_THRESHOLD or result.reason == "manual_override":
+        if (
+            result.confidence >= CONFIDENCE_LOW_THRESHOLD
+            or result.reason == "manual_override"
+        ):
             return result
 
         # Semantic fallback for low confidence / no match
@@ -625,9 +639,9 @@ class AgentRoutingEngine:
         if total_nodes > 0:
             # Weight high confidence matches more heavily
             weighted_sum = (
-                high_confidence_count * BATCH_ACCURACY_HIGH_WEIGHT +
-                medium_confidence_count * BATCH_ACCURACY_MEDIUM_WEIGHT +
-                low_confidence_count * BATCH_ACCURACY_LOW_WEIGHT
+                high_confidence_count * BATCH_ACCURACY_HIGH_WEIGHT
+                + medium_confidence_count * BATCH_ACCURACY_MEDIUM_WEIGHT
+                + low_confidence_count * BATCH_ACCURACY_LOW_WEIGHT
             )
             accuracy_estimate = weighted_sum / total_nodes
         else:

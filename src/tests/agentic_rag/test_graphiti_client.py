@@ -24,6 +24,7 @@ from src.agentic_rag.clients.graphiti_client import GraphitiClient
 # Story 12.1 AC 1.1: Graphiti MCP client初始化
 # ============================================================
 
+
 class TestGraphitiClientInitialization:
     """测试 GraphitiClient 初始化"""
 
@@ -39,11 +40,7 @@ class TestGraphitiClientInitialization:
 
     def test_custom_initialization(self):
         """AC 1.1: 自定义参数初始化"""
-        client = GraphitiClient(
-            timeout_ms=500,
-            batch_size=20,
-            enable_fallback=False
-        )
+        client = GraphitiClient(timeout_ms=500, batch_size=20, enable_fallback=False)
 
         assert client.timeout_ms == 500
         assert client.batch_size == 20
@@ -75,6 +72,7 @@ class TestGraphitiClientInitialization:
 # Story 12.1 AC 1.2: search_nodes接口封装
 # ============================================================
 
+
 class TestGraphitiClientSearchNodes:
     """测试 search_nodes 接口"""
 
@@ -95,8 +93,7 @@ class TestGraphitiClientSearchNodes:
         await client.initialize()
 
         results = await client.search_nodes(
-            query="逆否命题",
-            canvas_file="离散数学.canvas"
+            query="逆否命题", canvas_file="离散数学.canvas"
         )
 
         assert isinstance(results, list)
@@ -108,8 +105,7 @@ class TestGraphitiClientSearchNodes:
         await client.initialize()
 
         results = await client.search_nodes(
-            query="逆否命题",
-            entity_types=["concept", "topic"]
+            query="逆否命题", entity_types=["concept", "topic"]
         )
 
         assert isinstance(results, list)
@@ -120,10 +116,7 @@ class TestGraphitiClientSearchNodes:
         client = GraphitiClient()
         await client.initialize()
 
-        results = await client.search_nodes(
-            query="逆否命题",
-            num_results=5
-        )
+        results = await client.search_nodes(query="逆否命题", num_results=5)
 
         assert len(results) <= 5
 
@@ -143,6 +136,7 @@ class TestGraphitiClientSearchNodes:
 # Story 12.1 AC 1.3: 错误处理和超时
 # ============================================================
 
+
 class TestGraphitiClientErrorHandling:
     """测试错误处理和超时"""
 
@@ -155,7 +149,9 @@ class TestGraphitiClientErrorHandling:
         # Force MCP available to trigger timeout path
         client._mcp_available = True
 
-        with patch.object(client, '_search_via_mcp', new_callable=AsyncMock) as mock_search:
+        with patch.object(
+            client, "_search_via_mcp", new_callable=AsyncMock
+        ) as mock_search:
             mock_search.side_effect = asyncio.TimeoutError()
 
             results = await client.search_nodes("测试")
@@ -170,7 +166,9 @@ class TestGraphitiClientErrorHandling:
 
         client._mcp_available = True
 
-        with patch.object(client, '_search_via_mcp', new_callable=AsyncMock) as mock_search:
+        with patch.object(
+            client, "_search_via_mcp", new_callable=AsyncMock
+        ) as mock_search:
             mock_search.side_effect = asyncio.TimeoutError()
 
             with pytest.raises(asyncio.TimeoutError):
@@ -184,7 +182,9 @@ class TestGraphitiClientErrorHandling:
 
         client._mcp_available = True
 
-        with patch.object(client, '_search_via_mcp', new_callable=AsyncMock) as mock_search:
+        with patch.object(
+            client, "_search_via_mcp", new_callable=AsyncMock
+        ) as mock_search:
             mock_search.side_effect = Exception("Test error")
 
             results = await client.search_nodes("测试")
@@ -199,7 +199,9 @@ class TestGraphitiClientErrorHandling:
 
         client._mcp_available = True
 
-        with patch.object(client, '_search_via_mcp', new_callable=AsyncMock) as mock_search:
+        with patch.object(
+            client, "_search_via_mcp", new_callable=AsyncMock
+        ) as mock_search:
             mock_search.side_effect = Exception("Test error")
 
             with pytest.raises(Exception) as excinfo:
@@ -211,6 +213,7 @@ class TestGraphitiClientErrorHandling:
 # ============================================================
 # Story 12.1 AC 1.4: 结果转换为SearchResult
 # ============================================================
+
 
 class TestGraphitiClientResultConversion:
     """测试结果转换"""
@@ -224,7 +227,7 @@ class TestGraphitiClientResultConversion:
                 "id": "node_001",
                 "content": "逆否命题的定义",
                 "score": 0.89,
-                "_graphiti_type": "node"
+                "_graphiti_type": "node",
             }
         ]
 
@@ -241,13 +244,10 @@ class TestGraphitiClientResultConversion:
         """AC 1.4: 转换时包含canvas_file"""
         client = GraphitiClient()
 
-        raw_results = [
-            {"id": "node_001", "content": "测试内容", "score": 0.9}
-        ]
+        raw_results = [{"id": "node_001", "content": "测试内容", "score": 0.9}]
 
         results = client._convert_to_search_results(
-            raw_results,
-            canvas_file="离散数学.canvas"
+            raw_results, canvas_file="离散数学.canvas"
         )
 
         assert results[0]["metadata"]["canvas_file"] == "离散数学.canvas"
@@ -256,9 +256,7 @@ class TestGraphitiClientResultConversion:
         """AC 1.4: 转换时尊重num_results限制"""
         client = GraphitiClient()
 
-        raw_results = [
-            {"id": f"node_{i}", "content": f"内容{i}"} for i in range(10)
-        ]
+        raw_results = [{"id": f"node_{i}", "content": f"内容{i}"} for i in range(10)]
 
         results = client._convert_to_search_results(raw_results, num_results=5)
 
@@ -271,7 +269,7 @@ class TestGraphitiClientResultConversion:
         raw_results = [
             {"id": "1", "content": "test", "score": 1.5},  # Above 1
             {"id": "2", "content": "test", "score": -0.5},  # Below 0
-            {"id": "3", "content": "test", "score": 0.5},   # Normal
+            {"id": "3", "content": "test", "score": 0.5},  # Normal
         ]
 
         results = client._convert_to_search_results(raw_results)
@@ -311,7 +309,9 @@ class TestGraphitiClientResultConversion:
 
         for tc in test_cases:
             results = client._convert_to_search_results([tc])
-            expected = tc.get("content") or tc.get("text") or tc.get("name") or tc.get("fact")
+            expected = (
+                tc.get("content") or tc.get("text") or tc.get("name") or tc.get("fact")
+            )
             assert results[0]["content"] == expected
 
     def test_convert_to_search_results_preserves_metadata(self):
@@ -326,7 +326,7 @@ class TestGraphitiClientResultConversion:
                 "updated_at": "2025-01-02T00:00:00",
                 "entity_type": "concept",
                 "importance": 0.8,
-                "_graphiti_type": "node"
+                "_graphiti_type": "node",
             }
         ]
 
@@ -341,6 +341,7 @@ class TestGraphitiClientResultConversion:
 # ============================================================
 # Additional Tests: Convenience Methods
 # ============================================================
+
 
 class TestGraphitiClientConvenienceMethods:
     """测试便捷方法"""
@@ -362,8 +363,7 @@ class TestGraphitiClientConvenienceMethods:
         await client.initialize()
 
         results = await client.get_weak_concepts(
-            canvas_file="离散数学.canvas",
-            threshold=0.5
+            canvas_file="离散数学.canvas", threshold=0.5
         )
 
         assert isinstance(results, list)
@@ -385,6 +385,7 @@ class TestGraphitiClientConvenienceMethods:
 # Integration Tests with Mock MCP
 # ============================================================
 
+
 class TestGraphitiClientWithMockMCP:
     """使用Mock MCP的集成测试"""
 
@@ -397,7 +398,9 @@ class TestGraphitiClientWithMockMCP:
         # Simulate MCP available
         client._mcp_available = True
 
-        with patch.object(client, '_search_via_mcp', new_callable=AsyncMock) as mock_search:
+        with patch.object(
+            client, "_search_via_mcp", new_callable=AsyncMock
+        ) as mock_search:
             mock_search.return_value = sample_graphiti_results
 
             results = await client.search_nodes("逆否命题")

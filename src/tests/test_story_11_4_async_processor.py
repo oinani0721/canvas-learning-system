@@ -28,9 +28,13 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_progress_tracker.async_processor import AsyncCanvasProcessor, AsyncTaskStats
-from canvas_progress_tracker.canvas_monitor_engine import CanvasMonitorEngine, DebounceManager
+from canvas_progress_tracker.canvas_monitor_engine import (
+    CanvasMonitorEngine,
+    DebounceManager,
+)
 
 # ===== Fixtures =====
+
 
 @pytest.fixture
 def mock_monitor_engine():
@@ -50,7 +54,7 @@ def async_processor(mock_monitor_engine):
         max_workers=4,
         queue_size=10,  # 小队列便于测试
         callback_timeout=1,  # 短超时便于测试
-        monitor_engine=mock_monitor_engine
+        monitor_engine=mock_monitor_engine,
     )
     yield processor
     processor.shutdown(timeout=5)
@@ -63,13 +67,14 @@ def async_processor_large_queue(mock_monitor_engine):
         max_workers=4,
         queue_size=100,
         callback_timeout=1,
-        monitor_engine=mock_monitor_engine
+        monitor_engine=mock_monitor_engine,
     )
     yield processor
     processor.shutdown(timeout=5)
 
 
 # ===== Task 8.2: 测试异步队列正确接收任务 =====
+
 
 def test_submit_task_success(async_processor):
     """测试成功提交任务到队列"""
@@ -93,7 +98,7 @@ def test_submit_multiple_tasks(async_processor):
     tasks = [
         ("test1.canvas", {"nodes": []}, {"nodes": [{"id": "1"}]}),
         ("test2.canvas", {"nodes": []}, {"nodes": [{"id": "2"}]}),
-        ("test3.canvas", {"nodes": []}, {"nodes": [{"id": "3"}]})
+        ("test3.canvas", {"nodes": []}, {"nodes": [{"id": "3"}]}),
     ]
 
     # Act
@@ -108,6 +113,7 @@ def test_submit_multiple_tasks(async_processor):
 
 
 # ===== Task 8.3: 测试4个worker线程并发处理任务 =====
+
 
 def test_worker_threads_count(async_processor):
     """测试worker线程数量"""
@@ -133,15 +139,15 @@ def test_concurrent_processing(async_processor_large_queue):
         time.sleep(0.01)  # 模拟处理时间
         return []
 
-    async_processor_large_queue.monitor_engine._detect_canvas_changes = mock_detect_changes
+    async_processor_large_queue.monitor_engine._detect_canvas_changes = (
+        mock_detect_changes
+    )
 
     # Act
     start_time = time.time()
     for i in range(task_count):
         async_processor_large_queue.submit_task(
-            f"test{i}.canvas",
-            {"nodes": []},
-            {"nodes": [{"id": str(i)}]}
+            f"test{i}.canvas", {"nodes": []}, {"nodes": [{"id": str(i)}]}
         )
 
     # 等待所有任务处理完成
@@ -160,6 +166,7 @@ def test_concurrent_processing(async_processor_large_queue):
 
 # ===== Task 8.4: 测试同一Canvas的任务顺序保证 =====
 
+
 def test_same_canvas_sequential_processing(async_processor_large_queue):
     """测试同一Canvas的任务按顺序执行"""
     # Arrange
@@ -176,14 +183,14 @@ def test_same_canvas_sequential_processing(async_processor_large_queue):
         time.sleep(0.02)  # 模拟处理时间
         return []
 
-    async_processor_large_queue.monitor_engine._detect_canvas_changes = mock_detect_changes
+    async_processor_large_queue.monitor_engine._detect_canvas_changes = (
+        mock_detect_changes
+    )
 
     # Act
     for i in range(task_count):
         async_processor_large_queue.submit_task(
-            canvas_path,
-            {"task_id": i},
-            {"task_id": i}
+            canvas_path, {"task_id": i}, {"task_id": i}
         )
 
     # 等待所有任务处理完成
@@ -191,11 +198,13 @@ def test_same_canvas_sequential_processing(async_processor_large_queue):
 
     # Assert
     assert len(processed_order) == task_count
-    assert processed_order == list(range(task_count)), \
+    assert processed_order == list(range(task_count)), (
         f"任务应该按提交顺序执行，实际: {processed_order}"
+    )
 
 
 # ===== Task 8.5: 测试不同Canvas的任务并发执行 =====
+
 
 def test_different_canvas_concurrent_processing(async_processor_large_queue):
     """测试不同Canvas的任务可以并发执行"""
@@ -214,16 +223,16 @@ def test_different_canvas_concurrent_processing(async_processor_large_queue):
             processing_times[path].append((start, time.time()))
         return []
 
-    async_processor_large_queue.monitor_engine._detect_canvas_changes = mock_detect_changes
+    async_processor_large_queue.monitor_engine._detect_canvas_changes = (
+        mock_detect_changes
+    )
 
     # Act
     start_time = time.time()
     for canvas_path in canvas_paths:
         for i in range(5):  # 每个Canvas提交5个任务
             async_processor_large_queue.submit_task(
-                canvas_path,
-                {"task_id": i},
-                {"task_id": i}
+                canvas_path, {"task_id": i}, {"task_id": i}
             )
 
     # 等待所有任务处理完成
@@ -234,14 +243,16 @@ def test_different_canvas_concurrent_processing(async_processor_large_queue):
     # 4个Canvas，每个5个任务，每个任务0.05秒
     # 串行: 4 * 5 * 0.05 = 1.0秒
     # 并发: 由于有4个worker，应该约为 5 * 0.05 = 0.25秒
-    assert total_elapsed < 0.5, \
+    assert total_elapsed < 0.5, (
         f"不同Canvas应该并发处理，实际耗时: {total_elapsed:.3f}秒"
+    )
 
     # 检查不同Canvas之间有时间重叠（证明并发）
     assert len(processing_times) == 4
 
 
 # ===== Task 8.6: 测试回调超时控制（2秒） =====
+
 
 def test_callback_timeout_detection(async_processor):
     """测试回调超时检测"""
@@ -256,11 +267,7 @@ def test_callback_timeout_detection(async_processor):
     async_processor.monitor_engine._detect_canvas_changes = Mock(return_value=[Mock()])
 
     # Act
-    async_processor.submit_task(
-        "test.canvas",
-        {"nodes": []},
-        {"nodes": [{"id": "1"}]}
-    )
+    async_processor.submit_task("test.canvas", {"nodes": []}, {"nodes": [{"id": "1"}]})
 
     # 等待任务处理
     time.sleep(2.5)
@@ -272,6 +279,7 @@ def test_callback_timeout_detection(async_processor):
 
 def test_callback_exception_handling(async_processor):
     """测试回调异常处理"""
+
     # Arrange
     def failing_callback(change):
         """会抛出异常的回调"""
@@ -281,11 +289,7 @@ def test_callback_exception_handling(async_processor):
     async_processor.monitor_engine._detect_canvas_changes = Mock(return_value=[Mock()])
 
     # Act
-    async_processor.submit_task(
-        "test.canvas",
-        {"nodes": []},
-        {"nodes": [{"id": "1"}]}
-    )
+    async_processor.submit_task("test.canvas", {"nodes": []}, {"nodes": [{"id": "1"}]})
 
     # 等待任务处理
     time.sleep(0.5)
@@ -297,11 +301,14 @@ def test_callback_exception_handling(async_processor):
 
 # ===== Task 8.7: 测试队列容量限制（1000） =====
 
+
 def test_queue_capacity_limit(async_processor):
     """测试队列容量限制（队列容量为10）"""
     # Arrange
     # 暂停worker处理（通过设置shutdown flag但不关闭）
-    async_processor.monitor_engine._detect_canvas_changes = Mock(side_effect=lambda *args: time.sleep(1))
+    async_processor.monitor_engine._detect_canvas_changes = Mock(
+        side_effect=lambda *args: time.sleep(1)
+    )
 
     # Act
     success_count = 0
@@ -309,9 +316,7 @@ def test_queue_capacity_limit(async_processor):
 
     for i in range(15):  # 提交15个任务（队列容量10）
         result = async_processor.submit_task(
-            f"test{i}.canvas",
-            {"nodes": []},
-            {"nodes": [{"id": str(i)}]}
+            f"test{i}.canvas", {"nodes": []}, {"nodes": [{"id": str(i)}]}
         )
         if result:
             success_count += 1
@@ -326,6 +331,7 @@ def test_queue_capacity_limit(async_processor):
 
 # ===== Task 8.8: 测试优雅关闭机制（最多30秒） =====
 
+
 def test_graceful_shutdown(mock_monitor_engine):
     """测试优雅关闭"""
     # Arrange
@@ -333,15 +339,13 @@ def test_graceful_shutdown(mock_monitor_engine):
         max_workers=4,
         queue_size=10,
         callback_timeout=1,
-        monitor_engine=mock_monitor_engine
+        monitor_engine=mock_monitor_engine,
     )
 
     # 提交一些任务
     for i in range(5):
         processor.submit_task(
-            f"test{i}.canvas",
-            {"nodes": []},
-            {"nodes": [{"id": str(i)}]}
+            f"test{i}.canvas", {"nodes": []}, {"nodes": [{"id": str(i)}]}
         )
 
     # Act
@@ -360,9 +364,7 @@ def test_shutdown_rejects_new_tasks(async_processor):
     async_processor.shutdown(timeout=1)
 
     result = async_processor.submit_task(
-        "test.canvas",
-        {"nodes": []},
-        {"nodes": [{"id": "1"}]}
+        "test.canvas", {"nodes": []}, {"nodes": [{"id": "1"}]}
     )
 
     # Assert
@@ -371,20 +373,19 @@ def test_shutdown_rejects_new_tasks(async_processor):
 
 # ===== Task 8.9: 测试防抖后立即返回（< 10ms） =====
 
+
 def test_flush_changes_immediate_return(mock_monitor_engine):
     """测试防抖处理立即返回（< 10ms）"""
     # Arrange
-    debounce_manager = DebounceManager(
-        delay_ms=500,
-        monitor_engine=mock_monitor_engine
-    )
+    debounce_manager = DebounceManager(delay_ms=500, monitor_engine=mock_monitor_engine)
 
     # 模拟Canvas文件
     test_canvas_path = "test_flush_immediate.canvas"
     import json
+
     test_content = {"nodes": [{"id": "1", "type": "text", "x": 0, "y": 0}]}
 
-    with open(test_canvas_path, 'w', encoding='utf-8') as f:
+    with open(test_canvas_path, "w", encoding="utf-8") as f:
         json.dump(test_content, f)
 
     try:
@@ -392,12 +393,16 @@ def test_flush_changes_immediate_return(mock_monitor_engine):
         start_time = time.perf_counter()
 
         # 模拟_flush_changes调用（通过触发add_change和等待防抖）
-        from canvas_progress_tracker.canvas_monitor_engine import CanvasChange, CanvasChangeType
+        from canvas_progress_tracker.canvas_monitor_engine import (
+            CanvasChange,
+            CanvasChangeType,
+        )
+
         change = CanvasChange(
             change_id="test_change_1",
             canvas_id="test_flush_immediate.canvas",
             change_type=CanvasChangeType.UPDATE,
-            file_path=test_canvas_path
+            file_path=test_canvas_path,
         )
 
         debounce_manager.add_change(test_canvas_path, change)
@@ -419,6 +424,7 @@ def test_flush_changes_immediate_return(mock_monitor_engine):
 
 
 # ===== AsyncTaskStats测试 =====
+
 
 def test_async_task_stats():
     """测试异步任务统计"""
@@ -450,6 +456,7 @@ def test_async_task_stats():
 
 
 # ===== Canvas锁机制测试 =====
+
 
 def test_canvas_lock_mechanism(async_processor_large_queue):
     """测试Canvas锁机制的正确性"""
@@ -483,11 +490,7 @@ def test_canvas_lock_acquisition_timeout(async_processor):
     # Act & Assert
     # 提交任务应该超时（5秒锁超时）
     start = time.time()
-    async_processor.submit_task(
-        canvas_path,
-        {"nodes": []},
-        {"nodes": [{"id": "1"}]}
-    )
+    async_processor.submit_task(canvas_path, {"nodes": []}, {"nodes": [{"id": "1"}]})
 
     # 等待任务处理尝试
     time.sleep(1)
@@ -501,6 +504,7 @@ def test_canvas_lock_acquisition_timeout(async_processor):
 
 # ===== 性能要求验证 =====
 
+
 def test_performance_queue_delay():
     """测试队列延迟 < 10ms"""
     # Arrange
@@ -510,10 +514,7 @@ def test_performance_queue_delay():
     mock_engine._detect_canvas_changes = Mock(return_value=[])
 
     processor = AsyncCanvasProcessor(
-        max_workers=4,
-        queue_size=1000,
-        callback_timeout=2,
-        monitor_engine=mock_engine
+        max_workers=4, queue_size=1000, callback_timeout=2, monitor_engine=mock_engine
     )
 
     # Act
@@ -521,9 +522,7 @@ def test_performance_queue_delay():
     for i in range(10):
         start = time.perf_counter()
         processor.submit_task(
-            f"test{i}.canvas",
-            {"nodes": []},
-            {"nodes": [{"id": str(i)}]}
+            f"test{i}.canvas", {"nodes": []}, {"nodes": [{"id": str(i)}]}
         )
         elapsed_ms = (time.perf_counter() - start) * 1000
         submit_times.append(elapsed_ms)
@@ -532,8 +531,9 @@ def test_performance_queue_delay():
 
     # Assert
     avg_submit_time = sum(submit_times) / len(submit_times)
-    assert avg_submit_time < 10, \
+    assert avg_submit_time < 10, (
         f"平均队列提交时间应该 < 10ms，实际: {avg_submit_time:.2f}ms"
+    )
 
 
 if __name__ == "__main__":

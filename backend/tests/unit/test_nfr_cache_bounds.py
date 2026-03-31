@@ -11,18 +11,17 @@ identified in the EPIC-36 NFR assessment.
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from cachetools import TTLCache
 
+from tests.conftest import simulate_async_delay
 
 # ============================================================================
 # TC-NFR-01: Cache Maxsize Enforcement
 # ============================================================================
+
 
 class TestCacheMaxsizeEnforcement:
     """TC-NFR-01: Verify caches evict oldest entries when maxsize is reached."""
@@ -110,6 +109,7 @@ class TestCacheMaxsizeEnforcement:
 # TC-NFR-02: Cache TTL Expiration
 # ============================================================================
 
+
 class TestCacheTTLExpiration:
     """TC-NFR-02: Verify cache entries auto-expire after TTL period."""
 
@@ -164,6 +164,7 @@ class TestCacheTTLExpiration:
 # ============================================================================
 # TC-NFR-03: Cache Stampede Protection
 # ============================================================================
+
 
 class TestCacheStampedeProtection:
     """TC-NFR-03: Verify locks prevent thundering herd on cache miss."""

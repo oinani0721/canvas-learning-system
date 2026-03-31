@@ -33,7 +33,7 @@ import asyncio
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
 # Add backend to path for imports
 backend_path = Path(__file__).parent.parent.parent.parent / "backend"
@@ -42,25 +42,29 @@ if str(backend_path) not in sys.path:
 
 try:
     from loguru import logger
+
     LOGURU_ENABLED = True
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
     LOGURU_ENABLED = False
 
 # Story 36.1: Import unified base class
 try:
     from app.clients.graphiti_client_base import (
-        GraphitiClientBase,
         EdgeRelationship,
+        GraphitiClientBase,
     )
+
     GRAPHITI_BASE_AVAILABLE = True
 except ImportError:
     try:
         from backend.app.clients.graphiti_client_base import (
-            GraphitiClientBase,
             EdgeRelationship,
+            GraphitiClientBase,
         )
+
         GRAPHITI_BASE_AVAILABLE = True
     except ImportError:
         GRAPHITI_BASE_AVAILABLE = False
@@ -68,15 +72,17 @@ except ImportError:
 
     # ✅ Story 38.1 Fix: 定义 EdgeRelationship fallback 避免 NameError
     from dataclasses import dataclass, field
-    from typing import Optional, Dict, Any
+    from typing import Any, Dict, Optional
 
     @dataclass
     class EdgeRelationship:
         """Fallback EdgeRelationship when graphiti_client_base unavailable."""
+
         from_node_id: str
         to_node_id: str
         relationship_type: str
         properties: Optional[Dict[str, Any]] = field(default_factory=dict)
+
 
 if TYPE_CHECKING:
     from backend.app.clients.neo4j_client import Neo4jClient
@@ -85,6 +91,7 @@ if TYPE_CHECKING:
 try:
     from graphiti_core import Graphiti
     from graphiti_core.driver.neo4j_driver import Neo4jDriver
+
     GRAPHITI_AVAILABLE = True
 except ImportError:
     GRAPHITI_AVAILABLE = False
@@ -118,7 +125,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         neo4j_client: "Neo4jClient",
         timeout_ms: int = 500,
         enable_fallback: bool = True,
-        default_group_id: Optional[str] = None
+        default_group_id: Optional[str] = None,
     ):
         """
         Initialize GraphitiTemporalClient with Neo4jClient injection.
@@ -170,9 +177,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             )
 
     def _build_group_id(
-        self,
-        canvas_path: Optional[str] = None,
-        group_id: Optional[str] = None
+        self, canvas_path: Optional[str] = None, group_id: Optional[str] = None
     ) -> Optional[str]:
         """
         构建group_id用于多学科隔离
@@ -223,8 +228,8 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 # Simple fallback: use first directory as subject
                 path = Path(canvas_path)
                 parts = list(path.parts)
-                if parts and not parts[0].endswith('.canvas'):
-                    return parts[0].lower().replace(' ', '_')
+                if parts and not parts[0].endswith(".canvas"):
+                    return parts[0].lower().replace(" ", "_")
 
         # Priority 3: Default group_id
         if self.default_group_id:
@@ -269,9 +274,11 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             # We use environment-based config instead
             try:
                 from app.config import get_settings
+
                 settings = get_settings()
             except ImportError:
                 from backend.app.config import get_settings
+
                 settings = get_settings()
             neo4j_user = settings.neo4j_user
             neo4j_password = settings.neo4j_password
@@ -281,6 +288,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             # if any is missing it creates a default OpenAI client that
             # demands OPENAI_API_KEY env var.
             import os
+
             llm_client = None
             embedder = None
             cross_encoder = None
@@ -295,15 +303,15 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                     if ai_base_url:
                         os.environ.setdefault("OPENAI_BASE_URL", ai_base_url)
 
-                    from graphiti_core.llm_client import OpenAIClient
-                    from graphiti_core.llm_client.config import LLMConfig
+                    from graphiti_core.cross_encoder.openai_reranker_client import (
+                        OpenAIRerankerClient,
+                    )
                     from graphiti_core.embedder.openai import (
                         OpenAIEmbedder,
                         OpenAIEmbedderConfig,
                     )
-                    from graphiti_core.cross_encoder.openai_reranker_client import (
-                        OpenAIRerankerClient,
-                    )
+                    from graphiti_core.llm_client import OpenAIClient
+                    from graphiti_core.llm_client.config import LLMConfig
 
                     llm_config = LLMConfig(
                         api_key=ai_api_key,
@@ -327,7 +335,9 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
             except Exception as llm_err:
                 if LOGURU_ENABLED:
-                    logger.warning(f"LLM clients for Graphiti not configured: {llm_err}")
+                    logger.warning(
+                        f"LLM clients for Graphiti not configured: {llm_err}"
+                    )
 
             # Create Graphiti instance with keyword args (not positional driver)
             self._graphiti = Graphiti(
@@ -339,9 +349,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 cross_encoder=cross_encoder,
             )
             self._graphiti_driver = (
-                self._graphiti.driver
-                if hasattr(self._graphiti, 'driver')
-                else None
+                self._graphiti.driver if hasattr(self._graphiti, "driver") else None
             )
 
             self._initialized = True
@@ -366,10 +374,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
     # Story 36.1 AC-36.1.1
     # =========================================================================
 
-    async def add_edge_relationship(
-        self,
-        relationship: EdgeRelationship
-    ) -> bool:
+    async def add_edge_relationship(self, relationship: EdgeRelationship) -> bool:
         """
         Add a single edge relationship to the knowledge graph.
 
@@ -390,7 +395,8 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             # Delegate to Neo4jClient for edge creation
             success = await self._neo4j.create_edge_relationship(
                 canvas_path=relationship.canvas_path,
-                edge_id=relationship.edge_id or f"edge-{relationship.from_node_id}-{relationship.to_node_id}",
+                edge_id=relationship.edge_id
+                or f"edge-{relationship.from_node_id}-{relationship.to_node_id}",
                 from_node_id=relationship.from_node_id,
                 to_node_id=relationship.to_node_id,
                 edge_label=relationship.edge_label,
@@ -407,7 +413,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         query: str,
         canvas_path: Optional[str] = None,
         group_id: Optional[str] = None,
-        limit: int = 10
+        limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """
         Search for nodes in the knowledge graph.
@@ -430,8 +436,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         # Build effective group_id
         effective_group_id = self._build_group_id(
-            canvas_path=canvas_path,
-            group_id=group_id
+            canvas_path=canvas_path, group_id=group_id
         )
 
         results = []
@@ -441,30 +446,32 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 timeout_seconds = self.timeout_ms / 1000.0
 
                 # Build search kwargs
-                search_kwargs = {
-                    "query": query,
-                    "num_results": limit
-                }
+                search_kwargs = {"query": query, "num_results": limit}
 
                 if effective_group_id:
                     search_kwargs["group_ids"] = [effective_group_id]
 
                 search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs),
-                    timeout=timeout_seconds
+                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
                 )
 
                 # Convert results
-                for item in (search_results.edges if hasattr(search_results, 'edges') else []):
-                    results.append({
-                        "doc_id": getattr(item, 'uuid', None) or getattr(item, 'id', ''),
-                        "content": getattr(item, 'fact', '') or getattr(item, 'content', ''),
-                        "score": getattr(item, 'score', 1.0),
-                        "metadata": {
-                            "canvas_path": canvas_path,
-                            "group_id": effective_group_id,
+                for item in (
+                    search_results.edges if hasattr(search_results, "edges") else []
+                ):
+                    results.append(
+                        {
+                            "doc_id": getattr(item, "uuid", None)
+                            or getattr(item, "id", ""),
+                            "content": getattr(item, "fact", "")
+                            or getattr(item, "content", ""),
+                            "score": getattr(item, "score", 1.0),
+                            "metadata": {
+                                "canvas_path": canvas_path,
+                                "group_id": effective_group_id,
+                            },
                         }
-                    })
+                    )
 
             except asyncio.TimeoutError:
                 if LOGURU_ENABLED:
@@ -481,10 +488,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         return results
 
     async def get_related_memories(
-        self,
-        node_id: str,
-        canvas_path: Optional[str] = None,
-        limit: int = 10
+        self, node_id: str, canvas_path: Optional[str] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """
         Get memories related to a specific node.
@@ -513,7 +517,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 # Search for related content
                 search_kwargs = {
                     "query": f"related to node {node_id}",
-                    "num_results": limit
+                    "num_results": limit,
                 }
 
                 if canvas_path:
@@ -522,21 +526,28 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                         search_kwargs["group_ids"] = [effective_group_id]
 
                 search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs),
-                    timeout=timeout_seconds
+                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
                 )
 
-                for item in (search_results.edges if hasattr(search_results, 'edges') else []):
-                    results.append({
-                        "node_id": getattr(item, 'uuid', '') or getattr(item, 'id', ''),
-                        "content": getattr(item, 'fact', '') or getattr(item, 'content', ''),
-                        "relationship": "RELATED_TO",
-                        "canvas_path": canvas_path,
-                    })
+                for item in (
+                    search_results.edges if hasattr(search_results, "edges") else []
+                ):
+                    results.append(
+                        {
+                            "node_id": getattr(item, "uuid", "")
+                            or getattr(item, "id", ""),
+                            "content": getattr(item, "fact", "")
+                            or getattr(item, "content", ""),
+                            "relationship": "RELATED_TO",
+                            "canvas_path": canvas_path,
+                        }
+                    )
 
             except asyncio.TimeoutError:
                 if LOGURU_ENABLED:
-                    logger.warning(f"get_related_memories timeout ({self.timeout_ms}ms)")
+                    logger.warning(
+                        f"get_related_memories timeout ({self.timeout_ms}ms)"
+                    )
                 if not self.enable_fallback:
                     raise
 
@@ -557,7 +568,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         content: str,
         episode_type: str = "learning",
         metadata: Optional[Dict[str, Any]] = None,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
     ) -> str:
         """
         添加学习事件
@@ -585,8 +596,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         # Build effective group_id (Story 30.8 Task 2.1)
         canvas_path = (metadata or {}).get("canvas_path")
         effective_group_id = self._build_group_id(
-            canvas_path=canvas_path,
-            group_id=group_id
+            canvas_path=canvas_path, group_id=group_id
         )
 
         # 构建完整的episode内容(包含metadata)
@@ -605,7 +615,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             "created_at": timestamp,
             "episode_type": episode_type,
             "metadata": metadata or {},
-            "group_id": effective_group_id
+            "group_id": effective_group_id,
         }
         self._episode_cache.append(episode_record)
 
@@ -618,7 +628,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                     "name": episode_name,
                     "episode_body": full_content,
                     "source_description": f"Canvas Learning - {episode_type}",
-                    "reference_time": timestamp
+                    "reference_time": timestamp,
                 }
 
                 # Add group_id if available (Story 30.8 AC-30.8.1)
@@ -627,10 +637,10 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
                 episode = await asyncio.wait_for(
                     self._graphiti.add_episode(**add_episode_kwargs),
-                    timeout=timeout_seconds
+                    timeout=timeout_seconds,
                 )
 
-                episode_id = getattr(episode, 'uuid', episode_name)
+                episode_id = getattr(episode, "uuid", episode_name)
                 episode_record["uuid"] = episode_id
 
                 if LOGURU_ENABLED:
@@ -656,9 +666,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         else:
             # Fallback: 返回本地生成的ID
             if LOGURU_ENABLED:
-                logger.warning(
-                    "Graphiti not available, using local episode cache"
-                )
+                logger.warning("Graphiti not available, using local episode cache")
             return episode_name
 
     async def search_by_time_range(
@@ -667,7 +675,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         end_time: datetime,
         entity_type: Optional[str] = None,
         limit: int = 100,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         按时间范围搜索学习事件
@@ -703,24 +711,25 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 if entity_type:
                     query = f"{entity_type} {query}"
 
-                search_kwargs = {
-                    "query": query,
-                    "num_results": limit
-                }
+                search_kwargs = {"query": query, "num_results": limit}
 
                 if effective_group_id:
                     search_kwargs["group_ids"] = [effective_group_id]
 
                 search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs),
-                    timeout=timeout_seconds
+                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
                 )
 
-                for item in (search_results.edges if hasattr(search_results, 'edges') else []):
-                    created_at = getattr(item, 'created_at', None)
+                for item in (
+                    search_results.edges if hasattr(search_results, "edges") else []
+                ):
+                    created_at = getattr(item, "created_at", None)
                     if created_at and start_time <= created_at <= end_time:
                         result_dict = self._to_dict(item)
-                        if entity_type is None or result_dict.get("entity_type") == entity_type:
+                        if (
+                            entity_type is None
+                            or result_dict.get("entity_type") == entity_type
+                        ):
                             results.append(result_dict)
 
             except asyncio.TimeoutError:
@@ -763,7 +772,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         canvas_file: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         按实体类型搜索
@@ -788,8 +797,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         # Build effective group_id
         effective_group_id = self._build_group_id(
-            canvas_path=canvas_file,
-            group_id=group_id
+            canvas_path=canvas_file, group_id=group_id
         )
 
         results = []
@@ -802,24 +810,22 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 if canvas_file:
                     query = f"{query} in {canvas_file}"
 
-                search_kwargs = {
-                    "query": query,
-                    "num_results": limit + offset
-                }
+                search_kwargs = {"query": query, "num_results": limit + offset}
 
                 if effective_group_id:
                     search_kwargs["group_ids"] = [effective_group_id]
 
                 search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs),
-                    timeout=timeout_seconds
+                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
                 )
 
                 all_results = []
-                for item in (search_results.edges if hasattr(search_results, 'edges') else []):
+                for item in (
+                    search_results.edges if hasattr(search_results, "edges") else []
+                ):
                     all_results.append(self._to_dict(item))
 
-                results = all_results[offset:offset + limit]
+                results = all_results[offset : offset + limit]
 
             except asyncio.TimeoutError:
                 if LOGURU_ENABLED:
@@ -851,7 +857,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                     if canvas_file is None or canvas_file == ep_canvas:
                         filtered.append(self._episode_to_dict(episode))
 
-            results = filtered[offset:offset + limit]
+            results = filtered[offset : offset + limit]
 
         return results
 
@@ -866,7 +872,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         canvas_name: Optional[str] = None,
         time_range: Optional[tuple] = None,
         limit: int = 10,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         查询概念的历史检验问题
@@ -902,8 +908,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         # Build effective group_id (AC-30.8.3: multi-subject isolation)
         effective_group_id = self._build_group_id(
-            canvas_path=canvas_name,
-            group_id=group_id
+            canvas_path=canvas_name, group_id=group_id
         )
 
         results = []
@@ -920,7 +925,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
                 search_kwargs = {
                     "query": query,
-                    "num_results": limit * 2  # Fetch extra for filtering
+                    "num_results": limit * 2,  # Fetch extra for filtering
                 }
 
                 if effective_group_id:
@@ -928,13 +933,16 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
                 # ✅ Verified from ADR-0003: Graphiti search() supports query + filters
                 search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs),
-                    timeout=timeout_seconds
+                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
                 )
 
                 # Filter and format results
-                for item in (search_results.edges if hasattr(search_results, 'edges') else []):
-                    result_dict = self._format_verification_question_result(item, concept)
+                for item in (
+                    search_results.edges if hasattr(search_results, "edges") else []
+                ):
+                    result_dict = self._format_verification_question_result(
+                        item, concept
+                    )
 
                     # Apply time_range filter if specified
                     if time_range and result_dict.get("asked_at"):
@@ -1018,15 +1026,17 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
                 # Format result
                 created_at = episode.get("created_at")
-                results.append({
-                    "question_id": metadata.get("question_id", episode.get("uuid")),
-                    "question_text": episode.get("episode_body", ""),
-                    "question_type": metadata.get("question_type", "standard"),
-                    "asked_at": created_at.isoformat() if created_at else None,
-                    "score": metadata.get("score"),
-                    "user_answer": metadata.get("user_answer"),
-                    "canvas_name": metadata.get("canvas_name", "")
-                })
+                results.append(
+                    {
+                        "question_id": metadata.get("question_id", episode.get("uuid")),
+                        "question_text": episode.get("episode_body", ""),
+                        "question_type": metadata.get("question_type", "standard"),
+                        "asked_at": created_at.isoformat() if created_at else None,
+                        "score": metadata.get("score"),
+                        "user_answer": metadata.get("user_answer"),
+                        "canvas_name": metadata.get("canvas_name", ""),
+                    }
+                )
 
                 if len(results) >= limit:
                     break
@@ -1034,9 +1044,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         return results[:limit]
 
     def _format_verification_question_result(
-        self,
-        item: Any,
-        concept: str
+        self, item: Any, concept: str
     ) -> Dict[str, Any]:
         """
         Format a Graphiti search result as verification question dict.
@@ -1049,10 +1057,10 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             Formatted verification question dict
         """
         # Extract metadata from item
-        metadata = getattr(item, 'metadata', {}) or {}
+        metadata = getattr(item, "metadata", {}) or {}
 
         # Get timestamps
-        created_at = getattr(item, 'created_at', None)
+        created_at = getattr(item, "created_at", None)
         if created_at:
             asked_at = created_at.isoformat()
         else:
@@ -1060,10 +1068,10 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         # Extract question text from content/fact
         content = (
-            getattr(item, 'fact', None) or
-            getattr(item, 'content', None) or
-            getattr(item, 'episode_body', None) or
-            ""
+            getattr(item, "fact", None)
+            or getattr(item, "content", None)
+            or getattr(item, "episode_body", None)
+            or ""
         )
 
         # Parse question text from episode format
@@ -1078,17 +1086,17 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         return {
             "question_id": (
-                metadata.get("question_id") or
-                getattr(item, 'uuid', None) or
-                getattr(item, 'id', None) or
-                ""
+                metadata.get("question_id")
+                or getattr(item, "uuid", None)
+                or getattr(item, "id", None)
+                or ""
             ),
             "question_text": question_text,
             "question_type": metadata.get("question_type", "standard"),
             "asked_at": asked_at,
             "score": metadata.get("score"),
             "user_answer": metadata.get("user_answer"),
-            "canvas_name": metadata.get("canvas_name", "")
+            "canvas_name": metadata.get("canvas_name", ""),
         }
 
     async def _store_question_neo4j_direct(
@@ -1166,15 +1174,17 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 asked_at = r.get("asked_at")
                 if hasattr(asked_at, "isoformat"):
                     asked_at = asked_at.isoformat()
-                formatted.append({
-                    "question_id": r.get("question_id", ""),
-                    "question_text": r.get("question_text", ""),
-                    "question_type": r.get("question_type", "standard"),
-                    "asked_at": asked_at,
-                    "score": None,
-                    "user_answer": None,
-                    "canvas_name": r.get("canvas_name", ""),
-                })
+                formatted.append(
+                    {
+                        "question_id": r.get("question_id", ""),
+                        "question_text": r.get("question_text", ""),
+                        "question_type": r.get("question_type", "standard"),
+                        "asked_at": asked_at,
+                        "score": None,
+                        "user_answer": None,
+                        "canvas_name": r.get("canvas_name", ""),
+                    }
+                )
             return formatted
         except Exception as e:
             if LOGURU_ENABLED:
@@ -1188,7 +1198,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         canvas_name: str,
         question_type: str = "standard",
         group_id: Optional[str] = None,
-        question_id: Optional[str] = None
+        question_id: Optional[str] = None,
     ) -> str:
         """
         存储检验问题到Graphiti
@@ -1221,8 +1231,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         # Build effective group_id (Task 6.3)
         effective_group_id = self._build_group_id(
-            canvas_path=canvas_name,
-            group_id=group_id
+            canvas_path=canvas_name, group_id=group_id
         )
 
         # Primary: Neo4j direct storage (no LLM needed, cross-process persistent)
@@ -1249,17 +1258,19 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             "question_type": question_type,
             "question_id": question_id,
         }
-        self._episode_cache.append({
-            "uuid": question_id,
-            "name": f"verification_question_{question_id}",
-            "episode_body": content,
-            "source_description": "Canvas Learning - verification_question",
-            "reference_time": datetime.now(),
-            "created_at": datetime.now(),
-            "episode_type": "verification_question",
-            "metadata": metadata,
-            "group_id": effective_group_id,
-        })
+        self._episode_cache.append(
+            {
+                "uuid": question_id,
+                "name": f"verification_question_{question_id}",
+                "episode_body": content,
+                "source_description": "Canvas Learning - verification_question",
+                "reference_time": datetime.now(),
+                "created_at": datetime.now(),
+                "episode_type": "verification_question",
+                "metadata": metadata,
+                "group_id": effective_group_id,
+            }
+        )
 
         if LOGURU_ENABLED:
             logger.info(
@@ -1274,7 +1285,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         self,
         user_id: str,
         granularity: Literal["day", "week", "month"] = "day",
-        limit: int = 30
+        limit: int = 30,
     ) -> Dict[str, Any]:
         """
         获取学习统计数据
@@ -1306,10 +1317,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 period_start = now - timedelta(days=30 * (i + 1))
                 period_end = now - timedelta(days=30 * i)
 
-            periods.append({
-                "period_start": period_start,
-                "period_end": period_end
-            })
+            periods.append({"period_start": period_start, "period_end": period_end})
 
         period_stats = []
         total_episodes = 0
@@ -1319,7 +1327,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             events = await self.search_by_time_range(
                 start_time=period["period_start"],
                 end_time=period["period_end"],
-                limit=1000
+                limit=1000,
             )
 
             episode_count = len(events)
@@ -1344,14 +1352,16 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
             avg_score = sum(scores) / len(scores) if scores else 0.0
 
-            period_stats.append({
-                "period_start": period["period_start"].isoformat(),
-                "period_end": period["period_end"].isoformat(),
-                "episode_count": episode_count,
-                "concepts_learned": len(concepts),
-                "total_duration_seconds": total_duration,
-                "average_score": round(avg_score, 2)
-            })
+            period_stats.append(
+                {
+                    "period_start": period["period_start"].isoformat(),
+                    "period_end": period["period_end"].isoformat(),
+                    "episode_count": episode_count,
+                    "concepts_learned": len(concepts),
+                    "total_duration_seconds": total_duration,
+                    "average_score": round(avg_score, 2),
+                }
+            )
 
             total_episodes += episode_count
 
@@ -1364,37 +1374,37 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             "summary": {
                 "total_episodes": total_episodes,
                 "total_concepts": len(all_concepts),
-                "average_episodes_per_period": round(avg_per_period, 2)
-            }
+                "average_episodes_per_period": round(avg_per_period, 2),
+            },
         }
 
     def _to_dict(self, result: Any) -> Dict[str, Any]:
         """将Graphiti结果转换为字典"""
         return {
-            "uuid": getattr(result, 'uuid', None) or getattr(result, 'id', None),
-            "name": getattr(result, 'name', None),
+            "uuid": getattr(result, "uuid", None) or getattr(result, "id", None),
+            "name": getattr(result, "name", None),
             "created_at": (
-                getattr(result, 'created_at', None).isoformat()
-                if hasattr(result, 'created_at') and result.created_at
+                getattr(result, "created_at", None).isoformat()
+                if hasattr(result, "created_at") and result.created_at
                 else None
             ),
             "content": (
-                getattr(result, 'episode_body', None) or
-                getattr(result, 'fact', None) or
-                getattr(result, 'content', None)
+                getattr(result, "episode_body", None)
+                or getattr(result, "fact", None)
+                or getattr(result, "content", None)
             ),
-            "entity_type": getattr(result, 'entity_type', None),
+            "entity_type": getattr(result, "entity_type", None),
             "valid_at": (
-                getattr(result, 'valid_at', None).isoformat()
-                if hasattr(result, 'valid_at') and result.valid_at
+                getattr(result, "valid_at", None).isoformat()
+                if hasattr(result, "valid_at") and result.valid_at
                 else None
             ),
             "invalid_at": (
-                getattr(result, 'invalid_at', None).isoformat()
-                if hasattr(result, 'invalid_at') and result.invalid_at
+                getattr(result, "invalid_at", None).isoformat()
+                if hasattr(result, "invalid_at") and result.invalid_at
                 else None
             ),
-            "metadata": getattr(result, 'metadata', {})
+            "metadata": getattr(result, "metadata", {}),
         }
 
     def _episode_to_dict(self, episode: Dict[str, Any]) -> Dict[str, Any]:
@@ -1408,13 +1418,13 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             "entity_type": episode.get("episode_type"),
             "valid_at": None,
             "invalid_at": None,
-            "metadata": episode.get("metadata", {})
+            "metadata": episode.get("metadata", {}),
         }
 
     def get_stats(self) -> Dict[str, Any]:
         """获取客户端统计信息"""
         base_stats = {}
-        if GRAPHITI_BASE_AVAILABLE and hasattr(super(), 'get_stats'):
+        if GRAPHITI_BASE_AVAILABLE and hasattr(super(), "get_stats"):
             base_stats = super().get_stats()
 
         return {
@@ -1424,7 +1434,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             "default_group_id": self.default_group_id,
             "graphiti_available": GRAPHITI_AVAILABLE,
             "graphiti_connected": self._graphiti is not None,
-            "cached_episodes": len(self._episode_cache)
+            "cached_episodes": len(self._episode_cache),
         }
 
     async def close(self):
@@ -1458,7 +1468,7 @@ def get_graphiti_temporal_client(
     neo4j_client: Optional["Neo4jClient"] = None,
     timeout_ms: int = 500,
     enable_fallback: bool = True,
-    default_group_id: Optional[str] = None
+    default_group_id: Optional[str] = None,
 ) -> GraphitiTemporalClient:
     """
     Get or create GraphitiTemporalClient singleton.
@@ -1490,7 +1500,7 @@ def get_graphiti_temporal_client(
             neo4j_client=neo4j_client,
             timeout_ms=timeout_ms,
             enable_fallback=enable_fallback,
-            default_group_id=default_group_id
+            default_group_id=default_group_id,
         )
 
     return _client_instance

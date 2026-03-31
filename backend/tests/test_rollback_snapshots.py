@@ -20,7 +20,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-
 @pytest.fixture
 def mock_snapshot_manager():
     """Create a mock SnapshotManager for API tests.
@@ -67,7 +66,6 @@ def mock_snapshot_manager():
     mock.get_snapshot = AsyncMock(return_value=mock_snapshot)
 
     return mock
-
 
 
 class TestSnapshotListEndpoint:
@@ -239,9 +237,7 @@ class TestCreateSnapshotEndpoint:
 class TestGetSnapshotEndpoint:
     """Test suite for GET /api/v1/rollback/snapshot/{snapshot_id} endpoint."""
 
-    def test_get_snapshot_returns_200(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_get_snapshot_returns_200(self, client: TestClient, mock_snapshot_manager):
         """Test that get snapshot endpoint returns HTTP 200 OK."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
@@ -279,6 +275,7 @@ class TestGetSnapshotEndpoint:
         mock_snapshot_manager.get_snapshot = MagicMock(return_value=None)
         # Need to make it async
         from unittest.mock import AsyncMock
+
         mock_snapshot_manager.get_snapshot = AsyncMock(return_value=None)
 
         with patch(
@@ -336,18 +333,16 @@ class TestSnapshotEndpointsRegistration:
             paths = openapi.get("paths", {})
 
             # Check list snapshots endpoint
-            assert any(
-                "rollback/snapshots" in path for path in paths.keys()
-            ), "List snapshots endpoint not found"
+            assert any("rollback/snapshots" in path for path in paths.keys()), (
+                "List snapshots endpoint not found"
+            )
 
             # Check create snapshot endpoint
-            assert any(
-                path.endswith("/rollback/snapshot") for path in paths.keys()
-            ), "Create snapshot endpoint not found"
+            assert any(path.endswith("/rollback/snapshot") for path in paths.keys()), (
+                "Create snapshot endpoint not found"
+            )
 
-    def test_snapshot_type_enum_values(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_snapshot_type_enum_values(self, client: TestClient, mock_snapshot_manager):
         """
         Test that snapshot type is one of the valid types.
 

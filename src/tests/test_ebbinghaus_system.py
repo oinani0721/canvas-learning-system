@@ -26,11 +26,17 @@ from typing import Any, Dict
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from canvas_utils_working import EbbinghausReviewScheduler, ForgettingCurveManager, ReviewNode
+    from canvas_utils_working import (
+        EbbinghausReviewScheduler,
+        ForgettingCurveManager,
+        ReviewNode,
+    )
+
     IMPORT_SUCCESS = True
 except ImportError as e:
     print(f"[ERROR] 导入失败: {e}")
     IMPORT_SUCCESS = False
+
 
 class EbbinghausSystemTest:
     """艾宾浩斯复习系统测试类"""
@@ -57,7 +63,9 @@ class EbbinghausSystemTest:
                 return False
         except Exception as e:
             print(f"[ERROR] {test_name}: {e}")
-            self.test_results.append({"name": test_name, "status": "ERROR", "error": str(e)})
+            self.test_results.append(
+                {"name": test_name, "status": "ERROR", "error": str(e)}
+            )
             return False
 
     def test_memory_strength_calculation(self) -> bool:
@@ -77,7 +85,9 @@ class EbbinghausSystemTest:
         # 测试复杂度5.5 (中等) -> 记忆强度应该在中间范围
         strength_medium = self.forgetting_curve.calculate_memory_strength(5.5)
         print(f"    复杂度5.5 -> 记忆强度: {strength_medium:.2f}")
-        assert 0.5 <= strength_medium <= 1.5, f"Expected medium range, got {strength_medium}"
+        assert 0.5 <= strength_medium <= 1.5, (
+            f"Expected medium range, got {strength_medium}"
+        )
 
         return True
 
@@ -88,19 +98,25 @@ class EbbinghausSystemTest:
         # 测试S=2.0, t=0时的保持率应该是1.0
         retention_initial = self.forgetting_curve.calculate_retention_rate(0.0, 2.0)
         print(f"    t=0, S=2.0 -> 保持率: {retention_initial:.3f}")
-        assert abs(retention_initial - 1.0) < 0.001, f"Expected 1.0, got {retention_initial}"
+        assert abs(retention_initial - 1.0) < 0.001, (
+            f"Expected 1.0, got {retention_initial}"
+        )
 
         # 测试S=2.0, t=2时的保持率应该是e^(-1) ≈ 0.368
         retention_2days = self.forgetting_curve.calculate_retention_rate(2.0, 2.0)
         expected = math.exp(-1.0)  # e^(-2/2) = e^(-1)
         print(f"    t=2, S=2.0 -> 保持率: {retention_2days:.3f} (期望: {expected:.3f})")
-        assert abs(retention_2days - expected) < 0.01, f"Expected {expected}, got {retention_2days}"
+        assert abs(retention_2days - expected) < 0.01, (
+            f"Expected {expected}, got {retention_2days}"
+        )
 
         # 测试S=1.0, t=1时的保持率应该是e^(-1) ≈ 0.368
         retention_1day = self.forgetting_curve.calculate_retention_rate(1.0, 1.0)
         expected = math.exp(-1.0)  # e^(-1/1) = e^(-1)
         print(f"    t=1, S=1.0 -> 保持率: {retention_1day:.3f} (期望: {expected:.3f})")
-        assert abs(retention_1day - expected) < 0.01, f"Expected {expected}, got {retention_1day}"
+        assert abs(retention_1day - expected) < 0.01, (
+            f"Expected {expected}, got {retention_1day}"
+        )
 
         return True
 
@@ -111,7 +127,8 @@ class EbbinghausSystemTest:
         # 创建测试节点
         test_time = datetime.datetime.now()
         review_times = self.forgetting_curve.calculate_optimal_review_times(
-            test_time, 5.0  # 中等复杂度
+            test_time,
+            5.0,  # 中等复杂度
         )
 
         print(f"    生成了 {len(review_times)} 个复习时间点")
@@ -122,14 +139,18 @@ class EbbinghausSystemTest:
         for i, time in enumerate(review_times):
             days_diff = (time - test_time).days
             intervals.append(days_diff)
-            print(f"    间隔 {i+1}: {days_diff} 天")
+            print(f"    间隔 {i + 1}: {days_diff} 天")
 
         # 验证间隔递增
         for i in range(1, len(intervals)):
-            assert intervals[i] > intervals[i-1], f"Interval {i+1} should be greater than interval {i}"
+            assert intervals[i] > intervals[i - 1], (
+                f"Interval {i + 1} should be greater than interval {i}"
+            )
 
         # 验证第一个间隔接近1天
-        assert 0.5 <= intervals[0] <= 2.0, f"First interval should be ~1 day, got {intervals[0]}"
+        assert 0.5 <= intervals[0] <= 2.0, (
+            f"First interval should be ~1 day, got {intervals[0]}"
+        )
 
         return True
 
@@ -142,7 +163,7 @@ class EbbinghausSystemTest:
             node_id="test_node_1",
             concept="逆否命题",
             complexity_score=6.5,
-            canvas_file="test_canvas.canvas"
+            canvas_file="test_canvas.canvas",
         )
 
         # 验证节点属性
@@ -167,9 +188,7 @@ class EbbinghausSystemTest:
 
         # 创建节点
         node = self.forgetting_curve.create_review_node(
-            node_id="test_mastery",
-            concept="测试概念",
-            complexity_score=5.0
+            node_id="test_mastery", concept="测试概念", complexity_score=5.0
         )
 
         # 更新掌握度
@@ -199,14 +218,20 @@ class EbbinghausSystemTest:
             complexity_score=5.0,
             mastery_level=0.6,
             last_review_time=past_time,
-            review_count=1
+            review_count=1,
         )
 
         # 获取状态
         status = self.forgetting_curve.get_retention_status(node)
 
         # 验证状态字段
-        required_fields = ["node_id", "concept", "retention_rate", "suggestion", "urgency"]
+        required_fields = [
+            "node_id",
+            "concept",
+            "retention_rate",
+            "suggestion",
+            "urgency",
+        ]
         for field in required_fields:
             assert field in status, f"Missing field: {field}"
 
@@ -230,14 +255,18 @@ class EbbinghausSystemTest:
         complexities = [3.0, 6.0, 8.0]
         masteries = [0.9, 0.5, 0.3]
 
-        for i, (concept, complexity, mastery) in enumerate(zip(concepts, complexities, masteries)):
+        for i, (concept, complexity, mastery) in enumerate(
+            zip(concepts, complexities, masteries)
+        ):
             node = self.forgetting_curve.create_review_node(
                 node_id=f"schedule_test_{i}",
                 concept=concept,
-                complexity_score=complexity
+                complexity_score=complexity,
             )
             node.mastery_level = mastery
-            node.last_review_time = datetime.datetime.now() - datetime.timedelta(days=10)
+            node.last_review_time = datetime.datetime.now() - datetime.timedelta(
+                days=10
+            )
             test_nodes.append(node)
 
         # 生成调度计划
@@ -253,13 +282,23 @@ class EbbinghausSystemTest:
             print(f"      复习原因: {item['review_reason']}")
 
             # 验证必要字段
-            required_fields = ["node_id", "concept", "urgency", "recommended_agents", "review_reason"]
+            required_fields = [
+                "node_id",
+                "concept",
+                "urgency",
+                "recommended_agents",
+                "review_reason",
+            ]
             for field in required_fields:
                 assert field in item, f"Missing field: {field}"
 
             # 验证Agent推荐合理性
-            assert isinstance(item["recommended_agents"], list), "Recommended agents should be a list"
-            assert len(item["recommended_agents"]) > 0, "Should recommend at least one agent"
+            assert isinstance(item["recommended_agents"], list), (
+                "Recommended agents should be a list"
+            )
+            assert len(item["recommended_agents"]) > 0, (
+                "Should recommend at least one agent"
+            )
 
         return True
 
@@ -274,14 +313,16 @@ class EbbinghausSystemTest:
                 node_id=f"session_test_{i}",
                 concept=f"会话测试概念{i}",
                 complexity_score=5.0 + i,
-                canvas_file=canvas_file
+                canvas_file=canvas_file,
             )
 
         # 执行复习会话
         session_result = await self.scheduler.execute_review_session(canvas_file)
 
         # 验证会话结果
-        assert session_result["success"], f"Session failed: {session_result.get('message', 'Unknown error')}"
+        assert session_result["success"], (
+            f"Session failed: {session_result.get('message', 'Unknown error')}"
+        )
         assert "due_nodes_count" in session_result, "Missing due_nodes_count"
         assert "schedule" in session_result, "Missing schedule"
 
@@ -302,14 +343,13 @@ class EbbinghausSystemTest:
             node_id="schedule_gen_test",
             concept="计划生成测试",
             complexity_score=5.0,
-            canvas_file="test.canvas"
+            canvas_file="test.canvas",
         )
         node.create_time = test_time - datetime.timedelta(days=1)  # 1天前创建
 
         # 生成30天复习计划
         schedule = self.forgetting_curve.generate_review_schedule(
-            canvas_file="test.canvas",
-            days_ahead=30
+            canvas_file="test.canvas", days_ahead=30
         )
 
         # 验证计划结构
@@ -345,13 +385,13 @@ class EbbinghausSystemTest:
             ("复习节点创建测试", self.test_review_node_creation),
             ("掌握度更新测试", self.test_mastery_update),
             ("记忆状态分析测试", self.test_retention_status),
-            ("复习计划生成测试", self.test_schedule_generation)
+            ("复习计划生成测试", self.test_schedule_generation),
         ]
 
         # 异步测试
         async_tests = [
             ("Agent智能调度测试", self.test_agent_scheduling),
-            ("完整复习会话测试", self.test_review_session)
+            ("完整复习会话测试", self.test_review_session),
         ]
 
         # 运行同步测试
@@ -376,7 +416,9 @@ class EbbinghausSystemTest:
                     self.test_results.append({"name": test_name, "status": "FAIL"})
             except Exception as e:
                 print(f"[ERROR] {test_name}: {e}")
-                self.test_results.append({"name": test_name, "status": "ERROR", "error": str(e)})
+                self.test_results.append(
+                    {"name": test_name, "status": "ERROR", "error": str(e)}
+                )
 
         # 统计结果
         total_tests = len(sync_tests) + len(async_tests)
@@ -389,7 +431,7 @@ class EbbinghausSystemTest:
         print(f"总测试数: {total_tests}")
         print(f"通过测试: {passed_tests}")
         print(f"失败测试: {failed_tests}")
-        print(f"成功率: {(passed_tests/total_tests)*100:.1f}%")
+        print(f"成功率: {(passed_tests / total_tests) * 100:.1f}%")
 
         print("\n[测试详情]")
         for result in self.test_results:
@@ -405,9 +447,10 @@ class EbbinghausSystemTest:
             "total_tests": total_tests,
             "passed_tests": passed_tests,
             "failed_tests": failed_tests,
-            "success_rate": (passed_tests/total_tests)*100,
-            "test_results": self.test_results
+            "success_rate": (passed_tests / total_tests) * 100,
+            "test_results": self.test_results,
         }
+
 
 async def main():
     """主测试函数"""
@@ -430,6 +473,7 @@ async def main():
                 print(f"  - {result['name']}: {result.get('error', 'Failed')}")
 
     return results
+
 
 if __name__ == "__main__":
     # 运行测试

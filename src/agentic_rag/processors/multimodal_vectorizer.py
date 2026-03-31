@@ -26,12 +26,14 @@ from typing import Any, Dict, List, Optional
 
 try:
     import numpy as np
+
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
 
 try:
     from FlagEmbedding import BGEM3FlagModel
+
     FLAG_EMBEDDING_AVAILABLE = True
 except (ImportError, Exception):
     # FlagEmbedding may fail due to transformers version conflict
@@ -95,16 +97,19 @@ class FusedVector:
 
 class MultimodalVectorizerError(Exception):
     """Base exception for MultimodalVectorizer errors."""
+
     pass
 
 
 class EmbeddingModelError(MultimodalVectorizerError):
     """Raised when embedding model fails."""
+
     pass
 
 
 class VectorizationError(MultimodalVectorizerError):
     """Raised when vectorization fails."""
+
     pass
 
 
@@ -164,7 +169,7 @@ class MultimodalVectorizer:
         ocr_weight: float = DEFAULT_OCR_WEIGHT,
         desc_weight: float = DEFAULT_DESC_WEIGHT,
         batch_size: int = 32,
-        normalize_vectors: bool = True
+        normalize_vectors: bool = True,
     ):
         """
         Initialize MultimodalVectorizer.
@@ -195,7 +200,7 @@ class MultimodalVectorizer:
             "total_vectorizations": 0,
             "total_time_ms": 0,
             "avg_time_ms": 0,
-            "exceeded_target_count": 0
+            "exceeded_target_count": 0,
         }
 
     async def initialize(self) -> bool:
@@ -211,9 +216,7 @@ class MultimodalVectorizer:
             return True
 
         if not NUMPY_AVAILABLE:
-            raise ImportError(
-                "numpy is required. Install with: pip install numpy"
-            )
+            raise ImportError("numpy is required. Install with: pip install numpy")
 
         if self._is_bge_m3:
             # Try FlagEmbedding first, fallback to sentence-transformers
@@ -226,7 +229,7 @@ class MultimodalVectorizer:
                         lambda: BGEM3FlagModel(
                             self.model_name,
                             use_fp16=use_fp16,
-                        )
+                        ),
                     )
                     self._embedding_dim = 1024
                     self._initialized = True
@@ -237,10 +240,11 @@ class MultimodalVectorizer:
             # Fallback: sentence-transformers can also load bge-m3
             try:
                 from sentence_transformers import SentenceTransformer
+
                 loop = asyncio.get_event_loop()
                 self._model = await loop.run_in_executor(
                     None,
-                    lambda: SentenceTransformer(self.model_name, device=self.device)
+                    lambda: SentenceTransformer(self.model_name, device=self.device),
                 )
                 self._embedding_dim = self._model.get_sentence_embedding_dimension()
                 self._initialized = True
@@ -263,7 +267,7 @@ class MultimodalVectorizer:
                 loop = asyncio.get_event_loop()
                 self._model = await loop.run_in_executor(
                     None,
-                    lambda: SentenceTransformer(self.model_name, device=self.device)
+                    lambda: SentenceTransformer(self.model_name, device=self.device),
                 )
                 self._embedding_dim = self._model.get_sentence_embedding_dimension()
                 self._initialized = True
@@ -281,7 +285,7 @@ class MultimodalVectorizer:
         self,
         text: str,
         content_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> VectorizedContent:
         """
         Vectorize plain text.
@@ -322,7 +326,7 @@ class MultimodalVectorizer:
             vector=vector,
             vector_dim=len(vector),
             metadata=metadata or {},
-            processing_time_ms=processing_time
+            processing_time_ms=processing_time,
         )
 
     async def vectorize_image_content(
@@ -333,7 +337,7 @@ class MultimodalVectorizer:
         content_id: Optional[str] = None,
         key_concepts: Optional[List[str]] = None,
         image_type: Optional[str] = None,
-        fusion_method: str = "weighted_average"
+        fusion_method: str = "weighted_average",
     ) -> VectorizedContent:
         """
         Vectorize image content using OCR text and AI description.
@@ -372,8 +376,7 @@ class MultimodalVectorizer:
         # Fuse vectors
         if fusion_method == "weighted_average":
             fused_vector = self._weighted_average_fusion(
-                ocr_vector, desc_vector,
-                self.ocr_weight, self.desc_weight
+                ocr_vector, desc_vector, self.ocr_weight, self.desc_weight
             )
         elif fusion_method == "concat":
             # Concatenate and reduce dimension
@@ -381,8 +384,7 @@ class MultimodalVectorizer:
         else:
             # Default to weighted average
             fused_vector = self._weighted_average_fusion(
-                ocr_vector, desc_vector,
-                self.ocr_weight, self.desc_weight
+                ocr_vector, desc_vector, self.ocr_weight, self.desc_weight
             )
 
         processing_time = int((time.perf_counter() - start_time) * 1000)
@@ -409,9 +411,9 @@ class MultimodalVectorizer:
                 "image_type": image_type,
                 "fusion_method": fusion_method,
                 "ocr_weight": self.ocr_weight,
-                "desc_weight": self.desc_weight
+                "desc_weight": self.desc_weight,
             },
-            processing_time_ms=processing_time
+            processing_time_ms=processing_time,
         )
 
     async def vectorize_pdf_chunk(
@@ -423,7 +425,7 @@ class MultimodalVectorizer:
         page_numbers: Optional[List[int]] = None,
         chunk_index: int = 0,
         total_chunks: int = 1,
-        heading_path: Optional[List[str]] = None
+        heading_path: Optional[List[str]] = None,
     ) -> VectorizedContent:
         """
         Vectorize PDF chunk (chapter or section).
@@ -483,16 +485,16 @@ class MultimodalVectorizer:
                 "chunk_index": chunk_index,
                 "total_chunks": total_chunks,
                 "heading_path": heading_path or [],
-                "text_length": len(chunk_text)
+                "text_length": len(chunk_text),
             },
-            processing_time_ms=processing_time
+            processing_time_ms=processing_time,
         )
 
     async def batch_vectorize(
         self,
         texts: List[str],
         content_type: str = "text",
-        metadata_list: Optional[List[Dict[str, Any]]] = None
+        metadata_list: Optional[List[Dict[str, Any]]] = None,
     ) -> List[VectorizedContent]:
         """
         Batch vectorize multiple texts.
@@ -516,7 +518,9 @@ class MultimodalVectorizer:
         # Encode all texts in batch
         try:
             loop = asyncio.get_event_loop()
-            if self._is_bge_m3 and not getattr(self, '_use_sentence_transformers', False):
+            if self._is_bge_m3 and not getattr(
+                self, "_use_sentence_transformers", False
+            ):
                 # bge-m3 via FlagEmbedding: encode returns dict with 'dense_vecs' key
                 vectors = await loop.run_in_executor(
                     None,
@@ -526,7 +530,7 @@ class MultimodalVectorizer:
                         return_dense=True,
                         return_sparse=False,
                         return_colbert_vecs=False,
-                    )["dense_vecs"].tolist()
+                    )["dense_vecs"].tolist(),
                 )
             else:
                 # Legacy sentence-transformers path
@@ -536,8 +540,8 @@ class MultimodalVectorizer:
                         texts,
                         batch_size=self.batch_size,
                         normalize_embeddings=self.normalize_vectors,
-                        show_progress_bar=False
-                    ).tolist()
+                        show_progress_bar=False,
+                    ).tolist(),
                 )
         except Exception as e:
             raise VectorizationError(f"Batch encoding failed: {e}")
@@ -549,18 +553,22 @@ class MultimodalVectorizer:
         results = []
         for i, (text, vector) in enumerate(zip(texts, vectors)):
             content_id = self._generate_content_id(text)
-            metadata = metadata_list[i] if metadata_list and i < len(metadata_list) else {}
+            metadata = (
+                metadata_list[i] if metadata_list and i < len(metadata_list) else {}
+            )
 
-            results.append(VectorizedContent(
-                id=content_id,
-                content_type=content_type,
-                source_path=None,
-                text_content=text,
-                vector=vector,
-                vector_dim=len(vector),
-                metadata=metadata,
-                processing_time_ms=time_per_item
-            ))
+            results.append(
+                VectorizedContent(
+                    id=content_id,
+                    content_type=content_type,
+                    source_path=None,
+                    text_content=text,
+                    vector=vector,
+                    vector_dim=len(vector),
+                    metadata=metadata,
+                    processing_time_ms=time_per_item,
+                )
+            )
 
         return results
 
@@ -575,7 +583,7 @@ class MultimodalVectorizer:
 
         # Run encoding in thread pool
         loop = asyncio.get_event_loop()
-        if self._is_bge_m3 and not getattr(self, '_use_sentence_transformers', False):
+        if self._is_bge_m3 and not getattr(self, "_use_sentence_transformers", False):
             # bge-m3 via FlagEmbedding: encode expects list, returns dict with 'dense_vecs'
             vector = await loop.run_in_executor(
                 None,
@@ -584,7 +592,7 @@ class MultimodalVectorizer:
                     return_dense=True,
                     return_sparse=False,
                     return_colbert_vecs=False,
-                )["dense_vecs"][0].tolist()
+                )["dense_vecs"][0].tolist(),
             )
         else:
             # Legacy sentence-transformers path
@@ -593,8 +601,8 @@ class MultimodalVectorizer:
                 lambda: self._model.encode(
                     text,
                     normalize_embeddings=self.normalize_vectors,
-                    show_progress_bar=False
-                ).tolist()
+                    show_progress_bar=False,
+                ).tolist(),
             )
 
         return vector
@@ -604,7 +612,7 @@ class MultimodalVectorizer:
         vector1: Optional[List[float]],
         vector2: Optional[List[float]],
         weight1: float,
-        weight2: float
+        weight2: float,
     ) -> List[float]:
         """
         Fuse two vectors using weighted average.
@@ -626,10 +634,7 @@ class MultimodalVectorizer:
         w2 = weight2 / total_weight
 
         # Weighted average
-        fused = [
-            v1 * w1 + v2 * w2
-            for v1, v2 in zip(vector1, vector2)
-        ]
+        fused = [v1 * w1 + v2 * w2 for v1, v2 in zip(vector1, vector2)]
 
         # Optional: L2 normalize the fused vector
         if self.normalize_vectors:
@@ -638,9 +643,7 @@ class MultimodalVectorizer:
         return fused
 
     def _concat_fusion(
-        self,
-        vector1: Optional[List[float]],
-        vector2: Optional[List[float]]
+        self, vector1: Optional[List[float]], vector2: Optional[List[float]]
     ) -> List[float]:
         """
         Fuse vectors by concatenation (then reduce dimension).
@@ -691,7 +694,7 @@ class MultimodalVectorizer:
             "embedding_dim": self.embedding_dim,
             "device": self.device,
             "initialized": self._initialized,
-            "performance_target_ms": self.MAX_PROCESSING_TIME_MS
+            "performance_target_ms": self.MAX_PROCESSING_TIME_MS,
         }
 
     def create_fused_vector(
@@ -699,7 +702,7 @@ class MultimodalVectorizer:
         vectors: List[List[float]],
         weights: List[float],
         sources: List[str],
-        content_id: Optional[str] = None
+        content_id: Optional[str] = None,
     ) -> FusedVector:
         """
         Create a fused vector from multiple component vectors.
@@ -741,15 +744,13 @@ class MultimodalVectorizer:
             weights=weights,
             fused_vector=fused,
             sources=sources,
-            fusion_method="weighted_average"
+            fusion_method="weighted_average",
         )
 
 
 # Convenience functions
 async def vectorize_image(
-    ocr_text: str,
-    description: str,
-    **kwargs
+    ocr_text: str, description: str, **kwargs
 ) -> VectorizedContent:
     """
     Vectorize image content.
@@ -765,15 +766,12 @@ async def vectorize_image(
     vectorizer = MultimodalVectorizer()
     await vectorizer.initialize()
     return await vectorizer.vectorize_image_content(
-        ocr_text=ocr_text,
-        description=description,
-        **kwargs
+        ocr_text=ocr_text, description=description, **kwargs
     )
 
 
 async def vectorize_pdf_chunks(
-    chunks: List[Dict[str, Any]],
-    pdf_path: Optional[str] = None
+    chunks: List[Dict[str, Any]], pdf_path: Optional[str] = None
 ) -> List[VectorizedContent]:
     """
     Vectorize multiple PDF chunks.
@@ -799,7 +797,7 @@ async def vectorize_pdf_chunks(
             page_numbers=chunk.get("pages"),
             chunk_index=i,
             total_chunks=total_chunks,
-            heading_path=chunk.get("heading_path")
+            heading_path=chunk.get("heading_path"),
         )
         results.append(result)
 

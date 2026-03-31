@@ -29,10 +29,10 @@ class ErrorType(str, Enum):
     [Source: architecture.md#Requirements Overview]
     """
 
-    PROBLEM_FRAMING = "problem_framing"       # 破题错误: 审题失误, 条件遗漏
-    REASONING_FALLACY = "reasoning_fallacy"    # 推理谬误: 逻辑跳步, 因果倒置
-    KNOWLEDGE_GAP = "knowledge_gap"            # 知识点缺失: 缺前置知识
-    SUPERFICIAL = "superficial"                # 似懂非懂: 能复述不能应用
+    PROBLEM_FRAMING = "problem_framing"  # 破题错误: 审题失误, 条件遗漏
+    REASONING_FALLACY = "reasoning_fallacy"  # 推理谬误: 逻辑跳步, 因果倒置
+    KNOWLEDGE_GAP = "knowledge_gap"  # 知识点缺失: 缺前置知识
+    SUPERFICIAL = "superficial"  # 似懂非懂: 能复述不能应用
 
 
 class RemedyStrategy(str, Enum):
@@ -42,10 +42,10 @@ class RemedyStrategy(str, Enum):
     [Source: _bmad-output/implementation-artifacts/3-6-tips-annotation-error-archiving.md#AC-4]
     """
 
-    SAME_STRUCTURE_NEW_PROBLEM = "same_structure_new_problem"   # 同结构新题练习
-    FIND_ERROR_COUNTEREXAMPLE = "find_error_counterexample"     # 找错练习 + 反例构造
-    BACKTRACK_DEFINITION = "backtrack_definition"               # 回退到定义题
-    DISCRIMINATION_TRANSFER = "discrimination_transfer"         # 辨析题 + 迁移应用题
+    SAME_STRUCTURE_NEW_PROBLEM = "same_structure_new_problem"  # 同结构新题练习
+    FIND_ERROR_COUNTEREXAMPLE = "find_error_counterexample"  # 找错练习 + 反例构造
+    BACKTRACK_DEFINITION = "backtrack_definition"  # 回退到定义题
+    DISCRIMINATION_TRANSFER = "discrimination_transfer"  # 辨析题 + 迁移应用题
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -92,10 +92,10 @@ ERROR_TYPE_DESCRIPTIONS: dict[ErrorType, dict[str, str]] = {
 class TipTag(str, Enum):
     """Predefined tag categories for tip annotations."""
 
-    IMPORTANT = "important"       # 重要 (red)
-    CONFUSED = "confused"         # 困惑 (yellow)
-    INSPIRATION = "inspiration"   # 灵感 (green)
-    REVIEW = "review"             # 待复习 (blue)
+    IMPORTANT = "important"  # 重要 (red)
+    CONFUSED = "confused"  # 困惑 (yellow)
+    INSPIRATION = "inspiration"  # 灵感 (green)
+    REVIEW = "review"  # 待复习 (blue)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

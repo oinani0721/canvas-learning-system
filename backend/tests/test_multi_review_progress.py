@@ -21,6 +21,7 @@ from app.services.review_service import ReviewService
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def mock_canvas_service():
     """Mock CanvasService for testing."""
@@ -42,7 +43,7 @@ def review_service(mock_canvas_service, mock_task_manager, mock_graphiti_client)
     return ReviewService(
         canvas_service=mock_canvas_service,
         task_manager=mock_task_manager,
-        graphiti_client=mock_graphiti_client
+        graphiti_client=mock_graphiti_client,
     )
 
 
@@ -57,7 +58,7 @@ def sample_review_history() -> List[Dict[str, Any]]:
             "mode": "targeted",
             "pass_rate": 0.9,
             "total_concepts": 10,
-            "passed_concepts": 9
+            "passed_concepts": 9,
         },
         {
             "review_canvas_path": "离散数学-检验白板-20250118.canvas",
@@ -65,7 +66,7 @@ def sample_review_history() -> List[Dict[str, Any]]:
             "mode": "fresh",
             "pass_rate": 0.75,
             "total_concepts": 8,
-            "passed_concepts": 6
+            "passed_concepts": 6,
         },
         {
             "review_canvas_path": "离散数学-检验白板-20250115.canvas",
@@ -73,8 +74,8 @@ def sample_review_history() -> List[Dict[str, Any]]:
             "mode": "fresh",
             "pass_rate": 0.5,
             "total_concepts": 8,
-            "passed_concepts": 4
-        }
+            "passed_concepts": 4,
+        },
     ]
 
 
@@ -82,14 +83,13 @@ def sample_review_history() -> List[Dict[str, Any]]:
 # Test Cases
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestMultiReviewProgress:
     """Test cases for multi-review progress tracking."""
 
     @pytest.mark.asyncio
     async def test_multi_review_returns_all_sessions(
-        self,
-        review_service,
-        sample_review_history
+        self, review_service, sample_review_history
     ):
         """
         AC1: Endpoint returns all verification canvases for original.
@@ -110,9 +110,7 @@ class TestMultiReviewProgress:
 
     @pytest.mark.asyncio
     async def test_pass_rate_trend_calculation(
-        self,
-        review_service,
-        sample_review_history
+        self, review_service, sample_review_history
     ):
         """
         AC2: Pass rate trend data is chart-ready.
@@ -134,9 +132,7 @@ class TestMultiReviewProgress:
 
     @pytest.mark.asyncio
     async def test_overall_progress_up_trend(
-        self,
-        review_service,
-        sample_review_history
+        self, review_service, sample_review_history
     ):
         """
         AC4: Overall progress correctly identifies upward trend.
@@ -154,10 +150,7 @@ class TestMultiReviewProgress:
         assert overall["progress_rate"] == 0.4  # 0.9 - 0.5
 
     @pytest.mark.asyncio
-    async def test_overall_progress_stable_trend(
-        self,
-        review_service
-    ):
+    async def test_overall_progress_stable_trend(self, review_service):
         """
         Test overall progress identifies stable trend.
 
@@ -170,7 +163,7 @@ class TestMultiReviewProgress:
                 "mode": "fresh",
                 "pass_rate": 0.73,
                 "total_concepts": 10,
-                "passed_concepts": 7
+                "passed_concepts": 7,
             },
             {
                 "review_canvas_path": "test-检验白板-20250115.canvas",
@@ -178,8 +171,8 @@ class TestMultiReviewProgress:
                 "mode": "fresh",
                 "pass_rate": 0.75,
                 "total_concepts": 10,
-                "passed_concepts": 7
-            }
+                "passed_concepts": 7,
+            },
         ]
 
         review_service._query_review_sessions_from_memory = AsyncMock(
@@ -192,10 +185,7 @@ class TestMultiReviewProgress:
         assert overall["trend_direction"] == "stable"  # -0.02 is within ±0.05 threshold
 
     @pytest.mark.asyncio
-    async def test_overall_progress_down_trend(
-        self,
-        review_service
-    ):
+    async def test_overall_progress_down_trend(self, review_service):
         """
         Test overall progress identifies downward trend.
 
@@ -208,7 +198,7 @@ class TestMultiReviewProgress:
                 "mode": "fresh",
                 "pass_rate": 0.5,
                 "total_concepts": 10,
-                "passed_concepts": 5
+                "passed_concepts": 5,
             },
             {
                 "review_canvas_path": "test-检验白板-20250115.canvas",
@@ -216,8 +206,8 @@ class TestMultiReviewProgress:
                 "mode": "fresh",
                 "pass_rate": 0.8,
                 "total_concepts": 10,
-                "passed_concepts": 8
-            }
+                "passed_concepts": 8,
+            },
         ]
 
         review_service._query_review_sessions_from_memory = AsyncMock(
@@ -228,21 +218,18 @@ class TestMultiReviewProgress:
 
         overall = result["trends"]["overall_progress"]
         assert overall["trend_direction"] == "down"
-        assert round(overall["progress_rate"], 2) == -0.3  # 0.5 - 0.8 (rounded for floating point precision)
+        assert (
+            round(overall["progress_rate"], 2) == -0.3
+        )  # 0.5 - 0.8 (rounded for floating point precision)
 
     @pytest.mark.asyncio
-    async def test_no_history_returns_404(
-        self,
-        review_service
-    ):
+    async def test_no_history_returns_404(self, review_service):
         """
         AC6: Empty history returns CanvasNotFoundException.
 
         [Source: docs/stories/24.4.story.md#AC6]
         """
-        review_service._query_review_sessions_from_memory = AsyncMock(
-            return_value=[]
-        )
+        review_service._query_review_sessions_from_memory = AsyncMock(return_value=[])
 
         with pytest.raises(CanvasNotFoundException) as exc_info:
             await review_service.get_multi_review_progress("nonexistent.canvas")
@@ -250,10 +237,7 @@ class TestMultiReviewProgress:
         assert "No review history" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_single_review_session(
-        self,
-        review_service
-    ):
+    async def test_single_review_session(self, review_service):
         """
         Test handling of single review session (trend calculation edge case).
         """
@@ -264,7 +248,7 @@ class TestMultiReviewProgress:
                 "mode": "fresh",
                 "pass_rate": 0.75,
                 "total_concepts": 8,
-                "passed_concepts": 6
+                "passed_concepts": 6,
             }
         ]
 
@@ -281,9 +265,7 @@ class TestMultiReviewProgress:
 
     @pytest.mark.asyncio
     async def test_graphiti_client_unavailable(
-        self,
-        mock_canvas_service,
-        mock_task_manager
+        self, mock_canvas_service, mock_task_manager
     ):
         """
         Test graceful degradation when Graphiti client is not available.
@@ -292,7 +274,7 @@ class TestMultiReviewProgress:
         service = ReviewService(
             canvas_service=mock_canvas_service,
             task_manager=mock_task_manager,
-            graphiti_client=None
+            graphiti_client=None,
         )
 
         with pytest.raises(CanvasNotFoundException):
@@ -308,9 +290,7 @@ class TestTrendAnalysisCalculation:
         assert result is None
 
     def test_calculate_trend_with_multiple_reviews(
-        self,
-        review_service,
-        sample_review_history
+        self, review_service, sample_review_history
     ):
         """Test trend calculation with multiple review sessions."""
         result = review_service._calculate_trend_analysis(sample_review_history)
@@ -321,9 +301,7 @@ class TestTrendAnalysisCalculation:
         assert len(result["pass_rate_trend"]) == 3
 
     def test_pass_rate_trend_chronological_order(
-        self,
-        review_service,
-        sample_review_history
+        self, review_service, sample_review_history
     ):
         """Test that pass_rate_trend is in chronological order (oldest to newest)."""
         result = review_service._calculate_trend_analysis(sample_review_history)
@@ -345,7 +323,7 @@ class TestTrendAnalysisCalculation:
                 "mode": "fresh",
                 "pass_rate": 0.5,
                 "total_concepts": 10,
-                "passed_concepts": 5
+                "passed_concepts": 5,
             },
             {
                 "review_canvas_path": "test-2.canvas",
@@ -353,8 +331,8 @@ class TestTrendAnalysisCalculation:
                 "mode": "fresh",
                 "pass_rate": 0.8,
                 "total_concepts": 10,
-                "passed_concepts": 8
-            }
+                "passed_concepts": 8,
+            },
         ]
 
         result = review_service._calculate_trend_analysis(reviews_with_string_dates)
@@ -367,69 +345,104 @@ class TestTrendAnalysisCalculation:
 # Integration-like Tests (with mocked Graphiti)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestGraphitiQueryIntegration:
     """Test Graphiti query integration with mocked client."""
 
     @pytest.mark.asyncio
     async def test_query_review_history_filters_verification_canvases(
-        self,
-        review_service
+        self, review_service
     ):
         """
         Test that query correctly filters for verification canvas pattern.
         """
         mock_memory_client = MagicMock()
         mock_memory_client.initialize = AsyncMock()
-        mock_memory_client.get_learning_history = AsyncMock(return_value=[
-            {
-                "source_canvas": "离散数学-检验白板-20250115.canvas",
-                "timestamp": datetime(2025, 1, 15),
-                "mode": "fresh",
-                "concept": "逆否命题",
-                "score": 30
-            },
-            {
-                "source_canvas": "离散数学.canvas",  # Not a verification canvas
-                "timestamp": datetime(2025, 1, 14),
-                "mode": "fresh",
-                "concept": "集合运算",
-                "score": 35
-            },
-            {
-                "source_canvas": "离散数学-检验白板-20250115.canvas",
-                "timestamp": datetime(2025, 1, 15),
-                "mode": "fresh",
-                "concept": "集合运算",
-                "score": 25
-            }
-        ])
+        mock_memory_client.get_learning_history = AsyncMock(
+            return_value=[
+                {
+                    "source_canvas": "离散数学-检验白板-20250115.canvas",
+                    "timestamp": datetime(2025, 1, 15),
+                    "mode": "fresh",
+                    "concept": "逆否命题",
+                    "score": 30,
+                },
+                {
+                    "source_canvas": "离散数学.canvas",  # Not a verification canvas
+                    "timestamp": datetime(2025, 1, 14),
+                    "mode": "fresh",
+                    "concept": "集合运算",
+                    "score": 35,
+                },
+                {
+                    "source_canvas": "离散数学-检验白板-20250115.canvas",
+                    "timestamp": datetime(2025, 1, 15),
+                    "mode": "fresh",
+                    "concept": "集合运算",
+                    "score": 25,
+                },
+            ]
+        )
 
-        with patch('app.clients.graphiti_client.get_learning_memory_client', return_value=mock_memory_client):
-            result = await review_service._query_review_history_from_memory("离散数学.canvas")
+        with patch(
+            "app.clients.graphiti_client.get_learning_memory_client",
+            return_value=mock_memory_client,
+        ):
+            result = await review_service._query_review_history_from_memory(
+                "离散数学.canvas"
+            )
 
         # _query_review_history_from_memory returns raw history records (no filtering)
         # Filtering/aggregation is done by _query_review_sessions_from_memory
         assert len(result) == 3  # All records returned as-is from memory_client
 
     @pytest.mark.asyncio
-    async def test_pass_rate_calculation_accuracy(
-        self,
-        review_service
-    ):
+    async def test_pass_rate_calculation_accuracy(self, review_service):
         """
         Test accurate pass rate calculation (threshold >= 24/40 = 60%).
         """
         mock_memory_client = MagicMock()
         mock_memory_client.initialize = AsyncMock()
-        mock_memory_client.get_learning_history = AsyncMock(return_value=[
-            {"source_canvas": "test-检验白板-1.canvas", "timestamp": _FIXED_TIMESTAMP, "mode": "fresh", "concept": "C1", "score": 24},
-            {"source_canvas": "test-检验白板-1.canvas", "timestamp": _FIXED_TIMESTAMP, "mode": "fresh", "concept": "C2", "score": 23},
-            {"source_canvas": "test-检验白板-1.canvas", "timestamp": _FIXED_TIMESTAMP, "mode": "fresh", "concept": "C3", "score": 30},
-            {"source_canvas": "test-检验白板-1.canvas", "timestamp": _FIXED_TIMESTAMP, "mode": "fresh", "concept": "C4", "score": 10},
-        ])
+        mock_memory_client.get_learning_history = AsyncMock(
+            return_value=[
+                {
+                    "source_canvas": "test-检验白板-1.canvas",
+                    "timestamp": _FIXED_TIMESTAMP,
+                    "mode": "fresh",
+                    "concept": "C1",
+                    "score": 24,
+                },
+                {
+                    "source_canvas": "test-检验白板-1.canvas",
+                    "timestamp": _FIXED_TIMESTAMP,
+                    "mode": "fresh",
+                    "concept": "C2",
+                    "score": 23,
+                },
+                {
+                    "source_canvas": "test-检验白板-1.canvas",
+                    "timestamp": _FIXED_TIMESTAMP,
+                    "mode": "fresh",
+                    "concept": "C3",
+                    "score": 30,
+                },
+                {
+                    "source_canvas": "test-检验白板-1.canvas",
+                    "timestamp": _FIXED_TIMESTAMP,
+                    "mode": "fresh",
+                    "concept": "C4",
+                    "score": 10,
+                },
+            ]
+        )
 
-        with patch('app.clients.graphiti_client.get_learning_memory_client', return_value=mock_memory_client):
-            result = await review_service._query_review_history_from_memory("test.canvas")
+        with patch(
+            "app.clients.graphiti_client.get_learning_memory_client",
+            return_value=mock_memory_client,
+        ):
+            result = await review_service._query_review_history_from_memory(
+                "test.canvas"
+            )
 
         # _query_review_history_from_memory returns raw records, not aggregated
         assert len(result) == 4  # All 4 records returned as-is

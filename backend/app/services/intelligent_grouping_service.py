@@ -28,7 +28,7 @@ import logging
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from app.core.subject_config import (
     build_group_id,
@@ -94,29 +94,35 @@ GROUP_EMOJI_MAPPING = {
 # Exceptions
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class IntelligentGroupingError(Exception):
     """Base exception for intelligent grouping errors."""
+
     pass
 
 
 class CanvasNotFoundError(IntelligentGroupingError):
     """Canvas file not found."""
+
     pass
 
 
 class InsufficientNodesError(IntelligentGroupingError):
     """Not enough nodes for clustering."""
+
     pass
 
 
 class ClusteringFailedError(IntelligentGroupingError):
     """Clustering algorithm failed."""
+
     pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Service Class
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class IntelligentGroupingService:
     """
@@ -138,8 +144,12 @@ class IntelligentGroupingService:
 
         [Source: docs/stories/33.4.story.md#Task-1.1]
         """
-        self.canvas_base_path = Path(canvas_base_path) if canvas_base_path else Path.cwd()
-        logger.info(f"IntelligentGroupingService initialized with base_path: {self.canvas_base_path}")
+        self.canvas_base_path = (
+            Path(canvas_base_path) if canvas_base_path else Path.cwd()
+        )
+        logger.info(
+            f"IntelligentGroupingService initialized with base_path: {self.canvas_base_path}"
+        )
 
     async def analyze_canvas(
         self,
@@ -181,7 +191,9 @@ class IntelligentGroupingService:
         subject = extract_subject_from_canvas_path(canvas_path)
         canvas_name = Path(canvas_path).stem
         subject_group_id = build_group_id(subject, canvas_name)
-        logger.debug(f"Subject isolation: subject={subject}, group_id={subject_group_id}")
+        logger.debug(
+            f"Subject isolation: subject={subject}, group_id={subject_group_id}"
+        )
 
         # Resolve canvas path
         full_canvas_path = self._resolve_canvas_path(canvas_path)
@@ -201,8 +213,12 @@ class IntelligentGroupingService:
         )
 
         # Extract clustering metrics
-        silhouette_score = clustering_result.get("optimization_stats", {}).get("clustering_accuracy", 0.0)
-        recommended_k = clustering_result.get("clustering_parameters", {}).get("n_clusters", 0)
+        silhouette_score = clustering_result.get("optimization_stats", {}).get(
+            "clustering_accuracy", 0.0
+        )
+        recommended_k = clustering_result.get("clustering_parameters", {}).get(
+            "n_clusters", 0
+        )
         clusters = clustering_result.get("clusters", [])
 
         # Check quality threshold
@@ -291,10 +307,18 @@ class IntelligentGroupingService:
                 with _canvas_utils_load_lock:
                     # Double-check after acquiring lock
                     if "canvas_utils" not in sys.modules:
-                        canvas_utils_path = Path(__file__).parent.parent.parent.parent / "src" / "canvas_utils.py"
-                        spec = importlib.util.spec_from_file_location("canvas_utils", canvas_utils_path)
+                        canvas_utils_path = (
+                            Path(__file__).parent.parent.parent.parent
+                            / "src"
+                            / "canvas_utils.py"
+                        )
+                        spec = importlib.util.spec_from_file_location(
+                            "canvas_utils", canvas_utils_path
+                        )
                         if spec is None or spec.loader is None:
-                            raise ImportError(f"Cannot create module spec from {canvas_utils_path}")
+                            raise ImportError(
+                                f"Cannot create module spec from {canvas_utils_path}"
+                            )
                         canvas_utils_mod = importlib.util.module_from_spec(spec)
                         sys.modules["canvas_utils"] = canvas_utils_mod
                         try:
@@ -315,9 +339,11 @@ class IntelligentGroupingService:
             # Filter nodes by target color first
             filtered_nodes = []
             for node in logic.canvas_data.get("nodes", []):
-                if (node.get("type") == "text" and
-                    node.get("color") == target_color and
-                    node.get("text", "").strip()):
+                if (
+                    node.get("type") == "text"
+                    and node.get("color") == target_color
+                    and node.get("text", "").strip()
+                ):
                     filtered_nodes.append(node)
 
             if len(filtered_nodes) < min_nodes_per_group:
@@ -366,7 +392,9 @@ class IntelligentGroupingService:
             logger.error(f"Clustering failed: {e}")
             raise ClusteringFailedError(f"Clustering failed: {e}")
 
-    def _map_clusters_to_groups(self, clusters: List[Dict[str, Any]]) -> List[NodeGroup]:
+    def _map_clusters_to_groups(
+        self, clusters: List[Dict[str, Any]]
+    ) -> List[NodeGroup]:
         """
         Map clustering results to NodeGroup schema.
 
@@ -382,8 +410,8 @@ class IntelligentGroupingService:
         groups = []
 
         for i, cluster in enumerate(clusters):
-            cluster_id = cluster.get("id", f"cluster-{i+1}")
-            cluster_label = cluster.get("label", f"分组{i+1}")
+            cluster_id = cluster.get("id", f"cluster-{i + 1}")
+            cluster_label = cluster.get("label", f"分组{i + 1}")
             keywords = cluster.get("top_keywords", [])
             confidence = cluster.get("confidence", 0.0)
             node_ids = cluster.get("nodes", [])
@@ -404,15 +432,17 @@ class IntelligentGroupingService:
             # Get emoji for agent
             emoji = GROUP_EMOJI_MAPPING.get(recommended_agent, "📚")
 
-            groups.append(NodeGroup(
-                group_id=f"group-{i+1}",
-                group_name=cluster_label,
-                group_emoji=emoji,
-                nodes=nodes,
-                recommended_agent=recommended_agent,
-                confidence=confidence,
-                priority=priority,
-            ))
+            groups.append(
+                NodeGroup(
+                    group_id=f"group-{i + 1}",
+                    group_name=cluster_label,
+                    group_emoji=emoji,
+                    nodes=nodes,
+                    recommended_agent=recommended_agent,
+                    confidence=confidence,
+                    priority=priority,
+                )
+            )
 
         return groups
 
@@ -522,6 +552,7 @@ class IntelligentGroupingService:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Factory Function
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def get_intelligent_grouping_service(
     canvas_base_path: Optional[str] = None,

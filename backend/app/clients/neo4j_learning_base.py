@@ -27,13 +27,13 @@ Architecture:
 [Source: docs/architecture/decisions/ADR-009-ERROR-HANDLING-RETRY-STRATEGY.md]
 """
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-import logging
 
 # Type hint import - avoid circular dependency
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 if TYPE_CHECKING:
     from .neo4j_client import Neo4jClient
 
@@ -57,6 +57,7 @@ class EdgeRelationship:
         edge_id: Original edge ID from Canvas
         group_id: Optional group_id for multi-subject isolation (AC-30.8.1)
     """
+
     canvas_path: str
     from_node_id: str
     to_node_id: str
@@ -231,7 +232,7 @@ class Neo4jLearningBase(ABC):
         query: str,
         canvas_path: Optional[str] = None,
         group_id: Optional[str] = None,
-        limit: int = 10
+        limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """
         Search for nodes in the knowledge graph.
@@ -262,10 +263,7 @@ class Neo4jLearningBase(ABC):
 
     @abstractmethod
     async def get_related_memories(
-        self,
-        node_id: str,
-        canvas_path: Optional[str] = None,
-        limit: int = 10
+        self, node_id: str, canvas_path: Optional[str] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """
         Get memories related to a specific node.

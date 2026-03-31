@@ -15,17 +15,14 @@ import asyncio
 import json
 import os
 import tempfile
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.services.verification_service import (
     VERIFICATION_AI_TIMEOUT,
     VerificationService,
-    VerificationStatus,
 )
-
 
 # ===========================================================================
 # Test Fixtures
@@ -41,9 +38,13 @@ def mock_canvas_data() -> Dict[str, Any]:
             {"id": "node2", "text": "概念B - 理解", "color": "3"},  # Purple
             {"id": "node3", "text": "概念C - 已掌握", "color": "2"},  # Green (ignored)
             {"id": "node4", "text": "概念D - 不理解", "color": "4"},  # Red
-            {"id": "node5", "text": "概念E - 无颜色", "color": ""},  # No color (ignored)
+            {
+                "id": "node5",
+                "text": "概念E - 无颜色",
+                "color": "",
+            },  # No color (ignored)
         ],
-        "edges": []
+        "edges": [],
     }
 
 
@@ -64,14 +65,16 @@ def mock_agent_service() -> MagicMock:
     question_result = MagicMock()
     question_result.success = True
     question_result.data = {
-        "questions": [{
-            "source_node_id": "verification_test",
-            "question_text": "这是一个测试问题：请解释概念A的核心含义？",
-            "question_type": "检验型",
-            "difficulty": "基础",
-            "guidance": "",
-            "rationale": "测试"
-        }]
+        "questions": [
+            {
+                "source_node_id": "verification_test",
+                "question_text": "这是一个测试问题：请解释概念A的核心含义？",
+                "question_type": "检验型",
+                "difficulty": "基础",
+                "guidance": "",
+                "rationale": "测试",
+            }
+        ]
     }
     service.call_agent = AsyncMock(return_value=question_result)
 
@@ -84,7 +87,7 @@ def mock_agent_service() -> MagicMock:
         "imagery": 18,
         "completeness": 19,
         "originality": 18,
-        "color": "2"
+        "color": "2",
     }
     service.call_scoring = AsyncMock(return_value=scoring_result)
     return service
@@ -94,12 +97,14 @@ def mock_agent_service() -> MagicMock:
 def mock_rag_service() -> MagicMock:
     """Mock RAG service for testing."""
     service = MagicMock()
-    service.query = AsyncMock(return_value={
-        "learning_history": "用户之前学习过相关概念",
-        "textbook_excerpts": "教材引用内容",
-        "related_concepts": ["相关概念1", "相关概念2"],
-        "common_mistakes": "常见错误模式"
-    })
+    service.query = AsyncMock(
+        return_value={
+            "learning_history": "用户之前学习过相关概念",
+            "textbook_excerpts": "教材引用内容",
+            "related_concepts": ["相关概念1", "相关概念2"],
+            "common_mistakes": "常见错误模式",
+        }
+    )
     return service
 
 
@@ -107,10 +112,7 @@ def mock_rag_service() -> MagicMock:
 def temp_canvas_file(mock_canvas_data: Dict[str, Any]) -> str:
     """Create a temporary Canvas file for testing."""
     with tempfile.NamedTemporaryFile(
-        mode='w',
-        suffix='.canvas',
-        delete=False,
-        encoding='utf-8'
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
     ) as f:
         json.dump(mock_canvas_data, f)
         return f.name
@@ -120,14 +122,14 @@ def temp_canvas_file(mock_canvas_data: Dict[str, Any]) -> str:
 def verification_service(
     mock_canvas_service: MagicMock,
     mock_agent_service: MagicMock,
-    mock_rag_service: MagicMock
+    mock_rag_service: MagicMock,
 ) -> VerificationService:
     """Create VerificationService with mock dependencies."""
     return VerificationService(
         rag_service=mock_rag_service,
         canvas_service=mock_canvas_service,
         agent_service=mock_agent_service,
-        canvas_base_path=tempfile.gettempdir()
+        canvas_base_path=tempfile.gettempdir(),
     )
 
 
@@ -141,16 +143,13 @@ class TestStartSessionReadsCanvasFile:
 
     @pytest.mark.asyncio
     async def test_start_session_reads_canvas_file(
-        self,
-        verification_service: VerificationService,
-        temp_canvas_file: str
+        self, verification_service: VerificationService, temp_canvas_file: str
     ):
         """Test that start_session reads Canvas file and extracts concepts."""
         # Given: A Canvas file with red/purple nodes
         # When: Starting a session with the canvas path
         result = await verification_service.start_session(
-            canvas_name="test_canvas",
-            canvas_path=temp_canvas_file
+            canvas_name="test_canvas", canvas_path=temp_canvas_file
         )
 
         # Then: Session should be created with extracted concepts
@@ -160,8 +159,7 @@ class TestStartSessionReadsCanvasFile:
 
     @pytest.mark.asyncio
     async def test_start_session_filters_red_purple_nodes(
-        self,
-        mock_canvas_data: Dict[str, Any]
+        self, mock_canvas_data: Dict[str, Any]
     ):
         """Test that only color='3' (purple) and color='4' (red) nodes are selected."""
         # Given: A verification service with direct file reading
@@ -169,7 +167,7 @@ class TestStartSessionReadsCanvasFile:
 
         # Create temp file
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.canvas', delete=False, encoding='utf-8'
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
         ) as f:
             json.dump(mock_canvas_data, f)
             canvas_path = f.name
@@ -177,8 +175,7 @@ class TestStartSessionReadsCanvasFile:
         try:
             # When: Starting a session
             result = await service.start_session(
-                canvas_name="test",
-                canvas_path=canvas_path
+                canvas_name="test", canvas_path=canvas_path
             )
 
             # Then: Only red(4) and purple(3) nodes should be counted
@@ -189,22 +186,20 @@ class TestStartSessionReadsCanvasFile:
 
     @pytest.mark.asyncio
     async def test_start_session_extracts_concepts(
-        self,
-        mock_canvas_data: Dict[str, Any]
+        self, mock_canvas_data: Dict[str, Any]
     ):
         """Test that concept names are extracted from node text."""
         service = VerificationService(canvas_base_path=tempfile.gettempdir())
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.canvas', delete=False, encoding='utf-8'
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
         ) as f:
             json.dump(mock_canvas_data, f)
             canvas_path = f.name
 
         try:
             result = await service.start_session(
-                canvas_name="test",
-                canvas_path=canvas_path
+                canvas_name="test", canvas_path=canvas_path
             )
 
             # First concept should be extracted from text
@@ -224,16 +219,13 @@ class TestGenerateQuestionCallsGemini:
 
     @pytest.mark.asyncio
     async def test_generate_question_calls_gemini(
-        self,
-        verification_service: VerificationService,
-        mock_agent_service: MagicMock
+        self, verification_service: VerificationService, mock_agent_service: MagicMock
     ):
         """Test that generate_question_with_rag calls Gemini API."""
         # Given: A service with mock agent service
         # When: Generating a question
         question = await verification_service.generate_question_with_rag(
-            concept="测试概念",
-            canvas_name="test_canvas"
+            concept="测试概念", canvas_name="test_canvas"
         )
 
         # Then: Agent service should be called via call_agent()
@@ -246,13 +238,12 @@ class TestGenerateQuestionCallsGemini:
         self,
         verification_service: VerificationService,
         mock_agent_service: MagicMock,
-        mock_rag_service: MagicMock
+        mock_rag_service: MagicMock,
     ):
         """Test that question generation includes RAG context."""
         # When: Generating a question
         await verification_service.generate_question_with_rag(
-            concept="测试概念",
-            canvas_name="test_canvas"
+            concept="测试概念", canvas_name="test_canvas"
         )
 
         # Then: RAG context should be queried
@@ -272,19 +263,18 @@ class TestProcessAnswerCallsScoringAgent:
         self,
         verification_service: VerificationService,
         mock_agent_service: MagicMock,
-        temp_canvas_file: str
+        temp_canvas_file: str,
     ):
         """Test that process_answer calls scoring-agent."""
         # Given: A session is started
         session = await verification_service.start_session(
-            canvas_name="test",
-            canvas_path=temp_canvas_file
+            canvas_name="test", canvas_path=temp_canvas_file
         )
 
         # When: Processing an answer
         result = await verification_service.process_answer(
             session_id=session["session_id"],
-            user_answer="这是我对概念的理解，包含详细解释。"
+            user_answer="这是我对概念的理解，包含详细解释。",
         )
 
         # Then: Scoring agent should be called
@@ -297,7 +287,7 @@ class TestProcessAnswerCallsScoringAgent:
         self,
         verification_service: VerificationService,
         mock_agent_service: MagicMock,
-        temp_canvas_file: str
+        temp_canvas_file: str,
     ):
         """Test that 0-100 score is used directly (unified scale)."""
         # Given: Scoring agent returns 75/100 (as AgentResult-like object)
@@ -307,14 +297,12 @@ class TestProcessAnswerCallsScoringAgent:
         mock_agent_service.call_scoring.return_value = scoring_result
 
         session = await verification_service.start_session(
-            canvas_name="test",
-            canvas_path=temp_canvas_file
+            canvas_name="test", canvas_path=temp_canvas_file
         )
 
         # When: Processing an answer
         result = await verification_service.process_answer(
-            session_id=session["session_id"],
-            user_answer="测试回答"
+            session_id=session["session_id"], user_answer="测试回答"
         )
 
         # Then: Score should be 75.0 (unified 0-100 scale, no mapping)
@@ -322,8 +310,7 @@ class TestProcessAnswerCallsScoringAgent:
 
     @pytest.mark.asyncio
     async def test_score_to_quality_mapping(
-        self,
-        verification_service: VerificationService
+        self, verification_service: VerificationService
     ):
         """Test score to quality level mapping (unified 0-100 scale)."""
         # Test thresholds (0-100 range)
@@ -347,15 +334,12 @@ class TestRagContextInjection:
 
     @pytest.mark.asyncio
     async def test_rag_context_injection(
-        self,
-        verification_service: VerificationService,
-        mock_rag_service: MagicMock
+        self, verification_service: VerificationService, mock_rag_service: MagicMock
     ):
         """Test that RAG context is injected into question generation."""
         # When: Generating a question
         await verification_service.generate_question_with_rag(
-            concept="测试概念",
-            canvas_name="test_canvas"
+            concept="测试概念", canvas_name="test_canvas"
         )
 
         # Then: RAG service should be queried for context
@@ -373,30 +357,22 @@ class TestTimeoutGracefulDegradation:
     """Test AC-31.1.5: 500ms timeout and graceful degradation."""
 
     @pytest.mark.asyncio
-    async def test_timeout_graceful_degradation(
-        self,
-        mock_rag_service: MagicMock
-    ):
+    async def test_timeout_graceful_degradation(self, mock_rag_service: MagicMock):
         """Test that timeout triggers graceful degradation to mock."""
         # Given: Agent service that times out
         mock_agent_service = MagicMock()
-        mock_agent_service.call_agent = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
-        mock_agent_service.call_scoring = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
+        mock_agent_service.call_agent = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_agent_service.call_scoring = AsyncMock(side_effect=asyncio.TimeoutError())
 
         service = VerificationService(
             rag_service=mock_rag_service,
             agent_service=mock_agent_service,
-            canvas_base_path=tempfile.gettempdir()
+            canvas_base_path=tempfile.gettempdir(),
         )
 
         # When: Generating a question with timeout
         question = await service.generate_question_with_rag(
-            concept="测试概念",
-            canvas_name="test_canvas"
+            concept="测试概念", canvas_name="test_canvas"
         )
 
         # Then: Should return fallback question
@@ -415,14 +391,13 @@ class TestTimeoutGracefulDegradation:
         # H2 fix: Use direct patching instead of importlib.reload to avoid
         # module-level class duplication and test isolation poisoning.
         import app.services.verification_service as vs
+
         with patch.object(vs, "USE_MOCK_VERIFICATION", True):
             service = vs.VerificationService()
 
             # Mock mode should return hardcoded concepts
             concepts = await service._extract_concepts_from_canvas(
-                canvas_name="test",
-                canvas_path=None,
-                node_ids=None
+                canvas_name="test", canvas_path=None, node_ids=None
             )
 
             assert concepts == ["概念1", "概念2", "概念3"]
@@ -436,10 +411,7 @@ class TestTimeoutGracefulDegradation:
 class TestScoreMapping:
     """Test score mapping functions."""
 
-    def test_mock_evaluate_answer(
-        self,
-        verification_service: VerificationService
-    ):
+    def test_mock_evaluate_answer(self, verification_service: VerificationService):
         """Test mock evaluation based on answer length (unified 0-100 scale)."""
         # Long answer (>100 chars)
         quality, score = verification_service._mock_evaluate_answer("a" * 101)
@@ -472,22 +444,19 @@ class TestEndToEndFlow:
 
     @pytest.mark.asyncio
     async def test_full_session_flow(
-        self,
-        verification_service: VerificationService,
-        temp_canvas_file: str
+        self, verification_service: VerificationService, temp_canvas_file: str
     ):
         """Test complete session flow: start -> answer -> complete."""
         # Start session
         session = await verification_service.start_session(
-            canvas_name="test",
-            canvas_path=temp_canvas_file
+            canvas_name="test", canvas_path=temp_canvas_file
         )
         assert session["status"] == "in_progress"
 
         # Process answer
         result = await verification_service.process_answer(
             session_id=session["session_id"],
-            user_answer="这是一个详细的回答，包含对概念的深入理解和分析。" * 3
+            user_answer="这是一个详细的回答，包含对概念的深入理解和分析。" * 3,
         )
         assert "quality" in result
         assert "score" in result
@@ -496,14 +465,11 @@ class TestEndToEndFlow:
 
     @pytest.mark.asyncio
     async def test_session_with_skip(
-        self,
-        verification_service: VerificationService,
-        temp_canvas_file: str
+        self, verification_service: VerificationService, temp_canvas_file: str
     ):
         """Test skipping a concept in a session."""
         session = await verification_service.start_session(
-            canvas_name="test",
-            canvas_path=temp_canvas_file
+            canvas_name="test", canvas_path=temp_canvas_file
         )
 
         # Skip current concept

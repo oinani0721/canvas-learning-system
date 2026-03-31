@@ -157,7 +157,9 @@ class ScoringFaithfulnessChecker:
 
     def __init__(self) -> None:
         self._grounding_prompt = self._load_prompt("faithfulness_evidence_grounding.md")
-        self._consistency_prompt = self._load_prompt("faithfulness_score_consistency.md")
+        self._consistency_prompt = self._load_prompt(
+            "faithfulness_score_consistency.md"
+        )
 
     @staticmethod
     def _load_prompt(filename: str) -> str:
@@ -189,7 +191,9 @@ class ScoringFaithfulnessChecker:
             EvidenceGroundingResult with per-evidence GROUNDED/UNGROUNDED verdicts.
         """
         if not evidence_points:
-            return EvidenceGroundingResult(verifications=list(), grounded_count=0, total_count=0)
+            return EvidenceGroundingResult(
+                verifications=list(), grounded_count=0, total_count=0
+            )
 
         import litellm
 
@@ -219,7 +223,9 @@ class ScoringFaithfulnessChecker:
             parsed = _parse_json_response(content)
             verifications = parsed.get("verifications", list())
 
-            grounded = sum(1 for v in verifications if v.get("verdict", "").upper() == "GROUNDED")
+            grounded = sum(
+                1 for v in verifications if v.get("verdict", "").upper() == "GROUNDED"
+            )
 
             return EvidenceGroundingResult(
                 verifications=verifications,
@@ -232,7 +238,11 @@ class ScoringFaithfulnessChecker:
             # Conservative: treat all as ungrounded on failure
             return EvidenceGroundingResult(
                 verifications=[
-                    {"evidence": ep, "verdict": "UNGROUNDED", "reason": f"Verification failed: {e}"}
+                    {
+                        "evidence": ep,
+                        "verdict": "UNGROUNDED",
+                        "reason": f"Verification failed: {e}",
+                    }
                     for ep in evidence_points
                 ],
                 grounded_count=0,
@@ -260,7 +270,9 @@ class ScoringFaithfulnessChecker:
             ScoreConsistencyResult with per-dimension CONSISTENT/INCONSISTENT.
         """
         if not rubric_scores:
-            return ScoreConsistencyResult(checks=list(), consistent_count=0, total_count=0)
+            return ScoreConsistencyResult(
+                checks=list(), consistent_count=0, total_count=0
+            )
 
         import litellm
 
@@ -292,7 +304,9 @@ class ScoringFaithfulnessChecker:
             parsed = _parse_json_response(content)
             checks = parsed.get("consistency_checks", list())
 
-            consistent = sum(1 for c in checks if c.get("verdict", "").upper() == "CONSISTENT")
+            consistent = sum(
+                1 for c in checks if c.get("verdict", "").upper() == "CONSISTENT"
+            )
 
             return ScoreConsistencyResult(
                 checks=checks,
@@ -304,7 +318,11 @@ class ScoringFaithfulnessChecker:
             logger.error(f"[Story 6.9] Score-evidence consistency check failed: {e}")
             return ScoreConsistencyResult(
                 checks=[
-                    {"dimension": dim, "verdict": "INCONSISTENT", "reason": f"Check failed: {e}"}
+                    {
+                        "dimension": dim,
+                        "verdict": "INCONSISTENT",
+                        "reason": f"Check failed: {e}",
+                    }
                     for dim in rubric_scores
                 ],
                 consistent_count=0,
@@ -364,10 +382,14 @@ class ScoringFaithfulnessChecker:
                 }
 
         # Stage 1: Evidence grounding
-        grounding = await self.verify_evidence_grounding(evidence_points, conversation_segment)
+        grounding = await self.verify_evidence_grounding(
+            evidence_points, conversation_segment
+        )
 
         # Stage 2: Score-evidence consistency
-        consistency = await self.verify_score_evidence_consistency(rubric_scores, evidence_points)
+        consistency = await self.verify_score_evidence_consistency(
+            rubric_scores, evidence_points
+        )
 
         # Combined score (AC-1/AC-2: average of both)
         combined_score = (grounding.score + consistency.score) / 2.0

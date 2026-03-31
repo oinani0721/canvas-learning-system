@@ -44,6 +44,7 @@ class TestPromptFormatIntegration:
     def agent_service(self):
         """Create AgentService instance for testing."""
         from app.services.agent_service import AgentService
+
         return AgentService()
 
     def test_comparison_table_json_has_concepts_array(self, agent_service):
@@ -90,14 +91,13 @@ class TestPromptFormatIntegration:
         # Test multiple agent types
         test_agents = ["oral", "clarification", "memory", "four_level", "example"]
 
-        with patch.object(agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(agent_service, "call_agent", side_effect=mock_call_agent):
             import asyncio
+
             for agent_type in test_agents:
                 asyncio.get_event_loop().run_until_complete(
                     agent_service.call_explanation(
-                        content="测试内容",
-                        explanation_type=agent_type,
-                        context=None
+                        content="测试内容", explanation_type=agent_type, context=None
                     )
                 )
 
@@ -105,11 +105,15 @@ class TestPromptFormatIntegration:
         for agent_key, prompt in captured_prompts.items():
             try:
                 json_data = json.loads(prompt)
-                assert "concept" in json_data, f"{agent_key} should have 'concept' field"
-                assert isinstance(json_data["concept"], str), \
+                assert "concept" in json_data, (
+                    f"{agent_key} should have 'concept' field"
+                )
+                assert isinstance(json_data["concept"], str), (
                     f"{agent_key} 'concept' should be string"
-                assert "concepts" not in json_data, \
+                )
+                assert "concepts" not in json_data, (
                     f"{agent_key} should NOT have 'concepts' array"
+                )
             except json.JSONDecodeError:
                 pass  # Some prompts might not be JSON
 
@@ -154,6 +158,7 @@ class TestUserUnderstandingDualChannel:
     def agent_service(self):
         """Create AgentService instance for testing."""
         from app.services.agent_service import AgentService
+
         return AgentService()
 
     @pytest.mark.asyncio
@@ -167,23 +172,25 @@ class TestUserUnderstandingDualChannel:
         captured_json = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured_json['prompt'] = prompt
+            captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(agent_service, "call_agent", side_effect=mock_call_agent):
             await agent_service.call_explanation(
                 content="Level Set 定义...",
                 explanation_type="clarification",
                 context=None,
-                user_understanding=understanding
+                user_understanding=understanding,
             )
 
         # Verify JSON contains user_understanding
-        json_prompt = json.loads(captured_json['prompt'])
-        assert "user_understanding" in json_prompt, \
+        json_prompt = json.loads(captured_json["prompt"])
+        assert "user_understanding" in json_prompt, (
             "JSON should contain user_understanding field"
-        assert json_prompt["user_understanding"] == understanding, \
+        )
+        assert json_prompt["user_understanding"] == understanding, (
             "user_understanding value should match input"
+        )
 
     @pytest.mark.asyncio
     async def test_understanding_null_when_no_yellow_node(self, agent_service):
@@ -197,24 +204,25 @@ class TestUserUnderstandingDualChannel:
         captured_json = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured_json['prompt'] = prompt
+            captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(agent_service, "call_agent", side_effect=mock_call_agent):
             await agent_service.call_explanation(
                 content="测试内容",
                 explanation_type="clarification",
                 context=None,
-                user_understanding=None  # No yellow node
+                user_understanding=None,  # No yellow node
             )
 
-        json_prompt = json.loads(captured_json['prompt'])
+        json_prompt = json.loads(captured_json["prompt"])
 
         # Should be None, not empty string
         if "user_understanding" in json_prompt:
-            assert json_prompt["user_understanding"] is None or \
-                   json_prompt.get("user_understanding") is None, \
-                "user_understanding should be null when no yellow node"
+            assert (
+                json_prompt["user_understanding"] is None
+                or json_prompt.get("user_understanding") is None
+            ), "user_understanding should be null when no yellow node"
 
 
 # ============================================================================
@@ -262,19 +270,16 @@ class TestTwoHopTraversalIntegration:
         nodes = {
             "A": {"id": "A", "type": "text", "text": "节点A"},
             "B": {"id": "B", "type": "text", "text": "节点B"},
-            "C": {"id": "C", "type": "text", "text": "节点C"}
+            "C": {"id": "C", "type": "text", "text": "节点C"},
         }
         edges = [
             {"id": "e1", "fromNode": "A", "toNode": "B", "label": "连接1"},
-            {"id": "e2", "fromNode": "B", "toNode": "C", "label": "连接2"}
+            {"id": "e2", "fromNode": "B", "toNode": "C", "label": "连接2"},
         ]
 
         # Find adjacent nodes with 2-hop depth
         adjacent = context_service._find_adjacent_nodes(
-            node_id="A",
-            nodes=nodes,
-            edges=edges,
-            hop_depth=2
+            node_id="A", nodes=nodes, edges=edges, hop_depth=2
         )
 
         # Verify B and C are found
@@ -302,18 +307,15 @@ class TestTwoHopTraversalIntegration:
         # nodes must be a dict keyed by node ID
         nodes = {
             "A": {"id": "A", "type": "text", "text": "节点A"},
-            "B": {"id": "B", "type": "text", "text": "节点B"}
+            "B": {"id": "B", "type": "text", "text": "节点B"},
         }
         edges = [
             {"id": "e1", "fromNode": "A", "toNode": "B"},
-            {"id": "e2", "fromNode": "B", "toNode": "A"}  # Circular
+            {"id": "e2", "fromNode": "B", "toNode": "A"},  # Circular
         ]
 
         adjacent = context_service._find_adjacent_nodes(
-            node_id="A",
-            nodes=nodes,
-            edges=edges,
-            hop_depth=2
+            node_id="A", nodes=nodes, edges=edges, hop_depth=2
         )
 
         # B should appear only once
@@ -332,23 +334,21 @@ class TestTwoHopTraversalIntegration:
             for i in range(100)
         }
         edges = [
-            {"id": f"e_{i}", "fromNode": f"node_{i}", "toNode": f"node_{i+1}"}
+            {"id": f"e_{i}", "fromNode": f"node_{i}", "toNode": f"node_{i + 1}"}
             for i in range(99)
         ]
 
         # Measure performance
         start = time.time()
         _adjacent = context_service._find_adjacent_nodes(
-            node_id="node_50",
-            nodes=nodes,
-            edges=edges,
-            hop_depth=2
+            node_id="node_50", nodes=nodes, edges=edges, hop_depth=2
         )
         elapsed_ms = (time.time() - start) * 1000
 
         # Assert performance
-        assert elapsed_ms < 100, \
+        assert elapsed_ms < 100, (
             f"2-hop traversal took {elapsed_ms:.2f}ms, should be < 100ms"
+        )
 
 
 # ============================================================================
@@ -372,6 +372,7 @@ class TestMarkdownImageExtractionIntegration:
     def extractor(self):
         """Create MarkdownImageExtractor instance."""
         from app.services.markdown_image_extractor import MarkdownImageExtractor
+
         return MarkdownImageExtractor()
 
     def test_obsidian_image_extraction(self, extractor):
@@ -395,7 +396,9 @@ class TestMarkdownImageExtractionIntegration:
 
         # Verify format
         for ref in refs:
-            assert ref.format == "obsidian", f"Expected obsidian format, got {ref.format}"
+            assert ref.format == "obsidian", (
+                f"Expected obsidian format, got {ref.format}"
+            )
 
     def test_markdown_image_extraction(self, extractor):
         """
@@ -438,8 +441,9 @@ class TestMarkdownImageExtractionIntegration:
 
         # Verify no URLs
         for ref in refs:
-            assert not ref.path.startswith("http"), \
+            assert not ref.path.startswith("http"), (
                 f"URL image should be filtered: {ref.path}"
+            )
 
 
 # ============================================================================
@@ -461,6 +465,7 @@ class TestRegressionTextNodes:
     def agent_service(self):
         """Create AgentService instance."""
         from app.services.agent_service import AgentService
+
         return AgentService()
 
     @pytest.mark.asyncio
@@ -473,18 +478,18 @@ class TestRegressionTextNodes:
         captured = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured['called'] = True
-            captured['prompt'] = prompt
+            captured["called"] = True
+            captured["prompt"] = prompt
             return MagicMock(content="Generated explanation", success=True)
 
-        with patch.object(agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(agent_service, "call_agent", side_effect=mock_call_agent):
             result = await agent_service.call_explanation(
                 content="# Level Set\n等高线在三维空间的推广...",
                 explanation_type="clarification",
-                context=None
+                context=None,
             )
 
-        assert captured.get('called'), "Agent should be called"
+        assert captured.get("called"), "Agent should be called"
         assert result is not None
 
     @pytest.mark.asyncio
@@ -516,6 +521,7 @@ class TestRegressionFileNodes:
     def agent_service(self):
         """Create AgentService instance."""
         from app.services.agent_service import AgentService
+
         return AgentService()
 
     @pytest.mark.asyncio
@@ -533,19 +539,19 @@ class TestRegressionFileNodes:
         captured = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured['called'] = True
+            captured["called"] = True
             return MagicMock(content="Generated explanation", success=True)
 
         # FILE node content is passed as regular content
         # The file reading happens at context_enrichment_service level
-        with patch.object(agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(agent_service, "call_agent", side_effect=mock_call_agent):
             result = await agent_service.call_explanation(
                 content="# KP01-Level-Set定义\n\n这是从文件读取的内容...",
                 explanation_type="clarification",
-                context=None
+                context=None,
             )
 
-        assert captured.get('called'), "Agent should be called for FILE node content"
+        assert captured.get("called"), "Agent should be called for FILE node content"
         assert result is not None
 
 
@@ -562,20 +568,24 @@ class TestRegressionAllAgentTypes:
     def agent_service(self):
         """Create AgentService instance."""
         from app.services.agent_service import AgentService
+
         return AgentService()
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("explanation_type", [
-        "clarification",
-        "oral",
-        "four_level",
-        "memory",
-        "example",
-        "comparison",
-        "question",
-        "basic",
-        "deep",
-    ])
+    @pytest.mark.parametrize(
+        "explanation_type",
+        [
+            "clarification",
+            "oral",
+            "four_level",
+            "memory",
+            "example",
+            "comparison",
+            "question",
+            "basic",
+            "deep",
+        ],
+    )
     async def test_all_agent_types_callable(self, agent_service, explanation_type):
         """
         Regression: All agent types should be callable.
@@ -589,16 +599,17 @@ class TestRegressionAllAgentTypes:
             called = True
             return MagicMock(content=f"Response from {agent_type}", success=True)
 
-        with patch.object(agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(agent_service, "call_agent", side_effect=mock_call_agent):
             try:
                 result = await agent_service.call_explanation(
                     content="测试内容...",
                     explanation_type=explanation_type,
-                    context=None
+                    context=None,
                 )
                 # If method exists and can be called, test passes
-                assert called or result is not None, \
+                assert called or result is not None, (
                     f"{explanation_type} agent should be callable"
+                )
             except NotImplementedError:
                 # Some agent types might not be implemented yet
                 pytest.skip(f"{explanation_type} not implemented")
@@ -631,6 +642,7 @@ class TestEndToEndIntegration:
     def agent_service(self):
         """Create AgentService instance."""
         from app.services.agent_service import AgentService
+
         return AgentService()
 
     @pytest.fixture
@@ -646,11 +658,10 @@ class TestEndToEndIntegration:
     def image_extractor(self):
         """Create MarkdownImageExtractor instance."""
         from app.services.markdown_image_extractor import MarkdownImageExtractor
+
         return MarkdownImageExtractor()
 
-    def test_content_with_images_and_concepts(
-        self, agent_service, image_extractor
-    ):
+    def test_content_with_images_and_concepts(self, agent_service, image_extractor):
         """
         E2E: Content with both images and comparison concepts.
 
@@ -698,20 +709,22 @@ class TestEndToEndIntegration:
         # Create a simple Canvas structure - nodes must be a dict keyed by ID
         nodes = {
             "target": {"id": "target", "type": "text", "text": "目标节点"},
-            "context1": {"id": "context1", "type": "text", "text": "上下文1", "color": "6"},
-            "context2": {"id": "context2", "type": "text", "text": "上下文2"}
+            "context1": {
+                "id": "context1",
+                "type": "text",
+                "text": "上下文1",
+                "color": "6",
+            },
+            "context2": {"id": "context2", "type": "text", "text": "上下文2"},
         }
         edges = [
             {"id": "e1", "fromNode": "target", "toNode": "context1"},
-            {"id": "e2", "fromNode": "context1", "toNode": "context2"}
+            {"id": "e2", "fromNode": "context1", "toNode": "context2"},
         ]
 
         # Find adjacent nodes with 2-hop (Story 12.E.3)
         adjacent = context_service._find_adjacent_nodes(
-            node_id="target",
-            nodes=nodes,
-            edges=edges,
-            hop_depth=2
+            node_id="target", nodes=nodes, edges=edges, hop_depth=2
         )
 
         # Should find both context nodes
@@ -777,7 +790,7 @@ class TestSuiteSummary:
             "12.E.3": "TestTwoHopTraversalIntegration",
             "12.E.4": "TestMarkdownImageExtractionIntegration",
             "12.E.5": "TestMarkdownImageExtractionIntegration (multimodal)",
-            "12.E.6": "All tests in this file"
+            "12.E.6": "All tests in this file",
         }
 
         assert len(coverage) == 6, "All 6 stories should be covered"

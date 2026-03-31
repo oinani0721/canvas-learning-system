@@ -13,7 +13,6 @@ Tests cover:
 from datetime import datetime
 
 import pytest
-
 from app.models import HistoryResponse
 
 from .helpers import FIXED_REVIEW_TIME, mock_review_history
@@ -132,7 +131,9 @@ class TestReviewHistoryResponseSchema:
             }
         ]
 
-        with mock_review_history(records=mock_records, retention_rate=0.9, streak_days=3):
+        with mock_review_history(
+            records=mock_records, retention_rate=0.9, streak_days=3
+        ):
             response = client.get("/api/v1/review/history")
 
             assert response.status_code == 200

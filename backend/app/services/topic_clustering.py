@@ -39,10 +39,7 @@ class TopicClusterer:
         """Initialize the topic clusterer."""
         pass
 
-    def cluster_nodes(
-        self,
-        nodes: List[Dict]
-    ) -> Dict[str, List[Dict]]:
+    def cluster_nodes(self, nodes: List[Dict]) -> Dict[str, List[Dict]]:
         """
         Cluster nodes by topic.
 
@@ -90,14 +87,14 @@ class TopicClusterer:
                     return topic
 
         # Strategy 2: Extract topic from first line
-        first_line = text.split('\n')[0].strip()
+        first_line = text.split("\n")[0].strip()
 
         # Remove markdown headers
-        first_line = re.sub(r'^#+\s*', '', first_line)
+        first_line = re.sub(r"^#+\s*", "", first_line)
 
         # Try to extract a short topic (first phrase or segment)
         # Look for common separators
-        separators = ['：', ':', '—', '-', '，', ',']
+        separators = ["：", ":", "—", "-", "，", ","]
         for sep in separators:
             if sep in first_line:
                 potential_topic = first_line.split(sep)[0].strip()
@@ -115,10 +112,7 @@ class TopicClusterer:
         # Fallback
         return "其他"
 
-    def get_cluster_statistics(
-        self,
-        clusters: Dict[str, List[Dict]]
-    ) -> Dict[str, int]:
+    def get_cluster_statistics(self, clusters: Dict[str, List[Dict]]) -> Dict[str, int]:
         """
         Get statistics about the clusters.
 
@@ -135,7 +129,7 @@ class TopicClusterer:
         group_padding: int = 100,
         node_width: int = 400,
         node_height: int = 250,
-        node_padding: int = 50
+        node_padding: int = 50,
     ) -> Tuple[List[Dict], List[Dict]]:
         """
         Create Canvas Group nodes and position child nodes.
@@ -170,7 +164,9 @@ class TopicClusterer:
             num_cols = min(len(topic_nodes), nodes_per_row)
 
             group_width = num_cols * (node_width + node_padding) + node_padding
-            group_height = num_rows * (node_height + node_padding) + node_padding + 50  # +50 for label
+            group_height = (
+                num_rows * (node_height + node_padding) + node_padding + 50
+            )  # +50 for label
 
             # Create Group node
             group_id = uuid.uuid4().hex[:16]
@@ -191,17 +187,21 @@ class TopicClusterer:
                 row = i // nodes_per_row
 
                 node_x = start_x + node_padding + col * (node_width + node_padding)
-                node_y = current_y + 50 + node_padding + row * (node_height + node_padding)  # +50 for label
+                node_y = (
+                    current_y + 50 + node_padding + row * (node_height + node_padding)
+                )  # +50 for label
 
-                node_positions.append({
-                    "original_node": node,
-                    "x": node_x,
-                    "y": node_y,
-                    "width": node_width,
-                    "height": node_height,
-                    "group_id": group_id,
-                    "topic": topic,
-                })
+                node_positions.append(
+                    {
+                        "original_node": node,
+                        "x": node_x,
+                        "y": node_y,
+                        "width": node_width,
+                        "height": node_height,
+                        "group_id": group_id,
+                        "topic": topic,
+                    }
+                )
 
             # Move to next group position
             current_y += group_height + group_padding

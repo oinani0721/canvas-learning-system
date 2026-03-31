@@ -17,10 +17,10 @@ import pytest
 
 from tests.conftest import simulate_async_delay
 
-
 # ============================================================================
 # Task 1: Parallel execution
 # ============================================================================
+
 
 class TestBatchParallelExecution:
     """AC-30.11.1: asyncio.gather parallel writes."""
@@ -44,6 +44,7 @@ class TestBatchParallelExecution:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -58,7 +59,7 @@ class TestBatchParallelExecution:
                 "timestamp": f"2026-02-09T10:{i:02d}:00",
                 "canvas_path": f"test/canvas_{i}.canvas",
                 "node_id": f"node_{i}",
-                "metadata": {"concept": f"concept_{i}"}
+                "metadata": {"concept": f"concept_{i}"},
             }
             for i in range(count)
         ]
@@ -134,6 +135,7 @@ class TestBatchParallelExecution:
 # Task 2: Partial failure isolation
 # ============================================================================
 
+
 class TestBatchPartialFailure:
     """AC-30.11.2: Partial failure isolation."""
 
@@ -156,6 +158,7 @@ class TestBatchPartialFailure:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -164,15 +167,27 @@ class TestBatchPartialFailure:
         return service
 
     @pytest.mark.asyncio
-    async def test_neo4j_failure_does_not_block_processing(self, memory_service, mock_neo4j):
+    async def test_neo4j_failure_does_not_block_processing(
+        self, memory_service, mock_neo4j
+    ):
         """Neo4j write failures don't affect processed count (data is in memory)."""
         mock_neo4j.record_episode = AsyncMock(side_effect=Exception("Neo4j timeout"))
 
         events = [
-            {"event_type": "scoring", "timestamp": "2026-02-09T10:00:00",
-             "canvas_path": "test/a.canvas", "node_id": "n1", "metadata": {}},
-            {"event_type": "scoring", "timestamp": "2026-02-09T10:01:00",
-             "canvas_path": "test/b.canvas", "node_id": "n2", "metadata": {}},
+            {
+                "event_type": "scoring",
+                "timestamp": "2026-02-09T10:00:00",
+                "canvas_path": "test/a.canvas",
+                "node_id": "n1",
+                "metadata": {},
+            },
+            {
+                "event_type": "scoring",
+                "timestamp": "2026-02-09T10:01:00",
+                "canvas_path": "test/b.canvas",
+                "node_id": "n2",
+                "metadata": {},
+            },
         ]
 
         with patch("app.services.memory_service.settings") as mock_settings:
@@ -190,11 +205,19 @@ class TestBatchPartialFailure:
     async def test_validation_failure_isolated(self, memory_service, mock_neo4j):
         """Validation failures don't affect other events."""
         events = [
-            {"event_type": "scoring", "timestamp": "2026-02-09T10:00:00",
-             "canvas_path": "test/a.canvas", "node_id": "n1"},
+            {
+                "event_type": "scoring",
+                "timestamp": "2026-02-09T10:00:00",
+                "canvas_path": "test/a.canvas",
+                "node_id": "n1",
+            },
             {"event_type": "scoring"},  # Missing required fields
-            {"event_type": "scoring", "timestamp": "2026-02-09T10:02:00",
-             "canvas_path": "test/c.canvas", "node_id": "n3"},
+            {
+                "event_type": "scoring",
+                "timestamp": "2026-02-09T10:02:00",
+                "canvas_path": "test/c.canvas",
+                "node_id": "n3",
+            },
         ]
 
         with patch("app.services.memory_service.settings") as mock_settings:
@@ -211,8 +234,12 @@ class TestBatchPartialFailure:
     async def test_episode_ids_only_for_successful(self, memory_service, mock_neo4j):
         """episode_ids list only contains IDs for successfully processed events."""
         events = [
-            {"event_type": "scoring", "timestamp": "2026-02-09T10:00:00",
-             "canvas_path": "test/a.canvas", "node_id": "n1"},
+            {
+                "event_type": "scoring",
+                "timestamp": "2026-02-09T10:00:00",
+                "canvas_path": "test/a.canvas",
+                "node_id": "n1",
+            },
             {"event_type": "bad"},  # Missing fields
         ]
 
@@ -227,6 +254,7 @@ class TestBatchPartialFailure:
 # ============================================================================
 # Task 3: Semaphore concurrency control
 # ============================================================================
+
 
 class TestBatchSemaphore:
     """AC-30.11.3: Semaphore limits concurrent Neo4j connections."""
@@ -249,6 +277,7 @@ class TestBatchSemaphore:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -275,8 +304,12 @@ class TestBatchSemaphore:
         mock_neo4j.record_episode = AsyncMock(side_effect=tracked_record)
 
         events = [
-            {"event_type": f"score_{i}", "timestamp": f"2026-02-09T10:{i:02d}:00",
-             "canvas_path": f"test/c_{i}.canvas", "node_id": f"n_{i}"}
+            {
+                "event_type": f"score_{i}",
+                "timestamp": f"2026-02-09T10:{i:02d}:00",
+                "canvas_path": f"test/c_{i}.canvas",
+                "node_id": f"n_{i}",
+            }
             for i in range(20)
         ]
 
@@ -285,13 +318,18 @@ class TestBatchSemaphore:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
             await memory_service.record_batch_learning_events(events)
 
-        assert max_concurrent <= 3, f"Max concurrent was {max_concurrent}, expected <= 3"
-        assert max_concurrent >= 2, f"Max concurrent was {max_concurrent}, expected >= 2 (parallel)"
+        assert max_concurrent <= 3, (
+            f"Max concurrent was {max_concurrent}, expected <= 3"
+        )
+        assert max_concurrent >= 2, (
+            f"Max concurrent was {max_concurrent}, expected >= 2 (parallel)"
+        )
 
 
 # ============================================================================
 # Task 4: Neo4j unavailable degradation
 # ============================================================================
+
 
 class TestBatchNeo4jDegradation:
     """AC-30.11.3: Neo4j unavailable degrades to memory-only."""
@@ -315,6 +353,7 @@ class TestBatchNeo4jDegradation:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -323,11 +362,17 @@ class TestBatchNeo4jDegradation:
         return service
 
     @pytest.mark.asyncio
-    async def test_neo4j_unavailable_still_processes_to_memory(self, memory_service, mock_neo4j):
+    async def test_neo4j_unavailable_still_processes_to_memory(
+        self, memory_service, mock_neo4j
+    ):
         """When Neo4j is not initialized, events are still stored in _episodes."""
         events = [
-            {"event_type": "scoring", "timestamp": "2026-02-09T10:00:00",
-             "canvas_path": "test/a.canvas", "node_id": "n1"},
+            {
+                "event_type": "scoring",
+                "timestamp": "2026-02-09T10:00:00",
+                "canvas_path": "test/a.canvas",
+                "node_id": "n1",
+            },
         ]
 
         with patch("app.services.memory_service.settings") as mock_settings:
@@ -346,6 +391,7 @@ class TestBatchNeo4jDegradation:
 # ============================================================================
 # Task 5: Idempotency compatibility (Story 30.10)
 # ============================================================================
+
 
 class TestBatchIdempotencyCompat:
     """AC-30.11.4: Compatible with Story 30.10 deterministic IDs."""
@@ -369,6 +415,7 @@ class TestBatchIdempotencyCompat:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -380,8 +427,12 @@ class TestBatchIdempotencyCompat:
     async def test_duplicate_batch_no_duplicates(self, memory_service, mock_neo4j):
         """Submitting the same batch twice should not create duplicates in _episodes."""
         events = [
-            {"event_type": "scoring", "timestamp": "2026-02-09T10:00:00",
-             "canvas_path": "test/a.canvas", "node_id": "n1"},
+            {
+                "event_type": "scoring",
+                "timestamp": "2026-02-09T10:00:00",
+                "canvas_path": "test/a.canvas",
+                "node_id": "n1",
+            },
         ]
 
         with patch("app.services.memory_service.settings") as mock_settings:
@@ -398,13 +449,18 @@ class TestBatchIdempotencyCompat:
         assert result1["episode_ids"] == result2["episode_ids"]
 
         # _episodes should have exactly 1 entry (dedup)
-        matching = [ep for ep in memory_service._episodes if ep.get("episode_id") == result1["episode_ids"][0]]
+        matching = [
+            ep
+            for ep in memory_service._episodes
+            if ep.get("episode_id") == result1["episode_ids"][0]
+        ]
         assert len(matching) == 1
 
     @pytest.mark.asyncio
     async def test_config_batch_neo4j_concurrency_exists(self):
         """BATCH_NEO4J_CONCURRENCY config field exists in Settings."""
         from app.config import Settings
+
         s = Settings()
         assert hasattr(s, "BATCH_NEO4J_CONCURRENCY")
         assert s.BATCH_NEO4J_CONCURRENCY == 10  # default

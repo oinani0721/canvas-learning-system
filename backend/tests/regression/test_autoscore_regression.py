@@ -108,8 +108,12 @@ class TestAutoScoreRegression:
     def test_prompt_contains_four_dimensions(self, prompt_registry: PromptRegistry):
         """Verify prompt defines all 4 scoring dimensions (SOLO-anchored)."""
         content = prompt_registry.get("autoscore")
-        required_dims = ["\u6982\u5ff5\u51c6\u786e", "\u63a8\u7406\u8d28\u91cf",
-                         "\u77e5\u8bc6\u8986\u76d6", "\u77e5\u8bc6\u6574\u5408"]
+        required_dims = [
+            "\u6982\u5ff5\u51c6\u786e",
+            "\u63a8\u7406\u8d28\u91cf",
+            "\u77e5\u8bc6\u8986\u76d6",
+            "\u77e5\u8bc6\u6574\u5408",
+        ]
         for dim in required_dims:
             assert dim in content, "Missing scoring dimension: " + dim
 
@@ -123,8 +127,12 @@ class TestAutoScoreRegression:
         """Verify SOLO taxonomy anchoring in scoring rubric."""
         content = prompt_registry.get("autoscore")
         assert "SOLO" in content
-        solo_levels = ["\u524d\u7ed3\u6784", "\u5355\u70b9\u7ed3\u6784",
-                       "\u591a\u70b9\u7ed3\u6784", "\u5173\u8054\u7ed3\u6784"]
+        solo_levels = [
+            "\u524d\u7ed3\u6784",
+            "\u5355\u70b9\u7ed3\u6784",
+            "\u591a\u70b9\u7ed3\u6784",
+            "\u5173\u8054\u7ed3\u6784",
+        ]
         for level in solo_levels:
             assert level in content, "Missing SOLO level: " + level
 
@@ -163,7 +171,9 @@ class TestAutoScoreRegression:
                     "overall_in_range": result["overall"]["in_range"],
                 },
                 passed=passed,
-                details="" if passed else "consistency={c:.2f}, avg_diff={d:.2f}".format(
+                details=""
+                if passed
+                else "consistency={c:.2f}, avg_diff={d:.2f}".format(
                     c=result["scoring_consistency_rate"],
                     d=result["avg_score_diff"],
                 ),
@@ -177,7 +187,9 @@ class TestAutoScoreRegression:
         agg_avg_diff = total_avg_diff / n
 
         assert agg_consistency >= 0.80, (
-            "Scoring consistency below 80 percent threshold: {v:.4f}".format(v=agg_consistency)
+            "Scoring consistency below 80 percent threshold: {v:.4f}".format(
+                v=agg_consistency
+            )
         )
         assert agg_avg_diff <= 0.5, (
             "Average score diff {v:.2f} above 0.5 threshold".format(v=agg_avg_diff)
@@ -233,14 +245,16 @@ class TestAutoScoreRegression:
                 result["scoring_consistency_rate"] >= 0.75
                 and result["avg_score_diff"] <= 1.0
             )
-            scenario_results.append({
-                "scenario_id": scenario["scenario_id"],
-                "passed": passed,
-                "metrics": {
-                    "scoring_consistency_rate": result["scoring_consistency_rate"],
-                    "avg_score_diff": result["avg_score_diff"],
-                },
-            })
+            scenario_results.append(
+                {
+                    "scenario_id": scenario["scenario_id"],
+                    "passed": passed,
+                    "metrics": {
+                        "scoring_consistency_rate": result["scoring_consistency_rate"],
+                        "avg_score_diff": result["avg_score_diff"],
+                    },
+                }
+            )
             total_consistency += result["scoring_consistency_rate"]
             total_avg_diff += result["avg_score_diff"]
 

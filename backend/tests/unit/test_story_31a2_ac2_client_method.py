@@ -8,17 +8,16 @@ Tests for AC-31.A.2.2: Neo4jClient.get_learning_history() method.
 """
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
-
 
 # =============================================================================
 # AC-31.A.2.2: Neo4jClient.get_learning_history() Method
 # [Source: docs/stories/31.A.2.story.md#AC-31.A.2.2]
 # =============================================================================
+
 
 class TestAC31A22_Neo4jClientMethod:
     """AC-31.A.2.2: Neo4jClient must have get_learning_history()."""
@@ -31,6 +30,7 @@ class TestAC31A22_Neo4jClientMethod:
     def test_method_signature_params(self):
         """Method must support required parameters."""
         import inspect
+
         sig = inspect.signature(Neo4jClient.get_learning_history)
         param_names = list(sig.parameters.keys())
 
@@ -50,10 +50,18 @@ class TestAC31A22_Neo4jClientMethod:
 
         # Inject test data
         client._data["relationships"] = [
-            {"user_id": "u1", "concept_name": "A", "timestamp": "2026-02-05T10:00:00",
-             "last_score": 90},
-            {"user_id": "u2", "concept_name": "B", "timestamp": "2026-02-05T10:00:00",
-             "last_score": 80},
+            {
+                "user_id": "u1",
+                "concept_name": "A",
+                "timestamp": "2026-02-05T10:00:00",
+                "last_score": 90,
+            },
+            {
+                "user_id": "u2",
+                "concept_name": "B",
+                "timestamp": "2026-02-05T10:00:00",
+                "last_score": 80,
+            },
         ]
 
         results = await client.get_learning_history(user_id="u1")
@@ -68,10 +76,18 @@ class TestAC31A22_Neo4jClientMethod:
         await client.initialize()
 
         client._data["relationships"] = [
-            {"user_id": "u1", "concept_name": "线性代数-矩阵乘法",
-             "timestamp": "2026-02-05T10:00:00", "last_score": 90},
-            {"user_id": "u1", "concept_name": "概率论-贝叶斯",
-             "timestamp": "2026-02-05T10:00:00", "last_score": 80},
+            {
+                "user_id": "u1",
+                "concept_name": "线性代数-矩阵乘法",
+                "timestamp": "2026-02-05T10:00:00",
+                "last_score": 90,
+            },
+            {
+                "user_id": "u1",
+                "concept_name": "概率论-贝叶斯",
+                "timestamp": "2026-02-05T10:00:00",
+                "last_score": 80,
+            },
         ]
 
         results = await client.get_learning_history(user_id="u1", concept="矩阵")
@@ -86,15 +102,23 @@ class TestAC31A22_Neo4jClientMethod:
         await client.initialize()
 
         client._data["relationships"] = [
-            {"user_id": "u1", "concept_name": "A", "group_id": "math-001",
-             "timestamp": "2026-02-05T10:00:00", "last_score": 90},
-            {"user_id": "u1", "concept_name": "B", "group_id": "physics-001",
-             "timestamp": "2026-02-05T10:00:00", "last_score": 80},
+            {
+                "user_id": "u1",
+                "concept_name": "A",
+                "group_id": "math-001",
+                "timestamp": "2026-02-05T10:00:00",
+                "last_score": 90,
+            },
+            {
+                "user_id": "u1",
+                "concept_name": "B",
+                "group_id": "physics-001",
+                "timestamp": "2026-02-05T10:00:00",
+                "last_score": 80,
+            },
         ]
 
-        results = await client.get_learning_history(
-            user_id="u1", group_id="math-001"
-        )
+        results = await client.get_learning_history(user_id="u1", group_id="math-001")
 
         assert len(results) == 1
         assert results[0]["concept"] == "A"
@@ -106,18 +130,30 @@ class TestAC31A22_Neo4jClientMethod:
         await client.initialize()
 
         client._data["relationships"] = [
-            {"user_id": "u1", "concept_name": "Old",
-             "timestamp": "2026-01-01T10:00:00", "last_score": 70},
-            {"user_id": "u1", "concept_name": "Current",
-             "timestamp": "2026-02-05T10:00:00", "last_score": 85},
-            {"user_id": "u1", "concept_name": "Future",
-             "timestamp": "2026-03-01T10:00:00", "last_score": 95},
+            {
+                "user_id": "u1",
+                "concept_name": "Old",
+                "timestamp": "2026-01-01T10:00:00",
+                "last_score": 70,
+            },
+            {
+                "user_id": "u1",
+                "concept_name": "Current",
+                "timestamp": "2026-02-05T10:00:00",
+                "last_score": 85,
+            },
+            {
+                "user_id": "u1",
+                "concept_name": "Future",
+                "timestamp": "2026-03-01T10:00:00",
+                "last_score": 95,
+            },
         ]
 
         results = await client.get_learning_history(
             user_id="u1",
             start_date=datetime(2026, 2, 1),
-            end_date=datetime(2026, 2, 28)
+            end_date=datetime(2026, 2, 28),
         )
 
         assert len(results) == 1
@@ -130,8 +166,12 @@ class TestAC31A22_Neo4jClientMethod:
         await client.initialize()
 
         client._data["relationships"] = [
-            {"user_id": "u1", "concept_name": f"C{i}",
-             "timestamp": f"2026-02-05T{10+i}:00:00", "last_score": 80}
+            {
+                "user_id": "u1",
+                "concept_name": f"C{i}",
+                "timestamp": f"2026-02-05T{10 + i}:00:00",
+                "last_score": 80,
+            }
             for i in range(10)
         ]
 
@@ -146,12 +186,24 @@ class TestAC31A22_Neo4jClientMethod:
         await client.initialize()
 
         client._data["relationships"] = [
-            {"user_id": "u1", "concept_name": "Oldest",
-             "timestamp": "2026-02-01T10:00:00", "last_score": 70},
-            {"user_id": "u1", "concept_name": "Newest",
-             "timestamp": "2026-02-05T10:00:00", "last_score": 90},
-            {"user_id": "u1", "concept_name": "Middle",
-             "timestamp": "2026-02-03T10:00:00", "last_score": 80},
+            {
+                "user_id": "u1",
+                "concept_name": "Oldest",
+                "timestamp": "2026-02-01T10:00:00",
+                "last_score": 70,
+            },
+            {
+                "user_id": "u1",
+                "concept_name": "Newest",
+                "timestamp": "2026-02-05T10:00:00",
+                "last_score": 90,
+            },
+            {
+                "user_id": "u1",
+                "concept_name": "Middle",
+                "timestamp": "2026-02-03T10:00:00",
+                "last_score": 80,
+            },
         ]
 
         results = await client.get_learning_history(user_id="u1")
@@ -166,10 +218,16 @@ class TestAC31A22_Neo4jClientMethod:
         await client.initialize()
 
         client._data["relationships"] = [
-            {"user_id": "u1", "concept_name": "Test", "concept_id": "c-1",
-             "group_id": "math-001", "agent_type": "scoring",
-             "timestamp": "2026-02-05T10:00:00", "last_score": 90,
-             "review_count": 3},
+            {
+                "user_id": "u1",
+                "concept_name": "Test",
+                "concept_id": "c-1",
+                "group_id": "math-001",
+                "agent_type": "scoring",
+                "timestamp": "2026-02-05T10:00:00",
+                "last_score": 90,
+                "review_count": 3,
+            },
         ]
 
         results = await client.get_learning_history(user_id="u1")

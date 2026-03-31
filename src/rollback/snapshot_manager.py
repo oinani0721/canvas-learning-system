@@ -291,7 +291,9 @@ class SnapshotManager:
 
         return deleted
 
-    async def get_snapshot(self, canvas_path: str, snapshot_id: str) -> Optional[Snapshot]:
+    async def get_snapshot(
+        self, canvas_path: str, snapshot_id: str
+    ) -> Optional[Snapshot]:
         """获取快照
 
         Args:
@@ -467,7 +469,9 @@ class SnapshotManager:
         Returns:
             是否运行中
         """
-        return canvas_path in self._auto_tasks and not self._auto_tasks[canvas_path].done()
+        return (
+            canvas_path in self._auto_tasks and not self._auto_tasks[canvas_path].done()
+        )
 
     async def _auto_snapshot_loop(self, canvas_path: str) -> None:
         """自动快照循环

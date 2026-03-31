@@ -4,19 +4,12 @@
 # AC-36.12.6 (health check degradation), AC-36.12.8 (dead-letter persistence).
 #
 # [Source: docs/stories/36.12.story.md#Testing]
-import asyncio
 import json
 import logging
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from app.core.failure_counters import (
-    DUAL_WRITE_DEAD_LETTER_PATH,
-    EDGE_SYNC_DEAD_LETTER_PATH,
     get_dual_write_failures,
     get_edge_sync_failures,
     increment_dual_write_failures,
@@ -25,6 +18,7 @@ from app.core.failure_counters import (
     write_dead_letter,
 )
 
+from tests.conftest import simulate_async_delay
 
 # ============================================================================
 # Fixture: Reset counters before each test
@@ -219,9 +213,7 @@ class TestCanvasServiceEdgeSyncFailure:
         service._memory_client = mock_memory
 
         dl_path = tmp_path / "failed_edge_syncs.jsonl"
-        with patch(
-            "app.services.canvas_service.EDGE_SYNC_DEAD_LETTER_PATH", dl_path
-        ):
+        with patch("app.services.canvas_service.EDGE_SYNC_DEAD_LETTER_PATH", dl_path):
             await service._sync_edge_to_neo4j(
                 canvas_path="数学.canvas",
                 edge_id="edge-002",
@@ -256,7 +248,9 @@ class TestCanvasServiceEdgeSyncFailure:
                 to_node_id="b",
             )
 
-        warning_msgs = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+        warning_msgs = [
+            r.message for r in caplog.records if r.levelno >= logging.WARNING
+        ]
         combined = " ".join(warning_msgs)
         assert "edge-log-test" in combined
         assert "test.canvas" in combined
@@ -342,10 +336,9 @@ class TestMemoryServiceDualWriteFailure:
         service._learning_memory = mock_learning
 
         dl_path = tmp_path / "failed_dual_writes.jsonl"
-        with patch(
-            "app.services.memory_service.DUAL_WRITE_DEAD_LETTER_PATH", dl_path
-        ), patch(
-            "app.services.memory_service.GRAPHITI_RETRY_BACKOFF_BASE", 0.01
+        with (
+            patch("app.services.memory_service.DUAL_WRITE_DEAD_LETTER_PATH", dl_path),
+            patch("app.services.memory_service.GRAPHITI_RETRY_BACKOFF_BASE", 0.01),
         ):
             result = await service._write_to_graphiti_json_with_retry(
                 episode_id="ep-retry-fail",
@@ -396,7 +389,12 @@ class TestHealthStorageReflectsFailures:
             StorageBackendStatus(name="mcp", status="ok"),
             StorageBackendStatus(name="json", status="ok"),
         ]
-        assert _aggregate_storage_status(backends, edge_sync_failures=3, dual_write_failures=0) == "degraded"
+        assert (
+            _aggregate_storage_status(
+                backends, edge_sync_failures=3, dual_write_failures=0
+            )
+            == "degraded"
+        )
 
     def test_aggregate_status_degraded_when_dual_write_failures(self):
         """Status is degraded when dual_write_failures > 0 (AC-36.12.6)."""

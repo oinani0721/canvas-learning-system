@@ -33,9 +33,10 @@ logger = logging.getLogger(__name__)
 
 class SelectionStrategy(str, Enum):
     """Provider selection strategy enum."""
-    PRIORITY = "priority"          # Select by priority (default)
-    ROUND_ROBIN = "round_robin"    # Rotate between healthy providers
-    LATENCY_OPTIMAL = "latency"    # Select lowest latency provider
+
+    PRIORITY = "priority"  # Select by priority (default)
+    ROUND_ROBIN = "round_robin"  # Rotate between healthy providers
+    LATENCY_OPTIMAL = "latency"  # Select lowest latency provider
 
 
 class ProviderFactory:
@@ -201,16 +202,16 @@ class ProviderFactory:
         configs: List[ProviderConfig] = []
 
         # Primary provider from legacy settings
-        if hasattr(settings, 'AI_PROVIDER') and settings.AI_PROVIDER:
+        if hasattr(settings, "AI_PROVIDER") and settings.AI_PROVIDER:
             primary_config = ProviderConfig(
                 name=settings.AI_PROVIDER,
-                api_key=getattr(settings, 'AI_API_KEY', '') or
-                        getattr(settings, 'GOOGLE_API_KEY', '') or
-                        getattr(settings, 'OPENAI_API_KEY', '') or
-                        getattr(settings, 'ANTHROPIC_API_KEY', ''),
-                model=getattr(settings, 'AI_MODEL_NAME', '') or
-                      getattr(settings, 'GEMINI_MODEL', 'gemini-2.0-flash-exp'),
-                base_url=getattr(settings, 'AI_BASE_URL', None),
+                api_key=getattr(settings, "AI_API_KEY", "")
+                or getattr(settings, "GOOGLE_API_KEY", "")
+                or getattr(settings, "OPENAI_API_KEY", "")
+                or getattr(settings, "ANTHROPIC_API_KEY", ""),
+                model=getattr(settings, "AI_MODEL_NAME", "")
+                or getattr(settings, "GEMINI_MODEL", "gemini-2.0-flash-exp"),
+                base_url=getattr(settings, "AI_BASE_URL", None),
                 priority=1,
                 enabled=True,
             )
@@ -219,12 +220,12 @@ class ProviderFactory:
 
         # Multi-provider configs (numbered)
         for i in range(1, 6):  # Support up to 5 providers
-            name_key = f'AI_PROVIDER_{i}_NAME'
-            key_key = f'AI_PROVIDER_{i}_API_KEY'
-            model_key = f'AI_PROVIDER_{i}_MODEL'
-            priority_key = f'AI_PROVIDER_{i}_PRIORITY'
-            base_url_key = f'AI_PROVIDER_{i}_BASE_URL'
-            enabled_key = f'AI_PROVIDER_{i}_ENABLED'
+            name_key = f"AI_PROVIDER_{i}_NAME"
+            key_key = f"AI_PROVIDER_{i}_API_KEY"
+            model_key = f"AI_PROVIDER_{i}_MODEL"
+            priority_key = f"AI_PROVIDER_{i}_PRIORITY"
+            base_url_key = f"AI_PROVIDER_{i}_BASE_URL"
+            enabled_key = f"AI_PROVIDER_{i}_ENABLED"
 
             name = getattr(settings, name_key, None)
             api_key = getattr(settings, key_key, None)
@@ -233,40 +234,46 @@ class ProviderFactory:
                 config = ProviderConfig(
                     name=name,
                     api_key=api_key,
-                    model=getattr(settings, model_key, 'gemini-2.0-flash-exp'),
+                    model=getattr(settings, model_key, "gemini-2.0-flash-exp"),
                     base_url=getattr(settings, base_url_key, None),
                     priority=int(getattr(settings, priority_key, i * 10)),
-                    enabled=getattr(settings, enabled_key, 'true').lower() == 'true',
+                    enabled=getattr(settings, enabled_key, "true").lower() == "true",
                 )
                 configs.append(config)
 
         # Also check direct provider API keys
-        if hasattr(settings, 'GOOGLE_API_KEY') and settings.GOOGLE_API_KEY:
-            if not any(c.name.lower() == 'google' for c in configs):
-                configs.append(ProviderConfig(
-                    name='google',
-                    api_key=settings.GOOGLE_API_KEY,
-                    model=getattr(settings, 'GEMINI_MODEL', 'gemini-2.0-flash-exp'),
-                    priority=10,
-                ))
+        if hasattr(settings, "GOOGLE_API_KEY") and settings.GOOGLE_API_KEY:
+            if not any(c.name.lower() == "google" for c in configs):
+                configs.append(
+                    ProviderConfig(
+                        name="google",
+                        api_key=settings.GOOGLE_API_KEY,
+                        model=getattr(settings, "GEMINI_MODEL", "gemini-2.0-flash-exp"),
+                        priority=10,
+                    )
+                )
 
-        if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
-            if not any(c.name.lower() == 'openai' for c in configs):
-                configs.append(ProviderConfig(
-                    name='openai',
-                    api_key=settings.OPENAI_API_KEY,
-                    model='gpt-4o',
-                    priority=20,
-                ))
+        if hasattr(settings, "OPENAI_API_KEY") and settings.OPENAI_API_KEY:
+            if not any(c.name.lower() == "openai" for c in configs):
+                configs.append(
+                    ProviderConfig(
+                        name="openai",
+                        api_key=settings.OPENAI_API_KEY,
+                        model="gpt-4o",
+                        priority=20,
+                    )
+                )
 
-        if hasattr(settings, 'ANTHROPIC_API_KEY') and settings.ANTHROPIC_API_KEY:
-            if not any(c.name.lower() == 'anthropic' for c in configs):
-                configs.append(ProviderConfig(
-                    name='anthropic',
-                    api_key=settings.ANTHROPIC_API_KEY,
-                    model='claude-3-5-sonnet-20241022',
-                    priority=30,
-                ))
+        if hasattr(settings, "ANTHROPIC_API_KEY") and settings.ANTHROPIC_API_KEY:
+            if not any(c.name.lower() == "anthropic" for c in configs):
+                configs.append(
+                    ProviderConfig(
+                        name="anthropic",
+                        api_key=settings.ANTHROPIC_API_KEY,
+                        model="claude-3-5-sonnet-20241022",
+                        priority=30,
+                    )
+                )
 
         logger.info(f"Parsed {len(configs)} provider configurations")
         return configs
@@ -274,8 +281,7 @@ class ProviderFactory:
     def _update_priority_order(self) -> None:
         """Update provider priority order."""
         self._priority_order = sorted(
-            self._providers.keys(),
-            key=lambda name: self._providers[name].priority
+            self._providers.keys(), key=lambda name: self._providers[name].priority
         )
 
     def get_provider(self, name: Optional[str] = None) -> BaseProvider:
@@ -311,10 +317,7 @@ class ProviderFactory:
         Returns:
             Selected provider or None if no healthy provider
         """
-        healthy_providers = [
-            p for p in self._providers.values()
-            if p.is_available
-        ]
+        healthy_providers = [p for p in self._providers.values() if p.is_available]
 
         if not healthy_providers:
             return None
@@ -344,7 +347,7 @@ class ProviderFactory:
         # Filter providers with known latency
         with_latency = [p for p in providers if p.health.latency_ms is not None]
         if with_latency:
-            return min(with_latency, key=lambda p: p.health.latency_ms or float('inf'))
+            return min(with_latency, key=lambda p: p.health.latency_ms or float("inf"))
         # Fall back to priority if no latency data
         return self._select_by_priority(providers)
 
@@ -407,8 +410,7 @@ class ProviderFactory:
             except ProviderError as e:
                 last_error = e
                 logger.warning(
-                    f"Provider {provider.name} failed: {e}. "
-                    f"Trying next provider..."
+                    f"Provider {provider.name} failed: {e}. Trying next provider..."
                 )
                 continue
             except Exception as e:
@@ -418,8 +420,7 @@ class ProviderFactory:
 
         # All providers failed
         raise NoHealthyProviderError(
-            f"All providers failed. Tried: {tried_providers}. "
-            f"Last error: {last_error}"
+            f"All providers failed. Tried: {tried_providers}. Last error: {last_error}"
         )
 
     async def complete_with_images(
@@ -482,8 +483,7 @@ class ProviderFactory:
             except ProviderError as e:
                 last_error = e
                 logger.warning(
-                    f"Provider {provider.name} failed: {e}. "
-                    f"Trying next provider..."
+                    f"Provider {provider.name} failed: {e}. Trying next provider..."
                 )
                 continue
             except Exception as e:
@@ -496,7 +496,9 @@ class ProviderFactory:
             f"Last error: {last_error}"
         )
 
-    def _get_failover_order(self, preferred_name: Optional[str] = None) -> List[BaseProvider]:
+    def _get_failover_order(
+        self, preferred_name: Optional[str] = None
+    ) -> List[BaseProvider]:
         """
         Get providers in failover order.
 
@@ -579,7 +581,9 @@ class ProviderFactory:
             "selection_strategy": self._selection_strategy.value,
             "active_provider": self._get_active_provider_name(),
             "switch_count": self._switch_count,
-            "last_switch_time": self._last_switch_time.isoformat() if self._last_switch_time else None,
+            "last_switch_time": self._last_switch_time.isoformat()
+            if self._last_switch_time
+            else None,
             "initialized": self._initialized,
         }
 

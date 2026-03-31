@@ -16,9 +16,13 @@ from pathlib import Path
 
 import pytest
 
-sys.path.append('..')
+sys.path.append("..")
 
-from enhanced_agent_instance_pool import EnhancedGLMInstancePool, QuotaControlConfig, QuotaExhaustionStrategy
+from enhanced_agent_instance_pool import (
+    EnhancedGLMInstancePool,
+    QuotaControlConfig,
+    QuotaExhaustionStrategy,
+)
 from glm_rate_limiter import GLMRateLimiter, PlanType, RateLimitConfig
 from usage_monitor import UsageMonitor
 
@@ -40,12 +44,13 @@ class TestUsageIntegration:
             plan_type=PlanType.PRO,
             max_prompts_per_period=100,  # 使用较小的数量便于测试
             rate_limit_requests_per_second=2.0,
-            max_concurrent_requests=2
+            max_concurrent_requests=2,
         )
 
         # 临时修改数据目录
         from unittest.mock import patch
-        with patch('glm_rate_limiter.Path') as mock_path:
+
+        with patch("glm_rate_limiter.Path") as mock_path:
             mock_path.return_value = Path(temp_data_dir)
             limiter = GLMRateLimiter(config)
             yield limiter
@@ -120,13 +125,12 @@ class TestUsageIntegration:
         quota_config = QuotaControlConfig(
             enable_quota_control=True,
             quota_exhaustion_strategy=QuotaExhaustionStrategy.QUEUE,
-            max_wait_time_seconds=5
+            max_wait_time_seconds=5,
         )
 
         # 创建增强版实例池
         pool = EnhancedGLMInstancePool(
-            max_concurrent_instances=2,
-            quota_control_config=quota_config
+            max_concurrent_instances=2, quota_control_config=quota_config
         )
 
         await pool.start()
@@ -137,10 +141,7 @@ class TestUsageIntegration:
             assert instance_id is not None
 
             # 提交任务
-            task_data = {
-                "task_id": "test-001",
-                "node_data": {"content": "test"}
-            }
+            task_data = {"task_id": "test-001", "node_data": {"content": "test"}}
 
             result = await pool.submit_task(instance_id, task_data)
             assert result["status"] in ["completed", "queued"]
@@ -159,28 +160,26 @@ class TestUsageIntegration:
     @pytest.mark.asyncio
     async def test_quota_exhaustion_strategies(self):
         """测试用量耗尽策略"""
-        strategies = [
-            QuotaExhaustionStrategy.REJECT,
-            QuotaExhaustionStrategy.QUEUE
-        ]
+        strategies = [QuotaExhaustionStrategy.REJECT, QuotaExhaustionStrategy.QUEUE]
 
         for strategy in strategies:
             quota_config = QuotaControlConfig(
                 enable_quota_control=True,
                 quota_exhaustion_strategy=strategy,
-                max_wait_time_seconds=1
+                max_wait_time_seconds=1,
             )
 
             pool = EnhancedGLMInstancePool(
-                max_concurrent_instances=1,
-                quota_control_config=quota_config
+                max_concurrent_instances=1, quota_control_config=quota_config
             )
 
             await pool.start()
 
             try:
                 # 消耗所有额度
-                pool.rate_limiter.usage_metrics.used_prompts = pool.rate_limiter.config.max_prompts_per_period
+                pool.rate_limiter.usage_metrics.used_prompts = (
+                    pool.rate_limiter.config.max_prompts_per_period
+                )
 
                 # 创建实例
                 instance_id = await pool.create_instance("test-agent")
@@ -251,6 +250,7 @@ class TestUsageIntegration:
     @pytest.mark.asyncio
     async def test_concurrent_request_limiting(self, rate_limiter):
         """测试并发请求限制"""
+
         # 创建多个并发任务
         async def consume_quota():
             return await rate_limiter.consume_quota(1)
@@ -270,15 +270,13 @@ class TestUsageIntegration:
     async def test_plan_type_switching(self):
         """测试套餐类型切换"""
         # 创建不同套餐的限制器
-        lite_limiter = GLMRateLimiter(RateLimitConfig(
-            plan_type=PlanType.LITE,
-            max_prompts_per_period=120
-        ))
+        lite_limiter = GLMRateLimiter(
+            RateLimitConfig(plan_type=PlanType.LITE, max_prompts_per_period=120)
+        )
 
-        pro_limiter = GLMRateLimiter(RateLimitConfig(
-            plan_type=PlanType.PRO,
-            max_prompts_per_period=600
-        ))
+        pro_limiter = GLMRateLimiter(
+            RateLimitConfig(plan_type=PlanType.PRO, max_prompts_per_period=600)
+        )
 
         # 验证配置差异
         assert lite_limiter.config.max_prompts_per_period == 120

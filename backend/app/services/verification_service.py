@@ -22,8 +22,6 @@ Story 24.1 AC:
 
 Story 24.5 Implementation:
 - ✅ RAG context injection for questions and hints
-- ✅ Cross-canvas context retrieval
-- ✅ Textbook context integration
 - ✅ Graceful degradation on timeout/errors
 
 Story 31.1 Implementation:
@@ -53,23 +51,27 @@ from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional
 from cachetools import TTLCache
 
 # Story 31.A.7: TTLCache session storage constants (single source of truth)
-SESSION_TTL = 3600       # seconds — sessions expire after 1 hour of inactivity
-SESSION_MAXSIZE = 500    # max concurrent sessions — LRU eviction beyond this limit
+SESSION_TTL = 3600  # seconds — sessions expire after 1 hour of inactivity
+SESSION_MAXSIZE = 500  # max concurrent sessions — LRU eviction beyond this limit
 
 # Story 31.1: Environment variable for mock mode
 USE_MOCK_VERIFICATION = os.getenv("USE_MOCK_VERIFICATION", "false").lower() == "true"
 
 # Story 31.1: AI timeout configuration (AC-31.1.5)
-VERIFICATION_AI_TIMEOUT = float(os.getenv("VERIFICATION_AI_TIMEOUT", "15"))  # 15s default for Gemini API
+VERIFICATION_AI_TIMEOUT = float(
+    os.getenv("VERIFICATION_AI_TIMEOUT", "15")
+)  # 15s default for Gemini API
 
 # Story 31.4 ADR-009: Graphiti query timeout (separate from Gemini API timeout)
-GRAPHITI_QUERY_TIMEOUT = float(os.getenv("GRAPHITI_QUERY_TIMEOUT", "5.0"))  # 5s for Graphiti queries (M1 fix: 0.5s was too aggressive)
+GRAPHITI_QUERY_TIMEOUT = float(
+    os.getenv("GRAPHITI_QUERY_TIMEOUT", "5.0")
+)  # 5s for Graphiti queries (M1 fix: 0.5s was too aggressive)
 
 from app.services.agent_service import AgentType
 
 if TYPE_CHECKING:
-    from app.services.canvas_service import CanvasService
     from app.services.agent_service import AgentService
+    from app.services.canvas_service import CanvasService
     from app.services.memory_service import MemoryService
 
 logger = logging.getLogger(__name__)
@@ -80,6 +82,7 @@ logger = logging.getLogger(__name__)
 # [Source: docs/stories/31.5.story.md]
 # ===========================================================================
 
+
 class DifficultyLevel(str, Enum):
     """
     难度等级枚举
@@ -88,9 +91,10 @@ class DifficultyLevel(str, Enum):
 
     [Source: specs/data/difficulty-level.schema.json]
     """
-    EASY = "easy"       # avg < 60: 需要加强，聚焦核心概念
-    MEDIUM = "medium"   # 60 <= avg < 80: 部分掌握，验证深度
-    HARD = "hard"       # avg >= 80: 掌握良好，挑战应用题
+
+    EASY = "easy"  # avg < 60: 需要加强，聚焦核心概念
+    MEDIUM = "medium"  # 60 <= avg < 80: 部分掌握，验证深度
+    HARD = "hard"  # avg >= 80: 掌握良好，挑战应用题
 
 
 class QuestionType(str, Enum):
@@ -101,9 +105,10 @@ class QuestionType(str, Enum):
 
     [Source: docs/stories/31.5.story.md#Task-4.1]
     """
-    BREAKTHROUGH = "breakthrough"   # easy -> 突破型问题 (聚焦核心概念)
-    VERIFICATION = "verification"   # medium -> 验证型问题 (测试理解深度)
-    APPLICATION = "application"     # hard -> 应用型问题 (跨概念应用)
+
+    BREAKTHROUGH = "breakthrough"  # easy -> 突破型问题 (聚焦核心概念)
+    VERIFICATION = "verification"  # medium -> 验证型问题 (测试理解深度)
+    APPLICATION = "application"  # hard -> 应用型问题 (跨概念应用)
 
 
 @dataclass
@@ -115,6 +120,7 @@ class ForgettingStatus:
 
     [Source: specs/data/difficulty-level.schema.json#forgetting_status]
     """
+
     needs_review: bool
     decay_percentage: float
 
@@ -128,6 +134,7 @@ class DifficultyResult:
 
     [Source: specs/data/difficulty-level.schema.json]
     """
+
     level: DifficultyLevel
     average_score: float
     sample_size: int
@@ -144,18 +151,20 @@ class DifficultyResult:
             "question_type": self.question_type.value,
             "forgetting_status": {
                 "needs_review": self.forgetting_status.needs_review,
-                "decay_percentage": self.forgetting_status.decay_percentage
-            } if self.forgetting_status else None,
-            "is_mastered": self.is_mastered
+                "decay_percentage": self.forgetting_status.decay_percentage,
+            }
+            if self.forgetting_status
+            else None,
+            "is_mastered": self.is_mastered,
         }
 
 
 # Story 31.5 Task 3.2: Difficulty thresholds (0-100 score scale)
 # [Source: docs/stories/31.5.story.md#Task-3.2]
 DIFFICULTY_THRESHOLDS = {
-    "hard": 80,    # avg >= 80: 掌握良好
+    "hard": 80,  # avg >= 80: 掌握良好
     "medium": 60,  # 60 <= avg < 80: 部分掌握
-    "easy": 0,     # avg < 60: 需要加强
+    "easy": 0,  # avg < 60: 需要加强
 }
 
 # Story 31.5 Task 5.2: Mastery threshold (0-100 score scale)
@@ -268,13 +277,12 @@ def detect_forgetting(recent_score: int, historical_avg: float) -> ForgettingSta
 
     return ForgettingStatus(
         needs_review=decay > FORGETTING_DECAY_THRESHOLD,
-        decay_percentage=max(0.0, decay_percentage)  # Clamp to non-negative
+        decay_percentage=max(0.0, decay_percentage),  # Clamp to non-negative
     )
 
 
 def calculate_full_difficulty_result(
-    scores: List[int],
-    recent_score: Optional[int] = None
+    scores: List[int], recent_score: Optional[int] = None
 ) -> DifficultyResult:
     """
     Calculate complete difficulty analysis including all metrics.
@@ -313,12 +321,13 @@ def calculate_full_difficulty_result(
         sample_size=len(scores),
         question_type=question_type,
         forgetting_status=forgetting,
-        is_mastered=mastered
+        is_mastered=mastered,
     )
 
 
 class VerificationStatus(str, Enum):
     """验证会话状态"""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     PAUSED = "paused"
@@ -334,6 +343,7 @@ class VerificationProgress:
     用于追踪验证会话的实时进度。
     Story 24.3 将使用此类显示实时进度。
     """
+
     session_id: str
     canvas_name: str
     total_concepts: int
@@ -411,34 +421,35 @@ class VerificationService:
     - generate_question_with_rag(): 使用RAG上下文生成问题
     - generate_hint_with_rag(): 使用学习历史生成个性化提示
     - _get_rag_context_for_concept(): 查询RAG上下文
-    - _get_cross_canvas_context(): 查询跨Canvas关联
+    - _get_enriched_context(): Gather RAG, graph, FSRS context
     """
 
     # ✅ Verified from Story 24.5 Dev Notes: RAG Configuration
     RAG_ENABLED = True  # Can be disabled via config
-    RAG_TIMEOUT = 5.0   # Timeout in seconds (AC5: Graceful degradation)
+    RAG_TIMEOUT = 5.0  # Timeout in seconds (AC5: Graceful degradation)
 
     # Story 31.4: Question angle priority (AC-31.4.2)
-    QUESTION_ANGLE_PRIORITY = ["application", "comparison", "counterexample", "synthesis"]
+    QUESTION_ANGLE_PRIORITY = [
+        "application",
+        "comparison",
+        "counterexample",
+        "synthesis",
+    ]
 
     def __init__(
         self,
         rag_service: Optional[Any] = None,
-        cross_canvas_service: Optional[Any] = None,
-        textbook_context_service: Optional[Any] = None,
         canvas_service: Optional["CanvasService"] = None,
         agent_service: Optional["AgentService"] = None,
         canvas_base_path: Optional[str] = None,
         graphiti_client: Optional[Any] = None,
-        memory_service: Optional["MemoryService"] = None
+        memory_service: Optional["MemoryService"] = None,
     ):
         """
         初始化服务
 
         Story 24.5 Args:
             rag_service: Optional RAGService for context-aware generation
-            cross_canvas_service: Optional CrossCanvasService for cross-canvas context
-            textbook_context_service: Optional TextbookContextService for textbook references
 
         Story 31.1 Args:
             canvas_service: CanvasService for reading Canvas files (AC-31.1.1)
@@ -470,8 +481,6 @@ class VerificationService:
 
         # Story 24.5: RAG Integration dependencies
         self._rag_service = rag_service
-        self._cross_canvas_service = cross_canvas_service
-        self._textbook_context_service = textbook_context_service
 
         # Story 31.1: Canvas and Agent service dependencies
         self._canvas_service = canvas_service
@@ -490,8 +499,6 @@ class VerificationService:
         logger.info(
             f"VerificationService initialized "
             f"(RAG: {rag_service is not None}, "
-            f"CrossCanvas: {cross_canvas_service is not None}, "
-            f"Textbook: {textbook_context_service is not None}, "
             f"Canvas: {canvas_service is not None}, "
             f"Agent: {agent_service is not None}, "
             f"Graphiti: {graphiti_client is not None}, "
@@ -520,16 +527,16 @@ class VerificationService:
         """Safe accessor for Neo4jClient via GraphitiTemporalClient."""
         if not self._graphiti_client:
             return None
-        if hasattr(self._graphiti_client, 'neo4j_client'):
+        if hasattr(self._graphiti_client, "neo4j_client"):
             return self._graphiti_client.neo4j_client
-        return getattr(self._graphiti_client, '_neo4j', None)
+        return getattr(self._graphiti_client, "_neo4j", None)
 
     async def start_session(
         self,
         canvas_name: str,
         node_ids: Optional[List[str]] = None,
         canvas_path: Optional[str] = None,
-        include_mastered: bool = True
+        include_mastered: bool = True,
     ) -> Dict[str, Any]:
         """
         开始新的验证会话
@@ -557,13 +564,13 @@ class VerificationService:
         [Source: docs/stories/31.5.story.md#Task-5.3, Task-5.4]
         """
         session_id = str(uuid.uuid4())
-        logger.info(f"Starting verification session: {session_id} for canvas: {canvas_name}")
+        logger.info(
+            f"Starting verification session: {session_id} for canvas: {canvas_name}"
+        )
 
         # Story 31.1 AC-31.1.1: Read Canvas file and extract concepts from red/purple nodes
         concepts = await self._extract_concepts_from_canvas(
-            canvas_name=canvas_name,
-            canvas_path=canvas_path,
-            node_ids=node_ids
+            canvas_name=canvas_name, canvas_path=canvas_path, node_ids=node_ids
         )
 
         # Degradation transparency: warn if using fallback concepts
@@ -581,19 +588,23 @@ class VerificationService:
                 try:
                     history = await asyncio.wait_for(
                         self._memory_service.get_concept_score_history(
-                            concept_id=concept,
-                            canvas_name=canvas_name,
-                            limit=5
+                            concept_id=concept, canvas_name=canvas_name, limit=5
                         ),
-                        timeout=min(VERIFICATION_AI_TIMEOUT, 5.0)
+                        timeout=min(VERIFICATION_AI_TIMEOUT, 5.0),
                     )
-                    if history and history.scores and is_concept_mastered(history.scores):
+                    if (
+                        history
+                        and history.scores
+                        and is_concept_mastered(history.scores)
+                    ):
                         skipped.append(concept)
                         logger.info(f"Skipping mastered concept: '{concept}'")
                     else:
                         filtered.append(concept)
                 except Exception as e:
-                    logger.warning(f"Mastery check failed for '{concept}': {e}, including concept")
+                    logger.warning(
+                        f"Mastery check failed for '{concept}': {e}, including concept"
+                    )
                     filtered.append(concept)
 
             if filtered:
@@ -644,8 +655,7 @@ class VerificationService:
         first_question = ""
         if concepts:
             first_question = await self.generate_question_with_rag(
-                concept=concepts[0],
-                canvas_name=canvas_name
+                concept=concepts[0], canvas_name=canvas_name
             )
 
         # Store current question in state for hint generation context
@@ -661,11 +671,7 @@ class VerificationService:
             "status": "in_progress",
         }
 
-    async def process_answer(
-        self,
-        session_id: str,
-        user_answer: str
-    ) -> Dict[str, Any]:
+    async def process_answer(self, session_id: str, user_answer: str) -> Dict[str, Any]:
         """
         处理用户回答
 
@@ -697,14 +703,19 @@ class VerificationService:
         current_concept = state["current_concept"]
         canvas_name = state["source_canvas"]
 
-        logger.debug(f"Processing answer for session {session_id}, concept: {current_concept}")
+        logger.debug(
+            f"Processing answer for session {session_id}, concept: {current_concept}"
+        )
 
         # Story 31.1 AC-31.1.3: Call scoring-agent with timeout protection
         # Wave 3: degraded flag indicates fallback/mock evaluation
-        quality, score, degraded, degraded_reason = await self._evaluate_answer_with_scoring_agent(
-            concept=current_concept,
-            user_answer=user_answer,
-            canvas_name=canvas_name
+        (
+            quality,
+            score,
+            degraded,
+            degraded_reason,
+        ) = await self._evaluate_answer_with_scoring_agent(
+            concept=current_concept, user_answer=user_answer, canvas_name=canvas_name
         )
 
         # Store scoring result in state for hint generation context
@@ -725,10 +736,14 @@ class VerificationService:
                         "session_id": session_id,
                         "degraded": degraded,
                     },
-                    group_id=canvas_name.split("/")[0] if "/" in canvas_name else canvas_name,
+                    group_id=canvas_name.split("/")[0]
+                    if "/" in canvas_name
+                    else canvas_name,
                 )
             except Exception as e:
-                logger.warning(f"G-PIPE-006: Failed to persist exam attempt (non-fatal): {e}")
+                logger.warning(
+                    f"G-PIPE-006: Failed to persist exam attempt (non-fatal): {e}"
+                )
 
         # 决定下一步动作
         hints_given = state["hints_given"]
@@ -754,8 +769,7 @@ class VerificationService:
             "degraded": degraded,
             "degraded_reason": degraded_reason if degraded else None,
             "degraded_warning": (
-                "评分基于答案长度而非内容质量，仅供参考"
-                if degraded else None
+                "评分基于答案长度而非内容质量，仅供参考" if degraded else None
             ),
             "action": action["action"],
             "hint": action.get("hint"),
@@ -769,7 +783,7 @@ class VerificationService:
         state: Dict[str, Any],
         progress: VerificationProgress,
         quality: str,
-        score: float
+        score: float,
     ) -> Dict[str, Any]:
         """
         前进到下一概念
@@ -814,8 +828,7 @@ class VerificationService:
 
             # Story 31.1 AC-31.1.2: Generate next question using Gemini API
             next_question = await self.generate_question_with_rag(
-                concept=concept_queue[next_idx],
-                canvas_name=state["source_canvas"]
+                concept=concept_queue[next_idx], canvas_name=state["source_canvas"]
             )
             # Store question in state for hint generation context
             state["current_question"] = next_question
@@ -835,7 +848,7 @@ class VerificationService:
         self,
         state: Dict[str, Any],
         progress: VerificationProgress,
-        user_answer: str = ""
+        user_answer: str = "",
     ) -> Dict[str, Any]:
         """
         提供提示 - 优先使用 RAG 上下文生成个性化提示
@@ -858,11 +871,13 @@ class VerificationService:
                 attempt_number=hints_given + 1,
                 canvas_name=canvas_name,
                 question_text=question_text,
-                last_quality=last_quality
+                last_quality=last_quality,
             )
         except Exception as e:
             logger.warning(f"RAG hint generation failed, using fallback: {e}")
-            hint = f"提示 {hints_given + 1}: 思考「{current_concept}」的定义和核心特点。"
+            hint = (
+                f"提示 {hints_given + 1}: 思考「{current_concept}」的定义和核心特点。"
+            )
 
         state["hints_given"] += 1
         state["current_hints"].append(hint)
@@ -1000,8 +1015,7 @@ class VerificationService:
             # Regenerate with dedup logic if no stored question
             canvas_name = state.get("source_canvas", "")
             current_question = await self.generate_question_with_rag(
-                concept=current_concept,
-                canvas_name=canvas_name
+                concept=current_concept, canvas_name=canvas_name
             )
             state["current_question"] = current_question
 
@@ -1046,13 +1060,13 @@ class VerificationService:
                 "yellow_count": progress.yellow_count,
                 "purple_count": progress.purple_count,
                 "red_count": progress.red_count,
-            }
+            },
         }
 
     async def list_sessions(
         self,
         canvas_name: Optional[str] = None,
-        status: Optional[VerificationStatus] = None
+        status: Optional[VerificationStatus] = None,
     ) -> List[Dict[str, Any]]:
         """
         列出会话
@@ -1085,7 +1099,7 @@ class VerificationService:
         self,
         canvas_name: str,
         canvas_path: Optional[str] = None,
-        node_ids: Optional[List[str]] = None
+        node_ids: Optional[List[str]] = None,
     ) -> List[str]:
         """
         Extract concepts from Canvas file by reading red(color="4") and purple(color="3") nodes.
@@ -1112,7 +1126,7 @@ class VerificationService:
             # AC-31.1.5: 15s timeout protection for Canvas reading
             concepts = await asyncio.wait_for(
                 self._do_extract_concepts(canvas_name, canvas_path, node_ids),
-                timeout=VERIFICATION_AI_TIMEOUT
+                timeout=VERIFICATION_AI_TIMEOUT,
             )
             if not concepts:
                 logger.warning(
@@ -1140,7 +1154,7 @@ class VerificationService:
         self,
         canvas_name: str,
         canvas_path: Optional[str] = None,
-        node_ids: Optional[List[str]] = None
+        node_ids: Optional[List[str]] = None,
     ) -> List[str]:
         """
         Internal method to extract concepts from Canvas file.
@@ -1174,12 +1188,16 @@ class VerificationService:
             try:
                 canvas_data = await self._canvas_service.read_canvas(file_path)
             except Exception as e:
-                logger.debug(f"Canvas service read failed: {e}, trying direct file read")
+                logger.debug(
+                    f"Canvas service read failed: {e}, trying direct file read"
+                )
 
         # Method 2: Direct file read as fallback
         if canvas_data is None:
             try:
-                canvas_data = await asyncio.to_thread(self._read_canvas_file_sync, file_path)
+                canvas_data = await asyncio.to_thread(
+                    self._read_canvas_file_sync, file_path
+                )
             except Exception as e:
                 logger.error(f"Direct canvas file read failed: {e}")
                 return ["默认概念"]
@@ -1283,10 +1301,7 @@ class VerificationService:
     # =========================================================================
 
     async def _evaluate_answer_with_scoring_agent(
-        self,
-        concept: str,
-        user_answer: str,
-        canvas_name: str
+        self, concept: str, user_answer: str, canvas_name: str
     ) -> tuple:
         """
         Evaluate user answer using scoring-agent.
@@ -1325,7 +1340,7 @@ class VerificationService:
             # AC-31.1.5: 15s timeout protection
             quality, score, degraded, reason = await asyncio.wait_for(
                 self._do_scoring_agent_call(concept, user_answer, canvas_name),
-                timeout=VERIFICATION_AI_TIMEOUT
+                timeout=VERIFICATION_AI_TIMEOUT,
             )
             return quality, score, degraded, reason
 
@@ -1350,10 +1365,7 @@ class VerificationService:
             return quality, score, True, "agent_exception"
 
     async def _do_scoring_agent_call(
-        self,
-        concept: str,
-        user_answer: str,
-        canvas_name: str
+        self, concept: str, user_answer: str, canvas_name: str
     ) -> tuple:
         """
         Internal method to call scoring-agent.
@@ -1392,13 +1404,18 @@ class VerificationService:
 
                 # AC-31.1.4: Inject RAG context
                 if rag_context:
-                    context["learning_history"] = rag_context.get("learning_history", "")
-                    context["textbook_excerpts"] = rag_context.get("textbook_excerpts", "")
-                    context["related_concepts"] = rag_context.get("related_concepts", [])
+                    context["learning_history"] = rag_context.get(
+                        "learning_history", ""
+                    )
+                    context["related_concepts"] = rag_context.get(
+                        "related_concepts", []
+                    )
 
                 # P2: Inject graph relationship context for scoring
                 if graph_context:
-                    context["graph_relationships"] = graph_context.get("connected_concepts", [])
+                    context["graph_relationships"] = graph_context.get(
+                        "connected_concepts", []
+                    )
 
                 # P2: Inject FSRS history for scoring trend awareness
                 if fsrs_context:
@@ -1407,11 +1424,13 @@ class VerificationService:
 
                 # Call scoring-agent with correct signature
                 # call_scoring(node_content, user_understanding, context, question_text)
-                context_str = json.dumps(context, ensure_ascii=False) if context else None
+                context_str = (
+                    json.dumps(context, ensure_ascii=False) if context else None
+                )
                 scoring_result = await self._agent_service.call_scoring(
                     node_content=concept,
                     user_understanding=user_answer,
-                    context=context_str
+                    context=context_str,
                 )
 
                 if scoring_result and scoring_result.success and scoring_result.data:
@@ -1516,7 +1535,9 @@ class VerificationService:
             quality = "wrong"
             score = 20.0
 
-        logger.debug(f"Mock evaluation: len={answer_len}, quality={quality}, score={score}")
+        logger.debug(
+            f"Mock evaluation: len={answer_len}, quality={quality}, score={score}"
+        )
         return quality, score
 
     # =========================================================================
@@ -1525,10 +1546,7 @@ class VerificationService:
     # =========================================================================
 
     async def _get_difficulty_for_concept(
-        self,
-        concept: str,
-        canvas_name: str,
-        node_id: Optional[str] = None
+        self, concept: str, canvas_name: str, node_id: Optional[str] = None
     ) -> DifficultyResult:
         """
         Get difficulty level for a concept based on historical scores.
@@ -1552,7 +1570,7 @@ class VerificationService:
             sample_size=0,
             question_type=QuestionType.VERIFICATION,
             forgetting_status=None,
-            is_mastered=False
+            is_mastered=False,
         )
 
         # Check if memory_service is available
@@ -1565,15 +1583,15 @@ class VerificationService:
             concept_id = node_id if node_id else concept
             score_history = await asyncio.wait_for(
                 self._memory_service.get_concept_score_history(
-                    concept_id=concept_id,
-                    canvas_name=canvas_name,
-                    limit=5
+                    concept_id=concept_id, canvas_name=canvas_name, limit=5
                 ),
-                timeout=VERIFICATION_AI_TIMEOUT
+                timeout=VERIFICATION_AI_TIMEOUT,
             )
 
             if not score_history or score_history.sample_size == 0:
-                logger.debug(f"No score history for concept '{concept}', using default difficulty")
+                logger.debug(
+                    f"No score history for concept '{concept}', using default difficulty"
+                )
                 return default_result
 
             # Calculate difficulty from historical scores
@@ -1581,8 +1599,7 @@ class VerificationService:
             recent_score = scores[-1] if scores else None
 
             difficulty_result = calculate_full_difficulty_result(
-                scores=scores,
-                recent_score=recent_score
+                scores=scores, recent_score=recent_score
             )
 
             logger.info(
@@ -1603,7 +1620,9 @@ class VerificationService:
             return default_result
 
         except Exception as e:
-            logger.warning(f"Difficulty calculation failed for '{concept}': {e}, using default")
+            logger.warning(
+                f"Difficulty calculation failed for '{concept}': {e}, using default"
+            )
             return default_result
 
     def _build_difficulty_aware_prompt(
@@ -1612,7 +1631,7 @@ class VerificationService:
         difficulty: DifficultyResult,
         rag_context: Optional[Dict[str, Any]] = None,
         graph_context: Optional[Dict[str, Any]] = None,
-        fsrs_context: Optional[Dict[str, Any]] = None
+        fsrs_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Build a prompt that incorporates difficulty level guidance.
@@ -1659,26 +1678,32 @@ class VerificationService:
             f"为概念「{concept}」生成一个检验问题。",
             "",
             "## 难度指导",
-            difficulty_guidance.get(difficulty.level, difficulty_guidance[DifficultyLevel.MEDIUM]),
+            difficulty_guidance.get(
+                difficulty.level, difficulty_guidance[DifficultyLevel.MEDIUM]
+            ),
             "",
             f"当前难度: {difficulty.level.value} (平均分: {difficulty.average_score}, 样本数: {difficulty.sample_size})",
         ]
 
         # Add forgetting alert if detected
         if difficulty.forgetting_status and difficulty.forgetting_status.needs_review:
-            prompt_parts.extend([
-                "",
-                f"⚠️ 遗忘检测: 学生近期得分下降了 {difficulty.forgetting_status.decay_percentage}%",
-                "请在问题中关注可能被遗忘的核心要点。"
-            ])
+            prompt_parts.extend(
+                [
+                    "",
+                    f"⚠️ 遗忘检测: 学生近期得分下降了 {difficulty.forgetting_status.decay_percentage}%",
+                    "请在问题中关注可能被遗忘的核心要点。",
+                ]
+            )
 
         # Add mastery note
         if difficulty.is_mastered:
-            prompt_parts.extend([
-                "",
-                "✅ 此概念已基本掌握 (连续3次 >= 80分)",
-                "可以考虑生成更有挑战性的问题，或跨概念综合问题。"
-            ])
+            prompt_parts.extend(
+                [
+                    "",
+                    "✅ 此概念已基本掌握 (连续3次 >= 80分)",
+                    "可以考虑生成更有挑战性的问题，或跨概念综合问题。",
+                ]
+            )
 
         # === P2: 三层上下文注入（Graph > FSRS > RAG 权重顺序） ===
 
@@ -1691,7 +1716,13 @@ class VerificationService:
                 for c in graph_context["connected_concepts"][:5]:
                     rel = c.get("relationship", "related")
                     direction = c.get("direction", "")
-                    dir_label = " →" if direction == "outgoing" else " ←" if direction == "incoming" else ""
+                    dir_label = (
+                        " →"
+                        if direction == "outgoing"
+                        else " ←"
+                        if direction == "incoming"
+                        else ""
+                    )
                     prompt_parts.append(f"  - {c['name']}{dir_label} ({rel})")
             if graph_context.get("sibling_concepts"):
                 siblings = ", ".join(graph_context["sibling_concepts"][:8])
@@ -1721,16 +1752,15 @@ class VerificationService:
             if rag_context.get("learning_history"):
                 prompt_parts.append(f"学习历史: {rag_context['learning_history']}")
             # 仅在 Graph 无 connected_concepts 时才显示 RAG 的 related_concepts（避免低精度覆盖高精度）
-            if rag_context.get("related_concepts") and not (graph_context and graph_context.get("connected_concepts")):
+            if rag_context.get("related_concepts") and not (
+                graph_context and graph_context.get("connected_concepts")
+            ):
                 related = ", ".join(rag_context["related_concepts"][:5])
                 prompt_parts.append(f"相关概念(语义): {related}")
             if rag_context.get("common_mistakes"):
                 prompt_parts.append(f"常见错误: {rag_context['common_mistakes']}")
 
-        prompt_parts.extend([
-            "",
-            "请只输出问题本身，不要包含其他解释或前缀。"
-        ])
+        prompt_parts.extend(["", "请只输出问题本身，不要包含其他解释或前缀。"])
 
         return "\n".join(prompt_parts)
 
@@ -1740,10 +1770,7 @@ class VerificationService:
     # =========================================================================
 
     async def _get_rag_context_for_concept(
-        self,
-        concept: str,
-        canvas_name: str,
-        timeout: float = 5.0
+        self, concept: str, canvas_name: str, timeout: float = 5.0
     ) -> Optional[Dict[str, Any]]:
         """
         Query RAG for concept-related context with timeout fallback.
@@ -1762,7 +1789,6 @@ class VerificationService:
             Dict with RAG context or None on error/timeout
             {
                 "learning_history": str,
-                "textbook_excerpts": str,
                 "related_concepts": List[str],
                 "common_mistakes": str
             }
@@ -1779,18 +1805,17 @@ class VerificationService:
                 self._rag_service.query(
                     query=f"关于「{concept}」的学习历史、相关知识和常见错误",
                     canvas_file=canvas_name,
-                    is_review_canvas=False
+                    is_review_canvas=False,
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
 
             # Extract context from RAG result
             # Note: Actual structure depends on RAG service implementation
             return {
                 "learning_history": rag_result.get("learning_history", "无历史记录"),
-                "textbook_excerpts": rag_result.get("textbook_excerpts", "无教材引用"),
                 "related_concepts": rag_result.get("related_concepts", []),
-                "common_mistakes": rag_result.get("common_mistakes", "无已知错误模式")
+                "common_mistakes": rag_result.get("common_mistakes", "无已知错误模式"),
             }
 
         except asyncio.TimeoutError:
@@ -1806,10 +1831,7 @@ class VerificationService:
             return None
 
     async def _get_graph_context_for_concept(
-        self,
-        concept: str,
-        canvas_name: str,
-        timeout: float = 3.0
+        self, concept: str, canvas_name: str, timeout: float = 3.0
     ) -> Optional[Dict[str, Any]]:
         """
         Query Neo4j knowledge graph for concept relationships.
@@ -1841,15 +1863,19 @@ class VerificationService:
                        CASE WHEN startNode(r) = n THEN 'outgoing' ELSE 'incoming' END AS direction
                 LIMIT 8
                 """
-                results = await neo4j.run_query(query, canvasPath=canvas_name, concept=concept)
+                results = await neo4j.run_query(
+                    query, canvasPath=canvas_name, concept=concept
+                )
                 for r in results:
                     name = r.get("related_concept", "")
                     if name:
-                        connected_concepts.append({
-                            "name": name,
-                            "relationship": r.get("relationship", "related"),
-                            "direction": r.get("direction", "unknown"),
-                        })
+                        connected_concepts.append(
+                            {
+                                "name": name,
+                                "relationship": r.get("relationship", "related"),
+                                "direction": r.get("direction", "unknown"),
+                            }
+                        )
             except Exception as e:
                 logger.debug(f"Graph fetch_connected failed: {e}")
 
@@ -1864,7 +1890,9 @@ class VerificationService:
                 RETURN DISTINCT n.text AS sibling
                 LIMIT 10
                 """
-                results = await neo4j.run_query(query, canvasPath=canvas_name, concept=concept)
+                results = await neo4j.run_query(
+                    query, canvasPath=canvas_name, concept=concept
+                )
                 for r in results:
                     s = r.get("sibling", "")
                     if s:
@@ -1879,25 +1907,29 @@ class VerificationService:
                 results = await self._graphiti_client.search_nodes(
                     query=f"{concept} 知识关系 前置概念",
                     canvas_path=canvas_name,
-                    limit=5
+                    limit=5,
                 )
                 for r in results:
                     content = r.get("content", "")
                     if content:
-                        learning_memories.append({
-                            "content": content,
-                            "score": r.get("score", 0.0),
-                        })
+                        learning_memories.append(
+                            {
+                                "content": content,
+                                "score": r.get("score", 0.0),
+                            }
+                        )
             except Exception as e:
                 logger.debug(f"Graph fetch_learning_memories failed: {e}")
 
         try:
             await asyncio.wait_for(
                 asyncio.gather(
-                    fetch_connected(), fetch_siblings(), fetch_learning_memories(),
-                    return_exceptions=True
+                    fetch_connected(),
+                    fetch_siblings(),
+                    fetch_learning_memories(),
+                    return_exceptions=True,
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
         except asyncio.TimeoutError:
             logger.warning(f"Graph context timeout for '{concept}' ({timeout}s)")
@@ -1918,7 +1950,7 @@ class VerificationService:
         concept: str,
         canvas_name: str,
         node_id: Optional[str] = None,
-        timeout: float = 3.0
+        timeout: float = 3.0,
     ) -> Optional[Dict[str, Any]]:
         """
         Get FSRS learning history formatted for AI prompt injection.
@@ -1931,8 +1963,10 @@ class VerificationService:
         try:
             concept_id = node_id or concept
             score_history = await asyncio.wait_for(
-                self._memory_service.get_concept_score_history(concept_id, canvas_name, limit=5),
-                timeout=timeout
+                self._memory_service.get_concept_score_history(
+                    concept_id, canvas_name, limit=5
+                ),
+                timeout=timeout,
             )
             if not score_history or score_history.sample_size == 0:
                 return None
@@ -1965,7 +1999,7 @@ class VerificationService:
         concept: str,
         canvas_name: str,
         node_id: Optional[str] = None,
-        timeout: float = 5.0
+        timeout: float = 5.0,
     ) -> Dict[str, Optional[Dict[str, Any]]]:
         """
         Fetch RAG + Graph + FSRS context in parallel.
@@ -1974,10 +2008,16 @@ class VerificationService:
         Total latency ≈ max(RAG, Graph, FSRS) due to parallel execution.
         """
         rag_coro = self._get_rag_context_for_concept(concept, canvas_name, timeout)
-        graph_coro = self._get_graph_context_for_concept(concept, canvas_name, min(timeout, 3.0))
-        fsrs_coro = self._get_fsrs_history_for_prompt(concept, canvas_name, node_id, min(timeout, 3.0))
+        graph_coro = self._get_graph_context_for_concept(
+            concept, canvas_name, min(timeout, 3.0)
+        )
+        fsrs_coro = self._get_fsrs_history_for_prompt(
+            concept, canvas_name, node_id, min(timeout, 3.0)
+        )
 
-        results = await asyncio.gather(rag_coro, graph_coro, fsrs_coro, return_exceptions=True)
+        results = await asyncio.gather(
+            rag_coro, graph_coro, fsrs_coro, return_exceptions=True
+        )
 
         rag_ctx = results[0] if not isinstance(results[0], BaseException) else None
         graph_ctx = results[1] if not isinstance(results[1], BaseException) else None
@@ -1987,72 +2027,23 @@ class VerificationService:
             if isinstance(result, BaseException):
                 logger.warning(f"Enriched context {name} failed: {result}")
 
-        available = [n for n, v in [("RAG", rag_ctx), ("Graph", graph_ctx), ("FSRS", fsrs_ctx)] if v]
-        logger.debug(f"Enriched context for '{concept}': [{', '.join(available) or 'none'}]")
+        available = [
+            n
+            for n, v in [("RAG", rag_ctx), ("Graph", graph_ctx), ("FSRS", fsrs_ctx)]
+            if v
+        ]
+        logger.debug(
+            f"Enriched context for '{concept}': [{', '.join(available) or 'none'}]"
+        )
 
         return {"rag": rag_ctx, "graph": graph_ctx, "fsrs": fsrs_ctx}
-
-    async def _get_cross_canvas_context(
-        self,
-        concept: str,
-        canvas_name: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Get related concepts from other canvases.
-
-        AC3: Cross-canvas association in prompts
-
-        ✅ Verified from Story 24.5 Dev Notes Step 5
-
-        Args:
-            concept: Concept to find relationships for
-            canvas_name: Current canvas name
-
-        Returns:
-            List of related canvas info:
-            [
-                {
-                    "canvas": str,
-                    "concept": str,
-                    "relationship": str
-                }
-            ]
-
-        [Source: docs/stories/24.5.story.md#Dev-Notes Step 5]
-        """
-        if not self._cross_canvas_service:
-            logger.debug("CrossCanvasService not available, skipping cross-canvas lookup")
-            return []
-
-        try:
-            # ✅ Verified from backend/app/services/cross_canvas_service.py
-            # Method: get_associated_canvases
-            related = await self._cross_canvas_service.get_associated_canvases(
-                canvas_path=canvas_name,
-                relation_type=None  # Get all types
-            )
-
-            # Transform to simplified format
-            result = []
-            for assoc in related[:3]:  # Limit to top 3
-                result.append({
-                    "canvas": assoc.target_canvas_title,
-                    "concept": ", ".join(assoc.common_concepts[:2]) if assoc.common_concepts else concept,
-                    "relationship": assoc.relationship_type
-                })
-
-            return result
-
-        except Exception as e:
-            logger.warning(f"Cross-canvas lookup failed for '{concept}': {e}")
-            return []
 
     def _build_rag_enhanced_prompt(
         self,
         concept: str,
         context: Dict[str, Any],
         graph_context: Optional[Dict[str, Any]] = None,
-        fsrs_context: Optional[Dict[str, Any]] = None
+        fsrs_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Build prompt with RAG context for question generation.
@@ -2085,7 +2076,13 @@ class VerificationService:
                 for c in graph_context["connected_concepts"][:5]:
                     rel = c.get("relationship", "related")
                     direction = c.get("direction", "")
-                    dir_label = " →" if direction == "outgoing" else " ←" if direction == "incoming" else ""
+                    dir_label = (
+                        " →"
+                        if direction == "outgoing"
+                        else " ←"
+                        if direction == "incoming"
+                        else ""
+                    )
                     prompt_parts.append(f"  - {c['name']}{dir_label} ({rel})")
             if graph_context.get("sibling_concepts"):
                 siblings = ", ".join(graph_context["sibling_concepts"][:8])
@@ -2111,20 +2108,27 @@ class VerificationService:
         # 第三优先级：RAG 补充上下文（仅提供 Graph 无法覆盖的信息）
         prompt_parts.append("")
         prompt_parts.append("## 补充上下文")
-        if context.get("learning_history") and context["learning_history"] != "无历史记录":
+        if (
+            context.get("learning_history")
+            and context["learning_history"] != "无历史记录"
+        ):
             prompt_parts.append(f"学习历史: {context['learning_history']}")
-        if context.get("textbook_excerpts") and context["textbook_excerpts"] != "无教材引用":
-            prompt_parts.append(f"教材参考: {context['textbook_excerpts']}")
         # 仅在 Graph 无 connected_concepts 时才显示 RAG 的模糊关联
-        if context.get("related_concepts") and not (graph_context and graph_context.get("connected_concepts")):
-            prompt_parts.append(f"相关概念(语义): {', '.join(context['related_concepts'][:5])}")
-        if context.get("common_mistakes") and context["common_mistakes"] != "无已知错误模式":
+        if context.get("related_concepts") and not (
+            graph_context and graph_context.get("connected_concepts")
+        ):
+            prompt_parts.append(
+                f"相关概念(语义): {', '.join(context['related_concepts'][:5])}"
+            )
+        if (
+            context.get("common_mistakes")
+            and context["common_mistakes"] != "无已知错误模式"
+        ):
             prompt_parts.append(f"常见错误: {context['common_mistakes']}")
 
-        prompt_parts.extend([
-            "",
-            "请根据以上上下文，生成一个能够检验用户对该概念理解深度的问题。"
-        ])
+        prompt_parts.extend(
+            ["", "请根据以上上下文，生成一个能够检验用户对该概念理解深度的问题。"]
+        )
         return "\n".join(prompt_parts)
 
     def _build_basic_prompt(self, concept: str) -> str:
@@ -2149,7 +2153,7 @@ class VerificationService:
         canvas_name: str,
         group_id: Optional[str] = None,
         node_id: Optional[str] = None,
-        return_difficulty_info: bool = False
+        return_difficulty_info: bool = False,
     ) -> str | Dict[str, Any]:
         """
         Generate verification question with RAG context and difficulty adaptation.
@@ -2195,15 +2199,13 @@ class VerificationService:
                     "difficulty_level": "medium",
                     "question_type": "verification",
                     "forgetting_status": None,
-                    "is_mastered": False
+                    "is_mastered": False,
                 }
             return question
 
         # Story 31.5 AC-31.5.1, AC-31.5.2: Query historical scores and calculate difficulty
         difficulty = await self._get_difficulty_for_concept(
-            concept=concept,
-            canvas_name=canvas_name,
-            node_id=node_id
+            concept=concept, canvas_name=canvas_name, node_id=node_id
         )
 
         # Story 31.5 AC-31.5.4: Skip mastered concepts (optional behavior)
@@ -2226,14 +2228,18 @@ class VerificationService:
                 canvas_name=canvas_name,
                 history_questions=history_questions,
                 group_id=group_id,
-                difficulty=difficulty  # Pass difficulty for prompt enhancement
+                difficulty=difficulty,  # Pass difficulty for prompt enhancement
             )
             if return_difficulty_info:
-                return self._build_question_response_with_difficulty(question, difficulty)
+                return self._build_question_response_with_difficulty(
+                    question, difficulty
+                )
             return question
 
         # No history - generate standard question with difficulty adaptation
-        logger.debug(f"No history found for concept '{concept}', generating difficulty-adapted question")
+        logger.debug(
+            f"No history found for concept '{concept}', generating difficulty-adapted question"
+        )
 
         # P2: Get enriched context (RAG + Graph + FSRS in parallel)
         enriched = await self._get_enriched_context(
@@ -2249,7 +2255,9 @@ class VerificationService:
             prompt = self._build_difficulty_aware_prompt(
                 concept, difficulty, rag_context, graph_context, fsrs_context
             )
-            logger.debug(f"Using difficulty-aware prompt for concept: {concept} (level={difficulty.level.value})")
+            logger.debug(
+                f"Using difficulty-aware prompt for concept: {concept} (level={difficulty.level.value})"
+            )
         elif rag_context:
             # Enhanced prompt with RAG context (no difficulty history)
             prompt = self._build_rag_enhanced_prompt(
@@ -2267,14 +2275,20 @@ class VerificationService:
         try:
             question = await asyncio.wait_for(
                 self._call_gemini_for_question(
-                    concept, prompt, rag_context, node_type=node_type, graph_context=graph_context
+                    concept,
+                    prompt,
+                    rag_context,
+                    node_type=node_type,
+                    graph_context=graph_context,
                 ),
-                timeout=VERIFICATION_AI_TIMEOUT
+                timeout=VERIFICATION_AI_TIMEOUT,
             )
 
             # Story 31.5 AC-31.5.4: Return with difficulty info if requested
             if return_difficulty_info:
-                return self._build_question_response_with_difficulty(question, difficulty)
+                return self._build_question_response_with_difficulty(
+                    question, difficulty
+                )
             return question
 
         except asyncio.TimeoutError:
@@ -2284,20 +2298,22 @@ class VerificationService:
             )
             question = f"请解释什么是「{concept}」？"
             if return_difficulty_info:
-                return self._build_question_response_with_difficulty(question, difficulty)
+                return self._build_question_response_with_difficulty(
+                    question, difficulty
+                )
             return question
 
         except Exception as e:
             logger.error(f"Gemini API call failed for concept {concept}: {e}")
             question = f"请解释什么是「{concept}」？"
             if return_difficulty_info:
-                return self._build_question_response_with_difficulty(question, difficulty)
+                return self._build_question_response_with_difficulty(
+                    question, difficulty
+                )
             return question
 
     def _build_question_response_with_difficulty(
-        self,
-        question: str,
-        difficulty: Optional[DifficultyResult]
+        self, question: str, difficulty: Optional[DifficultyResult]
     ) -> Dict[str, Any]:
         """
         Build response dict with question and difficulty info.
@@ -2322,9 +2338,11 @@ class VerificationService:
                 "sample_size": difficulty.sample_size,
                 "forgetting_status": {
                     "needs_review": difficulty.forgetting_status.needs_review,
-                    "decay_percentage": difficulty.forgetting_status.decay_percentage
-                } if difficulty.forgetting_status else None,
-                "is_mastered": difficulty.is_mastered
+                    "decay_percentage": difficulty.forgetting_status.decay_percentage,
+                }
+                if difficulty.forgetting_status
+                else None,
+                "is_mastered": difficulty.is_mastered,
             }
         else:
             return {
@@ -2334,7 +2352,7 @@ class VerificationService:
                 "average_score": 0.0,
                 "sample_size": 0,
                 "forgetting_status": None,
-                "is_mastered": False
+                "is_mastered": False,
             }
 
     async def _generate_alternative_question(
@@ -2343,7 +2361,7 @@ class VerificationService:
         canvas_name: str,
         history_questions: List[Dict[str, Any]],
         group_id: Optional[str] = None,
-        difficulty: Optional[DifficultyResult] = None
+        difficulty: Optional[DifficultyResult] = None,
     ) -> str:
         """
         Generate a verification question from a new angle.
@@ -2407,7 +2425,7 @@ class VerificationService:
             rag_context=rag_context,
             difficulty=difficulty,
             graph_context=graph_context,
-            fsrs_context=fsrs_context
+            fsrs_context=fsrs_context,
         )
 
         # Generate question with timeout protection
@@ -2418,9 +2436,13 @@ class VerificationService:
         try:
             question = await asyncio.wait_for(
                 self._call_gemini_for_question(
-                    concept, prompt, rag_context, node_type=alt_node_type, graph_context=graph_context
+                    concept,
+                    prompt,
+                    rag_context,
+                    node_type=alt_node_type,
+                    graph_context=graph_context,
                 ),
-                timeout=VERIFICATION_AI_TIMEOUT
+                timeout=VERIFICATION_AI_TIMEOUT,
             )
 
             return question
@@ -2443,7 +2465,7 @@ class VerificationService:
         rag_context: Optional[Dict[str, Any]] = None,
         difficulty: Optional[DifficultyResult] = None,
         graph_context: Optional[Dict[str, Any]] = None,
-        fsrs_context: Optional[Dict[str, Any]] = None
+        fsrs_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Build a prompt for generating angle-specific verification questions.
@@ -2510,7 +2532,10 @@ class VerificationService:
             prompt_parts.append(difficulty_desc.get(difficulty.level, ""))
 
             # Add forgetting alert
-            if difficulty.forgetting_status and difficulty.forgetting_status.needs_review:
+            if (
+                difficulty.forgetting_status
+                and difficulty.forgetting_status.needs_review
+            ):
                 prompt_parts.append(
                     f"⚠️ 遗忘警报: 近期得分下降 {difficulty.forgetting_status.decay_percentage}%，"
                     "请关注可能被遗忘的要点"
@@ -2541,7 +2566,13 @@ class VerificationService:
                 for c in graph_context["connected_concepts"][:5]:
                     rel = c.get("relationship", "related")
                     direction = c.get("direction", "")
-                    dir_label = " →" if direction == "outgoing" else " ←" if direction == "incoming" else ""
+                    dir_label = (
+                        " →"
+                        if direction == "outgoing"
+                        else " ←"
+                        if direction == "incoming"
+                        else ""
+                    )
                     prompt_parts.append(f"  - {c['name']}{dir_label} ({rel})")
             if graph_context.get("sibling_concepts"):
                 siblings = ", ".join(graph_context["sibling_concepts"][:8])
@@ -2569,7 +2600,9 @@ class VerificationService:
         if rag_context:
             has_rag_content = False
             # 仅在 Graph 无 connected_concepts 时才显示 RAG 的模糊关联
-            if rag_context.get("related_concepts") and not (graph_context and graph_context.get("connected_concepts")):
+            if rag_context.get("related_concepts") and not (
+                graph_context and graph_context.get("connected_concepts")
+            ):
                 if not has_rag_content:
                     prompt_parts.append("## 补充上下文")
                     has_rag_content = True
@@ -2617,7 +2650,7 @@ class VerificationService:
         prompt: str,
         rag_context: Optional[Dict[str, Any]] = None,
         node_type: str = "red",
-        graph_context: Optional[Dict[str, Any]] = None
+        graph_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Internal method to call Gemini API for question generation.
@@ -2638,13 +2671,15 @@ class VerificationService:
         """
         # Build JSON prompt for verification-question-agent template
         prompt_data = {
-            "nodes": [{
-                "id": f"verification_{concept}",
-                "content": concept,
-                "type": node_type,
-                "related_yellow": [],
-                "parent_content": prompt
-            }]
+            "nodes": [
+                {
+                    "id": f"verification_{concept}",
+                    "content": concept,
+                    "type": node_type,
+                    "related_yellow": [],
+                    "parent_content": prompt,
+                }
+            ]
         }
 
         # Build context (Graph > RAG 权重顺序)
@@ -2658,14 +2693,18 @@ class VerificationService:
             ]
             context_parts.append(f"知识图谱关联: {', '.join(concepts_with_rel)}")
         if graph_context and graph_context.get("sibling_concepts"):
-            context_parts.append(f"同Canvas概念: {', '.join(graph_context['sibling_concepts'][:5])}")
+            context_parts.append(
+                f"同Canvas概念: {', '.join(graph_context['sibling_concepts'][:5])}"
+            )
 
         # 第二优先级：RAG 补充（仅 Graph 无法覆盖的信息）
         if rag_context:
             if rag_context.get("learning_history"):
                 context_parts.append(f"学习背景: {rag_context['learning_history']}")
             # 仅在 Graph 无关联概念时才用 RAG 的模糊关联
-            if rag_context.get("related_concepts") and not (graph_context and graph_context.get("connected_concepts")):
+            if rag_context.get("related_concepts") and not (
+                graph_context and graph_context.get("connected_concepts")
+            ):
                 related = ", ".join(rag_context["related_concepts"][:5])
                 context_parts.append(f"相关概念(语义): {related}")
             if rag_context.get("common_mistakes"):
@@ -2678,9 +2717,7 @@ class VerificationService:
         if self._agent_service:
             try:
                 result = await self._agent_service.call_agent(
-                    AgentType.VERIFICATION_QUESTION,
-                    json_prompt,
-                    context=context_str
+                    AgentType.VERIFICATION_QUESTION, json_prompt, context=context_str
                 )
                 if result and result.success and result.data:
                     # Extract first question from structured response
@@ -2695,13 +2732,15 @@ class VerificationService:
                         question = raw.strip()
                         for prefix in ["问题：", "问题:", "Question:", "Q:"]:
                             if question.startswith(prefix):
-                                question = question[len(prefix):].strip()
+                                question = question[len(prefix) :].strip()
                         return question if question else f"请解释什么是「{concept}」？"
             except Exception as e:
                 logger.warning(f"Agent service question generation failed: {e}")
 
         # Fallback: return basic question
-        logger.warning(f"No agent service available, using fallback question for {concept}")
+        logger.warning(
+            f"No agent service available, using fallback question for {concept}"
+        )
         return f"请解释什么是「{concept}」？"
 
     async def generate_hint_with_rag(
@@ -2711,7 +2750,7 @@ class VerificationService:
         attempt_number: int,
         canvas_name: str,
         question_text: str = "",
-        last_quality: str = ""
+        last_quality: str = "",
     ) -> str:
         """
         Generate personalized hint based on RAG context.
@@ -2775,10 +2814,9 @@ class VerificationService:
                 json_prompt = json.dumps(prompt_data, ensure_ascii=False, indent=2)
                 result = await asyncio.wait_for(
                     self._agent_service.call_agent(
-                        AgentType.HINT_GENERATION,
-                        json_prompt
+                        AgentType.HINT_GENERATION, json_prompt
                     ),
-                    timeout=VERIFICATION_AI_TIMEOUT
+                    timeout=VERIFICATION_AI_TIMEOUT,
                 )
                 if result and result.success and result.data:
                     hint_text = result.data.get("hint_text", "")
@@ -2788,7 +2826,7 @@ class VerificationService:
                             f"level={result.data.get('hint_level', 'unknown')}, attempt={attempt_number}"
                         )
                         # Story 30.12 AC-30.12.1: Trigger memory write for hint-generation
-                        if hasattr(self._agent_service, '_trigger_memory_write'):
+                        if hasattr(self._agent_service, "_trigger_memory_write"):
                             try:
                                 await self._agent_service._trigger_memory_write(
                                     agent_type="hint-generation",
@@ -2798,7 +2836,9 @@ class VerificationService:
                                     agent_feedback=hint_text[:200],
                                 )
                             except Exception as mem_err:
-                                logger.warning(f"hint-generation memory write failed (non-blocking): {mem_err}")
+                                logger.warning(
+                                    f"hint-generation memory write failed (non-blocking): {mem_err}"
+                                )
                         return hint_text
             except asyncio.TimeoutError:
                 logger.warning(f"Hint generation timeout for concept {concept}")

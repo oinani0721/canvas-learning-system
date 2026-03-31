@@ -40,7 +40,7 @@ async def temp_canvas():
                 "y": 100,
                 "width": 400,
                 "height": 300,
-                "color": "1"
+                "color": "1",
             },
             {
                 "id": "node-002",
@@ -50,7 +50,7 @@ async def temp_canvas():
                 "y": 100,
                 "width": 400,
                 "height": 300,
-                "color": "3"
+                "color": "3",
             },
             {
                 "id": "node-003",
@@ -60,8 +60,8 @@ async def temp_canvas():
                 "y": 500,
                 "width": 400,
                 "height": 300,
-                "color": "1"
-            }
+                "color": "1",
+            },
         ],
         "edges": [
             {
@@ -69,13 +69,13 @@ async def temp_canvas():
                 "fromNode": "node-001",
                 "toNode": "node-002",
                 "fromSide": "right",
-                "toSide": "left"
+                "toSide": "left",
             }
-        ]
+        ],
     }
 
     # 创建临时文件
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
         json.dump(canvas_data, f, ensure_ascii=False, indent=2)
         temp_path = f.name
 
@@ -100,7 +100,11 @@ def mock_canvas_orchestrator():
 def mock_instance_pool():
     """模拟GLM实例池"""
     mock = Mock()
-    mock.get_available_instances.return_value = ["instance-1", "instance-2", "instance-3"]
+    mock.get_available_instances.return_value = [
+        "instance-1",
+        "instance-2",
+        "instance-3",
+    ]
     mock.allocate_instance.return_value = "instance-1"
     mock.release_instance.return_value = True
     return mock
@@ -124,7 +128,7 @@ def processor_config():
         max_tasks_per_instance=5,
         task_timeout=60,
         enable_progress_monitoring=True,
-        concurrent_limit=3
+        concurrent_limit=3,
     )
 
 
@@ -135,8 +139,7 @@ class TestParallelCanvasProcessor:
     async def test_initialization(self, mock_canvas_orchestrator, processor_config):
         """测试初始化"""
         processor = ParallelCanvasProcessor(
-            canvas_utils=mock_canvas_orchestrator,
-            config=processor_config
+            canvas_utils=mock_canvas_orchestrator, config=processor_config
         )
 
         assert processor.canvas_utils == mock_canvas_orchestrator
@@ -161,7 +164,7 @@ class TestParallelCanvasProcessor:
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "1"
+                    "color": "1",
                 },
                 {
                     "id": "node-002",
@@ -171,7 +174,7 @@ class TestParallelCanvasProcessor:
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "3"
+                    "color": "3",
                 },
                 {
                     "id": "node-003",
@@ -181,8 +184,8 @@ class TestParallelCanvasProcessor:
                     "y": 500,
                     "width": 400,
                     "height": 300,
-                    "color": "1"
-                }
+                    "color": "1",
+                },
             ],
             "edges": [
                 {
@@ -190,9 +193,9 @@ class TestParallelCanvasProcessor:
                     "fromNode": "node-001",
                     "toNode": "node-002",
                     "fromSide": "right",
-                    "toSide": "left"
+                    "toSide": "left",
                 }
-            ]
+            ],
         }
 
         processor = ParallelCanvasProcessor(mock_canvas_orchestrator)
@@ -222,24 +225,28 @@ class TestParallelCanvasProcessor:
         assert medium_node.calculate_complexity() == NodeComplexity.MEDIUM
 
     @pytest.mark.asyncio
-    async def test_create_processing_session(self, mock_canvas_orchestrator, processor_config):
+    async def test_create_processing_session(
+        self, mock_canvas_orchestrator, processor_config
+    ):
         """测试创建处理会话"""
         # 模拟Canvas数据
         mock_canvas_orchestrator.logic.canvas_data.read_canvas.return_value = {
             "nodes": [
                 {"id": "node-001", "type": "text", "text": "简单节点", "color": "1"},
                 {"id": "node-002", "type": "text", "text": "复杂节点", "color": "3"},
-                {"id": "node-003", "type": "text", "text": "中等节点", "color": "1"}
+                {"id": "node-003", "type": "text", "text": "中等节点", "color": "1"},
             ]
         }
 
-        processor = ParallelCanvasProcessor(mock_canvas_orchestrator, config=processor_config)
+        processor = ParallelCanvasProcessor(
+            mock_canvas_orchestrator, config=processor_config
+        )
 
         # 创建会话
         session = await processor.create_processing_session(
             canvas_path="test_canvas.canvas",
             agent_type="basic-decomposition",
-            target_nodes=["node-001", "node-002", "node-003"]
+            target_nodes=["node-001", "node-002", "node-003"],
         )
 
         assert session.session_id is not None
@@ -268,7 +275,7 @@ class TestParallelCanvasProcessor:
         session = await processor.create_processing_session(
             canvas_path=temp_canvas,
             agent_type="basic-decomposition",
-            target_nodes=["node-001", "node-002", "node-003"]
+            target_nodes=["node-001", "node-002", "node-003"],
         )
 
         # 分发任务
@@ -294,7 +301,7 @@ class TestParallelCanvasProcessor:
         session = await processor.create_processing_session(
             canvas_path=temp_canvas,
             agent_type="basic-decomposition",
-            target_nodes=["node-001", "node-002"]
+            target_nodes=["node-001", "node-002"],
         )
 
         # 执行并行处理
@@ -305,7 +312,9 @@ class TestParallelCanvasProcessor:
         assert processed_session.end_time is not None
 
         # 检查任务状态
-        completed_tasks = [t for t in processed_session.tasks if t.status == TaskStatus.COMPLETED]
+        completed_tasks = [
+            t for t in processed_session.tasks if t.status == TaskStatus.COMPLETED
+        ]
         assert len(completed_tasks) == 2
 
     @pytest.mark.asyncio
@@ -318,7 +327,7 @@ class TestParallelCanvasProcessor:
         session = await processor.create_processing_session(
             canvas_path=temp_canvas,
             agent_type="basic-decomposition",
-            target_nodes=["node-001", "node-002"]
+            target_nodes=["node-001", "node-002"],
         )
 
         # 监控进度
@@ -339,7 +348,7 @@ class TestParallelCanvasProcessor:
         session = await processor.create_processing_session(
             canvas_path=temp_canvas,
             agent_type="basic-decomposition",
-            target_nodes=["node-001"]
+            target_nodes=["node-001"],
         )
 
         # 取消会话
@@ -361,7 +370,7 @@ class TestParallelCanvasProcessor:
         session = await processor.create_processing_session(
             canvas_path=temp_canvas,
             agent_type="basic-decomposition",
-            target_nodes=["node-001"]
+            target_nodes=["node-001"],
         )
         await processor.execute_parallel_processing(session)
         await processor.aggregate_results(session)
@@ -381,7 +390,7 @@ class TestParallelCanvasProcessor:
         session = await processor.create_processing_session(
             canvas_path=temp_canvas,
             agent_type="basic-decomposition",
-            target_nodes=["node-001"]
+            target_nodes=["node-001"],
         )
         await processor.execute_parallel_processing(session)
 
@@ -402,7 +411,9 @@ class TestTaskDistribution:
         """测试轮询分发"""
         from task_distributor import AdvancedTaskDistributor
 
-        config = TaskDistributionConfig(load_balance_strategy=LoadBalanceStrategy.ROUND_ROBIN)
+        config = TaskDistributionConfig(
+            load_balance_strategy=LoadBalanceStrategy.ROUND_ROBIN
+        )
         distributor = AdvancedTaskDistributor(config)
 
         # 创建测试任务
@@ -413,7 +424,7 @@ class TestTaskDistribution:
                 agent_type="basic-decomposition",
                 node_data={},
                 complexity=NodeComplexity.MEDIUM,
-                estimated_time=10.0
+                estimated_time=10.0,
             )
             for i in range(5)
         ]
@@ -431,7 +442,9 @@ class TestTaskDistribution:
         """测试基于复杂度的分发"""
         from task_distributor import AdvancedTaskDistributor
 
-        config = TaskDistributionConfig(load_balance_strategy=LoadBalanceStrategy.COMPLEXITY_BASED)
+        config = TaskDistributionConfig(
+            load_balance_strategy=LoadBalanceStrategy.COMPLEXITY_BASED
+        )
         distributor = AdvancedTaskDistributor(config)
 
         # 创建不同复杂度的任务
@@ -442,7 +455,7 @@ class TestTaskDistribution:
                 agent_type="basic-decomposition",
                 node_data={},
                 complexity=NodeComplexity.LOW,
-                estimated_time=5.0
+                estimated_time=5.0,
             ),
             ProcessingTask(
                 task_id="task-complex",
@@ -450,8 +463,8 @@ class TestTaskDistribution:
                 agent_type="basic-decomposition",
                 node_data={},
                 complexity=NodeComplexity.HIGH,
-                estimated_time=30.0
-            )
+                estimated_time=30.0,
+            ),
         ]
 
         # 分发任务
@@ -472,16 +485,16 @@ class TestTransactionManager:
         manager = FileTransactionManager()
         test_data = {"test": "data", "number": 123}
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
 
         try:
             # 原子性写入
-            with manager.atomic_write(temp_path, 'w', encoding='utf-8') as f:
+            with manager.atomic_write(temp_path, "w", encoding="utf-8") as f:
                 json.dump(test_data, f)
 
             # 验证文件内容
-            with open(temp_path, 'r', encoding='utf-8') as f:
+            with open(temp_path, "r", encoding="utf-8") as f:
                 loaded_data = json.load(f)
 
             assert loaded_data == test_data
@@ -497,7 +510,7 @@ class TestTransactionManager:
         original_data = {"original": "data"}
         modified_data = {"modified": "data"}
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
             json.dump(original_data, f)
 
@@ -507,11 +520,11 @@ class TestTransactionManager:
             assert os.path.exists(backup_path)
 
             # 修改文件
-            with manager.atomic_write(temp_path, 'w', encoding='utf-8') as f:
+            with manager.atomic_write(temp_path, "w", encoding="utf-8") as f:
                 json.dump(modified_data, f)
 
             # 验证修改
-            with open(temp_path, 'r') as f:
+            with open(temp_path, "r") as f:
                 data = json.load(f)
             assert data == modified_data
 
@@ -520,7 +533,7 @@ class TestTransactionManager:
             assert success is True
 
             # 验证恢复
-            with open(temp_path, 'r') as f:
+            with open(temp_path, "r") as f:
                 data = json.load(f)
             assert data == original_data
 
@@ -538,8 +551,7 @@ async def test_integration_workflow(temp_canvas):
     # 创建处理器
     orchestrator = CanvasOrchestrator(temp_canvas)
     config = TaskDistributionConfig(
-        load_balance_strategy=LoadBalanceStrategy.COMPLEXITY_BASED,
-        concurrent_limit=2
+        load_balance_strategy=LoadBalanceStrategy.COMPLEXITY_BASED, concurrent_limit=2
     )
     processor = ParallelCanvasProcessor(orchestrator, config=config)
 
@@ -551,7 +563,7 @@ async def test_integration_workflow(temp_canvas):
     session = await processor.create_processing_session(
         canvas_path=temp_canvas,
         agent_type="basic-decomposition",
-        target_nodes=["node-001", "node-002", "node-003"]
+        target_nodes=["node-001", "node-002", "node-003"],
     )
     assert session.total_nodes == 3
 

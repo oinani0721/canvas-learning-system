@@ -20,22 +20,22 @@ Architecture References:
 
 import asyncio
 import json
-import structlog
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
+
+import structlog
 
 from ..models.session_models import (
-    NodeResult,
     SessionInfo,
     SessionStatus,
 )
 from .session_manager import (
+    InvalidStateTransitionError,
     SessionManager,
     SessionNotFoundError,
-    InvalidStateTransitionError,
 )
 
 logger = structlog.get_logger(__name__)
@@ -56,8 +56,10 @@ PROGRESS_UPDATE_INTERVAL = 0.5  # 500ms per ADR-006
 # [Source: specs/api/parallel-api.openapi.yml#L643-L676]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class ProgressEventType(str, Enum):
     """Progress event types for WebSocket/SSE broadcasting."""
+
     PROGRESS_UPDATE = "progress_update"
     TASK_COMPLETED = "task_completed"
     TASK_FAILED = "task_failed"
@@ -71,12 +73,14 @@ class ProgressEventType(str, Enum):
 # Data Classes for Orchestration
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class GroupConfig:
     """
     Configuration for a node group to be processed.
     [Source: specs/api/parallel-api.openapi.yml#L399-L412]
     """
+
     group_id: str
     agent_type: str
     node_ids: List[str]
@@ -86,6 +90,7 @@ class GroupConfig:
 @dataclass
 class NodeExecutionResult:
     """Result of executing an agent on a single node."""
+
     node_id: str
     success: bool
     file_path: Optional[str] = None
@@ -100,6 +105,7 @@ class NodeExecutionResult:
 @dataclass
 class GroupExecutionResult:
     """Result of executing a group of nodes."""
+
     group_id: str
     agent_type: str
     status: str  # completed, failed, partial_failure
@@ -114,6 +120,7 @@ class PerformanceMetrics:
     Performance metrics for batch execution.
     [Source: specs/api/parallel-api.openapi.yml#L555-L574]
     """
+
     total_duration_seconds: float = 0.0
     average_duration_per_node: float = 0.0
     parallel_efficiency: float = 0.0
@@ -125,9 +132,11 @@ class PerformanceMetrics:
 # Progress Event Data Class
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ProgressEvent:
     """Progress event for broadcasting."""
+
     event_type: ProgressEventType
     session_id: str
     timestamp: datetime = field(default_factory=datetime.now)
@@ -148,6 +157,7 @@ class ProgressEvent:
 # [Source: Story 33.6 Task 1]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class BatchOrchestrator:
     """
     Batch Processing Orchestrator for parallel agent execution.
@@ -166,7 +176,9 @@ class BatchOrchestrator:
         agent_service: Any,  # AgentService - avoid circular import
         max_concurrent: int = DEFAULT_MAX_CONCURRENT,
         progress_callback: Optional[Callable[[ProgressEvent], None]] = None,
-        canvas_service: Optional[Any] = None,  # CanvasService - optional for node content
+        canvas_service: Optional[
+            Any
+        ] = None,  # CanvasService - optional for node content
         vault_path: Optional[str] = None,  # Vault path for file node content extraction
         routing_engine: Optional[Any] = None,  # AgentRoutingEngine for auto-routing
     ):
@@ -246,10 +258,7 @@ class BatchOrchestrator:
                 f"[Story 33.6] Session {session_id} is in {session.status.value}, "
                 "expected pending"
             )
-            raise InvalidStateTransitionError(
-                session.status,
-                SessionStatus.RUNNING
-            )
+            raise InvalidStateTransitionError(session.status, SessionStatus.RUNNING)
 
         return session
 
@@ -283,14 +292,15 @@ class BatchOrchestrator:
         # Transition to running state
         try:
             await self.session_manager.transition_state(
-                session_id,
-                SessionStatus.RUNNING
+                session_id, SessionStatus.RUNNING
             )
         except InvalidStateTransitionError as e:
             logger.error(f"[Story 33.6] Failed to transition session: {e}")
             raise
 
-        logger.info("batch_session_starting", session_id=session_id, group_count=len(groups))
+        logger.info(
+            "batch_session_starting", session_id=session_id, group_count=len(groups)
+        )
 
         # Story 30.12 AC-30.12.2: canvas-orchestrator memory write on session start
         try:
@@ -302,7 +312,9 @@ class BatchOrchestrator:
                 result=None,
             )
         except Exception as mem_err:
-            logger.warning(f"canvas-orchestrator memory write failed (non-blocking): {mem_err}")
+            logger.warning(
+                f"canvas-orchestrator memory write failed (non-blocking): {mem_err}"
+            )
 
         # Broadcast session started
         await self._broadcast_progress(
@@ -313,14 +325,14 @@ class BatchOrchestrator:
                 "completed_nodes": 0,
                 "total_nodes": session.node_count,
                 "status": "running",
-            }
+            },
         )
 
         try:
             # Execute all groups with timeout
             results = await asyncio.wait_for(
                 self._execute_all_groups(session_id, canvas_path, groups),
-                timeout=timeout
+                timeout=timeout,
             )
 
             # Calculate final results
@@ -355,10 +367,7 @@ class BatchOrchestrator:
             # Guard against race with external cancel_session() which may
             # have already transitioned the session to a terminal state.
             try:
-                await self.session_manager.transition_state(
-                    session_id,
-                    final_status
-                )
+                await self.session_manager.transition_state(session_id, final_status)
             except InvalidStateTransitionError:
                 logger.warning(
                     "batch_session_transition_skipped",
@@ -376,7 +385,7 @@ class BatchOrchestrator:
                     "total_duration": duration,
                     "success_count": total_completed,
                     "failure_count": total_failed,
-                }
+                },
             )
 
             logger.info(
@@ -390,12 +399,14 @@ class BatchOrchestrator:
             return final_result
 
         except asyncio.TimeoutError:
-            logger.error(f"[Story 33.6] Session {session_id} timed out after {timeout}s")
+            logger.error(
+                f"[Story 33.6] Session {session_id} timed out after {timeout}s"
+            )
             try:
                 await self.session_manager.transition_state(
                     session_id,
                     SessionStatus.FAILED,
-                    error_message=f"Timeout after {timeout} seconds"
+                    error_message=f"Timeout after {timeout} seconds",
                 )
             except InvalidStateTransitionError:
                 logger.warning(
@@ -410,16 +421,14 @@ class BatchOrchestrator:
                     "error_type": "TIMEOUT",
                     "message": f"Session timed out after {timeout} seconds",
                     "recoverable": False,
-                }
+                },
             )
             raise
         except Exception as e:
             logger.exception(f"[Story 33.6] Session {session_id} failed: {e}")
             try:
                 await self.session_manager.transition_state(
-                    session_id,
-                    SessionStatus.FAILED,
-                    error_message=str(e)
+                    session_id, SessionStatus.FAILED, error_message=str(e)
                 )
             except InvalidStateTransitionError:
                 logger.warning(
@@ -434,7 +443,7 @@ class BatchOrchestrator:
                     "error_type": "EXECUTION_ERROR",
                     "message": str(e),
                     "recoverable": False,
-                }
+                },
             )
             raise
         finally:
@@ -468,8 +477,7 @@ class BatchOrchestrator:
         # AC2: Use asyncio.gather with return_exceptions=True
         # [Source: docs/architecture/decisions/0004-async-execution-engine.md#L114-L149]
         tasks = [
-            self._execute_group(session_id, canvas_path, group)
-            for group in groups
+            self._execute_group(session_id, canvas_path, group) for group in groups
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -481,12 +489,14 @@ class BatchOrchestrator:
                 logger.error(
                     f"[Story 33.6] Group {groups[i].group_id} failed with exception: {result}"
                 )
-                processed_results.append(GroupExecutionResult(
-                    group_id=groups[i].group_id,
-                    agent_type=groups[i].agent_type,
-                    status="failed",
-                    failed_count=len(groups[i].node_ids),
-                ))
+                processed_results.append(
+                    GroupExecutionResult(
+                        group_id=groups[i].group_id,
+                        agent_type=groups[i].agent_type,
+                        status="failed",
+                        failed_count=len(groups[i].node_ids),
+                    )
+                )
             else:
                 processed_results.append(result)
 
@@ -539,12 +549,14 @@ class BatchOrchestrator:
             node_id = group.node_ids[i]
 
             if isinstance(result, Exception):
-                node_results.append(NodeExecutionResult(
-                    node_id=node_id,
-                    success=False,
-                    error_message=str(result),
-                    error_type=type(result).__name__,
-                ))
+                node_results.append(
+                    NodeExecutionResult(
+                        node_id=node_id,
+                        success=False,
+                        error_message=str(result),
+                        error_type=type(result).__name__,
+                    )
+                )
                 failed_count += 1
             else:
                 node_results.append(result)
@@ -571,7 +583,7 @@ class BatchOrchestrator:
                 "status": status,
                 "completed_nodes": completed_count,
                 "failed_nodes": failed_count,
-            }
+            },
         )
 
         logger.info(
@@ -682,12 +694,15 @@ class BatchOrchestrator:
             if self.routing_engine is not None and node_content:
                 try:
                     from app.models.agent_routing_models import RoutingRequest
+
                     routing_req = RoutingRequest(
                         node_id=node_id,
                         node_text=node_content,
                         agent_override=agent_type if agent_type != "auto" else None,
                     )
-                    routing_result = await self.routing_engine.route_single_node_async(routing_req)
+                    routing_result = await self.routing_engine.route_single_node_async(
+                        routing_req
+                    )
                     if routing_result and routing_result.confidence >= 0.7:
                         effective_agent_type = routing_result.recommended_agent
                         logger.debug(
@@ -695,8 +710,16 @@ class BatchOrchestrator:
                             f"{effective_agent_type} (confidence={routing_result.confidence:.2f}, "
                             f"reason={routing_result.reason})"
                         )
-                except (ImportError, ValueError, TypeError, AttributeError, RuntimeError) as e:
-                    logger.warning(f"[EPIC-33] Routing engine failed, using original agent_type: {e}")
+                except (
+                    ImportError,
+                    ValueError,
+                    TypeError,
+                    AttributeError,
+                    RuntimeError,
+                ) as e:
+                    logger.warning(
+                        f"[EPIC-33] Routing engine failed, using original agent_type: {e}"
+                    )
 
             # Call agent through agent_service
             result = await self.agent_service.call_agent(
@@ -722,7 +745,7 @@ class BatchOrchestrator:
                     session_id=session_id,
                     node_id=node_id,
                     status="success",
-                    result=result.content if hasattr(result, 'content') else None,
+                    result=result.content if hasattr(result, "content") else None,
                     started_at=started_at,
                     completed_at=completed_at,
                 )
@@ -734,22 +757,30 @@ class BatchOrchestrator:
                     {
                         "node_id": node_id,
                         "agent_type": agent_type,
-                        "file_path": result.file_path if hasattr(result, 'file_path') else None,
+                        "file_path": result.file_path
+                        if hasattr(result, "file_path")
+                        else None,
                         "execution_time_ms": execution_time_ms,
-                    }
+                    },
                 )
 
                 return NodeExecutionResult(
                     node_id=node_id,
                     success=True,
-                    file_path=result.file_path if hasattr(result, 'file_path') else None,
+                    file_path=result.file_path
+                    if hasattr(result, "file_path")
+                    else None,
                     execution_time_ms=execution_time_ms,
                     started_at=started_at,
                     completed_at=completed_at,
                 )
             else:
                 # Agent returned failure
-                error_msg = result.error if hasattr(result, 'error') else "Agent execution failed"
+                error_msg = (
+                    result.error
+                    if hasattr(result, "error")
+                    else "Agent execution failed"
+                )
 
                 await self.session_manager.add_node_result(
                     session_id=session_id,
@@ -767,7 +798,7 @@ class BatchOrchestrator:
                         "node_id": node_id,
                         "agent_type": agent_type,
                         "error_message": error_msg,
-                    }
+                    },
                 )
 
                 return NodeExecutionResult(
@@ -784,9 +815,7 @@ class BatchOrchestrator:
             execution_time_ms = int((completed_at - started_at).total_seconds() * 1000)
             error_msg = str(e)
 
-            logger.error(
-                f"[Story 33.6] Node {node_id} execution failed: {error_msg}"
-            )
+            logger.error(f"[Story 33.6] Node {node_id} execution failed: {error_msg}")
 
             await self.session_manager.add_node_result(
                 session_id=session_id,
@@ -804,7 +833,7 @@ class BatchOrchestrator:
                     "node_id": node_id,
                     "agent_type": agent_type,
                     "error_message": error_msg,
-                }
+                },
             )
 
             return NodeExecutionResult(
@@ -867,7 +896,9 @@ class BatchOrchestrator:
                     break
 
             if target_node is None:
-                logger.warning(f"[Story 33.6] Node not found: {node_id} in {canvas_name}")
+                logger.warning(
+                    f"[Story 33.6] Node not found: {node_id} in {canvas_name}"
+                )
                 return None
 
             # Extract content based on node type
@@ -883,7 +914,13 @@ class BatchOrchestrator:
                 )
             return content
 
-        except (OSError, json.JSONDecodeError, KeyError, ValueError, AttributeError) as e:
+        except (
+            OSError,
+            json.JSONDecodeError,
+            KeyError,
+            ValueError,
+            AttributeError,
+        ) as e:
             logger.warning(
                 f"[Story 33.6] Failed to get node content (non-blocking): {e}"
             )
@@ -965,12 +1002,14 @@ class BatchOrchestrator:
 
             # Extract concept from result or use node_id
             concept = node_id  # Fallback
-            if hasattr(result, 'content') and result.content:
-                concept = result.content[:50] if len(result.content) > 50 else result.content
+            if hasattr(result, "content") and result.content:
+                concept = (
+                    result.content[:50] if len(result.content) > 50 else result.content
+                )
 
             # Call agent_service._trigger_memory_write (fire-and-forget)
             # This is already wrapped in try-except and asyncio.create_task
-            if hasattr(self.agent_service, '_trigger_memory_write'):
+            if hasattr(self.agent_service, "_trigger_memory_write"):
                 await self.agent_service._trigger_memory_write(
                     agent_type=agent_type,
                     canvas_name=canvas_name,
@@ -1063,26 +1102,32 @@ class BatchOrchestrator:
             errors_list = []
             for nr in gr.node_results:
                 if nr.success:
-                    results_list.append({
-                        "node_id": nr.node_id,
-                        "file_path": nr.file_path,
-                        "file_size": nr.file_size,
-                    })
+                    results_list.append(
+                        {
+                            "node_id": nr.node_id,
+                            "file_path": nr.file_path,
+                            "file_size": nr.file_size,
+                        }
+                    )
                 else:
-                    errors_list.append({
-                        "node_id": nr.node_id,
-                        "error_message": nr.error_message,
-                    })
+                    errors_list.append(
+                        {
+                            "node_id": nr.node_id,
+                            "error_message": nr.error_message,
+                        }
+                    )
 
-            group_statuses.append({
-                "group_id": gr.group_id,
-                "agent_type": gr.agent_type,
-                "status": gr.status,
-                "completed_nodes": gr.completed_count,
-                "total_nodes": gr.completed_count + gr.failed_count,
-                "results": results_list,
-                "errors": errors_list,
-            })
+            group_statuses.append(
+                {
+                    "group_id": gr.group_id,
+                    "agent_type": gr.agent_type,
+                    "status": gr.status,
+                    "completed_nodes": gr.completed_count,
+                    "total_nodes": gr.completed_count + gr.failed_count,
+                    "results": results_list,
+                    "errors": errors_list,
+                }
+            )
 
         # Use the passed final_status instead of fetching from session
         # [FIX: Story 33.6] Status is passed in since transition hasn't happened yet
@@ -1156,7 +1201,7 @@ class BatchOrchestrator:
             {
                 "status": "cancelled",
                 "completed_before_cancel": session.completed_nodes,
-            }
+            },
         )
 
         logger.info("cancellation_requested", session_id=session_id)

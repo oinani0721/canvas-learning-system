@@ -9,18 +9,12 @@ Tests for EPIC-35 三个阻塞级修复:
 
 import io
 import json
-import os
-import tempfile
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from app.models.multimodal_schemas import (
     MultimodalHealthResponse,
-    MultimodalMediaType,
-    MultimodalMetadataSchema,
     MultimodalSearchRequest,
     MultimodalSearchResponse,
 )
@@ -50,6 +44,7 @@ def service(tmp_storage):
 # =============================================================================
 # 问题1: JSON 文件持久化
 # =============================================================================
+
 
 class TestJSONPersistence:
     """Test JSON file persistence for content index."""
@@ -101,8 +96,9 @@ class TestJSONPersistence:
 
         # Second instance: should load persisted data
         svc2 = MultimodalService(storage_base_path=tmp_storage)
-        assert content_id in svc2._content_store, \
+        assert content_id in svc2._content_store, (
             "New service instance must load previously persisted content"
+        )
         assert svc2._content_store[content_id]["related_concept_id"] == "node-persist"
 
     @pytest.mark.asyncio
@@ -124,8 +120,9 @@ class TestJSONPersistence:
 
         index_path = Path(tmp_storage) / "content_index.json"
         data = json.loads(index_path.read_text(encoding="utf-8"))
-        assert content_id not in data["items"], \
+        assert content_id not in data["items"], (
             "Deleted content must be removed from index"
+        )
 
     @pytest.mark.asyncio
     async def test_update_persists(self, service, tmp_storage):
@@ -156,18 +153,19 @@ class TestJSONPersistence:
     def test_no_multimodal_store_logs_warning(self, tmp_storage, caplog):
         """When multimodal_store is None, service must log a warning."""
         import logging
+
         with caplog.at_level(logging.WARNING):
             svc = MultimodalService(storage_base_path=tmp_storage)
 
         assert any(
-            "MultimodalStore not available" in rec.message
-            for rec in caplog.records
+            "MultimodalStore not available" in rec.message for rec in caplog.records
         ), "Must warn when MultimodalStore is not provided"
 
 
 # =============================================================================
 # 问题2: 缩略图生成
 # =============================================================================
+
 
 class TestThumbnailGeneration:
     """Test thumbnail generation for image uploads."""
@@ -201,12 +199,13 @@ class TestThumbnailGeneration:
             canvas_path="test.canvas",
         )
 
-        assert result.thumbnail_generated is True, \
+        assert result.thumbnail_generated is True, (
             "thumbnail_generated must be True for image uploads"
-        assert result.content.thumbnail_path is not None, \
-            "thumbnail_path must be set"
-        assert Path(result.content.thumbnail_path).exists(), \
+        )
+        assert result.content.thumbnail_path is not None, "thumbnail_path must be set"
+        assert Path(result.content.thumbnail_path).exists(), (
             "Thumbnail file must exist on disk"
+        )
 
     @pytest.mark.asyncio
     async def test_thumbnail_not_generated_for_pdf(self, service, tmp_storage):
@@ -250,6 +249,7 @@ class TestThumbnailGeneration:
 # 问题3: 向量搜索降级透明化
 # =============================================================================
 
+
 class TestSearchModeTransparency:
     """Test that search mode is transparent in responses."""
 
@@ -281,9 +281,7 @@ class TestSearchModeTransparency:
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            MultimodalSearchResponse(
-                items=[], total=0, search_mode="invalid"
-            )
+            MultimodalSearchResponse(items=[], total=0, search_mode="invalid")
 
     @pytest.mark.asyncio
     async def test_text_fallback_sets_search_mode_text(self, service, tmp_storage):
@@ -305,8 +303,9 @@ class TestSearchModeTransparency:
         result = await service.search(request)
 
         # Without embedding service, it must fallback to text
-        assert result.search_mode == "text", \
+        assert result.search_mode == "text", (
             "search_mode must be 'text' when embedding is unavailable"
+        )
 
     @pytest.mark.asyncio
     async def test_text_fallback_logs_warning(self, service, tmp_storage, caplog):
@@ -320,15 +319,15 @@ class TestSearchModeTransparency:
         with caplog.at_level(logging.WARNING):
             await service.search(request)
 
-        assert any(
-            "降级为文本搜索" in rec.message
-            for rec in caplog.records
-        ), "Must log WARNING about text search fallback"
+        assert any("降级为文本搜索" in rec.message for rec in caplog.records), (
+            "Must log WARNING about text search fallback"
+        )
 
 
 # =============================================================================
 # 附加: DI 迁移
 # =============================================================================
+
 
 class TestDIMigration:
     """Test that DI is properly moved to dependencies.py."""
@@ -336,23 +335,28 @@ class TestDIMigration:
     def test_multimodal_service_dep_exists_in_dependencies(self):
         """MultimodalServiceDep must be importable from dependencies."""
         from app.dependencies import MultimodalServiceDep
+
         assert MultimodalServiceDep is not None
 
     def test_get_multimodal_service_dep_exists(self):
         """get_multimodal_service_dep must be importable from dependencies."""
         from app.dependencies import get_multimodal_service_dep
+
         assert callable(get_multimodal_service_dep)
 
     def test_multimodal_router_does_not_define_get_service(self):
         """multimodal.py must NOT define its own get_service function."""
         import app.api.v1.endpoints.multimodal as mm_module
-        assert not hasattr(mm_module, "get_service"), \
+
+        assert not hasattr(mm_module, "get_service"), (
             "get_service must be removed from multimodal.py (moved to dependencies.py)"
+        )
 
 
 # =============================================================================
 # Story 35.11: 多模态搜索降级透明化
 # =============================================================================
+
 
 class TestHealthDegradationTransparency:
     """Story 35.11 AC 35.11.3: Health endpoint shows storage backend status."""

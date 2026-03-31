@@ -47,13 +47,13 @@ _META_VERSION_DATE = re.compile(
 class PromptTemplate:
     """Immutable representation of a loaded prompt template."""
 
-    name: str           # e.g., "autoscore"
-    version: int        # e.g., 1
-    content: str        # Full template content (including header)
-    content_hash: str   # SHA-256 hex digest
-    service_ref: str    # 引用方 service path
-    created_at: str     # Creation date string (YYYY-MM-DD)
-    file_path: Path     # Absolute path to the .md file
+    name: str  # e.g., "autoscore"
+    version: int  # e.g., 1
+    content: str  # Full template content (including header)
+    content_hash: str  # SHA-256 hex digest
+    service_ref: str  # 引用方 service path
+    created_at: str  # Creation date string (YYYY-MM-DD)
+    file_path: Path  # Absolute path to the .md file
 
 
 class PromptRegistry:
@@ -152,9 +152,7 @@ class PromptRegistry:
         )
         return loaded_count
 
-    def _load_single(
-        self, file_path: Path, name: str, version: int
-    ) -> PromptTemplate:
+    def _load_single(self, file_path: Path, name: str, version: int) -> PromptTemplate:
         """Load and parse a single prompt template file."""
         raw = file_path.read_text(encoding="utf-8")
         if not raw.strip():
@@ -178,9 +176,7 @@ class PromptRegistry:
         )
 
     @staticmethod
-    def _parse_metadata(
-        content: str, name: str, file_path: Path
-    ) -> tuple:
+    def _parse_metadata(content: str, name: str, file_path: Path) -> tuple:
         """
         Extract metadata from the HTML-comment header.
 
@@ -212,9 +208,7 @@ class PromptRegistry:
 
     # ─── Query API ────────────────────────────────────────────────────────
 
-    def get(
-        self, name: str, version: Optional[int] = None
-    ) -> str:
+    def get(self, name: str, version: Optional[int] = None) -> str:
         """
         Return the prompt template content for the given name and version.
 
@@ -246,17 +240,14 @@ class PromptRegistry:
             available = sorted(versions.keys())
             raise PromptLoadError(
                 message=(
-                    f"Version v{version} not found. "
-                    f"Available versions: {available}"
+                    f"Version v{version} not found. Available versions: {available}"
                 ),
                 prompt_name=name,
             )
 
         return template.content
 
-    def get_template(
-        self, name: str, version: Optional[int] = None
-    ) -> PromptTemplate:
+    def get_template(self, name: str, version: Optional[int] = None) -> PromptTemplate:
         """
         Return the full PromptTemplate dataclass for the given name/version.
 
@@ -278,16 +269,13 @@ class PromptRegistry:
             available = sorted(versions.keys())
             raise PromptLoadError(
                 message=(
-                    f"Version v{version} not found. "
-                    f"Available versions: {available}"
+                    f"Version v{version} not found. Available versions: {available}"
                 ),
                 prompt_name=name,
             )
         return template
 
-    def get_metadata(
-        self, name: str, version: Optional[int] = None
-    ) -> Dict:
+    def get_metadata(self, name: str, version: Optional[int] = None) -> Dict:
         """Return metadata dict for a prompt template."""
         tpl = self.get_template(name, version)
         return {
@@ -349,8 +337,7 @@ class PromptRegistry:
             available = sorted(versions.keys())
             raise PromptLoadError(
                 message=(
-                    f"Cannot set active version to v{version}. "
-                    f"Available: {available}"
+                    f"Cannot set active version to v{version}. Available: {available}"
                 ),
                 prompt_name=name,
             )
@@ -375,6 +362,7 @@ class PromptRegistry:
 
 
 # ─── Module-level convenience ─────────────────────────────────────────────
+
 
 def get_prompt_registry(prompts_dir: Optional[Path] = None) -> PromptRegistry:
     """Get the singleton PromptRegistry instance."""

@@ -33,17 +33,21 @@ class TestLearningCommandsMCPHealthCheck:
         Expected: Session starts normally, no degradation mode
         """
         # Mock MCP health check to return available
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': True,
-                'error': '',
-                'suggestion': '',
-                'mcp_server_path': 'C:\\test\\path'
+                "available": True,
+                "error": "",
+                "suggestion": "",
+                "mcp_server_path": "C:\\test\\path",
             }
 
             # Mock other dependencies
-            with patch('command_handlers.learning_commands.MemoryRecorder'):
-                with patch('command_handlers.learning_commands.CanvasIntegrationCoordinator'):
+            with patch("command_handlers.learning_commands.MemoryRecorder"):
+                with patch(
+                    "command_handlers.learning_commands.CanvasIntegrationCoordinator"
+                ):
                     handler = LearningSessionManager()
 
                     # Mock the file operations
@@ -57,7 +61,11 @@ class TestLearningCommandsMCPHealthCheck:
                     assert mock_health.called
 
                     # Verify result indicates success (session active)
-                    assert '✅' in result or 'started' in result.lower() or 'active' in result.lower()
+                    assert (
+                        "✅" in result
+                        or "started" in result.lower()
+                        or "active" in result.lower()
+                    )
 
     @pytest.mark.asyncio
     async def test_start_session_mcp_unavailable_degradation(self):
@@ -67,17 +75,21 @@ class TestLearningCommandsMCPHealthCheck:
         Expected: Session starts in degradation mode, friendly error message shown
         """
         # Mock MCP health check to return unavailable
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': False,
-                'error': 'MCP服务器响应超时',
-                'suggestion': '启动MCP服务器',
-                'mcp_server_path': 'C:\\graphiti\\mcp_server'
+                "available": False,
+                "error": "MCP服务器响应超时",
+                "suggestion": "启动MCP服务器",
+                "mcp_server_path": "C:\\graphiti\\mcp_server",
             }
 
             # Mock other dependencies
-            with patch('command_handlers.learning_commands.MemoryRecorder'):
-                with patch('command_handlers.learning_commands.CanvasIntegrationCoordinator'):
+            with patch("command_handlers.learning_commands.MemoryRecorder"):
+                with patch(
+                    "command_handlers.learning_commands.CanvasIntegrationCoordinator"
+                ):
                     handler = LearningSessionManager()
 
                     # Mock file operations
@@ -91,7 +103,7 @@ class TestLearningCommandsMCPHealthCheck:
                     assert mock_health.called
 
                     # Verify degradation message is present
-                    assert '❌' in result or 'Graphiti' in result or '不可用' in result
+                    assert "❌" in result or "Graphiti" in result or "不可用" in result
 
     @pytest.mark.asyncio
     async def test_start_graphiti_health_check_success(self):
@@ -101,16 +113,18 @@ class TestLearningCommandsMCPHealthCheck:
         Expected: Graphiti starts successfully
         """
         # Mock successful health check
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': True,
-                'error': '',
-                'suggestion': '',
-                'mcp_server_path': 'C:\\test\\path'
+                "available": True,
+                "error": "",
+                "suggestion": "",
+                "mcp_server_path": "C:\\test\\path",
             }
 
             # Mock MCP tool import
-            with patch('importlib.import_module') as mock_import:
+            with patch("importlib.import_module") as mock_import:
                 mock_claude_tools = Mock()
                 mock_claude_tools.mcp__graphiti_memory__add_episode = AsyncMock()
                 mock_import.return_value = mock_claude_tools
@@ -124,7 +138,7 @@ class TestLearningCommandsMCPHealthCheck:
                 assert mock_health.called
 
                 # Verify success message
-                assert '✅' in result or 'Graphiti' in result
+                assert "✅" in result or "Graphiti" in result
 
     @pytest.mark.asyncio
     async def test_start_graphiti_health_check_failure_raises_exception(self):
@@ -134,12 +148,14 @@ class TestLearningCommandsMCPHealthCheck:
         Expected: MCPServerUnavailableError is raised with helpful message
         """
         # Mock failing health check
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': False,
-                'error': 'Connection refused',
-                'suggestion': 'Start the MCP server',
-                'mcp_server_path': 'C:\\test\\path'
+                "available": False,
+                "error": "Connection refused",
+                "suggestion": "Start the MCP server",
+                "mcp_server_path": "C:\\test\\path",
             }
 
             handler = LearningSessionHandler()
@@ -150,7 +166,7 @@ class TestLearningCommandsMCPHealthCheck:
 
             # Verify exception contains helpful information
             exception_str = str(exc_info.value)
-            assert 'Connection refused' in exception_str or '不可用' in exception_str
+            assert "Connection refused" in exception_str or "不可用" in exception_str
 
     @pytest.mark.asyncio
     async def test_start_graphiti_import_error_handling(self):
@@ -160,16 +176,18 @@ class TestLearningCommandsMCPHealthCheck:
         Expected: MCPServerUnavailableError is raised when claude_tools cannot be imported
         """
         # Mock successful health check but failed import
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': True,
-                'error': '',
-                'suggestion': '',
-                'mcp_server_path': 'C:\\test\\path'
+                "available": True,
+                "error": "",
+                "suggestion": "",
+                "mcp_server_path": "C:\\test\\path",
             }
 
             # Mock import failure
-            with patch('importlib.import_module') as mock_import:
+            with patch("importlib.import_module") as mock_import:
                 mock_import.side_effect = ImportError("No module named 'claude_tools'")
 
                 handler = LearningSessionManager()
@@ -180,7 +198,9 @@ class TestLearningCommandsMCPHealthCheck:
 
                 # Verify exception message mentions the issue
                 exception_str = str(exc_info.value)
-                assert 'claude_tools' in exception_str or 'import' in exception_str.lower()
+                assert (
+                    "claude_tools" in exception_str or "import" in exception_str.lower()
+                )
 
     @pytest.mark.asyncio
     async def test_degradation_mode_flag_set_correctly(self):
@@ -190,16 +210,20 @@ class TestLearningCommandsMCPHealthCheck:
         Expected: graphiti_unavailable flag reflects health check result
         """
         # Test unavailable scenario
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': False,
-                'error': 'Timeout',
-                'suggestion': 'Restart server',
-                'mcp_server_path': 'C:\\test\\path'
+                "available": False,
+                "error": "Timeout",
+                "suggestion": "Restart server",
+                "mcp_server_path": "C:\\test\\path",
             }
 
-            with patch('command_handlers.learning_commands.MemoryRecorder'):
-                with patch('command_handlers.learning_commands.CanvasIntegrationCoordinator'):
+            with patch("command_handlers.learning_commands.MemoryRecorder"):
+                with patch(
+                    "command_handlers.learning_commands.CanvasIntegrationCoordinator"
+                ):
                     handler = LearningSessionManager()
                     handler.session_monitor = Mock()
                     handler.session_monitor.is_monitoring = False
@@ -221,16 +245,20 @@ class TestLearningCommandsMCPHealthCheck:
 
         Expected: timeout=2 seconds as specified in requirements
         """
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': True,
-                'error': '',
-                'suggestion': '',
-                'mcp_server_path': 'C:\\test\\path'
+                "available": True,
+                "error": "",
+                "suggestion": "",
+                "mcp_server_path": "C:\\test\\path",
             }
 
-            with patch('command_handlers.learning_commands.MemoryRecorder'):
-                with patch('command_handlers.learning_commands.CanvasIntegrationCoordinator'):
+            with patch("command_handlers.learning_commands.MemoryRecorder"):
+                with patch(
+                    "command_handlers.learning_commands.CanvasIntegrationCoordinator"
+                ):
                     handler = LearningSessionManager()
                     handler.session_monitor = Mock()
                     handler.session_monitor.is_monitoring = False
@@ -251,16 +279,20 @@ class TestMCPHealthCheckUserExperience:
 
         Expected: Error message includes the command to start MCP server
         """
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': False,
-                'error': 'Connection failed',
-                'suggestion': 'cd C:\\graphiti\\mcp_server && start_graphiti_mcp.bat',
-                'mcp_server_path': 'C:\\graphiti\\mcp_server'
+                "available": False,
+                "error": "Connection failed",
+                "suggestion": "cd C:\\graphiti\\mcp_server && start_graphiti_mcp.bat",
+                "mcp_server_path": "C:\\graphiti\\mcp_server",
             }
 
-            with patch('command_handlers.learning_commands.MemoryRecorder'):
-                with patch('command_handlers.learning_commands.CanvasIntegrationCoordinator'):
+            with patch("command_handlers.learning_commands.MemoryRecorder"):
+                with patch(
+                    "command_handlers.learning_commands.CanvasIntegrationCoordinator"
+                ):
                     handler = LearningSessionManager()
                     handler.session_monitor = Mock()
                     handler.session_monitor.is_monitoring = False
@@ -268,7 +300,11 @@ class TestMCPHealthCheckUserExperience:
                     result = await handler.start_session()
 
                     # Verify result contains helpful information
-                    assert 'start_graphiti_mcp' in result or '启动' in result or 'MCP' in result
+                    assert (
+                        "start_graphiti_mcp" in result
+                        or "启动" in result
+                        or "MCP" in result
+                    )
 
     @pytest.mark.asyncio
     async def test_error_message_includes_path_info(self):
@@ -277,18 +313,22 @@ class TestMCPHealthCheckUserExperience:
 
         Expected: Error message shows where MCP server should be located
         """
-        test_path = 'C:\\custom\\mcp\\server'
+        test_path = "C:\\custom\\mcp\\server"
 
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': False,
-                'error': 'Server not found',
-                'suggestion': 'Install MCP server',
-                'mcp_server_path': test_path
+                "available": False,
+                "error": "Server not found",
+                "suggestion": "Install MCP server",
+                "mcp_server_path": test_path,
             }
 
-            with patch('command_handlers.learning_commands.MemoryRecorder'):
-                with patch('command_handlers.learning_commands.CanvasIntegrationCoordinator'):
+            with patch("command_handlers.learning_commands.MemoryRecorder"):
+                with patch(
+                    "command_handlers.learning_commands.CanvasIntegrationCoordinator"
+                ):
                     handler = LearningSessionManager()
                     handler.session_monitor = Mock()
                     handler.session_monitor.is_monitoring = False
@@ -296,10 +336,11 @@ class TestMCPHealthCheckUserExperience:
                     result = await handler.start_session()
 
                     # Verify path is mentioned (at least the directory name)
-                    assert 'mcp' in result.lower() or 'server' in result.lower()
+                    assert "mcp" in result.lower() or "server" in result.lower()
 
 
 # ==================== Integration Workflow Tests ====================
+
 
 class TestMCPHealthCheckWorkflow:
     """Test complete workflows involving MCP health check"""
@@ -311,21 +352,25 @@ class TestMCPHealthCheckWorkflow:
 
         Expected: All steps complete successfully
         """
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': True,
-                'error': '',
-                'suggestion': '',
-                'mcp_server_path': 'C:\\test\\path'
+                "available": True,
+                "error": "",
+                "suggestion": "",
+                "mcp_server_path": "C:\\test\\path",
             }
 
-            with patch('importlib.import_module') as mock_import:
+            with patch("importlib.import_module") as mock_import:
                 mock_claude_tools = Mock()
                 mock_claude_tools.mcp__graphiti_memory__add_episode = AsyncMock()
                 mock_import.return_value = mock_claude_tools
 
-                with patch('command_handlers.learning_commands.MemoryRecorder'):
-                    with patch('command_handlers.learning_commands.CanvasIntegrationCoordinator'):
+                with patch("command_handlers.learning_commands.MemoryRecorder"):
+                    with patch(
+                        "command_handlers.learning_commands.CanvasIntegrationCoordinator"
+                    ):
                         handler = LearningSessionManager()
                         handler.session_monitor = Mock()
                         handler.session_monitor.is_monitoring = False
@@ -337,8 +382,11 @@ class TestMCPHealthCheckWorkflow:
                         graphiti_result = await handler._start_graphiti()
 
                         # Verify both steps succeeded
-                        assert '✅' in session_result or 'started' in session_result.lower()
-                        assert '✅' in graphiti_result or 'Graphiti' in graphiti_result
+                        assert (
+                            "✅" in session_result
+                            or "started" in session_result.lower()
+                        )
+                        assert "✅" in graphiti_result or "Graphiti" in graphiti_result
 
     @pytest.mark.asyncio
     async def test_full_failure_workflow(self):
@@ -347,16 +395,20 @@ class TestMCPHealthCheckWorkflow:
 
         Expected: System degrades gracefully with helpful messages
         """
-        with patch('command_handlers.learning_commands.check_mcp_server_health') as mock_health:
+        with patch(
+            "command_handlers.learning_commands.check_mcp_server_health"
+        ) as mock_health:
             mock_health.return_value = {
-                'available': False,
-                'error': 'MCP server not responding',
-                'suggestion': 'Start MCP server with: start_graphiti_mcp.bat',
-                'mcp_server_path': 'C:\\graphiti\\mcp_server'
+                "available": False,
+                "error": "MCP server not responding",
+                "suggestion": "Start MCP server with: start_graphiti_mcp.bat",
+                "mcp_server_path": "C:\\graphiti\\mcp_server",
             }
 
-            with patch('command_handlers.learning_commands.MemoryRecorder'):
-                with patch('command_handlers.learning_commands.CanvasIntegrationCoordinator'):
+            with patch("command_handlers.learning_commands.MemoryRecorder"):
+                with patch(
+                    "command_handlers.learning_commands.CanvasIntegrationCoordinator"
+                ):
                     handler = LearningSessionManager()
                     handler.session_monitor = Mock()
                     handler.session_monitor.is_monitoring = False
@@ -365,12 +417,16 @@ class TestMCPHealthCheckWorkflow:
                     session_result = await handler.start_session()
 
                     # Verify warning message is shown
-                    assert '❌' in session_result or 'Graphiti' in session_result or '不可用' in session_result
+                    assert (
+                        "❌" in session_result
+                        or "Graphiti" in session_result
+                        or "不可用" in session_result
+                    )
 
                     # Step 2: Try to start Graphiti directly (should raise exception)
                     with pytest.raises(MCPServerUnavailableError):
                         await handler._start_graphiti()
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

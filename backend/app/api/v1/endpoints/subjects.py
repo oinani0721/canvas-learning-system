@@ -254,7 +254,9 @@ async def update_subject(subject_id: str, body: SubjectUpdate) -> SubjectRespons
 @subjects_router.delete(
     "/{subject_id}",
     summary="Delete a subject",
-    description=("Remove the :Subject node. Associated CanvasNode and CanvasBoard data is NOT deleted (soft-delete)."),
+    description=(
+        "Remove the :Subject node. Associated CanvasNode and CanvasBoard data is NOT deleted (soft-delete)."
+    ),
     tags=["Subjects"],
 )
 async def delete_subject(subject_id: str) -> dict:

@@ -11,18 +11,15 @@ AC-30.24.4: Shutdown data safety test
 AC-30.24.5: Unicode concept name test
 """
 
-import asyncio
 import json
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.core.subject_config import build_group_id, sanitize_subject_name
-
 
 # ============================================================================
 # AC-30.24.1: Empty input boundary test
@@ -90,26 +87,32 @@ class TestEmptyInputBoundary:
 # ============================================================================
 
 SPECIAL_GROUP_IDS = [
-    ("", "default"),                          # empty string → default
-    ("../etc/passwd", "___etc_passwd"),        # path traversal → sanitized
-    ("<script>", "_script_"),                  # XSS → sanitized
-    ("数学/离散数学", "数学_离散数学"),            # Chinese path → preserved Chinese, slash→underscore
-    ("📚 Math", "📚_math"),                    # emoji → preserved emoji
-    ("a" * 1000, None),                        # very long string → truncated/handled
+    ("", "default"),  # empty string → default
+    ("../etc/passwd", "___etc_passwd"),  # path traversal → sanitized
+    ("<script>", "_script_"),  # XSS → sanitized
+    (
+        "数学/离散数学",
+        "数学_离散数学",
+    ),  # Chinese path → preserved Chinese, slash→underscore
+    ("📚 Math", "📚_math"),  # emoji → preserved emoji
+    ("a" * 1000, None),  # very long string → truncated/handled
 ]
 
 
 class TestSpecialCharacterGroupId:
     """AC-30.24.2: group_id with special characters handled safely."""
 
-    @pytest.mark.parametrize("raw_input,expected_prefix", [
-        ("", "default"),
-        ("../etc/passwd", None),   # just check no crash
-        ("<script>alert(1)</script>", None),
-        ("数学/离散数学", None),
-        ("📚 Math", None),
-        ("a" * 1000, None),
-    ])
+    @pytest.mark.parametrize(
+        "raw_input,expected_prefix",
+        [
+            ("", "default"),
+            ("../etc/passwd", None),  # just check no crash
+            ("<script>alert(1)</script>", None),
+            ("数学/离散数学", None),
+            ("📚 Math", None),
+            ("a" * 1000, None),
+        ],
+    )
     def test_sanitize_subject_name_no_crash(self, raw_input, expected_prefix):
         """sanitize_subject_name handles all special inputs without crashing."""
         result = sanitize_subject_name(raw_input)
@@ -174,9 +177,7 @@ class TestSpecialCharacterGroupId:
         malicious_group_id = "<script>'; DROP TABLE users;--"
 
         await client.get_review_suggestions(
-            user_id="test_user",
-            limit=5,
-            group_id=malicious_group_id
+            user_id="test_user", limit=5, group_id=malicious_group_id
         )
 
         call_args = client.run_query.call_args
@@ -210,13 +211,16 @@ class TestUnicodeConceptNames:
     ]
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("concept", [
-        "監督学習 📊",
-        "Bayes' Theorem",
-        "集合论 ∩ ∪ ⊂",
-        "概率论与数理统计",
-        "Ψ(x) = ∑ cₙφₙ(x)",
-    ])
+    @pytest.mark.parametrize(
+        "concept",
+        [
+            "監督学習 📊",
+            "Bayes' Theorem",
+            "集合论 ∩ ∪ ⊂",
+            "概率论与数理统计",
+            "Ψ(x) = ∑ cₙφₙ(x)",
+        ],
+    )
     async def test_unicode_concept_stored_in_episodes(self, concept):
         """Unicode concept is stored in _episodes without corruption."""
         from app.services.memory_service import MemoryService
@@ -245,11 +249,14 @@ class TestUnicodeConceptNames:
         assert stored["metadata"]["concept"] == concept
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("concept", [
-        "監督学習 📊",
-        "Bayes' Theorem",
-        "集合論 ∩ ∪ ⊂",
-    ])
+    @pytest.mark.parametrize(
+        "concept",
+        [
+            "監督学習 📊",
+            "Bayes' Theorem",
+            "集合論 ∩ ∪ ⊂",
+        ],
+    )
     async def test_unicode_concept_sent_to_neo4j(self, concept):
         """Unicode concept is passed to Neo4j without truncation or mojibake."""
         from app.services.memory_service import MemoryService
@@ -303,8 +310,8 @@ class TestOversizedPayload:
 
     def test_oversized_batch_rejected_by_pydantic(self):
         """100 events exceeds max_length=50 → ValidationError."""
-        from pydantic import ValidationError
         from app.models.memory_schemas import BatchEpisodesRequest
+        from pydantic import ValidationError
 
         with pytest.raises(ValidationError) as exc_info:
             BatchEpisodesRequest(events=self._make_events(100))
@@ -313,8 +320,8 @@ class TestOversizedPayload:
 
     def test_just_over_limit_rejected(self):
         """51 events (just over limit) → ValidationError."""
-        from pydantic import ValidationError
         from app.models.memory_schemas import BatchEpisodesRequest
+        from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
             BatchEpisodesRequest(events=self._make_events(51))
@@ -364,8 +371,7 @@ class TestShutdownDataSafety:
         ]
 
         with patch(
-            "app.services.memory_service.FAILED_WRITES_FILE",
-            failed_writes_file
+            "app.services.memory_service.FAILED_WRITES_FILE", failed_writes_file
         ):
             result = await svc.record_batch_learning_events(events)
 
@@ -385,7 +391,7 @@ class TestShutdownDataSafety:
             {
                 "episode_id": f"ep_{i}",
                 "timestamp": "2026-02-10T12:00:00Z",
-                "reason": "Neo4j unreachable"
+                "reason": "Neo4j unreachable",
             }
             for i in range(5)
         ]
@@ -397,13 +403,14 @@ class TestShutdownDataSafety:
         failed_writes_file = tmp_path / "failed_writes.jsonl"
 
         with patch(
-            "app.services.memory_service.FAILED_WRITES_FILE",
-            failed_writes_file
+            "app.services.memory_service.FAILED_WRITES_FILE", failed_writes_file
         ):
             await svc.cleanup()
 
         # Verify failed_writes.jsonl was created (must NOT be conditional)
-        assert failed_writes_file.exists(), "failed_writes.jsonl was not created by cleanup()"
+        assert failed_writes_file.exists(), (
+            "failed_writes.jsonl was not created by cleanup()"
+        )
         lines = failed_writes_file.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 5
         for line in lines:
@@ -424,7 +431,7 @@ class TestShutdownDataSafety:
             {
                 "episode_id": "ep_test_001",
                 "timestamp": "2026-02-10T12:00:00Z",
-                "reason": "ConnectionError: Neo4j host unreachable"
+                "reason": "ConnectionError: Neo4j host unreachable",
             }
         ]
         svc.neo4j = MagicMock()
@@ -435,12 +442,13 @@ class TestShutdownDataSafety:
         failed_writes_file = tmp_path / "failed_writes.jsonl"
 
         with patch(
-            "app.services.memory_service.FAILED_WRITES_FILE",
-            failed_writes_file
+            "app.services.memory_service.FAILED_WRITES_FILE", failed_writes_file
         ):
             await svc.cleanup()
 
-        assert failed_writes_file.exists(), "failed_writes.jsonl was not created by cleanup()"
+        assert failed_writes_file.exists(), (
+            "failed_writes.jsonl was not created by cleanup()"
+        )
         lines = failed_writes_file.read_text(encoding="utf-8").strip().split("\n")
         record = json.loads(lines[0])
         assert record["episode_id"] == "ep_test_001"
@@ -462,7 +470,9 @@ class TestVaultVerifyExitCode:
 
     def test_verify_script_exists(self):
         """verify-vault.mjs script must exist."""
-        assert self.VERIFY_SCRIPT.exists(), f"verify script not found: {self.VERIFY_SCRIPT}"
+        assert self.VERIFY_SCRIPT.exists(), (
+            f"verify script not found: {self.VERIFY_SCRIPT}"
+        )
 
     def _run_verify(self, env_override: dict, timeout: int = 10):
         """Helper: run verify-vault.mjs with UTF-8 encoding (Windows emits emoji)."""

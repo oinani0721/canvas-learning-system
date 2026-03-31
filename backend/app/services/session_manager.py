@@ -17,17 +17,16 @@ Features:
 """
 
 import asyncio
-import structlog
 import uuid
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Protocol
+
+import structlog
 
 from ..models.session_models import (
     NodeResult,
     SessionInfo,
     SessionStatus,
-    VALID_TRANSITIONS,
     is_valid_transition,
 )
 
@@ -211,7 +210,12 @@ class SessionManager:
         async with self._session_lock:
             await self._storage.save_session(session)
 
-        logger.info("session_created", session_id=session_id, canvas_path=canvas_path, node_count=node_count)
+        logger.info(
+            "session_created",
+            session_id=session_id,
+            canvas_path=canvas_path,
+            node_count=node_count,
+        )
         return session_id
 
     async def get_session(self, session_id: str) -> SessionInfo:
@@ -299,7 +303,11 @@ class SessionManager:
 
             await self._storage.save_session(session)
 
-        logger.info("session_state_transitioned", session_id=session_id, new_status=new_status.value)
+        logger.info(
+            "session_state_transitioned",
+            session_id=session_id,
+            new_status=new_status.value,
+        )
         return session
 
     async def update_progress(
@@ -330,7 +338,11 @@ class SessionManager:
 
             # Only update progress if session is in running state
             if not session.status.allows_progress_update:
-                logger.warning("progress_update_rejected", session_id=session_id, status=session.status.value)
+                logger.warning(
+                    "progress_update_rejected",
+                    session_id=session_id,
+                    status=session.status.value,
+                )
                 return session
 
             # Clamp progress to 0-100
@@ -339,7 +351,11 @@ class SessionManager:
 
             await self._storage.save_session(session)
 
-        logger.debug("session_progress_updated", session_id=session_id, progress_percent=progress_percent)
+        logger.debug(
+            "session_progress_updated",
+            session_id=session_id,
+            progress_percent=progress_percent,
+        )
         return session
 
     async def add_node_result(
@@ -383,7 +399,9 @@ class SessionManager:
             # Calculate execution time
             execution_time_ms = None
             if started_at and completed_at:
-                execution_time_ms = int((completed_at - started_at).total_seconds() * 1000)
+                execution_time_ms = int(
+                    (completed_at - started_at).total_seconds() * 1000
+                )
 
             node_result = NodeResult(
                 node_id=node_id,
@@ -411,11 +429,15 @@ class SessionManager:
             # Auto-calculate progress based on node results
             total_processed = len(session.node_results)
             if session.node_count > 0:
-                session.progress_percent = (total_processed / session.node_count) * 100.0
+                session.progress_percent = (
+                    total_processed / session.node_count
+                ) * 100.0
 
             await self._storage.save_session(session)
 
-        logger.debug("node_result_added", session_id=session_id, node_id=node_id, status=status)
+        logger.debug(
+            "node_result_added", session_id=session_id, node_id=node_id, status=status
+        )
         return session
 
     async def cancel_session(self, session_id: str) -> SessionInfo:
@@ -470,7 +492,9 @@ class SessionManager:
                 if self.is_session_expired(session):
                     await self._storage.delete_session(session.session_id)
                     cleaned += 1
-                    logger.debug("expired_session_cleaned", session_id=session.session_id)
+                    logger.debug(
+                        "expired_session_cleaned", session_id=session.session_id
+                    )
 
         if cleaned > 0:
             logger.info("expired_sessions_cleanup_complete", cleaned_count=cleaned)
@@ -483,6 +507,7 @@ class SessionManager:
         [Source: Story 33.3 Task 4.3 - Async background cleanup scheduler]
         [Source: Story 33.3 Task 4.4]
         """
+
         async def cleanup_loop():
             while True:
                 try:
@@ -541,7 +566,8 @@ class SessionManager:
         async with self._session_lock:
             sessions = await self._storage.list_sessions()
         active = sum(
-            1 for s in sessions
+            1
+            for s in sessions
             if s.status in (SessionStatus.PENDING, SessionStatus.RUNNING)
         )
         return {"active_sessions": active, "total_sessions": len(sessions)}

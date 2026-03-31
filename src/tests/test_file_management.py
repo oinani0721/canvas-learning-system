@@ -36,7 +36,7 @@ class TestFilenameFormatConsistency:
             "comparison-table",
             "memory-anchor",
             "four-level-explanation",
-            "example-teaching"
+            "example-teaching",
         ]
 
         explanation_type_map = {
@@ -45,7 +45,7 @@ class TestFilenameFormatConsistency:
             "comparison-table": "对比表",
             "memory-anchor": "记忆锚点",
             "four-level-explanation": "四层次答案",
-            "example-teaching": "例题教学"
+            "example-teaching": "例题教学",
         }
 
         for agent_type in agent_types:
@@ -56,15 +56,19 @@ class TestFilenameFormatConsistency:
             filename = f"{concept}-{explanation_type_cn}-{timestamp}.md"
 
             # 验证格式
-            pattern = r"^.+-(" + "|".join(explanation_type_map.values()) + r")-\d{14}\.md$"
-            assert re.match(pattern, filename), \
+            pattern = (
+                r"^.+-(" + "|".join(explanation_type_map.values()) + r")-\d{14}\.md$"
+            )
+            assert re.match(pattern, filename), (
                 f"{agent_type} filename format incorrect: {filename}"
+            )
 
             # 验证时间戳格式（14位数字）
             timestamp_match = re.search(r"-(\d{14})\.md$", filename)
             assert timestamp_match, f"{agent_type} missing timestamp"
-            assert len(timestamp_match.group(1)) == 14, \
+            assert len(timestamp_match.group(1)) == 14, (
                 f"{agent_type} timestamp should be 14 digits"
+            )
 
     def test_comparison_table_multi_concept_naming(self):
         """验证对比表类型的多概念命名（使用vs连接）"""
@@ -75,13 +79,15 @@ class TestFilenameFormatConsistency:
 
         # 验证包含vs连接符
         assert "vs" in filename, "Comparison table filename should contain 'vs'"
-        assert filename.startswith("逆否命题vs否命题vs逆命题-"), \
+        assert filename.startswith("逆否命题vs否命题vs逆命题-"), (
             "Concepts should be joined with 'vs'"
+        )
 
         # 验证整体格式
         pattern = r"^.+vs.+-对比表-\d{14}\.md$"
-        assert re.match(pattern, filename), \
+        assert re.match(pattern, filename), (
             f"Comparison table filename format incorrect: {filename}"
+        )
 
 
 class TestMarkdownHeaderFormatConsistency:
@@ -102,7 +108,7 @@ class TestMarkdownHeaderFormatConsistency:
             "生成Agent:",
             "来源Canvas:",
             "来源节点:",
-            "概念:"
+            "概念:",
         ]
 
         agent_types = [
@@ -111,7 +117,7 @@ class TestMarkdownHeaderFormatConsistency:
             "comparison-table",
             "memory-anchor",
             "four-level-explanation",
-            "example-teaching"
+            "example-teaching",
         ]
 
         for agent_type in agent_types:
@@ -128,17 +134,20 @@ class TestMarkdownHeaderFormatConsistency:
 
             # 验证所有必需字段存在
             for field in required_fields:
-                assert field in test_header, \
+                assert field in test_header, (
                     f"{agent_type}: Missing required field: {field}"
+                )
 
             # 验证时间格式
             time_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
-            assert re.search(time_pattern, test_header), \
+            assert re.search(time_pattern, test_header), (
                 f"{agent_type}: Incorrect time format"
+            )
 
             # 验证 ## 生成信息 标题存在
-            assert "## 生成信息" in test_header, \
+            assert "## 生成信息" in test_header, (
                 f"{agent_type}: Missing '## 生成信息' header"
+            )
 
     def test_header_field_format(self):
         """验证头部字段使用列表格式（- 字段名: 值）"""
@@ -151,7 +160,7 @@ class TestMarkdownHeaderFormatConsistency:
 """
 
         # 验证每个字段都使用 "- " 开头的列表格式
-        lines = test_header.strip().split('\n')[1:]  # Skip header line
+        lines = test_header.strip().split("\n")[1:]  # Skip header line
         for line in lines:
             assert line.startswith("- "), f"Field should start with '- ': {line}"
             assert ":" in line, f"Field should contain ':': {line}"
@@ -177,10 +186,12 @@ class TestFileSaveLocation:
         filepath = os.path.join(canvas_dir, filename)
 
         # 验证
-        assert os.path.dirname(filepath) == expected_dir, \
+        assert os.path.dirname(filepath) == expected_dir, (
             "File should be saved in same directory as Canvas file"
-        assert os.path.basename(filepath) == filename, \
+        )
+        assert os.path.basename(filepath) == filename, (
             "Filename should be preserved correctly"
+        )
 
     def test_relative_path_for_file_nodes(self):
         """验证file节点使用相对路径（以./开头）"""
@@ -190,7 +201,9 @@ class TestFileSaveLocation:
         # 验证格式
         assert file_path.startswith("./"), "File path should start with ./"
         assert file_path.endswith(".md"), "File path should end with .md"
-        assert not os.path.isabs(file_path), "File path should be relative, not absolute"
+        assert not os.path.isabs(file_path), (
+            "File path should be relative, not absolute"
+        )
 
 
 class TestFileNodeReferenceFormat:
@@ -226,7 +239,7 @@ class TestFileNodeReferenceFormat:
             "x": 500,
             "y": 200,
             "width": 400,
-            "height": 300
+            "height": 300,
         }
 
         # 验证节点结构
@@ -253,7 +266,7 @@ class TestEmojiMapCompleteness:
             "对比表": "📊",
             "记忆锚点": "⚓",
             "四层次答案": "🎯",
-            "例题教学": "📝"
+            "例题教学": "📝",
         }
 
         expected_explanation_types = [
@@ -262,7 +275,7 @@ class TestEmojiMapCompleteness:
             "对比表",
             "记忆锚点",
             "四层次答案",
-            "例题教学"
+            "例题教学",
         ]
 
         # 验证所有类型都有emoji
@@ -290,24 +303,31 @@ class TestCreateExplanationNodesParameters:
             ("对比表", "./test-对比表-20251015103027.md", "对比分析"),
             ("记忆锚点", "./test-记忆锚点-20251015103028.md", "记忆辅助"),
             ("四层次答案", "./test-四层次答案-20251015103029.md", "四层次解释"),
-            ("例题教学", "./test-例题教学-20251015103030.md", "例题教学")
+            ("例题教学", "./test-例题教学-20251015103030.md", "例题教学"),
         ]
 
         valid_edge_labels = [
-            "口语化解释", "深度解释", "对比分析",
-            "记忆辅助", "四层次解释", "例题教学"
+            "口语化解释",
+            "深度解释",
+            "对比分析",
+            "记忆辅助",
+            "四层次解释",
+            "例题教学",
         ]
 
         for explanation_type, file_path, edge_label in test_cases:
             # 验证参数格式
-            assert file_path.startswith("./"), \
+            assert file_path.startswith("./"), (
                 f"file_path should start with ./ for {explanation_type}"
-            assert edge_label in valid_edge_labels, \
+            )
+            assert edge_label in valid_edge_labels, (
                 f"Invalid edge_label for {explanation_type}: {edge_label}"
+            )
 
             # 验证explanation_type使用中文
-            assert any('\u4e00' <= c <= '\u9fff' for c in explanation_type), \
+            assert any("\u4e00" <= c <= "\u9fff" for c in explanation_type), (
                 f"explanation_type should use Chinese characters: {explanation_type}"
+            )
 
     def test_blue_node_color_standard(self):
         """验证蓝色说明节点使用color="5" """
@@ -320,14 +340,15 @@ class TestCreateExplanationNodesParameters:
             "x": 500,
             "y": 200,
             "width": 350,
-            "height": 150
+            "height": 150,
         }
 
         # 验证
         assert blue_node["color"] == "5", "Blue node should use color='5'"
         assert blue_node["type"] == "text", "Blue node should be text type"
-        assert "（点击查看详细内容）" in blue_node["text"], \
+        assert "（点击查看详细内容）" in blue_node["text"], (
             "Blue node should contain standard text"
+        )
 
 
 class TestFileEncodingAndReadability:
@@ -357,21 +378,20 @@ class TestFileEncodingAndReadability:
 """
 
         with tempfile.NamedTemporaryFile(
-            mode='w',
-            encoding='utf-8',
-            suffix='.md',
-            delete=False
+            mode="w", encoding="utf-8", suffix=".md", delete=False
         ) as f:
             f.write(test_content)
             temp_path = f.name
 
         try:
             # 读取文件验证编码
-            with open(temp_path, 'r', encoding='utf-8') as f:
+            with open(temp_path, "r", encoding="utf-8") as f:
                 content = f.read()
                 assert "测试概念" in content, "Chinese content should be readable"
                 assert "## 生成信息" in content, "Markdown headers should be preserved"
-                assert "中文标点符号" in content, "Chinese punctuation should be readable"
+                assert "中文标点符号" in content, (
+                    "Chinese punctuation should be readable"
+                )
 
             # 验证文件大小（确保没有编码问题导致的截断）
             assert os.path.getsize(temp_path) > 0, "File should not be empty"
@@ -421,15 +441,17 @@ class TestCrossAgentConsistency:
             "generate_filename",
             "build_markdown_content",
             "write_file",
-            "update_canvas"
+            "update_canvas",
         ]
 
         # 验证所有步骤都被定义
         assert len(workflow_steps) == 5, "Should have exactly 5 workflow steps"
-        assert "generate_filename" in workflow_steps, \
+        assert "generate_filename" in workflow_steps, (
             "Workflow should include filename generation"
-        assert "update_canvas" in workflow_steps, \
+        )
+        assert "update_canvas" in workflow_steps, (
             "Workflow should include Canvas update"
+        )
 
     def test_timestamp_consistency(self):
         """验证所有Agent使用相同的时间戳格式"""

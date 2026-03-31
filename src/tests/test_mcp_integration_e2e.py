@@ -75,7 +75,7 @@ mcp_service:
 """.format(workspace=temp_workspace)
 
         config_path = os.path.join(temp_workspace, "config", "mcp_config.yaml")
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
 
         return config_path
@@ -93,7 +93,7 @@ mcp_service:
                     "y": 100,
                     "width": 400,
                     "height": 200,
-                    "color": "1"
+                    "color": "1",
                 },
                 {
                     "id": "node-explanation-1",
@@ -103,7 +103,7 @@ mcp_service:
                     "y": 100,
                     "width": 500,
                     "height": 300,
-                    "color": "5"
+                    "color": "5",
                 },
                 {
                     "id": "node-understanding-1",
@@ -113,8 +113,8 @@ mcp_service:
                     "y": 100,
                     "width": 450,
                     "height": 250,
-                    "color": "6"
-                }
+                    "color": "6",
+                },
             ],
             "edges": [
                 {
@@ -122,13 +122,13 @@ mcp_service:
                     "fromNode": "node-question-1",
                     "toNode": "node-explanation-1",
                     "fromSide": "right",
-                    "toSide": "left"
+                    "toSide": "left",
                 }
-            ]
+            ],
         }
 
         canvas_path = os.path.join(temp_workspace, "test_canvas.canvas")
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False, indent=2)
 
         return canvas_path
@@ -136,12 +136,13 @@ mcp_service:
     @pytest.fixture
     def mock_dependencies(self):
         """Mock所有外部依赖"""
-        with patch('mcp_memory_client.CHROMADB_AVAILABLE', True), \
-             patch('mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE', True), \
-             patch('mcp_memory_client.NUMPY_AVAILABLE', True), \
-             patch('semantic_processor.JIEBA_AVAILABLE', True), \
-             patch('creative_association_engine.NUMPY_AVAILABLE', True):
-
+        with (
+            patch("mcp_memory_client.CHROMADB_AVAILABLE", True),
+            patch("mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE", True),
+            patch("mcp_memory_client.NUMPY_AVAILABLE", True),
+            patch("semantic_processor.JIEBA_AVAILABLE", True),
+            patch("creative_association_engine.NUMPY_AVAILABLE", True),
+        ):
             # Mock ChromaDB
             mock_chromadb = Mock()
             mock_settings = Mock()
@@ -170,41 +171,52 @@ mcp_service:
             mock_jieba = Mock()
             mock_pseg = Mock()
             mock_word = Mock()
-            mock_word.flag = 'n'
-            mock_jieba.cut.return_value = ['逆否', '命题', '逻辑学', '重要', '概念']
-            mock_jieba.posseg.cut.return_value = [mock_word, mock_word, mock_word, mock_word, mock_word]
+            mock_word.flag = "n"
+            mock_jieba.cut.return_value = ["逆否", "命题", "逻辑学", "重要", "概念"]
+            mock_jieba.posseg.cut.return_value = [
+                mock_word,
+                mock_word,
+                mock_word,
+                mock_word,
+                mock_word,
+            ]
 
             # Apply patches
             patches = [
-                patch('chromadb.PersistentClient', mock_chromadb.PersistentClient),
-                patch('chromadb.Settings', mock_chromadb.Settings),
-                patch('sentence_transformers.SentenceTransformer', mock_sentence_transformers.SentenceTransformer),
-                patch('torch.cuda.is_available', mock_torch.cuda.is_available),
-                patch('numpy.array', mock_numpy.array),
-                patch('numpy.mean', mock_numpy.mean),
-                patch('numpy.random.rand', mock_numpy.random.rand),
-                patch('jieba.cut', mock_jieba.cut),
-                patch('jieba.posseg.cut', mock_jieba.posseg.cut),
-                patch('jieba.add_word', lambda *args, **kwargs: None)
+                patch("chromadb.PersistentClient", mock_chromadb.PersistentClient),
+                patch("chromadb.Settings", mock_chromadb.Settings),
+                patch(
+                    "sentence_transformers.SentenceTransformer",
+                    mock_sentence_transformers.SentenceTransformer,
+                ),
+                patch("torch.cuda.is_available", mock_torch.cuda.is_available),
+                patch("numpy.array", mock_numpy.array),
+                patch("numpy.mean", mock_numpy.mean),
+                patch("numpy.random.rand", mock_numpy.random.rand),
+                patch("jieba.cut", mock_jieba.cut),
+                patch("jieba.posseg.cut", mock_jieba.posseg.cut),
+                patch("jieba.add_word", lambda *args, **kwargs: None),
             ]
 
             for p in patches:
                 p.start()
 
             yield {
-                'chromadb': mock_chromadb,
-                'sentence_transformers': mock_sentence_transformers,
-                'torch': mock_torch,
-                'numpy': mock_numpy,
-                'jieba': mock_jieba
+                "chromadb": mock_chromadb,
+                "sentence_transformers": mock_sentence_transformers,
+                "torch": mock_torch,
+                "numpy": mock_numpy,
+                "jieba": mock_jieba,
             }
 
             for p in patches:
                 p.stop()
 
-    def test_complete_workflow(self, temp_config_file, temp_canvas_file, mock_dependencies):
+    def test_complete_workflow(
+        self, temp_config_file, temp_canvas_file, mock_dependencies
+    ):
         """测试完整工作流程"""
-        with patch('canvas_utils.CanvasJSONOperator') as mock_canvas_operator:
+        with patch("canvas_utils.CanvasJSONOperator") as mock_canvas_operator:
             # Mock Canvas操作
             mock_canvas_operator.read_canvas.return_value = {
                 "nodes": [
@@ -212,7 +224,7 @@ mcp_service:
                         "id": "node-question-1",
                         "type": "text",
                         "text": "什么是逆否命题？",
-                        "color": "1"
+                        "color": "1",
                     }
                 ]
             }
@@ -340,16 +352,11 @@ mcp_service:
 
     def test_command_interface_workflow(self, temp_config_file, mock_dependencies):
         """测试命令行接口工作流程"""
-        with patch('canvas_utils.CanvasJSONOperator') as mock_canvas_operator:
+        with patch("canvas_utils.CanvasJSONOperator") as mock_canvas_operator:
             # Mock Canvas操作
             mock_canvas_operator.read_canvas.return_value = {
                 "nodes": [
-                    {
-                        "id": "node-1",
-                        "type": "text",
-                        "text": "测试内容",
-                        "color": "6"
-                    }
+                    {"id": "node-1", "type": "text", "text": "测试内容", "color": "6"}
                 ]
             }
 
@@ -358,8 +365,7 @@ mcp_service:
 
             # 测试存储命令
             store_result = cmd_interface.store_memory_command(
-                "测试记忆内容",
-                {"source": "command_test"}
+                "测试记忆内容", {"source": "command_test"}
             )
             assert store_result["success"] is True
             assert "memory_id" in store_result
@@ -370,7 +376,9 @@ mcp_service:
             assert "results" in search_result
 
             # 测试创意洞察命令
-            creative_result = cmd_interface.creative_insights_command("概念", "moderate")
+            creative_result = cmd_interface.creative_insights_command(
+                "概念", "moderate"
+            )
             assert creative_result["success"] is True
             assert "result" in creative_result
 
@@ -434,16 +442,20 @@ mcp_service:
     def test_configuration_validation(self, temp_workspace, mock_dependencies):
         """测试配置验证"""
         # 测试无效YAML配置
-        invalid_config_path = os.path.join(temp_workspace, "config", "invalid_config.yaml")
-        with open(invalid_config_path, 'w', encoding='utf-8') as f:
+        invalid_config_path = os.path.join(
+            temp_workspace, "config", "invalid_config.yaml"
+        )
+        with open(invalid_config_path, "w", encoding="utf-8") as f:
             f.write("invalid: yaml: content: [")
 
         with pytest.raises(Exception):
             MCPSemanticMemory(invalid_config_path)
 
         # 测试缺少必要字段
-        minimal_config_path = os.path.join(temp_workspace, "config", "minimal_config.yaml")
-        with open(minimal_config_path, 'w', encoding='utf-8') as f:
+        minimal_config_path = os.path.join(
+            temp_workspace, "config", "minimal_config.yaml"
+        )
+        with open(minimal_config_path, "w", encoding="utf-8") as f:
             f.write("mcp_service: {}")
 
         # 这应该使用默认配置
@@ -451,30 +463,27 @@ mcp_service:
         assert memory_client.config is not None
         memory_client.close()
 
-    def test_data_integrity(self, temp_config_file, temp_canvas_file, mock_dependencies):
+    def test_data_integrity(
+        self, temp_config_file, temp_canvas_file, mock_dependencies
+    ):
         """测试数据完整性"""
-        with patch('canvas_utils.CanvasJSONOperator') as mock_canvas_operator:
+        with patch("canvas_utils.CanvasJSONOperator") as mock_canvas_operator:
             # Mock Canvas操作
             mock_canvas_operator.read_canvas.return_value = {
                 "nodes": [
-                    {
-                        "id": "node-1",
-                        "type": "text",
-                        "text": "测试内容",
-                        "color": "1"
-                    },
+                    {"id": "node-1", "type": "text", "text": "测试内容", "color": "1"},
                     {
                         "id": "node-2",
                         "type": "text",
                         "text": "",  # 空内容节点
-                        "color": "1"
+                        "color": "1",
                     },
                     {
                         "id": "node-3",
                         "type": "file",  # 非文本节点
                         "file": "test.pdf",
-                        "color": "1"
-                    }
+                        "color": "1",
+                    },
                 ]
             }
 
@@ -484,8 +493,8 @@ mcp_service:
 
             # 验证只处理有效的文本节点
             assert result["processed_nodes"] == 1  # 只处理了一个有效文本节点
-            assert result["skipped_nodes"] == 2    # 跳过了2个节点
-            assert len(result["memory_ids"]) == 1   # 只创建了1个记忆
+            assert result["skipped_nodes"] == 2  # 跳过了2个节点
+            assert len(result["memory_ids"]) == 1  # 只创建了1个记忆
 
             # 验证错误处理
             assert len(result["processing_errors"]) == 0
@@ -503,7 +512,9 @@ mcp_service:
         def store_memory(index):
             try:
                 content = f"并发测试内容 {index}"
-                memory_id = memory_client.store_semantic_memory(content, {"thread": index})
+                memory_id = memory_client.store_semantic_memory(
+                    content, {"thread": index}
+                )
                 results.append(memory_id)
             except Exception as e:
                 errors.append((index, str(e)))

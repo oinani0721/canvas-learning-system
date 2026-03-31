@@ -14,7 +14,9 @@ import pytest
 class TestDecomposeBasic:
     """Tests for POST /api/v1/agents/decompose/basic endpoint."""
 
-    def test_decompose_basic_success(self, client, api_v1_prefix, valid_decompose_request):
+    def test_decompose_basic_success(
+        self, client, api_v1_prefix, valid_decompose_request
+    ):
         """
         Test basic decomposition returns questions and nodes.
 
@@ -22,8 +24,7 @@ class TestDecomposeBasic:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/decompose/basic",
-            json=valid_decompose_request()
+            f"{api_v1_prefix}/agents/decompose/basic", json=valid_decompose_request()
         )
 
         assert response.status_code == 200
@@ -43,8 +44,7 @@ class TestDecomposeBasic:
         """
         invalid_request = {"canvas_name": "test"}  # Missing node_id
         response = client.post(
-            f"{api_v1_prefix}/agents/decompose/basic",
-            json=invalid_request
+            f"{api_v1_prefix}/agents/decompose/basic", json=invalid_request
         )
 
         assert response.status_code == 422
@@ -54,7 +54,9 @@ class TestDecomposeBasic:
 class TestDecomposeDeep:
     """Tests for POST /api/v1/agents/decompose/deep endpoint."""
 
-    def test_decompose_deep_success(self, client, api_v1_prefix, valid_decompose_request):
+    def test_decompose_deep_success(
+        self, client, api_v1_prefix, valid_decompose_request
+    ):
         """
         Test deep decomposition returns questions and nodes.
 
@@ -62,8 +64,7 @@ class TestDecomposeDeep:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/decompose/deep",
-            json=valid_decompose_request()
+            f"{api_v1_prefix}/agents/decompose/deep", json=valid_decompose_request()
         )
 
         assert response.status_code == 200
@@ -79,10 +80,7 @@ class TestDecomposeDeep:
 
         AC: Returns 422 validation error for invalid data.
         """
-        response = client.post(
-            f"{api_v1_prefix}/agents/decompose/deep",
-            json={}
-        )
+        response = client.post(f"{api_v1_prefix}/agents/decompose/deep", json={})
 
         assert response.status_code == 422
 
@@ -99,10 +97,7 @@ class TestScoreUnderstanding:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         request_data = valid_score_request()
-        response = client.post(
-            f"{api_v1_prefix}/agents/score",
-            json=request_data
-        )
+        response = client.post(f"{api_v1_prefix}/agents/score", json=request_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -131,10 +126,7 @@ class TestScoreUnderstanding:
         AC: Returns 422 validation error for invalid data.
         """
         invalid_request = {"canvas_name": "test"}  # Missing node_ids
-        response = client.post(
-            f"{api_v1_prefix}/agents/score",
-            json=invalid_request
-        )
+        response = client.post(f"{api_v1_prefix}/agents/score", json=invalid_request)
 
         assert response.status_code == 422
 
@@ -151,8 +143,7 @@ class TestExplainOral:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/explain/oral",
-            json=valid_explain_request()
+            f"{api_v1_prefix}/agents/explain/oral", json=valid_explain_request()
         )
 
         assert response.status_code == 200
@@ -168,10 +159,7 @@ class TestExplainOral:
 
         AC: Returns 422 validation error for invalid data.
         """
-        response = client.post(
-            f"{api_v1_prefix}/agents/explain/oral",
-            json={}
-        )
+        response = client.post(f"{api_v1_prefix}/agents/explain/oral", json={})
 
         assert response.status_code == 422
 
@@ -180,7 +168,9 @@ class TestExplainOral:
 class TestExplainClarification:
     """Tests for POST /api/v1/agents/explain/clarification endpoint."""
 
-    def test_explain_clarification_success(self, client, api_v1_prefix, valid_explain_request):
+    def test_explain_clarification_success(
+        self, client, api_v1_prefix, valid_explain_request
+    ):
         """
         Test clarification path returns explanation and node.
 
@@ -189,7 +179,7 @@ class TestExplainClarification:
         """
         response = client.post(
             f"{api_v1_prefix}/agents/explain/clarification",
-            json=valid_explain_request()
+            json=valid_explain_request(),
         )
 
         assert response.status_code == 200
@@ -203,8 +193,7 @@ class TestExplainClarification:
         Test explain with invalid data returns 422.
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/explain/clarification",
-            json={"invalid": "data"}
+            f"{api_v1_prefix}/agents/explain/clarification", json={"invalid": "data"}
         )
 
         assert response.status_code == 422
@@ -214,7 +203,9 @@ class TestExplainClarification:
 class TestExplainComparison:
     """Tests for POST /api/v1/agents/explain/comparison endpoint."""
 
-    def test_explain_comparison_success(self, client, api_v1_prefix, valid_explain_request):
+    def test_explain_comparison_success(
+        self, client, api_v1_prefix, valid_explain_request
+    ):
         """
         Test comparison table returns explanation and node.
 
@@ -222,8 +213,7 @@ class TestExplainComparison:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/explain/comparison",
-            json=valid_explain_request()
+            f"{api_v1_prefix}/agents/explain/comparison", json=valid_explain_request()
         )
 
         assert response.status_code == 200
@@ -237,8 +227,7 @@ class TestExplainComparison:
         Test explain with missing node_id returns 422.
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/explain/comparison",
-            json={"canvas_name": "test"}
+            f"{api_v1_prefix}/agents/explain/comparison", json={"canvas_name": "test"}
         )
 
         assert response.status_code == 422
@@ -256,8 +245,7 @@ class TestExplainMemory:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/explain/memory",
-            json=valid_explain_request()
+            f"{api_v1_prefix}/agents/explain/memory", json=valid_explain_request()
         )
 
         assert response.status_code == 200
@@ -270,10 +258,7 @@ class TestExplainMemory:
         """
         Test explain with empty body returns 422.
         """
-        response = client.post(
-            f"{api_v1_prefix}/agents/explain/memory",
-            json={}
-        )
+        response = client.post(f"{api_v1_prefix}/agents/explain/memory", json={})
 
         assert response.status_code == 422
 
@@ -282,7 +267,9 @@ class TestExplainMemory:
 class TestExplainFourLevel:
     """Tests for POST /api/v1/agents/explain/four-level endpoint."""
 
-    def test_explain_four_level_success(self, client, api_v1_prefix, valid_explain_request):
+    def test_explain_four_level_success(
+        self, client, api_v1_prefix, valid_explain_request
+    ):
         """
         Test four-level explanation returns explanation and node.
 
@@ -290,8 +277,7 @@ class TestExplainFourLevel:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/explain/four-level",
-            json=valid_explain_request()
+            f"{api_v1_prefix}/agents/explain/four-level", json=valid_explain_request()
         )
 
         assert response.status_code == 200
@@ -307,8 +293,7 @@ class TestExplainFourLevel:
         Test explain with invalid data returns 422.
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/explain/four-level",
-            json={"wrong_field": "value"}
+            f"{api_v1_prefix}/agents/explain/four-level", json={"wrong_field": "value"}
         )
 
         assert response.status_code == 422
@@ -318,7 +303,9 @@ class TestExplainFourLevel:
 class TestExplainExample:
     """Tests for POST /api/v1/agents/explain/example endpoint."""
 
-    def test_explain_example_success(self, client, api_v1_prefix, valid_explain_request):
+    def test_explain_example_success(
+        self, client, api_v1_prefix, valid_explain_request
+    ):
         """
         Test example teaching returns explanation and node.
 
@@ -326,8 +313,7 @@ class TestExplainExample:
         Source: specs/api/fastapi-backend-api.openapi.yml
         """
         response = client.post(
-            f"{api_v1_prefix}/agents/explain/example",
-            json=valid_explain_request()
+            f"{api_v1_prefix}/agents/explain/example", json=valid_explain_request()
         )
 
         assert response.status_code == 200
@@ -340,9 +326,6 @@ class TestExplainExample:
         """
         Test explain with missing required fields returns 422.
         """
-        response = client.post(
-            f"{api_v1_prefix}/agents/explain/example",
-            json={}
-        )
+        response = client.post(f"{api_v1_prefix}/agents/explain/example", json={})
 
         assert response.status_code == 422

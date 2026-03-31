@@ -34,10 +34,7 @@ class WSMessage:
     """
 
     def __init__(
-        self,
-        msg_type: str,
-        data: Dict[str, Any],
-        timestamp: Optional[str] = None
+        self, msg_type: str, data: Dict[str, Any], timestamp: Optional[str] = None
     ):
         self.type = msg_type
         self.data = data
@@ -45,11 +42,7 @@ class WSMessage:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        return {
-            "type": self.type,
-            "data": self.data,
-            "timestamp": self.timestamp
-        }
+        return {"type": self.type, "data": self.data, "timestamp": self.timestamp}
 
 
 class ProgressConnectionManager:
@@ -97,7 +90,7 @@ class ProgressConnectionManager:
         # [Source: docs/stories/19.4.story.md:99-102 - ConnectionAckData]
         ack_message = WSMessage(
             msg_type="connection_ack",
-            data={"status": "connected", "canvas_id": canvas_id}
+            data={"status": "connected", "canvas_id": canvas_id},
         )
         await websocket.send_json(ack_message.to_dict())
 
@@ -128,7 +121,7 @@ class ProgressConnectionManager:
         self,
         canvas_id: str,
         progress_data: Dict[str, Any],
-        changed_node: Optional[Dict[str, Any]] = None
+        changed_node: Optional[Dict[str, Any]] = None,
     ) -> int:
         """
         Broadcast progress update to all connected clients for a canvas.
@@ -152,8 +145,8 @@ class ProgressConnectionManager:
             data={
                 "canvas_id": canvas_id,
                 **progress_data,
-                "changed_node": changed_node
-            }
+                "changed_node": changed_node,
+            },
         )
 
         disconnected: List[WebSocket] = []
@@ -175,10 +168,7 @@ class ProgressConnectionManager:
         return notified
 
     async def send_error(
-        self,
-        websocket: WebSocket,
-        error_code: str,
-        error_message: str
+        self, websocket: WebSocket, error_code: str, error_message: str
     ) -> None:
         """
         Send an error message to a specific client.
@@ -189,8 +179,7 @@ class ProgressConnectionManager:
             error_message: Human-readable error message
         """
         message = WSMessage(
-            msg_type="error",
-            data={"code": error_code, "message": error_message}
+            msg_type="error", data={"code": error_code, "message": error_message}
         )
         try:
             await websocket.send_json(message.to_dict())
@@ -210,10 +199,7 @@ class ProgressConnectionManager:
 manager = ProgressConnectionManager()
 
 
-async def websocket_progress_endpoint(
-    websocket: WebSocket,
-    canvas_id: str
-) -> None:
+async def websocket_progress_endpoint(websocket: WebSocket, canvas_id: str) -> None:
     """
     WebSocket endpoint for progress updates.
 
@@ -271,7 +257,7 @@ class CanvasFileWatcher:
     def __init__(
         self,
         watch_path: str,
-        on_canvas_change: Optional[Callable[[str, Dict[str, Any]], None]] = None
+        on_canvas_change: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     ):
         """
         Initialize the Canvas file watcher.
@@ -289,16 +275,14 @@ class CanvasFileWatcher:
     def _load_canvas(self, path: Path) -> Optional[Dict[str, Any]]:
         """Load and parse a canvas JSON file."""
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError) as e:
             logger.warning(f"Failed to load canvas {path}: {e}")
             return None
 
     def _detect_node_changes(
-        self,
-        old_data: Optional[Dict[str, Any]],
-        new_data: Dict[str, Any]
+        self, old_data: Optional[Dict[str, Any]], new_data: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """
         Detect which node changed between old and new canvas data.
@@ -309,53 +293,47 @@ class CanvasFileWatcher:
         if old_data is None:
             return None
 
-        old_nodes = {n['id']: n for n in old_data.get('nodes', [])}
-        new_nodes = {n['id']: n for n in new_data.get('nodes', [])}
+        old_nodes = {n["id"]: n for n in old_data.get("nodes", [])}
+        new_nodes = {n["id"]: n for n in new_data.get("nodes", [])}
 
         # Find color changes
         for node_id, new_node in new_nodes.items():
             if node_id in old_nodes:
                 old_node = old_nodes[node_id]
-                old_color = old_node.get('color', '')
-                new_color = new_node.get('color', '')
+                old_color = old_node.get("color", "")
+                new_color = new_node.get("color", "")
 
                 if old_color != new_color:
                     return {
                         "node_id": node_id,
-                        "source_node_id": new_node.get('sourceNodeId', ''),
+                        "source_node_id": new_node.get("sourceNodeId", ""),
                         "old_color": old_color,
-                        "new_color": new_color
+                        "new_color": new_color,
                     }
 
         return None
 
-    def _calculate_progress(
-        self,
-        canvas_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _calculate_progress(self, canvas_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Calculate progress statistics from canvas data.
 
         [Source: Story 19.2 - ProgressAnalyzer integration]
         """
-        nodes = canvas_data.get('nodes', [])
+        nodes = canvas_data.get("nodes", [])
 
         # Count nodes with sourceNodeId (verification nodes)
-        source_nodes = [n for n in nodes if 'sourceNodeId' in n]
+        source_nodes = [n for n in nodes if "sourceNodeId" in n]
         total_concepts = len(source_nodes)
 
         # Count passed (green = "2")
-        passed_count = sum(
-            1 for n in source_nodes
-            if n.get('color') == '2'
-        )
+        passed_count = sum(1 for n in source_nodes if n.get("color") == "2")
 
         coverage_rate = passed_count / total_concepts if total_concepts > 0 else 0.0
 
         return {
             "total_concepts": total_concepts,
             "passed_count": passed_count,
-            "coverage_rate": round(coverage_rate, 4)
+            "coverage_rate": round(coverage_rate, 4),
         }
 
     async def handle_file_modified(self, file_path: str) -> None:
@@ -368,7 +346,7 @@ class CanvasFileWatcher:
         path = Path(file_path)
 
         # Only process .canvas files
-        if path.suffix != '.canvas':
+        if path.suffix != ".canvas":
             return
 
         canvas_id = path.name
@@ -389,9 +367,7 @@ class CanvasFileWatcher:
 
         # Broadcast update
         notified = await manager.broadcast_progress_update(
-            canvas_id,
-            progress_data,
-            changed_node
+            canvas_id, progress_data, changed_node
         )
 
         if notified > 0:
@@ -420,11 +396,11 @@ class CanvasFileWatcher:
             return
 
         class CanvasEventHandler(FileSystemEventHandler):
-            def __init__(handler_self, watcher: 'CanvasFileWatcher'):
+            def __init__(handler_self, watcher: "CanvasFileWatcher"):
                 handler_self.watcher = watcher
 
             def on_modified(handler_self, event):
-                if not event.is_directory and event.src_path.endswith('.canvas'):
+                if not event.is_directory and event.src_path.endswith(".canvas"):
                     # Schedule async handler
                     asyncio.create_task(
                         handler_self.watcher.handle_file_modified(event.src_path)
@@ -433,11 +409,7 @@ class CanvasFileWatcher:
         # ✅ Verified from Context7: Observer and schedule pattern
         self._observer = Observer()
         event_handler = CanvasEventHandler(self)
-        self._observer.schedule(
-            event_handler,
-            str(self.watch_path),
-            recursive=True
-        )
+        self._observer.schedule(event_handler, str(self.watch_path), recursive=True)
         self._observer.start()
         self._running = True
 

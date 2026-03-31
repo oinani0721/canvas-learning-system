@@ -17,16 +17,19 @@ import pytest
 class TestQAEnvVarParsing:
     """QA: Pydantic parses various truthy/falsy env values correctly."""
 
-    @pytest.mark.parametrize("env_value,expected", [
-        ("true", True),
-        ("True", True),
-        ("TRUE", True),
-        ("1", True),
-        ("false", False),
-        ("False", False),
-        ("FALSE", False),
-        ("0", False),
-    ])
+    @pytest.mark.parametrize(
+        "env_value,expected",
+        [
+            ("true", True),
+            ("True", True),
+            ("TRUE", True),
+            ("1", True),
+            ("false", False),
+            ("False", False),
+            ("FALSE", False),
+            ("0", False),
+        ],
+    )
     def test_pydantic_bool_parsing_variants(self, env_value, expected):
         """Various truthy/falsy string values are parsed correctly by Pydantic."""
         from app.config import Settings
@@ -61,7 +64,9 @@ class TestQAGetAttrDefenseInDepth:
 
         # getattr with False fallback is a valid defense pattern
         result = getattr(fresh_settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False)
-        assert result is True, "getattr should return the actual True value, not the False fallback"
+        assert result is True, (
+            "getattr should return the actual True value, not the False fallback"
+        )
 
     def test_env_example_documents_true_default(self):
         """The .env.example file documents the safe default correctly."""

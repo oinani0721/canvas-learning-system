@@ -22,9 +22,6 @@ from typing import List
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from app.models.session_models import SessionStatus
 from app.services.batch_orchestrator import (
     BatchOrchestrator,
@@ -32,6 +29,7 @@ from app.services.batch_orchestrator import (
 )
 from app.services.session_manager import SessionManager
 
+from tests.conftest import simulate_async_delay
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test Configuration
@@ -49,6 +47,7 @@ MEMORY_THRESHOLD_MB = 2048  # 2GB maximum
 @dataclass
 class LoadTestResults:
     """Results from the 100-node load test."""
+
     total_duration_s: float
     node_durations_ms: List[float]
     p50_ms: float
@@ -65,6 +64,7 @@ class LoadTestResults:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Mock Agent Service
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def create_mock_agent_service(delay_ms: int = SIMULATED_AGENT_DELAY_MS):
     """Create a mock AgentService that simulates processing delay."""
@@ -86,6 +86,7 @@ def create_mock_agent_service(delay_ms: int = SIMULATED_AGENT_DELAY_MS):
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture(autouse=True)
 def reset_session_manager_singleton():
@@ -117,22 +118,27 @@ def orchestrator(session_manager, mock_agent_service):
     )
 
 
-def make_groups(num_groups: int = GROUPS, nodes_per_group: int = NODES_PER_GROUP) -> List[GroupConfig]:
+def make_groups(
+    num_groups: int = GROUPS, nodes_per_group: int = NODES_PER_GROUP
+) -> List[GroupConfig]:
     """Generate test group configurations."""
     groups = []
     for g in range(num_groups):
         node_ids = [f"node-{g * nodes_per_group + n}" for n in range(nodes_per_group)]
-        groups.append(GroupConfig(
-            group_id=f"group-{g}",
-            agent_type="basic-decomposition",
-            node_ids=node_ids,
-        ))
+        groups.append(
+            GroupConfig(
+                group_id=f"group-{g}",
+                agent_type="basic-decomposition",
+                node_ids=node_ids,
+            )
+        )
     return groups
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Load Test
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_100_node_batch_performance(orchestrator, session_manager):
@@ -326,7 +332,9 @@ async def test_100_node_batch_with_partial_failures(session_manager):
     success = result.get("completed_nodes", 0)
     failed = result.get("failed_nodes", 0)
 
-    print(f"\n  Partial Failure Test: {success} success, {failed} failed in {duration:.2f}s")
+    print(
+        f"\n  Partial Failure Test: {success} success, {failed} failed in {duration:.2f}s"
+    )
 
     # At least 80% should succeed (10% failure rate → ~90 success)
     assert success >= 80, f"Too many failures: only {success}/{NODE_COUNT} succeeded"
@@ -358,17 +366,23 @@ async def test_concurrent_sessions_isolation(session_manager, mock_agent_service
     sid1 = await session_manager.create_session("test/s1.canvas", 50)
     sid2 = await session_manager.create_session("test/s2.canvas", 50)
 
-    groups1 = [GroupConfig(
-        group_id=f"s1-g{i}",
-        agent_type="basic-decomposition",
-        node_ids=[f"s1-node-{i * 10 + j}" for j in range(10)],
-    ) for i in range(5)]
+    groups1 = [
+        GroupConfig(
+            group_id=f"s1-g{i}",
+            agent_type="basic-decomposition",
+            node_ids=[f"s1-node-{i * 10 + j}" for j in range(10)],
+        )
+        for i in range(5)
+    ]
 
-    groups2 = [GroupConfig(
-        group_id=f"s2-g{i}",
-        agent_type="oral-explanation",
-        node_ids=[f"s2-node-{i * 10 + j}" for j in range(10)],
-    ) for i in range(5)]
+    groups2 = [
+        GroupConfig(
+            group_id=f"s2-g{i}",
+            agent_type="oral-explanation",
+            node_ids=[f"s2-node-{i * 10 + j}" for j in range(10)],
+        )
+        for i in range(5)
+    ]
 
     start = time.perf_counter()
 

@@ -3,7 +3,11 @@
 """Business logic services for Canvas Learning System."""
 
 from app.services.agent_service import AgentResult, AgentService, AgentType
-from app.services.background_task_manager import BackgroundTaskManager, TaskInfo, TaskStatus
+from app.services.background_task_manager import (
+    BackgroundTaskManager,
+    TaskInfo,
+    TaskStatus,
+)
 from app.services.canvas_service import CanvasService
 from app.services.metrics_collector import (
     HealthStatus,

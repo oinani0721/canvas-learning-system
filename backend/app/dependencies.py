@@ -16,6 +16,7 @@ Dependency Graph:
 [Source: docs/stories/15.3.story.md#Dev-Notes]
 [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入架构]
 """
+
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependency injection Depends)
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings BaseSettings lru_cache)
@@ -31,20 +32,18 @@ if TYPE_CHECKING:
 from fastapi import Depends
 
 from .clients.gemini_client import GeminiClient
+from .clients.graphiti_client import Neo4jEdgeClient
+
+# Story 36.1: Unified Learning Client Architecture (S34 G-FAKE-001: renamed)
+from .clients.neo4j_client import Neo4jClient, get_neo4j_client
 from .config import Settings
 from .services.agent_service import AgentService
 from .services.background_task_manager import BackgroundTaskManager
 from .services.canvas_service import CanvasService
 from .services.context_enrichment_service import ContextEnrichmentService
-from .services.cross_canvas_service import CrossCanvasService, get_cross_canvas_service
 from .services.rag_service import get_rag_service
 from .services.review_service import ReviewService
-from .services.textbook_context_service import TextbookContextConfig, TextbookContextService
 from .services.verification_service import VerificationService
-
-# Story 36.1: Unified Learning Client Architecture (S34 G-FAKE-001: renamed)
-from .clients.neo4j_client import Neo4jClient, get_neo4j_client
-from .clients.graphiti_client import Neo4jEdgeClient
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +51,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Settings Dependency (Singleton)
 # =============================================================================
+
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings BaseSettings lru_cache)
 # Using @lru_cache ensures Settings is instantiated only once
@@ -91,9 +91,10 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 # CanvasService Dependency (with yield for resource cleanup)
 # =============================================================================
 
+
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
 async def get_canvas_service(
-    settings: SettingsDep
+    settings: SettingsDep,
 ) -> AsyncGenerator[CanvasService, None]:
     """
     Get CanvasService instance with automatic resource cleanup.
@@ -129,13 +130,13 @@ async def get_canvas_service(
     memory_client = None
     try:
         from app.services.memory_service import get_memory_service as _get_memory_svc
+
         memory_client = await _get_memory_svc()
     except Exception as e:
         logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
 
     service = CanvasService(
-        canvas_base_path=settings.canvas_base_path,
-        memory_client=memory_client
+        canvas_base_path=settings.canvas_base_path, memory_client=memory_client
     )
     try:
         yield service
@@ -153,11 +154,12 @@ CanvasServiceDep = Annotated[CanvasService, Depends(get_canvas_service)]
 # AgentService Dependency (with yield for resource cleanup)
 # =============================================================================
 
+
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
 async def get_agent_service(
     settings: SettingsDep,
     canvas_service: CanvasServiceDep,  # ✅ FIX-Canvas-Write: 注入 CanvasService
-    neo4j_client: Neo4jClientDep  # Story 36.7: 注入 Neo4jClient
+    neo4j_client: Neo4jClientDep,  # Story 36.7: 注入 Neo4jClient
 ) -> AsyncGenerator[AgentService, None]:
     """
     Get AgentService instance with automatic resource cleanup.
@@ -200,18 +202,23 @@ async def get_agent_service(
             gemini_client = GeminiClient(
                 api_key=settings.AI_API_KEY,
                 # model not passed — GeminiClient.model property reads Settings dynamically
-                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
+                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
             )
-            logger.info(f"GeminiClient created: model={settings.AI_MODEL_NAME} (dynamic), "
-                       f"provider={settings.AI_PROVIDER}")
+            logger.info(
+                f"GeminiClient created: model={settings.AI_MODEL_NAME} (dynamic), "
+                f"provider={settings.AI_PROVIDER}"
+            )
         except Exception as e:
             logger.error(f"Failed to create GeminiClient: {e}")
     else:
-        logger.warning("AI_API_KEY not configured, AgentService will not have AI capabilities")
+        logger.warning(
+            "AI_API_KEY not configured, AgentService will not have AI capabilities"
+        )
 
     # Story 36.11: Inject LearningMemoryClient for memory fallback when Neo4j unavailable
     # S34 G-PIPE fix: 强制注入 — JSON file client, init failure = code bug
     from .clients.graphiti_client import get_learning_memory_client
+
     memory_client = get_learning_memory_client()
     logger.debug("LearningMemoryClient injected into AgentService")
 
@@ -227,7 +234,9 @@ async def get_agent_service(
         memory_cache_maxsize=settings.AGENT_MEMORY_CACHE_MAXSIZE,
         memory_cache_ttl=settings.AGENT_MEMORY_CACHE_TTL,
     )
-    logger.debug("AgentService created with CanvasService, Neo4jClient, and LearningMemoryClient")
+    logger.debug(
+        "AgentService created with CanvasService, Neo4jClient, and LearningMemoryClient"
+    )
 
     try:
         yield service
@@ -243,6 +252,7 @@ AgentServiceDep = Annotated[AgentService, Depends(get_agent_service)]
 # =============================================================================
 # BackgroundTaskManager Dependency (Singleton)
 # =============================================================================
+
 
 def get_task_manager() -> BackgroundTaskManager:
     """
@@ -265,6 +275,7 @@ TaskManagerDep = Annotated[BackgroundTaskManager, Depends(get_task_manager)]
 # =============================================================================
 # ReviewService Dependency (Chained: depends on Settings AND CanvasService)
 # =============================================================================
+
 
 # Story 38.9 AC2: Delegate to canonical singleton in services layer.
 # Previously created per-request instances — now uses shared singleton
@@ -293,6 +304,7 @@ async def get_review_service() -> ReviewService:
     [Source: docs/stories/38.9.story.md#AC2]
     """
     from .services.review_service import get_review_service as _get_rs_singleton
+
     return await _get_rs_singleton()
 
 
@@ -306,28 +318,25 @@ ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
 
 # =============================================================================
 # ContextEnrichmentService Dependency (Story 25.2 + Story 25.3)
-# [Source: docs/stories/25.2.story.md#TextbookContextService-Integration]
 # [Source: docs/stories/25.3.story.md#Exercise-Lecture-Canvas-Association]
+# Feature 2.2: Textbook service removed per GDA-2 decision
 # =============================================================================
+
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
 async def get_context_enrichment_service(
-    canvas_service: CanvasServiceDep,
-    settings: SettingsDep
+    canvas_service: CanvasServiceDep, settings: SettingsDep
 ) -> AsyncGenerator[ContextEnrichmentService, None]:
     """
-    Get ContextEnrichmentService instance with TextbookContextService and CrossCanvasService integration.
+    Get ContextEnrichmentService instance with learning memory integration.
 
-    This is a chained dependency that combines Canvas service with textbook context
-    and cross-canvas lecture references.
-    Uses 3-second timeout for textbook queries per Story 25.2 AC4.
+    This is a chained dependency that combines Canvas service with learning memory.
 
     ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
 
     Dependency Chain:
         get_settings() → settings
         get_canvas_service(settings) → canvas_service
-        get_cross_canvas_service() → cross_canvas_service
         get_context_enrichment_service(canvas_service, settings) → context_enrichment_service
 
     Args:
@@ -335,7 +344,7 @@ async def get_context_enrichment_service(
         settings: Application settings (injected via Depends)
 
     Yields:
-        ContextEnrichmentService: Context enrichment service with textbook and cross-canvas support
+        ContextEnrichmentService: Context enrichment service with learning memory support
 
     Example:
         ```python
@@ -350,33 +359,19 @@ async def get_context_enrichment_service(
 
     [Source: docs/stories/25.2.story.md#Dev-Notes]
     [Source: docs/stories/25.3.story.md#Task-4]
-    [AC4: Timeout fallback 3 seconds]
     """
-    logger.debug("Creating ContextEnrichmentService instance with TextbookContextService and CrossCanvasService")
-
-    # AC4: 3-second timeout for textbook queries (Story 25.2)
-    textbook_config = TextbookContextConfig(timeout=3.0)
-    textbook_service = TextbookContextService(
-        canvas_base_path=settings.canvas_base_path,
-        config=textbook_config
-    )
-
-    # Story 25.3: Get CrossCanvasService singleton for cross-canvas context
-    cross_canvas_service = get_cross_canvas_service()
+    logger.debug("Creating ContextEnrichmentService instance")
 
     # P1 Fix: Inject LearningMemoryClient for learning memory enrichment
     # S34 G-PIPE fix: 强制注入 — JSON file client, init failure = code bug
     from .clients.graphiti_client import get_learning_memory_client
+
     learning_memory_service = get_learning_memory_client()
     logger.debug("LearningMemoryClient injected into ContextEnrichmentService")
 
-    # Story 36.13 AC-5: Pass TTLCache maxsize from Settings
     service = ContextEnrichmentService(
         canvas_service=canvas_service,
-        textbook_service=textbook_service,
-        cross_canvas_service=cross_canvas_service,
         learning_memory_service=learning_memory_service,
-        association_cache_maxsize=settings.ENRICHMENT_CACHE_MAXSIZE,
     )
 
     try:
@@ -386,32 +381,9 @@ async def get_context_enrichment_service(
 
 
 # Type alias for ContextEnrichmentService dependency
-ContextEnrichmentServiceDep = Annotated[ContextEnrichmentService, Depends(get_context_enrichment_service)]
-
-
-# =============================================================================
-# CrossCanvasService Dependency (Story 25.3)
-# [Source: docs/stories/25.3.story.md#Exercise-Lecture-Canvas-Association]
-# =============================================================================
-
-def get_cross_canvas_service_dep() -> CrossCanvasService:
-    """
-    Get CrossCanvasService singleton instance.
-
-    The CrossCanvasService uses a singleton pattern for in-memory storage,
-    ensuring consistent state across all requests.
-
-    [Source: Story 25.3 - Exercise-Lecture Canvas Association]
-
-    Returns:
-        CrossCanvasService: Singleton cross-canvas service instance
-    """
-    logger.debug("Getting CrossCanvasService instance")
-    return get_cross_canvas_service()
-
-
-# Type alias for CrossCanvasService dependency
-CrossCanvasServiceDep = Annotated[CrossCanvasService, Depends(get_cross_canvas_service_dep)]
+ContextEnrichmentServiceDep = Annotated[
+    ContextEnrichmentService, Depends(get_context_enrichment_service)
+]
 
 
 # =============================================================================
@@ -419,9 +391,10 @@ CrossCanvasServiceDep = Annotated[CrossCanvasService, Depends(get_cross_canvas_s
 # [Source: docs/architecture/rollback-recovery-architecture.md]
 # =============================================================================
 
+
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
 async def get_rollback_service(
-    settings: SettingsDep
+    settings: SettingsDep,
 ) -> AsyncGenerator["RollbackService", None]:
     """
     Get RollbackService instance with automatic resource cleanup.
@@ -475,6 +448,7 @@ async def get_rollback_service(
 def _get_rollback_service_dep():
     """Helper to create RollbackServiceDep with lazy import."""
     from .services.rollback_service import RollbackService
+
     return Annotated[RollbackService, Depends(get_rollback_service)]
 
 
@@ -482,6 +456,7 @@ def _get_rollback_service_dep():
 # VerificationService Dependency (Story 24.5)
 # [Source: docs/stories/24.5.story.md#Dev-Notes]
 # =============================================================================
+
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
 async def get_verification_service(
@@ -491,21 +466,17 @@ async def get_verification_service(
     """
     Get VerificationService instance with RAG context injection.
 
-    This is a chained dependency that integrates RAGService, CrossCanvasService,
-    and TextbookContextService for intelligent verification canvas generation.
+    This is a chained dependency that integrates RAGService
+    for intelligent verification canvas generation.
 
     Story 24.5 Integration:
     - RAGService for learning history and context
-    - CrossCanvasService for cross-canvas relationships
-    - TextbookContextService for textbook references
 
     ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
 
     Dependency Chain:
         get_settings() → settings
         get_rag_service() → rag_service
-        get_cross_canvas_service() → cross_canvas_service
-        TextbookContextService(settings) → textbook_service
         get_verification_service(...) → verification_service
 
     Args:
@@ -532,9 +503,6 @@ async def get_verification_service(
     # Get RAG service (singleton)
     rag_service = get_rag_service()
 
-    # Get CrossCanvas service (singleton)
-    cross_canvas_service = get_cross_canvas_service()
-
     # Story 31.A.1 AC-31.A.1.1: Get GraphitiTemporalClient singleton
     # [Source: docs/stories/31.A.1.story.md#AC-31.A.1.1]
     graphiti_client = get_neo4j_temporal_client()
@@ -546,17 +514,10 @@ async def get_verification_service(
             "verification question deduplication will be disabled"
         )
 
-    # Create TextbookContext service
-    # Story 24.5 AC4: Textbook context with timeout
-    textbook_config = TextbookContextConfig(timeout=3.0)
-    textbook_service = TextbookContextService(
-        canvas_base_path=settings.canvas_base_path,
-        config=textbook_config
-    )
-
     # Story 31.5: Get MemoryService for difficulty adaptation
     # Import from canonical singleton in memory_service.py (not endpoint)
     from app.services.memory_service import get_memory_service as _get_memory_svc
+
     try:
         memory_service = await _get_memory_svc()
     except Exception as e:
@@ -572,19 +533,22 @@ async def get_verification_service(
             gemini_client = GeminiClient(
                 api_key=settings.AI_API_KEY,
                 # model not passed — GeminiClient.model property reads Settings dynamically
-                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
+                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
             )
         neo4j_client = get_neo4j_client_dep()
         # Fix C2: inject memory_client for hint-generation memory writes
         # S34 G-PIPE fix: 强制注入 — JSON file client, init failure = code bug
         from .clients.graphiti_client import get_learning_memory_client
+
         vs_memory_client = get_learning_memory_client()
         agent_service = AgentService(
             gemini_client=gemini_client,
             neo4j_client=neo4j_client,
-            memory_client=vs_memory_client
+            memory_client=vs_memory_client,
         )
-        logger.info("AgentService created for VerificationService AI integration (with memory_client)")
+        logger.info(
+            "AgentService created for VerificationService AI integration (with memory_client)"
+        )
     except Exception as e:
         logger.warning(f"AgentService not available for verification: {e}")
 
@@ -594,13 +558,11 @@ async def get_verification_service(
     # Story 31.5: Added memory_service injection for difficulty adaptation
     service = VerificationService(
         rag_service=rag_service,
-        cross_canvas_service=cross_canvas_service,
-        textbook_context_service=textbook_service,
         canvas_service=canvas_service,  # Code review fix: inject canvas_service
         graphiti_client=graphiti_client,  # Story 31.A.1: Enable question deduplication
         memory_service=memory_service,  # Story 31.5: Enable difficulty adaptation
         agent_service=agent_service,  # P0-2: Enable AI question generation and scoring
-        canvas_base_path=settings.canvas_base_path  # Story 31.1 AC-31.1.1
+        canvas_base_path=settings.canvas_base_path,  # Story 31.1 AC-31.1.1
     )
 
     try:
@@ -613,7 +575,9 @@ async def get_verification_service(
 
 
 # Type alias for VerificationService dependency
-VerificationServiceDep = Annotated[VerificationService, Depends(get_verification_service)]
+VerificationServiceDep = Annotated[
+    VerificationService, Depends(get_verification_service)
+]
 
 
 # =============================================================================
@@ -623,17 +587,17 @@ VerificationServiceDep = Annotated[VerificationService, Depends(get_verification
 
 from .services.rag_service import RAGService
 
+
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
 async def get_rag_service_dep() -> AsyncGenerator[RAGService, None]:
     """
     Get RAGService instance for Agent-RAG integration.
 
-    Provides RAGService with 5-source parallel retrieval capability:
+    Provides RAGService with 4-source parallel retrieval capability:
     - Graphiti (temporal knowledge graph)
     - LanceDB (vector embeddings)
+    - Vault Notes (markdown files)
     - Multimodal (images/diagrams)
-    - Textbook (lecture references)
-    - CrossCanvas (related canvases)
 
     Uses singleton pattern internally via get_rag_service().
     Supports graceful degradation when LangGraph not available.
@@ -681,6 +645,7 @@ RAGServiceDep = Annotated[RAGService, Depends(get_rag_service_dep)]
 # [Source: docs/stories/36.1.story.md#Unified-GraphitiClient-Architecture]
 # =============================================================================
 
+
 def get_neo4j_client_dep() -> Neo4jClient:
     """
     Get Neo4jClient singleton instance.
@@ -720,9 +685,10 @@ Neo4jClientDep = Annotated[Neo4jClient, Depends(get_neo4j_client_dep)]
 # [Source: docs/stories/36.1.story.md#Unified-GraphitiClient-Architecture]
 # =============================================================================
 
+
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
 async def get_neo4j_edge_client_dep(
-    neo4j_client: Neo4jClientDep
+    neo4j_client: Neo4jClientDep,
 ) -> AsyncGenerator[Neo4jEdgeClient, None]:
     """
     Get Neo4jEdgeClient instance with Neo4jClient dependency injection.
@@ -821,9 +787,7 @@ def get_neo4j_temporal_client():
 
         # Fix: Inject neo4j_client (required parameter)
         _neo4j_temporal_client_instance = GraphitiTemporalClient(
-            neo4j_client=neo4j_client,
-            timeout_ms=500,
-            enable_fallback=True
+            neo4j_client=neo4j_client, timeout_ms=500, enable_fallback=True
         )
         logger.info(
             "GraphitiTemporalClient singleton initialized with Neo4jClient "
@@ -845,7 +809,9 @@ def get_neo4j_temporal_client():
         )
         return None
     except Exception as e:
-        logger.error(f"Failed to initialize Neo4jTemporalClient: {type(e).__name__}: {e}")
+        logger.error(
+            f"Failed to initialize Neo4jTemporalClient: {type(e).__name__}: {e}"
+        )
         return None
 
 
@@ -898,9 +864,12 @@ async def get_multimodal_service_dep(settings: SettingsDep) -> MultimodalService
         lancedb_client = None
         try:
             from agentic_rag.clients.lancedb_client import LanceDBClient as _LDBClient
+
             lancedb_client = _LDBClient()
             await lancedb_client.initialize()
-            logger.info("LanceDBClient created and initialized for MultimodalStore injection")
+            logger.info(
+                "LanceDBClient created and initialized for MultimodalStore injection"
+            )
         except Exception as e_ldb:
             logger.warning(f"LanceDBClient not available for MultimodalStore: {e_ldb}")
             lancedb_client = None
@@ -910,9 +879,13 @@ async def get_multimodal_service_dep(settings: SettingsDep) -> MultimodalService
             vector_dim=1024,  # Story 2.9 AC-3: bge-m3 1024d
         )
         if lancedb_client:
-            logger.info("MultimodalStore injected with LanceDB client — vector search enabled")
+            logger.info(
+                "MultimodalStore injected with LanceDB client — vector search enabled"
+            )
         else:
-            logger.warning("MultimodalStore injected without LanceDB client — vector search disabled")
+            logger.warning(
+                "MultimodalStore injected without LanceDB client — vector search disabled"
+            )
     except ImportError:
         logger.warning(
             "MultimodalStore not available (agentic_rag not installed) — "
@@ -937,9 +910,9 @@ MultimodalServiceDep = Annotated[MultimodalService, Depends(get_multimodal_servi
 # EPIC-33: Intelligent Parallel Processing Dependencies
 # =============================================================================
 
-from .services.session_manager import SessionManager
-from .services.intelligent_grouping_service import IntelligentGroupingService
 from .services.agent_routing_engine import AgentRoutingEngine
+from .services.intelligent_grouping_service import IntelligentGroupingService
+from .services.session_manager import SessionManager
 
 
 def get_session_manager() -> SessionManager:
@@ -960,7 +933,7 @@ SessionManagerDep = Annotated[SessionManager, Depends(get_session_manager)]
 
 
 def get_intelligent_grouping_service(
-    settings: SettingsDep
+    settings: SettingsDep,
 ) -> IntelligentGroupingService:
     """
     Get IntelligentGroupingService instance.
@@ -974,12 +947,16 @@ def get_intelligent_grouping_service(
         IntelligentGroupingService: Grouping service instance
     """
     logger.debug("Creating IntelligentGroupingService instance")
-    canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+    canvas_base_path = (
+        str(settings.canvas_base_path) if settings.canvas_base_path else None
+    )
     return IntelligentGroupingService(canvas_base_path=canvas_base_path)
 
 
 # Type alias for IntelligentGroupingService dependency
-IntelligentGroupingServiceDep = Annotated[IntelligentGroupingService, Depends(get_intelligent_grouping_service)]
+IntelligentGroupingServiceDep = Annotated[
+    IntelligentGroupingService, Depends(get_intelligent_grouping_service)
+]
 
 
 # AgentRoutingEngine singleton
@@ -1040,10 +1017,13 @@ async def build_batch_processing_deps():
             logger.error(f"Failed to create GeminiClient for batch processing: {e}")
 
     # 2. CanvasService with memory_client (same logic as get_canvas_service)
-    canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+    canvas_base_path = (
+        str(settings.canvas_base_path) if settings.canvas_base_path else None
+    )
     cs_memory_client = None
     try:
         from .services.memory_service import get_memory_service as _get_memory_svc
+
         cs_memory_client = await _get_memory_svc()
     except Exception as e:
         logger.warning(f"MemoryService not available for batch CanvasService: {e}")
@@ -1058,9 +1038,12 @@ async def build_batch_processing_deps():
     learning_memory_client = None
     try:
         from .clients.graphiti_client import get_learning_memory_client
+
         learning_memory_client = get_learning_memory_client()
     except Exception as e:
-        logger.warning(f"LearningMemoryClient not available for batch AgentService: {e}")
+        logger.warning(
+            f"LearningMemoryClient not available for batch AgentService: {e}"
+        )
 
     agent_service = AgentService(
         gemini_client=gemini_client,
@@ -1082,7 +1065,9 @@ async def build_batch_processing_deps():
         routing_engine=routing_engine,
     )
 
-    logger.info("Batch processing deps built via dependencies.py (single source of truth)")
+    logger.info(
+        "Batch processing deps built via dependencies.py (single source of truth)"
+    )
     return batch_orchestrator, agent_service, canvas_service
 
 
@@ -1133,7 +1118,6 @@ __all__ = [
     "get_task_manager",
     "get_review_service",
     "get_context_enrichment_service",
-    "get_cross_canvas_service_dep",
     "get_rollback_service",
     "get_verification_service",
     "get_rag_service_dep",  # Story 12.A.2
@@ -1154,7 +1138,6 @@ __all__ = [
     "TaskManagerDep",
     "ReviewServiceDep",
     "ContextEnrichmentServiceDep",
-    "CrossCanvasServiceDep",
     "VerificationServiceDep",
     "RAGServiceDep",  # Story 12.A.2
     "Neo4jClientDep",  # Story 36.1

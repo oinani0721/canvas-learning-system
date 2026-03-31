@@ -19,7 +19,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC-1: Safe Default (D4: Configuration)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -70,8 +69,11 @@ class TestAC1SafeDefault:
         from app.main import lifespan
 
         # Remove env var to simulate fresh install (AC-1: no .env customization)
-        env_without_dw = {k: v for k, v in os.environ.items()
-                         if k != "ENABLE_GRAPHITI_JSON_DUAL_WRITE"}
+        env_without_dw = {
+            k: v
+            for k, v in os.environ.items()
+            if k != "ENABLE_GRAPHITI_JSON_DUAL_WRITE"
+        }
 
         with (
             patch("app.main.get_default_monitor") as mock_monitor,

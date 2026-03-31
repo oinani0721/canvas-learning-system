@@ -77,7 +77,9 @@ def _get_rag_service():
         if _rag_available:
             logger.info("[RAG] RAG service available for context injection")
         else:
-            logger.warning(f"[RAG] RAG service not available: {_rag_service.import_error}")
+            logger.warning(
+                f"[RAG] RAG service not available: {_rag_service.import_error}"
+            )
 
         return _rag_service if _rag_available else None
 
@@ -92,9 +94,7 @@ def _get_rag_service():
 
 
 async def fetch_rag_context(
-    concept: str,
-    source_canvas: str,
-    max_results: int = 3
+    concept: str, source_canvas: str, max_results: int = 3
 ) -> Optional[str]:
     """
     获取RAG上下文
@@ -121,8 +121,7 @@ async def fetch_rag_context(
 
         # 执行查询 (使用优雅降级版本)
         result = await rag_service.query_with_fallback(
-            query=query,
-            canvas_file=source_canvas
+            query=query, canvas_file=source_canvas
         )
 
         # 提取上下文
@@ -136,7 +135,9 @@ async def fetch_rag_context(
 
             if contexts:
                 context = "\n".join(contexts)
-                logger.debug(f"[RAG] Retrieved {len(contexts)} context items for concept: {concept}")
+                logger.debug(
+                    f"[RAG] Retrieved {len(contexts)} context items for concept: {concept}"
+                )
                 return context
 
         logger.debug(f"[RAG] No context found for concept: {concept}")
@@ -200,6 +201,7 @@ HINT_TEMPLATES = {
 # Node Functions
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 async def generate_question(state: VerificationState) -> Dict[str, Any]:
     """
     生成引导问题节点
@@ -223,7 +225,9 @@ async def generate_question(state: VerificationState) -> Dict[str, Any]:
     total_concepts = state.get("total_concepts", 0)
     source_canvas = state.get("source_canvas", "")
 
-    logger.debug(f"[generate_question] START - concept {current_concept_idx + 1}/{total_concepts}: {current_concept}")
+    logger.debug(
+        f"[generate_question] START - concept {current_concept_idx + 1}/{total_concepts}: {current_concept}"
+    )
 
     # Story 24.5: 主动获取RAG上下文
     rag_context = None
@@ -231,15 +235,17 @@ async def generate_question(state: VerificationState) -> Dict[str, Any]:
     if current_concept and source_canvas:
         try:
             rag_context = await fetch_rag_context(
-                concept=current_concept,
-                source_canvas=source_canvas,
-                max_results=3
+                concept=current_concept, source_canvas=source_canvas, max_results=3
             )
             rag_available = rag_context is not None
             if rag_available:
-                logger.debug(f"[generate_question] RAG context fetched: {len(rag_context)} chars")
+                logger.debug(
+                    f"[generate_question] RAG context fetched: {len(rag_context)} chars"
+                )
         except Exception as e:
-            logger.warning(f"[generate_question] RAG fetch failed (graceful degradation): {e}")
+            logger.warning(
+                f"[generate_question] RAG fetch failed (graceful degradation): {e}"
+            )
             rag_context = None
             rag_available = False
 
@@ -262,7 +268,9 @@ async def generate_question(state: VerificationState) -> Dict[str, Any]:
         question = f"📚 基于你之前的学习:\n{context_preview}\n\n{question}"
         logger.debug("[generate_question] RAG context injected into question")
 
-    logger.debug(f"[generate_question] END - type: {question_type}, rag: {rag_available}")
+    logger.debug(
+        f"[generate_question] END - type: {question_type}, rag: {rag_available}"
+    )
 
     return {
         "current_question": question,
@@ -314,8 +322,10 @@ async def evaluate_answer(state: VerificationState) -> Dict[str, Any]:
     current_concept = state.get("current_concept", "")
     hints_given = state.get("hints_given", 0)
 
-    logger.debug(f"[evaluate_answer] START - concept: {current_concept}, "
-                f"answer length: {len(user_answer)}, hints: {hints_given}")
+    logger.debug(
+        f"[evaluate_answer] START - concept: {current_concept}, "
+        f"answer length: {len(user_answer)}, hints: {hints_given}"
+    )
 
     # 基础评估逻辑 (可扩展为scoring-agent调用)
     score, quality = _evaluate_answer_basic(user_answer, current_concept, hints_given)
@@ -329,9 +339,7 @@ async def evaluate_answer(state: VerificationState) -> Dict[str, Any]:
 
 
 def _evaluate_answer_basic(
-    answer: str,
-    concept: str,
-    hints_given: int
+    answer: str, concept: str, hints_given: int
 ) -> tuple[float, str]:
     """
     基础回答评估
@@ -410,11 +418,15 @@ async def provide_hint(state: VerificationState) -> Dict[str, Any]:
     answer_quality = state.get("answer_quality", "wrong")
     answer_score = state.get("answer_score", 0.0)
 
-    logger.debug(f"[provide_hint] START - concept: {current_concept}, "
-                f"hints_given: {hints_given}, quality: {answer_quality}")
+    logger.debug(
+        f"[provide_hint] START - concept: {current_concept}, "
+        f"hints_given: {hints_given}, quality: {answer_quality}"
+    )
 
     # 动态选择Agent (集成Story 24.4)
-    selected_agent = await _select_guidance_agent(answer_quality, answer_score, hints_given)
+    selected_agent = await _select_guidance_agent(
+        answer_quality, answer_score, hints_given
+    )
 
     # 生成提示 (根据提示级别)
     hint_level = f"level_{min(hints_given + 1, 3)}"
@@ -422,7 +434,9 @@ async def provide_hint(state: VerificationState) -> Dict[str, Any]:
 
     updated_hints = current_hints + [new_hint]
 
-    logger.debug(f"[provide_hint] END - agent: {selected_agent}, hint: {new_hint[:50]}...")
+    logger.debug(
+        f"[provide_hint] END - agent: {selected_agent}, hint: {new_hint[:50]}..."
+    )
 
     return {
         "current_hints": updated_hints,
@@ -432,9 +446,7 @@ async def provide_hint(state: VerificationState) -> Dict[str, Any]:
 
 
 async def _select_guidance_agent(
-    answer_quality: str,
-    answer_score: float,
-    hints_given: int
+    answer_quality: str, answer_score: float, hints_given: int
 ) -> str:
     """
     选择引导Agent
@@ -452,6 +464,7 @@ async def _select_guidance_agent(
     # 尝试导入AgentSelector (Story 24.4)
     try:
         import sys
+
         if "C:/Users/ROG/托福/Canvas/backend" not in sys.path:
             sys.path.insert(0, "C:/Users/ROG/托福/Canvas/backend")
 
@@ -486,7 +499,9 @@ async def _select_guidance_agent(
         )
 
         result = await selector.select_agent(context)
-        logger.debug(f"[_select_guidance_agent] AgentSelector chose: {result.agent.value}")
+        logger.debug(
+            f"[_select_guidance_agent] AgentSelector chose: {result.agent.value}"
+        )
         return result.agent.value
 
     except ImportError as e:
@@ -532,10 +547,7 @@ def _generate_hint(concept: str, hint_level: str, agent: str) -> str:
     template = templates[0]  # Use first template
 
     # 生成提示
-    hint = template.format(
-        concept=concept,
-        key_points="[核心要点将根据概念内容生成]"
-    )
+    hint = template.format(concept=concept, key_points="[核心要点将根据概念内容生成]")
 
     return f"{prefix}{hint}"
 
@@ -560,8 +572,10 @@ async def finalize_concept(state: VerificationState) -> Dict[str, Any]:
     current_hints = state.get("current_hints", [])
     selected_agent = state.get("selected_agent")
 
-    logger.debug(f"[finalize_concept] START - concept: {current_concept}, "
-                f"quality: {answer_quality}, score: {answer_score}")
+    logger.debug(
+        f"[finalize_concept] START - concept: {current_concept}, "
+        f"quality: {answer_quality}, score: {answer_score}"
+    )
 
     # 确定最终颜色
     final_color, color_deltas = _determine_final_color(answer_quality, answer_score)
@@ -604,10 +618,7 @@ async def finalize_concept(state: VerificationState) -> Dict[str, Any]:
     }
 
 
-def _determine_final_color(
-    quality: str,
-    score: float
-) -> tuple[str, Dict[str, int]]:
+def _determine_final_color(quality: str, score: float) -> tuple[str, Dict[str, int]]:
     """
     确定概念最终颜色
 
@@ -652,7 +663,9 @@ async def advance_to_next_concept(state: VerificationState) -> Dict[str, Any]:
 
     if next_idx < len(concept_queue):
         next_concept = concept_queue[next_idx]
-        logger.debug(f"[advance_to_next_concept] Moving to concept {next_idx + 1}/{len(concept_queue)}: {next_concept}")
+        logger.debug(
+            f"[advance_to_next_concept] Moving to concept {next_idx + 1}/{len(concept_queue)}: {next_concept}"
+        )
     else:
         next_concept = ""
         logger.debug("[advance_to_next_concept] No more concepts")
@@ -681,9 +694,11 @@ async def complete_verification(state: VerificationState) -> Dict[str, Any]:
     mastery_rate = (green_count / total * 100) if total > 0 else 0
 
     logger.info("[complete_verification] Session completed!")
-    logger.info(f"[complete_verification] Results: "
-               f"Green={green_count}, Yellow={yellow_count}, "
-               f"Purple={purple_count}, Red={red_count}")
+    logger.info(
+        f"[complete_verification] Results: "
+        f"Green={green_count}, Yellow={yellow_count}, "
+        f"Purple={purple_count}, Red={red_count}"
+    )
     logger.info(f"[complete_verification] Mastery rate: {mastery_rate:.1f}%")
 
     return {

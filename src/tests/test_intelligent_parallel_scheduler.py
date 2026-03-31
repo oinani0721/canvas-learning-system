@@ -25,7 +25,10 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from schedulers.intelligent_parallel_scheduler import SKLEARN_AVAILABLE, IntelligentParallelScheduler
+from schedulers.intelligent_parallel_scheduler import (
+    SKLEARN_AVAILABLE,
+    IntelligentParallelScheduler,
+)
 
 
 class TestIntelligentParallelSchedulerBasics:
@@ -39,9 +42,9 @@ class TestIntelligentParallelSchedulerBasics:
     def test_has_required_methods(self):
         """测试必要方法存在"""
         scheduler = IntelligentParallelScheduler()
-        assert hasattr(scheduler, 'intelligent_grouping')
-        assert hasattr(scheduler, '_recommend_agent')
-        assert hasattr(scheduler, '_calculate_priority')
+        assert hasattr(scheduler, "intelligent_grouping")
+        assert hasattr(scheduler, "_recommend_agent")
+        assert hasattr(scheduler, "_calculate_priority")
         assert callable(scheduler.intelligent_grouping)
         assert callable(scheduler._recommend_agent)
         assert callable(scheduler._calculate_priority)
@@ -232,7 +235,6 @@ class TestIntelligentGrouping:
             {"id": "7", "content": "区别逆否命题和原命题"},
             {"id": "8", "content": "对比这两个命题"},
             {"id": "9", "content": "比较它们的不同点"},
-
             # 主题2: 记忆类 (6个)
             {"id": "3", "content": "我记不住逆否命题的定义"},
             {"id": "10", "content": "总是忘记这个公式"},
@@ -240,7 +242,6 @@ class TestIntelligentGrouping:
             {"id": "12", "content": "记忆方法"},
             {"id": "13", "content": "如何记住这些"},
             {"id": "14", "content": "记不住定义"},
-
             # 主题3: 不理解类 (8个)
             {"id": "4", "content": "什么是逆否命题？我不理解"},
             {"id": "5", "content": "请给我一些逆否命题的练习题"},
@@ -259,17 +260,22 @@ class TestIntelligentGrouping:
 
         # 验证2: 找到包含"对比"关键词的组
         comparison_groups = [
-            g for g in groups
-            if any("对比" in n["content"] or "比较" in n["content"]
-                   for n in g["nodes"])
+            g
+            for g in groups
+            if any("对比" in n["content"] or "比较" in n["content"] for n in g["nodes"])
         ]
         assert len(comparison_groups) > 0, "应该有包含对比关键词的组"
 
         # 验证3: 找到包含"记不住"关键词的组
         memory_groups = [
-            g for g in groups
-            if any("记不住" in n["content"] or "忘记" in n["content"] or "记忆" in n["content"]
-                   for n in g["nodes"])
+            g
+            for g in groups
+            if any(
+                "记不住" in n["content"]
+                or "忘记" in n["content"]
+                or "记忆" in n["content"]
+                for n in g["nodes"]
+            )
         ]
         assert len(memory_groups) > 0, "应该有包含记忆关键词的组"
 
@@ -292,7 +298,7 @@ class TestIntelligentGrouping:
                 "memory-anchor",
                 "clarification-path",
                 "example-teaching",
-                "oral-explanation"
+                "oral-explanation",
             ]
 
 
@@ -326,29 +332,31 @@ class TestEndToEnd:
 
         # 模拟真实场景: 20个黄色节点
         nodes = [
-            {"id": f"node-{i}", "content": content, "x": 100*i, "y": 200}
-            for i, content in enumerate([
-                "对比逆否命题和否命题",
-                "区别原命题和逆命题",
-                "我记不住逆否命题定义",
-                "总是忘记公式",
-                "不理解为什么逆否等价",
-                "什么是逆命题",
-                "比较命题和判断",
-                "记忆技巧",
-                "看不懂证明过程",
-                "例题讲解",
-                "对比命题和语句",
-                "记不住符号",
-                "不懂逻辑推理",
-                "需要练习题",
-                "区别充分和必要",
-                "如何记住这些",
-                "困惑于否定",
-                "给我一些例子",
-                "比较充要条件",
-                "不理解真值表",
-            ])
+            {"id": f"node-{i}", "content": content, "x": 100 * i, "y": 200}
+            for i, content in enumerate(
+                [
+                    "对比逆否命题和否命题",
+                    "区别原命题和逆命题",
+                    "我记不住逆否命题定义",
+                    "总是忘记公式",
+                    "不理解为什么逆否等价",
+                    "什么是逆命题",
+                    "比较命题和判断",
+                    "记忆技巧",
+                    "看不懂证明过程",
+                    "例题讲解",
+                    "对比命题和语句",
+                    "记不住符号",
+                    "不懂逻辑推理",
+                    "需要练习题",
+                    "区别充分和必要",
+                    "如何记住这些",
+                    "困惑于否定",
+                    "给我一些例子",
+                    "比较充要条件",
+                    "不理解真值表",
+                ]
+            )
         ]
 
         # 执行智能分组
@@ -370,7 +378,7 @@ class TestEndToEnd:
                 "clarification-path",
                 "example-teaching",
                 "oral-explanation",
-                "four-level-explanation"
+                "four-level-explanation",
             ]
 
         # 验证4: 每个组都有合理的优先级
@@ -387,16 +395,18 @@ class TestEndToEnd:
         # 验证5: 相似节点应该被分到同一组
         # 找包含"对比"关键词的节点
         comparison_node_ids = [
-            n["id"] for n in nodes
-            if "对比" in n["content"] or "比较" in n["content"] or "区别" in n["content"]
+            n["id"]
+            for n in nodes
+            if "对比" in n["content"]
+            or "比较" in n["content"]
+            or "区别" in n["content"]
         ]
 
         # 检查这些节点是否主要集中在少数几个组中
         comparison_groups = []
         for group in groups:
             group_comparison_ids = [
-                n["id"] for n in group["nodes"]
-                if n["id"] in comparison_node_ids
+                n["id"] for n in group["nodes"] if n["id"] in comparison_node_ids
             ]
             if group_comparison_ids:
                 comparison_groups.append(len(group_comparison_ids))
@@ -404,8 +414,9 @@ class TestEndToEnd:
         # 如果有对比节点，它们应该相对集中（不会完全分散）
         if comparison_node_ids:
             # 至少有一个组包含2个以上的对比节点
-            assert any(count >= 2 for count in comparison_groups), \
+            assert any(count >= 2 for count in comparison_groups), (
                 "相似节点应该相对集中在少数组中"
+            )
 
 
 # 测试运行入口

@@ -12,18 +12,20 @@ Created: 2025-11-29
 Story: 12.10
 """
 
-from typing import Dict, Any, Optional, List
-from pathlib import Path
 import time
 import uuid
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # 导入需要的模块
 try:
     from loguru import logger
+
     LOGURU_ENABLED = True
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
     LOGURU_ENABLED = False
 
@@ -35,7 +37,7 @@ async def generate_verification_canvas(
     self,
     canvas_file: str,
     output_canvas_file: Optional[str] = None,
-    node_ids: Optional[List[str]] = None
+    node_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     生成检验白板 (Agentic RAG增强版)
@@ -120,7 +122,7 @@ async def generate_verification_canvas(
                 "generation_time_ms": 0.0,
                 "used_agentic_rag": False,
                 "fallback": False,
-                "error": "No red/purple nodes found"
+                "error": "No red/purple nodes found",
             }
 
         # Step 3: 生成输出文件名 (如果未指定)
@@ -138,7 +140,7 @@ async def generate_verification_canvas(
             canvas_file=canvas_file,
             red_purple_nodes=red_purple_nodes,
             output_canvas_file=output_canvas_file,
-            max_questions_per_node=3
+            max_questions_per_node=3,
         )
 
         rag_result = await adapter.retrieve_for_verification(context)
@@ -148,17 +150,19 @@ async def generate_verification_canvas(
         # 当前先创建占位节点
         verification_questions = []
         for i, node in enumerate(red_purple_nodes):
-            concept = node.get("text", f"概念{i+1}")
+            concept = node.get("text", f"概念{i + 1}")
             # 每个概念生成2-3个检验题
             for q_idx in range(2):
-                verification_questions.append({
-                    "id": f"vq-{uuid.uuid4().hex[:8]}",
-                    "text": f"检验题 {i+1}.{q_idx+1}: {concept}",
-                    "color": COLOR_YELLOW,  # 检验白板使用黄色空白节点
-                    "type": "verification_question",
-                    "source_node_id": node.get("id"),
-                    "source_concept": concept
-                })
+                verification_questions.append(
+                    {
+                        "id": f"vq-{uuid.uuid4().hex[:8]}",
+                        "text": f"检验题 {i + 1}.{q_idx + 1}: {concept}",
+                        "color": COLOR_YELLOW,  # 检验白板使用黄色空白节点
+                        "type": "verification_question",
+                        "source_node_id": node.get("id"),
+                        "source_concept": concept,
+                    }
+                )
 
         # Step 6: 创建检验白板Canvas
         verification_canvas = {
@@ -169,8 +173,8 @@ async def generate_verification_canvas(
                 "source_canvas": canvas_file,
                 "verification_type": "agentic_rag_enhanced",
                 "quality_grade": rag_result.quality_grade,
-                "used_fallback": rag_result.is_fallback
-            }
+                "used_fallback": rag_result.is_fallback,
+            },
         }
 
         # Step 7: 保存检验白板
@@ -201,17 +205,14 @@ async def generate_verification_canvas(
             "quality_grade": rag_result.quality_grade,
             "generation_time_ms": total_time_ms,
             "used_agentic_rag": True,
-            "fallback": rag_result.is_fallback
+            "fallback": rag_result.is_fallback,
         }
 
     except Exception as e:
         # 错误处理
         total_time_ms = (time.time() - start_time) * 1000
         if LOGURU_ENABLED:
-            logger.error(
-                f"Verification canvas generation failed: {e}",
-                exc_info=True
-            )
+            logger.error(f"Verification canvas generation failed: {e}", exc_info=True)
         raise
 
 

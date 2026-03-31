@@ -14,7 +14,10 @@ Tests verify that:
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from app.services.context_enrichment_service import AdjacentNode, ContextEnrichmentService
+from app.services.context_enrichment_service import (
+    AdjacentNode,
+    ContextEnrichmentService,
+)
 
 
 @pytest.fixture
@@ -35,15 +38,14 @@ def test_vault(tmp_path):
         "# Oral Explanation\n\n"
         "This is the oral explanation of the concept.\n"
         "It helps students understand through verbal description.",
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
     # Create another explanation file
     deep_file = tmp_path / "deep-dive.md"
     deep_file.write_text(
-        "# Deep Dive Analysis\n\n"
-        "Detailed analysis of the topic with examples.",
-        encoding="utf-8"
+        "# Deep Dive Analysis\n\nDetailed analysis of the topic with examples.",
+        encoding="utf-8",
     )
 
     return tmp_path
@@ -56,9 +58,7 @@ class TestBuildEnrichedContextWithFileNodes:
         """Target FILE node content is included in context."""
         mock_canvas_service.canvas_base_path = str(test_vault)
 
-        service = ContextEnrichmentService(
-            canvas_service=mock_canvas_service
-        )
+        service = ContextEnrichmentService(canvas_service=mock_canvas_service)
 
         # FILE type target node
         target_node = {
@@ -67,7 +67,7 @@ class TestBuildEnrichedContextWithFileNodes:
             "file": "explanations/oral-explanation.md",
             "x": 100,
             "y": 200,
-            "color": "2"
+            "color": "2",
         }
 
         result = service._build_enriched_context(target_node, [])
@@ -76,20 +76,20 @@ class TestBuildEnrichedContextWithFileNodes:
         assert "oral explanation of the concept" in result
         assert "[目标节点" in result
 
-    def test_file_node_content_in_adjacent_parent(self, mock_canvas_service, test_vault):
+    def test_file_node_content_in_adjacent_parent(
+        self, mock_canvas_service, test_vault
+    ):
         """Adjacent FILE node content is included as parent."""
         mock_canvas_service.canvas_base_path = str(test_vault)
 
-        service = ContextEnrichmentService(
-            canvas_service=mock_canvas_service
-        )
+        service = ContextEnrichmentService(canvas_service=mock_canvas_service)
 
         target_node = {
             "id": "text_target",
             "type": "text",
             "text": "Main concept node",
             "x": 100,
-            "y": 200
+            "y": 200,
         }
 
         # FILE type parent node
@@ -98,14 +98,12 @@ class TestBuildEnrichedContextWithFileNodes:
             "type": "file",
             "file": "deep-dive.md",
             "x": 100,
-            "y": 100
+            "y": 100,
         }
 
         adjacent_nodes = [
             AdjacentNode(
-                node=parent_file_node,
-                relation="parent",
-                edge_label="explains"
+                node=parent_file_node, relation="parent", edge_label="explains"
             )
         ]
 
@@ -119,16 +117,14 @@ class TestBuildEnrichedContextWithFileNodes:
         """Adjacent FILE node content is included as child."""
         mock_canvas_service.canvas_base_path = str(test_vault)
 
-        service = ContextEnrichmentService(
-            canvas_service=mock_canvas_service
-        )
+        service = ContextEnrichmentService(canvas_service=mock_canvas_service)
 
         target_node = {
             "id": "text_target",
             "type": "text",
             "text": "Parent concept",
             "x": 100,
-            "y": 100
+            "y": 100,
         }
 
         # FILE type child node
@@ -137,14 +133,12 @@ class TestBuildEnrichedContextWithFileNodes:
             "type": "file",
             "file": "explanations/oral-explanation.md",
             "x": 100,
-            "y": 200
+            "y": 200,
         }
 
         adjacent_nodes = [
             AdjacentNode(
-                node=child_file_node,
-                relation="child",
-                edge_label="detailed_by"
+                node=child_file_node, relation="child", edge_label="detailed_by"
             )
         ]
 
@@ -158,9 +152,7 @@ class TestBuildEnrichedContextWithFileNodes:
         """Mix of text and file nodes all contribute content."""
         mock_canvas_service.canvas_base_path = str(test_vault)
 
-        service = ContextEnrichmentService(
-            canvas_service=mock_canvas_service
-        )
+        service = ContextEnrichmentService(canvas_service=mock_canvas_service)
 
         # TEXT type target
         target_node = {
@@ -168,7 +160,7 @@ class TestBuildEnrichedContextWithFileNodes:
             "type": "text",
             "text": "Central concept being studied",
             "x": 200,
-            "y": 200
+            "y": 200,
         }
 
         # TEXT type parent
@@ -177,7 +169,7 @@ class TestBuildEnrichedContextWithFileNodes:
             "type": "text",
             "text": "Prerequisite knowledge",
             "x": 100,
-            "y": 100
+            "y": 100,
         }
 
         # FILE type parent
@@ -186,7 +178,7 @@ class TestBuildEnrichedContextWithFileNodes:
             "type": "file",
             "file": "deep-dive.md",
             "x": 300,
-            "y": 100
+            "y": 100,
         }
 
         # FILE type child
@@ -195,7 +187,7 @@ class TestBuildEnrichedContextWithFileNodes:
             "type": "file",
             "file": "explanations/oral-explanation.md",
             "x": 200,
-            "y": 300
+            "y": 300,
         }
 
         adjacent_nodes = [
@@ -222,16 +214,14 @@ class TestBuildEnrichedContextWithFileNodes:
         """Missing file returns empty content without breaking context."""
         mock_canvas_service.canvas_base_path = str(test_vault)
 
-        service = ContextEnrichmentService(
-            canvas_service=mock_canvas_service
-        )
+        service = ContextEnrichmentService(canvas_service=mock_canvas_service)
 
         target_node = {
             "id": "text_target",
             "type": "text",
             "text": "Main content",
             "x": 100,
-            "y": 200
+            "y": 200,
         }
 
         # FILE node pointing to non-existent file
@@ -240,7 +230,7 @@ class TestBuildEnrichedContextWithFileNodes:
             "type": "file",
             "file": "nonexistent/file.md",
             "x": 100,
-            "y": 100
+            "y": 100,
         }
 
         adjacent_nodes = [
@@ -274,35 +264,32 @@ class TestEnrichWithAdjacentNodesFileSupport:
                     "x": 100,
                     "y": 200,
                     "width": 300,
-                    "height": 200
+                    "height": 200,
                 },
                 {
                     "id": "text_node_1",
                     "type": "text",
                     "text": "Related concept",
                     "x": 100,
-                    "y": 100
-                }
+                    "y": 100,
+                },
             ],
             "edges": [
                 {
                     "id": "edge_1",
                     "fromNode": "text_node_1",
                     "toNode": "file_node_1",
-                    "label": "explains"
+                    "label": "explains",
                 }
-            ]
+            ],
         }
 
         mock_canvas_service.read_canvas = AsyncMock(return_value=canvas_data)
 
-        service = ContextEnrichmentService(
-            canvas_service=mock_canvas_service
-        )
+        service = ContextEnrichmentService(canvas_service=mock_canvas_service)
 
         result = await service.enrich_with_adjacent_nodes(
-            canvas_name="test_canvas",
-            node_id="file_node_1"
+            canvas_name="test_canvas", node_id="file_node_1"
         )
 
         # The enriched context should contain file content

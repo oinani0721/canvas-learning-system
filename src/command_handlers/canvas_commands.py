@@ -37,32 +37,29 @@ async def handle_canvas_command(context: CommandExecutionContext) -> Dict[str, A
     Returns:
         Dict: 执行结果
     """
-    action = context.parameters.get('action', 'status')
+    action = context.parameters.get("action", "status")
 
     try:
-        if action == 'status':
+        if action == "status":
             return await _handle_canvas_status()
-        elif action == 'help':
+        elif action == "help":
             return await _handle_canvas_help()
-        elif action == 'version':
+        elif action == "version":
             return await _handle_canvas_version()
-        elif action == 'init':
+        elif action == "init":
             return await _handle_canvas_init()
-        elif action == 'reset':
+        elif action == "reset":
             return await _handle_canvas_reset()
         else:
             return {
                 "success": False,
                 "error": f"未知的操作: {action}",
-                "message": "使用 /canvas help 查看可用操作"
+                "message": "使用 /canvas help 查看可用操作",
             }
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "action": action
-        }
+        return {"success": False, "error": str(e), "action": action}
+
 
 async def handle_status_command(context: CommandExecutionContext) -> Dict[str, Any]:
     """处理状态命令
@@ -73,14 +70,14 @@ async def handle_status_command(context: CommandExecutionContext) -> Dict[str, A
     Returns:
         Dict: 系统状态信息
     """
-    detailed = context.parameters.get('detailed', False)
-    component = context.parameters.get('component')
+    detailed = context.parameters.get("detailed", False)
+    component = context.parameters.get("component")
 
     try:
         status_info = {
             "timestamp": datetime.now().isoformat(),
             "system_status": "healthy",
-            "components": {}
+            "components": {},
         }
 
         # 检查Canvas系统状态
@@ -100,27 +97,23 @@ async def handle_status_command(context: CommandExecutionContext) -> Dict[str, A
         if not detailed:
             summary = {
                 "system_health": "OK",
-                "active_components": len([c for c in status_info["components"].values() if c.get("status") == "ok"]),
+                "active_components": len(
+                    [
+                        c
+                        for c in status_info["components"].values()
+                        if c.get("status") == "ok"
+                    ]
+                ),
                 "total_components": len(status_info["components"]),
-                "last_check": status_info["timestamp"]
+                "last_check": status_info["timestamp"],
             }
-            return {
-                "success": True,
-                "type": "status_summary",
-                "data": summary
-            }
+            return {"success": True, "type": "status_summary", "data": summary}
 
-        return {
-            "success": True,
-            "type": "detailed_status",
-            "data": status_info
-        }
+        return {"success": True, "type": "detailed_status", "data": status_info}
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"获取系统状态失败: {str(e)}"
-        }
+        return {"success": False, "error": f"获取系统状态失败: {str(e)}"}
+
 
 async def handle_help_command(context: CommandExecutionContext) -> Dict[str, Any]:
     """处理帮助命令
@@ -131,8 +124,8 @@ async def handle_help_command(context: CommandExecutionContext) -> Dict[str, Any
     Returns:
         Dict: 帮助信息
     """
-    command = context.parameters.get('command')
-    topic = context.parameters.get('topic')
+    command = context.parameters.get("command")
+    topic = context.parameters.get("topic")
 
     try:
         if command:
@@ -149,16 +142,16 @@ async def handle_help_command(context: CommandExecutionContext) -> Dict[str, Any
             "success": True,
             "type": "help",
             "content": help_content,
-            "format": "markdown"
+            "format": "markdown",
         }
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"获取帮助信息失败: {str(e)}"
-        }
+        return {"success": False, "error": f"获取帮助信息失败: {str(e)}"}
 
-async def handle_batch_explain_command(context: CommandExecutionContext) -> Dict[str, Any]:
+
+async def handle_batch_explain_command(
+    context: CommandExecutionContext,
+) -> Dict[str, Any]:
     """处理批量解释命令
 
     Args:
@@ -167,44 +160,34 @@ async def handle_batch_explain_command(context: CommandExecutionContext) -> Dict
     Returns:
         Dict: 批量解释结果
     """
-    canvas_file = context.parameters.get('canvas_file')
-    agent = context.parameters.get('agent', 'oral-explanation')
-    nodes = context.parameters.get('nodes')
-    color_filter = context.parameters.get('color_filter')
+    canvas_file = context.parameters.get("canvas_file")
+    agent = context.parameters.get("agent", "oral-explanation")
+    nodes = context.parameters.get("nodes")
+    color_filter = context.parameters.get("color_filter")
 
     try:
         if not CanvasOrchestrator:
-            return {
-                "success": False,
-                "error": "Canvas工具库未加载，无法执行批量解释"
-            }
+            return {"success": False, "error": "Canvas工具库未加载，无法执行批量解释"}
 
         # 检查Canvas文件是否存在
         if not os.path.exists(canvas_file):
-            return {
-                "success": False,
-                "error": f"Canvas文件不存在: {canvas_file}"
-            }
+            return {"success": False, "error": f"Canvas文件不存在: {canvas_file}"}
 
         # 创建Canvas操作器
         orchestrator = CanvasOrchestrator(canvas_file)
 
         # 确定要解释的节点
-        target_nodes = await _determine_target_nodes(
-            orchestrator, nodes, color_filter
-        )
+        target_nodes = await _determine_target_nodes(orchestrator, nodes, color_filter)
 
         if not target_nodes:
             return {
                 "success": False,
                 "error": "没有找到符合条件的节点",
-                "message": "尝试调整节点筛选条件"
+                "message": "尝试调整节点筛选条件",
             }
 
         # 执行批量解释
-        results = await _execute_batch_explanations(
-            orchestrator, target_nodes, agent
-        )
+        results = await _execute_batch_explanations(orchestrator, target_nodes, agent)
 
         return {
             "success": True,
@@ -213,21 +196,28 @@ async def handle_batch_explain_command(context: CommandExecutionContext) -> Dict
                 "canvas_file": canvas_file,
                 "agent_used": agent,
                 "total_nodes": len(target_nodes),
-                "successful_explanations": len([r for r in results if r.get("success")]),
-                "failed_explanations": len([r for r in results if not r.get("success")]),
-                "results": results
+                "successful_explanations": len(
+                    [r for r in results if r.get("success")]
+                ),
+                "failed_explanations": len(
+                    [r for r in results if not r.get("success")]
+                ),
+                "results": results,
             },
-            "message": f"成功为 {len([r for r in results if r.get('success')])} 个节点生成解释"
+            "message": f"成功为 {len([r for r in results if r.get('success')])} 个节点生成解释",
         }
 
     except Exception as e:
         return {
             "success": False,
             "error": f"批量解释失败: {str(e)}",
-            "canvas_file": canvas_file
+            "canvas_file": canvas_file,
         }
 
-async def handle_generate_review_command(context: CommandExecutionContext) -> Dict[str, Any]:
+
+async def handle_generate_review_command(
+    context: CommandExecutionContext,
+) -> Dict[str, Any]:
     """处理生成复习命令
 
     Args:
@@ -236,24 +226,18 @@ async def handle_generate_review_command(context: CommandExecutionContext) -> Di
     Returns:
         Dict: 复习白板生成结果
     """
-    canvas_file = context.parameters.get('canvas_file')
-    focus = context.parameters.get('focus', 'comprehensive')
-    output_name = context.parameters.get('output_name')
-    include_explanations = context.parameters.get('include_explanations', True)
+    canvas_file = context.parameters.get("canvas_file")
+    focus = context.parameters.get("focus", "comprehensive")
+    output_name = context.parameters.get("output_name")
+    include_explanations = context.parameters.get("include_explanations", True)
 
     try:
         if not CanvasOrchestrator:
-            return {
-                "success": False,
-                "error": "Canvas工具库未加载，无法生成复习白板"
-            }
+            return {"success": False, "error": "Canvas工具库未加载，无法生成复习白板"}
 
         # 检查源Canvas文件
         if not os.path.exists(canvas_file):
-            return {
-                "success": False,
-                "error": f"源Canvas文件不存在: {canvas_file}"
-            }
+            return {"success": False, "error": f"源Canvas文件不存在: {canvas_file}"}
 
         # 生成输出文件名
         if not output_name:
@@ -268,7 +252,7 @@ async def handle_generate_review_command(context: CommandExecutionContext) -> Di
             return {
                 "success": False,
                 "error": f"输出文件已存在: {output_file}",
-                "message": "请使用 --output_name 指定不同的文件名"
+                "message": "请使用 --output_name 指定不同的文件名",
             }
 
         # 创建Canvas操作器
@@ -288,19 +272,22 @@ async def handle_generate_review_command(context: CommandExecutionContext) -> Di
                 "focus_type": focus,
                 "include_explanations": include_explanations,
                 "statistics": review_result.get("statistics", {}),
-                "suggestions": review_result.get("suggestions", [])
+                "suggestions": review_result.get("suggestions", []),
             },
-            "message": f"复习白板生成成功: {output_file}"
+            "message": f"复习白板生成成功: {output_file}",
         }
 
     except Exception as e:
         return {
             "success": False,
             "error": f"生成复习白板失败: {str(e)}",
-            "source_canvas": canvas_file
+            "source_canvas": canvas_file,
         }
 
-async def handle_optimize_layout_command(context: CommandExecutionContext) -> Dict[str, Any]:
+
+async def handle_optimize_layout_command(
+    context: CommandExecutionContext,
+) -> Dict[str, Any]:
     """处理布局优化命令
 
     Args:
@@ -309,37 +296,26 @@ async def handle_optimize_layout_command(context: CommandExecutionContext) -> Di
     Returns:
         Dict: 布局优化结果
     """
-    canvas_file = context.parameters.get('canvas_file')
-    algorithm = context.parameters.get('algorithm', 'v1.1')
-    backup = context.parameters.get('backup', True)
+    canvas_file = context.parameters.get("canvas_file")
+    algorithm = context.parameters.get("algorithm", "v1.1")
+    backup = context.parameters.get("backup", True)
 
     try:
         if not CanvasOrchestrator:
-            return {
-                "success": False,
-                "error": "Canvas工具库未加载，无法优化布局"
-            }
+            return {"success": False, "error": "Canvas工具库未加载，无法优化布局"}
 
         # 检查Canvas文件
         if not os.path.exists(canvas_file):
-            return {
-                "success": False,
-                "error": f"Canvas文件不存在: {canvas_file}"
-            }
+            return {"success": False, "error": f"Canvas文件不存在: {canvas_file}"}
 
         # 创建备份
         if backup:
             backup_file = _create_backup(canvas_file)
             if not backup_file:
-                return {
-                    "success": False,
-                    "error": "创建备份失败"
-                }
+                return {"success": False, "error": "创建备份失败"}
 
         # 执行布局优化
-        optimization_result = await _optimize_canvas_layout(
-            canvas_file, algorithm
-        )
+        optimization_result = await _optimize_canvas_layout(canvas_file, algorithm)
 
         return {
             "success": True,
@@ -350,33 +326,32 @@ async def handle_optimize_layout_command(context: CommandExecutionContext) -> Di
                 "backup_created": backup,
                 "backup_file": backup_file if backup else None,
                 "optimization_statistics": optimization_result.get("statistics", {}),
-                "changes_made": optimization_result.get("changes", [])
+                "changes_made": optimization_result.get("changes", []),
             },
-            "message": f"Canvas布局优化完成，使用算法: {algorithm}"
+            "message": f"Canvas布局优化完成，使用算法: {algorithm}",
         }
 
     except Exception as e:
         return {
             "success": False,
             "error": f"布局优化失败: {str(e)}",
-            "canvas_file": canvas_file
+            "canvas_file": canvas_file,
         }
 
+
 # ========== 内部辅助函数 ==========
+
 
 async def _handle_canvas_status() -> Dict[str, Any]:
     """处理Canvas状态检查"""
     status = {
         "canvas_utils_loaded": CanvasOrchestrator is not None,
         "version": "1.0",
-        "last_update": "2025-01-22"
+        "last_update": "2025-01-22",
     }
 
-    return {
-        "success": True,
-        "type": "canvas_status",
-        "data": status
-    }
+    return {"success": True, "type": "canvas_status", "data": status}
+
 
 async def _handle_canvas_help() -> Dict[str, Any]:
     """处理Canvas帮助"""
@@ -427,11 +402,8 @@ async def _handle_canvas_help() -> Dict[str, Any]:
 ```
 """
 
-    return {
-        "success": True,
-        "type": "help",
-        "content": help_text
-    }
+    return {"success": True, "type": "help", "content": help_text}
+
 
 async def _handle_canvas_version() -> Dict[str, Any]:
     """处理版本信息"""
@@ -446,15 +418,12 @@ async def _handle_canvas_version() -> Dict[str, Any]:
             "智能复习",
             "布局优化",
             "记忆搜索",
-            "学习分析"
-        ]
+            "学习分析",
+        ],
     }
 
-    return {
-        "success": True,
-        "type": "version_info",
-        "data": version_info
-    }
+    return {"success": True, "type": "version_info", "data": version_info}
+
 
 async def _handle_canvas_init() -> Dict[str, Any]:
     """处理Canvas系统初始化"""
@@ -482,8 +451,8 @@ async def _handle_canvas_init() -> Dict[str, Any]:
             "data": {
                 "directories_created": missing_dirs,
                 "missing_files": missing_files,
-                "initialization_status": "complete" if not missing_files else "partial"
-            }
+                "initialization_status": "complete" if not missing_files else "partial",
+            },
         }
 
         if missing_files:
@@ -495,10 +464,8 @@ async def _handle_canvas_init() -> Dict[str, Any]:
         return result
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"系统初始化失败: {str(e)}"
-        }
+        return {"success": False, "error": f"系统初始化失败: {str(e)}"}
+
 
 async def _handle_canvas_reset() -> Dict[str, Any]:
     """处理Canvas系统重置"""
@@ -511,9 +478,10 @@ async def _handle_canvas_reset() -> Dict[str, Any]:
         "message": "Canvas系统重置完成",
         "data": {
             "reset_timestamp": datetime.now().isoformat(),
-            "components_reset": ["cache", "temporary_files"]
-        }
+            "components_reset": ["cache", "temporary_files"],
+        },
     }
+
 
 async def _check_agents_status() -> Dict[str, Any]:
     """检查Agent状态"""
@@ -529,16 +497,14 @@ async def _check_agents_status() -> Dict[str, Any]:
                 # ... 其他agents
             ],
             "total_agents": 13,
-            "healthy_agents": 13
+            "healthy_agents": 13,
         }
 
         return agents_status
 
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
+
 
 async def _check_memory_status() -> Dict[str, Any]:
     """检查记忆系统状态"""
@@ -548,16 +514,14 @@ async def _check_memory_status() -> Dict[str, Any]:
             "status": "ok",
             "memory_systems": ["graphiti", "local_cache"],
             "total_memories": 0,  # 实际统计
-            "last_access": None
+            "last_access": None,
         }
 
         return memory_status
 
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
+
 
 async def _check_files_status() -> Dict[str, Any]:
     """检查文件系统状态"""
@@ -566,18 +530,16 @@ async def _check_files_status() -> Dict[str, Any]:
         files_status = {
             "status": "ok",
             "canvas_files": 0,  # 实际统计
-            "config_files": 1,   # slash_commands.yaml
+            "config_files": 1,  # slash_commands.yaml
             "total_size_mb": 0,  # 实际计算
-            "accessible_files": 0
+            "accessible_files": 0,
         }
 
         return files_status
 
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
+
 
 async def _check_performance_status() -> Dict[str, Any]:
     """检查性能状态"""
@@ -587,59 +549,60 @@ async def _check_performance_status() -> Dict[str, Any]:
             "cpu_usage": 0.1,  # 实际监控
             "memory_usage_mb": 50,  # 实际监控
             "response_time_ms": 100,  # 实际测量
-            "cache_hit_rate": 0.85
+            "cache_hit_rate": 0.85,
         }
 
         return performance_status
 
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
+
 
 async def _get_command_help(command: str) -> str:
     """获取特定命令的帮助"""
     # 这里应该实现特定命令的帮助逻辑
     return f"## {command} 命令帮助\n\n暂未实现具体帮助内容。"
 
+
 async def _get_topic_help(topic: str) -> str:
     """获取特定主题的帮助"""
     # 这里应该实现特定主题的帮助逻辑
     return f"## {topic} 主题帮助\n\n暂未实现具体帮助内容。"
 
+
 async def _get_general_help() -> str:
     """获取通用帮助"""
     return await _handle_canvas_help()
 
-async def _determine_target_nodes(orchestrator, nodes: Optional[str],
-                                 color_filter: Optional[str]) -> List[str]:
+
+async def _determine_target_nodes(
+    orchestrator, nodes: Optional[str], color_filter: Optional[str]
+) -> List[str]:
     """确定要解释的目标节点"""
     # 这里应该实现节点筛选逻辑
     # 暂时返回空列表
     return []
 
-async def _execute_batch_explanations(orchestrator, target_nodes: List[str],
-                                     agent: str) -> List[Dict]:
+
+async def _execute_batch_explanations(
+    orchestrator, target_nodes: List[str], agent: str
+) -> List[Dict]:
     """执行批量解释"""
     # 这里应该实现批量解释逻辑
     # 暂时返回空结果
     return []
 
-async def _generate_review_canvas(orchestrator, output_file: str,
-                                focus: str, include_explanations: bool) -> Dict:
+
+async def _generate_review_canvas(
+    orchestrator, output_file: str, focus: str, include_explanations: bool
+) -> Dict:
     """生成复习白板"""
     # 这里应该实现复习白板生成逻辑
     return {
-        "statistics": {
-            "concepts_included": 0,
-            "questions_generated": 0
-        },
-        "suggestions": [
-            "建议明天完成复习白板中的所有问题",
-            "重点关注标记为红色的概念"
-        ]
+        "statistics": {"concepts_included": 0, "questions_generated": 0},
+        "suggestions": ["建议明天完成复习白板中的所有问题", "重点关注标记为红色的概念"],
     }
+
 
 def _create_backup(canvas_file: str) -> Optional[str]:
     """创建Canvas文件备份"""
@@ -659,18 +622,11 @@ def _create_backup(canvas_file: str) -> Optional[str]:
         print(f"创建备份失败: {e}")
         return None
 
+
 async def _optimize_canvas_layout(canvas_file: str, algorithm: str) -> Dict:
     """优化Canvas布局"""
     # 这里应该实现布局优化逻辑
     return {
-        "statistics": {
-            "nodes_optimized": 0,
-            "edges_optimized": 0,
-            "layout_score": 0.0
-        },
-        "changes": [
-            "应用了v1.1布局算法",
-            "调整了节点间距",
-            "优化了连接线布局"
-        ]
+        "statistics": {"nodes_optimized": 0, "edges_optimized": 0, "layout_score": 0.0},
+        "changes": ["应用了v1.1布局算法", "调整了节点间距", "优化了连接线布局"],
     }

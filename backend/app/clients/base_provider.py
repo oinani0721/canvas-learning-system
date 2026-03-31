@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class ProviderStatus(str, Enum):
     """Provider health status enum."""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
@@ -40,6 +41,7 @@ class ProviderHealth:
         consecutive_failures: Number of consecutive failures
         error_message: Last error message if unhealthy
     """
+
     status: ProviderStatus = ProviderStatus.UNKNOWN
     latency_ms: Optional[float] = None
     last_check: Optional[datetime] = None
@@ -77,6 +79,7 @@ class ProviderConfig:
         timeout: Request timeout in seconds
         max_retries: Maximum retry attempts
     """
+
     name: str
     api_key: str
     model: str
@@ -115,6 +118,7 @@ class ProviderResponse:
         latency_ms: Request latency in milliseconds
         raw_response: Original provider response (for debugging)
     """
+
     text: str
     model: str
     provider: str
@@ -265,7 +269,9 @@ class BaseProvider(ABC):
         """
         pass
 
-    async def update_health(self, success: bool, latency_ms: float = 0.0, error: Optional[str] = None) -> None:
+    async def update_health(
+        self, success: bool, latency_ms: float = 0.0, error: Optional[str] = None
+    ) -> None:
         """
         Update health status after a request.
 

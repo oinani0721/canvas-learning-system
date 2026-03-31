@@ -40,8 +40,12 @@ suggestions_router = APIRouter()
 class RelationSuggestionRequest(BaseModel):
     """Request body for relation suggestion."""
 
-    source_content: str = Field(..., min_length=1, description="Content of the source (original) node")
-    new_content: str = Field(..., min_length=1, description="Content of the new (pulled-out) node")
+    source_content: str = Field(
+        ..., min_length=1, description="Content of the source (original) node"
+    )
+    new_content: str = Field(
+        ..., min_length=1, description="Content of the new (pulled-out) node"
+    )
     source_node_id: str = Field(default="", description="Source node ID for reference")
 
 
@@ -49,8 +53,12 @@ class RelationSuggestionResponse(BaseModel):
     """Response with suggested relation type."""
 
     relation_type: str = Field(..., description="Suggested relation edge label")
-    relation_label: str = Field(..., description="Human-readable label for the relation")
-    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score of the suggestion")
+    relation_label: str = Field(
+        ..., description="Human-readable label for the relation"
+    )
+    confidence: float = Field(
+        ge=0.0, le=1.0, description="Confidence score of the suggestion"
+    )
     reason: str = Field(default="", description="Brief reason for the suggestion")
 
 
@@ -127,7 +135,9 @@ async def suggest_relation(
         )
 
 
-async def _llm_suggest_relation(source_content: str, new_content: str) -> RelationSuggestionResponse:
+async def _llm_suggest_relation(
+    source_content: str, new_content: str
+) -> RelationSuggestionResponse:
     """
     Call LLM to suggest a relation type.
 

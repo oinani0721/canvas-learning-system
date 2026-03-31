@@ -9,12 +9,7 @@ Tests the track_agent_execution decorator and metric recording functions.
 [Source: docs/architecture/coding-standards.md#测试规范]
 """
 
-import asyncio
-
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from app.middleware.agent_metrics import (
     AGENT_ERRORS,
     AGENT_EXECUTION_TIME,
@@ -25,14 +20,18 @@ from app.middleware.agent_metrics import (
     track_agent_execution,
 )
 
+from tests.conftest import simulate_async_delay
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture(autouse=True)
 def reset_metrics():
     """Reset Prometheus metrics before each test."""
     from tests.conftest import clear_prometheus_metrics
+
     clear_prometheus_metrics()
     yield
     clear_prometheus_metrics()
@@ -41,6 +40,7 @@ def reset_metrics():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Valid Agent Types
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_valid_agent_types_count():
     """Test that all 14 agent types are defined."""
@@ -64,9 +64,11 @@ def test_valid_agent_types_contains_expected():
 # Test: track_agent_execution Decorator - Async Functions
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_track_agent_execution_async_success():
     """Test that async function success is tracked correctly."""
+
     @track_agent_execution("scoring-agent")
     async def sample_agent():
         await simulate_async_delay(0.01)
@@ -80,6 +82,7 @@ async def test_track_agent_execution_async_success():
 @pytest.mark.asyncio
 async def test_track_agent_execution_async_error():
     """Test that async function errors are tracked correctly."""
+
     @track_agent_execution("scoring-agent")
     async def failing_agent():
         raise ValueError("Test error")
@@ -91,6 +94,7 @@ async def test_track_agent_execution_async_error():
 @pytest.mark.asyncio
 async def test_track_agent_execution_preserves_function_metadata():
     """Test that decorator preserves function name and docstring."""
+
     @track_agent_execution("basic-decomposition")
     async def documented_agent():
         """This is a documented agent."""
@@ -104,8 +108,10 @@ async def test_track_agent_execution_preserves_function_metadata():
 # Test: track_agent_execution Decorator - Sync Functions
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_track_agent_execution_sync_success():
     """Test that sync function success is tracked correctly."""
+
     @track_agent_execution("comparison-table")
     def sync_agent():
         return {"comparison": "done"}
@@ -117,6 +123,7 @@ def test_track_agent_execution_sync_success():
 
 def test_track_agent_execution_sync_error():
     """Test that sync function errors are tracked correctly."""
+
     @track_agent_execution("comparison-table")
     def failing_sync_agent():
         raise RuntimeError("Sync error")
@@ -129,12 +136,11 @@ def test_track_agent_execution_sync_error():
 # Test: record_agent_invocation
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_record_agent_invocation_success():
     """Test recording a successful agent invocation."""
     record_agent_invocation(
-        agent_type="oral-explanation",
-        status="success",
-        duration_s=1.5
+        agent_type="oral-explanation", status="success", duration_s=1.5
     )
     # If no exception, test passes
 
@@ -145,7 +151,7 @@ def test_record_agent_invocation_error():
         agent_type="oral-explanation",
         status="error",
         duration_s=0.5,
-        error_type="TimeoutError"
+        error_type="TimeoutError",
     )
     # If no exception, test passes
 
@@ -153,9 +159,7 @@ def test_record_agent_invocation_error():
 def test_record_agent_invocation_zero_duration():
     """Test recording with zero duration."""
     record_agent_invocation(
-        agent_type="memory-anchor",
-        status="success",
-        duration_s=0.0
+        agent_type="memory-anchor", status="success", duration_s=0.0
     )
     # Zero duration should not record to histogram
 
@@ -164,8 +168,10 @@ def test_record_agent_invocation_zero_duration():
 # Test: Unknown Agent Type Warning
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_unknown_agent_type_logs_warning():
     """Test that unknown agent type logs a warning but doesn't fail."""
+
     @track_agent_execution("unknown-agent-type")
     def agent_with_unknown_type():
         return "done"
@@ -178,6 +184,7 @@ def test_unknown_agent_type_logs_warning():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: get_agent_metrics_snapshot
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_get_agent_metrics_snapshot_structure():
     """Test that snapshot returns expected structure."""
@@ -211,6 +218,7 @@ def test_get_agent_metrics_snapshot_by_type_structure():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Metric Labels
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_histogram_buckets():
     """Test that histogram has expected buckets."""

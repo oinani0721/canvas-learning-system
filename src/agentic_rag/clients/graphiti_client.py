@@ -218,7 +218,9 @@ class GraphitiClient:
         {'doc_id': 'graphiti_node_123', 'content': '...', 'score': 0.85, 'metadata': {...}}
     """
 
-    def __init__(self, timeout_ms: int = 200, batch_size: int = 10, enable_fallback: bool = True):
+    def __init__(
+        self, timeout_ms: int = 200, batch_size: int = 10, enable_fallback: bool = True
+    ):
         self.timeout_ms = timeout_ms
         self.batch_size = batch_size
         self.enable_fallback = enable_fallback
@@ -254,7 +256,9 @@ class GraphitiClient:
             self._initialized = True
 
             if LOGURU_ENABLED:
-                logger.info(f"GraphitiClient initialized: graphiti_core SDK available, Neo4j={neo4j_uri}")
+                logger.info(
+                    f"GraphitiClient initialized: graphiti_core SDK available, Neo4j={neo4j_uri}"
+                )
             return True
 
         except ImportError as e:
@@ -316,7 +320,9 @@ class GraphitiClient:
                 results = _empty_result_list()
 
             # 转换为SearchResult格式
-            search_results = self._convert_to_search_results(results, canvas_file=canvas_file, num_results=num_results)
+            search_results = self._convert_to_search_results(
+                results, canvas_file=canvas_file, num_results=num_results
+            )
 
             latency_ms = (time.perf_counter() - start_time) * 1000
 
@@ -332,7 +338,9 @@ class GraphitiClient:
 
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
-                logger.warning(f"GraphitiClient.search_nodes timeout ({self.timeout_ms}ms): query='{query[:50]}...'")
+                logger.warning(
+                    f"GraphitiClient.search_nodes timeout ({self.timeout_ms}ms): query='{query[:50]}...'"
+                )
             if self.enable_fallback:
                 return _empty_result_list()
             raise
@@ -404,7 +412,9 @@ class GraphitiClient:
                     all_results.append(result_dict)
 
             if LOGURU_ENABLED:
-                logger.debug(f"graphiti_core search returned {len(all_results)} results for query='{query[:40]}...'")
+                logger.debug(
+                    f"graphiti_core search returned {len(all_results)} results for query='{query[:40]}...'"
+                )
 
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
@@ -417,14 +427,19 @@ class GraphitiClient:
 
         return all_results
 
-    def _tag_results(self, results: List[Dict[str, Any]], result_type: str) -> List[Dict[str, Any]]:
+    def _tag_results(
+        self, results: List[Dict[str, Any]], result_type: str
+    ) -> List[Dict[str, Any]]:
         """为结果添加类型标签"""
         for r in results:
             r["_graphiti_type"] = result_type
         return results
 
     def _convert_to_search_results(
-        self, raw_results: List[Dict[str, Any]], canvas_file: Optional[str] = None, num_results: int = 10
+        self,
+        raw_results: List[Dict[str, Any]],
+        canvas_file: Optional[str] = None,
+        num_results: int = 10,
     ) -> List[Dict[str, Any]]:
         """
         转换Graphiti结果为标准SearchResult格式
@@ -448,7 +463,13 @@ class GraphitiClient:
 
         for i, item in enumerate(raw_results[:num_results]):
             # 提取内容
-            content = item.get("content") or item.get("text") or item.get("name") or item.get("fact") or str(item)
+            content = (
+                item.get("content")
+                or item.get("text")
+                or item.get("name")
+                or item.get("fact")
+                or str(item)
+            )
 
             # 生成文档ID
             doc_id = item.get("id") or item.get("uuid") or f"graphiti_{i}"
@@ -479,11 +500,20 @@ class GraphitiClient:
             if "importance" in item:
                 metadata["importance"] = item["importance"]
 
-            search_results.append({"doc_id": doc_id, "content": content, "score": score, "metadata": metadata})
+            search_results.append(
+                {
+                    "doc_id": doc_id,
+                    "content": content,
+                    "score": score,
+                    "metadata": metadata,
+                }
+            )
 
         return search_results
 
-    async def search_memories(self, query: str, num_results: int = 10) -> List[Dict[str, Any]]:
+    async def search_memories(
+        self, query: str, num_results: int = 10
+    ) -> List[Dict[str, Any]]:
         """
         搜索记忆 (便捷方法)
 
@@ -496,7 +526,9 @@ class GraphitiClient:
         """
         return await self.search_nodes(query=query, num_results=num_results)
 
-    async def get_weak_concepts(self, canvas_file: str, threshold: float = 0.5) -> List[Dict[str, Any]]:
+    async def get_weak_concepts(
+        self, canvas_file: str, threshold: float = 0.5
+    ) -> List[Dict[str, Any]]:
         """
         获取Canvas的薄弱概念 (用于检验白板生成)
 
@@ -511,7 +543,9 @@ class GraphitiClient:
         """
         # 查询与Canvas关联的概念
         query = f"Canvas薄弱概念 {canvas_file}"
-        results = await self.search_nodes(query=query, canvas_file=canvas_file, num_results=20)
+        results = await self.search_nodes(
+            query=query, canvas_file=canvas_file, num_results=20
+        )
 
         # 过滤低分概念
         weak_concepts = [r for r in results if r.get("score", 1.0) < threshold]
@@ -519,7 +553,10 @@ class GraphitiClient:
         return weak_concepts
 
     async def add_episode(
-        self, content: str, canvas_file: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+        self,
+        content: str,
+        canvas_file: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """
         添加学习历程到Graphiti知识图谱
@@ -543,17 +580,24 @@ class GraphitiClient:
 
             if self._graphiti_available and self._graphiti_instance is not None:
                 episode_id = await self._add_episode_via_graphiti_core(
-                    content=content, canvas_file=canvas_file, metadata=metadata, timeout=timeout_seconds
+                    content=content,
+                    canvas_file=canvas_file,
+                    metadata=metadata,
+                    timeout=timeout_seconds,
                 )
                 return episode_id
             else:
                 if LOGURU_ENABLED:
-                    logger.warning("GraphitiClient.add_episode: graphiti_core not available")
+                    logger.warning(
+                        "GraphitiClient.add_episode: graphiti_core not available"
+                    )
                 return None
 
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
-                logger.warning(f"GraphitiClient.add_episode timeout ({self.timeout_ms}ms)")
+                logger.warning(
+                    f"GraphitiClient.add_episode timeout ({self.timeout_ms}ms)"
+                )
             return None
 
         except Exception as e:
@@ -607,7 +651,9 @@ class GraphitiClient:
                 episode_id = f"episode_{uuid.uuid4().hex[:12]}"
 
             if LOGURU_ENABLED:
-                logger.info(f"GraphitiClient.add_episode: content='{content[:50]}...', episode_id={episode_id}")
+                logger.info(
+                    f"GraphitiClient.add_episode: content='{content[:50]}...', episode_id={episode_id}"
+                )
 
             return episode_id
 
@@ -626,7 +672,13 @@ class GraphitiClient:
                 logger.error(f"graphiti_core add_episode failed: {e}")
             return None
 
-    async def add_memory(self, key: str, content: str, importance: int = 5, tags: Optional[List[str]] = None) -> bool:
+    async def add_memory(
+        self,
+        key: str,
+        content: str,
+        importance: int = 5,
+        tags: Optional[List[str]] = None,
+    ) -> bool:
         """
         添加记忆到Graphiti (通过 add_episode 实现)
 
@@ -661,7 +713,9 @@ class GraphitiClient:
                 await asyncio.wait_for(add_coro, timeout=timeout_seconds)
 
                 if LOGURU_ENABLED:
-                    logger.info(f"GraphitiClient.add_memory: key={key}, importance={importance}")
+                    logger.info(
+                        f"GraphitiClient.add_memory: key={key}, importance={importance}"
+                    )
                 return True
             else:
                 if LOGURU_ENABLED:
@@ -678,7 +732,9 @@ class GraphitiClient:
                 logger.error(f"add_memory failed: {e}")
             return False
 
-    async def add_relationship(self, entity1: str, entity2: str, relationship_type: str) -> bool:
+    async def add_relationship(
+        self, entity1: str, entity2: str, relationship_type: str
+    ) -> bool:
         """
         添加实体关系到Graphiti (通过 add_episode 存储关系描述)
 
@@ -712,7 +768,9 @@ class GraphitiClient:
                 await asyncio.wait_for(add_coro, timeout=timeout_seconds)
 
                 if LOGURU_ENABLED:
-                    logger.info(f"GraphitiClient.add_relationship: {entity1} --[{relationship_type}]--> {entity2}")
+                    logger.info(
+                        f"GraphitiClient.add_relationship: {entity1} --[{relationship_type}]--> {entity2}"
+                    )
                 return True
             else:
                 if LOGURU_ENABLED:
@@ -794,7 +852,9 @@ class GraphitiClient:
 
                 # 存储关联关系
                 await self.add_relationship(
-                    entity1=source_canvas_id, entity2=verification_canvas_id, relationship_type="HAS_VERIFICATION"
+                    entity1=source_canvas_id,
+                    entity2=verification_canvas_id,
+                    relationship_type="HAS_VERIFICATION",
                 )
 
                 if LOGURU_ENABLED:
@@ -806,7 +866,9 @@ class GraphitiClient:
                 return True
             else:
                 if LOGURU_ENABLED:
-                    logger.warning("store_review_canvas_relationship: graphiti_core not available")
+                    logger.warning(
+                        "store_review_canvas_relationship: graphiti_core not available"
+                    )
                 return False
 
         except Exception as e:
@@ -814,7 +876,9 @@ class GraphitiClient:
                 logger.error(f"store_review_canvas_relationship failed: {e}")
             return False
 
-    async def query_review_history(self, canvas_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    async def query_review_history(
+        self, canvas_id: str, limit: int = 10
+    ) -> List[Dict[str, Any]]:
         """
         查询Canvas的复习历史记录
 
@@ -857,14 +921,23 @@ class GraphitiClient:
                         if metadata.get("type") == "verification_canvas":
                             history.append(
                                 {
-                                    "verification_canvas_id": metadata.get("canvas_id", ""),
+                                    "verification_canvas_id": metadata.get(
+                                        "canvas_id", ""
+                                    ),
                                     "review_date": metadata.get("review_date", ""),
                                     "node_count": metadata.get("node_count", 0),
                                     "source_canvas": metadata.get("source_canvas", ""),
                                     "metadata": {
                                         k: v
                                         for k, v in metadata.items()
-                                        if k not in ["type", "canvas_id", "review_date", "node_count", "source_canvas"]
+                                        if k
+                                        not in [
+                                            "type",
+                                            "canvas_id",
+                                            "review_date",
+                                            "node_count",
+                                            "source_canvas",
+                                        ]
                                     },
                                 }
                             )
@@ -873,7 +946,9 @@ class GraphitiClient:
                 history.sort(key=lambda x: x.get("review_date", ""), reverse=True)
 
                 if LOGURU_ENABLED:
-                    logger.info(f"query_review_history: canvas={canvas_id}, found={len(history)}")
+                    logger.info(
+                        f"query_review_history: canvas={canvas_id}, found={len(history)}"
+                    )
                 return history
             else:
                 if LOGURU_ENABLED:
@@ -916,13 +991,13 @@ class GraphitiClient:
 
 try:
     # Re-export from unified backend location (Story 36.1)
-    from backend.app.clients.graphiti_client_base import (
-        GraphitiClientBase,
-        EdgeRelationship,
-    )
     from backend.app.clients.graphiti_client import (
         GraphitiEdgeClient,
         GraphitiEdgeClientAdapter,
+    )
+    from backend.app.clients.graphiti_client_base import (
+        EdgeRelationship,
+        GraphitiClientBase,
     )
 
     # Flag for availability check

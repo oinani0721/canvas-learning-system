@@ -15,11 +15,11 @@ import pytest
 
 from tests.unit.test_story_31a2_helpers import _make_neo4j_mock, _make_service
 
-
 # =============================================================================
 # AC-31.A.2.1: Neo4j Query Priority (from Neo4j, fallback to memory)
 # [Source: docs/stories/31.A.2.story.md#AC-31.A.2.1]
 # =============================================================================
+
 
 class TestAC31A21_Neo4jQueryPriority:
     """AC-31.A.2.1: get_learning_history() must query Neo4j first."""
@@ -30,8 +30,12 @@ class TestAC31A21_Neo4jQueryPriority:
         Neo4j MERGE only keeps 1 score per concept, so in-memory episodes
         (which store all score events) are merged for complete history."""
         neo4j_data = [
-            {"concept": "Neo4j-矩阵", "score": 95, "timestamp": "2026-02-05T10:00:00",
-             "user_id": "u1"}
+            {
+                "concept": "Neo4j-矩阵",
+                "score": 95,
+                "timestamp": "2026-02-05T10:00:00",
+                "user_id": "u1",
+            }
         ]
         mock_neo4j = _make_neo4j_mock(
             get_learning_history=AsyncMock(return_value=neo4j_data)
@@ -40,10 +44,14 @@ class TestAC31A21_Neo4jQueryPriority:
         await service.initialize()
 
         # Memory data is now MERGED (not excluded) for complete score history
-        service._episodes.append({
-            "user_id": "u1", "concept": "Memory-向量",
-            "score": 50, "timestamp": "2026-02-05T09:00:00"
-        })
+        service._episodes.append(
+            {
+                "user_id": "u1",
+                "concept": "Memory-向量",
+                "score": 50,
+                "timestamp": "2026-02-05T09:00:00",
+            }
+        )
 
         result = await service.get_learning_history(user_id="u1")
 
@@ -70,7 +78,7 @@ class TestAC31A21_Neo4jQueryPriority:
             concept="矩阵",
             subject="数学",
             page=2,
-            page_size=10
+            page_size=10,
         )
 
         call_kwargs = mock_neo4j.get_learning_history.call_args.kwargs
@@ -92,10 +100,14 @@ class TestAC31A21_Neo4jQueryPriority:
         service = _make_service(mock_neo4j)
         await service.initialize()
 
-        service._episodes.append({
-            "user_id": "u1", "concept": "内存数据",
-            "score": 70, "timestamp": "2026-02-05T08:00:00"
-        })
+        service._episodes.append(
+            {
+                "user_id": "u1",
+                "concept": "内存数据",
+                "score": 70,
+                "timestamp": "2026-02-05T08:00:00",
+            }
+        )
 
         result = await service.get_learning_history(user_id="u1")
 
@@ -106,9 +118,7 @@ class TestAC31A21_Neo4jQueryPriority:
     async def test_fallback_logs_warning_on_neo4j_failure(self, caplog):
         """AC-31.A.2.1: Fallback must log a warning."""
         mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(
-                side_effect=ConnectionError("timeout")
-            )
+            get_learning_history=AsyncMock(side_effect=ConnectionError("timeout"))
         )
         service = _make_service(mock_neo4j)
         await service.initialize()
@@ -124,16 +134,18 @@ class TestAC31A21_Neo4jQueryPriority:
     @pytest.mark.asyncio
     async def test_fallback_to_memory_when_neo4j_returns_empty(self):
         """When Neo4j returns empty list, fall back to memory."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=[])
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=[]))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
-        service._episodes.append({
-            "user_id": "u1", "concept": "内存回退",
-            "score": 60, "timestamp": "2026-02-05T07:00:00"
-        })
+        service._episodes.append(
+            {
+                "user_id": "u1",
+                "concept": "内存回退",
+                "score": 60,
+                "timestamp": "2026-02-05T07:00:00",
+            }
+        )
 
         result = await service.get_learning_history(user_id="u1")
 
@@ -145,20 +157,30 @@ class TestAC31A21_Neo4jQueryPriority:
         """[Code Review C2]: When same event exists in both Neo4j and memory,
         dedup by (node_id, timestamp) ensures no duplicates."""
         mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=[
-                {"concept": "A", "score": 90, "timestamp": "2026-02-05T10:00:00",
-                 "node_id": "n1"}
-            ])
+            get_learning_history=AsyncMock(
+                return_value=[
+                    {
+                        "concept": "A",
+                        "score": 90,
+                        "timestamp": "2026-02-05T10:00:00",
+                        "node_id": "n1",
+                    }
+                ]
+            )
         )
         service = _make_service(mock_neo4j)
         await service.initialize()
 
         # Same event in memory (same node_id + timestamp = deduped)
-        service._episodes.append({
-            "user_id": "u1", "concept": "A",
-            "score": 90, "timestamp": "2026-02-05T10:00:00",
-            "node_id": "n1"
-        })
+        service._episodes.append(
+            {
+                "user_id": "u1",
+                "concept": "A",
+                "score": 90,
+                "timestamp": "2026-02-05T10:00:00",
+                "node_id": "n1",
+            }
+        )
 
         result = await service.get_learning_history(user_id="u1")
 
@@ -169,9 +191,7 @@ class TestAC31A21_Neo4jQueryPriority:
     @pytest.mark.asyncio
     async def test_auto_initialize_when_not_initialized(self):
         """Service should auto-initialize if not yet initialized."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=[])
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=[]))
         service = _make_service(mock_neo4j)
         # NOT calling initialize()
 

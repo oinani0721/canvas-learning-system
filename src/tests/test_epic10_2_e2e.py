@@ -31,6 +31,7 @@ import pytest
 # Test Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def test_canvas_10_nodes():
     """10节点测试Canvas路径"""
@@ -62,6 +63,7 @@ def cleanup_canvas_backup():
     # Cleanup after test
     for pattern in ["test_data/*.backup.*", "test_data/*检验白板*.canvas"]:
         import glob
+
         for file in glob.glob(pattern):
             try:
                 os.remove(file)
@@ -72,6 +74,7 @@ def cleanup_canvas_backup():
 # ============================================================================
 # AC1: 端到端集成测试 - 10节点
 # ============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -90,14 +93,16 @@ async def test_e2e_10_nodes(test_canvas_10_nodes, cleanup_canvas_backup):
     - Story 10.2.2: Handler异步化
     - Story 10.2.3: Canvas 3层结构修复
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("AC1: 端到端测试 - 10节点完整流程")
-    print("="*70)
+    print("=" * 70)
 
     # 导入依赖
     try:
         from canvas_utils import CanvasJSONOperator
-        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
+        from command_handlers.intelligent_parallel_handler import (
+            IntelligentParallelCommandHandler,
+        )
     except ImportError as e:
         pytest.skip(f"Required modules not available: {e}")
 
@@ -113,12 +118,7 @@ async def test_e2e_10_nodes(test_canvas_10_nodes, cleanup_canvas_backup):
 
     result = await handler.execute_async(
         test_canvas_10_nodes,
-        options={
-            "auto": True,
-            "max": 12,
-            "grouping": "intelligent",
-            "verbose": False
-        }
+        options={"auto": True, "max": 12, "grouping": "intelligent", "verbose": False},
     )
 
     # 计算执行时间
@@ -139,11 +139,11 @@ async def test_e2e_10_nodes(test_canvas_10_nodes, cleanup_canvas_backup):
 
     # 验证节点数量增加 (原10个黄色 + 蓝色TEXT + File节点)
     print(f"📊 节点总数: {len(canvas_data['nodes'])}")
-    assert len(canvas_data['nodes']) >= 10, "节点数量不应减少"
+    assert len(canvas_data["nodes"]) >= 10, "节点数量不应减少"
 
     # 统计颜色分布
-    yellow_nodes = [n for n in canvas_data['nodes'] if n.get('color') == '6']
-    blue_nodes = [n for n in canvas_data['nodes'] if n.get('color') == '5']
+    yellow_nodes = [n for n in canvas_data["nodes"] if n.get("color") == "6"]
+    blue_nodes = [n for n in canvas_data["nodes"] if n.get("color") == "5"]
 
     print(f"🟡 黄色节点: {len(yellow_nodes)}")
     print(f"🔵 蓝色节点: {len(blue_nodes)}")
@@ -157,14 +157,15 @@ async def test_e2e_10_nodes(test_canvas_10_nodes, cleanup_canvas_backup):
         print(f"✅ 蓝色节点已生成: {len(blue_nodes)}个")
         print("   (3层结构验证需要真实Agent执行环境)")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(f"🎉 10节点端到端测试通过！({elapsed_time:.2f}s)")
-    print("="*70)
+    print("=" * 70)
 
 
 # ============================================================================
 # AC1: 端到端集成测试 - 20节点
 # ============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -174,14 +175,16 @@ async def test_e2e_20_nodes(test_canvas_20_nodes, cleanup_canvas_backup):
 
     性能目标: ≤30秒
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("AC1: 端到端测试 - 20节点完整流程")
-    print("="*70)
+    print("=" * 70)
 
     # 导入依赖
     try:
         from canvas_utils import CanvasJSONOperator
-        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
+        from command_handlers.intelligent_parallel_handler import (
+            IntelligentParallelCommandHandler,
+        )
     except ImportError as e:
         pytest.skip(f"Required modules not available: {e}")
 
@@ -197,12 +200,7 @@ async def test_e2e_20_nodes(test_canvas_20_nodes, cleanup_canvas_backup):
 
     result = await handler.execute_async(
         test_canvas_20_nodes,
-        options={
-            "auto": True,
-            "max": 12,
-            "grouping": "intelligent",
-            "verbose": False
-        }
+        options={"auto": True, "max": 12, "grouping": "intelligent", "verbose": False},
     )
 
     # 计算执行时间
@@ -217,19 +215,20 @@ async def test_e2e_20_nodes(test_canvas_20_nodes, cleanup_canvas_backup):
 
     # 验证Canvas文件
     canvas_data = CanvasJSONOperator.read_canvas(test_canvas_20_nodes)
-    yellow_nodes = [n for n in canvas_data['nodes'] if n.get('color') == '6']
+    yellow_nodes = [n for n in canvas_data["nodes"] if n.get("color") == "6"]
 
     print(f"📊 黄色节点数: {len(yellow_nodes)}")
     assert len(yellow_nodes) == 20, "应有20个黄色节点"
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(f"🎉 20节点端到端测试通过！({elapsed_time:.2f}s)")
-    print("="*70)
+    print("=" * 70)
 
 
 # ============================================================================
 # AC1: 端到端集成测试 - 50节点
 # ============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -240,14 +239,16 @@ async def test_e2e_50_nodes(test_canvas_50_nodes, cleanup_canvas_backup):
 
     性能目标: ≤60秒
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("AC1: 端到端测试 - 50节点完整流程")
-    print("="*70)
+    print("=" * 70)
 
     # 导入依赖
     try:
         from canvas_utils import CanvasJSONOperator
-        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
+        from command_handlers.intelligent_parallel_handler import (
+            IntelligentParallelCommandHandler,
+        )
     except ImportError as e:
         pytest.skip(f"Required modules not available: {e}")
 
@@ -263,12 +264,7 @@ async def test_e2e_50_nodes(test_canvas_50_nodes, cleanup_canvas_backup):
 
     result = await handler.execute_async(
         test_canvas_50_nodes,
-        options={
-            "auto": True,
-            "max": 12,
-            "grouping": "intelligent",
-            "verbose": False
-        }
+        options={"auto": True, "max": 12, "grouping": "intelligent", "verbose": False},
     )
 
     # 计算执行时间
@@ -283,19 +279,20 @@ async def test_e2e_50_nodes(test_canvas_50_nodes, cleanup_canvas_backup):
 
     # 验证Canvas文件
     canvas_data = CanvasJSONOperator.read_canvas(test_canvas_50_nodes)
-    yellow_nodes = [n for n in canvas_data['nodes'] if n.get('color') == '6']
+    yellow_nodes = [n for n in canvas_data["nodes"] if n.get("color") == "6"]
 
     print(f"📊 黄色节点数: {len(yellow_nodes)}")
     assert len(yellow_nodes) == 50, "应有50个黄色节点"
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(f"🎉 50节点端到端测试通过！({elapsed_time:.2f}s)")
-    print("="*70)
+    print("=" * 70)
 
 
 # ============================================================================
 # AC1: 错误恢复测试
 # ============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -308,14 +305,16 @@ async def test_e2e_error_recovery(test_canvas_10_nodes, cleanup_canvas_backup):
     - 验证系统能够继续处理其他任务
     - 验证错误被正确记录和报告
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("AC1: 端到端测试 - 错误恢复")
-    print("="*70)
+    print("=" * 70)
 
     # 导入依赖
     try:
         from canvas_utils import CanvasJSONOperator
-        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
+        from command_handlers.intelligent_parallel_handler import (
+            IntelligentParallelCommandHandler,
+        )
     except ImportError as e:
         pytest.skip(f"Required modules not available: {e}")
 
@@ -324,19 +323,24 @@ async def test_e2e_error_recovery(test_canvas_10_nodes, cleanup_canvas_backup):
 
     # 创建一个有问题的Canvas副本
     import tempfile
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8') as tmp:
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+    ) as tmp:
         # 复制Canvas并添加一个空节点（会导致处理失败）
         canvas_data = CanvasJSONOperator.read_canvas(test_canvas_10_nodes)
-        canvas_data['nodes'].append({
-            "id": "yellow-error",
-            "type": "text",
-            "text": "",  # 空文本，可能导致Agent失败
-            "x": 0,
-            "y": 10000,
-            "width": 350,
-            "height": 150,
-            "color": "6"
-        })
+        canvas_data["nodes"].append(
+            {
+                "id": "yellow-error",
+                "type": "text",
+                "text": "",  # 空文本，可能导致Agent失败
+                "x": 0,
+                "y": 10000,
+                "width": 350,
+                "height": 150,
+                "color": "6",
+            }
+        )
         json.dump(canvas_data, tmp, ensure_ascii=False, indent=2)
         error_canvas_path = tmp.name
 
@@ -351,8 +355,8 @@ async def test_e2e_error_recovery(test_canvas_10_nodes, cleanup_canvas_backup):
                 "auto": True,
                 "max": 12,
                 "grouping": "intelligent",
-                "verbose": False
-            }
+                "verbose": False,
+            },
         )
 
         # 验证执行结果
@@ -369,9 +373,9 @@ async def test_e2e_error_recovery(test_canvas_10_nodes, cleanup_canvas_backup):
         else:
             print("ℹ️  未检测到错误（可能Handler自动处理了）")
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("🎉 错误恢复测试通过！")
-        print("="*70)
+        print("=" * 70)
 
     finally:
         # 清理临时文件

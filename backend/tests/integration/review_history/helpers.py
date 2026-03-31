@@ -1,8 +1,8 @@
 """Constants, context managers, and factory functions for review history tests."""
 
 from contextlib import contextmanager
-from datetime import datetime, date, timedelta
-from typing import Dict, Any
+from datetime import date, datetime, timedelta
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # Fixed timestamp for deterministic tests (avoid datetime.now() flakiness)
@@ -13,8 +13,14 @@ REVIEW_SERVICE_PATCH = "app.api.v1.endpoints.review._get_review_service_singleto
 
 
 @contextmanager
-def mock_review_history(*, records=None, has_more=False, streak_days=0,
-                        retention_rate=None, side_effect=None):
+def mock_review_history(
+    *,
+    records=None,
+    has_more=False,
+    streak_days=0,
+    retention_rate=None,
+    side_effect=None,
+):
     """Patch review service singleton with configured get_history mock.
 
     Replaces 26 occurrences of the boilerplate pattern:

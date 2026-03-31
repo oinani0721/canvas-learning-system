@@ -12,12 +12,10 @@ Test framework: pytest + pytest-asyncio [Source: ADR-008]
 
 import base64
 from datetime import datetime
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-
 from src.agentic_rag.processors.video_processor import (
     VideoCorruptError,
     VideoMetadata,
@@ -285,21 +283,21 @@ class TestVideoProcessorValidateSize:
     def test_validate_size_within_limit(self, processor, tmp_path):
         """Test validate_size returns True for files within limit."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 500)
+        video_file.write_bytes(b"\x00" * 500)
 
         assert processor.validate_size(video_file) is True
 
     def test_validate_size_at_limit(self, processor, tmp_path):
         """Test validate_size returns True for files at exact limit."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
         assert processor.validate_size(video_file) is True
 
     def test_validate_size_exceeds_limit(self, processor, tmp_path):
         """Test validate_size returns False for files exceeding limit."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1500)
+        video_file.write_bytes(b"\x00" * 1500)
 
         assert processor.validate_size(video_file) is False
 
@@ -317,14 +315,19 @@ class TestVideoProcessorGetMimeType:
     def processor(self):
         return VideoProcessor()
 
-    @pytest.mark.parametrize("extension,expected_mime", [
-        (".mp4", "video/mp4"),
-        (".webm", "video/webm"),
-        (".mkv", "video/x-matroska"),
-        (".avi", "video/x-msvideo"),
-        (".mov", "video/quicktime"),
-    ])
-    def test_get_mime_type_known_formats(self, processor, tmp_path, extension, expected_mime):
+    @pytest.mark.parametrize(
+        "extension,expected_mime",
+        [
+            (".mp4", "video/mp4"),
+            (".webm", "video/webm"),
+            (".mkv", "video/x-matroska"),
+            (".avi", "video/x-msvideo"),
+            (".mov", "video/quicktime"),
+        ],
+    )
+    def test_get_mime_type_known_formats(
+        self, processor, tmp_path, extension, expected_mime
+    ):
         """Test get_mime_type returns correct MIME type for known formats."""
         video_file = tmp_path / f"test{extension}"
 
@@ -368,7 +371,7 @@ class TestVideoProcessorProcess:
     async def test_process_unsupported_format(self, processor, tmp_path):
         """Test process raises VideoValidationError for unsupported format."""
         video_file = tmp_path / "test.txt"
-        video_file.write_bytes(b'\x00' * 100)
+        video_file.write_bytes(b"\x00" * 100)
 
         with pytest.raises(VideoValidationError, match="Unsupported format"):
             await processor.process(video_file, "concept-123")
@@ -378,21 +381,31 @@ class TestVideoProcessorProcess:
         """Test process raises VideoSizeError for oversized file."""
         processor = VideoProcessor(max_size_bytes=100)
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 200)
+        video_file.write_bytes(b"\x00" * 200)
 
         with pytest.raises(VideoSizeError, match="exceeds limit"):
             await processor.process(video_file, "concept-123")
 
     @pytest.mark.asyncio
-    async def test_process_returns_multimodal_content(self, processor, tmp_path, mock_video_clip):
+    async def test_process_returns_multimodal_content(
+        self, processor, tmp_path, mock_video_clip
+    ):
         """Test process returns MultimodalContent instance (AC 35.7.5)."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_video_clip):
-            from src.agentic_rag.models.multimodal_content import MediaType, MultimodalContent
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch("src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_video_clip,
+            ),
+        ):
+            from src.agentic_rag.models.multimodal_content import (
+                MediaType,
+                MultimodalContent,
+            )
 
             result = await processor.process(video_file, "concept-123")
 
@@ -401,14 +414,21 @@ class TestVideoProcessorProcess:
             assert result.related_concept_id == "concept-123"
 
     @pytest.mark.asyncio
-    async def test_process_extracts_metadata(self, processor, tmp_path, mock_video_clip):
+    async def test_process_extracts_metadata(
+        self, processor, tmp_path, mock_video_clip
+    ):
         """Test process extracts correct metadata (AC 35.7.1)."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_video_clip):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch("src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_video_clip,
+            ),
+        ):
             result = await processor.process(video_file, "concept-123")
 
             assert result.metadata.width == 1920
@@ -425,14 +445,21 @@ class TestVideoProcessorGenerateThumbnail:
         return VideoProcessor()
 
     @pytest.mark.asyncio
-    async def test_generate_thumbnail_returns_base64(self, processor, tmp_path, mock_video_clip):
+    async def test_generate_thumbnail_returns_base64(
+        self, processor, tmp_path, mock_video_clip
+    ):
         """Test generate_thumbnail returns valid base64 string."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_video_clip):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch("src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_video_clip,
+            ),
+        ):
             thumbnail = await processor.generate_thumbnail(video_file)
 
             assert isinstance(thumbnail, str)
@@ -441,14 +468,21 @@ class TestVideoProcessorGenerateThumbnail:
             assert len(decoded) > 0
 
     @pytest.mark.asyncio
-    async def test_generate_thumbnail_custom_size(self, processor, tmp_path, mock_video_clip):
+    async def test_generate_thumbnail_custom_size(
+        self, processor, tmp_path, mock_video_clip
+    ):
         """Test generate_thumbnail with custom size."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_video_clip):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch("src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_video_clip,
+            ),
+        ):
             thumbnail = await processor.generate_thumbnail(video_file, size=(50, 50))
 
             assert isinstance(thumbnail, str)
@@ -458,14 +492,19 @@ class TestVideoProcessorGenerateThumbnail:
     async def test_generate_thumbnail_corrupt_video(self, processor, tmp_path):
         """Test generate_thumbnail raises VideoCorruptError for corrupt video."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
         mock_clip = MagicMock()
         mock_clip.get_frame.side_effect = Exception("Cannot read frame")
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_clip):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch("src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_clip,
+            ),
+        ):
             with pytest.raises(VideoCorruptError, match="Cannot generate thumbnail"):
                 await processor.generate_thumbnail(video_file)
 
@@ -481,10 +520,15 @@ class TestVideoProcessorExtractMetadata:
     async def test_extract_metadata_success(self, processor, tmp_path, mock_video_clip):
         """Test _extract_metadata returns VideoMetadata with correct values."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_video_clip):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_video_clip,
+            ),
+        ):
             metadata = await processor._extract_metadata(video_file)
 
             assert isinstance(metadata, VideoMetadata)
@@ -498,10 +542,15 @@ class TestVideoProcessorExtractMetadata:
     async def test_extract_metadata_corrupt_video(self, processor, tmp_path):
         """Test _extract_metadata raises VideoCorruptError for corrupt video."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', side_effect=Exception("Cannot read")):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                side_effect=Exception("Cannot read"),
+            ),
+        ):
             with pytest.raises(VideoCorruptError, match="Cannot read video"):
                 await processor._extract_metadata(video_file)
 
@@ -528,23 +577,27 @@ class TestVideoProcessorAnalyzeVideo:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_analyze_video_no_feature_flag_returns_none(self, processor_with_understanding, tmp_path):
+    async def test_analyze_video_no_feature_flag_returns_none(
+        self, processor_with_understanding, tmp_path
+    ):
         """Test analyze_video returns None without feature flag."""
         video_file = tmp_path / "test.mp4"
         video_file.touch()
 
-        with patch.dict('os.environ', {}, clear=True):
+        with patch.dict("os.environ", {}, clear=True):
             result = await processor_with_understanding.analyze_video(video_file)
 
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_analyze_video_with_feature_flag(self, processor_with_understanding, tmp_path):
+    async def test_analyze_video_with_feature_flag(
+        self, processor_with_understanding, tmp_path
+    ):
         """Test analyze_video with feature flag enabled (placeholder)."""
         video_file = tmp_path / "test.mp4"
         video_file.touch()
 
-        with patch.dict('os.environ', {'ENABLE_VIDEO_UNDERSTANDING': 'true'}):
+        with patch.dict("os.environ", {"ENABLE_VIDEO_UNDERSTANDING": "true"}):
             result = await processor_with_understanding.analyze_video(video_file)
 
         # Currently returns None as placeholder
@@ -558,11 +611,16 @@ class TestProcessVideoConvenienceFunction:
     async def test_process_video_with_string_path(self, tmp_path, mock_video_clip):
         """Test process_video accepts string path."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_video_clip):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch("src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_video_clip,
+            ),
+        ):
             from src.agentic_rag.models.multimodal_content import MultimodalContent
 
             result = await process_video(str(video_file), "concept-123")
@@ -573,11 +631,16 @@ class TestProcessVideoConvenienceFunction:
     async def test_process_video_with_path_object(self, tmp_path, mock_video_clip):
         """Test process_video accepts Path object."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_video_clip):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch("src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_video_clip,
+            ),
+        ):
             from src.agentic_rag.models.multimodal_content import MultimodalContent
 
             result = await process_video(video_file, "concept-123")
@@ -588,11 +651,16 @@ class TestProcessVideoConvenienceFunction:
     async def test_process_video_passes_kwargs(self, tmp_path, mock_video_clip):
         """Test process_video passes kwargs to VideoProcessor."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_video_clip):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch("src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_video_clip,
+            ),
+        ):
             result = await process_video(
                 video_file,
                 "concept-123",
@@ -613,11 +681,16 @@ class TestVideoProcessorIntegration:
     async def test_full_processing_workflow(self, processor, tmp_path, mock_video_clip):
         """Test complete processing workflow end-to-end."""
         video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b'\x00' * 1000)
+        video_file.write_bytes(b"\x00" * 1000)
 
-        with patch('src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE', True), \
-             patch('src.agentic_rag.processors.video_processor.VideoFileClip', return_value=mock_video_clip):
+        with (
+            patch("src.agentic_rag.processors.video_processor.MOVIEPY_AVAILABLE", True),
+            patch("src.agentic_rag.processors.video_processor.PILLOW_AVAILABLE", True),
+            patch(
+                "src.agentic_rag.processors.video_processor.VideoFileClip",
+                return_value=mock_video_clip,
+            ),
+        ):
             from src.agentic_rag.models.multimodal_content import MediaType
 
             # Process video

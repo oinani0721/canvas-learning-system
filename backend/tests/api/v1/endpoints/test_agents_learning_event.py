@@ -55,7 +55,7 @@ class MockMemoryService:
         concept: str,
         agent_type: str,
         score: int | None = None,
-        duration_seconds: int | None = None
+        duration_seconds: int | None = None,
     ) -> str:
         """Mock record_learning_event."""
         self.call_count += 1
@@ -112,7 +112,7 @@ class TestRecordLearningEvent:
             agent_type="decompose_basic",
             canvas_path="Math53.canvas",
             node_id="node_abc123",
-            concept="逆否命题的定义"
+            concept="逆否命题的定义",
         )
 
         # Then: Service was called exactly once
@@ -130,7 +130,7 @@ class TestRecordLearningEvent:
             agent_type="decompose_deep",
             canvas_path="Math53.canvas",
             node_id="node_xyz789",
-            concept="逆否命题"
+            concept="逆否命题",
         )
 
         # Then: All required fields are present
@@ -154,7 +154,7 @@ class TestRecordLearningEvent:
             canvas_path="Math53.canvas",
             node_id="node_score1",
             concept="用户对逆否命题的理解",
-            score=85
+            score=85,
         )
 
         # Then: Score is included
@@ -176,7 +176,7 @@ class TestRecordLearningEvent:
                 agent_type="decompose_basic",
                 canvas_path="Math53.canvas",
                 node_id="node_fail1",
-                concept="测试概念"
+                concept="测试概念",
             )
         except Exception as e:
             pytest.fail(f"Exception should not propagate: {e}")
@@ -195,7 +195,7 @@ class TestRecordLearningEvent:
             agent_type="decompose_basic",
             canvas_path="Canvas1.canvas",
             node_id="node1",
-            concept="概念1"
+            concept="概念1",
         )
         assert mock_service.last_call_args["agent_type"] == "decompose_basic"
 
@@ -205,7 +205,7 @@ class TestRecordLearningEvent:
             agent_type="explain_oral",
             canvas_path="Canvas2.canvas",
             node_id="node2",
-            concept="概念2"
+            concept="概念2",
         )
         assert mock_service.last_call_args["agent_type"] == "explain_oral"
 
@@ -215,7 +215,7 @@ class TestRecordLearningEvent:
             agent_type="explain_clarification",
             canvas_path="Canvas3.canvas",
             node_id="node3",
-            concept="概念3"
+            concept="概念3",
         )
         assert mock_service.last_call_args["agent_type"] == "explain_clarification"
 
@@ -240,7 +240,7 @@ class TestBackgroundTaskIntegration:
             agent_type="decompose_basic",
             canvas_path="Math53.canvas",
             node_id="node_bg1",
-            concept="后台任务测试"
+            concept="后台任务测试",
         )
 
         # Then: Task is queued (not yet executed)
@@ -266,7 +266,7 @@ class TestBackgroundTaskIntegration:
             agent_type="decompose_basic",
             canvas_path="Math53.canvas",
             node_id="node_fail_bg",
-            concept="失败任务测试"
+            concept="失败任务测试",
         )
 
         # Then: Executing doesn't raise (graceful degradation)
@@ -287,11 +287,11 @@ class TestMemoryServiceSingleton:
         # Given: Reset singleton
         mem_module._memory_service_instance = None
 
-        with patch.object(mem_module, 'MemoryService') as MockClass:
+        with patch.object(mem_module, "MemoryService") as MockClass:
             mock_instance = AsyncMock()
             mock_instance._initialized = False
             mock_instance.initialize = AsyncMock(
-                side_effect=lambda: setattr(mock_instance, '_initialized', True)
+                side_effect=lambda: setattr(mock_instance, "_initialized", True)
             )
             MockClass.return_value = mock_instance
 
@@ -337,10 +337,7 @@ class TestEndpointIntegration:
         from app.models import DecomposeRequest
 
         background_tasks = BackgroundTasks()
-        request = DecomposeRequest(
-            canvas_name="Math53.canvas",
-            node_id="node_test1"
-        )
+        request = DecomposeRequest(canvas_name="Math53.canvas", node_id="node_test1")
 
         await decompose_basic(
             request=request,
@@ -377,10 +374,7 @@ class TestEndpointIntegration:
         from app.models import DecomposeRequest
 
         background_tasks = BackgroundTasks()
-        request = DecomposeRequest(
-            canvas_name="Math53.canvas",
-            node_id="node_deep1"
-        )
+        request = DecomposeRequest(canvas_name="Math53.canvas", node_id="node_deep1")
 
         await decompose_deep(
             request=request,
@@ -405,16 +399,18 @@ class TestEndpointIntegration:
         # Note: NodeScore validates: each sub-score 0-10, total 0-40
         mock_dependencies["agent_service"].score_node = AsyncMock(
             return_value={
-                "scores": [{
-                    "node_id": "node_score1",
-                    "accuracy": 8.0,
-                    "imagery": 7.0,
-                    "completeness": 9.0,
-                    "originality": 6.0,
-                    "total": 30.0,  # Valid: 0-40 range
-                    "new_color": "2",  # Green (>=32 is green, but 30 would be yellow)
-                    "concept": "逆否命题理解"
-                }]
+                "scores": [
+                    {
+                        "node_id": "node_score1",
+                        "accuracy": 8.0,
+                        "imagery": 7.0,
+                        "completeness": 9.0,
+                        "originality": 6.0,
+                        "total": 30.0,  # Valid: 0-40 range
+                        "new_color": "2",  # Green (>=32 is green, but 30 would be yellow)
+                        "concept": "逆否命题理解",
+                    }
+                ]
             }
         )
 
@@ -426,10 +422,7 @@ class TestEndpointIntegration:
         mock_canvas_service = AsyncMock()
 
         background_tasks = BackgroundTasks()
-        request = ScoreRequest(
-            canvas_name="Math53.canvas",
-            node_ids=["node_score1"]
-        )
+        request = ScoreRequest(canvas_name="Math53.canvas", node_ids=["node_score1"])
 
         await score_understanding(
             request=request,
@@ -464,10 +457,7 @@ class TestEndpointIntegration:
         from app.models import ExplainRequest
 
         background_tasks = BackgroundTasks()
-        request = ExplainRequest(
-            canvas_name="Math53.canvas",
-            node_id="node_oral1"
-        )
+        request = ExplainRequest(canvas_name="Math53.canvas", node_id="node_oral1")
 
         await explain_oral(
             request=request,
@@ -486,7 +476,9 @@ class TestEndpointIntegration:
         assert args["agent_type"] == "explain_oral"
 
     @pytest.mark.asyncio
-    async def test_learning_event_failure_does_not_block_response(self, mock_dependencies):
+    async def test_learning_event_failure_does_not_block_response(
+        self, mock_dependencies
+    ):
         """AC-4: Learning event failure does not block Agent response."""
         # Given: A failing memory service
         failing_memory_service = MockMemoryService(should_fail=True)
@@ -503,10 +495,7 @@ class TestEndpointIntegration:
         from app.models import DecomposeRequest
 
         background_tasks = BackgroundTasks()
-        request = DecomposeRequest(
-            canvas_name="Math53.canvas",
-            node_id="node_fail"
-        )
+        request = DecomposeRequest(canvas_name="Math53.canvas", node_id="node_fail")
 
         # Then: Response is successful
         response = await decompose_basic(
@@ -551,14 +540,17 @@ class TestAllExplainEndpointsRecording:
         }
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("endpoint_func,agent_type", [
-        ("explain_oral", "explain_oral"),
-        ("explain_clarification", "explain_clarification"),
-        ("explain_comparison", "explain_comparison"),
-        ("explain_memory", "explain_memory"),
-        ("explain_four_level", "explain_four-level"),
-        ("explain_example", "explain_example"),
-    ])
+    @pytest.mark.parametrize(
+        "endpoint_func,agent_type",
+        [
+            ("explain_oral", "explain_oral"),
+            ("explain_clarification", "explain_clarification"),
+            ("explain_comparison", "explain_comparison"),
+            ("explain_memory", "explain_memory"),
+            ("explain_four_level", "explain_four-level"),
+            ("explain_example", "explain_example"),
+        ],
+    )
     async def test_explain_endpoint_records_event(
         self, mock_deps, endpoint_func, agent_type
     ):
@@ -569,8 +561,7 @@ class TestAllExplainEndpointsRecording:
         memory_service = MockMemoryService()
         background_tasks = BackgroundTasks()
         request = ExplainRequest(
-            canvas_name="Math53.canvas",
-            node_id=f"node_{endpoint_func}"
+            canvas_name="Math53.canvas", node_id=f"node_{endpoint_func}"
         )
 
         # Get the endpoint function

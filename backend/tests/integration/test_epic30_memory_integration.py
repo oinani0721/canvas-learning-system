@@ -22,11 +22,8 @@ Test Pattern:
 [Source: docs/stories/30.5.story.md]
 """
 
-import asyncio
-import json
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
@@ -143,8 +140,8 @@ def test_client(memory_service):
     Provide a synchronous FastAPI TestClient with the MemoryService singleton
     pre-injected so that no real Neo4j connection is attempted.
     """
-    from app.main import app
     import backend.app.services.memory_service as memory_module
+    from app.main import app
 
     # Inject the pre-built MemoryService as the module-level singleton
     memory_module._memory_service_instance = memory_service
@@ -664,7 +661,9 @@ class TestDependencyInjectionChain:
 
         mock_neo4j = _make_mock_neo4j_client()
         mock_lm = _make_mock_learning_memory_client()
-        with patch("app.services.memory_service.get_neo4j_client", return_value=mock_neo4j):
+        with patch(
+            "app.services.memory_service.get_neo4j_client", return_value=mock_neo4j
+        ):
             svc = MemoryService()
         svc._learning_memory = mock_lm
 

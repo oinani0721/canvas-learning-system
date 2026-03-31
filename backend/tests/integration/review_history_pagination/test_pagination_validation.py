@@ -16,12 +16,11 @@ Covers:
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.models import HistoryResponse
 
 from .conftest import (
-    REVIEW_SERVICE_PATCH,
     _FIXED_REVIEW_TIME,
+    REVIEW_SERVICE_PATCH,
     make_mock_review_service,
 )
 
@@ -34,9 +33,7 @@ class TestReviewHistoryFilters:
         with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = make_mock_review_service()
             mock_get.return_value = mock_service
-            response = client.get(
-                "/api/v1/review/history?canvas_path=离散数学.canvas"
-            )
+            response = client.get("/api/v1/review/history?canvas_path=离散数学.canvas")
 
             assert response.status_code == 200
             mock_service.get_history.assert_called_once()
@@ -48,9 +45,7 @@ class TestReviewHistoryFilters:
         with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = make_mock_review_service()
             mock_get.return_value = mock_service
-            response = client.get(
-                "/api/v1/review/history?concept_name=逆否命题"
-            )
+            response = client.get("/api/v1/review/history?concept_name=逆否命题")
 
             assert response.status_code == 200
             mock_service.get_history.assert_called_once()
@@ -86,9 +81,7 @@ class TestReviewHistoryErrorHandling:
         """Test service errors result in empty response (graceful degradation)."""
         with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
-            mock_service.get_history = AsyncMock(
-                side_effect=Exception("Service error")
-            )
+            mock_service.get_history = AsyncMock(side_effect=Exception("Service error"))
             mock_get.return_value = mock_service
             response = client.get("/api/v1/review/history")
 
@@ -224,17 +217,25 @@ class TestReviewHistoryResponseSchema:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "测试概念",
-                     "canvas_path": "测试.canvas", "rating": 4,
-                     "review_time": _FIXED_REVIEW_TIME},
+                    {
+                        "concept_id": "c1",
+                        "concept_name": "测试概念",
+                        "canvas_path": "测试.canvas",
+                        "rating": 4,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
                 ],
             },
         ]
 
         with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_get.return_value = make_mock_review_service(
-                {"records": mock_records, "has_more": False,
-                 "retention_rate": 0.9, "streak_days": 3}
+                {
+                    "records": mock_records,
+                    "has_more": False,
+                    "retention_rate": 0.9,
+                    "streak_days": 3,
+                }
             )
             response = client.get("/api/v1/review/history")
 
@@ -246,9 +247,7 @@ class TestReviewHistoryResponseSchema:
                 assert len(validated.records) == 1
                 assert validated.pagination.limit == 5
             except Exception as e:
-                pytest.fail(
-                    f"Response does not match HistoryResponse schema: {e}"
-                )
+                pytest.fail(f"Response does not match HistoryResponse schema: {e}")
 
     def test_record_structure(self, client):
         """Test individual record structure matches HistoryDayRecord."""
@@ -256,9 +255,13 @@ class TestReviewHistoryResponseSchema:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "测试概念",
-                     "canvas_path": "测试.canvas", "rating": 4,
-                     "review_time": _FIXED_REVIEW_TIME},
+                    {
+                        "concept_id": "c1",
+                        "concept_name": "测试概念",
+                        "canvas_path": "测试.canvas",
+                        "rating": 4,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
                 ],
             },
         ]

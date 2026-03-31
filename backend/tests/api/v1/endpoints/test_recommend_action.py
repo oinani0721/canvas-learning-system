@@ -556,9 +556,9 @@ class TestRecommendActionHTTP:
     @pytest.fixture(autouse=True)
     def setup_client(self):
         """Set up TestClient with mocked MemoryService dependency."""
-        from fastapi.testclient import TestClient
         from app.main import app
         from app.services.memory_service import get_memory_service
+        from fastapi.testclient import TestClient
 
         mock_service = MockMemoryService()
 

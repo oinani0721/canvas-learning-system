@@ -18,10 +18,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app
-
+from fastapi.testclient import TestClient
 
 # ===========================================================================
 # Fixtures
@@ -38,21 +36,30 @@ def sample_canvas_data():
                 "type": "text",
                 "text": "逆否命题",
                 "color": "4",
-                "x": 0, "y": 0, "width": 200, "height": 100,
+                "x": 0,
+                "y": 0,
+                "width": 200,
+                "height": 100,
             },
             {
                 "id": "node-p1",
                 "type": "text",
                 "text": "充分必要条件",
                 "color": "3",
-                "x": 300, "y": 0, "width": 200, "height": 100,
+                "x": 300,
+                "y": 0,
+                "width": 200,
+                "height": 100,
             },
             {
                 "id": "node-g1",
                 "type": "text",
                 "text": "命题逻辑",
                 "color": "1",
-                "x": 600, "y": 0, "width": 200, "height": 100,
+                "x": 600,
+                "y": 0,
+                "width": 200,
+                "height": 100,
             },
         ],
         "edges": [],
@@ -74,6 +81,7 @@ def _reset_review_singleton():
     """Reset singletons between tests (Story 38.9: ReviewService via services layer)."""
     import app.api.v1.endpoints.review as review_mod
     from app.services.review_service import reset_review_service_singleton
+
     # ReviewService: reset via services-layer function
     reset_review_service_singleton()
     # VerificationService: still module-level in review.py (out of scope for 38.9)
@@ -97,6 +105,7 @@ def client_with_mock(canvas_temp_dir):
         Path(canvas_temp_dir),
     ):
         from app.config import get_settings
+
         app.dependency_overrides[get_settings] = lambda: MagicMock(
             canvas_base_path=canvas_temp_dir,
             API_V1_PREFIX="/api/v1",

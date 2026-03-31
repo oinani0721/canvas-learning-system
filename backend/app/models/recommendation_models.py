@@ -7,7 +7,7 @@ Pydantic models for concept-relation recommendation API.
 """
 
 from datetime import datetime
-from typing import List, Literal, Optional, Tuple
+from typing import List, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -15,17 +15,20 @@ from pydantic import BaseModel, Field
 
 class DismissedPair(BaseModel):
     """A node pair that the user has dismissed."""
+
     node_id_a: str
     node_id_b: str
 
 
 class DismissedPairsRequest(BaseModel):
     """Request body containing dismissed node pairs."""
+
     dismissed_pairs: List[DismissedPair] = Field(default_factory=list)
 
 
 class RecommendationCandidate(BaseModel):
     """Internal candidate before title resolution."""
+
     source_node_id: str
     target_node_id: str
     confidence: float = Field(ge=0.0, le=1.0)
@@ -35,6 +38,7 @@ class RecommendationCandidate(BaseModel):
 
 class Recommendation(BaseModel):
     """A single recommendation returned to the frontend."""
+
     id: str = Field(default_factory=lambda: uuid4().hex[:16])
     source_node_id: str
     source_node_title: str
@@ -47,6 +51,7 @@ class Recommendation(BaseModel):
 
 class RecommendationResponse(BaseModel):
     """API response wrapping a list of recommendations."""
+
     recommendations: List[Recommendation]
     canvas_id: str
     analyzed_at: datetime = Field(default_factory=datetime.utcnow)

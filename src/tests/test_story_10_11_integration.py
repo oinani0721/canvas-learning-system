@@ -16,14 +16,18 @@ sys.path.insert(0, str(project_root))
 
 import asyncio
 
-from command_handlers.learning_commands import LearningSessionManager, check_mcp_server_health, check_neo4j_connection
+from command_handlers.learning_commands import (
+    LearningSessionManager,
+    check_mcp_server_health,
+    check_neo4j_connection,
+)
 
 
 async def test_system_detection():
     """测试系统可用性检测"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试1: 系统可用性检测")
-    print("="*60)
+    print("=" * 60)
 
     # 1. Neo4j检测
     print("\n检测Neo4j连接...")
@@ -42,9 +46,9 @@ async def test_system_detection():
 
 async def test_graceful_degradation():
     """测试优雅降级"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试2: 优雅降级机制")
-    print("="*60)
+    print("=" * 60)
 
     manager = LearningSessionManager()
 
@@ -52,7 +56,7 @@ async def test_graceful_degradation():
     result = await manager.start_session(
         canvas_path="src/tests/fixtures/test.canvas",
         allow_partial_start=True,
-        interactive=False
+        interactive=False,
     )
 
     print("\n会话启动结果:")
@@ -62,43 +66,43 @@ async def test_graceful_degradation():
 
     # 显示状态报告
     print("\n状态报告:")
-    print(result['status_report'])
+    print(result["status_report"])
 
 
 async def test_status_report():
     """测试状态报告生成"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试3: 状态报告生成")
-    print("="*60)
+    print("=" * 60)
 
     manager = LearningSessionManager()
 
     # 模拟不同状态的系统
     memory_systems = {
-        'graphiti': {
-            'status': 'running',
-            'memory_id': 'mem_test_001',
-            'storage': 'Neo4j图数据库',
-            'initialized_at': '2025-10-30T19:00:00'
+        "graphiti": {
+            "status": "running",
+            "memory_id": "mem_test_001",
+            "storage": "Neo4j图数据库",
+            "initialized_at": "2025-10-30T19:00:00",
         },
-        'temporal': {
-            'status': 'unavailable',
-            'error': 'Neo4j连接失败',
-            'suggestion': '启动Neo4j数据库',
-            'attempted_at': '2025-10-30T19:00:01'
+        "temporal": {
+            "status": "unavailable",
+            "error": "Neo4j连接失败",
+            "suggestion": "启动Neo4j数据库",
+            "attempted_at": "2025-10-30T19:00:01",
         },
-        'semantic': {
-            'status': 'running',
-            'memory_id': 'sem_001',
-            'storage': '向量数据库',
-            'initialized_at': '2025-10-30T19:00:02'
-        }
+        "semantic": {
+            "status": "running",
+            "memory_id": "sem_001",
+            "storage": "向量数据库",
+            "initialized_at": "2025-10-30T19:00:02",
+        },
     }
 
     session_data = {
-        'session_id': 'test_session_integration',
-        'canvas_path': 'tests/fixtures/test.canvas',
-        'start_time': '2025-10-30T19:00:00'
+        "session_id": "test_session_integration",
+        "canvas_path": "tests/fixtures/test.canvas",
+        "start_time": "2025-10-30T19:00:00",
     }
 
     report = manager.generate_status_report(memory_systems, session_data)
@@ -108,9 +112,9 @@ async def test_status_report():
 
 async def main():
     """主测试函数"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Story 10.11 集成测试")
-    print("="*60)
+    print("=" * 60)
 
     # 测试1: 系统检测
     await test_system_detection()
@@ -121,9 +125,9 @@ async def main():
     # 测试3: 状态报告
     await test_status_report()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("✅ 所有集成测试完成")
-    print("="*60)
+    print("=" * 60)
 
 
 if __name__ == "__main__":

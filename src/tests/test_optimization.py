@@ -45,8 +45,24 @@ def sample_canvas_data() -> dict:
     """Create sample Canvas data for testing."""
     return {
         "nodes": [
-            {"id": "n1", "type": "text", "text": "Node 1", "x": 0, "y": 0, "width": 200, "height": 100},
-            {"id": "n2", "type": "text", "text": "Node 2", "x": 300, "y": 0, "width": 200, "height": 100},
+            {
+                "id": "n1",
+                "type": "text",
+                "text": "Node 1",
+                "x": 0,
+                "y": 0,
+                "width": 200,
+                "height": 100,
+            },
+            {
+                "id": "n2",
+                "type": "text",
+                "text": "Node 2",
+                "x": 300,
+                "y": 0,
+                "width": 200,
+                "height": 100,
+            },
         ],
         "edges": [],
     }
@@ -123,6 +139,7 @@ class TestCanvasCache:
 
         # Modify file (change mtime)
         import time
+
         time.sleep(0.1)
         new_data = {"nodes": [{"id": "new", "type": "text"}], "edges": []}
         temp_canvas_file.write_text(json.dumps(new_data))
@@ -259,7 +276,9 @@ class TestBatchWriter:
         assert len(saved_data["nodes"]) == 2
 
     @pytest.mark.asyncio
-    async def test_batch_writer_batching(self, tmp_path: Path, sample_canvas_data: dict):
+    async def test_batch_writer_batching(
+        self, tmp_path: Path, sample_canvas_data: dict
+    ):
         """Test that rapid writes are batched."""
         from optimization.batch_writer import BatchCanvasWriter, BatchWriterConfig
 
@@ -290,7 +309,9 @@ class TestBatchWriter:
         assert saved_data["version"] == 4
 
     @pytest.mark.asyncio
-    async def test_batch_writer_backup_creation(self, tmp_path: Path, sample_canvas_data: dict):
+    async def test_batch_writer_backup_creation(
+        self, tmp_path: Path, sample_canvas_data: dict
+    ):
         """Test backup file creation."""
         from optimization.batch_writer import BatchCanvasWriter, BatchWriterConfig
 
@@ -501,7 +522,10 @@ class TestResourceAwareScheduler:
 
     def test_resource_monitor_initialization(self):
         """Test ResourceMonitor initialization."""
-        from optimization.resource_aware_scheduler import ResourceMonitor, SchedulerConfig
+        from optimization.resource_aware_scheduler import (
+            ResourceMonitor,
+            SchedulerConfig,
+        )
 
         config = SchedulerConfig()
         monitor = ResourceMonitor(config)
@@ -511,7 +535,10 @@ class TestResourceAwareScheduler:
 
     def test_resource_monitor_get_metrics(self):
         """Test getting resource metrics."""
-        from optimization.resource_aware_scheduler import ResourceMonitor, SchedulerConfig
+        from optimization.resource_aware_scheduler import (
+            ResourceMonitor,
+            SchedulerConfig,
+        )
 
         config = SchedulerConfig()
         monitor = ResourceMonitor(config)
@@ -579,10 +606,16 @@ class TestOptimizationIntegration:
     """Integration tests for optimization components."""
 
     @pytest.mark.asyncio
-    async def test_cache_and_writer_integration(self, tmp_path: Path, sample_canvas_data: dict):
+    async def test_cache_and_writer_integration(
+        self, tmp_path: Path, sample_canvas_data: dict
+    ):
         """Test cache and writer work together."""
         from optimization.batch_writer import BatchCanvasWriter, BatchWriterConfig
-        from optimization.canvas_cache import clear_canvas_cache, get_cache_stats, read_canvas
+        from optimization.canvas_cache import (
+            clear_canvas_cache,
+            get_cache_stats,
+            read_canvas,
+        )
 
         config = BatchWriterConfig(debounce_delay=0.1, create_backup=False)
         writer = BatchCanvasWriter(config)

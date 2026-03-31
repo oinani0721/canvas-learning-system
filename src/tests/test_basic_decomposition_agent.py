@@ -12,16 +12,16 @@ from pathlib import Path
 def test_yaml_frontmatter():
     """测试YAML frontmatter格式"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/basic-decomposition.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 提取YAML frontmatter
-    yaml_match = re.search(r'^---\n(.*?)\n---', content, re.DOTALL)
+    yaml_match = re.search(r"^---\n(.*?)\n---", content, re.DOTALL)
     assert yaml_match, "未找到YAML frontmatter"
 
     yaml_content = yaml_match.group(1)
 
     # 验证name字段
-    assert 'name: basic-decomposition' in yaml_content, "name字段不正确"
+    assert "name: basic-decomposition" in yaml_content, "name字段不正确"
 
     # 验证description字段
     desc_match = re.search(r'description: "(.*?)"', yaml_content)
@@ -30,10 +30,10 @@ def test_yaml_frontmatter():
     assert len(description) < 80, f"description过长: {len(description)}字符"
 
     # 验证tools字段
-    assert 'tools: Read' in yaml_content, "tools字段应为Read"
+    assert "tools: Read" in yaml_content, "tools字段应为Read"
 
     # 验证model字段
-    assert 'model: sonnet' in yaml_content, "model字段应为sonnet"
+    assert "model: sonnet" in yaml_content, "model字段应为sonnet"
 
     print("[PASS] YAML frontmatter验证通过")
 
@@ -41,13 +41,13 @@ def test_yaml_frontmatter():
 def test_markdown_structure():
     """测试Markdown结构"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/basic-decomposition.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     required_sections = [
         "## Role",
         "## Input Format",
         "## Output Format",
-        "## System Prompt"
+        "## System Prompt",
     ]
 
     for section in required_sections:
@@ -59,7 +59,7 @@ def test_markdown_structure():
 def test_content_completeness():
     """测试内容完整性"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/basic-decomposition.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证Role部分
     assert "基础拆解Agent" in content, "缺少Agent名称"
@@ -76,12 +76,7 @@ def test_content_completeness():
     assert "difficulty" in content and "guidance" in content, "缺少难度和提示字段"
 
     # 验证System Prompt包含4种拆解策略
-    strategies = [
-        "降低抽象层次",
-        "关键句逐句拆解",
-        "引导性递进",
-        "避免直接答案"
-    ]
+    strategies = ["降低抽象层次", "关键句逐句拆解", "引导性递进", "避免直接答案"]
     for strategy in strategies:
         assert strategy in content, f"缺少拆解策略: {strategy}"
 
@@ -104,39 +99,37 @@ def test_content_completeness():
 def test_json_format():
     """测试JSON示例格式"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/basic-decomposition.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 提取所有JSON代码块
-    json_blocks = re.findall(r'```json\n(.*?)\n```', content, re.DOTALL)
+    json_blocks = re.findall(r"```json\n(.*?)\n```", content, re.DOTALL)
 
     assert len(json_blocks) >= 2, "至少应有2个JSON代码块（输入示例和输出示例）"
 
     for i, json_str in enumerate(json_blocks):
         # 移除注释（仅用于文档说明）
-        json_str_clean = re.sub(r'//.*', '', json_str)
-        json_str_clean = re.sub(r',\s*}', '}', json_str_clean)  # 移除尾部逗号
-        json_str_clean = re.sub(r',\s*]', ']', json_str_clean)
+        json_str_clean = re.sub(r"//.*", "", json_str)
+        json_str_clean = re.sub(r",\s*}", "}", json_str_clean)  # 移除尾部逗号
+        json_str_clean = re.sub(r",\s*]", "]", json_str_clean)
 
         try:
             data = json.loads(json_str_clean)
-            print(f"[PASS] JSON块 {i+1} 格式正确")
+            print(f"[PASS] JSON块 {i + 1} 格式正确")
         except json.JSONDecodeError as e:
-            print(f"[FAIL] JSON块 {i+1} 格式错误: {e}")
+            print(f"[FAIL] JSON块 {i + 1} 格式错误: {e}")
             print(f"JSON内容:\n{json_str_clean[:200]}...")
             raise
 
     # 验证输出示例的结构
     output_example_match = re.search(
-        r'输出示例.*?```json\n(.*?)\n```',
-        content,
-        re.DOTALL
+        r"输出示例.*?```json\n(.*?)\n```", content, re.DOTALL
     )
     assert output_example_match, "未找到输出示例"
 
     output_json = output_example_match.group(1)
-    output_json_clean = re.sub(r'//.*', '', output_json)
-    output_json_clean = re.sub(r',\s*}', '}', output_json_clean)
-    output_json_clean = re.sub(r',\s*]', ']', output_json_clean)
+    output_json_clean = re.sub(r"//.*", "", output_json)
+    output_json_clean = re.sub(r",\s*}", "}", output_json_clean)
+    output_json_clean = re.sub(r",\s*]", "]", output_json_clean)
 
     output_data = json.loads(output_json_clean)
 
@@ -157,7 +150,7 @@ def test_json_format():
 def test_ac_coverage():
     """验证所有AC都已满足"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/basic-decomposition.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # AC 1: 能够生成2-7个子问题
     assert "3-7个子问题" in content, "AC 1: 未说明问题数量范围"
@@ -191,9 +184,9 @@ if __name__ == "__main__":
         test_json_format()
         test_ac_coverage()
 
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("SUCCESS: 所有验证通过！Agent定义文件符合规范。")
-        print("="*50)
+        print("=" * 50)
 
     except AssertionError as e:
         print(f"\n[FAIL] 验证失败: {e}")

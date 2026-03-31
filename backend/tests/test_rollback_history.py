@@ -19,7 +19,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-
 @pytest.fixture
 def mock_operation_tracker():
     """Create a mock OperationTracker for API tests."""
@@ -49,7 +48,6 @@ def mock_operation_tracker():
     mock.get_operation.return_value = mock_operation
 
     return mock
-
 
 
 class TestOperationHistoryEndpoint:
@@ -212,9 +210,7 @@ class TestOperationHistoryEndpoint:
             "app.api.v1.endpoints.rollback.get_operation_tracker",
             return_value=mock_operation_tracker,
         ):
-            response = client.get(
-                "/api/v1/rollback/history/课程/离散数学.canvas"
-            )
+            response = client.get("/api/v1/rollback/history/课程/离散数学.canvas")
             assert response.status_code == 200
             data = response.json()
             assert data["canvas_path"] == "课程/离散数学.canvas"
@@ -229,7 +225,6 @@ class TestOperationHistoryEndpoint:
         ):
             response = client.get("/api/v1/rollback/history/test.canvas")
             assert response.headers["content-type"] == "application/json"
-
 
 
 class TestSingleOperationEndpoint:
@@ -351,7 +346,6 @@ class TestSingleOperationEndpoint:
             assert data["type"] in valid_types
 
 
-
 class TestRollbackRouterIntegration:
     """Test suite for rollback router integration."""
 
@@ -368,14 +362,14 @@ class TestRollbackRouterIntegration:
             paths = openapi.get("paths", {})
 
             # Check history endpoint is registered
-            assert any(
-                "rollback/history" in path for path in paths.keys()
-            ), "History endpoint not found in OpenAPI spec"
+            assert any("rollback/history" in path for path in paths.keys()), (
+                "History endpoint not found in OpenAPI spec"
+            )
 
             # Check operation endpoint is registered
-            assert any(
-                "rollback/operation" in path for path in paths.keys()
-            ), "Operation endpoint not found in OpenAPI spec"
+            assert any("rollback/operation" in path for path in paths.keys()), (
+                "Operation endpoint not found in OpenAPI spec"
+            )
 
     def test_rollback_router_tags(self, client: TestClient):
         """

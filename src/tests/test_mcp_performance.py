@@ -26,12 +26,13 @@ class TestMCPPerformance:
     @pytest.fixture
     def mock_environment(self):
         """Mock测试环境"""
-        with patch('mcp_memory_client.CHROMADB_AVAILABLE', True), \
-             patch('mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE', True), \
-             patch('mcp_memory_client.NUMPY_AVAILABLE', True), \
-             patch('semantic_processor.JIEBA_AVAILABLE', True), \
-             patch('creative_association_engine.NUMPY_AVAILABLE', True):
-
+        with (
+            patch("mcp_memory_client.CHROMADB_AVAILABLE", True),
+            patch("mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE", True),
+            patch("mcp_memory_client.NUMPY_AVAILABLE", True),
+            patch("semantic_processor.JIEBA_AVAILABLE", True),
+            patch("creative_association_engine.NUMPY_AVAILABLE", True),
+        ):
             # Mock ChromaDB
             mock_chromadb = Mock()
             mock_settings = Mock()
@@ -42,10 +43,10 @@ class TestMCPPerformance:
             mock_client.get_or_create_collection.return_value = mock_collection
             mock_collection.add.return_value = None
             mock_collection.query.return_value = {
-                'ids': [['test-id-1', 'test-id-2']],
-                'documents': [['文档1'], ['文档2']],
-                'metadatas': [[{'source': 'test1'}], [{'source': 'test2'}]],
-                'distances': [[0.1, 0.2]]
+                "ids": [["test-id-1", "test-id-2"]],
+                "documents": [["文档1"], ["文档2"]],
+                "metadatas": [[{"source": "test1"}], [{"source": "test2"}]],
+                "distances": [[0.1, 0.2]],
             }
 
             mock_chromadb.PersistentClient.return_value = mock_client
@@ -62,7 +63,9 @@ class TestMCPPerformance:
             mock_torch = Mock()
             mock_torch.cuda.is_available.return_value = True
             mock_torch.cuda.device_count.return_value = 2
-            mock_torch.cuda.get_device_properties.return_value = Mock(total_memory=8*1024*1024*1024)
+            mock_torch.cuda.get_device_properties.return_value = Mock(
+                total_memory=8 * 1024 * 1024 * 1024
+            )
 
             # Mock numpy
             mock_numpy = Mock()
@@ -74,28 +77,32 @@ class TestMCPPerformance:
             mock_jieba = Mock()
             mock_pseg = Mock()
             mock_word = Mock()
-            mock_word.flag = 'n'
-            mock_jieba.cut.return_value = ['测试', '内容', '关键词']
+            mock_word.flag = "n"
+            mock_jieba.cut.return_value = ["测试", "内容", "关键词"]
             mock_jieba.posseg.cut.return_value = [mock_word, mock_word, mock_word]
             mock_jieba.add_word.side_effect = lambda *args, **kwargs: None
 
-            with patch('chromadb.PersistentClient', mock_chromadb.PersistentClient), \
-                 patch('chromadb.Settings', mock_chromadb.Settings), \
-                 patch('sentence_transformers.SentenceTransformer', mock_sentence_transformers.SentenceTransformer), \
-                 patch('torch.cuda', mock_torch.cuda), \
-                 patch('numpy.array', mock_numpy.array), \
-                 patch('numpy.mean', mock_numpy.mean), \
-                 patch('numpy.random.rand', mock_numpy.random.rand), \
-                 patch('jieba.cut', mock_jieba.cut), \
-                 patch('jieba.posseg.cut', mock_jieba.posseg.cut), \
-                 patch('jieba.add_word', mock_jieba.add_word):
-
+            with (
+                patch("chromadb.PersistentClient", mock_chromadb.PersistentClient),
+                patch("chromadb.Settings", mock_chromadb.Settings),
+                patch(
+                    "sentence_transformers.SentenceTransformer",
+                    mock_sentence_transformers.SentenceTransformer,
+                ),
+                patch("torch.cuda", mock_torch.cuda),
+                patch("numpy.array", mock_numpy.array),
+                patch("numpy.mean", mock_numpy.mean),
+                patch("numpy.random.rand", mock_numpy.random.rand),
+                patch("jieba.cut", mock_jieba.cut),
+                patch("jieba.posseg.cut", mock_jieba.posseg.cut),
+                patch("jieba.add_word", mock_jieba.add_word),
+            ):
                 yield {
-                    'chromadb': mock_chromadb,
-                    'sentence_transformers': mock_sentence_transformers,
-                    'torch': mock_torch,
-                    'numpy': mock_numpy,
-                    'jieba': mock_jieba
+                    "chromadb": mock_chromadb,
+                    "sentence_transformers": mock_sentence_transformers,
+                    "torch": mock_torch,
+                    "numpy": mock_numpy,
+                    "jieba": mock_jieba,
                 }
 
     def test_embedding_performance(self, mock_environment):
@@ -107,7 +114,7 @@ mcp_service:
     device: "cpu"
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
@@ -118,7 +125,8 @@ mcp_service:
             "短文本",
             "中等长度的测试文本内容，用于测试嵌入性能",
             "这是一个较长的测试文本内容，包含了更多的词汇和句子结构，用于测试在处理复杂文本时嵌入模型的性能表现",
-            "一个非常长的测试文本内容，包含了多个段落和复杂的句子结构。" * 5 + "这是一个超长的测试内容。" * 3
+            "一个非常长的测试文本内容，包含了多个段落和复杂的句子结构。" * 5
+            + "这是一个超长的测试内容。" * 3,
         ]
 
         # 性能测试
@@ -138,11 +146,17 @@ mcp_service:
         avg_embedding_time = statistics.mean(embedding_times)
         max_embedding_time = max(embedding_times)
 
-        logger.info(f"嵌入性能统计: 平均={avg_embedding_time:.2f}ms, 最大={max_embedding_time:.2f}ms")
+        logger.info(
+            f"嵌入性能统计: 平均={avg_embedding_time:.2f}ms, 最大={max_embedding_time:.2f}ms"
+        )
 
         # PRD要求: 单段文本嵌入处理<500ms
-        assert avg_embedding_time < 500, f"平均嵌入时间 {avg_embedding_time:.2f}ms 超过500ms阈值"
-        assert max_embedding_time < 1000, f"最大嵌入时间 {max_embedding_time:.2f}ms 超过1s阈值"
+        assert avg_embedding_time < 500, (
+            f"平均嵌入时间 {avg_embedding_time:.2f}ms 超过500ms阈值"
+        )
+        assert max_embedding_time < 1000, (
+            f"最大嵌入时间 {max_embedding_time:.2f}ms 超过1s阈值"
+        )
 
         client.close()
 
@@ -156,7 +170,7 @@ mcp_service:
     collection_name: "test_collection"
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
@@ -166,16 +180,16 @@ mcp_service:
         test_memory_count = 100
         for i in range(test_memory_count):
             memory_id = f"test-memory-{i:04d}"
-            content = f"测试内容 {i}，包含关键词关键词{i%10}"
+            content = f"测试内容 {i}，包含关键词关键词{i % 10}"
             embedding = [0.1] * 384  # Mock向量
-            metadata = {"source": f"test-{i%5}", "index": i}
+            metadata = {"source": f"test-{i % 5}", "index": i}
 
             client.collection.add.return_value = None
             client.collection.query.return_value = {
-                'ids': [[memory_id]],
-                'documents': [[content]],
-                'metadatas': [[metadata]],
-                'distances': [[0.1]]
+                "ids": [[memory_id]],
+                "documents": [[content]],
+                "metadatas": [[metadata]],
+                "distances": [[0.1]],
             }
 
         # 性能测试
@@ -195,10 +209,14 @@ mcp_service:
         avg_search_time = statistics.mean(search_times)
         max_search_time = max(search_times)
 
-        logger.info(f"搜索性能统计: 平均={avg_search_time:.2f}ms, 最大={max_search_time:.2f}ms")
+        logger.info(
+            f"搜索性能统计: 平均={avg_search_time:.2f}ms, 最大={max_search_time:.2f}ms"
+        )
 
         # PRD要求: 语义搜索响应时间<2秒
-        assert avg_search_time < 2000, f"平均搜索时间 {avg_search_time:.2f}ms 超过2s阈值"
+        assert avg_search_time < 2000, (
+            f"平均搜索时间 {avg_search_time:.2f}ms 超过2s阈值"
+        )
 
         client.close()
 
@@ -210,7 +228,7 @@ mcp_service:
         test_texts = [
             "短文本",
             "中等长度的测试文本内容，用于测试语义处理的性能",
-            "这是一个较长的测试文本内容，包含了更多词汇和句子结构，用于测试在处理复杂文本时语义处理器的性能表现"
+            "这是一个较长的测试文本内容，包含了更多词汇和句子结构，用于测试在处理复杂文本时语义处理器的性能表现",
         ]
 
         processing_times = []
@@ -230,10 +248,14 @@ mcp_service:
         avg_processing_time = statistics.mean(processing_times)
         max_processing_time = max(processing_times)
 
-        logger.info(f"语义处理性能统计: 平均={avg_processing_time:.2f}ms, 最大={max_processing_time:.2f}ms")
+        logger.info(
+            f"语义处理性能统计: 平均={avg_processing_time:.2f}ms, 最大={max_processing_time:.2f}ms"
+        )
 
         # 语义处理应该较快（建议<1秒）
-        assert avg_processing_time < 1000, f"平均处理时间 {avg_processing_time:.2f}ms 超过1s阈值"
+        assert avg_processing_time < 1000, (
+            f"平均处理时间 {avg_processing_time:.2f}ms 超过1s阈值"
+        )
 
     def test_creative_association_performance(self, mock_environment):
         """测试创意联想性能"""
@@ -243,7 +265,7 @@ mcp_service:
     enable: true
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
@@ -252,7 +274,7 @@ mcp_service:
         memory_client.search_semantic_memory.return_value = [
             {"memory_id": "test-1", "similarity_score": 0.8},
             {"memory_id": "test-2", "similarity_score": 0.7},
-            {"memory_id": "test-3", "similarity_score": 0.6}
+            {"memory_id": "test-3", "similarity_score": 0.6},
         ]
 
         engine = CreativeAssociationEngine(memory_client)
@@ -277,10 +299,14 @@ mcp_service:
         avg_association_time = statistics.mean(association_times)
         max_association_time = max(association_times)
 
-        logger.info(f"创意联想性能统计: 平均={avg_association_time:.2f}ms, 最大={max_association_time:.2f}ms")
+        logger.info(
+            f"创意联想性能统计: 平均={avg_association_time:.2f}ms, 最大={max_association_time:.2f}ms"
+        )
 
         # PRD要求: 创意联想生成<5秒
-        assert avg_association_time < 5000, f"平均联想时间 {avg_association_time:.2f}ms 超过5s阈值"
+        assert avg_association_time < 5000, (
+            f"平均联想时间 {avg_association_time:.2f}ms 超过5s阈值"
+        )
 
     def test_compression_performance(self, mock_environment):
         """测试记忆压缩性能"""
@@ -290,7 +316,7 @@ mcp_service:
     max_memories_per_collection: 10000
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
@@ -298,15 +324,18 @@ mcp_service:
         memory_client = Mock()
         memory_client.get_memory_stats.return_value = {"total_memories": 1000}
 
-        with patch('memory_compression.SKLEARN_AVAILABLE', True):
+        with patch("memory_compression.SKLEARN_AVAILABLE", True):
             import numpy as np
+
             mock_sklearn = Mock()
             mock_kmeans = Mock()
             mock_kmeans.fit.return_value = Mock()
             mock_kmeans.predict.return_value = [0, 1, 2, 3]  # 预测簇标签
 
-            with patch('sklearn.cluster.KMeans', mock_kmeans), \
-                 patch('numpy.array', np.array):
+            with (
+                patch("sklearn.cluster.KMeans", mock_kmeans),
+                patch("numpy.array", np.array),
+            ):
                 compressor = MemoryCompressor(memory_client)
 
                 # 准备测试记忆
@@ -325,10 +354,14 @@ mcp_service:
                 assert result.compression_ratio <= 0.3
                 assert result.information_retention_score > 0.9
 
-                logger.info(f"压缩性能: 时间={compression_time:.2f}ms, 压缩比={result.compression_ratio:.3f}")
+                logger.info(
+                    f"压缩性能: 时间={compression_time:.2f}ms, 压缩比={result.compression_ratio:.3f}"
+                )
 
                 # PRD要求: 批量压缩操作<30秒
-                assert compression_time < 30000, f"压缩时间 {compression_time:.2f}ms 超过30s阈值"
+                assert compression_time < 30000, (
+                    f"压缩时间 {compression_time:.2f}ms 超过30s阈值"
+                )
 
     def test_concurrent_operations(self, mock_environment):
         """测试并发操作性能"""
@@ -338,7 +371,7 @@ mcp_service:
     device: "cpu"
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
@@ -383,7 +416,7 @@ mcp_service:
     max_memories_per_collection: 100
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
@@ -392,7 +425,7 @@ mcp_service:
         # 模拟内存使用
         initial_memory_usage = 100 * 1024 * 1024  # 100MB
 
-        with patch('psutil.virtual_memory') as mock_memory:
+        with patch("psutil.virtual_memory") as mock_memory:
             mock_memory_info = Mock()
             mock_memory_info.total = initial_memory_usage
             mock_memory.return_value = mock_memory_info
@@ -401,8 +434,10 @@ mcp_service:
             def check_memory_usage():
                 current_usage = psutil.virtual_memory().total
                 memory_growth = current_usage - initial_memory_usage
-                logger.info(f"当前内存使用: {current_usage / (1024*1024)}MB, 增长: {memory_growth / (1024*1024)}MB")
-                return memory_growth / (1024*1024)  # 返回MB
+                logger.info(
+                    f"当前内存使用: {current_usage / (1024 * 1024)}MB, 增长: {memory_growth / (1024 * 1024)}MB"
+                )
+                return memory_growth / (1024 * 1024)  # 返回MB
 
             # 模拟一些操作后的内存使用
             client.collection.add.return_value = None
@@ -425,7 +460,7 @@ mcp_service:
     device: "cpu"
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
@@ -442,7 +477,7 @@ mcp_service:
             client.close()
             cleanup_time = time.time() - start_time
 
-            logger.info(f"清理操作 {i+1}: {cleanup_time:.3f}s")
+            logger.info(f"清理操作 {i + 1}: {cleanup_time:.3f}s")
 
             # 清理应该很快完成
             assert cleanup_time < 1.0, f"清理时间 {cleanup_time:.3f}s 过长"
@@ -456,7 +491,7 @@ mcp_service:
     type: "chromadb"
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
@@ -480,7 +515,9 @@ mcp_service:
         batch_time = time.time() - start_time
         avg_batch_time = batch_time / large_dataset_size * 1000
 
-        logger.info(f"大规模存储性能: {large_dataset_size}条记录耗时 {batch_time:.2f}s, 平均{avg_batch_time:.2f}ms/条")
+        logger.info(
+            f"大规模存储性能: {large_dataset_size}条记录耗时 {batch_time:.2f}s, 平均{avg_batch_time:.2f}ms/条"
+        )
 
         # 批量存储性能要求
         assert avg_batch_time < 100, f"平均存储时间 {avg_batch_time:.2f}ms/条 过长"
@@ -490,7 +527,9 @@ mcp_service:
         search_results = client.search_semantic_memory("大规模", limit=100)
         search_time = time.time() - start_time
 
-        logger.info(f"大规模搜索性能: {search_time:.3f}s, 返回{len(search_results)}条结果")
+        logger.info(
+            f"大规模搜索性能: {search_time:.3f}s, 返回{len(search_results)}条结果"
+        )
 
         # 大规模搜索应该合理快速
         assert search_time < 5.0, f"大规模搜索时间 {search_time:.3f}s 过长"
@@ -500,6 +539,9 @@ mcp_service:
 
 if __name__ == "__main__":
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
     pytest.main([__file__, "-v", "--tb=short", "-k", "test_embedding_performance"])

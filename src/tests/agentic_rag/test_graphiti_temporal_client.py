@@ -32,8 +32,7 @@ class TestGraphitiTemporalClientInitialization:
         """测试没有graphiti-core库时的初始化"""
         # Patch GRAPHITI_AVAILABLE to False
         with patch(
-            'agentic_rag.clients.graphiti_temporal_client.GRAPHITI_AVAILABLE',
-            False
+            "agentic_rag.clients.graphiti_temporal_client.GRAPHITI_AVAILABLE", False
         ):
             from agentic_rag.clients.graphiti_temporal_client import (
                 GraphitiTemporalClient,
@@ -42,7 +41,7 @@ class TestGraphitiTemporalClientInitialization:
             client = GraphitiTemporalClient(
                 neo4j_uri="bolt://localhost:7687",
                 neo4j_user="neo4j",
-                neo4j_password="test"
+                neo4j_password="test",
             )
 
             result = await client.initialize()
@@ -79,7 +78,7 @@ class TestGraphitiTemporalClientInitialization:
             neo4j_user="admin",
             neo4j_password="secret",
             timeout_ms=1000,
-            enable_fallback=False
+            enable_fallback=False,
         )
 
         assert client.neo4j_uri == "bolt://custom:7687"
@@ -104,8 +103,7 @@ class TestAddLearningEpisode:
         client._initialized = True
 
         episode_id = await client.add_learning_episode(
-            content="学习了逆否命题的概念",
-            episode_type="learning"
+            content="学习了逆否命题的概念", episode_type="learning"
         )
 
         assert episode_id is not None
@@ -127,13 +125,11 @@ class TestAddLearningEpisode:
             "node_id": "node_123",
             "concept": "逆否命题",
             "agent_used": "basic-decomposition",
-            "score": 85
+            "score": 85,
         }
 
         episode_id = await client.add_learning_episode(
-            content="学习了逆否命题的概念",
-            episode_type="learning",
-            metadata=metadata
+            content="学习了逆否命题的概念", episode_type="learning", metadata=metadata
         )
 
         assert episode_id is not None
@@ -155,22 +151,19 @@ class TestAddLearningEpisode:
 
         # Learning episode
         ep1 = await client.add_learning_episode(
-            content="初次学习",
-            episode_type="learning"
+            content="初次学习", episode_type="learning"
         )
         assert "learning_" in ep1
 
         # Review episode
         ep2 = await client.add_learning_episode(
-            content="复习概念",
-            episode_type="review"
+            content="复习概念", episode_type="review"
         )
         assert "review_" in ep2
 
         # Assessment episode
         ep3 = await client.add_learning_episode(
-            content="测试评估",
-            episode_type="assessment"
+            content="测试评估", episode_type="assessment"
         )
         assert "assessment_" in ep3
 
@@ -192,15 +185,11 @@ class TestSearchByTimeRange:
 
         # Add test episodes
         now = datetime.now()
-        await client.add_learning_episode(
-            content="今天的学习",
-            episode_type="learning"
-        )
+        await client.add_learning_episode(content="今天的学习", episode_type="learning")
 
         # Search for today's episodes
         results = await client.search_by_time_range(
-            start_time=now - timedelta(hours=1),
-            end_time=now + timedelta(hours=1)
+            start_time=now - timedelta(hours=1), end_time=now + timedelta(hours=1)
         )
 
         assert len(results) >= 1
@@ -219,8 +208,7 @@ class TestSearchByTimeRange:
         # Search for last month (should be empty)
         now = datetime.now()
         results = await client.search_by_time_range(
-            start_time=now - timedelta(days=60),
-            end_time=now - timedelta(days=30)
+            start_time=now - timedelta(days=60), end_time=now - timedelta(days=30)
         )
 
         assert len(results) == 0
@@ -238,15 +226,14 @@ class TestSearchByTimeRange:
         # Add multiple episodes
         for i in range(5):
             await client.add_learning_episode(
-                content=f"学习内容 {i}",
-                episode_type="learning"
+                content=f"学习内容 {i}", episode_type="learning"
             )
 
         now = datetime.now()
         results = await client.search_by_time_range(
             start_time=now - timedelta(hours=1),
             end_time=now + timedelta(hours=1),
-            limit=3
+            limit=3,
         )
 
         assert len(results) <= 3
@@ -266,19 +253,11 @@ class TestSearchByEntityType:
         client._initialized = True
 
         # Add episodes with different types
-        await client.add_learning_episode(
-            content="学习概念",
-            episode_type="learning"
-        )
-        await client.add_learning_episode(
-            content="复习内容",
-            episode_type="review"
-        )
+        await client.add_learning_episode(content="学习概念", episode_type="learning")
+        await client.add_learning_episode(content="复习内容", episode_type="review")
 
         # Search for learning type
-        results = await client.search_by_entity_type(
-            entity_type="learning"
-        )
+        results = await client.search_by_entity_type(entity_type="learning")
 
         # Should return learning episodes
         assert isinstance(results, list)
@@ -297,17 +276,16 @@ class TestSearchByEntityType:
         await client.add_learning_episode(
             content="离散数学学习",
             episode_type="learning",
-            metadata={"canvas_path": "离散数学.canvas"}
+            metadata={"canvas_path": "离散数学.canvas"},
         )
         await client.add_learning_episode(
             content="线性代数学习",
             episode_type="learning",
-            metadata={"canvas_path": "线性代数.canvas"}
+            metadata={"canvas_path": "线性代数.canvas"},
         )
 
         results = await client.search_by_entity_type(
-            entity_type="learning",
-            canvas_file="离散数学.canvas"
+            entity_type="learning", canvas_file="离散数学.canvas"
         )
 
         assert isinstance(results, list)
@@ -325,20 +303,15 @@ class TestSearchByEntityType:
         # Add multiple episodes
         for i in range(10):
             await client.add_learning_episode(
-                content=f"学习 {i}",
-                episode_type="learning"
+                content=f"学习 {i}", episode_type="learning"
             )
 
         # Test pagination
         page1 = await client.search_by_entity_type(
-            entity_type="learning",
-            limit=5,
-            offset=0
+            entity_type="learning", limit=5, offset=0
         )
         page2 = await client.search_by_entity_type(
-            entity_type="learning",
-            limit=5,
-            offset=5
+            entity_type="learning", limit=5, offset=5
         )
 
         assert len(page1) <= 5
@@ -362,13 +335,11 @@ class TestGetLearningStats:
         await client.add_learning_episode(
             content="今天学习",
             episode_type="learning",
-            metadata={"concept": "逆否命题", "score": 85}
+            metadata={"concept": "逆否命题", "score": 85},
         )
 
         stats = await client.get_learning_stats(
-            user_id="user_123",
-            granularity="day",
-            limit=7
+            user_id="user_123", granularity="day", limit=7
         )
 
         assert stats["user_id"] == "user_123"
@@ -391,9 +362,7 @@ class TestGetLearningStats:
         client._initialized = True
 
         stats = await client.get_learning_stats(
-            user_id="user_123",
-            granularity="week",
-            limit=4
+            user_id="user_123", granularity="week", limit=4
         )
 
         assert stats["granularity"] == "week"
@@ -410,9 +379,7 @@ class TestGetLearningStats:
         client._initialized = True
 
         stats = await client.get_learning_stats(
-            user_id="user_123",
-            granularity="month",
-            limit=3
+            user_id="user_123", granularity="month", limit=3
         )
 
         assert stats["granularity"] == "month"
@@ -429,9 +396,7 @@ class TestGetLearningStats:
         client._initialized = True
 
         stats = await client.get_learning_stats(
-            user_id="user_123",
-            granularity="day",
-            limit=1
+            user_id="user_123", granularity="day", limit=1
         )
 
         period = stats["periods"][0]
@@ -458,8 +423,7 @@ class TestFallbackMode:
         # _graphiti is None, so fallback mode
 
         episode_id = await client.add_learning_episode(
-            content="测试降级",
-            episode_type="learning"
+            content="测试降级", episode_type="learning"
         )
 
         assert episode_id is not None
@@ -475,15 +439,11 @@ class TestFallbackMode:
         client = GraphitiTemporalClient(enable_fallback=True)
         client._initialized = True
 
-        await client.add_learning_episode(
-            content="缓存内容",
-            episode_type="learning"
-        )
+        await client.add_learning_episode(content="缓存内容", episode_type="learning")
 
         now = datetime.now()
         results = await client.search_by_time_range(
-            start_time=now - timedelta(hours=1),
-            end_time=now + timedelta(hours=1)
+            start_time=now - timedelta(hours=1), end_time=now + timedelta(hours=1)
         )
 
         assert len(results) >= 1
@@ -500,16 +460,10 @@ class TestClientStats:
             GraphitiTemporalClient,
         )
 
-        client = GraphitiTemporalClient(
-            neo4j_uri="bolt://test:7687",
-            timeout_ms=1000
-        )
+        client = GraphitiTemporalClient(neo4j_uri="bolt://test:7687", timeout_ms=1000)
         client._initialized = True
 
-        await client.add_learning_episode(
-            content="测试",
-            episode_type="learning"
-        )
+        await client.add_learning_episode(content="测试", episode_type="learning")
 
         stats = client.get_stats()
 
@@ -554,8 +508,7 @@ class TestEdgeCases:
         client._initialized = True
 
         episode_id = await client.add_learning_episode(
-            content="",
-            episode_type="learning"
+            content="", episode_type="learning"
         )
 
         assert episode_id is not None
@@ -572,8 +525,7 @@ class TestEdgeCases:
 
         content = "学习内容包含特殊字符: <>\"'&\n\t"
         episode_id = await client.add_learning_episode(
-            content=content,
-            episode_type="learning"
+            content=content, episode_type="learning"
         )
 
         assert episode_id is not None
@@ -591,8 +543,7 @@ class TestEdgeCases:
 
         content = "学习日语: こんにちは, 韩语: 안녕하세요, 表情: 😀🎉"
         episode_id = await client.add_learning_episode(
-            content=content,
-            episode_type="learning"
+            content=content, episode_type="learning"
         )
 
         assert episode_id is not None
@@ -609,9 +560,7 @@ class TestEdgeCases:
 
         large_metadata = {f"key_{i}": f"value_{i}" for i in range(100)}
         episode_id = await client.add_learning_episode(
-            content="测试大型metadata",
-            episode_type="learning",
-            metadata=large_metadata
+            content="测试大型metadata", episode_type="learning", metadata=large_metadata
         )
 
         assert episode_id is not None
@@ -621,6 +570,7 @@ class TestEdgeCases:
 # ============================================================
 # Integration Tests (Require graphiti-core)
 # ============================================================
+
 
 class TestGraphitiIntegration:
     """Graphiti集成测试 (需要graphiti-core库)"""
@@ -636,7 +586,7 @@ class TestGraphitiIntegration:
         client = GraphitiTemporalClient(
             neo4j_uri="bolt://localhost:7687",
             neo4j_user="neo4j",
-            neo4j_password="test_password"
+            neo4j_password="test_password",
         )
 
         result = await client.initialize()

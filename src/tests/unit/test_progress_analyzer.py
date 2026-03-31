@@ -36,7 +36,7 @@ def original_canvas_file(tmp_path):
                 "y": 0,
                 "width": 200,
                 "height": 100,
-                "color": "4"  # Red - 完全不懂
+                "color": "4",  # Red - 完全不懂
             },
             {
                 "id": "concept2",
@@ -46,7 +46,7 @@ def original_canvas_file(tmp_path):
                 "y": 0,
                 "width": 200,
                 "height": 100,
-                "color": "4"  # Red
+                "color": "4",  # Red
             },
             {
                 "id": "concept3",
@@ -56,7 +56,7 @@ def original_canvas_file(tmp_path):
                 "y": 0,
                 "width": 200,
                 "height": 100,
-                "color": "3"  # Purple - 半懂不懂
+                "color": "3",  # Purple - 半懂不懂
             },
             {
                 "id": "concept4",
@@ -66,14 +66,14 @@ def original_canvas_file(tmp_path):
                 "y": 150,
                 "width": 200,
                 "height": 100,
-                "color": "3"  # Purple
-            }
+                "color": "3",  # Purple
+            },
         ],
-        "edges": []
+        "edges": [],
     }
 
     canvas_path = tmp_path / "original.canvas"
-    with open(canvas_path, 'w', encoding='utf-8') as f:
+    with open(canvas_path, "w", encoding="utf-8") as f:
         json.dump(canvas_data, f)
 
     return str(canvas_path)
@@ -89,35 +89,35 @@ def review_canvas_all_pass(tmp_path, original_canvas_file):
                 "type": "text",
                 "text": "Question for concept1",
                 "sourceNodeId": "concept1",
-                "color": "2"  # Green - passed
+                "color": "2",  # Green - passed
             },
             {
                 "id": "q2",
                 "type": "text",
                 "text": "Question for concept2",
                 "sourceNodeId": "concept2",
-                "color": "2"  # Green - passed
+                "color": "2",  # Green - passed
             },
             {
                 "id": "q3",
                 "type": "text",
                 "text": "Question for concept3",
                 "sourceNodeId": "concept3",
-                "color": "2"  # Green - passed
+                "color": "2",  # Green - passed
             },
             {
                 "id": "q4",
                 "type": "text",
                 "text": "Question for concept4",
                 "sourceNodeId": "concept4",
-                "color": "2"  # Green - passed
-            }
+                "color": "2",  # Green - passed
+            },
         ],
-        "edges": []
+        "edges": [],
     }
 
     review_path = tmp_path / "review-all-pass.canvas"
-    with open(review_path, 'w', encoding='utf-8') as f:
+    with open(review_path, "w", encoding="utf-8") as f:
         json.dump(review_data, f)
 
     return str(review_path)
@@ -133,35 +133,35 @@ def review_canvas_partial_pass(tmp_path, original_canvas_file):
                 "type": "text",
                 "text": "Question for concept1",
                 "sourceNodeId": "concept1",
-                "color": "2"  # Green - passed
+                "color": "2",  # Green - passed
             },
             {
                 "id": "q2",
                 "type": "text",
                 "text": "Question for concept2",
                 "sourceNodeId": "concept2",
-                "color": "4"  # Red - failed
+                "color": "4",  # Red - failed
             },
             {
                 "id": "q3",
                 "type": "text",
                 "text": "Question for concept3",
                 "sourceNodeId": "concept3",
-                "color": "2"  # Green - passed
+                "color": "2",  # Green - passed
             },
             {
                 "id": "q4",
                 "type": "text",
                 "text": "Question for concept4",
                 "sourceNodeId": "concept4",
-                "color": "3"  # Purple - failed
-            }
+                "color": "3",  # Purple - failed
+            },
         ],
-        "edges": []
+        "edges": [],
     }
 
     review_path = tmp_path / "review-partial.canvas"
-    with open(review_path, 'w', encoding='utf-8') as f:
+    with open(review_path, "w", encoding="utf-8") as f:
         json.dump(review_data, f)
 
     return str(review_path)
@@ -177,21 +177,21 @@ def review_canvas_none_pass(tmp_path, original_canvas_file):
                 "type": "text",
                 "text": "Question for concept1",
                 "sourceNodeId": "concept1",
-                "color": "4"  # Red - failed
+                "color": "4",  # Red - failed
             },
             {
                 "id": "q2",
                 "type": "text",
                 "text": "Question for concept2",
                 "sourceNodeId": "concept2",
-                "color": "4"  # Red - failed
-            }
+                "color": "4",  # Red - failed
+            },
         ],
-        "edges": []
+        "edges": [],
     }
 
     review_path = tmp_path / "review-none-pass.canvas"
-    with open(review_path, 'w', encoding='utf-8') as f:
+    with open(review_path, "w", encoding="utf-8") as f:
         json.dump(review_data, f)
 
     return str(review_path)
@@ -206,8 +206,7 @@ class TestSingleReviewProgress:
     ):
         """All concepts passed should show 100% coverage."""
         result = await analyzer.analyze_review_progress(
-            review_canvas_all_pass,
-            original_canvas_file
+            review_canvas_all_pass, original_canvas_file
         )
 
         assert result.total_concepts == 4
@@ -224,8 +223,7 @@ class TestSingleReviewProgress:
     ):
         """Partial pass should show correct breakdown."""
         result = await analyzer.analyze_review_progress(
-            review_canvas_partial_pass,
-            original_canvas_file
+            review_canvas_partial_pass, original_canvas_file
         )
 
         assert result.total_concepts == 4
@@ -242,8 +240,7 @@ class TestSingleReviewProgress:
     ):
         """No concepts passed should show 0% coverage."""
         result = await analyzer.analyze_review_progress(
-            review_canvas_none_pass,
-            original_canvas_file
+            review_canvas_none_pass, original_canvas_file
         )
 
         assert result.total_concepts == 2  # Only 2 concepts in this review
@@ -255,7 +252,7 @@ class TestSingleReviewProgress:
         """Non-existent files should return empty result."""
         result = await analyzer.analyze_review_progress(
             str(tmp_path / "nonexistent.canvas"),
-            str(tmp_path / "also-nonexistent.canvas")
+            str(tmp_path / "also-nonexistent.canvas"),
         )
 
         assert result.total_concepts == 0
@@ -265,12 +262,11 @@ class TestSingleReviewProgress:
         """Empty review canvas should return 0 concepts."""
         empty_data = {"nodes": [], "edges": []}
         empty_path = tmp_path / "empty.canvas"
-        with open(empty_path, 'w') as f:
+        with open(empty_path, "w") as f:
             json.dump(empty_data, f)
 
         result = await analyzer.analyze_review_progress(
-            str(empty_path),
-            original_canvas_file
+            str(empty_path), original_canvas_file
         )
 
         assert result.total_concepts == 0
@@ -295,9 +291,9 @@ class TestMultiReviewProgress:
                         "concept1": False,
                         "concept2": False,
                         "concept3": True,
-                        "concept4": False
-                    }
-                }
+                        "concept4": False,
+                    },
+                },
             },
             {
                 "review_canvas": "review-2.canvas",
@@ -309,9 +305,9 @@ class TestMultiReviewProgress:
                         "concept1": True,
                         "concept2": False,
                         "concept3": True,
-                        "concept4": False
-                    }
-                }
+                        "concept4": False,
+                    },
+                },
             },
             {
                 "review_canvas": "review-3.canvas",
@@ -323,15 +319,14 @@ class TestMultiReviewProgress:
                         "concept1": True,
                         "concept2": True,
                         "concept3": True,
-                        "concept4": True
-                    }
-                }
-            }
+                        "concept4": True,
+                    },
+                },
+            },
         ]
 
         result = await analyzer.analyze_multi_review_progress(
-            original_canvas_file,
-            review_history=review_history
+            original_canvas_file, review_history=review_history
         )
 
         assert result.overall_trend == "improving"
@@ -345,26 +340,17 @@ class TestMultiReviewProgress:
             {
                 "review_canvas": "review-1.canvas",
                 "timestamp": "2025-01-01T10:00:00",
-                "results": {
-                    "total_nodes": 4,
-                    "passed_nodes": 4,
-                    "concept_results": {}
-                }
+                "results": {"total_nodes": 4, "passed_nodes": 4, "concept_results": {}},
             },
             {
                 "review_canvas": "review-2.canvas",
                 "timestamp": "2025-01-08T10:00:00",
-                "results": {
-                    "total_nodes": 4,
-                    "passed_nodes": 1,
-                    "concept_results": {}
-                }
-            }
+                "results": {"total_nodes": 4, "passed_nodes": 1, "concept_results": {}},
+            },
         ]
 
         result = await analyzer.analyze_multi_review_progress(
-            original_canvas_file,
-            review_history=review_history
+            original_canvas_file, review_history=review_history
         )
 
         assert result.overall_trend == "declining"
@@ -377,18 +363,17 @@ class TestMultiReviewProgress:
             {
                 "review_canvas": "review-1.canvas",
                 "timestamp": "2025-01-01T10:00:00",
-                "results": {"total_nodes": 4, "passed_nodes": 2, "concept_results": {}}
+                "results": {"total_nodes": 4, "passed_nodes": 2, "concept_results": {}},
             },
             {
                 "review_canvas": "review-2.canvas",
                 "timestamp": "2025-01-08T10:00:00",
-                "results": {"total_nodes": 4, "passed_nodes": 2, "concept_results": {}}
-            }
+                "results": {"total_nodes": 4, "passed_nodes": 2, "concept_results": {}},
+            },
         ]
 
         result = await analyzer.analyze_multi_review_progress(
-            original_canvas_file,
-            review_history=review_history
+            original_canvas_file, review_history=review_history
         )
 
         assert result.overall_trend == "stable"
@@ -401,13 +386,12 @@ class TestMultiReviewProgress:
             {
                 "review_canvas": "review-1.canvas",
                 "timestamp": "2025-01-01T10:00:00",
-                "results": {"total_nodes": 4, "passed_nodes": 2, "concept_results": {}}
+                "results": {"total_nodes": 4, "passed_nodes": 2, "concept_results": {}},
             }
         ]
 
         result = await analyzer.analyze_multi_review_progress(
-            original_canvas_file,
-            review_history=review_history
+            original_canvas_file, review_history=review_history
         )
 
         assert result.overall_trend == "insufficient_data"
@@ -416,8 +400,7 @@ class TestMultiReviewProgress:
     async def test_empty_history(self, analyzer, original_canvas_file):
         """Empty history should return default MultiReviewProgress."""
         result = await analyzer.analyze_multi_review_progress(
-            original_canvas_file,
-            review_history=[]
+            original_canvas_file, review_history=[]
         )
 
         assert result.overall_trend == "insufficient_data"
@@ -437,11 +420,8 @@ class TestConceptTrends:
                 "results": {
                     "total_nodes": 2,
                     "passed_nodes": 0,
-                    "concept_results": {
-                        "concept1": False,
-                        "concept2": False
-                    }
-                }
+                    "concept_results": {"concept1": False, "concept2": False},
+                },
             },
             {
                 "review_canvas": "review-2.canvas",
@@ -451,9 +431,9 @@ class TestConceptTrends:
                     "passed_nodes": 1,
                     "concept_results": {
                         "concept1": True,  # First pass on review 2
-                        "concept2": False
-                    }
-                }
+                        "concept2": False,
+                    },
+                },
             },
             {
                 "review_canvas": "review-3.canvas",
@@ -463,15 +443,14 @@ class TestConceptTrends:
                     "passed_nodes": 2,
                     "concept_results": {
                         "concept1": True,
-                        "concept2": True  # First pass on review 3
-                    }
-                }
-            }
+                        "concept2": True,  # First pass on review 3
+                    },
+                },
+            },
         ]
 
         result = await analyzer.analyze_multi_review_progress(
-            original_canvas_file,
-            review_history=review_history
+            original_canvas_file, review_history=review_history
         )
 
         assert "concept1" in result.concept_trends
@@ -492,8 +471,8 @@ class TestConceptTrends:
                 "results": {
                     "total_nodes": 1,
                     "passed_nodes": 0,
-                    "concept_results": {"concept1": False}
-                }
+                    "concept_results": {"concept1": False},
+                },
             },
             {
                 "review_canvas": "review-2.canvas",
@@ -501,14 +480,13 @@ class TestConceptTrends:
                 "results": {
                     "total_nodes": 1,
                     "passed_nodes": 0,
-                    "concept_results": {"concept1": False}
-                }
-            }
+                    "concept_results": {"concept1": False},
+                },
+            },
         ]
 
         result = await analyzer.analyze_multi_review_progress(
-            original_canvas_file,
-            review_history=review_history
+            original_canvas_file, review_history=review_history
         )
 
         assert result.concept_trends["concept1"].first_pass_review is None
@@ -521,9 +499,7 @@ class TestGraphitiIntegration:
     @pytest.mark.asyncio
     async def test_no_graphiti_client(self, analyzer, original_canvas_file):
         """Without Graphiti client, should return empty history."""
-        result = await analyzer.query_review_history_from_graphiti(
-            original_canvas_file
-        )
+        result = await analyzer.query_review_history_from_graphiti(original_canvas_file)
 
         assert result == {"reviews": []}
 
@@ -537,37 +513,26 @@ class TestGraphitiIntegration:
             "review_data": {
                 "review_canvas": "review-1.canvas",
                 "timestamp": "2025-01-01",
-                "results": {
-                    "total_nodes": 4,
-                    "passed_nodes": 2
-                }
+                "results": {"total_nodes": 4, "passed_nodes": 2},
             }
         }
         mock_graphiti.search.return_value = [mock_result]
 
         analyzer = ProgressAnalyzer(graphiti_client=mock_graphiti)
-        result = await analyzer.query_review_history_from_graphiti(
-            original_canvas_file
-        )
+        result = await analyzer.query_review_history_from_graphiti(original_canvas_file)
 
         assert len(result["reviews"]) == 1
         mock_graphiti.search.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_store_review_without_graphiti(
-        self, analyzer, original_canvas_file
-    ):
+    async def test_store_review_without_graphiti(self, analyzer, original_canvas_file):
         """Store without Graphiti should return False."""
         progress = SingleReviewProgress(
-            total_concepts=4,
-            passed_count=2,
-            coverage_rate=0.5
+            total_concepts=4, passed_count=2, coverage_rate=0.5
         )
 
         result = await analyzer.store_review_to_graphiti(
-            original_canvas_file,
-            "review.canvas",
-            progress
+            original_canvas_file, "review.canvas", progress
         )
 
         assert result is False
@@ -579,15 +544,11 @@ class TestGraphitiIntegration:
 
         analyzer = ProgressAnalyzer(graphiti_client=mock_graphiti)
         progress = SingleReviewProgress(
-            total_concepts=4,
-            passed_count=2,
-            coverage_rate=0.5
+            total_concepts=4, passed_count=2, coverage_rate=0.5
         )
 
         result = await analyzer.store_review_to_graphiti(
-            original_canvas_file,
-            "review.canvas",
-            progress
+            original_canvas_file, "review.canvas", progress
         )
 
         assert result is True
@@ -604,15 +565,13 @@ class TestCacheManagement:
         """Canvas should be loaded from cache on repeated access."""
         # First call loads from file
         await analyzer.analyze_review_progress(
-            review_canvas_all_pass,
-            original_canvas_file
+            review_canvas_all_pass, original_canvas_file
         )
         assert len(analyzer._canvas_cache) == 2
 
         # Second call should use cache
         await analyzer.analyze_review_progress(
-            review_canvas_all_pass,
-            original_canvas_file
+            review_canvas_all_pass, original_canvas_file
         )
         assert len(analyzer._canvas_cache) == 2
 
@@ -622,8 +581,7 @@ class TestCacheManagement:
     ):
         """Cache should be clearable."""
         await analyzer.analyze_review_progress(
-            review_canvas_all_pass,
-            original_canvas_file
+            review_canvas_all_pass, original_canvas_file
         )
         assert len(analyzer._canvas_cache) == 2
 

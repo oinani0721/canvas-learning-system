@@ -46,7 +46,7 @@ class TestCanvasPerformanceOptimizer:
                     "y": 100,
                     "width": 300,
                     "height": 200,
-                    "color": "1"
+                    "color": "1",
                 },
                 {
                     "id": "node-2",
@@ -56,8 +56,8 @@ class TestCanvasPerformanceOptimizer:
                     "y": 100,
                     "width": 300,
                     "height": 200,
-                    "color": "2"
-                }
+                    "color": "2",
+                },
             ],
             "edges": [
                 {
@@ -65,9 +65,9 @@ class TestCanvasPerformanceOptimizer:
                     "fromNode": "node-1",
                     "toNode": "node-2",
                     "fromSide": "right",
-                    "toSide": "left"
+                    "toSide": "left",
                 }
-            ]
+            ],
         }
 
     @pytest.fixture
@@ -77,32 +77,36 @@ class TestCanvasPerformanceOptimizer:
 
         # 创建100个节点
         for i in range(100):
-            canvas_data["nodes"].append({
-                "id": f"large-node-{i}",
-                "type": "text",
-                "text": f"大规模测试节点 {i}",
-                "x": (i % 10) * 400,
-                "y": (i // 10) * 300,
-                "width": 350,
-                "height": 250,
-                "color": str((i % 5) + 1)
-            })
+            canvas_data["nodes"].append(
+                {
+                    "id": f"large-node-{i}",
+                    "type": "text",
+                    "text": f"大规模测试节点 {i}",
+                    "x": (i % 10) * 400,
+                    "y": (i // 10) * 300,
+                    "width": 350,
+                    "height": 250,
+                    "color": str((i % 5) + 1),
+                }
+            )
 
         # 创建50条边
         for i in range(50):
-            canvas_data["edges"].append({
-                "id": f"large-edge-{i}",
-                "fromNode": f"large-node-{i}",
-                "toNode": f"large-node-{(i + 1) % 100}",
-                "fromSide": "right",
-                "toSide": "left"
-            })
+            canvas_data["edges"].append(
+                {
+                    "id": f"large-edge-{i}",
+                    "fromNode": f"large-node-{i}",
+                    "toNode": f"large-node-{(i + 1) % 100}",
+                    "fromSide": "right",
+                    "toSide": "left",
+                }
+            )
 
         return canvas_data
 
     def test_cache_functionality(self, sample_canvas_data):
         """测试缓存功能"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump(sample_canvas_data, f)
             temp_path = f.name
 
@@ -140,7 +144,9 @@ class TestCanvasPerformanceOptimizer:
         # 创建多个临时文件
         temp_files = []
         for i in range(3):
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".canvas", delete=False
+            ) as f:
                 modified_data = sample_canvas_data.copy()
                 modified_data["nodes"][0]["id"] = f"node-{i}"
                 json.dump(modified_data, f)
@@ -164,7 +170,7 @@ class TestCanvasPerformanceOptimizer:
 
     def test_atomic_write(self, sample_canvas_data):
         """测试原子写入功能"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump(sample_canvas_data, f)
             temp_path = f.name
 
@@ -179,7 +185,7 @@ class TestCanvasPerformanceOptimizer:
             optimizer.write_canvas_optimized(temp_path, modified_data, atomic=True)
 
             # 验证写入结果
-            with open(temp_path, 'r', encoding='utf-8') as f:
+            with open(temp_path, "r", encoding="utf-8") as f:
                 saved_data = json.load(f)
 
             assert saved_data["nodes"][0]["text"] == "修改后的文本"
@@ -190,7 +196,7 @@ class TestCanvasPerformanceOptimizer:
 
     def test_batch_operations(self, sample_canvas_data):
         """测试批量操作"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump(sample_canvas_data, f)
             temp_path = f.name
 
@@ -199,27 +205,40 @@ class TestCanvasPerformanceOptimizer:
 
             # 准备批量操作
             operations = [
-                (temp_path, lambda data: data["nodes"].append({
-                    "id": "batch-node-1",
-                    "type": "text",
-                    "text": "批量添加节点1",
-                    "x": 200,
-                    "y": 300,
-                    "width": 300,
-                    "height": 200,
-                    "color": "1"
-                })),
-                (temp_path, lambda data: data["nodes"].append({
-                    "id": "batch-node-2",
-                    "type": "text",
-                    "text": "批量添加节点2",
-                    "x": 600,
-                    "y": 300,
-                    "width": 300,
-                    "height": 200,
-                    "color": "2"
-                })),
-                (temp_path, lambda data: data.update({"metadata": {"batch_processed": True}}))
+                (
+                    temp_path,
+                    lambda data: data["nodes"].append(
+                        {
+                            "id": "batch-node-1",
+                            "type": "text",
+                            "text": "批量添加节点1",
+                            "x": 200,
+                            "y": 300,
+                            "width": 300,
+                            "height": 200,
+                            "color": "1",
+                        }
+                    ),
+                ),
+                (
+                    temp_path,
+                    lambda data: data["nodes"].append(
+                        {
+                            "id": "batch-node-2",
+                            "type": "text",
+                            "text": "批量添加节点2",
+                            "x": 600,
+                            "y": 300,
+                            "width": 300,
+                            "height": 200,
+                            "color": "2",
+                        }
+                    ),
+                ),
+                (
+                    temp_path,
+                    lambda data: data.update({"metadata": {"batch_processed": True}}),
+                ),
             ]
 
             # 执行批量操作
@@ -257,7 +276,7 @@ class TestCanvasPerformanceOptimizer:
 
     def test_performance_improvement(self, large_canvas_data):
         """测试性能提升效果"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump(large_canvas_data, f)
             temp_path = f.name
 
@@ -267,7 +286,7 @@ class TestCanvasPerformanceOptimizer:
             # 测试传统方式
             start_time = time.time()
             for _ in range(10):
-                with open(temp_path, 'r', encoding='utf-8') as f:
+                with open(temp_path, "r", encoding="utf-8") as f:
                     json.load(f)
             traditional_time = time.time() - start_time
 
@@ -278,7 +297,9 @@ class TestCanvasPerformanceOptimizer:
             optimized_time = time.time() - start_time
 
             # 验证性能提升
-            improvement_percentage = ((traditional_time - optimized_time) / traditional_time) * 100
+            improvement_percentage = (
+                (traditional_time - optimized_time) / traditional_time
+            ) * 100
             print(f"性能提升: {improvement_percentage:.1f}%")
 
             # 至少应该有一些性能提升（由于缓存）
@@ -300,7 +321,9 @@ class TestCanvasPerformanceOptimizer:
         # 创建多个临时文件并加载到缓存
         temp_files = []
         for i in range(20):
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".canvas", delete=False
+            ) as f:
                 modified_data = large_canvas_data.copy()
                 modified_data["metadata"] = {"file_index": i}
                 json.dump(modified_data, f)
@@ -314,7 +337,9 @@ class TestCanvasPerformanceOptimizer:
             memory_increase = final_memory - initial_memory
 
             # 验证内存使用合理
-            assert memory_increase < 100, f"内存增长 {memory_increase:.1f}MB，超过100MB限制"
+            assert memory_increase < 100, (
+                f"内存增长 {memory_increase:.1f}MB，超过100MB限制"
+            )
 
             # 验证缓存统计
             stats = optimizer.get_performance_stats()
@@ -328,7 +353,7 @@ class TestCanvasPerformanceOptimizer:
 
     def test_global_optimizer_functions(self, sample_canvas_data):
         """测试全局优化器函数"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump(sample_canvas_data, f)
             temp_path = f.name
 
@@ -351,7 +376,7 @@ class TestCanvasPerformanceOptimizer:
 
     def test_monitoring_decorator(self, sample_canvas_data):
         """测试性能监控装饰器"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump(sample_canvas_data, f)
             temp_path = f.name
 
@@ -365,9 +390,9 @@ class TestCanvasPerformanceOptimizer:
 
             # 检查性能统计
             optimizer = get_canvas_optimizer()
-            if hasattr(optimizer, '_operation_times'):
-                assert 'canvas_read' in optimizer._operation_times
-                assert 'canvas_write' in optimizer._operation_times
+            if hasattr(optimizer, "_operation_times"):
+                assert "canvas_read" in optimizer._operation_times
+                assert "canvas_write" in optimizer._operation_times
 
         finally:
             if os.path.exists(temp_path):
@@ -375,7 +400,7 @@ class TestCanvasPerformanceOptimizer:
 
     def test_cache_invalidation(self, sample_canvas_data):
         """测试缓存失效机制"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump(sample_canvas_data, f)
             temp_path = f.name
 
@@ -389,7 +414,7 @@ class TestCanvasPerformanceOptimizer:
             time.sleep(0.1)  # 确保文件时间戳不同
             modified_data = sample_canvas_data.copy()
             modified_data["nodes"][0]["text"] = "文件已修改"
-            with open(temp_path, 'w', encoding='utf-8') as f:
+            with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump(modified_data, f)
 
             # 再次读取（应该检测到文件变化，重新加载）

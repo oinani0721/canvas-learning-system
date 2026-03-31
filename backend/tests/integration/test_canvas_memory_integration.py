@@ -17,14 +17,12 @@ Testing Standards:
 
 import asyncio
 import json
-import pytest
-import tempfile
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from app.clients.neo4j_client import Neo4jClient
 from app.services.canvas_service import CanvasService
 from app.services.memory_service import MemoryService, reset_memory_service
-from app.clients.neo4j_client import Neo4jClient, reset_neo4j_client
 
 
 def _spy_on_record(memory_service):
@@ -42,25 +40,30 @@ def _spy_on_record(memory_service):
 # Test Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def temp_canvas_dir(tmp_path):
     """Create temporary directory with test canvas files."""
     # Main test canvas
     canvas_data = {
         "nodes": [
-            {"id": "existing-node", "type": "text", "text": "Existing Node", "x": 100, "y": 100}
+            {
+                "id": "existing-node",
+                "type": "text",
+                "text": "Existing Node",
+                "x": 100,
+                "y": 100,
+            }
         ],
-        "edges": []
+        "edges": [],
     }
     canvas_file = tmp_path / "test-canvas.canvas"
     canvas_file.write_text(json.dumps(canvas_data), encoding="utf-8")
 
     # Secondary canvas for concurrent tests
     canvas2_data = {
-        "nodes": [
-            {"id": "node-a", "type": "text", "text": "Node A", "x": 0, "y": 0}
-        ],
-        "edges": []
+        "nodes": [{"id": "node-a", "type": "text", "text": "Node A", "x": 0, "y": 0}],
+        "edges": [],
     }
     canvas2_file = tmp_path / "concurrent-canvas.canvas"
     canvas2_file.write_text(json.dumps(canvas2_data), encoding="utf-8")
@@ -96,7 +99,7 @@ def integrated_canvas_service(temp_canvas_dir, memory_service):
     return CanvasService(
         canvas_base_path=str(temp_canvas_dir),
         memory_client=memory_service,
-        session_id="integration-test-session"
+        session_id="integration-test-session",
     )
 
 
@@ -104,11 +107,14 @@ def integrated_canvas_service(temp_canvas_dir, memory_service):
 # Task 7.1: Test full CRUD flow triggers memory write
 # =============================================================================
 
+
 class TestFullCRUDFlow:
     """Test full CRUD flow with memory integration."""
 
     @pytest.mark.asyncio
-    async def test_add_node_full_flow(self, integrated_canvas_service, memory_service, wait_for_call):
+    async def test_add_node_full_flow(
+        self, integrated_canvas_service, memory_service, wait_for_call
+    ):
         """Test add_node triggers complete memory flow."""
         # Arrange
         await memory_service.initialize()
@@ -118,12 +124,7 @@ class TestFullCRUDFlow:
         # Act
         result = await integrated_canvas_service.add_node(
             "test-canvas",
-            {
-                "type": "text",
-                "text": "Integration Test Node",
-                "x": 200,
-                "y": 200
-            }
+            {"type": "text", "text": "Integration Test Node", "x": 200, "y": 200},
         )
 
         # Wait for background memory task
@@ -149,16 +150,16 @@ class TestFullCRUDFlow:
         assert recorded_event["node_id"] == result["id"]
 
     @pytest.mark.asyncio
-    async def test_update_node_full_flow(self, integrated_canvas_service, memory_service, wait_for_call):
+    async def test_update_node_full_flow(
+        self, integrated_canvas_service, memory_service, wait_for_call
+    ):
         """Test update_node triggers complete memory flow."""
         await memory_service.initialize()
         spy = _spy_on_record(memory_service)
 
         # Act
         result = await integrated_canvas_service.update_node(
-            "test-canvas",
-            "existing-node",
-            {"text": "Updated Text", "color": "3"}
+            "test-canvas", "existing-node", {"text": "Updated Text", "color": "3"}
         )
 
         await wait_for_call(spy)
@@ -169,20 +170,23 @@ class TestFullCRUDFlow:
 
         # Find the recorded event
         node_updated_events = [
-            ep for ep in memory_service._episodes
+            ep
+            for ep in memory_service._episodes
             if ep.get("event_type") == "node_updated"
         ]
         assert len(node_updated_events) > 0
 
     @pytest.mark.asyncio
-    async def test_add_edge_full_flow(self, integrated_canvas_service, memory_service, wait_for_call):
+    async def test_add_edge_full_flow(
+        self, integrated_canvas_service, memory_service, wait_for_call
+    ):
         """Test add_edge triggers complete memory flow."""
         await memory_service.initialize()
 
         # First create a second node
         await integrated_canvas_service.add_node(
             "test-canvas",
-            {"id": "target-node", "type": "text", "text": "Target", "x": 300, "y": 100}
+            {"id": "target-node", "type": "text", "text": "Target", "x": 300, "y": 100},
         )
 
         # Clear to isolate edge test
@@ -198,8 +202,8 @@ class TestFullCRUDFlow:
                 "fromNode": "existing-node",
                 "toNode": "target-node",
                 "fromSide": "right",
-                "toSide": "left"
-            }
+                "toSide": "left",
+            },
         )
 
         await wait_for_call(spy)
@@ -211,7 +215,8 @@ class TestFullCRUDFlow:
 
         # Find edge_created event
         edge_events = [
-            ep for ep in memory_service._episodes
+            ep
+            for ep in memory_service._episodes
             if ep.get("event_type") == "edge_created"
         ]
         assert len(edge_events) > 0
@@ -220,6 +225,7 @@ class TestFullCRUDFlow:
 # =============================================================================
 # Task 7.2: Test memory write persists to MemoryService
 # =============================================================================
+
 
 class TestMemoryPersistence:
     """Test that memory writes persist correctly."""
@@ -233,8 +239,7 @@ class TestMemoryPersistence:
         spy = _spy_on_record(memory_service)
 
         await integrated_canvas_service.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Schema Test", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Schema Test", "x": 0, "y": 0}
         )
 
         await wait_for_call(spy)
@@ -264,19 +269,15 @@ class TestMemoryPersistence:
 
         # Perform multiple operations
         node1 = await integrated_canvas_service.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Node 1", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Node 1", "x": 0, "y": 0}
         )
 
         await integrated_canvas_service.update_node(
-            "test-canvas",
-            node1["id"],
-            {"color": "2"}
+            "test-canvas", node1["id"], {"color": "2"}
         )
 
         node2 = await integrated_canvas_service.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Node 2", "x": 100, "y": 0}
+            "test-canvas", {"type": "text", "text": "Node 2", "x": 100, "y": 0}
         )
 
         await wait_for_call(spy, expected_count=3)
@@ -289,6 +290,7 @@ class TestMemoryPersistence:
 # =============================================================================
 # Task 7.3: Test concurrent CRUD operations with memory writes
 # =============================================================================
+
 
 class TestConcurrentOperations:
     """Test concurrent CRUD operations with memory writes."""
@@ -307,7 +309,12 @@ class TestConcurrentOperations:
             tasks.append(
                 integrated_canvas_service.add_node(
                     "test-canvas",
-                    {"type": "text", "text": f"Concurrent Node {i}", "x": i * 100, "y": 0}
+                    {
+                        "type": "text",
+                        "text": f"Concurrent Node {i}",
+                        "x": i * 100,
+                        "y": 0,
+                    },
                 )
             )
 
@@ -324,7 +331,8 @@ class TestConcurrentOperations:
 
         # Should have 5 node_created events
         node_created_events = [
-            ep for ep in memory_service._episodes
+            ep
+            for ep in memory_service._episodes
             if ep.get("event_type") == "node_created"
         ]
         assert len(node_created_events) >= 5
@@ -341,22 +349,21 @@ class TestConcurrentOperations:
         service1 = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
             memory_client=memory_service,
-            session_id="session-1"
+            session_id="session-1",
         )
         service2 = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
             memory_client=memory_service,
-            session_id="session-2"
+            session_id="session-2",
         )
 
         # Concurrent operations on different canvases
         task1 = service1.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Canvas 1 Node", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Canvas 1 Node", "x": 0, "y": 0}
         )
         task2 = service2.add_node(
             "concurrent-canvas",
-            {"type": "text", "text": "Canvas 2 Node", "x": 0, "y": 0}
+            {"type": "text", "text": "Canvas 2 Node", "x": 0, "y": 0},
         )
 
         results = await asyncio.gather(task1, task2)
@@ -377,6 +384,7 @@ class TestConcurrentOperations:
 # Task 7.4: Test Canvas-Concept relationship is created
 # =============================================================================
 
+
 class TestCanvasConceptRelationship:
     """Test Canvas-Concept relationship graph creation."""
 
@@ -394,13 +402,13 @@ class TestCanvasConceptRelationship:
         service = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
             memory_client=memory_service,
-            session_id="relationship-test"
+            session_id="relationship-test",
         )
 
         # Act
         result = await service.add_node(
             "test-canvas",
-            {"type": "text", "text": "Concept: Machine Learning", "x": 0, "y": 0}
+            {"type": "text", "text": "Concept: Machine Learning", "x": 0, "y": 0},
         )
 
         await wait_for_call(mock_neo4j_client.create_canvas_node_relationship)
@@ -427,13 +435,13 @@ class TestCanvasConceptRelationship:
         service = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
             memory_client=memory_service,
-            session_id="edge-relationship-test"
+            session_id="edge-relationship-test",
         )
 
         # Create target node
         await service.add_node(
             "test-canvas",
-            {"id": "node-b", "type": "text", "text": "Node B", "x": 200, "y": 0}
+            {"id": "node-b", "type": "text", "text": "Node B", "x": 200, "y": 0},
         )
 
         # Reset mock to isolate edge test
@@ -446,8 +454,8 @@ class TestCanvasConceptRelationship:
                 "fromNode": "existing-node",
                 "toNode": "node-b",
                 "fromSide": "right",
-                "toSide": "left"
-            }
+                "toSide": "left",
+            },
         )
 
         await wait_for_call(mock_neo4j_client.create_edge_relationship)
@@ -470,13 +478,12 @@ class TestCanvasConceptRelationship:
         service = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
             memory_client=memory_service,
-            session_id="disconnected-test"
+            session_id="disconnected-test",
         )
 
         # Act
         await service.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Test Node", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Test Node", "x": 0, "y": 0}
         )
 
         # Wait for background task to complete (event is recorded but Neo4j skipped)
@@ -489,6 +496,7 @@ class TestCanvasConceptRelationship:
 # =============================================================================
 # Performance Tests
 # =============================================================================
+
 
 class TestPerformance:
     """Test performance characteristics."""
@@ -505,21 +513,19 @@ class TestPerformance:
         # Measure without memory client
         service_no_memory = CanvasService(
             canvas_base_path=integrated_canvas_service.canvas_base_path,
-            memory_client=None
+            memory_client=None,
         )
 
         start = time.time()
         await service_no_memory.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Baseline", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Baseline", "x": 0, "y": 0}
         )
         baseline_time = time.time() - start
 
         # Measure with memory client
         start = time.time()
         await integrated_canvas_service.add_node(
-            "test-canvas",
-            {"type": "text", "text": "With Memory", "x": 100, "y": 0}
+            "test-canvas", {"type": "text", "text": "With Memory", "x": 100, "y": 0}
         )
         with_memory_time = time.time() - start
 

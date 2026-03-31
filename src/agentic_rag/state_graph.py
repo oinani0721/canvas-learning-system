@@ -53,7 +53,6 @@ from agentic_rag.nodes import (  # noqa: E402
 from agentic_rag.retrievers import (  # noqa: E402
     cross_canvas_retrieval_node,
     multimodal_retrieval_node,
-    textbook_retrieval_node,
     vault_notes_retrieval_node,
 )
 from agentic_rag.state import CanvasRAGState  # noqa: E402
@@ -145,7 +144,6 @@ def _build_sends_for_intent(intent: str, state: CanvasRAGState) -> list[Send]:
         Send("retrieve_graphiti", state),
         Send("retrieve_lancedb", state),
         Send("retrieve_multimodal", state),
-        Send("retrieve_textbook", state),
         Send("retrieve_cross_canvas", state),
         Send("retrieve_vault_notes", state),
     ]
@@ -154,7 +152,6 @@ def _build_sends_for_intent(intent: str, state: CanvasRAGState) -> list[Send]:
         # Prioritize vault + lancedb, skip graphiti/multimodal
         return [
             Send("retrieve_lancedb", state),
-            Send("retrieve_textbook", state),
             Send("retrieve_vault_notes", state),
             Send("retrieve_cross_canvas", state),
         ]
@@ -166,7 +163,7 @@ def _build_sends_for_intent(intent: str, state: CanvasRAGState) -> list[Send]:
             Send("retrieve_vault_notes", state),
         ]
     else:
-        # comprehensive / knowledge_point: all 6 routes
+        # comprehensive / knowledge_point: all 5 routes
         return all_sends
 
 
@@ -192,13 +189,19 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     query = ""
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
 
     # L1 routing with exception safety
     try:
         intent = classify_query_intent(query)
     except Exception as e:
-        logger.warning(f"[fan_out_retrieval] L1 routing failed: {e}, falling back to comprehensive")
+        logger.warning(
+            f"[fan_out_retrieval] L1 routing failed: {e}, falling back to comprehensive"
+        )
         intent = "comprehensive"
 
     # Story 2.10: If multi_queries exist, create Sends for each query variant
@@ -219,19 +222,24 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     # Single query path (original behavior)
     try:
         sends = _build_sends_for_intent(intent, state)
-        logger.info(f"[fan_out_retrieval] L1 routing: intent={intent}, channels={len(sends)}, query='{query[:50]}'")
+        logger.info(
+            f"[fan_out_retrieval] L1 routing: intent={intent}, channels={len(sends)}, query='{query[:50]}'"
+        )
     except Exception as e:
-        logger.warning(f"[fan_out_retrieval] L1 routing failed: {e}, falling back to all 6 channels")
+        logger.warning(
+            f"[fan_out_retrieval] L1 routing failed: {e}, falling back to all 5 channels"
+        )
         sends = [
             Send("retrieve_graphiti", state),
             Send("retrieve_lancedb", state),
             Send("retrieve_multimodal", state),
-            Send("retrieve_textbook", state),
             Send("retrieve_cross_canvas", state),
             Send("retrieve_vault_notes", state),
         ]
 
-    logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects for intent={intent}")
+    logger.debug(
+        f"[fan_out_retrieval] Created {len(sends)} Send objects for intent={intent}"
+    )
     return sends
 
 
@@ -240,7 +248,9 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
 # ========================================
 
 
-def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query", "faithfulness_check"]:
+def route_after_quality_check(
+    state: CanvasRAGState,
+) -> Literal["rewrite_query", "faithfulness_check"]:
     """
     Route based on quality grade — Story 2.6 AC-3/AC-4
 
@@ -268,7 +278,9 @@ def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query",
 
     # Low quality and NOT yet degraded -> rewrite and retry
     if quality_grade == "low" and not safe_degradation:
-        logger.debug("[route_after_quality_check] -> rewrite_query (low quality, can retry)")
+        logger.debug(
+            "[route_after_quality_check] -> rewrite_query (low quality, can retry)"
+        )
         return "rewrite_query"
 
     # Acceptable quality or safe degradation triggered -> faithfulness check
@@ -277,7 +289,9 @@ def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query",
             f"[route_after_quality_check] -> faithfulness_check (safe_degradation=True after {rewrite_count} rewrites)"
         )
     else:
-        logger.debug(f"[route_after_quality_check] -> faithfulness_check (quality acceptable: {quality_grade})")
+        logger.debug(
+            f"[route_after_quality_check] -> faithfulness_check (quality acceptable: {quality_grade})"
+        )
     return "faithfulness_check"
 
 
@@ -311,7 +325,11 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        current_query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        current_query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
     else:
         current_query = ""
 
@@ -365,11 +383,15 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
             llm_rewrite_success = True
 
     except asyncio.TimeoutError:
-        logger.warning("[rewrite_query] LLM rewrite timed out (3s), using keyword fallback")
+        logger.warning(
+            "[rewrite_query] LLM rewrite timed out (3s), using keyword fallback"
+        )
     except ImportError:
         logger.warning("[rewrite_query] litellm not installed, using keyword fallback")
     except Exception as e:
-        logger.warning(f"[rewrite_query] LLM rewrite failed: {e}, using keyword fallback")
+        logger.warning(
+            f"[rewrite_query] LLM rewrite failed: {e}, using keyword fallback"
+        )
 
     # Fallback: jieba keyword extraction or simple expansion
     # Story 2-6 M6: `import jieba` does not auto-import `jieba.analyse`;
@@ -427,7 +449,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     - add_node, add_conditional_edges, add_edge
     - compile()
 
-    Graph Structure (六路并行检索 + faithfulness gate):
+    Graph Structure (五路并行检索 + faithfulness gate, Feature 2.2: textbook removed):
     ```
     START
       |
@@ -435,11 +457,10 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
       |--- retrieve_graphiti (parallel)
       |--- retrieve_lancedb (parallel)
       |--- retrieve_multimodal (parallel) [Story 6.8]
-      |--- retrieve_textbook (parallel) [Story 23.4]
       |--- retrieve_cross_canvas (parallel) [Story 23.4]
       +--- retrieve_vault_notes (parallel) [Vault Notes]
            | (converge)
-         fuse_results (6-source weighted fusion)
+         fuse_results (5-source weighted fusion)
            |
          rerank_results
            |
@@ -494,18 +515,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
         ),
     )
 
-    # Story 23.4: 教材上下文检索节点
-    builder.add_node(
-        "retrieve_textbook",
-        textbook_retrieval_node,
-        retry_policy=RetryPolicy(
-            retry_on=Exception,
-            max_attempts=2,
-            backoff_factor=1.5,
-        ),
-    )
-
-    # Story 23.4: 跨Canvas关联检索节点
+    # Story 23.4: 跨Canvas关联检索节点 (Feature 2.2: textbook node removed per GDA-2)
     builder.add_node(
         "retrieve_cross_canvas",
         cross_canvas_retrieval_node,
@@ -559,13 +569,12 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     # retrieve_graphiti → fuse_results
     # retrieve_lancedb → fuse_results
     # retrieve_multimodal → fuse_results (Story 6.8)
-    # retrieve_textbook → fuse_results (Story 23.4)
     # retrieve_cross_canvas → fuse_results (Story 23.4)
     # (All parallel nodes converge to fuse_results automatically)
+    # Feature 2.2: retrieve_textbook edge removed per GDA-2
     builder.add_edge("retrieve_graphiti", "fuse_results")
     builder.add_edge("retrieve_lancedb", "fuse_results")
     builder.add_edge("retrieve_multimodal", "fuse_results")  # Story 6.8
-    builder.add_edge("retrieve_textbook", "fuse_results")  # Story 23.4
     builder.add_edge("retrieve_cross_canvas", "fuse_results")  # Story 23.4
     builder.add_edge("retrieve_vault_notes", "fuse_results")  # Vault Notes
 

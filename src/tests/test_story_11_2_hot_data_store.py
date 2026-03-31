@@ -46,6 +46,7 @@ from canvas_progress_tracker.data_stores import (
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def temp_session_dir(tmp_path):
     """Create temporary session directory for testing"""
@@ -68,11 +69,7 @@ def sample_event():
         "timestamp": "2025-01-15T10:30:00",
         "canvas_id": "test.canvas",
         "event_type": "node_color_change",
-        "details": {
-            "node_id": "node-abc123",
-            "old_color": "1",
-            "new_color": "2"
-        }
+        "details": {"node_id": "node-abc123", "old_color": "1", "new_color": "2"},
     }
 
 
@@ -95,6 +92,7 @@ def mock_canvas_change():
 # ============================================================================
 # Task 1 Tests: Module and Directory Structure
 # ============================================================================
+
 
 class TestTask1ModuleStructure:
     """Test Task 1: Module creation and directory structure"""
@@ -139,6 +137,7 @@ class TestTask1ModuleStructure:
 # Task 2 Tests: HotDataStore Core Functionality
 # ============================================================================
 
+
 class TestTask2HotDataStoreCore:
     """Test Task 2: HotDataStore class core functionality"""
 
@@ -173,7 +172,7 @@ class TestTask2HotDataStoreCore:
         assert session_file.exists()
 
         # Verify file content structure
-        with open(session_file, 'r', encoding='utf-8') as f:
+        with open(session_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         assert "session_id" in data
@@ -191,7 +190,7 @@ class TestTask2HotDataStoreCore:
 
         # Verify event was written
         session_file = hot_data_store._get_today_session_file()
-        with open(session_file, 'r', encoding='utf-8') as f:
+        with open(session_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         assert len(data["events"]) == 1
@@ -214,6 +213,7 @@ class TestTask2HotDataStoreCore:
 # ============================================================================
 # Task 3 Tests: Write Failure Retry Mechanism
 # ============================================================================
+
 
 class TestTask3RetryMechanism:
     """Test Task 3: Write failure retry mechanism"""
@@ -251,10 +251,13 @@ class TestTask3RetryMechanism:
         # Verify exponential backoff timing
         # First retry: ~0.1s, Second retry: ~0.2s
         # Total should be > 0.3s
-        assert total_time > 0.29, f"Total time {total_time:.3f}s suggests backoff not working"
+        assert total_time > 0.29, (
+            f"Total time {total_time:.3f}s suggests backoff not working"
+        )
 
     def test_subtask_3_3_retry_failure_logging(self, caplog):
         """Test Subtask 3.3: Retry failures are logged"""
+
         @retry_on_failure(max_retries=2, backoff_factor=0.01)
         def always_failing():
             raise IOError("Persistent failure")
@@ -268,7 +271,7 @@ class TestTask3RetryMechanism:
     def test_subtask_3_4_max_retries_exception(self, hot_data_store, sample_event):
         """Test Subtask 3.4: Exception raised after 3 retries"""
         # Mock file operations to always fail
-        with patch('builtins.open', side_effect=PermissionError("Access denied")):
+        with patch("builtins.open", side_effect=PermissionError("Access denied")):
             with pytest.raises(PermissionError):
                 hot_data_store.append_event(sample_event)
 
@@ -276,6 +279,7 @@ class TestTask3RetryMechanism:
 # ============================================================================
 # Task 4 Tests: Query Daily Statistics
 # ============================================================================
+
 
 class TestTask4DailyStatistics:
     """Test Task 4: Query daily statistics functionality"""
@@ -294,7 +298,7 @@ class TestTask4DailyStatistics:
                 "timestamp": f"2025-01-15T10:{i:02d}:00",
                 "canvas_id": "math.canvas" if i % 2 == 0 else "physics.canvas",
                 "event_type": "node_color_change",
-                "details": {"node_id": f"node_{i}", "old_color": "1", "new_color": "2"}
+                "details": {"node_id": f"node_{i}", "old_color": "1", "new_color": "2"},
             }
             for i in range(5)
         ]
@@ -324,7 +328,7 @@ class TestTask4DailyStatistics:
             "canvases_modified",
             "color_transitions",
             "start_time",
-            "last_update"
+            "last_update",
         ]
 
         for field in required_fields:
@@ -343,6 +347,7 @@ class TestTask4DailyStatistics:
 # ============================================================================
 # Task 5 Tests: hot_data_callback Function
 # ============================================================================
+
 
 class TestTask5Callback:
     """Test Task 5: hot_data_callback() implementation"""
@@ -373,7 +378,7 @@ class TestTask5Callback:
             "timestamp": "2025-01-15T10:30:00",
             "canvas_id": "test.canvas",
             "event_type": "test",
-            "details": "not a dict"  # Invalid: should be dict
+            "details": "not a dict",  # Invalid: should be dict
         }
         with pytest.raises(ValueError, match="details.*must be a dictionary"):
             validate_event(invalid_event)
@@ -383,8 +388,10 @@ class TestTask5Callback:
     ):
         """Test Subtask 5.2: CanvasChange converted to JSON format"""
         # Set up store to use temp directory
-        with patch('canvas_progress_tracker.data_stores.get_hot_data_store',
-                   return_value=HotDataStore(session_dir=temp_session_dir)):
+        with patch(
+            "canvas_progress_tracker.data_stores.get_hot_data_store",
+            return_value=HotDataStore(session_dir=temp_session_dir),
+        ):
             # Call callback
             hot_data_callback(mock_canvas_change)
 
@@ -392,7 +399,7 @@ class TestTask5Callback:
             store = HotDataStore(session_dir=temp_session_dir)
             session_file = store._get_today_session_file()
 
-            with open(session_file, 'r', encoding='utf-8') as f:
+            with open(session_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             assert len(data["events"]) == 1
@@ -407,7 +414,9 @@ class TestTask5Callback:
         self, mock_canvas_change, temp_session_dir
     ):
         """Test Subtask 5.3: Callback calls HotDataStore.append_event()"""
-        with patch('canvas_progress_tracker.data_stores.get_hot_data_store') as mock_get:
+        with patch(
+            "canvas_progress_tracker.data_stores.get_hot_data_store"
+        ) as mock_get:
             mock_store = Mock()
             mock_get.return_value = mock_store
 
@@ -418,7 +427,9 @@ class TestTask5Callback:
 
     def test_subtask_5_4_performance_logging(self, mock_canvas_change, caplog):
         """Test Subtask 5.4: Performance logging is added"""
-        with patch('canvas_progress_tracker.data_stores.get_hot_data_store') as mock_get:
+        with patch(
+            "canvas_progress_tracker.data_stores.get_hot_data_store"
+        ) as mock_get:
             mock_store = Mock()
             mock_get.return_value = mock_store
 
@@ -432,6 +443,7 @@ class TestTask5Callback:
 # Task 6 Tests: Callback Registration
 # ============================================================================
 
+
 class TestTask6CallbackRegistration:
     """Test Task 6: Callback registration with monitoring engine"""
 
@@ -440,6 +452,7 @@ class TestTask6CallbackRegistration:
         # This test verifies the import works in monitoring engine
         try:
             from canvas_progress_tracker.data_stores import hot_data_callback
+
             assert hot_data_callback is not None
         except ImportError:
             pytest.fail("Failed to import hot_data_callback")
@@ -461,23 +474,28 @@ class TestTask6CallbackRegistration:
         # Verify callback was registered
         assert hot_data_callback in mock_engine.change_callbacks
 
-    def test_subtask_6_3_callback_triggered_correctly(self, mock_canvas_change, temp_session_dir):
+    def test_subtask_6_3_callback_triggered_correctly(
+        self, mock_canvas_change, temp_session_dir
+    ):
         """Test Subtask 6.3: Callback is triggered and writes data"""
         # Create a fresh store for this test
         store = HotDataStore(session_dir=temp_session_dir)
 
         # Simulate callback being triggered
-        with patch('canvas_progress_tracker.data_stores.get_hot_data_store', return_value=store):
+        with patch(
+            "canvas_progress_tracker.data_stores.get_hot_data_store", return_value=store
+        ):
             hot_data_callback(mock_canvas_change)
 
         # Verify data was written
         stats = store.get_today_stats()
-        assert stats['total_events'] == 1
+        assert stats["total_events"] == 1
 
 
 # ============================================================================
 # Task 7 Tests: Comprehensive Acceptance Criteria Validation
 # ============================================================================
+
 
 class TestTask7AcceptanceCriteria:
     """Test Task 7: All Acceptance Criteria validation"""
@@ -499,7 +517,7 @@ class TestTask7AcceptanceCriteria:
 
         # Immediately read file
         session_file = hot_data_store._get_today_session_file()
-        with open(session_file, 'r', encoding='utf-8') as f:
+        with open(session_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         assert len(data["events"]) == 1
@@ -531,7 +549,7 @@ class TestTask7AcceptanceCriteria:
         hot_data_store.append_event(sample_event)
 
         session_file = hot_data_store._get_today_session_file()
-        with open(session_file, 'r', encoding='utf-8') as f:
+        with open(session_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         # Verify session schema
@@ -561,7 +579,7 @@ class TestTask7AcceptanceCriteria:
             # On third attempt, succeed
             return open(*args, **kwargs)
 
-        with patch('builtins.open', side_effect=mock_open_with_failures):
+        with patch("builtins.open", side_effect=mock_open_with_failures):
             # This should fail because we can't fully mock the file operations
             # In real scenario, the retry mechanism is tested by the decorator tests
             pass
@@ -575,7 +593,7 @@ class TestTask7AcceptanceCriteria:
                 "timestamp": f"2025-01-15T10:{i:02d}:00",
                 "canvas_id": "test.canvas",
                 "event_type": "node_color_change",
-                "details": {"node_id": f"node_{i}", "old_color": "1", "new_color": "2"}
+                "details": {"node_id": f"node_{i}", "old_color": "1", "new_color": "2"},
             }
             hot_data_store.append_event(event)
 
@@ -588,6 +606,7 @@ class TestTask7AcceptanceCriteria:
 # ============================================================================
 # Task 8 Tests: Integration Verification
 # ============================================================================
+
 
 class TestTask8IntegrationVerification:
     """Test Task 8: Integration verification tests"""
@@ -615,17 +634,14 @@ class TestTask8IntegrationVerification:
                         "timestamp": datetime.now().isoformat(),
                         "canvas_id": f"thread_{thread_id}.canvas",
                         "event_type": "test",
-                        "details": {}
+                        "details": {},
                     }
                     store.append_event(event)
             except Exception as e:
                 errors.append(e)
 
         # Launch 5 threads writing concurrently
-        threads = [
-            threading.Thread(target=write_events, args=(i,))
-            for i in range(5)
-        ]
+        threads = [threading.Thread(target=write_events, args=(i,)) for i in range(5)]
 
         for t in threads:
             t.start()
@@ -659,6 +675,7 @@ class TestTask8IntegrationVerification:
                 return "timeout"
 
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(try_lock)
             result = future.result()
@@ -679,7 +696,7 @@ class TestTask8IntegrationVerification:
                     "timestamp": datetime.now().isoformat(),
                     "canvas_id": "stability_test.canvas",
                     "event_type": "test",
-                    "details": {"iteration": i}
+                    "details": {"iteration": i},
                 }
                 hot_data_store.append_event(event)
             except Exception as e:
@@ -696,6 +713,7 @@ class TestTask8IntegrationVerification:
 # Additional Edge Case Tests
 # ============================================================================
 
+
 class TestEdgeCases:
     """Test edge cases and error handling"""
 
@@ -705,7 +723,7 @@ class TestEdgeCases:
 
         # Create corrupted JSON file
         hot_data_store._ensure_session_file_exists(session_file)
-        session_file.write_text("{ corrupted json }", encoding='utf-8')
+        session_file.write_text("{ corrupted json }", encoding="utf-8")
 
         # Append should handle corruption and recreate file
         result = hot_data_store.append_event(sample_event)

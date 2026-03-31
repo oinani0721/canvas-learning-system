@@ -9,12 +9,9 @@
 
 import hashlib
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-from pydantic import ValidationError
-
 from app.config import get_settings
 from app.main import app
 from app.models.memory_schemas import (
@@ -23,7 +20,8 @@ from app.models.memory_schemas import (
     BatchEventMetadata,
 )
 from app.services.memory_service import get_memory_service
-
+from httpx import ASGITransport, AsyncClient
+from pydantic import ValidationError
 
 # ============================================================================
 # Test Helpers
@@ -78,8 +76,10 @@ def mock_memory_svc():
         episode_ids = []
         for evt in events:
             eid = _generate_expected_episode_id(
-                evt["canvas_path"], evt["node_id"],
-                evt["event_type"], evt["timestamp"],
+                evt["canvas_path"],
+                evt["node_id"],
+                evt["event_type"],
+                evt["timestamp"],
             )
             record = {
                 "episode_id": eid,
@@ -271,8 +271,12 @@ class TestAC30202PayloadValidation:
 
     def test_different_inputs_produce_different_ids(self):
         """Different events produce different episode IDs."""
-        id1 = _generate_expected_episode_id("a.canvas", "n1", "color_changed", "2026-01-01T00:00:00Z")
-        id2 = _generate_expected_episode_id("b.canvas", "n1", "color_changed", "2026-01-01T00:00:00Z")
+        id1 = _generate_expected_episode_id(
+            "a.canvas", "n1", "color_changed", "2026-01-01T00:00:00Z"
+        )
+        id2 = _generate_expected_episode_id(
+            "b.canvas", "n1", "color_changed", "2026-01-01T00:00:00Z"
+        )
         assert id1 != id2
 
     @pytest.mark.asyncio
@@ -416,7 +420,9 @@ class TestAC30205MultiBatchDebounce:
     """Verify backend correctly handles multiple events in single batch."""
 
     @pytest.mark.asyncio
-    async def test_three_events_in_single_batch(self, client_with_mock, mock_memory_svc):
+    async def test_three_events_in_single_batch(
+        self, client_with_mock, mock_memory_svc
+    ):
         """3 events merged by debounce → batch POST → processed: 3."""
         ts_base = "2026-02-10T12:00:00"
         events = [

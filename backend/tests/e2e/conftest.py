@@ -14,29 +14,26 @@ Provides:
 [Source: specs/api/parallel-api.openapi.yml]
 """
 
-import asyncio
-import io
 import json
 import sys
 import time
-
-from tests.conftest import simulate_async_delay
 from pathlib import Path
-from typing import Any, AsyncGenerator, Generator, List
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import AsyncGenerator, Generator, List
+from unittest.mock import MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
-
 from app.config import Settings, get_settings
 from app.main import app
 from app.services.session_manager import SessionManager
+from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
+from tests.conftest import simulate_async_delay
 
 # =============================================================================
 # Settings Override for E2E Tests
 # =============================================================================
+
 
 def get_e2e_settings_override() -> Settings:
     """
@@ -60,6 +57,7 @@ def get_e2e_settings_override() -> Settings:
 #          test_multimodal_perf_utility_e2e.py
 # =============================================================================
 
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """Synchronous test client for multimodal E2E tests."""
@@ -72,17 +70,79 @@ def client() -> Generator[TestClient, None, None]:
 @pytest.fixture
 def test_image_file() -> bytes:
     """Minimal 1x1 red PNG image for testing."""
-    return bytes([
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE,
-        0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54,
-        0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00, 0x00,
-        0x01, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB4,
-        0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
-        0xAE, 0x42, 0x60, 0x82,
-    ])
+    return bytes(
+        [
+            0x89,
+            0x50,
+            0x4E,
+            0x47,
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A,
+            0x00,
+            0x00,
+            0x00,
+            0x0D,
+            0x49,
+            0x48,
+            0x44,
+            0x52,
+            0x00,
+            0x00,
+            0x00,
+            0x01,
+            0x00,
+            0x00,
+            0x00,
+            0x01,
+            0x08,
+            0x02,
+            0x00,
+            0x00,
+            0x00,
+            0x90,
+            0x77,
+            0x53,
+            0xDE,
+            0x00,
+            0x00,
+            0x00,
+            0x0C,
+            0x49,
+            0x44,
+            0x41,
+            0x54,
+            0x08,
+            0xD7,
+            0x63,
+            0xF8,
+            0xCF,
+            0xC0,
+            0x00,
+            0x00,
+            0x01,
+            0x01,
+            0x01,
+            0x00,
+            0x18,
+            0xDD,
+            0x8D,
+            0xB4,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x49,
+            0x45,
+            0x4E,
+            0x44,
+            0xAE,
+            0x42,
+            0x60,
+            0x82,
+        ]
+    )
 
 
 @pytest.fixture
@@ -109,6 +169,7 @@ startxref
 # [Source: docs/stories/33.8.story.md - Task 1.3]
 # =============================================================================
 
+
 @pytest.fixture
 def test_canvas_10_nodes(tmp_path: Path) -> Path:
     """
@@ -134,18 +195,20 @@ def test_canvas_10_nodes(tmp_path: Path) -> Path:
                 "x": (i % 5) * 250,
                 "y": (i // 5) * 150,
                 "width": 220,
-                "height": 100
+                "height": 100,
             }
             for i in range(10)
         ],
-        "edges": []
+        "edges": [],
     }
 
     canvas_dir = tmp_path / "test_vault"
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_10.canvas"
-    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding='utf-8')
+    canvas_file.write_text(
+        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
+    )
 
     return canvas_file
 
@@ -169,18 +232,20 @@ def test_canvas_20_nodes(tmp_path: Path) -> Path:
                 "x": (i % 5) * 250,
                 "y": (i // 5) * 150,
                 "width": 220,
-                "height": 100
+                "height": 100,
             }
             for i in range(20)
         ],
-        "edges": []
+        "edges": [],
     }
 
     canvas_dir = tmp_path / "test_vault"
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_20.canvas"
-    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding='utf-8')
+    canvas_file.write_text(
+        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
+    )
 
     return canvas_file
 
@@ -208,18 +273,20 @@ def test_canvas_100_nodes(tmp_path: Path) -> Path:
                 "x": (i % 10) * 250,
                 "y": (i // 10) * 150,
                 "width": 220,
-                "height": 100
+                "height": 100,
             }
             for i in range(100)
         ],
-        "edges": []
+        "edges": [],
     }
 
     canvas_dir = tmp_path / "test_vault"
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_100.canvas"
-    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding='utf-8')
+    canvas_file.write_text(
+        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
+    )
 
     return canvas_file
 
@@ -245,7 +312,7 @@ def test_canvas_with_failing_node(tmp_path: Path) -> Path:
                     "x": i * 250,
                     "y": 0,
                     "width": 220,
-                    "height": 100
+                    "height": 100,
                 }
                 for i in range(5)
             ],
@@ -258,17 +325,19 @@ def test_canvas_with_failing_node(tmp_path: Path) -> Path:
                 "x": 0,
                 "y": 200,
                 "width": 220,
-                "height": 100
-            }
+                "height": 100,
+            },
         ],
-        "edges": []
+        "edges": [],
     }
 
     canvas_dir = tmp_path / "test_vault"
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_failing.canvas"
-    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding='utf-8')
+    canvas_file.write_text(
+        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
+    )
 
     return canvas_file
 
@@ -299,6 +368,7 @@ def _generate_node_text(index: int) -> str:
 # [Source: Context7:/websites/fastapi_tiangolo (topic: async testing)]
 # =============================================================================
 
+
 @pytest.fixture
 async def e2e_async_client(tmp_path: Path) -> AsyncGenerator[AsyncClient, None]:
     """
@@ -306,6 +376,7 @@ async def e2e_async_client(tmp_path: Path) -> AsyncGenerator[AsyncClient, None]:
 
     ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: async testing)
     """
+
     # Override settings to use tmp_path as canvas base
     def get_test_settings():
         settings = get_e2e_settings_override()
@@ -326,6 +397,7 @@ async def e2e_async_client(tmp_path: Path) -> AsyncGenerator[AsyncClient, None]:
 # [Source: docs/stories/33.8.story.md - Task 1.4]
 # =============================================================================
 
+
 @pytest.fixture
 def mock_agent_responses(mocker):
     """
@@ -335,7 +407,10 @@ def mock_agent_responses(mocker):
 
     [Source: docs/stories/33.8.story.md - Implementation Notes #1]
     """
-    async def mock_call_agent(agent_type: str, node_id: str, node_text: str, *args, **kwargs):
+
+    async def mock_call_agent(
+        agent_type: str, node_id: str, node_text: str, *args, **kwargs
+    ):
         """Mock agent response with minimal delay."""
         await simulate_async_delay(0.01)  # 10ms simulated processing
         return {
@@ -349,7 +424,7 @@ def mock_agent_responses(mocker):
 
     mock = mocker.patch(
         "app.services.agent_service.AgentService.call_agent",
-        side_effect=mock_call_agent
+        side_effect=mock_call_agent,
     )
     return mock
 
@@ -365,13 +440,17 @@ def mock_agent_with_failures(mocker):
     """
     call_count = {"value": 0}
 
-    async def mock_call_agent_with_failure(agent_type: str, node_id: str, node_text: str, *args, **kwargs):
+    async def mock_call_agent_with_failure(
+        agent_type: str, node_id: str, node_text: str, *args, **kwargs
+    ):
         """Mock agent that fails for empty text or node-999."""
         call_count["value"] += 1
         await simulate_async_delay(0.01)
 
         if node_id == "node-999" or not node_text.strip():
-            raise ValueError(f"Agent processing failed for node {node_id}: empty content")
+            raise ValueError(
+                f"Agent processing failed for node {node_id}: empty content"
+            )
 
         return {
             "success": True,
@@ -384,7 +463,7 @@ def mock_agent_with_failures(mocker):
 
     mock = mocker.patch(
         "app.services.agent_service.AgentService.call_agent",
-        side_effect=mock_call_agent_with_failure
+        side_effect=mock_call_agent_with_failure,
     )
     mock.call_count_tracker = call_count
     return mock
@@ -394,6 +473,7 @@ def mock_agent_with_failures(mocker):
 # Session Manager Fixtures
 # [Source: docs/stories/33.8.story.md - Task 7.3]
 # =============================================================================
+
 
 @pytest.fixture
 def session_manager_clean():
@@ -430,6 +510,7 @@ async def cleanup_sessions(session_manager_clean):
 # [Source: docs/stories/33.8.story.md - Task 1.5]
 # =============================================================================
 
+
 @pytest.fixture
 def websocket_test_app():
     """
@@ -438,11 +519,11 @@ def websocket_test_app():
     [Source: backend/tests/integration/test_websocket_integration.py]
     """
     from app.api.v1.endpoints.websocket import (
-        websocket_intelligent_parallel,
         set_session_validator,
+        websocket_intelligent_parallel,
     )
-    from fastapi import FastAPI, WebSocket
     from app.services.websocket_manager import reset_connection_manager
+    from fastapi import FastAPI, WebSocket
 
     test_app = FastAPI()
     reset_connection_manager()
@@ -468,6 +549,7 @@ def websocket_test_app():
 # [Source: docs/stories/33.8.story.md - Task 6.4]
 # =============================================================================
 
+
 class PerformanceTimer:
     """Context manager for precise performance measurement."""
 
@@ -491,7 +573,9 @@ class PerformanceTimer:
         return {
             "total_duration_seconds": self.elapsed,
             "nodes_per_second": node_count / self.elapsed if self.elapsed > 0 else 0,
-            "average_per_node_ms": (self.elapsed / node_count * 1000) if node_count > 0 else 0,
+            "average_per_node_ms": (self.elapsed / node_count * 1000)
+            if node_count > 0
+            else 0,
         }
 
 
@@ -505,6 +589,7 @@ def performance_timer():
 # Event Collection Utilities
 # [Source: docs/stories/33.8.story.md - Task 5.4]
 # =============================================================================
+
 
 class EventCollector:
     """Utility for collecting WebSocket events during tests."""
@@ -548,6 +633,7 @@ def event_collector():
 # [Source: backend/tests/integration/test_batch_processing.py:97-150]
 # =============================================================================
 
+
 @pytest.fixture
 def mock_canvas_utils(monkeypatch):
     """
@@ -558,10 +644,11 @@ def mock_canvas_utils(monkeypatch):
 
     [Fix for: canvas_utils.path_manager not available as package in test env]
     """
+
     class MockCanvasBusinessLogic:
         def __init__(self, canvas_path: str):
             self.canvas_path = canvas_path
-            with open(canvas_path, 'r', encoding='utf-8') as f:
+            with open(canvas_path, "r", encoding="utf-8") as f:
                 self.canvas_data = json.load(f)
 
         def cluster_canvas_nodes(
@@ -576,20 +663,24 @@ def mock_canvas_utils(monkeypatch):
             text_nodes = [n for n in nodes if n.get("type") == "text" and n.get("text")]
 
             if len(text_nodes) < min_cluster_size:
-                raise ValueError(f"节点数量不足: {len(text_nodes)} < {min_cluster_size}")
+                raise ValueError(
+                    f"节点数量不足: {len(text_nodes)} < {min_cluster_size}"
+                )
 
             # Split nodes into groups of ~5 for realistic clustering
             group_size = max(min_cluster_size, 5)
             clusters = []
             for i in range(0, len(text_nodes), group_size):
-                chunk = text_nodes[i:i + group_size]
-                clusters.append({
-                    "id": f"cluster-{i // group_size + 1}",
-                    "label": f"测试分组{i // group_size + 1}",
-                    "top_keywords": ["测试", "概念"],
-                    "confidence": 0.75,
-                    "nodes": [n["id"] for n in chunk],
-                })
+                chunk = text_nodes[i : i + group_size]
+                clusters.append(
+                    {
+                        "id": f"cluster-{i // group_size + 1}",
+                        "label": f"测试分组{i // group_size + 1}",
+                        "top_keywords": ["测试", "概念"],
+                        "confidence": 0.75,
+                        "nodes": [n["id"] for n in chunk],
+                    }
+                )
 
             return {
                 "clusters": clusters,
@@ -606,7 +697,7 @@ def mock_canvas_utils(monkeypatch):
     mock_module = MagicMock()
     mock_module.CanvasBusinessLogic = MockCanvasBusinessLogic
 
-    monkeypatch.setitem(sys.modules, 'canvas_utils', mock_module)
+    monkeypatch.setitem(sys.modules, "canvas_utils", mock_module)
 
     return mock_module
 
@@ -614,6 +705,7 @@ def mock_canvas_utils(monkeypatch):
 # =============================================================================
 # Shared Singleton Reset (autouse for all E2E tests)
 # =============================================================================
+
 
 @pytest.fixture(autouse=True)
 def _reset_e2e_singletons():
@@ -623,6 +715,7 @@ def _reset_e2e_singletons():
     Ensures no leaked state between tests (service instance, deps, overrides).
     """
     from app.api.v1.endpoints.intelligent_parallel import reset_service
+
     reset_service()
     SessionManager.reset_instance()
     try:
@@ -638,7 +731,10 @@ def _reset_e2e_singletons():
 # Used by both test_intelligent_parallel.py and test_epic33_batch_pipeline.py
 # =============================================================================
 
-def mock_perform_clustering(self, canvas_path, target_color, max_groups, min_nodes_per_group):
+
+def mock_perform_clustering(
+    self, canvas_path, target_color, max_groups, min_nodes_per_group
+):
     """
     Shared mock replacement for IntelligentGroupingService._perform_clustering.
 
@@ -650,7 +746,8 @@ def mock_perform_clustering(self, canvas_path, target_color, max_groups, min_nod
 
     nodes = canvas_data.get("nodes", [])
     text_nodes = [
-        n for n in nodes
+        n
+        for n in nodes
         if n.get("type") == "text"
         and n.get("color") == target_color
         and n.get("text", "").strip()
@@ -658,6 +755,7 @@ def mock_perform_clustering(self, canvas_path, target_color, max_groups, min_nod
 
     if len(text_nodes) < min_nodes_per_group:
         from app.services.intelligent_grouping_service import InsufficientNodesError
+
         raise InsufficientNodesError(
             f"Not enough nodes with color '{target_color}'. "
             f"Found {len(text_nodes)}, need at least {min_nodes_per_group}"
@@ -666,16 +764,18 @@ def mock_perform_clustering(self, canvas_path, target_color, max_groups, min_nod
     group_size = max(min_nodes_per_group, 5)
     clusters = []
     for i in range(0, len(text_nodes), group_size):
-        chunk = text_nodes[i:i + group_size]
+        chunk = text_nodes[i : i + group_size]
         node_texts = {n["id"]: n.get("text", "") for n in chunk}
-        clusters.append({
-            "id": f"cluster-{i // group_size + 1}",
-            "label": f"group{i // group_size + 1}",
-            "top_keywords": ["test", "concept"],
-            "confidence": 0.75,
-            "nodes": [n["id"] for n in chunk],
-            "node_texts": node_texts,
-        })
+        clusters.append(
+            {
+                "id": f"cluster-{i // group_size + 1}",
+                "label": f"group{i // group_size + 1}",
+                "top_keywords": ["test", "concept"],
+                "confidence": 0.75,
+                "nodes": [n["id"] for n in chunk],
+                "node_texts": node_texts,
+            }
+        )
 
     return {
         "clusters": clusters,
@@ -704,11 +804,13 @@ def make_lightweight_ensure_deps(settings, agent_mock):
 
         service = ep_mod.get_service()
 
-        from app.services.batch_orchestrator import BatchOrchestrator
         from app.services.agent_service import AgentService
+        from app.services.batch_orchestrator import BatchOrchestrator
         from app.services.canvas_service import CanvasService
 
-        canvas_base = str(settings.canvas_base_path) if settings.canvas_base_path else None
+        canvas_base = (
+            str(settings.canvas_base_path) if settings.canvas_base_path else None
+        )
         canvas_service = CanvasService(canvas_base_path=canvas_base)
 
         # Create AgentService with mocked gemini_client

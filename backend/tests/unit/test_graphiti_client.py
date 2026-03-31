@@ -12,27 +12,24 @@ Story 36.1: 统一GraphitiClient架构
 [Source: docs/architecture/decisions/ADR-003-AGENTIC-RAG-ARCHITECTURE.md]
 """
 
-import asyncio
-import pytest
 import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest_asyncio
-
-from app.clients.graphiti_client_base import (
-    GraphitiClientBase,
-    EdgeRelationship,
-)
+import pytest
 from app.clients.graphiti_client import (
     GraphitiEdgeClient,
     GraphitiEdgeClientAdapter,
 )
+from app.clients.graphiti_client_base import (
+    EdgeRelationship,
+    GraphitiClientBase,
+)
 from app.clients.neo4j_client import Neo4jClient
-
 
 # =============================================================================
 # Test EdgeRelationship DataClass
 # =============================================================================
+
 
 class TestEdgeRelationship:
     """Test EdgeRelationship dataclass - AC-36.1.1."""
@@ -131,6 +128,7 @@ class TestEdgeRelationship:
 # Test GraphitiClientBase Abstract Class
 # =============================================================================
 
+
 class TestGraphitiClientBase:
     """Test GraphitiClientBase abstract class - AC-36.1.1."""
 
@@ -145,12 +143,15 @@ class TestGraphitiClientBase:
 
     def test_requires_neo4j_client(self):
         """Test that None neo4j_client raises ValueError."""
+
         # Create a concrete subclass for testing
         class ConcreteClient(GraphitiClientBase):
             async def add_edge_relationship(self, relationship):
                 pass
 
-            async def search_nodes(self, query, canvas_path=None, group_id=None, limit=10):
+            async def search_nodes(
+                self, query, canvas_path=None, group_id=None, limit=10
+            ):
                 return []
 
             async def get_related_memories(self, node_id, canvas_path=None, limit=10):
@@ -165,6 +166,7 @@ class TestGraphitiClientBase:
 # =============================================================================
 # Test GraphitiEdgeClient with Dependency Injection
 # =============================================================================
+
 
 class TestGraphitiEdgeClientDependencyInjection:
     """Test GraphitiEdgeClient dependency injection - AC-36.1.3."""
@@ -232,7 +234,9 @@ class TestGraphitiEdgeClientMethods:
         return GraphitiEdgeClient(neo4j_client=mock_neo4j_client)
 
     @pytest.mark.asyncio
-    async def test_initialize_delegates_to_neo4j(self, graphiti_client, mock_neo4j_client):
+    async def test_initialize_delegates_to_neo4j(
+        self, graphiti_client, mock_neo4j_client
+    ):
         """Test initialize() calls Neo4jClient.initialize()."""
         result = await graphiti_client.initialize()
 
@@ -264,21 +268,21 @@ class TestGraphitiEdgeClientMethods:
     @pytest.mark.asyncio
     async def test_search_nodes(self, graphiti_client, mock_neo4j_client):
         """Test search_nodes returns expected format."""
-        mock_neo4j_client.run_query = AsyncMock(return_value=[
-            {"id": "node1", "content": "Test content", "score": 0.9}
-        ])
+        mock_neo4j_client.run_query = AsyncMock(
+            return_value=[{"id": "node1", "content": "Test content", "score": 0.9}]
+        )
 
         results = await graphiti_client.search_nodes(
-            query="test query",
-            canvas_path="test.canvas",
-            limit=5
+            query="test query", canvas_path="test.canvas", limit=5
         )
 
         assert isinstance(results, list)
         # The actual implementation details may vary
 
     @pytest.mark.asyncio
-    async def test_health_check_delegates_to_neo4j(self, graphiti_client, mock_neo4j_client):
+    async def test_health_check_delegates_to_neo4j(
+        self, graphiti_client, mock_neo4j_client
+    ):
         """Test health_check() calls Neo4jClient.health_check()."""
         result = await graphiti_client.health_check()
 
@@ -301,6 +305,7 @@ class TestGraphitiEdgeClientMethods:
 # Test GraphitiEdgeClientAdapter (Backward Compatibility) - AC-36.1.4
 # =============================================================================
 
+
 class TestGraphitiEdgeClientAdapter:
     """Test backward-compatible GraphitiEdgeClientAdapter - AC-36.1.4."""
 
@@ -319,9 +324,13 @@ class TestGraphitiEdgeClientAdapter:
                 adapter = GraphitiEdgeClientAdapter()
 
                 assert len(w) >= 1
-                deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+                deprecation_warnings = [
+                    x for x in w if issubclass(x.category, DeprecationWarning)
+                ]
                 assert len(deprecation_warnings) >= 1
-                assert any("deprecated" in str(x.message).lower() for x in deprecation_warnings)
+                assert any(
+                    "deprecated" in str(x.message).lower() for x in deprecation_warnings
+                )
 
     def test_adapter_creates_internal_client(self):
         """Test adapter creates GraphitiEdgeClient internally."""
@@ -374,18 +383,19 @@ class TestGraphitiEdgeClientAdapter:
 # Test Import Paths (AC-36.1.5)
 # =============================================================================
 
+
 class TestUnifiedImports:
     """Test unified import paths work correctly - AC-36.1.5."""
 
     def test_import_from_backend_clients(self):
         """Test imports from backend/app/clients work."""
-        from app.clients.graphiti_client_base import (
-            GraphitiClientBase,
-            EdgeRelationship,
-        )
         from app.clients.graphiti_client import (
             GraphitiEdgeClient,
             GraphitiEdgeClientAdapter,
+        )
+        from app.clients.graphiti_client_base import (
+            EdgeRelationship,
+            GraphitiClientBase,
         )
 
         assert GraphitiClientBase is not None
@@ -416,6 +426,7 @@ class TestUnifiedImports:
 # =============================================================================
 # Test Connection Pool Reuse (AC-36.1.3)
 # =============================================================================
+
 
 class TestConnectionPoolReuse:
     """Test that GraphitiEdgeClient reuses Neo4jClient connection pool."""

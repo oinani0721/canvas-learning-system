@@ -133,8 +133,10 @@ class TestSearchIntentRegression:
             )
 
         compliance_rate = compliant_count / len(scenarios)
-        assert compliance_rate >= 0.90, "JSON format compliance {v:.4f} below 90 percent threshold".format(
-            v=compliance_rate,
+        assert compliance_rate >= 0.90, (
+            "JSON format compliance {v:.4f} below 90 percent threshold".format(
+                v=compliance_rate,
+            )
         )
 
     def test_replay_search_decision_accuracy(
@@ -165,8 +167,10 @@ class TestSearchIntentRegression:
             )
 
         accuracy = correct_count / len(scenarios)
-        assert accuracy >= 0.80, "Search decision accuracy {v:.4f} below 80 percent threshold".format(
-            v=accuracy,
+        assert accuracy >= 0.80, (
+            "Search decision accuracy {v:.4f} below 80 percent threshold".format(
+                v=accuracy,
+            )
         )
 
     def test_replay_query_count_compliance(
@@ -184,7 +188,9 @@ class TestSearchIntentRegression:
                 in_range_count += 1
 
         rate = in_range_count / len(scenarios)
-        assert rate >= 0.80, "Query count compliance {v:.4f} below 80 percent".format(v=rate)
+        assert rate >= 0.80, "Query count compliance {v:.4f} below 80 percent".format(
+            v=rate
+        )
 
     def test_replay_no_search_empty_queries(
         self,
@@ -197,8 +203,10 @@ class TestSearchIntentRegression:
             response = scenario["replay_response"]
             if not expected.get("needs_search", True):
                 queries = response.get("search_queries", ["non-empty"])
-                assert len(queries) == 0, "Scenario {sid} needs_search=false but has queries".format(
-                    sid=scenario["scenario_id"],
+                assert len(queries) == 0, (
+                    "Scenario {sid} needs_search=false but has queries".format(
+                        sid=scenario["scenario_id"],
+                    )
                 )
 
     def test_generate_report(

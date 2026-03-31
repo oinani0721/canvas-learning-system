@@ -19,12 +19,23 @@ from tests.regression.report_generator import RegressionReportGenerator
 logger = logging.getLogger(__name__)
 
 VALID_QUESTION_TYPES = {
-    "definition", "explanation", "analysis", "comparison",
-    "application", "evaluation", "error_finding", "transfer",
+    "definition",
+    "explanation",
+    "analysis",
+    "comparison",
+    "application",
+    "evaluation",
+    "error_finding",
+    "transfer",
 }
 
 VALID_BLOOM_LEVELS = {
-    "remember", "understand", "apply", "analyze", "evaluate", "create",
+    "remember",
+    "understand",
+    "apply",
+    "analyze",
+    "evaluate",
+    "create",
 }
 
 MASTERY_TO_BLOOM = {
@@ -37,8 +48,13 @@ MASTERY_TO_BLOOM = {
 
 def _check_format_compliance(response: Dict[str, Any]) -> bool:
     """Check if a question generation response has all required fields."""
-    required_fields = ["question", "question_type", "target_bloom_level",
-                       "difficulty_rationale", "scoring_hints"]
+    required_fields = [
+        "question",
+        "question_type",
+        "target_bloom_level",
+        "difficulty_rationale",
+        "scoring_hints",
+    ]
     for field in required_fields:
         if field not in response or not response[field]:
             return False
@@ -106,7 +122,14 @@ class TestQuestionGenRegression:
         """Verify Bloom's Taxonomy levels are referenced."""
         content = prompt_registry.get("question_gen")
         assert "Bloom" in content
-        for level in ["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"]:
+        for level in [
+            "Remember",
+            "Understand",
+            "Apply",
+            "Analyze",
+            "Evaluate",
+            "Create",
+        ]:
             assert level.lower() in content.lower(), "Missing Bloom level: " + level
 
     def test_replay_format_compliance(
@@ -139,7 +162,9 @@ class TestQuestionGenRegression:
 
         compliance_rate = compliant_count / len(scenarios)
         assert compliance_rate >= 0.90, (
-            "Format compliance {v:.4f} below 90 percent threshold".format(v=compliance_rate)
+            "Format compliance {v:.4f} below 90 percent threshold".format(
+                v=compliance_rate
+            )
         )
 
     def test_replay_difficulty_matching(
@@ -154,14 +179,18 @@ class TestQuestionGenRegression:
         for scenario in scenarios:
             response = scenario["replay_response"]
             mastery = scenario["input"]["mastery_level"]
-            expected_blooms = scenario["expected_output"].get("valid_bloom_levels", list())
+            expected_blooms = scenario["expected_output"].get(
+                "valid_bloom_levels", list()
+            )
             matched = _check_difficulty_match(response, mastery, expected_blooms)
             if matched:
                 match_count += 1
 
         match_rate = match_count / len(scenarios)
         assert match_rate >= 0.70, (
-            "Difficulty match rate {v:.4f} below 70 percent threshold".format(v=match_rate)
+            "Difficulty match rate {v:.4f} below 70 percent threshold".format(
+                v=match_rate
+            )
         )
 
     def test_replay_addresses_weakness(
@@ -182,7 +211,8 @@ class TestQuestionGenRegression:
         min_required = int(len(scenarios) * 0.70)
         assert addresses_count >= min_required, (
             "Too few questions address student weaknesses: {a}/{t}".format(
-                a=addresses_count, t=len(scenarios),
+                a=addresses_count,
+                t=len(scenarios),
             )
         )
 
@@ -203,7 +233,9 @@ class TestQuestionGenRegression:
             response = scenario["replay_response"]
             compliant = _check_format_compliance(response)
             mastery = scenario["input"]["mastery_level"]
-            expected_blooms = scenario["expected_output"].get("valid_bloom_levels", list())
+            expected_blooms = scenario["expected_output"].get(
+                "valid_bloom_levels", list()
+            )
             matched = _check_difficulty_match(response, mastery, expected_blooms)
 
             if compliant:
@@ -211,14 +243,16 @@ class TestQuestionGenRegression:
             if matched:
                 match_count += 1
 
-            scenario_results.append({
-                "scenario_id": scenario["scenario_id"],
-                "passed": compliant and matched,
-                "metrics": {
-                    "format_compliant": compliant,
-                    "difficulty_matched": matched,
-                },
-            })
+            scenario_results.append(
+                {
+                    "scenario_id": scenario["scenario_id"],
+                    "passed": compliant and matched,
+                    "metrics": {
+                        "format_compliant": compliant,
+                        "difficulty_matched": matched,
+                    },
+                }
+            )
 
         n = len(scenarios)
         gen = RegressionReportGenerator()

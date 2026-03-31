@@ -9,21 +9,24 @@ Verified from Story 35.6:
 - AC 35.6.5: Return MultimodalContent instance
 """
 
-import base64
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Check if pydub is available
 try:
     from pydub import AudioSegment
+
     PYDUB_AVAILABLE = True
 except ImportError:
     PYDUB_AVAILABLE = False
 
 # Import the module under test
+from agentic_rag.models.multimodal_content import (
+    MediaType,
+    MultimodalContent,
+)
 from agentic_rag.processors.audio_processor import (
     AudioCorruptError,
     AudioProcessor,
@@ -31,11 +34,6 @@ from agentic_rag.processors.audio_processor import (
     AudioSizeError,
     AudioValidationError,
     process_audio,
-)
-from agentic_rag.models.multimodal_content import (
-    MediaType,
-    MultimodalContent,
-    MultimodalMetadata,
 )
 
 
@@ -317,8 +315,10 @@ class TestAudioProcessorWithMocks:
         mock_audio = MagicMock()
         mock_audio.__len__ = MagicMock(return_value=5000)  # 5 seconds in ms
 
-        with patch('agentic_rag.processors.audio_processor.PYDUB_AVAILABLE', True):
-            with patch('agentic_rag.processors.audio_processor.AudioSegment') as mock_segment:
+        with patch("agentic_rag.processors.audio_processor.PYDUB_AVAILABLE", True):
+            with patch(
+                "agentic_rag.processors.audio_processor.AudioSegment"
+            ) as mock_segment:
                 mock_segment.from_file.return_value = mock_audio
 
                 result = await processor.process(sample_audio, "concept-123")
@@ -333,7 +333,7 @@ class TestAudioProcessorWithMocks:
         path = tmp_path / "sample.mp3"
         path.write_bytes(b"fake data")
 
-        with patch('agentic_rag.processors.audio_processor.PYDUB_AVAILABLE', False):
+        with patch("agentic_rag.processors.audio_processor.PYDUB_AVAILABLE", False):
             processor = AudioProcessor()
 
             with pytest.raises(AudioCorruptError, match="pydub is required"):
@@ -354,7 +354,7 @@ class TestAudioProcessorWaveform:
         path = tmp_path / "sample.mp3"
         path.write_bytes(b"fake data")
 
-        with patch('agentic_rag.processors.audio_processor.PYDUB_AVAILABLE', False):
+        with patch("agentic_rag.processors.audio_processor.PYDUB_AVAILABLE", False):
             result = await processor.generate_waveform_thumbnail(path)
             assert result is None
 
@@ -370,7 +370,7 @@ class TestAudioProcessorWaveform:
 
         processor = AudioProcessor(enable_waveform=True)
 
-        with patch.dict('sys.modules', {'matplotlib': None}):
+        with patch.dict("sys.modules", {"matplotlib": None}):
             result = await processor.generate_waveform_thumbnail(path)
             # Should return None when matplotlib not available
             # (import error caught)
@@ -394,7 +394,7 @@ class TestAudioProcessorTranscription:
     @pytest.mark.asyncio
     async def test_transcribe_no_api_key(self, processor, sample_audio):
         """Test transcription returns None when API key not set."""
-        with patch.dict('os.environ', {}, clear=True):
+        with patch.dict("os.environ", {}, clear=True):
             result = await processor.transcribe(sample_audio)
             # Should return None when GOOGLE_API_KEY not set
             assert result is None
@@ -402,7 +402,7 @@ class TestAudioProcessorTranscription:
     @pytest.mark.asyncio
     async def test_transcribe_no_genai_module(self, processor, sample_audio):
         """Test transcription returns None when google.generativeai not available."""
-        with patch.dict('sys.modules', {'google.generativeai': None}):
+        with patch.dict("sys.modules", {"google.generativeai": None}):
             result = await processor.transcribe(sample_audio)
             assert result is None
 
@@ -421,12 +421,14 @@ class TestAudioProcessorTranscription:
         mock_genai.upload_file.return_value = mock_uploaded_file
         mock_genai.delete_file = MagicMock()
 
-        with patch.dict('os.environ', {'GOOGLE_API_KEY': 'test-key-123'}):
-            with patch.dict('sys.modules', {'google.generativeai': mock_genai}):
-                with patch('agentic_rag.processors.audio_processor.genai', mock_genai, create=True):
+        with patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key-123"}):
+            with patch.dict("sys.modules", {"google.generativeai": mock_genai}):
+                with patch(
+                    "agentic_rag.processors.audio_processor.genai",
+                    mock_genai,
+                    create=True,
+                ):
                     # Need to reimport to pick up the mock
-                    import importlib
-                    import agentic_rag.processors.audio_processor as ap_mod
                     # Directly call with mock injected via sys.modules
                     result = await processor.transcribe(sample_audio)
 
@@ -440,8 +442,8 @@ class TestAudioProcessorTranscription:
         mock_genai = MagicMock()
         mock_genai.configure.side_effect = RuntimeError("API error")
 
-        with patch.dict('os.environ', {'GOOGLE_API_KEY': 'test-key-123'}):
-            with patch.dict('sys.modules', {'google.generativeai': mock_genai}):
+        with patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key-123"}):
+            with patch.dict("sys.modules", {"google.generativeai": mock_genai}):
                 result = await processor.transcribe(sample_audio)
                 assert result is None
 
@@ -462,8 +464,10 @@ class TestProcessAudioConvenienceFunction:
         mock_audio = MagicMock()
         mock_audio.__len__ = MagicMock(return_value=3000)
 
-        with patch('agentic_rag.processors.audio_processor.PYDUB_AVAILABLE', True):
-            with patch('agentic_rag.processors.audio_processor.AudioSegment') as mock_segment:
+        with patch("agentic_rag.processors.audio_processor.PYDUB_AVAILABLE", True):
+            with patch(
+                "agentic_rag.processors.audio_processor.AudioSegment"
+            ) as mock_segment:
                 mock_segment.from_file.return_value = mock_audio
 
                 result = await process_audio(
@@ -482,8 +486,10 @@ class TestProcessAudioConvenienceFunction:
         mock_audio = MagicMock()
         mock_audio.__len__ = MagicMock(return_value=2000)
 
-        with patch('agentic_rag.processors.audio_processor.PYDUB_AVAILABLE', True):
-            with patch('agentic_rag.processors.audio_processor.AudioSegment') as mock_segment:
+        with patch("agentic_rag.processors.audio_processor.PYDUB_AVAILABLE", True):
+            with patch(
+                "agentic_rag.processors.audio_processor.AudioSegment"
+            ) as mock_segment:
                 mock_segment.from_file.return_value = mock_audio
 
                 # Pass string instead of Path
@@ -519,7 +525,9 @@ class TestAudioProcessorEdgeCases:
     def test_validate_format_path_with_spaces(self, processor):
         """Test format validation with spaces in path."""
         assert processor.validate_format(Path("my music/song name.mp3")) is True
-        assert processor.validate_format(Path("audio files/podcast episode.wav")) is True
+        assert (
+            processor.validate_format(Path("audio files/podcast episode.wav")) is True
+        )
 
     @pytest.mark.asyncio
     async def test_process_path_resolved(self, tmp_path):
@@ -530,8 +538,10 @@ class TestAudioProcessorEdgeCases:
         mock_audio = MagicMock()
         mock_audio.__len__ = MagicMock(return_value=1000)
 
-        with patch('agentic_rag.processors.audio_processor.PYDUB_AVAILABLE', True):
-            with patch('agentic_rag.processors.audio_processor.AudioSegment') as mock_segment:
+        with patch("agentic_rag.processors.audio_processor.PYDUB_AVAILABLE", True):
+            with patch(
+                "agentic_rag.processors.audio_processor.AudioSegment"
+            ) as mock_segment:
                 mock_segment.from_file.return_value = mock_audio
 
                 processor = AudioProcessor()

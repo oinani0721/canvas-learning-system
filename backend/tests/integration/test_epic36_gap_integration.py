@@ -15,7 +15,6 @@ Skip with: NEO4J_MOCK=true (default) or pytest -m "not integration"
 """
 
 import asyncio
-import json
 import os
 
 import pytest
@@ -23,7 +22,7 @@ import pytest
 # Skip integration tests if Neo4j is mocked
 pytestmark = pytest.mark.skipif(
     os.getenv("NEO4J_MOCK", "true").lower() == "true",
-    reason="Integration tests require real Neo4j (set NEO4J_MOCK=false)"
+    reason="Integration tests require real Neo4j (set NEO4J_MOCK=false)",
 )
 
 
@@ -31,10 +30,12 @@ pytestmark = pytest.mark.skipif(
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 async def neo4j_client():
     """Get real Neo4j client for integration tests."""
     from app.clients.neo4j_client import get_neo4j_client
+
     client = get_neo4j_client()
     yield client
     await client.close()
@@ -44,6 +45,7 @@ async def neo4j_client():
 async def graphiti_client(neo4j_client):
     """Create GraphitiEdgeClient with real Neo4j client."""
     from app.clients.graphiti_client import GraphitiEdgeClient
+
     client = GraphitiEdgeClient(neo4j_client=neo4j_client)
     await client.initialize()
     return client
@@ -53,6 +55,7 @@ async def graphiti_client(neo4j_client):
 async def agent_service(neo4j_client):
     """Create AgentService with real Neo4j client for AC-36.7 tests."""
     from app.services.agent_service import AgentService
+
     return AgentService(
         gemini_client=None,
         memory_client=None,
@@ -77,6 +80,7 @@ async def cleanup_test_nodes(neo4j_client):
 # 36.1-INT-001: Import redirect verification (AC-36.1.2)
 # =============================================================================
 
+
 class TestImportRedirect:
     """
     Gap: AC-36.1.2 had UNIT-ONLY coverage.
@@ -86,13 +90,11 @@ class TestImportRedirect:
     def test_import_from_graphiti_client_module(self):
         """Verify primary imports from app.clients.graphiti_client."""
         from app.clients.graphiti_client import (
+            EdgeRelationship,
             GraphitiEdgeClient,
             GraphitiEdgeClientAdapter,
-            EdgeRelationship,
-            get_graphiti_edge_client,
-            LearningMemoryClient,
-            get_learning_memory_client,
         )
+
         assert GraphitiEdgeClient is not None
         assert GraphitiEdgeClientAdapter is not None
         assert EdgeRelationship is not None
@@ -100,9 +102,10 @@ class TestImportRedirect:
     def test_import_from_base_module(self):
         """Verify base class imports from app.clients.graphiti_client_base."""
         from app.clients.graphiti_client_base import (
-            GraphitiClientBase,
             EdgeRelationship,
+            GraphitiClientBase,
         )
+
         assert GraphitiClientBase is not None
         assert EdgeRelationship is not None
 
@@ -110,19 +113,22 @@ class TestImportRedirect:
         """Verify EdgeRelationship is the same class from both import paths."""
         from app.clients.graphiti_client import EdgeRelationship as ER1
         from app.clients.graphiti_client_base import EdgeRelationship as ER2
+
         assert ER1 is ER2
 
     def test_neo4j_client_importable(self):
         """Verify Neo4jClient can be imported."""
         from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
+
         assert Neo4jClient is not None
         assert callable(get_neo4j_client)
 
     def test_no_broken_imports_in_services(self):
         """Verify service layer imports don't break after code merge."""
-        from app.services.canvas_service import CanvasService
         from app.services.agent_service import AgentService
+        from app.services.canvas_service import CanvasService
         from app.services.memory_service import MemoryService
+
         assert CanvasService is not None
         assert AgentService is not None
         assert MemoryService is not None
@@ -131,7 +137,6 @@ class TestImportRedirect:
         """Verify Adapter wraps GraphitiEdgeClient correctly."""
         from app.clients.graphiti_client import (
             GraphitiEdgeClient,
-            GraphitiEdgeClientAdapter,
         )
         from app.clients.graphiti_client_base import GraphitiClientBase
 
@@ -141,6 +146,7 @@ class TestImportRedirect:
 # =============================================================================
 # 36.2-INT-001: add_edge_relationship() real MERGE Cypher (AC-36.2.1)
 # =============================================================================
+
 
 class TestAddEdgeRelationshipRealNeo4j:
     """
@@ -239,6 +245,7 @@ class TestAddEdgeRelationshipRealNeo4j:
 # 36.4-INT-003: Concurrent bulk sync (AC-36.4.5)
 # =============================================================================
 
+
 class TestConcurrentBulkSyncRealNeo4j:
     """
     Gap: AC-36.4.5 had UNIT-ONLY coverage.
@@ -265,13 +272,13 @@ class TestConcurrentBulkSyncRealNeo4j:
             edges=edges,
         )
 
-        assert result["synced"] + result.get("skipped", 0) + result.get("failed", 0) == 10
+        assert (
+            result["synced"] + result.get("skipped", 0) + result.get("failed", 0) == 10
+        )
         assert result["synced"] >= 8  # Allow minor failures in concurrent mode
 
     @pytest.mark.asyncio
-    async def test_concurrent_no_deadlock(
-        self, graphiti_client, cleanup_test_nodes
-    ):
+    async def test_concurrent_no_deadlock(self, graphiti_client, cleanup_test_nodes):
         """Verify concurrent sync doesn't cause Neo4j deadlocks."""
         edges_batch_1 = [
             {
@@ -306,6 +313,7 @@ class TestConcurrentBulkSyncRealNeo4j:
 # =============================================================================
 # 36.7-INT-003: Agent Neo4j Cypher query execution (AC-36.7.2)
 # =============================================================================
+
 
 class TestAgentNeo4jCypherExecution:
     """
@@ -356,6 +364,7 @@ class TestAgentNeo4jCypherExecution:
 # 36.7-INT-004: Relevance ordering with real data (AC-36.7.3)
 # =============================================================================
 
+
 class TestRelevanceOrderingRealData:
     """
     Gap: AC-36.7.3 had UNIT-ONLY coverage (only verified ORDER BY in query).
@@ -368,13 +377,15 @@ class TestRelevanceOrderingRealData:
     ):
         """Verify results come back ordered by relevance DESC."""
         # Seed nodes with different relevance scores
-        for i, (concept, relevance) in enumerate([
-            ("基础概念", 0.3),
-            ("核心定理", 0.95),
-            ("高级应用", 0.7),
-            ("入门知识", 0.1),
-            ("关键推导", 0.85),
-        ]):
+        for i, (concept, relevance) in enumerate(
+            [
+                ("基础概念", 0.3),
+                ("核心定理", 0.95),
+                ("高级应用", 0.7),
+                ("入门知识", 0.1),
+                ("关键推导", 0.85),
+            ]
+        ):
             await neo4j_client.run_query(
                 "CREATE (m:LearningMemory {id: $id, content: $content, "
                 "concept: $concept, relevance: $relevance, score: 80, "

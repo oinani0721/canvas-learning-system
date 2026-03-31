@@ -33,15 +33,17 @@ from app.services.verification_service import VerificationService  # noqa: E402
 # Mock Classes
 # ============================================================================
 
+
 class MockRAGResult:
     """Mock RAG query result."""
+
     def __init__(
         self,
         learning_history: str = "",
         textbook_context: str = "",
         related_concepts: List[str] = None,
         common_mistakes: str = "",
-        past_effective_hints: List[str] = None
+        past_effective_hints: List[str] = None,
     ):
         self._data = {
             "learning_history": learning_history,
@@ -49,7 +51,7 @@ class MockRAGResult:
             "textbook_context": textbook_context,
             "related_concepts": related_concepts or [],
             "common_mistakes": common_mistakes,
-            "past_effective_hints": past_effective_hints or []
+            "past_effective_hints": past_effective_hints or [],
         }
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -58,6 +60,7 @@ class MockRAGResult:
 
 class MockRelatedCanvas:
     """Mock cross-canvas association."""
+
     def __init__(self, canvas_name: str, related_concept: str, relationship_type: str):
         self.canvas_name = canvas_name
         self.target_canvas_title = canvas_name
@@ -68,11 +71,12 @@ class MockRelatedCanvas:
 
 class MockCrossCanvasAssociation:
     """Mock CrossCanvasAssociation for get_associated_canvases."""
+
     def __init__(
         self,
         target_canvas_title: str,
         common_concepts: List[str],
-        relationship_type: str
+        relationship_type: str,
     ):
         self.target_canvas_title = target_canvas_title
         self.common_concepts = common_concepts
@@ -82,6 +86,7 @@ class MockCrossCanvasAssociation:
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_rag_service():
@@ -108,15 +113,13 @@ def mock_textbook_context_service():
 
 @pytest.fixture
 def verification_service(
-    mock_rag_service,
-    mock_cross_canvas_service,
-    mock_textbook_context_service
+    mock_rag_service, mock_cross_canvas_service, mock_textbook_context_service
 ):
     """Create VerificationService with mocked dependencies."""
     return VerificationService(
         rag_service=mock_rag_service,
         cross_canvas_service=mock_cross_canvas_service,
-        textbook_context_service=mock_textbook_context_service
+        textbook_context_service=mock_textbook_context_service,
     )
 
 
@@ -124,9 +127,7 @@ def verification_service(
 def verification_service_no_rag():
     """Create VerificationService without RAG (for fallback testing)."""
     return VerificationService(
-        rag_service=None,
-        cross_canvas_service=None,
-        textbook_context_service=None
+        rag_service=None, cross_canvas_service=None, textbook_context_service=None
     )
 
 
@@ -134,27 +135,25 @@ def verification_service_no_rag():
 # AC1: Question Generation Uses RAG Context
 # ============================================================================
 
+
 class TestAC1QuestionGenerationRAGContext:
     """Test AC1: Question generation should query RAG for context."""
 
     @pytest.mark.asyncio
     async def test_question_generation_uses_rag_context(
-        self,
-        verification_service,
-        mock_rag_service
+        self, verification_service, mock_rag_service
     ):
         """Question generation should query RAG and incorporate context."""
         # Setup mock RAG result
         mock_rag_service.query.return_value = MockRAGResult(
             learning_history="用户之前对此概念有3次错误尝试",
             textbook_context="教材第5章定义...",
-            related_concepts=["概念A", "概念B"]
+            related_concepts=["概念A", "概念B"],
         )
 
         # Generate question
         question = await verification_service.generate_question_with_rag(
-            concept="逆否命题",
-            canvas_name="离散数学.canvas"
+            concept="逆否命题", canvas_name="离散数学.canvas"
         )
 
         # Verify RAG was queried
@@ -171,22 +170,19 @@ class TestAC1QuestionGenerationRAGContext:
 
     @pytest.mark.asyncio
     async def test_rag_context_includes_all_fields(
-        self,
-        verification_service,
-        mock_rag_service
+        self, verification_service, mock_rag_service
     ):
         """RAG context should include learning history, textbook, concepts, mistakes."""
         mock_rag_service.query.return_value = MockRAGResult(
             learning_history="历史记录",
             textbook_context="教材内容",
             related_concepts=["概念1", "概念2"],
-            common_mistakes="常见错误"
+            common_mistakes="常见错误",
         )
 
         # Get RAG context
         context = await verification_service._get_rag_context_for_concept(
-            concept="测试概念",
-            canvas_name="test.canvas"
+            concept="测试概念", canvas_name="test.canvas"
         )
 
         # Verify all fields present
@@ -201,21 +197,20 @@ class TestAC1QuestionGenerationRAGContext:
 # AC2: Hints Based on Learning History
 # ============================================================================
 
+
 class TestAC2HintsBasedOnHistory:
     """Test AC2: Hints should reference learning history."""
 
     @pytest.mark.asyncio
     async def test_hint_uses_learning_history(
-        self,
-        verification_service,
-        mock_rag_service
+        self, verification_service, mock_rag_service
     ):
         """Personalized hint should differ from generic hint."""
         # Setup RAG with learning history
         mock_rag_service.query.return_value = MockRAGResult(
             learning_history="用户常混淆逆命题和否命题",
             common_mistakes="注意区分逆命题和否命题的定义",
-            past_effective_hints=["尝试从结论倒推..."]
+            past_effective_hints=["尝试从结论倒推..."],
         )
 
         # Generate hint with RAG
@@ -223,7 +218,7 @@ class TestAC2HintsBasedOnHistory:
             concept="逆否命题",
             user_answer="错误答案",
             attempt_number=1,
-            canvas_name="离散数学.canvas"
+            canvas_name="离散数学.canvas",
         )
 
         # Verify hint includes context
@@ -232,22 +227,19 @@ class TestAC2HintsBasedOnHistory:
 
     @pytest.mark.asyncio
     async def test_hint_without_history_is_generic(
-        self,
-        verification_service,
-        mock_rag_service
+        self, verification_service, mock_rag_service
     ):
         """Without learning history, hint should be generic."""
         # Setup RAG without learning history
         mock_rag_service.query.return_value = MockRAGResult(
-            learning_history="",
-            common_mistakes=""
+            learning_history="", common_mistakes=""
         )
 
         hint = await verification_service.generate_hint_with_rag(
             concept="逆否命题",
             user_answer="错误答案",
             attempt_number=1,
-            canvas_name="离散数学.canvas"
+            canvas_name="离散数学.canvas",
         )
 
         # Should be generic hint
@@ -259,14 +251,13 @@ class TestAC2HintsBasedOnHistory:
 # AC3: Cross-Canvas Association in Prompts
 # ============================================================================
 
+
 class TestAC3CrossCanvasReferences:
     """Test AC3: Cross-canvas relationships should be included."""
 
     @pytest.mark.asyncio
     async def test_cross_canvas_references_included(
-        self,
-        verification_service,
-        mock_cross_canvas_service
+        self, verification_service, mock_cross_canvas_service
     ):
         """Cross-canvas lookup should return related canvases."""
         # Setup mock cross-canvas associations
@@ -274,14 +265,13 @@ class TestAC3CrossCanvasReferences:
             MockCrossCanvasAssociation(
                 target_canvas_title="数理逻辑.canvas",
                 common_concepts=["充分必要条件"],
-                relationship_type="relates_to"
+                relationship_type="relates_to",
             )
         ]
 
         # Get cross-canvas context
         context = await verification_service._get_cross_canvas_context(
-            concept="逆否命题",
-            canvas_name="离散数学.canvas"
+            concept="逆否命题", canvas_name="离散数学.canvas"
         )
 
         # Verify results
@@ -291,9 +281,7 @@ class TestAC3CrossCanvasReferences:
 
     @pytest.mark.asyncio
     async def test_cross_canvas_limits_results(
-        self,
-        verification_service,
-        mock_cross_canvas_service
+        self, verification_service, mock_cross_canvas_service
     ):
         """Cross-canvas lookup should limit to top 3 results."""
         # Setup mock with 5 associations
@@ -303,8 +291,7 @@ class TestAC3CrossCanvasReferences:
         ]
 
         context = await verification_service._get_cross_canvas_context(
-            concept="测试",
-            canvas_name="test.canvas"
+            concept="测试", canvas_name="test.canvas"
         )
 
         # Should be limited to 3
@@ -315,14 +302,13 @@ class TestAC3CrossCanvasReferences:
 # AC4: Textbook Context Reference
 # ============================================================================
 
+
 class TestAC4TextbookContext:
     """Test AC4: Textbook context should be included."""
 
     @pytest.mark.asyncio
     async def test_textbook_context_retrieved(
-        self,
-        verification_service,
-        mock_rag_service
+        self, verification_service, mock_rag_service
     ):
         """RAG result should include textbook context."""
         mock_rag_service.query.return_value = MockRAGResult(
@@ -330,8 +316,7 @@ class TestAC4TextbookContext:
         )
 
         rag_context = await verification_service._get_rag_context_for_concept(
-            concept="逆否命题",
-            canvas_name="离散数学.canvas"
+            concept="逆否命题", canvas_name="离散数学.canvas"
         )
 
         # Verify textbook context present
@@ -344,14 +329,13 @@ class TestAC4TextbookContext:
 # AC5: Graceful RAG Degradation
 # ============================================================================
 
+
 class TestAC5GracefulDegradation:
     """Test AC5: RAG timeout/error should not block generation."""
 
     @pytest.mark.asyncio
     async def test_graceful_degradation_on_timeout(
-        self,
-        verification_service,
-        mock_rag_service
+        self, verification_service, mock_rag_service
     ):
         """RAG timeout should not raise exception."""
         # Simulate timeout
@@ -359,8 +343,7 @@ class TestAC5GracefulDegradation:
 
         # Should not raise exception
         question = await verification_service.generate_question_with_rag(
-            concept="测试概念",
-            canvas_name="test.canvas"
+            concept="测试概念", canvas_name="test.canvas"
         )
 
         # Should return fallback question
@@ -369,9 +352,7 @@ class TestAC5GracefulDegradation:
 
     @pytest.mark.asyncio
     async def test_graceful_degradation_on_service_error(
-        self,
-        verification_service,
-        mock_rag_service
+        self, verification_service, mock_rag_service
     ):
         """RAG service error should trigger fallback."""
         # Simulate service error
@@ -379,22 +360,17 @@ class TestAC5GracefulDegradation:
 
         # Should not raise exception
         context = await verification_service._get_rag_context_for_concept(
-            concept="测试",
-            canvas_name="test.canvas"
+            concept="测试", canvas_name="test.canvas"
         )
 
         # Should return None (fallback)
         assert context is None
 
     @pytest.mark.asyncio
-    async def test_no_rag_service_uses_fallback(
-        self,
-        verification_service_no_rag
-    ):
+    async def test_no_rag_service_uses_fallback(self, verification_service_no_rag):
         """Without RAG service, should use basic prompt."""
         question = await verification_service_no_rag.generate_question_with_rag(
-            concept="测试概念",
-            canvas_name="test.canvas"
+            concept="测试概念", canvas_name="test.canvas"
         )
 
         # Should generate basic question
@@ -403,11 +379,10 @@ class TestAC5GracefulDegradation:
 
     @pytest.mark.asyncio
     async def test_timeout_configuration_respected(
-        self,
-        verification_service,
-        mock_rag_service
+        self, verification_service, mock_rag_service
     ):
         """RAG timeout should respect configuration."""
+
         # Create slow query that times out
         async def slow_query(*args, **kwargs):
             await asyncio.sleep(10)  # 10 seconds (exceeds 5s timeout)
@@ -419,7 +394,7 @@ class TestAC5GracefulDegradation:
         context = await verification_service._get_rag_context_for_concept(
             concept="测试",
             canvas_name="test.canvas",
-            timeout=0.1  # 100ms timeout
+            timeout=0.1,  # 100ms timeout
         )
 
         assert context is None
@@ -429,14 +404,13 @@ class TestAC5GracefulDegradation:
 # Integration Tests
 # ============================================================================
 
+
 class TestRAGIntegration:
     """Integration tests for RAG context injection."""
 
     @pytest.mark.asyncio
     async def test_full_rag_question_generation_flow(
-        self,
-        verification_service,
-        mock_rag_service
+        self, verification_service, mock_rag_service
     ):
         """E2E test for RAG-enhanced question generation."""
         # Setup comprehensive RAG result
@@ -444,13 +418,12 @@ class TestRAGIntegration:
             learning_history="用户已学习此概念3次",
             textbook_context="教材第5章",
             related_concepts=["概念A", "概念B"],
-            common_mistakes="易混淆点"
+            common_mistakes="易混淆点",
         )
 
         # Generate question
         question = await verification_service.generate_question_with_rag(
-            concept="逆否命题",
-            canvas_name="离散数学.canvas"
+            concept="逆否命题", canvas_name="离散数学.canvas"
         )
 
         # Verify RAG was called
@@ -459,21 +432,17 @@ class TestRAGIntegration:
         assert question is not None
 
     @pytest.mark.asyncio
-    async def test_prompt_building_with_rag_context(
-        self,
-        verification_service
-    ):
+    async def test_prompt_building_with_rag_context(self, verification_service):
         """Test enhanced prompt building."""
         context = {
             "learning_history": "测试历史",
             "textbook_excerpts": "测试教材",
             "related_concepts": ["概念1", "概念2"],
-            "common_mistakes": "测试错误"
+            "common_mistakes": "测试错误",
         }
 
         prompt = verification_service._build_rag_enhanced_prompt(
-            concept="测试概念",
-            context=context
+            concept="测试概念", context=context
         )
 
         # Verify all sections included
@@ -488,23 +457,19 @@ class TestRAGIntegration:
 # Performance Tests
 # ============================================================================
 
+
 class TestRAGPerformance:
     """Performance tests for RAG integration."""
 
     @pytest.mark.asyncio
-    async def test_concurrent_rag_queries(
-        self,
-        verification_service,
-        mock_rag_service
-    ):
+    async def test_concurrent_rag_queries(self, verification_service, mock_rag_service):
         """Test multiple concurrent RAG queries."""
         mock_rag_service.query.return_value = MockRAGResult()
 
         # Generate 5 questions concurrently
         tasks = [
             verification_service.generate_question_with_rag(
-                concept=f"概念{i}",
-                canvas_name="test.canvas"
+                concept=f"概念{i}", canvas_name="test.canvas"
             )
             for i in range(5)
         ]

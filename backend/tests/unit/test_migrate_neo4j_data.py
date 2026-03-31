@@ -9,18 +9,19 @@ Story 30.1 - AC 3: migrate_neo4j_data.py with ftfy Unicode fixing
 
 import json
 import sys
-import pytest
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 # Add scripts to path for import
 _SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from migrate_neo4j_data import (
-    fix_unicode_garbage,
     _fix_recursive,
     analyze_unicode_issues,
+    fix_unicode_garbage,
     migrate_json_data,
 )
 
@@ -80,13 +81,7 @@ class TestFixRecursive:
 
     def test_fixes_nested_dict(self):
         """Recursively fixes nested dicts."""
-        data = {
-            "outer": {
-                "inner": {
-                    "text": "正常中文"
-                }
-            }
-        }
+        data = {"outer": {"inner": {"text": "正常中文"}}}
         result = _fix_recursive(data)
         assert result["outer"]["inner"]["text"] == "正常中文"
 
@@ -166,6 +161,7 @@ class TestAnalyzeUnicodeIssues:
         # Using a common mojibake pattern: UTF-8 decoded as Latin-1
         try:
             import ftfy
+
             # "—" (em dash) mojibaked
             garbled = "â\x80\x93"
             fixed = ftfy.fix_text(garbled)
@@ -183,6 +179,7 @@ class TestAnalyzeUnicodeIssues:
         """Analyzes items in nested lists with correct path."""
         try:
             import ftfy
+
             garbled = "â\x80\x93"
             fixed = ftfy.fix_text(garbled)
             if garbled != fixed:

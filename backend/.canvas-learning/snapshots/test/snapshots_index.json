@@ -1,6 +1,84 @@
 [
   {
     "canvas_path": "test.canvas",
+    "id": "f3c25424-3f4c-4244-9476-fd44bfd5a385",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-03-31T06:46:33.092400+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "a4f11601-250e-4961-8d9d-462fbb3f55b5",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (timepoint)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-03-31T06:46:33.055483+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "d9b97087-6863-4da5-a8d2-f186e7be55bb",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-03-31T06:46:33.036484+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "59e10eca-9c47-4422-b48e-a041f337952e",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-03-31T06:46:33.014811+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "73a27fd9-76aa-46f0-bcc6-d9902ba6d7eb",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Tagged snapshot",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-03-31T06:46:32.973022+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "1a33a9d3-0f7c-404b-98cb-b98b62948ad8",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "E2E test snapshot",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-03-31T06:46:32.952336+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "test.canvas",
     "id": "3f7626ed-e0ae-437d-af38-fe27a084c6a6",
     "last_operation_id": null,
     "metadata": {
@@ -569,84 +647,6 @@
       "tags": null
     },
     "timestamp": "2026-02-10T00:26:36.744311+00:00",
-    "type": "checkpoint"
-  },
-  {
-    "canvas_path": "test.canvas",
-    "id": "ac9880ae-0d49-43f0-910b-fe00a6901be7",
-    "last_operation_id": null,
-    "metadata": {
-      "created_by": "rollback_engine",
-      "description": "Pre-rollback backup (snapshot)",
-      "size_bytes": 23,
-      "tags": null
-    },
-    "timestamp": "2026-02-10T00:26:36.670143+00:00",
-    "type": "checkpoint"
-  },
-  {
-    "canvas_path": "test.canvas",
-    "id": "6d5a7c59-9d0b-4c86-8325-dfac55517857",
-    "last_operation_id": null,
-    "metadata": {
-      "created_by": "rollback_engine",
-      "description": "Pre-rollback backup (operation)",
-      "size_bytes": 23,
-      "tags": null
-    },
-    "timestamp": "2026-02-10T00:26:36.597603+00:00",
-    "type": "checkpoint"
-  },
-  {
-    "canvas_path": "test.canvas",
-    "id": "f3a6ed1c-5598-42f7-aec3-fdf584209b45",
-    "last_operation_id": null,
-    "metadata": {
-      "created_by": "user",
-      "description": "Tagged snapshot",
-      "size_bytes": 23,
-      "tags": null
-    },
-    "timestamp": "2026-02-10T00:26:36.539652+00:00",
-    "type": "manual"
-  },
-  {
-    "canvas_path": "test.canvas",
-    "id": "ad2e4eed-9584-470a-9a8b-fed4c4c9d4a3",
-    "last_operation_id": null,
-    "metadata": {
-      "created_by": "user",
-      "description": "E2E test snapshot",
-      "size_bytes": 23,
-      "tags": null
-    },
-    "timestamp": "2026-02-10T00:26:36.496925+00:00",
-    "type": "manual"
-  },
-  {
-    "canvas_path": "test.canvas",
-    "id": "a66e5921-4a86-4c01-a8b1-c4c64e17f421",
-    "last_operation_id": null,
-    "metadata": {
-      "created_by": "rollback_engine",
-      "description": "Pre-rollback backup (snapshot)",
-      "size_bytes": 23,
-      "tags": null
-    },
-    "timestamp": "2025-12-16T10:26:27.072185+00:00",
-    "type": "checkpoint"
-  },
-  {
-    "canvas_path": "test.canvas",
-    "id": "80192ea5-f6d8-42fb-b436-a9daf1743f05",
-    "last_operation_id": null,
-    "metadata": {
-      "created_by": "rollback_engine",
-      "description": "Pre-rollback backup (timepoint)",
-      "size_bytes": 23,
-      "tags": null
-    },
-    "timestamp": "2025-12-16T10:26:26.991078+00:00",
     "type": "checkpoint"
   }
 ]

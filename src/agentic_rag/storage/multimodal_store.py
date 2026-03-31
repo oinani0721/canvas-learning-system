@@ -119,7 +119,9 @@ class MultimodalStore:
         Raises:
             ValueError: If content is invalid
         """
-        logger.info(f"Adding multimodal content: {content.id} ({content.media_type.value})")
+        logger.info(
+            f"Adding multimodal content: {content.id} ({content.media_type.value})"
+        )
 
         # Validate content
         if not content.file_path:
@@ -438,7 +440,9 @@ class MultimodalStore:
         """
         if self.graphiti_client:
             # Search for relationships
-            results = await self.graphiti_client.search_facts(query=f"media:{content_id}")
+            results = await self.graphiti_client.search_facts(
+                query=f"media:{content_id}"
+            )
 
             # Extract concept IDs from relationships
             concept_ids = []
@@ -485,7 +489,9 @@ class MultimodalStore:
 
         if self.lancedb_client:
             try:
-                status["lancedb"] = await self.lancedb_client.table_exists(self.LANCEDB_TABLE_NAME)
+                status["lancedb"] = await self.lancedb_client.table_exists(
+                    self.LANCEDB_TABLE_NAME
+                )
             except Exception as e:
                 logger.error(f"LanceDB health check failed: {e}")
 

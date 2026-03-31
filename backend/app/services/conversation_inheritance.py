@@ -72,12 +72,19 @@ async def get_inherited_context(
         if not neighbor_name:
             continue
 
-        summary, insights = await _fetch_distillation_summary(neighbor_node_id, group_id)
+        summary, insights = await _fetch_distillation_summary(
+            neighbor_node_id, group_id
+        )
 
         if not summary:
             continue
 
-        entry_chars = len(neighbor_name) + len(edge_label) + len(summary) + sum(len(i) for i in insights)
+        entry_chars = (
+            len(neighbor_name)
+            + len(edge_label)
+            + len(summary)
+            + sum(len(i) for i in insights)
+        )
         if total_chars + entry_chars > INHERITANCE_CHAR_BUDGET:
             break
 
@@ -122,7 +129,9 @@ async def _fetch_neighbor_records_for_inheritance(node_id: str) -> list[dict]:
             return [dict(r) for r in records]
         return list()
     except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-        logger.warning("Failed to fetch neighbors for inheritance (node=%s): %s", node_id, e)
+        logger.warning(
+            "Failed to fetch neighbors for inheritance (node=%s): %s", node_id, e
+        )
         return list()
 
 
@@ -161,7 +170,11 @@ async def _fetch_distillation_summary(
             # Strip distiller prefix: "Distilled summary for node {id}: ..."
             prefix_marker = ": "
             prefix_idx = content.find(prefix_marker)
-            clean_content = content[prefix_idx + len(prefix_marker):] if prefix_idx > 0 and prefix_idx < 60 else content
+            clean_content = (
+                content[prefix_idx + len(prefix_marker) :]
+                if prefix_idx > 0 and prefix_idx < 60
+                else content
+            )
             summary = clean_content[:400] if len(clean_content) > 400 else clean_content
 
         # Distiller stores tip_count/error_count in metadata (not full tips list).
@@ -174,7 +187,11 @@ async def _fetch_distillation_summary(
                 max_results=3,
             )
             if tip_episodes:
-                insights = [ep.get("content", "")[:100] for ep in tip_episodes if ep.get("content")]
+                insights = [
+                    ep.get("content", "")[:100]
+                    for ep in tip_episodes
+                    if ep.get("content")
+                ]
         except Exception:
             pass  # Tips are supplementary, not critical
 

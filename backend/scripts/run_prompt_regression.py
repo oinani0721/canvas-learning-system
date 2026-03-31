@@ -60,6 +60,7 @@ def detect_changes() -> dict:
 
     for md_file in sorted(PROMPTS_DIR.glob("*_v*.md")):
         import re
+
         match = re.match(r"^(.+)_v(\d+)\.md$", md_file.name)
         if not match:
             continue

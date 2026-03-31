@@ -9,16 +9,11 @@ Tests full workflow: session creation → groups → parallel execution → resu
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import List, Optional
+from unittest.mock import AsyncMock
 
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from app.models.session_models import (
-    SessionInfo,
     SessionStatus,
 )
 from app.services.batch_orchestrator import (
@@ -28,19 +23,22 @@ from app.services.batch_orchestrator import (
     ProgressEventType,
 )
 from app.services.session_manager import (
+    InMemoryStorageAdapter,
     SessionManager,
     SessionNotFoundError,
-    InMemoryStorageAdapter,
 )
 
+from tests.conftest import simulate_async_delay
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class MockAgentResult:
     """Mock agent result for testing."""
+
     success: bool = True
     content: str = "Generated content"
     file_path: Optional[str] = "output/test.md"
@@ -72,8 +70,10 @@ def progress_events():
 @pytest.fixture
 def progress_callback(progress_events):
     """Create a progress callback that captures events."""
+
     def callback(event: ProgressEvent):
         progress_events.append(event)
+
     return callback
 
 
@@ -97,6 +97,7 @@ def sample_groups():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Integration Test: Full Workflow
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestFullWorkflow:
     """Test complete batch processing workflow."""
@@ -237,6 +238,7 @@ class TestFullWorkflow:
 # Integration Test: Session Lifecycle
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestSessionLifecycle:
     """Test session lifecycle transitions."""
 
@@ -322,6 +324,7 @@ class TestSessionLifecycle:
 # Integration Test: Cancellation
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestCancellationWorkflow:
     """Test cancellation workflow end-to-end."""
 
@@ -393,6 +396,7 @@ class TestCancellationWorkflow:
 # Integration Test: Progress Events
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestProgressEventFlow:
     """Test progress event emission flow."""
 
@@ -434,14 +438,16 @@ class TestProgressEventFlow:
 
         # Should have task completed events
         task_completed_count = sum(
-            1 for e in progress_events
+            1
+            for e in progress_events
             if e.event_type == ProgressEventType.TASK_COMPLETED
         )
         assert task_completed_count == 2  # 2 nodes
 
         # Should have group completed
         group_completed = [
-            e for e in progress_events
+            e
+            for e in progress_events
             if e.event_type == ProgressEventType.GROUP_COMPLETED
         ]
         assert len(group_completed) == 1
@@ -487,6 +493,7 @@ class TestProgressEventFlow:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Integration Test: Concurrency Control
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestConcurrencyControl:
     """Test concurrency control integration."""
@@ -547,6 +554,7 @@ class TestConcurrencyControl:
 # Integration Test: Memory Integration
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestMemoryIntegration:
     """Test memory write integration."""
 
@@ -568,7 +576,11 @@ class TestMemoryIntegration:
         )
 
         groups = [
-            GroupConfig(group_id="g1", agent_type="oral-explanation", node_ids=["n1", "n2", "n3"]),
+            GroupConfig(
+                group_id="g1",
+                agent_type="oral-explanation",
+                node_ids=["n1", "n2", "n3"],
+            ),
         ]
 
         await orchestrator.start_batch_session(
@@ -619,6 +631,7 @@ class TestMemoryIntegration:
 # Integration Test: Performance Metrics
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestPerformanceMetrics:
     """Test performance metrics calculation."""
 
@@ -629,6 +642,7 @@ class TestPerformanceMetrics:
         mock_agent_service,
     ):
         """Test that performance metrics are calculated correctly."""
+
         async def timed_agent(*args, **kwargs):
             await simulate_async_delay(0.1)  # 100ms per call
             return MockAgentResult(success=True)
@@ -647,7 +661,9 @@ class TestPerformanceMetrics:
         )
 
         groups = [
-            GroupConfig(group_id="g1", agent_type="test", node_ids=["n1", "n2", "n3", "n4"]),
+            GroupConfig(
+                group_id="g1", agent_type="test", node_ids=["n1", "n2", "n3", "n4"]
+            ),
         ]
 
         result = await orchestrator.start_batch_session(
@@ -674,6 +690,7 @@ class TestPerformanceMetrics:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Integration Test: Error Scenarios
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestErrorScenarios:
     """Test error handling in integration scenarios."""
@@ -704,6 +721,7 @@ class TestErrorScenarios:
         mock_agent_service,
     ):
         """Test timeout handling in integration."""
+
         async def very_slow_agent(*args, **kwargs):
             await simulate_async_delay(10)  # Very slow
             return MockAgentResult()

@@ -7,13 +7,10 @@ AC 35.10.1: upload_file() rejects path traversal filenames
 AC 35.10.2: upload_from_url() rejects path traversal filenames
 """
 
-import os
-import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.services.multimodal_service import (
     MultimodalService,
     MultimodalServiceError,
@@ -105,21 +102,26 @@ class TestUploadFilePathTraversal:
     VALID_PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("malicious_filename", [
-        "../../etc/passwd",
-        "..\\..\\windows\\system32\\config",
-        "normal/../../../evil.txt",
-        "../../../../../../../tmp/evil",
-    ])
-    async def test_upload_file_rejects_traversal(
-        self, service, malicious_filename
-    ):
+    @pytest.mark.parametrize(
+        "malicious_filename",
+        [
+            "../../etc/passwd",
+            "..\\..\\windows\\system32\\config",
+            "normal/../../../evil.txt",
+            "../../../../../../../tmp/evil",
+        ],
+    )
+    async def test_upload_file_rejects_traversal(self, service, malicious_filename):
         """upload_file should reject path traversal filenames via _validate_safe_path."""
         # _generate_unique_filename sanitizes filenames, so we test via
         # direct _validate_safe_path mock to verify it's called
-        with patch.object(service, "_validate_safe_path", side_effect=MultimodalServiceError(
-            "Invalid file path: path traversal detected", "PATH_TRAVERSAL_ERROR"
-        )) as mock_validate:
+        with patch.object(
+            service,
+            "_validate_safe_path",
+            side_effect=MultimodalServiceError(
+                "Invalid file path: path traversal detected", "PATH_TRAVERSAL_ERROR"
+            ),
+        ) as mock_validate:
             with pytest.raises(MultimodalServiceError, match="path traversal"):
                 await service.upload_file(
                     file_bytes=self.VALID_PNG_BYTES,
@@ -140,7 +142,9 @@ class TestUploadFilePathTraversal:
             call_order.append("validate")
             return original_validate(path)
 
-        with patch.object(service, "_validate_safe_path", side_effect=tracking_validate):
+        with patch.object(
+            service, "_validate_safe_path", side_effect=tracking_validate
+        ):
             with patch("builtins.open", create=True) as mock_open:
                 mock_open.return_value.__enter__ = MagicMock()
                 mock_open.return_value.__exit__ = MagicMock(return_value=False)
@@ -169,9 +173,13 @@ class TestUploadFromUrlPathTraversal:
     @pytest.mark.asyncio
     async def test_upload_from_url_calls_validate_safe_path(self, service):
         """upload_from_url must call _validate_safe_path before writing."""
-        with patch.object(service, "_validate_safe_path", side_effect=MultimodalServiceError(
-            "Invalid file path: path traversal detected", "PATH_TRAVERSAL_ERROR"
-        )) as mock_validate:
+        with patch.object(
+            service,
+            "_validate_safe_path",
+            side_effect=MultimodalServiceError(
+                "Invalid file path: path traversal detected", "PATH_TRAVERSAL_ERROR"
+            ),
+        ) as mock_validate:
             # Mock httpx response
             mock_response = MagicMock()
             mock_response.status_code = 200
@@ -186,6 +194,7 @@ class TestUploadFromUrlPathTraversal:
                 mock_client_cls.return_value = mock_client
 
                 from app.models.multimodal_schemas import MultimodalUploadUrlRequest
+
                 request = MultimodalUploadUrlRequest(
                     url="https://example.com/image.png",
                     related_concept_id="test-concept",

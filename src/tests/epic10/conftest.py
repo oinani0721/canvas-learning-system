@@ -34,7 +34,7 @@ def sample_canvas_data():
                 "y": 100,
                 "width": 300,
                 "height": 100,
-                "color": "1"  # 红色
+                "color": "1",  # 红色
             },
             {
                 "id": "node2",
@@ -44,7 +44,7 @@ def sample_canvas_data():
                 "y": 100,
                 "width": 300,
                 "height": 100,
-                "color": "6"  # 黄色，已填写
+                "color": "6",  # 黄色，已填写
             },
             {
                 "id": "node3",
@@ -54,7 +54,7 @@ def sample_canvas_data():
                 "y": 250,
                 "width": 300,
                 "height": 100,
-                "color": "6"  # 黄色，已填写
+                "color": "6",  # 黄色，已填写
             },
             {
                 "id": "node4",
@@ -64,17 +64,12 @@ def sample_canvas_data():
                 "y": 250,
                 "width": 300,
                 "height": 100,
-                "color": "6"  # 黄色，未填写
-            }
+                "color": "6",  # 黄色，未填写
+            },
         ],
         "edges": [
-            {
-                "id": "edge1",
-                "fromNode": "node1",
-                "toNode": "node2",
-                "color": "#999999"
-            }
-        ]
+            {"id": "edge1", "fromNode": "node1", "toNode": "node2", "color": "#999999"}
+        ],
     }
 
 
@@ -87,24 +82,24 @@ def multiple_yellow_nodes_canvas():
     # 创建10个黄色节点
     for i in range(10):
         node = {
-            "id": f"yellow_node_{i+1}",
+            "id": f"yellow_node_{i + 1}",
             "type": "text",
-            "text": f"这是我对概念{i+1}的理解：需要进一步澄清" if i % 2 == 0 else "",
+            "text": f"这是我对概念{i + 1}的理解：需要进一步澄清" if i % 2 == 0 else "",
             "x": 100 + (i % 3) * 350,
             "y": 100 + (i // 3) * 150,
             "width": 300,
             "height": 100,
-            "color": "6"  # 黄色
+            "color": "6",  # 黄色
         }
         nodes.append(node)
 
     # 添加一些连接
     for i in range(9):
         edge = {
-            "id": f"edge_{i+1}",
+            "id": f"edge_{i + 1}",
             "fromNode": nodes[i]["id"],
-            "toNode": nodes[i+1]["id"],
-            "color": "#999999"
+            "toNode": nodes[i + 1]["id"],
+            "color": "#999999",
         }
         edges.append(edge)
 
@@ -121,7 +116,7 @@ def agent_recommendation_result():
             "accuracy_score": 0.75,
             "completeness_score": 0.68,
             "clarity_score": 0.82,
-            "overall_quality": 0.75
+            "overall_quality": 0.75,
         },
         "recommended_agents": [
             {
@@ -129,28 +124,28 @@ def agent_recommendation_result():
                 "confidence_score": 0.92,
                 "reasoning": "理解不完整，需要深度澄清",
                 "priority": 1,
-                "estimated_duration": "15-20秒"
+                "estimated_duration": "15-20秒",
             },
             {
                 "agent_name": "comparison-table",
                 "confidence_score": 0.78,
                 "reasoning": "与相关概念对比有助于理解",
                 "priority": 2,
-                "estimated_duration": "10-15秒"
+                "estimated_duration": "10-15秒",
             },
             {
                 "agent_name": "memory-anchor",
                 "confidence_score": 0.65,
                 "reasoning": "需要生动的类比帮助记忆",
                 "priority": 3,
-                "estimated_duration": "8-12秒"
-            }
+                "estimated_duration": "8-12秒",
+            },
         ],
         "processing_strategy": {
             "execution_mode": "parallel",
             "max_concurrent": 3,
-            "total_estimated_duration": "20-25秒"
-        }
+            "total_estimated_duration": "20-25秒",
+        },
     }
 
 
@@ -173,8 +168,8 @@ def scheduling_plan():
                 "resource_requirements": {
                     "concurrent_slots": 3,
                     "memory_estimate": "150MB",
-                    "api_calls_estimate": 15
-                }
+                    "api_calls_estimate": 15,
+                },
             },
             {
                 "group_id": "group-2222",
@@ -186,8 +181,8 @@ def scheduling_plan():
                 "resource_requirements": {
                     "concurrent_slots": 2,
                     "memory_estimate": "100MB",
-                    "api_calls_estimate": 8
-                }
+                    "api_calls_estimate": 8,
+                },
             },
             {
                 "group_id": "group-3333",
@@ -199,17 +194,17 @@ def scheduling_plan():
                 "resource_requirements": {
                     "concurrent_slots": 3,
                     "memory_estimate": "120MB",
-                    "api_calls_estimate": 12
-                }
-            }
+                    "api_calls_estimate": 12,
+                },
+            },
         ],
         "execution_strategy": {
             "max_concurrent_groups": 3,
             "total_estimated_duration": "90-120秒",
             "optimization_strategy": "dependency_aware",
-            "fallback_strategy": "sequential_processing"
+            "fallback_strategy": "sequential_processing",
         },
-        "user_confirmation_required": True
+        "user_confirmation_required": True,
     }
 
 
@@ -225,7 +220,7 @@ def execution_results():
             "current_task": "任务组3完成",
             "completed_tasks": 3,
             "total_tasks": 3,
-            "estimated_remaining": "0秒"
+            "estimated_remaining": "0秒",
         },
         "results": {
             "task_groups": [
@@ -241,12 +236,12 @@ def execution_results():
                             "success": True,
                             "result": {
                                 "content": "深度澄清解释内容...",
-                                "file_path": "/path/to/clarification-20250127.md"
+                                "file_path": "/path/to/clarification-20250127.md",
                             },
                             "execution_time": 17.5,
-                            "error": None
+                            "error": None,
                         }
-                    ]
+                    ],
                 }
             ],
             "summary": {
@@ -254,16 +249,16 @@ def execution_results():
                 "total_agents_executed": 15,
                 "total_execution_time": 105.7,
                 "success_rate": 100.0,
-                "parallel_efficiency": 0.78
-            }
-        }
+                "parallel_efficiency": 0.78,
+            },
+        },
     }
 
 
 @pytest.fixture
 def temp_canvas_file(sample_canvas_data):
     """创建临时Canvas文件"""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
         json.dump(sample_canvas_data, f)
         temp_path = f.name
 
@@ -288,12 +283,14 @@ def mock_canvas_orchestrator():
 def mock_agent_selector():
     """模拟ReviewBoardAgentSelector"""
     mock = AsyncMock()
-    mock.analyze_understanding_quality = AsyncMock(return_value={
-        "accuracy_score": 0.75,
-        "completeness_score": 0.68,
-        "clarity_score": 0.82,
-        "overall_quality": 0.75
-    })
+    mock.analyze_understanding_quality = AsyncMock(
+        return_value={
+            "accuracy_score": 0.75,
+            "completeness_score": 0.68,
+            "clarity_score": 0.82,
+            "overall_quality": 0.75,
+        }
+    )
     mock.recommend_multiple_agents = AsyncMock()
     mock.process_agents_parallel = AsyncMock()
     return mock
@@ -327,40 +324,31 @@ def epic10_config():
         "agent_selector": {
             "max_recommendations": 5,
             "default_confidence_threshold": 0.7,
-            "max_agents_per_node": 20
+            "max_agents_per_node": 20,
         },
         "scheduler": {
             "default_max_concurrent_groups": 12,
             "similarity_threshold": 0.75,
-            "max_execution_time": 600
+            "max_execution_time": 600,
         },
         "command_interface": {
-            "defaults": {
-                "max_concurrent": 12,
-                "auto_confirm": False
-            },
-            "limits": {
-                "max_nodes_per_command": 100,
-                "max_execution_time": 600
-            }
+            "defaults": {"max_concurrent": 12, "auto_confirm": False},
+            "limits": {"max_nodes_per_command": 100, "max_execution_time": 600},
         },
         "node_generation": {
             "node_styles": {
                 "explanation": {"width": 320, "height": 200},
-                "summary": {"width": 300, "height": 180}
+                "summary": {"width": 300, "height": 180},
             },
-            "layout": {
-                "horizontal_offset": 50,
-                "vertical_spacing": 120
-            }
-        }
+            "layout": {"horizontal_offset": 50, "vertical_spacing": 120},
+        },
     }
 
 
 # 性能测试标记
 pytest.mark.slow = pytest.mark.skipif(
     not os.getenv("RUN_SLOW_TESTS"),
-    reason="Slow tests disabled. Set RUN_SLOW_TESTS=true to run."
+    reason="Slow tests disabled. Set RUN_SLOW_TESTS=true to run.",
 )
 
 # 集成测试标记

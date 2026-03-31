@@ -24,7 +24,9 @@ try:
     FSRS_AVAILABLE = True
 except ImportError:
     FSRS_AVAILABLE = False
-    logger.warning("py-fsrs not installed. FSRS features will use fallback implementation.")
+    logger.warning(
+        "py-fsrs not installed. FSRS features will use fallback implementation."
+    )
 
     # Fallback implementations
     class Rating:
@@ -78,7 +80,9 @@ class CardState:
             stability=data.get("stability", 0.0),
             due=datetime.fromisoformat(data["due"]) if data.get("due") else None,
             state=data.get("state", 0),
-            last_review=datetime.fromisoformat(data["last_review"]) if data.get("last_review") else None,
+            last_review=datetime.fromisoformat(data["last_review"])
+            if data.get("last_review")
+            else None,
             reps=data.get("reps", 0),
             lapses=data.get("lapses", 0),
             card_data=data.get("card_data"),
@@ -115,7 +119,9 @@ class FSRSManager:
         if FSRS_AVAILABLE:
             # ✅ Verified from Context7 - Initialize FSRS Scheduler
             self._scheduler = Scheduler(desired_retention=desired_retention)
-            logger.info(f"Initialized FSRS scheduler with retention={desired_retention}")
+            logger.info(
+                f"Initialized FSRS scheduler with retention={desired_retention}"
+            )
         else:
             logger.warning("FSRS not available, using fallback scheduler")
 
@@ -185,7 +191,9 @@ class FSRSManager:
         # Update difficulty based on rating
         old_difficulty = card.get("difficulty", 5.0)
         difficulty_change = {1: 0.5, 2: 0.25, 3: 0, 4: -0.25}
-        new_difficulty = max(1, min(10, old_difficulty + difficulty_change.get(rating, 0)))
+        new_difficulty = max(
+            1, min(10, old_difficulty + difficulty_change.get(rating, 0))
+        )
 
         # Update card state
         updated_card = {
@@ -233,6 +241,7 @@ class FSRSManager:
                     days_overdue = (now - due).days if now > due else 0
                     # Simple exponential decay
                     import math
+
                     return math.exp(-days_overdue / max(stability, 1))
             return 0.5
 
@@ -266,12 +275,18 @@ class FSRSManager:
             # Extract relevant attributes from Card object
             card_dict = {
                 "due": card.due.isoformat() if card.due else None,
-                "stability": float(card.stability) if hasattr(card, "stability") else 0.0,
-                "difficulty": float(card.difficulty) if hasattr(card, "difficulty") else 0.0,
+                "stability": float(card.stability)
+                if hasattr(card, "stability")
+                else 0.0,
+                "difficulty": float(card.difficulty)
+                if hasattr(card, "difficulty")
+                else 0.0,
                 "state": int(card.state.value) if hasattr(card, "state") else 0,
                 "reps": int(card.reps) if hasattr(card, "reps") else 0,
                 "lapses": int(card.lapses) if hasattr(card, "lapses") else 0,
-                "last_review": card.last_review.isoformat() if hasattr(card, "last_review") and card.last_review else None,
+                "last_review": card.last_review.isoformat()
+                if hasattr(card, "last_review") and card.last_review
+                else None,
             }
         else:
             card_dict = card if isinstance(card, dict) else {}
@@ -332,7 +347,9 @@ class FSRSManager:
             return CardState(
                 concept=concept,
                 canvas_file=canvas_file,
-                difficulty=float(card.difficulty) if hasattr(card, "difficulty") else 0.0,
+                difficulty=float(card.difficulty)
+                if hasattr(card, "difficulty")
+                else 0.0,
                 stability=float(card.stability) if hasattr(card, "stability") else 0.0,
                 due=card.due if hasattr(card, "due") else None,
                 state=int(card.state.value) if hasattr(card, "state") else 0,

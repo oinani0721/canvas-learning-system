@@ -11,8 +11,9 @@ Covers scenarios not in the primary test file:
 [Source: docs/implementation-artifacts/story-38.3.md]
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Use shared isolate_card_states_file fixture from conftest.py
 pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
@@ -20,6 +21,7 @@ pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
 
 class FakeCard:
     """Fake FSRS card for testing."""
+
     stability = 1.0
     difficulty = 5.0
     reps = 0
@@ -28,7 +30,7 @@ class FakeCard:
 
     @property
     def state(self):
-        return type('State', (), {'value': 0})()
+        return type("State", (), {"value": 0})()
 
 
 @pytest.fixture
@@ -57,6 +59,7 @@ def mock_fsrs_manager():
 @pytest.fixture
 def service(mock_canvas_service, mock_task_manager, mock_fsrs_manager):
     from app.services.review_service import ReviewService
+
     return ReviewService(
         canvas_service=mock_canvas_service,
         task_manager=mock_task_manager,
@@ -82,7 +85,9 @@ class TestAutoCreationEdgeCases:
         mock_fsrs_manager.create_card.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_persistence_load_returns_empty_string(self, service, mock_fsrs_manager):
+    async def test_persistence_load_returns_empty_string(
+        self, service, mock_fsrs_manager
+    ):
         """When load_card_state returns empty string, auto-create kicks in."""
         service.load_card_state = AsyncMock(return_value="")
 
@@ -105,7 +110,10 @@ class TestAutoCreationEdgeCases:
         result = await service.get_fsrs_state("cache-test")
         assert result["found"] is True
         assert "cache-test" in service._card_states
-        assert service._card_states["cache-test"] == '{"stability":1.0,"difficulty":5.0,"state":0}'
+        assert (
+            service._card_states["cache-test"]
+            == '{"stability":1.0,"difficulty":5.0,"state":0}'
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -117,7 +125,9 @@ class TestReasonCodeEdgeCases:
     """Edge cases for AC-1 reason codes."""
 
     @pytest.mark.asyncio
-    async def test_deserialize_failure_after_persistence_load(self, service, mock_fsrs_manager):
+    async def test_deserialize_failure_after_persistence_load(
+        self, service, mock_fsrs_manager
+    ):
         """When deserialize_card fails on persisted data, error reason returned."""
         service._card_states["corrupt-concept"] = '{"bad json'
         mock_fsrs_manager.deserialize_card.side_effect = ValueError("invalid JSON")
@@ -127,7 +137,9 @@ class TestReasonCodeEdgeCases:
         assert "error" in result["reason"]
 
     @pytest.mark.asyncio
-    async def test_get_retrievability_failure_returns_error(self, service, mock_fsrs_manager):
+    async def test_get_retrievability_failure_returns_error(
+        self, service, mock_fsrs_manager
+    ):
         """When get_retrievability raises, error reason returned."""
         service._card_states["retr-fail"] = '{"valid": true}'
         mock_fsrs_manager.get_retrievability.side_effect = TypeError("cannot compute")
@@ -163,11 +175,14 @@ class TestInitFlagConsistency:
         """_fsrs_init_ok is True when fsrs_manager is provided."""
         assert service._fsrs_init_ok is True
 
-    def test_init_ok_false_without_manager(self, mock_canvas_service, mock_task_manager):
+    def test_init_ok_false_without_manager(
+        self, mock_canvas_service, mock_task_manager
+    ):
         """_fsrs_init_ok is False when no FSRS manager."""
-        with patch('app.services.review_service.FSRS_AVAILABLE', False):
-            with patch('app.services.review_service.FSRSManager', None):
+        with patch("app.services.review_service.FSRS_AVAILABLE", False):
+            with patch("app.services.review_service.FSRSManager", None):
                 from app.services.review_service import ReviewService
+
                 svc = ReviewService(
                     canvas_service=mock_canvas_service,
                     task_manager=mock_task_manager,

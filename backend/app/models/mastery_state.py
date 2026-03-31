@@ -122,13 +122,17 @@ class ConceptState:
             "fsrs_reps": self.fsrs_reps,
             "fsrs_lapses": self.fsrs_lapses,
             "fsrs_card_data": self.fsrs_card_data,
-            "last_interaction_ts": self.last_interaction_ts.isoformat() if self.last_interaction_ts else None,
+            "last_interaction_ts": self.last_interaction_ts.isoformat()
+            if self.last_interaction_ts
+            else None,
             "interaction_count": self.interaction_count,
             "fluent_count": self.fluent_count,
             "override_value": self.override_value,
             "override_ts": self.override_ts.isoformat() if self.override_ts else None,
             "self_assess_value": self.self_assess_value,
-            "self_assess_ts": self.self_assess_ts.isoformat() if self.self_assess_ts else None,
+            "self_assess_ts": self.self_assess_ts.isoformat()
+            if self.self_assess_ts
+            else None,
             "false_mastery_flags": self.false_mastery_flags,
             "surprise_failures": self.surprise_failures,
         }

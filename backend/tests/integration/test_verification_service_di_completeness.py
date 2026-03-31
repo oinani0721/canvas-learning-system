@@ -1,8 +1,8 @@
 """
 VerificationService DI Completeness Regression Test
 
-Verifies that get_verification_service() injects all 8 optional parameters
-(rag_service, cross_canvas_service, textbook_context_service, canvas_service,
+Verifies that get_verification_service() injects all 7 optional parameters
+(rag_service, textbook_context_service, canvas_service,
 agent_service, canvas_base_path, graphiti_client, memory_service) so that
 no dependency silently degrades to None.
 
@@ -13,8 +13,9 @@ Pattern: Follows test_di_completeness.py (Story 36.11) runtime verification appr
 
 import inspect
 import logging
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,6 @@ class TestVerificationServiceInitSignature:
 
     EXPECTED_OPTIONAL_PARAMS = [
         "rag_service",
-        "cross_canvas_service",
         "textbook_context_service",
         "canvas_service",
         "agent_service",
@@ -49,8 +49,7 @@ class TestVerificationServiceInitSignature:
         optional_params = [
             name
             for name, param in sig.parameters.items()
-            if name != "self"
-            and param.default is not inspect.Parameter.empty
+            if name != "self" and param.default is not inspect.Parameter.empty
         ]
 
         for expected in self.EXPECTED_OPTIONAL_PARAMS:
@@ -67,8 +66,7 @@ class TestVerificationServiceInitSignature:
         optional_params = [
             name
             for name, param in sig.parameters.items()
-            if name != "self"
-            and param.default is not inspect.Parameter.empty
+            if name != "self" and param.default is not inspect.Parameter.empty
         ]
 
         assert len(optional_params) == len(self.EXPECTED_OPTIONAL_PARAMS), (
@@ -119,8 +117,6 @@ class TestVerificationServiceDIRuntime:
             # Map of attribute name -> human-readable dependency name
             critical_attrs = {
                 "_rag_service": "RAGService",
-                "_cross_canvas_service": "CrossCanvasService",
-                "_textbook_context_service": "TextbookContextService",
                 "_canvas_service": "CanvasService",
                 "_agent_service": "AgentService",
                 "_canvas_base_path": "canvas_base_path",
@@ -232,7 +228,6 @@ class TestVerificationServiceDegradationLogging:
         with patch("app.services.verification_service.logger") as mock_logger:
             VerificationService(
                 rag_service=None,
-                cross_canvas_service=None,
                 textbook_context_service=None,
                 canvas_service=None,
                 agent_service=None,

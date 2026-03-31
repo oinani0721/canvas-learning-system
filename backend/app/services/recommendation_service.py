@@ -12,8 +12,7 @@ Returns top-5 recommendations per canvas, filtered by dismissed pairs.
 
 import asyncio
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set
 from uuid import uuid4
 
 from app.models.recommendation_models import (
@@ -123,8 +122,10 @@ class RecommendationService:
 
         # Filter dismissed pairs
         filtered = [
-            c for c in merged
-            if self._make_pair_key(c.source_node_id, c.target_node_id) not in dismissed_set
+            c
+            for c in merged
+            if self._make_pair_key(c.source_node_id, c.target_node_id)
+            not in dismissed_set
         ]
 
         # Sort by confidence descending, take top-5
@@ -177,7 +178,9 @@ class RecommendationService:
         return await self.neo4j_client.run_query(query, canvas_id=canvas_id)
 
     async def _detect_graph_patterns(
-        self, canvas_id: str, unconnected_ids: List[str],
+        self,
+        canvas_id: str,
+        unconnected_ids: List[str],
     ) -> List[RecommendationCandidate]:
         """Detect 2-hop neighbor co-occurrence patterns."""
         if len(unconnected_ids) < 2:
@@ -202,13 +205,15 @@ class RecommendationService:
                 for rec in records:
                     shared = rec["shared_neighbors"]
                     confidence = min(shared / 3.0, 1.0)
-                    candidates.append(RecommendationCandidate(
-                        source_node_id=rec["source_id"],
-                        target_node_id=rec["target_id"],
-                        confidence=confidence,
-                        source_type="graph_pattern",
-                        reason=f"共同关联 {shared} 个概念",
-                    ))
+                    candidates.append(
+                        RecommendationCandidate(
+                            source_node_id=rec["source_id"],
+                            target_node_id=rec["target_id"],
+                            confidence=confidence,
+                            source_type="graph_pattern",
+                            reason=f"共同关联 {shared} 个概念",
+                        )
+                    )
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Graph pattern detection failed: {e}")
 
@@ -250,7 +255,8 @@ class RecommendationService:
     # ─── L1: Text similarity ────────────────────────────────────────────────
 
     async def _compute_text_similarity(
-        self, nodes: List[Dict],
+        self,
+        nodes: List[Dict],
     ) -> List[RecommendationCandidate]:
         """
         Compute pairwise text similarity using bge-m3 embeddings.
@@ -288,13 +294,15 @@ class RecommendationService:
                 for j in range(i + 1, len(nodes)):
                     sim = float(np.dot(normalized[i], normalized[j]))
                     if sim >= TEXT_SIMILARITY_THRESHOLD:
-                        candidates.append(RecommendationCandidate(
-                            source_node_id=nodes[i]["id"],
-                            target_node_id=nodes[j]["id"],
-                            confidence=sim,
-                            source_type="text_similarity",
-                            reason="内容相似",
-                        ))
+                        candidates.append(
+                            RecommendationCandidate(
+                                source_node_id=nodes[i]["id"],
+                                target_node_id=nodes[j]["id"],
+                                confidence=sim,
+                                source_type="text_similarity",
+                                reason="内容相似",
+                            )
+                        )
 
         except Exception as e:
             logger.warning(f"Embedding similarity failed, using keyword fallback: {e}")
@@ -304,7 +312,8 @@ class RecommendationService:
         return candidates
 
     def _keyword_similarity_fallback(
-        self, nodes: List[Dict],
+        self,
+        nodes: List[Dict],
     ) -> List[RecommendationCandidate]:
         """Simple keyword-based similarity when embeddings are unavailable."""
         candidates: List[RecommendationCandidate] = list()
@@ -323,13 +332,15 @@ class RecommendationService:
                     continue
                 jaccard = len(intersection) / len(union)
                 if jaccard >= TEXT_SIMILARITY_THRESHOLD:
-                    candidates.append(RecommendationCandidate(
-                        source_node_id=nodes[i]["id"],
-                        target_node_id=nodes[j]["id"],
-                        confidence=jaccard,
-                        source_type="text_similarity",
-                        reason="内容相似",
-                    ))
+                    candidates.append(
+                        RecommendationCandidate(
+                            source_node_id=nodes[i]["id"],
+                            target_node_id=nodes[j]["id"],
+                            confidence=jaccard,
+                            source_type="text_similarity",
+                            reason="内容相似",
+                        )
+                    )
 
         return candidates
 
@@ -350,7 +361,9 @@ class RecommendationService:
         best: Dict[str, RecommendationCandidate] = {}
 
         for c in l1 + l2:
-            key = RecommendationService._make_pair_key(c.source_node_id, c.target_node_id)
+            key = RecommendationService._make_pair_key(
+                c.source_node_id, c.target_node_id
+            )
             existing = best.get(key)
             if existing is None or c.confidence > existing.confidence:
                 best[key] = c

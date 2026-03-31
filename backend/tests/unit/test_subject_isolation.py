@@ -15,8 +15,6 @@ Test Cases (from Story 30.8):
 [Source: docs/stories/30.8.story.md#Testing]
 """
 
-import pytest
-
 from app.core.subject_config import (
     DEFAULT_SUBJECT,
     SKIP_DIRECTORIES_LOWER,
@@ -46,7 +44,9 @@ class TestExtractSubjectFromCanvasPath:
         ✅ AC-30.8.2: "托福/听力/托福听力.canvas" → "托福"
         """
         assert extract_subject_from_canvas_path("托福/听力/托福听力.canvas") == "托福"
-        assert extract_subject_from_canvas_path("math/calculus/integrals.canvas") == "math"
+        assert (
+            extract_subject_from_canvas_path("math/calculus/integrals.canvas") == "math"
+        )
         assert extract_subject_from_canvas_path("a/b/c/d.canvas") == "a"
 
     def test_extract_subject_unicode(self):
@@ -57,7 +57,9 @@ class TestExtractSubjectFromCanvasPath:
         """
         assert extract_subject_from_canvas_path("数学/代数/线性代数.canvas") == "数学"
         assert extract_subject_from_canvas_path("物理/力学.canvas") == "物理"
-        assert extract_subject_from_canvas_path("计算机科学/算法.canvas") == "计算机科学"
+        assert (
+            extract_subject_from_canvas_path("计算机科学/算法.canvas") == "计算机科学"
+        )
 
     def test_extract_subject_fallback(self):
         """
@@ -77,7 +79,9 @@ class TestExtractSubjectFromCanvasPath:
         assert extract_subject_from_canvas_path("笔记库/物理/力学.canvas") == "物理"
         assert extract_subject_from_canvas_path("vault/math/calc.canvas") == "math"
         assert extract_subject_from_canvas_path("notes/cs/algo.canvas") == "cs"
-        assert extract_subject_from_canvas_path("obsidian/history/ww2.canvas") == "history"
+        assert (
+            extract_subject_from_canvas_path("obsidian/history/ww2.canvas") == "history"
+        )
 
     def test_extract_subject_empty_path(self):
         """Test empty path returns default subject."""

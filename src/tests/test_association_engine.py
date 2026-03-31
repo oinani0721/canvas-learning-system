@@ -69,7 +69,7 @@ def sample_recommendations():
             file_path="/path/to/image1.png",
             similarity_score=0.95,
             description="Test image 1",
-            metadata={"key_concepts": ["concept1"]}
+            metadata={"key_concepts": ["concept1"]},
         ),
         MediaRecommendation(
             media_id="media_2",
@@ -77,7 +77,7 @@ def sample_recommendations():
             file_path="/path/to/doc.pdf",
             similarity_score=0.85,
             description="Test PDF document",
-            metadata={"page_count": 10}
+            metadata={"page_count": 10},
         ),
         MediaRecommendation(
             media_id="media_3",
@@ -85,7 +85,7 @@ def sample_recommendations():
             file_path="/path/to/doc.pdf",
             similarity_score=0.75,
             description="PDF chunk from chapter 2",
-            metadata={"chunk_id": "chunk_5"}
+            metadata={"chunk_id": "chunk_5"},
         ),
     ]
 
@@ -149,7 +149,7 @@ def engine(mock_lancedb_client, mock_graphiti_client):
         similarity_threshold=0.7,
         top_k=5,
         timeout_ms=500,
-        enable_cache=True
+        enable_cache=True,
     )
 
 
@@ -165,9 +165,7 @@ class TestSimilarityCalculation:
         """Test cosine similarity for identical vectors."""
         engine = AssociationEngine()
         similarity = engine.calculate_similarity(
-            sample_vectors["v1"],
-            sample_vectors["v4"],
-            SimilarityMetric.COSINE
+            sample_vectors["v1"], sample_vectors["v4"], SimilarityMetric.COSINE
         )
         assert math.isclose(similarity, 1.0, abs_tol=1e-6)
 
@@ -175,9 +173,7 @@ class TestSimilarityCalculation:
         """Test cosine similarity for orthogonal vectors."""
         engine = AssociationEngine()
         similarity = engine.calculate_similarity(
-            sample_vectors["v1"],
-            sample_vectors["v2"],
-            SimilarityMetric.COSINE
+            sample_vectors["v1"], sample_vectors["v2"], SimilarityMetric.COSINE
         )
         assert math.isclose(similarity, 0.0, abs_tol=1e-6)
 
@@ -185,9 +181,7 @@ class TestSimilarityCalculation:
         """Test cosine similarity for opposite vectors."""
         engine = AssociationEngine()
         similarity = engine.calculate_similarity(
-            sample_vectors["v1"],
-            sample_vectors["v5"],
-            SimilarityMetric.COSINE
+            sample_vectors["v1"], sample_vectors["v5"], SimilarityMetric.COSINE
         )
         assert math.isclose(similarity, -1.0, abs_tol=1e-6)
 
@@ -195,9 +189,7 @@ class TestSimilarityCalculation:
         """Test cosine similarity for 45 degree angle."""
         engine = AssociationEngine()
         similarity = engine.calculate_similarity(
-            sample_vectors["v1"],
-            sample_vectors["v3"],
-            SimilarityMetric.COSINE
+            sample_vectors["v1"], sample_vectors["v3"], SimilarityMetric.COSINE
         )
         # cos(45°) = 1/√2 ≈ 0.707
         expected = 1.0 / math.sqrt(2)
@@ -207,9 +199,7 @@ class TestSimilarityCalculation:
         """Test cosine similarity with zero vector."""
         engine = AssociationEngine()
         similarity = engine.calculate_similarity(
-            sample_vectors["v1"],
-            sample_vectors["zero"],
-            SimilarityMetric.COSINE
+            sample_vectors["v1"], sample_vectors["zero"], SimilarityMetric.COSINE
         )
         assert similarity == 0.0
 
@@ -217,9 +207,7 @@ class TestSimilarityCalculation:
         """Test Euclidean similarity for identical vectors."""
         engine = AssociationEngine()
         similarity = engine.calculate_similarity(
-            sample_vectors["v1"],
-            sample_vectors["v4"],
-            SimilarityMetric.EUCLIDEAN
+            sample_vectors["v1"], sample_vectors["v4"], SimilarityMetric.EUCLIDEAN
         )
         # Distance = 0, similarity = 1/(1+0) = 1.0
         assert math.isclose(similarity, 1.0, abs_tol=1e-6)
@@ -228,9 +216,7 @@ class TestSimilarityCalculation:
         """Test Euclidean similarity for different vectors."""
         engine = AssociationEngine()
         similarity = engine.calculate_similarity(
-            sample_vectors["v1"],
-            sample_vectors["v2"],
-            SimilarityMetric.EUCLIDEAN
+            sample_vectors["v1"], sample_vectors["v2"], SimilarityMetric.EUCLIDEAN
         )
         # Distance = √2, similarity = 1/(1+√2) ≈ 0.414
         expected = 1.0 / (1.0 + math.sqrt(2))
@@ -240,9 +226,7 @@ class TestSimilarityCalculation:
         """Test dot product calculation."""
         engine = AssociationEngine()
         similarity = engine.calculate_similarity(
-            sample_vectors["v1"],
-            sample_vectors["v3"],
-            SimilarityMetric.DOT_PRODUCT
+            sample_vectors["v1"], sample_vectors["v3"], SimilarityMetric.DOT_PRODUCT
         )
         # [1,0,0] · [1,1,0] = 1
         assert math.isclose(similarity, 1.0, abs_tol=1e-6)
@@ -254,7 +238,7 @@ class TestSimilarityCalculation:
             engine.calculate_similarity(
                 sample_vectors["v1"],
                 sample_vectors["high_dim"],
-                SimilarityMetric.COSINE
+                SimilarityMetric.COSINE,
             )
 
     def test_similarity_high_dimensional_vectors(self, sample_vectors):
@@ -271,18 +255,12 @@ class TestSimilarityCalculation:
 
     def test_cosine_similarity_convenience_function(self, sample_vectors):
         """Test cosine_similarity convenience function."""
-        similarity = cosine_similarity(
-            sample_vectors["v1"],
-            sample_vectors["v4"]
-        )
+        similarity = cosine_similarity(sample_vectors["v1"], sample_vectors["v4"])
         assert math.isclose(similarity, 1.0, abs_tol=1e-6)
 
     def test_euclidean_similarity_convenience_function(self, sample_vectors):
         """Test euclidean_similarity convenience function."""
-        similarity = euclidean_similarity(
-            sample_vectors["v1"],
-            sample_vectors["v4"]
-        )
+        similarity = euclidean_similarity(sample_vectors["v1"], sample_vectors["v4"])
         assert math.isclose(similarity, 1.0, abs_tol=1e-6)
 
 
@@ -300,7 +278,7 @@ class TestMediaRecommendation:
             media_id="test_123",
             media_type=MediaType.IMAGE.value,
             file_path="/path/to/image.png",
-            similarity_score=0.95
+            similarity_score=0.95,
         )
 
         assert rec.media_id == "test_123"
@@ -328,7 +306,7 @@ class TestMediaRecommendation:
             "file_path": "/path/to/doc.pdf",
             "similarity_score": 0.85,
             "description": "Test document",
-            "metadata": {"pages": 10}
+            "metadata": {"pages": 10},
         }
 
         rec = MediaRecommendation.from_dict(data)
@@ -349,7 +327,7 @@ class TestAssociationResult:
             concept_name="Test Concept",
             recommendations=sample_recommendations,
             created_relations=3,
-            processing_time_ms=150
+            processing_time_ms=150,
         )
 
         assert result.concept_id == "concept_123"
@@ -365,7 +343,7 @@ class TestAssociationResult:
             concept_id="concept_123",
             concept_name="Test Concept",
             recommendations=sample_recommendations[:2],
-            created_relations=2
+            created_relations=2,
         )
 
         data = result.to_dict()
@@ -392,7 +370,7 @@ class TestAssociationStats:
         stats = AssociationStats(
             total_concepts_processed=10,
             total_recommendations=25,
-            average_similarity_score=0.85
+            average_similarity_score=0.85,
         )
 
         data = stats.to_dict()
@@ -427,7 +405,7 @@ class TestAssociationEngineConfiguration:
             top_k=10,
             timeout_ms=1000,
             metric=SimilarityMetric.EUCLIDEAN,
-            enable_cache=False
+            enable_cache=False,
         )
 
         assert engine.threshold == 0.8
@@ -473,14 +451,16 @@ class TestMediaRecommendation:
         recommendations = await engine.recommend_media_for_concept(
             concept_id="concept_123",
             concept_vector=sample_vectors["high_dim"],
-            concept_name="Test Concept"
+            concept_name="Test Concept",
         )
 
         # Should return 2 recommendations (media_3 is below threshold)
         assert len(recommendations) == 2
 
         # Should be sorted by similarity (highest first)
-        assert recommendations[0].similarity_score >= recommendations[1].similarity_score
+        assert (
+            recommendations[0].similarity_score >= recommendations[1].similarity_score
+        )
 
         # First recommendation should have highest similarity
         assert recommendations[0].media_id == "media_1"
@@ -493,7 +473,7 @@ class TestMediaRecommendation:
             concept_id="concept_123",
             concept_vector=sample_vectors["high_dim"],
             filter_existing=True,
-            existing_media_ids=["media_1"]  # Filter out the first result
+            existing_media_ids=["media_1"],  # Filter out the first result
         )
 
         # Should not include media_1
@@ -504,8 +484,7 @@ class TestMediaRecommendation:
     async def test_recommend_media_respects_threshold(self, engine, sample_vectors):
         """Test that recommendation respects similarity threshold."""
         recommendations = await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         # All recommendations should be above threshold
@@ -513,17 +492,18 @@ class TestMediaRecommendation:
             assert rec.similarity_score >= engine.threshold
 
     @pytest.mark.asyncio
-    async def test_recommend_media_respects_top_k(self, mock_lancedb_client, mock_graphiti_client, sample_vectors):
+    async def test_recommend_media_respects_top_k(
+        self, mock_lancedb_client, mock_graphiti_client, sample_vectors
+    ):
         """Test that recommendation respects top_k limit."""
         engine = AssociationEngine(
             lancedb_client=mock_lancedb_client,
             graphiti_client=mock_graphiti_client,
-            top_k=1
+            top_k=1,
         )
 
         recommendations = await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         assert len(recommendations) <= 1
@@ -534,8 +514,7 @@ class TestMediaRecommendation:
         engine = AssociationEngine(lancedb_client=None)
 
         recommendations = await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         assert recommendations == []
@@ -544,8 +523,7 @@ class TestMediaRecommendation:
     async def test_recommend_media_updates_stats(self, engine, sample_vectors):
         """Test that recommendation updates statistics."""
         await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         stats = engine.get_stats()
@@ -557,8 +535,7 @@ class TestMediaRecommendation:
         """Test that caching works correctly."""
         # First call - cache miss
         await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         stats1 = engine.get_stats()
@@ -566,32 +543,31 @@ class TestMediaRecommendation:
 
         # Second call with same parameters - cache hit
         await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         stats2 = engine.get_stats()
         assert stats2["cache_hits"] == 1
 
     @pytest.mark.asyncio
-    async def test_recommend_media_cache_disabled(self, mock_lancedb_client, mock_graphiti_client, sample_vectors):
+    async def test_recommend_media_cache_disabled(
+        self, mock_lancedb_client, mock_graphiti_client, sample_vectors
+    ):
         """Test recommendation with cache disabled."""
         engine = AssociationEngine(
             lancedb_client=mock_lancedb_client,
             graphiti_client=mock_graphiti_client,
-            enable_cache=False
+            enable_cache=False,
         )
 
         # First call
         await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         # Second call
         await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         stats = engine.get_stats()
@@ -602,8 +578,7 @@ class TestMediaRecommendation:
     async def test_clear_cache(self, engine, sample_vectors):
         """Test clearing the cache."""
         await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         assert engine.get_stats()["cache_size"] == 1
@@ -656,7 +631,9 @@ class TestBatchRecommendation:
         assert progress_updates[-1] == (2, 2)
 
     @pytest.mark.asyncio
-    async def test_batch_recommend_with_error(self, mock_lancedb_client, mock_graphiti_client, sample_vectors):
+    async def test_batch_recommend_with_error(
+        self, mock_lancedb_client, mock_graphiti_client, sample_vectors
+    ):
         """Test batch recommendation handles errors gracefully."""
         # Make second search fail
         call_count = 0
@@ -666,13 +643,19 @@ class TestBatchRecommendation:
             call_count += 1
             if call_count == 2:
                 raise Exception("Search failed")
-            return [{"id": "media_1", "_distance": 0.05, "media_type": "image", "file_path": "/test"}]
+            return [
+                {
+                    "id": "media_1",
+                    "_distance": 0.05,
+                    "media_type": "image",
+                    "file_path": "/test",
+                }
+            ]
 
         mock_lancedb_client.search = AsyncMock(side_effect=failing_search)
 
         engine = AssociationEngine(
-            lancedb_client=mock_lancedb_client,
-            graphiti_client=mock_graphiti_client
+            lancedb_client=mock_lancedb_client, graphiti_client=mock_graphiti_client
         )
 
         concepts = [
@@ -699,30 +682,31 @@ class TestRelationshipCreation:
     async def test_create_associations(self, engine, sample_recommendations):
         """Test creating associations for recommendations."""
         created = await engine.create_associations(
-            concept_id="concept_123",
-            recommendations=sample_recommendations[:2]
+            concept_id="concept_123", recommendations=sample_recommendations[:2]
         )
 
         assert created == 2
         assert engine._stats.total_relations_created == 2
 
     @pytest.mark.asyncio
-    async def test_create_associations_without_graphiti(self, mock_lancedb_client, sample_recommendations):
+    async def test_create_associations_without_graphiti(
+        self, mock_lancedb_client, sample_recommendations
+    ):
         """Test creating associations without Graphiti client."""
         engine = AssociationEngine(
-            lancedb_client=mock_lancedb_client,
-            graphiti_client=None
+            lancedb_client=mock_lancedb_client, graphiti_client=None
         )
 
         created = await engine.create_associations(
-            concept_id="concept_123",
-            recommendations=sample_recommendations
+            concept_id="concept_123", recommendations=sample_recommendations
         )
 
         assert created == 0
 
     @pytest.mark.asyncio
-    async def test_create_associations_partial_failure(self, mock_lancedb_client, mock_graphiti_client, sample_recommendations):
+    async def test_create_associations_partial_failure(
+        self, mock_lancedb_client, mock_graphiti_client, sample_recommendations
+    ):
         """Test that partial failures don't fail the whole batch."""
         # Make some relationships fail
         call_count = 0
@@ -734,35 +718,37 @@ class TestRelationshipCreation:
                 raise Exception("Failed to create relationship")
             return True
 
-        mock_graphiti_client.add_relationship = AsyncMock(side_effect=failing_add_relationship)
+        mock_graphiti_client.add_relationship = AsyncMock(
+            side_effect=failing_add_relationship
+        )
 
         engine = AssociationEngine(
-            lancedb_client=mock_lancedb_client,
-            graphiti_client=mock_graphiti_client
+            lancedb_client=mock_lancedb_client, graphiti_client=mock_graphiti_client
         )
         await engine.initialize()
 
         created = await engine.create_associations(
-            concept_id="concept_123",
-            recommendations=sample_recommendations
+            concept_id="concept_123", recommendations=sample_recommendations
         )
 
         # Should create 2 out of 3 (one failed)
         assert created == 2
 
     @pytest.mark.asyncio
-    async def test_batch_create_associations(self, engine, sample_recommendations, sample_vectors):
+    async def test_batch_create_associations(
+        self, engine, sample_recommendations, sample_vectors
+    ):
         """Test batch creation of associations."""
         results = [
             AssociationResult(
                 concept_id="concept_1",
                 concept_name="Concept 1",
-                recommendations=sample_recommendations[:2]
+                recommendations=sample_recommendations[:2],
             ),
             AssociationResult(
                 concept_id="concept_2",
                 concept_name="Concept 2",
-                recommendations=sample_recommendations[1:]
+                recommendations=sample_recommendations[1:],
             ),
         ]
 
@@ -788,7 +774,7 @@ class TestFullPipeline:
             concept_id="concept_123",
             concept_vector=sample_vectors["high_dim"],
             concept_name="Test Concept",
-            create_relations=True
+            create_relations=True,
         )
 
         assert result.concept_id == "concept_123"
@@ -804,22 +790,23 @@ class TestFullPipeline:
         result = await engine.process_concept(
             concept_id="concept_123",
             concept_vector=sample_vectors["high_dim"],
-            create_relations=False
+            create_relations=False,
         )
 
         assert len(result.recommendations) == 2
         assert result.created_relations == 0
 
     @pytest.mark.asyncio
-    async def test_process_concept_handles_errors(self, mock_lancedb_client, sample_vectors):
+    async def test_process_concept_handles_errors(
+        self, mock_lancedb_client, sample_vectors
+    ):
         """Test that process_concept handles errors gracefully."""
         mock_lancedb_client.search = AsyncMock(side_effect=Exception("Search failed"))
 
         engine = AssociationEngine(lancedb_client=mock_lancedb_client)
 
         result = await engine.process_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         assert result.error is not None
@@ -840,8 +827,7 @@ class TestPerformance:
         start_time = time.perf_counter()
 
         await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
@@ -850,8 +836,11 @@ class TestPerformance:
         assert elapsed_ms < 500
 
     @pytest.mark.asyncio
-    async def test_timeout_enforcement(self, mock_lancedb_client, mock_graphiti_client, sample_vectors):
+    async def test_timeout_enforcement(
+        self, mock_lancedb_client, mock_graphiti_client, sample_vectors
+    ):
         """Test that timeout is enforced."""
+
         # Make search take too long
         async def slow_search(query, table_name, num_results, metric):
             await asyncio.sleep(2)  # 2 seconds - way over timeout
@@ -862,13 +851,12 @@ class TestPerformance:
         engine = AssociationEngine(
             lancedb_client=mock_lancedb_client,
             graphiti_client=mock_graphiti_client,
-            timeout_ms=100  # 100ms timeout
+            timeout_ms=100,  # 100ms timeout
         )
 
         with pytest.raises(RecommendationError, match="timeout"):
             await engine.recommend_media_for_concept(
-                concept_id="concept_123",
-                concept_vector=sample_vectors["high_dim"]
+                concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
             )
 
     @pytest.mark.asyncio
@@ -918,26 +906,25 @@ class TestEdgeCases:
     async def test_empty_concept_vector(self, engine):
         """Test handling of empty concept vector."""
         recommendations = await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=[]
+            concept_id="concept_123", concept_vector=[]
         )
 
         # Should handle gracefully (LanceDB will be called with empty vector)
         assert isinstance(recommendations, list)
 
     @pytest.mark.asyncio
-    async def test_recommendation_with_no_results(self, mock_lancedb_client, mock_graphiti_client, sample_vectors):
+    async def test_recommendation_with_no_results(
+        self, mock_lancedb_client, mock_graphiti_client, sample_vectors
+    ):
         """Test recommendation when LanceDB returns no results."""
         mock_lancedb_client.search = AsyncMock(return_value=[])
 
         engine = AssociationEngine(
-            lancedb_client=mock_lancedb_client,
-            graphiti_client=mock_graphiti_client
+            lancedb_client=mock_lancedb_client, graphiti_client=mock_graphiti_client
         )
 
         recommendations = await engine.recommend_media_for_concept(
-            concept_id="concept_123",
-            concept_vector=sample_vectors["high_dim"]
+            concept_id="concept_123", concept_vector=sample_vectors["high_dim"]
         )
 
         assert recommendations == []
@@ -952,13 +939,14 @@ class TestEdgeCases:
         assert result2 is True
 
     @pytest.mark.asyncio
-    async def test_initialization_failure(self, mock_lancedb_client, mock_graphiti_client):
+    async def test_initialization_failure(
+        self, mock_lancedb_client, mock_graphiti_client
+    ):
         """Test handling of initialization failure."""
         mock_lancedb_client.initialize = AsyncMock(side_effect=Exception("Init failed"))
 
         engine = AssociationEngine(
-            lancedb_client=mock_lancedb_client,
-            graphiti_client=mock_graphiti_client
+            lancedb_client=mock_lancedb_client, graphiti_client=mock_graphiti_client
         )
 
         with pytest.raises(AssociationEngineError, match="Initialization failed"):
@@ -970,19 +958,19 @@ class TestEdgeCases:
 
         with pytest.raises(SimilarityCalculationError, match="Unknown metric"):
             engine.calculate_similarity(
-                sample_vectors["v1"],
-                sample_vectors["v2"],
-                "unknown_metric"
+                sample_vectors["v1"], sample_vectors["v2"], "unknown_metric"
             )
 
     @pytest.mark.asyncio
-    async def test_recommend_media_convenience_function(self, mock_lancedb_client, sample_vectors):
+    async def test_recommend_media_convenience_function(
+        self, mock_lancedb_client, sample_vectors
+    ):
         """Test recommend_media convenience function."""
         recommendations = await recommend_media(
             concept_vector=sample_vectors["high_dim"],
             lancedb_client=mock_lancedb_client,
             similarity_threshold=0.7,
-            top_k=5
+            top_k=5,
         )
 
         assert isinstance(recommendations, list)
@@ -1060,9 +1048,7 @@ class TestPurePythonFallback:
         engine = AssociationEngine()
 
         similarity = engine._calculate_similarity_pure_python(
-            sample_vectors["v1"],
-            sample_vectors["v4"],
-            SimilarityMetric.COSINE
+            sample_vectors["v1"], sample_vectors["v4"], SimilarityMetric.COSINE
         )
 
         assert math.isclose(similarity, 1.0, abs_tol=1e-6)
@@ -1072,9 +1058,7 @@ class TestPurePythonFallback:
         engine = AssociationEngine()
 
         similarity = engine._calculate_similarity_pure_python(
-            sample_vectors["v1"],
-            sample_vectors["v4"],
-            SimilarityMetric.EUCLIDEAN
+            sample_vectors["v1"], sample_vectors["v4"], SimilarityMetric.EUCLIDEAN
         )
 
         assert math.isclose(similarity, 1.0, abs_tol=1e-6)
@@ -1084,9 +1068,7 @@ class TestPurePythonFallback:
         engine = AssociationEngine()
 
         result = engine._calculate_similarity_pure_python(
-            sample_vectors["v1"],
-            sample_vectors["v3"],
-            SimilarityMetric.DOT_PRODUCT
+            sample_vectors["v1"], sample_vectors["v3"], SimilarityMetric.DOT_PRODUCT
         )
 
         assert math.isclose(result, 1.0, abs_tol=1e-6)
@@ -1099,7 +1081,7 @@ class TestPurePythonFallback:
             engine._calculate_similarity_pure_python(
                 sample_vectors["v1"],
                 sample_vectors["high_dim"],
-                SimilarityMetric.COSINE
+                SimilarityMetric.COSINE,
             )
 
     def test_pure_python_zero_vector(self, sample_vectors):
@@ -1107,9 +1089,7 @@ class TestPurePythonFallback:
         engine = AssociationEngine()
 
         similarity = engine._calculate_similarity_pure_python(
-            sample_vectors["v1"],
-            sample_vectors["zero"],
-            SimilarityMetric.COSINE
+            sample_vectors["v1"], sample_vectors["zero"], SimilarityMetric.COSINE
         )
 
         assert similarity == 0.0

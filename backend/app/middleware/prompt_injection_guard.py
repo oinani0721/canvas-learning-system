@@ -27,7 +27,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List
 
 import structlog
 
@@ -54,6 +54,7 @@ SAFETY_BLOCK_OUTPUT_PREFIX = (
 @dataclass
 class InjectionCheckResult:
     """Result of input injection detection check."""
+
     risk_score: float
     is_blocked: bool
     matched_patterns: List[str] = field(default_factory=list)
@@ -63,6 +64,7 @@ class InjectionCheckResult:
 @dataclass
 class OutputCheckResult:
     """Result of output safety check."""
+
     is_safe: bool
     violations: List[str] = field(default_factory=list)
     sanitized_output: str = ""
@@ -74,9 +76,16 @@ class PromptTemplate:
 
     @staticmethod
     def build(system_prompt, user_input, context="", assistant_prefix=""):
-        messages = [{"role": "system", "content": f"{system_prompt}\n\n{SYSTEM_BOUNDARY_MARKER}"}]
+        messages = [
+            {
+                "role": "system",
+                "content": f"{system_prompt}\n\n{SYSTEM_BOUNDARY_MARKER}",
+            }
+        ]
         if context:
-            messages.append({"role": "user", "content": f"Reference context:\n---\n{context}\n---"})
+            messages.append(
+                {"role": "user", "content": f"Reference context:\n---\n{context}\n---"}
+            )
         messages.append({"role": "user", "content": user_input})
         if assistant_prefix:
             messages.append({"role": "assistant", "content": assistant_prefix})
@@ -94,52 +103,182 @@ class PromptTemplate:
 
 
 DIRECT_INJECTION_PATTERNS = [
-    (re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.IGNORECASE), 0.95, "role_override:ignore_previous"),
-    (re.compile(r"forget\s+(everything|all)\s+(above|before)", re.IGNORECASE), 0.95, "role_override:forget_above"),
-    (re.compile(r"you\s+are\s+now\s+a", re.IGNORECASE), 0.85, "role_override:you_are_now"),
-    (re.compile(r"act\s+as\s+(DAN|a\s+new|an?\s+unrestricted)", re.IGNORECASE), 0.90, "role_override:act_as_dan"),
-    (re.compile(r"new\s+instructions?\s*:", re.IGNORECASE), 0.85, "role_override:new_instructions"),
-    (re.compile(r"(system|assistant)\s*:\s*(you\s+must|new\s+task|override)", re.IGNORECASE), 0.90, "role_override:system_prefix"),
-    (re.compile(r"---\s*SYSTEM\s*---", re.IGNORECASE), 0.95, "delimiter:spoofed_system_block"),
-    (re.compile(r"(repeat|print|output|reveal|show)\s+(the\s+)?(above\s+)?(system\s+)?(message|prompt|instructions?)", re.IGNORECASE), 0.85, "output_manipulation:reveal_prompt"),
-    (re.compile(r"what\s+are\s+your\s+instructions", re.IGNORECASE), 0.80, "output_manipulation:ask_instructions"),
-    (re.compile(r"(list|display|tell\s+me)\s+(your|the)\s+(initial\s+)?(prompt|instructions|rules)", re.IGNORECASE), 0.80, "output_manipulation:list_prompt"),
-    (re.compile(r"print\s+your\s+initial\s+prompt", re.IGNORECASE), 0.90, "output_manipulation:print_initial_prompt"),
+    (
+        re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.IGNORECASE),
+        0.95,
+        "role_override:ignore_previous",
+    ),
+    (
+        re.compile(r"forget\s+(everything|all)\s+(above|before)", re.IGNORECASE),
+        0.95,
+        "role_override:forget_above",
+    ),
+    (
+        re.compile(r"you\s+are\s+now\s+a", re.IGNORECASE),
+        0.85,
+        "role_override:you_are_now",
+    ),
+    (
+        re.compile(r"act\s+as\s+(DAN|a\s+new|an?\s+unrestricted)", re.IGNORECASE),
+        0.90,
+        "role_override:act_as_dan",
+    ),
+    (
+        re.compile(r"new\s+instructions?\s*:", re.IGNORECASE),
+        0.85,
+        "role_override:new_instructions",
+    ),
+    (
+        re.compile(
+            r"(system|assistant)\s*:\s*(you\s+must|new\s+task|override)", re.IGNORECASE
+        ),
+        0.90,
+        "role_override:system_prefix",
+    ),
+    (
+        re.compile(r"---\s*SYSTEM\s*---", re.IGNORECASE),
+        0.95,
+        "delimiter:spoofed_system_block",
+    ),
+    (
+        re.compile(
+            r"(repeat|print|output|reveal|show)\s+(the\s+)?(above\s+)?(system\s+)?(message|prompt|instructions?)",
+            re.IGNORECASE,
+        ),
+        0.85,
+        "output_manipulation:reveal_prompt",
+    ),
+    (
+        re.compile(r"what\s+are\s+your\s+instructions", re.IGNORECASE),
+        0.80,
+        "output_manipulation:ask_instructions",
+    ),
+    (
+        re.compile(
+            r"(list|display|tell\s+me)\s+(your|the)\s+(initial\s+)?(prompt|instructions|rules)",
+            re.IGNORECASE,
+        ),
+        0.80,
+        "output_manipulation:list_prompt",
+    ),
+    (
+        re.compile(r"print\s+your\s+initial\s+prompt", re.IGNORECASE),
+        0.90,
+        "output_manipulation:print_initial_prompt",
+    ),
 ]
 
 CHINESE_INJECTION_PATTERNS = [
-    (re.compile(r"(请|你)?忽略(之前|以前|上面)(的)?(所有)?指令", re.IGNORECASE), 0.95, "role_override:chinese_ignore_previous"),
-    (re.compile(r"你现在是一个(没有|不受)(任何)?限制", re.IGNORECASE), 0.90, "role_override:chinese_no_restrictions"),
-    (re.compile(r"输出(你的)?系统(提示词|指令|消息)", re.IGNORECASE), 0.85, "output_manipulation:chinese_reveal_prompt"),
-    (re.compile(r"(忘记|无视)(之前|以前|上面)(的)?(一切|所有|全部)", re.IGNORECASE), 0.90, "role_override:chinese_forget_above"),
+    (
+        re.compile(r"(请|你)?忽略(之前|以前|上面)(的)?(所有)?指令", re.IGNORECASE),
+        0.95,
+        "role_override:chinese_ignore_previous",
+    ),
+    (
+        re.compile(r"你现在是一个(没有|不受)(任何)?限制", re.IGNORECASE),
+        0.90,
+        "role_override:chinese_no_restrictions",
+    ),
+    (
+        re.compile(r"输出(你的)?系统(提示词|指令|消息)", re.IGNORECASE),
+        0.85,
+        "output_manipulation:chinese_reveal_prompt",
+    ),
+    (
+        re.compile(r"(忘记|无视)(之前|以前|上面)(的)?(一切|所有|全部)", re.IGNORECASE),
+        0.90,
+        "role_override:chinese_forget_above",
+    ),
 ]
 
 DELIMITER_PATTERNS = [
     (re.compile(r"<\|system\|>", re.IGNORECASE), 0.95, "delimiter:chatml_system_tag"),
     (re.compile(r"<\|user\|>", re.IGNORECASE), 0.85, "delimiter:chatml_user_tag"),
-    (re.compile(r"<\|assistant\|>", re.IGNORECASE), 0.85, "delimiter:chatml_assistant_tag"),
-    (re.compile(r"#{3,}\s*(SYSTEM|OVERRIDE|INSTRUCTION)", re.IGNORECASE), 0.80, "delimiter:markdown_header_injection"),
-    (re.compile(r"<!--\s*(AI\s+INSTRUCTION|SYSTEM\s+OVERRIDE)", re.IGNORECASE), 0.90, "delimiter:html_comment_injection"),
-    (re.compile(r"\[SYSTEM\s+OVERRIDE\]", re.IGNORECASE), 0.90, "delimiter:bracket_system_override"),
+    (
+        re.compile(r"<\|assistant\|>", re.IGNORECASE),
+        0.85,
+        "delimiter:chatml_assistant_tag",
+    ),
+    (
+        re.compile(r"#{3,}\s*(SYSTEM|OVERRIDE|INSTRUCTION)", re.IGNORECASE),
+        0.80,
+        "delimiter:markdown_header_injection",
+    ),
+    (
+        re.compile(r"<!--\s*(AI\s+INSTRUCTION|SYSTEM\s+OVERRIDE)", re.IGNORECASE),
+        0.90,
+        "delimiter:html_comment_injection",
+    ),
+    (
+        re.compile(r"\[SYSTEM\s+OVERRIDE\]", re.IGNORECASE),
+        0.90,
+        "delimiter:bracket_system_override",
+    ),
 ]
 
 INDIRECT_INJECTION_PATTERNS = [
-    (re.compile(r"(when\s+summarizing|when\s+answering|when\s+processing).*?(also|instead)\s+(reveal|output|show)", re.IGNORECASE), 0.85, "indirect:conditional_reveal"),
-    (re.compile(r"(this\s+)?(node|content|note).*?should\s+be\s+treated\s+as\s+(system\s+)?instructions?", re.IGNORECASE), 0.90, "indirect:content_as_instruction"),
-    (re.compile(r"new\s+task\s*:\s*disregard", re.IGNORECASE), 0.90, "indirect:new_task_disregard"),
+    (
+        re.compile(
+            r"(when\s+summarizing|when\s+answering|when\s+processing).*?(also|instead)\s+(reveal|output|show)",
+            re.IGNORECASE,
+        ),
+        0.85,
+        "indirect:conditional_reveal",
+    ),
+    (
+        re.compile(
+            r"(this\s+)?(node|content|note).*?should\s+be\s+treated\s+as\s+(system\s+)?instructions?",
+            re.IGNORECASE,
+        ),
+        0.90,
+        "indirect:content_as_instruction",
+    ),
+    (
+        re.compile(r"new\s+task\s*:\s*disregard", re.IGNORECASE),
+        0.90,
+        "indirect:new_task_disregard",
+    ),
 ]
 
 OUTPUT_LEAK_PATTERNS = [
-    (re.compile(re.escape(SYSTEM_BOUNDARY_MARKER)), "system_prompt_leak:boundary_marker"),
-    (re.compile(r"(my|the)\s+(system\s+)?(prompt|instructions?)\s+(is|are|says?)\s*:", re.IGNORECASE), "system_prompt_leak:self_disclosure"),
-    (re.compile(r"(I\s+was|I\s+am)\s+instructed\s+to", re.IGNORECASE), "system_prompt_leak:instruction_disclosure"),
+    (
+        re.compile(re.escape(SYSTEM_BOUNDARY_MARKER)),
+        "system_prompt_leak:boundary_marker",
+    ),
+    (
+        re.compile(
+            r"(my|the)\s+(system\s+)?(prompt|instructions?)\s+(is|are|says?)\s*:",
+            re.IGNORECASE,
+        ),
+        "system_prompt_leak:self_disclosure",
+    ),
+    (
+        re.compile(r"(I\s+was|I\s+am)\s+instructed\s+to", re.IGNORECASE),
+        "system_prompt_leak:instruction_disclosure",
+    ),
 ]
 
 OUTPUT_ROLE_OVERRIDE_PATTERNS = [
-    (re.compile(r"(execute|run|eval)\s*\(\s*['\"].*['\"]\s*\)", re.IGNORECASE), "dangerous_output:code_execution"),
-    (re.compile(r"(os\.system|subprocess\.(run|call|Popen)|exec\(|eval\()", re.IGNORECASE), "dangerous_output:system_command"),
-    (re.compile(r"(curl|wget|fetch)\s+https?://.*\|\s*(bash|sh|python)", re.IGNORECASE), "dangerous_output:remote_code_execution"),
-    (re.compile(r"<script[^>]*>.*?</script>", re.IGNORECASE | re.DOTALL), "dangerous_output:xss_script"),
+    (
+        re.compile(r"(execute|run|eval)\s*\(\s*['\"].*['\"]\s*\)", re.IGNORECASE),
+        "dangerous_output:code_execution",
+    ),
+    (
+        re.compile(
+            r"(os\.system|subprocess\.(run|call|Popen)|exec\(|eval\()", re.IGNORECASE
+        ),
+        "dangerous_output:system_command",
+    ),
+    (
+        re.compile(
+            r"(curl|wget|fetch)\s+https?://.*\|\s*(bash|sh|python)", re.IGNORECASE
+        ),
+        "dangerous_output:remote_code_execution",
+    ),
+    (
+        re.compile(r"<script[^>]*>.*?</script>", re.IGNORECASE | re.DOTALL),
+        "dangerous_output:xss_script",
+    ),
 ]
 
 
@@ -178,16 +317,24 @@ def _try_decode_rot13(text):
 def check_input(text):
     """Layer 2: Check user input for prompt injection patterns."""
     if not INJECTION_GUARD_ENABLED:
-        return InjectionCheckResult(risk_score=0.0, is_blocked=False, details="Guard disabled")
+        return InjectionCheckResult(
+            risk_score=0.0, is_blocked=False, details="Guard disabled"
+        )
     if not text or not text.strip():
-        return InjectionCheckResult(risk_score=0.0, is_blocked=False, details="Empty input")
+        return InjectionCheckResult(
+            risk_score=0.0, is_blocked=False, details="Empty input"
+        )
 
     start_time = time.perf_counter()
     max_score = 0.0
     matched = list()
 
-    all_patterns = (DIRECT_INJECTION_PATTERNS + CHINESE_INJECTION_PATTERNS
-                    + DELIMITER_PATTERNS + INDIRECT_INJECTION_PATTERNS)
+    all_patterns = (
+        DIRECT_INJECTION_PATTERNS
+        + CHINESE_INJECTION_PATTERNS
+        + DELIMITER_PATTERNS
+        + INDIRECT_INJECTION_PATTERNS
+    )
     for pattern, score, label in all_patterns:
         if pattern.search(text):
             matched.append(label)
@@ -218,7 +365,8 @@ def check_input(text):
     is_blocked = max_score >= INJECTION_THRESHOLD
     latency_ms = (time.perf_counter() - start_time) * 1000
     result = InjectionCheckResult(
-        risk_score=max_score, is_blocked=is_blocked,
+        risk_score=max_score,
+        is_blocked=is_blocked,
         matched_patterns=matched,
         details=f"Checked {len(text)} chars in {latency_ms:.1f}ms",
     )
@@ -257,7 +405,8 @@ def check_output(output, system_prompt=""):
 
     is_safe = len(violations) == 0
     return OutputCheckResult(
-        is_safe=is_safe, violations=violations,
+        is_safe=is_safe,
+        violations=violations,
         sanitized_output=sanitized,
         details=f"Found {len(violations)} violation(s)" if violations else "Clean",
     )
@@ -268,11 +417,15 @@ def _sanitize_output(output, violations):
     sanitized = sanitized.replace(SYSTEM_BOUNDARY_MARKER, "")
     has_dangerous = any(v.startswith("dangerous_output:") for v in violations)
     if has_dangerous:
-        sanitized = ("[Safety Notice: Potentially unsafe content has been filtered.]\n\n"
-                      + sanitized)
+        sanitized = (
+            "[Safety Notice: Potentially unsafe content has been filtered.]\n\n"
+            + sanitized
+        )
         sanitized = re.sub(
-            r"<script[^>]*>.*?</script>", "[removed: script content]",
-            sanitized, flags=re.IGNORECASE | re.DOTALL,
+            r"<script[^>]*>.*?</script>",
+            "[removed: script content]",
+            sanitized,
+            flags=re.IGNORECASE | re.DOTALL,
         )
     return sanitized
 
@@ -286,7 +439,9 @@ def _log_injection_detection(result, input_text, latency_ms):
             is_blocked=result.is_blocked,
             matched_patterns=result.matched_patterns,
             input_length=len(input_text),
-            input_preview=input_text[:100] + "..." if len(input_text) > 100 else input_text,
+            input_preview=input_text[:100] + "..."
+            if len(input_text) > 100
+            else input_text,
             latency_ms=round(latency_ms, 2),
         )
     except (ValueError, TypeError, RuntimeError, OSError) as e:

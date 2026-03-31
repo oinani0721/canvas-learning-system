@@ -38,10 +38,10 @@ def temp_dir():
 def error_isolation_config():
     """错误隔离配置"""
     return {
-        'monitoring_interval': 1,
-        'heartbeat_timeout': 5,
-        'error_rate_threshold': 0.1,
-        'max_recovery_attempts': 2
+        "monitoring_interval": 1,
+        "heartbeat_timeout": 5,
+        "error_rate_threshold": 0.1,
+        "max_recovery_attempts": 2,
     }
 
 
@@ -49,10 +49,10 @@ def error_isolation_config():
 def retry_config():
     """重试配置"""
     return {
-        'enabled': True,
-        'default_policy_id': 'test',
-        'global_max_retries': 3,
-        'cleanup_interval': 1
+        "enabled": True,
+        "default_policy_id": "test",
+        "global_max_retries": 3,
+        "cleanup_interval": 1,
     }
 
 
@@ -60,10 +60,10 @@ def retry_config():
 def logger_config(temp_dir):
     """日志配置"""
     return {
-        'log_dir': str(temp_dir / 'logs' / 'errors'),
-        'diagnostic_dir': str(temp_dir / 'logs' / 'diagnostics'),
-        'max_log_size': 1024 * 1024,  # 1MB
-        'async_logging': False  # 测试时禁用异步
+        "log_dir": str(temp_dir / "logs" / "errors"),
+        "diagnostic_dir": str(temp_dir / "logs" / "diagnostics"),
+        "max_log_size": 1024 * 1024,  # 1MB
+        "async_logging": False,  # 测试时禁用异步
     }
 
 
@@ -87,7 +87,7 @@ class TestErrorIsolationManager:
             instance_type="agent",
             status="active",
             created_at=datetime.now(),
-            last_heartbeat=datetime.now()
+            last_heartbeat=datetime.now(),
         )
         result = manager.register_instance(instance)
         assert result is True
@@ -101,15 +101,12 @@ class TestErrorIsolationManager:
             instance_type="agent",
             status="active",
             created_at=datetime.now(),
-            last_heartbeat=datetime.now()
+            last_heartbeat=datetime.now(),
         )
         manager.register_instance(instance)
 
         # 隔离实例
-        result = asyncio.run(manager.quarantine_instance(
-            "test-instance-2",
-            "测试隔离"
-        ))
+        result = asyncio.run(manager.quarantine_instance("test-instance-2", "测试隔离"))
         assert result is True
         assert "test-instance-2" in manager._quarantined_instances
 
@@ -121,14 +118,13 @@ class TestErrorIsolationManager:
             error_message="测试错误",
             error_category=ErrorCategory.NETWORK,
             severity=ErrorSeverity.MEDIUM,
-            instance_id="test-instance-1"
+            instance_id="test-instance-1",
         )
 
         # 测试阻止传播
-        result = asyncio.run(manager.check_error_propagation(
-            error_info,
-            "target-instance"
-        ))
+        result = asyncio.run(
+            manager.check_error_propagation(error_info, "target-instance")
+        )
         # 根据默认规则，网络错误可能被允许传播
         assert isinstance(result, bool)
 
@@ -140,7 +136,7 @@ class TestErrorIsolationManager:
             instance_type="agent",
             status="active",
             created_at=datetime.now(),
-            last_heartbeat=datetime.now() - timedelta(minutes=5)  # 模拟心跳超时
+            last_heartbeat=datetime.now() - timedelta(minutes=5),  # 模拟心跳超时
         )
         manager.register_instance(instance)
 
@@ -152,9 +148,9 @@ class TestErrorIsolationManager:
     def test_get_error_statistics(self, manager):
         """测试获取错误统计"""
         stats = manager.get_error_statistics()
-        assert 'total_instances' in stats
-        assert 'quarantined_instances' in stats
-        assert 'error_distribution' in stats
+        assert "total_instances" in stats
+        assert "quarantined_instances" in stats
+        assert "error_distribution" in stats
 
 
 class TestRetryManager:
@@ -176,21 +172,22 @@ class TestRetryManager:
             policy_id="test-policy",
             strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
             max_retries=5,
-            base_delay=0.5
+            base_delay=0.5,
         )
         manager.add_policy(policy)
         assert "test-policy" in manager._policies
 
     def test_successful_operation(self, manager):
         """测试成功操作（不需要重试）"""
+
         async def successful_operation():
             return "success"
 
-        result = asyncio.run(manager.execute_with_retry(
-            "test-task-1",
-            successful_operation,
-            policy_id="default"
-        ))
+        result = asyncio.run(
+            manager.execute_with_retry(
+                "test-task-1", successful_operation, policy_id="default"
+            )
+        )
         assert result == "success"
 
     def test_retry_on_failure(self, manager):
@@ -204,32 +201,33 @@ class TestRetryManager:
                 raise ValueError("测试失败")
             return "success after retry"
 
-        result = asyncio.run(manager.execute_with_retry(
-            "test-task-2",
-            failing_operation,
-            policy_id="default"
-        ))
+        result = asyncio.run(
+            manager.execute_with_retry(
+                "test-task-2", failing_operation, policy_id="default"
+            )
+        )
         assert result == "success after retry"
         assert call_count == 3
 
     def test_max_retries_exceeded(self, manager):
         """测试超过最大重试次数"""
+
         async def always_failing_operation():
             raise ValueError("总是失败")
 
         with pytest.raises(ValueError):
-            asyncio.run(manager.execute_with_retry(
-                "test-task-3",
-                always_failing_operation,
-                policy_id="default"
-            ))
+            asyncio.run(
+                manager.execute_with_retry(
+                    "test-task-3", always_failing_operation, policy_id="default"
+                )
+            )
 
     def test_get_retry_statistics(self, manager):
         """测试获取重试统计"""
         stats = manager.get_retry_statistics()
-        assert 'total_tasks' in stats
-        assert 'active_retries' in stats
-        assert 'success_rate' in stats
+        assert "total_tasks" in stats
+        assert "active_retries" in stats
+        assert "success_rate" in stats
 
 
 class TestGracefulDegradationManager:
@@ -247,31 +245,20 @@ class TestGracefulDegradationManager:
     def test_handle_partial_failure(self, manager):
         """测试处理部分失败"""
         completed_tasks = [
-            ProcessingTask(
-                task_id="task-1",
-                task_type="api_call",
-                required=True
-            ),
-            ProcessingTask(
-                task_id="task-2",
-                task_type="api_call",
-                required=False
-            )
+            ProcessingTask(task_id="task-1", task_type="api_call", required=True),
+            ProcessingTask(task_id="task-2", task_type="api_call", required=False),
         ]
         failed_tasks = [
             ProcessingTask(
-                task_id="task-3",
-                task_type="api_call",
-                required=False,
-                retry_count=3
+                task_id="task-3", task_type="api_call", required=False, retry_count=3
             )
         ]
 
-        result = asyncio.run(manager.handle_partial_failure(
-            "test-session",
-            completed_tasks,
-            failed_tasks
-        ))
+        result = asyncio.run(
+            manager.handle_partial_failure(
+                "test-session", completed_tasks, failed_tasks
+            )
+        )
         assert result is not None
         assert result.recovery_success
         assert result.user_notification is not None
@@ -286,24 +273,21 @@ class TestGracefulDegradationManager:
 
         results = asyncio.run(manager.generate_partial_results("test-session-2"))
         assert results is not None
-        assert 'session_id' in results
-        assert 'summary' in results
+        assert "session_id" in results
+        assert "summary" in results
 
     def test_suggest_recovery_options(self, manager):
         """测试建议恢复选项"""
         failed_tasks = [
             ProcessingTask(
-                task_id="task-1",
-                task_type="api_call",
-                retry_count=0,
-                max_retries=3
+                task_id="task-1", task_type="api_call", retry_count=0, max_retries=3
             ),
             ProcessingTask(
                 task_id="task-2",
                 task_type="canvas_processing",
                 retry_count=3,
-                max_retries=3
-            )
+                max_retries=3,
+            ),
         ]
 
         options = asyncio.run(manager.suggest_recovery_options(failed_tasks))
@@ -320,9 +304,9 @@ class TestGracefulDegradationManager:
 
         report = asyncio.run(manager.create_failure_report("test-session-3"))
         assert report is not None
-        assert 'session_id' in report
-        assert 'task_summary' in report
-        assert 'recommendations' in report
+        assert "session_id" in report
+        assert "task_summary" in report
+        assert "recommendations" in report
 
 
 class TestErrorLogger:
@@ -345,14 +329,14 @@ class TestErrorLogger:
             error_code="LOG_TEST",
             error_message="测试日志错误",
             error_category=ErrorCategory.NETWORK,
-            severity=ErrorSeverity.MEDIUM
+            severity=ErrorSeverity.MEDIUM,
         )
 
         entry_id = logger.log_error(
             error_info,
             level=LogLevel.ERROR,
             source="test-source",
-            tags=["test", "network"]
+            tags=["test", "network"],
         )
         assert entry_id is not None
         assert len(entry_id) == 16  # MD5 hash length
@@ -364,7 +348,7 @@ class TestErrorLogger:
             error_code="PERSIST_TEST",
             error_message="测试持久化",
             error_category=ErrorCategory.SYSTEM,
-            severity=ErrorSeverity.HIGH
+            severity=ErrorSeverity.HIGH,
         )
 
         logger.log_error(error_info, source="test-persist")
@@ -374,7 +358,7 @@ class TestErrorLogger:
         assert len(log_files) > 0
 
         # 检查文件内容
-        with open(log_files[0], 'r', encoding='utf-8') as f:
+        with open(log_files[0], "r", encoding="utf-8") as f:
             content = f.read()
             assert "PERSIST_TEST" in content
 
@@ -384,9 +368,9 @@ class TestDiagnosticCollector:
 
     @pytest.fixture
     def collector(self, logger_config):
-        collector = DiagnosticCollector({
-            'diagnostic_dir': logger_config['diagnostic_dir']
-        })
+        collector = DiagnosticCollector(
+            {"diagnostic_dir": logger_config["diagnostic_dir"]}
+        )
         # 设置错误日志记录器
         collector.error_logger = ErrorLogger(logger_config)
         return collector
@@ -404,14 +388,14 @@ class TestDiagnosticCollector:
             error_code="DIAG_TEST",
             error_message="测试诊断",
             error_category=ErrorCategory.NETWORK,
-            severity=ErrorSeverity.MEDIUM
+            severity=ErrorSeverity.MEDIUM,
         )
         collector.error_logger.log_error(error_info, source="test-diag")
 
         # 生成诊断报告
-        report = asyncio.run(collector.generate_diagnostic_report(
-            diagnostic_level=DiagnosticLevel.BASIC
-        ))
+        report = asyncio.run(
+            collector.generate_diagnostic_report(diagnostic_level=DiagnosticLevel.BASIC)
+        )
         assert report is not None
         assert report.report_id is not None
         assert report.diagnostic_level == DiagnosticLevel.BASIC
@@ -441,13 +425,11 @@ class TestCircuitBreakerManager:
 
     def test_create_circuit_breaker(self, manager):
         """测试创建熔断器"""
-        result = asyncio.run(manager.create_circuit_breaker(
-            "test-service",
-            {
-                'failure_threshold': 3,
-                'recovery_timeout': 30.0
-            }
-        ))
+        result = asyncio.run(
+            manager.create_circuit_breaker(
+                "test-service", {"failure_threshold": 3, "recovery_timeout": 30.0}
+            )
+        )
         assert result is True
         assert "test-service" in manager._circuit_breakers
 
@@ -459,22 +441,19 @@ class TestCircuitBreakerManager:
         async def successful_operation():
             return "success"
 
-        result = asyncio.run(manager.call_through_circuit_breaker(
-            "test-service-2",
-            successful_operation
-        ))
+        result = asyncio.run(
+            manager.call_through_circuit_breaker("test-service-2", successful_operation)
+        )
         assert result == "success"
 
     def test_circuit_breaker_open_on_failures(self, manager):
         """测试失败时熔断器打开"""
         # 创建熔断器，设置较低的失败阈值
-        asyncio.run(manager.create_circuit_breaker(
-            "test-service-3",
-            {
-                'failure_threshold': 2,
-                'recovery_timeout': 1.0
-            }
-        ))
+        asyncio.run(
+            manager.create_circuit_breaker(
+                "test-service-3", {"failure_threshold": 2, "recovery_timeout": 1.0}
+            )
+        )
 
         async def failing_operation():
             raise ValueError("服务失败")
@@ -482,10 +461,11 @@ class TestCircuitBreakerManager:
         # 触发失败
         for _ in range(3):
             try:
-                asyncio.run(manager.call_through_circuit_breaker(
-                    "test-service-3",
-                    failing_operation
-                ))
+                asyncio.run(
+                    manager.call_through_circuit_breaker(
+                        "test-service-3", failing_operation
+                    )
+                )
             except ValueError:
                 pass
 
@@ -510,10 +490,10 @@ class TestCircuitBreakerManager:
         asyncio.run(manager.create_circuit_breaker("stats-service"))
 
         stats = manager.get_service_statistics()
-        assert 'total_circuits' in stats
-        assert 'circuits_by_state' in stats
-        assert 'overall_metrics' in stats
-        assert stats['total_circuits'] >= 1
+        assert "total_circuits" in stats
+        assert "circuits_by_state" in stats
+        assert "overall_metrics" in stats
+        assert stats["total_circuits"] >= 1
 
 
 class TestIntegration:
@@ -523,8 +503,8 @@ class TestIntegration:
         """测试完整的错误处理工作流"""
         # 创建配置
         config = {
-            'log_dir': str(temp_dir / 'integration' / 'logs'),
-            'diagnostic_dir': str(temp_dir / 'integration' / 'diagnostics')
+            "log_dir": str(temp_dir / "integration" / "logs"),
+            "diagnostic_dir": str(temp_dir / "integration" / "diagnostics"),
         }
 
         # 初始化组件
@@ -532,7 +512,7 @@ class TestIntegration:
         diagnostic_collector = DiagnosticCollector(config)
         diagnostic_collector.set_error_logger(error_logger)
 
-        retry_manager = RetryManager({'enabled': True})
+        retry_manager = RetryManager({"enabled": True})
         isolation_manager = ErrorIsolationManager({})
         degradation_manager = GracefulDegradationManager()
         circuit_manager = CircuitBreakerManager()
@@ -544,7 +524,7 @@ class TestIntegration:
             error_message="集成测试错误",
             error_category=ErrorCategory.NETWORK,
             severity=ErrorSeverity.HIGH,
-            instance_id="test-instance"
+            instance_id="test-instance",
         )
 
         # 1. 记录错误

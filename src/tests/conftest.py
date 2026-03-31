@@ -17,6 +17,7 @@ sys.path.insert(0, str(project_root))
 try:
     import jsonschema
     from jsonschema import ValidationError, validate
+
     JSONSCHEMA_AVAILABLE = True
 except ImportError:
     JSONSCHEMA_AVAILABLE = False
@@ -26,6 +27,7 @@ except ImportError:
 # =============================================================================
 # Path Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def specs_dir() -> Path:
@@ -43,15 +45,18 @@ def schemas_dir(specs_dir: Path) -> Path:
 # Schema Loading Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def load_schema(schemas_dir: Path):
     """Factory fixture to load a JSON schema by name."""
+
     def _load_schema(schema_name: str) -> Dict[str, Any]:
         schema_path = schemas_dir / schema_name
         if not schema_path.exists():
             pytest.skip(f"Schema not found: {schema_path}")
-        with open(schema_path, 'r', encoding='utf-8') as f:
+        with open(schema_path, "r", encoding="utf-8") as f:
             return json.load(f)
+
     return _load_schema
 
 
@@ -77,6 +82,7 @@ def agent_response_schema(load_schema) -> Dict[str, Any]:
 # Validation Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def validate_against_schema():
     """Factory fixture to validate data against a schema."""
@@ -92,20 +98,24 @@ def validate_against_schema():
                 f"Schema validation failed: {e.message}\n"
                 f"Path: {' -> '.join(str(p) for p in e.absolute_path)}"
             )
+
     return _validate
 
 
 @pytest.fixture
 def validate_canvas_node(canvas_node_schema, validate_against_schema):
     """Validate a canvas node against the schema."""
+
     def _validate(node: Dict[str, Any]) -> bool:
         return validate_against_schema(node, canvas_node_schema)
+
     return _validate
 
 
 # =============================================================================
 # Sample Data Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def sample_canvas_node() -> Dict[str, Any]:
@@ -118,5 +128,5 @@ def sample_canvas_node() -> Dict[str, Any]:
         "width": 300,
         "height": 150,
         "color": "1",
-        "text": "Sample concept"
+        "text": "Sample concept",
     }

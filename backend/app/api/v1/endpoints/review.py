@@ -20,13 +20,13 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Query, status
 
 from app.models import (
     ErrorResponse,
-    FSRSStateResponse,
     # Story 32.3: FSRS State Query Response
     FSRSStateQueryResponse,
+    FSRSStateResponse,
     GenerateReviewRequest,
     GenerateReviewResponse,
     # Story 34.4: Review History Models
@@ -45,14 +45,14 @@ from app.models import (
     # Story 31.6: Session Progress Models
     SessionPauseResumeResponse,
     SessionProgressResponse,
-    VerificationHistoryItem,
-    VerificationHistoryResponse,
-    VerificationStatusEnum,
     # EPIC-31: Interactive Verification Session Models
     StartSessionRequest,
     StartSessionResponse,
     SubmitAnswerRequest,
     SubmitAnswerResponse,
+    VerificationHistoryItem,
+    VerificationHistoryResponse,
+    VerificationStatusEnum,
 )
 
 # ✅ Add src directory to Python path for EbbinghausReviewScheduler import
@@ -68,6 +68,7 @@ _canvas_base_path = _project_root / "笔记库"
 # ✅ Import real EbbinghausReviewScheduler
 try:
     from ebbinghaus_review import EbbinghausReviewScheduler
+
     _scheduler = EbbinghausReviewScheduler()
     _scheduler_available = True
 except ImportError as e:
@@ -84,9 +85,7 @@ except ImportError as e:
 # See dependencies.py for the Depends()-based alias (unused by this router).
 from app.services.review_service import (
     get_review_service as _get_review_service_singleton,
-    reset_review_service_singleton as _reset_review_service_singleton,
 )
-
 
 # Code Review H1 Fix: Module-level VerificationService singleton with full DI.
 # The old _get_vs_singleton() created VerificationService() with zero args,
@@ -119,36 +118,16 @@ async def _get_or_create_verification_service():
     rag_service = None
     try:
         from app.dependencies import get_rag_service
+
         rag_service = get_rag_service()
     except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"RAG service not available for VerificationService: {e}")
-
-    # 2. Cross-canvas service (Story 24.5)
-    cross_canvas_service = None
-    try:
-        from app.dependencies import get_cross_canvas_service
-        cross_canvas_service = get_cross_canvas_service()
-    except (ImportError, RuntimeError, AttributeError) as e:
-        logger.warning(f"CrossCanvas service not available: {e}")
-
-    # 3. Textbook context service (Story 24.5 AC4)
-    textbook_service = None
-    try:
-        from app.services.textbook_context_service import (
-            TextbookContextService, TextbookContextConfig
-        )
-        textbook_config = TextbookContextConfig(timeout=3.0)
-        textbook_service = TextbookContextService(
-            canvas_base_path=settings.canvas_base_path,
-            config=textbook_config
-        )
-    except (ImportError, RuntimeError, AttributeError) as e:
-        logger.warning(f"TextbookContext service not available: {e}")
 
     # 4. Graphiti client (Story 31.4 - question deduplication)
     graphiti_client = None
     try:
         from app.dependencies import get_graphiti_temporal_client
+
         graphiti_client = get_graphiti_temporal_client()
     except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"Graphiti client not available for deduplication: {e}")
@@ -157,6 +136,7 @@ async def _get_or_create_verification_service():
     memory_service = None
     try:
         from app.services.memory_service import get_memory_service
+
         memory_service = await get_memory_service()
     except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"MemoryService not available for difficulty adaptation: {e}")
@@ -164,8 +144,8 @@ async def _get_or_create_verification_service():
     # 6. Agent service (Story 31.1 - AI scoring + question generation)
     agent_service = None
     try:
-        from app.dependencies import get_neo4j_client_dep
         from app.clients.gemini_client import GeminiClient
+        from app.dependencies import get_neo4j_client_dep
         from app.services.agent_service import AgentService
 
         gemini_client = None
@@ -173,12 +153,11 @@ async def _get_or_create_verification_service():
             gemini_client = GeminiClient(
                 api_key=settings.AI_API_KEY,
                 model=settings.AI_MODEL_NAME,
-                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
+                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
             )
         neo4j_client = get_neo4j_client_dep()
         agent_service = AgentService(
-            gemini_client=gemini_client,
-            neo4j_client=neo4j_client
+            gemini_client=gemini_client, neo4j_client=neo4j_client
         )
     except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"AgentService not available for AI scoring: {e}")
@@ -187,19 +166,20 @@ async def _get_or_create_verification_service():
     canvas_service = None
     try:
         from app.services.canvas_service import CanvasService
+
         canvas_service = CanvasService(canvas_base_path=settings.canvas_base_path)
     except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"CanvasService not available for concept extraction: {e}")
 
     _verification_service_instance = VerificationService(
         rag_service=rag_service,
-        cross_canvas_service=cross_canvas_service,
-        textbook_context_service=textbook_service,
         graphiti_client=graphiti_client,
         memory_service=memory_service,
         agent_service=agent_service,
         canvas_service=canvas_service,
-        canvas_base_path=str(settings.canvas_base_path) if settings.canvas_base_path else None
+        canvas_base_path=str(settings.canvas_base_path)
+        if settings.canvas_base_path
+        else None,
     )
 
     logger.info(
@@ -221,6 +201,7 @@ async def _get_or_create_verification_service():
 try:
     from app.services.question_generator import QuestionGenerator
     from app.services.topic_clustering import TopicClusterer
+
     _services_available = True
 except ImportError:
     _services_available = False
@@ -228,9 +209,10 @@ except ImportError:
 
 # AI-enhanced question generation for verification canvas
 try:
-    from app.services.agent_service import AgentService, AgentType
     from app.clients.gemini_client import GeminiClient
     from app.core.config import get_settings
+    from app.services.agent_service import AgentService, AgentType
+
     _ai_question_available = True
 except ImportError:
     _ai_question_available = False
@@ -239,10 +221,11 @@ except ImportError:
 # Story 31.2+31.5: Difficulty adaptation for one-click canvas generation
 try:
     from app.services.verification_service import (
-        calculate_full_difficulty_result,
-        DifficultyResult,
         DifficultyLevel,
+        DifficultyResult,
+        calculate_full_difficulty_result,
     )
+
     _difficulty_available = True
 except ImportError:
     _difficulty_available = False
@@ -250,8 +233,7 @@ except ImportError:
 
 
 async def _get_difficulty_data(
-    nodes_to_review: List[Dict],
-    source_canvas: str
+    nodes_to_review: List[Dict], source_canvas: str
 ) -> Optional[Dict[str, "DifficultyResult"]]:
     """
     Query historical scores for all nodes and compute difficulty results.
@@ -270,11 +252,14 @@ async def _get_difficulty_data(
 
     try:
         from app.services.memory_service import get_memory_service
+
         memory_service = await get_memory_service()
 
         # H1 fix: Guard against Neo4j not configured (memory_service.neo4j is None)
-        if not hasattr(memory_service, 'neo4j') or memory_service.neo4j is None:
-            logger.info("Difficulty data skipped: Neo4j not configured (graceful degradation)")
+        if not hasattr(memory_service, "neo4j") or memory_service.neo4j is None:
+            logger.info(
+                "Difficulty data skipped: Neo4j not configured (graceful degradation)"
+            )
             return None
 
         async def _query_one(node: Dict) -> tuple:
@@ -284,12 +269,12 @@ async def _get_difficulty_data(
                 return (node_id, None)
             try:
                 history = await memory_service.get_concept_score_history(
-                    concept_id=node_id,
-                    canvas_name=source_canvas,
-                    limit=5
+                    concept_id=node_id, canvas_name=source_canvas, limit=5
                 )
                 if history and history.scores:
-                    recent = history.scores[-1]  # M3 fix: scores guaranteed non-empty here
+                    recent = history.scores[
+                        -1
+                    ]  # M3 fix: scores guaranteed non-empty here
                     result = calculate_full_difficulty_result(history.scores, recent)
                     return (node_id, result)
                 return (node_id, None)
@@ -300,8 +285,7 @@ async def _get_difficulty_data(
         # Parallel query all nodes with 5s total timeout
         tasks = [_query_one(n) for n in nodes_to_review]
         results = await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True),
-            timeout=5.0
+            asyncio.gather(*tasks, return_exceptions=True), timeout=5.0
         )
 
         difficulty_map: Dict[str, "DifficultyResult"] = {}
@@ -322,8 +306,17 @@ async def _get_difficulty_data(
 
         return None
 
-    except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError, AttributeError) as e:
-        logger.warning(f"Difficulty data retrieval failed (graceful degradation): {e}", exc_info=True)
+    except (
+        RuntimeError,
+        ConnectionError,
+        asyncio.TimeoutError,
+        ValueError,
+        AttributeError,
+    ) as e:
+        logger.warning(
+            f"Difficulty data retrieval failed (graceful degradation): {e}",
+            exc_info=True,
+        )
         return None
 
 
@@ -331,7 +324,7 @@ def _get_difficulty_enhanced_question_text(
     original_text: str,
     node_color: str,
     node_id: str,
-    difficulty_map: Optional[Dict[str, "DifficultyResult"]] = None
+    difficulty_map: Optional[Dict[str, "DifficultyResult"]] = None,
 ) -> str:
     """
     Generate difficulty-enhanced question text for fallback (non-AI) questions.
@@ -360,7 +353,9 @@ def _get_difficulty_enhanced_question_text(
         elif diff.level == DifficultyLevel.HARD:
             return f"{forgetting_prefix}🔵 应用型：请分析 {original_text} 在实际场景中的应用"
         else:  # MEDIUM
-            return f"{forgetting_prefix}🟣 验证型：请详细描述 {original_text} 并举例说明"
+            return (
+                f"{forgetting_prefix}🟣 验证型：请详细描述 {original_text} 并举例说明"
+            )
 
     # No difficulty data: original color-based fallback
     if node_color == "4":  # Red (不理解) - breakthrough
@@ -371,7 +366,7 @@ def _get_difficulty_enhanced_question_text(
 
 async def _generate_ai_questions(
     nodes_to_review: List[Dict],
-    difficulty_map: Optional[Dict[str, "DifficultyResult"]] = None
+    difficulty_map: Optional[Dict[str, "DifficultyResult"]] = None,
 ) -> Optional[Dict[str, str]]:
     """
     Generate AI-powered questions for verification canvas using verification-question-agent.
@@ -388,6 +383,7 @@ async def _generate_ai_questions(
 
     try:
         import asyncio as asyncio
+
         settings = get_settings()
         if not settings.AI_API_KEY:
             return None
@@ -395,7 +391,7 @@ async def _generate_ai_questions(
         gemini_client = GeminiClient(
             api_key=settings.AI_API_KEY,
             model=settings.AI_MODEL_NAME,
-            base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
+            base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
         )
         agent_service = AgentService(gemini_client=gemini_client)
 
@@ -414,7 +410,7 @@ async def _generate_ai_questions(
                 "content": content,
                 "type": node_type,
                 "related_yellow": [],
-                "parent_content": ""
+                "parent_content": "",
             }
 
             # Story 31.2+31.5: Inject difficulty context for AI question generation
@@ -435,7 +431,7 @@ async def _generate_ai_questions(
         # Single batch call - all nodes in one request (20s timeout)
         result = await asyncio.wait_for(
             agent_service.call_agent(AgentType.VERIFICATION_QUESTION, prompt),
-            timeout=20.0
+            timeout=20.0,
         )
 
         if result and result.success and result.data:
@@ -449,8 +445,11 @@ async def _generate_ai_questions(
 
                 if src_id and text:
                     type_emoji = {
-                        "突破型": "🔴", "基础型": "🔴",
-                        "检验型": "🟣", "应用型": "🔵", "综合型": "🟢",
+                        "突破型": "🔴",
+                        "基础型": "🔴",
+                        "检验型": "🟣",
+                        "应用型": "🔵",
+                        "综合型": "🟢",
                     }.get(q_type, "❓")
                     full_text = f"{type_emoji} {q_type}：{text}"
                     if guidance and guidance.strip():
@@ -465,14 +464,22 @@ async def _generate_ai_questions(
 
         return None
 
-    except (RuntimeError, ValueError, asyncio.TimeoutError, AttributeError, json.JSONDecodeError) as e:
+    except (
+        RuntimeError,
+        ValueError,
+        asyncio.TimeoutError,
+        AttributeError,
+        json.JSONDecodeError,
+    ) as e:
         logger.warning(f"AI question generation failed for canvas: {e}")
         return None
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Canvas File Operations (P0 Task #7)
 # [Source: Plan - P0 Task #7: Implement real verification canvas generation]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def _read_canvas(canvas_path: Path) -> Optional[Dict[str, Any]]:
     """Read Canvas JSON file and return data."""
@@ -494,6 +501,7 @@ def _write_canvas(canvas_path: Path, canvas_data: Dict[str, Any]) -> bool:
         if canvas_path.exists():
             backup_path = canvas_path.with_suffix(".canvas.bak")
             import shutil
+
             shutil.copy2(canvas_path, backup_path)
 
         # Write new data
@@ -511,9 +519,7 @@ def _generate_node_id() -> str:
 
 
 def _extract_review_nodes(
-    source_nodes: List[Dict],
-    node_ids: Optional[List[str]],
-    mode: str = "fresh"
+    source_nodes: List[Dict], node_ids: Optional[List[str]], mode: str = "fresh"
 ) -> List[Dict]:
     """
     Extract nodes for verification canvas based on PRD F8 + Story 4.1.
@@ -541,7 +547,8 @@ def _extract_review_nodes(
 
     # Filter text nodes with target colors
     all_target_nodes = [
-        n for n in source_nodes
+        n
+        for n in source_nodes
         if n.get("type") == "text" and n.get("color") in target_colors
     ]
 
@@ -563,6 +570,7 @@ def _extract_review_nodes(
     # Default: return all target nodes
     return all_target_nodes
 
+
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 # APIRouter(prefix, tags, responses) for modular routing
 review_router = APIRouter(
@@ -576,6 +584,7 @@ review_router = APIRouter(
 # Review Endpoints (3)
 # [Source: specs/api/fastapi-backend-api.openapi.yml#Review Endpoints]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @review_router.get(
     "/schedule",
@@ -594,7 +603,9 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
     logger.info("GET /review/schedule days=%d", days)
     # ✅ Connected to real EbbinghausReviewScheduler (P0 Task #1)
     if not _scheduler_available or _scheduler is None:
-        logger.warning("EbbinghausReviewScheduler not available, returning empty schedule")
+        logger.warning(
+            "EbbinghausReviewScheduler not available, returning empty schedule"
+        )
         return ReviewScheduleResponse(items=[], total_count=0)
 
     try:
@@ -604,13 +615,15 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
         # Convert to ReviewItem format
         items = []
         for review in raw_reviews:
-            items.append(ReviewItem(
-                canvas_name=review.get("canvas_name", "unknown"),
-                node_id=review.get("node_id", ""),
-                concept=review.get("concept", review.get("content", "")),
-                due_date=date.today(),
-                interval_days=review.get("interval", 1),
-            ))
+            items.append(
+                ReviewItem(
+                    canvas_name=review.get("canvas_name", "unknown"),
+                    node_id=review.get("node_id", ""),
+                    concept=review.get("concept", review.get("content", "")),
+                    due_date=date.today(),
+                    interval_days=review.get("interval", 1),
+                )
+            )
 
         return ReviewScheduleResponse(
             items=items,
@@ -627,21 +640,26 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
 # [Source: docs/stories/34.4.story.md]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @review_router.get(
     "/history",
     response_model=HistoryResponse,
     summary="Get review history",
     operation_id="get_review_history",
-    responses={
-        404: {"model": ErrorResponse, "description": "No history found"}
-    }
+    responses={404: {"model": ErrorResponse, "description": "No history found"}},
 )
 async def get_review_history(
-    days: int = Query(7, ge=1, le=365, description="Number of days to look back (1-365)"),
+    days: int = Query(
+        7, ge=1, le=365, description="Number of days to look back (1-365)"
+    ),
     canvas_path: Optional[str] = None,
     concept_name: Optional[str] = None,
-    limit: int = Query(5, ge=1, le=100, description="Maximum records to return (1-100)"),
-    show_all: bool = Query(False, description="If true, return all records up to hard cap")
+    limit: int = Query(
+        5, ge=1, le=100, description="Maximum records to return (1-100)"
+    ),
+    show_all: bool = Query(
+        False, description="If true, return all records up to hard cap"
+    ),
 ) -> HistoryResponse:
     """
     Get review history with pagination support.
@@ -659,9 +677,16 @@ async def get_review_history(
     [Source: specs/api/review-api.openapi.yml#L185-216]
     [Source: docs/stories/34.4.story.md]
     """
-    from datetime import date, datetime as dt, timedelta
+    from datetime import date
+    from datetime import datetime as dt
 
-    logger.info("GET /review/history days=%d limit=%d show_all=%s concept=%s", days, limit, show_all, concept_name)
+    logger.info(
+        "GET /review/history days=%d limit=%d show_all=%s concept=%s",
+        days,
+        limit,
+        show_all,
+        concept_name,
+    )
     # Story 34.8 AC4: days validated by Query(ge=1, le=365) — no hardcoded whitelist
 
     # Calculate date range
@@ -674,12 +699,13 @@ async def get_review_history(
     try:
         # Story 34.8 AC3: show_all uses hard cap instead of unlimited
         from app.services.review_service import MAX_HISTORY_RECORDS
+
         effective_limit = MAX_HISTORY_RECORDS if show_all else limit
         result = await review_service.get_history(
             days=days,
             canvas_path=canvas_path,
             concept_name=concept_name,
-            limit=effective_limit
+            limit=effective_limit,
         )
 
         # Build response
@@ -691,21 +717,22 @@ async def get_review_history(
         for day_data in result.get("records", []):
             day_reviews = []
             for review in day_data.get("reviews", []):
-                day_reviews.append(HistoryReviewRecord(
-                    concept_id=review.get("concept_id", ""),
-                    concept_name=review.get("concept_name", ""),
-                    canvas_path=review.get("canvas_path", ""),
-                    rating=review.get("rating", 3),
-                    review_time=review.get("review_time", dt.now())
-                ))
+                day_reviews.append(
+                    HistoryReviewRecord(
+                        concept_id=review.get("concept_id", ""),
+                        concept_name=review.get("concept_name", ""),
+                        canvas_path=review.get("canvas_path", ""),
+                        rating=review.get("rating", 3),
+                        review_time=review.get("review_time", dt.now()),
+                    )
+                )
                 all_ratings.append(review.get("rating", 3))
                 canvas = review.get("canvas_path", "")
                 canvas_counts[canvas] = canvas_counts.get(canvas, 0) + 1
 
-            records.append(HistoryDayRecord(
-                date=day_data.get("date", ""),
-                reviews=day_reviews
-            ))
+            records.append(
+                HistoryDayRecord(date=day_data.get("date", ""), reviews=day_reviews)
+            )
             total_reviews += len(day_reviews)
 
         # Calculate statistics
@@ -714,18 +741,14 @@ async def get_review_history(
             average_rating=round(avg_rating, 2) if avg_rating else None,
             retention_rate=result.get("retention_rate"),
             streak_days=result.get("streak_days", 0),
-            by_canvas=canvas_counts if canvas_counts else None
+            by_canvas=canvas_counts if canvas_counts else None,
         )
 
         # Build pagination info
         # Story 34.8 AC3: has_more must reflect real truncation status,
         # even when show_all=True (cap at MAX_HISTORY_RECORDS may truncate)
         has_more = result.get("has_more", False)
-        pagination = PaginationInfo(
-            limit=effective_limit,
-            offset=0,
-            has_more=has_more
-        )
+        pagination = PaginationInfo(limit=effective_limit, offset=0, has_more=has_more)
 
         # Story 34.8 AC3: total_reviews must reflect real total count
         # (not affected by limit truncation)
@@ -733,13 +756,12 @@ async def get_review_history(
 
         return HistoryResponse(
             period=HistoryPeriod(
-                start=start_date.isoformat(),
-                end=end_date.isoformat()
+                start=start_date.isoformat(), end=end_date.isoformat()
             ),
             total_reviews=real_total,
             records=records,
             statistics=statistics,
-            pagination=pagination
+            pagination=pagination,
         )
 
     except Exception as e:
@@ -747,13 +769,12 @@ async def get_review_history(
         # Return empty response on error
         return HistoryResponse(
             period=HistoryPeriod(
-                start=start_date.isoformat(),
-                end=end_date.isoformat()
+                start=start_date.isoformat(), end=end_date.isoformat()
             ),
             total_reviews=0,
             records=[],
             statistics=None,
-            pagination=PaginationInfo(limit=limit, offset=0, has_more=False)
+            pagination=PaginationInfo(limit=limit, offset=0, has_more=False),
         )
 
 
@@ -781,7 +802,12 @@ async def generate_verification_canvas(
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1generate]
     [Source: Story 24.1 - Mode Support]
     """
-    logger.info("POST /review/generate source=%s mode=%s node_count=%d", request.source_canvas, request.mode, len(request.node_ids or []))
+    logger.info(
+        "POST /review/generate source=%s mode=%s node_count=%d",
+        request.source_canvas,
+        request.mode,
+        len(request.node_ids or []),
+    )
     # ✅ PRD Compliant Implementation (Epic 4)
     # [Source: docs/prd/FULL-PRD-REFERENCE.md - F8, Story 4.1-4.9]
     # ✅ Story 24.1: Mode parameter support added
@@ -799,7 +825,7 @@ async def generate_verification_canvas(
             return GenerateReviewResponse(
                 verification_canvas_name=verification_canvas_name,
                 node_count=0,
-                mode_used=request.mode  # ✅ Story 24.1
+                mode_used=request.mode,  # ✅ Story 24.1
             )
 
     # Step 2: Read source canvas
@@ -808,7 +834,7 @@ async def generate_verification_canvas(
         return GenerateReviewResponse(
             verification_canvas_name=verification_canvas_name,
             node_count=0,
-            mode_used=request.mode  # ✅ Story 24.1
+            mode_used=request.mode,  # ✅ Story 24.1
         )
 
     # Step 3: Extract nodes to review (PRD F8 + Story 4.1)
@@ -818,38 +844,46 @@ async def generate_verification_canvas(
     review_mode = request.mode  # Now comes from GenerateReviewRequest schema
 
     nodes_to_review = _extract_review_nodes(
-        source_nodes,
-        request.node_ids,
-        mode=review_mode
+        source_nodes, request.node_ids, mode=review_mode
     )
 
     if not nodes_to_review:
-        logger.warning(f"No red/purple nodes found in {request.source_canvas} (mode={review_mode})")
+        logger.warning(
+            f"No red/purple nodes found in {request.source_canvas} (mode={review_mode})"
+        )
         return GenerateReviewResponse(
             verification_canvas_name=verification_canvas_name,
             node_count=0,
-            mode_used=review_mode  # ✅ Story 24.1
+            mode_used=review_mode,  # ✅ Story 24.1
         )
 
     # Step 3.5: Query difficulty data for all nodes (Story 31.2+31.5)
     difficulty_map = None
     skipped_mastered_count = 0
     if _difficulty_available:
-        difficulty_map = await _get_difficulty_data(nodes_to_review, request.source_canvas)
+        difficulty_map = await _get_difficulty_data(
+            nodes_to_review, request.source_canvas
+        )
 
     # Step 3.6: Filter mastered concepts if requested (Story 31.5)
     if request.skip_mastered and difficulty_map:
         pre_filter_count = len(nodes_to_review)
         nodes_to_review = [
-            n for n in nodes_to_review
-            if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)
+            n
+            for n in nodes_to_review
+            if not (
+                n.get("id") in difficulty_map
+                and difficulty_map[n.get("id")].is_mastered
+            )
         ]
         skipped_mastered_count = pre_filter_count - len(nodes_to_review)
         if skipped_mastered_count > 0:
             logger.info(f"Skipped {skipped_mastered_count} mastered concepts")
 
         if not nodes_to_review:
-            logger.info(f"All concepts mastered in {request.source_canvas}, nothing to review")
+            logger.info(
+                f"All concepts mastered in {request.source_canvas}, nothing to review"
+            )
             return GenerateReviewResponse(
                 verification_canvas_name=verification_canvas_name,
                 node_count=0,
@@ -900,7 +934,9 @@ async def generate_verification_canvas(
         pair_height = question_height + answer_height + 30  # Q + A + gap
 
         group_width = num_cols * (node_width + node_padding) + node_padding
-        group_height = num_rows * (pair_height + node_padding) + node_padding + 60  # +60 for label
+        group_height = (
+            num_rows * (pair_height + node_padding) + node_padding + 60
+        )  # +60 for label
 
         # Create Group node (PRD Story 4.3)
         group_id = _generate_node_id()
@@ -935,7 +971,9 @@ async def generate_verification_canvas(
             elif question_gen:
                 # Template-based question generation
                 questions = question_gen.generate_questions(source_node)
-                question_text = questions[0] if questions else f"请解释：{original_text}"
+                question_text = (
+                    questions[0] if questions else f"请解释：{original_text}"
+                )
             else:
                 # Fallback: difficulty-enhanced or simple question format
                 # Story 31.2+31.5: Use difficulty data if available
@@ -1049,9 +1087,15 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1record]
     [Source: docs/stories/32.2.story.md - FSRS Integration]
     """
-    from datetime import date, timedelta
+    from datetime import date
 
-    logger.info("PUT /review/record canvas=%s node=%s rating=%s score=%s", request.canvas_name, request.node_id, request.rating, request.score)
+    logger.info(
+        "PUT /review/record canvas=%s node=%s rating=%s score=%s",
+        request.canvas_name,
+        request.node_id,
+        request.rating,
+        request.score,
+    )
     # Story 38.9 AC3: Use canonical singleton from services layer
     review_service = await _get_review_service_singleton()
 
@@ -1068,7 +1112,7 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
             rating=request.rating,
             score=request.score,
             card_state=request.card_state,
-            details=details if details else None
+            details=details if details else None,
         )
 
         # Build response with FSRS state if available
@@ -1080,7 +1124,7 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
                 difficulty=state.get("difficulty", 5.0),
                 state=state.get("state", 0),
                 reps=state.get("reps", 0),
-                lapses=state.get("lapses", 0)
+                lapses=state.get("lapses", 0),
             )
 
         # Code Review Fix: Map service return keys correctly
@@ -1099,7 +1143,7 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
             new_interval=interval,
             fsrs_state=fsrs_state,
             card_data=result.get("card_data"),
-            algorithm=result.get("algorithm", "fsrs-4.5")
+            algorithm=result.get("algorithm", "fsrs-4.5"),
         )
 
     except Exception as e:
@@ -1122,20 +1166,19 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
         return RecordReviewResponse(
             next_review_date=date.today() + timedelta(days=interval),
             new_interval=interval,
-            algorithm="ebbinghaus-fallback"
+            algorithm="ebbinghaus-fallback",
         )
+
 
 @review_router.get(
     "/progress/multi/{original_canvas_path:path}",
     response_model=MultiReviewProgressResponse,
     summary="Get multi-review trend analysis",
     operation_id="get_multi_review_progress",
-    responses={
-        404: {"model": ErrorResponse, "description": "No review history"}
-    }
+    responses={404: {"model": ErrorResponse, "description": "No review history"}},
 )
 async def get_multi_review_progress(
-    original_canvas_path: str
+    original_canvas_path: str,
 ) -> MultiReviewProgressResponse:
     """
     Get trend analysis for multiple verification canvas sessions.
@@ -1160,9 +1203,9 @@ async def get_multi_review_progress(
         return MultiReviewProgressResponse(**result)
     except CanvasNotFoundException as e:
         from fastapi import HTTPException
+
         raise HTTPException(
-            status_code=404,
-            detail=f"无检验历史: {original_canvas_path}"
+            status_code=404, detail=f"无检验历史: {original_canvas_path}"
         ) from e
 
 
@@ -1172,22 +1215,21 @@ async def get_multi_review_progress(
 # [Source: docs/stories/31.4.story.md#Task-4]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @review_router.get(
     "/verification/history/{concept}",
     response_model=VerificationHistoryResponse,
     summary="Get verification question history",
     operation_id="get_verification_history",
-    responses={
-        404: {"model": ErrorResponse, "description": "No history found"}
-    },
-    tags=["verification"]
+    responses={404: {"model": ErrorResponse, "description": "No history found"}},
+    tags=["verification"],
 )
 async def get_verification_history(
     concept: str,
     canvas_name: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
-    group_id: Optional[str] = None
+    group_id: Optional[str] = None,
 ) -> VerificationHistoryResponse:
     """
     Get verification question history for a concept.
@@ -1209,7 +1251,12 @@ async def get_verification_history(
     [Source: specs/api/review-api.openapi.yml#/verification/history/{concept}]
     [Source: docs/stories/31.4.story.md#Task-4]
     """
-    logger.info("GET /verification/history concept=%s limit=%d offset=%d", concept, limit, offset)
+    logger.info(
+        "GET /verification/history concept=%s limit=%d offset=%d",
+        concept,
+        limit,
+        offset,
+    )
     from datetime import datetime as dt
 
     from fastapi import HTTPException
@@ -1218,15 +1265,9 @@ async def get_verification_history(
 
     # Validate pagination parameters
     if limit < 1 or limit > 100:
-        raise HTTPException(
-            status_code=400,
-            detail="limit must be between 1 and 100"
-        )
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 100")
     if offset < 0:
-        raise HTTPException(
-            status_code=400,
-            detail="offset must be non-negative"
-        )
+        raise HTTPException(status_code=400, detail="offset must be non-negative")
 
     # Get Graphiti client
     graphiti_client = get_graphiti_temporal_client()
@@ -1238,11 +1279,7 @@ async def get_verification_history(
             concept=concept,
             total_count=0,
             items=[],
-            pagination=PaginationInfo(
-                limit=limit,
-                offset=offset,
-                has_more=False
-            )
+            pagination=PaginationInfo(limit=limit, offset=offset, has_more=False),
         )
 
     try:
@@ -1255,7 +1292,7 @@ async def get_verification_history(
             concept=concept,
             canvas_name=canvas_name,
             group_id=group_id,
-            limit=fetch_limit
+            limit=fetch_limit,
         )
 
         # H3 fix: total_count reflects all available results (capped at fetch_limit)
@@ -1288,25 +1325,23 @@ async def get_verification_history(
             else:
                 asked_at = dt.now()
 
-            items.append(VerificationHistoryItem(
-                question_id=record.get("question_id", ""),
-                question_text=record.get("question_text", ""),
-                question_type=q_type,
-                user_answer=record.get("user_answer"),
-                score=record.get("score"),
-                canvas_name=record.get("canvas_name", canvas_name or ""),
-                asked_at=asked_at
-            ))
+            items.append(
+                VerificationHistoryItem(
+                    question_id=record.get("question_id", ""),
+                    question_text=record.get("question_text", ""),
+                    question_type=q_type,
+                    user_answer=record.get("user_answer"),
+                    score=record.get("score"),
+                    canvas_name=record.get("canvas_name", canvas_name or ""),
+                    asked_at=asked_at,
+                )
+            )
 
         return VerificationHistoryResponse(
             concept=concept,
             total_count=total_count,
             items=items,
-            pagination=PaginationInfo(
-                limit=limit,
-                offset=offset,
-                has_more=has_more
-            )
+            pagination=PaginationInfo(limit=limit, offset=offset, has_more=has_more),
         )
 
     except Exception as e:
@@ -1316,11 +1351,7 @@ async def get_verification_history(
             concept=concept,
             total_count=0,
             items=[],
-            pagination=PaginationInfo(
-                limit=limit,
-                offset=offset,
-                has_more=False
-            )
+            pagination=PaginationInfo(limit=limit, offset=offset, has_more=False),
         )
 
 
@@ -1330,6 +1361,7 @@ async def get_verification_history(
 # [Source: docs/stories/32.3.story.md#Task-1]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @review_router.get(
     "/fsrs-state/{concept_id}",
     response_model=FSRSStateQueryResponse,
@@ -1337,9 +1369,9 @@ async def get_verification_history(
     operation_id="get_fsrs_state",
     responses={
         200: {"model": FSRSStateQueryResponse, "description": "FSRS state found"},
-        404: {"model": ErrorResponse, "description": "Concept not found"}
+        404: {"model": ErrorResponse, "description": "Concept not found"},
     },
-    tags=["fsrs"]
+    tags=["fsrs"],
 )
 async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
     """
@@ -1372,7 +1404,7 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
                 fsrs_state=None,
                 card_state=None,
                 found=False,
-                reason=result.get("reason") if result else "unknown"
+                reason=result.get("reason") if result else "unknown",
             )
 
         # Build FSRSStateResponse with all fields including retrievability and due
@@ -1384,14 +1416,14 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
             lapses=result.get("lapses", 0),
             retrievability=result.get("retrievability"),
             due=result.get("due"),
-            last_review=result.get("last_review")
+            last_review=result.get("last_review"),
         )
 
         return FSRSStateQueryResponse(
             concept_id=concept_id,
             fsrs_state=fsrs_state,
             card_state=result.get("card_state"),
-            found=True
+            found=True,
         )
 
     except Exception as e:
@@ -1402,7 +1434,7 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
             fsrs_state=None,
             card_state=None,
             found=False,
-            reason=f"error: {e}"
+            reason=f"error: {e}",
         )
 
 
@@ -1412,6 +1444,7 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
 # [Source: specs/api/review-api.openapi.yml#/review/session/{session_id}/progress]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @review_router.get(
     "/session/{session_id}/progress",
     response_model=SessionProgressResponse,
@@ -1419,9 +1452,9 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
     operation_id="get_session_progress",
     responses={
         200: {"model": SessionProgressResponse, "description": "Session progress"},
-        404: {"model": ErrorResponse, "description": "Session not found"}
+        404: {"model": ErrorResponse, "description": "Session not found"},
     },
-    tags=["verification-session"]
+    tags=["verification-session"],
 )
 async def get_session_progress(session_id: str) -> SessionProgressResponse:
     """
@@ -1451,7 +1484,7 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
         if progress is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Session '{session_id}' not found"
+                detail=f"Session '{session_id}' not found",
             )
 
         # Convert VerificationProgress dataclass to Pydantic response
@@ -1482,7 +1515,7 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
         logger.error(f"Error getting session progress for '{session_id}': {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get session progress: {str(e)}"
+            detail=f"Failed to get session progress: {str(e)}",
         )
 
 
@@ -1494,9 +1527,9 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
     responses={
         200: {"model": SessionPauseResumeResponse, "description": "Session paused"},
         404: {"model": ErrorResponse, "description": "Session not found"},
-        400: {"model": ErrorResponse, "description": "Session cannot be paused"}
+        400: {"model": ErrorResponse, "description": "Session cannot be paused"},
     },
-    tags=["verification-session"]
+    tags=["verification-session"],
 )
 async def pause_session(session_id: str) -> SessionPauseResumeResponse:
     """
@@ -1523,13 +1556,13 @@ async def pause_session(session_id: str) -> SessionPauseResumeResponse:
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Session '{session_id}' cannot be paused (not found or not in active state)"
+                detail=f"Session '{session_id}' cannot be paused (not found or not in active state)",
             )
 
         return SessionPauseResumeResponse(
             session_id=session_id,
             status=VerificationStatusEnum.paused,
-            message="Session paused successfully"
+            message="Session paused successfully",
         )
 
     except HTTPException:
@@ -1538,7 +1571,7 @@ async def pause_session(session_id: str) -> SessionPauseResumeResponse:
         logger.error(f"Error pausing session '{session_id}': {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to pause session: {str(e)}"
+            detail=f"Failed to pause session: {str(e)}",
         )
 
 
@@ -1550,9 +1583,9 @@ async def pause_session(session_id: str) -> SessionPauseResumeResponse:
     responses={
         200: {"model": SessionPauseResumeResponse, "description": "Session resumed"},
         404: {"model": ErrorResponse, "description": "Session not found"},
-        400: {"model": ErrorResponse, "description": "Session cannot be resumed"}
+        400: {"model": ErrorResponse, "description": "Session cannot be resumed"},
     },
-    tags=["verification-session"]
+    tags=["verification-session"],
 )
 async def resume_session(session_id: str) -> SessionPauseResumeResponse:
     """
@@ -1579,13 +1612,13 @@ async def resume_session(session_id: str) -> SessionPauseResumeResponse:
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Session '{session_id}' cannot be resumed (not found or not paused)"
+                detail=f"Session '{session_id}' cannot be resumed (not found or not paused)",
             )
 
         return SessionPauseResumeResponse(
             session_id=session_id,
             status=VerificationStatusEnum.in_progress,
-            message="Session resumed successfully"
+            message="Session resumed successfully",
         )
 
     except HTTPException:
@@ -1594,7 +1627,7 @@ async def resume_session(session_id: str) -> SessionPauseResumeResponse:
         logger.error(f"Error resuming session '{session_id}': {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to resume session: {str(e)}"
+            detail=f"Failed to resume session: {str(e)}",
         )
 
 
@@ -1602,6 +1635,7 @@ async def resume_session(session_id: str) -> SessionPauseResumeResponse:
 # EPIC-31: Interactive Verification Session Endpoints
 # Bridges VerificationService.start_session() and process_answer() to HTTP
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @review_router.post(
     "/session/start",
@@ -1613,7 +1647,7 @@ async def resume_session(session_id: str) -> SessionPauseResumeResponse:
         404: {"model": ErrorResponse, "description": "Canvas not found"},
         504: {"model": ErrorResponse, "description": "AI timeout"},
     },
-    tags=["verification-session"]
+    tags=["verification-session"],
 )
 async def start_verification_session(
     request: StartSessionRequest,
@@ -1630,7 +1664,11 @@ async def start_verification_session(
 
     Returns session_id and first_question for the frontend modal.
     """
-    logger.info("POST /verification/start canvas=%s node_ids=%s", request.canvas_name, request.node_ids)
+    logger.info(
+        "POST /verification/start canvas=%s node_ids=%s",
+        request.canvas_name,
+        request.node_ids,
+    )
     from fastapi import HTTPException
 
     try:
@@ -1650,7 +1688,7 @@ async def start_verification_session(
         if result["total_concepts"] == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No verifiable concepts found in canvas '{request.canvas_name}'"
+                detail=f"No verifiable concepts found in canvas '{request.canvas_name}'",
             )
 
         return StartSessionResponse(
@@ -1664,20 +1702,17 @@ async def start_verification_session(
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except asyncio.TimeoutError:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="AI question generation timed out"
+            detail="AI question generation timed out",
         )
     except Exception as e:
         logger.error(f"Error starting verification session: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to start session: {str(e)}"
+            detail=f"Failed to start session: {str(e)}",
         )
 
 
@@ -1691,7 +1726,7 @@ async def start_verification_session(
         404: {"model": ErrorResponse, "description": "Session not found"},
         504: {"model": ErrorResponse, "description": "AI scoring timeout"},
     },
-    tags=["verification-session"]
+    tags=["verification-session"],
 )
 async def submit_verification_answer(
     session_id: str,
@@ -1756,18 +1791,16 @@ async def submit_verification_answer(
         )
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except asyncio.TimeoutError:
         raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="AI scoring timed out"
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="AI scoring timed out"
         )
     except Exception as e:
-        logger.error(f"Error processing answer for session '{session_id}': {e}", exc_info=True)
+        logger.error(
+            f"Error processing answer for session '{session_id}': {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process answer: {str(e)}"
+            detail=f"Failed to process answer: {str(e)}",
         )

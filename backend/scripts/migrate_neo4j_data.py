@@ -11,17 +11,18 @@ Usage:
 [Source: docs/stories/30.1.story.md - Task 3]
 """
 
+import argparse
 import json
 import shutil
-import argparse
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 # Try to import ftfy for better Unicode fixing
 try:
     import ftfy
+
     HAS_FTFY = True
 except ImportError:
     HAS_FTFY = False
@@ -54,7 +55,7 @@ def fix_unicode_garbage(text: str) -> str:
     # Fallback: Basic cleaning - remove invalid characters
     try:
         # Try to encode and decode to remove invalid sequences
-        return text.encode('utf-8', errors='ignore').decode('utf-8')
+        return text.encode("utf-8", errors="ignore").decode("utf-8")
     except Exception:
         return text
 
@@ -132,7 +133,7 @@ def migrate_json_data(source: Path, dry_run: bool = False, force: bool = False) 
 
     # Read source file
     print(f"Reading source file...")
-    with open(source, 'r', encoding='utf-8') as f:
+    with open(source, "r", encoding="utf-8") as f:
         try:
             data = json.load(f)
         except json.JSONDecodeError as e:
@@ -146,7 +147,7 @@ def migrate_json_data(source: Path, dry_run: bool = False, force: bool = False) 
     print(f"\nFound {len(issues)} potential Unicode issues:")
     if issues:
         for i, (path, original, fixed) in enumerate(issues[:10]):  # Show first 10
-            print(f"  [{i+1}] {path}")
+            print(f"  [{i + 1}] {path}")
             print(f"      Original: {repr(original)}")
             print(f"      Fixed:    {repr(fixed)}")
         if len(issues) > 10:
@@ -166,29 +167,29 @@ def migrate_json_data(source: Path, dry_run: bool = False, force: bool = False) 
     # Confirm migration
     if not force and issues:
         response = input(f"\nProceed with migration? (y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("Migration cancelled.")
             sys.exit(0)
 
     # Backup original file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = source.with_suffix(f'.json.bak.{timestamp}')
+    backup_path = source.with_suffix(f".json.bak.{timestamp}")
     print(f"\nBacking up original file to: {backup_path}")
     shutil.copy2(source, backup_path)
 
     # Also create a simple .bak file (overwrites previous)
-    simple_backup = source.with_suffix('.json.bak')
+    simple_backup = source.with_suffix(".json.bak")
     shutil.copy2(source, simple_backup)
     print(f"Also backed up to: {simple_backup}")
 
     # Write fixed data
     print(f"\nWriting fixed data to: {source}")
-    with open(source, 'w', encoding='utf-8') as f:
+    with open(source, "w", encoding="utf-8") as f:
         json.dump(fixed_data, f, ensure_ascii=False, indent=2)
 
     # Verify the written file
     print(f"\nVerifying written file...")
-    with open(source, 'r', encoding='utf-8') as f:
+    with open(source, "r", encoding="utf-8") as f:
         verify_data = json.load(f)
 
     if verify_data == fixed_data:
@@ -219,35 +220,25 @@ Examples:
   python migrate_neo4j_data.py                  Run migration with confirmation
   python migrate_neo4j_data.py --force          Run without confirmation prompt
   python migrate_neo4j_data.py --source custom.json   Migrate a custom file
-        """
+        """,
     )
 
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview changes without writing to disk"
+        "--dry-run", action="store_true", help="Preview changes without writing to disk"
     )
 
     parser.add_argument(
         "--source",
         type=Path,
         default=DEFAULT_SOURCE,
-        help=f"Source JSON file (default: {DEFAULT_SOURCE})"
+        help=f"Source JSON file (default: {DEFAULT_SOURCE})",
     )
 
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Skip confirmation prompt"
-    )
+    parser.add_argument("--force", action="store_true", help="Skip confirmation prompt")
 
     args = parser.parse_args()
 
-    migrate_json_data(
-        source=args.source,
-        dry_run=args.dry_run,
-        force=args.force
-    )
+    migrate_json_data(source=args.source, dry_run=args.dry_run, force=args.force)
 
 
 if __name__ == "__main__":

@@ -11,13 +11,12 @@ Shared fixtures (client, test_image_file, test_pdf_file) provided by tests/e2e/c
 
 import io
 
-import pytest
 from fastapi.testclient import TestClient
-
 
 # =============================================================================
 # AC 35.9.3: Vector Search Tests
 # =============================================================================
+
 
 class TestMultimodalSearchE2E:
     """E2E tests for vector similarity search."""
@@ -32,10 +31,18 @@ class TestMultimodalSearchE2E:
         response = client.post("/api/v1/multimodal/search", json=search_request)
         assert response.status_code == 200
 
-    def test_search_returns_relevance_ordered_results(self, client: TestClient, test_image_file: bytes):
+    def test_search_returns_relevance_ordered_results(
+        self, client: TestClient, test_image_file: bytes
+    ):
         """Test search results are ordered by relevance score descending."""
         for i in range(3):
-            files = {"file": (f"search_test_{i}.png", io.BytesIO(test_image_file), "image/png")}
+            files = {
+                "file": (
+                    f"search_test_{i}.png",
+                    io.BytesIO(test_image_file),
+                    "image/png",
+                )
+            }
             data = {
                 "related_concept_id": f"search-concept-{i}",
                 "canvas_path": "/test/canvas/search.canvas",
@@ -50,19 +57,27 @@ class TestMultimodalSearchE2E:
         }
         response = client.post("/api/v1/multimodal/search", json=search_request)
 
-        assert response.status_code == 200, f"Expected 200 OK, got {response.status_code}: {response.text}"
+        assert response.status_code == 200, (
+            f"Expected 200 OK, got {response.status_code}: {response.text}"
+        )
         result = response.json()
         items = result.get("items", [])
-        assert len(items) >= 2, f"Expected at least 2 search results after uploading 3 items, got {len(items)}"
+        assert len(items) >= 2, (
+            f"Expected at least 2 search results after uploading 3 items, got {len(items)}"
+        )
         scores = [item.get("relevanceScore", 0) for item in items]
-        assert scores == sorted(scores, reverse=True), "Results not ordered by relevance"
+        assert scores == sorted(scores, reverse=True), (
+            "Results not ordered by relevance"
+        )
 
     def test_search_respects_top_k_parameter(self, client: TestClient):
         """Test search returns at most top_k results."""
         search_request = {"query": "test", "top_k": 5, "min_score": 0.0}
         response = client.post("/api/v1/multimodal/search", json=search_request)
 
-        assert response.status_code == 200, f"Expected 200 OK, got {response.status_code}: {response.text}"
+        assert response.status_code == 200, (
+            f"Expected 200 OK, got {response.status_code}: {response.text}"
+        )
         result = response.json()
         assert len(result.get("items", [])) <= 5
 
@@ -76,7 +91,9 @@ class TestMultimodalSearchE2E:
         }
         response = client.post("/api/v1/multimodal/search", json=search_request)
 
-        assert response.status_code == 200, f"Expected 200 OK, got {response.status_code}: {response.text}"
+        assert response.status_code == 200, (
+            f"Expected 200 OK, got {response.status_code}: {response.text}"
+        )
         result = response.json()
         items = result.get("items", [])
         for item in items:
@@ -100,7 +117,9 @@ class TestMultimodalSearchE2E:
         )
         result = response.json()
         # search_mode indicates whether vector or text search was used
-        assert "search_mode" in result, "Response should include search_mode for degradation transparency"
+        assert "search_mode" in result, (
+            "Response should include search_mode for degradation transparency"
+        )
 
     def test_search_returns_empty_for_nonexistent_concept(self, client: TestClient):
         """Test search returns empty results for nonexistent concepts."""
@@ -117,10 +136,10 @@ class TestMultimodalSearchE2E:
         assert result.get("total", 0) == 0 or len(result.get("items", [])) == 0
 
 
-
 # =============================================================================
 # AC 35.9.4: Deletion Verification Tests
 # =============================================================================
+
 
 class TestMultimodalDeletionE2E:
     """E2E tests for multimodal content deletion."""
@@ -132,7 +151,9 @@ class TestMultimodalDeletionE2E:
             "related_concept_id": "delete-concept-001",
             "canvas_path": "/test/canvas/delete.canvas",
         }
-        upload_response = client.post("/api/v1/multimodal/upload", files=files, data=data)
+        upload_response = client.post(
+            "/api/v1/multimodal/upload", files=files, data=data
+        )
         assert upload_response.status_code == 201, (
             f"Setup upload failed: {upload_response.status_code}: {upload_response.text}"
         )
@@ -143,12 +164,16 @@ class TestMultimodalDeletionE2E:
 
     def test_delete_removes_from_get(self, client: TestClient, test_image_file: bytes):
         """Test deleted content is no longer retrievable via GET."""
-        files = {"file": ("delete_verify.png", io.BytesIO(test_image_file), "image/png")}
+        files = {
+            "file": ("delete_verify.png", io.BytesIO(test_image_file), "image/png")
+        }
         data = {
             "related_concept_id": "delete-concept-002",
             "canvas_path": "/test/canvas/delete.canvas",
         }
-        upload_response = client.post("/api/v1/multimodal/upload", files=files, data=data)
+        upload_response = client.post(
+            "/api/v1/multimodal/upload", files=files, data=data
+        )
         assert upload_response.status_code == 201, (
             f"Setup upload failed: {upload_response.status_code}: {upload_response.text}"
         )
@@ -159,15 +184,21 @@ class TestMultimodalDeletionE2E:
         response = client.get(f"/api/v1/multimodal/{content_id}")
         assert response.status_code == 404
 
-    def test_delete_removes_from_concept_query(self, client: TestClient, test_image_file: bytes):
+    def test_delete_removes_from_concept_query(
+        self, client: TestClient, test_image_file: bytes
+    ):
         """Test deleted content no longer appears in by-concept query."""
         concept_id = "delete-concept-003"
-        files = {"file": ("delete_relation.png", io.BytesIO(test_image_file), "image/png")}
+        files = {
+            "file": ("delete_relation.png", io.BytesIO(test_image_file), "image/png")
+        }
         data = {
             "related_concept_id": concept_id,
             "canvas_path": "/test/canvas/delete.canvas",
         }
-        upload_response = client.post("/api/v1/multimodal/upload", files=files, data=data)
+        upload_response = client.post(
+            "/api/v1/multimodal/upload", files=files, data=data
+        )
         assert upload_response.status_code == 201, (
             f"Setup upload failed: {upload_response.status_code}: {upload_response.text}"
         )
@@ -181,11 +212,15 @@ class TestMultimodalDeletionE2E:
 
         response = client.get(f"/api/v1/multimodal/by-concept/{concept_id}")
 
-        assert response.status_code == 200, f"Expected 200 OK, got {response.status_code}: {response.text}"
+        assert response.status_code == 200, (
+            f"Expected 200 OK, got {response.status_code}: {response.text}"
+        )
         result = response.json()
         assert result.get("total", 0) < initial_count or initial_count == 0
 
     def test_delete_nonexistent_returns_404(self, client: TestClient):
         """Test deleting nonexistent content returns 404."""
-        response = client.delete("/api/v1/multimodal/00000000-0000-0000-0000-000000000000")
+        response = client.delete(
+            "/api/v1/multimodal/00000000-0000-0000-0000-000000000000"
+        )
         assert response.status_code == 404

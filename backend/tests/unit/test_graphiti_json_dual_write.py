@@ -14,18 +14,21 @@ Test Coverage (Story 36.9 Task 4):
 [Source: docs/stories/36.9.story.md#Testing]
 """
 
-import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from tests.conftest import simulate_async_delay, wait_for_condition, wait_for_mock_call, yield_to_event_loop
-
 from app.clients.graphiti_client import LearningMemory
 from app.services.memory_service import (
     GRAPHITI_JSON_WRITE_TIMEOUT,
     MemoryService,
+)
+
+from tests.conftest import (
+    simulate_async_delay,
+    wait_for_condition,
+    wait_for_mock_call,
+    yield_to_event_loop,
 )
 
 
@@ -76,7 +79,9 @@ class TestGraphitiJsonDualWrite:
 
         # Act
         # Story 31.A.3: Now uses _write_to_graphiti_json_with_retry instead of _write_to_graphiti_json
-        with patch.object(memory_service, "_write_to_graphiti_json_with_retry", new_callable=AsyncMock) as mock_write:
+        with patch.object(
+            memory_service, "_write_to_graphiti_json_with_retry", new_callable=AsyncMock
+        ) as mock_write:
             with patch("app.services.memory_service.settings") as mock_settings:
                 mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = True
 
@@ -133,7 +138,9 @@ class TestGraphitiJsonDualWrite:
 
         # Assert - Should return immediately (< 0.5s), not wait for 1s JSON write
         assert episode_id is not None
-        assert elapsed < 0.5, f"Expected < 0.5s, but took {elapsed:.2f}s (blocked by JSON write)"
+        assert elapsed < 0.5, (
+            f"Expected < 0.5s, but took {elapsed:.2f}s (blocked by JSON write)"
+        )
 
     @pytest.mark.asyncio
     async def test_json_write_failure_doesnt_affect_main_flow(
@@ -173,7 +180,9 @@ class TestGraphitiJsonDualWrite:
         assert episode_id.startswith("episode-")
 
     @pytest.mark.asyncio
-    async def test_timeout_protection(self, memory_service, mock_learning_memory_client):
+    async def test_timeout_protection(
+        self, memory_service, mock_learning_memory_client
+    ):
         """
         Task 4.4: Test timeout protection (500ms).
 
@@ -327,7 +336,9 @@ class TestGraphitiJsonDualWrite:
         await memory_service.initialize()
 
         async def very_slow_write(*args, **kwargs):
-            await simulate_async_delay(2.5)  # Must exceed GRAPHITI_JSON_WRITE_TIMEOUT (2.0s)
+            await simulate_async_delay(
+                2.5
+            )  # Must exceed GRAPHITI_JSON_WRITE_TIMEOUT (2.0s)
             return True
 
         mock_learning_memory_client.add_learning_episode = very_slow_write

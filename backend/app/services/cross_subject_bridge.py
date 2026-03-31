@@ -99,9 +99,7 @@ async def expand_search_subjects(
     all_subject_ids: List[str] = []
     try:
         async with neo4j_driver.session() as session:
-            result = await session.run(
-                "MATCH (s:Subject) RETURN s.id AS id"
-            )
+            result = await session.run("MATCH (s:Subject) RETURN s.id AS id")
             records = await result.data()
             all_subject_ids = [r["id"] for r in records if r.get("id")]
     except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:

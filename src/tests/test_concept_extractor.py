@@ -26,7 +26,7 @@ class TestConceptExtractionMethods(unittest.TestCase):
             "微积分是数学分析的基础",
             "函数的导数描述变化率",
             "积分计算曲线下面积",
-            "极限是微积分的核心概念"
+            "极限是微积分的核心概念",
         ]
 
         for text in test_texts:
@@ -42,7 +42,7 @@ class TestConceptExtractionMethods(unittest.TestCase):
             "泰勒级数展开公式",
             "傅里叶变换应用",
             "拉格朗日中值定理",
-            "牛顿-莱布尼茨公式"
+            "牛顿-莱布尼茨公式",
         ]
 
         for text in math_texts:
@@ -56,7 +56,7 @@ class TestConceptExtractionMethods(unittest.TestCase):
             "牛顿第二定律F=ma",
             "电磁感应现象",
             "波动方程推导",
-            "热力学第一定律"
+            "热力学第一定律",
         ]
 
         for text in physics_texts:
@@ -74,12 +74,14 @@ class TestConceptExtractionMethods(unittest.TestCase):
             ("A应用于B", "is_applied_in"),
             ("A是B的例子", "is_example_of"),
             ("A包括B", "includes"),
-            ("A导致B", "leads_to")
+            ("A导致B", "leads_to"),
         ]
 
         for text, expected_type in test_cases:
             with self.subTest(text=text):
-                result = self.extractor._infer_relationship_type_from_edge(text, "A", "B")
+                result = self.extractor._infer_relationship_type_from_edge(
+                    text, "A", "B"
+                )
                 self.assertEqual(result, expected_type)
 
     def test_concept_confidence_calculation(self):
@@ -90,26 +92,28 @@ class TestConceptExtractionMethods(unittest.TestCase):
                     "source_nodes": ["node1"],
                     "descriptions": ["简短描述"],
                     "subject_areas": [],
-                    "aliases": set()
+                    "aliases": set(),
                 },
                 "expected_min": 0.1,
-                "expected_max": 0.4
+                "expected_max": 0.4,
             },
             {
                 "concept": {
                     "source_nodes": ["node1", "node2", "node3"],
                     "descriptions": ["详细描述1", "详细描述2", "详细描述3"],
                     "subject_areas": ["数学"],
-                    "aliases": set()
+                    "aliases": set(),
                 },
                 "expected_min": 0.5,
-                "expected_max": 1.0
-            }
+                "expected_max": 1.0,
+            },
         ]
 
         for case in test_cases:
             with self.subTest(concept=case["concept"]):
-                confidence = self.extractor._calculate_concept_confidence(case["concept"])
+                confidence = self.extractor._calculate_concept_confidence(
+                    case["concept"]
+                )
                 self.assertGreaterEqual(confidence, case["expected_min"])
                 self.assertLessEqual(confidence, case["expected_max"])
 
@@ -139,7 +143,7 @@ class TestConceptExtractionMethods(unittest.TestCase):
             ("的", False),
             ("正常概念名称", True),
             ("概念123", True),
-            ("数学公式", True)
+            ("数学公式", True),
         ]
 
         for concept, expected in edge_cases:
@@ -153,14 +157,14 @@ class TestConceptExtractionMethods(unittest.TestCase):
             "source_nodes": ["node1", "node2"],
             "descriptions": [
                 "这是第一个描述",
-                "这是第二个更长的描述，包含更多详细信息"
+                "这是第二个更长的描述，包含更多详细信息",
             ],
             "node_types": ["text", "question"],
             "colors": ["1", "2"],
             "subject_areas": ["数学", "物理"],
             "aliases": set(["别名1", "别名2"]),
             "confidence": 0.0,
-            "text_content": "合并的文本内容"
+            "text_content": "合并的文本内容",
         }
 
         # 测试属性计算
@@ -173,5 +177,5 @@ class TestConceptExtractionMethods(unittest.TestCase):
         self.assertGreaterEqual(confidence, len(node_data["source_nodes"]) * 0.2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

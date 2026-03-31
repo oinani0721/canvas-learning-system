@@ -73,7 +73,7 @@ class MigrationValidator:
     def __init__(
         self,
         chromadb_client: Optional[Any] = None,
-        lancedb_connection: Optional[Any] = None
+        lancedb_connection: Optional[Any] = None,
     ):
         """
         Initialize validator with database connections.
@@ -119,7 +119,7 @@ class MigrationValidator:
         chromadb_collection: str,
         lancedb_table: str,
         sample_size: int = 100,
-        similarity_threshold: float = 0.99
+        similarity_threshold: float = 0.99,
     ) -> ValidationResult:
         """
         Validate migration by comparing sampled documents.
@@ -134,6 +134,7 @@ class MigrationValidator:
             ValidationResult with comparison statistics
         """
         import time
+
         start_time = time.time()
         errors: List[str] = []
         details: List[Dict[str, Any]] = []
@@ -190,12 +191,14 @@ class MigrationValidator:
                     missing_count += 1
 
             # Calculate average similarity
-            avg_similarity = sum(similarities) / len(similarities) if similarities else 0.0
+            avg_similarity = (
+                sum(similarities) / len(similarities) if similarities else 0.0
+            )
 
             # Determine success (all sampled documents match)
             success = (
-                matched_count == actual_sample_size and
-                avg_similarity >= similarity_threshold
+                matched_count == actual_sample_size
+                and avg_similarity >= similarity_threshold
             )
 
             return ValidationResult(
@@ -237,9 +240,7 @@ class MigrationValidator:
 
         try:
             collection = self.chromadb_client.get_collection(collection_name)
-            results = collection.get(
-                include=["documents", "metadatas", "embeddings"]
-            )
+            results = collection.get(include=["documents", "metadatas", "embeddings"])
 
             data = {}
             ids = results.get("ids", [])
@@ -278,7 +279,8 @@ class MigrationValidator:
                         "content": row.get("text"),
                         "embedding": row.get("vector"),
                         "metadata": {
-                            k: v for k, v in row.items()
+                            k: v
+                            for k, v in row.items()
                             if k not in ("id", "text", "vector")
                         },
                     }
@@ -294,7 +296,7 @@ class MigrationValidator:
         doc_id: str,
         source: Dict[str, Any],
         target: Optional[Dict[str, Any]],
-        similarity_threshold: float
+        similarity_threshold: float,
     ) -> Dict[str, Any]:
         """Compare source and target documents."""
         if target is None:
@@ -339,7 +341,7 @@ class MigrationValidator:
         jsonl_path: str,
         lancedb_table: str,
         sample_size: int = 100,
-        similarity_threshold: float = 0.99
+        similarity_threshold: float = 0.99,
     ) -> ValidationResult:
         """
         Validate migration using JSONL export file as source.
@@ -423,7 +425,10 @@ class MigrationValidator:
                 missing_count += 1
 
         avg_similarity = sum(similarities) / len(similarities) if similarities else 0.0
-        success = matched_count == actual_sample_size and avg_similarity >= similarity_threshold
+        success = (
+            matched_count == actual_sample_size
+            and avg_similarity >= similarity_threshold
+        )
 
         return ValidationResult(
             success=success,
@@ -441,9 +446,7 @@ class MigrationValidator:
 
 
 def validate_migration(
-    chromadb_client: Any,
-    lancedb_table: Any,
-    sample_size: int = 100
+    chromadb_client: Any, lancedb_table: Any, sample_size: int = 100
 ) -> ValidationResult:
     """
     Convenience function to validate migration.
@@ -458,7 +461,9 @@ def validate_migration(
     """
     validator = MigrationValidator(
         chromadb_client=chromadb_client,
-        lancedb_connection=lancedb_table._connection if hasattr(lancedb_table, "_connection") else None
+        lancedb_connection=lancedb_table._connection
+        if hasattr(lancedb_table, "_connection")
+        else None,
     )
     return validator.validate(
         chromadb_collection=lancedb_table.name,

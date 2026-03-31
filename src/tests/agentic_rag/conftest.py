@@ -20,7 +20,7 @@ import pytest
 # ============================================================
 
 # Configure pytest-asyncio mode
-pytest_plugins = ('pytest_asyncio',)
+pytest_plugins = ("pytest_asyncio",)
 
 
 @pytest.fixture(scope="session")
@@ -36,6 +36,7 @@ def event_loop():
 # 模拟数据 Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def sample_search_results() -> List[Dict[str, Any]]:
     """标准化的搜索结果样例"""
@@ -48,8 +49,8 @@ def sample_search_results() -> List[Dict[str, Any]]:
                 "source": "graphiti",
                 "timestamp": datetime.now().isoformat(),
                 "canvas_file": "离散数学.canvas",
-                "concept": "逆否命题"
-            }
+                "concept": "逆否命题",
+            },
         },
         {
             "doc_id": "doc_002",
@@ -59,8 +60,8 @@ def sample_search_results() -> List[Dict[str, Any]]:
                 "source": "lancedb",
                 "timestamp": datetime.now().isoformat(),
                 "canvas_file": "离散数学.canvas",
-                "concept": "充分必要条件"
-            }
+                "concept": "充分必要条件",
+            },
         },
         {
             "doc_id": "doc_003",
@@ -70,9 +71,9 @@ def sample_search_results() -> List[Dict[str, Any]]:
                 "source": "temporal",
                 "timestamp": datetime.now().isoformat(),
                 "canvas_file": "离散数学.canvas",
-                "concept": "反证法"
-            }
-        }
+                "concept": "反证法",
+            },
+        },
     ]
 
 
@@ -86,7 +87,7 @@ def sample_weak_concepts() -> List[Dict[str, Any]]:
             "error_rate": 0.35,
             "weakness_score": 0.82,
             "last_review": datetime.now().isoformat(),
-            "reps": 2
+            "reps": 2,
         },
         {
             "concept": "充分必要条件",
@@ -94,8 +95,8 @@ def sample_weak_concepts() -> List[Dict[str, Any]]:
             "error_rate": 0.25,
             "weakness_score": 0.65,
             "last_review": datetime.now().isoformat(),
-            "reps": 3
-        }
+            "reps": 3,
+        },
     ]
 
 
@@ -108,15 +109,15 @@ def sample_graphiti_results() -> List[Dict[str, Any]]:
             "content": "逆否命题的定义",
             "score": 0.89,
             "created_at": datetime.now().isoformat(),
-            "entity_type": "concept"
+            "entity_type": "concept",
         },
         {
             "id": "node_002",
             "name": "命题逻辑",
             "score": 0.75,
             "created_at": datetime.now().isoformat(),
-            "entity_type": "topic"
-        }
+            "entity_type": "topic",
+        },
     ]
 
 
@@ -129,15 +130,15 @@ def sample_lancedb_results() -> List[Dict[str, Any]]:
             "content": "口语化解释-逆否命题",
             "_distance": 0.12,
             "canvas_file": "离散数学.canvas",
-            "concept": "逆否命题"
+            "concept": "逆否命题",
         },
         {
             "doc_id": "lancedb_002",
             "content": "澄清路径-命题逻辑",
             "_distance": 0.25,
             "canvas_file": "离散数学.canvas",
-            "concept": "命题逻辑"
-        }
+            "concept": "命题逻辑",
+        },
     ]
 
 
@@ -152,13 +153,14 @@ def sample_fsrs_card() -> Dict[str, Any]:
         "due": datetime.now().isoformat(),
         "state": "Learning",
         "last_review": datetime.now().isoformat(),
-        "reps": 2
+        "reps": 2,
     }
 
 
 # ============================================================
 # Mock Fixtures
 # ============================================================
+
 
 @pytest.fixture
 def mock_neo4j_client():
@@ -203,10 +205,13 @@ def mock_sqlite_connection():
 @pytest.fixture
 def mock_embedder():
     """模拟嵌入器"""
+
     async def _embed(text: str) -> List[float]:
         # 返回固定维度的随机向量
         import random
+
         return [random.random() for _ in range(1536)]
+
     return _embed
 
 
@@ -214,10 +219,12 @@ def mock_embedder():
 # 环境检测 Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def lancedb_available():
     """检测 LanceDB 是否可用"""
     import importlib.util
+
     return importlib.util.find_spec("lancedb") is not None
 
 
@@ -225,6 +232,7 @@ def lancedb_available():
 def neo4j_available():
     """检测 Neo4j 是否可用"""
     import importlib.util
+
     return importlib.util.find_spec("neo4j") is not None
 
 
@@ -232,4 +240,5 @@ def neo4j_available():
 def fsrs_available():
     """检测 FSRS 是否可用"""
     import importlib.util
+
     return importlib.util.find_spec("fsrs") is not None

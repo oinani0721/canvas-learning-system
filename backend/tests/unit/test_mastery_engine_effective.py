@@ -9,11 +9,9 @@ Covers:
 - Override + self-assess combined
 """
 
-import math
 from datetime import datetime, timedelta, timezone
 
 import pytest
-
 from app.models.mastery_state import ConceptState, MasteryConfig
 from app.services.mastery_engine import MasteryEngine
 
@@ -33,8 +31,11 @@ class TestEffectiveProficiencyCore:
 
     def test_min_of_p_and_r(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.8, interaction_count=5,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.8,
+            interaction_count=5,
             last_interaction_ts=datetime.now(timezone.utc),
             fsrs_stability=100.0,
         )
@@ -43,8 +44,11 @@ class TestEffectiveProficiencyCore:
 
     def test_r_lower_than_p(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.9, interaction_count=5,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.9,
+            interaction_count=5,
             last_interaction_ts=datetime.now(timezone.utc) - timedelta(days=10),
             fsrs_stability=1.0,
         )
@@ -59,8 +63,11 @@ class TestEffectiveProficiencyCore:
 
     def test_clamped_to_0_1(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.999, interaction_count=1,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.999,
+            interaction_count=1,
             last_interaction_ts=datetime.now(timezone.utc),
             fsrs_stability=100.0,
         )
@@ -73,8 +80,11 @@ class TestOverrideDecay:
 
     def test_fresh_override_blends(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.5, interaction_count=5,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.5,
+            interaction_count=5,
             last_interaction_ts=datetime.now(timezone.utc),
             fsrs_stability=100.0,
             override_value=0.95,
@@ -85,8 +95,11 @@ class TestOverrideDecay:
 
     def test_old_override_decays(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.5, interaction_count=5,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.5,
+            interaction_count=5,
             last_interaction_ts=datetime.now(timezone.utc),
             fsrs_stability=100.0,
             override_value=0.95,
@@ -97,8 +110,11 @@ class TestOverrideDecay:
 
     def test_no_override_returns_base(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.7, interaction_count=5,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.7,
+            interaction_count=5,
             last_interaction_ts=datetime.now(timezone.utc),
             fsrs_stability=100.0,
         )
@@ -111,8 +127,11 @@ class TestSelfAssessDecay:
 
     def test_fresh_self_assess_blends(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.5, interaction_count=5,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.5,
+            interaction_count=5,
             last_interaction_ts=datetime.now(timezone.utc),
             fsrs_stability=100.0,
             self_assess_value=0.9,
@@ -125,16 +144,26 @@ class TestSelfAssessDecay:
         now = datetime.now(timezone.utc)
         days_ago = now - timedelta(days=10)
         c_override = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.5, interaction_count=5,
-            last_interaction_ts=now, fsrs_stability=100.0,
-            override_value=0.9, override_ts=days_ago,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.5,
+            interaction_count=5,
+            last_interaction_ts=now,
+            fsrs_stability=100.0,
+            override_value=0.9,
+            override_ts=days_ago,
         )
         c_self = ConceptState(
-            concept_id="t2", topic="t", name="t",
-            p_mastery=0.5, interaction_count=5,
-            last_interaction_ts=now, fsrs_stability=100.0,
-            self_assess_value=0.9, self_assess_ts=days_ago,
+            concept_id="t2",
+            topic="t",
+            name="t",
+            p_mastery=0.5,
+            interaction_count=5,
+            last_interaction_ts=now,
+            fsrs_stability=100.0,
+            self_assess_value=0.9,
+            self_assess_ts=days_ago,
         )
         eff_override = engine.effective_proficiency(c_override)
         eff_self = engine.effective_proficiency(c_self)
@@ -142,8 +171,11 @@ class TestSelfAssessDecay:
 
     def test_no_self_assess_returns_current(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.6, interaction_count=3,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.6,
+            interaction_count=3,
             last_interaction_ts=datetime.now(timezone.utc),
             fsrs_stability=100.0,
         )
@@ -156,20 +188,28 @@ class TestOverridePlusSelfAssess:
 
     def test_both_applied(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.3, interaction_count=5,
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.3,
+            interaction_count=5,
             last_interaction_ts=datetime.now(timezone.utc),
             fsrs_stability=100.0,
-            override_value=0.9, override_ts=datetime.now(timezone.utc),
-            self_assess_value=0.8, self_assess_ts=datetime.now(timezone.utc),
+            override_value=0.9,
+            override_ts=datetime.now(timezone.utc),
+            self_assess_value=0.8,
+            self_assess_ts=datetime.now(timezone.utc),
         )
         eff = engine.effective_proficiency(concept)
         assert eff > 0.5
 
     def test_not_assessed_with_override(self, engine):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            override_value=0.8, override_ts=datetime.now(timezone.utc),
+            concept_id="t",
+            topic="t",
+            name="t",
+            override_value=0.8,
+            override_ts=datetime.now(timezone.utc),
         )
         eff = engine.effective_proficiency(concept)
         assert eff > 0.5

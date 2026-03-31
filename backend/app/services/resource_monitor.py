@@ -35,46 +35,34 @@ logger = structlog.get_logger(__name__)
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Gauge)
 # Gauge for CPU usage percentage
-RESOURCE_CPU_USAGE = Gauge(
-    "canvas_resource_cpu_percent",
-    "CPU usage percentage"
-)
+RESOURCE_CPU_USAGE = Gauge("canvas_resource_cpu_percent", "CPU usage percentage")
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Gauge with labels)
 # Gauge for memory usage
 RESOURCE_MEMORY_USAGE = Gauge(
-    "canvas_resource_memory_percent",
-    "Memory usage percentage"
+    "canvas_resource_memory_percent", "Memory usage percentage"
 )
 
 RESOURCE_MEMORY_USED_BYTES = Gauge(
-    "canvas_resource_memory_used_bytes",
-    "Memory used in bytes"
+    "canvas_resource_memory_used_bytes", "Memory used in bytes"
 )
 
 RESOURCE_MEMORY_AVAILABLE_BYTES = Gauge(
-    "canvas_resource_memory_available_bytes",
-    "Memory available in bytes"
+    "canvas_resource_memory_available_bytes", "Memory available in bytes"
 )
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Gauge with labels)
 # Gauge for disk usage
 RESOURCE_DISK_USAGE = Gauge(
-    "canvas_resource_disk_percent",
-    "Disk usage percentage",
-    ["mount_point"]
+    "canvas_resource_disk_percent", "Disk usage percentage", ["mount_point"]
 )
 
 RESOURCE_DISK_USED_BYTES = Gauge(
-    "canvas_resource_disk_used_bytes",
-    "Disk used in bytes",
-    ["mount_point"]
+    "canvas_resource_disk_used_bytes", "Disk used in bytes", ["mount_point"]
 )
 
 RESOURCE_DISK_FREE_BYTES = Gauge(
-    "canvas_resource_disk_free_bytes",
-    "Disk free in bytes",
-    ["mount_point"]
+    "canvas_resource_disk_free_bytes", "Disk free in bytes", ["mount_point"]
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -115,7 +103,7 @@ class ResourceMonitor:
     def __init__(
         self,
         thresholds: dict[str, float] | None = None,
-        disk_paths: list[str] | None = None
+        disk_paths: list[str] | None = None,
     ):
         """
         Initialize the resource monitor.
@@ -134,7 +122,7 @@ class ResourceMonitor:
         logger.info(
             "resource_monitor.initialized",
             thresholds=self.thresholds,
-            disk_paths=self.disk_paths
+            disk_paths=self.disk_paths,
         )
 
     def get_cpu_metrics(self) -> dict[str, Any]:
@@ -234,7 +222,7 @@ class ResourceMonitor:
                     logger.debug(
                         "resource_monitor.psutil_fallback",
                         path=path,
-                        reason="SystemError in psutil.disk_usage"
+                        reason="SystemError in psutil.disk_usage",
                     )
                     shutil_usage = shutil.disk_usage(path)
                     total = shutil_usage.total
@@ -267,15 +255,8 @@ class ResourceMonitor:
                 }
 
             except OSError as e:
-                logger.warning(
-                    "resource_monitor.disk_error",
-                    path=path,
-                    error=str(e)
-                )
-                results[path] = {
-                    "error": str(e),
-                    "status": "error"
-                }
+                logger.warning("resource_monitor.disk_error", path=path, error=str(e))
+                results[path] = {"error": str(e), "status": "error"}
 
         return results
 
@@ -314,7 +295,7 @@ class ResourceMonitor:
             "resource_monitor.metrics_collected",
             cpu_percent=cpu["percent"],
             memory_percent=memory["percent"],
-            overall_status=overall_status
+            overall_status=overall_status,
         )
 
         return {
@@ -324,10 +305,7 @@ class ResourceMonitor:
             "overall_status": overall_status,
         }
 
-    async def start_background_collection(
-        self,
-        interval_seconds: float = 5.0
-    ) -> None:
+    async def start_background_collection(self, interval_seconds: float = 5.0) -> None:
         """
         Start background metrics collection loop.
 
@@ -347,18 +325,14 @@ class ResourceMonitor:
 
         async def collection_loop() -> None:
             logger.info(
-                "resource_monitor.background_started",
-                interval_seconds=interval_seconds
+                "resource_monitor.background_started", interval_seconds=interval_seconds
             )
 
             while self._running:
                 try:
                     self.collect_metrics()
                 except (OSError, RuntimeError) as e:
-                    logger.error(
-                        "resource_monitor.collection_error",
-                        error=str(e)
-                    )
+                    logger.error("resource_monitor.collection_error", error=str(e))
 
                 await asyncio.sleep(interval_seconds)
 

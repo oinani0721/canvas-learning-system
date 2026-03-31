@@ -11,17 +11,16 @@ Tests NOT covered by the original test_story_38_2_episode_recovery.py:
 - JSON fallback edge cases (None timestamp, limit=1)
 """
 
-import logging
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from tests.conftest import simulate_async_delay
-
 from app.clients.neo4j_client import Neo4jClient
 from app.services.memory_service import MemoryService
 
+from tests.conftest import simulate_async_delay
 
 # ---- Fixtures ----
+
 
 @pytest.fixture
 def mock_neo4j_client():
@@ -55,6 +54,7 @@ def memory_service(mock_neo4j_client, mock_learning_memory_client):
 
 # ---- Cypher mode tests (non-JSON-fallback) ----
 
+
 class TestGetAllRecentEpisodesCypher:
     """Verify Cypher path of get_all_recent_episodes (not JSON fallback)."""
 
@@ -64,11 +64,19 @@ class TestGetAllRecentEpisodesCypher:
         client = Neo4jClient.__new__(Neo4jClient)
         client._use_json_fallback = False
         client._initialized = True
-        client.run_query = AsyncMock(return_value=[
-            {"user_id": "u1", "concept": "algebra", "concept_id": "c1",
-             "score": 90, "timestamp": "2026-02-06T10:00:00",
-             "group_id": "math", "review_count": 2}
-        ])
+        client.run_query = AsyncMock(
+            return_value=[
+                {
+                    "user_id": "u1",
+                    "concept": "algebra",
+                    "concept_id": "c1",
+                    "score": 90,
+                    "timestamp": "2026-02-06T10:00:00",
+                    "group_id": "math",
+                    "review_count": 2,
+                }
+            ]
+        )
 
         results = await client.get_all_recent_episodes(limit=500)
 
@@ -97,6 +105,7 @@ class TestGetAllRecentEpisodesCypher:
 
 # ---- Episode field completeness ----
 
+
 class TestEpisodeRecoveryDataIntegrity:
     """Verify recovered episodes have correct structure and handle edge cases."""
 
@@ -105,24 +114,33 @@ class TestEpisodeRecoveryDataIntegrity:
         self, memory_service, mock_neo4j_client
     ):
         """Every recovered episode must have all required fields."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
-            {
-                "user_id": "u1",
-                "concept": "calculus",
-                "concept_id": "cid-calc",
-                "score": 85,
-                "timestamp": "2026-02-06T10:00:00",
-                "group_id": "math",
-                "review_count": 3,
-            }
-        ])
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            return_value=[
+                {
+                    "user_id": "u1",
+                    "concept": "calculus",
+                    "concept_id": "cid-calc",
+                    "score": 85,
+                    "timestamp": "2026-02-06T10:00:00",
+                    "group_id": "math",
+                    "review_count": 3,
+                }
+            ]
+        )
 
         await memory_service.initialize()
 
         ep = memory_service._episodes[0]
         required_fields = [
-            "episode_id", "user_id", "concept", "concept_id",
-            "score", "timestamp", "group_id", "review_count", "episode_type"
+            "episode_id",
+            "user_id",
+            "concept",
+            "concept_id",
+            "score",
+            "timestamp",
+            "group_id",
+            "review_count",
+            "episode_type",
         ]
         for field in required_fields:
             assert field in ep, f"Missing field: {field}"
@@ -139,17 +157,19 @@ class TestEpisodeRecoveryDataIntegrity:
         self, memory_service, mock_neo4j_client
     ):
         """score=None should not crash recovery."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
-            {
-                "user_id": "u1",
-                "concept": "algebra",
-                "concept_id": "cid-alg",
-                "score": None,
-                "timestamp": "2026-02-06T10:00:00",
-                "group_id": "math",
-                "review_count": None,
-            }
-        ])
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            return_value=[
+                {
+                    "user_id": "u1",
+                    "concept": "algebra",
+                    "concept_id": "cid-alg",
+                    "score": None,
+                    "timestamp": "2026-02-06T10:00:00",
+                    "group_id": "math",
+                    "review_count": None,
+                }
+            ]
+        )
 
         await memory_service.initialize()
 
@@ -164,16 +184,18 @@ class TestEpisodeRecoveryDataIntegrity:
         self, memory_service, mock_neo4j_client
     ):
         """concept_id=None: `or 'unknown'` fallback produces correct episode_id."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
-            {
-                "user_id": "u1",
-                "concept": "topology",
-                "concept_id": None,
-                "score": 70,
-                "timestamp": "2026-02-06T10:00:00",
-                "group_id": "math",
-            }
-        ])
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            return_value=[
+                {
+                    "user_id": "u1",
+                    "concept": "topology",
+                    "concept_id": None,
+                    "score": 70,
+                    "timestamp": "2026-02-06T10:00:00",
+                    "group_id": "math",
+                }
+            ]
+        )
 
         await memory_service.initialize()
 
@@ -186,16 +208,18 @@ class TestEpisodeRecoveryDataIntegrity:
         self, memory_service, mock_neo4j_client
     ):
         """timestamp=None: `or ""` produces empty string (not 'None')."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
-            {
-                "user_id": "u1",
-                "concept": "sets",
-                "concept_id": "cid-sets",
-                "score": 60,
-                "timestamp": None,
-                "group_id": "math",
-            }
-        ])
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            return_value=[
+                {
+                    "user_id": "u1",
+                    "concept": "sets",
+                    "concept_id": "cid-sets",
+                    "score": 60,
+                    "timestamp": None,
+                    "group_id": "math",
+                }
+            ]
+        )
 
         await memory_service.initialize()
 
@@ -206,6 +230,7 @@ class TestEpisodeRecoveryDataIntegrity:
 
 # ---- Initialize idempotency ----
 
+
 class TestInitializeIdempotency:
     """Verify initialize() is idempotent — no double recovery."""
 
@@ -214,17 +239,19 @@ class TestInitializeIdempotency:
         self, memory_service, mock_neo4j_client
     ):
         """Calling initialize() twice should not duplicate episodes."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
-            {
-                "user_id": "u1",
-                "concept": "algebra",
-                "concept_id": "cid-1",
-                "score": 90,
-                "timestamp": "2026-02-06T10:00:00",
-                "group_id": "math",
-                "review_count": 1,
-            }
-        ])
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            return_value=[
+                {
+                    "user_id": "u1",
+                    "concept": "algebra",
+                    "concept_id": "cid-1",
+                    "score": 90,
+                    "timestamp": "2026-02-06T10:00:00",
+                    "group_id": "math",
+                    "review_count": 1,
+                }
+            ]
+        )
 
         await memory_service.initialize()
         assert len(memory_service._episodes) == 1
@@ -237,6 +264,7 @@ class TestInitializeIdempotency:
 
 
 # ---- JSON fallback edge cases ----
+
 
 class TestJsonFallbackEdgeCases:
     """Edge cases for _get_all_recent_episodes_json."""
@@ -278,7 +306,11 @@ class TestJsonFallbackEdgeCases:
             "users": [],
             "concepts": [],
             "relationships": [
-                {"user_id": f"u{i}", "concept_name": f"c{i}", "timestamp": f"2026-01-{10+i:02d}T00:00:00"}
+                {
+                    "user_id": f"u{i}",
+                    "concept_name": f"c{i}",
+                    "timestamp": f"2026-01-{10 + i:02d}T00:00:00",
+                }
                 for i in range(5)
             ],
         }
@@ -320,6 +352,7 @@ class TestJsonFallbackEdgeCases:
 
 # ---- Code review fixes: dedup, limit, cap ----
 
+
 class TestCodeReviewFixes:
     """Tests added during code review to verify H1/H2/M1/M2 fixes."""
 
@@ -339,12 +372,24 @@ class TestCodeReviewFixes:
         self, memory_service, mock_neo4j_client
     ):
         """H1 fix: Different users learning same concept get unique episode_ids."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
-            {"user_id": "user-A", "concept": "algebra", "concept_id": "cid-1",
-             "score": 90, "timestamp": "2026-02-06T10:00:00"},
-            {"user_id": "user-B", "concept": "algebra", "concept_id": "cid-1",
-             "score": 80, "timestamp": "2026-02-06T11:00:00"},
-        ])
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            return_value=[
+                {
+                    "user_id": "user-A",
+                    "concept": "algebra",
+                    "concept_id": "cid-1",
+                    "score": 90,
+                    "timestamp": "2026-02-06T10:00:00",
+                },
+                {
+                    "user_id": "user-B",
+                    "concept": "algebra",
+                    "concept_id": "cid-1",
+                    "score": 80,
+                    "timestamp": "2026-02-06T11:00:00",
+                },
+            ]
+        )
 
         await memory_service.initialize()
 
@@ -363,26 +408,44 @@ class TestCodeReviewFixes:
         await memory_service.initialize()
 
         # Manually add an episode with known timestamp (simulating degraded-mode)
-        memory_service._episodes.append({
-            "user_id": "u1", "concept": "algebra", "timestamp": "2026-02-06T10:00:00",
-            "episode_type": "learning",
-        })
+        memory_service._episodes.append(
+            {
+                "user_id": "u1",
+                "concept": "algebra",
+                "timestamp": "2026-02-06T10:00:00",
+                "episode_type": "learning",
+            }
+        )
         assert len(memory_service._episodes) == 1
 
         # Neo4j returns same (user_id, concept, timestamp) + a new one
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
-            {"user_id": "u1", "concept": "algebra", "concept_id": "cid-1",
-             "score": None, "timestamp": "2026-02-06T10:00:00"},  # exact match → skip
-            {"user_id": "u2", "concept": "calculus", "concept_id": "cid-2",
-             "score": 85, "timestamp": "2026-02-06T11:00:00"},  # new → add
-        ])
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            return_value=[
+                {
+                    "user_id": "u1",
+                    "concept": "algebra",
+                    "concept_id": "cid-1",
+                    "score": None,
+                    "timestamp": "2026-02-06T10:00:00",
+                },  # exact match → skip
+                {
+                    "user_id": "u2",
+                    "concept": "calculus",
+                    "concept_id": "cid-2",
+                    "score": 85,
+                    "timestamp": "2026-02-06T11:00:00",
+                },  # new → add
+            ]
+        )
         mock_neo4j_client.get_learning_history = AsyncMock(return_value=[])
 
         await memory_service.get_learning_history(user_id="u1")
 
         # Should have 2: original algebra + new calculus (exact dup skipped)
         concepts = [e.get("concept") for e in memory_service._episodes]
-        assert concepts.count("algebra") == 1, f"Duplicate algebra! episodes: {concepts}"
+        assert concepts.count("algebra") == 1, (
+            f"Duplicate algebra! episodes: {concepts}"
+        )
         assert "calculus" in concepts
 
     @pytest.mark.asyncio
@@ -396,23 +459,38 @@ class TestCodeReviewFixes:
         await memory_service.initialize()
 
         # Episode with one timestamp
-        memory_service._episodes.append({
-            "user_id": "u1", "concept": "algebra", "timestamp": "2026-02-05T09:00:00",
-            "episode_type": "learning",
-        })
+        memory_service._episodes.append(
+            {
+                "user_id": "u1",
+                "concept": "algebra",
+                "timestamp": "2026-02-05T09:00:00",
+                "episode_type": "learning",
+            }
+        )
 
         # Neo4j returns same concept but different timestamp
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
-            {"user_id": "u1", "concept": "algebra", "concept_id": "cid-1",
-             "score": 90, "timestamp": "2026-02-06T10:00:00"},  # different timestamp → keep
-        ])
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            return_value=[
+                {
+                    "user_id": "u1",
+                    "concept": "algebra",
+                    "concept_id": "cid-1",
+                    "score": 90,
+                    "timestamp": "2026-02-06T10:00:00",
+                },  # different timestamp → keep
+            ]
+        )
         mock_neo4j_client.get_learning_history = AsyncMock(return_value=[])
 
         await memory_service.get_learning_history(user_id="u1")
 
         # Both entries should be kept (different timestamps)
-        algebra_entries = [e for e in memory_service._episodes if e.get("concept") == "algebra"]
-        assert len(algebra_entries) == 2, f"Expected 2 algebra entries, got {len(algebra_entries)}"
+        algebra_entries = [
+            e for e in memory_service._episodes if e.get("concept") == "algebra"
+        ]
+        assert len(algebra_entries) == 2, (
+            f"Expected 2 algebra entries, got {len(algebra_entries)}"
+        )
 
     @pytest.mark.asyncio
     async def test_episode_cache_capped_at_2000(
@@ -421,15 +499,23 @@ class TestCodeReviewFixes:
         """M2 fix: self._episodes never exceeds 2000 entries."""
         # Pre-fill with 1500 episodes
         for i in range(1500):
-            memory_service._episodes.append({
-                "user_id": f"u-{i}", "concept": f"existing-{i}",
-                "episode_type": "recorded",
-            })
+            memory_service._episodes.append(
+                {
+                    "user_id": f"u-{i}",
+                    "concept": f"existing-{i}",
+                    "episode_type": "recorded",
+                }
+            )
 
         # Recovery brings 800 more (all unique concepts)
         records = [
-            {"user_id": f"r-{i}", "concept": f"recovered-{i}", "concept_id": f"rc-{i}",
-             "score": 80, "timestamp": f"2026-02-0{min(i%9+1,9)}T10:00:00"}
+            {
+                "user_id": f"r-{i}",
+                "concept": f"recovered-{i}",
+                "concept_id": f"rc-{i}",
+                "score": 80,
+                "timestamp": f"2026-02-0{min(i % 9 + 1, 9)}T10:00:00",
+            }
             for i in range(800)
         ]
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=records)
@@ -467,9 +553,15 @@ class TestConcurrentRecoveryProtection:
             nonlocal call_count
             call_count += 1
             await simulate_async_delay(0.05)  # Small delay to allow concurrent entry
-            return [{"user_id": "u1", "concept": f"concept-{call_count}",
-                     "concept_id": "c1", "score": 80,
-                     "timestamp": "2026-02-06T10:00:00"}]
+            return [
+                {
+                    "user_id": "u1",
+                    "concept": f"concept-{call_count}",
+                    "concept_id": "c1",
+                    "score": 80,
+                    "timestamp": "2026-02-06T10:00:00",
+                }
+            ]
 
         mock_neo4j_client.get_all_recent_episodes = slow_get_episodes
         mock_neo4j_client.get_learning_history = AsyncMock(return_value=[])

@@ -23,7 +23,6 @@ References:
 - Task 6 (BMad Integration Plan): 创建Contract Testing测试套件
 """
 
-
 import pytest
 from hypothesis import given
 
@@ -47,19 +46,17 @@ LEARNING_AGENTS = [
     "four-level-explanation",
     "example-teaching",
     "scoring-agent",
-    "verification-question-agent"
+    "verification-question-agent",
 ]
 
-SYSTEM_AGENTS = [
-    "review-board-agent-selector",
-    "graphiti-memory-agent"
-]
+SYSTEM_AGENTS = ["review-board-agent-selector", "graphiti-memory-agent"]
 
 ALL_AGENTS = LEARNING_AGENTS + SYSTEM_AGENTS
 
 # ============================================================================
 # Agent Metadata Tests
 # ============================================================================
+
 
 def test_list_agents_contract(agent_api_schema, mock_agent_server_url):
     """
@@ -79,7 +76,9 @@ def test_list_agents_contract(agent_api_schema, mock_agent_server_url):
 
 
 @pytest.mark.parametrize("agent_name", ALL_AGENTS)
-def test_get_agent_metadata_contract(agent_api_schema, mock_agent_server_url, agent_name: str):
+def test_get_agent_metadata_contract(
+    agent_api_schema, mock_agent_server_url, agent_name: str
+):
     """
     测试GET /agents/{agentName} endpoint的Contract
 
@@ -105,8 +104,14 @@ def test_get_agent_metadata_contract(agent_api_schema, mock_agent_server_url, ag
 # Agent Invocation Tests (Async Task Pattern)
 # ============================================================================
 
+
 @pytest.mark.parametrize("agent_name", LEARNING_AGENTS[:3])  # 测试前3个学习型Agents
-def test_agent_invoke_contract(agent_api_schema, mock_agent_server_url, agent_name: str, sample_agent_invoke_request):
+def test_agent_invoke_contract(
+    agent_api_schema,
+    mock_agent_server_url,
+    agent_name: str,
+    sample_agent_invoke_request,
+):
     """
     测试POST /agents/{agentName}/invoke endpoint的Contract
 
@@ -120,8 +125,7 @@ def test_agent_invoke_contract(agent_api_schema, mock_agent_server_url, agent_na
     参数化测试部分学习型Agents
     """
     case = agent_api_schema["/agents/{agentName}/invoke"]["POST"].Case(
-        path_parameters={"agentName": agent_name},
-        body=sample_agent_invoke_request
+        path_parameters={"agentName": agent_name}, body=sample_agent_invoke_request
     )
     response = case.call(base_url=mock_agent_server_url)
     case.validate_response(response)
@@ -129,7 +133,9 @@ def test_agent_invoke_contract(agent_api_schema, mock_agent_server_url, agent_na
     if response.status_code == 202:
         invoke_response = response.json()
         assert "task_id" in invoke_response, "异步调用响应必须包含task_id"
-        assert invoke_response["status"] in ["pending", "running"], "初始状态应该是pending或running"
+        assert invoke_response["status"] in ["pending", "running"], (
+            "初始状态应该是pending或running"
+        )
 
 
 def test_task_status_query_contract(agent_api_schema, mock_agent_server_url):
@@ -167,6 +173,7 @@ def test_task_status_query_contract(agent_api_schema, mock_agent_server_url):
 # Specific Agent Tests (基于不同Agent的输入/输出格式)
 # ============================================================================
 
+
 def test_basic_decomposition_contract(agent_api_schema, mock_agent_server_url):
     """
     测试basic-decomposition Agent的Contract
@@ -181,12 +188,12 @@ def test_basic_decomposition_contract(agent_api_schema, mock_agent_server_url):
         "canvas_path": "笔记库/离散数学/离散数学.canvas",
         "concept": "逆否命题",
         "material": "逆否命题是命题逻辑中的一个重要概念...",
-        "node_id": "test-red-001"
+        "node_id": "test-red-001",
     }
 
     case = agent_api_schema["/agents/{agentName}/invoke"]["POST"].Case(
         path_parameters={"agentName": "basic-decomposition"},
-        body={"input": input_data, "timeout": 60}
+        body={"input": input_data, "timeout": 60},
     )
     response = case.call(base_url=mock_agent_server_url)
     case.validate_response(response)
@@ -208,12 +215,12 @@ def test_scoring_agent_contract(agent_api_schema, mock_agent_server_url):
     input_data = {
         "canvas_path": "笔记库/离散数学/离散数学.canvas",
         "node_id": "test-yellow-001",
-        "user_understanding": "逆否命题是将原命题的条件和结论都否定后再交换位置"
+        "user_understanding": "逆否命题是将原命题的条件和结论都否定后再交换位置",
     }
 
     case = agent_api_schema["/agents/{agentName}/invoke"]["POST"].Case(
         path_parameters={"agentName": "scoring-agent"},
-        body={"input": input_data, "timeout": 60}
+        body={"input": input_data, "timeout": 60},
     )
     response = case.call(base_url=mock_agent_server_url)
     case.validate_response(response)
@@ -235,14 +242,14 @@ def test_review_board_selector_contract(agent_api_schema, mock_agent_server_url)
         "canvas_path": "笔记库/离散数学/离散数学.canvas",
         "yellow_nodes": [
             {"node_id": "yellow-001", "text": "用户理解内容1"},
-            {"node_id": "yellow-002", "text": "用户理解内容2"}
+            {"node_id": "yellow-002", "text": "用户理解内容2"},
         ],
-        "confidence_threshold": 0.7
+        "confidence_threshold": 0.7,
     }
 
     case = agent_api_schema["/agents/{agentName}/invoke"]["POST"].Case(
         path_parameters={"agentName": "review-board-agent-selector"},
-        body={"input": input_data, "timeout": 60}
+        body={"input": input_data, "timeout": 60},
     )
     response = case.call(base_url=mock_agent_server_url)
     case.validate_response(response)
@@ -254,7 +261,10 @@ def test_review_board_selector_contract(agent_api_schema, mock_agent_server_url)
 # Error Handling Tests
 # ============================================================================
 
-@pytest.mark.skip(reason="Mock server doesn't validate agent input schemas - requires input_schema validation implementation")
+
+@pytest.mark.skip(
+    reason="Mock server doesn't validate agent input schemas - requires input_schema validation implementation"
+)
 def test_agent_invoke_invalid_input_contract(agent_api_schema, mock_agent_server_url):
     """
     测试Agent调用时无效输入的错误处理Contract
@@ -266,12 +276,11 @@ def test_agent_invoke_invalid_input_contract(agent_api_schema, mock_agent_server
     # 无效输入（缺少必需字段）
     invalid_input = {
         "input": {},  # 空输入
-        "timeout": 60
+        "timeout": 60,
     }
 
     case = agent_api_schema["/agents/{agentName}/invoke"]["POST"].Case(
-        path_parameters={"agentName": "basic-decomposition"},
-        body=invalid_input
+        path_parameters={"agentName": "basic-decomposition"}, body=invalid_input
     )
     response = case.call(base_url=mock_agent_server_url)
     case.validate_response(response)
@@ -282,7 +291,9 @@ def test_agent_invoke_invalid_input_contract(agent_api_schema, mock_agent_server
     assert "message" in error_response["error"]
 
 
-@pytest.mark.skip(reason="Mock server doesn't implement timeout handling - always completes after 2 seconds")
+@pytest.mark.skip(
+    reason="Mock server doesn't implement timeout handling - always completes after 2 seconds"
+)
 def test_agent_invoke_timeout_contract(agent_api_schema, mock_agent_server_url):
     """
     测试Agent调用超时的Contract
@@ -296,18 +307,19 @@ def test_agent_invoke_timeout_contract(agent_api_schema, mock_agent_server_url):
         "canvas_path": "笔记库/离散数学/离散数学.canvas",
         "concept": "逆否命题",
         "material": "...",
-        "node_id": "test-red-001"
+        "node_id": "test-red-001",
     }
 
     invoke_case = agent_api_schema["/agents/{agentName}/invoke"]["POST"].Case(
         path_parameters={"agentName": "basic-decomposition"},
-        body={"input": input_data, "timeout": 1}  # 1秒超时
+        body={"input": input_data, "timeout": 1},  # 1秒超时
     )
     invoke_response = invoke_case.call(base_url=mock_agent_server_url)
     invoke_case.validate_response(invoke_response)
 
     # 等待任务超时
     import time
+
     time.sleep(2)
 
     # 查询任务状态
@@ -327,8 +339,11 @@ def test_agent_invoke_timeout_contract(agent_api_schema, mock_agent_server_url):
 # Property-based Tests (Hypothesis + Schemathesis)
 # ============================================================================
 
+
 @pytest.mark.slow
-@pytest.mark.skip(reason="Schemathesis auto-generated property-based test - complex to fix, core API tests pass")
+@pytest.mark.skip(
+    reason="Schemathesis auto-generated property-based test - complex to fix, core API tests pass"
+)
 def test_agent_api_property_based(agent_api_schema, mock_agent_server_url):
     """
     基于属性的测试（Property-based Testing）
@@ -341,6 +356,7 @@ def test_agent_api_property_based(agent_api_schema, mock_agent_server_url):
 
     Note: 此测试会生成50个随机案例（见conftest.py中的Hypothesis配置）
     """
+
     @given(case=agent_api_schema.as_strategy())
     def test_property(case):
         """测试API的通用属性"""
@@ -351,14 +367,25 @@ def test_agent_api_property_based(agent_api_schema, mock_agent_server_url):
             case.validate_response(response)
 
             # 属性2: Agent调用返回task_id
-            if case.operation.path == "/agents/{agentName}/invoke" and response.status_code == 202:
+            if (
+                case.operation.path == "/agents/{agentName}/invoke"
+                and response.status_code == 202
+            ):
                 response_json = response.json()
                 assert "task_id" in response_json, "Agent调用必须返回task_id"
 
             # 属性3: 任务状态查询返回有效状态
-            if case.operation.path == "/agents/tasks/{taskId}" and response.status_code == 200:
+            if (
+                case.operation.path == "/agents/tasks/{taskId}"
+                and response.status_code == 200
+            ):
                 response_json = response.json()
-                assert response_json["status"] in ["pending", "running", "completed", "failed"]
+                assert response_json["status"] in [
+                    "pending",
+                    "running",
+                    "completed",
+                    "failed",
+                ]
 
         except Exception as e:
             # 如果API服务器未运行，跳过测试
@@ -373,6 +400,7 @@ def test_agent_api_property_based(agent_api_schema, mock_agent_server_url):
 # ============================================================================
 # Manual Contract Tests (不依赖API服务器)
 # ============================================================================
+
 
 def test_agent_response_schema_validation():
     """
@@ -393,9 +421,9 @@ def test_agent_response_schema_validation():
         "result": {
             "questions": [
                 {"text": "什么是逆否命题？", "type": "定义型"},
-                {"text": "能举例说明吗？", "type": "实例型"}
+                {"text": "能举例说明吗？", "type": "实例型"},
             ]
-        }
+        },
     }
 
     # 验证必需字段
@@ -426,21 +454,24 @@ def test_scoring_response_schema_validation():
             "accuracy": {"score": 22, "feedback": "..."},
             "imagery": {"score": 21, "feedback": "..."},
             "completeness": {"score": 22, "feedback": "..."},
-            "originality": {"score": 20, "feedback": "..."}
+            "originality": {"score": 20, "feedback": "..."},
         },
         "color_transition": {
             "from": "6",
             "to": "2",
             "rule": "score_above_80",
-            "reason": "评分85分，达到完全理解标准"
+            "reason": "评分85分，达到完全理解标准",
         },
         "recommendations": [],
-        "timestamp": "2025-01-15T14:30:00Z"
+        "timestamp": "2025-01-15T14:30:00Z",
     }
 
     # 验证4维评分
     dimensions = scoring_response["dimensions"]
-    assert all(dim in dimensions for dim in ["accuracy", "imagery", "completeness", "originality"])
+    assert all(
+        dim in dimensions
+        for dim in ["accuracy", "imagery", "completeness", "originality"]
+    )
 
     # 验证分数范围
     for dim_name, dim_data in dimensions.items():
@@ -448,12 +479,18 @@ def test_scoring_response_schema_validation():
 
     # 验证总分
     assert 0 <= scoring_response["total_score"] <= 100
-    assert scoring_response["total_score"] == sum(d["score"] for d in dimensions.values())
+    assert scoring_response["total_score"] == sum(
+        d["score"] for d in dimensions.values()
+    )
 
     # 验证颜色流转
     assert scoring_response["color_transition"]["from"] in ["1", "3", "6"]
     assert scoring_response["color_transition"]["to"] in ["1", "2", "3"]
-    assert scoring_response["color_transition"]["rule"] in ["score_below_60", "score_60_to_79", "score_above_80"]
+    assert scoring_response["color_transition"]["rule"] in [
+        "score_below_60",
+        "score_60_to_79",
+        "score_above_80",
+    ]
 
 
 def test_agent_type_classification():
@@ -469,15 +506,20 @@ def test_agent_type_classification():
 
     assert len(learning_agents_set) == 12, "应该有12个学习型Agents"
     assert len(system_agents_set) == 2, "应该有2个系统级Agents"
-    assert learning_agents_set.isdisjoint(system_agents_set), "学习型和系统级Agents不应该重叠"
+    assert learning_agents_set.isdisjoint(system_agents_set), (
+        "学习型和系统级Agents不应该重叠"
+    )
 
 
 # ============================================================================
 # Integration Tests (需要完整的Agent API实现)
 # ============================================================================
 
+
 @pytest.mark.slow
-def test_agent_async_workflow_integration(agent_api_schema, mock_agent_server_url, sample_agent_invoke_request):
+def test_agent_async_workflow_integration(
+    agent_api_schema, mock_agent_server_url, sample_agent_invoke_request
+):
     """
     测试Agent异步调用完整工作流的Contract一致性
 
@@ -493,7 +535,7 @@ def test_agent_async_workflow_integration(agent_api_schema, mock_agent_server_ur
     # Step 1: 调用Agent
     invoke_case = agent_api_schema["/agents/{agentName}/invoke"]["POST"].Case(
         path_parameters={"agentName": "basic-decomposition"},
-        body=sample_agent_invoke_request
+        body=sample_agent_invoke_request,
     )
     invoke_response = invoke_case.call(base_url=mock_agent_server_url)
     invoke_case.validate_response(invoke_response)
@@ -505,6 +547,7 @@ def test_agent_async_workflow_integration(agent_api_schema, mock_agent_server_ur
 
     # Step 3-4: 轮询任务状态直到完成
     import time
+
     max_retries = 30
     retry_count = 0
     task_completed = False
@@ -522,7 +565,9 @@ def test_agent_async_workflow_integration(agent_api_schema, mock_agent_server_ur
             task_completed = True
             break
         elif task_status["status"] == "failed":
-            pytest.fail(f"任务失败: {task_status.get('error', {}).get('message', 'Unknown error')}")
+            pytest.fail(
+                f"任务失败: {task_status.get('error', {}).get('message', 'Unknown error')}"
+            )
 
         time.sleep(2)  # 等待2秒后重试
         retry_count += 1

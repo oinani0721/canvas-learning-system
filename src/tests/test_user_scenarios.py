@@ -21,11 +21,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.append('..')
+sys.path.append("..")
 
 try:
     from intelligent_review_cli import IntelligentReviewCLI
-    from intelligent_review_generator import IntelligentReviewGenerator, ReviewPlanConfig
+    from intelligent_review_generator import (
+        IntelligentReviewGenerator,
+        ReviewPlanConfig,
+    )
     from learning_analyzer import LearningAnalyzer
     from personalization_engine import PersonalizationEngine
     from review_canvas_builder import ReviewCanvasBuilder
@@ -59,7 +62,7 @@ class TestUserScenarioValidation(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 100,
-                    "color": "1"  # 红色 - 需要复习
+                    "color": "1",  # 红色 - 需要复习
                 },
                 {
                     "id": "node-2",
@@ -69,7 +72,7 @@ class TestUserScenarioValidation(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 100,
-                    "color": "2"  # 绿色 - 已掌握
+                    "color": "2",  # 绿色 - 已掌握
                 },
                 {
                     "id": "node-3",
@@ -79,13 +82,13 @@ class TestUserScenarioValidation(unittest.TestCase):
                     "y": 250,
                     "width": 250,
                     "height": 100,
-                    "color": "6"  # 黄色 - 个人理解
-                }
+                    "color": "6",  # 黄色 - 个人理解
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
-        with open(self.test_canvas_path, 'w', encoding='utf-8') as f:
+        with open(self.test_canvas_path, "w", encoding="utf-8") as f:
             json.dump(test_canvas_data, f, ensure_ascii=False, indent=2)
 
         # 创建数据目录
@@ -111,7 +114,7 @@ class TestNewUserScenario(TestUserScenarioValidation):
             plan_type="weakness_focused",
             difficulty_level="easy",
             estimated_duration=30,
-            max_concepts_per_session=3
+            max_concepts_per_session=3,
         )
 
         # 模拟学习分析结果
@@ -120,7 +123,7 @@ class TestNewUserScenario(TestUserScenarioValidation):
                 "total_concepts_analyzed": 2,
                 "concepts_mastered": 1,
                 "concepts_needing_review": 1,
-                "critical_weaknesses": 0
+                "critical_weaknesses": 0,
             },
             "identified_weak_concepts": [
                 {
@@ -128,16 +131,13 @@ class TestNewUserScenario(TestUserScenarioValidation):
                     "weakness_score": 0.6,
                     "mastery_score": 4.0,
                     "weakness_type": "conceptual_misunderstanding",
-                    "recommended_focus_areas": [
-                        "概念定义复习",
-                        "基础练习加强"
-                    ],
+                    "recommended_focus_areas": ["概念定义复习", "基础练习加强"],
                     "supporting_evidence": {
                         "last_review_score": 4,
                         "review_frequency": "insufficient",
                         "graphiti_related_concepts": ["逻辑蕴含", "真值表"],
-                        "mcp_semantic_gaps": ["概念混淆"]
-                    }
+                        "mcp_semantic_gaps": ["概念混淆"],
+                    },
                 }
             ],
             "learning_trends": {
@@ -145,12 +145,14 @@ class TestNewUserScenario(TestUserScenarioValidation):
                 "study_frequency_trend": "increasing",
                 "retention_analysis": {
                     "short_term_retention": 0.8,
-                    "optimal_review_interval": 7
-                }
-            }
+                    "optimal_review_interval": 7,
+                },
+            },
         }
 
-        with patch.object(generator.learning_analyzer, 'analyze_learning_history') as mock_analyze:
+        with patch.object(
+            generator.learning_analyzer, "analyze_learning_history"
+        ) as mock_analyze:
             mock_analyze.return_value = mock_analysis_result
 
             # 生成复习计划
@@ -158,7 +160,7 @@ class TestNewUserScenario(TestUserScenarioValidation):
                 user_id="new_user",
                 target_canvas="test_discrete_math.canvas",
                 plan_type="weakness_focused",
-                config=config
+                config=config,
             )
 
         # 验证生成结果
@@ -177,13 +179,13 @@ class TestNewUserScenario(TestUserScenarioValidation):
         # 2. 创建复习Canvas
         canvas_path = builder.create_review_canvas(
             review_plan=review_plan,
-            output_path=os.path.join(self.temp_dir, "new_user_review.canvas")
+            output_path=os.path.join(self.temp_dir, "new_user_review.canvas"),
         )
 
         self.assertTrue(os.path.exists(canvas_path))
 
         # 验证Canvas内容适合新用户
-        with open(canvas_path, 'r', encoding='utf-8') as f:
+        with open(canvas_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         nodes = canvas_data.get("nodes", [])
@@ -258,12 +260,12 @@ class TestRegularUserScenario(TestUserScenarioValidation):
                 "concept": f"概念{i % 5 + 1}",
                 "score": min(10.0, score),
                 "time_spent": 20 + (i % 3) * 10,
-                "user_feedback": "good" if score > 7 else "need_more_practice"
+                "user_feedback": "good" if score > 7 else "need_more_practice",
             }
             history_data.append(record)
 
         self.user_history_file = os.path.join(self.temp_dir, "user_history.json")
-        with open(self.user_history_file, 'w', encoding='utf-8') as f:
+        with open(self.user_history_file, "w", encoding="utf-8") as f:
             json.dump(history_data, f, ensure_ascii=False, indent=2)
 
     def test_regular_user_advanced_plan(self):
@@ -280,7 +282,7 @@ class TestRegularUserScenario(TestUserScenarioValidation):
             plan_type="comprehensive",
             difficulty_level="adaptive",
             estimated_duration=60,
-            max_concepts_per_session=6
+            max_concepts_per_session=6,
         )
 
         # 模拟老用户的学习分析结果
@@ -289,7 +291,7 @@ class TestRegularUserScenario(TestUserScenarioValidation):
                 "total_concepts_analyzed": 10,
                 "concepts_mastered": 7,
                 "concepts_needing_review": 3,
-                "critical_weaknesses": 1
+                "critical_weaknesses": 1,
             },
             "identified_weak_concepts": [
                 {
@@ -297,21 +299,15 @@ class TestRegularUserScenario(TestUserScenarioValidation):
                     "weakness_score": 0.4,
                     "mastery_score": 6.0,
                     "weakness_type": "procedural_error",
-                    "recommended_focus_areas": [
-                        "高级应用练习",
-                        "复杂案例分析"
-                    ]
+                    "recommended_focus_areas": ["高级应用练习", "复杂案例分析"],
                 },
                 {
                     "concept_name": "复杂概念2",
                     "weakness_score": 0.3,
                     "mastery_score": 7.5,
                     "weakness_type": "recall_failure",
-                    "recommended_focus_areas": [
-                        "复习频率调整",
-                        "记忆技巧应用"
-                    ]
-                }
+                    "recommended_focus_areas": ["复习频率调整", "记忆技巧应用"],
+                },
             ],
             "learning_trends": {
                 "overall_performance_trend": "improving",
@@ -321,12 +317,14 @@ class TestRegularUserScenario(TestUserScenarioValidation):
                 "retention_analysis": {
                     "short_term_retention": 0.85,
                     "long_term_retention": 0.75,
-                    "optimal_review_interval": 14
-                }
-            }
+                    "optimal_review_interval": 14,
+                },
+            },
         }
 
-        with patch.object(generator.learning_analyzer, 'analyze_learning_history') as mock_analyze:
+        with patch.object(
+            generator.learning_analyzer, "analyze_learning_history"
+        ) as mock_analyze:
             mock_analyze.return_value = mock_analysis_result
 
             # 生成复习计划
@@ -334,7 +332,7 @@ class TestRegularUserScenario(TestUserScenarioValidation):
                 user_id="regular_user",
                 target_canvas="test_discrete_math.canvas",
                 plan_type="comprehensive",
-                config=config
+                config=config,
             )
 
         # 验证老用户计划特点
@@ -353,13 +351,13 @@ class TestRegularUserScenario(TestUserScenarioValidation):
         # 2. 创建适合老用户的Canvas
         canvas_path = builder.create_review_canvas(
             review_plan=review_plan,
-            output_path=os.path.join(self.temp_dir, "advanced_review.canvas")
+            output_path=os.path.join(self.temp_dir, "advanced_review.canvas"),
         )
 
         self.assertTrue(os.path.exists(canvas_path))
 
         # 验证Canvas内容更深入
-        with open(canvas_path, 'r', encoding='utf-8') as f:
+        with open(canvas_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         nodes = canvas_data.get("nodes", [])
@@ -386,14 +384,14 @@ class TestRegularUserScenario(TestUserScenarioValidation):
                     "session_id": "session-1",
                     "concepts": [
                         {"concept_name": "概念1", "estimated_time_minutes": 15},
-                        {"concept_name": "概念2", "estimated_time_minutes": 12}
-                    ]
+                        {"concept_name": "概念2", "estimated_time_minutes": 12},
+                    ],
                 }
-            ]
+            ],
         }
 
         plan_file = self.data_dir / f"{plan_data['plan_id']}.json"
-        with open(plan_file, 'w', encoding='utf-8') as f:
+        with open(plan_file, "w", encoding="utf-8") as f:
             json.dump(plan_data, f, ensure_ascii=False, indent=2)
 
         # 模拟进度分析
@@ -429,10 +427,7 @@ class TestPerformanceScenario(TestUserScenarioValidation):
         # 创建大型Canvas数据
         large_canvas_path = os.path.join(self.temp_dir, "large_canvas.canvas")
 
-        large_canvas_data = {
-            "nodes": [],
-            "edges": []
-        }
+        large_canvas_data = {"nodes": [], "edges": []}
 
         # 创建100个节点
         for i in range(100):
@@ -444,11 +439,11 @@ class TestPerformanceScenario(TestUserScenarioValidation):
                 "y": (i // 10) * 120,
                 "width": 140,
                 "height": 100,
-                "color": "1" if i % 3 == 0 else "2"  # 1/3红色，2/3绿色
+                "color": "1" if i % 3 == 0 else "2",  # 1/3红色，2/3绿色
             }
             large_canvas_data["nodes"].append(node)
 
-        with open(large_canvas_path, 'w', encoding='utf-8') as f:
+        with open(large_canvas_path, "w", encoding="utf-8") as f:
             json.dump(large_canvas_data, f, ensure_ascii=False, indent=2)
 
         # 测试学习分析性能
@@ -487,20 +482,22 @@ class TestPerformanceScenario(TestUserScenarioValidation):
             config = ReviewPlanConfig(
                 user_id=f"user_{i}",
                 target_canvas=f"test_canvas_{i}.canvas",
-                plan_type="weakness_focused"
+                plan_type="weakness_focused",
             )
 
-            with patch.object(generator.learning_analyzer, 'analyze_learning_history') as mock_analyze:
+            with patch.object(
+                generator.learning_analyzer, "analyze_learning_history"
+            ) as mock_analyze:
                 mock_analyze.return_value = {
                     "analysis_summary": {"total_concepts_analyzed": 3},
-                    "identified_weak_concepts": []
+                    "identified_weak_concepts": [],
                 }
 
                 plan = generator.generate_review_plan(
                     user_id=f"user_{i}",
                     target_canvas=f"test_canvas_{i}.canvas",
                     plan_type="weakness_focused",
-                    config=config
+                    config=config,
                 )
                 plans.append(plan)
 
@@ -524,13 +521,15 @@ class TestPerformanceScenario(TestUserScenarioValidation):
             config = ReviewPlanConfig(
                 user_id=f"concurrent_user_{user_id_suffix}",
                 target_canvas=f"concurrent_canvas_{user_id_suffix}.canvas",
-                plan_type="weakness_focused"
+                plan_type="weakness_focused",
             )
 
-            with patch.object(generator.learning_analyzer, 'analyze_learning_history') as mock_analyze:
+            with patch.object(
+                generator.learning_analyzer, "analyze_learning_history"
+            ) as mock_analyze:
                 mock_analyze.return_value = {
                     "analysis_summary": {"total_concepts_analyzed": 2},
-                    "identified_weak_concepts": []
+                    "identified_weak_concepts": [],
                 }
 
                 try:
@@ -538,7 +537,7 @@ class TestPerformanceScenario(TestUserScenarioValidation):
                         user_id=f"concurrent_user_{user_id_suffix}",
                         target_canvas=f"concurrent_canvas_{user_id_suffix}.canvas",
                         plan_type="weakness_focused",
-                        config=config
+                        config=config,
                     )
                     return f"success_{user_id_suffix}"
                 except Exception as e:
@@ -576,7 +575,7 @@ class TestEdgeCaseScenarios(TestUserScenarioValidation):
         empty_canvas_path = os.path.join(self.temp_dir, "empty_canvas.canvas")
         empty_canvas_data = {"nodes": [], "edges": []}
 
-        with open(empty_canvas_path, 'w', encoding='utf-8') as f:
+        with open(empty_canvas_path, "w", encoding="utf-8") as f:
             json.dump(empty_canvas_data, f, ensure_ascii=False)
 
         analyzer = LearningAnalyzer()
@@ -609,13 +608,13 @@ class TestEdgeCaseScenarios(TestUserScenarioValidation):
                     "y": 100,
                     "width": 500,
                     "height": 300,
-                    "color": "1"
+                    "color": "1",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
-        with open(long_canvas_path, 'w', encoding='utf-8') as f:
+        with open(long_canvas_path, "w", encoding="utf-8") as f:
             json.dump(long_canvas_data, f, ensure_ascii=False, indent=2)
 
         # 测试内容分析
@@ -652,13 +651,13 @@ class TestEdgeCaseScenarios(TestUserScenarioValidation):
                     "y": 100,
                     "width": 400,
                     "height": 200,
-                    "color": "1"
+                    "color": "1",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
-        with open(special_canvas_path, 'w', encoding='utf-8') as f:
+        with open(special_canvas_path, "w", encoding="utf-8") as f:
             json.dump(special_canvas_data, f, ensure_ascii=False, indent=2)
 
         # 测试特殊字符处理
@@ -678,7 +677,7 @@ class TestEdgeCaseScenarios(TestUserScenarioValidation):
         # 创建损坏的Canvas文件
         malformed_canvas_path = os.path.join(self.temp_dir, "malformed_canvas.canvas")
 
-        with open(malformed_canvas_path, 'w', encoding='utf-8') as f:
+        with open(malformed_canvas_path, "w", encoding="utf-8") as f:
             f.write('{"nodes": [{"id": "test", "type": "text"')  # 缺少闭合括号
 
         analyzer = LearningAnalyzer()
@@ -696,7 +695,7 @@ class TestEdgeCaseScenarios(TestUserScenarioValidation):
 def run_scenario_tests():
     """运行所有场景测试"""
     print("🎭 开始运行用户场景验证测试...")
-    print("="*60)
+    print("=" * 60)
 
     # 创建测试套件
     test_suite = unittest.TestSuite()
@@ -706,7 +705,7 @@ def run_scenario_tests():
         TestNewUserScenario,
         TestRegularUserScenario,
         TestPerformanceScenario,
-        TestEdgeCaseScenarios
+        TestEdgeCaseScenarios,
     ]
 
     for test_class in test_classes:
@@ -718,7 +717,7 @@ def run_scenario_tests():
     result = runner.run(test_suite)
 
     # 输出测试结果
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("📊 场景测试结果统计:")
     print(f"  总测试数: {result.testsRun}")
     print(f"  成功: {result.testsRun - len(result.failures) - len(result.errors)}")
@@ -726,7 +725,11 @@ def run_scenario_tests():
     print(f"  错误: {len(result.errors)}")
     print(f"  跳过: {len(result.skipped)}")
 
-    success_rate = (result.testsRun - len(result.failures) - len(result.errors)) / result.testsRun * 100
+    success_rate = (
+        (result.testsRun - len(result.failures) - len(result.errors))
+        / result.testsRun
+        * 100
+    )
     print(f"\n✅ 场景测试通过率: {success_rate:.1f}%")
 
     if result.wasSuccessful():

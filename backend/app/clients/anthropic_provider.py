@@ -185,7 +185,9 @@ class AnthropicProvider(BaseProvider):
         except httpx.HTTPStatusError as e:
             latency_ms = (time.time() - start_time) * 1000
             error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
-            await self.update_health(success=False, latency_ms=latency_ms, error=error_msg)
+            await self.update_health(
+                success=False, latency_ms=latency_ms, error=error_msg
+            )
 
             logger.error(f"Anthropic API error: {error_msg}")
             raise ProviderError(
@@ -249,20 +251,24 @@ class AnthropicProvider(BaseProvider):
 
             # Add images
             for img in images:
-                user_content.append({
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": img.get("media_type", "image/png"),
-                        "data": img.get("data", ""),
-                    },
-                })
+                user_content.append(
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": img.get("media_type", "image/png"),
+                            "data": img.get("data", ""),
+                        },
+                    }
+                )
 
             # Add text prompt
-            user_content.append({
-                "type": "text",
-                "text": user_prompt,
-            })
+            user_content.append(
+                {
+                    "type": "text",
+                    "text": user_prompt,
+                }
+            )
 
             payload: Dict[str, Any] = {
                 "model": self.config.model,
@@ -307,7 +313,9 @@ class AnthropicProvider(BaseProvider):
         except httpx.HTTPStatusError as e:
             latency_ms = (time.time() - start_time) * 1000
             error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
-            await self.update_health(success=False, latency_ms=latency_ms, error=error_msg)
+            await self.update_health(
+                success=False, latency_ms=latency_ms, error=error_msg
+            )
 
             logger.error(f"Anthropic vision API error: {error_msg}")
             raise ProviderError(

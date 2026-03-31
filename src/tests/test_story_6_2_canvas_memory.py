@@ -27,8 +27,8 @@ from unittest.mock import AsyncMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 需要在导入前重新加载模块以获取正确的环境变量
-if 'canvas_utils' in sys.modules:
-    del sys.modules['canvas_utils']
+if "canvas_utils" in sys.modules:
+    del sys.modules["canvas_utils"]
 
 from canvas_utils import CanvasJSONOperator, KnowledgeGraphLayer
 
@@ -56,7 +56,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
                     "y": 200,
                     "width": 400,
                     "height": 300,
-                    "color": "1"
+                    "color": "1",
                 },
                 {
                     "id": "node-abcdef1234567890",
@@ -66,23 +66,29 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
                     "y": 550,
                     "width": 350,
                     "height": 150,
-                    "color": "6"
-                }
+                    "color": "6",
+                },
             ],
             "edges": [
                 {
                     "id": "edge-1234567890abcdef",
                     "fromNode": "node-1234567890abcdef",
                     "toNode": "node-abcdef1234567890",
-                    "label": "个人理解"
+                    "label": "个人理解",
                 }
-            ]
+            ],
         }
 
     def tearDown(self):
         """测试后清理"""
         # 清理环境变量
-        for key in ["GRAPHITI_ENABLED", "NEO4J_URI", "NEO4J_USER", "NEO4J_PASSWORD", "OPENAI_API_KEY"]:
+        for key in [
+            "GRAPHITI_ENABLED",
+            "NEO4J_URI",
+            "NEO4J_USER",
+            "NEO4J_PASSWORD",
+            "OPENAI_API_KEY",
+        ]:
             if key in os.environ:
                 del os.environ[key]
 
@@ -136,7 +142,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         with self.assertRaises(ValueError):
             CanvasJSONOperator.parse_canvas_structure(None)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_memorize_canvas_success(self, mock_graphiti):
         """测试Canvas记忆功能成功 (Task 2)"""
         # Arrange
@@ -148,7 +154,10 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         kg_layer = KnowledgeGraphLayer()
         await kg_layer.initialize()
 
-        with patch('canvas_utils.CanvasJSONOperator.read_canvas', return_value=self.test_canvas_data):
+        with patch(
+            "canvas_utils.CanvasJSONOperator.read_canvas",
+            return_value=self.test_canvas_data,
+        ):
             # Act
             result = await kg_layer.memorize_canvas("test_canvas.canvas")
 
@@ -160,7 +169,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
             self.assertIn("processing_time_ms", result)
             self.assertIn("metadata", result)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_memorize_canvas_disabled(self, mock_graphiti):
         """测试知识图谱禁用时的Canvas记忆 (Task 2)"""
         # Arrange
@@ -168,6 +177,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         import importlib
 
         import canvas_utils
+
         importlib.reload(canvas_utils)
 
         kg_layer = canvas_utils.KnowledgeGraphLayer()
@@ -180,20 +190,25 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         self.assertIn("error", result)
         self.assertEqual(result["error"], "知识图谱未启用或未初始化")
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_sync_canvas_changes_new_canvas(self, mock_graphiti):
         """测试同步Canvas变更 - 新Canvas (Task 4)"""
         # Arrange
         mock_client = AsyncMock()
         mock_client.build_indices_and_constraints = AsyncMock(return_value=None)
         mock_client.add_episode = AsyncMock(return_value={"uuid": "sync-uuid-123"})
-        mock_client.driver.execute_query = AsyncMock(return_value=[])  # 没有找到现有Canvas
+        mock_client.driver.execute_query = AsyncMock(
+            return_value=[]
+        )  # 没有找到现有Canvas
         mock_graphiti.return_value = mock_client
 
         kg_layer = KnowledgeGraphLayer()
         await kg_layer.initialize()
 
-        with patch('canvas_utils.CanvasJSONOperator.read_canvas', return_value=self.test_canvas_data):
+        with patch(
+            "canvas_utils.CanvasJSONOperator.read_canvas",
+            return_value=self.test_canvas_data,
+        ):
             # Act
             result = await kg_layer.sync_canvas_changes("new_canvas.canvas")
 
@@ -203,7 +218,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
             self.assertEqual(result["nodes_added"], 2)
             self.assertEqual(result["edges_added"], 1)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_sync_canvas_changes_existing_canvas(self, mock_graphiti):
         """测试同步Canvas变更 - 存在Canvas (Task 4)"""
         # Arrange
@@ -215,14 +230,17 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         mock_client.driver.execute_query.side_effect = [
             [{"file_path": "existing_canvas.canvas"}],  # 找到Canvas
             [],  # 没有删除的节点
-            []   # 没有删除的边
+            [],  # 没有删除的边
         ]
         mock_graphiti.return_value = mock_client
 
         kg_layer = KnowledgeGraphLayer()
         await kg_layer.initialize()
 
-        with patch('canvas_utils.CanvasJSONOperator.read_canvas', return_value=self.test_canvas_data):
+        with patch(
+            "canvas_utils.CanvasJSONOperator.read_canvas",
+            return_value=self.test_canvas_data,
+        ):
             # Act
             result = await kg_layer.sync_canvas_changes("existing_canvas.canvas")
 
@@ -231,7 +249,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
             self.assertEqual(result["sync_type"], "incremental_update")
             self.assertIn("processing_time_ms", result)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_find_related_canvases(self, mock_graphiti):
         """测试查找相关Canvas (Task 3)"""
         # Arrange
@@ -243,13 +261,13 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
             {
                 "canvas_path": "related_canvas1.canvas",
                 "similarity_score": 0.85,
-                "shared_concepts": ["数学", "逻辑"]
+                "shared_concepts": ["数学", "逻辑"],
             },
             {
                 "canvas_path": "related_canvas2.canvas",
                 "similarity_score": 0.72,
-                "shared_concepts": ["推理"]
-            }
+                "shared_concepts": ["推理"],
+            },
         ]
         mock_graphiti.return_value = mock_client
 
@@ -271,7 +289,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         self.assertGreaterEqual(related_canvas["similarity_score"], 0.0)
         self.assertLessEqual(related_canvas["similarity_score"], 1.0)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_batch_memorize_canvases(self, mock_graphiti):
         """测试批量记忆Canvas (Task 6)"""
         # Arrange
@@ -285,9 +303,14 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
 
         canvas_paths = ["canvas1.canvas", "canvas2.canvas", "canvas3.canvas"]
 
-        with patch('canvas_utils.CanvasJSONOperator.read_canvas', return_value=self.test_canvas_data):
+        with patch(
+            "canvas_utils.CanvasJSONOperator.read_canvas",
+            return_value=self.test_canvas_data,
+        ):
             # Act
-            result = await kg_layer.batch_memorize_canvases(canvas_paths, max_concurrent=2)
+            result = await kg_layer.batch_memorize_canvases(
+                canvas_paths, max_concurrent=2
+            )
 
             # Assert
             self.assertTrue(result["success"])
@@ -297,7 +320,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
             self.assertIn("processing_time_ms", result)
             self.assertIn("results", result)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_performance_benchmark(self, mock_graphiti):
         """测试性能基准测试 (Task 6)"""
         # Arrange
@@ -310,9 +333,14 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         kg_layer = KnowledgeGraphLayer()
         await kg_layer.initialize()
 
-        with patch('canvas_utils.CanvasJSONOperator.read_canvas', return_value=self.test_canvas_data):
+        with patch(
+            "canvas_utils.CanvasJSONOperator.read_canvas",
+            return_value=self.test_canvas_data,
+        ):
             # Act
-            result = await kg_layer.performance_benchmark("benchmark_canvas.canvas", iterations=3)
+            result = await kg_layer.performance_benchmark(
+                "benchmark_canvas.canvas", iterations=3
+            )
 
             # Assert
             self.assertIsInstance(result, dict)
@@ -337,8 +365,20 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         """测试Canvas相似度计算 - 相同Canvas (Task 3)"""
         # Arrange
         kg_layer = KnowledgeGraphLayer()
-        canvas1 = {"metadata": {"subjects": ["数学"], "node_types": {"text": 2}, "color_distribution": {"1": 1, "6": 1}}}
-        canvas2 = {"metadata": {"subjects": ["数学"], "node_types": {"text": 2}, "color_distribution": {"1": 1, "6": 1}}}
+        canvas1 = {
+            "metadata": {
+                "subjects": ["数学"],
+                "node_types": {"text": 2},
+                "color_distribution": {"1": 1, "6": 1},
+            }
+        }
+        canvas2 = {
+            "metadata": {
+                "subjects": ["数学"],
+                "node_types": {"text": 2},
+                "color_distribution": {"1": 1, "6": 1},
+            }
+        }
 
         # Act
         result = asyncio.run(kg_layer._calculate_canvas_similarity(canvas1, canvas2))
@@ -351,8 +391,20 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         """测试Canvas相似度计算 - 不同Canvas (Task 3)"""
         # Arrange
         kg_layer = KnowledgeGraphLayer()
-        canvas1 = {"metadata": {"subjects": ["数学"], "node_types": {"text": 2}, "color_distribution": {"1": 2}}}
-        canvas2 = {"metadata": {"subjects": ["历史"], "node_types": {"file": 1}, "color_distribution": {"2": 1}}}
+        canvas1 = {
+            "metadata": {
+                "subjects": ["数学"],
+                "node_types": {"text": 2},
+                "color_distribution": {"1": 2},
+            }
+        }
+        canvas2 = {
+            "metadata": {
+                "subjects": ["历史"],
+                "node_types": {"file": 1},
+                "color_distribution": {"2": 1},
+            }
+        }
 
         # Act
         result = asyncio.run(kg_layer._calculate_canvas_similarity(canvas1, canvas2))
@@ -361,7 +413,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         self.assertIsInstance(result, float)
         self.assertLess(result, 0.5)  # 不同Canvas应该有较低相似度
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_get_canvas_memory_status_existing(self, mock_graphiti):
         """测试获取Canvas记忆状态 - 存在的Canvas (Task 5)"""
         # Arrange
@@ -374,7 +426,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
                 "file_path": "existing_canvas.canvas",
                 "last_sync": "2025-10-18T10:00:00Z",
                 "node_count": 5,
-                "relationship_count": 3
+                "relationship_count": 3,
             }
         ]
         mock_graphiti.return_value = mock_client
@@ -392,7 +444,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         self.assertIn("knowledge_graph_nodes", result)
         self.assertIn("knowledge_graph_relationships", result)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_get_canvas_memory_status_nonexistent(self, mock_graphiti):
         """测试获取Canvas记忆状态 - 不存在的Canvas (Task 5)"""
         # Arrange
@@ -404,9 +456,14 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         kg_layer = KnowledgeGraphLayer()
         await kg_layer.initialize()
 
-        with patch('canvas_utils.CanvasJSONOperator.read_canvas', return_value=self.test_canvas_data):
+        with patch(
+            "canvas_utils.CanvasJSONOperator.read_canvas",
+            return_value=self.test_canvas_data,
+        ):
             # Act
-            result = await kg_layer.get_canvas_memory_status("nonexistent_canvas.canvas")
+            result = await kg_layer.get_canvas_memory_status(
+                "nonexistent_canvas.canvas"
+            )
 
             # Assert
             self.assertFalse(result["is_memorized"])
@@ -415,7 +472,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
             self.assertIn("total_edges", result)
             self.assertIn("suggested_type", result)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_search_canvas_content(self, mock_graphiti):
         """测试搜索Canvas内容 (Task 5)"""
         # Arrange
@@ -428,14 +485,14 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
                 "node_type": "Node",
                 "name": "测试节点内容",
                 "content": "这是关于数学的测试内容",
-                "relevance_score": 0.9
+                "relevance_score": 0.9,
             },
             {
                 "node_type": "Concept",
                 "name": "数学概念",
                 "content": "数学相关概念解释",
-                "relevance_score": 0.8
-            }
+                "relevance_score": 0.8,
+            },
         ]
         mock_graphiti.return_value = mock_client
 
@@ -462,10 +519,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         """测试Canvas类型判断 - 数学类型 (Task 1)"""
         # Arrange
         kg_layer = KnowledgeGraphLayer()
-        metadata = {
-            "subjects": ["数学", "代数"],
-            "node_types": {"text": 5, "file": 2}
-        }
+        metadata = {"subjects": ["数学", "代数"], "node_types": {"text": 5, "file": 2}}
 
         # Act
         result = kg_layer._determine_canvas_type("test_canvas.canvas", metadata)
@@ -477,10 +531,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         """测试Canvas类型判断 - 未知类型 (Task 1)"""
         # Arrange
         kg_layer = KnowledgeGraphLayer()
-        metadata = {
-            "subjects": [],
-            "node_types": {"text": 1}
-        }
+        metadata = {"subjects": [], "node_types": {"text": 1}}
 
         # Act
         result = kg_layer._determine_canvas_type("test_canvas.canvas", metadata)
@@ -488,7 +539,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         # Assert
         self.assertEqual(result, "综合")
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_error_handling_file_not_found(self, mock_graphiti):
         """测试错误处理 - Canvas文件不存在 (Task 7)"""
         # Arrange
@@ -506,7 +557,7 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         self.assertIn("error", result)
         self.assertIn("文件不存在", result["error"])
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_error_handling_invalid_json(self, mock_graphiti):
         """测试错误处理 - 无效JSON (Task 7)"""
         # Arrange
@@ -517,7 +568,10 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         kg_layer = KnowledgeGraphLayer()
         await kg_layer.initialize()
 
-        with patch('canvas_utils.CanvasJSONOperator.read_canvas', side_effect=json.JSONDecodeError("Invalid JSON", "", 0)):
+        with patch(
+            "canvas_utils.CanvasJSONOperator.read_canvas",
+            side_effect=json.JSONDecodeError("Invalid JSON", "", 0),
+        ):
             # Act
             result = await kg_layer.memorize_canvas("invalid_canvas.canvas")
 
@@ -529,8 +583,10 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
 class TestCanvasMemoryIntegration(unittest.TestCase):
     """Story 6.2 Canvas记忆功能集成测试类"""
 
-    @unittest.skipUnless(os.getenv("RUN_INTEGRATION_TESTS"),
-                         "需要设置RUN_INTEGRATION_TESTS环境变量来运行集成测试")
+    @unittest.skipUnless(
+        os.getenv("RUN_INTEGRATION_TESTS"),
+        "需要设置RUN_INTEGRATION_TESTS环境变量来运行集成测试",
+    )
     async def test_full_canvas_memory_workflow(self):
         """测试完整Canvas记忆工作流程（需要实际数据库）"""
         # 这个测试需要真实的Neo4j环境
@@ -539,13 +595,24 @@ class TestCanvasMemoryIntegration(unittest.TestCase):
 
         if success:
             # 创建临时Canvas文件
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".canvas", delete=False
+            ) as f:
                 temp_canvas_path = f.name
                 test_data = {
                     "nodes": [
-                        {"id": "test-node-1", "type": "text", "text": "集成测试节点", "x": 0, "y": 0, "width": 300, "height": 200, "color": "1"}
+                        {
+                            "id": "test-node-1",
+                            "type": "text",
+                            "text": "集成测试节点",
+                            "x": 0,
+                            "y": 0,
+                            "width": 300,
+                            "height": 200,
+                            "color": "1",
+                        }
                     ],
-                    "edges": []
+                    "edges": [],
                 }
                 json.dump(test_data, f)
 
@@ -565,7 +632,7 @@ class TestCanvasMemoryIntegration(unittest.TestCase):
 
                 # 4. 同步变更
                 test_data["nodes"][0]["text"] = "更新后的测试节点"
-                with open(temp_canvas_path, 'w') as f:
+                with open(temp_canvas_path, "w") as f:
                     json.dump(test_data, f)
 
                 sync_result = await kg_layer.sync_canvas_changes(temp_canvas_path)
@@ -589,13 +656,13 @@ if __name__ == "__main__":
 
     # 添加测试用例
     test_methods = [
-        'test_parse_canvas_structure_success',
-        'test_parse_canvas_structure_empty_canvas',
-        'test_parse_canvas_structure_invalid_data',
-        'test_determine_canvas_type_mathematics',
-        'test_determine_canvas_type_unknown',
-        'test_calculate_canvas_similarity_identical',
-        'test_calculate_canvas_similarity_different'
+        "test_parse_canvas_structure_success",
+        "test_parse_canvas_structure_empty_canvas",
+        "test_parse_canvas_structure_invalid_data",
+        "test_determine_canvas_type_mathematics",
+        "test_determine_canvas_type_unknown",
+        "test_calculate_canvas_similarity_identical",
+        "test_calculate_canvas_similarity_different",
     ]
 
     for method_name in test_methods:
@@ -607,18 +674,18 @@ if __name__ == "__main__":
 
     # 运行异步测试
     async_test_methods = [
-        'test_memorize_canvas_success',
-        'test_memorize_canvas_disabled',
-        'test_sync_canvas_changes_new_canvas',
-        'test_sync_canvas_changes_existing_canvas',
-        'test_find_related_canvases',
-        'test_batch_memorize_canvases',
-        'test_performance_benchmark',
-        'test_get_canvas_memory_status_existing',
-        'test_get_canvas_memory_status_nonexistent',
-        'test_search_canvas_content',
-        'test_error_handling_file_not_found',
-        'test_error_handling_invalid_json'
+        "test_memorize_canvas_success",
+        "test_memorize_canvas_disabled",
+        "test_sync_canvas_changes_new_canvas",
+        "test_sync_canvas_changes_existing_canvas",
+        "test_find_related_canvases",
+        "test_batch_memorize_canvases",
+        "test_performance_benchmark",
+        "test_get_canvas_memory_status_existing",
+        "test_get_canvas_memory_status_nonexistent",
+        "test_search_canvas_content",
+        "test_error_handling_file_not_found",
+        "test_error_handling_invalid_json",
     ]
 
     print("\n=== 运行异步测试 ===")
@@ -632,4 +699,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ {method_name} - 失败: {e}")
             import traceback
+
             traceback.print_exc()

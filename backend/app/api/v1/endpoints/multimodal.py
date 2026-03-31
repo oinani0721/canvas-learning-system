@@ -39,24 +39,22 @@ from fastapi import (
     status,
 )
 
+from app.dependencies import MultimodalServiceDep
 from app.models.multimodal_schemas import (
+    # Story 35.2: Query/Search
+    MultimodalByConceptResponse,
     # Story 35.1: Upload/Management
     MultimodalHealthResponse,
     MultimodalListResponse,
     MultimodalMediaType,
+    MultimodalPaginatedListResponse,
     MultimodalResponse,
+    MultimodalSearchRequest,
+    MultimodalSearchResponse,
     MultimodalUpdateRequest,
     MultimodalUploadResponse,
     MultimodalUploadUrlRequest,
-    # Story 35.2: Query/Search
-    MediaItemResponse,
-    MultimodalByConceptResponse,
-    MultimodalPaginatedListResponse,
-    MultimodalSearchRequest,
-    MultimodalSearchResponse,
-    PaginationMeta,
 )
-from app.dependencies import MultimodalServiceDep
 from app.services.multimodal_service import (
     ContentNotFoundError,
     FileValidationError,
@@ -83,6 +81,7 @@ multimodal_router = APIRouter(
 # ═══════════════════════════════════════════════════════════════════════════════
 # Upload Endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @multimodal_router.post(
     "/upload",
@@ -178,9 +177,7 @@ async def upload_from_url(
     try:
         result = await service.upload_from_url(request)
 
-        logger.info(
-            f"URL content uploaded: {result.content.id} from {request.url}"
-        )
+        logger.info(f"URL content uploaded: {result.content.id} from {request.url}")
 
         return result
 
@@ -206,6 +203,7 @@ async def upload_from_url(
 # [Source: QA Review 35.9 - Route ordering fix]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @multimodal_router.get(
     "",
     response_model=MultimodalListResponse,
@@ -215,7 +213,9 @@ async def upload_from_url(
 async def list_content(
     service: MultimodalServiceDep,
     concept_id: Optional[str] = Query(None, description="Filter by concept ID"),
-    media_type: Optional[MultimodalMediaType] = Query(None, description="Filter by media type"),
+    media_type: Optional[MultimodalMediaType] = Query(
+        None, description="Filter by media type"
+    ),
     limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
 ) -> MultimodalListResponse:
     """
@@ -261,10 +261,18 @@ async def list_multimodal(
     service: MultimodalServiceDep,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    media_type: Optional[MultimodalMediaType] = Query(None, description="Filter by media type"),
-    sort_by: str = Query("created_at", pattern="^(created_at|updated_at)$", description="Sort field"),
-    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort direction"),
-    include_thumbnail: bool = Query(False, description="Include base64 encoded thumbnails"),
+    media_type: Optional[MultimodalMediaType] = Query(
+        None, description="Filter by media type"
+    ),
+    sort_by: str = Query(
+        "created_at", pattern="^(created_at|updated_at)$", description="Sort field"
+    ),
+    sort_order: str = Query(
+        "desc", pattern="^(asc|desc)$", description="Sort direction"
+    ),
+    include_thumbnail: bool = Query(
+        False, description="Include base64 encoded thumbnails"
+    ),
 ) -> MultimodalPaginatedListResponse:
     """
     List all multimodal content with pagination.
@@ -307,7 +315,9 @@ async def list_multimodal(
 async def search_multimodal(
     service: MultimodalServiceDep,
     request: MultimodalSearchRequest,
-    include_thumbnail: bool = Query(False, description="Include base64 encoded thumbnails"),
+    include_thumbnail: bool = Query(
+        False, description="Include base64 encoded thumbnails"
+    ),
 ) -> MultimodalSearchResponse:
     """
     Search multimodal content using vector similarity.
@@ -349,9 +359,13 @@ async def search_multimodal(
 async def get_by_concept(
     service: MultimodalServiceDep,
     concept_id: str = Path(..., description="Canvas concept node ID"),
-    media_type: Optional[MultimodalMediaType] = Query(None, description="Filter by media type"),
+    media_type: Optional[MultimodalMediaType] = Query(
+        None, description="Filter by media type"
+    ),
     limit: int = Query(100, ge=1, le=200, description="Maximum items to return"),
-    include_thumbnail: bool = Query(False, description="Include base64 encoded thumbnails"),
+    include_thumbnail: bool = Query(
+        False, description="Include base64 encoded thumbnails"
+    ),
 ) -> MultimodalByConceptResponse:
     """
     Get all multimodal content associated with a concept.
@@ -386,6 +400,7 @@ async def get_by_concept(
 # MUST be defined AFTER all static paths to prevent incorrect matching
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @multimodal_router.get(
     "/{content_id}",
     response_model=MultimodalResponse,
@@ -394,7 +409,11 @@ async def get_by_concept(
 )
 async def get_content(
     service: MultimodalServiceDep,
-    content_id: str = Path(..., pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", description="Content UUID"),
+    content_id: str = Path(
+        ...,
+        pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        description="Content UUID",
+    ),
 ) -> MultimodalResponse:
     """
     Get multimodal content by ID.
@@ -421,7 +440,11 @@ async def get_content(
 )
 async def update_content(
     service: MultimodalServiceDep,
-    content_id: str = Path(..., pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", description="Content UUID"),
+    content_id: str = Path(
+        ...,
+        pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        description="Content UUID",
+    ),
     request: MultimodalUpdateRequest = ...,
 ) -> MultimodalResponse:
     """
@@ -450,7 +473,11 @@ async def update_content(
 )
 async def delete_content(
     service: MultimodalServiceDep,
-    content_id: str = Path(..., pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", description="Content UUID"),
+    content_id: str = Path(
+        ...,
+        pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        description="Content UUID",
+    ),
 ) -> None:
     """
     Delete multimodal content.

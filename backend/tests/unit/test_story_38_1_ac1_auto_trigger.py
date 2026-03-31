@@ -10,7 +10,7 @@ import asyncio
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -133,9 +133,7 @@ class TestAC1AutoTrigger:
             assert first_task.cancelled() or first_task.done(), (
                 "First debounce task should be cancelled when a second update arrives"
             )
-            assert second_task is not first_task, (
-                "Second call should create a new task"
-            )
+            assert second_task is not first_task, "Second call should create a new task"
 
             # Cleanup
             second_task.cancel()
@@ -169,7 +167,10 @@ class TestAC1AutoTrigger:
                 node_data = {
                     "type": "text",
                     "text": "hello",
-                    "x": 0, "y": 0, "width": 200, "height": 100,
+                    "x": 0,
+                    "y": 0,
+                    "width": 200,
+                    "height": 100,
                 }
                 result = await svc.add_node(canvas_name="test", node_data=node_data)
                 mock_index_svc.schedule_index.assert_called_once_with(
@@ -189,7 +190,17 @@ class TestAC1AutoTrigger:
             # Create canvas with one node
             node_id = "node-1"
             canvas_data = {
-                "nodes": [{"id": node_id, "type": "text", "text": "old", "x": 0, "y": 0, "width": 200, "height": 100}],
+                "nodes": [
+                    {
+                        "id": node_id,
+                        "type": "text",
+                        "text": "old",
+                        "x": 0,
+                        "y": 0,
+                        "width": 200,
+                        "height": 100,
+                    }
+                ],
                 "edges": [],
             }
             canvas_file = Path(tmpdir) / "test.canvas"

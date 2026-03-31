@@ -13,10 +13,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ============================================================================
 # Task 1: Deterministic Episode ID Generation
 # ============================================================================
+
 
 class TestDeterministicEpisodeId:
     """AC-30.10.1: Deterministic episode ID from content hash."""
@@ -25,24 +25,36 @@ class TestDeterministicEpisodeId:
         """Same (user_id, canvas_path, node_id, concept) → same episode_id."""
         from app.services.memory_service import _generate_deterministic_episode_id
 
-        id1 = _generate_deterministic_episode_id("user1", "math/algebra.canvas", "node-1", "二次方程")
-        id2 = _generate_deterministic_episode_id("user1", "math/algebra.canvas", "node-1", "二次方程")
+        id1 = _generate_deterministic_episode_id(
+            "user1", "math/algebra.canvas", "node-1", "二次方程"
+        )
+        id2 = _generate_deterministic_episode_id(
+            "user1", "math/algebra.canvas", "node-1", "二次方程"
+        )
         assert id1 == id2
 
     def test_different_input_different_id(self):
         """Different inputs → different episode_ids."""
         from app.services.memory_service import _generate_deterministic_episode_id
 
-        id1 = _generate_deterministic_episode_id("user1", "math/algebra.canvas", "node-1", "二次方程")
-        id2 = _generate_deterministic_episode_id("user1", "math/algebra.canvas", "node-2", "二次方程")
+        id1 = _generate_deterministic_episode_id(
+            "user1", "math/algebra.canvas", "node-1", "二次方程"
+        )
+        id2 = _generate_deterministic_episode_id(
+            "user1", "math/algebra.canvas", "node-2", "二次方程"
+        )
         assert id1 != id2
 
     def test_different_user_different_id(self):
         """Different user_id → different episode_ids."""
         from app.services.memory_service import _generate_deterministic_episode_id
 
-        id1 = _generate_deterministic_episode_id("user1", "math.canvas", "node-1", "概念A")
-        id2 = _generate_deterministic_episode_id("user2", "math.canvas", "node-1", "概念A")
+        id1 = _generate_deterministic_episode_id(
+            "user1", "math.canvas", "node-1", "概念A"
+        )
+        id2 = _generate_deterministic_episode_id(
+            "user2", "math.canvas", "node-1", "概念A"
+        )
         assert id1 != id2
 
     def test_id_format(self):
@@ -68,6 +80,7 @@ class TestDeterministicEpisodeId:
 # Task 2: Batch Deterministic Episode ID
 # ============================================================================
 
+
 class TestBatchDeterministicEpisodeId:
     """AC-30.10.4: Deterministic batch episode ID from event content."""
 
@@ -75,16 +88,24 @@ class TestBatchDeterministicEpisodeId:
         """Same event content → same batch episode_id."""
         from app.services.memory_service import _generate_batch_episode_id
 
-        id1 = _generate_batch_episode_id("math.canvas", "node-1", "color_change", "2026-02-09T10:00:00")
-        id2 = _generate_batch_episode_id("math.canvas", "node-1", "color_change", "2026-02-09T10:00:00")
+        id1 = _generate_batch_episode_id(
+            "math.canvas", "node-1", "color_change", "2026-02-09T10:00:00"
+        )
+        id2 = _generate_batch_episode_id(
+            "math.canvas", "node-1", "color_change", "2026-02-09T10:00:00"
+        )
         assert id1 == id2
 
     def test_different_event_different_id(self):
         """Different event content → different batch episode_ids."""
         from app.services.memory_service import _generate_batch_episode_id
 
-        id1 = _generate_batch_episode_id("math.canvas", "node-1", "color_change", "2026-02-09T10:00:00")
-        id2 = _generate_batch_episode_id("math.canvas", "node-1", "color_change", "2026-02-09T10:00:01")
+        id1 = _generate_batch_episode_id(
+            "math.canvas", "node-1", "color_change", "2026-02-09T10:00:00"
+        )
+        id2 = _generate_batch_episode_id(
+            "math.canvas", "node-1", "color_change", "2026-02-09T10:00:01"
+        )
         assert id1 != id2
 
     def test_batch_id_format(self):
@@ -99,6 +120,7 @@ class TestBatchDeterministicEpisodeId:
 # ============================================================================
 # Task 3 & 4: _episodes Dedup in record_learning_event
 # ============================================================================
+
 
 class TestEpisodesDedup:
     """AC-30.10.3: _episodes list dedup on record_learning_event."""
@@ -124,6 +146,7 @@ class TestEpisodesDedup:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -138,17 +161,24 @@ class TestEpisodesDedup:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
 
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math.canvas",
-                node_id="node-1", concept="二次方程", agent_type="scoring-agent"
+                user_id="user1",
+                canvas_path="math.canvas",
+                node_id="node-1",
+                concept="二次方程",
+                agent_type="scoring-agent",
             )
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math.canvas",
-                node_id="node-1", concept="二次方程", agent_type="scoring-agent"
+                user_id="user1",
+                canvas_path="math.canvas",
+                node_id="node-1",
+                concept="二次方程",
+                agent_type="scoring-agent",
             )
 
             # Should only have 1 episode (dedup by deterministic ID)
             matching = [
-                ep for ep in memory_service._episodes
+                ep
+                for ep in memory_service._episodes
                 if ep.get("concept") == "二次方程" and ep.get("node_id") == "node-1"
             ]
             assert len(matching) == 1
@@ -160,12 +190,18 @@ class TestEpisodesDedup:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
 
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math.canvas",
-                node_id="node-1", concept="二次方程", agent_type="scoring-agent"
+                user_id="user1",
+                canvas_path="math.canvas",
+                node_id="node-1",
+                concept="二次方程",
+                agent_type="scoring-agent",
             )
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math.canvas",
-                node_id="node-2", concept="一次方程", agent_type="scoring-agent"
+                user_id="user1",
+                canvas_path="math.canvas",
+                node_id="node-2",
+                concept="一次方程",
+                agent_type="scoring-agent",
             )
 
             assert len(memory_service._episodes) == 2
@@ -177,19 +213,24 @@ class TestEpisodesDedup:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
 
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math.canvas",
-                node_id="node-1", concept="二次方程", agent_type="scoring-agent",
-                score=60
+                user_id="user1",
+                canvas_path="math.canvas",
+                node_id="node-1",
+                concept="二次方程",
+                agent_type="scoring-agent",
+                score=60,
             )
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math.canvas",
-                node_id="node-1", concept="二次方程", agent_type="scoring-agent",
-                score=80
+                user_id="user1",
+                canvas_path="math.canvas",
+                node_id="node-1",
+                concept="二次方程",
+                agent_type="scoring-agent",
+                score=80,
             )
 
             matching = [
-                ep for ep in memory_service._episodes
-                if ep.get("concept") == "二次方程"
+                ep for ep in memory_service._episodes if ep.get("concept") == "二次方程"
             ]
             assert len(matching) == 1
             assert matching[0]["score"] == 60  # C4 fix: skip-if-exists keeps original
@@ -198,6 +239,7 @@ class TestEpisodesDedup:
 # ============================================================================
 # Task 4: Batch _episodes Dedup
 # ============================================================================
+
 
 class TestBatchEpisodesDedup:
     """AC-30.10.4: Batch episodes dedup."""
@@ -219,6 +261,7 @@ class TestBatchEpisodesDedup:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -226,13 +269,18 @@ class TestBatchEpisodesDedup:
         await service.initialize()
         return service
 
-    def _make_event(self, node_id="node-1", event_type="color_change", timestamp="2026-02-09T10:00:00"):
+    def _make_event(
+        self,
+        node_id="node-1",
+        event_type="color_change",
+        timestamp="2026-02-09T10:00:00",
+    ):
         return {
             "event_type": event_type,
             "timestamp": timestamp,
             "canvas_path": "math.canvas",
             "node_id": node_id,
-            "metadata": {"concept": "test"}
+            "metadata": {"concept": "test"},
         }
 
     @pytest.mark.asyncio
@@ -269,6 +317,7 @@ class TestBatchEpisodesDedup:
 # Task 3: Graphiti JSON Write Dedup
 # ============================================================================
 
+
 class TestGraphitiJsonWriteDedup:
     """AC-30.10.2: Graphiti JSON write dedup via search check."""
 
@@ -291,6 +340,7 @@ class TestGraphitiJsonWriteDedup:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -301,9 +351,11 @@ class TestGraphitiJsonWriteDedup:
     @pytest.mark.asyncio
     async def test_skips_write_when_exists(self, memory_service, mock_learning_memory):
         """If concept+canvas+node already in memories, skip write."""
-        mock_learning_memory.search_memories = AsyncMock(return_value=[
-            {"concept": "二次方程", "canvas_name": "math.canvas", "node_id": "n1"}
-        ])
+        mock_learning_memory.search_memories = AsyncMock(
+            return_value=[
+                {"concept": "二次方程", "canvas_name": "math.canvas", "node_id": "n1"}
+            ]
+        )
 
         result = await memory_service._write_to_graphiti_json_with_retry(
             episode_id="ep-123",
@@ -331,9 +383,13 @@ class TestGraphitiJsonWriteDedup:
         mock_learning_memory.add_learning_episode.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_degrades_gracefully_on_search_error(self, memory_service, mock_learning_memory):
+    async def test_degrades_gracefully_on_search_error(
+        self, memory_service, mock_learning_memory
+    ):
         """AC-30.10.5: If dedup check fails, fall back to normal write."""
-        mock_learning_memory.search_memories = AsyncMock(side_effect=Exception("DB error"))
+        mock_learning_memory.search_memories = AsyncMock(
+            side_effect=Exception("DB error")
+        )
 
         result = await memory_service._write_to_graphiti_json_with_retry(
             episode_id="ep-123",
@@ -346,7 +402,9 @@ class TestGraphitiJsonWriteDedup:
         mock_learning_memory.add_learning_episode.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_degrades_when_learning_memory_uninitialized(self, memory_service, mock_learning_memory):
+    async def test_degrades_when_learning_memory_uninitialized(
+        self, memory_service, mock_learning_memory
+    ):
         """AC-30.10.5: If _learning_memory not initialized, skip dedup, write normally."""
         mock_learning_memory._initialized = False
 

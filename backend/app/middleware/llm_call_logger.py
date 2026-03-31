@@ -150,7 +150,9 @@ class LLMCallLog(BaseModel):
         description="Error message if failed (truncated to 500 chars)",
     )
     created_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+        default_factory=lambda: (
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        ),
         description="Timestamp in ISO 8601 format",
     )
 
@@ -203,7 +205,9 @@ def _sanitize_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(litellm_params, dict):
         metadata = litellm_params.get("metadata", {})
         if isinstance(metadata, dict):
-            safe["metadata"] = {k: v for k, v in metadata.items() if k in _SAFE_METADATA_FIELDS}
+            safe["metadata"] = {
+                k: v for k, v in metadata.items() if k in _SAFE_METADATA_FIELDS
+            }
 
     return safe
 
@@ -453,7 +457,9 @@ class LLMCallLogger(_LiteLLMCustomLogger):
                 usage = completion_response.usage
                 input_tokens = getattr(usage, "prompt_tokens", 0) or 0
                 output_tokens = getattr(usage, "completion_tokens", 0) or 0
-                total_tokens = getattr(usage, "total_tokens", 0) or (input_tokens + output_tokens)
+                total_tokens = getattr(usage, "total_tokens", 0) or (
+                    input_tokens + output_tokens
+                )
 
             # Calculate latency
             latency_ms = self._compute_latency_ms(start_time, end_time)

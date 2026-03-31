@@ -98,7 +98,9 @@ class TestGraphitiHealthEndpoint:
         assert "status" in data
         assert data["status"] in ["ok", "error"]
 
-    async def test_graphiti_health_includes_stats_when_ok(self, async_client: AsyncClient):
+    async def test_graphiti_health_includes_stats_when_ok(
+        self, async_client: AsyncClient
+    ):
         """When status is ok, graph_stats should be present."""
         response = await async_client.get("/api/v1/health/graphiti")
         data = response.json()
@@ -126,7 +128,9 @@ class TestLanceDBHealthEndpoint:
         assert "status" in data
         assert data["status"] in ["ok", "error"]
 
-    async def test_lancedb_health_includes_counts_when_ok(self, async_client: AsyncClient):
+    async def test_lancedb_health_includes_counts_when_ok(
+        self, async_client: AsyncClient
+    ):
         """When status is ok, table_count and total_vectors should be present."""
         response = await async_client.get("/api/v1/health/lancedb")
         data = response.json()
@@ -140,16 +144,17 @@ class TestLanceDBHealthEndpoint:
 class TestHealthEndpointPerformance:
     """Performance tests for health endpoints (< 100ms P95)."""
 
-    @pytest.mark.parametrize("endpoint", [
-        "/api/v1/memory/health",
-        "/api/v1/health/neo4j",
-        "/api/v1/health/graphiti",
-        "/api/v1/health/lancedb",
-    ])
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "/api/v1/memory/health",
+            "/api/v1/health/neo4j",
+            "/api/v1/health/graphiti",
+            "/api/v1/health/lancedb",
+        ],
+    )
     async def test_health_endpoint_performance(
-        self,
-        async_client: AsyncClient,
-        endpoint: str
+        self, async_client: AsyncClient, endpoint: str
     ):
         """Health endpoints should respond within 100ms."""
         import time
@@ -161,4 +166,6 @@ class TestHealthEndpointPerformance:
         assert response.status_code == 200
         # 750ms threshold: 500ms internal timeout (when service unavailable) + 250ms overhead
         # Per ADR-0003 target of 100ms for healthy services, 750ms for degraded/timeout scenarios
-        assert elapsed_ms < 750, f"{endpoint} took {elapsed_ms:.1f}ms (expected < 750ms)"
+        assert elapsed_ms < 750, (
+            f"{endpoint} took {elapsed_ms:.1f}ms (expected < 750ms)"
+        )

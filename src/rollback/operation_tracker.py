@@ -129,16 +129,12 @@ class OperationTracker:
         # 序列化数据
         data = [op.to_dict() for op in history]
         json_bytes = orjson.dumps(
-            data,
-            option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
+            data, option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
         )
 
         # 原子写入：临时文件 + 重命名
         # ✅ Verified from Python stdlib: tempfile + os.replace for atomic write
-        fd, temp_path = tempfile.mkstemp(
-            dir=history_file.parent,
-            suffix=".tmp"
-        )
+        fd, temp_path = tempfile.mkstemp(dir=history_file.parent, suffix=".tmp")
         try:
             os.write(fd, json_bytes)
             os.close(fd)
@@ -173,7 +169,7 @@ class OperationTracker:
 
         # 限制历史记录数量 (保留最新的)
         if len(history) > self.max_history:
-            history = history[-self.max_history:]
+            history = history[-self.max_history :]
 
         # 持久化
         self._save_history(canvas_path, history)
@@ -184,10 +180,7 @@ class OperationTracker:
         return operation.id
 
     def get_history(
-        self,
-        canvas_path: str,
-        limit: int = 50,
-        offset: int = 0
+        self, canvas_path: str, limit: int = 50, offset: int = 0
     ) -> List[Operation]:
         """获取Canvas的操作历史
 
@@ -208,7 +201,7 @@ class OperationTracker:
 
         # 返回最新的记录 (倒序)
         reversed_history = list(reversed(history))
-        return reversed_history[offset:offset + limit]
+        return reversed_history[offset : offset + limit]
 
     def get_operation(self, operation_id: str) -> Optional[Operation]:
         """根据ID获取单个操作

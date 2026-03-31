@@ -21,7 +21,7 @@ router = APIRouter(tags=["System"])
     response_model=HealthCheckResponse,
     summary="健康检查",
     description="返回应用状态、名称、版本和时间戳",
-    operation_id="health_check"
+    operation_id="health_check",
 )
 async def health_check() -> HealthCheckResponse:
     """
@@ -40,5 +40,5 @@ async def health_check() -> HealthCheckResponse:
         status="healthy",
         app_name=settings.PROJECT_NAME,
         version=settings.VERSION,
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.now(timezone.utc),
     )

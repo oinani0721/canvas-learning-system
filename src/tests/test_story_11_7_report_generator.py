@@ -21,11 +21,16 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from canvas_progress_tracker.report_generator import ASCIIChartGenerator, LearningReportGenerator, get_report_generator
+from canvas_progress_tracker.report_generator import (
+    ASCIIChartGenerator,
+    LearningReportGenerator,
+    get_report_generator,
+)
 
 # ============================================================================
 # Test Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def temp_output_dir(tmp_path):
@@ -43,12 +48,9 @@ def mock_hot_store():
         "session_id": "session_2025-01-15",
         "total_events": 42,
         "canvases_modified": ["math.canvas", "physics.canvas"],
-        "color_transitions": {
-            "red->purple": 5,
-            "purple->green": 3
-        },
+        "color_transitions": {"red->purple": 5, "purple->green": 3},
         "start_time": "2025-01-15T09:00:00",
-        "last_update": "2025-01-15T18:00:00"
+        "last_update": "2025-01-15T18:00:00",
     }
     return store
 
@@ -59,16 +61,18 @@ def mock_cold_store():
     store = Mock()
 
     # Mock daily_stats
-    store.query_daily_stats.return_value = [{
-        "stat_date": "2025-01-15",
-        "total_events": 50,
-        "total_learning_minutes": 180,
-        "nodes_modified": 20,
-        "nodes_red": 10,
-        "nodes_purple": 15,
-        "nodes_green": 25,
-        "understanding_rate": 75.0
-    }]
+    store.query_daily_stats.return_value = [
+        {
+            "stat_date": "2025-01-15",
+            "total_events": 50,
+            "total_learning_minutes": 180,
+            "nodes_modified": 20,
+            "nodes_red": 10,
+            "nodes_purple": 15,
+            "nodes_green": 25,
+            "understanding_rate": 75.0,
+        }
+    ]
 
     # Mock canvas_changes
     store.query_canvas_changes.return_value = [
@@ -77,15 +81,15 @@ def mock_cold_store():
             "canvas_id": "math.canvas",
             "change_type": "node_modified",
             "node_id": "n1",
-            "timestamp": "2025-01-15T10:00:00"
+            "timestamp": "2025-01-15T10:00:00",
         },
         {
             "change_id": "c2",
             "canvas_id": "math.canvas",
             "change_type": "node_added",
             "node_id": "n2",
-            "timestamp": "2025-01-15T11:00:00"
-        }
+            "timestamp": "2025-01-15T11:00:00",
+        },
     ]
 
     # Mock learning_events
@@ -95,7 +99,7 @@ def mock_cold_store():
             "canvas_id": "math.canvas",
             "event_type": "understanding_breakthrough",
             "timestamp": "2025-01-15T10:30:00",
-            "description": "理解了特征向量"
+            "description": "理解了特征向量",
         }
     ]
 
@@ -106,17 +110,17 @@ def mock_cold_store():
             "canvas_id": "math.canvas",
             "node_id": "n1",
             "from_color": "1",  # red
-            "to_color": "3",    # purple
-            "timestamp": "2025-01-15T10:15:00"
+            "to_color": "3",  # purple
+            "timestamp": "2025-01-15T10:15:00",
         },
         {
             "transition_id": "t2",
             "canvas_id": "math.canvas",
             "node_id": "n2",
             "from_color": "3",  # purple
-            "to_color": "2",    # green
-            "timestamp": "2025-01-15T11:30:00"
-        }
+            "to_color": "2",  # green
+            "timestamp": "2025-01-15T11:30:00",
+        },
     ]
 
     # Mock get_stats_summary
@@ -124,7 +128,7 @@ def mock_cold_store():
         "total_changes": 100,
         "total_learning_events": 20,
         "color_distribution": {"red": 10, "purple": 15, "green": 25},
-        "understanding_rate_avg": 75.0
+        "understanding_rate_avg": 75.0,
     }
 
     return store
@@ -134,15 +138,14 @@ def mock_cold_store():
 def report_generator(mock_hot_store, mock_cold_store, temp_output_dir):
     """LearningReportGenerator instance with mocked stores"""
     return LearningReportGenerator(
-        hot_store=mock_hot_store,
-        cold_store=mock_cold_store,
-        output_dir=temp_output_dir
+        hot_store=mock_hot_store, cold_store=mock_cold_store, output_dir=temp_output_dir
     )
 
 
 # ============================================================================
 # Test ASCII Chart Generator
 # ============================================================================
+
 
 class TestASCIIChartGenerator:
     """Test ASCII art chart generation"""
@@ -187,11 +190,7 @@ class TestASCIIChartGenerator:
     def test_generate_heatmap(self):
         """AC3: ASCII heatmap generation"""
         chart_gen = ASCIIChartGenerator()
-        data = [
-            [10, 20, 30],
-            [15, 25, 35],
-            [5, 15, 25]
-        ]
+        data = [[10, 20, 30], [15, 25, 35], [5, 15, 25]]
         labels_x = ["A", "B", "C"]
         labels_y = ["X", "Y", "Z"]
 
@@ -206,13 +205,16 @@ class TestASCIIChartGenerator:
 # Test Learning Report Generator Initialization
 # ============================================================================
 
+
 class TestLearningReportGeneratorInit:
     """Test LearningReportGenerator initialization"""
 
     def test_init_with_defaults(self):
         """AC1: Initialize with default parameters"""
-        with patch('canvas_progress_tracker.report_generator.get_hot_data_store'), \
-             patch('canvas_progress_tracker.report_generator.get_cold_data_store'):
+        with (
+            patch("canvas_progress_tracker.report_generator.get_hot_data_store"),
+            patch("canvas_progress_tracker.report_generator.get_cold_data_store"),
+        ):
             generator = LearningReportGenerator()
 
             assert generator.hot_store is not None
@@ -220,12 +222,14 @@ class TestLearningReportGeneratorInit:
             assert generator.output_dir == Path(".learning_reports")
             assert isinstance(generator.chart_gen, ASCIIChartGenerator)
 
-    def test_init_with_custom_params(self, mock_hot_store, mock_cold_store, temp_output_dir):
+    def test_init_with_custom_params(
+        self, mock_hot_store, mock_cold_store, temp_output_dir
+    ):
         """AC1: Initialize with custom parameters"""
         generator = LearningReportGenerator(
             hot_store=mock_hot_store,
             cold_store=mock_cold_store,
-            output_dir=temp_output_dir
+            output_dir=temp_output_dir,
         )
 
         assert generator.hot_store == mock_hot_store
@@ -235,8 +239,10 @@ class TestLearningReportGeneratorInit:
     def test_output_dir_created(self, temp_output_dir):
         """AC1: Output directory is created"""
         output_dir = temp_output_dir / "new_reports"
-        with patch('canvas_progress_tracker.report_generator.get_hot_data_store'), \
-             patch('canvas_progress_tracker.report_generator.get_cold_data_store'):
+        with (
+            patch("canvas_progress_tracker.report_generator.get_hot_data_store"),
+            patch("canvas_progress_tracker.report_generator.get_cold_data_store"),
+        ):
             LearningReportGenerator(output_dir=output_dir)
 
             assert output_dir.exists()
@@ -245,6 +251,7 @@ class TestLearningReportGeneratorInit:
 # ============================================================================
 # Test Daily Report Generation
 # ============================================================================
+
 
 class TestDailyReportGeneration:
     """Test daily report generation (AC: 6 sections, < 2s)"""
@@ -273,7 +280,7 @@ class TestDailyReportGeneration:
         target_date = date(2025, 1, 15)
         file_path = report_generator.generate_daily_report(target_date)
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         # Check for 6 sections
@@ -290,7 +297,7 @@ class TestDailyReportGeneration:
 
         assert file_path.endswith(".md")
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert content.startswith("# ")  # Markdown header
@@ -302,7 +309,7 @@ class TestDailyReportGeneration:
         target_date = date.today()  # Use today to trigger HotDataStore
         file_path = report_generator.generate_daily_report(target_date)
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         # Check that data from mocks appears in report
@@ -314,6 +321,7 @@ class TestDailyReportGeneration:
 # ============================================================================
 # Test Weekly Report Generation
 # ============================================================================
+
 
 class TestWeeklyReportGeneration:
     """Test weekly report generation (AC: trends + heatmap, < 5s)"""
@@ -342,7 +350,7 @@ class TestWeeklyReportGeneration:
         """AC2: Weekly report contains trend chart"""
         file_path = report_generator.generate_weekly_report()
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 1. 📈 学习时长趋势" in content
@@ -353,7 +361,7 @@ class TestWeeklyReportGeneration:
         """AC2: Weekly report contains heatmap"""
         file_path = report_generator.generate_weekly_report()
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 2. 🔥 Canvas活动热力图" in content
@@ -362,7 +370,7 @@ class TestWeeklyReportGeneration:
         """AC2: Weekly report contains node flow analysis"""
         file_path = report_generator.generate_weekly_report()
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 3. 🎨 节点流转分析" in content
@@ -372,7 +380,7 @@ class TestWeeklyReportGeneration:
         """AC2: Weekly report contains efficiency assessment"""
         file_path = report_generator.generate_weekly_report()
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 4. ⚡ 效率评估" in content
@@ -382,7 +390,7 @@ class TestWeeklyReportGeneration:
         """AC2: Weekly report contains next week suggestions"""
         file_path = report_generator.generate_weekly_report()
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 5. 💡 下周学习建议" in content
@@ -391,6 +399,7 @@ class TestWeeklyReportGeneration:
 # ============================================================================
 # Test Canvas Analysis Report
 # ============================================================================
+
 
 class TestCanvasAnalysisReport:
     """Test Canvas analysis report generation"""
@@ -413,7 +422,7 @@ class TestCanvasAnalysisReport:
         """AC3: Canvas report contains timeline"""
         file_path = report_generator.generate_canvas_report("math.canvas")
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 1. 📅 学习时间线" in content
@@ -422,7 +431,7 @@ class TestCanvasAnalysisReport:
         """AC3: Canvas report contains node flow statistics"""
         file_path = report_generator.generate_canvas_report("math.canvas")
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 2. 🎨 节点流转统计" in content
@@ -433,7 +442,7 @@ class TestCanvasAnalysisReport:
         """AC3: Canvas report contains progress curve"""
         file_path = report_generator.generate_canvas_report("math.canvas")
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 3. 📈 理解进步曲线" in content
@@ -442,7 +451,7 @@ class TestCanvasAnalysisReport:
         """AC3: Canvas report contains efficiency analysis"""
         file_path = report_generator.generate_canvas_report("math.canvas")
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 4. ⚡ 效率分析" in content
@@ -452,7 +461,7 @@ class TestCanvasAnalysisReport:
         """AC3: Canvas report contains blind spot identification"""
         file_path = report_generator.generate_canvas_report("math.canvas")
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "## 5. 🎯 知识盲区识别" in content
@@ -461,6 +470,7 @@ class TestCanvasAnalysisReport:
 # ============================================================================
 # Test Data Collection Methods
 # ============================================================================
+
 
 class TestDataCollection:
     """Test internal data collection methods"""
@@ -471,9 +481,9 @@ class TestDataCollection:
 
         data = report_generator._collect_daily_data(target_date)
 
-        assert 'today_stats' in data
-        assert data['today_stats'] is not None
-        assert data['today_stats']['total_events'] == 42
+        assert "today_stats" in data
+        assert data["today_stats"] is not None
+        assert data["today_stats"]["total_events"] == 42
 
     def test_collect_daily_data_historical(self, report_generator):
         """Test collecting historical data (uses ColdDataStore)"""
@@ -481,9 +491,9 @@ class TestDataCollection:
 
         data = report_generator._collect_daily_data(target_date)
 
-        assert 'daily_stats' in data
-        assert 'changes' in data
-        assert 'events' in data
+        assert "daily_stats" in data
+        assert "changes" in data
+        assert "events" in data
 
     def test_collect_weekly_data(self, report_generator):
         """Test collecting weekly data"""
@@ -492,10 +502,10 @@ class TestDataCollection:
 
         data = report_generator._collect_weekly_data(start_date, end_date)
 
-        assert 'daily_stats' in data
-        assert 'summary' in data
-        assert 'color_transitions' in data
-        assert 'events' in data
+        assert "daily_stats" in data
+        assert "summary" in data
+        assert "color_transitions" in data
+        assert "events" in data
 
     def test_collect_canvas_data(self, report_generator):
         """Test collecting Canvas-specific data"""
@@ -505,25 +515,22 @@ class TestDataCollection:
 
         data = report_generator._collect_canvas_data(canvas_id, start_date, end_date)
 
-        assert 'changes' in data
-        assert 'events' in data
-        assert 'color_transitions' in data
+        assert "changes" in data
+        assert "events" in data
+        assert "color_transitions" in data
 
 
 # ============================================================================
 # Test Analysis Methods
 # ============================================================================
 
+
 class TestAnalysisMethods:
     """Test internal analysis helper methods"""
 
     def test_calculate_daily_learning_time(self, report_generator):
         """Test learning time calculation"""
-        data = {
-            'daily_stats': {
-                'total_learning_minutes': 120
-            }
-        }
+        data = {"daily_stats": {"total_learning_minutes": 120}}
 
         minutes = report_generator._calculate_daily_learning_time(data)
 
@@ -532,42 +539,42 @@ class TestAnalysisMethods:
     def test_analyze_canvas_activity(self, report_generator):
         """Test Canvas activity analysis"""
         data = {
-            'changes': [
-                {'canvas_id': 'math.canvas', 'change_type': 'node_added'},
-                {'canvas_id': 'math.canvas', 'change_type': 'node_modified'},
-                {'canvas_id': 'physics.canvas', 'change_type': 'node_added'}
+            "changes": [
+                {"canvas_id": "math.canvas", "change_type": "node_added"},
+                {"canvas_id": "math.canvas", "change_type": "node_modified"},
+                {"canvas_id": "physics.canvas", "change_type": "node_added"},
             ]
         }
 
         activity = report_generator._analyze_canvas_activity(data)
 
-        assert 'math.canvas' in activity
-        assert activity['math.canvas']['change_count'] == 2
-        assert activity['math.canvas']['nodes_added'] == 1
+        assert "math.canvas" in activity
+        assert activity["math.canvas"]["change_count"] == 2
+        assert activity["math.canvas"]["nodes_added"] == 1
 
     def test_analyze_color_changes(self, report_generator):
         """Test color change analysis"""
         data = {
-            'color_transitions': [
-                {'from_color': '1', 'to_color': '3'},  # red -> purple
-                {'from_color': '3', 'to_color': '2'},  # purple -> green
-                {'from_color': '1', 'to_color': '3'}   # red -> purple
+            "color_transitions": [
+                {"from_color": "1", "to_color": "3"},  # red -> purple
+                {"from_color": "3", "to_color": "2"},  # purple -> green
+                {"from_color": "1", "to_color": "3"},  # red -> purple
             ]
         }
 
         changes = report_generator._analyze_color_changes(data)
 
-        assert 'red->purple' in changes
-        assert changes['red->purple'] == 2
-        assert changes['purple->green'] == 1
+        assert "red->purple" in changes
+        assert changes["red->purple"] == 2
+        assert changes["purple->green"] == 1
 
     def test_count_progress_transitions(self, report_generator):
         """Test progress transition counting"""
         color_changes = {
-            'red->purple': 3,
-            'purple->green': 2,
-            'red->green': 1,
-            'green->red': 1  # This is not progress
+            "red->purple": 3,
+            "purple->green": 2,
+            "red->green": 1,
+            "green->red": 1,  # This is not progress
         }
 
         count = report_generator._count_progress_transitions(color_changes)
@@ -579,14 +586,16 @@ class TestAnalysisMethods:
 # Test Singleton Access
 # ============================================================================
 
+
 class TestSingletonAccess:
     """Test global singleton access function"""
 
     def test_get_report_generator(self):
         """AC1: Get global singleton instance"""
-        with patch('canvas_progress_tracker.report_generator.get_hot_data_store'), \
-             patch('canvas_progress_tracker.report_generator.get_cold_data_store'):
-
+        with (
+            patch("canvas_progress_tracker.report_generator.get_hot_data_store"),
+            patch("canvas_progress_tracker.report_generator.get_cold_data_store"),
+        ):
             generator1 = get_report_generator()
             generator2 = get_report_generator()
 
@@ -596,6 +605,7 @@ class TestSingletonAccess:
 # ============================================================================
 # Test Edge Cases
 # ============================================================================
+
 
 class TestEdgeCases:
     """Test edge cases and error handling"""
@@ -635,6 +645,7 @@ class TestEdgeCases:
 # Integration Tests
 # ============================================================================
 
+
 class TestIntegration:
     """Integration tests with real data stores (IV1, IV2, IV3)"""
 
@@ -646,9 +657,7 @@ class TestIntegration:
         hot_store = HotDataStore()
         cold_store = ColdDataStore()
         generator = LearningReportGenerator(
-            hot_store=hot_store,
-            cold_store=cold_store,
-            output_dir=temp_output_dir
+            hot_store=hot_store, cold_store=cold_store, output_dir=temp_output_dir
         )
 
         # Should not crash even with empty stores
@@ -671,21 +680,22 @@ class TestIntegration:
         large_stats = []
         for i in range(30):
             day = date(2025, 1, 1) + timedelta(days=i)
-            large_stats.append({
-                "stat_date": day.strftime("%Y-%m-%d"),
-                "total_events": 50,
-                "total_learning_minutes": 120,
-                "nodes_red": 10,
-                "nodes_purple": 15,
-                "nodes_green": 25
-            })
+            large_stats.append(
+                {
+                    "stat_date": day.strftime("%Y-%m-%d"),
+                    "total_events": 50,
+                    "total_learning_minutes": 120,
+                    "nodes_red": 10,
+                    "nodes_purple": 15,
+                    "nodes_green": 25,
+                }
+            )
 
         report_generator.cold_store.query_daily_stats.return_value = large_stats
 
         start_time = time.time()
         file_path = report_generator.generate_weekly_report(
-            start_date=date(2025, 1, 1),
-            end_date=date(2025, 1, 30)
+            start_date=date(2025, 1, 1), end_date=date(2025, 1, 30)
         )
         elapsed = time.time() - start_time
 

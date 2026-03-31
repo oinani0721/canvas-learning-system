@@ -56,8 +56,12 @@ class ProfileSummary(BaseModel):
     mastery_level: int = Field(description="0-4 mastery level")
     mastery_label: str = Field(description="Human-readable mastery label")
     mastery_color: str = Field(description="Hex color for the mastery level")
-    effective_proficiency: float = Field(description="Computed effective proficiency 0.0-1.0")
-    prescriptive_message: str = Field(description="Supportive guidance message, not raw numbers")
+    effective_proficiency: float = Field(
+        description="Computed effective proficiency 0.0-1.0"
+    )
+    prescriptive_message: str = Field(
+        description="Supportive guidance message, not raw numbers"
+    )
     interaction_count: int = 0
     exam_count: int = 0
     last_exam_date: Optional[str] = None
@@ -73,8 +77,12 @@ class TipItem(BaseModel):
     category: str = ""
     annotated_at: str
     context_messages: list[str] = Field(default_factory=list)
-    source_canvas_id: Optional[str] = Field(None, description="Canvas board where this tip originated")
-    source_node_id: Optional[str] = Field(None, description="Node ID where this tip originated")
+    source_canvas_id: Optional[str] = Field(
+        None, description="Canvas board where this tip originated"
+    )
+    source_node_id: Optional[str] = Field(
+        None, description="Node ID where this tip originated"
+    )
 
 
 class WeaknessItem(BaseModel):
@@ -84,8 +92,12 @@ class WeaknessItem(BaseModel):
     frequency: int = Field(description="How many times this appeared")
     last_seen: Optional[str] = None
     related_exam_summaries: list[str] = Field(default_factory=list)
-    source_canvas_id: Optional[str] = Field(None, description="Canvas board where this weakness was identified")
-    source_node_id: Optional[str] = Field(None, description="Node ID where this weakness was identified")
+    source_canvas_id: Optional[str] = Field(
+        None, description="Canvas board where this weakness was identified"
+    )
+    source_node_id: Optional[str] = Field(
+        None, description="Node ID where this weakness was identified"
+    )
 
 
 class QAHighlight(BaseModel):
@@ -177,7 +189,9 @@ async def get_profile_summary(
         prescriptive_message=_get_prescriptive_message(level, freshness),
         interaction_count=concept.interaction_count,
         exam_count=exam_count,
-        last_exam_date=concept.last_interaction_ts.isoformat() if concept.last_interaction_ts else None,
+        last_exam_date=concept.last_interaction_ts.isoformat()
+        if concept.last_interaction_ts
+        else None,
         fsrs_due_date=resp.get("fsrs_due_date"),
         freshness=freshness,
     )
@@ -222,7 +236,11 @@ async def get_profile_tips(
         for record in records or []:
             data = record if isinstance(record, dict) else record.data()
             context_text = data.get("context", "")
-            context_messages = [msg.strip() for msg in context_text.split("\n") if msg.strip()] if context_text else []
+            context_messages = (
+                [msg.strip() for msg in context_text.split("\n") if msg.strip()]
+                if context_text
+                else []
+            )
 
             tips.append(
                 TipItem(
@@ -230,7 +248,9 @@ async def get_profile_tips(
                     content=data.get("content", ""),
                     category=data.get("category", ""),
                     annotated_at=data.get("annotated_at", ""),
-                    context_messages=context_messages[:5],  # Limit to 5 context messages
+                    context_messages=context_messages[
+                        :5
+                    ],  # Limit to 5 context messages
                     source_canvas_id=data.get("source_canvas_id") or None,
                     source_node_id=data.get("source_node_id") or None,
                 ).model_dump()
@@ -372,10 +392,14 @@ async def get_profile_qa_highlights(
             )
 
         cluster_list = [
-            QAHighlightCluster(topic=topic, qa_pairs=pairs).model_dump() for topic, pairs in clusters.items()
+            QAHighlightCluster(topic=topic, qa_pairs=pairs).model_dump()
+            for topic, pairs in clusters.items()
         ]
 
-        return {"clusters": cluster_list, "total": sum(len(c["qa_pairs"]) for c in cluster_list)}
+        return {
+            "clusters": cluster_list,
+            "total": sum(len(c["qa_pairs"]) for c in cluster_list),
+        }
     except Exception as e:
         logger.warning(f"Failed to get QA highlights for node {node_id}: {e}")
         return {"clusters": [], "total": 0}

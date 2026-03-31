@@ -88,9 +88,7 @@ class RollbackManager:
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
     def backup_chromadb(
-        self,
-        chromadb_path: str,
-        backup_name: Optional[str] = None
+        self, chromadb_path: str, backup_name: Optional[str] = None
     ) -> BackupResult:
         """
         Backup ChromaDB data directory to tar.gz archive.
@@ -103,6 +101,7 @@ class RollbackManager:
             BackupResult with backup statistics
         """
         import time
+
         start_time = time.time()
         errors: List[str] = []
 
@@ -157,9 +156,7 @@ class RollbackManager:
         )
 
     def restore_chromadb(
-        self,
-        backup_path: str,
-        restore_path: Optional[str] = None
+        self, backup_path: str, restore_path: Optional[str] = None
     ) -> RestoreResult:
         """
         Restore ChromaDB from backup archive.
@@ -172,6 +169,7 @@ class RollbackManager:
             RestoreResult with restore statistics
         """
         import time
+
         start_time = time.time()
         errors: List[str] = []
 
@@ -256,14 +254,18 @@ class RollbackManager:
         """
         backups = []
 
-        for backup_file in sorted(self.backup_dir.glob("chromadb_backup_*.tar.gz"), reverse=True):
+        for backup_file in sorted(
+            self.backup_dir.glob("chromadb_backup_*.tar.gz"), reverse=True
+        ):
             stat = backup_file.stat()
-            backups.append({
-                "path": str(backup_file),
-                "name": backup_file.stem,
-                "size_bytes": stat.st_size,
-                "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-            })
+            backups.append(
+                {
+                    "path": str(backup_file),
+                    "name": backup_file.stem,
+                    "size_bytes": stat.st_size,
+                    "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                }
+            )
 
         return backups
 

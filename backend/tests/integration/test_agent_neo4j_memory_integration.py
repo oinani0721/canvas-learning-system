@@ -11,17 +11,18 @@ Story 36.7 Integration Test Coverage:
 [Source: docs/stories/36.7.story.md - Task 6]
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from app.dependencies import get_agent_service, get_neo4j_client_dep
 
 # Import the services and dependencies
 from app.services.agent_service import AgentService
-from app.dependencies import get_agent_service, get_neo4j_client_dep
-
 
 # =============================================================================
 # Test Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def mock_settings():
@@ -48,20 +49,23 @@ def mock_neo4j_client():
     """Create mock Neo4jClient for integration testing."""
     client = MagicMock()
     client._use_json_fallback = False
-    client.run_query = AsyncMock(return_value=[
-        {
-            "concept": "Integration Test Concept",
-            "timestamp": "2026-01-15T10:30:00Z",
-            "relevance": 0.9,
-            "score": 88
-        }
-    ])
+    client.run_query = AsyncMock(
+        return_value=[
+            {
+                "concept": "Integration Test Concept",
+                "timestamp": "2026-01-15T10:30:00Z",
+                "relevance": 0.9,
+                "score": 88,
+            }
+        ]
+    )
     return client
 
 
 # =============================================================================
 # Dependency Injection Chain Tests
 # =============================================================================
+
 
 class TestDependencyInjectionChain:
     """
@@ -73,10 +77,7 @@ class TestDependencyInjectionChain:
 
     @pytest.mark.asyncio
     async def test_get_agent_service_injects_neo4j_client(
-        self,
-        mock_settings,
-        mock_canvas_service,
-        mock_neo4j_client
+        self, mock_settings, mock_canvas_service, mock_neo4j_client
     ):
         """
         Test that get_agent_service correctly injects Neo4jClient.
@@ -87,7 +88,7 @@ class TestDependencyInjectionChain:
         async for service in get_agent_service(
             settings=mock_settings,
             canvas_service=mock_canvas_service,
-            neo4j_client=mock_neo4j_client
+            neo4j_client=mock_neo4j_client,
         ):
             # Verify Neo4jClient is injected
             assert service._neo4j_client is mock_neo4j_client
@@ -99,7 +100,7 @@ class TestDependencyInjectionChain:
 
         Story 36.1/36.7: Neo4jClient使用单例模式
         """
-        with patch('app.dependencies.get_neo4j_client') as mock_get:
+        with patch("app.dependencies.get_neo4j_client") as mock_get:
             mock_client = MagicMock()
             mock_get.return_value = mock_client
 
@@ -113,31 +114,25 @@ class TestDependencyInjectionChain:
 # End-to-End Agent Call Tests
 # =============================================================================
 
+
 class TestEndToEndAgentCall:
     """
     Story 36.7 Task 6.1: 端到端测试Agent调用时包含Neo4j学习记忆
     """
 
     @pytest.mark.asyncio
-    async def test_agent_call_includes_neo4j_memories(
-        self,
-        mock_neo4j_client
-    ):
+    async def test_agent_call_includes_neo4j_memories(self, mock_neo4j_client):
         """
         Test that Agent call includes Neo4j learning memories in context.
 
         This tests the full flow from _call_gemini_api to _get_learning_memories.
         """
         # Create service with mock Neo4j client
-        service = AgentService(
-            gemini_client=None,
-            neo4j_client=mock_neo4j_client
-        )
+        service = AgentService(gemini_client=None, neo4j_client=mock_neo4j_client)
 
         # Call _get_learning_memories directly
         result = await service._get_learning_memories(
-            content="测试概念查询",
-            canvas_name="测试Canvas"
+            content="测试概念查询", canvas_name="测试Canvas"
         )
 
         # Verify Neo4j was queried
@@ -150,23 +145,15 @@ class TestEndToEndAgentCall:
         assert "88" in result  # score
 
     @pytest.mark.asyncio
-    async def test_memory_context_injected_into_agent_prompt(
-        self,
-        mock_neo4j_client
-    ):
+    async def test_memory_context_injected_into_agent_prompt(self, mock_neo4j_client):
         """
         Test that memory context is properly formatted for Agent prompt injection.
 
         Story 36.7: 验证学习记忆正确注入到Agent上下文
         """
-        service = AgentService(
-            gemini_client=None,
-            neo4j_client=mock_neo4j_client
-        )
+        service = AgentService(gemini_client=None, neo4j_client=mock_neo4j_client)
 
-        memory_context = await service._get_learning_memories(
-            content="学习历史查询"
-        )
+        memory_context = await service._get_learning_memories(content="学习历史查询")
 
         # Verify context format suitable for Agent prompt
         lines = memory_context.split("\n")
@@ -182,6 +169,7 @@ class TestEndToEndAgentCall:
 # Context Enrichment Integration Tests
 # =============================================================================
 
+
 class TestContextEnrichmentIntegration:
     """
     Story 36.7 Task 6.2: 验证与ContextEnrichmentService集成正常
@@ -189,8 +177,7 @@ class TestContextEnrichmentIntegration:
 
     @pytest.mark.asyncio
     async def test_neo4j_memories_combined_with_context_enrichment(
-        self,
-        mock_neo4j_client
+        self, mock_neo4j_client
     ):
         """
         Test that Neo4j memories can be combined with other context sources.
@@ -198,15 +185,10 @@ class TestContextEnrichmentIntegration:
         Story 36.7: 验证Neo4j记忆可与其他上下文源组合
         """
         # Create service with Neo4j client
-        service = AgentService(
-            gemini_client=None,
-            neo4j_client=mock_neo4j_client
-        )
+        service = AgentService(gemini_client=None, neo4j_client=mock_neo4j_client)
 
         # Get Neo4j memories
-        neo4j_context = await service._get_learning_memories(
-            content="组合上下文测试"
-        )
+        neo4j_context = await service._get_learning_memories(content="组合上下文测试")
 
         # Simulate combining with other context (textbook, cross-canvas)
         other_context = "## 教材参考\n- 第三章: 微积分基础"
@@ -222,16 +204,14 @@ class TestContextEnrichmentIntegration:
 # Performance Integration Tests
 # =============================================================================
 
+
 class TestPerformanceIntegration:
     """
     Story 36.7: 性能集成测试
     """
 
     @pytest.mark.asyncio
-    async def test_memory_query_completes_within_timeout(
-        self,
-        mock_neo4j_client
-    ):
+    async def test_memory_query_completes_within_timeout(self, mock_neo4j_client):
         """
         Test that memory query completes within 500ms timeout.
 
@@ -239,10 +219,7 @@ class TestPerformanceIntegration:
         """
         import time
 
-        service = AgentService(
-            gemini_client=None,
-            neo4j_client=mock_neo4j_client
-        )
+        service = AgentService(gemini_client=None, neo4j_client=mock_neo4j_client)
 
         start = time.perf_counter()
         await service._get_learning_memories(content="性能测试")
@@ -252,10 +229,7 @@ class TestPerformanceIntegration:
         assert elapsed < 0.5
 
     @pytest.mark.asyncio
-    async def test_cache_improves_repeated_query_performance(
-        self,
-        mock_neo4j_client
-    ):
+    async def test_cache_improves_repeated_query_performance(self, mock_neo4j_client):
         """
         Test that caching improves performance for repeated queries.
 
@@ -263,25 +237,16 @@ class TestPerformanceIntegration:
         """
         import time
 
-        service = AgentService(
-            gemini_client=None,
-            neo4j_client=mock_neo4j_client
-        )
+        service = AgentService(gemini_client=None, neo4j_client=mock_neo4j_client)
 
         # First query - hits Neo4j
         start1 = time.perf_counter()
-        await service._get_learning_memories(
-            content="缓存测试",
-            canvas_name="test"
-        )
+        await service._get_learning_memories(content="缓存测试", canvas_name="test")
         elapsed1 = time.perf_counter() - start1
 
         # Second query - should hit cache (faster)
         start2 = time.perf_counter()
-        await service._get_learning_memories(
-            content="缓存测试",
-            canvas_name="test"
-        )
+        await service._get_learning_memories(content="缓存测试", canvas_name="test")
         elapsed2 = time.perf_counter() - start2
 
         # Cache hit should be faster
@@ -292,6 +257,7 @@ class TestPerformanceIntegration:
 # =============================================================================
 # Fallback Integration Tests
 # =============================================================================
+
 
 class TestFallbackIntegration:
     """
@@ -307,9 +273,9 @@ class TestFallbackIntegration:
         """
         # Mock memory_client for fallback
         mock_memory_client = MagicMock()
-        mock_memory_client.search_memories = AsyncMock(return_value=[
-            {"concept": "Fallback Concept"}
-        ])
+        mock_memory_client.search_memories = AsyncMock(
+            return_value=[{"concept": "Fallback Concept"}]
+        )
         mock_memory_client.format_for_context = MagicMock(
             return_value="## Fallback Context"
         )
@@ -322,7 +288,7 @@ class TestFallbackIntegration:
         service = AgentService(
             gemini_client=None,
             memory_client=mock_memory_client,
-            neo4j_client=mock_neo4j
+            neo4j_client=mock_neo4j,
         )
 
         # Query should use fallback
@@ -344,10 +310,7 @@ class TestFallbackIntegration:
         mock_neo4j._use_json_fallback = False
         mock_neo4j.run_query = AsyncMock(side_effect=Exception("Connection failed"))
 
-        service = AgentService(
-            gemini_client=None,
-            neo4j_client=mock_neo4j
-        )
+        service = AgentService(gemini_client=None, neo4j_client=mock_neo4j)
 
         # Should return empty string instead of raising
         result = await service._get_learning_memories(content="错误测试")

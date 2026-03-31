@@ -64,11 +64,7 @@ class TestNodeConnectionRules(unittest.TestCase):
 
     def test_create_explanation_connection(self):
         """测试创建解释连接"""
-        connection = self.rules.create_connection(
-            "node1",
-            "node2",
-            "explanation"
-        )
+        connection = self.rules.create_connection("node1", "node2", "explanation")
 
         self.assertIn("id", connection)
         self.assertEqual(connection["fromNode"], "node1")
@@ -79,11 +75,7 @@ class TestNodeConnectionRules(unittest.TestCase):
 
     def test_create_summary_connection(self):
         """测试创建总结连接"""
-        connection = self.rules.create_connection(
-            "exp_node",
-            "sum_node",
-            "summary"
-        )
+        connection = self.rules.create_connection("exp_node", "sum_node", "summary")
 
         self.assertIn("id", connection)
         self.assertEqual(connection["fromNode"], "exp_node")
@@ -96,10 +88,7 @@ class TestNodeConnectionRules(unittest.TestCase):
         """测试带上下文的连接创建"""
         context = {"additional_info": "test"}
         connection = self.rules.create_connection(
-            "node1",
-            "node2",
-            "explanation",
-            context
+            "node1", "node2", "explanation", context
         )
         # 上下文目前不影响连接创建，但为未来扩展保留
         self.assertIsNotNone(connection)
@@ -117,12 +106,11 @@ class TestNodeContentGenerator(unittest.TestCase):
             "content": "这是一个核心概念的详细解释",
             "key_points": ["要点1", "要点2", "要点3"],
             "examples": ["示例1", "示例2"],
-            "confidence": 0.95
+            "confidence": 0.95,
         }
 
         content = self.generator.generate_explanation_content(
-            agent_result,
-            "clarification-path"
+            agent_result, "clarification-path"
         )
 
         self.assertIn("深度澄清解释", content)
@@ -138,12 +126,11 @@ class TestNodeContentGenerator(unittest.TestCase):
             "content": "概念A与概念B的对比表格",
             "key_points": ["区别1", "区别2"],
             "examples": ["场景1", "场景2"],
-            "confidence": 0.88
+            "confidence": 0.88,
         }
 
         content = self.generator.generate_explanation_content(
-            agent_result,
-            "comparison-table"
+            agent_result, "comparison-table"
         )
 
         self.assertIn("概念对比分析", content)
@@ -158,9 +145,7 @@ class TestNodeContentGenerator(unittest.TestCase):
         agent_type = "clarification-path"
 
         prompt = self.generator.generate_summary_prompt(
-            explanation_content,
-            original_understanding,
-            agent_type
+            explanation_content, original_understanding, agent_type
         )
 
         self.assertIn("学习总结", prompt)
@@ -176,12 +161,11 @@ class TestNodeContentGenerator(unittest.TestCase):
             "content": "测试内容",
             "key_points": ["要点"],
             "examples": ["示例"],
-            "confidence": 0.75
+            "confidence": 0.75,
         }
 
         content = self.generator.generate_explanation_content(
-            agent_result,
-            "unknown-agent-type"
+            agent_result, "unknown-agent-type"
         )
 
         # 应该使用默认的clarification-path模板
@@ -193,12 +177,11 @@ class TestNodeContentGenerator(unittest.TestCase):
             "content": "测试内容",
             "key_points": ["第一个要点", "第二个要点", "第三个要点"],
             "examples": ["第一个示例", "第二个示例"],
-            "confidence": 0.85
+            "confidence": 0.85,
         }
 
         content = self.generator.generate_explanation_content(
-            agent_result,
-            "oral-explanation"
+            agent_result, "oral-explanation"
         )
 
         self.assertIn("• 第一个要点", content)
@@ -214,19 +197,10 @@ class TestIntelligentLayoutOptimizer(unittest.TestCase):
 
     def test_calculate_optimal_position_explanation(self):
         """测试计算解释节点的最优位置"""
-        reference_node = {
-            "id": "ref1",
-            "x": 100,
-            "y": 100,
-            "width": 300,
-            "height": 200
-        }
+        reference_node = {"id": "ref1", "x": 100, "y": 100, "width": 300, "height": 200}
 
         position = self.optimizer.calculate_optimal_position(
-            reference_node,
-            "explanation",
-            [],
-            0
+            reference_node, "explanation", [], 0
         )
 
         # 解释节点应该在参考节点右侧
@@ -235,19 +209,10 @@ class TestIntelligentLayoutOptimizer(unittest.TestCase):
 
     def test_calculate_optimal_position_summary(self):
         """测试计算总结节点的最优位置"""
-        reference_node = {
-            "id": "ref1",
-            "x": 100,
-            "y": 100,
-            "width": 300,
-            "height": 200
-        }
+        reference_node = {"id": "ref1", "x": 100, "y": 100, "width": 300, "height": 200}
 
         position = self.optimizer.calculate_optimal_position(
-            reference_node,
-            "summary",
-            [],
-            0
+            reference_node, "summary", [], 0
         )
 
         # 总结节点应该在参考节点下方
@@ -259,14 +224,12 @@ class TestIntelligentLayoutOptimizer(unittest.TestCase):
         position = (200, 200)
         existing_positions = {
             (200, 200): "node1",  # 完全重叠
-            (500, 500): "node2"   # 不重叠
+            (500, 500): "node2",  # 不重叠
         }
         new_nodes = []
 
         final_pos = self.optimizer.resolve_overlap(
-            position,
-            existing_positions,
-            new_nodes
+            position, existing_positions, new_nodes
         )
 
         # 应该向下移动避免重叠
@@ -275,14 +238,14 @@ class TestIntelligentLayoutOptimizer(unittest.TestCase):
     def test_is_overlapping(self):
         """测试矩形重叠判断"""
         # 测试重叠情况
-        self.assertTrue(self.optimizer._is_overlapping(
-            (0, 0), (50, 50), 100, 100, 100, 100
-        ))
+        self.assertTrue(
+            self.optimizer._is_overlapping((0, 0), (50, 50), 100, 100, 100, 100)
+        )
 
         # 测试不重叠情况
-        self.assertFalse(self.optimizer._is_overlapping(
-            (0, 0), (200, 200), 100, 100, 100, 100
-        ))
+        self.assertFalse(
+            self.optimizer._is_overlapping((0, 0), (200, 200), 100, 100, 100, 100)
+        )
 
     def test_align_to_grid(self):
         """测试网格对齐"""
@@ -301,34 +264,18 @@ class TestIntelligentLayoutOptimizer(unittest.TestCase):
     def test_optimize_new_nodes_layout(self):
         """测试优化新节点布局"""
         canvas_data = {
-            "nodes": [
-                {
-                    "id": "ref1",
-                    "x": 100,
-                    "y": 100,
-                    "width": 300,
-                    "height": 200
-                }
-            ]
+            "nodes": [{"id": "ref1", "x": 100, "y": 100, "width": 300, "height": 200}]
         }
 
         new_nodes = [
-            {
-                "id": "exp1",
-                "metadata": {"node_type": "explanation"}
-            },
-            {
-                "id": "sum1",
-                "metadata": {"node_type": "summary"}
-            }
+            {"id": "exp1", "metadata": {"node_type": "explanation"}},
+            {"id": "sum1", "metadata": {"node_type": "summary"}},
         ]
 
         reference_nodes = ["ref1"]
 
         optimized = self.optimizer.optimize_new_nodes_layout(
-            canvas_data,
-            new_nodes,
-            reference_nodes
+            canvas_data, new_nodes, reference_nodes
         )
 
         self.assertIn("exp1", optimized)
@@ -357,13 +304,13 @@ class TestAutoNodeGenerator(unittest.TestCase):
                     "y": 100,
                     "width": 300,
                     "height": 200,
-                    "color": "6"
+                    "color": "6",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
-        with open(self.canvas_path, 'w', encoding='utf-8') as f:
+        with open(self.canvas_path, "w", encoding="utf-8") as f:
             json.dump(initial_canvas, f, ensure_ascii=False, indent=2)
 
     def tearDown(self):
@@ -378,17 +325,13 @@ class TestAutoNodeGenerator(unittest.TestCase):
             "agent_type": "clarification-path",
             "content": "这是AI的解释内容",
             "key_points": ["要点1", "要点2"],
-            "examples": ["示例1"]
+            "examples": ["示例1"],
         }
 
-        reference_node = {
-            "id": "yellow1",
-            "text": "我的理解"
-        }
+        reference_node = {"id": "yellow1", "text": "我的理解"}
 
         explanation_node = self.generator.create_explanation_node(
-            agent_result,
-            reference_node
+            agent_result, reference_node
         )
 
         self.assertEqual(explanation_node["type"], "text")
@@ -396,26 +339,22 @@ class TestAutoNodeGenerator(unittest.TestCase):
         self.assertIn("这是AI的解释内容", explanation_node["text"])
         self.assertIn("深度澄清解释", explanation_node["text"])  # 使用实际的标题
         self.assertEqual(explanation_node["metadata"]["node_type"], "ai_explanation")
-        self.assertEqual(explanation_node["metadata"]["agent_name"], "clarification-path")
+        self.assertEqual(
+            explanation_node["metadata"]["agent_name"], "clarification-path"
+        )
 
     def test_create_summary_node(self):
         """测试创建总结节点"""
         explanation_node = {
             "id": "exp1",
             "text": "AI的解释内容",
-            "metadata": {
-                "agent_name": "clarification-path"
-            }
+            "metadata": {"agent_name": "clarification-path"},
         }
 
-        reference_node = {
-            "id": "yellow1",
-            "text": "我的理解"
-        }
+        reference_node = {"id": "yellow1", "text": "我的理解"}
 
         summary_node = self.generator.create_summary_node(
-            explanation_node,
-            reference_node
+            explanation_node, reference_node
         )
 
         self.assertEqual(summary_node["type"], "text")
@@ -434,23 +373,21 @@ class TestAutoNodeGenerator(unittest.TestCase):
                 "content": "这是第一个AI解释",
                 "key_points": ["要点1", "要点2"],
                 "examples": ["示例1"],
-                "confidence": 0.9
+                "confidence": 0.9,
             },
             {
                 "agent_type": "comparison-table",
                 "content": "这是对比分析",
                 "key_points": ["区别1", "区别2"],
                 "examples": ["场景1"],
-                "confidence": 0.85
-            }
+                "confidence": 0.85,
+            },
         ]
 
         reference_nodes = ["yellow1"]
 
         result = await self.generator.generate_nodes_from_agent_results(
-            self.canvas_path,
-            agent_results,
-            reference_nodes
+            self.canvas_path, agent_results, reference_nodes
         )
 
         self.assertEqual(result["status"], "success")
@@ -458,34 +395,31 @@ class TestAutoNodeGenerator(unittest.TestCase):
         self.assertEqual(result["added_edges"], 2)  # 2个连接
 
         # 验证Canvas文件已更新
-        with open(self.canvas_path, 'r', encoding='utf-8') as f:
+        with open(self.canvas_path, "r", encoding="utf-8") as f:
             updated_canvas = json.load(f)
 
         self.assertEqual(len(updated_canvas["nodes"]), 3)  # 原来1个 + 新增2个
         self.assertEqual(len(updated_canvas["edges"]), 2)  # 新增2个连接
 
         # 验证节点颜色
-        exp_node = next(n for n in updated_canvas["nodes"] if n["id"].startswith("exp-"))
-        sum_node = next(n for n in updated_canvas["nodes"] if n["id"].startswith("sum-"))
+        exp_node = next(
+            n for n in updated_canvas["nodes"] if n["id"].startswith("exp-")
+        )
+        sum_node = next(
+            n for n in updated_canvas["nodes"] if n["id"].startswith("sum-")
+        )
         self.assertEqual(exp_node["color"], "5")  # 蓝色
         self.assertEqual(sum_node["color"], "6")  # 黄色
 
     @pytest.mark.asyncio
     async def test_generate_nodes_with_missing_reference(self):
         """测试处理缺失参考节点的情况"""
-        agent_results = [
-            {
-                "agent_type": "clarification-path",
-                "content": "测试内容"
-            }
-        ]
+        agent_results = [{"agent_type": "clarification-path", "content": "测试内容"}]
 
         reference_nodes = ["nonexistent_node"]
 
         result = await self.generator.generate_nodes_from_agent_results(
-            self.canvas_path,
-            agent_results,
-            reference_nodes
+            self.canvas_path, agent_results, reference_nodes
         )
 
         self.assertEqual(result["status"], "success")
@@ -502,7 +436,7 @@ class TestAutoNodeGenerator(unittest.TestCase):
                 "content": f"解释内容 {i}",
                 "key_points": [f"要点{i}-1", f"要点{i}-2"],
                 "examples": [f"示例{i}"],
-                "confidence": 0.9
+                "confidence": 0.9,
             }
             for i in range(20)
         ]
@@ -517,28 +451,24 @@ class TestAutoNodeGenerator(unittest.TestCase):
                 "y": 100 + i * 300,
                 "width": 300,
                 "height": 200,
-                "color": "6"
+                "color": "6",
             }
             for i in range(20)
         ]
 
-        initial_canvas = {
-            "nodes": initial_nodes,
-            "edges": []
-        }
+        initial_canvas = {"nodes": initial_nodes, "edges": []}
 
-        with open(self.canvas_path, 'w', encoding='utf-8') as f:
+        with open(self.canvas_path, "w", encoding="utf-8") as f:
             json.dump(initial_canvas, f, ensure_ascii=False, indent=2)
 
         reference_nodes = [f"yellow{i}" for i in range(20)]
 
         import time
+
         start_time = time.time()
 
         result = await self.generator.generate_nodes_from_agent_results(
-            self.canvas_path,
-            agent_results,
-            reference_nodes
+            self.canvas_path, agent_results, reference_nodes
         )
 
         end_time = time.time()
@@ -552,7 +482,7 @@ class TestAutoNodeGenerator(unittest.TestCase):
         self.assertLess(duration, 10, f"生成40个节点耗时过长: {duration}秒")
 
         # 验证没有重叠（简单的位置唯一性检查）
-        with open(self.canvas_path, 'r', encoding='utf-8') as f:
+        with open(self.canvas_path, "r", encoding="utf-8") as f:
             final_canvas = json.load(f)
 
         positions = [(n["x"], n["y"]) for n in final_canvas["nodes"]]

@@ -14,9 +14,6 @@ Tests cover:
 """
 
 import time
-from unittest.mock import patch
-
-import pytest
 
 from app.utils.circuit_breaker import CircuitBreaker, CircuitState
 

@@ -25,24 +25,29 @@ from pathlib import Path
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from canvas_progress_tracker.data_stores import ColdDataStore, DataSyncScheduler, HotDataStore
+from canvas_progress_tracker.data_stores import (
+    ColdDataStore,
+    DataSyncScheduler,
+    HotDataStore,
+)
 
 
 class Colors:
     """终端颜色"""
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    BOLD = '\033[1m'
-    END = '\033[0m'
+
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    BOLD = "\033[1m"
+    END = "\033[0m"
 
 
 def print_header(text):
     """打印标题"""
-    print(f"\n{Colors.BOLD}{Colors.BLUE}{'='*70}{Colors.END}")
+    print(f"\n{Colors.BOLD}{Colors.BLUE}{'=' * 70}{Colors.END}")
     print(f"{Colors.BOLD}{Colors.BLUE}{text}{Colors.END}")
-    print(f"{Colors.BOLD}{Colors.BLUE}{'='*70}{Colors.END}\n")
+    print(f"{Colors.BOLD}{Colors.BLUE}{'=' * 70}{Colors.END}\n")
 
 
 def print_success(text):
@@ -86,7 +91,7 @@ def create_test_session_data(session_id: str, days_ago: int = 0) -> dict:
                 "node_id": "node_001",
                 "old_color": "1",
                 "new_color": "2",
-                "metadata": {"concept": "测试概念1"}
+                "metadata": {"concept": "测试概念1"},
             },
             {
                 "event_id": f"evt_{session_id}_002",
@@ -95,7 +100,7 @@ def create_test_session_data(session_id: str, days_ago: int = 0) -> dict:
                 "canvas_id": "test_canvas.canvas",
                 "node_id": "node_002",
                 "node_type": "text",
-                "metadata": {"text": "个人理解"}
+                "metadata": {"text": "个人理解"},
             },
             {
                 "event_id": f"evt_{session_id}_003",
@@ -105,17 +110,16 @@ def create_test_session_data(session_id: str, days_ago: int = 0) -> dict:
                 "node_id": "node_003",
                 "old_color": "3",
                 "new_color": "2",
-                "metadata": {"concept": "测试概念2"}
-            }
+                "metadata": {"concept": "测试概念2"},
+            },
         ],
-        "metadata": {
-            "canvas_count": 1,
-            "total_events": 3
-        }
+        "metadata": {"canvas_count": 1, "total_events": 3},
     }
 
 
-def create_test_session_file(sessions_dir: Path, session_data: dict, days_ago: int = 0) -> Path:
+def create_test_session_file(
+    sessions_dir: Path, session_data: dict, days_ago: int = 0
+) -> Path:
     """
     创建测试会话文件并设置修改时间
 
@@ -131,7 +135,7 @@ def create_test_session_file(sessions_dir: Path, session_data: dict, days_ago: i
     file_path = sessions_dir / f"{session_id}.json"
 
     # 写入文件
-    with open(file_path, 'w', encoding='utf-8') as f:
+    with open(file_path, "w", encoding="utf-8") as f:
         json.dump(session_data, f, ensure_ascii=False, indent=2)
 
     # 设置文件修改时间
@@ -197,7 +201,7 @@ def test_sync_flow(test_dir: Path):
             cold_store=cold_store,
             sync_interval=1,  # 1秒
             archive_threshold=90,
-            cleanup_threshold=365
+            cleanup_threshold=365,
         )
         print_success("DataSyncScheduler创建成功")
 
@@ -224,8 +228,7 @@ def test_sync_flow(test_dir: Path):
         # 检查SQLite中的数据
         print_info("查询SQLite中的canvas_changes...")
         changes = cold_store.query_canvas_changes(
-            canvas_id="test_canvas.canvas",
-            limit=100
+            canvas_id="test_canvas.canvas", limit=100
         )
 
         print_info(f"查询到 {len(changes)} 条canvas_changes记录")
@@ -238,20 +241,23 @@ def test_sync_flow(test_dir: Path):
         # 检查color_transitions
         print_info("查询SQLite中的color_transitions...")
         transitions = cold_store.query_color_transitions(
-            canvas_id="test_canvas.canvas",
-            limit=100
+            canvas_id="test_canvas.canvas", limit=100
         )
 
         print_info(f"查询到 {len(transitions)} 条color_transitions记录")
 
         if len(transitions) < 2:  # 每个session有1个颜色转换
-            print_error(f"color_transitions记录数不足: 期望>=2, 实际={len(transitions)}")
+            print_error(
+                f"color_transitions记录数不足: 期望>=2, 实际={len(transitions)}"
+            )
             return False
         print_success(f"color_transitions记录数正确: {len(transitions)} 条")
 
         # 检查统计信息
         if sync_stats.get("files_succeeded", 0) != 2:
-            print_error(f"同步成功文件数错误: 期望=2, 实际={sync_stats.get('files_succeeded')}")
+            print_error(
+                f"同步成功文件数错误: 期望=2, 实际={sync_stats.get('files_succeeded')}"
+            )
             return False
         print_success(f"同步统计正确: {sync_stats.get('files_succeeded')} 个文件成功")
 
@@ -261,6 +267,7 @@ def test_sync_flow(test_dir: Path):
     except Exception as e:
         print_error(f"Test 1 失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -281,15 +288,13 @@ def test_error_handling(test_dir: Path):
         hot_store = HotDataStore(session_dir=sessions_dir)
         cold_store = ColdDataStore(db_path=db_path)
         scheduler = DataSyncScheduler(
-            hot_store=hot_store,
-            cold_store=cold_store,
-            sync_interval=1
+            hot_store=hot_store, cold_store=cold_store, sync_interval=1
         )
 
         # 创建损坏的JSON文件（必须匹配session_*.json格式）
         print_info("创建损坏的JSON文件...")
         bad_file = sessions_dir / "session_corrupted.json"
-        with open(bad_file, 'w') as f:
+        with open(bad_file, "w") as f:
             f.write("{invalid json content")
 
         # 设置为3天前
@@ -318,7 +323,9 @@ def test_error_handling(test_dir: Path):
         print_success(f"损坏文件已移至: {error_files[0]}")
 
         # 检查错误信息文件
-        error_info_files = list(scheduler.error_dir.glob("session_corrupted.json.error"))
+        error_info_files = list(
+            scheduler.error_dir.glob("session_corrupted.json.error")
+        )
         if len(error_info_files) == 0:
             print_error("未找到错误信息文件")
             return False
@@ -326,7 +333,9 @@ def test_error_handling(test_dir: Path):
 
         # 检查同步统计
         if sync_stats.get("files_failed", 0) != 1:
-            print_error(f"失败文件数错误: 期望=1, 实际={sync_stats.get('files_failed')}")
+            print_error(
+                f"失败文件数错误: 期望=1, 实际={sync_stats.get('files_failed')}"
+            )
             return False
         print_success("同步统计正确: 1个文件失败")
 
@@ -336,6 +345,7 @@ def test_error_handling(test_dir: Path):
     except Exception as e:
         print_error(f"Test 2 失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -359,7 +369,7 @@ def test_archiving(test_dir: Path):
             hot_store=hot_store,
             cold_store=cold_store,
             sync_interval=1,
-            archive_threshold=90
+            archive_threshold=90,
         )
 
         # 插入100天前的数据到ColdDataStore
@@ -368,13 +378,15 @@ def test_archiving(test_dir: Path):
 
         test_changes = []
         for i in range(10):
-            test_changes.append({
-                "change_id": f"old_change_{i}",
-                "canvas_id": "old_canvas.canvas",
-                "change_type": "node_added",
-                "change_data": json.dumps({"index": i}),
-                "timestamp": old_time
-            })
+            test_changes.append(
+                {
+                    "change_id": f"old_change_{i}",
+                    "canvas_id": "old_canvas.canvas",
+                    "change_type": "node_added",
+                    "change_data": json.dumps({"index": i}),
+                    "timestamp": old_time,
+                }
+            )
 
         inserted_count = cold_store.insert_canvas_changes(test_changes)
         print_success(f"插入了 {inserted_count} 条旧数据")
@@ -383,7 +395,9 @@ def test_archiving(test_dir: Path):
         print_info("执行归档...")
         archive_result = scheduler._archive_old_data()
 
-        print_info(f"归档结果: {json.dumps(archive_result, ensure_ascii=False, indent=2)}")
+        print_info(
+            f"归档结果: {json.dumps(archive_result, ensure_ascii=False, indent=2)}"
+        )
 
         # 验证归档
         if not archive_result.get("success"):
@@ -392,7 +406,9 @@ def test_archiving(test_dir: Path):
         print_success("归档操作成功")
 
         if archive_result.get("records_archived", 0) < 10:
-            print_error(f"归档记录数不足: 期望>=10, 实际={archive_result.get('records_archived')}")
+            print_error(
+                f"归档记录数不足: 期望>=10, 实际={archive_result.get('records_archived')}"
+            )
             return False
         print_success(f"归档记录数正确: {archive_result.get('records_archived')} 条")
 
@@ -412,7 +428,8 @@ def test_archiving(test_dir: Path):
         # 验证归档文件可读
         print_info("验证归档文件完整性...")
         import gzip
-        with gzip.open(archive_path, 'rt', encoding='utf-8') as f:
+
+        with gzip.open(archive_path, "rt", encoding="utf-8") as f:
             archive_data = json.load(f)
 
         if "canvas_changes" not in archive_data:
@@ -420,7 +437,9 @@ def test_archiving(test_dir: Path):
             return False
 
         if len(archive_data["canvas_changes"]) < 10:
-            print_error(f"归档数据不完整: 期望>=10, 实际={len(archive_data['canvas_changes'])}")
+            print_error(
+                f"归档数据不完整: 期望>=10, 实际={len(archive_data['canvas_changes'])}"
+            )
             return False
 
         print_success(f"归档文件完整: {len(archive_data['canvas_changes'])} 条记录")
@@ -431,6 +450,7 @@ def test_archiving(test_dir: Path):
     except Exception as e:
         print_error(f"Test 3 失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -454,7 +474,7 @@ def test_disk_space_management(test_dir: Path):
             hot_store=hot_store,
             cold_store=cold_store,
             sync_interval=1,
-            cleanup_threshold=365
+            cleanup_threshold=365,
         )
 
         # 创建一些测试JSON文件
@@ -466,12 +486,13 @@ def test_disk_space_management(test_dir: Path):
 
         # 创建一个旧归档文件（400天前）
         print_info("创建旧归档文件（400天前）...")
-        old_date = (datetime.now() - timedelta(days=400)).strftime('%Y-%m-%d')
+        old_date = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
         old_archive_name = f"archive_{old_date}_to_{old_date}.json.gz"
         old_archive_path = scheduler.archive_dir / old_archive_name
 
         import gzip
-        with gzip.open(old_archive_path, 'wt', encoding='utf-8') as f:
+
+        with gzip.open(old_archive_path, "wt", encoding="utf-8") as f:
             json.dump({"test": "old archive"}, f)
         print_success(f"创建旧归档: {old_archive_name}")
 
@@ -489,7 +510,7 @@ def test_disk_space_management(test_dir: Path):
             "total_size_mb",
             "available_space_mb",
             "json_file_count",
-            "archive_count"
+            "archive_count",
         ]
 
         for field in required_fields:
@@ -500,7 +521,9 @@ def test_disk_space_management(test_dir: Path):
 
         # 验证文件计数
         if disk_stats["json_file_count"] != 3:
-            print_error(f"JSON文件计数错误: 期望=3, 实际={disk_stats['json_file_count']}")
+            print_error(
+                f"JSON文件计数错误: 期望=3, 实际={disk_stats['json_file_count']}"
+            )
             return False
         print_success(f"JSON文件计数正确: {disk_stats['json_file_count']}")
 
@@ -522,6 +545,7 @@ def test_disk_space_management(test_dir: Path):
     except Exception as e:
         print_error(f"Test 4 失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -542,9 +566,7 @@ def test_monitoring(test_dir: Path):
         hot_store = HotDataStore(session_dir=sessions_dir)
         cold_store = ColdDataStore(db_path=db_path)
         scheduler = DataSyncScheduler(
-            hot_store=hot_store,
-            cold_store=cold_store,
-            sync_interval=1
+            hot_store=hot_store, cold_store=cold_store, sync_interval=1
         )
 
         # 测试健康检查（未启动）
@@ -575,7 +597,13 @@ def test_monitoring(test_dir: Path):
         status = scheduler.get_sync_status()
 
         # 验证状态字段
-        required_fields = ["running", "last_sync_time", "next_sync_time", "sync_history", "disk_usage"]
+        required_fields = [
+            "running",
+            "last_sync_time",
+            "next_sync_time",
+            "sync_history",
+            "disk_usage",
+        ]
         for field in required_fields:
             if field not in status:
                 print_error(f"缺少状态字段: {field}")
@@ -617,15 +645,16 @@ def test_monitoring(test_dir: Path):
     except Exception as e:
         print_error(f"Test 5 失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 def main():
     """主测试流程"""
-    print(f"\n{Colors.BOLD}{'='*70}{Colors.END}")
+    print(f"\n{Colors.BOLD}{'=' * 70}{Colors.END}")
     print(f"{Colors.BOLD}Story 11.6 DataSyncScheduler 快速集成验证{Colors.END}")
-    print(f"{Colors.BOLD}{'='*70}{Colors.END}\n")
+    print(f"{Colors.BOLD}{'=' * 70}{Colors.END}\n")
 
     # 创建临时测试目录
     test_dir = Path(tempfile.mkdtemp(prefix="story_11_6_test_"))
@@ -670,16 +699,24 @@ def main():
     total = len(results)
 
     for test_name, result in results.items():
-        status = f"{Colors.GREEN}PASS{Colors.END}" if result else f"{Colors.RED}FAIL{Colors.END}"
+        status = (
+            f"{Colors.GREEN}PASS{Colors.END}"
+            if result
+            else f"{Colors.RED}FAIL{Colors.END}"
+        )
         print(f"  {test_name:20s}: {status}")
 
     print(f"\n{Colors.BOLD}总计: {passed}/{total} 通过{Colors.END}")
 
     if passed == total:
-        print(f"\n{Colors.GREEN}{Colors.BOLD}>>> 所有测试通过！DataSyncScheduler核心功能正常 >>>{Colors.END}\n")
+        print(
+            f"\n{Colors.GREEN}{Colors.BOLD}>>> 所有测试通过！DataSyncScheduler核心功能正常 >>>{Colors.END}\n"
+        )
         return True
     else:
-        print(f"\n{Colors.RED}{Colors.BOLD}>>> 部分测试失败，请检查实现 >>>{Colors.END}\n")
+        print(
+            f"\n{Colors.RED}{Colors.BOLD}>>> 部分测试失败，请检查实现 >>>{Colors.END}\n"
+        )
         return False
 
 

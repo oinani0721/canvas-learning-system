@@ -11,30 +11,23 @@ Tests that one-click verification canvas generation integrates difficulty adapta
 [Source: docs/stories/31.2.story.md, docs/stories/31.5.story.md]
 """
 
-import asyncio
 import json
-from dataclasses import dataclass
-from datetime import date
-from typing import Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from app.services.verification_service import (
     DifficultyLevel,
     DifficultyResult,
     ForgettingStatus,
     QuestionType,
-    calculate_full_difficulty_result,
-    is_concept_mastered,
 )
 
+from tests.conftest import simulate_async_delay
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def sample_nodes():
@@ -111,7 +104,9 @@ def difficulty_map_mixed():
             average_score=65.0,
             sample_size=3,
             question_type=QuestionType.VERIFICATION,
-            forgetting_status=ForgettingStatus(needs_review=True, decay_percentage=35.0),
+            forgetting_status=ForgettingStatus(
+                needs_review=True, decay_percentage=35.0
+            ),
             is_mastered=False,
         ),
     }
@@ -120,6 +115,7 @@ def difficulty_map_mixed():
 # ============================================================================
 # Tests: _get_difficulty_data()
 # ============================================================================
+
 
 class TestGetDifficultyData:
     """Tests for _get_difficulty_data() function."""
@@ -207,7 +203,9 @@ class TestGetDifficultyData:
         assert "node_3" in result
 
     @pytest.mark.asyncio
-    async def test_empty_scores_not_included(self, sample_nodes, mock_score_history_empty):
+    async def test_empty_scores_not_included(
+        self, sample_nodes, mock_score_history_empty
+    ):
         """Nodes with empty score history are excluded from map."""
         from app.api.v1.endpoints.review import _get_difficulty_data
 
@@ -243,6 +241,7 @@ class TestGetDifficultyData:
 # Tests: Mastery Filtering
 # ============================================================================
 
+
 class TestMasteryFiltering:
     """Tests for skip_mastered filtering in generate_verification_canvas."""
 
@@ -250,13 +249,19 @@ class TestMasteryFiltering:
         """skip_mastered=True filters out mastered nodes."""
         # node_2 is mastered in difficulty_map_mixed
         filtered = [
-            n for n in sample_nodes
-            if not (n.get("id") in difficulty_map_mixed and difficulty_map_mixed[n.get("id")].is_mastered)
+            n
+            for n in sample_nodes
+            if not (
+                n.get("id") in difficulty_map_mixed
+                and difficulty_map_mixed[n.get("id")].is_mastered
+            )
         ]
         assert len(filtered) == 2
         assert all(n["id"] != "node_2" for n in filtered)
 
-    def test_no_filter_when_skip_mastered_false(self, sample_nodes, difficulty_map_mixed):
+    def test_no_filter_when_skip_mastered_false(
+        self, sample_nodes, difficulty_map_mixed
+    ):
         """skip_mastered=False keeps all nodes."""
         # No filtering applied
         assert len(sample_nodes) == 3
@@ -276,18 +281,23 @@ class TestMasteryFiltering:
         ]
         diff_map = {
             "a": DifficultyResult(
-                level=DifficultyLevel.HARD, average_score=90.0,
-                sample_size=3, question_type=QuestionType.APPLICATION,
+                level=DifficultyLevel.HARD,
+                average_score=90.0,
+                sample_size=3,
+                question_type=QuestionType.APPLICATION,
                 is_mastered=True,
             ),
             "b": DifficultyResult(
-                level=DifficultyLevel.HARD, average_score=85.0,
-                sample_size=3, question_type=QuestionType.APPLICATION,
+                level=DifficultyLevel.HARD,
+                average_score=85.0,
+                sample_size=3,
+                question_type=QuestionType.APPLICATION,
                 is_mastered=True,
             ),
         }
         filtered = [
-            n for n in nodes
+            n
+            for n in nodes
             if not (n.get("id") in diff_map and diff_map[n.get("id")].is_mastered)
         ]
         assert len(filtered) == 0
@@ -296,6 +306,7 @@ class TestMasteryFiltering:
 # ============================================================================
 # Tests: Difficulty-Enhanced Question Templates
 # ============================================================================
+
 
 class TestDifficultyEnhancedQuestionText:
     """Tests for _get_difficulty_enhanced_question_text() function."""
@@ -376,11 +387,14 @@ class TestDifficultyEnhancedQuestionText:
 # Tests: AI Question Generation with Difficulty Context
 # ============================================================================
 
+
 class TestAIQuestionDifficultyInjection:
     """Tests for difficulty context injection into AI question generation."""
 
     @pytest.mark.asyncio
-    async def test_difficulty_context_in_prompt(self, sample_nodes, difficulty_map_mixed):
+    async def test_difficulty_context_in_prompt(
+        self, sample_nodes, difficulty_map_mixed
+    ):
         """Difficulty data is injected into AI prompt nodes_data."""
         captured_prompt = {}
 
@@ -398,11 +412,16 @@ class TestAIQuestionDifficultyInjection:
 
         # get_settings is imported at module level from app.core.config
         from app.api.v1.endpoints import review as review_mod
-        original_get_settings = review_mod.get_settings if hasattr(review_mod, 'get_settings') else None
+
+        original_get_settings = (
+            review_mod.get_settings if hasattr(review_mod, "get_settings") else None
+        )
 
         with (
             patch.object(review_mod, "_ai_question_available", True),
-            patch.object(review_mod, "get_settings", return_value=mock_settings, create=True),
+            patch.object(
+                review_mod, "get_settings", return_value=mock_settings, create=True
+            ),
             patch.object(review_mod, "GeminiClient", create=True),
             patch.object(review_mod, "AgentService", create=True) as mock_agent_cls,
         ):
@@ -416,7 +435,9 @@ class TestAIQuestionDifficultyInjection:
             prompt_data = json.loads(captured_prompt["prompt"])
             nodes_in_prompt = prompt_data.get("nodes", [])
             # node_1 is EASY in difficulty_map_mixed
-            node_1_data = next((n for n in nodes_in_prompt if n["id"] == "node_1"), None)
+            node_1_data = next(
+                (n for n in nodes_in_prompt if n["id"] == "node_1"), None
+            )
             if node_1_data:
                 assert node_1_data.get("difficulty_level") == "easy"
                 assert node_1_data.get("question_type_hint") == "breakthrough"
@@ -442,7 +463,9 @@ class TestAIQuestionDifficultyInjection:
 
         with (
             patch.object(review_mod, "_ai_question_available", True),
-            patch.object(review_mod, "get_settings", return_value=mock_settings, create=True),
+            patch.object(
+                review_mod, "get_settings", return_value=mock_settings, create=True
+            ),
             patch.object(review_mod, "GeminiClient", create=True),
             patch.object(review_mod, "AgentService", create=True) as mock_agent_cls,
         ):
@@ -462,6 +485,7 @@ class TestAIQuestionDifficultyInjection:
 # ============================================================================
 # Tests: Schema Backward Compatibility
 # ============================================================================
+
 
 class TestSchemaBackwardCompatibility:
     """Tests for backward-compatible schema changes."""

@@ -108,7 +108,9 @@ class MultimodalResult:
         """Convert to dictionary for storage/serialization."""
         return {
             "id": self.id,
-            "media_type": self.media_type.value if isinstance(self.media_type, MediaType) else self.media_type,
+            "media_type": self.media_type.value
+            if isinstance(self.media_type, MediaType)
+            else self.media_type,
             "file_path": self.file_path,
             "content_preview": self.content_preview,
             "source_location": self.source_location,
@@ -165,7 +167,11 @@ class LanceDBClientProtocol(Protocol):
     """Protocol for LanceDB client dependency injection."""
 
     async def similarity_search(
-        self, table_name: str, query_vector: List[float], top_k: int = 10, filter: Optional[Dict[str, Any]] = None
+        self,
+        table_name: str,
+        query_vector: List[float],
+        top_k: int = 10,
+        filter: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Search for similar vectors."""
         ...
@@ -204,7 +210,9 @@ class MultimodalRetrieverConfig:
     timeout_seconds: float = 2.0
     enable_cache: bool = True
     cache_ttl_seconds: int = 300
-    default_media_types: List[MediaType] = field(default_factory=lambda: [MediaType.IMAGE, MediaType.PDF])
+    default_media_types: List[MediaType] = field(
+        default_factory=lambda: [MediaType.IMAGE, MediaType.PDF]
+    )
     multimodal_table: str = "multimodal_content"
 
 
@@ -221,7 +229,9 @@ class RetrievalCache:
         self._max_size = max_size
         self._ttl = ttl_seconds
 
-    def _make_key(self, query_vector: List[float], media_types: Optional[List[str]]) -> str:
+    def _make_key(
+        self, query_vector: List[float], media_types: Optional[List[str]]
+    ) -> str:
         """Create cache key from query parameters."""
         # Use first 8 dims + length as signature
         vec_sig = str(query_vector[:8]) + str(len(query_vector))
@@ -241,7 +251,12 @@ class RetrievalCache:
                 del self._cache[key]
         return None
 
-    def set(self, query_vector: List[float], media_types: Optional[List[str]], results: List[MultimodalResult]) -> None:
+    def set(
+        self,
+        query_vector: List[float],
+        media_types: Optional[List[str]],
+        results: List[MultimodalResult],
+    ) -> None:
         """Cache results."""
         # Evict oldest if at capacity
         if len(self._cache) >= self._max_size:
@@ -309,7 +324,9 @@ class MultimodalRetriever:
         # Initialize cache if enabled
         self._cache: Optional[RetrievalCache] = None
         if self.config.enable_cache:
-            self._cache = RetrievalCache(max_size=100, ttl_seconds=self.config.cache_ttl_seconds)
+            self._cache = RetrievalCache(
+                max_size=100, ttl_seconds=self.config.cache_ttl_seconds
+            )
 
     async def retrieve(
         self,
@@ -345,7 +362,9 @@ class MultimodalRetriever:
         media_types = media_types or self.config.default_media_types
 
         # Convert MediaType enum to string list for filtering
-        type_strs = [mt.value if isinstance(mt, MediaType) else mt for mt in media_types]
+        type_strs = [
+            mt.value if isinstance(mt, MediaType) else mt for mt in media_types
+        ]
 
         # Check cache first
         if self._cache:
@@ -361,7 +380,9 @@ class MultimodalRetriever:
         try:
             # Execute search with timeout
             results = await asyncio.wait_for(
-                self._execute_search(query_vector, top_k * 2, search_filter),  # Fetch extra for filtering
+                self._execute_search(
+                    query_vector, top_k * 2, search_filter
+                ),  # Fetch extra for filtering
                 timeout=self.config.timeout_seconds,
             )
 
@@ -418,7 +439,12 @@ class MultimodalRetriever:
         except Exception as e:
             raise VectorizationError(f"Failed to vectorize query: {e}") from e
 
-        return await self.retrieve(query_vector=query_vector, media_types=media_types, top_k=top_k, min_score=min_score)
+        return await self.retrieve(
+            query_vector=query_vector,
+            media_types=media_types,
+            top_k=top_k,
+            min_score=min_score,
+        )
 
     async def batch_retrieve(
         self,
@@ -444,7 +470,9 @@ class MultimodalRetriever:
         async def retrieve_with_semaphore(qv: List[float]) -> List[MultimodalResult]:
             async with semaphore:
                 try:
-                    return await self.retrieve(query_vector=qv, media_types=media_types, top_k=top_k)
+                    return await self.retrieve(
+                        query_vector=qv, media_types=media_types, top_k=top_k
+                    )
                 except Exception:
                     return []
 
@@ -456,10 +484,15 @@ class MultimodalRetriever:
     ) -> List[Dict[str, Any]]:
         """Execute vector similarity search."""
         return await self.lancedb.similarity_search(
-            table_name=self.config.multimodal_table, query_vector=query_vector, top_k=top_k, filter=filter
+            table_name=self.config.multimodal_table,
+            query_vector=query_vector,
+            top_k=top_k,
+            filter=filter,
         )
 
-    def _format_results(self, raw_results: List[Dict[str, Any]], min_score: float) -> List[MultimodalResult]:
+    def _format_results(
+        self, raw_results: List[Dict[str, Any]], min_score: float
+    ) -> List[MultimodalResult]:
         """
         格式化检索结果
 
@@ -569,7 +602,9 @@ class MultimodalRetriever:
             # Default: description or content
             return result.get("description", result.get("content", ""))[:200]
 
-    def _get_source_location(self, result: Dict[str, Any], media_type: MediaType) -> Optional[str]:
+    def _get_source_location(
+        self, result: Dict[str, Any], media_type: MediaType
+    ) -> Optional[str]:
         """
         获取来源位置
 
@@ -743,10 +778,14 @@ async def multimodal_retrieval_node(
     query = _extract_query_from_state(state)
     canvas_file = state.get("canvas_file")
 
-    logger.debug(f"[multimodal_retrieval_node] START - query='{query[:50]}...' canvas={canvas_file}")
+    logger.debug(
+        f"[multimodal_retrieval_node] START - query='{query[:50]}...' canvas={canvas_file}"
+    )
 
     if not query:
-        logger.debug("[multimodal_retrieval_node] No query found, returning empty results")
+        logger.debug(
+            "[multimodal_retrieval_node] No query found, returning empty results"
+        )
         return {
             "multimodal_results": [],
             "multimodal_latency_ms": 0.0,
@@ -758,7 +797,9 @@ async def multimodal_retrieval_node(
         client = await _get_multimodal_lancedb_client()
 
     if client is None:
-        logger.warning("[multimodal_retrieval_node] No LanceDB client available, returning empty results")
+        logger.warning(
+            "[multimodal_retrieval_node] No LanceDB client available, returning empty results"
+        )
         return {
             "multimodal_results": [],
             "multimodal_latency_ms": (time.time() - start_time) * 1000,
@@ -780,7 +821,10 @@ async def multimodal_retrieval_node(
             )
         elif hasattr(client, "search_multimodal"):
             raw_results = await client.search_multimodal(
-                query=query, canvas_file=canvas_file, num_results=5, media_types=["image", "pdf", "audio", "video"]
+                query=query,
+                canvas_file=canvas_file,
+                num_results=5,
+                media_types=["image", "pdf", "audio", "video"],
             )
         else:
             # No compatible method - return empty
@@ -795,7 +839,9 @@ async def multimodal_retrieval_node(
             score = 1.0 / (1.0 + distance) if distance >= 0 else 0.0
 
             doc_id = r.get("doc_id", r.get("id", f"multimodal_{id(r)}"))
-            content = r.get("content_preview", r.get("content", r.get("thumbnail_path", "")))
+            content = r.get(
+                "content_preview", r.get("content", r.get("thumbnail_path", ""))
+            )
             file_path = r.get("file_path", r.get("path", ""))
             media_type = r.get("media_type", "image")
 
@@ -837,7 +883,9 @@ async def multimodal_retrieval_node(
             formatted_results.append(formatted_result)
 
         latency_ms = (time.time() - start_time) * 1000
-        logger.debug(f"[multimodal_retrieval_node] END - results={len(formatted_results)}, latency={latency_ms:.2f}ms")
+        logger.debug(
+            f"[multimodal_retrieval_node] END - results={len(formatted_results)}, latency={latency_ms:.2f}ms"
+        )
 
         return {
             "multimodal_results": formatted_results,
@@ -856,7 +904,9 @@ async def multimodal_retrieval_node(
     except Exception as e:
         # Error handling - return empty results (graceful degradation)
         latency_ms = (time.time() - start_time) * 1000
-        logger.warning(f"[multimodal_retrieval_node] Error: {e}, latency={latency_ms:.2f}ms")
+        logger.warning(
+            f"[multimodal_retrieval_node] Error: {e}, latency={latency_ms:.2f}ms"
+        )
         return {
             "multimodal_results": [],
             "multimodal_latency_ms": latency_ms,

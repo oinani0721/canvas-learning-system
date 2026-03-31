@@ -54,7 +54,9 @@ class TestLRUDedup:
         assert dedup.contains("b") is False
 
 
-def _make_event(event_type=LearningEventType.SCORE_SUBMITTED, event_id="", node_id="test_node"):
+def _make_event(
+    event_type=LearningEventType.SCORE_SUBMITTED, event_id="", node_id="test_node"
+):
     kwargs = {
         "event_type": event_type,
         "payload": {"node_id": node_id, "session_id": "test_session"},

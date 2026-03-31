@@ -7,24 +7,22 @@ Verified from Story 6.1:
 """
 
 import base64
-import os
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Check if Pillow is available
 try:
     from PIL import Image
+
     PILLOW_AVAILABLE = True
 except ImportError:
     PILLOW_AVAILABLE = False
 
 # Import the module under test
 from agentic_rag.processors.image_processor import (
-    ImageProcessor,
     ImageMetadata,
+    ImageProcessor,
 )
 
 
@@ -209,9 +207,9 @@ class TestImageProcessorWithPillow:
     @pytest.fixture
     def sample_svg(self, tmp_path):
         """Create a sample SVG file."""
-        svg_content = '''<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+        svg_content = """<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
             <circle cx="50" cy="50" r="40" fill="red"/>
-        </svg>'''
+        </svg>"""
         path = tmp_path / "sample.svg"
         path.write_text(svg_content)
         return path
@@ -304,9 +302,7 @@ class TestImageProcessorWithPillow:
     @pytest.mark.asyncio
     async def test_generate_thumbnail_custom_size(self, processor, sample_png):
         """Test thumbnail with custom size."""
-        thumbnail_b64 = await processor.generate_thumbnail(
-            sample_png, size=(50, 50)
-        )
+        thumbnail_b64 = await processor.generate_thumbnail(sample_png, size=(50, 50))
 
         assert thumbnail_b64 is not None
         # Decode and verify dimensions
@@ -332,9 +328,7 @@ class TestImageProcessorWithPillow:
         output_path = tmp_path / "resized.png"
 
         result = await processor.resize_image(
-            large_image,
-            output_path=output_path,
-            max_dimension=1024
+            large_image, output_path=output_path, max_dimension=1024
         )
 
         assert result == output_path
@@ -350,9 +344,7 @@ class TestImageProcessorWithPillow:
         output_path = tmp_path / "output.png"
 
         result = await processor.resize_image(
-            sample_png,
-            output_path=output_path,
-            max_dimension=1024
+            sample_png, output_path=output_path, max_dimension=1024
         )
 
         # Small image should be copied, not resized
@@ -408,5 +400,6 @@ class TestImageProcessorEdgeCases:
 
         # This should not raise an error
         import asyncio
+
         thumbnail = asyncio.run(processor.generate_thumbnail(path))
         assert thumbnail is not None

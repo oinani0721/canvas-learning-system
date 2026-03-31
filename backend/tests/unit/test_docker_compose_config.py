@@ -7,10 +7,10 @@ Story 30.1 - AC 1: Docker Compose file with neo4j:5.26-community
 [Source: docker-compose.yml]
 """
 
-import pytest
-import yaml
 from pathlib import Path
 
+import pytest
+import yaml
 
 # Resolve path: backend/tests/unit/ -> project root
 _TEST_DIR = Path(__file__).parent

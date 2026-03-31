@@ -19,9 +19,8 @@ import tempfile
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 import app.services.agent_service as agent_service_module
+import pytest
 
 
 class TestUserUnderstandingDualChannel:
@@ -54,7 +53,7 @@ class TestUserUnderstandingDualChannel:
                     "y": 0,
                     "width": 250,
                     "height": 60,
-                    "color": "1"  # Red - concept node
+                    "color": "1",  # Red - concept node
                 },
                 {
                     "id": "yellow-understanding-001",
@@ -64,8 +63,8 @@ class TestUserUnderstandingDualChannel:
                     "y": 100,
                     "width": 250,
                     "height": 80,
-                    "color": "6"  # Yellow - understanding node (修复: '6'=Yellow, '3'=Purple)
-                }
+                    "color": "6",  # Yellow - understanding node (修复: '6'=Yellow, '3'=Purple)
+                },
             ],
             "edges": [
                 {
@@ -73,13 +72,13 @@ class TestUserUnderstandingDualChannel:
                     "fromNode": "source-node-001",
                     "toNode": "yellow-understanding-001",
                     "fromSide": "bottom",
-                    "toSide": "top"
+                    "toSide": "top",
                 }
-            ]
+            ],
         }
         # Write canvas file
         canvas_path = os.path.join(temp_canvas_dir, "test.canvas")
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False)
         return {"data": canvas_data, "path": canvas_path, "dir": temp_canvas_dir}
 
@@ -96,7 +95,7 @@ class TestUserUnderstandingDualChannel:
                     "y": 0,
                     "width": 250,
                     "height": 60,
-                    "color": "1"  # Red - concept node
+                    "color": "1",  # Red - concept node
                 },
                 {
                     "id": "blue-explanation-001",
@@ -106,8 +105,8 @@ class TestUserUnderstandingDualChannel:
                     "y": 100,
                     "width": 250,
                     "height": 80,
-                    "color": "5"  # Blue - AI explanation node
-                }
+                    "color": "5",  # Blue - AI explanation node
+                },
             ],
             "edges": [
                 {
@@ -115,13 +114,13 @@ class TestUserUnderstandingDualChannel:
                     "fromNode": "source-node-001",
                     "toNode": "blue-explanation-001",
                     "fromSide": "bottom",
-                    "toSide": "top"
+                    "toSide": "top",
                 }
-            ]
+            ],
         }
         # Write canvas file
         canvas_path = os.path.join(temp_canvas_dir, "test_no_yellow.canvas")
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False)
         return {"data": canvas_data, "path": canvas_path, "dir": temp_canvas_dir}
 
@@ -138,7 +137,7 @@ class TestUserUnderstandingDualChannel:
                     "y": 0,
                     "width": 250,
                     "height": 60,
-                    "color": "1"
+                    "color": "1",
                 },
                 {
                     "id": "yellow-001",
@@ -148,7 +147,7 @@ class TestUserUnderstandingDualChannel:
                     "y": 100,
                     "width": 250,
                     "height": 80,
-                    "color": "6"  # Yellow - understanding node (修复: '6'=Yellow, '3'=Purple)
+                    "color": "6",  # Yellow - understanding node (修复: '6'=Yellow, '3'=Purple)
                 },
                 {
                     "id": "yellow-002",
@@ -158,8 +157,8 @@ class TestUserUnderstandingDualChannel:
                     "y": 100,
                     "width": 250,
                     "height": 80,
-                    "color": "6"  # Yellow - understanding node
-                }
+                    "color": "6",  # Yellow - understanding node
+                },
             ],
             "edges": [
                 {
@@ -167,19 +166,19 @@ class TestUserUnderstandingDualChannel:
                     "fromNode": "source-node-001",
                     "toNode": "yellow-001",
                     "fromSide": "bottom",
-                    "toSide": "top"
+                    "toSide": "top",
                 },
                 {
                     "id": "edge-002",
                     "fromNode": "source-node-001",
                     "toNode": "yellow-002",
                     "fromSide": "bottom",
-                    "toSide": "top"
-                }
-            ]
+                    "toSide": "top",
+                },
+            ],
         }
         canvas_path = os.path.join(temp_canvas_dir, "test_multi.canvas")
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False)
         return {"data": canvas_data, "path": canvas_path, "dir": temp_canvas_dir}
 
@@ -203,10 +202,12 @@ class TestUserUnderstandingDualChannel:
         mock_result.success = True
         mock_result.data = {"explanation": "Test explanation"}
 
-        with patch.object(AgentService, 'call_explanation', new_callable=AsyncMock) as mock_call:
+        with patch.object(
+            AgentService, "call_explanation", new_callable=AsyncMock
+        ) as mock_call:
             mock_call.return_value = mock_result
 
-            with patch('app.config.settings') as mock_settings:
+            with patch("app.config.settings") as mock_settings:
                 mock_settings.CANVAS_BASE_PATH = canvas_info["dir"]
 
                 service = AgentService()
@@ -216,7 +217,7 @@ class TestUserUnderstandingDualChannel:
                     canvas_name="test",
                     node_id="source-node-001",
                     content="逆否命题的定义...",
-                    explanation_type="deep"
+                    explanation_type="deep",
                 )
 
                 # Assert
@@ -224,14 +225,21 @@ class TestUserUnderstandingDualChannel:
                 call_kwargs = mock_call.call_args.kwargs
 
                 # ✅ AC 2.1: user_understanding should NOT be None
-                assert "user_understanding" in call_kwargs or len(mock_call.call_args.args) > 4
+                assert (
+                    "user_understanding" in call_kwargs
+                    or len(mock_call.call_args.args) > 4
+                )
                 # Check if passed as kwarg
                 user_understanding = call_kwargs.get("user_understanding")
-                assert user_understanding is not None, "user_understanding should not be None when yellow nodes exist"
+                assert user_understanding is not None, (
+                    "user_understanding should not be None when yellow nodes exist"
+                )
                 assert "把原命题" in user_understanding or "否定" in user_understanding
 
     @pytest.mark.asyncio
-    async def test_user_understanding_contains_yellow_node_content(self, canvas_with_yellow_node):
+    async def test_user_understanding_contains_yellow_node_content(
+        self, canvas_with_yellow_node
+    ):
         """
         AC 2.1: Verify user_understanding contains actual yellow node text.
 
@@ -245,10 +253,12 @@ class TestUserUnderstandingDualChannel:
         mock_result.success = True
         mock_result.data = {"explanation": "Test"}
 
-        with patch.object(AgentService, 'call_explanation', new_callable=AsyncMock) as mock_call:
+        with patch.object(
+            AgentService, "call_explanation", new_callable=AsyncMock
+        ) as mock_call:
             mock_call.return_value = mock_result
 
-            with patch('app.config.settings') as mock_settings:
+            with patch("app.config.settings") as mock_settings:
                 mock_settings.CANVAS_BASE_PATH = canvas_info["dir"]
 
                 service = AgentService()
@@ -256,14 +266,16 @@ class TestUserUnderstandingDualChannel:
                     canvas_name="test",
                     node_id="source-node-001",
                     content="逆否命题",
-                    explanation_type="oral"
+                    explanation_type="oral",
                 )
 
                 call_kwargs = mock_call.call_args.kwargs
                 user_understanding = call_kwargs.get("user_understanding")
 
                 # Should contain exact text from yellow node
-                expected_content = "我理解逆否命题就是把原命题的条件和结论都否定然后交换"
+                expected_content = (
+                    "我理解逆否命题就是把原命题的条件和结论都否定然后交换"
+                )
                 assert user_understanding is not None
                 assert expected_content in user_understanding
 
@@ -272,7 +284,9 @@ class TestUserUnderstandingDualChannel:
     # ==========================================================================
 
     @pytest.mark.asyncio
-    async def test_user_understanding_in_enhanced_context(self, canvas_with_yellow_node):
+    async def test_user_understanding_in_enhanced_context(
+        self, canvas_with_yellow_node
+    ):
         """
         AC 2.2: Verify user_understanding in enhanced_context.
 
@@ -285,10 +299,12 @@ class TestUserUnderstandingDualChannel:
         mock_result.success = True
         mock_result.data = {"explanation": "Test"}
 
-        with patch.object(AgentService, 'call_explanation', new_callable=AsyncMock) as mock_call:
+        with patch.object(
+            AgentService, "call_explanation", new_callable=AsyncMock
+        ) as mock_call:
             mock_call.return_value = mock_result
 
-            with patch('app.config.settings') as mock_settings:
+            with patch("app.config.settings") as mock_settings:
                 mock_settings.CANVAS_BASE_PATH = canvas_info["dir"]
 
                 service = AgentService()
@@ -296,15 +312,16 @@ class TestUserUnderstandingDualChannel:
                     canvas_name="test",
                     node_id="source-node-001",
                     content="逆否命题",
-                    explanation_type="oral"
+                    explanation_type="oral",
                 )
 
                 call_kwargs = mock_call.call_args.kwargs
                 context = call_kwargs.get("context", "")
 
                 # ✅ AC 2.2: enhanced_context should contain user understanding section
-                assert "用户之前的个人理解" in context, \
+                assert "用户之前的个人理解" in context, (
                     f"enhanced_context should contain '用户之前的个人理解' section, got: {context[:200]}"
+                )
 
     @pytest.mark.asyncio
     async def test_user_understanding_in_both_channels(self, canvas_with_yellow_node):
@@ -320,10 +337,12 @@ class TestUserUnderstandingDualChannel:
         mock_result.success = True
         mock_result.data = {"explanation": "Test"}
 
-        with patch.object(AgentService, 'call_explanation', new_callable=AsyncMock) as mock_call:
+        with patch.object(
+            AgentService, "call_explanation", new_callable=AsyncMock
+        ) as mock_call:
             mock_call.return_value = mock_result
 
-            with patch('app.config.settings') as mock_settings:
+            with patch("app.config.settings") as mock_settings:
                 mock_settings.CANVAS_BASE_PATH = canvas_info["dir"]
 
                 service = AgentService()
@@ -331,7 +350,7 @@ class TestUserUnderstandingDualChannel:
                     canvas_name="test",
                     node_id="source-node-001",
                     content="逆否命题",
-                    explanation_type="deep"  # deep-decomposition requires user_understanding
+                    explanation_type="deep",  # deep-decomposition requires user_understanding
                 )
 
                 call_kwargs = mock_call.call_args.kwargs
@@ -339,17 +358,23 @@ class TestUserUnderstandingDualChannel:
                 context = call_kwargs.get("context", "")
 
                 # ✅ Channel 1: JSON field
-                assert user_understanding is not None, "JSON field user_understanding should not be None"
+                assert user_understanding is not None, (
+                    "JSON field user_understanding should not be None"
+                )
 
                 # ✅ Channel 2: enhanced_context
-                assert "用户之前的个人理解" in context, "enhanced_context should contain user understanding"
+                assert "用户之前的个人理解" in context, (
+                    "enhanced_context should contain user understanding"
+                )
 
                 # Both should contain same content
                 assert "否定" in user_understanding or "交换" in user_understanding
                 assert "否定" in context or "交换" in context
 
     @pytest.mark.asyncio
-    async def test_multiple_yellow_nodes_merged(self, canvas_with_multiple_yellow_nodes):
+    async def test_multiple_yellow_nodes_merged(
+        self, canvas_with_multiple_yellow_nodes
+    ):
         """
         AC 2.2: Verify multiple yellow nodes are merged correctly.
 
@@ -362,10 +387,12 @@ class TestUserUnderstandingDualChannel:
         mock_result.success = True
         mock_result.data = {"explanation": "Test"}
 
-        with patch.object(AgentService, 'call_explanation', new_callable=AsyncMock) as mock_call:
+        with patch.object(
+            AgentService, "call_explanation", new_callable=AsyncMock
+        ) as mock_call:
             mock_call.return_value = mock_result
 
-            with patch('app.config.settings') as mock_settings:
+            with patch("app.config.settings") as mock_settings:
                 mock_settings.CANVAS_BASE_PATH = canvas_info["dir"]
 
                 service = AgentService()
@@ -373,7 +400,7 @@ class TestUserUnderstandingDualChannel:
                     canvas_name="test_multi",
                     node_id="source-node-001",
                     content="逆否命题",
-                    explanation_type="oral"
+                    explanation_type="oral",
                 )
 
                 call_kwargs = mock_call.call_args.kwargs
@@ -382,14 +409,19 @@ class TestUserUnderstandingDualChannel:
                 # Should contain content from both yellow nodes
                 assert user_understanding is not None
                 # Note: Order may vary due to BFS traversal
-                assert "第一个理解" in user_understanding or "第二个理解" in user_understanding
+                assert (
+                    "第一个理解" in user_understanding
+                    or "第二个理解" in user_understanding
+                )
 
     # ==========================================================================
     # AC 2.3: Null Handling Tests
     # ==========================================================================
 
     @pytest.mark.asyncio
-    async def test_user_understanding_null_when_no_yellow_node(self, canvas_without_yellow_node):
+    async def test_user_understanding_null_when_no_yellow_node(
+        self, canvas_without_yellow_node
+    ):
         """
         AC 2.3: Verify user_understanding is None (null) when no yellow nodes.
 
@@ -403,10 +435,12 @@ class TestUserUnderstandingDualChannel:
         mock_result.success = True
         mock_result.data = {"explanation": "Test"}
 
-        with patch.object(AgentService, 'call_explanation', new_callable=AsyncMock) as mock_call:
+        with patch.object(
+            AgentService, "call_explanation", new_callable=AsyncMock
+        ) as mock_call:
             mock_call.return_value = mock_result
 
-            with patch('app.config.settings') as mock_settings:
+            with patch("app.config.settings") as mock_settings:
                 mock_settings.CANVAS_BASE_PATH = canvas_info["dir"]
 
                 service = AgentService()
@@ -414,18 +448,21 @@ class TestUserUnderstandingDualChannel:
                     canvas_name="test_no_yellow",
                     node_id="source-node-001",
                     content="逆否命题",
-                    explanation_type="oral"
+                    explanation_type="oral",
                 )
 
                 call_kwargs = mock_call.call_args.kwargs
                 user_understanding = call_kwargs.get("user_understanding")
 
                 # ✅ AC 2.3: Should be None, NOT empty string
-                assert user_understanding is None, \
+                assert user_understanding is None, (
                     f"user_understanding should be None when no yellow nodes, got: {repr(user_understanding)}"
+                )
 
     @pytest.mark.asyncio
-    async def test_user_understanding_not_empty_string(self, canvas_without_yellow_node):
+    async def test_user_understanding_not_empty_string(
+        self, canvas_without_yellow_node
+    ):
         """
         AC 2.3: Verify user_understanding is NOT an empty string.
 
@@ -438,10 +475,12 @@ class TestUserUnderstandingDualChannel:
         mock_result.success = True
         mock_result.data = {"explanation": "Test"}
 
-        with patch.object(AgentService, 'call_explanation', new_callable=AsyncMock) as mock_call:
+        with patch.object(
+            AgentService, "call_explanation", new_callable=AsyncMock
+        ) as mock_call:
             mock_call.return_value = mock_result
 
-            with patch('app.config.settings') as mock_settings:
+            with patch("app.config.settings") as mock_settings:
                 mock_settings.CANVAS_BASE_PATH = canvas_info["dir"]
 
                 service = AgentService()
@@ -449,15 +488,16 @@ class TestUserUnderstandingDualChannel:
                     canvas_name="test_no_yellow",
                     node_id="source-node-001",
                     content="逆否命题",
-                    explanation_type="oral"
+                    explanation_type="oral",
                 )
 
                 call_kwargs = mock_call.call_args.kwargs
                 user_understanding = call_kwargs.get("user_understanding")
 
                 # Should NOT be empty string
-                assert user_understanding != "", \
+                assert user_understanding != "", (
                     "user_understanding should be None, not empty string ''"
+                )
 
     # ==========================================================================
     # AC 2.4: Backward Compatibility Tests
@@ -477,10 +517,12 @@ class TestUserUnderstandingDualChannel:
         mock_result.success = True
         mock_result.data = {"explanation": "Test"}
 
-        with patch.object(AgentService, 'call_explanation', new_callable=AsyncMock) as mock_call:
+        with patch.object(
+            AgentService, "call_explanation", new_callable=AsyncMock
+        ) as mock_call:
             mock_call.return_value = mock_result
 
-            with patch('app.config.settings') as mock_settings:
+            with patch("app.config.settings") as mock_settings:
                 mock_settings.CANVAS_BASE_PATH = canvas_info["dir"]
 
                 service = AgentService()
@@ -490,7 +532,7 @@ class TestUserUnderstandingDualChannel:
                     canvas_name="test",
                     node_id="source-node-001",
                     content="Level Set方法是一种数值方法，用于追踪界面的演化",
-                    explanation_type="oral"
+                    explanation_type="oral",
                 )
 
                 # Verify call_explanation was called (backward compatibility)
@@ -508,14 +550,21 @@ class TestUserUnderstandingDualChannel:
         canvas_info = canvas_with_yellow_node
         mock_result = MagicMock()
         mock_result.success = True
-        mock_result.data = {"explanation": "这是一个测试解释", "content": "Test content"}
+        mock_result.data = {
+            "explanation": "这是一个测试解释",
+            "content": "Test content",
+        }
 
-        with patch.object(AgentService, 'call_explanation', new_callable=AsyncMock) as mock_call:
+        with patch.object(
+            AgentService, "call_explanation", new_callable=AsyncMock
+        ) as mock_call:
             mock_call.return_value = mock_result
 
             # Also mock the file writing to avoid side effects
-            with patch.object(AgentService, '_write_nodes_to_canvas', new_callable=AsyncMock):
-                with patch('app.config.settings') as mock_settings:
+            with patch.object(
+                AgentService, "_write_nodes_to_canvas", new_callable=AsyncMock
+            ):
+                with patch("app.config.settings") as mock_settings:
                     mock_settings.CANVAS_BASE_PATH = canvas_info["dir"]
 
                     service = AgentService()
@@ -523,7 +572,7 @@ class TestUserUnderstandingDualChannel:
                         canvas_name="test",
                         node_id="source-node-001",
                         content="逆否命题",
-                        explanation_type="oral"
+                        explanation_type="oral",
                     )
 
                     # Should return a dict with expected keys
@@ -545,7 +594,9 @@ class TestCallExplanationUserUnderstanding:
         mock_agent_result.success = True
         mock_agent_result.data = {"explanation": "Test"}
 
-        with patch.object(AgentService, 'call_agent', new_callable=AsyncMock) as mock_call_agent:
+        with patch.object(
+            AgentService, "call_agent", new_callable=AsyncMock
+        ) as mock_call_agent:
             mock_call_agent.return_value = mock_agent_result
 
             service = AgentService()
@@ -555,7 +606,7 @@ class TestCallExplanationUserUnderstanding:
                 content="测试内容",
                 explanation_type="oral",
                 context="测试上下文",
-                user_understanding=test_understanding
+                user_understanding=test_understanding,
             )
 
             # Check the JSON prompt passed to call_agent
@@ -578,14 +629,16 @@ class TestCallExplanationUserUnderstanding:
         mock_agent_result.success = True
         mock_agent_result.data = {"explanation": "Test"}
 
-        with patch.object(AgentService, 'call_agent', new_callable=AsyncMock) as mock_call_agent:
+        with patch.object(
+            AgentService, "call_agent", new_callable=AsyncMock
+        ) as mock_call_agent:
             mock_call_agent.return_value = mock_agent_result
 
             service = AgentService()
             await service.call_explanation(
                 content="测试内容",
                 explanation_type="oral",
-                user_understanding=None  # Explicitly None
+                user_understanding=None,  # Explicitly None
             )
 
             call_args = mock_call_agent.call_args

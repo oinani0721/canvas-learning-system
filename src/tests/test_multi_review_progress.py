@@ -5,6 +5,7 @@ Tests the multi-review progress endpoint and trend calculation logic.
 
 [Source: docs/stories/24.2.story.md#L500-603]
 """
+
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,6 +20,7 @@ from backend.app.services.review_service import ReviewService
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def mock_canvas_service():
@@ -50,7 +52,7 @@ def review_service(mock_canvas_service, mock_task_manager, mock_graphiti_client)
     return ReviewService(
         canvas_service=mock_canvas_service,
         task_manager=mock_task_manager,
-        graphiti_client=mock_graphiti_client
+        graphiti_client=mock_graphiti_client,
     )
 
 
@@ -58,8 +60,11 @@ def review_service(mock_canvas_service, mock_task_manager, mock_graphiti_client)
 # AC2: Review History Query from Graphiti
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
-async def test_query_review_history_returns_ordered_results(review_service, mock_graphiti_client):
+async def test_query_review_history_returns_ordered_results(
+    review_service, mock_graphiti_client
+):
     """AC2: Query returns results ordered by date (newest first)."""
     # Arrange: Mock query results
     mock_reviews = [
@@ -69,7 +74,7 @@ async def test_query_review_history_returns_ordered_results(review_service, mock
             "mode": "targeted",
             "pass_rate": 0.85,
             "total_concepts": 10,
-            "passed_concepts": 8
+            "passed_concepts": 8,
         },
         {
             "review_canvas_path": "review2.canvas",
@@ -77,7 +82,7 @@ async def test_query_review_history_returns_ordered_results(review_service, mock
             "mode": "fresh",
             "pass_rate": 0.75,
             "total_concepts": 10,
-            "passed_concepts": 7
+            "passed_concepts": 7,
         },
         {
             "review_canvas_path": "review1.canvas",
@@ -85,7 +90,7 @@ async def test_query_review_history_returns_ordered_results(review_service, mock
             "mode": "fresh",
             "pass_rate": 0.65,
             "total_concepts": 10,
-            "passed_concepts": 6
+            "passed_concepts": 6,
         },
     ]
 
@@ -96,7 +101,9 @@ async def test_query_review_history_returns_ordered_results(review_service, mock
     review_service._query_multi_review_history_from_graphiti = mock_query
 
     # Act
-    result = await review_service._query_multi_review_history_from_graphiti("original.canvas")
+    result = await review_service._query_multi_review_history_from_graphiti(
+        "original.canvas"
+    )
 
     # Assert
     assert len(result) == 3
@@ -107,6 +114,7 @@ async def test_query_review_history_returns_ordered_results(review_service, mock
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC3: Pass Rate Trend Calculation
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_pass_rate_trend_calculation(review_service):
@@ -133,9 +141,11 @@ async def test_pass_rate_trend_calculation(review_service):
 # AC5: Empty History Handling
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_empty_history_returns_404(review_service):
     """AC5: Empty history returns appropriate error."""
+
     # Arrange: Mock query to return empty list
     async def mock_query_empty(path):
         return []
@@ -153,6 +163,7 @@ async def test_empty_history_returns_404(review_service):
 # AC4: Weak Concept Improvement Status
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_weak_concept_improvement_status(review_service):
     """AC4: Weak concept status correctly assigned."""
@@ -162,23 +173,17 @@ async def test_weak_concept_improvement_status(review_service):
     # Score >= 80 -> mastered
 
     improvement_weak = WeakConceptImprovement(
-        concept_name="test1",
-        improvement_rate=0.2,
-        current_status="weak"
+        concept_name="test1", improvement_rate=0.2, current_status="weak"
     )
     assert improvement_weak.current_status == "weak"
 
     improvement_improving = WeakConceptImprovement(
-        concept_name="test2",
-        improvement_rate=0.5,
-        current_status="improving"
+        concept_name="test2", improvement_rate=0.5, current_status="improving"
     )
     assert improvement_improving.current_status == "improving"
 
     improvement_mastered = WeakConceptImprovement(
-        concept_name="test3",
-        improvement_rate=1.0,
-        current_status="mastered"
+        concept_name="test3", improvement_rate=1.0, current_status="mastered"
     )
     assert improvement_mastered.current_status == "mastered"
 
@@ -186,6 +191,7 @@ async def test_weak_concept_improvement_status(review_service):
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC6: Overall Progress Trend Direction
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_overall_progress_trend_direction_up(review_service):
@@ -227,6 +233,7 @@ async def test_overall_progress_trend_direction_stable(review_service):
 # AC1: Multi-Review Progress Endpoint Implementation
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_get_multi_review_progress_success(review_service):
     """AC1: Successfully returns multi-review progress response."""
@@ -238,7 +245,7 @@ async def test_get_multi_review_progress_success(review_service):
             "mode": "targeted",
             "pass_rate": 0.85,
             "total_concepts": 10,
-            "passed_concepts": 8
+            "passed_concepts": 8,
         },
         {
             "review_canvas_path": "review1.canvas",
@@ -246,7 +253,7 @@ async def test_get_multi_review_progress_success(review_service):
             "mode": "fresh",
             "pass_rate": 0.65,
             "total_concepts": 10,
-            "passed_concepts": 6
+            "passed_concepts": 6,
         },
     ]
 
@@ -278,7 +285,7 @@ async def test_get_multi_review_progress_single_review_no_trends(review_service)
             "mode": "fresh",
             "pass_rate": 0.75,
             "total_concepts": 10,
-            "passed_concepts": 7
+            "passed_concepts": 7,
         },
     ]
 
@@ -298,6 +305,7 @@ async def test_get_multi_review_progress_single_review_no_trends(review_service)
 # ═══════════════════════════════════════════════════════════════════════════════
 # Edge Cases
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_calculate_trends_with_zero_first_rate(review_service):

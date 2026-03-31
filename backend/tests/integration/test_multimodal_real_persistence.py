@@ -14,18 +14,16 @@ AC 35.12.4: 数据在服务重启后仍然存在
 
 import asyncio
 import json
-from pathlib import Path
 
 import pytest
-
 from app.models.multimodal_schemas import (
     MultimodalMediaType,
-    MultimodalMetadataSchema,
 )
 from app.services.multimodal_service import (
     ContentNotFoundError,
     MultimodalService,
 )
+
 from tests.fixtures.multimodal import make_minimal_pdf, make_minimal_png
 
 pytestmark = [
@@ -77,7 +75,9 @@ def pdf_bytes() -> bytes:
 class TestFullLifecycleRealPersistence:
     """AC 35.12.3: 真实持久化端到端测试."""
 
-    async def test_upload_creates_file_on_disk(self, service, png_bytes, real_storage_dir):
+    async def test_upload_creates_file_on_disk(
+        self, service, png_bytes, real_storage_dir
+    ):
         """Step 1: Upload — 验证文件真的写入磁盘."""
         await service.initialize()
 
@@ -103,7 +103,9 @@ class TestFullLifecycleRealPersistence:
         actual_bytes = uploaded_files[0].read_bytes()
         assert actual_bytes == png_bytes
 
-    async def test_upload_persists_to_json_index(self, service, png_bytes, real_storage_dir):
+    async def test_upload_persists_to_json_index(
+        self, service, png_bytes, real_storage_dir
+    ):
         """Upload 后 content_index.json 包含新条目."""
         await service.initialize()
 
@@ -151,7 +153,9 @@ class TestFullLifecycleRealPersistence:
         )
         assert search_result.search_mode == "text"
 
-    async def test_delete_removes_file_from_disk(self, service, png_bytes, real_storage_dir):
+    async def test_delete_removes_file_from_disk(
+        self, service, png_bytes, real_storage_dir
+    ):
         """Step 3: Delete — 验证文件从磁盘删除."""
         await service.initialize()
 
@@ -174,14 +178,15 @@ class TestFullLifecycleRealPersistence:
         # 验证: 文件已从磁盘删除
         # (只有 to_delete 的 PNG 应被删除)
         remaining = [
-            f for f in real_storage_dir.rglob("*.png")
-            if f.name != ".health_check"
+            f for f in real_storage_dir.rglob("*.png") if f.name != ".health_check"
         ]
         assert len(remaining) == 0, (
             f"Expected 0 PNG files after delete, found {len(remaining)}: {remaining}"
         )
 
-    async def test_delete_removes_from_json_index(self, service, png_bytes, real_storage_dir):
+    async def test_delete_removes_from_json_index(
+        self, service, png_bytes, real_storage_dir
+    ):
         """Delete 后 content_index.json 不再包含该条目."""
         await service.initialize()
 
@@ -257,8 +262,7 @@ class TestFullLifecycleRealPersistence:
 
         # ── Verify cleanup ──
         remaining = [
-            f for f in real_storage_dir.rglob("*.png")
-            if f.name != ".health_check"
+            f for f in real_storage_dir.rglob("*.png") if f.name != ".health_check"
         ]
         assert len(remaining) == 0
 
@@ -305,7 +309,9 @@ class TestDataSurvivesServiceRestart:
         assert content.related_concept_id == "concept-survive"
         assert content.description == "Should survive restart"
 
-    async def test_multiple_items_survive_restart(self, real_storage_dir, png_bytes, pdf_bytes):
+    async def test_multiple_items_survive_restart(
+        self, real_storage_dir, png_bytes, pdf_bytes
+    ):
         """多个不同类型的内容在重启后全部保留."""
         service1 = MultimodalService(storage_base_path=str(real_storage_dir))
         await service1.initialize()

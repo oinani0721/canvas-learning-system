@@ -4,13 +4,11 @@
 """Tests for _perform_clustering, error handling, and resource warnings."""
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from app.services.intelligent_grouping_service import (
-    CanvasNotFoundError,
     ClusteringFailedError,
     InsufficientNodesError,
     IntelligentGroupingService,
@@ -35,9 +33,7 @@ class TestPerformClustering:
         P1-4 fix: Uses mock_canvas_utils_fail fixture instead of manual sys.modules manipulation.
         """
         with pytest.raises(ClusteringFailedError) as exc_info:
-            service._perform_clustering(
-                Path("/test/canvas.canvas"), "3", None, 2
-            )
+            service._perform_clustering(Path("/test/canvas.canvas"), "3", None, 2)
         assert "Cannot import clustering module" in str(exc_info.value)
 
     def test_perform_clustering_insufficient_nodes_from_filter(
@@ -132,9 +128,7 @@ class TestPerformClustering:
         mock_canvas_utils_success(mock_logic)
 
         with pytest.raises(InsufficientNodesError):
-            service._perform_clustering(
-                Path("/test/canvas.canvas"), "3", None, 2
-            )
+            service._perform_clustering(Path("/test/canvas.canvas"), "3", None, 2)
 
     def test_perform_clustering_value_error_general(
         self, service: IntelligentGroupingService, mock_canvas_utils_success
@@ -159,9 +153,7 @@ class TestPerformClustering:
         mock_canvas_utils_success(mock_logic)
 
         with pytest.raises(ClusteringFailedError) as exc_info:
-            service._perform_clustering(
-                Path("/test/canvas.canvas"), "3", None, 2
-            )
+            service._perform_clustering(Path("/test/canvas.canvas"), "3", None, 2)
         assert "Clustering failed" in str(exc_info.value)
 
     def test_perform_clustering_generic_exception(
@@ -187,9 +179,7 @@ class TestPerformClustering:
         mock_canvas_utils_success(mock_logic)
 
         with pytest.raises(ClusteringFailedError) as exc_info:
-            service._perform_clustering(
-                Path("/test/canvas.canvas"), "3", None, 2
-            )
+            service._perform_clustering(Path("/test/canvas.canvas"), "3", None, 2)
         assert "Clustering failed" in str(exc_info.value)
 
     def test_perform_clustering_restores_original_nodes(
@@ -219,9 +209,7 @@ class TestPerformClustering:
         mock_logic.cluster_canvas_nodes = MagicMock(return_value=mock_cluster_result)
         mock_canvas_utils_success(mock_logic)
 
-        service._perform_clustering(
-            Path("/test/canvas.canvas"), "3", None, 2
-        )
+        service._perform_clustering(Path("/test/canvas.canvas"), "3", None, 2)
 
         assert len(mock_canvas_data["nodes"]) == 3
 
@@ -230,9 +218,7 @@ class TestErrorHandling:
     """Tests for error handling scenarios."""
 
     @pytest.mark.asyncio
-    async def test_insufficient_nodes_error(
-        self, service: IntelligentGroupingService
-    ):
+    async def test_insufficient_nodes_error(self, service: IntelligentGroupingService):
         """Test InsufficientNodesError is raised when not enough nodes."""
         with patch.object(service, "_resolve_canvas_path") as mock_resolve:
             mock_path = MagicMock()
@@ -248,9 +234,7 @@ class TestErrorHandling:
                     await service.analyze_canvas("test.canvas")
 
     @pytest.mark.asyncio
-    async def test_clustering_failed_error(
-        self, service: IntelligentGroupingService
-    ):
+    async def test_clustering_failed_error(self, service: IntelligentGroupingService):
         """Test ClusteringFailedError is raised on clustering failure."""
         with patch.object(service, "_resolve_canvas_path") as mock_resolve:
             mock_path = MagicMock()
@@ -279,8 +263,10 @@ class TestResourceWarning:
                 {
                     "id": f"cluster-{i}",
                     "label": f"Group {i}",
-                    "nodes": [f"node-{i*10+j}" for j in range(10)],
-                    "node_texts": {f"node-{i*10+j}": f"Text {j}" for j in range(10)},
+                    "nodes": [f"node-{i * 10 + j}" for j in range(10)],
+                    "node_texts": {
+                        f"node-{i * 10 + j}": f"Text {j}" for j in range(10)
+                    },
                     "confidence": 0.8,
                     "top_keywords": ["概念"],
                 }

@@ -20,19 +20,19 @@ Acceptance Criteria Covered:
 """
 
 import logging
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from app.api.v1.endpoints.intelligent_parallel import (
-    get_service,
     _ensure_async_deps,
+    get_service,
     reset_service,
 )
-
 
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture(autouse=True)
 def _reset_singleton():
@@ -82,6 +82,7 @@ def dep_patches(mock_settings):
 def _apply_patches(patches):
     """Helper: enter all patches and return stack."""
     import contextlib
+
     stack = contextlib.ExitStack()
     for target, return_val in patches.items():
         stack.enter_context(patch(target, return_value=return_val))
@@ -91,6 +92,7 @@ def _apply_patches(patches):
 # =============================================================================
 # AC-33.9.1: batch_orchestrator is injected (P0)
 # =============================================================================
+
 
 class TestBatchOrchestratorInjection:
     """Verify batch_orchestrator is properly injected into the service."""
@@ -136,6 +138,7 @@ class TestBatchOrchestratorInjection:
 # AC-33.9.2: agent_service is injected (P0)
 # =============================================================================
 
+
 class TestAgentServiceInjection:
     """Verify agent_service is properly injected into the service."""
 
@@ -154,6 +157,7 @@ class TestAgentServiceInjection:
 # =============================================================================
 # AC-33.9.3: /confirm starts batch execution (P0)
 # =============================================================================
+
 
 class TestConfirmStartsBatchExecution:
     """Verify /confirm endpoint has access to batch_orchestrator."""
@@ -187,6 +191,7 @@ class TestConfirmStartsBatchExecution:
             service = get_service()
 
             from app.models.intelligent_parallel_models import GroupExecuteConfig
+
             groups = [
                 GroupExecuteConfig(
                     group_id="g1",
@@ -204,6 +209,7 @@ class TestConfirmStartsBatchExecution:
 # AC-33.9.4: /cancel can cancel a running batch (P0)
 # =============================================================================
 
+
 class TestCancelRunningBatch:
     """Verify /cancel endpoint has access to BatchOrchestrator for cancel signaling."""
 
@@ -218,12 +224,13 @@ class TestCancelRunningBatch:
 
         assert service._batch_orchestrator is not None
         # Verify _cancel_requested dict exists
-        assert hasattr(service._batch_orchestrator, '_cancel_requested')
+        assert hasattr(service._batch_orchestrator, "_cancel_requested")
 
 
 # =============================================================================
 # AC-33.9.5: /single-agent (retry) works without RuntimeError (P0)
 # =============================================================================
+
 
 class TestSingleAgentRetry:
     """Verify /single-agent endpoint works without RuntimeError."""
@@ -244,6 +251,7 @@ class TestSingleAgentRetry:
 # AC-33.9.6: routing_engine is passed to BatchOrchestrator (P1)
 # =============================================================================
 
+
 class TestRoutingEngineInjection:
     """Verify routing_engine is passed to BatchOrchestrator."""
 
@@ -262,6 +270,7 @@ class TestRoutingEngineInjection:
 # =============================================================================
 # AC-33.9.7: DI completeness integration test (P1)
 # =============================================================================
+
 
 class TestDICompletenessIntegration:
     """
@@ -314,6 +323,7 @@ class TestDICompletenessIntegration:
 # AC-33.9.8: Cleanup phantom code (P2)
 # =============================================================================
 
+
 class TestPhantomCodeCleanup:
     """Verify phantom code is cleaned up."""
 
@@ -323,7 +333,11 @@ class TestPhantomCodeCleanup:
 
         ep_file = (
             Path(__file__).parent.parent.parent
-            / "app" / "api" / "v1" / "endpoints" / "intelligent_parallel.py"
+            / "app"
+            / "api"
+            / "v1"
+            / "endpoints"
+            / "intelligent_parallel.py"
         )
         content = ep_file.read_text(encoding="utf-8")
 
@@ -335,6 +349,7 @@ class TestPhantomCodeCleanup:
 # =============================================================================
 # Singleton Constraint: /confirm and /cancel share same BatchOrchestrator
 # =============================================================================
+
 
 class TestSingletonConstraint:
     """Verify BatchOrchestrator singleton constraint for cancel signaling."""
@@ -361,6 +376,7 @@ class TestSingletonConstraint:
 # =============================================================================
 # WARNING log regression guard
 # =============================================================================
+
 
 class TestNoWarningLogs:
     """After _ensure_async_deps, no 'not injected' warnings should appear."""

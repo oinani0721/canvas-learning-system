@@ -222,7 +222,9 @@ def test_partial_failure_includes_error_details(client, valid_rationale_payload)
         patch(
             "app.api.v1.endpoints.edges._write_lancedb",
             new_callable=AsyncMock,
-            return_value=_ws(False, "Table edge_rationales locked by concurrent writer"),
+            return_value=_ws(
+                False, "Table edge_rationales locked by concurrent writer"
+            ),
         ),
     ):
         resp = client.post(

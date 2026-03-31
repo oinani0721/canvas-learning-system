@@ -37,15 +37,23 @@ print("[DEBUG] pytest imported")
 print("[DEBUG] About to import canvas_progress_tracker modules...")
 try:
     print("[DEBUG] Importing CanvasMonitorEngine...")
-    from canvas_progress_tracker.canvas_monitor_engine import CanvasMonitorEngine, MonitorConfig
+    from canvas_progress_tracker.canvas_monitor_engine import (
+        CanvasMonitorEngine,
+        MonitorConfig,
+    )
+
     print("[DEBUG] Importing data_stores...")
     from canvas_progress_tracker.data_stores import ColdDataStore, HotDataStore
+
     print("[DEBUG] Importing LearningAnalyzer...")
     from canvas_progress_tracker.learning_analyzer import LearningAnalyzer
+
     print("[DEBUG] Importing AsyncCanvasProcessor...")
     from canvas_progress_tracker.async_processor import AsyncCanvasProcessor
+
     print("[DEBUG] Importing LearningReportGenerator...")
     from canvas_progress_tracker.report_generator import LearningReportGenerator
+
     print("[DEBUG] All canvas_progress_tracker modules imported successfully!")
     MONITORING_MODULES_AVAILABLE = True
 except ImportError as e:
@@ -59,19 +67,16 @@ CANVAS_UTILS_AVAILABLE = True  # Always True since we don't actually use it
 print("[DEBUG] Module-level imports completed! Test file fully loaded.")
 
 
-@unittest.skipUnless(
-    MONITORING_MODULES_AVAILABLE,
-    "Required modules not available"
-)
+@unittest.skipUnless(MONITORING_MODULES_AVAILABLE, "Required modules not available")
 class TestEndToEndIntegration(unittest.TestCase):
     """端到端集成测试套件"""
 
     @classmethod
     def setUpClass(cls):
         """测试类初始化"""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("Starting End-to-End Integration Tests")
-        print("="*80)
+        print("=" * 80)
 
     def setUp(self):
         """每个测试用例前的设置"""
@@ -93,7 +98,7 @@ class TestEndToEndIntegration(unittest.TestCase):
         self.config = MonitorConfig(
             base_path=self.canvas_dir,
             debounce_delay_ms=100,  # 短延迟用于测试
-            retry_attempts=3
+            retry_attempts=3,
         )
 
         print("[setUp] Creating CanvasMonitorEngine...")
@@ -113,8 +118,7 @@ class TestEndToEndIntegration(unittest.TestCase):
 
         print("[setUp] Creating LearningReportGenerator...")
         self.report_gen = LearningReportGenerator(
-            hot_store=self.hot_store,
-            cold_store=self.cold_store
+            hot_store=self.hot_store, cold_store=self.cold_store
         )
 
         # 跟踪已创建的Canvas文件
@@ -126,9 +130,9 @@ class TestEndToEndIntegration(unittest.TestCase):
         print("\n[tearDown] Starting cleanup...")
 
         # 停止监控
-        if hasattr(self, 'monitor'):
+        if hasattr(self, "monitor"):
             # CRITICAL: Stop DataSyncScheduler first (even if monitoring wasn't started)
-            if hasattr(self.monitor, 'sync_scheduler') and self.monitor.sync_scheduler:
+            if hasattr(self.monitor, "sync_scheduler") and self.monitor.sync_scheduler:
                 print("[tearDown] Stopping DataSyncScheduler...")
                 try:
                     self.monitor.sync_scheduler.stop(wait_current=False)
@@ -137,7 +141,7 @@ class TestEndToEndIntegration(unittest.TestCase):
                     print(f"[tearDown] Error stopping sync_scheduler: {e}")
 
             # Always cleanup DebounceManager's AsyncCanvasProcessor
-            if hasattr(self.monitor, 'debounce_manager'):
+            if hasattr(self.monitor, "debounce_manager"):
                 print("[tearDown] Clearing DebounceManager...")
                 self.monitor.debounce_manager.clear_all()
                 print("[tearDown] DebounceManager cleared")
@@ -149,7 +153,7 @@ class TestEndToEndIntegration(unittest.TestCase):
                 print("[tearDown] Monitoring stopped")
 
         # 停止异步处理器
-        if hasattr(self, 'processor'):
+        if hasattr(self, "processor"):
             print("[tearDown] Shutting down AsyncCanvasProcessor...")
             self.processor.shutdown()
             print("[tearDown] AsyncCanvasProcessor shut down")
@@ -157,14 +161,12 @@ class TestEndToEndIntegration(unittest.TestCase):
         # 清理临时文件
         print("[tearDown] Removing temp files...")
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         print("[tearDown] Cleanup completed!\n")
 
     def create_test_canvas(
-        self,
-        name: str,
-        node_count: int = 5,
-        colors: List[str] = None
+        self, name: str, node_count: int = 5, colors: List[str] = None
     ) -> str:
         """创建测试Canvas文件
 
@@ -179,10 +181,7 @@ class TestEndToEndIntegration(unittest.TestCase):
         if colors is None:
             colors = ["1", "2", "3", "6"]  # 默认使用所有颜色
 
-        canvas_data = {
-            "nodes": [],
-            "edges": []
-        }
+        canvas_data = {"nodes": [], "edges": []}
 
         # 创建节点
         for i in range(node_count):
@@ -195,13 +194,13 @@ class TestEndToEndIntegration(unittest.TestCase):
                 "y": 100,
                 "width": 200,
                 "height": 100,
-                "color": color
+                "color": color,
             }
             canvas_data["nodes"].append(node)
 
         # 写入文件
         canvas_path = os.path.join(self.canvas_dir, f"{name}.canvas")
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False, indent=2)
 
         self.created_canvases.append(canvas_path)
@@ -212,7 +211,7 @@ class TestEndToEndIntegration(unittest.TestCase):
         canvas_path: str,
         node_index: int,
         new_color: str = None,
-        new_text: str = None
+        new_text: str = None,
     ):
         """修改Canvas节点
 
@@ -222,7 +221,7 @@ class TestEndToEndIntegration(unittest.TestCase):
             new_color: 新颜色
             new_text: 新文本
         """
-        with open(canvas_path, 'r', encoding='utf-8') as f:
+        with open(canvas_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         if node_index < len(canvas_data["nodes"]):
@@ -231,7 +230,7 @@ class TestEndToEndIntegration(unittest.TestCase):
             if new_text is not None:
                 canvas_data["nodes"][node_index]["text"] = new_text
 
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False, indent=2)
 
     # ========== Scenario 1: Canvas修改 → 监控 → 解析 → 分析 → 热数据写入 ==========
@@ -264,11 +263,7 @@ class TestEndToEndIntegration(unittest.TestCase):
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "canvas_id": canvas_id,
                 "event_type": "color_change",
-                "details": {
-                    "node_id": "node-0",
-                    "old_color": "1",
-                    "new_color": "2"
-                }
+                "details": {"node_id": "node-0", "old_color": "1", "new_color": "2"},
             }
             self.hot_store.append_event(event_data)
             events_recorded.append(event_data)
@@ -285,16 +280,10 @@ class TestEndToEndIntegration(unittest.TestCase):
         time.sleep(0.5)  # 等待变更检测和处理
 
         # Step 5: 验证变更被检测
-        self.assertGreater(
-            len(changes_detected), 0,
-            "Canvas变更应该被监控系统检测到"
-        )
+        self.assertGreater(len(changes_detected), 0, "Canvas变更应该被监控系统检测到")
 
         # Step 6: 验证热数据被写入（通过回调函数记录的events_recorded）
-        self.assertGreater(
-            len(events_recorded), 0,
-            "热数据应该包含至少一个事件"
-        )
+        self.assertGreater(len(events_recorded), 0, "热数据应该包含至少一个事件")
 
         # Step 7: 验证事件数据正确性
         last_event = events_recorded[-1]
@@ -325,10 +314,12 @@ class TestEndToEndIntegration(unittest.TestCase):
         for i in range(10):
             event = {
                 "event_id": f"hot-cold-test-{i}",
-                "timestamp": (datetime.now(timezone.utc) + timedelta(seconds=i)).isoformat(),
+                "timestamp": (
+                    datetime.now(timezone.utc) + timedelta(seconds=i)
+                ).isoformat(),
                 "canvas_id": canvas_id,
                 "event_type": "node_added" if i % 2 == 0 else "color_change",
-                "details": {"node_id": f"node-{i}", "info": f"Event {i}"}
+                "details": {"node_id": f"node-{i}", "info": f"Event {i}"},
             }
             self.hot_store.append_event(event)
             events.append(event)
@@ -338,50 +329,42 @@ class TestEndToEndIntegration(unittest.TestCase):
         # Step 2: 验证热数据写入成功
         # 直接读取session文件获取事件（HotDataStore没有read_canvas_events方法）
         session_file = self.hot_store._get_today_session_file()
-        with open(session_file, 'r', encoding='utf-8') as f:
+        with open(session_file, "r", encoding="utf-8") as f:
             session_data = json.load(f)
 
         # 过滤指定canvas的事件
-        hot_data = [e for e in session_data['events'] if e.get('canvas_id') == canvas_id]
-        self.assertEqual(
-            len(hot_data), 10,
-            "热数据应该包含10个事件"
-        )
+        hot_data = [
+            e for e in session_data["events"] if e.get("canvas_id") == canvas_id
+        ]
+        self.assertEqual(len(hot_data), 10, "热数据应该包含10个事件")
 
         # Step 3: 执行同步到SQLite
         # 使用ColdDataStore的API插入事件
         # 注意：ColdDataStore期望details字段是JSON字符串
         for event in hot_data:
-            if isinstance(event.get('details'), dict):
-                event['details'] = json.dumps(event['details'])
+            if isinstance(event.get("details"), dict):
+                event["details"] = json.dumps(event["details"])
 
         inserted_count = self.cold_store.insert_learning_events(hot_data)
-        self.assertEqual(
-            inserted_count, 10,
-            "应该成功插入10条learning events"
-        )
+        self.assertEqual(inserted_count, 10, "应该成功插入10条learning events")
 
         # Step 4: 验证SQLite数据正确性
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COUNT(*) FROM learning_events WHERE canvas_id = ?",
-            (canvas_id,)
+            "SELECT COUNT(*) FROM learning_events WHERE canvas_id = ?", (canvas_id,)
         )
         count = cursor.fetchone()[0]
         conn.close()
 
-        self.assertEqual(
-            count, 10,
-            "SQLite应该包含10条事件记录"
-        )
+        self.assertEqual(count, 10, "SQLite应该包含10条事件记录")
 
         # Step 5: 验证数据一致性
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
             "SELECT event_type, details, timestamp FROM learning_events WHERE canvas_id = ? ORDER BY timestamp",
-            (canvas_id,)
+            (canvas_id,),
         )
         db_events = cursor.fetchall()
         conn.close()
@@ -395,10 +378,7 @@ class TestEndToEndIntegration(unittest.TestCase):
             original_details = original_event["details"]
             if isinstance(original_details, str):
                 original_details = json.loads(original_details)
-            self.assertEqual(
-                json.loads(details_json),
-                original_details
-            )
+            self.assertEqual(json.loads(details_json), original_details)
 
         print("✓ Scenario 2 passed: Hot data → sync → SQLite with consistency")
 
@@ -425,7 +405,9 @@ class TestEndToEndIntegration(unittest.TestCase):
         # 创建必要的表
         # 准备测试数据 - 使用ColdDataStore API
         today_date = datetime.now(timezone.utc).date()
-        today = datetime.combine(today_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        today = datetime.combine(today_date, datetime.min.time()).replace(
+            tzinfo=timezone.utc
+        )
         events_data = [
             {
                 "event_id": "evt-report-1",
@@ -433,7 +415,7 @@ class TestEndToEndIntegration(unittest.TestCase):
                 "event_type": "node_added",
                 "node_id": "node-1",
                 "details": json.dumps({"node_id": "node-1"}),
-                "timestamp": today.isoformat()
+                "timestamp": today.isoformat(),
             },
             {
                 "event_id": "evt-report-2",
@@ -441,7 +423,7 @@ class TestEndToEndIntegration(unittest.TestCase):
                 "event_type": "color_change",
                 "node_id": "node-1",
                 "details": json.dumps({"node_id": "node-1"}),
-                "timestamp": today.isoformat()
+                "timestamp": today.isoformat(),
             },
             {
                 "event_id": "evt-report-3",
@@ -449,13 +431,12 @@ class TestEndToEndIntegration(unittest.TestCase):
                 "event_type": "understanding_improved",
                 "node_id": "node-1",
                 "details": json.dumps({"node_id": "node-1"}),
-                "timestamp": today.isoformat()
+                "timestamp": today.isoformat(),
             },
         ]
 
         # 使用ColdDataStore插入events
         self.cold_store.insert_learning_events(events_data)
-
 
         transitions_data = [
             (canvas_id, "node-1", "1", "3", today.isoformat()),
@@ -464,7 +445,7 @@ class TestEndToEndIntegration(unittest.TestCase):
 
         cursor.executemany(
             "INSERT INTO color_transitions (canvas_id, node_id, from_color, to_color, timestamp) VALUES (?, ?, ?, ?, ?)",
-            transitions_data
+            transitions_data,
         )
 
         conn.commit()
@@ -477,8 +458,7 @@ class TestEndToEndIntegration(unittest.TestCase):
 
         # Step 3: 验证报告生成时间
         self.assertLess(
-            generation_time, 2.0,
-            f"报告生成时间应 < 2秒，实际: {generation_time:.3f}秒"
+            generation_time, 2.0, f"报告生成时间应 < 2秒，实际: {generation_time:.3f}秒"
         )
 
         # Step 4: 验证报告文件生成成功
@@ -486,26 +466,34 @@ class TestEndToEndIntegration(unittest.TestCase):
         self.assertTrue(os.path.exists(report), f"报告文件应该存在: {report}")
 
         # Step 5: 验证报告文件内容
-        with open(report, 'r', encoding='utf-8') as f:
+        with open(report, "r", encoding="utf-8") as f:
             report_content = f.read()
 
         # 验证报告包含关键信息 (日期可能是"2025-11-03"或"2025年11月03日"格式)
         date_str = str(today_date)  # e.g., "2025-11-03"
-        year, month, day = date_str.split('-')
+        year, month, day = date_str.split("-")
         # 检查报告是否包含年、月、日（任意格式）
         self.assertIn(year, report_content, "报告应包含年份")
         self.assertIn("学习", report_content, "报告应包含学习相关内容")
 
         # 验证数据正确性 - 通过cold_store查询验证
         events = self.cold_store.query_learning_events(
-            start_time=datetime.combine(today_date, datetime.min.time()).replace(tzinfo=timezone.utc),
-            end_time=datetime.combine(today_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+            start_time=datetime.combine(today_date, datetime.min.time()).replace(
+                tzinfo=timezone.utc
+            ),
+            end_time=datetime.combine(today_date, datetime.max.time()).replace(
+                tzinfo=timezone.utc
+            ),
         )
         self.assertEqual(len(events), 3, "应该有3个事件")
 
         transitions = self.cold_store.query_color_transitions(
-            start_time=datetime.combine(today_date, datetime.min.time()).replace(tzinfo=timezone.utc),
-            end_time=datetime.combine(today_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+            start_time=datetime.combine(today_date, datetime.min.time()).replace(
+                tzinfo=timezone.utc
+            ),
+            end_time=datetime.combine(today_date, datetime.max.time()).replace(
+                tzinfo=timezone.utc
+            ),
         )
         self.assertEqual(len(transitions), 2, "应该有2次颜色流转")
 
@@ -563,17 +551,15 @@ class TestEndToEndIntegration(unittest.TestCase):
         time.sleep(2.0)  # 等待所有变更被处理（增加时间确保所有异步任务完成）
 
         # Step 4: 验证所有变更都被检测
-        self.assertGreater(
-            len(all_changes), 0,
-            "应该检测到并发的Canvas变更"
-        )
+        self.assertGreater(len(all_changes), 0, "应该检测到并发的Canvas变更")
 
         # Step 5: 验证无数据丢失
         # 3个Canvas × 3次修改 = 9次变更，每次变更产生1个color_changed事件
         print(f"Detected {len(all_changes)} changes from 3 canvases")
         self.assertGreaterEqual(
-            len(all_changes), 9,
-            f"应该检测到至少9次变更 (实际检测到 {len(all_changes)} 次)"
+            len(all_changes),
+            9,
+            f"应该检测到至少9次变更 (实际检测到 {len(all_changes)} 次)",
         )
 
         print("[PASS] Scenario 4: Concurrent modifications handled correctly")
@@ -611,7 +597,7 @@ class TestEndToEndIntegration(unittest.TestCase):
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "canvas_id": canvas_id,
                 "event_type": "periodic_change",
-                "details": {"count": len(event_count)}
+                "details": {"count": len(event_count)},
             }
             self.hot_store.append_event(event_data)
 
@@ -641,20 +627,23 @@ class TestEndToEndIntegration(unittest.TestCase):
         # Step 3: 验证数据完整性
         # 直接读取session文件获取事件（HotDataStore没有read_canvas_events方法）
         session_file = self.hot_store._get_today_session_file()
-        with open(session_file, 'r', encoding='utf-8') as f:
+        with open(session_file, "r", encoding="utf-8") as f:
             session_data = json.load(f)
 
         # 过滤指定canvas的事件
-        hot_data = [e for e in session_data['events'] if e.get('canvas_id') == canvas_id]
+        hot_data = [
+            e for e in session_data["events"] if e.get("canvas_id") == canvas_id
+        ]
 
         self.assertIsNotNone(hot_data, "热数据应该存在")
-        self.assertGreater(
-            len(hot_data), 0,
-            "应该记录了持续的变更事件"
-        )
+        self.assertGreater(len(hot_data), 0, "应该记录了持续的变更事件")
 
-        print(f"✓ Scenario 5 passed: Recorded {len(hot_data)} events in {duration}s simulation")
-        print(f"  (Extrapolated to 24h: ~{len(hot_data) * (86400 / duration):.0f} events)")
+        print(
+            f"✓ Scenario 5 passed: Recorded {len(hot_data)} events in {duration}s simulation"
+        )
+        print(
+            f"  (Extrapolated to 24h: ~{len(hot_data) * (86400 / duration):.0f} events)"
+        )
 
     # ========== Scenario 6: 错误注入 → 优雅降级 ==========
 
@@ -675,7 +664,7 @@ class TestEndToEndIntegration(unittest.TestCase):
         corrupted_canvas_path = os.path.join(self.canvas_dir, "corrupted.canvas")
 
         # 写入损坏的JSON
-        with open(corrupted_canvas_path, 'w', encoding='utf-8') as f:
+        with open(corrupted_canvas_path, "w", encoding="utf-8") as f:
             f.write("{ invalid json content }")
 
         # Step 2: 设置监控
@@ -686,10 +675,10 @@ class TestEndToEndIntegration(unittest.TestCase):
             try:
                 changes.append(change)
                 # 尝试解析可能损坏的Canvas
-                canvas_path = getattr(change, 'file_path', None)
+                canvas_path = getattr(change, "file_path", None)
                 if canvas_path and os.path.exists(canvas_path):
                     try:
-                        with open(canvas_path, 'r', encoding='utf-8') as f:
+                        with open(canvas_path, "r", encoding="utf-8") as f:
                             json.load(f)
                     except json.JSONDecodeError as e:
                         errors.append(("JSON_DECODE_ERROR", str(e)))
@@ -717,7 +706,9 @@ class TestEndToEndIntegration(unittest.TestCase):
             # 尝试另一个连接写入（应该超时）
             conn2 = sqlite3.connect(self.db_path, timeout=0.1)
             try:
-                conn2.execute("INSERT INTO learning_events VALUES (1, 'test', 'test', '{}', 'now')")
+                conn2.execute(
+                    "INSERT INTO learning_events VALUES (1, 'test', 'test', '{}', 'now')"
+                )
             except sqlite3.OperationalError as e:
                 db_lock_error_caught = True
                 print(f"  ✓ Database lock error gracefully caught: {e}")
@@ -728,18 +719,14 @@ class TestEndToEndIntegration(unittest.TestCase):
             print(f"  Database lock test error: {e}")
 
         # Step 5: 验证系统仍在运行
-        self.assertTrue(
-            self.monitor.is_monitoring,
-            "监控系统应该仍在运行"
-        )
+        self.assertTrue(self.monitor.is_monitoring, "监控系统应该仍在运行")
 
         # Step 6: 验证正常Canvas的变更被处理
-        self.assertGreater(
-            len(changes), 0,
-            "正常Canvas的变更应该被处理"
-        )
+        self.assertGreater(len(changes), 0, "正常Canvas的变更应该被处理")
 
-        print(f"✓ Scenario 6 passed: Graceful degradation with {len(errors)} errors handled")
+        print(
+            f"✓ Scenario 6 passed: Graceful degradation with {len(errors)} errors handled"
+        )
 
     # ========== 自动化集成测试（CI/CD Ready） ==========
 
@@ -761,7 +748,7 @@ class TestEndToEndIntegration(unittest.TestCase):
 
         # 验证临时目录可写
         test_file = os.path.join(self.temp_dir, "ci_test.txt")
-        with open(test_file, 'w') as f:
+        with open(test_file, "w") as f:
             f.write("CI/CD test")
         self.assertTrue(os.path.exists(test_file), "临时文件应该可创建")
 

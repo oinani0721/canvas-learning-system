@@ -9,13 +9,9 @@ Tests CPU, memory, and disk monitoring with psutil integration.
 [Source: docs/architecture/coding-standards.md#测试规范]
 """
 
-import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from app.services.resource_monitor import (
     DEFAULT_THRESHOLDS,
     ResourceMonitor,
@@ -23,9 +19,12 @@ from app.services.resource_monitor import (
     get_resource_metrics_snapshot,
 )
 
+from tests.conftest import simulate_async_delay
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def monitor():
@@ -37,6 +36,7 @@ def monitor():
 def custom_monitor():
     """Create a ResourceMonitor with custom thresholds."""
     import sys
+
     # Use platform-appropriate paths
     if sys.platform == "win32":
         paths = ["C:\\", "D:\\"]
@@ -47,13 +47,14 @@ def custom_monitor():
             "cpu_warning": 50.0,
             "cpu_critical": 80.0,
         },
-        disk_paths=paths
+        disk_paths=paths,
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: ResourceMonitor Initialization
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_monitor_default_thresholds(monitor):
     """Test that monitor initializes with default thresholds."""
@@ -67,12 +68,16 @@ def test_monitor_custom_thresholds(custom_monitor):
     assert custom_monitor.thresholds["cpu_warning"] == 50.0
     assert custom_monitor.thresholds["cpu_critical"] == 80.0
     # Memory thresholds should still be defaults
-    assert custom_monitor.thresholds["memory_warning"] == DEFAULT_THRESHOLDS["memory_warning"]
+    assert (
+        custom_monitor.thresholds["memory_warning"]
+        == DEFAULT_THRESHOLDS["memory_warning"]
+    )
 
 
 def test_monitor_default_disk_paths(monitor):
     """Test that monitor defaults to root path."""
     import sys
+
     expected_path = "C:\\" if sys.platform == "win32" else "/"
     assert expected_path in monitor.disk_paths
 
@@ -80,6 +85,7 @@ def test_monitor_default_disk_paths(monitor):
 def test_monitor_custom_disk_paths(custom_monitor):
     """Test that custom disk paths are used."""
     import sys
+
     if sys.platform == "win32":
         assert "C:\\" in custom_monitor.disk_paths
         assert "D:\\" in custom_monitor.disk_paths
@@ -91,6 +97,7 @@ def test_monitor_custom_disk_paths(custom_monitor):
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: CPU Metrics
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_get_cpu_metrics_structure(monitor):
     """Test that CPU metrics returns expected structure."""
@@ -131,6 +138,7 @@ def test_get_cpu_metrics_status_critical():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Memory Metrics
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_get_memory_metrics_structure(monitor):
     """Test that memory metrics returns expected structure."""
@@ -190,6 +198,7 @@ def test_get_memory_metrics_status_critical():
 # Test: Disk Metrics
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_get_disk_metrics_structure(monitor):
     """Test that disk metrics returns expected structure."""
     mock_disk = MagicMock()
@@ -209,6 +218,7 @@ def test_get_disk_metrics_structure(monitor):
 def test_get_disk_metrics_path_structure():
     """Test that disk metrics for a path has expected structure."""
     import sys
+
     test_path = "C:\\" if sys.platform == "win32" else "/"
 
     mock_disk = MagicMock()
@@ -247,6 +257,7 @@ def test_get_disk_metrics_error_handling():
 # Test: collect_metrics
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_collect_metrics_structure(monitor):
     """Test that collect_metrics returns expected structure."""
     # Mock disk_usage to avoid psutil bug on Windows with certain locales
@@ -279,9 +290,11 @@ def test_collect_metrics_overall_status_healthy():
     mock_disk.free = 50 * 1024**3
     mock_disk.total = 100 * 1024**3
 
-    with patch("psutil.cpu_percent", return_value=30.0), \
-         patch("psutil.virtual_memory", return_value=mock_mem), \
-         patch("psutil.disk_usage", return_value=mock_disk):
+    with (
+        patch("psutil.cpu_percent", return_value=30.0),
+        patch("psutil.virtual_memory", return_value=mock_mem),
+        patch("psutil.disk_usage", return_value=mock_disk),
+    ):
         monitor = ResourceMonitor()
         metrics = monitor.collect_metrics()
         assert metrics["overall_status"] == "healthy"
@@ -301,9 +314,11 @@ def test_collect_metrics_overall_status_critical():
     mock_disk.free = 50 * 1024**3
     mock_disk.total = 100 * 1024**3
 
-    with patch("psutil.cpu_percent", return_value=30.0), \
-         patch("psutil.virtual_memory", return_value=mock_mem), \
-         patch("psutil.disk_usage", return_value=mock_disk):
+    with (
+        patch("psutil.cpu_percent", return_value=30.0),
+        patch("psutil.virtual_memory", return_value=mock_mem),
+        patch("psutil.disk_usage", return_value=mock_disk),
+    ):
         monitor = ResourceMonitor()
         metrics = monitor.collect_metrics()
         assert metrics["overall_status"] == "critical"
@@ -312,6 +327,7 @@ def test_collect_metrics_overall_status_critical():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Background Collection
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_start_background_collection():
@@ -354,7 +370,9 @@ async def test_start_background_collection_already_running():
         monitor = ResourceMonitor()
 
         await monitor.start_background_collection(interval_seconds=0.1)
-        await monitor.start_background_collection(interval_seconds=0.1)  # Should log warning
+        await monitor.start_background_collection(
+            interval_seconds=0.1
+        )  # Should log warning
 
         await monitor.stop_background_collection()
 
@@ -369,6 +387,7 @@ async def test_stop_background_collection_not_running():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Convenience Functions
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_get_resource_metrics_snapshot():
     """Test convenience function for getting metrics."""
@@ -400,6 +419,7 @@ def test_get_default_monitor():
 # Test: Prometheus Gauges
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_cpu_gauge_updated():
     """Test that CPU gauge is updated when metrics are collected."""
     with patch("psutil.cpu_percent", return_value=45.0):
@@ -425,6 +445,7 @@ def test_memory_gauges_updated():
 def test_disk_gauges_updated():
     """Test that disk gauges are updated when metrics are collected."""
     import sys
+
     test_path = "C:\\" if sys.platform == "win32" else "/"
 
     mock_disk = MagicMock()

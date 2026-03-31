@@ -21,7 +21,12 @@ import pytest
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from canvas_utils import COLOR_YELLOW, IntelligentParallelScheduler, NodeAnalysisResult, TaskGroup
+from canvas_utils import (
+    COLOR_YELLOW,
+    IntelligentParallelScheduler,
+    NodeAnalysisResult,
+    TaskGroup,
+)
 
 
 class TestNodeAnalysisResult:
@@ -40,7 +45,7 @@ class TestNodeAnalysisResult:
             content=content,
             position=position,
             agent_recommendations=recommendations,
-            quality_scores=quality_scores
+            quality_scores=quality_scores,
         )
 
         assert result.node_id == node_id
@@ -56,7 +61,7 @@ class TestNodeAnalysisResult:
             content="测试内容长度超过100字符的测试内容用于验证hash功能正常工作" * 2,
             position=(100, 200),
             agent_recommendations=["clarification-path", "oral-explanation"],
-            quality_scores={"accuracy": 0.8, "imagery": 0.7}
+            quality_scores={"accuracy": 0.8, "imagery": 0.7},
         )
 
         features = result.features
@@ -77,11 +82,7 @@ class TestTaskGroup:
         agent_type = "clarification-path"
         nodes = ["node-1", "node-2", "node-3"]
 
-        group = TaskGroup(
-            group_id=group_id,
-            agent_type=agent_type,
-            nodes=nodes
-        )
+        group = TaskGroup(group_id=group_id, agent_type=agent_type, nodes=nodes)
 
         assert group.group_id == group_id
         assert group.agent_type == agent_type
@@ -114,7 +115,7 @@ class TestIntelligentParallelScheduler:
                     "y": 100,
                     "width": 400,
                     "height": 150,
-                    "color": COLOR_YELLOW
+                    "color": COLOR_YELLOW,
                 },
                 {
                     "id": "node-2",
@@ -124,7 +125,7 @@ class TestIntelligentParallelScheduler:
                     "y": 300,
                     "width": 400,
                     "height": 150,
-                    "color": COLOR_YELLOW
+                    "color": COLOR_YELLOW,
                 },
                 {
                     "id": "node-3",
@@ -134,7 +135,7 @@ class TestIntelligentParallelScheduler:
                     "y": 100,
                     "width": 400,
                     "height": 150,
-                    "color": COLOR_YELLOW
+                    "color": COLOR_YELLOW,
                 },
                 {
                     "id": "node-4",
@@ -144,16 +145,18 @@ class TestIntelligentParallelScheduler:
                     "y": 300,
                     "width": 400,
                     "height": 150,
-                    "color": COLOR_YELLOW
-                }
+                    "color": COLOR_YELLOW,
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
     @pytest.fixture
     def temp_canvas_file(self, sample_canvas_data):
         """创建临时Canvas文件"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+        ) as f:
             json.dump(sample_canvas_data, f, ensure_ascii=False, indent=2)
             return f.name
 
@@ -191,8 +194,7 @@ class TestIntelligentParallelScheduler:
 
         # 测试指定节点ID
         specific_nodes = scheduler._extract_yellow_nodes(
-            sample_canvas_data,
-            node_ids=["node-1", "node-3"]
+            sample_canvas_data, node_ids=["node-1", "node-3"]
         )
         assert len(specific_nodes) == 2
 
@@ -201,7 +203,7 @@ class TestIntelligentParallelScheduler:
         """测试节点分析"""
         yellow_nodes = [
             {"id": "node-1", "text": "测试内容1", "x": 100, "y": 100},
-            {"id": "node-2", "text": "测试内容2", "x": 200, "y": 200}
+            {"id": "node-2", "text": "测试内容2", "x": 200, "y": 200},
         ]
 
         results = await scheduler._analyze_nodes(yellow_nodes)
@@ -261,21 +263,20 @@ class TestIntelligentParallelScheduler:
         # 完全相同
         sim1 = scheduler._calculate_agent_similarity(
             ["clarification-path", "oral-explanation"],
-            ["clarification-path", "oral-explanation"]
+            ["clarification-path", "oral-explanation"],
         )
         assert sim1 == 1.0
 
         # 部分相同
         sim2 = scheduler._calculate_agent_similarity(
             ["clarification-path", "oral-explanation"],
-            ["clarification-path", "comparison-table"]
+            ["clarification-path", "comparison-table"],
         )
         assert 0 < sim2 < 1
 
         # 完全不同
         sim3 = scheduler._calculate_agent_similarity(
-            ["clarification-path"],
-            ["comparison-table"]
+            ["clarification-path"], ["comparison-table"]
         )
         assert sim3 == 0.0
 
@@ -286,7 +287,7 @@ class TestIntelligentParallelScheduler:
             content="hello world test",
             position=(100, 100),
             agent_recommendations=["clarification-path"],
-            quality_scores={"accuracy": 0.8}
+            quality_scores={"accuracy": 0.8},
         )
 
         node2 = NodeAnalysisResult(
@@ -294,7 +295,7 @@ class TestIntelligentParallelScheduler:
             content="hello there test",
             position=(150, 150),
             agent_recommendations=["clarification-path"],
-            quality_scores={"accuracy": 0.8}
+            quality_scores={"accuracy": 0.8},
         )
 
         similarity = scheduler._calculate_node_similarity(
@@ -309,15 +310,11 @@ class TestIntelligentParallelScheduler:
         results = [
             NodeAnalysisResult("node-1", "content1", (0, 0), ["agent1"], {}),
             NodeAnalysisResult("node-2", "content2", (0, 0), ["agent1"], {}),
-            NodeAnalysisResult("node-3", "content3", (1000, 1000), ["agent2"], {})
+            NodeAnalysisResult("node-3", "content3", (1000, 1000), ["agent2"], {}),
         ]
 
         # 创建相似度矩阵（前两个相似，第三个不同）
-        similarity_matrix = [
-            [0.0, 0.8, 0.1],
-            [0.8, 0.0, 0.1],
-            [0.1, 0.1, 0.0]
-        ]
+        similarity_matrix = [[0.0, 0.8, 0.1], [0.8, 0.0, 0.1], [0.1, 0.1, 0.0]]
 
         clusters = scheduler._hierarchical_clustering(
             results, similarity_matrix, 0.5, 5, 2
@@ -336,22 +333,22 @@ class TestIntelligentParallelScheduler:
                 content="数学概念解释",
                 position=(100, 100),
                 agent_recommendations=["clarification-path", "oral-explanation"],
-                quality_scores={"accuracy": 0.6}
+                quality_scores={"accuracy": 0.6},
             ),
             NodeAnalysisResult(
                 node_id="node-2",
                 content="数学概念详解",
                 position=(150, 150),
                 agent_recommendations=["clarification-path", "oral-explanation"],
-                quality_scores={"accuracy": 0.5}
+                quality_scores={"accuracy": 0.5},
             ),
             NodeAnalysisResult(
                 node_id="node-3",
                 content="物理公式推导",
                 position=(500, 500),
                 agent_recommendations=["comparison-table"],
-                quality_scores={"accuracy": 0.7}
-            )
+                quality_scores={"accuracy": 0.7},
+            ),
         ]
 
         task_groups = scheduler._cluster_nodes(results)
@@ -368,7 +365,7 @@ class TestIntelligentParallelScheduler:
         groups = [
             TaskGroup("group-1", "clarification-path", ["node-1", "node-2"]),
             TaskGroup("group-2", "oral-explanation", ["node-3"]),
-            TaskGroup("group-3", "comparison-table", ["node-4"])
+            TaskGroup("group-3", "comparison-table", ["node-4"]),
         ]
 
         groups_with_deps = scheduler._analyze_dependencies(groups, sample_canvas_data)
@@ -407,12 +404,10 @@ class TestIntelligentParallelScheduler:
         """测试创建调度计划"""
         analysis_results = [
             NodeAnalysisResult("node-1", "content1", (0, 0), ["agent1"], {}),
-            NodeAnalysisResult("node-2", "content2", (0, 0), ["agent1"], {})
+            NodeAnalysisResult("node-2", "content2", (0, 0), ["agent1"], {}),
         ]
 
-        task_groups = [
-            TaskGroup("group-1", "agent1", ["node-1", "node-2"])
-        ]
+        task_groups = [TaskGroup("group-1", "agent1", ["node-1", "node-2"])]
 
         plan = scheduler._create_scheduling_plan(
             "test.canvas", analysis_results, task_groups
@@ -432,11 +427,7 @@ class TestIntelligentParallelScheduler:
             "plan_id": "schedule-123",
             "canvas_path": "/path/to/test.canvas",
             "analysis_timestamp": "2025-01-27T10:00:00",
-            "node_analysis": {
-                "total_nodes": 5,
-                "grouped_nodes": 5,
-                "skipped_nodes": 0
-            },
+            "node_analysis": {"total_nodes": 5, "grouped_nodes": 5, "skipped_nodes": 0},
             "task_groups": [
                 {
                     "group_id": "group-1",
@@ -445,17 +436,15 @@ class TestIntelligentParallelScheduler:
                     "estimated_duration": "45-60秒",
                     "priority_score": 0.85,
                     "dependencies": [],
-                    "resource_requirements": {
-                        "concurrent_slots": 2
-                    }
+                    "resource_requirements": {"concurrent_slots": 2},
                 }
             ],
             "execution_strategy": {
                 "max_concurrent_groups": 2,
                 "total_estimated_duration": "90-120秒",
-                "optimization_strategy": "dependency_aware"
+                "optimization_strategy": "dependency_aware",
             },
-            "user_confirmation_required": True
+            "user_confirmation_required": True,
         }
 
         preview = scheduler.preview_execution_plan(plan)
@@ -473,7 +462,7 @@ class TestIntelligentParallelScheduler:
         result = await scheduler.analyze_and_schedule_nodes(
             canvas_path=temp_canvas_file,
             node_ids=None,  # 分析所有黄色节点
-            auto_execute=False
+            auto_execute=False,
         )
 
         assert result["success"] is True
@@ -483,16 +472,18 @@ class TestIntelligentParallelScheduler:
         assert result["scheduling_plan"]["node_analysis"]["total_nodes"] > 0
 
     @pytest.mark.asyncio
-    async def test_analyze_and_schedule_nodes_no_yellow(self, scheduler, temp_canvas_file):
+    async def test_analyze_and_schedule_nodes_no_yellow(
+        self, scheduler, temp_canvas_file
+    ):
         """测试没有黄色节点的情况"""
         # 修改Canvas文件，移除黄色节点
-        with open(temp_canvas_file, 'r', encoding='utf-8') as f:
+        with open(temp_canvas_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         for node in data["nodes"]:
             node["color"] = "2"  # 改为绿色
 
-        with open(temp_canvas_file, 'w', encoding='utf-8') as f:
+        with open(temp_canvas_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
 
         result = await scheduler.analyze_and_schedule_nodes(temp_canvas_file)
@@ -506,16 +497,20 @@ class TestIntelligentParallelScheduler:
         analysis_results = [
             NodeAnalysisResult("node-1", "content1", (0, 0), ["agent1"], {})
         ]
-        task_groups = [
-            TaskGroup("group-1", "agent1", ["node-1"])
-        ]
+        task_groups = [TaskGroup("group-1", "agent1", ["node-1"])]
 
         initial_metrics = scheduler.performance_metrics.copy()
 
         scheduler._update_metrics(analysis_results, task_groups, 1.5)
 
-        assert scheduler.performance_metrics["total_nodes_processed"] > initial_metrics["total_nodes_processed"]
-        assert scheduler.performance_metrics["total_groups_created"] > initial_metrics["total_groups_created"]
+        assert (
+            scheduler.performance_metrics["total_nodes_processed"]
+            > initial_metrics["total_nodes_processed"]
+        )
+        assert (
+            scheduler.performance_metrics["total_groups_created"]
+            > initial_metrics["total_groups_created"]
+        )
 
     def test_get_performance_metrics(self, scheduler):
         """测试获取性能指标"""
@@ -533,7 +528,7 @@ class TestIntelligentParallelScheduler:
             "plan_id": "test-plan",
             "canvas_path": "test.canvas",
             "user_confirmation_required": True,
-            "task_groups": []
+            "task_groups": [],
         }
 
         result = await scheduler.execute_scheduling_plan(plan, user_confirmed=False)
@@ -546,7 +541,7 @@ class TestIntelligentParallelScheduler:
         """测试执行时间估算"""
         groups = [
             TaskGroup("group-1", "clarification-path", ["node-1", "node-2"]),
-            TaskGroup("group-2", "scoring-agent", ["node-3"])
+            TaskGroup("group-2", "scoring-agent", ["node-3"]),
         ]
 
         duration = scheduler._estimate_total_duration(groups)
@@ -565,21 +560,25 @@ class TestLargeScalePerformance:
         # 创建100个节点的测试数据
         nodes = []
         for i in range(100):
-            nodes.append({
-                "id": f"node-{i}",
-                "type": "text",
-                "text": f"测试节点内容 {i}",
-                "x": (i % 10) * 450,
-                "y": (i // 10) * 200,
-                "width": 400,
-                "height": 150,
-                "color": COLOR_YELLOW
-            })
+            nodes.append(
+                {
+                    "id": f"node-{i}",
+                    "type": "text",
+                    "text": f"测试节点内容 {i}",
+                    "x": (i % 10) * 450,
+                    "y": (i // 10) * 200,
+                    "width": 400,
+                    "height": 150,
+                    "color": COLOR_YELLOW,
+                }
+            )
 
         canvas_data = {"nodes": nodes, "edges": []}
 
         # 创建临时文件
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+        ) as f:
             json.dump(canvas_data, f, ensure_ascii=False)
             temp_file = f.name
 
@@ -608,6 +607,7 @@ class TestLargeScalePerformance:
         finally:
             # 清理临时文件
             import os
+
             os.unlink(temp_file)
 
 
@@ -629,7 +629,7 @@ class TestErrorHandling:
         # 创建无效的配置文件
         invalid_config = "invalid: yaml: content: ["
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(invalid_config)
             config_path = f.name
 
@@ -639,8 +639,9 @@ class TestErrorHandling:
 
         def mock_load_config():
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path, "r") as f:
                     import yaml
+
                     return yaml.safe_load(f)
             except:
                 return scheduler._get_default_config()
@@ -654,6 +655,7 @@ class TestErrorHandling:
         finally:
             scheduler._load_config = original_load
             import os
+
             os.unlink(config_path)
 
 

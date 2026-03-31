@@ -11,25 +11,23 @@ Uses proper patching to inject test settings (bypasses @lru_cache issue)
 and mocks external dependencies (_perform_clustering, Neo4j, GeminiClient).
 """
 
-import asyncio
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
-from app.main import app
 from app.config import Settings
+from app.main import app
+from httpx import ASGITransport, AsyncClient
 
 # Import shared helpers from conftest (autouse _reset_e2e_singletons applies automatically)
 from tests.conftest import simulate_async_delay
-from tests.e2e.conftest import mock_perform_clustering, make_lightweight_ensure_deps
-
+from tests.e2e.conftest import make_lightweight_ensure_deps, mock_perform_clustering
 
 # =============================================================================
 # Helpers
 # =============================================================================
+
 
 def _make_test_settings(canvas_base_path: str) -> Settings:
     """Create isolated test settings with custom canvas base path."""
@@ -56,25 +54,30 @@ def _create_canvas(base_dir: Path, name: str, node_count: int) -> Path:
     nodes = []
     for i in range(node_count):
         text = patterns[i % len(patterns)].format(i=i, j=(i + 1) % max(node_count, 1))
-        nodes.append({
-            "id": f"node-{i:03d}",
-            "type": "text",
-            "color": "6",
-            "text": text,
-            "x": (i % 5) * 250,
-            "y": (i // 5) * 150,
-            "width": 220,
-            "height": 100,
-        })
+        nodes.append(
+            {
+                "id": f"node-{i:03d}",
+                "type": "text",
+                "color": "6",
+                "text": text,
+                "x": (i % 5) * 250,
+                "y": (i // 5) * 150,
+                "width": 220,
+                "height": 100,
+            }
+        )
     canvas_data = {"nodes": nodes, "edges": []}
     canvas_file = base_dir / name
-    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
+    canvas_file.write_text(
+        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
+    )
     return canvas_file
 
 
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def canvas_dir(tmp_path):
@@ -87,6 +90,7 @@ def canvas_dir(tmp_path):
 # =============================================================================
 # AC-33.13.4: Full Batch Pipeline E2E
 # =============================================================================
+
 
 class TestFullBatchPipeline:
     """
@@ -115,23 +119,32 @@ class TestFullBatchPipeline:
 
         # Fast mock agent that returns AgentResult
         async def fast_agent(*args, **kwargs):
-            at_str = kwargs.get("agent_type", args[0] if args else "basic-decomposition")
+            at_str = kwargs.get(
+                "agent_type", args[0] if args else "basic-decomposition"
+            )
             await simulate_async_delay(0.005)
             try:
                 at = AgentType(at_str)
             except ValueError:
                 at = AgentType.BASIC_DECOMPOSITION
-            return AgentResult(agent_type=at, success=True,
-                               result={"content": f"mock {at_str}"})
+            return AgentResult(
+                agent_type=at, success=True, result={"content": f"mock {at_str}"}
+            )
 
         with (
-            patch("app.services.intelligent_grouping_service.IntelligentGroupingService._perform_clustering",
-                  mock_perform_clustering),
+            patch(
+                "app.services.intelligent_grouping_service.IntelligentGroupingService._perform_clustering",
+                mock_perform_clustering,
+            ),
             patch("app.dependencies.get_settings", return_value=test_settings),
-            patch("app.services.agent_service.AgentService.call_agent",
-                  side_effect=fast_agent),
-            patch("app.api.v1.endpoints.intelligent_parallel._ensure_async_deps",
-                  new=make_lightweight_ensure_deps(test_settings, fast_agent)),
+            patch(
+                "app.services.agent_service.AgentService.call_agent",
+                side_effect=fast_agent,
+            ),
+            patch(
+                "app.api.v1.endpoints.intelligent_parallel._ensure_async_deps",
+                new=make_lightweight_ensure_deps(test_settings, fast_agent),
+            ),
         ):
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -185,8 +198,9 @@ class TestFullBatchPipeline:
 
                 # Step 4: Verify completion
                 assert final is not None, "Session did not complete within timeout"
-                assert final["status"] in ("completed", "partial_failure"), \
+                assert final["status"] in ("completed", "partial_failure"), (
                     f"Expected completed/partial_failure, got {final['status']}"
+                )
                 assert final["progress_percent"] >= 0
 
                 # Step 5: Verify result files are reported (AC-33.13.4 step 5)
@@ -197,8 +211,9 @@ class TestFullBatchPipeline:
                     total_results += len(results)
                     for result in results:
                         assert "node_id" in result, "Each result should have node_id"
-                assert total_results > 0, \
+                assert total_results > 0, (
                     f"Should have node results but got {total_results}"
+                )
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
@@ -208,8 +223,10 @@ class TestFullBatchPipeline:
         test_settings = _make_test_settings(str(canvas_dir))
 
         with (
-            patch("app.services.intelligent_grouping_service.IntelligentGroupingService._perform_clustering",
-                  mock_perform_clustering),
+            patch(
+                "app.services.intelligent_grouping_service.IntelligentGroupingService._perform_clustering",
+                mock_perform_clustering,
+            ),
             patch("app.dependencies.get_settings", return_value=test_settings),
         ):
             async with AsyncClient(
@@ -234,6 +251,7 @@ class TestFullBatchPipeline:
 # AC-33.13.5: Cancel Flow E2E
 # =============================================================================
 
+
 class TestCancelFlow:
     """
     E2E test: start batch → cancel → verify cancelled status.
@@ -257,23 +275,32 @@ class TestCancelFlow:
 
         # Slow agent to give time for cancellation
         async def slow_agent(*args, **kwargs):
-            at_str = kwargs.get("agent_type", args[0] if args else "basic-decomposition")
+            at_str = kwargs.get(
+                "agent_type", args[0] if args else "basic-decomposition"
+            )
             await simulate_async_delay(0.5)  # 500ms per node
             try:
                 at = AgentType(at_str)
             except ValueError:
                 at = AgentType.BASIC_DECOMPOSITION
-            return AgentResult(agent_type=at, success=True,
-                               result={"content": f"mock {at_str}"})
+            return AgentResult(
+                agent_type=at, success=True, result={"content": f"mock {at_str}"}
+            )
 
         with (
-            patch("app.services.intelligent_grouping_service.IntelligentGroupingService._perform_clustering",
-                  mock_perform_clustering),
+            patch(
+                "app.services.intelligent_grouping_service.IntelligentGroupingService._perform_clustering",
+                mock_perform_clustering,
+            ),
             patch("app.dependencies.get_settings", return_value=test_settings),
-            patch("app.services.agent_service.AgentService.call_agent",
-                  side_effect=slow_agent),
-            patch("app.api.v1.endpoints.intelligent_parallel._ensure_async_deps",
-                  new=make_lightweight_ensure_deps(test_settings, slow_agent)),
+            patch(
+                "app.services.agent_service.AgentService.call_agent",
+                side_effect=slow_agent,
+            ),
+            patch(
+                "app.api.v1.endpoints.intelligent_parallel._ensure_async_deps",
+                new=make_lightweight_ensure_deps(test_settings, slow_agent),
+            ),
         ):
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -334,6 +361,7 @@ class TestCancelFlow:
 # Helper: Lightweight _ensure_async_deps replacement
 # =============================================================================
 
+
 def make_lightweight_ensure_deps(settings, agent_mock):
     """
     Factory returning an async function that replaces _ensure_async_deps.
@@ -350,12 +378,14 @@ def make_lightweight_ensure_deps(settings, agent_mock):
 
         service = ep_mod.get_service()
 
-        from app.services.batch_orchestrator import BatchOrchestrator
         from app.services.agent_service import AgentService
+        from app.services.batch_orchestrator import BatchOrchestrator
         from app.services.canvas_service import CanvasService
         from app.services.session_manager import SessionManager
 
-        canvas_base = str(settings.canvas_base_path) if settings.canvas_base_path else None
+        canvas_base = (
+            str(settings.canvas_base_path) if settings.canvas_base_path else None
+        )
         canvas_service = CanvasService(canvas_base_path=canvas_base)
 
         # Create AgentService with mocked gemini_client

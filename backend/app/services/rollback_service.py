@@ -288,9 +288,7 @@ class RollbackService:
             created_by=created_by,
         )
 
-    async def get_snapshot(
-        self, canvas_path: str, snapshot_id: str
-    ) -> Optional[Any]:
+    async def get_snapshot(self, canvas_path: str, snapshot_id: str) -> Optional[Any]:
         """
         Get a single snapshot by ID.
 
@@ -427,31 +425,39 @@ class RollbackService:
 
         for node_id, node in curr_nodes.items():
             if node_id not in snap_nodes:
-                nodes_added.append({
-                    "id": node_id,
-                    "text": node.get("text"),
-                    "color": node.get("color"),
-                })
+                nodes_added.append(
+                    {
+                        "id": node_id,
+                        "text": node.get("text"),
+                        "color": node.get("color"),
+                    }
+                )
             elif snap_nodes[node_id] != node:
-                nodes_modified.append({
-                    "id": node_id,
-                    "before": {
-                        k: v for k, v in snap_nodes[node_id].items()
-                        if snap_nodes[node_id].get(k) != node.get(k)
-                    },
-                    "after": {
-                        k: v for k, v in node.items()
-                        if snap_nodes[node_id].get(k) != node.get(k)
-                    },
-                })
+                nodes_modified.append(
+                    {
+                        "id": node_id,
+                        "before": {
+                            k: v
+                            for k, v in snap_nodes[node_id].items()
+                            if snap_nodes[node_id].get(k) != node.get(k)
+                        },
+                        "after": {
+                            k: v
+                            for k, v in node.items()
+                            if snap_nodes[node_id].get(k) != node.get(k)
+                        },
+                    }
+                )
 
         for node_id, node in snap_nodes.items():
             if node_id not in curr_nodes:
-                nodes_removed.append({
-                    "id": node_id,
-                    "text": node.get("text"),
-                    "color": node.get("color"),
-                })
+                nodes_removed.append(
+                    {
+                        "id": node_id,
+                        "text": node.get("text"),
+                        "color": node.get("color"),
+                    }
+                )
 
         # Compute edge diff
         edges_added = []
@@ -459,19 +465,23 @@ class RollbackService:
 
         for edge_id, edge in curr_edges.items():
             if edge_id not in snap_edges:
-                edges_added.append({
-                    "id": edge_id,
-                    "from_node": edge.get("fromNode"),
-                    "to_node": edge.get("toNode"),
-                })
+                edges_added.append(
+                    {
+                        "id": edge_id,
+                        "from_node": edge.get("fromNode"),
+                        "to_node": edge.get("toNode"),
+                    }
+                )
 
         for edge_id, edge in snap_edges.items():
             if edge_id not in curr_edges:
-                edges_removed.append({
-                    "id": edge_id,
-                    "from_node": edge.get("fromNode"),
-                    "to_node": edge.get("toNode"),
-                })
+                edges_removed.append(
+                    {
+                        "id": edge_id,
+                        "from_node": edge.get("fromNode"),
+                        "to_node": edge.get("toNode"),
+                    }
+                )
 
         return {
             "nodes_diff": {

@@ -42,6 +42,7 @@ from agentic_rag.state_graph import (
 # Test Group 1: State and Config Schema (AC 5.1, 5.2)
 # ========================================
 
+
 class TestStateAndConfigSchema:
     """测试State和Config schema定义"""
 
@@ -125,6 +126,7 @@ class TestStateAndConfigSchema:
 # ========================================
 # Test Group 2: Core Nodes (AC 5.3)
 # ========================================
+
 
 class TestCoreNodes:
     """测试5个核心节点实现"""
@@ -244,6 +246,7 @@ class TestCoreNodes:
 # Test Group 3: StateGraph Construction (AC 5.4)
 # ========================================
 
+
 class TestStateGraphConstruction:
     """测试StateGraph构建和编译"""
 
@@ -298,7 +301,9 @@ class TestStateGraphConstruction:
 
         assert isinstance(sends, list)
         # ✅ Story 23.3 AC 2: 三路并行检索 (Graphiti + LanceDB + Multimodal)
-        assert len(sends) == 3, f"Expected 3 Send objects for parallel retrieval, got {len(sends)}"
+        assert len(sends) == 3, (
+            f"Expected 3 Send objects for parallel retrieval, got {len(sends)}"
+        )
 
     def test_route_after_quality_check_to_rewrite(self):
         """Test AC 5.4.5: route_after_quality_check路由到rewrite_query"""
@@ -376,6 +381,7 @@ class TestStateGraphConstruction:
 # ========================================
 # Test Group 4: End-to-End Execution (AC 5.5)
 # ========================================
+
 
 class TestEndToEndExecution:
     """测试端到端运行"""

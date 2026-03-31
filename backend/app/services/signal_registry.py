@@ -46,7 +46,9 @@ class SignalRegistry:
             del self._signals[signal_name]
             logger.info(f"SignalRegistry: unregistered signal '{signal_name}'")
         else:
-            logger.warning(f"SignalRegistry: signal '{signal_name}' not found for unregister")
+            logger.warning(
+                f"SignalRegistry: signal '{signal_name}' not found for unregister"
+            )
 
     def get_all_signals(self) -> Dict[str, MasterySignal]:
         """Return all registered signals."""
@@ -108,7 +110,9 @@ class BKTMasterySignal:
         """Preload signal value from a ConceptState object (avoids async in get_value)."""
         if concept.interaction_count > 0:
             self._cache[concept.concept_id] = concept.p_mastery
-            self._cache[f"{concept.concept_id}_interactions"] = concept.interaction_count
+            self._cache[f"{concept.concept_id}_interactions"] = (
+                concept.interaction_count
+            )
         else:
             self._cache[concept.concept_id] = None
 

@@ -16,10 +16,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ============================================================================
 # Task 1: Multi-Subject Isolation Tests
 # ============================================================================
+
 
 class TestGroupIdQueryIsolation:
     """AC-30.15.1: group_id query isolation."""
@@ -46,6 +46,7 @@ class TestGroupIdQueryIsolation:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -61,15 +62,21 @@ class TestGroupIdQueryIsolation:
 
             # Write Math event
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math/algebra.canvas",
-                node_id="n1", concept="二次方程", agent_type="scoring-agent",
-                subject="数学"
+                user_id="user1",
+                canvas_path="math/algebra.canvas",
+                node_id="n1",
+                concept="二次方程",
+                agent_type="scoring-agent",
+                subject="数学",
             )
             # Write Physics event
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="physics/mechanics.canvas",
-                node_id="n2", concept="牛顿定律", agent_type="scoring-agent",
-                subject="物理"
+                user_id="user1",
+                canvas_path="physics/mechanics.canvas",
+                node_id="n2",
+                concept="牛顿定律",
+                agent_type="scoring-agent",
+                subject="物理",
             )
 
         # Patch load_failed_scores to avoid file access
@@ -91,14 +98,20 @@ class TestGroupIdQueryIsolation:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
 
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math/algebra.canvas",
-                node_id="n1", concept="二次方程", agent_type="scoring-agent",
-                subject="数学"
+                user_id="user1",
+                canvas_path="math/algebra.canvas",
+                node_id="n1",
+                concept="二次方程",
+                agent_type="scoring-agent",
+                subject="数学",
             )
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="physics/mechanics.canvas",
-                node_id="n2", concept="牛顿定律", agent_type="scoring-agent",
-                subject="物理"
+                user_id="user1",
+                canvas_path="physics/mechanics.canvas",
+                node_id="n2",
+                concept="牛顿定律",
+                agent_type="scoring-agent",
+                subject="物理",
             )
 
         with patch.object(memory_service, "load_failed_scores", return_value=[]):
@@ -118,14 +131,20 @@ class TestGroupIdQueryIsolation:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
 
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math/algebra.canvas",
-                node_id="n1", concept="二次方程", agent_type="scoring-agent",
-                subject="数学"
+                user_id="user1",
+                canvas_path="math/algebra.canvas",
+                node_id="n1",
+                concept="二次方程",
+                agent_type="scoring-agent",
+                subject="数学",
             )
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="physics/mechanics.canvas",
-                node_id="n2", concept="牛顿定律", agent_type="scoring-agent",
-                subject="物理"
+                user_id="user1",
+                canvas_path="physics/mechanics.canvas",
+                node_id="n2",
+                concept="牛顿定律",
+                agent_type="scoring-agent",
+                subject="物理",
             )
 
         with patch.object(memory_service, "load_failed_scores", return_value=[]):
@@ -145,20 +164,27 @@ class TestGroupIdQueryIsolation:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
 
             await memory_service.record_learning_event(
-                user_id="user1", canvas_path="math/algebra.canvas",
-                node_id="n1", concept="概念", agent_type="agent",
-                subject="数学"
+                user_id="user1",
+                canvas_path="math/algebra.canvas",
+                node_id="n1",
+                concept="概念",
+                agent_type="agent",
+                subject="数学",
             )
 
         # Check group_id is stored in _episodes
         ep = memory_service._episodes[0]
         assert ep.get("group_id") is not None
-        assert "数学" in ep.get("group_id", "").lower() or "math" in ep.get("group_id", "").lower()
+        assert (
+            "数学" in ep.get("group_id", "").lower()
+            or "math" in ep.get("group_id", "").lower()
+        )
 
 
 # ============================================================================
 # AC-30.15.2: Neo4j WHERE clause verification
 # ============================================================================
+
 
 class TestNeo4jGroupIdFiltering:
     """AC-30.15.2: Verify queries pass group_id to Neo4j."""
@@ -182,6 +208,7 @@ class TestNeo4jGroupIdFiltering:
     @pytest.fixture
     async def memory_service(self, mock_neo4j, mock_learning_memory):
         from app.services.memory_service import MemoryService
+
         service = MemoryService(
             neo4j_client=mock_neo4j,
         )
@@ -190,7 +217,9 @@ class TestNeo4jGroupIdFiltering:
         return service
 
     @pytest.mark.asyncio
-    async def test_get_learning_history_passes_group_id(self, memory_service, mock_neo4j):
+    async def test_get_learning_history_passes_group_id(
+        self, memory_service, mock_neo4j
+    ):
         """get_learning_history passes group_id to Neo4j when subject provided."""
         with patch.object(memory_service, "load_failed_scores", return_value=[]):
             with patch.object(memory_service, "_episodes_recovered", True):
@@ -203,7 +232,9 @@ class TestNeo4jGroupIdFiltering:
         assert call_kwargs.get("group_id") is not None
 
     @pytest.mark.asyncio
-    async def test_get_learning_history_no_group_id_without_subject(self, memory_service, mock_neo4j):
+    async def test_get_learning_history_no_group_id_without_subject(
+        self, memory_service, mock_neo4j
+    ):
         """get_learning_history passes group_id=None when no subject."""
         with patch.object(memory_service, "load_failed_scores", return_value=[]):
             with patch.object(memory_service, "_episodes_recovered", True):
@@ -219,6 +250,7 @@ class TestNeo4jGroupIdFiltering:
 # ============================================================================
 # Task 2: DI Chain E2E Tests
 # ============================================================================
+
 
 class TestDIChainIntegrity:
     """AC-30.15.3: DI chain end-to-end verification."""
@@ -274,14 +306,13 @@ class TestDIChainIntegrity:
         # These are the critical dependencies that MUST be injected
         critical_deps = {"agent_service", "canvas_service", "memory_service"}
         for dep in critical_deps:
-            assert dep in init_params, (
-                f"VerificationService.__init__ must accept {dep}"
-            )
+            assert dep in init_params, f"VerificationService.__init__ must accept {dep}"
 
 
 # ============================================================================
 # Task 3: DI Parameter Completeness
 # ============================================================================
+
 
 class TestDIParameterCompleteness:
     """AC-30.15.4: DI parameter completeness automation."""
@@ -297,9 +328,15 @@ class TestDIParameterCompleteness:
         func_code = code[start:end]
 
         # Must pass these to VerificationService()
-        assert "canvas_service=canvas_service" in func_code, "Missing canvas_service injection"
-        assert "memory_service=memory_service" in func_code, "Missing memory_service injection"
-        assert "agent_service=agent_service" in func_code, "Missing agent_service injection"
+        assert "canvas_service=canvas_service" in func_code, (
+            "Missing canvas_service injection"
+        )
+        assert "memory_service=memory_service" in func_code, (
+            "Missing memory_service injection"
+        )
+        assert "agent_service=agent_service" in func_code, (
+            "Missing agent_service injection"
+        )
 
     def test_canvas_service_di_passes_memory_client(self):
         """dependencies.py passes memory_client to CanvasService."""
@@ -310,7 +347,9 @@ class TestDIParameterCompleteness:
         end = code.find("\n\n# Type alias for CanvasService", start)
         func_code = code[start:end]
 
-        assert "memory_client=memory_client" in func_code, "Missing memory_client injection"
+        assert "memory_client=memory_client" in func_code, (
+            "Missing memory_client injection"
+        )
 
     def test_context_enrichment_di_passes_graphiti(self):
         """dependencies.py passes learning_memory_service to ContextEnrichmentService."""
@@ -321,7 +360,9 @@ class TestDIParameterCompleteness:
         end = code.find("\n\n# Type alias for ContextEnrichmentService", start)
         func_code = code[start:end]
 
-        assert "learning_memory_service=learning_memory_service" in func_code, "Missing learning_memory_service injection"
+        assert "learning_memory_service=learning_memory_service" in func_code, (
+            "Missing learning_memory_service injection"
+        )
 
     def test_subject_mapping_yaml_exists(self):
         """AC-30.15.5: subject_mapping.yaml exists and is not corrupted."""

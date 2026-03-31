@@ -88,26 +88,31 @@ class PDFMetadata:
 
 class PDFProcessorError(Exception):
     """Base exception for PDF processing errors."""
+
     pass
 
 
 class PDFValidationError(PDFProcessorError):
     """Raised when PDF validation fails."""
+
     pass
 
 
 class PDFSizeError(PDFProcessorError):
     """Raised when PDF exceeds size limit."""
+
     pass
 
 
 class PDFCorruptError(PDFProcessorError):
     """Raised when PDF is corrupted or unreadable."""
+
     pass
 
 
 class PageRangeError(PDFProcessorError):
     """Raised when page range is invalid."""
+
     pass
 
 
@@ -137,7 +142,7 @@ class PDFProcessor:
         self,
         max_size_mb: int = None,
         thumbnail_size: tuple[int, int] = None,
-        cache_dir: Optional[str] = None
+        cache_dir: Optional[str] = None,
     ):
         """
         Initialize PDF processor.
@@ -165,7 +170,7 @@ class PDFProcessor:
         pdf_path: str | Path,
         page_range: Optional[str] = None,
         generate_thumbnail: bool = True,
-        save_thumbnail: bool = False
+        save_thumbnail: bool = False,
     ) -> PDFMetadata:
         """
         Process a PDF file and extract metadata.
@@ -246,9 +251,7 @@ class PDFProcessor:
             doc.close()
 
     async def generate_thumbnail(
-        self,
-        doc_or_path: "fitz.Document | str | Path",
-        page_num: int = 0
+        self, doc_or_path: "fitz.Document | str | Path", page_num: int = 0
     ) -> str:
         """
         Generate thumbnail from PDF first page.
@@ -296,7 +299,9 @@ class PDFProcessor:
 
             # Save to bytes
             buffer = io.BytesIO()
-            img.save(buffer, format=self.THUMBNAIL_FORMAT, quality=self.THUMBNAIL_QUALITY)
+            img.save(
+                buffer, format=self.THUMBNAIL_FORMAT, quality=self.THUMBNAIL_QUALITY
+            )
             buffer.seek(0)
 
             return base64.b64encode(buffer.getvalue()).decode("utf-8")
@@ -345,7 +350,9 @@ class PDFProcessor:
                     start, end = int(match.group(1)), int(match.group(2))
 
                     if start > end:
-                        raise PageRangeError(f"Invalid range: start > end ({start} > {end})")
+                        raise PageRangeError(
+                            f"Invalid range: start > end ({start} > {end})"
+                        )
 
                     if start < 1 or end > total_pages:
                         raise PageRangeError(
@@ -429,9 +436,7 @@ class PDFProcessor:
             with open(pdf_path, "rb") as f:
                 header = f.read(8)
                 if not header.startswith(b"%PDF"):
-                    raise PDFValidationError(
-                        "Invalid PDF file: missing PDF header"
-                    )
+                    raise PDFValidationError("Invalid PDF file: missing PDF header")
         except IOError as e:
             raise PDFValidationError(f"Cannot read file: {e}")
 
@@ -456,9 +461,7 @@ class PDFProcessor:
 
 # Convenience function for async usage
 async def process_pdf(
-    pdf_path: str | Path,
-    page_range: Optional[str] = None,
-    **kwargs
+    pdf_path: str | Path, page_range: Optional[str] = None, **kwargs
 ) -> PDFMetadata:
     """
     Process a PDF file and return metadata.

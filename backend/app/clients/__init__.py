@@ -6,10 +6,19 @@ Client modules for external services.
 [Source: docs/prd/sprint-change-proposal-20251208.md - Epic 20]
 """
 
-from app.clients.claude_client import ClaudeClient, get_claude_client, reset_claude_client
-from app.clients.graphiti_client import Neo4jEdgeClient, get_neo4j_edge_client
+from app.clients.claude_client import (
+    ClaudeClient,
+    get_claude_client,
+    reset_claude_client,
+)
+
 # Backward compat aliases (S34 G-FAKE-001)
-from app.clients.graphiti_client import GraphitiEdgeClient, get_graphiti_client  # noqa: F811
+from app.clients.graphiti_client import (  # noqa: F811
+    GraphitiEdgeClient,
+    Neo4jEdgeClient,
+    get_graphiti_client,
+    get_neo4j_edge_client,
+)
 
 __all__ = [
     "Neo4jEdgeClient",

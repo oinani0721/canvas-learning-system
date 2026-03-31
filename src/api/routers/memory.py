@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 # Memory Query Endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @router.post(
     "/temporal/query",
     response_model=TemporalQueryResponse,
@@ -170,6 +171,7 @@ async def query_graphiti_memory(request: MemoryQueryRequest) -> GraphitiQueryRes
 # Memory Status Endpoint
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @router.get(
     "/status",
     response_model=MemorySystemStatus,
@@ -218,11 +220,13 @@ async def get_memory_status() -> MemorySystemStatus:
     )
 
     # Determine overall health
-    connected_count = sum([
-        temporal_status.connected,
-        semantic_status.connected,
-        graphiti_status.connected,
-    ])
+    connected_count = sum(
+        [
+            temporal_status.connected,
+            semantic_status.connected,
+            graphiti_status.connected,
+        ]
+    )
 
     if connected_count == 3:
         overall_health = "healthy"
@@ -242,6 +246,7 @@ async def get_memory_status() -> MemorySystemStatus:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Memory Store Endpoint
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @router.post(
     "/store",

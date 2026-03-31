@@ -13,17 +13,10 @@ Task 2: Metadata API endpoint integration tests
 [Source: docs/epics/EPIC-30-MEMORY-SYSTEM-COMPLETE-ACTIVATION.md]
 """
 
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
 import pytest
 import yaml
-from fastapi.testclient import TestClient
-
-from app.models.metadata_models import SubjectMappingConfig, SubjectMappingRule
 from app.services.subject_resolver import SubjectResolver
-
+from fastapi.testclient import TestClient
 
 # =============================================================================
 # Fixtures
@@ -60,8 +53,8 @@ def test_resolver(test_config_path):
 @pytest.fixture
 def client(test_resolver):
     """Create a test client with DI overrides."""
-    from app.main import app
     from app.api.v1.endpoints.metadata import get_resolver
+    from app.main import app
 
     app.dependency_overrides[get_resolver] = lambda: test_resolver
 
@@ -168,8 +161,7 @@ class TestAddSubjectMapping:
 
         # Should still have same number of mappings (2, not 3)
         math54_mappings = [
-            m for m in data["mappings"]
-            if m["pattern"].lower() == "math 54/**"
+            m for m in data["mappings"] if m["pattern"].lower() == "math 54/**"
         ]
         assert len(math54_mappings) == 1
         assert math54_mappings[0]["subject"] == "math54-v2"

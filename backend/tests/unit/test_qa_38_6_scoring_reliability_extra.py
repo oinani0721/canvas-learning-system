@@ -10,26 +10,21 @@ Covers gaps identified in existing test_story_38_6_scoring_reliability.py:
 - Full cycle: fail → record → recover → merged view
 - Sort order after merge
 """
+
 import asyncio
 import json
-import pytest
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tests.conftest import simulate_async_delay
-
+import pytest
 from app.services.agent_service import (
-    MEMORY_WRITE_TIMEOUT,
     _record_failed_write,
 )
 from app.services.memory_service import (
-    GRAPHITI_JSON_WRITE_TIMEOUT,
-    GRAPHITI_RETRY_BACKOFF_BASE,
     MemoryService,
 )
-from app.core.failed_writes_constants import FAILED_WRITES_FILE
 
+from tests.conftest import simulate_async_delay
 
 # ═══════════════════════════════════════════════════════════════════
 # AC-2 Supplement: _write_with_timeout integration
@@ -58,9 +53,11 @@ class TestWriteWithTimeoutIntegration:
             # JUSTIFIED: Mock simulating slow write; cancelled by asyncio.wait_for, not a hard wait
             await simulate_async_delay(30)
 
-        with patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.services.agent_service.MEMORY_WRITE_TIMEOUT", 0.05):
+        with (
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+            patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.services.agent_service.MEMORY_WRITE_TIMEOUT", 0.05),
+        ):
             # Directly test the _write_with_timeout pattern
             try:
                 await asyncio.wait_for(slow_write(), timeout=0.05)
@@ -165,8 +162,10 @@ class TestRecoveryEdgeCases:
         fallback_file = tmp_path / "failed_writes.jsonl"
         fallback_file.write_text("", encoding="utf-8")
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await memory_service.recover_failed_writes()
 
         assert result == {"recovered": 0, "pending": 0}
@@ -177,8 +176,10 @@ class TestRecoveryEdgeCases:
         fallback_file = tmp_path / "failed_writes.jsonl"
         fallback_file.write_text("\n\n   \n", encoding="utf-8")
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await memory_service.recover_failed_writes()
 
         assert result == {"recovered": 0, "pending": 0}
@@ -189,8 +190,10 @@ class TestRecoveryEdgeCases:
         fallback_file = tmp_path / "failed_writes.jsonl"
         fallback_file.write_text("not json\nalso not json\n", encoding="utf-8")
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await memory_service.recover_failed_writes()
 
         assert result["recovered"] == 0
@@ -220,21 +223,25 @@ class TestMergedViewEdgeCases:
     def test_load_failed_scores_skips_malformed(self, tmp_path):
         """[P0] Malformed lines in JSONL are skipped by load_failed_scores."""
         fallback_file = tmp_path / "failed_writes.jsonl"
-        valid_entry = json.dumps({
-            "timestamp": "2026-02-06T10:00:00",
-            "concept_id": "node_ok",
-            "canvas_name": "test.canvas",
-            "score": 25.0,
-            "error_reason": "timeout",
-        })
+        valid_entry = json.dumps(
+            {
+                "timestamp": "2026-02-06T10:00:00",
+                "concept_id": "node_ok",
+                "canvas_name": "test.canvas",
+                "score": 25.0,
+                "error_reason": "timeout",
+            }
+        )
         fallback_file.write_text(
             "bad json here\n" + valid_entry + "\n" + "{incomplete\n",
             encoding="utf-8",
         )
 
         ms = MemoryService.__new__(MemoryService)
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             results = ms.load_failed_scores()
 
         assert len(results) == 1
@@ -246,21 +253,25 @@ class TestMergedViewEdgeCases:
         """[P0] After merging fallback scores, result is sorted newest-first."""
         fallback_file = tmp_path / "failed_writes.jsonl"
         # Old fallback entry
-        old_entry = json.dumps({
-            "timestamp": "2026-02-05T08:00:00",
-            "concept_id": "node_old",
-            "canvas_name": "test.canvas",
-            "score": 10.0,
-            "error_reason": "timeout",
-        })
+        old_entry = json.dumps(
+            {
+                "timestamp": "2026-02-05T08:00:00",
+                "concept_id": "node_old",
+                "canvas_name": "test.canvas",
+                "score": 10.0,
+                "error_reason": "timeout",
+            }
+        )
         # New fallback entry
-        new_entry = json.dumps({
-            "timestamp": "2026-02-07T12:00:00",
-            "concept_id": "node_new",
-            "canvas_name": "test.canvas",
-            "score": 90.0,
-            "error_reason": "timeout",
-        })
+        new_entry = json.dumps(
+            {
+                "timestamp": "2026-02-07T12:00:00",
+                "concept_id": "node_new",
+                "canvas_name": "test.canvas",
+                "score": 90.0,
+                "error_reason": "timeout",
+            }
+        )
         fallback_file.write_text(old_entry + "\n" + new_entry + "\n", encoding="utf-8")
 
         # Neo4j returns a middle-dated entry
@@ -270,10 +281,14 @@ class TestMergedViewEdgeCases:
             "concept": "concept_mid",
             "score": 50.0,
         }
-        memory_service.neo4j.get_learning_history = AsyncMock(return_value=[neo4j_episode])
+        memory_service.neo4j.get_learning_history = AsyncMock(
+            return_value=[neo4j_episode]
+        )
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await memory_service.get_learning_history(user_id="test")
 
         items = result["items"]
@@ -288,8 +303,10 @@ class TestMergedViewEdgeCases:
         fallback_file.write_text("", encoding="utf-8")
 
         ms = MemoryService.__new__(MemoryService)
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             results = ms.load_failed_scores()
 
         assert results == []
@@ -338,8 +355,10 @@ class TestFullCycleIntegration:
         # Mock the retry to succeed
         ms._write_to_graphiti_json_with_retry = AsyncMock(return_value=True)
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await ms.recover_failed_writes()
 
         assert result["recovered"] == 1
@@ -378,8 +397,10 @@ class TestFullCycleIntegration:
 
         ms._write_to_graphiti_json_with_retry = AsyncMock(return_value=False)
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             recovery = await ms.recover_failed_writes()
 
         assert recovery["recovered"] == 0
@@ -387,8 +408,10 @@ class TestFullCycleIntegration:
         assert fallback_file.exists()  # Still there
 
         # Step 3: Merged view includes the stuck entry
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             history = await ms.get_learning_history(user_id="test")
 
         assert history["total"] == 1
@@ -408,11 +431,13 @@ class TestStartupIntegration:
     def test_main_imports_fallback_sync(self):
         """[P0] main.py references fallback sync service."""
         import app.main as main_module
+
         source = Path(main_module.__file__).read_text(encoding="utf-8")
         assert "get_fallback_sync_service" in source
 
     def test_fallback_sync_called_in_lifespan(self):
         """[P0] Fallback sync call exists in lifespan context manager."""
         import app.main as main_module
+
         source = Path(main_module.__file__).read_text(encoding="utf-8")
         assert "sync_all_fallbacks" in source

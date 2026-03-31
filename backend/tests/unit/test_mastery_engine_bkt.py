@@ -13,10 +13,10 @@ Covers:
 Reference: Corbett & Anderson, "Knowledge Tracing", 1994
 """
 
-import pytest
 from unittest.mock import patch
 
-from app.models.mastery_state import ConceptState, DEFAULT_BKT_PARAMS, MasteryConfig
+import pytest
+from app.models.mastery_state import DEFAULT_BKT_PARAMS, ConceptState, MasteryConfig
 from app.services.mastery_engine import MasteryEngine
 
 
@@ -44,14 +44,18 @@ class TestBKTCorrectAnswer:
 
     def test_correct_answer_raises_p_mastery_easy(self, engine):
         """Grade 3 on easy difficulty should increase p_mastery."""
-        concept = ConceptState(concept_id="t", topic="t", name="t", bkt_difficulty="easy")
+        concept = ConceptState(
+            concept_id="t", topic="t", name="t", bkt_difficulty="easy"
+        )
         old_p = concept.p_mastery
         engine.update_on_interaction(concept, grade=3)
         assert concept.p_mastery > old_p
 
     def test_correct_answer_raises_p_mastery_hard(self, engine):
         """Grade 3 on hard difficulty should increase p_mastery."""
-        concept = ConceptState(concept_id="t", topic="t", name="t", bkt_difficulty="hard")
+        concept = ConceptState(
+            concept_id="t", topic="t", name="t", bkt_difficulty="hard"
+        )
         old_p = concept.p_mastery
         engine.update_on_interaction(concept, grade=3)
         assert concept.p_mastery > old_p
@@ -103,14 +107,18 @@ class TestBKTIncorrectAnswer:
 
     def test_incorrect_answer_easy(self, engine):
         """Incorrect on easy difficulty."""
-        concept = ConceptState(concept_id="t", topic="t", name="t", bkt_difficulty="easy", p_mastery=0.6)
+        concept = ConceptState(
+            concept_id="t", topic="t", name="t", bkt_difficulty="easy", p_mastery=0.6
+        )
         old_p = concept.p_mastery
         engine.update_on_interaction(concept, grade=1)
         assert concept.p_mastery < old_p
 
     def test_incorrect_answer_hard(self, engine):
         """Incorrect on hard difficulty."""
-        concept = ConceptState(concept_id="t", topic="t", name="t", bkt_difficulty="hard", p_mastery=0.6)
+        concept = ConceptState(
+            concept_id="t", topic="t", name="t", bkt_difficulty="hard", p_mastery=0.6
+        )
         old_p = concept.p_mastery
         engine.update_on_interaction(concept, grade=1)
         assert concept.p_mastery < old_p
@@ -212,8 +220,11 @@ class TestBKTBoundaryValues:
     def test_denominator_zero_protection_incorrect(self, engine):
         """When P_S approaches 0 and p_prev=0.999, test denominator safety."""
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.999, bkt_difficulty="easy",
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.999,
+            bkt_difficulty="easy",
         )
         # easy: P_S=0.05 is not zero, but test the safety path
         engine.update_on_interaction(concept, grade=1)
@@ -266,12 +277,18 @@ class TestBKTInteractionTracking:
     def test_unknown_difficulty_falls_back_to_medium(self, engine):
         """Unknown bkt_difficulty should use medium params."""
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
-            p_mastery=0.5, bkt_difficulty="unknown",
+            concept_id="t",
+            topic="t",
+            name="t",
+            p_mastery=0.5,
+            bkt_difficulty="unknown",
         )
         medium_concept = ConceptState(
-            concept_id="t2", topic="t", name="t",
-            p_mastery=0.5, bkt_difficulty="medium",
+            concept_id="t2",
+            topic="t",
+            name="t",
+            p_mastery=0.5,
+            bkt_difficulty="medium",
         )
         engine.update_on_interaction(concept, grade=3)
         engine.update_on_interaction(medium_concept, grade=3)

@@ -14,13 +14,11 @@ Covers:
 """
 
 from datetime import datetime
-from unittest.mock import AsyncMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from .conftest import (
-    REVIEW_SERVICE_PATCH,
     _FIXED_REVIEW_TIME,
+    REVIEW_SERVICE_PATCH,
     make_mock_review_service,
 )
 
@@ -93,20 +91,32 @@ class TestReviewHistoryPaginationEndpoint:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "逆否命题",
-                     "canvas_path": "离散数学.canvas", "rating": 4,
-                     "review_time": _FIXED_REVIEW_TIME},
-                    {"concept_id": "c2", "concept_name": "充分条件",
-                     "canvas_path": "离散数学.canvas", "rating": 3,
-                     "review_time": _FIXED_REVIEW_TIME},
+                    {
+                        "concept_id": "c1",
+                        "concept_name": "逆否命题",
+                        "canvas_path": "离散数学.canvas",
+                        "rating": 4,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
+                    {
+                        "concept_id": "c2",
+                        "concept_name": "充分条件",
+                        "canvas_path": "离散数学.canvas",
+                        "rating": 3,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
                 ],
             },
             {
                 "date": "2025-01-14",
                 "reviews": [
-                    {"concept_id": "c3", "concept_name": "必要条件",
-                     "canvas_path": "离散数学.canvas", "rating": 4,
-                     "review_time": _FIXED_REVIEW_TIME},
+                    {
+                        "concept_id": "c3",
+                        "concept_name": "必要条件",
+                        "canvas_path": "离散数学.canvas",
+                        "rating": 4,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
                 ],
             },
         ]
@@ -126,17 +136,25 @@ class TestReviewHistoryPaginationEndpoint:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "测试概念",
-                     "canvas_path": "测试.canvas", "rating": 4,
-                     "review_time": _FIXED_REVIEW_TIME},
+                    {
+                        "concept_id": "c1",
+                        "concept_name": "测试概念",
+                        "canvas_path": "测试.canvas",
+                        "rating": 4,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
                 ],
             },
         ]
 
         with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_get.return_value = make_mock_review_service(
-                {"records": mock_records, "has_more": False,
-                 "retention_rate": 0.85, "streak_days": 5}
+                {
+                    "records": mock_records,
+                    "has_more": False,
+                    "retention_rate": 0.85,
+                    "streak_days": 5,
+                }
             )
             response = client.get("/api/v1/review/history?days=7")
 
@@ -151,15 +169,27 @@ class TestReviewHistoryPaginationEndpoint:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "A",
-                     "canvas_path": "a.canvas", "rating": 4,
-                     "review_time": _FIXED_REVIEW_TIME},
-                    {"concept_id": "c2", "concept_name": "B",
-                     "canvas_path": "a.canvas", "rating": 2,
-                     "review_time": _FIXED_REVIEW_TIME},
-                    {"concept_id": "c3", "concept_name": "C",
-                     "canvas_path": "a.canvas", "rating": 3,
-                     "review_time": _FIXED_REVIEW_TIME},
+                    {
+                        "concept_id": "c1",
+                        "concept_name": "A",
+                        "canvas_path": "a.canvas",
+                        "rating": 4,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
+                    {
+                        "concept_id": "c2",
+                        "concept_name": "B",
+                        "canvas_path": "a.canvas",
+                        "rating": 2,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
+                    {
+                        "concept_id": "c3",
+                        "concept_name": "C",
+                        "canvas_path": "a.canvas",
+                        "rating": 3,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
                 ],
             },
         ]
@@ -184,15 +214,27 @@ class TestReviewHistoryPaginationEndpoint:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "A",
-                     "canvas_path": "离散数学.canvas", "rating": 4,
-                     "review_time": _FIXED_REVIEW_TIME},
-                    {"concept_id": "c2", "concept_name": "B",
-                     "canvas_path": "离散数学.canvas", "rating": 3,
-                     "review_time": _FIXED_REVIEW_TIME},
-                    {"concept_id": "c3", "concept_name": "C",
-                     "canvas_path": "线性代数.canvas", "rating": 4,
-                     "review_time": _FIXED_REVIEW_TIME},
+                    {
+                        "concept_id": "c1",
+                        "concept_name": "A",
+                        "canvas_path": "离散数学.canvas",
+                        "rating": 4,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
+                    {
+                        "concept_id": "c2",
+                        "concept_name": "B",
+                        "canvas_path": "离散数学.canvas",
+                        "rating": 3,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
+                    {
+                        "concept_id": "c3",
+                        "concept_name": "C",
+                        "canvas_path": "线性代数.canvas",
+                        "rating": 4,
+                        "review_time": _FIXED_REVIEW_TIME,
+                    },
                 ],
             },
         ]
@@ -245,6 +287,7 @@ class TestReviewHistoryPaginationBehavior:
 
             assert response.status_code == 200
             from app.services.review_service import MAX_HISTORY_RECORDS
+
             mock_service.get_history.assert_called_once()
             call_kwargs = mock_service.get_history.call_args.kwargs
             assert call_kwargs.get("limit") == MAX_HISTORY_RECORDS
@@ -260,5 +303,3 @@ class TestReviewHistoryPaginationBehavior:
             mock_service.get_history.assert_called_once()
             call_kwargs = mock_service.get_history.call_args.kwargs
             assert call_kwargs.get("limit") == 10
-
-

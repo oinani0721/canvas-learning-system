@@ -11,15 +11,14 @@ import time
 from datetime import datetime, timezone
 
 import pytest
-from httpx import AsyncClient, ASGITransport
-
-from app.main import app
 from app.config import get_settings
-
+from app.main import app
+from httpx import ASGITransport, AsyncClient
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Full Endpoint Integration (AC-36.10.1)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestStorageHealthEndpoint:
     """Integration tests for /api/v1/health/storage endpoint."""
@@ -53,7 +52,9 @@ class TestStorageHealthEndpoint:
             elapsed_ms = (time.time() - start) * 1000
 
             assert response.status_code == 200
-            assert elapsed_ms < 500, f"Response time {elapsed_ms:.1f}ms exceeds 500ms threshold"
+            assert elapsed_ms < 500, (
+                f"Response time {elapsed_ms:.1f}ms exceeds 500ms threshold"
+            )
 
     @pytest.mark.asyncio
     async def test_storage_backends_array_structure(self):
@@ -92,6 +93,7 @@ class TestStorageHealthEndpoint:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Cache Behavior (AC-36.10.4)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestCacheIntegration:
     """Integration tests for response caching."""
@@ -136,6 +138,7 @@ class TestCacheIntegration:
 # Test: Connection Pool Metrics (AC-36.10.2)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestConnectionPoolIntegration:
     """Integration tests for connection pool metrics."""
 
@@ -165,6 +168,7 @@ class TestConnectionPoolIntegration:
 # Test: Status Aggregation Integration (AC-36.10.5)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestStatusAggregationIntegration:
     """Integration tests for status aggregation logic."""
 
@@ -180,7 +184,9 @@ class TestStatusAggregationIntegration:
             backends = data["storage_backends"]
 
             # Check consistency
-            neo4j_ok = any(b["name"] == "neo4j" and b["status"] == "ok" for b in backends)
+            neo4j_ok = any(
+                b["name"] == "neo4j" and b["status"] == "ok" for b in backends
+            )
             all_ok = all(b["status"] == "ok" for b in backends)
 
             if all_ok:
@@ -196,6 +202,7 @@ class TestStatusAggregationIntegration:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Timestamp Validation (AC-36.10.6)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestTimestampValidation:
     """Integration tests for timestamp field."""
@@ -247,6 +254,7 @@ class TestTimestampValidation:
 # Test: Concurrent Requests
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestConcurrentRequests:
     """Test endpoint behavior under concurrent load."""
 
@@ -256,10 +264,7 @@ class TestConcurrentRequests:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             # Make 5 concurrent requests
-            tasks = [
-                client.get("/api/v1/health/storage")
-                for _ in range(5)
-            ]
+            tasks = [client.get("/api/v1/health/storage") for _ in range(5)]
             responses = await asyncio.gather(*tasks)
 
             # All should succeed
@@ -274,10 +279,7 @@ class TestConcurrentRequests:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             # Make concurrent requests
-            tasks = [
-                client.get("/api/v1/health/storage")
-                for _ in range(3)
-            ]
+            tasks = [client.get("/api/v1/health/storage") for _ in range(3)]
             responses = await asyncio.gather(*tasks)
 
             # All should have same status (within cache window)
@@ -288,6 +290,7 @@ class TestConcurrentRequests:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Schema Compliance (AC-36.10.6)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestSchemaCompliance:
     """Test response conforms to JSON Schema."""
@@ -307,7 +310,7 @@ class TestSchemaCompliance:
                 "connection_pool",
                 "latency_metrics",
                 "cached",
-                "timestamp"
+                "timestamp",
             ]
 
             for field in required_fields:
@@ -328,4 +331,3 @@ class TestSchemaCompliance:
 
             # String validation
             assert isinstance(data["timestamp"], str)
-

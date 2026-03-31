@@ -27,9 +27,11 @@ from typing import Any, Dict, List, Optional, Protocol
 
 try:
     from loguru import logger
+
     LOGURU_ENABLED = True
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
     LOGURU_ENABLED = False
 
@@ -38,19 +40,23 @@ except ImportError:
 # Exceptions
 # ============================================================
 
+
 class CrossCanvasRetrieverError(Exception):
     """Base exception for CrossCanvasRetriever errors."""
+
     pass
 
 
 class CrossCanvasRetrievalTimeout(CrossCanvasRetrieverError):
     """Raised when retrieval times out."""
+
     pass
 
 
 # ============================================================
 # Configuration
 # ============================================================
+
 
 @dataclass
 class CrossCanvasRetrieverConfig:
@@ -65,6 +71,7 @@ class CrossCanvasRetrieverConfig:
         max_related_canvases: 最大关联Canvas数量
         enable_cache: 是否启用缓存
     """
+
     top_k: int = 10
     min_score: float = 0.3
     timeout_ms: int = 500
@@ -77,6 +84,7 @@ class CrossCanvasRetrieverConfig:
 # Protocol for dependency injection
 # ============================================================
 
+
 class LanceDBClientProtocol(Protocol):
     """Protocol for LanceDB client dependency injection."""
 
@@ -86,7 +94,7 @@ class LanceDBClientProtocol(Protocol):
         table_name: str,
         canvas_file: Optional[str] = None,
         num_results: int = 10,
-        metric: str = "cosine"
+        metric: str = "cosine",
     ) -> List[Dict[str, Any]]:
         """Search for similar vectors."""
         ...
@@ -95,6 +103,7 @@ class LanceDBClientProtocol(Protocol):
 # ============================================================
 # CrossCanvasService
 # ============================================================
+
 
 class CrossCanvasService:
     """
@@ -119,7 +128,7 @@ class CrossCanvasService:
     def __init__(
         self,
         lancedb_client: LanceDBClientProtocol,
-        config: Optional[CrossCanvasRetrieverConfig] = None
+        config: Optional[CrossCanvasRetrieverConfig] = None,
     ):
         """
         初始化CrossCanvasService
@@ -175,7 +184,7 @@ class CrossCanvasService:
         # 3. 从主题标签获取相似Canvas
 
         # 限制数量
-        related_canvases = related_canvases[:self.config.max_related_canvases]
+        related_canvases = related_canvases[: self.config.max_related_canvases]
 
         # 缓存结果
         self._canvas_relations[canvas_file] = related_canvases
@@ -183,10 +192,7 @@ class CrossCanvasService:
         return related_canvases
 
     async def search_related_nodes(
-        self,
-        query: str,
-        related_canvases: List[str],
-        num_results: int = 10
+        self, query: str, related_canvases: List[str], num_results: int = 10
     ) -> List[Dict[str, Any]]:
         """
         在关联Canvas中搜索相关节点
@@ -204,7 +210,7 @@ class CrossCanvasService:
             results = await self.lancedb.search(
                 query=query,
                 table_name=self.config.canvas_table,
-                num_results=num_results
+                num_results=num_results,
             )
         else:
             # 聚合多个Canvas的搜索结果
@@ -216,7 +222,7 @@ class CrossCanvasService:
                         query=query,
                         table_name=self.config.canvas_table,
                         canvas_file=canvas,
-                        num_results=num_results // len(related_canvases) + 1
+                        num_results=num_results // len(related_canvases) + 1,
                     )
                     all_results.extend(canvas_results)
                 except Exception as e:
@@ -230,10 +236,7 @@ class CrossCanvasService:
         return results
 
     async def search(
-        self,
-        query: str,
-        canvas_file: str,
-        num_results: int = 10
+        self, query: str, canvas_file: str, num_results: int = 10
     ) -> List[Dict[str, Any]]:
         """
         跨Canvas关联搜索
@@ -271,9 +274,9 @@ class CrossCanvasService:
                 self.search_related_nodes(
                     query=query,
                     related_canvases=related_canvases,
-                    num_results=num_results
+                    num_results=num_results,
                 ),
-                timeout=timeout_seconds
+                timeout=timeout_seconds,
             )
 
             # 添加来源标注
@@ -319,8 +322,7 @@ class CrossCanvasService:
             return []
 
     async def _get_related_canvases_excluding_current(
-        self,
-        canvas_file: str
+        self, canvas_file: str
     ) -> List[str]:
         """
         获取关联Canvas，排除当前Canvas
@@ -351,10 +353,9 @@ async def _get_cross_canvas_service() -> CrossCanvasService:
         try:
             from agentic_rag.clients import LanceDBClient
             from agentic_rag.config import LANCEDB_CONFIG
+
             lancedb_client = LanceDBClient(
-                db_path=LANCEDB_CONFIG["db_path"],
-                timeout_ms=400,
-                enable_fallback=True
+                db_path=LANCEDB_CONFIG["db_path"], timeout_ms=400, enable_fallback=True
             )
             await lancedb_client.initialize()
 
@@ -370,8 +371,7 @@ async def _get_cross_canvas_service() -> CrossCanvasService:
 
 
 async def cross_canvas_retrieval_node(
-    state: Dict[str, Any],
-    runtime: Optional[Any] = None
+    state: Dict[str, Any], runtime: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     LangGraph跨Canvas检索节点
@@ -399,7 +399,11 @@ async def cross_canvas_retrieval_node(
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        query = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else getattr(last_msg, "content", "")
+        )
     else:
         query = ""
 
@@ -412,9 +416,7 @@ async def cross_canvas_retrieval_node(
     try:
         service = await _get_cross_canvas_service()
         cross_canvas_results = await service.search(
-            query=query,
-            canvas_file=canvas_file,
-            num_results=batch_size
+            query=query, canvas_file=canvas_file, num_results=batch_size
         )
     except Exception as e:
         if LOGURU_ENABLED:
@@ -425,7 +427,7 @@ async def cross_canvas_retrieval_node(
 
     return {
         "cross_canvas_results": cross_canvas_results,
-        "cross_canvas_latency_ms": latency_ms
+        "cross_canvas_latency_ms": latency_ms,
     }
 
 

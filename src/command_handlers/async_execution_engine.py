@@ -29,6 +29,7 @@ class AsyncTask:
         priority: 优先级 (高优先级任务先执行)
         dependencies: 依赖的任务ID列表 (可选)
     """
+
     task_id: str
     agent_name: str
     node_data: Dict[str, Any]
@@ -77,7 +78,7 @@ class AsyncExecutionEngine:
         self,
         tasks: List[AsyncTask],
         executor_func: Callable,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
     ) -> Dict[str, Any]:
         """并行执行所有任务
 
@@ -130,12 +131,14 @@ class AsyncExecutionEngine:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 error_count += 1
-                self.failed_tasks.append({
-                    "task_id": tasks[i].task_id,
-                    "agent_name": tasks[i].agent_name,
-                    "error": str(result),
-                    "error_type": type(result).__name__
-                })
+                self.failed_tasks.append(
+                    {
+                        "task_id": tasks[i].task_id,
+                        "agent_name": tasks[i].agent_name,
+                        "error": str(result),
+                        "error_type": type(result).__name__,
+                    }
+                )
             else:
                 success_count += 1
                 self.completed_tasks.append(result)
@@ -145,14 +148,14 @@ class AsyncExecutionEngine:
             "success": success_count,
             "failed": error_count,
             "results": self.completed_tasks,
-            "errors": self.failed_tasks
+            "errors": self.failed_tasks,
         }
 
     async def _execute_with_semaphore(
         self,
         task: AsyncTask,
         executor_func: Callable,
-        progress_callback: Optional[Callable]
+        progress_callback: Optional[Callable],
     ) -> Dict[str, Any]:
         """使用Semaphore控制并发执行单个任务
 
@@ -198,7 +201,7 @@ class AsyncExecutionEngine:
         self,
         tasks: List[AsyncTask],
         executor_func: Callable,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
     ) -> Dict[str, Any]:
         """基于依赖关系的智能并发执行
 
@@ -242,7 +245,9 @@ class AsyncExecutionEngine:
             async with task_level_semaphore:
                 # 等待依赖任务完成
                 if task.dependencies:
-                    while not all(dep_id in completed_task_ids for dep_id in task.dependencies):
+                    while not all(
+                        dep_id in completed_task_ids for dep_id in task.dependencies
+                    ):
                         await asyncio.sleep(0.1)  # 轮询依赖状态
 
                 # 执行任务
@@ -274,12 +279,14 @@ class AsyncExecutionEngine:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 error_count += 1
-                self.failed_tasks.append({
-                    "task_id": sorted_tasks[i].task_id,
-                    "agent_name": sorted_tasks[i].agent_name,
-                    "error": str(result),
-                    "error_type": type(result).__name__
-                })
+                self.failed_tasks.append(
+                    {
+                        "task_id": sorted_tasks[i].task_id,
+                        "agent_name": sorted_tasks[i].agent_name,
+                        "error": str(result),
+                        "error_type": type(result).__name__,
+                    }
+                )
             else:
                 success_count += 1
                 self.completed_tasks.append(result)
@@ -289,7 +296,7 @@ class AsyncExecutionEngine:
             "success": success_count,
             "failed": error_count,
             "results": self.completed_tasks,
-            "errors": self.failed_tasks
+            "errors": self.failed_tasks,
         }
 
     def _topological_sort(self, tasks: List[AsyncTask]) -> List[AsyncTask]:

@@ -39,7 +39,7 @@ async def temp_canvas_file():
                 "y": 100,
                 "width": 400,
                 "height": 300,
-                "color": "1"
+                "color": "1",
             },
             {
                 "id": "node-002",
@@ -49,7 +49,7 @@ async def temp_canvas_file():
                 "y": 100,
                 "width": 400,
                 "height": 300,
-                "color": "3"
+                "color": "3",
             },
             {
                 "id": "node-003",
@@ -59,8 +59,8 @@ async def temp_canvas_file():
                 "y": 500,
                 "width": 400,
                 "height": 300,
-                "color": "1"
-            }
+                "color": "1",
+            },
         ],
         "edges": [
             {
@@ -68,13 +68,13 @@ async def temp_canvas_file():
                 "fromNode": "node-001",
                 "toNode": "node-002",
                 "fromSide": "right",
-                "toSide": "left"
+                "toSide": "left",
             }
-        ]
+        ],
     }
 
     # 创建临时文件
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
         json.dump(canvas_data, f, ensure_ascii=False, indent=2)
         temp_path = f.name
 
@@ -106,7 +106,7 @@ def mock_canvas_orchestrator():
                 "y": 100,
                 "width": 400,
                 "height": 300,
-                "color": "1"
+                "color": "1",
             },
             {
                 "id": "node-002",
@@ -116,7 +116,7 @@ def mock_canvas_orchestrator():
                 "y": 100,
                 "width": 400,
                 "height": 300,
-                "color": "3"
+                "color": "3",
             },
             {
                 "id": "node-003",
@@ -126,8 +126,8 @@ def mock_canvas_orchestrator():
                 "y": 500,
                 "width": 400,
                 "height": 300,
-                "color": "1"
-            }
+                "color": "1",
+            },
         ],
         "edges": [
             {
@@ -135,9 +135,9 @@ def mock_canvas_orchestrator():
                 "fromNode": "node-001",
                 "toNode": "node-002",
                 "fromSide": "right",
-                "toSide": "left"
+                "toSide": "left",
             }
-        ]
+        ],
     }
 
     mock.logic.canvas_data.read_canvas.return_value = mock_canvas_data
@@ -148,7 +148,11 @@ def mock_canvas_orchestrator():
 def mock_instance_pool():
     """模拟GLM实例池"""
     mock = Mock()
-    mock.get_available_instances.return_value = ["instance-1", "instance-2", "instance-3"]
+    mock.get_available_instances.return_value = [
+        "instance-1",
+        "instance-2",
+        "instance-3",
+    ]
     mock.allocate_instance.return_value = "instance-1"
     mock.release_instance.return_value = True
     return mock
@@ -172,7 +176,7 @@ def processor_config():
         max_tasks_per_instance=5,
         task_timeout=60,
         enable_progress_monitoring=True,
-        concurrent_limit=3
+        concurrent_limit=3,
     )
 
 
@@ -182,9 +186,10 @@ class TestParallelCanvasProcessor:
     @pytest.mark.asyncio
     async def test_initialization(self, mock_canvas_orchestrator, processor_config):
         """测试初始化"""
-        with patch('parallel_canvas_processor.GLMInstancePool') as mock_pool, \
-             patch('parallel_canvas_processor.GLMRateLimiter') as mock_limiter:
-
+        with (
+            patch("parallel_canvas_processor.GLMInstancePool") as mock_pool,
+            patch("parallel_canvas_processor.GLMRateLimiter") as mock_limiter,
+        ):
             mock_pool.return_value = Mock()
             mock_limiter.return_value = Mock()
 
@@ -192,7 +197,7 @@ class TestParallelCanvasProcessor:
                 canvas_utils=mock_canvas_orchestrator,
                 instance_pool=mock_pool.return_value,
                 rate_limiter=mock_limiter.return_value,
-                config=processor_config
+                config=processor_config,
             )
 
             assert processor.canvas_utils == mock_canvas_orchestrator
@@ -206,16 +211,17 @@ class TestParallelCanvasProcessor:
     @pytest.mark.asyncio
     async def test_analyze_canvas_complexity(self, mock_canvas_orchestrator):
         """测试Canvas复杂度分析"""
-        with patch('parallel_canvas_processor.GLMInstancePool') as mock_pool, \
-             patch('parallel_canvas_processor.GLMRateLimiter') as mock_limiter:
-
+        with (
+            patch("parallel_canvas_processor.GLMInstancePool") as mock_pool,
+            patch("parallel_canvas_processor.GLMRateLimiter") as mock_limiter,
+        ):
             mock_pool.return_value = Mock()
             mock_limiter.return_value = Mock()
 
             processor = ParallelCanvasProcessor(
                 canvas_utils=mock_canvas_orchestrator,
                 instance_pool=mock_pool.return_value,
-                rate_limiter=mock_limiter.return_value
+                rate_limiter=mock_limiter.return_value,
             )
 
             # 分析复杂度
@@ -236,19 +242,28 @@ class TestParallelCanvasProcessor:
             assert complex_node.text_length > 50  # 调整期望值
             assert complex_node.has_code_blocks == True  # 检测到代码块
             # 复杂度可能是MEDIUM或HIGH，取决于算法
-            assert complex_node.calculate_complexity() in [NodeComplexity.MEDIUM, NodeComplexity.HIGH]
+            assert complex_node.calculate_complexity() in [
+                NodeComplexity.MEDIUM,
+                NodeComplexity.HIGH,
+            ]
 
             # 检查第三个节点（根据实际复杂度分数判断）
             medium_node = next(m for m in metrics if m.node_id == "node-003")
             # 根据实际算法输出调整期望（短文本可能被归类为LOW）
-            assert medium_node.calculate_complexity() in [NodeComplexity.LOW, NodeComplexity.MEDIUM]
+            assert medium_node.calculate_complexity() in [
+                NodeComplexity.LOW,
+                NodeComplexity.MEDIUM,
+            ]
 
     @pytest.mark.asyncio
-    async def test_create_processing_session(self, mock_canvas_orchestrator, processor_config):
+    async def test_create_processing_session(
+        self, mock_canvas_orchestrator, processor_config
+    ):
         """测试创建处理会话"""
-        with patch('parallel_canvas_processor.GLMInstancePool') as mock_pool, \
-             patch('parallel_canvas_processor.GLMRateLimiter') as mock_limiter:
-
+        with (
+            patch("parallel_canvas_processor.GLMInstancePool") as mock_pool,
+            patch("parallel_canvas_processor.GLMRateLimiter") as mock_limiter,
+        ):
             mock_pool.return_value = Mock()
             mock_limiter.return_value = Mock()
 
@@ -256,14 +271,14 @@ class TestParallelCanvasProcessor:
                 canvas_utils=mock_canvas_orchestrator,
                 instance_pool=mock_pool.return_value,
                 rate_limiter=mock_limiter.return_value,
-                config=processor_config
+                config=processor_config,
             )
 
             # 创建会话
             session = await processor.create_processing_session(
                 canvas_path="test_canvas.canvas",
                 agent_type="basic-decomposition",
-                target_nodes=["node-001", "node-002", "node-003"]
+                target_nodes=["node-001", "node-002", "node-003"],
             )
 
             assert session.session_id is not None
@@ -304,7 +319,7 @@ class TestTaskDistribution:
                 agent_type="test",
                 node_data={"text": "test"},
                 complexity=NodeComplexity.LOW,
-                estimated_time=10
+                estimated_time=10,
             ),
             ProcessingTask(
                 task_id="task-2",
@@ -312,7 +327,7 @@ class TestTaskDistribution:
                 agent_type="test",
                 node_data={"text": "test"},
                 complexity=NodeComplexity.MEDIUM,
-                estimated_time=20
+                estimated_time=20,
             ),
             ProcessingTask(
                 task_id="task-3",
@@ -320,8 +335,8 @@ class TestTaskDistribution:
                 agent_type="test",
                 node_data={"text": "test"},
                 complexity=NodeComplexity.HIGH,
-                estimated_time=30
-            )
+                estimated_time=30,
+            ),
         ]
 
         instances = ["instance-1", "instance-2", "instance-3"]
@@ -352,7 +367,7 @@ class TestTaskDistribution:
                 agent_type="test",
                 node_data={"text": "test"},
                 complexity=NodeComplexity.LOW,
-                estimated_time=10
+                estimated_time=10,
             ),
             ProcessingTask(
                 task_id="task-2",
@@ -360,8 +375,8 @@ class TestTaskDistribution:
                 agent_type="test",
                 node_data={"text": "test"},
                 complexity=NodeComplexity.HIGH,
-                estimated_time=30
-            )
+                estimated_time=30,
+            ),
         ]
 
         instances = ["instance-1", "instance-2"]
@@ -385,7 +400,7 @@ class TestTransactionManager:
         # 测试数据
         test_data = {
             "nodes": [{"id": "test", "type": "text", "text": "测试数据"}],
-            "edges": []
+            "edges": [],
         }
 
         # 执行原子写入
@@ -394,7 +409,7 @@ class TestTransactionManager:
         assert result is True
 
         # 验证文件内容
-        with open(temp_canvas_file, 'r', encoding='utf-8') as f:
+        with open(temp_canvas_file, "r", encoding="utf-8") as f:
             saved_data = json.load(f)
 
         assert len(saved_data["nodes"]) == 1
@@ -408,7 +423,7 @@ class TestTransactionManager:
         manager = TransactionManager()
 
         # 读取原始数据
-        with open(temp_canvas_file, 'r', encoding='utf-8') as f:
+        with open(temp_canvas_file, "r", encoding="utf-8") as f:
             original_data = json.load(f)
 
         # 创建备份
@@ -419,10 +434,10 @@ class TestTransactionManager:
         # 修改文件
         modified_data = {
             "nodes": [{"id": "modified", "type": "text", "text": "修改后的数据"}],
-            "edges": []
+            "edges": [],
         }
 
-        with open(temp_canvas_file, 'w', encoding='utf-8') as f:
+        with open(temp_canvas_file, "w", encoding="utf-8") as f:
             json.dump(modified_data, f)
 
         # 从备份恢复
@@ -430,7 +445,7 @@ class TestTransactionManager:
         assert restored is True
 
         # 验证恢复
-        with open(temp_canvas_file, 'r', encoding='utf-8') as f:
+        with open(temp_canvas_file, "r", encoding="utf-8") as f:
             restored_data = json.load(f)
 
         assert restored_data == original_data
@@ -452,19 +467,20 @@ async def test_integration_workflow():
     mock_orchestrator.logic.canvas_data = Mock()
     mock_orchestrator.logic.canvas_data.read_canvas.return_value = {
         "nodes": [{"id": "test-node", "type": "text", "text": "测试"}],
-        "edges": []
+        "edges": [],
     }
 
     # 测试配置
     config = TaskDistributionConfig(
         enable_complexity_analysis=True,
-        load_balance_strategy=LoadBalanceStrategy.ROUND_ROBIN
+        load_balance_strategy=LoadBalanceStrategy.ROUND_ROBIN,
     )
 
     # 创建处理器
-    with patch('parallel_canvas_processor.GLMInstancePool') as mock_pool, \
-         patch('parallel_canvas_processor.GLMRateLimiter') as mock_limiter:
-
+    with (
+        patch("parallel_canvas_processor.GLMInstancePool") as mock_pool,
+        patch("parallel_canvas_processor.GLMRateLimiter") as mock_limiter,
+    ):
         mock_pool.return_value = Mock()
         mock_limiter.return_value = Mock()
 
@@ -472,14 +488,14 @@ async def test_integration_workflow():
             canvas_utils=mock_orchestrator,
             instance_pool=mock_pool.return_value,
             rate_limiter=mock_limiter.return_value,
-            config=config
+            config=config,
         )
 
         # 测试创建会话
         session = await processor.create_processing_session(
             canvas_path="test.canvas",
             agent_type="test-agent",
-            target_nodes=["test-node"]
+            target_nodes=["test-node"],
         )
 
         assert session is not None

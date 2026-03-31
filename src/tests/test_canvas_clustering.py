@@ -26,6 +26,7 @@ try:
     from sklearn.cluster import KMeans
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics import silhouette_score
+
     DEPENDENCIES_AVAILABLE = True
 except ImportError:
     DEPENDENCIES_AVAILABLE = False
@@ -50,7 +51,7 @@ class TestCanvasClustering:
                     "y": 100,
                     "width": 400,
                     "height": 120,
-                    "color": "4"  # 红色问题节点
+                    "color": "4",  # 红色问题节点
                 },
                 {
                     "id": "math-001-y",
@@ -60,7 +61,7 @@ class TestCanvasClustering:
                     "y": 250,  # v1.1布局：黄色节点在问题正下方
                     "width": 350,
                     "height": 150,
-                    "color": "6"  # 黄色理解节点
+                    "color": "6",  # 黄色理解节点
                 },
                 {
                     "id": "math-002",
@@ -70,7 +71,7 @@ class TestCanvasClustering:
                     "y": 100,
                     "width": 400,
                     "height": 120,
-                    "color": "4"  # 红色问题节点
+                    "color": "4",  # 红色问题节点
                 },
                 {
                     "id": "math-002-y",
@@ -80,7 +81,7 @@ class TestCanvasClustering:
                     "y": 250,
                     "width": 350,
                     "height": 150,
-                    "color": "6"  # 黄色理解节点
+                    "color": "6",  # 黄色理解节点
                 },
                 {
                     "id": "math-003",
@@ -90,7 +91,7 @@ class TestCanvasClustering:
                     "y": 100,
                     "width": 400,
                     "height": 120,
-                    "color": "4"  # 红色问题节点
+                    "color": "4",  # 红色问题节点
                 },
                 {
                     "id": "math-003-y",
@@ -100,7 +101,7 @@ class TestCanvasClustering:
                     "y": 250,
                     "width": 350,
                     "height": 150,
-                    "color": "6"  # 黄色理解节点
+                    "color": "6",  # 黄色理解节点
                 },
                 {
                     "id": "physics-001",
@@ -110,7 +111,7 @@ class TestCanvasClustering:
                     "y": 500,
                     "width": 400,
                     "height": 120,
-                    "color": "4"  # 红色问题节点
+                    "color": "4",  # 红色问题节点
                 },
                 {
                     "id": "physics-001-y",
@@ -120,7 +121,7 @@ class TestCanvasClustering:
                     "y": 650,
                     "width": 350,
                     "height": 150,
-                    "color": "6"  # 黄色理解节点
+                    "color": "6",  # 黄色理解节点
                 },
                 {
                     "id": "physics-002",
@@ -130,7 +131,7 @@ class TestCanvasClustering:
                     "y": 500,
                     "width": 400,
                     "height": 120,
-                    "color": "4"  # 红色问题节点
+                    "color": "4",  # 红色问题节点
                 },
                 {
                     "id": "physics-002-y",
@@ -140,47 +141,49 @@ class TestCanvasClustering:
                     "y": 650,
                     "width": 350,
                     "height": 150,
-                    "color": "6"  # 黄色理解节点
-                }
+                    "color": "6",  # 黄色理解节点
+                },
             ],
             "edges": [
                 {
                     "id": "edge-math-001",
                     "fromNode": "math-001",
                     "toNode": "math-001-y",
-                    "label": "个人理解"
+                    "label": "个人理解",
                 },
                 {
                     "id": "edge-math-002",
                     "fromNode": "math-002",
                     "toNode": "math-002-y",
-                    "label": "个人理解"
+                    "label": "个人理解",
                 },
                 {
                     "id": "edge-math-003",
                     "fromNode": "math-003",
                     "toNode": "math-003-y",
-                    "label": "个人理解"
+                    "label": "个人理解",
                 },
                 {
                     "id": "edge-physics-001",
                     "fromNode": "physics-001",
                     "toNode": "physics-001-y",
-                    "label": "个人理解"
+                    "label": "个人理解",
                 },
                 {
                     "id": "edge-physics-002",
                     "fromNode": "physics-002",
                     "toNode": "physics-002-y",
-                    "label": "个人理解"
-                }
-            ]
+                    "label": "个人理解",
+                },
+            ],
         }
 
     @pytest.fixture
     def temp_canvas_file(self, sample_canvas_data):
         """创建临时Canvas文件"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+        ) as f:
             json.dump(sample_canvas_data, f, ensure_ascii=False, indent=2)
             temp_path = f.name
 
@@ -192,7 +195,7 @@ class TestCanvasClustering:
 
         # 清理可能生成的备份文件
         for file in os.listdir(os.path.dirname(temp_path)):
-            if os.path.basename(temp_path).replace('.canvas', '') in file:
+            if os.path.basename(temp_path).replace(".canvas", "") in file:
                 os.unlink(os.path.join(os.path.dirname(temp_path), file))
 
     @pytest.fixture
@@ -227,7 +230,7 @@ class TestCanvasClustering:
                     "y": 0,
                     "width": 400,
                     "height": 120,
-                    "color": "4"
+                    "color": "4",
                 },
                 {
                     "id": "node2",
@@ -237,10 +240,10 @@ class TestCanvasClustering:
                     "y": 0,
                     "width": 400,
                     "height": 120,
-                    "color": "4"
-                }
+                    "color": "4",
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
         # 写入最小数据
@@ -258,7 +261,7 @@ class TestCanvasClustering:
         result = canvas_logic.cluster_canvas_nodes(
             n_clusters=2,
             create_groups=False,  # 先不创建Group节点
-            min_cluster_size=2
+            min_cluster_size=2,
         )
 
         # 验证结果结构
@@ -296,9 +299,7 @@ class TestCanvasClustering:
     def test_clustering_with_group_creation(self, canvas_logic):
         """测试带Group节点创建的聚类"""
         result = canvas_logic.cluster_canvas_nodes(
-            n_clusters=2,
-            create_groups=True,
-            min_cluster_size=2
+            n_clusters=2, create_groups=True, min_cluster_size=2
         )
 
         # 验证Group节点创建
@@ -321,7 +322,9 @@ class TestCanvasClustering:
 
         # 验证Canvas文件中的Group节点
         updated_data = CanvasJSONOperator.read_canvas(canvas_logic.canvas_path)
-        group_nodes_in_canvas = [node for node in updated_data["nodes"] if node["type"] == "group"]
+        group_nodes_in_canvas = [
+            node for node in updated_data["nodes"] if node["type"] == "group"
+        ]
         assert len(group_nodes_in_canvas) == 2
 
     @pytest.mark.skipif(not DEPENDENCIES_AVAILABLE, reason="聚类依赖未安装")
@@ -329,9 +332,7 @@ class TestCanvasClustering:
         """测试v1.1布局算法兼容性"""
         # 执行聚类
         result = canvas_logic.cluster_canvas_nodes(
-            n_clusters=2,
-            create_groups=True,
-            min_cluster_size=2
+            n_clusters=2, create_groups=True, min_cluster_size=2
         )
 
         # 验证v1.1兼容性信息
@@ -353,10 +354,15 @@ class TestCanvasClustering:
         for node in updated_data["nodes"]:
             if node["color"] == "6":  # 黄色节点
                 # 查找对应的问题节点
-                connected_edges = [edge for edge in updated_data["edges"]
-                                if edge["toNode"] == node["id"] and edge["label"] == "个人理解"]
+                connected_edges = [
+                    edge
+                    for edge in updated_data["edges"]
+                    if edge["toNode"] == node["id"] and edge["label"] == "个人理解"
+                ]
                 if connected_edges:
-                    question_node = CanvasJSONOperator.find_node_by_id(updated_data, connected_edges[0]["fromNode"])
+                    question_node = CanvasJSONOperator.find_node_by_id(
+                        updated_data, connected_edges[0]["fromNode"]
+                    )
                     if question_node:
                         # 验证v1.1布局约束：黄色节点在问题节点正下方
                         assert abs(node["x"] - question_node["x"]) <= 1  # 水平对齐
@@ -366,12 +372,11 @@ class TestCanvasClustering:
     def test_clustering_performance(self, canvas_logic):
         """测试聚类性能（响应时间<3秒要求）"""
         import time
+
         start_time = time.time()
 
         result = canvas_logic.cluster_canvas_nodes(
-            n_clusters=3,
-            create_groups=True,
-            min_cluster_size=2
+            n_clusters=3, create_groups=True, min_cluster_size=2
         )
 
         end_time = time.time()
@@ -427,7 +432,7 @@ class TestCanvasClustering:
             clustering_algorithm="kmeans",
             create_groups=True,
             min_cluster_size=2,
-            optimize_layout=True
+            optimize_layout=True,
         )
 
         assert config["valid"] == True
@@ -440,7 +445,7 @@ class TestCanvasClustering:
         invalid_config = canvas_logic.configure_clustering_parameters(
             n_clusters=1,  # 无效：必须>=2
             similarity_threshold=1.5,  # 无效：必须在0-1之间
-            clustering_algorithm="invalid"  # 无效：算法不支持
+            clustering_algorithm="invalid",  # 无效：算法不支持
         )
 
         assert invalid_config["valid"] == False
@@ -451,9 +456,7 @@ class TestCanvasClustering:
     def test_intelligent_clustering_interface(self, canvas_logic):
         """测试智能聚类高级接口"""
         result = canvas_logic.apply_intelligent_clustering(
-            n_clusters=2,
-            save_backup=True,
-            backup_name="intelligent_test"
+            n_clusters=2, save_backup=True, backup_name="intelligent_test"
         )
 
         # 验证接口结果结构
@@ -478,8 +481,7 @@ class TestCanvasClustering:
     def test_identify_question_yellow_pairs(self, canvas_logic):
         """测试问题-黄色节点配对识别"""
         text_nodes = [
-            node for node in canvas_logic.canvas_data["nodes"]
-            if node["type"] == "text"
+            node for node in canvas_logic.canvas_data["nodes"] if node["type"] == "text"
         ]
 
         pairs = canvas_logic._identify_question_yellow_pairs(text_nodes)
@@ -499,9 +501,7 @@ class TestCanvasClustering:
             pytest.skip("聚类依赖未安装")
 
         result = canvas_logic.cluster_canvas_nodes(
-            n_clusters=2,
-            create_groups=False,
-            min_cluster_size=2
+            n_clusters=2, create_groups=False, min_cluster_size=2
         )
 
         clusters = result["clusters"]
@@ -525,9 +525,7 @@ class TestCanvasClustering:
             pytest.skip("聚类依赖未安装")
 
         result = canvas_logic.cluster_canvas_nodes(
-            n_clusters=2,
-            create_groups=False,
-            min_cluster_size=2
+            n_clusters=2, create_groups=False, min_cluster_size=2
         )
 
         # 验证准确性指标
@@ -557,7 +555,7 @@ class TestCanvasClustering:
                     "y": 0,
                     "width": 400,
                     "height": 120,
-                    "color": "4"
+                    "color": "4",
                 },
                 {
                     "id": "empty",
@@ -567,10 +565,10 @@ class TestCanvasClustering:
                     "y": 0,
                     "width": 400,
                     "height": 120,
-                    "color": "4"
-                }
+                    "color": "4",
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
         CanvasJSONOperator.write_canvas(canvas_logic.canvas_path, single_text_data)

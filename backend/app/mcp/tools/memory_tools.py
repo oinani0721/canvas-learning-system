@@ -26,9 +26,15 @@ class SearchMemoriesInput(BaseModel):
     """Input schema for search_memories tool."""
 
     query: str = Field(..., description="Natural language search query.")
-    node_id: Optional[str] = Field(None, description="Filter by canvas node ID (optional).")
-    group_id: Optional[str] = Field(None, description="Graphiti group_id for memory isolation (optional).")
-    max_results: int = Field(10, ge=1, le=50, description="Maximum number of results to return.")
+    node_id: Optional[str] = Field(
+        None, description="Filter by canvas node ID (optional)."
+    )
+    group_id: Optional[str] = Field(
+        None, description="Graphiti group_id for memory isolation (optional)."
+    )
+    max_results: int = Field(
+        10, ge=1, le=50, description="Maximum number of results to return."
+    )
 
 
 class MemoryItem(BaseModel):
@@ -67,8 +73,12 @@ class RecordCalibrationInput(BaseModel):
         le=1.0,
         description="The actual score after answering.",
     )
-    question_type: Optional[str] = Field(None, description="Type of question that was asked.")
-    difficulty: Optional[str] = Field(None, description="Difficulty level of the question.")
+    question_type: Optional[str] = Field(
+        None, description="Type of question that was asked."
+    )
+    difficulty: Optional[str] = Field(
+        None, description="Difficulty level of the question."
+    )
 
 
 class RecordCalibrationOutput(BaseModel):
@@ -76,7 +86,9 @@ class RecordCalibrationOutput(BaseModel):
 
     node_id: str
     recorded: bool
-    calibration_gap: float = Field(..., description="Absolute gap between predicted and actual score")
+    calibration_gap: float = Field(
+        ..., description="Absolute gap between predicted and actual score"
+    )
     status: str = "ok"
     message: str = ""
 
@@ -87,7 +99,9 @@ class RecordLearningMemoryInput(BaseModel):
     Agent calls this when it detects a student learning event during dialogue.
     """
 
-    node_id: str = Field(..., description="Canvas node ID where the learning event occurred.")
+    node_id: str = Field(
+        ..., description="Canvas node ID where the learning event occurred."
+    )
     entity_type: str = Field(
         ...,
         description=(
@@ -98,12 +112,31 @@ class RecordLearningMemoryInput(BaseModel):
             "GuidedThinking (引导思考记录)."
         ),
     )
-    concept: str = Field(..., min_length=1, max_length=200, description="Specific concept name (e.g. 'A* admissibility').")
-    topic: str = Field(..., min_length=1, max_length=100, description="Broader topic (e.g. 'Search', 'MDPs').")
-    details: str = Field(..., description="What the student got wrong and what is correct. Be specific.")
-    severity: Optional[str] = Field(None, description="'critical' | 'moderate' | 'minor'. Judge by depth of misunderstanding.")
-    source_session_id: Optional[str] = Field(None, description="Session ID where this learning event was detected.")
-    source_canvas_id: Optional[str] = Field(None, description="Canvas/board ID where the event occurred.")
+    concept: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Specific concept name (e.g. 'A* admissibility').",
+    )
+    topic: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Broader topic (e.g. 'Search', 'MDPs').",
+    )
+    details: str = Field(
+        ..., description="What the student got wrong and what is correct. Be specific."
+    )
+    severity: Optional[str] = Field(
+        None,
+        description="'critical' | 'moderate' | 'minor'. Judge by depth of misunderstanding.",
+    )
+    source_session_id: Optional[str] = Field(
+        None, description="Session ID where this learning event was detected."
+    )
+    source_canvas_id: Optional[str] = Field(
+        None, description="Canvas/board ID where the event occurred."
+    )
 
 
 class RecordLearningMemoryOutput(BaseModel):
@@ -241,7 +274,9 @@ async def record_calibration(
         Dict with recording status and calibration gap.
     """
     guardian = get_audit_guardian()
-    asyncio.create_task(guardian.record_tool_call("record_calibration", session_id, node_id))
+    asyncio.create_task(
+        guardian.record_tool_call("record_calibration", session_id, node_id)
+    )
 
     calibration_gap = abs(predicted_score - actual_score)
 
@@ -340,12 +375,16 @@ async def record_learning_memory(
         Dict with recording status.
     """
     guardian = get_audit_guardian()
-    asyncio.create_task(guardian.record_tool_call("record_learning_memory", "", node_id))
+    asyncio.create_task(
+        guardian.record_tool_call("record_learning_memory", "", node_id)
+    )
 
     valid_types = {"Misconception", "ProblemTrap", "LogicalFallacy", "GuidedThinking"}
     if entity_type not in valid_types:
         return RecordLearningMemoryOutput(
-            node_id=node_id, recorded=False, entity_type=entity_type,
+            node_id=node_id,
+            recorded=False,
+            entity_type=entity_type,
             status="validation_error",
             message=f"Invalid entity_type: {entity_type}. Must be one of {valid_types}",
         ).model_dump()
@@ -381,10 +420,14 @@ async def record_learning_memory(
             group_id=DEFAULT_GROUP_ID,
         )
 
-        logger.info(f"[LearningMemory] Recorded {entity_type}: {concept} node={node_id}")
+        logger.info(
+            f"[LearningMemory] Recorded {entity_type}: {concept} node={node_id}"
+        )
 
         return RecordLearningMemoryOutput(
-            node_id=node_id, recorded=True, entity_type=entity_type,
+            node_id=node_id,
+            recorded=True,
+            entity_type=entity_type,
             status="ok",
             message=f"Recorded {entity_type}: {concept}",
         ).model_dump()
@@ -392,12 +435,18 @@ async def record_learning_memory(
     except ImportError as e:
         logger.warning(f"[LearningMemory] service not available: {e}")
         return RecordLearningMemoryOutput(
-            node_id=node_id, recorded=False, entity_type=entity_type,
-            status="service_unavailable", message=str(e),
+            node_id=node_id,
+            recorded=False,
+            entity_type=entity_type,
+            status="service_unavailable",
+            message=str(e),
         ).model_dump()
     except Exception as e:
         logger.error(f"[LearningMemory] error: {e}")
         return RecordLearningMemoryOutput(
-            node_id=node_id, recorded=False, entity_type=entity_type,
-            status="error", message=str(e),
+            node_id=node_id,
+            recorded=False,
+            entity_type=entity_type,
+            status="error",
+            message=str(e),
         ).model_dump()

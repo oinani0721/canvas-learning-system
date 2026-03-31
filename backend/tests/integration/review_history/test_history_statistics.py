@@ -6,8 +6,6 @@ Tests for total_reviews and statistics fields in history response.
 - Statistics include average_rating, streak_days, by_canvas breakdown
 """
 
-import pytest
-
 from .helpers import FIXED_REVIEW_TIME, mock_review_history
 
 
@@ -85,7 +83,9 @@ class TestReviewHistoryStatistics:
             }
         ]
 
-        with mock_review_history(records=mock_records, retention_rate=0.85, streak_days=5):
+        with mock_review_history(
+            records=mock_records, retention_rate=0.85, streak_days=5
+        ):
             response = client.get("/api/v1/review/history?days=7")
 
             assert response.status_code == 200
@@ -106,9 +106,27 @@ class TestReviewHistoryStatistics:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "A", "canvas_path": "a.canvas", "rating": 4, "review_time": FIXED_REVIEW_TIME},
-                    {"concept_id": "c2", "concept_name": "B", "canvas_path": "a.canvas", "rating": 2, "review_time": FIXED_REVIEW_TIME},
-                    {"concept_id": "c3", "concept_name": "C", "canvas_path": "a.canvas", "rating": 3, "review_time": FIXED_REVIEW_TIME},
+                    {
+                        "concept_id": "c1",
+                        "concept_name": "A",
+                        "canvas_path": "a.canvas",
+                        "rating": 4,
+                        "review_time": FIXED_REVIEW_TIME,
+                    },
+                    {
+                        "concept_id": "c2",
+                        "concept_name": "B",
+                        "canvas_path": "a.canvas",
+                        "rating": 2,
+                        "review_time": FIXED_REVIEW_TIME,
+                    },
+                    {
+                        "concept_id": "c3",
+                        "concept_name": "C",
+                        "canvas_path": "a.canvas",
+                        "rating": 3,
+                        "review_time": FIXED_REVIEW_TIME,
+                    },
                 ],
             }
         ]
@@ -139,9 +157,27 @@ class TestReviewHistoryStatistics:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "A", "canvas_path": "离散数学.canvas", "rating": 4, "review_time": FIXED_REVIEW_TIME},
-                    {"concept_id": "c2", "concept_name": "B", "canvas_path": "离散数学.canvas", "rating": 3, "review_time": FIXED_REVIEW_TIME},
-                    {"concept_id": "c3", "concept_name": "C", "canvas_path": "线性代数.canvas", "rating": 4, "review_time": FIXED_REVIEW_TIME},
+                    {
+                        "concept_id": "c1",
+                        "concept_name": "A",
+                        "canvas_path": "离散数学.canvas",
+                        "rating": 4,
+                        "review_time": FIXED_REVIEW_TIME,
+                    },
+                    {
+                        "concept_id": "c2",
+                        "concept_name": "B",
+                        "canvas_path": "离散数学.canvas",
+                        "rating": 3,
+                        "review_time": FIXED_REVIEW_TIME,
+                    },
+                    {
+                        "concept_id": "c3",
+                        "concept_name": "C",
+                        "canvas_path": "线性代数.canvas",
+                        "rating": 4,
+                        "review_time": FIXED_REVIEW_TIME,
+                    },
                 ],
             }
         ]

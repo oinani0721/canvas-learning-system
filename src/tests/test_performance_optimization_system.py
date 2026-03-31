@@ -45,7 +45,7 @@ class TestPerformanceMonitor:
             "enabled": True,
             "collect_metrics": True,
             "log_performance_data": False,  # 测试时不记录日志
-            "metrics_collection_interval_seconds": 1
+            "metrics_collection_interval_seconds": 1,
         }
         monitor = PerformanceMonitor(config)
         await monitor.start_monitoring()
@@ -91,7 +91,7 @@ class TestPerformanceMonitor:
             failed_tasks=1,
             total_execution_time_ms=5000,
             parallel_efficiency=3.2,
-            concurrency_utilization=0.8
+            concurrency_utilization=0.8,
         )
 
         # 验证指标
@@ -118,7 +118,7 @@ class TestPerformanceMonitor:
                 failed_tasks=0,
                 total_execution_time_ms=1000,
                 parallel_efficiency=2.5,
-                concurrency_utilization=0.7
+                concurrency_utilization=0.7,
             )
 
         # 生成报告
@@ -151,9 +151,7 @@ class TestPerformanceMonitor:
 
         # 模拟触发告警
         performance_monitor._trigger_alert(
-            alert_type="test",
-            title="Test Alert",
-            description="This is a test alert"
+            alert_type="test", title="Test Alert", description="This is a test alert"
         )
 
         # 验证回调被调用
@@ -168,6 +166,7 @@ class TestDynamicInstanceManager:
     @pytest.fixture
     async def instance_manager(self):
         """创建实例管理器"""
+
         # 创建模拟实例池
         class MockInstancePool:
             def __init__(self):
@@ -179,11 +178,9 @@ class TestDynamicInstanceManager:
                 return True
 
         # 创建性能监控器
-        perf_monitor = PerformanceMonitor({
-            "enabled": True,
-            "collect_metrics": False,
-            "log_performance_data": False
-        })
+        perf_monitor = PerformanceMonitor(
+            {"enabled": True, "collect_metrics": False, "log_performance_data": False}
+        )
 
         manager = DynamicInstanceManager(
             instance_pool=MockInstancePool(),
@@ -193,8 +190,8 @@ class TestDynamicInstanceManager:
                 "max_instances": 8,
                 "scale_up_threshold": 0.7,
                 "scale_down_threshold": 0.3,
-                "auto_adjustment_enabled": False  # 测试时禁用自动调整
-            }
+                "auto_adjustment_enabled": False,  # 测试时禁用自动调整
+            },
         )
 
         yield manager
@@ -228,7 +225,7 @@ class TestDynamicInstanceManager:
             queued_tasks=5,
             avg_response_time=3000,
             error_rate=0.02,
-            throughput=2.0
+            throughput=2.0,
         )
 
         should_scale = await instance_manager.should_scale_up(high_load)
@@ -245,7 +242,7 @@ class TestDynamicInstanceManager:
             queued_tasks=0,
             avg_response_time=500,
             error_rate=0.01,
-            throughput=1.0
+            throughput=1.0,
         )
 
         should_scale = await instance_manager.should_scale_down(low_load)
@@ -276,7 +273,7 @@ class TestDynamicInstanceManager:
             queued_tasks=10,
             avg_response_time=5000,
             error_rate=0.1,
-            throughput=0.5
+            throughput=0.5,
         )
 
         # 更新负载历史
@@ -301,7 +298,7 @@ class TestIntelligentCacheManager:
             "max_entries": 100,
             "default_ttl_seconds": 60,
             "enable_compression": True,
-            "cleanup_interval_seconds": 5
+            "cleanup_interval_seconds": 5,
         }
 
         manager = IntelligentCacheManager(config)
@@ -319,7 +316,7 @@ class TestIntelligentCacheManager:
         success = await cache_manager.cache_result(
             cache_key=cache_key,
             result=test_data,
-            content_type=CacheEntryType.AGENT_RESPONSE
+            content_type=CacheEntryType.AGENT_RESPONSE,
         )
         assert success == True
 
@@ -344,7 +341,7 @@ class TestIntelligentCacheManager:
             cache_key=cache_key,
             result="test_data",
             content_type=CacheEntryType.AGENT_RESPONSE,
-            ttl_seconds=1
+            ttl_seconds=1,
         )
 
         # 立即检索应该成功
@@ -362,22 +359,20 @@ class TestIntelligentCacheManager:
     async def test_cache_similarity_search(self, cache_manager):
         """测试缓存相似度搜索"""
         # 存储多个相似的内容
-        contents = [
-            "什么是机器学习？",
-            "机器学习的定义",
-            "机器学习的基本概念"
-        ]
+        contents = ["什么是机器学习？", "机器学习的定义", "机器学习的基本概念"]
 
         for i, content in enumerate(contents):
             await cache_manager.cache_result(
                 cache_key=f"similarity_test_{i}",
                 result=content,
-                content_type=CacheEntryType.AGENT_RESPONSE
+                content_type=CacheEntryType.AGENT_RESPONSE,
             )
 
         # 搜索相似内容
         query = "请解释机器学习"
-        similar_entries = await cache_manager.find_similar_cached_results(query, threshold=0.3)
+        similar_entries = await cache_manager.find_similar_cached_results(
+            query, threshold=0.3
+        )
 
         # 应该找到相似的条目
         assert len(similar_entries) > 0
@@ -390,7 +385,7 @@ class TestIntelligentCacheManager:
             await cache_manager.cache_result(
                 cache_key=f"stat_test_{i}",
                 result=f"data_{i}",
-                content_type=CacheEntryType.AGENT_RESPONSE
+                content_type=CacheEntryType.AGENT_RESPONSE,
             )
 
         # 检索一些数据
@@ -415,7 +410,7 @@ class TestIntelligentCacheManager:
             await cache_manager.cache_result(
                 cache_key=f"cleanup_test_{i}",
                 result=f"data_{i}",
-                content_type=CacheEntryType.AGENT_RESPONSE
+                content_type=CacheEntryType.AGENT_RESPONSE,
             )
 
         # 执行优化
@@ -445,7 +440,7 @@ class TestConfigurationManager:
             max_concurrent_instances=6,
             min_instances=1,
             cache_enabled=True,
-            cache_max_size_mb=500
+            cache_max_size_mb=500,
         )
 
         is_valid, errors = await config_manager.validate_config(valid_config)
@@ -457,7 +452,7 @@ class TestConfigurationManager:
             max_concurrent_instances=1,
             min_instances=5,  # min > max
             cache_enabled=True,
-            cache_max_size_mb=-10  # negative size
+            cache_max_size_mb=-10,  # negative size
         )
 
         is_valid, errors = await config_manager.validate_config(invalid_config)
@@ -472,7 +467,7 @@ class TestConfigurationManager:
             max_concurrent_instances=8,
             cache_enabled=True,
             cache_ttl_seconds=7200,
-            monitoring_enabled=False
+            monitoring_enabled=False,
         )
 
         # 保存配置
@@ -498,7 +493,7 @@ class TestConfigurationManager:
             profile_name="test_profile",
             description="Test configuration profile",
             config=PerformanceConfig(max_concurrent_instances=10),
-            scope=ConfigurationScope.USER
+            scope=ConfigurationScope.USER,
         )
 
         # 保存档案
@@ -526,10 +521,7 @@ class TestConfigurationManager:
     @pytest.mark.asyncio
     async def test_config_change_application(self, config_manager):
         """测试配置变更应用"""
-        changes = {
-            "max_concurrent_instances": 12,
-            "cache_ttl_seconds": 3600
-        }
+        changes = {"max_concurrent_instances": 12, "cache_ttl_seconds": 3600}
 
         success = await config_manager.apply_config_changes(changes)
         assert success == True
@@ -548,16 +540,15 @@ class TestPerformanceBenchmarkSystem:
         """创建基准测试系统"""
         # 创建模拟组件
         perf_monitor = PerformanceMonitor({"enabled": False})
-        cache_manager = IntelligentCacheManager({
-            "max_cache_size_mb": 10,
-            "enable_compression": False
-        })
+        cache_manager = IntelligentCacheManager(
+            {"max_cache_size_mb": 10, "enable_compression": False}
+        )
         config_manager = ConfigurationManager(tempfile.mkdtemp())
 
         system = PerformanceBenchmarkSystem(
             performance_monitor=perf_monitor,
             cache_manager=cache_manager,
-            config_manager=config_manager
+            config_manager=config_manager,
         )
 
         yield system
@@ -567,8 +558,7 @@ class TestPerformanceBenchmarkSystem:
         """测试基准测试场景执行"""
         # 运行单个场景
         result = await benchmark_system.run_benchmark(
-            scenario_id="basic_small",
-            test_type=BenchmarkType.SERIAL
+            scenario_id="basic_small", test_type=BenchmarkType.SERIAL
         )
 
         # 验证结果
@@ -585,14 +575,12 @@ class TestPerformanceBenchmarkSystem:
         """测试并行vs串行对比"""
         # 运行串行测试
         serial_result = await benchmark_system.run_benchmark(
-            scenario_id="basic_medium",
-            test_type=BenchmarkType.SERIAL
+            scenario_id="basic_medium", test_type=BenchmarkType.SERIAL
         )
 
         # 运行并行测试
         parallel_result = await benchmark_system.run_benchmark(
-            scenario_id="basic_medium",
-            test_type=BenchmarkType.PARALLEL
+            scenario_id="basic_medium", test_type=BenchmarkType.PARALLEL
         )
 
         # 验证并行更快
@@ -630,22 +618,23 @@ class TestIntegration:
         """测试性能优化系统集成"""
         with tempfile.TemporaryDirectory() as temp_dir:
             # 创建所有组件
-            perf_monitor = PerformanceMonitor({
-                "enabled": True,
-                "collect_metrics": True,
-                "log_performance_data": False
-            })
+            perf_monitor = PerformanceMonitor(
+                {
+                    "enabled": True,
+                    "collect_metrics": True,
+                    "log_performance_data": False,
+                }
+            )
 
-            cache_manager = IntelligentCacheManager({
-                "max_cache_size_mb": 50,
-                "enable_compression": True
-            })
+            cache_manager = IntelligentCacheManager(
+                {"max_cache_size_mb": 50, "enable_compression": True}
+            )
 
             config_manager = ConfigurationManager(temp_dir)
             benchmark_system = PerformanceBenchmarkSystem(
                 performance_monitor=perf_monitor,
                 cache_manager=cache_manager,
-                config_manager=config_manager
+                config_manager=config_manager,
             )
 
             # 启动组件
@@ -658,14 +647,13 @@ class TestIntegration:
                 config_changes = {
                     "max_concurrent_instances": 6,
                     "cache_enabled": True,
-                    "auto_scaling_enabled": True
+                    "auto_scaling_enabled": True,
                 }
                 await config_manager.apply_config_changes(config_changes)
 
                 # 2. 执行性能基准测试
                 benchmark_result = await benchmark_system.run_benchmark(
-                    scenario_id="basic_medium",
-                    test_type=BenchmarkType.PARALLEL
+                    scenario_id="basic_medium", test_type=BenchmarkType.PARALLEL
                 )
 
                 # 3. 验证效率提升
@@ -677,7 +665,7 @@ class TestIntegration:
                 await cache_manager.cache_result(
                     cache_key=cache_key,
                     result=test_data,
-                    content_type=CacheEntryType.AGENT_RESPONSE
+                    content_type=CacheEntryType.AGENT_RESPONSE,
                 )
                 cached_result = await cache_manager.get_cached_result(cache_key)
                 assert cached_result == test_data
@@ -728,17 +716,16 @@ auto_scaling_enabled: false
 
 
 # 性能测试标记
-pytestmark = [
-    pytest.mark.asyncio,
-    pytest.mark.performance
-]
+pytestmark = [pytest.mark.asyncio, pytest.mark.performance]
 
 
 if __name__ == "__main__":
     # 运行测试
-    pytest.main([
-        __file__,
-        "-v",
-        "--tb=short",
-        "-x"  # 遇到第一个失败就停止
-    ])
+    pytest.main(
+        [
+            __file__,
+            "-v",
+            "--tb=short",
+            "-x",  # 遇到第一个失败就停止
+        ]
+    )

@@ -18,8 +18,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 # 添加项目根目录到路径
-sys.path.append('..')
-sys.path.append('../memory_system')
+sys.path.append("..")
+sys.path.append("../memory_system")
 
 from canvas_memory_integration import (
     BackwardCompatibleCanvas,
@@ -50,13 +50,13 @@ class TestCanvasMemoryIntegration:
                     "x": 100,
                     "y": 100,
                     "width": 200,
-                    "height": 100
+                    "height": 100,
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False, indent=2)
 
         yield canvas_path
@@ -72,21 +72,19 @@ class TestCanvasMemoryIntegration:
             "auto_record_learning": True,
             "semantic_analysis_enabled": True,
             "consistency_check_enabled": True,
-            "unified_memory": {
-                "auto_link_enabled": True,
-                "sync_enabled": True
-            }
+            "unified_memory": {"auto_link_enabled": True, "sync_enabled": True},
         }
 
     @pytest.fixture
     def memory_integration(self, mock_config):
         """创建Canvas记忆系统集成实例"""
-        with patch('canvas_memory_integration.UnifiedMemoryInterface'), \
-             patch('canvas_memory_integration.TemporalMemoryManager'), \
-             patch('canvas_memory_integration.SemanticMemoryManager'), \
-             patch('canvas_memory_integration.MemoryConsistencyValidator'), \
-             patch('canvas_memory_integration.GracefulDegradationManager'):
-
+        with (
+            patch("canvas_memory_integration.UnifiedMemoryInterface"),
+            patch("canvas_memory_integration.TemporalMemoryManager"),
+            patch("canvas_memory_integration.SemanticMemoryManager"),
+            patch("canvas_memory_integration.MemoryConsistencyValidator"),
+            patch("canvas_memory_integration.GracefulDegradationManager"),
+        ):
             integration = CanvasMemoryIntegration()
             integration.memory_enabled = True
             return integration
@@ -109,12 +107,13 @@ class TestCanvasMemoryIntegration:
         config_data = {
             "memory_enabled": False,
             "auto_record_learning": False,
-            "custom_setting": "test_value"
+            "custom_setting": "test_value",
         }
 
         try:
             import yaml
-            with open(config_path, 'w', encoding='utf-8') as f:
+
+            with open(config_path, "w", encoding="utf-8") as f:
                 yaml.dump(config_data, f)
 
             # 加载配置
@@ -150,7 +149,9 @@ class TestCanvasMemoryIntegration:
         assert integration.temporal_manager is None
         assert integration.semantic_manager is None
 
-    def test_record_canvas_interaction_success(self, memory_integration, temp_canvas_file):
+    def test_record_canvas_interaction_success(
+        self, memory_integration, temp_canvas_file
+    ):
         """测试成功记录Canvas交互"""
         # 配置mock
         memory_integration.unified_memory.store_complete_learning_memory.return_value = "memory_123"
@@ -163,7 +164,7 @@ class TestCanvasMemoryIntegration:
             content="测试内容",
             learning_state="yellow",
             confidence_score=0.6,
-            metadata={"test": True}
+            metadata={"test": True},
         )
 
         # 验证结果
@@ -171,7 +172,9 @@ class TestCanvasMemoryIntegration:
 
         # 验证调用
         memory_integration.unified_memory.store_complete_learning_memory.assert_called_once()
-        call_args = memory_integration.unified_memory.store_complete_learning_memory.call_args
+        call_args = (
+            memory_integration.unified_memory.store_complete_learning_memory.call_args
+        )
 
         assert call_args[1]["canvas_id"] == "test_canvas"  # 从文件路径提取
         assert call_args[1]["node_id"] == "test_node"
@@ -179,7 +182,9 @@ class TestCanvasMemoryIntegration:
         assert call_args[1]["learning_state"] == "yellow"
         assert call_args[1]["confidence_score"] == 0.6
 
-    def test_record_canvas_interaction_disabled(self, memory_integration, temp_canvas_file):
+    def test_record_canvas_interaction_disabled(
+        self, memory_integration, temp_canvas_file
+    ):
         """测试禁用记忆时的交互记录"""
         memory_integration.memory_enabled = False
 
@@ -187,18 +192,20 @@ class TestCanvasMemoryIntegration:
             canvas_path=temp_canvas_file,
             node_id="test_node",
             interaction_type="node_creation",
-            content="测试内容"
+            content="测试内容",
         )
 
         assert memory_id is None
 
-    def test_record_canvas_interaction_with_semantic_analysis(self, memory_integration, temp_canvas_file):
+    def test_record_canvas_interaction_with_semantic_analysis(
+        self, memory_integration, temp_canvas_file
+    ):
         """测试带语义分析的交互记录"""
         # 配置mock
         memory_integration.unified_memory.store_complete_learning_memory.return_value = "memory_123"
         memory_integration.semantic_manager.understand_semantic_context.return_value = {
             "semantic_tags": ["math", "function"],
-            "understanding_score": 0.8
+            "understanding_score": 0.8,
         }
 
         # 记录交互
@@ -206,7 +213,7 @@ class TestCanvasMemoryIntegration:
             canvas_path=temp_canvas_file,
             node_id="test_node",
             interaction_type="node_edit",
-            content="函数是一种特殊的映射关系"
+            content="函数是一种特殊的映射关系",
         )
 
         # 验证语义分析被调用
@@ -217,9 +224,11 @@ class TestCanvasMemoryIntegration:
         # 配置mock
         mock_memories = [
             Mock(to_dict=lambda: {"memory_id": "mem1", "content": "内容1"}),
-            Mock(to_dict=lambda: {"memory_id": "mem2", "content": "内容2"})
+            Mock(to_dict=lambda: {"memory_id": "mem2", "content": "内容2"}),
         ]
-        memory_integration.unified_memory.retrieve_contextual_memory.return_value = mock_memories
+        memory_integration.unified_memory.retrieve_contextual_memory.return_value = (
+            mock_memories
+        )
 
         # 获取记忆上下文
         context = memory_integration.get_memory_context_for_canvas(temp_canvas_file)
@@ -231,26 +240,27 @@ class TestCanvasMemoryIntegration:
 
         # 验证调用参数
         memory_integration.unified_memory.retrieve_contextual_memory.assert_called_once_with(
-            canvas_id="test_canvas",
-            node_id=None,
-            limit=10
+            canvas_id="test_canvas", node_id=None, limit=10
         )
 
     def test_search_canvas_memories(self, memory_integration, temp_canvas_file):
         """测试搜索Canvas相关的记忆"""
         # 配置mock
         mock_results = [
-            {"memory": {"canvas_id": "test_canvas", "content": "函数定义"}, "type": "unified"},
-            {"memory": {"canvas_id": "test_canvas", "content": "数学公式"}, "type": "unified"}
+            {
+                "memory": {"canvas_id": "test_canvas", "content": "函数定义"},
+                "type": "unified",
+            },
+            {
+                "memory": {"canvas_id": "test_canvas", "content": "数学公式"},
+                "type": "unified",
+            },
         ]
         memory_integration.unified_memory.search_memories.return_value = mock_results
 
         # 搜索记忆
         results = memory_integration.search_canvas_memories(
-            canvas_path=temp_canvas_file,
-            query="函数",
-            search_type="unified",
-            limit=10
+            canvas_path=temp_canvas_file, query="函数", search_type="unified", limit=10
         )
 
         # 验证结果
@@ -260,11 +270,13 @@ class TestCanvasMemoryIntegration:
     def test_run_consistency_check(self, memory_integration):
         """测试运行一致性检查"""
         # 配置mock
-        mock_report = Mock(to_dict=lambda: {
-            "consistency_score": 0.95,
-            "inconsistencies_found": [],
-            "recommendations": []
-        })
+        mock_report = Mock(
+            to_dict=lambda: {
+                "consistency_score": 0.95,
+                "inconsistencies_found": [],
+                "recommendations": [],
+            }
+        )
         memory_integration.consistency_validator.validate_memory_consistency.return_value = mock_report
 
         # 运行一致性检查
@@ -280,19 +292,19 @@ class TestCanvasMemoryIntegration:
         # 配置mock
         memory_integration.unified_memory.get_status.return_value = {
             "initialized": True,
-            "memory_count": 10
+            "memory_count": 10,
         }
         memory_integration.temporal_manager.get_status.return_value = {
             "initialized": True,
-            "current_session": "session_123"
+            "current_session": "session_123",
         }
         memory_integration.semantic_manager.get_status.return_value = {
             "initialized": True,
-            "mcp_available": True
+            "mcp_available": True,
         }
         memory_integration.degradation_manager.get_system_status.return_value = {
             "current_level": "normal",
-            "system_status": "healthy"
+            "system_status": "healthy",
         }
 
         # 获取状态
@@ -337,17 +349,17 @@ class TestEnhancedCanvasOrchestrator:
     @pytest.fixture
     def enhanced_orchestrator(self, temp_canvas_file, mock_memory_integration):
         """创建增强的Canvas编排器"""
-        with patch('canvas_memory_integration.CanvasOrchestrator'):
-            orchestrator = EnhancedCanvasOrchestrator(temp_canvas_file, mock_memory_integration)
+        with patch("canvas_memory_integration.CanvasOrchestrator"):
+            orchestrator = EnhancedCanvasOrchestrator(
+                temp_canvas_file, mock_memory_integration
+            )
             # 模拟父类方法
             orchestrator.add_node = Mock(return_value="node_123")
             orchestrator.edit_node = Mock(return_value=True)
             orchestrator.score_node = Mock(return_value=True)
-            orchestrator.find_node_by_id = Mock(return_value={
-                "id": "node_123",
-                "content": "原始内容",
-                "color": "1"
-            })
+            orchestrator.find_node_by_id = Mock(
+                return_value={"id": "node_123", "content": "原始内容", "color": "1"}
+            )
             return orchestrator
 
     def test_add_node_with_memory(self, enhanced_orchestrator, mock_memory_integration):
@@ -357,7 +369,7 @@ class TestEnhancedCanvasOrchestrator:
             node_type="text",
             content="测试节点内容",
             node_color="1",
-            metadata={"custom": True}
+            metadata={"custom": True},
         )
 
         # 验证结果
@@ -379,13 +391,13 @@ class TestEnhancedCanvasOrchestrator:
         assert call_args[1]["learning_state"] == "yellow"
         assert call_args[1]["confidence_score"] == 0.3
 
-    def test_edit_node_with_memory(self, enhanced_orchestrator, mock_memory_integration):
+    def test_edit_node_with_memory(
+        self, enhanced_orchestrator, mock_memory_integration
+    ):
         """测试带记忆记录的编辑节点"""
         # 编辑节点
         success = enhanced_orchestrator.edit_node_with_memory(
-            node_id="node_123",
-            new_content="更新后的内容",
-            metadata={"edited": True}
+            node_id="node_123", new_content="更新后的内容", metadata={"edited": True}
         )
 
         # 验证结果
@@ -405,20 +417,22 @@ class TestEnhancedCanvasOrchestrator:
         assert call_args[1]["content"] == "更新后的内容"
         assert call_args[1]["old_content"] == "原始内容"
 
-    def test_score_node_with_memory(self, enhanced_orchestrator, mock_memory_integration):
+    def test_score_node_with_memory(
+        self, enhanced_orchestrator, mock_memory_integration
+    ):
         """测试带记忆记录的评分节点"""
         # 评分节点
         success = enhanced_orchestrator.score_node_with_memory(
-            node_id="node_123",
-            score=85,
-            feedback="很好的理解"
+            node_id="node_123", score=85, feedback="很好的理解"
         )
 
         # 验证结果
         assert success is True
 
         # 验证父类方法被调用
-        enhanced_orchestrator.score_node.assert_called_once_with("node_123", 85, "很好的理解")
+        enhanced_orchestrator.score_node.assert_called_once_with(
+            "node_123", 85, "很好的理解"
+        )
 
         # 验证记忆记录被调用
         mock_memory_integration.record_canvas_interaction.assert_called_once()
@@ -429,32 +443,35 @@ class TestEnhancedCanvasOrchestrator:
         assert call_args[1]["learning_state"] == "green"  # 85分对应green状态
         assert call_args[1]["confidence_score"] == 0.85
 
-    def test_score_node_learning_state_inference(self, enhanced_orchestrator, mock_memory_integration):
+    def test_score_node_learning_state_inference(
+        self, enhanced_orchestrator, mock_memory_integration
+    ):
         """测试评分节点时的学习状态推断"""
-        test_cases = [
-            (95, "green"),
-            (75, "purple"),
-            (45, "yellow"),
-            (25, "red")
-        ]
+        test_cases = [(95, "green"), (75, "purple"), (45, "yellow"), (25, "red")]
 
         for score, expected_state in test_cases:
             # 重置mock
             mock_memory_integration.reset_mock()
 
             # 评分节点
-            enhanced_orchestrator.score_node_with_memory(node_id="node_123", score=score)
+            enhanced_orchestrator.score_node_with_memory(
+                node_id="node_123", score=score
+            )
 
             # 验证学习状态推断
             call_args = mock_memory_integration.record_canvas_interaction.call_args
             assert call_args[1]["learning_state"] == expected_state
             assert call_args[1]["confidence_score"] == score / 100.0
 
-    def test_get_memory_context_for_node(self, enhanced_orchestrator, mock_memory_integration):
+    def test_get_memory_context_for_node(
+        self, enhanced_orchestrator, mock_memory_integration
+    ):
         """测试获取节点相关的记忆上下文"""
         # 配置mock
         mock_context = [{"memory_id": "mem1", "content": "相关内容"}]
-        mock_memory_integration.get_memory_context_for_canvas.return_value = mock_context
+        mock_memory_integration.get_memory_context_for_canvas.return_value = (
+            mock_context
+        )
 
         # 获取记忆上下文
         context = enhanced_orchestrator.get_memory_context_for_node("node_123", limit=5)
@@ -465,12 +482,12 @@ class TestEnhancedCanvasOrchestrator:
 
         # 验证调用参数
         mock_memory_integration.get_memory_context_for_canvas.assert_called_once_with(
-            canvas_path=enhanced_orchestrator.canvas_path,
-            node_id="node_123",
-            limit=5
+            canvas_path=enhanced_orchestrator.canvas_path, node_id="node_123", limit=5
         )
 
-    def test_search_related_memories(self, enhanced_orchestrator, mock_memory_integration):
+    def test_search_related_memories(
+        self, enhanced_orchestrator, mock_memory_integration
+    ):
         """测试搜索相关记忆"""
         # 配置mock
         mock_memories = [{"memory_id": "mem1", "content": "函数相关"}]
@@ -485,18 +502,20 @@ class TestEnhancedCanvasOrchestrator:
 
         # 验证调用参数
         mock_memory_integration.search_canvas_memories.assert_called_once_with(
-            canvas_path=enhanced_orchestrator.canvas_path,
-            query="函数定义",
-            limit=10
+            canvas_path=enhanced_orchestrator.canvas_path, query="函数定义", limit=10
         )
 
-    def test_get_memory_enhanced_node_summary(self, enhanced_orchestrator, mock_memory_integration):
+    def test_get_memory_enhanced_node_summary(
+        self, enhanced_orchestrator, mock_memory_integration
+    ):
         """测试获取记忆增强的节点摘要"""
         # 配置mock
         mock_context = [{"memory_id": "mem1", "content": "相关记忆"}]
         mock_memories = [{"memory_id": "mem2", "content": "相关记忆2"}]
 
-        mock_memory_integration.get_memory_context_for_canvas.return_value = mock_context
+        mock_memory_integration.get_memory_context_for_canvas.return_value = (
+            mock_context
+        )
         mock_memory_integration.search_canvas_memories.return_value = mock_memories
 
         # 获取节点摘要
@@ -527,7 +546,7 @@ class TestBackwardCompatibleCanvas:
         canvas_path = os.path.join(temp_dir, "compatible_canvas.canvas")
 
         canvas_data = {"nodes": [], "edges": []}
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f)
 
         yield canvas_path
@@ -536,14 +555,16 @@ class TestBackwardCompatibleCanvas:
     @pytest.fixture
     def compatible_canvas(self, temp_canvas_file):
         """创建向后兼容Canvas实例"""
-        with patch('canvas_memory_integration.CanvasOrchestrator') as mock_orchestrator_class:
+        with patch(
+            "canvas_memory_integration.CanvasOrchestrator"
+        ) as mock_orchestrator_class:
             mock_orchestrator = Mock()
             mock_orchestrator.add_node.return_value = "node_123"
             mock_orchestrator.edit_node.return_value = True
             mock_orchestrator.score_node.return_value = True
             mock_orchestrator.find_node_by_id.return_value = {
                 "id": "node_123",
-                "content": "测试内容"
+                "content": "测试内容",
             }
             mock_orchestrator_class.return_value = mock_orchestrator
 
@@ -553,7 +574,9 @@ class TestBackwardCompatibleCanvas:
 
     def test_initialization_with_memory_enabled(self, temp_canvas_file):
         """测试启用记忆时的初始化"""
-        with patch('canvas_memory_integration.create_canvas_memory_integration') as mock_create:
+        with patch(
+            "canvas_memory_integration.create_canvas_memory_integration"
+        ) as mock_create:
             mock_integration = Mock()
             mock_integration.create_enhanced_canvas_orchestrator.return_value = Mock()
             mock_create.return_value = mock_integration
@@ -576,7 +599,9 @@ class TestBackwardCompatibleCanvas:
         """测试启用记忆时添加节点"""
         # 配置增强编排器
         compatible_canvas.enhanced_orchestrator = Mock()
-        compatible_canvas.enhanced_orchestrator.add_node_with_memory.return_value = "enhanced_node_123"
+        compatible_canvas.enhanced_orchestrator.add_node_with_memory.return_value = (
+            "enhanced_node_123"
+        )
 
         # 添加节点
         node_id = compatible_canvas.add_node("text", "测试内容", "1")
@@ -605,7 +630,9 @@ class TestBackwardCompatibleCanvas:
         success = compatible_canvas.edit_node("node_123", "新内容")
 
         # 验证代理调用
-        compatible_canvas.orchestrator.edit_node.assert_called_once_with("node_123", "新内容", None)
+        compatible_canvas.orchestrator.edit_node.assert_called_once_with(
+            "node_123", "新内容", None
+        )
 
     def test_score_node_delegation(self, compatible_canvas):
         """测试评分节点代理"""
@@ -613,7 +640,9 @@ class TestBackwardCompatibleCanvas:
         success = compatible_canvas.score_node("node_123", 85, "很好")
 
         # 验证代理调用
-        compatible_canvas.orchestrator.score_node.assert_called_once_with("node_123", 85, "很好")
+        compatible_canvas.orchestrator.score_node.assert_called_once_with(
+            "node_123", 85, "很好"
+        )
 
     def test_get_memory_context_new_feature(self, compatible_canvas):
         """测试获取记忆上下文新功能"""
@@ -655,7 +684,7 @@ class TestBackwardCompatibleCanvas:
         compatible_canvas.memory_integration = Mock()
         compatible_canvas.memory_integration.get_memory_system_status.return_value = {
             "memory_enabled": True,
-            "components": {}
+            "components": {},
         }
 
         # 获取状态
@@ -678,11 +707,17 @@ class TestBackwardCompatibleCanvas:
     def test_attribute_proxy_to_original_orchestrator(self, compatible_canvas):
         """测试属性代理到原始编排器"""
         # 测试访问不存在的属性应该代理到原始编排器
-        with patch.object(compatible_canvas.orchestrator, 'custom_method', return_value="custom_result"):
+        with patch.object(
+            compatible_canvas.orchestrator,
+            "custom_method",
+            return_value="custom_result",
+        ):
             result = compatible_canvas.custom_method("arg1", "arg2")
 
             assert result == "custom_result"
-            compatible_canvas.orchestrator.custom_method.assert_called_once_with("arg1", "arg2")
+            compatible_canvas.orchestrator.custom_method.assert_called_once_with(
+                "arg1", "arg2"
+            )
 
 
 class TestConvenienceFunctions:
@@ -690,7 +725,7 @@ class TestConvenienceFunctions:
 
     def test_create_canvas_memory_integration(self):
         """测试创建Canvas记忆系统集成"""
-        with patch('canvas_memory_integration.CanvasMemoryIntegration') as mock_class:
+        with patch("canvas_memory_integration.CanvasMemoryIntegration") as mock_class:
             mock_instance = Mock()
             mock_class.return_value = mock_instance
 
@@ -701,18 +736,27 @@ class TestConvenienceFunctions:
 
     def test_create_enhanced_canvas_orchestrator(self):
         """测试创建增强Canvas编排器"""
-        with patch('canvas_memory_integration.create_canvas_memory_integration') as mock_create, \
-             patch('canvas_memory_integration.CanvasMemoryIntegration') as mock_class:
-
+        with (
+            patch(
+                "canvas_memory_integration.create_canvas_memory_integration"
+            ) as mock_create,
+            patch("canvas_memory_integration.CanvasMemoryIntegration") as mock_class,
+        ):
             mock_integration = Mock()
             mock_orchestrator = Mock()
             mock_create.return_value = mock_integration
-            mock_integration.create_enhanced_canvas_orchestrator.return_value = mock_orchestrator
+            mock_integration.create_enhanced_canvas_orchestrator.return_value = (
+                mock_orchestrator
+            )
 
-            result = create_enhanced_canvas_orchestrator("test_canvas.canvas", "test_config.yaml")
+            result = create_enhanced_canvas_orchestrator(
+                "test_canvas.canvas", "test_config.yaml"
+            )
 
             mock_create.assert_called_once_with("test_config.yaml")
-            mock_integration.create_enhanced_canvas_orchestrator.assert_called_once_with("test_canvas.canvas")
+            mock_integration.create_enhanced_canvas_orchestrator.assert_called_once_with(
+                "test_canvas.canvas"
+            )
             assert result == mock_orchestrator
 
 
@@ -726,7 +770,7 @@ class TestIntegrationWorkflows:
         canvas_path = os.path.join(temp_dir, "workflow_canvas.canvas")
 
         canvas_data = {"nodes": [], "edges": []}
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f)
 
         yield canvas_path
@@ -734,9 +778,12 @@ class TestIntegrationWorkflows:
 
     def test_complete_learning_workflow_with_memory(self, temp_canvas_file):
         """测试带记忆的完整学习工作流"""
-        with patch('canvas_memory_integration.CanvasMemoryIntegration') as mock_integration_class, \
-             patch('canvas_memory_integration.CanvasOrchestrator'):
-
+        with (
+            patch(
+                "canvas_memory_integration.CanvasMemoryIntegration"
+            ) as mock_integration_class,
+            patch("canvas_memory_integration.CanvasOrchestrator"),
+        ):
             # 配置mock
             mock_integration = Mock()
             mock_integration.memory_enabled = True
@@ -750,7 +797,7 @@ class TestIntegrationWorkflows:
             mock_orchestrator.score_node.return_value = True
             mock_orchestrator.find_node_by_id.return_value = {
                 "id": "node_123",
-                "content": "原始内容"
+                "content": "原始内容",
             }
 
             # 创建增强编排器
@@ -763,22 +810,18 @@ class TestIntegrationWorkflows:
             # 执行学习工作流
             # 1. 添加节点
             node_id = orchestrator.add_node_with_memory(
-                node_type="text",
-                content="函数是一种特殊的映射关系",
-                node_color="1"
+                node_type="text", content="函数是一种特殊的映射关系", node_color="1"
             )
 
             # 2. 编辑节点
             success = orchestrator.edit_node_with_memory(
                 node_id=node_id,
-                new_content="函数是一种特殊的映射关系，它将定义域中的每个元素映射到值域中的唯一元素。"
+                new_content="函数是一种特殊的映射关系，它将定义域中的每个元素映射到值域中的唯一元素。",
             )
 
             # 3. 评分节点
             success = orchestrator.score_node_with_memory(
-                node_id=node_id,
-                score=85,
-                feedback="对函数概念理解正确"
+                node_id=node_id, score=85, feedback="对函数概念理解正确"
             )
 
             # 4. 获取记忆上下文
@@ -790,11 +833,15 @@ class TestIntegrationWorkflows:
             # 验证工作流结果
             assert node_id == "node_123"
             assert success is True
-            assert mock_integration.record_canvas_interaction.call_count == 3  # 添加、编辑、评分
+            assert (
+                mock_integration.record_canvas_interaction.call_count == 3
+            )  # 添加、编辑、评分
 
     def test_backward_compatibility_workflow(self, temp_canvas_file):
         """测试向后兼容工作流"""
-        with patch('canvas_memory_integration.CanvasOrchestrator') as mock_orchestrator_class:
+        with patch(
+            "canvas_memory_integration.CanvasOrchestrator"
+        ) as mock_orchestrator_class:
             # 配置mock
             mock_orchestrator = Mock()
             mock_orchestrator.add_node.return_value = "node_123"
@@ -816,15 +863,26 @@ class TestIntegrationWorkflows:
             assert score_success is True
 
             # 验证调用原始方法
-            mock_orchestrator.add_node.assert_called_once_with("text", "传统节点内容", "1", None)
-            mock_orchestrator.edit_node.assert_called_once_with("node_123", "编辑后的内容", None)
-            mock_orchestrator.score_node.assert_called_once_with("node_123", 75, "理解良好")
+            mock_orchestrator.add_node.assert_called_once_with(
+                "text", "传统节点内容", "1", None
+            )
+            mock_orchestrator.edit_node.assert_called_once_with(
+                "node_123", "编辑后的内容", None
+            )
+            mock_orchestrator.score_node.assert_called_once_with(
+                "node_123", 75, "理解良好"
+            )
 
     def test_mixed_mode_workflow(self, temp_canvas_file):
         """测试混合模式工作流（部分启用记忆）"""
-        with patch('canvas_memory_integration.CanvasMemoryIntegration') as mock_integration_class, \
-             patch('canvas_memory_integration.CanvasOrchestrator') as mock_orchestrator_class:
-
+        with (
+            patch(
+                "canvas_memory_integration.CanvasMemoryIntegration"
+            ) as mock_integration_class,
+            patch(
+                "canvas_memory_integration.CanvasOrchestrator"
+            ) as mock_orchestrator_class,
+        ):
             # 配置mock
             mock_integration = Mock()
             mock_integration.memory_enabled = True
@@ -838,7 +896,7 @@ class TestIntegrationWorkflows:
             mock_orchestrator.score_node.return_value = True
             mock_orchestrator.find_node_by_id.return_value = {
                 "id": "node_123",
-                "content": "测试内容"
+                "content": "测试内容",
             }
 
             # 创建Canvas（启用记忆）
@@ -866,7 +924,11 @@ class TestIntegrationWorkflows:
             memories = canvas.search_memories("节点")
 
             # 使用传统功能
-            canvas_status = canvas.get_canvas_status() if hasattr(canvas, 'get_canvas_status') else "traditional"
+            canvas_status = (
+                canvas.get_canvas_status()
+                if hasattr(canvas, "get_canvas_status")
+                else "traditional"
+            )
 
             # 验证混合工作流
             assert node_id1 == "node_123"

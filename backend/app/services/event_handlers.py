@@ -61,7 +61,9 @@ async def handle_score_submitted(event: LearningEvent) -> None:
     updated = engine.update_on_interaction(concept, grade)
     await store.save_concept(updated)
 
-    logger.info(f"handle_score_submitted: node={node_id} grade={grade} p_mastery={updated.p_mastery:.3f}")
+    logger.info(
+        f"handle_score_submitted: node={node_id} grade={grade} p_mastery={updated.p_mastery:.3f}"
+    )
 
     # Publish downstream events
     from app.services.event_bus import get_event_bus
@@ -148,7 +150,9 @@ async def handle_bkt_updated(event: LearningEvent) -> None:
     )
     await bus.publish(mastery_event)
 
-    logger.debug(f"handle_bkt_updated: persisted and published MASTERY_CHANGED for {node_id}")
+    logger.debug(
+        f"handle_bkt_updated: persisted and published MASTERY_CHANGED for {node_id}"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -206,7 +210,9 @@ async def handle_calibration_recorded(event: LearningEvent) -> None:
     session_id = payload.get("session_id", "")
 
     if not node_id or self_confidence is None or actual_performance is None:
-        logger.warning("handle_calibration_recorded: missing required fields in payload")
+        logger.warning(
+            "handle_calibration_recorded: missing required fields in payload"
+        )
         return
 
     from app.services.calibration_tracker import record_calibration
@@ -264,7 +270,9 @@ async def handle_memory_write_requested(event: LearningEvent) -> None:
         duration_seconds=duration_seconds,
     )
 
-    logger.info(f"handle_memory_write_requested: recorded learning event for node={node_id}")
+    logger.info(
+        f"handle_memory_write_requested: recorded learning event for node={node_id}"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -343,7 +351,9 @@ async def handle_rag_weight_adjust(event: LearningEvent) -> None:
     boost_map = {0: 1.0, 1: 1.5, 2: 1.2, 3: 0.8, 4: 0.5}
     boost = boost_map.get(mastery_level, 1.0)
 
-    logger.info(f"handle_rag_weight_adjust: node={node_id} mastery_level={mastery_level} boost_factor={boost}")
+    logger.info(
+        f"handle_rag_weight_adjust: node={node_id} mastery_level={mastery_level} boost_factor={boost}"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

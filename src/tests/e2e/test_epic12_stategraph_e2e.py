@@ -26,6 +26,7 @@ import pytest
 # Test Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def mock_graphiti_results() -> List[Dict[str, Any]]:
     """模拟 Graphiti 检索结果"""
@@ -37,8 +38,8 @@ def mock_graphiti_results() -> List[Dict[str, Any]]:
             "metadata": {
                 "source": "graphiti",
                 "canvas_file": "离散数学.canvas",
-                "concept": "逆否命题"
-            }
+                "concept": "逆否命题",
+            },
         },
         {
             "doc_id": "graphiti_002",
@@ -47,8 +48,8 @@ def mock_graphiti_results() -> List[Dict[str, Any]]:
             "metadata": {
                 "source": "graphiti",
                 "canvas_file": "离散数学.canvas",
-                "concept": "命题逻辑"
-            }
+                "concept": "命题逻辑",
+            },
         },
         {
             "doc_id": "graphiti_003",
@@ -57,9 +58,9 @@ def mock_graphiti_results() -> List[Dict[str, Any]]:
             "metadata": {
                 "source": "graphiti",
                 "canvas_file": "离散数学.canvas",
-                "concept": "充分必要条件"
-            }
-        }
+                "concept": "充分必要条件",
+            },
+        },
     ]
 
 
@@ -74,8 +75,8 @@ def mock_lancedb_results() -> List[Dict[str, Any]]:
             "metadata": {
                 "source": "lancedb",
                 "canvas_file": "离散数学.canvas",
-                "agent_type": "oral-explanation"
-            }
+                "agent_type": "oral-explanation",
+            },
         },
         {
             "doc_id": "lancedb_002",
@@ -84,9 +85,9 @@ def mock_lancedb_results() -> List[Dict[str, Any]]:
             "metadata": {
                 "source": "lancedb",
                 "canvas_file": "离散数学.canvas",
-                "agent_type": "clarification-path"
-            }
-        }
+                "agent_type": "clarification-path",
+            },
+        },
     ]
 
 
@@ -99,23 +100,21 @@ def mock_temporal_weak_concepts() -> List[Dict[str, Any]]:
             "stability": 1.2,
             "error_rate": 0.35,
             "weakness_score": 0.82,
-            "last_review": datetime.now().isoformat()
+            "last_review": datetime.now().isoformat(),
         },
         {
             "concept": "充分必要条件",
             "stability": 2.5,
             "error_rate": 0.25,
             "weakness_score": 0.65,
-            "last_review": datetime.now().isoformat()
-        }
+            "last_review": datetime.now().isoformat(),
+        },
     ]
 
 
 @pytest.fixture
 def mock_clients(
-    mock_graphiti_results,
-    mock_lancedb_results,
-    mock_temporal_weak_concepts
+    mock_graphiti_results, mock_lancedb_results, mock_temporal_weak_concepts
 ):
     """创建模拟客户端"""
     # GraphitiClient mock
@@ -133,19 +132,22 @@ def mock_clients(
     # TemporalClient mock
     temporal_client = AsyncMock()
     temporal_client.initialize = AsyncMock(return_value=True)
-    temporal_client.get_weak_concepts = AsyncMock(return_value=mock_temporal_weak_concepts)
+    temporal_client.get_weak_concepts = AsyncMock(
+        return_value=mock_temporal_weak_concepts
+    )
     temporal_client.update_behavior = AsyncMock(return_value={"updated": True})
 
     return {
         "graphiti": graphiti_client,
         "lancedb": lancedb_client,
-        "temporal": temporal_client
+        "temporal": temporal_client,
     }
 
 
 # ============================================================
 # Story 12.5: StateGraph 构建测试
 # ============================================================
+
 
 class TestStateGraphConstruction:
     """测试 StateGraph 构建和编译"""
@@ -157,7 +159,7 @@ class TestStateGraphConstruction:
         builder = build_canvas_agentic_rag_graph()
 
         assert builder is not None
-        assert hasattr(builder, 'compile')
+        assert hasattr(builder, "compile")
 
     def test_stategraph_compile_success(self):
         """AC 5.4: StateGraph compile 成功"""
@@ -192,7 +194,7 @@ class TestStateGraphConstruction:
         # 创建测试 state
         state: CanvasRAGState = {
             "messages": [{"role": "user", "content": "什么是逆否命题?"}],
-            "canvas_file": "离散数学.canvas"
+            "canvas_file": "离散数学.canvas",
         }
 
         # 执行 fan_out
@@ -212,20 +214,28 @@ class TestStateGraphConstruction:
 # Story 12.6: 并行检索测试
 # ============================================================
 
+
 class TestParallelRetrievalE2E:
     """测试并行检索 E2E"""
 
     @pytest.mark.asyncio
     async def test_parallel_retrieval_executes_concurrently(self, mock_clients):
         """AC 6.1: 并行检索同时执行"""
-        with patch('agentic_rag.nodes._get_graphiti_client', return_value=mock_clients["graphiti"]), \
-             patch('agentic_rag.nodes._get_lancedb_client', return_value=mock_clients["lancedb"]):
-
+        with (
+            patch(
+                "agentic_rag.nodes._get_graphiti_client",
+                return_value=mock_clients["graphiti"],
+            ),
+            patch(
+                "agentic_rag.nodes._get_lancedb_client",
+                return_value=mock_clients["lancedb"],
+            ),
+        ):
             from agentic_rag.nodes import retrieve_graphiti, retrieve_lancedb
 
             state = {
                 "messages": [{"role": "user", "content": "逆否命题"}],
-                "canvas_file": "离散数学.canvas"
+                "canvas_file": "离散数学.canvas",
             }
 
             # 模拟 runtime
@@ -236,8 +246,7 @@ class TestParallelRetrievalE2E:
             start_time = time.perf_counter()
 
             results = await asyncio.gather(
-                retrieve_graphiti(state, runtime),
-                retrieve_lancedb(state, runtime)
+                retrieve_graphiti(state, runtime), retrieve_lancedb(state, runtime)
             )
 
             _ = (time.perf_counter() - start_time) * 1000  # elapsed_ms for reference
@@ -250,14 +259,21 @@ class TestParallelRetrievalE2E:
     @pytest.mark.asyncio
     async def test_parallel_retrieval_latency_under_100ms(self, mock_clients):
         """AC 6.2: 并行检索延迟 < 100ms (mock 环境)"""
-        with patch('agentic_rag.nodes._get_graphiti_client', return_value=mock_clients["graphiti"]), \
-             patch('agentic_rag.nodes._get_lancedb_client', return_value=mock_clients["lancedb"]):
-
+        with (
+            patch(
+                "agentic_rag.nodes._get_graphiti_client",
+                return_value=mock_clients["graphiti"],
+            ),
+            patch(
+                "agentic_rag.nodes._get_lancedb_client",
+                return_value=mock_clients["lancedb"],
+            ),
+        ):
             from agentic_rag.nodes import retrieve_graphiti, retrieve_lancedb
 
             state = {
                 "messages": [{"role": "user", "content": "逆否命题"}],
-                "canvas_file": "离散数学.canvas"
+                "canvas_file": "离散数学.canvas",
             }
 
             runtime = MagicMock()
@@ -266,8 +282,7 @@ class TestParallelRetrievalE2E:
             start_time = time.perf_counter()
 
             await asyncio.gather(
-                retrieve_graphiti(state, runtime),
-                retrieve_lancedb(state, runtime)
+                retrieve_graphiti(state, runtime), retrieve_lancedb(state, runtime)
             )
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000
@@ -280,18 +295,21 @@ class TestParallelRetrievalE2E:
 # Story 12.7: 融合算法 E2E 测试
 # ============================================================
 
+
 class TestFusionAlgorithmsE2E:
     """测试融合算法 E2E"""
 
     @pytest.mark.asyncio
-    async def test_rrf_fusion_combines_results(self, mock_graphiti_results, mock_lancedb_results):
+    async def test_rrf_fusion_combines_results(
+        self, mock_graphiti_results, mock_lancedb_results
+    ):
         """AC 7.1: RRF 融合正确合并结果"""
         from agentic_rag.nodes import fuse_results
 
         state = {
             "graphiti_results": mock_graphiti_results,
             "lancedb_results": mock_lancedb_results,
-            "is_review_canvas": False
+            "is_review_canvas": False,
         }
 
         runtime = MagicMock()
@@ -306,14 +324,16 @@ class TestFusionAlgorithmsE2E:
         assert scores == sorted(scores, reverse=True)
 
     @pytest.mark.asyncio
-    async def test_weighted_fusion_for_review_canvas(self, mock_graphiti_results, mock_lancedb_results):
+    async def test_weighted_fusion_for_review_canvas(
+        self, mock_graphiti_results, mock_lancedb_results
+    ):
         """AC 7.2: 检验白板使用 70% Graphiti 权重"""
         from agentic_rag.nodes import fuse_results
 
         state = {
             "graphiti_results": mock_graphiti_results,
             "lancedb_results": mock_lancedb_results,
-            "is_review_canvas": True  # 检验白板
+            "is_review_canvas": True,  # 检验白板
         }
 
         runtime = MagicMock()
@@ -325,14 +345,16 @@ class TestFusionAlgorithmsE2E:
         assert "fusion_latency_ms" in result
 
     @pytest.mark.asyncio
-    async def test_cascade_fusion_tier1_priority(self, mock_graphiti_results, mock_lancedb_results):
+    async def test_cascade_fusion_tier1_priority(
+        self, mock_graphiti_results, mock_lancedb_results
+    ):
         """AC 7.3: Cascade 融合优先使用 Tier 1 (Graphiti)"""
         from agentic_rag.nodes import fuse_results
 
         state = {
             "graphiti_results": mock_graphiti_results,  # 3 个结果
             "lancedb_results": mock_lancedb_results,
-            "is_review_canvas": False
+            "is_review_canvas": False,
         }
 
         runtime = MagicMock()
@@ -344,13 +366,16 @@ class TestFusionAlgorithmsE2E:
         # Cascade 应该优先包含 Graphiti 结果
         fused = result["fused_results"]
         # 检查是否包含 Graphiti 来源
-        graphiti_count = sum(1 for r in fused if r.get("metadata", {}).get("source") == "graphiti")
+        graphiti_count = sum(
+            1 for r in fused if r.get("metadata", {}).get("source") == "graphiti"
+        )
         assert graphiti_count >= 1  # 至少包含一些 Graphiti 结果
 
 
 # ============================================================
 # Story 12.8: Reranking 策略测试
 # ============================================================
+
 
 class TestRerankingE2E:
     """测试 Reranking 策略 E2E"""
@@ -360,10 +385,7 @@ class TestRerankingE2E:
         """AC 8.1: Local reranking 保持结果顺序"""
         from agentic_rag.nodes import rerank_results
 
-        state = {
-            "fused_results": mock_graphiti_results,
-            "is_review_canvas": False
-        }
+        state = {"fused_results": mock_graphiti_results, "is_review_canvas": False}
 
         runtime = MagicMock()
         runtime.context = {"reranking_strategy": "local"}
@@ -381,7 +403,7 @@ class TestRerankingE2E:
 
         state = {
             "fused_results": mock_graphiti_results,
-            "is_review_canvas": True  # 检验白板
+            "is_review_canvas": True,  # 检验白板
         }
 
         runtime = MagicMock()
@@ -396,10 +418,7 @@ class TestRerankingE2E:
         """AC 8.3: Reranking 延迟可接受"""
         from agentic_rag.nodes import rerank_results
 
-        state = {
-            "fused_results": mock_graphiti_results,
-            "is_review_canvas": False
-        }
+        state = {"fused_results": mock_graphiti_results, "is_review_canvas": False}
 
         runtime = MagicMock()
         runtime.context = {"reranking_strategy": "local"}
@@ -413,6 +432,7 @@ class TestRerankingE2E:
 # ============================================================
 # Story 12.9: 质量控制循环测试
 # ============================================================
+
 
 class TestQualityControlE2E:
     """测试质量控制循环 E2E"""
@@ -462,10 +482,7 @@ class TestQualityControlE2E:
         """AC 9.3: 低质量触发 query 重写"""
         from agentic_rag.state_graph import route_after_quality_check
 
-        state = {
-            "quality_grade": "low",
-            "rewrite_count": 0
-        }
+        state = {"quality_grade": "low", "rewrite_count": 0}
 
         route = route_after_quality_check(state)
 
@@ -477,10 +494,7 @@ class TestQualityControlE2E:
 
         from agentic_rag.state_graph import route_after_quality_check
 
-        state = {
-            "quality_grade": "high",
-            "rewrite_count": 0
-        }
+        state = {"quality_grade": "high", "rewrite_count": 0}
 
         route = route_after_quality_check(state)
 
@@ -494,7 +508,7 @@ class TestQualityControlE2E:
 
         state = {
             "quality_grade": "low",
-            "rewrite_count": 2  # 已达上限
+            "rewrite_count": 2,  # 已达上限
         }
 
         route = route_after_quality_check(state)
@@ -508,7 +522,7 @@ class TestQualityControlE2E:
 
         state = {
             "messages": [{"role": "user", "content": "什么是逆否命题?"}],
-            "rewrite_count": 0
+            "rewrite_count": 0,
         }
 
         result = await rewrite_query(state)
@@ -521,16 +535,27 @@ class TestQualityControlE2E:
 # Story 12.10: 完整 Pipeline E2E 测试
 # ============================================================
 
+
 class TestFullPipelineE2E:
     """测试完整 RAG Pipeline E2E"""
 
     @pytest.mark.asyncio
     async def test_full_pipeline_high_quality_path(self, mock_clients):
         """E2E: 高质量结果路径 (无重写)"""
-        with patch('agentic_rag.nodes._get_graphiti_client', return_value=mock_clients["graphiti"]), \
-             patch('agentic_rag.nodes._get_lancedb_client', return_value=mock_clients["lancedb"]), \
-             patch('agentic_rag.nodes._get_temporal_client', return_value=mock_clients["temporal"]):
-
+        with (
+            patch(
+                "agentic_rag.nodes._get_graphiti_client",
+                return_value=mock_clients["graphiti"],
+            ),
+            patch(
+                "agentic_rag.nodes._get_lancedb_client",
+                return_value=mock_clients["lancedb"],
+            ),
+            patch(
+                "agentic_rag.nodes._get_temporal_client",
+                return_value=mock_clients["temporal"],
+            ),
+        ):
             from agentic_rag.nodes import (
                 check_quality,
                 fuse_results,
@@ -543,7 +568,7 @@ class TestFullPipelineE2E:
             state = {
                 "messages": [{"role": "user", "content": "什么是逆否命题?"}],
                 "canvas_file": "离散数学.canvas",
-                "is_review_canvas": False
+                "is_review_canvas": False,
             }
 
             runtime = MagicMock()
@@ -551,7 +576,7 @@ class TestFullPipelineE2E:
                 "retrieval_batch_size": 10,
                 "fusion_strategy": "rrf",
                 "reranking_strategy": "local",
-                "quality_threshold": 0.5  # 降低阈值以确保 high quality
+                "quality_threshold": 0.5,  # 降低阈值以确保 high quality
             }
 
             # Step 1: 并行检索
@@ -581,9 +606,16 @@ class TestFullPipelineE2E:
     @pytest.mark.asyncio
     async def test_full_pipeline_latency_under_500ms(self, mock_clients):
         """E2E: 完整 Pipeline 延迟 < 500ms"""
-        with patch('agentic_rag.nodes._get_graphiti_client', return_value=mock_clients["graphiti"]), \
-             patch('agentic_rag.nodes._get_lancedb_client', return_value=mock_clients["lancedb"]):
-
+        with (
+            patch(
+                "agentic_rag.nodes._get_graphiti_client",
+                return_value=mock_clients["graphiti"],
+            ),
+            patch(
+                "agentic_rag.nodes._get_lancedb_client",
+                return_value=mock_clients["lancedb"],
+            ),
+        ):
             from agentic_rag.nodes import (
                 check_quality,
                 fuse_results,
@@ -595,7 +627,7 @@ class TestFullPipelineE2E:
             state = {
                 "messages": [{"role": "user", "content": "什么是逆否命题?"}],
                 "canvas_file": "离散数学.canvas",
-                "is_review_canvas": False
+                "is_review_canvas": False,
             }
 
             runtime = MagicMock()
@@ -603,7 +635,7 @@ class TestFullPipelineE2E:
                 "retrieval_batch_size": 10,
                 "fusion_strategy": "rrf",
                 "reranking_strategy": "local",
-                "quality_threshold": 0.7
+                "quality_threshold": 0.7,
             }
 
             start_time = time.perf_counter()
@@ -631,14 +663,21 @@ class TestFullPipelineE2E:
     @pytest.mark.asyncio
     async def test_pipeline_with_canvas_scope(self, mock_clients):
         """E2E: Canvas 作用域限制正确传递"""
-        with patch('agentic_rag.nodes._get_graphiti_client', return_value=mock_clients["graphiti"]), \
-             patch('agentic_rag.nodes._get_lancedb_client', return_value=mock_clients["lancedb"]):
-
+        with (
+            patch(
+                "agentic_rag.nodes._get_graphiti_client",
+                return_value=mock_clients["graphiti"],
+            ),
+            patch(
+                "agentic_rag.nodes._get_lancedb_client",
+                return_value=mock_clients["lancedb"],
+            ),
+        ):
             from agentic_rag.nodes import retrieve_graphiti
 
             state = {
                 "messages": [{"role": "user", "content": "逆否命题"}],
-                "canvas_file": "离散数学.canvas"
+                "canvas_file": "离散数学.canvas",
             }
 
             runtime = MagicMock()
@@ -656,13 +695,19 @@ class TestFullPipelineE2E:
 # Temporal Memory 集成测试
 # ============================================================
 
+
 class TestTemporalMemoryE2E:
     """测试 Temporal Memory E2E"""
 
     @pytest.mark.asyncio
-    async def test_retrieve_weak_concepts(self, mock_clients, mock_temporal_weak_concepts):
+    async def test_retrieve_weak_concepts(
+        self, mock_clients, mock_temporal_weak_concepts
+    ):
         """AC 4.3: 获取薄弱概念列表"""
-        with patch('agentic_rag.nodes._get_temporal_client', return_value=mock_clients["temporal"]):
+        with patch(
+            "agentic_rag.nodes._get_temporal_client",
+            return_value=mock_clients["temporal"],
+        ):
             from agentic_rag.nodes import retrieve_weak_concepts
 
             state = {"canvas_file": "离散数学.canvas"}
@@ -678,14 +723,17 @@ class TestTemporalMemoryE2E:
     @pytest.mark.asyncio
     async def test_update_learning_behavior(self, mock_clients):
         """AC 4.4: 更新学习行为"""
-        with patch('agentic_rag.nodes._get_temporal_client', return_value=mock_clients["temporal"]):
+        with patch(
+            "agentic_rag.nodes._get_temporal_client",
+            return_value=mock_clients["temporal"],
+        ):
             from agentic_rag.nodes import update_learning_behavior
 
             state = {
                 "current_concept": "逆否命题",
                 "rating": 4,  # Good
                 "canvas_file": "离散数学.canvas",
-                "session_id": "test-session-001"
+                "session_id": "test-session-001",
             }
 
             runtime = MagicMock()
@@ -698,7 +746,10 @@ class TestTemporalMemoryE2E:
     @pytest.mark.asyncio
     async def test_temporal_latency_under_50ms(self, mock_clients):
         """AC 4.5: Temporal Memory 延迟 < 50ms"""
-        with patch('agentic_rag.nodes._get_temporal_client', return_value=mock_clients["temporal"]):
+        with patch(
+            "agentic_rag.nodes._get_temporal_client",
+            return_value=mock_clients["temporal"],
+        ):
             from agentic_rag.nodes import retrieve_weak_concepts
 
             state = {"canvas_file": "离散数学.canvas"}
@@ -715,6 +766,7 @@ class TestTemporalMemoryE2E:
 # 错误处理和降级测试
 # ============================================================
 
+
 class TestErrorHandlingE2E:
     """测试错误处理和降级 E2E"""
 
@@ -724,12 +776,14 @@ class TestErrorHandlingE2E:
         graphiti_client = AsyncMock()
         graphiti_client.search_nodes = AsyncMock(side_effect=asyncio.TimeoutError())
 
-        with patch('agentic_rag.nodes._get_graphiti_client', return_value=graphiti_client):
+        with patch(
+            "agentic_rag.nodes._get_graphiti_client", return_value=graphiti_client
+        ):
             from agentic_rag.nodes import retrieve_graphiti
 
             state = {
                 "messages": [{"role": "user", "content": "test"}],
-                "canvas_file": "test.canvas"
+                "canvas_file": "test.canvas",
             }
 
             runtime = MagicMock()
@@ -744,14 +798,18 @@ class TestErrorHandlingE2E:
     async def test_lancedb_error_fallback(self):
         """AC: LanceDB 错误时返回空结果"""
         lancedb_client = AsyncMock()
-        lancedb_client.search_multiple_tables = AsyncMock(side_effect=Exception("Connection error"))
+        lancedb_client.search_multiple_tables = AsyncMock(
+            side_effect=Exception("Connection error")
+        )
 
-        with patch('agentic_rag.nodes._get_lancedb_client', return_value=lancedb_client):
+        with patch(
+            "agentic_rag.nodes._get_lancedb_client", return_value=lancedb_client
+        ):
             from agentic_rag.nodes import retrieve_lancedb
 
             state = {
                 "messages": [{"role": "user", "content": "test"}],
-                "canvas_file": "test.canvas"
+                "canvas_file": "test.canvas",
             }
 
             runtime = MagicMock()
@@ -781,12 +839,14 @@ class TestErrorHandlingE2E:
 # 性能基准测试
 # ============================================================
 
+
 class TestPerformanceBenchmarks:
     """性能基准测试"""
 
     @pytest.mark.asyncio
     async def test_parallel_retrieval_is_faster_than_sequential(self, mock_clients):
         """验证并行检索比顺序检索快"""
+
         # 添加模拟延迟
         async def slow_graphiti(*args, **kwargs):
             await asyncio.sleep(0.05)  # 50ms
@@ -799,14 +859,21 @@ class TestPerformanceBenchmarks:
         mock_clients["graphiti"].search_nodes = slow_graphiti
         mock_clients["lancedb"].search_multiple_tables = slow_lancedb
 
-        with patch('agentic_rag.nodes._get_graphiti_client', return_value=mock_clients["graphiti"]), \
-             patch('agentic_rag.nodes._get_lancedb_client', return_value=mock_clients["lancedb"]):
-
+        with (
+            patch(
+                "agentic_rag.nodes._get_graphiti_client",
+                return_value=mock_clients["graphiti"],
+            ),
+            patch(
+                "agentic_rag.nodes._get_lancedb_client",
+                return_value=mock_clients["lancedb"],
+            ),
+        ):
             from agentic_rag.nodes import retrieve_graphiti, retrieve_lancedb
 
             state = {
                 "messages": [{"role": "user", "content": "test"}],
-                "canvas_file": "test.canvas"
+                "canvas_file": "test.canvas",
             }
 
             runtime = MagicMock()
@@ -815,8 +882,7 @@ class TestPerformanceBenchmarks:
             # 测试并行
             start_parallel = time.perf_counter()
             await asyncio.gather(
-                retrieve_graphiti(state, runtime),
-                retrieve_lancedb(state, runtime)
+                retrieve_graphiti(state, runtime), retrieve_lancedb(state, runtime)
             )
             parallel_time = time.perf_counter() - start_parallel
 

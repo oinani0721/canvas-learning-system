@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-
 from app.models.mastery_state import ConceptState, MasteryConfig
 from app.services.mastery_engine import MasteryEngine
 
@@ -19,8 +18,11 @@ def engine():
 
 def _concept(**kwargs):
     defaults = dict(
-        concept_id="t", topic="Search", name="BFS",
-        p_mastery=0.5, interaction_count=5,
+        concept_id="t",
+        topic="Search",
+        name="BFS",
+        p_mastery=0.5,
+        interaction_count=5,
         last_interaction_ts=datetime.now(timezone.utc),
         fsrs_stability=100.0,
     )
@@ -29,7 +31,6 @@ def _concept(**kwargs):
 
 
 class TestFreshness:
-
     def test_fresh_r_above_090(self, engine):
         concept = _concept(
             last_interaction_ts=datetime.now(timezone.utc),
@@ -39,6 +40,7 @@ class TestFreshness:
 
     def test_recent_r_070_090(self, engine):
         import math
+
         stability = 10.0
         days = -math.log(0.80) * stability
         concept = _concept(
@@ -49,6 +51,7 @@ class TestFreshness:
 
     def test_due_r_050_070(self, engine):
         import math
+
         stability = 10.0
         days = -math.log(0.60) * stability
         concept = _concept(
@@ -66,7 +69,6 @@ class TestFreshness:
 
 
 class TestFalseMasteryRisk:
-
     def test_low_interaction_returns_zero(self, engine):
         concept = _concept(interaction_count=2)
         assert engine.false_mastery_risk(concept) == 0.0
@@ -92,7 +94,8 @@ class TestFalseMasteryRisk:
 
     def test_capped_at_1(self, engine):
         concept = _concept(
-            surprise_failures=10, p_mastery=0.95,
+            surprise_failures=10,
+            p_mastery=0.95,
             fluent_count=0,
             last_interaction_ts=datetime.now(timezone.utc) - timedelta(days=100),
             fsrs_stability=1.0,
@@ -102,14 +105,15 @@ class TestFalseMasteryRisk:
 
     def test_no_risk_when_verified(self, engine):
         concept = _concept(
-            p_mastery=0.5, fluent_count=3, surprise_failures=0,
+            p_mastery=0.5,
+            fluent_count=3,
+            surprise_failures=0,
         )
         risk = engine.false_mastery_risk(concept)
         assert risk == 0.0
 
 
 class TestOverrideManagement:
-
     def test_set_override_valid_level(self, engine):
         concept = _concept()
         engine.set_override(concept, "proficient", "manual")
@@ -158,17 +162,29 @@ class TestOverrideManagement:
 
 
 class TestConceptToResponse:
-
     def test_all_keys_present(self, engine):
         concept = _concept()
         resp = engine.concept_to_response(concept)
         expected_keys = {
-            "concept_id", "name", "topic", "effective_proficiency",
-            "mastery_level", "mastery_label", "mastery_color",
-            "retrievability", "freshness", "fsrs_due_date",
-            "override_active", "override_value", "self_assess_value",
-            "false_mastery_risk", "interaction_count", "fluent_count",
-            "p_mastery", "last_interaction_ts", "fusion_details",
+            "concept_id",
+            "name",
+            "topic",
+            "effective_proficiency",
+            "mastery_level",
+            "mastery_label",
+            "mastery_color",
+            "retrievability",
+            "freshness",
+            "fsrs_due_date",
+            "override_active",
+            "override_value",
+            "self_assess_value",
+            "false_mastery_risk",
+            "interaction_count",
+            "fluent_count",
+            "p_mastery",
+            "last_interaction_ts",
+            "fusion_details",
         }
         assert set(resp.keys()) == expected_keys
 
@@ -189,7 +205,6 @@ class TestConceptToResponse:
 
 
 class TestGetReviewCandidates:
-
     def test_low_proficiency_included(self, engine):
         concepts = [
             _concept(concept_id="low", p_mastery=0.3),
@@ -201,7 +216,8 @@ class TestGetReviewCandidates:
 
     def test_due_freshness_included(self, engine):
         concept = _concept(
-            concept_id="stale", p_mastery=0.85,
+            concept_id="stale",
+            p_mastery=0.85,
             last_interaction_ts=datetime.now(timezone.utc) - timedelta(days=50),
             fsrs_stability=1.0,
         )
@@ -215,7 +231,6 @@ class TestGetReviewCandidates:
 
 
 class TestApplyExternalSignal:
-
     def test_misconception_penalizes(self, engine):
         concept = _concept(p_mastery=0.8)
         engine.apply_external_signal(concept, "misconception", 0.2)

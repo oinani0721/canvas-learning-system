@@ -36,7 +36,7 @@ class TestBugRecord:
             endpoint="/api/v1/test",
             error_type="ValueError",
             error_message="Test error",
-            request_params={"key": "value"}
+            request_params={"key": "value"},
         )
 
         assert record.bug_id == "BUG-12345678"
@@ -59,7 +59,7 @@ class TestBugRecord:
             endpoint="/api/v1/test",
             error_type="TypeError",
             error_message="Type error",
-            request_params={}
+            request_params={},
         )
 
         assert record.stack_trace is None
@@ -75,7 +75,7 @@ class TestBugRecord:
             error_message="Runtime error occurred",
             request_params={"canvas_path": "test.canvas"},
             stack_trace="Traceback (most recent call last):\n  File ...",
-            user_action="User clicked scoring button"
+            user_action="User clicked scoring button",
         )
 
         assert record.stack_trace is not None
@@ -94,7 +94,7 @@ class TestBugRecord:
             endpoint="/api/v1/test",
             error_type="ValueError",
             error_message="Test",
-            request_params={"test": True}
+            request_params={"test": True},
         )
 
         json_str = record.model_dump_json()
@@ -110,14 +110,16 @@ class TestBugRecord:
 
         ✅ Verified from Context7:/websites/pydantic_dev (topic: model_validate_json)
         """
-        json_str = json.dumps({
-            "bug_id": "BUG-VALID123",
-            "timestamp": "2025-12-14T10:30:00Z",
-            "endpoint": "/api/v1/test",
-            "error_type": "KeyError",
-            "error_message": "Key not found",
-            "request_params": {}
-        })
+        json_str = json.dumps(
+            {
+                "bug_id": "BUG-VALID123",
+                "timestamp": "2025-12-14T10:30:00Z",
+                "endpoint": "/api/v1/test",
+                "error_type": "KeyError",
+                "error_message": "Key not found",
+                "request_params": {},
+            }
+        )
 
         record = BugRecord.model_validate_json(json_str)
 
@@ -140,7 +142,7 @@ class TestBugTracker:
         bug_id = tracker.log_error(
             endpoint="/api/v1/test",
             error=ValueError("Test error"),
-            request_params={"test": True}
+            request_params={"test": True},
         )
 
         assert log_path.exists()
@@ -156,9 +158,7 @@ class TestBugTracker:
         tracker = BugTracker(log_path=str(log_path))
 
         bug_id = tracker.log_error(
-            endpoint="/api/v1/test",
-            error=ValueError("Test"),
-            request_params={}
+            endpoint="/api/v1/test", error=ValueError("Test"), request_params={}
         )
 
         assert log_path.exists()
@@ -204,7 +204,7 @@ class TestBugTracker:
             bug_id = tracker.log_error(
                 endpoint=f"/api/v1/test/{i}",
                 error=ValueError(f"Error {i}"),
-                request_params={}
+                request_params={},
             )
 
             # Verify format
@@ -231,11 +231,7 @@ class TestBugTracker:
         try:
             raise ValueError("Intentional error for testing")
         except ValueError as e:
-            tracker.log_error(
-                endpoint="/api/v1/test",
-                error=e,
-                request_params={}
-            )
+            tracker.log_error(endpoint="/api/v1/test", error=e, request_params={})
 
         content = log_path.read_text(encoding="utf-8")
         record = json.loads(content.strip())
@@ -256,13 +252,13 @@ class TestBugTracker:
         request_params = {
             "canvas_path": "test.canvas",
             "node_id": "node123",
-            "query_params": {"limit": 10}
+            "query_params": {"limit": 10},
         }
 
         tracker.log_error(
             endpoint="/api/v1/agents/scoring",
             error=ValueError("Test"),
-            request_params=request_params
+            request_params=request_params,
         )
 
         content = log_path.read_text(encoding="utf-8")
@@ -279,7 +275,7 @@ class TestBugTracker:
             endpoint="/api/v1/test",
             error=ValueError("Test"),
             request_params={},
-            user_action="User clicked submit button"
+            user_action="User clicked submit button",
         )
 
         content = log_path.read_text(encoding="utf-8")

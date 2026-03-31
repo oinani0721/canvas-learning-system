@@ -17,35 +17,33 @@ Story 35.1 Implementation:
 
 import asyncio
 import base64
-import hashlib
 import json
 import logging
 import math
 import mimetypes
-import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, BinaryIO, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import httpx
 
 from app.models.multimodal_schemas import (
+    # Story 35.2: Query/Search
+    MediaItemResponse,
+    MultimodalByConceptResponse,
     # Story 35.1: Upload/Management
     MultimodalHealthResponse,
     MultimodalListResponse,
     MultimodalMediaType,
     MultimodalMetadataSchema,
+    MultimodalPaginatedListResponse,
     MultimodalResponse,
+    MultimodalSearchRequest,
+    MultimodalSearchResponse,
     MultimodalUpdateRequest,
     MultimodalUploadResponse,
     MultimodalUploadUrlRequest,
-    # Story 35.2: Query/Search
-    MediaItemResponse,
-    MultimodalByConceptResponse,
-    MultimodalPaginatedListResponse,
-    MultimodalSearchRequest,
-    MultimodalSearchResponse,
     PaginationMeta,
 )
 
@@ -54,14 +52,29 @@ logger = logging.getLogger(__name__)
 # Supported MIME types per media type
 SUPPORTED_MIME_TYPES = {
     MultimodalMediaType.IMAGE: {
-        "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml"
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/bmp",
+        "image/svg+xml",
     },
     MultimodalMediaType.PDF: {"application/pdf"},
     MultimodalMediaType.AUDIO: {
-        "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/flac", "audio/aac"
+        "audio/mpeg",
+        "audio/wav",
+        "audio/ogg",
+        "audio/mp4",
+        "audio/flac",
+        "audio/aac",
     },
     MultimodalMediaType.VIDEO: {
-        "video/mp4", "video/webm", "video/x-matroska", "video/avi", "video/quicktime", "video/x-ms-wmv"
+        "video/mp4",
+        "video/webm",
+        "video/x-matroska",
+        "video/avi",
+        "video/quicktime",
+        "video/x-ms-wmv",
     },
 }
 
@@ -106,12 +119,12 @@ EMBEDDING_RETRY_DELAY = 2.0
 # Format: {MediaType: [(magic_bytes, offset), ...]}
 MAGIC_SIGNATURES: dict[MultimodalMediaType, list[tuple[bytes, int]]] = {
     MultimodalMediaType.IMAGE: [
-        (b'\x89PNG\r\n\x1a\n', 0),  # PNG
-        (b'\xff\xd8\xff', 0),        # JPEG
-        (b'GIF8', 0),                 # GIF87a/GIF89a
+        (b"\x89PNG\r\n\x1a\n", 0),  # PNG
+        (b"\xff\xd8\xff", 0),  # JPEG
+        (b"GIF8", 0),  # GIF87a/GIF89a
     ],
     MultimodalMediaType.PDF: [
-        (b'%PDF', 0),                 # PDF
+        (b"%PDF", 0),  # PDF
     ],
 }
 
@@ -255,9 +268,7 @@ class MultimodalService:
                 if isinstance(meta, dict):
                     entry["metadata"] = MultimodalMetadataSchema(**meta)
                 self._content_store[cid] = entry
-            logger.info(
-                "Loaded %d items from content index", len(self._content_store)
-            )
+            logger.info("Loaded %d items from content index", len(self._content_store))
         except (OSError, json.JSONDecodeError, ValueError, KeyError) as e:
             logger.error("Failed to load content index: %s", e)
 
@@ -322,9 +333,7 @@ class MultimodalService:
         return True
 
     def _detect_media_type(
-        self,
-        filename: str,
-        content_type: Optional[str] = None
+        self, filename: str, content_type: Optional[str] = None
     ) -> MultimodalMediaType:
         """
         Detect media type from filename and/or content type.
@@ -350,15 +359,10 @@ class MultimodalService:
                 if content_type in mime_types:
                     return media_type
 
-        raise FileValidationError(
-            f"Unsupported file type: {ext or content_type}"
-        )
+        raise FileValidationError(f"Unsupported file type: {ext or content_type}")
 
     def _validate_file(
-        self,
-        filename: str,
-        content_type: Optional[str],
-        file_size: int
+        self, filename: str, content_type: Optional[str], file_size: int
     ) -> MultimodalMediaType:
         """
         Validate uploaded file.
@@ -414,39 +418,51 @@ class MultimodalService:
         # Check standard signatures
         signatures = MAGIC_SIGNATURES.get(media_type, [])
         for magic, offset in signatures:
-            if file_bytes[offset:offset + len(magic)] == magic:
+            if file_bytes[offset : offset + len(magic)] == magic:
                 return
 
         # WebP: RIFF....WEBP
         if media_type == MultimodalMediaType.IMAGE and len(file_bytes) >= 12:
-            if file_bytes[:4] == b'RIFF' and file_bytes[8:12] == b'WEBP':
+            if file_bytes[:4] == b"RIFF" and file_bytes[8:12] == b"WEBP":
                 return
             # BMP
-            if file_bytes[:2] == b'BM':
+            if file_bytes[:2] == b"BM":
                 return
             # SVG (text-based XML)
             stripped = file_bytes[:256].lstrip()
-            if stripped[:5] == b'<?xml' or stripped[:4] == b'<svg':
+            if stripped[:5] == b"<?xml" or stripped[:4] == b"<svg":
                 return
 
         # Audio: RIFF WAVE, ID3, sync bytes, OggS, fLaC
         if media_type == MultimodalMediaType.AUDIO:
-            if file_bytes[:4] == b'RIFF' and len(file_bytes) >= 12 and file_bytes[8:12] == b'WAVE':
+            if (
+                file_bytes[:4] == b"RIFF"
+                and len(file_bytes) >= 12
+                and file_bytes[8:12] == b"WAVE"
+            ):
                 return
-            if file_bytes[:3] == b'ID3' or file_bytes[:4] == b'OggS' or file_bytes[:4] == b'fLaC':
+            if (
+                file_bytes[:3] == b"ID3"
+                or file_bytes[:4] == b"OggS"
+                or file_bytes[:4] == b"fLaC"
+            ):
                 return
-            if file_bytes[:2] in (b'\xff\xfb', b'\xff\xf3', b'\xff\xf2'):
+            if file_bytes[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"):
                 return
-            logger.warning("Unrecognized audio format for %s, allowing upload", filename)
+            logger.warning(
+                "Unrecognized audio format for %s, allowing upload", filename
+            )
             return
 
         # Video: ftyp (MP4/MOV) at offset 4, EBML (WebM/MKV)
         if media_type == MultimodalMediaType.VIDEO:
-            if len(file_bytes) >= 8 and file_bytes[4:8] == b'ftyp':
+            if len(file_bytes) >= 8 and file_bytes[4:8] == b"ftyp":
                 return
-            if file_bytes[:4] == b'\x1a\x45\xdf\xa3':
+            if file_bytes[:4] == b"\x1a\x45\xdf\xa3":
                 return
-            logger.warning("Unrecognized video format for %s, allowing upload", filename)
+            logger.warning(
+                "Unrecognized video format for %s, allowing upload", filename
+            )
             return
 
         # For IMAGE and PDF: strict — reject unrecognized files
@@ -456,9 +472,7 @@ class MultimodalService:
         )
 
     def _generate_unique_filename(
-        self,
-        original_filename: str,
-        media_type: MultimodalMediaType
+        self, original_filename: str, media_type: MultimodalMediaType
     ) -> str:
         """
         Generate a unique filename for storage.
@@ -811,7 +825,9 @@ class MultimodalService:
                             duration=content.metadata.duration,
                             page_count=content.metadata.page_count,
                             mime_type=content.metadata.mime_type,
-                        ) if content.metadata else None,
+                        )
+                        if content.metadata
+                        else None,
                     )
             except Exception as e:
                 logger.warning("MultimodalStore get failed: %s", e)
@@ -937,7 +953,12 @@ class MultimodalService:
             except Exception as e:
                 logger.warning("MultimodalStore delete failed: %s", e)
 
-        logger.info("Deleted content: %s (file_deleted=%s, thumbnail_deleted=%s)", content_id, file_deleted, thumbnail_deleted)
+        logger.info(
+            "Deleted content: %s (file_deleted=%s, thumbnail_deleted=%s)",
+            content_id,
+            file_deleted,
+            thumbnail_deleted,
+        )
 
     async def list_content(
         self,
@@ -963,7 +984,8 @@ class MultimodalService:
 
         # Collect all matching items first to get accurate total
         matching = [
-            data for data in self._content_store.values()
+            data
+            for data in self._content_store.values()
             if (not concept_id or data["related_concept_id"] == concept_id)
             and (not media_type or data["media_type"] == media_type)
         ]
@@ -1109,7 +1131,9 @@ class MultimodalService:
 
         return MediaItemResponse(
             id=data["id"],
-            type=data["media_type"].value if hasattr(data["media_type"], "value") else data["media_type"],
+            type=data["media_type"].value
+            if hasattr(data["media_type"], "value")
+            else data["media_type"],
             path=data["file_path"],
             title=title,
             relevanceScore=score,
@@ -1173,6 +1197,7 @@ class MultimodalService:
                 store_media_type = None
                 if media_type:
                     from src.agentic_rag.models.multimodal_content import MediaType
+
                     store_media_type = MediaType(media_type.value)
 
                 contents = await self.multimodal_store.get_by_concept(
@@ -1181,7 +1206,9 @@ class MultimodalService:
                 )
 
                 for content in contents[:limit]:
-                    items.append(self._content_to_media_item(content, 1.0, include_thumbnail))
+                    items.append(
+                        self._content_to_media_item(content, 1.0, include_thumbnail)
+                    )
                     seen_ids.add(content.id)
 
             except Exception as e:
@@ -1286,7 +1313,10 @@ class MultimodalService:
                     store_media_types = None
                     if request.media_types:
                         from src.agentic_rag.models.multimodal_content import MediaType
-                        store_media_types = [MediaType(mt.value) for mt in request.media_types]
+
+                        store_media_types = [
+                            MediaType(mt.value) for mt in request.media_types
+                        ]
 
                     # Perform vector search
                     results = await self.multimodal_store.search(
@@ -1298,7 +1328,11 @@ class MultimodalService:
 
                     # Convert to MediaItemResponse
                     for content, score in results:
-                        items.append(self._content_to_media_item(content, score, include_thumbnail))
+                        items.append(
+                            self._content_to_media_item(
+                                content, score, include_thumbnail
+                            )
+                        )
 
                     return MultimodalSearchResponse(
                         items=items,
@@ -1340,7 +1374,7 @@ class MultimodalService:
         scored_items.sort(key=lambda x: x[1], reverse=True)
 
         # Take top_k
-        for data, score in scored_items[:request.top_k]:
+        for data, score in scored_items[: request.top_k]:
             items.append(self._to_media_item(data, score, include_thumbnail))
 
         return MultimodalSearchResponse(
@@ -1364,7 +1398,9 @@ class MultimodalService:
             768-dimensional embedding vector, or None if failed
         """
         try:
-            from src.agentic_rag.embedding.embedding_service import get_embedding_service
+            from src.agentic_rag.embedding.embedding_service import (
+                get_embedding_service,
+            )
         except ImportError:
             logger.warning(
                 "向量搜索不可用（embedding service ImportError），降级为文本搜索"
@@ -1433,25 +1469,31 @@ class MultimodalService:
             try:
                 if media_type:
                     from src.agentic_rag.models.multimodal_content import MediaType
+
                     contents = await self.multimodal_store.list_by_type(
                         media_type=MediaType(media_type.value),
                         limit=1000,  # Get more for accurate pagination
                     )
                     for content in contents:
-                        all_items.append({
-                            "id": content.id,
-                            "media_type": MultimodalMediaType(content.media_type.value),
-                            "file_path": content.file_path,
-                            "related_concept_id": content.related_concept_id,
-                            "created_at": content.created_at,
-                            "updated_at": content.updated_at,
-                            "description": content.description,
-                            "thumbnail_path": content.thumbnail_path,
-                            "metadata": content.metadata,
-                        })
+                        all_items.append(
+                            {
+                                "id": content.id,
+                                "media_type": MultimodalMediaType(
+                                    content.media_type.value
+                                ),
+                                "file_path": content.file_path,
+                                "related_concept_id": content.related_concept_id,
+                                "created_at": content.created_at,
+                                "updated_at": content.updated_at,
+                                "description": content.description,
+                                "thumbnail_path": content.thumbnail_path,
+                                "metadata": content.metadata,
+                            }
+                        )
                 else:
                     # Aggregate all types
                     from src.agentic_rag.models.multimodal_content import MediaType
+
                     for mt in MediaType:
                         try:
                             contents = await self.multimodal_store.list_by_type(
@@ -1459,17 +1501,21 @@ class MultimodalService:
                                 limit=500,
                             )
                             for content in contents:
-                                all_items.append({
-                                    "id": content.id,
-                                    "media_type": MultimodalMediaType(content.media_type.value),
-                                    "file_path": content.file_path,
-                                    "related_concept_id": content.related_concept_id,
-                                    "created_at": content.created_at,
-                                    "updated_at": content.updated_at,
-                                    "description": content.description,
-                                    "thumbnail_path": content.thumbnail_path,
-                                    "metadata": content.metadata,
-                                })
+                                all_items.append(
+                                    {
+                                        "id": content.id,
+                                        "media_type": MultimodalMediaType(
+                                            content.media_type.value
+                                        ),
+                                        "file_path": content.file_path,
+                                        "related_concept_id": content.related_concept_id,
+                                        "created_at": content.created_at,
+                                        "updated_at": content.updated_at,
+                                        "description": content.description,
+                                        "thumbnail_path": content.thumbnail_path,
+                                        "metadata": content.metadata,
+                                    }
+                                )
                         except Exception:
                             pass
 
@@ -1499,7 +1545,7 @@ class MultimodalService:
         total = len(all_items)
         total_pages = math.ceil(total / page_size) if total > 0 else 0
         offset = (page - 1) * page_size
-        paginated_items = all_items[offset:offset + page_size]
+        paginated_items = all_items[offset : offset + page_size]
 
         # Convert to MediaItemResponse
         items = [

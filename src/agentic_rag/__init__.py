@@ -83,9 +83,13 @@ except ImportError as e:
     logger.error(f"Error Message: {e}")
     logger.error("")
     logger.error("Possible causes:")
-    logger.error("  1. Missing dependency - run: pip install -r backend/requirements.txt")
+    logger.error(
+        "  1. Missing dependency - run: pip install -r backend/requirements.txt"
+    )
     logger.error("  2. LangGraph not installed - run: pip install langgraph>=0.2.0")
-    logger.error("  3. langchain-core not installed - run: pip install langchain-core>=0.3.0")
+    logger.error(
+        "  3. langchain-core not installed - run: pip install langchain-core>=0.3.0"
+    )
     logger.error("")
     logger.error("Suggested fix:")
     logger.error("  cd backend && pip install -r requirements.txt")
@@ -104,12 +108,14 @@ except Exception as e:
     logger.error("Please check the full traceback in debug mode.")
 
     import traceback
+
     logger.debug(traceback.format_exc())
 
 
 # ============================================================
 # Utility Functions
 # ============================================================
+
 
 def get_import_error() -> Optional[str]:
     """
@@ -149,10 +155,14 @@ def check_dependencies() -> dict:
     import importlib.util
 
     dependencies["langgraph"] = importlib.util.find_spec("langgraph") is not None
-    dependencies["langchain_core"] = importlib.util.find_spec("langchain_core") is not None
+    dependencies["langchain_core"] = (
+        importlib.util.find_spec("langchain_core") is not None
+    )
     dependencies["lancedb"] = importlib.util.find_spec("lancedb") is not None
     dependencies["neo4j"] = importlib.util.find_spec("neo4j") is not None
-    dependencies["sentence_transformers"] = importlib.util.find_spec("sentence_transformers") is not None
+    dependencies["sentence_transformers"] = (
+        importlib.util.find_spec("sentence_transformers") is not None
+    )
 
     return dependencies
 

@@ -22,7 +22,11 @@ except ImportError:
 try:
     from claude_canvas_tools import canvas_orchestrator_collaboration
 
-    from canvas_utils import CLAUDE_CODE_ENABLED, CanvasClaudeOrchestratorBridge, CanvasOrchestrator
+    from canvas_utils import (
+        CLAUDE_CODE_ENABLED,
+        CanvasClaudeOrchestratorBridge,
+        CanvasOrchestrator,
+    )
 except ImportError as e:
     print(f"警告: 无法导入测试模块 - {e}")
     CLAUDE_CODE_ENABLED = False
@@ -47,7 +51,7 @@ class TestCanvasClaudeOrchestratorBridge(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "4"  # 红色
+                    "color": "4",  # 红色
                 },
                 {
                     "id": "yellow_node_1",
@@ -57,16 +61,12 @@ class TestCanvasClaudeOrchestratorBridge(unittest.TestCase):
                     "y": 250,
                     "width": 200,
                     "height": 80,
-                    "color": "6"  # 黄色
-                }
+                    "color": "6",  # 黄色
+                },
             ],
             "edges": [
-                {
-                    "id": "edge_1",
-                    "fromNode": "red_node_1",
-                    "toNode": "yellow_node_1"
-                }
-            ]
+                {"id": "edge_1", "fromNode": "red_node_1", "toNode": "yellow_node_1"}
+            ],
         }
 
         self.temp_canvas = self.create_temp_canvas_file(self.test_canvas_data)
@@ -74,7 +74,9 @@ class TestCanvasClaudeOrchestratorBridge(unittest.TestCase):
 
     def create_temp_canvas_file(self, canvas_data):
         """创建临时Canvas文件"""
-        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8')
+        temp_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+        )
         json.dump(canvas_data, temp_file, ensure_ascii=False, indent=2)
         temp_file.close()
         return temp_file.name
@@ -129,7 +131,7 @@ class TestCanvasClaudeOrchestratorBridge(unittest.TestCase):
                 reason="测试推荐",
                 target_nodes=["red_node_1"],
                 priority=1,
-                estimated_time=15.0
+                estimated_time=15.0,
             ),
             AgentRecommendation(
                 agent_type="scoring-agent",
@@ -137,8 +139,8 @@ class TestCanvasClaudeOrchestratorBridge(unittest.TestCase):
                 reason="测试推荐2",
                 target_nodes=["yellow_node_1"],
                 priority=3,
-                estimated_time=10.0
-            )
+                estimated_time=10.0,
+            ),
         ]
 
         tasks = self.bridge._translate_claude_recommendations_to_tasks(
@@ -174,18 +176,11 @@ class TestCanvasClaudeOrchestratorBridge(unittest.TestCase):
         # 创建成功的工作流结果
         success_result = {
             "success": True,
-            "agent_calls": [
-                {
-                    "execution_time": 2.5
-                },
-                {
-                    "execution_time": 1.8
-                }
-            ],
+            "agent_calls": [{"execution_time": 2.5}, {"execution_time": 1.8}],
             "canvas_updates": [
                 {"action": "create_node"},
-                {"action": "update_node_color"}
-            ]
+                {"action": "update_node_color"},
+            ],
         }
 
         summary = self.bridge._generate_workflow_summary(success_result)
@@ -194,10 +189,7 @@ class TestCanvasClaudeOrchestratorBridge(unittest.TestCase):
         self.assertIn("2个Canvas更新", summary)
 
         # 创建失败的工作流结果
-        failure_result = {
-            "success": False,
-            "error": "测试错误"
-        }
+        failure_result = {"success": False, "error": "测试错误"}
 
         failure_summary = self.bridge._generate_workflow_summary(failure_result)
         self.assertIn("工作流执行失败", failure_summary)
@@ -223,17 +215,19 @@ class TestCanvasOrchestratorCollaborationTool(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "4"
+                    "color": "4",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
         self.temp_canvas = self.create_temp_canvas_file(self.test_canvas_data)
 
     def create_temp_canvas_file(self, canvas_data):
         """创建临时Canvas文件"""
-        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8')
+        temp_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+        )
         json.dump(canvas_data, temp_file, ensure_ascii=False, indent=2)
         temp_file.close()
         return temp_file.name
@@ -245,6 +239,7 @@ class TestCanvasOrchestratorCollaborationTool(unittest.TestCase):
 
     def test_canvas_orchestrator_collaboration_missing_parameter(self):
         """测试缺少必需参数的情况"""
+
         async def run_test():
             result = await canvas_orchestrator_collaboration({})
             content = result.get("content", [])
@@ -255,10 +250,11 @@ class TestCanvasOrchestratorCollaborationTool(unittest.TestCase):
 
     def test_canvas_orchestrator_collaboration_file_not_found(self):
         """测试文件不存在的情况"""
+
         async def run_test():
-            result = await canvas_orchestrator_collaboration({
-                "canvas_path": "nonexistent.canvas"
-            })
+            result = await canvas_orchestrator_collaboration(
+                {"canvas_path": "nonexistent.canvas"}
+            )
             content = result.get("content", [])
             self.assertGreater(len(content), 0)
             self.assertIn("不存在", content[0]["text"])
@@ -267,16 +263,19 @@ class TestCanvasOrchestratorCollaborationTool(unittest.TestCase):
 
     def test_canvas_orchestrator_collaboration_file_not_canvas(self):
         """测试非Canvas文件的情况"""
+
         async def run_test():
             # 创建非Canvas文件
-            temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+            temp_file = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False
+            )
             temp_file.write("Not a canvas file")
             temp_file.close()
 
             try:
-                result = await canvas_orchestrator_collaboration({
-                    "canvas_path": temp_file.name
-                })
+                result = await canvas_orchestrator_collaboration(
+                    {"canvas_path": temp_file.name}
+                )
 
                 content = result.get("content", [])
                 self.assertGreater(len(content), 0)
@@ -288,12 +287,15 @@ class TestCanvasOrchestratorCollaborationTool(unittest.TestCase):
 
     def test_canvas_orchestrator_collaboration_basic_params(self):
         """测试基本参数"""
+
         async def run_test():
-            result = await canvas_orchestrator_collaboration({
-                "canvas_path": self.temp_canvas,
-                "operation": "decompose",
-                "user_intent": "测试用户意图"
-            })
+            result = await canvas_orchestrator_collaboration(
+                {
+                    "canvas_path": self.temp_canvas,
+                    "operation": "decompose",
+                    "user_intent": "测试用户意图",
+                }
+            )
 
             content = result.get("content", [])
             self.assertGreater(len(content), 0)
@@ -304,13 +306,16 @@ class TestCanvasOrchestratorCollaborationTool(unittest.TestCase):
 
     def test_canvas_orchestrator_collaboration_with_claude_guidance(self):
         """测试带Claude指导的协同"""
+
         async def run_test():
-            result = await canvas_orchestrator_collaboration({
-                "canvas_path": self.temp_canvas,
-                "operation": "explain",
-                "target_nodes": ["test_node"],
-                "claude_guidance": "请重点关注基础概念的理解"
-            })
+            result = await canvas_orchestrator_collaboration(
+                {
+                    "canvas_path": self.temp_canvas,
+                    "operation": "explain",
+                    "target_nodes": ["test_node"],
+                    "claude_guidance": "请重点关注基础概念的理解",
+                }
+            )
 
             content = result.get("content", [])
             self.assertGreater(len(content), 0)
@@ -330,7 +335,10 @@ class TestCollaborationResultFormatting(unittest.TestCase):
             "operation": "decompose",
             "success": True,
             "timestamp": datetime.now().isoformat(),
-            "steps_executed": ["claude_analysis_completed", "orchestrator_task_1_completed"],
+            "steps_executed": [
+                "claude_analysis_completed",
+                "orchestrator_task_1_completed",
+            ],
             "agent_calls": [
                 {
                     "step": 1,
@@ -339,24 +347,21 @@ class TestCollaborationResultFormatting(unittest.TestCase):
                     "result": {
                         "success": True,
                         "execution_time": 2.5,
-                        "details": "成功创建了2个理解节点"
-                    }
+                        "details": "成功创建了2个理解节点",
+                    },
                 }
             ],
             "canvas_updates": [
                 {
                     "action": "create_node",
                     "node_id": "new_node_1",
-                    "node_type": "yellow_understanding"
+                    "node_type": "yellow_understanding",
                 }
             ],
             "claude_recommendations": [
-                {
-                    "source": "user_input",
-                    "guidance": "重点关注基础概念"
-                }
+                {"source": "user_input", "guidance": "重点关注基础概念"}
             ],
-            "execution_summary": "✅ 智能工作流执行成功\n- 执行了1个Agent任务"
+            "execution_summary": "✅ 智能工作流执行成功\n- 执行了1个Agent任务",
         }
 
         formatted = _format_collaboration_result(result)
@@ -376,7 +381,7 @@ class TestCollaborationResultFormatting(unittest.TestCase):
             "operation": "decompose",
             "success": False,
             "error": "测试错误信息",
-            "steps_executed": ["claude_analysis_completed"]
+            "steps_executed": ["claude_analysis_completed"],
         }
 
         formatted = _format_collaboration_result(result)

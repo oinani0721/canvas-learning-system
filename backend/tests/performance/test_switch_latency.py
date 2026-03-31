@@ -109,8 +109,7 @@ class TestProviderSelectionLatency:
 
             if i < 2:  # First two unhealthy
                 provider.health = ProviderHealth(
-                    status=ProviderStatus.UNHEALTHY,
-                    consecutive_failures=3
+                    status=ProviderStatus.UNHEALTHY, consecutive_failures=3
                 )
                 provider.is_available = False
             else:
@@ -129,7 +128,9 @@ class TestProviderSelectionLatency:
 
         # Assert
         assert provider.name == "anthropic"
-        assert elapsed_ms < 100, f"Selection took {elapsed_ms:.2f}ms with unhealthy providers"
+        assert elapsed_ms < 100, (
+            f"Selection took {elapsed_ms:.2f}ms with unhealthy providers"
+        )
 
 
 @pytest.mark.asyncio
@@ -156,12 +157,11 @@ class TestFailoverLatency:
         healthy_provider.priority = 2
         healthy_provider.is_enabled = True
         healthy_provider.is_available = True
-        healthy_provider.complete = AsyncMock(return_value=ProviderResponse(
-            text="Success",
-            model="test",
-            provider="healthy",
-            latency_ms=50.0
-        ))
+        healthy_provider.complete = AsyncMock(
+            return_value=ProviderResponse(
+                text="Success", model="test", provider="healthy", latency_ms=50.0
+            )
+        )
 
         factory = ProviderFactory()
         factory._providers = {
@@ -173,10 +173,7 @@ class TestFailoverLatency:
 
         # Act
         start = time.perf_counter()
-        response = await factory.complete(
-            system_prompt="Test",
-            user_prompt="Hello"
-        )
+        response = await factory.complete(system_prompt="Test", user_prompt="Hello")
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         # Assert
@@ -209,12 +206,11 @@ class TestFailoverLatency:
         healthy.priority = 4
         healthy.is_enabled = True
         healthy.is_available = True
-        healthy.complete = AsyncMock(return_value=ProviderResponse(
-            text="Success",
-            model="test",
-            provider="healthy",
-            latency_ms=50.0
-        ))
+        healthy.complete = AsyncMock(
+            return_value=ProviderResponse(
+                text="Success", model="test", provider="healthy", latency_ms=50.0
+            )
+        )
         providers["healthy"] = healthy
         priority_order.append("healthy")
 
@@ -225,10 +221,7 @@ class TestFailoverLatency:
 
         # Act
         start = time.perf_counter()
-        response = await factory.complete(
-            system_prompt="Test",
-            user_prompt="Hello"
-        )
+        response = await factory.complete(system_prompt="Test", user_prompt="Hello")
         elapsed = time.perf_counter() - start
 
         # Assert
@@ -249,10 +242,7 @@ class TestFailoverLatency:
             if call_count % 3 == 0:  # Every 3rd call fails
                 raise ProviderError("Intermittent", provider="test")
             return ProviderResponse(
-                text="Success",
-                model="test",
-                provider="test",
-                latency_ms=10.0
+                text="Success", model="test", provider="test", latency_ms=10.0
             )
 
         provider = MagicMock(spec=BaseProvider)
@@ -371,7 +361,9 @@ class TestPerformanceUnderLoad:
 
         # Assert - Should handle 10k selections per second
         ops_per_second = 10000 / elapsed
-        assert ops_per_second > 10000, f"Only {ops_per_second:.0f} ops/s, expected >10000"
+        assert ops_per_second > 10000, (
+            f"Only {ops_per_second:.0f} ops/s, expected >10000"
+        )
 
     @pytest.mark.asyncio
     async def test_sustained_load(self, provider_factory_clean):
@@ -384,12 +376,11 @@ class TestPerformanceUnderLoad:
         provider.priority = 1
         provider.is_enabled = True
         provider.is_available = True
-        provider.complete = AsyncMock(return_value=ProviderResponse(
-            text="Success",
-            model="test",
-            provider="test",
-            latency_ms=10.0
-        ))
+        provider.complete = AsyncMock(
+            return_value=ProviderResponse(
+                text="Success", model="test", provider="test", latency_ms=10.0
+            )
+        )
 
         factory = ProviderFactory()
         factory._providers = {"test": provider}
@@ -443,4 +434,6 @@ class TestLatencyPercentiles:
         assert p95 < 5, f"P95 latency {p95:.3f}ms exceeds 5ms"
         assert p99 < 10, f"P99 latency {p99:.3f}ms exceeds 10ms"
 
-        print(f"\nLatency percentiles: P50={p50:.3f}ms, P95={p95:.3f}ms, P99={p99:.3f}ms")
+        print(
+            f"\nLatency percentiles: P50={p50:.3f}ms, P95={p95:.3f}ms, P99={p99:.3f}ms"
+        )

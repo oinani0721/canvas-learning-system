@@ -32,6 +32,7 @@ logger = structlog.get_logger(__name__)
 # [Source: docs/stories/17.3.story.md - Task 5]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class NotificationChannel(ABC):
     """Abstract base class for notification channels.
 
@@ -58,6 +59,7 @@ class NotificationChannel(ABC):
 # Console Notification Channel
 # [Source: ADR-010-LOGGING-AGGREGATION-STRUCTLOG.md:77-100]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class ConsoleNotificationChannel(NotificationChannel):
     """Console logging notification channel.
@@ -99,6 +101,7 @@ class ConsoleNotificationChannel(NotificationChannel):
 # File Notification Channel
 # [Source: docs/architecture/performance-monitoring-architecture.md:325-333]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class FileNotificationChannel(NotificationChannel):
     """File logging notification channel.
@@ -156,6 +159,7 @@ class FileNotificationChannel(NotificationChannel):
 # [Source: ADR-006-REALTIME-COMMUNICATION-SSE-HTTP.md:127-158]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class ObsidianNotificationChannel(NotificationChannel):
     """Obsidian plugin SSE notification channel.
 
@@ -194,10 +198,12 @@ class ObsidianNotificationChannel(NotificationChannel):
             return False
 
         try:
-            await self.sse_manager.broadcast({
-                "type": f"alert.{event_type}",
-                "data": alert.to_dict(),
-            })
+            await self.sse_manager.broadcast(
+                {
+                    "type": f"alert.{event_type}",
+                    "data": alert.to_dict(),
+                }
+            )
             return True
         except (RuntimeError, ConnectionError, OSError, TypeError) as e:
             logger.error(
@@ -212,6 +218,7 @@ class ObsidianNotificationChannel(NotificationChannel):
 # Webhook Notification Channel (Optional - P2)
 # [Source: docs/architecture/performance-monitoring-architecture.md:325-333]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class WebhookNotificationChannel(NotificationChannel):
     """Webhook notification channel.
@@ -274,6 +281,7 @@ class WebhookNotificationChannel(NotificationChannel):
 # [Source: docs/stories/17.3.story.md - Task 5]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class NotificationDispatcher:
     """Notification dispatcher.
 
@@ -326,6 +334,7 @@ class NotificationDispatcher:
 # [Source: docs/stories/17.3.story.md - Task 5]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def create_default_dispatcher(
     sse_manager: "SSEConnectionManager" = None,
     log_path: str = "logs/alerts.log",
@@ -366,6 +375,7 @@ def create_default_dispatcher(
 # SSE Connection Manager Stub
 # [Source: ADR-006-REALTIME-COMMUNICATION-SSE-HTTP.md]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class SSEConnectionManager:
     """SSE Connection Manager stub.

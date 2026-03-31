@@ -17,9 +17,17 @@ from unittest.mock import Mock, patch
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from critical_nodes_extractor import CriticalNode, CriticalNodesExtractor, SourceAnalysis
+from critical_nodes_extractor import (
+    CriticalNode,
+    CriticalNodesExtractor,
+    SourceAnalysis,
+)
 from dynamic_review_canvas_generator import DynamicReviewCanvasGenerator
-from intelligent_question_generator import GeneratedQuestion, IntelligentQuestionGenerator, QuestionGenerationConfig
+from intelligent_question_generator import (
+    GeneratedQuestion,
+    IntelligentQuestionGenerator,
+    QuestionGenerationConfig,
+)
 from knowledge_graph_integration import KnowledgeGraphContext, KnowledgeGraphIntegration
 from learning_cycle_manager import LearningCycleManager, LearningStep
 
@@ -39,7 +47,7 @@ class TestCriticalNodesExtractor(unittest.TestCase):
                     "x": 100,
                     "y": 100,
                     "width": 400,
-                    "height": 300
+                    "height": 300,
                 },
                 {
                     "id": "node-002",
@@ -49,7 +57,7 @@ class TestCriticalNodesExtractor(unittest.TestCase):
                     "x": 200,
                     "y": 200,
                     "width": 400,
-                    "height": 300
+                    "height": 300,
                 },
                 {
                     "id": "node-003",
@@ -59,25 +67,29 @@ class TestCriticalNodesExtractor(unittest.TestCase):
                     "x": 300,
                     "y": 300,
                     "width": 200,
-                    "height": 100
-                }
+                    "height": 100,
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
-    @patch('os.path.exists')
+    @patch("os.path.exists")
     def test_extract_critical_nodes_success(self, mock_exists):
         """测试成功提取关键节点"""
         mock_exists.return_value = True  # Mock file existence check
 
         # Mock the local CanvasJSONOperator.read_canvas method
-        with patch('critical_nodes_extractor.CanvasJSONOperator.read_canvas') as mock_read:
+        with patch(
+            "critical_nodes_extractor.CanvasJSONOperator.read_canvas"
+        ) as mock_read:
             mock_read.return_value = self.test_canvas_data
 
             analysis = self.extractor.extract_critical_nodes("test_canvas.canvas")
 
             self.assertIsInstance(analysis, SourceAnalysis)
-            self.assertEqual(len(analysis.critical_nodes_extracted), 2)  # 应该提取2个节点（排除太短的）
+            self.assertEqual(
+                len(analysis.critical_nodes_extracted), 2
+            )  # 应该提取2个节点（排除太短的）
             self.assertEqual(analysis.total_source_nodes, 3)
 
     def test_calculate_color_score(self):
@@ -122,7 +134,9 @@ class TestKnowledgeGraphIntegration(unittest.TestCase):
         similarity_1_2 = self.integration._calculate_text_similarity(text1, text2)
         similarity_1_3 = self.integration._calculate_text_similarity(text1, text3)
 
-        self.assertGreater(similarity_1_2, 0.0)  # Should have some similarity due to common words
+        self.assertGreater(
+            similarity_1_2, 0.0
+        )  # Should have some similarity due to common words
         self.assertEqual(similarity_1_3, 0.0)  # Should have no similarity
 
 
@@ -143,7 +157,7 @@ class TestIntelligentQuestionGenerator(unittest.TestCase):
                 confidence_score=0.8,
                 mastery_estimation=0.3,
                 reason_for_critical="测试节点",
-                text_content="逻辑等价性是命题逻辑中的重要概念"
+                text_content="逻辑等价性是命题逻辑中的重要概念",
             )
         ]
 
@@ -163,8 +177,12 @@ class TestIntelligentQuestionGenerator(unittest.TestCase):
         low_mastery_node = CriticalNode("test", "4", "概念", 0.8, 0.2, "测试")
         high_mastery_node = CriticalNode("test", "4", "概念", 0.8, 0.9, "测试")
 
-        low_difficulty = self.generator._determine_base_difficulty(low_mastery_node, None)
-        high_difficulty = self.generator._determine_base_difficulty(high_mastery_node, None)
+        low_difficulty = self.generator._determine_base_difficulty(
+            low_mastery_node, None
+        )
+        high_difficulty = self.generator._determine_base_difficulty(
+            high_mastery_node, None
+        )
 
         self.assertEqual(low_difficulty.value, "basic")
         self.assertEqual(high_difficulty.value, "expert")
@@ -173,8 +191,12 @@ class TestIntelligentQuestionGenerator(unittest.TestCase):
         """测试时间估算"""
         from intelligent_question_generator import DifficultyLevel, QuestionType
 
-        basic_time = self.generator._estimate_time(DifficultyLevel.BASIC, QuestionType.CONCEPTUAL_UNDERSTANDING)
-        advanced_time = self.generator._estimate_time(DifficultyLevel.ADVANCED, QuestionType.PROBLEM_SOLVING)
+        basic_time = self.generator._estimate_time(
+            DifficultyLevel.BASIC, QuestionType.CONCEPTUAL_UNDERSTANDING
+        )
+        advanced_time = self.generator._estimate_time(
+            DifficultyLevel.ADVANCED, QuestionType.PROBLEM_SOLVING
+        )
 
         self.assertGreater(advanced_time, basic_time)
         self.assertGreater(basic_time, 0)
@@ -206,11 +228,18 @@ class TestLearningCycleManager(unittest.TestCase):
 
     def test_validate_user_input(self):
         """测试用户输入验证"""
-        valid_input = {"yellow_node_understanding": "这是我的详细理解，包含足够的长度来满足验证要求", "node_id": "test-001"}
+        valid_input = {
+            "yellow_node_understanding": "这是我的详细理解，包含足够的长度来满足验证要求",
+            "node_id": "test-001",
+        }
         invalid_input = {"yellow_node_understanding": "太短"}
 
-        valid_result = self.manager._validate_user_input(LearningStep.STEP_1_UNDERSTANDING, valid_input)
-        invalid_result = self.manager._validate_user_input(LearningStep.STEP_1_UNDERSTANDING, invalid_input)
+        valid_result = self.manager._validate_user_input(
+            LearningStep.STEP_1_UNDERSTANDING, valid_input
+        )
+        invalid_result = self.manager._validate_user_input(
+            LearningStep.STEP_1_UNDERSTANDING, invalid_input
+        )
 
         self.assertTrue(valid_result["valid"])
         self.assertFalse(invalid_result["valid"])
@@ -222,9 +251,9 @@ class TestDynamicReviewCanvasGenerator(unittest.TestCase):
     def setUp(self):
         self.generator = DynamicReviewCanvasGenerator()
 
-    @patch('dynamic_review_canvas_generator.CanvasJSONOperator.read_canvas')
-    @patch('dynamic_review_canvas_generator.Path')
-    @patch('os.path.exists')
+    @patch("dynamic_review_canvas_generator.CanvasJSONOperator.read_canvas")
+    @patch("dynamic_review_canvas_generator.Path")
+    @patch("os.path.exists")
     def test_create_review_canvas_success(self, mock_exists, mock_path, mock_read):
         """测试成功创建检验白板"""
         # 设置mock
@@ -240,7 +269,7 @@ class TestDynamicReviewCanvasGenerator(unittest.TestCase):
             critical_nodes_extracted=[
                 CriticalNode("node-001", "4", "测试概念", 0.8, 0.3, "测试")
             ],
-            knowledge_graph_context={}
+            knowledge_graph_context={},
         )
 
         # Mock问题生成
@@ -253,7 +282,7 @@ class TestDynamicReviewCanvasGenerator(unittest.TestCase):
                 question_text="请解释测试概念",
                 expected_answer_type="explanation",
                 estimated_time_minutes=10,
-                hint_available=True
+                hint_available=True,
             )
         ]
 
@@ -261,13 +290,19 @@ class TestDynamicReviewCanvasGenerator(unittest.TestCase):
         mock_read.return_value = {"nodes": [], "edges": []}
 
         # 直接mock generator实例的组件
-        self.generator.nodes_extractor.extract_critical_nodes = Mock(return_value=mock_analysis)
-        self.generator.question_generator.generate_review_questions = Mock(return_value=mock_questions)
+        self.generator.nodes_extractor.extract_critical_nodes = Mock(
+            return_value=mock_analysis
+        )
+        self.generator.question_generator.generate_review_questions = Mock(
+            return_value=mock_questions
+        )
 
-        with patch('builtins.open', create=True) as mock_open:
+        with patch("builtins.open", create=True) as mock_open:
             mock_open.return_value.__enter__.return_value.write = Mock()
 
-            result = self.generator.create_review_canvas("test_canvas.canvas", iteration=1)
+            result = self.generator.create_review_canvas(
+                "test_canvas.canvas", iteration=1
+            )
 
             self.assertIsInstance(result, str)
             self.assertTrue(result.endswith(".canvas"))
@@ -287,7 +322,11 @@ class TestDynamicReviewCanvasGenerator(unittest.TestCase):
 
     def test_calculate_quality_metrics(self):
         """测试质量指标计算"""
-        from intelligent_question_generator import DifficultyLevel, GeneratedQuestion, QuestionType
+        from intelligent_question_generator import (
+            DifficultyLevel,
+            GeneratedQuestion,
+            QuestionType,
+        )
 
         test_questions = [
             GeneratedQuestion(
@@ -299,7 +338,7 @@ class TestDynamicReviewCanvasGenerator(unittest.TestCase):
                 expected_answer_type="explanation",
                 estimated_time_minutes=10,
                 hint_available=False,
-                quality_score=0.8
+                quality_score=0.8,
             )
         ]
 
@@ -310,10 +349,12 @@ class TestDynamicReviewCanvasGenerator(unittest.TestCase):
             critical_nodes_extracted=[
                 CriticalNode("node-001", "4", "测试", 0.8, 0.5, "测试")
             ],
-            knowledge_graph_context={}
+            knowledge_graph_context={},
         )
 
-        metrics = self.generator._calculate_quality_metrics(test_questions, test_analysis)
+        metrics = self.generator._calculate_quality_metrics(
+            test_questions, test_analysis
+        )
 
         self.assertIn("question_relevance", metrics)
         self.assertIn("difficulty_appropriateness", metrics)
@@ -325,9 +366,9 @@ class TestDynamicReviewCanvasGenerator(unittest.TestCase):
 class TestIntegrationWorkflow(unittest.TestCase):
     """测试集成工作流"""
 
-    @patch('dynamic_review_canvas_generator.CanvasJSONOperator.read_canvas')
-    @patch('dynamic_review_canvas_generator.Path')
-    @patch('os.path.exists')
+    @patch("dynamic_review_canvas_generator.CanvasJSONOperator.read_canvas")
+    @patch("dynamic_review_canvas_generator.Path")
+    @patch("os.path.exists")
     def test_complete_workflow(self, mock_exists, mock_path, mock_read):
         """测试完整工作流"""
         # 设置mock
@@ -342,9 +383,9 @@ class TestIntegrationWorkflow(unittest.TestCase):
             total_source_nodes=3,
             critical_nodes_extracted=[
                 CriticalNode("node-001", "4", "概念1", 0.8, 0.3, "测试"),
-                CriticalNode("node-002", "3", "概念2", 0.7, 0.6, "测试")
+                CriticalNode("node-002", "3", "概念2", 0.7, 0.6, "测试"),
             ],
-            knowledge_graph_context={}
+            knowledge_graph_context={},
         )
 
         mock_questions = [
@@ -357,7 +398,7 @@ class TestIntegrationWorkflow(unittest.TestCase):
                 expected_answer_type="explanation",
                 estimated_time_minutes=10,
                 hint_available=True,
-                quality_score=0.85
+                quality_score=0.85,
             ),
             GeneratedQuestion(
                 question_id="q-002",
@@ -368,8 +409,8 @@ class TestIntegrationWorkflow(unittest.TestCase):
                 expected_answer_type="example",
                 estimated_time_minutes=15,
                 hint_available=False,
-                quality_score=0.75
-            )
+                quality_score=0.75,
+            ),
         ]
 
         mock_read.return_value = {"nodes": [], "edges": []}
@@ -378,10 +419,14 @@ class TestIntegrationWorkflow(unittest.TestCase):
         generator = DynamicReviewCanvasGenerator()
 
         # 直接mock generator实例的组件
-        generator.nodes_extractor.extract_critical_nodes = Mock(return_value=mock_analysis)
-        generator.question_generator.generate_review_questions = Mock(return_value=mock_questions)
+        generator.nodes_extractor.extract_critical_nodes = Mock(
+            return_value=mock_analysis
+        )
+        generator.question_generator.generate_review_questions = Mock(
+            return_value=mock_questions
+        )
 
-        with patch('builtins.open', create=True) as mock_open:
+        with patch("builtins.open", create=True) as mock_open:
             mock_open.return_value.__enter__.return_value.write = Mock()
 
             # 执行工作流
@@ -404,7 +449,7 @@ def run_tests():
         TestIntelligentQuestionGenerator,
         TestLearningCycleManager,
         TestDynamicReviewCanvasGenerator,
-        TestIntegrationWorkflow
+        TestIntegrationWorkflow,
     ]
 
     for test_class in test_classes:

@@ -26,7 +26,9 @@ DEFAULT_SUBJECT_ID = "general"
 
 # ContextVar for per-request subject_id propagation
 # Set by API middleware/dependency, read by services that need the current subject.
-_current_subject_id: ContextVar[str] = ContextVar("current_subject_id", default=DEFAULT_SUBJECT_ID)
+_current_subject_id: ContextVar[str] = ContextVar(
+    "current_subject_id", default=DEFAULT_SUBJECT_ID
+)
 
 
 def get_database_for_subject(subject_id: str) -> str:
@@ -83,12 +85,14 @@ async def list_subjects_from_neo4j(neo4j_driver: "AsyncDriver") -> List[dict]:
             result = await session.run(query)
             records = await result.data()
             for rec in records:
-                subjects.append({
-                    "id": rec.get("id", ""),
-                    "name": rec.get("name", ""),
-                    "created_at": rec.get("createdAt", ""),
-                    "color": rec.get("color"),
-                })
+                subjects.append(
+                    {
+                        "id": rec.get("id", ""),
+                        "name": rec.get("name", ""),
+                        "created_at": rec.get("createdAt", ""),
+                        "color": rec.get("color"),
+                    }
+                )
     except (OSError, RuntimeError, ValueError) as e:
         logger.warning(f"Failed to list subjects from Neo4j: {e}")
     return subjects
@@ -143,7 +147,7 @@ def extract_subject_from_canvas_path(canvas_path: str) -> str:
     # Skip common root directories
     for part in parts:
         part_lower = part.lower()
-        if part_lower not in SKIP_DIRECTORIES_LOWER and not part.endswith('.canvas'):
+        if part_lower not in SKIP_DIRECTORIES_LOWER and not part.endswith(".canvas"):
             return part
 
     # Fallback: use filename without extension
@@ -192,9 +196,9 @@ def sanitize_subject_name(name: str) -> str:
         return "default"
 
     normalized = name.casefold()
-    sanitized = re.sub(r'[^\w]', '_', normalized, flags=re.UNICODE)
-    sanitized = re.sub(r'_+', '_', sanitized)
-    return sanitized.strip('_') or "default"
+    sanitized = re.sub(r"[^\w]", "_", normalized, flags=re.UNICODE)
+    sanitized = re.sub(r"_+", "_", sanitized)
+    return sanitized.strip("_") or "default"
 
 
 def build_neo4j_subject_filter(

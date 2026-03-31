@@ -27,6 +27,7 @@ import structlog
 # Try to import psutil for system monitoring
 try:
     import psutil
+
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
@@ -44,6 +45,7 @@ T = TypeVar("T")
 
 class LoadLevel(Enum):
     """System load levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -58,9 +60,9 @@ class SchedulerConfig:
     """
 
     # Concurrency limits per load level
-    concurrency_low: int = 12      # Low load: maximum parallelism
-    concurrency_medium: int = 8    # Medium load: reduced parallelism
-    concurrency_high: int = 4      # High load: conservative
+    concurrency_low: int = 12  # Low load: maximum parallelism
+    concurrency_medium: int = 8  # Medium load: reduced parallelism
+    concurrency_high: int = 4  # High load: conservative
     concurrency_critical: int = 2  # Critical: minimal parallelism
 
     # Thresholds (percentage)
@@ -89,15 +91,17 @@ class SchedulerConfig:
 
 class TaskPriority(Enum):
     """Task priority levels."""
-    CRITICAL = 0   # Highest priority
+
+    CRITICAL = 0  # Highest priority
     HIGH = 1
     NORMAL = 2
-    LOW = 3        # Lowest priority
+    LOW = 3  # Lowest priority
 
 
 @dataclass
 class ScheduledTask:
     """Represents a task scheduled for execution."""
+
     id: str
     coro: Coroutine[Any, Any, T]
     priority: TaskPriority = TaskPriority.NORMAL
@@ -163,18 +167,24 @@ class ResourceMonitor:
         self.update()
 
         # Check critical thresholds first
-        if (self._cpu_percent >= self.config.cpu_critical_threshold or
-            self._memory_percent >= self.config.memory_critical_threshold):
+        if (
+            self._cpu_percent >= self.config.cpu_critical_threshold
+            or self._memory_percent >= self.config.memory_critical_threshold
+        ):
             return LoadLevel.CRITICAL
 
         # Check high thresholds
-        if (self._cpu_percent >= self.config.cpu_high_threshold or
-            self._memory_percent >= self.config.memory_high_threshold):
+        if (
+            self._cpu_percent >= self.config.cpu_high_threshold
+            or self._memory_percent >= self.config.memory_high_threshold
+        ):
             return LoadLevel.HIGH
 
         # Check medium thresholds
-        if (self._cpu_percent >= self.config.cpu_medium_threshold or
-            self._memory_percent >= self.config.memory_medium_threshold):
+        if (
+            self._cpu_percent >= self.config.cpu_medium_threshold
+            or self._memory_percent >= self.config.memory_medium_threshold
+        ):
             return LoadLevel.MEDIUM
 
         return LoadLevel.LOW
@@ -389,9 +399,7 @@ class ResourceAwareScheduler:
             self._stats["submitted"] += 1
 
             # Start task immediately (semaphore controls concurrency)
-            asyncio_task = asyncio.create_task(
-                self._execute_task(scheduled_task)
-            )
+            asyncio_task = asyncio.create_task(self._execute_task(scheduled_task))
             self._active_tasks[task_id] = asyncio_task
 
         return task_id

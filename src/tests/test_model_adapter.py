@@ -62,7 +62,7 @@ class TestModelDetector(unittest.TestCase):
         # Opus 4.1 特征
         response = {
             "content": "这是一个详细的analysis内容，长度超过1000字符，" * 10,
-            "usage": {"completion_tokens": 2500}
+            "usage": {"completion_tokens": 2500},
         }
         result = self.detector.detect_model(response)
 
@@ -72,9 +72,7 @@ class TestModelDetector(unittest.TestCase):
 
     def test_detect_glm_by_chinese_content(self):
         """测试通过中文内容检测GLM"""
-        response = {
-            "content": "这是中文内容，包含很多汉字和中文表达方式"
-        }
+        response = {"content": "这是中文内容，包含很多汉字和中文表达方式"}
         result = self.detector.detect_model(response)
 
         self.assertEqual(result.model_name, "glm-4.6")
@@ -85,7 +83,7 @@ class TestModelDetector(unittest.TestCase):
         """测试通过短内容检测Sonnet"""
         response = {
             "content": "Short concise response",
-            "usage": {"completion_tokens": 300}
+            "usage": {"completion_tokens": 300},
         }
         result = self.detector.detect_model(response)
 
@@ -95,7 +93,7 @@ class TestModelDetector(unittest.TestCase):
 
     def test_detect_model_from_env(self):
         """测试从环境变量检测模型"""
-        with patch.dict(os.environ, {'CLAUDE_MODEL': 'claude-opus-4.1'}):
+        with patch.dict(os.environ, {"CLAUDE_MODEL": "claude-opus-4.1"}):
             result = self.detector.detect_model()
 
             self.assertEqual(result.model_name, "opus-4.1")
@@ -113,7 +111,7 @@ class TestModelDetector(unittest.TestCase):
             ("sonnet-3.5", "sonnet-3.5"),
             ("claude-3.5-sonnet", "sonnet-3.5"),
             ("unknown", "default"),
-            ("", "default")
+            ("", "default"),
         ]
 
         for input_name, expected in test_cases:
@@ -127,10 +125,7 @@ class TestOpusProcessor(unittest.TestCase):
 
     def setUp(self):
         self.processor = OpusProcessor()
-        self.sample_canvas = {
-            "nodes": [],
-            "edges": []
-        }
+        self.sample_canvas = {"nodes": [], "edges": []}
 
     def test_config_initialization(self):
         """测试配置初始化"""
@@ -148,26 +143,16 @@ class TestOpusProcessor(unittest.TestCase):
                 "id": "yellow-1",
                 "type": "text",
                 "text": "我认为逆否命题是...",
-                "color": "6"
+                "color": "6",
             },
             {
                 "id": "yellow-2",
                 "type": "text",
                 "text": "My understanding is...",
-                "color": "6"
+                "color": "6",
             },
-            {
-                "id": "yellow-3",
-                "type": "text",
-                "text": "简而言之",
-                "color": "6"
-            },
-            {
-                "id": "red-1",
-                "type": "text",
-                "text": "红色节点",
-                "color": "1"
-            }
+            {"id": "yellow-3", "type": "text", "text": "简而言之", "color": "6"},
+            {"id": "red-1", "type": "text", "text": "红色节点", "color": "1"},
         ]
 
         result = self.processor.detect_yellow_nodes(self.sample_canvas)
@@ -184,7 +169,7 @@ class TestOpusProcessor(unittest.TestCase):
         node_with_understanding = {
             "id": "test-1",
             "text": "我认为这个概念很重要",
-            "color": "6"
+            "color": "6",
         }
         self.assertTrue(self.processor._is_yellow_node_opus(node_with_understanding))
 
@@ -192,24 +177,18 @@ class TestOpusProcessor(unittest.TestCase):
         node_with_length = {
             "id": "test-2",
             "text": "这是我的理解内容，长度适中",
-            "color": "6"
+            "color": "6",
         }
         self.assertTrue(self.processor._is_yellow_node_opus(node_with_length))
 
         # 不符合条件的节点
-        node_invalid = {
-            "id": "test-3",
-            "text": "",
-            "color": "6"
-        }
+        node_invalid = {"id": "test-3", "text": "", "color": "6"}
         self.assertFalse(self.processor._is_yellow_node_opus(node_invalid))
 
     def test_process_canvas_operation(self):
         """测试Canvas操作处理"""
         result = self.processor.process_canvas_operation(
-            "intelligent_parallel",
-            "test.canvas",
-            options={"optimize": True}
+            "intelligent_parallel", "test.canvas", options={"optimize": True}
         )
 
         self.assertIsInstance(result, dict)
@@ -249,14 +228,9 @@ class TestGLMProcessor(unittest.TestCase):
                     "id": "yellow-1",
                     "type": "text",
                     "text": "黄色节点内容",
-                    "color": "6"
+                    "color": "6",
                 },
-                {
-                    "id": "red-1",
-                    "type": "text",
-                    "text": "红色节点",
-                    "color": "1"
-                }
+                {"id": "red-1", "type": "text", "text": "红色节点", "color": "1"},
             ]
         }
 
@@ -269,8 +243,7 @@ class TestGLMProcessor(unittest.TestCase):
     def test_intelligent_parallel_processing(self):
         """测试智能并行处理"""
         result = self.processor._process_intelligent_parallel(
-            "test.canvas",
-            {"parallel": True}
+            "test.canvas", {"parallel": True}
         )
 
         self.assertEqual(result["status"], "success")
@@ -300,14 +273,9 @@ class TestSonnetProcessor(unittest.TestCase):
                     "id": "yellow-1",
                     "type": "text",
                     "text": "这是一个较长的理解内容，超过10个字符",
-                    "color": "6"
+                    "color": "6",
                 },
-                {
-                    "id": "yellow-2",
-                    "type": "text",
-                    "text": "短",
-                    "color": "6"
-                }
+                {"id": "yellow-2", "type": "text", "text": "短", "color": "6"},
             ]
         }
 
@@ -336,12 +304,7 @@ class TestDefaultProcessor(unittest.TestCase):
         """测试默认黄色节点检测"""
         canvas_data = {
             "nodes": [
-                {
-                    "id": "yellow-1",
-                    "type": "text",
-                    "text": "黄色节点",
-                    "color": "6"
-                }
+                {"id": "yellow-1", "type": "text", "text": "黄色节点", "color": "6"}
             ]
         }
 
@@ -398,7 +361,7 @@ class TestModelCompatibilityAdapter(unittest.TestCase):
             "intelligent_parallel",
             "test.canvas",
             response=response,
-            options={"test": True}
+            options={"test": True},
         )
 
         self.assertIsInstance(result, dict)
@@ -412,7 +375,7 @@ class TestModelCompatibilityAdapter(unittest.TestCase):
                     "id": "yellow-1",
                     "type": "text",
                     "text": "我认为这是一个理解",
-                    "color": "6"
+                    "color": "6",
                 }
             ]
         }
@@ -436,6 +399,7 @@ class TestModelCompatibilityAdapter(unittest.TestCase):
 
     def test_register_custom_processor(self):
         """测试注册自定义处理器"""
+
         class CustomProcessor(BaseModelProcessor):
             def detect_yellow_nodes(self, canvas_data):
                 return NodeDetectionResult([], 0.8, "custom")
@@ -450,10 +414,7 @@ class TestModelCompatibilityAdapter(unittest.TestCase):
         self.adapter.register_custom_processor("custom-model", custom_processor)
 
         self.assertIn("custom-model", self.adapter.model_processors)
-        self.assertEqual(
-            self.adapter.get_processor("custom-model"),
-            custom_processor
-        )
+        self.assertEqual(self.adapter.get_processor("custom-model"), custom_processor)
 
     def test_get_supported_models(self):
         """测试获取支持的模型列表"""
@@ -478,7 +439,7 @@ class TestPerformanceBenchmarks(unittest.TestCase):
                     "id": f"node-{i}",
                     "type": "text",
                     "text": f"我认为这是第{i}个节点的理解内容",
-                    "color": "6"
+                    "color": "6",
                 }
                 for i in range(100)
             ]
@@ -504,7 +465,7 @@ class TestPerformanceBenchmarks(unittest.TestCase):
             OpusProcessor(),
             GLMProcessor(),
             SonnetProcessor(),
-            DefaultProcessor()
+            DefaultProcessor(),
         ]
 
         for processor in processors:
@@ -519,7 +480,7 @@ class TestPerformanceBenchmarks(unittest.TestCase):
                 self.assertLess(
                     processing_time,
                     50,
-                    f"{processor.__class__.__name__} 处理时间 {processing_time:.2f}ms 超过50ms"
+                    f"{processor.__class__.__name__} 处理时间 {processing_time:.2f}ms 超过50ms",
                 )
 
     def test_concurrent_processing(self):
@@ -532,8 +493,7 @@ class TestPerformanceBenchmarks(unittest.TestCase):
         def worker():
             try:
                 result = self.adapter.process_canvas_operation(
-                    "batch_processing",
-                    list(range(10))
+                    "batch_processing", list(range(10))
                 )
                 results.append(result)
             except Exception as e:
@@ -572,7 +532,7 @@ class TestConvenienceFunctions(unittest.TestCase):
 
     def test_detect_current_model(self):
         """测试检测当前模型"""
-        with patch.dict(os.environ, {'CLAUDE_MODEL': 'opus-4.1'}):
+        with patch.dict(os.environ, {"CLAUDE_MODEL": "opus-4.1"}):
             model = detect_current_model()
             self.assertEqual(model, "opus-4.1")
 

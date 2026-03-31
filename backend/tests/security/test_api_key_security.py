@@ -28,7 +28,7 @@ class TestApiKeyNotExposed:
 
     @pytest.mark.xfail(
         reason="Security improvement needed: ProviderConfig should mask api_key in __repr__",
-        strict=False
+        strict=False,
     )
     def test_provider_config_repr_hides_key(self):
         """Test ProviderConfig repr/str doesn't expose API key.
@@ -40,7 +40,7 @@ class TestApiKeyNotExposed:
         config = ProviderConfig(
             name="google",
             api_key="sk-super-secret-key-12345",
-            model="gemini-2.0-flash-exp"
+            model="gemini-2.0-flash-exp",
         )
 
         # Act
@@ -59,11 +59,11 @@ class TestApiKeyNotExposed:
         config = ProviderConfig(
             name="google",
             api_key="sk-super-secret-key-12345",
-            model="gemini-2.0-flash-exp"
+            model="gemini-2.0-flash-exp",
         )
 
         # Act - If to_dict exists
-        if hasattr(config, 'to_dict'):
+        if hasattr(config, "to_dict"):
             config_dict = config.to_dict()
             dict_str = json.dumps(config_dict)
 
@@ -78,10 +78,7 @@ class TestApiKeyNotExposed:
         api_key = "sk-super-secret-key-12345"
 
         # Act - Create error with potentially sensitive info
-        ProviderError(
-            f"Failed to authenticate with key {api_key}",
-            provider="google"
-        )
+        ProviderError(f"Failed to authenticate with key {api_key}", provider="google")
 
         # Note: This test documents expected behavior
         # Implementation should sanitize error messages
@@ -98,13 +95,13 @@ class TestApiKeyNotExposed:
         # Assert
         response_text = response.text
         # Common API key patterns
-        assert not re.search(r'sk-[a-zA-Z0-9]{20,}', response_text)
-        assert not re.search(r'AIza[a-zA-Z0-9_-]{35}', response_text)  # Google
-        assert not re.search(r'sk-[a-zA-Z0-9]{48}', response_text)  # OpenAI
+        assert not re.search(r"sk-[a-zA-Z0-9]{20,}", response_text)
+        assert not re.search(r"AIza[a-zA-Z0-9_-]{35}", response_text)  # Google
+        assert not re.search(r"sk-[a-zA-Z0-9]{48}", response_text)  # OpenAI
 
     @pytest.mark.xfail(
         reason="Security improvement needed: ProviderConfig __repr__ should mask api_key for safe logging",
-        strict=False
+        strict=False,
     )
     def test_logs_do_not_contain_keys(self, caplog):
         """Test logging doesn't expose API keys.
@@ -117,11 +114,7 @@ class TestApiKeyNotExposed:
         api_key = "sk-test-secret-key-12345"
 
         # Act - Simulate provider initialization with logging
-        config = ProviderConfig(
-            name="test",
-            api_key=api_key,
-            model="test-model"
-        )
+        config = ProviderConfig(name="test", api_key=api_key, model="test-model")
 
         # Log configuration (simulating what code might do)
         logging.info(f"Initializing provider: {config.name}")
@@ -162,8 +155,8 @@ class TestApiKeyStorage:
             if config_file.exists():
                 content = config_file.read_text()
                 # Should not contain actual API keys
-                assert not re.search(r'sk-[a-zA-Z0-9]{20,}', content)
-                assert not re.search(r'AIza[a-zA-Z0-9_-]{35}', content)
+                assert not re.search(r"sk-[a-zA-Z0-9]{20,}", content)
+                assert not re.search(r"AIza[a-zA-Z0-9_-]{35}", content)
 
     def test_env_example_has_placeholders(self):
         """Test .env.example uses placeholders, not real keys."""
@@ -174,7 +167,11 @@ class TestApiKeyStorage:
             content = env_example.read_text()
 
             # Should have placeholder patterns
-            assert "your-" in content.lower() or "placeholder" in content.lower() or "xxx" in content.lower()
+            assert (
+                "your-" in content.lower()
+                or "placeholder" in content.lower()
+                or "xxx" in content.lower()
+            )
 
 
 class TestKeyRotation:
@@ -190,9 +187,7 @@ class TestKeyRotation:
         # Creating new config directly simulates rotation
         # Act - Simulate key rotation
         rotated_config = ProviderConfig(
-            name="test",
-            api_key=new_key,
-            model="test-model"
+            name="test", api_key=new_key, model="test-model"
         )
 
         # Assert
@@ -228,23 +223,26 @@ class TestSecurityCompliance:
         suspicious_patterns = [
             r'api_key\s*=\s*["\'][^"\']+["\']',  # api_key = "..."
             r'password\s*=\s*["\'][^"\']+["\']',  # password = "..."
-            r'secret\s*=\s*["\'][^"\']+["\']',   # secret = "..."
+            r'secret\s*=\s*["\'][^"\']+["\']',  # secret = "..."
         ]
 
         for py_file in python_files:
-            content = py_file.read_text(encoding='utf-8', errors='ignore')
+            content = py_file.read_text(encoding="utf-8", errors="ignore")
             for pattern in suspicious_patterns:
                 matches = re.findall(pattern, content, re.IGNORECASE)
                 # Filter out obvious placeholders
                 for match in matches:
-                    if not any(x in match.lower() for x in ['test', 'example', 'placeholder', 'xxx', 'your-']):
+                    if not any(
+                        x in match.lower()
+                        for x in ["test", "example", "placeholder", "xxx", "your-"]
+                    ):
                         # This is a potential security issue
                         # pytest.fail(f"Potential hardcoded credential in {py_file}: {match}")
                         pass  # Log for review
 
     @pytest.mark.xfail(
         reason="Security improvement needed: ProviderConfig should validate minimum API key length",
-        strict=False
+        strict=False,
     )
     def test_api_key_min_length(self):
         """Test API key validation requires minimum length.
@@ -257,10 +255,10 @@ class TestSecurityCompliance:
             config = ProviderConfig(
                 name="test",
                 api_key="short",  # Too short
-                model="test-model"
+                model="test-model",
             )
             # If validation is in __post_init__ or explicit method
-            if hasattr(config, 'validate'):
+            if hasattr(config, "validate"):
                 config.validate()
 
     def test_https_only_for_api_calls(self):
@@ -284,7 +282,7 @@ class TestInputValidation:
 
     @pytest.mark.xfail(
         reason="Security improvement needed: ProviderConfig __repr__ should mask api_key",
-        strict=False
+        strict=False,
     )
     def test_api_key_injection_prevention(self):
         """Test API key field prevents injection attacks.
@@ -294,17 +292,13 @@ class TestInputValidation:
         """
         malicious_inputs = [
             "key' OR '1'='1",  # SQL injection
-            "key; rm -rf /",   # Command injection
+            "key; rm -rf /",  # Command injection
             "<script>alert('xss')</script>",  # XSS
-            "${env:SECRET}",   # Variable expansion
+            "${env:SECRET}",  # Variable expansion
         ]
 
         for malicious in malicious_inputs:
-            config = ProviderConfig(
-                name="test",
-                api_key=malicious,
-                model="test-model"
-            )
+            config = ProviderConfig(name="test", api_key=malicious, model="test-model")
             # Key should be stored as-is (escaped when used)
             assert config.api_key == malicious
             # But repr should not expose it
@@ -316,9 +310,5 @@ class TestInputValidation:
         valid_names = ["google", "openai", "anthropic", "test-provider"]
 
         for name in valid_names:
-            config = ProviderConfig(
-                name=name,
-                api_key="test-key",
-                model="test-model"
-            )
+            config = ProviderConfig(name=name, api_key="test-key", model="test-model")
             assert config.name == name

@@ -59,7 +59,9 @@ class ExamSessionCreate(BaseModel):
 
     source_canvas_id: str = Field(..., description="Original canvas board ID")
     exam_mode: ExamMode = Field(default=ExamMode.MIXED, description="Examination mode")
-    target_node_id: Optional[str] = Field(None, description="Single-node exam target (Story 6.2 AC-6)")
+    target_node_id: Optional[str] = Field(
+        None, description="Single-node exam target (Story 6.2 AC-6)"
+    )
 
 
 class ExamSessionResponse(BaseModel):
@@ -76,7 +78,9 @@ class ExamSessionResponse(BaseModel):
     score_history: List[Dict[str, Any]] = Field(default_factory=list)
     target_node_id: Optional[str] = None
     current_node_id: Optional[str] = None
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
 
 class ExamStatusUpdate(BaseModel):
@@ -103,7 +107,9 @@ class CanvasAnalysisRequest(BaseModel):
     """Request body for POST /api/v1/exam/analyze-canvas (Story 6.2 AC-2)."""
 
     canvas_id: str = Field(..., description="Canvas board to analyze")
-    target_node_id: Optional[str] = Field(None, description="Analyze single node instead of full canvas")
+    target_node_id: Optional[str] = Field(
+        None, description="Analyze single node instead of full canvas"
+    )
 
 
 class CanvasAnalysisResponse(BaseModel):
@@ -144,24 +150,36 @@ class AutoScoreResult(BaseModel):
     confidence: str = Field(default="high", description="high | medium | low")
     low_confidence_dimensions: List[str] = Field(default_factory=list)
     feedback_summary: str = ""
-    scored_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    scored_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
     # Story 6.9: Scoring Faithfulness fields (AC-1, AC-2)
     faithfulness_score: float = Field(
-        default=1.0, ge=0.0, le=1.0, description="Combined faithfulness score (grounding + consistency) / 2"
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Combined faithfulness score (grounding + consistency) / 2",
     )
     faithfulness_passed: bool = Field(
-        default=True, description="True if faithfulness_score >= 0.85 and not overall low confidence"
+        default=True,
+        description="True if faithfulness_score >= 0.85 and not overall low confidence",
     )
-    evidence_grounding_score: float = Field(default=1.0, ge=0.0, le=1.0, description="Stage 1 evidence grounding score")
+    evidence_grounding_score: float = Field(
+        default=1.0, ge=0.0, le=1.0, description="Stage 1 evidence grounding score"
+    )
     score_consistency_score: float = Field(
-        default=1.0, ge=0.0, le=1.0, description="Stage 2 score-evidence consistency score"
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Stage 2 score-evidence consistency score",
     )
     faithfulness_details: Dict[str, Any] = Field(
         default_factory=dict, description="Detailed faithfulness check results"
     )
     verified: bool = Field(
-        default=True, description="False if faithfulness check failed; score pending re-verification"
+        default=True,
+        description="False if faithfulness check failed; score pending re-verification",
     )
 
 
@@ -179,7 +197,9 @@ class ACPData(BaseModel):
 
     node_id: str
     node_content: str = ""
-    node_type: str = Field(default="knowledge_point", description="knowledge_point | problem_type")
+    node_type: str = Field(
+        default="knowledge_point", description="knowledge_point | problem_type"
+    )
     student_tips: List[str] = Field(default_factory=list)
     error_history: List[Dict[str, str]] = Field(default_factory=list)
     edge_reasons: List[str] = Field(default_factory=list)
@@ -232,13 +252,19 @@ class DiscoveredNode(BaseModel):
     """
 
     node_id: str = Field(..., description="ID of the newly discovered node")
-    source_node_id: str = Field(..., description="Node whose dialogue led to this discovery")
-    depth: int = Field(..., ge=1, description="Recursion depth (1 = pulled from original exam node)")
+    source_node_id: str = Field(
+        ..., description="Node whose dialogue led to this discovery"
+    )
+    depth: int = Field(
+        ..., ge=1, description="Recursion depth (1 = pulled from original exam node)"
+    )
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="When the node was discovered",
     )
-    source_exam_id: str = Field("", description="ID of the exam whiteboard where discovered")
+    source_exam_id: str = Field(
+        "", description="ID of the exam whiteboard where discovered"
+    )
 
 
 class ExamNodeSyncRequest(BaseModel):
@@ -252,7 +278,9 @@ class ExamNodeSyncRequest(BaseModel):
     node_id: str = Field(..., description="New node ID")
     node_text: str = Field(..., description="Node text content")
     source_node_id: str = Field(..., description="Parent node in exam context")
-    suggested_relation: str = Field("related_to", description="LLM-suggested relation type")
+    suggested_relation: str = Field(
+        "related_to", description="LLM-suggested relation type"
+    )
     position_x: Optional[float] = Field(None, description="X position on source canvas")
     position_y: Optional[float] = Field(None, description="Y position on source canvas")
 
@@ -297,8 +325,12 @@ class HintRequest(BaseModel):
 
     exam_id: str = Field(..., description="Exam session ID")
     node_id: str = Field(..., description="Node being examined")
-    hint_level: int = Field(..., ge=1, le=4, description="Hint level 1-4 (direction -> scaffolded)")
-    question_context: str = Field(..., description="Current question text for hint generation")
+    hint_level: int = Field(
+        ..., ge=1, le=4, description="Hint level 1-4 (direction -> scaffolded)"
+    )
+    question_context: str = Field(
+        ..., description="Current question text for hint generation"
+    )
     question_id: str = Field("", description="Question ID if available")
 
 
@@ -310,12 +342,18 @@ class HintResponse(BaseModel):
 
     hint_text: str = Field(..., description="Generated hint text")
     current_level: int = Field(..., ge=1, le=4, description="Current hint level")
-    remaining_levels: int = Field(..., ge=0, le=3, description="How many hint levels remain")
+    remaining_levels: int = Field(
+        ..., ge=0, le=3, description="How many hint levels remain"
+    )
     status: str = "ok"
     message: str = ""
     # F12: Scaffolding gradual deprecation
-    hint_available: bool = Field(True, description="Whether hints are available (F12 mastery fade-out)")
-    max_allowed_level: int = Field(4, ge=0, le=4, description="Highest hint level allowed by mastery")
+    hint_available: bool = Field(
+        True, description="Whether hints are available (F12 mastery fade-out)"
+    )
+    max_allowed_level: int = Field(
+        4, ge=0, le=4, description="Highest hint level allowed by mastery"
+    )
 
 
 class HintUsage(BaseModel):
@@ -325,8 +363,12 @@ class HintUsage(BaseModel):
     """
 
     node_id: str
-    max_hint_level_used: int = Field(0, ge=0, le=4, description="Highest hint level used (0 = no hints)")
-    hint_texts: List[str] = Field(default_factory=list, description="Hint texts provided at each level")
+    max_hint_level_used: int = Field(
+        0, ge=0, le=4, description="Highest hint level used (0 = no hints)"
+    )
+    hint_texts: List[str] = Field(
+        default_factory=list, description="Hint texts provided at each level"
+    )
 
 
 class SkipRecord(BaseModel):
@@ -361,8 +403,12 @@ class SkipResponse(BaseModel):
     """
 
     skipped: bool = True
-    bkt_penalized: bool = Field(False, description="Always False — skip never penalizes BKT")
-    fsrs_updated: bool = Field(False, description="Always False — skip never triggers FSRS update")
+    bkt_penalized: bool = Field(
+        False, description="Always False — skip never penalizes BKT"
+    )
+    fsrs_updated: bool = Field(
+        False, description="Always False — skip never triggers FSRS update"
+    )
     status: str = "ok"
     message: str = ""
 
@@ -391,7 +437,9 @@ class ExamStatusUpdateResponse(BaseModel):
 
     exam_id: str
     status: ExamStatus
-    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     message: str = ""
 
 
@@ -413,7 +461,9 @@ class NodeScoreRecord(BaseModel):
     knowledge_coverage: int = Field(0, ge=0, le=3)
     knowledge_integration: int = Field(0, ge=0, le=3)
     overall_score: int = Field(0, ge=0, le=12)
-    grade: int = Field(0, ge=0, le=4, description="1=Forgot, 2=Struggled, 3=Correct, 4=Fluent")
+    grade: int = Field(
+        0, ge=0, le=4, description="1=Forgot, 2=Struggled, 3=Correct, 4=Fluent"
+    )
     confidence: str = Field("medium", description="high|medium|low")
     hint_usage: Optional[HintUsage] = None
     proficiency_before: float = Field(0.0, ge=0.0, le=1.0)
@@ -426,9 +476,13 @@ class ConversationMessage(BaseModel):
     [Source: Story 6.8 AC-3]
     """
 
-    role: str = Field(..., description="user | assistant | system | hint | rest_reminder")
+    role: str = Field(
+        ..., description="user | assistant | system | hint | rest_reminder"
+    )
     content: str = Field(..., description="Message text")
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     node_id: str = Field("", description="Associated node if applicable")
 
 
@@ -463,16 +517,24 @@ class ExamCompleteRequest(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="Exam end time",
     )
-    active_duration_seconds: int = Field(0, ge=0, description="Active exam time (excluding pauses/inactive)")
-    score_history: List[NodeScoreRecord] = Field(default_factory=list, description="Per-node scoring records")
+    active_duration_seconds: int = Field(
+        0, ge=0, description="Active exam time (excluding pauses/inactive)"
+    )
+    score_history: List[NodeScoreRecord] = Field(
+        default_factory=list, description="Per-node scoring records"
+    )
     discovered_nodes: List[DiscoveredNode] = Field(
         default_factory=list, description="Nodes discovered via recursive exam"
     )
-    skipped_nodes: List[SkipRecord] = Field(default_factory=list, description="Skipped questions")
+    skipped_nodes: List[SkipRecord] = Field(
+        default_factory=list, description="Skipped questions"
+    )
     conversation_log: List[ConversationMessage] = Field(
         default_factory=list, description="Full conversation replay data"
     )
-    mastery_changes: List[MasteryChange] = Field(default_factory=list, description="Per-node mastery deltas")
+    mastery_changes: List[MasteryChange] = Field(
+        default_factory=list, description="Per-node mastery deltas"
+    )
 
 
 class ExamCompleteResponse(BaseModel):

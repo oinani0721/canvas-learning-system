@@ -62,10 +62,18 @@ def _load_calibration_thresholds() -> None:
                 cal = data.get("calibration_thresholds", {})
                 if cal:
                     CONFIDENCE_THRESHOLD = cal.get("confidence", CONFIDENCE_THRESHOLD)
-                    PERFORMANCE_THRESHOLD = cal.get("performance", PERFORMANCE_THRESHOLD)
-                    STAGE_2_MIN_RECORDS = cal.get("stage_2_min_records", STAGE_2_MIN_RECORDS)
-                    STAGE_3_MIN_RECORDS = cal.get("stage_3_min_records", STAGE_3_MIN_RECORDS)
-                    CALIBRATION_BIAS_THRESHOLD = cal.get("bias_threshold", CALIBRATION_BIAS_THRESHOLD)
+                    PERFORMANCE_THRESHOLD = cal.get(
+                        "performance", PERFORMANCE_THRESHOLD
+                    )
+                    STAGE_2_MIN_RECORDS = cal.get(
+                        "stage_2_min_records", STAGE_2_MIN_RECORDS
+                    )
+                    STAGE_3_MIN_RECORDS = cal.get(
+                        "stage_3_min_records", STAGE_3_MIN_RECORDS
+                    )
+                    CALIBRATION_BIAS_THRESHOLD = cal.get(
+                        "bias_threshold", CALIBRATION_BIAS_THRESHOLD
+                    )
                     logger.info(
                         "Loaded calibration thresholds from %s: confidence=%.2f performance=%.2f",
                         config_path,
@@ -74,13 +82,17 @@ def _load_calibration_thresholds() -> None:
                     )
                 break
             except (json.JSONDecodeError, OSError) as e:
-                logger.warning("Failed to load calibration config from %s: %s", config_path, e)
+                logger.warning(
+                    "Failed to load calibration config from %s: %s", config_path, e
+                )
 
 
 _load_calibration_thresholds()
 
 
-def classify_quadrant(self_confidence: float, actual_performance: float) -> CalibrationQuadrant:
+def classify_quadrant(
+    self_confidence: float, actual_performance: float
+) -> CalibrationQuadrant:
     """Classify a (confidence, performance) pair into Area9 quadrant.
 
     Area9 2x2 Matrix:
@@ -147,7 +159,9 @@ def compute_absolute_bias(records: List[CalibrationRecord]) -> float:
     return round(total / len(records), 3)
 
 
-def compute_calibration_rating(signed_bias: float, record_count: int) -> CalibrationRating:
+def compute_calibration_rating(
+    signed_bias: float, record_count: int
+) -> CalibrationRating:
     """Determine calibration quality rating.
 
     Three-stage progressive logic:

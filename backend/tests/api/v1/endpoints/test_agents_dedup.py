@@ -46,12 +46,14 @@ class TestDedupEndpointResponses:
 
         # Mock dependencies to avoid actual service calls
         async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test"
+            transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
-            with patch("app.api.v1.endpoints.agents.check_duplicate_request") as mock_check:
+            with patch(
+                "app.api.v1.endpoints.agents.check_duplicate_request"
+            ) as mock_check:
                 # Simulate 409 from check_duplicate_request
                 from fastapi import HTTPException
+
                 mock_check.side_effect = HTTPException(
                     status_code=409,
                     detail={
@@ -60,16 +62,13 @@ class TestDedupEndpointResponses:
                         "canvas_name": "test.canvas",
                         "node_id": "node123",
                         "agent_type": "explain_oral",
-                        "is_retryable": False
-                    }
+                        "is_retryable": False,
+                    },
                 )
 
                 response = await ac.post(
                     "/api/v1/agents/explain/oral",
-                    json={
-                        "canvas_name": "test.canvas",
-                        "node_id": "node123"
-                    }
+                    json={"canvas_name": "test.canvas", "node_id": "node123"},
                 )
 
                 assert response.status_code == 409
@@ -81,11 +80,13 @@ class TestDedupEndpointResponses:
         request_cache.mark_in_progress(cache_key)
 
         async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test"
+            transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
-            with patch("app.api.v1.endpoints.agents.check_duplicate_request") as mock_check:
+            with patch(
+                "app.api.v1.endpoints.agents.check_duplicate_request"
+            ) as mock_check:
                 from fastapi import HTTPException
+
                 mock_check.side_effect = HTTPException(
                     status_code=409,
                     detail={
@@ -94,16 +95,13 @@ class TestDedupEndpointResponses:
                         "canvas_name": "test.canvas",
                         "node_id": "node123",
                         "agent_type": "explain_oral",
-                        "is_retryable": False
-                    }
+                        "is_retryable": False,
+                    },
                 )
 
                 response = await ac.post(
                     "/api/v1/agents/explain/oral",
-                    json={
-                        "canvas_name": "test.canvas",
-                        "node_id": "node123"
-                    }
+                    json={"canvas_name": "test.canvas", "node_id": "node123"},
                 )
 
                 assert response.status_code == 409
@@ -128,7 +126,7 @@ class TestDedupConfigToggle:
 
         try:
             # Temporarily disable dedup
-            object.__setattr__(settings, 'ENABLE_REQUEST_DEDUP', False)
+            object.__setattr__(settings, "ENABLE_REQUEST_DEDUP", False)
 
             request_cache.clear()
             # Should return empty string (dedup disabled)
@@ -136,11 +134,12 @@ class TestDedupConfigToggle:
             assert result == ""
         finally:
             # Restore original value
-            object.__setattr__(settings, 'ENABLE_REQUEST_DEDUP', original_value)
+            object.__setattr__(settings, "ENABLE_REQUEST_DEDUP", original_value)
 
     def test_dedup_enabled_by_default(self):
         """Dedup should be enabled by default."""
         from app.config import settings
+
         assert settings.ENABLE_REQUEST_DEDUP is True
 
 
@@ -195,7 +194,10 @@ class TestDedupHelperFunctions:
 
     def test_complete_request_marks_completed(self):
         """complete_request should mark request as completed."""
-        from app.api.v1.endpoints.agents import check_duplicate_request, complete_request
+        from app.api.v1.endpoints.agents import (
+            check_duplicate_request,
+            complete_request,
+        )
 
         with patch("app.api.v1.endpoints.agents.settings") as mock_settings:
             mock_settings.ENABLE_REQUEST_DEDUP = True

@@ -18,10 +18,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from learning_session_wrapper import LearningSession, LearningSessionWrapper
+
     print("Learning session wrapper imported successfully")
 except ImportError as e:
     print(f"Import failed: {e}")
     sys.exit(1)
+
 
 class TestLearningSessionSystem(unittest.TestCase):
     """Learning session system test class"""
@@ -49,7 +51,7 @@ class TestLearningSessionSystem(unittest.TestCase):
                     "width": 200,
                     "height": 100,
                     "color": "1",
-                    "content": "What is a test concept?"
+                    "content": "What is a test concept?",
                 },
                 {
                     "id": "test-yellow-1",
@@ -59,23 +61,23 @@ class TestLearningSessionSystem(unittest.TestCase):
                     "width": 200,
                     "height": 100,
                     "color": "6",
-                    "content": "My test understanding"
-                }
+                    "content": "My test understanding",
+                },
             ],
             "edges": [
                 {
                     "id": "test-edge-1",
                     "fromNode": "test-question-1",
                     "toNode": "test-yellow-1",
-                    "label": "Learning path"
+                    "label": "Learning path",
                 }
-            ]
+            ],
         }
 
         test_dir = Path("tests")
         test_dir.mkdir(exist_ok=True)
 
-        with open(self.test_canvas_path, 'w', encoding='utf-8') as f:
+        with open(self.test_canvas_path, "w", encoding="utf-8") as f:
             json.dump(test_canvas, f, ensure_ascii=False, indent=2)
 
     def _cleanup_test_files(self):
@@ -97,18 +99,17 @@ class TestLearningSessionSystem(unittest.TestCase):
 
         async def run_test():
             result = await self.wrapper.start_session(
-                canvas_path=self.test_canvas_path,
-                session_name="Test Learning Session"
+                canvas_path=self.test_canvas_path, session_name="Test Learning Session"
             )
 
-            self.assertTrue(result['success'])
-            self.assertIsNotNone(result['session_id'])
-            self.assertEqual(result['session_name'], "Test Learning Session")
-            self.assertEqual(result['canvas_path'], self.test_canvas_path)
+            self.assertTrue(result["success"])
+            self.assertIsNotNone(result["session_id"])
+            self.assertEqual(result["session_name"], "Test Learning Session")
+            self.assertEqual(result["canvas_path"], self.test_canvas_path)
 
             session = self.wrapper.current_session
             self.assertIsNotNone(session)
-            self.assertEqual(session.session_id, result['session_id'])
+            self.assertEqual(session.session_id, result["session_id"])
 
             print(f"Session started successfully: {result['session_id']}")
 
@@ -120,18 +121,19 @@ class TestLearningSessionSystem(unittest.TestCase):
 
         async def run_test():
             start_result = await self.wrapper.start_session(
-                canvas_path=self.test_canvas_path,
-                session_name="Status Test Session"
+                canvas_path=self.test_canvas_path, session_name="Status Test Session"
             )
-            self.assertTrue(start_result['success'])
+            self.assertTrue(start_result["success"])
 
             status_result = await self.wrapper.get_session_status()
-            self.assertTrue(status_result['success'])
-            self.assertEqual(status_result['session_id'], start_result['session_id'])
-            self.assertEqual(status_result['session_name'], "Status Test Session")
-            self.assertEqual(status_result['canvas_path'], self.test_canvas_path)
+            self.assertTrue(status_result["success"])
+            self.assertEqual(status_result["session_id"], start_result["session_id"])
+            self.assertEqual(status_result["session_name"], "Status Test Session")
+            self.assertEqual(status_result["canvas_path"], self.test_canvas_path)
 
-            print(f"Status query successful: session running for {status_result['duration_seconds']:.1f}s")
+            print(
+                f"Status query successful: session running for {status_result['duration_seconds']:.1f}s"
+            )
 
         asyncio.run(run_test())
 
@@ -141,20 +143,21 @@ class TestLearningSessionSystem(unittest.TestCase):
 
         async def run_test():
             start_result = await self.wrapper.start_session(
-                canvas_path=self.test_canvas_path,
-                session_name="Stop Test Session"
+                canvas_path=self.test_canvas_path, session_name="Stop Test Session"
             )
-            self.assertTrue(start_result['success'])
+            self.assertTrue(start_result["success"])
 
             await asyncio.sleep(0.5)
 
             stop_result = await self.wrapper.stop_session(save_report=True)
-            self.assertTrue(stop_result['success'])
-            self.assertIsNotNone(stop_result['end_time'])
+            self.assertTrue(stop_result["success"])
+            self.assertIsNotNone(stop_result["end_time"])
 
             self.assertIsNone(self.wrapper.current_session)
 
-            print(f"Session stopped successfully: duration {stop_result['duration_seconds']:.1f}s")
+            print(
+                f"Session stopped successfully: duration {stop_result['duration_seconds']:.1f}s"
+            )
 
         asyncio.run(run_test())
 
@@ -164,22 +167,23 @@ class TestLearningSessionSystem(unittest.TestCase):
 
         async def run_test():
             start_result = await self.wrapper.start_session(
-                canvas_path=self.test_canvas_path,
-                session_name="Report Test Session"
+                canvas_path=self.test_canvas_path, session_name="Report Test Session"
             )
-            self.assertTrue(start_result['success'])
+            self.assertTrue(start_result["success"])
 
             await asyncio.sleep(0.5)
 
             report_result = await self.wrapper.generate_report()
-            self.assertTrue(report_result['success'])
-            self.assertIsNotNone(report_result['report'])
+            self.assertTrue(report_result["success"])
+            self.assertIsNotNone(report_result["report"])
 
-            report = report_result['report']
-            self.assertEqual(report['session_id'], start_result['session_id'])
-            self.assertEqual(report['session_name'], "Report Test Session")
+            report = report_result["report"]
+            self.assertEqual(report["session_id"], start_result["session_id"])
+            self.assertEqual(report["session_name"], "Report Test Session")
 
-            print(f"Report generated successfully: {report['duration_seconds']:.1f}s learning duration")
+            print(
+                f"Report generated successfully: {report['duration_seconds']:.1f}s learning duration"
+            )
 
         asyncio.run(run_test())
 
@@ -189,14 +193,15 @@ class TestLearningSessionSystem(unittest.TestCase):
 
         async def run_test():
             result1 = await self.wrapper.start_session(
-                canvas_path="nonexistent_file.canvas",
-                session_name="Error Test Session"
+                canvas_path="nonexistent_file.canvas", session_name="Error Test Session"
             )
 
             result2 = await self.wrapper.stop_session("nonexistent_session_id")
-            self.assertFalse(result2['success'])
+            self.assertFalse(result2["success"])
 
-            print(f"Error handling test passed: invalid file handled={result1.get('success', False)}, invalid session handled={not result2['success']}")
+            print(
+                f"Error handling test passed: invalid file handled={result1.get('success', False)}, invalid session handled={not result2['success']}"
+            )
 
         asyncio.run(run_test())
 
@@ -209,24 +214,31 @@ class TestLearningSessionSystem(unittest.TestCase):
 
             result = await self.wrapper.start_session(
                 canvas_path=self.test_canvas_path,
-                session_name="Performance Test Session"
+                session_name="Performance Test Session",
             )
 
             startup_time = time.time() - start_time
 
-            self.assertTrue(result['success'])
-            self.assertLess(startup_time, 5.0, "Startup time should be less than 5 seconds")
+            self.assertTrue(result["success"])
+            self.assertLess(
+                startup_time, 5.0, "Startup time should be less than 5 seconds"
+            )
 
             start_time = time.time()
             status = await self.wrapper.get_session_status()
             query_time = time.time() - start_time
 
-            self.assertTrue(status['success'])
-            self.assertLess(query_time, 1.0, "Status query time should be less than 1 second")
+            self.assertTrue(status["success"])
+            self.assertLess(
+                query_time, 1.0, "Status query time should be less than 1 second"
+            )
 
-            print(f"Performance test passed: startup={startup_time:.3f}s, query={query_time:.3f}s")
+            print(
+                f"Performance test passed: startup={startup_time:.3f}s, query={query_time:.3f}s"
+            )
 
         asyncio.run(run_test())
+
 
 def run_all_tests():
     """Run all tests"""
@@ -255,7 +267,9 @@ def run_all_tests():
     print(f"Passed: {total_tests - failures - errors}")
     print(f"Failed: {failures}")
     print(f"Errors: {errors}")
-    print(f"Success rate: {((total_tests - failures - errors) / total_tests * 100):.1f}%")
+    print(
+        f"Success rate: {((total_tests - failures - errors) / total_tests * 100):.1f}%"
+    )
 
     if failures == 0 and errors == 0:
         print("\nAll tests passed! Learning session management system is ready.")
@@ -263,6 +277,7 @@ def run_all_tests():
     else:
         print(f"\nFound {failures + errors} issues, please check and fix.")
         return False
+
 
 if __name__ == "__main__":
     success = run_all_tests()

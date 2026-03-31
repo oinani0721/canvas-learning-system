@@ -25,6 +25,7 @@ from bmad_orchestrator.status_persister import StatusPersister
 # Test Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def temp_project_dir():
     """Create a temporary project directory with YAML structure."""
@@ -137,6 +138,7 @@ def workflow_state_halted():
 # Test: _extract_story_statuses
 # ============================================================================
 
+
 class TestExtractStoryStatuses:
     """Tests for status extraction from workflow state."""
 
@@ -152,18 +154,18 @@ class TestExtractStoryStatuses:
         """Mixed QA/DEV outcomes -> correct status mapping."""
         statuses = persister._extract_story_statuses(workflow_state_mixed)
 
-        assert statuses["14.1"] == "completed"    # QA PASS
-        assert statuses["14.2"] == "qa-review"    # QA CONCERNS
-        assert statuses["14.3"] == "blocked"      # DEV_BLOCKED
-        assert statuses["14.4"] == "draft"        # In drafts + approved
+        assert statuses["14.1"] == "completed"  # QA PASS
+        assert statuses["14.2"] == "qa-review"  # QA CONCERNS
+        assert statuses["14.3"] == "blocked"  # DEV_BLOCKED
+        assert statuses["14.4"] == "draft"  # In drafts + approved
 
     def test_halted_workflow(self, persister, workflow_state_halted):
         """Halted workflow -> partial statuses."""
         statuses = persister._extract_story_statuses(workflow_state_halted)
 
         assert statuses["15.1"] == "dev-complete"  # DEV SUCCESS but no QA
-        assert statuses["15.2"] == "draft"         # In drafts
-        assert statuses["15.3"] == "pending"       # Not started
+        assert statuses["15.2"] == "draft"  # In drafts
+        assert statuses["15.3"] == "pending"  # Not started
 
     def test_empty_state(self, persister):
         """Empty state -> empty statuses."""
@@ -220,6 +222,7 @@ class TestExtractStoryStatuses:
 # Test: _update_epic_status
 # ============================================================================
 
+
 class TestUpdateEpicStatus:
     """Tests for epic status updates."""
 
@@ -228,7 +231,9 @@ class TestUpdateEpicStatus:
         yaml_data = {"epics": {}}
         statuses = {"13.1": "completed", "13.2": "completed", "13.3": "completed"}
 
-        persister._update_epic_status(yaml_data, "13", statuses, workflow_state_all_success)
+        persister._update_epic_status(
+            yaml_data, "13", statuses, workflow_state_all_success
+        )
 
         assert yaml_data["epics"]["epic-13"]["status"] == "completed"
         assert "completion_date" in yaml_data["epics"]["epic-13"]
@@ -265,7 +270,9 @@ class TestUpdateEpicStatus:
         yaml_data = {"epics": {}}
         statuses = {"13.1": "completed", "13.2": "blocked"}
 
-        persister._update_epic_status(yaml_data, "13", statuses, workflow_state_all_success)
+        persister._update_epic_status(
+            yaml_data, "13", statuses, workflow_state_all_success
+        )
 
         assert "✅" in yaml_data["epics"]["epic-13"]["substories"]["13.1"]
         assert "❌" in yaml_data["epics"]["epic-13"]["substories"]["13.2"]
@@ -286,6 +293,7 @@ class TestUpdateEpicStatus:
 # ============================================================================
 # Test: Downgrade Protection
 # ============================================================================
+
 
 class TestDowngradeProtection:
     """Tests for status downgrade protection."""
@@ -319,6 +327,7 @@ class TestDowngradeProtection:
 # Test: YAML Persistence
 # ============================================================================
 
+
 class TestYAMLPersistence:
     """Tests for YAML file operations."""
 
@@ -327,25 +336,31 @@ class TestYAMLPersistence:
         """Persisting to non-existent file creates it."""
         assert not persister.yaml_file.exists()
 
-        result = await persister.persist_workflow_result(workflow_state_all_success, "13")
+        result = await persister.persist_workflow_result(
+            workflow_state_all_success, "13"
+        )
 
         assert result is True
         assert persister.yaml_file.exists()
 
     @pytest.mark.asyncio
-    async def test_persist_merges_data(self, persister, sample_yaml_data, workflow_state_all_success):
+    async def test_persist_merges_data(
+        self, persister, sample_yaml_data, workflow_state_all_success
+    ):
         """Persisting merges with existing data."""
         # Write existing data
         persister.yaml_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(persister.yaml_file, 'w', encoding='utf-8') as f:
+        with open(persister.yaml_file, "w", encoding="utf-8") as f:
             yaml.dump(sample_yaml_data, f)
 
-        result = await persister.persist_workflow_result(workflow_state_all_success, "13")
+        result = await persister.persist_workflow_result(
+            workflow_state_all_success, "13"
+        )
 
         assert result is True
 
         # Read back and verify
-        with open(persister.yaml_file, 'r', encoding='utf-8') as f:
+        with open(persister.yaml_file, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         # Old epic preserved
@@ -354,13 +369,17 @@ class TestYAMLPersistence:
         assert "epic-13" in data["epics"]
 
     @pytest.mark.asyncio
-    async def test_persist_updates_timestamp(self, persister, workflow_state_all_success):
+    async def test_persist_updates_timestamp(
+        self, persister, workflow_state_all_success
+    ):
         """Persisting updates last_updated timestamp."""
-        result = await persister.persist_workflow_result(workflow_state_all_success, "13")
+        result = await persister.persist_workflow_result(
+            workflow_state_all_success, "13"
+        )
 
         assert result is True
 
-        with open(persister.yaml_file, 'r', encoding='utf-8') as f:
+        with open(persister.yaml_file, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         assert data["project"]["last_updated"] == datetime.now().strftime("%Y-%m-%d")
@@ -373,11 +392,13 @@ class TestYAMLPersistence:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_persist_creates_backup(self, persister, sample_yaml_data, workflow_state_all_success):
+    async def test_persist_creates_backup(
+        self, persister, sample_yaml_data, workflow_state_all_success
+    ):
         """Persisting creates backup of existing file."""
         # Write existing data
         persister.yaml_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(persister.yaml_file, 'w', encoding='utf-8') as f:
+        with open(persister.yaml_file, "w", encoding="utf-8") as f:
             yaml.dump(sample_yaml_data, f)
 
         await persister.persist_workflow_result(workflow_state_all_success, "13")
@@ -391,15 +412,20 @@ class TestYAMLPersistence:
 # Test: Parallel Section Updates
 # ============================================================================
 
+
 class TestParallelSectionUpdates:
     """Tests for parallel_development section updates."""
 
     def test_success_clears_sprint(self, persister, workflow_state_all_success):
         """Successful workflow clears current_sprint."""
-        yaml_data = {"parallel_development": {"current_sprint": {"sprint_id": "epic-13"}}}
+        yaml_data = {
+            "parallel_development": {"current_sprint": {"sprint_id": "epic-13"}}
+        }
         statuses = {"13.1": "completed"}
 
-        persister._update_parallel_section(yaml_data, "13", statuses, workflow_state_all_success)
+        persister._update_parallel_section(
+            yaml_data, "13", statuses, workflow_state_all_success
+        )
 
         assert yaml_data["parallel_development"]["current_sprint"]["sprint_id"] is None
 
@@ -408,9 +434,14 @@ class TestParallelSectionUpdates:
         yaml_data = {"parallel_development": {}}
         statuses = {"15.1": "dev-complete", "15.2": "draft"}
 
-        persister._update_parallel_section(yaml_data, "15", statuses, workflow_state_halted)
+        persister._update_parallel_section(
+            yaml_data, "15", statuses, workflow_state_halted
+        )
 
-        assert yaml_data["parallel_development"]["current_sprint"]["sprint_id"] == "epic-15"
+        assert (
+            yaml_data["parallel_development"]["current_sprint"]["sprint_id"]
+            == "epic-15"
+        )
         assert yaml_data["parallel_development"]["current_sprint"]["phase"] == "dev"
 
     def test_worktrees_updated(self, persister, workflow_state_mixed):
@@ -418,7 +449,9 @@ class TestParallelSectionUpdates:
         yaml_data = {"parallel_development": {}}
         statuses = {"14.1": "completed", "14.2": "qa-review"}
 
-        persister._update_parallel_section(yaml_data, "14", statuses, workflow_state_mixed)
+        persister._update_parallel_section(
+            yaml_data, "14", statuses, workflow_state_mixed
+        )
 
         worktrees = yaml_data["parallel_development"]["worktrees"]
         assert "14.2" in worktrees
@@ -430,6 +463,7 @@ class TestParallelSectionUpdates:
 # Test: Emoji Handling
 # ============================================================================
 
+
 class TestEmojiHandling:
     """Tests for emoji conversion and extraction."""
 
@@ -437,29 +471,33 @@ class TestEmojiHandling:
         """Status values convert to correct emojis."""
         # Use Unicode escape sequences to match source code
         assert persister._status_to_emoji("completed") == "\u2705"  # ✅
-        assert persister._status_to_emoji("blocked") == "\u274c"    # ❌
+        assert persister._status_to_emoji("blocked") == "\u274c"  # ❌
         assert persister._status_to_emoji("in-progress") == "\ud83d\udd04"  # 🔄
         assert persister._status_to_emoji("dev-complete") == "\ud83d\udd04"
         assert persister._status_to_emoji("qa-review") == "\ud83d\udd04"
-        assert persister._status_to_emoji("draft") == "\u23f3"      # ⏳
+        assert persister._status_to_emoji("draft") == "\u23f3"  # ⏳
         assert persister._status_to_emoji("pending") == "\u23f3"
         assert persister._status_to_emoji("unknown") == "\u23f3"
 
     def test_extract_status_from_emoji(self, persister):
         """Emojis extract to correct status values."""
         assert persister._extract_status_from_emoji("\u2705") == "completed"  # ✅
-        assert persister._extract_status_from_emoji("\u274c") == "blocked"    # ❌
-        assert persister._extract_status_from_emoji("\ud83d\udd04") == "in-progress"  # 🔄
-        assert persister._extract_status_from_emoji("\u23f3") == "draft"      # ⏳
+        assert persister._extract_status_from_emoji("\u274c") == "blocked"  # ❌
+        assert (
+            persister._extract_status_from_emoji("\ud83d\udd04") == "in-progress"
+        )  # 🔄
+        assert persister._extract_status_from_emoji("\u23f3") == "draft"  # ⏳
         assert persister._extract_status_from_emoji("") == "pending"
         assert persister._extract_status_from_emoji("some text") == "pending"
 
     def test_strip_emoji(self, persister):
         """Emojis are stripped from text."""
-        assert persister._strip_emoji("\u2705") == ""              # ✅
-        assert persister._strip_emoji("Task \u2705") == "Task"     # Task ✅
+        assert persister._strip_emoji("\u2705") == ""  # ✅
+        assert persister._strip_emoji("Task \u2705") == "Task"  # Task ✅
         # Note: _strip_emoji also strips spaces (design choice for clean formatting)
-        assert persister._strip_emoji("\ud83d\udd04 In progress") == "Inprogress"  # 🔄 In progress -> Inprogress
+        assert (
+            persister._strip_emoji("\ud83d\udd04 In progress") == "Inprogress"
+        )  # 🔄 In progress -> Inprogress
         assert persister._strip_emoji("") == ""
         # The space stripping is intentional - spaces are re-added during formatting
 
@@ -467,6 +505,7 @@ class TestEmojiHandling:
 # ============================================================================
 # Test: Error Handling
 # ============================================================================
+
 
 class TestErrorHandling:
     """Tests for error scenarios."""
@@ -476,11 +515,13 @@ class TestErrorHandling:
         """Write error triggers backup restore."""
         # Write existing data
         persister.yaml_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(persister.yaml_file, 'w', encoding='utf-8') as f:
+        with open(persister.yaml_file, "w", encoding="utf-8") as f:
             yaml.dump(sample_yaml_data, f)
 
         # Mock _save_yaml to raise exception
-        with patch.object(persister, '_save_yaml', side_effect=Exception("Write failed")):
+        with patch.object(
+            persister, "_save_yaml", side_effect=Exception("Write failed")
+        ):
             result = await persister.persist_workflow_result(
                 {"story_ids": ["99.1"]}, "99"
             )
@@ -488,7 +529,7 @@ class TestErrorHandling:
         assert result is False
 
         # Original data should be preserved (backup restored)
-        with open(persister.yaml_file, 'r', encoding='utf-8') as f:
+        with open(persister.yaml_file, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         assert "epic-12" in data["epics"]  # Original epic still there
@@ -497,13 +538,11 @@ class TestErrorHandling:
     async def test_handles_malformed_yaml(self, persister):
         """Handles malformed YAML gracefully."""
         persister.yaml_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(persister.yaml_file, 'w', encoding='utf-8') as f:
+        with open(persister.yaml_file, "w", encoding="utf-8") as f:
             f.write("invalid: yaml: content: [")
 
         # Should not crash, creates fresh structure
-        result = await persister.persist_workflow_result(
-            {"story_ids": ["1.1"]}, "1"
-        )
+        result = await persister.persist_workflow_result({"story_ids": ["1.1"]}, "1")
 
         # Result may vary based on yaml.safe_load behavior
         # The important thing is it doesn't raise unhandled exception
@@ -512,6 +551,7 @@ class TestErrorHandling:
 # ============================================================================
 # Test: Integration
 # ============================================================================
+
 
 class TestIntegration:
     """End-to-end integration tests."""
@@ -551,7 +591,7 @@ class TestIntegration:
         assert result is True
 
         # Verify final state
-        with open(persister.yaml_file, 'r', encoding='utf-8') as f:
+        with open(persister.yaml_file, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         assert data["epics"]["epic-20"]["status"] == "completed"

@@ -67,7 +67,7 @@ def cors_test_app():
         cors_origins_list = [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
-            "app://obsidian.md"
+            "app://obsidian.md",
         ]
 
     mock_settings = MockSettings()
@@ -83,9 +83,14 @@ def cors_test_app():
                 return response
             except Exception as e:
                 origin = request.headers.get("origin", "")
-                allowed_origin = origin if origin in mock_settings.cors_origins_list else ""
+                allowed_origin = (
+                    origin if origin in mock_settings.cors_origins_list else ""
+                )
 
-                if not allowed_origin and "app://obsidian.md" in mock_settings.cors_origins_list:
+                if (
+                    not allowed_origin
+                    and "app://obsidian.md" in mock_settings.cors_origins_list
+                ):
                     allowed_origin = "app://obsidian.md"
 
                 return JSONResponse(
@@ -93,12 +98,12 @@ def cors_test_app():
                     content={
                         "code": 500,
                         "message": str(e),
-                        "error_type": type(e).__name__
+                        "error_type": type(e).__name__,
                     },
                     headers={
                         "Access-Control-Allow-Origin": allowed_origin,
                         "Access-Control-Allow-Credentials": "true",
-                    }
+                    },
                 )
 
     # Add middleware in correct order (Story 21.5.1 AC-3)
@@ -157,8 +162,7 @@ class TestAC1_500ErrorCORSHeaders:
         Then: 响应包含 Access-Control-Allow-Origin: app://obsidian.md
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-500", headers={"Origin": "app://obsidian.md"}
         )
 
         assert response.status_code == 500
@@ -174,8 +178,7 @@ class TestAC1_500ErrorCORSHeaders:
         Then: 响应包含 Access-Control-Allow-Credentials: true
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-500", headers={"Origin": "app://obsidian.md"}
         )
 
         assert response.status_code == 500
@@ -191,13 +194,14 @@ class TestAC1_500ErrorCORSHeaders:
         Then: 响应包含对应的 Access-Control-Allow-Origin
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "http://localhost:3000"}
+            "/error-500", headers={"Origin": "http://localhost:3000"}
         )
 
         assert response.status_code == 500
         assert "access-control-allow-origin" in response.headers
-        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        assert (
+            response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        )
 
     def test_500_error_has_cors_header_127_0_0_1(self, cors_test_client):
         """
@@ -208,13 +212,14 @@ class TestAC1_500ErrorCORSHeaders:
         Then: 响应包含对应的 Access-Control-Allow-Origin
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "http://127.0.0.1:3000"}
+            "/error-500", headers={"Origin": "http://127.0.0.1:3000"}
         )
 
         assert response.status_code == 500
         assert "access-control-allow-origin" in response.headers
-        assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:3000"
+        assert (
+            response.headers["access-control-allow-origin"] == "http://127.0.0.1:3000"
+        )
 
     def test_500_error_fallback_to_obsidian_for_unknown_origin(self, cors_test_client):
         """
@@ -225,8 +230,7 @@ class TestAC1_500ErrorCORSHeaders:
         Then: 响应回退到 Access-Control-Allow-Origin: app://obsidian.md
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "http://malicious-site.com"}
+            "/error-500", headers={"Origin": "http://malicious-site.com"}
         )
 
         assert response.status_code == 500
@@ -258,9 +262,7 @@ class TestAC1_500ErrorCORSHeaders:
         Then: 响应包含 CORS 头
         """
         response = cors_test_client.post(
-            "/error-post",
-            headers={"Origin": "app://obsidian.md"},
-            json={}
+            "/error-post", headers={"Origin": "app://obsidian.md"}, json={}
         )
 
         assert response.status_code == 500
@@ -297,8 +299,7 @@ class TestAC2_ErrorResponseStructure:
         Then: 响应包含 code: 500
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-500", headers={"Origin": "app://obsidian.md"}
         )
 
         data = response.json()
@@ -315,8 +316,7 @@ class TestAC2_ErrorResponseStructure:
         Then: 响应包含 message 字段，内容为异常消息
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-500", headers={"Origin": "app://obsidian.md"}
         )
 
         data = response.json()
@@ -333,8 +333,7 @@ class TestAC2_ErrorResponseStructure:
         Then: 响应包含 error_type: "RuntimeError"
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-500", headers={"Origin": "app://obsidian.md"}
         )
 
         data = response.json()
@@ -350,8 +349,7 @@ class TestAC2_ErrorResponseStructure:
         Then: error_type 为 "ValueError"
         """
         response = cors_test_client.get(
-            "/error-value",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-value", headers={"Origin": "app://obsidian.md"}
         )
 
         data = response.json()
@@ -367,8 +365,7 @@ class TestAC2_ErrorResponseStructure:
         Then: error_type 为 "KeyError"
         """
         response = cors_test_client.get(
-            "/error-key",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-key", headers={"Origin": "app://obsidian.md"}
         )
 
         data = response.json()
@@ -383,8 +380,7 @@ class TestAC2_ErrorResponseStructure:
         Then: 响应包含所有必需字段: code, message, error_type
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-500", headers={"Origin": "app://obsidian.md"}
         )
 
         assert response.status_code == 500
@@ -409,8 +405,7 @@ class TestAC2_ErrorResponseStructure:
         Then: 响应体可以被正确解析为 JSON
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-500", headers={"Origin": "app://obsidian.md"}
         )
 
         # This will raise an exception if not valid JSON
@@ -444,13 +439,14 @@ class TestAC3_MiddlewareOrder:
         Then: 响应包含 CORS 头
         """
         response = cors_test_client.get(
-            "/success",
-            headers={"Origin": "http://localhost:3000"}
+            "/success", headers={"Origin": "http://localhost:3000"}
         )
 
         assert response.status_code == 200
         assert "access-control-allow-origin" in response.headers
-        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        assert (
+            response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        )
 
     def test_normal_request_cors_credentials(self, cors_test_client):
         """
@@ -461,8 +457,7 @@ class TestAC3_MiddlewareOrder:
         Then: 响应包含 Access-Control-Allow-Credentials: true
         """
         response = cors_test_client.get(
-            "/success",
-            headers={"Origin": "http://localhost:3000"}
+            "/success", headers={"Origin": "http://localhost:3000"}
         )
 
         assert response.status_code == 200
@@ -481,8 +476,8 @@ class TestAC3_MiddlewareOrder:
             "/success",
             headers={
                 "Origin": "http://localhost:3000",
-                "Access-Control-Request-Method": "GET"
-            }
+                "Access-Control-Request-Method": "GET",
+            },
         )
 
         assert response.status_code == 200
@@ -518,8 +513,12 @@ class TestAC3_MiddlewareOrder:
             cors_middleware_pos = source.find("app.add_middleware(CORSMiddleware")
 
         # Both should be found
-        assert cors_exception_pos != -1, "CORSExceptionMiddleware registration not found in source"
-        assert cors_middleware_pos != -1, "CORSMiddleware registration not found in source"
+        assert cors_exception_pos != -1, (
+            "CORSExceptionMiddleware registration not found in source"
+        )
+        assert cors_middleware_pos != -1, (
+            "CORSMiddleware registration not found in source"
+        )
 
         # CORSExceptionMiddleware should be registered BEFORE CORSMiddleware
         # In FastAPI/Starlette, middleware added first runs first (outermost)
@@ -550,8 +549,7 @@ class TestMainAppCORSException:
         Then: 响应包含 CORS 头
         """
         response = main_app_client.get(
-            "/api/v1/health",
-            headers={"Origin": "http://localhost:3000"}
+            "/api/v1/health", headers={"Origin": "http://localhost:3000"}
         )
 
         assert response.status_code == 200
@@ -562,10 +560,7 @@ class TestMainAppCORSException:
         """
         验证主应用根端点有 CORS 头.
         """
-        response = main_app_client.get(
-            "/",
-            headers={"Origin": "http://localhost:3000"}
-        )
+        response = main_app_client.get("/", headers={"Origin": "http://localhost:3000"})
 
         assert response.status_code == 200
         assert "access-control-allow-origin" in response.headers
@@ -591,10 +586,7 @@ class TestCORSExceptionEdgeCases:
         When: 端点抛出异常
         Then: 响应仍然正确处理
         """
-        response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": ""}
-        )
+        response = cors_test_client.get("/error-500", headers={"Origin": ""})
 
         assert response.status_code == 500
         # Should fallback to app://obsidian.md
@@ -609,8 +601,7 @@ class TestCORSExceptionEdgeCases:
         Then: 消息在响应中保留
         """
         response = cors_test_client.get(
-            "/error-value",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-value", headers={"Origin": "app://obsidian.md"}
         )
 
         data = response.json()
@@ -628,8 +619,7 @@ class TestCORSExceptionEdgeCases:
 
         for endpoint in endpoints:
             response = cors_test_client.get(
-                endpoint,
-                headers={"Origin": "app://obsidian.md"}
+                endpoint, headers={"Origin": "app://obsidian.md"}
             )
             assert response.status_code == 500, f"Expected 500 for {endpoint}"
 
@@ -642,8 +632,7 @@ class TestCORSExceptionEdgeCases:
         Then: Content-Type 为 application/json
         """
         response = cors_test_client.get(
-            "/error-500",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-500", headers={"Origin": "app://obsidian.md"}
         )
 
         assert "application/json" in response.headers.get("content-type", "")
@@ -678,10 +667,14 @@ def encoding_test_app():
     @test_app.get("/error-unencodable")
     async def error_unencodable_endpoint():
         """Endpoint that raises an exception whose str() raises UnicodeEncodeError."""
+
         class BadException(Exception):
             def __str__(self):
                 # Simulate Windows GBK encoding failure
-                raise UnicodeEncodeError('gbk', '测试', 0, 1, 'illegal multibyte sequence')
+                raise UnicodeEncodeError(
+                    "gbk", "测试", 0, 1, "illegal multibyte sequence"
+                )
+
         raise BadException("This won't be seen")
 
     @test_app.get("/error-long-message")
@@ -701,7 +694,7 @@ def encoding_test_app():
         cors_origins_list = [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
-            "app://obsidian.md"
+            "app://obsidian.md",
         ]
 
     mock_settings = MockSettings()
@@ -721,7 +714,9 @@ def encoding_test_app():
                 safe_params = {}
                 for key, value in query_params.items():
                     if isinstance(value, str):
-                        safe_params[key] = value.encode('utf-8', errors='replace').decode('utf-8')
+                        safe_params[key] = value.encode(
+                            "utf-8", errors="replace"
+                        ).decode("utf-8")
                     else:
                         safe_params[key] = value
                 return {
@@ -742,9 +737,14 @@ def encoding_test_app():
                 return response
             except Exception as e:
                 origin = request.headers.get("origin", "")
-                allowed_origin = origin if origin in mock_settings.cors_origins_list else ""
+                allowed_origin = (
+                    origin if origin in mock_settings.cors_origins_list else ""
+                )
 
-                if not allowed_origin and "app://obsidian.md" in mock_settings.cors_origins_list:
+                if (
+                    not allowed_origin
+                    and "app://obsidian.md" in mock_settings.cors_origins_list
+                ):
                     allowed_origin = "app://obsidian.md"
 
                 # Story 12.J.5: 安全化错误消息
@@ -754,19 +754,21 @@ def encoding_test_app():
                     error_message = repr(e)
 
                 # 确保消息可以安全编码为 JSON
-                safe_message = error_message.encode('utf-8', errors='replace').decode('utf-8')
+                safe_message = error_message.encode("utf-8", errors="replace").decode(
+                    "utf-8"
+                )
 
                 return JSONResponse(
                     status_code=500,
                     content={
                         "code": 500,
                         "message": safe_message[:500],  # Limit to 500 chars
-                        "error_type": type(e).__name__
+                        "error_type": type(e).__name__,
                     },
                     headers={
                         "Access-Control-Allow-Origin": allowed_origin,
                         "Access-Control-Allow-Credentials": "true",
-                    }
+                    },
                 )
 
     # Add middleware
@@ -806,8 +808,7 @@ class TestStory12J5_EncodingSafety:
         Then: 响应是有效的 JSON，包含安全编码的消息
         """
         response = encoding_test_client.get(
-            "/error-unicode",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-unicode", headers={"Origin": "app://obsidian.md"}
         )
 
         assert response.status_code == 500
@@ -831,8 +832,7 @@ class TestStory12J5_EncodingSafety:
         Then: 使用 repr(e) 作为后备，响应是有效 JSON
         """
         response = encoding_test_client.get(
-            "/error-unencodable",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-unencodable", headers={"Origin": "app://obsidian.md"}
         )
 
         assert response.status_code == 500
@@ -855,8 +855,7 @@ class TestStory12J5_EncodingSafety:
         Then: 响应包含正确的 CORS 头
         """
         response = encoding_test_client.get(
-            "/error-unicode",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-unicode", headers={"Origin": "app://obsidian.md"}
         )
 
         assert response.status_code == 500
@@ -877,8 +876,7 @@ class TestStory12J5_EncodingSafety:
         Then: 响应中的消息被截断为 500 字符
         """
         response = encoding_test_client.get(
-            "/error-long-message",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-long-message", headers={"Origin": "app://obsidian.md"}
         )
 
         assert response.status_code == 500
@@ -896,13 +894,14 @@ class TestStory12J5_EncodingSafety:
         Then: 响应正常，CORS 头正确
         """
         response = encoding_test_client.get(
-            "/success",
-            headers={"Origin": "http://localhost:3000"}
+            "/success", headers={"Origin": "http://localhost:3000"}
         )
 
         assert response.status_code == 200
         assert "access-control-allow-origin" in response.headers
-        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        assert (
+            response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        )
 
     def test_json_response_always_valid(self, encoding_test_client):
         """
@@ -916,8 +915,7 @@ class TestStory12J5_EncodingSafety:
 
         for endpoint in endpoints:
             response = encoding_test_client.get(
-                endpoint,
-                headers={"Origin": "app://obsidian.md"}
+                endpoint, headers={"Origin": "app://obsidian.md"}
             )
 
             assert response.status_code == 500
@@ -948,8 +946,7 @@ class TestStory12J5_SafeExtractRequestParams:
         # This is tested implicitly through error responses
         # that include request params in bug tracking
         response = encoding_test_client.get(
-            "/error-unicode?foo=bar&baz=123",
-            headers={"Origin": "app://obsidian.md"}
+            "/error-unicode?foo=bar&baz=123", headers={"Origin": "app://obsidian.md"}
         )
 
         assert response.status_code == 500

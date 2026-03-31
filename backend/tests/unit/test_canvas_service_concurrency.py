@@ -11,6 +11,7 @@ Tests:
 [Source: Story 12.H.1 - AC1-AC5]
 [Source: Python asyncio.Lock documentation]
 """
+
 import asyncio
 import json
 import tempfile
@@ -19,13 +20,14 @@ from pathlib import Path
 from typing import List
 
 import pytest
+from app.services.canvas_service import CanvasService
 
 from tests.conftest import simulate_async_delay
-from app.services.canvas_service import CanvasService
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def temp_dir():
@@ -44,16 +46,15 @@ def canvas_service(temp_dir: Path) -> CanvasService:
 def sample_canvas_data() -> dict:
     """Sample canvas data for testing."""
     return {
-        "nodes": [
-            {"id": "node1", "type": "text", "text": "Test", "x": 0, "y": 0}
-        ],
-        "edges": []
+        "nodes": [{"id": "node1", "type": "text", "text": "Test", "x": 0, "y": 0}],
+        "edges": [],
     }
 
 
 # ============================================================================
 # AC1: Per-Canvas Lock Allocation Tests
 # ============================================================================
+
 
 class TestPerCanvasLockAllocation:
     """Tests for AC1: asyncio.Lock per Canvas file name."""
@@ -62,12 +63,12 @@ class TestPerCanvasLockAllocation:
     async def test_lock_attributes_initialized(self, canvas_service: CanvasService):
         """Test that lock attributes are properly initialized in __init__."""
         # Assert lock dictionary exists and is empty
-        assert hasattr(canvas_service, '_write_locks')
+        assert hasattr(canvas_service, "_write_locks")
         assert isinstance(canvas_service._write_locks, dict)
         assert len(canvas_service._write_locks) == 0
 
         # Assert locks_lock exists
-        assert hasattr(canvas_service, '_locks_lock')
+        assert hasattr(canvas_service, "_locks_lock")
         assert isinstance(canvas_service._locks_lock, asyncio.Lock)
 
     @pytest.mark.asyncio
@@ -100,15 +101,13 @@ class TestPerCanvasLockAllocation:
 # AC2: write_canvas Uses Lock Tests
 # ============================================================================
 
+
 class TestWriteCanvasLockUsage:
     """Tests for AC2: write_canvas method uses async with to acquire lock."""
 
     @pytest.mark.asyncio
     async def test_write_canvas_acquires_lock(
-        self,
-        canvas_service: CanvasService,
-        temp_dir: Path,
-        sample_canvas_data: dict
+        self, canvas_service: CanvasService, temp_dir: Path, sample_canvas_data: dict
     ):
         """Test that write_canvas acquires lock before writing."""
         canvas_name = "test_lock"
@@ -121,10 +120,7 @@ class TestWriteCanvasLockUsage:
 
     @pytest.mark.asyncio
     async def test_write_canvas_releases_lock(
-        self,
-        canvas_service: CanvasService,
-        temp_dir: Path,
-        sample_canvas_data: dict
+        self, canvas_service: CanvasService, temp_dir: Path, sample_canvas_data: dict
     ):
         """Test that write_canvas releases lock after writing."""
         canvas_name = "test_release"
@@ -141,14 +137,13 @@ class TestWriteCanvasLockUsage:
 # AC3: Concurrent Write Serialization Tests
 # ============================================================================
 
+
 class TestConcurrentWriteSerialization:
     """Tests for AC3: Concurrent writes are serialized (no data loss)."""
 
     @pytest.mark.asyncio
     async def test_concurrent_writes_serialized(
-        self,
-        canvas_service: CanvasService,
-        temp_dir: Path
+        self, canvas_service: CanvasService, temp_dir: Path
     ):
         """Test that concurrent writes to same canvas are serialized."""
         canvas_name = "concurrent_test"
@@ -167,7 +162,7 @@ class TestConcurrentWriteSerialization:
                 await simulate_async_delay(0.05)
                 canvas_path = canvas_service._get_canvas_path(name)
                 canvas_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(canvas_path, 'w', encoding='utf-8') as f:
+                with open(canvas_path, "w", encoding="utf-8") as f:
                     json.dump(data, f)
 
             write_sequence.append(f"end_{seq_id}")
@@ -178,9 +173,15 @@ class TestConcurrentWriteSerialization:
 
         # Launch 3 concurrent writes
         await asyncio.gather(
-            canvas_service.write_canvas(canvas_name, {"seq": 1, "nodes": [], "edges": []}),
-            canvas_service.write_canvas(canvas_name, {"seq": 2, "nodes": [], "edges": []}),
-            canvas_service.write_canvas(canvas_name, {"seq": 3, "nodes": [], "edges": []}),
+            canvas_service.write_canvas(
+                canvas_name, {"seq": 1, "nodes": [], "edges": []}
+            ),
+            canvas_service.write_canvas(
+                canvas_name, {"seq": 2, "nodes": [], "edges": []}
+            ),
+            canvas_service.write_canvas(
+                canvas_name, {"seq": 3, "nodes": [], "edges": []}
+            ),
         )
 
         # Verify serialization: each start must be followed by its end
@@ -192,13 +193,13 @@ class TestConcurrentWriteSerialization:
         for seq_id in [1, 2, 3]:
             start_idx = write_sequence.index(f"start_{seq_id}")
             end_idx = write_sequence.index(f"end_{seq_id}")
-            assert start_idx < end_idx, f"start_{seq_id} should come before end_{seq_id}"
+            assert start_idx < end_idx, (
+                f"start_{seq_id} should come before end_{seq_id}"
+            )
 
     @pytest.mark.asyncio
     async def test_concurrent_writes_no_data_loss(
-        self,
-        canvas_service: CanvasService,
-        temp_dir: Path
+        self, canvas_service: CanvasService, temp_dir: Path
     ):
         """Test that concurrent operations don't lose data."""
         canvas_name = "data_integrity"
@@ -212,11 +213,9 @@ class TestConcurrentWriteSerialization:
             # Read current state
             data = await canvas_service.read_canvas(canvas_name)
             # Add new node
-            data["nodes"].append({
-                "id": f"node_{node_id}",
-                "type": "text",
-                "text": f"Node {node_id}"
-            })
+            data["nodes"].append(
+                {"id": f"node_{node_id}", "type": "text", "text": f"Node {node_id}"}
+            )
             # Write back
             await canvas_service.write_canvas(canvas_name, data)
 
@@ -233,9 +232,7 @@ class TestConcurrentWriteSerialization:
 
     @pytest.mark.asyncio
     async def test_different_canvas_concurrent_not_blocked(
-        self,
-        canvas_service: CanvasService,
-        temp_dir: Path
+        self, canvas_service: CanvasService, temp_dir: Path
     ):
         """Test that different canvas files can be written concurrently."""
         write_times: dict = {}
@@ -260,24 +257,20 @@ class TestConcurrentWriteSerialization:
 
         # Different canvases should have overlapping times (true concurrency)
         # This is a weak assertion since timing varies
-        assert all(
-            wt["end"] > wt["start"] for wt in write_times.values()
-        )
+        assert all(wt["end"] > wt["start"] for wt in write_times.values())
 
 
 # ============================================================================
 # AC4: Performance Impact Tests
 # ============================================================================
 
+
 class TestPerformanceImpact:
     """Tests for AC4: Performance impact < 5% (single write < 50ms)."""
 
     @pytest.mark.asyncio
     async def test_single_write_latency(
-        self,
-        canvas_service: CanvasService,
-        temp_dir: Path,
-        sample_canvas_data: dict
+        self, canvas_service: CanvasService, temp_dir: Path, sample_canvas_data: dict
     ):
         """Test that single write completes within acceptable time."""
         canvas_name = "perf_test"
@@ -296,7 +289,9 @@ class TestPerformanceImpact:
         avg_time = sum(times) / len(times)
 
         # Single write should be < 50ms (with lock overhead)
-        assert avg_time < 0.05, f"Average write time {avg_time:.4f}s exceeds 50ms threshold"
+        assert avg_time < 0.05, (
+            f"Average write time {avg_time:.4f}s exceeds 50ms threshold"
+        )
 
     @pytest.mark.asyncio
     async def test_lock_acquisition_overhead(self, canvas_service: CanvasService):
@@ -319,26 +314,19 @@ class TestPerformanceImpact:
 # AC5: Existing Functionality Tests
 # ============================================================================
 
+
 class TestExistingFunctionalityUnaffected:
     """Tests for AC5: Existing add_node, update_node, delete_node still work."""
 
     @pytest.mark.asyncio
     async def test_add_node_still_works(
-        self,
-        canvas_service: CanvasService,
-        temp_dir: Path,
-        sample_canvas_data: dict
+        self, canvas_service: CanvasService, temp_dir: Path, sample_canvas_data: dict
     ):
         """Test that add_node works with concurrency lock."""
         canvas_name = "add_node_test"
         await canvas_service.write_canvas(canvas_name, sample_canvas_data)
 
-        new_node = {
-            "type": "text",
-            "text": "New Node",
-            "x": 100,
-            "y": 100
-        }
+        new_node = {"type": "text", "text": "New Node", "x": 100, "y": 100}
 
         result = await canvas_service.add_node(canvas_name, new_node)
 
@@ -353,10 +341,7 @@ class TestExistingFunctionalityUnaffected:
 
     @pytest.mark.asyncio
     async def test_update_node_still_works(
-        self,
-        canvas_service: CanvasService,
-        temp_dir: Path,
-        sample_canvas_data: dict
+        self, canvas_service: CanvasService, temp_dir: Path, sample_canvas_data: dict
     ):
         """Test that update_node works with concurrency lock."""
         canvas_name = "update_node_test"
@@ -364,9 +349,7 @@ class TestExistingFunctionalityUnaffected:
 
         # Update node1
         updated = await canvas_service.update_node(
-            canvas_name,
-            "node1",
-            {"text": "Updated Text", "color": "2"}
+            canvas_name, "node1", {"text": "Updated Text", "color": "2"}
         )
 
         assert updated["text"] == "Updated Text"
@@ -374,10 +357,7 @@ class TestExistingFunctionalityUnaffected:
 
     @pytest.mark.asyncio
     async def test_delete_node_still_works(
-        self,
-        canvas_service: CanvasService,
-        temp_dir: Path,
-        sample_canvas_data: dict
+        self, canvas_service: CanvasService, temp_dir: Path, sample_canvas_data: dict
     ):
         """Test that delete_node works with concurrency lock."""
         canvas_name = "delete_node_test"
@@ -397,6 +377,7 @@ class TestExistingFunctionalityUnaffected:
 # Thread Safety Tests
 # ============================================================================
 
+
 class TestLockDictionaryThreadSafety:
     """Tests for _locks_lock protecting _write_locks dictionary."""
 
@@ -404,9 +385,9 @@ class TestLockDictionaryThreadSafety:
     async def test_concurrent_lock_creation_safe(self, canvas_service: CanvasService):
         """Test that concurrent _get_lock calls don't corrupt dictionary."""
         # Concurrently request locks for 100 different canvases
-        locks = await asyncio.gather(*[
-            canvas_service._get_lock(f"canvas_{i}") for i in range(100)
-        ])
+        locks = await asyncio.gather(
+            *[canvas_service._get_lock(f"canvas_{i}") for i in range(100)]
+        )
 
         # All locks should be created
         assert len(locks) == 100
@@ -418,14 +399,13 @@ class TestLockDictionaryThreadSafety:
 
     @pytest.mark.asyncio
     async def test_concurrent_same_canvas_lock_request(
-        self,
-        canvas_service: CanvasService
+        self, canvas_service: CanvasService
     ):
         """Test concurrent requests for same canvas return same lock."""
         # Concurrently request same lock 50 times
-        locks = await asyncio.gather(*[
-            canvas_service._get_lock("same_canvas") for _ in range(50)
-        ])
+        locks = await asyncio.gather(
+            *[canvas_service._get_lock("same_canvas") for _ in range(50)]
+        )
 
         # All should be the same lock
         first_lock = locks[0]

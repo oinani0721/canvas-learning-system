@@ -14,16 +14,12 @@ Difference from Story 30.14:
 [Source: docs/stories/30.22.agent-trigger-deep-test.story.md]
 """
 
-import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.clients.graphiti_client import LearningMemory
 from app.core.agent_memory_mapping import (
     AGENT_MEMORY_MAPPING,
-    AgentMemoryType,
-    get_memory_type_for_agent,
 )
 
 # All 15 agents from the mapping
@@ -33,6 +29,7 @@ ALL_AGENTS = list(AGENT_MEMORY_MAPPING.keys())
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_gemini_client():
@@ -51,6 +48,7 @@ def mock_memory_client():
 @pytest.fixture
 def agent_service(mock_gemini_client, mock_memory_client):
     from app.services.agent_service import AgentService
+
     service = AgentService(
         gemini_client=mock_gemini_client,
         memory_client=mock_memory_client,
@@ -61,6 +59,7 @@ def agent_service(mock_gemini_client, mock_memory_client):
 # ============================================================================
 # Task 1: Behavior Verification Tests (AC-30.22.1)
 # ============================================================================
+
 
 class TestAgentTriggerBehavior:
     """AC-30.22.1: Verify _trigger_memory_write calls add_learning_episode
@@ -148,6 +147,7 @@ class TestAgentTriggerBehavior:
 # Task 2: Degradation Tests (AC-30.22.2)
 # ============================================================================
 
+
 class TestTriggerDegradation:
     """AC-30.22.2: Verify fire-and-forget degradation and logger.warning."""
 
@@ -171,13 +171,14 @@ class TestTriggerDegradation:
             )
 
             from tests.conftest import yield_to_event_loop
+
             await yield_to_event_loop(10)
 
             # record_learning_episode logs debug when memory_client is None
             debug_calls = [str(c) for c in mock_logger.debug.call_args_list]
-            assert any(
-                "Memory client not available" in c for c in debug_calls
-            ), f"Expected 'Memory client not available' debug log, got: {debug_calls}"
+            assert any("Memory client not available" in c for c in debug_calls), (
+                f"Expected 'Memory client not available' debug log, got: {debug_calls}"
+            )
 
     @pytest.mark.asyncio
     async def test_trigger_with_exception_in_add_episode_no_crash(
@@ -226,6 +227,7 @@ class TestTriggerDegradation:
 
             # Wait for fire-and-forget task to complete (robust condition-based wait)
             from tests.conftest import wait_for_condition
+
             await wait_for_condition(
                 lambda: mock_logger.warning.called,
                 description="logger.warning called after fire-and-forget failure",
@@ -233,17 +235,16 @@ class TestTriggerDegradation:
             )
 
             # _write_with_timeout logs: "Memory write failed for {agent_type}: {e}"
-            warning_calls = [
-                str(call) for call in mock_logger.warning.call_args_list
-            ]
-            assert any(
-                "deep-decomposition" in call for call in warning_calls
-            ), f"logger.warning should contain agent_type 'deep-decomposition', got: {warning_calls}"
+            warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
+            assert any("deep-decomposition" in call for call in warning_calls), (
+                f"logger.warning should contain agent_type 'deep-decomposition', got: {warning_calls}"
+            )
 
 
 # ============================================================================
 # Task 3: Episode Structure Completeness (AC-30.22.3)
 # ============================================================================
+
 
 class TestEpisodeStructure:
     """AC-30.22.3: Verify LearningMemory (episode) structure completeness."""
@@ -314,9 +315,7 @@ class TestEpisodeStructure:
         assert m1.memory_key != m2.memory_key
 
     @pytest.mark.asyncio
-    async def test_unmapped_agent_skips_write(
-        self, agent_service, mock_memory_client
-    ):
+    async def test_unmapped_agent_skips_write(self, agent_service, mock_memory_client):
         """Unmapped agent_name causes _trigger_memory_write to early-return (no write)."""
         await agent_service._trigger_memory_write(
             agent_type="nonexistent-agent-xyz",
@@ -326,6 +325,7 @@ class TestEpisodeStructure:
         )
 
         from tests.conftest import yield_to_event_loop
+
         await yield_to_event_loop(10)
 
         mock_memory_client.add_learning_episode.assert_not_called()
@@ -345,10 +345,13 @@ class TestEpisodeStructure:
         # Rejoin from index 2: timestamp in ISO 8601 contains colons
         timestamp_str = ":".join(parts[2:])
         from datetime import datetime as dt
+
         try:
             dt.fromisoformat(timestamp_str)
         except ValueError:
-            pytest.fail(f"Auto-generated timestamp '{timestamp_str}' is not valid ISO 8601")
+            pytest.fail(
+                f"Auto-generated timestamp '{timestamp_str}' is not valid ISO 8601"
+            )
 
     @pytest.mark.asyncio
     async def test_episode_timestamp_field_present(
@@ -369,11 +372,16 @@ class TestEpisodeStructure:
         assert memory_arg.memory_key, "memory_key (episode_id) must be non-empty"
         # canvas_name:node_id:timestamp format — ISO 8601 timestamps contain colons
         parts = memory_arg.memory_key.split(":")
-        assert len(parts) >= 3, f"memory_key should have at least 3 parts, got: {memory_arg.memory_key}"
+        assert len(parts) >= 3, (
+            f"memory_key should have at least 3 parts, got: {memory_arg.memory_key}"
+        )
         # AC-30.22.3: Validate timestamp portion is ISO 8601 format
         timestamp_str = ":".join(parts[2:])
         from datetime import datetime as dt
+
         try:
             dt.fromisoformat(timestamp_str)
         except ValueError:
-            pytest.fail(f"timestamp portion '{timestamp_str}' is not valid ISO 8601 format")
+            pytest.fail(
+                f"timestamp portion '{timestamp_str}' is not valid ISO 8601 format"
+            )

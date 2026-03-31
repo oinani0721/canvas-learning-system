@@ -13,10 +13,10 @@ import io
 
 from fastapi.testclient import TestClient
 
-
 # =============================================================================
 # AC 35.9.1: Upload Verification Tests
 # =============================================================================
+
 
 class TestMultimodalUploadE2E:
     """E2E tests for multimodal upload functionality."""
@@ -29,9 +29,13 @@ class TestMultimodalUploadE2E:
             "canvas_path": "/test/canvas/learning.canvas",
         }
         response = client.post("/api/v1/multimodal/upload", files=files, data=data)
-        assert response.status_code == 201, f"Expected 201 Created, got {response.status_code}: {response.text}"
+        assert response.status_code == 201, (
+            f"Expected 201 Created, got {response.status_code}: {response.text}"
+        )
 
-    def test_upload_image_returns_content_details(self, client: TestClient, test_image_file: bytes):
+    def test_upload_image_returns_content_details(
+        self, client: TestClient, test_image_file: bytes
+    ):
         """Test upload returns content details with valid structure."""
         files = {"file": ("test_image.png", io.BytesIO(test_image_file), "image/png")}
         data = {
@@ -41,7 +45,9 @@ class TestMultimodalUploadE2E:
         }
         response = client.post("/api/v1/multimodal/upload", files=files, data=data)
 
-        assert response.status_code == 201, f"Expected 201 Created, got {response.status_code}: {response.text}"
+        assert response.status_code == 201, (
+            f"Expected 201 Created, got {response.status_code}: {response.text}"
+        )
         result = response.json()
         assert "content" in result
         content = result["content"]
@@ -49,20 +55,28 @@ class TestMultimodalUploadE2E:
         assert content["media_type"] == "image"
         assert content["related_concept_id"] == "concept-002"
 
-    def test_upload_pdf_stores_correctly(self, client: TestClient, test_pdf_file: bytes):
+    def test_upload_pdf_stores_correctly(
+        self, client: TestClient, test_pdf_file: bytes
+    ):
         """Test PDF upload creates correct media type."""
-        files = {"file": ("test_document.pdf", io.BytesIO(test_pdf_file), "application/pdf")}
+        files = {
+            "file": ("test_document.pdf", io.BytesIO(test_pdf_file), "application/pdf")
+        }
         data = {
             "related_concept_id": "concept-003",
             "canvas_path": "/test/canvas/documents.canvas",
         }
         response = client.post("/api/v1/multimodal/upload", files=files, data=data)
 
-        assert response.status_code == 201, f"Expected 201 Created, got {response.status_code}: {response.text}"
+        assert response.status_code == 201, (
+            f"Expected 201 Created, got {response.status_code}: {response.text}"
+        )
         result = response.json()
         assert result["content"]["media_type"] == "pdf"
 
-    def test_upload_validates_required_fields(self, client: TestClient, test_image_file: bytes):
+    def test_upload_validates_required_fields(
+        self, client: TestClient, test_image_file: bytes
+    ):
         """Test upload fails when required fields are missing."""
         files = {"file": ("test.png", io.BytesIO(test_image_file), "image/png")}
         data = {"canvas_path": "/test/canvas.canvas"}
@@ -71,7 +85,13 @@ class TestMultimodalUploadE2E:
 
     def test_upload_rejects_unsupported_media_type(self, client: TestClient):
         """Test upload rejects unsupported file types."""
-        files = {"file": ("malware.exe", io.BytesIO(b"MZ...fake exe content"), "application/x-msdownload")}
+        files = {
+            "file": (
+                "malware.exe",
+                io.BytesIO(b"MZ...fake exe content"),
+                "application/x-msdownload",
+            )
+        }
         data = {
             "related_concept_id": "concept-bad",
             "canvas_path": "/test/canvas.canvas",
@@ -87,7 +107,7 @@ class TestMultimodalUploadE2E:
         from app.services.multimodal_service import MAX_FILE_SIZE
 
         # Create a PNG header + payload slightly over the limit
-        png_header = b'\x89PNG\r\n\x1a\n'
+        png_header = b"\x89PNG\r\n\x1a\n"
         over_limit_size = MAX_FILE_SIZE + 1024  # 1KB over limit
 
         # For speed, we mock the size check instead of creating a 50MB+ payload.
@@ -95,11 +115,10 @@ class TestMultimodalUploadE2E:
         # We use a minimal approach: create a file that passes format check
         # but will be rejected by size check via monkeypatching.
         import unittest.mock
-        with unittest.mock.patch(
-            'app.services.multimodal_service.MAX_FILE_SIZE', 1000
-        ):
+
+        with unittest.mock.patch("app.services.multimodal_service.MAX_FILE_SIZE", 1000):
             # 2KB payload > 1000 byte limit
-            big_content = png_header + b'\x00' * 2000
+            big_content = png_header + b"\x00" * 2000
             files = {"file": ("big_image.png", io.BytesIO(big_content), "image/png")}
             data = {
                 "related_concept_id": "concept-big",
@@ -120,7 +139,7 @@ class TestMultimodalUploadE2E:
         The server should reject it because magic bytes don't match PNG.
         """
         # Windows PE executable header (MZ magic)
-        exe_content = b'MZ' + b'\x00' * 500
+        exe_content = b"MZ" + b"\x00" * 500
         files = {"file": ("spoofed.png", io.BytesIO(exe_content), "image/png")}
         data = {
             "related_concept_id": "concept-spoof",
@@ -146,7 +165,7 @@ class TestMultimodalUploadE2E:
     def test_upload_handles_corrupted_png(self, client: TestClient):
         """Test upload handles truncated/corrupted PNG gracefully (NFR Reliability)."""
         # Valid PNG header but truncated body
-        corrupted_png = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
+        corrupted_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 50
         files = {"file": ("corrupted.png", io.BytesIO(corrupted_png), "image/png")}
         data = {
             "related_concept_id": "concept-corrupt",
@@ -163,24 +182,33 @@ class TestMultimodalUploadE2E:
 # AC 35.9.2: Relationship Verification Tests
 # =============================================================================
 
+
 class TestMultimodalRelationshipE2E:
     """E2E tests for concept-media relationship verification."""
 
-    def test_upload_creates_concept_association(self, client: TestClient, test_image_file: bytes):
+    def test_upload_creates_concept_association(
+        self, client: TestClient, test_image_file: bytes
+    ):
         """Test upload creates association with specified concept."""
         concept_id = "concept-relation-001"
-        files = {"file": ("relation_test.png", io.BytesIO(test_image_file), "image/png")}
+        files = {
+            "file": ("relation_test.png", io.BytesIO(test_image_file), "image/png")
+        }
         data = {
             "related_concept_id": concept_id,
             "canvas_path": "/test/canvas/relations.canvas",
         }
         response = client.post("/api/v1/multimodal/upload", files=files, data=data)
 
-        assert response.status_code == 201, f"Expected 201 Created, got {response.status_code}: {response.text}"
+        assert response.status_code == 201, (
+            f"Expected 201 Created, got {response.status_code}: {response.text}"
+        )
         result = response.json()
         assert result["content"]["related_concept_id"] == concept_id
 
-    def test_get_by_concept_returns_associated_media(self, client: TestClient, test_image_file: bytes):
+    def test_get_by_concept_returns_associated_media(
+        self, client: TestClient, test_image_file: bytes
+    ):
         """Test GET /api/v1/multimodal/by-concept/{concept_id} returns associated media."""
         concept_id = "concept-query-001"
         files = {"file": ("query_test.png", io.BytesIO(test_image_file), "image/png")}
@@ -188,7 +216,9 @@ class TestMultimodalRelationshipE2E:
             "related_concept_id": concept_id,
             "canvas_path": "/test/canvas/query.canvas",
         }
-        upload_response = client.post("/api/v1/multimodal/upload", files=files, data=data)
+        upload_response = client.post(
+            "/api/v1/multimodal/upload", files=files, data=data
+        )
         assert upload_response.status_code == 201, (
             f"Setup upload failed: {upload_response.status_code}: {upload_response.text}"
         )
@@ -200,7 +230,9 @@ class TestMultimodalRelationshipE2E:
         assert "items" in result
         assert "total" in result
 
-    def test_multiple_media_per_concept(self, client: TestClient, test_image_file: bytes, test_pdf_file: bytes):
+    def test_multiple_media_per_concept(
+        self, client: TestClient, test_image_file: bytes, test_pdf_file: bytes
+    ):
         """Test concept can have multiple associated media items."""
         concept_id = "concept-multi-001"
         canvas_path = "/test/canvas/multi.canvas"
@@ -209,15 +241,23 @@ class TestMultimodalRelationshipE2E:
         data1 = {"related_concept_id": concept_id, "canvas_path": canvas_path}
         resp1 = client.post("/api/v1/multimodal/upload", files=files1, data=data1)
 
-        files2 = {"file": ("multi_doc.pdf", io.BytesIO(test_pdf_file), "application/pdf")}
+        files2 = {
+            "file": ("multi_doc.pdf", io.BytesIO(test_pdf_file), "application/pdf")
+        }
         data2 = {"related_concept_id": concept_id, "canvas_path": canvas_path}
         resp2 = client.post("/api/v1/multimodal/upload", files=files2, data=data2)
 
-        assert resp1.status_code == 201, f"Setup upload 1 failed: {resp1.status_code}: {resp1.text}"
-        assert resp2.status_code == 201, f"Setup upload 2 failed: {resp2.status_code}: {resp2.text}"
+        assert resp1.status_code == 201, (
+            f"Setup upload 1 failed: {resp1.status_code}: {resp1.text}"
+        )
+        assert resp2.status_code == 201, (
+            f"Setup upload 2 failed: {resp2.status_code}: {resp2.text}"
+        )
 
         response = client.get(f"/api/v1/multimodal/by-concept/{concept_id}")
 
-        assert response.status_code == 200, f"Expected 200 OK, got {response.status_code}: {response.text}"
+        assert response.status_code == 200, (
+            f"Expected 200 OK, got {response.status_code}: {response.text}"
+        )
         result = response.json()
         assert result["total"] >= 2

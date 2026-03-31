@@ -30,6 +30,7 @@ from canvas_progress_tracker.data_stores import ColdDataStore, get_cold_data_sto
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def temp_db():
     """Create temporary database for testing."""
@@ -93,6 +94,7 @@ def generate_sample_transition(idx: int) -> Dict:
 # Test AC 1: Database Initialization
 # ============================================================================
 
+
 def test_database_initialization_creates_db_file(temp_db):
     """Test that database file is created on first initialization."""
     assert temp_db.db_path.exists()
@@ -135,6 +137,7 @@ def test_schema_version_is_set(temp_db):
 # ============================================================================
 # Test AC 2: Insert and Query for 4 Tables
 # ============================================================================
+
 
 def test_insert_and_query_canvas_changes(temp_db):
     """Test inserting and querying canvas changes."""
@@ -202,6 +205,7 @@ def test_insert_and_query_daily_stats(temp_db):
 # Test AC 3: Batch Insert Performance (1000 records < 500ms)
 # ============================================================================
 
+
 def test_bulk_insert_performance_canvas_changes(temp_db):
     """Test batch insert performance for canvas changes (1000 records < 500ms)."""
     changes = [generate_sample_change(i) for i in range(1000)]
@@ -242,6 +246,7 @@ def test_bulk_insert_performance_color_transitions(temp_db):
 # Test AC 4: Query Performance (< 100ms)
 # ============================================================================
 
+
 def test_query_performance_canvas_changes(temp_db):
     """Test query performance for canvas changes (< 100ms)."""
     # Insert 1000 records first
@@ -279,6 +284,7 @@ def test_query_performance_with_index_optimization(temp_db):
 # ============================================================================
 # Test AC 5: Data Integrity Constraints
 # ============================================================================
+
 
 def test_primary_key_constraint_canvas_changes(temp_db):
     """Test PRIMARY KEY constraint on canvas_changes."""
@@ -319,6 +325,7 @@ def test_color_value_validation(temp_db):
 # ============================================================================
 # Test AC 6: Database Path Configuration
 # ============================================================================
+
 
 def test_custom_database_path():
     """Test using custom database path."""
@@ -363,6 +370,7 @@ def test_default_database_path():
 # Test AC 7: Schema Version Upgrade Mechanism
 # ============================================================================
 
+
 def test_schema_version_upgrade(temp_db):
     """Test schema version upgrade mechanism."""
     # Current implementation only has v1, so we test the framework
@@ -388,6 +396,7 @@ def test_schema_version_table_exists(temp_db):
 # Test IV3: Concurrent Access Safety
 # ============================================================================
 
+
 def test_concurrent_writes_safety(temp_db):
     """Test multi-threaded concurrent write safety."""
     results = []
@@ -411,7 +420,9 @@ def test_concurrent_writes_safety(temp_db):
     # Verify
     assert len(errors) == 0, f"Concurrent writes produced errors: {errors}"
     assert sum(results) == 1000, f"Expected 1000 inserts, got {sum(results)}"
-    print(f"✅ Concurrent writes: {len(threads)} threads inserted {sum(results)} records")
+    print(
+        f"✅ Concurrent writes: {len(threads)} threads inserted {sum(results)} records"
+    )
 
 
 def test_concurrent_read_write(temp_db):
@@ -469,6 +480,7 @@ def test_concurrent_read_write(temp_db):
 # ============================================================================
 # Test Aggregation Queries
 # ============================================================================
+
 
 def test_get_stats_summary(temp_db):
     """Test getting statistics summary."""
@@ -550,6 +562,7 @@ def test_get_node_history(temp_db):
 # Test Error Handling
 # ============================================================================
 
+
 def test_empty_batch_insert_returns_zero(temp_db):
     """Test that inserting empty list returns 0."""
     assert temp_db.insert_canvas_changes([]) == 0
@@ -572,6 +585,7 @@ def test_close_database_connection(temp_db):
 # ============================================================================
 # Test Integration with Global Singleton
 # ============================================================================
+
 
 def test_get_cold_data_store_singleton():
     """Test global singleton access."""

@@ -18,8 +18,8 @@ from unittest.mock import AsyncMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 需要在导入前重新加载模块以获取正确的环境变量
-if 'canvas_utils' in sys.modules:
-    del sys.modules['canvas_utils']
+if "canvas_utils" in sys.modules:
+    del sys.modules["canvas_utils"]
 
 from canvas_utils import KnowledgeGraphLayer, create_knowledge_graph_layer
 
@@ -39,7 +39,13 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
     def tearDown(self):
         """测试后清理"""
         # 清理环境变量
-        for key in ["GRAPHITI_ENABLED", "NEO4J_URI", "NEO4J_USER", "NEO4J_PASSWORD", "OPENAI_API_KEY"]:
+        for key in [
+            "GRAPHITI_ENABLED",
+            "NEO4J_URI",
+            "NEO4J_USER",
+            "NEO4J_PASSWORD",
+            "OPENAI_API_KEY",
+        ]:
             if key in os.environ:
                 del os.environ[key]
 
@@ -52,13 +58,14 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         import importlib
 
         import canvas_utils
+
         importlib.reload(canvas_utils)
 
         # Act
         config = {
             "uri": "bolt://localhost:7688",
             "user": "neo4j_test",
-            "password": "test_password"
+            "password": "test_password",
         }
         kg_layer = canvas_utils.KnowledgeGraphLayer(config)
 
@@ -80,6 +87,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         import importlib
 
         import canvas_utils
+
         importlib.reload(canvas_utils)
 
         # Act
@@ -89,7 +97,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         self.assertFalse(kg_layer.enabled)
         self.assertIsNone(kg_layer.graphiti_client)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_graphiti_connection_initialization(self, mock_graphiti):
         """测试Graphiti连接初始化 (AC: 1, 4)"""
         # Arrange
@@ -105,13 +113,11 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         # Assert
         self.assertTrue(result)
         mock_graphiti.assert_called_once_with(
-            uri="bolt://localhost:7687",
-            user="neo4j",
-            password="canvas123"
+            uri="bolt://localhost:7687", user="neo4j", password="canvas123"
         )
         mock_client.build_indices_and_constraints.assert_called_once()
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_check_connection_success(self, mock_graphiti):
         """测试连接检查成功 (AC: 6)"""
         # Arrange
@@ -129,13 +135,15 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         # Assert
         self.assertTrue(is_connected)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_check_connection_failure(self, mock_graphiti):
         """测试连接检查失败"""
         # Arrange
         mock_client = AsyncMock()
         mock_client.build_indices_and_constraints = AsyncMock(return_value=None)
-        mock_client.driver.execute_query = AsyncMock(side_effect=Exception("Connection failed"))
+        mock_client.driver.execute_query = AsyncMock(
+            side_effect=Exception("Connection failed")
+        )
         mock_graphiti.return_value = mock_client
 
         kg_layer = KnowledgeGraphLayer()
@@ -147,7 +155,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         # Assert
         self.assertFalse(is_connected)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_add_canvas_entity(self, mock_graphiti):
         """测试添加Canvas实体 (AC: 1, 5)"""
         # Arrange
@@ -162,7 +170,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         canvas_data = {
             "file_path": "test_canvas.canvas",
             "nodes": [{"id": "node1", "type": "text"}],
-            "edges": []
+            "edges": [],
         }
 
         # Act
@@ -178,7 +186,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         self.assertEqual(call_args[1]["name"], "Canvas: test_canvas.canvas")
         self.assertIn("Canvas文件: test_canvas.canvas", call_args[1]["episode_body"])
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_add_node_entity(self, mock_graphiti):
         """测试添加节点实体 (AC: 1, 5)"""
         # Arrange
@@ -198,7 +206,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
             "x": 100,
             "y": 200,
             "width": 300,
-            "height": 150
+            "height": 150,
         }
 
         # Act
@@ -214,7 +222,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         self.assertEqual(call_args[1]["name"], "Node: text (node1)")
         self.assertIn("节点ID: node1", call_args[1]["episode_body"])
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_add_relationship(self, mock_graphiti):
         """测试添加实体关系 (AC: 1, 5)"""
         # Arrange
@@ -253,7 +261,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         # Assert
         self.assertEqual(result, "RELATED_TO")
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_execute_query(self, mock_graphiti):
         """测试执行Cypher查询 (AC: 6)"""
         # Arrange
@@ -277,7 +285,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         self.assertEqual(result[0]["count"], 5)
         mock_client.driver.execute_query.assert_called_once_with(query)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_performance_baseline_query(self, mock_graphiti):
         """测试性能基准：简单查询 <500ms (AC: 6)"""
         # Arrange
@@ -290,6 +298,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         await kg_layer.initialize()
 
         import time
+
         query = "MATCH (n) RETURN COUNT(n) as count"
 
         # Act
@@ -301,7 +310,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         self.assertLess(elapsed_ms, 500, f"查询耗时{elapsed_ms:.2f}ms，超过500ms限制")
         self.assertIsNotNone(result)
 
-    @patch('canvas_utils.KnowledgeGraphLayer', spec=KnowledgeGraphLayer)
+    @patch("canvas_utils.KnowledgeGraphLayer", spec=KnowledgeGraphLayer)
     async def test_create_knowledge_graph_layer_success(self, mock_kg_class):
         """测试创建知识图谱层的便利函数 - 成功情况"""
         # Arrange
@@ -316,7 +325,7 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         self.assertIsNotNone(result)
         mock_instance.initialize.assert_called_once()
 
-    @patch('canvas_utils.KnowledgeGraphLayer', spec=KnowledgeGraphLayer)
+    @patch("canvas_utils.KnowledgeGraphLayer", spec=KnowledgeGraphLayer)
     async def test_create_knowledge_graph_layer_failure(self, mock_kg_class):
         """测试创建知识图谱层的便利函数 - 失败情况"""
         # Arrange
@@ -335,8 +344,10 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
 class TestKnowledgeGraphLayerIntegration(unittest.TestCase):
     """知识图谱层集成测试类（需要实际数据库连接）"""
 
-    @unittest.skipUnless(os.getenv("RUN_INTEGRATION_TESTS"),
-                        "需要设置RUN_INTEGRATION_TESTS环境变量来运行集成测试")
+    @unittest.skipUnless(
+        os.getenv("RUN_INTEGRATION_TESTS"),
+        "需要设置RUN_INTEGRATION_TESTS环境变量来运行集成测试",
+    )
     async def test_real_neo4j_connection(self):
         """测试真实Neo4j连接（需要环境变量支持）"""
         # 这个测试需要真实的Neo4j环境
@@ -364,22 +375,24 @@ if __name__ == "__main__":
     test_suite = unittest.TestSuite()
 
     # 添加测试用例
-    test_suite.addTest(TestKnowledgeGraphLayer('test_knowledge_graph_layer_initialization'))
-    test_suite.addTest(TestKnowledgeGraphLayer('test_knowledge_graph_layer_disabled'))
-    test_suite.addTest(TestKnowledgeGraphLayer('test_invalid_relationship_type'))
+    test_suite.addTest(
+        TestKnowledgeGraphLayer("test_knowledge_graph_layer_initialization")
+    )
+    test_suite.addTest(TestKnowledgeGraphLayer("test_knowledge_graph_layer_disabled"))
+    test_suite.addTest(TestKnowledgeGraphLayer("test_invalid_relationship_type"))
 
     # 运行异步测试
     async_test_methods = [
-        'test_graphiti_connection_initialization',
-        'test_check_connection_success',
-        'test_check_connection_failure',
-        'test_add_canvas_entity',
-        'test_add_node_entity',
-        'test_add_relationship',
-        'test_execute_query',
-        'test_performance_baseline_query',
-        'test_create_knowledge_graph_layer_success',
-        'test_create_knowledge_graph_layer_failure'
+        "test_graphiti_connection_initialization",
+        "test_check_connection_success",
+        "test_check_connection_failure",
+        "test_add_canvas_entity",
+        "test_add_node_entity",
+        "test_add_relationship",
+        "test_execute_query",
+        "test_performance_baseline_query",
+        "test_create_knowledge_graph_layer_success",
+        "test_create_knowledge_graph_layer_failure",
     ]
 
     for method_name in async_test_methods:

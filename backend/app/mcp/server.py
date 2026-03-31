@@ -373,7 +373,9 @@ def _register_tool_routes(app: FastAPI) -> None:
             "No pipeline token required. Max 2 calls per turn."
         ),
     )
-    async def _record_learning_memory(input: RecordLearningMemoryInput) -> Dict[str, Any]:
+    async def _record_learning_memory(
+        input: RecordLearningMemoryInput,
+    ) -> Dict[str, Any]:
         return await record_learning_memory(
             node_id=input.node_id,
             entity_type=input.entity_type,
@@ -508,7 +510,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         summary="Search Vault notes (6-source RAG pipeline)",
         description="Search the user's Vault markdown notes and related sources using "
         "the full RAG pipeline: semantic search (BGE-M3), knowledge graph (Graphiti), "
-        "multimodal, textbook, and cross-canvas retrieval with fusion and reranking. "
+        "multimodal, and cross-canvas retrieval with fusion and reranking. "
         "Claude should use this tool when it needs to find relevant notes, "
         "examples, or study materials from the user's knowledge base.",
     )

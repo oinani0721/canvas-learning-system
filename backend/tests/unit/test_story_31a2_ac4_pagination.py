@@ -14,11 +14,11 @@ import pytest
 
 from tests.unit.test_story_31a2_helpers import _make_neo4j_mock, _make_service
 
-
 # =============================================================================
 # AC-31.A.2.4: Pagination and Filtering
 # [Source: docs/stories/31.A.2.story.md#AC-31.A.2.4]
 # =============================================================================
+
 
 class TestAC31A24_PaginationAndFiltering:
     """AC-31.A.2.4: page, page_size, concept, subject, dates must work."""
@@ -27,13 +27,15 @@ class TestAC31A24_PaginationAndFiltering:
     def neo4j_with_data(self):
         """Neo4j mock returning 5 items."""
         data = [
-            {"concept": f"Concept-{i}", "score": 80 + i,
-             "timestamp": f"2026-02-0{5-i}T10:00:00", "user_id": "u1"}
+            {
+                "concept": f"Concept-{i}",
+                "score": 80 + i,
+                "timestamp": f"2026-02-0{5 - i}T10:00:00",
+                "user_id": "u1",
+            }
             for i in range(5)
         ]
-        return _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=data)
-        )
+        return _make_neo4j_mock(get_learning_history=AsyncMock(return_value=data))
 
     # --- Pagination ---
 
@@ -43,9 +45,7 @@ class TestAC31A24_PaginationAndFiltering:
         service = _make_service(neo4j_with_data)
         await service.initialize()
 
-        result = await service.get_learning_history(
-            user_id="u1", page=1, page_size=2
-        )
+        result = await service.get_learning_history(user_id="u1", page=1, page_size=2)
 
         assert result["page"] == 1
         assert result["page_size"] == 2
@@ -59,9 +59,7 @@ class TestAC31A24_PaginationAndFiltering:
         service = _make_service(neo4j_with_data)
         await service.initialize()
 
-        result = await service.get_learning_history(
-            user_id="u1", page=2, page_size=2
-        )
+        result = await service.get_learning_history(user_id="u1", page=2, page_size=2)
 
         assert result["page"] == 2
         assert len(result["items"]) == 2
@@ -74,9 +72,7 @@ class TestAC31A24_PaginationAndFiltering:
         service = _make_service(neo4j_with_data)
         await service.initialize()
 
-        result = await service.get_learning_history(
-            user_id="u1", page=1, page_size=2
-        )
+        result = await service.get_learning_history(user_id="u1", page=1, page_size=2)
 
         assert result["total"] == 5
         assert len(result["items"]) == 2
@@ -87,9 +83,7 @@ class TestAC31A24_PaginationAndFiltering:
         service = _make_service(neo4j_with_data)
         await service.initialize()
 
-        result = await service.get_learning_history(
-            user_id="u1", page=1, page_size=2
-        )
+        result = await service.get_learning_history(user_id="u1", page=1, page_size=2)
 
         # 5 items / 2 per page = 3 pages
         assert result["pages"] == 3
@@ -100,9 +94,7 @@ class TestAC31A24_PaginationAndFiltering:
         service = _make_service(neo4j_with_data)
         await service.initialize()
 
-        result = await service.get_learning_history(
-            user_id="u1", page=3, page_size=2
-        )
+        result = await service.get_learning_history(user_id="u1", page=3, page_size=2)
 
         # 5 items, page 3 with size 2 → only 1 item
         assert len(result["items"]) == 1
@@ -111,9 +103,7 @@ class TestAC31A24_PaginationAndFiltering:
     @pytest.mark.asyncio
     async def test_empty_result_has_zero_pages(self):
         """Empty result should have pages=0."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=[])
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=[]))
         service = _make_service(mock_neo4j)
         service._episodes = []  # no memory fallback data either
         await service.initialize()
@@ -199,22 +189,26 @@ class TestAC31A24_PaginationAndFiltering:
     @pytest.mark.asyncio
     async def test_memory_fallback_concept_filter(self):
         """In memory fallback, concept filter still works."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=[])
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=[]))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
         service._episodes = [
-            {"user_id": "u1", "concept": "矩阵乘法", "score": 90,
-             "timestamp": "2026-02-05T10:00:00"},
-            {"user_id": "u1", "concept": "概率论", "score": 80,
-             "timestamp": "2026-02-05T09:00:00"},
+            {
+                "user_id": "u1",
+                "concept": "矩阵乘法",
+                "score": 90,
+                "timestamp": "2026-02-05T10:00:00",
+            },
+            {
+                "user_id": "u1",
+                "concept": "概率论",
+                "score": 80,
+                "timestamp": "2026-02-05T09:00:00",
+            },
         ]
 
-        result = await service.get_learning_history(
-            user_id="u1", concept="矩阵"
-        )
+        result = await service.get_learning_history(user_id="u1", concept="矩阵")
 
         assert result["total"] == 1
         assert result["items"][0]["concept"] == "矩阵乘法"
@@ -222,22 +216,28 @@ class TestAC31A24_PaginationAndFiltering:
     @pytest.mark.asyncio
     async def test_memory_fallback_subject_filter(self):
         """In memory fallback, subject filter works."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=[])
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=[]))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
         service._episodes = [
-            {"user_id": "u1", "concept": "矩阵", "subject": "数学",
-             "score": 90, "timestamp": "2026-02-05T10:00:00"},
-            {"user_id": "u1", "concept": "量子力学", "subject": "物理",
-             "score": 80, "timestamp": "2026-02-05T09:00:00"},
+            {
+                "user_id": "u1",
+                "concept": "矩阵",
+                "subject": "数学",
+                "score": 90,
+                "timestamp": "2026-02-05T10:00:00",
+            },
+            {
+                "user_id": "u1",
+                "concept": "量子力学",
+                "subject": "物理",
+                "score": 80,
+                "timestamp": "2026-02-05T09:00:00",
+            },
         ]
 
-        result = await service.get_learning_history(
-            user_id="u1", subject="数学"
-        )
+        result = await service.get_learning_history(user_id="u1", subject="数学")
 
         assert result["total"] == 1
         assert result["items"][0]["concept"] == "矩阵"
@@ -245,25 +245,20 @@ class TestAC31A24_PaginationAndFiltering:
     @pytest.mark.asyncio
     async def test_memory_fallback_date_filter(self):
         """In memory fallback, date range filters work."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=[])
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=[]))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
         service._episodes = [
-            {"user_id": "u1", "concept": "Old",
-             "timestamp": "2026-01-01T10:00:00"},
-            {"user_id": "u1", "concept": "Current",
-             "timestamp": "2026-02-05T10:00:00"},
-            {"user_id": "u1", "concept": "Future",
-             "timestamp": "2026-03-01T10:00:00"},
+            {"user_id": "u1", "concept": "Old", "timestamp": "2026-01-01T10:00:00"},
+            {"user_id": "u1", "concept": "Current", "timestamp": "2026-02-05T10:00:00"},
+            {"user_id": "u1", "concept": "Future", "timestamp": "2026-03-01T10:00:00"},
         ]
 
         result = await service.get_learning_history(
             user_id="u1",
             start_date=datetime(2026, 2, 1),
-            end_date=datetime(2026, 2, 28)
+            end_date=datetime(2026, 2, 28),
         )
 
         assert result["total"] == 1
@@ -272,19 +267,14 @@ class TestAC31A24_PaginationAndFiltering:
     @pytest.mark.asyncio
     async def test_memory_fallback_sorts_newest_first(self):
         """Memory fallback sorts by timestamp DESC."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=[])
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=[]))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
         service._episodes = [
-            {"user_id": "u1", "concept": "Oldest",
-             "timestamp": "2026-02-01T10:00:00"},
-            {"user_id": "u1", "concept": "Newest",
-             "timestamp": "2026-02-05T10:00:00"},
-            {"user_id": "u1", "concept": "Middle",
-             "timestamp": "2026-02-03T10:00:00"},
+            {"user_id": "u1", "concept": "Oldest", "timestamp": "2026-02-01T10:00:00"},
+            {"user_id": "u1", "concept": "Newest", "timestamp": "2026-02-05T10:00:00"},
+            {"user_id": "u1", "concept": "Middle", "timestamp": "2026-02-03T10:00:00"},
         ]
 
         result = await service.get_learning_history(user_id="u1")
@@ -295,17 +285,13 @@ class TestAC31A24_PaginationAndFiltering:
     @pytest.mark.asyncio
     async def test_memory_fallback_filters_by_user_id(self):
         """Memory fallback only returns current user's data."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=[])
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=[]))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
         service._episodes = [
-            {"user_id": "u1", "concept": "Mine",
-             "timestamp": "2026-02-05T10:00:00"},
-            {"user_id": "u2", "concept": "NotMine",
-             "timestamp": "2026-02-05T10:00:00"},
+            {"user_id": "u1", "concept": "Mine", "timestamp": "2026-02-05T10:00:00"},
+            {"user_id": "u2", "concept": "NotMine", "timestamp": "2026-02-05T10:00:00"},
         ]
 
         result = await service.get_learning_history(user_id="u1")

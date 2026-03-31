@@ -24,7 +24,6 @@ import time
 import uuid
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
 from app.clients.neo4j_edge_client import Neo4jEdgeClient
 from app.clients.neo4j_learning_base import EdgeRelationship
@@ -208,8 +207,20 @@ class TestAddEdgeWithNeo4jSyncReal:
             canvas_path = tmp_path / "test.canvas"
             sample_canvas = {
                 "nodes": [
-                    {"id": f"{prefix}node-1", "type": "text", "text": "Concept A", "x": 0, "y": 0},
-                    {"id": f"{prefix}node-2", "type": "text", "text": "Concept B", "x": 100, "y": 100},
+                    {
+                        "id": f"{prefix}node-1",
+                        "type": "text",
+                        "text": "Concept A",
+                        "x": 0,
+                        "y": 0,
+                    },
+                    {
+                        "id": f"{prefix}node-2",
+                        "type": "text",
+                        "text": "Concept B",
+                        "x": 100,
+                        "y": 100,
+                    },
                 ],
                 "edges": [],
             }
@@ -243,7 +254,9 @@ class TestAddEdgeWithNeo4jSyncReal:
                 )
                 return len(rows) > 0
 
-            await _wait_for_condition(_edge_in_neo4j, timeout=5.0, description="edge persisted to Neo4j")
+            await _wait_for_condition(
+                _edge_in_neo4j, timeout=5.0, description="edge persisted to Neo4j"
+            )
 
             # Verify canvas file also updated
             updated_canvas = json.loads(canvas_path.read_text())
@@ -264,8 +277,20 @@ class TestAddEdgeWithNeo4jSyncReal:
             canvas_path = tmp_path / "test.canvas"
             sample_canvas = {
                 "nodes": [
-                    {"id": f"{prefix}node-1", "type": "text", "text": "A", "x": 0, "y": 0},
-                    {"id": f"{prefix}node-2", "type": "text", "text": "B", "x": 100, "y": 100},
+                    {
+                        "id": f"{prefix}node-1",
+                        "type": "text",
+                        "text": "A",
+                        "x": 0,
+                        "y": 0,
+                    },
+                    {
+                        "id": f"{prefix}node-2",
+                        "type": "text",
+                        "text": "B",
+                        "x": 100,
+                        "y": 100,
+                    },
                 ],
                 "edges": [],
             }
@@ -289,7 +314,9 @@ class TestAddEdgeWithNeo4jSyncReal:
             elapsed = time.monotonic() - start
 
             # add_edge should complete quickly (fire-and-forget sync)
-            assert elapsed < 1.0, f"add_edge took {elapsed}s, should be < 1.0s (fire-and-forget)"
+            assert elapsed < 1.0, (
+                f"add_edge took {elapsed}s, should be < 1.0s (fire-and-forget)"
+            )
             assert result["fromNode"] == f"{prefix}node-1"
 
             # Give background task time to complete for cleanup
@@ -375,9 +402,24 @@ class TestNeo4jEdgeClientReal:
             await edge_client.initialize()
 
             edges = [
-                {"id": f"{prefix}e1", "fromNode": f"{prefix}n1", "toNode": f"{prefix}n2", "label": "rel_a"},
-                {"id": f"{prefix}e2", "fromNode": f"{prefix}n2", "toNode": f"{prefix}n3", "label": "rel_b"},
-                {"id": f"{prefix}e3", "fromNode": f"{prefix}n3", "toNode": f"{prefix}n1", "label": "rel_c"},
+                {
+                    "id": f"{prefix}e1",
+                    "fromNode": f"{prefix}n1",
+                    "toNode": f"{prefix}n2",
+                    "label": "rel_a",
+                },
+                {
+                    "id": f"{prefix}e2",
+                    "fromNode": f"{prefix}n2",
+                    "toNode": f"{prefix}n3",
+                    "label": "rel_b",
+                },
+                {
+                    "id": f"{prefix}e3",
+                    "fromNode": f"{prefix}n3",
+                    "toNode": f"{prefix}n1",
+                    "label": "rel_c",
+                },
             ]
 
             result = await edge_client.sync_canvas_edges(

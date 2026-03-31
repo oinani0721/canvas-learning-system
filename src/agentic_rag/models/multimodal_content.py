@@ -20,6 +20,7 @@ class MediaType(Enum):
 
     Verified from multimodal-content.schema.json
     """
+
     IMAGE = "image"
     PDF = "pdf"
     AUDIO = "audio"
@@ -76,6 +77,7 @@ class MultimodalMetadata:
 
     Contains optional fields for dimensions, duration, page count, etc.
     """
+
     file_size: Optional[int] = None  # bytes
     width: Optional[int] = None  # pixels (image/video)
     height: Optional[int] = None  # pixels (image/video)
@@ -90,17 +92,21 @@ class MultimodalMetadata:
 
     def to_dict(self) -> dict:
         """Convert metadata to dictionary, excluding None values."""
-        return {k: v for k, v in {
-            "file_size": self.file_size,
-            "width": self.width,
-            "height": self.height,
-            "duration": self.duration,
-            "page_count": self.page_count,
-            "mime_type": self.mime_type,
-            "author": self.author,
-            "title": self.title,
-            "language": self.language,
-        }.items() if v is not None}
+        return {
+            k: v
+            for k, v in {
+                "file_size": self.file_size,
+                "width": self.width,
+                "height": self.height,
+                "duration": self.duration,
+                "page_count": self.page_count,
+                "mime_type": self.mime_type,
+                "author": self.author,
+                "title": self.title,
+                "language": self.language,
+            }.items()
+            if v is not None
+        }
 
     @classmethod
     def from_dict(cls, data: dict) -> "MultimodalMetadata":
@@ -142,6 +148,7 @@ class MultimodalContent:
         updated_at: Optional last update timestamp
         metadata: Additional metadata (dimensions, duration, etc.)
     """
+
     media_type: MediaType
     file_path: str
     related_concept_id: str

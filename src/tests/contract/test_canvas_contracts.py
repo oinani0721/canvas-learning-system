@@ -24,7 +24,6 @@ References:
 - Task 6 (BMad Integration Plan): 创建Contract Testing测试套件
 """
 
-
 import pytest
 from hypothesis import given
 
@@ -39,7 +38,10 @@ pytestmark = [pytest.mark.contract, pytest.mark.canvas_api]
 # Schemathesis Schema-based Contract Tests
 # ============================================================================
 
-@pytest.mark.skip(reason="Schemathesis auto-generated comprehensive test - complex to fix, core API tests pass")
+
+@pytest.mark.skip(
+    reason="Schemathesis auto-generated comprehensive test - complex to fix, core API tests pass"
+)
 def test_canvas_api_contract_all_endpoints(canvas_api_schema, mock_canvas_server_url):
     """
     测试Canvas API所有endpoint的Contract一致性
@@ -52,6 +54,7 @@ def test_canvas_api_contract_all_endpoints(canvas_api_schema, mock_canvas_server
     Note: 此测试需要启动Mock Canvas API服务器或真实API服务器
     启动方式: python -m canvas_api.server  (假设有这样的服务器实现)
     """
+
     # 创建Schemathesis测试案例
     @given(case=canvas_api_schema.as_strategy())
     def run_test(case):
@@ -66,6 +69,7 @@ def test_canvas_api_contract_all_endpoints(canvas_api_schema, mock_canvas_server
 # ============================================================================
 # Canvas CRUD Tests
 # ============================================================================
+
 
 def test_canvas_get_contract(canvas_api_schema, mock_canvas_server_url):
     """
@@ -84,7 +88,9 @@ def test_canvas_get_contract(canvas_api_schema, mock_canvas_server_url):
     case.validate_response(response)
 
 
-def test_canvas_create_contract(canvas_api_schema, mock_canvas_server_url, sample_canvas_data):
+def test_canvas_create_contract(
+    canvas_api_schema, mock_canvas_server_url, sample_canvas_data
+):
     """
     测试POST /canvas endpoint的Contract
 
@@ -102,6 +108,7 @@ def test_canvas_create_contract(canvas_api_schema, mock_canvas_server_url, sampl
 # ============================================================================
 # Node CRUD Tests
 # ============================================================================
+
 
 def test_node_get_contract(canvas_api_schema, mock_canvas_server_url):
     """
@@ -136,12 +143,11 @@ def test_node_create_contract(canvas_api_schema, mock_canvas_server_url):
         "width": 300,
         "height": 100,
         "color": "1",
-        "text": "测试问题节点"
+        "text": "测试问题节点",
     }
 
     case = canvas_api_schema["/canvas/{canvasId}/nodes"]["POST"].Case(
-        path_parameters={"canvasId": "test-canvas-001"},
-        body=text_node
+        path_parameters={"canvasId": "test-canvas-001"}, body=text_node
     )
     response = case.call(base_url=mock_canvas_server_url)
     case.validate_response(response)
@@ -150,6 +156,7 @@ def test_node_create_contract(canvas_api_schema, mock_canvas_server_url):
 # ============================================================================
 # Edge CRUD Tests
 # ============================================================================
+
 
 def test_edge_create_contract(canvas_api_schema, mock_canvas_server_url):
     """
@@ -165,12 +172,11 @@ def test_edge_create_contract(canvas_api_schema, mock_canvas_server_url):
         "fromNode": "test-question-001",
         "toNode": "test-yellow-001",
         "fromSide": "bottom",
-        "toSide": "top"
+        "toSide": "top",
     }
 
     case = canvas_api_schema["/canvas/{canvasId}/edges"]["POST"].Case(
-        path_parameters={"canvasId": "test-canvas-001"},
-        body=edge
+        path_parameters={"canvasId": "test-canvas-001"}, body=edge
     )
     response = case.call(base_url=mock_canvas_server_url)
     case.validate_response(response)
@@ -179,6 +185,7 @@ def test_edge_create_contract(canvas_api_schema, mock_canvas_server_url):
 # ============================================================================
 # Color Update Tests
 # ============================================================================
+
 
 def test_color_update_contract(canvas_api_schema, mock_canvas_server_url):
     """
@@ -195,7 +202,7 @@ def test_color_update_contract(canvas_api_schema, mock_canvas_server_url):
     for color in valid_colors:
         case = canvas_api_schema["/canvas/{canvasId}/nodes/{nodeId}"]["PATCH"].Case(
             path_parameters={"canvasId": "test-canvas-001", "nodeId": "yellow-001"},
-            body={"color": color}
+            body={"color": color},
         )
         response = case.call(base_url=mock_canvas_server_url)
         case.validate_response(response)
@@ -205,7 +212,10 @@ def test_color_update_contract(canvas_api_schema, mock_canvas_server_url):
 # Layout Tests
 # ============================================================================
 
-@pytest.mark.skip(reason="Layout endpoint not yet defined in OpenAPI spec v1.0 - planned for future release")
+
+@pytest.mark.skip(
+    reason="Layout endpoint not yet defined in OpenAPI spec v1.0 - planned for future release"
+)
 def test_layout_apply_contract(canvas_api_schema, mock_canvas_server_url):
     """
     测试POST /canvas/{canvasId}/layout endpoint的Contract
@@ -220,7 +230,7 @@ def test_layout_apply_contract(canvas_api_schema, mock_canvas_server_url):
     # 测试v1.1布局算法
     case = canvas_api_schema["/canvas/{canvasId}/layout"]["POST"].Case(
         path_parameters={"canvasId": "test-canvas-001"},
-        body={"algorithm": "v1.1", "options": {}}
+        body={"algorithm": "v1.1", "options": {}},
     )
     response = case.call(base_url=mock_canvas_server_url)
     case.validate_response(response)
@@ -230,8 +240,11 @@ def test_layout_apply_contract(canvas_api_schema, mock_canvas_server_url):
 # Property-based Tests (Hypothesis + Schemathesis)
 # ============================================================================
 
+
 @pytest.mark.slow
-@pytest.mark.skip(reason="Schemathesis auto-generated property-based test - complex to fix, core API tests pass")
+@pytest.mark.skip(
+    reason="Schemathesis auto-generated property-based test - complex to fix, core API tests pass"
+)
 def test_canvas_api_property_based(canvas_api_schema, mock_canvas_server_url):
     """
     基于属性的测试（Property-based Testing）
@@ -244,6 +257,7 @@ def test_canvas_api_property_based(canvas_api_schema, mock_canvas_server_url):
 
     Note: 此测试会生成50个随机案例（见conftest.py中的Hypothesis配置）
     """
+
     # 使用Schemathesis的property-based testing
     @given(case=canvas_api_schema.as_strategy())
     def test_property(case):
@@ -256,7 +270,10 @@ def test_canvas_api_property_based(canvas_api_schema, mock_canvas_server_url):
 
             # 属性2: 成功响应必须有正确的状态码
             if response.status_code in [200, 201, 204]:
-                assert response.status_code in case.operation.definition.get("responses", {}).keys()
+                assert (
+                    response.status_code
+                    in case.operation.definition.get("responses", {}).keys()
+                )
 
             # 属性3: 错误响应必须有error字段
             if response.status_code >= 400:
@@ -276,6 +293,7 @@ def test_canvas_api_property_based(canvas_api_schema, mock_canvas_server_url):
 # ============================================================================
 # Manual Contract Tests (不依赖API服务器)
 # ============================================================================
+
 
 def test_canvas_node_schema_validation(sample_canvas_data):
     """
@@ -349,8 +367,11 @@ def test_node_type_conditional_validation(sample_canvas_data):
 # Integration Tests (需要完整的Canvas API实现)
 # ============================================================================
 
+
 @pytest.mark.slow
-def test_canvas_crud_workflow_integration(canvas_api_schema, mock_canvas_server_url, sample_canvas_data):
+def test_canvas_crud_workflow_integration(
+    canvas_api_schema, mock_canvas_server_url, sample_canvas_data
+):
     """
     测试Canvas CRUD完整工作流的Contract一致性
 
@@ -383,27 +404,27 @@ def test_canvas_crud_workflow_integration(canvas_api_schema, mock_canvas_server_
         "width": 300,
         "height": 100,
         "color": "3",
-        "text": "新添加的紫色节点"
+        "text": "新添加的紫色节点",
     }
     add_node_case = canvas_api_schema["/canvas/{canvasId}/nodes"]["POST"].Case(
-        path_parameters={"canvasId": canvas_id},
-        body=new_node
+        path_parameters={"canvasId": canvas_id}, body=new_node
     )
     add_node_response = add_node_case.call(base_url=mock_canvas_server_url)
     add_node_case.validate_response(add_node_response)
     assert add_node_response.status_code == 201
-    new_node_id = add_node_response.json()["id"]  # Node ID is in "id" field, not "nodeId"
+    new_node_id = add_node_response.json()[
+        "id"
+    ]  # Node ID is in "id" field, not "nodeId"
 
     # Step 3: 添加边
     new_edge = {
         "fromNode": "test-question-001",
         "toNode": new_node_id,
         "fromSide": "right",
-        "toSide": "left"
+        "toSide": "left",
     }
     add_edge_case = canvas_api_schema["/canvas/{canvasId}/edges"]["POST"].Case(
-        path_parameters={"canvasId": canvas_id},
-        body=new_edge
+        path_parameters={"canvasId": canvas_id}, body=new_edge
     )
     add_edge_response = add_edge_case.call(base_url=mock_canvas_server_url)
     add_edge_case.validate_response(add_edge_response)
@@ -411,18 +432,18 @@ def test_canvas_crud_workflow_integration(canvas_api_schema, mock_canvas_server_
 
     # Step 4: 更新节点颜色（使用已存在的节点，因为mock服务器不跟踪新节点）
     existing_node_id = "yellow-001"  # Use existing node from MOCK_CANVAS_DATA
-    update_color_case = canvas_api_schema["/canvas/{canvasId}/nodes/{nodeId}"]["PATCH"].Case(
+    update_color_case = canvas_api_schema["/canvas/{canvasId}/nodes/{nodeId}"][
+        "PATCH"
+    ].Case(
         path_parameters={"canvasId": canvas_id, "nodeId": existing_node_id},
-        body={"color": "2"}  # 改为绿色
+        body={"color": "2"},  # 改为绿色
     )
     update_color_response = update_color_case.call(base_url=mock_canvas_server_url)
     update_color_case.validate_response(update_color_response)
     assert update_color_response.status_code == 200
 
     # Step 5: 读取Canvas（使用/canvas GET with query parameter）
-    get_case = canvas_api_schema["/canvas"]["GET"].Case(
-        query={"path": canvas_path}
-    )
+    get_case = canvas_api_schema["/canvas"]["GET"].Case(query={"path": canvas_path})
     get_response = get_case.call(base_url=mock_canvas_server_url)
     get_case.validate_response(get_response)
     assert get_response.status_code == 200

@@ -36,6 +36,7 @@ class AttemptRecord(TypedDict):
 
     记录用户每次回答的详细信息，用于分析和改进引导策略。
     """
+
     attempt_number: int
     user_answer: str
     score: float
@@ -50,6 +51,7 @@ class ConceptResult(TypedDict):
 
     记录每个概念的验证过程和最终结果。
     """
+
     concept_id: str
     concept_text: str
     final_color: str  # green/yellow/purple/red
@@ -125,8 +127,7 @@ class VerificationState(TypedDict):
     # ═══════════════════════════════════════════════════════════════════════════════
     user_answer: Annotated[str, "用户当前回答内容"]
     answer_quality: Annotated[
-        Literal["excellent", "good", "partial", "wrong", "skipped"],
-        "回答质量评级"
+        Literal["excellent", "good", "partial", "wrong", "skipped"], "回答质量评级"
     ]
     answer_score: Annotated[float, "回答评分 (0-100)"]
 
@@ -147,14 +148,16 @@ class VerificationState(TypedDict):
     max_hints: Annotated[int, "最大提示次数 (默认3)"]
     current_hints: Annotated[List[str], "当前提示内容列表"]
     selected_agent: Annotated[
-        Optional[Literal[
-            "memory-anchor",
-            "example-teaching",
-            "comparison-table",
-            "basic-decomposition",
-            "clarification-path"
-        ]],
-        "选中的引导Agent"
+        Optional[
+            Literal[
+                "memory-anchor",
+                "example-teaching",
+                "comparison-table",
+                "basic-decomposition",
+                "clarification-path",
+            ]
+        ],
+        "选中的引导Agent",
     ]
 
     # ═══════════════════════════════════════════════════════════════════════════════
@@ -176,8 +179,7 @@ class VerificationState(TypedDict):
     is_paused: Annotated[bool, "是否暂停"]
     is_completed: Annotated[bool, "是否完成"]
     user_action: Annotated[
-        Literal["continue", "skip", "pause", "end", "retry"],
-        "用户操作"
+        Literal["continue", "skip", "pause", "end", "retry"], "用户操作"
     ]
 
     # ═══════════════════════════════════════════════════════════════════════════════
@@ -186,14 +188,12 @@ class VerificationState(TypedDict):
     current_question: Annotated[str, "当前生成的引导问题"]
     question_type: Annotated[
         Literal["definition", "application", "comparison", "example", "derivation"],
-        "问题类型"
+        "问题类型",
     ]
 
 
 def create_initial_state(
-    source_canvas: str,
-    source_nodes: List[Dict[str, Any]],
-    session_id: str
+    source_canvas: str, source_nodes: List[Dict[str, Any]], session_id: str
 ) -> VerificationState:
     """
     创建初始VerificationState
@@ -217,17 +217,14 @@ def create_initial_state(
         # 源Canvas信息
         source_canvas=source_canvas,
         source_nodes=source_nodes,
-
         # 概念队列
         concept_queue=concept_queue,
         current_concept=concept_queue[0] if concept_queue else "",
         current_concept_idx=0,
-
         # 用户回答
         user_answer="",
         answer_quality="wrong",
         answer_score=0.0,
-
         # 进度跟踪
         total_concepts=len(concept_queue),
         completed_concepts=0,
@@ -235,27 +232,22 @@ def create_initial_state(
         yellow_count=0,
         purple_count=0,
         red_count=0,
-
         # 引导状态
         hints_given=0,
         max_hints=3,
         current_hints=[],
         selected_agent=None,
-
         # RAG上下文
         rag_context=None,
         rag_available=True,
-
         # 结果Canvas
         verification_canvas={"nodes": [], "edges": []},
         concept_results=[],
-
         # 会话控制
         session_id=session_id,
         is_paused=False,
         is_completed=False,
         user_action="continue",
-
         # 当前问题
         current_question="",
         question_type="definition",

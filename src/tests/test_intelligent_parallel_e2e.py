@@ -14,7 +14,11 @@ import os
 
 import pytest
 
-from canvas_utils import CanvasJSONOperator, ConcurrentAgentProcessor, IntelligentParallelScheduler
+from canvas_utils import (
+    CanvasJSONOperator,
+    ConcurrentAgentProcessor,
+    IntelligentParallelScheduler,
+)
 
 
 class TestIntelligentParallelE2E:
@@ -36,7 +40,7 @@ class TestIntelligentParallelE2E:
                     "y": 0,
                     "width": 200,
                     "height": 100,
-                    "color": "6"  # 黄色
+                    "color": "6",  # 黄色
                 },
                 {
                     "id": "yellow2",
@@ -46,10 +50,10 @@ class TestIntelligentParallelE2E:
                     "y": 0,
                     "width": 200,
                     "height": 100,
-                    "color": "6"  # 黄色
-                }
+                    "color": "6",  # 黄色
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
         with open(canvas_path, "w", encoding="utf-8") as f:
@@ -59,8 +63,7 @@ class TestIntelligentParallelE2E:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
-        os.getenv("ANTHROPIC_API_KEY") is None,
-        reason="需要ANTHROPIC_API_KEY环境变量"
+        os.getenv("ANTHROPIC_API_KEY") is None, reason="需要ANTHROPIC_API_KEY环境变量"
     )
     async def test_full_intelligent_parallel_workflow(self, test_canvas_path):
         """测试完整的智能并行处理工作流"""
@@ -72,7 +75,7 @@ class TestIntelligentParallelE2E:
         print("\n=== Step 1: 分析Canvas节点 ===")
         schedule_result = await scheduler.analyze_and_schedule_nodes(
             canvas_path=test_canvas_path,
-            auto_execute=False  # 不自动执行,我们手动控制
+            auto_execute=False,  # 不自动执行,我们手动控制
         )
 
         assert schedule_result["status"] == "success"
@@ -84,11 +87,13 @@ class TestIntelligentParallelE2E:
         tasks = []
 
         for node_info in task_group["nodes"]:
-            tasks.append({
-                "agent_name": task_group["agent_type"],
-                "node_id": node_info["id"],
-                "node_text": node_info.get("text", "")
-            })
+            tasks.append(
+                {
+                    "agent_name": task_group["agent_type"],
+                    "node_id": node_info["id"],
+                    "node_text": node_info.get("text", ""),
+                }
+            )
 
         print(f"=== Step 2: 准备执行 {len(tasks)} 个任务 ===")
 
@@ -96,7 +101,7 @@ class TestIntelligentParallelE2E:
         print("=== Step 3: 执行Agent并行处理 ===")
         execution_result = await processor.execute_parallel(
             agent_tasks=tasks[:1],  # 只执行第一个任务
-            canvas_path=test_canvas_path
+            canvas_path=test_canvas_path,
         )
 
         # 验证执行结果
@@ -108,15 +113,16 @@ class TestIntelligentParallelE2E:
         # Step 5: 验证Canvas集成
         print("=== Step 4: 验证Canvas集成 ===")
         successful_results = [
-            r for r in execution_result["results"]
-            if r.get("success", False)
+            r for r in execution_result["results"] if r.get("success", False)
         ]
 
         assert len(successful_results) > 0, "至少应该有一个成功的结果"
 
         # 检查Canvas集成统计
         if "canvas_integration_summary" in execution_result["execution_summary"]:
-            integration_stats = execution_result["execution_summary"]["canvas_integration_summary"]
+            integration_stats = execution_result["execution_summary"][
+                "canvas_integration_summary"
+            ]
             print(f"Canvas集成统计: {integration_stats}")
 
             # 验证统计数据
@@ -151,14 +157,12 @@ class TestIntelligentParallelE2E:
         task = {
             "agent_name": "clarification-path",
             "node_id": "yellow1",
-            "node_text": "测试概念"
+            "node_text": "测试概念",
         }
 
         # 执行任务
         result = await processor._execute_with_semaphore(
-            task_info=task,
-            canvas_path=test_canvas_path,
-            execution_id="test_exec"
+            task_info=task, canvas_path=test_canvas_path, execution_id="test_exec"
         )
 
         # 验证结果包含agent_result (新结构)

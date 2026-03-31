@@ -36,12 +36,13 @@ class TestEpisodesSubjectFilter:
         ✅ AC-30.8.3: API supports subject query parameter
         """
         response = await async_client.get(
-            "/api/v1/memory/episodes",
-            params={"user_id": "test_user"}
+            "/api/v1/memory/episodes", params={"user_id": "test_user"}
         )
         assert response.status_code == 200
 
-    async def test_episodes_endpoint_accepts_subject_param(self, async_client: AsyncClient):
+    async def test_episodes_endpoint_accepts_subject_param(
+        self, async_client: AsyncClient
+    ):
         """
         Episodes endpoint should accept subject query parameter.
 
@@ -49,7 +50,7 @@ class TestEpisodesSubjectFilter:
         """
         response = await async_client.get(
             "/api/v1/memory/episodes",
-            params={"user_id": "test_user", "subject": "math"}
+            params={"user_id": "test_user", "subject": "math"},
         )
         assert response.status_code == 200
 
@@ -61,7 +62,7 @@ class TestEpisodesSubjectFilter:
         """
         response = await async_client.get(
             "/api/v1/memory/episodes",
-            params={"user_id": "test_user", "subject": "physics"}
+            params={"user_id": "test_user", "subject": "physics"},
         )
         data = response.json()
 
@@ -87,7 +88,7 @@ class TestEpisodesSubjectFilter:
         for subject in chinese_subjects:
             response = await async_client.get(
                 "/api/v1/memory/episodes",
-                params={"user_id": "test_user", "subject": subject}
+                params={"user_id": "test_user", "subject": subject},
             )
             assert response.status_code == 200, f"Failed for subject: {subject}"
 
@@ -103,8 +104,8 @@ class TestEpisodesSubjectFilter:
                 "user_id": "test_user",
                 "subject": "math",
                 "page": 1,
-                "page_size": 10
-            }
+                "page_size": 10,
+            },
         )
         assert response.status_code == 200
         data = response.json()
@@ -112,7 +113,9 @@ class TestEpisodesSubjectFilter:
         assert data["page"] == 1
         assert data["page_size"] == 10
 
-    async def test_episodes_with_date_filters_and_subject(self, async_client: AsyncClient):
+    async def test_episodes_with_date_filters_and_subject(
+        self, async_client: AsyncClient
+    ):
         """
         Episodes endpoint should support date filters combined with subject.
 
@@ -124,8 +127,8 @@ class TestEpisodesSubjectFilter:
                 "user_id": "test_user",
                 "subject": "physics",
                 "start_date": "2026-01-01T00:00:00Z",
-                "end_date": "2026-12-31T23:59:59Z"
-            }
+                "end_date": "2026-12-31T23:59:59Z",
+            },
         )
         assert response.status_code == 200
 
@@ -136,8 +139,7 @@ class TestEpisodesSubjectFilter:
         ✅ AC-30.8.3: Subject filter is optional
         """
         response = await async_client.get(
-            "/api/v1/memory/episodes",
-            params={"user_id": "test_user"}
+            "/api/v1/memory/episodes", params={"user_id": "test_user"}
         )
         assert response.status_code == 200
 
@@ -152,12 +154,13 @@ class TestReviewSuggestionsSubjectFilter:
         ✅ AC-30.8.3: API supports subject query parameter
         """
         response = await async_client.get(
-            "/api/v1/memory/review-suggestions",
-            params={"user_id": "test_user"}
+            "/api/v1/memory/review-suggestions", params={"user_id": "test_user"}
         )
         assert response.status_code == 200
 
-    async def test_review_suggestions_accepts_subject_param(self, async_client: AsyncClient):
+    async def test_review_suggestions_accepts_subject_param(
+        self, async_client: AsyncClient
+    ):
         """
         Review suggestions endpoint should accept subject query parameter.
 
@@ -165,11 +168,13 @@ class TestReviewSuggestionsSubjectFilter:
         """
         response = await async_client.get(
             "/api/v1/memory/review-suggestions",
-            params={"user_id": "test_user", "subject": "math"}
+            params={"user_id": "test_user", "subject": "math"},
         )
         assert response.status_code == 200
 
-    async def test_review_suggestions_response_structure(self, async_client: AsyncClient):
+    async def test_review_suggestions_response_structure(
+        self, async_client: AsyncClient
+    ):
         """
         Review suggestions response should be a list of suggestion objects.
 
@@ -177,7 +182,7 @@ class TestReviewSuggestionsSubjectFilter:
         """
         response = await async_client.get(
             "/api/v1/memory/review-suggestions",
-            params={"user_id": "test_user", "subject": "physics"}
+            params={"user_id": "test_user", "subject": "physics"},
         )
         data = response.json()
 
@@ -190,7 +195,9 @@ class TestReviewSuggestionsSubjectFilter:
             assert "concept_id" in suggestion
             assert "priority" in suggestion
 
-    async def test_review_suggestions_subject_filter_unicode(self, async_client: AsyncClient):
+    async def test_review_suggestions_subject_filter_unicode(
+        self, async_client: AsyncClient
+    ):
         """
         Review suggestions should accept Chinese subject names.
 
@@ -201,7 +208,7 @@ class TestReviewSuggestionsSubjectFilter:
         for subject in chinese_subjects:
             response = await async_client.get(
                 "/api/v1/memory/review-suggestions",
-                params={"user_id": "test_user", "subject": subject}
+                params={"user_id": "test_user", "subject": subject},
             )
             assert response.status_code == 200, f"Failed for subject: {subject}"
 
@@ -213,25 +220,22 @@ class TestReviewSuggestionsSubjectFilter:
         """
         response = await async_client.get(
             "/api/v1/memory/review-suggestions",
-            params={
-                "user_id": "test_user",
-                "subject": "math",
-                "limit": 5
-            }
+            params={"user_id": "test_user", "subject": "math", "limit": 5},
         )
         assert response.status_code == 200
         data = response.json()
         assert len(data) <= 5
 
-    async def test_review_suggestions_subject_none_returns_all(self, async_client: AsyncClient):
+    async def test_review_suggestions_subject_none_returns_all(
+        self, async_client: AsyncClient
+    ):
         """
         When subject is not provided, should return suggestions from all subjects.
 
         ✅ AC-30.8.3: Subject filter is optional
         """
         response = await async_client.get(
-            "/api/v1/memory/review-suggestions",
-            params={"user_id": "test_user"}
+            "/api/v1/memory/review-suggestions", params={"user_id": "test_user"}
         )
         assert response.status_code == 200
 
@@ -248,7 +252,7 @@ class TestSubjectIsolationIntegration:
         # Query math episodes
         math_response = await async_client.get(
             "/api/v1/memory/episodes",
-            params={"user_id": "test_user", "subject": "math"}
+            params={"user_id": "test_user", "subject": "math"},
         )
         assert math_response.status_code == 200
         math_data = math_response.json()
@@ -256,7 +260,7 @@ class TestSubjectIsolationIntegration:
         # Query physics episodes
         physics_response = await async_client.get(
             "/api/v1/memory/episodes",
-            params={"user_id": "test_user", "subject": "physics"}
+            params={"user_id": "test_user", "subject": "physics"},
         )
         assert physics_response.status_code == 200
         physics_data = physics_response.json()
@@ -275,14 +279,14 @@ class TestSubjectIsolationIntegration:
         # Query 数学 episodes
         math_cn_response = await async_client.get(
             "/api/v1/memory/episodes",
-            params={"user_id": "test_user", "subject": "数学"}
+            params={"user_id": "test_user", "subject": "数学"},
         )
         assert math_cn_response.status_code == 200
 
         # Query 托福 episodes
         toefl_response = await async_client.get(
             "/api/v1/memory/episodes",
-            params={"user_id": "test_user", "subject": "托福"}
+            params={"user_id": "test_user", "subject": "托福"},
         )
         assert toefl_response.status_code == 200
 
@@ -323,7 +327,7 @@ class TestSubjectParameterValidation:
         # Subject with special characters
         response = await async_client.get(
             "/api/v1/memory/episodes",
-            params={"user_id": "test_user", "subject": "math-101"}
+            params={"user_id": "test_user", "subject": "math-101"},
         )
         assert response.status_code == 200
 
@@ -335,7 +339,7 @@ class TestSubjectParameterValidation:
         """
         response = await async_client.get(
             "/api/v1/memory/episodes",
-            params={"user_id": "test_user", "subject": "linear algebra"}
+            params={"user_id": "test_user", "subject": "linear algebra"},
         )
         assert response.status_code == 200
 
@@ -354,7 +358,7 @@ class TestSubjectFilterPerformance:
         start = time.perf_counter()
         response = await async_client.get(
             "/api/v1/memory/episodes",
-            params={"user_id": "test_user", "subject": "math"}
+            params={"user_id": "test_user", "subject": "math"},
         )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -362,8 +366,7 @@ class TestSubjectFilterPerformance:
         assert elapsed_ms < 500, f"Endpoint took {elapsed_ms:.1f}ms (expected < 500ms)"
 
     async def test_review_suggestions_subject_filter_performance(
-        self,
-        async_client: AsyncClient
+        self, async_client: AsyncClient
     ):
         """
         Review suggestions with subject filter should respond quickly.
@@ -375,7 +378,7 @@ class TestSubjectFilterPerformance:
         start = time.perf_counter()
         response = await async_client.get(
             "/api/v1/memory/review-suggestions",
-            params={"user_id": "test_user", "subject": "physics", "limit": 10}
+            params={"user_id": "test_user", "subject": "physics", "limit": 10},
         )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -405,7 +408,7 @@ class TestConceptHistoryEndpoint:
         """
         response = await async_client.get(
             "/api/v1/memory/concepts/test_concept/history",
-            params={"user_id": "test_user"}
+            params={"user_id": "test_user"},
         )
         assert response.status_code == 200
 
@@ -416,8 +419,7 @@ class TestConceptHistoryEndpoint:
         ✅ Verified from backend/app/api/v1/endpoints/memory.py
         """
         response = await async_client.get(
-            "/api/v1/memory/concepts/test_concept/history",
-            params={"limit": 20}
+            "/api/v1/memory/concepts/test_concept/history", params={"limit": 20}
         )
         assert response.status_code == 200
 

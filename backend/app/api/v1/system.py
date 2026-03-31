@@ -55,7 +55,9 @@ async def _check_neo4j(settings: Settings) -> ComponentStatus:
                 result = await session.run("RETURN 1 AS n")
                 record = await result.single()
                 if record and record["n"] == 1:
-                    return ComponentStatus(name="neo4j", status="healthy", message="Bolt connection OK")
+                    return ComponentStatus(
+                        name="neo4j", status="healthy", message="Bolt connection OK"
+                    )
                 return ComponentStatus(
                     name="neo4j",
                     status="unhealthy",
@@ -74,7 +76,9 @@ async def _check_ollama(settings: Settings) -> ComponentStatus:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(f"{settings.OLLAMA_HOST}/api/tags")
             if resp.status_code == 200:
-                return ComponentStatus(name="ollama", status="healthy", message="API reachable")
+                return ComponentStatus(
+                    name="ollama", status="healthy", message="API reachable"
+                )
             return ComponentStatus(
                 name="ollama",
                 status="unhealthy",
@@ -82,7 +86,9 @@ async def _check_ollama(settings: Settings) -> ComponentStatus:
             )
     except Exception as exc:
         logger.warning("Ollama health check failed: %s", exc)
-        return ComponentStatus(name="ollama", status="unhealthy", message=str(exc)[:200])
+        return ComponentStatus(
+            name="ollama", status="unhealthy", message=str(exc)[:200]
+        )
 
 
 async def _check_lancedb(settings: Settings) -> ComponentStatus:
@@ -104,7 +110,9 @@ async def _check_lancedb(settings: Settings) -> ComponentStatus:
         )
     except Exception as exc:
         logger.warning("LanceDB health check failed: %s", exc)
-        return ComponentStatus(name="lancedb", status="unhealthy", message=str(exc)[:200])
+        return ComponentStatus(
+            name="lancedb", status="unhealthy", message=str(exc)[:200]
+        )
 
 
 @router.get("/health")
@@ -196,16 +204,26 @@ class ErrorStats(BaseModel):
     """
 
     total: int = Field(0, description="Total error count")
-    by_type: Dict[str, int] = Field(default_factory=dict, description="Error count by category")
+    by_type: Dict[str, int] = Field(
+        default_factory=dict, description="Error count by category"
+    )
 
 
 class LLMStatsData(BaseModel):
     """LLM statistics data payload."""
 
-    summary: LLMStatsSummary = Field(default_factory=LLMStatsSummary, description="Aggregated summary")
-    by_task: list[TaskTypeStats] = Field(default_factory=list, description="Per-task-type breakdown")
-    by_day: list[DayStats] = Field(default_factory=list, description="Per-day breakdown")
-    errors: ErrorStats = Field(default_factory=ErrorStats, description="Error statistics")
+    summary: LLMStatsSummary = Field(
+        default_factory=LLMStatsSummary, description="Aggregated summary"
+    )
+    by_task: list[TaskTypeStats] = Field(
+        default_factory=list, description="Per-task-type breakdown"
+    )
+    by_day: list[DayStats] = Field(
+        default_factory=list, description="Per-day breakdown"
+    )
+    errors: ErrorStats = Field(
+        default_factory=ErrorStats, description="Error statistics"
+    )
 
 
 class LLMStatsMeta(BaseModel):
@@ -268,8 +286,12 @@ def _compute_period_range(
                 detail="start_date and end_date are required for custom period",
             )
         try:
-            start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-            end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc, hour=23, minute=59, second=59)
+            start = datetime.strptime(start_date, "%Y-%m-%d").replace(
+                tzinfo=timezone.utc
+            )
+            end = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                tzinfo=timezone.utc, hour=23, minute=59, second=59
+            )
         except ValueError as exc:
             raise HTTPException(
                 status_code=400,
@@ -543,13 +565,17 @@ async def test_llm_connection(config: _ModelTaskConfigRequest) -> dict:
 class AnnotationRequestBody(BaseModel):
     """Request body for annotation submission (Story 7.4 AC-3)."""
 
-    annotation: str = Field(..., description="Annotation value: 'correct' | 'incorrect' | 'partial'")
+    annotation: str = Field(
+        ..., description="Annotation value: 'correct' | 'incorrect' | 'partial'"
+    )
 
 
 class UpdateExtractionRequestBody(BaseModel):
     """Request body for updating extraction content (Story 5.8 AC-4)."""
 
-    extracted_content: str = Field(..., min_length=1, description="Updated extracted content")
+    extracted_content: str = Field(
+        ..., min_length=1, description="Updated extracted content"
+    )
 
 
 @router.get(
@@ -689,7 +715,9 @@ async def get_extraction_records(
 @router.post(
     "/extraction-records/{record_id}/annotate",
     summary="Submit human annotation for extraction record",
-    description=("Mark an extraction record as correct, incorrect, or partial. (Story 7.4 AC-3)"),
+    description=(
+        "Mark an extraction record as correct, incorrect, or partial. (Story 7.4 AC-3)"
+    ),
     tags=["System"],
 )
 async def annotate_extraction_record(
@@ -726,7 +754,9 @@ async def annotate_extraction_record(
 @router.patch(
     "/extraction-records/{record_id}",
     summary="Update extraction record content",
-    description=("Edit the extracted_content of a record. Used for correcting LLM extraction errors. (Story 5.8 AC-4)"),
+    description=(
+        "Edit the extracted_content of a record. Used for correcting LLM extraction errors. (Story 5.8 AC-4)"
+    ),
     tags=["System"],
 )
 async def update_extraction_record(
@@ -795,7 +825,9 @@ async def delete_extraction_record(
 @router.delete(
     "/extraction-records/{record_id}/annotation",
     summary="Reset annotation for an extraction record",
-    description=("Clears the annotation and annotated_at fields, allowing re-annotation. (Story 5.8 AC-2)"),
+    description=(
+        "Clears the annotation and annotated_at fields, allowing re-annotation. (Story 5.8 AC-2)"
+    ),
     tags=["System"],
 )
 async def reset_extraction_annotation(

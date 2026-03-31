@@ -20,6 +20,7 @@ from typing import AsyncGenerator
 
 # Load .env BEFORE any other app imports so os.getenv() works everywhere
 from dotenv import load_dotenv
+
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: FastAPI CORSMiddleware)
@@ -28,35 +29,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+# ✅ Story 5.2: Mastery WebSocket endpoint
+from app.api.v1.endpoints.mastery_ws import websocket_mastery_endpoint
 from app.api.v1.endpoints.monitoring import set_alert_manager
-from app.api.v1.router import router as api_v1_router
-from app.config import settings
-from app.core.bug_tracker import bug_tracker
-from app.core.logging import setup_logging
-from app.middleware.metrics import MetricsMiddleware
-from app.services.alert_manager import AlertManager, load_alert_rules_from_yaml
-from app.services.notification_channels import create_default_dispatcher
-from app.services.resource_monitor import get_default_monitor
-
-# ✅ Story 30.3 Fix: Import MemoryService from canonical singleton location
-from app.services.memory_service import get_memory_service, cleanup_memory_service
-
-# ✅ Story 7.2: LLM Call Logging & Token Tracking
-from app.middleware.cost_tracker import get_cost_tracker, cleanup_cost_tracker
-from app.middleware.llm_call_logger import llm_call_logger
-from app.core.litellm_config import register_litellm_callbacks
-
-# ✅ Story 7.3: Prompt Version Management & Regression Testing
-from app.services.prompt_registry import get_prompt_registry
 
 # ✅ Story 33.2: WebSocket endpoint import
 from app.api.v1.endpoints.websocket import (
     websocket_intelligent_parallel,
-    set_session_validator,
 )
+from app.api.v1.router import router as api_v1_router
+from app.config import settings
+from app.core.bug_tracker import bug_tracker
+from app.core.litellm_config import register_litellm_callbacks
+from app.core.logging import setup_logging
 
-# ✅ Story 5.2: Mastery WebSocket endpoint
-from app.api.v1.endpoints.mastery_ws import websocket_mastery_endpoint
+# ✅ Story 7.2: LLM Call Logging & Token Tracking
+from app.middleware.cost_tracker import cleanup_cost_tracker, get_cost_tracker
+from app.middleware.llm_call_logger import llm_call_logger
+from app.middleware.metrics import MetricsMiddleware
+from app.services.alert_manager import AlertManager, load_alert_rules_from_yaml
+
+# ✅ Story 30.3 Fix: Import MemoryService from canonical singleton location
+from app.services.memory_service import cleanup_memory_service, get_memory_service
+from app.services.notification_channels import create_default_dispatcher
+
+# ✅ Story 7.3: Prompt Version Management & Regression Testing
+from app.services.prompt_registry import get_prompt_registry
+from app.services.resource_monitor import get_default_monitor
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Logging Setup
@@ -71,6 +70,7 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════════
 # Lifespan Event Handler
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: lifespan event handlers)
 # Pattern: asynccontextmanager for startup/shutdown lifecycle management
@@ -154,9 +154,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ✅ Story 38.1 AC-3: Recover pending LanceDB index operations on startup
     try:
         from app.services.lancedb_index_service import get_lancedb_index_service
+
         lancedb_idx_svc = get_lancedb_index_service()
         if lancedb_idx_svc:
-            idx_result = await lancedb_idx_svc.recover_pending(settings.canvas_base_path)
+            idx_result = await lancedb_idx_svc.recover_pending(
+                settings.canvas_base_path
+            )
             recovered = idx_result.get("recovered", 0)
             pending = idx_result.get("pending", 0)
             if recovered > 0 or pending > 0:
@@ -174,6 +177,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     archive_scheduler = None
     try:
         from app.services.archive_scheduler import get_archive_scheduler
+
         archive_scheduler = get_archive_scheduler()
         await archive_scheduler.start()
         logger.info("[Story 3.8] Archive scheduler started (24h interval)")
@@ -196,7 +200,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info(f"[Story 5.7] EventBus recovered {recovered} outbox events")
         logger.info("[Story 5.7] EventBus handlers registered")
     except Exception as e:
-        logger.warning(f"[Story 5.7] EventBus handler registration failed (non-fatal): {e}")
+        logger.warning(
+            f"[Story 5.7] EventBus handler registration failed (non-fatal): {e}"
+        )
 
     # ✅ Story 5.6: Register signal adapters for mastery fusion engine
     try:
@@ -226,7 +232,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         mastery_engine.set_fusion_engine(fusion_engine)
 
         # Store in app state AND set as global singleton for DI
-        set_mastery_engine(mastery_engine)  # All get_mastery_engine() calls now return this instance
+        set_mastery_engine(
+            mastery_engine
+        )  # All get_mastery_engine() calls now return this instance
         app.state.mastery_engine = mastery_engine
         app.state.signal_registry = signal_registry
         app.state.fusion_engine = fusion_engine
@@ -235,7 +243,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             f"{signal_registry.signal_count} adapters, fusion engine attached"
         )
     except Exception as e:
-        logger.warning(f"[Story 5.6] Signal adapter registration failed (non-fatal): {e}")
+        logger.warning(
+            f"[Story 5.6] Signal adapter registration failed (non-fatal): {e}"
+        )
 
     # Phase 2: GraphitiEpisodeWorker — real Graphiti integration
     from app.services.episode_worker import get_episode_worker
@@ -254,7 +264,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("[Phase 2] GraphitiEpisodeWorker started")
         else:
             app.state.episode_worker = episode_worker
-            logger.warning("[Phase 2] GraphitiEpisodeWorker in degraded mode (no graphiti client)")
+            logger.warning(
+                "[Phase 2] GraphitiEpisodeWorker in degraded mode (no graphiti client)"
+            )
     except Exception as e:
         app.state.episode_worker = None
         logger.warning(f"[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): {e}")
@@ -275,6 +287,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ✅ Story 38.1: Cleanup LanceDB index service (cancel pending debounce tasks)
     try:
         from app.services.lancedb_index_service import get_lancedb_index_service
+
         lancedb_idx_svc = get_lancedb_index_service()
         if lancedb_idx_svc:
             await lancedb_idx_svc.cleanup()
@@ -301,6 +314,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Phase 2: Stop episode worker gracefully
     try:
         from app.services.episode_worker import cleanup_episode_worker
+
         await cleanup_episode_worker()
         logger.info("[Phase 2] GraphitiEpisodeWorker stopped")
     except Exception as e:
@@ -309,6 +323,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ✅ Story 30.3: Cleanup MemoryService singleton (Neo4j driver, etc.)
     await cleanup_memory_service()
     logger.info("MemoryService cleaned up")
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FastAPI Application
@@ -327,7 +342,7 @@ app = FastAPI(
     redoc_url="/redoc" if settings.DEBUG else None,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: lifespan event handlers)
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -364,7 +379,7 @@ class EncodingValidationMiddleware(BaseHTTPMiddleware):
                 try:
                     body = await request.body()
                     # 验证 UTF-8 编码
-                    body.decode('utf-8')
+                    body.decode("utf-8")
                 except UnicodeDecodeError as e:
                     # [Source: ADR-010] - 日志不使用 emoji，避免 Windows GBK 编码错误
                     logger.warning(
@@ -383,9 +398,9 @@ class EncodingValidationMiddleware(BaseHTTPMiddleware):
                             "error_type": "ENCODING_ERROR",
                             "details": {
                                 "position": e.start,
-                                "path": str(request.url.path)
-                            }
-                        }
+                                "path": str(request.url.path),
+                            },
+                        },
                     )
         return await call_next(request)
 
@@ -421,7 +436,9 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
             safe_params = {}
             for key, value in query_params.items():
                 if isinstance(value, str):
-                    safe_params[key] = value.encode('utf-8', errors='replace').decode('utf-8')
+                    safe_params[key] = value.encode("utf-8", errors="replace").decode(
+                        "utf-8"
+                    )
                 else:
                     safe_params[key] = value
             return {
@@ -471,7 +488,9 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
                 error_message = repr(e)
 
             # 确保消息可以安全编码为 JSON
-            safe_message = error_message.encode('utf-8', errors='replace').decode('utf-8')
+            safe_message = error_message.encode("utf-8", errors="replace").decode(
+                "utf-8"
+            )
 
             # ✅ Story 21.5.3 AC-1, AC-2: 生成 bug_id 并记录到 bug_log.jsonl
             # [Source: docs/stories/21.5.3.story.md]
@@ -487,21 +506,23 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
             # [Source: ADR-010 - Logging聚合策略]
             logger.error(
                 f"Unhandled exception caught by CORSExceptionMiddleware: {type(e).__name__}: {safe_message[:200]} [bug_id={bug_id}]",
-                exc_info=True
+                exc_info=True,
             )
 
             return JSONResponse(
                 status_code=500,
                 content={
-                    "code": 500,                      # Required by JSON Schema
-                    "message": safe_message[:500],    # ✅ Story 12.J.5: 限制长度为 500 字符
-                    "error_type": type(e).__name__,   # Extension field
-                    "bug_id": bug_id,                 # ✅ Story 21.5.5 AC-1: 返回 bug_id
+                    "code": 500,  # Required by JSON Schema
+                    "message": safe_message[
+                        :500
+                    ],  # ✅ Story 12.J.5: 限制长度为 500 字符
+                    "error_type": type(e).__name__,  # Extension field
+                    "bug_id": bug_id,  # ✅ Story 21.5.5 AC-1: 返回 bug_id
                 },
                 headers={
                     "Access-Control-Allow-Origin": allowed_origin,
                     "Access-Control-Allow-Credentials": "true",
-                }
+                },
             )
 
 
@@ -552,6 +573,7 @@ app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
 
 try:
     from app.mcp import setup_mcp_server
+
     setup_mcp_server(app)
 except (ImportError, AttributeError) as e:
     logger.warning(f"[Story 3.2] MCP server setup skipped: {e}")
@@ -621,5 +643,5 @@ async def root():
         "message": "Canvas Learning System API",
         "version": settings.VERSION,
         "docs": "/docs" if settings.DEBUG else "disabled",
-        "health": f"{settings.API_V1_PREFIX}/health"
+        "health": f"{settings.API_V1_PREFIX}/health",
     }

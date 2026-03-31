@@ -29,21 +29,21 @@ class AgentErrorType(str, Enum):
     """
 
     # 配置类错误 (NON_RETRYABLE)
-    CONFIG_MISSING = "CONFIG_MISSING"           # 对应ADR-009: 2001
-    FILE_NOT_FOUND = "FILE_NOT_FOUND"           # 对应ADR-009: 3001
+    CONFIG_MISSING = "CONFIG_MISSING"  # 对应ADR-009: 2001
+    FILE_NOT_FOUND = "FILE_NOT_FOUND"  # 对应ADR-009: 3001
 
     # LLM调用错误 (RETRYABLE)
-    LLM_TIMEOUT = "LLM_TIMEOUT"                 # 对应ADR-009: 1002
-    LLM_RATE_LIMIT = "LLM_RATE_LIMIT"           # 对应ADR-009: 1001
+    LLM_TIMEOUT = "LLM_TIMEOUT"  # 对应ADR-009: 1002
+    LLM_RATE_LIMIT = "LLM_RATE_LIMIT"  # 对应ADR-009: 1001
 
     # LLM响应错误 (NON_RETRYABLE)
     LLM_INVALID_RESPONSE = "LLM_INVALID_RESPONSE"  # 对应ADR-009: 1004
 
     # 网络错误 (RETRYABLE)
-    NETWORK_TIMEOUT = "NETWORK_TIMEOUT"         # 对应ADR-009: 4001
+    NETWORK_TIMEOUT = "NETWORK_TIMEOUT"  # 对应ADR-009: 4001
 
     # 未知错误
-    UNKNOWN = "UNKNOWN"                         # 9999
+    UNKNOWN = "UNKNOWN"  # 9999
 
     @property
     def is_retryable(self) -> bool:

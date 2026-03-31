@@ -55,12 +55,12 @@ class TestLayoutPreferences:
             "horizontal_spacing": 500,
             "vertical_spacing": 400,
             "yellow_offset_y": 40,
-            "auto_adjust_spacing": False
+            "auto_adjust_spacing": False,
         }
 
         prefs = LayoutPreferences(
             alignment_mode=LAYOUT_OPTIMIZATION_ALIGNMENT_RIGHT,
-            spacing_settings=custom_spacing
+            spacing_settings=custom_spacing,
         )
 
         assert prefs.alignment_mode == LAYOUT_OPTIMIZATION_ALIGNMENT_RIGHT
@@ -69,9 +69,7 @@ class TestLayoutPreferences:
 
     def test_validate_preferences_valid(self):
         """测试有效偏好设置验证"""
-        prefs = LayoutPreferences(
-            alignment_mode=LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER
-        )
+        prefs = LayoutPreferences(alignment_mode=LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER)
         assert prefs.validate_preferences() is True
 
     def test_validate_preferences_invalid_alignment(self):
@@ -113,39 +111,45 @@ class TestLayoutOptimizer:
 
             # 问题节点
             question_id = f"question-{i}"
-            nodes.append({
-                "id": question_id,
-                "type": "text",
-                "x": x,
-                "y": y,
-                "width": DEFAULT_NODE_WIDTH,
-                "height": QUESTION_NODE_HEIGHT,
-                "color": "1",  # 红色
-                "text": f"问题 {i+1}"
-            })
+            nodes.append(
+                {
+                    "id": question_id,
+                    "type": "text",
+                    "x": x,
+                    "y": y,
+                    "width": DEFAULT_NODE_WIDTH,
+                    "height": QUESTION_NODE_HEIGHT,
+                    "color": "1",  # 红色
+                    "text": f"问题 {i + 1}",
+                }
+            )
 
             # 黄色节点（故意放错位置用于测试）
             yellow_id = f"yellow-{i}"
-            nodes.append({
-                "id": yellow_id,
-                "type": "text",
-                "x": x + 50,  # 故意偏移
-                "y": y + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y + 10,  # 故意偏移
-                "width": YELLOW_NODE_WIDTH,
-                "height": YELLOW_NODE_HEIGHT,
-                "color": "6",  # 黄色
-                "text": "个人理解"
-            })
+            nodes.append(
+                {
+                    "id": yellow_id,
+                    "type": "text",
+                    "x": x + 50,  # 故意偏移
+                    "y": y + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y + 10,  # 故意偏移
+                    "width": YELLOW_NODE_WIDTH,
+                    "height": YELLOW_NODE_HEIGHT,
+                    "color": "6",  # 黄色
+                    "text": "个人理解",
+                }
+            )
 
             # 创建连接边
-            edges.append({
-                "id": f"edge-{i}",
-                "fromNode": question_id,
-                "toNode": yellow_id,
-                "fromSide": "bottom",
-                "toSide": "top",
-                "label": "个人理解"
-            })
+            edges.append(
+                {
+                    "id": f"edge-{i}",
+                    "fromNode": question_id,
+                    "toNode": yellow_id,
+                    "fromSide": "bottom",
+                    "toSide": "top",
+                    "label": "个人理解",
+                }
+            )
 
         return {"nodes": nodes, "edges": edges}
 
@@ -158,7 +162,9 @@ class TestLayoutOptimizer:
 
         assert len(optimizer.nodes) == 10  # 5个问题 + 5个黄色
         assert len(optimizer.edges) == 5
-        assert optimizer.preferences.alignment_mode == LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER
+        assert (
+            optimizer.preferences.alignment_mode == LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER
+        )
         assert len(optimizer.node_map) == 10
 
     def test_calculate_yellow_position_left(self):
@@ -170,10 +176,12 @@ class TestLayoutOptimizer:
             "x": 100,
             "y": 200,
             "width": 400,
-            "height": QUESTION_NODE_HEIGHT
+            "height": QUESTION_NODE_HEIGHT,
         }
 
-        pos = optimizer.calculate_yellow_position(question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_LEFT)
+        pos = optimizer.calculate_yellow_position(
+            question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_LEFT
+        )
 
         assert pos["x"] == 100  # 左对齐
         assert pos["y"] == 200 + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y
@@ -187,10 +195,12 @@ class TestLayoutOptimizer:
             "x": 100,
             "y": 200,
             "width": 400,
-            "height": QUESTION_NODE_HEIGHT
+            "height": QUESTION_NODE_HEIGHT,
         }
 
-        pos = optimizer.calculate_yellow_position(question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER)
+        pos = optimizer.calculate_yellow_position(
+            question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER
+        )
 
         assert pos["x"] == 175  # 100 + (400 - 350) // 2
         assert pos["y"] == 200 + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y
@@ -204,10 +214,12 @@ class TestLayoutOptimizer:
             "x": 100,
             "y": 200,
             "width": 400,
-            "height": QUESTION_NODE_HEIGHT
+            "height": QUESTION_NODE_HEIGHT,
         }
 
-        pos = optimizer.calculate_yellow_position(question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_RIGHT)
+        pos = optimizer.calculate_yellow_position(
+            question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_RIGHT
+        )
 
         assert pos["x"] == 150  # 100 + 400 - 350
         assert pos["y"] == 200 + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y
@@ -216,29 +228,23 @@ class TestLayoutOptimizer:
         """测试节点重叠检测"""
         canvas_data = {
             "nodes": [
-                {
-                    "id": "node1",
-                    "x": 100,
-                    "y": 100,
-                    "width": 200,
-                    "height": 150
-                },
+                {"id": "node1", "x": 100, "y": 100, "width": 200, "height": 150},
                 {
                     "id": "node2",
                     "x": 150,  # 重叠
                     "y": 120,  # 重叠
                     "width": 200,
-                    "height": 150
+                    "height": 150,
                 },
                 {
                     "id": "node3",
                     "x": 400,  # 不重叠
                     "y": 100,
                     "width": 200,
-                    "height": 150
-                }
+                    "height": 150,
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
         optimizer = LayoutOptimizer(canvas_data)
@@ -297,10 +303,15 @@ class TestLayoutOptimizer:
         for node in canvas_data["nodes"]:
             if node["id"].startswith("yellow"):
                 question_id = node["id"].replace("yellow", "question")
-                question_node = next(n for n in canvas_data["nodes"] if n["id"] == question_id)
+                question_node = next(
+                    n for n in canvas_data["nodes"] if n["id"] == question_id
+                )
 
                 # 设置为居中对齐位置
-                expected_x = question_node["x"] + (question_node["width"] - YELLOW_NODE_WIDTH) // 2
+                expected_x = (
+                    question_node["x"]
+                    + (question_node["width"] - YELLOW_NODE_WIDTH) // 2
+                )
                 expected_y = question_node["y"] + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y
                 node["x"] = expected_x
                 node["y"] = expected_y
@@ -329,7 +340,7 @@ class TestLayoutOptimizer:
                 {"id": "yellow1", "color": "6"},
                 {"id": "yellow2", "color": "6"},
             ],
-            "edges": []
+            "edges": [],
         }
 
         optimizer = LayoutOptimizer(canvas_data)
@@ -345,10 +356,7 @@ class TestCanvasBusinessLogic:
 
     def create_test_canvas_file(self, node_count: int = 3) -> str:
         """创建测试用的Canvas文件"""
-        canvas_data = {
-            "nodes": [],
-            "edges": []
-        }
+        canvas_data = {"nodes": [], "edges": []}
 
         for i in range(node_count):
             x = 100 + i * 500
@@ -356,42 +364,50 @@ class TestCanvasBusinessLogic:
 
             # 问题节点
             question_id = f"question-{i}"
-            canvas_data["nodes"].append({
-                "id": question_id,
-                "type": "text",
-                "x": x,
-                "y": y,
-                "width": DEFAULT_NODE_WIDTH,
-                "height": QUESTION_NODE_HEIGHT,
-                "color": "1",
-                "text": f"问题 {i+1}"
-            })
+            canvas_data["nodes"].append(
+                {
+                    "id": question_id,
+                    "type": "text",
+                    "x": x,
+                    "y": y,
+                    "width": DEFAULT_NODE_WIDTH,
+                    "height": QUESTION_NODE_HEIGHT,
+                    "color": "1",
+                    "text": f"问题 {i + 1}",
+                }
+            )
 
             # 黄色节点（故意偏移）
             yellow_id = f"yellow-{i}"
-            canvas_data["nodes"].append({
-                "id": yellow_id,
-                "type": "text",
-                "x": x + 30,  # 故意偏移
-                "y": y + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y,
-                "width": YELLOW_NODE_WIDTH,
-                "height": YELLOW_NODE_HEIGHT,
-                "color": "6",
-                "text": "个人理解"
-            })
+            canvas_data["nodes"].append(
+                {
+                    "id": yellow_id,
+                    "type": "text",
+                    "x": x + 30,  # 故意偏移
+                    "y": y + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y,
+                    "width": YELLOW_NODE_WIDTH,
+                    "height": YELLOW_NODE_HEIGHT,
+                    "color": "6",
+                    "text": "个人理解",
+                }
+            )
 
             # 连接边
-            canvas_data["edges"].append({
-                "id": f"edge-{i}",
-                "fromNode": question_id,
-                "toNode": yellow_id,
-                "fromSide": "bottom",
-                "toSide": "top",
-                "label": "个人理解"
-            })
+            canvas_data["edges"].append(
+                {
+                    "id": f"edge-{i}",
+                    "fromNode": question_id,
+                    "toNode": yellow_id,
+                    "fromSide": "bottom",
+                    "toSide": "top",
+                    "label": "个人理解",
+                }
+            )
 
         # 创建临时文件
-        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False)
+        temp_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False
+        )
         json.dump(canvas_data, temp_file, indent=2, ensure_ascii=False)
         temp_file.close()
 
@@ -407,20 +423,26 @@ class TestCanvasBusinessLogic:
                 "x": 100,
                 "y": 200,
                 "width": 400,
-                "height": QUESTION_NODE_HEIGHT
+                "height": QUESTION_NODE_HEIGHT,
             }
 
             # 测试居中对齐
-            pos = logic.calculate_yellow_position(question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER)
+            pos = logic.calculate_yellow_position(
+                question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER
+            )
             assert pos["x"] == 175  # 100 + (400 - 350) // 2
             assert pos["y"] == 200 + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y
 
             # 测试左对齐
-            pos = logic.calculate_yellow_position(question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_LEFT)
+            pos = logic.calculate_yellow_position(
+                question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_LEFT
+            )
             assert pos["x"] == 100
 
             # 测试右对齐
-            pos = logic.calculate_yellow_position(question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_RIGHT)
+            pos = logic.calculate_yellow_position(
+                question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_RIGHT
+            )
             assert pos["x"] == 150
 
         finally:
@@ -432,7 +454,9 @@ class TestCanvasBusinessLogic:
 
         try:
             logic = CanvasBusinessLogic(canvas_file)
-            prefs = LayoutPreferences(alignment_mode=LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER)
+            prefs = LayoutPreferences(
+                alignment_mode=LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER
+            )
 
             result = logic.optimize_canvas_layout(prefs, "alignment")
 
@@ -486,7 +510,7 @@ class TestCanvasOrchestrator:
                     "width": DEFAULT_NODE_WIDTH,
                     "height": QUESTION_NODE_HEIGHT,
                     "color": "1",
-                    "text": "测试问题"
+                    "text": "测试问题",
                 },
                 {
                     "id": "yellow-1",
@@ -496,8 +520,8 @@ class TestCanvasOrchestrator:
                     "width": YELLOW_NODE_WIDTH,
                     "height": YELLOW_NODE_HEIGHT,
                     "color": "6",
-                    "text": "个人理解"
-                }
+                    "text": "个人理解",
+                },
             ],
             "edges": [
                 {
@@ -506,12 +530,14 @@ class TestCanvasOrchestrator:
                     "toNode": "yellow-1",
                     "fromSide": "bottom",
                     "toSide": "top",
-                    "label": "个人理解"
+                    "label": "个人理解",
                 }
-            ]
+            ],
         }
 
-        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False)
+        temp_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False
+        )
         json.dump(canvas_data, temp_file, indent=2, ensure_ascii=False)
         temp_file.close()
 
@@ -523,9 +549,13 @@ class TestCanvasOrchestrator:
 
         try:
             orchestrator = CanvasOrchestrator(canvas_file)
-            prefs = LayoutPreferences(alignment_mode=LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER)
+            prefs = LayoutPreferences(
+                alignment_mode=LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER
+            )
 
-            result = orchestrator.optimize_canvas_layout(prefs, "auto", create_backup=True)
+            result = orchestrator.optimize_canvas_layout(
+                prefs, "auto", create_backup=True
+            )
 
             assert result.success is True
             assert result.canvas_path == canvas_file
@@ -575,10 +605,7 @@ class TestPerformanceRequirements:
         import time
 
         # 创建100个节点的Canvas
-        canvas_data = {
-            "nodes": [],
-            "edges": []
-        }
+        canvas_data = {"nodes": [], "edges": []}
 
         for i in range(50):  # 50个问题-黄色对 = 100个节点
             x = 100 + (i % 10) * 500
@@ -587,36 +614,42 @@ class TestPerformanceRequirements:
             question_id = f"question-{i}"
             yellow_id = f"yellow-{i}"
 
-            canvas_data["nodes"].append({
-                "id": question_id,
-                "type": "text",
-                "x": x + (i % 3) * 20,  # 添加一些随机偏移
-                "y": y + (i % 3) * 15,
-                "width": DEFAULT_NODE_WIDTH,
-                "height": QUESTION_NODE_HEIGHT,
-                "color": "1",
-                "text": f"问题 {i+1}"
-            })
+            canvas_data["nodes"].append(
+                {
+                    "id": question_id,
+                    "type": "text",
+                    "x": x + (i % 3) * 20,  # 添加一些随机偏移
+                    "y": y + (i % 3) * 15,
+                    "width": DEFAULT_NODE_WIDTH,
+                    "height": QUESTION_NODE_HEIGHT,
+                    "color": "1",
+                    "text": f"问题 {i + 1}",
+                }
+            )
 
-            canvas_data["nodes"].append({
-                "id": yellow_id,
-                "type": "text",
-                "x": x + (i % 3) * 25,
-                "y": y + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y + (i % 3) * 20,
-                "width": YELLOW_NODE_WIDTH,
-                "height": YELLOW_NODE_HEIGHT,
-                "color": "6",
-                "text": "个人理解"
-            })
+            canvas_data["nodes"].append(
+                {
+                    "id": yellow_id,
+                    "type": "text",
+                    "x": x + (i % 3) * 25,
+                    "y": y + QUESTION_NODE_HEIGHT + YELLOW_OFFSET_Y + (i % 3) * 20,
+                    "width": YELLOW_NODE_WIDTH,
+                    "height": YELLOW_NODE_HEIGHT,
+                    "color": "6",
+                    "text": "个人理解",
+                }
+            )
 
-            canvas_data["edges"].append({
-                "id": f"edge-{i}",
-                "fromNode": question_id,
-                "toNode": yellow_id,
-                "fromSide": "bottom",
-                "toSide": "top",
-                "label": "个人理解"
-            })
+            canvas_data["edges"].append(
+                {
+                    "id": f"edge-{i}",
+                    "fromNode": question_id,
+                    "toNode": yellow_id,
+                    "fromSide": "bottom",
+                    "toSide": "top",
+                    "label": "个人理解",
+                }
+            )
 
         # 测试性能
         prefs = LayoutPreferences()
@@ -644,7 +677,7 @@ class TestPerformanceRequirements:
                     "width": 400,
                     "height": QUESTION_NODE_HEIGHT,
                     "color": "1",
-                    "text": "问题"
+                    "text": "问题",
                 },
                 {
                     "id": "yellow-1",
@@ -654,8 +687,8 @@ class TestPerformanceRequirements:
                     "width": YELLOW_NODE_WIDTH,
                     "height": YELLOW_NODE_HEIGHT,
                     "color": "6",
-                    "text": "理解"
-                }
+                    "text": "理解",
+                },
             ],
             "edges": [
                 {
@@ -664,9 +697,9 @@ class TestPerformanceRequirements:
                     "toNode": "yellow-1",
                     "fromSide": "bottom",
                     "toSide": "top",
-                    "label": "个人理解"
+                    "label": "个人理解",
                 }
-            ]
+            ],
         }
 
         optimizer = LayoutOptimizer(canvas_data)
@@ -674,7 +707,9 @@ class TestPerformanceRequirements:
         yellow_node = canvas_data["nodes"][1]
 
         # 计算期望位置
-        expected_pos = optimizer.calculate_yellow_position(question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER)
+        expected_pos = optimizer.calculate_yellow_position(
+            question_node, LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER
+        )
 
         # 验证精度
         assert abs(yellow_node["x"] - expected_pos["x"]) <= 1  # 误差<1px

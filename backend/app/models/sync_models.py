@@ -25,9 +25,15 @@ class SyncOperation(BaseModel):
     """
 
     operation_id: str = Field(..., description="Idempotent UUID for this operation")
-    entity_type: Literal["node", "edge", "board"] = Field(..., description="Type of entity being synced")
-    entity_id: str = Field(..., description="Entity UUID (matches IndexedDB primary key)")
-    operation: Literal["create", "update", "delete"] = Field(..., description="CRUD operation type")
+    entity_type: Literal["node", "edge", "board"] = Field(
+        ..., description="Type of entity being synced"
+    )
+    entity_id: str = Field(
+        ..., description="Entity UUID (matches IndexedDB primary key)"
+    )
+    operation: Literal["create", "update", "delete"] = Field(
+        ..., description="CRUD operation type"
+    )
     payload: dict[str, Any] = Field(
         default_factory=dict,
         description="Entity properties (create/update) or minimal id (delete)",
@@ -42,8 +48,12 @@ class SyncBatchRequest(BaseModel):
     """
 
     canvas_id: str = Field(..., description="Canvas board UUID")
-    subject_id: str | None = Field(default=None, description="Subject UUID for multi-subject isolation (Story 1.9)")
-    operations: list[SyncOperation] = Field(..., min_length=1, description="Non-empty list of sync operations")
+    subject_id: str | None = Field(
+        default=None, description="Subject UUID for multi-subject isolation (Story 1.9)"
+    )
+    operations: list[SyncOperation] = Field(
+        ..., min_length=1, description="Non-empty list of sync operations"
+    )
 
 
 class SyncOperationResult(BaseModel):

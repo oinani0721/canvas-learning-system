@@ -164,7 +164,9 @@ context_router = APIRouter()
             "description": "Learning context (JSON or Markdown)",
             "content": {
                 "application/json": {},
-                "text/plain": {"example": "## 当前节点：贝叶斯定理\n### 精通度\n- BKT掌握概率: 0.45"},
+                "text/plain": {
+                    "example": "## 当前节点：贝叶斯定理\n### 精通度\n- BKT掌握概率: 0.45"
+                },
             },
         }
     },
@@ -209,7 +211,9 @@ async def get_node_context_endpoint(
     # Return Markdown if requested
     if format and format.lower() == "markdown":
         md_text = format_as_markdown(cached)
-        return PlainTextResponse(content=md_text, media_type="text/plain; charset=utf-8")
+        return PlainTextResponse(
+            content=md_text, media_type="text/plain; charset=utf-8"
+        )
 
     # Default: return JSON via Pydantic model
     return _dict_to_response(cached)

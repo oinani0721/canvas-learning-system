@@ -120,9 +120,7 @@ class ErrorClassifier:
             misconception=misconception,
         )
 
-    async def _llm_classify(
-        self, error_description: str, context: str
-    ) -> ErrorType:
+    async def _llm_classify(self, error_description: str, context: str) -> ErrorType:
         """
         Use LLM to classify the error type.
 
@@ -172,7 +170,9 @@ class ErrorClassifier:
                 return self._heuristic_classify(error_description)
 
         except ImportError:
-            logger.warning("[Story 3.6] litellm not available, using heuristic classification")
+            logger.warning(
+                "[Story 3.6] litellm not available, using heuristic classification"
+            )
             return self._heuristic_classify(error_description)
         except json.JSONDecodeError as e:
             logger.warning(f"[Story 3.6] LLM response not valid JSON: {e}")
@@ -214,17 +214,43 @@ class ErrorClassifier:
         text = error_description.lower()
 
         # Check for problem framing keywords
-        framing_keywords = ["审题", "题目", "条件", "问题理解", "理解偏差", "遗漏", "misread", "missed"]
+        framing_keywords = [
+            "审题",
+            "题目",
+            "条件",
+            "问题理解",
+            "理解偏差",
+            "遗漏",
+            "misread",
+            "missed",
+        ]
         if any(kw in text for kw in framing_keywords):
             return ErrorType.PROBLEM_FRAMING
 
         # Check for reasoning fallacy keywords
-        reasoning_keywords = ["推理", "逻辑", "因果", "跳步", "归纳", "演绎", "reasoning", "logic"]
+        reasoning_keywords = [
+            "推理",
+            "逻辑",
+            "因果",
+            "跳步",
+            "归纳",
+            "演绎",
+            "reasoning",
+            "logic",
+        ]
         if any(kw in text for kw in reasoning_keywords):
             return ErrorType.REASONING_FALLACY
 
         # Check for superficial understanding keywords
-        superficial_keywords = ["似懂非懂", "复述", "表面", "迁移", "应用", "superficial", "recite"]
+        superficial_keywords = [
+            "似懂非懂",
+            "复述",
+            "表面",
+            "迁移",
+            "应用",
+            "superficial",
+            "recite",
+        ]
         if any(kw in text for kw in superficial_keywords):
             return ErrorType.SUPERFICIAL
 

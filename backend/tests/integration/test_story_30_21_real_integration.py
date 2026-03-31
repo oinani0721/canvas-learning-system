@@ -31,12 +31,10 @@ from pathlib import Path
 from typing import List
 
 import pytest
-
 from app.services.memory_service import (
     MemoryService,
     _generate_deterministic_episode_id,
 )
-
 
 # ============================================================================
 # Local Fixtures — use project .env Neo4j credentials (port 7689)
@@ -115,9 +113,7 @@ async def test_idempotent_neo4j_persistence(neo4j_client, memory_svc, uid):
     concept = "test_Recursion_Idempotent"
 
     # Expected deterministic episode_id
-    expected_id = _generate_deterministic_episode_id(
-        uid, canvas_path, node_id, concept
-    )
+    expected_id = _generate_deterministic_episode_id(uid, canvas_path, node_id, concept)
 
     try:
         # --- First write (score=80) ---
@@ -292,7 +288,9 @@ async def test_real_batch_50_benchmark(neo4j_client, memory_svc, uid):
         }
 
         # Write benchmark report
-        report_dir = Path(__file__).resolve().parents[3] / "_bmad-output" / "test-artifacts"
+        report_dir = (
+            Path(__file__).resolve().parents[3] / "_bmad-output" / "test-artifacts"
+        )
         report_dir.mkdir(parents=True, exist_ok=True)
 
         # JSON report
@@ -308,10 +306,10 @@ async def test_real_batch_50_benchmark(neo4j_client, memory_svc, uid):
 |--------|-------|
 | Environment | Real Neo4j |
 | Events | {event_count} |
-| Total Time | {report['elapsed_ms']} ms |
-| Avg per Event | {report['avg_ms']} ms |
-| Timestamp | {report['timestamp']} |
-| Neo4j URI | {report['neo4j_uri']} |
+| Total Time | {report["elapsed_ms"]} ms |
+| Avg per Event | {report["avg_ms"]} ms |
+| Timestamp | {report["timestamp"]} |
+| Neo4j URI | {report["neo4j_uri"]} |
 
 > **Note**: No hard threshold set. These are real measurements, not Mock-based claims.
 > Mock-based benchmarks are marked as `env: "Mock (不可信)"`.
@@ -320,13 +318,13 @@ async def test_real_batch_50_benchmark(neo4j_client, memory_svc, uid):
             f.write(md_content)
 
         # Print results for test output
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"BENCHMARK: Real Neo4j Batch Write")
         print(f"  Events:     {event_count}")
         print(f"  Total:      {report['elapsed_ms']:.2f} ms")
         print(f"  Avg/event:  {report['avg_ms']:.2f} ms")
         print(f"  Reports:    {json_path}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
     finally:
         # Cleanup (always runs, even on assertion failure)
         await neo4j_client.run_query(
@@ -371,17 +369,19 @@ async def test_real_single_write_latency(neo4j_client, memory_svc, uid):
         p95 = quantile_cuts[18] if len(quantile_cuts) >= 19 else max(latencies)
         avg = statistics.mean(latencies)
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"LATENCY: Real Neo4j Single Write ({sample_count} samples)")
         print(f"  p50:  {p50:.2f} ms")
         print(f"  p95:  {p95:.2f} ms")
         print(f"  avg:  {avg:.2f} ms")
         print(f"  min:  {min(latencies):.2f} ms")
         print(f"  max:  {max(latencies):.2f} ms")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         # Append to benchmark report
-        report_dir = Path(__file__).resolve().parents[3] / "_bmad-output" / "test-artifacts"
+        report_dir = (
+            Path(__file__).resolve().parents[3] / "_bmad-output" / "test-artifacts"
+        )
         report_dir.mkdir(parents=True, exist_ok=True)
         latency_report = {
             "env": "Real Neo4j",
@@ -475,7 +475,8 @@ async def test_json_fallback_data_persistence(tmp_path):
     # The JSON fallback stores relationships with concept_name field
     relationships = data.get("relationships", [])
     matching = [
-        r for r in relationships
+        r
+        for r in relationships
         if r.get("concept_name") == concept and r.get("user_id") == user_id
     ]
     assert len(matching) >= 1, (
@@ -514,16 +515,12 @@ async def test_json_fallback_warning_log(tmp_path, caplog):
 
     # Verify WARNING log contains "Falling back" or "fallback"
     warning_messages = [
-        r.message for r in caplog.records
-        if r.levelno >= logging.WARNING
+        r.message for r in caplog.records if r.levelno >= logging.WARNING
     ]
     assert any(
         "falling back" in msg.lower() or "fallback" in msg.lower()
         for msg in warning_messages
-    ), (
-        f"Expected WARNING with 'falling back' or 'fallback', "
-        f"got: {warning_messages}"
-    )
+    ), f"Expected WARNING with 'falling back' or 'fallback', got: {warning_messages}"
 
     # Verify client auto-degraded to fallback mode
     assert client.is_fallback_mode is True
@@ -576,7 +573,8 @@ async def test_json_fallback_event_queryable(tmp_path):
     items = history.get("items", []) if isinstance(history, dict) else []
     # Also check in-memory episodes as fallback
     memory_episodes = [
-        ep for ep in service._episodes
+        ep
+        for ep in service._episodes
         if ep.get("user_id") == user_id and ep.get("concept") == concept
     ]
 
@@ -602,8 +600,8 @@ def test_integration_marker_configured():
     Verifies that the 'integration' marker is registered in pytest configuration,
     so `pytest -m integration` and `pytest -m "not integration"` work correctly.
     """
-    from pathlib import Path
     import configparser
+    from pathlib import Path
 
     # Locate pytest.ini relative to the backend directory
     backend_dir = Path(__file__).resolve().parents[2]
@@ -624,10 +622,12 @@ def test_integration_marker_configured():
 
     # Verify this file has @pytest.mark.integration tests that would be filtered
     import ast
+
     source = Path(__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)
     integration_funcs = [
-        node.name for node in ast.walk(tree)
+        node.name
+        for node in ast.walk(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and any(
             isinstance(d, ast.Attribute) and d.attr == "integration"

@@ -20,7 +20,6 @@ import os
 import uuid
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
 from app.services.memory_service import MemoryService
 
@@ -75,6 +74,7 @@ class TestAC31A25_ApiDependencyInjection:
     def test_get_learning_history_endpoint_no_default_none(self):
         """GET /episodes endpoint should not have memory_service=None."""
         import inspect
+
         from app.api.v1.endpoints.memory import get_learning_history
 
         sig = inspect.signature(get_learning_history)
@@ -82,42 +82,47 @@ class TestAC31A25_ApiDependencyInjection:
 
         assert param is not None, "memory_service parameter must exist"
         # The default should be an Annotated/Depends, NOT None
-        assert param.default is not None or param.default is inspect.Parameter.empty, \
+        assert param.default is not None or param.default is inspect.Parameter.empty, (
             "memory_service must not default to None"
+        )
 
     def test_get_concept_history_endpoint_no_default_none(self):
         """GET /concepts/{id}/history endpoint should not have memory_service=None."""
         import inspect
+
         from app.api.v1.endpoints.memory import get_concept_history
 
         sig = inspect.signature(get_concept_history)
         param = sig.parameters.get("memory_service")
 
         assert param is not None, "memory_service parameter must exist"
-        assert param.default is not None or param.default is inspect.Parameter.empty, \
+        assert param.default is not None or param.default is inspect.Parameter.empty, (
             "memory_service must not default to None"
+        )
 
     def test_get_review_suggestions_endpoint_no_default_none(self):
         """GET /review-suggestions endpoint should not have memory_service=None."""
         import inspect
+
         from app.api.v1.endpoints.memory import get_review_suggestions
 
         sig = inspect.signature(get_review_suggestions)
         param = sig.parameters.get("memory_service")
 
         assert param is not None, "memory_service parameter must exist"
-        assert param.default is not None or param.default is inspect.Parameter.empty, \
+        assert param.default is not None or param.default is inspect.Parameter.empty, (
             "memory_service must not default to None"
+        )
 
     def test_memory_service_dep_uses_annotated_depends(self):
         """MemoryServiceDep must be Annotated[MemoryService, Depends(...)]."""
         import typing
+
         from app.api.v1.endpoints.memory import MemoryServiceDep
 
         # MemoryServiceDep should be an Annotated type
         origin = typing.get_origin(MemoryServiceDep)
-        assert origin is typing.Annotated, \
-            "MemoryServiceDep should be Annotated type"
+        assert origin is typing.Annotated, "MemoryServiceDep should be Annotated type"
 
 
 # =============================================================================

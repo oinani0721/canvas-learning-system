@@ -32,12 +32,12 @@ class SessionStatus(str, Enum):
     - pending → cancelled (cancelled before start)
     """
 
-    PENDING = "pending"                    # 等待执行
-    RUNNING = "running"                    # 正在执行
-    COMPLETED = "completed"                # 全部成功
-    PARTIAL_FAILURE = "partial_failure"    # 部分失败
-    FAILED = "failed"                      # 全部失败
-    CANCELLED = "cancelled"                # 已取消
+    PENDING = "pending"  # 等待执行
+    RUNNING = "running"  # 正在执行
+    COMPLETED = "completed"  # 全部成功
+    PARTIAL_FAILURE = "partial_failure"  # 部分失败
+    FAILED = "failed"  # 全部失败
+    CANCELLED = "cancelled"  # 已取消
 
     @property
     def is_terminal(self) -> bool:
@@ -103,7 +103,9 @@ class NodeResult:
             "result": self.result,
             "error": self.error,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "execution_time_ms": self.execution_time_ms,
         }
 
@@ -163,7 +165,9 @@ class SessionInfo:
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "progress_percent": self.progress_percent,
             "completed_nodes": self.completed_nodes,
             "failed_nodes": self.failed_nodes,
@@ -185,10 +189,10 @@ VALID_TRANSITIONS: Dict[SessionStatus, List[SessionStatus]] = {
         SessionStatus.FAILED,
         SessionStatus.CANCELLED,
     ],
-    SessionStatus.COMPLETED: [],      # Terminal state
+    SessionStatus.COMPLETED: [],  # Terminal state
     SessionStatus.PARTIAL_FAILURE: [],  # Terminal state
-    SessionStatus.FAILED: [],          # Terminal state
-    SessionStatus.CANCELLED: [],       # Terminal state
+    SessionStatus.FAILED: [],  # Terminal state
+    SessionStatus.CANCELLED: [],  # Terminal state
 }
 
 

@@ -164,11 +164,13 @@ async def validation_exception_handler(
         loc = error.get("loc", [])
         field = ".".join(str(x) for x in loc if x != "body")
 
-        error_details.append({
-            "field": field,
-            "message": error.get("msg", "Invalid value"),
-            "code": error.get("type", "validation_error"),
-        })
+        error_details.append(
+            {
+                "field": field,
+                "message": error.get("msg", "Invalid value"),
+                "code": error.get("type", "validation_error"),
+            }
+        )
 
     logger.warning(
         "validation_exception",

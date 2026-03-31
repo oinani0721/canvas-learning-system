@@ -35,10 +35,11 @@ from agentic_rag.processors.gemini_vision import (
 # Test Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def mock_genai():
     """Mock google.generativeai module."""
-    with patch('agentic_rag.processors.gemini_vision.genai') as mock:
+    with patch("agentic_rag.processors.gemini_vision.genai") as mock:
         mock.configure = MagicMock()
         mock.GenerativeModel = MagicMock()
         yield mock
@@ -49,12 +50,12 @@ def sample_image_b64():
     """Create a minimal valid PNG image as base64."""
     # Minimal 1x1 red PNG
     png_bytes = (
-        b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
-        b'\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00'
-        b'\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x00\x03\x00\x01'
-        b'\x00\x05\xfe\xd4\x00\x00\x00\x00IEND\xaeB`\x82'
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+        b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"
+        b"\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x00\x03\x00\x01"
+        b"\x00\x05\xfe\xd4\x00\x00\x00\x00IEND\xaeB`\x82"
     )
-    return base64.b64encode(png_bytes).decode('utf-8')
+    return base64.b64encode(png_bytes).decode("utf-8")
 
 
 @pytest.fixture
@@ -68,7 +69,7 @@ def sample_response_json():
         ],
         "description": "这是一张包含代码和数学公式的截图，主要展示了Python编程和物理公式的混合内容。图片清晰度高，文字易于识别。",
         "key_concepts": ["Python编程", "物理公式", "代码示例"],
-        "image_type": "screenshot"
+        "image_type": "screenshot",
     }
 
 
@@ -92,6 +93,7 @@ def temp_image_file(tmp_path, sample_image_b64):
 # AC 6.4.1: OCR文字提取测试
 # ============================================================
 
+
 class TestOCRExtraction:
     """Test OCR text extraction capabilities."""
 
@@ -104,7 +106,7 @@ class TestOCRExtraction:
             "code_snippets": [],
             "description": "包含中文文本的图片",
             "key_concepts": ["中文"],
-            "image_type": "screenshot"
+            "image_type": "screenshot",
         }
 
         mock_response = MagicMock()
@@ -116,7 +118,7 @@ class TestOCRExtraction:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
@@ -132,7 +134,7 @@ class TestOCRExtraction:
             "code_snippets": [],
             "description": "An image containing English text",
             "key_concepts": ["English"],
-            "image_type": "screenshot"
+            "image_type": "screenshot",
         }
 
         mock_response = MagicMock()
@@ -144,14 +146,16 @@ class TestOCRExtraction:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
         assert "English" in result["ocr_text"]
 
     @pytest.mark.asyncio
-    async def test_mixed_text_extraction(self, mock_genai, sample_image_b64, sample_response_json):
+    async def test_mixed_text_extraction(
+        self, mock_genai, sample_image_b64, sample_response_json
+    ):
         """Test mixed Chinese/English text extraction."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -162,7 +166,7 @@ class TestOCRExtraction:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
@@ -174,11 +178,14 @@ class TestOCRExtraction:
 # AC 6.4.2: AI描述生成测试
 # ============================================================
 
+
 class TestDescriptionGeneration:
     """Test AI-generated descriptions."""
 
     @pytest.mark.asyncio
-    async def test_description_length_valid(self, mock_genai, sample_image_b64, sample_response_json):
+    async def test_description_length_valid(
+        self, mock_genai, sample_image_b64, sample_response_json
+    ):
         """Test description is within 50-200 character range."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -189,15 +196,19 @@ class TestDescriptionGeneration:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
         description = result["description"]
-        assert 50 <= len(description) <= 200, f"Description length {len(description)} not in range 50-200"
+        assert 50 <= len(description) <= 200, (
+            f"Description length {len(description)} not in range 50-200"
+        )
 
     @pytest.mark.asyncio
-    async def test_description_in_chinese(self, mock_genai, sample_image_b64, sample_response_json):
+    async def test_description_in_chinese(
+        self, mock_genai, sample_image_b64, sample_response_json
+    ):
         """Test description is in Chinese."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -208,17 +219,19 @@ class TestDescriptionGeneration:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
         description = result["description"]
         # Check for Chinese characters
-        chinese_chars = [c for c in description if '\u4e00' <= c <= '\u9fff']
+        chinese_chars = [c for c in description if "\u4e00" <= c <= "\u9fff"]
         assert len(chinese_chars) > 0, "Description should contain Chinese characters"
 
     @pytest.mark.asyncio
-    async def test_key_concepts_extracted(self, mock_genai, sample_image_b64, sample_response_json):
+    async def test_key_concepts_extracted(
+        self, mock_genai, sample_image_b64, sample_response_json
+    ):
         """Test key concepts are extracted (3-5 concepts)."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -229,7 +242,7 @@ class TestDescriptionGeneration:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
@@ -242,11 +255,14 @@ class TestDescriptionGeneration:
 # AC 6.4.3: LaTeX公式识别测试
 # ============================================================
 
+
 class TestLaTeXRecognition:
     """Test LaTeX formula recognition."""
 
     @pytest.mark.asyncio
-    async def test_latex_formula_detection(self, mock_genai, sample_image_b64, sample_response_json):
+    async def test_latex_formula_detection(
+        self, mock_genai, sample_image_b64, sample_response_json
+    ):
         """Test LaTeX formulas are detected."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -257,7 +273,7 @@ class TestLaTeXRecognition:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
@@ -276,7 +292,7 @@ class TestLaTeXRecognition:
             "code_snippets": [],
             "description": "这是一张纯文本图片，没有数学公式或代码内容，仅包含普通的文字说明。",
             "key_concepts": ["文本"],
-            "image_type": "screenshot"
+            "image_type": "screenshot",
         }
 
         mock_response = MagicMock()
@@ -288,7 +304,7 @@ class TestLaTeXRecognition:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
@@ -299,11 +315,14 @@ class TestLaTeXRecognition:
 # AC 6.4.4: 代码片段检测测试
 # ============================================================
 
+
 class TestCodeSnippetDetection:
     """Test code snippet detection."""
 
     @pytest.mark.asyncio
-    async def test_code_snippet_detection(self, mock_genai, sample_image_b64, sample_response_json):
+    async def test_code_snippet_detection(
+        self, mock_genai, sample_image_b64, sample_response_json
+    ):
         """Test code snippets are detected with language."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -314,7 +333,7 @@ class TestCodeSnippetDetection:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
@@ -336,7 +355,7 @@ class TestCodeSnippetDetection:
             "code_snippets": [],
             "description": "这是一张自然风景照片，展示了美丽的山川湖泊，没有任何文字或代码内容。",
             "key_concepts": ["自然", "风景"],
-            "image_type": "photo"
+            "image_type": "photo",
         }
 
         mock_response = MagicMock()
@@ -348,7 +367,7 @@ class TestCodeSnippetDetection:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
@@ -359,12 +378,13 @@ class TestCodeSnippetDetection:
 # Error Handling Tests
 # ============================================================
 
+
 class TestErrorHandling:
     """Test error handling and edge cases."""
 
     def test_missing_api_key_raises_error(self, mock_genai):
         """Test that missing API key raises GeminiConfigError."""
-        with patch.dict('os.environ', {}, clear=True):
+        with patch.dict("os.environ", {}, clear=True):
             with pytest.raises(GeminiConfigError):
                 GeminiVisionProcessor(api_key=None)
 
@@ -376,7 +396,7 @@ class TestErrorHandling:
 
         processor = GeminiVisionProcessor(api_key="test-key", timeout=1, max_retries=1)
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.side_effect = asyncio.TimeoutError()
 
             with pytest.raises(GeminiTimeoutError):
@@ -390,7 +410,7 @@ class TestErrorHandling:
 
         processor = GeminiVisionProcessor(api_key="test-key", max_retries=1)
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.side_effect = Exception("API Error")
 
             with pytest.raises(GeminiAPIError):
@@ -408,7 +428,7 @@ class TestErrorHandling:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
@@ -421,6 +441,7 @@ class TestErrorHandling:
 # ============================================================
 # VisionAnalysis Dataclass Tests
 # ============================================================
+
 
 class TestVisionAnalysis:
     """Test VisionAnalysis dataclass."""
@@ -438,7 +459,7 @@ class TestVisionAnalysis:
             key_concepts=["test"],
             image_type="screenshot",
             confidence=0.95,
-            processing_time_ms=100
+            processing_time_ms=100,
         )
 
         result = analysis.to_dict()
@@ -461,7 +482,7 @@ class TestVisionAnalysis:
             "key_concepts": [],
             "image_type": "photo",
             "confidence": 0.8,
-            "processing_time_ms": 50
+            "processing_time_ms": 50,
         }
 
         analysis = VisionAnalysis.from_dict(data)
@@ -475,11 +496,14 @@ class TestVisionAnalysis:
 # File-based Analysis Tests
 # ============================================================
 
+
 class TestFileAnalysis:
     """Test file-based image analysis."""
 
     @pytest.mark.asyncio
-    async def test_analyze_from_path(self, mock_genai, temp_image_file, sample_response_json):
+    async def test_analyze_from_path(
+        self, mock_genai, temp_image_file, sample_response_json
+    ):
         """Test analyzing image from file path."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -490,7 +514,7 @@ class TestFileAnalysis:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image_from_path(temp_image_file)
 
@@ -515,11 +539,14 @@ class TestFileAnalysis:
 # Batch Processing Tests
 # ============================================================
 
+
 class TestBatchProcessing:
     """Test batch image processing."""
 
     @pytest.mark.asyncio
-    async def test_batch_analyze(self, mock_genai, sample_image_b64, sample_response_json):
+    async def test_batch_analyze(
+        self, mock_genai, sample_image_b64, sample_response_json
+    ):
         """Test batch processing of multiple images."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -536,14 +563,18 @@ class TestBatchProcessing:
             (sample_image_b64, "image/png"),
         ]
 
-        with patch.object(processor, 'analyze_image', new_callable=AsyncMock) as mock_analyze:
+        with patch.object(
+            processor, "analyze_image", new_callable=AsyncMock
+        ) as mock_analyze:
             mock_analyze.return_value = sample_response_json
             results = await processor.batch_analyze(images)
 
         assert len(results) == 3
 
     @pytest.mark.asyncio
-    async def test_batch_with_progress_callback(self, mock_genai, sample_image_b64, sample_response_json):
+    async def test_batch_with_progress_callback(
+        self, mock_genai, sample_image_b64, sample_response_json
+    ):
         """Test batch processing with progress callback."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -555,6 +586,7 @@ class TestBatchProcessing:
         processor = GeminiVisionProcessor(api_key="test-key")
 
         progress_calls = []
+
         def progress_callback(current, total):
             progress_calls.append((current, total))
 
@@ -563,7 +595,9 @@ class TestBatchProcessing:
             (sample_image_b64, "image/png"),
         ]
 
-        with patch.object(processor, 'analyze_image', new_callable=AsyncMock) as mock_analyze:
+        with patch.object(
+            processor, "analyze_image", new_callable=AsyncMock
+        ) as mock_analyze:
             mock_analyze.return_value = sample_response_json
             await processor.batch_analyze(images, progress_callback=progress_callback)
 
@@ -574,6 +608,7 @@ class TestBatchProcessing:
 # ============================================================
 # Text Extraction Utility Tests
 # ============================================================
+
 
 class TestTextExtraction:
     """Test text extraction utility."""
@@ -596,11 +631,14 @@ class TestTextExtraction:
 # Convenience Function Tests
 # ============================================================
 
+
 class TestConvenienceFunction:
     """Test analyze_image convenience function."""
 
     @pytest.mark.asyncio
-    async def test_analyze_image_function(self, mock_genai, temp_image_file, sample_response_json):
+    async def test_analyze_image_function(
+        self, mock_genai, temp_image_file, sample_response_json
+    ):
         """Test the analyze_image convenience function."""
         mock_response = MagicMock()
         mock_response.text = json.dumps(sample_response_json)
@@ -609,15 +647,19 @@ class TestConvenienceFunction:
         mock_model.generate_content = MagicMock(return_value=mock_response)
         mock_genai.GenerativeModel.return_value = mock_model
 
-        with patch('agentic_rag.processors.gemini_vision.GeminiVisionProcessor') as MockProcessor:
+        with patch(
+            "agentic_rag.processors.gemini_vision.GeminiVisionProcessor"
+        ) as MockProcessor:
             mock_instance = MagicMock()
-            mock_instance.analyze_image_from_path = AsyncMock(return_value=VisionAnalysis(
-                id="test",
-                image_path=str(temp_image_file),
-                mime_type="image/png",
-                ocr_text="Test",
-                description="Test description with enough characters to meet the minimum requirement."
-            ))
+            mock_instance.analyze_image_from_path = AsyncMock(
+                return_value=VisionAnalysis(
+                    id="test",
+                    image_path=str(temp_image_file),
+                    mime_type="image/png",
+                    ocr_text="Test",
+                    description="Test description with enough characters to meet the minimum requirement.",
+                )
+            )
             MockProcessor.return_value = mock_instance
 
             result = await analyze_image(temp_image_file, api_key="test-key")
@@ -628,6 +670,7 @@ class TestConvenienceFunction:
 # ============================================================
 # Image Type Classification Tests
 # ============================================================
+
 
 class TestImageTypeClassification:
     """Test image type classification."""
@@ -641,7 +684,7 @@ class TestImageTypeClassification:
             "code_snippets": [],
             "description": "这是一张软件界面截图，展示了菜单栏和工具栏的布局设计。",
             "key_concepts": ["界面", "截图"],
-            "image_type": "screenshot"
+            "image_type": "screenshot",
         }
 
         mock_response = MagicMock()
@@ -652,7 +695,7 @@ class TestImageTypeClassification:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 
@@ -667,7 +710,7 @@ class TestImageTypeClassification:
             "code_snippets": [],
             "description": "这是一张流程图，展示了从A到B再到C的数据流转过程。",
             "key_concepts": ["流程图", "数据流"],
-            "image_type": "diagram"
+            "image_type": "diagram",
         }
 
         mock_response = MagicMock()
@@ -678,7 +721,7 @@ class TestImageTypeClassification:
 
         processor = GeminiVisionProcessor(api_key="test-key")
 
-        with patch.object(processor, '_call_api', new_callable=AsyncMock) as mock_call:
+        with patch.object(processor, "_call_api", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_response
             result = await processor.analyze_image(sample_image_b64, "image/png")
 

@@ -198,10 +198,12 @@ async def _heartbeat_loop(websocket: WebSocket) -> None:
         while True:
             await asyncio.sleep(_HEARTBEAT_INTERVAL_S)
             try:
-                ping_msg = json.dumps({
-                    "type": "ping",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                })
+                ping_msg = json.dumps(
+                    {
+                        "type": "ping",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
                 await websocket.send_text(ping_msg)
             except (ConnectionError, RuntimeError, OSError):
                 break

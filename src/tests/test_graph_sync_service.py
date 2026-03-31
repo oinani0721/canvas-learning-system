@@ -75,12 +75,14 @@ class MockGraphitiClient:
             return None
 
         episode_id = f"episode_{len(self.episodes_added) + 1}"
-        self.episodes_added.append({
-            "id": episode_id,
-            "content": content,
-            "canvas_file": canvas_file,
-            "metadata": metadata,
-        })
+        self.episodes_added.append(
+            {
+                "id": episode_id,
+                "content": content,
+                "canvas_file": canvas_file,
+                "metadata": metadata,
+            }
+        )
         return episode_id
 
     async def add_memory(
@@ -93,12 +95,14 @@ class MockGraphitiClient:
         if self.should_fail:
             return False
 
-        self.memories_added.append({
-            "key": key,
-            "content": content,
-            "importance": importance,
-            "tags": tags,
-        })
+        self.memories_added.append(
+            {
+                "key": key,
+                "content": content,
+                "importance": importance,
+                "tags": tags,
+            }
+        )
         return True
 
 
@@ -159,7 +163,9 @@ class TestGraphSyncServiceInit:
         service = GraphSyncService(enable_fallback=True)
 
         # Should not raise even if GraphitiClient import fails
-        with patch.dict('sys.modules', {'src.agentic_rag.clients.graphiti_client': None}):
+        with patch.dict(
+            "sys.modules", {"src.agentic_rag.clients.graphiti_client": None}
+        ):
             result = await service.initialize()
             # May fail but shouldn't crash
             assert service._initialized is True

@@ -13,13 +13,13 @@ Tests cover:
 [Source: specs/data/fsrs-state-query.schema.json]
 """
 
-import pytest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi.testclient import TestClient
 
+import pytest
+from app.config import Settings, get_settings
 from app.main import app
-from app.config import get_settings, Settings
+from fastapi.testclient import TestClient
 
 # Correct patch target: review.py imports get_review_service as _get_review_service_singleton
 REVIEW_SERVICE_PATCH = "app.api.v1.endpoints.review._get_review_service_singleton"
@@ -66,17 +66,19 @@ class TestFSRSStateQueryEndpoint:
         concept_id = "test-concept-123"
 
         mock_service = MagicMock()
-        mock_service.get_fsrs_state = AsyncMock(return_value={
-            "found": True,
-            "stability": 8.5,
-            "difficulty": 5.2,
-            "state": 2,  # Review
-            "reps": 5,
-            "lapses": 1,
-            "retrievability": 0.85,
-            "due": "2026-01-22T10:00:00Z",
-            "card_state": '{"stability":8.5,"difficulty":5.2}'
-        })
+        mock_service.get_fsrs_state = AsyncMock(
+            return_value={
+                "found": True,
+                "stability": 8.5,
+                "difficulty": 5.2,
+                "state": 2,  # Review
+                "reps": 5,
+                "lapses": 1,
+                "retrievability": 0.85,
+                "due": "2026-01-22T10:00:00Z",
+                "card_state": '{"stability":8.5,"difficulty":5.2}',
+            }
+        )
 
         with patch(
             REVIEW_SERVICE_PATCH,
@@ -113,9 +115,7 @@ class TestFSRSStateQueryEndpoint:
         concept_id = "new-concept-no-card"
 
         mock_service = MagicMock()
-        mock_service.get_fsrs_state = AsyncMock(return_value={
-            "found": False
-        })
+        mock_service.get_fsrs_state = AsyncMock(return_value={"found": False})
 
         with patch(
             REVIEW_SERVICE_PATCH,
@@ -138,9 +138,7 @@ class TestFSRSStateQueryEndpoint:
         concept_id = "node-with-dashes_and_underscores"
 
         mock_service = MagicMock()
-        mock_service.get_fsrs_state = AsyncMock(return_value={
-            "found": False
-        })
+        mock_service.get_fsrs_state = AsyncMock(return_value={"found": False})
 
         with patch(
             REVIEW_SERVICE_PATCH,
@@ -157,17 +155,19 @@ class TestFSRSStateQueryEndpoint:
         concept_id = "new-card-no-schedule"
 
         mock_service = MagicMock()
-        mock_service.get_fsrs_state = AsyncMock(return_value={
-            "found": True,
-            "stability": 1.0,
-            "difficulty": 5.0,
-            "state": 0,  # New
-            "reps": 0,
-            "lapses": 0,
-            "retrievability": None,  # Not yet scheduled
-            "due": None,
-            "card_state": None
-        })
+        mock_service.get_fsrs_state = AsyncMock(
+            return_value={
+                "found": True,
+                "stability": 1.0,
+                "difficulty": 5.0,
+                "state": 0,  # New
+                "reps": 0,
+                "lapses": 0,
+                "retrievability": None,  # Not yet scheduled
+                "due": None,
+                "card_state": None,
+            }
+        )
 
         with patch(
             REVIEW_SERVICE_PATCH,
@@ -243,14 +243,14 @@ class TestFSRSStateResponseSchema:
             reps=5,
             lapses=1,
             retrievability=0.85,
-            due=datetime(2026, 1, 22, 10, 0, 0, tzinfo=timezone.utc)
+            due=datetime(2026, 1, 22, 10, 0, 0, tzinfo=timezone.utc),
         )
 
         response = FSRSStateQueryResponse(
             concept_id="test-concept",
             fsrs_state=fsrs_state,
             card_state='{"stability":8.5}',
-            found=True
+            found=True,
         )
 
         data = response.model_dump()
@@ -273,10 +273,7 @@ class TestFSRSStateResponseSchema:
         from app.models.schemas import FSRSStateQueryResponse
 
         response = FSRSStateQueryResponse(
-            concept_id="new-concept",
-            fsrs_state=None,
-            card_state=None,
-            found=False
+            concept_id="new-concept", fsrs_state=None, card_state=None, found=False
         )
 
         data = response.model_dump()
@@ -304,7 +301,7 @@ class TestFSRSStateIntegration:
             reps=5,
             lapses=1,
             retrievability=0.85,
-            due=datetime.now(timezone.utc)
+            due=datetime.now(timezone.utc),
         )
         assert 0 <= state.retrievability <= 1
 
@@ -318,11 +315,7 @@ class TestFSRSStateIntegration:
 
         for state_val in valid_states:
             state = FSRSStateResponse(
-                stability=5.0,
-                difficulty=5.0,
-                state=state_val,
-                reps=0,
-                lapses=0
+                stability=5.0, difficulty=5.0, state=state_val, reps=0, lapses=0
             )
             assert state.state in valid_states
 
@@ -333,10 +326,6 @@ class TestFSRSStateIntegration:
         from app.models.schemas import FSRSStateResponse
 
         state = FSRSStateResponse(
-            stability=5.0,
-            difficulty=7.5,
-            state=2,
-            reps=3,
-            lapses=0
+            stability=5.0, difficulty=7.5, state=2, reps=3, lapses=0
         )
         assert 1 <= state.difficulty <= 10

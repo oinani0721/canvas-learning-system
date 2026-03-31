@@ -201,7 +201,9 @@ class TestLLMCallLogger:
         kwargs = {
             "model": "gpt-4o-mini",
             "response_cost": 0.005,
-            "litellm_params": {"metadata": {"task_type": "scoring", "request_id": "test-req-1"}},
+            "litellm_params": {
+                "metadata": {"task_type": "scoring", "request_id": "test-req-1"}
+            },
         }
         start = datetime(2026, 3, 16, 10, 0, 0, tzinfo=timezone.utc)
         end = datetime(2026, 3, 16, 10, 0, 2, tzinfo=timezone.utc)
@@ -300,7 +302,9 @@ class TestLLMCallLogger:
         assert logger_with_tracker._buffer[0].task_type == "qa_check"
 
     @pytest.mark.asyncio
-    async def test_unknown_task_type_defaults_to_conversation(self, logger_with_tracker):
+    async def test_unknown_task_type_defaults_to_conversation(
+        self, logger_with_tracker
+    ):
         kwargs = {
             "model": "test",
             "litellm_params": {"metadata": {"task_type": "invalid_type"}},

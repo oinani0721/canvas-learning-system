@@ -36,11 +36,7 @@ class TestArgumentParser:
     def test_parse_string_parameter(self):
         """测试字符串参数解析"""
         parser = ArgumentParser()
-        param = CommandParameter(
-            name="test",
-            type="string",
-            required=True
-        )
+        param = CommandParameter(name="test", type="string", required=True)
 
         result = parser.parse_arguments(["--test", "hello"], [param])
         assert result == {"test": "hello"}
@@ -48,11 +44,7 @@ class TestArgumentParser:
     def test_parse_integer_parameter(self):
         """测试整数参数解析"""
         parser = ArgumentParser()
-        param = CommandParameter(
-            name="number",
-            type="integer",
-            required=True
-        )
+        param = CommandParameter(name="number", type="integer", required=True)
 
         result = parser.parse_arguments(["--number", "42"], [param])
         assert result == {"number": 42}
@@ -60,11 +52,7 @@ class TestArgumentParser:
     def test_parse_boolean_parameter(self):
         """测试布尔参数解析"""
         parser = ArgumentParser()
-        param = CommandParameter(
-            name="flag",
-            type="boolean",
-            required=True
-        )
+        param = CommandParameter(name="flag", type="boolean", required=True)
 
         result = parser.parse_arguments(["--flag", "true"], [param])
         assert result == {"flag": True}
@@ -75,11 +63,7 @@ class TestArgumentParser:
     def test_parse_flag_parameter(self):
         """测试标志参数解析"""
         parser = ArgumentParser()
-        param = CommandParameter(
-            name="verbose",
-            type="flag",
-            required=False
-        )
+        param = CommandParameter(name="verbose", type="flag", required=False)
 
         result = parser.parse_arguments(["--verbose"], [param])
         assert result == {"verbose": True}
@@ -88,10 +72,7 @@ class TestArgumentParser:
         """测试选择参数解析"""
         parser = ArgumentParser()
         param = CommandParameter(
-            name="color",
-            type="choice",
-            required=True,
-            choices=["red", "green", "blue"]
+            name="color", type="choice", required=True, choices=["red", "green", "blue"]
         )
 
         result = parser.parse_arguments(["--color", "red"], [param])
@@ -105,10 +86,7 @@ class TestArgumentParser:
         """测试默认值"""
         parser = ArgumentParser()
         param = CommandParameter(
-            name="optional",
-            type="string",
-            required=False,
-            default="default_value"
+            name="optional", type="string", required=False, default="default_value"
         )
 
         result = parser.parse_arguments([], [param])
@@ -117,14 +95,11 @@ class TestArgumentParser:
     def test_missing_required_parameter(self):
         """测试缺少必需参数"""
         parser = ArgumentParser()
-        param = CommandParameter(
-            name="required",
-            type="string",
-            required=True
-        )
+        param = CommandParameter(name="required", type="string", required=True)
 
         with pytest.raises(Exception):
             parser.parse_arguments([], [param])
+
 
 class TestCommandRegistry:
     """测试命令注册器"""
@@ -139,7 +114,7 @@ class TestCommandRegistry:
             usage="/test",
             examples=["/test"],
             handler="test_handler",
-            parameters=[]
+            parameters=[],
         )
 
         def test_handler(context):
@@ -160,7 +135,7 @@ class TestCommandRegistry:
             usage="/test",
             examples=["/test"],
             handler="test_handler",
-            parameters=[]
+            parameters=[],
         )
 
         def test_handler(context):
@@ -188,7 +163,7 @@ class TestCommandRegistry:
             usage="/test",
             examples=["/test"],
             handler="test_handler",
-            parameters=[]
+            parameters=[],
         )
 
         def test_handler(context):
@@ -199,6 +174,7 @@ class TestCommandRegistry:
         assert result is True
         assert "test" not in registry.commands
         assert "t" not in registry.alias_map
+
 
 class TestAutoCompletionSystem:
     """测试自动补全系统"""
@@ -213,7 +189,7 @@ class TestAutoCompletionSystem:
             usage="/test",
             examples=["/test"],
             handler="test_handler",
-            parameters=[]
+            parameters=[],
         )
 
         def test_handler(context):
@@ -242,9 +218,9 @@ class TestAutoCompletionSystem:
                     name="param",
                     type="string",
                     required=False,
-                    description="Test parameter"
+                    description="Test parameter",
                 )
-            ]
+            ],
         )
 
         def test_handler(context):
@@ -257,6 +233,7 @@ class TestAutoCompletionSystem:
         suggestions = completion.get_suggestions("/test --")
         assert len(suggestions) > 0
         assert any("--param" in s.command for s in suggestions)
+
 
 class TestSlashCommandSystem:
     """测试斜杠命令系统"""
@@ -279,16 +256,16 @@ class TestSlashCommandSystem:
                     name="name",
                     type="string",
                     required=False,
-                    description="Test parameter"
+                    description="Test parameter",
                 )
-            ]
+            ],
         )
 
         async def test_handler(context):
             return {
                 "success": True,
                 "parameters": context.parameters,
-                "command": context.command_name
+                "command": context.command_name,
             }
 
         system.register_command(test_metadata, test_handler)
@@ -361,6 +338,7 @@ class TestSlashCommandSystem:
         assert "test" in specific_help
         assert "Test command" in specific_help
 
+
 class TestCommandExecutionResult:
     """测试命令执行结果"""
 
@@ -370,7 +348,7 @@ class TestCommandExecutionResult:
             execution_id="test-123",
             status="success",
             start_time=None,
-            output={"message": "Success"}
+            output={"message": "Success"},
         )
         assert result.status == "success"
         assert result.output["message"] == "Success"
@@ -382,11 +360,12 @@ class TestCommandExecutionResult:
             status="error",
             start_time=None,
             error_message="Something went wrong",
-            error_type="test_error"
+            error_type="test_error",
         )
         assert result.status == "error"
         assert result.error_message == "Something went wrong"
         assert result.error_type == "test_error"
+
 
 class TestIntegration:
     """集成测试"""
@@ -404,7 +383,7 @@ class TestIntegration:
             usage="/complex [--required <value>] [--optional <value>] [--flag]",
             examples=[
                 "/complex --required hello",
-                "/complex --required hello --optional world --flag"
+                "/complex --required hello --optional world --flag",
             ],
             handler="complex_handler",
             parameters=[
@@ -412,29 +391,26 @@ class TestIntegration:
                     name="required",
                     type="string",
                     required=True,
-                    description="Required parameter"
+                    description="Required parameter",
                 ),
                 CommandParameter(
                     name="optional",
                     type="string",
                     required=False,
                     description="Optional parameter",
-                    default="default"
+                    default="default",
                 ),
                 CommandParameter(
-                    name="flag",
-                    type="flag",
-                    required=False,
-                    description="A flag"
-                )
-            ]
+                    name="flag", type="flag", required=False, description="A flag"
+                ),
+            ],
         )
 
         async def complex_handler(context):
             return {
                 "success": True,
                 "received_params": context.parameters,
-                "execution_id": context.execution_id
+                "execution_id": context.execution_id,
             }
 
         system.register_command(metadata, complex_handler)
@@ -442,8 +418,14 @@ class TestIntegration:
         # 测试各种执行场景
         test_cases = [
             ("/complex --required test1", {"required": "test1", "optional": "default"}),
-            ("/c --required test2 --optional custom", {"required": "test2", "optional": "custom"}),
-            ("/complex --required test3 --flag", {"required": "test3", "optional": "default", "flag": True}),
+            (
+                "/c --required test2 --optional custom",
+                {"required": "test2", "optional": "custom"},
+            ),
+            (
+                "/complex --required test3 --flag",
+                {"required": "test3", "optional": "default", "flag": True},
+            ),
         ]
 
         for command, expected_params in test_cases:
@@ -463,7 +445,7 @@ class TestIntegration:
             usage="/error",
             examples=["/error"],
             handler="error_handler",
-            parameters=[]
+            parameters=[],
         )
 
         async def error_handler(context):
@@ -476,6 +458,7 @@ class TestIntegration:
         assert result.status == "error"
         assert "Test error" in result.error_message
         assert result.suggestions is not None
+
 
 class TestPerformance:
     """性能测试"""
@@ -493,7 +476,7 @@ class TestPerformance:
             usage="/perf",
             examples=["/perf"],
             handler="perf_handler",
-            parameters=[]
+            parameters=[],
         )
 
         async def perf_handler(context):
@@ -505,6 +488,7 @@ class TestPerformance:
 
         # 测试多次执行的性能
         import time
+
         start_time = time.time()
 
         for _ in range(10):
@@ -517,6 +501,7 @@ class TestPerformance:
         # 平均每次执行应该在合理时间内
         avg_time = total_time / 10
         assert avg_time < 1.0  # 每次执行应该少于1秒
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -48,17 +48,17 @@ def client_with_bugs(test_bug_tracker: BugTracker) -> Generator[TestClient, None
     test_bug_tracker.log_error(
         endpoint="/api/v1/agents/scoring",
         error=ValueError("Invalid canvas path"),
-        request_params={"canvas_path": "test.canvas"}
+        request_params={"canvas_path": "test.canvas"},
     )
     test_bug_tracker.log_error(
         endpoint="/api/v1/canvas/nodes",
         error=KeyError("node_id"),
-        request_params={"node_id": "missing"}
+        request_params={"node_id": "missing"},
     )
     test_bug_tracker.log_error(
         endpoint="/api/v1/review/generate",
         error=TypeError("Expected dict, got list"),
-        request_params={"format": "json"}
+        request_params={"format": "json"},
     )
 
     # Patch the global bug_tracker
@@ -68,7 +68,9 @@ def client_with_bugs(test_bug_tracker: BugTracker) -> Generator[TestClient, None
 
 
 @pytest.fixture
-def client_empty_bugs(test_bug_tracker: BugTracker) -> Generator[TestClient, None, None]:
+def client_empty_bugs(
+    test_bug_tracker: BugTracker,
+) -> Generator[TestClient, None, None]:
     """
     Create test client with empty bug_tracker.
     """

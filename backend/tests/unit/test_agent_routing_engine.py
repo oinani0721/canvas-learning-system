@@ -19,24 +19,19 @@ Coverage check:
 """
 
 import pytest
-
-from app.core.agent_memory_mapping import ALL_AGENT_NAMES, AGENT_MEMORY_MAPPING
+from app.core.agent_memory_mapping import AGENT_MEMORY_MAPPING, ALL_AGENT_NAMES
 from app.models.agent_routing_models import (
     BatchRoutingRequest,
-    BatchRoutingResponse,
     RoutingRequest,
-    RoutingResult,
 )
 from app.services.agent_routing_engine import (
-    AgentRoutingEngine,
-    CONFIDENCE_HIGH_THRESHOLD,
     CONFIDENCE_LOW_THRESHOLD,
     CONFIDENCE_MEDIUM_THRESHOLD,
     CONTENT_PATTERN_MAP,
     DEFAULT_FALLBACK_AGENT,
+    AgentRoutingEngine,
     get_routing_engine,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
@@ -64,30 +59,35 @@ def singleton_engine():
 class TestPatternRouting:
     """Test all 6 pattern categories route correctly (AC1)."""
 
-    @pytest.mark.parametrize("node_text,expected_agent", [
-        # oral-explanation patterns
-        ("什么是逆否命题", "oral-explanation"),
-        ("逆否命题是什么意思", "oral-explanation"),
-        ("定义充分条件", "oral-explanation"),
-        # comparison-table patterns
-        ("逆否命题和否命题的区别", "comparison-table"),
-        ("充分条件 vs 必要条件", "comparison-table"),
-        ("对比逆命题和逆否命题", "comparison-table"),
-        # clarification-path patterns
-        ("如何理解命题的逻辑等价", "clarification-path"),
-        ("怎么理解充分必要条件", "clarification-path"),
-        # example-teaching patterns
-        ("举例说明逆否命题的应用", "example-teaching"),
-        ("举个例子说明推理过程", "example-teaching"),
-        # memory-anchor patterns
-        ("记忆逆否命题的定义", "memory-anchor"),
-        ("记住充分必要条件的判断方法", "memory-anchor"),
-        ("背诵这个公式", "memory-anchor"),
-        # deep-decomposition patterns
-        ("深度剖析命题逻辑", "deep-decomposition"),
-        ("深入分析这个概念", "deep-decomposition"),
-    ])
-    def test_chinese_pattern_routes_correctly(self, routing_engine, node_text, expected_agent):
+    @pytest.mark.parametrize(
+        "node_text,expected_agent",
+        [
+            # oral-explanation patterns
+            ("什么是逆否命题", "oral-explanation"),
+            ("逆否命题是什么意思", "oral-explanation"),
+            ("定义充分条件", "oral-explanation"),
+            # comparison-table patterns
+            ("逆否命题和否命题的区别", "comparison-table"),
+            ("充分条件 vs 必要条件", "comparison-table"),
+            ("对比逆命题和逆否命题", "comparison-table"),
+            # clarification-path patterns
+            ("如何理解命题的逻辑等价", "clarification-path"),
+            ("怎么理解充分必要条件", "clarification-path"),
+            # example-teaching patterns
+            ("举例说明逆否命题的应用", "example-teaching"),
+            ("举个例子说明推理过程", "example-teaching"),
+            # memory-anchor patterns
+            ("记忆逆否命题的定义", "memory-anchor"),
+            ("记住充分必要条件的判断方法", "memory-anchor"),
+            ("背诵这个公式", "memory-anchor"),
+            # deep-decomposition patterns
+            ("深度剖析命题逻辑", "deep-decomposition"),
+            ("深入分析这个概念", "deep-decomposition"),
+        ],
+    )
+    def test_chinese_pattern_routes_correctly(
+        self, routing_engine, node_text, expected_agent
+    ):
         """Test Chinese pattern text routes to the correct agent."""
         request = RoutingRequest(node_id="pattern-test", node_text=node_text)
         result = routing_engine.route_single_node(request)
@@ -99,12 +99,20 @@ class TestPatternRouting:
 class TestEnglishPatterns:
     """Test English pattern matching."""
 
-    @pytest.mark.parametrize("node_text,expected_agent", [
-        ("What is the contrapositive proposition?", "oral-explanation"),
-        ("What is the difference between sufficient and necessary conditions?", "comparison-table"),
-        ("How to understand logical equivalence?", "clarification-path"),
-    ])
-    def test_english_pattern_routes_correctly(self, routing_engine, node_text, expected_agent):
+    @pytest.mark.parametrize(
+        "node_text,expected_agent",
+        [
+            ("What is the contrapositive proposition?", "oral-explanation"),
+            (
+                "What is the difference between sufficient and necessary conditions?",
+                "comparison-table",
+            ),
+            ("How to understand logical equivalence?", "clarification-path"),
+        ],
+    )
+    def test_english_pattern_routes_correctly(
+        self, routing_engine, node_text, expected_agent
+    ):
         """Test English pattern text routes to the correct agent."""
         request = RoutingRequest(node_id="en-test", node_text=node_text)
         result = routing_engine.route_single_node(request)
@@ -134,10 +142,7 @@ class TestConfidenceScoring:
     def test_medium_confidence_for_multiple_patterns(self, routing_engine):
         """Test medium confidence (0.7-0.85) for multiple competing patterns."""
         # Text with multiple possible interpretations
-        request = RoutingRequest(
-            node_id="conf-002",
-            node_text="解释一下什么是逆命题"
-        )
+        request = RoutingRequest(node_id="conf-002", node_text="解释一下什么是逆命题")
         result = routing_engine.route_single_node(request)
 
         assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
@@ -227,7 +232,7 @@ class TestManualOverride:
         request = RoutingRequest(
             node_id="override-001",
             node_text="什么是逆否命题",
-            agent_override="deep-decomposition"
+            agent_override="deep-decomposition",
         )
         result = routing_engine.route_single_node(request)
 
@@ -240,7 +245,7 @@ class TestManualOverride:
         request = RoutingRequest(
             node_id="override-002",
             node_text="任意文本",
-            agent_override="comparison-table"
+            agent_override="comparison-table",
         )
         result = routing_engine.route_single_node(request)
 
@@ -249,9 +254,7 @@ class TestManualOverride:
     def test_override_reason_is_manual_override(self, routing_engine):
         """Test override reason is 'manual_override'."""
         request = RoutingRequest(
-            node_id="override-003",
-            node_text="任意文本",
-            agent_override="memory-anchor"
+            node_id="override-003", node_text="任意文本", agent_override="memory-anchor"
         )
         result = routing_engine.route_single_node(request)
 
@@ -262,7 +265,7 @@ class TestManualOverride:
         request = RoutingRequest(
             node_id="override-004",
             node_text="什么是逆否命题",
-            agent_override="invalid-agent-name"
+            agent_override="invalid-agent-name",
         )
         result = routing_engine.route_single_node(request)
 
@@ -276,7 +279,7 @@ class TestManualOverride:
             request = RoutingRequest(
                 node_id=f"override-{agent_name}",
                 node_text="测试文本",
-                agent_override=agent_name
+                agent_override=agent_name,
             )
             result = routing_engine.route_single_node(request)
 
@@ -295,8 +298,9 @@ class TestAgentMappingIntegration:
     def test_all_routing_targets_in_agent_mapping(self, routing_engine):
         """Test all routing targets are in AGENT_MEMORY_MAPPING."""
         for agent_name in CONTENT_PATTERN_MAP.keys():
-            assert agent_name in ALL_AGENT_NAMES, \
+            assert agent_name in ALL_AGENT_NAMES, (
                 f"Agent '{agent_name}' not found in ALL_AGENT_NAMES"
+            )
 
     def test_default_fallback_in_agent_mapping(self):
         """Test default fallback agent is in mapping."""
@@ -309,8 +313,9 @@ class TestAgentMappingIntegration:
     def test_routed_agents_have_memory_types(self, routing_engine):
         """Test all routed agents have memory types defined."""
         for agent_name in CONTENT_PATTERN_MAP.keys():
-            assert agent_name in AGENT_MEMORY_MAPPING, \
+            assert agent_name in AGENT_MEMORY_MAPPING, (
                 f"Agent '{agent_name}' has no memory type mapping"
+            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -357,9 +362,9 @@ class TestBatchRouting:
 
         # Total should equal sum of confidence counts
         total_counted = (
-            response.high_confidence_count +
-            response.medium_confidence_count +
-            response.low_confidence_count
+            response.high_confidence_count
+            + response.medium_confidence_count
+            + response.low_confidence_count
         )
         assert total_counted == response.total_nodes
 
@@ -369,7 +374,7 @@ class TestBatchRouting:
             RoutingRequest(
                 node_id="batch-008",
                 node_text="什么是X",
-                agent_override="deep-decomposition"
+                agent_override="deep-decomposition",
             ),
             RoutingRequest(node_id="batch-009", node_text="A和B区别"),
         ]
@@ -400,7 +405,7 @@ class TestEdgeCases:
                 ],
                 "weight": 1.0,
                 "priority": 1,
-                "description": "Test agent"
+                "description": "Test agent",
             }
         }
         engine = AgentRoutingEngine(pattern_config=custom_config)
@@ -415,7 +420,7 @@ class TestEdgeCases:
                 "patterns": [r"custom.*"],
                 "weight": 1.0,
                 "priority": 1,
-                "description": "Custom test agent"
+                "description": "Custom test agent",
             }
         }
         engine = AgentRoutingEngine(pattern_config=custom_config)
@@ -447,8 +452,7 @@ class TestEdgeCases:
     def test_special_characters(self, routing_engine):
         """Test routing handles special characters."""
         request = RoutingRequest(
-            node_id="edge-004",
-            node_text="什么是 [特殊字符] {braces} (parens)?"
+            node_id="edge-004", node_text="什么是 [特殊字符] {braces} (parens)?"
         )
         result = routing_engine.route_single_node(request)
 
@@ -457,8 +461,7 @@ class TestEdgeCases:
     def test_mixed_language(self, routing_engine):
         """Test routing handles mixed Chinese/English."""
         request = RoutingRequest(
-            node_id="edge-005",
-            node_text="什么是 machine learning?"
+            node_id="edge-005", node_text="什么是 machine learning?"
         )
         result = routing_engine.route_single_node(request)
 
@@ -518,7 +521,9 @@ class TestContentAnalysis:
         """Test match quality for longer patterns."""
         # Longer pattern should get bonus
         quality_short = routing_engine._calculate_match_quality(".*区别.*", "区别")
-        quality_long = routing_engine._calculate_match_quality(".*和.*的?区别.*", "A和B的区别")
+        quality_long = routing_engine._calculate_match_quality(
+            ".*和.*的?区别.*", "A和B的区别"
+        )
 
         # Both should be valid quality scores
         assert 0.0 <= quality_short <= 1.0

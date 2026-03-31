@@ -22,7 +22,11 @@ import time
 import pytest
 from review_manager_standalone import CanvasReviewManagerStandalone
 
-from ebbinghaus_review import DEFAULT_MEMORY_STRENGTH, DEFAULT_REVIEW_INTERVALS, EbbinghausReviewScheduler
+from ebbinghaus_review import (
+    DEFAULT_MEMORY_STRENGTH,
+    DEFAULT_REVIEW_INTERVALS,
+    EbbinghausReviewScheduler,
+)
 
 
 class TestReviewIntegration:
@@ -30,7 +34,7 @@ class TestReviewIntegration:
 
     def setup_method(self):
         """每个测试方法前的设置"""
-        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
         self.temp_db.close()
 
     def teardown_method(self):
@@ -47,24 +51,24 @@ class TestReviewIntegration:
 
         # 标准验证案例
         test_cases = [
-            (1, 10, math.exp(-0.1)),    # 1天，S=10
-            (5, 10, math.exp(-0.5)),    # 5天，S=10
-            (10, 20, math.exp(-0.5)),   # 10天，S=20
-            (30, 15, math.exp(-2.0)),   # 30天，S=15
+            (1, 10, math.exp(-0.1)),  # 1天，S=10
+            (5, 10, math.exp(-0.5)),  # 5天，S=10
+            (10, 20, math.exp(-0.5)),  # 10天，S=20
+            (30, 15, math.exp(-2.0)),  # 30天，S=15
         ]
 
         for time_days, memory_strength, expected in test_cases:
             actual = scheduler.calculate_retention_rate(time_days, memory_strength)
 
             # 验证精度要求误差<1%
-            assert math.isclose(actual, expected, rel_tol=0.01), \
-                f"时间={time_days}, 强度={memory_strength}: " \
-                f"期望={expected:.6f}, 实际={actual:.6f}, " \
-                f"相对误差={abs(actual-expected)/expected:.6f}"
+            assert math.isclose(actual, expected, rel_tol=0.01), (
+                f"时间={time_days}, 强度={memory_strength}: "
+                f"期望={expected:.6f}, 实际={actual:.6f}, "
+                f"相对误差={abs(actual - expected) / expected:.6f}"
+            )
 
             # 验证保持率范围
-            assert 0 <= actual <= 1, \
-                f"保持率应在[0,1]范围内，实际值: {actual}"
+            assert 0 <= actual <= 1, f"保持率应在[0,1]范围内，实际值: {actual}"
 
     def test_memory_strength_adjustment(self):
         """测试记忆强度动态调整"""
@@ -78,7 +82,9 @@ class TestReviewIntegration:
 
         # 验证调整逻辑
         assert low_score_result < base_strength, "低分应降低记忆强度"
-        assert math.isclose(neutral_result, base_strength, rel_tol=0.01), "中性评分应保持强度"
+        assert math.isclose(neutral_result, base_strength, rel_tol=0.01), (
+            "中性评分应保持强度"
+        )
         assert high_score_result > base_strength, "高分应增强记忆强度"
 
         # 验证边界值
@@ -94,21 +100,38 @@ class TestReviewIntegration:
 
         # 测试不同评分对应的间隔
         test_cases = [
-            (2, 1),    # 低分 -> 1天 (adjusted_strength = 10 * (1.0 + (2-5) * 0.2) = 4.0, < 5)
-            (4, 3),    # 中低分 -> 3天 (adjusted_strength = 10 * (1.0 + (4-5) * 0.2) = 6.0, >= 5 and < 10)
-            (6, 7),    # 中等分 -> 7天 (adjusted_strength = 10 * (1.0 + (6-5) * 0.2) = 12.0, >= 10 and < 20)
-            (8, 7),    # 高分 -> 7天 (adjusted_strength = 10 * (1.0 + (8-5) * 0.2) = 16.0, >= 10 and < 20)
-            (10, 15),  # 最高分 -> 15天 (adjusted_strength = 10 * (1.0 + (10-5) * 0.2) = 20.0, >= 20 and < 40)
+            (
+                2,
+                1,
+            ),  # 低分 -> 1天 (adjusted_strength = 10 * (1.0 + (2-5) * 0.2) = 4.0, < 5)
+            (
+                4,
+                3,
+            ),  # 中低分 -> 3天 (adjusted_strength = 10 * (1.0 + (4-5) * 0.2) = 6.0, >= 5 and < 10)
+            (
+                6,
+                7,
+            ),  # 中等分 -> 7天 (adjusted_strength = 10 * (1.0 + (6-5) * 0.2) = 12.0, >= 10 and < 20)
+            (
+                8,
+                7,
+            ),  # 高分 -> 7天 (adjusted_strength = 10 * (1.0 + (8-5) * 0.2) = 16.0, >= 10 and < 20)
+            (
+                10,
+                15,
+            ),  # 最高分 -> 15天 (adjusted_strength = 10 * (1.0 + (10-5) * 0.2) = 20.0, >= 20 and < 40)
         ]
 
         for score, expected_interval in test_cases:
             actual_interval = scheduler.calculate_optimal_review_interval(score, 10.0)
-            assert actual_interval == expected_interval, \
+            assert actual_interval == expected_interval, (
                 f"评分{score}期望间隔{expected_interval}天，实际{actual_interval}天"
+            )
 
             # 验证间隔在标准列表中
-            assert actual_interval in DEFAULT_REVIEW_INTERVALS, \
+            assert actual_interval in DEFAULT_REVIEW_INTERVALS, (
                 f"间隔{actual_interval}应在标准间隔列表中"
+            )
 
     def test_database_operations(self):
         """测试数据库操作完整性"""
@@ -116,30 +139,26 @@ class TestReviewIntegration:
 
         # 测试创建复习计划
         schedule_id = scheduler.create_review_schedule(
-            canvas_path='test.canvas',
-            node_id='test-node-123',
-            concept_name='测试概念'
+            canvas_path="test.canvas", node_id="test-node-123", concept_name="测试概念"
         )
-        assert schedule_id.startswith('review-'), "复习计划ID格式应正确"
+        assert schedule_id.startswith("review-"), "复习计划ID格式应正确"
 
         # 测试获取复习计划
         schedule = scheduler.get_review_schedule(schedule_id)
         assert schedule is not None, "应该能获取创建的复习计划"
-        assert schedule['concept_name'] == '测试概念', "概念名称应匹配"
-        assert schedule['canvas_file'] == 'test.canvas', "Canvas文件应匹配"
+        assert schedule["concept_name"] == "测试概念", "概念名称应匹配"
+        assert schedule["canvas_file"] == "test.canvas", "Canvas文件应匹配"
 
         # 测试更新复习计划
         success = scheduler.update_review_schedule(
-            schedule_id,
-            memory_strength=15.0,
-            next_review_date='2025-02-01'
+            schedule_id, memory_strength=15.0, next_review_date="2025-02-01"
         )
         assert success, "更新复习计划应该成功"
 
         # 验证更新结果
         updated_schedule = scheduler.get_review_schedule(schedule_id)
-        assert updated_schedule['memory_strength'] == 15.0, "记忆强度应已更新"
-        assert updated_schedule['next_review_date'] == '2025-02-01', "复习日期应已更新"
+        assert updated_schedule["memory_strength"] == 15.0, "记忆强度应已更新"
+        assert updated_schedule["next_review_date"] == "2025-02-01", "复习日期应已更新"
 
         # 测试删除复习计划
         delete_success = scheduler.delete_review_schedule(schedule_id)
@@ -155,9 +174,9 @@ class TestReviewIntegration:
 
         # 创建复习计划
         schedule_id = scheduler.create_review_schedule(
-            canvas_path='test.canvas',
-            node_id='test-node-complete',
-            concept_name='测试完成概念'
+            canvas_path="test.canvas",
+            node_id="test-node-complete",
+            concept_name="测试完成概念",
         )
 
         # 完成复习
@@ -166,7 +185,7 @@ class TestReviewIntegration:
             score=8,
             confidence=7,
             time_minutes=5,
-            notes='测试复习完成'
+            notes="测试复习完成",
         )
         assert success, "完成复习应该成功"
 
@@ -176,7 +195,9 @@ class TestReviewIntegration:
 
         # 验证复习历史记录
         schedules = scheduler.get_all_review_schedules()
-        test_schedule = next((s for s in schedules if s['schedule_id'] == schedule_id), None)
+        test_schedule = next(
+            (s for s in schedules if s["schedule_id"] == schedule_id), None
+        )
         assert test_schedule is not None, "应该能找到测试复习计划"
 
         # 验证今日复习任务更新
@@ -195,27 +216,31 @@ class TestReviewIntegration:
                     "id": "test-concept-1",
                     "type": "text",
                     "text": "测试概念1",
-                    "x": 100, "y": 100,
-                    "width": 200, "height": 100,
-                    "color": "1"  # 红色节点
+                    "x": 100,
+                    "y": 100,
+                    "width": 200,
+                    "height": 100,
+                    "color": "1",  # 红色节点
                 },
                 {
                     "id": "test-concept-2",
                     "type": "text",
                     "text": "测试概念2",
-                    "x": 400, "y": 100,
-                    "width": 200, "height": 100,
-                    "color": "3"  # 紫色节点
-                }
+                    "x": 400,
+                    "y": 100,
+                    "width": 200,
+                    "height": 100,
+                    "color": "3",  # 紫色节点
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
-        temp_canvas = tempfile.NamedTemporaryFile(delete=False, suffix='.canvas')
+        temp_canvas = tempfile.NamedTemporaryFile(delete=False, suffix=".canvas")
         temp_canvas.close()
 
         # 写入测试Canvas
-        with open(temp_canvas.name, 'w', encoding='utf-8') as f:
+        with open(temp_canvas.name, "w", encoding="utf-8") as f:
             json.dump(test_canvas_data, f, ensure_ascii=False, indent=2)
 
         try:
@@ -223,8 +248,12 @@ class TestReviewIntegration:
             result = manager.create_review_schedules_from_canvas(temp_canvas.name)
 
             assert result.get("success", False), "批量创建应该成功"
-            assert result["total_nodes"] == 2, f"应识别2个节点，实际{result.get('total_nodes', 0)}"
-            assert result["successful_schedules"] == 2, f"应成功创建2个计划，实际{result.get('successful_schedules', 0)}"
+            assert result["total_nodes"] == 2, (
+                f"应识别2个节点，实际{result.get('total_nodes', 0)}"
+            )
+            assert result["successful_schedules"] == 2, (
+                f"应成功创建2个计划，实际{result.get('successful_schedules', 0)}"
+            )
 
             # 测试复习完成
             complete_result = manager.complete_canvas_review(
@@ -233,7 +262,7 @@ class TestReviewIntegration:
                 score=8,
                 confidence=7,
                 time_minutes=5,
-                notes="Canvas集成测试"
+                notes="Canvas集成测试",
             )
 
             assert complete_result.get("success", False), "Canvas复习完成应该成功"
@@ -245,9 +274,11 @@ class TestReviewIntegration:
                 "1": "红色 (不理解)",
                 "2": "绿色 (完全理解)",
                 "3": "紫色 (似懂非懂)",
-                "6": "黄色 (个人理解)"
+                "6": "黄色 (个人理解)",
             }
-            assert complete_result["new_color"] in color_map.keys(), f"新颜色应该在有效颜色范围内，实际: {complete_result['new_color']}"
+            assert complete_result["new_color"] in color_map.keys(), (
+                f"新颜色应该在有效颜色范围内，实际: {complete_result['new_color']}"
+            )
 
         finally:
             # 清理临时Canvas文件
@@ -270,7 +301,7 @@ class TestReviewIntegration:
             scheduler.calculate_optimal_review_interval(i % 10 + 1, 10.0)
 
         calc_time = time.time() - start_time
-        print(f"{calc_count*2}次算法计算用时: {calc_time:.3f}秒")
+        print(f"{calc_count * 2}次算法计算用时: {calc_time:.3f}秒")
 
         # 性能测试2: 测试数据库操作 (减少数量以适应Windows性能)
         start_time = time.time()
@@ -279,9 +310,9 @@ class TestReviewIntegration:
 
         for i in range(test_size):
             schedule_id = scheduler.create_review_schedule(
-                canvas_path=f'test-{i}.canvas',
-                node_id=f'node-{i}',
-                concept_name=f'测试概念{i}'
+                canvas_path=f"test-{i}.canvas",
+                node_id=f"node-{i}",
+                concept_name=f"测试概念{i}",
             )
             schedule_ids.append(schedule_id)
 
@@ -295,19 +326,28 @@ class TestReviewIntegration:
         print(f"查询今日复习用时: {query_time:.3f}秒")
 
         # 性能断言 - 调整阈值以反映实际性能特征
-        assert calc_time < 1.0, f"{calc_count*2}次算法计算应在1秒内完成，实际用时: {calc_time:.3f}秒"
-        assert query_time < 1.0, f"查询今日复习应在1秒内完成，实际用时: {query_time:.3f}秒"
+        assert calc_time < 1.0, (
+            f"{calc_count * 2}次算法计算应在1秒内完成，实际用时: {calc_time:.3f}秒"
+        )
+        assert query_time < 1.0, (
+            f"查询今日复习应在1秒内完成，实际用时: {query_time:.3f}秒"
+        )
 
         # 数据库创建性能 - 注意：存在性能问题，记录但放宽要求
         avg_per_create = create_time / test_size if test_size > 0 else 0
         if avg_per_create >= 2.0:
-            print(f"WARNING: 数据库创建操作较慢 ({avg_per_create:.3f}秒/记录)，需要优化")
+            print(
+                f"WARNING: 数据库创建操作较慢 ({avg_per_create:.3f}秒/记录)，需要优化"
+            )
         # 临时放宽要求以允许测试通过，但需要在生产环境中解决
-        assert avg_per_create < 10.0, f"平均创建时间过长，即使放宽要求也不可接受: {avg_per_create:.3f}秒"
+        assert avg_per_create < 10.0, (
+            f"平均创建时间过长，即使放宽要求也不可接受: {avg_per_create:.3f}秒"
+        )
 
         # 验证内存使用 (可选检查)
         try:
             import psutil
+
             process = psutil.Process()
             memory_mb = process.memory_info().rss / 1024 / 1024
             print(f"内存使用: {memory_mb:.1f}MB")
@@ -326,16 +366,23 @@ class TestReviewIntegration:
         # 测试统计功能
         stats = scheduler.get_review_statistics()
         required_fields = [
-            "user_id", "date_range", "total_reviews", "completed_reviews",
-            "average_score", "average_retention_rate", "concepts_mastered",
-            "concepts_in_progress", "subject_breakdown", "learning_efficiency"
+            "user_id",
+            "date_range",
+            "total_reviews",
+            "completed_reviews",
+            "average_score",
+            "average_retention_rate",
+            "concepts_mastered",
+            "concepts_in_progress",
+            "subject_breakdown",
+            "learning_efficiency",
         ]
 
         for field in required_fields:
             assert field in stats, f"统计数据应包含{field}字段"
 
         # 测试数据导出功能
-        temp_export = tempfile.NamedTemporaryFile(delete=False, suffix='.json')
+        temp_export = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
         temp_export.close()
 
         export_success = scheduler.export_review_data(temp_export.name, "json")
@@ -390,17 +437,26 @@ class TestReviewIntegration:
         base_strength = 10.0
 
         # 测试不同调整因子
-        result_low_factor = scheduler.adjust_memory_strength(base_strength, 8, 0.1)  # 低调整因子
-        result_high_factor = scheduler.adjust_memory_strength(base_strength, 8, 0.3)  # 高调整因子
+        result_low_factor = scheduler.adjust_memory_strength(
+            base_strength, 8, 0.1
+        )  # 低调整因子
+        result_high_factor = scheduler.adjust_memory_strength(
+            base_strength, 8, 0.3
+        )  # 高调整因子
 
         assert result_low_factor < result_high_factor, "更高调整因子应产生更大调整"
 
         # 验证调整边界
-        edge_case = scheduler.adjust_memory_strength(base_strength, 10, 0.5)  # 极高调整因子
+        edge_case = scheduler.adjust_memory_strength(
+            base_strength, 10, 0.5
+        )  # 极高调整因子
         assert edge_case <= 100.0, "调整后的强度不应超过最大值"
 
-        edge_case_low = scheduler.adjust_memory_strength(base_strength, 1, 0.5)  # 极低评分+高因子
+        edge_case_low = scheduler.adjust_memory_strength(
+            base_strength, 1, 0.5
+        )  # 极低评分+高因子
         assert edge_case_low >= 0.5, "调整后的强度不应低于最小值"
+
 
 if __name__ == "__main__":
     # 运行特定测试

@@ -245,12 +245,10 @@ class TestBehaviorTracker:
         """Test error rate calculation from scores."""
         # Record some attempts with scores
         self.tracker.record_behavior(
-            "math.canvas", "integration", "answer_attempt",
-            metadata={"score": 80}
+            "math.canvas", "integration", "answer_attempt", metadata={"score": 80}
         )
         self.tracker.record_behavior(
-            "math.canvas", "integration", "answer_attempt",
-            metadata={"score": 60}
+            "math.canvas", "integration", "answer_attempt", metadata={"score": 60}
         )
 
         error_rate = self.tracker.get_error_rate("math.canvas", "integration")
@@ -306,16 +304,13 @@ class TestTemporalMemory:
         """Test weak concept ranking."""
         # Record behaviors with different scores
         self.tm.record_behavior(
-            "math.canvas", "easy_concept", "answer_attempt",
-            metadata={"score": 95}
+            "math.canvas", "easy_concept", "answer_attempt", metadata={"score": 95}
         )
         self.tm.record_behavior(
-            "math.canvas", "medium_concept", "answer_attempt",
-            metadata={"score": 70}
+            "math.canvas", "medium_concept", "answer_attempt", metadata={"score": 70}
         )
         self.tm.record_behavior(
-            "math.canvas", "hard_concept", "answer_attempt",
-            metadata={"score": 40}
+            "math.canvas", "hard_concept", "answer_attempt", metadata={"score": 40}
         )
 
         weak = self.tm.get_weak_concepts("math.canvas", limit=3)
@@ -330,7 +325,9 @@ class TestTemporalMemory:
         """Test updating concept score."""
         # First record to create concept
         self.tm.record_behavior(
-            "math.canvas", "integration", "view",
+            "math.canvas",
+            "integration",
+            "view",
         )
 
         # Update score
@@ -346,8 +343,7 @@ class TestTemporalMemory:
         """Test getting due concepts."""
         # Record some behaviors to create cards
         self.tm.record_behavior(
-            "math.canvas", "integration", "answer_attempt",
-            metadata={"score": 50}
+            "math.canvas", "integration", "answer_attempt", metadata={"score": 50}
         )
 
         due = self.tm.get_due_concepts("math.canvas")
@@ -358,8 +354,12 @@ class TestTemporalMemory:
     def test_get_canvas_stats(self):
         """Test getting canvas statistics."""
         self.tm.record_behavior("math.canvas", "concept1", "view")
-        self.tm.record_behavior("math.canvas", "concept2", "answer_attempt", {"score": 75})
-        self.tm.record_behavior("math.canvas", "concept3", "answer_attempt", {"score": 45})
+        self.tm.record_behavior(
+            "math.canvas", "concept2", "answer_attempt", {"score": 75}
+        )
+        self.tm.record_behavior(
+            "math.canvas", "concept3", "answer_attempt", {"score": 45}
+        )
 
         stats = self.tm.get_canvas_stats("math.canvas")
 
@@ -369,7 +369,9 @@ class TestTemporalMemory:
     def test_export_data(self):
         """Test data export."""
         self.tm.record_behavior("math.canvas", "integration", "view")
-        self.tm.record_behavior("math.canvas", "integration", "answer_attempt", {"score": 80})
+        self.tm.record_behavior(
+            "math.canvas", "integration", "answer_attempt", {"score": 80}
+        )
 
         data = self.tm.export_data()
 
@@ -382,8 +384,7 @@ class TestTemporalMemory:
         """Test weak concept combined score calculation."""
         # Record with low score (high error rate)
         self.tm.record_behavior(
-            "math.canvas", "hard_concept", "answer_attempt",
-            metadata={"score": 30}
+            "math.canvas", "hard_concept", "answer_attempt", metadata={"score": 30}
         )
 
         weak = self.tm.get_weak_concepts("math.canvas", limit=1)
@@ -422,16 +423,13 @@ class TestTemporalMemoryIntegration:
 
         # 2. User attempts answers
         self.tm.record_behavior(
-            canvas, "limits", "answer_attempt",
-            metadata={"score": 90}
+            canvas, "limits", "answer_attempt", metadata={"score": 90}
         )
         self.tm.record_behavior(
-            canvas, "derivatives", "answer_attempt",
-            metadata={"score": 60}
+            canvas, "derivatives", "answer_attempt", metadata={"score": 60}
         )
         self.tm.record_behavior(
-            canvas, "integration", "answer_attempt",
-            metadata={"score": 40}
+            canvas, "integration", "answer_attempt", metadata={"score": 40}
         )
 
         # 3. Get weak concepts for review
@@ -459,7 +457,9 @@ class TestTemporalMemoryIntegration:
         # Record in different canvases
         self.tm.record_behavior("math.canvas", "algebra", "view")
         self.tm.record_behavior("physics.canvas", "mechanics", "view")
-        self.tm.record_behavior("math.canvas", "algebra", "answer_attempt", {"score": 80})
+        self.tm.record_behavior(
+            "math.canvas", "algebra", "answer_attempt", {"score": 80}
+        )
 
         # Get stats for each
         math_stats = self.tm.get_canvas_stats("math.canvas")

@@ -9,10 +9,9 @@ Verifies:
 [Source: docs/stories/36.2.story.md]
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
-
 from app.clients.graphiti_client import GraphitiEdgeClient
 from app.clients.graphiti_client_base import EdgeRelationship
 
@@ -104,18 +103,18 @@ class TestSearchNodesReturnStructure:
     """AC-36.2.4: Verify search_nodes() return structure."""
 
     @pytest.mark.asyncio
-    async def test_search_nodes_returns_correct_keys(
-        self, graphiti_client, mock_neo4j
-    ):
+    async def test_search_nodes_returns_correct_keys(self, graphiti_client, mock_neo4j):
         """AC-36.2.4: search_nodes returns [{doc_id, content, canvas_path(in metadata), score}]."""
-        mock_neo4j.run_query = AsyncMock(return_value=[
-            {
-                "node_id": "node-1",
-                "content": "矩阵乘法",
-                "canvas_path": "linear-algebra.canvas",
-                "group_id": "math-101",
-            }
-        ])
+        mock_neo4j.run_query = AsyncMock(
+            return_value=[
+                {
+                    "node_id": "node-1",
+                    "content": "矩阵乘法",
+                    "canvas_path": "linear-algebra.canvas",
+                    "group_id": "math-101",
+                }
+            ]
+        )
 
         results = await graphiti_client.search_nodes(query="矩阵")
 
@@ -138,10 +137,22 @@ class TestSearchNodesReturnStructure:
         self, graphiti_client, mock_neo4j
     ):
         """AC-36.2.4: Results sorted by score descending."""
-        mock_neo4j.run_query = AsyncMock(return_value=[
-            {"node_id": "n1", "content": "A very long content string that reduces score", "canvas_path": "c1", "group_id": "g1"},
-            {"node_id": "n2", "content": "short", "canvas_path": "c2", "group_id": "g1"},
-        ])
+        mock_neo4j.run_query = AsyncMock(
+            return_value=[
+                {
+                    "node_id": "n1",
+                    "content": "A very long content string that reduces score",
+                    "canvas_path": "c1",
+                    "group_id": "g1",
+                },
+                {
+                    "node_id": "n2",
+                    "content": "short",
+                    "canvas_path": "c2",
+                    "group_id": "g1",
+                },
+            ]
+        )
 
         results = await graphiti_client.search_nodes(query="short")
 
@@ -150,9 +161,7 @@ class TestSearchNodesReturnStructure:
         assert results[0]["score"] >= results[1]["score"]
 
     @pytest.mark.asyncio
-    async def test_search_nodes_empty_on_exception(
-        self, graphiti_client, mock_neo4j
-    ):
+    async def test_search_nodes_empty_on_exception(self, graphiti_client, mock_neo4j):
         """AC-36.2.4: Returns empty list on exception."""
         mock_neo4j.run_query = AsyncMock(side_effect=Exception("Connection failed"))
 

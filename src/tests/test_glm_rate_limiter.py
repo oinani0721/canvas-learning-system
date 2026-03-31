@@ -101,7 +101,7 @@ class TestRateLimitConfig:
             warning_thresholds=[0.8, 0.9, 0.95],
             rate_limit_requests_per_second=2.0,
             enable_smart_throttling=True,
-            max_concurrent_requests=4
+            max_concurrent_requests=4,
         )
 
         assert config.plan_type == PlanType.PRO
@@ -113,10 +113,7 @@ class TestRateLimitConfig:
 
     def test_rate_limit_config_to_dict(self):
         """测试配置转换为字典"""
-        config = RateLimitConfig(
-            plan_type=PlanType.LITE,
-            max_prompts_per_period=120
-        )
+        config = RateLimitConfig(plan_type=PlanType.LITE, max_prompts_per_period=120)
 
         config_dict = config.to_dict()
         assert config_dict["plan_type"] == "lite"
@@ -140,11 +137,11 @@ class TestGLMRateLimiter:
             plan_type=PlanType.PRO,
             max_prompts_per_period=600,
             rate_limit_requests_per_second=2.0,
-            max_concurrent_requests=4
+            max_concurrent_requests=4,
         )
 
         # 临时修改数据目录
-        with patch('glm_rate_limiter.Path') as mock_path:
+        with patch("glm_rate_limiter.Path") as mock_path:
             mock_path.return_value = Path(temp_dir)
             limiter = GLMRateLimiter(config)
             yield limiter
@@ -256,7 +253,7 @@ class TestGLMRateLimiter:
         lite_config = RateLimitConfig(
             plan_type=PlanType.LITE,
             max_prompts_per_period=120,
-            rate_limit_requests_per_second=0.4
+            rate_limit_requests_per_second=0.4,
         )
         lite_limiter = GLMRateLimiter(lite_config)
         assert lite_limiter.config.max_prompts_per_period == 120
@@ -266,7 +263,7 @@ class TestGLMRateLimiter:
         pro_config = RateLimitConfig(
             plan_type=PlanType.PRO,
             max_prompts_per_period=600,
-            rate_limit_requests_per_second=2.0
+            rate_limit_requests_per_second=2.0,
         )
         pro_limiter = GLMRateLimiter(pro_config)
         assert pro_limiter.config.max_prompts_per_period == 600
@@ -276,7 +273,7 @@ class TestGLMRateLimiter:
         max_config = RateLimitConfig(
             plan_type=PlanType.MAX,
             max_prompts_per_period=2400,
-            rate_limit_requests_per_second=8.0
+            rate_limit_requests_per_second=8.0,
         )
         max_limiter = GLMRateLimiter(max_config)
         assert max_limiter.config.max_prompts_per_period == 2400
@@ -300,6 +297,7 @@ class TestGLMRateLimiter:
     @pytest.mark.asyncio
     async def test_concurrent_requests(self, rate_limiter):
         """测试并发请求控制"""
+
         # 模拟并发请求
         async def consume_prompts():
             return await rate_limiter.consume_quota(10)
@@ -368,10 +366,10 @@ class TestGLMRateLimiter:
         assert history_file.exists()
 
         # 验证内容
-        with open(history_file, 'r', encoding='utf-8') as f:
+        with open(history_file, "r", encoding="utf-8") as f:
             data = json.load(f)
-            assert 'alerts' in data
-            assert len(data['alerts']) > 0
+            assert "alerts" in data
+            assert len(data["alerts"]) > 0
 
 
 class TestRateLimiterFactory:
@@ -489,7 +487,7 @@ async def test_integration_with_agent_pool():
             task_id="test-001",
             agent_type="clarification-path",
             node_data={"content": "test"},
-            priority=TaskPriority.NORMAL
+            priority=TaskPriority.NORMAL,
         )
 
         # 创建实例前检查用量

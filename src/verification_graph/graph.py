@@ -77,7 +77,10 @@ logger = logging.getLogger(__name__)
 # Conditional Edge: Quality-based Routing
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def route_after_evaluation(state: VerificationState) -> Literal["provide_hint", "finalize_concept"]:
+
+def route_after_evaluation(
+    state: VerificationState,
+) -> Literal["provide_hint", "finalize_concept"]:
     """
     评估后路由
 
@@ -97,7 +100,9 @@ def route_after_evaluation(state: VerificationState) -> Literal["provide_hint", 
     max_hints = state.get("max_hints", 3)
     user_action = state.get("user_action", "continue")
 
-    logger.debug(f"[route_after_evaluation] quality={answer_quality}, score={answer_score}, hints={hints_given}/{max_hints}")
+    logger.debug(
+        f"[route_after_evaluation] quality={answer_quality}, score={answer_score}, hints={hints_given}/{max_hints}"
+    )
 
     # 用户选择跳过
     if user_action == "skip":
@@ -119,7 +124,9 @@ def route_after_evaluation(state: VerificationState) -> Literal["provide_hint", 
     return "provide_hint"
 
 
-def route_after_hint(state: VerificationState) -> Literal["wait_for_answer", "finalize_concept"]:
+def route_after_hint(
+    state: VerificationState,
+) -> Literal["wait_for_answer", "finalize_concept"]:
     """
     提示后路由
 
@@ -139,7 +146,9 @@ def route_after_hint(state: VerificationState) -> Literal["wait_for_answer", "fi
     return "wait_for_answer"
 
 
-def route_after_finalize(state: VerificationState) -> Literal["advance_to_next_concept", "complete_verification"]:
+def route_after_finalize(
+    state: VerificationState,
+) -> Literal["advance_to_next_concept", "complete_verification"]:
     """
     概念完成后路由
 
@@ -170,6 +179,7 @@ def route_after_finalize(state: VerificationState) -> Literal["advance_to_next_c
 # ═══════════════════════════════════════════════════════════════════════════════
 # Build StateGraph
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def build_verification_graph() -> StateGraph:
     """
@@ -242,7 +252,7 @@ def build_verification_graph() -> StateGraph:
         {
             "provide_hint": "provide_hint",
             "finalize_concept": "finalize_concept",
-        }
+        },
     )
 
     # provide_hint → route_after_hint (conditional)
@@ -252,7 +262,7 @@ def build_verification_graph() -> StateGraph:
         {
             "wait_for_answer": "wait_for_answer",
             "finalize_concept": "finalize_concept",
-        }
+        },
     )
 
     # finalize_concept → route_after_finalize (conditional)
@@ -262,7 +272,7 @@ def build_verification_graph() -> StateGraph:
         {
             "advance_to_next_concept": "advance_to_next_concept",
             "complete_verification": "complete_verification",
-        }
+        },
     )
 
     # advance_to_next_concept → generate_question (loop back)

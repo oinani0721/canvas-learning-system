@@ -46,7 +46,7 @@ class TestConcurrentTask:
             task_id="test_task_1",
             agent_type="basic-decomposition",
             input_data={"material": "test content"},
-            dependencies=[]
+            dependencies=[],
         )
 
         assert task.task_id == "test_task_1"
@@ -65,7 +65,7 @@ class TestConcurrentTask:
                 task_id="test_task_2",
                 agent_type="invalid-agent",
                 input_data={},
-                dependencies=[]
+                dependencies=[],
             )
 
     def test_task_with_dependencies(self):
@@ -75,7 +75,7 @@ class TestConcurrentTask:
             agent_type="deep-decomposition",
             input_data={"content": "test"},
             dependencies=["task_1", "task_2"],
-            priority=PRIORITY_HIGH
+            priority=PRIORITY_HIGH,
         )
 
         assert task.dependencies == ["task_1", "task_2"]
@@ -88,7 +88,7 @@ class TestConcurrentTask:
             task_id="test_task_4",
             agent_type="scoring-agent",
             input_data={},
-            dependencies=[]
+            dependencies=[],
         )
         assert task.input_data == {}
         assert isinstance(task.task_id, str)
@@ -100,7 +100,7 @@ class TestConcurrentTask:
             agent_type="oral-explanation",
             input_data={"test": "data"},
             dependencies=[],
-            timeout_seconds=1
+            timeout_seconds=1,
         )
         assert task.timeout_seconds == 1
 
@@ -114,10 +114,7 @@ class TestTaskDecomposer:
     def test_basic_decomposition_request(self):
         """测试基础拆解请求分解"""
         user_request = "请拆解这个不明白的概念"
-        canvas_context = {
-            "material_content": "逆否命题的定义",
-            "topic": "逆否命题"
-        }
+        canvas_context = {"material_content": "逆否命题的定义", "topic": "逆否命题"}
 
         tasks = self.decomposer.analyze_and_decompose(user_request, canvas_context)
 
@@ -132,7 +129,7 @@ class TestTaskDecomposer:
         canvas_context = {
             "concept": "布尔代数",
             "material_content": "布尔代数的基本运算",
-            "user_level": "beginner"
+            "user_level": "beginner",
         }
 
         tasks = self.decomposer.analyze_and_decompose(user_request, canvas_context)
@@ -150,7 +147,7 @@ class TestTaskDecomposer:
         canvas_context = {
             "question_text": "什么是逆否命题？",
             "user_understanding": "就是把命题反过来",
-            "reference_material": "逆否命题的标准定义"
+            "reference_material": "逆否命题的标准定义",
         }
 
         tasks = self.decomposer.analyze_and_decompose(user_request, canvas_context)
@@ -166,7 +163,7 @@ class TestTaskDecomposer:
             "material_content": "复杂的数学概念",
             "topic": "高等数学",
             "concept": "微积分",
-            "difficulty": "hard"
+            "difficulty": "hard",
         }
 
         tasks = self.decomposer.analyze_and_decompose(user_request, canvas_context)
@@ -175,7 +172,21 @@ class TestTaskDecomposer:
         agent_types = [task.agent_type for task in tasks]
         assert "basic-decomposition" in agent_types
         assert "memory-anchor" in agent_types
-        assert len([t for t in agent_types if t in ["oral-explanation", "clarification-path", "four-level-explanation"]]) >= 1
+        assert (
+            len(
+                [
+                    t
+                    for t in agent_types
+                    if t
+                    in [
+                        "oral-explanation",
+                        "clarification-path",
+                        "four-level-explanation",
+                    ]
+                ]
+            )
+            >= 1
+        )
 
     def test_empty_request_default_task(self):
         """测试空请求创建默认任务"""
@@ -276,10 +287,7 @@ class TestConcurrentAgentExecutor:
         """测试简单并发执行"""
         complex_task = {
             "user_request": "请拆解这个概念",
-            "canvas_context": {
-                "material_content": "测试材料",
-                "topic": "测试主题"
-            }
+            "canvas_context": {"material_content": "测试材料", "topic": "测试主题"},
         }
 
         result = await self.executor.execute_concurrent_agents(complex_task)
@@ -300,8 +308,8 @@ class TestConcurrentAgentExecutor:
                 "concept": "重要概念",
                 "question_text": "理解测试",
                 "user_understanding": "初步理解",
-                "reference_material": "参考资料"
-            }
+                "reference_material": "参考资料",
+            },
         }
 
         result = await self.executor.execute_concurrent_agents(complex_task)
@@ -313,10 +321,7 @@ class TestConcurrentAgentExecutor:
     @pytest.mark.asyncio
     async def test_empty_task_handling(self):
         """测试空任务处理"""
-        complex_task = {
-            "user_request": "",
-            "canvas_context": {}
-        }
+        complex_task = {"user_request": "", "canvas_context": {}}
 
         result = await self.executor.execute_concurrent_agents(complex_task)
 
@@ -335,11 +340,13 @@ class TestConcurrentAgentExecutor:
                 "concept": "复杂概念",
                 "question_text": "复杂问题",
                 "user_understanding": "复杂理解",
-                "reference_material": "复杂参考"
-            }
+                "reference_material": "复杂参考",
+            },
         }
 
-        result = await self.executor.execute_concurrent_agents(complex_task, max_agents=3)
+        result = await self.executor.execute_concurrent_agents(
+            complex_task, max_agents=3
+        )
 
         assert result["success"] == True
         # 即使生成了很多任务，并发执行应该被限制
@@ -350,7 +357,7 @@ class TestConcurrentAgentExecutor:
         """测试执行进度跟踪"""
         complex_task = {
             "user_request": "请拆解这个概念",
-            "canvas_context": {"material_content": "测试"}
+            "canvas_context": {"material_content": "测试"},
         }
 
         result = await self.executor.execute_concurrent_agents(complex_task)
@@ -370,10 +377,7 @@ class TestConcurrentAgentExecutor:
         """测试性能指标计算"""
         complex_task = {
             "user_request": "请解释并记住这个概念",
-            "canvas_context": {
-                "material_content": "测试材料",
-                "concept": "测试概念"
-            }
+            "canvas_context": {"material_content": "测试材料", "concept": "测试概念"},
         }
 
         result = await self.executor.execute_concurrent_agents(complex_task)
@@ -403,7 +407,7 @@ class TestConcurrentAgentExecutor:
         """测试取消执行"""
         complex_task = {
             "user_request": "请拆解这个概念",
-            "canvas_context": {"material_content": "测试"}
+            "canvas_context": {"material_content": "测试"},
         }
 
         # 启动执行但不等待完成
@@ -456,10 +460,7 @@ class TestMultiAgentOrchestrator:
         """测试带额外上下文的协调"""
         user_request = "请解释这个概念"
         canvas_path = "test_canvas.canvas"
-        additional_context = {
-            "user_level": "advanced",
-            "preferred_style": "detailed"
-        }
+        additional_context = {"user_level": "advanced", "preferred_style": "detailed"}
 
         result = await self.orchestrator.orchestrate_complex_learning_task(
             user_request, canvas_path, additional_context
@@ -476,7 +477,7 @@ class TestMultiAgentOrchestrator:
             "user_request": "测试请求",
             "canvas_path": "test.canvas",
             "started_at": datetime.now(),
-            "status": "running"
+            "status": "running",
         }
 
         status = self.orchestrator.get_session_status(session_id)
@@ -505,7 +506,9 @@ class TestIntegration:
         decomposer = TaskDecomposer()
 
         # 2. 分解复杂任务
-        user_request = "我看不懂这个复杂的数学概念，请拆解、解释清楚，还要帮我记住并评分"
+        user_request = (
+            "我看不懂这个复杂的数学概念，请拆解、解释清楚，还要帮我记住并评分"
+        )
         canvas_context = {
             "material_content": "关于微积分的复杂概念说明",
             "topic": "微积分",
@@ -514,7 +517,7 @@ class TestIntegration:
             "user_understanding": "导数就是斜率吧",
             "reference_material": "导数的严格数学定义",
             "difficulty": "hard",
-            "user_level": "intermediate"
+            "user_level": "intermediate",
         }
 
         tasks = decomposer.analyze_and_decompose(user_request, canvas_context)
@@ -525,17 +528,17 @@ class TestIntegration:
         agent_types = [task.agent_type for task in tasks]
         assert "basic-decomposition" in agent_types
         assert "scoring-agent" in agent_types
-        assert any(t in ["oral-explanation", "clarification-path", "four-level-explanation"] for t in agent_types)
+        assert any(
+            t in ["oral-explanation", "clarification-path", "four-level-explanation"]
+            for t in agent_types
+        )
         assert "memory-anchor" in agent_types
 
         # 3. 创建执行器
         executor = ConcurrentAgentExecutor()
 
         # 4. 执行并发任务
-        complex_task = {
-            "user_request": user_request,
-            "canvas_context": canvas_context
-        }
+        complex_task = {"user_request": user_request, "canvas_context": canvas_context}
 
         result = await executor.execute_concurrent_agents(complex_task)
 

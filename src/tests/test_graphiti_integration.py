@@ -34,7 +34,7 @@ class TestGraphitiKnowledgeGraph(unittest.TestCase):
         self.test_config = {
             "neo4j_uri": "bolt://localhost:7687",
             "username": "neo4j",
-            "password": "password"
+            "password": "password",
         }
         self.graphiti = GraphitiKnowledgeGraph(**self.test_config)
 
@@ -45,15 +45,14 @@ class TestGraphitiKnowledgeGraph(unittest.TestCase):
         self.assertEqual(self.graphiti.password, self.test_config["password"])
         self.assertIsNotNone(self.graphiti.graphiti)
 
-    @patch('graphiti_integration.Graphiti')
+    @patch("graphiti_integration.Graphiti")
     def test_initialization_with_custom_llm(self, mock_graphiti_class):
         """测试使用自定义LLM初始化"""
         mock_graphiti = Mock()
         mock_graphiti_class.return_value = mock_graphiti
 
         graphiti = GraphitiKnowledgeGraph(
-            anthropic_api_key="test-key",
-            voyage_api_key="test-key"
+            anthropic_api_key="test-key", voyage_api_key="test-key"
         )
 
         self.assertIsNotNone(graphiti)
@@ -84,9 +83,9 @@ class TestGraphitiKnowledgeGraph(unittest.TestCase):
                     "concept_name": "测试概念",
                     "node_type": "question",
                     "interaction_type": "created",
-                    "interaction_outcome": "success"
+                    "interaction_outcome": "success",
                 }
-            ]
+            ],
         }
 
         session_id = await self.graphiti.record_learning_session(session_data)
@@ -104,8 +103,8 @@ class TestGraphitiKnowledgeGraph(unittest.TestCase):
                 "new_concepts_learned": 2,
                 "concepts_reviewed": 1,
                 "weaknesses_identified": 0,
-                "mastery_improvements": 1
-            }
+                "mastery_improvements": 1,
+            },
         }
 
         body = self.graphiti._create_session_episode_body(session_data)
@@ -160,7 +159,7 @@ class TestGraphitiKnowledgeGraph(unittest.TestCase):
             ("concept: 测试概念", "测试概念"),
             ("failed concept: 数学公式", "数学公式"),
             ("difficulty: 理解定义", "理解定义"),
-            ("学习困难 概念理解", "学习困难 概念理解")
+            ("学习困难 概念理解", "学习困难 概念理解"),
         ]
 
         for fact, expected in test_cases:
@@ -229,7 +228,7 @@ class TestConceptExtractor(unittest.TestCase):
             ("化学反应和分子结构", {"化学"}),
             ("算法设计和数据结构", {"计算机"}),
             ("跨学科的数学物理应用", {"数学", "物理"}),
-            ("普通文本内容", set())
+            ("普通文本内容", set()),
         ]
 
         for text, expected in test_cases:
@@ -243,7 +242,7 @@ class TestConceptExtractor(unittest.TestCase):
             "source_nodes": ["node1", "node2", "node3"],
             "descriptions": ["描述1", "描述2"],
             "subject_areas": ["数学"],
-            "aliases": set()
+            "aliases": set(),
         }
 
         confidence = self.extractor._calculate_concept_confidence(concept_data)
@@ -263,7 +262,7 @@ class TestConceptExtractor(unittest.TestCase):
             ("例如", "is_example_of"),
             ("包括", "includes"),
             ("导致", "leads_to"),
-            ("其他", "is_related_to")
+            ("其他", "is_related_to"),
         ]
 
         for edge_label, expected_type in test_cases:
@@ -282,27 +281,22 @@ class TestConceptExtractor(unittest.TestCase):
                     "id": "node1",
                     "type": "text",
                     "text": "这是一个测试概念\n包含多个描述\n用于测试提取功能",
-                    "color": "1"
+                    "color": "1",
                 },
                 {
                     "id": "node2",
                     "type": "text",
                     "text": "数学概念：微积分\n包括导数和积分",
-                    "color": "2"
-                }
+                    "color": "2",
+                },
             ],
             "edges": [
-                {
-                    "id": "edge1",
-                    "fromNode": "node1",
-                    "toNode": "node2",
-                    "label": "基于"
-                }
-            ]
+                {"id": "edge1", "fromNode": "node1", "toNode": "node2", "label": "基于"}
+            ],
         }
 
         # 创建临时文件
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump(canvas_data, f, ensure_ascii=False)
             temp_path = f.name
 
@@ -324,7 +318,7 @@ class TestConceptExtractor(unittest.TestCase):
             "概念1": {"text_content": "数学相关内容"},
             "概念2": {"text_content": "物理相关内容"},
             "概念3": {"text_content": "数学公式内容"},
-            "概念4": {"text_content": "化学实验内容"}
+            "概念4": {"text_content": "化学实验内容"},
         }
 
         clusters = self.extractor.cluster_concepts(concepts)
@@ -366,17 +360,19 @@ class TestGraphCommandHandler(unittest.TestCase):
         """测试开始录制"""
         # 创建临时Canvas文件
         canvas_data = {"nodes": [], "edges": []}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False) as f:
             json.dump(canvas_data, f)
             temp_path = f.name
 
         try:
             # 模拟GraphitiContextManager
-            with patch('graph_commands.GraphitiContextManager') as mock_context:
+            with patch("graph_commands.GraphitiContextManager") as mock_context:
                 mock_context.return_value.__aenter__ = AsyncMock()
                 mock_context.return_value.__aexit__ = AsyncMock()
                 mock_graphiti = AsyncMock()
-                mock_graphiti.record_learning_session = AsyncMock(return_value="test-session-id")
+                mock_graphiti.record_learning_session = AsyncMock(
+                    return_value="test-session-id"
+                )
                 mock_context.return_value.__aenter__.return_value = mock_graphiti
 
                 session_id = await self.handler.start_recording(temp_path, "test_user")
@@ -422,14 +418,14 @@ class TestGraphVisualizer(unittest.TestCase):
                 "text_content": "测试概念1的内容",
                 "confidence": 0.8,
                 "subject_areas": ["数学"],
-                "node_types": ["question"]
+                "node_types": ["question"],
             },
             "概念2": {
                 "text_content": "测试概念2的内容",
                 "confidence": 0.6,
                 "subject_areas": ["物理"],
-                "node_types": ["explanation"]
-            }
+                "node_types": ["explanation"],
+            },
         }
 
         self.test_relationships = [
@@ -438,7 +434,7 @@ class TestGraphVisualizer(unittest.TestCase):
                 "target_concept": "概念2",
                 "relationship_type": "is_similar_to",
                 "relationship_strength": 0.7,
-                "confidence_score": 0.8
+                "confidence_score": 0.8,
             }
         ]
 
@@ -451,7 +447,9 @@ class TestGraphVisualizer(unittest.TestCase):
 
     def test_build_simple_graph(self):
         """测试构建简单图结构"""
-        G, pos = self.visualizer._build_simple_graph(self.test_concepts, self.test_relationships)
+        G, pos = self.visualizer._build_simple_graph(
+            self.test_concepts, self.test_relationships
+        )
 
         self.assertEqual(len(G["nodes"]), 2)
         self.assertEqual(len(G["edges"]), 1)
@@ -530,7 +528,7 @@ class TestGraphVisualizer(unittest.TestCase):
             self.assertIn(node, pos)
             x, y = pos[node]
             # 检查是否在单位圆上
-            self.assertAlmostEqual(abs((x**2 + y**2)**0.5), 1.0, places=5)
+            self.assertAlmostEqual(abs((x**2 + y**2) ** 0.5), 1.0, places=5)
 
     def test_extract_concept_from_fact(self):
         """测试从事实中提取概念（在GraphVisualizer中）"""
@@ -554,43 +552,44 @@ class TestIntegration(unittest.TestCase):
                     "id": "node1",
                     "type": "text",
                     "text": "数学概念：微积分\n微积分包括导数和积分\n是数学分析的基础",
-                    "color": "1"
+                    "color": "1",
                 },
                 {
                     "id": "node2",
                     "type": "text",
                     "text": "导数定义\n导数描述函数的变化率",
-                    "color": "2"
+                    "color": "2",
                 },
                 {
                     "id": "node3",
                     "type": "text",
                     "text": "积分应用\n积分用于计算面积和体积",
-                    "color": "2"
-                }
+                    "color": "2",
+                },
             ],
             "edges": [
                 {
                     "id": "edge1",
                     "fromNode": "node1",
                     "toNode": "node2",
-                    "label": "包括"
+                    "label": "包括",
                 },
                 {
                     "id": "edge2",
                     "fromNode": "node1",
                     "toNode": "node3",
-                    "label": "包括"
-                }
-            ]
+                    "label": "包括",
+                },
+            ],
         }
 
-        with open(self.test_canvas_path, 'w', encoding='utf-8') as f:
+        with open(self.test_canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False)
 
     def tearDown(self):
         """测试后清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir)
 
     def test_end_to_end_concept_extraction(self):
@@ -612,14 +611,16 @@ class TestIntegration(unittest.TestCase):
         """测试端到端可视化"""
         # 先提取概念
         extractor = ConceptExtractor()
-        extraction_result = extractor.extract_concepts_from_canvas(str(self.test_canvas_path))
+        extraction_result = extractor.extract_concepts_from_canvas(
+            str(self.test_canvas_path)
+        )
 
         # 生成可视化
         visualizer = GraphVisualizer()
         viz_result = visualizer.visualize_concept_network(
             concepts=extraction_result["concepts"],
             relationships=extraction_result["relationships"],
-            output_format="json"
+            output_format="json",
         )
 
         # 验证结果
@@ -631,7 +632,9 @@ class TestIntegration(unittest.TestCase):
     def test_visualizer_with_different_layouts(self):
         """测试不同布局算法"""
         extractor = ConceptExtractor()
-        extraction_result = extractor.extract_concepts_from_canvas(str(self.test_canvas_path))
+        extraction_result = extractor.extract_concepts_from_canvas(
+            str(self.test_canvas_path)
+        )
         visualizer = GraphVisualizer()
 
         layouts = ["spring", "circular", "kamada_kawai", "hierarchical"]
@@ -643,7 +646,7 @@ class TestIntegration(unittest.TestCase):
                         concepts=extraction_result["concepts"],
                         relationships=extraction_result["relationships"],
                         output_format="json",
-                        layout_algorithm=layout
+                        layout_algorithm=layout,
                     )
                     self.assertEqual(result["format"], "json")
                 except Exception as e:
@@ -651,6 +654,6 @@ class TestIntegration(unittest.TestCase):
                     self.skipTest(f"Layout {layout} not available: {e}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 运行测试
     unittest.main(verbosity=2)

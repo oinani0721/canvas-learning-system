@@ -11,6 +11,7 @@ Tests verify:
 
 [Source: docs/stories/36.3.story.md#Task-4.3-4.4]
 """
+
 import asyncio
 import json
 import os
@@ -22,7 +23,7 @@ from tests.conftest import wait_for_condition
 # Skip integration tests if Neo4j is mocked
 pytestmark = pytest.mark.skipif(
     os.getenv("NEO4J_MOCK", "true").lower() == "true",
-    reason="Integration tests require real Neo4j (set NEO4J_MOCK=false)"
+    reason="Integration tests require real Neo4j (set NEO4J_MOCK=false)",
 )
 
 
@@ -30,6 +31,7 @@ pytestmark = pytest.mark.skipif(
 async def neo4j_client():
     """Get real Neo4j client for integration tests."""
     from app.clients.neo4j_client import get_neo4j_client
+
     client = get_neo4j_client()
     yield client
     # Cleanup: Close connection after tests
@@ -40,6 +42,7 @@ async def neo4j_client():
 async def memory_service(neo4j_client):
     """Create MemoryService with real Neo4j client."""
     from app.services.memory_service import MemoryService
+
     service = MemoryService(neo4j_client=neo4j_client)
     yield service
 
@@ -48,10 +51,8 @@ async def memory_service(neo4j_client):
 def canvas_service(memory_service, tmp_path):
     """Create CanvasService with real memory service."""
     from app.services.canvas_service import CanvasService
-    return CanvasService(
-        canvas_base_path=str(tmp_path),
-        memory_client=memory_service
-    )
+
+    return CanvasService(canvas_base_path=str(tmp_path), memory_client=memory_service)
 
 
 @pytest.fixture
@@ -59,10 +60,22 @@ def sample_canvas_file(tmp_path):
     """Create a sample canvas file for testing."""
     canvas_data = {
         "nodes": [
-            {"id": "int-node-1", "type": "text", "text": "Integration Test A", "x": 0, "y": 0},
-            {"id": "int-node-2", "type": "text", "text": "Integration Test B", "x": 200, "y": 0}
+            {
+                "id": "int-node-1",
+                "type": "text",
+                "text": "Integration Test A",
+                "x": 0,
+                "y": 0,
+            },
+            {
+                "id": "int-node-2",
+                "type": "text",
+                "text": "Integration Test B",
+                "x": 200,
+                "y": 0,
+            },
         ],
-        "edges": []
+        "edges": [],
     }
     canvas_path = tmp_path / "integration_test.canvas"
     canvas_path.write_text(json.dumps(canvas_data))
@@ -85,8 +98,8 @@ async def test_edge_appears_in_neo4j_after_add_edge(
         edge_data={
             "fromNode": "int-node-1",
             "toNode": "int-node-2",
-            "label": "integration_test_edge"
-        }
+            "label": "integration_test_edge",
+        },
     )
 
     # Wait for background sync to complete by polling Neo4j
@@ -124,8 +137,9 @@ async def test_canvas_operation_succeeds_without_neo4j(tmp_path):
 
     Simulates Neo4j being down by using a service without neo4j client.
     """
-    from app.services.canvas_service import CanvasService
     from unittest.mock import MagicMock
+
+    from app.services.canvas_service import CanvasService
 
     # Create memory client with broken Neo4j
     mock_memory = MagicMock()
@@ -135,24 +149,33 @@ async def test_canvas_operation_succeeds_without_neo4j(tmp_path):
     # Create canvas file
     canvas_data = {
         "nodes": [
-            {"id": "fail-node-1", "type": "text", "text": "Fail Test A", "x": 0, "y": 0},
-            {"id": "fail-node-2", "type": "text", "text": "Fail Test B", "x": 100, "y": 0}
+            {
+                "id": "fail-node-1",
+                "type": "text",
+                "text": "Fail Test A",
+                "x": 0,
+                "y": 0,
+            },
+            {
+                "id": "fail-node-2",
+                "type": "text",
+                "text": "Fail Test B",
+                "x": 100,
+                "y": 0,
+            },
         ],
-        "edges": []
+        "edges": [],
     }
     canvas_path = tmp_path / "fail_test.canvas"
     canvas_path.write_text(json.dumps(canvas_data))
 
     # Create service with "broken" Neo4j
-    service = CanvasService(
-        canvas_base_path=str(tmp_path),
-        memory_client=mock_memory
-    )
+    service = CanvasService(canvas_base_path=str(tmp_path), memory_client=mock_memory)
 
     # Act: add_edge should succeed despite Neo4j being unavailable
     result = await service.add_edge(
         canvas_name="fail_test",
-        edge_data={"fromNode": "fail-node-1", "toNode": "fail-node-2"}
+        edge_data={"fromNode": "fail-node-1", "toNode": "fail-node-2"},
     )
 
     # Assert: Edge was created in Canvas file
@@ -176,26 +199,40 @@ async def test_multiple_edges_sync_concurrently(
     """
     # Add more nodes to canvas
     canvas_data = json.loads(sample_canvas_file.read_text())
-    canvas_data["nodes"].extend([
-        {"id": "int-node-3", "type": "text", "text": "Node C", "x": 400, "y": 0},
-        {"id": "int-node-4", "type": "text", "text": "Node D", "x": 600, "y": 0}
-    ])
+    canvas_data["nodes"].extend(
+        [
+            {"id": "int-node-3", "type": "text", "text": "Node C", "x": 400, "y": 0},
+            {"id": "int-node-4", "type": "text", "text": "Node D", "x": 600, "y": 0},
+        ]
+    )
     sample_canvas_file.write_text(json.dumps(canvas_data))
 
     # Act: Add multiple edges concurrently
     edge_tasks = [
         canvas_service.add_edge(
             canvas_name="integration_test",
-            edge_data={"fromNode": "int-node-1", "toNode": "int-node-3", "label": "edge_1"}
+            edge_data={
+                "fromNode": "int-node-1",
+                "toNode": "int-node-3",
+                "label": "edge_1",
+            },
         ),
         canvas_service.add_edge(
             canvas_name="integration_test",
-            edge_data={"fromNode": "int-node-2", "toNode": "int-node-4", "label": "edge_2"}
+            edge_data={
+                "fromNode": "int-node-2",
+                "toNode": "int-node-4",
+                "label": "edge_2",
+            },
         ),
         canvas_service.add_edge(
             canvas_name="integration_test",
-            edge_data={"fromNode": "int-node-3", "toNode": "int-node-4", "label": "edge_3"}
-        )
+            edge_data={
+                "fromNode": "int-node-3",
+                "toNode": "int-node-4",
+                "label": "edge_3",
+            },
+        ),
     ]
 
     results = await asyncio.gather(*edge_tasks)
@@ -233,9 +270,9 @@ async def test_edge_sync_with_chinese_canvas_path(
     canvas_data = {
         "nodes": [
             {"id": "cn-node-1", "type": "text", "text": "概念A", "x": 0, "y": 0},
-            {"id": "cn-node-2", "type": "text", "text": "概念B", "x": 100, "y": 0}
+            {"id": "cn-node-2", "type": "text", "text": "概念B", "x": 100, "y": 0},
         ],
-        "edges": []
+        "edges": [],
     }
     # Create subdirectory with Chinese name
     chinese_dir = tmp_path / "笔记库" / "离散数学"
@@ -244,19 +281,21 @@ async def test_edge_sync_with_chinese_canvas_path(
     canvas_path.write_text(json.dumps(canvas_data), encoding="utf-8")
 
     service = CanvasService(
-        canvas_base_path=str(tmp_path),
-        memory_client=memory_service
+        canvas_base_path=str(tmp_path), memory_client=memory_service
     )
 
     # Act: Add edge to Chinese-named canvas
     result = await service.add_edge(
         canvas_name="笔记库/离散数学/测试",
-        edge_data={"fromNode": "cn-node-1", "toNode": "cn-node-2", "label": "关系"}
+        edge_data={"fromNode": "cn-node-1", "toNode": "cn-node-2", "label": "关系"},
     )
 
     # Wait for edge to be written to canvas file
     await wait_for_condition(
-        lambda: len(json.loads(canvas_path.read_text(encoding="utf-8")).get("edges", [])) >= 1,
+        lambda: (
+            len(json.loads(canvas_path.read_text(encoding="utf-8")).get("edges", []))
+            >= 1
+        ),
         timeout=5.0,
         description="Edge written to Chinese-named canvas file",
     )

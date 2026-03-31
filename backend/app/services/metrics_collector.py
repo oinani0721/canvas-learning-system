@@ -33,6 +33,7 @@ logger = structlog.get_logger(__name__)
 # [Source: docs/architecture/performance-monitoring-architecture.md:321-380]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class MetricsSummary:
     """
@@ -90,19 +91,23 @@ class MetricsSummary:
         health_indicators.append(resource_status)
 
         if resource_status == "critical":
-            alerts.append({
-                "level": "critical",
-                "source": "resource",
-                "message": "System resources at critical level",
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            alerts.append(
+                {
+                    "level": "critical",
+                    "source": "resource",
+                    "message": "System resources at critical level",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
         elif resource_status == "warning":
-            alerts.append({
-                "level": "warning",
-                "source": "resource",
-                "message": "System resources approaching limits",
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            alerts.append(
+                {
+                    "level": "warning",
+                    "source": "resource",
+                    "message": "System resources approaching limits",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
 
         # Check for high agent error rates
         if agent_metrics.get("invocations_total", 0) > 0:
@@ -113,22 +118,26 @@ class MetricsSummary:
                 if total_count > 0:
                     error_rate = error_count / total_count
                     if error_rate > 0.1:  # >10% error rate
-                        alerts.append({
-                            "level": "warning",
-                            "source": "agent",
-                            "message": f"High error rate for {agent_type}: {error_rate:.1%}",
-                            "timestamp": datetime.utcnow().isoformat()
-                        })
+                        alerts.append(
+                            {
+                                "level": "warning",
+                                "source": "agent",
+                                "message": f"High error rate for {agent_type}: {error_rate:.1%}",
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                        )
                         health_indicators.append("warning")
 
         # Check for high memory latency
         if memory_metrics.get("avg_latency_s", 0) > 2.0:  # >2s average
-            alerts.append({
-                "level": "warning",
-                "source": "memory",
-                "message": f"High memory query latency: {memory_metrics['avg_latency_s']:.2f}s",
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            alerts.append(
+                {
+                    "level": "warning",
+                    "source": "memory",
+                    "message": f"High memory query latency: {memory_metrics['avg_latency_s']:.2f}s",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
             health_indicators.append("warning")
 
         # Determine overall health
@@ -144,7 +153,7 @@ class MetricsSummary:
         logger.debug(
             "metrics_collector.summary_collected",
             overall_health=overall_health,
-            alert_count=len(alerts)
+            alert_count=len(alerts),
         )
 
         return cls(
@@ -153,7 +162,7 @@ class MetricsSummary:
             memory_metrics=memory_metrics,
             resource_metrics=resource_metrics,
             overall_health=overall_health,
-            alerts=alerts
+            alerts=alerts,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -177,6 +186,7 @@ class MetricsSummary:
 # Prometheus Endpoint Utilities
 # [Source: specs/api/canvas-api.openapi.yml:987-1060]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def get_prometheus_metrics() -> bytes:
     """
@@ -223,6 +233,7 @@ def get_metrics_summary() -> dict[str, Any]:
 # [Source: specs/api/canvas-api.openapi.yml:701-750]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class HealthStatus:
     """
@@ -268,7 +279,7 @@ class HealthStatus:
             agent_metrics = get_agent_metrics_snapshot()
             components["agent_metrics"] = {
                 "status": "healthy",
-                "invocations_total": agent_metrics.get("invocations_total", 0)
+                "invocations_total": agent_metrics.get("invocations_total", 0),
             }
         except (OSError, RuntimeError) as e:
             logger.error("health_check.agent_metrics_error", error=str(e))
@@ -279,7 +290,7 @@ class HealthStatus:
             memory_metrics = get_memory_metrics_snapshot()
             components["memory_metrics"] = {
                 "status": "healthy",
-                "queries_total": memory_metrics.get("queries_total", 0)
+                "queries_total": memory_metrics.get("queries_total", 0),
             }
         except (OSError, RuntimeError) as e:
             logger.error("health_check.memory_metrics_error", error=str(e))
@@ -299,7 +310,7 @@ class HealthStatus:
         return cls(
             status=overall_status,
             components=components,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.utcnow().isoformat(),
         )
 
     def to_dict(self) -> dict[str, Any]:

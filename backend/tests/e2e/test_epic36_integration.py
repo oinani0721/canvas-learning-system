@@ -17,11 +17,9 @@
 # [Source: docs/stories/36.12.story.md#Testing]
 import json
 import logging
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.core.failure_counters import (
     get_dual_write_failures,
     get_edge_sync_failures,
@@ -61,8 +59,24 @@ class TestEdgeToNeo4jSyncE2E:
         canvas_file = canvas_dir / "test.canvas"
         canvas_data = {
             "nodes": [
-                {"id": "node-a", "type": "text", "text": "Node A", "x": 0, "y": 0, "width": 200, "height": 100},
-                {"id": "node-b", "type": "text", "text": "Node B", "x": 300, "y": 0, "width": 200, "height": 100},
+                {
+                    "id": "node-a",
+                    "type": "text",
+                    "text": "Node A",
+                    "x": 0,
+                    "y": 0,
+                    "width": 200,
+                    "height": 100,
+                },
+                {
+                    "id": "node-b",
+                    "type": "text",
+                    "text": "Node B",
+                    "x": 300,
+                    "y": 0,
+                    "width": 200,
+                    "height": 100,
+                },
             ],
             "edges": [],
         }
@@ -148,11 +162,15 @@ class TestRollbackSwitchE2E:
             )
 
         assert result is False  # Skipped (fallback)
-        warning_msgs = [r.message.lower() for r in caplog.records if r.levelno >= logging.WARNING]
+        warning_msgs = [
+            r.message.lower() for r in caplog.records if r.levelno >= logging.WARNING
+        ]
         assert len(warning_msgs) > 0, "Expected at least one WARNING log"
         combined = " ".join(warning_msgs)
-        assert any(kw in combined for kw in ["fallback", "unavailable", "skipping", "not configured"]), \
-            f"Expected fallback/skip keyword in: {combined}"
+        assert any(
+            kw in combined
+            for kw in ["fallback", "unavailable", "skipping", "not configured"]
+        ), f"Expected fallback/skip keyword in: {combined}"
 
     @pytest.mark.asyncio
     async def test_edge_sync_json_fallback_when_neo4j_unavailable(self, caplog):
@@ -206,9 +224,7 @@ class TestResilienceE2E:
         service._memory_client = mock_memory
 
         dl_path = tmp_path / "failed_edge_syncs.jsonl"
-        with patch(
-            "app.services.canvas_service.EDGE_SYNC_DEAD_LETTER_PATH", dl_path
-        ):
+        with patch("app.services.canvas_service.EDGE_SYNC_DEAD_LETTER_PATH", dl_path):
             result = await service._sync_edge_to_neo4j(
                 canvas_path="resilience.canvas",
                 edge_id="edge-resilience",
@@ -267,9 +283,7 @@ class TestHealthCheckIntegrationE2E:
         Then: status is 'degraded' and failure counts are included
         """
         from app.api.v1.endpoints.health import (
-            LatencyMetrics,
             StorageBackendStatus,
-            StorageHealthResponse,
             _aggregate_storage_status,
         )
 

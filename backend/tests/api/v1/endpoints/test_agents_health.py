@@ -123,6 +123,7 @@ async def test_health_check_healthy_status():
     """
     # Clear cache to ensure fresh check
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -151,6 +152,7 @@ async def test_health_check_degraded_status():
     [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md#AC-1.2]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -163,7 +165,10 @@ async def test_health_check_degraded_status():
     response = await get_agent_health(mock_service, include_api_test=False)
 
     assert response.status == AgentHealthStatus.degraded
-    assert response.checks.prompt_templates.missing == ["comparison-table", "review-board"]
+    assert response.checks.prompt_templates.missing == [
+        "comparison-table",
+        "review-board",
+    ]
     assert response.checks.prompt_templates.available == 10
 
 
@@ -175,6 +180,7 @@ async def test_health_check_unhealthy_no_api_key():
     [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md#AC-1.3]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -197,6 +203,7 @@ async def test_health_check_unhealthy_no_client():
     [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md#AC-1.4]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -224,6 +231,7 @@ async def test_health_check_with_api_test_success():
     [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md#AC-5.1]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -248,6 +256,7 @@ async def test_health_check_with_api_test_failure():
     [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md#AC-5.2]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -272,6 +281,7 @@ async def test_health_check_without_api_test():
     [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md#AC-5.3]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -298,6 +308,7 @@ async def test_health_check_cache_ttl():
     [Source: ADR-007 - Cache TTL]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -329,7 +340,13 @@ async def test_health_check_cache_expired():
     mock_service = MockAgentService()
 
     # Set cache to expired state (61 seconds ago)
-    agents_module._health_check_cache = {"health_False": {"status": "healthy", "checks": {}, "timestamp": datetime.now(timezone.utc).isoformat()}}
+    agents_module._health_check_cache = {
+        "health_False": {
+            "status": "healthy",
+            "checks": {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    }
     agents_module._health_check_cache_time = time.time() - 61
 
     # Call should NOT use cache (expired)
@@ -346,6 +363,7 @@ async def test_health_check_separate_cache_keys():
     [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md#AC-6.3]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -375,6 +393,7 @@ async def test_health_check_response_model():
     [Source: specs/data/health-check-response.schema.json]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 
@@ -399,6 +418,7 @@ async def test_health_check_timestamp_format():
     [Source: specs/data/health-check-response.schema.json#timestamp]
     """
     import app.api.v1.endpoints.agents as agents_module
+
     agents_module._health_check_cache = {}
     agents_module._health_check_cache_time = 0.0
 

@@ -34,23 +34,20 @@ class TestPathManager(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.base_path = Path(self.test_dir) / "Canvas"
         self.config = {
-            'base_path': str(self.base_path),
-            'timestamp_format': '%Y%m%d%H%M%S',
-            'timestamp_tolerance': 60,
-            'validation': {
-                'check_existence': True,
-                'auto_fix': True,
-                'create_missing_dirs': True
+            "base_path": str(self.base_path),
+            "timestamp_format": "%Y%m%d%H%M%S",
+            "timestamp_tolerance": 60,
+            "validation": {
+                "check_existence": True,
+                "auto_fix": True,
+                "create_missing_dirs": True,
             },
-            'naming': {
-                'use_canvas_folder': True,
-                'sanitize_names': True,
-                'max_length': 255
+            "naming": {
+                "use_canvas_folder": True,
+                "sanitize_names": True,
+                "max_length": 255,
             },
-            'cache': {
-                'enabled': True,
-                'max_size': 1000
-            }
+            "cache": {"enabled": True, "max_size": 1000},
         }
         self.path_manager = PathManager(self.config)
         self.path_manager.set_current_canvas("TestCanvas")
@@ -63,9 +60,9 @@ class TestPathManager(unittest.TestCase):
     def test_init_default_config(self):
         """测试使用默认配置初始化"""
         pm = PathManager()
-        self.assertEqual(pm.config['base_path'], 'Canvas')
-        self.assertEqual(pm.config['timestamp_tolerance'], 60)
-        self.assertTrue(pm.config['validation']['check_existence'])
+        self.assertEqual(pm.config["base_path"], "Canvas")
+        self.assertEqual(pm.config["timestamp_tolerance"], 60)
+        self.assertTrue(pm.config["validation"]["check_existence"])
 
     def test_set_current_canvas(self):
         """测试设置当前Canvas上下文"""
@@ -99,7 +96,7 @@ class TestPathManager(unittest.TestCase):
         path = self.path_manager.generate_consistent_path(filename)
 
         # 验证时间戳已添加
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         self.assertIn(timestamp, path)
 
     def test_generate_consistent_path_no_canvas_context(self):
@@ -138,7 +135,7 @@ class TestPathManager(unittest.TestCase):
     def test_add_timestamp(self):
         """测试添加时间戳"""
         filename = "concept-类型.md"
-        with patch('canvas_utils.path_manager.datetime') as mock_datetime:
+        with patch("canvas_utils.path_manager.datetime") as mock_datetime:
             mock_datetime.now.return_value.strftime.return_value = "20251028163000"
             result = self.path_manager._add_timestamp(filename)
             self.assertEqual(result, "concept-类型-20251028163000.md")
@@ -173,7 +170,9 @@ class TestPathManager(unittest.TestCase):
 
         # 测试相对路径修复
         relative_path = "./test.md"
-        fixed_path = self.path_manager._fix_relative_path(Path(relative_path), "TestCanvas")
+        fixed_path = self.path_manager._fix_relative_path(
+            Path(relative_path), "TestCanvas"
+        )
         self.assertIsNotNone(fixed_path)
         self.assertEqual(fixed_path.resolve(), test_file.resolve())
 
@@ -186,7 +185,9 @@ class TestPathManager(unittest.TestCase):
 
         # 测试时间戳修复
         wrong_timestamp_path = Path("./concept-类型-20251028163000.md")
-        fixed_path = self.path_manager._fix_timestamp_mismatch(wrong_timestamp_path, "TestCanvas")
+        fixed_path = self.path_manager._fix_timestamp_mismatch(
+            wrong_timestamp_path, "TestCanvas"
+        )
         self.assertIsNotNone(fixed_path)
         # 应该找到实际存在的文件
         self.assertTrue(fixed_path.exists())
@@ -212,7 +213,7 @@ class TestPathManager(unittest.TestCase):
             "concept-口语化解释-20251028160000.md",
             "concept-澄清路径-20251028161000.md",
             "concept-对比表-20251028162000.md",
-            "other-file.md"
+            "other-file.md",
         ]
 
         for f in files:
@@ -247,17 +248,17 @@ class TestPathManager(unittest.TestCase):
                     "type": "file",
                     "file": "./nonexistent.md",
                     "x": 100,
-                    "y": 100
+                    "y": 100,
                 },
                 {
                     "id": "file-2",
                     "type": "file",
                     "file": "Canvas/TestCanvas/existing.md",
                     "x": 200,
-                    "y": 100
-                }
+                    "y": 100,
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
         # 创建实际存在的文件
@@ -267,14 +268,14 @@ class TestPathManager(unittest.TestCase):
 
         # 保存Canvas文件
         canvas_path = Path(self.test_dir) / "test.canvas"
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f)
 
         # 更新引用
         result = self.path_manager.update_canvas_references(str(canvas_path))
 
         # 验证结果
-        self.assertGreaterEqual(result['updated_count'], 0)
+        self.assertGreaterEqual(result["updated_count"], 0)
 
     def test_generate_path_report(self):
         """测试生成路径报告"""
@@ -286,17 +287,17 @@ class TestPathManager(unittest.TestCase):
                     "type": "file",
                     "file": "./nonexistent.md",
                     "x": 100,
-                    "y": 100
+                    "y": 100,
                 },
                 {
                     "id": "file-2",
                     "type": "file",
                     "file": "existing.md",
                     "x": 200,
-                    "y": 100
-                }
+                    "y": 100,
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
         # 创建实际存在的文件（需要使用完整的相对路径）
@@ -306,7 +307,7 @@ class TestPathManager(unittest.TestCase):
 
         # 保存Canvas文件
         canvas_path = Path(self.test_dir) / "test.canvas"
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f)
 
         # 生成报告
@@ -325,18 +326,15 @@ class TestPathManager(unittest.TestCase):
         existing_file.parent.mkdir(parents=True, exist_ok=True)
         existing_file.touch()
 
-        paths = [
-            str(existing_file),
-            "./nonexistent.md"
-        ]
+        paths = [str(existing_file), "./nonexistent.md"]
 
         result = self.path_manager.batch_validate_paths(paths)
 
         # 验证结果
-        self.assertEqual(result['total'], 2)
-        self.assertEqual(result['valid'], 1)
+        self.assertEqual(result["total"], 2)
+        self.assertEqual(result["valid"], 1)
         # nonexistent.md被尝试修复但失败，所以fixed=0, invalid=0
-        self.assertEqual(result['fixed'], 0)
+        self.assertEqual(result["fixed"], 0)
 
     def test_path_cache(self):
         """测试路径缓存功能"""
@@ -360,10 +358,7 @@ class TestPathValidator(unittest.TestCase):
 
     def setUp(self):
         """测试前准备"""
-        self.config = {
-            'check_existence': True,
-            'auto_fix': True
-        }
+        self.config = {"check_existence": True, "auto_fix": True}
         self.validator = PathValidator(self.config)
 
     def test_validate_valid_path(self):
@@ -397,7 +392,7 @@ class TestPathValidator(unittest.TestCase):
     def test_validate_illegal_chars(self):
         """测试验证包含非法字符的路径"""
         # Windows非法字符
-        if os.name == 'nt':
+        if os.name == "nt":
             illegal_path = "test<>file.md"
             result = self.validator.validate(illegal_path)
             self.assertFalse(result.success)
@@ -413,17 +408,17 @@ class TestPathReport(unittest.TestCase):
             canvas_path="test.canvas",
             total_references=10,
             broken_references=2,
-            fixable_references=1
+            fixable_references=1,
         )
 
         report_dict = report.to_dict()
 
-        self.assertEqual(report_dict['canvas_path'], "test.canvas")
-        self.assertEqual(report_dict['summary']['total'], 10)
-        self.assertEqual(report_dict['summary']['broken'], 2)
-        self.assertEqual(report_dict['summary']['fixable'], 1)
-        self.assertEqual(report_dict['summary']['health_score'], 80.0)
+        self.assertEqual(report_dict["canvas_path"], "test.canvas")
+        self.assertEqual(report_dict["summary"]["total"], 10)
+        self.assertEqual(report_dict["summary"]["broken"], 2)
+        self.assertEqual(report_dict["summary"]["fixable"], 1)
+        self.assertEqual(report_dict["summary"]["health_score"], 80.0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

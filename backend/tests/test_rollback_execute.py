@@ -17,7 +17,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-
 @pytest.fixture
 def mock_rollback_engine():
     """Create a mock RollbackEngine for API tests.
@@ -43,7 +42,6 @@ def mock_rollback_engine():
     mock.rollback = AsyncMock(return_value=mock_result)
 
     return mock
-
 
 
 class TestRollbackEndpoint:
@@ -98,9 +96,7 @@ class TestRollbackEndpoint:
             assert "graph_sync_status" in data
             assert "message" in data
 
-    def test_rollback_operation_type(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_operation_type(self, client: TestClient, mock_rollback_engine):
         """Test rollback with operation type."""
         with patch(
             "app.api.v1.endpoints.rollback.get_rollback_engine",
@@ -118,9 +114,7 @@ class TestRollbackEndpoint:
             data = response.json()
             assert data["rollback_type"] == "operation"
 
-    def test_rollback_snapshot_type(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_snapshot_type(self, client: TestClient, mock_rollback_engine):
         """Test rollback with snapshot type."""
         # Mock for snapshot type
         mock_rollback_engine.rollback.return_value.rollback_type = MagicMock(
@@ -142,9 +136,7 @@ class TestRollbackEndpoint:
             )
             assert response.status_code == 200
 
-    def test_rollback_timepoint_type(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_timepoint_type(self, client: TestClient, mock_rollback_engine):
         """Test rollback with timepoint type."""
         mock_rollback_engine.rollback.return_value.rollback_type = MagicMock(
             value="timepoint"
@@ -272,9 +264,9 @@ class TestRollbackEndpointRegistration:
             paths = openapi.get("paths", {})
 
             # Check rollback endpoint
-            assert any(
-                path.endswith("/rollback/rollback") for path in paths.keys()
-            ), "Rollback endpoint not found"
+            assert any(path.endswith("/rollback/rollback") for path in paths.keys()), (
+                "Rollback endpoint not found"
+            )
 
     def test_rollback_type_enum_values(self, client: TestClient):
         """

@@ -31,9 +31,7 @@ class SubjectCreate(BaseModel):
     )
 
     model_config = ConfigDict(
-        json_schema_extra={
-            "example": {"name": "离散数学", "color": "#4A90D9"}
-        }
+        json_schema_extra={"example": {"name": "离散数学", "color": "#4A90D9"}}
     )
 
 
@@ -53,9 +51,7 @@ class SubjectUpdate(BaseModel):
     )
 
     model_config = ConfigDict(
-        json_schema_extra={
-            "example": {"name": "离散数学 (进阶)", "color": "#D94A4A"}
-        }
+        json_schema_extra={"example": {"name": "离散数学 (进阶)", "color": "#D94A4A"}}
     )
 
 

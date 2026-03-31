@@ -11,10 +11,9 @@ AC3: Any missing injection must cause test FAIL
 """
 
 import inspect
-import logging
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # =============================================================================
 # Task 1 + Task 3: AgentService memory_client Injection Tests
@@ -73,8 +72,8 @@ class TestAgentServiceMemoryClientInjection:
 
         [Source: docs/stories/36.11.story.md#Task-3.1]
         """
-        from app.dependencies import get_agent_service
         from app.clients.graphiti_client import LearningMemoryClient
+        from app.dependencies import get_agent_service
 
         settings = MagicMock()
         settings.AI_API_KEY = ""
@@ -112,19 +111,18 @@ class TestAgentServiceMemoryClientInjection:
 
         with patch("app.services.agent_service.logger") as mock_logger:
             # Create AgentService with memory_client=None
-            service = AgentService(
+            AgentService(
                 gemini_client=None,
                 memory_client=None,
                 canvas_service=None,
-                neo4j_client=None
+                neo4j_client=None,
             )
 
             # AC4: Should have logged WARNING about missing memory_client
-            warning_calls = [
-                str(call) for call in mock_logger.warning.call_args_list
-            ]
+            warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
             memory_warnings = [
-                w for w in warning_calls
+                w
+                for w in warning_calls
                 if "memory" in w.lower() or "LearningMemoryClient" in w
             ]
             assert len(memory_warnings) > 0, (
@@ -145,25 +143,23 @@ class TestAgentServiceMemoryClientInjection:
         from app.services.agent_service import AgentService
 
         mock_memory = MagicMock()
-        mock_memory.search_memories = AsyncMock(return_value=[
-            {"concept": "test", "score": 0.8}
-        ])
+        mock_memory.search_memories = AsyncMock(
+            return_value=[{"concept": "test", "score": 0.8}]
+        )
 
         # Create AgentService with neo4j_client=None but memory_client present
         service = AgentService(
             gemini_client=None,
             memory_client=mock_memory,
             canvas_service=None,
-            neo4j_client=None  # Neo4j unavailable
+            neo4j_client=None,  # Neo4j unavailable
         )
 
         # Verify memory_client is stored and available for fallback
         assert service._memory_client is mock_memory, (
             "memory_client should be stored even when neo4j_client is None"
         )
-        assert service._neo4j_client is None, (
-            "neo4j_client should be None"
-        )
+        assert service._neo4j_client is None, "neo4j_client should be None"
 
 
 # =============================================================================
@@ -179,10 +175,16 @@ SERVICES_DI_CONFIG = {
         "init_class_module": "app.services.agent_service",
         "init_class_name": "AgentService",
         "critical_params": [
-            "gemini_client", "memory_client", "canvas_service", "neo4j_client"
+            "gemini_client",
+            "memory_client",
+            "canvas_service",
+            "neo4j_client",
         ],
         "critical_attrs": [
-            "_gemini_client", "_memory_client", "_canvas_service", "_neo4j_client"
+            "_gemini_client",
+            "_memory_client",
+            "_canvas_service",
+            "_neo4j_client",
         ],
     },
     "CanvasService": {
@@ -199,14 +201,22 @@ SERVICES_DI_CONFIG = {
         "init_class_module": "app.services.verification_service",
         "init_class_name": "VerificationService",
         "critical_params": [
-            "rag_service", "cross_canvas_service", "textbook_context_service",
-            "canvas_service", "agent_service", "canvas_base_path",
-            "graphiti_client", "memory_service"
+            "rag_service",
+            "textbook_context_service",
+            "canvas_service",
+            "agent_service",
+            "canvas_base_path",
+            "graphiti_client",
+            "memory_service",
         ],
         "critical_attrs": [
-            "_rag_service", "_cross_canvas_service", "_textbook_context_service",
-            "_canvas_service", "_agent_service", "_canvas_base_path",
-            "_graphiti_client", "_memory_service"
+            "_rag_service",
+            "_textbook_context_service",
+            "_canvas_service",
+            "_agent_service",
+            "_canvas_base_path",
+            "_graphiti_client",
+            "_memory_service",
         ],
     },
     "ContextEnrichmentService": {
@@ -215,12 +225,8 @@ SERVICES_DI_CONFIG = {
         "init_class_module": "app.services.context_enrichment_service",
         "init_class_name": "ContextEnrichmentService",
         # canvas_service is REQUIRED (no default), others are optional
-        "critical_params": [
-            "textbook_service", "cross_canvas_service", "learning_memory_service"
-        ],
-        "critical_attrs": [
-            "_textbook_service", "_cross_canvas_service", "_learning_memory_service"
-        ],
+        "critical_params": ["textbook_service", "learning_memory_service"],
+        "critical_attrs": ["_textbook_service", "_learning_memory_service"],
     },
     "ReviewService": {
         "factory_module": "app.dependencies",
@@ -269,7 +275,8 @@ class TestDICompletenessInspection:
         # Get __init__ signature
         sig = inspect.signature(service_class.__init__)
         init_params = [
-            name for name, param in sig.parameters.items()
+            name
+            for name, param in sig.parameters.items()
             if name != "self"
             and param.default is not inspect.Parameter.empty  # Only optional params
         ]
@@ -283,8 +290,13 @@ class TestDICompletenessInspection:
 
     @pytest.mark.parametrize(
         "service_name",
-        ["AgentService", "CanvasService", "VerificationService",
-         "ContextEnrichmentService", "ReviewService"],
+        [
+            "AgentService",
+            "CanvasService",
+            "VerificationService",
+            "ContextEnrichmentService",
+            "ReviewService",
+        ],
     )
     def test_service_di_config_has_matching_attrs(self, service_name):
         """
@@ -375,9 +387,9 @@ class TestCanvasServiceDICompleteness:
 
         try:
             # canvas_base_path should always be set
-            assert hasattr(service, "_canvas_base_path") or hasattr(service, "canvas_base_path"), (
-                "CanvasService missing canvas_base_path attribute"
-            )
+            assert hasattr(service, "_canvas_base_path") or hasattr(
+                service, "canvas_base_path"
+            ), "CanvasService missing canvas_base_path attribute"
             # memory_client may be None if MemoryService not available (graceful degradation)
             # But the injection attempt should have been made
             assert hasattr(service, "_memory_client"), (

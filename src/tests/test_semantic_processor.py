@@ -10,7 +10,13 @@ from unittest.mock import Mock, patch
 import pytest
 
 # 导入测试目标
-from semantic_processor import ConceptExtractor, ExtractedConcept, SemanticProcessor, TagGenerator, TagSuggestion
+from semantic_processor import (
+    ConceptExtractor,
+    ExtractedConcept,
+    SemanticProcessor,
+    TagGenerator,
+    TagSuggestion,
+)
 
 
 class TestConceptExtractor:
@@ -19,10 +25,11 @@ class TestConceptExtractor:
     @pytest.fixture
     def extractor(self):
         """概念提取器fixture"""
-        with patch('semantic_processor.JIEBA_AVAILABLE', True), \
-             patch('semantic_processor.jieba'), \
-             patch('semantic_processor.jieba.posseg') as mock_pseg:
-
+        with (
+            patch("semantic_processor.JIEBA_AVAILABLE", True),
+            patch("semantic_processor.jieba"),
+            patch("semantic_processor.jieba.posseg") as mock_pseg,
+        ):
             # Mock分词结果
             mock_pseg.cut.return_value = [
                 Mock(word="逆否", flag="n"),
@@ -30,7 +37,7 @@ class TestConceptExtractor:
                 Mock(word="是", flag="v"),
                 Mock(word="逻辑学", flag="n"),
                 Mock(word="重要", flag="a"),
-                Mock(word="概念", flag="n")
+                Mock(word="概念", flag="n"),
             ]
 
             return ConceptExtractor()
@@ -46,14 +53,14 @@ class TestConceptExtractor:
         # 检查概念结构
         for concept in concepts:
             assert isinstance(concept, ExtractedConcept)
-            assert hasattr(concept, 'concept')
-            assert hasattr(concept, 'confidence')
-            assert hasattr(concept, 'category')
-            assert hasattr(concept, 'related_fields')
+            assert hasattr(concept, "concept")
+            assert hasattr(concept, "confidence")
+            assert hasattr(concept, "category")
+            assert hasattr(concept, "related_fields")
 
     def test_extract_concepts_without_jieba(self):
         """测试不使用jieba提取概念"""
-        with patch('semantic_processor.JIEBA_AVAILABLE', False):
+        with patch("semantic_processor.JIEBA_AVAILABLE", False):
             extractor = ConceptExtractor()
             text = "数学概念代数几何概率统计"
 
@@ -81,7 +88,9 @@ class TestConceptExtractor:
         assert confidence > 0.5
 
         # 长词应该有更高置信度
-        confidence_long = extractor._calculate_confidence("逆否命题", "nz", "逆否命题是重要概念")
+        confidence_long = extractor._calculate_confidence(
+            "逆否命题", "nz", "逆否命题是重要概念"
+        )
         assert confidence_long > 0.5
 
     def test_determine_category(self, extractor):
@@ -105,11 +114,11 @@ class TestTagGenerator:
     @pytest.fixture
     def tag_generator(self):
         """标签生成器fixture"""
-        with patch('semantic_processor.ConceptExtractor') as mock_extractor_class:
+        with patch("semantic_processor.ConceptExtractor") as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor.extract_concepts.return_value = [
                 Mock(concept="数学", confidence=0.9),
-                Mock(concept="逻辑", confidence=0.8)
+                Mock(concept="逻辑", confidence=0.8),
             ]
             mock_extractor_class.return_value = mock_extractor
 
@@ -126,10 +135,10 @@ class TestTagGenerator:
         # 检查标签结构
         for tag in tags:
             assert isinstance(tag, TagSuggestion)
-            assert hasattr(tag, 'tag')
-            assert hasattr(tag, 'relevance_score')
-            assert hasattr(tag, 'category')
-            assert hasattr(tag, 'frequency')
+            assert hasattr(tag, "tag")
+            assert hasattr(tag, "relevance_score")
+            assert hasattr(tag, "category")
+            assert hasattr(tag, "frequency")
 
     def test_calculate_tag_relevance(self, tag_generator):
         """测试标签相关性计算"""
@@ -145,7 +154,7 @@ class TestTagGenerator:
             TagSuggestion("数学", 0.9, "学科", 3),
             TagSuggestion("逻辑", 0.8, "学科", 2),
             TagSuggestion("数学", 0.7, "学科", 1),  # 重复
-            TagSuggestion("概念", 0.6, "通用", 1)
+            TagSuggestion("概念", 0.6, "通用", 1),
         ]
 
         unique_tags = tag_generator._deduplicate_tags(tags)
@@ -163,8 +172,10 @@ class TestSemanticProcessor:
     @pytest.fixture
     def processor(self):
         """语义处理器fixture"""
-        with patch('semantic_processor.ConceptExtractor'), \
-             patch('semantic_processor.TagGenerator'):
+        with (
+            patch("semantic_processor.ConceptExtractor"),
+            patch("semantic_processor.TagGenerator"),
+        ):
             return SemanticProcessor()
 
     def test_process_text_default_options(self, processor):
@@ -179,7 +190,7 @@ class TestSemanticProcessor:
                 category="通用",
                 pos_tag="n",
                 context="...",
-                related_fields=[]
+                related_fields=[],
             )
         ]
         processor.tag_generator.generate_tags.return_value = [
@@ -206,7 +217,7 @@ class TestSemanticProcessor:
             "extract_concepts": False,
             "generate_tags": True,
             "max_concepts": 5,
-            "max_tags": 3
+            "max_tags": 3,
         }
 
         # Mock组件方法
@@ -240,7 +251,9 @@ class TestSemanticProcessor:
         text = "测试文本"
 
         # Mock组件方法抛出异常
-        processor.concept_extractor.extract_concepts.side_effect = Exception("Test error")
+        processor.concept_extractor.extract_concepts.side_effect = Exception(
+            "Test error"
+        )
 
         result = processor.process_text(text)
 
@@ -254,9 +267,10 @@ class TestIntegrationScenarios:
 
     def test_full_text_processing_workflow(self):
         """测试完整文本处理工作流"""
-        with patch('semantic_processor.ConceptExtractor'), \
-             patch('semantic_processor.TagGenerator'):
-
+        with (
+            patch("semantic_processor.ConceptExtractor"),
+            patch("semantic_processor.TagGenerator"),
+        ):
             processor = SemanticProcessor()
 
             text = "逆否命题是逻辑学中的重要概念，它在数学证明中经常被使用。"
@@ -269,7 +283,7 @@ class TestIntegrationScenarios:
                     category="逻辑概念",
                     pos_tag="nz",
                     context="逆否命题是逻辑学中的重要概念",
-                    related_fields=["数学", "计算机科学"]
+                    related_fields=["数学", "计算机科学"],
                 ),
                 ExtractedConcept(
                     concept="逻辑学",
@@ -277,15 +291,15 @@ class TestIntegrationScenarios:
                     category="学科",
                     pos_tag="n",
                     context="逻辑学中的重要概念",
-                    related_fields=["哲学", "数学"]
-                )
+                    related_fields=["哲学", "数学"],
+                ),
             ]
 
             # Mock标签生成
             processor.tag_generator.generate_tags.return_value = [
                 TagSuggestion("逆否命题", 0.95, "逻辑概念", 2),
                 TagSuggestion("逻辑学", 0.85, "学科", 1),
-                TagSuggestion("数学证明", 0.75, "应用", 1)
+                TagSuggestion("数学证明", 0.75, "应用", 1),
             ]
 
             result = processor.process_text(text)

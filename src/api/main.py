@@ -45,35 +45,17 @@ def create_app() -> FastAPI:
         openapi_url="/api/v1/openapi.json",
         # OpenAPI metadata
         openapi_tags=[
-            {
-                "name": "System",
-                "description": "系统健康检查"
-            },
-            {
-                "name": "Canvas",
-                "description": "Canvas文件和节点操作"
-            },
-            {
-                "name": "Agents",
-                "description": "AI Agent调用接口"
-            },
-            {
-                "name": "Review",
-                "description": "艾宾浩斯复习系统"
-            },
-            {
-                "name": "Memory",
-                "description": "三层记忆系统查询"
-            }
+            {"name": "System", "description": "系统健康检查"},
+            {"name": "Canvas", "description": "Canvas文件和节点操作"},
+            {"name": "Agents", "description": "AI Agent调用接口"},
+            {"name": "Review", "description": "艾宾浩斯复习系统"},
+            {"name": "Memory", "description": "三层记忆系统查询"},
         ],
         contact={
             "name": "Canvas Learning System",
-            "url": "https://github.com/canvas-learning-system"
+            "url": "https://github.com/canvas-learning-system",
         },
-        license_info={
-            "name": "MIT",
-            "url": "https://opensource.org/licenses/MIT"
-        }
+        license_info={"name": "MIT", "url": "https://opensource.org/licenses/MIT"},
     )
 
     # Configure CORS middleware
@@ -107,7 +89,7 @@ def create_app() -> FastAPI:
             "version": settings.VERSION,
             "docs": "/docs",
             "redoc": "/redoc",
-            "openapi": "/api/v1/openapi.json"
+            "openapi": "/api/v1/openapi.json",
         }
 
     return app
@@ -125,5 +107,5 @@ if __name__ == "__main__":
         "src.api.main:app",
         host=settings.HOST,
         port=settings.PORT,
-        reload=settings.DEBUG
+        reload=settings.DEBUG,
     )

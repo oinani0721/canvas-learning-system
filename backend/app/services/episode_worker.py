@@ -216,8 +216,13 @@ class GraphitiEpisodeWorker:
             # Control graphiti-core internal concurrency (some operations use global env)
             os.environ["SEMAPHORE_LIMIT"] = "3"
 
-            from graphiti_core.cross_encoder.gemini_reranker_client import GeminiRerankerClient
-            from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
+            from graphiti_core.cross_encoder.gemini_reranker_client import (
+                GeminiRerankerClient,
+            )
+            from graphiti_core.embedder.gemini import (
+                GeminiEmbedder,
+                GeminiEmbedderConfig,
+            )
             from graphiti_core.llm_client.config import LLMConfig
             from graphiti_core.llm_client.gemini_client import GeminiClient
 
@@ -335,9 +340,7 @@ class GraphitiEpisodeWorker:
             )
             return False
         except asyncio.QueueShutDown:
-            logger.warning(
-                f"Episode queue shut down, cannot enqueue: {task.name[:50]}"
-            )
+            logger.warning(f"Episode queue shut down, cannot enqueue: {task.name[:50]}")
             return False
 
     @property

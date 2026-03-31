@@ -58,6 +58,7 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 """
+
 import asyncio
 import json
 import logging
@@ -76,12 +77,18 @@ from app.services.weight_calculator import ConceptWeightData, WeightCalculator
 try:
     import sys
     from pathlib import Path
+
     _project_root = Path(__file__).parent.parent.parent.parent
     _src_path = _project_root / "src"
     if str(_src_path) not in sys.path:
         sys.path.insert(0, str(_src_path))
 
-    from memory.temporal.fsrs_manager import FSRSManager, get_rating_from_score, CardState
+    from memory.temporal.fsrs_manager import (
+        CardState,
+        FSRSManager,
+        get_rating_from_score,
+    )
+
     FSRS_AVAILABLE = True
 except ImportError:
     FSRS_AVAILABLE = False
@@ -95,7 +102,9 @@ except ImportError:
 FSRS_RUNTIME_OK: Optional[bool] = None
 
 # P0-2: Card state persistence file path (matches learning_memories.json pattern)
-_CARD_STATES_FILE = _Path(__file__).parent.parent.parent / "data" / "fsrs_card_states.json"
+_CARD_STATES_FILE = (
+    _Path(__file__).parent.parent.parent / "data" / "fsrs_card_states.json"
+)
 
 # H2 fix: Module-level asyncio.Lock for concurrent card_states write protection
 _card_states_lock = asyncio.Lock()
@@ -112,6 +121,7 @@ logger = logging.getLogger(__name__)
 
 class ReviewStatus(str, Enum):
     """复习状态枚举"""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     RUNNING = "running"
@@ -127,6 +137,7 @@ class ReviewProgress:
     复习进度数据类
     [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
     """
+
     task_id: str
     canvas_name: str
     total_nodes: int = 0
@@ -164,12 +175,16 @@ class ReviewProgress:
             "green_nodes": self.green_nodes,
             "purple_nodes": self.purple_nodes,
             "red_nodes": self.red_nodes,
-            "status": self.status.value if isinstance(self.status, ReviewStatus) else str(self.status),
+            "status": self.status.value
+            if isinstance(self.status, ReviewStatus)
+            else str(self.status),
             "progress": self.progress,
             "progress_percentage": self.progress_percentage,
             "mastery_percentage": self.mastery_percentage,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "error": self.error,
         }
 
@@ -189,6 +204,7 @@ def create_fsrs_manager(settings=None) -> Optional[Any]:
     if settings is None:
         try:
             from app.config import get_settings
+
             settings = get_settings()
         except (ImportError, RuntimeError) as e:
             logger.warning(f"Cannot load settings for FSRSManager: {e}")
@@ -229,7 +245,7 @@ class ReviewService:
         canvas_service: "CanvasService",
         task_manager: "BackgroundTaskManager",
         graphiti_client: Optional[Any] = None,
-        fsrs_manager: Optional[Any] = None
+        fsrs_manager: Optional[Any] = None,
     ):
         """
         Initialize ReviewService.
@@ -271,7 +287,9 @@ class ReviewService:
                 self._fsrs_manager = None
                 self._fsrs_init_reason = "FSRS disabled or unavailable"
                 FSRS_RUNTIME_OK = False
-                logger.warning(f"FSRS manager not initialized: {self._fsrs_init_reason}")
+                logger.warning(
+                    f"FSRS manager not initialized: {self._fsrs_init_reason}"
+                )
 
         self._initialized = True
         self._task_canvas_map: Dict[str, str] = {}  # Maps task_id to canvas_name
@@ -289,7 +307,9 @@ class ReviewService:
                 data = _CARD_STATES_FILE.read_text(encoding="utf-8")
                 loaded = json.loads(data)
                 if isinstance(loaded, dict):
-                    logger.info(f"Loaded {len(loaded)} FSRS card states from {_CARD_STATES_FILE}")
+                    logger.info(
+                        f"Loaded {len(loaded)} FSRS card states from {_CARD_STATES_FILE}"
+                    )
                     return loaded
         except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
             logger.warning(f"Failed to load FSRS card states: {e}")
@@ -309,7 +329,9 @@ class ReviewService:
                 tmp_file = _CARD_STATES_FILE.with_suffix(".json.tmp")
                 await asyncio.to_thread(tmp_file.write_text, data, "utf-8")
                 await asyncio.to_thread(tmp_file.replace, _CARD_STATES_FILE)
-                logger.debug(f"Saved {len(self._card_states)} FSRS card states to {_CARD_STATES_FILE}")
+                logger.debug(
+                    f"Saved {len(self._card_states)} FSRS card states to {_CARD_STATES_FILE}"
+                )
             except (OSError, TypeError) as e:
                 logger.warning(f"Failed to save FSRS card states: {e}")
 
@@ -340,9 +362,7 @@ class ReviewService:
             return f"请解释{text}的概念和含义？"
 
     async def generate_review_canvas(
-        self,
-        canvas_name: str,
-        node_ids: Optional[List[str]] = None
+        self, canvas_name: str, node_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Generate a verification canvas asynchronously.
@@ -374,9 +394,7 @@ class ReviewService:
             }
 
         task_id = await self.task_manager.create_task(
-            "review_generation",
-            _generate,
-            metadata={"canvas_name": canvas_name}
+            "review_generation", _generate, metadata={"canvas_name": canvas_name}
         )
 
         self._task_canvas_map[task_id] = canvas_name
@@ -405,6 +423,7 @@ class ReviewService:
 
         # Map TaskStatus to ReviewStatus
         from app.services.background_task_manager import TaskStatus
+
         status_map = {
             TaskStatus.PENDING: ReviewStatus.PENDING,
             TaskStatus.RUNNING: ReviewStatus.RUNNING,
@@ -450,9 +469,7 @@ class ReviewService:
             return False
 
     async def list_tasks(
-        self,
-        canvas_name: Optional[str] = None,
-        status: Optional[ReviewStatus] = None
+        self, canvas_name: Optional[str] = None, status: Optional[ReviewStatus] = None
     ) -> List[ReviewProgress]:
         """
         List review generation tasks.
@@ -491,13 +508,15 @@ class ReviewService:
             if status and review_status != status:
                 continue
 
-            results.append(ReviewProgress(
-                task_id=task_info.task_id,
-                canvas_name=task_canvas,
-                status=review_status,
-                progress=task_info.progress,
-                error=task_info.error,
-            ))
+            results.append(
+                ReviewProgress(
+                    task_id=task_info.task_id,
+                    canvas_name=task_canvas,
+                    status=review_status,
+                    progress=task_info.progress,
+                    error=task_info.error,
+                )
+            )
 
         return results
 
@@ -521,7 +540,7 @@ class ReviewService:
         weak_weight: float = 0.7,
         mastered_weight: float = 0.3,
         include_colors: Optional[List[str]] = None,
-        question_count: Optional[int] = None
+        question_count: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Generate a verification canvas with mode support.
@@ -559,51 +578,75 @@ class ReviewService:
 
         # Filter by colors (baseline)
         eligible_nodes = [
-            node for node in all_nodes
+            node
+            for node in all_nodes
             if node.get("type") == "text" and node.get("color") in include_colors
         ]
 
         # === Mastery enrichment (Phase 1.5) ===
         # Expand eligible_nodes with mastery-weak concepts not caught by color filter
         mastery_lookup: dict = {}  # node_text[:50] -> effective_proficiency
-        enrichment_available = False  # G-SILENT-001: signal whether enrichment succeeded
+        enrichment_available = (
+            False  # G-SILENT-001: signal whether enrichment succeeded
+        )
         try:
+            from app.clients.neo4j_client import get_neo4j_client
             from app.services.mastery_engine import get_mastery_engine
             from app.services.mastery_store import MasteryStore
-            from app.clients.neo4j_client import get_neo4j_client
 
             m_engine = get_mastery_engine()  # Uses fusion-enabled singleton
             m_store = MasteryStore(get_neo4j_client())
             from app.config import DEFAULT_GROUP_ID
+
             all_mastery = await m_store.get_all_concepts(group_id=DEFAULT_GROUP_ID)
             review_candidates = m_engine.get_review_candidates(all_mastery)
 
             # Build name -> proficiency lookup for question_generator
-            mastery_lookup = {c.name: m_engine.effective_proficiency(c) for c in all_mastery}
+            mastery_lookup = {
+                c.name: m_engine.effective_proficiency(c) for c in all_mastery
+            }
 
             # Add mastery-weak concepts that aren't already in eligible_nodes
             eligible_ids = {n.get("id") for n in eligible_nodes}
             candidate_names = {c.name for c in review_candidates}
             for node in all_nodes:
-                if (node.get("type") == "text"
-                        and node.get("id") not in eligible_ids
-                        and (node.get("text", "")[:50].strip() in candidate_names)):
+                if (
+                    node.get("type") == "text"
+                    and node.get("id") not in eligible_ids
+                    and (node.get("text", "")[:50].strip() in candidate_names)
+                ):
                     eligible_nodes.append(node)
                     eligible_ids.add(node.get("id"))
 
             enrichment_available = True
-            logger.info(f"Mastery enrichment: {len(review_candidates)} weak concepts, "
-                        f"{len(eligible_nodes)} total eligible after enrichment")
-        except (ImportError, RuntimeError, ConnectionError, ValueError, TypeError, AttributeError) as e:
+            logger.info(
+                f"Mastery enrichment: {len(review_candidates)} weak concepts, "
+                f"{len(eligible_nodes)} total eligible after enrichment"
+            )
+        except (
+            ImportError,
+            RuntimeError,
+            ConnectionError,
+            ValueError,
+            TypeError,
+            AttributeError,
+        ) as e:
             logger.warning(f"Mastery enrichment unavailable (degraded mode): {e}")
 
         weak_concepts_data = []
-        weight_config = {"weak_weight": weak_weight, "mastered_weight": mastered_weight, "applied": False, "enrichment_available": enrichment_available}
+        weight_config = {
+            "weak_weight": weak_weight,
+            "mastered_weight": mastered_weight,
+            "applied": False,
+            "enrichment_available": enrichment_available,
+        }
         fallback_used = False  # AC2 of Story 24.6: Track fallback usage
 
         if mode == "targeted":
             # Query Graphiti for review history (Story 24.3)
-            review_history = await self._query_review_history_from_memory(source_canvas_name)
+            review_history = await self._query_review_history_from_memory(
+                source_canvas_name
+            )
 
             # AC2: Detect fallback scenario (Graphiti unavailable or no history)
             if not review_history:
@@ -622,24 +665,19 @@ class ReviewService:
             # Calculate weakness scores using WeightCalculator (Story 24.3)
             calculator = WeightCalculator()
             weight_data = await calculator.calculate_weakness_scores(
-                concepts,
-                review_history
+                concepts, review_history
             )
 
             # Apply weighted selection (Story 24.3)
             target_count = question_count or len(eligible_nodes)
             selected_weight_data = await self._apply_weighted_selection(
-                weight_data,
-                target_count,
-                weak_weight,
-                mastered_weight
+                weight_data, target_count, weak_weight, mastered_weight
             )
 
             # Convert back to node objects for canvas generation
             selected_ids = {c.concept_id for c in selected_weight_data}
             selected_concepts = [
-                node for node in eligible_nodes
-                if node.get("id", "") in selected_ids
+                node for node in eligible_nodes if node.get("id", "") in selected_ids
             ]
 
             # Prepare weak_concepts for response (AC5)
@@ -648,9 +686,10 @@ class ReviewService:
                     "concept_name": c.concept_name,
                     "weakness_score": c.weakness_score,
                     "failure_count": c.failure_count,
-                    "avg_rating": c.avg_rating
+                    "avg_rating": c.avg_rating,
                 }
-                for c in weight_data if c.category == "weak"
+                for c in weight_data
+                if c.category == "weak"
             ]
 
             weight_config["applied"] = True
@@ -675,9 +714,7 @@ class ReviewService:
 
         # Store relationship in Graphiti
         await self._store_review_relationship(
-            source_canvas_name,
-            review_canvas_name,
-            mode
+            source_canvas_name, review_canvas_name, mode
         )
 
         result = {
@@ -688,7 +725,7 @@ class ReviewService:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "weak_concepts": weak_concepts_data,  # AC5: Enhanced response
             "weight_config": weight_config,  # AC5: Weight configuration
-            "fallback_used": fallback_used  # AC2 of Story 24.6: Indicate if fallback was triggered
+            "fallback_used": fallback_used,  # AC2 of Story 24.6: Indicate if fallback was triggered
         }
 
         logger.info(
@@ -703,7 +740,7 @@ class ReviewService:
         canvas_name: str,
         concept_id: str = "",
         trigger_point: int = 1,
-        card_state: Optional[str] = None
+        card_state: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Schedule a review using FSRS algorithm (Story 32.2).
@@ -754,26 +791,34 @@ class ReviewService:
 
                 # Calculate interval in days from now
                 if due_date:
-                    interval_days = max(0, (due_date - datetime.now(due_date.tzinfo)).days)
+                    interval_days = max(
+                        0, (due_date - datetime.now(due_date.tzinfo)).days
+                    )
                 else:
                     interval_days = 0  # New card, due immediately
 
                 return {
                     "canvas_name": canvas_name,
                     "concept_id": concept_id,
-                    "scheduled_date": due_date.isoformat() if due_date else (datetime.now(timezone.utc) + timedelta(days=interval_days)).isoformat(),
+                    "scheduled_date": due_date.isoformat()
+                    if due_date
+                    else (
+                        datetime.now(timezone.utc) + timedelta(days=interval_days)
+                    ).isoformat(),
                     "interval_days": interval_days,
                     "retrievability": retrievability,
                     "fsrs_state": {
                         "stability": getattr(card, "stability", 0.0),
                         "difficulty": getattr(card, "difficulty", 0.0),
-                        "state": int(getattr(card, "state", 0).value) if hasattr(getattr(card, "state", 0), "value") else int(getattr(card, "state", 0)),
+                        "state": int(getattr(card, "state", 0).value)
+                        if hasattr(getattr(card, "state", 0), "value")
+                        else int(getattr(card, "state", 0)),
                         "reps": getattr(card, "reps", 0),
-                        "lapses": getattr(card, "lapses", 0)
+                        "lapses": getattr(card, "lapses", 0),
                     },
                     "card_data": self._fsrs_manager.serialize_card(card),
                     "status": "scheduled",
-                    "algorithm": "fsrs-4.5"
+                    "algorithm": "fsrs-4.5",
                 }
 
             # INTENTIONAL: Third-party py-fsrs library may raise unpredictable errors; fallback to Ebbinghaus
@@ -795,7 +840,7 @@ class ReviewService:
             "scheduled_date": scheduled_date.isoformat(),
             "interval_days": interval,
             "status": "scheduled",
-            "algorithm": "ebbinghaus-fallback"
+            "algorithm": "ebbinghaus-fallback",
         }
 
     async def record_review_result(
@@ -805,7 +850,7 @@ class ReviewService:
         score: Optional[float] = None,
         rating: Optional[int] = None,
         card_state: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Record the result of a review session using FSRS algorithm (Story 32.2).
@@ -882,7 +927,9 @@ class ReviewService:
                     else:
                         # New card - existing Ebbinghaus records treated as first FSRS review
                         card = self._fsrs_manager.create_card()
-                        logger.info(f"Created new FSRS card for {concept_id} (migration from Ebbinghaus)")
+                        logger.info(
+                            f"Created new FSRS card for {concept_id} (migration from Ebbinghaus)"
+                        )
 
                 # Story 32.2 AC-32.2.3: Review card with FSRS algorithm
                 updated_card, review_log = self._fsrs_manager.review_card(card, rating)
@@ -925,20 +972,24 @@ class ReviewService:
                     "concept_id": concept_id,
                     "rating": rating,
                     "score": score,  # Preserve original score for logging
-                    "next_review": due_date.isoformat() if due_date else (datetime.now(timezone.utc) + timedelta(days=interval_days)).isoformat(),
+                    "next_review": due_date.isoformat()
+                    if due_date
+                    else (
+                        datetime.now(timezone.utc) + timedelta(days=interval_days)
+                    ).isoformat(),
                     "interval_days": interval_days,
                     "fsrs_state": {
                         "stability": float(getattr(updated_card, "stability", 0.0)),
                         "difficulty": float(getattr(updated_card, "difficulty", 0.0)),
                         "state": state_int,
                         "reps": int(getattr(updated_card, "reps", 0)),
-                        "lapses": int(getattr(updated_card, "lapses", 0))
+                        "lapses": int(getattr(updated_card, "lapses", 0)),
                     },
                     "card_data": card_data,
                     "details": details or {},
                     "recorded_at": datetime.now(timezone.utc).isoformat(),
                     "status": "recorded",
-                    "algorithm": "fsrs-4.5"
+                    "algorithm": "fsrs-4.5",
                 }
 
             # INTENTIONAL: Third-party py-fsrs library may raise unpredictable errors; fallback to legacy
@@ -977,7 +1028,7 @@ class ReviewService:
             "details": details or {},
             "recorded_at": now_utc.isoformat(),
             "status": "recorded",
-            "algorithm": "ebbinghaus-fallback"
+            "algorithm": "ebbinghaus-fallback",
         }
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -991,7 +1042,7 @@ class ReviewService:
         days: int = 7,
         canvas_path: Optional[str] = None,
         concept_name: Optional[str] = None,
-        limit: Optional[int] = 5
+        limit: Optional[int] = 5,
     ) -> Dict[str, Any]:
         """
         Get review history with pagination support.
@@ -1022,13 +1073,14 @@ class ReviewService:
         if self.graphiti_client:
             try:
                 from app.clients.graphiti_client import get_learning_memory_client
+
                 memory_client = get_learning_memory_client()
                 await memory_client.initialize()
 
                 # Query all learning history within date range
                 raw_history = await memory_client.get_learning_history(
                     canvas_name=canvas_path or "",
-                    limit=1000  # Get all records for filtering
+                    limit=1000,  # Get all records for filtering
                 )
 
                 # Filter and convert records
@@ -1040,7 +1092,11 @@ class ReviewService:
                                 timestamp_str.replace("Z", "+00:00")
                             ).date()
                         else:
-                            record_date = timestamp_str.date() if hasattr(timestamp_str, "date") else end_date
+                            record_date = (
+                                timestamp_str.date()
+                                if hasattr(timestamp_str, "date")
+                                else end_date
+                            )
                     except (ValueError, AttributeError):
                         continue
 
@@ -1049,12 +1105,16 @@ class ReviewService:
                         continue
 
                     # Filter by canvas_path if specified
-                    record_canvas = memory.get("canvas_name", memory.get("canvas_path", ""))
+                    record_canvas = memory.get(
+                        "canvas_name", memory.get("canvas_path", "")
+                    )
                     if canvas_path and canvas_path not in record_canvas:
                         continue
 
                     # Filter by concept_name if specified
-                    record_concept = memory.get("concept", memory.get("concept_name", ""))
+                    record_concept = memory.get(
+                        "concept", memory.get("concept_name", "")
+                    )
                     if concept_name and concept_name not in record_concept:
                         continue
 
@@ -1069,18 +1129,29 @@ class ReviewService:
                     else:
                         rating = 1
 
-                    all_records.append({
-                        "concept_id": memory.get("concept_id", memory.get("id", "")),
-                        "concept_name": record_concept,
-                        "canvas_path": record_canvas,
-                        "rating": rating,
-                        "review_time": timestamp_str,
-                        "date": record_date.isoformat()
-                    })
+                    all_records.append(
+                        {
+                            "concept_id": memory.get(
+                                "concept_id", memory.get("id", "")
+                            ),
+                            "concept_name": record_concept,
+                            "canvas_path": record_canvas,
+                            "rating": rating,
+                            "review_time": timestamp_str,
+                            "date": record_date.isoformat(),
+                        }
+                    )
 
                 logger.info(f"Found {len(all_records)} history records from Graphiti")
 
-            except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
+            except (
+                ConnectionError,
+                TimeoutError,
+                ValueError,
+                KeyError,
+                TypeError,
+                AttributeError,
+            ) as e:
                 logger.error(f"Error querying history from Graphiti: {e}")
 
         # If no records from Graphiti, try FSRS card states
@@ -1106,7 +1177,11 @@ class ReviewService:
                             last_review.replace("Z", "+00:00")
                         ).date()
                     else:
-                        record_date = last_review.date() if hasattr(last_review, "date") else end_date
+                        record_date = (
+                            last_review.date()
+                            if hasattr(last_review, "date")
+                            else end_date
+                        )
 
                     if record_date < start_date or record_date > end_date:
                         continue
@@ -1120,14 +1195,16 @@ class ReviewService:
                     if concept_name and concept_name not in record_concept:
                         continue
 
-                    all_records.append({
-                        "concept_id": key,
-                        "concept_name": record_concept,
-                        "canvas_path": record_canvas,
-                        "rating": card_data.get("rating", 3),
-                        "review_time": last_review,
-                        "date": record_date.isoformat()
-                    })
+                    all_records.append(
+                        {
+                            "concept_id": key,
+                            "concept_name": record_concept,
+                            "canvas_path": record_canvas,
+                            "rating": card_data.get("rating", 3),
+                            "review_time": last_review,
+                            "date": record_date.isoformat(),
+                        }
+                    )
                 except (ValueError, AttributeError):
                     continue
 
@@ -1170,10 +1247,9 @@ class ReviewService:
         # Build daily records list
         daily_records = []
         for date_key in sorted(records_by_date.keys(), reverse=True):
-            daily_records.append({
-                "date": date_key,
-                "reviews": records_by_date[date_key]
-            })
+            daily_records.append(
+                {"date": date_key, "reviews": records_by_date[date_key]}
+            )
 
         # Story 34.12 AC3: Calculate retention_rate from rating data
         # retention_rate = count(rating >= 3) / count(total records with rating)
@@ -1189,12 +1265,11 @@ class ReviewService:
             "total_count": total_count,
             "has_more": has_more,
             "streak_days": streak_days,
-            "retention_rate": retention_rate
+            "retention_rate": retention_rate,
         }
 
     async def _query_weak_concepts_from_memory(
-        self,
-        canvas_name: str
+        self, canvas_name: str
     ) -> List[Dict[str, Any]]:
         """
         Query historical weak concepts from LearningMemoryClient (JSON storage).
@@ -1213,7 +1288,9 @@ class ReviewService:
         if not self.graphiti_client:
             logger.warning(
                 "功能 %s 降级运行: %s 为 None，返回默认值 %s",
-                "query_weak_concepts", "graphiti_client", "[]"
+                "query_weak_concepts",
+                "graphiti_client",
+                "[]",
             )
             return []
 
@@ -1221,6 +1298,7 @@ class ReviewService:
             # Since we're using GraphitiEdgeClient with JSON storage,
             # we'll query from the learning memories instead
             from app.clients.graphiti_client import get_learning_memory_client
+
             memory_client = get_learning_memory_client()
             await memory_client.initialize()
 
@@ -1242,29 +1320,33 @@ class ReviewService:
             for concept, scores in concept_scores.items():
                 avg_score = sum(scores) / len(scores) if scores else 0
                 if avg_score < 24:  # < 60% threshold
-                    weak_concepts.append({
-                        "concept_name": concept,
-                        "avg_score": avg_score,
-                        "review_count": len(scores)
-                    })
+                    weak_concepts.append(
+                        {
+                            "concept_name": concept,
+                            "avg_score": avg_score,
+                            "review_count": len(scores),
+                        }
+                    )
 
             # Sort by avg_score ascending (weakest first)
             weak_concepts.sort(key=lambda x: (x["avg_score"], -x["review_count"]))
 
-            logger.info(
-                f"Found {len(weak_concepts)} weak concepts for {canvas_name}"
-            )
+            logger.info(f"Found {len(weak_concepts)} weak concepts for {canvas_name}")
             return weak_concepts
 
-        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
+        except (
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+        ) as e:
             logger.error(f"Error querying weak concepts: {e}")
             return []
 
     async def _store_review_relationship(
-        self,
-        original_canvas: str,
-        review_canvas: str,
-        mode: str
+        self, original_canvas: str, review_canvas: str, mode: str
     ) -> None:
         """
         Store GENERATED_FROM relationship in Graphiti.
@@ -1279,18 +1361,21 @@ class ReviewService:
         if not self.graphiti_client:
             logger.warning(
                 "功能 %s 降级运行: %s 为 None，返回默认值 %s",
-                "store_review_relationship", "graphiti_client", "skip"
+                "store_review_relationship",
+                "graphiti_client",
+                "skip",
             )
             return
 
         try:
             from app.clients.graphiti_client import EdgeRelationship
+
             relationship = EdgeRelationship(
                 canvas_name=original_canvas,
                 from_node=review_canvas,
                 to_node=original_canvas,
                 label=f"GENERATED_FROM_{mode.upper()}",
-                edge_id=None
+                edge_id=None,
             )
 
             await self.graphiti_client.add_edge_relationship(relationship)
@@ -1302,15 +1387,22 @@ class ReviewService:
                     "fromNode": review_canvas,
                     "toNode": original_canvas,
                     "label": f"generated in {mode} mode",
-                    "id": f"review_{mode}_{datetime.now(timezone.utc).strftime('%Y%m%d')}"
-                }
+                    "id": f"review_{mode}_{datetime.now(timezone.utc).strftime('%Y%m%d')}",
+                },
             )
 
             logger.info(
                 f"Stored review relationship: {review_canvas} --[{mode}]--> {original_canvas}"
             )
 
-        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
+        except (
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+        ) as e:
             logger.warning(f"Failed to store review relationship: {e}")
 
     async def _apply_weighted_selection(
@@ -1318,7 +1410,7 @@ class ReviewService:
         weight_data: List[ConceptWeightData],
         question_count: int,
         weak_weight: float = 0.7,
-        mastered_weight: float = 0.3
+        mastered_weight: float = 0.3,
     ) -> List[ConceptWeightData]:
         """
         Apply weighted selection to concept list.
@@ -1360,15 +1452,23 @@ class ReviewService:
         if weak:
             selected.extend(self._weighted_sample(weak, min(weak_count, len(weak))))
         if mastered:
-            selected.extend(self._weighted_sample(mastered, min(mastered_count, len(mastered))))
+            selected.extend(
+                self._weighted_sample(mastered, min(mastered_count, len(mastered)))
+            )
         if borderline:
-            selected.extend(self._weighted_sample(borderline, min(borderline_count, len(borderline))))
+            selected.extend(
+                self._weighted_sample(
+                    borderline, min(borderline_count, len(borderline))
+                )
+            )
 
         # Fill remaining from any category
         remaining = question_count - len(selected)
         if remaining > 0:
             all_remaining = [c for c in weight_data if c not in selected]
-            selected.extend(self._weighted_sample(all_remaining, min(remaining, len(all_remaining))))
+            selected.extend(
+                self._weighted_sample(all_remaining, min(remaining, len(all_remaining)))
+            )
 
         logger.info(
             f"Weighted selection complete: {len(selected)} concepts selected "
@@ -1378,9 +1478,7 @@ class ReviewService:
         return selected
 
     def _weighted_sample(
-        self,
-        concepts: List[ConceptWeightData],
-        count: int
+        self, concepts: List[ConceptWeightData], count: int
     ) -> List[ConceptWeightData]:
         """
         Sample concepts with weights based on weakness_score.
@@ -1434,10 +1532,7 @@ class ReviewService:
 
         return selected
 
-    async def _query_review_history_from_memory(
-        self,
-        canvas_name: str
-    ) -> List[Dict]:
+    async def _query_review_history_from_memory(self, canvas_name: str) -> List[Dict]:
         """
         Query review history from LearningMemoryClient (JSON storage).
 
@@ -1464,19 +1559,25 @@ class ReviewService:
             # Get learning history for this canvas
             history = await memory_client.get_learning_history(
                 canvas_name=canvas_name,
-                limit=1000  # Get all available history
+                limit=1000,  # Get all available history
             )
 
             logger.info(f"Retrieved {len(history)} review records for {canvas_name}")
             return history
 
-        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
+        except (
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+        ) as e:
             logger.warning(f"Graphiti query failed, using empty history: {e}")
             return []
 
     async def get_multi_review_progress(
-        self,
-        original_canvas_path: str
+        self, original_canvas_path: str
     ) -> Dict[str, Any]:
         """
         Get multi-review trend analysis for an original canvas.
@@ -1500,7 +1601,9 @@ class ReviewService:
         reviews = await self._query_review_sessions_from_memory(original_canvas_path)
 
         if not reviews:
-            raise CanvasNotFoundException(f"No review history for: {original_canvas_path}")
+            raise CanvasNotFoundException(
+                f"No review history for: {original_canvas_path}"
+            )
 
         # Calculate trends
         trends = self._calculate_trend_analysis(reviews)
@@ -1509,13 +1612,11 @@ class ReviewService:
             "original_canvas_path": original_canvas_path,
             "review_count": len(reviews),
             "reviews": reviews,
-            "trends": trends
+            "trends": trends,
         }
 
-
     async def _query_review_sessions_from_memory(
-        self,
-        original_canvas_path: str
+        self, original_canvas_path: str
     ) -> List[Dict[str, Any]]:
         """
         Query LearningMemoryClient (JSON storage) for all review sessions linked to original canvas.
@@ -1542,21 +1643,23 @@ class ReviewService:
         if not self.graphiti_client:
             logger.warning(
                 "功能 %s 降级运行: %s 为 None，返回默认值 %s",
-                "get_review_sessions", "graphiti_client", "[]"
+                "get_review_sessions",
+                "graphiti_client",
+                "[]",
             )
             return []
 
         try:
             # Story 36.7: Uses LearningMemoryClient (supports both JSON and Neo4j backends)
             from app.clients.graphiti_client import get_learning_memory_client
+
             memory_client = get_learning_memory_client()
             await memory_client.initialize()
 
             # Get all learning episodes for this canvas
             # Filter for verification canvas pattern: *-检验白板-*
             all_memories = await memory_client.get_learning_history(
-                original_canvas_path,
-                limit=100
+                original_canvas_path, limit=100
             )
 
             # Group by verification canvas sessions
@@ -1575,7 +1678,7 @@ class ReviewService:
                         "date": memory.get("timestamp", datetime.now(timezone.utc)),
                         "mode": memory.get("mode", "fresh"),
                         "concepts": [],
-                        "scores": []
+                        "scores": [],
                     }
 
                 # Add concept score
@@ -1595,16 +1698,20 @@ class ReviewService:
 
                 total_concepts = len(scores)
                 passed_concepts = sum(1 for s in scores if s >= 24)  # >= 60% threshold
-                pass_rate = passed_concepts / total_concepts if total_concepts > 0 else 0.0
+                pass_rate = (
+                    passed_concepts / total_concepts if total_concepts > 0 else 0.0
+                )
 
-                reviews.append({
-                    "review_canvas_path": session_data["review_canvas_path"],
-                    "date": session_data["date"],
-                    "mode": session_data["mode"],
-                    "pass_rate": pass_rate,
-                    "total_concepts": total_concepts,
-                    "passed_concepts": passed_concepts
-                })
+                reviews.append(
+                    {
+                        "review_canvas_path": session_data["review_canvas_path"],
+                        "date": session_data["date"],
+                        "mode": session_data["mode"],
+                        "pass_rate": pass_rate,
+                        "total_concepts": total_concepts,
+                        "passed_concepts": passed_concepts,
+                    }
+                )
 
             # Sort by date descending (newest first)
             reviews.sort(key=lambda x: x["date"], reverse=True)
@@ -1614,13 +1721,19 @@ class ReviewService:
             )
             return reviews
 
-        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
+        except (
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+        ) as e:
             logger.error(f"Error querying review history: {e}")
             return []
 
     def _calculate_trend_analysis(
-        self,
-        reviews: List[Dict[str, Any]]
+        self, reviews: List[Dict[str, Any]]
     ) -> Optional[Dict[str, Any]]:
         """
         Calculate trend metrics from review history.
@@ -1644,8 +1757,10 @@ class ReviewService:
         # Pass rate trend (newest first in reviews, reverse for chronological chart)
         pass_rate_trend = [
             {
-                "date": r["date"].split("T")[0] if isinstance(r["date"], str) else r["date"].strftime("%Y-%m-%d"),
-                "pass_rate": r["pass_rate"]
+                "date": r["date"].split("T")[0]
+                if isinstance(r["date"], str)
+                else r["date"].strftime("%Y-%m-%d"),
+                "pass_rate": r["pass_rate"],
             }
             for r in reversed(reviews)
         ]
@@ -1653,7 +1768,7 @@ class ReviewService:
         # Calculate overall progress
         if len(reviews) >= 2:
             first_pass_rate = reviews[-1]["pass_rate"]  # Oldest
-            last_pass_rate = reviews[0]["pass_rate"]   # Newest
+            last_pass_rate = reviews[0]["pass_rate"]  # Newest
             progress_rate = last_pass_rate - first_pass_rate
 
             if progress_rate > 0.05:
@@ -1671,13 +1786,12 @@ class ReviewService:
             "weak_concepts_improvement": [],  # Populated by separate query if needed
             "overall_progress": {
                 "progress_rate": progress_rate,
-                "trend_direction": trend_direction
-            }
+                "trend_direction": trend_direction,
+            },
         }
 
     async def _query_weak_concepts_improvement(
-        self,
-        original_canvas_path: str
+        self, original_canvas_path: str
     ) -> List[Dict[str, Any]]:
         """
         Query Graphiti for weak concept improvement over time.
@@ -1696,25 +1810,26 @@ class ReviewService:
         if not self.graphiti_client:
             logger.warning(
                 "功能 %s 降级运行: %s 为 None，返回默认值 %s",
-                "get_weak_concept_improvement", "graphiti_client", "[]"
+                "get_weak_concept_improvement",
+                "graphiti_client",
+                "[]",
             )
             return []
 
         try:
             from app.clients.graphiti_client import get_learning_memory_client
+
             memory_client = get_learning_memory_client()
             await memory_client.initialize()
 
             # Get all verification session memories
             all_memories = await memory_client.get_learning_history(
-                original_canvas_path,
-                limit=200
+                original_canvas_path, limit=200
             )
 
             # Filter for verification canvas sessions
             verification_memories = [
-                m for m in all_memories
-                if "-检验白板-" in m.get("source_canvas", "")
+                m for m in all_memories if "-检验白板-" in m.get("source_canvas", "")
             ]
 
             # Group by concept
@@ -1727,10 +1842,9 @@ class ReviewService:
                 if concept and score is not None and timestamp:
                     if concept not in concept_scores:
                         concept_scores[concept] = []
-                    concept_scores[concept].append({
-                        "score": score,
-                        "timestamp": timestamp
-                    })
+                    concept_scores[concept].append(
+                        {"score": score, "timestamp": timestamp}
+                    )
 
             # Calculate improvement for each concept
             improvements = []
@@ -1743,7 +1857,9 @@ class ReviewService:
 
                 # Only include if initially weak (< 60%)
                 if first_score < 24:  # 24/40 = 60%
-                    improvement_rate = (last_score - first_score) / 40  # Normalize to 0-1
+                    improvement_rate = (
+                        last_score - first_score
+                    ) / 40  # Normalize to 0-1
 
                     # Determine status
                     if last_score >= 32:  # >= 80%
@@ -1753,18 +1869,27 @@ class ReviewService:
                     else:
                         status = "weak"
 
-                    improvements.append({
-                        "concept_name": concept_name,
-                        "improvement_rate": max(0, improvement_rate),
-                        "current_status": status
-                    })
+                    improvements.append(
+                        {
+                            "concept_name": concept_name,
+                            "improvement_rate": max(0, improvement_rate),
+                            "current_status": status,
+                        }
+                    )
 
             # Sort by improvement_rate descending
             improvements.sort(key=lambda x: x["improvement_rate"], reverse=True)
 
             return improvements
 
-        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
+        except (
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+        ) as e:
             logger.error(f"Error querying weak concept improvement: {e}")
             return []
 
@@ -1774,9 +1899,7 @@ class ReviewService:
     # ═══════════════════════════════════════════════════════════════════════════════
 
     async def load_card_state(
-        self,
-        concept_id: str,
-        canvas_name: Optional[str] = None
+        self, concept_id: str, canvas_name: Optional[str] = None
     ) -> Optional[str]:
         """
         Load FSRS card state from persistence layer.
@@ -1799,13 +1922,13 @@ class ReviewService:
         if self.graphiti_client:
             try:
                 from app.clients.graphiti_client import get_learning_memory_client
+
                 memory_client = get_learning_memory_client()
                 await memory_client.initialize()
 
                 # Query for concept's FSRS card state
                 history = await memory_client.get_learning_history(
-                    canvas_name or "",
-                    limit=1
+                    canvas_name or "", limit=1
                 )
 
                 # Look for card_data in most recent record
@@ -1816,10 +1939,19 @@ class ReviewService:
                             # Cache it + persist (P0-2)
                             self._card_states[concept_id] = card_data
                             await self._save_card_states()
-                            logger.debug(f"Loaded card state from Graphiti: {concept_id}")
+                            logger.debug(
+                                f"Loaded card state from Graphiti: {concept_id}"
+                            )
                             return card_data
 
-            except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
+            except (
+                ConnectionError,
+                TimeoutError,
+                ValueError,
+                KeyError,
+                TypeError,
+                AttributeError,
+            ) as e:
                 logger.warning(f"Failed to load card state from Graphiti: {e}")
 
         return None
@@ -1830,7 +1962,7 @@ class ReviewService:
         card_data: str,
         canvas_name: str,
         rating: int,
-        score: Optional[float] = None
+        score: Optional[float] = None,
     ) -> bool:
         """
         Save FSRS card state to persistence layer.
@@ -1856,6 +1988,7 @@ class ReviewService:
         if self.graphiti_client:
             try:
                 from app.clients.graphiti_client import get_learning_memory_client
+
                 memory_client = get_learning_memory_client()
                 await memory_client.initialize()
 
@@ -1867,14 +2000,21 @@ class ReviewService:
                     "score": score,
                     "card_data": card_data,
                     "algorithm": "fsrs-4.5",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
                 await memory_client.add_learning_memory(memory_data)
                 logger.info(f"Saved card state to Graphiti: {concept_id}")
                 return True
 
-            except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
+            except (
+                ConnectionError,
+                TimeoutError,
+                ValueError,
+                KeyError,
+                TypeError,
+                AttributeError,
+            ) as e:
                 logger.warning(f"Failed to save card state to Graphiti: {e}")
                 # In-memory cache still valid
                 return True
@@ -1916,7 +2056,9 @@ class ReviewService:
         if self._fsrs_manager is None:
             logger.warning(
                 "功能 %s 降级运行: %s 为 None，返回默认值 %s",
-                "get_fsrs_state", "fsrs_manager", "found=False"
+                "get_fsrs_state",
+                "fsrs_manager",
+                "found=False",
             )
             return {"found": False, "reason": "fsrs_not_initialized"}
 
@@ -1930,7 +2072,9 @@ class ReviewService:
 
             if not card_data:
                 # Story 38.3 AC-4: Auto-create default FSRS card for new concepts
-                logger.info(f"Auto-creating default FSRS card for concept: {concept_id}")
+                logger.info(
+                    f"Auto-creating default FSRS card for concept: {concept_id}"
+                )
                 card = self._fsrs_manager.create_card()
                 card_data = self._fsrs_manager.serialize_card(card)
                 # Cache the newly created card + persist (P0-2)
@@ -1945,7 +2089,10 @@ class ReviewService:
 
                 async def _persist_auto_created_card(cid: str, cdata: str) -> None:
                     try:
-                        from app.clients.graphiti_client import get_learning_memory_client
+                        from app.clients.graphiti_client import (
+                            get_learning_memory_client,
+                        )
+
                         memory_client = get_learning_memory_client()
                         await memory_client.initialize()
                         memory_data = {
@@ -1955,7 +2102,7 @@ class ReviewService:
                             "card_data": cdata,
                             "algorithm": "fsrs-4.5",
                             "auto_created": True,
-                            "timestamp": datetime.now(timezone.utc).isoformat()
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                         await memory_client.add_learning_memory(memory_data)
                         logger.info(f"Persisted auto-created card to Graphiti: {cid}")
@@ -1998,7 +2145,7 @@ class ReviewService:
                 "retrievability": retrievability,
                 "due": due_date,
                 "last_review": getattr(card, "last_review", None),
-                "card_state": card_data  # Full JSON for plugin to cache/deserialize
+                "card_state": card_data,  # Full JSON for plugin to cache/deserialize
             }
 
             logger.debug(
@@ -2061,8 +2208,8 @@ async def get_review_service() -> "ReviewService":
             return _review_service_singleton
 
         from app.config import get_settings
-        from app.services.canvas_service import CanvasService
         from app.services.background_task_manager import BackgroundTaskManager
+        from app.services.canvas_service import CanvasService
 
         settings = get_settings()
 
@@ -2070,13 +2217,15 @@ async def get_review_service() -> "ReviewService":
         memory_client = None
         try:
             from app.services.memory_service import get_memory_service as _get_mem
+
             memory_client = await _get_mem()
         except (ImportError, RuntimeError, AttributeError) as e:
-            logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
+            logger.warning(
+                f"MemoryService not available for CanvasService edge sync: {e}"
+            )
 
         canvas_service = CanvasService(
-            canvas_base_path=settings.canvas_base_path,
-            memory_client=memory_client
+            canvas_base_path=settings.canvas_base_path, memory_client=memory_client
         )
 
         # 2. BackgroundTaskManager
@@ -2089,6 +2238,7 @@ async def get_review_service() -> "ReviewService":
         graphiti_client = None
         try:
             from app.dependencies import get_graphiti_temporal_client
+
             graphiti_client = get_graphiti_temporal_client()
         except (ImportError, RuntimeError, AttributeError) as e:
             logger.warning(f"Failed to get graphiti_client for ReviewService: {e}")
@@ -2103,7 +2253,7 @@ async def get_review_service() -> "ReviewService":
             canvas_service=canvas_service,
             task_manager=task_manager,
             graphiti_client=graphiti_client,
-            fsrs_manager=fsrs_manager
+            fsrs_manager=fsrs_manager,
         )
         logger.info("ReviewService singleton created via services layer factory")
         return _review_service_singleton

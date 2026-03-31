@@ -23,33 +23,33 @@ logger = logging.getLogger(__name__)
 # Quality thresholds per prompt type (AC-5)
 QUALITY_THRESHOLDS = {
     "autoscore": {
-        "scoring_consistency_rate": 0.80,   # >= 80%
-        "max_avg_score_diff": 0.5,          # <= 0.5 points
+        "scoring_consistency_rate": 0.80,  # >= 80%
+        "max_avg_score_diff": 0.5,  # <= 0.5 points
     },
     "question_gen": {
-        "format_compliance_rate": 0.90,     # >= 90%
-        "difficulty_match_rate": 0.70,      # >= 70%
+        "format_compliance_rate": 0.90,  # >= 90%
+        "difficulty_match_rate": 0.70,  # >= 70%
     },
     "context_extract": {
-        "extraction_recall": 0.85,          # >= 85%
-        "classification_accuracy": 0.80,    # >= 80%
+        "extraction_recall": 0.85,  # >= 85%
+        "classification_accuracy": 0.80,  # >= 80%
     },
     # Story 2.13: Retrieval pipeline prompt thresholds
     "query_rewrite": {
-        "format_compliance_rate": 0.90,     # >= 90%
-        "rewrite_diversity_rate": 0.80,     # >= 80%
+        "format_compliance_rate": 0.90,  # >= 90%
+        "rewrite_diversity_rate": 0.80,  # >= 80%
     },
     "crag_grading": {
         "classification_consistency": 0.80,  # >= 80%
-        "crag_trigger_rate": 0.10,          # >= 10% (healthy minimum)
+        "crag_trigger_rate": 0.10,  # >= 10% (healthy minimum)
     },
     "search_intent": {
-        "json_format_compliance_rate": 0.90,     # >= 90%
+        "json_format_compliance_rate": 0.90,  # >= 90%
         "intent_classification_accuracy": 0.80,  # >= 80%
     },
     "query_optimize": {
-        "json_format_compliance_rate": 0.90,     # >= 90%
-        "query_diversity_rate": 0.80,            # >= 80%
+        "json_format_compliance_rate": 0.90,  # >= 90%
+        "query_diversity_rate": 0.80,  # >= 80%
     },
 }
 
@@ -168,7 +168,9 @@ class RegressionReportGenerator:
         """Format the report as a human-readable terminal table."""
         lines = list()
         lines.append("=" * 72)
-        lines.append(f"  PROMPT REGRESSION REPORT: {report.prompt_name} v{report.prompt_version}")
+        lines.append(
+            f"  PROMPT REGRESSION REPORT: {report.prompt_name} v{report.prompt_version}"
+        )
         lines.append(f"  Hash: {report.prompt_hash[:16]}...")
         lines.append(f"  Time: {report.timestamp}")
         lines.append("=" * 72)

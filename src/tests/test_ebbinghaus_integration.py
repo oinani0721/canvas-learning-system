@@ -27,11 +27,11 @@ class TestEbbinghausIntegration:
         """测试类初始化"""
         cls.commands_dir = Path("C:/Users/ROG/托福/.claude/commands")
         cls.review_commands = [
-            "review.md",               # 主复习命令
-            "ebbinghaus.md",           # 艾宾浩斯系统
-            "generate-review.md",      # 生成复习建议
-            "review-adapt.md",         # 动态复习调整
-            "review-progress.md"       # 复习进度追踪
+            "review.md",  # 主复习命令
+            "ebbinghaus.md",  # 艾宾浩斯系统
+            "generate-review.md",  # 生成复习建议
+            "review-adapt.md",  # 动态复习调整
+            "review-progress.md",  # 复习进度追踪
         ]
         print("\n✅ 艾宾浩斯复习系统测试环境初始化")
         print(f"   命令目录: {cls.commands_dir}")
@@ -47,8 +47,8 @@ class TestEbbinghausIntegration:
                 missing_files.append(command_file)
 
         assert len(missing_files) == 0, (
-            f"以下{len(missing_files)}个艾宾浩斯命令文件不存在:\n" +
-            "\n".join(f"  - {f}" for f in missing_files)
+            f"以下{len(missing_files)}个艾宾浩斯命令文件不存在:\n"
+            + "\n".join(f"  - {f}" for f in missing_files)
         )
 
         print("\n✅ Subtask 4.1 通过: 艾宾浩斯算法实现位置验证")
@@ -69,14 +69,14 @@ class TestEbbinghausIntegration:
         """Subtask 4.3: 验证颜色流转事件触发复习调度更新的接口设计"""
         # 验证主复习命令的结构
         review_cmd_path = self.commands_dir / "review.md"
-        content = review_cmd_path.read_text(encoding='utf-8')
+        content = review_cmd_path.read_text(encoding="utf-8")
 
         # 检查关键功能点
         required_features = [
-            "show",         # 显示复习任务
-            "stats",        # 统计数据
-            "complete",     # 完成复习
-            "help"          # 帮助信息
+            "show",  # 显示复习任务
+            "stats",  # 统计数据
+            "complete",  # 完成复习
+            "help",  # 帮助信息
         ]
 
         missing_features = []
@@ -97,16 +97,20 @@ class TestEbbinghausIntegration:
         gen_review_path = self.commands_dir / "generate-review.md"
         assert gen_review_path.exists(), "generate-review命令文件不存在"
 
-        content = gen_review_path.read_text(encoding='utf-8')
+        content = gen_review_path.read_text(encoding="utf-8")
 
         # 检查是否支持从Canvas节点生成复习任务
         review_related_keywords = [
             "复习" or "review",
             "canvas" or "Canvas",
-            "节点" or "node"
+            "节点" or "node",
         ]
 
-        found_keywords = sum(1 for kw in review_related_keywords if any(word in content for word in kw.split(" or ")))
+        found_keywords = sum(
+            1
+            for kw in review_related_keywords
+            if any(word in content for word in kw.split(" or "))
+        )
 
         assert found_keywords >= 2, (
             f"generate-review命令缺少Canvas节点相关功能（找到{found_keywords}/3个关键词）"
@@ -123,17 +127,21 @@ class TestEbbinghausIntegration:
         if not ebb_path.exists():
             pytest.skip("ebbinghaus.md文件不存在，跳过遗忘曲线测试")
 
-        content = ebb_path.read_text(encoding='utf-8')
+        content = ebb_path.read_text(encoding="utf-8")
 
         # 检查遗忘曲线相关关键词
         forgetting_curve_keywords = [
             "遗忘" or "forgetting",
             "曲线" or "curve",
             "间隔" or "interval",
-            "记忆" or "memory"
+            "记忆" or "memory",
         ]
 
-        found_keywords = sum(1 for kw in forgetting_curve_keywords if any(word in content for word in kw.split(" or ")))
+        found_keywords = sum(
+            1
+            for kw in forgetting_curve_keywords
+            if any(word in content for word in kw.split(" or "))
+        )
 
         # 至少应该有2个关键词
         assert found_keywords >= 2, (
@@ -151,16 +159,20 @@ class TestEbbinghausIntegration:
         if not progress_path.exists():
             pytest.skip("review-progress.md文件不存在")
 
-        content = progress_path.read_text(encoding='utf-8')
+        content = progress_path.read_text(encoding="utf-8")
 
         # 验证复习进度追踪功能
         progress_keywords = [
             "进度" or "progress",
             "统计" or "stats",
-            "建议" or "suggestion" or "recommend"
+            "建议" or "suggestion" or "recommend",
         ]
 
-        found_keywords = sum(1 for kw in progress_keywords if any(word in content for word in kw.split(" or ")))
+        found_keywords = sum(
+            1
+            for kw in progress_keywords
+            if any(word in content for word in kw.split(" or "))
+        )
 
         assert found_keywords >= 2, (
             f"review-progress命令缺少报告相关功能（找到{found_keywords}/3个关键词）"
@@ -175,9 +187,9 @@ class TestEbbinghausIntegration:
 
         # 验证所需的命令文件都存在
         required_workflow_files = [
-            "review.md",              # 复习任务显示
-            "generate-review.md",     # 生成复习任务
-            "review-adapt.md"         # 动态调整
+            "review.md",  # 复习任务显示
+            "generate-review.md",  # 生成复习任务
+            "review-adapt.md",  # 动态调整
         ]
 
         missing_files = []
@@ -195,7 +207,7 @@ class TestEbbinghausIntegration:
             "step2": "监控系统检测到绿色节点（understanding_mastered事件）",
             "step3": "触发generate-review命令添加到复习队列",
             "step4": "用户运行/review show查看今日复习任务",
-            "step5": "用户完成复习后运行/review complete记录"
+            "step5": "用户完成复习后运行/review complete记录",
         }
 
         print("\n✅ Subtask 4.7 通过: 颜色流转→复习队列工作流验证")
@@ -215,7 +227,9 @@ class TestEbbinghausIntegration:
         integration_doc_lines.append("## 1. 系统概述")
         integration_doc_lines.append("")
         integration_doc_lines.append("艾宾浩斯复习系统是Canvas学习系统的智能复习组件，")
-        integration_doc_lines.append("基于艾宾浩斯遗忘曲线理论，为用户提供科学的复习调度。")
+        integration_doc_lines.append(
+            "基于艾宾浩斯遗忘曲线理论，为用户提供科学的复习调度。"
+        )
         integration_doc_lines.append("")
         integration_doc_lines.append("## 2. 核心命令")
         integration_doc_lines.append("")
@@ -226,10 +240,12 @@ class TestEbbinghausIntegration:
             if cmd_path.exists():
                 file_size = cmd_path.stat().st_size
                 integration_doc_lines.append(f"{i}. **{cmd_file}** ({file_size:,}字节)")
-                integration_doc_lines.append(f"   - 位置: `.claude/commands/{cmd_file}`")
+                integration_doc_lines.append(
+                    f"   - 位置: `.claude/commands/{cmd_file}`"
+                )
 
                 # 读取命令描述（从YAML frontmatter）
-                content = cmd_path.read_text(encoding='utf-8')
+                content = cmd_path.read_text(encoding="utf-8")
                 if "description:" in content:
                     # 提取description
                     for line in content.split("\n"):
@@ -243,11 +259,15 @@ class TestEbbinghausIntegration:
         integration_doc_lines.append("")
         integration_doc_lines.append("### 3.1 Canvas监控系统 → 艾宾浩斯系统")
         integration_doc_lines.append("")
-        integration_doc_lines.append("**触发条件**: 节点颜色变更为绿色（understanding_mastered事件）")
+        integration_doc_lines.append(
+            "**触发条件**: 节点颜色变更为绿色（understanding_mastered事件）"
+        )
         integration_doc_lines.append("")
         integration_doc_lines.append("```python")
         integration_doc_lines.append("# 伪代码示例")
-        integration_doc_lines.append("def on_node_mastered(canvas_id, node_id, concept_name):")
+        integration_doc_lines.append(
+            "def on_node_mastered(canvas_id, node_id, concept_name):"
+        )
         integration_doc_lines.append("    # 调用generate-review命令添加到复习队列")
         integration_doc_lines.append("    ebbinghaus_system.add_to_review_queue(")
         integration_doc_lines.append("        user_id=current_user,")
@@ -266,12 +286,16 @@ class TestEbbinghausIntegration:
         integration_doc_lines.append("# 伪代码示例")
         integration_doc_lines.append("def generate_learning_report(date):")
         integration_doc_lines.append("    # 调用review.md获取复习建议")
-        integration_doc_lines.append("    due_reviews = ebbinghaus_system.get_due_reviews(")
+        integration_doc_lines.append(
+            "    due_reviews = ebbinghaus_system.get_due_reviews("
+        )
         integration_doc_lines.append("        user_id=current_user,")
         integration_doc_lines.append("        date=date")
         integration_doc_lines.append("    )")
         integration_doc_lines.append("    ")
-        integration_doc_lines.append("    report['review_suggestions'] = format_review_suggestions(due_reviews)")
+        integration_doc_lines.append(
+            "    report['review_suggestions'] = format_review_suggestions(due_reviews)"
+        )
         integration_doc_lines.append("    return report")
         integration_doc_lines.append("```")
         integration_doc_lines.append("")
@@ -305,14 +329,16 @@ class TestEbbinghausIntegration:
         integration_doc_lines.append("✅ 颜色流转→复习队列工作流设计完整")
         integration_doc_lines.append("")
         integration_doc_lines.append("---")
-        integration_doc_lines.append("**集成状态**: ✅ 艾宾浩斯复习系统与Canvas监控系统集成验证完成")
+        integration_doc_lines.append(
+            "**集成状态**: ✅ 艾宾浩斯复习系统与Canvas监控系统集成验证完成"
+        )
 
         doc_content = "\n".join(integration_doc_lines)
 
         # 输出文档到测试日志
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(doc_content)
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
         print("\n✅ Subtask 4.8 通过: 艾宾浩斯集成文档已生成")
         print(f"   文档行数: {len(integration_doc_lines)}")

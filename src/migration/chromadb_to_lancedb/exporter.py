@@ -55,7 +55,9 @@ class ChromaDBExporter:
         result = exporter.export_collection("canvas_explanations", "data/migration/")
     """
 
-    def __init__(self, client: Optional[Any] = None, persist_directory: Optional[str] = None):
+    def __init__(
+        self, client: Optional[Any] = None, persist_directory: Optional[str] = None
+    ):
         """
         Initialize ChromaDB exporter.
 
@@ -75,11 +77,13 @@ class ChromaDBExporter:
             import chromadb
             from chromadb.config import Settings
 
-            self.client = chromadb.Client(Settings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=self.persist_directory,
-                anonymized_telemetry=False
-            ))
+            self.client = chromadb.Client(
+                Settings(
+                    chroma_db_impl="duckdb+parquet",
+                    persist_directory=self.persist_directory,
+                    anonymized_telemetry=False,
+                )
+            )
             logger.info(f"Initialized ChromaDB client from {self.persist_directory}")
         except ImportError:
             logger.warning("chromadb not installed, using mock client")
@@ -101,10 +105,7 @@ class ChromaDBExporter:
             return []
 
     def export_collection(
-        self,
-        collection_name: str,
-        output_dir: str,
-        batch_size: int = 1000
+        self, collection_name: str, output_dir: str, batch_size: int = 1000
     ) -> ExportResult:
         """
         Export a ChromaDB collection to JSONL format.
@@ -118,6 +119,7 @@ class ChromaDBExporter:
             ExportResult with export statistics
         """
         import time
+
         start_time = time.time()
         errors: List[str] = []
         record_count = 0
@@ -128,7 +130,9 @@ class ChromaDBExporter:
 
         # Generate output filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = output_path / f"chromadb_export_{collection_name}_{timestamp}.jsonl"
+        output_file = (
+            output_path / f"chromadb_export_{collection_name}_{timestamp}.jsonl"
+        )
 
         try:
             if self.client is None:
@@ -139,9 +143,7 @@ class ChromaDBExporter:
 
             # Get all documents with embeddings and metadata
             # ✅ Verified from ChromaDB docs - get() returns documents, metadatas, embeddings
-            results = collection.get(
-                include=["documents", "metadatas", "embeddings"]
-            )
+            results = collection.get(include=["documents", "metadatas", "embeddings"])
 
             ids = results.get("ids", [])
             documents = results.get("documents", [])
@@ -193,9 +195,7 @@ class ChromaDBExporter:
         )
 
     def export_all_collections(
-        self,
-        output_dir: str,
-        collections: Optional[List[str]] = None
+        self, output_dir: str, collections: Optional[List[str]] = None
     ) -> Dict[str, ExportResult]:
         """
         Export multiple collections to JSONL files.
@@ -224,7 +224,7 @@ def export_collection_to_jsonl(
     collection_name: str,
     output_path: str,
     chromadb_client: Optional[Any] = None,
-    persist_directory: Optional[str] = None
+    persist_directory: Optional[str] = None,
 ) -> ExportResult:
     """
     Convenience function to export a ChromaDB collection to JSONL.
@@ -239,7 +239,6 @@ def export_collection_to_jsonl(
         ExportResult with export statistics
     """
     exporter = ChromaDBExporter(
-        client=chromadb_client,
-        persist_directory=persist_directory
+        client=chromadb_client, persist_directory=persist_directory
     )
     return exporter.export_collection(collection_name, output_path)

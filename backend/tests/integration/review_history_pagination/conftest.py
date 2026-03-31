@@ -4,15 +4,14 @@ Shared fixtures extracted from test_review_history_pagination.py (1234 lines).
 Eliminates ~15 duplicate mock definitions across test modules.
 """
 
-from datetime import datetime, date, timedelta
-from typing import Dict, Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import date, datetime, timedelta
+from typing import Any, Dict
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app
 from app.services.review_service import ReviewService
+from fastapi.testclient import TestClient
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -22,10 +21,12 @@ _FIXED_REVIEW_TIME = datetime(2025, 1, 15, 10, 30, 0)
 
 # ── Singleton reset (autouse) ───────────────────────────────────────────────
 
+
 @pytest.fixture(autouse=True)
 def _reset_review_service_singleton():
     """Reset ReviewService singleton between tests to prevent contamination."""
     from app.services.review_service import reset_review_service_singleton
+
     reset_review_service_singleton()
     try:
         yield
@@ -35,6 +36,7 @@ def _reset_review_service_singleton():
 
 # ── Shared fixtures ─────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def client():
     """Create FastAPI test client (shared across all test modules)."""
@@ -43,6 +45,7 @@ def client():
 
 # ── Helper functions ─────────────────────────────────────────────────────────
 
+
 def make_mock_review_service(history_return_value: dict = None) -> AsyncMock:
     """Create a mock ReviewService with get_history pre-configured.
 
@@ -50,7 +53,8 @@ def make_mock_review_service(history_return_value: dict = None) -> AsyncMock:
     """
     service = AsyncMock()
     service.get_history = AsyncMock(
-        return_value=history_return_value or {
+        return_value=history_return_value
+        or {
             "records": [],
             "has_more": False,
             "streak_days": 0,
@@ -71,7 +75,9 @@ class TestableReviewService(ReviewService):
         self._card_states = states
 
 
-def make_real_review_service(card_states: Dict[str, Any] = None) -> TestableReviewService:
+def make_real_review_service(
+    card_states: Dict[str, Any] = None,
+) -> TestableReviewService:
     """Create a TestableReviewService with mock infrastructure but real business logic.
 
     Story 34.8 AC1: Only CanvasService and TaskManager are mocked (infrastructure).

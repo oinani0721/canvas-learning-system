@@ -22,11 +22,9 @@ from typing import Optional
 
 # ✅ Verified from Context7:/fastapi/fastapi (topic: APIRouter, HTTPException)
 from fastapi import APIRouter, HTTPException, Path, status
-from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
-from app.services.intelligent_grouping_service import CanvasNotFoundError
 from app.models.intelligent_parallel_models import (
     CancelResponse,
     ConfirmRequest,
@@ -38,6 +36,7 @@ from app.models.intelligent_parallel_models import (
     SingleAgentRequest,
     SingleAgentResponse,
 )
+from app.services.intelligent_grouping_service import CanvasNotFoundError
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Routers
@@ -85,14 +84,14 @@ def get_service():
     """
     global _service, _validator_set
     if _service is None:
+        from app.dependencies import (
+            get_agent_routing_engine,
+            get_intelligent_grouping_service,
+            get_session_manager,
+            get_settings,
+        )
         from app.services.intelligent_parallel_service import (
             IntelligentParallelService,
-        )
-        from app.dependencies import (
-            get_settings,
-            get_session_manager,
-            get_intelligent_grouping_service,
-            get_agent_routing_engine,
         )
 
         settings = get_settings()
@@ -114,6 +113,7 @@ def get_service():
         if not _validator_set:
             try:
                 from app.api.v1.endpoints.websocket import set_session_validator
+
                 set_session_validator(_service.session_exists)
                 _validator_set = True
             except ImportError:
@@ -148,7 +148,12 @@ async def _ensure_async_deps() -> None:
 
         # Story 33.11 AC-33.11.2: Delegate to dependencies.py (single source of truth)
         from app.dependencies import build_batch_processing_deps
-        batch_orchestrator, agent_service, canvas_service = await build_batch_processing_deps()
+
+        (
+            batch_orchestrator,
+            agent_service,
+            canvas_service,
+        ) = await build_batch_processing_deps()
 
         # Inject into the singleton service
         service._batch_orchestrator = batch_orchestrator
@@ -174,6 +179,7 @@ def reset_service():
 # POST /canvas/intelligent-parallel - Analyze and group nodes (AC1)
 # [Source: specs/api/parallel-api.openapi.yml#L54-L95]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @intelligent_parallel_router.post(
     "/",
@@ -250,6 +256,7 @@ async def analyze_canvas(
 # POST /canvas/intelligent-parallel/confirm - Start batch processing (AC2)
 # [Source: specs/api/parallel-api.openapi.yml#L96-L132]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @intelligent_parallel_router.post(
     "/confirm",
@@ -340,6 +347,7 @@ async def confirm_batch(
 # [Source: specs/api/parallel-api.openapi.yml#L133-L169]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @intelligent_parallel_router.get(
     "/{session_id}",
     response_model=ProgressResponse,
@@ -413,6 +421,7 @@ async def get_progress(
 # POST /canvas/intelligent-parallel/cancel/{session_id} - Cancel session (AC4)
 # [Source: specs/api/parallel-api.openapi.yml#L170-L217]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @intelligent_parallel_router.post(
     "/cancel/{session_id}",
@@ -504,6 +513,7 @@ async def cancel_session(
 # POST /canvas/single-agent - Retry single failed node (AC5)
 # [Source: specs/api/parallel-api.openapi.yml - NEW endpoint]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @single_agent_router.post(
     "/single-agent",

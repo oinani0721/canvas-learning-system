@@ -4,6 +4,7 @@
 Unit tests for Canvas Error System - ErrorSeverity enum and related functionality
 Tests for Story 8.1: 修复ErrorSeverity枚举缺失INFO属性
 """
+
 import os
 import sys
 
@@ -49,7 +50,13 @@ class TestErrorSeverityEnum:
     def test_error_severity_iteration(self):
         """Test that all error severity levels can be iterated"""
         all_levels = list(ErrorSeverity)
-        expected_levels = [ErrorSeverity.LOW, ErrorSeverity.MEDIUM, ErrorSeverity.HIGH, ErrorSeverity.CRITICAL, ErrorSeverity.INFO]
+        expected_levels = [
+            ErrorSeverity.LOW,
+            ErrorSeverity.MEDIUM,
+            ErrorSeverity.HIGH,
+            ErrorSeverity.CRITICAL,
+            ErrorSeverity.INFO,
+        ]
 
         assert len(all_levels) == 5  # Should have 5 levels after the fix
         for level in expected_levels:
@@ -72,7 +79,7 @@ class TestErrorSeverityEnum:
             severity=ErrorSeverity.INFO,  # This should work after the fix
             error_type="Test Info",
             error_message="This is a test info message",
-            context={"test": True}
+            context={"test": True},
         )
 
         assert error_record.severity == ErrorSeverity.INFO
@@ -88,7 +95,7 @@ class TestErrorSeverityEnum:
             severity=ErrorSeverity.HIGH,  # Existing level
             error_type="Canvas Error",
             error_message="Canvas operation failed",
-            context={"operation": "read"}
+            context={"operation": "read"},
         )
 
         assert error_record.severity == ErrorSeverity.HIGH
@@ -116,7 +123,7 @@ class TestErrorSeverityIntegration:
                 severity=severity,
                 error_type="Test Error",
                 error_message=f"Test {severity.value} error in {category.value}",
-                context={}
+                context={},
             )
 
             assert error_record.severity == severity
@@ -129,7 +136,7 @@ class TestErrorSeverityIntegration:
             "medium": ErrorSeverity.MEDIUM,
             "high": ErrorSeverity.HIGH,
             "critical": ErrorSeverity.CRITICAL,
-            "info": ErrorSeverity.INFO
+            "info": ErrorSeverity.INFO,
         }
 
         actual_levels = {level.value: level for level in ErrorSeverity}

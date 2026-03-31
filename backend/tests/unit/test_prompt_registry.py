@@ -21,6 +21,7 @@ from app.services.prompt_registry import PromptRegistry, PromptTemplate
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────
 
+
 @pytest.fixture(autouse=True)
 def reset_singleton():
     """Reset PromptRegistry singleton before each test."""
@@ -89,6 +90,7 @@ def loaded_registry(sample_prompt_dir: Path) -> PromptRegistry:
 
 # ─── Test: Loading ────────────────────────────────────────────────────────
 
+
 class TestPromptRegistryLoading:
     """Tests for load_all() and directory scanning."""
 
@@ -150,6 +152,7 @@ class TestPromptRegistryLoading:
 
 # ─── Test: Get API ────────────────────────────────────────────────────────
 
+
 class TestPromptRegistryGet:
     """Tests for get() and get_template()."""
 
@@ -183,6 +186,7 @@ class TestPromptRegistryGet:
 
 # ─── Test: Metadata ──────────────────────────────────────────────────────
 
+
 class TestPromptRegistryMetadata:
     """Tests for metadata parsing and retrieval."""
 
@@ -205,6 +209,7 @@ class TestPromptRegistryMetadata:
 
 
 # ─── Test: Hash ───────────────────────────────────────────────────────────
+
 
 class TestPromptRegistryHash:
     """Tests for content hash computation."""
@@ -236,6 +241,7 @@ class TestPromptRegistryHash:
 
 # ─── Test: Version Listing ────────────────────────────────────────────────
 
+
 class TestPromptRegistryVersions:
     """Tests for list_versions() and list_names()."""
 
@@ -262,6 +268,7 @@ class TestPromptRegistryVersions:
 
 # ─── Test: Version Rollback ──────────────────────────────────────────────
 
+
 class TestPromptRegistryRollback:
     """Tests for version pinning and rollback."""
 
@@ -286,7 +293,9 @@ class TestPromptRegistryRollback:
         loaded_registry.set_active_version("sample", 1)
         assert loaded_registry.get_active_version("sample") == 1
 
-    def test_set_active_nonexistent_version_raises(self, loaded_registry: PromptRegistry):
+    def test_set_active_nonexistent_version_raises(
+        self, loaded_registry: PromptRegistry
+    ):
         """Pinning nonexistent version raises PromptLoadError."""
         with pytest.raises(PromptLoadError, match="Cannot set active version"):
             loaded_registry.set_active_version("sample", 99)
@@ -298,6 +307,7 @@ class TestPromptRegistryRollback:
 
 
 # ─── Test: Singleton ─────────────────────────────────────────────────────
+
 
 class TestPromptRegistrySingleton:
     """Tests for singleton pattern."""
@@ -317,6 +327,7 @@ class TestPromptRegistrySingleton:
 
 
 # ─── Test: Real Prompts ──────────────────────────────────────────────────
+
 
 class TestRealPrompts:
     """Integration tests using actual prompt files from the project."""

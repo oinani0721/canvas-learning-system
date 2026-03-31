@@ -13,15 +13,16 @@ Tests verify:
 
 [Source: docs/stories/36.4.story.md#Task-4]
 """
+
 import asyncio
 import json
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from app.services.canvas_service import CanvasService
 
 from tests.conftest import simulate_async_delay
-from app.services.canvas_service import CanvasService
 
 
 @pytest.fixture
@@ -38,8 +39,7 @@ def mock_memory_client():
 def canvas_service_with_memory(mock_memory_client, tmp_path):
     """Create CanvasService with mock memory client."""
     return CanvasService(
-        canvas_base_path=str(tmp_path),
-        memory_client=mock_memory_client
+        canvas_base_path=str(tmp_path), memory_client=mock_memory_client
     )
 
 
@@ -54,11 +54,26 @@ def sample_canvas_with_edges():
             {"id": "node-4", "type": "text", "text": "Concept D", "x": 300, "y": 300},
         ],
         "edges": [
-            {"id": "edge-1", "fromNode": "node-1", "toNode": "node-2", "label": "relates_to"},
-            {"id": "edge-2", "fromNode": "node-2", "toNode": "node-3", "label": "depends_on"},
+            {
+                "id": "edge-1",
+                "fromNode": "node-1",
+                "toNode": "node-2",
+                "label": "relates_to",
+            },
+            {
+                "id": "edge-2",
+                "fromNode": "node-2",
+                "toNode": "node-3",
+                "label": "depends_on",
+            },
             {"id": "edge-3", "fromNode": "node-1", "toNode": "node-3"},
-            {"id": "edge-4", "fromNode": "node-3", "toNode": "node-4", "label": "follows"},
-        ]
+            {
+                "id": "edge-4",
+                "fromNode": "node-3",
+                "toNode": "node-4",
+                "label": "follows",
+            },
+        ],
     }
 
 
@@ -69,7 +84,7 @@ def sample_canvas_no_edges():
         "nodes": [
             {"id": "node-1", "type": "text", "text": "Concept A", "x": 0, "y": 0}
         ],
-        "edges": []
+        "edges": [],
     }
 
 
@@ -78,7 +93,11 @@ class TestSyncAllEdgesToNeo4j:
 
     @pytest.mark.asyncio
     async def test_sync_all_edges_success(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_with_edges
+        self,
+        canvas_service_with_memory,
+        mock_memory_client,
+        tmp_path,
+        sample_canvas_with_edges,
     ):
         """AC-2, AC-4: Verify all edges synced and summary returned."""
         # Setup: Create canvas file
@@ -101,7 +120,11 @@ class TestSyncAllEdgesToNeo4j:
 
     @pytest.mark.asyncio
     async def test_sync_all_edges_empty_canvas(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_no_edges
+        self,
+        canvas_service_with_memory,
+        mock_memory_client,
+        tmp_path,
+        sample_canvas_no_edges,
     ):
         """AC-4: Verify empty canvas returns zero counts."""
         # Setup
@@ -123,7 +146,11 @@ class TestSyncAllEdgesToNeo4j:
 
     @pytest.mark.asyncio
     async def test_sync_all_edges_partial_failure(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_with_edges
+        self,
+        canvas_service_with_memory,
+        mock_memory_client,
+        tmp_path,
+        sample_canvas_with_edges,
     ):
         """AC-6: Verify partial failure handling - one edge fails, others succeed."""
         # Setup
@@ -158,10 +185,20 @@ class TestSyncAllEdgesToNeo4j:
     ):
         """AC-5: Verify edges are synced concurrently."""
         # Create canvas with many edges
-        nodes = [{"id": f"node-{i}", "type": "text", "text": f"Node {i}", "x": i*100, "y": 0}
-                 for i in range(20)]
-        edges = [{"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i+1}"}
-                 for i in range(19)]
+        nodes = [
+            {
+                "id": f"node-{i}",
+                "type": "text",
+                "text": f"Node {i}",
+                "x": i * 100,
+                "y": 0,
+            }
+            for i in range(20)
+        ]
+        edges = [
+            {"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i + 1}"}
+            for i in range(19)
+        ]
 
         canvas_data = {"nodes": nodes, "edges": edges}
         canvas_path = tmp_path / "concurrent.canvas"
@@ -194,7 +231,9 @@ class TestSyncAllEdgesToNeo4j:
         assert max_concurrent <= 12, f"Expected max 12 concurrent, got {max_concurrent}"
 
     @pytest.mark.asyncio
-    async def test_sync_all_edges_without_memory_client(self, tmp_path, sample_canvas_with_edges):
+    async def test_sync_all_edges_without_memory_client(
+        self, tmp_path, sample_canvas_with_edges
+    ):
         """Verify graceful degradation when memory client is None."""
         service = CanvasService(canvas_base_path=str(tmp_path), memory_client=None)
         canvas_path = tmp_path / "no_memory.canvas"
@@ -220,13 +259,19 @@ class TestConcurrentSyncWithGather:
         # Create canvas with 3 edges
         canvas_data = {
             "nodes": [
-                {"id": f"node-{i}", "type": "text", "text": f"N{i}", "x": i*100, "y": 0}
+                {
+                    "id": f"node-{i}",
+                    "type": "text",
+                    "text": f"N{i}",
+                    "x": i * 100,
+                    "y": 0,
+                }
                 for i in range(4)
             ],
             "edges": [
-                {"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i+1}"}
+                {"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i + 1}"}
                 for i in range(3)
-            ]
+            ],
         }
         canvas_path = tmp_path / "gather_test.canvas"
         canvas_path.write_text(json.dumps(canvas_data))
@@ -242,11 +287,17 @@ class TestConcurrentSyncWithGather:
             gather_task_count = len(coros)
             return await original_gather(*coros, **kwargs)
 
-        with patch("app.services.canvas_service.asyncio.gather", side_effect=tracked_gather):
-            result = await canvas_service_with_memory.sync_all_edges_to_neo4j("gather_test")
+        with patch(
+            "app.services.canvas_service.asyncio.gather", side_effect=tracked_gather
+        ):
+            result = await canvas_service_with_memory.sync_all_edges_to_neo4j(
+                "gather_test"
+            )
 
         assert gather_called, "asyncio.gather should be called for concurrent sync"
-        assert gather_task_count == 3, f"Expected 3 tasks in gather, got {gather_task_count}"
+        assert gather_task_count == 3, (
+            f"Expected 3 tasks in gather, got {gather_task_count}"
+        )
         assert result["synced_count"] == 3
 
 
@@ -255,7 +306,11 @@ class TestSyncEdgesEndpoint:
 
     @pytest.mark.asyncio
     async def test_endpoint_returns_correct_format(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_with_edges
+        self,
+        canvas_service_with_memory,
+        mock_memory_client,
+        tmp_path,
+        sample_canvas_with_edges,
     ):
         """AC-1, AC-4: Verify endpoint response format."""
         # Setup
@@ -287,7 +342,11 @@ class TestIdempotentSync:
 
     @pytest.mark.asyncio
     async def test_repeated_sync_calls_same_result(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_with_edges
+        self,
+        canvas_service_with_memory,
+        mock_memory_client,
+        tmp_path,
+        sample_canvas_with_edges,
     ):
         """AC-3: Verify idempotency - repeated calls return same counts."""
         # Setup
@@ -312,10 +371,20 @@ class TestPerformance:
     ):
         """AC-7: Verify 100 edges sync in < 5 seconds."""
         # Create canvas with 100 edges
-        nodes = [{"id": f"node-{i}", "type": "text", "text": f"Node {i}", "x": i*100, "y": 0}
-                 for i in range(101)]
-        edges = [{"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i+1}"}
-                 for i in range(100)]
+        nodes = [
+            {
+                "id": f"node-{i}",
+                "type": "text",
+                "text": f"Node {i}",
+                "x": i * 100,
+                "y": 0,
+            }
+            for i in range(101)
+        ]
+        edges = [
+            {"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i + 1}"}
+            for i in range(100)
+        ]
 
         canvas_data = {"nodes": nodes, "edges": edges}
         canvas_path = tmp_path / "performance.canvas"

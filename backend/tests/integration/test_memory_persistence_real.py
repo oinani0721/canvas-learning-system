@@ -12,7 +12,6 @@ import os
 import uuid
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
 from app.services.memory_service import MemoryService
 
@@ -71,7 +70,6 @@ async def _poll_neo4j(
 class TestRealCrossSessionPersistence:
     """Data recorded by one MemoryService is visible to a fresh instance."""
 
-
     async def test_history_persists_across_service_instances(self):
         """A fresh MemoryService reads history written by a prior instance."""
         client = _make_client()
@@ -109,7 +107,6 @@ class TestRealCrossSessionPersistence:
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
-
 
     async def test_all_fields_complete_after_restart(self):
         """All recorded fields survive a service restart via Neo4j."""
@@ -158,7 +155,6 @@ class TestRealCrossSessionPersistence:
 class TestRealQueryBehavior:
     """Prove query results originate from Neo4j, not in-memory cache."""
 
-
     async def test_returned_from_neo4j(self):
         """A fresh service with empty _episodes still returns data from Neo4j."""
         client = _make_client()
@@ -202,7 +198,6 @@ class TestRealQueryBehavior:
 
 class TestRealFilteringAndPagination:
     """Test Cypher-level filtering and pagination against real Neo4j."""
-
 
     async def test_concept_filter_cypher(self):
         """Concept partial-match filter works at the Cypher level."""
@@ -310,7 +305,6 @@ class TestRealFilteringAndPagination:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
 
-
     async def test_pagination_limit_skip(self):
         """Pagination correctly limits and offsets results."""
         client = _make_client()
@@ -339,13 +333,17 @@ class TestRealFilteringAndPagination:
             await service2.initialize()
 
             page1 = await service2.get_learning_history(
-                user_id=user_id, page=1, page_size=2,
+                user_id=user_id,
+                page=1,
+                page_size=2,
             )
             assert len(page1["items"]) <= 2
             assert page1["page"] == 1
 
             page2 = await service2.get_learning_history(
-                user_id=user_id, page=2, page_size=2,
+                user_id=user_id,
+                page=2,
+                page_size=2,
             )
             assert len(page2["items"]) <= 2
             assert page2["page"] == 2

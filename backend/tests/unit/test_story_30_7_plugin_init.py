@@ -20,16 +20,16 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
 import pytest
-
 from app.services.memory_service import MemoryService
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_mock_neo4j(*, mode="JSON_FALLBACK", initialized=True,
-                     health_status=True, connected=False):
+
+def _make_mock_neo4j(
+    *, mode="JSON_FALLBACK", initialized=True, health_status=True, connected=False
+):
     mock = MagicMock()
     mock.initialize = AsyncMock()
     mock.cleanup = AsyncMock()
@@ -55,6 +55,7 @@ def _make_mock_lm():
 @pytest.fixture(autouse=True)
 def _reset_memory_singleton():
     import backend.app.services.memory_service as mod
+
     original = mod._memory_service_instance
     mod._memory_service_instance = None
     try:
@@ -63,8 +64,9 @@ def _reset_memory_singleton():
         mod._memory_service_instance = original
 
 
-def _make_service(*, mode="JSON_FALLBACK", initialized_flag=True,
-                  health_status=True, connected=False):
+def _make_service(
+    *, mode="JSON_FALLBACK", initialized_flag=True, health_status=True, connected=False
+):
     """Create a MemoryService with configurable mock Neo4j."""
     neo4j = _make_mock_neo4j(
         mode=mode,
@@ -95,8 +97,10 @@ class TestStory307HealthStatus:
         -> overall status=healthy.
         """
         svc, _ = _make_service(
-            mode="NEO4J", initialized_flag=True,
-            health_status=True, connected=True,
+            mode="NEO4J",
+            initialized_flag=True,
+            health_status=True,
+            connected=True,
         )
 
         result = await svc.get_health_status()
@@ -126,8 +130,10 @@ class TestStory307HealthStatus:
         -> graphiti layer error -> overall=degraded.
         """
         svc, _ = _make_service(
-            mode="NEO4J", initialized_flag=False,
-            health_status=False, connected=False,
+            mode="NEO4J",
+            initialized_flag=False,
+            health_status=False,
+            connected=False,
         )
 
         result = await svc.get_health_status()
@@ -183,12 +189,14 @@ class TestStory307HealthStatus:
         svc._episodes_recovered = True
         assert svc._initialized is False
 
-        events = [{
-            "event_type": "color_changed",
-            "timestamp": datetime.now().isoformat(),
-            "canvas_path": "test.canvas",
-            "node_id": "node-1",
-        }]
+        events = [
+            {
+                "event_type": "color_changed",
+                "timestamp": datetime.now().isoformat(),
+                "canvas_path": "test.canvas",
+                "node_id": "node-1",
+            }
+        ]
 
         result = await svc.record_batch_learning_events(events)
 
@@ -228,12 +236,14 @@ class TestStory307HealthStatus:
         svc, _ = _make_service()
 
         # First do a batch to populate _batch_stats
-        events = [{
-            "event_type": "color_changed",
-            "timestamp": datetime.now().isoformat(),
-            "canvas_path": "debug.canvas",
-            "node_id": "node-dbg",
-        }]
+        events = [
+            {
+                "event_type": "color_changed",
+                "timestamp": datetime.now().isoformat(),
+                "canvas_path": "debug.canvas",
+                "node_id": "node-dbg",
+            }
+        ]
         await svc.record_batch_learning_events(events)
 
         # Verify batch stats are tracked

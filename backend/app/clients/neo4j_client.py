@@ -21,34 +21,36 @@ import logging
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 # Neo4j async driver
 # ✅ Verified from Context7:/websites/neo4j_cypher-manual_25 (topic: AsyncGraphDatabase)
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
+from neo4j import AsyncDriver, AsyncGraphDatabase
 from neo4j.exceptions import (
+    AuthError,
+    Neo4jError,
     ServiceUnavailable,
     SessionExpired,
     TransientError,
-    AuthError,
-    Neo4jError,
 )
 
 # Retry mechanism
 # ✅ Story 30.2 AC-5: Exponential backoff retry
 from tenacity import (
+    RetryError,
+    before_sleep_log,
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
-    RetryError,
 )
 
 logger = logging.getLogger(__name__)
 
 # Default storage path for JSON fallback mode
-DEFAULT_STORAGE_PATH = Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"
+DEFAULT_STORAGE_PATH = (
+    Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"
+)
 
 # Retryable exceptions for Neo4j operations
 RETRYABLE_EXCEPTIONS = (ServiceUnavailable, SessionExpired, TransientError)
@@ -125,11 +127,7 @@ class Neo4jClient:
         self._health_status: bool = False
 
         # JSON fallback data structure
-        self._data: Dict[str, Any] = {
-            "users": [],
-            "concepts": [],
-            "relationships": []
-        }
+        self._data: Dict[str, Any] = {"users": [], "concepts": [], "relationships": []}
 
         # Performance metrics
         self._metrics: Dict[str, Any] = {
@@ -167,12 +165,20 @@ class Neo4jClient:
             "database": self._database,
             "pool_size": self._max_connection_pool_size,
             "health_status": self._health_status,
-            "last_health_check": self._last_health_check.isoformat() if self._last_health_check else None,
+            "last_health_check": self._last_health_check.isoformat()
+            if self._last_health_check
+            else None,
             "metrics": self._metrics,
             # JSON fallback stats
-            "total_users": len(self._data.get("users", [])) if self._use_json_fallback else None,
-            "total_concepts": len(self._data.get("concepts", [])) if self._use_json_fallback else None,
-            "total_relationships": len(self._data.get("relationships", [])) if self._use_json_fallback else None,
+            "total_users": len(self._data.get("users", []))
+            if self._use_json_fallback
+            else None,
+            "total_concepts": len(self._data.get("concepts", []))
+            if self._use_json_fallback
+            else None,
+            "total_relationships": len(self._data.get("relationships", []))
+            if self._use_json_fallback
+            else None,
         }
 
     async def initialize(self) -> bool:
@@ -288,8 +294,8 @@ class Neo4jClient:
                     "relationships": [],
                     "metadata": {
                         "created_at": datetime.now().isoformat(),
-                        "version": "2.0"  # Story 30.2 version
-                    }
+                        "version": "2.0",  # Story 30.2 version
+                    },
                 }
                 await self._save_json_data()
                 logger.info(f"Created new JSON storage file: {self._storage_path}")
@@ -355,11 +361,7 @@ class Neo4jClient:
             self._last_health_check = datetime.now()
             return False
 
-    async def run_query(
-        self,
-        query: str,
-        **params: Any
-    ) -> List[Dict[str, Any]]:
+    async def run_query(self, query: str, **params: Any) -> List[Dict[str, Any]]:
         """
         Run a Cypher query with retry mechanism.
 
@@ -404,9 +406,7 @@ class Neo4jClient:
             raise
 
     async def _run_query_neo4j(
-        self,
-        query: str,
-        params: Dict[str, Any]
+        self, query: str, params: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Execute Cypher query on real Neo4j with retry mechanism.
@@ -428,8 +428,7 @@ class Neo4jClient:
         @retry(
             stop=stop_after_attempt(self._retry_attempts),
             wait=wait_exponential(
-                multiplier=self._retry_delay_base,
-                max=self._retry_max_delay
+                multiplier=self._retry_delay_base, max=self._retry_max_delay
             ),
             retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
             before_sleep=before_sleep_log(logger, logging.WARNING),
@@ -465,9 +464,7 @@ class Neo4jClient:
             raise
 
     async def _run_query_json_fallback(
-        self,
-        query: str,
-        params: Dict[str, Any]
+        self, query: str, params: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Simulate Cypher query with JSON storage (fallback mode).
@@ -497,8 +494,7 @@ class Neo4jClient:
             return []
 
     async def _handle_merge_learning(
-        self,
-        params: Dict[str, Any]
+        self, params: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Handle MERGE query for creating learning relationships.
@@ -523,18 +519,14 @@ class Neo4jClient:
             return []
 
         # Ensure user exists
-        user = next(
-            (u for u in self._data["users"] if u["id"] == user_id),
-            None
-        )
+        user = next((u for u in self._data["users"] if u["id"] == user_id), None)
         if not user:
             user = {"id": user_id, "created_at": datetime.now().isoformat()}
             self._data["users"].append(user)
 
         # Ensure concept exists
         concept_node = next(
-            (c for c in self._data["concepts"] if c["name"] == concept),
-            None
+            (c for c in self._data["concepts"] if c["name"] == concept), None
         )
         if not concept_node:
             concept_id = f"concept-{len(self._data['concepts']) + 1}"
@@ -542,7 +534,7 @@ class Neo4jClient:
                 "id": concept_id,
                 "name": concept,
                 "created_at": datetime.now().isoformat(),
-                "group_id": group_id
+                "group_id": group_id,
             }
             self._data["concepts"].append(concept_node)
         elif group_id:
@@ -553,9 +545,12 @@ class Neo4jClient:
         next_review = now + timedelta(days=1)
 
         rel = next(
-            (r for r in self._data["relationships"]
-             if r["user_id"] == user_id and r["concept_name"] == concept),
-            None
+            (
+                r
+                for r in self._data["relationships"]
+                if r["user_id"] == user_id and r["concept_name"] == concept
+            ),
+            None,
         )
 
         if rel:
@@ -577,22 +572,20 @@ class Neo4jClient:
                 "last_score": score,
                 "next_review": next_review.isoformat(),
                 "review_count": 1,
-                "group_id": group_id
+                "group_id": group_id,
             }
             self._data["relationships"].append(rel)
 
         await self._save_json_data()
 
         logger.info(
-            f"Created learning relationship: {user_id} -> {concept} "
-            f"(score={score})"
+            f"Created learning relationship: {user_id} -> {concept} (score={score})"
         )
 
         return [{"r": rel}]
 
     async def _handle_query_reviews(
-        self,
-        params: Dict[str, Any]
+        self, params: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Handle query for review suggestions.
@@ -628,17 +621,25 @@ class Neo4jClient:
                     next_review = datetime.fromisoformat(next_review_str)
                     if next_review < now:
                         concept = next(
-                            (c for c in self._data["concepts"]
-                             if c["name"] == rel["concept_name"]),
-                            {"id": rel.get("concept_id", ""), "name": rel["concept_name"]}
+                            (
+                                c
+                                for c in self._data["concepts"]
+                                if c["name"] == rel["concept_name"]
+                            ),
+                            {
+                                "id": rel.get("concept_id", ""),
+                                "name": rel["concept_name"],
+                            },
                         )
-                        results.append({
-                            "concept": rel["concept_name"],
-                            "concept_id": concept.get("id", ""),
-                            "last_score": rel.get("last_score"),
-                            "review_count": rel.get("review_count", 0),
-                            "due_date": next_review.isoformat()
-                        })
+                        results.append(
+                            {
+                                "concept": rel["concept_name"],
+                                "concept_id": concept.get("id", ""),
+                                "last_score": rel.get("last_score"),
+                                "review_count": rel.get("review_count", 0),
+                                "due_date": next_review.isoformat(),
+                            }
+                        )
                 except (ValueError, TypeError):
                     continue
 
@@ -648,8 +649,7 @@ class Neo4jClient:
         return results[:limit]
 
     async def _handle_query_history(
-        self,
-        params: Dict[str, Any]
+        self, params: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Handle query for concept learning history.
@@ -671,14 +671,16 @@ class Neo4jClient:
             if concept_id and rel.get("concept_id") != concept_id:
                 continue
 
-            results.append({
-                "user_id": rel["user_id"],
-                "concept": rel["concept_name"],
-                "concept_id": rel.get("concept_id"),
-                "score": rel.get("last_score"),
-                "timestamp": rel.get("timestamp"),
-                "review_count": rel.get("review_count", 0)
-            })
+            results.append(
+                {
+                    "user_id": rel["user_id"],
+                    "concept": rel["concept_name"],
+                    "concept_id": rel.get("concept_id"),
+                    "score": rel.get("last_score"),
+                    "timestamp": rel.get("timestamp"),
+                    "review_count": rel.get("review_count", 0),
+                }
+            )
 
         # Sort by timestamp (newest first)
         results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
@@ -690,7 +692,7 @@ class Neo4jClient:
         user_id: str,
         concept: str,
         score: Optional[int] = None,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
     ) -> bool:
         """
         Create a learning relationship between user and concept.
@@ -718,11 +720,7 @@ class Neo4jClient:
         RETURN r
         """
         results = await self.run_query(
-            query,
-            userId=user_id,
-            concept=concept,
-            score=score,
-            groupId=group_id
+            query, userId=user_id, concept=concept, score=score, groupId=group_id
         )
         return len(results) > 0
 
@@ -748,9 +746,10 @@ class Neo4jClient:
         # Infer group_id from canvas_path if not provided
         if not group_id and data.get("canvas_path"):
             from app.core.subject_config import (
-                extract_subject_from_canvas_path,
                 build_group_id,
+                extract_subject_from_canvas_path,
             )
+
             subject = extract_subject_from_canvas_path(data["canvas_path"])
             group_id = build_group_id(subject)
 
@@ -762,10 +761,7 @@ class Neo4jClient:
         )
 
     async def get_review_suggestions(
-        self,
-        user_id: str,
-        limit: int = 10,
-        group_id: Optional[str] = None
+        self, user_id: str, limit: int = 10, group_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get concepts due for review.
@@ -796,7 +792,9 @@ class Neo4jClient:
             ORDER BY r.next_review
             LIMIT $limit
             """
-            results = await self.run_query(query, userId=user_id, limit=limit, groupId=group_id)
+            results = await self.run_query(
+                query, userId=user_id, limit=limit, groupId=group_id
+            )
         else:
             query = """
             MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept)
@@ -815,18 +813,12 @@ class Neo4jClient:
         suggestions = []
         for r in results:
             priority = "high" if r.get("review_count", 0) < 3 else "medium"
-            suggestions.append({
-                **r,
-                "priority": priority
-            })
+            suggestions.append({**r, "priority": priority})
 
         return suggestions
 
     async def get_concept_history(
-        self,
-        concept_id: str,
-        user_id: Optional[str] = None,
-        limit: int = 50
+        self, concept_id: str, user_id: Optional[str] = None, limit: int = 50
     ) -> List[Dict[str, Any]]:
         """
         Get learning history for a specific concept.
@@ -855,7 +847,7 @@ class Neo4jClient:
         end_date: Optional[datetime] = None,
         concept: Optional[str] = None,
         group_id: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """
         Get learning history for a user with optional filters.
@@ -882,7 +874,7 @@ class Neo4jClient:
                 end_date=end_date,
                 concept=concept,
                 group_id=group_id,
-                limit=limit
+                limit=limit,
             )
 
         # Build Cypher query with optional filters
@@ -929,7 +921,7 @@ class Neo4jClient:
         end_date: Optional[datetime] = None,
         concept: Optional[str] = None,
         group_id: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """
         JSON fallback implementation for get_learning_history.
@@ -949,7 +941,9 @@ class Neo4jClient:
             rel_timestamp = rel.get("timestamp")
             if rel_timestamp:
                 try:
-                    rel_dt = datetime.fromisoformat(rel_timestamp.replace("Z", "+00:00"))
+                    rel_dt = datetime.fromisoformat(
+                        rel_timestamp.replace("Z", "+00:00")
+                    )
                     if start_date and rel_dt < start_date:
                         continue
                     if end_date and rel_dt > end_date:
@@ -967,16 +961,18 @@ class Neo4jClient:
             if group_id and rel.get("group_id") != group_id:
                 continue
 
-            results.append({
-                "user_id": rel.get("user_id"),
-                "concept": rel.get("concept_name"),
-                "concept_id": rel.get("concept_id"),
-                "score": rel.get("last_score"),
-                "timestamp": rel.get("timestamp"),
-                "group_id": rel.get("group_id"),
-                "agent_type": rel.get("agent_type"),
-                "review_count": rel.get("review_count", 0)
-            })
+            results.append(
+                {
+                    "user_id": rel.get("user_id"),
+                    "concept": rel.get("concept_name"),
+                    "concept_id": rel.get("concept_id"),
+                    "score": rel.get("last_score"),
+                    "timestamp": rel.get("timestamp"),
+                    "group_id": rel.get("group_id"),
+                    "agent_type": rel.get("agent_type"),
+                    "review_count": rel.get("review_count", 0),
+                }
+            )
 
         # Sort by timestamp (newest first)
         results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
@@ -984,10 +980,7 @@ class Neo4jClient:
         return results[:limit]
 
     async def create_canvas_node_relationship(
-        self,
-        canvas_path: str,
-        node_id: str,
-        node_text: Optional[str] = None
+        self, canvas_path: str, node_id: str, node_text: Optional[str] = None
     ) -> bool:
         """
         Create Canvas-Node relationship in Neo4j graph.
@@ -1019,10 +1012,7 @@ class Neo4jClient:
         RETURN c, n, r
         """
         results = await self.run_query(
-            query,
-            canvasPath=canvas_path,
-            nodeId=node_id,
-            nodeText=node_text or ""
+            query, canvasPath=canvas_path, nodeId=node_id, nodeText=node_text or ""
         )
         return len(results) > 0
 
@@ -1032,7 +1022,7 @@ class Neo4jClient:
         edge_id: str,
         from_node_id: str,
         to_node_id: str,
-        edge_label: Optional[str] = None
+        edge_label: Optional[str] = None,
     ) -> bool:
         """
         Create edge relationship between nodes in Neo4j graph.
@@ -1070,7 +1060,7 @@ class Neo4jClient:
             edgeId=edge_id,
             fromNodeId=from_node_id,
             toNodeId=to_node_id,
-            edgeLabel=edge_label or ""
+            edgeLabel=edge_label or "",
         )
         return len(results) > 0
 
@@ -1099,10 +1089,7 @@ class Neo4jClient:
         return deleted > 0
 
     async def get_concept_score_history(
-        self,
-        concept_id: str,
-        canvas_name: str,
-        limit: int = 5
+        self, concept_id: str, canvas_name: str, limit: int = 5
     ) -> List[Dict[str, Any]]:
         """
         Get historical scores for a concept.
@@ -1120,7 +1107,9 @@ class Neo4jClient:
         [Source: docs/stories/31.5.story.md#Task-2.2]
         """
         if self._use_json_fallback:
-            return await self._get_score_history_json_fallback(concept_id, canvas_name, limit)
+            return await self._get_score_history_json_fallback(
+                concept_id, canvas_name, limit
+            )
 
         query = """
         MATCH (n:Node {id: $conceptId})<-[:CONTAINS_NODE]-(c:Canvas {path: $canvasPath})
@@ -1130,20 +1119,14 @@ class Neo4jClient:
         LIMIT $limit
         """
         results = await self.run_query(
-            query,
-            conceptId=concept_id,
-            canvasPath=canvas_name,
-            limit=limit
+            query, conceptId=concept_id, canvasPath=canvas_name, limit=limit
         )
 
         # Reverse to get oldest-to-newest order
         return list(reversed(results))
 
     async def _get_score_history_json_fallback(
-        self,
-        concept_id: str,
-        canvas_name: str,
-        limit: int = 5
+        self, concept_id: str, canvas_name: str, limit: int = 5
     ) -> List[Dict[str, Any]]:
         """
         Get score history from JSON fallback storage.
@@ -1165,29 +1148,27 @@ class Neo4jClient:
         # Check in-memory relationships for matching concept
         for rel in self._data.get("relationships", []):
             # Match by concept_id or concept_name containing the concept_id
-            if (rel.get("concept_id") == concept_id or
-                rel.get("concept_name", "").find(concept_id) >= 0 or
-                rel.get("node_id") == concept_id):
-
+            if (
+                rel.get("concept_id") == concept_id
+                or rel.get("concept_name", "").find(concept_id) >= 0
+                or rel.get("node_id") == concept_id
+            ):
                 score = rel.get("last_score")
                 timestamp = rel.get("timestamp")
 
                 if score is not None and timestamp:
-                    results.append({
-                        "score": score,
-                        "timestamp": timestamp
-                    })
+                    results.append({"score": score, "timestamp": timestamp})
 
         # Also check score_history array if exists (extended storage)
         score_history = self._data.get("score_history", [])
         for record in score_history:
-            if (record.get("concept_id") == concept_id or
-                record.get("node_id") == concept_id):
-
-                results.append({
-                    "score": record.get("score"),
-                    "timestamp": record.get("timestamp")
-                })
+            if (
+                record.get("concept_id") == concept_id
+                or record.get("node_id") == concept_id
+            ):
+                results.append(
+                    {"score": record.get("score"), "timestamp": record.get("timestamp")}
+                )
 
         # Sort by timestamp (oldest first) and limit
         results.sort(key=lambda x: x.get("timestamp", ""))
@@ -1198,7 +1179,7 @@ class Neo4jClient:
         concept_id: str,
         canvas_name: str,
         score: int,
-        timestamp: Optional[str] = None
+        timestamp: Optional[str] = None,
     ) -> bool:
         """
         Record a score to history for difficulty adaptation.
@@ -1223,12 +1204,14 @@ class Neo4jClient:
             if "score_history" not in self._data:
                 self._data["score_history"] = []
 
-            self._data["score_history"].append({
-                "concept_id": concept_id,
-                "canvas_name": canvas_name,
-                "score": score,
-                "timestamp": ts
-            })
+            self._data["score_history"].append(
+                {
+                    "concept_id": concept_id,
+                    "canvas_name": canvas_name,
+                    "score": score,
+                    "timestamp": ts,
+                }
+            )
 
             # Keep only last 100 records per concept to avoid unbounded growth
             await self._save_json_data()
@@ -1254,7 +1237,7 @@ class Neo4jClient:
             conceptId=concept_id,
             canvasPath=canvas_name,
             score=score,
-            timestamp=ts
+            timestamp=ts,
         )
         return len(results) > 0
 
@@ -1274,7 +1257,7 @@ class Neo4jClient:
         shared_concepts: Optional[List[str]] = None,
         bidirectional: bool = False,
         auto_generated: bool = False,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Create Canvas association relationship in Neo4j graph.
@@ -1313,8 +1296,15 @@ class Neo4jClient:
 
         if self._use_json_fallback:
             return await self._create_association_json_fallback(
-                association_id, source_canvas, target_canvas, association_type,
-                confidence, shared_concepts, bidirectional, auto_generated, metadata
+                association_id,
+                source_canvas,
+                target_canvas,
+                association_type,
+                confidence,
+                shared_concepts,
+                bidirectional,
+                auto_generated,
+                metadata,
             )
 
         query = """
@@ -1339,7 +1329,7 @@ class Neo4jClient:
             confidence=confidence,
             sharedConcepts=shared_concepts or [],
             bidirectional=bidirectional,
-            autoGenerated=auto_generated
+            autoGenerated=auto_generated,
         )
 
         if results:
@@ -1360,7 +1350,7 @@ class Neo4jClient:
         shared_concepts: Optional[List[str]],
         bidirectional: bool,
         auto_generated: bool,
-        metadata: Optional[Dict[str, Any]]
+        metadata: Optional[Dict[str, Any]],
     ) -> bool:
         """
         Create canvas association in JSON fallback storage.
@@ -1375,9 +1365,12 @@ class Neo4jClient:
 
         # Check for existing association with same ID
         existing = next(
-            (a for a in self._data["canvas_associations"]
-             if a.get("association_id") == association_id),
-            None
+            (
+                a
+                for a in self._data["canvas_associations"]
+                if a.get("association_id") == association_id
+            ),
+            None,
         )
 
         now = datetime.now().isoformat()
@@ -1422,7 +1415,7 @@ class Neo4jClient:
         self,
         canvas_path: Optional[str] = None,
         association_type: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """
         Get Canvas associations from Neo4j graph.
@@ -1467,7 +1460,7 @@ class Neo4jClient:
                 query,
                 canvasPath=canvas_path,
                 associationType=association_type,
-                limit=limit
+                limit=limit,
             )
         elif canvas_path:
             query = """
@@ -1528,10 +1521,7 @@ class Neo4jClient:
         return results
 
     async def _get_associations_json_fallback(
-        self,
-        canvas_path: Optional[str],
-        association_type: Optional[str],
-        limit: int
+        self, canvas_path: Optional[str], association_type: Optional[str], limit: int
     ) -> List[Dict[str, Any]]:
         """
         Get canvas associations from JSON fallback storage.
@@ -1546,8 +1536,10 @@ class Neo4jClient:
         for assoc in associations:
             # Apply filters
             if canvas_path:
-                if (assoc.get("source_canvas") != canvas_path and
-                    assoc.get("target_canvas") != canvas_path):
+                if (
+                    assoc.get("source_canvas") != canvas_path
+                    and assoc.get("target_canvas") != canvas_path
+                ):
                     continue
 
             if association_type:
@@ -1560,10 +1552,7 @@ class Neo4jClient:
         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         return results[:limit]
 
-    async def delete_canvas_association(
-        self,
-        association_id: str
-    ) -> bool:
+    async def delete_canvas_association(self, association_id: str) -> bool:
         """
         Delete Canvas association from Neo4j graph.
 
@@ -1595,10 +1584,7 @@ class Neo4jClient:
             logger.warning(f"Canvas association not found: {association_id}")
             return False
 
-    async def _delete_association_json_fallback(
-        self,
-        association_id: str
-    ) -> bool:
+    async def _delete_association_json_fallback(self, association_id: str) -> bool:
         """
         Delete canvas association from JSON fallback storage.
 
@@ -1610,8 +1596,7 @@ class Neo4jClient:
         original_count = len(associations)
 
         self._data["canvas_associations"] = [
-            a for a in associations
-            if a.get("association_id") != association_id
+            a for a in associations if a.get("association_id") != association_id
         ]
 
         if len(self._data["canvas_associations"]) < original_count:
@@ -1629,7 +1614,7 @@ class Neo4jClient:
         confidence: Optional[float] = None,
         shared_concepts: Optional[List[str]] = None,
         bidirectional: Optional[bool] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Update Canvas association in Neo4j graph.
@@ -1661,8 +1646,12 @@ class Neo4jClient:
 
         if self._use_json_fallback:
             return await self._update_association_json_fallback(
-                association_id, association_type, confidence,
-                shared_concepts, bidirectional, metadata
+                association_id,
+                association_type,
+                confidence,
+                shared_concepts,
+                bidirectional,
+                metadata,
             )
 
         # Build SET clause dynamically for provided fields
@@ -1687,7 +1676,7 @@ class Neo4jClient:
 
         query = f"""
         MATCH (source:Canvas)-[r:ASSOCIATED_WITH {{association_id: $associationId}}]->(target:Canvas)
-        SET {', '.join(set_clauses)}
+        SET {", ".join(set_clauses)}
         RETURN r.association_id as association_id
         """
 
@@ -1707,7 +1696,7 @@ class Neo4jClient:
         confidence: Optional[float],
         shared_concepts: Optional[List[str]],
         bidirectional: Optional[bool],
-        metadata: Optional[Dict[str, Any]]
+        metadata: Optional[Dict[str, Any]],
     ) -> bool:
         """
         Update canvas association in JSON fallback storage.
@@ -1760,10 +1749,7 @@ class Neo4jClient:
     # [Source: docs/stories/36.6.story.md]
     # =========================================================================
 
-    async def get_canvas_concepts(
-        self,
-        canvas_path: str
-    ) -> List[str]:
+    async def get_canvas_concepts(self, canvas_path: str) -> List[str]:
         """
         Get all concepts associated with a Canvas.
 
@@ -1798,10 +1784,7 @@ class Neo4jClient:
 
         return [r["concept_name"] for r in results if r.get("concept_name")]
 
-    async def _get_canvas_concepts_json_fallback(
-        self,
-        canvas_path: str
-    ) -> List[str]:
+    async def _get_canvas_concepts_json_fallback(self, canvas_path: str) -> List[str]:
         """
         Get canvas concepts from JSON fallback storage.
 
@@ -1820,8 +1803,9 @@ class Neo4jClient:
         # Check relationships for concepts linked to this canvas
         for rel in self._data.get("relationships", []):
             # Check if relationship mentions this canvas path
-            if canvas_path in str(rel.get("canvas_path", "")) or \
-               canvas_path in str(rel.get("source", "")):
+            if canvas_path in str(rel.get("canvas_path", "")) or canvas_path in str(
+                rel.get("source", "")
+            ):
                 concept_name = rel.get("concept_name") or rel.get("concept")
                 if concept_name:
                     concepts.add(concept_name)
@@ -1833,11 +1817,7 @@ class Neo4jClient:
 
         return list(concepts)
 
-    async def find_common_concepts(
-        self,
-        canvas1: str,
-        canvas2: str
-    ) -> List[str]:
+    async def find_common_concepts(self, canvas1: str, canvas2: str) -> List[str]:
         """
         Find common concepts between two Canvases.
 
@@ -1878,9 +1858,7 @@ class Neo4jClient:
         return []
 
     async def _find_common_concepts_json_fallback(
-        self,
-        canvas1: str,
-        canvas2: str
+        self, canvas1: str, canvas2: str
     ) -> List[str]:
         """
         Find common concepts between two canvases from JSON fallback storage.
@@ -1934,7 +1912,9 @@ class Neo4jClient:
         """
         return await self.run_query(query, limit=limit)
 
-    async def _get_all_recent_episodes_json(self, limit: int = 1000) -> List[Dict[str, Any]]:
+    async def _get_all_recent_episodes_json(
+        self, limit: int = 1000
+    ) -> List[Dict[str, Any]]:
         """
         JSON fallback: get all recent episodes from relationships.
 
@@ -1948,15 +1928,17 @@ class Neo4jClient:
             # Field mapping: JSON storage uses different names than Cypher output
             # JSON "concept_name" → output "concept" (matches Cypher c.name as concept)
             # JSON "last_score" → output "score" (matches Cypher r.score as score)
-            results.append({
-                "user_id": rel.get("user_id"),
-                "concept": rel.get("concept_name"),
-                "concept_id": rel.get("concept_id"),
-                "score": rel.get("last_score"),
-                "timestamp": rel.get("timestamp"),
-                "group_id": rel.get("group_id"),
-                "review_count": rel.get("review_count", 0),
-            })
+            results.append(
+                {
+                    "user_id": rel.get("user_id"),
+                    "concept": rel.get("concept_name"),
+                    "concept_id": rel.get("concept_id"),
+                    "score": rel.get("last_score"),
+                    "timestamp": rel.get("timestamp"),
+                    "group_id": rel.get("group_id"),
+                    "review_count": rel.get("review_count", 0),
+                }
+            )
         results.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
         return results[:limit]
 
@@ -2009,7 +1991,11 @@ def get_neo4j_client(
         _user = user or settings.neo4j_user
         _password = password or settings.neo4j_password
         _database = database or settings.neo4j_database
-        _use_json_fallback = use_json_fallback if use_json_fallback is not None else not settings.neo4j_enabled
+        _use_json_fallback = (
+            use_json_fallback
+            if use_json_fallback is not None
+            else not settings.neo4j_enabled
+        )
 
         _client_instance = Neo4jClient(
             uri=_uri,

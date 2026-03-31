@@ -10,7 +10,7 @@ import sys
 import pytest
 
 # 添加项目根目录到 Python 路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from canvas_utils import CanvasBusinessLogic
 
@@ -28,7 +28,7 @@ class TestQuestionClustering:
                 "question_type": "突破型",
                 "difficulty": "基础",
                 "guidance": "💡 从定义出发",
-                "rationale": "帮助理解基础概念"
+                "rationale": "帮助理解基础概念",
             },
             {
                 "source_node_id": "red-2",
@@ -36,7 +36,7 @@ class TestQuestionClustering:
                 "question_type": "检验型",
                 "difficulty": "深度",
                 "guidance": "",
-                "rationale": "检验是否真正理解"
+                "rationale": "检验是否真正理解",
             },
             {
                 "source_node_id": "purple-1",
@@ -44,7 +44,7 @@ class TestQuestionClustering:
                 "question_type": "突破型",
                 "difficulty": "基础",
                 "guidance": "💡 从集合运算类比",
-                "rationale": "建立直观理解"
+                "rationale": "建立直观理解",
             },
             {
                 "source_node_id": "purple-2",
@@ -52,8 +52,8 @@ class TestQuestionClustering:
                 "question_type": "应用型",
                 "difficulty": "深度",
                 "guidance": "",
-                "rationale": "检验应用能力"
-            }
+                "rationale": "检验应用能力",
+            },
         ]
 
         extracted_nodes = {
@@ -63,15 +63,15 @@ class TestQuestionClustering:
                     "content": "逆否命题定义",
                     "parent_nodes": [{"id": "material-1", "content": "命题逻辑基础"}],
                     "related_yellow": [],
-                    "level": 1
+                    "level": 1,
                 },
                 {
                     "id": "red-2",
                     "content": "命题等价性",
                     "parent_nodes": [{"id": "material-1", "content": "命题逻辑基础"}],
                     "related_yellow": [],
-                    "level": 1
-                }
+                    "level": 1,
+                },
             ],
             "purple_nodes": [
                 {
@@ -79,22 +79,22 @@ class TestQuestionClustering:
                     "content": "布尔代数定义",
                     "parent_nodes": [{"id": "material-2", "content": "布尔代数"}],
                     "related_yellow": [],
-                    "level": 1
+                    "level": 1,
                 },
                 {
                     "id": "purple-2",
                     "content": "布尔表达式化简",
                     "parent_nodes": [{"id": "material-2", "content": "布尔代数"}],
                     "related_yellow": [],
-                    "level": 1
-                }
+                    "level": 1,
+                },
             ],
             "stats": {
                 "red_count": 2,
                 "purple_count": 2,
                 "red_with_yellow": 0,
-                "purple_with_yellow": 0
-            }
+                "purple_with_yellow": 0,
+            },
         }
 
         return questions, extracted_nodes
@@ -141,40 +141,48 @@ class TestQuestionClustering:
         extracted_nodes = {"red_nodes": [], "purple_nodes": [], "stats": {}}
 
         for i in range(10):
-            questions.append({
-                "source_node_id": f"red-{i}",
-                "question_text": f"问题{i}",
-                "question_type": "突破型",
-                "difficulty": "基础"
-            })
+            questions.append(
+                {
+                    "source_node_id": f"red-{i}",
+                    "question_text": f"问题{i}",
+                    "question_type": "突破型",
+                    "difficulty": "基础",
+                }
+            )
 
-            extracted_nodes["red_nodes"].append({
-                "id": f"red-{i}",
-                "content": f"内容{i}",
-                "parent_nodes": [{"id": f"p{i//3}", "content": f"主题{i//3}"}],  # 3-4个问题共享一个父节点
-                "related_yellow": [],
-                "level": 1
-            })
+            extracted_nodes["red_nodes"].append(
+                {
+                    "id": f"red-{i}",
+                    "content": f"内容{i}",
+                    "parent_nodes": [
+                        {"id": f"p{i // 3}", "content": f"主题{i // 3}"}
+                    ],  # 3-4个问题共享一个父节点
+                    "related_yellow": [],
+                    "level": 1,
+                }
+            )
 
         # Act
         logic = CanvasBusinessLogic("src/tests/fixtures/test-basic.canvas")
         clusters = logic.cluster_questions_by_topic(questions, extracted_nodes)
 
         # Assert: 聚类数不应超过问题数的50%
-        assert len(clusters) <= len(questions) / 2, \
-            f"聚类数{len(clusters)}过多,问题数{len(questions)},比例{len(clusters)/len(questions)*100:.1f}%"
+        assert len(clusters) <= len(questions) / 2, (
+            f"聚类数{len(clusters)}过多,问题数{len(questions)},比例{len(clusters) / len(questions) * 100:.1f}%"
+        )
 
         # 验证大部分聚类有至少2个问题
         single_question_clusters = sum(1 for qs in clusters.values() if len(qs) == 1)
-        assert single_question_clusters <= len(clusters) * 0.3, \
+        assert single_question_clusters <= len(clusters) * 0.3, (
             f"过多孤立问题聚类({single_question_clusters}/{len(clusters)})"
+        )
 
     def test_cluster_layout_calculation(self):
         """测试聚类空间布局计算 (AC: 2)"""
         # Arrange
         clusters = {
             "命题逻辑": [{"q": 1}, {"q": 2}, {"q": 3}],  # 3个问题
-            "布尔代数": [{"q": 4}, {"q": 5}]  # 2个问题
+            "布尔代数": [{"q": 4}, {"q": 5}],  # 2个问题
         }
 
         # Act
@@ -206,7 +214,7 @@ class TestQuestionClustering:
                 "source_node_id": "red-1",
                 "question_text": "孤立问题",
                 "question_type": "突破型",
-                "difficulty": "基础"
+                "difficulty": "基础",
             }
         ]
 
@@ -217,11 +225,11 @@ class TestQuestionClustering:
                     "content": "孤立内容",
                     "parent_nodes": [],  # 空父节点列表
                     "related_yellow": [],
-                    "level": 1
+                    "level": 1,
                 }
             ],
             "purple_nodes": [],
-            "stats": {"red_count": 1, "purple_count": 0}
+            "stats": {"red_count": 1, "purple_count": 0},
         }
 
         # Act & Assert: 应该能正常处理,不抛出异常
@@ -246,7 +254,7 @@ class TestQuestionClustering:
         with pytest.raises(ValueError, match="缺少必要字段"):
             logic.cluster_questions_by_topic(
                 [{"source_node_id": "red-1"}],  # 缺少question_text
-                {"red_nodes": [], "purple_nodes": []}
+                {"red_nodes": [], "purple_nodes": []},
             )
 
     def test_extract_question_topics(self, sample_questions_and_nodes):
@@ -264,8 +272,9 @@ class TestQuestionClustering:
         assert "purple-2" in question_topics
 
         # 验证来自同一父节点的问题有相同主题
-        assert question_topics["red-1"] == question_topics["red-2"], \
+        assert question_topics["red-1"] == question_topics["red-2"], (
             "共同父节点的问题应有相同主题"
+        )
 
     def test_merge_small_clusters(self):
         """测试合并小聚类功能"""
@@ -276,7 +285,7 @@ class TestQuestionClustering:
             "主题A": [{"q": 1}, {"q": 2}, {"q": 3}],
             "主题B": [{"q": 4}],  # 单个问题
             "主题C": [{"q": 5}, {"q": 6}],
-            "主题D": [{"q": 7}]   # 单个问题
+            "主题D": [{"q": 7}],  # 单个问题
         }
 
         # Act
@@ -295,11 +304,9 @@ class TestQuestionClustering:
         clusters = {
             "命题逻辑基": [
                 {"source_node_id": "r1", "question_text": "什么是逆否命题?"},
-                {"source_node_id": "r2", "question_text": "什么是原命题?"}
+                {"source_node_id": "r2", "question_text": "什么是原命题?"},
             ],
-            "未分类": [
-                {"source_node_id": "r3", "question_text": "其他问题"}
-            ]
+            "未分类": [{"source_node_id": "r3", "question_text": "其他问题"}],
         }
 
         # Act
@@ -323,8 +330,9 @@ class TestQuestionClustering:
 
         # Assert: 验证所有问题都被保留
         total_clustered = sum(len(qs) for qs in clusters.values())
-        assert total_clustered == len(questions), \
+        assert total_clustered == len(questions), (
             f"聚类后问题数({total_clustered})应等于原问题数({len(questions)})"
+        )
 
         # 验证问题的所有字段都被保留
         for topic, qs in clusters.items():

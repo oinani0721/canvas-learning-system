@@ -30,7 +30,7 @@ class TestAsyncTaskCreation:
         task = AsyncTask(
             task_id="task-1",
             agent_name="test-agent",
-            node_data={"id": "node-1", "content": "test"}
+            node_data={"id": "node-1", "content": "test"},
         )
 
         assert task.task_id == "task-1"
@@ -46,7 +46,7 @@ class TestAsyncTaskCreation:
             agent_name="oral-explanation",
             node_data={"id": "node-2", "content": "complex material"},
             priority=5,
-            dependencies=["task-1"]
+            dependencies=["task-1"],
         )
 
         assert task.task_id == "task-2"
@@ -56,11 +56,7 @@ class TestAsyncTaskCreation:
 
     def test_async_task_type_annotations(self):
         """测试AsyncTask类型注解正确"""
-        task = AsyncTask(
-            task_id="task-3",
-            agent_name="test",
-            node_data={}
-        )
+        task = AsyncTask(task_id="task-3", agent_name="test", node_data={})
 
         # 验证字段存在
         assert hasattr(task, "task_id")
@@ -193,7 +189,7 @@ class TestSemaphoreConcurrencyLimit:
         engine = AsyncExecutionEngine(max_concurrency=5)
 
         active_count = [0]  # 当前活跃任务数
-        max_active = [0]    # 最大活跃任务数
+        max_active = [0]  # 最大活跃任务数
 
         async def monitor_executor(task: AsyncTask):
             active_count[0] += 1
@@ -305,11 +301,7 @@ class TestProgressCallback:
         callback_log = []
 
         async def test_callback(task_id, result, error):
-            callback_log.append({
-                "task_id": task_id,
-                "result": result,
-                "error": error
-            })
+            callback_log.append({"task_id": task_id, "result": result, "error": error})
 
         async def mock_executor(task: AsyncTask):
             await asyncio.sleep(0.05)
@@ -338,11 +330,7 @@ class TestProgressCallback:
         callback_log = []
 
         async def test_callback(task_id, result, error):
-            callback_log.append({
-                "task_id": task_id,
-                "result": result,
-                "error": error
-            })
+            callback_log.append({"task_id": task_id, "result": result, "error": error})
 
         async def failing_executor(task: AsyncTask):
             if task.task_id == "task-2":
@@ -384,12 +372,28 @@ class TestDependencyAwareExecution:
         # 创建有依赖关系的任务
         tasks = [
             AsyncTask(task_id="task-1", agent_name="test", node_data={}, priority=10),
-            AsyncTask(task_id="task-2", agent_name="test", node_data={}, priority=5, dependencies=["task-1"]),
-            AsyncTask(task_id="task-3", agent_name="test", node_data={}, priority=3, dependencies=["task-2"]),
-            AsyncTask(task_id="task-4", agent_name="test", node_data={}, priority=8),  # 无依赖
+            AsyncTask(
+                task_id="task-2",
+                agent_name="test",
+                node_data={},
+                priority=5,
+                dependencies=["task-1"],
+            ),
+            AsyncTask(
+                task_id="task-3",
+                agent_name="test",
+                node_data={},
+                priority=3,
+                dependencies=["task-2"],
+            ),
+            AsyncTask(
+                task_id="task-4", agent_name="test", node_data={}, priority=8
+            ),  # 无依赖
         ]
 
-        result = await engine.execute_with_dependency_awareness(tasks, tracking_executor)
+        result = await engine.execute_with_dependency_awareness(
+            tasks, tracking_executor
+        )
 
         # 验证所有任务成功
         assert result["success"] == 4
@@ -434,6 +438,7 @@ class TestCustomConcurrency:
     @pytest.mark.asyncio
     async def test_custom_concurrency(self):
         """测试自定义并发数 (测试1, 5, 20)"""
+
         async def mock_executor(task: AsyncTask):
             await asyncio.sleep(0.05)
             return {"task_id": task.task_id}

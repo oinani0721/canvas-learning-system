@@ -15,10 +15,8 @@ from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app
-
+from fastapi.testclient import TestClient
 
 # ===========================================================================
 # Fixtures
@@ -29,6 +27,7 @@ from app.main import app
 def _reset_verification_singleton():
     """Reset verification service singleton between tests."""
     import app.services.verification_service as vs_module
+
     original = vs_module._verification_service
     vs_module._verification_service = None
     yield
@@ -45,21 +44,30 @@ def sample_canvas_data() -> Dict[str, Any]:
                 "type": "text",
                 "text": "逆否命题",
                 "color": "4",
-                "x": 0, "y": 0, "width": 200, "height": 100,
+                "x": 0,
+                "y": 0,
+                "width": 200,
+                "height": 100,
             },
             {
                 "id": "node-purple-1",
                 "type": "text",
                 "text": "充分必要条件",
                 "color": "3",
-                "x": 300, "y": 0, "width": 200, "height": 100,
+                "x": 300,
+                "y": 0,
+                "width": 200,
+                "height": 100,
             },
             {
                 "id": "node-green-1",
                 "type": "text",
                 "text": "命题逻辑",
                 "color": "1",
-                "x": 600, "y": 0, "width": 200, "height": 100,
+                "x": 600,
+                "y": 0,
+                "width": 200,
+                "height": 100,
             },
         ],
         "edges": [],
@@ -82,43 +90,47 @@ def mock_verification_service():
     mock_svc = MagicMock()
 
     # start_session returns session data
-    mock_svc.start_session = AsyncMock(return_value={
-        "session_id": "test-session-001",
-        "total_concepts": 2,
-        "first_question": "请用自己的话解释什么是「逆否命题」？",
-        "current_concept": "逆否命题",
-        "status": "in_progress",
-    })
+    mock_svc.start_session = AsyncMock(
+        return_value={
+            "session_id": "test-session-001",
+            "total_concepts": 2,
+            "first_question": "请用自己的话解释什么是「逆否命题」？",
+            "current_concept": "逆否命题",
+            "status": "in_progress",
+        }
+    )
 
     # process_answer returns scoring + progress
-    mock_svc.process_answer = AsyncMock(return_value={
-        "quality": "good",
-        "score": 72.0,
-        "degraded": False,
-        "action": "next",
-        "hint": None,
-        "next_question": "请解释「充分必要条件」的定义和判断方法",
-        "current_concept": "充分必要条件",
-        "progress": {
-            "session_id": "test-session-001",
-            "canvas_name": "离散数学",
-            "total_concepts": 2,
-            "completed_concepts": 1,
+    mock_svc.process_answer = AsyncMock(
+        return_value={
+            "quality": "good",
+            "score": 72.0,
+            "degraded": False,
+            "action": "next",
+            "hint": None,
+            "next_question": "请解释「充分必要条件」的定义和判断方法",
             "current_concept": "充分必要条件",
-            "current_concept_idx": 1,
-            "green_count": 0,
-            "yellow_count": 1,
-            "purple_count": 0,
-            "red_count": 0,
-            "status": "in_progress",
-            "progress_percentage": 50.0,
-            "mastery_percentage": 0.0,
-            "hints_given": 0,
-            "max_hints": 3,
-            "started_at": "2026-02-09T10:00:00",
-            "updated_at": "2026-02-09T10:01:00",
-        },
-    })
+            "progress": {
+                "session_id": "test-session-001",
+                "canvas_name": "离散数学",
+                "total_concepts": 2,
+                "completed_concepts": 1,
+                "current_concept": "充分必要条件",
+                "current_concept_idx": 1,
+                "green_count": 0,
+                "yellow_count": 1,
+                "purple_count": 0,
+                "red_count": 0,
+                "status": "in_progress",
+                "progress_percentage": 50.0,
+                "mastery_percentage": 0.0,
+                "hints_given": 0,
+                "max_hints": 3,
+                "started_at": "2026-02-09T10:00:00",
+                "updated_at": "2026-02-09T10:01:00",
+            },
+        }
+    )
 
     # pause/resume
     mock_svc.pause_session = AsyncMock(return_value=True)
@@ -144,6 +156,7 @@ def mock_verification_service():
         "max_hints": 3,
     }
     from datetime import datetime
+
     mock_progress.started_at = datetime(2026, 2, 9, 10, 0, 0)
     mock_progress.updated_at = datetime(2026, 2, 9, 10, 1, 0)
     mock_svc.get_progress = AsyncMock(return_value=mock_progress)
@@ -159,12 +172,15 @@ def client_with_mock_vs(mock_verification_service):
     get_verification_service() used by existing pause/resume/progress endpoints.
     """
     # Code Review Fix: _get_vs_singleton was renamed to _get_or_create_verification_service
-    with patch(
-        "app.api.v1.endpoints.review._get_or_create_verification_service",
-        return_value=mock_verification_service,
-    ), patch(
-        "app.services.verification_service.get_verification_service",
-        return_value=mock_verification_service,
+    with (
+        patch(
+            "app.api.v1.endpoints.review._get_or_create_verification_service",
+            return_value=mock_verification_service,
+        ),
+        patch(
+            "app.services.verification_service.get_verification_service",
+            return_value=mock_verification_service,
+        ),
     ):
         with TestClient(app) as c:
             yield c, mock_verification_service
@@ -222,13 +238,15 @@ class TestStartSession:
     def test_start_session_no_concepts_returns_404(self, client_with_mock_vs):
         """404 when canvas has no verifiable concepts."""
         client, mock_svc = client_with_mock_vs
-        mock_svc.start_session = AsyncMock(return_value={
-            "session_id": "empty",
-            "total_concepts": 0,
-            "first_question": "",
-            "current_concept": "",
-            "status": "completed",
-        })
+        mock_svc.start_session = AsyncMock(
+            return_value={
+                "session_id": "empty",
+                "total_concepts": 0,
+                "first_question": "",
+                "current_concept": "",
+                "status": "completed",
+            }
+        )
 
         response = client.post(
             "/api/v1/review/session/start",
@@ -381,36 +399,38 @@ class TestDegradedFieldsInApiResponse:
         client, mock_svc = client_with_mock_vs
 
         # Override mock to return degraded response
-        mock_svc.process_answer = AsyncMock(return_value={
-            "quality": "partial",
-            "score": 50.0,
-            "degraded": True,
-            "degraded_reason": "agent_unavailable",
-            "degraded_warning": "评分基于答案长度而非内容质量，仅供参考",
-            "action": "hint",
-            "hint": "请考虑逆否命题的定义",
-            "next_question": None,
-            "current_concept": "逆否命题",
-            "progress": {
-                "session_id": "test-session-001",
-                "canvas_name": "离散数学",
-                "total_concepts": 2,
-                "completed_concepts": 0,
+        mock_svc.process_answer = AsyncMock(
+            return_value={
+                "quality": "partial",
+                "score": 50.0,
+                "degraded": True,
+                "degraded_reason": "agent_unavailable",
+                "degraded_warning": "评分基于答案长度而非内容质量，仅供参考",
+                "action": "hint",
+                "hint": "请考虑逆否命题的定义",
+                "next_question": None,
                 "current_concept": "逆否命题",
-                "current_concept_idx": 0,
-                "green_count": 0,
-                "yellow_count": 0,
-                "purple_count": 1,
-                "red_count": 1,
-                "status": "in_progress",
-                "progress_percentage": 0.0,
-                "mastery_percentage": 0.0,
-                "hints_given": 1,
-                "max_hints": 3,
-                "started_at": "2026-02-10T10:00:00",
-                "updated_at": "2026-02-10T10:01:00",
-            },
-        })
+                "progress": {
+                    "session_id": "test-session-001",
+                    "canvas_name": "离散数学",
+                    "total_concepts": 2,
+                    "completed_concepts": 0,
+                    "current_concept": "逆否命题",
+                    "current_concept_idx": 0,
+                    "green_count": 0,
+                    "yellow_count": 0,
+                    "purple_count": 1,
+                    "red_count": 1,
+                    "status": "in_progress",
+                    "progress_percentage": 0.0,
+                    "mastery_percentage": 0.0,
+                    "hints_given": 1,
+                    "max_hints": 3,
+                    "started_at": "2026-02-10T10:00:00",
+                    "updated_at": "2026-02-10T10:01:00",
+                },
+            }
+        )
 
         response = client.post(
             "/api/v1/review/session/test-session-001/answer",

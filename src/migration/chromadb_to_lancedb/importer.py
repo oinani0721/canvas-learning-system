@@ -91,7 +91,7 @@ class LanceDBImporter:
         jsonl_path: str,
         table_name: str,
         batch_size: int = 1000,
-        overwrite: bool = False
+        overwrite: bool = False,
     ) -> ImportResult:
         """
         Import JSONL file into LanceDB table.
@@ -106,6 +106,7 @@ class LanceDBImporter:
             ImportResult with import statistics
         """
         import time
+
         start_time = time.time()
         errors: List[str] = []
         record_count = 0
@@ -232,9 +233,7 @@ class LanceDBImporter:
             return None
 
     def import_multiple(
-        self,
-        jsonl_paths: List[str],
-        table_prefix: str = ""
+        self, jsonl_paths: List[str], table_prefix: str = ""
     ) -> Dict[str, ImportResult]:
         """
         Import multiple JSONL files into separate tables.
@@ -269,7 +268,7 @@ def import_jsonl_to_lancedb(
     jsonl_path: str,
     table_name: str,
     db_path: str = "~/.lancedb",
-    overwrite: bool = False
+    overwrite: bool = False,
 ) -> ImportResult:
     """
     Convenience function to import JSONL file to LanceDB.

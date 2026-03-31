@@ -27,6 +27,7 @@ class TestExtractComparisonConcepts:
     def agent_service(self):
         """Create AgentService instance for testing."""
         from app.services.agent_service import AgentService
+
         return AgentService()
 
     # ============================================================
@@ -58,7 +59,9 @@ class TestExtractComparisonConcepts:
         assert "TCP" in concepts
         assert "UDP" in concepts
 
-    def test_extract_comparison_concepts_from_table_with_dimension_column(self, agent_service):
+    def test_extract_comparison_concepts_from_table_with_dimension_column(
+        self, agent_service
+    ):
         """
         Test extraction skips '对比维度' column header.
 
@@ -242,6 +245,7 @@ class TestCallExplanationComparisonFormat:
     def mock_agent_service(self):
         """Create mocked AgentService for JSON inspection."""
         from app.services.agent_service import AgentService
+
         service = AgentService()
         return service
 
@@ -266,25 +270,31 @@ class TestCallExplanationComparisonFormat:
         captured_json = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured_json['prompt'] = prompt
-            captured_json['type'] = str(agent_type)
+            captured_json["prompt"] = prompt
+            captured_json["type"] = str(agent_type)
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(mock_agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(
+            mock_agent_service, "call_agent", side_effect=mock_call_agent
+        ):
             await mock_agent_service.call_explanation(
                 content=content,
                 explanation_type="comparison",
                 context=None,
-                user_understanding="用户理解"
+                user_understanding="用户理解",
             )
 
         # Verify JSON format
-        json_prompt = json.loads(captured_json['prompt'])
-        assert "concepts" in json_prompt, "comparison-table should receive 'concepts' array"
+        json_prompt = json.loads(captured_json["prompt"])
+        assert "concepts" in json_prompt, (
+            "comparison-table should receive 'concepts' array"
+        )
         assert isinstance(json_prompt["concepts"], list), "concepts should be a list"
         assert len(json_prompt["concepts"]) >= 1
         # Should NOT have "concept" key
-        assert "concept" not in json_prompt, "comparison-table should NOT have 'concept' string"
+        assert "concept" not in json_prompt, (
+            "comparison-table should NOT have 'concept' string"
+        )
 
     @pytest.mark.asyncio
     async def test_oral_agent_receives_concept_string(self, mock_agent_service):
@@ -301,17 +311,19 @@ class TestCallExplanationComparisonFormat:
         captured_json = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured_json['prompt'] = prompt
+            captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(mock_agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(
+            mock_agent_service, "call_agent", side_effect=mock_call_agent
+        ):
             await mock_agent_service.call_explanation(
                 content=content,
                 explanation_type="oral",  # Not comparison
-                context=None
+                context=None,
             )
 
-        json_prompt = json.loads(captured_json['prompt'])
+        json_prompt = json.loads(captured_json["prompt"])
         # oral agent should use 'concept' string
         assert "concept" in json_prompt, "oral agent should receive 'concept' string"
         assert isinstance(json_prompt["concept"], str)
@@ -319,7 +331,9 @@ class TestCallExplanationComparisonFormat:
         assert "concepts" not in json_prompt
 
     @pytest.mark.asyncio
-    async def test_clarification_agent_receives_concept_string(self, mock_agent_service):
+    async def test_clarification_agent_receives_concept_string(
+        self, mock_agent_service
+    ):
         """
         Test clarification Agent backward compatibility.
 
@@ -329,17 +343,17 @@ class TestCallExplanationComparisonFormat:
         captured_json = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured_json['prompt'] = prompt
+            captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(mock_agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(
+            mock_agent_service, "call_agent", side_effect=mock_call_agent
+        ):
             await mock_agent_service.call_explanation(
-                content=content,
-                explanation_type="clarification",
-                context=None
+                content=content, explanation_type="clarification", context=None
             )
 
-        json_prompt = json.loads(captured_json['prompt'])
+        json_prompt = json.loads(captured_json["prompt"])
         assert "concept" in json_prompt
         assert "concepts" not in json_prompt
 
@@ -354,17 +368,17 @@ class TestCallExplanationComparisonFormat:
         captured_json = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured_json['prompt'] = prompt
+            captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(mock_agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(
+            mock_agent_service, "call_agent", side_effect=mock_call_agent
+        ):
             await mock_agent_service.call_explanation(
-                content=content,
-                explanation_type="memory",
-                context=None
+                content=content, explanation_type="memory", context=None
             )
 
-        json_prompt = json.loads(captured_json['prompt'])
+        json_prompt = json.loads(captured_json["prompt"])
         assert "concept" in json_prompt
         assert "concepts" not in json_prompt
 
@@ -379,17 +393,17 @@ class TestCallExplanationComparisonFormat:
         captured_json = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured_json['prompt'] = prompt
+            captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(mock_agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(
+            mock_agent_service, "call_agent", side_effect=mock_call_agent
+        ):
             await mock_agent_service.call_explanation(
-                content=content,
-                explanation_type="four_level",
-                context=None
+                content=content, explanation_type="four_level", context=None
             )
 
-        json_prompt = json.loads(captured_json['prompt'])
+        json_prompt = json.loads(captured_json["prompt"])
         assert "concept" in json_prompt
         assert "concepts" not in json_prompt
 
@@ -404,16 +418,16 @@ class TestCallExplanationComparisonFormat:
         captured_json = {}
 
         async def mock_call_agent(agent_type, prompt, context=None):
-            captured_json['prompt'] = prompt
+            captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(mock_agent_service, 'call_agent', side_effect=mock_call_agent):
+        with patch.object(
+            mock_agent_service, "call_agent", side_effect=mock_call_agent
+        ):
             await mock_agent_service.call_explanation(
-                content=content,
-                explanation_type="example",
-                context=None
+                content=content, explanation_type="example", context=None
             )
 
-        json_prompt = json.loads(captured_json['prompt'])
+        json_prompt = json.loads(captured_json["prompt"])
         assert "concept" in json_prompt
         assert "concepts" not in json_prompt

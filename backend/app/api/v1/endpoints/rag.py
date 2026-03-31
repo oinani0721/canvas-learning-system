@@ -42,7 +42,9 @@ class RAGQueryRequest(BaseModel):
     """RAG 查询请求"""
 
     query: str = Field(..., description="查询字符串", min_length=1, max_length=2000)
-    canvas_file: Optional[str] = Field(None, description="Canvas 文件路径 (用于上下文过滤)")
+    canvas_file: Optional[str] = Field(
+        None, description="Canvas 文件路径 (用于上下文过滤)"
+    )
     subject_id: Optional[str] = Field(
         None,
         description="学科 ID, 用于多学科知识图谱隔离 (Story 1.9). 当提供时, 检索范围限定在该学科内.",
@@ -89,7 +91,9 @@ class MultimodalResultItem(BaseModel):
     """
 
     id: str = Field(..., description="内容ID")
-    media_type: Literal["image", "pdf", "audio", "video"] = Field(..., description="媒体类型")
+    media_type: Literal["image", "pdf", "audio", "video"] = Field(
+        ..., description="媒体类型"
+    )
     path: str = Field(..., description="文件路径")
     thumbnail: Optional[str] = Field(None, description="缩略图Base64或URL")
     relevance_score: float = Field(..., ge=0.0, le=1.0, description="相关度分数 (0-1)")
@@ -122,7 +126,9 @@ class RAGQueryResponse(BaseModel):
     ✅ Verified from OpenAPI: specs/api/fastapi-backend-api.openapi.yml#RAGQueryResponse
     """
 
-    results: List[SearchResultItem] = Field(default_factory=list, description="检索结果列表")
+    results: List[SearchResultItem] = Field(
+        default_factory=list, description="检索结果列表"
+    )
     multimodal_results: List[MultimodalResultItem] = Field(
         default_factory=list, description="多模态检索结果 (Story 35.8 AC-35.8.1)"
     )
@@ -130,7 +136,9 @@ class RAGQueryResponse(BaseModel):
     result_count: int = Field(0, description="结果数量")
     latency_ms: LatencyInfo = Field(default_factory=LatencyInfo, description="延迟信息")
     total_latency_ms: float = Field(0.0, description="总延迟 (ms)")
-    metadata: RAGQueryMetadata = Field(default_factory=RAGQueryMetadata, description="元数据")
+    metadata: RAGQueryMetadata = Field(
+        default_factory=RAGQueryMetadata, description="元数据"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -155,7 +163,13 @@ class RAGQueryResponse(BaseModel):
                 ],
                 "quality_grade": "high",
                 "result_count": 1,
-                "latency_ms": {"graphiti": 45.2, "lancedb": 32.1, "multimodal": 58.5, "fusion": 5.3, "reranking": 12.8},
+                "latency_ms": {
+                    "graphiti": 45.2,
+                    "lancedb": 32.1,
+                    "multimodal": 58.5,
+                    "fusion": 5.3,
+                    "reranking": 12.8,
+                },
                 "total_latency_ms": 153.9,
                 "metadata": {
                     "query_rewritten": False,
@@ -180,7 +194,9 @@ class WeakConceptItem(BaseModel):
 class WeakConceptsResponse(BaseModel):
     """薄弱概念响应"""
 
-    concepts: List[WeakConceptItem] = Field(default_factory=list, description="薄弱概念列表")
+    concepts: List[WeakConceptItem] = Field(
+        default_factory=list, description="薄弱概念列表"
+    )
     total_count: int = Field(0, description="总数量")
     canvas_file: str = Field(..., description="Canvas 文件")
 
@@ -213,7 +229,8 @@ class RAGStatusResponse(BaseModel):
     },
 )
 async def rag_query(
-    request: RAGQueryRequest, rag_service: Annotated[RAGService, Depends(get_rag_service)]
+    request: RAGQueryRequest,
+    rag_service: Annotated[RAGService, Depends(get_rag_service)],
 ) -> RAGQueryResponse:
     """
     执行 RAG 智能检索查询
@@ -235,7 +252,9 @@ async def rag_query(
         HTTPException 503: RAG 服务不可用
         HTTPException 500: 查询执行失败
     """
-    logger.info(f"RAG query: {request.query[:50]}... subject={request.subject_id} cross={request.cross_subject}")
+    logger.info(
+        f"RAG query: {request.query[:50]}... subject={request.subject_id} cross={request.cross_subject}"
+    )
 
     # Story 1.9 CRITICAL fix: Set ContextVar so downstream services
     # (via get_current_subject_id()) see the correct subject.
@@ -321,10 +340,15 @@ async def rag_query(
     summary="获取薄弱概念",
     description="从 Temporal Memory 获取指定 Canvas 的薄弱概念列表",
     operation_id="get_weak_concepts",
-    responses={200: {"description": "成功", "model": WeakConceptsResponse}, 503: {"description": "RAG 服务不可用"}},
+    responses={
+        200: {"description": "成功", "model": WeakConceptsResponse},
+        503: {"description": "RAG 服务不可用"},
+    },
 )
 async def get_weak_concepts(
-    canvas_file: str, rag_service: Annotated[RAGService, Depends(get_rag_service)], limit: int = 10
+    canvas_file: str,
+    rag_service: Annotated[RAGService, Depends(get_rag_service)],
+    limit: int = 10,
 ) -> WeakConceptsResponse:
     """
     获取薄弱概念列表
@@ -342,7 +366,9 @@ async def get_weak_concepts(
     logger.info(f"Getting weak concepts for: {canvas_file}")
 
     try:
-        concepts = await rag_service.get_weak_concepts(canvas_file=canvas_file, limit=limit)
+        concepts = await rag_service.get_weak_concepts(
+            canvas_file=canvas_file, limit=limit
+        )
 
         return WeakConceptsResponse(
             concepts=[
@@ -370,7 +396,9 @@ async def get_weak_concepts(
     description="获取 RAG 服务状态信息",
     operation_id="get_rag_status",
 )
-async def get_rag_status(rag_service: Annotated[RAGService, Depends(get_rag_service)]) -> RAGStatusResponse:
+async def get_rag_status(
+    rag_service: Annotated[RAGService, Depends(get_rag_service)],
+) -> RAGStatusResponse:
     """
     获取 RAG 服务状态
 
@@ -456,16 +484,24 @@ async def update_rag_config(updates: dict) -> dict:
             with open(config_path, "w", encoding="utf-8") as f:
                 yaml.dump(existing, f, default_flow_style=False, allow_unicode=True)
 
-            logger.info(f"[CONFIG] Updated {len(updates)} params, persisted to {config_path}")
+            logger.info(
+                f"[CONFIG] Updated {len(updates)} params, persisted to {config_path}"
+            )
         except ImportError:
-            logger.warning("[CONFIG] pyyaml not installed, config not persisted to file")
+            logger.warning(
+                "[CONFIG] pyyaml not installed, config not persisted to file"
+            )
 
         # Log changes
         for param, value in updates.items():
             old_val = DEFAULT_CONFIG.get(param, "N/A")
             logger.info(f"[CONFIG] Updated {param}: {old_val} -> {value}")
 
-        return {"status": "ok", "updated_keys": list(updates.keys()), "config": dict(validated)}
+        return {
+            "status": "ok",
+            "updated_keys": list(updates.keys()),
+            "config": dict(validated),
+        }
 
     except Exception as e:
         logger.error(f"Failed to update RAG config: {e}")

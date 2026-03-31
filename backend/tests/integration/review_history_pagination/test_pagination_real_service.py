@@ -10,20 +10,19 @@ Covers:
 - Story 34.8 AC3: show_all hard cap (MAX_HISTORY_RECORDS=1000)
 """
 
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
-
 from app.services.review_service import MAX_HISTORY_RECORDS
 
 from .conftest import (
-    make_real_review_service,
     build_card_states_for_history,
+    make_real_review_service,
 )
 
-
 # ── Shared fixture for all real-service tests in this module ─────────────────
+
 
 @pytest.fixture(autouse=True)
 def _patch_service_datetime():
@@ -36,6 +35,7 @@ def _patch_service_datetime():
 
 
 # ── Real service pagination tests ────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 class TestRealReviewServiceHistory:
@@ -169,6 +169,7 @@ class TestRealReviewServiceHistory:
 
 # ── Hard cap tests ───────────────────────────────────────────────────────────
 
+
 class TestShowAllHardCap:
     """Story 34.8 AC3: Verify show_all=True uses MAX_HISTORY_RECORDS cap."""
 
@@ -179,9 +180,14 @@ class TestShowAllHardCap:
     def test_show_all_uses_max_cap_in_endpoint(self):
         """AC3: show_all=True in endpoint must use MAX_HISTORY_RECORDS, not None."""
         from pathlib import Path
+
         review_path = (
             Path(__file__).resolve().parents[3]
-            / "app" / "api" / "v1" / "endpoints" / "review.py"
+            / "app"
+            / "api"
+            / "v1"
+            / "endpoints"
+            / "review.py"
         )
         source = review_path.read_text(encoding="utf-8")
 

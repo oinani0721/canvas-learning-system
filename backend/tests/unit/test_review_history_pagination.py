@@ -10,8 +10,6 @@ Tests cover:
 """
 
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestHistoryPaginationContract:
@@ -30,11 +28,7 @@ class TestHistoryPaginationContract:
             period={"start": "2025-01-01", "end": "2025-01-07"},
             total_reviews=12,
             records=[],
-            pagination=PaginationInfo(
-                limit=5,
-                offset=0,
-                has_more=True
-            )
+            pagination=PaginationInfo(limit=5, offset=0, has_more=True),
         )
 
         assert response.pagination is not None
@@ -47,11 +41,7 @@ class TestHistoryPaginationContract:
         """PaginationInfo model should have required fields."""
         from app.models.review_models import PaginationInfo
 
-        pagination = PaginationInfo(
-            limit=5,
-            offset=0,
-            has_more=True
-        )
+        pagination = PaginationInfo(limit=5, offset=0, has_more=True)
 
         assert pagination.limit == 5
         assert pagination.offset == 0
@@ -62,11 +52,7 @@ class TestHistoryPaginationContract:
         from app.models.review_models import PaginationInfo
 
         # With offset (e.g., second page)
-        pagination = PaginationInfo(
-            limit=5,
-            offset=5,
-            has_more=True
-        )
+        pagination = PaginationInfo(limit=5, offset=5, has_more=True)
 
         assert pagination.limit == 5
         assert pagination.offset == 5
@@ -81,8 +67,8 @@ class TestHistoryAPIEndpoint:
     @pytest.mark.asyncio
     async def test_endpoint_accepts_limit_parameter(self):
         """GET /review/history should accept limit parameter (AC-34.4.3)."""
-        from fastapi.testclient import TestClient
         from app.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
 
@@ -95,8 +81,8 @@ class TestHistoryAPIEndpoint:
     @pytest.mark.asyncio
     async def test_endpoint_accepts_show_all_parameter(self):
         """GET /review/history should accept show_all parameter (AC-34.4.3)."""
-        from fastapi.testclient import TestClient
         from app.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
 
@@ -109,8 +95,8 @@ class TestHistoryAPIEndpoint:
     @pytest.mark.asyncio
     async def test_endpoint_default_limit(self):
         """Default limit should be 5 (AC-34.4.1)."""
-        from fastapi.testclient import TestClient
         from app.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
 
@@ -118,13 +104,15 @@ class TestHistoryAPIEndpoint:
         response = client.get("/api/v1/review/history")
 
         # Story 34.9 AC4: Only accept 200 — HTTP 500 is never a valid response
-        assert response.status_code == 200, f"Endpoint should return 200 with default limit, got {response.status_code}"
+        assert response.status_code == 200, (
+            f"Endpoint should return 200 with default limit, got {response.status_code}"
+        )
 
     @pytest.mark.asyncio
     async def test_endpoint_combined_parameters(self):
         """Endpoint should accept all parameters together."""
-        from fastapi.testclient import TestClient
         from app.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
 
@@ -182,7 +170,7 @@ class TestPaginationLogic:
         # show_all overrides limit
         effective_limit = None if show_all else limit
         result = all_records[:effective_limit] if effective_limit else all_records
-        has_more = False if show_all else (len(all_records) > (limit or float('inf')))
+        has_more = False if show_all else (len(all_records) > (limit or float("inf")))
 
         assert len(result) == 12
         assert has_more is False
@@ -260,15 +248,13 @@ class TestSortingRequirement:
         ]
 
         # Sort by review_time descending (newest first)
-        sorted_records = sorted(
-            records,
-            key=lambda r: r["review_time"],
-            reverse=True
-        )
+        sorted_records = sorted(records, key=lambda r: r["review_time"], reverse=True)
 
         # Verify sorted order
         for i in range(len(sorted_records) - 1):
-            assert sorted_records[i]["review_time"] >= sorted_records[i + 1]["review_time"]
+            assert (
+                sorted_records[i]["review_time"] >= sorted_records[i + 1]["review_time"]
+            )
 
     def test_limit_applies_after_sorting(self):
         """Limit should apply after sorting (get newest N records)."""
@@ -281,11 +267,7 @@ class TestSortingRequirement:
         ]
 
         # Sort then limit
-        sorted_records = sorted(
-            records,
-            key=lambda r: r["review_time"],
-            reverse=True
-        )
+        sorted_records = sorted(records, key=lambda r: r["review_time"], reverse=True)
         limited = sorted_records[:3]
 
         # Should have the 3 newest records (days 0, 1, 2)

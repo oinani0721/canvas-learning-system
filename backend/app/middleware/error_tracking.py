@@ -29,6 +29,7 @@ logger = structlog.get_logger(__name__)
 # [Source: ADR-009:59-87 错误码区间体系]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class ErrorCode(IntEnum):
     """
     Error code enumeration following ADR-009 specification.
@@ -135,14 +136,14 @@ def get_error_category(error_code: int) -> str:
 ERROR_COUNTER = Counter(
     "canvas_errors_total",
     "Total errors by error code",
-    ["error_code", "category", "component"]
+    ["error_code", "category", "component"],
 )
 
 # Counter for tracking retryable vs non-retryable errors
 ERROR_RETRY_COUNTER = Counter(
     "canvas_error_retries_total",
     "Total error retry attempts",
-    ["error_code", "retry_outcome"]
+    ["error_code", "retry_outcome"],
 )
 
 
@@ -152,15 +153,17 @@ ERROR_RETRY_COUNTER = Counter(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Errors that are safe to retry
-RETRYABLE_ERRORS = frozenset([
-    ErrorCode.AGENT_TIMEOUT,
-    ErrorCode.AGENT_RATE_LIMITED,
-    ErrorCode.MEMORY_TIMEOUT,
-    ErrorCode.MEMORY_CONNECTION_ERROR,
-    ErrorCode.EXTERNAL_TIMEOUT,
-    ErrorCode.EXTERNAL_RATE_LIMITED,
-    ErrorCode.RESOURCE_EXHAUSTED,
-])
+RETRYABLE_ERRORS = frozenset(
+    [
+        ErrorCode.AGENT_TIMEOUT,
+        ErrorCode.AGENT_RATE_LIMITED,
+        ErrorCode.MEMORY_TIMEOUT,
+        ErrorCode.MEMORY_CONNECTION_ERROR,
+        ErrorCode.EXTERNAL_TIMEOUT,
+        ErrorCode.EXTERNAL_RATE_LIMITED,
+        ErrorCode.RESOURCE_EXHAUSTED,
+    ]
+)
 
 # Maximum retry attempts per error category
 MAX_RETRIES = {
@@ -208,11 +211,12 @@ def get_max_retries(error_code: ErrorCode) -> int:
 # [Source: docs/architecture/performance-monitoring-architecture.md:381-420]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def record_error(
     error_code: ErrorCode | int,
     component: str,
     error_message: str | None = None,
-    details: dict[str, Any] | None = None
+    details: dict[str, Any] | None = None,
 ) -> None:
     """
     Record an error occurrence in Prometheus metrics and logs.
@@ -235,31 +239,23 @@ def record_error(
 
     # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
     ERROR_COUNTER.labels(
-        error_code=str(code_value),
-        category=category,
-        component=component
+        error_code=str(code_value), category=category, component=component
     ).inc()
 
     # Log the error
-    log = logger.bind(
-        error_code=code_value,
-        category=category,
-        component=component
-    )
+    log = logger.bind(error_code=code_value, category=category, component=component)
 
     if details:
         log = log.bind(**details)
 
     log.error(
         "error_tracking.error_recorded",
-        error_message=error_message or f"Error {code_value} in {component}"
+        error_message=error_message or f"Error {code_value} in {component}",
     )
 
 
 def record_retry_attempt(
-    error_code: ErrorCode | int,
-    attempt: int,
-    success: bool
+    error_code: ErrorCode | int, attempt: int, success: bool
 ) -> None:
     """
     Record a retry attempt in Prometheus metrics.
@@ -279,16 +275,13 @@ def record_retry_attempt(
     outcome = "success" if success else "failed"
 
     # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
-    ERROR_RETRY_COUNTER.labels(
-        error_code=str(code_value),
-        retry_outcome=outcome
-    ).inc()
+    ERROR_RETRY_COUNTER.labels(error_code=str(code_value), retry_outcome=outcome).inc()
 
     logger.debug(
         "error_tracking.retry_attempt",
         error_code=code_value,
         attempt=attempt,
-        outcome=outcome
+        outcome=outcome,
     )
 
 
@@ -353,6 +346,6 @@ def get_error_metrics_snapshot() -> dict[str, Any]:
             "total": retry_total,
             "success": retry_success,
             "failed": retry_failed,
-            "success_rate": round(retry_success_rate, 4)
-        }
+            "success_rate": round(retry_success_rate, 4),
+        },
     }

@@ -25,7 +25,7 @@ from typing import Any, Dict, List
 import pytest
 
 # 添加项目根目录到 Python 路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from canvas_utils import CanvasJSONOperator
 
@@ -47,13 +47,13 @@ class TestCanvas3LayerStructure:
                     "y": 200,
                     "width": 400,
                     "height": 300,
-                    "color": "6"  # Yellow
+                    "color": "6",  # Yellow
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False, indent=2)
 
         return str(canvas_path)
@@ -62,7 +62,7 @@ class TestCanvas3LayerStructure:
     def test_doc_path(self, tmp_path):
         """创建临时测试文档文件"""
         doc_path = tmp_path / "test_explanation.md"
-        doc_path.write_text("# 测试解释文档\n\n这是一个测试文档。", encoding='utf-8')
+        doc_path.write_text("# 测试解释文档\n\n这是一个测试文档。", encoding="utf-8")
         return str(doc_path)
 
     @pytest.fixture
@@ -72,55 +72,48 @@ class TestCanvas3LayerStructure:
             "success": True,
             "node_id": "yellow-test-123",
             "doc_path": test_doc_path,
-            "node_data": {
-                "x": 100,
-                "y": 200,
-                "width": 400,
-                "height": 300
-            },
-            "agent": "oral-explanation"
+            "node_data": {"x": 100, "y": 200, "width": 400, "height": 300},
+            "agent": "oral-explanation",
         }
 
     @pytest.fixture
     def mock_handler(self):
         """创建模拟的Handler对象"""
+
         class MockHandler:
             def __init__(self):
-                self.stats = {
-                    "created_blue_nodes": 0,
-                    "errors": []
-                }
+                self.stats = {"created_blue_nodes": 0, "errors": []}
                 self.supported_agents = {
                     "oral-explanation": {
                         "name": "oral-explanation",
                         "emoji": "🗣️",
-                        "description": "口语化解释"
+                        "description": "口语化解释",
                     },
                     "clarification-path": {
                         "name": "clarification-path",
                         "emoji": "🔍",
-                        "description": "澄清路径"
+                        "description": "澄清路径",
                     },
                     "memory-anchor": {
                         "name": "memory-anchor",
                         "emoji": "⚓",
-                        "description": "记忆锚点"
+                        "description": "记忆锚点",
                     },
                     "comparison-table": {
                         "name": "comparison-table",
                         "emoji": "📊",
-                        "description": "对比表格"
+                        "description": "对比表格",
                     },
                     "four-level-explanation": {
                         "name": "four-level-explanation",
                         "emoji": "🎯",
-                        "description": "四层次解释"
+                        "description": "四层次解释",
                     },
                     "example-teaching": {
                         "name": "example-teaching",
                         "emoji": "📝",
-                        "description": "例题教学"
-                    }
+                        "description": "例题教学",
+                    },
                 }
 
             def _create_canvas_backup(self, canvas_path: str) -> str:
@@ -138,7 +131,7 @@ class TestCanvas3LayerStructure:
                 self,
                 canvas_path: str,
                 results: List[Dict[str, Any]],
-                options: Dict[str, Any]
+                options: Dict[str, Any],
             ) -> None:
                 """修复后的Canvas更新方法 - 使用正确的3层结构"""
                 print("\n🔄 更新Canvas文件 (正确的3层结构)...")
@@ -190,7 +183,7 @@ class TestCanvas3LayerStructure:
                             "memory-anchor": "记忆锚点",
                             "comparison-table": "对比表格",
                             "four-level-explanation": "四层次解释",
-                            "example-teaching": "例题教学"
+                            "example-teaching": "例题教学",
                         }.get(agent_type, "AI解释")
 
                         blue_text_content = f"{agent_info['emoji']} {agent_name_cn}\n\nAgent: {agent_type}\n生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -204,7 +197,7 @@ class TestCanvas3LayerStructure:
                             width=250,
                             height=150,
                             color="5",
-                            text=blue_text_content
+                            text=blue_text_content,
                         )
                         canvas_data["nodes"][-1]["id"] = blue_text_node_id
 
@@ -225,7 +218,7 @@ class TestCanvas3LayerStructure:
                             y=file_y,
                             width=350,
                             height=200,
-                            file=file_path_str
+                            file=file_path_str,
                         )
                         canvas_data["nodes"][-1]["id"] = file_node_id
 
@@ -236,7 +229,7 @@ class TestCanvas3LayerStructure:
                             to_node=blue_text_node_id,
                             from_side="right",
                             to_side="left",
-                            label=f"AI解释 ({agent_info['emoji']})"
+                            label=f"AI解释 ({agent_info['emoji']})",
                         )
                         edge1_id = f"edge-{node_id}-to-{blue_text_node_id}"
                         canvas_data["edges"][-1]["id"] = edge1_id
@@ -247,7 +240,7 @@ class TestCanvas3LayerStructure:
                             from_node=blue_text_node_id,
                             to_node=file_node_id,
                             from_side="right",
-                            to_side="left"
+                            to_side="left",
                         )
                         edge2_id = f"edge-{blue_text_node_id}-to-{file_node_id}"
                         canvas_data["edges"][-1]["id"] = edge2_id
@@ -257,7 +250,9 @@ class TestCanvas3LayerStructure:
                         self.stats["created_blue_nodes"] += 2
 
                         print("   ✅ 创建3层结构:")
-                        print(f"      Yellow({node_id[:16]}...) → BlueText({blue_text_node_id[:16]}...) → File({file_node_id[:16]}...)")
+                        print(
+                            f"      Yellow({node_id[:16]}...) → BlueText({blue_text_node_id[:16]}...) → File({file_node_id[:16]}...)"
+                        )
 
                     except Exception as e:
                         error_msg = f"Canvas修改失败 (节点 {node_id}): {str(e)}"
@@ -265,6 +260,7 @@ class TestCanvas3LayerStructure:
                         print(f"   ❌ {error_msg}")
                         if options.get("verbose", False):
                             import traceback
+
                             traceback.print_exc()
 
                         # 发生错误时回滚
@@ -279,7 +275,9 @@ class TestCanvas3LayerStructure:
                 # Step 4: 保存修改后的Canvas
                 try:
                     CanvasJSONOperator.write_canvas(canvas_path, canvas_data)
-                    print(f"✅ Canvas文件更新成功: {nodes_created} 个节点 (Blue TEXT + File)")
+                    print(
+                        f"✅ Canvas文件更新成功: {nodes_created} 个节点 (Blue TEXT + File)"
+                    )
                 except Exception as e:
                     error_msg = f"Canvas保存失败: {str(e)}"
                     self.stats["errors"].append(error_msg)
@@ -311,9 +309,7 @@ class TestCanvas3LayerStructure:
         """
         # Execute
         mock_handler._update_canvas_correct_structure(
-            test_canvas_path,
-            [mock_result],
-            {"verbose": False}
+            test_canvas_path, [mock_result], {"verbose": False}
         )
 
         # Verify
@@ -338,7 +334,9 @@ class TestCanvas3LayerStructure:
         assert "生成时间:" in blue_text_node["text"], "应包含生成时间"
 
         # 验证节点ID格式
-        assert blue_text_node["id"].startswith("ai-text-"), "Blue TEXT节点ID应以'ai-text-'开头"
+        assert blue_text_node["id"].startswith("ai-text-"), (
+            "Blue TEXT节点ID应以'ai-text-'开头"
+        )
 
         print("✅ Blue TEXT节点属性验证通过")
         print(f"   Type: {blue_text_node['type']}")
@@ -360,9 +358,7 @@ class TestCanvas3LayerStructure:
         """
         # Execute
         mock_handler._update_canvas_correct_structure(
-            test_canvas_path,
-            [mock_result],
-            {"verbose": False}
+            test_canvas_path, [mock_result], {"verbose": False}
         )
 
         # Verify
@@ -410,9 +406,7 @@ class TestCanvas3LayerStructure:
         """
         # Execute
         mock_handler._update_canvas_correct_structure(
-            test_canvas_path,
-            [mock_result],
-            {"verbose": False}
+            test_canvas_path, [mock_result], {"verbose": False}
         )
 
         # Verify
@@ -436,8 +430,11 @@ class TestCanvas3LayerStructure:
 
         assert edge2["fromNode"] == blue_text_node_id, "Edge 2应从Blue TEXT节点出发"
         assert edge2["toNode"] == file_node_id, "Edge 2应指向File节点"
-        assert "label" not in edge2 or edge2.get("label") is None or edge2.get("label") == "", \
-            "Edge 2不应该有label (或label为空)"
+        assert (
+            "label" not in edge2
+            or edge2.get("label") is None
+            or edge2.get("label") == ""
+        ), "Edge 2不应该有label (或label为空)"
 
         print("✅ 边连接验证通过")
         print(f"   Edge 1: {edge1['fromNode'][:20]}... → {edge1['toNode'][:20]}...")
@@ -459,20 +456,22 @@ class TestCanvas3LayerStructure:
         - 发生错误时可以回滚 ✅
         """
         # Step 1: 正常执行应创建备份
-        original_content = Path(test_canvas_path).read_text(encoding='utf-8')
+        original_content = Path(test_canvas_path).read_text(encoding="utf-8")
 
         mock_handler._update_canvas_correct_structure(
-            test_canvas_path,
-            [mock_result],
-            {"verbose": False}
+            test_canvas_path, [mock_result], {"verbose": False}
         )
 
         # 检查是否创建了备份文件
-        backup_files = list(Path(test_canvas_path).parent.glob(f"{Path(test_canvas_path).name}.backup.*"))
+        backup_files = list(
+            Path(test_canvas_path).parent.glob(
+                f"{Path(test_canvas_path).name}.backup.*"
+            )
+        )
         assert len(backup_files) > 0, "应该创建备份文件"
 
         backup_file = backup_files[0]
-        backup_content = backup_file.read_text(encoding='utf-8')
+        backup_content = backup_file.read_text(encoding="utf-8")
 
         # 验证备份内容与原始内容相同
         assert backup_content == original_content, "备份内容应该与原始文件相同"
@@ -483,36 +482,38 @@ class TestCanvas3LayerStructure:
         # Step 2: 测试回滚机制
         # 手动修改Canvas文件
         canvas_data = CanvasJSONOperator.read_canvas(test_canvas_path)
-        canvas_data["nodes"].append({
-            "id": "corrupted-node",
-            "type": "text",
-            "text": "这是一个错误节点",
-            "x": 0,
-            "y": 0,
-            "width": 100,
-            "height": 100
-        })
+        canvas_data["nodes"].append(
+            {
+                "id": "corrupted-node",
+                "type": "text",
+                "text": "这是一个错误节点",
+                "x": 0,
+                "y": 0,
+                "width": 100,
+                "height": 100,
+            }
+        )
         CanvasJSONOperator.write_canvas(test_canvas_path, canvas_data)
 
         # 执行回滚
         mock_handler._rollback_from_backup(test_canvas_path, str(backup_file))
 
         # 验证回滚后内容
-        rolled_back_content = Path(test_canvas_path).read_text(encoding='utf-8')
+        rolled_back_content = Path(test_canvas_path).read_text(encoding="utf-8")
         assert rolled_back_content == backup_content, "回滚后内容应该恢复到备份版本"
 
         # 验证错误节点已被移除
         canvas_data_after = CanvasJSONOperator.read_canvas(test_canvas_path)
-        corrupted_exists = any(n["id"] == "corrupted-node" for n in canvas_data_after["nodes"])
+        corrupted_exists = any(
+            n["id"] == "corrupted-node" for n in canvas_data_after["nodes"]
+        )
         assert not corrupted_exists, "回滚后不应该存在错误节点"
 
         print("✅ 回滚机制验证通过")
 
     # ========== AC6: 统计更新测试 ==========
 
-    def test_stats_updated_correctly(
-        self, test_canvas_path, mock_result, mock_handler
-    ):
+    def test_stats_updated_correctly(self, test_canvas_path, mock_result, mock_handler):
         """
         AC6: 测试统计信息正确更新
 
@@ -524,14 +525,13 @@ class TestCanvas3LayerStructure:
         initial_count = mock_handler.stats["created_blue_nodes"]
 
         mock_handler._update_canvas_correct_structure(
-            test_canvas_path,
-            [mock_result],
-            {"verbose": False}
+            test_canvas_path, [mock_result], {"verbose": False}
         )
 
         # 验证增加了2个节点
-        assert mock_handler.stats["created_blue_nodes"] == initial_count + 2, \
+        assert mock_handler.stats["created_blue_nodes"] == initial_count + 2, (
             "每个成功的result应该使created_blue_nodes增加2"
+        )
 
         print("✅ 统计更新验证通过 (单个result)")
         print(f"   Initial: {initial_count}")
@@ -556,9 +556,7 @@ class TestCanvas3LayerStructure:
 
         # Execute
         mock_handler._update_canvas_correct_structure(
-            test_canvas_path,
-            [mock_result],
-            {"verbose": False}
+            test_canvas_path, [mock_result], {"verbose": False}
         )
 
         # Verify
@@ -574,8 +572,9 @@ class TestCanvas3LayerStructure:
         file_node = canvas_data["nodes"][2]
 
         assert yellow_node["color"] == "6", "第1层应该是Yellow节点"
-        assert blue_text_node["type"] == "text" and blue_text_node["color"] == "5", \
+        assert blue_text_node["type"] == "text" and blue_text_node["color"] == "5", (
             "第2层应该是Blue TEXT节点"
+        )
         assert file_node["type"] == "file", "第3层应该是File节点"
 
         # 3. 验证边的连接关系
@@ -593,7 +592,9 @@ class TestCanvas3LayerStructure:
         assert not edge2.get("label")  # 无标签
 
         # 4. 验证节点位置 (水平排列)
-        assert blue_text_node["x"] == yellow_node["x"] + 300, "Blue TEXT应在Yellow右侧300px"
+        assert blue_text_node["x"] == yellow_node["x"] + 300, (
+            "Blue TEXT应在Yellow右侧300px"
+        )
         assert file_node["x"] == blue_text_node["x"] + 300, "File应在Blue TEXT右侧300px"
         assert blue_text_node["y"] == yellow_node["y"], "Blue TEXT应与Yellow同一水平线"
         assert file_node["y"] == blue_text_node["y"], "File应与Blue TEXT同一水平线"
@@ -605,13 +606,13 @@ class TestCanvas3LayerStructure:
         print("✅ 端到端集成测试通过")
         print(f"   Nodes: {len(canvas_data['nodes'])} (Yellow + Blue TEXT + File)")
         print(f"   Edges: {len(canvas_data['edges'])} (Yellow→Blue, Blue→File)")
-        print(f"   Structure verified: Yellow[{yellow_node['id'][:15]}...] → BlueText[{blue_text_node['id'][:15]}...] → File[{file_node['id'][:15]}...]")
+        print(
+            f"   Structure verified: Yellow[{yellow_node['id'][:15]}...] → BlueText[{blue_text_node['id'][:15]}...] → File[{file_node['id'][:15]}...]"
+        )
 
     # ========== 错误处理测试 ==========
 
-    def test_error_handling_with_invalid_result(
-        self, test_canvas_path, mock_handler
-    ):
+    def test_error_handling_with_invalid_result(self, test_canvas_path, mock_handler):
         """
         测试错误处理: 无效的result应该被跳过
 
@@ -622,7 +623,7 @@ class TestCanvas3LayerStructure:
         invalid_result = {
             "success": False,
             "node_id": "invalid-node",
-            "error": "测试错误"
+            "error": "测试错误",
         }
 
         valid_result = {
@@ -630,17 +631,17 @@ class TestCanvas3LayerStructure:
             "node_id": "yellow-test-123",
             "doc_path": str(Path(test_canvas_path).parent / "test.md"),
             "node_data": {"x": 100, "y": 200, "width": 400, "height": 300},
-            "agent": "oral-explanation"
+            "agent": "oral-explanation",
         }
 
         # 创建临时文档文件
-        Path(valid_result["doc_path"]).write_text("测试文档", encoding='utf-8')
+        Path(valid_result["doc_path"]).write_text("测试文档", encoding="utf-8")
 
         # Execute
         mock_handler._update_canvas_correct_structure(
             test_canvas_path,
             [invalid_result, valid_result],  # 混合有效和无效result
-            {"verbose": False}
+            {"verbose": False},
         )
 
         # Verify
@@ -657,9 +658,7 @@ class TestCanvas3LayerStructure:
 
     # ========== 多Agent类型测试 ==========
 
-    def test_multiple_agent_types(
-        self, test_canvas_path, mock_handler, tmp_path
-    ):
+    def test_multiple_agent_types(self, test_canvas_path, mock_handler, tmp_path):
         """
         测试多种Agent类型的处理
 
@@ -677,31 +676,33 @@ class TestCanvas3LayerStructure:
             # 创建新的Canvas文件
             canvas_path = tmp_path / f"test_agent_{i}.canvas"
             canvas_data = {
-                "nodes": [{
-                    "id": f"yellow-{i}",
-                    "type": "text",
-                    "text": f"测试节点{i}",
-                    "x": 0,
-                    "y": 0,
-                    "width": 400,
-                    "height": 300,
-                    "color": "6"
-                }],
-                "edges": []
+                "nodes": [
+                    {
+                        "id": f"yellow-{i}",
+                        "type": "text",
+                        "text": f"测试节点{i}",
+                        "x": 0,
+                        "y": 0,
+                        "width": 400,
+                        "height": 300,
+                        "color": "6",
+                    }
+                ],
+                "edges": [],
             }
-            with open(canvas_path, 'w', encoding='utf-8') as f:
+            with open(canvas_path, "w", encoding="utf-8") as f:
                 json.dump(canvas_data, f, ensure_ascii=False)
 
             # 创建result
             doc_path = tmp_path / f"doc_{i}.md"
-            doc_path.write_text(f"文档{i}", encoding='utf-8')
+            doc_path.write_text(f"文档{i}", encoding="utf-8")
 
             result = {
                 "success": True,
                 "node_id": f"yellow-{i}",
                 "doc_path": str(doc_path),
                 "node_data": {"x": 0, "y": 0, "width": 400, "height": 300},
-                "agent": agent_type
+                "agent": agent_type,
             }
 
             # 重置统计
@@ -709,17 +710,19 @@ class TestCanvas3LayerStructure:
 
             # Execute
             handler._update_canvas_correct_structure(
-                str(canvas_path),
-                [result],
-                {"verbose": False}
+                str(canvas_path), [result], {"verbose": False}
             )
 
             # Verify
             result_data = CanvasJSONOperator.read_canvas(str(canvas_path))
             blue_text_node = result_data["nodes"][1]
 
-            assert emoji in blue_text_node["text"], f"应包含{agent_type}的emoji: {emoji}"
-            assert name_cn in blue_text_node["text"], f"应包含{agent_type}的中文名: {name_cn}"
+            assert emoji in blue_text_node["text"], (
+                f"应包含{agent_type}的emoji: {emoji}"
+            )
+            assert name_cn in blue_text_node["text"], (
+                f"应包含{agent_type}的中文名: {name_cn}"
+            )
 
             print(f"✅ Agent类型 '{agent_type}' 验证通过")
             print(f"   Emoji: {emoji}")

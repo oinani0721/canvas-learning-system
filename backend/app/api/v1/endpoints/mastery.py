@@ -53,26 +53,45 @@ def _get_store():
 
 class GradeRequest(BaseModel):
     grade: int = Field(
-        ..., ge=1, le=4, description="Student response grade (1=Forgot, 2=Struggled, 3=Correct, 4=Fluent)"
+        ...,
+        ge=1,
+        le=4,
+        description="Student response grade (1=Forgot, 2=Struggled, 3=Correct, 4=Fluent)",
     )
-    topic: str = Field(default="", description="Topic category (optional, for new concepts)")
-    name: str = Field(default="", description="Display name (optional, for new concepts)")
+    topic: str = Field(
+        default="", description="Topic category (optional, for new concepts)"
+    )
+    name: str = Field(
+        default="", description="Display name (optional, for new concepts)"
+    )
 
 
 class OverrideRequest(BaseModel):
-    level: str = Field(..., description="Override level: shaky/developing/proficient/mastered")
+    level: str = Field(
+        ..., description="Override level: shaky/developing/proficient/mastered"
+    )
     reason: str = Field(default="", description="Optional reason for override")
 
 
 class SelfAssessRequest(BaseModel):
     color: str = Field(..., description="Canvas color code (1-6)")
-    name: str = Field(default="", description="Display name from node text (optional, for concept identification)")
+    name: str = Field(
+        default="",
+        description="Display name from node text (optional, for concept identification)",
+    )
 
 
 class GraphitiSyncRequest(BaseModel):
-    concept_name: str = Field(..., description="Concept name from Graphiti episode (e.g. 'A* optimality')")
-    signal: str = Field(..., description="Signal type: misconception, problem_trap, guided_thinking_correct")
-    severity: float = Field(default=0.15, ge=0.0, le=1.0, description="Adjustment magnitude")
+    concept_name: str = Field(
+        ..., description="Concept name from Graphiti episode (e.g. 'A* optimality')"
+    )
+    signal: str = Field(
+        ...,
+        description="Signal type: misconception, problem_trap, guided_thinking_correct",
+    )
+    severity: float = Field(
+        default=0.15, ge=0.0, le=1.0, description="Adjustment magnitude"
+    )
     topic: str = Field(default="", description="Topic category (optional)")
 
 
@@ -111,7 +130,9 @@ async def get_batch_mastery(group_id: str = Query(default=DEFAULT_GROUP_ID)):
         import json
         from pathlib import Path
 
-        config_path = Path(__file__).parent.parent.parent.parent.parent / "mastery_config.json"
+        config_path = (
+            Path(__file__).parent.parent.parent.parent.parent / "mastery_config.json"
+        )
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:
                 exam_weights = json.load(f).get("topic_exam_weights", {})
@@ -187,13 +208,15 @@ async def get_board_mastery(
             except Exception:
                 pass  # Graceful degradation: no due date if card parse fails
 
-        items.append({
-            "node_id": concept.concept_id,
-            "effective_proficiency": eff_value,
-            "has_interaction": has_interaction,
-            "has_exam_record": has_exam_record,
-            "fsrs_next_review": fsrs_next_review,
-        })
+        items.append(
+            {
+                "node_id": concept.concept_id,
+                "effective_proficiency": eff_value,
+                "has_interaction": has_interaction,
+                "has_exam_record": has_exam_record,
+                "fsrs_next_review": fsrs_next_review,
+            }
+        )
 
     return {"data": items}
 
@@ -244,7 +267,9 @@ async def set_override(
     """
     valid_levels = {"shaky", "developing", "proficient", "mastered"}
     if req.level not in valid_levels:
-        raise HTTPException(400, f"Invalid level '{req.level}'. Must be one of: {valid_levels}")
+        raise HTTPException(
+            400, f"Invalid level '{req.level}'. Must be one of: {valid_levels}"
+        )
 
     engine = _get_engine()
     store = _get_store()
@@ -327,7 +352,8 @@ async def knowledge_graph_sync(
     """
     if req.signal not in ("misconception", "problem_trap", "guided_thinking_correct"):
         raise HTTPException(
-            400, f"Invalid signal type: {req.signal}. Must be: misconception, problem_trap, guided_thinking_correct"
+            400,
+            f"Invalid signal type: {req.signal}. Must be: misconception, problem_trap, guided_thinking_correct",
         )
 
     engine = _get_engine()

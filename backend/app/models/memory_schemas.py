@@ -14,17 +14,16 @@ Story 22.4 Implementation:
 [Source: docs/stories/22.4.story.md#Pydantic模型]
 """
 
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 # =============================================================================
 # Learning Episode Schemas
 # [Source: docs/stories/22.4.story.md#Pydantic模型]
 # =============================================================================
+
 
 class LearningEpisodeCreate(BaseModel):
     """
@@ -41,22 +40,14 @@ class LearningEpisodeCreate(BaseModel):
 
     [Source: docs/stories/22.4.story.md#Pydantic模型]
     """
+
     user_id: str = Field(..., description="用户ID")
     canvas_path: str = Field(..., description="Canvas文件路径")
     node_id: str = Field(..., description="Canvas节点ID")
     concept: str = Field(..., description="学习概念")
     agent_type: str = Field(..., description="使用的Agent类型")
-    score: Optional[int] = Field(
-        None,
-        ge=0,
-        le=100,
-        description="得分 (0-100)"
-    )
-    duration_seconds: Optional[int] = Field(
-        None,
-        ge=0,
-        description="学习时长 (秒)"
-    )
+    score: Optional[int] = Field(None, ge=0, le=100, description="得分 (0-100)")
+    duration_seconds: Optional[int] = Field(None, ge=0, description="学习时长 (秒)")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -67,7 +58,7 @@ class LearningEpisodeCreate(BaseModel):
                 "concept": "逆否命题",
                 "agent_type": "basic-decomposition",
                 "score": 85,
-                "duration_seconds": 300
+                "duration_seconds": 300,
             }
         }
     )
@@ -83,15 +74,13 @@ class LearningEpisodeResponse(BaseModel):
 
     [Source: docs/stories/22.4.story.md#Pydantic模型]
     """
+
     episode_id: str = Field(..., description="Episode唯一标识")
     status: str = Field(..., description="状态")
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {
-                "episode_id": "episode-a1b2c3d4e5f67890",
-                "status": "created"
-            }
+            "example": {"episode_id": "episode-a1b2c3d4e5f67890", "status": "created"}
         }
     )
 
@@ -101,12 +90,14 @@ class LearningEpisodeResponse(BaseModel):
 # [Source: docs/stories/22.4.story.md#API规范]
 # =============================================================================
 
+
 class LearningHistoryItem(BaseModel):
     """
     Single item in learning history.
 
     [Source: docs/stories/22.4.story.md#API规范 - GET /episodes response]
     """
+
     episode_id: str = Field(..., description="Episode ID")
     user_id: str = Field(..., description="用户ID")
     canvas_path: str = Field(..., description="Canvas文件路径")
@@ -131,6 +122,7 @@ class LearningHistoryResponse(BaseModel):
 
     [Source: docs/stories/22.4.story.md#API规范]
     """
+
     items: List[LearningHistoryItem] = Field(..., description="学习历史列表")
     total: int = Field(..., description="总记录数")
     page: int = Field(..., description="当前页码")
@@ -150,13 +142,13 @@ class LearningHistoryResponse(BaseModel):
                         "agent_type": "basic-decomposition",
                         "score": 85,
                         "duration_seconds": 300,
-                        "timestamp": "2025-12-12T10:30:00"
+                        "timestamp": "2025-12-12T10:30:00",
                     }
                 ],
                 "total": 100,
                 "page": 1,
                 "page_size": 50,
-                "pages": 2
+                "pages": 2,
             }
         }
     )
@@ -167,12 +159,14 @@ class LearningHistoryResponse(BaseModel):
 # [Source: AC-22.4.3: GET /api/v1/memory/concepts/{id}/history]
 # =============================================================================
 
+
 class ConceptHistoryTimeline(BaseModel):
     """
     Single timeline entry for concept history.
 
     [Source: AC-22.4.3]
     """
+
     timestamp: Optional[str] = Field(None, description="时间戳")
     score: Optional[int] = Field(None, description="得分")
     user_id: Optional[str] = Field(None, description="用户ID")
@@ -186,6 +180,7 @@ class ScoreTrend(BaseModel):
 
     [Source: AC-22.4.3]
     """
+
     first: Optional[int] = Field(None, description="首次得分")
     last: Optional[int] = Field(None, description="最近得分")
     average: Optional[float] = Field(None, description="平均得分")
@@ -200,6 +195,7 @@ class ConceptHistoryResponse(BaseModel):
 
     [Source: docs/stories/22.4.story.md#Dev-Notes]
     """
+
     concept_id: str = Field(..., description="概念ID")
     timeline: List[ConceptHistoryTimeline] = Field(..., description="时间线数据")
     score_trend: ScoreTrend = Field(..., description="得分趋势")
@@ -215,16 +211,16 @@ class ConceptHistoryResponse(BaseModel):
                         "score": 85,
                         "user_id": "user-123",
                         "concept": "逆否命题",
-                        "review_count": 3
+                        "review_count": 3,
                     }
                 ],
                 "score_trend": {
                     "first": 60,
                     "last": 85,
                     "average": 72.5,
-                    "improvement": 25
+                    "improvement": 25,
                 },
-                "total_reviews": 5
+                "total_reviews": 5,
             }
         }
     )
@@ -235,14 +231,17 @@ class ConceptHistoryResponse(BaseModel):
 # [Source: docs/stories/30.3.memory-api-health-endpoints.story.md#AC-30.3.5]
 # =============================================================================
 
+
 class LayerStatus(str, Enum):
     """Layer status values."""
+
     ok = "ok"
     error = "error"
 
 
 class OverallStatus(str, Enum):
     """Overall system status values."""
+
     healthy = "healthy"
     degraded = "degraded"
     unhealthy = "unhealthy"
@@ -250,6 +249,7 @@ class OverallStatus(str, Enum):
 
 class LayerHealthStatus(BaseModel):
     """Health status for a single memory layer."""
+
     status: LayerStatus = Field(..., description="层状态: ok/error")
     backend: Optional[str] = Field(None, description="后端类型")
     node_count: Optional[int] = Field(None, description="节点数量(graphiti层)")
@@ -259,6 +259,7 @@ class LayerHealthStatus(BaseModel):
 
 class MemoryLayersStatus(BaseModel):
     """Status of all 3 memory layers."""
+
     temporal: LayerHealthStatus = Field(..., description="Temporal层状态")
     graphiti: LayerHealthStatus = Field(..., description="Graphiti层状态")
     semantic: LayerHealthStatus = Field(..., description="Semantic层状态")
@@ -276,6 +277,7 @@ class MemoryHealthResponse(BaseModel):
 
     [Source: docs/stories/30.3.memory-api-health-endpoints.story.md#AC-30.3.5]
     """
+
     status: OverallStatus = Field(..., description="整体状态")
     layers: MemoryLayersStatus = Field(..., description="3层系统状态")
     timestamp: str = Field(..., description="检查时间戳")
@@ -286,10 +288,18 @@ class MemoryHealthResponse(BaseModel):
                 "status": "healthy",
                 "layers": {
                     "temporal": {"status": "ok", "backend": "sqlite"},
-                    "graphiti": {"status": "ok", "backend": "neo4j", "node_count": 1234},
-                    "semantic": {"status": "ok", "backend": "lancedb", "vector_count": 5678}
+                    "graphiti": {
+                        "status": "ok",
+                        "backend": "neo4j",
+                        "node_count": 1234,
+                    },
+                    "semantic": {
+                        "status": "ok",
+                        "backend": "lancedb",
+                        "vector_count": 5678,
+                    },
                 },
-                "timestamp": "2026-01-16T10:00:00Z"
+                "timestamp": "2026-01-16T10:00:00Z",
             }
         }
     )
@@ -299,6 +309,7 @@ class MemoryHealthResponse(BaseModel):
 # Batch Episodes Schemas
 # [Source: docs/stories/30.3.memory-api-health-endpoints.story.md#AC-30.3.10]
 # =============================================================================
+
 
 class MasteryLevel(str, Enum):
     """Mastery level values for color changes.
@@ -311,6 +322,7 @@ class MasteryLevel(str, Enum):
       5 (Cyan)   → mastered
       6 (Purple) → not_understood
     """
+
     not_understood = "not_understood"
     learning = "learning"
     understood = "understood"
@@ -321,6 +333,7 @@ class MasteryLevel(str, Enum):
 
 class ColorCode(str, Enum):
     """Canvas color codes (1-6)."""
+
     color_1 = "1"
     color_2 = "2"
     color_3 = "3"
@@ -331,6 +344,7 @@ class ColorCode(str, Enum):
 
 class BatchEventMetadata(BaseModel):
     """Metadata for batch learning events."""
+
     old_color: Optional[ColorCode] = Field(None, description="变化前颜色代码")
     new_color: Optional[ColorCode] = Field(None, description="变化后颜色代码")
     old_level: Optional[MasteryLevel] = Field(None, description="变化前掌握等级")
@@ -341,6 +355,7 @@ class BatchEventMetadata(BaseModel):
 
 class BatchEventItem(BaseModel):
     """Single event item in batch request."""
+
     event_type: str = Field(..., description="事件类型")
     timestamp: str = Field(..., description="事件时间戳 (ISO format)")
     canvas_path: str = Field(..., description="Canvas文件路径")
@@ -359,10 +374,9 @@ class BatchEpisodesRequest(BaseModel):
 
     [Source: docs/stories/30.3.memory-api-health-endpoints.story.md#AC-30.3.10]
     """
+
     events: List[BatchEventItem] = Field(
-        ...,
-        max_length=50,
-        description="批量事件列表(最多50个)"
+        ..., max_length=50, description="批量事件列表(最多50个)"
     )
 
     model_config = ConfigDict(
@@ -378,8 +392,8 @@ class BatchEpisodesRequest(BaseModel):
                             "old_color": "1",
                             "new_color": "2",
                             "old_level": "not_understood",
-                            "new_level": "mastered"
-                        }
+                            "new_level": "mastered",
+                        },
                     }
                 ]
             }
@@ -389,6 +403,7 @@ class BatchEpisodesRequest(BaseModel):
 
 class BatchErrorItem(BaseModel):
     """Error detail for failed batch event."""
+
     index: int = Field(..., description="失败事件在请求数组中的索引")
     error: str = Field(..., description="错误信息")
 
@@ -405,12 +420,12 @@ class BatchEpisodesResponse(BaseModel):
 
     [Source: docs/stories/30.3.memory-api-health-endpoints.story.md#AC-30.3.10]
     """
+
     success: bool = Field(..., description="整体操作是否成功")
     processed: int = Field(..., ge=0, description="成功处理的事件数量")
     failed: int = Field(..., ge=0, description="处理失败的事件数量")
     errors: List[BatchErrorItem] = Field(
-        default_factory=list,
-        description="错误详情列表"
+        default_factory=list, description="错误详情列表"
     )
     timestamp: str = Field(..., description="响应时间戳")
 
@@ -421,7 +436,7 @@ class BatchEpisodesResponse(BaseModel):
                 "processed": 5,
                 "failed": 0,
                 "errors": [],
-                "timestamp": "2026-01-16T12:00:00Z"
+                "timestamp": "2026-01-16T12:00:00Z",
             }
         }
     )
@@ -432,8 +447,10 @@ class BatchEpisodesResponse(BaseModel):
 # [Source: docs/stories/22.4.story.md#ReviewSuggestionResponse]
 # =============================================================================
 
+
 class ReviewPriority(str, Enum):
     """Review priority levels."""
+
     high = "high"
     medium = "medium"
     low = "low"
@@ -453,6 +470,7 @@ class ReviewSuggestionResponse(BaseModel):
 
     [Source: docs/stories/22.4.story.md#Pydantic模型]
     """
+
     concept: str = Field(..., description="概念名称")
     concept_id: str = Field(..., description="概念ID")
     last_score: Optional[int] = Field(None, description="最近得分")
@@ -468,7 +486,7 @@ class ReviewSuggestionResponse(BaseModel):
                 "last_score": 75,
                 "review_count": 2,
                 "due_date": "2025-12-12T00:00:00",
-                "priority": "high"
+                "priority": "high",
             }
         }
     )

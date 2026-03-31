@@ -34,7 +34,9 @@ class ExamSessionResponse(BaseModel):
     id: str
     source_board_id: str = ""
     source_board_name: str = ""
-    mode: str = Field(default="comprehensive", description="point-to-point | comprehensive | mixed")
+    mode: str = Field(
+        default="comprehensive", description="point-to-point | comprehensive | mixed"
+    )
     status: str = Field(default="completed", description="in-progress | completed")
     nodes_examined: int = 0
     mastery_change_summary: str = ""
@@ -56,7 +58,9 @@ class ExamSessionListResponse(BaseModel):
 
 @exam_sessions_router.get("/exam_sessions", response_model=ExamSessionListResponse)
 async def list_exam_sessions(
-    board_id: Optional[str] = Query(default=None, description="Filter by source board ID"),
+    board_id: Optional[str] = Query(
+        default=None, description="Filter by source board ID"
+    ),
     group_id: str = Query(default=DEFAULT_GROUP_ID),
 ):
     """

@@ -65,22 +65,14 @@ class TestExtractExplanationText:
 
     def test_openai_choices_format(self):
         """测试 OpenAI 标准格式: choices[0].message.content"""
-        response = {
-            "choices": [{
-                "message": {"content": "OpenAI response content"}
-            }]
-        }
+        response = {"choices": [{"message": {"content": "OpenAI response content"}}]}
         result, success = extract_explanation_text(response)
         assert success is True
         assert result == "OpenAI response content"
 
     def test_openai_streaming_delta_format(self):
         """测试 OpenAI Streaming 格式: choices[0].delta.content"""
-        response = {
-            "choices": [{
-                "delta": {"content": "Streaming content"}
-            }]
-        }
+        response = {"choices": [{"delta": {"content": "Streaming content"}}]}
         result, success = extract_explanation_text(response)
         assert success is True
         assert result == "Streaming content"
@@ -109,22 +101,22 @@ class TestExtractExplanationText:
 
     def test_markdown_json_block(self):
         """测试 Markdown JSON 代码块: ```json\\n{...}\\n```"""
-        response = '''Here is the result:
+        response = """Here is the result:
 ```json
 {"response": "Markdown JSON content"}
 ```
-'''
+"""
         result, success = extract_explanation_text(response)
         assert success is True
         assert result == "Markdown JSON content"
 
     def test_markdown_json_block_uppercase(self):
         """测试大写 JSON 标记: ```JSON\\n{...}\\n```"""
-        response = '''Result:
+        response = """Result:
 ```JSON
 {"text": "Uppercase JSON marker"}
 ```
-'''
+"""
         result, success = extract_explanation_text(response)
         assert success is True
         assert result == "Uppercase JSON marker"
@@ -153,9 +145,9 @@ class TestExtractExplanationText:
 
     def test_invalid_json_in_markdown(self):
         """测试无效 JSON 在 Markdown 中的处理"""
-        response = '''```json
+        response = """```json
 {invalid json}
-```'''
+```"""
         # 应该 fallback 到 direct_str 或 stringify 提取
         result, success = extract_explanation_text(response)
         # 最终会通过 direct_str 提取原始字符串
@@ -178,7 +170,7 @@ class TestExtractExplanationText:
         """测试优先级: response 字段优先于 OpenAI 格式"""
         response = {
             "response": "Gemini response",
-            "choices": [{"message": {"content": "OpenAI content"}}]
+            "choices": [{"message": {"content": "OpenAI content"}}],
         }
         result, success = extract_explanation_text(response)
         assert success is True
@@ -186,10 +178,7 @@ class TestExtractExplanationText:
 
     def test_nested_response_priority(self):
         """测试嵌套 response 优先级"""
-        response = {
-            "response": {"text": "Nested text"},
-            "text": "Top level text"
-        }
+        response = {"response": {"text": "Nested text"}, "text": "Top level text"}
         result, success = extract_explanation_text(response)
         assert success is True
         # nested_response_text 应优先于 text_key
@@ -264,9 +253,9 @@ class TestHelperFunctions:
 
     def test_extract_json_from_markdown_valid(self):
         """测试有效的 Markdown JSON"""
-        response = '''```json
+        response = """```json
 {"response": "JSON content"}
-```'''
+```"""
         result = _extract_json_from_markdown(response)
         assert result == "JSON content"
 
@@ -278,17 +267,17 @@ class TestHelperFunctions:
 
     def test_extract_json_from_markdown_invalid_json(self):
         """测试无效 JSON"""
-        response = '''```json
+        response = """```json
 {invalid}
-```'''
+```"""
         result = _extract_json_from_markdown(response)
         assert result is None
 
     def test_extract_json_from_markdown_plain_block(self):
         """测试无标记的代码块"""
-        response = '''```
+        response = """```
 {"text": "Plain block content"}
-```'''
+```"""
         result = _extract_json_from_markdown(response)
         assert result == "Plain block content"
 
@@ -298,18 +287,20 @@ class TestHelperFunctions:
 # [Source: docs/stories/story-12.G.1-api-response-logging.md#Task-5]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestDebugAgentResponseLogging:
     """测试 DEBUG_AGENT_RESPONSE 环境变量控制的日志行为"""
 
     def test_extract_with_debug_logging_enabled(self, mocker, caplog):
         """测试 DEBUG_AGENT_RESPONSE=True 时的日志输出 (AC 4)"""
         import logging
+
         caplog.set_level(logging.DEBUG)
 
         # Mock settings at the config module level (where it's imported from)
         mock_settings = mocker.MagicMock()
         mock_settings.DEBUG_AGENT_RESPONSE = True
-        mocker.patch('app.config.settings', mock_settings)
+        mocker.patch("app.config.settings", mock_settings)
 
         # 执行
         result, success = extract_explanation_text({"response": "test content"})
@@ -321,12 +312,13 @@ class TestDebugAgentResponseLogging:
     def test_extract_without_debug_logging(self, mocker, caplog):
         """测试 DEBUG_AGENT_RESPONSE=False 时无额外日志 (AC 5)"""
         import logging
+
         caplog.set_level(logging.DEBUG)
 
         # Mock settings.DEBUG_AGENT_RESPONSE = False (默认)
         mock_settings = mocker.MagicMock()
         mock_settings.DEBUG_AGENT_RESPONSE = False
-        mocker.patch('app.config.settings', mock_settings)
+        mocker.patch("app.config.settings", mock_settings)
 
         # 执行
         result, success = extract_explanation_text({"response": "test"})
@@ -338,7 +330,9 @@ class TestDebugAgentResponseLogging:
         # 验证日志中不包含 "[Story 12.G.1]" 前缀的 debug 条目
         debug_logs = [r for r in caplog.records if r.levelname == "DEBUG"]
         story_logs = [r for r in debug_logs if "[Story 12.G.1]" in r.message]
-        assert len(story_logs) == 0, "DEBUG_AGENT_RESPONSE=False 时不应输出 Story 12.G.1 日志"
+        assert len(story_logs) == 0, (
+            "DEBUG_AGENT_RESPONSE=False 时不应输出 Story 12.G.1 日志"
+        )
 
     def test_config_has_debug_agent_response_field(self):
         """测试配置类包含 DEBUG_AGENT_RESPONSE 字段 (AC 4)"""
@@ -346,7 +340,9 @@ class TestDebugAgentResponseLogging:
 
         # 验证字段存在
         settings = Settings()
-        assert hasattr(settings, 'DEBUG_AGENT_RESPONSE'), "Settings 应该有 DEBUG_AGENT_RESPONSE 字段"
+        assert hasattr(settings, "DEBUG_AGENT_RESPONSE"), (
+            "Settings 应该有 DEBUG_AGENT_RESPONSE 字段"
+        )
 
         # 验证默认值为 False
         assert settings.DEBUG_AGENT_RESPONSE is False, "默认值应为 False"
@@ -356,5 +352,7 @@ class TestDebugAgentResponseLogging:
         from app.config import Settings
 
         settings = Settings()
-        assert hasattr(settings, 'debug_agent_response'), "Settings 应该有 debug_agent_response 属性"
+        assert hasattr(settings, "debug_agent_response"), (
+            "Settings 应该有 debug_agent_response 属性"
+        )
         assert settings.debug_agent_response == settings.DEBUG_AGENT_RESPONSE

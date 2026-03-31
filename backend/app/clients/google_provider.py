@@ -155,9 +155,11 @@ class GoogleProvider(BaseProvider):
             # Extract usage metadata
             input_tokens = 0
             output_tokens = 0
-            if hasattr(response, 'usage_metadata'):
-                input_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0)
-                output_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0)
+            if hasattr(response, "usage_metadata"):
+                input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0)
+                output_tokens = getattr(
+                    response.usage_metadata, "candidates_token_count", 0
+                )
 
             await self.update_health(success=True, latency_ms=latency_ms)
 
@@ -230,12 +232,14 @@ class GoogleProvider(BaseProvider):
             # Add images first
             if images:
                 for img in images:
-                    content_parts.append({
-                        "inline_data": {
-                            "mime_type": img.get("media_type", "image/png"),
-                            "data": img["data"],
+                    content_parts.append(
+                        {
+                            "inline_data": {
+                                "mime_type": img.get("media_type", "image/png"),
+                                "data": img["data"],
+                            }
                         }
-                    })
+                    )
 
             # Add text prompt
             full_prompt = f"{system_prompt}\n\n## User Request\n{user_prompt}"
@@ -263,9 +267,11 @@ class GoogleProvider(BaseProvider):
 
             input_tokens = 0
             output_tokens = 0
-            if hasattr(response, 'usage_metadata'):
-                input_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0)
-                output_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0)
+            if hasattr(response, "usage_metadata"):
+                input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0)
+                output_tokens = getattr(
+                    response.usage_metadata, "candidates_token_count", 0
+                )
 
             await self.update_health(success=True, latency_ms=latency_ms)
 

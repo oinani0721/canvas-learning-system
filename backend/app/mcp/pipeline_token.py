@@ -105,7 +105,9 @@ class PipelineTokenManager:
         if question_id:
             payload["qid"] = question_id
 
-        payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        payload_bytes = json.dumps(
+            payload, separators=(",", ":"), sort_keys=True
+        ).encode("utf-8")
         signature = hmac.new(self._secret, payload_bytes, hashlib.sha256).hexdigest()
 
         # Token format: base64(payload).signature
@@ -114,7 +116,9 @@ class PipelineTokenManager:
         encoded_payload = base64.urlsafe_b64encode(payload_bytes).decode("ascii")
         token = f"{encoded_payload}.{signature}"
 
-        logger.debug(f"[Story 3.2] Pipeline token generated: step={step_name} session={session_id} node={node_id}")
+        logger.debug(
+            f"[Story 3.2] Pipeline token generated: step={step_name} session={session_id} node={node_id}"
+        )
         return token
 
     def validate_token(
@@ -158,7 +162,9 @@ class PipelineTokenManager:
             ) from exc
 
         # Verify HMAC signature
-        expected_signature = hmac.new(self._secret, payload_bytes, hashlib.sha256).hexdigest()
+        expected_signature = hmac.new(
+            self._secret, payload_bytes, hashlib.sha256
+        ).hexdigest()
         if not hmac.compare_digest(provided_signature, expected_signature):
             raise PipelineTokenError(
                 "PIPELINE_TOKEN_INVALID",

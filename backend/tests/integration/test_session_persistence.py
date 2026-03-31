@@ -17,15 +17,12 @@ import json
 import os
 import tempfile
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.services.verification_service import (
     VerificationService,
-    VerificationStatus,
 )
-
 
 # ===========================================================================
 # Fixtures
@@ -37,10 +34,26 @@ def mock_canvas_data():
     """Canvas with 2 red/purple nodes for testing."""
     return {
         "nodes": [
-            {"id": "n1", "type": "text", "text": "概念A", "color": "4",
-             "x": 0, "y": 0, "width": 200, "height": 100},
-            {"id": "n2", "type": "text", "text": "概念B", "color": "3",
-             "x": 300, "y": 0, "width": 200, "height": 100},
+            {
+                "id": "n1",
+                "type": "text",
+                "text": "概念A",
+                "color": "4",
+                "x": 0,
+                "y": 0,
+                "width": 200,
+                "height": 100,
+            },
+            {
+                "id": "n2",
+                "type": "text",
+                "text": "概念B",
+                "color": "3",
+                "x": 300,
+                "y": 0,
+                "width": 200,
+                "height": 100,
+            },
         ],
         "edges": [],
     }
@@ -50,7 +63,7 @@ def mock_canvas_data():
 def temp_canvas_file(mock_canvas_data):
     """Create a temporary Canvas file."""
     with tempfile.NamedTemporaryFile(
-        mode='w', suffix='.canvas', delete=False, encoding='utf-8'
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
     ) as f:
         json.dump(mock_canvas_data, f)
         path = f.name
@@ -68,14 +81,16 @@ def mock_agent_service():
     q_result = MagicMock()
     q_result.success = True
     q_result.data = {
-        "questions": [{
-            "source_node_id": "test",
-            "question_text": "测试问题",
-            "question_type": "检验型",
-            "difficulty": "基础",
-            "guidance": "",
-            "rationale": "test",
-        }]
+        "questions": [
+            {
+                "source_node_id": "test",
+                "question_text": "测试问题",
+                "question_type": "检验型",
+                "difficulty": "基础",
+                "guidance": "",
+                "rationale": "test",
+            }
+        ]
     }
     svc.call_agent = AsyncMock(return_value=q_result)
 
@@ -218,9 +233,7 @@ class TestProgressPersistence:
     """
 
     @pytest.mark.asyncio
-    async def test_progress_after_start(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_progress_after_start(self, verification_service, temp_canvas_file):
         """Progress is available immediately after session start."""
         session = await verification_service.start_session(
             canvas_name="test", canvas_path=temp_canvas_file
@@ -231,9 +244,7 @@ class TestProgressPersistence:
         assert progress["status"] == "in_progress"
 
     @pytest.mark.asyncio
-    async def test_progress_after_answer(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_progress_after_answer(self, verification_service, temp_canvas_file):
         """Progress updates after answering a question."""
         session = await verification_service.start_session(
             canvas_name="test", canvas_path=temp_canvas_file
@@ -257,7 +268,8 @@ class TestProgressPersistence:
 
         # Answer first question
         await verification_service.process_answer(
-            sid, "detailed answer " * 10,
+            sid,
+            "detailed answer " * 10,
         )
 
         # Pause → resume
@@ -269,9 +281,7 @@ class TestProgressPersistence:
         assert progress["completed_concepts"] >= 1
 
     @pytest.mark.asyncio
-    async def test_session_id_is_unique(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_session_id_is_unique(self, verification_service, temp_canvas_file):
         """Each session gets a unique ID."""
         s1 = await verification_service.start_session(
             canvas_name="test", canvas_path=temp_canvas_file
@@ -339,6 +349,7 @@ class TestTimestampTracking:
         progress = verification_service._progress[sid]
         # Manually backdate for testing
         from datetime import timedelta
+
         progress.paused_at = datetime.now() - timedelta(seconds=5)
         initial_duration = progress.total_pause_duration
 

@@ -10,6 +10,7 @@ Tests:
 - AC 3.4: Performance requirements (< 100ms for 100 nodes)
 - AC 3.5: Backward compatibility with 1-hop default
 """
+
 import time
 from unittest.mock import AsyncMock, MagicMock
 
@@ -30,6 +31,7 @@ PERF_DENSE_MAX_CONNECTIONS = 5  # Max connections per node in dense graph
 # AC 3.1: AdjacentNode hop_distance Field Tests
 # ============================================================================
 
+
 class TestAdjacentNodeHopDistance:
     """Tests for AdjacentNode dataclass hop_distance field (AC 3.1)"""
 
@@ -39,7 +41,7 @@ class TestAdjacentNodeHopDistance:
         adj = AdjacentNode(
             node={"id": "n1", "text": "Test node"},
             relation="parent",
-            edge_label="defines"
+            edge_label="defines",
         )
 
         # Assert - default should be 1 (backward compatible)
@@ -53,7 +55,7 @@ class TestAdjacentNodeHopDistance:
             node={"id": "n2", "text": "Grandparent node"},
             relation="parent",
             edge_label="explains",
-            hop_distance=2
+            hop_distance=2,
         )
 
         # Assert
@@ -66,7 +68,7 @@ class TestAdjacentNodeHopDistance:
             node={"id": "c1", "text": "Child node"},
             relation="child",
             edge_label="follows",
-            hop_distance=1
+            hop_distance=1,
         )
 
         # Assert
@@ -77,6 +79,7 @@ class TestAdjacentNodeHopDistance:
 # ============================================================================
 # AC 3.2: 2-hop Traversal Tests
 # ============================================================================
+
 
 class TestTwoHopTraversal:
     """Tests for 2-hop context traversal (AC 3.2)"""
@@ -108,11 +111,11 @@ class TestTwoHopTraversal:
         nodes = {
             "A": {"id": "A", "type": "text", "text": "Root concept (grandparent)"},
             "B": {"id": "B", "type": "text", "text": "Intermediate node (parent)"},
-            "C": {"id": "C", "type": "text", "text": "Target node"}
+            "C": {"id": "C", "type": "text", "text": "Target node"},
         }
         edges = [
             {"fromNode": "A", "toNode": "B", "label": "defines"},
-            {"fromNode": "B", "toNode": "C", "label": "explains"}
+            {"fromNode": "B", "toNode": "C", "label": "explains"},
         ]
 
         # Act
@@ -150,11 +153,11 @@ class TestTwoHopTraversal:
         nodes = {
             "A": {"id": "A", "type": "text", "text": "Target node"},
             "B": {"id": "B", "type": "text", "text": "Child node"},
-            "C": {"id": "C", "type": "text", "text": "Grandchild node"}
+            "C": {"id": "C", "type": "text", "text": "Grandchild node"},
         }
         edges = [
             {"fromNode": "A", "toNode": "B", "label": "leads_to"},
-            {"fromNode": "B", "toNode": "C", "label": "extends"}
+            {"fromNode": "B", "toNode": "C", "label": "extends"},
         ]
 
         # Act
@@ -189,13 +192,13 @@ class TestTwoHopTraversal:
             "P1": {"id": "P1", "type": "text", "text": "Parent"},
             "T": {"id": "T", "type": "text", "text": "Target"},
             "C1": {"id": "C1", "type": "text", "text": "Child"},
-            "C2": {"id": "C2", "type": "text", "text": "Grandchild"}
+            "C2": {"id": "C2", "type": "text", "text": "Grandchild"},
         }
         edges = [
             {"fromNode": "P2", "toNode": "P1", "label": "prereq"},
             {"fromNode": "P1", "toNode": "T", "label": "defines"},
             {"fromNode": "T", "toNode": "C1", "label": "explains"},
-            {"fromNode": "C1", "toNode": "C2", "label": "leads"}
+            {"fromNode": "C1", "toNode": "C2", "label": "leads"},
         ]
 
         # Act
@@ -225,12 +228,9 @@ class TestTwoHopTraversal:
         nodes = {
             "A": {"id": "A", "type": "text", "text": "Grandparent"},
             "B": {"id": "B", "type": "text", "text": "Parent"},
-            "C": {"id": "C", "type": "text", "text": "Target"}
+            "C": {"id": "C", "type": "text", "text": "Target"},
         }
-        edges = [
-            {"fromNode": "A", "toNode": "B"},
-            {"fromNode": "B", "toNode": "C"}
-        ]
+        edges = [{"fromNode": "A", "toNode": "B"}, {"fromNode": "B", "toNode": "C"}]
 
         # Act
         result = service._find_adjacent_nodes("C", nodes, edges, hop_depth=2)
@@ -243,6 +243,7 @@ class TestTwoHopTraversal:
 # ============================================================================
 # AC 3.3: Cycle Prevention Tests
 # ============================================================================
+
 
 class TestCyclePrevention:
     """Tests for cycle prevention with visited set (AC 3.3)"""
@@ -272,12 +273,12 @@ class TestCyclePrevention:
         nodes = {
             "A": {"id": "A", "type": "text", "text": "Node A"},
             "B": {"id": "B", "type": "text", "text": "Node B"},
-            "C": {"id": "C", "type": "text", "text": "Node C"}
+            "C": {"id": "C", "type": "text", "text": "Node C"},
         }
         edges = [
             {"fromNode": "A", "toNode": "B"},
             {"fromNode": "B", "toNode": "C"},
-            {"fromNode": "C", "toNode": "A"}  # Creates cycle
+            {"fromNode": "C", "toNode": "A"},  # Creates cycle
         ]
 
         # Act - should complete without hanging
@@ -305,13 +306,13 @@ class TestCyclePrevention:
             "A": {"id": "A", "type": "text", "text": "Root"},
             "B": {"id": "B", "type": "text", "text": "Left"},
             "C": {"id": "C", "type": "text", "text": "Right"},
-            "D": {"id": "D", "type": "text", "text": "Target"}
+            "D": {"id": "D", "type": "text", "text": "Target"},
         }
         edges = [
             {"fromNode": "A", "toNode": "B"},
             {"fromNode": "A", "toNode": "C"},
             {"fromNode": "B", "toNode": "D"},
-            {"fromNode": "C", "toNode": "D"}
+            {"fromNode": "C", "toNode": "D"},
         ]
 
         # Act
@@ -329,11 +330,11 @@ class TestCyclePrevention:
         # Arrange
         nodes = {
             "A": {"id": "A", "type": "text", "text": "Node A"},
-            "B": {"id": "B", "type": "text", "text": "Node B"}
+            "B": {"id": "B", "type": "text", "text": "Node B"},
         }
         edges = [
             {"fromNode": "A", "toNode": "B"},
-            {"fromNode": "A", "toNode": "A"}  # Self-loop
+            {"fromNode": "A", "toNode": "A"},  # Self-loop
         ]
 
         # Act
@@ -348,6 +349,7 @@ class TestCyclePrevention:
 # ============================================================================
 # AC 3.4: Performance Tests
 # ============================================================================
+
 
 class TestPerformance:
     """Tests for performance requirements (AC 3.4)"""
@@ -372,13 +374,16 @@ class TestPerformance:
         Large Canvas performance test.
         """
         # Arrange - Generate large canvas with complex edges
-        nodes = {f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"} for i in range(PERF_LARGE_GRAPH_NODES)}
+        nodes = {
+            f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"}
+            for i in range(PERF_LARGE_GRAPH_NODES)
+        }
         edges = []
         for i in range(PERF_LARGE_GRAPH_NODES - 1):
-            edges.append({"fromNode": f"n{i}", "toNode": f"n{i+1}"})
+            edges.append({"fromNode": f"n{i}", "toNode": f"n{i + 1}"})
             # Add some cross-links for complexity
             if i % 3 == 0 and i + 2 < PERF_LARGE_GRAPH_NODES:
-                edges.append({"fromNode": f"n{i}", "toNode": f"n{i+2}"})
+                edges.append({"fromNode": f"n{i}", "toNode": f"n{i + 2}"})
 
         # Act
         start = time.time()
@@ -386,18 +391,25 @@ class TestPerformance:
         elapsed_ms = (time.time() - start) * 1000
 
         # Assert
-        assert elapsed_ms < PERF_TIMEOUT_MS, f"Too slow: {elapsed_ms:.2f}ms (should be < {PERF_TIMEOUT_MS}ms)"
+        assert elapsed_ms < PERF_TIMEOUT_MS, (
+            f"Too slow: {elapsed_ms:.2f}ms (should be < {PERF_TIMEOUT_MS}ms)"
+        )
         assert len(result) > 0  # Should find some adjacent nodes
 
     @pytest.mark.performance
     def test_2hop_performance_dense_graph(self, service: ContextEnrichmentService):
         """Test performance on a dense graph (many edges per node)."""
         # Arrange - Dense graph with many interconnections
-        nodes = {f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"} for i in range(PERF_DENSE_GRAPH_NODES)}
+        nodes = {
+            f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"}
+            for i in range(PERF_DENSE_GRAPH_NODES)
+        }
         edges = []
         # Create dense connections
         for i in range(PERF_DENSE_GRAPH_NODES):
-            for j in range(i + 1, min(i + PERF_DENSE_MAX_CONNECTIONS, PERF_DENSE_GRAPH_NODES)):
+            for j in range(
+                i + 1, min(i + PERF_DENSE_MAX_CONNECTIONS, PERF_DENSE_GRAPH_NODES)
+            ):
                 edges.append({"fromNode": f"n{i}", "toNode": f"n{j}"})
 
         # Act
@@ -412,6 +424,7 @@ class TestPerformance:
 # ============================================================================
 # AC 3.5: Backward Compatibility Tests
 # ============================================================================
+
 
 class TestBackwardCompatibility:
     """Tests for backward compatibility with 1-hop default (AC 3.5)"""
@@ -436,12 +449,9 @@ class TestBackwardCompatibility:
         nodes = {
             "A": {"id": "A", "type": "text", "text": "Grandparent"},
             "B": {"id": "B", "type": "text", "text": "Parent"},
-            "C": {"id": "C", "type": "text", "text": "Target"}
+            "C": {"id": "C", "type": "text", "text": "Target"},
         }
-        edges = [
-            {"fromNode": "A", "toNode": "B"},
-            {"fromNode": "B", "toNode": "C"}
-        ]
+        edges = [{"fromNode": "A", "toNode": "B"}, {"fromNode": "B", "toNode": "C"}]
 
         # Act - default hop_depth=1
         result = service._find_adjacent_nodes("B", nodes, edges)
@@ -460,12 +470,9 @@ class TestBackwardCompatibility:
         nodes = {
             "A": {"id": "A", "type": "text", "text": "Parent"},
             "B": {"id": "B", "type": "text", "text": "Target"},
-            "C": {"id": "C", "type": "text", "text": "Child"}
+            "C": {"id": "C", "type": "text", "text": "Child"},
         }
-        edges = [
-            {"fromNode": "A", "toNode": "B"},
-            {"fromNode": "B", "toNode": "C"}
-        ]
+        edges = [{"fromNode": "A", "toNode": "B"}, {"fromNode": "B", "toNode": "C"}]
 
         # Act
         result_default = service._find_adjacent_nodes("B", nodes, edges)
@@ -477,7 +484,9 @@ class TestBackwardCompatibility:
         explicit_ids = {n.node["id"] for n in result_explicit}
         assert default_ids == explicit_ids
 
-    def test_1hop_only_returns_direct_neighbors(self, service: ContextEnrichmentService):
+    def test_1hop_only_returns_direct_neighbors(
+        self, service: ContextEnrichmentService
+    ):
         """Test that 1-hop only returns direct neighbors, not 2-hop."""
         # Arrange
         nodes = {
@@ -485,13 +494,13 @@ class TestBackwardCompatibility:
             "P": {"id": "P", "type": "text", "text": "Parent"},
             "T": {"id": "T", "type": "text", "text": "Target"},
             "C": {"id": "C", "type": "text", "text": "Child"},
-            "GC": {"id": "GC", "type": "text", "text": "Grandchild"}
+            "GC": {"id": "GC", "type": "text", "text": "Grandchild"},
         }
         edges = [
             {"fromNode": "GP", "toNode": "P"},
             {"fromNode": "P", "toNode": "T"},
             {"fromNode": "T", "toNode": "C"},
-            {"fromNode": "C", "toNode": "GC"}
+            {"fromNode": "C", "toNode": "GC"},
         ]
 
         # Act - 1-hop
@@ -508,6 +517,7 @@ class TestBackwardCompatibility:
 # Integration Tests (using enrich_with_adjacent_nodes)
 # ============================================================================
 
+
 class TestEnrichWithAdjacentNodes2Hop:
     """Integration tests for 2-hop through enrich_with_adjacent_nodes method."""
 
@@ -516,17 +526,37 @@ class TestEnrichWithAdjacentNodes2Hop:
         """Create mock CanvasService."""
         mock = MagicMock(spec=CanvasService)
         mock.canvas_base_path = "/mock/vault/path"
-        mock.read_canvas = AsyncMock(return_value={
-            "nodes": [
-                {"id": "A", "type": "text", "text": "Grandparent concept", "x": 0, "y": 0},
-                {"id": "B", "type": "text", "text": "Parent concept", "x": 100, "y": 0},
-                {"id": "C", "type": "text", "text": "Target concept", "x": 200, "y": 0},
-            ],
-            "edges": [
-                {"fromNode": "A", "toNode": "B", "label": "defines"},
-                {"fromNode": "B", "toNode": "C", "label": "explains"},
-            ]
-        })
+        mock.read_canvas = AsyncMock(
+            return_value={
+                "nodes": [
+                    {
+                        "id": "A",
+                        "type": "text",
+                        "text": "Grandparent concept",
+                        "x": 0,
+                        "y": 0,
+                    },
+                    {
+                        "id": "B",
+                        "type": "text",
+                        "text": "Parent concept",
+                        "x": 100,
+                        "y": 0,
+                    },
+                    {
+                        "id": "C",
+                        "type": "text",
+                        "text": "Target concept",
+                        "x": 200,
+                        "y": 0,
+                    },
+                ],
+                "edges": [
+                    {"fromNode": "A", "toNode": "B", "label": "defines"},
+                    {"fromNode": "B", "toNode": "C", "label": "explains"},
+                ],
+            }
+        )
         return mock
 
     @pytest.fixture
@@ -575,4 +605,7 @@ class TestEnrichWithAdjacentNodes2Hop:
         )
 
         # Assert - check that 2-hop is indicated in the context
-        assert "parent-2hop" in result.enriched_context or "Grandparent" in result.enriched_context
+        assert (
+            "parent-2hop" in result.enriched_context
+            or "Grandparent" in result.enriched_context
+        )

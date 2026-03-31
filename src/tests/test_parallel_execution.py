@@ -22,12 +22,26 @@ from pathlib import Path
 
 import pytest
 from context_isolation_manager import ContextIsolationManager
-from error_handling_manager import ErrorCategory, ErrorHandlingManager, ErrorRecord, RecoveryStrategy
+from error_handling_manager import (
+    ErrorCategory,
+    ErrorHandlingManager,
+    ErrorRecord,
+    RecoveryStrategy,
+)
 
 # 导入被测试模块
-from parallel_agent_executor import AgentTask, ParallelAgentExecutor, ParallelExecutionSummary
+from parallel_agent_executor import (
+    AgentTask,
+    ParallelAgentExecutor,
+    ParallelExecutionSummary,
+)
 from performance_monitor import PerformanceMonitor
-from result_aggregator import AgentResult, AggregationMethod, ResultAggregator, ResultMetadata
+from result_aggregator import (
+    AgentResult,
+    AggregationMethod,
+    ResultAggregator,
+    ResultMetadata,
+)
 from task_queue_manager import TaskDefinition, TaskPriority, TaskQueueManager
 
 
@@ -41,23 +55,23 @@ class TestParallelAgentExecutor:
             "parallel_processing": {
                 "enabled": True,
                 "default_max_concurrent": 4,
-                "max_concurrent_limit": 8
+                "max_concurrent_limit": 8,
             },
             "context_isolation": {
                 "isolation_level": "process",
                 "context_size_limit_mb": 128,
-                "context_cleanup_enabled": True
+                "context_cleanup_enabled": True,
             },
             "task_queue": {
                 "queue_type": "priority",
                 "max_queue_size": 100,
-                "task_retry_attempts": 2
+                "task_retry_attempts": 2,
             },
             "error_handling": {
                 "continue_on_error": True,
                 "error_isolation": True,
-                "fallback_strategy": "retry"
-            }
+                "fallback_strategy": "retry",
+            },
         }
 
     @pytest.fixture
@@ -91,14 +105,14 @@ class TestParallelAgentExecutor:
                 "agent_name": "basic-decomposition",
                 "canvas_path": "test.canvas",
                 "input_data": {"material_text": "测试材料1"},
-                "priority": "high"
+                "priority": "high",
             },
             {
                 "agent_name": "oral-explanation",
                 "canvas_path": "test.canvas",
                 "input_data": {"concept": "测试概念"},
-                "priority": "normal"
-            }
+                "priority": "normal",
+            },
         ]
 
         execution_id = await executor.submit_batch_tasks(tasks, max_concurrent=2)
@@ -106,7 +120,9 @@ class TestParallelAgentExecutor:
         assert execution_id is not None
         assert execution_id in executor.executions
         assert executor.executions[execution_id].overall_status == "running"
-        assert len(executor.executions[execution_id].agent_execution_sessions) == 0  # 还未开始
+        assert (
+            len(executor.executions[execution_id].agent_execution_sessions) == 0
+        )  # 还未开始
 
     @pytest.mark.asyncio
     async def test_get_execution_status(self, executor):
@@ -115,7 +131,7 @@ class TestParallelAgentExecutor:
             {
                 "agent_name": "basic-decomposition",
                 "canvas_path": "test.canvas",
-                "input_data": {"material_text": "测试材料"}
+                "input_data": {"material_text": "测试材料"},
             }
         ]
 
@@ -134,7 +150,7 @@ class TestParallelAgentExecutor:
             {
                 "agent_name": "basic-decomposition",
                 "canvas_path": "test.canvas",
-                "input_data": {"material_text": "测试材料"}
+                "input_data": {"material_text": "测试材料"},
             }
         ]
 
@@ -152,7 +168,7 @@ class TestParallelAgentExecutor:
             submission_timestamp="2025-01-22T10:00:00Z",
             execution_mode="parallel_batch",
             max_concurrent_agents=4,
-            overall_status="completed"
+            overall_status="completed",
         )
 
         executor.executions[summary.execution_id] = summary
@@ -165,11 +181,7 @@ class TestParallelAgentExecutor:
 
     def test_configure_parallel_settings(self, executor):
         """测试配置并行设置"""
-        new_settings = {
-            "parallel_processing": {
-                "default_max_concurrent": 6
-            }
-        }
+        new_settings = {"parallel_processing": {"default_max_concurrent": 6}}
 
         success = executor.configure_parallel_settings(new_settings)
 
@@ -183,7 +195,7 @@ class TestParallelAgentExecutor:
         task = AgentTask(
             agent_name="basic-decomposition",
             canvas_path="test.canvas",
-            input_data={"material_text": "测试材料"}
+            input_data={"material_text": "测试材料"},
         )
 
         # 模拟执行Agent
@@ -205,7 +217,7 @@ class TestContextIsolationManager:
             "isolation_level": "process",
             "context_size_limit_mb": 128,
             "context_cleanup_enabled": True,
-            "gc_threshold_percentage": 80.0
+            "gc_threshold_percentage": 80.0,
         }
 
     @pytest.fixture
@@ -217,8 +229,7 @@ class TestContextIsolationManager:
     async def test_create_isolated_context(self, isolation_manager):
         """测试创建隔离上下文"""
         context_id = await isolation_manager.create_isolated_context(
-            task_id="test-task-123",
-            agent_name="basic-decomposition"
+            task_id="test-task-123", agent_name="basic-decomposition"
         )
 
         assert context_id is not None
@@ -233,8 +244,7 @@ class TestContextIsolationManager:
     async def test_cleanup_context(self, isolation_manager):
         """测试清理上下文"""
         context_id = await isolation_manager.create_isolated_context(
-            task_id="test-task-456",
-            agent_name="oral-explanation"
+            task_id="test-task-456", agent_name="oral-explanation"
         )
 
         success = await isolation_manager.cleanup_context(context_id)
@@ -257,13 +267,14 @@ class TestContextIsolationManager:
         context_ids = []
         for i in range(3):
             context_id = await isolation_manager.create_isolated_context(
-                task_id=f"test-task-{i}",
-                agent_name="test-agent"
+                task_id=f"test-task-{i}", agent_name="test-agent"
             )
             context_ids.append(context_id)
 
         # 清理空闲上下文（设置为很短的超时时间）
-        cleaned_count = await isolation_manager.cleanup_idle_contexts(idle_timeout_seconds=0)
+        cleaned_count = await isolation_manager.cleanup_idle_contexts(
+            idle_timeout_seconds=0
+        )
 
         assert cleaned_count == 3
         assert len(isolation_manager.active_contexts) == 0
@@ -280,7 +291,7 @@ class TestTaskQueueManager:
             "max_queue_size": 50,
             "load_balancing_strategy": "round_robin",
             "back_pressure_enabled": True,
-            "back_pressure_threshold": 0.8
+            "back_pressure_threshold": 0.8,
         }
 
     @pytest.fixture
@@ -295,7 +306,7 @@ class TestTaskQueueManager:
             agent_name="basic-decomposition",
             canvas_path="test.canvas",
             input_data={"material_text": "测试材料"},
-            priority=TaskPriority.HIGH
+            priority=TaskPriority.HIGH,
         )
 
         success = await queue_manager.submit_task(task)
@@ -310,7 +321,7 @@ class TestTaskQueueManager:
             agent_name="basic-decomposition",
             canvas_path="test.canvas",
             input_data={"material_text": "测试材料"},
-            priority=TaskPriority.URGENT
+            priority=TaskPriority.URGENT,
         )
 
         await queue_manager.submit_task(task)
@@ -326,7 +337,7 @@ class TestTaskQueueManager:
         task = TaskDefinition(
             agent_name="basic-decomposition",
             canvas_path="test.canvas",
-            input_data={"material_text": "测试材料"}
+            input_data={"material_text": "测试材料"},
         )
 
         await queue_manager.submit_task(task)
@@ -345,13 +356,13 @@ class TestTaskQueueManager:
             agent_name="test-agent",
             canvas_path="test.canvas",
             input_data={},
-            priority=TaskPriority.LOW
+            priority=TaskPriority.LOW,
         )
         high_task = TaskDefinition(
             agent_name="test-agent",
             canvas_path="test.canvas",
             input_data={},
-            priority=TaskPriority.HIGH
+            priority=TaskPriority.HIGH,
         )
 
         await queue_manager.submit_task(low_task)
@@ -398,7 +409,7 @@ class TestErrorHandlingManager:
             "error_isolation": True,
             "fallback_strategy": "retry",
             "task_retry_attempts": 3,
-            "task_retry_delay_seconds": 1
+            "task_retry_delay_seconds": 1,
         }
 
     @pytest.fixture
@@ -415,7 +426,7 @@ class TestErrorHandlingManager:
             execution_id="test-exec-456",
             agent_name="basic-decomposition",
             worker_id="worker-1",
-            exception=exception
+            exception=exception,
         )
 
         assert error_record is not None
@@ -439,9 +450,7 @@ class TestErrorHandlingManager:
         # 创建一些模拟错误记录
         for i in range(10):
             error_record = ErrorRecord(
-                task_id=f"task-{i}",
-                execution_id="exec-123",
-                agent_name="test-agent"
+                task_id=f"task-{i}", execution_id="exec-123", agent_name="test-agent"
             )
             error_record.timestamp = time.time() - (i * 3600)  # 每小时一个错误
             error_handler.error_records[error_record.error_id] = error_record
@@ -463,11 +472,14 @@ class TestErrorHandlingManager:
             execution_id="test-exec-abc",
             agent_name="basic-decomposition",
             worker_id="worker-2",
-            exception=exception
+            exception=exception,
         )
 
         # 检查是否尝试了恢复
-        assert error_record.recovery_strategy in [RecoveryStrategy.RETRY, RecoveryStrategy.NONE]
+        assert error_record.recovery_strategy in [
+            RecoveryStrategy.RETRY,
+            RecoveryStrategy.NONE,
+        ]
 
 
 class TestResultAggregator:
@@ -480,7 +492,7 @@ class TestResultAggregator:
             "aggregation_method": "merge_outputs",
             "max_result_size_mb": 10,
             "save_results_to_disk": False,  # 测试时不保存到磁盘
-            "result_validation_enabled": True
+            "result_validation_enabled": True,
         }
 
     @pytest.fixture
@@ -495,7 +507,7 @@ class TestResultAggregator:
             execution_id="exec-456",
             agent_name="basic-decomposition",
             confidence_score=0.8,
-            completeness_score=0.9
+            completeness_score=0.9,
         )
 
         result = AgentResult(
@@ -503,7 +515,7 @@ class TestResultAggregator:
             execution_id="exec-456",
             agent_name="basic-decomposition",
             output_data={"sub_questions": ["问题1", "问题2"]},
-            metadata=metadata
+            metadata=metadata,
         )
 
         aggregator.add_result(result)
@@ -520,18 +532,15 @@ class TestResultAggregator:
                 task_id=f"task-{i}",
                 execution_id="exec-123",
                 agent_name=agent_name,
-                confidence_score=0.8 + i * 0.1
+                confidence_score=0.8 + i * 0.1,
             )
 
             result = AgentResult(
                 task_id=f"task-{i}",
                 execution_id="exec-123",
                 agent_name=agent_name,
-                output_data={
-                    "agent_output": f"output-{i}",
-                    "timestamp": time.time()
-                },
-                metadata=metadata
+                output_data={"agent_output": f"output-{i}", "timestamp": time.time()},
+                metadata=metadata,
             )
             aggregator.add_result(result)
 
@@ -551,7 +560,7 @@ class TestResultAggregator:
             task_id="task-123",
             execution_id="exec-456",
             agent_name="test-agent",
-            confidence_score=0.8
+            confidence_score=0.8,
         )
 
         result = AgentResult(
@@ -559,14 +568,13 @@ class TestResultAggregator:
             execution_id="exec-456",
             agent_name="test-agent",
             output_data={"value": 42},
-            metadata=metadata
+            metadata=metadata,
         )
         aggregator.add_result(result)
 
         # 测试保留独立结果方法
         aggregated = await aggregator.aggregate_results(
-            "exec-456",
-            method=AggregationMethod.PRESERVE_INDIVIDUAL
+            "exec-456", method=AggregationMethod.PRESERVE_INDIVIDUAL
         )
 
         assert "individual_results" in aggregated.merged_output
@@ -594,7 +602,7 @@ class TestPerformanceMonitor:
             "log_performance_data": False,  # 测试时不记录日志
             "slow_execution_threshold_seconds": 60,
             "memory_usage_alert_threshold_mb": 512,
-            "cpu_usage_alert_threshold_percent": 80
+            "cpu_usage_alert_threshold_percent": 80,
         }
 
     @pytest.fixture
@@ -623,7 +631,7 @@ class TestPerformanceMonitor:
             failed_tasks=2,
             total_execution_time_ms=5000,
             parallel_efficiency=3.5,
-            concurrency_utilization=0.75
+            concurrency_utilization=0.75,
         )
 
         assert metrics.execution_id == "exec-123"
@@ -663,12 +671,8 @@ class TestIntegration:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_file = Path(temp_dir) / "test_config.yaml"
             config_content = {
-                "parallel_processing": {
-                    "default_max_concurrent": 2
-                },
-                "task_queue": {
-                    "max_queue_size": 10
-                }
+                "parallel_processing": {"default_max_concurrent": 2},
+                "task_queue": {"max_queue_size": 10},
             }
 
             # 这里应该创建实际的YAML文件，为了简化我们直接使用字典配置
@@ -683,14 +687,14 @@ class TestIntegration:
                         "agent_name": "basic-decomposition",
                         "canvas_path": "test.canvas",
                         "input_data": {"material_text": "测试材料1"},
-                        "priority": "high"
+                        "priority": "high",
                     },
                     {
                         "agent_name": "oral-explanation",
                         "canvas_path": "test.canvas",
                         "input_data": {"concept": "测试概念"},
-                        "priority": "normal"
-                    }
+                        "priority": "normal",
+                    },
                 ]
 
                 execution_id = await executor.submit_batch_tasks(tasks)
@@ -720,7 +724,7 @@ class TestIntegration:
         executor = ParallelAgentExecutor()
         executor.config = {
             "parallel_processing": {"default_max_concurrent": 1},
-            "error_handling": {"continue_on_error": True}
+            "error_handling": {"continue_on_error": True},
         }
         await executor.initialize()
 
@@ -730,7 +734,7 @@ class TestIntegration:
                 {
                     "agent_name": "invalid-agent",
                     "canvas_path": "test.canvas",
-                    "input_data": {"test": "data"}
+                    "input_data": {"test": "data"},
                 }
             ]
 
@@ -782,7 +786,7 @@ class TestPerformanceBenchmark:
                         "agent_name": "basic-decomposition",
                         "canvas_path": "test.canvas",
                         "input_data": {"material_text": f"测试材料{i}"},
-                        "priority": "normal"
+                        "priority": "normal",
                     }
                     for i in range(concurrency)
                 ]

@@ -19,9 +19,7 @@ import uuid
 from datetime import datetime
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
-
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -58,9 +56,18 @@ async def _cleanup_prefix(client: Neo4jClient, prefix: str) -> None:
 # Helpers
 # =============================================================================
 
+
 async def _insert_user_concept_relationship(
-    neo4j_client, prefix, user_id, concept_name, score, timestamp,
-    group_id="test", concept_id=None, agent_type="scoring", review_count=1,
+    neo4j_client,
+    prefix,
+    user_id,
+    concept_name,
+    score,
+    timestamp,
+    group_id="test",
+    concept_id=None,
+    agent_type="scoring",
+    review_count=1,
 ):
     """Insert a User -> LEARNED -> Concept relationship into Neo4j.
 
@@ -96,6 +103,7 @@ async def _insert_user_concept_relationship(
 # [Source: docs/stories/31.A.2.story.md#AC-31.A.2.2]
 # =============================================================================
 
+
 class TestAC31A22_Neo4jClientMethod_Real:
     """AC-31.A.2.2: Neo4jClient must have get_learning_history() (real DB)."""
 
@@ -127,10 +135,20 @@ class TestAC31A22_Neo4jClientMethod_Real:
             user2 = f"{prefix}u2"
 
             await _insert_user_concept_relationship(
-                client, prefix, user1, f"{prefix}ConceptA", 90, "2026-02-05T10:00:00",
+                client,
+                prefix,
+                user1,
+                f"{prefix}ConceptA",
+                90,
+                "2026-02-05T10:00:00",
             )
             await _insert_user_concept_relationship(
-                client, prefix, user2, f"{prefix}ConceptB", 80, "2026-02-05T10:00:00",
+                client,
+                prefix,
+                user2,
+                f"{prefix}ConceptB",
+                80,
+                "2026-02-05T10:00:00",
             )
 
             results = await client.get_learning_history(user_id=user1)
@@ -153,17 +171,23 @@ class TestAC31A22_Neo4jClientMethod_Real:
             user_id = f"{prefix}u1"
 
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}线性代数-矩阵乘法",
-                90, "2026-02-05T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}线性代数-矩阵乘法",
+                90,
+                "2026-02-05T10:00:00",
             )
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}概率论-贝叶斯",
-                80, "2026-02-05T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}概率论-贝叶斯",
+                80,
+                "2026-02-05T10:00:00",
             )
 
-            results = await client.get_learning_history(
-                user_id=user_id, concept="矩阵"
-            )
+            results = await client.get_learning_history(user_id=user_id, concept="矩阵")
 
             assert len(results) >= 1
             for r in results:
@@ -181,12 +205,22 @@ class TestAC31A22_Neo4jClientMethod_Real:
             user_id = f"{prefix}u1"
 
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}MathConcept",
-                90, "2026-02-05T10:00:00", group_id=f"{prefix}math-001",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}MathConcept",
+                90,
+                "2026-02-05T10:00:00",
+                group_id=f"{prefix}math-001",
             )
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}PhysConcept",
-                80, "2026-02-05T10:00:00", group_id=f"{prefix}physics-001",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}PhysConcept",
+                80,
+                "2026-02-05T10:00:00",
+                group_id=f"{prefix}physics-001",
             )
 
             results = await client.get_learning_history(
@@ -211,16 +245,28 @@ class TestAC31A22_Neo4jClientMethod_Real:
             user_id = f"{prefix}u1"
 
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}Old",
-                70, "2026-01-01T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}Old",
+                70,
+                "2026-01-01T10:00:00",
             )
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}Current",
-                85, "2026-02-05T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}Current",
+                85,
+                "2026-02-05T10:00:00",
             )
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}Future",
-                95, "2026-03-01T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}Future",
+                95,
+                "2026-03-01T10:00:00",
             )
 
             results = await client.get_learning_history(
@@ -256,13 +302,19 @@ class TestAC31A22_Neo4jClientMethod_Real:
             # Insert 10 concepts
             for i in range(10):
                 await _insert_user_concept_relationship(
-                    client, prefix, user_id, f"{prefix}LimitC{i}",
-                    80, f"2026-02-05T{10+i}:00:00",
+                    client,
+                    prefix,
+                    user_id,
+                    f"{prefix}LimitC{i}",
+                    80,
+                    f"2026-02-05T{10 + i}:00:00",
                 )
 
             results = await client.get_learning_history(user_id=user_id, limit=3)
 
-            assert len(results) == 3, f"Expected 3 results with limit=3, got {len(results)}"
+            assert len(results) == 3, (
+                f"Expected 3 results with limit=3, got {len(results)}"
+            )
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -276,16 +328,28 @@ class TestAC31A22_Neo4jClientMethod_Real:
             user_id = f"{prefix}u1"
 
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}Oldest",
-                70, "2026-02-01T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}Oldest",
+                70,
+                "2026-02-01T10:00:00",
             )
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}Newest",
-                90, "2026-02-05T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}Newest",
+                90,
+                "2026-02-05T10:00:00",
             )
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}Middle",
-                80, "2026-02-03T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}Middle",
+                80,
+                "2026-02-03T10:00:00",
             )
 
             results = await client.get_learning_history(user_id=user_id)
@@ -310,8 +374,12 @@ class TestAC31A22_Neo4jClientMethod_Real:
             user_id = f"{prefix}u1"
 
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}FieldTest",
-                90, "2026-02-05T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}FieldTest",
+                90,
+                "2026-02-05T10:00:00",
                 group_id=f"{prefix}math-001",
                 concept_id=f"{prefix}c-field-1",
                 agent_type="scoring",
@@ -344,8 +412,12 @@ class TestAC31A22_Neo4jClientMethod_Real:
 
             # Insert data and verify it comes back through get_learning_history
             await _insert_user_concept_relationship(
-                client, prefix, user_id, f"{prefix}CypherTest",
-                85, "2026-02-05T10:00:00",
+                client,
+                prefix,
+                user_id,
+                f"{prefix}CypherTest",
+                85,
+                "2026-02-05T10:00:00",
             )
 
             results = await client.get_learning_history(user_id=user_id)
@@ -370,7 +442,9 @@ class TestAC31A22_Neo4jClientMethod_Real:
                 user_id=f"{prefix}nonexistent_user_xyz"
             )
 
-            assert results == [], f"Expected empty list for nonexistent user, got: {results}"
+            assert results == [], (
+                f"Expected empty list for nonexistent user, got: {results}"
+            )
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()

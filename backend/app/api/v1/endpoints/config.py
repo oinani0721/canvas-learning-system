@@ -24,14 +24,20 @@ config_router = APIRouter()
 
 class AIConfigUpdate(BaseModel):
     """Request body for updating AI configuration at runtime."""
-    ai_provider: Optional[str] = Field(None, description="AI provider: google, openai, anthropic, openrouter, custom")
+
+    ai_provider: Optional[str] = Field(
+        None, description="AI provider: google, openai, anthropic, openrouter, custom"
+    )
     ai_model_name: Optional[str] = Field(None, description="AI model name")
     ai_api_key: Optional[str] = Field(None, description="AI API key")
-    ai_base_url: Optional[str] = Field(None, description="AI API base URL (for custom providers)")
+    ai_base_url: Optional[str] = Field(
+        None, description="AI API base URL (for custom providers)"
+    )
 
 
 class AIConfigResponse(BaseModel):
     """Response showing current AI configuration (key masked)."""
+
     ai_provider: str
     ai_model_name: str
     ai_base_url: str

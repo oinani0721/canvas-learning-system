@@ -73,7 +73,7 @@ class TestResult:
             "success": self.success,
             "error_message": self.error_message,
             "execution_time": self.execution_time,
-            "details": self.details
+            "details": self.details,
         }
 
 
@@ -97,32 +97,32 @@ class ComprehensiveTestRunner:
         self.acceptance_criteria = {
             "AC1": {
                 "name": "并行处理框架支持5-10个Agent并发执行",
-                "test_methods": ["test_parallel_agent_capacity"]
+                "test_methods": ["test_parallel_agent_capacity"],
             },
             "AC2": {
                 "name": "集成Context7验证的aiomultiprocess技术",
-                "test_methods": ["test_aiomultiprocess_integration"]
+                "test_methods": ["test_aiomultiprocess_integration"],
             },
             "AC3": {
                 "name": "每个Agent拥有独立的上下文窗口",
-                "test_methods": ["test_context_isolation"]
+                "test_methods": ["test_context_isolation"],
             },
             "AC4": {
                 "name": "任务队列管理系统支持任务分发、进度监控和结果收集",
-                "test_methods": ["test_task_queue_management"]
+                "test_methods": ["test_task_queue_management"],
             },
             "AC5": {
                 "name": "并发控制机制处理Agent执行失败的情况",
-                "test_methods": ["test_error_handling_isolation"]
+                "test_methods": ["test_error_handling_isolation"],
             },
             "AC6": {
                 "name": "性能测试确认并发处理比串行处理效率提升5-10倍",
-                "test_methods": ["test_parallel_efficiency_improvement"]
+                "test_methods": ["test_parallel_efficiency_improvement"],
             },
             "AC7": {
                 "name": "所有并行处理功能通过完整的集成测试验证",
-                "test_methods": ["test_end_to_end_integration"]
-            }
+                "test_methods": ["test_end_to_end_integration"],
+            },
         }
 
     def create_test_result(self, test_name: str, description: str) -> TestResult:
@@ -139,7 +139,9 @@ class ComprehensiveTestRunner:
         self.test_results.append(result)
         return result
 
-    async def run_test_with_timing(self, test_func, test_name: str, description: str) -> TestResult:
+    async def run_test_with_timing(
+        self, test_func, test_name: str, description: str
+    ) -> TestResult:
         """运行测试并计时
 
         Args:
@@ -177,7 +179,7 @@ class ComprehensiveTestRunner:
             executor.config = {
                 "parallel_processing": {
                     "default_max_concurrent": concurrency,
-                    "max_concurrent_limit": concurrency
+                    "max_concurrent_limit": concurrency,
                 }
             }
 
@@ -187,12 +189,14 @@ class ComprehensiveTestRunner:
                 # 创建测试任务
                 tasks = []
                 for i in range(concurrency * 2):  # 提交多于并发数的任务
-                    tasks.append({
-                        "agent_name": "basic-decomposition",
-                        "canvas_path": "test.canvas",
-                        "input_data": {"material_text": f"测试材料{i+1}"},
-                        "priority": "normal"
-                    })
+                    tasks.append(
+                        {
+                            "agent_name": "basic-decomposition",
+                            "canvas_path": "test.canvas",
+                            "input_data": {"material_text": f"测试材料{i + 1}"},
+                            "priority": "normal",
+                        }
+                    )
 
                 execution_id = await executor.submit_batch_tasks(tasks)
                 assert execution_id is not None
@@ -221,6 +225,7 @@ class ComprehensiveTestRunner:
         # 验证aiomultiprocess是否可用
         try:
             import aiomultiprocess
+
             print("    ✅ aiomultiprocess库导入成功")
         except ImportError:
             raise ImportError("aiomultiprocess库未安装")
@@ -238,7 +243,7 @@ class ComprehensiveTestRunner:
                 "agent_name": "basic-decomposition",
                 "canvas_path": "test.canvas",
                 "input_data": {"material_text": "aiomultiprocess集成测试"},
-                "priority": "normal"
+                "priority": "normal",
             }
 
             execution_id = await executor.submit_batch_tasks([task])
@@ -261,7 +266,7 @@ class ComprehensiveTestRunner:
         config = {
             "isolation_level": "process",
             "context_size_limit_mb": 128,
-            "context_cleanup_enabled": True
+            "context_cleanup_enabled": True,
         }
 
         isolation_manager = ContextIsolationManager(config)
@@ -272,8 +277,7 @@ class ComprehensiveTestRunner:
 
         for i in range(5):
             context_id = await isolation_manager.create_isolated_context(
-                task_id=f"test-task-{i}",
-                agent_name="test-agent"
+                task_id=f"test-task-{i}", agent_name="test-agent"
             )
             context_ids.append(context_id)
 
@@ -316,7 +320,7 @@ class ComprehensiveTestRunner:
             "max_queue_size": 100,
             "load_balancing_strategy": "round_robin",
             "back_pressure_enabled": True,
-            "back_pressure_threshold": 0.8
+            "back_pressure_threshold": 0.8,
         }
 
         queue_manager = TaskQueueManager(config)
@@ -327,8 +331,8 @@ class ComprehensiveTestRunner:
             task = {
                 "agent_name": "basic-decomposition",
                 "canvas_path": "test.canvas",
-                "input_data": {"material_text": f"队列测试任务{i+1}"},
-                "priority": "high" if i % 3 == 0 else "normal"
+                "input_data": {"material_text": f"队列测试任务{i + 1}"},
+                "priority": "high" if i % 3 == 0 else "normal",
             }
             tasks.append(task)
 
@@ -338,7 +342,7 @@ class ComprehensiveTestRunner:
                 agent_name=task_data["agent_name"],
                 canvas_path=task_data["canvas_path"],
                 input_data=task_data["input_data"],
-                priority=TaskPriority(task_data["priority"])
+                priority=TaskPriority(task_data["priority"]),
             )
             success = await queue_manager.submit_task(task_obj)
             if success:
@@ -365,7 +369,9 @@ class ComprehensiveTestRunner:
         worker_status = await queue_manager.get_worker_status()
         assert worker_status["total_workers"] == 2
         assert worker_status["available_workers"] == 5  # 2 + 3
-        print(f"    ✅ 工作节点管理正常，注册了 {worker_status['total_workers']} 个节点")
+        print(
+            f"    ✅ 工作节点管理正常，注册了 {worker_status['total_workers']} 个节点"
+        )
 
         # 测试队列状态
         queue_status = await queue_manager.get_queue_status()
@@ -384,7 +390,7 @@ class ComprehensiveTestRunner:
         config = {
             "continue_on_error": True,
             "error_isolation": True,
-            "fallback_strategy": "retry"
+            "fallback_strategy": "retry",
         }
 
         error_handler = ErrorHandlingManager(config)
@@ -394,18 +400,18 @@ class ComprehensiveTestRunner:
             {
                 "name": "timeout_error",
                 "exception": TimeoutError("任务超时"),
-                "expected_isolation": True
+                "expected_isolation": True,
             },
             {
                 "name": "runtime_error",
                 "exception": RuntimeError("运行时错误"),
-                "expected_isolation": True
+                "expected_isolation": True,
             },
             {
                 "name": "value_error",
                 "exception": ValueError("参数错误"),
-                "expected_isolation": True
-            }
+                "expected_isolation": True,
+            },
         ]
 
         for i, test_case in enumerate(test_cases):
@@ -416,7 +422,7 @@ class ComprehensiveTestRunner:
                 execution_id="test-exec-123",
                 agent_name="test-agent",
                 worker_id=f"worker-{i}",
-                exception=test_case["exception"]
+                exception=test_case["exception"],
             )
 
             assert error_record is not None
@@ -424,7 +430,9 @@ class ComprehensiveTestRunner:
             assert error_record.error_type == test_case["exception"].__class__.__name__
             assert error_record.isolation_level is not None
 
-            print(f"      ✅ 错误记录创建成功，隔离级别: {error_record.isolation_level.value}")
+            print(
+                f"      ✅ 错误记录创建成功，隔离级别: {error_record.isolation_level.value}"
+            )
 
         # 测试错误统计
         error_stats = error_handler.get_error_statistics()
@@ -443,16 +451,18 @@ class ComprehensiveTestRunner:
             # 调用基准测试脚本
             script_path = project_root / "scripts" / "benchmark_parallel_vs_serial.py"
             cmd = [
-                sys.executable, str(script_path),
-                "--output-dir", str(self.output_dir / "benchmark"),
-                "--quick"  # 快速模式
+                sys.executable,
+                str(script_path),
+                "--output-dir",
+                str(self.output_dir / "benchmark"),
+                "--quick",  # 快速模式
             ]
 
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5分钟超时
+                timeout=300,  # 5分钟超时
             )
 
             if result.returncode == 0:
@@ -487,18 +497,10 @@ class ComprehensiveTestRunner:
         # 初始化完整系统
         executor = ParallelAgentExecutor()
         executor.config = {
-            "parallel_processing": {
-                "default_max_concurrent": 4
-            },
-            "task_queue": {
-                "max_queue_size": 50
-            },
-            "context_isolation": {
-                "context_size_limit_mb": 128
-            },
-            "error_handling": {
-                "continue_on_error": True
-            }
+            "parallel_processing": {"default_max_concurrent": 4},
+            "task_queue": {"max_queue_size": 50},
+            "context_isolation": {"context_size_limit_mb": 128},
+            "error_handling": {"continue_on_error": True},
         }
 
         await executor.initialize()
@@ -510,20 +512,20 @@ class ComprehensiveTestRunner:
                     "agent_name": "basic-decomposition",
                     "canvas_path": "integration_test.canvas",
                     "input_data": {"material_text": "集成测试材料1"},
-                    "priority": "high"
+                    "priority": "high",
                 },
                 {
                     "agent_name": "oral-explanation",
                     "canvas_path": "integration_test.canvas",
                     "input_data": {"concept": "集成测试概念"},
-                    "priority": "normal"
+                    "priority": "normal",
                 },
                 {
                     "agent_name": "scoring-agent",
                     "canvas_path": "integration_test.canvas",
                     "input_data": {"understanding_text": "集成测试理解"},
-                    "priority": "low"
-                }
+                    "priority": "low",
+                },
             ]
 
             # 提交批量任务
@@ -548,7 +550,9 @@ class ComprehensiveTestRunner:
                 total = queue_status.get("total_tasks", 0)
 
                 progress = (completed + failed) / total * 100 if total > 0 else 0
-                print(f"      执行进度: {progress:.1f}% (完成: {completed}, 失败: {failed})")
+                print(
+                    f"      执行进度: {progress:.1f}% (完成: {completed}, 失败: {failed})"
+                )
 
                 if (completed + failed) >= total:
                     break
@@ -599,7 +603,7 @@ class ComprehensiveTestRunner:
                     result = await self.run_test_with_timing(
                         test_method,
                         f"{ac_code}_{test_method_name}",
-                        f"AC{ac_code}: {ac_info['name']}"
+                        f"AC{ac_code}: {ac_info['name']}",
                     )
                     ac_results.append(result)
 
@@ -613,13 +617,17 @@ class ComprehensiveTestRunner:
                 "passed": ac_passed,
                 "success_count": ac_success_count,
                 "total_count": ac_total_count,
-                "results": [r.to_dict() for r in ac_results]
+                "results": [r.to_dict() for r in ac_results],
             }
 
             if ac_passed:
-                print(f"\n✅ {ac_code} PASSED: {ac_info['name']} ({ac_success_count}/{ac_total_count} 测试通过)")
+                print(
+                    f"\n✅ {ac_code} PASSED: {ac_info['name']} ({ac_success_count}/{ac_total_count} 测试通过)"
+                )
             else:
-                print(f"\n❌ {ac_code} FAILED: {ac_info['name']} ({ac_success_count}/{ac_total_count} 测试通过)")
+                print(
+                    f"\n❌ {ac_code} FAILED: {ac_info['name']} ({ac_success_count}/{ac_total_count} 测试通过)"
+                )
 
         # 计算总体结果
         total_tests = len(self.test_results)
@@ -636,12 +644,12 @@ class ComprehensiveTestRunner:
                 "failed_tests": total_tests - passed_tests,
                 "success_rate": passed_tests / total_tests if total_tests > 0 else 0,
                 "overall_success": overall_success,
-                "total_execution_time": total_execution_time
+                "total_execution_time": total_execution_time,
             },
             "acceptance_criteria_results": self.acceptance_criteria_results,
             "detailed_results": [r.to_dict() for r in self.test_results],
             "test_timestamp": time.time(),
-            "test_date": time.strftime("%Y-%m-%d %H:%M:%S")
+            "test_date": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
         return report
@@ -673,7 +681,9 @@ class ComprehensiveTestRunner:
             status = "✅ PASSED" if ac_result["passed"] else "❌ FAILED"
             print(f"  {ac_code}: {status}")
             print(f"      {ac_result['name']}")
-            print(f"      ({ac_result['success_count']}/{ac_result['total_count']} 测试通过)")
+            print(
+                f"      ({ac_result['success_count']}/{ac_result['total_count']} 测试通过)"
+            )
 
         # 最终结论
         print("\n🏆 最终结论:")
@@ -689,7 +699,7 @@ class ComprehensiveTestRunner:
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         report_file = self.output_dir / f"comprehensive_test_report_{timestamp}.json"
 
-        with open(report_file, 'w', encoding='utf-8') as f:
+        with open(report_file, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
 
         print(f"\n📄 详细报告已保存到: {report_file}")

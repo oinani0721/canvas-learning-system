@@ -8,6 +8,7 @@ and applies weighted selection for targeted review mode.
 PRD Reference: v1.1.8 - calculate_targeted_review_weights tool
 Story: 24.3 - Intelligent Weight Algorithm for Targeted Review
 """
+
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -31,6 +32,7 @@ class ConceptWeightData:
         days_since_review: Days since last review
         category: Classification ("weak", "borderline", "mastered")
     """
+
     concept_id: str
     concept_name: str
     weakness_score: float  # 0.0-1.0
@@ -59,15 +61,13 @@ class WeightCalculator:
     DEFAULT_NEW_SCORE = 0.5
 
     # Score component weights (must sum to 1.0)
-    RATING_WEIGHT = 0.4      # Avg rating impact
-    FAILURE_WEIGHT = 0.3     # Failure count impact
-    RECENCY_WEIGHT = 0.2     # Days since review impact
-    TREND_WEIGHT = 0.1       # Improvement trend impact
+    RATING_WEIGHT = 0.4  # Avg rating impact
+    FAILURE_WEIGHT = 0.3  # Failure count impact
+    RECENCY_WEIGHT = 0.2  # Days since review impact
+    TREND_WEIGHT = 0.1  # Improvement trend impact
 
     async def calculate_weakness_scores(
-        self,
-        concepts: List[Dict],
-        review_history: List[Dict]
+        self, concepts: List[Dict], review_history: List[Dict]
     ) -> List[ConceptWeightData]:
         """
         Calculate weakness scores for all concepts.
@@ -101,7 +101,7 @@ class WeightCalculator:
                     avg_rating=0.0,
                     review_count=0,
                     days_since_review=0,
-                    category="borderline"
+                    category="borderline",
                 )
             else:
                 # Calculate score from history
@@ -140,9 +140,7 @@ class WeightCalculator:
         return history_map
 
     def _calculate_from_history(
-        self,
-        concept: Dict,
-        history: List[Dict]
+        self, concept: Dict, history: List[Dict]
     ) -> ConceptWeightData:
         """
         Calculate weakness score from review history.
@@ -157,15 +155,25 @@ class WeightCalculator:
             ConceptWeightData with calculated scores
         """
         # Calculate metrics
-        ratings = [h.get("rating") or h.get("score", 0) for h in history if h.get("rating") or h.get("score")]
+        ratings = [
+            h.get("rating") or h.get("score", 0)
+            for h in history
+            if h.get("rating") or h.get("score")
+        ]
         avg_rating = sum(ratings) / len(ratings) if ratings else 0
-        failure_count = sum(1 for h in history if (h.get("rating") or h.get("score", 0)) <= 2)
+        failure_count = sum(
+            1 for h in history if (h.get("rating") or h.get("score", 0)) <= 2
+        )
         review_count = len(history)
 
         # Days since last review
         last_review = max(
-            (self._parse_timestamp(h.get("timestamp")) for h in history if h.get("timestamp")),
-            default=None
+            (
+                self._parse_timestamp(h.get("timestamp"))
+                for h in history
+                if h.get("timestamp")
+            ),
+            default=None,
         )
         days_since = 0
         if last_review:
@@ -187,10 +195,10 @@ class WeightCalculator:
 
         # Weighted combination
         weakness_score = (
-            self.RATING_WEIGHT * rating_score +
-            self.FAILURE_WEIGHT * failure_score +
-            self.RECENCY_WEIGHT * recency_score +
-            self.TREND_WEIGHT * trend_score
+            self.RATING_WEIGHT * rating_score
+            + self.FAILURE_WEIGHT * failure_score
+            + self.RECENCY_WEIGHT * recency_score
+            + self.TREND_WEIGHT * trend_score
         )
 
         # Clamp to 0-1
@@ -212,7 +220,7 @@ class WeightCalculator:
             avg_rating=avg_rating,
             review_count=review_count,
             days_since_review=days_since,
-            category=category
+            category=category,
         )
 
     def _calculate_trend_score(self, history: List[Dict]) -> float:
@@ -232,8 +240,7 @@ class WeightCalculator:
 
         # Sort by timestamp
         sorted_history = sorted(
-            history,
-            key=lambda h: self._parse_timestamp(h.get("timestamp"))
+            history, key=lambda h: self._parse_timestamp(h.get("timestamp"))
         )
 
         # Compare recent half vs older half
@@ -277,8 +284,8 @@ class WeightCalculator:
 
         try:
             # Try ISO format
-            if 'T' in timestamp:
-                return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            if "T" in timestamp:
+                return datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
             else:
                 # Try date only
                 return datetime.fromisoformat(timestamp)

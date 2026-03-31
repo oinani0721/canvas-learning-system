@@ -12,14 +12,15 @@ Version: 1.0.0
 Created: 2026-01-20
 """
 
-import pytest
 from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
+import pytest
 
 # ========================================
 # Fixtures
 # ========================================
+
 
 @pytest.fixture
 def sample_rag_state() -> Dict[str, Any]:
@@ -30,7 +31,6 @@ def sample_rag_state() -> Dict[str, Any]:
         "lancedb_results": [],
         "multimodal_results": [],
         "textbook_results": [],
-        "cross_canvas_results": [],
         "fused_results": [],
         "reranked_results": [],
         "fusion_strategy": "rrf",
@@ -72,12 +72,14 @@ def sample_multimodal_raw_results() -> List[Dict[str, Any]]:
 # AC 35.8.1: MultimodalResultItem Model Tests
 # ========================================
 
+
 class TestMultimodalResultItemModel:
     """AC 35.8.1: RAGQueryResponse包含multimodal_results字段"""
 
     def test_multimodal_result_item_import(self):
         """测试MultimodalResultItem可以正确导入"""
         from app.api.v1.endpoints.rag import MultimodalResultItem
+
         assert MultimodalResultItem is not None
 
     def test_multimodal_result_item_fields(self):
@@ -104,7 +106,7 @@ class TestMultimodalResultItemModel:
             path="/images/test.png",
             thumbnail="data:image/png;base64,abc...",
             relevance_score=0.85,
-            metadata={"width": 800}
+            metadata={"width": 800},
         )
         assert item.id == "test_001"
         assert item.media_type == "image"
@@ -113,31 +115,21 @@ class TestMultimodalResultItemModel:
     def test_multimodal_result_item_score_range(self):
         """测试relevance_score范围验证 (0-1)"""
         from app.api.v1.endpoints.rag import MultimodalResultItem
-        from pydantic import ValidationError
 
         # 有效分数
         item = MultimodalResultItem(
-            id="test",
-            media_type="image",
-            path="/test.png",
-            relevance_score=0.5
+            id="test", media_type="image", path="/test.png", relevance_score=0.5
         )
         assert item.relevance_score == 0.5
 
         # 边界值
         item_min = MultimodalResultItem(
-            id="test",
-            media_type="image",
-            path="/test.png",
-            relevance_score=0.0
+            id="test", media_type="image", path="/test.png", relevance_score=0.0
         )
         assert item_min.relevance_score == 0.0
 
         item_max = MultimodalResultItem(
-            id="test",
-            media_type="image",
-            path="/test.png",
-            relevance_score=1.0
+            id="test", media_type="image", path="/test.png", relevance_score=1.0
         )
         assert item_max.relevance_score == 1.0
 
@@ -148,10 +140,7 @@ class TestMultimodalResultItemModel:
         # 有效媒体类型
         for media_type in ["image", "pdf", "audio", "video"]:
             item = MultimodalResultItem(
-                id="test",
-                media_type=media_type,
-                path="/test",
-                relevance_score=0.5
+                id="test", media_type=media_type, path="/test", relevance_score=0.5
             )
             assert item.media_type == media_type
 
@@ -167,26 +156,32 @@ class TestMultimodalResultItemModel:
 # AC 35.8.2: MultimodalRetriever Wiring Tests
 # ========================================
 
+
 class TestMultimodalRetrieverWiring:
     """AC 35.8.2: MultimodalRetriever已wired到RAG Service"""
 
     def test_multimodal_retrieval_node_exists(self):
         """测试multimodal_retrieval_node函数存在"""
         from agentic_rag.retrievers import multimodal_retrieval_node
+
         assert callable(multimodal_retrieval_node)
 
     def test_multimodal_retrieval_node_extracts_query_from_messages(
         self, sample_rag_state
     ):
         """测试节点从messages提取查询"""
-        from agentic_rag.retrievers.multimodal_retriever import _extract_query_from_state
+        from agentic_rag.retrievers.multimodal_retriever import (
+            _extract_query_from_state,
+        )
 
         query = _extract_query_from_state(sample_rag_state)
         assert query == "什么是逆否命题？"
 
     def test_multimodal_retrieval_node_handles_empty_messages(self):
         """测试节点处理空messages"""
-        from agentic_rag.retrievers.multimodal_retriever import _extract_query_from_state
+        from agentic_rag.retrievers.multimodal_retriever import (
+            _extract_query_from_state,
+        )
 
         state = {"messages": [], "original_query": "fallback query"}
         query = _extract_query_from_state(state)
@@ -194,7 +189,9 @@ class TestMultimodalRetrieverWiring:
 
     def test_multimodal_retrieval_node_handles_dict_message(self):
         """测试节点处理dict格式的message"""
-        from agentic_rag.retrievers.multimodal_retriever import _extract_query_from_state
+        from agentic_rag.retrievers.multimodal_retriever import (
+            _extract_query_from_state,
+        )
 
         state = {"messages": [{"role": "user", "content": "test query"}]}
         query = _extract_query_from_state(state)
@@ -222,7 +219,7 @@ class TestMultimodalRetrieverWiring:
         # Mock the client to return empty results (no client available)
         with patch(
             "agentic_rag.retrievers.multimodal_retriever._get_multimodal_lancedb_client",
-            return_value=None
+            return_value=None,
         ):
             result = await multimodal_retrieval_node(sample_rag_state)
 
@@ -236,6 +233,7 @@ class TestMultimodalRetrieverWiring:
 # ========================================
 # AC 35.8.3: Thumbnail Population Tests
 # ========================================
+
 
 class TestThumbnailPopulation:
     """AC 35.8.3: 图片结果包含缩略图Base64/URL"""
@@ -251,7 +249,9 @@ class TestThumbnailPopulation:
         }
 
         # 模拟节点的结果格式化
-        thumbnail = raw_result.get("thumbnail_path", raw_result.get("content_preview", ""))
+        thumbnail = raw_result.get(
+            "thumbnail_path", raw_result.get("content_preview", "")
+        )
         assert thumbnail == "data:image/png;base64,abc123"
 
     def test_thumbnail_fallback_to_content_preview(self):
@@ -265,7 +265,9 @@ class TestThumbnailPopulation:
         }
 
         # 没有thumbnail_path时使用content_preview
-        thumbnail = raw_result.get("thumbnail_path", raw_result.get("content_preview", ""))
+        thumbnail = raw_result.get(
+            "thumbnail_path", raw_result.get("content_preview", "")
+        )
         assert thumbnail == "/thumbnails/test_thumb.png"
 
     def test_endpoint_maps_thumbnail_correctly(self):
@@ -288,7 +290,7 @@ class TestThumbnailPopulation:
             path=mm_dict.get("path", mm_dict.get("file_path", "")),
             thumbnail=mm_dict.get("thumbnail", mm_dict.get("content_preview")),
             relevance_score=mm_dict.get("relevance_score", 0.0),
-            metadata=mm_dict.get("metadata", {})
+            metadata=mm_dict.get("metadata", {}),
         )
 
         assert item.thumbnail == "data:image/png;base64,xyz"
@@ -297,6 +299,7 @@ class TestThumbnailPopulation:
 # ========================================
 # AC 35.8.4: RRF Multimodal Fusion Tests
 # ========================================
+
 
 class TestRRFMultimodalFusion:
     """AC 35.8.4: 多模态结果参与RRF融合"""
@@ -320,7 +323,6 @@ class TestRRFMultimodalFusion:
             "graphiti": 0.25,
             "lancedb": 0.25,
             "textbook": 0.20,
-            "cross_canvas": 0.15,
             "multimodal": 0.15,
         }
         assert set(DEFAULT_SOURCE_WEIGHTS.keys()) == set(expected.keys()), (
@@ -338,7 +340,12 @@ class TestRRFMultimodalFusion:
         """测试fuse_results函数处理multimodal_results"""
         # 设置多模态结果
         sample_rag_state["multimodal_results"] = [
-            {"doc_id": "mm_001", "content": "图片内容", "score": 0.8, "metadata": {"source": "multimodal"}}
+            {
+                "doc_id": "mm_001",
+                "content": "图片内容",
+                "score": 0.8,
+                "metadata": {"source": "multimodal"},
+            }
         ]
 
         # all_source_results应该包含multimodal
@@ -347,7 +354,6 @@ class TestRRFMultimodalFusion:
             "lancedb": sample_rag_state.get("lancedb_results", []),
             "multimodal": sample_rag_state.get("multimodal_results", []),
             "textbook": sample_rag_state.get("textbook_results", []),
-            "cross_canvas": sample_rag_state.get("cross_canvas_results", []),
         }
 
         assert "multimodal" in all_source_results
@@ -359,16 +365,30 @@ class TestRRFMultimodalFusion:
 
         all_source_results = {
             "graphiti": [
-                {"doc_id": "g1", "content": "graphiti内容", "score": 0.9, "metadata": {}}
+                {
+                    "doc_id": "g1",
+                    "content": "graphiti内容",
+                    "score": 0.9,
+                    "metadata": {},
+                }
             ],
             "lancedb": [
-                {"doc_id": "l1", "content": "lancedb内容", "score": 0.85, "metadata": {}}
+                {
+                    "doc_id": "l1",
+                    "content": "lancedb内容",
+                    "score": 0.85,
+                    "metadata": {},
+                }
             ],
             "multimodal": [
-                {"doc_id": "m1", "content": "多模态内容", "score": 0.8, "metadata": {"type": "image"}}
+                {
+                    "doc_id": "m1",
+                    "content": "多模态内容",
+                    "score": 0.8,
+                    "metadata": {"type": "image"},
+                }
             ],
             "textbook": [],
-            "cross_canvas": [],
         }
 
         fused = _fuse_rrf_multi_source(all_source_results)
@@ -391,14 +411,23 @@ class TestRRFMultimodalFusion:
 
         all_source_results = {
             "graphiti": [
-                {"doc_id": "g1", "content": "graphiti内容", "score": 0.9, "metadata": {}}
+                {
+                    "doc_id": "g1",
+                    "content": "graphiti内容",
+                    "score": 0.9,
+                    "metadata": {},
+                }
             ],
             "lancedb": [],
             "multimodal": [
-                {"doc_id": "m1", "content": "多模态内容", "score": 0.8, "metadata": {"type": "image"}}
+                {
+                    "doc_id": "m1",
+                    "content": "多模态内容",
+                    "score": 0.8,
+                    "metadata": {"type": "image"},
+                }
             ],
             "textbook": [],
-            "cross_canvas": [],
         }
 
         fused = _fuse_rrf_multi_source(all_source_results)
@@ -418,20 +447,37 @@ class TestRRFMultimodalFusion:
 
     def test_weighted_fusion_with_multimodal(self):
         """测试Weighted融合正确处理multimodal结果"""
-        from agentic_rag.nodes import DEFAULT_SOURCE_WEIGHTS, _fuse_weighted_multi_source
+        from agentic_rag.nodes import (
+            DEFAULT_SOURCE_WEIGHTS,
+            _fuse_weighted_multi_source,
+        )
 
         all_source_results = {
             "graphiti": [
-                {"doc_id": "g1", "content": "graphiti内容", "score": 0.9, "metadata": {}}
+                {
+                    "doc_id": "g1",
+                    "content": "graphiti内容",
+                    "score": 0.9,
+                    "metadata": {},
+                }
             ],
             "lancedb": [
-                {"doc_id": "l1", "content": "lancedb内容", "score": 0.85, "metadata": {}}
+                {
+                    "doc_id": "l1",
+                    "content": "lancedb内容",
+                    "score": 0.85,
+                    "metadata": {},
+                }
             ],
             "multimodal": [
-                {"doc_id": "m1", "content": "多模态内容", "score": 0.8, "metadata": {"type": "image"}}
+                {
+                    "doc_id": "m1",
+                    "content": "多模态内容",
+                    "score": 0.8,
+                    "metadata": {"type": "image"},
+                }
             ],
             "textbook": [],
-            "cross_canvas": [],
         }
 
         fused = _fuse_weighted_multi_source(all_source_results, DEFAULT_SOURCE_WEIGHTS)
@@ -445,6 +491,7 @@ class TestRRFMultimodalFusion:
 # ========================================
 # StateGraph Integration Tests
 # ========================================
+
 
 class TestStateGraphMultimodalIntegration:
     """StateGraph多模态集成测试"""
@@ -460,7 +507,6 @@ class TestStateGraphMultimodalIntegration:
 
     def test_fan_out_retrieval_includes_multimodal(self, sample_rag_state):
         """测试fan_out_retrieval包含multimodal"""
-        from langgraph.types import Send
         from agentic_rag.state_graph import fan_out_retrieval
 
         sends = fan_out_retrieval(sample_rag_state)
@@ -483,12 +529,13 @@ class TestStateGraphMultimodalIntegration:
 # Response Mapping Tests
 # ========================================
 
+
 class TestResponseMapping:
     """测试RAG endpoint响应映射"""
 
     def test_response_maps_multimodal_results(self):
         """测试响应正确映射multimodal_results"""
-        from app.api.v1.endpoints.rag import MultimodalResultItem, RAGQueryResponse
+        from app.api.v1.endpoints.rag import MultimodalResultItem
 
         # 模拟RAG服务返回的结果
         rag_result = {
@@ -502,14 +549,14 @@ class TestResponseMapping:
                     "thumbnail": "data:image/png;base64,abc",
                     "content_preview": "预览内容",
                     "relevance_score": 0.85,
-                    "metadata": {"width": 800}
+                    "metadata": {"width": 800},
                 }
             ],
             "quality_grade": "high",
             "result_count": 1,
             "latency_ms": {},
             "total_latency_ms": 100.0,
-            "metadata": {}
+            "metadata": {},
         }
 
         # 模拟endpoint的映射逻辑
@@ -520,7 +567,7 @@ class TestResponseMapping:
                 path=mm.get("path", mm.get("file_path", "")),
                 thumbnail=mm.get("thumbnail", mm.get("content_preview")),
                 relevance_score=mm.get("relevance_score", 0.0),
-                metadata=mm.get("metadata", {})
+                metadata=mm.get("metadata", {}),
             )
             for mm in rag_result.get("multimodal_results", [])
         ]

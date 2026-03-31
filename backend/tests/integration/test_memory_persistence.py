@@ -11,17 +11,17 @@ Story 31.A.2 AC-31.A.2.3: Cross-session data persistence
 [Source: docs/stories/31.A.2.story.md#AC-31.A.2.3]
 """
 
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from app.services.memory_service import MemoryService
 from app.clients.neo4j_client import Neo4jClient
-
+from app.services.memory_service import MemoryService
 
 # =============================================================================
 # Test Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def mock_neo4j_client_with_persistence():
@@ -32,10 +32,7 @@ def mock_neo4j_client_with_persistence():
     (new MemoryService instances).
     """
     # Shared storage to simulate Neo4j persistence
-    persistent_storage = {
-        "learning_history": [],
-        "relationships": []
-    }
+    persistent_storage = {"learning_history": [], "relationships": []}
 
     client = MagicMock(spec=Neo4jClient)
     client._use_json_fallback = False
@@ -47,25 +44,22 @@ def mock_neo4j_client_with_persistence():
         end_date=None,
         concept=None,
         group_id=None,
-        limit=100
+        limit=100,
     ):
         """Return persistent data filtered by parameters."""
         results = [
-            item for item in persistent_storage["learning_history"]
+            item
+            for item in persistent_storage["learning_history"]
             if item.get("user_id") == user_id
         ]
 
         if concept:
             results = [
-                r for r in results
-                if concept.lower() in r.get("concept", "").lower()
+                r for r in results if concept.lower() in r.get("concept", "").lower()
             ]
 
         if group_id:
-            results = [
-                r for r in results
-                if r.get("group_id") == group_id
-            ]
+            results = [r for r in results if r.get("group_id") == group_id]
 
         # Sort by timestamp (newest first)
         results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
@@ -73,10 +67,7 @@ def mock_neo4j_client_with_persistence():
         return results[:limit]
 
     async def mock_create_learning_relationship(
-        user_id: str,
-        concept: str,
-        score=None,
-        group_id=None
+        user_id: str, concept: str, score=None, group_id=None
     ):
         """Simulate persisting learning data."""
         record = {
@@ -85,13 +76,15 @@ def mock_neo4j_client_with_persistence():
             "score": score,
             "group_id": group_id,
             "timestamp": datetime.now().isoformat(),
-            "review_count": 0
+            "review_count": 0,
         }
         persistent_storage["learning_history"].append(record)
         return True
 
     client.get_learning_history = AsyncMock(side_effect=mock_get_learning_history)
-    client.create_learning_relationship = AsyncMock(side_effect=mock_create_learning_relationship)
+    client.create_learning_relationship = AsyncMock(
+        side_effect=mock_create_learning_relationship
+    )
     client.initialize = AsyncMock()
     client.close = AsyncMock()
 
@@ -113,6 +106,7 @@ def mock_graphiti_memory():
 # AC-31.A.2.3: Cross-Session Persistence Tests
 # =============================================================================
 
+
 class TestCrossSessionPersistence:
     """
     Story 31.A.2 AC-31.A.2.3: Verify data persists across service restarts.
@@ -122,9 +116,7 @@ class TestCrossSessionPersistence:
 
     @pytest.mark.asyncio
     async def test_learning_history_persists_across_sessions(
-        self,
-        mock_neo4j_client_with_persistence,
-        mock_graphiti_memory
+        self, mock_neo4j_client_with_persistence, mock_graphiti_memory
     ):
         """
         Verify learning history data persists after service restart.
@@ -147,11 +139,14 @@ class TestCrossSessionPersistence:
             agent_type="scoring-agent",
             score=85,
             canvas_path="test/canvas.canvas",
-            node_id="node-001"
+            node_id="node-001",
         )
 
         # Verify data was written
-        assert len(mock_neo4j_client_with_persistence._test_storage["learning_history"]) == 1
+        assert (
+            len(mock_neo4j_client_with_persistence._test_storage["learning_history"])
+            == 1
+        )
 
         # Session 1 cleanup (simulate service shutdown)
         await service1.cleanup()
@@ -177,9 +172,7 @@ class TestCrossSessionPersistence:
 
     @pytest.mark.asyncio
     async def test_data_fields_complete_after_restart(
-        self,
-        mock_neo4j_client_with_persistence,
-        mock_graphiti_memory
+        self, mock_neo4j_client_with_persistence, mock_graphiti_memory
     ):
         """
         Verify all data fields are preserved across restarts.
@@ -198,7 +191,7 @@ class TestCrossSessionPersistence:
             score=90,
             canvas_path="test/discrete.canvas",
             node_id="node-002",
-            subject="数学"
+            subject="数学",
         )
 
         await service1.cleanup()
@@ -213,8 +206,7 @@ class TestCrossSessionPersistence:
         # Verify all fields
         assert result["total"] >= 1
         item = next(
-            (i for i in result["items"] if i["concept"] == "离散数学-逆否命题"),
-            None
+            (i for i in result["items"] if i["concept"] == "离散数学-逆否命题"), None
         )
         assert item is not None
         assert item["score"] == 90
@@ -226,6 +218,7 @@ class TestCrossSessionPersistence:
 # =============================================================================
 # AC-31.A.2.1: Neo4j Query Priority Tests
 # =============================================================================
+
 
 class TestNeo4jQueryPriority:
     """
@@ -239,9 +232,15 @@ class TestNeo4jQueryPriority:
         """Verify Neo4j is queried before falling back to memory."""
         mock_neo4j = MagicMock(spec=Neo4jClient)
         mock_neo4j._initialized = True
-        mock_neo4j.get_learning_history = AsyncMock(return_value=[
-            {"concept": "From Neo4j", "score": 100, "timestamp": "2026-02-05T10:00:00"}
-        ])
+        mock_neo4j.get_learning_history = AsyncMock(
+            return_value=[
+                {
+                    "concept": "From Neo4j",
+                    "score": 100,
+                    "timestamp": "2026-02-05T10:00:00",
+                }
+            ]
+        )
         mock_neo4j.initialize = AsyncMock()
 
         service = MemoryService(neo4j_client=mock_neo4j)
@@ -249,11 +248,9 @@ class TestNeo4jQueryPriority:
         await service.initialize()
 
         # Add data to memory (should NOT be returned)
-        service._episodes.append({
-            "user_id": "user1",
-            "concept": "From Memory",
-            "score": 50
-        })
+        service._episodes.append(
+            {"user_id": "user1", "concept": "From Memory", "score": 50}
+        )
 
         result = await service.get_learning_history(user_id="user1")
 
@@ -280,12 +277,14 @@ class TestNeo4jQueryPriority:
         await service.initialize()
 
         # Add data to memory (should be returned as fallback)
-        service._episodes.append({
-            "user_id": "user1",
-            "concept": "Fallback Data",
-            "score": 75,
-            "timestamp": "2026-02-05T09:00:00"
-        })
+        service._episodes.append(
+            {
+                "user_id": "user1",
+                "concept": "Fallback Data",
+                "score": 75,
+                "timestamp": "2026-02-05T09:00:00",
+            }
+        )
 
         result = await service.get_learning_history(user_id="user1")
 
@@ -307,12 +306,14 @@ class TestNeo4jQueryPriority:
         service._learning_memory = mock_graphiti_memory
         await service.initialize()
 
-        service._episodes.append({
-            "user_id": "user1",
-            "concept": "Memory Only",
-            "score": 60,
-            "timestamp": "2026-02-05T08:00:00"
-        })
+        service._episodes.append(
+            {
+                "user_id": "user1",
+                "concept": "Memory Only",
+                "score": 60,
+                "timestamp": "2026-02-05T08:00:00",
+            }
+        )
 
         result = await service.get_learning_history(user_id="user1")
 
@@ -327,6 +328,7 @@ class TestNeo4jQueryPriority:
 # AC-31.A.2.4: Filtering and Pagination Tests
 # =============================================================================
 
+
 class TestFilteringAndPagination:
     """
     Story 31.A.2 AC-31.A.2.4: Verify filtering and pagination work correctly.
@@ -339,19 +341,22 @@ class TestFilteringAndPagination:
         """Verify concept filter works correctly."""
         mock_neo4j = MagicMock(spec=Neo4jClient)
         mock_neo4j._initialized = True
-        mock_neo4j.get_learning_history = AsyncMock(return_value=[
-            {"concept": "矩阵乘法", "score": 85, "timestamp": "2026-02-05T10:00:00"},
-        ])
+        mock_neo4j.get_learning_history = AsyncMock(
+            return_value=[
+                {
+                    "concept": "矩阵乘法",
+                    "score": 85,
+                    "timestamp": "2026-02-05T10:00:00",
+                },
+            ]
+        )
         mock_neo4j.initialize = AsyncMock()
 
         service = MemoryService(neo4j_client=mock_neo4j)
         service._learning_memory = mock_graphiti_memory
         await service.initialize()
 
-        result = await service.get_learning_history(
-            user_id="user1",
-            concept="矩阵"
-        )
+        result = await service.get_learning_history(user_id="user1", concept="矩阵")
 
         # Verify concept filter was passed to Neo4j
         call_args = mock_neo4j.get_learning_history.call_args
@@ -371,10 +376,7 @@ class TestFilteringAndPagination:
         service._learning_memory = mock_graphiti_memory
         await service.initialize()
 
-        await service.get_learning_history(
-            user_id="user1",
-            subject="数学"
-        )
+        await service.get_learning_history(user_id="user1", subject="数学")
 
         # Verify group_id was passed (from build_group_id)
         call_args = mock_neo4j.get_learning_history.call_args
@@ -387,10 +389,16 @@ class TestFilteringAndPagination:
         """Verify pagination parameters work correctly."""
         mock_neo4j = MagicMock(spec=Neo4jClient)
         mock_neo4j._initialized = True
-        mock_neo4j.get_learning_history = AsyncMock(return_value=[
-            {"concept": f"Concept-{i}", "score": 80, "timestamp": f"2026-02-05T{10+i}:00:00"}
-            for i in range(5)
-        ])
+        mock_neo4j.get_learning_history = AsyncMock(
+            return_value=[
+                {
+                    "concept": f"Concept-{i}",
+                    "score": 80,
+                    "timestamp": f"2026-02-05T{10 + i}:00:00",
+                }
+                for i in range(5)
+            ]
+        )
         mock_neo4j.initialize = AsyncMock()
 
         service = MemoryService(neo4j_client=mock_neo4j)
@@ -398,9 +406,7 @@ class TestFilteringAndPagination:
         await service.initialize()
 
         result = await service.get_learning_history(
-            user_id="user1",
-            page=1,
-            page_size=2
+            user_id="user1", page=1, page_size=2
         )
 
         # Verify pagination
@@ -461,7 +467,7 @@ class TestRealNeo4jPersistence:
             concept=test_concept,
             agent_type="scoring",
             score=90,
-            subject="数学"
+            subject="数学",
         )
 
         assert episode_id is not None
@@ -486,10 +492,7 @@ class TestRealNeo4jPersistence:
         assert len(items) > 0, "Learning history should contain at least one item"
 
         # Find our specific concept
-        found = any(
-            item.get("concept") == test_concept
-            for item in items
-        )
+        found = any(item.get("concept") == test_concept for item in items)
         assert found, f"Concept '{test_concept}' should be in learning history"
 
     @pytest.mark.integration
@@ -504,7 +507,7 @@ class TestRealNeo4jPersistence:
         concepts = [
             f"微积分-{uuid.uuid4().hex[:4]}",
             f"概率论-{uuid.uuid4().hex[:4]}",
-            f"线性代数-{uuid.uuid4().hex[:4]}"
+            f"线性代数-{uuid.uuid4().hex[:4]}",
         ]
 
         # Session 1: Write multiple events
@@ -518,7 +521,7 @@ class TestRealNeo4jPersistence:
                 node_id=f"test_node_{uuid.uuid4().hex[:8]}",
                 concept=concept,
                 agent_type="basic-decomposition",
-                score=70 + i * 10
+                score=70 + i * 10,
             )
 
         # Session 2: Verify all events
@@ -560,7 +563,7 @@ class TestRealNeo4jPersistence:
             concept=math_concept,
             agent_type="scoring",
             score=85,
-            subject="数学"
+            subject="数学",
         )
 
         # Physics event
@@ -571,7 +574,7 @@ class TestRealNeo4jPersistence:
             concept=physics_concept,
             agent_type="scoring",
             score=78,
-            subject="物理"
+            subject="物理",
         )
 
         # Query with subject filter
@@ -580,11 +583,12 @@ class TestRealNeo4jPersistence:
 
         # Filter by 数学
         math_result = await service2.get_learning_history(
-            user_id=test_user_id,
-            subject="数学"
+            user_id=test_user_id, subject="数学"
         )
         math_items = math_result.get("items", [])
 
         # Should find math concept
         math_concepts = {item.get("concept") for item in math_items}
-        assert math_concept in math_concepts, "Math concept should be in filtered results"
+        assert math_concept in math_concepts, (
+            "Math concept should be in filtered results"
+        )

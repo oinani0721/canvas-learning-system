@@ -16,7 +16,10 @@ import pytest
 
 # 导入被测试的模块
 try:
-    from claude_canvas_tools import ClaudeCanvasToolsManager, canvas_intelligent_scheduler
+    from claude_canvas_tools import (
+        ClaudeCanvasToolsManager,
+        canvas_intelligent_scheduler,
+    )
 
     from canvas_utils import (
         CLAUDE_CODE_ENABLED,
@@ -53,7 +56,7 @@ class TestCanvasLearningAnalyzer(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 100,
-                    "color": "4"  # 红色
+                    "color": "4",  # 红色
                 },
                 {
                     "id": "node2",
@@ -63,7 +66,7 @@ class TestCanvasLearningAnalyzer(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 100,
-                    "color": "3"  # 紫色
+                    "color": "3",  # 紫色
                 },
                 {
                     "id": "node3",
@@ -73,7 +76,7 @@ class TestCanvasLearningAnalyzer(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 100,
-                    "color": "6"  # 黄色
+                    "color": "6",  # 黄色
                 },
                 {
                     "id": "node4",
@@ -83,15 +86,17 @@ class TestCanvasLearningAnalyzer(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 100,
-                    "color": "2"  # 绿色
-                }
+                    "color": "2",  # 绿色
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
     def create_temp_canvas_file(self, canvas_data):
         """创建临时Canvas文件"""
-        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8')
+        temp_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+        )
         json.dump(canvas_data, temp_file, ensure_ascii=False, indent=2)
         temp_file.close()
         return temp_file.name
@@ -130,7 +135,9 @@ class TestCanvasLearningAnalyzer(unittest.TestCase):
     def test_analyze_canvas_file_invalid_json(self):
         """测试无效JSON文件的情况"""
         # 创建无效JSON文件
-        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False)
+        temp_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".canvas", delete=False
+        )
         temp_file.write("invalid json content")
         temp_file.close()
 
@@ -177,7 +184,7 @@ class TestCanvasLearningAnalyzer(unittest.TestCase):
             green_ratio=0.0,
             learning_bottlenecks=["红色节点: 不理解"],
             complexity_score=0.7,
-            target_node_ids=["node1", "node2", "node3", "node4"]
+            target_node_ids=["node1", "node2", "node3", "node4"],
         )
 
         recommendations = self.analyzer._generate_recommendations(node_analysis)
@@ -207,15 +214,17 @@ class TestCanvasLearningAnalyzer(unittest.TestCase):
             green_ratio=0.3,
             learning_bottlenecks=[],
             complexity_score=0.5,
-            target_node_ids=[]
+            target_node_ids=[],
         )
 
         recommendations = [
             AgentRecommendation("basic-decomposition", 0.8, "测试", [], 1),
-            AgentRecommendation("scoring-agent", 0.7, "测试", [], 2)
+            AgentRecommendation("scoring-agent", 0.7, "测试", [], 2),
         ]
 
-        confidence = self.analyzer._calculate_confidence_score(node_analysis, recommendations)
+        confidence = self.analyzer._calculate_confidence_score(
+            node_analysis, recommendations
+        )
 
         # 验证置信度范围
         self.assertGreater(confidence, 0.0)
@@ -246,7 +255,7 @@ class TestCanvasIntelligentScheduler(unittest.TestCase):
             tool_name="test_tool",
             description="测试工具",
             parameters={"test": "string"},
-            permission_mode="acceptEdits"
+            permission_mode="acceptEdits",
         )
 
         try:
@@ -270,11 +279,13 @@ class TestCanvasIntelligentScheduler(unittest.TestCase):
             green_ratio=0.3,
             learning_bottlenecks=["红色节点: 不理解概念A"],
             complexity_score=0.6,
-            target_node_ids=[]
+            target_node_ids=[],
         )
 
         recommendations = [
-            AgentRecommendation("basic-decomposition", 0.85, "红色节点较多，需要基础拆解", [], 1)
+            AgentRecommendation(
+                "basic-decomposition", 0.85, "红色节点较多，需要基础拆解", [], 1
+            )
         ]
 
         learning_result = LearningAnalysisResult(
@@ -282,7 +293,7 @@ class TestCanvasIntelligentScheduler(unittest.TestCase):
             node_analysis=node_analysis,
             recommendations=recommendations,
             analysis_timestamp=datetime.now(),
-            confidence_score=0.8
+            confidence_score=0.8,
         )
 
         # 生成摘要
@@ -299,7 +310,7 @@ class TestCanvasIntelligentScheduler(unittest.TestCase):
         """测试执行时间估算"""
         recommendations = [
             AgentRecommendation("basic-decomposition", 0.8, "测试", [], 1),
-            AgentRecommendation("scoring-agent", 0.9, "测试", [], 2)
+            AgentRecommendation("scoring-agent", 0.9, "测试", [], 2),
         ]
 
         estimated_times = self.scheduler._estimate_execution_time(recommendations)
@@ -326,13 +337,15 @@ class TestClaudeCanvasToolsManager(unittest.TestCase):
             self.skipTest("Claude Code SDK未安装")
 
         # 创建临时配置文件
-        self.temp_config = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8')
+        self.temp_config = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+        )
         config_data = {
             "version": "1.0.0",
             "client": {
                 "model": "sonnet",
                 "permission_mode": "acceptEdits",
-                "allowed_tools": ["Read", "Write", "Edit"]
+                "allowed_tools": ["Read", "Write", "Edit"],
             },
             "tools": {
                 "canvas_intelligent_scheduler": {
@@ -342,16 +355,19 @@ class TestClaudeCanvasToolsManager(unittest.TestCase):
                         "canvas_path": {
                             "type": "string",
                             "required": True,
-                            "description": "Canvas文件路径"
+                            "description": "Canvas文件路径",
                         }
                     },
-                    "enabled": True
+                    "enabled": True,
                 }
-            }
+            },
         }
 
         import yaml
-        yaml.dump(config_data, self.temp_config, default_flow_style=False, allow_unicode=True)
+
+        yaml.dump(
+            config_data, self.temp_config, default_flow_style=False, allow_unicode=True
+        )
         self.temp_config.close()
 
         self.config_path = self.temp_config.name
@@ -430,6 +446,7 @@ class TestCanvasIntelligentSchedulerTool(unittest.TestCase):
 
     def test_canvas_intelligent_scheduler_missing_parameter(self):
         """测试缺少必需参数的情况"""
+
         # 测试空参数
         async def test_empty_args():
             result = await canvas_intelligent_scheduler({})
@@ -442,8 +459,11 @@ class TestCanvasIntelligentSchedulerTool(unittest.TestCase):
 
     def test_canvas_intelligent_scheduler_file_not_found(self):
         """测试文件不存在的情况"""
+
         async def test_file_not_found():
-            result = await canvas_intelligent_scheduler({"canvas_path": "nonexistent.canvas"})
+            result = await canvas_intelligent_scheduler(
+                {"canvas_path": "nonexistent.canvas"}
+            )
             content = result.get("content", [])
             self.assertGreater(len(content), 0)
             self.assertIn("不存在", content[0]["text"])
@@ -463,7 +483,7 @@ class TestDataModels(unittest.TestCase):
             reason="测试推荐",
             target_nodes=["node1", "node2"],
             priority=1,
-            estimated_time=15.0
+            estimated_time=15.0,
         )
 
         # 验证属性
@@ -485,7 +505,7 @@ class TestDataModels(unittest.TestCase):
             green_ratio=0.3,
             learning_bottlenecks=["瓶颈1", "瓶颈2"],
             complexity_score=0.7,
-            target_node_ids=["node1", "node2"]
+            target_node_ids=["node1", "node2"],
         )
 
         # 验证属性
@@ -502,7 +522,7 @@ class TestDataModels(unittest.TestCase):
             estimated_time={"total": 30.0},
             success_probability=0.85,
             canvas_path="test.canvas",
-            analysis_timestamp=datetime.now()
+            analysis_timestamp=datetime.now(),
         )
 
         # 验证属性

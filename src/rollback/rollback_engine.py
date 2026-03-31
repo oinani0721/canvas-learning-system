@@ -129,7 +129,9 @@ class RollbackEngine:
             RollbackResult
         """
         # 决定是否创建备份
-        should_backup = create_backup if create_backup is not None else self.create_backup
+        should_backup = (
+            create_backup if create_backup is not None else self.create_backup
+        )
         backup_snapshot_id = None
 
         try:
@@ -274,7 +276,11 @@ class RollbackEngine:
         elif op_type == OperationType.NODE_MODIFY:
             # 反向: 恢复原始数据
             if op_data.before and op_data.node_ids:
-                before_data = op_data.before if isinstance(op_data.before, list) else [op_data.before]
+                before_data = (
+                    op_data.before
+                    if isinstance(op_data.before, list)
+                    else [op_data.before]
+                )
                 for i, node in enumerate(nodes):
                     if node.get("id") in op_data.node_ids:
                         # 找到对应的before数据
@@ -286,7 +292,9 @@ class RollbackEngine:
         elif op_type == OperationType.NODE_COLOR_CHANGE:
             # 反向: 恢复原始颜色
             if op_data.before and op_data.node_ids:
-                before_colors = op_data.before if isinstance(op_data.before, dict) else {}
+                before_colors = (
+                    op_data.before if isinstance(op_data.before, dict) else {}
+                )
                 for node in nodes:
                     node_id = node.get("id")
                     if node_id in op_data.node_ids and node_id in before_colors:
@@ -330,7 +338,9 @@ class RollbackEngine:
         """
         # 获取快照
         if snapshot_id:
-            snapshot = await self.snapshot_manager.get_snapshot(canvas_path, snapshot_id)
+            snapshot = await self.snapshot_manager.get_snapshot(
+                canvas_path, snapshot_id
+            )
             if not snapshot:
                 raise RollbackError(f"Snapshot not found: {snapshot_id}")
         else:
@@ -405,7 +415,9 @@ class RollbackEngine:
             canvas_path: Canvas文件路径
             backup_snapshot_id: 备份快照ID
         """
-        snapshot = await self.snapshot_manager.get_snapshot(canvas_path, backup_snapshot_id)
+        snapshot = await self.snapshot_manager.get_snapshot(
+            canvas_path, backup_snapshot_id
+        )
         if snapshot:
             await self._write_canvas(canvas_path, snapshot.canvas_data)
 

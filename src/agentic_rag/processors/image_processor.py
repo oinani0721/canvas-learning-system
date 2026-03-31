@@ -24,6 +24,7 @@ from typing import Optional, Tuple
 # ✅ Verified from Pillow documentation (PIL.Image module)
 try:
     from PIL import Image, UnidentifiedImageError
+
     PILLOW_AVAILABLE = True
 except ImportError:
     PILLOW_AVAILABLE = False
@@ -40,6 +41,7 @@ class ImageMetadata:
 
     Verified from Story 6.1 (AC 6.1.3): 图片元数据存储到Neo4j
     """
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     file_path: str = ""
     format: str = ""  # png, jpg, gif, svg
@@ -211,9 +213,7 @@ class ImageProcessor:
 
         if not self.validate_size(image_path):
             max_mb = self.max_size_bytes / (1024 * 1024)
-            raise ValueError(
-                f"File size exceeds limit of {max_mb:.1f}MB"
-            )
+            raise ValueError(f"File size exceeds limit of {max_mb:.1f}MB")
 
         # Get file info
         file_size = image_path.stat().st_size
@@ -416,10 +416,7 @@ class ImageProcessor:
                 new_width = int(width * (max_dim / height))
 
             # ✅ Verified from Pillow documentation: Image.resize()
-            resized = img.resize(
-                (new_width, new_height),
-                Image.Resampling.LANCZOS
-            )
+            resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
             # Save
             resized.save(out_path)

@@ -9,17 +9,15 @@ trigger code or are marked as reserved.
 [Source: docs/stories/30.12.agent-trigger-completion.story.md]
 """
 
-import ast
-import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ============================================================================
 # Task 1: hint-generation trigger
 # ============================================================================
+
 
 class TestHintGenerationTrigger:
     """AC-30.12.1: hint-generation triggers memory write after success."""
@@ -37,6 +35,7 @@ class TestHintGenerationTrigger:
     @pytest.fixture
     def verification_service(self, mock_agent_service):
         from app.services.verification_service import VerificationService
+
         vs = VerificationService.__new__(VerificationService)
         vs._sessions = {}
         vs._progress = {}
@@ -48,11 +47,17 @@ class TestHintGenerationTrigger:
         return vs
 
     @pytest.mark.asyncio
-    async def test_hint_generation_triggers_memory_write(self, verification_service, mock_agent_service):
+    async def test_hint_generation_triggers_memory_write(
+        self, verification_service, mock_agent_service
+    ):
         """After successful hint generation, _trigger_memory_write is called."""
         # Patch internal methods that generate_hint_with_rag calls
-        with patch.object(verification_service, '_get_enriched_context',
-                          new_callable=AsyncMock, return_value={"rag": None, "graph": None, "fsrs": None}):
+        with patch.object(
+            verification_service,
+            "_get_enriched_context",
+            new_callable=AsyncMock,
+            return_value={"rag": None, "graph": None, "fsrs": None},
+        ):
             result = await verification_service.generate_hint_with_rag(
                 concept="二次方程",
                 user_answer="不知道",
@@ -67,12 +72,20 @@ class TestHintGenerationTrigger:
         assert call_kwargs[1]["concept"] == "二次方程"
 
     @pytest.mark.asyncio
-    async def test_hint_memory_write_failure_non_blocking(self, verification_service, mock_agent_service):
+    async def test_hint_memory_write_failure_non_blocking(
+        self, verification_service, mock_agent_service
+    ):
         """Memory write failure doesn't block hint generation return."""
-        mock_agent_service._trigger_memory_write = AsyncMock(side_effect=Exception("write failed"))
+        mock_agent_service._trigger_memory_write = AsyncMock(
+            side_effect=Exception("write failed")
+        )
 
-        with patch.object(verification_service, '_get_enriched_context',
-                          new_callable=AsyncMock, return_value={"rag": None, "graph": None, "fsrs": None}):
+        with patch.object(
+            verification_service,
+            "_get_enriched_context",
+            new_callable=AsyncMock,
+            return_value={"rag": None, "graph": None, "fsrs": None},
+        ):
             result = await verification_service.generate_hint_with_rag(
                 concept="二次方程",
                 user_answer="不知道",
@@ -88,12 +101,18 @@ class TestHintGenerationTrigger:
 # Task 2: canvas-orchestrator trigger
 # ============================================================================
 
+
 class TestCanvasOrchestratorTrigger:
     """AC-30.12.2: canvas-orchestrator triggers on session start."""
 
     def test_canvas_orchestrator_trigger_in_code(self):
         """start_batch_session contains canvas-orchestrator memory write trigger."""
-        source_file = Path(__file__).parent.parent.parent / "app" / "services" / "batch_orchestrator.py"
+        source_file = (
+            Path(__file__).parent.parent.parent
+            / "app"
+            / "services"
+            / "batch_orchestrator.py"
+        )
         code = source_file.read_text(encoding="utf-8")
         assert 'agent_type="canvas-orchestrator"' in code, (
             "batch_orchestrator.py should trigger memory write for canvas-orchestrator"
@@ -101,7 +120,12 @@ class TestCanvasOrchestratorTrigger:
 
     def test_canvas_orchestrator_trigger_in_start_method(self):
         """The trigger is in start_batch_session, not elsewhere."""
-        source_file = Path(__file__).parent.parent.parent / "app" / "services" / "batch_orchestrator.py"
+        source_file = (
+            Path(__file__).parent.parent.parent
+            / "app"
+            / "services"
+            / "batch_orchestrator.py"
+        )
         code = source_file.read_text(encoding="utf-8")
         # Find start_batch_session method and check canvas-orchestrator is within it
         start_idx = code.find("async def start_batch_session")
@@ -110,7 +134,7 @@ class TestCanvasOrchestratorTrigger:
         if next_def_idx == -1:
             next_def_idx = len(code)
         method_code = code[start_idx:next_def_idx]
-        assert 'canvas-orchestrator' in method_code, (
+        assert "canvas-orchestrator" in method_code, (
             "canvas-orchestrator trigger should be in start_batch_session method"
         )
 
@@ -119,12 +143,18 @@ class TestCanvasOrchestratorTrigger:
 # Task 3: Reserved agents
 # ============================================================================
 
+
 class TestReservedAgents:
     """AC-30.12.3: Reserved agents are annotated."""
 
     def test_reserved_agents_annotated(self):
         """review-board-agent-selector and graphiti-memory-agent have Reserved comment."""
-        mapping_file = Path(__file__).parent.parent.parent / "app" / "core" / "agent_memory_mapping.py"
+        mapping_file = (
+            Path(__file__).parent.parent.parent
+            / "app"
+            / "core"
+            / "agent_memory_mapping.py"
+        )
         content = mapping_file.read_text(encoding="utf-8")
         assert "Reserved: no active call site yet" in content
 
@@ -133,12 +163,14 @@ class TestReservedAgents:
 # Task 4: 14/14 Mapping Completeness
 # ============================================================================
 
+
 class TestMappingCompleteness:
     """AC-30.12.4: All 14 agents have trigger code or reserved annotation."""
 
     def test_all_15_agents_in_mapping(self):
         """AGENT_MEMORY_MAPPING has exactly 15 entries (C1 fix: +hint-generation)."""
         from app.core.agent_memory_mapping import AGENT_MEMORY_MAPPING
+
         assert len(AGENT_MEMORY_MAPPING) == 15
 
     def test_trigger_code_or_reserved_for_each_agent(self):
@@ -154,13 +186,17 @@ class TestMappingCompleteness:
             service_code += py_file.read_text(encoding="utf-8")
 
         # Read mapping file for reserved annotations
-        mapping_code = (core_dir / "agent_memory_mapping.py").read_text(encoding="utf-8")
+        mapping_code = (core_dir / "agent_memory_mapping.py").read_text(
+            encoding="utf-8"
+        )
 
         reserved_agents = {"review-board-agent-selector", "graphiti-memory-agent"}
 
         for agent_name in AGENT_MEMORY_MAPPING:
             if agent_name in reserved_agents:
-                assert "Reserved" in mapping_code, f"{agent_name} should be marked as Reserved"
+                assert "Reserved" in mapping_code, (
+                    f"{agent_name} should be marked as Reserved"
+                )
             else:
                 # Agent should appear in service code with trigger_memory_write context
                 assert agent_name in service_code, (

@@ -28,7 +28,7 @@ router = APIRouter(prefix="/review", tags=["Review"])
     response_model=ReviewScheduleResponse,
     summary="获取复习计划",
     description="基于艾宾浩斯遗忘曲线返回待复习项目",
-    operation_id="get_review_schedule"
+    operation_id="get_review_schedule",
 )
 async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
     """
@@ -52,32 +52,29 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
             node_id="a1b2c3d4",
             concept="逆否命题",
             due_date=today,
-            interval_days=1
+            interval_days=1,
         ),
         ReviewItem(
             canvas_name="离散数学",
             node_id="e5f6g7h8",
             concept="充分必要条件",
             due_date=today + timedelta(days=2),
-            interval_days=7
+            interval_days=7,
         ),
         ReviewItem(
             canvas_name="线性代数",
             node_id="i9j0k1l2",
             concept="矩阵乘法",
             due_date=today + timedelta(days=5),
-            interval_days=30
-        )
+            interval_days=30,
+        ),
     ]
 
     # Filter by days parameter
     end_date = today + timedelta(days=days)
     filtered_items = [item for item in items if item.due_date <= end_date]
 
-    return ReviewScheduleResponse(
-        items=filtered_items,
-        total_count=len(filtered_items)
-    )
+    return ReviewScheduleResponse(items=filtered_items, total_count=len(filtered_items))
 
 
 @router.post(
@@ -87,12 +84,10 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
     summary="生成检验白板",
     description="为指定Canvas生成检验白板用于复习",
     operation_id="generate_verification_canvas",
-    responses={
-        404: {"model": ErrorResponse, "description": "源Canvas不存在"}
-    }
+    responses={404: {"model": ErrorResponse, "description": "源Canvas不存在"}},
 )
 async def generate_verification_canvas(
-    request: GenerateReviewRequest
+    request: GenerateReviewRequest,
 ) -> GenerateReviewResponse:
     """
     Generate verification canvas.
@@ -106,7 +101,7 @@ async def generate_verification_canvas(
     if request.source_canvas not in valid_canvases:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Source canvas '{request.source_canvas}' not found"
+            detail=f"Source canvas '{request.source_canvas}' not found",
         )
 
     # Generate verification canvas name
@@ -121,8 +116,7 @@ async def generate_verification_canvas(
         node_count = 5
 
     return GenerateReviewResponse(
-        verification_canvas_name=verification_name,
-        node_count=node_count
+        verification_canvas_name=verification_name, node_count=node_count
     )
 
 
@@ -131,11 +125,9 @@ async def generate_verification_canvas(
     response_model=RecordReviewResponse,
     summary="记录复习结果",
     description="记录用户复习完成情况，更新下次复习时间",
-    operation_id="record_review_result"
+    operation_id="record_review_result",
 )
-async def record_review_result(
-    request: RecordReviewRequest
-) -> RecordReviewResponse:
+async def record_review_result(request: RecordReviewRequest) -> RecordReviewResponse:
     """
     Record review result.
 
@@ -159,7 +151,4 @@ async def record_review_result(
 
     next_review = date.today() + timedelta(days=new_interval)
 
-    return RecordReviewResponse(
-        next_review_date=next_review,
-        new_interval=new_interval
-    )
+    return RecordReviewResponse(next_review_date=next_review, new_interval=new_interval)

@@ -55,12 +55,14 @@ class MockChromaDBCollection:
                     "metadata": metadatas[i],
                 }
             else:
-                self.data.append({
-                    "id": id,
-                    "content": documents[i],
-                    "embedding": embeddings[i],
-                    "metadata": metadatas[i],
-                })
+                self.data.append(
+                    {
+                        "id": id,
+                        "content": documents[i],
+                        "embedding": embeddings[i],
+                        "metadata": metadatas[i],
+                    }
+                )
                 self._build_index()
 
     def delete(self, ids):
@@ -190,7 +192,9 @@ class TestLanceDBImporter:
         if importer.db is None:
             result = importer.import_jsonl(str(self.jsonl_path), "test_table")
             assert result.success is False
-            assert "not initialized" in result.errors[0].lower() or len(result.errors) > 0
+            assert (
+                "not initialized" in result.errors[0].lower() or len(result.errors) > 0
+            )
 
     def test_import_missing_file(self):
         """Test import with missing source file."""
@@ -412,8 +416,7 @@ class TestRollbackManager:
         # Restore
         restore_path = Path(self.temp_dir) / "restored_data"
         restore_result = manager.restore_chromadb(
-            backup_result.backup_path,
-            str(restore_path)
+            backup_result.backup_path, str(restore_path)
         )
 
         assert restore_result.success is True

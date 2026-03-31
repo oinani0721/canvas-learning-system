@@ -163,17 +163,25 @@ class LearningEventContext(BaseModel):
 
     session_id: str = Field(default="", description="Dialogue/exam session ID")
     canvas_path: str = Field(default="", description="Source canvas file path")
-    group_id: str = Field(default="", description="Subject isolation namespace (e.g., math-高一)")
+    group_id: str = Field(
+        default="", description="Subject isolation namespace (e.g., math-高一)"
+    )
     source: str = Field(
         default="",
         description="Originator: 'canvas_plugin', 'exam_pipeline', 'react_agent', 'mcp_tool'",
     )
     question_id: str = Field(default="", description="Exam question ID if from scoring")
-    exam_id: str = Field(default="", description="Exam session ID if from exam pipeline")
-    student_answer: str = Field(default="", description="Student's original answer text")
+    exam_id: str = Field(
+        default="", description="Exam session ID if from exam pipeline"
+    )
+    student_answer: str = Field(
+        default="", description="Student's original answer text"
+    )
     reference_answer: str = Field(default="", description="Reference/correct answer")
     agent_feedback: str = Field(default="", description="Agent's feedback text")
-    conversation_summary: str = Field(default="", description="Distilled conversation summary")
+    conversation_summary: str = Field(
+        default="", description="Distilled conversation summary"
+    )
     related_node_ids: List[str] = Field(
         default_factory=list,
         description="IDs of related/connected nodes for graph context",
@@ -300,9 +308,13 @@ class GraphitiEpisodePayload(BaseModel):
 
     # Optional enrichment fields (populated by specific pipelines)
     error_description: str = Field(default="", description="For misconception events")
-    correct_understanding: str = Field(default="", description="For misconception events")
+    correct_understanding: str = Field(
+        default="", description="For misconception events"
+    )
     student_answer: str = Field(default="", description="For scoring events")
-    score: Optional[float] = Field(default=None, description="For scoring events (0.0-1.0)")
+    score: Optional[float] = Field(
+        default=None, description="For scoring events (0.0-1.0)"
+    )
     grade: Optional[int] = Field(default=None, description="FSRS grade 1-4")
 
 
@@ -549,7 +561,9 @@ class LearningEventQueryResponse(BaseModel):
     """Response for cross-pipeline event queries."""
 
     items: List[LearningEventResult] = Field(default_factory=list)
-    total_count: int = Field(default=0, description="Total matching events (before pagination)")
+    total_count: int = Field(
+        default=0, description="Total matching events (before pagination)"
+    )
     query: LearningEventQuery = Field(
         default_factory=LearningEventQuery,
         description="Echo of the query parameters",
@@ -591,7 +605,11 @@ def events_to_acp_tips(events: List[LearningEvent]) -> List[str]:
 
     ACPData.student_tips is List[str].
     """
-    return [e.content for e in events if e.event_type == UnifiedEventType.TIP_ANNOTATED and e.content]
+    return [
+        e.content
+        for e in events
+        if e.event_type == UnifiedEventType.TIP_ANNOTATED and e.content
+    ]
 
 
 # =============================================================================
@@ -618,7 +636,9 @@ def from_score_result(
 
     The final severity is the max of both mappings to capture the worst signal.
     """
-    aq_props = ANSWER_QUALITY_TO_EVENT_PROPERTIES.get(answer_quality, {"default_tags": [], "severity": 0.5})
+    aq_props = ANSWER_QUALITY_TO_EVENT_PROPERTIES.get(
+        answer_quality, {"default_tags": [], "severity": 0.5}
+    )
     fsrs_severity = FSRS_GRADE_TO_SEVERITY.get(grade, 0.5)
 
     severity = max(aq_props["severity"], fsrs_severity)
@@ -630,7 +650,8 @@ def from_score_result(
         knowledge_type=KnowledgeType.CONCEPTUAL,  # Refined by caller if known
         severity=severity,
         tags=tags,
-        content=content or f"Score: {score:.2f}, Grade: {grade}, Quality: {answer_quality}",
+        content=content
+        or f"Score: {score:.2f}, Grade: {grade}, Quality: {answer_quality}",
         context=LearningEventContext(
             session_id=session_id,
             group_id=group_id,
@@ -654,7 +675,9 @@ def from_error_classification(
 
     Maps ErrorType -> KnowledgeType via ERROR_TYPE_TO_KNOWLEDGE_TYPE.
     """
-    knowledge_type = ERROR_TYPE_TO_KNOWLEDGE_TYPE.get(error_type, KnowledgeType.CONCEPTUAL)
+    knowledge_type = ERROR_TYPE_TO_KNOWLEDGE_TYPE.get(
+        error_type, KnowledgeType.CONCEPTUAL
+    )
 
     # Map error types to unified event types
     event_type_map = {

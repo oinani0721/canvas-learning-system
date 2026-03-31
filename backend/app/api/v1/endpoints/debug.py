@@ -44,21 +44,18 @@ router = APIRouter()
                             "timestamp": "2025-12-14T10:30:00Z",
                             "endpoint": "/api/v1/agents/scoring",
                             "error_type": "ValueError",
-                            "error_message": "Invalid input"
+                            "error_message": "Invalid input",
                         }
                     ]
                 }
-            }
+            },
         }
-    }
+    },
 )
 async def get_recent_bugs(
     limit: int = Query(
-        default=50,
-        ge=1,
-        le=200,
-        description="返回的最大记录数（1-200）"
-    )
+        default=50, ge=1, le=200, description="返回的最大记录数（1-200）"
+    ),
 ) -> List[Dict[str, Any]]:
     """
     获取最近的Bug日志记录。
@@ -119,17 +116,17 @@ async def get_recent_bugs(
                         "by_error_type": {
                             "ValueError": 15,
                             "KeyError": 10,
-                            "TypeError": 17
+                            "TypeError": 17,
                         },
                         "by_endpoint": {
                             "/api/v1/agents/scoring": 20,
-                            "/api/v1/canvas/nodes": 22
-                        }
+                            "/api/v1/canvas/nodes": 22,
+                        },
                     }
                 }
-            }
+            },
         }
-    }
+    },
 )
 async def get_bug_stats() -> Dict[str, Any]:
     """
@@ -183,23 +180,20 @@ async def get_bug_stats() -> Dict[str, Any]:
                         "error_type": "ValueError",
                         "error_message": "Invalid input",
                         "request_params": {"canvas_path": "test.canvas"},
-                        "stack_trace": "Traceback..."
+                        "stack_trace": "Traceback...",
                     }
                 }
-            }
+            },
         },
         404: {
             "description": "Bug不存在",
             "content": {
                 "application/json": {
-                    "example": {
-                        "code": 404,
-                        "message": "Bug 'BUG-A1B2C3D4' not found"
-                    }
+                    "example": {"code": 404, "message": "Bug 'BUG-A1B2C3D4' not found"}
                 }
-            }
-        }
-    }
+            },
+        },
+    },
 )
 async def get_bug_by_id(bug_id: str) -> Dict[str, Any]:
     """
@@ -229,7 +223,4 @@ async def get_bug_by_id(bug_id: str) -> Dict[str, Any]:
             return bug.model_dump(mode="json")
 
     # Bug不存在
-    raise HTTPException(
-        status_code=404,
-        detail=f"Bug '{bug_id}' not found"
-    )
+    raise HTTPException(status_code=404, detail=f"Bug '{bug_id}' not found")

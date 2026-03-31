@@ -4,14 +4,14 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.models.mastery_state import ConceptState, MasteryConfig
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture(autouse=True)
 def reset_singletons():
     import app.api.v1.endpoints.mastery as mastery_mod
+
     mastery_mod._engine = None
     mastery_mod._store = None
     yield
@@ -48,12 +48,12 @@ def patched_client():
     mastery_mod._store = store
 
     from app.main import app
+
     with TestClient(app) as client:
         yield client, store, engine
 
 
 class TestBatchEndpoint:
-
     def test_empty_result(self, patched_client):
         client, store, _ = patched_client
         resp = client.get("/api/v1/mastery/batch?group_id=test")
@@ -63,14 +63,19 @@ class TestBatchEndpoint:
 
     def test_with_concepts(self, patched_client):
         client, store, _ = patched_client
-        store.get_all_concepts = AsyncMock(return_value=[
-            ConceptState(
-                concept_id="c1", topic="Search", name="BFS",
-                p_mastery=0.7, interaction_count=5,
-                last_interaction_ts=datetime.now(timezone.utc),
-                fsrs_stability=100.0,
-            ),
-        ])
+        store.get_all_concepts = AsyncMock(
+            return_value=[
+                ConceptState(
+                    concept_id="c1",
+                    topic="Search",
+                    name="BFS",
+                    p_mastery=0.7,
+                    interaction_count=5,
+                    last_interaction_ts=datetime.now(timezone.utc),
+                    fsrs_stability=100.0,
+                ),
+            ]
+        )
         resp = client.get("/api/v1/mastery/batch?group_id=test")
         assert resp.status_code == 200
         body = resp.json()
@@ -78,7 +83,6 @@ class TestBatchEndpoint:
 
 
 class TestGradeEndpoint:
-
     @pytest.mark.parametrize("grade", [1, 2, 3, 4])
     def test_valid_grades(self, patched_client, grade):
         client, store, _ = patched_client
@@ -90,12 +94,16 @@ class TestGradeEndpoint:
 
     def test_grade_out_of_range(self, patched_client):
         client, _, _ = patched_client
-        resp = client.post("/api/v1/mastery/test-c/grade?group_id=test", json={"grade": 5})
+        resp = client.post(
+            "/api/v1/mastery/test-c/grade?group_id=test", json={"grade": 5}
+        )
         assert resp.status_code == 422
 
     def test_grade_zero(self, patched_client):
         client, _, _ = patched_client
-        resp = client.post("/api/v1/mastery/test-c/grade?group_id=test", json={"grade": 0})
+        resp = client.post(
+            "/api/v1/mastery/test-c/grade?group_id=test", json={"grade": 0}
+        )
         assert resp.status_code == 422
 
     def test_grade_updates_mastery(self, patched_client):
@@ -109,7 +117,6 @@ class TestGradeEndpoint:
 
 
 class TestOverrideEndpoint:
-
     @pytest.mark.parametrize("level", ["shaky", "developing", "proficient", "mastered"])
     def test_valid_levels(self, patched_client, level):
         client, _, _ = patched_client
@@ -129,13 +136,17 @@ class TestOverrideEndpoint:
 
 
 class TestDeleteOverrideEndpoint:
-
     def test_delete_existing(self, patched_client):
         client, store, _ = patched_client
-        store.get_concept = AsyncMock(return_value=ConceptState(
-            concept_id="test-c", topic="T", name="N",
-            override_value=0.8, override_ts=datetime.now(timezone.utc),
-        ))
+        store.get_concept = AsyncMock(
+            return_value=ConceptState(
+                concept_id="test-c",
+                topic="T",
+                name="N",
+                override_value=0.8,
+                override_ts=datetime.now(timezone.utc),
+            )
+        )
         resp = client.delete("/api/v1/mastery/test-c/override?group_id=test")
         assert resp.status_code == 200
         body = resp.json()
@@ -149,7 +160,6 @@ class TestDeleteOverrideEndpoint:
 
 
 class TestSelfAssessEndpoint:
-
     @pytest.mark.parametrize("color", ["1", "2", "3", "4", "5", "6"])
     def test_valid_colors(self, patched_client, color):
         client, _, _ = patched_client
@@ -161,8 +171,9 @@ class TestSelfAssessEndpoint:
 
 
 class TestGraphitiSyncEndpoint:
-
-    @pytest.mark.parametrize("signal", ["misconception", "problem_trap", "guided_thinking_correct"])
+    @pytest.mark.parametrize(
+        "signal", ["misconception", "problem_trap", "guided_thinking_correct"]
+    )
     def test_valid_signals(self, patched_client, signal):
         client, store, _ = patched_client
         resp = client.post(
@@ -184,8 +195,11 @@ class TestGraphitiSyncEndpoint:
     def test_existing_concept_matched(self, patched_client):
         client, store, _ = patched_client
         existing = ConceptState(
-            concept_id="c1", topic="Search", name="BFS",
-            p_mastery=0.8, interaction_count=5,
+            concept_id="c1",
+            topic="Search",
+            name="BFS",
+            p_mastery=0.8,
+            interaction_count=5,
             last_interaction_ts=datetime.now(timezone.utc),
             fsrs_stability=100.0,
         )

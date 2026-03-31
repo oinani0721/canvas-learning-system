@@ -9,14 +9,11 @@ Tests cover all 5 Acceptance Criteria from Story 31.6:
 - AC-31.6.5: Session timer shows elapsed time
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
-from fastapi.testclient import TestClient
 
 from app.models import (
-    SessionProgressResponse,
     SessionPauseResumeResponse,
+    SessionProgressResponse,
     VerificationStatusEnum,
 )
 
@@ -116,7 +113,7 @@ class TestSessionProgressModels:
         response = SessionPauseResumeResponse(
             session_id="sess_test",
             status=VerificationStatusEnum.paused,
-            message="Session paused successfully"
+            message="Session paused successfully",
         )
 
         assert response.session_id == "sess_test"
@@ -128,7 +125,7 @@ class TestSessionProgressModels:
         response = SessionPauseResumeResponse(
             session_id="sess_test",
             status=VerificationStatusEnum.in_progress,
-            message="Session resumed successfully"
+            message="Session resumed successfully",
         )
 
         assert response.status == VerificationStatusEnum.in_progress
@@ -140,7 +137,13 @@ class TestVerificationStatusEnum:
 
     def test_all_status_values_exist(self):
         """Verify all expected status values are defined"""
-        expected_statuses = ["pending", "in_progress", "paused", "completed", "cancelled"]
+        expected_statuses = [
+            "pending",
+            "in_progress",
+            "paused",
+            "completed",
+            "cancelled",
+        ]
 
         for status in expected_statuses:
             assert hasattr(VerificationStatusEnum, status)

@@ -25,7 +25,9 @@ from langgraph.graph import MessagesState
 from typing_extensions import TypedDict
 
 
-def add_dicts(left: Optional[Dict[str, float]], right: Optional[Dict[str, float]]) -> Dict[str, float]:
+def add_dicts(
+    left: Optional[Dict[str, float]], right: Optional[Dict[str, float]]
+) -> Dict[str, float]:
     """
     Reducer function for merging dictionaries in parallel updates
 
@@ -91,8 +93,7 @@ class CanvasRAGState(MessagesState):
     lancedb_results: Annotated[List[SearchResult], "LanceDB向量检索结果"]
     # Story 6.8: 多模态检索结果
     multimodal_results: Annotated[List[SearchResult], "多模态检索结果 (图片、PDF等)"]
-    # Story 23.4: 教材和跨Canvas检索结果
-    textbook_results: Annotated[List[SearchResult], "教材上下文检索结果"]
+    # Story 23.4: 跨Canvas检索结果 (Feature 2.2: textbook removed per GDA-2)
     cross_canvas_results: Annotated[List[SearchResult], "跨Canvas关联检索结果"]
     vault_notes_results: Annotated[List[SearchResult], "Vault .md 笔记检索结果"]
     fused_results: Annotated[List[SearchResult], "融合算法输出结果"]
@@ -133,7 +134,9 @@ class CanvasRAGState(MessagesState):
 
     # Story 2.6: CRAG 质量门控与安全降级
     safe_degradation: Annotated[bool, "是否触发安全降级 (2次重试后仍 low)"]
-    degradation_reason: Annotated[Optional[str], "降级原因 (如 retrieval_quality_insufficient)"]
+    degradation_reason: Annotated[
+        Optional[str], "降级原因 (如 retrieval_quality_insufficient)"
+    ]
     quality_history: Annotated[
         List[Dict[str, Any]],
         "质量评分历史 [{iteration, grade, top3_scores, query, binary_grading}]",
@@ -157,7 +160,9 @@ class CanvasRAGState(MessagesState):
 
     # Story 7.1: Faithfulness 忠实度检查字段
     faithfulness_score: Annotated[Optional[float], "Faithfulness忠实度评分 (0.0-1.0)"]
-    faithfulness_details: Annotated[Optional[Dict[str, Any]], "Faithfulness检查详情 (claims + NLI结果)"]
+    faithfulness_details: Annotated[
+        Optional[Dict[str, Any]], "Faithfulness检查详情 (claims + NLI结果)"
+    ]
     faithfulness_degraded: Annotated[Optional[bool], "是否触发忠实度安全降级"]
 
     # 性能监控字段 (Optional) - Separate keys to avoid concurrent update conflicts
@@ -165,8 +170,7 @@ class CanvasRAGState(MessagesState):
     lancedb_latency_ms: Annotated[Optional[float], "LanceDB检索延迟 (ms)"]
     # Story 6.8: 多模态检索延迟
     multimodal_latency_ms: Annotated[Optional[float], "多模态检索延迟 (ms)"]
-    # Story 23.4: 教材和跨Canvas检索延迟
-    textbook_latency_ms: Annotated[Optional[float], "教材检索延迟 (ms)"]
+    # Story 23.4: 跨Canvas检索延迟 (Feature 2.2: textbook removed per GDA-2)
     cross_canvas_latency_ms: Annotated[Optional[float], "跨Canvas检索延迟 (ms)"]
     vault_notes_latency_ms: Annotated[Optional[float], "Vault笔记检索延迟 (ms)"]
     fusion_latency_ms: Annotated[Optional[float], "融合算法延迟 (ms)"]
@@ -192,7 +196,6 @@ def create_initial_state(**overrides: Any) -> Dict[str, Any]:
         "graphiti_results": [],
         "lancedb_results": [],
         "multimodal_results": [],
-        "textbook_results": [],
         "cross_canvas_results": [],
         "vault_notes_results": [],
         "fused_results": [],
@@ -231,7 +234,6 @@ def create_initial_state(**overrides: Any) -> Dict[str, Any]:
         "graphiti_latency_ms": None,
         "lancedb_latency_ms": None,
         "multimodal_latency_ms": None,
-        "textbook_latency_ms": None,
         "cross_canvas_latency_ms": None,
         "vault_notes_latency_ms": None,
         "fusion_latency_ms": None,
@@ -284,7 +286,9 @@ class AgentRAGState(MessagesState):
     retrieved_documents: Annotated[List[SearchResult], "当前迭代检索到的文档"]
 
     # ── LLM Document Grading ──
-    document_grades: Annotated[List[str], "LLM对每个文档的相关性评分: relevant / irrelevant"]
+    document_grades: Annotated[
+        List[str], "LLM对每个文档的相关性评分: relevant / irrelevant"
+    ]
     relevant_documents: Annotated[List[SearchResult], "LLM判断为相关的文档子集"]
 
     # ── Generation Control ──
@@ -293,7 +297,9 @@ class AgentRAGState(MessagesState):
 
     # ── Output ──
     final_answer: Annotated[Optional[str], "LLM生成的最终回答"]
-    citations: Annotated[List[Dict[str, Any]], "引用列表: [{source, content_snippet, line_range}]"]
+    citations: Annotated[
+        List[Dict[str, Any]], "引用列表: [{source, content_snippet, line_range}]"
+    ]
 
     # ── Agent Configuration (passed at invocation) ──
     agent_type: Annotated[Optional[str], "Agent类型（如oral-explanation）"]

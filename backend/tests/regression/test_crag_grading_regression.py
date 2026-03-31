@@ -103,7 +103,9 @@ class TestCragGradingRegression:
         """Verify prompt specifies JSON array output format."""
         content = prompt_registry.get("crag_grading")
         assert "JSON" in content
-        assert '["relevant"' in content or "JSON 数组" in content or "JSON数组" in content
+        assert (
+            '["relevant"' in content or "JSON 数组" in content or "JSON数组" in content
+        )
 
     def test_replay_format_compliance(
         self,
@@ -134,8 +136,10 @@ class TestCragGradingRegression:
             )
 
         compliance_rate = compliant_count / len(scenarios)
-        assert compliance_rate >= 0.90, "Format compliance {v:.4f} below 90 percent threshold".format(
-            v=compliance_rate,
+        assert compliance_rate >= 0.90, (
+            "Format compliance {v:.4f} below 90 percent threshold".format(
+                v=compliance_rate,
+            )
         )
 
     def test_replay_classification_consistency(
@@ -167,8 +171,10 @@ class TestCragGradingRegression:
             total_consistency += consistency
 
         avg_consistency = total_consistency / len(scenarios)
-        assert avg_consistency >= 0.80, "Classification consistency {v:.4f} below 80 percent threshold".format(
-            v=avg_consistency,
+        assert avg_consistency >= 0.80, (
+            "Classification consistency {v:.4f} below 80 percent threshold".format(
+                v=avg_consistency,
+            )
         )
 
     def test_replay_crag_trigger_rate(
@@ -186,8 +192,10 @@ class TestCragGradingRegression:
 
         trigger_rate = trigger_count / len(scenarios)
         # Healthy range: 15-30% (one out of five scenarios triggers = 20%)
-        assert 0.10 <= trigger_rate <= 0.40, "CRAG trigger rate {v:.4f} outside healthy range 0.10-0.40".format(
-            v=trigger_rate,
+        assert 0.10 <= trigger_rate <= 0.40, (
+            "CRAG trigger rate {v:.4f} outside healthy range 0.10-0.40".format(
+                v=trigger_rate,
+            )
         )
 
     def test_replay_relevant_count_in_range(
@@ -210,8 +218,10 @@ class TestCragGradingRegression:
                 in_range_count += 1
 
         in_range_rate = in_range_count / len(scenarios)
-        assert in_range_rate >= 0.80, "Relevant count in-range rate {v:.4f} below 80 percent".format(
-            v=in_range_rate,
+        assert in_range_rate >= 0.80, (
+            "Relevant count in-range rate {v:.4f} below 80 percent".format(
+                v=in_range_rate,
+            )
         )
 
     def test_generate_report(

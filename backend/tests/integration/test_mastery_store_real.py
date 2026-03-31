@@ -12,7 +12,6 @@ import os
 import uuid
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
 from app.models.mastery_state import ConceptState
 from app.services.mastery_store import MasteryStore
@@ -61,7 +60,9 @@ class TestRealGetConcept:
             store = MasteryStore(client)
 
             # Seed a concept via save_concept
-            concept = ConceptState(concept_id="c1", topic="Graphs", name="BFS", p_mastery=0.65)
+            concept = ConceptState(
+                concept_id="c1", topic="Graphs", name="BFS", p_mastery=0.65
+            )
             await store.save_concept(concept, group_id=gid)
 
             # Read it back
@@ -101,8 +102,11 @@ class TestRealSaveConcept:
             store = MasteryStore(client)
 
             concept = ConceptState(
-                concept_id="save_test", topic="Search", name="DFS",
-                p_mastery=0.42, bkt_difficulty="hard",
+                concept_id="save_test",
+                topic="Search",
+                name="DFS",
+                p_mastery=0.42,
+                bkt_difficulty="hard",
             )
             await store.save_concept(concept, group_id=gid)
 
@@ -157,7 +161,9 @@ class TestRealGetAllConcepts:
             store = MasteryStore(client)
 
             for name, p in [("BFS", 0.3), ("DFS", 0.7), ("A*", 0.5)]:
-                c = ConceptState(concept_id=name.lower(), topic="Search", name=name, p_mastery=p)
+                c = ConceptState(
+                    concept_id=name.lower(), topic="Search", name=name, p_mastery=p
+                )
                 await store.save_concept(c, group_id=gid)
 
             results = await store.get_all_concepts(group_id=gid)
@@ -201,17 +207,25 @@ class TestRealGetOrCreateConcept:
 
             # Medium difficulty (default) → P_L0 = 0.1
             result = await store.get_or_create_concept(
-                "new_medium", topic="Algebra", name="Quadratic", group_id=gid,
+                "new_medium",
+                topic="Algebra",
+                name="Quadratic",
+                group_id=gid,
             )
             assert result.concept_id == "new_medium"
             assert abs(result.p_mastery - DEFAULT_BKT_PARAMS["medium"]["P_L0"]) < 0.01
 
             # Hard difficulty → P_L0 = 0.05
             result_hard = await store.get_or_create_concept(
-                "new_hard", topic="Analysis", name="Limits", group_id=gid,
+                "new_hard",
+                topic="Analysis",
+                name="Limits",
+                group_id=gid,
                 bkt_difficulty="hard",
             )
-            assert abs(result_hard.p_mastery - DEFAULT_BKT_PARAMS["hard"]["P_L0"]) < 0.01
+            assert (
+                abs(result_hard.p_mastery - DEFAULT_BKT_PARAMS["hard"]["P_L0"]) < 0.01
+            )
 
             # Verify both persisted in DB
             all_c = await store.get_all_concepts(group_id=gid)
@@ -230,13 +244,19 @@ class TestRealGetOrCreateConcept:
 
             # Pre-save a concept with high p_mastery
             pre = ConceptState(
-                concept_id="existing_c", topic="Graph", name="BFS", p_mastery=0.9,
+                concept_id="existing_c",
+                topic="Graph",
+                name="BFS",
+                p_mastery=0.9,
             )
             await store.save_concept(pre, group_id=gid)
 
             # get_or_create should return the existing, not overwrite to P_L0
             result = await store.get_or_create_concept(
-                "existing_c", topic="Graph", name="BFS", group_id=gid,
+                "existing_c",
+                topic="Graph",
+                name="BFS",
+                group_id=gid,
             )
             assert abs(result.p_mastery - 0.9) < 0.01, (
                 f"Existing p_mastery should be preserved, got {result.p_mastery}"
@@ -262,7 +282,9 @@ class TestRealRecordEvents:
             store = MasteryStore(client)
 
             # Must create the concept first (MATCH requires existing node)
-            c = ConceptState(concept_id="interact_c", topic="T", name="N", p_mastery=0.5)
+            c = ConceptState(
+                concept_id="interact_c", topic="T", name="N", p_mastery=0.5
+            )
             await store.save_concept(c, group_id=gid)
 
             await store.record_interaction_event("interact_c", grade=3, group_id=gid)
@@ -271,7 +293,8 @@ class TestRealRecordEvents:
             records = await client.run_query(
                 "MATCH (n:EntityNode {group_id: $gid, mastery_concept_id: $cid}) "
                 "RETURN n.last_grade AS grade, n.grade_source AS source",
-                gid=gid, cid="interact_c",
+                gid=gid,
+                cid="interact_c",
             )
             assert len(records) >= 1
             assert records[0]["grade"] == 3
@@ -287,17 +310,23 @@ class TestRealRecordEvents:
             await client.initialize()
             store = MasteryStore(client)
 
-            c = ConceptState(concept_id="override_c", topic="T", name="N", p_mastery=0.5)
+            c = ConceptState(
+                concept_id="override_c", topic="T", name="N", p_mastery=0.5
+            )
             await store.save_concept(c, group_id=gid)
 
             await store.record_override_event(
-                "override_c", level="proficient", reason="manual review", group_id=gid,
+                "override_c",
+                level="proficient",
+                reason="manual review",
+                group_id=gid,
             )
 
             records = await client.run_query(
                 "MATCH (n:EntityNode {group_id: $gid, mastery_concept_id: $cid}) "
                 "RETURN n.last_override_level AS level, n.last_override_reason AS reason",
-                gid=gid, cid="override_c",
+                gid=gid,
+                cid="override_c",
             )
             assert len(records) >= 1
             assert records[0]["level"] == "proficient"
@@ -321,7 +350,8 @@ class TestRealRecordEvents:
             records = await client.run_query(
                 "MATCH (n:EntityNode {group_id: $gid, mastery_concept_id: $cid}) "
                 "RETURN n.last_self_assess_color AS color",
-                gid=gid, cid="assess_c",
+                gid=gid,
+                cid="assess_c",
             )
             assert len(records) >= 1
             assert records[0]["color"] == "3"
@@ -346,7 +376,9 @@ class TestRealFindByName:
             store = MasteryStore(client)
 
             c = ConceptState(
-                concept_id="bfs_concept", topic="Search", name="Breadth-First Search",
+                concept_id="bfs_concept",
+                topic="Search",
+                name="Breadth-First Search",
                 p_mastery=0.6,
             )
             await store.save_concept(c, group_id=gid)
@@ -384,7 +416,9 @@ class TestRealGroupIdIsolation:
             store = MasteryStore(client)
 
             # Save concept in group A only
-            c = ConceptState(concept_id="isolated_c", topic="T", name="N", p_mastery=0.5)
+            c = ConceptState(
+                concept_id="isolated_c", topic="T", name="N", p_mastery=0.5
+            )
             await store.save_concept(c, group_id=gid_a)
 
             # Should be found in A

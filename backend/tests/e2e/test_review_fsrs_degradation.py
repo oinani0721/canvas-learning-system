@@ -18,15 +18,14 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.config import Settings, get_settings
 from app.main import app
-
+from fastapi.testclient import TestClient
 
 # =============================================================================
 # Degraded Settings Override
 # =============================================================================
+
 
 def _degraded_settings() -> Settings:
     """Settings with USE_FSRS=False to force Ebbinghaus fallback.
@@ -47,6 +46,7 @@ _DEGRADED = _degraded_settings()
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture(autouse=True)
 def _reset_review_singleton_and_fsrs_runtime():
@@ -101,6 +101,7 @@ def isolate_card_states(tmp_path):
 # AC-32.11.1: E2E Ebbinghaus 降级测试
 # =============================================================================
 
+
 class TestEbbinghausFallbackE2E:
     """E2E: Full HTTP request → Ebbinghaus fallback response."""
 
@@ -110,12 +111,17 @@ class TestEbbinghausFallbackE2E:
         AC-32.11.1: record returns algorithm=ebbinghaus-fallback + interval + next_review.
         Score 50 → rating 2 (Hard) → interval 3 days (Ebbinghaus fallback).
         """
-        resp = client.put("/api/v1/review/record", json={
-            "canvas_name": "test-degradation",
-            "node_id": "e2e-concept-degraded",
-            "score": 50,
-        })
-        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        resp = client.put(
+            "/api/v1/review/record",
+            json={
+                "canvas_name": "test-degradation",
+                "node_id": "e2e-concept-degraded",
+                "score": 50,
+            },
+        )
+        assert resp.status_code == 200, (
+            f"Expected 200, got {resp.status_code}: {resp.text}"
+        )
         data = resp.json()
         assert data["algorithm"] == "ebbinghaus-fallback", (
             f"Expected ebbinghaus-fallback, got {data.get('algorithm')}"
@@ -126,6 +132,7 @@ class TestEbbinghausFallbackE2E:
         )
         # AC-32.11.1: Verify next_review_date is a future date
         from datetime import date as date_cls
+
         next_date = date_cls.fromisoformat(data["next_review_date"])
         assert next_date > date_cls.today(), (
             f"next_review_date {next_date} should be in the future"
@@ -141,7 +148,9 @@ class TestEbbinghausFallbackE2E:
         that the endpoint doesn't crash (500) when FSRS is unavailable.
         """
         resp = client.get("/api/v1/review/schedule")
-        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        assert resp.status_code == 200, (
+            f"Expected 200, got {resp.status_code}: {resp.text}"
+        )
         data = resp.json()
         assert "items" in data
         assert "total_count" in data
@@ -155,7 +164,9 @@ class TestEbbinghausFallbackE2E:
         AC-32.11.1: fsrs-state returns found=false, reason=fsrs_not_initialized.
         """
         resp = client.get("/api/v1/review/fsrs-state/e2e-concept-degraded")
-        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        assert resp.status_code == 200, (
+            f"Expected 200, got {resp.status_code}: {resp.text}"
+        )
         data = resp.json()
         assert data["found"] is False
         assert data["reason"] == "fsrs_not_initialized"
@@ -164,6 +175,7 @@ class TestEbbinghausFallbackE2E:
 # =============================================================================
 # AC-32.11.2: Health endpoint FSRS 降级状态
 # =============================================================================
+
 
 class TestHealthFSRSDegraded:
     """E2E: Health endpoint reports FSRS as degraded."""
@@ -191,6 +203,7 @@ class TestHealthFSRSDegraded:
 # AC-32.11.4: Ebbinghaus fallback next_review 时间正确性
 # =============================================================================
 
+
 class TestEbbinghausNextReviewTiming:
     """E2E: Verify Ebbinghaus fallback timing accuracy through HTTP."""
 
@@ -203,12 +216,17 @@ class TestEbbinghausNextReviewTiming:
         """
         from datetime import date as date_cls
 
-        resp = client.put("/api/v1/review/record", json={
-            "canvas_name": "timing-test",
-            "node_id": "timing-concept-e2e",
-            "score": 50,
-        })
-        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        resp = client.put(
+            "/api/v1/review/record",
+            json={
+                "canvas_name": "timing-test",
+                "node_id": "timing-concept-e2e",
+                "score": 50,
+            },
+        )
+        assert resp.status_code == 200, (
+            f"Expected 200, got {resp.status_code}: {resp.text}"
+        )
         data = resp.json()
 
         # Verify algorithm is fallback

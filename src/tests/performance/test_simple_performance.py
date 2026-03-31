@@ -25,25 +25,27 @@ class TestSimplePerformance:
         """创建测试数据"""
         return {
             "nodes": [{"id": f"node-{i}", "text": f"节点 {i}"} for i in range(100)],
-            "metadata": {"created_at": "2025-01-22T10:00:00Z"}
+            "metadata": {"created_at": "2025-01-22T10:00:00Z"},
         }
 
     def test_json_read_performance(self, sample_data):
         """测试JSON读取性能"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(sample_data, f)
             temp_path = f.name
 
         try:
             start_time = time.time()
-            with open(temp_path, 'r', encoding='utf-8') as f:
+            with open(temp_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             end_time = time.time()
 
             execution_time = end_time - start_time
 
             # 性能断言: JSON读取应该在100ms内完成
-            assert execution_time < 0.1, f"JSON读取耗时 {execution_time*1000:.1f}ms，超过100ms限制"
+            assert execution_time < 0.1, (
+                f"JSON读取耗时 {execution_time * 1000:.1f}ms，超过100ms限制"
+            )
             assert len(data["nodes"]) == 100
 
         finally:
@@ -51,19 +53,21 @@ class TestSimplePerformance:
 
     def test_json_write_performance(self, sample_data):
         """测试JSON写入性能"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
 
         try:
             start_time = time.time()
-            with open(temp_path, 'w', encoding='utf-8') as f:
+            with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump(sample_data, f, ensure_ascii=False, indent=2)
             end_time = time.time()
 
             execution_time = end_time - start_time
 
             # 性能断言: JSON写入应该在100ms内完成
-            assert execution_time < 0.1, f"JSON写入耗时 {execution_time*1000:.1f}ms，超过100ms限制"
+            assert execution_time < 0.1, (
+                f"JSON写入耗时 {execution_time * 1000:.1f}ms，超过100ms限制"
+            )
 
             # 验证文件大小
             file_size = os.path.getsize(temp_path)
@@ -84,7 +88,7 @@ class TestSimplePerformance:
                 "id": node["id"],
                 "text": node["text"].upper(),  # 转换为大写
                 "length": len(node["text"]),
-                "processed": True
+                "processed": True,
             }
             processed_data.append(processed_node)
 
@@ -96,7 +100,9 @@ class TestSimplePerformance:
         execution_time = end_time - start_time
 
         # 性能断言: 100个节点的数据处理应该在50ms内完成
-        assert execution_time < 0.05, f"数据处理耗时 {execution_time*1000:.1f}ms，超过50ms限制"
+        assert execution_time < 0.05, (
+            f"数据处理耗时 {execution_time * 1000:.1f}ms，超过50ms限制"
+        )
         assert len(processed_data) == 100
         assert processed_data[0]["length"] >= processed_data[-1]["length"]  # 验证排序
 
@@ -114,7 +120,7 @@ class TestSimplePerformance:
             large_text.lower(),
             large_text.replace("性能", "performance"),
             large_text.split("。"),
-            "。".join(large_text.split("。")[:10])
+            "。".join(large_text.split("。")[:10]),
         ]
 
         end_time = time.time()
@@ -122,7 +128,9 @@ class TestSimplePerformance:
         execution_time = end_time - start_time
 
         # 性能断言: 字符串操作应该在10ms内完成
-        assert execution_time < 0.01, f"字符串操作耗时 {execution_time*1000:.1f}ms，超过10ms限制"
+        assert execution_time < 0.01, (
+            f"字符串操作耗时 {execution_time * 1000:.1f}ms，超过10ms限制"
+        )
         assert len(operations) == 6
 
     def test_memory_allocation_performance(self):
@@ -139,14 +147,14 @@ class TestSimplePerformance:
         # 创建大量对象
         large_list = []
         for i in range(10000):
-            large_list.append({
-                "id": i,
-                "data": f"数据 {i}" * 10,
-                "timestamp": time.time(),
-                "nested": {
-                    "level1": {"level2": {"level3": f"深度数据 {i}"}}
+            large_list.append(
+                {
+                    "id": i,
+                    "data": f"数据 {i}" * 10,
+                    "timestamp": time.time(),
+                    "nested": {"level1": {"level2": {"level3": f"深度数据 {i}"}}},
                 }
-            })
+            )
 
         # 执行一些操作
         processed_count = 0
@@ -165,7 +173,9 @@ class TestSimplePerformance:
         execution_time = end_time - start_time
 
         # 性能断言
-        assert execution_time < 1.0, f"内存分配测试耗时 {execution_time:.3f}s，超过1秒限制"
+        assert execution_time < 1.0, (
+            f"内存分配测试耗时 {execution_time:.3f}s，超过1秒限制"
+        )
         assert memory_increase < 50, f"内存增长 {memory_increase:.1f}MB，超过50MB限制"
         assert processed_count == 100  # 验证操作正确性
 
@@ -188,11 +198,13 @@ class TestSimplePerformance:
             end_time = time.time()
             execution_time = end_time - start_time
 
-            results_queue.put({
-                "worker_id": worker_id,
-                "result": result,
-                "execution_time": execution_time
-            })
+            results_queue.put(
+                {
+                    "worker_id": worker_id,
+                    "result": result,
+                    "execution_time": execution_time,
+                }
+            )
 
         start_time = time.time()
 
@@ -238,13 +250,13 @@ class TestSimplePerformance:
             # 写入操作
             for i, file_path in enumerate(test_files):
                 content = f"这是测试文件 {i}\n" + "测试内容行\n" * 1000
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(content)
 
             # 读取操作
             total_lines = 0
             for file_path in test_files:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
                     total_lines += len(lines)
 
@@ -253,7 +265,9 @@ class TestSimplePerformance:
             execution_time = end_time - start_time
 
             # 性能断言
-            assert execution_time < 1.0, f"文件I/O操作耗时 {execution_time:.3f}s，超过1秒限制"
+            assert execution_time < 1.0, (
+                f"文件I/O操作耗时 {execution_time:.3f}s，超过1秒限制"
+            )
             assert total_lines == 10 * 1001, "应该读取到正确的行数"
 
     def test_performance_regression_simulation(self, sample_data):
@@ -269,7 +283,7 @@ class TestSimplePerformance:
             processed_item = {
                 "original": node,
                 "processed": f"已处理: {node['text']}",
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
             processed_items.append(processed_item)
 
@@ -280,8 +294,12 @@ class TestSimplePerformance:
         regression_percentage = ((current_time - baseline_time) / baseline_time) * 100
 
         # 性能断言
-        assert current_time < 0.05, f"当前性能 {current_time*1000:.1f}ms，超过50ms限制"
-        assert regression_percentage < 100, f"性能回归 {regression_percentage:.1f}%，超过100%限制"
+        assert current_time < 0.05, (
+            f"当前性能 {current_time * 1000:.1f}ms，超过50ms限制"
+        )
+        assert regression_percentage < 100, (
+            f"性能回归 {regression_percentage:.1f}%，超过100%限制"
+        )
         assert len(processed_items) == 100, "应该处理所有项目"
 
 

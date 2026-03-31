@@ -13,21 +13,19 @@ Tests:
 [Source: docs/epics/EPIC-33-AGENT-POOL-BATCH-PROCESSING.md]
 """
 
-import asyncio
 import json
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from app.services.session_manager import SessionManager, SessionStatus, SessionInfo
 from app.services.batch_orchestrator import BatchOrchestrator
-
+from app.services.session_manager import SessionManager, SessionStatus
 
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def session_manager_clean():
@@ -55,11 +53,11 @@ def test_canvas_data() -> dict:
                 "x": i * 200,
                 "y": 0,
                 "width": 180,
-                "height": 100
+                "height": 100,
             }
             for i in range(5)
         ],
-        "edges": []
+        "edges": [],
     }
 
 
@@ -69,7 +67,9 @@ def test_canvas_file(tmp_path: Path, test_canvas_data: dict) -> Path:
     canvas_dir = tmp_path / "笔记库"
     canvas_dir.mkdir(parents=True, exist_ok=True)
     canvas_file = canvas_dir / "test_batch.canvas"
-    canvas_file.write_text(json.dumps(test_canvas_data, ensure_ascii=False), encoding='utf-8')
+    canvas_file.write_text(
+        json.dumps(test_canvas_data, ensure_ascii=False), encoding="utf-8"
+    )
     return canvas_file
 
 
@@ -83,12 +83,13 @@ def mock_canvas_utils(monkeypatch):
     [Fix for: canvas_utils.path_manager module import error]
     [Source: docs/qa/gates/33.8-e2e-integration-testing.yml#recommendations]
     """
+
     # Create mock CanvasBusinessLogic class
     class MockCanvasBusinessLogic:
         def __init__(self, canvas_path: str):
             self.canvas_path = canvas_path
             # Read actual canvas data from file
-            with open(canvas_path, 'r', encoding='utf-8') as f:
+            with open(canvas_path, "r", encoding="utf-8") as f:
                 self.canvas_data = json.load(f)
 
         def cluster_canvas_nodes(
@@ -103,7 +104,9 @@ def mock_canvas_utils(monkeypatch):
             text_nodes = [n for n in nodes if n.get("type") == "text" and n.get("text")]
 
             if len(text_nodes) < min_cluster_size:
-                raise ValueError(f"节点数量不足: {len(text_nodes)} < {min_cluster_size}")
+                raise ValueError(
+                    f"节点数量不足: {len(text_nodes)} < {min_cluster_size}"
+                )
 
             # Create simple clustering: all nodes in one cluster
             return {
@@ -125,7 +128,7 @@ def mock_canvas_utils(monkeypatch):
     mock_module.CanvasBusinessLogic = MockCanvasBusinessLogic
 
     # monkeypatch.setitem automatically restores on teardown (even on exceptions)
-    monkeypatch.setitem(sys.modules, 'canvas_utils', mock_module)
+    monkeypatch.setitem(sys.modules, "canvas_utils", mock_module)
 
     return mock_module
 
@@ -134,6 +137,7 @@ def mock_canvas_utils(monkeypatch):
 # Test Class: Service Layer Orchestration (AC-33.8.6)
 # [Source: docs/stories/33.8.story.md - Task 7.2]
 # =============================================================================
+
 
 class TestServiceLayerOrchestration:
     """
@@ -160,7 +164,7 @@ class TestServiceLayerOrchestration:
         session_id = await session_manager_clean.create_session(
             canvas_path=str(test_canvas_file),
             node_count=5,
-            metadata={"source": "integration_test"}
+            metadata={"source": "integration_test"},
         )
         assert session_id is not None
 
@@ -190,11 +194,13 @@ class TestServiceLayerOrchestration:
                     "success": True,
                     "file_path": f"generated/node-{i:03d}.md",
                     "agent_type": "oral-explanation",
-                }
+                },
             )
 
         # Step 6: Transition to completed
-        await session_manager_clean.transition_state(session_id, SessionStatus.COMPLETED)
+        await session_manager_clean.transition_state(
+            session_id, SessionStatus.COMPLETED
+        )
         session_info = await session_manager_clean.get_session(session_id)
         assert session_info.status == SessionStatus.COMPLETED
         assert session_info.progress_percent == 100
@@ -235,6 +241,7 @@ class TestServiceLayerOrchestration:
 # [Source: docs/stories/33.8.story.md - Task 7.3]
 # =============================================================================
 
+
 class TestSessionLifecycleManagement:
     """
     Integration tests for SessionManager state transitions.
@@ -261,30 +268,46 @@ class TestSessionLifecycleManagement:
         """
         # Test PENDING → RUNNING → COMPLETED
         session_id = await session_manager_clean.create_session("test.canvas", 5)
-        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.PENDING
+        assert (
+            await session_manager_clean.get_session(session_id)
+        ).status == SessionStatus.PENDING
 
         await session_manager_clean.transition_state(session_id, SessionStatus.RUNNING)
-        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.RUNNING
+        assert (
+            await session_manager_clean.get_session(session_id)
+        ).status == SessionStatus.RUNNING
 
-        await session_manager_clean.transition_state(session_id, SessionStatus.COMPLETED)
-        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.COMPLETED
+        await session_manager_clean.transition_state(
+            session_id, SessionStatus.COMPLETED
+        )
+        assert (
+            await session_manager_clean.get_session(session_id)
+        ).status == SessionStatus.COMPLETED
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_session_cancel_from_pending(self, session_manager_clean: SessionManager):
+    async def test_session_cancel_from_pending(
+        self, session_manager_clean: SessionManager
+    ):
         """Test cancellation from PENDING state."""
         session_id = await session_manager_clean.create_session("test.canvas", 5)
         await session_manager_clean.cancel_session(session_id)
-        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.CANCELLED
+        assert (
+            await session_manager_clean.get_session(session_id)
+        ).status == SessionStatus.CANCELLED
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_session_cancel_from_running(self, session_manager_clean: SessionManager):
+    async def test_session_cancel_from_running(
+        self, session_manager_clean: SessionManager
+    ):
         """Test cancellation from RUNNING state."""
         session_id = await session_manager_clean.create_session("test.canvas", 5)
         await session_manager_clean.transition_state(session_id, SessionStatus.RUNNING)
         await session_manager_clean.cancel_session(session_id)
-        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.CANCELLED
+        assert (
+            await session_manager_clean.get_session(session_id)
+        ).status == SessionStatus.CANCELLED
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -292,12 +315,18 @@ class TestSessionLifecycleManagement:
         """Test PARTIAL_FAILURE state transition."""
         session_id = await session_manager_clean.create_session("test.canvas", 5)
         await session_manager_clean.transition_state(session_id, SessionStatus.RUNNING)
-        await session_manager_clean.transition_state(session_id, SessionStatus.PARTIAL_FAILURE)
-        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.PARTIAL_FAILURE
+        await session_manager_clean.transition_state(
+            session_id, SessionStatus.PARTIAL_FAILURE
+        )
+        assert (
+            await session_manager_clean.get_session(session_id)
+        ).status == SessionStatus.PARTIAL_FAILURE
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_session_progress_tracking(self, session_manager_clean: SessionManager):
+    async def test_session_progress_tracking(
+        self, session_manager_clean: SessionManager
+    ):
         """
         Test progress percentage tracking.
 
@@ -320,7 +349,9 @@ class TestSessionLifecycleManagement:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_session_node_result_storage(self, session_manager_clean: SessionManager):
+    async def test_session_node_result_storage(
+        self, session_manager_clean: SessionManager
+    ):
         """
         Test per-node result storage.
 
@@ -334,7 +365,7 @@ class TestSessionLifecycleManagement:
             await session_manager_clean.add_node_result(
                 session_id,
                 f"node-{i}",
-                {"success": True, "file_path": f"output_{i}.md"}
+                {"success": True, "file_path": f"output_{i}.md"},
             )
 
         # Verify results stored
@@ -346,7 +377,9 @@ class TestSessionLifecycleManagement:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_multiple_sessions_isolation(self, session_manager_clean: SessionManager):
+    async def test_multiple_sessions_isolation(
+        self, session_manager_clean: SessionManager
+    ):
         """
         Test multiple sessions are properly isolated.
 
@@ -355,22 +388,35 @@ class TestSessionLifecycleManagement:
         # Create multiple sessions
         session_ids = []
         for i in range(3):
-            session_id = await session_manager_clean.create_session(f"canvas_{i}.canvas", 5)
+            session_id = await session_manager_clean.create_session(
+                f"canvas_{i}.canvas", 5
+            )
             session_ids.append(session_id)
 
         # Verify sessions are independent
-        await session_manager_clean.transition_state(session_ids[0], SessionStatus.RUNNING)
-        await session_manager_clean.transition_state(session_ids[1], SessionStatus.CANCELLED)
+        await session_manager_clean.transition_state(
+            session_ids[0], SessionStatus.RUNNING
+        )
+        await session_manager_clean.transition_state(
+            session_ids[1], SessionStatus.CANCELLED
+        )
 
-        assert (await session_manager_clean.get_session(session_ids[0])).status == SessionStatus.RUNNING
-        assert (await session_manager_clean.get_session(session_ids[1])).status == SessionStatus.CANCELLED
-        assert (await session_manager_clean.get_session(session_ids[2])).status == SessionStatus.PENDING
+        assert (
+            await session_manager_clean.get_session(session_ids[0])
+        ).status == SessionStatus.RUNNING
+        assert (
+            await session_manager_clean.get_session(session_ids[1])
+        ).status == SessionStatus.CANCELLED
+        assert (
+            await session_manager_clean.get_session(session_ids[2])
+        ).status == SessionStatus.PENDING
 
 
 # =============================================================================
 # Test Class: Grouping Service Integration (AC-33.8.6)
 # [Source: docs/stories/33.8.story.md - Task 7.4]
 # =============================================================================
+
 
 class TestGroupingServiceIntegration:
     """
@@ -433,16 +479,36 @@ class TestGroupingServiceIntegration:
         # Create canvas with specific question patterns
         canvas_data = {
             "nodes": [
-                {"id": "n1", "type": "text", "color": "6", "text": "什么是递归？请解释递归的概念。", "x": 0, "y": 0, "width": 200, "height": 100},
-                {"id": "n2", "type": "text", "color": "6", "text": "递归和迭代有什么区别？请对比说明。", "x": 200, "y": 0, "width": 200, "height": 100},
+                {
+                    "id": "n1",
+                    "type": "text",
+                    "color": "6",
+                    "text": "什么是递归？请解释递归的概念。",
+                    "x": 0,
+                    "y": 0,
+                    "width": 200,
+                    "height": 100,
+                },
+                {
+                    "id": "n2",
+                    "type": "text",
+                    "color": "6",
+                    "text": "递归和迭代有什么区别？请对比说明。",
+                    "x": 200,
+                    "y": 0,
+                    "width": 200,
+                    "height": 100,
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
         canvas_dir = tmp_path / "笔记库"
         canvas_dir.mkdir(parents=True, exist_ok=True)
         canvas_file = canvas_dir / "test_patterns.canvas"
-        canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding='utf-8')
+        canvas_file.write_text(
+            json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
+        )
 
         service = IntelligentGroupingService(canvas_base_path=str(tmp_path))
         result = await service.analyze_canvas(
@@ -460,6 +526,7 @@ class TestGroupingServiceIntegration:
 # [Source: docs/stories/33.8.story.md - Task 7.5]
 # =============================================================================
 
+
 class TestAgentRoutingIntegration:
     """
     Integration tests for AgentRoutingEngine.
@@ -476,8 +543,8 @@ class TestAgentRoutingIntegration:
         [Source: docs/stories/33.8.story.md - Task 7.5]
         [Source: Story 33.5 - AC1]
         """
-        from app.services.agent_routing_engine import AgentRoutingEngine
         from app.models.agent_routing_models import RoutingRequest
+        from app.services.agent_routing_engine import AgentRoutingEngine
 
         engine = AgentRoutingEngine()
 
@@ -505,8 +572,8 @@ class TestAgentRoutingIntegration:
 
         [Source: Story 33.5 - AC2]
         """
-        from app.services.agent_routing_engine import AgentRoutingEngine
         from app.models.agent_routing_models import RoutingRequest
+        from app.services.agent_routing_engine import AgentRoutingEngine
 
         engine = AgentRoutingEngine()
 
@@ -525,6 +592,7 @@ class TestAgentRoutingIntegration:
 # Test Class: Memory Write Triggers (AC-33.8.6)
 # [Source: docs/stories/33.8.story.md - Task 7.6]
 # =============================================================================
+
 
 class TestMemoryWriteTriggers:
     """
@@ -549,20 +617,24 @@ class TestMemoryWriteTriggers:
 
         async def mock_memory_write(session_id: str, node_id: str, result: dict):
             """Track memory write calls."""
-            memory_writes.append({
-                "session_id": session_id,
-                "node_id": node_id,
-                "result": result,
-            })
+            memory_writes.append(
+                {
+                    "session_id": session_id,
+                    "node_id": node_id,
+                    "result": result,
+                }
+            )
 
         # Create mock agent service with memory trigger
         mock_agent = MagicMock()
-        mock_agent.call_agent = AsyncMock(return_value={
-            "success": True,
-            "file_path": "test.md",
-            "content": "Test",
-            "file_size": 100,
-        })
+        mock_agent.call_agent = AsyncMock(
+            return_value={
+                "success": True,
+                "file_path": "test.md",
+                "content": "Test",
+                "file_size": 100,
+            }
+        )
         mock_agent._trigger_memory_write = AsyncMock(side_effect=mock_memory_write)
 
         # Create session
@@ -576,9 +648,7 @@ class TestMemoryWriteTriggers:
 
         # Verify memory trigger can be called (fire-and-forget)
         await mock_agent._trigger_memory_write(
-            session_id,
-            "node-001",
-            {"success": True, "agent_type": "oral-explanation"}
+            session_id, "node-001", {"success": True, "agent_type": "oral-explanation"}
         )
 
         assert len(memory_writes) == 1
@@ -595,15 +665,18 @@ class TestMemoryWriteTriggers:
 
         [Source: Story 33.6 - AC6 - Memory write failures must NOT block]
         """
+
         async def failing_memory_write(*args, **kwargs):
             """Memory write that always fails."""
             raise Exception("Memory write failed")
 
         mock_agent = MagicMock()
-        mock_agent.call_agent = AsyncMock(return_value={
-            "success": True,
-            "file_path": "test.md",
-        })
+        mock_agent.call_agent = AsyncMock(
+            return_value={
+                "success": True,
+                "file_path": "test.md",
+            }
+        )
         mock_agent._trigger_memory_write = AsyncMock(side_effect=failing_memory_write)
 
         session_id = await session_manager_clean.create_session("test.canvas", 1)
@@ -619,5 +692,3 @@ class TestMemoryWriteTriggers:
 
         # Agent result should still be valid
         assert agent_result["success"] is True
-
-

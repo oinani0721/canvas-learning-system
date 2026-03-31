@@ -13,7 +13,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-
 @pytest.fixture
 def mock_snapshot_with_data():
     """Create a mock snapshot with canvas_data for diff tests.
@@ -53,7 +52,6 @@ def mock_snapshot_with_data():
     return mock
 
 
-
 class TestDiffEndpoint:
     """Test suite for GET /api/v1/rollback/diff/{snapshot_id} endpoint.
 
@@ -66,16 +64,17 @@ class TestDiffEndpoint:
         """Test that diff endpoint returns HTTP 200 OK."""
         # Create a temporary canvas file
         canvas_file = tmp_path / "test.canvas"
-        canvas_file.write_text(
-            '{"nodes": [], "edges": []}', encoding="utf-8"
-        )
+        canvas_file.write_text('{"nodes": [], "edges": []}', encoding="utf-8")
 
-        with patch(
-            "app.api.v1.endpoints.rollback.get_snapshot_manager",
-            return_value=mock_snapshot_with_data,
-        ), patch(
-            "app.api.v1.endpoints.rollback._project_root",
-            tmp_path,
+        with (
+            patch(
+                "app.api.v1.endpoints.rollback.get_snapshot_manager",
+                return_value=mock_snapshot_with_data,
+            ),
+            patch(
+                "app.api.v1.endpoints.rollback._project_root",
+                tmp_path,
+            ),
         ):
             response = client.get(
                 f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
@@ -92,16 +91,17 @@ class TestDiffEndpoint:
         """
         # Create a temporary canvas file
         canvas_file = tmp_path / "test.canvas"
-        canvas_file.write_text(
-            '{"nodes": [], "edges": []}', encoding="utf-8"
-        )
+        canvas_file.write_text('{"nodes": [], "edges": []}', encoding="utf-8")
 
-        with patch(
-            "app.api.v1.endpoints.rollback.get_snapshot_manager",
-            return_value=mock_snapshot_with_data,
-        ), patch(
-            "app.api.v1.endpoints.rollback._project_root",
-            tmp_path,
+        with (
+            patch(
+                "app.api.v1.endpoints.rollback.get_snapshot_manager",
+                return_value=mock_snapshot_with_data,
+            ),
+            patch(
+                "app.api.v1.endpoints.rollback._project_root",
+                tmp_path,
+            ),
         ):
             response = client.get(
                 f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
@@ -120,16 +120,17 @@ class TestDiffEndpoint:
     ):
         """Test that nodes_diff has added, removed, modified arrays."""
         canvas_file = tmp_path / "test.canvas"
-        canvas_file.write_text(
-            '{"nodes": [], "edges": []}', encoding="utf-8"
-        )
+        canvas_file.write_text('{"nodes": [], "edges": []}', encoding="utf-8")
 
-        with patch(
-            "app.api.v1.endpoints.rollback.get_snapshot_manager",
-            return_value=mock_snapshot_with_data,
-        ), patch(
-            "app.api.v1.endpoints.rollback._project_root",
-            tmp_path,
+        with (
+            patch(
+                "app.api.v1.endpoints.rollback.get_snapshot_manager",
+                return_value=mock_snapshot_with_data,
+            ),
+            patch(
+                "app.api.v1.endpoints.rollback._project_root",
+                tmp_path,
+            ),
         ):
             response = client.get(
                 f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
@@ -146,16 +147,17 @@ class TestDiffEndpoint:
     ):
         """Test that edges_diff has added, removed arrays."""
         canvas_file = tmp_path / "test.canvas"
-        canvas_file.write_text(
-            '{"nodes": [], "edges": []}', encoding="utf-8"
-        )
+        canvas_file.write_text('{"nodes": [], "edges": []}', encoding="utf-8")
 
-        with patch(
-            "app.api.v1.endpoints.rollback.get_snapshot_manager",
-            return_value=mock_snapshot_with_data,
-        ), patch(
-            "app.api.v1.endpoints.rollback._project_root",
-            tmp_path,
+        with (
+            patch(
+                "app.api.v1.endpoints.rollback.get_snapshot_manager",
+                return_value=mock_snapshot_with_data,
+            ),
+            patch(
+                "app.api.v1.endpoints.rollback._project_root",
+                tmp_path,
+            ),
         ):
             response = client.get(
                 f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
@@ -195,16 +197,17 @@ class TestDiffEndpoint:
         """Test that diff correctly detects removed nodes (in snapshot but not current)."""
         # Current canvas is empty - all snapshot nodes should be "removed"
         canvas_file = tmp_path / "test.canvas"
-        canvas_file.write_text(
-            '{"nodes": [], "edges": []}', encoding="utf-8"
-        )
+        canvas_file.write_text('{"nodes": [], "edges": []}', encoding="utf-8")
 
-        with patch(
-            "app.api.v1.endpoints.rollback.get_snapshot_manager",
-            return_value=mock_snapshot_with_data,
-        ), patch(
-            "app.api.v1.endpoints.rollback._project_root",
-            tmp_path,
+        with (
+            patch(
+                "app.api.v1.endpoints.rollback.get_snapshot_manager",
+                return_value=mock_snapshot_with_data,
+            ),
+            patch(
+                "app.api.v1.endpoints.rollback._project_root",
+                tmp_path,
+            ),
         ):
             response = client.get(
                 f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
@@ -215,9 +218,7 @@ class TestDiffEndpoint:
             assert len(data["nodes_diff"]["removed"]) == 2
             assert len(data["nodes_diff"]["added"]) == 0
 
-    def test_get_diff_detects_added_nodes(
-        self, client: TestClient, tmp_path
-    ):
+    def test_get_diff_detects_added_nodes(self, client: TestClient, tmp_path):
         """Test that diff correctly detects added nodes (in current but not snapshot)."""
         from unittest.mock import AsyncMock
 
@@ -234,15 +235,18 @@ class TestDiffEndpoint:
         canvas_file.write_text(
             '{"nodes": [{"id": "new-1", "text": "New Node 1"}, '
             '{"id": "new-2", "text": "New Node 2"}], "edges": []}',
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
-        with patch(
-            "app.api.v1.endpoints.rollback.get_snapshot_manager",
-            return_value=mock,
-        ), patch(
-            "app.api.v1.endpoints.rollback._project_root",
-            tmp_path,
+        with (
+            patch(
+                "app.api.v1.endpoints.rollback.get_snapshot_manager",
+                return_value=mock,
+            ),
+            patch(
+                "app.api.v1.endpoints.rollback._project_root",
+                tmp_path,
+            ),
         ):
             response = client.get(
                 f"/api/v1/rollback/diff/snap-empty?canvas_path={str(canvas_file)}"
@@ -264,15 +268,18 @@ class TestDiffEndpoint:
             '{"id": "node-1", "text": "Modified Node 1", "color": "3", "x": 0, "y": 0},'
             '{"id": "node-2", "text": "Node 2", "color": "2", "x": 100, "y": 100}'
             '], "edges": []}',
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
-        with patch(
-            "app.api.v1.endpoints.rollback.get_snapshot_manager",
-            return_value=mock_snapshot_with_data,
-        ), patch(
-            "app.api.v1.endpoints.rollback._project_root",
-            tmp_path,
+        with (
+            patch(
+                "app.api.v1.endpoints.rollback.get_snapshot_manager",
+                return_value=mock_snapshot_with_data,
+            ),
+            patch(
+                "app.api.v1.endpoints.rollback._project_root",
+                tmp_path,
+            ),
         ):
             response = client.get(
                 f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
@@ -284,9 +291,7 @@ class TestDiffEndpoint:
             assert len(modified) >= 1
 
             # Find node-1 modification
-            node1_mod = next(
-                (m for m in modified if m["id"] == "node-1"), None
-            )
+            node1_mod = next((m for m in modified if m["id"] == "node-1"), None)
             assert node1_mod is not None
             assert "text" in node1_mod["before"] or "color" in node1_mod["before"]
 
@@ -298,15 +303,18 @@ class TestDiffEndpoint:
         canvas_file = tmp_path / "test.canvas"
         canvas_file.write_text(
             '{"nodes": [{"id": "node-1"}, {"id": "node-2"}], "edges": []}',
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
-        with patch(
-            "app.api.v1.endpoints.rollback.get_snapshot_manager",
-            return_value=mock_snapshot_with_data,
-        ), patch(
-            "app.api.v1.endpoints.rollback._project_root",
-            tmp_path,
+        with (
+            patch(
+                "app.api.v1.endpoints.rollback.get_snapshot_manager",
+                return_value=mock_snapshot_with_data,
+            ),
+            patch(
+                "app.api.v1.endpoints.rollback._project_root",
+                tmp_path,
+            ),
         ):
             response = client.get(
                 f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
@@ -316,9 +324,7 @@ class TestDiffEndpoint:
             # Snapshot had 1 edge, current has 0 -> 1 removed edge
             assert len(data["edges_diff"]["removed"]) == 1
 
-    def test_get_diff_detects_added_edges(
-        self, client: TestClient, tmp_path
-    ):
+    def test_get_diff_detects_added_edges(self, client: TestClient, tmp_path):
         """Test that diff correctly detects added edges."""
         from unittest.mock import AsyncMock
 
@@ -337,15 +343,18 @@ class TestDiffEndpoint:
         canvas_file.write_text(
             '{"nodes": [{"id": "node-1"}, {"id": "node-2"}], '
             '"edges": [{"id": "new-edge", "fromNode": "node-1", "toNode": "node-2"}]}',
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
-        with patch(
-            "app.api.v1.endpoints.rollback.get_snapshot_manager",
-            return_value=mock,
-        ), patch(
-            "app.api.v1.endpoints.rollback._project_root",
-            tmp_path,
+        with (
+            patch(
+                "app.api.v1.endpoints.rollback.get_snapshot_manager",
+                return_value=mock,
+            ),
+            patch(
+                "app.api.v1.endpoints.rollback._project_root",
+                tmp_path,
+            ),
         ):
             response = client.get(
                 f"/api/v1/rollback/diff/snap-no-edges?canvas_path={str(canvas_file)}"
@@ -370,9 +379,9 @@ class TestDiffEndpointRegistration:
             paths = openapi.get("paths", {})
 
             # Check diff endpoint exists
-            assert any(
-                "/rollback/diff/" in path for path in paths.keys()
-            ), "Diff endpoint not found"
+            assert any("/rollback/diff/" in path for path in paths.keys()), (
+                "Diff endpoint not found"
+            )
 
     def test_diff_response_schema_documented(self, client: TestClient):
         """Test that DiffResponse schema is documented in OpenAPI."""
@@ -410,4 +419,6 @@ class TestAllRollbackEndpointsRegistered:
             rollback_paths = [p for p in paths.keys() if "/rollback/" in p]
 
             # Should have at least 5 rollback-related paths
-            assert len(rollback_paths) >= 5, f"Expected 5 rollback endpoints, found {len(rollback_paths)}: {rollback_paths}"
+            assert len(rollback_paths) >= 5, (
+                f"Expected 5 rollback endpoints, found {len(rollback_paths)}: {rollback_paths}"
+            )

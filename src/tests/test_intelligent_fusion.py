@@ -67,8 +67,8 @@ class TestConflictDetector:
                 success=True,
                 result_data={
                     "content": "逆否命题是逻辑学中的重要概念，它是通过对原命题进行否定和倒置得到的。",
-                    "explanation": "如果原命题是'如果P则Q'，那么逆否命题就是'如果非Q则非P'。"
-                }
+                    "explanation": "如果原命题是'如果P则Q'，那么逆否命题就是'如果非Q则非P'。",
+                },
             ),
             TaskResult(
                 task_id="task_2",
@@ -76,8 +76,8 @@ class TestConflictDetector:
                 success=True,
                 result_data={
                     "content": "逆否命题不是简单的倒置，而是对原命题的否定和倒置。",
-                    "explanation": "原命题'如果P则Q'的逆否命题是'如果非Q则非P'，两者逻辑等价。"
-                }
+                    "explanation": "原命题'如果P则Q'的逆否命题是'如果非Q则非P'，两者逻辑等价。",
+                },
             ),
             TaskResult(
                 task_id="task_3",
@@ -87,14 +87,16 @@ class TestConflictDetector:
                     "content": "逆否命题与原命题在真值上是等价的。",
                     "examples": [
                         "原命题：如果下雨，则地面湿润。",
-                        "逆否命题：如果地面不湿润，则没有下雨。"
-                    ]
-                }
-            )
+                        "逆否命题：如果地面不湿润，则没有下雨。",
+                    ],
+                },
+            ),
         ]
 
     @pytest.mark.asyncio
-    async def test_detect_conflicts_with_semantic_conflicts(self, conflict_detector, sample_results):
+    async def test_detect_conflicts_with_semantic_conflicts(
+        self, conflict_detector, sample_results
+    ):
         """测试语义冲突检测"""
         conflicts = await conflict_detector.detect_conflicts(sample_results)
 
@@ -102,7 +104,9 @@ class TestConflictDetector:
         assert len(conflicts) > 0
 
         # 检查冲突类型
-        semantic_conflicts = [c for c in conflicts if c.conflict_type == CONFLICT_TYPE_SEMANTIC]
+        semantic_conflicts = [
+            c for c in conflicts if c.conflict_type == CONFLICT_TYPE_SEMANTIC
+        ]
         assert len(semantic_conflicts) > 0
 
         # 检查冲突严重程度
@@ -121,12 +125,14 @@ class TestConflictDetector:
     @pytest.mark.asyncio
     async def test_detect_conflicts_with_single_result(self, conflict_detector):
         """测试单个结果的冲突检测"""
-        single_result = [TaskResult(
-            task_id="task_1",
-            agent_type="oral-explanation",
-            success=True,
-            result_data={"content": "单个结果不应产生冲突"}
-        )]
+        single_result = [
+            TaskResult(
+                task_id="task_1",
+                agent_type="oral-explanation",
+                success=True,
+                result_data={"content": "单个结果不应产生冲突"},
+            )
+        ]
 
         conflicts = await conflict_detector.detect_conflicts(single_result)
         assert conflicts == []
@@ -139,20 +145,24 @@ class TestConflictDetector:
                 task_id="task_1",
                 agent_type="agent1",
                 success=True,
-                result_data={"number_value": 42, "fact": "地球是圆的"}
+                result_data={"number_value": 42, "fact": "地球是圆的"},
             ),
             TaskResult(
                 task_id="task_2",
                 agent_type="agent2",
                 success=True,
-                result_data={"number_value": 24, "fact": "地球是平的"}  # 事实冲突
-            )
+                result_data={"number_value": 24, "fact": "地球是平的"},  # 事实冲突
+            ),
         ]
 
-        conflicts = await conflict_detector.detect_conflicts(results_with_factual_conflicts)
+        conflicts = await conflict_detector.detect_conflicts(
+            results_with_factual_conflicts
+        )
 
         # 应该检测到事实冲突
-        factual_conflicts = [c for c in conflicts if c.conflict_type == CONFLICT_TYPE_FACTUAL]
+        factual_conflicts = [
+            c for c in conflicts if c.conflict_type == CONFLICT_TYPE_FACTUAL
+        ]
         assert len(factual_conflicts) > 0
 
     @pytest.mark.asyncio
@@ -163,20 +173,24 @@ class TestConflictDetector:
                 task_id="task_1",
                 agent_type="agent1",
                 success=True,
-                result_data={"content": "文本内容", "type": "string"}
+                result_data={"content": "文本内容", "type": "string"},
             ),
             TaskResult(
                 task_id="task_2",
                 agent_type="agent2",
                 success=True,
-                result_data={"items": ["列表", "项目"], "count": 2}  # 不同结构
-            )
+                result_data={"items": ["列表", "项目"], "count": 2},  # 不同结构
+            ),
         ]
 
-        conflicts = await conflict_detector.detect_conflicts(results_with_structural_conflicts)
+        conflicts = await conflict_detector.detect_conflicts(
+            results_with_structural_conflicts
+        )
 
         # 可能检测到结构冲突
-        structural_conflicts = [c for c in conflicts if c.conflict_type == CONFLICT_TYPE_STRUCTURAL]
+        structural_conflicts = [
+            c for c in conflicts if c.conflict_type == CONFLICT_TYPE_STRUCTURAL
+        ]
         # 结构冲突检测取决于具体实现，这里只验证方法能正常执行
 
 
@@ -199,7 +213,7 @@ class TestConflictResolver:
                 conflicting_sources=["agent1", "agent2"],
                 detected_content="语义冲突示例",
                 suggested_resolution="基于权重选择",
-                auto_resolvable=True
+                auto_resolvable=True,
             )
         ]
 
@@ -211,14 +225,14 @@ class TestConflictResolver:
                 task_id="task_1",
                 agent_type="agent1",
                 success=True,
-                result_data={"content": "来自agent1的内容"}
+                result_data={"content": "来自agent1的内容"},
             ),
             TaskResult(
                 task_id="task_2",
                 agent_type="agent2",
                 success=True,
-                result_data={"content": "来自agent2的内容"}
-            )
+                result_data={"content": "来自agent2的内容"},
+            ),
         ]
 
     @pytest.fixture
@@ -227,7 +241,9 @@ class TestConflictResolver:
         return {"agent1": 0.7, "agent2": 0.3}
 
     @pytest.mark.asyncio
-    async def test_resolve_semantic_conflicts(self, conflict_resolver, sample_conflicts, sample_results, sample_weights):
+    async def test_resolve_semantic_conflicts(
+        self, conflict_resolver, sample_conflicts, sample_results, sample_weights
+    ):
         """测试语义冲突解决"""
         resolutions = await conflict_resolver.resolve_conflicts(
             sample_conflicts, sample_results, sample_weights
@@ -252,7 +268,7 @@ class TestConflictResolver:
             conflicting_sources=["agent1", "agent2"],
             detected_content="事实冲突示例",
             suggested_resolution="需要人工验证",
-            auto_resolvable=False  # 事实冲突通常需要人工验证
+            auto_resolvable=False,  # 事实冲突通常需要人工验证
         )
 
         resolutions = await conflict_resolver.resolve_conflicts(
@@ -273,7 +289,7 @@ class TestConflictResolver:
             conflicting_sources=["agent1", "agent2"],
             detected_content="结构冲突示例",
             suggested_resolution="选择兼容结构",
-            auto_resolvable=True
+            auto_resolvable=True,
         )
 
         resolutions = await conflict_resolver.resolve_conflicts(
@@ -303,27 +319,27 @@ class TestConfidenceCalculator:
                 result_data={
                     "content": "这是一个详细的内容解释，包含足够的信息和深度分析。",
                     "examples": ["示例1", "示例2", "示例3"],
-                    "summary": "内容摘要"
-                }
+                    "summary": "内容摘要",
+                },
             ),
             TaskResult(
                 task_id="task_2",
                 agent_type="basic-decomposition",
                 success=True,
-                result_data={
-                    "content": "简短内容"
-                }
+                result_data={"content": "简短内容"},
             ),
             TaskResult(
                 task_id="task_3",
                 agent_type="comparison-table",
                 success=False,
-                result_data={"error": "处理失败"}
-            )
+                result_data={"error": "处理失败"},
+            ),
         ]
 
     @pytest.mark.asyncio
-    async def test_calculate_confidence_weights(self, confidence_calculator, sample_results):
+    async def test_calculate_confidence_weights(
+        self, confidence_calculator, sample_results
+    ):
         """测试置信度权重计算"""
         target_context = {"keywords": ["内容", "解释"]}
 
@@ -350,7 +366,7 @@ class TestConfidenceCalculator:
         rich_content = {
             "content": "这是一个详细的内容" * 20,  # 长内容
             "examples": ["例1", "例2"],
-            "summary": "摘要"
+            "summary": "摘要",
         }
         confidence = confidence_calculator._calculate_content_confidence(rich_content)
         assert confidence > 0.7
@@ -371,23 +387,34 @@ class TestConfidenceCalculator:
 
         # 高相关性
         high_relevance_context = {"keywords": ["机器学习", "人工智能"]}
-        score = confidence_calculator._calculate_relevance_score(content, high_relevance_context)
+        score = confidence_calculator._calculate_relevance_score(
+            content, high_relevance_context
+        )
         assert score > 0.5
 
         # 低相关性
         low_relevance_context = {"keywords": ["历史", "文学"]}
-        score = confidence_calculator._calculate_relevance_score(content, low_relevance_context)
+        score = confidence_calculator._calculate_relevance_score(
+            content, low_relevance_context
+        )
         assert score >= 0.3  # 最低相关性
 
         # 无关键词
         no_keywords_context = {}
-        score = confidence_calculator._calculate_relevance_score(content, no_keywords_context)
+        score = confidence_calculator._calculate_relevance_score(
+            content, no_keywords_context
+        )
         assert score == 0.7  # 默认相关性
 
     def test_calculate_complexity_score(self, confidence_calculator):
         """测试复杂度评分计算"""
         # 高复杂度
-        complex_content = {"content": "x" * 1500, "field1": "value1", "field2": "value2", "field3": "value3"}
+        complex_content = {
+            "content": "x" * 1500,
+            "field1": "value1",
+            "field2": "value2",
+            "field3": "value3",
+        }
         score = confidence_calculator._calculate_complexity_score(complex_content)
         assert score > 0.5
 
@@ -413,24 +440,28 @@ class TestFusionStrategyEngine:
                 task_id="task_1",
                 agent_type="agent1",
                 success=True,
-                result_data={"key1": "value1", "key2": "common"}
+                result_data={"key1": "value1", "key2": "common"},
             ),
             TaskResult(
                 task_id="task_2",
                 agent_type="agent2",
                 success=True,
-                result_data={"key2": "different", "key3": "value3"}
-            )
+                result_data={"key2": "different", "key3": "value3"},
+            ),
         ]
 
-    def test_select_optimal_strategy_no_conflicts(self, fusion_strategy_engine, sample_results):
+    def test_select_optimal_strategy_no_conflicts(
+        self, fusion_strategy_engine, sample_results
+    ):
         """测试无冲突时的策略选择"""
         strategy = fusion_strategy_engine.select_optimal_strategy(
             sample_results, [], {}
         )
         assert strategy == FUSION_STRATEGY_SUPPLEMENTARY
 
-    def test_select_optimal_strategy_with_conflicts(self, fusion_strategy_engine, sample_results):
+    def test_select_optimal_strategy_with_conflicts(
+        self, fusion_strategy_engine, sample_results
+    ):
         """测试有冲突时的策略选择"""
         conflicts = [
             ConflictDetection(
@@ -440,7 +471,7 @@ class TestFusionStrategyEngine:
                 conflicting_sources=["agent1", "agent2"],
                 detected_content="高严重性冲突",
                 suggested_resolution="需要层次融合",
-                auto_resolvable=False
+                auto_resolvable=False,
             )
         ]
 
@@ -450,9 +481,13 @@ class TestFusionStrategyEngine:
         assert strategy == FUSION_STRATEGY_HIERARCHICAL
 
     @pytest.mark.asyncio
-    async def test_execute_supplementary_fusion(self, fusion_strategy_engine, sample_results):
+    async def test_execute_supplementary_fusion(
+        self, fusion_strategy_engine, sample_results
+    ):
         """测试补充融合执行"""
-        result = await fusion_strategy_engine._execute_supplementary_fusion(sample_results)
+        result = await fusion_strategy_engine._execute_supplementary_fusion(
+            sample_results
+        )
 
         assert isinstance(result, dict)
         # 补充融合应该简单合并内容
@@ -461,7 +496,9 @@ class TestFusionStrategyEngine:
         assert "key3" in result
 
     @pytest.mark.asyncio
-    async def test_execute_weighted_voting_fusion(self, fusion_strategy_engine, sample_results):
+    async def test_execute_weighted_voting_fusion(
+        self, fusion_strategy_engine, sample_results
+    ):
         """测试加权投票融合执行"""
         weights = {"agent1": 0.7, "agent2": 0.3}
         conflict_resolutions = []
@@ -475,7 +512,9 @@ class TestFusionStrategyEngine:
         assert "voting_results" in result
 
     @pytest.mark.asyncio
-    async def test_execute_hierarchical_fusion(self, fusion_strategy_engine, sample_results):
+    async def test_execute_hierarchical_fusion(
+        self, fusion_strategy_engine, sample_results
+    ):
         """测试层次融合执行"""
         weights = {"agent1": 0.8, "agent2": 0.2}
         conflict_resolutions = []
@@ -508,8 +547,8 @@ class TestIntelligentResultFusion:
                 success=True,
                 result_data={
                     "content": "智能结果融合能够将多个Agent的输出整合为更高质量的结果。",
-                    "advantage": "提高准确性和完整性"
-                }
+                    "advantage": "提高准确性和完整性",
+                },
             ),
             TaskResult(
                 task_id="task_2",
@@ -517,8 +556,8 @@ class TestIntelligentResultFusion:
                 success=True,
                 result_data={
                     "content": "融合过程中需要检测和解决冲突，确保信息的一致性。",
-                    "method": "基于置信度的加权融合"
-                }
+                    "method": "基于置信度的加权融合",
+                },
             ),
             TaskResult(
                 task_id="task_3",
@@ -526,9 +565,9 @@ class TestIntelligentResultFusion:
                 success=True,
                 result_data={
                     "content": "不同的融合策略适用于不同的场景，需要智能选择最优策略。",
-                    "strategies": ["补充融合", "互补融合", "层次融合", "加权投票"]
-                }
-            )
+                    "strategies": ["补充融合", "互补融合", "层次融合", "加权投票"],
+                },
+            ),
         ]
 
     @pytest.mark.asyncio
@@ -554,12 +593,14 @@ class TestIntelligentResultFusion:
     @pytest.mark.asyncio
     async def test_fuse_agent_results_single(self, fusion_engine):
         """测试单个结果的融合"""
-        single_result = [TaskResult(
-            task_id="task_1",
-            agent_type="agent1",
-            success=True,
-            result_data={"content": "单个结果"}
-        )]
+        single_result = [
+            TaskResult(
+                task_id="task_1",
+                agent_type="agent1",
+                success=True,
+                result_data={"content": "单个结果"},
+            )
+        ]
 
         fusion_result = await fusion_engine.fuse_agent_results(single_result)
 
@@ -623,7 +664,7 @@ class TestTraceabilityRecorder:
             confidence_score=0.85,
             conflict_resolutions=[],
             source_attributions={"agent1": "贡献内容"},
-            fusion_metadata={"strategy": "supplementary"}
+            fusion_metadata={"strategy": "supplementary"},
         )
 
     @pytest.fixture
@@ -634,25 +675,33 @@ class TestTraceabilityRecorder:
                 task_id="task_1",
                 agent_type="agent1",
                 success=True,
-                result_data={"content": "内容1"}
+                result_data={"content": "内容1"},
             )
         ]
 
     @pytest.mark.asyncio
-    async def test_record_fusion_process(self, traceability_recorder, sample_fusion_result, sample_results):
+    async def test_record_fusion_process(
+        self, traceability_recorder, sample_fusion_result, sample_results
+    ):
         """测试融合过程记录"""
         agent_weights = {"agent1": 1.0}
         conflicts = []
         conflict_resolutions = []
 
         await traceability_recorder.record_fusion_process(
-            sample_fusion_result, sample_results, agent_weights, conflicts, conflict_resolutions
+            sample_fusion_result,
+            sample_results,
+            agent_weights,
+            conflicts,
+            conflict_resolutions,
         )
 
         # 验证记录已保存
         assert sample_fusion_result.task_id in traceability_recorder.fusion_records
 
-        traceability = traceability_recorder.fusion_records[sample_fusion_result.task_id]
+        traceability = traceability_recorder.fusion_records[
+            sample_fusion_result.task_id
+        ]
         assert isinstance(traceability, FusionTraceability)
         assert traceability.fusion_id == sample_fusion_result.task_id
         assert traceability.decision_log
@@ -660,22 +709,28 @@ class TestTraceabilityRecorder:
         assert traceability.quality_metrics
 
     @pytest.mark.asyncio
-    async def test_generate_explanation(self, traceability_recorder, sample_fusion_result):
+    async def test_generate_explanation(
+        self, traceability_recorder, sample_fusion_result
+    ):
         """测试解释生成"""
         # 先记录融合过程
-        sample_results = [TaskResult(
-            task_id="task_1",
-            agent_type="agent1",
-            success=True,
-            result_data={"content": "测试内容"}
-        )]
+        sample_results = [
+            TaskResult(
+                task_id="task_1",
+                agent_type="agent1",
+                success=True,
+                result_data={"content": "测试内容"},
+            )
+        ]
 
         await traceability_recorder.record_fusion_process(
             sample_fusion_result, sample_results, {}, [], []
         )
 
         # 生成解释
-        explanation = await traceability_recorder.generate_explanation(sample_fusion_result)
+        explanation = await traceability_recorder.generate_explanation(
+            sample_fusion_result
+        )
 
         assert isinstance(explanation, str)
         assert len(explanation) > 0
@@ -690,7 +745,7 @@ class TestTraceabilityRecorder:
             merged_content={},
             confidence_score=0.8,
             conflict_resolutions=[],
-            source_attributions={}
+            source_attributions={},
         )
 
         contributions = traceability_recorder._calculate_contributions(
@@ -717,23 +772,27 @@ class TestPerformanceIntegration:
         # 创建多个结果进行性能测试
         results = []
         for i in range(5):  # 5个Agent结果
-            results.append(TaskResult(
-                task_id=f"task_{i}",
-                agent_type=f"agent_{i}",
-                success=True,
-                result_data={
-                    "content": f"这是来自agent_{i}的内容，包含足够的信息用于测试融合性能。",
-                    "data": f"数据_{i}",
-                    "metadata": {"source": f"agent_{i}", "timestamp": time.time()}
-                }
-            ))
+            results.append(
+                TaskResult(
+                    task_id=f"task_{i}",
+                    agent_type=f"agent_{i}",
+                    success=True,
+                    result_data={
+                        "content": f"这是来自agent_{i}的内容，包含足够的信息用于测试融合性能。",
+                        "data": f"数据_{i}",
+                        "metadata": {"source": f"agent_{i}", "timestamp": time.time()},
+                    },
+                )
+            )
 
         start_time = time.time()
         fusion_result = await fusion_engine.fuse_agent_results(results)
         processing_time = time.time() - start_time
 
         # 验证性能目标
-        assert processing_time <= FUSION_PROCESSING_TIME_TARGET, f"融合处理时间 {processing_time:.2f}s 超过目标 {FUSION_PROCESSING_TIME_TARGET}s"
+        assert processing_time <= FUSION_PROCESSING_TIME_TARGET, (
+            f"融合处理时间 {processing_time:.2f}s 超过目标 {FUSION_PROCESSING_TIME_TARGET}s"
+        )
 
         # 验证结果质量
         assert fusion_result.confidence_score >= FUSION_CONFIDENCE_THRESHOLD
@@ -750,20 +809,20 @@ class TestPerformanceIntegration:
                 task_id="task_1",
                 agent_type="agent1",
                 success=True,
-                result_data={"content": "这个说法是正确的"}
+                result_data={"content": "这个说法是正确的"},
             ),
             TaskResult(
                 task_id="task_2",
                 agent_type="agent2",
                 success=True,
-                result_data={"content": "这个说法是错误的"}  # 明显冲突
+                result_data={"content": "这个说法是错误的"},  # 明显冲突
             ),
             TaskResult(
                 task_id="task_3",
                 agent_type="agent3",
                 success=True,
-                result_data={"content": "这个说法是对的"}  # 与task2冲突
-            )
+                result_data={"content": "这个说法是对的"},  # 与task2冲突
+            ),
         ]
 
         conflicts = await conflict_detector.detect_conflicts(conflicting_results)
@@ -772,7 +831,9 @@ class TestPerformanceIntegration:
         assert len(conflicts) > 0, "应该检测到冲突"
 
         # 验证冲突检测准确性（简化验证）
-        semantic_conflicts = [c for c in conflicts if c.conflict_type == CONFLICT_TYPE_SEMANTIC]
+        semantic_conflicts = [
+            c for c in conflicts if c.conflict_type == CONFLICT_TYPE_SEMANTIC
+        ]
         assert len(semantic_conflicts) > 0, "应该检测到语义冲突"
 
     @pytest.mark.asyncio
@@ -789,8 +850,8 @@ class TestPerformanceIntegration:
                 result_data={
                     "content": "主要内容",
                     "examples": ["示例1", "示例2", "示例3"],
-                    "details": {"key1": "value1", "key2": "value2", "key3": "value3"}
-                }
+                    "details": {"key1": "value1", "key2": "value2", "key3": "value3"},
+                },
             ),
             TaskResult(
                 task_id="task_2",
@@ -799,9 +860,9 @@ class TestPerformanceIntegration:
                 result_data={
                     "content": "补充内容",
                     "additional_info": {"extra1": "data1", "extra2": "data2"},
-                    "references": ["参考1", "参考2"]
-                }
-            )
+                    "references": ["参考1", "参考2"],
+                },
+            ),
         ]
 
         # 计算原始信息量
@@ -819,8 +880,9 @@ class TestPerformanceIntegration:
         completeness_ratio = min(len(fused_content) / len(original_content), 1.0)
 
         # 验证信息完整性
-        assert completeness_ratio >= INFORMATION_COMPLETENESS_TARGET, \
+        assert completeness_ratio >= INFORMATION_COMPLETENESS_TARGET, (
             f"信息完整性 {completeness_ratio:.2f} 低于目标 {INFORMATION_COMPLETENESS_TARGET}"
+        )
 
     @pytest.mark.asyncio
     async def test_confidence_assessment_accuracy(self):
@@ -836,21 +898,21 @@ class TestPerformanceIntegration:
                 result_data={
                     "content": "这是一个高质量、详细且准确的内容解释。" * 10,
                     "examples": ["详细示例1", "详细示例2"],
-                    "analysis": {"aspect1": "深入分析1", "aspect2": "深入分析2"}
-                }
+                    "analysis": {"aspect1": "深入分析1", "aspect2": "深入分析2"},
+                },
             ),
             TaskResult(
                 task_id="low_quality",
                 agent_type="memory-anchor",  # 较低基础置信度
                 success=True,
-                result_data={"content": "简单内容"}  # 简单内容
+                result_data={"content": "简单内容"},  # 简单内容
             ),
             TaskResult(
                 task_id="failed",
                 agent_type="scoring-agent",
                 success=False,  # 失败结果
-                result_data={"error": "处理失败"}
-            )
+                result_data={"error": "处理失败"},
+            ),
         ]
 
         target_context = {"keywords": ["高质量", "内容"]}
@@ -860,7 +922,9 @@ class TestPerformanceIntegration:
         )
 
         # 验证置信度评估的合理性
-        assert weights["high_quality"] > weights["low_quality"], "高质量结果应该有更高权重"
+        assert weights["high_quality"] > weights["low_quality"], (
+            "高质量结果应该有更高权重"
+        )
         assert weights["failed"] == 0.0, "失败结果权重应该为0"
 
         # 验证权重总和
@@ -887,8 +951,8 @@ class TestEndToEndIntegration:
                 result_data={
                     "content": "人工智能的发展历程可以分为多个阶段，从早期的符号主义到现在的深度学习。",
                     "stages": ["符号主义", "连接主义", "深度学习"],
-                    "current_state": "目前深度学习在图像识别、自然语言处理等领域取得突破性进展。"
-                }
+                    "current_state": "目前深度学习在图像识别、自然语言处理等领域取得突破性进展。",
+                },
             ),
             TaskResult(
                 task_id="clarification_1",
@@ -897,8 +961,8 @@ class TestEndToEndIntegration:
                 result_data={
                     "content": "人工智能不是单一技术，而是一个包含多个子领域的综合性学科。",
                     "subfields": ["机器学习", "计算机视觉", "自然语言处理", "机器人学"],
-                    "misconception": "常见误区是认为AI就等于深度学习，实际上AI范围更广。"
-                }
+                    "misconception": "常见误区是认为AI就等于深度学习，实际上AI范围更广。",
+                },
             ),
             TaskResult(
                 task_id="comparison_1",
@@ -909,9 +973,9 @@ class TestEndToEndIntegration:
                     "comparison": {
                         "符号主义": "优点：逻辑清晰，缺点：难以处理不确定性",
                         "连接主义": "优点：学习能力强，缺点：需要大量数据",
-                        "深度学习": "优点：性能优越，缺点：计算资源需求大"
-                    }
-                }
+                        "深度学习": "优点：性能优越，缺点：计算资源需求大",
+                    },
+                },
             ),
             TaskResult(
                 task_id="memory_1",
@@ -919,15 +983,15 @@ class TestEndToEndIntegration:
                 success=True,
                 result_data={
                     "content": "记住AI发展的关键节点：1956年达特茅斯会议提出AI概念，2012年AlexNet开启深度学习时代。",
-                    "mnemonic": "达特茅斯定AI名，AlexNet开深度篇"
-                }
+                    "mnemonic": "达特茅斯定AI名，AlexNet开深度篇",
+                },
             ),
             TaskResult(
                 task_id="failed_1",
                 agent_type="example-teaching",
                 success=False,
-                result_data={"error": "处理超时"}
-            )
+                result_data={"error": "处理超时"},
+            ),
         ]
 
         # 3. 执行智能融合
@@ -946,7 +1010,9 @@ class TestEndToEndIntegration:
 
         # 6. 验证溯源信息
         assert len(fusion_result.source_attributions) > 0
-        assert fusion_result.fusion_metadata["agent_count"] == len([r for r in agent_results if r.success])
+        assert fusion_result.fusion_metadata["agent_count"] == len(
+            [r for r in agent_results if r.success]
+        )
 
     @pytest.mark.asyncio
     async def test_integration_with_concurrent_executor(self):
@@ -958,8 +1024,8 @@ class TestEndToEndIntegration:
             "user_request": "解释什么是智能结果融合，以及它如何提高多Agent系统的输出质量",
             "canvas_context": {
                 "topic": "智能结果融合",
-                "keywords": ["融合", "多Agent", "质量", "智能"]
-            }
+                "keywords": ["融合", "多Agent", "质量", "智能"],
+            },
         }
 
         # 执行带融合的并发任务
@@ -967,7 +1033,7 @@ class TestEndToEndIntegration:
             complex_task,
             max_agents=3,
             enable_fusion=True,
-            fusion_config={"strategy": "complementary"}
+            fusion_config={"strategy": "complementary"},
         )
 
         # 验证结果

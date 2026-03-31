@@ -28,10 +28,11 @@ class TestKnowledgeGraphLayerBasic(unittest.TestCase):
         os.environ["OPENAI_API_KEY"] = "test-key"
 
         # 重新导入模块以获取新的环境变量
-        if 'canvas_utils' in sys.modules:
-            del sys.modules['canvas_utils']
+        if "canvas_utils" in sys.modules:
+            del sys.modules["canvas_utils"]
 
         from canvas_utils import KnowledgeGraphLayer
+
         self.KnowledgeGraphLayer = KnowledgeGraphLayer
 
     def test_kg_layer_initialization(self):
@@ -63,11 +64,18 @@ class TestKnowledgeGraphLayerBasic(unittest.TestCase):
         kg_layer = self.KnowledgeGraphLayer()
 
         # Assert
-        expected_relationship_types = ["CONTAINS", "CONNECTS_TO", "LEARNS", "EXPLORES", "RELATED_TO", "REQUIRES"]
+        expected_relationship_types = [
+            "CONTAINS",
+            "CONNECTS_TO",
+            "LEARNS",
+            "EXPLORES",
+            "RELATED_TO",
+            "REQUIRES",
+        ]
         for rel_type in expected_relationship_types:
             self.assertIn(rel_type, kg_layer.RELATIONSHIP_TYPES)
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_connection_success(self, mock_graphiti):
         """测试连接初始化成功 (AC: 1, 4, 6)"""
         # Arrange
@@ -87,7 +95,7 @@ class TestKnowledgeGraphLayerBasic(unittest.TestCase):
         mock_graphiti.assert_called_once()
         mock_client.build_indices_and_constraints.assert_called_once()
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_add_canvas_episode(self, mock_graphiti):
         """测试添加Canvas episode (AC: 1, 5)"""
         # Arrange
@@ -103,7 +111,7 @@ class TestKnowledgeGraphLayerBasic(unittest.TestCase):
         canvas_data = {
             "file_path": "test.canvas",
             "nodes": [{"id": "node1"}],
-            "edges": []
+            "edges": [],
         }
 
         result = await kg_layer.add_canvas_entity(canvas_data)
@@ -113,7 +121,7 @@ class TestKnowledgeGraphLayerBasic(unittest.TestCase):
         self.assertEqual(result["uuid"], "canvas-123")
         mock_client.add_episode.assert_called_once()
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_query_execution(self, mock_graphiti):
         """测试执行查询 (AC: 6)"""
         # Arrange
@@ -140,8 +148,8 @@ class TestKnowledgeGraphLayerBasic(unittest.TestCase):
 
         kg_layer = KnowledgeGraphLayer()
         # 验证性能相关的配置和文档存在
-        self.assertTrue(hasattr(kg_layer, 'config'))
-        self.assertTrue(hasattr(kg_layer, 'execute_query'))
+        self.assertTrue(hasattr(kg_layer, "config"))
+        self.assertTrue(hasattr(kg_layer, "execute_query"))
 
 
 # 异步测试运行器
@@ -163,13 +171,14 @@ class TestAsyncKnowledgeGraphLayer:
         os.environ["OPENAI_API_KEY"] = "test-key"
 
         # 重新导入
-        if 'canvas_utils' in sys.modules:
-            del sys.modules['canvas_utils']
+        if "canvas_utils" in sys.modules:
+            del sys.modules["canvas_utils"]
 
         from canvas_utils import KnowledgeGraphLayer
+
         self.KnowledgeGraphLayer = KnowledgeGraphLayer
 
-    @patch('canvas_utils.Graphiti')
+    @patch("canvas_utils.Graphiti")
     async def test_full_workflow(self, mock_graphiti):
         """测试完整工作流程"""
         # Arrange

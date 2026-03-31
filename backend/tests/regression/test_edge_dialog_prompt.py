@@ -87,7 +87,10 @@ def test_ei_counterexample_probing(prompt_content):
 
 def test_se_strategy_header_present(prompt_content):
     """Prompt contains an SE strategy section."""
-    assert "Self-Explanation" in prompt_content or "self-explanation" in prompt_content.lower()
+    assert (
+        "Self-Explanation" in prompt_content
+        or "self-explanation" in prompt_content.lower()
+    )
 
 
 def test_se_own_words_instruction(prompt_content):
@@ -166,7 +169,9 @@ def test_no_teaching_jargon_instruction(prompt_content):
             "\u4e0d\u8981\u7528\u6559\u5b66\u672f\u8bed",
         ]
     )
-    assert has_no_jargon, "Prompt must instruct natural conversation without teaching jargon"
+    assert has_no_jargon, (
+        "Prompt must instruct natural conversation without teaching jargon"
+    )
 
 
 def test_conversation_style_not_exam(prompt_content):

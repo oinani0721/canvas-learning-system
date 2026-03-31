@@ -28,8 +28,13 @@ from canvas_progress_tracker.canvas_monitor_engine import (
     MonitorConfig,
 )
 from canvas_progress_tracker.utils.change_detector import CanvasChangeDetector
-from canvas_progress_tracker.utils.debounce_manager import DebounceManager as UtilDebounceManager
-from canvas_progress_tracker.utils.performance_tracker import PerformanceThresholds, PerformanceTracker
+from canvas_progress_tracker.utils.debounce_manager import (
+    DebounceManager as UtilDebounceManager,
+)
+from canvas_progress_tracker.utils.performance_tracker import (
+    PerformanceThresholds,
+    PerformanceTracker,
+)
 
 
 class TestCanvasMonitorEngine(unittest.TestCase):
@@ -41,7 +46,7 @@ class TestCanvasMonitorEngine(unittest.TestCase):
         self.config = MonitorConfig(
             base_path=self.temp_dir,
             debounce_delay_ms=100,  # 较短的延迟用于测试
-            retry_attempts=1
+            retry_attempts=1,
         )
         self.engine = CanvasMonitorEngine(self.temp_dir, self.config)
 
@@ -51,6 +56,7 @@ class TestCanvasMonitorEngine(unittest.TestCase):
             self.engine.stop_monitoring()
         # 清理临时文件
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_test_canvas_file(self, filename: str, content: dict = None) -> str:
@@ -66,14 +72,14 @@ class TestCanvasMonitorEngine(unittest.TestCase):
                         "y": 100,
                         "width": 200,
                         "height": 100,
-                        "color": "1"
+                        "color": "1",
                     }
                 ],
-                "edges": []
+                "edges": [],
             }
 
         file_path = os.path.join(self.temp_dir, filename)
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(content, f)
         return file_path
 
@@ -154,12 +160,12 @@ class TestCanvasMonitorEngine(unittest.TestCase):
 
         old_content = {
             "nodes": [{"id": "node1", "type": "text", "text": "Old", "x": 0, "y": 0}],
-            "edges": []
+            "edges": [],
         }
 
         new_content = {
             "nodes": [{"id": "node1", "type": "text", "text": "New", "x": 0, "y": 0}],
-            "edges": []
+            "edges": [],
         }
 
         # 先缓存旧内容，再检测变更
@@ -183,17 +189,19 @@ class TestCanvasChangeDetector(unittest.TestCase):
 
         old_content = {"nodes": [], "edges": []}
         new_content = {
-            "nodes": [{
-                "id": "new-node",
-                "type": "text",
-                "text": "New node",
-                "x": 100,
-                "y": 100,
-                "width": 200,
-                "height": 100,
-                "color": "1"
-            }],
-            "edges": []
+            "nodes": [
+                {
+                    "id": "new-node",
+                    "type": "text",
+                    "text": "New node",
+                    "x": 100,
+                    "y": 100,
+                    "width": 200,
+                    "height": 100,
+                    "color": "1",
+                }
+            ],
+            "edges": [],
         }
 
         changes = self.detector.detect_changes(canvas_path, new_content)
@@ -206,33 +214,37 @@ class TestCanvasChangeDetector(unittest.TestCase):
 
         # 先设置缓存
         old_content = {
-            "nodes": [{
-                "id": "node1",
-                "type": "text",
-                "text": "Test",
-                "x": 100,
-                "y": 100,
-                "width": 200,
-                "height": 100,
-                "color": "1"  # 红色
-            }],
-            "edges": []
+            "nodes": [
+                {
+                    "id": "node1",
+                    "type": "text",
+                    "text": "Test",
+                    "x": 100,
+                    "y": 100,
+                    "width": 200,
+                    "height": 100,
+                    "color": "1",  # 红色
+                }
+            ],
+            "edges": [],
         }
         self.detector.last_canvas_content[canvas_path] = old_content
 
         # 新内容颜色改变
         new_content = {
-            "nodes": [{
-                "id": "node1",
-                "type": "text",
-                "text": "Test",
-                "x": 100,
-                "y": 100,
-                "width": 200,
-                "height": 100,
-                "color": "2"  # 绿色
-            }],
-            "edges": []
+            "nodes": [
+                {
+                    "id": "node1",
+                    "type": "text",
+                    "text": "Test",
+                    "x": 100,
+                    "y": 100,
+                    "width": 200,
+                    "height": 100,
+                    "color": "2",  # 绿色
+                }
+            ],
+            "edges": [],
         }
 
         changes = self.detector.detect_changes(canvas_path, new_content)
@@ -247,7 +259,7 @@ class TestCanvasChangeDetector(unittest.TestCase):
             "text": "Test content",
             "x": 100,
             "y": 100,
-            "color": "1"
+            "color": "1",
         }
 
         hash1 = self.detector._calculate_node_hash(node)
@@ -265,7 +277,7 @@ class TestCanvasChangeDetector(unittest.TestCase):
         canvas_path = "/test/canvas.canvas"
         content = {
             "nodes": [{"id": "node1", "type": "text", "text": "Test"}],
-            "edges": []
+            "edges": [],
         }
 
         # 更新缓存
@@ -288,12 +300,14 @@ class TestDebounceManager(unittest.TestCase):
     def setUp(self):
         """测试前设置"""
         from canvas_progress_tracker.utils.debounce_manager import DebounceConfig
+
         config = DebounceConfig(delay_ms=50, max_pending_time_ms=200)
         self.debounce_manager = UtilDebounceManager(config)
         self.processed_changes = []
 
     def test_change_processing(self):
         """测试变更处理"""
+
         def callback(file_path, changes):
             self.processed_changes.extend(changes)
 
@@ -304,7 +318,7 @@ class TestDebounceManager(unittest.TestCase):
             change_id="test-change-1",
             canvas_id="test-canvas",
             change_type=CanvasChangeType.UPDATE,
-            file_path="/test.canvas"
+            file_path="/test.canvas",
         )
 
         self.debounce_manager.add_change("/test.canvas", change)
@@ -317,6 +331,7 @@ class TestDebounceManager(unittest.TestCase):
 
     def test_multiple_changes_debounce(self):
         """测试多个变更的防抖"""
+
         def callback(file_path, changes):
             self.processed_changes.extend(changes)
 
@@ -328,7 +343,7 @@ class TestDebounceManager(unittest.TestCase):
                 change_id=f"test-change-{i}",
                 canvas_id="test-canvas",
                 change_type=CanvasChangeType.UPDATE,
-                file_path="/test.canvas"
+                file_path="/test.canvas",
             )
             self.debounce_manager.add_change("/test.canvas", change)
 
@@ -357,7 +372,7 @@ class TestDebounceManager(unittest.TestCase):
             change_id="low-priority-change",
             canvas_id="test-canvas",
             change_type=CanvasChangeType.UPDATE,
-            file_path="/test.canvas"
+            file_path="/test.canvas",
         )
         self.debounce_manager.add_change("/test.canvas", low_change, priority=1)
 
@@ -366,7 +381,7 @@ class TestDebounceManager(unittest.TestCase):
             change_id="high-priority-change",
             canvas_id="test-canvas",
             change_type=CanvasChangeType.UPDATE,
-            file_path="/test.canvas"
+            file_path="/test.canvas",
         )
         self.debounce_manager.add_change("/test.canvas", high_change, priority=3)
 
@@ -382,7 +397,7 @@ class TestDebounceManager(unittest.TestCase):
             change_id="test-change",
             canvas_id="test-canvas",
             change_type=CanvasChangeType.UPDATE,
-            file_path="/test.canvas"
+            file_path="/test.canvas",
         )
 
         self.debounce_manager.add_change("/test.canvas", change)
@@ -409,7 +424,7 @@ class TestDebounceManager(unittest.TestCase):
                 change_id=f"test-change-{i}",
                 canvas_id="test-canvas",
                 change_type=CanvasChangeType.UPDATE,
-                file_path=f"/test{i}.canvas"
+                file_path=f"/test{i}.canvas",
             )
             self.debounce_manager.add_change(f"/test{i}.canvas", change)
 
@@ -427,8 +442,7 @@ class TestPerformanceTracker(unittest.TestCase):
     def setUp(self):
         """测试前设置"""
         self.thresholds = PerformanceThresholds(
-            max_cpu_usage_percent=10.0,
-            max_memory_usage_mb=50.0
+            max_cpu_usage_percent=10.0, max_memory_usage_mb=50.0
         )
         self.tracker = PerformanceTracker(self.thresholds)
 
@@ -476,6 +490,7 @@ class TestPerformanceTracker(unittest.TestCase):
 
         # 验证返回的是PerformanceMetrics类型
         from canvas_progress_tracker.utils.performance_tracker import PerformanceMetrics
+
         self.assertIsInstance(metrics, PerformanceMetrics)
         self.assertIsInstance(metrics.cpu_usage_percent, float)
         self.assertIsInstance(metrics.memory_usage_mb, float)
@@ -491,14 +506,14 @@ class TestPerformanceTracker(unittest.TestCase):
         violating_metrics = PerformanceMetrics(
             timestamp=datetime.now(),
             cpu_usage_percent=15.0,  # 超过阈值10.0
-            memory_usage_mb=60.0,    # 超过阈值50.0
+            memory_usage_mb=60.0,  # 超过阈值50.0
             memory_usage_percent=5.0,
             active_threads=10,
             open_files=20,
             processing_delay_ms=100.0,
             throughput_per_second=5.0,
             queue_size=10,
-            error_rate=0.01
+            error_rate=0.01,
         )
 
         self.tracker.current_metrics = violating_metrics
@@ -518,14 +533,14 @@ class TestPerformanceTracker(unittest.TestCase):
         violating_metrics = PerformanceMetrics(
             timestamp=datetime.now(),
             cpu_usage_percent=15.0,  # 超过阈值
-            memory_usage_mb=60.0,    # 超过阈值
+            memory_usage_mb=60.0,  # 超过阈值
             memory_usage_percent=5.0,
             active_threads=10,
             open_files=20,
             processing_delay_ms=2000.0,  # 超过阈值
-            throughput_per_second=0.5,    # 低于阈值
+            throughput_per_second=0.5,  # 低于阈值
             queue_size=10,
-            error_rate=0.1  # 超过阈值
+            error_rate=0.1,  # 超过阈值
         )
 
         self.tracker.current_metrics = violating_metrics
@@ -534,7 +549,9 @@ class TestPerformanceTracker(unittest.TestCase):
         self.assertGreater(len(suggestions), 0)
         # 应该包含各种优化建议
         suggestions_text = " ".join(suggestions)
-        self.assertTrue("防抖延迟时间" in suggestions_text or "内存" in suggestions_text)
+        self.assertTrue(
+            "防抖延迟时间" in suggestions_text or "内存" in suggestions_text
+        )
 
     def test_get_performance_summary(self):
         """测试获取性能摘要"""
@@ -554,7 +571,7 @@ class TestPerformanceTracker(unittest.TestCase):
                 processing_delay_ms=100.0 + i * 10,
                 throughput_per_second=5.0 + i,
                 queue_size=5 + i,
-                error_rate=0.01
+                error_rate=0.01,
             )
             self.tracker.metrics_history.append(metrics)
 
@@ -580,6 +597,7 @@ class TestIntegration(unittest.TestCase):
         if self.engine.is_monitoring:
             self.engine.stop_monitoring()
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_end_to_end_monitoring(self):
@@ -587,20 +605,22 @@ class TestIntegration(unittest.TestCase):
         # 创建Canvas文件
         canvas_path = os.path.join(self.temp_dir, "test.canvas")
         initial_content = {
-            "nodes": [{
-                "id": "test-node",
-                "type": "text",
-                "text": "Initial content",
-                "x": 100,
-                "y": 100,
-                "width": 200,
-                "height": 100,
-                "color": "1"
-            }],
-            "edges": []
+            "nodes": [
+                {
+                    "id": "test-node",
+                    "type": "text",
+                    "text": "Initial content",
+                    "x": 100,
+                    "y": 100,
+                    "width": 200,
+                    "height": 100,
+                    "color": "1",
+                }
+            ],
+            "edges": [],
         }
 
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(initial_content, f)
 
         # 启动监控
@@ -609,6 +629,7 @@ class TestIntegration(unittest.TestCase):
 
         # 添加回调
         received_changes = []
+
         def change_callback(change):
             received_changes.append(change)
 
@@ -620,7 +641,7 @@ class TestIntegration(unittest.TestCase):
         modified_content["nodes"][0]["text"] = "Modified content"
         modified_content["nodes"][0]["color"] = "2"
 
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(modified_content, f)
 
         # 等待处理
@@ -644,19 +665,21 @@ class TestIntegration(unittest.TestCase):
         for i in range(5):
             canvas_path = os.path.join(self.temp_dir, f"test_{i}.canvas")
             content = {
-                "nodes": [{
-                    "id": f"node-{i}",
-                    "type": "text",
-                    "text": f"Content {i}",
-                    "x": i * 50,
-                    "y": i * 50,
-                    "width": 200,
-                    "height": 100,
-                    "color": "1"
-                }],
-                "edges": []
+                "nodes": [
+                    {
+                        "id": f"node-{i}",
+                        "type": "text",
+                        "text": f"Content {i}",
+                        "x": i * 50,
+                        "y": i * 50,
+                        "width": 200,
+                        "height": 100,
+                        "color": "1",
+                    }
+                ],
+                "edges": [],
             }
-            with open(canvas_path, 'w', encoding='utf-8') as f:
+            with open(canvas_path, "w", encoding="utf-8") as f:
                 json.dump(content, f)
             canvas_files.append(canvas_path)
 
@@ -669,6 +692,7 @@ class TestIntegration(unittest.TestCase):
 
         # 启动性能监控
         from canvas_progress_tracker.utils.performance_tracker import PerformanceTracker
+
         tracker = PerformanceTracker()
         tracker.start_monitoring()
 
@@ -676,12 +700,12 @@ class TestIntegration(unittest.TestCase):
         for i, canvas_path in enumerate(canvas_files):
             start_time = tracker.record_operation_start()
 
-            with open(canvas_path, 'r', encoding='utf-8') as f:
+            with open(canvas_path, "r", encoding="utf-8") as f:
                 content = json.load(f)
 
             content["nodes"][0]["text"] = f"Modified content {i}"
 
-            with open(canvas_path, 'w', encoding='utf-8') as f:
+            with open(canvas_path, "w", encoding="utf-8") as f:
                 json.dump(content, f)
 
             tracker.record_operation_end(start_time, success=True)
@@ -696,11 +720,13 @@ class TestIntegration(unittest.TestCase):
         if "data_points" in summary and summary["data_points"] > 0:
             # 验证性能在合理范围内
             self.assertLess(summary["cpu_usage"]["current"], 50.0)  # CPU使用率应该合理
-            self.assertLess(summary["memory_usage"]["current_mb"], 200.0)  # 内存使用应该合理
+            self.assertLess(
+                summary["memory_usage"]["current_mb"], 200.0
+            )  # 内存使用应该合理
 
         self.engine.stop_monitoring()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 运行测试
     unittest.main(verbosity=2)

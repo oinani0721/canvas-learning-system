@@ -5,8 +5,6 @@
 import platform
 from pathlib import Path
 
-import pytest
-
 from app.services.intelligent_grouping_service import (
     AGENT_KEYWORD_MAPPING,
     AVERAGE_AGENT_PROCESSING_SECONDS,

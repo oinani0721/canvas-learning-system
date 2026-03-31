@@ -18,7 +18,6 @@ import os
 import uuid
 
 import pytest
-
 from app.clients.neo4j_client import Neo4jClient
 from app.services.memory_service import MemoryService
 
@@ -109,8 +108,7 @@ class TestAC31A23_CrossSessionPersistence:
 
             assert result["total"] >= 1
             found = any(
-                "linear_algebra" in str(i.get("concept", ""))
-                for i in result["items"]
+                "linear_algebra" in str(i.get("concept", "")) for i in result["items"]
             )
             assert found, "Session 1 data should be accessible in session 2"
         finally:
@@ -145,8 +143,11 @@ class TestAC31A23_CrossSessionPersistence:
             result = await svc2.get_learning_history(user_id=f"{prefix}u1")
 
             item = next(
-                (i for i in result["items"]
-                 if "probability_theory" in str(i.get("concept", ""))),
+                (
+                    i
+                    for i in result["items"]
+                    if "probability_theory" in str(i.get("concept", ""))
+                ),
                 None,
             )
             assert item is not None, "Should find probability_theory in results"

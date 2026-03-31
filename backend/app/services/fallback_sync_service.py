@@ -90,7 +90,11 @@ class FallbackSyncService:
             result["learning_memories"] = await self._sync_learning_memories()
         except (OSError, RuntimeError, ConnectionError) as e:
             logger.warning(f"[Story 38.8] learning_memories sync error: {e}")
-            result["learning_memories"] = {"recovered": 0, "pending": 0, "error": str(e)}
+            result["learning_memories"] = {
+                "recovered": 0,
+                "pending": 0,
+                "error": str(e),
+            }
 
         total_recovered = sum(
             v.get("recovered", 0) for v in result.values() if isinstance(v, dict)
@@ -161,13 +165,11 @@ class FallbackSyncService:
             new_lines: List[str] = []
             try:
                 if FAILED_WRITES_FILE.exists():
-                    current_raw = (
-                        FAILED_WRITES_FILE.read_text(encoding="utf-8").strip()
-                    )
+                    current_raw = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip()
                     current_lines = current_raw.splitlines() if current_raw else []
                     # Lines appended after our initial read
                     if len(current_lines) > len(lines):
-                        new_lines = current_lines[len(lines):]
+                        new_lines = current_lines[len(lines) :]
                 else:
                     current_lines = []
             except OSError:
@@ -376,9 +378,7 @@ class FallbackSyncService:
 
         return True
 
-    async def _replay_canvas_event_to_neo4j(
-        self, event: Dict[str, Any]
-    ) -> bool:
+    async def _replay_canvas_event_to_neo4j(self, event: Dict[str, Any]) -> bool:
         """Replay a single canvas event (node or edge) to Neo4j."""
         event_type = event.get("event_type", "")
         canvas_name = event.get("canvas_name", "")
@@ -410,17 +410,13 @@ class FallbackSyncService:
                 )
 
             else:
-                logger.debug(
-                    f"[Story 38.8] Unknown canvas event type: {event_type}"
-                )
+                logger.debug(f"[Story 38.8] Unknown canvas event type: {event_type}")
                 return True  # Don't block on unknown types
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 38.8] Canvas event replay failed: {e}")
             return False
 
-    async def _replay_learning_memory_to_neo4j(
-        self, mem: Dict[str, Any]
-    ) -> bool:
+    async def _replay_learning_memory_to_neo4j(self, mem: Dict[str, Any]) -> bool:
         """Replay a single learning memory entry to Neo4j using MERGE (idempotent).
 
         Uses last-write-wins conflict resolution: if Neo4j already has newer
@@ -482,9 +478,7 @@ class FallbackSyncService:
             if not SYNC_CHECKPOINT_FILE.exists():
                 return 0
             try:
-                data = json.loads(
-                    SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8")
-                )
+                data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
                 return data.get(file_key, {}).get("index", 0)
             except (json.JSONDecodeError, OSError, KeyError):
                 return 0
@@ -495,9 +489,7 @@ class FallbackSyncService:
             data: Dict[str, Any] = {}
             if SYNC_CHECKPOINT_FILE.exists():
                 try:
-                    data = json.loads(
-                        SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8")
-                    )
+                    data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
                     data = {}
 
@@ -518,9 +510,7 @@ class FallbackSyncService:
             if not SYNC_CHECKPOINT_FILE.exists():
                 return
             try:
-                data = json.loads(
-                    SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8")
-                )
+                data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
                 data.pop(file_key, None)
                 if data:
                     self._atomic_write_file(
@@ -612,6 +602,7 @@ class FallbackSyncService:
                 build_group_id,
                 extract_subject_from_canvas_path,
             )
+
             subject = extract_subject_from_canvas_path(canvas_name)
             return build_group_id(subject, canvas_name)
         except (ImportError, AttributeError, ValueError):

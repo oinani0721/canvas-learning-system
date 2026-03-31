@@ -3,18 +3,17 @@ Integration tests for QA Pipeline (Story 7.1)
 Tests end-to-end faithfulness check and injection rejection flow.
 """
 
-import pytest
 from unittest import mock as _mk
+
+import pytest
+from app.middleware.prompt_injection_guard import (
+    PromptTemplate,
+    check_input,
+    check_output,
+)
 
 from agentic_rag.faithfulness_check import (
     faithfulness_check,
-    calculate_faithfulness,
-    ClaimVerdict,
-)
-from app.middleware.prompt_injection_guard import (
-    check_input,
-    check_output,
-    PromptTemplate,
 )
 
 
@@ -26,18 +25,26 @@ class TestEndToEndFaithfulness:
         """Simulate high faithfulness where all claims are supported."""
         claims_resp = _mk.MagicMock()
         claims_resp.choices = [_mk.MagicMock()]
-        claims_resp.choices[0].message.content = '{"claims": ["Earth orbits the Sun", "Water is H2O"]}'
+        claims_resp.choices[
+            0
+        ].message.content = '{"claims": ["Earth orbits the Sun", "Water is H2O"]}'
 
         nli_resp = _mk.MagicMock()
         nli_resp.choices = [_mk.MagicMock()]
-        nli_resp.choices[0].message.content = '{"verdicts": [{"claim": "Earth orbits the Sun", "verdict": "SUPPORTED", "reason": "in context"}, {"claim": "Water is H2O", "verdict": "SUPPORTED", "reason": "in context"}]}'
+        nli_resp.choices[
+            0
+        ].message.content = '{"verdicts": [{"claim": "Earth orbits the Sun", "verdict": "SUPPORTED", "reason": "in context"}, {"claim": "Water is H2O", "verdict": "SUPPORTED", "reason": "in context"}]}'
 
         state = {
             "messages": [
                 {"role": "assistant", "content": "Earth orbits the Sun. Water is H2O."}
             ],
             "reranked_results": [
-                {"content": "The Earth revolves around the Sun. Water formula is H2O.", "doc_id": "1", "score": 0.9},
+                {
+                    "content": "The Earth revolves around the Sun. Water formula is H2O.",
+                    "doc_id": "1",
+                    "score": 0.9,
+                },
             ],
         }
 
@@ -55,18 +62,26 @@ class TestEndToEndFaithfulness:
         """Simulate low faithfulness triggering degradation."""
         claims_resp = _mk.MagicMock()
         claims_resp.choices = [_mk.MagicMock()]
-        claims_resp.choices[0].message.content = '{"claims": ["The sky is green", "Cats can fly"]}'
+        claims_resp.choices[
+            0
+        ].message.content = '{"claims": ["The sky is green", "Cats can fly"]}'
 
         nli_resp = _mk.MagicMock()
         nli_resp.choices = [_mk.MagicMock()]
-        nli_resp.choices[0].message.content = '{"verdicts": [{"claim": "The sky is green", "verdict": "NOT_SUPPORTED", "reason": "contradicts context"}, {"claim": "Cats can fly", "verdict": "NOT_SUPPORTED", "reason": "no evidence"}]}'
+        nli_resp.choices[
+            0
+        ].message.content = '{"verdicts": [{"claim": "The sky is green", "verdict": "NOT_SUPPORTED", "reason": "contradicts context"}, {"claim": "Cats can fly", "verdict": "NOT_SUPPORTED", "reason": "no evidence"}]}'
 
         state = {
             "messages": [
                 {"role": "assistant", "content": "The sky is green. Cats can fly."}
             ],
             "reranked_results": [
-                {"content": "The sky appears blue due to Rayleigh scattering.", "doc_id": "1", "score": 0.9},
+                {
+                    "content": "The sky appears blue due to Rayleigh scattering.",
+                    "doc_id": "1",
+                    "score": 0.9,
+                },
             ],
         }
 

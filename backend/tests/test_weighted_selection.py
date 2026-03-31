@@ -6,6 +6,7 @@ Tests AC2 (Configurable Weight Distribution), AC3 (Weighted Concept Selection).
 
 Story: 24.3 - Intelligent Weight Algorithm for Targeted Review
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,7 +15,6 @@ from backend.app.services.weight_calculator import ConceptWeightData
 
 
 class TestWeightedSelection:
-
     @pytest.fixture
     def review_service(self):
         """Provide a ReviewService instance with mocked dependencies."""
@@ -42,10 +42,7 @@ class TestWeightedSelection:
 
         # Test single selection to verify target counts
         selected = await review_service._apply_weighted_selection(
-            weight_data,
-            question_count=10,
-            weak_weight=0.7,
-            mastered_weight=0.3
+            weight_data, question_count=10, weak_weight=0.7, mastered_weight=0.3
         )
 
         # Count actual distribution
@@ -68,10 +65,7 @@ class TestWeightedSelection:
         ]
 
         selected = await review_service._apply_weighted_selection(
-            weight_data,
-            question_count=4,
-            weak_weight=0.5,
-            mastered_weight=0.5
+            weight_data, question_count=4, weak_weight=0.5, mastered_weight=0.5
         )
 
         # With 50/50 split and 4 questions, should get 2 weak + 2 mastered
@@ -96,7 +90,7 @@ class TestWeightedSelection:
                 weight_data,
                 question_count=2,
                 weak_weight=0.6,
-                mastered_weight=0.6  # Sum = 1.2, invalid
+                mastered_weight=0.6,  # Sum = 1.2, invalid
             )
 
     @pytest.mark.asyncio
@@ -112,7 +106,7 @@ class TestWeightedSelection:
             weight_data,
             question_count=2,
             weak_weight=0.701,
-            mastered_weight=0.299  # Sum = 1.0 within tolerance
+            mastered_weight=0.299,  # Sum = 1.0 within tolerance
         )
 
         assert len(selected) <= 2
@@ -132,7 +126,7 @@ class TestWeightedSelection:
             weight_data,
             question_count=4,  # Reduced to match available concepts
             weak_weight=0.7,
-            mastered_weight=0.3
+            mastered_weight=0.3,
         )
 
         # Should still select 4 concepts, filling from available
@@ -153,10 +147,7 @@ class TestWeightedSelection:
         ]
 
         selected = await review_service._apply_weighted_selection(
-            weight_data,
-            question_count=2,
-            weak_weight=0.7,
-            mastered_weight=0.3
+            weight_data, question_count=2, weak_weight=0.7, mastered_weight=0.3
         )
 
         # Should select 2 concepts from borderline
@@ -189,17 +180,18 @@ class TestWeightedSelection:
         # Expected ratio: 0.9 / (0.9 + 0.6) = 0.6 (60% for c1)
         c1_ratio = c1_count / iterations
 
-        assert c1_ratio > 0.5, f"VeryWeak concept selected {c1_ratio:.1%}, expected >50%"
-        assert c1_ratio < 0.7, f"VeryWeak concept selected {c1_ratio:.1%}, expected <70%"
+        assert c1_ratio > 0.5, (
+            f"VeryWeak concept selected {c1_ratio:.1%}, expected >50%"
+        )
+        assert c1_ratio < 0.7, (
+            f"VeryWeak concept selected {c1_ratio:.1%}, expected <70%"
+        )
 
     @pytest.mark.asyncio
     async def test_empty_concepts_list(self, review_service):
         """Edge case: Empty concepts list returns empty selection."""
         selected = await review_service._apply_weighted_selection(
-            [],
-            question_count=5,
-            weak_weight=0.7,
-            mastered_weight=0.3
+            [], question_count=5, weak_weight=0.7, mastered_weight=0.3
         )
 
         assert selected == []
@@ -216,7 +208,7 @@ class TestWeightedSelection:
             weight_data,
             question_count=10,  # More than 2 available
             weak_weight=0.7,
-            mastered_weight=0.3
+            mastered_weight=0.3,
         )
 
         # Should return all available concepts

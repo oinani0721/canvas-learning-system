@@ -19,24 +19,30 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: BackgroundTasks)
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
+from app.api.v1.endpoints.memory import MemoryServiceDep
 from app.config import settings
 from app.core.exceptions import CanvasNotFoundException
 from app.core.request_cache import request_cache
-from app.dependencies import AgentServiceDep, CanvasServiceDep, ContextEnrichmentServiceDep, RAGServiceDep
+from app.dependencies import (
+    AgentServiceDep,
+    CanvasServiceDep,
+    ContextEnrichmentServiceDep,
+    RAGServiceDep,
+)
 from app.models import (
     # Story 31.3: Recommend Action
     ActionTrend,
     ActionType,
-    AlternativeAgent,
     # Story 12.G.3: Agent Health Check
     AgentHealthCheckResponse,
     AgentHealthChecks,
     AgentHealthStatus,
+    AlternativeAgent,
     ApiTestResult,
     DecomposeRequest,
     DecomposeResponse,
@@ -61,8 +67,7 @@ from app.models import (
     VerificationQuestionResponse,
 )
 from app.services.markdown_image_extractor import MarkdownImageExtractor
-from app.services.memory_service import MemoryService, get_memory_service
-from app.api.v1.endpoints.memory import MemoryServiceDep
+from app.services.memory_service import MemoryService
 
 logger = logging.getLogger(__name__)
 
@@ -75,22 +80,22 @@ logger = logging.getLogger(__name__)
 # ✅ Verified from Story 12.E.5 Technical Details
 # MIME types for supported image formats
 IMAGE_MIME_TYPES: Dict[str, str] = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
 }
 
 # Story 12.E.5 constraints from Gemini API
 MAX_IMAGES_PER_REQUEST = 5  # Avoid exceeding token limits
-MAX_IMAGE_SIZE_MB = 4.0     # Gemini API limit
+MAX_IMAGE_SIZE_MB = 4.0  # Gemini API limit
 
 
 async def _load_images_for_agent(
     resolved_refs: List[Dict],
     max_images: int = MAX_IMAGES_PER_REQUEST,
-    max_size_mb: float = MAX_IMAGE_SIZE_MB
+    max_size_mb: float = MAX_IMAGE_SIZE_MB,
 ) -> List[Dict[str, Any]]:
     """加载图片文件并转换为 API 格式 (AC 5.1)
 
@@ -127,7 +132,7 @@ async def _load_images_for_agent(
             if not mime_type:
                 logger.warning(
                     "[Story 12.E.5] Unsupported image format, skipping",
-                    extra={"path": str(file_path), "suffix": suffix}
+                    extra={"path": str(file_path), "suffix": suffix},
                 )
                 continue
 
@@ -135,19 +140,17 @@ async def _load_images_for_agent(
             file_size = file_path.stat().st_size
             if file_size > max_size_bytes:
                 logger.warning(
-                    f"[Story 12.E.5] Image too large ({file_size / (1024*1024):.2f}MB > {max_size_mb}MB), skipping: {file_path}"
+                    f"[Story 12.E.5] Image too large ({file_size / (1024 * 1024):.2f}MB > {max_size_mb}MB), skipping: {file_path}"
                 )
                 continue
 
             # Read and encode as base64
             image_data = file_path.read_bytes()
-            base64_data = base64.b64encode(image_data).decode('utf-8')
+            base64_data = base64.b64encode(image_data).decode("utf-8")
 
-            images.append({
-                "data": base64_data,
-                "media_type": mime_type,
-                "path": str(file_path)
-            })
+            images.append(
+                {"data": base64_data, "media_type": mime_type, "path": str(file_path)}
+            )
 
             logger.info(
                 f"[Story 12.E.5] Image loaded successfully: {file_path.name} "
@@ -156,11 +159,15 @@ async def _load_images_for_agent(
 
         except PermissionError:
             # AC 5.4: File permission error, skip
-            logger.warning(f"[Story 12.E.5] Permission denied reading image: {ref_info.get('absolute_path')}")
+            logger.warning(
+                f"[Story 12.E.5] Permission denied reading image: {ref_info.get('absolute_path')}"
+            )
             continue
         except OSError as e:
             # AC 5.4: OS-level error (disk, etc.), skip
-            logger.warning(f"[Story 12.E.5] OS error reading image: {ref_info.get('absolute_path')}, error: {e}")
+            logger.warning(
+                f"[Story 12.E.5] OS error reading image: {ref_info.get('absolute_path')}, error: {e}"
+            )
             continue
         except Exception as e:
             # AC 5.4: Any other error, log and skip
@@ -170,6 +177,7 @@ async def _load_images_for_agent(
             continue
 
     return images
+
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 # APIRouter(prefix, tags, responses) for modular routing
@@ -191,9 +199,7 @@ agents_router = APIRouter(
 
 
 def _create_encoding_error_response(
-    e: UnicodeEncodeError,
-    endpoint_name: str,
-    cache_key: str = ""
+    e: UnicodeEncodeError, endpoint_name: str, cache_key: str = ""
 ) -> HTTPException:
     """
     Story 12.J.4: Create standardized HTTP response for encoding errors.
@@ -218,7 +224,7 @@ def _create_encoding_error_response(
 
     # AC4: Safe diagnostic info (ASCII only to prevent secondary encoding errors)
     safe_diagnostic = f"position {e.start}"
-    if hasattr(e, 'object') and e.start < len(e.object):
+    if hasattr(e, "object") and e.start < len(e.object):
         try:
             char_code = ord(e.object[e.start])
             safe_diagnostic += f", char U+{char_code:04X}"
@@ -226,9 +232,7 @@ def _create_encoding_error_response(
             pass
 
     # AC2: ASCII-safe logging (no emoji or special Unicode)
-    logger.error(
-        f"[Story 12.J.4] Encoding error in {endpoint_name}: {safe_diagnostic}"
-    )
+    logger.error(f"[Story 12.J.4] Encoding error in {endpoint_name}: {safe_diagnostic}")
 
     # AC1: Structured response (aligned with AgentError schema)
     return HTTPException(
@@ -238,7 +242,7 @@ def _create_encoding_error_response(
             "message": "Text encoding error - please ensure content uses UTF-8",
             "is_retryable": True,
             "diagnostic": safe_diagnostic,
-        }
+        },
     )
 
 
@@ -314,9 +318,15 @@ async def get_agent_health(
             status=AgentHealthStatus(cached_result["status"]),
             checks=AgentHealthChecks(
                 api_key_configured=cached_result["checks"]["api_key_configured"],
-                gemini_client_initialized=cached_result["checks"]["gemini_client_initialized"],
-                prompt_templates=PromptTemplateCheck(**cached_result["checks"]["prompt_templates"]),
-                api_test=ApiTestResult(**cached_result["checks"]["api_test"]) if cached_result["checks"].get("api_test") else None,
+                gemini_client_initialized=cached_result["checks"][
+                    "gemini_client_initialized"
+                ],
+                prompt_templates=PromptTemplateCheck(
+                    **cached_result["checks"]["prompt_templates"]
+                ),
+                api_test=ApiTestResult(**cached_result["checks"]["api_test"])
+                if cached_result["checks"].get("api_test")
+                else None,
             ),
             cached=True,
             timestamp=datetime.fromisoformat(cached_result["timestamp"]),
@@ -334,9 +344,15 @@ async def get_agent_health(
         status=AgentHealthStatus(health_result["status"]),
         checks=AgentHealthChecks(
             api_key_configured=health_result["checks"]["api_key_configured"],
-            gemini_client_initialized=health_result["checks"]["gemini_client_initialized"],
-            prompt_templates=PromptTemplateCheck(**health_result["checks"]["prompt_templates"]),
-            api_test=ApiTestResult(**health_result["checks"]["api_test"]) if health_result["checks"].get("api_test") else None,
+            gemini_client_initialized=health_result["checks"][
+                "gemini_client_initialized"
+            ],
+            prompt_templates=PromptTemplateCheck(
+                **health_result["checks"]["prompt_templates"]
+            ),
+            api_test=ApiTestResult(**health_result["checks"]["api_test"])
+            if health_result["checks"].get("api_test")
+            else None,
         ),
         cached=False,
         timestamp=datetime.fromisoformat(health_result["timestamp"]),
@@ -356,7 +372,7 @@ async def _record_learning_event(
     canvas_path: str,
     node_id: str,
     concept: str,
-    score: Optional[int] = None
+    score: Optional[int] = None,
 ) -> None:
     """
     后台任务：记录学习事件 (Story 12.A.5)
@@ -370,14 +386,16 @@ async def _record_learning_event(
     """
     try:
         episode_id = await memory_service.record_learning_event(
-            user_id="default",        # TODO: 支持多用户
+            user_id="default",  # TODO: 支持多用户
             canvas_path=canvas_path,  # ✅ 必填
-            node_id=node_id,          # ✅ 必填
-            concept=concept,          # ✅ 必填
-            agent_type=agent_type,    # ✅ 必填 (decompose/explain_*/score)
-            score=score               # 可选
+            node_id=node_id,  # ✅ 必填
+            concept=concept,  # ✅ 必填
+            agent_type=agent_type,  # ✅ 必填 (decompose/explain_*/score)
+            score=score,  # 可选
         )
-        logger.info(f"Story 12.A.5: Recorded learning event: {episode_id} for concept: {concept[:50]}...")
+        logger.info(
+            f"Story 12.A.5: Recorded learning event: {episode_id} for concept: {concept[:50]}..."
+        )
     except Exception as e:
         # AC-4: 静默处理，不影响用户 (记录错误但不抛出)
         logger.error(f"Story 12.A.5: Failed to record learning event: {e}")
@@ -387,6 +405,7 @@ async def _record_learning_event(
 # Story 21.1: 统一位置信息提取函数
 # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-1]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def extract_node_position(node: Dict[str, Any]) -> Tuple[int, int, int, int]:
     """
@@ -410,9 +429,7 @@ def extract_node_position(node: Dict[str, Any]) -> Tuple[int, int, int, int]:
 
 
 async def get_node_from_canvas(
-    canvas_service: CanvasServiceDep,
-    canvas_name: str,
-    node_id: str
+    canvas_service: CanvasServiceDep, canvas_name: str, node_id: str
 ) -> Dict[str, Any]:
     """
     从Canvas中获取指定节点。
@@ -434,8 +451,7 @@ async def get_node_from_canvas(
         canvas_data = await canvas_service.read_canvas(canvas_name)
     except FileNotFoundError as err:
         raise HTTPException(
-            status_code=404,
-            detail=f"Canvas not found: {canvas_name}"
+            status_code=404, detail=f"Canvas not found: {canvas_name}"
         ) from err
 
     nodes = canvas_data.get("nodes", [])
@@ -444,8 +460,7 @@ async def get_node_from_canvas(
             return node
 
     raise HTTPException(
-        status_code=404,
-        detail=f"Node not found: {node_id} in canvas {canvas_name}"
+        status_code=404, detail=f"Node not found: {node_id} in canvas {canvas_name}"
     )
 
 
@@ -522,15 +537,22 @@ def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
         source = result.get("source", "unknown")
         # Split vault_notes into note vs video_transcript sub-groups
         if source == "vault_notes":
-            meta_json_str = result.get("metadata_json") or result.get("metadata", {}).get("metadata_json", "")
+            meta_json_str = result.get("metadata_json") or result.get(
+                "metadata", {}
+            ).get("metadata_json", "")
             source_type = "note"
             if meta_json_str and isinstance(meta_json_str, str):
                 try:
                     import json as _json
+
                     source_type = _json.loads(meta_json_str).get("source_type", "note")
                 except (ValueError, TypeError):
                     pass
-            key = "vault_notes_video" if source_type == "video_transcript" else "vault_notes"
+            key = (
+                "vault_notes_video"
+                if source_type == "video_transcript"
+                else "vault_notes"
+            )
         else:
             key = source
         if key not in source_groups:
@@ -545,8 +567,6 @@ def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
         "vault_notes": "[Notes] Vault 笔记",
         "vault_notes_video": "[Video] 视频字幕",
         "multimodal": "[Media] 图表/公式",
-        "textbook": "[Book] 教材参考",
-        "cross_canvas": "[Canvas] 跨Canvas关联",
     }
 
     for source, results in source_groups.items():
@@ -556,9 +576,15 @@ def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
             content = r.get("content", "")
             if content:
                 # Add citation prefix for vault_notes and video sources
-                citation = _build_citation(r) if source in ("vault_notes", "vault_notes_video") else ""
+                citation = (
+                    _build_citation(r)
+                    if source in ("vault_notes", "vault_notes_video")
+                    else ""
+                )
                 prefix = f"[{citation}] " if citation else ""
-                content_lines.append(f"  - {prefix}{content[:200]}{'...' if len(content) > 200 else ''}")
+                content_lines.append(
+                    f"  - {prefix}{content[:200]}{'...' if len(content) > 200 else ''}"
+                )
         if content_lines:
             sections.append(f"{label}:\n" + "\n".join(content_lines))
 
@@ -572,7 +598,7 @@ async def get_rag_context_with_timeout(
     rag_service: RAGServiceDep,
     query: str,
     canvas_name: str,
-    timeout: float = RAG_TIMEOUT_SECONDS
+    timeout: float = RAG_TIMEOUT_SECONDS,
 ) -> Optional[str]:
     """
     Execute RAG query with timeout and graceful degradation.
@@ -600,11 +626,9 @@ async def get_rag_context_with_timeout(
         # AC4: 2-second timeout
         rag_result = await asyncio.wait_for(
             rag_service.query_with_fallback(
-                query=query,
-                canvas_file=canvas_name,
-                fusion_strategy="weighted"
+                query=query, canvas_file=canvas_name, fusion_strategy="weighted"
             ),
-            timeout=timeout
+            timeout=timeout,
         )
 
         # Extract and format results
@@ -615,7 +639,9 @@ async def get_rag_context_with_timeout(
 
         if reranked:
             formatted = format_rag_for_agent(reranked)
-            logger.info(f"RAG context retrieved: {len(reranked)} results, {len(formatted)} chars")
+            logger.info(
+                f"RAG context retrieved: {len(reranked)} results, {len(formatted)} chars"
+            )
             return formatted
 
         logger.debug("RAG query returned no results")
@@ -623,7 +649,9 @@ async def get_rag_context_with_timeout(
 
     except asyncio.TimeoutError:
         # AC4/AC5: Graceful degradation on timeout
-        logger.warning(f"RAG query timeout ({timeout}s), continuing without RAG context")
+        logger.warning(
+            f"RAG query timeout ({timeout}s), continuing without RAG context"
+        )
         return None
 
     except Exception as e:
@@ -638,11 +666,7 @@ async def get_rag_context_with_timeout(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def check_duplicate_request(
-    canvas_name: str,
-    node_id: str,
-    agent_type: str
-) -> str:
+def check_duplicate_request(canvas_name: str, node_id: str, agent_type: str) -> str:
     """
     Check for duplicate request and mark as in-progress.
 
@@ -684,8 +708,8 @@ def check_duplicate_request(
                 "canvas_name": canvas_name,
                 "node_id": node_id,
                 "agent_type": agent_type,
-                "is_retryable": False  # Per ADR-009: NON_RETRYABLE
-            }
+                "is_retryable": False,  # Per ADR-009: NON_RETRYABLE
+            },
         )
 
     # Mark as in-progress
@@ -726,6 +750,7 @@ def cancel_request(cache_key: str) -> None:
 # [Source: specs/api/fastapi-backend-api.openapi.yml#Agent Endpoints]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @agents_router.post(
     "/decompose/basic",
     response_model=DecomposeResponse,
@@ -758,44 +783,45 @@ async def decompose_basic(
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
         node_id=request.node_id,
-        agent_type="decompose_basic"
+        agent_type="decompose_basic",
     )
 
     try:
-        # Story 25.2: Get enriched context (includes textbook references)
+        # Story 25.2: Get enriched context (includes adjacent nodes)
         enriched = await context_service.enrich_with_adjacent_nodes(
-            canvas_name=request.canvas_name,
-            node_id=request.node_id
+            canvas_name=request.canvas_name, node_id=request.node_id
         )
     except ValueError as err:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
         raise HTTPException(
             status_code=404,
-            detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
+            detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}",
         ) from err
 
     # Story 12.A.2: Get RAG context with timeout (AC4: <2s, AC5: graceful degradation)
     rag_context = await get_rag_context_with_timeout(
         rag_service=rag_service,
         query=enriched.target_content,
-        canvas_name=request.canvas_name
+        canvas_name=request.canvas_name,
     )
 
-    # Story 25.2 AC5: Log textbook context usage + Story 12.A.2: Log RAG context
+    # Story 12.A.2: Log RAG context
     logger.info(
         f"decompose_basic: canvas={request.canvas_name}, node={request.node_id}, "
-        f"pos=({enriched.x},{enriched.y}), has_textbook_refs={enriched.has_textbook_refs}, "
+        f"pos=({enriched.x},{enriched.y}), "
         f"has_rag_context={rag_context is not None}"
     )
 
     try:
-        # Story 25.2: Pass enriched content with textbook context embedded
+        # Story 25.2: Pass enriched content to agent
         # Story 12.A.2: Pass rag_context to AgentService
         result = await agent_service.decompose_basic(
             canvas_name=request.canvas_name,
             node_id=request.node_id,
-            content=f"{enriched.target_content}\n\n{enriched.enriched_context}" if enriched.enriched_context else enriched.target_content,
+            content=f"{enriched.target_content}\n\n{enriched.enriched_context}"
+            if enriched.enriched_context
+            else enriched.target_content,
             source_x=enriched.x,
             source_y=enriched.y,
             rag_context=rag_context,  # Story 12.A.2: RAG context injection
@@ -808,7 +834,7 @@ async def decompose_basic(
             agent_type="decompose_basic",
             canvas_path=request.canvas_name,
             node_id=request.node_id,
-            concept=enriched.target_content[:100]
+            concept=enriched.target_content[:100],
         )
 
         # Story 12.H.5: Mark request as completed on success
@@ -827,7 +853,9 @@ async def decompose_basic(
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
         logger.error(f"decompose_basic failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Agent service error: {str(e)}"
+        ) from e
 
 
 @agents_router.post(
@@ -861,44 +889,45 @@ async def decompose_deep(
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
         node_id=request.node_id,
-        agent_type="decompose_deep"
+        agent_type="decompose_deep",
     )
 
     try:
-        # Story 25.2: Get enriched context (includes textbook references)
+        # Story 25.2: Get enriched context (includes adjacent nodes)
         enriched = await context_service.enrich_with_adjacent_nodes(
-            canvas_name=request.canvas_name,
-            node_id=request.node_id
+            canvas_name=request.canvas_name, node_id=request.node_id
         )
     except ValueError as err:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
         raise HTTPException(
             status_code=404,
-            detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
+            detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}",
         ) from err
 
     # Story 12.A.2: Get RAG context with timeout (AC4: <2s, AC5: graceful degradation)
     rag_context = await get_rag_context_with_timeout(
         rag_service=rag_service,
         query=enriched.target_content,
-        canvas_name=request.canvas_name
+        canvas_name=request.canvas_name,
     )
 
-    # Story 25.2 AC5: Log textbook context usage + Story 12.A.2: Log RAG context
+    # Story 12.A.2: Log RAG context
     logger.info(
         f"decompose_deep: canvas={request.canvas_name}, node={request.node_id}, "
-        f"pos=({enriched.x},{enriched.y}), has_textbook_refs={enriched.has_textbook_refs}, "
+        f"pos=({enriched.x},{enriched.y}), "
         f"has_rag_context={rag_context is not None}"
     )
 
     try:
-        # Story 25.2: Pass enriched content with textbook context embedded
+        # Story 25.2: Pass enriched content to agent
         # Story 12.A.2: Pass rag_context to AgentService
         result = await agent_service.decompose_deep(
             canvas_name=request.canvas_name,
             node_id=request.node_id,
-            content=f"{enriched.target_content}\n\n{enriched.enriched_context}" if enriched.enriched_context else enriched.target_content,
+            content=f"{enriched.target_content}\n\n{enriched.enriched_context}"
+            if enriched.enriched_context
+            else enriched.target_content,
             source_x=enriched.x,
             source_y=enriched.y,
             rag_context=rag_context,  # Story 12.A.2: RAG context injection
@@ -911,7 +940,7 @@ async def decompose_deep(
             agent_type="decompose_deep",
             canvas_path=request.canvas_name,
             node_id=request.node_id,
-            concept=enriched.target_content[:100]
+            concept=enriched.target_content[:100],
         )
 
         # Story 12.H.5: Mark request as completed on success
@@ -930,13 +959,16 @@ async def decompose_deep(
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
         logger.error(f"decompose_deep failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Agent service error: {str(e)}"
+        ) from e
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Scoring Endpoint (1)
 # [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1score]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @agents_router.post(
     "/score",
@@ -970,9 +1002,7 @@ async def score_understanding(
 
     # Story 12.H.5: Check for duplicate request (use first node_id for key)
     cache_key = check_duplicate_request(
-        canvas_name=request.canvas_name,
-        node_id=first_node_id,
-        agent_type="score"
+        canvas_name=request.canvas_name, node_id=first_node_id, agent_type="score"
     )
 
     rag_context = None
@@ -980,7 +1010,7 @@ async def score_understanding(
         rag_context = await get_rag_context_with_timeout(
             rag_service=rag_service,
             query=first_node_id,
-            canvas_name=request.canvas_name
+            canvas_name=request.canvas_name,
         )
 
     logger.info(
@@ -993,7 +1023,9 @@ async def score_understanding(
     if request.node_content and request.node_ids:
         # Map the first node_id to the provided content
         node_contents = {request.node_ids[0]: request.node_content}
-        logger.info(f"[Story 2.8] Using provided node_content ({len(request.node_content)} chars)")
+        logger.info(
+            f"[Story 2.8] Using provided node_content ({len(request.node_content)} chars)"
+        )
 
     # ═══ Image extraction for scoring (mirrors explanation pipeline) ═══
     images: List[Dict[str, Any]] = []
@@ -1002,17 +1034,23 @@ async def score_understanding(
             image_extractor = MarkdownImageExtractor()
             image_refs = image_extractor.extract_all(request.node_content)
             if image_refs:
-                logger.info(f"[Score] Found {len(image_refs)} image refs in node_content")
+                logger.info(
+                    f"[Score] Found {len(image_refs)} image refs in node_content"
+                )
                 vault_path = Path(canvas_service.canvas_base_path)
                 canvas_file_path = vault_path / f"{request.canvas_name}.canvas"
-                canvas_dir = canvas_file_path.parent if canvas_file_path.exists() else vault_path
+                canvas_dir = (
+                    canvas_file_path.parent if canvas_file_path.exists() else vault_path
+                )
                 resolved_refs = await image_extractor.resolve_paths(
                     image_refs, vault_path=vault_path, canvas_dir=canvas_dir
                 )
                 images = await _load_images_for_agent(resolved_refs)
                 logger.info(f"[Score] Loaded {len(images)} images for scoring agent")
         except (OSError, ValueError, RuntimeError) as img_err:
-            logger.warning(f"[Score] Image extraction failed, continuing without images: {img_err}")
+            logger.warning(
+                f"[Score] Image extraction failed, continuing without images: {img_err}"
+            )
             images = []
 
     try:
@@ -1027,17 +1065,23 @@ async def score_understanding(
         # 转换为响应模型
         scores = []
         for score_data in result.get("scores", []):
-            scores.append(NodeScore(
-                node_id=score_data.get("node_id", ""),
-                accuracy=score_data.get("accuracy", 0.0),
-                imagery=score_data.get("imagery", 0.0),
-                completeness=score_data.get("completeness", 0.0),
-                originality=score_data.get("originality", 0.0),
-                total=score_data.get("total", 0.0),
-                new_color=score_data.get("new_color", "3"),
-                feedback=score_data.get("feedback"),  # Story 2.8: Pass feedback to frontend
-                color_action=score_data.get("color_action"),  # Story 2.8: Pass color_action
-            ))
+            scores.append(
+                NodeScore(
+                    node_id=score_data.get("node_id", ""),
+                    accuracy=score_data.get("accuracy", 0.0),
+                    imagery=score_data.get("imagery", 0.0),
+                    completeness=score_data.get("completeness", 0.0),
+                    originality=score_data.get("originality", 0.0),
+                    total=score_data.get("total", 0.0),
+                    new_color=score_data.get("new_color", "3"),
+                    feedback=score_data.get(
+                        "feedback"
+                    ),  # Story 2.8: Pass feedback to frontend
+                    color_action=score_data.get(
+                        "color_action"
+                    ),  # Story 2.8: Pass color_action
+                )
+            )
 
             # Story 12.A.5: 后台记录学习事件 (每个评分节点)
             background_tasks.add_task(
@@ -1047,7 +1091,7 @@ async def score_understanding(
                 canvas_path=request.canvas_name,
                 node_id=score_data.get("node_id", first_node_id),
                 concept=score_data.get("concept", "understanding"),
-                score=int(score_data.get("total", 0))
+                score=int(score_data.get("total", 0)),
             )
 
         # Story 12.H.5: Mark request as completed on success
@@ -1056,18 +1100,23 @@ async def score_understanding(
         return ScoreResponse(scores=scores)
     except UnicodeEncodeError as e:
         # Story 12.J.4: Explicit encoding error handling
-        raise _create_encoding_error_response(e, "score_understanding", cache_key) from e
+        raise _create_encoding_error_response(
+            e, "score_understanding", cache_key
+        ) from e
     except Exception as e:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
         logger.error(f"score_understanding failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Agent service error: {str(e)}"
+        ) from e
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Explanation Endpoints (6)
 # [Source: specs/api/fastapi-backend-api.openapi.yml#Agent Endpoints]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 async def _call_explanation(
     request: ExplainRequest,
@@ -1093,7 +1142,7 @@ async def _call_explanation(
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
         node_id=request.node_id,
-        agent_type=f"explain_{explanation_type}"
+        agent_type=f"explain_{explanation_type}",
     )
 
     try:
@@ -1106,47 +1155,49 @@ async def _call_explanation(
             f"has_realtime_content={has_realtime_content}"
         )
 
-        # Story 25.2: Get enriched context (includes textbook references)
+        # Story 25.2: Get enriched context (includes adjacent nodes)
         # Story 12.B.1: 增强异常捕获
         try:
             enriched = await context_service.enrich_with_adjacent_nodes(
-                canvas_name=request.canvas_name,
-                node_id=request.node_id
+                canvas_name=request.canvas_name, node_id=request.node_id
             )
         except CanvasNotFoundException as err:
             # Story 12.B.1: Canvas文件不存在
             logger.warning(f"Canvas not found: {request.canvas_name}")
             raise HTTPException(
                 status_code=404,
-                detail=f"Canvas file not found: {request.canvas_name}. Please check the file path."
+                detail=f"Canvas file not found: {request.canvas_name}. Please check the file path.",
             ) from err
         except ValueError as err:
             # Story 12.B.1: 节点不存在
-            logger.warning(f"Node not found: {request.node_id} in {request.canvas_name}")
+            logger.warning(
+                f"Node not found: {request.node_id} in {request.canvas_name}"
+            )
             raise HTTPException(
                 status_code=404,
-                detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
+                detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}",
             ) from err
         except Exception as err:
             # Story 12.B.1: 意外的上下文获取错误
-            logger.error(f"Context enrichment failed unexpectedly: {err}", exc_info=True)
+            logger.error(
+                f"Context enrichment failed unexpectedly: {err}", exc_info=True
+            )
             raise HTTPException(
-                status_code=500,
-                detail=f"Failed to read canvas context: {str(err)}"
+                status_code=500, detail=f"Failed to read canvas context: {str(err)}"
             ) from err
 
         # Story 12.A.2: Get RAG context with timeout (AC4: <2s, AC5: graceful degradation)
         rag_context = await get_rag_context_with_timeout(
             rag_service=rag_service,
             query=enriched.target_content,
-            canvas_name=request.canvas_name
+            canvas_name=request.canvas_name,
         )
 
-        # Story 25.2 AC5: Log textbook context usage + Story 12.A.2: Log RAG context
+        # Story 12.A.2: Log RAG context
         logger.info(
             f"explain_{explanation_type}: canvas={request.canvas_name}, node={request.node_id}, "
             f"pos=({enriched.x},{enriched.y},{enriched.width},{enriched.height}), "
-            f"has_textbook_refs={enriched.has_textbook_refs}, has_rag_context={rag_context is not None}"
+            f"has_rag_context={rag_context is not None}"
         )
 
         # Story 12.D.3: Log received node content for debugging trace
@@ -1161,7 +1212,9 @@ async def _call_explanation(
 
         # Story 12.B.2: 优先使用实时传入的节点内容，fallback到磁盘读取的内容
         # 这是核心修复：确保Agent使用正确的节点内容
-        effective_content = request.node_content if request.node_content else enriched.target_content
+        effective_content = (
+            request.node_content if request.node_content else enriched.target_content
+        )
 
         # ═══════════════════════════════════════════════════════════════════════
         # Story 12.E.5: 多模态图片提取和加载 (AC 5.2)
@@ -1186,7 +1239,9 @@ async def _call_explanation(
                 # Canvas file directory (for ./ relative paths)
                 # Canvas files are stored in vault_path/{canvas_name}.canvas
                 canvas_file_path = vault_path / f"{request.canvas_name}.canvas"
-                canvas_dir = canvas_file_path.parent if canvas_file_path.exists() else vault_path
+                canvas_dir = (
+                    canvas_file_path.parent if canvas_file_path.exists() else vault_path
+                )
 
                 # Story 12.E.5-fix: Get source file directory for MD embedded images
                 # When node is a "file" type pointing to an MD, images should resolve relative to MD location
@@ -1199,7 +1254,7 @@ async def _call_explanation(
                     image_refs,
                     vault_path=vault_path,
                     canvas_dir=canvas_dir,
-                    source_file_dir=source_file_dir  # Story 12.E.5-fix: MD file directory
+                    source_file_dir=source_file_dir,  # Story 12.E.5-fix: MD file directory
                 )
 
                 # Load images for API
@@ -1220,7 +1275,7 @@ async def _call_explanation(
             images = []
         # ═══════════════════════════════════════════════════════════════════════
 
-        # Story 25.2: Pass enriched context to agent (includes textbook refs per AC3)
+        # Story 25.2: Pass enriched context to agent
         # Story 12.B.1: 日志记录Agent调用参数
         # Story 12.B.2: 增加内容来源日志
         content_source = "realtime" if request.node_content else "disk"
@@ -1244,7 +1299,7 @@ async def _call_explanation(
             canvas_name=request.canvas_name,
             node_id=request.node_id,
             content=effective_content,  # Story 12.B.2: 使用有效内容
-            adjacent_context=enriched.enriched_context,  # Includes textbook refs per AC3
+            adjacent_context=enriched.enriched_context,
             explanation_type=explanation_type,
             source_x=enriched.x,
             source_y=enriched.y,
@@ -1261,7 +1316,7 @@ async def _call_explanation(
             agent_type=f"explain_{explanation_type}",
             canvas_path=request.canvas_name,
             node_id=request.node_id,
-            concept=enriched.target_content[:100]
+            concept=enriched.target_content[:100],
         )
 
         # Story 12.B.1: 成功日志
@@ -1291,7 +1346,7 @@ async def _call_explanation(
         logger.error(f"Agent service timeout for {explanation_type}: {e}")
         raise HTTPException(
             status_code=504,
-            detail=f"AI service timeout: The {explanation_type} explanation took too long to generate."
+            detail=f"AI service timeout: The {explanation_type} explanation took too long to generate.",
         ) from e
     except ConnectionError as e:
         # Story 12.B.1: AI服务连接失败
@@ -1300,11 +1355,13 @@ async def _call_explanation(
         logger.error(f"Agent service connection error: {e}")
         raise HTTPException(
             status_code=503,
-            detail="AI service unavailable: Cannot connect to the AI provider."
+            detail="AI service unavailable: Cannot connect to the AI provider.",
         ) from e
     except UnicodeEncodeError as e:
         # Story 12.J.4: Explicit encoding error handling
-        raise _create_encoding_error_response(e, f"explain_{explanation_type}", cache_key) from e
+        raise _create_encoding_error_response(
+            e, f"explain_{explanation_type}", cache_key
+        ) from e
     except Exception as e:
         # Story 12.B.1: 其他Agent错误
         # Story 12.H.5: Cancel request to allow retry
@@ -1316,17 +1373,15 @@ async def _call_explanation(
         if "rate limit" in error_msg.lower() or "429" in error_msg:
             raise HTTPException(
                 status_code=429,
-                detail="AI service rate limited: Please try again in a few moments."
+                detail="AI service rate limited: Please try again in a few moments.",
             ) from e
         elif "api key" in error_msg.lower() or "authentication" in error_msg.lower():
             raise HTTPException(
-                status_code=503,
-                detail="AI service configuration error: API key issue."
+                status_code=503, detail="AI service configuration error: API key issue."
             ) from e
         else:
             raise HTTPException(
-                status_code=500,
-                detail=f"Agent service error: {error_msg}"
+                status_code=500, detail=f"Agent service error: {error_msg}"
             ) from e
 
 
@@ -1356,7 +1411,15 @@ async def explain_oral(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
-    return await _call_explanation(request, "oral", agent_service, context_service, rag_service, background_tasks, memory_service)
+    return await _call_explanation(
+        request,
+        "oral",
+        agent_service,
+        context_service,
+        rag_service,
+        background_tasks,
+        memory_service,
+    )
 
 
 @agents_router.post(
@@ -1385,7 +1448,15 @@ async def explain_clarification(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
-    return await _call_explanation(request, "clarification", agent_service, context_service, rag_service, background_tasks, memory_service)
+    return await _call_explanation(
+        request,
+        "clarification",
+        agent_service,
+        context_service,
+        rag_service,
+        background_tasks,
+        memory_service,
+    )
 
 
 @agents_router.post(
@@ -1414,7 +1485,15 @@ async def explain_comparison(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
-    return await _call_explanation(request, "comparison", agent_service, context_service, rag_service, background_tasks, memory_service)
+    return await _call_explanation(
+        request,
+        "comparison",
+        agent_service,
+        context_service,
+        rag_service,
+        background_tasks,
+        memory_service,
+    )
 
 
 @agents_router.post(
@@ -1443,7 +1522,15 @@ async def explain_memory(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
-    return await _call_explanation(request, "memory", agent_service, context_service, rag_service, background_tasks, memory_service)
+    return await _call_explanation(
+        request,
+        "memory",
+        agent_service,
+        context_service,
+        rag_service,
+        background_tasks,
+        memory_service,
+    )
 
 
 @agents_router.post(
@@ -1472,7 +1559,15 @@ async def explain_four_level(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
-    return await _call_explanation(request, "four-level", agent_service, context_service, rag_service, background_tasks, memory_service)
+    return await _call_explanation(
+        request,
+        "four-level",
+        agent_service,
+        context_service,
+        rag_service,
+        background_tasks,
+        memory_service,
+    )
 
 
 @agents_router.post(
@@ -1501,13 +1596,22 @@ async def explain_example(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
-    return await _call_explanation(request, "example", agent_service, context_service, rag_service, background_tasks, memory_service)
+    return await _call_explanation(
+        request,
+        "example",
+        agent_service,
+        context_service,
+        rag_service,
+        background_tasks,
+        memory_service,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Story 12.A.6: verification-question and question-decomposition Agents
 # [Source: docs/stories/story-12.A.6-complete-agents.md]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @agents_router.post(
     "/verification/question",
@@ -1539,28 +1643,27 @@ async def generate_verification_questions(
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
         node_id=request.node_id,
-        agent_type="verification_question"
+        agent_type="verification_question",
     )
 
     # AC3a: Get enriched context with adjacent nodes
     try:
         enriched = await context_service.enrich_with_adjacent_nodes(
-            canvas_name=request.canvas_name,
-            node_id=request.node_id
+            canvas_name=request.canvas_name, node_id=request.node_id
         )
     except ValueError as err:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
         raise HTTPException(
             status_code=404,
-            detail=f"Node not found: canvas={request.canvas_name}, node_id={request.node_id}"
+            detail=f"Node not found: canvas={request.canvas_name}, node_id={request.node_id}",
         ) from err
 
     # Story 12.A.2: Get RAG context with timeout (AC4: <2s, AC5: graceful degradation)
     rag_context = await get_rag_context_with_timeout(
         rag_service=rag_service,
         query=enriched.target_content,
-        canvas_name=request.canvas_name
+        canvas_name=request.canvas_name,
     )
 
     logger.info(
@@ -1587,6 +1690,7 @@ async def generate_verification_questions(
 
         # Convert to response model
         from datetime import datetime
+
         questions = [
             VerificationQuestion(
                 source_node_id=q.get("source_node_id", request.node_id),
@@ -1610,12 +1714,16 @@ async def generate_verification_questions(
         )
     except UnicodeEncodeError as e:
         # Story 12.J.4: Explicit encoding error handling
-        raise _create_encoding_error_response(e, "generate_verification_questions", cache_key) from e
+        raise _create_encoding_error_response(
+            e, "generate_verification_questions", cache_key
+        ) from e
     except Exception as e:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
         logger.error(f"generate_verification_questions failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Agent service error: {str(e)}"
+        ) from e
 
 
 @agents_router.post(
@@ -1648,28 +1756,27 @@ async def decompose_question(
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
         node_id=request.node_id,
-        agent_type="decompose_question"
+        agent_type="decompose_question",
     )
 
     # AC3a: Get enriched context with adjacent nodes
     try:
         enriched = await context_service.enrich_with_adjacent_nodes(
-            canvas_name=request.canvas_name,
-            node_id=request.node_id
+            canvas_name=request.canvas_name, node_id=request.node_id
         )
     except ValueError as err:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
         raise HTTPException(
             status_code=404,
-            detail=f"Node not found: canvas={request.canvas_name}, node_id={request.node_id}"
+            detail=f"Node not found: canvas={request.canvas_name}, node_id={request.node_id}",
         ) from err
 
     # Story 12.A.2: Get RAG context with timeout (AC4: <2s, AC5: graceful degradation)
     rag_context = await get_rag_context_with_timeout(
         rag_service=rag_service,
         query=enriched.target_content,
-        canvas_name=request.canvas_name
+        canvas_name=request.canvas_name,
     )
 
     logger.info(
@@ -1718,7 +1825,9 @@ async def decompose_question(
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
         logger.error(f"decompose_question failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Agent service error: {str(e)}"
+        ) from e
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1790,14 +1899,19 @@ def _recommend_action_from_score(
         if history_context.trend == ActionTrend.declining:
             review_suggested = True
             priority = 1
-        if history_context.consecutive_low_count and history_context.consecutive_low_count >= 3:
+        if (
+            history_context.consecutive_low_count
+            and history_context.consecutive_low_count >= 3
+        ):
             review_suggested = True
             priority = 1
             # Suggest memory anchor as alternative for persistent low scores
-            alternatives.append(AlternativeAgent(
-                agent="/agents/explain/memory",
-                reason="尝试记忆锚点帮助建立概念关联"
-            ))
+            alternatives.append(
+                AlternativeAgent(
+                    agent="/agents/explain/memory",
+                    reason="尝试记忆锚点帮助建立概念关联",
+                )
+            )
 
     # AC-31.3.3: Score-based action determination
     if score < 60:
@@ -1805,7 +1919,11 @@ def _recommend_action_from_score(
         agent = "/agents/decompose/basic"
         reason = "概念理解不足，建议进行基础拆解"
         priority = min(priority, 1)
-        if history_context and history_context.consecutive_low_count and history_context.consecutive_low_count >= 3:
+        if (
+            history_context
+            and history_context.consecutive_low_count
+            and history_context.consecutive_low_count >= 3
+        ):
             reason = "连续多次低分，建议从基础开始重新学习"
     elif score < 80:
         action = ActionType.explain
@@ -1877,7 +1995,7 @@ async def recommend_action(
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
         node_id=request.node_id,
-        agent_type="recommend_action"
+        agent_type="recommend_action",
     )
 
     logger.info(
@@ -1901,14 +2019,13 @@ async def recommend_action(
                 user_id="default",
                 concept=concept_query,
                 page=1,
-                page_size=10  # Get more to ensure enough scored items after filtering
+                page_size=10,  # Get more to ensure enough scored items after filtering
             )
 
             # Extract scores from history items.
             items = history_result.get("items", [])
             valid_items = [
-                it for it in items
-                if "score" in it and it["score"] is not None
+                it for it in items if "score" in it and it["score"] is not None
             ]
 
             # [Review fix SORT-001]: Sort by timestamp if available, otherwise trust source order.
@@ -1922,7 +2039,9 @@ async def recommend_action(
                 try:
                     recent_scores.append(int(float(it["score"])))
                 except (ValueError, TypeError):
-                    logger.warning(f"[Story 31.3] Skipping non-numeric score: {it.get('score')}")
+                    logger.warning(
+                        f"[Story 31.3] Skipping non-numeric score: {it.get('score')}"
+                    )
 
             if recent_scores:
                 # Calculate history context
@@ -1940,22 +2059,29 @@ async def recommend_action(
                     recent_scores=recent_scores[:5],
                     average_score=round(avg_score, 1),
                     trend=trend,
-                    consecutive_low_count=consecutive_low
+                    consecutive_low_count=consecutive_low,
                 )
                 logger.info(
                     f"[Story 31.3] History context: avg={avg_score:.1f}, "
                     f"trend={trend.value}, consecutive_low={consecutive_low}"
                 )
 
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError, TypeError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            asyncio.TimeoutError,
+            ValueError,
+            TypeError,
+        ) as e:
             # Graceful degradation: continue without history
             logger.warning(f"[Story 31.3] Failed to get learning history: {e}")
             history_context = None
 
     # Determine recommendation
-    action, reason, agent, priority, review_suggested, alternatives = _recommend_action_from_score(
-        score=request.score,
-        history_context=history_context
+    action, reason, agent, priority, review_suggested, alternatives = (
+        _recommend_action_from_score(
+            score=request.score, history_context=history_context
+        )
     )
 
     logger.info(
@@ -1973,5 +2099,5 @@ async def recommend_action(
         priority=priority,
         review_suggested=review_suggested,
         history_context=history_context,
-        alternative_agents=alternatives
+        alternative_agents=alternatives,
     )

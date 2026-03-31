@@ -21,7 +21,7 @@ if str(project_root) not in sys.path:
 
 
 # Configure pytest-asyncio
-pytest_plugins = ('pytest_asyncio',)
+pytest_plugins = ("pytest_asyncio",)
 
 
 @pytest.fixture(scope="session")
@@ -40,6 +40,7 @@ def reset_global_clients():
     # 重置全局客户端
     try:
         import agentic_rag.nodes as nodes_module
+
         nodes_module._graphiti_client = None
         nodes_module._lancedb_client = None
         nodes_module._temporal_client = None

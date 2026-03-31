@@ -16,7 +16,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
-
 from app.models.mastery_state import ConceptState, MasteryConfig
 from app.services.mastery_engine import MasteryEngine
 
@@ -80,7 +79,9 @@ class TestFSRSNewCard:
 
     def test_subsequent_review_deserializes(self, engine_with_fsrs, stub_fsrs):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
+            concept_id="t",
+            topic="t",
+            name="t",
             fsrs_card_data='{"stability": 1.0}',
         )
         engine_with_fsrs.update_on_interaction(concept, grade=3)
@@ -139,7 +140,9 @@ class TestRetrievability:
 
     def test_retrievability_with_fsrs(self, engine_with_fsrs, stub_fsrs):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
+            concept_id="t",
+            topic="t",
+            name="t",
             fsrs_card_data='{"stability": 3.5}',
         )
         R = engine_with_fsrs._get_retrievability(concept)
@@ -153,7 +156,9 @@ class TestRetrievability:
 
     def test_retrievability_no_fsrs_with_interaction(self, engine_no_fsrs):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
+            concept_id="t",
+            topic="t",
+            name="t",
             last_interaction_ts=datetime.now(timezone.utc) - timedelta(days=3),
             fsrs_stability=2.0,
         )
@@ -163,7 +168,9 @@ class TestRetrievability:
 
     def test_retrievability_fallback_stability_min_1(self, engine_no_fsrs):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
+            concept_id="t",
+            topic="t",
+            name="t",
             last_interaction_ts=datetime.now(timezone.utc) - timedelta(days=1),
             fsrs_stability=0.0,
         )
@@ -173,7 +180,9 @@ class TestRetrievability:
 
     def test_retrievability_no_card_json_but_has_manager(self, engine_with_fsrs):
         concept = ConceptState(
-            concept_id="t", topic="t", name="t",
+            concept_id="t",
+            topic="t",
+            name="t",
             fsrs_card_data=None,
             last_interaction_ts=datetime.now(timezone.utc) - timedelta(days=1),
             fsrs_stability=5.0,

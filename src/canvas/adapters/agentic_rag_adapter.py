@@ -20,21 +20,22 @@ Created: 2025-11-29
 Story: 12.10 - Canvas检验白板生成集成
 """
 
-import asyncio
 import time
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 try:
     from loguru import logger
+
     LOGURU_ENABLED = True
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
     LOGURU_ENABLED = False
 
 # ✅ Verified imports from agentic_rag package
-from agentic_rag import canvas_agentic_rag, CanvasRAGConfig, CanvasRAGState
+from agentic_rag import CanvasRAGConfig, canvas_agentic_rag
 
 
 @dataclass
@@ -49,6 +50,7 @@ class VerificationContext:
         output_canvas_file: 输出检验白板文件路径
         max_questions_per_node: 每个节点生成的检验题数量 (默认2-3)
     """
+
     canvas_file: str
     red_purple_nodes: List[Dict[str, Any]]
     output_canvas_file: str
@@ -69,6 +71,7 @@ class RAGRetrievalResult:
         total_latency_ms: 总检索延迟 (ms)
         is_fallback: 是否为降级结果 (True表示RAG失败,使用fallback)
     """
+
     reranked_results: List[Dict[str, Any]]
     quality_grade: str
     fusion_strategy_used: str
@@ -108,7 +111,7 @@ class AgenticRAGAdapter:
     def __init__(
         self,
         fallback_retriever: Optional[Any] = None,
-        enable_performance_monitoring: bool = True
+        enable_performance_monitoring: bool = True,
     ):
         """
         初始化AgenticRAGAdapter
@@ -142,7 +145,7 @@ class AgenticRAGAdapter:
     async def retrieve_for_verification(
         self,
         context: VerificationContext,
-        custom_config: Optional[CanvasRAGConfig] = None
+        custom_config: Optional[CanvasRAGConfig] = None,
     ) -> RAGRetrievalResult:
         """
         为检验白板生成执行Agentic RAG检索
@@ -240,8 +243,7 @@ class AgenticRAGAdapter:
             if self.fallback_retriever:
                 try:
                     fallback_results = await self._fallback_lancedb_search(
-                        context.canvas_file,
-                        concepts
+                        context.canvas_file, concepts
                     )
                 except Exception as fb_error:
                     if LOGURU_ENABLED:
@@ -258,9 +260,7 @@ class AgenticRAGAdapter:
             )
 
     async def _fallback_lancedb_search(
-        self,
-        canvas_file: str,
-        concepts: List[str]
+        self, canvas_file: str, concepts: List[str]
     ) -> List[Dict[str, Any]]:
         """
         降级检索: 仅使用LanceDB (无融合,无Reranking)

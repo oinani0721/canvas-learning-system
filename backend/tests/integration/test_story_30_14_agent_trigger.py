@@ -12,23 +12,22 @@ Task 3: Mapping completeness static analysis tests (AC-30.14.3)
 
 import re
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.core.agent_memory_mapping import (
     AGENT_MEMORY_MAPPING,
-    AgentMemoryType,
     ALL_AGENT_NAMES,
+    AgentMemoryType,
     get_memory_type_for_agent,
     is_memory_enabled_agent,
 )
 from app.services.agent_service import AgentType
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_gemini_client():
@@ -47,6 +46,7 @@ def mock_memory_client():
 @pytest.fixture
 def agent_service(mock_gemini_client, mock_memory_client):
     from app.services.agent_service import AgentService
+
     service = AgentService(
         gemini_client=mock_gemini_client,
         memory_client=mock_memory_client,
@@ -89,22 +89,25 @@ class TestAgentMemoryMapping:
         """Unmapped agent returns False for is_memory_enabled."""
         assert is_memory_enabled_agent("nonexistent-agent") is False
 
-    @pytest.mark.parametrize("agent_name,expected_type", [
-        ("basic-decomposition", AgentMemoryType.DECOMPOSITION_COMPLETED),
-        ("deep-decomposition", AgentMemoryType.DECOMPOSITION_COMPLETED),
-        ("question-decomposition", AgentMemoryType.DECOMPOSITION_COMPLETED),
-        ("scoring-agent", AgentMemoryType.SCORING_COMPLETED),
-        ("four-level-explanation", AgentMemoryType.EXPLANATION_GENERATED),
-        ("oral-explanation", AgentMemoryType.EXPLANATION_GENERATED),
-        ("example-teaching", AgentMemoryType.EXPLANATION_GENERATED),
-        ("clarification-path", AgentMemoryType.EXPLANATION_GENERATED),
-        ("comparison-table", AgentMemoryType.EXPLANATION_GENERATED),
-        ("verification-question-agent", AgentMemoryType.EXPLANATION_GENERATED),
-        ("memory-anchor", AgentMemoryType.NODE_CREATED),
-        ("canvas-orchestrator", AgentMemoryType.CANVAS_OPENED),
-        ("review-board-agent-selector", AgentMemoryType.CONCEPT_REVIEWED),
-        ("graphiti-memory-agent", AgentMemoryType.CONCEPT_REVIEWED),
-    ])
+    @pytest.mark.parametrize(
+        "agent_name,expected_type",
+        [
+            ("basic-decomposition", AgentMemoryType.DECOMPOSITION_COMPLETED),
+            ("deep-decomposition", AgentMemoryType.DECOMPOSITION_COMPLETED),
+            ("question-decomposition", AgentMemoryType.DECOMPOSITION_COMPLETED),
+            ("scoring-agent", AgentMemoryType.SCORING_COMPLETED),
+            ("four-level-explanation", AgentMemoryType.EXPLANATION_GENERATED),
+            ("oral-explanation", AgentMemoryType.EXPLANATION_GENERATED),
+            ("example-teaching", AgentMemoryType.EXPLANATION_GENERATED),
+            ("clarification-path", AgentMemoryType.EXPLANATION_GENERATED),
+            ("comparison-table", AgentMemoryType.EXPLANATION_GENERATED),
+            ("verification-question-agent", AgentMemoryType.EXPLANATION_GENERATED),
+            ("memory-anchor", AgentMemoryType.NODE_CREATED),
+            ("canvas-orchestrator", AgentMemoryType.CANVAS_OPENED),
+            ("review-board-agent-selector", AgentMemoryType.CONCEPT_REVIEWED),
+            ("graphiti-memory-agent", AgentMemoryType.CONCEPT_REVIEWED),
+        ],
+    )
     def test_agent_type_mapping_correct(self, agent_name, expected_type):
         """Each agent maps to the correct AgentMemoryType."""
         assert get_memory_type_for_agent(agent_name) == expected_type
@@ -152,6 +155,7 @@ class TestTriggerMemoryWriteParametrized:
 # ============================================================================
 # Task 2: Agent Failure Degradation Tests (AC-30.14.2)
 # ============================================================================
+
 
 class TestAgentFailureDegradation:
     """AC-30.14.2: Degradation tests for agent/memory failures."""
@@ -237,6 +241,7 @@ class TestAgentFailureDegradation:
 # Task 3: Mapping Completeness Static Analysis Tests (AC-30.14.3)
 # ============================================================================
 
+
 class TestMappingCompleteness:
     """AC-30.14.3: Static analysis of mapping completeness."""
 
@@ -276,7 +281,10 @@ class TestMappingCompleteness:
 
         unused = all_types - used_types
         # REVIEW_CANVAS_CREATED may not yet be used
-        allowed_unused = {AgentMemoryType.REVIEW_CANVAS_CREATED, AgentMemoryType.NODE_UPDATED}
+        allowed_unused = {
+            AgentMemoryType.REVIEW_CANVAS_CREATED,
+            AgentMemoryType.NODE_UPDATED,
+        }
         unexpected_unused = unused - allowed_unused
 
         assert unexpected_unused == set(), (
@@ -289,7 +297,12 @@ class TestMappingCompleteness:
         This is a static analysis test that scans the agent_service.py source code
         for _trigger_memory_write calls and extracts the agent_type arguments.
         """
-        agent_service_path = Path(__file__).parent.parent.parent / "app" / "services" / "agent_service.py"
+        agent_service_path = (
+            Path(__file__).parent.parent.parent
+            / "app"
+            / "services"
+            / "agent_service.py"
+        )
         source = agent_service_path.read_text(encoding="utf-8")
 
         # Find all _trigger_memory_write calls with explicit agent_type="..."
@@ -298,7 +311,9 @@ class TestMappingCompleteness:
 
         # Check that explicitly called agents are in the mapping
         for agent_name in found_agents:
-            assert agent_name in AGENT_MEMORY_MAPPING or agent_name == "hint-generation", (
+            assert (
+                agent_name in AGENT_MEMORY_MAPPING or agent_name == "hint-generation"
+            ), (
                 f"Agent '{agent_name}' has _trigger_memory_write call but is not in AGENT_MEMORY_MAPPING"
             )
 
@@ -311,7 +326,12 @@ class TestMappingCompleteness:
         - verification-question-agent
         - explanation agents via explanation_type_to_agent mapping
         """
-        agent_service_path = Path(__file__).parent.parent.parent / "app" / "services" / "agent_service.py"
+        agent_service_path = (
+            Path(__file__).parent.parent.parent
+            / "app"
+            / "services"
+            / "agent_service.py"
+        )
         source = agent_service_path.read_text(encoding="utf-8")
 
         # Agents that MUST have direct _trigger_memory_write calls
@@ -334,13 +354,20 @@ class TestMappingCompleteness:
 
     def test_explanation_type_mapping_covers_explanation_agents(self):
         """The explanation_type_to_agent mapping covers all explanation-type agents."""
-        agent_service_path = Path(__file__).parent.parent.parent / "app" / "services" / "agent_service.py"
+        agent_service_path = (
+            Path(__file__).parent.parent.parent
+            / "app"
+            / "services"
+            / "agent_service.py"
+        )
         source = agent_service_path.read_text(encoding="utf-8")
 
         # Extract explanation_type_to_agent dict from source
-        pattern = r'explanation_type_to_agent\s*=\s*\{([^}]+)\}'
+        pattern = r"explanation_type_to_agent\s*=\s*\{([^}]+)\}"
         match = re.search(pattern, source)
-        assert match is not None, "explanation_type_to_agent dict not found in agent_service.py"
+        assert match is not None, (
+            "explanation_type_to_agent dict not found in agent_service.py"
+        )
 
         dict_content = match.group(1)
         # Extract agent names from the dict values
@@ -366,10 +393,18 @@ class TestMappingCompleteness:
         """hint-generation is in AGENT_MEMORY_MAPPING (C1 fix) AND has a call site in verification_service.py."""
         # C1 fix: hint-generation is now properly in the mapping
         assert "hint-generation" in AGENT_MEMORY_MAPPING
-        assert AGENT_MEMORY_MAPPING["hint-generation"] == AgentMemoryType.EXPLANATION_GENERATED
+        assert (
+            AGENT_MEMORY_MAPPING["hint-generation"]
+            == AgentMemoryType.EXPLANATION_GENERATED
+        )
 
         # It also has a call site in verification_service.py
-        verification_path = Path(__file__).parent.parent.parent / "app" / "services" / "verification_service.py"
+        verification_path = (
+            Path(__file__).parent.parent.parent
+            / "app"
+            / "services"
+            / "verification_service.py"
+        )
         source = verification_path.read_text(encoding="utf-8")
         assert "hint-generation" in source, (
             "hint-generation should have a call site in verification_service.py"

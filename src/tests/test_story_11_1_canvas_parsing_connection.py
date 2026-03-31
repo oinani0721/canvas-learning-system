@@ -18,7 +18,7 @@ from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from canvas_progress_tracker.canvas_monitor_engine import (
     CanvasChange,
@@ -51,32 +51,30 @@ class TestCanvasParsingConnection:
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "1"
+                    "color": "1",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
     @pytest.fixture
     def canvas_file(self, temp_canvas_dir, sample_canvas_content):
         """创建Canvas测试文件"""
         canvas_path = os.path.join(temp_canvas_dir, "test.canvas")
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(sample_canvas_content, f, ensure_ascii=False, indent=2)
         return canvas_path
 
     def test_debounce_triggers_parsing(self, temp_canvas_dir, canvas_file):
         """测试防抖触发解析 (AC: 1)"""
         # Arrange
-        config = MonitorConfig(
-            base_path=temp_canvas_dir,
-            debounce_delay_ms=500
-        )
+        config = MonitorConfig(base_path=temp_canvas_dir, debounce_delay_ms=500)
         engine = CanvasMonitorEngine(temp_canvas_dir, config)
         engine.add_canvas_watch(canvas_file)
         engine.start_monitoring()
 
         callback_called = []
+
         def test_callback(change: CanvasChange):
             callback_called.append(change)
 
@@ -93,12 +91,12 @@ class TestCanvasParsingConnection:
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "2"  # 红色 -> 绿色
+                    "color": "2",  # 红色 -> 绿色
                 }
             ],
-            "edges": []
+            "edges": [],
         }
-        with open(canvas_file, 'w', encoding='utf-8') as f:
+        with open(canvas_file, "w", encoding="utf-8") as f:
             json.dump(modified_content, f, ensure_ascii=False, indent=2)
 
         # 等待防抖触发 (500ms + buffer)
@@ -107,8 +105,9 @@ class TestCanvasParsingConnection:
         # Assert
         engine.stop_monitoring()
         assert len(callback_called) > 0, "回调应该被触发"
-        assert any(change.change_type == CanvasChangeType.UPDATE for change in callback_called), \
-            "应该检测到UPDATE变更"
+        assert any(
+            change.change_type == CanvasChangeType.UPDATE for change in callback_called
+        ), "应该检测到UPDATE变更"
 
     def test_changes_trigger_callbacks(self, temp_canvas_dir, canvas_file):
         """测试变更检测与回调触发 (AC: 2, 3)"""
@@ -139,10 +138,10 @@ class TestCanvasParsingConnection:
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "2"
+                    "color": "2",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
         changes = engine._detect_canvas_changes(canvas_file, modified_content)
@@ -151,7 +150,9 @@ class TestCanvasParsingConnection:
         # Assert
         assert len(callback1_calls) > 0, "第一个回调应该被调用"
         assert len(callback2_calls) > 0, "第二个回调应该被调用"
-        assert len(callback1_calls) == len(callback2_calls), "两个回调应该接收相同数量的变更"
+        assert len(callback1_calls) == len(callback2_calls), (
+            "两个回调应该接收相同数量的变更"
+        )
 
         # 验证接收到的变更对象
         for change in callback1_calls:
@@ -176,7 +177,7 @@ class TestCanvasParsingConnection:
                     "y": 150,  # 位置变更: 100 -> 150
                     "width": 400,
                     "height": 300,
-                    "color": "2"  # 颜色变更: "1" -> "2"
+                    "color": "2",  # 颜色变更: "1" -> "2"
                 },
                 {
                     "id": "node2",  # 新增节点
@@ -186,10 +187,10 @@ class TestCanvasParsingConnection:
                     "y": 500,
                     "width": 400,
                     "height": 300,
-                    "color": "3"
-                }
+                    "color": "3",
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
         changes = engine._detect_canvas_changes(canvas_file, modified_content)
@@ -202,7 +203,9 @@ class TestCanvasParsingConnection:
         assert CanvasChangeType.UPDATE in change_types, "应该有UPDATE变更"
 
         # 验证新增节点
-        create_changes = [c for c in changes if c.change_type == CanvasChangeType.CREATE]
+        create_changes = [
+            c for c in changes if c.change_type == CanvasChangeType.CREATE
+        ]
         assert len(create_changes) == 1
         assert create_changes[0].node_id == "node2"
 
@@ -241,10 +244,10 @@ class TestCanvasParsingConnection:
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "2"
+                    "color": "2",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
         changes = engine._detect_canvas_changes(canvas_file, modified_content)
@@ -284,10 +287,10 @@ class TestCanvasParsingConnection:
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "2"
+                    "color": "2",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
         changes = engine._detect_canvas_changes(canvas_file, modified_content)
@@ -308,15 +311,13 @@ class TestCanvasParsingConnection:
     def test_debounce_merges_rapid_changes(self, temp_canvas_dir, canvas_file):
         """测试防抖合并快速变更 (AC: 1)"""
         # Arrange
-        config = MonitorConfig(
-            base_path=temp_canvas_dir,
-            debounce_delay_ms=500
-        )
+        config = MonitorConfig(base_path=temp_canvas_dir, debounce_delay_ms=500)
         engine = CanvasMonitorEngine(temp_canvas_dir, config)
         engine.add_canvas_watch(canvas_file)
         engine.start_monitoring()
 
         callback_calls = []
+
         def test_callback(change: CanvasChange):
             callback_calls.append(change)
 
@@ -334,12 +335,12 @@ class TestCanvasParsingConnection:
                         "y": 100,
                         "width": 400,
                         "height": 300,
-                        "color": "1"
+                        "color": "1",
                     }
                 ],
-                "edges": []
+                "edges": [],
             }
-            with open(canvas_file, 'w', encoding='utf-8') as f:
+            with open(canvas_file, "w", encoding="utf-8") as f:
                 json.dump(modified_content, f, ensure_ascii=False, indent=2)
             time.sleep(0.05)  # 50ms间隔
 
@@ -358,6 +359,7 @@ class TestCanvasParsingConnection:
         engine = CanvasMonitorEngine(temp_canvas_dir)
 
         callback_called = []
+
         def test_callback(change: CanvasChange):
             callback_called.append(change)
 
@@ -368,7 +370,7 @@ class TestCanvasParsingConnection:
             change_id="test_change",
             canvas_id="non_existent.canvas",
             change_type=CanvasChangeType.UPDATE,
-            file_path=non_existent_file
+            file_path=non_existent_file,
         )
         engine.debounce_manager.add_change(non_existent_file, change)
 
@@ -385,8 +387,9 @@ class TestCanvasParsingConnection:
         engine = CanvasMonitorEngine(temp_dir)
 
         # Assert
-        assert engine.debounce_manager.monitor_engine is engine, \
+        assert engine.debounce_manager.monitor_engine is engine, (
             "DebounceManager应该持有monitor_engine引用"
+        )
 
         # Cleanup
         os.rmdir(temp_dir)
@@ -400,14 +403,16 @@ class TestCanvasParsingConnection:
             change_id="test",
             canvas_id="test.canvas",
             change_type=CanvasChangeType.UPDATE,
-            file_path=canvas_file
+            file_path=canvas_file,
         )
         debounce_manager.add_change(canvas_file, change)
 
         # Act & Assert - 不应该崩溃
         time.sleep(0.7)
 
-    def test_process_canvas_changes_with_no_callbacks(self, temp_canvas_dir, canvas_file):
+    def test_process_canvas_changes_with_no_callbacks(
+        self, temp_canvas_dir, canvas_file
+    ):
         """测试没有注册回调时的_process_canvas_changes"""
         # Arrange
         engine = CanvasMonitorEngine(temp_canvas_dir)
@@ -424,10 +429,10 @@ class TestCanvasParsingConnection:
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "2"
+                    "color": "2",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
         changes = engine._detect_canvas_changes(canvas_file, modified_content)
@@ -440,12 +445,13 @@ class TestCanvasParsingConnection:
         """测试JSON格式错误时的处理"""
         # Arrange
         invalid_canvas_path = os.path.join(temp_canvas_dir, "invalid.canvas")
-        with open(invalid_canvas_path, 'w', encoding='utf-8') as f:
+        with open(invalid_canvas_path, "w", encoding="utf-8") as f:
             f.write("{invalid json content}")
 
         engine = CanvasMonitorEngine(temp_canvas_dir)
 
         callback_called = []
+
         def test_callback(change: CanvasChange):
             callback_called.append(change)
 
@@ -456,7 +462,7 @@ class TestCanvasParsingConnection:
             change_id="test",
             canvas_id="invalid.canvas",
             change_type=CanvasChangeType.UPDATE,
-            file_path=invalid_canvas_path
+            file_path=invalid_canvas_path,
         )
         engine.debounce_manager.add_change(invalid_canvas_path, change)
 
@@ -484,20 +490,18 @@ class TestIntegrationVerification:
     def test_debounce_mechanism_unaffected(self, temp_canvas_dir):
         """验证防抖机制未受影响 (IV2)"""
         # Arrange
-        config = MonitorConfig(
-            base_path=temp_canvas_dir,
-            debounce_delay_ms=500
-        )
+        config = MonitorConfig(base_path=temp_canvas_dir, debounce_delay_ms=500)
         engine = CanvasMonitorEngine(temp_canvas_dir, config)
 
         canvas_path = os.path.join(temp_canvas_dir, "test.canvas")
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump({"nodes": [], "edges": []}, f)
 
         engine.add_canvas_watch(canvas_path)
         engine.start_monitoring()
 
         trigger_count = []
+
         def callback(change: CanvasChange):
             trigger_count.append(1)
 
@@ -505,8 +509,10 @@ class TestIntegrationVerification:
 
         # Act - 快速修改3次
         for i in range(3):
-            with open(canvas_path, 'w', encoding='utf-8') as f:
-                json.dump({"nodes": [{"id": f"node{i}", "type": "text"}], "edges": []}, f)
+            with open(canvas_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {"nodes": [{"id": f"node{i}", "type": "text"}], "edges": []}, f
+                )
             time.sleep(0.1)
 
         # 等待防抖触发
@@ -533,14 +539,14 @@ class TestIntegrationVerification:
                     "y": i * 100,
                     "width": 400,
                     "height": 300,
-                    "color": "1"
+                    "color": "1",
                 }
                 for i in range(10)
             ],
-            "edges": []
+            "edges": [],
         }
 
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(initial_content, f)
 
         engine.add_canvas_watch(canvas_path)
@@ -552,14 +558,8 @@ class TestIntegrationVerification:
 
         # Act - 修改所有节点颜色
         modified_content = {
-            "nodes": [
-                {
-                    **node,
-                    "color": "2"
-                }
-                for node in initial_content["nodes"]
-            ],
-            "edges": []
+            "nodes": [{**node, "color": "2"} for node in initial_content["nodes"]],
+            "edges": [],
         }
 
         start_time = time.time()

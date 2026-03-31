@@ -287,6 +287,7 @@ class TestWebhookNotificationChannel:
 
         # Create mock httpx module
         import sys
+
         mock_httpx = MagicMock()
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(side_effect=Exception("Connection failed"))

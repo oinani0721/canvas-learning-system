@@ -13,14 +13,14 @@ These tests exercise the REAL ReviewService.get_history() business logic
 stubbed out.
 """
 
-import pytest
-from datetime import datetime, date, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import date, datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from app.services.review_service import ReviewService
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _make_service(card_states: dict = None) -> ReviewService:
     """Create ReviewService with mock infrastructure, real business logic."""
@@ -51,6 +51,7 @@ def _today() -> date:
 
 
 # ── AC-32.4.2: streak_days calculation ───────────────────────────────────────
+
 
 class TestStreakDaysCalculation:
     """Verify consecutive-day streak algorithm in get_history()."""
@@ -134,7 +135,9 @@ class TestStreakDaysCalculation:
                 datetime(today.year, today.month, today.day, 14, 0, 0).isoformat()
             ),
             "math.canvas:c": _card(
-                datetime(yesterday.year, yesterday.month, yesterday.day, 9, 0, 0).isoformat()
+                datetime(
+                    yesterday.year, yesterday.month, yesterday.day, 9, 0, 0
+                ).isoformat()
             ),
         }
         svc = _make_service(card_states=states)
@@ -143,6 +146,7 @@ class TestStreakDaysCalculation:
 
 
 # ── AC-32.4.1: review_count (total_count) accuracy ──────────────────────────
+
 
 class TestReviewCountAccuracy:
     """Verify total_count reflects actual number of review records."""
@@ -217,6 +221,7 @@ class TestReviewCountAccuracy:
 
 # ── AC-32.4.3: Card states as data source (persistence proxy) ───────────────
 
+
 class TestCardStatesDataSource:
     """Verify get_history reads from _card_states when Graphiti unavailable."""
 
@@ -280,15 +285,14 @@ class TestCardStatesDataSource:
             "math.canvas:integral": _card(ts),
         }
         svc = _make_service(card_states=states)
-        result = await svc.get_history(
-            days=7, concept_name="derivative", limit=None
-        )
+        result = await svc.get_history(days=7, concept_name="derivative", limit=None)
 
         assert result["total_count"] == 1
         assert result["records"][0]["reviews"][0]["concept_name"] == "derivative"
 
 
 # ── AC-32.4.4: Date grouping for week/month trends ──────────────────────────
+
 
 class TestDateGrouping:
     """Verify records are grouped by date for trend display."""

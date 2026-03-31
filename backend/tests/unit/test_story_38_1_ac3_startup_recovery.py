@@ -10,10 +10,9 @@ import json
 import logging
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC-3: Startup Recovery (D1: Persistence)
@@ -68,8 +67,16 @@ class TestAC3StartupRecovery:
 
             # Write 2 pending entries
             entries = [
-                {"canvas_name": "canvas_a", "timestamp": "2026-01-01T00:00:00", "error": "timeout"},
-                {"canvas_name": "canvas_b", "timestamp": "2026-01-01T00:01:00", "error": "timeout"},
+                {
+                    "canvas_name": "canvas_a",
+                    "timestamp": "2026-01-01T00:00:00",
+                    "error": "timeout",
+                },
+                {
+                    "canvas_name": "canvas_b",
+                    "timestamp": "2026-01-01T00:01:00",
+                    "error": "timeout",
+                },
             ]
             svc._pending_file.write_text(
                 "\n".join(json.dumps(e) for e in entries) + "\n",
@@ -109,8 +116,16 @@ class TestAC3StartupRecovery:
             svc._pending_file = Path(tmpdir) / "pending.jsonl"
 
             entries = [
-                {"canvas_name": "canvas_ok", "timestamp": "2026-01-01T00:00:00", "error": "timeout"},
-                {"canvas_name": "canvas_fail", "timestamp": "2026-01-01T00:01:00", "error": "timeout"},
+                {
+                    "canvas_name": "canvas_ok",
+                    "timestamp": "2026-01-01T00:00:00",
+                    "error": "timeout",
+                },
+                {
+                    "canvas_name": "canvas_fail",
+                    "timestamp": "2026-01-01T00:01:00",
+                    "error": "timeout",
+                },
             ]
             svc._pending_file.write_text(
                 "\n".join(json.dumps(e) for e in entries) + "\n",
@@ -161,8 +176,16 @@ class TestAC3StartupRecovery:
 
             # Same canvas_name twice — should deduplicate
             entries = [
-                {"canvas_name": "canvas_a", "timestamp": "2026-01-01T00:00:00", "error": "first"},
-                {"canvas_name": "canvas_a", "timestamp": "2026-01-01T00:05:00", "error": "second"},
+                {
+                    "canvas_name": "canvas_a",
+                    "timestamp": "2026-01-01T00:00:00",
+                    "error": "first",
+                },
+                {
+                    "canvas_name": "canvas_a",
+                    "timestamp": "2026-01-01T00:05:00",
+                    "error": "second",
+                },
             ]
             svc._pending_file.write_text(
                 "\n".join(json.dumps(e) for e in entries) + "\n",
@@ -197,7 +220,11 @@ class TestAC3StartupRecovery:
             svc._pending_file = Path(tmpdir) / "pending.jsonl"
 
             entries = [
-                {"canvas_name": "canvas_x", "timestamp": "2026-01-01T00:00:00", "error": "err"},
+                {
+                    "canvas_name": "canvas_x",
+                    "timestamp": "2026-01-01T00:00:00",
+                    "error": "err",
+                },
             ]
             svc._pending_file.write_text(
                 json.dumps(entries[0]) + "\n",
@@ -211,11 +238,8 @@ class TestAC3StartupRecovery:
 
             info_messages = [r.message for r in caplog.records]
             assert any(
-                "pending index updates recovered" in msg
-                for msg in info_messages
-            ), (
-                f"Expected startup log about pending recovery. Got: {info_messages}"
-            )
+                "pending index updates recovered" in msg for msg in info_messages
+            ), f"Expected startup log about pending recovery. Got: {info_messages}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

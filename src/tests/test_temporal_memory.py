@@ -36,10 +36,11 @@ from temporal_memory import TemporalMemory
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def temp_db():
     """Create temporary database for testing."""
-    fd, path = tempfile.mkstemp(suffix='.db')
+    fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     yield path
     # Cleanup
@@ -59,13 +60,7 @@ def temporal_memory(temp_db):
 def populated_memory(temporal_memory):
     """Create TemporalMemory with sample data."""
     canvas_file = "离散数学.canvas"
-    concepts = [
-        "逆否命题",
-        "充分必要条件",
-        "数学归纳法",
-        "递推关系",
-        "生成函数"
-    ]
+    concepts = ["逆否命题", "充分必要条件", "数学归纳法", "递推关系", "生成函数"]
 
     # Record initial behaviors
     for i, concept in enumerate(concepts):
@@ -73,7 +68,7 @@ def populated_memory(temporal_memory):
             canvas_file=canvas_file,
             concept=concept,
             action_type="explanation",
-            session_id=f"session-00{i}"
+            session_id=f"session-00{i}",
         )
 
         # Simulate different review histories
@@ -92,7 +87,7 @@ def populated_memory(temporal_memory):
                 concept=concept,
                 rating=rating,
                 canvas_file=canvas_file,
-                session_id=f"session-00{i}"
+                session_id=f"session-00{i}",
             )
 
     return temporal_memory
@@ -101,6 +96,7 @@ def populated_memory(temporal_memory):
 # ═══════════════════════════════════════════════════════════════════
 # Test AC 4.1: FSRS库集成成功
 # ═══════════════════════════════════════════════════════════════════
+
 
 def test_fsrs_initialization(temporal_memory):
     """
@@ -120,12 +116,12 @@ def test_fsrs_card_creation(temporal_memory):
     card = Card()
     assert card is not None
     # FSRS Card has these attributes (but stability/difficulty may be None until first review)
-    assert hasattr(card, 'stability')
-    assert hasattr(card, 'difficulty')
-    assert hasattr(card, 'due')
-    assert hasattr(card, 'last_review')
-    assert hasattr(card, 'state')
-    assert hasattr(card, 'step')
+    assert hasattr(card, "stability")
+    assert hasattr(card, "difficulty")
+    assert hasattr(card, "due")
+    assert hasattr(card, "last_review")
+    assert hasattr(card, "state")
+    assert hasattr(card, "step")
     # Note: reps and lapses are NOT tracked by FSRS Card, we track them separately
 
 
@@ -140,26 +136,25 @@ def test_fsrs_review_card_call(temporal_memory):
 
     # Call FSRS review_card with Good rating
     updated_card, review_log = temporal_memory.fsrs.review_card(
-        card=card,
-        rating=Rating.Good,
-        review_datetime=now
+        card=card, rating=Rating.Good, review_datetime=now
     )
 
     # Verify card has updated parameters
     assert updated_card is not None
     assert updated_card.stability > 0
     # FSRS Card doesn't track reps, we track that separately
-    assert hasattr(updated_card, 'difficulty')
-    assert hasattr(updated_card, 'stability')
-    assert hasattr(updated_card, 'due')
-    assert hasattr(updated_card, 'last_review')
-    assert hasattr(updated_card, 'state')
+    assert hasattr(updated_card, "difficulty")
+    assert hasattr(updated_card, "stability")
+    assert hasattr(updated_card, "due")
+    assert hasattr(updated_card, "last_review")
+    assert hasattr(updated_card, "state")
     assert review_log is not None
 
 
 # ═══════════════════════════════════════════════════════════════════
 # Test AC 4.2: 学习行为时序追踪
 # ═══════════════════════════════════════════════════════════════════
+
 
 def test_database_schema_creation(temporal_memory):
     """
@@ -201,25 +196,28 @@ def test_record_behavior(temporal_memory):
         concept="测试概念",
         action_type="explanation",
         session_id="session-001",
-        metadata='{"score": 0.85}'
+        metadata='{"score": 0.85}',
     )
 
     assert row_id > 0
 
     # Verify record was inserted
     cursor = temporal_memory.conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT * FROM learning_behavior WHERE id = ?
-    """, (row_id,))
+    """,
+        (row_id,),
+    )
 
     row = cursor.fetchone()
     assert row is not None
-    assert row['canvas_file'] == "test.canvas"
-    assert row['concept'] == "测试概念"
-    assert row['action_type'] == "explanation"
-    assert row['session_id'] == "session-001"
-    assert row['metadata'] == '{"score": 0.85}'
-    assert row['timestamp'] is not None
+    assert row["canvas_file"] == "test.canvas"
+    assert row["concept"] == "测试概念"
+    assert row["action_type"] == "explanation"
+    assert row["session_id"] == "session-001"
+    assert row["metadata"] == '{"score": 0.85}'
+    assert row["timestamp"] is not None
 
 
 def test_behavior_timestamp_ordering(temporal_memory):
@@ -236,27 +234,31 @@ def test_behavior_timestamp_ordering(temporal_memory):
             canvas_file=canvas_file,
             concept=concept,
             action_type=f"action_{i}",
-            session_id=f"session-{i}"
+            session_id=f"session-{i}",
         )
 
     # Query ordered by timestamp
     cursor = temporal_memory.conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT action_type FROM learning_behavior
         WHERE concept = ?
         ORDER BY timestamp ASC
-    """, (concept,))
+    """,
+        (concept,),
+    )
 
     results = cursor.fetchall()
     assert len(results) == 3
-    assert results[0]['action_type'] == "action_0"
-    assert results[1]['action_type'] == "action_1"
-    assert results[2]['action_type'] == "action_2"
+    assert results[0]["action_type"] == "action_0"
+    assert results[1]["action_type"] == "action_1"
+    assert results[2]["action_type"] == "action_2"
 
 
 # ═══════════════════════════════════════════════════════════════════
 # Test AC 4.3: get_weak_concepts()返回低稳定性概念
 # ═══════════════════════════════════════════════════════════════════
+
 
 def test_get_weak_concepts_algorithm(populated_memory):
     """
@@ -264,25 +266,22 @@ def test_get_weak_concepts_algorithm(populated_memory):
     Verify 70% stability + 30% error rate algorithm.
     """
     canvas_file = "离散数学.canvas"
-    weak_concepts = populated_memory.get_weak_concepts(
-        canvas_file=canvas_file,
-        limit=5
-    )
+    weak_concepts = populated_memory.get_weak_concepts(canvas_file=canvas_file, limit=5)
 
     assert len(weak_concepts) > 0
     assert len(weak_concepts) <= 5
 
     # Verify structure of returned concepts
     for concept in weak_concepts:
-        assert 'concept' in concept
-        assert 'stability' in concept
-        assert 'error_rate' in concept
-        assert 'weakness_score' in concept
-        assert 'last_review' in concept
-        assert 'reps' in concept
+        assert "concept" in concept
+        assert "stability" in concept
+        assert "error_rate" in concept
+        assert "weakness_score" in concept
+        assert "last_review" in concept
+        assert "reps" in concept
 
         # Verify weakness_score is in valid range
-        assert 0.0 <= concept['weakness_score'] <= 1.0
+        assert 0.0 <= concept["weakness_score"] <= 1.0
 
 
 def test_weak_concepts_sorted_by_score(populated_memory):
@@ -291,14 +290,13 @@ def test_weak_concepts_sorted_by_score(populated_memory):
     Verify concepts are sorted by weakness_score descending.
     """
     canvas_file = "离散数学.canvas"
-    weak_concepts = populated_memory.get_weak_concepts(
-        canvas_file=canvas_file,
-        limit=5
-    )
+    weak_concepts = populated_memory.get_weak_concepts(canvas_file=canvas_file, limit=5)
 
     # Verify descending order
     for i in range(len(weak_concepts) - 1):
-        assert weak_concepts[i]['weakness_score'] >= weak_concepts[i + 1]['weakness_score']
+        assert (
+            weak_concepts[i]["weakness_score"] >= weak_concepts[i + 1]["weakness_score"]
+        )
 
 
 def test_weak_concepts_limit(populated_memory):
@@ -325,8 +323,7 @@ def test_weak_concepts_empty_canvas(temporal_memory):
     Verify empty result for canvas with no concepts.
     """
     weak_concepts = temporal_memory.get_weak_concepts(
-        canvas_file="nonexistent.canvas",
-        limit=10
+        canvas_file="nonexistent.canvas", limit=10
     )
 
     assert weak_concepts == []
@@ -335,6 +332,7 @@ def test_weak_concepts_empty_canvas(temporal_memory):
 # ═══════════════════════════════════════════════════════════════════
 # Test AC 4.4: update_behavior()更新FSRS卡片
 # ═══════════════════════════════════════════════════════════════════
+
 
 def test_update_behavior_creates_card(temporal_memory):
     """
@@ -345,16 +343,14 @@ def test_update_behavior_creates_card(temporal_memory):
     canvas_file = "test.canvas"
 
     result = temporal_memory.update_behavior(
-        concept=concept,
-        rating=Rating.Good,
-        canvas_file=canvas_file
+        concept=concept, rating=Rating.Good, canvas_file=canvas_file
     )
 
     assert result is not None
-    assert result['concept'] == concept
-    assert result['reps'] == 1
-    assert result['stability'] > 0
-    assert result['difficulty'] >= 0
+    assert result["concept"] == concept
+    assert result["reps"] == 1
+    assert result["stability"] > 0
+    assert result["difficulty"] >= 0
 
 
 def test_update_behavior_rating_effects(temporal_memory):
@@ -367,21 +363,17 @@ def test_update_behavior_rating_effects(temporal_memory):
 
     # First review: Good
     result_good = temporal_memory.update_behavior(
-        concept=concept,
-        rating=Rating.Good,
-        canvas_file=canvas_file
+        concept=concept, rating=Rating.Good, canvas_file=canvas_file
     )
 
     # Reset for comparison
     concept2 = "评分测试2"
     result_easy = temporal_memory.update_behavior(
-        concept=concept2,
-        rating=Rating.Easy,
-        canvas_file=canvas_file
+        concept=concept2, rating=Rating.Easy, canvas_file=canvas_file
     )
 
     # Easy should give higher stability than Good
-    assert result_easy['stability'] > result_good['stability']
+    assert result_easy["stability"] > result_good["stability"]
 
 
 def test_update_behavior_increments_reps(temporal_memory):
@@ -395,12 +387,10 @@ def test_update_behavior_increments_reps(temporal_memory):
     # Multiple reviews
     for i in range(5):
         result = temporal_memory.update_behavior(
-            concept=concept,
-            rating=Rating.Good,
-            canvas_file=canvas_file
+            concept=concept, rating=Rating.Good, canvas_file=canvas_file
         )
 
-        assert result['reps'] == i + 1
+        assert result["reps"] == i + 1
 
 
 def test_update_behavior_records_behavior(temporal_memory):
@@ -415,24 +405,28 @@ def test_update_behavior_records_behavior(temporal_memory):
         concept=concept,
         rating=Rating.Good,
         canvas_file=canvas_file,
-        session_id="test-session"
+        session_id="test-session",
     )
 
     # Check learning_behavior table
     cursor = temporal_memory.conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT * FROM learning_behavior
         WHERE concept = ? AND session_id = ?
-    """, (concept, "test-session"))
+    """,
+        (concept, "test-session"),
+    )
 
     rows = cursor.fetchall()
     assert len(rows) == 1
-    assert "review_rating" in rows[0]['action_type']
+    assert "review_rating" in rows[0]["action_type"]
 
 
 # ═══════════════════════════════════════════════════════════════════
 # Test AC 4.5: 性能和数据持久化
 # ═══════════════════════════════════════════════════════════════════
+
 
 def test_performance_1000_concepts(temp_db):
     """
@@ -451,14 +445,10 @@ def test_performance_1000_concepts(temp_db):
             canvas_file=canvas_file,
             concept=concept,
             action_type="test",
-            session_id="perf-test"
+            session_id="perf-test",
         )
 
-        tm.update_behavior(
-            concept=concept,
-            rating=Rating.Good,
-            canvas_file=canvas_file
-        )
+        tm.update_behavior(concept=concept, rating=Rating.Good, canvas_file=canvas_file)
 
     # Measure query performance
     start_time = time.time()
@@ -483,11 +473,7 @@ def test_database_size_constraint(temp_db):
     # Insert 1000 concepts
     for i in range(1000):
         concept = f"概念_{i}"
-        tm.update_behavior(
-            concept=concept,
-            rating=Rating.Good,
-            canvas_file=canvas_file
-        )
+        tm.update_behavior(concept=concept, rating=Rating.Good, canvas_file=canvas_file)
 
     tm.close()
 
@@ -509,17 +495,13 @@ def test_persistence_across_sessions(temp_db):
 
     # Session 1: Create and update
     tm1 = TemporalMemory(db_path=temp_db)
-    tm1.update_behavior(
-        concept=concept,
-        rating=Rating.Good,
-        canvas_file=canvas_file
-    )
-    stability1 = tm1.get_concept_stats(concept, canvas_file)['stability']
+    tm1.update_behavior(concept=concept, rating=Rating.Good, canvas_file=canvas_file)
+    stability1 = tm1.get_concept_stats(concept, canvas_file)["stability"]
     tm1.close()
 
     # Session 2: Load existing data
     tm2 = TemporalMemory(db_path=temp_db)
-    stability2 = tm2.get_concept_stats(concept, canvas_file)['stability']
+    stability2 = tm2.get_concept_stats(concept, canvas_file)["stability"]
 
     # Data should persist
     assert stability1 == stability2
@@ -529,6 +511,7 @@ def test_persistence_across_sessions(temp_db):
 # ═══════════════════════════════════════════════════════════════════
 # Additional Helper Method Tests
 # ═══════════════════════════════════════════════════════════════════
+
 
 def test_get_review_due_concepts(populated_memory):
     """Test get_review_due_concepts() method."""
@@ -541,12 +524,12 @@ def test_get_review_due_concepts(populated_memory):
     assert isinstance(due_concepts, list)
 
     for concept in due_concepts:
-        assert 'concept' in concept
-        assert 'due' in concept
-        assert 'stability' in concept
-        assert 'difficulty' in concept
-        assert 'days_overdue' in concept
-        assert concept['days_overdue'] >= 0
+        assert "concept" in concept
+        assert "due" in concept
+        assert "stability" in concept
+        assert "difficulty" in concept
+        assert "days_overdue" in concept
+        assert concept["days_overdue"] >= 0
 
 
 def test_get_concept_stats(populated_memory):
@@ -557,20 +540,17 @@ def test_get_concept_stats(populated_memory):
     stats = populated_memory.get_concept_stats(concept, canvas_file)
 
     assert stats is not None
-    assert stats['concept'] == concept
-    assert 'stability' in stats
-    assert 'difficulty' in stats
-    assert 'error_rate' in stats
-    assert 'total_behaviors' in stats
-    assert stats['total_behaviors'] > 0
+    assert stats["concept"] == concept
+    assert "stability" in stats
+    assert "difficulty" in stats
+    assert "error_rate" in stats
+    assert "total_behaviors" in stats
+    assert stats["total_behaviors"] > 0
 
 
 def test_get_concept_stats_nonexistent(temporal_memory):
     """Test get_concept_stats() for nonexistent concept."""
-    stats = temporal_memory.get_concept_stats(
-        "不存在的概念",
-        "test.canvas"
-    )
+    stats = temporal_memory.get_concept_stats("不存在的概念", "test.canvas")
 
     assert stats is None
 
@@ -581,11 +561,7 @@ def test_context_manager(temp_db):
     canvas_file = "test.canvas"
 
     with TemporalMemory(db_path=temp_db) as tm:
-        tm.update_behavior(
-            concept=concept,
-            rating=Rating.Good,
-            canvas_file=canvas_file
-        )
+        tm.update_behavior(concept=concept, rating=Rating.Good, canvas_file=canvas_file)
 
     # Verify data persisted after context exit
     tm2 = TemporalMemory(db_path=temp_db)

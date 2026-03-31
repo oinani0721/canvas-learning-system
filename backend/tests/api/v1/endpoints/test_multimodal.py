@@ -11,30 +11,24 @@ WITHOUT using mock services (which produce false coverage).
 - Story 35.11: Health degradation transparency fields
 """
 
-import pytest
 from datetime import datetime
 
+import pytest
 from app.models.multimodal_schemas import (
     MediaItemResponse,
-    MultimodalByConceptResponse,
-    MultimodalDeleteResponse,
     MultimodalHealthResponse,
     MultimodalMediaType,
-    MultimodalMetadataSchema,
-    MultimodalPaginatedListResponse,
     MultimodalResponse,
     MultimodalSearchRequest,
-    MultimodalSearchResponse,
     MultimodalUpdateRequest,
-    MultimodalUploadResponse,
     MultimodalUploadUrlRequest,
     PaginationMeta,
 )
 
-
 # =============================================================================
 # Story 35.1: Upload/Management Model Tests
 # =============================================================================
+
 
 class TestMultimodalModels:
     """Test Pydantic model validation for Story 35.1."""
@@ -82,6 +76,7 @@ class TestMultimodalModels:
 # =============================================================================
 # Story 35.11: Health Model Tests
 # =============================================================================
+
 
 class TestMultimodalHealthModels:
     """Test health response model validation (Story 35.11 AC 35.11.3)."""
@@ -156,6 +151,7 @@ class TestMultimodalHealthModels:
 # =============================================================================
 # Story 35.2: Query/Search Model Tests
 # =============================================================================
+
 
 class TestMultimodalQueryModels:
     """Test Story 35.2 Pydantic model validation."""

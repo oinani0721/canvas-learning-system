@@ -14,15 +14,12 @@ Run benchmark:
 """
 
 import json
-from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import pytest
-
 from app.models.agent_routing_models import RoutingRequest
 from app.services.agent_routing_engine import AgentRoutingEngine
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
@@ -38,7 +35,9 @@ def routing_engine():
 @pytest.fixture
 def benchmark_dataset() -> List[Dict]:
     """Load benchmark dataset from fixture file."""
-    fixture_path = Path(__file__).parent.parent / "fixtures" / "routing_benchmark_dataset.json"
+    fixture_path = (
+        Path(__file__).parent.parent / "fixtures" / "routing_benchmark_dataset.json"
+    )
     with open(fixture_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data["examples"]
@@ -50,9 +49,7 @@ def benchmark_dataset() -> List[Dict]:
 
 
 def calculate_metrics(
-    predictions: List[str],
-    labels: List[str],
-    agent_names: List[str]
+    predictions: List[str], labels: List[str], agent_names: List[str]
 ) -> Dict[str, Dict[str, float]]:
     """
     Calculate precision, recall, and F1 per agent type.
@@ -80,7 +77,11 @@ def calculate_metrics(
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
 
         # Calculate F1
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall) > 0
+            else 0.0
+        )
 
         metrics[agent] = {
             "precision": precision,
@@ -111,19 +112,14 @@ class TestRoutingAccuracy:
     """Test routing accuracy on benchmark dataset."""
 
     def test_overall_accuracy_at_least_80_percent(
-        self,
-        routing_engine: AgentRoutingEngine,
-        benchmark_dataset: List[Dict]
+        self, routing_engine: AgentRoutingEngine, benchmark_dataset: List[Dict]
     ):
         """Test overall routing accuracy >= 80% (AC6)."""
         predictions = []
         labels = []
 
         for example in benchmark_dataset:
-            request = RoutingRequest(
-                node_id=example["id"],
-                node_text=example["text"]
-            )
+            request = RoutingRequest(node_id=example["id"], node_text=example["text"])
             result = routing_engine.route_single_node(request)
             predictions.append(result.recommended_agent)
             labels.append(example["expected_agent"])
@@ -131,31 +127,28 @@ class TestRoutingAccuracy:
         accuracy = calculate_overall_accuracy(predictions, labels)
 
         # Print detailed results for debugging
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"ROUTING ACCURACY BENCHMARK RESULTS")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Total examples: {len(benchmark_dataset)}")
-        print(f"Correct predictions: {sum(1 for p, l in zip(predictions, labels) if p == l)}")
+        print(
+            f"Correct predictions: {sum(1 for p, l in zip(predictions, labels) if p == l)}"
+        )
         print(f"Overall accuracy: {accuracy:.2%}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Assert >= 80% accuracy
         assert accuracy >= 0.80, f"Accuracy {accuracy:.2%} is below 80% threshold"
 
     def test_per_agent_precision_recall(
-        self,
-        routing_engine: AgentRoutingEngine,
-        benchmark_dataset: List[Dict]
+        self, routing_engine: AgentRoutingEngine, benchmark_dataset: List[Dict]
     ):
         """Test per-agent precision and recall metrics."""
         predictions = []
         labels = []
 
         for example in benchmark_dataset:
-            request = RoutingRequest(
-                node_id=example["id"],
-                node_text=example["text"]
-            )
+            request = RoutingRequest(node_id=example["id"], node_text=example["text"])
             result = routing_engine.route_single_node(request)
             predictions.append(result.recommended_agent)
             labels.append(example["expected_agent"])
@@ -166,11 +159,13 @@ class TestRoutingAccuracy:
         metrics = calculate_metrics(predictions, labels, agent_names)
 
         # Print per-agent metrics
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"PER-AGENT METRICS")
-        print(f"{'='*80}")
-        print(f"{'Agent':<25} {'Precision':>10} {'Recall':>10} {'F1':>10} {'TP':>5} {'FP':>5} {'FN':>5}")
-        print(f"{'-'*80}")
+        print(f"{'=' * 80}")
+        print(
+            f"{'Agent':<25} {'Precision':>10} {'Recall':>10} {'F1':>10} {'TP':>5} {'FP':>5} {'FN':>5}"
+        )
+        print(f"{'-' * 80}")
 
         for agent in sorted(agent_names):
             m = metrics[agent]
@@ -180,28 +175,26 @@ class TestRoutingAccuracy:
                 f"{m['false_positives']:>5} {m['false_negatives']:>5}"
             )
 
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
         # Verify each agent has reasonable precision/recall
         for agent, m in metrics.items():
             # Allow some flexibility - agents should have at least 50% recall
             # to ensure patterns are working
             if m["true_positives"] + m["false_negatives"] > 0:
-                assert m["recall"] >= 0.50, \
+                assert m["recall"] >= 0.50, (
                     f"Agent '{agent}' has recall {m['recall']:.2%} < 50%"
+                )
 
     def test_benchmark_dataset_has_50_plus_examples(
-        self,
-        benchmark_dataset: List[Dict]
+        self, benchmark_dataset: List[Dict]
     ):
         """Test benchmark dataset has at least 50 examples (AC6)."""
-        assert len(benchmark_dataset) >= 50, \
+        assert len(benchmark_dataset) >= 50, (
             f"Dataset has only {len(benchmark_dataset)} examples, need at least 50"
+        )
 
-    def test_benchmark_covers_all_pattern_types(
-        self,
-        benchmark_dataset: List[Dict]
-    ):
+    def test_benchmark_covers_all_pattern_types(self, benchmark_dataset: List[Dict]):
         """Test benchmark covers all 6 pattern categories."""
         expected_agents = {
             "oral-explanation",
@@ -218,43 +211,42 @@ class TestRoutingAccuracy:
         assert not missing, f"Benchmark missing examples for agents: {missing}"
 
     def test_misclassified_examples_report(
-        self,
-        routing_engine: AgentRoutingEngine,
-        benchmark_dataset: List[Dict]
+        self, routing_engine: AgentRoutingEngine, benchmark_dataset: List[Dict]
     ):
         """Generate report of misclassified examples for debugging."""
         misclassified = []
 
         for example in benchmark_dataset:
-            request = RoutingRequest(
-                node_id=example["id"],
-                node_text=example["text"]
-            )
+            request = RoutingRequest(node_id=example["id"], node_text=example["text"])
             result = routing_engine.route_single_node(request)
 
             if result.recommended_agent != example["expected_agent"]:
-                misclassified.append({
-                    "id": example["id"],
-                    "text": example["text"],
-                    "expected": example["expected_agent"],
-                    "predicted": result.recommended_agent,
-                    "confidence": result.confidence,
-                    "patterns_matched": result.patterns_matched,
-                })
+                misclassified.append(
+                    {
+                        "id": example["id"],
+                        "text": example["text"],
+                        "expected": example["expected_agent"],
+                        "predicted": result.recommended_agent,
+                        "confidence": result.confidence,
+                        "patterns_matched": result.patterns_matched,
+                    }
+                )
 
         if misclassified:
-            print(f"\n{'='*80}")
+            print(f"\n{'=' * 80}")
             print(f"MISCLASSIFIED EXAMPLES ({len(misclassified)} total)")
-            print(f"{'='*80}")
+            print(f"{'=' * 80}")
 
             for m in misclassified[:10]:  # Limit to first 10
                 print(f"\nID: {m['id']}")
                 print(f"Text: {m['text'][:50]}...")
                 print(f"Expected: {m['expected']}")
-                print(f"Predicted: {m['predicted']} (confidence: {m['confidence']:.2f})")
+                print(
+                    f"Predicted: {m['predicted']} (confidence: {m['confidence']:.2f})"
+                )
                 print(f"Patterns: {m['patterns_matched'][:2]}")
 
-            print(f"\n{'='*80}")
+            print(f"\n{'=' * 80}")
 
         # This test is informational - doesn't fail
         # But log warning if many misclassified
@@ -266,19 +258,14 @@ class TestConfidenceDistribution:
     """Test confidence score distribution on benchmark."""
 
     def test_high_confidence_rate(
-        self,
-        routing_engine: AgentRoutingEngine,
-        benchmark_dataset: List[Dict]
+        self, routing_engine: AgentRoutingEngine, benchmark_dataset: List[Dict]
     ):
         """Test that most predictions have high confidence."""
         high_conf_count = 0
         total = len(benchmark_dataset)
 
         for example in benchmark_dataset:
-            request = RoutingRequest(
-                node_id=example["id"],
-                node_text=example["text"]
-            )
+            request = RoutingRequest(node_id=example["id"], node_text=example["text"])
             result = routing_engine.route_single_node(request)
 
             if result.confidence >= 0.70:
@@ -289,22 +276,18 @@ class TestConfidenceDistribution:
         print(f"\nHigh confidence rate (>=0.70): {high_conf_rate:.2%}")
 
         # At least 70% should have high confidence
-        assert high_conf_rate >= 0.70, \
+        assert high_conf_rate >= 0.70, (
             f"Only {high_conf_rate:.2%} of predictions have high confidence"
+        )
 
     def test_average_confidence(
-        self,
-        routing_engine: AgentRoutingEngine,
-        benchmark_dataset: List[Dict]
+        self, routing_engine: AgentRoutingEngine, benchmark_dataset: List[Dict]
     ):
         """Test average confidence score."""
         confidences = []
 
         for example in benchmark_dataset:
-            request = RoutingRequest(
-                node_id=example["id"],
-                node_text=example["text"]
-            )
+            request = RoutingRequest(node_id=example["id"], node_text=example["text"])
             result = routing_engine.route_single_node(request)
             confidences.append(result.confidence)
 
@@ -313,5 +296,6 @@ class TestConfidenceDistribution:
         print(f"\nAverage confidence: {avg_confidence:.2%}")
 
         # Average should be at least 0.75
-        assert avg_confidence >= 0.75, \
+        assert avg_confidence >= 0.75, (
             f"Average confidence {avg_confidence:.2%} is below 75%"
+        )

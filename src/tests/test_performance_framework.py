@@ -27,7 +27,10 @@ from tests.test_canvas_performance import (
     StressTestResult,
     TestCanvasGenerator,
 )
-from tests.test_performance_baseline import PerformanceBaselineManager, RegressionTestResult
+from tests.test_performance_baseline import (
+    PerformanceBaselineManager,
+    RegressionTestResult,
+)
 
 
 class TestMemoryMonitor(unittest.TestCase):
@@ -63,6 +66,7 @@ class TestTestCanvasGenerator(unittest.TestCase):
     def tearDown(self):
         # 清理临时文件
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_generate_simple_canvas(self):
@@ -78,13 +82,13 @@ class TestTestCanvasGenerator(unittest.TestCase):
         self.assertEqual(result_path, canvas_path)
 
         # 验证Canvas结构
-        with open(result_path, 'r', encoding='utf-8') as f:
+        with open(result_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
-        self.assertIn('nodes', canvas_data)
-        self.assertIn('edges', canvas_data)
-        self.assertEqual(len(canvas_data['nodes']), node_count)
-        self.assertGreater(len(canvas_data['edges']), 0)
+        self.assertIn("nodes", canvas_data)
+        self.assertIn("edges", canvas_data)
+        self.assertEqual(len(canvas_data["nodes"]), node_count)
+        self.assertGreater(len(canvas_data["edges"]), 0)
 
     def test_generate_medium_canvas(self):
         """测试生成中等复杂Canvas"""
@@ -94,10 +98,10 @@ class TestTestCanvasGenerator(unittest.TestCase):
         self.assertTrue(os.path.exists(result_path))
 
         # 验证聚类结构
-        with open(result_path, 'r', encoding='utf-8') as f:
+        with open(result_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
-        self.assertEqual(len(canvas_data['nodes']), node_count)
+        self.assertEqual(len(canvas_data["nodes"]), node_count)
 
     def test_generate_complex_canvas(self):
         """测试生成复杂Canvas"""
@@ -106,10 +110,10 @@ class TestTestCanvasGenerator(unittest.TestCase):
 
         self.assertTrue(os.path.exists(result_path))
 
-        with open(result_path, 'r', encoding='utf-8') as f:
+        with open(result_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
-        self.assertEqual(len(canvas_data['nodes']), node_count)
+        self.assertEqual(len(canvas_data["nodes"]), node_count)
 
     def test_generate_chaotic_canvas(self):
         """测试生成混乱Canvas"""
@@ -118,12 +122,12 @@ class TestTestCanvasGenerator(unittest.TestCase):
 
         self.assertTrue(os.path.exists(result_path))
 
-        with open(result_path, 'r', encoding='utf-8') as f:
+        with open(result_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
-        self.assertEqual(len(canvas_data['nodes']), node_count)
+        self.assertEqual(len(canvas_data["nodes"]), node_count)
         # 混乱模式应该有更多的连接
-        self.assertGreater(len(canvas_data['edges']), node_count)
+        self.assertGreater(len(canvas_data["edges"]), node_count)
 
     def test_invalid_complexity(self):
         """测试无效的复杂度级别"""
@@ -141,6 +145,7 @@ class TestCanvasPerformanceTester(unittest.TestCase):
     def tearDown(self):
         # 清理临时文件
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_generate_test_canvas(self):
@@ -182,9 +187,9 @@ class TestCanvasPerformanceTester(unittest.TestCase):
         result = self.tester.monitor_memory_usage(canvas_path)
 
         self.assertIsInstance(result, dict)
-        self.assertIn('memory_usage_mb', result)
-        self.assertIn('memory_peak_mb', result)
-        self.assertIn('node_count', result)
+        self.assertIn("memory_usage_mb", result)
+        self.assertIn("memory_peak_mb", result)
+        self.assertIn("node_count", result)
 
         # 清理
         try:
@@ -197,7 +202,7 @@ class TestPerformanceBaselineManager(unittest.TestCase):
     """性能基准管理器测试"""
 
     def setUp(self):
-        self.temp_file = tempfile.mktemp(suffix='.json')
+        self.temp_file = tempfile.mktemp(suffix=".json")
         self.manager = PerformanceBaselineManager(self.temp_file)
 
     def tearDown(self):
@@ -223,15 +228,12 @@ class TestPerformanceBaselineManager(unittest.TestCase):
                 layout_quality_score=8.5,
                 overlap_count=0,
                 optimizations_applied=3,
-                success=True
+                success=True,
             )
         ]
 
         test_env = TestEnvironment(
-            python_version="3.9.0",
-            platform="test",
-            cpu_count=4,
-            memory_gb=8.0
+            python_version="3.9.0", platform="test", cpu_count=4, memory_gb=8.0
         )
 
         baseline_id = self.manager.establish_baseline(results, test_env, "测试基准")
@@ -262,6 +264,7 @@ class TestPerformanceReportGenerator(unittest.TestCase):
     def tearDown(self):
         # 清理临时文件
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_generate_simple_report(self):
@@ -278,16 +281,14 @@ class TestPerformanceReportGenerator(unittest.TestCase):
                 layout_quality_score=8.5,
                 overlap_count=0,
                 optimizations_applied=3,
-                success=True
+                success=True,
             )
         ]
 
         from tests.test_canvas_performance import TestEnvironment
+
         test_env = TestEnvironment(
-            python_version="3.9.0",
-            platform="test",
-            cpu_count=4,
-            memory_gb=8.0
+            python_version="3.9.0", platform="test", cpu_count=4, memory_gb=8.0
         )
 
         # 生成报告
@@ -297,10 +298,10 @@ class TestPerformanceReportGenerator(unittest.TestCase):
         )
 
         self.assertTrue(os.path.exists(result_path))
-        self.assertTrue(result_path.endswith('.html'))
+        self.assertTrue(result_path.endswith(".html"))
 
         # 检查JSON报告是否也生成
-        json_path = result_path.replace('.html', '.json')
+        json_path = result_path.replace(".html", ".json")
         self.assertTrue(os.path.exists(json_path))
 
     def test_calculate_summary_statistics(self):
@@ -316,7 +317,7 @@ class TestPerformanceReportGenerator(unittest.TestCase):
                 layout_quality_score=8.5,
                 overlap_count=0,
                 optimizations_applied=3,
-                success=True
+                success=True,
             ),
             PerformanceTestResult(
                 test_name="test2",
@@ -328,18 +329,18 @@ class TestPerformanceReportGenerator(unittest.TestCase):
                 layout_quality_score=9.0,
                 overlap_count=1,
                 optimizations_applied=5,
-                success=True
-            )
+                success=True,
+            ),
         ]
 
         summary = self.generator._calculate_summary_statistics(results)
 
-        self.assertEqual(summary['total_tests'], 2)
-        self.assertEqual(summary['successful_tests'], 2)
-        self.assertEqual(summary['failed_tests'], 0)
-        self.assertEqual(summary['success_rate'], 100.0)
-        self.assertIn('processing_time_stats', summary)
-        self.assertIn('memory_usage_stats', summary)
+        self.assertEqual(summary["total_tests"], 2)
+        self.assertEqual(summary["successful_tests"], 2)
+        self.assertEqual(summary["failed_tests"], 0)
+        self.assertEqual(summary["success_rate"], 100.0)
+        self.assertIn("processing_time_stats", summary)
+        self.assertIn("memory_usage_stats", summary)
 
 
 class TestIntegration(unittest.TestCase):
@@ -351,6 +352,7 @@ class TestIntegration(unittest.TestCase):
     def tearDown(self):
         # 清理临时文件
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_end_to_end_performance_test(self):
@@ -372,9 +374,7 @@ class TestIntegration(unittest.TestCase):
 
         # 建立基准
         baseline_id = baseline_manager.establish_baseline(
-            [result],
-            tester.test_environment,
-            "集成测试基准"
+            [result], tester.test_environment, "集成测试基准"
         )
         self.assertIsNotNone(baseline_id)
 
@@ -385,9 +385,7 @@ class TestIntegration(unittest.TestCase):
         # 生成报告
         report_generator = PerformanceReportGenerator()
         report_path = report_generator.generate_performance_report(
-            [result],
-            tester.test_environment,
-            comparison_result
+            [result], tester.test_environment, comparison_result
         )
         self.assertTrue(os.path.exists(report_path))
 
@@ -424,7 +422,7 @@ def create_performance_test_suite():
         TestCanvasPerformanceTester,
         TestPerformanceBaselineManager,
         TestPerformanceReportGenerator,
-        TestIntegration
+        TestIntegration,
     ]
 
     for test_class in test_classes:
@@ -440,7 +438,7 @@ def run_performance_tests():
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print("性能测试框架测试结果:")
     print(f"运行测试: {result.testsRun}")
     print(f"失败: {len(result.failures)}")
@@ -457,13 +455,17 @@ def run_performance_tests():
         for test, traceback in result.errors:
             print(f"  - {test}: {traceback.split('Exception:')[-1].strip()}")
 
-    success_rate = (result.testsRun - len(result.failures) - len(result.errors)) / result.testsRun * 100
+    success_rate = (
+        (result.testsRun - len(result.failures) - len(result.errors))
+        / result.testsRun
+        * 100
+    )
     print(f"\n成功率: {success_rate:.1f}%")
 
     return result.wasSuccessful()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 运行测试
     success = run_performance_tests()
     sys.exit(0 if success else 1)

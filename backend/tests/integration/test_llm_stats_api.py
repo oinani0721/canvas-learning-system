@@ -149,7 +149,9 @@ class TestCallbackToSQLiteE2E:
         kwargs = {
             "model": "gpt-4o-mini",
             "response_cost": 0.003,
-            "litellm_params": {"metadata": {"task_type": "scoring", "request_id": "e2e-req-1"}},
+            "litellm_params": {
+                "metadata": {"task_type": "scoring", "request_id": "e2e-req-1"}
+            },
         }
         start = datetime(2026, 3, 18, 9, 0, 0, tzinfo=timezone.utc)
         end = datetime(2026, 3, 18, 9, 0, 2, tzinfo=timezone.utc)
@@ -231,7 +233,9 @@ class TestCallbackToSQLiteE2E:
         lgr.BATCH_SIZE = 100  # Large batch so auto-flush won't trigger
 
         # Add a single entry (won't reach batch size)
-        await lgr._add_to_buffer(LLMCallLog(request_id="pending-1", task_type="indexing", total_tokens=99))
+        await lgr._add_to_buffer(
+            LLMCallLog(request_id="pending-1", task_type="indexing", total_tokens=99)
+        )
         assert len(lgr._buffer) == 1
 
         # Stop should flush

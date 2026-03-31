@@ -3,13 +3,11 @@ Unit tests for Prompt Injection Guard (Story 7.1)
 Tests all 15 attack vectors from the story specification.
 """
 
-import pytest
-
 from app.middleware.prompt_injection_guard import (
+    SYSTEM_BOUNDARY_MARKER,
+    PromptTemplate,
     check_input,
     check_output,
-    PromptTemplate,
-    SYSTEM_BOUNDARY_MARKER,
 )
 
 
@@ -32,7 +30,8 @@ class TestPromptTemplateIsolation:
 
     def test_build_with_context(self):
         messages = PromptTemplate.build(
-            system_prompt="System", user_input="Question",
+            system_prompt="System",
+            user_input="Question",
             context="Some context here",
         )
         assert len(messages) == 3

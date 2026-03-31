@@ -129,7 +129,11 @@ async def retrieve_learning_memories(
             content_lower = content.lower()
             if "tip" in content_lower or "提示" in content_lower:
                 tips_parts.append(content[:200])
-            elif "错误" in content_lower or "error" in content_lower or "mistake" in content_lower:
+            elif (
+                "错误" in content_lower
+                or "error" in content_lower
+                or "mistake" in content_lower
+            ):
                 error_parts.append(content[:200])
             else:
                 qa_parts.append(content[:200])
@@ -137,7 +141,9 @@ async def retrieve_learning_memories(
         # Build formatted output
         sections: List[str] = []
         if tips_parts:
-            tips_text = "\n".join(f"  {i + 1}. {t}" for i, t in enumerate(tips_parts[:3]))
+            tips_text = "\n".join(
+                f"  {i + 1}. {t}" for i, t in enumerate(tips_parts[:3])
+            )
             sections.append(f"[历史 Tips]\n{tips_text}")
         if error_parts:
             errors_text = "\n".join(f"  - {e}" for e in error_parts[:3])
@@ -180,7 +186,9 @@ def _classify_query_complexity(query: str) -> str:
     Returns: "simple", "medium", or "complex".
     """
     # Simple: short, single concept
-    if len(query) < 20 and not any(w in query for w in ["和", "以及", "同时", "如何", "为什么", "and", "how"]):
+    if len(query) < 20 and not any(
+        w in query for w in ["和", "以及", "同时", "如何", "为什么", "and", "how"]
+    ):
         return "simple"
 
     # Complex: contains conjunctions or multi-part structure
@@ -237,7 +245,11 @@ def _build_rewrite_prompt(query: str, complexity: str) -> str:
 
             if idx_s2 >= 0 and idx_quality >= 0:
                 # Keep everything before Strategy 2 + quality requirements section
-                prompt = template_content[:idx_s2].rstrip() + "\n\n" + template_content[idx_quality:]
+                prompt = (
+                    template_content[:idx_s2].rstrip()
+                    + "\n\n"
+                    + template_content[idx_quality:]
+                )
             else:
                 # If markers not found, use full template
                 prompt = template_content

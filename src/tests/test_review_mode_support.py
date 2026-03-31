@@ -24,6 +24,7 @@ from backend.app.services.review_service import ReviewService
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def mock_canvas_service():
     """Mock CanvasService for testing."""
@@ -31,12 +32,27 @@ def mock_canvas_service():
     service.canvas_exists.return_value = True
     service.get_canvas.return_value = {
         "nodes": [
-            {"id": "node1", "type": "text", "text": "Concept 1", "color": "3"},  # Purple
+            {
+                "id": "node1",
+                "type": "text",
+                "text": "Concept 1",
+                "color": "3",
+            },  # Purple
             {"id": "node2", "type": "text", "text": "Concept 2", "color": "4"},  # Red
-            {"id": "node3", "type": "text", "text": "Concept 3", "color": "3"},  # Purple
-            {"id": "node4", "type": "text", "text": "Concept 4", "color": "2"},  # Green (excluded)
+            {
+                "id": "node3",
+                "type": "text",
+                "text": "Concept 3",
+                "color": "3",
+            },  # Purple
+            {
+                "id": "node4",
+                "type": "text",
+                "text": "Concept 4",
+                "color": "2",
+            },  # Green (excluded)
         ],
-        "edges": []
+        "edges": [],
     }
     return service
 
@@ -67,18 +83,18 @@ def mock_learning_memory_client():
         {
             "concept": "Concept 1",
             "score": 15.0,  # Weak (< 24)
-            "timestamp": "2025-12-01T10:00:00"
+            "timestamp": "2025-12-01T10:00:00",
         },
         {
             "concept": "Concept 2",
             "score": 18.0,  # Weak (< 24)
-            "timestamp": "2025-12-02T10:00:00"
+            "timestamp": "2025-12-02T10:00:00",
         },
         {
             "concept": "Concept 3",
             "score": 35.0,  # Mastered (>= 24)
-            "timestamp": "2025-12-03T10:00:00"
-        }
+            "timestamp": "2025-12-03T10:00:00",
+        },
     ]
     return client
 
@@ -89,7 +105,7 @@ def review_service(mock_canvas_service, mock_task_manager, mock_graphiti_client)
     return ReviewService(
         canvas_service=mock_canvas_service,
         task_manager=mock_task_manager,
-        graphiti_client=mock_graphiti_client
+        graphiti_client=mock_graphiti_client,
     )
 
 
@@ -97,25 +113,25 @@ def review_service(mock_canvas_service, mock_task_manager, mock_graphiti_client)
 # Test Cases: AC2 - Fresh Mode Generation
 # =============================================================================
 
+
 class TestFreshModeGeneration:
     """Test AC2: Fresh mode should not query Graphiti history."""
 
     @pytest.mark.asyncio
     async def test_fresh_mode_no_graphiti_query(
-        self,
-        review_service,
-        mock_graphiti_client,
-        mock_learning_memory_client
+        self, review_service, mock_graphiti_client, mock_learning_memory_client
     ):
         """
         AC2: Fresh mode should not query Graphiti for weak concepts.
 
         [Source: Story 24.1 - AC2, Dev Notes lines 318-324]
         """
-        with patch('app.clients.graphiti_client.get_learning_memory_client', return_value=mock_learning_memory_client):
+        with patch(
+            "app.clients.graphiti_client.get_learning_memory_client",
+            return_value=mock_learning_memory_client,
+        ):
             result = await review_service.generate_verification_canvas(
-                source_canvas_name="test.canvas",
-                mode="fresh"
+                source_canvas_name="test.canvas", mode="fresh"
             )
 
             # Verify Graphiti was NOT queried for learning history
@@ -127,9 +143,7 @@ class TestFreshModeGeneration:
 
     @pytest.mark.asyncio
     async def test_fresh_mode_equal_probability(
-        self,
-        review_service,
-        mock_canvas_service
+        self, review_service, mock_canvas_service
     ):
         """
         AC2: Fresh mode should select all eligible concepts with equal probability.
@@ -139,7 +153,7 @@ class TestFreshModeGeneration:
         result = await review_service.generate_verification_canvas(
             source_canvas_name="test.canvas",
             mode="fresh",
-            include_colors=["3", "4"]  # Purple and Red
+            include_colors=["3", "4"],  # Purple and Red
         )
 
         # Should include all purple (3) and red (4) nodes
@@ -152,24 +166,25 @@ class TestFreshModeGeneration:
 # Test Cases: AC3 - Targeted Mode with Graphiti Integration
 # =============================================================================
 
+
 class TestTargetedModeGeneration:
     """Test AC3: Targeted mode should query Graphiti and apply weighting."""
 
     @pytest.mark.asyncio
     async def test_targeted_mode_queries_graphiti(
-        self,
-        review_service,
-        mock_learning_memory_client
+        self, review_service, mock_learning_memory_client
     ):
         """
         AC3: Targeted mode should query Graphiti for weak concepts.
 
         [Source: Story 24.1 - AC3, Dev Notes lines 328-339]
         """
-        with patch('app.clients.graphiti_client.get_learning_memory_client', return_value=mock_learning_memory_client):
+        with patch(
+            "app.clients.graphiti_client.get_learning_memory_client",
+            return_value=mock_learning_memory_client,
+        ):
             result = await review_service.generate_verification_canvas(
-                source_canvas_name="test.canvas",
-                mode="targeted"
+                source_canvas_name="test.canvas", mode="targeted"
             )
 
             # Verify Graphiti was queried
@@ -181,21 +196,22 @@ class TestTargetedModeGeneration:
 
     @pytest.mark.asyncio
     async def test_targeted_mode_weight_distribution(
-        self,
-        review_service,
-        mock_learning_memory_client
+        self, review_service, mock_learning_memory_client
     ):
         """
         AC3: Targeted mode should apply 70% weak + 30% mastered distribution.
 
         [Source: Story 24.1 - AC3, Dev Notes lines 400-413]
         """
-        with patch('app.clients.graphiti_client.get_learning_memory_client', return_value=mock_learning_memory_client):
+        with patch(
+            "app.clients.graphiti_client.get_learning_memory_client",
+            return_value=mock_learning_memory_client,
+        ):
             result = await review_service.generate_verification_canvas(
                 source_canvas_name="test.canvas",
                 mode="targeted",
                 weak_weight=0.7,
-                mastered_weight=0.3
+                mastered_weight=0.3,
             )
 
             # Verify questions were generated
@@ -209,6 +225,7 @@ class TestTargetedModeGeneration:
 # =============================================================================
 # Test Cases: AC4 - Default Mode Configuration
 # =============================================================================
+
 
 class TestDefaultModeConfiguration:
     """Test AC4: Default mode should be 'fresh' when not specified."""
@@ -244,14 +261,13 @@ class TestDefaultModeConfiguration:
 # Test Cases: AC5 - Review Mode Metadata Storage
 # =============================================================================
 
+
 class TestReviewModeMetadataStorage:
     """Test AC5: Mode should be stored in canvas metadata and Graphiti."""
 
     @pytest.mark.asyncio
     async def test_graphiti_relationship_stored(
-        self,
-        review_service,
-        mock_graphiti_client
+        self, review_service, mock_graphiti_client
     ):
         """
         AC5: Mode should be stored in Graphiti relationship.
@@ -259,8 +275,7 @@ class TestReviewModeMetadataStorage:
         [Source: Story 24.1 - AC5, Dev Notes lines 350-358]
         """
         result = await review_service.generate_verification_canvas(
-            source_canvas_name="test.canvas",
-            mode="targeted"
+            source_canvas_name="test.canvas", mode="targeted"
         )
 
         # Verify Graphiti relationship was created
@@ -280,8 +295,7 @@ class TestReviewModeMetadataStorage:
         [Source: Story 24.1 - AC5, Dev Notes lines 273-278]
         """
         result = await review_service.generate_verification_canvas(
-            source_canvas_name="test.canvas",
-            mode="fresh"
+            source_canvas_name="test.canvas", mode="fresh"
         )
 
         # Response should include mode_used
@@ -293,26 +307,28 @@ class TestReviewModeMetadataStorage:
 # Test Cases: AC6 - Weight Configuration Override
 # =============================================================================
 
+
 class TestWeightConfigurationOverride:
     """Test AC6: Custom weights should override defaults."""
 
     @pytest.mark.asyncio
     async def test_custom_weights_applied(
-        self,
-        review_service,
-        mock_learning_memory_client
+        self, review_service, mock_learning_memory_client
     ):
         """
         AC6: Custom weights should override defaults (70/30).
 
         [Source: Story 24.1 - AC6, Dev Notes lines 361-370]
         """
-        with patch('app.clients.graphiti_client.get_learning_memory_client', return_value=mock_learning_memory_client):
+        with patch(
+            "app.clients.graphiti_client.get_learning_memory_client",
+            return_value=mock_learning_memory_client,
+        ):
             result = await review_service.generate_verification_canvas(
                 source_canvas_name="test.canvas",
                 mode="targeted",
                 weak_weight=0.8,
-                mastered_weight=0.2
+                mastered_weight=0.2,
             )
 
             # Verify custom weights were used (mode applied)
@@ -330,23 +346,19 @@ class TestWeightConfigurationOverride:
             source_canvas="test.canvas",
             mode="targeted",
             weak_weight=0.6,
-            mastered_weight=0.4
+            mastered_weight=0.4,
         )
         assert request.weak_weight == 0.6
         assert request.mastered_weight == 0.4
 
         # Test boundary conditions
         request_min = GenerateReviewRequest(
-            source_canvas="test.canvas",
-            weak_weight=0.0,
-            mastered_weight=1.0
+            source_canvas="test.canvas", weak_weight=0.0, mastered_weight=1.0
         )
         assert request_min.weak_weight == 0.0
 
         request_max = GenerateReviewRequest(
-            source_canvas="test.canvas",
-            weak_weight=1.0,
-            mastered_weight=0.0
+            source_canvas="test.canvas", weak_weight=1.0, mastered_weight=0.0
         )
         assert request_max.weak_weight == 1.0
 
@@ -354,6 +366,7 @@ class TestWeightConfigurationOverride:
 # =============================================================================
 # Test Cases: API Contract Validation
 # =============================================================================
+
 
 class TestAPIContractValidation:
     """Test API contract compliance with schemas."""
@@ -368,7 +381,9 @@ class TestAPIContractValidation:
         request_fresh = GenerateReviewRequest(source_canvas="test.canvas", mode="fresh")
         assert request_fresh.mode == "fresh"
 
-        request_targeted = GenerateReviewRequest(source_canvas="test.canvas", mode="targeted")
+        request_targeted = GenerateReviewRequest(
+            source_canvas="test.canvas", mode="targeted"
+        )
         assert request_targeted.mode == "targeted"
 
     def test_response_schema_includes_mode(self):
@@ -380,7 +395,7 @@ class TestAPIContractValidation:
         response = GenerateReviewResponse(
             verification_canvas_name="test-检验白板-20251213",
             node_count=5,
-            mode_used="fresh"
+            mode_used="fresh",
         )
 
         assert response.verification_canvas_name == "test-检验白板-20251213"
@@ -392,14 +407,13 @@ class TestAPIContractValidation:
 # Test Cases: Error Handling
 # =============================================================================
 
+
 class TestErrorHandling:
     """Test error handling and edge cases."""
 
     @pytest.mark.asyncio
     async def test_graphiti_unavailable_fallback(
-        self,
-        mock_canvas_service,
-        mock_task_manager
+        self, mock_canvas_service, mock_task_manager
     ):
         """
         Targeted mode should gracefully handle Graphiti unavailability.
@@ -410,12 +424,11 @@ class TestErrorHandling:
         service = ReviewService(
             canvas_service=mock_canvas_service,
             task_manager=mock_task_manager,
-            graphiti_client=None
+            graphiti_client=None,
         )
 
         result = await service.generate_verification_canvas(
-            source_canvas_name="test.canvas",
-            mode="targeted"
+            source_canvas_name="test.canvas", mode="targeted"
         )
 
         # Should still generate canvas (fallback to fresh-like behavior)
@@ -424,9 +437,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_empty_weak_concepts_handling(
-        self,
-        review_service,
-        mock_learning_memory_client
+        self, review_service, mock_learning_memory_client
     ):
         """
         Targeted mode should handle case with no weak concepts.
@@ -436,10 +447,12 @@ class TestErrorHandling:
         # Mock empty history
         mock_learning_memory_client.get_learning_history.return_value = []
 
-        with patch('app.clients.graphiti_client.get_learning_memory_client', return_value=mock_learning_memory_client):
+        with patch(
+            "app.clients.graphiti_client.get_learning_memory_client",
+            return_value=mock_learning_memory_client,
+        ):
             result = await review_service.generate_verification_canvas(
-                source_canvas_name="test.canvas",
-                mode="targeted"
+                source_canvas_name="test.canvas", mode="targeted"
             )
 
             # Should still generate canvas (from all eligible nodes)

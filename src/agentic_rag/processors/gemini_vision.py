@@ -171,10 +171,16 @@ class GeminiVisionProcessor:
             max_retries: Maximum retry attempts
         """
         if genai is None:
-            raise ImportError("google-generativeai is required. Install with: pip install google-generativeai")
+            raise ImportError(
+                "google-generativeai is required. Install with: pip install google-generativeai"
+            )
 
         # Get API key
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        self.api_key = (
+            api_key
+            or os.environ.get("GOOGLE_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")
+        )
         if not self.api_key:
             raise GeminiConfigError(
                 "Gemini API key required. Set GOOGLE_API_KEY environment variable or pass api_key parameter."
@@ -192,7 +198,10 @@ class GeminiVisionProcessor:
         self.model = genai.GenerativeModel(self.model_name)
 
     async def analyze_image(
-        self, image_data: str | bytes, mime_type: str, custom_prompt: Optional[str] = None
+        self,
+        image_data: str | bytes,
+        mime_type: str,
+        custom_prompt: Optional[str] = None,
     ) -> ImageAnalysisResult:
         """
         Analyze image using Gemini Vision.
@@ -225,7 +234,9 @@ class GeminiVisionProcessor:
         last_error = None
         for attempt in range(self.max_retries):
             try:
-                response = await asyncio.wait_for(self._call_api(image_part, prompt), timeout=self.timeout)
+                response = await asyncio.wait_for(
+                    self._call_api(image_part, prompt), timeout=self.timeout
+                )
 
                 # Parse response
                 result = self._parse_response(response.text)
@@ -250,7 +261,9 @@ class GeminiVisionProcessor:
         """Make async API call to Gemini."""
         # Gemini's generate_content is synchronous, wrap in executor
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: self.model.generate_content([image_part, prompt]))
+        return await loop.run_in_executor(
+            None, lambda: self.model.generate_content([image_part, prompt])
+        )
 
     def _parse_response(self, response_text: str) -> ImageAnalysisResult:
         """Parse Gemini response into structured result."""
@@ -377,7 +390,9 @@ class GeminiVisionProcessor:
         results = []
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def analyze_with_semaphore(idx: int, img_data: str | bytes, mime_type: str):
+        async def analyze_with_semaphore(
+            idx: int, img_data: str | bytes, mime_type: str
+        ):
             async with semaphore:
                 try:
                     result = await self.analyze_image(img_data, mime_type)
@@ -395,7 +410,10 @@ class GeminiVisionProcessor:
                         image_type="error",
                     )
 
-        tasks = [analyze_with_semaphore(idx, img_data, mime_type) for idx, (img_data, mime_type) in enumerate(images)]
+        tasks = [
+            analyze_with_semaphore(idx, img_data, mime_type)
+            for idx, (img_data, mime_type) in enumerate(images)
+        ]
 
         results = await asyncio.gather(*tasks)
         return list(results)
@@ -424,14 +442,18 @@ class GeminiVisionProcessor:
 
         # Add code snippets
         for snippet in result["code_snippets"]:
-            code_text = f"[{snippet.get('language', 'code')}]: {snippet.get('code', '')}"
+            code_text = (
+                f"[{snippet.get('language', 'code')}]: {snippet.get('code', '')}"
+            )
             parts.append(code_text)
 
         return "\n".join(parts)
 
 
 # Convenience function
-async def analyze_image(image_path: str | Path, api_key: Optional[str] = None, **kwargs) -> VisionAnalysis:
+async def analyze_image(
+    image_path: str | Path, api_key: Optional[str] = None, **kwargs
+) -> VisionAnalysis:
     """
     Analyze image file and return results.
 
@@ -491,7 +513,9 @@ async def structured_ocr_extract(
 
         litellm.set_verbose = False
     except ImportError as exc:
-        raise ImportError("litellm is required for structured OCR. pip install litellm") from exc
+        raise ImportError(
+            "litellm is required for structured OCR. pip install litellm"
+        ) from exc
 
     messages = [
         {
@@ -527,7 +551,9 @@ async def structured_ocr_extract(
             try:
                 # Handle markdown code blocks
                 if "```json" in raw_text:
-                    json_match = re.search(r"```json\s*(.*?)\s*```", raw_text, re.DOTALL)
+                    json_match = re.search(
+                        r"```json\s*(.*?)\s*```", raw_text, re.DOTALL
+                    )
                     if json_match:
                         raw_text = json_match.group(1)
                 elif "```" in raw_text:

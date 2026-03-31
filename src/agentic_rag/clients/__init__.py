@@ -19,5 +19,5 @@ __all__ = [
     "GraphitiClient",
     "GraphitiTemporalClient",
     "LanceDBClient",
-    "TemporalClient"
+    "TemporalClient",
 ]

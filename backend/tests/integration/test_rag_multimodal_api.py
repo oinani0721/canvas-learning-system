@@ -15,17 +15,17 @@ Test Coverage:
 [Source: docs/stories/35.8.story.md]
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from httpx import AsyncClient, ASGITransport
 
+import pytest
 from app.main import app
 from app.services.rag_service import get_rag_service
-
+from httpx import ASGITransport, AsyncClient
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 def create_mock_rag_service(fusion_strategy_override=None):
     """Create a mock RAG service for testing."""
@@ -33,12 +33,19 @@ def create_mock_rag_service(fusion_strategy_override=None):
     mock.is_available = True
     mock._initialized = True
 
-    async def mock_query(query, canvas_file=None, is_review_canvas=False,
-                         fusion_strategy=None, reranking_strategy=None):
+    async def mock_query(
+        query,
+        canvas_file=None,
+        is_review_canvas=False,
+        fusion_strategy=None,
+        reranking_strategy=None,
+    ):
         """Return mock RAG results with multimodal content."""
         # Use override for review canvas, else use request param
-        actual_fusion = fusion_strategy_override or fusion_strategy or (
-            "weighted" if is_review_canvas else "rrf"
+        actual_fusion = (
+            fusion_strategy_override
+            or fusion_strategy
+            or ("weighted" if is_review_canvas else "rrf")
         )
         return {
             "results": [
@@ -46,7 +53,7 @@ def create_mock_rag_service(fusion_strategy_override=None):
                     "doc_id": "node-123",
                     "content": "逆否命题是将原命题的条件和结论同时取否定...",
                     "score": 0.95,
-                    "metadata": {"source": "graphiti", "canvas": canvas_file}
+                    "metadata": {"source": "graphiti", "canvas": canvas_file},
                 }
             ],
             "multimodal_results": [
@@ -56,7 +63,7 @@ def create_mock_rag_service(fusion_strategy_override=None):
                     "path": "images/concept_diagram.png",
                     "thumbnail": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...",
                     "relevance_score": 0.87,
-                    "metadata": {"width": 800, "height": 600}
+                    "metadata": {"width": 800, "height": 600},
                 },
                 {
                     "id": "mm-002",
@@ -64,8 +71,8 @@ def create_mock_rag_service(fusion_strategy_override=None):
                     "path": "docs/reference.pdf",
                     "thumbnail": None,
                     "relevance_score": 0.72,
-                    "metadata": {"pages": 5}
-                }
+                    "metadata": {"pages": 5},
+                },
             ],
             "quality_grade": "high",
             "result_count": 1,
@@ -74,24 +81,26 @@ def create_mock_rag_service(fusion_strategy_override=None):
                 "lancedb": 32.1,
                 "multimodal": 58.5,
                 "fusion": 5.3,
-                "reranking": 12.8
+                "reranking": 12.8,
             },
             "total_latency_ms": 153.9,
             "metadata": {
                 "query_rewritten": False,
                 "rewrite_count": 0,
                 "fusion_strategy": actual_fusion,
-                "reranking_strategy": reranking_strategy or "hybrid_auto"
-            }
+                "reranking_strategy": reranking_strategy or "hybrid_auto",
+            },
         }
 
     mock.query = AsyncMock(side_effect=mock_query)
-    mock.get_status = MagicMock(return_value={
-        "available": True,
-        "initialized": True,
-        "langgraph_available": True,
-        "import_error": None
-    })
+    mock.get_status = MagicMock(
+        return_value={
+            "available": True,
+            "initialized": True,
+            "langgraph_available": True,
+            "import_error": None,
+        }
+    )
 
     return mock
 
@@ -105,6 +114,7 @@ def mock_rag_service():
 # ============================================================================
 # AC 35.8.1: RAGQueryResponse includes multimodal_results field
 # ============================================================================
+
 
 class TestRAGQueryResponseMultimodal:
     """
@@ -131,15 +141,11 @@ class TestRAGQueryResponseMultimodal:
         app.dependency_overrides[get_rag_service] = lambda: mock_rag_service
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
                     "/api/v1/rag/query",
-                    json={
-                        "query": "什么是逆否命题?",
-                        "canvas_file": "离散数学.canvas"
-                    }
+                    json={"query": "什么是逆否命题?", "canvas_file": "离散数学.canvas"},
                 )
         finally:
             app.dependency_overrides.clear()
@@ -164,12 +170,10 @@ class TestRAGQueryResponseMultimodal:
         app.dependency_overrides[get_rag_service] = lambda: mock_rag_service
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/api/v1/rag/query",
-                    json={"query": "图像搜索测试"}
+                    "/api/v1/rag/query", json={"query": "图像搜索测试"}
                 )
         finally:
             app.dependency_overrides.clear()
@@ -196,6 +200,7 @@ class TestRAGQueryResponseMultimodal:
 # AC 35.8.2: MultimodalRetriever wired to RAG Service
 # ============================================================================
 
+
 class TestMultimodalRetrieverIntegration:
     """
     AC 35.8.2: Integration tests for MultimodalRetriever wiring.
@@ -220,12 +225,10 @@ class TestMultimodalRetrieverIntegration:
         app.dependency_overrides[get_rag_service] = lambda: mock_rag_service
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/api/v1/rag/query",
-                    json={"query": "测试多模态检索"}
+                    "/api/v1/rag/query", json={"query": "测试多模态检索"}
                 )
         finally:
             app.dependency_overrides.clear()
@@ -253,13 +256,15 @@ class TestMultimodalRetrieverIntegration:
 
         async def mock_query(*args, **kwargs):
             return {
-                "results": [{"doc_id": "1", "content": "test", "score": 0.9, "metadata": {}}],
+                "results": [
+                    {"doc_id": "1", "content": "test", "score": 0.9, "metadata": {}}
+                ],
                 "multimodal_results": [],  # Empty multimodal
                 "quality_grade": "medium",
                 "result_count": 1,
                 "latency_ms": {"multimodal": 0.0},
                 "total_latency_ms": 50.0,
-                "metadata": {}
+                "metadata": {},
             }
 
         mock.query = AsyncMock(side_effect=mock_query)
@@ -267,12 +272,10 @@ class TestMultimodalRetrieverIntegration:
         app.dependency_overrides[get_rag_service] = lambda: mock
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/api/v1/rag/query",
-                    json={"query": "无多模态结果"}
+                    "/api/v1/rag/query", json={"query": "无多模态结果"}
                 )
         finally:
             app.dependency_overrides.clear()
@@ -285,6 +288,7 @@ class TestMultimodalRetrieverIntegration:
 # ============================================================================
 # AC 35.8.3: Image results include thumbnail
 # ============================================================================
+
 
 class TestThumbnailIntegration:
     """
@@ -309,12 +313,10 @@ class TestThumbnailIntegration:
         app.dependency_overrides[get_rag_service] = lambda: mock_rag_service
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/api/v1/rag/query",
-                    json={"query": "图片搜索"}
+                    "/api/v1/rag/query", json={"query": "图片搜索"}
                 )
         finally:
             app.dependency_overrides.clear()
@@ -324,8 +326,7 @@ class TestThumbnailIntegration:
 
         # Find image result
         image_results = [
-            r for r in data["multimodal_results"]
-            if r["media_type"] == "image"
+            r for r in data["multimodal_results"] if r["media_type"] == "image"
         ]
 
         assert len(image_results) >= 1
@@ -335,15 +336,15 @@ class TestThumbnailIntegration:
             assert "thumbnail" in img
             # Thumbnail should be Base64 data URL or path
             assert img["thumbnail"] is not None
-            assert (
-                img["thumbnail"].startswith("data:image/") or
-                img["thumbnail"].endswith((".png", ".jpg", ".jpeg", ".gif"))
-            )
+            assert img["thumbnail"].startswith("data:image/") or img[
+                "thumbnail"
+            ].endswith((".png", ".jpg", ".jpeg", ".gif"))
 
 
 # ============================================================================
 # AC 35.8.4: RRF Multimodal Fusion
 # ============================================================================
+
 
 class TestRRFMultimodalFusionIntegration:
     """
@@ -371,15 +372,11 @@ class TestRRFMultimodalFusionIntegration:
         app.dependency_overrides[get_rag_service] = lambda: mock
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
                     "/api/v1/rag/query",
-                    json={
-                        "query": "融合策略测试",
-                        "fusion_strategy": "weighted"
-                    }
+                    json={"query": "融合策略测试", "fusion_strategy": "weighted"},
                 )
         finally:
             app.dependency_overrides.clear()
@@ -403,15 +400,11 @@ class TestRRFMultimodalFusionIntegration:
         app.dependency_overrides[get_rag_service] = lambda: mock
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
                     "/api/v1/rag/query",
-                    json={
-                        "query": "复习模式测试",
-                        "is_review_canvas": True
-                    }
+                    json={"query": "复习模式测试", "is_review_canvas": True},
                 )
         finally:
             app.dependency_overrides.clear()
@@ -434,12 +427,10 @@ class TestRRFMultimodalFusionIntegration:
         app.dependency_overrides[get_rag_service] = lambda: mock_rag_service
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/api/v1/rag/query",
-                    json={"query": "延迟测试"}
+                    "/api/v1/rag/query", json={"query": "延迟测试"}
                 )
         finally:
             app.dependency_overrides.clear()
@@ -450,7 +441,13 @@ class TestRRFMultimodalFusionIntegration:
         latency = data["latency_ms"]
 
         # Verify all latency components tracked
-        expected_components = ["graphiti", "lancedb", "multimodal", "fusion", "reranking"]
+        expected_components = [
+            "graphiti",
+            "lancedb",
+            "multimodal",
+            "fusion",
+            "reranking",
+        ]
         for component in expected_components:
             assert component in latency, f"Missing latency for {component}"
 
@@ -458,6 +455,7 @@ class TestRRFMultimodalFusionIntegration:
 # ============================================================================
 # Error Handling Tests
 # ============================================================================
+
 
 class TestErrorHandling:
     """
@@ -479,12 +477,10 @@ class TestErrorHandling:
         app.dependency_overrides[get_rag_service] = lambda: mock
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/api/v1/rag/query",
-                    json={"query": "测试"}
+                    "/api/v1/rag/query", json={"query": "测试"}
                 )
         finally:
             app.dependency_overrides.clear()
@@ -497,15 +493,14 @@ class TestErrorHandling:
         Verify 422 returned for invalid fusion_strategy enum value.
         """
         async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test"
+            transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
             response = await client.post(
                 "/api/v1/rag/query",
                 json={
                     "query": "测试",
-                    "fusion_strategy": "invalid_strategy"  # Not in enum
-                }
+                    "fusion_strategy": "invalid_strategy",  # Not in enum
+                },
             )
 
         assert response.status_code == 422  # Validation error
@@ -516,12 +511,11 @@ class TestErrorHandling:
         Verify empty query is rejected with 422.
         """
         async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test"
+            transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
             response = await client.post(
                 "/api/v1/rag/query",
-                json={"query": ""}  # Empty query
+                json={"query": ""},  # Empty query
             )
 
         assert response.status_code == 422  # min_length=1 validation
@@ -530,6 +524,7 @@ class TestErrorHandling:
 # ============================================================================
 # Status Endpoint Tests
 # ============================================================================
+
 
 class TestRAGStatusEndpoint:
     """
@@ -544,8 +539,7 @@ class TestRAGStatusEndpoint:
         app.dependency_overrides[get_rag_service] = lambda: mock_rag_service
         try:
             async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
+                transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.get("/api/v1/rag/status")
         finally:

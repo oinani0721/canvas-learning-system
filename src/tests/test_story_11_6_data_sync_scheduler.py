@@ -19,11 +19,17 @@ from pathlib import Path
 from typing import Dict
 
 import pytest
-from canvas_progress_tracker.data_stores import ColdDataStore, DataSyncScheduler, HotDataStore, get_data_sync_scheduler
+from canvas_progress_tracker.data_stores import (
+    ColdDataStore,
+    DataSyncScheduler,
+    HotDataStore,
+    get_data_sync_scheduler,
+)
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def temp_dirs(tmp_path):
@@ -32,20 +38,18 @@ def temp_dirs(tmp_path):
     db_path = tmp_path / "test.db"
     sessions_dir.mkdir(parents=True, exist_ok=True)
 
-    return {
-        "sessions_dir": sessions_dir,
-        "db_path": db_path,
-        "base_dir": tmp_path
-    }
+    return {"sessions_dir": sessions_dir, "db_path": db_path, "base_dir": tmp_path}
 
 
 @pytest.fixture
 def hot_store(temp_dirs):
     """创建测试用HotDataStore"""
-    store = HotDataStore(session_dir=temp_dirs["sessions_dir"])  # session_dir (单数), 接受Path对象
+    store = HotDataStore(
+        session_dir=temp_dirs["sessions_dir"]
+    )  # session_dir (单数), 接受Path对象
     yield store
     # 清理
-    if hasattr(store, 'close'):
+    if hasattr(store, "close"):
         store.close()
 
 
@@ -55,7 +59,7 @@ def cold_store(temp_dirs):
     store = ColdDataStore(db_path=str(temp_dirs["db_path"]))
     yield store
     # 清理
-    if hasattr(store, 'close'):
+    if hasattr(store, "close"):
         store.close()
 
 
@@ -67,7 +71,7 @@ def scheduler(hot_store, cold_store):
         cold_store=cold_store,
         sync_interval=1,  # 1秒，加快测试
         archive_threshold=90,
-        cleanup_threshold=365
+        cleanup_threshold=365,
     )
     yield sched
     # 清理
@@ -91,7 +95,7 @@ def sample_session_data():
                 "node_id": "node_001",
                 "old_color": "1",
                 "new_color": "2",
-                "metadata": {"concept": "逆否命题"}
+                "metadata": {"concept": "逆否命题"},
             },
             {
                 "event_id": "evt_002",
@@ -100,17 +104,16 @@ def sample_session_data():
                 "canvas_id": "canvas_001",
                 "node_id": "node_002",
                 "node_type": "text",
-                "metadata": {"text": "个人理解"}
-            }
+                "metadata": {"text": "个人理解"},
+            },
         ],
-        "metadata": {
-            "canvas_count": 1,
-            "total_events": 2
-        }
+        "metadata": {"canvas_count": 1, "total_events": 2},
     }
 
 
-def create_old_session_file(sessions_dir: Path, session_data: Dict, days_ago: int = 2) -> Path:
+def create_old_session_file(
+    sessions_dir: Path, session_data: Dict, days_ago: int = 2
+) -> Path:
     """
     创建一个指定天数之前的session文件
 
@@ -126,13 +129,14 @@ def create_old_session_file(sessions_dir: Path, session_data: Dict, days_ago: in
     file_path = sessions_dir / f"{session_id}.json"
 
     # 写入文件
-    with open(file_path, 'w', encoding='utf-8') as f:
+    with open(file_path, "w", encoding="utf-8") as f:
         json.dump(session_data, f, ensure_ascii=False, indent=2)
 
     # 修改文件时间戳
     old_time = datetime.now() - timedelta(days=days_ago)
     timestamp = old_time.timestamp()
     import os
+
     os.utime(file_path, (timestamp, timestamp))
 
     return file_path
@@ -141,6 +145,7 @@ def create_old_session_file(sessions_dir: Path, session_data: Dict, days_ago: in
 # ============================================================================
 # Test 1: 基础功能测试
 # ============================================================================
+
 
 class TestBasicFunctionality:
     """测试调度器基础功能"""
@@ -194,6 +199,7 @@ class TestBasicFunctionality:
 # Test 2: 同步流程测试
 # ============================================================================
 
+
 class TestSyncFlow:
     """测试数据同步流程"""
 
@@ -205,13 +211,15 @@ class TestSyncFlow:
         create_old_session_file(sessions_dir, sample_session_data, days_ago=1)
 
         # 创建2天前的文件（应该被同步）
-        old_file = create_old_session_file(sessions_dir, sample_session_data, days_ago=2)
+        old_file = create_old_session_file(
+            sessions_dir, sample_session_data, days_ago=2
+        )
 
         # 创建新文件（应该不被同步）
         new_data = sample_session_data.copy()
         new_data["session_id"] = "new_session"
         new_file = sessions_dir / "new_session.json"
-        with open(new_file, 'w', encoding='utf-8') as f:
+        with open(new_file, "w", encoding="utf-8") as f:
             json.dump(new_data, f)
 
         # 查找未同步文件
@@ -272,19 +280,21 @@ class TestSyncFlow:
             "events": [
                 {"event_type": "node_color_change", "details": {}},
                 {"event_type": "node_color_change", "details": {}},
-            ]
+            ],
         }
         session_file = sessions_dir / "session_verify.json"
-        with open(session_file, 'w') as f:
+        with open(session_file, "w") as f:
             json.dump(session_data, f)
 
         # 正确的计数（匹配session_data中的2个事件）
         inserted_counts = {
             "canvas_changes": 2,
             "learning_events": 2,  # 修正：应该等于总事件数
-            "color_transitions": 2
+            "color_transitions": 2,
         }
-        is_valid, errors = scheduler._verify_sync_integrity(session_file, inserted_counts)
+        is_valid, errors = scheduler._verify_sync_integrity(
+            session_file, inserted_counts
+        )
         assert is_valid is True
         assert len(errors) == 0
 
@@ -292,7 +302,7 @@ class TestSyncFlow:
         wrong_counts = {
             "canvas_changes": 3,  # 错误：实际只有2个
             "learning_events": 2,
-            "color_transitions": 2
+            "color_transitions": 2,
         }
         is_valid, errors = scheduler._verify_sync_integrity(session_file, wrong_counts)
         assert is_valid is False
@@ -303,7 +313,9 @@ class TestSyncFlow:
         sessions_dir = temp_dirs["sessions_dir"]
 
         # 创建2天前的文件
-        old_file = create_old_session_file(sessions_dir, sample_session_data, days_ago=2)
+        old_file = create_old_session_file(
+            sessions_dir, sample_session_data, days_ago=2
+        )
         assert old_file.exists()
 
         # 执行同步
@@ -319,8 +331,7 @@ class TestSyncFlow:
 
         # 验证数据已插入ColdDataStore
         changes = scheduler.cold_store.query_canvas_changes(
-            canvas_id="canvas_001",
-            limit=10
+            canvas_id="canvas_001", limit=10
         )
         assert len(changes) > 0
 
@@ -328,6 +339,7 @@ class TestSyncFlow:
 # ============================================================================
 # Test 3: 错误处理测试
 # ============================================================================
+
 
 class TestErrorHandling:
     """测试错误处理机制"""
@@ -338,13 +350,14 @@ class TestErrorHandling:
 
         # 创建损坏的JSON文件
         corrupted_file = sessions_dir / "session_corrupted.json"
-        with open(corrupted_file, 'w') as f:
+        with open(corrupted_file, "w") as f:
             f.write("{invalid json")
 
         # 修改时间戳为2天前
         old_time = datetime.now() - timedelta(days=2)
         timestamp = old_time.timestamp()
         import os
+
         os.utime(corrupted_file, (timestamp, timestamp))
 
         # 执行同步
@@ -358,12 +371,16 @@ class TestErrorHandling:
         error_files = list(scheduler.error_dir.glob("session_corrupted.json"))
         assert len(error_files) == 1
 
-    def test_retry_mechanism(self, scheduler, sample_session_data, temp_dirs, monkeypatch):
+    def test_retry_mechanism(
+        self, scheduler, sample_session_data, temp_dirs, monkeypatch
+    ):
         """测试重试机制（模拟暂时性错误）"""
         sessions_dir = temp_dirs["sessions_dir"]
 
         # 创建测试文件
-        old_file = create_old_session_file(sessions_dir, sample_session_data, days_ago=2)
+        old_file = create_old_session_file(
+            sessions_dir, sample_session_data, days_ago=2
+        )
 
         # 模拟前2次调用失败，第3次成功
         call_count = [0]
@@ -377,7 +394,7 @@ class TestErrorHandling:
             # 第3次调用原始方法
             return original_process(session_path)
 
-        monkeypatch.setattr(scheduler, '_process_session_file', mock_process)
+        monkeypatch.setattr(scheduler, "_process_session_file", mock_process)
 
         # 执行带重试的同步
         success, error = scheduler._process_session_file_with_retry(old_file)
@@ -392,13 +409,14 @@ class TestErrorHandling:
 
         # 创建损坏的文件
         bad_file = sessions_dir / "session_bad.json"
-        with open(bad_file, 'w') as f:
+        with open(bad_file, "w") as f:
             f.write("not json at all")
 
         # 修改时间戳
         old_time = datetime.now() - timedelta(days=2)
         timestamp = old_time.timestamp()
         import os
+
         os.utime(bad_file, (timestamp, timestamp))
 
         # 执行同步
@@ -421,6 +439,7 @@ class TestErrorHandling:
 # Test 4: 归档功能测试
 # ============================================================================
 
+
 class TestArchiving:
     """测试数据归档功能"""
 
@@ -429,12 +448,16 @@ class TestArchiving:
         # 插入一些旧数据
         old_time = (datetime.now() - timedelta(days=100)).isoformat()
 
-        cold_store.insert_canvas_changes([{
-            "canvas_id": "test_canvas",
-            "change_type": "node_added",
-            "change_data": {"test": "data"},
-            "timestamp": old_time
-        }])
+        cold_store.insert_canvas_changes(
+            [
+                {
+                    "canvas_id": "test_canvas",
+                    "change_type": "node_added",
+                    "change_data": {"test": "data"},
+                    "timestamp": old_time,
+                }
+            ]
+        )
 
         # 执行归档
         result = scheduler._archive_old_data()
@@ -454,12 +477,15 @@ class TestArchiving:
         # 插入大量旧数据
         old_time = (datetime.now() - timedelta(days=100)).isoformat()
 
-        records = [{
-            "canvas_id": f"canvas_{i}",
-            "change_type": "node_added",
-            "change_data": {"index": i, "data": "x" * 100},
-            "timestamp": old_time
-        } for i in range(100)]
+        records = [
+            {
+                "canvas_id": f"canvas_{i}",
+                "change_type": "node_added",
+                "change_data": {"index": i, "data": "x" * 100},
+                "timestamp": old_time,
+            }
+            for i in range(100)
+        ]
         cold_store.insert_canvas_changes(records)
 
         # 执行归档
@@ -470,7 +496,7 @@ class TestArchiving:
         archive_path = Path(result["archive_file"])
 
         # 验证文件可以解压
-        with gzip.open(archive_path, 'rt', encoding='utf-8') as f:
+        with gzip.open(archive_path, "rt", encoding="utf-8") as f:
             archive_data = json.load(f)
 
         assert "canvas_changes" in archive_data
@@ -481,19 +507,23 @@ class TestArchiving:
         # 插入旧数据
         old_time = (datetime.now() - timedelta(days=100)).isoformat()
 
-        cold_store.insert_canvas_changes([{
-            "canvas_id": "test",
-            "change_type": "test",
-            "change_data": {},
-            "timestamp": old_time
-        }])
+        cold_store.insert_canvas_changes(
+            [
+                {
+                    "canvas_id": "test",
+                    "change_type": "test",
+                    "change_data": {},
+                    "timestamp": old_time,
+                }
+            ]
+        )
 
         # 执行归档
         result = scheduler._archive_old_data()
 
         # 验证归档文件完整性
         archive_path = Path(result["archive_file"])
-        with gzip.open(archive_path, 'rt', encoding='utf-8') as f:
+        with gzip.open(archive_path, "rt", encoding="utf-8") as f:
             archive_data = json.load(f)
 
         # 检查必要字段
@@ -507,6 +537,7 @@ class TestArchiving:
 # Test 5: 磁盘空间管理测试
 # ============================================================================
 
+
 class TestDiskSpaceManagement:
     """测试磁盘空间管理功能"""
 
@@ -516,7 +547,7 @@ class TestDiskSpaceManagement:
         sessions_dir = temp_dirs["sessions_dir"]
         for i in range(5):
             test_file = sessions_dir / f"test_{i}.json"
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 json.dump({"test": "data" * 1000}, f)
 
         # 获取磁盘统计
@@ -539,15 +570,17 @@ class TestDiskSpaceManagement:
         from collections import namedtuple
 
         # Mock shutil.disk_usage 返回低磁盘空间
-        DiskUsage = namedtuple('usage', 'total used free')
+        DiskUsage = namedtuple("usage", "total used free")
+
         def mock_disk_usage(path):
             # 模拟低磁盘空间：500MB可用
             return DiskUsage(
                 total=100 * 1024 * 1024 * 1024,  # 100GB total
                 used=99.5 * 1024 * 1024 * 1024,  # 99.5GB used
-                free=500 * 1024 * 1024           # 500MB free (<1GB)
+                free=500 * 1024 * 1024,  # 500MB free (<1GB)
             )
-        monkeypatch.setattr(shutil, 'disk_usage', mock_disk_usage)
+
+        monkeypatch.setattr(shutil, "disk_usage", mock_disk_usage)
 
         # Mock _archive_old_data 以验证是否被调用
         archive_called = [False]
@@ -557,7 +590,7 @@ class TestDiskSpaceManagement:
             archive_called[0] = True
             return {"success": True, "records_archived": 10}
 
-        monkeypatch.setattr(scheduler, '_archive_old_data', mock_archive)
+        monkeypatch.setattr(scheduler, "_archive_old_data", mock_archive)
 
         # 执行磁盘检查
         stats = scheduler._check_disk_space()
@@ -569,13 +602,13 @@ class TestDiskSpaceManagement:
     def test_old_archives_cleanup(self, scheduler):
         """测试旧归档清理（365天）"""
         # 创建一个旧归档文件
-        old_date = (datetime.now() - timedelta(days=400)).strftime('%Y-%m-%d')
+        old_date = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
         archive_filename = f"archive_{old_date}_to_{old_date}.json.gz"
         archive_path = scheduler.archive_dir / archive_filename
 
         # 创建归档文件
         test_data = {"test": "old archive"}
-        with gzip.open(archive_path, 'wt', encoding='utf-8') as f:
+        with gzip.open(archive_path, "wt", encoding="utf-8") as f:
             json.dump(test_data, f)
 
         # 执行磁盘检查（会清理旧归档）
@@ -590,6 +623,7 @@ class TestDiskSpaceManagement:
 # ============================================================================
 # Test 6: 监控功能测试
 # ============================================================================
+
 
 class TestMonitoring:
     """测试监控功能"""
@@ -649,6 +683,7 @@ class TestMonitoring:
 # Test 7: 集成测试
 # ============================================================================
 
+
 class TestIntegration:
     """端到端集成测试"""
 
@@ -657,7 +692,9 @@ class TestIntegration:
         sessions_dir = temp_dirs["sessions_dir"]
 
         # Step 1: 创建旧session文件
-        old_file = create_old_session_file(sessions_dir, sample_session_data, days_ago=2)
+        old_file = create_old_session_file(
+            sessions_dir, sample_session_data, days_ago=2
+        )
 
         # Step 2: 同步
         sync_stats = scheduler._sync_session_data()
@@ -666,12 +703,15 @@ class TestIntegration:
 
         # Step 3: 插入更多旧数据（用于归档测试）
         old_time = (datetime.now() - timedelta(days=100)).isoformat()
-        old_records = [{
-            "canvas_id": f"old_canvas_{i}",
-            "change_type": "test",
-            "change_data": {"index": i},
-            "timestamp": old_time
-        } for i in range(10)]
+        old_records = [
+            {
+                "canvas_id": f"old_canvas_{i}",
+                "change_type": "test",
+                "change_data": {"index": i},
+                "timestamp": old_time,
+            }
+            for i in range(10)
+        ]
         scheduler.cold_store.insert_canvas_changes(old_records)
 
         # Step 4: 归档
@@ -704,6 +744,7 @@ class TestIntegration:
 
         # 手动触发同步（应该被线程锁保护）
         import threading
+
         sync_threads = []
         for _ in range(3):
             t = threading.Thread(target=scheduler._sync_session_data)
@@ -725,6 +766,7 @@ class TestIntegration:
 # ============================================================================
 # Test 8: 边界条件测试
 # ============================================================================
+
 
 class TestEdgeCases:
     """测试边界条件"""
@@ -750,13 +792,14 @@ class TestEdgeCases:
         # 创建结构不完整的文件
         invalid_data = {"session_id": "session_invalid"}  # 缺少events字段
         invalid_file = sessions_dir / "session_invalid.json"
-        with open(invalid_file, 'w') as f:
+        with open(invalid_file, "w") as f:
             json.dump(invalid_data, f)
 
         # 修改时间戳
         old_time = datetime.now() - timedelta(days=2)
         timestamp = old_time.timestamp()
         import os
+
         os.utime(invalid_file, (timestamp, timestamp))
 
         # 尝试同步

@@ -13,29 +13,31 @@ from pathlib import Path
 def test_yaml_frontmatter():
     """测试YAML frontmatter格式 (AC: 1)"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 提取YAML frontmatter
-    yaml_match = re.search(r'^---\n(.*?)\n---', content, re.DOTALL)
+    yaml_match = re.search(r"^---\n(.*?)\n---", content, re.DOTALL)
     assert yaml_match, "未找到YAML frontmatter"
 
     yaml_content = yaml_match.group(1)
 
     # 验证name字段（kebab-case）
-    assert 'name: clarification-path' in yaml_content, "name字段应为clarification-path"
+    assert "name: clarification-path" in yaml_content, "name字段应为clarification-path"
 
     # 验证description字段
-    desc_match = re.search(r'description: (.+)', yaml_content)
+    desc_match = re.search(r"description: (.+)", yaml_content)
     assert desc_match, "未找到description字段"
     description = desc_match.group(1)
     assert len(description) < 80, f"description过长: {len(description)}字符（应<80）"
-    assert "1500" in description or "in-depth" in description, "description应提及1500+字或深度解释"
+    assert "1500" in description or "in-depth" in description, (
+        "description应提及1500+字或深度解释"
+    )
 
     # 验证tools字段
-    assert 'tools: Read' in yaml_content, "tools字段应为Read"
+    assert "tools: Read" in yaml_content, "tools字段应为Read"
 
     # 验证model字段
-    assert 'model: sonnet' in yaml_content, "model字段应为sonnet"
+    assert "model: sonnet" in yaml_content, "model字段应为sonnet"
 
     print("[PASS] Test 1: YAML frontmatter验证通过")
 
@@ -43,13 +45,13 @@ def test_yaml_frontmatter():
 def test_markdown_structure():
     """测试Markdown结构 (AC: 2)"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     required_sections = [
         "## Role",
         "## Input Format",
         "## Output Format",
-        "## System Prompt"
+        "## System Prompt",
     ]
 
     for section in required_sections:
@@ -61,10 +63,12 @@ def test_markdown_structure():
 def test_content_completeness():
     """测试内容完整性 - 验证1500+字和4步骤流程 (AC: 1, 2)"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证Role部分
-    assert "澄清路径" in content or "clarification" in content.lower(), "Role部分应提及澄清路径"
+    assert "澄清路径" in content or "clarification" in content.lower(), (
+        "Role部分应提及澄清路径"
+    )
     assert "1500" in content, "应说明1500+字的要求"
     assert "质量优先" in content or "质量优先于速度" in content, "应强调质量优先原则"
 
@@ -75,7 +79,9 @@ def test_content_completeness():
 
     # 验证Output Format（AC: 5）
     assert "Markdown" in content, "应说明输出Markdown格式"
-    assert "无需JSON包裹" in content or "不要使用JSON" in content, "应明确说明不返回JSON"
+    assert "无需JSON包裹" in content or "不要使用JSON" in content, (
+        "应明确说明不返回JSON"
+    )
     assert "1500" in content, "应说明1500+字的要求"
 
     # 验证System Prompt包含4步骤流程（AC: 2）
@@ -83,7 +89,7 @@ def test_content_completeness():
         "步骤1" or "概念澄清",
         "步骤2" or "深层分析",
         "步骤3" or "关联网络",
-        "步骤4" or "应用场景"
+        "步骤4" or "应用场景",
     ]
     for step in ["概念澄清", "深层分析", "关联网络", "应用场景"]:
         assert step in content, f"缺少4步骤之一: {step}"
@@ -107,14 +113,14 @@ def test_content_completeness():
 def test_four_step_structure():
     """测试4步骤流程结构详细要求 (AC: 2)"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 步骤1：概念澄清（300-400字）
     step1_requirements = [
         "精确定义",
         "歧义",  # 更灵活的匹配
         "边界",
-        "是什么"
+        "是什么",
     ]
     for req in step1_requirements:
         assert req in content, f"步骤1缺少要求: {req}"
@@ -125,7 +131,7 @@ def test_four_step_structure():
         "底层原理" or "背后的原理",
         "设计动机" or "历史背景",
         "替代方案",
-        "局限性"
+        "局限性",
     ]
     for req in ["为什么", "原理", "替代方案"]:
         assert req in content, f"步骤2缺少要求: {req}"
@@ -135,7 +141,7 @@ def test_four_step_structure():
         "相似概念" or "区别与联系",
         "知识体系" or "在知识体系中的位置",
         "前置" or "依赖",
-        "后续" or "支撑"
+        "后续" or "支撑",
     ]
     for req in ["相似概念", "知识体系", "前置"]:
         assert req in content, f"步骤3缺少要求: {req}"
@@ -146,7 +152,7 @@ def test_four_step_structure():
         "至少2个" or "2个具体例子",
         "判断标准" or "如何判断",
         "注意事项",
-        "常见错误"
+        "常见错误",
     ]
     for req in ["应用场景", "判断", "注意事项", "常见错误"]:
         assert req in content, f"步骤4缺少要求: {req}"
@@ -157,7 +163,7 @@ def test_four_step_structure():
 def test_filename_convention():
     """测试文件命名规范 (AC: 5)"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 虽然文件命名由orchestrator处理，但agent文件应该说明或示例中体现
     # 检查示例中是否体现命名规范
@@ -173,14 +179,10 @@ def test_filename_convention():
 def test_input_output_format():
     """测试输入输出格式定义 (AC: 4, 5)"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 提取输入示例JSON
-    input_match = re.search(
-        r'输入示例.*?```json\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    input_match = re.search(r"输入示例.*?```json\n(.*?)\n```", content, re.DOTALL)
     assert input_match, "未找到输入示例"
 
     input_json = input_match.group(1)
@@ -192,20 +194,24 @@ def test_input_output_format():
     assert "user_understanding" in input_data, "输入缺少user_understanding字段"
 
     # 验证输出示例是Markdown格式（AC: 5）
-    output_match = re.search(
-        r'输出示例.*?```markdown\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    output_match = re.search(r"输出示例.*?```markdown\n(.*?)\n```", content, re.DOTALL)
     assert output_match, "未找到输出示例（应为markdown格式）"
 
     output_markdown = output_match.group(1)
 
     # 验证输出示例包含4步骤的标题（AC: 2）
-    assert "步骤1" in output_markdown and "概念澄清" in output_markdown, "输出示例缺少步骤1：概念澄清"
-    assert "步骤2" in output_markdown and "深层分析" in output_markdown, "输出示例缺少步骤2：深层分析"
-    assert "步骤3" in output_markdown and "关联网络" in output_markdown, "输出示例缺少步骤3：关联网络"
-    assert "步骤4" in output_markdown and "应用场景" in output_markdown, "输出示例缺少步骤4：应用场景"
+    assert "步骤1" in output_markdown and "概念澄清" in output_markdown, (
+        "输出示例缺少步骤1：概念澄清"
+    )
+    assert "步骤2" in output_markdown and "深层分析" in output_markdown, (
+        "输出示例缺少步骤2：深层分析"
+    )
+    assert "步骤3" in output_markdown and "关联网络" in output_markdown, (
+        "输出示例缺少步骤3：关联网络"
+    )
+    assert "步骤4" in output_markdown and "应用场景" in output_markdown, (
+        "输出示例缺少步骤4：应用场景"
+    )
 
     # 验证字数（输出示例应该是1500+字）（AC: 1）
     word_count = len(output_markdown)
@@ -217,7 +223,7 @@ def test_input_output_format():
 def test_quality_over_speed():
     """测试质量优先原则 (AC: 8)"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证强调质量优先
     quality_keywords = ["质量优先", "质量优先于速度", "彻底理解", "不留疑问"]
@@ -234,7 +240,7 @@ def test_quality_over_speed():
 def test_user_understanding_handling():
     """测试user_understanding字段处理"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证对user_understanding的处理说明
     assert "user_understanding" in content, "应说明如何处理user_understanding"
@@ -244,14 +250,12 @@ def test_user_understanding_handling():
     assert "回应" in content or "评价" in content, "应说明如何针对性回应用户理解"
 
     # 在输入示例中应该有user_understanding字段
-    input_match = re.search(
-        r'输入示例.*?```json\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    input_match = re.search(r"输入示例.*?```json\n(.*?)\n```", content, re.DOTALL)
     if input_match:
         input_json = input_match.group(1)
-        assert "user_understanding" in input_json, "输入示例应包含user_understanding字段"
+        assert "user_understanding" in input_json, (
+            "输入示例应包含user_understanding字段"
+        )
 
     print("[PASS] Test 8: user_understanding处理验证通过")
 
@@ -259,7 +263,7 @@ def test_user_understanding_handling():
 def test_ac_coverage():
     """验证所有AC都已满足"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # AC 1: 生成1500+字的详细解释
     assert "1500" in content, "AC 1: 未说明1500+字要求"
@@ -295,13 +299,15 @@ def test_ac_coverage():
 def test_difference_from_oral_explanation():
     """测试与oral-explanation的区别"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/clarification-path.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 字数要求不同：1500+ vs 800-1200
     assert "1500" in content, "应说明1500+字（区别于800-1200）"
 
     # 风格不同：严谨学术 vs 口语化
-    assert "严谨" in content or "学术" in content or "准确" in content, "应强调严谨/学术风格"
+    assert "严谨" in content or "学术" in content or "准确" in content, (
+        "应强调严谨/学术风格"
+    )
 
     # 不应该有口语化表达
     oral_indicators = ["打个比方", "简单来说", "其实就是"]
@@ -327,9 +333,9 @@ if __name__ == "__main__":
         test_ac_coverage()  # Test 9
         test_difference_from_oral_explanation()  # Test 10
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("SUCCESS: 所有验证通过！clarification-path Agent定义文件符合规范。")
-        print("="*60)
+        print("=" * 60)
         print("\nStory 3.2 AC Coverage:")
         print("  [OK] AC 1: 生成1500+字的详细解释")
         print("  [OK] AC 2: 严格按照4步骤流程")

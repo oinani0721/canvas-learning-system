@@ -16,16 +16,18 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from fastapi.testclient import TestClient
 
-
 # =============================================================================
 # AC 35.9.5: Performance Tests
 # =============================================================================
+
 
 @pytest.mark.slow
 class TestMultimodalPerformanceE2E:
     """Performance E2E tests for multimodal operations."""
 
-    def test_batch_upload_10_images_under_5_seconds(self, client: TestClient, test_image_file: bytes):
+    def test_batch_upload_10_images_under_5_seconds(
+        self, client: TestClient, test_image_file: bytes
+    ):
         """Test uploading 10 images completes in under 5 seconds."""
         num_images = 10
         canvas_path = "/test/canvas/performance.canvas"
@@ -34,30 +36,46 @@ class TestMultimodalPerformanceE2E:
 
         uploaded_ids = []
         for i in range(num_images):
-            files = {"file": (f"perf_test_{i}.png", io.BytesIO(test_image_file), "image/png")}
+            files = {
+                "file": (f"perf_test_{i}.png", io.BytesIO(test_image_file), "image/png")
+            }
             data = {
                 "related_concept_id": f"perf-concept-{i}",
                 "canvas_path": canvas_path,
             }
             response = client.post("/api/v1/multimodal/upload", files=files, data=data)
-            assert response.status_code == 201, f"Upload {i} failed: {response.status_code}: {response.text}"
+            assert response.status_code == 201, (
+                f"Upload {i} failed: {response.status_code}: {response.text}"
+            )
             uploaded_ids.append(response.json()["content"]["id"])
 
         elapsed_ms = (time.perf_counter() - start) * 1000
 
-        assert elapsed_ms < 5000, f"Batch upload took {elapsed_ms:.0f}ms, expected < 5000ms"
-        assert len(uploaded_ids) == num_images, f"Only {len(uploaded_ids)}/{num_images} uploads succeeded"
+        assert elapsed_ms < 5000, (
+            f"Batch upload took {elapsed_ms:.0f}ms, expected < 5000ms"
+        )
+        assert len(uploaded_ids) == num_images, (
+            f"Only {len(uploaded_ids)}/{num_images} uploads succeeded"
+        )
 
         for content_id in uploaded_ids:
             client.delete(f"/api/v1/multimodal/{content_id}")
 
-    def test_concurrent_upload_performance(self, client: TestClient, test_image_file: bytes):
+    def test_concurrent_upload_performance(
+        self, client: TestClient, test_image_file: bytes
+    ):
         """Test concurrent uploads complete efficiently."""
         num_images = 5
         canvas_path = "/test/canvas/concurrent.canvas"
 
         def upload_image(index: int) -> tuple[int, str | None]:
-            files = {"file": (f"concurrent_{index}.png", io.BytesIO(test_image_file), "image/png")}
+            files = {
+                "file": (
+                    f"concurrent_{index}.png",
+                    io.BytesIO(test_image_file),
+                    "image/png",
+                )
+            }
             data = {
                 "related_concept_id": f"concurrent-concept-{index}",
                 "canvas_path": canvas_path,
@@ -76,7 +94,9 @@ class TestMultimodalPerformanceE2E:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         successful = [r for r in results if r[1] is not None]
-        assert len(successful) == num_images, f"Only {len(successful)}/{num_images} concurrent uploads succeeded"
+        assert len(successful) == num_images, (
+            f"Only {len(successful)}/{num_images} concurrent uploads succeeded"
+        )
         assert elapsed_ms < 5000, f"Concurrent upload took {elapsed_ms:.0f}ms"
 
         for _, content_id in successful:
@@ -102,6 +122,7 @@ class TestMultimodalPerformanceE2E:
 # =============================================================================
 # Utility Tests
 # =============================================================================
+
 
 class TestMultimodalUtilityE2E:
     """E2E tests for multimodal utility endpoints."""
@@ -141,7 +162,9 @@ class TestMultimodalUtilityE2E:
             "related_concept_id": "get-concept-001",
             "canvas_path": "/test/canvas/get.canvas",
         }
-        upload_response = client.post("/api/v1/multimodal/upload", files=files, data=data)
+        upload_response = client.post(
+            "/api/v1/multimodal/upload", files=files, data=data
+        )
         assert upload_response.status_code == 201, (
             f"Setup upload failed: {upload_response.status_code}: {upload_response.text}"
         )
@@ -163,7 +186,9 @@ class TestMultimodalUtilityE2E:
             "related_concept_id": "update-concept-001",
             "canvas_path": "/test/canvas/update.canvas",
         }
-        upload_response = client.post("/api/v1/multimodal/upload", files=files, data=data)
+        upload_response = client.post(
+            "/api/v1/multimodal/upload", files=files, data=data
+        )
         assert upload_response.status_code == 201, (
             f"Setup upload failed: {upload_response.status_code}: {upload_response.text}"
         )

@@ -130,7 +130,9 @@ def sample_snapshot(sample_canvas_data):
 class TestRollbackEngineInit:
     """Tests for RollbackEngine initialization."""
 
-    def test_init_with_default_backup(self, mock_operation_tracker, mock_snapshot_manager):
+    def test_init_with_default_backup(
+        self, mock_operation_tracker, mock_snapshot_manager
+    ):
         """Test initialization with default backup setting."""
         engine = RollbackEngine(
             operation_tracker=mock_operation_tracker,
@@ -160,7 +162,12 @@ class TestOperationRollback:
 
     @pytest.mark.asyncio
     async def test_rollback_operation_with_id(
-        self, rollback_engine, mock_operation_tracker, mock_snapshot_manager, sample_operation, temp_dir
+        self,
+        rollback_engine,
+        mock_operation_tracker,
+        mock_snapshot_manager,
+        sample_operation,
+        temp_dir,
     ):
         """Test rollback specific operation by ID."""
         # Setup
@@ -185,7 +192,12 @@ class TestOperationRollback:
 
     @pytest.mark.asyncio
     async def test_rollback_operation_latest(
-        self, rollback_engine, mock_operation_tracker, mock_snapshot_manager, sample_operation, temp_dir
+        self,
+        rollback_engine,
+        mock_operation_tracker,
+        mock_snapshot_manager,
+        sample_operation,
+        temp_dir,
     ):
         """Test rollback latest operation (no ID)."""
         # Setup
@@ -542,7 +554,12 @@ class TestBackupCreation:
 
     @pytest.mark.asyncio
     async def test_backup_created_by_default(
-        self, rollback_engine, mock_operation_tracker, mock_snapshot_manager, sample_operation, temp_dir
+        self,
+        rollback_engine,
+        mock_operation_tracker,
+        mock_snapshot_manager,
+        sample_operation,
+        temp_dir,
     ):
         """Test backup is created by default."""
         canvas_path = temp_dir / "test.canvas"
@@ -558,7 +575,12 @@ class TestBackupCreation:
 
     @pytest.mark.asyncio
     async def test_backup_disabled_override(
-        self, rollback_engine, mock_operation_tracker, mock_snapshot_manager, sample_operation, temp_dir
+        self,
+        rollback_engine,
+        mock_operation_tracker,
+        mock_snapshot_manager,
+        sample_operation,
+        temp_dir,
     ):
         """Test backup can be disabled via parameter."""
         canvas_path = temp_dir / "test.canvas"
@@ -607,7 +629,12 @@ class TestGraphSyncStatus:
 
     @pytest.mark.asyncio
     async def test_graph_sync_pending_by_default(
-        self, rollback_engine, mock_operation_tracker, mock_snapshot_manager, sample_operation, temp_dir
+        self,
+        rollback_engine,
+        mock_operation_tracker,
+        mock_snapshot_manager,
+        sample_operation,
+        temp_dir,
     ):
         """Test graph sync status is PENDING by default."""
         canvas_path = temp_dir / "test.canvas"
@@ -623,7 +650,12 @@ class TestGraphSyncStatus:
 
     @pytest.mark.asyncio
     async def test_graph_sync_skipped_with_preserve_flag(
-        self, rollback_engine, mock_operation_tracker, mock_snapshot_manager, sample_operation, temp_dir
+        self,
+        rollback_engine,
+        mock_operation_tracker,
+        mock_snapshot_manager,
+        sample_operation,
+        temp_dir,
     ):
         """Test graph sync is SKIPPED when preserve_graph is True."""
         canvas_path = temp_dir / "test.canvas"
@@ -672,7 +704,12 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_restore_from_backup_on_failure(
-        self, rollback_engine, mock_operation_tracker, mock_snapshot_manager, sample_snapshot, temp_dir
+        self,
+        rollback_engine,
+        mock_operation_tracker,
+        mock_snapshot_manager,
+        sample_snapshot,
+        temp_dir,
     ):
         """Test backup restore is attempted on failure."""
         canvas_path = temp_dir / "test.canvas"

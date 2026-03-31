@@ -12,10 +12,7 @@ from typing import Any, Dict, List
 
 
 def _update_canvas_correct_structure(
-    self,
-    canvas_path: str,
-    results: List[Dict[str, Any]],
-    options: Dict[str, Any]
+    self, canvas_path: str, results: List[Dict[str, Any]], options: Dict[str, Any]
 ) -> None:
     """
     修复后的Canvas更新方法 - 使用正确的3层结构 (Story 10.2.3)
@@ -113,7 +110,7 @@ def _update_canvas_correct_structure(
                 "memory-anchor": "记忆锚点",
                 "comparison-table": "对比表格",
                 "four-level-explanation": "四层次解释",
-                "example-teaching": "例题教学"
+                "example-teaching": "例题教学",
             }.get(agent_type, "AI解释")
 
             blue_text_content = f"{agent_info['emoji']} {agent_name_cn}\n\nAgent: {agent_type}\n生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -127,7 +124,7 @@ def _update_canvas_correct_structure(
                 width=250,
                 height=150,
                 color="5",  # Blue
-                text=blue_text_content
+                text=blue_text_content,
             )
 
             # 手动设置节点ID (create_node生成的ID需要替换)
@@ -151,7 +148,7 @@ def _update_canvas_correct_structure(
                 y=file_y,
                 width=350,
                 height=200,
-                file=file_path_str
+                file=file_path_str,
             )
 
             # 手动设置节点ID
@@ -164,7 +161,7 @@ def _update_canvas_correct_structure(
                 to_node=blue_text_node_id,
                 from_side="right",
                 to_side="left",
-                label=f"AI解释 ({agent_info['emoji']})"
+                label=f"AI解释 ({agent_info['emoji']})",
             )
 
             # 手动设置边ID
@@ -177,7 +174,7 @@ def _update_canvas_correct_structure(
                 from_node=blue_text_node_id,
                 to_node=file_node_id,
                 from_side="right",
-                to_side="left"
+                to_side="left",
                 # 注意: 不传label参数，保持无标签
             )
 
@@ -190,7 +187,9 @@ def _update_canvas_correct_structure(
             self.stats["created_blue_nodes"] += 2
 
             print("   ✅ 创建3层结构:")
-            print(f"      Yellow({node_id[:16]}...) → BlueText({blue_text_node_id[:16]}...) → File({file_node_id[:16]}...)")
+            print(
+                f"      Yellow({node_id[:16]}...) → BlueText({blue_text_node_id[:16]}...) → File({file_node_id[:16]}...)"
+            )
 
         except Exception as e:
             error_msg = f"Canvas修改失败 (节点 {node_id}): {str(e)}"
@@ -198,6 +197,7 @@ def _update_canvas_correct_structure(
             print(f"   ❌ {error_msg}")
             if options.get("verbose", False):
                 import traceback
+
                 traceback.print_exc()
 
             # 发生错误时回滚 (AC5)

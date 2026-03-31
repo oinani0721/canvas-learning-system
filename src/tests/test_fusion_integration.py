@@ -42,8 +42,8 @@ class TestFusionIntegration:
             "user_request": "解释机器学习的基本概念和应用",
             "canvas_context": {
                 "topic": "机器学习",
-                "keywords": ["机器学习", "概念", "应用"]
-            }
+                "keywords": ["机器学习", "概念", "应用"],
+            },
         }
 
         # 执行带融合的并发任务
@@ -51,7 +51,7 @@ class TestFusionIntegration:
             complex_task,
             max_agents=3,
             enable_fusion=True,
-            fusion_config={"strategy": "complementary"}
+            fusion_config={"strategy": "complementary"},
         )
 
         # 验证结果
@@ -71,15 +71,17 @@ class TestFusionIntegration:
         """测试单个结果的融合处理"""
         fusion_engine = IntelligentResultFusion()
 
-        single_result = [TaskResult(
-            task_id="task_1",
-            agent_type="oral-explanation",
-            success=True,
-            result_data={
-                "content": "这是单个Agent的结果",
-                "explanation": "详细解释内容"
-            }
-        )]
+        single_result = [
+            TaskResult(
+                task_id="task_1",
+                agent_type="oral-explanation",
+                success=True,
+                result_data={
+                    "content": "这是单个Agent的结果",
+                    "explanation": "详细解释内容",
+                },
+            )
+        ]
 
         fusion_result = await fusion_engine.fuse_agent_results(single_result)
 
@@ -98,20 +100,20 @@ class TestFusionIntegration:
                 task_id="task_1",
                 agent_type="oral-explanation",
                 success=True,
-                result_data={"content": "成功的结果"}
+                result_data={"content": "成功的结果"},
             ),
             TaskResult(
                 task_id="task_2",
                 agent_type="clarification-path",
                 success=False,
-                result_data={"error": "处理失败"}
+                result_data={"error": "处理失败"},
             ),
             TaskResult(
                 task_id="task_3",
                 agent_type="comparison-table",
                 success=True,
-                result_data={"content": "另一个成功的结果"}
-            )
+                result_data={"content": "另一个成功的结果"},
+            ),
         ]
 
         fusion_result = await fusion_engine.fuse_agent_results(mixed_results)
@@ -132,7 +134,7 @@ class TestFusionIntegration:
         # 测试包含None的结果
         results_with_none = [
             TaskResult("task1", "agent1", True, {"content": "valid"}),
-            None  # 这在实际中不应该发生，但测试容错性
+            None,  # 这在实际中不应该发生，但测试容错性
         ]
 
         try:
@@ -149,7 +151,7 @@ class TestFusionIntegration:
 
         results = [
             TaskResult("task1", "agent1", True, {"content": "内容1"}),
-            TaskResult("task2", "agent2", True, {"content": "内容2"})
+            TaskResult("task2", "agent2", True, {"content": "内容2"}),
         ]
 
         # 测试不同的融合配置
@@ -157,7 +159,7 @@ class TestFusionIntegration:
             {"strategy": "complementary"},
             {"strategy": "supplementary"},
             {"strategy": "hierarchical"},
-            {"confidence_threshold": 0.9}
+            {"confidence_threshold": 0.9},
         ]
 
         for config in configs:
@@ -171,14 +173,24 @@ class TestFusionIntegration:
         fusion_engine = IntelligentResultFusion()
 
         results = [
-            TaskResult("task1", "oral-explanation", True, {
-                "content": "人工智能是计算机科学的一个分支",
-                "examples": ["机器学习", "深度学习"]
-            }),
-            TaskResult("task2", "clarification-path", True, {
-                "content": "AI技术包括多个子领域",
-                "fields": ["NLP", "计算机视觉", "机器人学"]
-            })
+            TaskResult(
+                "task1",
+                "oral-explanation",
+                True,
+                {
+                    "content": "人工智能是计算机科学的一个分支",
+                    "examples": ["机器学习", "深度学习"],
+                },
+            ),
+            TaskResult(
+                "task2",
+                "clarification-path",
+                True,
+                {
+                    "content": "AI技术包括多个子领域",
+                    "fields": ["NLP", "计算机视觉", "机器人学"],
+                },
+            ),
         ]
 
         fusion_result = await fusion_engine.fuse_agent_results(results)
@@ -220,7 +232,7 @@ class TestFusionIntegration:
 
         results = [
             TaskResult("task1", "agent1", True, {"content": "测试内容"}),
-            TaskResult("task2", "agent2", True, {"content": "更多内容"})
+            TaskResult("task2", "agent2", True, {"content": "更多内容"}),
         ]
 
         fusion_result = await fusion_engine.fuse_agent_results(results)
@@ -243,7 +255,7 @@ class TestFusionIntegration:
 
         results = [
             TaskResult("task1", "oral-explanation", True, {"content": "解释内容"}),
-            TaskResult("task2", "clarification-path", True, {"content": "澄清内容"})
+            TaskResult("task2", "clarification-path", True, {"content": "澄清内容"}),
         ]
 
         fusion_result = await fusion_engine.fuse_agent_results(results)
@@ -261,30 +273,38 @@ class TestFusionIntegration:
         # 创建大量结果
         large_results = []
         for i in range(10):
-            large_results.append(TaskResult(
-                f"task_{i}",
-                f"agent_{i}",
-                True,
-                {
-                    "content": f"这是第{i}个Agent的结果内容，包含足够的信息进行测试。",
-                    "data": f"数据_{i}",
-                    "metadata": {"index": i}
-                }
-            ))
+            large_results.append(
+                TaskResult(
+                    f"task_{i}",
+                    f"agent_{i}",
+                    True,
+                    {
+                        "content": f"这是第{i}个Agent的结果内容，包含足够的信息进行测试。",
+                        "data": f"数据_{i}",
+                        "metadata": {"index": i},
+                    },
+                )
+            )
 
         start_time = time.time()
         fusion_result = await fusion_engine.fuse_agent_results(large_results)
         processing_time = time.time() - start_time
 
         # 性能验证
-        assert processing_time <= 10.0, f"处理时间 {processing_time:.2f}s 应该在合理范围内"
+        assert processing_time <= 10.0, (
+            f"处理时间 {processing_time:.2f}s 应该在合理范围内"
+        )
         assert fusion_result.confidence_score >= 0.5
         assert len(fusion_result.merged_content) > 0
 
     def test_fusion_backward_compatibility(self):
         """测试向后兼容性"""
         # 确保新的融合功能不会破坏现有功能
-        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator, CanvasOrchestrator
+        from canvas_utils import (
+            CanvasBusinessLogic,
+            CanvasJSONOperator,
+            CanvasOrchestrator,
+        )
 
         # 测试现有类仍然可以正常实例化
         try:

@@ -12,13 +12,9 @@ Tests:
 - All 14 agents trigger appropriate memory types
 """
 
-import asyncio
-from typing import Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-
-from tests.conftest import simulate_async_delay, wait_for_condition, yield_to_event_loop
 
 # Story 30.4: Test agent memory mapping module
 from app.core.agent_memory_mapping import (
@@ -28,6 +24,8 @@ from app.core.agent_memory_mapping import (
     get_memory_type_for_agent,
     is_memory_enabled_agent,
 )
+
+from tests.conftest import simulate_async_delay, wait_for_condition, yield_to_event_loop
 
 
 class TestAgentMemoryMapping:
@@ -280,9 +278,9 @@ class TestAllAgentsTriggerMemoryWrite:
         """Test that each agent has a valid AgentMemoryType assigned."""
         memory_type = get_memory_type_for_agent(agent_name)
         assert memory_type is not None, f"Agent {agent_name} has no memory type"
-        assert isinstance(
-            memory_type, AgentMemoryType
-        ), f"Agent {agent_name} memory type is not AgentMemoryType"
+        assert isinstance(memory_type, AgentMemoryType), (
+            f"Agent {agent_name} memory type is not AgentMemoryType"
+        )
 
     def test_memory_types_align_with_schema(self):
         """Test that all memory types align with temporal-event.schema.json."""
@@ -300,6 +298,6 @@ class TestAllAgentsTriggerMemoryWrite:
 
         for agent_name in ALL_AGENT_NAMES:
             memory_type = get_memory_type_for_agent(agent_name)
-            assert (
-                memory_type.value in valid_schema_types
-            ), f"Agent {agent_name} has invalid memory type: {memory_type.value}"
+            assert memory_type.value in valid_schema_types, (
+                f"Agent {agent_name} has invalid memory type: {memory_type.value}"
+            )

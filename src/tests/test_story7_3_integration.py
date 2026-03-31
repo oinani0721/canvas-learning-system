@@ -70,7 +70,7 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "1"  # 红色
+                    "color": "1",  # 红色
                 },
                 {
                     "id": "understanding",
@@ -80,12 +80,12 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 250,
                     "width": 200,
                     "height": 80,
-                    "color": "6"  # 黄色
-                }
+                    "color": "6",  # 黄色
+                },
             ],
             "edges": [
                 {"id": "edge1", "fromNode": "basic_concept", "toNode": "understanding"}
-            ]
+            ],
         }
 
         # 2. 进阶概念Canvas - 适合深度拆解
@@ -99,7 +99,7 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "3"  # 紫色
+                    "color": "3",  # 紫色
                 },
                 {
                     "id": "partial_understanding",
@@ -109,12 +109,16 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 250,
                     "width": 200,
                     "height": 80,
-                    "color": "6"  # 黄色
-                }
+                    "color": "6",  # 黄色
+                },
             ],
             "edges": [
-                {"id": "edge2", "fromNode": "advanced_concept", "toNode": "partial_understanding"}
-            ]
+                {
+                    "id": "edge2",
+                    "fromNode": "advanced_concept",
+                    "toNode": "partial_understanding",
+                }
+            ],
         }
 
         # 3. 复杂知识网络Canvas - 适合智能调度
@@ -128,7 +132,7 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "2"  # 绿色
+                    "color": "2",  # 绿色
                 },
                 {
                     "id": "concept2",
@@ -138,7 +142,7 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "3"  # 紫色
+                    "color": "3",  # 紫色
                 },
                 {
                     "id": "concept3",
@@ -148,7 +152,7 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "1"  # 红色
+                    "color": "1",  # 红色
                 },
                 {
                     "id": "concept4",
@@ -158,14 +162,14 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 250,
                     "width": 200,
                     "height": 80,
-                    "color": "1"  # 红色
-                }
+                    "color": "1",  # 红色
+                },
             ],
             "edges": [
                 {"id": "edge3", "fromNode": "concept1", "toNode": "concept2"},
                 {"id": "edge4", "fromNode": "concept2", "toNode": "concept3"},
-                {"id": "edge5", "fromNode": "concept3", "toNode": "concept4"}
-            ]
+                {"id": "edge5", "fromNode": "concept3", "toNode": "concept4"},
+            ],
         }
 
         # 4. 混合状态Canvas - 测试多Agent推荐
@@ -179,7 +183,7 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "1"  # 红色
+                    "color": "1",  # 红色
                 },
                 {
                     "id": "purple_node",
@@ -189,7 +193,7 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "3"  # 紫色
+                    "color": "3",  # 紫色
                 },
                 {
                     "id": "green_node",
@@ -199,33 +203,27 @@ class TestStory73Integration(unittest.TestCase):
                     "y": 100,
                     "width": 200,
                     "height": 80,
-                    "color": "2"  # 绿色
-                }
+                    "color": "2",  # 绿色
+                },
             ],
-            "edges": []
+            "edges": [],
         }
 
         # 5. 空Canvas - 测试边界情况
-        empty_canvas = {
-            "nodes": [],
-            "edges": []
-        }
+        empty_canvas = {"nodes": [], "edges": []}
 
         canvas_data = {
             "basic": basic_canvas,
             "advanced": advanced_canvas,
             "complex": complex_canvas,
             "mixed": mixed_canvas,
-            "empty": empty_canvas
+            "empty": empty_canvas,
         }
 
         # 创建临时文件
         for name, data in canvas_data.items():
             temp_file = tempfile.NamedTemporaryFile(
-                mode='w',
-                suffix=f'_test_{name}.canvas',
-                delete=False,
-                encoding='utf-8'
+                mode="w", suffix=f"_test_{name}.canvas", delete=False, encoding="utf-8"
             )
             json.dump(data, temp_file, ensure_ascii=False, indent=2)
             temp_file.close()
@@ -240,6 +238,7 @@ class TestTask1Integration(TestStory73Integration):
 
     def test_canvas_learning_analyzer_integration(self):
         """测试Canvas学习分析器集成"""
+
         async def run_test():
             analyzer = CanvasLearningAnalyzer()
 
@@ -271,6 +270,7 @@ class TestTask1Integration(TestStory73Integration):
 
     def test_intelligent_scheduler_basic_functionality(self):
         """测试智能调度器基础功能"""
+
         async def run_test():
             scheduler = CanvasIntelligentScheduler()
 
@@ -279,7 +279,7 @@ class TestTask1Integration(TestStory73Integration):
                 canvas_path=self.test_canvases["basic"],
                 detail_level="basic",
                 include_recommendations=True,
-                priority_threshold=0.5
+                priority_threshold=0.5,
             )
 
             # 验证结果结构
@@ -308,14 +308,17 @@ class TestTask2Integration(TestStory73Integration):
 
     def test_canvas_intelligent_scheduler_tool(self):
         """测试canvas_intelligent_scheduler工具函数"""
+
         async def run_test():
             # 测试基础参数
-            result = await canvas_intelligent_scheduler({
-                "canvas_path": self.test_canvases["mixed"],
-                "detail_level": "standard",
-                "include_recommendations": True,
-                "priority_threshold": 0.6
-            })
+            result = await canvas_intelligent_scheduler(
+                {
+                    "canvas_path": self.test_canvases["mixed"],
+                    "detail_level": "standard",
+                    "include_recommendations": True,
+                    "priority_threshold": 0.6,
+                }
+            )
 
             # 验证工具响应格式
             self.assertIn("content", result)
@@ -338,6 +341,7 @@ class TestTask2Integration(TestStory73Integration):
 
     def test_enhanced_analysis_features(self):
         """测试增强分析功能"""
+
         async def run_test():
             scheduler = CanvasIntelligentScheduler()
 
@@ -348,7 +352,7 @@ class TestTask2Integration(TestStory73Integration):
                     canvas_path=self.test_canvases["complex"],
                     detail_level=detail_level,
                     include_recommendations=True,
-                    priority_threshold=0.5
+                    priority_threshold=0.5,
                 )
 
                 self.assertIsNotNone(result)
@@ -356,7 +360,9 @@ class TestTask2Integration(TestStory73Integration):
 
                 # 验证详细程度影响
                 if detail_level == "detailed":
-                    self.assertGreater(len(result.analysis_summary), 1000)  # 详细报告应该更长
+                    self.assertGreater(
+                        len(result.analysis_summary), 1000
+                    )  # 详细报告应该更长
 
         asyncio.run(run_test())
 
@@ -364,6 +370,7 @@ class TestTask2Integration(TestStory73Integration):
         """测试学习状态分析器集成"""
         # 创建学习状态分析器
         from canvas_utils import LearningStateAnalyzer
+
         analyzer = LearningStateAnalyzer()
 
         # 测试复杂Canvas分析
@@ -408,14 +415,17 @@ class TestTask3Integration(TestStory73Integration):
 
     def test_orchestrator_collaboration_tool(self):
         """测试canvas_orchestrator_collaboration工具函数"""
+
         async def run_test():
             # 测试基础协同操作
-            result = await canvas_orchestrator_collaboration({
-                "canvas_path": self.test_canvases["advanced"],
-                "operation": "decompose",
-                "user_intent": "深度拆解紫色节点概念",
-                "claude_guidance": "重点关注基础概念的深度理解"
-            })
+            result = await canvas_orchestrator_collaboration(
+                {
+                    "canvas_path": self.test_canvases["advanced"],
+                    "operation": "decompose",
+                    "user_intent": "深度拆解紫色节点概念",
+                    "claude_guidance": "重点关注基础概念的深度理解",
+                }
+            )
 
             # 验证协同响应
             self.assertIn("content", result)
@@ -434,6 +444,7 @@ class TestTask3Integration(TestStory73Integration):
 
         # 创建测试推荐
         from canvas_utils import AgentRecommendation
+
         test_recommendations = [
             AgentRecommendation(
                 agent_type="basic-decomposition",
@@ -441,7 +452,7 @@ class TestTask3Integration(TestStory73Integration):
                 reason="红色节点需要基础拆解",
                 target_nodes=["red_node"],
                 priority=1,
-                estimated_time=15.0
+                estimated_time=15.0,
             ),
             AgentRecommendation(
                 agent_type="scoring-agent",
@@ -449,8 +460,8 @@ class TestTask3Integration(TestStory73Integration):
                 reason="黄色节点需要评分验证",
                 target_nodes=["understanding"],
                 priority=2,
-                estimated_time=10.0
-            )
+                estimated_time=10.0,
+            ),
         ]
 
         # 测试推荐转换
@@ -476,6 +487,7 @@ class TestTask4Integration(TestStory73Integration):
 
     def test_batch_canvas_processor_integration(self):
         """测试批量Canvas处理器集成"""
+
         async def run_test():
             processor = BatchCanvasProcessor(max_concurrent=2)
 
@@ -483,7 +495,7 @@ class TestTask4Integration(TestStory73Integration):
             canvas_paths = [
                 self.test_canvases["basic"],
                 self.test_canvases["advanced"],
-                self.test_canvases["mixed"]
+                self.test_canvases["mixed"],
             ]
 
             # 执行批量处理
@@ -492,7 +504,7 @@ class TestTask4Integration(TestStory73Integration):
                 canvas_paths=canvas_paths,
                 detail_level="basic",
                 include_recommendations=True,
-                priority_threshold=0.6
+                priority_threshold=0.6,
             )
             end_time = time.time()
 
@@ -516,21 +528,21 @@ class TestTask4Integration(TestStory73Integration):
 
     def test_canvas_batch_processor_tool_integration(self):
         """测试canvas_batch_processor工具函数集成"""
+
         async def run_test():
             # 准备批量处理参数
-            canvas_paths = [
-                self.test_canvases["basic"],
-                self.test_canvases["advanced"]
-            ]
+            canvas_paths = [self.test_canvases["basic"], self.test_canvases["advanced"]]
 
             # 执行批量处理工具
-            result = await canvas_batch_processor({
-                "canvas_paths": canvas_paths,
-                "detail_level": "standard",
-                "include_recommendations": True,
-                "priority_threshold": 0.7,
-                "max_concurrent": 1
-            })
+            result = await canvas_batch_processor(
+                {
+                    "canvas_paths": canvas_paths,
+                    "detail_level": "standard",
+                    "include_recommendations": True,
+                    "priority_threshold": 0.7,
+                    "max_concurrent": 1,
+                }
+            )
 
             # 验证工具响应
             self.assertIn("content", result)
@@ -554,6 +566,7 @@ class TestTask4Integration(TestStory73Integration):
 
         # 模拟进度更新
         import time
+
         time.sleep(0.1)
 
         monitor.update_progress(1, failed=False)
@@ -577,13 +590,14 @@ class TestPerformanceOptimization(TestStory73Integration):
 
     def test_single_canvas_analysis_performance(self):
         """测试单个Canvas分析性能"""
+
         async def run_test():
             scheduler = CanvasIntelligentScheduler()
 
             # 测试不同复杂度Canvas的处理时间
             test_cases = [
                 ("basic", self.test_canvases["basic"]),
-                ("complex", self.test_canvases["complex"])
+                ("complex", self.test_canvases["complex"]),
             ]
 
             for name, canvas_path in test_cases:
@@ -591,15 +605,18 @@ class TestPerformanceOptimization(TestStory73Integration):
                 result = await scheduler.analyze_canvas_with_claude(
                     canvas_path=canvas_path,
                     detail_level="basic",
-                    include_recommendations=False
+                    include_recommendations=False,
                 )
                 end_time = time.time()
 
                 processing_time = end_time - start_time
 
                 # 验证性能基准（应该在合理时间内完成）
-                self.assertLess(processing_time, 10.0,
-                    f"{name} Canvas分析时间过长: {processing_time:.3f}秒")
+                self.assertLess(
+                    processing_time,
+                    10.0,
+                    f"{name} Canvas分析时间过长: {processing_time:.3f}秒",
+                )
 
                 # 验证结果质量
                 self.assertIsNotNone(result)
@@ -609,13 +626,14 @@ class TestPerformanceOptimization(TestStory73Integration):
 
     def test_batch_processing_performance(self):
         """测试批量处理性能"""
+
         async def run_test():
             processor = BatchCanvasProcessor(max_concurrent=2)
 
             canvas_paths = [
                 self.test_canvases["basic"],
                 self.test_canvases["advanced"],
-                self.test_canvases["mixed"]
+                self.test_canvases["mixed"],
             ]
 
             start_time = time.time()
@@ -623,7 +641,7 @@ class TestPerformanceOptimization(TestStory73Integration):
                 canvas_paths=canvas_paths,
                 detail_level="basic",
                 include_recommendations=False,
-                priority_threshold=0.5
+                priority_threshold=0.5,
             )
             end_time = time.time()
 
@@ -636,7 +654,9 @@ class TestPerformanceOptimization(TestStory73Integration):
 
             # 验证并发效率
             expected_sequential_time = avg_time_per_canvas * len(canvas_paths)
-            efficiency_gain = expected_sequential_time / total_time if total_time > 0 else 1
+            efficiency_gain = (
+                expected_sequential_time / total_time if total_time > 0 else 1
+            )
             self.assertGreater(efficiency_gain, 1.0, "并发处理应该比顺序处理更高效")
 
         asyncio.run(run_test())
@@ -658,7 +678,7 @@ class TestPerformanceOptimization(TestStory73Integration):
                 await scheduler.analyze_canvas_with_claude(
                     canvas_path=self.test_canvases["basic"],
                     detail_level="basic",
-                    include_recommendations=False
+                    include_recommendations=False,
                 )
 
         asyncio.run(run_memory_test())
@@ -667,8 +687,9 @@ class TestPerformanceOptimization(TestStory73Integration):
         memory_increase = final_memory - initial_memory
 
         # 验证内存使用合理（不应该增长过多）
-        self.assertLess(memory_increase, 100,
-            f"内存使用增长过多: {memory_increase:.2f}MB")
+        self.assertLess(
+            memory_increase, 100, f"内存使用增长过多: {memory_increase:.2f}MB"
+        )
 
 
 class TestSystemCompatibility(TestStory73Integration):
@@ -713,14 +734,13 @@ class TestSystemCompatibility(TestStory73Integration):
             "comparison-table",
             "memory-anchor",
             "four-level-explanation",
-            "example-teaching"
+            "example-teaching",
         ]
 
         available_agents = bridge.get_available_agents()
 
         for agent in expected_agents:
-            self.assertIn(agent, available_agents,
-                f"标准Agent {agent} 不可用")
+            self.assertIn(agent, available_agents, f"标准Agent {agent} 不可用")
 
     def test_existing_api_compatibility(self):
         """测试现有API兼容性"""
@@ -747,13 +767,14 @@ class TestEndToEndWorkflows(TestStory73Integration):
 
     def test_complete_learning_workflow(self):
         """测试完整学习工作流"""
+
         async def run_test():
             # 1. 分析Canvas学习状态
             scheduler = CanvasIntelligentScheduler()
             analysis_result = await scheduler.analyze_canvas_with_claude(
                 canvas_path=self.test_canvases["mixed"],
                 detail_level="standard",
-                include_recommendations=True
+                include_recommendations=True,
             )
 
             self.assertIsNotNone(analysis_result)
@@ -765,8 +786,7 @@ class TestEndToEndWorkflows(TestStory73Integration):
                 # 转换推荐为任务
                 top_recommendation = analysis_result.agent_recommendations[0]
                 tasks = bridge._translate_claude_recommendations_to_tasks(
-                    [top_recommendation], "decompose",
-                    top_recommendation.target_nodes
+                    [top_recommendation], "decompose", top_recommendation.target_nodes
                 )
 
                 self.assertGreater(len(tasks), 0)
@@ -780,12 +800,10 @@ class TestEndToEndWorkflows(TestStory73Integration):
 
     def test_batch_learning_workflow(self):
         """测试批量学习工作流"""
+
         async def run_test():
             # 准备多个Canvas
-            canvas_paths = [
-                self.test_canvases["basic"],
-                self.test_canvases["advanced"]
-            ]
+            canvas_paths = [self.test_canvases["basic"], self.test_canvases["advanced"]]
 
             # 1. 批量分析学习状态
             processor = BatchCanvasProcessor(max_concurrent=2)
@@ -793,7 +811,7 @@ class TestEndToEndWorkflows(TestStory73Integration):
                 canvas_paths=canvas_paths,
                 detail_level="standard",
                 include_recommendations=True,
-                priority_threshold=0.6
+                priority_threshold=0.6,
             )
 
             # 2. 验证批量结果
@@ -803,21 +821,21 @@ class TestEndToEndWorkflows(TestStory73Integration):
             # 3. 分析结果质量
             if batch_result.results:
                 for result in batch_result.results:
-                    if hasattr(result, 'success') and result.success:
+                    if hasattr(result, "success") and result.success:
                         self.assertIsNotNone(result.analysis_summary)
 
         asyncio.run(run_test())
 
     def test_error_recovery_workflow(self):
         """测试错误恢复工作流"""
+
         async def run_test():
             # 测试不存在的文件
             processor = BatchCanvasProcessor()
 
             try:
                 await processor.batch_analyze_canvases(
-                    canvas_paths=["nonexistent.canvas"],
-                    detail_level="basic"
+                    canvas_paths=["nonexistent.canvas"], detail_level="basic"
                 )
                 self.fail("应该抛出文件不存在错误")
             except Exception:
@@ -833,21 +851,37 @@ class TestUserExperienceValidation(TestStory73Integration):
 
     def test_response_format_consistency(self):
         """测试响应格式一致性"""
+
         async def run_test():
             # 测试不同工具的响应格式一致性
             tools_to_test = [
-                ("智能调度器", lambda: canvas_intelligent_scheduler({
-                    "canvas_path": self.test_canvases["basic"],
-                    "detail_level": "basic"
-                })),
-                ("协同工具", lambda: canvas_orchestrator_collaboration({
-                    "canvas_path": self.test_canvases["basic"],
-                    "operation": "analyze"
-                })),
-                ("批量处理", lambda: canvas_batch_processor({
-                    "canvas_paths": [self.test_canvases["basic"]],
-                    "detail_level": "basic"
-                }))
+                (
+                    "智能调度器",
+                    lambda: canvas_intelligent_scheduler(
+                        {
+                            "canvas_path": self.test_canvases["basic"],
+                            "detail_level": "basic",
+                        }
+                    ),
+                ),
+                (
+                    "协同工具",
+                    lambda: canvas_orchestrator_collaboration(
+                        {
+                            "canvas_path": self.test_canvases["basic"],
+                            "operation": "analyze",
+                        }
+                    ),
+                ),
+                (
+                    "批量处理",
+                    lambda: canvas_batch_processor(
+                        {
+                            "canvas_paths": [self.test_canvases["basic"]],
+                            "detail_level": "basic",
+                        }
+                    ),
+                ),
             ]
 
             for tool_name, tool_func in tools_to_test:
@@ -856,8 +890,12 @@ class TestUserExperienceValidation(TestStory73Integration):
 
                     # 验证响应格式一致性
                     self.assertIn("content", result, f"{tool_name} 缺少content字段")
-                    self.assertIsInstance(result["content"], list, f"{tool_name} content不是列表")
-                    self.assertGreater(len(result["content"]), 0, f"{tool_name} content为空")
+                    self.assertIsInstance(
+                        result["content"], list, f"{tool_name} content不是列表"
+                    )
+                    self.assertGreater(
+                        len(result["content"]), 0, f"{tool_name} content为空"
+                    )
 
                     # 验证内容结构
                     content_item = result["content"][0]
@@ -872,12 +910,13 @@ class TestUserExperienceValidation(TestStory73Integration):
 
     def test_helpful_error_messages(self):
         """测试友好的错误消息"""
+
         async def run_test():
             # 测试各种错误场景的消息质量
             error_scenarios = [
                 ("缺少参数", {}),
                 ("无效路径", {"canvas_path": "nonexistent.canvas"}),
-                ("错误类型", {"canvas_paths": "not_a_list"})
+                ("错误类型", {"canvas_paths": "not_a_list"}),
             ]
 
             for scenario_name, params in error_scenarios:
@@ -893,14 +932,20 @@ class TestUserExperienceValidation(TestStory73Integration):
 
                         # 检查是否包含有用信息
                         self.assertTrue(
-                            any(keyword in error_text.lower() for keyword in ["错误", "缺少", "无效", "不存在"]),
-                            f"{scenario_name} 错误消息不够友好"
+                            any(
+                                keyword in error_text.lower()
+                                for keyword in ["错误", "缺少", "无效", "不存在"]
+                            ),
+                            f"{scenario_name} 错误消息不够友好",
                         )
 
                         # 检查是否包含帮助信息
                         self.assertTrue(
-                            any(keyword in error_text for keyword in ["💡", "参数", "示例", "使用"]),
-                            f"{scenario_name} 错误消息缺少帮助信息"
+                            any(
+                                keyword in error_text
+                                for keyword in ["💡", "参数", "示例", "使用"]
+                            ),
+                            f"{scenario_name} 错误消息缺少帮助信息",
                         )
 
                 except Exception:
@@ -911,14 +956,17 @@ class TestUserExperienceValidation(TestStory73Integration):
 
     def test_performance_feedback(self):
         """测试性能反馈信息"""
+
         async def run_test():
             # 测试工具是否提供性能相关的反馈
             start_time = time.time()
 
-            result = await canvas_intelligent_scheduler({
-                "canvas_path": self.test_canvases["complex"],
-                "detail_level": "standard"
-            })
+            result = await canvas_intelligent_scheduler(
+                {
+                    "canvas_path": self.test_canvases["complex"],
+                    "detail_level": "standard",
+                }
+            )
 
             end_time = time.time()
             response_time = end_time - start_time
@@ -932,7 +980,9 @@ class TestUserExperienceValidation(TestStory73Integration):
 
                 # 检查是否包含分析质量指标
                 quality_indicators = ["置信度", "成功率", "推荐", "分析"]
-                has_quality_info = any(indicator in content_text for indicator in quality_indicators)
+                has_quality_info = any(
+                    indicator in content_text for indicator in quality_indicators
+                )
 
                 self.assertTrue(has_quality_info, "响应缺少质量指标信息")
 

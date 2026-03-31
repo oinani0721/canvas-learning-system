@@ -61,12 +61,14 @@ def sample_pdf(temp_dir):
         page.insert_text(text_point, f"Page {i + 1} content", fontsize=12)
 
     # Set metadata
-    doc.set_metadata({
-        "title": "Test Document",
-        "author": "Test Author",
-        "subject": "Testing",
-        "keywords": "test, pdf, canvas",
-    })
+    doc.set_metadata(
+        {
+            "title": "Test Document",
+            "author": "Test Author",
+            "subject": "Testing",
+            "keywords": "test, pdf, canvas",
+        }
+    )
 
     doc.save(str(pdf_path))
     doc.close()
@@ -197,7 +199,7 @@ class TestPDFThumbnail:
         decoded = base64.b64decode(metadata.thumbnail_base64)
 
         # PNG magic bytes
-        assert decoded[:8] == b'\x89PNG\r\n\x1a\n'
+        assert decoded[:8] == b"\x89PNG\r\n\x1a\n"
 
     @pytest.mark.asyncio
     async def test_thumbnail_size_constraint(self, processor, sample_pdf):
@@ -229,9 +231,7 @@ class TestPDFThumbnail:
         processor = PDFProcessor(cache_dir=str(cache_dir))
 
         metadata = await processor.process(
-            sample_pdf,
-            generate_thumbnail=True,
-            save_thumbnail=True
+            sample_pdf, generate_thumbnail=True, save_thumbnail=True
         )
 
         assert metadata.thumbnail_path is not None
@@ -249,7 +249,7 @@ class TestPDFThumbnail:
 
         assert thumbnail_b64 is not None
         decoded = base64.b64decode(thumbnail_b64)
-        assert decoded[:8] == b'\x89PNG\r\n\x1a\n'
+        assert decoded[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 # ============================================================
@@ -398,6 +398,7 @@ class TestPDFMetadataExtraction:
         assert metadata.processed_at is not None
         # Should be ISO format
         from datetime import datetime
+
         datetime.fromisoformat(metadata.processed_at)
 
     def test_extract_metadata_method(self, processor, sample_pdf):
@@ -544,10 +545,12 @@ class TestPDFIntegration:
             page = doc.new_page()
             page.insert_text((72, 72), f"Integration Test Page {i + 1}")
 
-        doc.set_metadata({
-            "title": "Integration Test",
-            "author": "Test Suite",
-        })
+        doc.set_metadata(
+            {
+                "title": "Integration Test",
+                "author": "Test Suite",
+            }
+        )
         doc.save(str(pdf_path))
         doc.close()
 
@@ -556,10 +559,7 @@ class TestPDFIntegration:
         processor = PDFProcessor(cache_dir=str(cache_dir))
 
         metadata = await processor.process(
-            pdf_path,
-            page_range="1-3",
-            generate_thumbnail=True,
-            save_thumbnail=True
+            pdf_path, page_range="1-3", generate_thumbnail=True, save_thumbnail=True
         )
 
         # Verify all aspects

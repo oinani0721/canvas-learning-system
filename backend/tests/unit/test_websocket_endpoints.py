@@ -9,17 +9,12 @@ Unit tests for WebSocket endpoints and ConnectionManager.
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from app.models.intelligent_parallel_models import (
     ParallelTaskStatus,
     WSEventType,
-    WebSocketMessage,
     create_ws_complete_event,
     create_ws_connected_event,
     create_ws_error_event,
@@ -28,14 +23,14 @@ from app.models.intelligent_parallel_models import (
     create_ws_ping_event,
     create_ws_progress_event,
 )
-from starlette.websockets import WebSocketDisconnect
-
 from app.services.websocket_manager import (
     ConnectionManager,
     get_connection_manager,
     reset_connection_manager,
 )
+from starlette.websockets import WebSocketDisconnect
 
+from tests.conftest import simulate_async_delay
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
@@ -378,9 +373,7 @@ class TestConnectionManager:
         assert call_args["data"]["retry_after"] == 5
 
     @pytest.mark.asyncio
-    async def test_close_session_connections(
-        self, connection_manager, session_id
-    ):
+    async def test_close_session_connections(self, connection_manager, session_id):
         """Test closing all connections for a session."""
         ws1 = AsyncMock()
         ws2 = AsyncMock()
@@ -427,7 +420,9 @@ class TestConnectionManager:
         assert len(session_ids) == 2
 
     @pytest.mark.asyncio
-    async def test_get_last_activity(self, connection_manager, mock_websocket, session_id):
+    async def test_get_last_activity(
+        self, connection_manager, mock_websocket, session_id
+    ):
         """Test last activity tracking."""
         # Before connection
         assert connection_manager.get_last_activity(session_id) is None
@@ -447,7 +442,9 @@ class TestConnectionManager:
         await connection_manager.connect(session_id, ws)
 
         # Manually set old last activity
-        connection_manager._last_activity[session_id] = datetime.now() - timedelta(minutes=15)
+        connection_manager._last_activity[session_id] = datetime.now() - timedelta(
+            minutes=15
+        )
 
         cleaned = await connection_manager.cleanup_inactive_sessions(timeout_minutes=10)
 
@@ -493,7 +490,10 @@ class TestWebSocketEndpoint:
     @pytest.mark.asyncio
     async def test_validate_session_with_no_validator(self):
         """Test session validation with no validator set."""
-        from app.api.v1.endpoints.websocket import validate_session, set_session_validator
+        from app.api.v1.endpoints.websocket import (
+            set_session_validator,
+            validate_session,
+        )
 
         # Clear any existing validator
         set_session_validator(None)
@@ -505,7 +505,10 @@ class TestWebSocketEndpoint:
     @pytest.mark.asyncio
     async def test_validate_session_with_validator(self):
         """Test session validation with custom validator."""
-        from app.api.v1.endpoints.websocket import validate_session, set_session_validator
+        from app.api.v1.endpoints.websocket import (
+            set_session_validator,
+            validate_session,
+        )
 
         async def mock_validator(session_id: str) -> bool:
             return session_id.startswith("valid-")
@@ -521,7 +524,10 @@ class TestWebSocketEndpoint:
     @pytest.mark.asyncio
     async def test_validate_session_handles_validator_error(self):
         """Test session validation handles validator errors gracefully."""
-        from app.api.v1.endpoints.websocket import validate_session, set_session_validator
+        from app.api.v1.endpoints.websocket import (
+            set_session_validator,
+            validate_session,
+        )
 
         async def failing_validator(session_id: str) -> bool:
             raise Exception("Validator error")
@@ -539,9 +545,9 @@ class TestWebSocketEndpoint:
     async def test_websocket_endpoint_rejects_invalid_session(self):
         """Test WebSocket rejects connection for invalid session."""
         from app.api.v1.endpoints.websocket import (
-            websocket_intelligent_parallel,
-            set_session_validator,
             WEBSOCKET_CLOSE_SESSION_NOT_FOUND,
+            set_session_validator,
+            websocket_intelligent_parallel,
         )
 
         # Set up validator that rejects all sessions
@@ -558,7 +564,7 @@ class TestWebSocketEndpoint:
         # Should close with 4004 code
         mock_ws.close.assert_called_once_with(
             code=WEBSOCKET_CLOSE_SESSION_NOT_FOUND,
-            reason="Session 'invalid-session' not found"
+            reason="Session 'invalid-session' not found",
         )
         # Should NOT accept or connect
         mock_ws.accept.assert_not_called()
@@ -630,8 +636,8 @@ class TestWebSocketEndpoint:
     async def test_websocket_endpoint_handles_client_message(self):
         """Test WebSocket endpoint processes client messages."""
         from app.api.v1.endpoints.websocket import (
-            websocket_intelligent_parallel,
             set_session_validator,
+            websocket_intelligent_parallel,
         )
 
         # Allow all sessions
@@ -669,8 +675,8 @@ class TestWebSocketEndpoint:
     async def test_websocket_endpoint_handles_timeout(self):
         """Test WebSocket endpoint handles inactivity timeout."""
         from app.api.v1.endpoints.websocket import (
-            websocket_intelligent_parallel,
             set_session_validator,
+            websocket_intelligent_parallel,
         )
 
         # Allow all sessions
@@ -699,8 +705,8 @@ class TestWebSocketEndpoint:
     async def test_websocket_endpoint_handles_general_error(self):
         """Test WebSocket endpoint handles general exceptions."""
         from app.api.v1.endpoints.websocket import (
-            websocket_intelligent_parallel,
             set_session_validator,
+            websocket_intelligent_parallel,
         )
 
         # Allow all sessions

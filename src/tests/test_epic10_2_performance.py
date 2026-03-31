@@ -25,6 +25,7 @@ import pytest
 # Performance Benchmarks
 # ============================================================================
 
+
 @pytest.mark.asyncio
 @pytest.mark.benchmark
 async def test_performance_benchmarks():
@@ -38,13 +39,15 @@ async def test_performance_benchmarks():
     - 20节点 ≤ 30秒
     - 50节点 ≤ 60秒
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("AC2: 性能基准测试")
-    print("="*70)
+    print("=" * 70)
 
     # 导入依赖
     try:
-        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
+        from command_handlers.intelligent_parallel_handler import (
+            IntelligentParallelCommandHandler,
+        )
     except ImportError as e:
         pytest.skip(f"Required modules not available: {e}")
 
@@ -63,11 +66,11 @@ async def test_performance_benchmarks():
             print(f"⚠️  跳过: {canvas_path} 不存在")
             continue
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"测试: {node_count}节点")
         print(f"文件: {canvas_path}")
         print(f"性能目标: ≤{time_limit}秒")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         # 创建Handler
         handler = IntelligentParallelCommandHandler()
@@ -81,8 +84,8 @@ async def test_performance_benchmarks():
                 "auto": True,
                 "max": 12,
                 "grouping": "intelligent",
-                "verbose": False
-            }
+                "verbose": False,
+            },
         )
 
         elapsed_time = time.time() - start_time
@@ -92,7 +95,7 @@ async def test_performance_benchmarks():
             "elapsed_time": elapsed_time,
             "time_limit": time_limit,
             "passed": elapsed_time <= time_limit,
-            "result": result
+            "result": result,
         }
 
         # 输出结果
@@ -100,15 +103,17 @@ async def test_performance_benchmarks():
         print(f"\n{status} {node_count}节点测试")
         print(f"⏱️  执行时间: {elapsed_time:.2f}s")
         print(f"🎯 性能目标: {time_limit}s")
-        print(f"📊 性能比率: {elapsed_time/time_limit*100:.1f}%")
+        print(f"📊 性能比率: {elapsed_time / time_limit * 100:.1f}%")
 
         # 验证性能目标
-        assert elapsed_time <= time_limit, f"{node_count}节点超时: {elapsed_time:.2f}s > {time_limit}s"
+        assert elapsed_time <= time_limit, (
+            f"{node_count}节点超时: {elapsed_time:.2f}s > {time_limit}s"
+        )
 
     # 生成性能报告
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("📊 性能基准测试总结")
-    print("="*70)
+    print("=" * 70)
 
     for key, data in results.items():
         node_count = key.replace("_nodes", "")
@@ -117,9 +122,9 @@ async def test_performance_benchmarks():
         print(f"  🎯 性能目标: {data['time_limit']}s")
         print(f"  ✅ 测试结果: {'通过' if data['passed'] else '失败'}")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("🎉 所有性能基准测试通过！")
-    print("="*70)
+    print("=" * 70)
 
     return results
 
@@ -128,6 +133,7 @@ async def test_performance_benchmarks():
 # Canvas Read/Write Performance Tests
 # ============================================================================
 
+
 @pytest.mark.benchmark
 def test_canvas_read_performance():
     """
@@ -135,9 +141,9 @@ def test_canvas_read_performance():
 
     目标: 单次读取 < 0.1秒
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Canvas文件读取性能测试")
-    print("="*70)
+    print("=" * 70)
 
     try:
         from canvas_utils import CanvasJSONOperator
@@ -161,10 +167,10 @@ def test_canvas_read_performance():
 
     print(f"📊 执行次数: {iterations}")
     print(f"⏱️  总时间: {elapsed_time:.3f}s")
-    print(f"⏱️  平均时间: {avg_time*1000:.2f}ms")
+    print(f"⏱️  平均时间: {avg_time * 1000:.2f}ms")
     print("🎯 性能目标: <100ms")
 
-    assert avg_time < 0.1, f"读取性能不达标: {avg_time*1000:.2f}ms > 100ms"
+    assert avg_time < 0.1, f"读取性能不达标: {avg_time * 1000:.2f}ms > 100ms"
 
     print("✅ Canvas读取性能测试通过")
 
@@ -176,9 +182,9 @@ def test_canvas_write_performance():
 
     目标: 单次写入 < 0.5秒
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Canvas文件写入性能测试")
-    print("="*70)
+    print("=" * 70)
 
     try:
         from canvas_utils import CanvasJSONOperator
@@ -205,10 +211,10 @@ def test_canvas_write_performance():
 
     print(f"📊 执行次数: {iterations}")
     print(f"⏱️  总时间: {elapsed_time:.3f}s")
-    print(f"⏱️  平均时间: {avg_time*1000:.2f}ms")
+    print(f"⏱️  平均时间: {avg_time * 1000:.2f}ms")
     print("🎯 性能目标: <500ms")
 
-    assert avg_time < 0.5, f"写入性能不达标: {avg_time*1000:.2f}ms > 500ms"
+    assert avg_time < 0.5, f"写入性能不达标: {avg_time * 1000:.2f}ms > 500ms"
 
     print("✅ Canvas写入性能测试通过")
 
@@ -216,6 +222,7 @@ def test_canvas_write_performance():
 # ============================================================================
 # Async Engine Performance Tests
 # ============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.benchmark
@@ -225,12 +232,15 @@ async def test_async_engine_overhead():
 
     验证异步执行引擎本身的性能开销是否合理
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("AsyncExecutionEngine开销测试")
-    print("="*70)
+    print("=" * 70)
 
     try:
-        from command_handlers.async_execution_engine import AsyncExecutionEngine, AsyncTask
+        from command_handlers.async_execution_engine import (
+            AsyncExecutionEngine,
+            AsyncTask,
+        )
     except ImportError as e:
         pytest.skip(f"AsyncExecutionEngine not available: {e}")
 
@@ -241,7 +251,7 @@ async def test_async_engine_overhead():
         return {
             "task_id": task.task_id,
             "success": True,
-            "data": f"Task {task.task_id} completed"
+            "data": f"Task {task.task_id} completed",
         }
 
     # 测试场景: 10个并发任务
@@ -255,7 +265,7 @@ async def test_async_engine_overhead():
             task_id=f"task-{i}",
             agent_name="test-agent",
             node_data={"index": i, "content": f"Test task {i}"},
-            priority=1
+            priority=1,
         )
         tasks.append(task)
 
@@ -273,13 +283,13 @@ async def test_async_engine_overhead():
     overhead = elapsed_time - theoretical_min
 
     print(f"📊 任务数量: {task_count}")
-    print(f"⏱️  执行时间: {elapsed_time*1000:.2f}ms")
-    print(f"🎯 理论最小: {theoretical_min*1000:.2f}ms")
-    print(f"📉 引擎开销: {overhead*1000:.2f}ms")
+    print(f"⏱️  执行时间: {elapsed_time * 1000:.2f}ms")
+    print(f"🎯 理论最小: {theoretical_min * 1000:.2f}ms")
+    print(f"📉 引擎开销: {overhead * 1000:.2f}ms")
     print(f"✅ 成功任务: {result['success']}/{task_count}")
 
     # 验证开销合理 (应该小于50ms)
-    assert overhead < 0.05, f"AsyncEngine开销过大: {overhead*1000:.2f}ms > 50ms"
+    assert overhead < 0.05, f"AsyncEngine开销过大: {overhead * 1000:.2f}ms > 50ms"
 
     print("✅ AsyncExecutionEngine开销测试通过")
 

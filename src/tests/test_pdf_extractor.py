@@ -35,6 +35,7 @@ from agentic_rag.processors.pdf_extractor import (
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def mock_fitz():
     """Mock PyMuPDF (fitz) module."""
@@ -42,7 +43,9 @@ def mock_fitz():
         # Setup mock document
         mock_doc = MagicMock()
         mock_doc.__len__ = MagicMock(return_value=5)
-        mock_doc.__iter__ = MagicMock(return_value=iter([MagicMock() for _ in range(5)]))
+        mock_doc.__iter__ = MagicMock(
+            return_value=iter([MagicMock() for _ in range(5)])
+        )
         mock_doc.metadata = {
             "title": "Test Document",
             "author": "Test Author",
@@ -57,7 +60,7 @@ def mock_fitz():
         mock_pages = []
         for i in range(5):
             mock_page = MagicMock()
-            mock_page.get_text.return_value = f"Page {i+1} content"
+            mock_page.get_text.return_value = f"Page {i + 1} content"
             mock_page.get_images.return_value = []
             mock_pages.append(mock_page)
 
@@ -89,7 +92,7 @@ def mock_fitz_with_images():
         mock_pages = []
         for i in range(3):
             mock_page = MagicMock()
-            mock_page.get_text.return_value = f"Page {i+1}"
+            mock_page.get_text.return_value = f"Page {i + 1}"
             # First page has 2 images, second has 1, third has none
             # Format: (xref, smask, width, height, bpc, colorspace, alt. colorspace, name, filter, referencer)
             if i == 0:
@@ -128,6 +131,7 @@ def existing_pdf_path(tmp_path):
 # =============================================================================
 # Test Data Classes
 # =============================================================================
+
 
 class TestTOCEntry:
     """Tests for TOCEntry dataclass."""
@@ -351,6 +355,7 @@ class TestPDFStructure:
 # Test PDFExtractor
 # =============================================================================
 
+
 class TestPDFExtractor:
     """Tests for PDFExtractor class."""
 
@@ -483,14 +488,18 @@ class TestPDFExtractorImages:
         assert all(isinstance(img, PDFImage) for img in images)
 
     @pytest.mark.asyncio
-    async def test_get_page_images_invalid_page(self, existing_pdf_path, mock_fitz_with_images):
+    async def test_get_page_images_invalid_page(
+        self, existing_pdf_path, mock_fitz_with_images
+    ):
         """Test getting images from invalid page."""
         extractor = PDFExtractor()
         with pytest.raises(PDFExtractionError, match="out of range"):
             await extractor.get_page_images(existing_pdf_path, 100)
 
     @pytest.mark.asyncio
-    async def test_image_extraction_with_base64(self, existing_pdf_path, mock_fitz_with_images):
+    async def test_image_extraction_with_base64(
+        self, existing_pdf_path, mock_fitz_with_images
+    ):
         """Test image Base64 encoding."""
         extractor = PDFExtractor()
         result = await extractor.extract_structured(existing_pdf_path)
@@ -646,14 +655,18 @@ class TestConvenienceFunction:
         assert result.page_count == 5
 
     @pytest.mark.asyncio
-    async def test_extract_pdf_structure_with_kwargs(self, existing_pdf_path, mock_fitz):
+    async def test_extract_pdf_structure_with_kwargs(
+        self, existing_pdf_path, mock_fitz
+    ):
         """Test convenience function with custom kwargs."""
         # Configure mock for blocks format
         mock_doc = mock_fitz.open.return_value
         for page in [mock_doc.__getitem__(i) for i in range(5)]:
             # Return proper block format: (x0, y0, x1, y1, "text", block_no, block_type)
             page.get_text.side_effect = lambda fmt="text": (
-                [(0, 0, 100, 20, "Block text", 0, 0)] if fmt == "blocks" else "Text content"
+                [(0, 0, 100, 20, "Block text", 0, 0)]
+                if fmt == "blocks"
+                else "Text content"
             )
 
         result = await extract_pdf_structure(
@@ -668,6 +681,7 @@ class TestConvenienceFunction:
 # =============================================================================
 # Integration Tests
 # =============================================================================
+
 
 class TestPDFExtractorIntegration:
     """Integration tests for PDFExtractor."""
@@ -710,6 +724,7 @@ class TestPDFExtractorIntegration:
 # =============================================================================
 # Error Handling Tests
 # =============================================================================
+
 
 class TestPDFExtractorErrors:
     """Tests for error handling."""

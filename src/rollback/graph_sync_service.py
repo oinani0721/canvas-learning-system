@@ -27,9 +27,11 @@ from typing import Any, Dict, List, Optional
 
 try:
     from loguru import logger
+
     LOGURU_ENABLED = True
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
     LOGURU_ENABLED = False
 
@@ -46,6 +48,7 @@ class GraphSyncStatus(str, Enum):
         SKIPPED: 同步被跳过
         FAILED: 同步失败（但回滚成功）
     """
+
     SYNCED = "synced"
     PENDING = "pending"
     SKIPPED = "skipped"
@@ -67,6 +70,7 @@ class SyncResult:
         error: 错误信息（如果有）
         latency_ms: 同步耗时（毫秒）
     """
+
     status: GraphSyncStatus
     synced_nodes: List[str] = field(default_factory=list)
     deleted_nodes: List[str] = field(default_factory=list)
@@ -143,13 +147,14 @@ class GraphSyncService:
             if self._client is None:
                 # ✅ AC 1: 集成现有GraphitiClient
                 from src.agentic_rag.clients.graphiti_client import GraphitiClient
+
                 self._client = GraphitiClient(
                     timeout_ms=self._timeout_ms,
                     enable_fallback=self._enable_fallback,
                 )
 
             # 初始化客户端
-            if hasattr(self._client, 'initialize'):
+            if hasattr(self._client, "initialize"):
                 await self._client.initialize()
 
             self._initialized = True
@@ -197,6 +202,7 @@ class GraphSyncService:
             SyncResult: 同步结果
         """
         import time
+
         start_time = time.perf_counter()
 
         # ✅ AC 5: preserveGraph选项跳过图谱同步
@@ -311,7 +317,7 @@ class GraphSyncService:
             )
 
             # 添加episode到Graphiti
-            if hasattr(self._client, 'add_episode'):
+            if hasattr(self._client, "add_episode"):
                 episode_id = await self._client.add_episode(
                     content=episode_content,
                     canvas_file=canvas_path,
@@ -320,7 +326,7 @@ class GraphSyncService:
                         "rollback_type": rollback_type,
                         "affected_nodes": affected_nodes,
                         "deleted_nodes": deleted_nodes,
-                    }
+                    },
                 )
 
                 if episode_id:
@@ -409,7 +415,7 @@ class GraphSyncService:
 
         try:
             # 使用add_memory记录删除事件
-            if hasattr(self._client, 'add_memory'):
+            if hasattr(self._client, "add_memory"):
                 deleted_at = datetime.now(timezone.utc).isoformat()
 
                 success = await self._client.add_memory(
@@ -467,12 +473,12 @@ class GraphSyncService:
                 f"Type: {node_data.get('type', 'unknown')}"
             )
 
-            if 'text' in node_data:
-                text_preview = node_data['text'][:100]
+            if "text" in node_data:
+                text_preview = node_data["text"][:100]
                 content += f", Text: {text_preview}"
 
             # 添加episode
-            if hasattr(self._client, 'add_episode'):
+            if hasattr(self._client, "add_episode"):
                 episode_id = await self._client.add_episode(
                     content=content,
                     canvas_file=canvas_path,
@@ -480,7 +486,7 @@ class GraphSyncService:
                         "node_id": node_id,
                         "operation": operation,
                         "node_type": node_data.get("type"),
-                    }
+                    },
                 )
                 return episode_id is not None
 

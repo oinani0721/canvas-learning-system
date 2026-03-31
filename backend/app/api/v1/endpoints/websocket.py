@@ -22,7 +22,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from fastapi import WebSocket, WebSocketDisconnect, status
+from fastapi import WebSocket, WebSocketDisconnect
 
 from app.models.intelligent_parallel_models import create_ws_error_event
 from app.services.websocket_manager import ConnectionManager, get_connection_manager
@@ -117,7 +117,7 @@ async def websocket_intelligent_parallel(
         # Close with custom code 4004 for session not found
         await websocket.close(
             code=WEBSOCKET_CLOSE_SESSION_NOT_FOUND,
-            reason=f"Session '{session_id}' not found"
+            reason=f"Session '{session_id}' not found",
         )
         return
 
@@ -138,7 +138,7 @@ async def websocket_intelligent_parallel(
                 # This keeps the connection alive and allows detection of client disconnect
                 message = await asyncio.wait_for(
                     websocket.receive_text(),
-                    timeout=float(INACTIVITY_TIMEOUT_MINUTES * 60)
+                    timeout=float(INACTIVITY_TIMEOUT_MINUTES * 60),
                 )
                 # Update activity timestamp is handled in manager
                 logger.debug(f"Received message from client: {message[:100]}")
@@ -215,6 +215,7 @@ async def _heartbeat_loop(
             # Send ping to this specific connection
             try:
                 from app.models.intelligent_parallel_models import create_ws_ping_event
+
                 ping_event = create_ws_ping_event(session_id)
                 await websocket.send_json(ping_event.model_dump(mode="json"))
                 logger.debug(f"Heartbeat sent for session: {session_id}")

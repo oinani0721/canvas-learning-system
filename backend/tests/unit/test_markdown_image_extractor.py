@@ -14,7 +14,6 @@ Author: Dev Agent (James)
 Created: 2025-12-16
 """
 
-
 import pytest
 from app.services.markdown_image_extractor import ImageReference, MarkdownImageExtractor
 
@@ -36,7 +35,7 @@ class TestImageReference:
             path="images/graph.png",
             alt_text="Graph caption",
             format="obsidian",
-            original_syntax="![[images/graph.png|Graph caption]]"
+            original_syntax="![[images/graph.png|Graph caption]]",
         )
         assert ref.path == "images/graph.png"
         assert ref.alt_text == "Graph caption"
@@ -261,9 +260,7 @@ class TestPathResolution:
 
         refs = [ImageReference(path="./images/graph.png")]
         resolved = await extractor.resolve_paths(
-            refs,
-            vault_path=tmp_path,
-            canvas_dir=canvas_dir
+            refs, vault_path=tmp_path, canvas_dir=canvas_dir
         )
 
         assert len(resolved) == 1
@@ -292,7 +289,7 @@ class TestPathResolution:
         refs = [
             ImageReference(path="img1.png"),
             ImageReference(path="img2.png"),
-            ImageReference(path="missing.png")
+            ImageReference(path="missing.png"),
         ]
         resolved = await extractor.resolve_paths(refs, tmp_path)
 
@@ -393,7 +390,7 @@ class TestConvenienceMethods:
             ImageReference(path="image.png"),
             ImageReference(path="doc.pdf"),
             ImageReference(path="photo.jpg"),
-            ImageReference(path="data.csv")
+            ImageReference(path="data.csv"),
         ]
         filtered = extractor.filter_by_extension(refs)
 
@@ -404,11 +401,8 @@ class TestConvenienceMethods:
 
     def test_filter_by_custom_extension(self, extractor):
         """Test filter_by_extension with custom extensions"""
-        refs = [
-            ImageReference(path="image.png"),
-            ImageReference(path="doc.pdf")
-        ]
-        filtered = extractor.filter_by_extension(refs, extensions={'.pdf'})
+        refs = [ImageReference(path="image.png"), ImageReference(path="doc.pdf")]
+        filtered = extractor.filter_by_extension(refs, extensions={".pdf"})
 
         assert len(filtered) == 1
         assert filtered[0].path == "doc.pdf"

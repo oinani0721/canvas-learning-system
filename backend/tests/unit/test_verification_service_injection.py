@@ -90,21 +90,12 @@ class TestDependenciesInjection:
         mock_client.search_verification_questions = AsyncMock(return_value=[])
 
         # Mock all required dependencies
-        with patch(
-            "app.dependencies.get_graphiti_temporal_client",
-            return_value=mock_client
-        ) as mock_get_graphiti, patch(
-            "app.dependencies.get_rag_service",
-            return_value=MagicMock()
-        ), patch(
-            "app.dependencies.get_cross_canvas_service",
-            return_value=MagicMock()
-        ), patch(
-            "app.dependencies.TextbookContextService",
-            return_value=MagicMock()
-        ), patch(
-            "app.dependencies.TextbookContextConfig",
-            return_value=MagicMock()
+        with (
+            patch(
+                "app.dependencies.get_graphiti_temporal_client",
+                return_value=mock_client,
+            ) as mock_get_graphiti,
+            patch("app.dependencies.get_rag_service", return_value=MagicMock()),
         ):
             # Import after patching to get patched version
             from app.dependencies import get_verification_service
@@ -139,9 +130,7 @@ class TestGraphitiClientLogging:
     """
 
     @pytest.mark.asyncio
-    async def test_verification_service_logs_graphiti_status_when_present(
-        self, caplog
-    ):
+    async def test_verification_service_logs_graphiti_status_when_present(self, caplog):
         """
         AC-31.A.1.2: Log shows Graphiti: True when client is injected.
 
@@ -154,15 +143,13 @@ class TestGraphitiClientLogging:
 
         # Act
         with caplog.at_level(logging.INFO):
-            service = VerificationService(graphiti_client=mock_client)
+            VerificationService(graphiti_client=mock_client)
 
         # Assert: Log contains Graphiti: True
         assert "Graphiti: True" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_verification_service_logs_graphiti_status_when_absent(
-        self, caplog
-    ):
+    async def test_verification_service_logs_graphiti_status_when_absent(self, caplog):
         """
         AC-31.A.1.2: Log shows Graphiti: False when client is None.
 
@@ -172,7 +159,7 @@ class TestGraphitiClientLogging:
 
         # Act
         with caplog.at_level(logging.INFO):
-            service = VerificationService(graphiti_client=None)
+            VerificationService(graphiti_client=None)
 
         # Assert: Log contains Graphiti: False
         assert "Graphiti: False" in caplog.text

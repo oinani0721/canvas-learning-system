@@ -146,23 +146,22 @@ class CanvasRAGConfig(TypedDict, total=False):
     enable_caching: bool  # 是否启用缓存 (默认True)
 
 
-# Story 23.4: 默认数据源权重配置
+# Story 23.4: 默认数据源权重配置 (Feature 2.2: textbook removed per GDA-2)
 # ✅ Verified from Story 23.4 Dev Notes: Data Sources Overview
 DEFAULT_SOURCE_WEIGHTS = {
-    "graphiti": 0.25,  # Graphiti知识图谱
-    "lancedb": 0.25,  # LanceDB向量检索
-    "textbook": 0.20,  # 教材上下文
-    "cross_canvas": 0.15,  # 跨Canvas关联
-    "multimodal": 0.15,  # 多模态检索
+    "graphiti": 0.30,  # Graphiti知识图谱
+    "lancedb": 0.30,  # LanceDB向量检索
+    "vault_notes": 0.25,  # Vault笔記検索
+    "multimodal": 0.15,  # 多模態検索
 }
 
-# Story 2.5: 默认分层 RRF 融合组映射
-# Dense 组: 笔记内容的语义和关键词匹配
-# Graph 组: 知识图谱结构、链接关系和教材结构化知识
-# Personal 组: 用户个人笔记和多模态内容
+# Story 2.5: 默认分層 RRF 融合組映射 (Feature 2.2: textbook removed per GDA-2)
+# Dense 組: 筆記内容の語義和関鍵詞匹配
+# Graph 組: 知識図譜結構、鏈接関係
+# Personal 組: 用戶個人筆記和多模態内容
 DEFAULT_FUSION_GROUPS: Dict[str, List[str]] = {
     "dense": ["lancedb"],
-    "graph": ["graphiti", "cross_canvas", "textbook"],
+    "graph": ["graphiti", "cross_canvas"],
     "personal": ["vault_notes", "multimodal"],
 }
 
@@ -269,7 +268,9 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
 
         if not valid:
             default_val = DEFAULT_CONFIG.get(param)
-            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
+            _cfg_logger.warning(
+                f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}"
+            )
             validated[param] = default_val
 
     # --- Enum rules ---
@@ -284,7 +285,9 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         value = validated[param]
         if not isinstance(value, str) or value not in allowed:
             default_val = DEFAULT_CONFIG.get(param)
-            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
+            _cfg_logger.warning(
+                f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}"
+            )
             validated[param] = default_val
 
     # --- Boolean rules ---
@@ -304,7 +307,9 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         value = validated[param]
         if not isinstance(value, bool):
             default_val = DEFAULT_CONFIG.get(param)
-            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
+            _cfg_logger.warning(
+                f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}"
+            )
             validated[param] = default_val
 
     # --- String rules (model names must be non-empty strings) ---
@@ -322,7 +327,9 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         value = validated[param]
         if not isinstance(value, str) or not value.strip():
             default_val = DEFAULT_CONFIG.get(param)
-            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
+            _cfg_logger.warning(
+                f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}"
+            )
             validated[param] = default_val
 
     # --- Dict rules: fusion_groups and source_weights ---
@@ -419,7 +426,9 @@ def load_config_from_file(file_path: Optional[str] = None) -> Optional[Dict[str,
         _cfg_logger.info(f"[CONFIG] Loaded config from {file_path} ({len(data)} keys)")
         return data
     except ImportError:
-        _cfg_logger.warning("[CONFIG] pyyaml not installed, cannot load YAML config file")
+        _cfg_logger.warning(
+            "[CONFIG] pyyaml not installed, cannot load YAML config file"
+        )
         return None
     except Exception as e:
         _cfg_logger.warning(f"[CONFIG] Failed to load config file {file_path}: {e}")
@@ -480,10 +489,7 @@ def generate_default_config_file(output_path: str = "config/rag_config.yaml") ->
     # Serialize scalar values from DEFAULT_CONFIG to YAML.
     # Complex nested dicts (fusion_groups, source_weights) are excluded because
     # they require careful editing and should be modified in code.
-    scalar_config = {
-        k: v for k, v in DEFAULT_CONFIG.items()
-        if not isinstance(v, dict)
-    }
+    scalar_config = {k: v for k, v in DEFAULT_CONFIG.items() if not isinstance(v, dict)}
     yaml_body = yaml.dump(
         scalar_config,
         default_flow_style=False,

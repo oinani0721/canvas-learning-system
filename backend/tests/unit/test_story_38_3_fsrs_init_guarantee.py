@@ -8,8 +8,9 @@ Tests cover:
 - AC-4: Auto card creation on first FSRS state query
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Use shared isolate_card_states_file fixture from conftest.py
 pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
@@ -33,6 +34,7 @@ def mock_task_manager():
 
 class FakeCard:
     """Fake FSRS card with real numeric attributes."""
+
     def __init__(self):
         self.stability = 0.0
         self.difficulty = 0.0
@@ -42,7 +44,7 @@ class FakeCard:
 
     @property
     def state(self):
-        return type('State', (), {'value': 0})()
+        return type("State", (), {"value": 0})()
 
 
 @pytest.fixture
@@ -62,23 +64,25 @@ def mock_fsrs_manager():
 def review_service(mock_canvas_service, mock_task_manager, mock_fsrs_manager):
     """Create ReviewService with mocked FSRS manager."""
     from app.services.review_service import ReviewService
+
     return ReviewService(
         canvas_service=mock_canvas_service,
         task_manager=mock_task_manager,
-        fsrs_manager=mock_fsrs_manager
+        fsrs_manager=mock_fsrs_manager,
     )
 
 
 @pytest.fixture
 def review_service_no_fsrs(mock_canvas_service, mock_task_manager):
     """Create ReviewService without FSRS manager (simulating py-fsrs not available)."""
-    with patch('app.services.review_service.FSRS_AVAILABLE', False):
-        with patch('app.services.review_service.FSRSManager', None):
+    with patch("app.services.review_service.FSRS_AVAILABLE", False):
+        with patch("app.services.review_service.FSRSManager", None):
             from app.services.review_service import ReviewService
+
             svc = ReviewService(
                 canvas_service=mock_canvas_service,
                 task_manager=mock_task_manager,
-                fsrs_manager=None
+                fsrs_manager=None,
             )
     return svc
 
@@ -139,19 +143,25 @@ class TestAC3InitLogging:
         # Either way, the manager should be None
         assert review_service_no_fsrs._fsrs_manager is None
 
-    def test_fsrs_init_reason_set_when_unavailable(self, mock_canvas_service, mock_task_manager):
+    def test_fsrs_init_reason_set_when_unavailable(
+        self, mock_canvas_service, mock_task_manager
+    ):
         """When FSRS library not available, reason is set."""
-        with patch('app.services.review_service.FSRS_AVAILABLE', False):
-            with patch('app.services.review_service.FSRSManager', None):
+        with patch("app.services.review_service.FSRS_AVAILABLE", False):
+            with patch("app.services.review_service.FSRSManager", None):
                 from app.services.review_service import ReviewService
+
                 svc = ReviewService(
                     canvas_service=mock_canvas_service,
                     task_manager=mock_task_manager,
-                    fsrs_manager=None
+                    fsrs_manager=None,
                 )
                 assert svc._fsrs_init_ok is False
                 assert svc._fsrs_init_reason is not None
-                assert "unavailable" in svc._fsrs_init_reason or "disabled" in svc._fsrs_init_reason
+                assert (
+                    "unavailable" in svc._fsrs_init_reason
+                    or "disabled" in svc._fsrs_init_reason
+                )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -163,7 +173,9 @@ class TestAC4AutoCardCreation:
     """AC-4: Auto card creation when no FSRS card exists."""
 
     @pytest.mark.asyncio
-    async def test_auto_creates_card_when_none_exists(self, review_service, mock_fsrs_manager):
+    async def test_auto_creates_card_when_none_exists(
+        self, review_service, mock_fsrs_manager
+    ):
         """When no card exists, get_fsrs_state auto-creates one."""
         # No card in cache or persistence
         assert "new-concept" not in review_service._card_states
@@ -184,7 +196,9 @@ class TestAC4AutoCardCreation:
         assert "new-concept" in review_service._card_states
 
     @pytest.mark.asyncio
-    async def test_auto_created_card_returned_on_subsequent_query(self, review_service, mock_fsrs_manager):
+    async def test_auto_created_card_returned_on_subsequent_query(
+        self, review_service, mock_fsrs_manager
+    ):
         """Subsequent queries return the auto-created card."""
         # First query - auto-creates
         result1 = await review_service.get_fsrs_state("concept-x")
@@ -201,7 +215,9 @@ class TestAC4AutoCardCreation:
         mock_fsrs_manager.create_card.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_existing_card_not_overwritten(self, review_service, mock_fsrs_manager):
+    async def test_existing_card_not_overwritten(
+        self, review_service, mock_fsrs_manager
+    ):
         """When card already exists in cache, it's not overwritten."""
         # Pre-populate cache
         review_service._card_states["existing-concept"] = '{"existing": true}'
@@ -226,28 +242,30 @@ class TestAC3HealthEndpoint:
 
     def test_health_response_has_components_field(self):
         """HealthCheckResponse model accepts components field."""
-        from app.models.schemas import HealthCheckResponse
         from datetime import datetime, timezone
+
+        from app.models.schemas import HealthCheckResponse
 
         resp = HealthCheckResponse(
             status="healthy",
             app_name="test",
             version="1.0.0",
             timestamp=datetime.now(timezone.utc),
-            components={"fsrs": "ok"}
+            components={"fsrs": "ok"},
         )
         assert resp.components["fsrs"] == "ok"
 
     def test_health_response_components_optional(self):
         """HealthCheckResponse works without components field."""
-        from app.models.schemas import HealthCheckResponse
         from datetime import datetime, timezone
+
+        from app.models.schemas import HealthCheckResponse
 
         resp = HealthCheckResponse(
             status="healthy",
             app_name="test",
             version="1.0.0",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
         assert resp.components is None
 
@@ -269,7 +287,7 @@ class TestFSRSStateQueryResponseReason:
             fsrs_state=None,
             card_state=None,
             found=False,
-            reason="no_card_created"
+            reason="no_card_created",
         )
         assert resp.reason == "no_card_created"
 
@@ -278,10 +296,7 @@ class TestFSRSStateQueryResponseReason:
         from app.models.schemas import FSRSStateQueryResponse
 
         resp = FSRSStateQueryResponse(
-            concept_id="test",
-            fsrs_state=None,
-            card_state=None,
-            found=True
+            concept_id="test", fsrs_state=None, card_state=None, found=True
         )
         assert resp.reason is None
 
@@ -290,9 +305,7 @@ class TestFSRSStateQueryResponseReason:
         from app.models.schemas import FSRSStateQueryResponse
 
         resp = FSRSStateQueryResponse(
-            concept_id="test",
-            found=False,
-            reason="fsrs_not_initialized"
+            concept_id="test", found=False, reason="fsrs_not_initialized"
         )
         assert resp.found is False
         assert resp.reason == "fsrs_not_initialized"
@@ -307,9 +320,11 @@ class TestCodeReviewC1FireAndForgetPersistence:
     """C1 Fix: Auto-created cards persist via get_learning_memory_client(), not self.graphiti_client."""
 
     @pytest.mark.asyncio
-    async def test_auto_create_fires_persistence_task(self, review_service, mock_fsrs_manager):
+    async def test_auto_create_fires_persistence_task(
+        self, review_service, mock_fsrs_manager
+    ):
         """When auto-creating a card, a background task is spawned for persistence."""
-        with patch('app.services.review_service.asyncio') as mock_asyncio:
+        with patch("app.services.review_service.asyncio") as mock_asyncio:
             mock_asyncio.create_task = MagicMock()
             result = await review_service.get_fsrs_state("persist-test")
             assert result["found"] is True
@@ -317,14 +332,18 @@ class TestCodeReviewC1FireAndForgetPersistence:
             mock_asyncio.create_task.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_persistence_create_task_failure_returns_error(self, review_service, mock_fsrs_manager):
+    async def test_persistence_create_task_failure_returns_error(
+        self, review_service, mock_fsrs_manager
+    ):
         """When asyncio.create_task raises, get_fsrs_state returns error gracefully.
 
         review_service.py L1815 catches all exceptions and returns
         {"found": False, "reason": "error: ..."} instead of propagating.
         """
-        with patch('app.services.review_service.asyncio') as mock_asyncio:
-            mock_asyncio.create_task = MagicMock(side_effect=RuntimeError("no event loop"))
+        with patch("app.services.review_service.asyncio") as mock_asyncio:
+            mock_asyncio.create_task = MagicMock(
+                side_effect=RuntimeError("no event loop")
+            )
             result = await review_service.get_fsrs_state("persist-fail")
             assert result["found"] is False
             assert "error" in result["reason"]
@@ -338,6 +357,7 @@ class TestCodeReviewC2ReviewServiceSingleton:
     def reset_singleton(self):
         """Reset review service singleton before and after each test."""
         from app.services.review_service import reset_review_service_singleton
+
         reset_review_service_singleton()
         yield
         reset_review_service_singleton()
@@ -345,7 +365,8 @@ class TestCodeReviewC2ReviewServiceSingleton:
     @pytest.mark.asyncio
     async def test_singleton_creates_review_service(self):
         """get_review_service() returns a ReviewService instance."""
-        from app.services.review_service import get_review_service, ReviewService
+        from app.services.review_service import ReviewService, get_review_service
+
         svc = await get_review_service()
         assert isinstance(svc, ReviewService)
 
@@ -353,6 +374,7 @@ class TestCodeReviewC2ReviewServiceSingleton:
     async def test_singleton_returns_same_instance(self):
         """Calling get_review_service() twice returns the same object."""
         from app.services.review_service import get_review_service
+
         svc1 = await get_review_service()
         svc2 = await get_review_service()
         assert svc1 is svc2
@@ -365,41 +387,51 @@ class TestCodeReviewM2RuntimeFSRSFlag:
     def save_restore_runtime_flag(self):
         """Save and restore FSRS_RUNTIME_OK around each test."""
         import app.services.review_service as rs_module
+
         original = rs_module.FSRS_RUNTIME_OK
         yield rs_module
         rs_module.FSRS_RUNTIME_OK = original
 
-    def test_runtime_ok_set_true_on_success(self, mock_canvas_service, mock_task_manager, mock_fsrs_manager, save_restore_runtime_flag):
+    def test_runtime_ok_set_true_on_success(
+        self,
+        mock_canvas_service,
+        mock_task_manager,
+        mock_fsrs_manager,
+        save_restore_runtime_flag,
+    ):
         """FSRS_RUNTIME_OK is True when FSRSManager injects successfully."""
         rs_module = save_restore_runtime_flag
         from app.services.review_service import ReviewService
+
         ReviewService(
             canvas_service=mock_canvas_service,
             task_manager=mock_task_manager,
-            fsrs_manager=mock_fsrs_manager
+            fsrs_manager=mock_fsrs_manager,
         )
         assert rs_module.FSRS_RUNTIME_OK is True
 
-    def test_runtime_ok_set_false_when_unavailable(self, mock_canvas_service, mock_task_manager, save_restore_runtime_flag):
+    def test_runtime_ok_set_false_when_unavailable(
+        self, mock_canvas_service, mock_task_manager, save_restore_runtime_flag
+    ):
         """FSRS_RUNTIME_OK is False when FSRS library not available."""
         rs_module = save_restore_runtime_flag
-        with patch.object(rs_module, 'FSRS_AVAILABLE', False):
-            with patch.object(rs_module, 'FSRSManager', None):
+        with patch.object(rs_module, "FSRS_AVAILABLE", False):
+            with patch.object(rs_module, "FSRSManager", None):
                 from app.services.review_service import ReviewService
+
                 ReviewService(
                     canvas_service=mock_canvas_service,
                     task_manager=mock_task_manager,
-                    fsrs_manager=None
+                    fsrs_manager=None,
                 )
                 assert rs_module.FSRS_RUNTIME_OK is False
 
     def test_health_endpoint_uses_runtime_flag(self):
         """Health endpoint prefers FSRS_RUNTIME_OK over FSRS_AVAILABLE."""
-        from app.models.schemas import HealthCheckResponse
 
         # Simulate: FSRS_AVAILABLE=True but FSRS_RUNTIME_OK=False
         # (library importable but init failed at runtime)
-        with patch('app.api.v1.endpoints.health.FSRS_AVAILABLE', True, create=True):
+        with patch("app.api.v1.endpoints.health.FSRS_AVAILABLE", True, create=True):
             pass  # import-time flag
 
         # Direct logic test: when FSRS_RUNTIME_OK is not None, it takes precedence

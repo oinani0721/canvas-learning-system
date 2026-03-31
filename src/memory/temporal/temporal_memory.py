@@ -141,9 +141,7 @@ class TemporalMemory:
 
         return session_id
 
-    def _update_fsrs_card(
-        self, canvas_file: str, concept: str, score: float
-    ):
+    def _update_fsrs_card(self, canvas_file: str, concept: str, score: float):
         """
         Update FSRS card based on score.
 
@@ -170,9 +168,7 @@ class TemporalMemory:
         new_state = self.fsrs.card_to_state(updated_card, concept, canvas_file)
         self._save_card_state(new_state)
 
-    def _get_card_state(
-        self, concept: str, canvas_file: str
-    ) -> Optional[CardState]:
+    def _get_card_state(self, concept: str, canvas_file: str) -> Optional[CardState]:
         """Get card state from database."""
         with self._get_connection() as conn:
             cursor = conn.execute(
@@ -191,7 +187,9 @@ class TemporalMemory:
             stability=row["stability"],
             due=datetime.fromisoformat(row["due"]) if row["due"] else None,
             state=row["state"],
-            last_review=datetime.fromisoformat(row["last_review"]) if row["last_review"] else None,
+            last_review=datetime.fromisoformat(row["last_review"])
+            if row["last_review"]
+            else None,
             reps=row["reps"],
             lapses=row["lapses"],
             card_data=row["card_data"],
@@ -385,7 +383,9 @@ class TemporalMemory:
                 stability=row["stability"],
                 due=datetime.fromisoformat(row["due"]) if row["due"] else None,
                 state=row["state"],
-                last_review=datetime.fromisoformat(row["last_review"]) if row["last_review"] else None,
+                last_review=datetime.fromisoformat(row["last_review"])
+                if row["last_review"]
+                else None,
                 reps=row["reps"],
                 lapses=row["lapses"],
                 card_data=row["card_data"],

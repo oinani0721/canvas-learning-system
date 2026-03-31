@@ -11,23 +11,15 @@ Story 30.2: Neo4jClient真实驱动实现
 [Source: docs/stories/30.2.story.md]
 """
 
-import asyncio
 import json
-import pytest
-import tempfile
 import time
-from datetime import datetime
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest_asyncio
-
+import pytest
 from app.clients.neo4j_client import (
     Neo4jClient,
     get_neo4j_client,
     reset_neo4j_client,
-    DEFAULT_STORAGE_PATH,
-    RETRYABLE_EXCEPTIONS,
 )
 
 
@@ -106,10 +98,7 @@ class TestNeo4jClientJsonFallback:
     @pytest.mark.asyncio
     async def test_json_fallback_initialization(self, temp_storage_path):
         """Test JSON fallback mode initialization creates storage file."""
-        client = Neo4jClient(
-            use_json_fallback=True,
-            storage_path=temp_storage_path
-        )
+        client = Neo4jClient(use_json_fallback=True, storage_path=temp_storage_path)
 
         result = await client.initialize()
 
@@ -124,16 +113,13 @@ class TestNeo4jClientJsonFallback:
         existing_data = {
             "users": [{"id": "user-1", "created_at": "2024-01-01T00:00:00"}],
             "concepts": [{"id": "concept-1", "name": "Test Concept"}],
-            "relationships": []
+            "relationships": [],
         }
         temp_storage_path.parent.mkdir(parents=True, exist_ok=True)
         with open(temp_storage_path, "w") as f:
             json.dump(existing_data, f)
 
-        client = Neo4jClient(
-            use_json_fallback=True,
-            storage_path=temp_storage_path
-        )
+        client = Neo4jClient(use_json_fallback=True, storage_path=temp_storage_path)
         await client.initialize()
 
         assert len(client._data["users"]) == 1
@@ -142,16 +128,11 @@ class TestNeo4jClientJsonFallback:
     @pytest.mark.asyncio
     async def test_create_learning_relationship_json_fallback(self, temp_storage_path):
         """Test creating learning relationship in JSON fallback mode."""
-        client = Neo4jClient(
-            use_json_fallback=True,
-            storage_path=temp_storage_path
-        )
+        client = Neo4jClient(use_json_fallback=True, storage_path=temp_storage_path)
         await client.initialize()
 
         result = await client.create_learning_relationship(
-            user_id="test-user",
-            concept="Test Concept",
-            score=85
+            user_id="test-user", concept="Test Concept", score=85
         )
 
         assert result is True
@@ -172,25 +153,24 @@ class TestNeo4jClientJsonFallback:
         existing_data = {
             "users": [{"id": "user-1", "created_at": "2024-01-01T00:00:00"}],
             "concepts": [{"id": "concept-1", "name": "Test Concept"}],
-            "relationships": [{
-                "id": "rel-1",
-                "user_id": "user-1",
-                "concept_id": "concept-1",
-                "concept_name": "Test Concept",
-                "timestamp": past_date,
-                "last_score": 80,
-                "next_review": past_date,
-                "review_count": 1
-            }]
+            "relationships": [
+                {
+                    "id": "rel-1",
+                    "user_id": "user-1",
+                    "concept_id": "concept-1",
+                    "concept_name": "Test Concept",
+                    "timestamp": past_date,
+                    "last_score": 80,
+                    "next_review": past_date,
+                    "review_count": 1,
+                }
+            ],
         }
         temp_storage_path.parent.mkdir(parents=True, exist_ok=True)
         with open(temp_storage_path, "w") as f:
             json.dump(existing_data, f)
 
-        client = Neo4jClient(
-            use_json_fallback=True,
-            storage_path=temp_storage_path
-        )
+        client = Neo4jClient(use_json_fallback=True, storage_path=temp_storage_path)
         await client.initialize()
 
         suggestions = await client.get_review_suggestions("user-1")
@@ -205,24 +185,23 @@ class TestNeo4jClientJsonFallback:
         existing_data = {
             "users": [{"id": "user-1"}],
             "concepts": [{"id": "concept-1", "name": "Test Concept"}],
-            "relationships": [{
-                "id": "rel-1",
-                "user_id": "user-1",
-                "concept_id": "concept-1",
-                "concept_name": "Test Concept",
-                "timestamp": "2024-01-01T00:00:00",
-                "last_score": 90,
-                "review_count": 3
-            }]
+            "relationships": [
+                {
+                    "id": "rel-1",
+                    "user_id": "user-1",
+                    "concept_id": "concept-1",
+                    "concept_name": "Test Concept",
+                    "timestamp": "2024-01-01T00:00:00",
+                    "last_score": 90,
+                    "review_count": 3,
+                }
+            ],
         }
         temp_storage_path.parent.mkdir(parents=True, exist_ok=True)
         with open(temp_storage_path, "w") as f:
             json.dump(existing_data, f)
 
-        client = Neo4jClient(
-            use_json_fallback=True,
-            storage_path=temp_storage_path
-        )
+        client = Neo4jClient(use_json_fallback=True, storage_path=temp_storage_path)
         await client.initialize()
 
         history = await client.get_concept_history("concept-1", user_id="user-1")
@@ -239,9 +218,7 @@ class TestNeo4jClientDriver:
     async def test_driver_initialization_success(self):
         """Test successful driver initialization with mocked Neo4j."""
         client = Neo4jClient(
-            uri="bolt://localhost:7687",
-            user="neo4j",
-            password="test_password"
+            uri="bolt://localhost:7687", user="neo4j", password="test_password"
         )
 
         # Mock the AsyncGraphDatabase.driver
@@ -271,12 +248,13 @@ class TestNeo4jClientDriver:
             uri="bolt://localhost:7687",
             user="neo4j",
             password="wrong_password",
-            storage_path=storage_path
+            storage_path=storage_path,
         )
 
         # Mock driver creation to raise AuthError
         with patch("app.clients.neo4j_client.AsyncGraphDatabase") as mock_agd:
             from neo4j.exceptions import AuthError
+
             mock_agd.driver.side_effect = AuthError("Authentication failed")
 
             result = await client.initialize()
@@ -328,10 +306,7 @@ class TestNeo4jClientDriver:
     async def test_health_check_json_fallback(self, tmp_path):
         """Test health check always returns True in JSON fallback mode."""
         storage_path = tmp_path / "health_test.json"
-        client = Neo4jClient(
-            use_json_fallback=True,
-            storage_path=storage_path
-        )
+        client = Neo4jClient(use_json_fallback=True, storage_path=storage_path)
         await client.initialize()
 
         result = await client.health_check()
@@ -349,7 +324,7 @@ class TestNeo4jClientRetry:
         client = Neo4jClient(
             retry_attempts=3,
             retry_delay_base=0.1,  # Fast retries for test
-            retry_max_delay=1.0
+            retry_max_delay=1.0,
         )
 
         with patch("app.clients.neo4j_client.AsyncGraphDatabase") as mock_agd:
@@ -361,6 +336,7 @@ class TestNeo4jClientRetry:
             mock_result.data = AsyncMock(return_value=[{"count": 1}])
 
             from neo4j.exceptions import TransientError
+
             call_count = [0]
 
             async def mock_run(query, params):
@@ -377,10 +353,12 @@ class TestNeo4jClientRetry:
             async def session_context_manager(*args, **kwargs):
                 return mock_session
 
-            mock_driver.session = MagicMock(return_value=AsyncMock(
-                __aenter__=AsyncMock(return_value=mock_session),
-                __aexit__=AsyncMock(return_value=None)
-            ))
+            mock_driver.session = MagicMock(
+                return_value=AsyncMock(
+                    __aenter__=AsyncMock(return_value=mock_session),
+                    __aexit__=AsyncMock(return_value=None),
+                )
+            )
 
             mock_agd.driver.return_value = mock_driver
 
@@ -397,9 +375,7 @@ class TestNeo4jClientRetry:
         """Test fallback to JSON after max retries exhausted."""
         storage_path = tmp_path / "retry_fallback.json"
         client = Neo4jClient(
-            retry_attempts=2,
-            retry_delay_base=0.1,
-            storage_path=storage_path
+            retry_attempts=2, retry_delay_base=0.1, storage_path=storage_path
         )
 
         with patch("app.clients.neo4j_client.AsyncGraphDatabase") as mock_agd:
@@ -413,10 +389,12 @@ class TestNeo4jClientRetry:
             mock_session = AsyncMock()
             mock_session.run = AsyncMock(side_effect=ServiceUnavailable("Service down"))
 
-            mock_driver.session = MagicMock(return_value=AsyncMock(
-                __aenter__=AsyncMock(return_value=mock_session),
-                __aexit__=AsyncMock(return_value=None)
-            ))
+            mock_driver.session = MagicMock(
+                return_value=AsyncMock(
+                    __aenter__=AsyncMock(return_value=mock_session),
+                    __aexit__=AsyncMock(return_value=None),
+                )
+            )
 
             mock_agd.driver.return_value = mock_driver
 
@@ -427,7 +405,7 @@ class TestNeo4jClientRetry:
             result = await client.run_query(
                 "MERGE (u:User {id: $userId}) MERGE (c:Concept {name: $concept})",
                 userId="test-user",
-                concept="Test Concept"
+                concept="Test Concept",
             )
 
             # Should have fallen back to JSON mode
@@ -441,10 +419,7 @@ class TestNeo4jClientMetrics:
     async def test_metrics_tracking(self, tmp_path):
         """Test query metrics are tracked correctly."""
         storage_path = tmp_path / "metrics_test.json"
-        client = Neo4jClient(
-            use_json_fallback=True,
-            storage_path=storage_path
-        )
+        client = Neo4jClient(use_json_fallback=True, storage_path=storage_path)
         await client.initialize()
 
         # Execute a few queries
@@ -464,10 +439,7 @@ class TestNeo4jClientMetrics:
         import logging
 
         storage_path = tmp_path / "latency_test.json"
-        client = Neo4jClient(
-            use_json_fallback=True,
-            storage_path=storage_path
-        )
+        client = Neo4jClient(use_json_fallback=True, storage_path=storage_path)
         await client.initialize()
 
         # Mock time.perf_counter to simulate slow query
@@ -548,10 +520,7 @@ class TestNeo4jClientCleanup:
     async def test_cleanup_json_fallback(self, tmp_path):
         """Test cleanup in JSON fallback mode."""
         storage_path = tmp_path / "cleanup_test.json"
-        client = Neo4jClient(
-            use_json_fallback=True,
-            storage_path=storage_path
-        )
+        client = Neo4jClient(use_json_fallback=True, storage_path=storage_path)
         await client.initialize()
 
         await client.cleanup()

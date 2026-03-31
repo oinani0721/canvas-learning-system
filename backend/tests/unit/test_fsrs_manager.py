@@ -31,7 +31,6 @@ from memory.temporal.fsrs_manager import (
     get_rating_from_score,
 )
 
-
 # ==========================================================
 # Fixtures (ADR-008 Testing Standards)
 # ==========================================================
@@ -89,9 +88,7 @@ class TestFSRSManagerInit:
     def test_fsrs_available_is_true(self):
         """Test that FSRS library is available."""
         # This test validates AC-32.1.3
-        assert FSRS_AVAILABLE is True, (
-            "FSRS library must be installed for this story"
-        )
+        assert FSRS_AVAILABLE is True, "FSRS library must be installed for this story"
 
 
 # ==========================================================
@@ -111,6 +108,7 @@ class TestCardCreation:
         assert card is not None
         if FSRS_AVAILABLE:
             from fsrs import Card
+
             assert isinstance(card, Card)
 
     def test_create_card_is_due_immediately(self, fsrs_manager):
@@ -279,6 +277,7 @@ class TestSerialization:
         assert restored_card is not None
         if FSRS_AVAILABLE:
             from fsrs import Card
+
             assert isinstance(restored_card, Card)
 
     def test_serialize_deserialize_roundtrip(self, fsrs_manager, reviewed_card):
@@ -309,9 +308,7 @@ class TestCardStateConversion:
         """Test Card to CardState conversion."""
         # Act
         state = fsrs_manager.card_to_state(
-            reviewed_card,
-            concept="test_concept",
-            canvas_file="test.canvas"
+            reviewed_card, concept="test_concept", canvas_file="test.canvas"
         )
 
         # Assert
@@ -327,9 +324,7 @@ class TestCardStateConversion:
         """Test CardState to Card conversion."""
         # Arrange
         state = fsrs_manager.card_to_state(
-            reviewed_card,
-            concept="test_concept",
-            canvas_file="test.canvas"
+            reviewed_card, concept="test_concept", canvas_file="test.canvas"
         )
 
         # Act
@@ -339,6 +334,7 @@ class TestCardStateConversion:
         assert restored_card is not None
         if FSRS_AVAILABLE:
             from fsrs import Card
+
             assert isinstance(restored_card, Card)
 
     def test_card_state_roundtrip(self, fsrs_manager, reviewed_card):
@@ -348,9 +344,7 @@ class TestCardStateConversion:
 
         # Act
         state = fsrs_manager.card_to_state(
-            reviewed_card,
-            concept="roundtrip_test",
-            canvas_file="test.canvas"
+            reviewed_card, concept="roundtrip_test", canvas_file="test.canvas"
         )
         restored_card = fsrs_manager.state_to_card(state)
 
@@ -367,20 +361,23 @@ class TestCardStateConversion:
 class TestRatingConversion:
     """Tests for get_rating_from_score function."""
 
-    @pytest.mark.parametrize("score,expected_rating", [
-        (0, Rating.Again),    # 0 -> Again (1)
-        (20, Rating.Again),   # 20 -> Again (1)
-        (39, Rating.Again),   # 39 -> Again (1)
-        (40, Rating.Hard),    # 40 -> Hard (2)
-        (50, Rating.Hard),    # 50 -> Hard (2)
-        (59, Rating.Hard),    # 59 -> Hard (2)
-        (60, Rating.Good),    # 60 -> Good (3)
-        (75, Rating.Good),    # 75 -> Good (3)
-        (84, Rating.Good),    # 84 -> Good (3)
-        (85, Rating.Easy),    # 85 -> Easy (4)
-        (90, Rating.Easy),    # 90 -> Easy (4)
-        (100, Rating.Easy),   # 100 -> Easy (4)
-    ])
+    @pytest.mark.parametrize(
+        "score,expected_rating",
+        [
+            (0, Rating.Again),  # 0 -> Again (1)
+            (20, Rating.Again),  # 20 -> Again (1)
+            (39, Rating.Again),  # 39 -> Again (1)
+            (40, Rating.Hard),  # 40 -> Hard (2)
+            (50, Rating.Hard),  # 50 -> Hard (2)
+            (59, Rating.Hard),  # 59 -> Hard (2)
+            (60, Rating.Good),  # 60 -> Good (3)
+            (75, Rating.Good),  # 75 -> Good (3)
+            (84, Rating.Good),  # 84 -> Good (3)
+            (85, Rating.Easy),  # 85 -> Easy (4)
+            (90, Rating.Easy),  # 90 -> Easy (4)
+            (100, Rating.Easy),  # 100 -> Easy (4)
+        ],
+    )
     def test_get_rating_from_score_boundaries(self, score, expected_rating):
         """Test get_rating_from_score returns correct rating for boundary values."""
         # Act

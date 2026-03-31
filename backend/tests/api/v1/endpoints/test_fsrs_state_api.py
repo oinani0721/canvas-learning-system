@@ -14,13 +14,12 @@ _get_review_service_singleton (imported in review.py from services layer)
 and module-level FSRS flags (FSRS_AVAILABLE, FSRS_RUNTIME_OK).
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from fastapi.testclient import TestClient
-
-from app.main import app
+import pytest
 from app.config import Settings, get_settings
+from app.main import app
+from fastapi.testclient import TestClient
 
 
 def get_settings_override() -> Settings:
@@ -76,18 +75,20 @@ class TestFSRSStateEndpoint:
 
     def test_returns_auto_created_card(self, client, mock_review_singleton):
         """AC-4: When no card exists, endpoint auto-creates and returns found=True."""
-        mock_review_singleton.get_fsrs_state = AsyncMock(return_value={
-            "found": True,
-            "stability": 1.0,
-            "difficulty": 5.0,
-            "state": 0,
-            "reps": 0,
-            "lapses": 0,
-            "retrievability": 1.0,
-            "due": None,
-            "last_review": None,
-            "card_state": '{"stability":1.0}',
-        })
+        mock_review_singleton.get_fsrs_state = AsyncMock(
+            return_value={
+                "found": True,
+                "stability": 1.0,
+                "difficulty": 5.0,
+                "state": 0,
+                "reps": 0,
+                "lapses": 0,
+                "retrievability": 1.0,
+                "due": None,
+                "last_review": None,
+                "card_state": '{"stability":1.0}',
+            }
+        )
 
         resp = client.get("/api/v1/review/fsrs-state/test-concept-1")
 
@@ -102,10 +103,12 @@ class TestFSRSStateEndpoint:
 
     def test_returns_reason_fsrs_not_initialized(self, client, mock_review_singleton):
         """AC-1: When FSRS not initialized, endpoint returns reason code."""
-        mock_review_singleton.get_fsrs_state = AsyncMock(return_value={
-            "found": False,
-            "reason": "fsrs_not_initialized",
-        })
+        mock_review_singleton.get_fsrs_state = AsyncMock(
+            return_value={
+                "found": False,
+                "reason": "fsrs_not_initialized",
+            }
+        )
 
         resp = client.get("/api/v1/review/fsrs-state/concept-no-fsrs")
 
@@ -130,10 +133,12 @@ class TestFSRSStateEndpoint:
 
     def test_returns_reason_auto_creation_failed(self, client, mock_review_singleton):
         """AC-1: When auto-creation fails, endpoint returns reason code."""
-        mock_review_singleton.get_fsrs_state = AsyncMock(return_value={
-            "found": False,
-            "reason": "auto_creation_failed",
-        })
+        mock_review_singleton.get_fsrs_state = AsyncMock(
+            return_value={
+                "found": False,
+                "reason": "auto_creation_failed",
+            }
+        )
 
         resp = client.get("/api/v1/review/fsrs-state/concept-new")
 
@@ -144,18 +149,20 @@ class TestFSRSStateEndpoint:
 
     def test_found_true_has_null_reason(self, client, mock_review_singleton):
         """AC-1: When found=True, reason should be null in response."""
-        mock_review_singleton.get_fsrs_state = AsyncMock(return_value={
-            "found": True,
-            "stability": 2.5,
-            "difficulty": 4.0,
-            "state": 1,
-            "reps": 3,
-            "lapses": 1,
-            "retrievability": 0.85,
-            "due": None,
-            "last_review": None,
-            "card_state": '{"s":2.5}',
-        })
+        mock_review_singleton.get_fsrs_state = AsyncMock(
+            return_value={
+                "found": True,
+                "stability": 2.5,
+                "difficulty": 4.0,
+                "state": 1,
+                "reps": 3,
+                "lapses": 1,
+                "retrievability": 0.85,
+                "due": None,
+                "last_review": None,
+                "card_state": '{"s":2.5}',
+            }
+        )
 
         resp = client.get("/api/v1/review/fsrs-state/existing-concept")
 
@@ -179,6 +186,7 @@ class TestHealthEndpointFSRS:
     def test_health_includes_fsrs_ok(self, client, monkeypatch):
         """AC-3: When FSRS initialized, health shows fsrs=ok."""
         import app.services.review_service as review_mod
+
         monkeypatch.setattr(review_mod, "FSRS_AVAILABLE", True)
         monkeypatch.setattr(review_mod, "FSRS_RUNTIME_OK", True)
         resp = client.get("/api/v1/health")
@@ -191,6 +199,7 @@ class TestHealthEndpointFSRS:
     def test_health_includes_fsrs_degraded(self, client, monkeypatch):
         """AC-3: When FSRS not initialized, health shows fsrs=degraded."""
         import app.services.review_service as review_mod
+
         monkeypatch.setattr(review_mod, "FSRS_AVAILABLE", False)
         monkeypatch.setattr(review_mod, "FSRS_RUNTIME_OK", False)
         resp = client.get("/api/v1/health")
@@ -202,6 +211,7 @@ class TestHealthEndpointFSRS:
     def test_health_fsrs_degraded_when_runtime_false(self, client, monkeypatch):
         """AC-3: When FSRS_RUNTIME_OK is False, health shows fsrs=degraded."""
         import app.services.review_service as review_mod
+
         monkeypatch.setattr(review_mod, "FSRS_AVAILABLE", True)
         monkeypatch.setattr(review_mod, "FSRS_RUNTIME_OK", False)
         resp = client.get("/api/v1/health")
@@ -213,6 +223,7 @@ class TestHealthEndpointFSRS:
     def test_health_fsrs_ok_when_runtime_none_but_available(self, client, monkeypatch):
         """AC-3: When FSRS_RUNTIME_OK is None (not yet instantiated), falls back to FSRS_AVAILABLE."""
         import app.services.review_service as review_mod
+
         monkeypatch.setattr(review_mod, "FSRS_AVAILABLE", True)
         monkeypatch.setattr(review_mod, "FSRS_RUNTIME_OK", None)
         resp = client.get("/api/v1/health")
@@ -244,10 +255,12 @@ class TestFrontendContractDefaultScore:
         Frontend relies on this to trigger default score=50 fallback.
         (PriorityCalculatorService.ts L282-287: if (!state) → score: 50)
         """
-        mock_review_singleton.get_fsrs_state = AsyncMock(return_value={
-            "found": False,
-            "reason": "fsrs_not_initialized",
-        })
+        mock_review_singleton.get_fsrs_state = AsyncMock(
+            return_value={
+                "found": False,
+                "reason": "fsrs_not_initialized",
+            }
+        )
 
         resp = client.get("/api/v1/review/fsrs-state/new-concept")
 
@@ -258,24 +271,28 @@ class TestFrontendContractDefaultScore:
             "so PriorityCalculatorService falls back to score=50"
         )
 
-    def test_auto_created_card_returns_non_null_fsrs_state(self, client, mock_review_singleton):
+    def test_auto_created_card_returns_non_null_fsrs_state(
+        self, client, mock_review_singleton
+    ):
         """
         [P1] AC-2 + AC-4: Auto-created card must return found=true with
         non-null fsrs_state, so frontend uses real FSRS data instead of
         default score=50.
         """
-        mock_review_singleton.get_fsrs_state = AsyncMock(return_value={
-            "found": True,
-            "stability": 1.0,
-            "difficulty": 5.0,
-            "state": 0,
-            "reps": 0,
-            "lapses": 0,
-            "retrievability": 1.0,
-            "due": None,
-            "last_review": None,
-            "card_state": '{"stability":1.0,"difficulty":5.0}',
-        })
+        mock_review_singleton.get_fsrs_state = AsyncMock(
+            return_value={
+                "found": True,
+                "stability": 1.0,
+                "difficulty": 5.0,
+                "state": 0,
+                "reps": 0,
+                "lapses": 0,
+                "retrievability": 1.0,
+                "due": None,
+                "last_review": None,
+                "card_state": '{"stability":1.0,"difficulty":5.0}',
+            }
+        )
 
         resp = client.get("/api/v1/review/fsrs-state/auto-created-concept")
 

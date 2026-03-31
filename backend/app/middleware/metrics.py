@@ -36,25 +36,25 @@ logger = structlog.get_logger(__name__)
 # ✅ Verified from Context7:/prometheus/client_python (topic: Counter labels)
 # AC-2: canvas_api_requests_total Counter (method/endpoint/status)
 REQUEST_COUNT = Counter(
-    'canvas_api_requests_total',
-    'Total number of API requests',
-    ['method', 'endpoint', 'status']
+    "canvas_api_requests_total",
+    "Total number of API requests",
+    ["method", "endpoint", "status"],
 )
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Histogram buckets labels)
 # AC-3: canvas_api_request_latency_seconds Histogram (method/endpoint)
 REQUEST_LATENCY = Histogram(
-    'canvas_api_request_latency_seconds',
-    'API request latency in seconds',
-    ['method', 'endpoint'],
-    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+    "canvas_api_request_latency_seconds",
+    "API request latency in seconds",
+    ["method", "endpoint"],
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
 )
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Gauge inc dec set)
 # AC-4: canvas_api_concurrent_requests Gauge
 CONCURRENT_REQUESTS = Gauge(
-    'canvas_api_concurrent_requests',
-    'Number of concurrent requests currently being processed'
+    "canvas_api_concurrent_requests",
+    "Number of concurrent requests currently being processed",
 )
 
 
@@ -62,6 +62,7 @@ CONCURRENT_REQUESTS = Gauge(
 # Metrics Middleware Class
 # [Source: docs/stories/17.1.story.md - Task 1, AC-1]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class MetricsMiddleware(BaseHTTPMiddleware):
     """
@@ -78,9 +79,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         >>> app.add_middleware(MetricsMiddleware)
     """
 
-    async def dispatch(
-        self, request: Request, call_next: Callable
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
         Process each request and record metrics.
 
@@ -110,10 +109,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         structlog.contextvars.bind_contextvars(request_id=request_id)
 
         logger.debug(
-            "request.started",
-            method=method,
-            path=request.url.path,
-            endpoint=endpoint
+            "request.started", method=method, path=request.url.path, endpoint=endpoint
         )
 
         try:
@@ -122,10 +118,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             status_code = 500
             logger.exception(
-                "request.error",
-                method=method,
-                path=request.url.path,
-                error=str(e)
+                "request.error", method=method, path=request.url.path, error=str(e)
             )
             raise
         finally:
@@ -139,17 +132,12 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             # Record request count
             # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
             REQUEST_COUNT.labels(
-                method=method,
-                endpoint=endpoint,
-                status=str(status_code)
+                method=method, endpoint=endpoint, status=str(status_code)
             ).inc()
 
             # Record latency
             # ✅ Verified from Context7:/prometheus/client_python (Histogram.labels().observe())
-            REQUEST_LATENCY.labels(
-                method=method,
-                endpoint=endpoint
-            ).observe(duration)
+            REQUEST_LATENCY.labels(method=method, endpoint=endpoint).observe(duration)
 
             # Log completion
             # ✅ Verified from ADR-010:77-100 (structlog structured logging)
@@ -159,7 +147,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                 path=request.url.path,
                 endpoint=endpoint,
                 status=status_code,
-                duration_ms=round(duration * 1000, 2)
+                duration_ms=round(duration * 1000, 2),
             )
 
         return response
@@ -182,13 +170,13 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
         # Normalize UUID patterns
         path = re.sub(
-            r'/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
-            '/{id}',
-            path
+            r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            "/{id}",
+            path,
         )
 
         # Normalize numeric IDs
-        path = re.sub(r'/\d+', '/{id}', path)
+        path = re.sub(r"/\d+", "/{id}", path)
 
         return path
 
@@ -197,6 +185,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 # Functional Middleware (Alternative Pattern)
 # [Source: docs/stories/17.1.story.md - Dev Notes]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 async def metrics_middleware(request: Request, call_next: Callable) -> Response:
     """
@@ -240,15 +229,10 @@ async def metrics_middleware(request: Request, call_next: Callable) -> Response:
         CONCURRENT_REQUESTS.dec()
 
         REQUEST_COUNT.labels(
-            method=method,
-            endpoint=endpoint,
-            status=str(status_code)
+            method=method, endpoint=endpoint, status=str(status_code)
         ).inc()
 
-        REQUEST_LATENCY.labels(
-            method=method,
-            endpoint=endpoint
-        ).observe(duration)
+        REQUEST_LATENCY.labels(method=method, endpoint=endpoint).observe(duration)
 
     return response
 
@@ -256,6 +240,7 @@ async def metrics_middleware(request: Request, call_next: Callable) -> Response:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Convenience Functions for Metrics Access
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def get_api_metrics_snapshot() -> dict:
     """
@@ -275,20 +260,23 @@ def get_api_metrics_snapshot() -> dict:
     latency_count = 0
 
     for metric in REGISTRY.collect():
-        if metric.name == 'canvas_api_requests_total':
+        if metric.name == "canvas_api_requests_total":
             for sample in metric.samples:
-                if sample.name.endswith('_total') or sample.name == 'canvas_api_requests_total':
+                if (
+                    sample.name.endswith("_total")
+                    or sample.name == "canvas_api_requests_total"
+                ):
                     count = int(sample.value)
                     requests_total += count
-                    status = sample.labels.get('status', '200')
-                    if status.startswith('5'):
+                    status = sample.labels.get("status", "200")
+                    if status.startswith("5"):
                         error_count += count
 
-        elif metric.name == 'canvas_api_request_latency_seconds':
+        elif metric.name == "canvas_api_request_latency_seconds":
             for sample in metric.samples:
-                if sample.name.endswith('_sum'):
+                if sample.name.endswith("_sum"):
                     latency_sum += sample.value
-                elif sample.name.endswith('_count'):
+                elif sample.name.endswith("_count"):
                     latency_count += int(sample.value)
 
     # Calculate statistics
@@ -299,5 +287,5 @@ def get_api_metrics_snapshot() -> dict:
         "requests_total": requests_total,
         "avg_latency_ms": round(avg_latency_ms, 2),
         "error_rate": round(error_rate, 4),
-        "error_count": error_count
+        "error_count": error_count,
     }

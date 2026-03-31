@@ -30,9 +30,12 @@ import pytest
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
+from command_handlers.intelligent_parallel_handler import (
+    IntelligentParallelCommandHandler,
+)
 
 # ========== Test Fixtures ==========
+
 
 @pytest.fixture
 def temp_canvas_file():
@@ -47,7 +50,7 @@ def temp_canvas_file():
                 "y": 100,
                 "width": 300,
                 "height": 150,
-                "color": "6"  # Yellow
+                "color": "6",  # Yellow
             },
             {
                 "id": "yellow-2",
@@ -57,7 +60,7 @@ def temp_canvas_file():
                 "y": 300,
                 "width": 300,
                 "height": 150,
-                "color": "6"  # Yellow
+                "color": "6",  # Yellow
             },
             {
                 "id": "yellow-3",
@@ -67,7 +70,7 @@ def temp_canvas_file():
                 "y": 500,
                 "width": 300,
                 "height": 150,
-                "color": "6"  # Yellow
+                "color": "6",  # Yellow
             },
             {
                 "id": "red-1",
@@ -77,14 +80,16 @@ def temp_canvas_file():
                 "y": 100,
                 "width": 300,
                 "height": 150,
-                "color": "1"  # Red
-            }
+                "color": "1",  # Red
+            },
         ],
-        "edges": []
+        "edges": [],
     }
 
     # Create temporary file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8') as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+    ) as f:
         json.dump(canvas_data, f, ensure_ascii=False, indent=2)
         temp_path = f.name
 
@@ -109,15 +114,11 @@ def handler():
 
 # ========== AC1: test execute_async() method ==========
 
+
 @pytest.mark.asyncio
 async def test_execute_async_basic(handler, temp_canvas_file):
     """Test basic async execution (AC1)"""
-    options = {
-        "auto": True,
-        "max": 12,
-        "dry_run": False,
-        "verbose": False
-    }
+    options = {"auto": True, "max": 12, "dry_run": False, "verbose": False}
 
     result = await handler.execute_async(temp_canvas_file, options)
 
@@ -137,9 +138,7 @@ async def test_execute_async_basic(handler, temp_canvas_file):
 @pytest.mark.asyncio
 async def test_execute_async_dry_run(handler, temp_canvas_file):
     """Test dry-run mode (AC1)"""
-    options = {
-        "dry_run": True
-    }
+    options = {"dry_run": True}
 
     result = await handler.execute_async(temp_canvas_file, options)
 
@@ -154,12 +153,23 @@ async def test_execute_async_no_yellow_nodes(handler):
     # Create canvas with no yellow nodes
     canvas_data = {
         "nodes": [
-            {"id": "red-1", "type": "text", "text": "Material", "x": 0, "y": 0, "width": 300, "height": 150, "color": "1"}
+            {
+                "id": "red-1",
+                "type": "text",
+                "text": "Material",
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 150,
+                "color": "1",
+            }
         ],
-        "edges": []
+        "edges": [],
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8') as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+    ) as f:
         json.dump(canvas_data, f, ensure_ascii=False, indent=2)
         temp_path = f.name
 
@@ -175,12 +185,10 @@ async def test_execute_async_no_yellow_nodes(handler):
 
 # ========== AC2: test execute() synchronous compatibility ==========
 
+
 def test_execute_sync_compatibility(handler, temp_canvas_file):
     """Test synchronous execute() interface (AC2)"""
-    options = {
-        "auto": True,
-        "max": 12
-    }
+    options = {"auto": True, "max": 12}
 
     # This should work exactly like before - synchronous call
     result = handler.execute(temp_canvas_file, options)
@@ -194,6 +202,7 @@ def test_execute_preserves_signature(handler):
     """Test that execute() signature is unchanged (AC2)"""
     # Check method signature
     import inspect
+
     sig = inspect.signature(handler.execute)
     params = list(sig.parameters.keys())
 
@@ -203,6 +212,7 @@ def test_execute_preserves_signature(handler):
 
 
 # ========== AC3: test _execute_tasks_async() method ==========
+
 
 @pytest.mark.asyncio
 async def test_execute_tasks_async(handler, temp_canvas_file):
@@ -250,6 +260,7 @@ async def test_execute_tasks_async_concurrency(handler, temp_canvas_file):
 
 # ========== AC4: test _call_agent_async() method ==========
 
+
 @pytest.mark.asyncio
 async def test_call_agent_async(handler, temp_canvas_file):
     """Test _call_agent_async method (AC4)"""
@@ -259,14 +270,11 @@ async def test_call_agent_async(handler, temp_canvas_file):
         "x": 100,
         "y": 200,
         "width": 300,
-        "height": 150
+        "height": 150,
     }
 
     result = await handler._call_agent_async(
-        "oral-explanation",
-        node,
-        temp_canvas_file,
-        {"verbose": False}
+        "oral-explanation", node, temp_canvas_file, {"verbose": False}
     )
 
     # Verify result structure
@@ -290,19 +298,11 @@ async def test_call_agent_async(handler, temp_canvas_file):
 async def test_call_agent_async_error_handling(handler, temp_canvas_file):
     """Test _call_agent_async error handling (AC4)"""
     # Test with invalid agent name
-    node = {
-        "id": "test-node",
-        "content": "测试内容",
-        "x": 100,
-        "y": 200
-    }
+    node = {"id": "test-node", "content": "测试内容", "x": 100, "y": 200}
 
     # This should still work because we have a fallback
     result = await handler._call_agent_async(
-        "invalid-agent-name",
-        node,
-        temp_canvas_file,
-        {}
+        "invalid-agent-name", node, temp_canvas_file, {}
     )
 
     # Should handle error gracefully
@@ -313,16 +313,10 @@ async def test_call_agent_async_error_handling(handler, temp_canvas_file):
 @pytest.mark.asyncio
 async def test_generate_agent_content_async(handler):
     """Test _generate_agent_content_async helper method"""
-    agent_info = {
-        "emoji": "🗣️",
-        "description": "口语化解释"
-    }
+    agent_info = {"emoji": "🗣️", "description": "口语化解释"}
 
     content = await handler._generate_agent_content_async(
-        "oral-explanation",
-        "test-node",
-        "测试内容",
-        agent_info
+        "oral-explanation", "test-node", "测试内容", agent_info
     )
 
     assert len(content) > 100
@@ -332,6 +326,7 @@ async def test_generate_agent_content_async(handler):
 
 
 # ========== AC5: test progress tracking ==========
+
 
 @pytest.mark.asyncio
 async def test_progress_callback(handler, temp_canvas_file):
@@ -343,17 +338,17 @@ async def test_progress_callback(handler, temp_canvas_file):
     progress_updates = []
 
     async def custom_progress_callback(task_id, result, error):
-        progress_updates.append({
-            "task_id": task_id,
-            "has_result": result is not None,
-            "has_error": error is not None
-        })
+        progress_updates.append(
+            {
+                "task_id": task_id,
+                "has_result": result is not None,
+                "has_error": error is not None,
+            }
+        )
 
     # We can't easily inject the callback, but we can verify the result
     results = await handler._execute_tasks_async(
-        task_groups,
-        temp_canvas_file,
-        {"auto": True, "max": 12}
+        task_groups, temp_canvas_file, {"auto": True, "max": 12}
     )
 
     # Verify all tasks completed
@@ -361,6 +356,7 @@ async def test_progress_callback(handler, temp_canvas_file):
 
 
 # ========== AC6: test command-line parameter compatibility ==========
+
 
 @pytest.mark.asyncio
 async def test_parameter_max(handler, temp_canvas_file):
@@ -396,27 +392,25 @@ async def test_parameter_verbose(handler, temp_canvas_file):
 
 # ========== IV1: Regression tests ==========
 
+
 def test_no_regression_on_existing_methods(handler):
     """Test that existing methods still work (IV1)"""
     # Verify old methods still exist
-    assert hasattr(handler, '_scan_yellow_nodes')
-    assert hasattr(handler, '_simple_grouping')
-    assert hasattr(handler, '_preview_plan')
-    assert hasattr(handler, '_confirm_execution')
-    assert hasattr(handler, '_update_canvas')
-    assert hasattr(handler, '_store_to_graphiti')
-    assert hasattr(handler, '_generate_report')
+    assert hasattr(handler, "_scan_yellow_nodes")
+    assert hasattr(handler, "_simple_grouping")
+    assert hasattr(handler, "_preview_plan")
+    assert hasattr(handler, "_confirm_execution")
+    assert hasattr(handler, "_update_canvas")
+    assert hasattr(handler, "_store_to_graphiti")
+    assert hasattr(handler, "_generate_report")
 
 
 # ========== IV2: End-to-end test ==========
 
+
 def test_e2e_real_canvas(handler, temp_canvas_file):
     """End-to-end test with real Canvas file (IV2)"""
-    options = {
-        "auto": True,
-        "max": 12,
-        "verbose": False
-    }
+    options = {"auto": True, "max": 12, "verbose": False}
 
     result = handler.execute(temp_canvas_file, options)
 
@@ -436,26 +430,31 @@ def test_e2e_real_canvas(handler, temp_canvas_file):
 
 # ========== IV3: Performance test ==========
 
+
 @pytest.mark.asyncio
 async def test_performance_10_nodes():
     """Performance test: 10 nodes should complete in < 15 seconds (IV3)"""
     # Create canvas with 10 yellow nodes
     nodes = []
     for i in range(10):
-        nodes.append({
-            "id": f"yellow-{i}",
-            "type": "text",
-            "text": f"理解概念{i}：这是第{i}个黄色节点的内容",
-            "x": 100,
-            "y": 100 + i * 200,
-            "width": 300,
-            "height": 150,
-            "color": "6"
-        })
+        nodes.append(
+            {
+                "id": f"yellow-{i}",
+                "type": "text",
+                "text": f"理解概念{i}：这是第{i}个黄色节点的内容",
+                "x": 100,
+                "y": 100 + i * 200,
+                "width": 300,
+                "height": 150,
+                "color": "6",
+            }
+        )
 
     canvas_data = {"nodes": nodes, "edges": []}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8') as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+    ) as f:
         json.dump(canvas_data, f, ensure_ascii=False, indent=2)
         temp_path = f.name
 
@@ -486,20 +485,24 @@ async def test_performance_improvement():
     # Create canvas with 5 nodes
     nodes = []
     for i in range(5):
-        nodes.append({
-            "id": f"yellow-{i}",
-            "type": "text",
-            "text": f"理解概念{i}",
-            "x": 100,
-            "y": 100 + i * 200,
-            "width": 300,
-            "height": 150,
-            "color": "6"
-        })
+        nodes.append(
+            {
+                "id": f"yellow-{i}",
+                "type": "text",
+                "text": f"理解概念{i}",
+                "x": 100,
+                "y": 100 + i * 200,
+                "width": 300,
+                "height": 150,
+                "color": "6",
+            }
+        )
 
     canvas_data = {"nodes": nodes, "edges": []}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8') as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+    ) as f:
         json.dump(canvas_data, f, ensure_ascii=False, indent=2)
         temp_path = f.name
 

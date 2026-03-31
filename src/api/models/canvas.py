@@ -23,41 +23,21 @@ class NodeCreate(BaseModel):
 
     Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/NodeCreate
     """
-    type: NodeType = Field(
-        ...,
-        description="Node type"
-    )
+
+    type: NodeType = Field(..., description="Node type")
     text: Optional[str] = Field(
-        default=None,
-        description="Text content (required for type=text)"
+        default=None, description="Text content (required for type=text)"
     )
     file: Optional[str] = Field(
-        default=None,
-        description="File path (required for type=file)"
+        default=None, description="File path (required for type=file)"
     )
-    url: Optional[str] = Field(
-        default=None,
-        description="URL (required for type=link)"
-    )
-    x: int = Field(
-        ...,
-        description="X coordinate"
-    )
-    y: int = Field(
-        ...,
-        description="Y coordinate"
-    )
-    width: int = Field(
-        default=250,
-        description="Node width"
-    )
-    height: int = Field(
-        default=60,
-        description="Node height"
-    )
+    url: Optional[str] = Field(default=None, description="URL (required for type=link)")
+    x: int = Field(..., description="X coordinate")
+    y: int = Field(..., description="Y coordinate")
+    width: int = Field(default=250, description="Node width")
+    height: int = Field(default=60, description="Node height")
     color: Optional[ColorCode] = Field(
-        default=None,
-        description="Color code: 1=红, 2=橙, 3=黄, 4=绿, 5=青, 6=紫"
+        default=None, description="Color code: 1=红, 2=橙, 3=黄, 4=绿, 5=青, 6=紫"
     )
 
 
@@ -67,6 +47,7 @@ class NodeUpdate(BaseModel):
 
     Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/NodeUpdate
     """
+
     text: Optional[str] = None
     x: Optional[int] = None
     y: Optional[int] = None
@@ -81,15 +62,9 @@ class NodeRead(BaseModel):
 
     Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/NodeRead
     """
-    id: str = Field(
-        ...,
-        description="Node ID",
-        pattern="^[a-f0-9]+$"
-    )
-    type: NodeType = Field(
-        ...,
-        description="Node type"
-    )
+
+    id: str = Field(..., description="Node ID", pattern="^[a-f0-9]+$")
+    type: NodeType = Field(..., description="Node type")
     text: Optional[str] = None
     file: Optional[str] = None
     url: Optional[str] = None
@@ -99,9 +74,7 @@ class NodeRead(BaseModel):
     height: Optional[int] = None
     color: Optional[ColorCode] = None
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
 
 class EdgeCreate(BaseModel):
@@ -110,20 +83,12 @@ class EdgeCreate(BaseModel):
 
     Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/EdgeCreate
     """
-    fromNode: str = Field(
-        ...,
-        description="Source node ID"
-    )
-    toNode: str = Field(
-        ...,
-        description="Target node ID"
-    )
+
+    fromNode: str = Field(..., description="Source node ID")
+    toNode: str = Field(..., description="Target node ID")
     fromSide: Optional[Side] = None
     toSide: Optional[Side] = None
-    label: Optional[str] = Field(
-        default=None,
-        description="Edge label"
-    )
+    label: Optional[str] = Field(default=None, description="Edge label")
 
 
 class EdgeRead(BaseModel):
@@ -132,6 +97,7 @@ class EdgeRead(BaseModel):
 
     Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/EdgeRead
     """
+
     id: str = Field(..., description="Edge ID")
     fromNode: str = Field(..., description="Source node ID")
     toNode: str = Field(..., description="Target node ID")
@@ -139,9 +105,7 @@ class EdgeRead(BaseModel):
     toSide: Optional[str] = None
     label: Optional[str] = None
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
 
 class CanvasResponse(BaseModel):
@@ -150,6 +114,7 @@ class CanvasResponse(BaseModel):
 
     Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/CanvasResponse
     """
+
     name: str = Field(..., description="Canvas file name")
     nodes: List[NodeRead] = Field(default_factory=list)
     edges: List[EdgeRead] = Field(default_factory=list)

@@ -7,7 +7,6 @@ from typing import Any, Dict
 from unittest.mock import MagicMock
 
 import pytest
-
 from app.services.intelligent_grouping_service import IntelligentGroupingService
 
 
@@ -69,6 +68,7 @@ def mock_clustering_result() -> Dict[str, Any]:
 # Safe canvas_utils mock fixtures (P1-4: replaces fragile sys.modules manipulation)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def mock_canvas_utils_fail(monkeypatch):
     """
@@ -77,6 +77,7 @@ def mock_canvas_utils_fail(monkeypatch):
     Uses monkeypatch.setitem for automatic cleanup (safe even if test fails).
     Replaces fragile manual sys.modules save/delete/restore pattern.
     """
+
     class FailingModule:
         @property
         def CanvasBusinessLogic(self):
@@ -94,6 +95,7 @@ def mock_canvas_utils_success(monkeypatch):
     Uses monkeypatch.setitem for automatic cleanup.
     Replaces 6 redundant nested patch.dict + manual sys.modules assignments.
     """
+
     def _create(mock_logic):
         mock_module = MagicMock()
         mock_module.CanvasBusinessLogic = MagicMock(return_value=mock_logic)

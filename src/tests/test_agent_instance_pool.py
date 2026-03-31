@@ -45,7 +45,7 @@ class TestAgentInstance:
         instance = AgentInstance(
             instance_id="test-001",
             agent_type="clarification-path",
-            status=InstanceStatus.IDLE
+            status=InstanceStatus.IDLE,
         )
 
         assert instance.instance_id == "test-001"
@@ -62,7 +62,7 @@ class TestAgentInstance:
         task = AgentTask(
             task_id="task-001",
             agent_type="oral-explanation",
-            node_data={"concept": "测试概念"}
+            node_data={"concept": "测试概念"},
         )
 
         instance = AgentInstance(
@@ -71,7 +71,7 @@ class TestAgentInstance:
             status=InstanceStatus.RUNNING,
             task=task,
             process_id=12345,
-            memory_usage=1024000
+            memory_usage=1024000,
         )
 
         data = instance.to_dict()
@@ -91,11 +91,12 @@ class TestAgentInstance:
         instance = AgentInstance(
             instance_id="test-003",
             agent_type="memory-anchor",
-            status=InstanceStatus.IDLE
+            status=InstanceStatus.IDLE,
         )
 
         old_activity = instance.last_activity
         import time
+
         time.sleep(0.01)  # 等待一小段时间
         instance.update_activity()
 
@@ -106,7 +107,7 @@ class TestAgentInstance:
         instance = AgentInstance(
             instance_id="test-004",
             agent_type="comparison-table",
-            status=InstanceStatus.IDLE
+            status=InstanceStatus.IDLE,
         )
 
         uptime = instance.get_uptime()
@@ -122,7 +123,7 @@ class TestAgentTask:
         task = AgentTask(
             task_id="task-002",
             agent_type="scoring-agent",
-            node_data={"text": "用户输入文本"}
+            node_data={"text": "用户输入文本"},
         )
 
         assert task.task_id == "task-002"
@@ -139,7 +140,7 @@ class TestAgentTask:
             agent_type="verification-question-agent",
             node_data={"concept": "逆否命题"},
             user_context="请详细解释",
-            priority=TaskPriority.HIGH
+            priority=TaskPriority.HIGH,
         )
 
         data = task.to_dict()
@@ -158,15 +159,10 @@ class TestProcessWorker:
     @pytest.mark.asyncio
     async def test_worker_task_execution(self):
         """测试工作器执行任务"""
-        worker = ProcessWorker(
-            instance_id="worker-001",
-            agent_type="test-agent"
-        )
+        worker = ProcessWorker(instance_id="worker-001", agent_type="test-agent")
 
         task = AgentTask(
-            task_id="task-004",
-            agent_type="test-agent",
-            node_data={"test": "data"}
+            task_id="task-004", agent_type="test-agent", node_data={"test": "data"}
         )
 
         result = await worker.run_task(task)
@@ -182,16 +178,13 @@ class TestProcessWorker:
     @pytest.mark.asyncio
     async def test_worker_error_handling(self):
         """测试工作器错误处理"""
-        worker = ProcessWorker(
-            instance_id="worker-002",
-            agent_type="test-agent"
-        )
+        worker = ProcessWorker(instance_id="worker-002", agent_type="test-agent")
 
         # 创建一个会导致错误的任务
         task = AgentTask(
             task_id="task-error",
             agent_type="test-agent",
-            node_data=None  # 故意传入None
+            node_data=None,  # 故意传入None
         )
 
         # 由于我们的简化实现不会抛出错误，这里只测试基本流程
@@ -256,9 +249,7 @@ class TestGLMInstancePool:
 
         # 创建任务
         task = AgentTask(
-            task_id="task-submit",
-            agent_type="test-agent",
-            node_data={"test": "data"}
+            task_id="task-submit", agent_type="test-agent", node_data={"test": "data"}
         )
 
         # 提交任务
@@ -273,9 +264,7 @@ class TestGLMInstancePool:
     async def test_submit_task_to_nonexistent_instance(self, pool):
         """测试向不存在的实例提交任务"""
         task = AgentTask(
-            task_id="task-invalid",
-            agent_type="test-agent",
-            node_data={"test": "data"}
+            task_id="task-invalid", agent_type="test-agent", node_data={"test": "data"}
         )
 
         success = await pool.submit_task("nonexistent-id", task)
@@ -328,10 +317,7 @@ class TestGLMInstancePool:
     async def test_concurrent_instance_creation(self, pool):
         """测试并发创建实例"""
         # 并发创建多个实例
-        tasks = [
-            pool.create_instance(f"agent-{i}")
-            for i in range(3)
-        ]
+        tasks = [pool.create_instance(f"agent-{i}") for i in range(3)]
 
         instance_ids = await asyncio.gather(*tasks)
 
@@ -352,7 +338,7 @@ class TestGLMInstancePool:
         task = AgentTask(
             task_id="lifecycle-task",
             agent_type="lifecycle-agent",
-            node_data={"test": "lifecycle"}
+            node_data={"test": "lifecycle"},
         )
         success = await pool.submit_task(instance_id, task)
         assert success
@@ -398,11 +384,13 @@ class TestPoolIntegration:
             # 先添加当前目录到Python路径
             import os
             import sys
+
             current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             if current_dir not in sys.path:
                 sys.path.insert(0, current_dir)
 
             from canvas_utils import AGENT_POOL_ENABLED
+
             assert AGENT_POOL_ENABLED  # 确保实例池模块已启用
         except ImportError as e:
             pytest.skip(f"Canvas utils not available: {e}")

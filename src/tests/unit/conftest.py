@@ -25,11 +25,23 @@ def mock_canvas_data():
     return {
         "nodes": [
             {"id": "node1", "type": "text", "text": "Concept 1", "color": "1"},
-            {"id": "node2", "type": "text", "text": "Answer 1", "sourceNodeId": "node1", "color": "2"},
+            {
+                "id": "node2",
+                "type": "text",
+                "text": "Answer 1",
+                "sourceNodeId": "node1",
+                "color": "2",
+            },
             {"id": "node3", "type": "text", "text": "Concept 2", "color": "1"},
-            {"id": "node4", "type": "text", "text": "Answer 2", "sourceNodeId": "node3", "color": "1"},
+            {
+                "id": "node4",
+                "type": "text",
+                "text": "Answer 2",
+                "sourceNodeId": "node3",
+                "color": "1",
+            },
         ],
-        "edges": []
+        "edges": [],
     }
 
 
@@ -39,9 +51,21 @@ def mock_canvas_data_updated():
     return {
         "nodes": [
             {"id": "node1", "type": "text", "text": "Concept 1", "color": "1"},
-            {"id": "node2", "type": "text", "text": "Answer 1", "sourceNodeId": "node1", "color": "2"},
+            {
+                "id": "node2",
+                "type": "text",
+                "text": "Answer 1",
+                "sourceNodeId": "node1",
+                "color": "2",
+            },
             {"id": "node3", "type": "text", "text": "Concept 2", "color": "1"},
-            {"id": "node4", "type": "text", "text": "Answer 2", "sourceNodeId": "node3", "color": "2"},  # Changed
+            {
+                "id": "node4",
+                "type": "text",
+                "text": "Answer 2",
+                "sourceNodeId": "node3",
+                "color": "2",
+            },  # Changed
         ],
-        "edges": []
+        "edges": [],
     }

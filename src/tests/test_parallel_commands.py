@@ -20,7 +20,12 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from command_executor import CommandExecutor, ExecutionStatus, ProgressTracker
-from parallel_command_parser import CommandConfig, CommandType, ParallelCommand, ParallelCommandParser
+from parallel_command_parser import (
+    CommandConfig,
+    CommandType,
+    ParallelCommand,
+    ParallelCommandParser,
+)
 
 
 class TestParallelCommandParser:
@@ -44,7 +49,9 @@ class TestParallelCommandParser:
 
     def test_parse_parallel_agents_with_options(self):
         """测试带选项的parallel-agents命令解析"""
-        command_string = "*parallel-agents memory-anchor --max=3 --canvas=test.canvas --dry-run"
+        command_string = (
+            "*parallel-agents memory-anchor --max=3 --canvas=test.canvas --dry-run"
+        )
         command, errors = self.parser.parse_command(command_string)
 
         assert command is not None
@@ -87,8 +94,7 @@ class TestParallelCommandParser:
     def test_validate_invalid_agent_type(self):
         """测试无效Agent类型验证"""
         command = ParallelCommand(
-            command_type=CommandType.PARALLEL_AGENTS,
-            agent_type="invalid-agent"
+            command_type=CommandType.PARALLEL_AGENTS, agent_type="invalid-agent"
         )
         errors = self.parser.validate_command(command)
         assert len(errors) > 0
@@ -99,7 +105,7 @@ class TestParallelCommandParser:
         command = ParallelCommand(
             command_type=CommandType.PARALLEL_COLOR,
             agent_type="clarification-path",
-            color_filter="9"  # 无效颜色
+            color_filter="9",  # 无效颜色
         )
         errors = self.parser.validate_command(command)
         assert len(errors) > 0
@@ -110,7 +116,7 @@ class TestParallelCommandParser:
         command = ParallelCommand(
             command_type=CommandType.PARALLEL_AGENTS,
             agent_type="clarification-path",
-            max_instances=20  # 超过默认限制
+            max_instances=20,  # 超过默认限制
         )
         errors = self.parser.validate_command(command)
         assert len(errors) > 0
@@ -172,6 +178,7 @@ class TestProgressTracker:
     def test_elapsed_time(self):
         """测试已用时间"""
         import time
+
         tracker = ProgressTracker(5)
         time.sleep(0.1)
         assert tracker.get_elapsed_time() >= 0.1
@@ -195,19 +202,17 @@ class TestCommandExecutor:
         self.mock_instance_pool = mock.AsyncMock()
         self.mock_instance_pool.max_concurrent_instances = 6
 
-        self.executor = CommandExecutor(
-            instance_pool=self.mock_instance_pool
-        )
+        self.executor = CommandExecutor(instance_pool=self.mock_instance_pool)
 
     async def test_preview_command(self):
         """测试命令预览"""
         command = ParallelCommand(
             command_type=CommandType.PARALLEL_AGENTS,
             agent_type="clarification-path",
-            node_count=5
+            node_count=5,
         )
 
-        with mock.patch('command_executor.CanvasOrchestrator') as mock_orchestrator:
+        with mock.patch("command_executor.CanvasOrchestrator") as mock_orchestrator:
             # Mock canvas data
             mock_orchestrator.return_value.get_all_nodes.return_value = [
                 {"id": f"node{i}", "color": "1"} for i in range(10)
@@ -226,10 +231,10 @@ class TestCommandExecutor:
             command_type=CommandType.PARALLEL_AGENTS,
             agent_type="clarification-path",
             node_count=3,
-            dry_run=True
+            dry_run=True,
         )
 
-        with mock.patch('command_executor.CanvasOrchestrator') as mock_orchestrator:
+        with mock.patch("command_executor.CanvasOrchestrator") as mock_orchestrator:
             mock_orchestrator.return_value.get_all_nodes.return_value = [
                 {"id": f"node{i}", "color": "1"} for i in range(5)
             ]
@@ -247,12 +252,15 @@ class TestCommandExecutor:
         self.executor.active_commands[command_id] = {
             "status": ExecutionStatus.RUNNING,
             "result": None,
-            "start_time": datetime.now().timestamp()
+            "start_time": datetime.now().timestamp(),
         }
 
         cancelled = await self.executor.cancel_command(command_id)
         assert cancelled == True
-        assert self.executor.active_commands[command_id]["status"] == ExecutionStatus.CANCELLED
+        assert (
+            self.executor.active_commands[command_id]["status"]
+            == ExecutionStatus.CANCELLED
+        )
 
     def test_get_execution_status(self):
         """测试获取执行状态"""
@@ -263,7 +271,7 @@ class TestCommandExecutor:
         self.executor.active_commands[command_id] = {
             "status": ExecutionStatus.RUNNING,
             "result": None,
-            "start_time": start_time
+            "start_time": start_time,
         }
 
         status = self.executor.get_execution_status(command_id)
@@ -276,16 +284,15 @@ class TestCommandExecutor:
         """测试清理完成的命令"""
         # 添加一些命令（包括过期的）
         old_time = datetime.now().timestamp() - 7200  # 2小时前
-        self.executor.active_commands.update({
-            "cmd1": {
-                "status": ExecutionStatus.COMPLETED,
-                "start_time": old_time
-            },
-            "cmd2": {
-                "status": ExecutionStatus.RUNNING,
-                "start_time": datetime.now().timestamp()
+        self.executor.active_commands.update(
+            {
+                "cmd1": {"status": ExecutionStatus.COMPLETED, "start_time": old_time},
+                "cmd2": {
+                    "status": ExecutionStatus.RUNNING,
+                    "start_time": datetime.now().timestamp(),
+                },
             }
-        })
+        )
 
         self.executor.cleanup_completed_commands(max_age=3600)  # 1小时
 
@@ -320,7 +327,7 @@ class TestIntegration:
             command_type=CommandType.PARALLEL_MIXED,
             agent_type="mixed",
             mixed_config={"clarification-path": 3, "memory-anchor": 2},
-            max_instances=5
+            max_instances=5,
         )
 
         # 转换为字典
@@ -334,7 +341,7 @@ class TestIntegration:
             command_type=CommandType(cmd_dict["command_type"]),
             agent_type=cmd_dict["agent_type"],
             mixed_config=cmd_dict["mixed_config"],
-            max_instances=cmd_dict["max_instances"]
+            max_instances=cmd_dict["max_instances"],
         )
 
         assert new_command.command_type == command.command_type
@@ -369,7 +376,7 @@ class TestIntegration:
         command = ParallelCommand(
             command_type=CommandType.PARALLEL_AGENTS,
             agent_type="clarification-path",
-            node_count=0
+            node_count=0,
         )
         errors = parser.validate_command(command)
         assert len(errors) > 0
@@ -378,16 +385,14 @@ class TestIntegration:
         command = ParallelCommand(
             command_type=CommandType.PARALLEL_NODES,
             agent_type="clarification-path",
-            target_nodes=[]
+            target_nodes=[],
         )
         errors = parser.validate_command(command)
         # 应该提示需要nodes参数
 
         # 测试空的混合配置
         command = ParallelCommand(
-            command_type=CommandType.PARALLEL_MIXED,
-            agent_type="mixed",
-            mixed_config={}
+            command_type=CommandType.PARALLEL_MIXED, agent_type="mixed", mixed_config={}
         )
         errors = parser.validate_command(command)
         assert len(errors) > 0
@@ -399,12 +404,18 @@ def run_all_tests():
     import subprocess
 
     # 运行pytest
-    result = subprocess.run([
-        "python", "-m", "pytest",
-        "tests/test_parallel_commands.py",
-        "-v",
-        "--tb=short"
-    ], capture_output=True, text=True)
+    result = subprocess.run(
+        [
+            "python",
+            "-m",
+            "pytest",
+            "tests/test_parallel_commands.py",
+            "-v",
+            "--tb=short",
+        ],
+        capture_output=True,
+        text=True,
+    )
 
     print("测试结果:")
     print(result.stdout)

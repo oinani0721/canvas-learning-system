@@ -25,6 +25,7 @@ try:
     from canvas_error_logger import CanvasErrorLogger, ErrorCategory, ErrorSeverity
     from error_analyzer import ErrorAnalyzer
     from error_recovery_advisor import ErrorRecoveryAdvisor
+
     ERROR_LOGGER_AVAILABLE = True
 except ImportError as e:
     ERROR_LOGGER_AVAILABLE = False
@@ -46,26 +47,27 @@ class TestCanvasErrorLogger(unittest.TestCase):
                     "enabled": True,
                     "log_file_path": os.path.join(self.temp_dir, "test_errors.log"),
                     "max_file_size_mb": 1,  # 小的文件大小用于测试轮转
-                    "backup_count": 3
+                    "backup_count": 3,
                 },
                 "format": {
                     "use_json": True,
                     "include_stack_trace": True,
-                    "include_context": True
+                    "include_context": True,
                 },
                 "error_codes": {
                     "file_operations": {
                         "filenotfounderror": "FILE_001",
-                        "permissionerror": "FILE_002"
+                        "permissionerror": "FILE_002",
                     }
-                }
+                },
             }
         }
 
         # 创建测试配置文件
         self.config_file = os.path.join(self.temp_dir, "test_config.yaml")
         import yaml
-        with open(self.config_file, 'w', encoding='utf-8') as f:
+
+        with open(self.config_file, "w", encoding="utf-8") as f:
             yaml.dump(self.test_config, f, default_flow_style=False, allow_unicode=True)
 
         self.logger = CanvasErrorLogger(self.config_file)
@@ -73,6 +75,7 @@ class TestCanvasErrorLogger(unittest.TestCase):
     def tearDown(self):
         """测试后清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_logger_initialization(self):
@@ -81,7 +84,7 @@ class TestCanvasErrorLogger(unittest.TestCase):
         self.assertTrue(self.logger.config.get("enabled", False))
         self.assertEqual(
             self.logger.config["file_logging"]["log_file_path"],
-            os.path.join(self.temp_dir, "test_errors.log")
+            os.path.join(self.temp_dir, "test_errors.log"),
         )
 
     def test_log_canvas_operation_success(self):
@@ -90,22 +93,31 @@ class TestCanvasErrorLogger(unittest.TestCase):
         canvas_path = "/test/path.canvas"
         context = {"test": "context", "start_time": datetime.now().timestamp()}
 
-        log_id = self.logger.log_canvas_operation(operation, canvas_path, context, "success")
+        log_id = self.logger.log_canvas_operation(
+            operation, canvas_path, context, "success"
+        )
 
         self.assertIsInstance(log_id, str)
         self.assertTrue(log_id.startswith("log-"))
 
         # 验证日志文件存在
-        self.assertTrue(os.path.exists(self.logger.config["file_logging"]["log_file_path"]))
+        self.assertTrue(
+            os.path.exists(self.logger.config["file_logging"]["log_file_path"])
+        )
 
         # 验证日志内容
-        with open(self.logger.config["file_logging"]["log_file_path"], 'r', encoding='utf-8') as f:
+        with open(
+            self.logger.config["file_logging"]["log_file_path"], "r", encoding="utf-8"
+        ) as f:
             log_line = f.readline().strip()
             log_entry = json.loads(log_line)
 
             self.assertEqual(log_entry["canvas_error_log"]["operation_type"], operation)
             self.assertEqual(log_entry["canvas_error_log"]["status"], "success")
-            self.assertEqual(log_entry["canvas_error_log"]["canvas_context"]["canvas_file_path"], canvas_path)
+            self.assertEqual(
+                log_entry["canvas_error_log"]["canvas_context"]["canvas_file_path"],
+                canvas_path,
+            )
 
     def test_log_canvas_operation_error(self):
         """测试Canvas操作错误日志记录"""
@@ -114,20 +126,37 @@ class TestCanvasErrorLogger(unittest.TestCase):
         context = {"test": "context"}
         error = FileNotFoundError("测试文件不存在")
 
-        log_id = self.logger.log_canvas_operation(operation, canvas_path, context, "error", error)
+        log_id = self.logger.log_canvas_operation(
+            operation, canvas_path, context, "error", error
+        )
 
         self.assertIsInstance(log_id, str)
         self.assertTrue(log_id.startswith("log-"))
 
         # 验证错误信息
-        with open(self.logger.config["file_logging"]["log_file_path"], 'r', encoding='utf-8') as f:
+        with open(
+            self.logger.config["file_logging"]["log_file_path"], "r", encoding="utf-8"
+        ) as f:
             log_line = f.readline().strip()
             log_entry = json.loads(log_line)
 
             self.assertEqual(log_entry["canvas_error_log"]["status"], "error")
-            self.assertEqual(log_entry["canvas_error_log"]["error_information"]["error_type"], "FileNotFoundError")
-            self.assertEqual(log_entry["canvas_error_log"]["error_information"]["error_message"], "测试文件不存在")
-            self.assertTrue(len(log_entry["canvas_error_log"]["error_information"]["recovery_actions"]) > 0)
+            self.assertEqual(
+                log_entry["canvas_error_log"]["error_information"]["error_type"],
+                "FileNotFoundError",
+            )
+            self.assertEqual(
+                log_entry["canvas_error_log"]["error_information"]["error_message"],
+                "测试文件不存在",
+            )
+            self.assertTrue(
+                len(
+                    log_entry["canvas_error_log"]["error_information"][
+                        "recovery_actions"
+                    ]
+                )
+                > 0
+            )
 
     def test_log_agent_call(self):
         """测试Agent调用日志记录"""
@@ -136,26 +165,34 @@ class TestCanvasErrorLogger(unittest.TestCase):
         input_data = {"test": "input", "canvas_path": "/test/canvas.canvas"}
         execution_time_ms = 1500
 
-        log_id = self.logger.log_agent_call(agent_name, call_id, input_data, execution_time_ms, "success")
+        log_id = self.logger.log_agent_call(
+            agent_name, call_id, input_data, execution_time_ms, "success"
+        )
 
         self.assertIsInstance(log_id, str)
 
         # 验证Agent上下文
-        with open(self.logger.config["file_logging"]["log_file_path"], 'r', encoding='utf-8') as f:
+        with open(
+            self.logger.config["file_logging"]["log_file_path"], "r", encoding="utf-8"
+        ) as f:
             log_line = f.readline().strip()
             log_entry = json.loads(log_line)
 
             agent_context = log_entry["canvas_error_log"]["agent_context"]
             self.assertEqual(agent_context["agent_name"], agent_name)
             self.assertEqual(agent_context["agent_call_id"], call_id)
-            self.assertEqual(agent_context["agent_execution_time_ms"], execution_time_ms)
+            self.assertEqual(
+                agent_context["agent_execution_time_ms"], execution_time_ms
+            )
 
     def test_get_recent_errors(self):
         """测试获取最近错误记录"""
         # 创建一些错误记录
         for i in range(5):
             error = ValueError(f"测试错误 {i}")
-            self.logger.log_canvas_operation("test_operation", "/test.canvas", {}, "error", error)
+            self.logger.log_canvas_operation(
+                "test_operation", "/test.canvas", {}, "error", error
+            )
 
         # 创建一个成功记录
         self.logger.log_canvas_operation("test_success", "/test.canvas", {}, "success")
@@ -172,11 +209,15 @@ class TestCanvasErrorLogger(unittest.TestCase):
         # 创建测试数据
         for i in range(3):
             error = FileNotFoundError(f"文件错误 {i}")
-            self.logger.log_canvas_operation("file_operation", "/test.canvas", {}, "error", error)
+            self.logger.log_canvas_operation(
+                "file_operation", "/test.canvas", {}, "error", error
+            )
 
         for i in range(2):
             error = ValueError(f"值错误 {i}")
-            self.logger.log_canvas_operation("agent_operation", "/test.canvas", {}, "error", error)
+            self.logger.log_canvas_operation(
+                "agent_operation", "/test.canvas", {}, "error", error
+            )
 
         summary = self.logger.generate_error_summary(24)
 
@@ -214,7 +255,9 @@ class TestCanvasErrorLogger(unittest.TestCase):
 
         for i in range(100):  # 写入足够多的日志
             error = ValueError(f"轮转测试错误 {i}")
-            self.logger.log_canvas_operation("rotation_test", "/test.canvas", large_context, "error", error)
+            self.logger.log_canvas_operation(
+                "rotation_test", "/test.canvas", large_context, "error", error
+            )
 
         # 检查是否创建了备份文件
         backup_file = self.logger.config["file_logging"]["log_file_path"] + ".1"
@@ -225,19 +268,30 @@ class TestCanvasErrorLogger(unittest.TestCase):
         """测试错误严重性评估"""
         # 测试不同类型错误的严重性评估
         file_error = FileNotFoundError("文件不存在")
-        self.assertEqual(self.logger._assess_severity(file_error, "file_operation"), ErrorSeverity.HIGH)
+        self.assertEqual(
+            self.logger._assess_severity(file_error, "file_operation"),
+            ErrorSeverity.HIGH,
+        )
 
         value_error = ValueError("值错误")
-        self.assertEqual(self.logger._assess_severity(value_error, "agent_operation"), ErrorSeverity.MEDIUM)
+        self.assertEqual(
+            self.logger._assess_severity(value_error, "agent_operation"),
+            ErrorSeverity.MEDIUM,
+        )
 
         timeout_error = TimeoutError("超时")
-        self.assertEqual(self.logger._assess_severity(timeout_error, "system_error"), ErrorSeverity.HIGH)
+        self.assertEqual(
+            self.logger._assess_severity(timeout_error, "system_error"),
+            ErrorSeverity.HIGH,
+        )
 
     def test_input_validation_security(self):
         """测试输入验证安全功能"""
         # 测试过长的操作名
         long_operation = "x" * 200
-        log_id = self.logger.log_canvas_operation(long_operation, "/test.canvas", {}, "success")
+        log_id = self.logger.log_canvas_operation(
+            long_operation, "/test.canvas", {}, "success"
+        )
         self.assertIsInstance(log_id, str)
 
         # 测试过长的路径
@@ -247,12 +301,16 @@ class TestCanvasErrorLogger(unittest.TestCase):
 
         # 测试无效的状态值
         invalid_status = "invalid_status"
-        log_id = self.logger.log_canvas_operation("test_op", "/test.canvas", {}, invalid_status)
+        log_id = self.logger.log_canvas_operation(
+            "test_op", "/test.canvas", {}, invalid_status
+        )
         self.assertIsInstance(log_id, str)
 
         # 测试无效的上下文类型
         invalid_context = "not_a_dict"
-        log_id = self.logger.log_canvas_operation("test_op", "/test.canvas", invalid_context, "success")
+        log_id = self.logger.log_canvas_operation(
+            "test_op", "/test.canvas", invalid_context, "success"
+        )
         self.assertIsInstance(log_id, str)
 
     def test_file_rotation_security(self):
@@ -264,7 +322,9 @@ class TestCanvasErrorLogger(unittest.TestCase):
         for i in range(50):
             error = ValueError(f"轮转测试错误 {i}")
             large_context = {"data": "x" * 500}  # 相对较大的上下文
-            self.logger.log_canvas_operation("rotation_test", "/test.canvas", large_context, "error", error)
+            self.logger.log_canvas_operation(
+                "rotation_test", "/test.canvas", large_context, "error", error
+            )
 
         # 验证文件存在并且可以被读取
         self.assertTrue(os.path.exists(log_file))
@@ -320,20 +380,20 @@ class TestErrorRecoveryAdvisor(unittest.TestCase):
                 "timestamp": datetime.now().isoformat(),
                 "error_information": {"error_type": "FileNotFoundError"},
                 "category": "file_operations",
-                "status": "error"
+                "status": "error",
             },
             {
                 "timestamp": (datetime.now() - timedelta(minutes=5)).isoformat(),
                 "error_information": {"error_type": "FileNotFoundError"},
                 "category": "file_operations",
-                "status": "error"
+                "status": "error",
             },
             {
                 "timestamp": (datetime.now() - timedelta(minutes=10)).isoformat(),
                 "error_information": {"error_type": "ValueError"},
                 "category": "agent_operations",
-                "status": "error"
-            }
+                "status": "error",
+            },
         ]
 
         diagnosis = self.advisor.diagnose_error_pattern(error_logs)
@@ -373,13 +433,14 @@ class TestErrorAnalyzer(unittest.TestCase):
                 "enabled": True,
                 "file_logging": {
                     "enabled": True,
-                    "log_file_path": os.path.join(self.temp_dir, "analyzer_test.log")
-                }
+                    "log_file_path": os.path.join(self.temp_dir, "analyzer_test.log"),
+                },
             }
         }
 
         import yaml
-        with open(self.test_config_file, 'w', encoding='utf-8') as f:
+
+        with open(self.test_config_file, "w", encoding="utf-8") as f:
             yaml.dump(test_config, f)
 
         self.analyzer = ErrorAnalyzer()
@@ -387,6 +448,7 @@ class TestErrorAnalyzer(unittest.TestCase):
     def tearDown(self):
         """测试后清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_show_recent_errors_no_errors(self):
@@ -432,6 +494,7 @@ class TestErrorLoggerIntegration(unittest.TestCase):
     def tearDown(self):
         """测试后清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     @unittest.skipUnless(ERROR_LOGGER_AVAILABLE, "错误日志系统未安装")
@@ -444,13 +507,16 @@ class TestErrorLoggerIntegration(unittest.TestCase):
                 "enabled": True,
                 "file_logging": {
                     "enabled": True,
-                    "log_file_path": os.path.join(self.temp_dir, "integration_test.log")
-                }
+                    "log_file_path": os.path.join(
+                        self.temp_dir, "integration_test.log"
+                    ),
+                },
             }
         }
 
         import yaml
-        with open(config_file, 'w', encoding='utf-8') as f:
+
+        with open(config_file, "w", encoding="utf-8") as f:
             yaml.dump(test_config, f)
 
         logger = CanvasErrorLogger(config_file)
@@ -463,17 +529,28 @@ class TestErrorLoggerIntegration(unittest.TestCase):
             # 创建测试Canvas文件
             test_canvas = {
                 "nodes": [
-                    {"id": "node1", "type": "text", "x": 100, "y": 100, "width": 200, "height": 100, "color": "1", "text": "测试节点"}
+                    {
+                        "id": "node1",
+                        "type": "text",
+                        "x": 100,
+                        "y": 100,
+                        "width": 200,
+                        "height": 100,
+                        "color": "1",
+                        "text": "测试节点",
+                    }
                 ],
-                "edges": []
+                "edges": [],
             }
 
-            with open(canvas_path, 'w', encoding='utf-8') as f:
+            with open(canvas_path, "w", encoding="utf-8") as f:
                 json.dump(test_canvas, f, ensure_ascii=False, indent=2)
 
             # 记录成功操作
             context = {"start_time": datetime.now().timestamp()}
-            log_id = logger.log_canvas_operation("canvas_read", canvas_path, context, "success")
+            log_id = logger.log_canvas_operation(
+                "canvas_read", canvas_path, context, "success"
+            )
 
             self.assertIsNotNone(log_id)
 
@@ -481,14 +558,18 @@ class TestErrorLoggerIntegration(unittest.TestCase):
             non_existent_file = os.path.join(self.temp_dir, "non_existent.canvas")
             error = FileNotFoundError(f"Canvas文件不存在: {non_existent_file}")
 
-            log_id = logger.log_canvas_operation("canvas_read", non_existent_file, context, "error", error)
+            log_id = logger.log_canvas_operation(
+                "canvas_read", non_existent_file, context, "error", error
+            )
 
             self.assertIsNotNone(log_id)
 
             # 验证日志记录
             recent_errors = logger.get_recent_errors(1)
             self.assertEqual(len(recent_errors), 1)
-            self.assertEqual(recent_errors[0]["error_information"]["error_type"], "FileNotFoundError")
+            self.assertEqual(
+                recent_errors[0]["error_information"]["error_type"], "FileNotFoundError"
+            )
 
         except Exception as e:
             self.fail(f"集成测试失败: {e}")
@@ -501,10 +582,16 @@ class TestErrorLoggerIntegration(unittest.TestCase):
 
             # 模拟常见错误场景
             error_scenarios = [
-                (FileNotFoundError("/missing/file.canvas"), {"canvas_path": "/missing/file.canvas"}),
-                (PermissionError("/protected/file.canvas"), {"canvas_path": "/protected/file.canvas"}),
+                (
+                    FileNotFoundError("/missing/file.canvas"),
+                    {"canvas_path": "/missing/file.canvas"},
+                ),
+                (
+                    PermissionError("/protected/file.canvas"),
+                    {"canvas_path": "/protected/file.canvas"},
+                ),
                 (ValueError("Invalid node data"), {"node_id": "invalid-node"}),
-                (TimeoutError("Agent timeout"), {"agent_name": "test-agent"})
+                (TimeoutError("Agent timeout"), {"agent_name": "test-agent"}),
             ]
 
             for error, context in error_scenarios:
@@ -547,19 +634,21 @@ def run_performance_tests():
                 "enabled": True,
                 "file_logging": {
                     "enabled": True,
-                    "log_file_path": os.path.join(temp_dir, "perf_test.log")
-                }
+                    "log_file_path": os.path.join(temp_dir, "perf_test.log"),
+                },
             }
         }
 
         import yaml
-        with open(config_file, 'w', encoding='utf-8') as f:
+
+        with open(config_file, "w", encoding="utf-8") as f:
             yaml.dump(test_config, f)
 
         logger = CanvasErrorLogger(config_file)
 
         # 测试大量日志记录性能
         import time
+
         start_time = time.time()
 
         for i in range(1000):
@@ -570,7 +659,7 @@ def run_performance_tests():
         duration = end_time - start_time
 
         print(f"✅ 记录1000条错误日志耗时: {duration:.3f}秒")
-        print(f"✅ 平均每条日志耗时: {(duration/1000)*1000:.3f}毫秒")
+        print(f"✅ 平均每条日志耗时: {(duration / 1000) * 1000:.3f}毫秒")
 
         # 验证性能要求（每条日志记录应该小于1毫秒）
         avg_time_ms = (duration / 1000) * 1000
@@ -581,6 +670,7 @@ def run_performance_tests():
 
     finally:
         import shutil
+
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
@@ -597,7 +687,7 @@ if __name__ == "__main__":
         TestCanvasErrorLogger,
         TestErrorRecoveryAdvisor,
         TestErrorAnalyzer,
-        TestErrorLoggerIntegration
+        TestErrorLoggerIntegration,
     ]
 
     for test_class in test_classes:

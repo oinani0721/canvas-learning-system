@@ -12,28 +12,28 @@ from pathlib import Path
 def test_yaml_frontmatter():
     """测试YAML frontmatter格式"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/oral-explanation.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 提取YAML frontmatter
-    yaml_match = re.search(r'^---\n(.*?)\n---', content, re.DOTALL)
+    yaml_match = re.search(r"^---\n(.*?)\n---", content, re.DOTALL)
     assert yaml_match, "未找到YAML frontmatter"
 
     yaml_content = yaml_match.group(1)
 
     # 验证name字段
-    assert 'name: oral-explanation' in yaml_content, "name字段不正确"
+    assert "name: oral-explanation" in yaml_content, "name字段不正确"
 
     # 验证description字段
-    desc_match = re.search(r'description: (.+)', yaml_content)
+    desc_match = re.search(r"description: (.+)", yaml_content)
     assert desc_match, "未找到description字段"
     description = desc_match.group(1)
     assert len(description) < 80, f"description过长: {len(description)}字符"
 
     # 验证tools字段
-    assert 'tools: Read' in yaml_content, "tools字段应为Read"
+    assert "tools: Read" in yaml_content, "tools字段应为Read"
 
     # 验证model字段
-    assert 'model: sonnet' in yaml_content, "model字段应为sonnet"
+    assert "model: sonnet" in yaml_content, "model字段应为sonnet"
 
     print("[PASS] YAML frontmatter验证通过")
 
@@ -41,13 +41,13 @@ def test_yaml_frontmatter():
 def test_markdown_structure():
     """测试Markdown结构"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/oral-explanation.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     required_sections = [
         "## Role",
         "## Input Format",
         "## Output Format",
-        "## System Prompt"
+        "## System Prompt",
     ]
 
     for section in required_sections:
@@ -59,7 +59,7 @@ def test_markdown_structure():
 def test_content_completeness():
     """测试内容完整性"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/oral-explanation.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证Role部分
     assert "口语化" in content, "Role部分应提及口语化解释"
@@ -72,15 +72,12 @@ def test_content_completeness():
 
     # 验证Output Format
     assert "Markdown" in content, "应说明输出Markdown格式"
-    assert "无需JSON包裹" in content or "不要使用JSON" in content, "应明确说明不返回JSON"
+    assert "无需JSON包裹" in content or "不要使用JSON" in content, (
+        "应明确说明不返回JSON"
+    )
 
     # 验证System Prompt包含4个解释要素
-    elements = [
-        "背景铺垫",
-        "核心解释",
-        "生动例子",
-        "常见误区"
-    ]
+    elements = ["背景铺垫", "核心解释", "生动例子", "常见误区"]
     for element in elements:
         assert element in content, f"缺少解释要素: {element}"
 
@@ -97,14 +94,10 @@ def test_content_completeness():
 def test_input_output_format():
     """测试输入输出格式定义"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/oral-explanation.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 提取输入示例JSON
-    input_match = re.search(
-        r'输入示例.*?```json\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    input_match = re.search(r"输入示例.*?```json\n(.*?)\n```", content, re.DOTALL)
     assert input_match, "未找到输入示例"
 
     input_json = input_match.group(1)
@@ -116,24 +109,28 @@ def test_input_output_format():
     assert "user_understanding" in input_data, "输入缺少user_understanding字段"
 
     # 验证输出示例是Markdown格式（不是JSON）
-    output_match = re.search(
-        r'输出示例.*?```markdown\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    output_match = re.search(r"输出示例.*?```markdown\n(.*?)\n```", content, re.DOTALL)
     assert output_match, "未找到输出示例（应为markdown格式）"
 
     output_markdown = output_match.group(1)
 
     # 验证输出示例包含4个要素的标题
-    assert "## 为什么要学这个" in output_markdown or "## 背景铺垫" in output_markdown, "输出示例缺少背景铺垫部分"
-    assert "## 核心讲解" in output_markdown or "## 核心解释" in output_markdown, "输出示例缺少核心解释部分"
-    assert "## 举个例子" in output_markdown or "## 生动例子" in output_markdown, "输出示例缺少生动例子部分"
+    assert "## 为什么要学这个" in output_markdown or "## 背景铺垫" in output_markdown, (
+        "输出示例缺少背景铺垫部分"
+    )
+    assert "## 核心讲解" in output_markdown or "## 核心解释" in output_markdown, (
+        "输出示例缺少核心解释部分"
+    )
+    assert "## 举个例子" in output_markdown or "## 生动例子" in output_markdown, (
+        "输出示例缺少生动例子部分"
+    )
     assert "## 常见误区" in output_markdown, "输出示例缺少常见误区部分"
 
     # 验证字数（输出示例应该是800-1200字）
     word_count = len(output_markdown)
-    assert 800 <= word_count <= 1500, f"输出示例字数{word_count}应在800-1500范围内（含markdown标记）"
+    assert 800 <= word_count <= 1500, (
+        f"输出示例字数{word_count}应在800-1500范围内（含markdown标记）"
+    )
 
     print("[PASS] 输入输出格式验证通过")
 
@@ -141,7 +138,7 @@ def test_input_output_format():
 def test_explanation_structure():
     """测试解释结构要求"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/oral-explanation.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证背景铺垫要求
     assert "2-3句" in content or "50-80字" in content, "应说明背景铺垫的长度要求"
@@ -167,21 +164,19 @@ def test_explanation_structure():
 def test_user_understanding_handling():
     """测试user_understanding字段处理"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/oral-explanation.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证对user_understanding的处理说明
     assert "user_understanding" in content, "应说明如何处理user_understanding"
     assert "null" in content.lower(), "应说明user_understanding为null时的处理"
 
     # 在输入示例中应该有user_understanding字段
-    input_match = re.search(
-        r'输入示例.*?```json\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    input_match = re.search(r"输入示例.*?```json\n(.*?)\n```", content, re.DOTALL)
     if input_match:
         input_json = input_match.group(1)
-        assert "user_understanding" in input_json, "输入示例应包含user_understanding字段"
+        assert "user_understanding" in input_json, (
+            "输入示例应包含user_understanding字段"
+        )
 
     print("[PASS] user_understanding处理验证通过")
 
@@ -189,7 +184,7 @@ def test_user_understanding_handling():
 def test_ac_coverage():
     """验证所有AC都已满足"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/oral-explanation.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # AC 1: 生成800-1200字的口语化解释
     assert "800-1200字" in content, "AC 1: 未说明字数范围"
@@ -224,9 +219,9 @@ if __name__ == "__main__":
         test_user_understanding_handling()
         test_ac_coverage()
 
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("SUCCESS: 所有验证通过！Agent定义文件符合规范。")
-        print("="*50)
+        print("=" * 50)
 
     except AssertionError as e:
         print(f"\n[FAIL] 验证失败: {e}")

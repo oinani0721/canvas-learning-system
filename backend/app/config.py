@@ -58,22 +58,21 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = Field(
         default="Canvas Learning System API",
-        description="Application name displayed in API responses and Swagger UI"
+        description="Application name displayed in API responses and Swagger UI",
     )
 
     PROJECT_DESCRIPTION: str = Field(
         default="Multi-agent learning system backend using Feynman method",
-        description="Application description for API documentation"
+        description="Application description for API documentation",
     )
 
     VERSION: str = Field(
-        default="1.0.0",
-        description="Application version (semver format)"
+        default="1.0.0", description="Application version (semver format)"
     )
 
     DEBUG: bool = Field(
         default=False,
-        description="Enable debug mode (Swagger/ReDoc docs, detailed errors)"
+        description="Enable debug mode (Swagger/ReDoc docs, detailed errors)",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -83,7 +82,7 @@ class Settings(BaseSettings):
 
     DEBUG_AGENT_RESPONSE: bool = Field(
         default=False,
-        description="Enable detailed Agent API response logging for debugging (Story 12.G.1)"
+        description="Enable detailed Agent API response logging for debugging (Story 12.G.1)",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -93,17 +92,17 @@ class Settings(BaseSettings):
 
     ENABLE_REQUEST_DEDUP: bool = Field(
         default=True,
-        description="Enable request deduplication for Agent endpoints (Story 12.H.5)"
+        description="Enable request deduplication for Agent endpoints (Story 12.H.5)",
     )
 
     REQUEST_CACHE_TTL: int = Field(
         default=60,
-        description="Request cache TTL in seconds (Story 12.H.5, ADR-007 aligned)"
+        description="Request cache TTL in seconds (Story 12.H.5, ADR-007 aligned)",
     )
 
     LOG_LEVEL: str = Field(
         default="INFO",
-        description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL"
+        description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -112,7 +111,7 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://tauri.localhost,app://obsidian.md",
-        description="Allowed CORS origins (comma-separated)"
+        description="Allowed CORS origins (comma-separated)",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -123,17 +122,14 @@ class Settings(BaseSettings):
     # The relative path "../笔记库" was causing 404 errors due to path resolution issues
     CANVAS_BASE_PATH: str = Field(
         default=os.path.join(_PROJECT_ROOT, "笔记库"),
-        description="Absolute path to Canvas files directory"
+        description="Absolute path to Canvas files directory",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # API Settings
     # ═══════════════════════════════════════════════════════════════════════════
 
-    API_V1_PREFIX: str = Field(
-        default="/api/v1",
-        description="API version prefix path"
-    )
+    API_V1_PREFIX: str = Field(default="/api/v1", description="API version prefix path")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Field Validators
@@ -170,8 +166,8 @@ class Settings(BaseSettings):
     # ✅ Verified from Context7:/websites/pydantic_dev (topic: model_validator)
     # [Source: docs/stories/21.5.2.story.md - AC-1, AC-2]
     # [FIX] Changed from field_validator to model_validator to access AI_PROVIDER
-    @model_validator(mode='after')
-    def validate_model_name(self) -> 'Settings':
+    @model_validator(mode="after")
+    def validate_model_name(self) -> "Settings":
         """
         检测并清理AI模型名称中的异常前缀（仅对非 custom provider）。
 
@@ -212,8 +208,7 @@ class Settings(BaseSettings):
         return self
 
     MAX_CONCURRENT_REQUESTS: int = Field(
-        default=100,
-        description="Maximum concurrent requests limit"
+        default=100, description="Maximum concurrent requests limit"
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -222,38 +217,33 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════════════════════════════════════
 
     ROLLBACK_HISTORY_LIMIT: int = Field(
-        default=100,
-        description="Maximum operation history records per Canvas"
+        default=100, description="Maximum operation history records per Canvas"
     )
 
     ROLLBACK_SNAPSHOT_INTERVAL: int = Field(
         default=300,
-        description="Auto snapshot interval in seconds (default: 5 minutes)"
+        description="Auto snapshot interval in seconds (default: 5 minutes)",
     )
 
     ROLLBACK_MAX_SNAPSHOTS: int = Field(
-        default=50,
-        description="Maximum snapshots per Canvas before auto-cleanup"
+        default=50, description="Maximum snapshots per Canvas before auto-cleanup"
     )
 
     ROLLBACK_GRAPH_SYNC_TIMEOUT_MS: int = Field(
-        default=200,
-        description="Graph sync timeout in milliseconds"
+        default=200, description="Graph sync timeout in milliseconds"
     )
 
     ROLLBACK_ENABLE_GRAPH_SYNC: bool = Field(
-        default=True,
-        description="Enable Graphiti knowledge graph synchronization"
+        default=True, description="Enable Graphiti knowledge graph synchronization"
     )
 
     ROLLBACK_STORAGE_PATH: str = Field(
         default=".canvas-learning",
-        description="Base path for rollback data storage (history/snapshots)"
+        description="Base path for rollback data storage (history/snapshots)",
     )
 
     ROLLBACK_ENABLE_AUTO_BACKUP: bool = Field(
-        default=True,
-        description="Create backup snapshot before rollback operations"
+        default=True, description="Create backup snapshot before rollback operations"
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -264,39 +254,37 @@ class Settings(BaseSettings):
 
     AI_PROVIDER: str = Field(
         default="google",
-        description="AI provider: google, openai, anthropic, openrouter, custom"
+        description="AI provider: google, openai, anthropic, openrouter, custom",
     )
 
     AI_MODEL_NAME: str = Field(
         default="gemini-3.1-flash-lite-preview",
-        description="AI model name (e.g., gemini-3.1-flash-lite-preview, gpt-4o, claude-3-5-sonnet)"
+        description="AI model name (e.g., gemini-3.1-flash-lite-preview, gpt-4o, claude-3-5-sonnet)",
     )
 
     AI_BASE_URL: str = Field(
         default="",
-        description="AI API base URL (leave empty to use provider's default)"
+        description="AI API base URL (leave empty to use provider's default)",
     )
 
     AI_API_KEY: str = Field(
-        default="",
-        description="AI API key for the selected provider"
+        default="", description="AI API key for the selected provider"
     )
 
     AGENT_MAX_TOKENS: int = Field(
-        default=4000,
-        description="Maximum tokens per Agent response"
+        default=4000, description="Maximum tokens per Agent response"
     )
 
     AGENT_PROMPT_PATH: str = Field(
         default=os.path.join(_PROJECT_ROOT, ".claude", "agents"),
-        description="Path to Agent prompt templates directory (absolute path)"
+        description="Path to Agent prompt templates directory (absolute path)",
     )
 
     # 6-10 M1: Configurable scoring model (replaces hardcoded openai/gpt-4o-mini)
     SCORING_MODEL: str = Field(
         default="",
         description="LiteLLM model string for scoring/difficulty tasks. "
-        "Empty = use AI_PROVIDER/AI_MODEL_NAME. Story 6.4, 6.10."
+        "Empty = use AI_PROVIDER/AI_MODEL_NAME. Story 6.4, 6.10.",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -305,22 +293,20 @@ class Settings(BaseSettings):
 
     GEMINI_MODEL: str = Field(
         default="gemini-3.1-flash-lite-preview",
-        description="[DEPRECATED] Use AI_MODEL_NAME instead"
+        description="[DEPRECATED] Use AI_MODEL_NAME instead",
     )
 
     GOOGLE_API_KEY: str = Field(
-        default="",
-        description="[DEPRECATED] Use AI_API_KEY instead"
+        default="", description="[DEPRECATED] Use AI_API_KEY instead"
     )
 
     AGENT_MODEL: str = Field(
         default="claude-sonnet-4-5-20250929",
-        description="[DEPRECATED] Use AI_MODEL_NAME instead"
+        description="[DEPRECATED] Use AI_MODEL_NAME instead",
     )
 
     ANTHROPIC_API_KEY: str = Field(
-        default="",
-        description="[DEPRECATED] Use AI_API_KEY instead"
+        default="", description="[DEPRECATED] Use AI_API_KEY instead"
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -330,28 +316,20 @@ class Settings(BaseSettings):
 
     NEO4J_ENABLED: bool = Field(
         default=True,
-        description="Enable Neo4j connection (set to False for JSON fallback)"
+        description="Enable Neo4j connection (set to False for JSON fallback)",
     )
 
     NEO4J_URI: str = Field(
-        default="bolt://localhost:7687",
-        description="Neo4j Bolt connection URI"
+        default="bolt://localhost:7687", description="Neo4j Bolt connection URI"
     )
 
-    NEO4J_USER: str = Field(
-        default="neo4j",
-        description="Neo4j username"
-    )
+    NEO4J_USER: str = Field(default="neo4j", description="Neo4j username")
 
     NEO4J_PASSWORD: str = Field(
-        default="",
-        description="Neo4j password (REQUIRED in production)"
+        default="", description="Neo4j password (REQUIRED in production)"
     )
 
-    NEO4J_DATABASE: str = Field(
-        default="neo4j",
-        description="Neo4j database name"
-    )
+    NEO4J_DATABASE: str = Field(default="neo4j", description="Neo4j database name")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Neo4j Connection Pool Configuration (Story 30.2)
@@ -360,17 +338,16 @@ class Settings(BaseSettings):
 
     NEO4J_MAX_CONNECTION_POOL_SIZE: int = Field(
         default=50,
-        description="Maximum connections in Neo4j connection pool (Story 30.2)"
+        description="Maximum connections in Neo4j connection pool (Story 30.2)",
     )
 
     NEO4J_CONNECTION_TIMEOUT: int = Field(
         default=30,
-        description="Neo4j connection acquisition timeout in seconds (Story 30.2)"
+        description="Neo4j connection acquisition timeout in seconds (Story 30.2)",
     )
 
     NEO4J_MAX_CONNECTION_LIFETIME: int = Field(
-        default=3600,
-        description="Maximum connection lifetime in seconds (Story 30.2)"
+        default=3600, description="Maximum connection lifetime in seconds (Story 30.2)"
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -380,17 +357,16 @@ class Settings(BaseSettings):
 
     NEO4J_RETRY_ATTEMPTS: int = Field(
         default=3,
-        description="Number of retry attempts for Neo4j operations (Story 30.2)"
+        description="Number of retry attempts for Neo4j operations (Story 30.2)",
     )
 
     NEO4J_RETRY_DELAY_BASE: float = Field(
         default=1.0,
-        description="Base delay for exponential backoff in seconds (1s, 2s, 4s) (Story 30.2)"
+        description="Base delay for exponential backoff in seconds (1s, 2s, 4s) (Story 30.2)",
     )
 
     NEO4J_RETRY_MAX_DELAY: float = Field(
-        default=10.0,
-        description="Maximum retry delay in seconds (Story 30.2)"
+        default=10.0, description="Maximum retry delay in seconds (Story 30.2)"
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -400,12 +376,12 @@ class Settings(BaseSettings):
 
     USE_MOCK_VERIFICATION: bool = Field(
         default=False,
-        description="Force mock mode for verification service (Story 31.1, used for testing/debugging)"
+        description="Force mock mode for verification service (Story 31.1, used for testing/debugging)",
     )
 
     VERIFICATION_AI_TIMEOUT: float = Field(
         default=15.0,
-        description="Timeout in seconds for AI calls in verification service (Story 31.1 AC-31.1.5)"
+        description="Timeout in seconds for AI calls in verification service (Story 31.1 AC-31.1.5)",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -415,7 +391,7 @@ class Settings(BaseSettings):
 
     BATCH_NEO4J_CONCURRENCY: int = Field(
         default=10,
-        description="Max concurrent Neo4j writes during batch processing. Story 30.11 AC-30.11.3"
+        description="Max concurrent Neo4j writes during batch processing. Story 30.11 AC-30.11.3",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -427,18 +403,16 @@ class Settings(BaseSettings):
     # DEPRECATED: Phase 2 replaced JSON dual-write with GraphitiEpisodeWorker.
     ENABLE_GRAPHITI_JSON_DUAL_WRITE: bool = Field(
         default=False,
-        description="[DEPRECATED] Legacy JSON dual-write. Replaced by GraphitiEpisodeWorker."
+        description="[DEPRECATED] Legacy JSON dual-write. Replaced by GraphitiEpisodeWorker.",
     )
 
     # Graphiti Episode Worker (Phase 2)
     GOOGLE_API_KEY: str = Field(
-        default="",
-        description="Google API key for graphiti-core Gemini LLM/Embedder"
+        default="", description="Google API key for graphiti-core Gemini LLM/Embedder"
     )
 
     GRAPHITI_QUEUE_MAXSIZE: int = Field(
-        default=100,
-        description="Max episodes in graphiti worker queue before dropping"
+        default=100, description="Max episodes in graphiti worker queue before dropping"
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -447,22 +421,22 @@ class Settings(BaseSettings):
 
     ENABLE_LANCEDB_AUTO_INDEX: bool = Field(
         default=True,
-        description="Enable automatic LanceDB indexing after Canvas CRUD. Story 38.1 AC-1."
+        description="Enable automatic LanceDB indexing after Canvas CRUD. Story 38.1 AC-1.",
     )
 
     LANCEDB_INDEX_DEBOUNCE_MS: int = Field(
         default=500,
-        description="Debounce window in ms for LanceDB auto-index. Prevents rapid re-indexing. Story 38.1."
+        description="Debounce window in ms for LanceDB auto-index. Prevents rapid re-indexing. Story 38.1.",
     )
 
     LANCEDB_INDEX_TIMEOUT: float = Field(
         default=5.0,
-        description="Timeout in seconds per LanceDB index attempt. Story 38.1 AC-1."
+        description="Timeout in seconds per LanceDB index attempt. Story 38.1 AC-1.",
     )
 
     LANCEDB_INDEX_TABLE_NAME: str = Field(
         default="canvas_nodes",
-        description="LanceDB table name for canvas node index. Story 38.1."
+        description="LanceDB table name for canvas node index. Story 38.1.",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -471,7 +445,7 @@ class Settings(BaseSettings):
 
     DEFAULT_GROUP_ID: str = Field(
         default="cs188",
-        description="Default Graphiti group_id for memory isolation. Configurable per subject. Story 2.1 AC-5."
+        description="Default Graphiti group_id for memory isolation. Configurable per subject. Story 2.1 AC-5.",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -480,7 +454,7 @@ class Settings(BaseSettings):
 
     OLLAMA_HOST: str = Field(
         default="http://localhost:11434",
-        description="Ollama API base URL. Use http://ollama:11434 inside Docker."
+        description="Ollama API base URL. Use http://ollama:11434 inside Docker.",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -488,23 +462,22 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════════════════════════════════════
 
     VAULT_INDEX_ENABLED: bool = Field(
-        default=True,
-        description="Enable vault-wide .md note indexing to LanceDB."
+        default=True, description="Enable vault-wide .md note indexing to LanceDB."
     )
 
     VAULT_INDEX_SKIP_DIRS: str = Field(
         default=".obsidian,.git,.trash,node_modules",
-        description="Comma-separated list of directories to skip during vault indexing."
+        description="Comma-separated list of directories to skip during vault indexing.",
     )
 
     VAULT_INDEX_CHUNK_SIZE: int = Field(
         default=500,
-        description="Target chunk size in characters for .md note segmentation."
+        description="Target chunk size in characters for .md note segmentation.",
     )
 
     VAULT_INDEX_OVERLAP: int = Field(
         default=50,
-        description="Overlap characters between chunks for .md note segmentation."
+        description="Overlap characters between chunks for .md note segmentation.",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -513,12 +486,12 @@ class Settings(BaseSettings):
 
     USE_FSRS: bool = Field(
         default=True,
-        description="Enable FSRS algorithm. Set False to disable FSRS and use fallback scheduling. Story 32.8."
+        description="Enable FSRS algorithm. Set False to disable FSRS and use fallback scheduling. Story 32.8.",
     )
 
     FSRS_DESIRED_RETENTION: float = Field(
         default=0.9,
-        description="FSRS target retention rate (0.0 to 1.0). Higher = more frequent reviews. Story 32.2."
+        description="FSRS target retention rate (0.0 to 1.0). Higher = more frequent reviews. Story 32.2.",
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -528,13 +501,13 @@ class Settings(BaseSettings):
     MEMORY_RETRY_BASE_DELAY: float = Field(
         default=1.0,
         description="Base delay in seconds for Graphiti write retry backoff (1s, 2s, 4s). Story 36.13 AC-2.",
-        ge=0.0
+        ge=0.0,
     )
 
     MEMORY_RETRY_MAX_DELAY: float = Field(
         default=10.0,
         description="Maximum retry delay in seconds for Graphiti write operations. Story 36.13 AC-2.",
-        ge=0.0
+        ge=0.0,
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -544,25 +517,25 @@ class Settings(BaseSettings):
     AGENT_MEMORY_CACHE_MAXSIZE: int = Field(
         default=1000,
         description="Max entries in AgentService memory cache. Story 36.13 AC-3.",
-        ge=1
+        ge=1,
     )
 
     AGENT_MEMORY_CACHE_TTL: int = Field(
         default=30,
         description="TTL in seconds for AgentService memory cache entries. Story 36.13 AC-3.",
-        ge=0
+        ge=0,
     )
 
     SCORE_HISTORY_CACHE_MAXSIZE: int = Field(
         default=1000,
         description="Max entries in MemoryService score history cache. Story 36.13 AC-4.",
-        ge=1
+        ge=1,
     )
 
     ENRICHMENT_CACHE_MAXSIZE: int = Field(
         default=1000,
         description="Max entries in ContextEnrichmentService association cache. Story 36.13 AC-5.",
-        ge=1
+        ge=1,
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -572,7 +545,7 @@ class Settings(BaseSettings):
 
     FAITHFULNESS_ENABLED: bool = Field(
         default=True,
-        description="Enable RAGAS faithfulness check in RAG pipeline. Story 7.1 AC-1."
+        description="Enable RAGAS faithfulness check in RAG pipeline. Story 7.1 AC-1.",
     )
 
     FAITHFULNESS_THRESHOLD: float = Field(
@@ -591,12 +564,12 @@ class Settings(BaseSettings):
 
     FAITHFULNESS_MODEL: str = Field(
         default="",
-        description="Model for faithfulness checks via LiteLLM. Empty = use AI_MODEL_NAME. Story 7.1."
+        description="Model for faithfulness checks via LiteLLM. Empty = use AI_MODEL_NAME. Story 7.1.",
     )
 
     INJECTION_GUARD_ENABLED: bool = Field(
         default=True,
-        description="Enable prompt injection detection guard. Story 7.1 AC-2,5."
+        description="Enable prompt injection detection guard. Story 7.1 AC-2,5.",
     )
 
     INJECTION_THRESHOLD: float = Field(
@@ -792,10 +765,7 @@ class Settings(BaseSettings):
     # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings .env file)
     # Pattern: model_config = SettingsConfigDict(env_file=".env")
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=True,
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
     )
 
 

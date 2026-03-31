@@ -17,22 +17,20 @@ Testing Standards:
 - Mock: unittest.mock.AsyncMock for MemoryService
 """
 
-import asyncio
 import json
-import pytest
-import tempfile
 import time
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
-from tests.conftest import simulate_async_delay
+import pytest
 from app.models.canvas_events import CanvasEvent, CanvasEventContext, CanvasEventType
 from app.services.canvas_service import CanvasService
 
+from tests.conftest import simulate_async_delay
 
 # =============================================================================
 # Test Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def temp_canvas_dir(tmp_path):
@@ -41,7 +39,7 @@ def temp_canvas_dir(tmp_path):
         "nodes": [
             {"id": "node1", "type": "text", "text": "Test Node 1", "x": 100, "y": 100}
         ],
-        "edges": []
+        "edges": [],
     }
     canvas_file = tmp_path / "test-canvas.canvas"
     canvas_file.write_text(json.dumps(canvas_data), encoding="utf-8")
@@ -63,22 +61,20 @@ def canvas_service_with_memory(temp_canvas_dir, mock_memory_client):
     return CanvasService(
         canvas_base_path=str(temp_canvas_dir),
         memory_client=mock_memory_client,
-        session_id="test-session-123"
+        session_id="test-session-123",
     )
 
 
 @pytest.fixture
 def canvas_service_no_memory(temp_canvas_dir):
     """Create CanvasService without memory client (mock mode)."""
-    return CanvasService(
-        canvas_base_path=str(temp_canvas_dir),
-        memory_client=None
-    )
+    return CanvasService(canvas_base_path=str(temp_canvas_dir), memory_client=None)
 
 
 # =============================================================================
 # Task 6.1: Test canvas_events.py models validate correctly
 # =============================================================================
+
 
 class TestCanvasEventModels:
     """Test CanvasEvent and related model validation."""
@@ -94,7 +90,7 @@ class TestCanvasEventModels:
         event = CanvasEvent(
             session_id="test-session",
             event_type=CanvasEventType.NODE_CREATED,
-            canvas_path="test.canvas"
+            canvas_path="test.canvas",
         )
         assert event.session_id == "test-session"
         assert event.event_type == CanvasEventType.NODE_CREATED
@@ -110,7 +106,7 @@ class TestCanvasEventModels:
             canvas_path="test.canvas",
             node_id="node123",
             edge_id=None,
-            metadata={"concept": "Test Concept"}
+            metadata={"concept": "Test Concept"},
         )
         assert event.node_id == "node123"
         assert event.edge_id is None
@@ -121,11 +117,7 @@ class TestCanvasEventModels:
         context = CanvasEventContext(
             canvas_name="test-canvas",
             node_id="node123",
-            node_data={
-                "text": "Machine Learning",
-                "type": "text",
-                "color": "4"
-            }
+            node_data={"text": "Machine Learning", "type": "text", "color": "4"},
         )
         metadata = context.to_metadata()
         assert metadata["node_text"] == "Machine Learning"
@@ -137,11 +129,7 @@ class TestCanvasEventModels:
         context = CanvasEventContext(
             canvas_name="test-canvas",
             edge_id="edge123",
-            edge_data={
-                "fromNode": "node1",
-                "toNode": "node2",
-                "label": "relates_to"
-            }
+            edge_data={"fromNode": "node1", "toNode": "node2", "label": "relates_to"},
         )
         metadata = context.to_metadata()
         assert metadata["from_node"] == "node1"
@@ -152,6 +140,7 @@ class TestCanvasEventModels:
 # =============================================================================
 # Task 6.2: Test _trigger_memory_event() is called after add_node()
 # =============================================================================
+
 
 class TestAddNodeMemoryTrigger:
     """Test add_node() triggers node_created memory event."""
@@ -164,12 +153,7 @@ class TestAddNodeMemoryTrigger:
         # Act
         result = await canvas_service_with_memory.add_node(
             "test-canvas",
-            {
-                "type": "text",
-                "text": "New Concept Node",
-                "x": 200,
-                "y": 200
-            }
+            {"type": "text", "text": "New Concept Node", "x": 200, "y": 200},
         )
 
         # Assert - CRUD succeeded
@@ -192,8 +176,7 @@ class TestAddNodeMemoryTrigger:
         """Test add_node works when memory client is None (mock mode)."""
         # Act - should not raise
         result = await canvas_service_no_memory.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Test", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0}
         )
 
         # Assert - CRUD still works
@@ -205,6 +188,7 @@ class TestAddNodeMemoryTrigger:
 # Task 6.3: Test _trigger_memory_event() is called after update_node()
 # =============================================================================
 
+
 class TestUpdateNodeMemoryTrigger:
     """Test update_node() triggers node_updated memory event."""
 
@@ -215,9 +199,7 @@ class TestUpdateNodeMemoryTrigger:
         """Test that update_node triggers node_updated memory event (AC-30.5.3)."""
         # Act
         result = await canvas_service_with_memory.update_node(
-            "test-canvas",
-            "node1",
-            {"text": "Updated Text", "color": "2"}
+            "test-canvas", "node1", {"text": "Updated Text", "color": "2"}
         )
 
         # Assert - CRUD succeeded
@@ -239,19 +221,23 @@ class TestUpdateNodeMemoryTrigger:
 # Task 6.4: Test _trigger_memory_event() is called after add_edge()
 # =============================================================================
 
+
 class TestAddEdgeMemoryTrigger:
     """Test add_edge() triggers edge_created memory event."""
 
     @pytest.mark.asyncio
     async def test_add_edge_triggers_memory_event(
-        self, canvas_service_with_memory, mock_memory_client, temp_canvas_dir,
-        wait_for_call
+        self,
+        canvas_service_with_memory,
+        mock_memory_client,
+        temp_canvas_dir,
+        wait_for_call,
     ):
         """Test that add_edge triggers edge_created memory event (AC-30.5.2)."""
         # First add a second node for the edge
         await canvas_service_with_memory.add_node(
             "test-canvas",
-            {"id": "node2", "type": "text", "text": "Node 2", "x": 300, "y": 100}
+            {"id": "node2", "type": "text", "text": "Node 2", "x": 300, "y": 100},
         )
 
         # Reset mock to isolate edge test
@@ -264,8 +250,8 @@ class TestAddEdgeMemoryTrigger:
                 "fromNode": "node1",
                 "toNode": "node2",
                 "fromSide": "right",
-                "toSide": "left"
-            }
+                "toSide": "left",
+            },
         )
 
         # Assert - CRUD succeeded
@@ -287,13 +273,12 @@ class TestAddEdgeMemoryTrigger:
 # Task 6.5: Test async write doesn't block CRUD response
 # =============================================================================
 
+
 class TestAsyncNonBlocking:
     """Test that memory write doesn't block CRUD response."""
 
     @pytest.mark.asyncio
-    async def test_slow_memory_write_does_not_block_crud(
-        self, temp_canvas_dir
-    ):
+    async def test_slow_memory_write_does_not_block_crud(self, temp_canvas_dir):
         """Test CRUD returns immediately even if memory write is slow."""
         # Create a slow memory client (150ms delay)
         slow_memory_client = AsyncMock()
@@ -307,14 +292,13 @@ class TestAsyncNonBlocking:
         service = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
             memory_client=slow_memory_client,
-            session_id="test-session"
+            session_id="test-session",
         )
 
         # Act - time the operation
         start = time.time()
         result = await service.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Test", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0}
         )
         elapsed = time.time() - start
 
@@ -327,6 +311,7 @@ class TestAsyncNonBlocking:
 # =============================================================================
 # Task 6.6: Test silent degradation on memory write failure
 # =============================================================================
+
 
 class TestSilentDegradation:
     """Test that memory write failures don't affect CRUD operations."""
@@ -343,13 +328,12 @@ class TestSilentDegradation:
         service = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
             memory_client=failing_memory_client,
-            session_id="test-session"
+            session_id="test-session",
         )
 
         # Act - should not raise despite memory failure
         result = await service.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Test", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0}
         )
 
         # Assert - CRUD still succeeds
@@ -371,13 +355,12 @@ class TestSilentDegradation:
         service = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
             memory_client=timeout_memory_client,
-            session_id="test-session"
+            session_id="test-session",
         )
 
         # Act - should not raise despite timeout
         result = await service.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Test Timeout", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Test Timeout", "x": 0, "y": 0}
         )
 
         # Assert - CRUD still succeeds
@@ -389,6 +372,7 @@ class TestSilentDegradation:
 # Additional Edge Case Tests
 # =============================================================================
 
+
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
@@ -399,27 +383,22 @@ class TestEdgeCases:
         """Test multiple CRUD operations trigger correct events."""
         # Add node
         node1 = await canvas_service_with_memory.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Node A", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Node A", "x": 0, "y": 0}
         )
 
         # Update node
         await canvas_service_with_memory.update_node(
-            "test-canvas",
-            "node1",
-            {"color": "3"}
+            "test-canvas", "node1", {"color": "3"}
         )
 
         # Add another node
         node2 = await canvas_service_with_memory.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Node B", "x": 100, "y": 0}
+            "test-canvas", {"type": "text", "text": "Node B", "x": 100, "y": 0}
         )
 
         # Add edge
         edge = await canvas_service_with_memory.add_edge(
-            "test-canvas",
-            {"fromNode": node1["id"], "toNode": node2["id"]}
+            "test-canvas", {"fromNode": node1["id"], "toNode": node2["id"]}
         )
 
         # Wait for async tasks (poll until all 4 events are recorded)
@@ -434,8 +413,7 @@ class TestEdgeCases:
     ):
         """Test that session_id is correctly passed to memory events."""
         await canvas_service_with_memory.add_node(
-            "test-canvas",
-            {"type": "text", "text": "Test", "x": 0, "y": 0}
+            "test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0}
         )
 
         await wait_for_call(mock_memory_client.record_temporal_event)
@@ -448,6 +426,7 @@ class TestEdgeCases:
 # Story 30.6: Color metadata extraction tests
 # =============================================================================
 
+
 class TestColorMetadataExtraction:
     """Test CanvasEventContext color metadata extraction for Story 30.6."""
 
@@ -456,7 +435,7 @@ class TestColorMetadataExtraction:
         context = CanvasEventContext(
             canvas_name="test-canvas",
             node_id="node1",
-            node_data={"color": "1", "text": "Concept", "type": "text"}
+            node_data={"color": "1", "text": "Concept", "type": "text"},
         )
         metadata = context.to_metadata()
         assert metadata["node_color"] == "1"
@@ -466,7 +445,7 @@ class TestColorMetadataExtraction:
         context = CanvasEventContext(
             canvas_name="test-canvas",
             node_id="node1",
-            node_data={"text": "No color node", "type": "text"}
+            node_data={"text": "No color node", "type": "text"},
         )
         metadata = context.to_metadata()
         assert "node_color" not in metadata
@@ -476,7 +455,7 @@ class TestColorMetadataExtraction:
         context = CanvasEventContext(
             canvas_name="test-canvas",
             node_id="node1",
-            node_data={"color": "4", "text": "Yellow concept", "type": "text"}
+            node_data={"color": "4", "text": "Yellow concept", "type": "text"},
         )
         metadata = context.to_metadata()
         assert metadata["node_color"] == "4"

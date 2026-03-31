@@ -35,7 +35,7 @@ MOCK_CANVAS: Dict[str, Dict[str, Any]] = {
                 "y": 200,
                 "width": 300,
                 "height": 100,
-                "color": "1"
+                "color": "1",
             },
             {
                 "id": "e5f6a7b8",
@@ -45,8 +45,8 @@ MOCK_CANVAS: Dict[str, Dict[str, Any]] = {
                 "y": 360,
                 "width": 300,
                 "height": 100,
-                "color": "6"
-            }
+                "color": "6",
+            },
         ],
         "edges": [
             {
@@ -54,9 +54,9 @@ MOCK_CANVAS: Dict[str, Dict[str, Any]] = {
                 "fromNode": "a1b2c3d4",
                 "toNode": "e5f6a7b8",
                 "fromSide": "bottom",
-                "toSide": "top"
+                "toSide": "top",
             }
-        ]
+        ],
     }
 }
 
@@ -66,9 +66,7 @@ MOCK_CANVAS: Dict[str, Dict[str, Any]] = {
     response_model=CanvasResponse,
     summary="读取Canvas文件",
     operation_id="read_canvas",
-    responses={
-        404: {"model": ErrorResponse, "description": "Canvas文件不存在"}
-    }
+    responses={404: {"model": ErrorResponse, "description": "Canvas文件不存在"}},
 )
 async def read_canvas(canvas_name: str) -> CanvasResponse:
     """
@@ -79,14 +77,14 @@ async def read_canvas(canvas_name: str) -> CanvasResponse:
     if canvas_name not in MOCK_CANVAS:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Canvas '{canvas_name}' not found"
+            detail=f"Canvas '{canvas_name}' not found",
         )
 
     canvas_data = MOCK_CANVAS[canvas_name]
     return CanvasResponse(
         name=canvas_name,
         nodes=[NodeRead(**n) for n in canvas_data["nodes"]],
-        edges=[EdgeRead(**e) for e in canvas_data["edges"]]
+        edges=[EdgeRead(**e) for e in canvas_data["edges"]],
     )
 
 
@@ -98,8 +96,8 @@ async def read_canvas(canvas_name: str) -> CanvasResponse:
     operation_id="create_node",
     responses={
         400: {"model": ErrorResponse, "description": "验证错误"},
-        404: {"model": ErrorResponse, "description": "Canvas不存在"}
-    }
+        404: {"model": ErrorResponse, "description": "Canvas不存在"},
+    },
 )
 async def create_node(canvas_name: str, node: NodeCreate) -> NodeRead:
     """
@@ -110,7 +108,7 @@ async def create_node(canvas_name: str, node: NodeCreate) -> NodeRead:
     if canvas_name not in MOCK_CANVAS:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Canvas '{canvas_name}' not found"
+            detail=f"Canvas '{canvas_name}' not found",
         )
 
     # Generate node ID
@@ -131,14 +129,10 @@ async def create_node(canvas_name: str, node: NodeCreate) -> NodeRead:
     response_model=NodeRead,
     summary="更新节点",
     operation_id="update_node",
-    responses={
-        404: {"model": ErrorResponse, "description": "Canvas或节点不存在"}
-    }
+    responses={404: {"model": ErrorResponse, "description": "Canvas或节点不存在"}},
 )
 async def update_node(
-    canvas_name: str,
-    node_id: str,
-    node_update: NodeUpdate
+    canvas_name: str, node_id: str, node_update: NodeUpdate
 ) -> NodeRead:
     """
     Update an existing node.
@@ -148,20 +142,16 @@ async def update_node(
     if canvas_name not in MOCK_CANVAS:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Canvas '{canvas_name}' not found"
+            detail=f"Canvas '{canvas_name}' not found",
         )
 
     # Find node
     canvas_data = MOCK_CANVAS[canvas_name]
-    node = next(
-        (n for n in canvas_data["nodes"] if n["id"] == node_id),
-        None
-    )
+    node = next((n for n in canvas_data["nodes"] if n["id"] == node_id), None)
 
     if not node:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Node '{node_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Node '{node_id}' not found"
         )
 
     # Apply updates
@@ -176,9 +166,7 @@ async def update_node(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="删除节点",
     operation_id="delete_node",
-    responses={
-        404: {"model": ErrorResponse, "description": "Canvas或节点不存在"}
-    }
+    responses={404: {"model": ErrorResponse, "description": "Canvas或节点不存在"}},
 )
 async def delete_node(canvas_name: str, node_id: str) -> None:
     """
@@ -189,19 +177,15 @@ async def delete_node(canvas_name: str, node_id: str) -> None:
     if canvas_name not in MOCK_CANVAS:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Canvas '{canvas_name}' not found"
+            detail=f"Canvas '{canvas_name}' not found",
         )
 
     canvas_data = MOCK_CANVAS[canvas_name]
-    node = next(
-        (n for n in canvas_data["nodes"] if n["id"] == node_id),
-        None
-    )
+    node = next((n for n in canvas_data["nodes"] if n["id"] == node_id), None)
 
     if not node:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Node '{node_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Node '{node_id}' not found"
         )
 
     canvas_data["nodes"].remove(node)
@@ -213,9 +197,7 @@ async def delete_node(canvas_name: str, node_id: str) -> None:
     status_code=status.HTTP_201_CREATED,
     summary="创建边",
     operation_id="create_edge",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def create_edge(canvas_name: str, edge: EdgeCreate) -> EdgeRead:
     """
@@ -226,7 +208,7 @@ async def create_edge(canvas_name: str, edge: EdgeCreate) -> EdgeRead:
     if canvas_name not in MOCK_CANVAS:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Canvas '{canvas_name}' not found"
+            detail=f"Canvas '{canvas_name}' not found",
         )
 
     # Generate edge ID
@@ -245,9 +227,7 @@ async def create_edge(canvas_name: str, edge: EdgeCreate) -> EdgeRead:
     status_code=status.HTTP_204_NO_CONTENT,
     summary="删除边",
     operation_id="delete_edge",
-    responses={
-        404: {"model": ErrorResponse, "description": "Canvas或边不存在"}
-    }
+    responses={404: {"model": ErrorResponse, "description": "Canvas或边不存在"}},
 )
 async def delete_edge(canvas_name: str, edge_id: str) -> None:
     """
@@ -258,19 +238,15 @@ async def delete_edge(canvas_name: str, edge_id: str) -> None:
     if canvas_name not in MOCK_CANVAS:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Canvas '{canvas_name}' not found"
+            detail=f"Canvas '{canvas_name}' not found",
         )
 
     canvas_data = MOCK_CANVAS[canvas_name]
-    edge = next(
-        (e for e in canvas_data["edges"] if e["id"] == edge_id),
-        None
-    )
+    edge = next((e for e in canvas_data["edges"] if e["id"] == edge_id), None)
 
     if not edge:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Edge '{edge_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Edge '{edge_id}' not found"
         )
 
     canvas_data["edges"].remove(edge)

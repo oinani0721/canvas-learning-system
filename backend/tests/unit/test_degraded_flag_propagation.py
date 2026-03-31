@@ -21,14 +21,11 @@ Story 31.A.9: 推荐降级 UI 指示器后端集成测试 — 降级标志传播
 
 import asyncio
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.services.verification_service import VerificationService
-
 
 # ============================================================================
 # Fixtures
@@ -74,7 +71,9 @@ def temp_canvas_dir(tmp_path: Path) -> Path:
         "edges": [],
     }
     canvas_file = tmp_path / "test.canvas"
-    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
+    canvas_file.write_text(
+        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
+    )
     return tmp_path
 
 
@@ -239,7 +238,9 @@ class TestDegradedResponseFormat:
             canvas_name="test",
         )
         result_long = await verification_service_no_agent.process_answer(
-            session_long["session_id"], "这是一个非常详细和完整的回答，涵盖了微积分基本定理的所有核心要素和推导过程，包括连续性条件和极限定义" * 3
+            session_long["session_id"],
+            "这是一个非常详细和完整的回答，涵盖了微积分基本定理的所有核心要素和推导过程，包括连续性条件和极限定义"
+            * 3,
         )
 
         assert result_short["degraded"] is True

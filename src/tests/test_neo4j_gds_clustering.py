@@ -42,7 +42,10 @@ class TestNeo4jGDSClustering:
         mock_result.single.return_value = {"num": 1}
         session.run.return_value = mock_result
 
-        with patch('canvas_memory.neo4j_gds_clustering.GraphDatabase.driver', return_value=driver):
+        with patch(
+            "canvas_memory.neo4j_gds_clustering.GraphDatabase.driver",
+            return_value=driver,
+        ):
             service = Neo4jGDSClustering()
             service.driver = driver
             service.connected = True
@@ -68,14 +71,16 @@ class TestNeo4jGDSClustering:
             "graphName": "weak-concepts-graph",
             "nodeCount": 100,
             "relationshipCount": 250,
-            "projectMillis": 150
+            "projectMillis": 150,
         }
 
         # 设置session.run的返回值序列
         session.run.side_effect = [exists_result, project_result]
 
         # 执行测试
-        success, message = service.create_weak_concepts_graph_projection(force_recreate=True)
+        success, message = service.create_weak_concepts_graph_projection(
+            force_recreate=True
+        )
 
         # 验证结果
         assert success is True
@@ -103,14 +108,16 @@ class TestNeo4jGDSClustering:
             "graphName": "weak-concepts-graph",
             "nodeCount": 100,
             "relationshipCount": 250,
-            "projectMillis": 150
+            "projectMillis": 150,
         }
 
         # 设置session.run的返回值序列
         session.run.side_effect = [exists_result, drop_result, project_result]
 
         # 执行测试
-        success, message = service.create_weak_concepts_graph_projection(force_recreate=True)
+        success, message = service.create_weak_concepts_graph_projection(
+            force_recreate=True
+        )
 
         # 验证结果
         assert success is True
@@ -128,7 +135,9 @@ class TestNeo4jGDSClustering:
         session.run.return_value = exists_result
 
         # 执行测试（force_recreate=False）
-        success, message = service.create_weak_concepts_graph_projection(force_recreate=False)
+        success, message = service.create_weak_concepts_graph_projection(
+            force_recreate=False
+        )
 
         # 验证结果
         assert success is True
@@ -140,7 +149,9 @@ class TestNeo4jGDSClustering:
     def test_create_graph_projection_connection_not_established(self):
         """测试用例：Neo4j连接失败时异常处理"""
         # 创建未连接的服务实例
-        with patch('canvas_memory.neo4j_gds_clustering.GraphDatabase.driver') as mock_driver_class:
+        with patch(
+            "canvas_memory.neo4j_gds_clustering.GraphDatabase.driver"
+        ) as mock_driver_class:
             mock_driver = MagicMock()
             mock_driver_class.return_value = mock_driver
 
@@ -172,25 +183,27 @@ class TestNeo4jGDSClustering:
 
         # Mock Leiden聚类结果
         mock_result = MagicMock()
-        mock_result.__iter__.return_value = iter([
-            {
-                "cluster_id": 42,
-                "concepts": [
-                    {"id": 123, "name": "逆否命题", "score": 65, "reviews": 4},
-                    {"id": 124, "name": "充分必要条件", "score": 68, "reviews": 3}
-                ],
-                "cluster_score": 66.5,
-                "cluster_size": 2
-            },
-            {
-                "cluster_id": 108,
-                "concepts": [
-                    {"id": 125, "name": "逻辑等价", "score": 62, "reviews": 5}
-                ],
-                "cluster_score": 62.0,
-                "cluster_size": 1
-            }
-        ])
+        mock_result.__iter__.return_value = iter(
+            [
+                {
+                    "cluster_id": 42,
+                    "concepts": [
+                        {"id": 123, "name": "逆否命题", "score": 65, "reviews": 4},
+                        {"id": 124, "name": "充分必要条件", "score": 68, "reviews": 3},
+                    ],
+                    "cluster_score": 66.5,
+                    "cluster_size": 2,
+                },
+                {
+                    "cluster_id": 108,
+                    "concepts": [
+                        {"id": 125, "name": "逻辑等价", "score": 62, "reviews": 5}
+                    ],
+                    "cluster_score": 62.0,
+                    "cluster_size": 1,
+                },
+            ]
+        )
         session.run.return_value = mock_result
 
         # 执行测试
@@ -199,7 +212,7 @@ class TestNeo4jGDSClustering:
             min_review_count=3,
             gamma=1.0,
             tolerance=0.0001,
-            random_seed=42
+            random_seed=42,
         )
 
         # 验证结果
@@ -247,7 +260,7 @@ class TestNeo4jGDSClustering:
                 "cluster_id": 1,
                 "concepts": [{"id": 1, "name": "概念A", "score": 55, "reviews": 5}],
                 "cluster_score": 55.0,
-                "cluster_size": 1
+                "cluster_size": 1,
             }
         ]
 
@@ -268,7 +281,7 @@ class TestNeo4jGDSClustering:
                 "cluster_id": 2,
                 "concepts": [{"id": 2, "name": "概念B", "score": 65, "reviews": 3}],
                 "cluster_score": 65.0,
-                "cluster_size": 1
+                "cluster_size": 1,
             }
         ]
 
@@ -286,7 +299,7 @@ class TestNeo4jGDSClustering:
                 "cluster_id": 3,
                 "concepts": [{"id": 3, "name": "概念C", "score": 72, "reviews": 2}],
                 "cluster_score": 72.0,
-                "cluster_size": 1
+                "cluster_size": 1,
             }
         ]
 
@@ -304,23 +317,23 @@ class TestNeo4jGDSClustering:
                 "cluster_id": 1,
                 "concepts": [{"id": 1, "name": "A", "score": 55, "reviews": 5}],
                 "cluster_score": 55.0,
-                "cluster_size": 1
+                "cluster_size": 1,
             },
             {
                 "cluster_id": 2,
                 "concepts": [
                     {"id": 2, "name": "B", "score": 65, "reviews": 3},
-                    {"id": 3, "name": "C", "score": 68, "reviews": 2}
+                    {"id": 3, "name": "C", "score": 68, "reviews": 2},
                 ],
                 "cluster_score": 66.5,
-                "cluster_size": 2
+                "cluster_size": 2,
             },
             {
                 "cluster_id": 3,
                 "concepts": [{"id": 4, "name": "D", "score": 75, "reviews": 1}],
                 "cluster_score": 75.0,
-                "cluster_size": 1
-            }
+                "cluster_size": 1,
+            },
         ]
 
         result = service.format_clustering_results(clusters)
@@ -347,7 +360,7 @@ class TestNeo4jGDSClustering:
             "requiredMemory": "10 MiB",
             "nodeCount": 100,
             "relationshipCount": 250,
-            "treeView": "Graph projection memory estimation"
+            "treeView": "Graph projection memory estimation",
         }
         session.run.return_value = mock_result
 
@@ -405,7 +418,10 @@ class TestNeo4jGDSClustering:
         mock_result.single.return_value = {"num": 1}
         session.run.return_value = mock_result
 
-        with patch('canvas_memory.neo4j_gds_clustering.GraphDatabase.driver', return_value=driver):
+        with patch(
+            "canvas_memory.neo4j_gds_clustering.GraphDatabase.driver",
+            return_value=driver,
+        ):
             # 使用with语句
             with Neo4jGDSClustering() as service:
                 assert service.connected is True

@@ -9,6 +9,7 @@ Features:
 - Task cancellation support
 - Automatic cleanup of old tasks
 """
+
 import asyncio
 import logging
 import uuid
@@ -28,10 +29,11 @@ class TaskStatus(str, Enum):
     任务状态枚举
     [Source: Story 15.5 AC:6 - 任务状态追踪: pending/running/completed/failed]
     """
-    PENDING = "pending"      # 等待执行
-    RUNNING = "running"      # 正在执行
+
+    PENDING = "pending"  # 等待执行
+    RUNNING = "running"  # 正在执行
     COMPLETED = "completed"  # 执行完成
-    FAILED = "failed"        # 执行失败
+    FAILED = "failed"  # 执行失败
     CANCELLED = "cancelled"  # 已取消
 
 
@@ -40,6 +42,7 @@ class TaskInfo:
     """
     任务信息数据类
     """
+
     task_id: str
     task_type: str
     status: TaskStatus
@@ -59,7 +62,9 @@ class TaskInfo:
             "status": self.status.value,
             "created_at": self.created_at.isoformat(),
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "result": self.result,
             "error": self.error,
             "progress": self.progress,
@@ -90,7 +95,7 @@ class BackgroundTaskManager:
     def __init__(self):
         """初始化任务管理器"""
         # 避免重复初始化
-        if hasattr(self, '_initialized') and self._initialized:
+        if hasattr(self, "_initialized") and self._initialized:
             return
 
         self._tasks: Dict[str, TaskInfo] = {}
@@ -125,7 +130,7 @@ class BackgroundTaskManager:
         func: Callable[..., Awaitable[Any]],
         *args,
         metadata: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ) -> str:
         """
         创建并启动后台任务
@@ -149,7 +154,7 @@ class BackgroundTaskManager:
             task_type=task_type,
             status=TaskStatus.PENDING,
             created_at=datetime.now(),
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
         self._tasks[task_id] = task_info
 
@@ -269,9 +274,7 @@ class BackgroundTaskManager:
             self._tasks[task_id].progress = min(max(progress, 0.0), 1.0)
 
     def list_tasks(
-        self,
-        status: Optional[TaskStatus] = None,
-        task_type: Optional[str] = None
+        self, status: Optional[TaskStatus] = None, task_type: Optional[str] = None
     ) -> List[TaskInfo]:
         """
         列出任务
@@ -309,7 +312,11 @@ class BackgroundTaskManager:
         task_ids_to_remove = []
         for task_id, task_info in self._tasks.items():
             # 只清理已完成或已失败的任务
-            if task_info.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+            if task_info.status in (
+                TaskStatus.COMPLETED,
+                TaskStatus.FAILED,
+                TaskStatus.CANCELLED,
+            ):
                 if task_info.completed_at and task_info.completed_at < cutoff_time:
                     task_ids_to_remove.append(task_id)
 
@@ -324,6 +331,7 @@ class BackgroundTaskManager:
 
     async def start_cleanup_scheduler(self) -> None:
         """启动定期清理任务"""
+
         async def cleanup_loop():
             while True:
                 try:
@@ -364,8 +372,7 @@ class BackgroundTaskManager:
         # 等待任务取消完成
         if self._running_futures:
             await asyncio.gather(
-                *self._running_futures.values(),
-                return_exceptions=True
+                *self._running_futures.values(), return_exceptions=True
             )
 
         self._tasks.clear()

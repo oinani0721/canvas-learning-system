@@ -28,10 +28,13 @@ from canvas_utils.canvas_integration_coordinator import (
 
 # ========== Fixtures ==========
 
+
 @pytest.fixture
 def temp_canvas_file():
     """创建临时Canvas文件用于测试"""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False, encoding='utf-8') as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
+    ) as f:
         canvas_data = {
             "nodes": [
                 {
@@ -42,10 +45,10 @@ def temp_canvas_file():
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "1"
+                    "color": "1",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
         json.dump(canvas_data, f, ensure_ascii=False)
         temp_path = f.name
@@ -54,6 +57,7 @@ def temp_canvas_file():
 
     # 清理（添加重试机制解决Windows文件锁问题）
     import time
+
     max_retries = 3
 
     for attempt in range(max_retries):
@@ -72,7 +76,10 @@ def temp_canvas_file():
             else:
                 # 最后一次尝试失败，记录警告但不抛出异常
                 import warnings
-                warnings.warn(f"Failed to clean up temp file after {max_retries} attempts")
+
+                warnings.warn(
+                    f"Failed to clean up temp file after {max_retries} attempts"
+                )
 
 
 @pytest.fixture
@@ -82,11 +89,12 @@ def sample_agent_result():
         "agent_type": "oral-explanation",
         "content": "这是一个测试解释内容",
         "success": True,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
 
 # ========== 数据模型测试 ==========
+
 
 class TestDataModels:
     """测试数据模型类"""
@@ -98,7 +106,7 @@ class TestDataModels:
             explanation_node_id="exp-abc123",
             summary_node_id="sum-def456",
             edges_created=2,
-            execution_time=0.5
+            execution_time=0.5,
         )
 
         assert result.success is True
@@ -109,10 +117,7 @@ class TestDataModels:
 
     def test_integration_result_failure(self):
         """测试失败的IntegrationResult"""
-        result = IntegrationResult(
-            success=False,
-            error="测试错误"
-        )
+        result = IntegrationResult(success=False, error="测试错误")
 
         assert result.success is False
         assert result.error == "测试错误"
@@ -122,7 +127,7 @@ class TestDataModels:
         """测试Transaction创建"""
         transaction = Transaction(
             canvas_path="/path/to/test.canvas",
-            backup_path="/path/to/test.canvas.backup"
+            backup_path="/path/to/test.canvas.backup",
         )
 
         assert transaction.canvas_path == "/path/to/test.canvas"
@@ -133,6 +138,7 @@ class TestDataModels:
 
 # ========== 节点布局引擎测试 ==========
 
+
 class TestNodeLayoutEngine:
     """测试节点布局引擎"""
 
@@ -141,13 +147,7 @@ class TestNodeLayoutEngine:
         engine = NodeLayoutEngine()
         canvas_data = {
             "nodes": [
-                {
-                    "id": "ref-node",
-                    "x": 100,
-                    "y": 100,
-                    "width": 400,
-                    "height": 300
-                }
+                {"id": "ref-node", "x": 100, "y": 100, "width": 400, "height": 300}
             ]
         }
 
@@ -162,13 +162,7 @@ class TestNodeLayoutEngine:
         engine = NodeLayoutEngine()
         canvas_data = {
             "nodes": [
-                {
-                    "id": "exp-node",
-                    "x": 100,
-                    "y": 450,
-                    "width": 700,
-                    "height": 500
-                }
+                {"id": "exp-node", "x": 100, "y": 450, "width": 700, "height": 500}
             ]
         }
 
@@ -184,8 +178,14 @@ class TestNodeLayoutEngine:
 
         # 两个重叠的矩形
         overlaps = engine._rectangles_overlap(
-            0, 0, 100, 100,    # 矩形1
-            50, 50, 100, 100   # 矩形2（部分重叠）
+            0,
+            0,
+            100,
+            100,  # 矩形1
+            50,
+            50,
+            100,
+            100,  # 矩形2（部分重叠）
         )
 
         assert overlaps is True
@@ -196,14 +196,21 @@ class TestNodeLayoutEngine:
 
         # 两个不重叠的矩形
         overlaps = engine._rectangles_overlap(
-            0, 0, 100, 100,      # 矩形1
-            200, 200, 100, 100   # 矩形2（完全分离）
+            0,
+            0,
+            100,
+            100,  # 矩形1
+            200,
+            200,
+            100,
+            100,  # 矩形2（完全分离）
         )
 
         assert overlaps is False
 
 
 # ========== 事务管理器测试 ==========
+
 
 class TestCanvasTransactionManager:
     """测试Canvas事务管理器"""
@@ -240,10 +247,11 @@ class TestCanvasTransactionManager:
               而应该模拟事务失败场景。
         """
         import time
+
         manager = CanvasTransactionManager()
 
         # 读取原始内容
-        with open(temp_canvas_file, 'r', encoding='utf-8') as f:
+        with open(temp_canvas_file, "r", encoding="utf-8") as f:
             original_content = f.read()
 
         # 开始事务（会获取文件锁）
@@ -259,7 +267,7 @@ class TestCanvasTransactionManager:
         time.sleep(0.1)
 
         # 验证内容未变化（因为我们没有实际修改）
-        with open(temp_canvas_file, 'r', encoding='utf-8') as f:
+        with open(temp_canvas_file, "r", encoding="utf-8") as f:
             restored_content = f.read()
 
         assert restored_content == original_content
@@ -272,18 +280,21 @@ class TestCanvasTransactionManager:
 
 # ========== Canvas集成协调器测试 ==========
 
+
 class TestCanvasIntegrationCoordinator:
     """测试Canvas集成协调器"""
 
     @pytest.mark.asyncio
-    async def test_integrate_agent_result_success(self, temp_canvas_file, sample_agent_result):
+    async def test_integrate_agent_result_success(
+        self, temp_canvas_file, sample_agent_result
+    ):
         """测试成功集成Agent结果"""
         coordinator = CanvasIntegrationCoordinator()
 
         result = await coordinator.integrate_agent_result(
             agent_result=sample_agent_result,
             canvas_path=temp_canvas_file,
-            source_node_id="source-node-123"
+            source_node_id="source-node-123",
         )
 
         # 验证结果（如果失败，打印详细错误信息）
@@ -299,7 +310,7 @@ class TestCanvasIntegrationCoordinator:
         assert result.error is None
 
         # 验证Canvas文件已更新
-        with open(temp_canvas_file, 'r', encoding='utf-8') as f:
+        with open(temp_canvas_file, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         # 应该有3个节点（1个源节点 + 1个解释节点 + 1个总结节点）
@@ -326,13 +337,13 @@ class TestCanvasIntegrationCoordinator:
         failed_result = {
             "agent_type": "test",
             "success": False,
-            "error": "Agent执行失败"
+            "error": "Agent执行失败",
         }
 
         result = await coordinator.integrate_agent_result(
             agent_result=failed_result,
             canvas_path=temp_canvas_file,
-            source_node_id="source-node-123"
+            source_node_id="source-node-123",
         )
 
         assert result.success is False
@@ -346,7 +357,7 @@ class TestCanvasIntegrationCoordinator:
         result = await coordinator.integrate_agent_result(
             agent_result=sample_agent_result,
             canvas_path="/path/to/nonexistent.canvas",
-            source_node_id="test"
+            source_node_id="test",
         )
 
         assert result.success is False

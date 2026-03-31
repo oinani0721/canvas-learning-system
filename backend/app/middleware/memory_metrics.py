@@ -29,22 +29,26 @@ logger = structlog.get_logger(__name__)
 # [Source: docs/prd/sections/v117-3层记忆技术栈勘误修正-2025-11-12-必读.md]
 # ═══════════════════════════════════════════════════════════════════════════════
 
-VALID_MEMORY_TYPES = frozenset([
-    "graphiti",      # Knowledge graph layer (Neo4j-based)
-    "lancedb",       # Semantic memory layer (vector embeddings)
-    "temporal",      # Temporal memory layer (learning history)
-    "sqlite",        # Local cache/fallback
-])
+VALID_MEMORY_TYPES = frozenset(
+    [
+        "graphiti",  # Knowledge graph layer (Neo4j-based)
+        "lancedb",  # Semantic memory layer (vector embeddings)
+        "temporal",  # Temporal memory layer (learning history)
+        "sqlite",  # Local cache/fallback
+    ]
+)
 
-VALID_OPERATIONS = frozenset([
-    "read",
-    "write",
-    "search",
-    "delete",
-    "sync",
-    "batch_read",
-    "batch_write",
-])
+VALID_OPERATIONS = frozenset(
+    [
+        "read",
+        "write",
+        "search",
+        "delete",
+        "sync",
+        "batch_read",
+        "batch_write",
+    ]
+)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Prometheus Metrics Definitions
@@ -57,7 +61,7 @@ MEMORY_QUERY_LATENCY = Histogram(
     "canvas_memory_query_seconds",
     "Memory system query latency in seconds",
     ["memory_type", "operation"],
-    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
 )
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Counter with labels)
@@ -65,7 +69,7 @@ MEMORY_QUERY_LATENCY = Histogram(
 MEMORY_ERRORS = Counter(
     "canvas_memory_errors_total",
     "Total memory system errors",
-    ["memory_type", "operation", "error_type"]
+    ["memory_type", "operation", "error_type"],
 )
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Counter with labels)
@@ -73,7 +77,7 @@ MEMORY_ERRORS = Counter(
 MEMORY_QUERIES = Counter(
     "canvas_memory_queries_total",
     "Total memory system queries",
-    ["memory_type", "operation", "status"]
+    ["memory_type", "operation", "status"],
 )
 
 
@@ -82,11 +86,9 @@ MEMORY_QUERIES = Counter(
 # [Source: docs/architecture/performance-monitoring-architecture.md:239-280]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @contextmanager
-def track_memory_query(
-    memory_type: str,
-    operation: str
-) -> Generator[None, None, None]:
+def track_memory_query(memory_type: str, operation: str) -> Generator[None, None, None]:
     """
     Context manager for tracking memory system query metrics.
 
@@ -115,14 +117,14 @@ def track_memory_query(
         logger.warning(
             "memory_metrics.unknown_memory_type",
             memory_type=memory_type,
-            valid_types=list(VALID_MEMORY_TYPES)
+            valid_types=list(VALID_MEMORY_TYPES),
         )
 
     if operation not in VALID_OPERATIONS:
         logger.warning(
             "memory_metrics.unknown_operation",
             operation=operation,
-            valid_operations=list(VALID_OPERATIONS)
+            valid_operations=list(VALID_OPERATIONS),
         )
 
     # ✅ Verified from Context7:/prometheus/client_python (time.perf_counter for high precision)
@@ -134,14 +136,11 @@ def track_memory_query(
 
         # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
         MEMORY_QUERIES.labels(
-            memory_type=memory_type,
-            operation=operation,
-            status="success"
+            memory_type=memory_type, operation=operation, status="success"
         ).inc()
 
         log.debug(
-            "memory_metrics.query_success",
-            duration_s=time.perf_counter() - start
+            "memory_metrics.query_success", duration_s=time.perf_counter() - start
         )
 
     except Exception as e:
@@ -150,22 +149,18 @@ def track_memory_query(
 
         # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
         MEMORY_ERRORS.labels(
-            memory_type=memory_type,
-            operation=operation,
-            error_type=error_type
+            memory_type=memory_type, operation=operation, error_type=error_type
         ).inc()
 
         MEMORY_QUERIES.labels(
-            memory_type=memory_type,
-            operation=operation,
-            status="error"
+            memory_type=memory_type, operation=operation, status="error"
         ).inc()
 
         log.error(
             "memory_metrics.query_error",
             error_type=error_type,
             error_message=str(e),
-            duration_s=time.perf_counter() - start
+            duration_s=time.perf_counter() - start,
         )
 
         raise
@@ -176,8 +171,7 @@ def track_memory_query(
 
         # ✅ Verified from Context7:/prometheus/client_python (Histogram.labels().observe())
         MEMORY_QUERY_LATENCY.labels(
-            memory_type=memory_type,
-            operation=operation
+            memory_type=memory_type, operation=operation
         ).observe(duration)
 
 
@@ -186,7 +180,7 @@ def record_memory_query(
     operation: str,
     status: str = "success",
     duration_s: float = 0.0,
-    error_type: str | None = None
+    error_type: str | None = None,
 ) -> None:
     """
     Manually record a memory query metric.
@@ -209,24 +203,19 @@ def record_memory_query(
     """
     # Record query count
     MEMORY_QUERIES.labels(
-        memory_type=memory_type,
-        operation=operation,
-        status=status
+        memory_type=memory_type, operation=operation, status=status
     ).inc()
 
     # Record query latency
     if duration_s > 0:
         MEMORY_QUERY_LATENCY.labels(
-            memory_type=memory_type,
-            operation=operation
+            memory_type=memory_type, operation=operation
         ).observe(duration_s)
 
     # Record error if applicable
     if status == "error" and error_type:
         MEMORY_ERRORS.labels(
-            memory_type=memory_type,
-            operation=operation,
-            error_type=error_type
+            memory_type=memory_type, operation=operation, error_type=error_type
         ).inc()
 
     logger.debug(
@@ -235,7 +224,7 @@ def record_memory_query(
         operation=operation,
         status=status,
         duration_s=duration_s,
-        error_type=error_type
+        error_type=error_type,
     )
 
 
@@ -279,7 +268,7 @@ def get_memory_metrics_snapshot() -> dict[str, Any]:
                             "success_count": 0,
                             "error_count": 0,
                             "avg_latency_s": 0.0,
-                            "by_operation": {}
+                            "by_operation": {},
                         }
 
                     by_type[memory_type]["query_count"] += count
@@ -325,5 +314,5 @@ def get_memory_metrics_snapshot() -> dict[str, Any]:
     return {
         "queries_total": queries_total,
         "avg_latency_s": round(avg_latency_s, 4),
-        "by_type": by_type
+        "by_type": by_type,
     }

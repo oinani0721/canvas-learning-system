@@ -10,6 +10,11 @@ from app.middleware.agent_metrics import (
     record_agent_invocation,
     track_agent_execution,
 )
+from app.middleware.cost_tracker import (
+    CostTracker,
+    cleanup_cost_tracker,
+    get_cost_tracker,
+)
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.error_tracking import (
     ERROR_COUNTER,
@@ -21,6 +26,17 @@ from app.middleware.error_tracking import (
     is_retryable,
     record_error,
     record_retry_attempt,
+)
+
+# Story 7.2: LLM Call Logging & Token Tracking
+from app.middleware.llm_call_logger import (
+    CallStatus,
+    ErrorCategory,
+    LLMCallLog,
+    LLMCallLogger,
+    TaskType,
+    classify_error,
+    llm_call_logger,
 )
 from app.middleware.logging_middleware import LoggingMiddleware
 from app.middleware.memory_metrics import (
@@ -38,22 +54,6 @@ from app.middleware.metrics import (
     MetricsMiddleware,
     get_api_metrics_snapshot,
     metrics_middleware,
-)
-
-# Story 7.2: LLM Call Logging & Token Tracking
-from app.middleware.llm_call_logger import (
-    LLMCallLog,
-    LLMCallLogger,
-    TaskType,
-    ErrorCategory,
-    CallStatus,
-    classify_error,
-    llm_call_logger,
-)
-from app.middleware.cost_tracker import (
-    CostTracker,
-    get_cost_tracker,
-    cleanup_cost_tracker,
 )
 
 __all__ = [

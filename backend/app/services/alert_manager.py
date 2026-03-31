@@ -39,6 +39,7 @@ logger = structlog.get_logger(__name__)
 # [Source: docs/architecture/performance-monitoring-architecture.md:271-278]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class AlertSeverity(Enum):
     """Alert severity levels.
 
@@ -50,6 +51,7 @@ class AlertSeverity(Enum):
     | warning | Orange | 15 minutes |
     | info | Blue | 1 hour |
     """
+
     CRITICAL = "critical"
     WARNING = "warning"
     INFO = "info"
@@ -63,6 +65,7 @@ class AlertState(Enum):
     - FIRING: Alert triggered, notifications sent
     - RESOLVED: Alert condition no longer met
     """
+
     PENDING = "pending"
     FIRING = "firing"
     RESOLVED = "resolved"
@@ -83,6 +86,7 @@ class AlertRule:
         description: Detailed description with {value} placeholder
         labels: Additional labels for categorization
     """
+
     name: str
     expression: str
     for_duration: int
@@ -110,6 +114,7 @@ class Alert:
         state: Current alert state
         pending_since: When alert entered pending state
     """
+
     id: str
     name: str
     severity: AlertSeverity
@@ -145,6 +150,7 @@ class Alert:
 # Alert Manager
 # [Source: docs/stories/17.3.story.md - AC 3, 7]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class AlertManager:
     """Alert management system.
@@ -477,8 +483,7 @@ class AlertManager:
             List of firing alerts, sorted by triggered_at (newest first)
         """
         alerts = [
-            a for a in self._active_alerts.values()
-            if a.state == AlertState.FIRING
+            a for a in self._active_alerts.values() if a.state == AlertState.FIRING
         ]
 
         if severity:
@@ -497,8 +502,12 @@ class AlertManager:
         active = self.get_active_alerts()
         return {
             "active_count": len(active),
-            "critical_count": len([a for a in active if a.severity == AlertSeverity.CRITICAL]),
-            "warning_count": len([a for a in active if a.severity == AlertSeverity.WARNING]),
+            "critical_count": len(
+                [a for a in active if a.severity == AlertSeverity.CRITICAL]
+            ),
+            "warning_count": len(
+                [a for a in active if a.severity == AlertSeverity.WARNING]
+            ),
             "info_count": len([a for a in active if a.severity == AlertSeverity.INFO]),
         }
 
@@ -507,6 +516,7 @@ class AlertManager:
 # Alert Rule Loader
 # [Source: docs/stories/17.3.story.md - Task 2]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def load_alert_rules_from_yaml(yaml_path: str) -> List[AlertRule]:
     """Load alert rules from YAML configuration.
@@ -555,6 +565,7 @@ def load_alert_rules_from_yaml(yaml_path: str) -> List[AlertRule]:
 # Default Alert Rules
 # [Source: docs/architecture/performance-monitoring-architecture.md:281-323]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def get_default_alert_rules() -> List[AlertRule]:
     """Get default alert rules.

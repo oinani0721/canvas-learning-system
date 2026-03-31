@@ -92,7 +92,9 @@ class ToolExecutor:
     ) -> str:
         """Search vault notes via LanceDB vector search."""
         if not self._lancedb:
-            return "[Error] LanceDB client not available. Vault note search is disabled."
+            return (
+                "[Error] LanceDB client not available. Vault note search is disabled."
+            )
 
         try:
             results: List[Dict[str, Any]] = await self._lancedb.search(
@@ -102,14 +104,21 @@ class ToolExecutor:
             )
         except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
             # Fallback: try the default table
-            logger.warning(f"vault_notes table search failed ({e}), trying canvas_explanations")
+            logger.warning(
+                f"vault_notes table search failed ({e}), trying canvas_explanations"
+            )
             try:
                 results = await self._lancedb.search(
                     query=query,
                     table_name="canvas_explanations",
                     num_results=num_results,
                 )
-            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e2:
+            except (
+                RuntimeError,
+                ConnectionError,
+                asyncio.TimeoutError,
+                ValueError,
+            ) as e2:
                 return f"[Error] LanceDB search failed: {str(e2)[:200]}"
 
         if not results:
@@ -137,7 +146,9 @@ class ToolExecutor:
             return f"[Error] Knowledge graph search failed: {str(e)[:200]}"
 
         if not results:
-            return f"[No results] No knowledge graph entities found for query: '{query}'"
+            return (
+                f"[No results] No knowledge graph entities found for query: '{query}'"
+            )
 
         return self._format_search_results(results, source_label="KnowledgeGraph")
 
@@ -177,22 +188,24 @@ class ToolExecutor:
                 selected = lines[start:end]
                 # Include line numbers for citation
                 numbered = [
-                    f"{start + i + 1}: {line}"
-                    for i, line in enumerate(selected)
+                    f"{start + i + 1}: {line}" for i, line in enumerate(selected)
                 ]
-                return f"[File: {file_path}, lines {start+1}-{end}]\n" + "\n".join(numbered)
+                return f"[File: {file_path}, lines {start + 1}-{end}]\n" + "\n".join(
+                    numbered
+                )
             else:
                 # Limit to first 200 lines to avoid overwhelming the context
                 if len(lines) > 200:
                     truncated = lines[:200]
                     return (
                         f"[File: {file_path}, showing first 200 of {len(lines)} lines]\n"
-                        + "\n".join(f"{i+1}: {line}" for i, line in enumerate(truncated))
+                        + "\n".join(
+                            f"{i + 1}: {line}" for i, line in enumerate(truncated)
+                        )
                         + f"\n\n[... truncated, {len(lines) - 200} more lines]"
                     )
-                return (
-                    f"[File: {file_path}, {len(lines)} lines]\n"
-                    + "\n".join(f"{i+1}: {line}" for i, line in enumerate(lines))
+                return f"[File: {file_path}, {len(lines)} lines]\n" + "\n".join(
+                    f"{i + 1}: {line}" for i, line in enumerate(lines)
                 )
 
         except UnicodeDecodeError:

@@ -14,9 +14,8 @@ Test Strategy:
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
 import app.services.memory_service as mem_module
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -34,11 +33,11 @@ class TestSingletonUnity:
     @pytest.mark.asyncio
     async def test_services_get_memory_service_returns_singleton(self):
         """get_memory_service() returns the same instance on repeated calls."""
-        with patch.object(mem_module, 'MemoryService') as MockCls:
+        with patch.object(mem_module, "MemoryService") as MockCls:
             inst = AsyncMock()
             inst._initialized = False
             inst.initialize = AsyncMock(
-                side_effect=lambda: setattr(inst, '_initialized', True)
+                side_effect=lambda: setattr(inst, "_initialized", True)
             )
             MockCls.return_value = inst
 
@@ -90,18 +89,18 @@ class TestSingletonUnity:
     @pytest.mark.asyncio
     async def test_cross_endpoint_same_instance(self):
         """Calling singleton from different import paths yields identical object."""
-        with patch.object(mem_module, 'MemoryService') as MockCls:
+        with patch.object(mem_module, "MemoryService") as MockCls:
             inst = AsyncMock()
             inst._initialized = False
             inst.initialize = AsyncMock(
-                side_effect=lambda: setattr(inst, '_initialized', True)
+                side_effect=lambda: setattr(inst, "_initialized", True)
             )
             MockCls.return_value = inst
 
             # Import from three different paths
-            from app.services.memory_service import get_memory_service as svc_get
-            from app.api.v1.endpoints.memory import get_memory_service as ep_get
             from app.api.v1.endpoints.agents import get_memory_service as ag_get
+            from app.api.v1.endpoints.memory import get_memory_service as ep_get
+            from app.services.memory_service import get_memory_service as svc_get
 
             svc = await svc_get()
             ep = await ep_get()
@@ -115,7 +114,7 @@ class TestSingletonUnity:
         """endpoints/memory.py must NOT define its own _memory_service_instance."""
         import app.api.v1.endpoints.memory as ep_mod
 
-        assert not hasattr(ep_mod, '_memory_service_instance'), (
+        assert not hasattr(ep_mod, "_memory_service_instance"), (
             "endpoints/memory.py must not have its own _memory_service_instance; "
             "singleton lives only in services/memory_service.py"
         )
@@ -124,7 +123,7 @@ class TestSingletonUnity:
         """endpoints/agents.py must NOT have get_memory_service_for_agents."""
         import app.api.v1.endpoints.agents as ag_mod
 
-        assert not hasattr(ag_mod, 'get_memory_service_for_agents'), (
+        assert not hasattr(ag_mod, "get_memory_service_for_agents"), (
             "endpoints/agents.py must not have get_memory_service_for_agents; "
             "use get_memory_service from services layer instead"
         )
@@ -132,11 +131,11 @@ class TestSingletonUnity:
     @pytest.mark.asyncio
     async def test_reset_clears_singleton(self):
         """reset_memory_service() clears the singleton for test isolation."""
-        with patch.object(mem_module, 'MemoryService') as MockCls:
+        with patch.object(mem_module, "MemoryService") as MockCls:
             inst = AsyncMock()
             inst._initialized = False
             inst.initialize = AsyncMock(
-                side_effect=lambda: setattr(inst, '_initialized', True)
+                side_effect=lambda: setattr(inst, "_initialized", True)
             )
             MockCls.return_value = inst
 
@@ -151,7 +150,7 @@ class TestSingletonUnity:
             inst2 = AsyncMock()
             inst2._initialized = False
             inst2.initialize = AsyncMock(
-                side_effect=lambda: setattr(inst2, '_initialized', True)
+                side_effect=lambda: setattr(inst2, "_initialized", True)
             )
             MockCls.return_value = inst2
 

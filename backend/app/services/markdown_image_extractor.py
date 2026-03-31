@@ -29,6 +29,7 @@ class ImageReference:
         format: "obsidian" | "markdown" - 标识语法类型
         original_syntax: 原始语法字符串 (用于调试)
     """
+
     path: str
     alt_text: str = ""
     format: str = ""  # "obsidian" | "markdown"
@@ -64,16 +65,16 @@ class MarkdownImageExtractor:
     # Obsidian: ![[path]] or ![[path|caption]]
     # - Group 1: path (required)
     # - Group 2: caption after | (optional)
-    OBSIDIAN_PATTERN = re.compile(r'!\[\[([^\]|]+)(?:\|([^\]]*))?\]\]')
+    OBSIDIAN_PATTERN = re.compile(r"!\[\[([^\]|]+)(?:\|([^\]]*))?\]\]")
 
     # ✅ Verified from Story 12.E.4 Technical Details
     # Markdown: ![alt](path)
     # - Group 1: alt text (can be empty)
     # - Group 2: path (required)
-    MARKDOWN_PATTERN = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)')
+    MARKDOWN_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 
     # Supported image extensions for validation (optional filtering)
-    SUPPORTED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+    SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
 
     def extract_all(self, content: str) -> List[ImageReference]:
         """提取所有图片引用 (AC 4.1, 4.2, 4.3)
@@ -109,12 +110,14 @@ class MarkdownImageExtractor:
             if self._is_url(path):
                 continue
 
-            refs.append(ImageReference(
-                path=path,
-                alt_text=caption,
-                format="obsidian",
-                original_syntax=match.group(0)
-            ))
+            refs.append(
+                ImageReference(
+                    path=path,
+                    alt_text=caption,
+                    format="obsidian",
+                    original_syntax=match.group(0),
+                )
+            )
 
         # ✅ AC 4.2: Extract Markdown format ![alt](path)
         for match in self.MARKDOWN_PATTERN.finditer(content):
@@ -125,12 +128,14 @@ class MarkdownImageExtractor:
             if self._is_url(path):
                 continue
 
-            refs.append(ImageReference(
-                path=path,
-                alt_text=alt_text,
-                format="markdown",
-                original_syntax=match.group(0)
-            ))
+            refs.append(
+                ImageReference(
+                    path=path,
+                    alt_text=alt_text,
+                    format="markdown",
+                    original_syntax=match.group(0),
+                )
+            )
 
         return refs
 
@@ -150,14 +155,14 @@ class MarkdownImageExtractor:
             >>> extractor._is_url("./local.png")
             False
         """
-        return path.startswith(('http://', 'https://', 'data:'))
+        return path.startswith(("http://", "https://", "data:"))
 
     async def resolve_paths(
         self,
         refs: List[ImageReference],
         vault_path: Path,
         canvas_dir: Optional[Path] = None,
-        source_file_dir: Optional[Path] = None
+        source_file_dir: Optional[Path] = None,
     ) -> List[Dict]:
         """解析相对路径为绝对路径 (AC 4.4)
 
@@ -190,11 +195,7 @@ class MarkdownImageExtractor:
         resolved: List[Dict] = []
 
         for ref in refs:
-            result: Dict = {
-                "reference": ref,
-                "absolute_path": None,
-                "exists": False
-            }
+            result: Dict = {"reference": ref, "absolute_path": None, "exists": False}
 
             # Build candidate paths to check
             # ✅ Verified from ADR-011: Use pathlib for path operations
@@ -207,7 +208,7 @@ class MarkdownImageExtractor:
 
             # 2. Relative to canvas file directory (for ./ and ../ paths)
             if canvas_dir:
-                if ref.path.startswith(('./', '../')):
+                if ref.path.startswith(("./", "../")):
                     # Explicit relative path
                     candidates.append(canvas_dir / ref.path)
                 else:
@@ -258,12 +259,14 @@ class MarkdownImageExtractor:
             if self._is_url(path):
                 continue
 
-            refs.append(ImageReference(
-                path=path,
-                alt_text=caption,
-                format="obsidian",
-                original_syntax=match.group(0)
-            ))
+            refs.append(
+                ImageReference(
+                    path=path,
+                    alt_text=caption,
+                    format="obsidian",
+                    original_syntax=match.group(0),
+                )
+            )
 
         return refs
 
@@ -290,19 +293,19 @@ class MarkdownImageExtractor:
             if self._is_url(path):
                 continue
 
-            refs.append(ImageReference(
-                path=path,
-                alt_text=alt_text,
-                format="markdown",
-                original_syntax=match.group(0)
-            ))
+            refs.append(
+                ImageReference(
+                    path=path,
+                    alt_text=alt_text,
+                    format="markdown",
+                    original_syntax=match.group(0),
+                )
+            )
 
         return refs
 
     def filter_by_extension(
-        self,
-        refs: List[ImageReference],
-        extensions: Optional[set] = None
+        self, refs: List[ImageReference], extensions: Optional[set] = None
     ) -> List[ImageReference]:
         """按文件扩展名过滤图片引用
 

@@ -121,7 +121,7 @@ class TestSnapshotManagerInit:
         manager = SnapshotManager(storage_root=temp_storage_dir)
 
         assert manager.auto_interval == 300  # Default 5 minutes
-        assert manager.max_snapshots == 50   # Default 50
+        assert manager.max_snapshots == 50  # Default 50
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -163,7 +163,9 @@ class TestSnapshotCreation:
         assert snapshot.metadata.created_by == "system"
 
     @pytest.mark.asyncio
-    async def test_create_checkpoint_snapshot(self, snapshot_manager, sample_canvas_file):
+    async def test_create_checkpoint_snapshot(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test creating a checkpoint snapshot."""
         snapshot = await snapshot_manager.create_snapshot(
             canvas_path=sample_canvas_file,
@@ -175,7 +177,9 @@ class TestSnapshotCreation:
         assert snapshot.type == SnapshotType.CHECKPOINT
 
     @pytest.mark.asyncio
-    async def test_create_checkpoint_convenience_method(self, snapshot_manager, sample_canvas_file):
+    async def test_create_checkpoint_convenience_method(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test the create_checkpoint convenience method."""
         snapshot = await snapshot_manager.create_checkpoint(
             canvas_path=sample_canvas_file,
@@ -187,7 +191,9 @@ class TestSnapshotCreation:
         assert snapshot.metadata.description == "Checkpoint before edit"
 
     @pytest.mark.asyncio
-    async def test_create_snapshot_with_operation_id(self, snapshot_manager, sample_canvas_file):
+    async def test_create_snapshot_with_operation_id(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test creating a snapshot linked to an operation."""
         snapshot = await snapshot_manager.create_snapshot(
             canvas_path=sample_canvas_file,
@@ -198,7 +204,9 @@ class TestSnapshotCreation:
         assert snapshot.last_operation_id == "op-12345"
 
     @pytest.mark.asyncio
-    async def test_create_snapshot_generates_uuid(self, snapshot_manager, sample_canvas_file):
+    async def test_create_snapshot_generates_uuid(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test that snapshot ID is a valid UUID."""
         import uuid
 
@@ -211,7 +219,9 @@ class TestSnapshotCreation:
         uuid.UUID(snapshot.id)
 
     @pytest.mark.asyncio
-    async def test_create_snapshot_nonexistent_file_returns_empty(self, snapshot_manager):
+    async def test_create_snapshot_nonexistent_file_returns_empty(
+        self, snapshot_manager
+    ):
         """Test creating snapshot for non-existent file returns empty data.
 
         The SnapshotManager gracefully handles non-existent files by creating
@@ -237,7 +247,9 @@ class TestSnapshotStorage:
     """Tests for snapshot storage and compression."""
 
     @pytest.mark.asyncio
-    async def test_snapshot_saved_to_disk(self, snapshot_manager, sample_canvas_file, temp_storage_dir):
+    async def test_snapshot_saved_to_disk(
+        self, snapshot_manager, sample_canvas_file, temp_storage_dir
+    ):
         """Test that snapshot is saved to disk."""
         snapshot = await snapshot_manager.create_snapshot(
             canvas_path=sample_canvas_file,
@@ -253,7 +265,9 @@ class TestSnapshotStorage:
         assert snapshot_dir.exists()
 
     @pytest.mark.asyncio
-    async def test_snapshot_compression(self, snapshot_manager, sample_canvas_file, temp_storage_dir):
+    async def test_snapshot_compression(
+        self, snapshot_manager, sample_canvas_file, temp_storage_dir
+    ):
         """Test that snapshots are compressed with gzip."""
         snapshot = await snapshot_manager.create_snapshot(
             canvas_path=sample_canvas_file,
@@ -274,7 +288,9 @@ class TestSnapshotStorage:
                     assert "canvas_data" in data
 
     @pytest.mark.asyncio
-    async def test_index_updated_on_create(self, snapshot_manager, sample_canvas_file, temp_storage_dir):
+    async def test_index_updated_on_create(
+        self, snapshot_manager, sample_canvas_file, temp_storage_dir
+    ):
         """Test that index is updated when snapshot is created."""
         await snapshot_manager.create_snapshot(
             canvas_path=sample_canvas_file,
@@ -283,7 +299,9 @@ class TestSnapshotStorage:
 
         # Index path: storage_root/snapshots/{canvas_name}/snapshots_index.json
         canvas_name = Path(sample_canvas_file).stem
-        index_path = temp_storage_dir / "snapshots" / canvas_name / "snapshots_index.json"
+        index_path = (
+            temp_storage_dir / "snapshots" / canvas_name / "snapshots_index.json"
+        )
 
         # Index should exist
         assert index_path.exists()
@@ -323,7 +341,9 @@ class TestSnapshotRetrieval:
     @pytest.mark.asyncio
     async def test_get_nonexistent_snapshot(self, snapshot_manager, sample_canvas_file):
         """Test retrieving a non-existent snapshot."""
-        result = await snapshot_manager.get_snapshot(sample_canvas_file, "nonexistent-id")
+        result = await snapshot_manager.get_snapshot(
+            sample_canvas_file, "nonexistent-id"
+        )
 
         assert result is None
 
@@ -352,7 +372,9 @@ class TestSnapshotRetrieval:
         assert latest.metadata.description == "Second"
 
     @pytest.mark.asyncio
-    async def test_get_latest_snapshot_empty(self, snapshot_manager, sample_canvas_file):
+    async def test_get_latest_snapshot_empty(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test getting latest snapshot when none exist."""
         latest = await snapshot_manager.get_latest_snapshot(sample_canvas_file)
 
@@ -383,7 +405,9 @@ class TestSnapshotListing:
         assert len(snapshots) == 3
 
     @pytest.mark.asyncio
-    async def test_list_snapshots_pagination(self, snapshot_manager, sample_canvas_file):
+    async def test_list_snapshots_pagination(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test snapshot listing with pagination."""
         # Create multiple snapshots
         for i in range(5):
@@ -394,19 +418,27 @@ class TestSnapshotListing:
             )
 
         # Get first page
-        page1 = await snapshot_manager.list_snapshots(sample_canvas_file, limit=2, offset=0)
+        page1 = await snapshot_manager.list_snapshots(
+            sample_canvas_file, limit=2, offset=0
+        )
         assert len(page1) == 2
 
         # Get second page
-        page2 = await snapshot_manager.list_snapshots(sample_canvas_file, limit=2, offset=2)
+        page2 = await snapshot_manager.list_snapshots(
+            sample_canvas_file, limit=2, offset=2
+        )
         assert len(page2) == 2
 
         # Get third page
-        page3 = await snapshot_manager.list_snapshots(sample_canvas_file, limit=2, offset=4)
+        page3 = await snapshot_manager.list_snapshots(
+            sample_canvas_file, limit=2, offset=4
+        )
         assert len(page3) == 1
 
     @pytest.mark.asyncio
-    async def test_list_snapshots_reverse_chronological(self, snapshot_manager, sample_canvas_file):
+    async def test_list_snapshots_reverse_chronological(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test that snapshots are listed newest first."""
         # Create snapshots with slight delays
         for i in range(3):
@@ -469,9 +501,13 @@ class TestSnapshotDeletion:
         assert retrieved is None
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_snapshot(self, snapshot_manager, sample_canvas_file):
+    async def test_delete_nonexistent_snapshot(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test deleting a non-existent snapshot."""
-        result = await snapshot_manager.delete_snapshot(sample_canvas_file, "nonexistent-id")
+        result = await snapshot_manager.delete_snapshot(
+            sample_canvas_file, "nonexistent-id"
+        )
 
         assert result is False
 
@@ -504,7 +540,9 @@ class TestAutoCleanup:
     """Tests for automatic cleanup of old snapshots."""
 
     @pytest.mark.asyncio
-    async def test_cleanup_when_exceeding_max(self, temp_storage_dir, sample_canvas_file):
+    async def test_cleanup_when_exceeding_max(
+        self, temp_storage_dir, sample_canvas_file
+    ):
         """Test that old snapshots are cleaned up when max is exceeded."""
         # Create manager with low max
         manager = SnapshotManager(
@@ -572,7 +610,9 @@ class TestAutoSnapshotScheduling:
         assert not snapshot_manager.is_auto_snapshot_running(sample_canvas_file)
 
     @pytest.mark.asyncio
-    async def test_stop_all_auto_snapshots(self, snapshot_manager, sample_canvas_file, temp_storage_dir):
+    async def test_stop_all_auto_snapshots(
+        self, snapshot_manager, sample_canvas_file, temp_storage_dir
+    ):
         """Test stopping all auto-snapshots."""
         # Create another canvas file
         canvas2 = temp_storage_dir / "test2.canvas"
@@ -590,7 +630,9 @@ class TestAutoSnapshotScheduling:
         assert not snapshot_manager.is_auto_snapshot_running(str(canvas2))
 
     @pytest.mark.asyncio
-    async def test_auto_snapshot_creates_snapshots(self, temp_storage_dir, sample_canvas_file):
+    async def test_auto_snapshot_creates_snapshots(
+        self, temp_storage_dir, sample_canvas_file
+    ):
         """Test that auto-snapshot actually creates snapshots."""
         # Create manager with very short interval
         manager = SnapshotManager(
@@ -611,7 +653,9 @@ class TestAutoSnapshotScheduling:
         assert count >= 1
 
     @pytest.mark.asyncio
-    async def test_is_auto_snapshot_running_false_initially(self, snapshot_manager, sample_canvas_file):
+    async def test_is_auto_snapshot_running_false_initially(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test that auto-snapshot is not running initially."""
         assert not snapshot_manager.is_auto_snapshot_running(sample_canvas_file)
 
@@ -619,14 +663,18 @@ class TestAutoSnapshotScheduling:
     async def test_double_start_is_safe(self, snapshot_manager, sample_canvas_file):
         """Test that starting auto-snapshot twice is safe."""
         await snapshot_manager.start_auto_snapshot(sample_canvas_file)
-        await snapshot_manager.start_auto_snapshot(sample_canvas_file)  # Should not raise
+        await snapshot_manager.start_auto_snapshot(
+            sample_canvas_file
+        )  # Should not raise
 
         assert snapshot_manager.is_auto_snapshot_running(sample_canvas_file)
 
         await snapshot_manager.stop_auto_snapshot(sample_canvas_file)
 
     @pytest.mark.asyncio
-    async def test_stop_without_start_is_safe(self, snapshot_manager, sample_canvas_file):
+    async def test_stop_without_start_is_safe(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test that stopping without starting is safe."""
         # Should not raise
         await snapshot_manager.stop_auto_snapshot(sample_canvas_file)
@@ -729,7 +777,9 @@ class TestEdgeCases:
         assert len(snapshot.canvas_data["nodes"]) == 100
 
     @pytest.mark.asyncio
-    async def test_snapshot_with_special_characters_in_path(self, snapshot_manager, temp_storage_dir):
+    async def test_snapshot_with_special_characters_in_path(
+        self, snapshot_manager, temp_storage_dir
+    ):
         """Test snapshot with special characters in canvas path."""
         special_canvas = temp_storage_dir / "测试-canvas_file.canvas"
         with open(special_canvas, "w", encoding="utf-8") as f:
@@ -743,11 +793,15 @@ class TestEdgeCases:
         assert snapshot is not None
 
         # Should be able to retrieve
-        retrieved = await snapshot_manager.get_snapshot(str(special_canvas), snapshot.id)
+        retrieved = await snapshot_manager.get_snapshot(
+            str(special_canvas), snapshot.id
+        )
         assert retrieved is not None
 
     @pytest.mark.asyncio
-    async def test_concurrent_snapshot_creation(self, snapshot_manager, sample_canvas_file):
+    async def test_concurrent_snapshot_creation(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test creating multiple snapshots concurrently."""
         tasks = [
             snapshot_manager.create_snapshot(
@@ -764,7 +818,9 @@ class TestEdgeCases:
         assert len(set(s.id for s in snapshots)) == 5  # All unique IDs
 
     @pytest.mark.asyncio
-    async def test_snapshot_metadata_size_calculated(self, snapshot_manager, sample_canvas_file):
+    async def test_snapshot_metadata_size_calculated(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test that snapshot metadata includes size_bytes."""
         snapshot = await snapshot_manager.create_snapshot(
             canvas_path=sample_canvas_file,
@@ -783,7 +839,9 @@ class TestOperationTrackerIntegration:
     """Tests for integration with OperationTracker."""
 
     @pytest.mark.asyncio
-    async def test_snapshot_linked_to_operation(self, snapshot_manager, sample_canvas_file):
+    async def test_snapshot_linked_to_operation(
+        self, snapshot_manager, sample_canvas_file
+    ):
         """Test that snapshot can be linked to an operation ID."""
         operation_id = "op-test-12345"
 

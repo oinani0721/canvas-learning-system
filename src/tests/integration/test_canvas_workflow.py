@@ -28,6 +28,7 @@ try:
     from system_health_monitor import SystemHealthMonitor
 
     from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator, CanvasOrchestrator
+
     CORE_MODULES_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Core modules not available: {e}")
@@ -54,6 +55,7 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
     def tearDown(self):
         """测试后清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_complete_learning_workflow(self):
@@ -69,7 +71,9 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
         self.assertIsNotNone(question_node, "问题节点应该被添加")
 
         # Step 3: 添加对应的黄色理解节点
-        understanding_node = self._add_understanding_node(canvas_path, question_node["id"])
+        understanding_node = self._add_understanding_node(
+            canvas_path, question_node["id"]
+        )
         self.assertIsNotNone(understanding_node, "理解节点应该被添加")
 
         # Step 4: 模拟理解填写和评分
@@ -78,7 +82,9 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
         self.assertIsNotNone(score_result, "评分应该被生成")
 
         # Step 5: 验证颜色流转逻辑
-        self._verify_color_flow(canvas_path, question_node["id"], understanding_node["id"])
+        self._verify_color_flow(
+            canvas_path, question_node["id"], understanding_node["id"]
+        )
 
         # Step 6: 生成检验白板
         review_canvas = self._generate_review_canvas(canvas_path)
@@ -96,7 +102,7 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
 
         # 测试无效JSON的错误处理
         invalid_canvas_path = os.path.join(self.temp_dir, "invalid.canvas")
-        with open(invalid_canvas_path, 'w', encoding='utf-8') as f:
+        with open(invalid_canvas_path, "w", encoding="utf-8") as f:
             f.write('{"invalid": json content}')  # 故意的JSON语法错误
 
         with self.assertRaises(json.JSONDecodeError):
@@ -127,16 +133,19 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
         # 测试批量节点操作性能
         start_time = datetime.now()
         for i in range(100):
-            self.business_logic.add_node(canvas_data, {
-                "id": f"perf_test_{i}",
-                "type": "text",
-                "x": i * 50,
-                "y": i * 30,
-                "width": 200,
-                "height": 100,
-                "color": "1",
-                "text": f"Performance test node {i}"
-            })
+            self.business_logic.add_node(
+                canvas_data,
+                {
+                    "id": f"perf_test_{i}",
+                    "type": "text",
+                    "x": i * 50,
+                    "y": i * 30,
+                    "width": 200,
+                    "height": 100,
+                    "color": "1",
+                    "text": f"Performance test node {i}",
+                },
+            )
         end_time = datetime.now()
 
         batch_processing_time = (end_time - start_time).total_seconds()
@@ -162,8 +171,11 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
         critical_components = ["canvas_operations", "error_handling", "memory_usage"]
         for component in critical_components:
             self.assertIn(component, components, f"应该包含{component}组件状态")
-            self.assertIn(components[component], ["healthy", "warning", "error"],
-                         f"{component}状态应该有效")
+            self.assertIn(
+                components[component],
+                ["healthy", "warning", "error"],
+                f"{component}状态应该有效",
+            )
 
         print("System health monitoring test passed!")
 
@@ -175,11 +187,11 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
         canvas_path = self._create_canvas_with_problems()
 
         # 模拟Agent调用（使用Mock）
-        with patch('canvas_orchestrator.call_subagent') as mock_agent:
+        with patch("canvas_orchestrator.call_subagent") as mock_agent:
             mock_agent.return_value = {
                 "status": "success",
                 "result": {"questions": ["Q1", "Q2", "Q3"]},
-                "explanation": "Decomposition successful"
+                "explanation": "Decomposition successful",
             }
 
             # 调用基础拆解Agent
@@ -205,10 +217,10 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
                     "height": 100,
                     "color": "1",  # 红色 - 不理解
                     "text": "什么是逆否命题？",
-                    "content": "这是一个关于逻辑学的问题"
+                    "content": "这是一个关于逻辑学的问题",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
     def _create_initial_canvas(self) -> str:
@@ -229,7 +241,7 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
             "height": 120,
             "color": "1",  # 红色
             "text": question_text,
-            "content": f"问题内容: {question_text}"
+            "content": f"问题内容: {question_text}",
         }
 
         self.business_logic.add_node(canvas_data, question_node)
@@ -240,7 +252,9 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
     def _add_understanding_node(self, canvas_path: str, question_node_id: str) -> Dict:
         """添加理解节点（黄色）"""
         canvas_data = self.json_operator.read_canvas(canvas_path)
-        question_node = self.business_logic.find_node_by_id(canvas_data, question_node_id)
+        question_node = self.business_logic.find_node_by_id(
+            canvas_data, question_node_id
+        )
 
         understanding_node = {
             "id": f"understanding_{question_node_id}",
@@ -251,7 +265,7 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
             "height": 80,
             "color": "6",  # 黄色 - 个人理解输出区
             "text": "我的理解：",
-            "content": ""
+            "content": "",
         }
 
         self.business_logic.add_node(canvas_data, understanding_node)
@@ -261,27 +275,35 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
             "id": f"edge_{question_node_id}_{understanding_node['id']}",
             "from": question_node_id,
             "to": understanding_node["id"],
-            "color": "6"
+            "color": "6",
         }
         self.business_logic.add_edge(canvas_data, edge)
 
         self.json_operator.write_canvas(canvas_path, canvas_data)
         return understanding_node
 
-    def _fill_understanding(self, canvas_path: str, understanding_node_id: str, content: str):
+    def _fill_understanding(
+        self, canvas_path: str, understanding_node_id: str, content: str
+    ):
         """填写理解内容"""
         canvas_data = self.json_operator.read_canvas(canvas_path)
-        understanding_node = self.business_logic.find_node_by_id(canvas_data, understanding_node_id)
+        understanding_node = self.business_logic.find_node_by_id(
+            canvas_data, understanding_node_id
+        )
 
         understanding_node["content"] = content
         understanding_node["text"] = f"我的理解：{content[:50]}..."
 
         self.json_operator.write_canvas(canvas_path, canvas_data)
 
-    def _score_understanding(self, canvas_path: str, understanding_node_id: str) -> Dict:
+    def _score_understanding(
+        self, canvas_path: str, understanding_node_id: str
+    ) -> Dict:
         """对理解进行评分"""
         canvas_data = self.json_operator.read_canvas(canvas_path)
-        understanding_node = self.business_logic.find_node_by_id(canvas_data, understanding_node_id)
+        understanding_node = self.business_logic.find_node_by_id(
+            canvas_data, understanding_node_id
+        )
 
         # 模拟评分逻辑
         content = understanding_node.get("content", "")
@@ -294,7 +316,7 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
             "imagery": min(100, score // 2),
             "completeness": min(100, len(content) // 5),
             "originality": min(100, score // 3),
-            "recommended_color": "2" if score >= 80 else "3" if score >= 60 else "1"
+            "recommended_color": "2" if score >= 80 else "3" if score >= 60 else "1",
         }
 
         # 更新节点颜色
@@ -303,18 +325,25 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
 
         return scoring_result
 
-    def _verify_color_flow(self, canvas_path: str, question_node_id: str, understanding_node_id: str):
+    def _verify_color_flow(
+        self, canvas_path: str, question_node_id: str, understanding_node_id: str
+    ):
         """验证颜色流转逻辑"""
         canvas_data = self.json_operator.read_canvas(canvas_path)
-        understanding_node = self.business_logic.find_node_by_id(canvas_data, understanding_node_id)
+        understanding_node = self.business_logic.find_node_by_id(
+            canvas_data, understanding_node_id
+        )
 
         # 验证颜色变化
-        self.assertIn(understanding_node["color"], ["1", "2", "3"],
-                     "理解节点颜色应该是有效值")
+        self.assertIn(
+            understanding_node["color"], ["1", "2", "3"], "理解节点颜色应该是有效值"
+        )
 
         # 如果是绿色（完全理解），问题节点也应该是绿色
         if understanding_node["color"] == "2":
-            question_node = self.business_logic.find_node_by_id(canvas_data, question_node_id)
+            question_node = self.business_logic.find_node_by_id(
+                canvas_data, question_node_id
+            )
             # 这里可以添加问题节点颜色同步的逻辑
 
     def _generate_review_canvas(self, original_canvas_path: str) -> str:
@@ -351,7 +380,7 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
                     "height": 100,
                     "color": str(i % 6 + 1),
                     "text": f"Node {i}",
-                    "content": f"Content for node {i}"
+                    "content": f"Content for node {i}",
                 }
                 for i in range(node_count)
             ],
@@ -360,10 +389,10 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
                     "id": f"edge_{i}",
                     "from": f"node_{i}",
                     "to": f"node_{(i + 1) % node_count}",
-                    "color": "6"
+                    "color": "6",
                 }
                 for i in range(min(node_count, node_count // 2))
-            ]
+            ],
         }
 
         self.json_operator.write_canvas(large_canvas_path, large_canvas_data)
@@ -375,8 +404,12 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
         for i in range(10):
             canvas_path = self._create_initial_canvas()
             self._add_question_node(canvas_path, f"Test question {i}")
-            understanding_node = self._add_understanding_node(canvas_path, f"question_{i}")
-            self._fill_understanding(canvas_path, understanding_node["id"], f"Test understanding {i}")
+            understanding_node = self._add_understanding_node(
+                canvas_path, f"question_{i}"
+            )
+            self._fill_understanding(
+                canvas_path, understanding_node["id"], f"Test understanding {i}"
+            )
 
             # 记录操作
             self.health_monitor.record_operation("canvas_node_add", {"success": True})
@@ -397,10 +430,10 @@ class TestCanvasWorkflowIntegration(unittest.TestCase):
                     "height": 150,
                     "color": "1",  # 红色 - 需要拆解
                     "text": "如何理解费曼学习法的核心原理？",
-                    "content": "这是一个复杂的概念理解问题"
+                    "content": "这是一个复杂的概念理解问题",
                 }
             ],
-            "edges": []
+            "edges": [],
         }
 
         self.json_operator.write_canvas(canvas_path, canvas_data)
@@ -417,6 +450,7 @@ class TestCanvasWorkflowEdgeCases(unittest.TestCase):
     def tearDown(self):
         """测试后清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     @unittest.skipUnless(CORE_MODULES_AVAILABLE, "Core modules not available")
@@ -447,7 +481,7 @@ class TestCanvasWorkflowEdgeCases(unittest.TestCase):
         corrupted_canvas_path = os.path.join(self.temp_dir, "corrupted.canvas")
 
         # 创建损坏的Canvas文件
-        with open(corrupted_canvas_path, 'w', encoding='utf-8') as f:
+        with open(corrupted_canvas_path, "w", encoding="utf-8") as f:
             f.write('{"nodes": [invalid_json}, "edges": []}')
 
         # 尝试读取应该失败
@@ -489,7 +523,7 @@ class TestCanvasWorkflowEdgeCases(unittest.TestCase):
                     "width": 200,
                     "height": 100,
                     "color": "1",
-                    "text": f"Node {node_id}"
+                    "text": f"Node {node_id}",
                 }
                 business_logic.add_node(data, node)
                 json_operator.write_canvas(canvas_path, data)

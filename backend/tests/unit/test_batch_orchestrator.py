@@ -17,19 +17,16 @@ Test coverage targets:
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Optional
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from app.models.session_models import (
-    NodeResult,
     SessionInfo,
     SessionStatus,
 )
 from app.services.batch_orchestrator import (
+    DEFAULT_MAX_CONCURRENT,
     BatchOrchestrator,
     GroupConfig,
     GroupExecutionResult,
@@ -37,22 +34,24 @@ from app.services.batch_orchestrator import (
     PerformanceMetrics,
     ProgressEvent,
     ProgressEventType,
-    DEFAULT_MAX_CONCURRENT,
 )
 from app.services.session_manager import (
+    InvalidStateTransitionError,
     SessionManager,
     SessionNotFoundError,
-    InvalidStateTransitionError,
 )
 
+from tests.conftest import simulate_async_delay
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class MockAgentResult:
     """Mock agent result for testing."""
+
     success: bool = True
     content: str = "Test content"
     file_path: Optional[str] = None
@@ -118,6 +117,7 @@ def orchestrator(mock_session_manager, mock_agent_service):
 # Test: Initialization
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestBatchOrchestratorInit:
     """Test BatchOrchestrator initialization."""
 
@@ -140,7 +140,9 @@ class TestBatchOrchestratorInit:
         assert orchestrator.max_concurrent == 5
         assert orchestrator.semaphore._value == 5
 
-    def test_init_with_progress_callback(self, mock_session_manager, mock_agent_service):
+    def test_init_with_progress_callback(
+        self, mock_session_manager, mock_agent_service
+    ):
         """Test initialization with progress callback."""
         callback = MagicMock()
         orchestrator = BatchOrchestrator(
@@ -154,6 +156,7 @@ class TestBatchOrchestratorInit:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Session Validation (AC:1)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestSessionValidation:
     """Test session validation (AC:1)."""
@@ -194,6 +197,7 @@ class TestSessionValidation:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Semaphore Concurrency Control (AC:2)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestSemaphoreConcurrency:
     """Test Semaphore(12) concurrency control (AC:2)."""
@@ -251,7 +255,9 @@ class TestSemaphoreConcurrency:
         await asyncio.gather(*tasks)
 
         # Should never exceed max_concurrent
-        assert max_concurrent_seen <= 3, f"Max concurrent was {max_concurrent_seen}, expected <= 3"
+        assert max_concurrent_seen <= 3, (
+            f"Max concurrent was {max_concurrent_seen}, expected <= 3"
+        )
 
     @pytest.mark.asyncio
     async def test_peak_concurrent_tracking(
@@ -293,6 +299,7 @@ class TestSemaphoreConcurrency:
 # Test: Progress Broadcasting (AC:3)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestProgressBroadcasting:
     """Test progress broadcasting (AC:3)."""
 
@@ -309,9 +316,7 @@ class TestProgressBroadcasting:
         )
 
         await orchestrator._broadcast_progress(
-            ProgressEventType.PROGRESS_UPDATE,
-            "test-session",
-            {"progress_percent": 50}
+            ProgressEventType.PROGRESS_UPDATE, "test-session", {"progress_percent": 50}
         )
 
         callback.assert_called_once()
@@ -333,9 +338,7 @@ class TestProgressBroadcasting:
         )
 
         await orchestrator._broadcast_progress(
-            ProgressEventType.TASK_COMPLETED,
-            "test-session",
-            {"node_id": "node-001"}
+            ProgressEventType.TASK_COMPLETED, "test-session", {"node_id": "node-001"}
         )
 
         callback.assert_called_once()
@@ -354,9 +357,7 @@ class TestProgressBroadcasting:
 
         # Should not raise
         await orchestrator._broadcast_progress(
-            ProgressEventType.ERROR,
-            "test-session",
-            {"error": "test"}
+            ProgressEventType.ERROR, "test-session", {"error": "test"}
         )
 
     @pytest.mark.asyncio
@@ -366,15 +367,14 @@ class TestProgressBroadcasting:
 
         # Should not raise
         await orchestrator._broadcast_progress(
-            ProgressEventType.PROGRESS_UPDATE,
-            "test-session",
-            {}
+            ProgressEventType.PROGRESS_UPDATE, "test-session", {}
         )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Partial Failure Handling (AC:4)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestPartialFailureHandling:
     """Test partial failure handling (AC:4)."""
@@ -420,9 +420,7 @@ class TestPartialFailureHandling:
         assert result.status == "partial_failure"
 
     @pytest.mark.asyncio
-    async def test_all_failed_status(
-        self, mock_session_manager, mock_agent_service
-    ):
+    async def test_all_failed_status(self, mock_session_manager, mock_agent_service):
         """Test that all failures result in 'failed' status."""
         mock_agent_service.call_agent = AsyncMock(
             return_value=MockAgentResult(success=False, error="Failed")
@@ -450,9 +448,7 @@ class TestPartialFailureHandling:
         assert result.failed_count == 2
 
     @pytest.mark.asyncio
-    async def test_all_success_status(
-        self, mock_session_manager, mock_agent_service
-    ):
+    async def test_all_success_status(self, mock_session_manager, mock_agent_service):
         """Test that all successes result in 'completed' status."""
         mock_agent_service.call_agent = AsyncMock(
             return_value=MockAgentResult(success=True)
@@ -483,6 +479,7 @@ class TestPartialFailureHandling:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Cancellation Support (AC:4)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestCancellationSupport:
     """Test cancellation support (AC:4)."""
@@ -551,6 +548,7 @@ class TestCancellationSupport:
 # Test: Result Aggregation (AC:5)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestResultAggregation:
     """Test result aggregation (AC:5)."""
 
@@ -575,8 +573,12 @@ class TestResultAggregation:
                 agent_type="test",
                 status="completed",
                 node_results=[
-                    NodeExecutionResult(node_id="n1", success=True, execution_time_ms=100),
-                    NodeExecutionResult(node_id="n2", success=True, execution_time_ms=150),
+                    NodeExecutionResult(
+                        node_id="n1", success=True, execution_time_ms=100
+                    ),
+                    NodeExecutionResult(
+                        node_id="n2", success=True, execution_time_ms=150
+                    ),
                 ],
                 completed_count=2,
                 failed_count=0,
@@ -621,9 +623,15 @@ class TestResultAggregation:
                 agent_type="test",
                 status="partial_failure",
                 node_results=[
-                    NodeExecutionResult(node_id="n1", success=True, execution_time_ms=100),
-                    NodeExecutionResult(node_id="n2", success=False, error_message="Error"),
-                    NodeExecutionResult(node_id="n3", success=True, execution_time_ms=150),
+                    NodeExecutionResult(
+                        node_id="n1", success=True, execution_time_ms=100
+                    ),
+                    NodeExecutionResult(
+                        node_id="n2", success=False, error_message="Error"
+                    ),
+                    NodeExecutionResult(
+                        node_id="n3", success=True, execution_time_ms=150
+                    ),
                 ],
                 completed_count=2,
                 failed_count=1,
@@ -648,6 +656,7 @@ class TestResultAggregation:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Fire-and-Forget Memory Integration (AC:6)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestMemoryIntegration:
     """Test fire-and-forget memory integration (AC:6)."""
@@ -707,9 +716,7 @@ class TestMemoryIntegration:
         )
 
     @pytest.mark.asyncio
-    async def test_memory_write_without_method(
-        self, mock_session_manager
-    ):
+    async def test_memory_write_without_method(self, mock_session_manager):
         """Test handling when agent_service doesn't have _trigger_memory_write."""
         agent_service = MagicMock()
         # Remove the method
@@ -734,12 +741,18 @@ class TestMemoryIntegration:
 # Test: Full Session Execution
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestFullSessionExecution:
     """Test complete session execution flow."""
 
     @pytest.mark.asyncio
     async def test_start_batch_session_success(
-        self, orchestrator, mock_session_manager, mock_session_info, mock_agent_service, sample_groups
+        self,
+        orchestrator,
+        mock_session_manager,
+        mock_session_info,
+        mock_agent_service,
+        sample_groups,
     ):
         """Test successful batch session execution."""
         mock_session_manager.get_session.return_value = mock_session_info
@@ -761,6 +774,7 @@ class TestFullSessionExecution:
         self, mock_session_manager, mock_agent_service, mock_session_info, sample_groups
     ):
         """Test batch session timeout handling."""
+
         async def slow_agent(*args, **kwargs):
             await simulate_async_delay(10)
             return MockAgentResult()
@@ -792,6 +806,7 @@ class TestFullSessionExecution:
 # Test: ProgressEvent Data Class
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestProgressEvent:
     """Test ProgressEvent data class."""
 
@@ -814,6 +829,7 @@ class TestProgressEvent:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: GroupConfig and NodeExecutionResult
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestDataClasses:
     """Test data class functionality."""
@@ -845,6 +861,7 @@ class TestDataClasses:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test: Exception Handling in Group Execution
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestExceptionHandling:
     """Test exception handling scenarios."""

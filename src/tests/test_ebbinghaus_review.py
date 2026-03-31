@@ -27,7 +27,7 @@ class TestEbbinghausReviewScheduler:
     def setup_method(self):
         """每个测试方法前的设置"""
         # 使用临时数据库文件进行测试
-        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
         self.temp_db.close()
         self.scheduler = EbbinghausReviewScheduler(self.temp_db.name)
 
@@ -57,18 +57,20 @@ class TestEbbinghausReviewScheduler:
             cursor = conn.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [row[0] for row in cursor.fetchall()]
-            assert 'review_schedules' in tables
-            assert 'review_history' in tables
-            assert 'user_review_stats' in tables
+            assert "review_schedules" in tables
+            assert "review_history" in tables
+            assert "user_review_stats" in tables
 
     def test_calculate_retention_rate_basic(self):
         """测试基本记忆保持率计算"""
         # 标准案例: 记忆强度S=10，时间t=10天
-        expected = math.exp(-10/10)  # = 0.3679...
+        expected = math.exp(-10 / 10)  # = 0.3679...
         actual = self.scheduler.calculate_retention_rate(10, 10)
 
         # 验证精度要求误差<1%
-        assert math.isclose(actual, expected, rel_tol=0.01), f"期望值: {expected}, 实际值: {actual}"
+        assert math.isclose(actual, expected, rel_tol=0.01), (
+            f"期望值: {expected}, 实际值: {actual}"
+        )
         assert 0 <= actual <= 1
 
     def test_calculate_retention_rate_zero_time(self):
@@ -112,9 +114,15 @@ class TestEbbinghausReviewScheduler:
         current_strength = 10.0
 
         # 低评分应该推荐短间隔
-        interval_score_3 = self.scheduler.calculate_optimal_review_interval(3, current_strength)
-        interval_score_5 = self.scheduler.calculate_optimal_review_interval(5, current_strength)
-        interval_score_8 = self.scheduler.calculate_optimal_review_interval(8, current_strength)
+        interval_score_3 = self.scheduler.calculate_optimal_review_interval(
+            3, current_strength
+        )
+        interval_score_5 = self.scheduler.calculate_optimal_review_interval(
+            5, current_strength
+        )
+        interval_score_8 = self.scheduler.calculate_optimal_review_interval(
+            8, current_strength
+        )
 
         assert interval_score_3 in DEFAULT_REVIEW_INTERVALS
         assert interval_score_5 in DEFAULT_REVIEW_INTERVALS
@@ -129,7 +137,9 @@ class TestEbbinghausReviewScheduler:
 
         # 测试不同评分对应的间隔
         for score in range(1, 11):
-            interval = self.scheduler.calculate_optimal_review_interval(score, current_strength)
+            interval = self.scheduler.calculate_optimal_review_interval(
+                score, current_strength
+            )
             assert interval in DEFAULT_REVIEW_INTERVALS
             assert isinstance(interval, int)
             assert interval > 0
@@ -164,18 +174,19 @@ class TestEbbinghausReviewScheduler:
         """验证记忆保持率计算精度"""
         # 标准验证案例
         test_cases = [
-            (1, 10, math.exp(-0.1)),    # 1天，S=10
-            (5, 10, math.exp(-0.5)),    # 5天，S=10
-            (10, 20, math.exp(-0.5)),    # 10天，S=20
-            (30, 15, math.exp(-2.0)),    # 30天，S=15
+            (1, 10, math.exp(-0.1)),  # 1天，S=10
+            (5, 10, math.exp(-0.5)),  # 5天，S=10
+            (10, 20, math.exp(-0.5)),  # 10天，S=20
+            (30, 15, math.exp(-2.0)),  # 30天，S=15
         ]
 
         for time, strength, expected in test_cases:
             actual = self.scheduler.calculate_retention_rate(time, strength)
 
             # 验证精度要求误差<1%
-            assert math.isclose(actual, expected, rel_tol=0.01), \
+            assert math.isclose(actual, expected, rel_tol=0.01), (
                 f"时间={time}, 强度={strength}: 期望={expected:.6f}, 实际={actual:.6f}"
+            )
 
     def test_algorithm_mathematical_properties(self):
         """测试算法的数学特性"""
@@ -202,12 +213,13 @@ class TestEbbinghausReviewScheduler:
                 rate = self.scheduler.calculate_retention_rate(t, s)
                 assert 0 <= rate <= 1
 
+
 class TestMemoryStrengthAdjustment:
     """测试记忆强度动态调整功能"""
 
     def setup_method(self):
         """每个测试方法前的设置"""
-        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
         self.temp_db.close()
         self.scheduler = EbbinghausReviewScheduler(self.temp_db.name)
 
@@ -224,7 +236,9 @@ class TestMemoryStrengthAdjustment:
         initial_strength = 10.0
         score = 5  # 中性评分
 
-        adjusted_strength = self.scheduler.adjust_memory_strength(initial_strength, score)
+        adjusted_strength = self.scheduler.adjust_memory_strength(
+            initial_strength, score
+        )
 
         # 5分应该保持当前强度不变
         assert math.isclose(adjusted_strength, initial_strength, rel_tol=0.01)
@@ -235,7 +249,9 @@ class TestMemoryStrengthAdjustment:
 
         # 测试不同高分
         for score in [6, 7, 8, 9, 10]:
-            adjusted_strength = self.scheduler.adjust_memory_strength(initial_strength, score)
+            adjusted_strength = self.scheduler.adjust_memory_strength(
+                initial_strength, score
+            )
 
             # 高分应该增加记忆强度
             assert adjusted_strength > initial_strength
@@ -252,7 +268,9 @@ class TestMemoryStrengthAdjustment:
 
         # 测试不同低分
         for score in [1, 2, 3, 4]:
-            adjusted_strength = self.scheduler.adjust_memory_strength(initial_strength, score)
+            adjusted_strength = self.scheduler.adjust_memory_strength(
+                initial_strength, score
+            )
 
             # 低分应该减少记忆强度
             assert adjusted_strength < initial_strength
@@ -269,8 +287,12 @@ class TestMemoryStrengthAdjustment:
         score = 8
         custom_factor = 0.3  # 更大的调整因子
 
-        default_adjusted = self.scheduler.adjust_memory_strength(initial_strength, score)
-        custom_adjusted = self.scheduler.adjust_memory_strength(initial_strength, score, custom_factor)
+        default_adjusted = self.scheduler.adjust_memory_strength(
+            initial_strength, score
+        )
+        custom_adjusted = self.scheduler.adjust_memory_strength(
+            initial_strength, score, custom_factor
+        )
 
         # 更大的调整因子应该产生更明显的调整效果
         assert custom_adjusted > default_adjusted
@@ -320,7 +342,7 @@ class TestMemoryStrengthAdjustment:
         """测试数据不足时的趋势分析"""
         review_history = [
             {"review_date": "2025-01-20", "score": 7},
-            {"review_date": "2025-01-22", "score": 8}
+            {"review_date": "2025-01-22", "score": 8},
         ]
 
         result = self.scheduler.get_memory_strength_trend(review_history)
@@ -337,7 +359,7 @@ class TestMemoryStrengthAdjustment:
             {"review_date": "2025-01-17", "score": 6},
             {"review_date": "2025-01-19", "score": 7},
             {"review_date": "2025-01-21", "score": 8},
-            {"review_date": "2025-01-23", "score": 9}
+            {"review_date": "2025-01-23", "score": 9},
         ]
 
         result = self.scheduler.get_memory_strength_trend(review_history)
@@ -354,7 +376,7 @@ class TestMemoryStrengthAdjustment:
             {"review_date": "2025-01-17", "score": 8},
             {"review_date": "2025-01-19", "score": 7},
             {"review_date": "2025-01-21", "score": 6},
-            {"review_date": "2025-01-23", "score": 5}
+            {"review_date": "2025-01-23", "score": 5},
         ]
 
         result = self.scheduler.get_memory_strength_trend(review_history)
@@ -368,7 +390,7 @@ class TestMemoryStrengthAdjustment:
         """测试记忆强度进展计算的准确性"""
         review_history = [
             {"review_date": "2025-01-20", "score": 7},
-            {"review_date": "2025-01-22", "score": 8}
+            {"review_date": "2025-01-22", "score": 8},
         ]
 
         result = self.scheduler.get_memory_strength_trend(review_history)
@@ -377,16 +399,21 @@ class TestMemoryStrengthAdjustment:
         # 验证第一次复习后的强度变化
         first_review = progression[0]
         expected_first_strength = 10.0 * (1.0 + (7 - 5) * 0.2)  # 10.0 * 1.4 = 14.0
-        assert math.isclose(first_review["strength_after"], expected_first_strength, rel_tol=0.01)
+        assert math.isclose(
+            first_review["strength_after"], expected_first_strength, rel_tol=0.01
+        )
         assert first_review["strength_before"] == 10.0
         assert first_review["score"] == 7
 
         # 验证第二次复习后的强度变化
         second_review = progression[1]
         expected_second_strength = 14.0 * (1.0 + (8 - 5) * 0.2)  # 14.0 * 1.6 = 22.4
-        assert math.isclose(second_review["strength_after"], expected_second_strength, rel_tol=0.01)
+        assert math.isclose(
+            second_review["strength_after"], expected_second_strength, rel_tol=0.01
+        )
         assert second_review["strength_before"] == expected_first_strength
         assert second_review["score"] == 8
+
 
 class TestEbbinghausConstants:
     """测试常量定义的正确性"""
@@ -396,7 +423,10 @@ class TestEbbinghausConstants:
         assert DEFAULT_REVIEW_INTERVALS == [1, 3, 7, 15, 30]
         assert all(isinstance(interval, int) for interval in DEFAULT_REVIEW_INTERVALS)
         assert all(interval > 0 for interval in DEFAULT_REVIEW_INTERVALS)
-        assert DEFAULT_REVIEW_INTERVALS == sorted(DEFAULT_REVIEW_INTERVALS)  # 应该是递增的
+        assert DEFAULT_REVIEW_INTERVALS == sorted(
+            DEFAULT_REVIEW_INTERVALS
+        )  # 应该是递增的
+
 
 if __name__ == "__main__":
     # 运行测试

@@ -50,15 +50,17 @@ class SubjectResolver:
 
     # Default skip directories (merged with config)
     DEFAULT_SKIP_DIRS = {
-        ".obsidian", ".git", "笔记库", "vault", "notes",
-        "templates", "attachments", ".canvas-links"
+        ".obsidian",
+        ".git",
+        "笔记库",
+        "vault",
+        "notes",
+        "templates",
+        "attachments",
+        ".canvas-links",
     }
 
-    def __init__(
-        self,
-        config_path: Optional[str] = None,
-        auto_load: bool = True
-    ):
+    def __init__(self, config_path: Optional[str] = None, auto_load: bool = True):
         """
         Initialize SubjectResolver.
 
@@ -109,7 +111,7 @@ class SubjectResolver:
                 self.config = SubjectMappingConfig()
                 return False
 
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 raw_config = yaml.safe_load(f)
 
             if raw_config is None:
@@ -118,20 +120,21 @@ class SubjectResolver:
             # Parse mappings
             mappings = []
             for m in raw_config.get("mappings", []):
-                mappings.append(SubjectMappingRule(
-                    pattern=m.get("pattern", ""),
-                    subject=m.get("subject", ""),
-                    category=m.get("category", "")
-                ))
+                mappings.append(
+                    SubjectMappingRule(
+                        pattern=m.get("pattern", ""),
+                        subject=m.get("subject", ""),
+                        category=m.get("category", ""),
+                    )
+                )
 
             # Parse config
             self.config = SubjectMappingConfig(
                 mappings=mappings,
                 category_rules=raw_config.get("category_rules", {}),
-                defaults=raw_config.get("defaults", {
-                    "subject": "general",
-                    "category": "general"
-                })
+                defaults=raw_config.get(
+                    "defaults", {"subject": "general", "category": "general"}
+                ),
             )
 
             # Update skip directories
@@ -155,7 +158,7 @@ class SubjectResolver:
         self,
         canvas_path: str,
         manual_subject: Optional[str] = None,
-        manual_category: Optional[str] = None
+        manual_category: Optional[str] = None,
     ) -> SubjectInfo:
         """
         Resolve subject, category, and group_id for a Canvas file.
@@ -187,7 +190,7 @@ class SubjectResolver:
                 subject=manual_subject,
                 category=category,
                 group_id=group_id,
-                source=MetadataSource.MANUAL
+                source=MetadataSource.MANUAL,
             )
 
         # Ensure config is loaded
@@ -203,7 +206,7 @@ class SubjectResolver:
                 subject=subject,
                 category=category,
                 group_id=group_id,
-                source=MetadataSource.CONFIG
+                source=MetadataSource.CONFIG,
             )
 
         # 3. Path-based auto-inference
@@ -215,14 +218,15 @@ class SubjectResolver:
                 subject=subject,
                 category=category,
                 group_id=group_id,
-                source=MetadataSource.INFERRED
+                source=MetadataSource.INFERRED,
             )
 
         # 4. Default values
-        defaults = self.config.defaults if self.config else {
-            "subject": "general",
-            "category": "general"
-        }
+        defaults = (
+            self.config.defaults
+            if self.config
+            else {"subject": "general", "category": "general"}
+        )
         subject = defaults.get("subject", "general")
         category = defaults.get("category", "general")
         group_id = f"{subject}:{canvas_name}"
@@ -231,7 +235,7 @@ class SubjectResolver:
             subject=subject,
             category=category,
             group_id=group_id,
-            source=MetadataSource.DEFAULT
+            source=MetadataSource.DEFAULT,
         )
 
     def _normalize_path(self, canvas_path: str) -> str:
@@ -266,10 +270,7 @@ class SubjectResolver:
 
         return filename
 
-    def _resolve_from_config(
-        self,
-        normalized_path: str
-    ) -> Optional[Tuple[str, str]]:
+    def _resolve_from_config(self, normalized_path: str) -> Optional[Tuple[str, str]]:
         """
         Resolve subject/category from configuration mappings.
 
@@ -315,13 +316,12 @@ class SubjectResolver:
             return fnmatch.fnmatch(path.lower(), pattern.lower())
 
         # Exact prefix match
-        return path.lower().startswith(pattern.lower() + "/") or \
-               path.lower() == pattern.lower()
+        return (
+            path.lower().startswith(pattern.lower() + "/")
+            or path.lower() == pattern.lower()
+        )
 
-    def _infer_from_path(
-        self,
-        normalized_path: str
-    ) -> Optional[Tuple[str, str]]:
+    def _infer_from_path(self, normalized_path: str) -> Optional[Tuple[str, str]]:
         """
         Infer subject/category from path using category rules.
 
@@ -407,13 +407,13 @@ class SubjectResolver:
         subject = subject.replace(" ", "-").replace("_", "-")
 
         # Remove characters that aren't alphanumeric, hyphens, or Chinese
-        subject = re.sub(r'[^\w\-\u4e00-\u9fff]', '', subject)
+        subject = re.sub(r"[^\w\-\u4e00-\u9fff]", "", subject)
 
         # Remove consecutive hyphens
-        subject = re.sub(r'-+', '-', subject)
+        subject = re.sub(r"-+", "-", subject)
 
         # Remove leading/trailing hyphens
-        subject = subject.strip('-')
+        subject = subject.strip("-")
 
         return subject or "unknown"
 
@@ -442,27 +442,23 @@ class SubjectResolver:
             # Build YAML structure
             yaml_data: Dict[str, Any] = {
                 "mappings": [
-                    {
-                        "pattern": m.pattern,
-                        "subject": m.subject,
-                        "category": m.category
-                    }
+                    {"pattern": m.pattern, "subject": m.subject, "category": m.category}
                     for m in new_config.mappings
                 ],
                 "category_rules": new_config.category_rules,
                 "defaults": new_config.defaults,
-                "skip_directories": list(self._skip_dirs)
+                "skip_directories": list(self._skip_dirs),
             }
 
             # Write to file
             os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-            with open(self.config_path, 'w', encoding='utf-8') as f:
+            with open(self.config_path, "w", encoding="utf-8") as f:
                 yaml.dump(
                     yaml_data,
                     f,
                     default_flow_style=False,
                     allow_unicode=True,
-                    sort_keys=False
+                    sort_keys=False,
                 )
 
             # Update in-memory config
@@ -475,12 +471,7 @@ class SubjectResolver:
             logger.error(f"Failed to save config: {e}")
             return False
 
-    def add_mapping(
-        self,
-        pattern: str,
-        subject: str,
-        category: str
-    ) -> bool:
+    def add_mapping(self, pattern: str, subject: str, category: str) -> bool:
         """
         Add a new mapping rule.
 
@@ -508,9 +499,7 @@ class SubjectResolver:
 
         # Add new mapping
         new_rule = SubjectMappingRule(
-            pattern=pattern,
-            subject=subject,
-            category=category
+            pattern=pattern, subject=subject, category=category
         )
         self.config.mappings.append(new_rule)
 
@@ -534,8 +523,7 @@ class SubjectResolver:
 
         original_count = len(self.config.mappings)
         self.config.mappings = [
-            m for m in self.config.mappings
-            if m.pattern.lower() != pattern.lower()
+            m for m in self.config.mappings if m.pattern.lower() != pattern.lower()
         ]
 
         if len(self.config.mappings) < original_count:

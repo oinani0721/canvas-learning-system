@@ -13,17 +13,12 @@
 """
 
 import asyncio
-import json
-import os
 import uuid
-from datetime import datetime
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from tests.conftest import wait_for_condition
-
 
 # =============================================================================
 # AC-31.A.5.3: Dual Write Consistency Tests
@@ -59,15 +54,13 @@ class TestDualWriteConsistency:
             "concept": "双写测试概念",
             "agent_type": "scoring",
             "score": 88,
-            "subject": "数学"
+            "subject": "数学",
         }
 
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_dual_write_neo4j_and_graphiti(
-        self,
-        real_neo4j_client,
-        test_event_data
+        self, real_neo4j_client, test_event_data
     ):
         """
         验证数据同时写入 Neo4j 和 Graphiti。
@@ -91,7 +84,7 @@ class TestDualWriteConsistency:
                 concept=test_event_data["concept"],
                 agent_type=test_event_data["agent_type"],
                 score=test_event_data["score"],
-                subject=test_event_data["subject"]
+                subject=test_event_data["subject"],
             )
 
             # 验证返回 episode_id
@@ -134,10 +127,11 @@ class TestDualWriteConsistency:
             # 验证写入的数据
             assert len(items) > 0, "Neo4j should have learning history"
             found_concept = any(
-                item.get("concept") == test_event_data["concept"]
-                for item in items
+                item.get("concept") == test_event_data["concept"] for item in items
             )
-            assert found_concept, f"Concept '{test_event_data['concept']}' not found in Neo4j"
+            assert found_concept, (
+                f"Concept '{test_event_data['concept']}' not found in Neo4j"
+            )
 
         finally:
             # 清理测试数据
@@ -152,10 +146,7 @@ class TestDualWriteConsistency:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_dual_write_with_graphiti_json_enabled(
-        self,
-        real_neo4j_client,
-        test_event_data,
-        tmp_path
+        self, real_neo4j_client, test_event_data, tmp_path
     ):
         """
         验证启用 Graphiti JSON 双写时两边数据一致。
@@ -165,8 +156,8 @@ class TestDualWriteConsistency:
         [Source: docs/stories/31.A.5.story.md#AC-31.A.5.3]
         [Source: backend/app/services/memory_service.py:376-379]
         """
-        from app.services.memory_service import MemoryService
         from app.clients.graphiti_client import LearningMemoryClient
+        from app.services.memory_service import MemoryService
 
         # 创建临时 JSON 文件路径
         json_file = tmp_path / "test_learning_memories.json"
@@ -186,7 +177,7 @@ class TestDualWriteConsistency:
 
         try:
             # 启用 Graphiti JSON 双写
-            with patch('app.services.memory_service.settings') as mock_settings:
+            with patch("app.services.memory_service.settings") as mock_settings:
                 mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = True
 
                 # 写入学习事件
@@ -196,7 +187,7 @@ class TestDualWriteConsistency:
                     node_id=test_event_data["node_id"],
                     concept=test_event_data["concept"],
                     agent_type=test_event_data["agent_type"],
-                    score=test_event_data["score"]
+                    score=test_event_data["score"],
                 )
 
             # 等待异步写入完成 - poll Neo4j until data appears
@@ -204,7 +195,11 @@ class TestDualWriteConsistency:
                 result = await real_neo4j_client.get_learning_history(
                     user_id=test_event_data["user_id"]
                 )
-                items = result.get("items", []) if isinstance(result, dict) else result or []
+                items = (
+                    result.get("items", [])
+                    if isinstance(result, dict)
+                    else result or []
+                )
                 return True if len(items) > 0 else None
 
             await wait_for_condition(
@@ -226,8 +221,14 @@ class TestDualWriteConsistency:
             )
 
             # 验证两边都有数据
-            neo4j_items = neo4j_result.get("items", []) if isinstance(neo4j_result, dict) else neo4j_result or []
-            graphiti_items = graphiti_result if isinstance(graphiti_result, list) else []
+            neo4j_items = (
+                neo4j_result.get("items", [])
+                if isinstance(neo4j_result, dict)
+                else neo4j_result or []
+            )
+            graphiti_items = (
+                graphiti_result if isinstance(graphiti_result, list) else []
+            )
 
             # 注意: Graphiti JSON 是 fire-and-forget，可能没有写入成功
             # 但我们至少验证 Neo4j 成功了
@@ -235,13 +236,20 @@ class TestDualWriteConsistency:
 
             # 如果 Graphiti 也有数据，验证一致性
             if len(graphiti_items) > 0:
-                neo4j_concepts = {item.get("concept") for item in neo4j_items if item.get("concept")}
-                graphiti_concepts = {item.get("concept") for item in graphiti_items if item.get("concept")}
+                neo4j_concepts = {
+                    item.get("concept") for item in neo4j_items if item.get("concept")
+                }
+                graphiti_concepts = {
+                    item.get("concept")
+                    for item in graphiti_items
+                    if item.get("concept")
+                }
 
                 # 至少有一个共同概念
                 common_concepts = neo4j_concepts & graphiti_concepts
-                assert len(common_concepts) > 0, \
+                assert len(common_concepts) > 0, (
                     f"No common concepts between Neo4j and Graphiti. Neo4j: {neo4j_concepts}, Graphiti: {graphiti_concepts}"
+                )
 
         finally:
             # 清理
@@ -255,9 +263,7 @@ class TestDualWriteConsistency:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_neo4j_write_failure_does_not_block_graphiti(
-        self,
-        test_event_data,
-        tmp_path
+        self, test_event_data, tmp_path
     ):
         """
         验证 Neo4j 写入失败不会阻塞 Graphiti 写入。
@@ -267,8 +273,8 @@ class TestDualWriteConsistency:
         Note: 实际架构中 Neo4j 是同步写入，失败会抛出异常。
               此测试验证异常处理逻辑。
         """
-        from app.services.memory_service import MemoryService
         from app.clients.graphiti_client import LearningMemoryClient
+        from app.services.memory_service import MemoryService
 
         # 创建 mock Neo4j client 模拟失败
         mock_neo4j = MagicMock()
@@ -299,10 +305,13 @@ class TestDualWriteConsistency:
                 canvas_path=test_event_data["canvas_path"],
                 node_id=test_event_data["node_id"],
                 concept=test_event_data["concept"],
-                agent_type=test_event_data["agent_type"]
+                agent_type=test_event_data["agent_type"],
             )
 
-        assert "Neo4j" in str(exc_info.value) or "connection" in str(exc_info.value).lower()
+        assert (
+            "Neo4j" in str(exc_info.value)
+            or "connection" in str(exc_info.value).lower()
+        )
 
 
 class TestGraphitiWriteReliability:
@@ -326,8 +335,8 @@ class TestGraphitiWriteReliability:
 
         [Source: docs/stories/31.A.3.story.md#AC-31.A.3.1]
         """
-        from app.services.memory_service import MemoryService
         from app.clients.graphiti_client import LearningMemoryClient
+        from app.services.memory_service import MemoryService
 
         # 创建会失败几次再成功的 mock
         call_count = 0
@@ -365,7 +374,7 @@ class TestGraphitiWriteReliability:
             canvas_name="test.canvas",
             node_id="test-node",
             concept="测试概念",
-            max_retries=2
+            max_retries=2,
         )
 
         # 验证重试了 3 次并最终成功
@@ -382,8 +391,8 @@ class TestGraphitiWriteReliability:
 
         [Source: docs/stories/31.A.3.story.md#AC-31.A.3.2]
         """
-        from app.services.memory_service import MemoryService
         from app.clients.graphiti_client import LearningMemoryClient
+        from app.services.memory_service import MemoryService
 
         # 创建始终失败的 mock
         mock_learning_memory = MagicMock(spec=LearningMemoryClient)
@@ -408,7 +417,7 @@ class TestGraphitiWriteReliability:
             canvas_name="test.canvas",
             node_id="test-node",
             concept="测试概念",
-            max_retries=2
+            max_retries=2,
         )
 
         # 验证返回 False 但没有抛出异常
@@ -430,11 +439,7 @@ class TestDualWriteWithRealNeo4j:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_dual_write_full_cycle_real_neo4j(
-        self,
-        real_neo4j_client,
-        test_user_id,
-        test_canvas_path,
-        test_node_id
+        self, real_neo4j_client, test_user_id, test_canvas_path, test_node_id
     ):
         """
         完整的双写周期测试（使用真实 Neo4j）。
@@ -461,7 +466,7 @@ class TestDualWriteWithRealNeo4j:
             node_id=test_node_id,
             concept=concept,
             agent_type="dual_write_test",
-            score=95
+            score=95,
         )
 
         assert episode_id is not None
@@ -469,8 +474,12 @@ class TestDualWriteWithRealNeo4j:
         # 等待异步操作完成 - poll Neo4j until data appears
         async def _neo4j_has_cycle_data():
             result = await real_neo4j_client.get_learning_history(user_id=test_user_id)
-            items = result.get("items", []) if isinstance(result, dict) else result or []
-            return True if any(item.get("concept") == concept for item in items) else None
+            items = (
+                result.get("items", []) if isinstance(result, dict) else result or []
+            )
+            return (
+                True if any(item.get("concept") == concept for item in items) else None
+            )
 
         await wait_for_condition(
             _neo4j_has_cycle_data,
@@ -492,10 +501,7 @@ class TestDualWriteWithRealNeo4j:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_concurrent_dual_writes_real_neo4j(
-        self,
-        real_neo4j_client,
-        test_user_id,
-        test_canvas_path
+        self, real_neo4j_client, test_user_id, test_canvas_path
     ):
         """
         并发双写测试（验证数据完整性）。
@@ -516,7 +522,7 @@ class TestDualWriteWithRealNeo4j:
                 canvas_path=test_canvas_path,
                 node_id=f"concurrent_node_{index}",
                 concept=concept,
-                agent_type="concurrent_test"
+                agent_type="concurrent_test",
             )
 
         # 并发执行
@@ -530,7 +536,9 @@ class TestDualWriteWithRealNeo4j:
         # 等待异步操作完成 - poll until all concepts appear in Neo4j
         async def _all_concepts_persisted():
             result = await service.get_learning_history(user_id=test_user_id)
-            items = result.get("items", []) if isinstance(result, dict) else result or []
+            items = (
+                result.get("items", []) if isinstance(result, dict) else result or []
+            )
             persisted = {item.get("concept") for item in items if item.get("concept")}
             return True if all(c in persisted for c in concepts) else None
 
@@ -544,7 +552,11 @@ class TestDualWriteWithRealNeo4j:
         result = await service.get_learning_history(user_id=test_user_id)
         items = result.get("items", []) if isinstance(result, dict) else result or []
 
-        persisted_concepts = {item.get("concept") for item in items if item.get("concept")}
+        persisted_concepts = {
+            item.get("concept") for item in items if item.get("concept")
+        }
 
         for concept in concepts:
-            assert concept in persisted_concepts, f"Concept '{concept}' not found in Neo4j"
+            assert concept in persisted_concepts, (
+                f"Concept '{concept}' not found in Neo4j"
+            )

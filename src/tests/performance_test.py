@@ -17,26 +17,20 @@ sys.path.insert(0, str(project_root))
 async def performance_test():
     """性能测试"""
     print("开始性能测试...")
-    print("="*60)
+    print("=" * 60)
 
     from canvas_utils.memory_recorder import MemoryRecorder
 
     # 创建配置
     config = {
-        'graphiti': {'enabled': False},
-        'local_db': {
-            'enabled': True,
-            'path': 'data/perf_test.db',
-            'backup_path': 'data/perf_test_backup.db'
+        "graphiti": {"enabled": False},
+        "local_db": {
+            "enabled": True,
+            "path": "data/perf_test.db",
+            "backup_path": "data/perf_test_backup.db",
         },
-        'file_logger': {
-            'enabled': True,
-            'log_dir': 'data/perf_logs'
-        },
-        'encryption': {
-            'enabled': True,
-            'key_path': 'data/perf_key.key'
-        }
+        "file_logger": {"enabled": True, "log_dir": "data/perf_logs"},
+        "encryption": {"enabled": True, "key_path": "data/perf_key.key"},
     }
 
     recorder = MemoryRecorder(config)
@@ -48,9 +42,9 @@ async def performance_test():
 
     for i in range(10):
         session_data = {
-            'session_id': f'perf_test_{i}',
-            'canvas_path': 'test.canvas',
-            'actions': [{'type': 'test', 'index': i}]
+            "session_id": f"perf_test_{i}",
+            "canvas_path": "test.canvas",
+            "actions": [{"type": "test", "index": i}],
         }
 
         start_time = time.perf_counter()
@@ -72,18 +66,16 @@ async def performance_test():
     print("\n2. 测试故障切换时间...")
     # 模拟主系统失败，测量切换时间
     config2 = config.copy()
-    config2['graphiti']['enabled'] = False
-    config2['local_db']['always_backup'] = True
+    config2["graphiti"]["enabled"] = False
+    config2["local_db"]["always_backup"] = True
 
     recorder2 = MemoryRecorder(config2)
     await recorder2.initialize()
 
     start_time = time.perf_counter()
-    report = await recorder2.record_session({
-        'session_id': 'failover_test',
-        'canvas_path': 'test.canvas',
-        'actions': []
-    })
+    report = await recorder2.record_session(
+        {"session_id": "failover_test", "canvas_path": "test.canvas", "actions": []}
+    )
     end_time = time.perf_counter()
 
     failover_time = (end_time - start_time) * 1000
@@ -96,11 +88,13 @@ async def performance_test():
     num_concurrent = 50
 
     async def single_record(i):
-        return await recorder.record_session({
-            'session_id': f'concurrent_{i}',
-            'canvas_path': 'test.canvas',
-            'actions': []
-        })
+        return await recorder.record_session(
+            {
+                "session_id": f"concurrent_{i}",
+                "canvas_path": "test.canvas",
+                "actions": [],
+            }
+        )
 
     start_time = time.perf_counter()
     tasks = [single_record(i) for i in range(num_concurrent)]
@@ -113,7 +107,9 @@ async def performance_test():
     print(f"   并发记录数: {num_concurrent}")
     print(f"   总耗时: {duration:.2f} 秒")
     print(f"   TPS (每秒事务数): {tps:.2f}")
-    print(f"   成功记录: {sum(1 for r in results if r.successful_systems)}/{num_concurrent}")
+    print(
+        f"   成功记录: {sum(1 for r in results if r.successful_systems)}/{num_concurrent}"
+    )
 
     # 测试4: 存储空间增长
     print("\n4. 测试存储空间增长...")
@@ -121,16 +117,18 @@ async def performance_test():
 
     # 记录100条记录
     for i in range(100):
-        await recorder.record_session({
-            'session_id': f'storage_test_{i}',
-            'canvas_path': 'test.canvas',
-            'actions': [{'type': 'test'}] * 10,  # 10个动作
-            'metadata': {'data': 'x' * 100}  # 100字节数据
-        })
+        await recorder.record_session(
+            {
+                "session_id": f"storage_test_{i}",
+                "canvas_path": "test.canvas",
+                "actions": [{"type": "test"}] * 10,  # 10个动作
+                "metadata": {"data": "x" * 100},  # 100字节数据
+            }
+        )
 
     # 检查文件大小
-    db_size = os.path.getsize('data/perf_test.db') / (1024 * 1024)  # MB
-    log_files = list(Path('data/perf_logs').glob('*.log'))
+    db_size = os.path.getsize("data/perf_test.db") / (1024 * 1024)  # MB
+    log_files = list(Path("data/perf_logs").glob("*.log"))
     log_size = sum(os.path.getsize(f) for f in log_files) / (1024 * 1024)  # MB
 
     total_size = db_size + log_size
@@ -143,27 +141,27 @@ async def performance_test():
     print(f"   结果: {'✓ 通过' if total_size * 86400 / 100 < 50 else '✗ 失败'}")
 
     # 总结
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("性能测试总结")
-    print("="*60)
+    print("=" * 60)
 
     all_passed = (
-        avg_latency < 100 and
-        failover_time < 1000 and
-        total_size * 86400 / 100 < 50
+        avg_latency < 100 and failover_time < 1000 and total_size * 86400 / 100 < 50
     )
 
     print(f"记录延迟: {'✓' if avg_latency < 100 else '✗'} ({avg_latency:.2f} ms)")
     print(f"故障切换: {'✓' if failover_time < 1000 else '✗'} ({failover_time:.2f} ms)")
-    print(f"存储增长: {'✓' if total_size * 86400 / 100 < 50 else '✗'} ({total_size * 86400 / 100:.2f} MB/day)")
+    print(
+        f"存储增长: {'✓' if total_size * 86400 / 100 < 50 else '✗'} ({total_size * 86400 / 100:.2f} MB/day)"
+    )
     print(f"\n总体评价: {'✅ 所有性能指标达标' if all_passed else '❌ 部分指标未达标'}")
 
     # 清理
-    shutil.rmtree('data')
+    shutil.rmtree("data")
 
     return all_passed
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     success = asyncio.run(performance_test())
     sys.exit(0 if success else 1)

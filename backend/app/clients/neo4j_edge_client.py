@@ -26,10 +26,10 @@ import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # Story 36.1: Import unified base class
-from .graphiti_client_base import Neo4jLearningBase, EdgeRelationship
+from .graphiti_client_base import EdgeRelationship, Neo4jLearningBase
 
 if TYPE_CHECKING:
     from .neo4j_client import Neo4jClient
@@ -37,7 +37,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Storage path for learning memories (LearningMemoryClient - independent)
-LEARNING_MEMORY_PATH = Path(__file__).parent.parent.parent / "data" / "learning_memories.json"
+LEARNING_MEMORY_PATH = (
+    Path(__file__).parent.parent.parent / "data" / "learning_memories.json"
+)
 
 # Re-export EdgeRelationship for backward compatibility
 __all__ = [
@@ -137,10 +139,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             "batch_size": self._batch_size,
         }
 
-    async def add_edge_relationship(
-        self,
-        relationship: EdgeRelationship
-    ) -> bool:
+    async def add_edge_relationship(self, relationship: EdgeRelationship) -> bool:
         """
         Add a single edge relationship to the knowledge graph.
 
@@ -162,7 +161,8 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             # This handles both real Neo4j and JSON fallback mode
             success = await self._neo4j.create_edge_relationship(
                 canvas_path=relationship.canvas_path,
-                edge_id=relationship.edge_id or f"edge-{relationship.from_node_id}-{relationship.to_node_id}",
+                edge_id=relationship.edge_id
+                or f"edge-{relationship.from_node_id}-{relationship.to_node_id}",
                 from_node_id=relationship.from_node_id,
                 to_node_id=relationship.to_node_id,
                 edge_label=relationship.edge_label,
@@ -193,7 +193,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
         canvas_path: Optional[str] = None,
         group_id: Optional[str] = None,
         entity_types: Optional[List[str]] = None,
-        limit: int = 10
+        limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """
         Search for nodes in the knowledge graph.
@@ -238,7 +238,9 @@ class Neo4jEdgeClient(Neo4jLearningBase):
                 " OR n.concept CONTAINS $searchTerm)"
             )
             if where_clauses:
-                combined_where = f"WHERE {' AND '.join(where_clauses)} AND {text_search}"
+                combined_where = (
+                    f"WHERE {' AND '.join(where_clauses)} AND {text_search}"
+                )
             else:
                 combined_where = f"WHERE {text_search}"
 
@@ -261,18 +263,20 @@ class Neo4jEdgeClient(Neo4jLearningBase):
                 content = r.get("content", "")
                 content_len = max(len(content), 1)
                 score = min(query_len / content_len, 1.0)
-                scored_results.append({
-                    "doc_id": r.get("node_id", ""),
-                    "content": content,
-                    "score": round(score, 3),
-                    "metadata": {
-                        "canvas_path": r.get("canvas_path"),
-                        "group_id": r.get("group_id"),
-                        "entity_type": r.get("entity_type"),
-                        "name": r.get("name"),
-                        "source": r.get("source"),
+                scored_results.append(
+                    {
+                        "doc_id": r.get("node_id", ""),
+                        "content": content,
+                        "score": round(score, 3),
+                        "metadata": {
+                            "canvas_path": r.get("canvas_path"),
+                            "group_id": r.get("group_id"),
+                            "entity_type": r.get("entity_type"),
+                            "name": r.get("name"),
+                            "source": r.get("source"),
+                        },
                     }
-                })
+                )
 
             scored_results.sort(key=lambda x: x["score"], reverse=True)
             return scored_results
@@ -282,10 +286,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             return []
 
     async def get_related_memories(
-        self,
-        node_id: str,
-        canvas_path: Optional[str] = None,
-        limit: int = 10
+        self, node_id: str, canvas_path: Optional[str] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """
         Get memories related to a specific node.
@@ -343,9 +344,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             return []
 
     async def add_episode_for_edge(
-        self,
-        canvas_name: str,
-        edge: Dict[str, Any]
+        self, canvas_name: str, edge: Dict[str, Any]
     ) -> bool:
         """
         Add an episode record for an edge (historical tracking).
@@ -379,9 +378,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             return False
 
     async def sync_canvas_edges(
-        self,
-        canvas_name: str,
-        edges: List[Dict[str, Any]]
+        self, canvas_name: str, edges: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
         Sync all edges from a Canvas to Graphiti.
@@ -415,7 +412,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
 
                 # Process edges in batches
                 for i in range(0, len(edges), self._batch_size):
-                    batch = edges[i:i + self._batch_size]
+                    batch = edges[i : i + self._batch_size]
 
                     for edge in batch:
                         relationship = EdgeRelationship(
@@ -440,8 +437,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             result["timeout"] = True
             result["skipped"] = len(edges) - result["synced"] - result["failed"]
             logger.warning(
-                f"Canvas edge sync timeout for {canvas_name} "
-                f"after {self._timeout_ms}ms"
+                f"Canvas edge sync timeout for {canvas_name} after {self._timeout_ms}ms"
             )
         except (RuntimeError, ConnectionError) as e:
             result["error"] = str(e)
@@ -453,6 +449,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
 # =============================================================================
 # Story 36.1 AC-36.1.4: Backward Compatibility Adapter
 # =============================================================================
+
 
 class Neo4jEdgeClientAdapter:
     """
@@ -471,7 +468,7 @@ class Neo4jEdgeClientAdapter:
         timeout_ms: int = 2000,
         enabled: bool = True,
         batch_size: int = 10,
-        storage_path: Optional[Path] = None
+        storage_path: Optional[Path] = None,
     ):
         """
         Initialize adapter with legacy signature.
@@ -489,7 +486,7 @@ class Neo4jEdgeClientAdapter:
             "Use get_neo4j_edge_client() from dependencies.py "
             "or Neo4jEdgeClient(neo4j_client) directly.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
 
         # Import Neo4jClient here to avoid circular imports
@@ -517,7 +514,7 @@ class Neo4jEdgeClientAdapter:
     async def add_edge_relationship(self, relationship) -> bool:
         """Accept both old EdgeRelationship format and new format."""
         # Convert old format to new if needed
-        if hasattr(relationship, 'canvas_name'):
+        if hasattr(relationship, "canvas_name"):
             # Old format: canvas_name, from_node, to_node
             new_rel = EdgeRelationship(
                 canvas_path=relationship.canvas_name,
@@ -572,6 +569,7 @@ def get_neo4j_edge_client(
     if _client_instance is None:
         if neo4j_client is None:
             from .neo4j_client import get_neo4j_client
+
             neo4j_client = get_neo4j_client()
 
         _client_instance = Neo4jEdgeClient(
@@ -584,8 +582,7 @@ def get_neo4j_edge_client(
 
 
 def get_legacy_edge_client(
-    timeout_ms: int = 2000,
-    enabled: bool = True
+    timeout_ms: int = 2000, enabled: bool = True
 ) -> Neo4jEdgeClientAdapter:
     """
     DEPRECATED: Get Neo4jEdgeClient with legacy signature.
@@ -600,15 +597,11 @@ def get_legacy_edge_client(
         Neo4jEdgeClientAdapter for backward compatibility
     """
     warnings.warn(
-        "get_legacy_edge_client() is deprecated. "
-        "Use get_neo4j_edge_client() instead.",
+        "get_legacy_edge_client() is deprecated. Use get_neo4j_edge_client() instead.",
         DeprecationWarning,
-        stacklevel=2
+        stacklevel=2,
     )
-    return Neo4jEdgeClientAdapter(
-        timeout_ms=timeout_ms,
-        enabled=enabled
-    )
+    return Neo4jEdgeClientAdapter(timeout_ms=timeout_ms, enabled=enabled)
 
 
 def reset_neo4j_edge_client() -> None:
@@ -621,6 +614,7 @@ def reset_neo4j_edge_client() -> None:
 # LearningMemoryClient - FIX-4.1: 实现真正的记忆系统
 # [Source: docs/prd/sprint-change-proposal-20251208.md - Phase 4]
 # =============================================================================
+
 
 @dataclass
 class LearningMemory:
@@ -636,6 +630,7 @@ class LearningMemory:
         agent_feedback: Agent feedback/response
         timestamp: When the learning occurred
     """
+
     canvas_name: str
     node_id: str
     concept: str
@@ -662,9 +657,7 @@ class LearningMemoryClient:
     """
 
     def __init__(
-        self,
-        storage_path: Optional[Path] = None,
-        max_search_results: int = 5
+        self, storage_path: Optional[Path] = None, max_search_results: int = 5
     ):
         """
         Initialize LearningMemoryClient.
@@ -703,8 +696,8 @@ class LearningMemoryClient:
                     "memories": [],
                     "metadata": {
                         "created_at": datetime.now().isoformat(),
-                        "version": "1.0"
-                    }
+                        "version": "1.0",
+                    },
                 }
                 await self._save_data()
                 logger.info(f"Created new memory storage: {self._storage_path}")
@@ -723,10 +716,7 @@ class LearningMemoryClient:
         except (OSError, IOError, TypeError) as e:
             logger.error(f"Failed to save learning memories: {e}")
 
-    async def add_learning_episode(
-        self,
-        memory: LearningMemory
-    ) -> bool:
+    async def add_learning_episode(self, memory: LearningMemory) -> bool:
         """
         Add a learning episode to memory.
 
@@ -767,7 +757,7 @@ class LearningMemoryClient:
         query: str,
         canvas_name: Optional[str] = None,
         node_id: Optional[str] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search for relevant learning memories.
@@ -817,26 +807,26 @@ class LearningMemoryClient:
                 concept_words = set(concept.split())
                 understanding_words = set(understanding.split())
 
-                concept_overlap = len(query_words & concept_words) / max(len(query_words), 1)
-                understanding_overlap = len(query_words & understanding_words) / max(len(query_words), 1)
+                concept_overlap = len(query_words & concept_words) / max(
+                    len(query_words), 1
+                )
+                understanding_overlap = len(query_words & understanding_words) / max(
+                    len(query_words), 1
+                )
                 relevance = max(concept_overlap * 0.7, understanding_overlap * 0.5)
 
             if relevance > 0.1:
-                results.append({
-                    **memory,
-                    "relevance": relevance
-                })
+                results.append({**memory, "relevance": relevance})
 
         # Sort by relevance (descending) and timestamp (recent first)
-        results.sort(key=lambda x: (-x["relevance"], x.get("timestamp", "")), reverse=False)
+        results.sort(
+            key=lambda x: (-x["relevance"], x.get("timestamp", "")), reverse=False
+        )
 
         return results[:max_results]
 
     async def get_learning_history(
-        self,
-        canvas_name: str,
-        node_id: Optional[str] = None,
-        limit: int = 10
+        self, canvas_name: str, node_id: Optional[str] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """
         Get learning history for a canvas/node.
@@ -865,9 +855,7 @@ class LearningMemoryClient:
         return results[:limit]
 
     def format_for_context(
-        self,
-        memories: List[Dict[str, Any]],
-        max_chars: int = 1000
+        self, memories: List[Dict[str, Any]], max_chars: int = 1000
     ) -> str:
         """
         Format memories for inclusion in Agent context.
@@ -898,7 +886,11 @@ class LearningMemoryClient:
             # Add brief understanding if available
             understanding = memory.get("user_understanding", "")
             if understanding:
-                preview = understanding[:100] + "..." if len(understanding) > 100 else understanding
+                preview = (
+                    understanding[:100] + "..."
+                    if len(understanding) > 100
+                    else understanding
+                )
                 entry += f"\n  理解: {preview}"
 
             if total_chars + len(entry) + 1 > max_chars:
@@ -920,7 +912,9 @@ class LearningMemoryClient:
 
     async def cleanup(self) -> None:
         """Cleanup client resources."""
-        logger.debug(f"LearningMemoryClient cleanup: {self.stats['total_memories']} memories")
+        logger.debug(
+            f"LearningMemoryClient cleanup: {self.stats['total_memories']} memories"
+        )
         self._initialized = False
 
 
@@ -929,7 +923,7 @@ _learning_memory_instance: Optional[LearningMemoryClient] = None
 
 
 def get_learning_memory_client(
-    storage_path: Optional[Path] = None
+    storage_path: Optional[Path] = None,
 ) -> LearningMemoryClient:
     """
     Get or create LearningMemoryClient singleton.

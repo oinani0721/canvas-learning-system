@@ -187,16 +187,19 @@ class PDFStructure:
 
 class PDFExtractorError(Exception):
     """Base exception for PDF extraction errors."""
+
     pass
 
 
 class PDFNotFoundError(PDFExtractorError):
     """Raised when PDF file not found."""
+
     pass
 
 
 class PDFExtractionError(PDFExtractorError):
     """Raised when extraction fails."""
+
     pass
 
 
@@ -224,7 +227,7 @@ class PDFExtractor:
         self,
         extract_images: bool = True,
         max_image_size_mb: float = None,
-        preserve_formatting: bool = True
+        preserve_formatting: bool = True,
     ):
         """
         Initialize PDF Extractor.
@@ -247,7 +250,7 @@ class PDFExtractor:
     async def extract_structured(
         self,
         pdf_path: str | Path,
-        progress_callback: Optional[Callable[[int, int], None]] = None
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> PDFStructure:
         """
         Extract structured content from PDF.
@@ -264,6 +267,7 @@ class PDFExtractor:
             PDFExtractionError: If extraction fails
         """
         import time
+
         start_time = time.time()
 
         pdf_path = Path(pdf_path)
@@ -310,13 +314,15 @@ class PDFExtractor:
                 # Find heading for this page
                 heading, level = self._find_heading(toc, page_num + 1)
 
-                chunks.append(PDFChunk(
-                    page_num=page_num + 1,
-                    heading=heading,
-                    level=level,
-                    content=text,
-                    images=images
-                ))
+                chunks.append(
+                    PDFChunk(
+                        page_num=page_num + 1,
+                        heading=heading,
+                        level=level,
+                        content=text,
+                        images=images,
+                    )
+                )
 
                 # Yield control for async (AC 6.5.4 - performance)
                 if page_num % 10 == 0:
@@ -355,12 +361,7 @@ class PDFExtractor:
         """
         toc_data = doc.get_toc()
         return [
-            TOCEntry(
-                title=item[1],
-                page=item[2],
-                level=item[0]
-            )
-            for item in toc_data
+            TOCEntry(title=item[1], page=item[2], level=item[0]) for item in toc_data
         ]
 
     def _extract_page_text(self, page: "fitz.Page") -> str:
@@ -393,10 +394,7 @@ class PDFExtractor:
             return "\n".join(texts)
 
     def _extract_page_images(
-        self,
-        doc: "fitz.Document",
-        page: "fitz.Page",
-        page_num: int
+        self, doc: "fitz.Document", page: "fitz.Page", page_num: int
     ) -> list[PDFImage]:
         """
         Extract images from a single page.
@@ -439,15 +437,17 @@ class PDFExtractor:
                 if len(image_data) > self.max_image_size_mb * 1024 * 1024:
                     continue
 
-                images.append(PDFImage(
-                    index=img_index,
-                    page_num=page_num + 1,
-                    base64_data=base64.b64encode(image_data).decode("utf-8"),
-                    extension=base_image.get("ext", "png"),
-                    width=base_image.get("width", 0),
-                    height=base_image.get("height", 0),
-                    xref=xref,
-                ))
+                images.append(
+                    PDFImage(
+                        index=img_index,
+                        page_num=page_num + 1,
+                        base64_data=base64.b64encode(image_data).decode("utf-8"),
+                        extension=base_image.get("ext", "png"),
+                        width=base_image.get("width", 0),
+                        height=base_image.get("height", 0),
+                        xref=xref,
+                    )
+                )
 
             except Exception:
                 # Skip problematic images
@@ -456,9 +456,7 @@ class PDFExtractor:
         return images
 
     def _find_heading(
-        self,
-        toc: list[TOCEntry],
-        page_num: int
+        self, toc: list[TOCEntry], page_num: int
     ) -> tuple[Optional[str], int]:
         """
         Find the current chapter heading for a page.
@@ -492,7 +490,7 @@ class PDFExtractor:
         self,
         pdf_path: str | Path,
         page_range: Optional[str] = None,
-        progress_callback: Optional[Callable[[int, int], None]] = None
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> str:
         """
         Extract text only (faster, no images).
@@ -533,9 +531,7 @@ class PDFExtractor:
             doc.close()
 
     def _parse_page_range(
-        self,
-        range_str: Optional[str],
-        total_pages: int
+        self, range_str: Optional[str], total_pages: int
     ) -> list[int]:
         """Parse page range string into list of page numbers."""
         if not range_str:
@@ -576,9 +572,7 @@ class PDFExtractor:
             doc.close()
 
     async def get_page_images(
-        self,
-        pdf_path: str | Path,
-        page_num: int
+        self, pdf_path: str | Path, page_num: int
     ) -> list[PDFImage]:
         """
         Extract images from a specific page.
@@ -597,9 +591,7 @@ class PDFExtractor:
         doc = fitz.open(str(pdf_path))
         try:
             if page_num < 1 or page_num > len(doc):
-                raise PDFExtractionError(
-                    f"Page {page_num} out of range (1-{len(doc)})"
-                )
+                raise PDFExtractionError(f"Page {page_num} out of range (1-{len(doc)})")
 
             page = doc[page_num - 1]
             return self._extract_page_images(doc, page, page_num - 1)
@@ -611,7 +603,7 @@ class PDFExtractor:
 async def extract_pdf_structure(
     pdf_path: str | Path,
     progress_callback: Optional[Callable[[int, int], None]] = None,
-    **kwargs
+    **kwargs,
 ) -> PDFStructure:
     """
     Extract structured content from PDF.

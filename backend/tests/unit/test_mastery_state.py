@@ -2,21 +2,18 @@
 
 from datetime import datetime, timezone
 
-import pytest
-
 from app.models.mastery_state import (
-    ConceptState,
     DEFAULT_BKT_PARAMS,
     MASTERY_COLORS,
     MASTERY_LABELS,
-    MasteryConfig,
     OVERRIDE_LEVEL_MAP,
     SELF_ASSESS_COLOR_MAP,
+    ConceptState,
+    MasteryConfig,
 )
 
 
 class TestConceptStateDefaults:
-
     def test_default_p_mastery(self):
         c = ConceptState(concept_id="t", topic="t", name="t")
         assert c.p_mastery == 0.1
@@ -54,7 +51,6 @@ class TestConceptStateDefaults:
 
 
 class TestToNeo4jProps:
-
     def test_all_fields_present(self):
         c = ConceptState(concept_id="test-1", topic="Search", name="BFS")
         props = c.to_neo4j_props()
@@ -70,8 +66,12 @@ class TestToNeo4jProps:
     def test_datetime_serialized_as_iso(self):
         ts = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
         c = ConceptState(
-            concept_id="t", topic="t", name="t",
-            last_interaction_ts=ts, override_ts=ts, self_assess_ts=ts,
+            concept_id="t",
+            topic="t",
+            name="t",
+            last_interaction_ts=ts,
+            override_ts=ts,
+            self_assess_ts=ts,
         )
         props = c.to_neo4j_props()
         assert props["last_interaction_ts"] == ts.isoformat()
@@ -83,14 +83,18 @@ class TestToNeo4jProps:
 
 
 class TestFromNeo4jProps:
-
     def test_roundtrip(self):
         original = ConceptState(
-            concept_id="test-rt", topic="MDPs", name="Value Iteration",
-            p_mastery=0.75, bkt_difficulty="hard",
-            interaction_count=10, fluent_count=3,
+            concept_id="test-rt",
+            topic="MDPs",
+            name="Value Iteration",
+            p_mastery=0.75,
+            bkt_difficulty="hard",
+            interaction_count=10,
+            fluent_count=3,
             last_interaction_ts=datetime(2025, 6, 1, tzinfo=timezone.utc),
-            fsrs_stability=5.5, fsrs_difficulty=4.2,
+            fsrs_stability=5.5,
+            fsrs_difficulty=4.2,
         )
         props = original.to_neo4j_props()
         restored = ConceptState.from_neo4j_props(props)
@@ -100,7 +104,9 @@ class TestFromNeo4jProps:
 
     def test_datetime_parsing_from_string(self):
         props = {
-            "mastery_concept_id": "t", "mastery_topic": "t", "mastery_name": "t",
+            "mastery_concept_id": "t",
+            "mastery_topic": "t",
+            "mastery_name": "t",
             "last_interaction_ts": "2025-01-15T10:30:00+00:00",
         }
         c = ConceptState.from_neo4j_props(props)
@@ -109,7 +115,9 @@ class TestFromNeo4jProps:
     def test_datetime_parsing_from_datetime(self):
         ts = datetime(2025, 1, 15, tzinfo=timezone.utc)
         props = {
-            "mastery_concept_id": "t", "mastery_topic": "t", "mastery_name": "t",
+            "mastery_concept_id": "t",
+            "mastery_topic": "t",
+            "mastery_name": "t",
             "last_interaction_ts": ts,
         }
         c = ConceptState.from_neo4j_props(props)
@@ -123,7 +131,9 @@ class TestFromNeo4jProps:
 
     def test_fsrs_card_preserved(self):
         props = {
-            "mastery_concept_id": "t", "mastery_topic": "t", "mastery_name": "t",
+            "mastery_concept_id": "t",
+            "mastery_topic": "t",
+            "mastery_name": "t",
             "fsrs_card_data": '{"stability": 2.0}',
         }
         c = ConceptState.from_neo4j_props(props)
@@ -131,7 +141,6 @@ class TestFromNeo4jProps:
 
 
 class TestMasteryConfigDefaults:
-
     def test_override_lambda(self):
         assert MasteryConfig().override_lambda == 0.1
 
@@ -154,7 +163,6 @@ class TestMasteryConfigDefaults:
 
 
 class TestBKTParams:
-
     def test_three_levels(self):
         assert set(DEFAULT_BKT_PARAMS.keys()) == {"easy", "medium", "hard"}
 
@@ -190,7 +198,6 @@ class TestBKTParams:
 
 
 class TestMappingCompleteness:
-
     def test_labels_5_levels(self):
         assert set(MASTERY_LABELS.keys()) == {0, 1, 2, 3, 4}
 

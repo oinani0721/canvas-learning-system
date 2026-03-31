@@ -17,7 +17,6 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 # Note: asyncio.TimeoutError is used for narrowed exception handling in service calls
-
 from pydantic import BaseModel, Field
 
 from app.audit.guardian import get_audit_guardian
@@ -25,7 +24,10 @@ from app.mcp.pipeline_token import (
     PipelineTokenError,
     get_pipeline_token_manager,
 )
-from app.middleware.prompt_injection_guard import SAFETY_BLOCK_INPUT_MESSAGE, check_input
+from app.middleware.prompt_injection_guard import (
+    SAFETY_BLOCK_INPUT_MESSAGE,
+    check_input,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +75,12 @@ class GenerateQuestionOutput(BaseModel):
     question_text: str = Field(..., description="The generated question")
     question_type: str = Field(..., description="Question type")
     difficulty: str = Field(..., description="Question difficulty level")
-    reference_answer: Optional[str] = Field(None, description="Reference answer for scoring")
-    pipeline_token: str = Field(..., description="Pipeline token for the next step (score_answer)")
+    reference_answer: Optional[str] = Field(
+        None, description="Reference answer for scoring"
+    )
+    pipeline_token: str = Field(
+        ..., description="Pipeline token for the next step (score_answer)"
+    )
     status: str = "ok"
     message: str = ""
 
@@ -84,7 +90,9 @@ class ScoreAnswerInput(BaseModel):
 
     node_id: str = Field(..., description="The canvas node identifier.")
     session_id: str = Field(..., description="The dialogue session identifier.")
-    question_id: str = Field(..., description="The question identifier from generate_question.")
+    question_id: str = Field(
+        ..., description="The question identifier from generate_question."
+    )
     student_answer: str = Field(..., description="The student's answer text.")
     pipeline_token: str = Field(
         ...,
@@ -97,10 +105,16 @@ class ScoreAnswerOutput(BaseModel):
 
     question_id: str
     score: float = Field(..., ge=0.0, le=1.0, description="Score from 0.0 to 1.0")
-    grade: int = Field(..., ge=1, le=4, description="Grade: 1=Forgot, 2=Struggled, 3=Correct, 4=Fluent")
+    grade: int = Field(
+        ..., ge=1, le=4, description="Grade: 1=Forgot, 2=Struggled, 3=Correct, 4=Fluent"
+    )
     feedback: str = Field(..., description="Detailed feedback for the student")
-    is_correct: bool = Field(..., description="Whether the answer is considered correct")
-    pipeline_token: str = Field(..., description="Pipeline token for the next step (update_fsrs/update_bkt)")
+    is_correct: bool = Field(
+        ..., description="Whether the answer is considered correct"
+    )
+    pipeline_token: str = Field(
+        ..., description="Pipeline token for the next step (update_fsrs/update_bkt)"
+    )
     status: str = "ok"
     message: str = ""
 
@@ -109,7 +123,9 @@ class AssembleAcpInput(BaseModel):
     """Input schema for assemble_acp tool."""
 
     node_id: str = Field(..., description="The canvas node identifier.")
-    include_related: bool = Field(True, description="Whether to include related nodes' context.")
+    include_related: bool = Field(
+        True, description="Whether to include related nodes' context."
+    )
 
 
 class AssembleAcpOutput(BaseModel):
@@ -118,9 +134,15 @@ class AssembleAcpOutput(BaseModel):
     node_id: str
     concept_name: str = Field(..., description="The concept/topic name")
     concept_content: str = Field(..., description="The concept content text")
-    related_concepts: List[str] = Field(default_factory=list, description="Related concept names")
-    mastery_level: Optional[float] = Field(None, description="Current mastery level (0.0 - 1.0)")
-    learning_history_summary: Optional[str] = Field(None, description="Brief summary of learning history")
+    related_concepts: List[str] = Field(
+        default_factory=list, description="Related concept names"
+    )
+    mastery_level: Optional[float] = Field(
+        None, description="Current mastery level (0.0 - 1.0)"
+    )
+    learning_history_summary: Optional[str] = Field(
+        None, description="Brief summary of learning history"
+    )
     status: str = "ok"
     message: str = ""
 
@@ -159,7 +181,9 @@ async def generate_question(
         Dict with question data and pipeline_token.
     """
     guardian = get_audit_guardian()
-    asyncio.create_task(guardian.record_tool_call("generate_question", session_id, node_id))
+    asyncio.create_task(
+        guardian.record_tool_call("generate_question", session_id, node_id)
+    )
 
     question_id = str(uuid.uuid4())
     token_mgr = get_pipeline_token_manager()
@@ -234,7 +258,9 @@ async def generate_question(
             store = get_mastery_store()
             mastery_data = await store.get_concept(node_id)
         except (RuntimeError, AttributeError, asyncio.TimeoutError) as e:
-            logger.debug(f"[Story 3.2] Mastery data not available for difficulty selection: {e}")
+            logger.debug(
+                f"[Story 3.2] Mastery data not available for difficulty selection: {e}"
+            )
 
         # Auto-select difficulty based on mastery if not specified
         if difficulty is None:
@@ -266,7 +292,11 @@ async def generate_question(
                 node=node_data,
                 effective_proficiency=proficiency,
             )
-            q_text = questions[0] if questions else f"Please explain the concept of '{node_title}' in your own words."
+            q_text = (
+                questions[0]
+                if questions
+                else f"Please explain the concept of '{node_title}' in your own words."
+            )
             ref_answer = None
         except (RuntimeError, ValueError, AttributeError) as e:
             # Fallback: generate a basic question from the content
@@ -300,11 +330,15 @@ async def generate_question(
                         proficiency=effective_prof,
                     )
                 except (RuntimeError, ValueError, asyncio.TimeoutError) as diff_err:
-                    logger.error(f"[Story 6.10] Difficulty evaluation failed: {diff_err}")
+                    logger.error(
+                        f"[Story 6.10] Difficulty evaluation failed: {diff_err}"
+                    )
 
             asyncio.create_task(_evaluate_difficulty())
         except (ImportError, AttributeError) as diff_setup_err:
-            logger.debug(f"[Story 6.10] Difficulty matcher not available: {diff_setup_err}")
+            logger.debug(
+                f"[Story 6.10] Difficulty matcher not available: {diff_setup_err}"
+            )
 
         return GenerateQuestionOutput(
             question_id=question_id,
@@ -377,7 +411,9 @@ async def score_answer(
     # Validate pipeline token (AC-3)
     token_mgr = get_pipeline_token_manager()
     try:
-        token_mgr.validate_token(pipeline_token, expected_previous_step="generate_question")
+        token_mgr.validate_token(
+            pipeline_token, expected_previous_step="generate_question"
+        )
     except PipelineTokenError as e:
         return ScoreAnswerOutput(
             question_id=question_id,
@@ -404,12 +440,18 @@ async def score_answer(
             from app.config import settings as app_settings
             from app.services.canvas_service import CanvasService
 
-            ctx_canvas_svc = CanvasService(canvas_base_path=app_settings.canvas_base_path)
+            ctx_canvas_svc = CanvasService(
+                canvas_base_path=app_settings.canvas_base_path
+            )
             _, ctx_node_data = await ctx_canvas_svc.find_node_across_canvases(node_id)
             if ctx_node_data:
-                question_context = ctx_node_data.get("text", ctx_node_data.get("content", ""))
+                question_context = ctx_node_data.get(
+                    "text", ctx_node_data.get("content", "")
+                )
         except (OSError, ValueError, AttributeError) as ctx_err:
-            logger.debug(f"[Story 3.2] Failed to get question context for scoring: {ctx_err}")
+            logger.debug(
+                f"[Story 3.2] Failed to get question context for scoring: {ctx_err}"
+            )
 
         autoscore_result = await scorer.evaluate(
             exam_id=session_id,
@@ -545,7 +587,9 @@ async def assemble_acp(
         related_concepts: List[str] = []
         if include_related:
             try:
-                edges = await canvas_svc.find_edges_for_node(node_id, canvas_name=canvas_name)
+                edges = await canvas_svc.find_edges_for_node(
+                    node_id, canvas_name=canvas_name
+                )
                 # Collect all related node IDs first
                 related_ids: List[str] = []
                 for edge in edges:
@@ -570,21 +614,30 @@ async def assemble_acp(
                                 )
                             # Skip cross-canvas lookup to avoid N+1
                     except (OSError, ValueError, KeyError) as batch_err:
-                        logger.debug(f"[Story 3.2] assemble_acp batch fetch failed: {batch_err}")
+                        logger.debug(
+                            f"[Story 3.2] assemble_acp batch fetch failed: {batch_err}"
+                        )
                         # Fallback: individual lookups for remaining
                         for rid in related_ids:
                             if len(related_concepts) >= 10:
                                 break
                             try:
-                                _, related_node = await canvas_svc.find_node_across_canvases(rid)
+                                (
+                                    _,
+                                    related_node,
+                                ) = await canvas_svc.find_node_across_canvases(rid)
                                 if related_node:
                                     related_concepts.append(
-                                        related_node.get("text", related_node.get("title", ""))
+                                        related_node.get(
+                                            "text", related_node.get("title", "")
+                                        )
                                     )
                             except (OSError, ValueError):
                                 pass
             except (RuntimeError, AttributeError, OSError) as e:
-                logger.debug(f"[Story 3.2] assemble_acp: failed to get related nodes: {e}")
+                logger.debug(
+                    f"[Story 3.2] assemble_acp: failed to get related nodes: {e}"
+                )
 
         # Get mastery level
         mastery_level = None

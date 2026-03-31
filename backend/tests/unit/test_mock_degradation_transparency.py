@@ -18,12 +18,9 @@ import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.services.verification_service import (
-    VERIFICATION_AI_TIMEOUT,
     VerificationService,
 )
-
 
 # ===========================================================================
 # Test Fixtures
@@ -47,14 +44,16 @@ def mock_agent_service() -> MagicMock:
     question_result = MagicMock()
     question_result.success = True
     question_result.data = {
-        "questions": [{
-            "source_node_id": "verification_test",
-            "question_text": "请解释测试概念？",
-            "question_type": "检验型",
-            "difficulty": "基础",
-            "guidance": "",
-            "rationale": "测试"
-        }]
+        "questions": [
+            {
+                "source_node_id": "verification_test",
+                "question_text": "请解释测试概念？",
+                "question_type": "检验型",
+                "difficulty": "基础",
+                "guidance": "",
+                "rationale": "测试",
+            }
+        ]
     }
     service.call_agent = AsyncMock(return_value=question_result)
 
@@ -67,7 +66,7 @@ def mock_agent_service() -> MagicMock:
         "imagery": 18,
         "completeness": 19,
         "originality": 18,
-        "color": "2"
+        "color": "2",
     }
     service.call_scoring = AsyncMock(return_value=scoring_result)
     return service
@@ -77,12 +76,14 @@ def mock_agent_service() -> MagicMock:
 def mock_rag_service() -> MagicMock:
     """Mock RAG service."""
     service = MagicMock()
-    service.query = AsyncMock(return_value={
-        "learning_history": "之前学习过",
-        "textbook_excerpts": "教材内容",
-        "related_concepts": ["概念1"],
-        "common_mistakes": "常见错误"
-    })
+    service.query = AsyncMock(
+        return_value={
+            "learning_history": "之前学习过",
+            "textbook_excerpts": "教材内容",
+            "related_concepts": ["概念1"],
+            "common_mistakes": "常见错误",
+        }
+    )
     return service
 
 
@@ -90,28 +91,27 @@ def mock_rag_service() -> MagicMock:
 def verification_service(
     mock_canvas_service: MagicMock,
     mock_agent_service: MagicMock,
-    mock_rag_service: MagicMock
+    mock_rag_service: MagicMock,
 ) -> VerificationService:
     """Create VerificationService with mock dependencies (agent available)."""
     return VerificationService(
         rag_service=mock_rag_service,
         canvas_service=mock_canvas_service,
         agent_service=mock_agent_service,
-        canvas_base_path=tempfile.gettempdir()
+        canvas_base_path=tempfile.gettempdir(),
     )
 
 
 @pytest.fixture
 def verification_service_no_agent(
-    mock_canvas_service: MagicMock,
-    mock_rag_service: MagicMock
+    mock_canvas_service: MagicMock, mock_rag_service: MagicMock
 ) -> VerificationService:
     """Create VerificationService without agent_service (simulates DI failure)."""
     return VerificationService(
         rag_service=mock_rag_service,
         canvas_service=mock_canvas_service,
         agent_service=None,
-        canvas_base_path=tempfile.gettempdir()
+        canvas_base_path=tempfile.gettempdir(),
     )
 
 
@@ -123,7 +123,7 @@ def mock_canvas_data():
             {"id": "node1", "text": "测试概念A", "color": "4"},
             {"id": "node2", "text": "测试概念B", "color": "3"},
         ],
-        "edges": []
+        "edges": [],
     }
 
 
@@ -131,7 +131,7 @@ def mock_canvas_data():
 def temp_canvas_file(mock_canvas_data):
     """Create a temporary Canvas file."""
     with tempfile.NamedTemporaryFile(
-        mode='w', suffix='.canvas', delete=False, encoding='utf-8'
+        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
     ) as f:
         json.dump(mock_canvas_data, f)
         yield f.name
@@ -141,8 +141,7 @@ def temp_canvas_file(mock_canvas_data):
 async def _create_session_and_get_sid(service, temp_canvas_file):
     """Helper to create a session and return session_id."""
     result = await service.start_session(
-        canvas_name="test_canvas",
-        canvas_path=temp_canvas_file
+        canvas_name="test_canvas", canvas_path=temp_canvas_file
     )
     return result["session_id"]
 
@@ -162,9 +161,11 @@ class TestMockScoringWarningLogs:
         """Mock mode (USE_MOCK_VERIFICATION=true) outputs WARNING."""
         sid = await _create_session_and_get_sid(verification_service, temp_canvas_file)
 
-        with patch.dict(os.environ, {"USE_MOCK_VERIFICATION": "true"}), \
-             patch("app.services.verification_service.USE_MOCK_VERIFICATION", True), \
-             caplog.at_level(logging.WARNING):
+        with (
+            patch.dict(os.environ, {"USE_MOCK_VERIFICATION": "true"}),
+            patch("app.services.verification_service.USE_MOCK_VERIFICATION", True),
+            caplog.at_level(logging.WARNING),
+        ):
             await verification_service.process_answer(sid, "这是一个测试回答")
 
         assert any("DEGRADED SCORING" in r.message for r in caplog.records)
@@ -181,9 +182,12 @@ class TestMockScoringWarningLogs:
         async def slow_call(*args, **kwargs):
             raise asyncio.TimeoutError()
 
-        with patch.object(
-            verification_service, "_do_scoring_agent_call", side_effect=slow_call
-        ), caplog.at_level(logging.WARNING):
+        with (
+            patch.object(
+                verification_service, "_do_scoring_agent_call", side_effect=slow_call
+            ),
+            caplog.at_level(logging.WARNING),
+        ):
             await verification_service.process_answer(sid, "这是一个测试回答" * 5)
 
         assert any("DEGRADED SCORING" in r.message for r in caplog.records)
@@ -199,9 +203,12 @@ class TestMockScoringWarningLogs:
         async def failing_call(*args, **kwargs):
             raise RuntimeError("Connection refused")
 
-        with patch.object(
-            verification_service, "_do_scoring_agent_call", side_effect=failing_call
-        ), caplog.at_level(logging.WARNING):
+        with (
+            patch.object(
+                verification_service, "_do_scoring_agent_call", side_effect=failing_call
+            ),
+            caplog.at_level(logging.WARNING),
+        ):
             await verification_service.process_answer(sid, "这是一个测试回答" * 5)
 
         assert any("DEGRADED SCORING" in r.message for r in caplog.records)
@@ -278,8 +285,10 @@ class TestDegradedResponseFields:
     ):
         """All degraded_reason values are from the expected enum."""
         valid_reasons = {
-            "mock_mode_enabled", "agent_timeout",
-            "agent_exception", "agent_unavailable"
+            "mock_mode_enabled",
+            "agent_timeout",
+            "agent_exception",
+            "agent_unavailable",
         }
 
         sid = await _create_session_and_get_sid(verification_service, temp_canvas_file)
@@ -334,7 +343,7 @@ class TestFourTupleReturn:
             result = await verification_service._evaluate_answer_with_scoring_agent(
                 concept="微积分",
                 user_answer="这是一个测试" * 10,
-                canvas_name="test_canvas"
+                canvas_name="test_canvas",
             )
 
         assert len(result) == 4
@@ -348,9 +357,7 @@ class TestFourTupleReturn:
     async def test_normal_scoring_returns_four_tuple(self, verification_service):
         """Successful AI scoring returns (quality, score, False, None)."""
         result = await verification_service._evaluate_answer_with_scoring_agent(
-            concept="微积分",
-            user_answer="这是一个测试" * 10,
-            canvas_name="test_canvas"
+            concept="微积分", user_answer="这是一个测试" * 10, canvas_name="test_canvas"
         )
 
         assert len(result) == 4
@@ -363,6 +370,7 @@ class TestFourTupleReturn:
     @pytest.mark.asyncio
     async def test_timeout_returns_four_tuple(self, verification_service):
         """Timeout returns (quality, score, True, 'agent_timeout')."""
+
         async def slow_call(*args, **kwargs):
             raise asyncio.TimeoutError()
 
@@ -372,7 +380,7 @@ class TestFourTupleReturn:
             result = await verification_service._evaluate_answer_with_scoring_agent(
                 concept="微积分",
                 user_answer="这是一个测试" * 10,
-                canvas_name="test_canvas"
+                canvas_name="test_canvas",
             )
 
         assert len(result) == 4
@@ -383,6 +391,7 @@ class TestFourTupleReturn:
     @pytest.mark.asyncio
     async def test_exception_returns_four_tuple(self, verification_service):
         """Exception returns (quality, score, True, 'agent_exception')."""
+
         async def failing_call(*args, **kwargs):
             raise RuntimeError("Test error")
 
@@ -392,7 +401,7 @@ class TestFourTupleReturn:
             result = await verification_service._evaluate_answer_with_scoring_agent(
                 concept="微积分",
                 user_answer="这是一个测试" * 10,
-                canvas_name="test_canvas"
+                canvas_name="test_canvas",
             )
 
         assert len(result) == 4
@@ -405,10 +414,12 @@ class TestFourTupleReturn:
         self, verification_service_no_agent
     ):
         """Agent unavailable returns (quality, score, True, 'agent_unavailable')."""
-        result = await verification_service_no_agent._evaluate_answer_with_scoring_agent(
-            concept="微积分",
-            user_answer="这是一个测试" * 10,
-            canvas_name="test_canvas"
+        result = (
+            await verification_service_no_agent._evaluate_answer_with_scoring_agent(
+                concept="微积分",
+                user_answer="这是一个测试" * 10,
+                canvas_name="test_canvas",
+            )
         )
 
         assert len(result) == 4

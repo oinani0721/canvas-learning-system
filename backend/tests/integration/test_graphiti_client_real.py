@@ -10,8 +10,9 @@ import os
 import uuid
 
 import pytest
-
-from app.clients.graphiti_client import Neo4jEdgeClient  # S34: renamed from GraphitiEdgeClient
+from app.clients.graphiti_client import (
+    Neo4jEdgeClient,
+)  # S34: renamed from GraphitiEdgeClient
 from app.clients.graphiti_client_base import EdgeRelationship
 from app.clients.neo4j_client import Neo4jClient
 

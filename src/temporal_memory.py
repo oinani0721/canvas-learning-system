@@ -197,7 +197,7 @@ class TemporalMemory:
         canvas_file: str,
         limit: int = 10,
         stability_weight: float = 0.7,
-        error_rate_weight: float = 0.3
+        error_rate_weight: float = 0.3,
     ) -> List[Dict[str, any]]:
         """
         Get weak concepts based on FSRS stability and error rates.
@@ -242,7 +242,8 @@ class TemporalMemory:
 
         # Step 1: Get all concepts with FSRS stats
         # ✅ Verified from EPIC-12-STORY-MAP.md lines 836-866
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 c.concept,
                 c.stability,
@@ -253,7 +254,9 @@ class TemporalMemory:
             FROM fsrs_cards c
             WHERE c.canvas_file = ?
             AND c.reps > 0
-        """, (canvas_file,))
+        """,
+            (canvas_file,),
+        )
 
         concepts = cursor.fetchall()
 
@@ -262,35 +265,39 @@ class TemporalMemory:
             return []
 
         # Step 2: Normalize stability and error_rate to [0, 1]
-        max_stability = max(row['stability'] for row in concepts)
-        min_stability = min(row['stability'] for row in concepts)
-        stability_range = max_stability - min_stability if max_stability > min_stability else 1.0
+        max_stability = max(row["stability"] for row in concepts)
+        min_stability = min(row["stability"] for row in concepts)
+        stability_range = (
+            max_stability - min_stability if max_stability > min_stability else 1.0
+        )
 
         # Step 3: Calculate weakness scores (AC 4.3: 70% stability + 30% error rate)
         weak_concepts = []
         for row in concepts:
             # Normalize stability (invert: lower stability = higher weakness)
-            normalized_stability = (row['stability'] - min_stability) / stability_range
+            normalized_stability = (row["stability"] - min_stability) / stability_range
             stability_component = stability_weight * (1.0 - normalized_stability)
 
             # Error rate is already [0, 1]
-            error_rate = row['error_rate'] if row['error_rate'] else 0.0
+            error_rate = row["error_rate"] if row["error_rate"] else 0.0
             error_component = error_rate_weight * error_rate
 
             # Combined weakness score
             weakness_score = stability_component + error_component
 
-            weak_concepts.append({
-                'concept': row['concept'],
-                'stability': row['stability'],
-                'error_rate': error_rate,
-                'weakness_score': weakness_score,
-                'last_review': row['last_review'],
-                'reps': row['reps']
-            })
+            weak_concepts.append(
+                {
+                    "concept": row["concept"],
+                    "stability": row["stability"],
+                    "error_rate": error_rate,
+                    "weakness_score": weakness_score,
+                    "last_review": row["last_review"],
+                    "reps": row["reps"],
+                }
+            )
 
         # Step 4: Sort by weakness_score (descending) and return top N
-        weak_concepts.sort(key=lambda x: x['weakness_score'], reverse=True)
+        weak_concepts.sort(key=lambda x: x["weakness_score"], reverse=True)
 
         logger.info(
             f"Found {len(weak_concepts)} concepts, returning top {limit} weak concepts "
@@ -304,7 +311,7 @@ class TemporalMemory:
         concept: str,
         rating: Rating,
         canvas_file: str,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ) -> Dict[str, any]:
         """
         Update FSRS card with new rating after review.
@@ -352,10 +359,13 @@ class TemporalMemory:
 
         # Step 1: Retrieve existing card or create new one
         # ✅ Verified from EPIC-12-STORY-MAP.md lines 868-905
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT * FROM fsrs_cards
             WHERE concept = ? AND canvas_file = ?
-        """, (concept, canvas_file))
+        """,
+            (concept, canvas_file),
+        )
 
         row = cursor.fetchone()
 
@@ -364,14 +374,16 @@ class TemporalMemory:
             # ✅ Verified from fsrs package: Card class has difficulty, stability, due, last_review, state, step
             # Note: Card.__init__ doesn't accept these as constructor args, so we set them manually
             card = Card()
-            card.difficulty = row['difficulty']
-            card.stability = row['stability']
-            card.due = datetime.fromisoformat(row['due']).replace(tzinfo=timezone.utc)
-            card.last_review = datetime.fromisoformat(row['last_review']).replace(tzinfo=timezone.utc)
-            card.state = row['state']
-            card.step = row['step']
-            reps = row['reps']
-            lapses = row['lapses']
+            card.difficulty = row["difficulty"]
+            card.stability = row["stability"]
+            card.due = datetime.fromisoformat(row["due"]).replace(tzinfo=timezone.utc)
+            card.last_review = datetime.fromisoformat(row["last_review"]).replace(
+                tzinfo=timezone.utc
+            )
+            card.state = row["state"]
+            card.step = row["step"]
+            reps = row["reps"]
+            lapses = row["lapses"]
         else:
             # Create new card for first review
             # ✅ Verified from fsrs package: Card() creates new card with defaults
@@ -383,9 +395,7 @@ class TemporalMemory:
         # ✅ Verified from fsrs package: Scheduler.review_card() method
         # Returns: (updated_card, review_log) tuple
         updated_card, review_log = self.fsrs.review_card(
-            card=card,
-            rating=rating,
-            review_datetime=now
+            card=card, rating=rating, review_datetime=now
         )
 
         # Step 3: Update reps and lapses counters
@@ -395,23 +405,26 @@ class TemporalMemory:
             lapses += 1
 
         # Step 4: Update database (AC 4.4)
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT OR REPLACE INTO fsrs_cards
             (concept, canvas_file, difficulty, stability, due, state, step,
              last_review, reps, lapses)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            concept,
-            canvas_file,
-            updated_card.difficulty,
-            updated_card.stability,
-            updated_card.due.isoformat(),
-            updated_card.state,
-            updated_card.step,
-            updated_card.last_review.isoformat(),
-            reps,
-            lapses
-        ))
+        """,
+            (
+                concept,
+                canvas_file,
+                updated_card.difficulty,
+                updated_card.stability,
+                updated_card.due.isoformat(),
+                updated_card.state,
+                updated_card.step,
+                updated_card.last_review.isoformat(),
+                reps,
+                lapses,
+            ),
+        )
 
         # Step 4: Record behavior (AC 4.2)
         if session_id is None:
@@ -422,7 +435,7 @@ class TemporalMemory:
             concept=concept,
             action_type=f"review_rating_{rating.value}",
             session_id=session_id,
-            metadata=f'{{"rating": {rating.value}, "stability": {updated_card.stability}}}'
+            metadata=f'{{"rating": {rating.value}, "stability": {updated_card.stability}}}',
         )
 
         self.conn.commit()
@@ -434,13 +447,13 @@ class TemporalMemory:
         )
 
         return {
-            'concept': concept,
-            'difficulty': updated_card.difficulty,
-            'stability': updated_card.stability,
-            'due': updated_card.due.isoformat(),
-            'reps': reps,
-            'lapses': lapses,
-            'state': updated_card.state
+            "concept": concept,
+            "difficulty": updated_card.difficulty,
+            "stability": updated_card.stability,
+            "due": updated_card.due.isoformat(),
+            "reps": reps,
+            "lapses": lapses,
+            "state": updated_card.state,
         }
 
     def record_behavior(
@@ -449,7 +462,7 @@ class TemporalMemory:
         concept: str,
         action_type: str,
         session_id: str,
-        metadata: Optional[str] = None
+        metadata: Optional[str] = None,
     ) -> int:
         """
         Record learning behavior in temporal history.
@@ -484,18 +497,14 @@ class TemporalMemory:
         now = datetime.now(timezone.utc)
 
         # ✅ Verified from EPIC-12-STORY-MAP.md lines 826-834
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO learning_behavior
             (session_id, canvas_file, concept, action_type, timestamp, metadata)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            session_id,
-            canvas_file,
-            concept,
-            action_type,
-            now.isoformat(),
-            metadata
-        ))
+        """,
+            (session_id, canvas_file, concept, action_type, now.isoformat(), metadata),
+        )
 
         self.conn.commit()
         row_id = cursor.lastrowid
@@ -508,9 +517,7 @@ class TemporalMemory:
         return row_id
 
     def get_review_due_concepts(
-        self,
-        canvas_file: str,
-        limit: int = 20
+        self, canvas_file: str, limit: int = 20
     ) -> List[Dict[str, any]]:
         """
         Get concepts that are due for review based on FSRS scheduling.
@@ -539,7 +546,8 @@ class TemporalMemory:
         # Use UTC timezone for consistency with FSRS
         now = datetime.now(timezone.utc)
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 concept,
                 due,
@@ -551,23 +559,29 @@ class TemporalMemory:
             AND julianday(?) >= julianday(due)
             ORDER BY days_overdue DESC, stability ASC
             LIMIT ?
-        """, (now.isoformat(), canvas_file, now.isoformat(), limit))
+        """,
+            (now.isoformat(), canvas_file, now.isoformat(), limit),
+        )
 
         results = []
         for row in cursor.fetchall():
-            results.append({
-                'concept': row['concept'],
-                'due': row['due'],
-                'stability': row['stability'],
-                'difficulty': row['difficulty'],
-                'days_overdue': max(0, row['days_overdue'])
-            })
+            results.append(
+                {
+                    "concept": row["concept"],
+                    "due": row["due"],
+                    "stability": row["stability"],
+                    "difficulty": row["difficulty"],
+                    "days_overdue": max(0, row["days_overdue"]),
+                }
+            )
 
         logger.info(f"Found {len(results)} concepts due for review in {canvas_file}")
 
         return results
 
-    def get_concept_stats(self, concept: str, canvas_file: str) -> Optional[Dict[str, any]]:
+    def get_concept_stats(
+        self, concept: str, canvas_file: str
+    ) -> Optional[Dict[str, any]]:
         """
         Get detailed statistics for a specific concept.
 
@@ -593,7 +607,8 @@ class TemporalMemory:
         """
         cursor = self.conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 c.*,
                 COUNT(b.id) as total_behaviors
@@ -602,7 +617,9 @@ class TemporalMemory:
                 ON c.concept = b.concept
             WHERE c.concept = ? AND c.canvas_file = ?
             GROUP BY c.concept
-        """, (concept, canvas_file))
+        """,
+            (concept, canvas_file),
+        )
 
         row = cursor.fetchone()
 
@@ -610,18 +627,18 @@ class TemporalMemory:
             logger.warning(f"Concept '{concept}' not found in {canvas_file}")
             return None
 
-        error_rate = row['lapses'] / row['reps'] if row['reps'] > 0 else 0.0
+        error_rate = row["lapses"] / row["reps"] if row["reps"] > 0 else 0.0
 
         return {
-            'concept': row['concept'],
-            'stability': row['stability'],
-            'difficulty': row['difficulty'],
-            'due': row['due'],
-            'reps': row['reps'],
-            'lapses': row['lapses'],
-            'error_rate': error_rate,
-            'last_review': row['last_review'],
-            'total_behaviors': row['total_behaviors']
+            "concept": row["concept"],
+            "stability": row["stability"],
+            "difficulty": row["difficulty"],
+            "due": row["due"],
+            "reps": row["reps"],
+            "lapses": row["lapses"],
+            "error_rate": error_rate,
+            "last_review": row["last_review"],
+            "total_behaviors": row["total_behaviors"],
         }
 
     def close(self) -> None:
@@ -632,7 +649,7 @@ class TemporalMemory:
             - Commits any pending transactions
             - Closes SQLite connection
         """
-        if hasattr(self, 'conn') and self.conn:
+        if hasattr(self, "conn") and self.conn:
             try:
                 self.conn.commit()
                 self.conn.close()

@@ -7,11 +7,13 @@ Custom exceptions for Canvas Learning System.
 
 class CanvasException(Exception):
     """Canvas操作基础异常"""
+
     pass
 
 
 class CanvasNotFoundException(CanvasException):
     """Canvas文件未找到"""
+
     def __init__(self, canvas_name: str):
         self.canvas_name = canvas_name
         super().__init__(f"Canvas '{canvas_name}' not found")
@@ -19,6 +21,7 @@ class CanvasNotFoundException(CanvasException):
 
 class NodeNotFoundException(CanvasException):
     """节点未找到"""
+
     def __init__(self, node_id: str, canvas_name: str = None):
         self.node_id = node_id
         self.canvas_name = canvas_name
@@ -30,6 +33,7 @@ class NodeNotFoundException(CanvasException):
 
 class ValidationError(CanvasException):
     """数据验证错误"""
+
     def __init__(self, message: str, field: str = None):
         self.field = field
         self.message = message
@@ -38,6 +42,7 @@ class ValidationError(CanvasException):
 
 class AgentCallError(Exception):
     """Agent调用错误"""
+
     def __init__(self, agent_name: str, message: str):
         self.agent_name = agent_name
         super().__init__(f"Agent '{agent_name}' call failed: {message}")
@@ -45,6 +50,7 @@ class AgentCallError(Exception):
 
 class TaskNotFoundError(Exception):
     """后台任务未找到"""
+
     def __init__(self, task_id: str):
         self.task_id = task_id
         super().__init__(f"Task '{task_id}' not found")
@@ -56,6 +62,7 @@ class PromptLoadError(Exception):
     Story 7.3: Prompt 版本管理与回归测试
     [Source: _bmad-output/implementation-artifacts/7-3-prompt-version-regression-test.md]
     """
+
     def __init__(self, message: str, prompt_name: str = "", file_path: str = ""):
         self.prompt_name = prompt_name
         self.file_path = file_path

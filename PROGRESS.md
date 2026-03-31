@@ -17,3 +17,17 @@
   - Added onNavigateToSource callback prop to LearningProfile.tsx
   - Navigate button renders for items with source IDs
   - 6 vitest tests pass ✅
+
+### Epic 2: Architectural Pruning — cross_canvas + RAG Cleanup — COMPLETE
+- Feature 2.1: Delete cross_canvas_service.py — COMPLETE
+  - Deleted cross_canvas_service.py (1368 lines) + cross_canvas.py endpoint (768 lines)
+  - Removed from dependencies.py, context_enrichment_service.py, verification_service.py
+  - grep "cross_canvas" backend/app/ = 0 results ✅
+  - 7 verification tests pass ✅
+- Feature 2.2: Remove textbook_retriever references — COMPLETE
+  - Deleted textbook_context_service.py (659 lines) + textbook.py endpoint (231 lines)
+  - Removed from dependencies.py, router.py, context_enrichment, verification, agents
+  - RAG channels: 6→4 (LanceDB, Vault Notes, Graphiti, Multimodal) ✅
+- Feature 2.3: Fix vault_notes dual-search bug — COMPLETE
+  - Removed vault_notes from LanceDB DEFAULT_TABLES (was queried twice)
+  - DEFAULT_TABLES now ["canvas_nodes"] only, vault_notes via dedicated retriever ✅

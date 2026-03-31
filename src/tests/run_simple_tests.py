@@ -128,13 +128,13 @@ async def run_async_tests():
     total_tests += 2
 
     # 打印结果
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试总结")
-    print("="*60)
+    print("=" * 60)
     print(f"总测试数: {total_tests}")
     print(f"通过: {passed_tests}")
     print(f"失败: {total_tests - passed_tests}")
-    print(f"成功率: {(passed_tests/total_tests)*100:.1f}%")
+    print(f"成功率: {(passed_tests / total_tests) * 100:.1f}%")
 
     if passed_tests == total_tests:
         print("\n🎉 所有异步测试通过！")
@@ -182,9 +182,9 @@ def run_sync_tests():
 
 async def main():
     """主函数"""
-    print("="*60)
+    print("=" * 60)
     print("Canvas学习系统 - 三级记忆记录系统测试")
-    print("="*60)
+    print("=" * 60)
 
     # 运行异步测试
     async_success = await run_async_tests()
@@ -193,9 +193,9 @@ async def main():
     sync_success = run_sync_tests()
 
     # 总体结果
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("总体测试结果")
-    print("="*60)
+    print("=" * 60)
 
     if async_success and sync_success:
         print("✅ 所有测试通过！")
@@ -206,7 +206,7 @@ async def main():
         return False
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         success = asyncio.run(main())
         sys.exit(0 if success else 1)
@@ -216,5 +216,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"\n\n测试运行失败: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

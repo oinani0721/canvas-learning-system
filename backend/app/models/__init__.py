@@ -4,14 +4,65 @@
 
 # Story 12.G.2: Agent Error Type Enum
 # [Source: specs/api/agent-api.openapi.yml:617-627]
-from app.models.enums import AgentErrorType
-
 # Story 30.5: Canvas CRUD Event Models
 # [Source: specs/data/temporal-event.schema.json]
 from app.models.canvas_events import (
     CanvasEvent,
     CanvasEventContext,
     CanvasEventType,
+)
+from app.models.enums import AgentErrorType
+
+# Story 33.1: Intelligent Parallel Processing Models
+# [Source: specs/api/parallel-api.openapi.yml]
+# [Source: specs/data/parallel-task.schema.json]
+from app.models.intelligent_parallel_models import (
+    CancelResponse,
+    ConfirmRequest,
+    GroupExecuteConfig,
+    GroupPriority,
+    GroupProgress,
+    GroupStatus,
+    IntelligentParallelRequest,
+    IntelligentParallelResponse,
+    NodeError,
+    NodeGroup,
+    NodeInGroup,
+    ParallelErrorResponse,
+    ParallelTaskStatus,
+    PerformanceMetrics,
+    ProgressResponse,
+    SessionResponse,
+    SingleAgentRequest,
+    SingleAgentResponse,
+    SingleAgentStatus,
+)
+from app.models.intelligent_parallel_models import (
+    NodeResult as ParallelNodeResult,  # Alias to avoid conflict with session_models
+)
+
+# Story 35.1: Multimodal API Schemas
+# [Source: docs/stories/35.1.story.md]
+# Story 35.2: Multimodal Query/Search API Schemas
+# [Source: docs/stories/35.2.story.md]
+from app.models.multimodal_schemas import (
+    # Story 35.2: Query/Search
+    MediaItemResponse,
+    MultimodalByConceptResponse,
+    # Story 35.1: Upload/Management
+    MultimodalDeleteResponse,
+    MultimodalHealthResponse,
+    MultimodalListResponse,
+    MultimodalMediaType,
+    MultimodalMetadataSchema,
+    MultimodalPaginatedListResponse,
+    MultimodalResponse,
+    MultimodalSearchRequest,
+    MultimodalSearchResponse,
+    MultimodalUpdateRequest,
+    MultimodalUploadResponse,
+    MultimodalUploadUrlRequest,
+    PaginationMeta,
 )
 
 # Rollback models (Story 18.1)
@@ -67,73 +118,15 @@ from app.models.rollback import (
     SnapshotResponse,
     SnapshotTypeEnum,
 )
-# Story 33.3: Session Management Models
-# [Source: specs/data/parallel-task.schema.json]
-from app.models.session_models import (
-    NodeResult,
-    SessionInfo,
-    SessionStatus,
-    VALID_TRANSITIONS,
-    is_valid_transition,
-)
-
-# Story 33.1: Intelligent Parallel Processing Models
-# [Source: specs/api/parallel-api.openapi.yml]
-# [Source: specs/data/parallel-task.schema.json]
-from app.models.intelligent_parallel_models import (
-    CancelResponse,
-    ConfirmRequest,
-    GroupExecuteConfig,
-    GroupPriority,
-    GroupProgress,
-    GroupStatus,
-    IntelligentParallelRequest,
-    IntelligentParallelResponse,
-    NodeError,
-    NodeGroup,
-    NodeInGroup,
-    NodeResult as ParallelNodeResult,  # Alias to avoid conflict with session_models
-    ParallelErrorResponse,
-    ParallelTaskStatus,
-    PerformanceMetrics,
-    ProgressResponse,
-    SessionResponse,
-    SingleAgentRequest,
-    SingleAgentResponse,
-    SingleAgentStatus,
-)
-# Story 35.1: Multimodal API Schemas
-# [Source: docs/stories/35.1.story.md]
-# Story 35.2: Multimodal Query/Search API Schemas
-# [Source: docs/stories/35.2.story.md]
-from app.models.multimodal_schemas import (
-    # Story 35.1: Upload/Management
-    MultimodalDeleteResponse,
-    MultimodalHealthResponse,
-    MultimodalListResponse,
-    MultimodalMediaType,
-    MultimodalMetadataSchema,
-    MultimodalResponse,
-    MultimodalUpdateRequest,
-    MultimodalUploadResponse,
-    MultimodalUploadUrlRequest,
-    # Story 35.2: Query/Search
-    MediaItemResponse,
-    MultimodalByConceptResponse,
-    MultimodalPaginatedListResponse,
-    MultimodalSearchRequest,
-    MultimodalSearchResponse,
-    PaginationMeta,
-)
 from app.models.schemas import (
     # Story 31.3: Recommend Action Models
     ActionTrend,
     ActionType,
-    AlternativeAgent,
     # Story 12.G.3: Agent Health Check
     AgentHealthCheckResponse,
     AgentHealthChecks,
     AgentHealthStatus,
+    AlternativeAgent,
     ApiTestResult,
     CanvasResponse,
     # Agents
@@ -145,6 +138,10 @@ from app.models.schemas import (
     ErrorResponse,
     ExplainRequest,
     ExplainResponse,
+    # Story 32.3: FSRS State Query Response
+    FSRSStateQueryResponse,
+    # Story 32.2: FSRS State Response
+    FSRSStateResponse,
     GenerateReviewRequest,
     GenerateReviewResponse,
     HealthCheckResponse,
@@ -167,10 +164,6 @@ from app.models.schemas import (
     RecommendActionResponse,
     RecordReviewRequest,
     RecordReviewResponse,
-    # Story 32.2: FSRS State Response
-    FSRSStateResponse,
-    # Story 32.3: FSRS State Query Response
-    FSRSStateQueryResponse,
     # Review
     ReviewItem,
     ReviewScheduleResponse,
@@ -182,6 +175,16 @@ from app.models.schemas import (
     VerificationQuestionResponse,
     WeakConceptData,
     WeightConfig,
+)
+
+# Story 33.3: Session Management Models
+# [Source: specs/data/parallel-task.schema.json]
+from app.models.session_models import (
+    VALID_TRANSITIONS,
+    NodeResult,
+    SessionInfo,
+    SessionStatus,
+    is_valid_transition,
 )
 
 __all__ = [

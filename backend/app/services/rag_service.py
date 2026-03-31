@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 # Add src/ to sys.path if not already present
-_project_root = Path(__file__).parent.parent.parent.parent  # backend/app/services/ -> project root
+_project_root = Path(
+    __file__
+).parent.parent.parent.parent  # backend/app/services/ -> project root
 _src_path = str(_project_root / "src")
 if _src_path not in sys.path:
     sys.path.insert(0, _src_path)
@@ -51,10 +53,14 @@ try:
 
     if AGENTIC_RAG_AVAILABLE and canvas_agentic_rag is not None:
         LANGGRAPH_AVAILABLE = True
-        logger.info("RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True")
+        logger.info(
+            "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True"
+        )
     else:
         LANGGRAPH_AVAILABLE = False
-        _IMPORT_ERROR = get_import_error() or "agentic_rag module loaded but components are None"
+        _IMPORT_ERROR = (
+            get_import_error() or "agentic_rag module loaded but components are None"
+        )
         logger.warning(f"RAGService: Agentic RAG not fully loaded: {_IMPORT_ERROR}")
 
 except ImportError as e:
@@ -79,6 +85,7 @@ except Exception as e:
 # Custom Exceptions (Story 12.4 - RAG Endpoint Integration)
 # ============================================================
 
+
 class RAGServiceError(Exception):
     """
     Base exception for RAG service errors.
@@ -87,6 +94,7 @@ class RAGServiceError(Exception):
 
     [Source: backend/app/api/v1/endpoints/rag.py - Error handling]
     """
+
     pass
 
 
@@ -98,12 +106,14 @@ class RAGUnavailableError(RAGServiceError):
 
     [Source: backend/app/api/v1/endpoints/rag.py - 503 response]
     """
+
     pass
 
 
 # ============================================================
 # RAG Service Class
 # ============================================================
+
 
 class RAGService:
     """
@@ -212,7 +222,7 @@ class RAGService:
         is_review_canvas: bool = False,
         fusion_strategy: Optional[str] = None,
         reranking_strategy: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Execute RAG query.
@@ -269,7 +279,8 @@ class RAGService:
             "subject": effective_subject,
             "cross_subject": cross_subject,
             "is_review_canvas": is_review_canvas,
-            "fusion_strategy": fusion_strategy or ("weighted" if is_review_canvas else "rrf"),
+            "fusion_strategy": fusion_strategy
+            or ("weighted" if is_review_canvas else "rrf"),
             "reranking_strategy": reranking_strategy or "hybrid_auto",
             "graphiti_results": [],
             "lancedb_results": [],
@@ -286,8 +297,7 @@ class RAGService:
         try:
             # ✅ Verified from LangGraph Skill: ainvoke for async execution
             result = await canvas_agentic_rag.ainvoke(
-                initial_state,
-                config=runtime_config
+                initial_state, config=runtime_config
             )
 
             # ✅ Epic 12.K.2: None value protection - ainvoke may return None
@@ -295,7 +305,9 @@ class RAGService:
                 logger.warning(
                     f"RAGService: ainvoke returned None for query: {query[:50]}..."
                 )
-                return self._get_fallback_result(fallback_reason="ainvoke_returned_none")
+                return self._get_fallback_result(
+                    fallback_reason="ainvoke_returned_none"
+                )
 
             return result
 
@@ -307,9 +319,7 @@ class RAGService:
             raise RAGServiceError(f"RAG query execution failed: {e}") from e
 
     async def get_weak_concepts(
-        self,
-        canvas_file: str,
-        limit: int = 10
+        self, canvas_file: str, limit: int = 10
     ) -> list[Dict[str, Any]]:
         """
         Get weak concepts from Temporal Memory for a canvas file.
@@ -326,12 +336,15 @@ class RAGService:
         [Source: backend/app/api/v1/endpoints/rag.py#get_weak_concepts]
         """
         if not LANGGRAPH_AVAILABLE:
-            logger.warning("get_weak_concepts: LangGraph not available, returning empty list")
+            logger.warning(
+                "get_weak_concepts: LangGraph not available, returning empty list"
+            )
             return []
 
         # Story 36 fix: Query LearningMemoryClient for low-score concepts
         try:
             from app.clients.graphiti_client import get_learning_memory_client
+
             memory_client = get_learning_memory_client()
             await memory_client.initialize()
 
@@ -353,7 +366,9 @@ class RAGService:
                         "concept": concept,
                         "score": score,
                         "stability": entry.get("stability", 0.0),
-                        "last_review": entry.get("timestamp", entry.get("created_at", "")),
+                        "last_review": entry.get(
+                            "timestamp", entry.get("created_at", "")
+                        ),
                         "review_count": entry.get("review_count", 1),
                         "canvas_file": canvas_file,
                     }
@@ -383,10 +398,7 @@ class RAGService:
         }
 
     async def query_with_fallback(
-        self,
-        query: str,
-        canvas_file: Optional[str] = None,
-        **kwargs
+        self, query: str, canvas_file: Optional[str] = None, **kwargs
     ) -> Dict[str, Any]:
         """
         Execute RAG query with graceful fallback.
@@ -403,8 +415,7 @@ class RAGService:
         """
         if not LANGGRAPH_AVAILABLE:
             logger.warning(
-                f"RAG query fallback: LangGraph not available. "
-                f"Query: {query[:50]}..."
+                f"RAG query fallback: LangGraph not available. Query: {query[:50]}..."
             )
             return {
                 "messages": [],

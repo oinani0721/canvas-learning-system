@@ -27,6 +27,7 @@ import structlog
 # ✅ Try orjson for performance, fallback to json
 try:
     import orjson
+
     HAS_ORJSON = True
 except ImportError:
     HAS_ORJSON = False
@@ -38,6 +39,7 @@ logger = structlog.get_logger(__name__)
 # Cache Configuration
 # [Source: docs/architecture/decisions/ADR-007-CACHING-STRATEGY-TIERED.md:103-129]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class CacheConfig:
@@ -59,6 +61,7 @@ class CacheConfig:
 
 # Global configuration
 _config = CacheConfig()
+
 
 # Cache statistics
 @dataclass
@@ -109,6 +112,7 @@ _stats = CacheStats()
 # [Source: docs/architecture/performance-monitoring-architecture.md:346-360]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @lru_cache(maxsize=100)
 def read_canvas_cached(canvas_path: str, mtime: float) -> Dict[str, Any]:
     """Read Canvas file with caching.
@@ -136,14 +140,14 @@ def read_canvas_cached(canvas_path: str, mtime: float) -> Dict[str, Any]:
         use_orjson=HAS_ORJSON and _config.use_orjson,
     )
 
-    with open(canvas_path, 'rb') as f:
+    with open(canvas_path, "rb") as f:
         content = f.read()
 
     # ✅ Use orjson if available and enabled
     if HAS_ORJSON and _config.use_orjson:
         return orjson.loads(content)
     else:
-        return json.loads(content.decode('utf-8'))
+        return json.loads(content.decode("utf-8"))
 
 
 def read_canvas(canvas_path: str) -> Dict[str, Any]:
@@ -203,18 +207,19 @@ def _read_canvas_direct(canvas_path: str) -> Dict[str, Any]:
     Returns:
         dict: Canvas JSON data
     """
-    with open(canvas_path, 'rb') as f:
+    with open(canvas_path, "rb") as f:
         content = f.read()
 
     if HAS_ORJSON and _config.use_orjson:
         return orjson.loads(content)
     else:
-        return json.loads(content.decode('utf-8'))
+        return json.loads(content.decode("utf-8"))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Cache Management
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def clear_canvas_cache():
     """Clear the canvas file cache.
@@ -285,6 +290,7 @@ def configure_cache(
 # [Source: docs/architecture/performance-monitoring-architecture.md:346-360]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def write_canvas_json(canvas_path: str, data: Dict[str, Any], pretty: bool = True):
     """Write Canvas data to file with optimization.
 
@@ -301,9 +307,9 @@ def write_canvas_json(canvas_path: str, data: Dict[str, Any], pretty: bool = Tru
         content = orjson.dumps(data, option=options)
     else:
         indent = 2 if pretty else None
-        content = json.dumps(data, indent=indent, ensure_ascii=False).encode('utf-8')
+        content = json.dumps(data, indent=indent, ensure_ascii=False).encode("utf-8")
 
-    with open(canvas_path, 'wb') as f:
+    with open(canvas_path, "wb") as f:
         f.write(content)
 
     # Invalidate cache for this file

@@ -27,9 +27,9 @@ def run_all_tests():
 
     # 测试套件
     test_modules = [
-        'test_concept_extractor',
-        'test_graphiti_integration',
-        'test_graphiti_integration_comprehensive'
+        "test_concept_extractor",
+        "test_graphiti_integration",
+        "test_graphiti_integration_comprehensive",
     ]
 
     total_tests = 0
@@ -71,12 +71,16 @@ def run_all_tests():
             if result.failures:
                 print("\n❌ 失败的测试:")
                 for test, traceback in result.failures:
-                    print(f"   - {test}: {traceback.split('AssertionError:')[-1].strip() if 'AssertionError:' in traceback else 'Unknown'}")
+                    print(
+                        f"   - {test}: {traceback.split('AssertionError:')[-1].strip() if 'AssertionError:' in traceback else 'Unknown'}"
+                    )
 
             if result.errors:
                 print("\n💥 错误的测试:")
                 for test, traceback in result.errors:
-                    print(f"   - {test}: {traceback.split('Exception:')[-1].strip() if 'Exception:' in traceback else 'Unknown'}")
+                    print(
+                        f"   - {test}: {traceback.split('Exception:')[-1].strip() if 'Exception:' in traceback else 'Unknown'}"
+                    )
 
         except Exception as e:
             print(f"❌ 运行测试模块 {module_name} 时出错: {e}")
@@ -96,7 +100,11 @@ def run_all_tests():
     print(f"跳过: {total_skipped}")
     print(f"运行时间: {duration:.2f}秒")
 
-    success_rate = ((total_tests - total_failures - total_errors) / total_tests * 100) if total_tests > 0 else 0
+    success_rate = (
+        ((total_tests - total_failures - total_errors) / total_tests * 100)
+        if total_tests > 0
+        else 0
+    )
     print(f"成功率: {success_rate:.1f}%")
 
     if total_failures == 0 and total_errors == 0:
@@ -114,7 +122,7 @@ def run_specific_test(test_name):
 
     try:
         # 尝试作为模块运行
-        if test_name.startswith('test_'):
+        if test_name.startswith("test_"):
             module = __import__(test_name)
             loader = unittest.TestLoader()
             suite = loader.loadTestsFromModule(module)
@@ -143,18 +151,18 @@ def generate_test_report():
             {
                 "name": "概念提取测试",
                 "module": "test_concept_extractor",
-                "description": "测试概念提取器的各种功能，包括中文分词、关系识别、置信度计算等"
+                "description": "测试概念提取器的各种功能，包括中文分词、关系识别、置信度计算等",
             },
             {
                 "name": "Graphiti集成测试",
                 "module": "test_graphiti_integration",
-                "description": "测试Graphiti知识图谱管理器的核心功能"
+                "description": "测试Graphiti知识图谱管理器的核心功能",
             },
             {
                 "name": "综合集成测试",
                 "module": "test_graphiti_integration_comprehensive",
-                "description": "端到端测试，验证整个系统的集成和性能"
-            }
+                "description": "端到端测试，验证整个系统的集成和性能",
+            },
         ],
         "coverage_areas": [
             "概念提取和关系识别",
@@ -163,13 +171,14 @@ def generate_test_report():
             "可视化生成",
             "数据备份和恢复",
             "性能和可扩展性",
-            "错误处理和健壮性"
-        ]
+            "错误处理和健壮性",
+        ],
     }
 
     report_path = Path(__file__).parent / "test_report.json"
     import json
-    with open(report_path, 'w', encoding='utf-8') as f:
+
+    with open(report_path, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
     print(f"📄 测试报告已生成: {report_path}")
@@ -190,5 +199,5 @@ def main():
     sys.exit(0 if success else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

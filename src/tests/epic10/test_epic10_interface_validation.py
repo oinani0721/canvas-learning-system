@@ -21,9 +21,7 @@ class TestEpic10InterfaceValidation:
 
     @pytest.mark.asyncio
     async def test_10_1_to_10_2_interface(
-        self,
-        agent_recommendation_result,
-        mock_scheduler
+        self, agent_recommendation_result, mock_scheduler
     ):
         """测试 Story 10.1 → 10.2 的接口传递"""
         # 验证Agent推荐结果的格式
@@ -40,26 +38,23 @@ class TestEpic10InterfaceValidation:
         # 验证每个Agent推荐的结构
         for agent in agents:
             required_fields = [
-                "agent_name", "confidence_score", "reasoning",
-                "priority", "estimated_duration"
+                "agent_name",
+                "confidence_score",
+                "reasoning",
+                "priority",
+                "estimated_duration",
             ]
             for field in required_fields:
                 assert field in agent, f"Missing field: {field}"
 
         # 验证调度器能否正确接收推荐结果
         mock_scheduler.create_scheduling_plan.assert_called_with(
-            analysis_result={
-                "agent_recommendations": agent_recommendation_result
-            },
-            optimization_goals=["speed", "efficiency"]
+            analysis_result={"agent_recommendations": agent_recommendation_result},
+            optimization_goals=["speed", "efficiency"],
         )
 
     @pytest.mark.asyncio
-    async def test_10_2_to_10_3_interface(
-        self,
-        scheduling_plan,
-        mock_command_handler
-    ):
+    async def test_10_2_to_10_3_interface(self, scheduling_plan, mock_command_handler):
         """测试 Story 10.2 → 10.3 的接口传递"""
         # 验证调度计划的格式
         assert "plan_id" in scheduling_plan
@@ -74,9 +69,12 @@ class TestEpic10InterfaceValidation:
         # 验证每个任务组的结构
         for group in task_groups:
             required_fields = [
-                "group_id", "agent_type", "nodes",
-                "estimated_duration", "priority_score",
-                "resource_requirements"
+                "group_id",
+                "agent_type",
+                "nodes",
+                "estimated_duration",
+                "priority_score",
+                "resource_requirements",
             ]
             for field in required_fields:
                 assert field in group, f"Missing field: {field}"
@@ -84,18 +82,16 @@ class TestEpic10InterfaceValidation:
         # 验证命令处理器的接收能力
         mock_command_handler.handle_intelligent_parallel.assert_called_with(
             params={
-                "max_concurrent": scheduling_plan["execution_strategy"]["max_concurrent_groups"],
+                "max_concurrent": scheduling_plan["execution_strategy"][
+                    "max_concurrent_groups"
+                ],
                 "dry_run": False,
-                "auto": False
+                "auto": False,
             }
         )
 
     @pytest.mark.asyncio
-    async def test_10_2_to_10_4_interface(
-        self,
-        execution_results,
-        mock_node_generator
-    ):
+    async def test_10_2_to_10_4_interface(self, execution_results, mock_node_generator):
         """测试 Story 10.2 → 10.4 的接口传递"""
         # 验证执行结果的格式
         assert "execution_id" in execution_results
@@ -109,31 +105,27 @@ class TestEpic10InterfaceValidation:
 
         # 验证节点生成器的接收能力
         mock_node_generator.generate_nodes_from_results.assert_called_with(
-            canvas_path="/path/to/canvas.canvas",
-            execution_results=execution_results
+            canvas_path="/path/to/canvas.canvas", execution_results=execution_results
         )
 
         # 验证生成的节点数据结构
         expected_node_structure = {
             "generation_id": str,
             "generated_nodes": list,
-            "updated_connections": list
+            "updated_connections": list,
         }
 
         for key, expected_type in expected_node_structure.items():
             assert key in execution_results
 
     def test_data_format_consistency(
-        self,
-        agent_recommendation_result,
-        scheduling_plan,
-        execution_results
+        self, agent_recommendation_result, scheduling_plan, execution_results
     ):
         """测试数据格式的一致性"""
         # 验证时间戳格式
         timestamp_formats = [
             ("2025-01-27T10:00:00Z", "%Y-%m-%dT%H:%M:%SZ"),
-            ("2025-01-27 10:00:00", "%Y-%m-%d %H:%M:%S")
+            ("2025-01-27 10:00:00", "%Y-%m-%d %H:%M:%S"),
         ]
 
         # 验证ID格式一致性
@@ -141,10 +133,11 @@ class TestEpic10InterfaceValidation:
             "analysis_id": r"rec-[a-f0-9]{16}",
             "plan_id": r"schedule-[a-f0-9]{16}",
             "execution_id": r"exec-[a-f0-9]{16}",
-            "group_id": r"group-[a-f0-9]{8}"
+            "group_id": r"group-[a-f0-9]{8}",
         }
 
         import re
+
         for field_name, pattern in id_patterns.items():
             # 从数据中提取对应字段
             if field_name in agent_recommendation_result:
@@ -165,7 +158,7 @@ class TestEpic10InterfaceValidation:
             ("EPIC10_1001", "Agent推荐失败", 10.1),
             ("EPIC10_2001", "节点分析失败", 10.2),
             ("EPIC10_3001", "命令参数无效", 10.3),
-            ("EPIC10_4001", "节点生成失败", 10.4)
+            ("EPIC10_4001", "节点生成失败", 10.4),
         ]
 
         for error_code, message, source_story in error_chain:
@@ -174,13 +167,16 @@ class TestEpic10InterfaceValidation:
                 "message": message,
                 "source_story": source_story,
                 "timestamp": "2025-01-27T10:00:00Z",
-                "recovery_suggestion": "请检查输入参数或重试"
+                "recovery_suggestion": "请检查输入参数或重试",
             }
 
             # 验证错误格式
             required_fields = [
-                "error_code", "message", "source_story",
-                "timestamp", "recovery_suggestion"
+                "error_code",
+                "message",
+                "source_story",
+                "timestamp",
+                "recovery_suggestion",
             ]
             for field in required_fields:
                 assert field in error
@@ -191,7 +187,7 @@ class TestEpic10InterfaceValidation:
         sample_canvas_data,
         agent_recommendation_result,
         scheduling_plan,
-        execution_results
+        execution_results,
     ):
         """测试端到端数据流"""
         # 模拟完整的数据流
@@ -200,7 +196,7 @@ class TestEpic10InterfaceValidation:
             ("recommend_agents", agent_recommendation_result),
             ("create_plan", scheduling_plan),
             ("execute_plan", execution_results),
-            ("generate_nodes", None)  # 最后输出
+            ("generate_nodes", None),  # 最后输出
         ]
 
         # 验证每一步的输入输出兼容性
@@ -230,7 +226,7 @@ class TestEpic10InterfaceValidation:
             "agent_selector",
             "scheduler",
             "command_interface",
-            "node_generation"
+            "node_generation",
         ]
 
         for section in required_sections:
@@ -265,7 +261,7 @@ class TestEpic10InterfaceValidation:
         concurrency_limits = {
             "agent_level": {"max": 20, "default": 5},
             "node_level": {"max": 20, "default": 12},
-            "task_level": {"max": 5, "default": 5}
+            "task_level": {"max": 5, "default": 5},
         }
 
         # 验证Agent级限制不会超过系统限制
@@ -273,25 +269,26 @@ class TestEpic10InterfaceValidation:
 
         # 验证节点级限制可以调整
         assert (
-            concurrency_limits["node_level"]["default"] <=
-            concurrency_limits["node_level"]["max"]
+            concurrency_limits["node_level"]["default"]
+            <= concurrency_limits["node_level"]["max"]
         )
 
         # 验证任务级限制固定
         assert concurrency_limits["task_level"]["max"] == 5
 
     @pytest.mark.asyncio
-    async def test_resource_requirement_calculation(
-        self,
-        scheduling_plan
-    ):
+    async def test_resource_requirement_calculation(self, scheduling_plan):
         """测试资源需求计算的正确性"""
         # 验证每个任务组的资源需求
         for group in scheduling_plan["task_groups"]:
             resources = group["resource_requirements"]
 
             # 验证必需字段
-            required_fields = ["concurrent_slots", "memory_estimate", "api_calls_estimate"]
+            required_fields = [
+                "concurrent_slots",
+                "memory_estimate",
+                "api_calls_estimate",
+            ]
             for field in required_fields:
                 assert field in resources
 
@@ -309,13 +306,16 @@ class TestEpic10InterfaceValidation:
             "agent_name": "clarification-path",
             "generated_from": "yellow_node_1",
             "generation_time": "2025-01-27T10:00:00Z",
-            "version": "1.0"
+            "version": "1.0",
         }
 
         # 验证元数据字段
         required_metadata_fields = [
-            "node_type", "agent_name", "generated_from",
-            "generation_time", "version"
+            "node_type",
+            "agent_name",
+            "generated_from",
+            "generation_time",
+            "version",
         ]
 
         for field in required_metadata_fields:
@@ -334,7 +334,7 @@ class TestInterfaceBackwardCompatibility:
         old_format = {
             "agent_name": "clarification-path",
             "confidence_score": 0.92,
-            "reasoning": "理解不完整，需要深度澄清"
+            "reasoning": "理解不完整，需要深度澄清",
         }
 
         # 新格式（支持多个Agent）
@@ -344,8 +344,8 @@ class TestInterfaceBackwardCompatibility:
             "processing_strategy": {
                 "execution_mode": "parallel",
                 "max_concurrent": 1,
-                "total_estimated_duration": "15-20秒"
-            }
+                "total_estimated_duration": "15-20秒",
+            },
         }
 
         # 验证新格式兼容旧格式
@@ -385,7 +385,7 @@ class TestInterfaceBackwardCompatibility:
             "dry_run": False,
             "verbose": False,
             "nodes": None,
-            "canvas_file": None
+            "canvas_file": None,
         }
 
         for param, default in param_defaults.items():
@@ -400,15 +400,12 @@ class TestEpic10Integration:
 
     @pytest.mark.slow
     @pytest.mark.asyncio
-    async def test_full_workflow_simulation(
-        self,
-        sample_canvas_data,
-        epic10_config
-    ):
+    async def test_full_workflow_simulation(self, sample_canvas_data, epic10_config):
         """模拟完整工作流程"""
         # 步骤1: 分析Canvas节点
         filled_nodes = [
-            node for node in sample_canvas_data["nodes"]
+            node
+            for node in sample_canvas_data["nodes"]
             if node["color"] == "6" and node.get("text", "").strip()
         ]
 
@@ -424,30 +421,32 @@ class TestEpic10Integration:
                         "agent_name": "clarification-path",
                         "confidence_score": 0.8,
                         "priority": 1,
-                        "estimated_duration": "15-20秒"
+                        "estimated_duration": "15-20秒",
                     }
-                ]
+                ],
             }
 
         # 步骤3: 创建调度计划
         task_groups = []
         for node_id, rec in node_recommendations.items():
             for agent in rec["recommended_agents"]:
-                task_groups.append({
-                    "group_id": f"group-{len(task_groups):04d}",
-                    "agent_type": agent["agent_name"],
-                    "nodes": [node_id],
-                    "priority_score": agent["confidence_score"],
-                    "dependencies": []
-                })
+                task_groups.append(
+                    {
+                        "group_id": f"group-{len(task_groups):04d}",
+                        "agent_type": agent["agent_name"],
+                        "nodes": [node_id],
+                        "priority_score": agent["confidence_score"],
+                        "dependencies": [],
+                    }
+                )
 
         scheduling_plan = {
             "plan_id": "schedule-test123456",
             "task_groups": task_groups[:5],  # 限制到5个组用于测试
             "execution_strategy": {
                 "max_concurrent_groups": 5,
-                "total_estimated_duration": "60-90秒"
-            }
+                "total_estimated_duration": "60-90秒",
+            },
         }
 
         # 步骤4: 模拟执行
@@ -460,7 +459,7 @@ class TestEpic10Integration:
                         "group_id": group["group_id"],
                         "status": "completed",
                         "agents_executed": 1,
-                        "nodes_processed": len(group["nodes"])
+                        "nodes_processed": len(group["nodes"]),
                     }
                     for group in scheduling_plan["task_groups"]
                 ],
@@ -468,9 +467,9 @@ class TestEpic10Integration:
                     "total_nodes_processed": len(filled_nodes),
                     "total_agents_executed": len(task_groups),
                     "total_execution_time": 75.5,
-                    "success_rate": 100.0
-                }
-            }
+                    "success_rate": 100.0,
+                },
+            },
         }
 
         # 步骤5: 验证结果
@@ -488,11 +487,11 @@ class TestEpic10Integration:
         """测试性能基准"""
         # 定义性能基准
         benchmarks = {
-            "agent_analysis_time": 1.0,      # 秒
-            "node_clustering_time": 2.0,     # 秒
-            "plan_generation_time": 1.0,     # 秒
-            "command_parsing_time": 0.5,    # 秒
-            "node_generation_time": 0.5      # 秒/节点
+            "agent_analysis_time": 1.0,  # 秒
+            "node_clustering_time": 2.0,  # 秒
+            "plan_generation_time": 1.0,  # 秒
+            "command_parsing_time": 0.5,  # 秒
+            "node_generation_time": 0.5,  # 秒/节点
         }
 
         # 验证基准值合理性
@@ -510,23 +509,19 @@ class TestEpic10Integration:
             {
                 "error": "Agent推荐失败",
                 "expected_action": "回退到默认推荐",
-                "retry_count": 3
+                "retry_count": 3,
             },
             {
                 "error": "并发限制超限",
                 "expected_action": "降低并发数重试",
-                "retry_count": 2
+                "retry_count": 2,
             },
             {
                 "error": "Canvas文件锁定",
                 "expected_action": "等待后重试",
-                "retry_count": 5
+                "retry_count": 5,
             },
-            {
-                "error": "API速率限制",
-                "expected_action": "延迟后重试",
-                "retry_count": 3
-            }
+            {"error": "API速率限制", "expected_action": "延迟后重试", "retry_count": 3},
         ]
 
         for scenario in error_scenarios:

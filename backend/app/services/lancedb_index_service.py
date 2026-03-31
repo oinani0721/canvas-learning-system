@@ -10,6 +10,7 @@ AC-1: Auto-trigger after add_node/update_node, async non-blocking, <5s
 AC-2: Failure does not block CRUD; 3 retries with exponential backoff
 AC-3: Pending operations recovered on startup from JSONL file
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -21,7 +22,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from tenacity import (
-    RetryError,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -50,10 +50,14 @@ class LanceDBIndexService:
 
     def __init__(self) -> None:
         self._lancedb_client = None
-        self._client_unavailable = False  # [Review H1/M2] skip retries when module missing
+        self._client_unavailable = (
+            False  # [Review H1/M2] skip retries when module missing
+        )
         self._pending_tasks: Dict[str, asyncio.Task] = {}
         self._indexing_canvases: set[str] = set()  # [Review M1] track active indexing
-        self._file_lock = threading.Lock()  # [Review H2] protect JSONL concurrent writes
+        self._file_lock = (
+            threading.Lock()
+        )  # [Review H2] protect JSONL concurrent writes
         self._pending_file: Path = (
             Path(__file__).parent.parent / "data" / "lancedb_pending_index.jsonl"
         )
@@ -99,9 +103,11 @@ class LanceDBIndexService:
         # [Review M2] Auto-clean completed tasks to prevent memory leak
         # Only remove if the dict still holds THIS task (not a newer replacement)
         task.add_done_callback(
-            lambda _t, cn=canvas_name: self._pending_tasks.pop(cn, None)
-            if self._pending_tasks.get(cn) is _t
-            else None
+            lambda _t, cn=canvas_name: (
+                self._pending_tasks.pop(cn, None)
+                if self._pending_tasks.get(cn) is _t
+                else None
+            )
         )
 
     async def recover_pending(self, canvas_base_path: str) -> Dict[str, int]:
@@ -151,9 +157,7 @@ class LanceDBIndexService:
                 recovered += 1
                 logger.info(f"[Story 38.1] Recovered index for {canvas_name}")
             except Exception as e:
-                logger.warning(
-                    f"[Story 38.1] Recovery failed for {canvas_name}: {e}"
-                )
+                logger.warning(f"[Story 38.1] Recovery failed for {canvas_name}: {e}")
                 still_pending.append(entry)
 
         # [Review H2] Lock protects against concurrent _persist_pending() appends
@@ -238,9 +242,7 @@ class LanceDBIndexService:
         """Index a canvas with retry. Decorated by tenacity."""
         return await self._do_index(canvas_name, canvas_base_path)
 
-    async def _do_index(
-        self, canvas_name: str, canvas_base_path: str
-    ) -> int:
+    async def _do_index(self, canvas_name: str, canvas_base_path: str) -> int:
         """
         Perform actual LanceDB indexing for a canvas.
 
@@ -249,7 +251,9 @@ class LanceDBIndexService:
         """
         # [Review M2] Fast-fail when agentic_rag module is unavailable
         if self._client_unavailable:
-            raise RuntimeError("LanceDB client permanently unavailable (module not installed)")
+            raise RuntimeError(
+                "LanceDB client permanently unavailable (module not installed)"
+            )
 
         client = self._get_or_init_client()
         if client is None:

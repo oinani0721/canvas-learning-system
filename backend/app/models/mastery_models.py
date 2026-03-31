@@ -57,22 +57,35 @@ class CalibrationRecord(BaseModel):
 
     node_id: str = Field(..., description="Concept node ID")
     session_id: str = Field(default="", description="Exam session ID")
-    self_confidence: float = Field(..., ge=0.0, le=1.0, description="User's self-assessed confidence (0.0-1.0)")
-    actual_performance: float = Field(..., ge=0.0, le=1.0, description="AutoSCORE 4-dim average normalized (0.0-1.0)")
+    self_confidence: float = Field(
+        ..., ge=0.0, le=1.0, description="User's self-assessed confidence (0.0-1.0)"
+    )
+    actual_performance: float = Field(
+        ..., ge=0.0, le=1.0, description="AutoSCORE 4-dim average normalized (0.0-1.0)"
+    )
     quadrant: CalibrationQuadrant = Field(
-        default=CalibrationQuadrant.UNLEARNED, description="Area9 quadrant classification"
+        default=CalibrationQuadrant.UNLEARNED,
+        description="Area9 quadrant classification",
     )
     is_dangerous: bool = Field(
-        default=False, description="True if MISCONCEPTION quadrant (high confidence + low performance)"
+        default=False,
+        description="True if MISCONCEPTION quadrant (high confidence + low performance)",
     )
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Record creation time")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Record creation time",
+    )
 
 
 class CalibrationRequest(BaseModel):
     """API request to record a calibration data point."""
 
-    self_confidence: float = Field(..., ge=0.0, le=1.0, description="User's self-assessed confidence (0.0-1.0)")
-    actual_performance: float = Field(..., ge=0.0, le=1.0, description="AutoSCORE 4-dim average normalized (0.0-1.0)")
+    self_confidence: float = Field(
+        ..., ge=0.0, le=1.0, description="User's self-assessed confidence (0.0-1.0)"
+    )
+    actual_performance: float = Field(
+        ..., ge=0.0, le=1.0, description="AutoSCORE 4-dim average normalized (0.0-1.0)"
+    )
     session_id: str = Field(default="", description="Exam session ID")
 
 
@@ -113,9 +126,13 @@ class DangerousNodeInfo(BaseModel):
     """Info about a node in the MISCONCEPTION quadrant."""
 
     node_id: str
-    misconception_count: int = Field(default=0, description="Number of MISCONCEPTION records")
+    misconception_count: int = Field(
+        default=0, description="Number of MISCONCEPTION records"
+    )
     total_records: int = Field(default=0, description="Total calibration records")
-    misconception_ratio: float = Field(default=0.0, description="Ratio of misconception records")
+    misconception_ratio: float = Field(
+        default=0.0, description="Ratio of misconception records"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -167,17 +184,27 @@ class FusionResult(BaseModel):
     fused_mastery replaces the old min(p_mastery, R) from Story 5.1.
     """
 
-    fused_mastery: float = Field(..., ge=0.0, le=1.0, description="Fused single-dimension mastery score")
-    signal_details: List[SignalDetail] = Field(default_factory=list, description="Per-signal contribution details")
-    active_signal_count: int = Field(default=0, description="Number of signals with data")
-    is_fallback: bool = Field(default=False, description="True if using min(p_mastery, R) fallback")
+    fused_mastery: float = Field(
+        ..., ge=0.0, le=1.0, description="Fused single-dimension mastery score"
+    )
+    signal_details: List[SignalDetail] = Field(
+        default_factory=list, description="Per-signal contribution details"
+    )
+    active_signal_count: int = Field(
+        default=0, description="Number of signals with data"
+    )
+    is_fallback: bool = Field(
+        default=False, description="True if using min(p_mastery, R) fallback"
+    )
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Phase 3+ multi-dimensional mastery (schema reserved, not computed)
     conceptual_mastery: Optional[float] = Field(
         default=None, description="Reserved: conceptual understanding dimension"
     )
-    procedural_mastery: Optional[float] = Field(default=None, description="Reserved: procedural skill dimension")
+    procedural_mastery: Optional[float] = Field(
+        default=None, description="Reserved: procedural skill dimension"
+    )
     metacognitive_mastery: Optional[float] = Field(
         default=None, description="Reserved: metacognitive awareness dimension"
     )
@@ -190,4 +217,6 @@ class SignalCorrelationResult(BaseModel):
     signal_b: str
     pearson_r: float
     sample_count: int
-    is_redundant: bool = Field(default=False, description="True if |r| >= 0.7 (high correlation warning)")
+    is_redundant: bool = Field(
+        default=False, description="True if |r| >= 0.7 (high correlation warning)"
+    )

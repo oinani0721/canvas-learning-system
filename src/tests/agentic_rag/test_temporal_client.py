@@ -25,6 +25,7 @@ from src.agentic_rag.clients.temporal_client import TemporalClient
 # Story 12.4 AC 4.1: FSRS库集成
 # ============================================================
 
+
 class TestTemporalClientInitialization:
     """测试 TemporalClient 初始化"""
 
@@ -41,9 +42,7 @@ class TestTemporalClientInitialization:
     def test_custom_initialization(self):
         """AC 4.1: 自定义参数初始化"""
         client = TemporalClient(
-            db_path="custom.db",
-            timeout_ms=100,
-            enable_fallback=False
+            db_path="custom.db", timeout_ms=100, enable_fallback=False
         )
 
         assert client.db_path == "custom.db"
@@ -53,7 +52,9 @@ class TestTemporalClientInitialization:
     @pytest.mark.asyncio
     async def test_initialize_without_temporal_memory(self):
         """AC 4.1: 无TemporalMemory环境初始化"""
-        with patch('src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE', False):
+        with patch(
+            "src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE", False
+        ):
             client = TemporalClient()
 
             result = await client.initialize()
@@ -67,8 +68,12 @@ class TestTemporalClientInitialization:
         if not fsrs_available:
             pytest.skip("FSRS not installed")
 
-        with patch('src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE', True):
-            with patch('src.agentic_rag.clients.temporal_client.TemporalMemory') as mock_tm:
+        with patch(
+            "src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE", True
+        ):
+            with patch(
+                "src.agentic_rag.clients.temporal_client.TemporalMemory"
+            ) as mock_tm:
                 mock_instance = MagicMock()
                 mock_tm.return_value = mock_instance
 
@@ -90,6 +95,7 @@ class TestTemporalClientInitialization:
 # Story 12.4 AC 4.2: 学习行为时序追踪
 # ============================================================
 
+
 class TestTemporalClientRecordBehavior:
     """测试学习行为记录"""
 
@@ -107,7 +113,7 @@ class TestTemporalClientRecordBehavior:
             canvas_file="离散数学.canvas",
             concept="逆否命题",
             action_type="explanation",
-            session_id="session_001"
+            session_id="session_001",
         )
 
         assert row_id == 123
@@ -128,7 +134,7 @@ class TestTemporalClientRecordBehavior:
             concept="逆否命题",
             action_type="decomposition",
             session_id="session_001",
-            metadata='{"agent": "basic-decomposition"}'
+            metadata='{"agent": "basic-decomposition"}',
         )
 
         assert row_id == 124
@@ -136,7 +142,9 @@ class TestTemporalClientRecordBehavior:
     @pytest.mark.asyncio
     async def test_record_behavior_without_initialization(self):
         """AC 4.2: record_behavior自动初始化"""
-        with patch('src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE', False):
+        with patch(
+            "src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE", False
+        ):
             client = TemporalClient()
             # Don't call initialize()
 
@@ -144,7 +152,7 @@ class TestTemporalClientRecordBehavior:
                 canvas_file="test.canvas",
                 concept="test",
                 action_type="test",
-                session_id="test"
+                session_id="test",
             )
 
             assert client._initialized is True
@@ -164,7 +172,7 @@ class TestTemporalClientRecordBehavior:
             canvas_file="test.canvas",
             concept="test",
             action_type="test",
-            session_id="test"
+            session_id="test",
         )
 
         assert row_id == 0
@@ -173,6 +181,7 @@ class TestTemporalClientRecordBehavior:
 # ============================================================
 # Story 12.4 AC 4.3: get_weak_concepts()返回低稳定性概念
 # ============================================================
+
 
 class TestTemporalClientGetWeakConcepts:
     """测试获取薄弱概念"""
@@ -203,9 +212,7 @@ class TestTemporalClientGetWeakConcepts:
         client._temporal_memory = mock_tm
 
         await client.get_weak_concepts(
-            canvas_file="离散数学.canvas",
-            stability_weight=0.8,
-            error_rate_weight=0.2
+            canvas_file="离散数学.canvas", stability_weight=0.8, error_rate_weight=0.2
         )
 
         # Verify weights were passed
@@ -224,17 +231,16 @@ class TestTemporalClientGetWeakConcepts:
         mock_tm.get_weak_concepts.return_value = sample_weak_concepts[:1]
         client._temporal_memory = mock_tm
 
-        results = await client.get_weak_concepts(
-            canvas_file="离散数学.canvas",
-            limit=1
-        )
+        results = await client.get_weak_concepts(canvas_file="离散数学.canvas", limit=1)
 
         assert len(results) <= 1
 
     @pytest.mark.asyncio
     async def test_get_weak_concepts_auto_initializes(self):
         """AC 4.3: get_weak_concepts自动初始化"""
-        with patch('src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE', False):
+        with patch(
+            "src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE", False
+        ):
             client = TemporalClient()
             # Don't call initialize()
 
@@ -266,6 +272,7 @@ class TestTemporalClientGetWeakConcepts:
 # Story 12.4 AC 4.4: update_behavior()更新FSRS卡片
 # ============================================================
 
+
 class TestTemporalClientUpdateBehavior:
     """测试更新FSRS卡片"""
 
@@ -280,18 +287,18 @@ class TestTemporalClientUpdateBehavior:
             "concept": "逆否命题",
             "stability": 2.5,
             "difficulty": 0.6,
-            "due": "2025-01-15T00:00:00"
+            "due": "2025-01-15T00:00:00",
         }
         client._temporal_memory = mock_tm
 
-        with patch('src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE', True):
-            with patch('src.agentic_rag.clients.temporal_client.Rating') as mock_rating:
+        with patch(
+            "src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE", True
+        ):
+            with patch("src.agentic_rag.clients.temporal_client.Rating") as mock_rating:
                 mock_rating.Good = 3
 
                 result = await client.update_behavior(
-                    concept="逆否命题",
-                    rating=3,
-                    canvas_file="离散数学.canvas"
+                    concept="逆否命题", rating=3, canvas_file="离散数学.canvas"
                 )
 
                 assert isinstance(result, dict)
@@ -307,8 +314,10 @@ class TestTemporalClientUpdateBehavior:
         mock_tm.update_behavior.return_value = {}
         client._temporal_memory = mock_tm
 
-        with patch('src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE', True):
-            with patch('src.agentic_rag.clients.temporal_client.Rating') as mock_rating:
+        with patch(
+            "src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE", True
+        ):
+            with patch("src.agentic_rag.clients.temporal_client.Rating") as mock_rating:
                 mock_rating.Again = 1
                 mock_rating.Hard = 2
                 mock_rating.Good = 3
@@ -317,9 +326,7 @@ class TestTemporalClientUpdateBehavior:
                 # Test each rating value
                 for rating in [1, 2, 3, 4]:
                     await client.update_behavior(
-                        concept="test",
-                        rating=rating,
-                        canvas_file="test.canvas"
+                        concept="test", rating=rating, canvas_file="test.canvas"
                     )
 
                 assert mock_tm.update_behavior.call_count == 4
@@ -334,15 +341,17 @@ class TestTemporalClientUpdateBehavior:
         mock_tm.update_behavior.return_value = {}
         client._temporal_memory = mock_tm
 
-        with patch('src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE', True):
-            with patch('src.agentic_rag.clients.temporal_client.Rating') as mock_rating:
+        with patch(
+            "src.agentic_rag.clients.temporal_client.TEMPORAL_MEMORY_AVAILABLE", True
+        ):
+            with patch("src.agentic_rag.clients.temporal_client.Rating") as mock_rating:
                 mock_rating.Good = 3
 
                 await client.update_behavior(
                     concept="逆否命题",
                     rating=3,
                     canvas_file="离散数学.canvas",
-                    session_id="session_001"
+                    session_id="session_001",
                 )
 
                 call_kwargs = mock_tm.update_behavior.call_args[1]
@@ -356,9 +365,7 @@ class TestTemporalClientUpdateBehavior:
         client._temporal_memory = None
 
         result = await client.update_behavior(
-            concept="test",
-            rating=3,
-            canvas_file="test.canvas"
+            concept="test", rating=3, canvas_file="test.canvas"
         )
 
         assert result == {}
@@ -367,6 +374,7 @@ class TestTemporalClientUpdateBehavior:
 # ============================================================
 # Story 12.4 AC 4.5: 性能 (< 50ms)
 # ============================================================
+
 
 class TestTemporalClientPerformance:
     """测试性能相关功能"""
@@ -378,6 +386,7 @@ class TestTemporalClientPerformance:
         client._initialized = True
 
         mock_tm = MagicMock()
+
         # Simulate slow operation
         async def slow_operation():
             await asyncio.sleep(0.1)
@@ -385,7 +394,9 @@ class TestTemporalClientPerformance:
 
         client._temporal_memory = mock_tm
 
-        with patch.object(client, 'get_weak_concepts', side_effect=asyncio.TimeoutError):
+        with patch.object(
+            client, "get_weak_concepts", side_effect=asyncio.TimeoutError
+        ):
             # Direct call will raise, but client should handle it
             pass
 
@@ -399,6 +410,7 @@ class TestTemporalClientPerformance:
 
         def slow_get_weak_concepts(*args, **kwargs):
             import time
+
             time.sleep(0.1)  # 100ms, exceeds 1ms timeout
             return []
 
@@ -427,6 +439,7 @@ class TestTemporalClientPerformance:
 # Additional Tests: get_review_due_concepts
 # ============================================================
 
+
 class TestTemporalClientGetReviewDueConcepts:
     """测试获取到期复习概念"""
 
@@ -439,7 +452,7 @@ class TestTemporalClientGetReviewDueConcepts:
         mock_tm = MagicMock()
         mock_tm.get_review_due_concepts.return_value = [
             {"concept": "逆否命题", "due": "2025-01-14"},
-            {"concept": "充分条件", "due": "2025-01-14"}
+            {"concept": "充分条件", "due": "2025-01-14"},
         ]
         client._temporal_memory = mock_tm
 
@@ -460,10 +473,7 @@ class TestTemporalClientGetReviewDueConcepts:
         ]
         client._temporal_memory = mock_tm
 
-        await client.get_review_due_concepts(
-            canvas_file="离散数学.canvas",
-            limit=1
-        )
+        await client.get_review_due_concepts(canvas_file="离散数学.canvas", limit=1)
 
         mock_tm.get_review_due_concepts.assert_called_once()
         call_kwargs = mock_tm.get_review_due_concepts.call_args[1]
@@ -488,15 +498,13 @@ class TestTemporalClientGetReviewDueConcepts:
 # Additional Tests: Stats and Close
 # ============================================================
 
+
 class TestTemporalClientStatsAndClose:
     """测试统计信息和关闭"""
 
     def test_get_stats(self):
         """get_stats返回客户端统计信息"""
-        client = TemporalClient(
-            db_path="custom.db",
-            timeout_ms=100
-        )
+        client = TemporalClient(db_path="custom.db", timeout_ms=100)
 
         stats = client.get_stats()
 

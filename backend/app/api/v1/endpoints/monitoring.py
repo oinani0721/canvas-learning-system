@@ -33,6 +33,7 @@ logger = structlog.get_logger(__name__)
 # [Source: specs/api/canvas-api.openapi.yml:1062-1091]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class AlertResponse(BaseModel):
     """Alert response model.
 
@@ -40,6 +41,7 @@ class AlertResponse(BaseModel):
 
     Matches the OpenAPI Alert schema definition.
     """
+
     id: str = Field(..., description="Unique alert identifier")
     name: str = Field(..., description="Alert name (e.g., 'HighAPILatency')")
     severity: str = Field(..., description="Alert severity: critical, warning, info")
@@ -47,7 +49,9 @@ class AlertResponse(BaseModel):
     triggered_at: datetime = Field(..., description="When alert was triggered")
     value: Optional[float] = Field(None, description="Current metric value")
     threshold: Optional[float] = Field(None, description="Alert threshold")
-    labels: Dict[str, str] = Field(default_factory=dict, description="Additional labels")
+    labels: Dict[str, str] = Field(
+        default_factory=dict, description="Additional labels"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -70,6 +74,7 @@ class AlertListResponse(BaseModel):
 
     [Source: specs/api/canvas-api.openapi.yml:644-662]
     """
+
     alerts: List[AlertResponse] = Field(..., description="List of active alerts")
     total: int = Field(..., description="Total count of active alerts")
 
@@ -79,11 +84,13 @@ class AlertListResponse(BaseModel):
 # [Source: specs/api/canvas-api.openapi.yml:987-1060]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class APIMetricsSummary(BaseModel):
     """API metrics summary.
 
     [Source: specs/api/canvas-api.openapi.yml:987-1000]
     """
+
     requests_total: int = Field(..., description="Total requests count")
     requests_per_second: float = Field(..., description="Current RPS")
     avg_latency_ms: float = Field(..., description="Average latency in ms")
@@ -93,6 +100,7 @@ class APIMetricsSummary(BaseModel):
 
 class AgentTypeSummary(BaseModel):
     """Agent type summary."""
+
     agent_type: str
     invocations: int
     avg_execution_time_s: float
@@ -103,16 +111,17 @@ class AgentMetricsSummary(BaseModel):
 
     [Source: specs/api/canvas-api.openapi.yml:1001-1020]
     """
+
     invocations_total: int = Field(..., description="Total agent invocations")
     avg_execution_time_s: float = Field(..., description="Average execution time")
     by_type: List[AgentTypeSummary] = Field(
-        default_factory=list,
-        description="Breakdown by agent type"
+        default_factory=list, description="Breakdown by agent type"
     )
 
 
 class MemoryLayerSummary(BaseModel):
     """Memory layer summary."""
+
     queries_total: int
     avg_latency_ms: float
 
@@ -122,6 +131,7 @@ class MemorySystemSummary(BaseModel):
 
     [Source: specs/api/canvas-api.openapi.yml:1021-1040]
     """
+
     graphiti: MemoryLayerSummary
     temporal: MemoryLayerSummary
     semantic: MemoryLayerSummary
@@ -132,6 +142,7 @@ class ResourcesSummary(BaseModel):
 
     [Source: specs/api/canvas-api.openapi.yml:1041-1055]
     """
+
     cpu_usage_percent: float = Field(..., description="CPU usage percentage")
     memory_usage_percent: float = Field(..., description="Memory usage percentage")
     disk_usage_percent: float = Field(..., description="Disk usage percentage")
@@ -139,6 +150,7 @@ class ResourcesSummary(BaseModel):
 
 class AlertsSummary(BaseModel):
     """Alerts summary for dashboard."""
+
     active_count: int = Field(..., description="Total active alerts")
     critical_count: int = Field(..., description="Critical alerts count")
     warning_count: int = Field(..., description="Warning alerts count")
@@ -151,6 +163,7 @@ class MetricsSummaryResponse(BaseModel):
     [Source: specs/api/canvas-api.openapi.yml:987-1060]
     [Source: docs/stories/17.3.story.md - AC 6]
     """
+
     timestamp: datetime = Field(..., description="Summary timestamp")
     api: APIMetricsSummary
     agents: AgentMetricsSummary
@@ -173,7 +186,11 @@ class MetricsSummaryResponse(BaseModel):
                     "invocations_total": 500,
                     "avg_execution_time_s": 2.5,
                     "by_type": [
-                        {"agent_type": "scoring-agent", "invocations": 200, "avg_execution_time_s": 1.8},
+                        {
+                            "agent_type": "scoring-agent",
+                            "invocations": 200,
+                            "avg_execution_time_s": 1.8,
+                        },
                     ],
                 },
                 "memory_system": {
@@ -222,10 +239,7 @@ def get_alert_manager():
         HTTPException: If alert manager is not initialized
     """
     if _alert_manager is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Alert manager not initialized"
-        )
+        raise HTTPException(status_code=503, detail="Alert manager not initialized")
     return _alert_manager
 
 
@@ -245,6 +259,7 @@ def set_alert_manager(manager):
 # Alert Endpoints
 # [Source: specs/api/canvas-api.openapi.yml:644-662]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @router.get(
     "/alerts",
@@ -269,7 +284,7 @@ async def get_active_alerts(
         ge=0,
         description="Offset for pagination",
     ),
-    alert_manager = Depends(get_alert_manager),
+    alert_manager=Depends(get_alert_manager),
 ) -> AlertListResponse:
     """Get currently active alerts.
 
@@ -292,15 +307,12 @@ async def get_active_alerts(
         try:
             severity_enum = AlertSeverity(severity)
         except ValueError:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid severity: {severity}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid severity: {severity}")
 
     alerts = alert_manager.get_active_alerts(severity=severity_enum)
 
     # Apply pagination
-    paginated = alerts[offset:offset + limit]
+    paginated = alerts[offset : offset + limit]
 
     logger.debug(
         "monitoring.get_alerts",
@@ -320,6 +332,7 @@ async def get_active_alerts(
 # [Source: specs/api/canvas-api.openapi.yml:630-642]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @router.get(
     "/summary",
     response_model=MetricsSummaryResponse,
@@ -327,7 +340,7 @@ async def get_active_alerts(
     description="Returns comprehensive metrics summary for dashboard display",
 )
 async def get_metrics_summary(
-    alert_manager = Depends(get_alert_manager),
+    alert_manager=Depends(get_alert_manager),
 ) -> MetricsSummaryResponse:
     """Get comprehensive metrics summary for dashboard.
 
@@ -371,6 +384,7 @@ async def get_metrics_summary(
 # [Source: docs/stories/17.3.story.md - Task 6]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def _get_api_metrics() -> Dict[str, Any]:
     """Get API metrics from Prometheus registry.
 
@@ -388,20 +402,23 @@ def _get_api_metrics() -> Dict[str, Any]:
     latency_count = 0
 
     for metric in REGISTRY.collect():
-        if metric.name == 'canvas_api_requests_total':
+        if metric.name == "canvas_api_requests_total":
             for sample in metric.samples:
-                if sample.name.endswith('_total') or sample.name == 'canvas_api_requests_total':
+                if (
+                    sample.name.endswith("_total")
+                    or sample.name == "canvas_api_requests_total"
+                ):
                     count = int(sample.value)
                     requests_total += count
-                    status = sample.labels.get('status', '200')
-                    if status.startswith('5'):
+                    status = sample.labels.get("status", "200")
+                    if status.startswith("5"):
                         error_count += count
 
-        elif metric.name == 'canvas_api_request_latency_seconds':
+        elif metric.name == "canvas_api_request_latency_seconds":
             for sample in metric.samples:
-                if sample.name.endswith('_sum'):
+                if sample.name.endswith("_sum"):
                     latency_sum += sample.value
-                elif sample.name.endswith('_count'):
+                elif sample.name.endswith("_count"):
                     latency_count += int(sample.value)
 
     # Calculate statistics
@@ -433,26 +450,26 @@ def _get_agent_metrics() -> Dict[str, Any]:
     by_type = {}
 
     for metric in REGISTRY.collect():
-        if metric.name == 'canvas_agent_invocations_total':
+        if metric.name == "canvas_agent_invocations_total":
             for sample in metric.samples:
-                if sample.name == 'canvas_agent_invocations_total':
-                    agent_type = sample.labels.get('agent_type', 'unknown')
+                if sample.name == "canvas_agent_invocations_total":
+                    agent_type = sample.labels.get("agent_type", "unknown")
                     count = int(sample.value)
                     invocations_total += count
                     if agent_type not in by_type:
                         by_type[agent_type] = {"invocations": 0, "sum": 0.0, "count": 0}
                     by_type[agent_type]["invocations"] += count
 
-        elif metric.name == 'canvas_agent_execution_seconds':
+        elif metric.name == "canvas_agent_execution_seconds":
             for sample in metric.samples:
-                if sample.name.endswith('_sum'):
-                    agent_type = sample.labels.get('agent_type', 'unknown')
+                if sample.name.endswith("_sum"):
+                    agent_type = sample.labels.get("agent_type", "unknown")
                     execution_sum += sample.value
                     if agent_type not in by_type:
                         by_type[agent_type] = {"invocations": 0, "sum": 0.0, "count": 0}
                     by_type[agent_type]["sum"] += sample.value
-                elif sample.name.endswith('_count'):
-                    agent_type = sample.labels.get('agent_type', 'unknown')
+                elif sample.name.endswith("_count"):
+                    agent_type = sample.labels.get("agent_type", "unknown")
                     execution_count += int(sample.value)
                     if agent_type not in by_type:
                         by_type[agent_type] = {"invocations": 0, "sum": 0.0, "count": 0}
@@ -464,7 +481,9 @@ def _get_agent_metrics() -> Dict[str, Any]:
         AgentTypeSummary(
             agent_type=agent_type,
             invocations=data["invocations"],
-            avg_execution_time_s=round(data["sum"] / data["count"], 2) if data["count"] > 0 else 0,
+            avg_execution_time_s=round(data["sum"] / data["count"], 2)
+            if data["count"] > 0
+            else 0,
         )
         for agent_type, data in by_type.items()
     ]
@@ -493,35 +512,50 @@ def _get_memory_metrics() -> Dict[str, Any]:
     }
 
     for metric in REGISTRY.collect():
-        if 'memory' in metric.name.lower() or 'graphiti' in metric.name.lower():
+        if "memory" in metric.name.lower() or "graphiti" in metric.name.lower():
             for sample in metric.samples:
-                layer = sample.labels.get('layer', 'unknown')
+                layer = sample.labels.get("layer", "unknown")
                 if layer in memory_stats:
-                    if '_total' in sample.name:
+                    if "_total" in sample.name:
                         memory_stats[layer]["queries_total"] += int(sample.value)
-                    elif '_sum' in sample.name:
+                    elif "_sum" in sample.name:
                         memory_stats[layer]["latency_sum"] += sample.value
-                    elif '_count' in sample.name:
+                    elif "_count" in sample.name:
                         memory_stats[layer]["latency_count"] += int(sample.value)
 
     return {
         "graphiti": MemoryLayerSummary(
             queries_total=memory_stats["graphiti"]["queries_total"],
             avg_latency_ms=round(
-                memory_stats["graphiti"]["latency_sum"] / memory_stats["graphiti"]["latency_count"] * 1000, 2
-            ) if memory_stats["graphiti"]["latency_count"] > 0 else 0,
+                memory_stats["graphiti"]["latency_sum"]
+                / memory_stats["graphiti"]["latency_count"]
+                * 1000,
+                2,
+            )
+            if memory_stats["graphiti"]["latency_count"] > 0
+            else 0,
         ),
         "temporal": MemoryLayerSummary(
             queries_total=memory_stats["temporal"]["queries_total"],
             avg_latency_ms=round(
-                memory_stats["temporal"]["latency_sum"] / memory_stats["temporal"]["latency_count"] * 1000, 2
-            ) if memory_stats["temporal"]["latency_count"] > 0 else 0,
+                memory_stats["temporal"]["latency_sum"]
+                / memory_stats["temporal"]["latency_count"]
+                * 1000,
+                2,
+            )
+            if memory_stats["temporal"]["latency_count"] > 0
+            else 0,
         ),
         "semantic": MemoryLayerSummary(
             queries_total=memory_stats["semantic"]["queries_total"],
             avg_latency_ms=round(
-                memory_stats["semantic"]["latency_sum"] / memory_stats["semantic"]["latency_count"] * 1000, 2
-            ) if memory_stats["semantic"]["latency_count"] > 0 else 0,
+                memory_stats["semantic"]["latency_sum"]
+                / memory_stats["semantic"]["latency_count"]
+                * 1000,
+                2,
+            )
+            if memory_stats["semantic"]["latency_count"] > 0
+            else 0,
         ),
     }
 
@@ -540,7 +574,7 @@ def _get_resource_metrics() -> Dict[str, Any]:
         return {
             "cpu_usage_percent": round(psutil.cpu_percent(interval=None), 1),
             "memory_usage_percent": round(psutil.virtual_memory().percent, 1),
-            "disk_usage_percent": round(psutil.disk_usage('/').percent, 1),
+            "disk_usage_percent": round(psutil.disk_usage("/").percent, 1),
         }
     except ImportError:
         logger.warning("monitoring.psutil_not_installed")
@@ -562,6 +596,7 @@ def _get_resource_metrics() -> Dict[str, Any]:
 # Worker Monitoring Endpoint
 # [Source: Phase 2 Graphiti Real Integration - Task 5]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @router.get(
     "/episode-worker",

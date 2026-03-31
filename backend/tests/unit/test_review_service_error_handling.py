@@ -6,6 +6,7 @@ Red-light tests verifying:
 - AC2: Degradation path WARNING logs
 - AC3: retention_rate real calculation (not hardcoded None)
 """
+
 import ast
 import re
 from pathlib import Path
@@ -14,12 +15,15 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 # Path to review_service.py for static analysis
-REVIEW_SERVICE_PATH = Path(__file__).parent.parent.parent / "app" / "services" / "review_service.py"
+REVIEW_SERVICE_PATH = (
+    Path(__file__).parent.parent.parent / "app" / "services" / "review_service.py"
+)
 
 
 # ============================================================
 # AC1: except Exception specialization tests
 # ============================================================
+
 
 class TestExceptExceptionSpecialization:
     """AC1: except Exception count must be ≤5, each with INTENTIONAL comment."""
@@ -42,7 +46,7 @@ class TestExceptExceptionSpecialization:
             stripped = line.strip()
             if re.match(r"except\s+Exception\b", stripped):
                 # Check surrounding lines (current, previous, next) for INTENTIONAL comment
-                context = "\n".join(lines[max(0, i - 2):i + 3])
+                context = "\n".join(lines[max(0, i - 2) : i + 3])
                 assert "INTENTIONAL" in context, (
                     f"Line {i + 1}: 'except Exception' without # INTENTIONAL comment. "
                     f"Either specialize this exception or add comment explaining why catch-all is needed."
@@ -61,9 +65,20 @@ class TestExceptExceptionSpecialization:
                     line_start = node.lineno
                     lines = source.split("\n")
                     # Look at the try block above for file I/O indicators
-                    context_lines = "\n".join(lines[max(0, line_start - 15):line_start])
-                    if any(kw in context_lines for kw in ["read_text", "write_text", "json.loads", "json.dumps",
-                                                           "_CARD_STATES_FILE", "tmp_file"]):
+                    context_lines = "\n".join(
+                        lines[max(0, line_start - 15) : line_start]
+                    )
+                    if any(
+                        kw in context_lines
+                        for kw in [
+                            "read_text",
+                            "write_text",
+                            "json.loads",
+                            "json.dumps",
+                            "_CARD_STATES_FILE",
+                            "tmp_file",
+                        ]
+                    ):
                         pytest.fail(
                             f"Line {line_start}: File I/O operation uses 'except Exception'. "
                             f"Should use (OSError, json.JSONDecodeError) or similar specific types."
@@ -79,9 +94,17 @@ class TestExceptExceptionSpecialization:
                 if isinstance(node.type, ast.Name) and node.type.id == "Exception":
                     line_start = node.lineno
                     lines = source.split("\n")
-                    context_lines = "\n".join(lines[max(0, line_start - 10):line_start])
-                    if any(kw in context_lines for kw in ["from app.config import", "from app.dependencies import",
-                                                           "from app.services.memory_service import"]):
+                    context_lines = "\n".join(
+                        lines[max(0, line_start - 10) : line_start]
+                    )
+                    if any(
+                        kw in context_lines
+                        for kw in [
+                            "from app.config import",
+                            "from app.dependencies import",
+                            "from app.services.memory_service import",
+                        ]
+                    ):
                         pytest.fail(
                             f"Line {line_start}: Import/config operation uses 'except Exception'. "
                             f"Should use (ImportError, RuntimeError) or similar specific types."
@@ -91,6 +114,7 @@ class TestExceptExceptionSpecialization:
 # ============================================================
 # AC2: Degradation path WARNING log tests
 # ============================================================
+
 
 class TestDegradationLogging:
     """AC2: All degradation paths must produce WARNING logs."""
@@ -112,15 +136,18 @@ class TestDegradationLogging:
             for pattern in degradation_patterns:
                 if pattern in stripped:
                     # Check next 5 lines for logger.warning
-                    following = "\n".join(lines[i:i + 6])
-                    if "logger.warning" not in following and "logger.error" not in following:
+                    following = "\n".join(lines[i : i + 6])
+                    if (
+                        "logger.warning" not in following
+                        and "logger.error" not in following
+                    ):
                         issues.append(
                             f"Line {i + 1}: Degradation path '{pattern}' without WARNING log"
                         )
 
         assert not issues, (
-            f"Found {len(issues)} degradation paths without WARNING logs:\n" +
-            "\n".join(f"  - {issue}" for issue in issues)
+            f"Found {len(issues)} degradation paths without WARNING logs:\n"
+            + "\n".join(f"  - {issue}" for issue in issues)
         )
 
     def test_degradation_log_format_includes_required_fields(self):
@@ -128,7 +155,7 @@ class TestDegradationLogging:
         source = REVIEW_SERVICE_PATH.read_text(encoding="utf-8")
         # Count lines containing '降级运行' near logger.warning (multiline format)
         # AC2 requires ≥3 graphiti_client degradation + ≥1 fsrs_manager degradation
-        degradation_count = len(re.findall(r'降级运行', source))
+        degradation_count = len(re.findall(r"降级运行", source))
         assert degradation_count >= 4, (
             f"Expected ≥4 degradation WARNING logs with '降级运行' keyword, found {degradation_count}. "
             f"AC2 requires all degradation paths (graphiti_client + fsrs_manager) to use unified format."
@@ -138,6 +165,7 @@ class TestDegradationLogging:
 # ============================================================
 # AC3: retention_rate real calculation tests
 # ============================================================
+
 
 class TestRetentionRateCalculation:
     """AC3: retention_rate must not be hardcoded None."""
@@ -156,15 +184,14 @@ class TestRetentionRateCalculation:
     async def test_retention_rate_calculated_from_ratings(self):
         """retention_rate should be calculated as good_ratings / total_ratings."""
         from datetime import datetime, timezone
+
         from app.services.review_service import ReviewService
 
         # Create service WITHOUT graphiti (uses card_states path)
         mock_canvas = AsyncMock()
         mock_task_mgr = MagicMock()
         service = ReviewService(
-            canvas_service=mock_canvas,
-            task_manager=mock_task_mgr,
-            graphiti_client=None
+            canvas_service=mock_canvas, task_manager=mock_task_mgr, graphiti_client=None
         )
 
         # Inject card_states with rating data
@@ -180,39 +207,56 @@ class TestRetentionRateCalculation:
         result = await service.get_history(days=7, limit=None)
 
         # 3 good ratings (≥3) out of 5 total = 0.6
-        assert result.get("retention_rate") is not None, "retention_rate should not be None"
-        assert isinstance(result["retention_rate"], float), "retention_rate should be a float"
-        assert 0.0 <= result["retention_rate"] <= 1.0, "retention_rate should be between 0 and 1"
-        assert abs(result["retention_rate"] - 0.6) < 0.01, f"Expected ~0.6, got {result['retention_rate']}"
+        assert result.get("retention_rate") is not None, (
+            "retention_rate should not be None"
+        )
+        assert isinstance(result["retention_rate"], float), (
+            "retention_rate should be a float"
+        )
+        assert 0.0 <= result["retention_rate"] <= 1.0, (
+            "retention_rate should be between 0 and 1"
+        )
+        assert abs(result["retention_rate"] - 0.6) < 0.01, (
+            f"Expected ~0.6, got {result['retention_rate']}"
+        )
 
     @pytest.mark.asyncio
     async def test_retention_rate_works_with_serialized_card_states(self):
         """retention_rate must work when _card_states values are JSON strings (production format)."""
         import json
         from datetime import datetime, timezone
+
         from app.services.review_service import ReviewService
 
         mock_canvas = AsyncMock()
         mock_task_mgr = MagicMock()
         service = ReviewService(
-            canvas_service=mock_canvas,
-            task_manager=mock_task_mgr,
-            graphiti_client=None
+            canvas_service=mock_canvas, task_manager=mock_task_mgr, graphiti_client=None
         )
 
         # Production format: _card_states values are serialized JSON strings
         today = datetime.now(timezone.utc).date()
         service._card_states = {
-            "test.canvas:concept_a": json.dumps({"rating": 4, "last_review": today.isoformat()}),
-            "test.canvas:concept_b": json.dumps({"rating": 2, "last_review": today.isoformat()}),
-            "test.canvas:concept_c": json.dumps({"rating": 3, "last_review": today.isoformat()}),
+            "test.canvas:concept_a": json.dumps(
+                {"rating": 4, "last_review": today.isoformat()}
+            ),
+            "test.canvas:concept_b": json.dumps(
+                {"rating": 2, "last_review": today.isoformat()}
+            ),
+            "test.canvas:concept_c": json.dumps(
+                {"rating": 3, "last_review": today.isoformat()}
+            ),
         }
 
         result = await service.get_history(days=7, limit=None)
 
         # 2 good ratings (≥3) out of 3 total ≈ 0.6667
-        assert result.get("retention_rate") is not None, "retention_rate should work with string card_data"
-        assert abs(result["retention_rate"] - 0.6667) < 0.01, f"Expected ~0.667, got {result['retention_rate']}"
+        assert result.get("retention_rate") is not None, (
+            "retention_rate should work with string card_data"
+        )
+        assert abs(result["retention_rate"] - 0.6667) < 0.01, (
+            f"Expected ~0.667, got {result['retention_rate']}"
+        )
 
     @pytest.mark.asyncio
     async def test_retention_rate_handles_empty_records(self):
@@ -222,9 +266,7 @@ class TestRetentionRateCalculation:
         mock_canvas = AsyncMock()
         mock_task_mgr = MagicMock()
         service = ReviewService(
-            canvas_service=mock_canvas,
-            task_manager=mock_task_mgr,
-            graphiti_client=None
+            canvas_service=mock_canvas, task_manager=mock_task_mgr, graphiti_client=None
         )
         service._card_states = {}
 

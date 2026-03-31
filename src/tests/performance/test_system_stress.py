@@ -25,6 +25,7 @@ import pytest
 # resource module is Unix-specific, not available on Windows
 try:
     import resource
+
     RESOURCE_AVAILABLE = True
 except ImportError:
     RESOURCE_AVAILABLE = False
@@ -42,6 +43,7 @@ except ImportError:
 @dataclass
 class StressTestResult:
     """压力测试结果"""
+
     test_name: str
     success: bool
     duration_seconds: float
@@ -57,7 +59,9 @@ class SystemStressTester:
 
     def __init__(self):
         self.canvas_optimizer = CanvasPerformanceOptimizer()
-        self.agent_optimizer = AgentPerformanceOptimizer(max_workers=10, enable_caching=True)
+        self.agent_optimizer = AgentPerformanceOptimizer(
+            max_workers=10, enable_caching=True
+        )
         self.test_results: List[StressTestResult] = []
         self.process = psutil.Process()
 
@@ -70,15 +74,12 @@ class SystemStressTester:
         return {
             "cpu_percent": cpu_percent,
             "memory_mb": memory_mb,
-            "system_memory_percent": psutil.virtual_memory().percent
+            "system_memory_percent": psutil.virtual_memory().percent,
         }
 
     def _generate_large_canvas_data(self, node_count: int) -> Dict[str, Any]:
         """生成大规模Canvas测试数据"""
-        canvas_data = {
-            "nodes": [],
-            "edges": []
-        }
+        canvas_data = {"nodes": [], "edges": []}
 
         # 生成节点
         for i in range(node_count):
@@ -90,7 +91,7 @@ class SystemStressTester:
                 "y": (i // 10) * 300,
                 "width": 300,
                 "height": 200,
-                "color": str(i % 6 + 1)  # 循环使用颜色
+                "color": str(i % 6 + 1),  # 循环使用颜色
             }
             canvas_data["nodes"].append(node)
 
@@ -99,7 +100,7 @@ class SystemStressTester:
             edge = {
                 "id": f"stress-edge-{i}",
                 "from": f"stress-node-{i}",
-                "to": f"stress-node-{i + 1}"
+                "to": f"stress-node-{i + 1}",
             }
             canvas_data["edges"].append(edge)
 
@@ -126,7 +127,9 @@ class SystemStressTester:
                 # 生成测试数据
                 canvas_data = self._generate_large_canvas_data(node_count)
 
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".canvas", delete=False
+                ) as f:
                     json.dump(canvas_data, f)
                     temp_path = f.name
 
@@ -137,7 +140,9 @@ class SystemStressTester:
                     write_time = time.time() - write_start
 
                     if write_time > 10.0:  # 超过10秒认为性能不达标
-                        errors.append(f"写入{node_count}节点耗时过长: {write_time:.2f}s")
+                        errors.append(
+                            f"写入{node_count}节点耗时过长: {write_time:.2f}s"
+                        )
 
                     # 测试读取性能
                     read_start = time.time()
@@ -149,15 +154,21 @@ class SystemStressTester:
 
                     # 验证数据完整性
                     if len(read_data["nodes"]) != node_count:
-                        errors.append(f"数据完整性验证失败: 期望{node_count}个节点，实际{len(read_data['nodes'])}个")
+                        errors.append(
+                            f"数据完整性验证失败: 期望{node_count}个节点，实际{len(read_data['nodes'])}个"
+                        )
 
                     # 监控资源使用
                     resource_usage = self._monitor_resources()
                     peak_memory_mb = max(peak_memory_mb, resource_usage["memory_mb"])
-                    peak_cpu_percent = max(peak_cpu_percent, resource_usage["cpu_percent"])
+                    peak_cpu_percent = max(
+                        peak_cpu_percent, resource_usage["cpu_percent"]
+                    )
 
                     operations_completed += 1
-                    print(f"    完成 {node_count} 节点处理 (写入: {write_time:.2f}s, 读取: {read_time:.2f}s)")
+                    print(
+                        f"    完成 {node_count} 节点处理 (写入: {write_time:.2f}s, 读取: {read_time:.2f}s)"
+                    )
 
                 finally:
                     os.unlink(temp_path)
@@ -171,7 +182,7 @@ class SystemStressTester:
             performance_metrics = {
                 "total_nodes_processed": sum(test_sizes),
                 "operations_per_second": operations_completed / duration,
-                "memory_per_node_mb": peak_memory_mb / max(test_sizes)
+                "memory_per_node_mb": peak_memory_mb / max(test_sizes),
             }
 
             result = StressTestResult(
@@ -182,7 +193,7 @@ class SystemStressTester:
                 peak_cpu_percent=peak_cpu_percent,
                 operations_completed=operations_completed,
                 errors=errors,
-                performance_metrics=performance_metrics
+                performance_metrics=performance_metrics,
             )
 
             print(f"  {test_name} 测试完成: {'成功' if success else '失败'}")
@@ -199,7 +210,7 @@ class SystemStressTester:
                 peak_cpu_percent=peak_cpu_percent,
                 operations_completed=operations_completed,
                 errors=errors,
-                performance_metrics={}
+                performance_metrics={},
             )
             print(f"  {test_name} 测试异常: {str(e)}")
             return result
@@ -225,14 +236,19 @@ class SystemStressTester:
                 # 创建任务
                 tasks = []
                 for i in range(concurrency):
-                    agent_type = ["basic-decomposition", "deep-decomposition", "scoring-agent", "oral-explanation"][i % 4]
+                    agent_type = [
+                        "basic-decomposition",
+                        "deep-decomposition",
+                        "scoring-agent",
+                        "oral-explanation",
+                    ][i % 4]
                     task = {
                         "agent_type": agent_type,
                         "input_data": {
                             "concept": f"并发测试概念 {i}",
-                            "detail": "这是一个用于测试并发执行的示例概念" * 5
+                            "detail": "这是一个用于测试并发执行的示例概念" * 5,
                         },
-                        "priority": i % 3
+                        "priority": i % 3,
                     }
                     tasks.append(task)
 
@@ -244,7 +260,9 @@ class SystemStressTester:
 
                     # 验证结果
                     if len(results) != concurrency:
-                        errors.append(f"并发任务数量不匹配: 期望{concurrency}个，实际{len(results)}个")
+                        errors.append(
+                            f"并发任务数量不匹配: 期望{concurrency}个，实际{len(results)}个"
+                        )
 
                     failed_tasks = sum(1 for r in results if not r.success)
                     if failed_tasks > 0:
@@ -252,16 +270,22 @@ class SystemStressTester:
 
                     # 验证执行时间（应该在合理范围内）
                     if execution_time > 60.0:  # 超过60秒认为性能不达标
-                        errors.append(f"{concurrency}并发任务耗时过长: {execution_time:.2f}s")
+                        errors.append(
+                            f"{concurrency}并发任务耗时过长: {execution_time:.2f}s"
+                        )
 
                     # 监控资源使用
                     resource_usage = self._monitor_resources()
                     peak_memory_mb = max(peak_memory_mb, resource_usage["memory_mb"])
-                    peak_cpu_percent = max(peak_cpu_percent, resource_usage["cpu_percent"])
+                    peak_cpu_percent = max(
+                        peak_cpu_percent, resource_usage["cpu_percent"]
+                    )
 
                     operations_completed += concurrency
                     success_rate = (concurrency - failed_tasks) / concurrency * 100
-                    print(f"    完成 {concurrency} 并发任务 (耗时: {execution_time:.2f}s, 成功率: {success_rate:.1f}%)")
+                    print(
+                        f"    完成 {concurrency} 并发任务 (耗时: {execution_time:.2f}s, 成功率: {success_rate:.1f}%)"
+                    )
 
                 except Exception as e:
                     errors.append(f"并发执行异常: {str(e)}")
@@ -278,7 +302,7 @@ class SystemStressTester:
                 "total_concurrent_tasks": sum(concurrency_levels),
                 "max_concurrency": max(concurrency_levels),
                 "tasks_per_second": operations_completed / duration,
-                "average_success_rate": 100.0  # 简化计算
+                "average_success_rate": 100.0,  # 简化计算
             }
 
             result = StressTestResult(
@@ -289,7 +313,7 @@ class SystemStressTester:
                 peak_cpu_percent=peak_cpu_percent,
                 operations_completed=operations_completed,
                 errors=errors,
-                performance_metrics=performance_metrics
+                performance_metrics=performance_metrics,
             )
 
             print(f"  {test_name} 测试完成: {'成功' if success else '失败'}")
@@ -306,7 +330,7 @@ class SystemStressTester:
                 peak_cpu_percent=peak_cpu_percent,
                 operations_completed=operations_completed,
                 errors=errors,
-                performance_metrics={}
+                performance_metrics={},
             )
             print(f"  {test_name} 测试异常: {str(e)}")
             return result
@@ -335,7 +359,9 @@ class SystemStressTester:
 
                 # 执行一些操作
                 test_data = self._generate_large_canvas_data(50)
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".canvas", delete=False
+                ) as f:
                     json.dump(test_data, f)
                     temp_path = f.name
 
@@ -350,7 +376,9 @@ class SystemStressTester:
                 current_memory = self._monitor_resources()["memory_mb"]
                 memory_samples.append(current_memory)
                 peak_memory_mb = max(peak_memory_mb, current_memory)
-                peak_cpu_percent = max(peak_cpu_percent, self._monitor_resources()["cpu_percent"])
+                peak_cpu_percent = max(
+                    peak_cpu_percent, self._monitor_resources()["cpu_percent"]
+                )
 
                 # 强制垃圾回收
                 del temp_optimizer
@@ -360,7 +388,9 @@ class SystemStressTester:
                 if (i + 1) % 10 == 0:
                     current_memory_mb = memory_samples[-1]
                     memory_growth = current_memory_mb - initial_memory
-                    print(f"    完成 {i + 1}/{iterations} 次迭代，内存增长: {memory_growth:.1f}MB")
+                    print(
+                        f"    完成 {i + 1}/{iterations} 次迭代，内存增长: {memory_growth:.1f}MB"
+                    )
 
             # 分析内存使用趋势
             final_memory = memory_samples[-1]
@@ -369,7 +399,9 @@ class SystemStressTester:
             # 检测是否存在明显的内存泄漏
             memory_growth_per_iteration = total_memory_growth / iterations
             if memory_growth_per_iteration > 1.0:  # 每次迭代增长超过1MB认为可能泄漏
-                errors.append(f"检测到可能的内存泄漏: 每次迭代增长 {memory_growth_per_iteration:.2f}MB")
+                errors.append(
+                    f"检测到可能的内存泄漏: 每次迭代增长 {memory_growth_per_iteration:.2f}MB"
+                )
 
             # 检查峰值内存使用是否合理
             if peak_memory_mb > 1000:  # 超过1GB认为内存使用过高
@@ -384,7 +416,7 @@ class SystemStressTester:
                 "peak_memory_mb": peak_memory_mb,
                 "memory_growth_mb": total_memory_growth,
                 "memory_growth_per_iteration_mb": memory_growth_per_iteration,
-                "iterations": iterations
+                "iterations": iterations,
             }
 
             result = StressTestResult(
@@ -395,7 +427,7 @@ class SystemStressTester:
                 peak_cpu_percent=peak_cpu_percent,
                 operations_completed=operations_completed,
                 errors=errors,
-                performance_metrics=performance_metrics
+                performance_metrics=performance_metrics,
             )
 
             print(f"  {test_name} 测试完成: {'成功' if success else '失败'}")
@@ -415,7 +447,7 @@ class SystemStressTester:
                 peak_cpu_percent=peak_cpu_percent,
                 operations_completed=operations_completed,
                 errors=errors,
-                performance_metrics={}
+                performance_metrics={},
             )
             print(f"  {test_name} 测试异常: {str(e)}")
             return result
@@ -440,8 +472,8 @@ class SystemStressTester:
                     "agent_type": "scoring-agent",  # 较轻量的任务
                     "input_data": {
                         "concept": f"CPU压力测试 {i}",
-                        "text": "测试文本" * 100  # 增加处理负载
-                    }
+                        "text": "测试文本" * 100,  # 增加处理负载
+                    },
                 }
                 cpu_tasks.append(task)
 
@@ -452,7 +484,9 @@ class SystemStressTester:
 
                 cpu_success = sum(1 for r in cpu_results if r.success)
                 operations_completed += cpu_success
-                print(f"    CPU密集型任务完成: {cpu_success}/50 成功, 耗时: {cpu_time:.2f}s")
+                print(
+                    f"    CPU密集型任务完成: {cpu_success}/50 成功, 耗时: {cpu_time:.2f}s"
+                )
 
             except Exception as e:
                 errors.append(f"CPU密集型任务失败: {str(e)}")
@@ -469,7 +503,9 @@ class SystemStressTester:
             for i, canvas_data in enumerate(memory_tasks):
                 try:
                     temp_optimizer = CanvasPerformanceOptimizer()
-                    with tempfile.NamedTemporaryFile(mode='w', suffix='.canvas', delete=False) as f:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".canvas", delete=False
+                    ) as f:
                         json.dump(canvas_data, f)
                         temp_path = f.name
 
@@ -483,7 +519,9 @@ class SystemStressTester:
                     # 监控内存使用
                     resource_usage = self._monitor_resources()
                     peak_memory_mb = max(peak_memory_mb, resource_usage["memory_mb"])
-                    peak_cpu_percent = max(peak_cpu_percent, resource_usage["cpu_percent"])
+                    peak_cpu_percent = max(
+                        peak_cpu_percent, resource_usage["cpu_percent"]
+                    )
 
                     del temp_optimizer
                     gc.collect()
@@ -501,8 +539,8 @@ class SystemStressTester:
                     "agent_type": "oral-explanation",
                     "input_data": {
                         "concept": f"I/O压力测试 {i}",
-                        "context": "这是一个用于测试I/O性能的详细上下文" * 20
-                    }
+                        "context": "这是一个用于测试I/O性能的详细上下文" * 20,
+                    },
                 }
                 io_tasks.append(task)
 
@@ -513,7 +551,9 @@ class SystemStressTester:
 
                 io_success = sum(1 for r in io_results if r.success)
                 operations_completed += io_success
-                print(f"    I/O密集型任务完成: {io_success}/30 成功, 耗时: {io_time:.2f}s")
+                print(
+                    f"    I/O密集型任务完成: {io_success}/30 成功, 耗时: {io_time:.2f}s"
+                )
 
             except Exception as e:
                 errors.append(f"I/O密集型任务失败: {str(e)}")
@@ -526,7 +566,7 @@ class SystemStressTester:
                 "memory_tasks_completed": memory_success,
                 "io_tasks_completed": io_success,
                 "total_operations": operations_completed,
-                "operations_per_second": operations_completed / duration
+                "operations_per_second": operations_completed / duration,
             }
 
             result = StressTestResult(
@@ -537,7 +577,7 @@ class SystemStressTester:
                 peak_cpu_percent=peak_cpu_percent,
                 operations_completed=operations_completed,
                 errors=errors,
-                performance_metrics=performance_metrics
+                performance_metrics=performance_metrics,
             )
 
             print(f"  {test_name} 测试完成: {'成功' if success else '失败'}")
@@ -554,7 +594,7 @@ class SystemStressTester:
                 peak_cpu_percent=peak_cpu_percent,
                 operations_completed=operations_completed,
                 errors=errors,
-                performance_metrics={}
+                performance_metrics={},
             )
             print(f"  {test_name} 测试异常: {str(e)}")
             return result
@@ -571,7 +611,7 @@ class SystemStressTester:
             self.test_large_canvas_processing,
             self.test_concurrent_agent_execution,
             self.test_memory_usage_and_leaks,
-            self.test_system_resource_exhaustion
+            self.test_system_resource_exhaustion,
         ]
 
         for test_func in tests:
@@ -585,7 +625,9 @@ class SystemStressTester:
 
         return all_results
 
-    def generate_stress_test_report(self, results: List[StressTestResult]) -> Dict[str, Any]:
+    def generate_stress_test_report(
+        self, results: List[StressTestResult]
+    ) -> Dict[str, Any]:
         """生成压力测试报告"""
         total_tests = len(results)
         passed_tests = sum(1 for r in results if r.success)
@@ -598,7 +640,15 @@ class SystemStressTester:
         peak_cpu = max(r.peak_cpu_percent for r in results)
 
         # 性能评估
-        performance_grade = "A" if success_rate >= 90 else "B" if success_rate >= 75 else "C" if success_rate >= 60 else "D"
+        performance_grade = (
+            "A"
+            if success_rate >= 90
+            else "B"
+            if success_rate >= 75
+            else "C"
+            if success_rate >= 60
+            else "D"
+        )
 
         report = {
             "stress_test_summary": {
@@ -610,7 +660,7 @@ class SystemStressTester:
                 "total_duration_seconds": total_duration,
                 "total_operations": total_operations,
                 "peak_memory_usage_mb": peak_memory,
-                "peak_cpu_usage_percent": peak_cpu
+                "peak_cpu_usage_percent": peak_cpu,
             },
             "test_results": [
                 {
@@ -621,12 +671,12 @@ class SystemStressTester:
                     "peak_memory_mb": r.peak_memory_mb,
                     "peak_cpu_percent": r.peak_cpu_percent,
                     "errors": r.errors,
-                    "performance_metrics": r.performance_metrics
+                    "performance_metrics": r.performance_metrics,
                 }
                 for r in results
             ],
             "recommendations": self._generate_recommendations(results),
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
         return report
@@ -638,7 +688,9 @@ class SystemStressTester:
         for result in results:
             if not result.success:
                 if "内存" in " ".join(result.errors):
-                    recommendations.append("建议优化内存使用，考虑增加缓存管理或减少内存占用")
+                    recommendations.append(
+                        "建议优化内存使用，考虑增加缓存管理或减少内存占用"
+                    )
                 if "耗时" in " ".join(result.errors):
                     recommendations.append("建议优化算法性能，考虑并行处理或缓存优化")
                 if "并发" in " ".join(result.errors):
@@ -646,7 +698,9 @@ class SystemStressTester:
 
             # 性能指标分析
             if result.peak_memory_mb > 500:
-                recommendations.append("峰值内存使用较高，建议监控内存使用并优化内存管理")
+                recommendations.append(
+                    "峰值内存使用较高，建议监控内存使用并优化内存管理"
+                )
 
             if result.peak_cpu_percent > 90:
                 recommendations.append("CPU使用率较高，建议优化计算密集型操作")
@@ -688,7 +742,9 @@ def test_concurrent_agent_execution(stress_tester):
     """测试并发Agent执行"""
     result = stress_tester.test_concurrent_agent_execution()
     assert result.success, f"并发Agent执行测试失败: {result.errors}"
-    assert result.operations_completed >= 30, f"完成的操作数不足: {result.operations_completed}"
+    assert result.operations_completed >= 30, (
+        f"完成的操作数不足: {result.operations_completed}"
+    )
     assert result.peak_cpu_percent <= 100, f"CPU使用率异常: {result.peak_cpu_percent}%"
 
 
@@ -710,7 +766,9 @@ def test_system_resource_exhaustion(stress_tester):
     """测试系统资源耗尽"""
     result = stress_tester.test_system_resource_exhaustion()
     assert result.success, f"资源耗尽测试失败: {result.errors}"
-    assert result.operations_completed >= 50, f"完成的操作数不足: {result.operations_completed}"
+    assert result.operations_completed >= 50, (
+        f"完成的操作数不足: {result.operations_completed}"
+    )
 
 
 @pytest.mark.stress
@@ -722,12 +780,13 @@ def test_comprehensive_stress_suite(stress_tester):
     report = stress_tester.generate_stress_test_report(results)
 
     # 验证整体测试结果
-    assert report["stress_test_summary"]["success_rate_percent"] >= 60, \
+    assert report["stress_test_summary"]["success_rate_percent"] >= 60, (
         f"压力测试通过率过低: {report['stress_test_summary']['success_rate_percent']}%"
+    )
 
     # 保存测试报告
     report_file = f"stress_test_report_{int(time.time())}.json"
-    with open(report_file, 'w', encoding='utf-8') as f:
+    with open(report_file, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
     print(f"压力测试报告已保存: {report_file}")
@@ -763,7 +822,7 @@ if __name__ == "__main__":
 
         # 保存报告
         report_file = f"stress_test_report_{int(time.time())}.json"
-        with open(report_file, 'w', encoding='utf-8') as f:
+        with open(report_file, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
         print(f"\n详细报告已保存: {report_file}")
 

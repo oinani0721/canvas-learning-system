@@ -18,6 +18,7 @@ class OperationType(str, Enum):
 
     [Source: docs/architecture/rollback-recovery-architecture.md:38-66]
     """
+
     NODE_ADD = "node_add"
     NODE_DELETE = "node_delete"
     NODE_MODIFY = "node_modify"
@@ -33,6 +34,7 @@ class OperationData:
 
     [Source: docs/architecture/rollback-recovery-architecture.md:38-66]
     """
+
     before: Optional[Any] = None
     after: Optional[Any] = None
     node_ids: Optional[List[str]] = None
@@ -64,6 +66,7 @@ class OperationMetadata:
 
     [Source: docs/architecture/rollback-recovery-architecture.md:38-66]
     """
+
     description: str = ""
     agent_id: Optional[str] = None
     request_id: Optional[str] = None
@@ -101,6 +104,7 @@ class Operation:
         data: 操作数据 (before/after状态)
         metadata: 操作元数据
     """
+
     id: str
     type: OperationType
     canvas_path: str
@@ -147,8 +151,9 @@ class SnapshotType(str, Enum):
 
     [Source: docs/architecture/rollback-recovery-architecture.md:212-250]
     """
-    AUTO = "auto"           # 自动快照 (定时创建)
-    MANUAL = "manual"       # 手动快照 (用户创建)
+
+    AUTO = "auto"  # 自动快照 (定时创建)
+    MANUAL = "manual"  # 手动快照 (用户创建)
     CHECKPOINT = "checkpoint"  # 检查点快照 (回滚前自动创建)
 
 
@@ -158,6 +163,7 @@ class SnapshotMetadata:
 
     [Source: docs/architecture/rollback-recovery-architecture.md:212-250]
     """
+
     description: Optional[str] = None
     created_by: str = "system"
     tags: Optional[List[str]] = None
@@ -189,6 +195,7 @@ class Snapshot:
 
     [Source: docs/architecture/rollback-recovery-architecture.md:212-250]
     """
+
     id: str
     canvas_path: str
     timestamp: datetime

@@ -7,13 +7,15 @@ Tests:
 - AC-3: Startup recovery from fallback file
 - AC-4: Merged view — failed scores in learning history
 """
-import asyncio
+
 import json
-import pytest
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+from app.core.failed_writes_constants import (
+    FAILED_WRITES_FILE,
+)
 from app.services.agent_service import (
     MEMORY_WRITE_TIMEOUT,
     _record_failed_write,
@@ -22,10 +24,6 @@ from app.services.memory_service import (
     GRAPHITI_JSON_WRITE_TIMEOUT,
     GRAPHITI_RETRY_BACKOFF_BASE,
     MemoryService,
-)
-from app.core.failed_writes_constants import (
-    FAILED_WRITES_FILE,
-    failed_writes_lock,
 )
 
 
@@ -52,9 +50,8 @@ class TestAC1TimeoutRetryAlignment:
         Outer timeout must be >= 13.0s (we use 15.0s).
         """
         max_retries = 2  # 3 attempts total
-        inner_total = (
-            (max_retries + 1) * GRAPHITI_JSON_WRITE_TIMEOUT
-            + sum(GRAPHITI_RETRY_BACKOFF_BASE * (2 ** i) for i in range(max_retries))
+        inner_total = (max_retries + 1) * GRAPHITI_JSON_WRITE_TIMEOUT + sum(
+            GRAPHITI_RETRY_BACKOFF_BASE * (2**i) for i in range(max_retries)
         )
         assert MEMORY_WRITE_TIMEOUT >= inner_total, (
             f"Outer timeout ({MEMORY_WRITE_TIMEOUT}s) < inner total ({inner_total}s)"
@@ -63,9 +60,11 @@ class TestAC1TimeoutRetryAlignment:
     def test_backoff_progression(self):
         """[P1] Backoff sequence should be 1s, 2s, 4s."""
         for attempt in range(3):
-            delay = GRAPHITI_RETRY_BACKOFF_BASE * (2 ** attempt)
+            delay = GRAPHITI_RETRY_BACKOFF_BASE * (2**attempt)
             expected = [1.0, 2.0, 4.0][attempt]
-            assert delay == expected, f"Attempt {attempt}: expected {expected}s, got {delay}s"
+            assert delay == expected, (
+                f"Attempt {attempt}: expected {expected}s, got {delay}s"
+            )
 
 
 class TestAC2FailedWriteTracking:
@@ -75,9 +74,11 @@ class TestAC2FailedWriteTracking:
         """[P0] _record_failed_write creates JSONL entry with correct fields."""
         fallback_file = tmp_path / "data" / "failed_writes.jsonl"
 
-        with patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+            patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+        ):
             _record_failed_write(
                 event_type="scoring-agent",
                 concept_id="node_abc",
@@ -102,9 +103,11 @@ class TestAC2FailedWriteTracking:
         """[P0] Multiple failures append to the same file."""
         fallback_file = tmp_path / "data" / "failed_writes.jsonl"
 
-        with patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+            patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+        ):
             _record_failed_write("a", "n1", "c1", 10.0, "err1")
             _record_failed_write("b", "n2", "c2", 20.0, "err2")
 
@@ -115,14 +118,14 @@ class TestAC2FailedWriteTracking:
         """[P1] Score can be None (not all writes have scores)."""
         fallback_file = tmp_path / "data" / "failed_writes.jsonl"
 
-        with patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+            patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+        ):
             _record_failed_write("hint-generation", "n1", "c1", None, "err")
 
-        entry = json.loads(
-            fallback_file.read_text(encoding="utf-8").strip()
-        )
+        entry = json.loads(fallback_file.read_text(encoding="utf-8").strip())
         assert entry["score"] is None
 
 
@@ -166,8 +169,10 @@ class TestAC3StartupRecovery:
         }
         fallback_file.write_text(json.dumps(entry) + "\n", encoding="utf-8")
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await memory_service.recover_failed_writes()
 
         assert result["recovered"] == 1
@@ -180,8 +185,22 @@ class TestAC3StartupRecovery:
         """[P0] If replay fails, entry stays in file."""
         fallback_file = tmp_path / "failed_writes.jsonl"
         entries = [
-            {"timestamp": "t1", "event_type": "a", "concept_id": "n1", "canvas_name": "c1", "score": 10.0, "error_reason": "e1"},
-            {"timestamp": "t2", "event_type": "b", "concept_id": "n2", "canvas_name": "c2", "score": 20.0, "error_reason": "e2"},
+            {
+                "timestamp": "t1",
+                "event_type": "a",
+                "concept_id": "n1",
+                "canvas_name": "c1",
+                "score": 10.0,
+                "error_reason": "e1",
+            },
+            {
+                "timestamp": "t2",
+                "event_type": "b",
+                "concept_id": "n2",
+                "canvas_name": "c2",
+                "score": 20.0,
+                "error_reason": "e2",
+            },
         ]
         fallback_file.write_text(
             "\n".join(json.dumps(e) for e in entries) + "\n", encoding="utf-8"
@@ -197,8 +216,10 @@ class TestAC3StartupRecovery:
 
         memory_service._write_to_graphiti_json_with_retry = mock_retry
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await memory_service.recover_failed_writes()
 
         assert result["recovered"] == 1
@@ -213,13 +234,23 @@ class TestAC3StartupRecovery:
         fallback_file = tmp_path / "failed_writes.jsonl"
         fallback_file.write_text(
             "not valid json\n"
-            + json.dumps({"timestamp": "t", "concept_id": "n", "canvas_name": "c", "score": 5.0, "error_reason": "e"})
+            + json.dumps(
+                {
+                    "timestamp": "t",
+                    "concept_id": "n",
+                    "canvas_name": "c",
+                    "score": 5.0,
+                    "error_reason": "e",
+                }
+            )
             + "\n",
             encoding="utf-8",
         )
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await memory_service.recover_failed_writes()
 
         # Valid entry recovered, malformed preserved as pending (#9 fix)
@@ -264,8 +295,10 @@ class TestAC4MergedView:
         }
         fallback_file.write_text(json.dumps(entry) + "\n", encoding="utf-8")
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             results = memory_service.load_failed_scores()
 
         assert len(results) == 1
@@ -274,7 +307,9 @@ class TestAC4MergedView:
         assert results[0]["node_id"] == "node_1"
 
     @pytest.mark.asyncio
-    async def test_get_learning_history_merges_failed_scores(self, memory_service, tmp_path):
+    async def test_get_learning_history_merges_failed_scores(
+        self, memory_service, tmp_path
+    ):
         """[P0] get_learning_history() includes fallback entries in results."""
         fallback_file = tmp_path / "failed_writes.jsonl"
         entry = {
@@ -294,10 +329,14 @@ class TestAC4MergedView:
             "concept": "concept_2",
             "score": 40.0,
         }
-        memory_service.neo4j.get_learning_history = AsyncMock(return_value=[neo4j_episode])
+        memory_service.neo4j.get_learning_history = AsyncMock(
+            return_value=[neo4j_episode]
+        )
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await memory_service.get_learning_history(user_id="test")
 
         # Both Neo4j episode and fallback entry should appear
@@ -326,10 +365,14 @@ class TestAC4MergedView:
             "concept": "node_1",
             "score": 35.0,
         }
-        memory_service.neo4j.get_learning_history = AsyncMock(return_value=[neo4j_episode])
+        memory_service.neo4j.get_learning_history = AsyncMock(
+            return_value=[neo4j_episode]
+        )
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
-             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
+        with (
+            patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+        ):
             result = await memory_service.get_learning_history(user_id="test")
 
         # Should not duplicate — only 1 entry
@@ -346,6 +389,7 @@ class TestRegressionSafety:
         # Both modules now import from the same shared constant (#4, #11)
         from app.services.agent_service import FAILED_WRITES_FILE as AS_FW
         from app.services.memory_service import FAILED_WRITES_FILE as MS_FW
+
         assert AS_FW == MS_FW == FAILED_WRITES_FILE
 
     def test_constants_are_consistent(self):

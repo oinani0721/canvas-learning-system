@@ -11,19 +11,16 @@ Tests:
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from tests.conftest import yield_to_event_loop
-
 from app.core.agent_memory_mapping import (
-    AGENT_MEMORY_MAPPING,
-    ALL_AGENT_NAMES,
     AgentMemoryType,
     get_memory_type_for_agent,
 )
-from app.services.agent_service import AgentResult, AgentService, AgentType
+from app.services.agent_service import AgentService, AgentType
+
+from tests.conftest import yield_to_event_loop
 
 
 class TestAgentMemoryIntegration:
@@ -142,7 +139,9 @@ class TestAgentMemoryIntegration:
         assert mock_memory_client.add_learning_episode.call_count == 5
 
     @pytest.mark.asyncio
-    async def test_memory_client_unavailable_silent_degradation(self, mock_gemini_client):
+    async def test_memory_client_unavailable_silent_degradation(
+        self, mock_gemini_client
+    ):
         """Test silent degradation when memory client is unavailable."""
         # Create service without memory client
         service = AgentService(
@@ -235,9 +234,9 @@ class TestAgentTypeMapping:
         # Check that all these agents have memory type mappings
         for agent_name in agent_type_names:
             memory_type = get_memory_type_for_agent(agent_name)
-            assert (
-                memory_type is not None
-            ), f"AgentType {agent_name} has no memory mapping"
+            assert memory_type is not None, (
+                f"AgentType {agent_name} has no memory mapping"
+            )
 
     def test_decomposition_agents_map_to_decomposition_type(self):
         """Test that decomposition agents map to decomposition_completed."""

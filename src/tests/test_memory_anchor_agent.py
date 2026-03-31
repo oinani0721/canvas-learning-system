@@ -12,29 +12,31 @@ from pathlib import Path
 def test_yaml_frontmatter():
     """测试用例1：验证Agent定义YAML frontmatter格式"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 提取YAML frontmatter
-    yaml_match = re.search(r'^---\n(.*?)\n---', content, re.DOTALL)
+    yaml_match = re.search(r"^---\n(.*?)\n---", content, re.DOTALL)
     assert yaml_match, "未找到YAML frontmatter"
 
     yaml_content = yaml_match.group(1)
 
     # 验证name字段（必须与文件名一致，使用kebab-case）
-    assert 'name: memory-anchor' in yaml_content, "name字段不正确，应为memory-anchor"
+    assert "name: memory-anchor" in yaml_content, "name字段不正确，应为memory-anchor"
 
     # 验证description字段（<80字符）
-    desc_match = re.search(r'description: (.+)', yaml_content)
+    desc_match = re.search(r"description: (.+)", yaml_content)
     assert desc_match, "未找到description字段"
     description = desc_match.group(1)
     assert len(description) < 80, f"description过长: {len(description)}字符（应<80）"
-    assert "memory" in description.lower() or "记忆" in description, "description应说明Agent的记忆锚点功能"
+    assert "memory" in description.lower() or "记忆" in description, (
+        "description应说明Agent的记忆锚点功能"
+    )
 
     # 验证tools字段
-    assert 'tools: Read' in yaml_content, "tools字段应为Read"
+    assert "tools: Read" in yaml_content, "tools字段应为Read"
 
     # 验证model字段
-    assert 'model: sonnet' in yaml_content, "model字段应为sonnet"
+    assert "model: sonnet" in yaml_content, "model字段应为sonnet"
 
     print("[PASS] 测试用例1: YAML frontmatter验证通过")
 
@@ -42,13 +44,13 @@ def test_yaml_frontmatter():
 def test_markdown_structure():
     """测试用例2：验证Markdown输出结构完整性（包含3个部分）"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     required_sections = [
         "## Role",
         "## Input Format",
         "## Output Format",
-        "## System Prompt"
+        "## System Prompt",
     ]
 
     for section in required_sections:
@@ -61,7 +63,9 @@ def test_markdown_structure():
 
     # 验证输出格式说明
     assert "Markdown" in content, "应说明输出Markdown格式"
-    assert "无需JSON包裹" in content or "不要使用JSON" in content, "应明确说明不返回JSON"
+    assert "无需JSON包裹" in content or "不要使用JSON" in content, (
+        "应明确说明不返回JSON"
+    )
 
     print("[PASS] 测试用例2: Markdown结构完整性验证通过")
 
@@ -69,13 +73,13 @@ def test_markdown_structure():
 def test_memory_aids_sections():
     """测试用例3：验证3种记忆辅助（类比、故事、口诀）完整性"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 必需的3种记忆辅助
     required_aids = {
         "类比": ["Analogy", "50-100字", "日常事物"],
         "故事": ["Story", "100字", "小故事"],
-        "口诀": ["Mnemonic", "1-2句", "易记"]
+        "口诀": ["Mnemonic", "1-2句", "易记"],
     }
 
     for aid_name, keywords in required_aids.items():
@@ -89,11 +93,7 @@ def test_memory_aids_sections():
     assert "必须" in content or "全部" in content, "应强调3种记忆辅助缺一不可"
 
     # 验证输出示例包含这3个部分
-    output_match = re.search(
-        r'输出示例.*?```markdown\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    output_match = re.search(r"输出示例.*?```markdown\n(.*?)\n```", content, re.DOTALL)
     if output_match:
         output_example = output_match.group(1)
         for aid_name in required_aids.keys():
@@ -105,7 +105,7 @@ def test_memory_aids_sections():
 def test_analogy_section():
     """测试用例4：验证类比部分存在且贴切"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证类比部分要求
     assert "类比" in content, "缺少类比部分"
@@ -117,11 +117,7 @@ def test_analogy_section():
     assert found, f"类比部分缺少质量要求（应包含: {', '.join(analogy_requirements)}）"
 
     # 验证输出示例包含类比部分
-    output_match = re.search(
-        r'输出示例.*?```markdown\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    output_match = re.search(r"输出示例.*?```markdown\n(.*?)\n```", content, re.DOTALL)
     if output_match:
         output_example = output_match.group(1)
         assert "## 类比" in output_example, "输出示例应包含## 类比标题"
@@ -135,7 +131,7 @@ def test_analogy_section():
 def test_story_section():
     """测试用例5：验证故事部分存在且生动（约100字）"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证故事部分要求
     assert "故事" in content, "缺少故事部分"
@@ -147,11 +143,7 @@ def test_story_section():
     assert found, f"故事部分缺少质量要求（应包含: {', '.join(story_requirements)}）"
 
     # 验证输出示例包含故事部分
-    output_match = re.search(
-        r'输出示例.*?```markdown\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    output_match = re.search(r"输出示例.*?```markdown\n(.*?)\n```", content, re.DOTALL)
     if output_match:
         output_example = output_match.group(1)
         assert "## 故事" in output_example, "输出示例应包含## 故事标题"
@@ -165,7 +157,7 @@ def test_story_section():
 def test_mnemonic_section():
     """测试用例6：验证口诀部分存在且实用（1-2句）"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证口诀部分要求
     assert "口诀" in content or "谐音" in content, "缺少口诀/谐音部分"
@@ -177,14 +169,12 @@ def test_mnemonic_section():
     assert found, f"口诀部分缺少质量要求（应包含: {', '.join(mnemonic_requirements)}）"
 
     # 验证输出示例包含口诀部分
-    output_match = re.search(
-        r'输出示例.*?```markdown\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    output_match = re.search(r"输出示例.*?```markdown\n(.*?)\n```", content, re.DOTALL)
     if output_match:
         output_example = output_match.group(1)
-        assert "## 口诀" in output_example or "## 口诀/谐音" in output_example, "输出示例应包含## 口诀/谐音标题"
+        assert "## 口诀" in output_example or "## 口诀/谐音" in output_example, (
+            "输出示例应包含## 口诀/谐音标题"
+        )
         # 验证口诀内容简短
         if "## 口诀" in output_example:
             mnemonic_section = output_example.split("## 口诀")[1]
@@ -197,7 +187,7 @@ def test_mnemonic_section():
 def test_filename_convention():
     """测试用例7：验证文件命名规范"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证文件命名格式说明
     # 格式应为：{concept}-记忆锚点-{YYYYMMDDHHmmss}.md
@@ -207,16 +197,14 @@ def test_filename_convention():
     assert "Markdown" in content, "应说明输出Markdown文本"
 
     # 验证输出示例是3个部分的Markdown文本
-    output_match = re.search(
-        r'输出示例.*?```markdown\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    output_match = re.search(r"输出示例.*?```markdown\n(.*?)\n```", content, re.DOTALL)
     if output_match:
         output_example = output_match.group(1)
         # 验证包含3个## 标题
         section_count = output_example.count("## ")
-        assert section_count >= 3, f"输出示例应包含至少3个部分（类比、故事、口诀），实际{section_count}个"
+        assert section_count >= 3, (
+            f"输出示例应包含至少3个部分（类比、故事、口诀），实际{section_count}个"
+        )
 
     print("[PASS] 测试用例7: 文件命名规范验证通过")
 
@@ -224,17 +212,13 @@ def test_filename_convention():
 def test_input_output_format():
     """测试用例8：验证输入输出格式（含完整示例）"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证输入格式定义
     assert "## Input Format" in content, "缺少Input Format章节"
 
     # 提取并验证输入示例JSON
-    input_match = re.search(
-        r'输入示例.*?```json\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    input_match = re.search(r"输入示例.*?```json\n(.*?)\n```", content, re.DOTALL)
     assert input_match, "未找到输入示例"
 
     input_json = input_match.group(1)
@@ -253,11 +237,7 @@ def test_input_output_format():
     assert "## Output Format" in content, "缺少Output Format章节"
 
     # 提取并验证输出示例
-    output_match = re.search(
-        r'输出示例.*?```markdown\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    output_match = re.search(r"输出示例.*?```markdown\n(.*?)\n```", content, re.DOTALL)
     assert output_match, "未找到输出示例（应为markdown格式）"
 
     output_markdown = output_match.group(1)
@@ -265,7 +245,9 @@ def test_input_output_format():
     # 验证输出示例包含3个部分
     assert "## 类比" in output_markdown, "输出示例应包含## 类比"
     assert "## 故事" in output_markdown, "输出示例应包含## 故事"
-    assert "## 口诀" in output_markdown or "## 口诀/谐音" in output_markdown, "输出示例应包含## 口诀/谐音"
+    assert "## 口诀" in output_markdown or "## 口诀/谐音" in output_markdown, (
+        "输出示例应包含## 口诀/谐音"
+    )
 
     print("[PASS] 测试用例8: 输入输出格式验证通过")
 
@@ -273,7 +255,7 @@ def test_input_output_format():
 def test_content_completeness():
     """测试用例9：验证内容完整性"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 验证Role部分
     assert "记忆" in content, "Role部分应提及记忆功能"
@@ -291,7 +273,9 @@ def test_content_completeness():
     assert "user_understanding" in content, "应说明如何处理user_understanding"
 
     # 验证强调3种记忆辅助必须全部提供
-    assert "必须" in content or "全部" in content or "缺一不可" in content, "应强调3种记忆辅助缺一不可"
+    assert "必须" in content or "全部" in content or "缺一不可" in content, (
+        "应强调3种记忆辅助缺一不可"
+    )
 
     print("[PASS] 测试用例9: 内容完整性验证通过")
 
@@ -299,7 +283,7 @@ def test_content_completeness():
 def test_performance_requirement():
     """测试用例10：验证响应时间要求<5秒（文档说明）"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 注意：Agent定义文件可能不直接包含性能要求
     # 性能要求通常在tech-stack.md或architecture文档中
@@ -322,7 +306,7 @@ def test_performance_requirement():
 def test_ac_coverage():
     """测试用例11：验证AC覆盖率"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # AC 1: 生成3种记忆辅助（类比、故事、口诀）
     assert "类比" in content, "AC 1: 缺少类比"
@@ -330,7 +314,9 @@ def test_ac_coverage():
     assert "口诀" in content or "谐音" in content, "AC 1: 缺少口诀/谐音"
 
     # AC 2: 类比贴切易懂
-    assert "贴切" in content or "易懂" in content or "形象" in content, "AC 2: 未说明类比贴切易懂要求"
+    assert "贴切" in content or "易懂" in content or "形象" in content, (
+        "AC 2: 未说明类比贴切易懂要求"
+    )
 
     # AC 3: 故事有趣生动
     assert "有趣" in content or "生动" in content, "AC 3: 未说明故事有趣生动要求"
@@ -360,14 +346,10 @@ def test_ac_coverage():
 def test_output_example_completeness():
     """额外测试：验证输出示例包含所有必需部分"""
     agent_file = Path("C:/Users/ROG/托福/.claude/agents/memory-anchor.md")
-    content = agent_file.read_text(encoding='utf-8')
+    content = agent_file.read_text(encoding="utf-8")
 
     # 提取输出示例
-    output_match = re.search(
-        r'输出示例.*?```markdown\n(.*?)\n```',
-        content,
-        re.DOTALL
-    )
+    output_match = re.search(r"输出示例.*?```markdown\n(.*?)\n```", content, re.DOTALL)
     assert output_match, "未找到输出示例"
 
     output_text = output_match.group(1)
@@ -396,8 +378,10 @@ if __name__ == "__main__":
     import sys
 
     # 设置UTF-8编码输出，避免Windows控制台编码问题
-    if sys.platform == 'win32':
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    if sys.platform == "win32":
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
 
     print("\n=== 开始测试 memory-anchor Agent ===\n")
 

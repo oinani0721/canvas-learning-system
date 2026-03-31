@@ -11,25 +11,24 @@ Tests the integration of difficulty adaptation into VerificationService methods:
 [Source: docs/stories/31.5.story.md#Task-7, Task-5.3, Task-5.4]
 """
 
-import pytest
 from dataclasses import dataclass
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from typing import List
+from unittest.mock import AsyncMock
 
+import pytest
 from app.services.verification_service import (
-    VerificationService,
     DifficultyLevel,
     DifficultyResult,
-    QuestionType,
     ForgettingStatus,
-    calculate_full_difficulty_result,
-    is_concept_mastered,
+    QuestionType,
+    VerificationService,
 )
 
 
 @dataclass
 class MockScoreHistoryResponse:
     """Mock ScoreHistoryResponse for testing."""
+
     concept_id: str = "test-concept"
     canvas_name: str = "test.canvas"
     scores: List[int] = None
@@ -48,7 +47,6 @@ def _make_service(**kwargs) -> VerificationService:
     """Create a VerificationService with mocked dependencies."""
     return VerificationService(
         rag_service=kwargs.get("rag_service"),
-        cross_canvas_service=kwargs.get("cross_canvas_service"),
         textbook_context_service=kwargs.get("textbook_context_service"),
         canvas_service=kwargs.get("canvas_service"),
         agent_service=kwargs.get("agent_service"),
@@ -67,8 +65,7 @@ class TestGetDifficultyForConcept:
         service = _make_service(memory_service=None)
 
         result = await service._get_difficulty_for_concept(
-            concept="test-concept",
-            canvas_name="test.canvas"
+            concept="test-concept", canvas_name="test.canvas"
         )
 
         assert result.level == DifficultyLevel.MEDIUM
@@ -86,8 +83,7 @@ class TestGetDifficultyForConcept:
         service = _make_service(memory_service=mock_memory)
 
         result = await service._get_difficulty_for_concept(
-            concept="new-concept",
-            canvas_name="test.canvas"
+            concept="new-concept", canvas_name="test.canvas"
         )
 
         assert result.level == DifficultyLevel.MEDIUM
@@ -99,16 +95,13 @@ class TestGetDifficultyForConcept:
         mock_memory = AsyncMock()
         mock_memory.get_concept_score_history = AsyncMock(
             return_value=MockScoreHistoryResponse(
-                scores=[40, 50, 55],
-                sample_size=3,
-                average=48.3
+                scores=[40, 50, 55], sample_size=3, average=48.3
             )
         )
         service = _make_service(memory_service=mock_memory)
 
         result = await service._get_difficulty_for_concept(
-            concept="hard-concept",
-            canvas_name="test.canvas"
+            concept="hard-concept", canvas_name="test.canvas"
         )
 
         assert result.level == DifficultyLevel.EASY
@@ -120,16 +113,13 @@ class TestGetDifficultyForConcept:
         mock_memory = AsyncMock()
         mock_memory.get_concept_score_history = AsyncMock(
             return_value=MockScoreHistoryResponse(
-                scores=[85, 88, 92],
-                sample_size=3,
-                average=88.3
+                scores=[85, 88, 92], sample_size=3, average=88.3
             )
         )
         service = _make_service(memory_service=mock_memory)
 
         result = await service._get_difficulty_for_concept(
-            concept="mastered-concept",
-            canvas_name="test.canvas"
+            concept="mastered-concept", canvas_name="test.canvas"
         )
 
         assert result.level == DifficultyLevel.HARD
@@ -147,8 +137,7 @@ class TestGetDifficultyForConcept:
         service = _make_service(memory_service=mock_memory)
 
         result = await service._get_difficulty_for_concept(
-            concept="slow-concept",
-            canvas_name="test.canvas"
+            concept="slow-concept", canvas_name="test.canvas"
         )
 
         assert result.level == DifficultyLevel.MEDIUM
@@ -164,8 +153,7 @@ class TestGetDifficultyForConcept:
         service = _make_service(memory_service=mock_memory)
 
         result = await service._get_difficulty_for_concept(
-            concept="error-concept",
-            canvas_name="test.canvas"
+            concept="error-concept", canvas_name="test.canvas"
         )
 
         assert result.level == DifficultyLevel.MEDIUM
@@ -176,23 +164,17 @@ class TestGetDifficultyForConcept:
         mock_memory = AsyncMock()
         mock_memory.get_concept_score_history = AsyncMock(
             return_value=MockScoreHistoryResponse(
-                scores=[70, 75],
-                sample_size=2,
-                average=72.5
+                scores=[70, 75], sample_size=2, average=72.5
             )
         )
         service = _make_service(memory_service=mock_memory)
 
         await service._get_difficulty_for_concept(
-            concept="Concept Name",
-            canvas_name="test.canvas",
-            node_id="node-123"
+            concept="Concept Name", canvas_name="test.canvas", node_id="node-123"
         )
 
         mock_memory.get_concept_score_history.assert_called_once_with(
-            concept_id="node-123",
-            canvas_name="test.canvas",
-            limit=5
+            concept_id="node-123", canvas_name="test.canvas", limit=5
         )
 
 
@@ -207,8 +189,10 @@ class TestBuildQuestionResponseWithDifficulty:
             average_score=88.0,
             sample_size=5,
             question_type=QuestionType.APPLICATION,
-            forgetting_status=ForgettingStatus(needs_review=False, decay_percentage=5.0),
-            is_mastered=True
+            forgetting_status=ForgettingStatus(
+                needs_review=False, decay_percentage=5.0
+            ),
+            is_mastered=True,
         )
 
         result = service._build_question_response_with_difficulty(
@@ -225,9 +209,7 @@ class TestBuildQuestionResponseWithDifficulty:
         """Fallback when no difficulty available."""
         service = _make_service()
 
-        result = service._build_question_response_with_difficulty(
-            "What is X?", None
-        )
+        result = service._build_question_response_with_difficulty("What is X?", None)
 
         assert result["question"] == "What is X?"
         assert result["difficulty_level"] == "medium"
@@ -245,7 +227,7 @@ class TestBuildDifficultyAwarePrompt:
             average_score=45.0,
             sample_size=3,
             question_type=QuestionType.BREAKTHROUGH,
-            is_mastered=False
+            is_mastered=False,
         )
 
         prompt = service._build_difficulty_aware_prompt("微积分", difficulty)
@@ -261,7 +243,7 @@ class TestBuildDifficultyAwarePrompt:
             average_score=88.0,
             sample_size=5,
             question_type=QuestionType.APPLICATION,
-            is_mastered=True
+            is_mastered=True,
         )
 
         prompt = service._build_difficulty_aware_prompt("微积分", difficulty)
@@ -276,8 +258,10 @@ class TestBuildDifficultyAwarePrompt:
             average_score=75.0,
             sample_size=5,
             question_type=QuestionType.VERIFICATION,
-            forgetting_status=ForgettingStatus(needs_review=True, decay_percentage=35.0),
-            is_mastered=False
+            forgetting_status=ForgettingStatus(
+                needs_review=True, decay_percentage=35.0
+            ),
+            is_mastered=False,
         )
 
         prompt = service._build_difficulty_aware_prompt("微积分", difficulty)
@@ -300,7 +284,7 @@ class TestStartSessionMasteryFilter:
         service = _make_service(
             memory_service=mock_memory,
             canvas_service=mock_canvas,
-            agent_service=mock_agent
+            agent_service=mock_agent,
         )
 
         # Mock _extract_concepts_from_canvas
@@ -311,8 +295,7 @@ class TestStartSessionMasteryFilter:
         service.generate_question_with_rag = AsyncMock(return_value="Question 1?")
 
         result = await service.start_session(
-            canvas_name="test.canvas",
-            include_mastered=True
+            canvas_name="test.canvas", include_mastered=True
         )
 
         assert result["total_concepts"] == 3
@@ -345,8 +328,7 @@ class TestStartSessionMasteryFilter:
         service.generate_question_with_rag = AsyncMock(return_value="Question?")
 
         result = await service.start_session(
-            canvas_name="test.canvas",
-            include_mastered=False
+            canvas_name="test.canvas", include_mastered=False
         )
 
         # Only concept-b should remain (not mastered)
@@ -367,8 +349,7 @@ class TestStartSessionMasteryFilter:
         service.generate_question_with_rag = AsyncMock(return_value="Question?")
 
         result = await service.start_session(
-            canvas_name="test.canvas",
-            include_mastered=False
+            canvas_name="test.canvas", include_mastered=False
         )
 
         # All mastered -> include all anyway
@@ -384,8 +365,7 @@ class TestStartSessionMasteryFilter:
         service.generate_question_with_rag = AsyncMock(return_value="Question?")
 
         result = await service.start_session(
-            canvas_name="test.canvas",
-            include_mastered=False
+            canvas_name="test.canvas", include_mastered=False
         )
 
         assert result["total_concepts"] == 2
@@ -399,9 +379,7 @@ class TestStartSessionMasteryFilter:
         )
 
         service = _make_service(memory_service=mock_memory)
-        service._extract_concepts_from_canvas = AsyncMock(
-            return_value=["concept-a"]
-        )
+        service._extract_concepts_from_canvas = AsyncMock(return_value=["concept-a"])
         service.generate_question_with_rag = AsyncMock(return_value="Question?")
 
         # Default call without include_mastered

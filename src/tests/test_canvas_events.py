@@ -18,7 +18,12 @@ import time
 import unittest
 from unittest.mock import Mock
 
-from canvas_progress_tracker.canvas_monitor_engine import CanvasChange, CanvasChangeType, CanvasEvent, CanvasEventType
+from canvas_progress_tracker.canvas_monitor_engine import (
+    CanvasChange,
+    CanvasChangeType,
+    CanvasEvent,
+    CanvasEventType,
+)
 from canvas_progress_tracker.events.canvas_event_handler import (
     CanvasEventHandler,
     EventFilter,
@@ -45,7 +50,9 @@ class TestCanvasEventHandler(unittest.TestCase):
         self.handler.add_event_listener(CanvasEventType.NODE_ADDED, callback)
 
         self.assertIn(CanvasEventType.NODE_ADDED, self.handler.event_listeners)
-        self.assertIn(callback, self.handler.event_listeners[CanvasEventType.NODE_ADDED])
+        self.assertIn(
+            callback, self.handler.event_listeners[CanvasEventType.NODE_ADDED]
+        )
 
     def test_add_global_listener(self):
         """测试添加全局监听器"""
@@ -59,7 +66,7 @@ class TestCanvasEventHandler(unittest.TestCase):
         filter_obj = EventFilter(
             change_types={CanvasChangeType.CREATE},
             node_types={"text"},
-            min_priority=EventPriority.MEDIUM
+            min_priority=EventPriority.MEDIUM,
         )
         self.handler.add_event_filter(filter_obj)
 
@@ -74,7 +81,7 @@ class TestCanvasEventHandler(unittest.TestCase):
             node_id="test-node",
             node_type="text",
             new_content={"text": "New node content"},
-            file_path="/test.canvas"
+            file_path="/test.canvas",
         )
 
         events = self.handler._convert_change_to_events(change)
@@ -94,13 +101,15 @@ class TestCanvasEventHandler(unittest.TestCase):
             node_type="text",
             old_content={"color": "1"},  # 红色
             new_content={"color": "2"},  # 绿色
-            file_path="/test.canvas"
+            file_path="/test.canvas",
         )
 
         events = self.handler._convert_change_to_events(change)
 
         # 应该生成颜色变更事件
-        color_events = [e for e in events if e.event_type == CanvasEventType.COLOR_CHANGED]
+        color_events = [
+            e for e in events if e.event_type == CanvasEventType.COLOR_CHANGED
+        ]
         self.assertGreater(len(color_events), 0)
 
         color_event = color_events[0]
@@ -117,13 +126,15 @@ class TestCanvasEventHandler(unittest.TestCase):
             node_type="text",
             old_content={"x": 100, "y": 100},
             new_content={"x": 200, "y": 150},
-            file_path="/test.canvas"
+            file_path="/test.canvas",
         )
 
         events = self.handler._convert_change_to_events(change)
 
         # 应该生成位置变更事件
-        position_events = [e for e in events if e.event_type == CanvasEventType.POSITION_CHANGED]
+        position_events = [
+            e for e in events if e.event_type == CanvasEventType.POSITION_CHANGED
+        ]
         self.assertGreater(len(position_events), 0)
 
         position_event = position_events[0]
@@ -142,14 +153,16 @@ class TestCanvasEventHandler(unittest.TestCase):
             node_id="test-node",
             event_data={
                 "old_color": "1",  # 红色
-                "new_color": "2"   # 绿色
-            }
+                "new_color": "2",  # 绿色
+            },
         )
 
         derived_events = self.handler._generate_derived_events(event)
 
         # 应该生成学习进度事件
-        progress_events = [e for e in derived_events if "learning_progress" in e.event_id]
+        progress_events = [
+            e for e in derived_events if "learning_progress" in e.event_id
+        ]
         self.assertGreater(len(progress_events), 0)
 
     def test_should_process_change_with_filter(self):
@@ -163,7 +176,7 @@ class TestCanvasEventHandler(unittest.TestCase):
             change_id="create-change",
             canvas_id="test",
             change_type=CanvasChangeType.CREATE,
-            file_path="/test.canvas"
+            file_path="/test.canvas",
         )
         self.assertTrue(self.handler._should_process_change(create_change))
 
@@ -172,12 +185,13 @@ class TestCanvasEventHandler(unittest.TestCase):
             change_id="update-change",
             canvas_id="test",
             change_type=CanvasChangeType.UPDATE,
-            file_path="/test.canvas"
+            file_path="/test.canvas",
         )
         self.assertFalse(self.handler._should_process_change(update_change))
 
     def test_process_canvas_changes(self):
         """测试处理Canvas变更列表"""
+
         def callback(event):
             self.processed_events.append(event)
 
@@ -191,7 +205,7 @@ class TestCanvasEventHandler(unittest.TestCase):
                 node_id="node-1",
                 node_type="text",
                 new_content={"text": "Node 1"},
-                file_path="/test.canvas"
+                file_path="/test.canvas",
             ),
             CanvasChange(
                 change_id="change-2",
@@ -201,8 +215,8 @@ class TestCanvasEventHandler(unittest.TestCase):
                 node_type="text",
                 old_content={"color": "1"},
                 new_content={"color": "2"},
-                file_path="/test.canvas"
-            )
+                file_path="/test.canvas",
+            ),
         ]
 
         results = self.handler.process_canvas_changes(changes)
@@ -227,14 +241,20 @@ class TestCanvasEventHandler(unittest.TestCase):
         self.handler.add_event_listener(CanvasEventType.NODE_ADDED, callback)
 
         # 验证监听器已添加
-        self.assertIn(callback, self.handler.event_listeners[CanvasEventType.NODE_ADDED])
+        self.assertIn(
+            callback, self.handler.event_listeners[CanvasEventType.NODE_ADDED]
+        )
 
         # 移除监听器
-        result = self.handler.remove_event_listener(CanvasEventType.NODE_ADDED, callback)
+        result = self.handler.remove_event_listener(
+            CanvasEventType.NODE_ADDED, callback
+        )
         self.assertTrue(result)
 
         # 验证监听器已移除
-        self.assertNotIn(callback, self.handler.event_listeners[CanvasEventType.NODE_ADDED])
+        self.assertNotIn(
+            callback, self.handler.event_listeners[CanvasEventType.NODE_ADDED]
+        )
 
     def test_clear_all_listeners(self):
         """测试清空所有监听器"""
@@ -245,7 +265,9 @@ class TestCanvasEventHandler(unittest.TestCase):
         self.handler.add_global_listener(callback2)
 
         # 验证监听器已添加
-        self.assertEqual(len(self.handler.event_listeners[CanvasEventType.NODE_ADDED]), 1)
+        self.assertEqual(
+            len(self.handler.event_listeners[CanvasEventType.NODE_ADDED]), 1
+        )
         self.assertEqual(len(self.handler.global_listeners), 1)
 
         # 清空所有监听器
@@ -262,9 +284,7 @@ class TestEventDispatcher(unittest.TestCase):
     def setUp(self):
         """测试前设置"""
         self.config = DispatchConfig(
-            max_workers=2,
-            strategy=DispatchStrategy.PARALLEL,
-            timeout_seconds=5.0
+            max_workers=2, strategy=DispatchStrategy.PARALLEL, timeout_seconds=5.0
         )
         self.dispatcher = EventDispatcher(self.config)
         self.received_events = []
@@ -293,9 +313,7 @@ class TestEventDispatcher(unittest.TestCase):
         """测试添加监听器"""
         callback = Mock()
         listener_id = self.dispatcher.add_listener(
-            callback,
-            event_types=[CanvasEventType.NODE_ADDED],
-            priority=2
+            callback, event_types=[CanvasEventType.NODE_ADDED], priority=2
         )
 
         self.assertIsNotNone(listener_id)
@@ -338,7 +356,7 @@ class TestEventDispatcher(unittest.TestCase):
             event_type=CanvasEventType.NODE_ADDED,
             canvas_id="test-canvas",
             node_id="test-node",
-            event_data={"test": "data"}
+            event_data={"test": "data"},
         )
 
         future = self.dispatcher.dispatch_event(event)
@@ -363,7 +381,7 @@ class TestEventDispatcher(unittest.TestCase):
             event_id="test-sync-event",
             event_type=CanvasEventType.NODE_UPDATED,
             canvas_id="test-canvas",
-            node_id="test-node"
+            node_id="test-node",
         )
 
         result = self.dispatcher.dispatch_event_sync(event)
@@ -394,7 +412,7 @@ class TestEventDispatcher(unittest.TestCase):
         event = CanvasEvent(
             event_id="test-parallel-event",
             event_type=CanvasEventType.NODE_ADDED,
-            canvas_id="test-canvas"
+            canvas_id="test-canvas",
         )
 
         start_time = time.time()
@@ -412,10 +430,7 @@ class TestEventDispatcher(unittest.TestCase):
 
     def test_priority_dispatching(self):
         """测试优先级分发"""
-        config = DispatchConfig(
-            max_workers=1,
-            strategy=DispatchStrategy.PRIORITY
-        )
+        config = DispatchConfig(max_workers=1, strategy=DispatchStrategy.PRIORITY)
         dispatcher = EventDispatcher(config)
         dispatcher.start()
 
@@ -434,7 +449,7 @@ class TestEventDispatcher(unittest.TestCase):
         event = CanvasEvent(
             event_id="test-priority-event",
             event_type=CanvasEventType.NODE_ADDED,
-            canvas_id="test-canvas"
+            canvas_id="test-canvas",
         )
 
         result = dispatcher.dispatch_event_sync(event)
@@ -462,7 +477,7 @@ class TestEventDispatcher(unittest.TestCase):
         event = CanvasEvent(
             event_id="test-error-event",
             event_type=CanvasEventType.NODE_ADDED,
-            canvas_id="test-canvas"
+            canvas_id="test-canvas",
         )
 
         result = self.dispatcher.dispatch_event_sync(event)
@@ -499,7 +514,7 @@ class TestEventDispatcher(unittest.TestCase):
             event = CanvasEvent(
                 event_id=f"test-event-{i}",
                 event_type=CanvasEventType.NODE_ADDED,
-                canvas_id="test-canvas"
+                canvas_id="test-canvas",
             )
             self.dispatcher.dispatch_event(event)
 
@@ -519,7 +534,7 @@ class TestEventDispatcher(unittest.TestCase):
         """测试超时处理"""
         config = DispatchConfig(
             max_workers=1,
-            timeout_seconds=0.1  # 很短的超时时间
+            timeout_seconds=0.1,  # 很短的超时时间
         )
         dispatcher = EventDispatcher(config)
         dispatcher.start()
@@ -532,7 +547,7 @@ class TestEventDispatcher(unittest.TestCase):
         event = CanvasEvent(
             event_id="test-timeout-event",
             event_type=CanvasEventType.NODE_ADDED,
-            canvas_id="test-canvas"
+            canvas_id="test-canvas",
         )
 
         result = dispatcher.dispatch_event_sync(event)
@@ -584,7 +599,7 @@ class TestEventIntegration(unittest.TestCase):
                 node_id="test-node",
                 node_type="text",
                 new_content={"text": "Integration test"},
-                file_path="/test.canvas"
+                file_path="/test.canvas",
             )
         ]
 
@@ -625,7 +640,7 @@ class TestEventIntegration(unittest.TestCase):
                 event_id=f"volume-test-{i}",
                 event_type=CanvasEventType.NODE_ADDED,
                 canvas_id="test-canvas",
-                node_id=f"node-{i}"
+                node_id=f"node-{i}",
             )
             events.append(event)
 
@@ -669,7 +684,7 @@ class TestEventIntegration(unittest.TestCase):
                 event = CanvasEvent(
                     event_id=f"thread-{thread_id}-event-{i}",
                     event_type=CanvasEventType.NODE_ADDED,
-                    canvas_id="test-canvas"
+                    canvas_id="test-canvas",
                 )
                 future = self.dispatcher.dispatch_event(event)
                 future.result(timeout=5.0)
@@ -690,6 +705,6 @@ class TestEventIntegration(unittest.TestCase):
         self.dispatcher.stop()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 运行测试
     unittest.main(verbosity=2)

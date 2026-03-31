@@ -32,11 +32,17 @@ PROVIDER_NAME = "Canvas-Backend"
 CONSUMER_NAME = "Canvas-Frontend"
 
 # Pact 文件目录（本地开发使用）
-PACT_DIR = Path(__file__).parent.parent.parent.parent / "canvas-progress-tracker" / "obsidian-plugin" / "pacts"
+PACT_DIR = (
+    Path(__file__).parent.parent.parent.parent
+    / "canvas-progress-tracker"
+    / "obsidian-plugin"
+    / "pacts"
+)
 
 # Pact Broker 配置（CI/CD 使用）
 PACT_BROKER_URL = os.environ.get("PACT_BROKER_URL", "")
 PACT_BROKER_TOKEN = os.environ.get("PACT_BROKER_TOKEN", "")
+
 
 # Provider 版本
 def get_git_version() -> str:
@@ -59,6 +65,7 @@ PROVIDER_VERSION = os.environ.get("PACT_PROVIDER_VERSION", get_git_version())
 # ═══════════════════════════════════════════════════════════════════════════════
 # Provider States
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class ProviderStateMiddleware:
     """
@@ -156,11 +163,12 @@ class ProviderStateMiddleware:
     def _setup_multimodal_content(self, params: dict) -> dict:
         """Insert test multimodal content so GET/PUT/DELETE can find it."""
         from datetime import datetime
-        from app.services.multimodal_service import get_multimodal_service
+
         from app.models.multimodal_schemas import (
             MultimodalMediaType,
             MultimodalMetadataSchema,
         )
+        from app.services.multimodal_service import get_multimodal_service
 
         service = get_multimodal_service()
         content_id = params.get("content_id", "550e8400-e29b-41d4-a716-446655440000")
@@ -174,9 +182,7 @@ class ProviderStateMiddleware:
             "related_concept_id": "concept-001",
             "created_at": datetime(2026, 1, 1, 12, 0, 0),
             "description": "Test image for pact verification",
-            "metadata": MultimodalMetadataSchema(
-                file_size=1024, mime_type="image/png"
-            ),
+            "metadata": MultimodalMetadataSchema(file_size=1024, mime_type="image/png"),
             "thumbnail_path": None,
         }
         return {"status": "ok", "content_id": content_id}
@@ -184,11 +190,12 @@ class ProviderStateMiddleware:
     def _setup_searchable_multimodal(self, params: dict) -> dict:
         """Insert content with searchable descriptions for POST /search."""
         from datetime import datetime
-        from app.services.multimodal_service import get_multimodal_service
+
         from app.models.multimodal_schemas import (
             MultimodalMediaType,
             MultimodalMetadataSchema,
         )
+        from app.services.multimodal_service import get_multimodal_service
 
         service = get_multimodal_service()
         items = [
@@ -224,11 +231,12 @@ class ProviderStateMiddleware:
     def _setup_multimodal_with_concept(self, params: dict) -> dict:
         """Insert content linked to a specific concept for GET /by-concept."""
         from datetime import datetime
-        from app.services.multimodal_service import get_multimodal_service
+
         from app.models.multimodal_schemas import (
             MultimodalMediaType,
             MultimodalMetadataSchema,
         )
+        from app.services.multimodal_service import get_multimodal_service
 
         service = get_multimodal_service()
         concept_id = params.get("concept_id", "concept-test-001")
@@ -240,9 +248,7 @@ class ProviderStateMiddleware:
             "related_concept_id": concept_id,
             "created_at": datetime(2026, 1, 1, 12, 0, 0),
             "description": "Concept-linked test image",
-            "metadata": MultimodalMetadataSchema(
-                file_size=512, mime_type="image/png"
-            ),
+            "metadata": MultimodalMetadataSchema(file_size=512, mime_type="image/png"),
             "thumbnail_path": None,
         }
         return {"status": "ok", "content_id": content_id, "concept_id": concept_id}
@@ -263,6 +269,7 @@ class ProviderStateMiddleware:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Pact Provider 验证测试
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture(scope="module")
 def provider_url():
@@ -290,7 +297,7 @@ class TestPactProviderVerification:
 
     @pytest.mark.skipif(
         not PACT_DIR.exists() and not PACT_BROKER_URL,
-        reason="No pact files found and no broker configured"
+        reason="No pact files found and no broker configured",
     )
     def test_verify_pacts_from_local_files(self, verifier, provider_url):
         """
@@ -315,12 +322,11 @@ class TestPactProviderVerification:
                 provider_states_setup_url=f"{provider_url}/_pact/provider-states",
             )
 
-            assert result == 0, f"Pact verification failed for {pact_file.name}:\n{output}"
+            assert result == 0, (
+                f"Pact verification failed for {pact_file.name}:\n{output}"
+            )
 
-    @pytest.mark.skipif(
-        not PACT_BROKER_URL,
-        reason="PACT_BROKER_URL not configured"
-    )
+    @pytest.mark.skipif(not PACT_BROKER_URL, reason="PACT_BROKER_URL not configured")
     def test_verify_pacts_from_broker(self, verifier, provider_url):
         """
         从 Pact Broker 验证 Provider。
@@ -334,7 +340,7 @@ class TestPactProviderVerification:
             enable_pending=True,
             consumer_version_selectors=[
                 {"mainBranch": True},  # 验证 main 分支的消费者
-                {"deployed": True},     # 验证已部署的消费者
+                {"deployed": True},  # 验证已部署的消费者
             ],
             provider_states_setup_url=f"{provider_url}/_pact/provider-states",
         )

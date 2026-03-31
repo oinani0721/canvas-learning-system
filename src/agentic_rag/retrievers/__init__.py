@@ -3,8 +3,9 @@ Retriever模块 for Canvas Agentic RAG (Story 6.8, Story 23.4)
 
 提供多模态和多源检索功能:
 - MultimodalRetriever: 多模态内容检索器 (Story 6.8)
-- TextbookContextService: 教材上下文检索器 (Story 23.4)
 - CrossCanvasService: 跨Canvas关联检索器 (Story 23.4)
+
+Feature 2.2: Textbook retriever removed per GDA-2 decision.
 
 Dependencies:
 - Story 6.6 (MultimodalVectorizer)
@@ -29,21 +30,12 @@ from .multimodal_retriever import (
     retrieve_multimodal,
 )
 
-# Story 23.4: 教材上下文检索
-from .textbook_retriever import (
-    TextbookContextService,
-    TextbookRetrievalTimeout,
-    TextbookRetrieverConfig,
-    TextbookRetrieverError,
-    textbook_retrieval_node,
-)
-
 # Vault Notes: vault-wide .md 笔记检索
 from .vault_notes_retriever import (
-    VaultNotesService,
+    VaultNotesRetrievalTimeout,
     VaultNotesRetrieverConfig,
     VaultNotesRetrieverError,
-    VaultNotesRetrievalTimeout,
+    VaultNotesService,
     vault_notes_retrieval_node,
 )
 
@@ -55,12 +47,6 @@ __all__ = [
     "MultimodalRetrievalTimeout",
     "retrieve_multimodal",
     "multimodal_retrieval_node",
-    # Story 23.4: 教材上下文检索
-    "TextbookContextService",
-    "TextbookRetrieverConfig",
-    "TextbookRetrieverError",
-    "TextbookRetrievalTimeout",
-    "textbook_retrieval_node",
     # Story 23.4: 跨Canvas关联检索
     "CrossCanvasService",
     "CrossCanvasRetrieverConfig",

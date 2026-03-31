@@ -147,7 +147,9 @@ class DifficultyMatcher:
                     self._window.append(bool(row[3]))
 
             self._initialized = True
-            logger.info(f"[Story 7.4] DifficultyMatcher initialized, window hydrated with {len(self._window)} records")
+            logger.info(
+                f"[Story 7.4] DifficultyMatcher initialized, window hydrated with {len(self._window)} records"
+            )
 
     # ───────────────────────────────────────────────────────────────────────
     # Core: difficulty range
@@ -170,7 +172,9 @@ class DifficultyMatcher:
         return (round(lower, 4), round(upper, 4))
 
     @staticmethod
-    def is_difficulty_matched(estimated_difficulty: float, lower: float, upper: float) -> bool:
+    def is_difficulty_matched(
+        estimated_difficulty: float, lower: float, upper: float
+    ) -> bool:
         """Check if estimated difficulty falls within the acceptable range."""
         return lower <= estimated_difficulty <= upper
 
@@ -376,7 +380,9 @@ class DifficultyMatcher:
             is_healthy=rate >= MATCH_THRESHOLD,
         )
 
-    async def get_stats_with_recent(self, recent_count: int = 10) -> DifficultyMatchStats:
+    async def get_stats_with_recent(
+        self, recent_count: int = 10
+    ) -> DifficultyMatchStats:
         """Return stats with recent records attached.
 
         Args:

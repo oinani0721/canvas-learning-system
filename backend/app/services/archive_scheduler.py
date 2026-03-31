@@ -52,8 +52,7 @@ class ArchiveScheduler:
         self._running = True
         self._task = asyncio.create_task(self._run_loop())
         logger.info(
-            f"[Story 3.8] Archive scheduler started "
-            f"(interval={self._check_interval}s)"
+            f"[Story 3.8] Archive scheduler started (interval={self._check_interval}s)"
         )
 
     async def stop(self) -> None:

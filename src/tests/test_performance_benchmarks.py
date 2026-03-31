@@ -61,8 +61,8 @@ class TestPerformanceBenchmarks:
                 "question_text": "什么是导数？请给出详细解释。",
                 "user_understanding": "导数就是变化率吧，不太确定。",
                 "reference_material": "导数的严格数学定义和几何意义",
-                "user_level": "intermediate"
-            }
+                "user_level": "intermediate",
+            },
         }
 
         # 测试并发执行
@@ -80,11 +80,15 @@ class TestPerformanceBenchmarks:
         print(f"   🎯 目标提升比: {PERFORMANCE_TARGET_SPEEDUP:.1f}x")
 
         # 验证性能目标
-        assert actual_speedup >= PERFORMANCE_TARGET_SPEEDUP, f"性能提升不足: {actual_speedup:.2f}x < {PERFORMANCE_TARGET_SPEEDUP}x"
+        assert actual_speedup >= PERFORMANCE_TARGET_SPEEDUP, (
+            f"性能提升不足: {actual_speedup:.2f}x < {PERFORMANCE_TARGET_SPEEDUP}x"
+        )
         assert concurrent_result["success"], "并发执行应该成功"
         assert concurrent_result["total_tasks"] >= 4, "应该执行多个任务"
 
-        print(f"   ✅ 性能目标达成: {actual_speedup:.2f}x >= {PERFORMANCE_TARGET_SPEEDUP}x")
+        print(
+            f"   ✅ 性能目标达成: {actual_speedup:.2f}x >= {PERFORMANCE_TARGET_SPEEDUP}x"
+        )
 
     @pytest.mark.asyncio
     async def test_max_concurrent_agents_limit(self):
@@ -106,8 +110,8 @@ class TestPerformanceBenchmarks:
                 "concept1": "分析性思维",
                 "concept2": "综合性思维",
                 "compare_aspects": ["定义", "方法", "应用", "优势", "局限"],
-                "specific_questions": ["具体步骤", "实践案例", "常见误区"]
-            }
+                "specific_questions": ["具体步骤", "实践案例", "常见误区"],
+            },
         }
 
         # 测试不同最大Agent数限制
@@ -115,7 +119,9 @@ class TestPerformanceBenchmarks:
             print(f"\n   测试最大Agent数: {max_agents}")
 
             start_time = time.time()
-            result = await self.executor.execute_concurrent_agents(complex_task, max_agents=max_agents)
+            result = await self.executor.execute_concurrent_agents(
+                complex_task, max_agents=max_agents
+            )
             end_time = time.time()
 
             execution_time = end_time - start_time
@@ -145,38 +151,47 @@ class TestPerformanceBenchmarks:
                 "name": "基础拆解请求",
                 "request": "我看不懂这个概念，请帮我拆解",
                 "expected_agents": ["basic-decomposition"],
-                "min_expected": 1
+                "min_expected": 1,
             },
             {
                 "name": "解释类请求",
                 "request": "请解释这个概念并讲清楚",
-                "expected_agents": ["oral-explanation", "clarification-path", "four-level-explanation"],
-                "min_expected": 3
+                "expected_agents": [
+                    "oral-explanation",
+                    "clarification-path",
+                    "four-level-explanation",
+                ],
+                "min_expected": 3,
             },
             {
                 "name": "评分请求",
                 "request": "请给我的理解打分",
                 "expected_agents": ["scoring-agent"],
-                "min_expected": 1
+                "min_expected": 1,
             },
             {
                 "name": "记忆辅助请求",
                 "request": "请帮我记住这个概念",
                 "expected_agents": ["memory-anchor"],
-                "min_expected": 1
+                "min_expected": 1,
             },
             {
                 "name": "对比分析请求",
                 "request": "请对比这两个概念",
                 "expected_agents": ["comparison-table"],
-                "min_expected": 1
+                "min_expected": 1,
             },
             {
                 "name": "综合学习请求",
                 "request": "请拆解、解释、记住并评分",
-                "expected_agents": ["basic-decomposition", "oral-explanation", "memory-anchor", "scoring-agent"],
-                "min_expected": 4
-            }
+                "expected_agents": [
+                    "basic-decomposition",
+                    "oral-explanation",
+                    "memory-anchor",
+                    "scoring-agent",
+                ],
+                "min_expected": 4,
+            },
         ]
 
         correct_predictions = 0
@@ -188,13 +203,13 @@ class TestPerformanceBenchmarks:
 
             # 分解任务
             tasks = self.decomposer.analyze_and_decompose(
-                test_case['request'],
-                {"material_content": "测试材料", "topic": "测试主题"}
+                test_case["request"],
+                {"material_content": "测试材料", "topic": "测试主题"},
             )
 
             # 检查分解结果
             actual_agents = [task.agent_type for task in tasks]
-            expected_agents = test_case['expected_agents']
+            expected_agents = test_case["expected_agents"]
 
             print(f"     期望Agent: {expected_agents}")
             print(f"     实际Agent: {actual_agents}")
@@ -213,10 +228,14 @@ class TestPerformanceBenchmarks:
             print(f"     匹配度: {matches}/{len(expected_agents)} = {accuracy:.2%}")
 
             # 验证最小期望数量
-            assert len(tasks) >= test_case['min_expected'], f"任务数量不足: {len(tasks)} < {test_case['min_expected']}"
+            assert len(tasks) >= test_case["min_expected"], (
+                f"任务数量不足: {len(tasks)} < {test_case['min_expected']}"
+            )
 
         # 计算总体准确率
-        overall_accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
+        overall_accuracy = (
+            correct_predictions / total_predictions if total_predictions > 0 else 0
+        )
         target_accuracy = 0.95  # 95%
 
         print("\n   📊 任务分解总体准确率:")
@@ -224,8 +243,12 @@ class TestPerformanceBenchmarks:
         print(f"     准确率: {overall_accuracy:.2%}")
         print(f"     目标准确率: {target_accuracy:.0%}")
 
-        assert overall_accuracy >= target_accuracy, f"任务分解准确率不足: {overall_accuracy:.2%} < {target_accuracy:.0%}"
-        print(f"   ✅ 任务分解准确率达标: {overall_accuracy:.2%} >= {target_accuracy:.0%}")
+        assert overall_accuracy >= target_accuracy, (
+            f"任务分解准确率不足: {overall_accuracy:.2%} < {target_accuracy:.0%}"
+        )
+        print(
+            f"   ✅ 任务分解准确率达标: {overall_accuracy:.2%} >= {target_accuracy:.0%}"
+        )
 
     @pytest.mark.asyncio
     async def test_recovery_success_rate(self):
@@ -241,8 +264,8 @@ class TestPerformanceBenchmarks:
                     "agent_type": "basic-decomposition",
                     "input_data": {"test": "timeout"},
                     "dependencies": [],
-                    "timeout_seconds": 0.001  # 极短超时
-                }
+                    "timeout_seconds": 0.001,  # 极短超时
+                },
             },
             {
                 "name": "一般错误场景",
@@ -251,9 +274,9 @@ class TestPerformanceBenchmarks:
                     "agent_type": "scoring-agent",
                     "input_data": {"test": "error"},
                     "dependencies": [],
-                    "timeout_seconds": 30
-                }
-            }
+                    "timeout_seconds": 30,
+                },
+            },
         ]
 
         total_recovery_attempts = 0
@@ -267,7 +290,7 @@ class TestPerformanceBenchmarks:
                 total_recovery_attempts += 1
 
                 # 模拟任务执行（会触发重试机制）
-                task = scenario['task']
+                task = scenario["task"]
                 start_time = time.time()
 
                 try:
@@ -276,7 +299,9 @@ class TestPerformanceBenchmarks:
                     max_retries = retry_config["max_retries"]
 
                     # 模拟重试过程
-                    recovery_successful = attempt < max_retries  # 在重试次数内算作恢复成功
+                    recovery_successful = (
+                        attempt < max_retries
+                    )  # 在重试次数内算作恢复成功
 
                     if recovery_successful:
                         successful_recoveries += 1
@@ -288,7 +313,11 @@ class TestPerformanceBenchmarks:
                     print(f"     尝试 {attempt + 1}: ❌ 异常: {str(e)}")
 
         # 计算恢复成功率
-        recovery_rate = successful_recoveries / total_recovery_attempts if total_recovery_attempts > 0 else 0
+        recovery_rate = (
+            successful_recoveries / total_recovery_attempts
+            if total_recovery_attempts > 0
+            else 0
+        )
         target_recovery_rate = 0.90  # 90%
 
         print("\n   📊 故障恢复统计:")
@@ -299,10 +328,12 @@ class TestPerformanceBenchmarks:
 
         # 注意：在实际环境中，这里会测试真实的重试逻辑
         # 现在我们验证重试机制的存在
-        assert hasattr(self.executor, 'retry_config'), "应该有重试配置"
+        assert hasattr(self.executor, "retry_config"), "应该有重试配置"
         assert self.executor.retry_config["max_retries"] >= 2, "应该至少重试2次"
 
-        print(f"   ✅ 重试机制已配置，最多重试 {self.executor.retry_config['max_retries']} 次")
+        print(
+            f"   ✅ 重试机制已配置，最多重试 {self.executor.retry_config['max_retries']} 次"
+        )
 
     @pytest.mark.asyncio
     async def test_resource_usage_optimization(self):
@@ -316,7 +347,9 @@ class TestPerformanceBenchmarks:
 
         print("   📊 当前资源状态:")
         print(f"     内存使用: {resource_status['memory_usage_mb']:.2f}MB")
-        print(f"     内存状态: {'✅ 正常' if resource_status['memory_ok'] else '❌ 超限'}")
+        print(
+            f"     内存状态: {'✅ 正常' if resource_status['memory_ok'] else '❌ 超限'}"
+        )
         print(f"     CPU使用率: {resource_status['cpu_usage_percent']:.1f}%")
         print(f"     CPU状态: {'✅ 正常' if resource_status['cpu_ok'] else '❌ 超限'}")
         print(f"     可用内存: {resource_status['free_memory_mb']:.2f}MB")
@@ -346,10 +379,7 @@ class TestPerformanceBenchmarks:
         # 创建测试任务
         complex_task = {
             "user_request": "请拆解这个概念",
-            "canvas_context": {
-                "material_content": "测试材料",
-                "topic": "测试主题"
-            }
+            "canvas_context": {"material_content": "测试材料", "topic": "测试主题"},
         }
 
         # 执行任务
@@ -359,9 +389,16 @@ class TestPerformanceBenchmarks:
         metrics = result["performance_metrics"]
 
         required_metrics = [
-            "serial_execution_time", "concurrent_execution_time", "speedup_ratio",
-            "success_rate", "agent_utilization", "total_tasks", "completed_tasks",
-            "failed_tasks", "memory_usage_mb", "cpu_usage_percent"
+            "serial_execution_time",
+            "concurrent_execution_time",
+            "speedup_ratio",
+            "success_rate",
+            "agent_utilization",
+            "total_tasks",
+            "completed_tasks",
+            "failed_tasks",
+            "memory_usage_mb",
+            "cpu_usage_percent",
         ]
 
         print("   📊 性能指标验证:")
@@ -379,8 +416,14 @@ class TestPerformanceBenchmarks:
         assert 0 <= metrics["cpu_usage_percent"] <= 100, "CPU使用率应在0-100%之间"
 
         # 验证成功率和任务数量一致性
-        calculated_success_rate = metrics["completed_tasks"] / metrics["total_tasks"] if metrics["total_tasks"] > 0 else 0
-        assert abs(metrics["success_rate"] - calculated_success_rate) < 0.01, "成功率计算应准确"
+        calculated_success_rate = (
+            metrics["completed_tasks"] / metrics["total_tasks"]
+            if metrics["total_tasks"] > 0
+            else 0
+        )
+        assert abs(metrics["success_rate"] - calculated_success_rate) < 0.01, (
+            "成功率计算应准确"
+        )
 
         print("   ✅ 所有性能指标计算正确且合理")
 
@@ -393,12 +436,12 @@ class TestPerformanceBenchmarks:
         tasks = []
         for i in range(3):  # 3个并发压力测试
             task = {
-                "user_request": f"压力测试任务 {i+1}: 请拆解、解释、记住、评分这个复杂概念",
+                "user_request": f"压力测试任务 {i + 1}: 请拆解、解释、记住、评分这个复杂概念",
                 "canvas_context": {
-                    "material_content": f"压力测试材料 {i+1}",
-                    "topic": f"压力测试主题 {i+1}",
-                    "concept": f"测试概念 {i+1}"
-                }
+                    "material_content": f"压力测试材料 {i + 1}",
+                    "topic": f"压力测试主题 {i + 1}",
+                    "concept": f"测试概念 {i + 1}",
+                },
             }
             tasks.append(self.executor.execute_concurrent_agents(task))
 
@@ -408,14 +451,16 @@ class TestPerformanceBenchmarks:
         end_time = time.time()
 
         # 统计结果
-        successful_results = [r for r in results if isinstance(r, dict) and r.get("success", False)]
+        successful_results = [
+            r for r in results if isinstance(r, dict) and r.get("success", False)
+        ]
         total_execution_time = end_time - start_time
 
         print("   📊 压力测试结果:")
         print(f"     并发任务数: {len(tasks)}")
         print(f"     成功任务数: {len(successful_results)}")
         print(f"     总执行时间: {total_execution_time:.3f}秒")
-        print(f"     平均执行时间: {total_execution_time/len(tasks):.3f}秒/任务")
+        print(f"     平均执行时间: {total_execution_time / len(tasks):.3f}秒/任务")
 
         # 验证所有任务都成功
         assert len(successful_results) == len(tasks), "所有压力测试任务都应该成功"

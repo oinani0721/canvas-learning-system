@@ -38,7 +38,7 @@ def sample_alert_rule() -> AlertRule:
     """Create a sample alert rule for testing."""
     return AlertRule(
         name="TestHighLatency",
-        expression='test_latency > 1.0',
+        expression="test_latency > 1.0",
         for_duration=60,
         severity=AlertSeverity.WARNING,
         summary="Test latency alert",
@@ -52,7 +52,7 @@ def sample_critical_rule() -> AlertRule:
     """Create a critical alert rule for testing."""
     return AlertRule(
         name="TestCriticalError",
-        expression='test_errors > 10',
+        expression="test_errors > 10",
         for_duration=30,
         severity=AlertSeverity.CRITICAL,
         summary="Critical error rate",
@@ -272,7 +272,9 @@ class TestAlertManager:
         assert not alert_manager._running
 
     @pytest.mark.asyncio
-    async def test_alert_manager_stop_when_not_running(self, alert_manager: AlertManager):
+    async def test_alert_manager_stop_when_not_running(
+        self, alert_manager: AlertManager
+    ):
         """Test AlertManager handles stop when not running."""
         assert not alert_manager._running
         # Should not raise
@@ -423,4 +425,6 @@ class TestAlertManagerAlerts:
         # Verify alerts were stored
         assert len(alert_manager._active_alerts) == 3
         assert "alert-0" in alert_manager._active_alerts
-        assert alert_manager._active_alerts["alert-2"].severity == AlertSeverity.CRITICAL
+        assert (
+            alert_manager._active_alerts["alert-2"].severity == AlertSeverity.CRITICAL
+        )

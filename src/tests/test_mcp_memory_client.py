@@ -27,10 +27,12 @@ class TestHardwareDetector:
 
     def test_detect_gpu_available(self):
         """测试GPU可用情况"""
-        with patch('mcp_memory_client.torch') as mock_torch:
+        with patch("mcp_memory_client.torch") as mock_torch:
             mock_torch.cuda.is_available.return_value = True
             mock_torch.cuda.device_count.return_value = 2
-            mock_torch.cuda.get_device_properties.return_value = Mock(total_memory=8*1024*1024*1024)
+            mock_torch.cuda.get_device_properties.return_value = Mock(
+                total_memory=8 * 1024 * 1024 * 1024
+            )
 
             detector = HardwareDetector()
             result = detector.detect_gpu()
@@ -43,7 +45,7 @@ class TestHardwareDetector:
 
     def test_detect_gpu_unavailable(self):
         """测试GPU不可用情况"""
-        with patch('mcp_memory_client.torch', None):
+        with patch("mcp_memory_client.torch", None):
             detector = HardwareDetector()
             result = detector.detect_gpu()
 
@@ -55,8 +57,10 @@ class TestHardwareDetector:
 
     def test_get_system_memory(self):
         """测试系统内存检测"""
-        with patch('mcp_memory_client.psutil') as mock_psutil:
-            mock_psutil.virtual_memory.return_value = Mock(total=16*1024*1024*1024)
+        with patch("mcp_memory_client.psutil") as mock_psutil:
+            mock_psutil.virtual_memory.return_value = Mock(
+                total=16 * 1024 * 1024 * 1024
+            )
 
             detector = HardwareDetector()
             result = detector.get_system_memory()
@@ -81,7 +85,7 @@ mcp_service:
     fallback_to_cpu: true
 """
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write(config_content)
         temp_path = f.name
 
@@ -95,15 +99,17 @@ mcp_service:
 @pytest.fixture
 def mock_memory_client():
     """模拟记忆客户端fixture"""
-    with patch('mcp_memory_client.CHROMADB_AVAILABLE', True), \
-         patch('mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE', True), \
-         patch('mcp_memory_client.NUMPY_AVAILABLE', True):
-
+    with (
+        patch("mcp_memory_client.CHROMADB_AVAILABLE", True),
+        patch("mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE", True),
+        patch("mcp_memory_client.NUMPY_AVAILABLE", True),
+    ):
         # Mock dependencies
-        with patch('mcp_memory_client.chromadb'), \
-             patch('mcp_memory_client.sentence_transformers'), \
-             patch('mcp_memory_client.torch'):
-
+        with (
+            patch("mcp_memory_client.chromadb"),
+            patch("mcp_memory_client.sentence_transformers"),
+            patch("mcp_memory_client.torch"),
+        ):
             client = MCPSemanticMemory(config_path="dummy_config.yaml")
             return client
 
@@ -113,36 +119,40 @@ class TestMCPSemanticMemory:
 
     def test_load_config_file_exists(self, temp_config_file):
         """测试加载存在的配置文件"""
-        with patch('mcp_memory_client.CHROMADB_AVAILABLE', True), \
-             patch('mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE', True), \
-             patch('mcp_memory_client.NUMPY_AVAILABLE', True):
-
-            with patch('mcp_memory_client.chromadb'), \
-                 patch('mcp_memory_client.sentence_transformers'), \
-                 patch('mcp_memory_client.torch'):
-
+        with (
+            patch("mcp_memory_client.CHROMADB_AVAILABLE", True),
+            patch("mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE", True),
+            patch("mcp_memory_client.NUMPY_AVAILABLE", True),
+        ):
+            with (
+                patch("mcp_memory_client.chromadb"),
+                patch("mcp_memory_client.sentence_transformers"),
+                patch("mcp_memory_client.torch"),
+            ):
                 client = MCPSemanticMemory(config_path=temp_config_file)
-                assert client.config["mcp_service"]["vector_database"]["type"] == "chromadb"
+                assert (
+                    client.config["mcp_service"]["vector_database"]["type"]
+                    == "chromadb"
+                )
 
     def test_load_config_file_not_exists(self):
         """测试加载不存在的配置文件"""
-        with patch('mcp_memory_client.CHROMADB_AVAILABLE', True), \
-             patch('mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE', True), \
-             patch('mcp_memory_client.NUMPY_AVAILABLE', True):
-
-            with patch('mcp_memory_client.chromadb'), \
-                 patch('mcp_memory_client.sentence_transformers'), \
-                 patch('mcp_memory_client.torch'):
-
+        with (
+            patch("mcp_memory_client.CHROMADB_AVAILABLE", True),
+            patch("mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE", True),
+            patch("mcp_memory_client.NUMPY_AVAILABLE", True),
+        ):
+            with (
+                patch("mcp_memory_client.chromadb"),
+                patch("mcp_memory_client.sentence_transformers"),
+                patch("mcp_memory_client.torch"),
+            ):
                 client = MCPSemanticMemory(config_path="nonexistent_config.yaml")
                 assert "mcp_service" in client.config
 
     def test_determine_device_auto_cpu(self, mock_memory_client):
         """测试设备自动选择（CPU）"""
-        mock_memory_client.hardware_info = {
-            "has_gpu": False,
-            "cuda_available": False
-        }
+        mock_memory_client.hardware_info = {"has_gpu": False, "cuda_available": False}
 
         device = mock_memory_client._determine_device()
         assert device == "cpu"
@@ -152,7 +162,7 @@ class TestMCPSemanticMemory:
         mock_memory_client.hardware_info = {
             "has_gpu": True,
             "cuda_available": True,
-            "gpu_memory_mb": 8192
+            "gpu_memory_mb": 8192,
         }
 
         device = mock_memory_client._determine_device()
@@ -188,7 +198,7 @@ class TestMCPSemanticMemory:
             "ids": [["memory-abc123", "memory-def456"]],
             "documents": [["内容1", "内容2"]],
             "metadatas": [[{"source": "test1"}, {"source": "test2"}]],
-            "distances": [[0.1, 0.2]]
+            "distances": [[0.1, 0.2]],
         }
         mock_memory_client.collection = Mock()
         mock_memory_client.collection.query.return_value = mock_result
@@ -207,7 +217,7 @@ class TestMCPSemanticMemory:
             "ids": [[]],
             "documents": [[]],
             "metadatas": [[]],
-            "distances": [[]]
+            "distances": [[]],
         }
 
         results = mock_memory_client.search_semantic_memory("测试查询")
@@ -234,18 +244,22 @@ class TestMCPSemanticMemory:
                 "memory_id": "memory-abc123",
                 "content": "逆否命题的内容...",
                 "similarity_score": 0.8,
-                "metadata": {"category": "logic"}
+                "metadata": {"category": "logic"},
             },
             {
                 "memory_id": "memory-def456",
                 "content": "逻辑推理的内容...",
                 "similarity_score": 0.6,  # 低于阈值
-                "metadata": {"category": "logic"}
-            }
+                "metadata": {"category": "logic"},
+            },
         ]
 
-        with patch.object(mock_memory_client, 'search_semantic_memory', return_value=mock_results):
-            concepts = mock_memory_client.find_related_concepts("逆否命题", similarity_threshold=0.7)
+        with patch.object(
+            mock_memory_client, "search_semantic_memory", return_value=mock_results
+        ):
+            concepts = mock_memory_client.find_related_concepts(
+                "逆否命题", similarity_threshold=0.7
+            )
 
         assert len(concepts) == 1
         assert concepts[0]["memory_id"] == "memory-abc123"
@@ -257,7 +271,7 @@ class TestMCPSemanticMemory:
         mock_memory_client.collection.count.return_value = 42
         mock_memory_client.embedding_model = Mock()
         mock_memory_client.embedding_model._modules = {
-            '0': Mock(auto_model=Mock(name_or_path="test-model"))
+            "0": Mock(auto_model=Mock(name_or_path="test-model"))
         }
 
         stats = mock_memory_client.get_memory_stats()
@@ -276,7 +290,9 @@ class TestMCPSemanticMemory:
         result = mock_memory_client.delete_memory("memory-abc123")
 
         assert result is True
-        mock_memory_client.collection.delete.assert_called_once_with(ids=["memory-abc123"])
+        mock_memory_client.collection.delete.assert_called_once_with(
+            ids=["memory-abc123"]
+        )
 
 
 class TestDependencyValidation:
@@ -284,24 +300,26 @@ class TestDependencyValidation:
 
     def test_missing_chromadb(self):
         """测试缺少ChromaDB"""
-        with patch('mcp_memory_client.CHROMADB_AVAILABLE', False):
+        with patch("mcp_memory_client.CHROMADB_AVAILABLE", False):
             with pytest.raises(ImportError, match="需要安装ChromaDB"):
                 MCPSemanticMemory(config_path="dummy_config.yaml")
 
     def test_missing_sentence_transformers(self):
         """测试缺少Sentence Transformers"""
-        with patch('mcp_memory_client.CHROMADB_AVAILABLE', True), \
-             patch('mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE', False):
-
+        with (
+            patch("mcp_memory_client.CHROMADB_AVAILABLE", True),
+            patch("mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE", False),
+        ):
             with pytest.raises(ImportError, match="需要安装Sentence Transformers"):
                 MCPSemanticMemory(config_path="dummy_config.yaml")
 
     def test_missing_numpy(self):
         """测试缺少NumPy"""
-        with patch('mcp_memory_client.CHROMADB_AVAILABLE', True), \
-             patch('mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE', True), \
-             patch('mcp_memory_client.NUMPY_AVAILABLE', False):
-
+        with (
+            patch("mcp_memory_client.CHROMADB_AVAILABLE", True),
+            patch("mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE", True),
+            patch("mcp_memory_client.NUMPY_AVAILABLE", False),
+        ):
             with pytest.raises(ImportError, match="需要安装NumPy"):
                 MCPSemanticMemory(config_path="dummy_config.yaml")
 
@@ -315,7 +333,7 @@ class TestDataClasses:
             concept="逆否命题",
             confidence=0.95,
             category="逻辑概念",
-            related_fields=["数学", "计算机科学"]
+            related_fields=["数学", "计算机科学"],
         )
 
         assert concept.concept == "逆否命题"
@@ -329,7 +347,7 @@ class TestDataClasses:
             related_memory_id="memory-abc123",
             relationship_type="is_similar_to",
             similarity_score=0.82,
-            relationship_context="两个记忆都涉及命题逻辑"
+            relationship_context="两个记忆都涉及命题逻辑",
         )
 
         assert relationship.related_memory_id == "memory-abc123"
@@ -343,7 +361,7 @@ class TestDataClasses:
             compressed_size_bytes=512,
             compression_ratio=0.25,
             compression_method="semantic_embedding",
-            information_retention_score=0.91
+            information_retention_score=0.91,
         )
 
         assert metadata.original_size_bytes == 2048
@@ -356,7 +374,7 @@ class TestDataClasses:
             created_at="2025-01-22T10:45:00Z",
             last_accessed="2025-01-22T15:30:00Z",
             access_count=5,
-            retrieval_context=["复习查询", "关联搜索"]
+            retrieval_context=["复习查询", "关联搜索"],
         )
 
         assert metadata.access_count == 5
@@ -367,13 +385,15 @@ class TestDataClasses:
 def mock_dependencies():
     """模拟所有依赖的fixture"""
     patches = [
-        patch('mcp_memory_client.CHROMADB_AVAILABLE', True),
-        patch('mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE', True),
-        patch('mcp_memory_client.NUMPY_AVAILABLE', True),
-        patch('mcp_memory_client.chromadb'),
-        patch('mcp_memory_client.sentence_transformers'),
-        patch('mcp_memory_client.torch'),
-        patch('mcp_memory_client.uuid.uuid4', return_value=Mock(hex='abc123def4567890'))
+        patch("mcp_memory_client.CHROMADB_AVAILABLE", True),
+        patch("mcp_memory_client.SENTENCE_TRANSFORMERS_AVAILABLE", True),
+        patch("mcp_memory_client.NUMPY_AVAILABLE", True),
+        patch("mcp_memory_client.chromadb"),
+        patch("mcp_memory_client.sentence_transformers"),
+        patch("mcp_memory_client.torch"),
+        patch(
+            "mcp_memory_client.uuid.uuid4", return_value=Mock(hex="abc123def4567890")
+        ),
     ]
 
     for p in patches:
@@ -390,19 +410,19 @@ class TestIntegrationScenarios:
 
     def test_memory_lifecycle(self, mock_dependencies):
         """测试记忆生命周期"""
-        with patch('mcp_memory_client.yaml.safe_load', return_value={
-            "mcp_service": {
-                "vector_database": {
-                    "type": "chromadb",
-                    "persist_directory": "./test_db",
-                    "collection_name": "test_collection"
-                },
-                "embedding_model": {
-                    "model_name": "test-model",
-                    "device": "cpu"
+        with patch(
+            "mcp_memory_client.yaml.safe_load",
+            return_value={
+                "mcp_service": {
+                    "vector_database": {
+                        "type": "chromadb",
+                        "persist_directory": "./test_db",
+                        "collection_name": "test_collection",
+                    },
+                    "embedding_model": {"model_name": "test-model", "device": "cpu"},
                 }
-            }
-        }):
+            },
+        ):
             # 创建客户端
             client = MCPSemanticMemory(config_path="dummy_config.yaml")
 
@@ -423,7 +443,7 @@ class TestIntegrationScenarios:
                 "ids": [[memory_id]],
                 "documents": [["测试内容"]],
                 "metadatas": [[{"source": "test"}]],
-                "distances": [[0.1]]
+                "distances": [[0.1]],
             }
 
             results = client.search_semantic_memory("测试")
@@ -441,9 +461,11 @@ class TestIntegrationScenarios:
 
     def test_error_handling(self, mock_dependencies):
         """测试错误处理"""
-        with patch('mcp_memory_client.yaml.safe_load', side_effect=Exception("Config error")):
+        with patch(
+            "mcp_memory_client.yaml.safe_load", side_effect=Exception("Config error")
+        ):
             # 配置文件读取错误应该使用默认配置
-            with patch('mcp_memory_client.open', side_effect=FileNotFoundError):
+            with patch("mcp_memory_client.open", side_effect=FileNotFoundError):
                 client = MCPSemanticMemory(config_path="nonexistent.yaml")
                 assert "mcp_service" in client.config
 

@@ -45,9 +45,7 @@ class TestWSMessage:
         """Test creating message with custom timestamp."""
         custom_ts = "2025-01-15T10:30:00+00:00"
         msg = WSMessage(
-            msg_type="connection_ack",
-            data={"status": "connected"},
-            timestamp=custom_ts
+            msg_type="connection_ack", data={"status": "connected"}, timestamp=custom_ts
         )
 
         assert msg.type == "connection_ack"
@@ -57,7 +55,7 @@ class TestWSMessage:
         """Test message serialization to dict (AC 6)."""
         msg = WSMessage(
             msg_type="progress_update",
-            data={"canvas_id": "test.canvas", "coverage_rate": 0.75}
+            data={"canvas_id": "test.canvas", "coverage_rate": 0.75},
         )
 
         result = msg.to_dict()
@@ -72,7 +70,7 @@ class TestWSMessage:
         """Test error message format (AC 6)."""
         msg = WSMessage(
             msg_type="error",
-            data={"code": "INVALID_CANVAS", "message": "Canvas not found"}
+            data={"code": "INVALID_CANVAS", "message": "Canvas not found"},
         )
 
         result = msg.to_dict()
@@ -118,7 +116,9 @@ class TestProgressConnectionManager:
         assert call_args["data"]["canvas_id"] == "test.canvas"
 
     @pytest.mark.asyncio
-    async def test_connect_adds_to_active_connections(self, manager_instance, mock_websocket):
+    async def test_connect_adds_to_active_connections(
+        self, manager_instance, mock_websocket
+    ):
         """Test that connect() tracks the connection."""
         await manager_instance.connect(mock_websocket, "test.canvas")
 
@@ -137,7 +137,9 @@ class TestProgressConnectionManager:
         assert len(manager_instance.active_connections["test.canvas"]) == 2
 
     @pytest.mark.asyncio
-    async def test_disconnect_removes_connection(self, manager_instance, mock_websocket):
+    async def test_disconnect_removes_connection(
+        self, manager_instance, mock_websocket
+    ):
         """Test that disconnect() removes the connection."""
         await manager_instance.connect(mock_websocket, "test.canvas")
         await manager_instance.disconnect(mock_websocket, "test.canvas")
@@ -166,15 +168,10 @@ class TestProgressConnectionManager:
         await manager_instance.connect(ws1, "test.canvas")
         await manager_instance.connect(ws2, "test.canvas")
 
-        progress_data = {
-            "total_concepts": 10,
-            "passed_count": 7,
-            "coverage_rate": 0.7
-        }
+        progress_data = {"total_concepts": 10, "passed_count": 7, "coverage_rate": 0.7}
 
         notified = await manager_instance.broadcast_progress_update(
-            "test.canvas",
-            progress_data
+            "test.canvas", progress_data
         )
 
         assert notified == 2
@@ -183,7 +180,9 @@ class TestProgressConnectionManager:
         assert ws2.send_json.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_broadcast_includes_changed_node(self, manager_instance, mock_websocket):
+    async def test_broadcast_includes_changed_node(
+        self, manager_instance, mock_websocket
+    ):
         """Test broadcast includes changed node info (AC 2)."""
         await manager_instance.connect(mock_websocket, "test.canvas")
 
@@ -192,13 +191,11 @@ class TestProgressConnectionManager:
             "node_id": "node123",
             "source_node_id": "source456",
             "old_color": "4",
-            "new_color": "2"
+            "new_color": "2",
         }
 
         await manager_instance.broadcast_progress_update(
-            "test.canvas",
-            progress_data,
-            changed_node
+            "test.canvas", progress_data, changed_node
         )
 
         # Get the broadcast call (second call after ack)
@@ -210,8 +207,7 @@ class TestProgressConnectionManager:
     async def test_broadcast_to_nonexistent_canvas(self, manager_instance):
         """Test broadcast to canvas with no connections."""
         notified = await manager_instance.broadcast_progress_update(
-            "nonexistent.canvas",
-            {"total_concepts": 0}
+            "nonexistent.canvas", {"total_concepts": 0}
         )
 
         assert notified == 0
@@ -223,18 +219,19 @@ class TestProgressConnectionManager:
         ws_bad = AsyncMock()
         # Allow connect (ack message) to succeed, then fail on broadcast
         call_count = [0]
+
         async def fail_on_second_call(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] > 1:  # First call is ack, second is broadcast
                 raise Exception("Connection lost")
+
         ws_bad.send_json = AsyncMock(side_effect=fail_on_second_call)
 
         await manager_instance.connect(ws_good, "test.canvas")
         await manager_instance.connect(ws_bad, "test.canvas")
 
         notified = await manager_instance.broadcast_progress_update(
-            "test.canvas",
-            {"total_concepts": 5}
+            "test.canvas", {"total_concepts": 5}
         )
 
         # One succeeded, one failed
@@ -246,9 +243,7 @@ class TestProgressConnectionManager:
     async def test_send_error_to_client(self, manager_instance, mock_websocket):
         """Test sending error message to specific client."""
         await manager_instance.send_error(
-            mock_websocket,
-            "INVALID_REQUEST",
-            "Invalid canvas ID format"
+            mock_websocket, "INVALID_REQUEST", "Invalid canvas ID format"
         )
 
         mock_websocket.send_json.assert_called_once()
@@ -308,9 +303,9 @@ class TestCanvasFileWatcher:
         canvas_data = {
             "nodes": [
                 {"id": "1", "text": "Node 1", "color": "4"},
-                {"id": "2", "text": "Node 2", "color": "2", "sourceNodeId": "1"}
+                {"id": "2", "text": "Node 2", "color": "2", "sourceNodeId": "1"},
             ],
-            "edges": []
+            "edges": [],
         }
         canvas_file.write_text(json.dumps(canvas_data), encoding="utf-8")
 
@@ -339,13 +334,13 @@ class TestCanvasFileWatcher:
         old_data = {
             "nodes": [
                 {"id": "1", "color": "4", "sourceNodeId": "src1"},
-                {"id": "2", "color": "3"}
+                {"id": "2", "color": "3"},
             ]
         }
         new_data = {
             "nodes": [
                 {"id": "1", "color": "2", "sourceNodeId": "src1"},  # Changed!
-                {"id": "2", "color": "3"}
+                {"id": "2", "color": "3"},
             ]
         }
 
@@ -358,12 +353,7 @@ class TestCanvasFileWatcher:
 
     def test_detect_node_changes_no_change(self, watcher):
         """Test no changes detected when colors are same."""
-        data = {
-            "nodes": [
-                {"id": "1", "color": "4"},
-                {"id": "2", "color": "3"}
-            ]
-        }
+        data = {"nodes": [{"id": "1", "color": "4"}, {"id": "2", "color": "3"}]}
 
         result = watcher._detect_node_changes(data, data)
 
@@ -392,7 +382,7 @@ class TestCanvasFileWatcher:
         result = watcher._calculate_progress(canvas_data)
 
         assert result["total_concepts"] == 4  # 4 nodes with sourceNodeId
-        assert result["passed_count"] == 2    # 2 green nodes
+        assert result["passed_count"] == 2  # 2 green nodes
         assert result["coverage_rate"] == 0.5
 
     def test_calculate_progress_empty_canvas(self, watcher):
@@ -407,12 +397,7 @@ class TestCanvasFileWatcher:
 
     def test_calculate_progress_no_source_nodes(self, watcher):
         """Test progress calculation with no source nodes."""
-        canvas_data = {
-            "nodes": [
-                {"id": "1", "color": "4"},
-                {"id": "2", "color": "2"}
-            ]
-        }
+        canvas_data = {"nodes": [{"id": "1", "color": "4"}, {"id": "2", "color": "2"}]}
 
         result = watcher._calculate_progress(canvas_data)
 
@@ -428,15 +413,13 @@ class TestCanvasFileWatcher:
     async def test_handle_file_modified_canvas(self, watcher, tmp_path):
         """Test handler processes canvas file changes."""
         canvas_file = tmp_path / "test.canvas"
-        canvas_data = {
-            "nodes": [
-                {"id": "1", "color": "2", "sourceNodeId": "src1"}
-            ]
-        }
+        canvas_data = {"nodes": [{"id": "1", "color": "2", "sourceNodeId": "src1"}]}
         canvas_file.write_text(json.dumps(canvas_data), encoding="utf-8")
 
         # Use global manager for this test
-        with patch.object(manager, 'broadcast_progress_update', new_callable=AsyncMock) as mock_broadcast:
+        with patch.object(
+            manager, "broadcast_progress_update", new_callable=AsyncMock
+        ) as mock_broadcast:
             mock_broadcast.return_value = 1  # Return integer for comparison
             await watcher.handle_file_modified(str(canvas_file))
 
@@ -447,7 +430,10 @@ class TestCanvasFileWatcher:
 
     def test_watcher_start_without_watchdog(self, watcher):
         """Test watcher handles missing watchdog gracefully."""
-        with patch.dict('sys.modules', {'watchdog': None, 'watchdog.observers': None, 'watchdog.events': None}):
+        with patch.dict(
+            "sys.modules",
+            {"watchdog": None, "watchdog.observers": None, "watchdog.events": None},
+        ):
             # This should log error but not crash
             watcher.start()
             assert not watcher.is_running
@@ -468,8 +454,10 @@ class TestWebSocketEndpoint:
         mock_ws = AsyncMock()
         mock_ws.receive_text = AsyncMock(side_effect=Exception("WebSocketDisconnect"))
 
-        with patch.object(manager, 'connect', new_callable=AsyncMock) as mock_connect:
-            with patch.object(manager, 'disconnect', new_callable=AsyncMock) as mock_disconnect:
+        with patch.object(manager, "connect", new_callable=AsyncMock) as mock_connect:
+            with patch.object(
+                manager, "disconnect", new_callable=AsyncMock
+            ) as mock_disconnect:
                 # Run endpoint (will exit on exception)
                 try:
                     await websocket_progress_endpoint(mock_ws, "test.canvas")
@@ -483,12 +471,10 @@ class TestWebSocketEndpoint:
         """Test endpoint responds to ping with pong."""
         mock_ws = AsyncMock()
         # First receive returns "ping", second raises to exit loop
-        mock_ws.receive_text = AsyncMock(
-            side_effect=["ping", Exception("exit")]
-        )
+        mock_ws.receive_text = AsyncMock(side_effect=["ping", Exception("exit")])
 
-        with patch.object(manager, 'connect', new_callable=AsyncMock):
-            with patch.object(manager, 'disconnect', new_callable=AsyncMock):
+        with patch.object(manager, "connect", new_callable=AsyncMock):
+            with patch.object(manager, "disconnect", new_callable=AsyncMock):
                 try:
                     await websocket_progress_endpoint(mock_ws, "test.canvas")
                 except Exception:
@@ -538,7 +524,7 @@ class TestIntegration:
         canvas_file.write_text(json.dumps(canvas_data), encoding="utf-8")
 
         # Simulate file change detection
-        with patch('src.api.websocket.progress_ws.manager', local_manager):
+        with patch("src.api.websocket.progress_ws.manager", local_manager):
             await watcher.handle_file_modified(str(canvas_file))
 
         # Verify broadcast was sent
@@ -564,7 +550,7 @@ class TestIntegration:
         # Broadcast to canvas1 only
         await local_manager.broadcast_progress_update(
             "canvas1.canvas",
-            {"total_concepts": 5, "passed_count": 3, "coverage_rate": 0.6}
+            {"total_concepts": 5, "passed_count": 3, "coverage_rate": 0.6},
         )
 
         # ws1 should have 2 calls (ack + broadcast)

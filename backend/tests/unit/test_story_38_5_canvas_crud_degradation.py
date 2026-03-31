@@ -14,16 +14,13 @@ Story Context: docs/stories/EPIC-38-infrastructure-reliability-fixes.md#Story-38
 [Source: docs/stories/EPIC-38-infrastructure-reliability-fixes.md#Story-38.5]
 """
 
-import asyncio
 import json
 import logging
-from pathlib import Path
-
-from tests.conftest import simulate_async_delay, wait_for_condition
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay, wait_for_condition
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC-1: Memory Client None → JSON Fallback (D5: Degradation)
@@ -54,7 +51,7 @@ class TestAC1MemoryClientNoneFallback:
                 event_type=CanvasEventType.NODE_CREATED,
                 canvas_name="test_canvas",
                 node_id="node-1",
-                node_data={"id": "node-1", "type": "text", "text": "Hello"}
+                node_data={"id": "node-1", "type": "text", "text": "Hello"},
             )
 
         assert fallback_file.exists(), (
@@ -88,10 +85,12 @@ class TestAC1MemoryClientNoneFallback:
                 event_type=CanvasEventType.NODE_CREATED,
                 canvas_name="test_canvas",
                 node_id="node-1",
-                node_data={"id": "node-1"}
+                node_data={"id": "node-1"},
             )
 
-        assert not fallback_file.exists(), "No fallback file should exist when dual-write disabled"
+        assert not fallback_file.exists(), (
+            "No fallback file should exist when dual-write disabled"
+        )
 
     @pytest.mark.asyncio
     async def test_crud_add_node_succeeds_when_memory_client_none(self, tmp_path):
@@ -105,10 +104,7 @@ class TestAC1MemoryClientNoneFallback:
 
         # Create a minimal canvas file for read_canvas to find
         canvas_file = tmp_path / "test.canvas"
-        canvas_file.write_text(
-            json.dumps({"nodes": [], "edges": []}),
-            encoding="utf-8"
-        )
+        canvas_file.write_text(json.dumps({"nodes": [], "edges": []}), encoding="utf-8")
 
         service = CanvasService(canvas_base_path=str(tmp_path), memory_client=None)
         result = await service.add_node("test", {"type": "text", "text": "Hello"})
@@ -140,8 +136,7 @@ class TestAC2Neo4jDownFallback:
         mock_memory.neo4j = None  # Neo4j not available
 
         service = CanvasService(
-            canvas_base_path=str(tmp_path),
-            memory_client=mock_memory
+            canvas_base_path=str(tmp_path), memory_client=mock_memory
         )
         service._fallback_file_path = fallback_file
 
@@ -152,7 +147,7 @@ class TestAC2Neo4jDownFallback:
                 canvas_path="test.canvas",
                 edge_id="edge-1",
                 from_node_id="n1",
-                to_node_id="n2"
+                to_node_id="n2",
             )
 
         assert fallback_file.exists(), (
@@ -177,8 +172,7 @@ class TestAC2Neo4jDownFallback:
         )
 
         service = CanvasService(
-            canvas_base_path=str(tmp_path),
-            memory_client=mock_memory
+            canvas_base_path=str(tmp_path), memory_client=mock_memory
         )
         service._fallback_file_path = fallback_file
 
@@ -188,7 +182,7 @@ class TestAC2Neo4jDownFallback:
             await service._trigger_memory_event(
                 event_type=CanvasEventType.NODE_UPDATED,
                 canvas_name="test_canvas",
-                node_id="node-1"
+                node_id="node-1",
             )
 
             # Allow fire-and-forget task to complete within patch context
@@ -225,8 +219,7 @@ class TestAC2Neo4jDownFallback:
         mock_memory.record_temporal_event = slow_record
 
         service = CanvasService(
-            canvas_base_path=str(tmp_path),
-            memory_client=mock_memory
+            canvas_base_path=str(tmp_path), memory_client=mock_memory
         )
         service._fallback_file_path = fallback_file
 
@@ -236,7 +229,7 @@ class TestAC2Neo4jDownFallback:
             await service._trigger_memory_event(
                 event_type=CanvasEventType.NODE_CREATED,
                 canvas_name="test_canvas",
-                node_id="node-slow"
+                node_id="node-slow",
             )
 
             # Wait for fire-and-forget task (timeout + fallback)
@@ -276,7 +269,9 @@ class TestAC3HealthVisibility:
         service = CanvasService(memory_client=None)
 
         # CanvasService should expose degraded state for health endpoint
-        assert hasattr(service, "is_fallback_active") or hasattr(service, "_fallback_count"), (
+        assert hasattr(service, "is_fallback_active") or hasattr(
+            service, "_fallback_count"
+        ), (
             "CanvasService should track degraded/fallback state. "
             "Story 38.5 AC-3: Health visibility requires state tracking. "
             "Expected: 'is_fallback_active' property or '_fallback_count' counter"
@@ -309,12 +304,16 @@ class TestAC4LogLevelUpgrade:
             await service._trigger_memory_event(
                 event_type=CanvasEventType.NODE_CREATED,
                 canvas_name="test_canvas",
-                node_id="node-1"
+                node_id="node-1",
             )
 
-        warning_msgs = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+        warning_msgs = [
+            r.message for r in caplog.records if r.levelno >= logging.WARNING
+        ]
         assert any(
-            "memory" in msg.lower() or "unavailable" in msg.lower() or "fallback" in msg.lower()
+            "memory" in msg.lower()
+            or "unavailable" in msg.lower()
+            or "fallback" in msg.lower()
             for msg in warning_msgs
         ), (
             f"Expected WARNING about memory client unavailable or fallback. "
@@ -343,12 +342,16 @@ class TestAC4LogLevelUpgrade:
                 canvas_path="test.canvas",
                 edge_id="edge-1",
                 from_node_id="n1",
-                to_node_id="n2"
+                to_node_id="n2",
             )
 
-        warning_msgs = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+        warning_msgs = [
+            r.message for r in caplog.records if r.levelno >= logging.WARNING
+        ]
         assert any(
-            "neo4j" in msg.lower() or "unavailable" in msg.lower() or "fallback" in msg.lower()
+            "neo4j" in msg.lower()
+            or "unavailable" in msg.lower()
+            or "fallback" in msg.lower()
             for msg in warning_msgs
         ), (
             f"Expected WARNING about Neo4j unavailable or fallback. "

@@ -38,23 +38,25 @@ from diagnose_environment import (
 # Test 1: Python Version Check
 # =============================================================================
 
+
 def test_check_python_version_success():
     """Test Python version check with Python 3.9+"""
     # Act
     result = check_python_version()
 
     # Assert
-    assert 'passed' in result
-    assert result['passed'] is True, "Python 3.9+ should be available"
-    assert 'version' in result
-    assert 'Python' in result['version']
+    assert "passed" in result
+    assert result["passed"] is True, "Python 3.9+ should be available"
+    assert "version" in result
+    assert "Python" in result["version"]
 
 
 # =============================================================================
 # Test 2: pip Package Check
 # =============================================================================
 
-@patch('diagnose_environment.find_spec')
+
+@patch("diagnose_environment.find_spec")
 def test_check_pip_packages_all_installed(mock_find_spec):
     """Test pip package check when all packages are installed"""
     # Arrange - Mock all packages as found
@@ -64,17 +66,18 @@ def test_check_pip_packages_all_installed(mock_find_spec):
     result = check_pip_packages()
 
     # Assert
-    assert result['passed'] is True
-    assert result['installed_count'] == result['total_count']
-    assert result['missing_packages'] == []
+    assert result["passed"] is True
+    assert result["installed_count"] == result["total_count"]
+    assert result["missing_packages"] == []
 
 
-@patch('diagnose_environment.find_spec')
+@patch("diagnose_environment.find_spec")
 def test_check_pip_packages_some_missing(mock_find_spec):
     """Test pip package check when some packages are missing"""
+
     # Arrange - Make graphiti-core missing
     def mock_find(name):
-        if 'graphiti' in name:
+        if "graphiti" in name:
             return None
         return Mock()
 
@@ -84,147 +87,148 @@ def test_check_pip_packages_some_missing(mock_find_spec):
     result = check_pip_packages()
 
     # Assert
-    assert result['passed'] is False
-    assert len(result['missing_packages']) > 0
-    assert 'graphiti-core' in result['missing_packages']
-    assert result['quick_fix'] == "pip install -r requirements.txt"
+    assert result["passed"] is False
+    assert len(result["missing_packages"]) > 0
+    assert "graphiti-core" in result["missing_packages"]
+    assert result["quick_fix"] == "pip install -r requirements.txt"
 
 
 # =============================================================================
 # Test 3: Environment Variables Check
 # =============================================================================
 
-@patch.dict(os.environ, {
-    'NEO4J_URI': 'bolt://localhost:7687',
-    'NEO4J_USERNAME': 'neo4j',
-    'NEO4J_PASSWORD': 'password',
-    'NEO4J_DATABASE': 'ultrathink'
-})
+
+@patch.dict(
+    os.environ,
+    {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "password",
+        "NEO4J_DATABASE": "ultrathink",
+    },
+)
 def test_check_environment_variables_all_set():
     """Test environment variables check when all are set"""
     # Act
     result = check_environment_variables()
 
     # Assert
-    assert result['passed'] is True
-    assert result['set_count'] == result['total_count']
-    assert result['missing_variables'] == []
+    assert result["passed"] is True
+    assert result["set_count"] == result["total_count"]
+    assert result["missing_variables"] == []
 
 
-@patch.dict(os.environ, {
-    'NEO4J_URI': 'bolt://localhost:7687'
-}, clear=True)
+@patch.dict(os.environ, {"NEO4J_URI": "bolt://localhost:7687"}, clear=True)
 def test_check_environment_variables_some_missing():
     """Test environment variables check when some are missing"""
     # Act
     result = check_environment_variables()
 
     # Assert
-    assert result['passed'] is False
-    assert len(result['missing_variables']) > 0
-    assert 'NEO4J_PASSWORD' in result['missing_variables']
-    assert result['quick_fix'] == "copy .env.example .env && notepad .env"
+    assert result["passed"] is False
+    assert len(result["missing_variables"]) > 0
+    assert "NEO4J_PASSWORD" in result["missing_variables"]
+    assert result["quick_fix"] == "copy .env.example .env && notepad .env"
 
 
 # =============================================================================
 # Test 4: Neo4j Database Check
 # =============================================================================
 
-@patch('diagnose_environment.check_neo4j_database_exists')
+
+@patch("diagnose_environment.check_neo4j_database_exists")
 def test_check_neo4j_database_exists(mock_check_db):
     """Test Neo4j database check when database exists"""
     # Arrange
-    mock_check_db.return_value = {
-        'exists': True,
-        'name': 'ultrathink',
-        'error': None
-    }
+    mock_check_db.return_value = {"exists": True, "name": "ultrathink", "error": None}
 
     # Act
     result = check_neo4j_database()
 
     # Assert
-    assert result['passed'] is True
-    assert result['database_name'] == 'ultrathink'
-    assert result['error'] is None
+    assert result["passed"] is True
+    assert result["database_name"] == "ultrathink"
+    assert result["error"] is None
 
 
-@patch('diagnose_environment.check_neo4j_database_exists')
+@patch("diagnose_environment.check_neo4j_database_exists")
 def test_check_neo4j_database_not_exists(mock_check_db):
     """Test Neo4j database check when database doesn't exist"""
     # Arrange
     mock_check_db.return_value = {
-        'exists': False,
-        'name': 'ultrathink',
-        'error': "Database 'ultrathink' not found"
+        "exists": False,
+        "name": "ultrathink",
+        "error": "Database 'ultrathink' not found",
     }
 
     # Act
     result = check_neo4j_database()
 
     # Assert
-    assert result['passed'] is False
-    assert result['database_name'] == 'ultrathink'
-    assert "ultrathink" in result['suggestion']
-    assert "CREATE DATABASE" in result['quick_fix']
+    assert result["passed"] is False
+    assert result["database_name"] == "ultrathink"
+    assert "ultrathink" in result["suggestion"]
+    assert "CREATE DATABASE" in result["quick_fix"]
 
 
 # =============================================================================
 # Test 5: MCP Client Import Check
 # =============================================================================
 
-@patch('diagnose_environment.diagnose_mcp_memory_client')
+
+@patch("diagnose_environment.diagnose_mcp_memory_client")
 def test_check_mcp_client_import_success(mock_diagnose):
     """Test MCP client import check when successful"""
     # Arrange
     mock_diagnose.return_value = {
-        'success': True,
-        'error': None,
-        'missing_packages': []
+        "success": True,
+        "error": None,
+        "missing_packages": [],
     }
 
     # Act
     result = check_mcp_memory_client_import()
 
     # Assert
-    assert result['passed'] is True
-    assert result['error'] is None
+    assert result["passed"] is True
+    assert result["error"] is None
 
 
-@patch('diagnose_environment.diagnose_mcp_memory_client')
+@patch("diagnose_environment.diagnose_mcp_memory_client")
 def test_check_mcp_client_import_failure(mock_diagnose):
     """Test MCP client import check when import fails"""
     # Arrange
     mock_diagnose.return_value = {
-        'success': False,
-        'error': 'ModuleNotFoundError: chromadb',
-        'missing_packages': ['chromadb']
+        "success": False,
+        "error": "ModuleNotFoundError: chromadb",
+        "missing_packages": ["chromadb"],
     }
 
     # Act
     result = check_mcp_memory_client_import()
 
     # Assert
-    assert result['passed'] is False
-    assert result['error'] is not None
-    assert 'chromadb' in result['error']
+    assert result["passed"] is False
+    assert result["error"] is not None
+    assert "chromadb" in result["error"]
 
 
 # =============================================================================
 # Test 6: Diagnosis Report Generation
 # =============================================================================
 
+
 def test_generate_diagnosis_report_all_passed():
     """Test diagnosis report when all checks pass"""
     # Arrange
     results = {
-        'python_version': {'passed': True, 'version': 'Python 3.11.0'},
-        'pip_packages': {'passed': True, 'installed_count': 4, 'total_count': 4},
-        'env_variables': {'passed': True, 'set_count': 4, 'total_count': 4},
-        'neo4j_connection': {'passed': True, 'host': 'localhost'},
-        'neo4j_database': {'passed': True, 'database_name': 'ultrathink'},
-        'mcp_server': {'passed': True},
-        'mcp_client': {'passed': True}
+        "python_version": {"passed": True, "version": "Python 3.11.0"},
+        "pip_packages": {"passed": True, "installed_count": 4, "total_count": 4},
+        "env_variables": {"passed": True, "set_count": 4, "total_count": 4},
+        "neo4j_connection": {"passed": True, "host": "localhost"},
+        "neo4j_database": {"passed": True, "database_name": "ultrathink"},
+        "mcp_server": {"passed": True},
+        "mcp_client": {"passed": True},
     }
 
     # Act
@@ -241,24 +245,24 @@ def test_generate_diagnosis_report_some_failed():
     """Test diagnosis report when some checks fail"""
     # Arrange
     results = {
-        'python_version': {'passed': True, 'version': 'Python 3.11.0'},
-        'pip_packages': {
-            'passed': False,
-            'missing_packages': ['graphiti-core'],
-            'quick_fix': 'pip install graphiti-core',
-            'estimated_time': 2
+        "python_version": {"passed": True, "version": "Python 3.11.0"},
+        "pip_packages": {
+            "passed": False,
+            "missing_packages": ["graphiti-core"],
+            "quick_fix": "pip install graphiti-core",
+            "estimated_time": 2,
         },
-        'env_variables': {'passed': True, 'set_count': 4, 'total_count': 4},
-        'neo4j_connection': {
-            'passed': False,
-            'error': 'Connection refused',
-            'suggestion': '启动Neo4j',
-            'quick_fix': 'neo4j.bat console',
-            'estimated_time': 1
+        "env_variables": {"passed": True, "set_count": 4, "total_count": 4},
+        "neo4j_connection": {
+            "passed": False,
+            "error": "Connection refused",
+            "suggestion": "启动Neo4j",
+            "quick_fix": "neo4j.bat console",
+            "estimated_time": 1,
         },
-        'neo4j_database': {'passed': True, 'database_name': 'ultrathink'},
-        'mcp_server': {'passed': True},
-        'mcp_client': {'passed': True}
+        "neo4j_database": {"passed": True, "database_name": "ultrathink"},
+        "mcp_server": {"passed": True},
+        "mcp_client": {"passed": True},
     }
 
     # Act
@@ -277,23 +281,23 @@ def test_generate_diagnosis_report_estimates_fix_time():
     """Test diagnosis report includes estimated fix time"""
     # Arrange
     results = {
-        'python_version': {'passed': True, 'version': 'Python 3.11.0'},
-        'pip_packages': {
-            'passed': False,
-            'missing_packages': ['graphiti-core'],
-            'quick_fix': 'pip install graphiti-core',
-            'estimated_time': 2
+        "python_version": {"passed": True, "version": "Python 3.11.0"},
+        "pip_packages": {
+            "passed": False,
+            "missing_packages": ["graphiti-core"],
+            "quick_fix": "pip install graphiti-core",
+            "estimated_time": 2,
         },
-        'env_variables': {
-            'passed': False,
-            'missing_variables': ['NEO4J_PASSWORD'],
-            'quick_fix': 'copy .env.example .env',
-            'estimated_time': 0.5
+        "env_variables": {
+            "passed": False,
+            "missing_variables": ["NEO4J_PASSWORD"],
+            "quick_fix": "copy .env.example .env",
+            "estimated_time": 0.5,
         },
-        'neo4j_connection': {'passed': True},
-        'neo4j_database': {'passed': True},
-        'mcp_server': {'passed': True},
-        'mcp_client': {'passed': True}
+        "neo4j_connection": {"passed": True},
+        "neo4j_database": {"passed": True},
+        "mcp_server": {"passed": True},
+        "mcp_client": {"passed": True},
     }
 
     # Act
@@ -310,15 +314,16 @@ def test_generate_diagnosis_report_estimates_fix_time():
 # Test 7: Edge Cases
 # =============================================================================
 
+
 def test_check_python_version_returns_dict():
     """Test check_python_version returns proper dictionary structure"""
     result = check_python_version()
 
     assert isinstance(result, dict)
-    assert 'passed' in result
-    assert 'version' in result
-    assert isinstance(result['passed'], bool)
-    assert isinstance(result['version'], str)
+    assert "passed" in result
+    assert "version" in result
+    assert isinstance(result["passed"], bool)
+    assert isinstance(result["version"], str)
 
 
 @patch.dict(os.environ, {}, clear=True)
@@ -326,12 +331,12 @@ def test_check_environment_variables_none_set():
     """Test environment variables check when none are set"""
     result = check_environment_variables()
 
-    assert result['passed'] is False
-    assert result['set_count'] == 0
-    assert len(result['missing_variables']) == 4  # All 4 variables missing
+    assert result["passed"] is False
+    assert result["set_count"] == 0
+    assert len(result["missing_variables"]) == 4  # All 4 variables missing
 
 
-@patch('diagnose_environment.find_spec')
+@patch("diagnose_environment.find_spec")
 def test_check_pip_packages_none_installed(mock_find_spec):
     """Test pip package check when no packages are installed"""
     # Arrange - All packages missing
@@ -341,14 +346,15 @@ def test_check_pip_packages_none_installed(mock_find_spec):
     result = check_pip_packages()
 
     # Assert
-    assert result['passed'] is False
-    assert result['installed_count'] == 0
-    assert len(result['missing_packages']) == 4  # All 4 packages missing
+    assert result["passed"] is False
+    assert result["installed_count"] == 0
+    assert len(result["missing_packages"]) == 4  # All 4 packages missing
 
 
 # =============================================================================
 # Test 8: Integration Test - Full Diagnostic Flow
 # =============================================================================
+
 
 @pytest.mark.asyncio
 async def test_full_diagnostic_flow():
@@ -373,18 +379,18 @@ async def test_full_diagnostic_flow():
 
     # Verify all required checks are present
     required_checks = [
-        'python_version',
-        'pip_packages',
-        'env_variables',
-        'neo4j_connection',
-        'neo4j_database',
-        'mcp_server',
-        'mcp_client'
+        "python_version",
+        "pip_packages",
+        "env_variables",
+        "neo4j_connection",
+        "neo4j_database",
+        "mcp_server",
+        "mcp_client",
     ]
 
     for check in required_checks:
         assert check in results, f"Missing check: {check}"
-        assert 'passed' in results[check], f"Missing 'passed' in {check}"
+        assert "passed" in results[check], f"Missing 'passed' in {check}"
 
     # Generate report
     report = generate_diagnosis_report(results)
@@ -395,6 +401,7 @@ async def test_full_diagnostic_flow():
 # =============================================================================
 # Test Summary
 # =============================================================================
+
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Display custom test summary after all tests complete."""
@@ -425,11 +432,6 @@ if __name__ == "__main__":
     import sys
 
     # Run pytest with verbose output
-    exit_code = pytest.main([
-        __file__,
-        "-v",
-        "--tb=short",
-        "--color=yes"
-    ])
+    exit_code = pytest.main([__file__, "-v", "--tb=short", "--color=yes"])
 
     sys.exit(exit_code)

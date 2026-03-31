@@ -37,7 +37,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
                     "y": 100,
                     "width": 400,
                     "height": 300,
-                    "color": "1"  # 红色
+                    "color": "1",  # 红色
                 },
                 {
                     "id": "question-1",
@@ -47,7 +47,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
                     "y": 100,
                     "width": 350,
                     "height": 150,
-                    "color": "1"  # 红色
+                    "color": "1",  # 红色
                 },
                 {
                     "id": "yellow-1",
@@ -57,7 +57,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
                     "y": 280,
                     "width": 350,
                     "height": 150,
-                    "color": "6"  # 黄色
+                    "color": "6",  # 黄色
                 },
                 {
                     "id": "material-2",
@@ -67,7 +67,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
                     "y": 500,
                     "width": 400,
                     "height": 300,
-                    "color": "3"  # 紫色
+                    "color": "3",  # 紫色
                 },
                 {
                     "id": "yellow-2",
@@ -77,7 +77,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
                     "y": 500,
                     "width": 350,
                     "height": 150,
-                    "color": "6"  # 黄色
+                    "color": "6",  # 黄色
                 },
                 {
                     "id": "empty-yellow",
@@ -87,8 +87,8 @@ class TestModelAdapterIntegration(unittest.TestCase):
                     "y": 100,
                     "width": 350,
                     "height": 150,
-                    "color": "6"  # 黄色但为空
-                }
+                    "color": "6",  # 黄色但为空
+                },
             ],
             "edges": [
                 {
@@ -96,31 +96,28 @@ class TestModelAdapterIntegration(unittest.TestCase):
                     "fromNode": "material-1",
                     "toNode": "question-1",
                     "fromSide": "right",
-                    "toSide": "left"
+                    "toSide": "left",
                 },
                 {
                     "id": "edge-2",
                     "fromNode": "question-1",
                     "toNode": "yellow-1",
                     "fromSide": "bottom",
-                    "toSide": "top"
+                    "toSide": "top",
                 },
                 {
                     "id": "edge-3",
                     "fromNode": "material-2",
                     "toNode": "yellow-2",
                     "fromSide": "right",
-                    "toSide": "left"
-                }
-            ]
+                    "toSide": "left",
+                },
+            ],
         }
 
         # 创建临时文件
         self.temp_file = tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.canvas',
-            delete=False,
-            encoding='utf-8'
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
         )
         json.dump(self.test_canvas_data, self.temp_file, ensure_ascii=False, indent=2)
         self.temp_file.close()
@@ -182,7 +179,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
             "intelligent_parallel",
             self.temp_file.name,
             response=mock_response,
-            options={"optimize": True}
+            options={"optimize": True},
         )
 
         self.assertIsInstance(result, dict)
@@ -203,7 +200,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
     def test_fallback_without_adapter(self):
         """测试没有适配器时的降级处理"""
         # 临时禁用适配器
-        with patch('canvas_utils.MODEL_ADAPTER_AVAILABLE', False):
+        with patch("canvas_utils.MODEL_ADAPTER_AVAILABLE", False):
             logic = CanvasBusinessLogic(self.temp_file.name)
 
             # 应该降级到基础处理
@@ -218,7 +215,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
         canvas_data = CanvasJSONOperator.read_canvas(self.temp_file.name)
 
         # 使用适配器检测黄色节点
-        if hasattr(CanvasBusinessLogic(self.temp_file.name), 'model_adapter'):
+        if hasattr(CanvasBusinessLogic(self.temp_file.name), "model_adapter"):
             adapter = CanvasBusinessLogic(self.temp_file.name).model_adapter
             if adapter:
                 detection_result = adapter.detect_yellow_nodes(canvas_data)
@@ -235,23 +232,19 @@ class TestModelAdapterIntegration(unittest.TestCase):
         responses = [
             {"model": "opus-4.1"},
             {"model": "glm-4.6"},
-            {"model": "sonnet-3.5"}
+            {"model": "sonnet-3.5"},
         ]
 
         for response in responses:
             result = logic.process_with_model_adapter(
-                "test_operation",
-                response=response
+                "test_operation", response=response
             )
             self.assertIsNotNone(result)
 
     def test_performance_with_large_canvas(self):
         """测试大型Canvas的性能"""
         # 创建包含大量节点的Canvas
-        large_canvas = {
-            "nodes": [],
-            "edges": []
-        }
+        large_canvas = {"nodes": [], "edges": []}
 
         # 添加1000个节点
         for i in range(1000):
@@ -263,22 +256,20 @@ class TestModelAdapterIntegration(unittest.TestCase):
                 "y": (i // 10) * 400,
                 "width": 400,
                 "height": 200,
-                "color": "6" if i % 2 == 0 else "1"
+                "color": "6" if i % 2 == 0 else "1",
             }
             large_canvas["nodes"].append(node)
 
         # 保存大型Canvas
         large_temp_file = tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.canvas',
-            delete=False,
-            encoding='utf-8'
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
         )
         json.dump(large_canvas, large_temp_file, ensure_ascii=False)
         large_temp_file.close()
 
         try:
             import time
+
             start_time = time.time()
 
             # 测试处理性能
@@ -292,7 +283,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
             self.assertLess(
                 processing_time,
                 1.0,
-                f"处理大型Canvas耗时 {processing_time:.2f}s，超过1秒限制"
+                f"处理大型Canvas耗时 {processing_time:.2f}s，超过1秒限制",
             )
 
             # 验证检测结果
@@ -308,10 +299,7 @@ class TestModelAdapterIntegration(unittest.TestCase):
         # 测试空Canvas
         empty_canvas = {"nodes": [], "edges": []}
         empty_temp = tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.canvas',
-            delete=False,
-            encoding='utf-8'
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
         )
         json.dump(empty_canvas, empty_temp)
         empty_temp.close()
@@ -327,27 +315,14 @@ class TestModelAdapterIntegration(unittest.TestCase):
         # 测试只有非黄色节点的Canvas
         no_yellow_canvas = {
             "nodes": [
-                {
-                    "id": "red-1",
-                    "type": "text",
-                    "text": "红色节点",
-                    "color": "1"
-                },
-                {
-                    "id": "green-1",
-                    "type": "text",
-                    "text": "绿色节点",
-                    "color": "2"
-                }
+                {"id": "red-1", "type": "text", "text": "红色节点", "color": "1"},
+                {"id": "green-1", "type": "text", "text": "绿色节点", "color": "2"},
             ],
-            "edges": []
+            "edges": [],
         }
 
         no_yellow_temp = tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.canvas',
-            delete=False,
-            encoding='utf-8'
+            mode="w", suffix=".canvas", delete=False, encoding="utf-8"
         )
         json.dump(no_yellow_canvas, no_yellow_temp)
         no_yellow_temp.close()

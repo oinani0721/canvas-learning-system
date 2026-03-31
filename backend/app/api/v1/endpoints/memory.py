@@ -31,8 +31,6 @@ from typing import Annotated, List, Optional
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.config import Settings
-from app.dependencies import get_settings
 from app.models.memory_schemas import (
     BatchEpisodesRequest,
     BatchEpisodesResponse,
@@ -48,7 +46,6 @@ from app.models.memory_schemas import (
 from app.services.memory_service import (
     MemoryService,
     get_memory_service,
-    cleanup_memory_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,16 +69,16 @@ MemoryServiceDep = Annotated[MemoryService, Depends(get_memory_service)]
 # ✅ Verified from docs/stories/22.4.story.md#API端点实现
 # =============================================================================
 
+
 @memory_router.post(
     "/episodes",
     response_model=LearningEpisodeResponse,
     status_code=status.HTTP_201_CREATED,
     summary="记录学习事件",
-    description="记录用户的学习事件，存储到Neo4j和Graphiti"
+    description="记录用户的学习事件，存储到Neo4j和Graphiti",
 )
 async def create_learning_episode(
-    episode: LearningEpisodeCreate,
-    memory_service: MemoryServiceDep
+    episode: LearningEpisodeCreate, memory_service: MemoryServiceDep
 ) -> LearningEpisodeResponse:
     """
     记录学习事件
@@ -100,20 +97,17 @@ async def create_learning_episode(
             concept=episode.concept,
             agent_type=episode.agent_type,
             score=episode.score,
-            duration_seconds=episode.duration_seconds
+            duration_seconds=episode.duration_seconds,
         )
 
         logger.info(f"Created learning episode: {episode_id}")
-        return LearningEpisodeResponse(
-            episode_id=episode_id,
-            status="created"
-        )
+        return LearningEpisodeResponse(episode_id=episode_id, status="created")
 
     except Exception as e:
         logger.error(f"Failed to create learning episode: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to record learning event: {str(e)}"
+            detail=f"Failed to record learning event: {str(e)}",
         )
 
 
@@ -122,11 +116,12 @@ async def create_learning_episode(
 # ✅ Verified from docs/stories/22.4.story.md#API端点实现
 # =============================================================================
 
+
 @memory_router.get(
     "/episodes",
     response_model=LearningHistoryResponse,
     summary="查询学习历史",
-    description="查询用户的学习历史，支持分页和过滤"
+    description="查询用户的学习历史，支持分页和过滤",
 )
 async def get_learning_history(
     memory_service: MemoryServiceDep,
@@ -136,7 +131,7 @@ async def get_learning_history(
     concept: Optional[str] = Query(None, description="概念过滤"),
     subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)"),
     page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(50, ge=1, le=100, description="每页大小")
+    page_size: int = Query(50, ge=1, le=100, description="每页大小"),
 ) -> LearningHistoryResponse:
     """
     查询学习历史
@@ -160,7 +155,7 @@ async def get_learning_history(
             concept=concept,
             subject=subject,
             page=page,
-            page_size=page_size
+            page_size=page_size,
         )
 
         # Convert items to LearningHistoryItem models
@@ -176,7 +171,7 @@ async def get_learning_history(
                 agent_type=item.get("agent_type") or "unknown",
                 score=item.get("score"),
                 duration_seconds=item.get("duration_seconds"),
-                timestamp=item.get("timestamp") or ""
+                timestamp=item.get("timestamp") or "",
             )
             for item in result.get("items", [])
         ]
@@ -186,14 +181,14 @@ async def get_learning_history(
             total=result.get("total", 0),
             page=result.get("page", 1),
             page_size=result.get("page_size", 50),
-            pages=result.get("pages", 0)
+            pages=result.get("pages", 0),
         )
 
     except Exception as e:
         logger.error(f"Failed to get learning history: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to query learning history: {str(e)}"
+            detail=f"Failed to query learning history: {str(e)}",
         )
 
 
@@ -202,17 +197,18 @@ async def get_learning_history(
 # ✅ Verified from AC-22.4.3
 # =============================================================================
 
+
 @memory_router.get(
     "/concepts/{concept_id}/history",
     response_model=ConceptHistoryResponse,
     summary="查询概念学习历史",
-    description="查询特定概念的学习历史，包含时间线和得分变化"
+    description="查询特定概念的学习历史，包含时间线和得分变化",
 )
 async def get_concept_history(
     concept_id: str,
     memory_service: MemoryServiceDep,
     user_id: Optional[str] = Query(None, description="用户ID (optional)"),
-    limit: int = Query(50, ge=1, le=200, description="最大返回数量")
+    limit: int = Query(50, ge=1, le=200, description="最大返回数量"),
 ) -> ConceptHistoryResponse:
     """
     查询概念学习历史
@@ -226,9 +222,7 @@ async def get_concept_history(
     """
     try:
         result = await memory_service.get_concept_history(
-            concept_id=concept_id,
-            user_id=user_id,
-            limit=limit
+            concept_id=concept_id, user_id=user_id, limit=limit
         )
 
         return ConceptHistoryResponse(**result)
@@ -237,7 +231,7 @@ async def get_concept_history(
         logger.error(f"Failed to get concept history: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to query concept history: {str(e)}"
+            detail=f"Failed to query concept history: {str(e)}",
         )
 
 
@@ -246,17 +240,18 @@ async def get_concept_history(
 # ✅ Verified from docs/stories/22.4.story.md#API端点实现
 # =============================================================================
 
+
 @memory_router.get(
     "/review-suggestions",
     response_model=List[ReviewSuggestionResponse],
     summary="获取复习建议",
-    description="获取基于艾宾浩斯遗忘曲线的复习建议"
+    description="获取基于艾宾浩斯遗忘曲线的复习建议",
 )
 async def get_review_suggestions(
     memory_service: MemoryServiceDep,
     user_id: str = Query(..., description="用户ID"),
     limit: int = Query(10, ge=1, le=50, description="返回数量"),
-    subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)")
+    subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)"),
 ) -> List[ReviewSuggestionResponse]:
     """
     获取复习建议
@@ -274,9 +269,7 @@ async def get_review_suggestions(
     """
     try:
         suggestions = await memory_service.get_review_suggestions(
-            user_id=user_id,
-            limit=limit,
-            subject=subject
+            user_id=user_id, limit=limit, subject=subject
         )
 
         return [
@@ -286,7 +279,7 @@ async def get_review_suggestions(
                 last_score=s.get("last_score"),
                 review_count=s.get("review_count", 0),
                 due_date=s.get("due_date", ""),
-                priority=s.get("priority", "medium")
+                priority=s.get("priority", "medium"),
             )
             for s in suggestions
         ]
@@ -295,7 +288,7 @@ async def get_review_suggestions(
         logger.error(f"Failed to get review suggestions: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get review suggestions: {str(e)}"
+            detail=f"Failed to get review suggestions: {str(e)}",
         )
 
 
@@ -304,15 +297,14 @@ async def get_review_suggestions(
 # ✅ Verified from Story 30.3
 # =============================================================================
 
+
 @memory_router.get(
     "/health",
     response_model=MemoryHealthResponse,
     summary="Memory系统健康检查",
-    description="获取3层记忆系统的健康状态"
+    description="获取3层记忆系统的健康状态",
 )
-async def get_memory_health(
-    memory_service: MemoryServiceDep
-) -> MemoryHealthResponse:
+async def get_memory_health(memory_service: MemoryServiceDep) -> MemoryHealthResponse:
     """
     获取Memory系统健康状态
 
@@ -332,7 +324,7 @@ async def get_memory_health(
         logger.error(f"Failed to get memory health status: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get memory health status: {str(e)}"
+            detail=f"Failed to get memory health status: {str(e)}",
         )
 
 
@@ -341,16 +333,16 @@ async def get_memory_health(
 # ✅ Verified from Story 30.3
 # =============================================================================
 
+
 @memory_router.post(
     "/episodes/batch",
     response_model=BatchEpisodesResponse,
     status_code=status.HTTP_200_OK,
     summary="批量记录学习事件",
-    description="批量记录Canvas节点颜色变化等学习事件(最多50个)"
+    description="批量记录Canvas节点颜色变化等学习事件(最多50个)",
 )
 async def create_batch_episodes(
-    request: BatchEpisodesRequest,
-    memory_service: MemoryServiceDep
+    request: BatchEpisodesRequest, memory_service: MemoryServiceDep
 ) -> BatchEpisodesResponse:
     """
     批量记录学习事件
@@ -370,7 +362,7 @@ async def create_batch_episodes(
                 "timestamp": event.timestamp,
                 "canvas_path": event.canvas_path,
                 "node_id": event.node_id,
-                "metadata": event.metadata.model_dump() if event.metadata else {}
+                "metadata": event.metadata.model_dump() if event.metadata else {},
             }
             for event in request.events
         ]
@@ -382,14 +374,14 @@ async def create_batch_episodes(
             processed=result["processed"],
             failed=result["failed"],
             errors=[BatchErrorItem(**err) for err in result["errors"]],
-            timestamp=result["timestamp"]
+            timestamp=result["timestamp"],
         )
 
     except Exception as e:
         logger.error(f"Failed to process batch episodes: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process batch episodes: {str(e)}"
+            detail=f"Failed to process batch episodes: {str(e)}",
         )
 
 
@@ -402,13 +394,17 @@ from pydantic import BaseModel, Field
 
 class ExtractConversationRequest(BaseModel):
     """Request for sidecar fallback conversation extraction."""
+
     node_id: str = Field(..., description="Canvas node identifier")
     session_id: str = Field("", description="Dialogue session identifier")
-    messages: List[dict] = Field(..., description="List of {role, content} message dicts")
+    messages: List[dict] = Field(
+        ..., description="List of {role, content} message dicts"
+    )
 
 
 class ExtractConversationResponse(BaseModel):
     """Response from fallback extraction."""
+
     extracted: bool = False
     extracted_count: int = 0
     status: str = "ok"
@@ -445,7 +441,11 @@ async def extract_conversation_learning(
             await memory_service.record_knowledge_entity(
                 event_type="learning_tip",
                 content=f"[Tip] {tip.title}: {tip.content}",
-                metadata={"node_id": request.node_id, "source": "sidecar_fallback", "tags": tip.tags},
+                metadata={
+                    "node_id": request.node_id,
+                    "source": "sidecar_fallback",
+                    "tags": tip.tags,
+                },
                 group_id=DEFAULT_GROUP_ID,
             )
             extracted_count += 1
@@ -454,12 +454,18 @@ async def extract_conversation_learning(
             await memory_service.record_knowledge_entity(
                 event_type="misconception",
                 content=f"[Error] {error.description}",
-                metadata={"node_id": request.node_id, "source": "sidecar_fallback", "error_type": error.error_type},
+                metadata={
+                    "node_id": request.node_id,
+                    "source": "sidecar_fallback",
+                    "error_type": error.error_type,
+                },
                 group_id=DEFAULT_GROUP_ID,
             )
             extracted_count += 1
 
-        logger.info(f"[Observer-Fallback] Extracted {extracted_count} items for node {request.node_id}")
+        logger.info(
+            f"[Observer-Fallback] Extracted {extracted_count} items for node {request.node_id}"
+        )
 
         return ExtractConversationResponse(
             extracted=extracted_count > 0,
@@ -471,5 +477,7 @@ async def extract_conversation_learning(
     except Exception as e:
         logger.error(f"[Observer-Fallback] extract-conversation error: {e}")
         return ExtractConversationResponse(
-            extracted=False, status="error", message=str(e)[:200],
+            extracted=False,
+            status="error",
+            message=str(e)[:200],
         )

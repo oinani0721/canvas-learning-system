@@ -48,7 +48,9 @@ class DualWriteStats:
             "primary_failures": self.primary_failures,
             "secondary_failures": self.secondary_failures,
             "avg_latency_ms": self.avg_latency_ms,
-            "last_write_time": self.last_write_time.isoformat() if self.last_write_time else None,
+            "last_write_time": self.last_write_time.isoformat()
+            if self.last_write_time
+            else None,
         }
 
 
@@ -65,7 +67,7 @@ class VectorDatabaseAdapter(ABC):
         memory_id: str,
         content: str,
         embedding: List[float],
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Store a memory with its embedding.
@@ -86,7 +88,7 @@ class VectorDatabaseAdapter(ABC):
         self,
         query_embedding: List[float],
         limit: int = 10,
-        filter_dict: Optional[Dict[str, Any]] = None
+        filter_dict: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search for similar memories.
@@ -147,7 +149,9 @@ class ChromaDBAdapter(VectorDatabaseAdapter):
     def collection(self):
         """Lazy load collection."""
         if self._collection is None and self.client:
-            self._collection = self.client.get_or_create_collection(self.collection_name)
+            self._collection = self.client.get_or_create_collection(
+                self.collection_name
+            )
         return self._collection
 
     def store_memory(
@@ -155,7 +159,7 @@ class ChromaDBAdapter(VectorDatabaseAdapter):
         memory_id: str,
         content: str,
         embedding: List[float],
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Store memory in ChromaDB."""
         if self.collection is None:
@@ -165,7 +169,7 @@ class ChromaDBAdapter(VectorDatabaseAdapter):
             ids=[memory_id],
             documents=[content],
             embeddings=[embedding],
-            metadatas=[metadata or {}]
+            metadatas=[metadata or {}],
         )
         return memory_id
 
@@ -173,16 +177,14 @@ class ChromaDBAdapter(VectorDatabaseAdapter):
         self,
         query_embedding: List[float],
         limit: int = 10,
-        filter_dict: Optional[Dict[str, Any]] = None
+        filter_dict: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Search memories in ChromaDB."""
         if self.collection is None:
             return []
 
         results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=limit,
-            where=filter_dict
+            query_embeddings=[query_embedding], n_results=limit, where=filter_dict
         )
 
         memories = []
@@ -192,12 +194,16 @@ class ChromaDBAdapter(VectorDatabaseAdapter):
         distances = results.get("distances", [[]])[0]
 
         for i, doc_id in enumerate(ids):
-            memories.append({
-                "id": doc_id,
-                "content": documents[i] if documents else None,
-                "metadata": metadatas[i] if metadatas else {},
-                "score": 1 - distances[i] if distances else 0,  # Convert distance to similarity
-            })
+            memories.append(
+                {
+                    "id": doc_id,
+                    "content": documents[i] if documents else None,
+                    "metadata": metadatas[i] if metadatas else {},
+                    "score": 1 - distances[i]
+                    if distances
+                    else 0,  # Convert distance to similarity
+                }
+            )
 
         return memories
 
@@ -219,15 +225,18 @@ class ChromaDBAdapter(VectorDatabaseAdapter):
 
         try:
             results = self.collection.get(
-                ids=[memory_id],
-                include=["documents", "metadatas", "embeddings"]
+                ids=[memory_id], include=["documents", "metadatas", "embeddings"]
             )
             if results["ids"]:
                 return {
                     "id": results["ids"][0],
-                    "content": results["documents"][0] if results["documents"] else None,
+                    "content": results["documents"][0]
+                    if results["documents"]
+                    else None,
                     "metadata": results["metadatas"][0] if results["metadatas"] else {},
-                    "embedding": results["embeddings"][0] if results["embeddings"] else None,
+                    "embedding": results["embeddings"][0]
+                    if results["embeddings"]
+                    else None,
                 }
         except Exception:
             pass
@@ -263,24 +272,21 @@ class LanceDBAdapter(VectorDatabaseAdapter):
     def _ensure_table(self, record: Dict[str, Any]) -> None:
         """Create table if it doesn't exist."""
         if self._table is None and self.connection:
-            self._table = self.connection.create_table(
-                self.table_name,
-                data=[record]
-            )
+            self._table = self.connection.create_table(self.table_name, data=[record])
 
     def store_memory(
         self,
         memory_id: str,
         content: str,
         embedding: List[float],
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Store memory in LanceDB."""
         record = {
             "id": memory_id,
             "text": content,
             "vector": embedding,
-            **(metadata or {})
+            **(metadata or {}),
         }
 
         if self.table is None:
@@ -295,7 +301,7 @@ class LanceDBAdapter(VectorDatabaseAdapter):
         self,
         query_embedding: List[float],
         limit: int = 10,
-        filter_dict: Optional[Dict[str, Any]] = None
+        filter_dict: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Search memories in LanceDB."""
         if self.table is None:
@@ -320,12 +326,18 @@ class LanceDBAdapter(VectorDatabaseAdapter):
 
             memories = []
             for _, row in results.iterrows():
-                memories.append({
-                    "id": row.get("id"),
-                    "content": row.get("text"),
-                    "metadata": {k: v for k, v in row.items() if k not in ("id", "text", "vector", "_distance")},
-                    "score": 1 - row.get("_distance", 0),
-                })
+                memories.append(
+                    {
+                        "id": row.get("id"),
+                        "content": row.get("text"),
+                        "metadata": {
+                            k: v
+                            for k, v in row.items()
+                            if k not in ("id", "text", "vector", "_distance")
+                        },
+                        "score": 1 - row.get("_distance", 0),
+                    }
+                )
 
             return memories
 
@@ -357,7 +369,11 @@ class LanceDBAdapter(VectorDatabaseAdapter):
                 return {
                     "id": row.get("id"),
                     "content": row.get("text"),
-                    "metadata": {k: v for k, v in row.items() if k not in ("id", "text", "vector")},
+                    "metadata": {
+                        k: v
+                        for k, v in row.items()
+                        if k not in ("id", "text", "vector")
+                    },
                     "embedding": row.get("vector"),
                 }
         except Exception:
@@ -387,7 +403,7 @@ class DualWriteAdapter(VectorDatabaseAdapter):
         secondary: VectorDatabaseAdapter,
         read_from_secondary: bool = False,
         retry_count: int = 3,
-        retry_delay_ms: int = 100
+        retry_delay_ms: int = 100,
     ):
         """
         Initialize dual-write adapter.
@@ -412,7 +428,7 @@ class DualWriteAdapter(VectorDatabaseAdapter):
         memory_id: str,
         content: str,
         embedding: List[float],
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Store memory in both databases."""
         start_time = time.time()
@@ -459,7 +475,7 @@ class DualWriteAdapter(VectorDatabaseAdapter):
         self,
         query_embedding: List[float],
         limit: int = 10,
-        filter_dict: Optional[Dict[str, Any]] = None
+        filter_dict: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Search from configured read source."""
         source = self.secondary if self.read_from_secondary else self.primary
@@ -477,10 +493,7 @@ class DualWriteAdapter(VectorDatabaseAdapter):
         return source.get_memory(memory_id)
 
     def _update_stats(
-        self,
-        primary_success: bool,
-        secondary_success: bool,
-        latency_ms: float
+        self, primary_success: bool, secondary_success: bool, latency_ms: float
     ) -> None:
         """Update write statistics."""
         self.stats.total_writes += 1
@@ -517,7 +530,8 @@ class DualWriteAdapter(VectorDatabaseAdapter):
         """Get health status of dual write system."""
         stats = self.stats
         return {
-            "healthy": stats.failed_writes == 0 or (stats.failed_writes / max(stats.total_writes, 1)) < 0.01,
+            "healthy": stats.failed_writes == 0
+            or (stats.failed_writes / max(stats.total_writes, 1)) < 0.01,
             "total_writes": stats.total_writes,
             "failure_rate": stats.failed_writes / max(stats.total_writes, 1),
             "avg_latency_ms": stats.avg_latency_ms,

@@ -10,7 +10,6 @@ Covers:
 from datetime import datetime, timezone
 
 import pytest
-
 from app.models.mastery_state import ConceptState, MasteryConfig
 from app.services.mastery_engine import MasteryEngine
 
@@ -27,8 +26,11 @@ def engine():
 def _concept(p_mastery=0.5, interaction_count=5, fluent_count=0):
     """Helper to create concept with controlled proficiency."""
     return ConceptState(
-        concept_id="t", topic="t", name="t",
-        p_mastery=p_mastery, interaction_count=interaction_count,
+        concept_id="t",
+        topic="t",
+        name="t",
+        p_mastery=p_mastery,
+        interaction_count=interaction_count,
         fluent_count=fluent_count,
         last_interaction_ts=datetime.now(timezone.utc),
         fsrs_stability=100.0,
@@ -87,14 +89,18 @@ class TestMasteryLabelAndColor:
         assert engine.mastery_label(concept) == "Not Assessed"
 
     def test_label_mastered(self, engine):
-        assert engine.mastery_label(_concept(p_mastery=0.95, fluent_count=3)) == "Mastered"
+        assert (
+            engine.mastery_label(_concept(p_mastery=0.95, fluent_count=3)) == "Mastered"
+        )
 
     def test_color_not_assessed(self, engine):
         concept = ConceptState(concept_id="t", topic="t", name="t")
         assert engine.mastery_color(concept) == "#6c757d"
 
     def test_color_mastered(self, engine):
-        assert engine.mastery_color(_concept(p_mastery=0.95, fluent_count=3)) == "#198754"
+        assert (
+            engine.mastery_color(_concept(p_mastery=0.95, fluent_count=3)) == "#198754"
+        )
 
     def test_color_shaky(self, engine):
         assert engine.mastery_color(_concept(p_mastery=0.20)) == "#dc3545"

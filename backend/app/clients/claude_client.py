@@ -70,10 +70,16 @@ class ClaudeClient:
             prompt_path: Path to agent prompt templates (defaults to config AGENT_PROMPT_PATH)
         """
         # Get API key from parameter, config, or environment
-        self.api_key = api_key or settings.ANTHROPIC_API_KEY or os.environ.get("ANTHROPIC_API_KEY", "")
+        self.api_key = (
+            api_key
+            or settings.ANTHROPIC_API_KEY
+            or os.environ.get("ANTHROPIC_API_KEY", "")
+        )
 
         if not self.api_key:
-            logger.warning("No Anthropic API key configured. Claude API calls will fail.")
+            logger.warning(
+                "No Anthropic API key configured. Claude API calls will fail."
+            )
 
         # ✅ Verified from Context7:/anthropics/anthropic-sdk-python
         # Pattern: AsyncAnthropic(api_key=...)
@@ -86,7 +92,9 @@ class ClaudeClient:
         # Cache for loaded prompt templates
         self._prompt_templates: Dict[str, AgentPromptTemplate] = {}
 
-        logger.info(f"ClaudeClient initialized with model={self.model}, max_tokens={self.max_tokens}")
+        logger.info(
+            f"ClaudeClient initialized with model={self.model}, max_tokens={self.max_tokens}"
+        )
 
     def _parse_prompt_template(self, content: str) -> AgentPromptTemplate:
         """
@@ -128,11 +136,15 @@ class ClaudeClient:
         input_format = None
         output_format = None
 
-        input_match = re.search(r"## Input Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL)
+        input_match = re.search(
+            r"## Input Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL
+        )
         if input_match:
             input_format = input_match.group(1).strip()
 
-        output_match = re.search(r"## Output Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL)
+        output_match = re.search(
+            r"## Output Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL
+        )
         if output_match:
             output_format = output_match.group(1).strip()
 
@@ -260,7 +272,9 @@ class ClaudeClient:
             if hasattr(block, "text"):
                 response_text += block.text
 
-        logger.info(f"Claude API call successful: {response.usage.input_tokens} in, {response.usage.output_tokens} out")
+        logger.info(
+            f"Claude API call successful: {response.usage.input_tokens} in, {response.usage.output_tokens} out"
+        )
 
         # Story 3.13 AC-4: Output safety check
         if response_text:
@@ -385,7 +399,9 @@ class ClaudeClient:
             if hasattr(block, "text"):
                 response_text += block.text
 
-        logger.info(f"Claude API call successful: {response.usage.input_tokens} in, {response.usage.output_tokens} out")
+        logger.info(
+            f"Claude API call successful: {response.usage.input_tokens} in, {response.usage.output_tokens} out"
+        )
 
         return {
             "agent_type": agent_type,

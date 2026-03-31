@@ -26,7 +26,10 @@ VALID_ERROR_TYPES = {
 }
 
 VALID_TIP_SOURCES = {
-    "user_marked", "ai_explanation", "self_summary", "confusion_resolved",
+    "user_marked",
+    "ai_explanation",
+    "self_summary",
+    "confusion_resolved",
 }
 
 VALID_LEARNING_VALUES = {"high", "medium", "low"}
@@ -54,7 +57,9 @@ def _compute_extraction_recall(
     expected_types = set(expected.get("expected_error_types", list()))
     if expected_types:
         total_checks += 1
-        actual_types = {e.get("error_type") for e in actual_response.get("errors", list())}
+        actual_types = {
+            e.get("error_type") for e in actual_response.get("errors", list())
+        }
         if expected_types.issubset(actual_types):
             checks_passed += 1
 
@@ -136,7 +141,9 @@ class TestContextExtractRegression:
         for et in VALID_ERROR_TYPES:
             assert et in content, "Missing error type: " + et
 
-    def test_prompt_contains_extraction_categories(self, prompt_registry: PromptRegistry):
+    def test_prompt_contains_extraction_categories(
+        self, prompt_registry: PromptRegistry
+    ):
         """Verify prompt defines all 3 extraction categories."""
         content = prompt_registry.get("context_extract")
         categories = ["Tips", "\u5173\u952e\u95ee\u7b54", "\u9519\u8bef"]
@@ -198,7 +205,9 @@ class TestContextExtractRegression:
 
         avg_accuracy = total_accuracy / len(scenarios)
         assert avg_accuracy >= 0.80, (
-            "Classification accuracy {v:.4f} below 80 percent threshold".format(v=avg_accuracy)
+            "Classification accuracy {v:.4f} below 80 percent threshold".format(
+                v=avg_accuracy
+            )
         )
 
     def test_replay_evidence_present(
@@ -235,14 +244,16 @@ class TestContextExtractRegression:
             total_recall += recall
             total_accuracy += accuracy
 
-            scenario_results.append({
-                "scenario_id": scenario["scenario_id"],
-                "passed": recall >= 0.75 and accuracy >= 0.75,
-                "metrics": {
-                    "extraction_recall": recall,
-                    "classification_accuracy": accuracy,
-                },
-            })
+            scenario_results.append(
+                {
+                    "scenario_id": scenario["scenario_id"],
+                    "passed": recall >= 0.75 and accuracy >= 0.75,
+                    "metrics": {
+                        "extraction_recall": recall,
+                        "classification_accuracy": accuracy,
+                    },
+                }
+            )
 
         n = len(scenarios)
         gen = RegressionReportGenerator()

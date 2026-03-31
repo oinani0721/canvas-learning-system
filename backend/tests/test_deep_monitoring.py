@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def get_test_settings() -> Settings:
     """Override settings for testing."""
     return Settings(
@@ -44,6 +45,7 @@ def client() -> TestClient:
 # [Source: specs/api/canvas-api.openapi.yml:605-628]
 # [Source: Story 17.2 AC-5: Prometheus /metrics endpoint]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_metrics_endpoint_returns_200(client):
     """Test that /metrics endpoint returns 200 OK."""
@@ -111,6 +113,7 @@ def test_metrics_endpoint_prometheus_format(client):
 # [Source: specs/api/canvas-api.openapi.yml:630-660]
 # [Source: Story 17.2 AC-6: JSON summary endpoint]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_metrics_summary_returns_200(client):
     """Test that /metrics/summary endpoint returns 200 OK."""
@@ -194,6 +197,7 @@ def test_metrics_summary_timestamp_format(client):
 # Test: Cross-Endpoint Consistency
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_both_endpoints_accessible(client):
     """Test that both metrics endpoints are accessible."""
     prometheus_response = client.get("/api/v1/health/metrics")
@@ -216,6 +220,7 @@ def test_health_endpoint_still_works(client):
 # Test: Performance Requirements
 # [Source: Story 17.2 AC-4: 采集频率≤5秒]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_metrics_endpoint_response_time(client):
     """Test that /metrics endpoint responds quickly."""
@@ -247,9 +252,11 @@ def test_metrics_summary_response_time(client):
 # Test: Error Handling
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_metrics_endpoint_handles_concurrent_requests(client):
     """Test that metrics endpoints handle concurrent requests."""
     import threading
+
     results = []
 
     def make_request():
@@ -270,6 +277,7 @@ def test_metrics_endpoint_handles_concurrent_requests(client):
 # Test: Acceptance Criteria Validation
 # [Source: docs/stories/17.2.story.md - Acceptance Criteria]
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_ac1_agent_execution_tracking():
     """AC-1: 所有14种Agent类型的执行时间都被追踪."""

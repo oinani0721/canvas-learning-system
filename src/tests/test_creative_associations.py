@@ -25,8 +25,10 @@ class TestCreativeAssociationEngine:
     @pytest.fixture
     def engine(self):
         """创意联想引擎fixture"""
-        with patch('creative_association_engine.MCPSemanticMemory'), \
-             patch('creative_association_engine.NUMPY_AVAILABLE', True):
+        with (
+            patch("creative_association_engine.MCPSemanticMemory"),
+            patch("creative_association_engine.NUMPY_AVAILABLE", True),
+        ):
             return CreativeAssociationEngine()
 
     def test_initialization_with_memory_client(self):
@@ -40,7 +42,7 @@ class TestCreativeAssociationEngine:
 
     def test_initialization_without_memory_client(self):
         """测试不使用记忆客户端初始化"""
-        with patch('creative_association_engine.NUMPY_AVAILABLE', True):
+        with patch("creative_association_engine.NUMPY_AVAILABLE", True):
             engine = CreativeAssociationEngine()
 
         assert engine.memory_client is None
@@ -48,7 +50,7 @@ class TestCreativeAssociationEngine:
 
     def test_get_default_config(self):
         """测试获取默认配置"""
-        with patch('creative_association_engine.NUMPY_AVAILABLE', True):
+        with patch("creative_association_engine.NUMPY_AVAILABLE", True):
             engine = CreativeAssociationEngine()
             config = engine._get_default_config()
 
@@ -59,9 +61,11 @@ class TestCreativeAssociationEngine:
 
     def test_generate_creative_associations_moderate(self, engine):
         """测试生成中等创意联想"""
-        with patch.object(engine, 'find_related_concepts', return_value=[
-            {"concept": "逻辑推理", "similarity_score": 0.8}
-        ]):
+        with patch.object(
+            engine,
+            "find_related_concepts",
+            return_value=[{"concept": "逻辑推理", "similarity_score": 0.8}],
+        ):
             result = engine.generate_creative_associations("逆否命题", "moderate")
 
         assert "association_id" in result
@@ -75,7 +79,7 @@ class TestCreativeAssociationEngine:
 
     def test_generate_creative_associations_conservative(self, engine):
         """测试生成保守创意联想"""
-        with patch.object(engine, 'find_related_concepts', return_value=[]):
+        with patch.object(engine, "find_related_concepts", return_value=[]):
             result = engine.generate_creative_associations("数学", "conservative")
 
         assert result["creativity_level"] == "conservative"
@@ -84,10 +88,14 @@ class TestCreativeAssociationEngine:
 
     def test_generate_creative_associations_creative(self, engine):
         """测试生成高创意联想"""
-        with patch.object(engine, 'find_related_concepts', return_value=[
-            {"concept": "编程", "similarity_score": 0.6},
-            {"concept": "哲学", "similarity_score": 0.5}
-        ]):
+        with patch.object(
+            engine,
+            "find_related_concepts",
+            return_value=[
+                {"concept": "编程", "similarity_score": 0.6},
+                {"concept": "哲学", "similarity_score": 0.5},
+            ],
+        ):
             result = engine.generate_creative_associations("逻辑", "creative")
 
         assert result["creativity_level"] == "creative"
@@ -98,7 +106,7 @@ class TestCreativeAssociationEngine:
         """测试生成类比"""
         related_concepts = [
             {"concept": "编程", "similarity_score": 0.8},
-            {"concept": "建造", "similarity_score": 0.7}
+            {"concept": "建造", "similarity_score": 0.7},
         ]
 
         analogies = engine._generate_analogies("逻辑", related_concepts, max_count=3)
@@ -112,11 +120,11 @@ class TestCreativeAssociationEngine:
 
     def test_generate_cross_domain_insights(self, engine):
         """测试生成跨域洞察"""
-        related_concepts = [
-            {"concept": "算法", "similarity_score": 0.8}
-        ]
+        related_concepts = [{"concept": "算法", "similarity_score": 0.8}]
 
-        insights = engine._generate_cross_domain_insights("数学", related_concepts, max_count=2)
+        insights = engine._generate_cross_domain_insights(
+            "数学", related_concepts, max_count=2
+        )
 
         assert len(insights) <= 2
         for insight in insights:
@@ -126,11 +134,11 @@ class TestCreativeAssociationEngine:
 
     def test_generate_practical_applications(self, engine):
         """测试生成实际应用"""
-        related_concepts = [
-            {"concept": "问题解决", "similarity_score": 0.7}
-        ]
+        related_concepts = [{"concept": "问题解决", "similarity_score": 0.7}]
 
-        applications = engine._generate_practical_applications("逻辑", related_concepts, max_count=2)
+        applications = engine._generate_practical_applications(
+            "逻辑", related_concepts, max_count=2
+        )
 
         assert len(applications) <= 2
         for app in applications:
@@ -167,14 +175,16 @@ class TestCreativeAssociationEngine:
         """测试计算总体创意分数"""
         insights = [
             CreativeInsight("cross_domain", "test", 0.8, ["数学", "编程"], "high", 0.9),
-            CreativeInsight("analogy_based", "test", 0.7, ["逻辑", "语言"], "medium", 0.8)
+            CreativeInsight(
+                "analogy_based", "test", 0.7, ["逻辑", "语言"], "medium", 0.8
+            ),
         ]
-        analogies = [
-            Analogy("概念A", "概念B", "test", 0.85, "test explanation")
-        ]
+        analogies = [Analogy("概念A", "概念B", "test", 0.85, "test explanation")]
         applications = [{"test": "application"}]
 
-        creativity_score = engine._calculate_overall_creativity(insights, analogies, applications)
+        creativity_score = engine._calculate_overall_creativity(
+            insights, analogies, applications
+        )
 
         assert 0 <= creativity_score <= 1
         assert creativity_score > 0  # 应该有非零创意分数
@@ -191,7 +201,7 @@ class TestDataStructures:
             confidence=0.85,
             domains_connected=["数学", "计算机科学"],
             educational_value="high",
-            creativity_score=0.9
+            creativity_score=0.9,
         )
 
         assert insight.insight_type == "cross_domain_connection"
@@ -205,7 +215,7 @@ class TestDataStructures:
             target_concept="编程中的条件取反",
             analogy_description="逆否命题的逻辑结构类似于编程中的条件语句取反操作",
             similarity_strength=0.82,
-            explanation="两者都涉及逻辑条件的否定和结果的反转"
+            explanation="两者都涉及逻辑条件的否定和结果的反转",
         )
 
         assert analogy.source_concept == "逆否命题"
@@ -221,7 +231,7 @@ class TestDataStructures:
             estimated_duration_minutes=60,
             difficulty_level="beginner",
             prerequisites=[],
-            resources=["教材", "视频教程"]
+            resources=["教材", "视频教程"],
         )
 
         assert step.step_number == 1
@@ -239,7 +249,7 @@ class TestDataStructures:
                 estimated_duration_minutes=120,
                 difficulty_level="beginner",
                 prerequisites=[],
-                resources=["教材"]
+                resources=["教材"],
             )
         ]
 
@@ -251,7 +261,7 @@ class TestDataStructures:
             estimated_duration_hours=2.0,
             difficulty_level="beginner",
             steps=steps,
-            learning_objectives=["理解逆否命题概念", "掌握基本应用"]
+            learning_objectives=["理解逆否命题概念", "掌握基本应用"],
         )
 
         assert path.path_id == "path-beginner-20250122"
@@ -264,26 +274,35 @@ class TestIntegrationScenarios:
 
     def test_full_creative_association_workflow(self):
         """测试完整创意联想工作流"""
-        with patch('creative_association_engine.MCPSemanticMemory'), \
-             patch('creative_association_engine.NUMPY_AVAILABLE', True):
-
+        with (
+            patch("creative_association_engine.MCPSemanticMemory"),
+            patch("creative_association_engine.NUMPY_AVAILABLE", True),
+        ):
             # 创建引擎
             engine = CreativeAssociationEngine()
 
             # 模拟相关概念
-            with patch.object(engine, 'find_related_concepts', return_value=[
-                {"concept": "编程算法", "similarity_score": 0.8},
-                {"concept": "哲学逻辑", "similarity_score": 0.7}
-            ]):
-
+            with patch.object(
+                engine,
+                "find_related_concepts",
+                return_value=[
+                    {"concept": "编程算法", "similarity_score": 0.8},
+                    {"concept": "哲学逻辑", "similarity_score": 0.7},
+                ],
+            ):
                 # 生成创意联想
                 result = engine.generate_creative_associations("数学逻辑", "moderate")
 
                 # 验证结果结构
                 required_keys = [
-                    "association_id", "query_concept", "creativity_level",
-                    "creative_insights", "analogies", "practical_applications",
-                    "learning_paths", "overall_creativity_score"
+                    "association_id",
+                    "query_concept",
+                    "creativity_level",
+                    "creative_insights",
+                    "analogies",
+                    "practical_applications",
+                    "learning_paths",
+                    "overall_creativity_score",
                 ]
 
                 for key in required_keys:
@@ -312,12 +331,13 @@ class TestIntegrationScenarios:
 
     def test_error_handling_invalid_creativity_level(self):
         """测试无效创意级别的错误处理"""
-        with patch('creative_association_engine.MCPSemanticMemory'), \
-             patch('creative_association_engine.NUMPY_AVAILABLE', True):
-
+        with (
+            patch("creative_association_engine.MCPSemanticMemory"),
+            patch("creative_association_engine.NUMPY_AVAILABLE", True),
+        ):
             engine = CreativeAssociationEngine()
 
-            with patch.object(engine, 'find_related_concepts', return_value=[]):
+            with patch.object(engine, "find_related_concepts", return_value=[]):
                 result = engine.generate_creative_associations("概念", "invalid_level")
 
                 # 应该回退到默认级别
@@ -325,33 +345,37 @@ class TestIntegrationScenarios:
 
     def test_error_handling_no_memory_client(self):
         """测试没有记忆客户端的错误处理"""
-        with patch('creative_association_engine.NUMPY_AVAILABLE', True):
+        with patch("creative_association_engine.NUMPY_AVAILABLE", True):
             engine = CreativeAssociationEngine(memory_client=None)
 
             # 即使没有记忆客户端也应该能工作
-            with patch.object(engine, 'find_related_concepts', return_value=[]):
+            with patch.object(engine, "find_related_concepts", return_value=[]):
                 result = engine.generate_creative_associations("概念", "moderate")
                 assert "creative_insights" in result
 
     def test_performance_large_concept_set(self):
         """测试处理大量概念的性能"""
-        with patch('creative_association_engine.MCPSemanticMemory'), \
-             patch('creative_association_engine.NUMPY_AVAILABLE', True):
-
+        with (
+            patch("creative_association_engine.MCPSemanticMemory"),
+            patch("creative_association_engine.NUMPY_AVAILABLE", True),
+        ):
             engine = CreativeAssociationEngine()
 
             # 模拟大量相关概念
             large_concept_set = [
-                {"concept": f"概念{i}", "similarity_score": 0.7}
-                for i in range(50)
+                {"concept": f"概念{i}", "similarity_score": 0.7} for i in range(50)
             ]
 
-            with patch.object(engine, 'find_related_concepts', return_value=large_concept_set):
+            with patch.object(
+                engine, "find_related_concepts", return_value=large_concept_set
+            ):
                 result = engine.generate_creative_associations("核心概念", "creative")
 
                 # 应该限制结果数量
-                assert len(result["creative_insights"]) <= 12  # creative级别的最大联想数
-                assert len(result["analogies"]) <= 4          # 最大类比数
+                assert (
+                    len(result["creative_insights"]) <= 12
+                )  # creative级别的最大联想数
+                assert len(result["analogies"]) <= 4  # 最大类比数
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ import pytest
 def _isolate_review_singleton():
     """Reset the services-layer ReviewService singleton before/after each test."""
     from app.services.review_service import reset_review_service_singleton
+
     reset_review_service_singleton()
     yield
     reset_review_service_singleton()
@@ -49,9 +50,19 @@ class TestReviewSingletonDICompleteness:
         # Patch at source for lazy imports inside get_review_service()
         with (
             patch.object(rs_mod, "ReviewService", FakeReviewService),
-            patch.object(rs_mod, "create_fsrs_manager", return_value=MagicMock(name="fsrs_manager")),
-            patch("app.services.canvas_service.CanvasService", return_value=MagicMock(name="canvas_service")),
-            patch("app.services.background_task_manager.BackgroundTaskManager", return_value=MagicMock(name="task_manager")),
+            patch.object(
+                rs_mod,
+                "create_fsrs_manager",
+                return_value=MagicMock(name="fsrs_manager"),
+            ),
+            patch(
+                "app.services.canvas_service.CanvasService",
+                return_value=MagicMock(name="canvas_service"),
+            ),
+            patch(
+                "app.services.background_task_manager.BackgroundTaskManager",
+                return_value=MagicMock(name="task_manager"),
+            ),
             patch(
                 "app.dependencies.get_graphiti_temporal_client",
                 return_value=MagicMock(name="graphiti_client"),
@@ -63,9 +74,15 @@ class TestReviewSingletonDICompleteness:
             ),
         ):
             from app.services.review_service import get_review_service
+
             await get_review_service()
 
-        expected_keys = {"canvas_service", "task_manager", "graphiti_client", "fsrs_manager"}
+        expected_keys = {
+            "canvas_service",
+            "task_manager",
+            "graphiti_client",
+            "fsrs_manager",
+        }
         actual_keys = set(captured_kwargs.keys())
         assert expected_keys == actual_keys, (
             f"ReviewService constructor args mismatch.\n"
@@ -91,7 +108,10 @@ class TestReviewSingletonDICompleteness:
         with (
             patch("app.services.canvas_service.CanvasService", SpyCanvasService),
             patch.object(rs_mod, "create_fsrs_manager", return_value=None),
-            patch("app.services.background_task_manager.BackgroundTaskManager", return_value=MagicMock()),
+            patch(
+                "app.services.background_task_manager.BackgroundTaskManager",
+                return_value=MagicMock(),
+            ),
             patch.object(rs_mod, "ReviewService", MagicMock()),
             patch(
                 "app.dependencies.get_graphiti_temporal_client",
@@ -104,6 +124,7 @@ class TestReviewSingletonDICompleteness:
             ),
         ):
             from app.services.review_service import get_review_service
+
             await get_review_service()
 
         assert "memory_client" in canvas_init_kwargs, (
@@ -118,7 +139,9 @@ class TestReviewSingletonDICompleteness:
         mock_canvas = MagicMock()
         mock_task_mgr = MagicMock()
 
-        with patch("app.services.review_service.create_fsrs_manager", return_value=None):
+        with patch(
+            "app.services.review_service.create_fsrs_manager", return_value=None
+        ):
             svc = ReviewService(
                 canvas_service=mock_canvas,
                 task_manager=mock_task_mgr,
@@ -133,6 +156,7 @@ class TestReviewSingletonDICompleteness:
     def test_review_service_dep_not_used_in_review_endpoints(self):
         """AC-4: ReviewServiceDep should not appear in review.py endpoint signatures."""
         import inspect
+
         import app.api.v1.endpoints.review as review_mod
 
         source = inspect.getsource(review_mod)
@@ -155,6 +179,7 @@ class TestReviewSingletonDICompleteness:
             ),
         ):
             from app.services.review_service import get_review_service
+
             svc1 = await get_review_service()
             svc2 = await get_review_service()
 

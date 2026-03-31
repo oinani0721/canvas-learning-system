@@ -197,7 +197,9 @@ class SkillRegistry:
                 # yaml.safe_load failed — fallback to regex key-value extraction
                 fm_kvs = dict(_YAML_KV_PATTERN.findall(fm_block))
                 name = fm_kvs.get("name", "").strip().strip('"').strip("'")
-                description = fm_kvs.get("description", "").strip().strip('"').strip("'")
+                description = (
+                    fm_kvs.get("description", "").strip().strip('"').strip("'")
+                )
                 icon = fm_kvs.get("icon", icon).strip().strip('"').strip("'")
 
         # Fallback: extract name from first # heading

@@ -33,7 +33,9 @@ class MasteryStore:
         """
         self._client = neo4j_client
 
-    async def get_concept(self, concept_id: str, group_id: str = DEFAULT_GROUP_ID) -> Optional[ConceptState]:
+    async def get_concept(
+        self, concept_id: str, group_id: str = DEFAULT_GROUP_ID
+    ) -> Optional[ConceptState]:
         """
         Load a single concept's mastery state from Neo4j.
 
@@ -54,14 +56,20 @@ class MasteryStore:
                 group_id=group_id,
             )
             if records and len(records) > 0:
-                props = records[0]["props"] if isinstance(records[0], dict) else records[0].data()["props"]
+                props = (
+                    records[0]["props"]
+                    if isinstance(records[0], dict)
+                    else records[0].data()["props"]
+                )
                 return ConceptState.from_neo4j_props(props)
             return None
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to get concept {concept_id}: {e}")
             return None
 
-    async def save_concept(self, concept: ConceptState, group_id: str = DEFAULT_GROUP_ID) -> None:
+    async def save_concept(
+        self, concept: ConceptState, group_id: str = DEFAULT_GROUP_ID
+    ) -> None:
         """
         Save (upsert) concept mastery state to Neo4j EntityNode.
 
@@ -87,7 +95,9 @@ class MasteryStore:
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.error(f"Failed to save concept {concept.concept_id}: {e}")
 
-    async def get_all_concepts(self, group_id: str = DEFAULT_GROUP_ID) -> list[ConceptState]:
+    async def get_all_concepts(
+        self, group_id: str = DEFAULT_GROUP_ID
+    ) -> list[ConceptState]:
         """
         Load all concepts with mastery data for a group.
 
@@ -104,7 +114,11 @@ class MasteryStore:
             records = await self._client.run_query(query, group_id=group_id)
             results = []
             for record in records or []:
-                props = record["props"] if isinstance(record, dict) else record.data()["props"]
+                props = (
+                    record["props"]
+                    if isinstance(record, dict)
+                    else record.data()["props"]
+                )
                 results.append(ConceptState.from_neo4j_props(props))
             return results
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
@@ -229,7 +243,11 @@ class MasteryStore:
                 name=name,
             )
             if records and len(records) > 0:
-                props = records[0]["props"] if isinstance(records[0], dict) else records[0].data()["props"]
+                props = (
+                    records[0]["props"]
+                    if isinstance(records[0], dict)
+                    else records[0].data()["props"]
+                )
                 return ConceptState.from_neo4j_props(props)
             return None
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
@@ -269,7 +287,9 @@ class MasteryStore:
         """
         try:
             # Try with and without .canvas extension
-            board_id_with_ext = board_id if board_id.endswith(".canvas") else board_id + ".canvas"
+            board_id_with_ext = (
+                board_id if board_id.endswith(".canvas") else board_id + ".canvas"
+            )
             board_id_without_ext = board_id.removesuffix(".canvas")
 
             records = await self._client.run_query(
@@ -281,7 +301,11 @@ class MasteryStore:
 
             results: list[ConceptState] = []
             for record in records or []:
-                props = record["props"] if isinstance(record, dict) else record.data()["props"]
+                props = (
+                    record["props"]
+                    if isinstance(record, dict)
+                    else record.data()["props"]
+                )
                 results.append(ConceptState.from_neo4j_props(props))
 
             if results:
@@ -358,7 +382,11 @@ class MasteryStore:
 
             existing_records = []
             if results:
-                raw = results[0]["records_json"] if isinstance(results[0], dict) else results[0].data()["records_json"]
+                raw = (
+                    results[0]["records_json"]
+                    if isinstance(results[0], dict)
+                    else results[0].data()["records_json"]
+                )
                 if raw:
                     existing_records = json.loads(raw)
 
@@ -388,7 +416,14 @@ class MasteryStore:
                 f"Saved calibration record for {record.node_id}: "
                 f"quadrant={record.quadrant.value} is_dangerous={record.is_dangerous}"
             )
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError, json.JSONDecodeError, TypeError, ValueError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            asyncio.TimeoutError,
+            json.JSONDecodeError,
+            TypeError,
+            ValueError,
+        ) as e:
             logger.error(f"Failed to save calibration record for {record.node_id}: {e}")
 
     async def get_calibration_records(
@@ -420,7 +455,11 @@ class MasteryStore:
         if not results:
             return []
 
-        records_json = results[0]["records_json"] if isinstance(results[0], dict) else results[0].data()["records_json"]
+        records_json = (
+            results[0]["records_json"]
+            if isinstance(results[0], dict)
+            else results[0].data()["records_json"]
+        )
         if not records_json:
             return []
 

@@ -13,26 +13,28 @@ Models for:
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 # =============================================================================
 # Enums
 # =============================================================================
 
+
 class MetadataSource(str, Enum):
     """Source of metadata resolution."""
-    CONFIG = "config"       # From subject_mapping.yaml
-    INFERRED = "inferred"   # Auto-inferred from path
-    DEFAULT = "default"     # Fallback to defaults
-    MANUAL = "manual"       # Manually specified in request
+
+    CONFIG = "config"  # From subject_mapping.yaml
+    INFERRED = "inferred"  # Auto-inferred from path
+    DEFAULT = "default"  # Fallback to defaults
+    MANUAL = "manual"  # Manually specified in request
 
 
 # =============================================================================
 # Canvas Metadata Models
 # =============================================================================
+
 
 class CanvasMetadataResponse(BaseModel):
     """
@@ -42,14 +44,14 @@ class CanvasMetadataResponse(BaseModel):
 
     [Source: Design doc - Phase 1.1]
     """
+
     canvas_path: str = Field(..., description="Canvas file path")
     subject: str = Field(..., description="Subject identifier (e.g., 'math54')")
     category: str = Field(..., description="Category identifier (e.g., 'math')")
-    group_id: str = Field(..., description="Graphiti group_id (e.g., 'math54:离散数学')")
-    source: MetadataSource = Field(
-        ...,
-        description="How the metadata was resolved"
+    group_id: str = Field(
+        ..., description="Graphiti group_id (e.g., 'math54:离散数学')"
     )
+    source: MetadataSource = Field(..., description="How the metadata was resolved")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -58,7 +60,7 @@ class CanvasMetadataResponse(BaseModel):
                 "subject": "math54",
                 "category": "math",
                 "group_id": "math54:离散数学",
-                "source": "config"
+                "source": "config",
             }
         }
     )
@@ -68,6 +70,7 @@ class CanvasMetadataResponse(BaseModel):
 # LanceDB Index Status Models
 # =============================================================================
 
+
 class CanvasIndexStatusResponse(BaseModel):
     """
     LanceDB index status response model.
@@ -76,25 +79,15 @@ class CanvasIndexStatusResponse(BaseModel):
 
     [Source: Design doc - Phase 1.2]
     """
+
     canvas_path: str = Field(..., description="Canvas file path")
     indexed: bool = Field(..., description="Whether the Canvas is indexed")
-    node_count: int = Field(
-        default=0,
-        description="Number of indexed nodes",
-        ge=0
-    )
+    node_count: int = Field(default=0, description="Number of indexed nodes", ge=0)
     last_indexed: Optional[datetime] = Field(
-        None,
-        description="Last indexing timestamp"
+        None, description="Last indexing timestamp"
     )
-    subject: Optional[str] = Field(
-        None,
-        description="Subject used during indexing"
-    )
-    table_name: str = Field(
-        default="canvas_nodes",
-        description="LanceDB table name"
-    )
+    subject: Optional[str] = Field(None, description="Subject used during indexing")
+    table_name: str = Field(default="canvas_nodes", description="LanceDB table name")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -104,7 +97,7 @@ class CanvasIndexStatusResponse(BaseModel):
                 "node_count": 42,
                 "last_indexed": "2026-02-04T12:30:00",
                 "subject": "math54",
-                "table_name": "canvas_nodes"
+                "table_name": "canvas_nodes",
             }
         }
     )
@@ -118,18 +111,12 @@ class CanvasIndexRequest(BaseModel):
 
     [Source: Design doc - Phase 1.3]
     """
+
     canvas_path: str = Field(..., description="Canvas file path")
-    subject: Optional[str] = Field(
-        None,
-        description="Override subject (optional)"
-    )
-    category: Optional[str] = Field(
-        None,
-        description="Override category (optional)"
-    )
+    subject: Optional[str] = Field(None, description="Override subject (optional)")
+    category: Optional[str] = Field(None, description="Override category (optional)")
     force: bool = Field(
-        default=False,
-        description="Force re-index even if already indexed"
+        default=False, description="Force re-index even if already indexed"
     )
 
     model_config = ConfigDict(
@@ -138,7 +125,7 @@ class CanvasIndexRequest(BaseModel):
                 "canvas_path": "Math 54/离散数学.canvas",
                 "subject": "math54",
                 "category": "math",
-                "force": False
+                "force": False,
             }
         }
     )
@@ -150,24 +137,18 @@ class CanvasIndexResponse(BaseModel):
 
     Result of a Canvas indexing operation.
     """
+
     canvas_path: str = Field(..., description="Canvas file path")
     success: bool = Field(..., description="Whether indexing succeeded")
-    node_count: int = Field(
-        default=0,
-        description="Number of nodes indexed",
-        ge=0
-    )
+    node_count: int = Field(default=0, description="Number of nodes indexed", ge=0)
     subject: str = Field(..., description="Subject used for indexing")
     category: str = Field(..., description="Category used for indexing")
     group_id: str = Field(..., description="Group ID used for indexing")
     duration_ms: float = Field(
-        default=0.0,
-        description="Indexing duration in milliseconds",
-        ge=0
+        default=0.0, description="Indexing duration in milliseconds", ge=0
     )
     message: Optional[str] = Field(
-        None,
-        description="Additional message or error details"
+        None, description="Additional message or error details"
     )
 
     model_config = ConfigDict(
@@ -180,7 +161,7 @@ class CanvasIndexResponse(BaseModel):
                 "category": "math",
                 "group_id": "math54:离散数学",
                 "duration_ms": 1250.5,
-                "message": None
+                "message": None,
             }
         }
     )
@@ -190,15 +171,16 @@ class CanvasIndexResponse(BaseModel):
 # Subject Mapping Configuration Models
 # =============================================================================
 
+
 class SubjectMappingRule(BaseModel):
     """
     Single subject mapping rule.
 
     Maps a folder pattern to subject and category.
     """
+
     pattern: str = Field(
-        ...,
-        description="Folder pattern (glob-style, e.g., 'Math 54/**')"
+        ..., description="Folder pattern (glob-style, e.g., 'Math 54/**')"
     )
     subject: str = Field(..., description="Subject identifier")
     category: str = Field(..., description="Category identifier")
@@ -208,7 +190,7 @@ class SubjectMappingRule(BaseModel):
             "example": {
                 "pattern": "Math 54/**",
                 "subject": "math54",
-                "category": "math"
+                "category": "math",
             }
         }
     )
@@ -220,18 +202,15 @@ class CategoryRule(BaseModel):
 
     Maps patterns to a category when no explicit mapping exists.
     """
+
     category: str = Field(..., description="Category identifier")
     patterns: List[str] = Field(
-        ...,
-        description="List of patterns that map to this category"
+        ..., description="List of patterns that map to this category"
     )
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {
-                "category": "math",
-                "patterns": ["math*", "数学*", "线性代数*"]
-            }
+            "example": {"category": "math", "patterns": ["math*", "数学*", "线性代数*"]}
         }
     )
 
@@ -244,17 +223,17 @@ class SubjectMappingConfig(BaseModel):
 
     [Source: Design doc - Phase 2.1]
     """
+
     mappings: List[SubjectMappingRule] = Field(
-        default_factory=list,
-        description="Explicit folder → subject/category mappings"
+        default_factory=list, description="Explicit folder → subject/category mappings"
     )
     category_rules: Dict[str, List[str]] = Field(
         default_factory=dict,
-        description="Category inference rules (category → patterns)"
+        description="Category inference rules (category → patterns)",
     )
     defaults: Dict[str, str] = Field(
         default_factory=lambda: {"subject": "general", "category": "general"},
-        description="Default subject/category when no rule matches"
+        description="Default subject/category when no rule matches",
     )
 
     model_config = ConfigDict(
@@ -262,16 +241,17 @@ class SubjectMappingConfig(BaseModel):
             "example": {
                 "mappings": [
                     {"pattern": "Math 54/**", "subject": "math54", "category": "math"},
-                    {"pattern": "Physics 7A/**", "subject": "physics7a", "category": "physics"}
+                    {
+                        "pattern": "Physics 7A/**",
+                        "subject": "physics7a",
+                        "category": "physics",
+                    },
                 ],
                 "category_rules": {
                     "math": ["math*", "数学*"],
-                    "physics": ["physics*", "物理*"]
+                    "physics": ["physics*", "物理*"],
                 },
-                "defaults": {
-                    "subject": "general",
-                    "category": "general"
-                }
+                "defaults": {"subject": "general", "category": "general"},
             }
         }
     )
@@ -283,6 +263,7 @@ class SubjectInfo(BaseModel):
 
     Internal model returned by SubjectResolver.
     """
+
     subject: str
     category: str
     group_id: str
@@ -294,7 +275,7 @@ class SubjectInfo(BaseModel):
                 "subject": "math54",
                 "category": "math",
                 "group_id": "math54:离散数学",
-                "source": "config"
+                "source": "config",
             }
         }
     )
@@ -304,21 +285,22 @@ class SubjectInfo(BaseModel):
 # Batch Operations
 # =============================================================================
 
+
 class BatchIndexRequest(BaseModel):
     """
     Batch Canvas index request.
 
     Index multiple Canvas files at once.
     """
+
     canvas_paths: List[str] = Field(
         ...,
         description="List of Canvas file paths to index",
         min_length=1,
-        max_length=50
+        max_length=50,
     )
     force: bool = Field(
-        default=False,
-        description="Force re-index even if already indexed"
+        default=False, description="Force re-index even if already indexed"
     )
 
 
@@ -326,22 +308,17 @@ class BatchIndexResponse(BaseModel):
     """
     Batch Canvas index response.
     """
+
     total: int = Field(..., description="Total Canvas files requested")
     success_count: int = Field(
-        default=0,
-        description="Number of successfully indexed files"
+        default=0, description="Number of successfully indexed files"
     )
-    failed_count: int = Field(
-        default=0,
-        description="Number of failed files"
-    )
+    failed_count: int = Field(default=0, description="Number of failed files")
     results: List[CanvasIndexResponse] = Field(
-        default_factory=list,
-        description="Individual results for each Canvas"
+        default_factory=list, description="Individual results for each Canvas"
     )
     total_duration_ms: float = Field(
-        default=0.0,
-        description="Total operation duration in milliseconds"
+        default=0.0, description="Total operation duration in milliseconds"
     )
 
 

@@ -35,7 +35,7 @@ def _generate_mock_node(text: str, color: str = "5") -> NodeRead:
         y=100,
         width=300,
         height=100,
-        color=color
+        color=color,
     )
 
 
@@ -44,9 +44,7 @@ def _generate_mock_node(text: str, color: str = "5") -> NodeRead:
     response_model=DecomposeResponse,
     summary="基础概念拆解",
     operation_id="decompose_basic",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def decompose_basic(request: DecomposeRequest) -> DecomposeResponse:
     """
@@ -60,17 +58,12 @@ async def decompose_basic(request: DecomposeRequest) -> DecomposeResponse:
     questions = [
         f"关于'{request.node_id}'的基础问题1：这个概念的定义是什么？",
         f"关于'{request.node_id}'的基础问题2：它有哪些核心组成部分？",
-        f"关于'{request.node_id}'的基础问题3：它的应用场景是什么？"
+        f"关于'{request.node_id}'的基础问题3：它的应用场景是什么？",
     ]
 
-    created_nodes = [
-        _generate_mock_node(q, "1") for q in questions
-    ]
+    created_nodes = [_generate_mock_node(q, "1") for q in questions]
 
-    return DecomposeResponse(
-        questions=questions,
-        created_nodes=created_nodes
-    )
+    return DecomposeResponse(questions=questions, created_nodes=created_nodes)
 
 
 @router.post(
@@ -78,9 +71,7 @@ async def decompose_basic(request: DecomposeRequest) -> DecomposeResponse:
     response_model=DecomposeResponse,
     summary="深度概念拆解",
     operation_id="decompose_deep",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def decompose_deep(request: DecomposeRequest) -> DecomposeResponse:
     """
@@ -93,17 +84,12 @@ async def decompose_deep(request: DecomposeRequest) -> DecomposeResponse:
     questions = [
         f"深度问题1：为什么'{request.node_id}'是这样设计的？",
         "深度问题2：如果改变条件会发生什么？",
-        "深度问题3：这个概念与其他相关概念有什么联系？"
+        "深度问题3：这个概念与其他相关概念有什么联系？",
     ]
 
-    created_nodes = [
-        _generate_mock_node(q, "6") for q in questions
-    ]
+    created_nodes = [_generate_mock_node(q, "6") for q in questions]
 
-    return DecomposeResponse(
-        questions=questions,
-        created_nodes=created_nodes
-    )
+    return DecomposeResponse(questions=questions, created_nodes=created_nodes)
 
 
 @router.post(
@@ -111,9 +97,7 @@ async def decompose_deep(request: DecomposeRequest) -> DecomposeResponse:
     response_model=ScoreResponse,
     summary="评分用户理解",
     operation_id="score_understanding",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def score_understanding(request: ScoreRequest) -> ScoreResponse:
     """
@@ -140,15 +124,17 @@ async def score_understanding(request: ScoreRequest) -> ScoreResponse:
         else:
             new_color = "4"  # Red
 
-        scores.append(NodeScore(
-            node_id=node_id,
-            accuracy=accuracy,
-            imagery=imagery,
-            completeness=completeness,
-            originality=originality,
-            total=total,
-            new_color=new_color
-        ))
+        scores.append(
+            NodeScore(
+                node_id=node_id,
+                accuracy=accuracy,
+                imagery=imagery,
+                completeness=completeness,
+                originality=originality,
+                total=total,
+                new_color=new_color,
+            )
+        )
 
     return ScoreResponse(scores=scores)
 
@@ -158,9 +144,7 @@ async def score_understanding(request: ScoreRequest) -> ScoreResponse:
     response_model=ExplainResponse,
     summary="口语化解释",
     operation_id="explain_oral",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def explain_oral(request: ExplainRequest) -> ExplainResponse:
     """
@@ -176,8 +160,7 @@ async def explain_oral(request: ExplainRequest) -> ExplainResponse:
     )
 
     return ExplainResponse(
-        explanation=explanation,
-        created_node_id=uuid.uuid4().hex[:8]
+        explanation=explanation, created_node_id=uuid.uuid4().hex[:8]
     )
 
 
@@ -186,9 +169,7 @@ async def explain_oral(request: ExplainRequest) -> ExplainResponse:
     response_model=ExplainResponse,
     summary="澄清路径生成",
     operation_id="explain_clarification",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def explain_clarification(request: ExplainRequest) -> ExplainResponse:
     """
@@ -199,14 +180,11 @@ async def explain_clarification(request: ExplainRequest) -> ExplainResponse:
     Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1clarification
     """
     explanation = (
-        f"# 澄清路径：{request.node_id}\n\n"
-        "## 第一步：理解基础概念\n\n"
-        "...（澄清内容）"
+        f"# 澄清路径：{request.node_id}\n\n## 第一步：理解基础概念\n\n...（澄清内容）"
     )
 
     return ExplainResponse(
-        explanation=explanation,
-        created_node_id=uuid.uuid4().hex[:8]
+        explanation=explanation, created_node_id=uuid.uuid4().hex[:8]
     )
 
 
@@ -215,9 +193,7 @@ async def explain_clarification(request: ExplainRequest) -> ExplainResponse:
     response_model=ExplainResponse,
     summary="对比表格生成",
     operation_id="explain_comparison",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def explain_comparison(request: ExplainRequest) -> ExplainResponse:
     """
@@ -235,8 +211,7 @@ async def explain_comparison(request: ExplainRequest) -> ExplainResponse:
     )
 
     return ExplainResponse(
-        explanation=explanation,
-        created_node_id=uuid.uuid4().hex[:8]
+        explanation=explanation, created_node_id=uuid.uuid4().hex[:8]
     )
 
 
@@ -245,9 +220,7 @@ async def explain_comparison(request: ExplainRequest) -> ExplainResponse:
     response_model=ExplainResponse,
     summary="记忆锚点生成",
     operation_id="explain_memory",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def explain_memory(request: ExplainRequest) -> ExplainResponse:
     """
@@ -264,8 +237,7 @@ async def explain_memory(request: ExplainRequest) -> ExplainResponse:
     )
 
     return ExplainResponse(
-        explanation=explanation,
-        created_node_id=uuid.uuid4().hex[:8]
+        explanation=explanation, created_node_id=uuid.uuid4().hex[:8]
     )
 
 
@@ -274,9 +246,7 @@ async def explain_memory(request: ExplainRequest) -> ExplainResponse:
     response_model=ExplainResponse,
     summary="四层次解释",
     operation_id="explain_four_level",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def explain_four_level(request: ExplainRequest) -> ExplainResponse:
     """
@@ -295,8 +265,7 @@ async def explain_four_level(request: ExplainRequest) -> ExplainResponse:
     )
 
     return ExplainResponse(
-        explanation=explanation,
-        created_node_id=uuid.uuid4().hex[:8]
+        explanation=explanation, created_node_id=uuid.uuid4().hex[:8]
     )
 
 
@@ -305,9 +274,7 @@ async def explain_four_level(request: ExplainRequest) -> ExplainResponse:
     response_model=ExplainResponse,
     summary="例题教学",
     operation_id="explain_example",
-    responses={
-        400: {"model": ErrorResponse, "description": "验证错误"}
-    }
+    responses={400: {"model": ErrorResponse, "description": "验证错误"}},
 )
 async def explain_example(request: ExplainRequest) -> ExplainResponse:
     """
@@ -326,6 +293,5 @@ async def explain_example(request: ExplainRequest) -> ExplainResponse:
     )
 
     return ExplainResponse(
-        explanation=explanation,
-        created_node_id=uuid.uuid4().hex[:8]
+        explanation=explanation, created_node_id=uuid.uuid4().hex[:8]
     )

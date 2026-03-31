@@ -52,6 +52,7 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
         """测试清理"""
         self.activity_capture.stop_capture()
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def _create_test_config(self) -> str:
@@ -59,48 +60,46 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
         config_path = os.path.join(self.temp_dir, "test_config.yaml")
 
         test_config = {
-            'capture': {
-                'enabled': True,
-                'capture_frequency_ms': 50,
-                'buffer_size_activities': 5,
-                'auto_flush_interval_seconds': 0.5,
-                'capture_scope': {
-                    'node_interactions': True,
-                    'text_inputs': True,
-                    'agent_calls': True,
-                    'scoring_results': True,
-                    'canvas_navigation': True,
-                    'time_spent': True
-                }
-            },
-            'analysis': {
-                'learning_patterns': {
-                    'detection_enabled': True,
-                    'confidence_threshold': 0.5,
-                    'min_data_points_patterns': 3
-                }
-            },
-            'memory_integration': {
-                'semantic_memory': {'enabled': True},
-                'episodic_memory': {'enabled': True},
-                'working_memory': {'enabled': True}
-            },
-            'privacy_security': {
-                'data_encryption': 'AES-256',
-                'anonymization': {'enabled': False},  # 测试时禁用以便验证
-                'access_control': {
-                    'user_access_only': True,
-                    'system_access_logging': True
+            "capture": {
+                "enabled": True,
+                "capture_frequency_ms": 50,
+                "buffer_size_activities": 5,
+                "auto_flush_interval_seconds": 0.5,
+                "capture_scope": {
+                    "node_interactions": True,
+                    "text_inputs": True,
+                    "agent_calls": True,
+                    "scoring_results": True,
+                    "canvas_navigation": True,
+                    "time_spent": True,
                 },
-                'user_controls': {
-                    'data_export': True,
-                    'selective_deletion': True
+            },
+            "analysis": {
+                "learning_patterns": {
+                    "detection_enabled": True,
+                    "confidence_threshold": 0.5,
+                    "min_data_points_patterns": 3,
                 }
-            }
+            },
+            "memory_integration": {
+                "semantic_memory": {"enabled": True},
+                "episodic_memory": {"enabled": True},
+                "working_memory": {"enabled": True},
+            },
+            "privacy_security": {
+                "data_encryption": "AES-256",
+                "anonymization": {"enabled": False},  # 测试时禁用以便验证
+                "access_control": {
+                    "user_access_only": True,
+                    "system_access_logging": True,
+                },
+                "user_controls": {"data_export": True, "selective_deletion": True},
+            },
         }
 
         import yaml
-        with open(config_path, 'w') as f:
+
+        with open(config_path, "w") as f:
             yaml.dump(test_config, f)
 
         return config_path
@@ -115,8 +114,7 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
 
         # 2. 开始记忆会话
         session_id = self.memory_integration.start_memory_session(
-            canvas_path="test/discrete_math.canvas",
-            user_id="test_user_001"
+            canvas_path="test/discrete_math.canvas", user_id="test_user_001"
         )
         print(f"[OK] 记忆会话已开始: {session_id}")
 
@@ -138,20 +136,20 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
         session_data = self.memory_integration.get_session_data(session_id)
         pattern_result = self.pattern_analyzer.analyze_user_patterns(
             user_id="test_user_001",
-            activities=session_data.get('learning_activities', []),
-            time_range_days=1
+            activities=session_data.get("learning_activities", []),
+            time_range_days=1,
         )
         print(f"[OK] 学习模式分析完成，置信度: {pattern_result.overall_confidence:.2f}")
 
         # 7. 集成记忆系统
         memory_result = self.memory_system.integrate_with_memory_systems(session_data)
-        integration_score = memory_result.get('integration_quality_score', 0)
+        integration_score = memory_result.get("integration_quality_score", 0)
         print(f"[OK] 记忆系统集成完成，质量得分: {integration_score:.2f}")
 
         # 8. 验证结果
         self.assertGreater(pattern_result.overall_confidence, 0)
         self.assertGreater(integration_score, 0)
-        self.assertGreater(len(memory_result.get('semantic_memory_entries', [])), 0)
+        self.assertGreater(len(memory_result.get("semantic_memory_entries", [])), 0)
 
         print("[OK] 完整学习工作流程测试通过")
 
@@ -160,67 +158,75 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
         activities = []
 
         # 活动1: 节点交互
-        activities.append({
-            "activity_id": "activity_001",
-            "activity_type": "node_interaction",
-            "timestamp": datetime.now().isoformat(),
-            "operation_details": {
-                "node_id": "node_concept_001",
-                "interaction_type": "click",
-                "reading_pattern": "sequential"
+        activities.append(
+            {
+                "activity_id": "activity_001",
+                "activity_type": "node_interaction",
+                "timestamp": datetime.now().isoformat(),
+                "operation_details": {
+                    "node_id": "node_concept_001",
+                    "interaction_type": "click",
+                    "reading_pattern": "sequential",
+                },
             }
-        })
+        )
 
         # 活动2: 理解输入
-        activities.append({
-            "activity_id": "activity_002",
-            "activity_type": "understanding_input",
-            "timestamp": datetime.now().isoformat(),
-            "operation_details": {
-                "node_id": "node_concept_001",
-                "input_text": "逆否命题是原命题的逻辑等价形式，即如果P则Q的逆否命题是如果非Q则非P",
-                "input_length_chars": 67
-            },
-            "cognitive_indicators": {
-                "confidence_level": 0.75,
-                "conceptual_clarity": 0.80,
-                "example_usage_ability": 0.60,
-                "critical_thinking_engagement": 0.70
+        activities.append(
+            {
+                "activity_id": "activity_002",
+                "activity_type": "understanding_input",
+                "timestamp": datetime.now().isoformat(),
+                "operation_details": {
+                    "node_id": "node_concept_001",
+                    "input_text": "逆否命题是原命题的逻辑等价形式，即如果P则Q的逆否命题是如果非Q则非P",
+                    "input_length_chars": 67,
+                },
+                "cognitive_indicators": {
+                    "confidence_level": 0.75,
+                    "conceptual_clarity": 0.80,
+                    "example_usage_ability": 0.60,
+                    "critical_thinking_engagement": 0.70,
+                },
             }
-        })
+        )
 
         # 活动3: Agent交互
-        activities.append({
-            "activity_id": "activity_003",
-            "activity_type": "agent_interaction",
-            "timestamp": datetime.now().isoformat(),
-            "operation_details": {
-                "agent_called": "basic-decomposition",
-                "request_context": "需要理解逆否命题的概念",
-                "response_quality": "helpful",
-                "time_spent_seconds": 120
+        activities.append(
+            {
+                "activity_id": "activity_003",
+                "activity_type": "agent_interaction",
+                "timestamp": datetime.now().isoformat(),
+                "operation_details": {
+                    "agent_called": "basic-decomposition",
+                    "request_context": "需要理解逆否命题的概念",
+                    "response_quality": "helpful",
+                    "time_spent_seconds": 120,
+                },
             }
-        })
+        )
 
         # 活动4: 评分结果
-        activities.append({
-            "activity_id": "activity_004",
-            "activity_type": "scoring_evaluation",
-            "timestamp": datetime.now().isoformat(),
-            "operation_details": {
-                "scoring_agent": "scoring-agent",
-                "yellow_node_id": "yellow_understanding_001",
-                "scores": {
-                    "accuracy": 20,
-                    "imagery": 18,
-                    "completeness": 16,
-                    "originality": 19
+        activities.append(
+            {
+                "activity_id": "activity_004",
+                "activity_type": "scoring_evaluation",
+                "timestamp": datetime.now().isoformat(),
+                "operation_details": {
+                    "scoring_agent": "scoring-agent",
+                    "yellow_node_id": "yellow_understanding_001",
+                    "scores": {
+                        "accuracy": 20,
+                        "imagery": 18,
+                        "completeness": 16,
+                        "originality": 19,
+                    },
+                    "total_score": 73,
+                    "color_transition": "red_to_purple",
+                    "recommendations": ["clarification-path", "comparison-table"],
                 },
-                "total_score": 73,
-                "color_transition": "red_to_purple",
-                "recommendations": ["clarification-path", "comparison-table"]
             }
-        })
+        )
 
         return activities
 
@@ -233,13 +239,12 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
         # 1. 设置隐私设置
         privacy_settings = {
             "privacy_level": "enhanced",
-            "user_controls": {
-                "data_export": True,
-                "selective_deletion": True
-            }
+            "user_controls": {"data_export": True, "selective_deletion": True},
         }
 
-        success = self.privacy_manager.manage_privacy_settings(user_id, privacy_settings)
+        success = self.privacy_manager.manage_privacy_settings(
+            user_id, privacy_settings
+        )
         self.assertTrue(success)
         print("✓ 隐私设置配置成功")
 
@@ -253,9 +258,7 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
 
         # 3. 测试访问权限检查
         access_granted = self.privacy_manager.check_access_permission(
-            user_id=user_id,
-            resource_type="user_data",
-            action="read"
+            user_id=user_id, resource_type="user_data", action="read"
         )
         self.assertTrue(access_granted)
         print("✓ 访问权限检查正常")
@@ -283,8 +286,8 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
             "learning_trajectory_analysis": {
                 "session_objective": "掌握逆否命题概念",
                 "starting_knowledge_level": "novice",
-                "ending_knowledge_level": "intermediate"
-            }
+                "ending_knowledge_level": "intermediate",
+            },
         }
 
         # 集成记忆系统
@@ -329,31 +332,29 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
                 "operation_details": {
                     "input_text": "通过图示可以更清楚地理解概念之间的关系"
                 },
-                "cognitive_indicators": {"confidence_level": 0.85}
+                "cognitive_indicators": {"confidence_level": 0.85},
             },
             # 分析型学习活动
             {
                 "activity_type": "agent_interaction",
                 "operation_details": {
                     "agent_called": "clarification-path",
-                    "request_context": "需要逻辑分析步骤"
-                }
+                    "request_context": "需要逻辑分析步骤",
+                },
             },
             # 序列型学习活动
             {
                 "activity_type": "scoring_evaluation",
                 "operation_details": {
                     "total_score": 78,
-                    "color_transition": "red_to_purple"
-                }
-            }
+                    "color_transition": "red_to_purple",
+                },
+            },
         ]
 
         # 分析学习模式
         pattern_result = self.pattern_analyzer.analyze_user_patterns(
-            user_id=user_id,
-            activities=activities,
-            time_range_days=1
+            user_id=user_id, activities=activities, time_range_days=1
         )
 
         # 验证学习风格分析
@@ -383,8 +384,7 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
         start_time = time.time()
 
         session_id = self.memory_integration.start_memory_session(
-            canvas_path="test/performance.canvas",
-            user_id="performance_test_user"
+            canvas_path="test/performance.canvas", user_id="performance_test_user"
         )
 
         # 生成大量测试活动
@@ -392,17 +392,21 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
         for i in range(batch_size):
             activity = {
                 "activity_id": f"perf_activity_{i:03d}",
-                "activity_type": "understanding_input" if i % 2 == 0 else "node_interaction",
+                "activity_type": "understanding_input"
+                if i % 2 == 0
+                else "node_interaction",
                 "timestamp": datetime.now().isoformat(),
                 "operation_details": {
                     "input_text": f"测试活动 {i} 的内容" if i % 2 == 0 else "",
-                    "node_id": f"node_{i:03d}" if i % 2 != 0 else ""
-                }
+                    "node_id": f"node_{i:03d}" if i % 2 != 0 else "",
+                },
             }
 
-            success = self.memory_integration.capture_learning_activity(session_id, activity)
+            success = self.memory_integration.capture_learning_activity(
+                session_id, activity
+            )
             if i % 20 == 0:
-                print(f"  已处理 {i+1}/{batch_size} 个活动")
+                print(f"  已处理 {i + 1}/{batch_size} 个活动")
 
         self.memory_integration.end_memory_session(session_id)
 
@@ -438,9 +442,7 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
 
         # 测试空数据处理
         pattern_result = self.pattern_analyzer.analyze_user_patterns(
-            user_id="empty_test_user",
-            activities=[],
-            time_range_days=1
+            user_id="empty_test_user", activities=[], time_range_days=1
         )
         self.assertEqual(pattern_result.overall_confidence, 0.0)
         print("✓ 空数据处理正常")
@@ -448,6 +450,6 @@ class TestRealtimeMemoryIntegration(unittest.TestCase):
         print("✓ 错误处理测试通过")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 运行测试
     unittest.main(verbosity=2)

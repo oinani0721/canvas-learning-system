@@ -30,10 +30,14 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
 
         # 创建测试Canvas文件
         self.test_canvas_path = self.temp_dir / "test_math_canvas.canvas"
-        with open(Path(__file__).parent / "fixtures" / "sample_canvas_data.json", 'r', encoding='utf-8') as f:
+        with open(
+            Path(__file__).parent / "fixtures" / "sample_canvas_data.json",
+            "r",
+            encoding="utf-8",
+        ) as f:
             canvas_data = json.load(f)
 
-        with open(self.test_canvas_path, 'w', encoding='utf-8') as f:
+        with open(self.test_canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False)
 
         # 创建测试配置
@@ -43,17 +47,19 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
                 "uri": "bolt://localhost:7687",
                 "username": "neo4j",
                 "password": "password",
-                "database": "test_canvas_learning"
+                "database": "test_canvas_learning",
             }
         }
 
-        with open(self.config_path, 'w', encoding='utf-8') as f:
+        with open(self.config_path, "w", encoding="utf-8") as f:
             import yaml
+
             yaml.dump(config_data, f, default_flow_style=False)
 
     def tearDown(self):
         """测试后清理"""
         import shutil
+
         shutil.rmtree(self.temp_dir)
 
     @pytest.mark.asyncio
@@ -61,17 +67,21 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
         """测试完整的学习工作流程"""
         # 1. 概念提取
         extractor = ConceptExtractor()
-        extraction_result = extractor.extract_concepts_from_canvas(str(self.test_canvas_path))
+        extraction_result = extractor.extract_concepts_from_canvas(
+            str(self.test_canvas_path)
+        )
 
         self.assertGreater(len(extraction_result["concepts"]), 0)
         self.assertGreater(len(extraction_result["relationships"]), 0)
 
         # 2. 知识图谱记录（模拟）
-        with patch('graph_commands.GraphitiContextManager') as mock_context:
+        with patch("graph_commands.GraphitiContextManager") as mock_context:
             mock_context.return_value.__aenter__ = AsyncMock()
             mock_context.return_value.__aexit__ = AsyncMock()
             mock_graphiti = AsyncMock()
-            mock_graphiti.record_learning_session = AsyncMock(return_value="test-session-id")
+            mock_graphiti.record_learning_session = AsyncMock(
+                return_value="test-session-id"
+            )
             mock_graphiti.extract_concept_relationships = AsyncMock(return_value=[])
             mock_context.return_value.__aenter__.return_value = mock_graphiti
 
@@ -97,7 +107,11 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
 
         # 验证数学概念识别
         concepts = result["concepts"]
-        math_concepts = [name for name, data in concepts.items() if "数学" in data.get("subject_areas", [])]
+        math_concepts = [
+            name
+            for name, data in concepts.items()
+            if "数学" in data.get("subject_areas", [])
+        ]
         self.assertGreater(len(math_concepts), 0)
 
         # 验证关系提取
@@ -114,7 +128,9 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
         """测试可视化生成"""
         # 先提取概念
         extractor = ConceptExtractor()
-        extraction_result = extractor.extract_concepts_from_canvas(str(self.test_canvas_path))
+        extraction_result = extractor.extract_concepts_from_canvas(
+            str(self.test_canvas_path)
+        )
 
         # 生成不同格式的可视化
         visualizer = GraphVisualizer()
@@ -126,7 +142,7 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
                     result = visualizer.visualize_concept_network(
                         concepts=extraction_result["concepts"],
                         relationships=extraction_result["relationships"],
-                        output_format=format_type
+                        output_format=format_type,
                     )
                     self.assertEqual(result["format"], format_type)
                 except ImportError as e:
@@ -136,7 +152,9 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
     def test_different_layout_algorithms(self):
         """测试不同布局算法"""
         extractor = ConceptExtractor()
-        extraction_result = extractor.extract_concepts_from_canvas(str(self.test_canvas_path))
+        extraction_result = extractor.extract_concepts_from_canvas(
+            str(self.test_canvas_path)
+        )
         visualizer = GraphVisualizer()
 
         layouts = ["spring", "circular", "kamada_kawai", "hierarchical"]
@@ -148,7 +166,7 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
                         concepts=extraction_result["concepts"],
                         relationships=extraction_result["relationships"],
                         output_format="json",
-                        layout_algorithm=layout
+                        layout_algorithm=layout,
                     )
                     self.assertIsNotNone(result)
                 except Exception as e:
@@ -159,7 +177,9 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
     def test_concept_clustering_quality(self):
         """测试概念聚类质量"""
         extractor = ConceptExtractor()
-        extraction_result = extractor.extract_concepts_from_canvas(str(self.test_canvas_path))
+        extraction_result = extractor.extract_concepts_from_canvas(
+            str(self.test_canvas_path)
+        )
 
         clusters = extractor.cluster_concepts(extraction_result["concepts"])
 
@@ -179,15 +199,20 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
     def test_relationship_type_classification(self):
         """测试关系类型分类准确性"""
         extractor = ConceptExtractor()
-        extraction_result = extractor.extract_concepts_from_canvas(str(self.test_canvas_path))
+        extraction_result = extractor.extract_concepts_from_canvas(
+            str(self.test_canvas_path)
+        )
 
         relationships = extraction_result["relationships"]
         relationship_types = [rel["relationship_type"] for rel in relationships]
 
         # 验证关系类型分布
         expected_types = [
-            "is_related_to", "includes", "is_prerequisite_for",
-            "is_similar_to", "is_derived_from"
+            "is_related_to",
+            "includes",
+            "is_prerequisite_for",
+            "is_similar_to",
+            "is_derived_from",
         ]
 
         found_types = set(relationship_types)
@@ -197,7 +222,9 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
     def test_confidence_score_distribution(self):
         """测试置信度分数分布"""
         extractor = ConceptExtractor()
-        extraction_result = extractor.extract_concepts_from_canvas(str(self.test_canvas_path))
+        extraction_result = extractor.extract_concepts_from_canvas(
+            str(self.test_canvas_path)
+        )
 
         concepts = extraction_result["concepts"]
         confidences = [data["confidence"] for data in concepts.values()]
@@ -216,7 +243,9 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
     def test_subject_area_classification(self):
         """测试学科领域分类"""
         extractor = ConceptExtractor()
-        extraction_result = extractor.extract_concepts_from_canvas(str(self.test_canvas_path))
+        extraction_result = extractor.extract_concepts_from_canvas(
+            str(self.test_canvas_path)
+        )
 
         concepts = extraction_result["concepts"]
         subject_areas = set()
@@ -243,10 +272,7 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
     def test_performance_with_large_canvas(self):
         """测试大Canvas文件的性能"""
         # 创建一个较大的测试Canvas
-        large_canvas_data = {
-            "nodes": [],
-            "edges": []
-        }
+        large_canvas_data = {"nodes": [], "edges": []}
 
         # 生成50个节点
         for i in range(50):
@@ -258,7 +284,7 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
                 "y": (i // 10) * 150,
                 "width": 300,
                 "height": 150,
-                "color": str((i % 3) + 1)
+                "color": str((i % 3) + 1),
             }
             large_canvas_data["nodes"].append(node)
 
@@ -267,20 +293,21 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
             edge = {
                 "id": f"edge-{i}",
                 "fromNode": f"node-{i}",
-                "toNode": f"node-{i+1}",
+                "toNode": f"node-{i + 1}",
                 "fromSide": "right",
                 "toSide": "left",
-                "label": "相关"
+                "label": "相关",
             }
             large_canvas_data["edges"].append(edge)
 
         # 保存大Canvas文件
         large_canvas_path = self.temp_dir / "large_test_canvas.canvas"
-        with open(large_canvas_path, 'w', encoding='utf-8') as f:
+        with open(large_canvas_path, "w", encoding="utf-8") as f:
             json.dump(large_canvas_data, f, ensure_ascii=False)
 
         # 测试提取性能
         import time
+
         start_time = time.time()
 
         extractor = ConceptExtractor()
@@ -296,7 +323,9 @@ class TestGraphitiSystemIntegration(unittest.TestCase):
         # 性能要求（应该在合理时间内完成）
         self.assertLess(extraction_time, 30.0)  # 30秒内完成
 
-        print(f"大Canvas提取性能：{extraction_time:.2f}秒，提取{len(result['concepts'])}个概念")
+        print(
+            f"大Canvas提取性能：{extraction_time:.2f}秒，提取{len(result['concepts'])}个概念"
+        )
 
     def test_data_format_consistency(self):
         """测试数据格式一致性"""
@@ -345,14 +374,22 @@ class TestGraphitiSystemScalability(unittest.TestCase):
                             "id": f"node-{i}-1",
                             "type": "text",
                             "text": f"Canvas {i} 概念1",
-                            "x": 100, "y": 100, "width": 200, "height": 100, "color": "1"
+                            "x": 100,
+                            "y": 100,
+                            "width": 200,
+                            "height": 100,
+                            "color": "1",
                         },
                         {
                             "id": f"node-{i}-2",
                             "type": "text",
                             "text": f"Canvas {i} 概念2",
-                            "x": 400, "y": 100, "width": 200, "height": 100, "color": "2"
-                        }
+                            "x": 400,
+                            "y": 100,
+                            "width": 200,
+                            "height": 100,
+                            "color": "2",
+                        },
                     ],
                     "edges": [
                         {
@@ -361,12 +398,12 @@ class TestGraphitiSystemScalability(unittest.TestCase):
                             "toNode": f"node-{i}-2",
                             "fromSide": "right",
                             "toSide": "left",
-                            "label": "相关"
+                            "label": "相关",
                         }
-                    ]
+                    ],
                 }
 
-                with open(canvas_path, 'w', encoding='utf-8') as f:
+                with open(canvas_path, "w", encoding="utf-8") as f:
                     json.dump(canvas_data, f, ensure_ascii=False)
 
                 canvas_files.append(canvas_path)
@@ -387,9 +424,10 @@ class TestGraphitiSystemScalability(unittest.TestCase):
 
         finally:
             import shutil
+
             shutil.rmtree(temp_dir)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 运行测试
     unittest.main(verbosity=2)

@@ -19,18 +19,18 @@ Test scenarios:
 
 [Source: docs/stories/31.A.3.story.md#Testing]
 """
-import asyncio
 
-import pytest
+import asyncio
 from unittest.mock import AsyncMock, patch
 
-from tests.conftest import simulate_async_delay, wait_for_mock_call
+import pytest
+from app.services.memory_service import MemoryService
 
-from app.services.memory_service import MemoryService, GRAPHITI_JSON_WRITE_TIMEOUT
-
+from tests.conftest import wait_for_mock_call
 
 # ✅ 模块级别 fixture（不在类内定义）
 # [Source: backend/tests/unit/test_graphiti_json_dual_write.py:30-56]
+
 
 @pytest.fixture
 def mock_neo4j_client():
@@ -489,7 +489,10 @@ class TestWriteRetryStrictQA:
         mock_retry_write.assert_called_once()
         call_kwargs = mock_retry_write.call_args
         # 验证传入的参数
-        assert call_kwargs[1]["canvas_name"] == "qa-test.canvas" or call_kwargs.kwargs.get("canvas_name") == "qa-test.canvas"
+        assert (
+            call_kwargs[1]["canvas_name"] == "qa-test.canvas"
+            or call_kwargs.kwargs.get("canvas_name") == "qa-test.canvas"
+        )
 
     @pytest.mark.asyncio
     async def test_retry_creates_new_timestamp_each_attempt(

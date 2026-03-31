@@ -151,9 +151,13 @@ class EventBus:
         if event_type in self._handlers:
             try:
                 self._handlers[event_type].remove(handler)
-                logger.info(f"EventBus: unsubscribed {handler.__name__} from {event_type.value}")
+                logger.info(
+                    f"EventBus: unsubscribed {handler.__name__} from {event_type.value}"
+                )
             except ValueError:
-                logger.warning(f"EventBus: handler {handler.__name__} not found for {event_type.value}")
+                logger.warning(
+                    f"EventBus: handler {handler.__name__} not found for {event_type.value}"
+                )
 
     async def publish(self, event: LearningEvent) -> None:
         """Publish an event to all registered handlers.
@@ -198,7 +202,9 @@ class EventBus:
     # Tier Dispatch Logic
     # ═══════════════════════════════════════════════════════════════════════
 
-    async def _dispatch_tier1(self, event: LearningEvent, handlers: List[EventHandler]) -> None:
+    async def _dispatch_tier1(
+        self, event: LearningEvent, handlers: List[EventHandler]
+    ) -> None:
         """Tier 1 CRITICAL: await each handler, failure raises exception."""
         for handler in handlers:
             start = time.monotonic()
@@ -218,12 +224,16 @@ class EventBus:
                 )
                 raise  # Tier 1 propagates exceptions
 
-    async def _dispatch_tier2(self, event: LearningEvent, handlers: List[EventHandler]) -> None:
+    async def _dispatch_tier2(
+        self, event: LearningEvent, handlers: List[EventHandler]
+    ) -> None:
         """Tier 2 IMPORTANT: fire with retry + JSONL outbox on final failure."""
         for handler in handlers:
             asyncio.create_task(self._tier2_retry_wrapper(event, handler))
 
-    async def _tier2_retry_wrapper(self, event: LearningEvent, handler: EventHandler) -> None:
+    async def _tier2_retry_wrapper(
+        self, event: LearningEvent, handler: EventHandler
+    ) -> None:
         """Retry wrapper for Tier 2: exponential backoff 2s→4s→8s, then outbox."""
         # Check circuit breaker for the handler's subsystem
         subsystem = self._find_handler_subsystem(handler)
@@ -275,19 +285,25 @@ class EventBus:
         self._stats["handled_failed"] += 1
         self._write_outbox(event, handler.__name__, "retries_exhausted")
 
-    def _dispatch_tier3(self, event: LearningEvent, handlers: List[EventHandler]) -> None:
+    def _dispatch_tier3(
+        self, event: LearningEvent, handlers: List[EventHandler]
+    ) -> None:
         """Tier 3 BEST_EFFORT: fire-and-forget, failures only logged."""
         for handler in handlers:
             asyncio.create_task(self._tier3_fire_wrapper(event, handler))
 
-    async def _tier3_fire_wrapper(self, event: LearningEvent, handler: EventHandler) -> None:
+    async def _tier3_fire_wrapper(
+        self, event: LearningEvent, handler: EventHandler
+    ) -> None:
         """Fire-and-forget wrapper for Tier 3."""
         start = time.monotonic()
         try:
             await handler(event)
             duration_ms = (time.monotonic() - start) * 1000
             self._stats["handled_success"] += 1
-            logger.debug(f"EventBus[T3]: {handler.__name__} OK ({duration_ms:.1f}ms, event={event.event_type.value})")
+            logger.debug(
+                f"EventBus[T3]: {handler.__name__} OK ({duration_ms:.1f}ms, event={event.event_type.value})"
+            )
         except Exception as exc:
             duration_ms = (time.monotonic() - start) * 1000
             self._stats["handled_failed"] += 1
@@ -300,7 +316,9 @@ class EventBus:
     # JSONL Outbox
     # ═══════════════════════════════════════════════════════════════════════
 
-    def _write_outbox(self, event: LearningEvent, handler_name: str, reason: str) -> None:
+    def _write_outbox(
+        self, event: LearningEvent, handler_name: str, reason: str
+    ) -> None:
         """Write failed event to JSONL outbox for later recovery."""
         outbox_entry = {
             "event_id": event.event_id,
@@ -318,7 +336,9 @@ class EventBus:
             with open(OUTBOX_FILE, "a", encoding="utf-8") as f:
                 f.write(json.dumps(outbox_entry, ensure_ascii=False) + "\n")
             self._stats["outbox_written"] += 1
-            logger.info(f"EventBus: wrote to outbox: {event.event_type.value} handler={handler_name} reason={reason}")
+            logger.info(
+                f"EventBus: wrote to outbox: {event.event_type.value} handler={handler_name} reason={reason}"
+            )
         except OSError as exc:
             logger.error(f"EventBus: failed to write outbox: {exc}")
 

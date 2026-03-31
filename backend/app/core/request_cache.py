@@ -75,12 +75,7 @@ class RequestCache:
         self._lock = threading.Lock()
         self._last_cleanup = time.time()
 
-    def get_key(
-        self,
-        canvas_name: str,
-        node_id: str,
-        agent_type: str
-    ) -> str:
+    def get_key(self, canvas_name: str, node_id: str, agent_type: str) -> str:
         """
         Generate a unique cache key for a request.
 
@@ -154,7 +149,9 @@ class RequestCache:
         """
         with self._lock:
             self._cache[key] = (time.time(), data)
-            logger.debug(f"[Story 12.H.5] Request marked in progress: key={key[:16]}...")
+            logger.debug(
+                f"[Story 12.H.5] Request marked in progress: key={key[:16]}..."
+            )
 
     def mark_completed(self, key: str) -> None:
         """
@@ -174,7 +171,9 @@ class RequestCache:
                 _, data = self._cache[key]
                 # Refresh timestamp to start new TTL window
                 self._cache[key] = (time.time(), data)
-                logger.debug(f"[Story 12.H.5] Request marked completed: key={key[:16]}...")
+                logger.debug(
+                    f"[Story 12.H.5] Request marked completed: key={key[:16]}..."
+                )
 
     def remove(self, key: str) -> None:
         """
@@ -191,7 +190,9 @@ class RequestCache:
         with self._lock:
             if key in self._cache:
                 del self._cache[key]
-                logger.debug(f"[Story 12.H.5] Request removed from cache: key={key[:16]}...")
+                logger.debug(
+                    f"[Story 12.H.5] Request removed from cache: key={key[:16]}..."
+                )
 
     def _maybe_cleanup(self) -> None:
         """
@@ -212,8 +213,7 @@ class RequestCache:
         with self._lock:
             self._last_cleanup = now
             expired_keys = [
-                k for k, (ts, _) in self._cache.items()
-                if now - ts >= self.ttl
+                k for k, (ts, _) in self._cache.items() if now - ts >= self.ttl
             ]
             for k in expired_keys:
                 del self._cache[k]

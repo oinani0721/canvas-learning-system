@@ -18,6 +18,7 @@ Model Structure:
 """
 
 from typing import Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -29,11 +30,11 @@ class RoutingRequest(BaseModel):
         node_text: Text content of the node to analyze
         agent_override: Optional manual agent override (bypasses routing logic)
     """
+
     node_id: str = Field(..., description="Unique node identifier")
     node_text: str = Field(..., description="Node text content for analysis")
     agent_override: Optional[str] = Field(
-        None,
-        description="Manual agent override (bypasses routing logic)"
+        None, description="Manual agent override (bypasses routing logic)"
     )
 
 
@@ -50,30 +51,23 @@ class RoutingResult(BaseModel):
 
     [Source: specs/api/parallel-api.openapi.yml#L301-L313]
     """
+
     node_id: str = Field(..., description="Node identifier")
     recommended_agent: str = Field(
         ...,
         description="Recommended agent type",
-        examples=["oral-explanation", "comparison-table"]
+        examples=["oral-explanation", "comparison-table"],
     )
     confidence: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Confidence score (0.0-1.0)"
+        ..., ge=0.0, le=1.0, description="Confidence score (0.0-1.0)"
     )
     patterns_matched: List[str] = Field(
-        default_factory=list,
-        description="Patterns that matched in the content"
+        default_factory=list, description="Patterns that matched in the content"
     )
     fallback_agent: Optional[str] = Field(
-        None,
-        description="Fallback agent if primary unavailable"
+        None, description="Fallback agent if primary unavailable"
     )
-    reason: str = Field(
-        default="",
-        description="Explanation for routing decision"
-    )
+    reason: str = Field(default="", description="Explanation for routing decision")
 
     def to_dict(self) -> Dict:
         """Convert to dictionary representation."""
@@ -93,10 +87,9 @@ class BatchRoutingRequest(BaseModel):
     Attributes:
         nodes: List of routing requests for batch processing
     """
+
     nodes: List[RoutingRequest] = Field(
-        ...,
-        description="List of nodes for batch routing",
-        min_length=1
+        ..., description="List of nodes for batch routing", min_length=1
     )
 
 
@@ -111,28 +104,22 @@ class BatchRoutingResponse(BaseModel):
         medium_confidence_count: Count of results with confidence 0.7-0.85
         low_confidence_count: Count of results with confidence < 0.7
     """
+
     results: List[RoutingResult] = Field(
-        ...,
-        description="Routing results for each node"
+        ..., description="Routing results for each node"
     )
     routing_accuracy_estimate: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Estimated overall routing accuracy"
+        ..., ge=0.0, le=1.0, description="Estimated overall routing accuracy"
     )
     total_nodes: int = Field(..., description="Total nodes processed")
     high_confidence_count: int = Field(
-        default=0,
-        description="Count of high confidence results (>= 0.85)"
+        default=0, description="Count of high confidence results (>= 0.85)"
     )
     medium_confidence_count: int = Field(
-        default=0,
-        description="Count of medium confidence results (0.7-0.85)"
+        default=0, description="Count of medium confidence results (0.7-0.85)"
     )
     low_confidence_count: int = Field(
-        default=0,
-        description="Count of low confidence results (< 0.7)"
+        default=0, description="Count of low confidence results (< 0.7)"
     )
 
     def to_dict(self) -> Dict:

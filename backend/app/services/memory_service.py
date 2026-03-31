@@ -45,14 +45,13 @@ from typing import Any, Dict, List, Optional
 
 from cachetools import TTLCache
 
-from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
-
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
+from app.config import DEFAULT_GROUP_ID, settings
+from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 from app.core.subject_config import (
     build_group_id,
     extract_subject_from_canvas_path,
 )
-from app.config import DEFAULT_GROUP_ID, settings
 from app.services.episode_worker import EpisodeTask, get_episode_worker
 
 logger = logging.getLogger(__name__)
@@ -66,10 +65,7 @@ SCORE_HISTORY_CACHE_TTL = 30
 
 # Story 30.10 AC-30.10.1: Deterministic episode ID generation
 def _generate_deterministic_episode_id(
-    user_id: str,
-    canvas_path: str,
-    node_id: str,
-    concept: str
+    user_id: str, canvas_path: str, node_id: str, concept: str
 ) -> str:
     """
     Generate a deterministic episode ID based on content hash.
@@ -86,10 +82,7 @@ def _generate_deterministic_episode_id(
 
 # Story 30.10 AC-30.10.4: Deterministic batch episode ID generation
 def _generate_batch_episode_id(
-    canvas_path: str,
-    node_id: str,
-    event_type: str,
-    timestamp: str
+    canvas_path: str, node_id: str, event_type: str, timestamp: str
 ) -> str:
     """
     Generate a deterministic batch episode ID based on event content.
@@ -118,6 +111,7 @@ class ScoreHistoryResponse:
 
     [Source: specs/data/score-history-response.schema.json]
     """
+
     concept_id: str
     canvas_name: str
     scores: List[int]
@@ -133,7 +127,7 @@ class ScoreHistoryResponse:
             "scores": self.scores,
             "timestamps": self.timestamps,
             "average": self.average,
-            "sample_size": self.sample_size
+            "sample_size": self.sample_size,
         }
 
 
@@ -176,6 +170,7 @@ class MemoryService:
         # Story 36.13 AC-4: Read configurable values from Settings
         try:
             from app.config import get_settings
+
             _settings = get_settings()
             _score_cache_maxsize = _settings.SCORE_HISTORY_CACHE_MAXSIZE
         except (ImportError, RuntimeError, AttributeError) as e:
@@ -185,7 +180,9 @@ class MemoryService:
         # Story 31.5: Cache for score history queries (30s TTL)
         # NFR-P0: Bounded TTLCache replaces bare dict to prevent unbounded memory growth
         # Story 36.13 AC-4: maxsize configurable via Settings
-        self._score_history_cache: TTLCache = TTLCache(maxsize=_score_cache_maxsize, ttl=SCORE_HISTORY_CACHE_TTL)
+        self._score_history_cache: TTLCache = TTLCache(
+            maxsize=_score_cache_maxsize, ttl=SCORE_HISTORY_CACHE_TTL
+        )
         # NFR-P0: Lock for cache stampede protection (double-check locking)
         self._score_cache_lock = asyncio.Lock()
         # Story 30.24 AC-30.24.4: Track batch write failures for shutdown safety
@@ -233,7 +230,11 @@ class MemoryService:
                     # Build set of existing episode keys to avoid duplicates
                     # Key includes timestamp so same user+concept at different times are kept
                     existing_keys = {
-                        (e.get("user_id"), e.get("concept"), str(e.get("timestamp") or ""))
+                        (
+                            e.get("user_id"),
+                            e.get("concept"),
+                            str(e.get("timestamp") or ""),
+                        )
                         for e in self._episodes
                     }
                     for idx, record in enumerate(records):
@@ -259,15 +260,17 @@ class MemoryService:
                         added += 1
                     # Cap episode cache to prevent unbounded growth
                     if len(self._episodes) > self.MAX_EPISODE_CACHE:
-                        self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
+                        self._episodes = self._episodes[-self.MAX_EPISODE_CACHE :]
                 self._episodes_recovered = True
-                logger.info(f"MemoryService: recovered {added} episodes from Neo4j ({len(records)} returned, {len(records) - added} deduped)")
+                logger.info(
+                    f"MemoryService: recovered {added} episodes from Neo4j ({len(records)} returned, {len(records) - added} deduped)"
+                )
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 # AC-3: Graceful degradation — start with empty history
                 self._episodes_recovered = False
-                logger.warning(f"MemoryService: Neo4j unavailable, starting with empty history ({e})")
-
-
+                logger.warning(
+                    f"MemoryService: Neo4j unavailable, starting with empty history ({e})"
+                )
 
     def _enqueue_episode(
         self,
@@ -306,7 +309,7 @@ class MemoryService:
         agent_type: str,
         score: Optional[int] = None,
         duration_seconds: Optional[int] = None,
-        subject: Optional[str] = None
+        subject: Optional[str] = None,
     ) -> str:
         """
         记录学习事件
@@ -342,7 +345,9 @@ class MemoryService:
             await self.initialize()
 
         # Story 30.10 AC-30.10.1: Deterministic episode ID (replaces uuid4)
-        episode_id = _generate_deterministic_episode_id(user_id, canvas_path, node_id, concept)
+        episode_id = _generate_deterministic_episode_id(
+            user_id, canvas_path, node_id, concept
+        )
 
         # ✅ AC-30.8.2: Auto-infer subject from canvas_path if not provided
         inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
@@ -353,10 +358,7 @@ class MemoryService:
         try:
             # ✅ Verified: Store to Neo4j - Create learning relationship
             await self._create_neo4j_learning_relationship(
-                user_id=user_id,
-                concept=concept,
-                score=score,
-                group_id=group_id
+                user_id=user_id, concept=concept, score=score, group_id=group_id
             )
 
             # ✅ Verified: Store episode (simulating Graphiti add_learning_episode)
@@ -378,22 +380,30 @@ class MemoryService:
                 "timestamp": datetime.now().isoformat(),
                 # ✅ Story 30.8: Subject isolation fields
                 "subject": inferred_subject,
-                "group_id": group_id
+                "group_id": group_id,
             }
             # Story 30.10 AC-30.10.3: Dedup _episodes - skip if exists to preserve score history
             # Fix C4: changed from overwrite to skip-if-exists to not destroy FSRS score history
             existing_idx = next(
-                (i for i, ep in enumerate(self._episodes) if ep.get("episode_id") == episode_id),
-                None
+                (
+                    i
+                    for i, ep in enumerate(self._episodes)
+                    if ep.get("episode_id") == episode_id
+                ),
+                None,
             )
             if existing_idx is not None:
-                logger.info(f"Skipped duplicate episode: {episode_id} (already exists at idx={existing_idx})")
+                logger.info(
+                    f"Skipped duplicate episode: {episode_id} (already exists at idx={existing_idx})"
+                )
             else:
                 self._episodes.append(episode)
                 # Fix C5: Enforce MAX_EPISODE_CACHE to prevent unbounded memory growth
                 if len(self._episodes) > self.MAX_EPISODE_CACHE:
-                    self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
-                logger.info(f"Recorded learning event: {episode_id} (subject={inferred_subject}, group_id={group_id})")
+                    self._episodes = self._episodes[-self.MAX_EPISODE_CACHE :]
+                logger.info(
+                    f"Recorded learning event: {episode_id} (subject={inferred_subject}, group_id={group_id})"
+                )
 
             # Phase 2: Enqueue to GraphitiEpisodeWorker for real add_episode
             score_text = f" (score: {score}/100)" if score is not None else ""
@@ -413,7 +423,6 @@ class MemoryService:
             logger.error(f"Failed to record learning event: {e}")
             raise
 
-
     async def get_learning_history(
         self,
         user_id: str,
@@ -422,7 +431,7 @@ class MemoryService:
         concept: Optional[str] = None,
         subject: Optional[str] = None,
         page: int = 1,
-        page_size: int = 50
+        page_size: int = 50,
     ) -> Dict[str, Any]:
         """
         获取学习历史 (分页)
@@ -467,10 +476,12 @@ class MemoryService:
                 end_date=end_date,
                 concept=concept,
                 group_id=group_id,
-                limit=page_size * page  # Get enough data for pagination
+                limit=page_size * page,  # Get enough data for pagination
             )
             episodes = neo4j_results or []
-            logger.debug(f"Retrieved {len(episodes)} episodes from Neo4j for user {user_id}")
+            logger.debug(
+                f"Retrieved {len(episodes)} episodes from Neo4j for user {user_id}"
+            )
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             # ✅ Story 31.A.2: Fallback to memory if Neo4j fails
             logger.warning(f"Neo4j query failed, falling back to memory: {e}")
@@ -488,23 +499,30 @@ class MemoryService:
         # S34 Bug fix #3: Normalize both sides to str for consistent comparison
         # (Neo4j returns offset-aware DateTime, in-memory uses ISO strings)
         if start_date:
-            start_str = str(start_date.isoformat()) if hasattr(start_date, 'isoformat') else str(start_date)
+            start_str = (
+                str(start_date.isoformat())
+                if hasattr(start_date, "isoformat")
+                else str(start_date)
+            )
             memory_episodes = [
-                e for e in memory_episodes
-                if str(e.get("timestamp", "")) >= start_str
+                e for e in memory_episodes if str(e.get("timestamp", "")) >= start_str
             ]
         if end_date:
-            end_str = str(end_date.isoformat()) if hasattr(end_date, 'isoformat') else str(end_date)
+            end_str = (
+                str(end_date.isoformat())
+                if hasattr(end_date, "isoformat")
+                else str(end_date)
+            )
             memory_episodes = [
-                e for e in memory_episodes
-                if str(e.get("timestamp", "")) <= end_str
+                e for e in memory_episodes if str(e.get("timestamp", "")) <= end_str
             ]
 
         # Apply concept filter
         if concept:
             concept_lower = concept.lower()
             memory_episodes = [
-                e for e in memory_episodes
+                e
+                for e in memory_episodes
                 if concept_lower in e.get("concept", "").lower()
             ]
 
@@ -512,7 +530,8 @@ class MemoryService:
         if subject:
             subject_lower = subject.lower()
             memory_episodes = [
-                e for e in memory_episodes
+                e
+                for e in memory_episodes
                 if subject_lower in e.get("subject", "").lower()
             ]
 
@@ -539,14 +558,28 @@ class MemoryService:
         if failed_scores:
             # Bug fix #1: Filter by user_id (prevent cross-user data leakage)
             if user_id:
-                failed_scores = [fs for fs in failed_scores if fs.get("user_id", "") == user_id]
+                failed_scores = [
+                    fs for fs in failed_scores if fs.get("user_id", "") == user_id
+                ]
             # Bug fix #2: Apply same date filters as memory_episodes
             if start_date:
-                s_str = str(start_date.isoformat()) if hasattr(start_date, 'isoformat') else str(start_date)
-                failed_scores = [fs for fs in failed_scores if str(fs.get("timestamp", "")) >= s_str]
+                s_str = (
+                    str(start_date.isoformat())
+                    if hasattr(start_date, "isoformat")
+                    else str(start_date)
+                )
+                failed_scores = [
+                    fs for fs in failed_scores if str(fs.get("timestamp", "")) >= s_str
+                ]
             if end_date:
-                e_str = str(end_date.isoformat()) if hasattr(end_date, 'isoformat') else str(end_date)
-                failed_scores = [fs for fs in failed_scores if str(fs.get("timestamp", "")) <= e_str]
+                e_str = (
+                    str(end_date.isoformat())
+                    if hasattr(end_date, "isoformat")
+                    else str(end_date)
+                )
+                failed_scores = [
+                    fs for fs in failed_scores if str(fs.get("timestamp", "")) <= e_str
+                ]
             # Deduplicate: only include fallback entries not already in episodes
             existing_keys = {
                 (e.get("node_id", ""), e.get("timestamp", "")) for e in episodes
@@ -569,14 +602,11 @@ class MemoryService:
             "total": total,
             "page": page,
             "page_size": page_size,
-            "pages": (total + page_size - 1) // page_size if total > 0 else 0
+            "pages": (total + page_size - 1) // page_size if total > 0 else 0,
         }
 
     async def get_concept_history(
-        self,
-        concept_id: str,
-        user_id: Optional[str] = None,
-        limit: int = 50
+        self, concept_id: str, user_id: Optional[str] = None, limit: int = 50
     ) -> Dict[str, Any]:
         """
         查询概念学习历史
@@ -598,21 +628,21 @@ class MemoryService:
 
         # Get history from Neo4j
         history = await self.neo4j.get_concept_history(
-            concept_id=concept_id,
-            user_id=user_id,
-            limit=limit
+            concept_id=concept_id, user_id=user_id, limit=limit
         )
 
         # Format as timeline
         timeline = []
         for record in history:
-            timeline.append({
-                "timestamp": record.get("timestamp"),
-                "score": record.get("score"),
-                "user_id": record.get("user_id"),
-                "concept": record.get("concept"),
-                "review_count": record.get("review_count", 0)
-            })
+            timeline.append(
+                {
+                    "timestamp": record.get("timestamp"),
+                    "score": record.get("score"),
+                    "user_id": record.get("user_id"),
+                    "concept": record.get("concept"),
+                    "review_count": record.get("review_count", 0),
+                }
+            )
 
         # Calculate score trend
         scores = [r.get("score") for r in timeline if r.get("score") is not None]
@@ -620,21 +650,18 @@ class MemoryService:
             "first": scores[-1] if scores else None,
             "last": scores[0] if scores else None,
             "average": sum(scores) / len(scores) if scores else None,
-            "improvement": (scores[0] - scores[-1]) if len(scores) >= 2 else None
+            "improvement": (scores[0] - scores[-1]) if len(scores) >= 2 else None,
         }
 
         return {
             "concept_id": concept_id,
             "timeline": timeline,
             "score_trend": score_trend,
-            "total_reviews": len(timeline)
+            "total_reviews": len(timeline),
         }
 
     async def get_concept_score_history(
-        self,
-        concept_id: str,
-        canvas_name: str,
-        limit: int = 5
+        self, concept_id: str, canvas_name: str, limit: int = 5
     ) -> ScoreHistoryResponse:
         """
         查询概念的历史得分 (最近N次)
@@ -680,9 +707,7 @@ class MemoryService:
         # Query Neo4j for score history
         try:
             records = await self.neo4j.get_concept_score_history(
-                concept_id=concept_id,
-                canvas_name=canvas_name,
-                limit=limit
+                concept_id=concept_id, canvas_name=canvas_name, limit=limit
             )
 
             # Extract scores and timestamps
@@ -705,7 +730,7 @@ class MemoryService:
                 scores=scores,
                 timestamps=timestamps,
                 average=round(average, 2),
-                sample_size=len(scores)
+                sample_size=len(scores),
             )
 
             # Store in cache (TTLCache handles expiration automatically)
@@ -727,14 +752,11 @@ class MemoryService:
                 scores=[],
                 timestamps=[],
                 average=0.0,
-                sample_size=0
+                sample_size=0,
             )
 
     async def get_review_suggestions(
-        self,
-        user_id: str,
-        limit: int = 10,
-        subject: Optional[str] = None
+        self, user_id: str, limit: int = 10, subject: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         获取复习建议 (基于艾宾浩斯遗忘曲线)
@@ -767,12 +789,12 @@ class MemoryService:
         group_id = build_group_id(subject) if subject else None
 
         suggestions = await self.neo4j.get_review_suggestions(
-            user_id=user_id,
-            limit=limit,
-            group_id=group_id
+            user_id=user_id, limit=limit, group_id=group_id
         )
 
-        logger.debug(f"Retrieved {len(suggestions)} review suggestions for user {user_id} (subject={subject})")
+        logger.debug(
+            f"Retrieved {len(suggestions)} review suggestions for user {user_id} (subject={subject})"
+        )
         return suggestions
 
     async def _create_neo4j_learning_relationship(
@@ -780,7 +802,7 @@ class MemoryService:
         user_id: str,
         concept: str,
         score: Optional[int] = None,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
     ) -> None:
         """
         在Neo4j中创建学习关系
@@ -800,10 +822,7 @@ class MemoryService:
         [Source: docs/stories/22.4.story.md#_create_neo4j_learning_relationship]
         """
         await self.neo4j.create_learning_relationship(
-            user_id=user_id,
-            concept=concept,
-            score=score,
-            group_id=group_id
+            user_id=user_id, concept=concept, score=score, group_id=group_id
         )
 
     def get_stats(self) -> Dict[str, Any]:
@@ -811,7 +830,7 @@ class MemoryService:
         return {
             "initialized": self._initialized,
             "total_episodes": len(self._episodes),
-            "neo4j_stats": self.neo4j.stats
+            "neo4j_stats": self.neo4j.stats,
         }
 
     async def get_health_status(self) -> Dict[str, Any]:
@@ -835,7 +854,7 @@ class MemoryService:
         layers = {
             "temporal": {"status": "ok", "backend": "sqlite"},
             "graphiti": {"status": "ok", "backend": "neo4j"},
-            "semantic": {"status": "ok", "backend": "lancedb"}
+            "semantic": {"status": "ok", "backend": "lancedb"},
         }
 
         # Check Graphiti/Neo4j layer
@@ -843,9 +862,9 @@ class MemoryService:
         try:
             neo4j_stats = self.neo4j.stats
             is_connected = (
-                neo4j_stats.get("initialized", False) and
-                neo4j_stats.get("mode") == "NEO4J" and
-                neo4j_stats.get("health_status", False)
+                neo4j_stats.get("initialized", False)
+                and neo4j_stats.get("mode") == "NEO4J"
+                and neo4j_stats.get("health_status", False)
             )
             if is_connected:
                 layers["graphiti"]["node_count"] = neo4j_stats.get("node_count", 0)
@@ -887,12 +906,11 @@ class MemoryService:
         return {
             "status": overall_status,
             "layers": layers,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     async def record_batch_learning_events(
-        self,
-        events: List[Dict[str, Any]]
+        self, events: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
         批量记录学习事件 (真并行版)
@@ -937,7 +955,7 @@ class MemoryService:
                     canvas_path=event["canvas_path"],
                     node_id=event["node_id"],
                     event_type=event["event_type"],
-                    timestamp=event["timestamp"]
+                    timestamp=event["timestamp"],
                 )
                 episode_record = {
                     "episode_id": episode_id,
@@ -945,14 +963,18 @@ class MemoryService:
                     "timestamp": event["timestamp"],
                     "canvas_path": event["canvas_path"],
                     "node_id": event["node_id"],
-                    "metadata": event.get("metadata", {})
+                    "metadata": event.get("metadata", {}),
                 }
 
                 # Story 30.10 AC-30.10.3: Dedup batch episodes
                 # Fix C4: skip-if-exists to preserve score history
                 existing_idx = next(
-                    (i for i, ep in enumerate(self._episodes) if ep.get("episode_id") == episode_id),
-                    None
+                    (
+                        i
+                        for i, ep in enumerate(self._episodes)
+                        if ep.get("episode_id") == episode_id
+                    ),
+                    None,
                 )
                 if existing_idx is not None:
                     logger.debug(f"Skipped duplicate batch episode: {episode_id}")
@@ -960,16 +982,18 @@ class MemoryService:
                     self._episodes.append(episode_record)
                     # Fix C5: Enforce MAX_EPISODE_CACHE
                     if len(self._episodes) > self.MAX_EPISODE_CACHE:
-                        self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
+                        self._episodes = self._episodes[-self.MAX_EPISODE_CACHE :]
 
                 neo4j_payload = {
                     "episode_id": episode_id,
                     "user_id": "batch_user",
                     "canvas_path": event["canvas_path"],
                     "node_id": event["node_id"],
-                    "concept": event.get("metadata", {}).get("concept", event.get("metadata", {}).get("node_text", "unknown")),
+                    "concept": event.get("metadata", {}).get(
+                        "concept", event.get("metadata", {}).get("node_text", "unknown")
+                    ),
                     "agent_type": event["event_type"],
-                    "timestamp": event["timestamp"]
+                    "timestamp": event["timestamp"],
                 }
                 valid_records.append({"idx": idx, "payload": neo4j_payload})
                 episode_ids.append(episode_id)
@@ -1007,7 +1031,9 @@ class MemoryService:
                     neo4j_errors.append(r)
 
             if neo4j_errors:
-                logger.warning(f"Batch Neo4j write: {len(neo4j_errors)} errors (non-blocking)")
+                logger.warning(
+                    f"Batch Neo4j write: {len(neo4j_errors)} errors (non-blocking)"
+                )
                 # Fix C3: Surface Neo4j errors in response so caller knows about partial failures
                 errors.extend(neo4j_errors)
                 failed += len(neo4j_errors)
@@ -1018,11 +1044,13 @@ class MemoryService:
                         eid = episode_ids[err_index]
                     else:
                         eid = f"unknown_{i}"
-                    self._pending_failed_writes.append({
-                        "episode_id": eid,
-                        "timestamp": datetime.now().isoformat(),
-                        "reason": err.get("error", "unknown"),
-                    })
+                    self._pending_failed_writes.append(
+                        {
+                            "episode_id": eid,
+                            "timestamp": datetime.now().isoformat(),
+                            "reason": err.get("error", "unknown"),
+                        }
+                    )
 
         # ── Phase 2: Enqueue batch events to GraphitiEpisodeWorker ──
         for record in valid_records:
@@ -1061,7 +1089,7 @@ class MemoryService:
             "errors": errors,
             "episode_ids": episode_ids,
             "batch_avg_latency_ms": round(avg_latency, 2),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     async def record_knowledge_entity(
@@ -1109,21 +1137,23 @@ class MemoryService:
 
         self._episodes.append(episode)
         if len(self._episodes) > self.MAX_EPISODE_CACHE:
-            self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
+            self._episodes = self._episodes[-self.MAX_EPISODE_CACHE :]
 
         # Write to Neo4j if connected
         if self.neo4j.stats.get("initialized", False):
             try:
-                await self.neo4j.record_episode({
-                    "episode_id": entity_id,
-                    "user_id": "system",  # Fixed: was incorrectly set to event_type
-                    "canvas_path": "",
-                    "node_id": meta.get("node_id", ""),
-                    "concept": meta.get("title", content[:80]),
-                    "agent_type": event_type,
-                    "timestamp": episode["timestamp"],
-                    "group_id": resolved_group_id,
-                })
+                await self.neo4j.record_episode(
+                    {
+                        "episode_id": entity_id,
+                        "user_id": "system",  # Fixed: was incorrectly set to event_type
+                        "canvas_path": "",
+                        "node_id": meta.get("node_id", ""),
+                        "concept": meta.get("title", content[:80]),
+                        "agent_type": event_type,
+                        "timestamp": episode["timestamp"],
+                        "group_id": resolved_group_id,
+                    }
+                )
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(
                     f"[Story 3.6] Neo4j write for {event_type} failed (non-fatal): {e}"
@@ -1162,19 +1192,21 @@ class MemoryService:
             )
             episodes = []
             for r in results:
-                episodes.append({
-                    "episode_id": getattr(r, "uuid", ""),
-                    "content": getattr(r, "fact", ""),
-                    "name": getattr(r, "name", ""),
-                    "episode_type": "graphiti_search",
-                    "timestamp": (
-                        getattr(r, "created_at", datetime.now()).isoformat()
-                        if hasattr(r, "created_at")
-                        else datetime.now().isoformat()
-                    ),
-                    "group_id": group_id or "",
-                    "source": "graphiti",
-                })
+                episodes.append(
+                    {
+                        "episode_id": getattr(r, "uuid", ""),
+                        "content": getattr(r, "fact", ""),
+                        "name": getattr(r, "name", ""),
+                        "episode_type": "graphiti_search",
+                        "timestamp": (
+                            getattr(r, "created_at", datetime.now()).isoformat()
+                            if hasattr(r, "created_at")
+                            else datetime.now().isoformat()
+                        ),
+                        "group_id": group_id or "",
+                        "source": "graphiti",
+                    }
+                )
             return episodes
         except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
             logger.warning(f"Graphiti search failed or timed out: {e}")
@@ -1200,18 +1232,20 @@ class MemoryService:
                 cypher, search_term=query, group_id=group_id, limit=limit
             )
             episodes = []
-            for r in (records if records else list()):
+            for r in records if records else list():
                 node = r["node"]
-                episodes.append({
-                    "episode_id": node.get("episode_id", ""),
-                    "content": node.get("content", ""),
-                    "episode_type": node.get("episode_type", ""),
-                    "score": r.get("score", 0.0),
-                    "timestamp": node.get("timestamp", ""),
-                    "group_id": node.get("group_id", ""),
-                    "node_id": node.get("node_id", ""),
-                    "source": "neo4j_fulltext",
-                })
+                episodes.append(
+                    {
+                        "episode_id": node.get("episode_id", ""),
+                        "content": node.get("content", ""),
+                        "episode_type": node.get("episode_type", ""),
+                        "score": r.get("score", 0.0),
+                        "timestamp": node.get("timestamp", ""),
+                        "group_id": node.get("group_id", ""),
+                        "node_id": node.get("node_id", ""),
+                        "source": "neo4j_fulltext",
+                    }
+                )
             return episodes
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"Neo4j fulltext search failed (non-fatal): {e}")
@@ -1286,7 +1320,7 @@ class MemoryService:
         canvas_path: str,
         node_id: Optional[str] = None,
         edge_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         记录时序事件到Neo4j Temporal Memory
@@ -1314,6 +1348,7 @@ class MemoryService:
             await self.initialize()
 
         import uuid
+
         event_id = f"event-{uuid.uuid4().hex[:16]}"
 
         # Build episode record following temporal-event.schema.json
@@ -1325,34 +1360,36 @@ class MemoryService:
             "canvas_path": canvas_path,
             "node_id": node_id,
             "edge_id": edge_id,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
 
         # Store in memory
         self._episodes.append(episode_record)
         # Fix C5: Enforce MAX_EPISODE_CACHE
         if len(self._episodes) > self.MAX_EPISODE_CACHE:
-            self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
+            self._episodes = self._episodes[-self.MAX_EPISODE_CACHE :]
 
         # Try to store in Neo4j if connected
         if self.neo4j.stats.get("initialized", False):
             try:
-                await self.neo4j.record_episode({
-                    "episode_id": event_id,
-                    "user_id": session_id,
-                    "canvas_path": canvas_path,
-                    "node_id": node_id or "",
-                    "concept": metadata.get("node_text", "") if metadata else "",
-                    "agent_type": event_type,
-                    "timestamp": episode_record["timestamp"]
-                })
+                await self.neo4j.record_episode(
+                    {
+                        "episode_id": event_id,
+                        "user_id": session_id,
+                        "canvas_path": canvas_path,
+                        "node_id": node_id or "",
+                        "concept": metadata.get("node_text", "") if metadata else "",
+                        "agent_type": event_type,
+                        "timestamp": episode_record["timestamp"],
+                    }
+                )
 
                 # Story 30.5 AC-30.5.4: Create Canvas-Concept relationship graph
                 if event_type in ("node_created", "node_updated") and node_id:
                     await self.neo4j.create_canvas_node_relationship(
                         canvas_path=canvas_path,
                         node_id=node_id,
-                        node_text=metadata.get("node_text") if metadata else None
+                        node_text=metadata.get("node_text") if metadata else None,
                     )
                 elif event_type == "edge_created" and edge_id:
                     from_node = metadata.get("from_node") if metadata else None
@@ -1363,7 +1400,7 @@ class MemoryService:
                             edge_id=edge_id,
                             from_node_id=from_node,
                             to_node_id=to_node,
-                            edge_label=metadata.get("edge_label") if metadata else None
+                            edge_label=metadata.get("edge_label") if metadata else None,
                         )
 
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
@@ -1420,7 +1457,9 @@ class MemoryService:
         # while we read + rewrite the file (fixes #1 race condition).
         with failed_writes_lock:
             try:
-                lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+                lines = (
+                    FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+                )
             except (OSError, UnicodeDecodeError) as e:
                 logger.warning(f"[Story 38.6] Failed to read fallback file: {e}")
                 return {"recovered": 0, "pending": 0}
@@ -1436,7 +1475,9 @@ class MemoryService:
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 logger.warning("[Story 38.6] Skipping malformed fallback entry")
-                still_pending.append(line)  # preserve malformed lines to avoid data loss
+                still_pending.append(
+                    line
+                )  # preserve malformed lines to avoid data loss
                 continue
 
             try:
@@ -1476,6 +1517,7 @@ class MemoryService:
                         except PermissionError:
                             if attempt < 2:
                                 import time as _time
+
                                 _time.sleep(0.1)
                             else:
                                 raise
@@ -1504,20 +1546,27 @@ class MemoryService:
         results = []
         try:
             with failed_writes_lock:
-                lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+                lines = (
+                    FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+                )
             for line in lines:
                 try:
                     entry = json.loads(line)
-                    results.append({
-                        "timestamp": entry.get("timestamp", ""),
-                        "canvas_name": entry.get("canvas_name", ""),
-                        "node_id": entry.get("concept_id", ""),
-                        "concept": entry.get("concept", "") or entry.get("concept_id", ""),
-                        "score": entry.get("score"),
-                        "user_id": entry.get("user_id", ""),  # S34 fix: include for filtering
-                        "source": "fallback",
-                        "error_reason": entry.get("error_reason", ""),
-                    })
+                    results.append(
+                        {
+                            "timestamp": entry.get("timestamp", ""),
+                            "canvas_name": entry.get("canvas_name", ""),
+                            "node_id": entry.get("concept_id", ""),
+                            "concept": entry.get("concept", "")
+                            or entry.get("concept_id", ""),
+                            "score": entry.get("score"),
+                            "user_id": entry.get(
+                                "user_id", ""
+                            ),  # S34 fix: include for filtering
+                            "source": "fallback",
+                            "error_reason": entry.get("error_reason", ""),
+                        }
+                    )
                 except json.JSONDecodeError:
                     continue
         except (OSError, json.JSONDecodeError) as e:
@@ -1608,7 +1657,10 @@ async def get_memory_service() -> MemoryService:
     # Slow path: acquire lock for safe initialization
     async with _memory_service_lock:
         # Double-check after acquiring lock
-        if _memory_service_instance is not None and _memory_service_instance._initialized:
+        if (
+            _memory_service_instance is not None
+            and _memory_service_instance._initialized
+        ):
             return _memory_service_instance
 
         if _memory_service_instance is None:

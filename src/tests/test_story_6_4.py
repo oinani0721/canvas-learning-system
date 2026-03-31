@@ -33,48 +33,54 @@ class TestSmartReviewBoardGeneration:
                     "id": "material-001",
                     "type": "text",
                     "text": "逆否命题定义和基本性质",
-                    "x": 100, "y": 100,
-                    "width": 400, "height": 200,
-                    "color": COLOR_CODE_RED
+                    "x": 100,
+                    "y": 100,
+                    "width": 400,
+                    "height": 200,
+                    "color": COLOR_CODE_RED,
                 },
                 {
                     "id": "question-001",
                     "type": "text",
                     "text": "如何判断两个命题是否为逆否关系？",
-                    "x": 600, "y": 150,
-                    "width": 350, "height": 120,
-                    "color": COLOR_CODE_RED
+                    "x": 600,
+                    "y": 150,
+                    "width": 350,
+                    "height": 120,
+                    "color": COLOR_CODE_RED,
                 },
                 {
                     "id": "question-002",
                     "type": "text",
                     "text": "逆否命题在实际证明中的应用",
-                    "x": 1000, "y": 150,
-                    "width": 350, "height": 120,
-                    "color": COLOR_CODE_PURPLE
-                }
+                    "x": 1000,
+                    "y": 150,
+                    "width": 350,
+                    "height": 120,
+                    "color": COLOR_CODE_PURPLE,
+                },
             ],
             "edges": [
                 {
                     "id": "edge-001",
                     "fromNode": "material-001",
                     "toNode": "question-001",
-                    "label": "基础拆解"
+                    "label": "基础拆解",
                 },
                 {
                     "id": "edge-002",
                     "fromNode": "material-001",
                     "toNode": "question-002",
-                    "label": "应用拓展"
-                }
-            ]
+                    "label": "应用拓展",
+                },
+            ],
         }
 
         # 创建临时文件
         temp_dir = tempfile.mkdtemp()
         canvas_path = os.path.join(temp_dir, "test-canvas.canvas")
 
-        with open(canvas_path, 'w', encoding='utf-8') as f:
+        with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(test_canvas_data, f, ensure_ascii=False, indent=2)
 
         # 初始化知识图谱层（模拟禁用状态）
@@ -89,11 +95,12 @@ class TestSmartReviewBoardGeneration:
             "smart_generator": smart_generator,
             "canvas_path": canvas_path,
             "canvas_data": test_canvas_data,
-            "temp_dir": temp_dir
+            "temp_dir": temp_dir,
         }
 
         # 清理
         import shutil
+
         shutil.rmtree(temp_dir, ignore_errors=True)
 
     @pytest.mark.asyncio
@@ -103,8 +110,7 @@ class TestSmartReviewBoardGeneration:
 
         # Act: 分析学习状态
         learning_analysis = await env["smart_generator"].analyze_user_learning_state(
-            user_id="test-user",
-            canvas_path=env["canvas_path"]
+            user_id="test-user", canvas_path=env["canvas_path"]
         )
 
         # Assert: 验证分析结果结构
@@ -130,14 +136,12 @@ class TestSmartReviewBoardGeneration:
 
         # 准备学习分析数据
         learning_analysis = await env["smart_generator"].analyze_user_learning_state(
-            user_id="test-user",
-            canvas_path=env["canvas_path"]
+            user_id="test-user", canvas_path=env["canvas_path"]
         )
 
         # Act: 选择复习节点
         selected_nodes = await env["smart_generator"].select_review_nodes(
-            learning_analysis=learning_analysis,
-            options={"max_nodes": 5}
+            learning_analysis=learning_analysis, options={"max_nodes": 5}
         )
 
         # Assert: 验证选择结果
@@ -150,8 +154,12 @@ class TestSmartReviewBoardGeneration:
 
         # 验证优先级排序
         if len(selected_nodes) > 1:
-            scores = [await env["smart_generator"].calculate_review_priority(node, learning_analysis)
-                     for node in selected_nodes]
+            scores = [
+                await env["smart_generator"].calculate_review_priority(
+                    node, learning_analysis
+                )
+                for node in selected_nodes
+            ]
             scores = [score["total_score"] for score in scores]
             assert scores == sorted(scores, reverse=True)
 
@@ -162,8 +170,7 @@ class TestSmartReviewBoardGeneration:
 
         # 准备测试数据
         learning_analysis = await env["smart_generator"].analyze_user_learning_state(
-            user_id="test-user",
-            canvas_path=env["canvas_path"]
+            user_id="test-user", canvas_path=env["canvas_path"]
         )
 
         review_nodes = [
@@ -174,15 +181,14 @@ class TestSmartReviewBoardGeneration:
                 "progress": {
                     "mastery_level": 25.0,
                     "difficulty_score": 7.0,
-                    "review_count": 2
-                }
+                    "review_count": 2,
+                },
             }
         ]
 
         # Act: 生成个性化问题
         questions = await env["smart_generator"].generate_personalized_questions(
-            review_nodes=review_nodes,
-            learning_analysis=learning_analysis
+            review_nodes=review_nodes, learning_analysis=learning_analysis
         )
 
         # Assert: 验证问题生成结果
@@ -207,8 +213,7 @@ class TestSmartReviewBoardGeneration:
         env = setup_test_environment
 
         learning_analysis = await env["smart_generator"].analyze_user_learning_state(
-            user_id="test-user",
-            canvas_path=env["canvas_path"]
+            user_id="test-user", canvas_path=env["canvas_path"]
         )
 
         # 测试节点
@@ -221,14 +226,13 @@ class TestSmartReviewBoardGeneration:
                 "review_count": 2,
                 "last_interaction": datetime.now() - timedelta(days=5),
                 "difficulty_score": 6.0,
-                "error_rate": 0.3
-            }
+                "error_rate": 0.3,
+            },
         }
 
         # Act: 计算优先级
         priority_result = await env["smart_generator"].calculate_review_priority(
-            node=test_node,
-            learning_analysis=learning_analysis
+            node=test_node, learning_analysis=learning_analysis
         )
 
         # Assert: 验证优先级结果
@@ -252,40 +256,40 @@ class TestSmartReviewBoardGeneration:
         """测试节点重要性计算"""
         env = setup_test_environment
 
-        learning_analysis = {
-            "canvas_data": env["canvas_data"]
-        }
+        learning_analysis = {"canvas_data": env["canvas_data"]}
 
         # 测试不同类型的节点
         test_nodes = [
             {
                 "id": "connected-node",
                 "text": "这是一个连接度很高的节点内容，足够长来测试重要性计算算法的功能",
-                "color": COLOR_CODE_RED
+                "color": COLOR_CODE_RED,
             },
-            {
-                "id": "isolated-node",
-                "text": "孤立节点",
-                "color": COLOR_CODE_GREEN
-            }
+            {"id": "isolated-node", "text": "孤立节点", "color": COLOR_CODE_GREEN},
         ]
 
         # Act & Assert: 计算重要性
         for node in test_nodes:
-            importance = asyncio.run(env["smart_generator"].calculate_node_importance(
-                node, learning_analysis
-            ))
+            importance = asyncio.run(
+                env["smart_generator"].calculate_node_importance(
+                    node, learning_analysis
+                )
+            )
 
             # 验证重要性分数范围
             assert 0 <= importance <= 1
 
         # 验证连接度高的节点重要性更高
-        connected_importance = asyncio.run(env["smart_generator"].calculate_node_importance(
-            test_nodes[0], learning_analysis
-        ))
-        isolated_importance = asyncio.run(env["smart_generator"].calculate_node_importance(
-            test_nodes[1], learning_analysis
-        ))
+        connected_importance = asyncio.run(
+            env["smart_generator"].calculate_node_importance(
+                test_nodes[0], learning_analysis
+            )
+        )
+        isolated_importance = asyncio.run(
+            env["smart_generator"].calculate_node_importance(
+                test_nodes[1], learning_analysis
+            )
+        )
 
         # 红色节点应该比绿色节点重要性高
         assert connected_importance > isolated_importance
@@ -297,24 +301,18 @@ class TestSmartReviewBoardGeneration:
 
         # 模拟节点进度数据
         node_progress = {
-            "low-mastery-node": {
-                "mastery_level": 20.0,
-                "difficulty_score": 8.0
-            },
+            "low-mastery-node": {"mastery_level": 20.0, "difficulty_score": 8.0},
             "high-error-node": {
                 "mastery_level": 60.0,
                 "error_rate": 0.5,
-                "error_patterns": ["概念混淆"]
+                "error_patterns": ["概念混淆"],
             },
-            "repeated-review-node": {
-                "mastery_level": 50.0,
-                "review_count": 8
-            },
+            "repeated-review-node": {"mastery_level": 50.0, "review_count": 8},
             "normal-node": {
                 "mastery_level": 80.0,
                 "error_rate": 0.1,
-                "review_count": 2
-            }
+                "review_count": 2,
+            },
         }
 
         canvas_data = {"nodes": []}
@@ -346,13 +344,12 @@ class TestSmartReviewBoardGeneration:
         env = setup_test_environment
 
         learning_analysis = await env["smart_generator"].analyze_user_learning_state(
-            user_id="test-user",
-            canvas_path=env["canvas_path"]
+            user_id="test-user", canvas_path=env["canvas_path"]
         )
 
         review_nodes = [
             {"id": "node-1", "color": COLOR_CODE_RED},
-            {"id": "node-2", "color": COLOR_CODE_PURPLE}
+            {"id": "node-2", "color": COLOR_CODE_PURPLE},
         ]
 
         questions = [
@@ -360,21 +357,21 @@ class TestSmartReviewBoardGeneration:
                 "question_text": "测试问题1",
                 "question_type": "检验型",
                 "difficulty": "基础",
-                "source_node_id": "node-1"
+                "source_node_id": "node-1",
             },
             {
                 "question_text": "测试问题2",
                 "question_type": "应用型",
                 "difficulty": "中等",
-                "source_node_id": "node-2"
-            }
+                "source_node_id": "node-2",
+            },
         ]
 
         # Act: 生成智能布局
         layout_plan = await env["smart_generator"].generate_intelligent_layout(
             review_nodes=review_nodes,
             questions=questions,
-            learning_analysis=learning_analysis
+            learning_analysis=learning_analysis,
         )
 
         # Assert: 验证布局计划结构
@@ -387,7 +384,9 @@ class TestSmartReviewBoardGeneration:
         assert len(layout_plan["nodes"]) >= 4  # 2个问题 + 2个黄色节点
 
         # 验证问题节点
-        question_nodes = [n for n in layout_plan["nodes"] if n.get("type") == "question"]
+        question_nodes = [
+            n for n in layout_plan["nodes"] if n.get("type") == "question"
+        ]
         assert len(question_nodes) == 2
 
         for node in question_nodes:
@@ -406,7 +405,7 @@ class TestSmartReviewBoardGeneration:
             {"learning_style": "visual"},
             {"learning_style": "auditory"},
             {"learning_style": "reading"},
-            {"learning_style": "kinesthetic"}
+            {"learning_style": "kinesthetic"},
         ]
 
         # 测试不同问题类型
@@ -414,7 +413,7 @@ class TestSmartReviewBoardGeneration:
             {"question_type": "comparison"},
             {"question_type": "explanation"},
             {"question_type": "application"},
-            {"question_type": "diagram"}
+            {"question_type": "diagram"},
         ]
 
         # Act & Assert: 测试风格匹配
@@ -437,7 +436,7 @@ class TestSmartReviewBoardGeneration:
         result = await env["smart_generator"].generate_personalized_review_board(
             user_id="test-user",
             original_canvas_path=env["canvas_path"],
-            options={"max_nodes": 3}
+            options={"max_nodes": 3},
         )
 
         # Assert: 验证生成结果
@@ -463,7 +462,9 @@ class TestSmartReviewBoardGeneration:
         assert "grade" in quality_score
 
         # 验证性能要求 (AC: 6)
-        assert stats["generation_time"] < 10, f"生成时间{stats['generation_time']:.2f}s超过10秒限制"
+        assert stats["generation_time"] < 10, (
+            f"生成时间{stats['generation_time']:.2f}s超过10秒限制"
+        )
 
     def test_fallback_question_generation(self, setup_test_environment):
         """测试降级问题生成"""
@@ -472,13 +473,12 @@ class TestSmartReviewBoardGeneration:
         test_node = {
             "id": "test-node",
             "text": "这是一个测试节点内容，用于验证降级问题生成功能是否正常工作",
-            "color": COLOR_CODE_RED
+            "color": COLOR_CODE_RED,
         }
 
         # Act: 生成降级问题
         fallback_questions = env["smart_generator"]._generate_fallback_questions(
-            node=test_node,
-            question_count=2
+            node=test_node, question_count=2
         )
 
         # Assert: 验证降级问题
@@ -492,6 +492,7 @@ class TestSmartReviewBoardGeneration:
             assert "source_node_id" in question
             assert question["source_node_id"] == test_node["id"]
             assert question.get("fallback") == True
+
 
 if __name__ == "__main__":
     # 运行测试

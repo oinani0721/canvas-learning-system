@@ -37,7 +37,7 @@ async def demo_ebbinghaus_system():
         ("集合论基础", 5.0, "离散数学.canvas"),
         ("逻辑联结词", 6.5, "离散数学.canvas"),
         ("极限定义", 8.5, "数学分析.canvas"),
-        ("导数概念", 7.0, "数学分析.canvas")
+        ("导数概念", 7.0, "数学分析.canvas"),
     ]
 
     created_nodes = []
@@ -46,7 +46,7 @@ async def demo_ebbinghaus_system():
             node_id=f"demo_{concept}",
             concept=concept,
             complexity_score=complexity,
-            canvas_file=canvas_file
+            canvas_file=canvas_file,
         )
         created_nodes.append(node)
         print(f"[OK] 创建节点: {concept} (复杂度: {complexity})")
@@ -57,14 +57,15 @@ async def demo_ebbinghaus_system():
 
     for node in created_nodes[:2]:  # 只展示前两个
         optimal_times = forgetting_curve_manager.calculate_optimal_review_times(
-            node.create_time,
-            node.complexity_score
+            node.create_time, node.complexity_score
         )
 
         print(f"\n概念: {node.concept}")
         print(f"创建时间: {node.create_time.strftime('%Y-%m-%d %H:%M')}")
         print(f"复杂度: {node.complexity_score}")
-        print(f"记忆强度: {forgetting_curve_manager.calculate_memory_strength(node.complexity_score):.2f}")
+        print(
+            f"记忆强度: {forgetting_curve_manager.calculate_memory_strength(node.complexity_score):.2f}"
+        )
         print("最优复习时间点:")
         for i, time in enumerate(optimal_times, 1):
             days_from_now = (time - datetime.datetime.now()).days
@@ -84,7 +85,9 @@ async def demo_ebbinghaus_system():
     for node_id, mastery in mastery_updates:
         forgetting_curve_manager.update_node_mastery(node_id, mastery)
         node = forgetting_curve_manager.review_nodes[node_id]
-        print(f"[OK] 更新掌握度: {node.concept} -> {mastery:.1%} (复习{node.review_count}次)")
+        print(
+            f"[OK] 更新掌握度: {node.concept} -> {mastery:.1%} (复习{node.review_count}次)"
+        )
 
     # 4. 获取记忆状态分析
     print("\n[步骤4] 记忆状态分析")
@@ -105,8 +108,7 @@ async def demo_ebbinghaus_system():
     print("-" * 40)
 
     schedule = forgetting_curve_manager.generate_review_schedule(
-        canvas_file="离散数学.canvas",
-        days_ahead=30
+        canvas_file="离散数学.canvas", days_ahead=30
     )
 
     if schedule:
@@ -114,7 +116,9 @@ async def demo_ebbinghaus_system():
         for date_str, tasks in sorted(schedule.items()):
             print(f"\n[DATE] {date_str}: {len(tasks)}个复习任务")
             for task in tasks:
-                print(f"  - {task['concept']} (当前掌握度: {task['current_mastery']:.1%})")
+                print(
+                    f"  - {task['concept']} (当前掌握度: {task['current_mastery']:.1%})"
+                )
     else:
         print("未来30天内没有需要复习的任务")
 
@@ -129,7 +133,9 @@ async def demo_ebbinghaus_system():
         print(f"发现 {len(due_nodes)} 个需要复习的节点:")
 
         # 生成Agent调度计划
-        agent_schedule = await ebbinghaus_review_scheduler.schedule_review_agents(due_nodes)
+        agent_schedule = await ebbinghaus_review_scheduler.schedule_review_agents(
+            due_nodes
+        )
 
         for item in agent_schedule:
             print(f"\n[CONCEPT] {item['concept']}")
@@ -142,10 +148,14 @@ async def demo_ebbinghaus_system():
         # 模拟一个需要复习的场景
         print("\n[DEMO] 模拟场景: 假设有节点需要复习")
         test_node = forgetting_curve_manager.review_nodes["demo_集合论基础"]
-        test_node.last_review_time = datetime.datetime.now() - datetime.timedelta(days=20)
+        test_node.last_review_time = datetime.datetime.now() - datetime.timedelta(
+            days=20
+        )
 
         due_nodes = [test_node]
-        agent_schedule = await ebbinghaus_review_scheduler.schedule_review_agents(due_nodes)
+        agent_schedule = await ebbinghaus_review_scheduler.schedule_review_agents(
+            due_nodes
+        )
 
         for item in agent_schedule:
             print(f"\n[CONCEPT] {item['concept']} (模拟)")
@@ -157,7 +167,9 @@ async def demo_ebbinghaus_system():
     print("\n[步骤7] 完整复习会话演示")
     print("-" * 40)
 
-    session_result = await ebbinghaus_review_scheduler.execute_review_session("离散数学.canvas")
+    session_result = await ebbinghaus_review_scheduler.execute_review_session(
+        "离散数学.canvas"
+    )
 
     print(f"会话状态: {'成功' if session_result['success'] else '失败'}")
     print(f"消息: {session_result['message']}")
@@ -182,6 +194,7 @@ async def demo_ebbinghaus_system():
 
     return True
 
+
 if __name__ == "__main__":
     print("启动艾宾浩斯复习系统演示...")
     try:
@@ -193,4 +206,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[ERROR] 演示失败: {e}")
         import traceback
+
         traceback.print_exc()

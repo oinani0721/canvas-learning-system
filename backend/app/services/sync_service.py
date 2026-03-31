@@ -87,8 +87,14 @@ class SyncService:
             async with await session.begin_transaction() as tx:
                 for op in request.operations:
                     try:
-                        await self._execute_operation(tx, op, request.canvas_id, request.subject_id)
-                        results.append(SyncOperationResult(operation_id=op.operation_id, success=True))
+                        await self._execute_operation(
+                            tx, op, request.canvas_id, request.subject_id
+                        )
+                        results.append(
+                            SyncOperationResult(
+                                operation_id=op.operation_id, success=True
+                            )
+                        )
                         synced += 1
                     except (RuntimeError, ConnectionError) as e:
                         logger.warning(
@@ -121,7 +127,9 @@ class SyncService:
             elapsed_ms,
         )
 
-        return SyncBatchResponse(results=results, synced_count=synced, failed_count=failed)
+        return SyncBatchResponse(
+            results=results, synced_count=synced, failed_count=failed
+        )
 
     async def _execute_operation(
         self,
@@ -155,7 +163,9 @@ class SyncService:
     # Node operations
     # ═══════════════════════════════════════════════════════════════════════════
 
-    async def _upsert_node(self, tx, op: SyncOperation, canvas_id: str, subject_id: str | None) -> None:
+    async def _upsert_node(
+        self, tx, op: SyncOperation, canvas_id: str, subject_id: str | None
+    ) -> None:
         """Idempotent node create/update via MERGE.
 
         [Source: Story 1.5 Task 6.3 — Node sync Cypher]
@@ -216,8 +226,12 @@ class SyncService:
         """
         payload = op.payload
         timestamp = op.timestamp.isoformat()
-        source_node_id = payload.get("source_node_id") or payload.get("sourceNodeId", "")
-        target_node_id = payload.get("target_node_id") or payload.get("targetNodeId", "")
+        source_node_id = payload.get("source_node_id") or payload.get(
+            "sourceNodeId", ""
+        )
+        target_node_id = payload.get("target_node_id") or payload.get(
+            "targetNodeId", ""
+        )
 
         await tx.run(
             """
@@ -254,7 +268,9 @@ class SyncService:
     # Board operations
     # ═══════════════════════════════════════════════════════════════════════════
 
-    async def _upsert_board(self, tx, op: SyncOperation, subject_id: str | None) -> None:
+    async def _upsert_board(
+        self, tx, op: SyncOperation, subject_id: str | None
+    ) -> None:
         """Idempotent board create/update via MERGE.
 
         [Source: Story 1.5 Task 6.5 — Board sync Cypher]

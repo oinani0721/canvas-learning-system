@@ -20,11 +20,14 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-sys.path.append('..')
+sys.path.append("..")
 
 try:
     from intelligent_review_cli import IntelligentReviewCLI
-    from intelligent_review_generator import IntelligentReviewGenerator, ReviewPlanConfig
+    from intelligent_review_generator import (
+        IntelligentReviewGenerator,
+        ReviewPlanConfig,
+    )
     from learning_analyzer import LearningAnalyzer
     from personalization_engine import PersonalizationEngine
     from review_canvas_builder import ReviewCanvasBuilder
@@ -47,8 +50,7 @@ class TestLearningAnalyzer(unittest.TestCase):
         # 这里简化测试，因为依赖实际的Canvas文件
         with self.assertRaises(Exception):
             result = self.analyzer.analyze_learning_history(
-                user_id="test_user",
-                canvas_path=canvas_path
+                user_id="test_user", canvas_path=canvas_path
             )
 
     def test_collect_learning_data(self):
@@ -65,14 +67,14 @@ class TestLearningAnalyzer(unittest.TestCase):
                 "concept_name": "测试概念1",
                 "mastery_score": 3.0,
                 "weakness_score": 0.7,
-                "weakness_type": "insufficient_exposure"
+                "weakness_type": "insufficient_exposure",
             },
             {
                 "concept_name": "测试概念2",
                 "mastery_score": 8.5,
                 "weakness_score": 0.2,
-                "weakness_type": "general_weakness"
-            }
+                "weakness_type": "general_weakness",
+            },
         ]
 
         weak_concepts = self.analyzer._identify_weak_concepts(concepts, {})
@@ -85,14 +87,8 @@ class TestLearningAnalyzer(unittest.TestCase):
         concept_data = {
             "mastery_level": "mastered",
             "encounters": 5,
-            "understanding_records": [
-                {"quality_score": 8.0},
-                {"quality_score": 9.0}
-            ],
-            "performance_scores": [
-                {"score": 8.5},
-                {"score": 9.0}
-            ]
+            "understanding_records": [{"quality_score": 8.0}, {"quality_score": 9.0}],
+            "performance_scores": [{"score": 8.5}, {"score": 9.0}],
         }
 
         score = self.analyzer._calculate_mastery_score(concept_data)
@@ -105,7 +101,7 @@ class TestLearningAnalyzer(unittest.TestCase):
             "scoring_records": [
                 {"score": 6.0, "timestamp": 1000},
                 {"score": 7.5, "timestamp": 2000},
-                {"score": 8.0, "timestamp": 3000}
+                {"score": 8.0, "timestamp": 3000},
             ]
         }
 
@@ -127,17 +123,19 @@ class TestIntelligentReviewGenerator(unittest.TestCase):
         config = ReviewPlanConfig(
             user_id="test_user",
             target_canvas="test_canvas.canvas",
-            plan_type="weakness_focused"
+            plan_type="weakness_focused",
         )
 
         # 使用模拟数据避免文件依赖
-        with patch.object(self.generator.learning_analyzer, 'analyze_learning_history') as mock_analyze:
+        with patch.object(
+            self.generator.learning_analyzer, "analyze_learning_history"
+        ) as mock_analyze:
             mock_analyze.return_value = {
                 "analysis_summary": {
                     "total_concepts_analyzed": 5,
                     "concepts_mastered": 2,
                     "concepts_needing_review": 3,
-                    "critical_weaknesses": 1
+                    "critical_weaknesses": 1,
                 },
                 "identified_weak_concepts": [
                     {
@@ -145,16 +143,16 @@ class TestIntelligentReviewGenerator(unittest.TestCase):
                         "weakness_score": 0.7,
                         "mastery_score": 4.0,
                         "weakness_type": "conceptual_misunderstanding",
-                        "recommended_focus_areas": ["基础概念复习"]
+                        "recommended_focus_areas": ["基础概念复习"],
                     }
-                ]
+                ],
             }
 
             result = self.generator.generate_review_plan(
                 user_id="test_user",
                 target_canvas="test_canvas.canvas",
                 plan_type="weakness_focused",
-                config=config
+                config=config,
             )
 
             self.assertIn("plan_id", result)
@@ -166,7 +164,7 @@ class TestIntelligentReviewGenerator(unittest.TestCase):
         weak_concepts = [
             {"concept_name": "概念1", "weakness_score": 0.8},
             {"concept_name": "概念2", "weakness_score": 0.6},
-            {"concept_name": "概念3", "weakness_score": 0.9}
+            {"concept_name": "概念3", "weakness_score": 0.9},
         ]
 
         config = ReviewPlanConfig(plan_type="weakness_focused")
@@ -179,8 +177,7 @@ class TestIntelligentReviewGenerator(unittest.TestCase):
         # 应该按薄弱程度排序
         if len(selected) > 1:
             self.assertGreaterEqual(
-                selected[0]["weakness_score"],
-                selected[1]["weakness_score"]
+                selected[0]["weakness_score"], selected[1]["weakness_score"]
             )
 
     def test_generate_review_questions(self):
@@ -188,7 +185,7 @@ class TestIntelligentReviewGenerator(unittest.TestCase):
         concept_data = {
             "concept_name": "测试概念",
             "weakness_type": "insufficient_exposure",
-            "mastery_score": 4.0
+            "mastery_score": 4.0,
         }
         config = ReviewPlanConfig()
 
@@ -221,7 +218,7 @@ class TestIntelligentReviewGenerator(unittest.TestCase):
                 recommended_focus_areas=["基础复习"],
                 review_questions=[],
                 supporting_materials=[],
-                estimated_time_minutes=15
+                estimated_time_minutes=15,
             ),
             ReviewConcept(
                 concept_name="概念2",
@@ -232,8 +229,8 @@ class TestIntelligentReviewGenerator(unittest.TestCase):
                 recommended_focus_areas=["应用练习"],
                 review_questions=[],
                 supporting_materials=[],
-                estimated_time_minutes=12
-            )
+                estimated_time_minutes=12,
+            ),
         ]
 
         config = ReviewPlanConfig(estimated_duration=30)
@@ -278,11 +275,11 @@ class TestReviewCanvasBuilder(unittest.TestCase):
                             "review_questions": [
                                 {
                                     "question_text": "请解释测试概念",
-                                    "suggested_approach": "从定义开始"
+                                    "suggested_approach": "从定义开始",
                                 }
-                            ]
+                            ],
                         }
-                    ]
+                    ],
                 }
             ],
             "personalization_features": {
@@ -290,21 +287,20 @@ class TestReviewCanvasBuilder(unittest.TestCase):
                     "preferred_approach": "self_explanation_focused"
                 }
             },
-            "next_review_date": datetime.now().isoformat()
+            "next_review_date": datetime.now().isoformat(),
         }
 
         output_path = os.path.join(self.temp_dir, "test_review.canvas")
 
         result_path = self.builder.create_review_canvas(
-            review_plan=review_plan,
-            output_path=output_path
+            review_plan=review_plan, output_path=output_path
         )
 
         self.assertEqual(result_path, output_path)
         self.assertTrue(os.path.exists(output_path))
 
         # 验证Canvas文件结构
-        with open(output_path, 'r', encoding='utf-8') as f:
+        with open(output_path, "r", encoding="utf-8") as f:
             canvas_data = json.load(f)
 
         self.assertIn("nodes", canvas_data)
@@ -327,12 +323,10 @@ class TestReviewCanvasBuilder(unittest.TestCase):
         review_plan = {
             "plan_type": "weakness_focused",
             "target_canvas": "test.canvas",
-            "generation_timestamp": datetime.now().isoformat()
+            "generation_timestamp": datetime.now().isoformat(),
         }
 
-        node, new_y = self.builder._add_intro_node(
-            canvas_data, review_plan, 100, 100
-        )
+        node, new_y = self.builder._add_intro_node(canvas_data, review_plan, 100, 100)
 
         self.assertEqual(len(canvas_data["nodes"]), 1)
         self.assertEqual(canvas_data["nodes"][0]["id"], node["id"])
@@ -347,11 +341,8 @@ class TestReviewCanvasBuilder(unittest.TestCase):
             "estimated_time_minutes": 15,
             "recommended_focus_areas": ["基础复习"],
             "review_questions": [
-                {
-                    "question_text": "请解释测试概念",
-                    "suggested_approach": "从定义开始"
-                }
-            ]
+                {"question_text": "请解释测试概念", "suggested_approach": "从定义开始"}
+            ],
         }
 
         concept_node, new_x, new_y = self.builder._add_concept_node(
@@ -379,12 +370,12 @@ class TestPersonalizationEngine(unittest.TestCase):
                     "questions": [{"text": "问题1"}, {"text": "问题2"}],
                     "understanding_records": [
                         {"quality_score": 8.0},
-                        {"quality_score": 7.5}
+                        {"quality_score": 7.5},
                     ],
                     "explanations": [
                         {"explanation_type": "definition"},
-                        {"explanation_type": "example"}
-                    ]
+                        {"explanation_type": "example"},
+                    ],
                 }
             ]
         }
@@ -424,7 +415,7 @@ class TestPersonalizationEngine(unittest.TestCase):
             "preferred_difficulty": "gradual",
             "content_preferences": {"visual": 0.8, "text": 0.6},
             "time_preferences": {"preferred_duration": 50},
-            "complexity_tolerance": "moderate"
+            "complexity_tolerance": "moderate",
         }
 
         result = self.engine.update_user_preferences(user_feedback)
@@ -449,12 +440,14 @@ class TestPersonalizationEngine(unittest.TestCase):
             complexity_tolerance="moderate",
             content_preferences={},
             created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat()
+            updated_at=datetime.now().isoformat(),
         )
 
         current_context = {"current_time": "morning"}
 
-        result = self.engine.get_personalized_recommendations(user_profile, current_context)
+        result = self.engine.get_personalized_recommendations(
+            user_profile, current_context
+        )
 
         self.assertIn("learning_approach", result)
         self.assertIn("content_format", result)
@@ -482,7 +475,7 @@ class TestIntelligentReviewCLI(unittest.TestCase):
         self.assertIsNotNone(self.cli.personalization_engine)
         self.assertTrue(self.cli.data_dir.exists())
 
-    @patch('intelligent_review_cli.IntelligentReviewGenerator.generate_review_plan')
+    @patch("intelligent_review_cli.IntelligentReviewGenerator.generate_review_plan")
     def test_generate_review_plan_command(self, mock_generate):
         """测试生成复习计划命令"""
         # 模拟返回数据
@@ -493,19 +486,17 @@ class TestIntelligentReviewCLI(unittest.TestCase):
             "analysis_summary": {
                 "total_concepts_analyzed": 5,
                 "concepts_mastered": 2,
-                "concepts_needing_review": 3
+                "concepts_needing_review": 3,
             },
             "review_sessions": [
                 {
                     "session_id": "session-1",
                     "estimated_duration": 30,
                     "difficulty_level": "medium",
-                    "concepts": []
+                    "concepts": [],
                 }
             ],
-            "estimated_completion_time": {
-                "total_estimated_minutes": 30
-            }
+            "estimated_completion_time": {"total_estimated_minutes": 30},
         }
 
         # 创建模拟参数
@@ -523,10 +514,12 @@ class TestIntelligentReviewCLI(unittest.TestCase):
         args = MockArgs()
 
         # 执行命令
-        with patch('intelligent_review_cli.ReviewCanvasBuilder.create_review_canvas') as mock_canvas:
+        with patch(
+            "intelligent_review_cli.ReviewCanvasBuilder.create_review_canvas"
+        ) as mock_canvas:
             mock_canvas.return_value = "test_output.canvas"
 
-            with patch('builtins.open', create=True) as mock_file:
+            with patch("builtins.open", create=True) as mock_file:
                 mock_file.return_value.__enter__.return_value.write.return_value = None
 
                 self.cli.generate_review_plan(args)
@@ -539,13 +532,8 @@ class TestIntelligentReviewCLI(unittest.TestCase):
         review_plan = {
             "plan_id": "test-plan",
             "review_sessions": [
-                {
-                    "concepts": [
-                        {"concept_name": "概念1"},
-                        {"concept_name": "概念2"}
-                    ]
-                }
-            ]
+                {"concepts": [{"concept_name": "概念1"}, {"concept_name": "概念2"}]}
+            ],
         }
 
         progress = self.cli._analyze_canvas_progress(review_plan)
@@ -602,13 +590,15 @@ class TestSystemIntegration(unittest.TestCase):
             ReviewPlanConfig(difficulty_level="easy"),
             ReviewPlanConfig(difficulty_level="adaptive"),
             ReviewPlanConfig(estimated_duration=30),
-            ReviewPlanConfig(max_concepts_per_session=3)
+            ReviewPlanConfig(max_concepts_per_session=3),
         ]
 
         for config in configs:
             self.assertIsInstance(config.user_id, str)
             self.assertIsInstance(config.target_canvas, str)
-            self.assertIn(config.plan_type, ["weakness_focused", "comprehensive", "targeted"])
+            self.assertIn(
+                config.plan_type, ["weakness_focused", "comprehensive", "targeted"]
+            )
 
     def test_error_handling(self):
         """测试错误处理"""
@@ -636,15 +626,19 @@ class TestSystemIntegration(unittest.TestCase):
         generator = IntelligentReviewGenerator()
 
         # 使用模拟数据避免文件依赖
-        with patch.object(generator.learning_analyzer, 'analyze_learning_history') as mock_analyze:
+        with patch.object(
+            generator.learning_analyzer, "analyze_learning_history"
+        ) as mock_analyze:
             mock_analyze.return_value = {
                 "analysis_summary": {},
-                "identified_weak_concepts": []
+                "identified_weak_concepts": [],
             }
 
             config = ReviewPlanConfig()
             try:
-                generator.generate_review_plan("test", "test", "weakness_focused", config)
+                generator.generate_review_plan(
+                    "test", "test", "weakness_focused", config
+                )
             except:
                 pass  # 预期可能失败，因为其他依赖
 
@@ -664,7 +658,7 @@ class TestAccuracyValidation(unittest.TestCase):
             {"name": "完全掌握", "score": 9.5, "expected_weakness": 0.1},
             {"name": "部分掌握", "score": 6.0, "expected_weakness": 0.4},
             {"name": "未掌握", "score": 3.0, "expected_weakness": 0.7},
-            {"name": "非常薄弱", "score": 1.0, "expected_weakness": 0.9}
+            {"name": "非常薄弱", "score": 1.0, "expected_weakness": 0.9},
         ]
 
         for concept in test_concepts:
@@ -673,8 +667,10 @@ class TestAccuracyValidation(unittest.TestCase):
             actual_weakness = max(0, (10 - concept["score"]) / 10)
 
             self.assertAlmostEqual(
-                actual_weakness, expected_weakness, 0.1,
-                f"概念 {concept['name']} 的薄弱分数计算不准确"
+                actual_weakness,
+                expected_weakness,
+                0.1,
+                f"概念 {concept['name']} 的薄弱分数计算不准确",
             )
 
     def test_difficulty_classification_accuracy(self):
@@ -686,7 +682,7 @@ class TestAccuracyValidation(unittest.TestCase):
             {"score": 9.0, "expected_difficulties": ["hard", "expert"]},
             {"score": 6.0, "expected_difficulties": ["medium", "hard"]},
             {"score": 4.0, "expected_difficulties": ["easy", "medium"]},
-            {"score": 2.0, "expected_difficulties": ["easy"]}
+            {"score": 2.0, "expected_difficulties": ["easy"]},
         ]
 
         config = ReviewPlanConfig(difficulty_level="adaptive")
@@ -710,21 +706,9 @@ class TestAccuracyValidation(unittest.TestCase):
 
         # 测试不同复杂度概念的时间估算
         test_concepts = [
-            {
-                "mastery_score": 9.0,
-                "weakness_score": 0.1,
-                "estimated_time": 8
-            },
-            {
-                "mastery_score": 5.0,
-                "weakness_score": 0.5,
-                "estimated_time": 12
-            },
-            {
-                "mastery_score": 2.0,
-                "weakness_score": 0.8,
-                "estimated_time": 20
-            }
+            {"mastery_score": 9.0, "weakness_score": 0.1, "estimated_time": 8},
+            {"mastery_score": 5.0, "weakness_score": 0.5, "estimated_time": 12},
+            {"mastery_score": 2.0, "weakness_score": 0.8, "estimated_time": 20},
         ]
 
         for concept in test_concepts:
@@ -745,7 +729,7 @@ class TestAccuracyValidation(unittest.TestCase):
 def run_tests():
     """运行所有测试"""
     print("🧪 开始运行智能复习系统测试套件...")
-    print("="*60)
+    print("=" * 60)
 
     # 创建测试套件
     test_suite = unittest.TestSuite()
@@ -758,7 +742,7 @@ def run_tests():
         TestPersonalizationEngine,
         TestIntelligentReviewCLI,
         TestSystemIntegration,
-        TestAccuracyValidation
+        TestAccuracyValidation,
     ]
 
     for test_class in test_classes:
@@ -770,7 +754,7 @@ def run_tests():
     result = runner.run(test_suite)
 
     # 输出测试结果
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("📊 测试结果统计:")
     print(f"  总测试数: {result.testsRun}")
     print(f"  成功: {result.testsRun - len(result.failures) - len(result.errors)}")
@@ -788,7 +772,11 @@ def run_tests():
         for test, traceback in result.errors:
             print(f"  - {test}: {traceback.split('Error:')[-1].strip()}")
 
-    success_rate = (result.testsRun - len(result.failures) - len(result.errors)) / result.testsRun * 100
+    success_rate = (
+        (result.testsRun - len(result.failures) - len(result.errors))
+        / result.testsRun
+        * 100
+    )
     print(f"\n✅ 测试通过率: {success_rate:.1f}%")
 
     if success_rate >= 90:

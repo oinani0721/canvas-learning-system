@@ -1,5 +1,6 @@
 # Generator script
 import pathlib
+
 BASE = pathlib.Path("tests/unit")
 
 def main():

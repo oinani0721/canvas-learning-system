@@ -73,7 +73,7 @@ class TestEncodingValidationMiddleware:
         response = await client.post(
             "/api/v1/agents/decompose/basic",
             content=invalid_body,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         # Should return 400, not 500
@@ -104,7 +104,7 @@ class TestEncodingValidationMiddleware:
         response = await client.post(
             "/api/v1/agents/decompose/basic",
             content=invalid_body,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == 400
@@ -139,7 +139,7 @@ class TestEncodingValidationMiddleware:
         """
         response = await client.post(
             "/api/v1/agents/decompose/basic",
-            json={"canvas_name": "测试Canvas.canvas", "node_id": "abc123"}
+            json={"canvas_name": "测试Canvas.canvas", "node_id": "abc123"},
         )
 
         # Key assertion: Should NOT return 400 with ENCODING_ERROR
@@ -175,19 +175,20 @@ class TestEncodingValidationMiddleware:
         The middleware should only validate application/json requests.
         """
         # Send invalid UTF-8 but with non-JSON content type
-        invalid_body = b'\xff\xfe\x00\x01'
+        invalid_body = b"\xff\xfe\x00\x01"
 
         response = await client.post(
             "/api/v1/health",  # This endpoint may not accept POST, that's OK
             content=invalid_body,
-            headers={"Content-Type": "application/octet-stream"}
+            headers={"Content-Type": "application/octet-stream"},
         )
 
         # Should NOT return 400 encoding error
         # (may return 405 Method Not Allowed or other errors)
-        assert response.status_code != 400 or response.json().get("error_type") != "ENCODING_ERROR", (
-            "Non-JSON content type should skip encoding validation"
-        )
+        assert (
+            response.status_code != 400
+            or response.json().get("error_type") != "ENCODING_ERROR"
+        ), "Non-JSON content type should skip encoding validation"
 
     @pytest.mark.asyncio
     async def test_mixed_valid_invalid_utf8_in_json(self, client: AsyncClient):
@@ -203,7 +204,7 @@ class TestEncodingValidationMiddleware:
         response = await client.post(
             "/api/v1/agents/decompose/basic",
             content=invalid_body,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == 400
@@ -220,14 +221,15 @@ class TestEncodingValidationMiddleware:
         response = await client.post(
             "/api/v1/agents/decompose/basic",
             content=b"{}",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         # Should NOT be 400 encoding error (empty is valid UTF-8)
         # May be 422 validation error (missing required fields) or other
-        assert response.status_code != 400 or response.json().get("error_type") != "ENCODING_ERROR", (
-            "Empty JSON body should pass encoding validation"
-        )
+        assert (
+            response.status_code != 400
+            or response.json().get("error_type") != "ENCODING_ERROR"
+        ), "Empty JSON body should pass encoding validation"
 
     @pytest.mark.asyncio
     async def test_unicode_emoji_passes(self, client: AsyncClient):
@@ -239,11 +241,12 @@ class TestEncodingValidationMiddleware:
         # Request with emoji (valid UTF-8)
         response = await client.post(
             "/api/v1/agents/decompose/basic",
-            json={"canvas_name": "测试🎉学习📚系统.canvas", "node_id": "node-123"}
+            json={"canvas_name": "测试🎉学习📚系统.canvas", "node_id": "node-123"},
         )
 
         # Should NOT be 400 encoding error
         # May fail for other reasons (404 canvas not found, etc.)
-        assert response.status_code != 400 or response.json().get("error_type") != "ENCODING_ERROR", (
-            "Valid Unicode with emoji should pass encoding validation"
-        )
+        assert (
+            response.status_code != 400
+            or response.json().get("error_type") != "ENCODING_ERROR"
+        ), "Valid Unicode with emoji should pass encoding validation"

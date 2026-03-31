@@ -5,13 +5,11 @@
 # conversation, supporting MVP #10 (笔记精准检索返回) and the core system
 # requirement "笔记片段精准检索系统".
 #
-# Uses the full RAG pipeline (6-source parallel retrieval + fusion + reranking)
+# Uses the full RAG pipeline (4-source parallel retrieval + fusion + reranking)
 # via RAGService.query(), which includes:
 #   - LanceDB + BGE-M3 semantic search (vault_notes)
 #   - Graphiti knowledge graph search
 #   - Multimodal retrieval (images/PDFs)
-#   - Cross-canvas retrieval
-#   - Textbook retrieval
 #   - Quality checking + context compression
 #
 # [Source: S18-8 F2 decision — MCP note_search tool, fastapi_mcp expose RAG API]
@@ -67,9 +65,7 @@ class NoteResultItem(BaseModel):
 
     content: str = Field(..., description="Matching note content segment.")
     file_path: str = Field(default="", description="Source file path.")
-    relevance_score: float = Field(
-        default=0.0, description="Relevance score (0-1)."
-    )
+    relevance_score: float = Field(default=0.0, description="Relevance score (0-1).")
     source: str = Field(
         default="unknown", description="Retrieval source (e.g., 'lancedb', 'graphiti')."
     )
@@ -108,7 +104,7 @@ async def search_notes(
 
     Executes the 6-source parallel retrieval pipeline via RAGService.query(),
     including semantic search (BGE-M3), knowledge graph (Graphiti),
-    multimodal, textbook, and cross-canvas sources. Results are fused
+    and multimodal sources. Results are fused
     and reranked for optimal relevance.
 
     Args:
@@ -157,7 +153,17 @@ async def search_notes(
                     metadata={
                         k: v
                         for k, v in r.items()
-                        if k not in ("content", "text", "file_path", "path", "score", "relevance_score", "source_type", "retrieval_source")
+                        if k
+                        not in (
+                            "content",
+                            "text",
+                            "file_path",
+                            "path",
+                            "score",
+                            "relevance_score",
+                            "source_type",
+                            "retrieval_source",
+                        )
                     },
                 )
             )

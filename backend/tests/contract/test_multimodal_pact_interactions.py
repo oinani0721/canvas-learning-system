@@ -77,9 +77,7 @@ class TestPactInteractionCoverage:
 
     def test_all_provider_states_covered(self, pact_data):
         """AC 35.12.2: Every expected provider state appears in at least one interaction."""
-        actual_states = {
-            i["providerState"] for i in pact_data["interactions"]
-        }
+        actual_states = {i["providerState"] for i in pact_data["interactions"]}
         missing = EXPECTED_PROVIDER_STATES - actual_states
         assert not missing, f"Missing provider states: {missing}"
 
@@ -89,7 +87,8 @@ class TestPactInteractionCoverage:
 
     def test_list_root_endpoint_covered(self, pact_data):
         interactions = [
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["method"] == "GET"
             and i["request"]["path"] == "/api/v1/multimodal/"
         ]
@@ -97,7 +96,8 @@ class TestPactInteractionCoverage:
 
     def test_list_paginated_endpoint_covered(self, pact_data):
         interactions = [
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["path"] == "/api/v1/multimodal/list"
         ]
         assert len(interactions) >= 1
@@ -105,29 +105,28 @@ class TestPactInteractionCoverage:
     def test_get_by_id_endpoint_covered(self, pact_data):
         """GET /{content_id} — uses UUID path."""
         interactions = [
-            i for i in pact_data["interactions"]
-            if i["request"]["method"] == "GET"
-            and "550e8400" in i["request"]["path"]
+            i
+            for i in pact_data["interactions"]
+            if i["request"]["method"] == "GET" and "550e8400" in i["request"]["path"]
         ]
         assert len(interactions) >= 1
 
     def test_put_update_endpoint_covered(self, pact_data):
         interactions = [
-            i for i in pact_data["interactions"]
-            if i["request"]["method"] == "PUT"
+            i for i in pact_data["interactions"] if i["request"]["method"] == "PUT"
         ]
         assert len(interactions) >= 1
 
     def test_delete_endpoint_covered(self, pact_data):
         interactions = [
-            i for i in pact_data["interactions"]
-            if i["request"]["method"] == "DELETE"
+            i for i in pact_data["interactions"] if i["request"]["method"] == "DELETE"
         ]
         assert len(interactions) >= 1
 
     def test_search_endpoint_covered(self, pact_data):
         interactions = [
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["method"] == "POST"
             and i["request"]["path"] == "/api/v1/multimodal/search"
         ]
@@ -135,14 +134,14 @@ class TestPactInteractionCoverage:
 
     def test_by_concept_endpoint_covered(self, pact_data):
         interactions = [
-            i for i in pact_data["interactions"]
-            if "by-concept" in i["request"]["path"]
+            i for i in pact_data["interactions"] if "by-concept" in i["request"]["path"]
         ]
         assert len(interactions) >= 1
 
     def test_upload_endpoint_covered(self, pact_data):
         interactions = [
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["method"] == "POST"
             and i["request"]["path"] == "/api/v1/multimodal/upload"
         ]
@@ -150,7 +149,8 @@ class TestPactInteractionCoverage:
 
     def test_upload_url_endpoint_covered(self, pact_data):
         interactions = [
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["method"] == "POST"
             and i["request"]["path"] == "/api/v1/multimodal/upload-url"
         ]
@@ -159,16 +159,14 @@ class TestPactInteractionCoverage:
     def test_error_scenario_404_covered(self, pact_data):
         """AC 35.12.1: 错误响应 404 有覆盖."""
         error_interactions = [
-            i for i in pact_data["interactions"]
-            if i["response"]["status"] == 404
+            i for i in pact_data["interactions"] if i["response"]["status"] == 404
         ]
         assert len(error_interactions) >= 1
 
     def test_error_scenario_422_covered(self, pact_data):
         """AC 35.12.1: 错误响应 422 (validation) 有覆盖."""
         error_interactions = [
-            i for i in pact_data["interactions"]
-            if i["response"]["status"] == 422
+            i for i in pact_data["interactions"] if i["response"]["status"] == 422
         ]
         assert len(error_interactions) >= 1
 
@@ -191,15 +189,13 @@ class TestProviderStateHandlerAlignment:
                 for child in ast.walk(node):
                     if isinstance(child, ast.Dict):
                         for key in child.keys:
-                            if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                            if isinstance(key, ast.Constant) and isinstance(
+                                key.value, str
+                            ):
                                 registered_states.add(key.value)
 
-        pact_states = {
-            i["providerState"] for i in pact_data["interactions"]
-        }
-        multimodal_pact_states = {
-            s for s in pact_states if "multimodal" in s
-        }
+        pact_states = {i["providerState"] for i in pact_data["interactions"]}
+        multimodal_pact_states = {s for s in pact_states if "multimodal" in s}
 
         missing = multimodal_pact_states - registered_states
         assert not missing, (
@@ -212,17 +208,24 @@ class TestInteractionResponseSchemas:
 
     def test_health_response_has_required_fields(self, pact_data):
         health = next(
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["path"] == "/api/v1/multimodal/health"
         )
         body = health["response"]["body"]
-        required = {"status", "lancedb_connected", "neo4j_connected",
-                     "storage_path_writable", "total_items"}
+        required = {
+            "status",
+            "lancedb_connected",
+            "neo4j_connected",
+            "storage_path_writable",
+            "total_items",
+        }
         assert required.issubset(body.keys())
 
     def test_get_content_response_has_required_fields(self, pact_data):
         get_content = next(
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["method"] == "GET"
             and "550e8400" in i["request"]["path"]
             and i["response"]["status"] == 200
@@ -234,8 +237,7 @@ class TestInteractionResponseSchemas:
     def test_delete_response_is_204_no_content(self, pact_data):
         """Story 35.10 AC 35.10.3: DELETE returns 204 No Content (no body)."""
         delete_interactions = [
-            i for i in pact_data["interactions"]
-            if i["request"]["method"] == "DELETE"
+            i for i in pact_data["interactions"] if i["request"]["method"] == "DELETE"
         ]
         if not delete_interactions:
             pytest.skip("No DELETE interactions in pact data")
@@ -244,7 +246,8 @@ class TestInteractionResponseSchemas:
 
     def test_search_response_has_required_fields(self, pact_data):
         search = next(
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["method"] == "POST"
             and i["request"]["path"] == "/api/v1/multimodal/search"
             and i["response"]["status"] == 200
@@ -255,7 +258,8 @@ class TestInteractionResponseSchemas:
 
     def test_paginated_list_response_has_pagination(self, pact_data):
         paginated = next(
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["path"] == "/api/v1/multimodal/list"
         )
         body = paginated["response"]["body"]
@@ -266,7 +270,8 @@ class TestInteractionResponseSchemas:
 
     def test_upload_response_has_required_fields(self, pact_data):
         upload = next(
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["path"] == "/api/v1/multimodal/upload"
         )
         body = upload["response"]["body"]
@@ -279,7 +284,8 @@ class TestInteractionResponseSchemas:
 
     def test_upload_url_response_has_required_fields(self, pact_data):
         upload_url = next(
-            i for i in pact_data["interactions"]
+            i
+            for i in pact_data["interactions"]
             if i["request"]["path"] == "/api/v1/multimodal/upload-url"
         )
         body = upload_url["response"]["body"]
@@ -288,8 +294,7 @@ class TestInteractionResponseSchemas:
 
     def test_by_concept_response_has_required_fields(self, pact_data):
         by_concept = next(
-            i for i in pact_data["interactions"]
-            if "by-concept" in i["request"]["path"]
+            i for i in pact_data["interactions"] if "by-concept" in i["request"]["path"]
         )
         body = by_concept["response"]["body"]
         required = {"items", "total"}

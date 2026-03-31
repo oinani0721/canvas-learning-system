@@ -22,6 +22,7 @@ from test_canvas_performance import PerformanceTestResult, TestEnvironment
 @dataclass
 class PerformanceBaseline:
     """性能基准数据模型"""
+
     baseline_id: str
     created_at: str
     test_environment: TestEnvironment
@@ -33,6 +34,7 @@ class PerformanceBaseline:
 @dataclass
 class RegressionTestResult:
     """回归测试结果"""
+
     test_timestamp: str
     baseline_id: str
     current_results: List[PerformanceTestResult]
@@ -59,19 +61,19 @@ class PerformanceBaselineManager:
         # 性能回归检测阈值
         self.regression_thresholds = {
             "processing_time_degradation": 20.0,  # 处理时间增加20%视为回归
-            "memory_usage_increase": 30.0,        # 内存使用增加30%视为回归
-            "layout_quality_decrease": 15.0,     # 布局质量下降15%视为回归
-            "overlap_count_increase": 25.0,      # 重叠数量增加25%视为回归
-            "success_rate_decrease": 5.0         # 成功率下降5%视为回归
+            "memory_usage_increase": 30.0,  # 内存使用增加30%视为回归
+            "layout_quality_decrease": 15.0,  # 布局质量下降15%视为回归
+            "overlap_count_increase": 25.0,  # 重叠数量增加25%视为回归
+            "success_rate_decrease": 5.0,  # 成功率下降5%视为回归
         }
 
         # 性能改进奖励阈值
         self.improvement_thresholds = {
-            "processing_time_improvement": 15.0,   # 处理时间减少15%视为改进
-            "memory_usage_reduction": 20.0,       # 内存使用减少20%视为改进
-            "layout_quality_increase": 10.0,      # 布局质量提升10%视为改进
-            "overlap_count_reduction": 30.0,      # 重叠数量减少30%视为改进
-            "success_rate_increase": 2.0          # 成功率提升2%视为改进
+            "processing_time_improvement": 15.0,  # 处理时间减少15%视为改进
+            "memory_usage_reduction": 20.0,  # 内存使用减少20%视为改进
+            "layout_quality_increase": 10.0,  # 布局质量提升10%视为改进
+            "overlap_count_reduction": 30.0,  # 重叠数量减少30%视为改进
+            "success_rate_increase": 2.0,  # 成功率提升2%视为改进
         }
 
     def _load_baselines(self) -> Dict[str, PerformanceBaseline]:
@@ -80,7 +82,7 @@ class PerformanceBaselineManager:
             return {}
 
         try:
-            with open(self.baseline_file, 'r', encoding='utf-8') as f:
+            with open(self.baseline_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             baselines = {}
@@ -88,10 +90,12 @@ class PerformanceBaselineManager:
                 baseline = PerformanceBaseline(
                     baseline_id=baseline_data["baseline_id"],
                     created_at=baseline_data["created_at"],
-                    test_environment=TestEnvironment(**baseline_data["test_environment"]),
+                    test_environment=TestEnvironment(
+                        **baseline_data["test_environment"]
+                    ),
                     baseline_metrics=baseline_data["baseline_metrics"],
                     version=baseline_data.get("version", "1.0"),
-                    description=baseline_data.get("description", "")
+                    description=baseline_data.get("description", ""),
                 )
                 baselines[baseline_id] = baseline
 
@@ -115,23 +119,25 @@ class PerformanceBaselineManager:
                         "cpu_count": baseline.test_environment.cpu_count,
                         "memory_gb": baseline.test_environment.memory_gb,
                         "canvas_utils_version": baseline.test_environment.canvas_utils_version,
-                        "test_machine_id": baseline.test_environment.test_machine_id
+                        "test_machine_id": baseline.test_environment.test_machine_id,
                     },
                     "baseline_metrics": baseline.baseline_metrics,
                     "version": baseline.version,
-                    "description": baseline.description
+                    "description": baseline.description,
                 }
 
-            with open(self.baseline_file, 'w', encoding='utf-8') as f:
+            with open(self.baseline_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
 
         except Exception as e:
             print(f"错误: 保存基准数据失败 - {e}")
 
-    def establish_baseline(self,
-                          test_results: List[PerformanceTestResult],
-                          test_environment: TestEnvironment,
-                          description: str = "") -> str:
+    def establish_baseline(
+        self,
+        test_results: List[PerformanceTestResult],
+        test_environment: TestEnvironment,
+        description: str = "",
+    ) -> str:
         """
         建立性能基准
 
@@ -159,7 +165,7 @@ class PerformanceBaselineManager:
             created_at=datetime.now().isoformat(),
             test_environment=test_environment,
             baseline_metrics=baseline_metrics,
-            description=description
+            description=description,
         )
 
         # 保存基准
@@ -169,9 +175,11 @@ class PerformanceBaselineManager:
         print(f"性能基准已建立: {baseline_id}")
         return baseline_id
 
-    def compare_with_baseline(self,
-                             current_results: List[PerformanceTestResult],
-                             baseline_id: Optional[str] = None) -> RegressionTestResult:
+    def compare_with_baseline(
+        self,
+        current_results: List[PerformanceTestResult],
+        baseline_id: Optional[str] = None,
+    ) -> RegressionTestResult:
         """
         与基准进行比较，检测性能回归
 
@@ -188,8 +196,9 @@ class PerformanceBaselineManager:
         # 选择基准
         if baseline_id is None:
             # 选择最新的基准
-            baseline_id = max(self.baselines.keys(),
-                             key=lambda k: self.baselines[k].created_at)
+            baseline_id = max(
+                self.baselines.keys(), key=lambda k: self.baselines[k].created_at
+            )
 
         baseline = self.baselines[baseline_id]
 
@@ -216,13 +225,15 @@ class PerformanceBaselineManager:
             regression_detected=regression_detected,
             performance_changes=performance_changes,
             recommendations=recommendations,
-            overall_score=overall_score
+            overall_score=overall_score,
         )
 
-    def update_baseline(self,
-                       new_results: List[PerformanceTestResult],
-                       reason: str,
-                       baseline_id: Optional[str] = None) -> str:
+    def update_baseline(
+        self,
+        new_results: List[PerformanceTestResult],
+        reason: str,
+        baseline_id: Optional[str] = None,
+    ) -> str:
         """
         更新性能基准
 
@@ -237,11 +248,10 @@ class PerformanceBaselineManager:
         if baseline_id is None:
             # 创建新基准
             from test_canvas_performance import CanvasPerformanceTester
+
             tester = CanvasPerformanceTester()
             return self.establish_baseline(
-                new_results,
-                tester.test_environment,
-                f"基准更新: {reason}"
+                new_results, tester.test_environment, f"基准更新: {reason}"
             )
 
         if baseline_id not in self.baselines:
@@ -252,7 +262,9 @@ class PerformanceBaselineManager:
         successful_results = [r for r in new_results if r.success]
 
         if successful_results:
-            baseline.baseline_metrics = self._calculate_baseline_metrics(successful_results)
+            baseline.baseline_metrics = self._calculate_baseline_metrics(
+                successful_results
+            )
             baseline.description = f"{baseline.description} | 更新: {reason}"
             self._save_baselines()
 
@@ -272,8 +284,9 @@ class PerformanceBaselineManager:
             return {}
 
         if baseline_id is None:
-            baseline_id = max(self.baselines.keys(),
-                             key=lambda k: self.baselines[k].created_at)
+            baseline_id = max(
+                self.baselines.keys(), key=lambda k: self.baselines[k].created_at
+            )
 
         return self.baselines[baseline_id].baseline_metrics
 
@@ -289,17 +302,17 @@ class PerformanceBaselineManager:
                     "python_version": baseline.test_environment.python_version,
                     "platform": baseline.test_environment.platform,
                     "cpu_count": baseline.test_environment.cpu_count,
-                    "memory_gb": baseline.test_environment.memory_gb
-                }
+                    "memory_gb": baseline.test_environment.memory_gb,
+                },
             }
             for baseline in sorted(
-                self.baselines.values(),
-                key=lambda b: b.created_at,
-                reverse=True
+                self.baselines.values(), key=lambda b: b.created_at, reverse=True
             )
         ]
 
-    def _calculate_baseline_metrics(self, results: List[PerformanceTestResult]) -> Dict[str, Any]:
+    def _calculate_baseline_metrics(
+        self, results: List[PerformanceTestResult]
+    ) -> Dict[str, Any]:
         """计算基准指标"""
         if not results:
             return {}
@@ -318,7 +331,7 @@ class PerformanceBaselineManager:
             "total_tests": len(results),
             "success_rate": len(results) / len(results) * 100,
             "node_groups": {},
-            "overall_stats": {}
+            "overall_stats": {},
         }
 
         processing_times = []
@@ -336,18 +349,18 @@ class PerformanceBaselineManager:
                     "avg_ms": sum(group_times) / len(group_times),
                     "min_ms": min(group_times),
                     "max_ms": max(group_times),
-                    "p95_ms": sorted(group_times)[int(len(group_times) * 0.95)]
+                    "p95_ms": sorted(group_times)[int(len(group_times) * 0.95)],
                 },
                 "memory_usage": {
                     "avg_mb": sum(group_memories) / len(group_memories),
                     "min_mb": min(group_memories),
-                    "max_mb": max(group_memories)
+                    "max_mb": max(group_memories),
                 },
                 "layout_quality": {
                     "avg_score": sum(group_qualities) / len(group_qualities),
                     "min_score": min(group_qualities),
-                    "max_score": max(group_qualities)
-                }
+                    "max_score": max(group_qualities),
+                },
             }
 
             processing_times.extend(group_times)
@@ -360,25 +373,27 @@ class PerformanceBaselineManager:
                 "avg_ms": sum(processing_times) / len(processing_times),
                 "min_ms": min(processing_times),
                 "max_ms": max(processing_times),
-                "p95_ms": sorted(processing_times)[int(len(processing_times) * 0.95)]
+                "p95_ms": sorted(processing_times)[int(len(processing_times) * 0.95)],
             },
             "memory_usage": {
                 "avg_mb": sum(memory_usages) / len(memory_usages),
                 "min_mb": min(memory_usages),
-                "max_mb": max(memory_usages)
+                "max_mb": max(memory_usages),
             },
             "layout_quality": {
                 "avg_score": sum(quality_scores) / len(quality_scores),
                 "min_score": min(quality_scores),
-                "max_score": max(quality_scores)
-            }
+                "max_score": max(quality_scores),
+            },
         }
 
         return baseline_metrics
 
-    def _analyze_performance_changes(self,
-                                    current_results: List[PerformanceTestResult],
-                                    baseline_metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_performance_changes(
+        self,
+        current_results: List[PerformanceTestResult],
+        baseline_metrics: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """分析性能变化"""
         successful_current = [r for r in current_results if r.success]
 
@@ -396,7 +411,7 @@ class PerformanceBaselineManager:
         changes = {
             "overall_comparison": {},
             "node_group_comparisons": {},
-            "performance_trends": {}
+            "performance_trends": {},
         }
 
         # 总体比较
@@ -409,16 +424,16 @@ class PerformanceBaselineManager:
         changes["overall_comparison"] = {
             "processing_time_change_pct": self._calculate_percentage_change(
                 sum(current_times) / len(current_times),
-                baseline_stats.get("processing_time", {}).get("avg_ms")
+                baseline_stats.get("processing_time", {}).get("avg_ms"),
             ),
             "memory_usage_change_pct": self._calculate_percentage_change(
                 sum(current_memories) / len(current_memories),
-                baseline_stats.get("memory_usage", {}).get("avg_mb")
+                baseline_stats.get("memory_usage", {}).get("avg_mb"),
             ),
             "layout_quality_change_pct": self._calculate_percentage_change(
                 sum(current_qualities) / len(current_qualities),
-                baseline_stats.get("layout_quality", {}).get("avg_score")
-            )
+                baseline_stats.get("layout_quality", {}).get("avg_score"),
+            ),
         }
 
         # 节点组比较
@@ -435,21 +450,23 @@ class PerformanceBaselineManager:
                 changes["node_group_comparisons"][node_count_str] = {
                     "processing_time_change_pct": self._calculate_percentage_change(
                         sum(current_times) / len(current_times),
-                        baseline_group.get("processing_time", {}).get("avg_ms")
+                        baseline_group.get("processing_time", {}).get("avg_ms"),
                     ),
                     "memory_usage_change_pct": self._calculate_percentage_change(
                         sum(current_memories) / len(current_memories),
-                        baseline_group.get("memory_usage", {}).get("avg_mb")
+                        baseline_group.get("memory_usage", {}).get("avg_mb"),
                     ),
                     "layout_quality_change_pct": self._calculate_percentage_change(
                         sum(current_qualities) / len(current_qualities),
-                        baseline_group.get("layout_quality", {}).get("avg_score")
-                    )
+                        baseline_group.get("layout_quality", {}).get("avg_score"),
+                    ),
                 }
 
         return changes
 
-    def _calculate_percentage_change(self, current: float, baseline: Optional[float]) -> float:
+    def _calculate_percentage_change(
+        self, current: float, baseline: Optional[float]
+    ) -> float:
         """计算百分比变化"""
         if baseline is None or baseline == 0:
             return 0.0
@@ -463,7 +480,10 @@ class PerformanceBaselineManager:
         regressions = []
 
         processing_change = overall.get("processing_time_change_pct", 0)
-        if processing_change > self.regression_thresholds["processing_time_degradation"]:
+        if (
+            processing_change
+            > self.regression_thresholds["processing_time_degradation"]
+        ):
             regressions.append(f"处理时间增加{processing_change:.1f}%")
 
         memory_change = overall.get("memory_usage_change_pct", 0)
@@ -476,9 +496,9 @@ class PerformanceBaselineManager:
 
         return len(regressions) > 0
 
-    def _generate_recommendations(self,
-                                 performance_changes: Dict[str, Any],
-                                 regression_detected: bool) -> List[str]:
+    def _generate_recommendations(
+        self, performance_changes: Dict[str, Any], regression_detected: bool
+    ) -> List[str]:
         """生成优化建议"""
         recommendations = []
         overall = performance_changes.get("overall_comparison", {})
@@ -492,9 +512,15 @@ class PerformanceBaselineManager:
         else:
             recommendations.append("✅ 未检测到明显的性能回归")
 
-        if processing_change > self.improvement_thresholds["processing_time_improvement"]:
+        if (
+            processing_change
+            > self.improvement_thresholds["processing_time_improvement"]
+        ):
             recommendations.append("🚀 处理时间显著改善，继续保持")
-        elif processing_change > self.regression_thresholds["processing_time_degradation"]:
+        elif (
+            processing_change
+            > self.regression_thresholds["processing_time_degradation"]
+        ):
             recommendations.append("🐌 处理时间显著增加，建议优化算法或检查瓶颈")
 
         if memory_change > self.regression_thresholds["memory_usage_increase"]:
@@ -521,9 +547,15 @@ class PerformanceBaselineManager:
         score = 50.0
 
         # 处理时间评分（40%权重）
-        if processing_change < -self.improvement_thresholds["processing_time_improvement"]:
+        if (
+            processing_change
+            < -self.improvement_thresholds["processing_time_improvement"]
+        ):
             score += 20  # 显著改进
-        elif processing_change > self.regression_thresholds["processing_time_degradation"]:
+        elif (
+            processing_change
+            > self.regression_thresholds["processing_time_degradation"]
+        ):
             score -= 25  # 显著回归
         else:
             score += processing_change * 0.5  # 线性调整
@@ -548,8 +580,4 @@ class PerformanceBaselineManager:
 
 
 # 导出主要类
-__all__ = [
-    'PerformanceBaselineManager',
-    'PerformanceBaseline',
-    'RegressionTestResult'
-]
+__all__ = ["PerformanceBaselineManager", "PerformanceBaseline", "RegressionTestResult"]

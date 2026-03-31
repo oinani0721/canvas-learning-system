@@ -85,7 +85,9 @@ CREATE TABLE IF NOT EXISTS llm_call_logs_daily (
 );
 """
 
-_CREATE_DAILY_INDEX = "CREATE INDEX IF NOT EXISTS idx_llm_daily_date ON llm_call_logs_daily(date);"
+_CREATE_DAILY_INDEX = (
+    "CREATE INDEX IF NOT EXISTS idx_llm_daily_date ON llm_call_logs_daily(date);"
+)
 
 _INSERT_LOG = """
 INSERT INTO llm_call_logs (
@@ -458,7 +460,9 @@ class CostTracker:
         if not self._initialized:
             return {"compressed": 0, "deleted": 0}
 
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=LOG_RETENTION_DAYS)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(days=LOG_RETENTION_DAYS)
+        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
         try:
             async with aiosqlite.connect(self._db_path) as db:

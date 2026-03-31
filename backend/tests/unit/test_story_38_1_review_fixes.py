@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Review H2: _do_index coverage
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -86,9 +85,14 @@ class TestDoIndexCoverage:
                 assert result == 2
                 mock_client.index_canvas.assert_called_once()
                 call_kwargs = mock_client.index_canvas.call_args
-                assert call_kwargs.kwargs.get("canvas_path") == "my_canvas.canvas" or \
-                       call_kwargs[1].get("canvas_path") == "my_canvas.canvas" or \
-                       (len(call_kwargs[0]) > 0 and call_kwargs[0][0] == "my_canvas.canvas")
+                assert (
+                    call_kwargs.kwargs.get("canvas_path") == "my_canvas.canvas"
+                    or call_kwargs[1].get("canvas_path") == "my_canvas.canvas"
+                    or (
+                        len(call_kwargs[0]) > 0
+                        and call_kwargs[0][0] == "my_canvas.canvas"
+                    )
+                )
 
     @pytest.mark.asyncio
     async def test_do_index_raises_file_not_found(self):
@@ -196,7 +200,17 @@ class TestReviewM4DeleteNodeTrigger:
         with tempfile.TemporaryDirectory() as tmpdir:
             node_id = "node-to-delete"
             canvas_data = {
-                "nodes": [{"id": node_id, "type": "text", "text": "bye", "x": 0, "y": 0, "width": 200, "height": 100}],
+                "nodes": [
+                    {
+                        "id": node_id,
+                        "type": "text",
+                        "text": "bye",
+                        "x": 0,
+                        "y": 0,
+                        "width": 200,
+                        "height": 100,
+                    }
+                ],
                 "edges": [],
             }
             canvas_path = Path(tmpdir) / "test.canvas"

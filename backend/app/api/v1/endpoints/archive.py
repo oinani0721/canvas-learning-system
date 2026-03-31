@@ -175,7 +175,10 @@ async def get_archive_summary(node_id: str) -> Dict[str, Any]:
             for item in results:
                 if isinstance(item, dict):
                     metadata = item.get("metadata", {})
-                    if isinstance(metadata, dict) and metadata.get("node_id") == node_id:
+                    if (
+                        isinstance(metadata, dict)
+                        and metadata.get("node_id") == node_id
+                    ):
                         summary = item.get("content", item.get("fact", ""))
                         tip_count = metadata.get("tip_count", 0)
                         error_count = metadata.get("error_count", 0)

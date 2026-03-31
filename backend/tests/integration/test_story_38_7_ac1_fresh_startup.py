@@ -5,15 +5,14 @@ Verifies default config, FSRS init, episode recovery, startup logging.
 
 Split from test_story_38_7_e2e_integration.py for maintainability.
 """
-import json
-import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from app.config import Settings
 from app.services.memory_service import MemoryService
 
-from tests.integration.conftest import make_mock_neo4j, make_mock_learning_memory
-
+from tests.integration.conftest import make_mock_learning_memory, make_mock_neo4j
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC-1: Fresh Environment Startup Verification
@@ -38,7 +37,7 @@ class TestAC1FreshEnvironmentStartup:
         [P0] Story 38.3 AC-3: ReviewService._fsrs_init_ok == True when
         py-fsrs is installed and FSRSManager initializes without error.
         """
-        from app.services.review_service import ReviewService, FSRS_AVAILABLE
+        from app.services.review_service import FSRS_AVAILABLE, ReviewService
 
         if not FSRS_AVAILABLE:
             pytest.skip("py-fsrs not installed")
@@ -55,8 +54,10 @@ class TestAC1FreshEnvironmentStartup:
         """
         from app.services.review_service import ReviewService
 
-        with patch("app.services.review_service.FSRS_AVAILABLE", False), \
-             patch("app.services.review_service.FSRSManager", None):
+        with (
+            patch("app.services.review_service.FSRS_AVAILABLE", False),
+            patch("app.services.review_service.FSRSManager", None),
+        ):
             canvas_svc = MagicMock()
             task_mgr = MagicMock()
             rs = ReviewService(canvas_service=canvas_svc, task_manager=task_mgr)
@@ -69,11 +70,19 @@ class TestAC1FreshEnvironmentStartup:
         [P0] Story 38.2 AC-2: MemoryService.initialize() calls
         _recover_episodes_from_neo4j() and populates self._episodes.
         """
-        neo4j = make_mock_neo4j(episodes=[
-            {"user_id": "u1", "concept": "Python", "concept_id": "c1",
-             "score": 85, "timestamp": "2026-02-07T10:00:00", "group_id": "g1",
-             "review_count": 2},
-        ])
+        neo4j = make_mock_neo4j(
+            episodes=[
+                {
+                    "user_id": "u1",
+                    "concept": "Python",
+                    "concept_id": "c1",
+                    "score": 85,
+                    "timestamp": "2026-02-07T10:00:00",
+                    "group_id": "g1",
+                    "review_count": 2,
+                },
+            ]
+        )
         learning_mem = make_mock_learning_memory()
 
         ms = MemoryService(neo4j_client=neo4j)

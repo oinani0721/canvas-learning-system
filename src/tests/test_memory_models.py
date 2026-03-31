@@ -15,8 +15,8 @@ from datetime import datetime, timedelta
 import pytest
 
 # 添加项目根目录到路径
-sys.path.append('..')
-sys.path.append('../memory_system')
+sys.path.append("..")
+sys.path.append("../memory_system")
 
 from memory_system.memory_models import (
     InteractionType,
@@ -68,7 +68,7 @@ class TestUnifiedMemoryEntry:
             metadata={"key": "value"},
             created_at=test_time,
             updated_at=test_time,
-            cross_references=["ref1", "ref2"]
+            cross_references=["ref1", "ref2"],
         )
 
         assert entry.memory_id == "test_memory_123"
@@ -91,7 +91,7 @@ class TestUnifiedMemoryEntry:
             canvas_id="test_canvas",
             content="测试内容",
             memory_type=MemoryType.SEMANTIC,
-            created_at=test_time
+            created_at=test_time,
         )
 
         result = entry.to_dict()
@@ -118,7 +118,7 @@ class TestUnifiedMemoryEntry:
             "metadata": {"test": True},
             "created_at": test_time.isoformat(),
             "updated_at": test_time.isoformat(),
-            "cross_references": ["ref1"]
+            "cross_references": ["ref1"],
         }
 
         entry = UnifiedMemoryEntry.from_dict(data)
@@ -142,7 +142,7 @@ class TestUnifiedMemoryEntry:
             node_id="test_node",
             content="测试序列化内容",
             memory_type=MemoryType.UNIFIED,
-            metadata={"serialization": "test"}
+            metadata={"serialization": "test"},
         )
 
         # 转换为字典
@@ -191,7 +191,7 @@ class TestMemoryLink:
             link_type=MemoryLinkType.TEMPORAL_SEMANTIC,
             strength=0.8,
             created_at=test_time,
-            metadata={"relation": "test"}
+            metadata={"relation": "test"},
         )
 
         assert link.link_id == "test_link_123"
@@ -210,7 +210,7 @@ class TestMemoryLink:
             target_memory_id="target",
             link_type=MemoryLinkType.CROSS_DOMAIN,
             strength=0.7,
-            created_at=test_time
+            created_at=test_time,
         )
 
         result = link.to_dict()
@@ -232,7 +232,7 @@ class TestMemoryLink:
             "link_type": "concept_relation",
             "strength": 0.9,
             "created_at": test_time.isoformat(),
-            "metadata": {"test": True}
+            "metadata": {"test": True},
         }
 
         link = MemoryLink.from_dict(data)
@@ -280,7 +280,7 @@ class TestTemporalMemoryData:
             confidence_score=0.9,
             review_interval_days=7,
             next_review_date=next_review,
-            metadata={"test": True}
+            metadata={"test": True},
         )
 
         assert data.session_id == "session_123"
@@ -303,7 +303,7 @@ class TestTemporalMemoryData:
             canvas_id="test_canvas",
             learning_state=LearningState.YELLOW,
             timestamp=test_time,
-            confidence_score=0.6
+            confidence_score=0.6,
         )
 
         result = data.to_dict()
@@ -329,7 +329,7 @@ class TestTemporalMemoryData:
             "confidence_score": 0.7,
             "review_interval_days": 3,
             "next_review_date": test_time.isoformat(),
-            "metadata": {"test": True}
+            "metadata": {"test": True},
         }
 
         temporal_data = TemporalMemoryData.from_dict(data)
@@ -375,7 +375,7 @@ class TestSemanticMemoryData:
             creativity_score=0.7,
             metadata={"test": True},
             created_at=test_time,
-            updated_at=test_time
+            updated_at=test_time,
         )
 
         assert data.content_vector == [0.1, 0.2, 0.3]
@@ -397,7 +397,7 @@ class TestSemanticMemoryData:
             semantic_tags=["test_tag"],
             domain_classification="test_domain",
             understanding_level=0.6,
-            created_at=test_time
+            created_at=test_time,
         )
 
         result = data.to_dict()
@@ -422,7 +422,7 @@ class TestSemanticMemoryData:
             "creativity_score": 0.8,
             "metadata": {"test": True},
             "created_at": test_time.isoformat(),
-            "updated_at": test_time.isoformat()
+            "updated_at": test_time.isoformat(),
         }
 
         semantic_data = SemanticMemoryData.from_dict(data)
@@ -468,7 +468,7 @@ class TestLearningSession:
             nodes_interacted=["node1", "node2"],
             memories_created=["mem1", "mem2"],
             learning_progress={"node1": 0.8, "node2": 0.6},
-            metadata={"test": True}
+            metadata={"test": True},
         )
 
         assert session.session_id == "session_123"
@@ -490,7 +490,7 @@ class TestLearningSession:
             user_id="test_user",
             start_time=test_time,
             duration_seconds=600,
-            nodes_interacted=["node1"]
+            nodes_interacted=["node1"],
         )
 
         result = session.to_dict()
@@ -516,7 +516,7 @@ class TestLearningSession:
             "nodes_interacted": ["node1", "node2"],
             "memories_created": ["mem1"],
             "learning_progress": {"node1": 0.7},
-            "metadata": {"test": True}
+            "metadata": {"test": True},
         }
 
         session = LearningSession.from_dict(data)
@@ -561,7 +561,7 @@ class TestMemoryConsistencyReport:
             consistency_score=0.95,
             inconsistencies_found=[{"type": "orphaned_link", "severity": "medium"}],
             recommendations=["修复孤立链接"],
-            auto_fixed=True
+            auto_fixed=True,
         )
 
         assert report.report_id == "report_123"
@@ -583,7 +583,7 @@ class TestMemoryConsistencyReport:
             semantic_memories_count=8,
             consistency_score=0.88,
             inconsistencies_found=[{"type": "test_issue"}],
-            recommendations=["测试建议"]
+            recommendations=["测试建议"],
         )
 
         result = report.to_dict()
@@ -609,10 +609,10 @@ class TestMemoryConsistencyReport:
             "consistency_score": 0.92,
             "inconsistencies_found": [
                 {"type": "issue1", "severity": "low"},
-                {"type": "issue2", "severity": "high"}
+                {"type": "issue2", "severity": "high"},
             ],
             "recommendations": ["建议1", "建议2"],
-            "auto_fixed": False
+            "auto_fixed": False,
         }
 
         report = MemoryConsistencyReport.from_dict(data)
@@ -677,7 +677,7 @@ class TestConvenienceFunctions:
             learning_state=LearningState.YELLOW,
             interaction_type=InteractionType.EDIT,
             confidence_score=0.7,
-            duration_seconds=300
+            duration_seconds=300,
         )
 
         assert memory.session_id == "test_session"
@@ -697,7 +697,7 @@ class TestConvenienceFunctions:
             semantic_tags=["math", "function"],
             concept_entities=["函数", "映射"],
             domain_classification="mathematics",
-            understanding_level=0.8
+            understanding_level=0.8,
         )
 
         assert memory.content_vector == [0.1, 0.2, 0.3, 0.4, 0.5]
@@ -716,7 +716,7 @@ class TestConvenienceFunctions:
             source_id="source_memory",
             target_id="target_memory",
             link_type=MemoryLinkType.CONCEPT_RELATION,
-            strength=0.85
+            strength=0.85,
         )
 
         assert link.source_memory_id == "source_memory"
@@ -733,7 +733,7 @@ class TestConvenienceFunctions:
             source_id="source",
             target_id="target",
             link_type=MemoryLinkType.CROSS_DOMAIN,
-            strength=0.3
+            strength=0.3,
         )
 
         assert link.strength == 0.3
@@ -747,32 +747,34 @@ class TestDataModelValidation:
         """测试统一记忆条目验证"""
         # 测试有效数据
         valid_entry = UnifiedMemoryEntry(
-            canvas_id="test_canvas",
-            node_id="test_node",
-            content="测试内容"
+            canvas_id="test_canvas", node_id="test_node", content="测试内容"
         )
         assert valid_entry.memory_id is not None
 
         # 测试边界值
         long_content = "a" * 10000  # 测试长内容
         entry_long = UnifiedMemoryEntry(
-            canvas_id="test",
-            node_id="test",
-            content=long_content
+            canvas_id="test", node_id="test", content=long_content
         )
         assert len(entry_long.content) == 10000
 
     def test_memory_link_validation(self):
         """测试记忆链接验证"""
         # 测试强度边界值
-        link_min = create_memory_link("source", "target", MemoryLinkType.CONCEPT_RELATION, 0.0)
+        link_min = create_memory_link(
+            "source", "target", MemoryLinkType.CONCEPT_RELATION, 0.0
+        )
         assert link_min.strength == 0.0
 
-        link_max = create_memory_link("source", "target", MemoryLinkType.CONCEPT_RELATION, 2.0)
+        link_max = create_memory_link(
+            "source", "target", MemoryLinkType.CONCEPT_RELATION, 2.0
+        )
         assert link_max.strength == 2.0
 
         # 测试负强度（应该允许）
-        link_negative = create_memory_link("source", "target", MemoryLinkType.CONCEPT_RELATION, -0.5)
+        link_negative = create_memory_link(
+            "source", "target", MemoryLinkType.CONCEPT_RELATION, -0.5
+        )
         assert link_negative.strength == -0.5
 
     def test_temporal_memory_data_validation(self):
@@ -784,7 +786,7 @@ class TestDataModelValidation:
             node_id="test",
             learning_state=LearningState.GREEN,
             duration_seconds=86400,  # 24小时
-            interaction_type=InteractionType.VIEW
+            interaction_type=InteractionType.VIEW,
         )
         assert memory.duration_seconds == 86400
 
@@ -803,7 +805,7 @@ class TestDataModelValidation:
             content_vector=large_vector,
             semantic_tags=["test"],
             concept_entities=["测试"],
-            domain_classification="test"
+            domain_classification="test",
         )
         assert len(memory.content_vector) == 1000
 
@@ -830,15 +832,12 @@ class TestDataModelSerialization:
             memory_type=MemoryType.UNIFIED,
             metadata={
                 "complex_data": {
-                    "nested": {
-                        "value": 42,
-                        "array": [1, 2, 3]
-                    },
-                    "unicode": "测试中文字符🎯"
+                    "nested": {"value": 42, "array": [1, 2, 3]},
+                    "unicode": "测试中文字符🎯",
                 },
-                "tags": ["test", "complex", "测试"]
+                "tags": ["test", "complex", "测试"],
             },
-            cross_references=["ref1", "ref2", "ref3"]
+            cross_references=["ref1", "ref2", "ref3"],
         )
 
         # 序列化往返
@@ -865,7 +864,7 @@ class TestDataModelSerialization:
             session_id="test_session",
             canvas_id="test_canvas",
             timestamp=test_time,
-            next_review_date=test_time + timedelta(days=7)
+            next_review_date=test_time + timedelta(days=7),
         )
 
         # 序列化往返
@@ -876,26 +875,24 @@ class TestDataModelSerialization:
         assert restored_data.session_id == original_data.session_id
         assert restored_data.canvas_id == original_data.canvas_id
         # 允许1秒的误差
-        time_diff = abs((restored_data.timestamp - original_data.timestamp).total_seconds())
+        time_diff = abs(
+            (restored_data.timestamp - original_data.timestamp).total_seconds()
+        )
         assert time_diff < 1.0
 
     def test_enum_serialization_stability(self):
         """测试枚举序列化稳定性"""
         # 测试所有枚举类型的序列化
-        original_entry = UnifiedMemoryEntry(
-            memory_type=MemoryType.TEMPORAL
-        )
+        original_entry = UnifiedMemoryEntry(memory_type=MemoryType.TEMPORAL)
 
-        original_link = MemoryLink(
-            link_type=MemoryLinkType.SEMANTIC_TEMPORAL
-        )
+        original_link = MemoryLink(link_type=MemoryLinkType.SEMANTIC_TEMPORAL)
 
         original_temporal = create_temporal_memory(
             session_id="test",
             canvas_id="test",
             node_id="test",
             learning_state=LearningState.PURPLE,
-            interaction_type=InteractionType.DECOMPOSE
+            interaction_type=InteractionType.DECOMPOSE,
         )
 
         # 序列化往返

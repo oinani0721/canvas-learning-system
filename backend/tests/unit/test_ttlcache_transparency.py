@@ -5,8 +5,8 @@ Story 31.A.7: TTLCache 会话存储降级透明化测试
 """
 
 import logging
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestTTLCacheTransparency:
@@ -16,7 +16,9 @@ class TestTTLCacheTransparency:
         """AC-31.A.7.1: 启动时输出 WARNING 日志声明存储模式"""
         from app.services.verification_service import VerificationService
 
-        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
+        with caplog.at_level(
+            logging.WARNING, logger="app.services.verification_service"
+        ):
             svc = VerificationService(canvas_base_path="/tmp")
 
         assert "IN-MEMORY TTLCache" in caplog.text
@@ -31,7 +33,9 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
+        with caplog.at_level(
+            logging.WARNING, logger="app.services.verification_service"
+        ):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.get_progress("nonexistent-session-id")
 
@@ -44,7 +48,9 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
+        with caplog.at_level(
+            logging.WARNING, logger="app.services.verification_service"
+        ):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.process_answer("nonexistent-session-id", "test answer")
 
@@ -57,7 +63,9 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
+        with caplog.at_level(
+            logging.WARNING, logger="app.services.verification_service"
+        ):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.pause_session("nonexistent-session-id")
 
@@ -70,7 +78,9 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
+        with caplog.at_level(
+            logging.WARNING, logger="app.services.verification_service"
+        ):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.resume_session("nonexistent-session-id")
 
@@ -83,7 +93,9 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
+        with caplog.at_level(
+            logging.WARNING, logger="app.services.verification_service"
+        ):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.end_session("nonexistent-session-id")
 
@@ -96,7 +108,9 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
+        with caplog.at_level(
+            logging.WARNING, logger="app.services.verification_service"
+        ):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.skip_concept("nonexistent-session-id")
 
@@ -105,6 +119,7 @@ class TestTTLCacheTransparency:
     def test_architecture_limitation_comment_exists(self):
         """AC-31.A.7.3: 代码中有架构限制注释"""
         import inspect
+
         from app.services.verification_service import VerificationService
 
         source = inspect.getsource(VerificationService.__init__)
@@ -116,12 +131,11 @@ class TestTTLCacheTransparency:
     @pytest.mark.asyncio
     async def test_get_progress_includes_storage_info(self, caplog):
         """AC-31.A.7.4: get_progress 返回包含 storage_info"""
+
         from app.services.verification_service import (
-            VerificationService,
             VerificationProgress,
-            VerificationStatus,
+            VerificationService,
         )
-        from datetime import datetime
 
         svc = VerificationService(canvas_base_path="/tmp")
 
@@ -148,8 +162,8 @@ class TestTTLCacheTransparency:
     async def test_existing_session_no_false_warning(self, caplog):
         """确保访问存在的会话不会触发过期警告"""
         from app.services.verification_service import (
-            VerificationService,
             VerificationProgress,
+            VerificationService,
         )
 
         svc = VerificationService(canvas_base_path="/tmp")
@@ -165,7 +179,9 @@ class TestTTLCacheTransparency:
         )
         svc._progress[session_id] = progress
 
-        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
+        with caplog.at_level(
+            logging.WARNING, logger="app.services.verification_service"
+        ):
             result = await svc.get_progress(session_id)
 
         # Should NOT contain expiry warning for existing sessions

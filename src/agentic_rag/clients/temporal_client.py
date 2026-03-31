@@ -22,9 +22,11 @@ from typing import Any, Dict, List, Optional
 
 try:
     from loguru import logger
+
     LOGURU_ENABLED = True
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
     LOGURU_ENABLED = False
 
@@ -33,6 +35,7 @@ try:
     from fsrs import Rating
 
     from temporal_memory import TemporalMemory
+
     TEMPORAL_MEMORY_AVAILABLE = True
 except ImportError:
     TEMPORAL_MEMORY_AVAILABLE = False
@@ -61,7 +64,7 @@ class TemporalClient:
         self,
         db_path: str = "learning_behavior.db",
         timeout_ms: int = 50,
-        enable_fallback: bool = True
+        enable_fallback: bool = True,
     ):
         """
         初始化 TemporalClient
@@ -91,8 +94,7 @@ class TemporalClient:
         if not TEMPORAL_MEMORY_AVAILABLE:
             if LOGURU_ENABLED:
                 logger.warning(
-                    "TemporalMemory not available. "
-                    "Check: pip install fsrs>=4.1.0"
+                    "TemporalMemory not available. Check: pip install fsrs>=4.1.0"
                 )
             self._initialized = True
             return False
@@ -101,15 +103,12 @@ class TemporalClient:
             # 在线程池中初始化 (SQLite 操作是同步的)
             loop = asyncio.get_event_loop()
             self._temporal_memory = await loop.run_in_executor(
-                self._executor,
-                lambda: TemporalMemory(db_path=self.db_path)
+                self._executor, lambda: TemporalMemory(db_path=self.db_path)
             )
             self._initialized = True
 
             if LOGURU_ENABLED:
-                logger.info(
-                    f"TemporalClient initialized: db_path={self.db_path}"
-                )
+                logger.info(f"TemporalClient initialized: db_path={self.db_path}")
 
             return True
 
@@ -125,7 +124,7 @@ class TemporalClient:
         canvas_file: str,
         limit: int = 10,
         stability_weight: float = 0.7,
-        error_rate_weight: float = 0.3
+        error_rate_weight: float = 0.3,
     ) -> List[Dict[str, Any]]:
         """
         获取薄弱概念
@@ -174,10 +173,10 @@ class TemporalClient:
                         canvas_file=canvas_file,
                         limit=limit,
                         stability_weight=stability_weight,
-                        error_rate_weight=error_rate_weight
-                    )
+                        error_rate_weight=error_rate_weight,
+                    ),
                 ),
-                timeout=timeout_seconds
+                timeout=timeout_seconds,
             )
 
             latency_ms = (time.perf_counter() - start_time) * 1000
@@ -224,7 +223,7 @@ class TemporalClient:
         concept: str,
         rating: int,
         canvas_file: str,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         更新FSRS卡片
@@ -257,7 +256,7 @@ class TemporalClient:
                 1: Rating.Again,
                 2: Rating.Hard,
                 3: Rating.Good,
-                4: Rating.Easy
+                4: Rating.Easy,
             }
             fsrs_rating = rating_map.get(rating, Rating.Good)
 
@@ -269,8 +268,8 @@ class TemporalClient:
                     concept=concept,
                     rating=fsrs_rating,
                     canvas_file=canvas_file,
-                    session_id=session_id
-                )
+                    session_id=session_id,
+                ),
             )
 
             if LOGURU_ENABLED:
@@ -292,7 +291,7 @@ class TemporalClient:
         concept: str,
         action_type: str,
         session_id: str,
-        metadata: Optional[str] = None
+        metadata: Optional[str] = None,
     ) -> int:
         """
         记录学习行为
@@ -324,8 +323,8 @@ class TemporalClient:
                     concept=concept,
                     action_type=action_type,
                     session_id=session_id,
-                    metadata=metadata
-                )
+                    metadata=metadata,
+                ),
             )
 
             return row_id
@@ -336,9 +335,7 @@ class TemporalClient:
             return 0
 
     async def get_review_due_concepts(
-        self,
-        canvas_file: str,
-        limit: int = 20
+        self, canvas_file: str, limit: int = 20
     ) -> List[Dict[str, Any]]:
         """
         获取到期复习的概念
@@ -361,9 +358,8 @@ class TemporalClient:
             results = await loop.run_in_executor(
                 self._executor,
                 lambda: self._temporal_memory.get_review_due_concepts(
-                    canvas_file=canvas_file,
-                    limit=limit
-                )
+                    canvas_file=canvas_file, limit=limit
+                ),
             )
             return results
 
@@ -379,7 +375,7 @@ class TemporalClient:
             "db_path": self.db_path,
             "timeout_ms": self.timeout_ms,
             "enable_fallback": self.enable_fallback,
-            "temporal_memory_available": TEMPORAL_MEMORY_AVAILABLE
+            "temporal_memory_available": TEMPORAL_MEMORY_AVAILABLE,
         }
 
     async def close(self):
@@ -387,10 +383,7 @@ class TemporalClient:
         if self._temporal_memory is not None:
             try:
                 loop = asyncio.get_event_loop()
-                await loop.run_in_executor(
-                    self._executor,
-                    self._temporal_memory.close
-                )
+                await loop.run_in_executor(self._executor, self._temporal_memory.close)
             except Exception:
                 pass
 

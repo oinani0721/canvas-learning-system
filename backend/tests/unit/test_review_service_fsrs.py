@@ -12,9 +12,6 @@ Tests cover:
 """
 
 import pytest
-from datetime import date, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
-
 
 # Use shared isolate_card_states_file fixture from conftest.py
 pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
@@ -29,6 +26,7 @@ class TestFSRSImport:
     def test_fsrs_module_available(self):
         """FSRS module should be importable."""
         from app.services.review_service import FSRS_AVAILABLE
+
         # Note: FSRS_AVAILABLE may be True or False depending on environment
         assert isinstance(FSRS_AVAILABLE, bool)
 
@@ -37,12 +35,14 @@ class TestFSRSImport:
         try:
             import sys
             from pathlib import Path
+
             _project_root = Path(__file__).parent.parent.parent.parent
             _src_path = _project_root / "src"
             if str(_src_path) not in sys.path:
                 sys.path.insert(0, str(_src_path))
 
             from memory.temporal.fsrs_manager import FSRSManager
+
             assert FSRSManager is not None
         except ImportError:
             pytest.skip("FSRS module not available in test environment")
@@ -63,7 +63,7 @@ class TestFSRSRatings:
         result = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id="node_001",
-            rating=1  # Again
+            rating=1,  # Again
         )
         assert result is not None
         assert "next_review" in result or "next_review_date" in result
@@ -76,7 +76,7 @@ class TestFSRSRatings:
         result = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id="node_002",
-            rating=2  # Hard
+            rating=2,  # Hard
         )
         assert result is not None
         assert "next_review" in result or "next_review_date" in result
@@ -87,7 +87,7 @@ class TestFSRSRatings:
         result = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id="node_003",
-            rating=3  # Good
+            rating=3,  # Good
         )
         assert result is not None
         assert "next_review" in result or "next_review_date" in result
@@ -98,7 +98,7 @@ class TestFSRSRatings:
         result = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id="node_004",
-            rating=4  # Easy
+            rating=4,  # Easy
         )
         assert result is not None
         assert "next_review" in result or "next_review_date" in result
@@ -115,7 +115,7 @@ class TestScoreToRatingConversion:
         result = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id="node_low",
-            score=25.0  # Should become Again
+            score=25.0,  # Should become Again
         )
         assert result is not None
         # Low score should result in short interval (learning phase)
@@ -127,7 +127,7 @@ class TestScoreToRatingConversion:
         result = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id="node_medium",
-            score=50.0  # Should become Hard
+            score=50.0,  # Should become Hard
         )
         assert result is not None
         assert "next_review" in result or "next_review_date" in result
@@ -138,7 +138,7 @@ class TestScoreToRatingConversion:
         result = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id="node_good",
-            score=75.0  # Should become Good
+            score=75.0,  # Should become Good
         )
         assert result is not None
         assert "next_review" in result or "next_review_date" in result
@@ -149,7 +149,7 @@ class TestScoreToRatingConversion:
         result = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id="node_excellent",
-            score=95.0  # Should become Easy
+            score=95.0,  # Should become Easy
         )
         assert result is not None
         # High score should result in longer interval (FSRS state=2 review mode)
@@ -163,12 +163,15 @@ class TestDynamicIntervalCalculation:
     async def test_schedule_review_returns_fsrs_data(self, review_service):
         """schedule_review should return FSRS card data when available."""
         result = await review_service.schedule_review(
-            canvas_name="test_canvas",
-            concept_id="node_fsrs"
+            canvas_name="test_canvas", concept_id="node_fsrs"
         )
         assert result is not None
         # Check for various field names (API may use different naming)
-        assert "scheduled_date" in result or "next_review_date" in result or "next_review" in result
+        assert (
+            "scheduled_date" in result
+            or "next_review_date" in result
+            or "next_review" in result
+        )
         assert "interval_days" in result or "interval" in result
         # FSRS-specific fields (may be None if FSRS unavailable)
         assert "card_data" in result or "fsrs_state" in result or "algorithm" in result
@@ -182,7 +185,7 @@ class TestDynamicIntervalCalculation:
         result1 = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id=concept_id,
-            rating=3  # Good
+            rating=3,  # Good
         )
         interval1 = result1.get("new_interval", 1)
 
@@ -191,7 +194,7 @@ class TestDynamicIntervalCalculation:
             canvas_name="test_canvas",
             concept_id=concept_id,
             rating=3,  # Good
-            card_state=result1.get("card_data")
+            card_state=result1.get("card_data"),
         )
         interval2 = result2.get("new_interval", 1)
 
@@ -208,7 +211,7 @@ class TestDynamicIntervalCalculation:
         result1 = await review_service.record_review_result(
             canvas_name="test_canvas",
             concept_id=concept_id,
-            rating=4  # Easy - should give longer interval
+            rating=4,  # Easy - should give longer interval
         )
 
         # Failed review
@@ -216,7 +219,7 @@ class TestDynamicIntervalCalculation:
             canvas_name="test_canvas",
             concept_id=concept_id,
             rating=1,  # Again - should reset
-            card_state=result1.get("card_data")
+            card_state=result1.get("card_data"),
         )
 
         # After failure, interval should be short (learning phase)
@@ -230,9 +233,7 @@ class TestCardStatePersistence:
     async def test_card_data_returned_in_response(self, review_service):
         """Response should include card_data for client-side caching."""
         result = await review_service.record_review_result(
-            canvas_name="test_canvas",
-            concept_id="node_persist",
-            rating=3
+            canvas_name="test_canvas", concept_id="node_persist", rating=3
         )
         # card_data should be present (may be None if FSRS unavailable)
         assert "card_data" in result or result.get("algorithm") == "ebbinghaus-fallback"
@@ -244,9 +245,7 @@ class TestCardStatePersistence:
 
         # Record a review to save state
         result = await review_service.record_review_result(
-            canvas_name="test_canvas",
-            concept_id=concept_id,
-            rating=3
+            canvas_name="test_canvas", concept_id=concept_id, rating=3
         )
         card_data = result.get("card_data")
 
@@ -256,7 +255,7 @@ class TestCardStatePersistence:
                 canvas_name="test_canvas",
                 concept_id=concept_id,
                 rating=3,
-                card_state=card_data
+                card_state=card_data,
             )
             assert result2 is not None
 
@@ -268,9 +267,7 @@ class TestFSRSStateResponse:
     async def test_fsrs_state_fields(self, review_service):
         """Response should include FSRS state fields when available."""
         result = await review_service.record_review_result(
-            canvas_name="test_canvas",
-            concept_id="node_state",
-            rating=3
+            canvas_name="test_canvas", concept_id="node_state", rating=3
         )
 
         fsrs_state = result.get("fsrs_state")
@@ -285,7 +282,12 @@ class TestFSRSStateResponse:
             # Validate ranges
             assert fsrs_state["stability"] >= 0
             assert 1 <= fsrs_state["difficulty"] <= 10
-            assert fsrs_state["state"] in [0, 1, 2, 3]  # New, Learning, Review, Relearning
+            assert fsrs_state["state"] in [
+                0,
+                1,
+                2,
+                3,
+            ]  # New, Learning, Review, Relearning
 
 
 class TestMigrationDocumentation:
@@ -294,6 +296,7 @@ class TestMigrationDocumentation:
     def test_module_docstring_contains_migration_info(self):
         """Module docstring should contain FSRS migration documentation."""
         from app.services import review_service
+
         docstring = review_service.__doc__
         assert docstring is not None
         assert "FSRS" in docstring or "fsrs" in docstring.lower()
@@ -302,6 +305,7 @@ class TestMigrationDocumentation:
     def test_rating_conversion_documented(self):
         """Score-to-rating conversion should be documented."""
         from app.services import review_service
+
         docstring = review_service.__doc__
         assert "rating" in docstring.lower()
         # Check for conversion thresholds
@@ -315,9 +319,7 @@ class TestAlgorithmField:
     async def test_algorithm_field_present(self, review_service):
         """Response should include algorithm field."""
         result = await review_service.record_review_result(
-            canvas_name="test_canvas",
-            concept_id="node_algo",
-            rating=3
+            canvas_name="test_canvas", concept_id="node_algo", rating=3
         )
         assert "algorithm" in result
         # Should be fsrs-4.5 or ebbinghaus-fallback
@@ -338,6 +340,7 @@ class TestEbbinghausFallbackNextReview:
     async def test_fallback_score_low_interval_1_day(self, fallback_service):
         """score < 40 → interval=1 day, next_review = now + 1 day."""
         from datetime import datetime, timezone
+
         before = datetime.now(timezone.utc)
         result = await fallback_service.record_review_result(
             canvas_name="test", concept_id="c1", score=20
@@ -351,6 +354,7 @@ class TestEbbinghausFallbackNextReview:
     async def test_fallback_score_medium_interval_3_days(self, fallback_service):
         """score 40-59 → interval=3 days."""
         from datetime import datetime, timezone
+
         before = datetime.now(timezone.utc)
         result = await fallback_service.record_review_result(
             canvas_name="test", concept_id="c2", score=50
@@ -363,6 +367,7 @@ class TestEbbinghausFallbackNextReview:
     async def test_fallback_score_good_interval_7_days(self, fallback_service):
         """score 60-84 → interval=7 days."""
         from datetime import datetime, timezone
+
         before = datetime.now(timezone.utc)
         result = await fallback_service.record_review_result(
             canvas_name="test", concept_id="c3", score=70
@@ -375,6 +380,7 @@ class TestEbbinghausFallbackNextReview:
     async def test_fallback_score_easy_interval_30_days(self, fallback_service):
         """score >= 85 → interval=30 days."""
         from datetime import datetime, timezone
+
         before = datetime.now(timezone.utc)
         result = await fallback_service.record_review_result(
             canvas_name="test", concept_id="c4", score=95
@@ -395,7 +401,8 @@ class TestEbbinghausFallbackNextReview:
     @pytest.mark.asyncio
     async def test_fallback_recorded_at_is_utc(self, fallback_service):
         """recorded_at must contain timezone info (UTC)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         result = await fallback_service.record_review_result(
             canvas_name="test", concept_id="c6", score=50
         )
@@ -405,7 +412,8 @@ class TestEbbinghausFallbackNextReview:
     @pytest.mark.asyncio
     async def test_fallback_next_review_is_utc(self, fallback_service):
         """next_review must contain timezone info (UTC)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         result = await fallback_service.record_review_result(
             canvas_name="test", concept_id="c7", score=50
         )
@@ -425,6 +433,7 @@ class TestScheduleReviewFallback:
     async def test_schedule_fallback_returns_future_date(self, fallback_service):
         """Ebbinghaus scheduled_date must be in the future."""
         from datetime import datetime, timezone
+
         before = datetime.now(timezone.utc)
         result = await fallback_service.schedule_review(
             canvas_name="test", concept_id="c1", trigger_point=1
@@ -434,9 +443,15 @@ class TestScheduleReviewFallback:
         assert scheduled > before, "scheduled_date must be in the future"
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("trigger_point,expected_interval", [
-        (1, 1), (2, 7), (3, 30), (4, 90),
-    ])
+    @pytest.mark.parametrize(
+        "trigger_point,expected_interval",
+        [
+            (1, 1),
+            (2, 7),
+            (3, 30),
+            (4, 90),
+        ],
+    )
     async def test_schedule_fallback_interval_mapping(
         self, fallback_service, trigger_point, expected_interval
     ):
@@ -552,8 +567,10 @@ class TestAlgorithmSelectionPath:
             canvas_name="test", concept_id="c_sched", rating=3
         )
         fsrs_result = await fsrs_service.schedule_review(
-            canvas_name="test", concept_id="c_sched", trigger_point=1,
-            card_state=record.get("card_data")
+            canvas_name="test",
+            concept_id="c_sched",
+            trigger_point=1,
+            card_state=record.get("card_data"),
         )
         fallback_result = await fallback_service.schedule_review(
             canvas_name="test", concept_id="c1", trigger_point=1

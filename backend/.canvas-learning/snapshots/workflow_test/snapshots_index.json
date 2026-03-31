@@ -1,6 +1,32 @@
 [
   {
     "canvas_path": "workflow_test.canvas",
+    "id": "d8d21cb5-b1d3-4d5d-a67b-eed19f943ad1",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-03-31T06:46:33.194458+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "e1076c3c-a90a-40c9-907e-ad9e8a03cc2e",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-03-31T06:46:33.166728+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
     "id": "a5e5b2b5-bb82-4c94-8f8b-0d1346a65731",
     "last_operation_id": null,
     "metadata": {

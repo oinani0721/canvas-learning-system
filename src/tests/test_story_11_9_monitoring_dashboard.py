@@ -29,14 +29,21 @@ from unittest.mock import Mock
 
 import pytest
 import requests
-from canvas_progress_tracker.canvas_monitor_engine import CanvasMonitorEngine, MonitorConfig
+from canvas_progress_tracker.canvas_monitor_engine import (
+    CanvasMonitorEngine,
+    MonitorConfig,
+)
 
 # Import components under test
-from canvas_progress_tracker.monitoring_dashboard import VERSION, MonitoringDashboardServer
+from canvas_progress_tracker.monitoring_dashboard import (
+    VERSION,
+    MonitoringDashboardServer,
+)
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_monitor_engine():
@@ -49,7 +56,7 @@ def mock_monitor_engine():
         "total_changes": 156,
         "total_events": 468,
         "cpu_usage": 2.5,
-        "memory_usage": 45.0
+        "memory_usage": 45.0,
     }
 
     # Mock async processor
@@ -72,9 +79,7 @@ def mock_monitor_engine():
 def dashboard_server(mock_monitor_engine):
     """创建测试用的仪表板服务器"""
     server = MonitoringDashboardServer(
-        monitor_engine=mock_monitor_engine,
-        host="127.0.0.1",
-        port=5678
+        monitor_engine=mock_monitor_engine, host="127.0.0.1", port=5678
     )
     yield server
     # Cleanup
@@ -101,6 +106,7 @@ def temp_canvas_dir():
 # ============================================================================
 # 1. HTTP服务器生命周期测试 (3个测试)
 # ============================================================================
+
 
 class TestServerLifecycle:
     """测试HTTP服务器启动、停止、健康状态"""
@@ -161,6 +167,7 @@ class TestServerLifecycle:
 # 2. GET /health端点测试 (3个测试)
 # ============================================================================
 
+
 class TestHealthEndpoint:
     """测试GET /health端点"""
 
@@ -195,7 +202,9 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         assert elapsed_ms < 50, f"响应时间{elapsed_ms:.2f}ms超过50ms限制"
 
-    def test_health_endpoint_when_monitoring_stopped(self, dashboard_server, mock_monitor_engine):
+    def test_health_endpoint_when_monitoring_stopped(
+        self, dashboard_server, mock_monitor_engine
+    ):
         """测试监控停止时的健康状态（503）"""
         # 设置监控为停止状态
         mock_monitor_engine.is_monitoring = False
@@ -216,6 +225,7 @@ class TestHealthEndpoint:
 # ============================================================================
 # 3. GET /status端点测试 (4个测试)
 # ============================================================================
+
 
 class TestStatusEndpoint:
     """测试GET /status端点"""
@@ -251,14 +261,18 @@ class TestStatusEndpoint:
         assert response.status_code == 200
         assert elapsed_ms < 100, f"响应时间{elapsed_ms:.2f}ms超过100ms限制"
 
-    def test_status_endpoint_queue_length(self, running_dashboard_server, mock_monitor_engine):
+    def test_status_endpoint_queue_length(
+        self, running_dashboard_server, mock_monitor_engine
+    ):
         """验证队列长度准确"""
         response = requests.get("http://127.0.0.1:5678/status", timeout=2)
 
         data = response.json()
         assert data["queue_length"] == 3  # Mock返回3
 
-    def test_status_endpoint_db_connection(self, running_dashboard_server, mock_monitor_engine):
+    def test_status_endpoint_db_connection(
+        self, running_dashboard_server, mock_monitor_engine
+    ):
         """验证数据库连接状态"""
         response = requests.get("http://127.0.0.1:5678/status", timeout=2)
 
@@ -269,6 +283,7 @@ class TestStatusEndpoint:
 # ============================================================================
 # 4. GET /stats端点测试 (4个测试)
 # ============================================================================
+
 
 class TestStatsEndpoint:
     """测试GET /stats端点"""
@@ -306,8 +321,7 @@ class TestStatsEndpoint:
         """测试查询参数（today/7days/30days）"""
         for period in ["today", "7days", "30days"]:
             response = requests.get(
-                f"http://127.0.0.1:5678/stats?period={period}",
-                timeout=2
+                f"http://127.0.0.1:5678/stats?period={period}", timeout=2
             )
 
             assert response.status_code == 200
@@ -316,10 +330,7 @@ class TestStatsEndpoint:
 
     def test_stats_endpoint_invalid_period(self, running_dashboard_server):
         """测试无效参数（400错误）"""
-        response = requests.get(
-            "http://127.0.0.1:5678/stats?period=invalid",
-            timeout=2
-        )
+        response = requests.get("http://127.0.0.1:5678/stats?period=invalid", timeout=2)
 
         assert response.status_code == 400
         data = response.json()
@@ -330,10 +341,13 @@ class TestStatsEndpoint:
 # 5. POST /sync端点测试 (3个测试)
 # ============================================================================
 
+
 class TestSyncEndpoint:
     """测试POST /sync端点"""
 
-    def test_sync_endpoint_triggers_data_sync(self, running_dashboard_server, mock_monitor_engine):
+    def test_sync_endpoint_triggers_data_sync(
+        self, running_dashboard_server, mock_monitor_engine
+    ):
         """验证触发数据同步"""
         response = requests.post("http://127.0.0.1:5678/sync", timeout=5)
 
@@ -360,7 +374,9 @@ class TestSyncEndpoint:
     def test_sync_endpoint_error_handling(self, dashboard_server, mock_monitor_engine):
         """测试同步失败场景"""
         # Mock sync_now抛出异常
-        mock_monitor_engine.sync_scheduler.sync_now.side_effect = Exception("Sync failed")
+        mock_monitor_engine.sync_scheduler.sync_now.side_effect = Exception(
+            "Sync failed"
+        )
 
         dashboard_server.start()
         time.sleep(0.3)
@@ -378,10 +394,13 @@ class TestSyncEndpoint:
 # 6. POST /stop端点测试 (3个测试)
 # ============================================================================
 
+
 class TestStopEndpoint:
     """测试POST /stop端点"""
 
-    def test_stop_endpoint_stops_monitoring(self, running_dashboard_server, mock_monitor_engine):
+    def test_stop_endpoint_stops_monitoring(
+        self, running_dashboard_server, mock_monitor_engine
+    ):
         """验证停止监控引擎"""
         response = requests.post("http://127.0.0.1:5678/stop", timeout=2)
 
@@ -421,6 +440,7 @@ class TestStopEndpoint:
 # 7. 安全性测试 (3个测试)
 # ============================================================================
 
+
 class TestSecurity:
     """测试安全性限制"""
 
@@ -430,7 +450,9 @@ class TestSecurity:
         response = requests.get("http://127.0.0.1:5678/health", timeout=2)
         assert response.status_code == 200
 
-    def test_non_localhost_request_rejected(self, dashboard_server, mock_monitor_engine):
+    def test_non_localhost_request_rejected(
+        self, dashboard_server, mock_monitor_engine
+    ):
         """测试拒绝非localhost请求（403）"""
         # 注意: 这个测试在实际场景中很难模拟，因为服务器绑定到127.0.0.1
         # 这里主要测试_check_localhost_only逻辑
@@ -457,6 +479,7 @@ class TestSecurity:
 # 8. 并发和性能测试 (2个测试)
 # ============================================================================
 
+
 class TestConcurrencyAndPerformance:
     """测试并发请求和性能影响"""
 
@@ -477,7 +500,9 @@ class TestConcurrencyAndPerformance:
         assert len(results) == 10
         assert all(status == 200 for status in results)
 
-    def test_dashboard_does_not_block_monitoring(self, running_dashboard_server, mock_monitor_engine):
+    def test_dashboard_does_not_block_monitoring(
+        self, running_dashboard_server, mock_monitor_engine
+    ):
         """测试不影响监控性能（IV1）"""
         # 发送多个请求，确保监控引擎状态不变
         initial_is_monitoring = mock_monitor_engine.is_monitoring
@@ -492,6 +517,7 @@ class TestConcurrencyAndPerformance:
 # ============================================================================
 # 9. 集成验证测试 (3个测试)
 # ============================================================================
+
 
 class TestIntegrationVerification:
     """集成验证测试（IV1, IV2, IV3）"""
@@ -584,6 +610,7 @@ class TestIntegrationVerification:
 # 测试统计
 # ============================================================================
 
+
 def test_count():
     """统计测试数量"""
 
@@ -596,12 +623,12 @@ def test_count():
         TestStopEndpoint,
         TestSecurity,
         TestConcurrencyAndPerformance,
-        TestIntegrationVerification
+        TestIntegrationVerification,
     ]
 
     total_tests = 0
     for cls in test_classes:
-        methods = [m for m in dir(cls) if m.startswith('test_')]
+        methods = [m for m in dir(cls) if m.startswith("test_")]
         total_tests += len(methods)
 
     print(f"\n总测试数量: {total_tests}")

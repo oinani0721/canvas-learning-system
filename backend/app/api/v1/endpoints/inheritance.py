@@ -32,7 +32,9 @@ class DistillMessage(BaseModel):
 class DistillRequest(BaseModel):
     """Request body for conversation distillation."""
 
-    messages: list[DistillMessage] = Field(..., min_length=1, description="Conversation messages to distill")
+    messages: list[DistillMessage] = Field(
+        ..., min_length=1, description="Conversation messages to distill"
+    )
     group_id: Optional[str] = Field(None, description="Subject isolation namespace")
 
 
@@ -53,7 +55,9 @@ class DistillResponse(BaseModel):
     description="Distill a conversation into summary, tips, errors, and Q&A highlights. "
     "Results are persisted to MemoryService for future Edge-based inheritance.",
 )
-async def distill_conversation(node_id: str, request: DistillRequest) -> DistillResponse:
+async def distill_conversation(
+    node_id: str, request: DistillRequest
+) -> DistillResponse:
     """Distill a conversation and persist results for Edge inheritance.
 
     Called by frontend after a dialogue session ends. The distillation result

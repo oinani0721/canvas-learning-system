@@ -5,17 +5,16 @@ Verifies: Neo4j down -> JSON fallback for Canvas CRUD, dual-write, scoring.
 
 Split from test_story_38_7_e2e_integration.py for maintainability.
 """
+
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.services.agent_service import _record_failed_write
 from app.services.memory_service import MemoryService
 
-from tests.integration.conftest import make_mock_neo4j, make_mock_learning_memory
-
+from tests.integration.conftest import make_mock_learning_memory, make_mock_neo4j
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC-4: Degraded Mode
@@ -26,7 +25,9 @@ class TestAC4DegradedMode:
     """AC-4: Neo4j down -> JSON fallback for Canvas CRUD, dual-write, scoring."""
 
     @pytest.mark.asyncio
-    async def test_canvas_crud_writes_json_fallback_when_no_memory_client(self, tmp_path):
+    async def test_canvas_crud_writes_json_fallback_when_no_memory_client(
+        self, tmp_path
+    ):
         """
         [P0] Story 38.5 AC-1: When _memory_client is None and dual-write
         is enabled, Canvas CRUD events go to JSON fallback.
@@ -36,8 +37,7 @@ class TestAC4DegradedMode:
         canvas_dir = tmp_path / "canvases"
         canvas_dir.mkdir()
         (canvas_dir / "test.canvas").write_text(
-            json.dumps({"nodes": [], "edges": []}),
-            encoding="utf-8"
+            json.dumps({"nodes": [], "edges": []}), encoding="utf-8"
         )
 
         svc = CanvasService(canvas_base_path=str(canvas_dir), memory_client=None)
@@ -47,10 +47,10 @@ class TestAC4DegradedMode:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = True
             mock_settings.ENABLE_LANCEDB_AUTO_INDEX = False
 
-            await svc.add_node("test", {
-                "id": "n1", "type": "text", "text": "Degraded node",
-                "x": 0, "y": 0
-            })
+            await svc.add_node(
+                "test",
+                {"id": "n1", "type": "text", "text": "Degraded node", "x": 0, "y": 0},
+            )
 
         assert svc._fallback_file_path.exists()
         content = json.loads(svc._fallback_file_path.read_text(encoding="utf-8"))
@@ -68,8 +68,7 @@ class TestAC4DegradedMode:
         canvas_dir = tmp_path / "canvases"
         canvas_dir.mkdir()
         (canvas_dir / "test.canvas").write_text(
-            json.dumps({"nodes": [], "edges": []}),
-            encoding="utf-8"
+            json.dumps({"nodes": [], "edges": []}), encoding="utf-8"
         )
 
         svc = CanvasService(canvas_base_path=str(canvas_dir), memory_client=None)
@@ -79,10 +78,10 @@ class TestAC4DegradedMode:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
             mock_settings.ENABLE_LANCEDB_AUTO_INDEX = False
 
-            await svc.add_node("test", {
-                "id": "n2", "type": "text", "text": "No fallback",
-                "x": 0, "y": 0
-            })
+            await svc.add_node(
+                "test",
+                {"id": "n2", "type": "text", "text": "No fallback", "x": 0, "y": 0},
+            )
 
         assert not svc._fallback_file_path.exists()
 
@@ -125,6 +124,7 @@ class TestAC4DegradedMode:
         assert expected in ("ok", "degraded")
 
         import app.services.review_service as review_mod
+
         assert hasattr(review_mod, "FSRS_AVAILABLE")
 
     @pytest.mark.asyncio

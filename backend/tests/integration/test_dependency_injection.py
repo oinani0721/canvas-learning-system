@@ -15,11 +15,10 @@ Note: Story 31.A.5 示例使用 search_memories()，但实际代码使用
 [Source: docs/prd/EPIC-31.A-MEMORY-PIPELINE-FIX.md#断点1]
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-
 from app.config import Settings
-
 
 # =============================================================================
 # AC-31.A.5.2: VerificationService Graphiti Client Injection Tests
@@ -62,10 +61,12 @@ class TestVerificationServiceDependencyInjection:
             # 但依赖注入机制本身应该正常工作
             if service._graphiti_client is not None:
                 # 验证注入的是正确类型
-                assert hasattr(service._graphiti_client, 'search_verification_questions'), \
-                    "GraphitiClient should have search_verification_questions method"
-                assert hasattr(service._graphiti_client, 'add_verification_question'), \
+                assert hasattr(
+                    service._graphiti_client, "search_verification_questions"
+                ), "GraphitiClient should have search_verification_questions method"
+                assert hasattr(service._graphiti_client, "add_verification_question"), (
                     "GraphitiClient should have add_verification_question method"
+                )
             else:
                 # Graceful degradation: Graphiti 服务不可用时返回 None
                 # 这也是合法的依赖注入结果
@@ -108,12 +109,10 @@ class TestVerificationServiceDependencyInjection:
             # 使用实际存在的 search_verification_questions 方法
             try:
                 result = await service._graphiti_client.search_verification_questions(
-                    concept="测试概念",
-                    limit=5
+                    concept="测试概念", limit=5
                 )
                 # 验证返回类型是 list
-                assert isinstance(result, list), \
-                    f"Expected list, got {type(result)}"
+                assert isinstance(result, list), f"Expected list, got {type(result)}"
 
             except Exception as e:
                 # 如果 Graphiti 服务不可用，方法调用可能失败
@@ -147,8 +146,7 @@ class TestVerificationServiceDependencyInjection:
 
         # 验证是同一个实例
         if client1 is not None:
-            assert client1 is client2, \
-                "GraphitiTemporalClient should be singleton"
+            assert client1 is client2, "GraphitiTemporalClient should be singleton"
         else:
             pytest.skip("GraphitiTemporalClient not available")
 
@@ -173,9 +171,8 @@ class TestMemoryServiceDependencyInjection:
 
         [Source: backend/app/services/memory_service.py:__init__]
         """
-        from app.services.memory_service import MemoryService
         from app.clients.neo4j_client import Neo4jClient
-        from unittest.mock import MagicMock
+        from app.services.memory_service import MemoryService
 
         # 创建 mock Neo4j client
         mock_neo4j = MagicMock(spec=Neo4jClient)
@@ -185,8 +182,7 @@ class TestMemoryServiceDependencyInjection:
 
         # 验证注入成功
         # MemoryService stores neo4j_client as self.neo4j (not self._neo4j_client)
-        assert service.neo4j is mock_neo4j, \
-            "Neo4jClient should be injected"
+        assert service.neo4j is mock_neo4j, "Neo4jClient should be injected"
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -197,7 +193,6 @@ class TestMemoryServiceDependencyInjection:
         [Source: backend/app/services/memory_service.py:__init__]
         """
         from app.services.memory_service import MemoryService
-        from unittest.mock import MagicMock
 
         # 创建 mock clients
         mock_neo4j = MagicMock()
@@ -211,8 +206,9 @@ class TestMemoryServiceDependencyInjection:
         service._learning_memory = mock_learning_memory
 
         # 验证注入成功
-        assert service._learning_memory is mock_learning_memory, \
+        assert service._learning_memory is mock_learning_memory, (
             "LearningMemoryClient should be injected"
+        )
 
 
 class TestRAGServiceDependencyInjection:
@@ -239,8 +235,7 @@ class TestRAGServiceDependencyInjection:
         service2 = get_rag_service()
 
         # 验证是同一个实例
-        assert service1 is service2, \
-            "RAGService should be singleton"
+        assert service1 is service2, "RAGService should be singleton"
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -258,8 +253,7 @@ class TestRAGServiceDependencyInjection:
             service = await service_gen.__anext__()
 
             # 验证服务已初始化
-            assert service._initialized, \
-                "RAGService should be initialized"
+            assert service._initialized, "RAGService should be initialized"
 
         finally:
             try:
@@ -289,9 +283,7 @@ class TestDependencyChain:
         Dependency Chain:
             get_settings() → settings
             get_rag_service() → rag_service
-            get_cross_canvas_service() → cross_canvas_service
             get_graphiti_temporal_client() → graphiti_client
-            TextbookContextService(settings) → textbook_service
             VerificationService(all deps) → verification_service
 
         [Source: backend/app/dependencies.py:486-548]
@@ -305,18 +297,18 @@ class TestDependencyChain:
 
             # 验证所有依赖都已注入（可能为 None 表示 graceful degradation）
             # 但属性应该存在
-            assert hasattr(service, '_rag_service'), \
+            assert hasattr(service, "_rag_service"), (
                 "VerificationService should have _rag_service attribute"
-            assert hasattr(service, '_cross_canvas_service'), \
-                "VerificationService should have _cross_canvas_service attribute"
-            assert hasattr(service, '_textbook_context_service'), \
+            )
+            assert hasattr(service, "_textbook_context_service"), (
                 "VerificationService should have _textbook_context_service attribute"
-            assert hasattr(service, '_graphiti_client'), \
+            )
+            assert hasattr(service, "_graphiti_client"), (
                 "VerificationService should have _graphiti_client attribute"
+            )
 
             # 验证核心服务已注入（RAG service 应该始终可用）
-            assert service._rag_service is not None, \
-                "RAGService should be injected"
+            assert service._rag_service is not None, "RAGService should be injected"
 
         finally:
             try:
@@ -340,12 +332,13 @@ class TestDependencyChain:
             client = get_neo4j_client_dep()
 
             # 验证返回了有效的 client
-            assert client is not None, \
-                "Neo4jClient should be returned"
-            assert hasattr(client, 'run_query'), \
+            assert client is not None, "Neo4jClient should be returned"
+            assert hasattr(client, "run_query"), (
                 "Neo4jClient should have run_query method"
-            assert hasattr(client, 'get_learning_history'), \
+            )
+            assert hasattr(client, "get_learning_history"), (
                 "Neo4jClient should have get_learning_history method"
+            )
 
         except Exception as e:
             # Neo4j 可能不可用
