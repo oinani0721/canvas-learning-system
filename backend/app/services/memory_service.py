@@ -462,6 +462,7 @@ class MemoryService:
         end_date: Optional[datetime] = None,
         concept: Optional[str] = None,
         subject: Optional[str] = None,
+        canvas_path: Optional[str] = None,
         page: int = 1,
         page_size: int = 50,
     ) -> Dict[str, Any]:
@@ -483,6 +484,7 @@ class MemoryService:
             end_date: 结束日期 (optional)
             concept: 概念过滤 (optional)
             subject: 学科过滤 (optional) - AC-30.8.3
+            canvas_path: Canvas file path for canvas-scoped filtering (Epic 6)
             page: 页码 (default: 1)
             page_size: 每页大小 (default: 50)
 
@@ -496,8 +498,15 @@ class MemoryService:
         if not self._initialized:
             await self.initialize()
 
-        # ✅ Story 31.A.2 AC-31.A.2.1: Build group_id for subject filtering
-        group_id = build_group_id(subject) if subject else None
+        # ✅ Epic 6: Build canvas-scoped group_id when canvas_path is available
+        if canvas_path:
+            inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
+            c_name = extract_canvas_name(canvas_path)
+            group_id = build_group_id(inferred_subject, canvas_name=c_name)
+        elif subject:
+            group_id = build_group_id(subject)
+        else:
+            group_id = None
 
         # ✅ Story 31.A.2 AC-31.A.2.1: Query from Neo4j first (replaces memory-only read)
         episodes = []
@@ -788,7 +797,11 @@ class MemoryService:
             )
 
     async def get_review_suggestions(
-        self, user_id: str, limit: int = 10, subject: Optional[str] = None
+        self,
+        user_id: str,
+        limit: int = 10,
+        subject: Optional[str] = None,
+        canvas_path: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         获取复习建议 (基于艾宾浩斯遗忘曲线)
@@ -807,6 +820,7 @@ class MemoryService:
             user_id: 用户ID
             limit: 返回数量 (default: 10)
             subject: 学科过滤 (optional) - AC-30.8.3
+            canvas_path: Canvas file path for canvas-scoped filtering (Epic 6)
 
         Returns:
             List of review suggestions with priority
@@ -817,8 +831,15 @@ class MemoryService:
         if not self._initialized:
             await self.initialize()
 
-        # ✅ AC-30.8.3: Build group_id for subject filtering
-        group_id = build_group_id(subject) if subject else None
+        # ✅ Epic 6: Build canvas-scoped group_id when canvas_path is available
+        if canvas_path:
+            inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
+            c_name = extract_canvas_name(canvas_path)
+            group_id = build_group_id(inferred_subject, canvas_name=c_name)
+        elif subject:
+            group_id = build_group_id(subject)
+        else:
+            group_id = None
 
         suggestions = await self.neo4j.get_review_suggestions(
             user_id=user_id, limit=limit, group_id=group_id

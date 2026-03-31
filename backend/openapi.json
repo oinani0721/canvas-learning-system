@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-03-31T07:34:50.258027+00:00",
+    "x-generated-at": "2026-03-31T12:55:27.221860+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -2711,7 +2711,7 @@
           "Agents"
         ],
         "summary": "Basic concept decomposition",
-        "description": "Perform basic concept decomposition on a node.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID to decompose\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1basic]\n[Source: specs/data/decompose-request.schema.json]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n[Story 25.2: TextbookContextService Integration]\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]\n[Story 12.H.5: Request Deduplication]",
+        "description": "Perform basic concept decomposition on a node.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID to decompose\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1basic]\n[Source: specs/data/decompose-request.schema.json]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]\n[Story 12.H.5: Request Deduplication]",
         "operationId": "decompose_basic",
         "requestBody": {
           "content": {
@@ -2783,7 +2783,7 @@
           "Agents"
         ],
         "summary": "Deep concept decomposition",
-        "description": "Perform deep concept decomposition on a node.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID for deep decomposition\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1deep]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n[Story 25.2: TextbookContextService Integration]\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]\n[Story 12.H.5: Request Deduplication]",
+        "description": "Perform deep concept decomposition on a node.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID for deep decomposition\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1deep]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]\n[Story 12.H.5: Request Deduplication]",
         "operationId": "decompose_deep",
         "requestBody": {
           "content": {
@@ -2927,7 +2927,7 @@
           "Agents"
         ],
         "summary": "Oral-style explanation",
-        "description": "Generate oral-style explanation for a concept.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1oral]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n[Story 25.2: TextbookContextService Integration]\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
+        "description": "Generate oral-style explanation for a concept.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1oral]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
         "operationId": "explain_oral",
         "requestBody": {
           "content": {
@@ -2999,7 +2999,7 @@
           "Agents"
         ],
         "summary": "Clarification path generation",
-        "description": "Generate clarification path for a concept.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1clarification]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n[Story 25.2: TextbookContextService Integration]\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
+        "description": "Generate clarification path for a concept.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1clarification]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
         "operationId": "explain_clarification",
         "requestBody": {
           "content": {
@@ -3071,7 +3071,7 @@
           "Agents"
         ],
         "summary": "Comparison table generation",
-        "description": "Generate comparison table for a concept.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1comparison]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n[Story 25.2: TextbookContextService Integration]\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
+        "description": "Generate comparison table for a concept.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1comparison]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
         "operationId": "explain_comparison",
         "requestBody": {
           "content": {
@@ -3143,7 +3143,7 @@
           "Agents"
         ],
         "summary": "Memory anchor generation",
-        "description": "Generate memory anchor for a concept.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1memory]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n[Story 25.2: TextbookContextService Integration]\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
+        "description": "Generate memory anchor for a concept.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1memory]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
         "operationId": "explain_memory",
         "requestBody": {
           "content": {
@@ -3215,7 +3215,7 @@
           "Agents"
         ],
         "summary": "Four-level explanation",
-        "description": "Generate four-level progressive explanation.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1four-level]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n[Story 25.2: TextbookContextService Integration]\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
+        "description": "Generate four-level progressive explanation.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1four-level]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
         "operationId": "explain_four_level",
         "requestBody": {
           "content": {
@@ -3287,7 +3287,7 @@
           "Agents"
         ],
         "summary": "Example-based teaching",
-        "description": "Generate example-based teaching content.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1example]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n[Story 25.2: TextbookContextService Integration]\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
+        "description": "Generate example-based teaching content.\n\n- **canvas_name**: Canvas file name\n- **node_id**: Target node ID\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1example]\n[Story 21.1: 统一位置信息提取 - 连接真实AgentService]\n\n[Story 12.A.2: Agent-RAG Bridge Layer]\n[Story 12.A.5: 学习事件自动记录]",
         "operationId": "explain_example",
         "requestBody": {
           "content": {
@@ -5123,6 +5123,24 @@
             "description": "学科过滤 (AC-30.8.3)"
           },
           {
+            "name": "canvas_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Canvas路径 (Epic 6: canvas-scoped filtering)",
+              "title": "Canvas Path"
+            },
+            "description": "Canvas路径 (Epic 6: canvas-scoped filtering)"
+          },
+          {
             "name": "page",
             "in": "query",
             "required": false,
@@ -5312,6 +5330,24 @@
               "title": "Subject"
             },
             "description": "学科过滤 (AC-30.8.3)"
+          },
+          {
+            "name": "canvas_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Canvas路径 (Epic 6: canvas-scoped filtering)",
+              "title": "Canvas Path"
+            },
+            "description": "Canvas路径 (Epic 6: canvas-scoped filtering)"
           }
         ],
         "responses": {

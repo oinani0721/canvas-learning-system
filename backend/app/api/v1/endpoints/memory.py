@@ -130,6 +130,9 @@ async def get_learning_history(
     end_date: Optional[datetime] = Query(None, description="结束日期"),
     concept: Optional[str] = Query(None, description="概念过滤"),
     subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)"),
+    canvas_path: Optional[str] = Query(
+        None, description="Canvas路径 (Epic 6: canvas-scoped filtering)"
+    ),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(50, ge=1, le=100, description="每页大小"),
 ) -> LearningHistoryResponse:
@@ -144,6 +147,8 @@ async def get_learning_history(
     ✅ Verified from docs/stories/30.8.story.md#AC-30.8.3:
     - 支持 subject 查询参数过滤
 
+    ✅ Epic 6: 支持 canvas_path 查询参数进行 canvas 级别过滤
+
     [Source: docs/stories/22.4.story.md#API端点实现]
     [Source: docs/stories/30.8.story.md#Task-3.2]
     """
@@ -154,6 +159,7 @@ async def get_learning_history(
             end_date=end_date,
             concept=concept,
             subject=subject,
+            canvas_path=canvas_path,
             page=page,
             page_size=page_size,
         )
@@ -252,6 +258,9 @@ async def get_review_suggestions(
     user_id: str = Query(..., description="用户ID"),
     limit: int = Query(10, ge=1, le=50, description="返回数量"),
     subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)"),
+    canvas_path: Optional[str] = Query(
+        None, description="Canvas路径 (Epic 6: canvas-scoped filtering)"
+    ),
 ) -> List[ReviewSuggestionResponse]:
     """
     获取复习建议
@@ -264,12 +273,14 @@ async def get_review_suggestions(
     ✅ Verified from docs/stories/30.8.story.md#AC-30.8.3:
     - 支持 subject 查询参数过滤
 
+    ✅ Epic 6: 支持 canvas_path 查询参数进行 canvas 级别过滤
+
     [Source: docs/stories/22.4.story.md#API端点实现]
     [Source: docs/stories/30.8.story.md#Task-3.2]
     """
     try:
         suggestions = await memory_service.get_review_suggestions(
-            user_id=user_id, limit=limit, subject=subject
+            user_id=user_id, limit=limit, subject=subject, canvas_path=canvas_path
         )
 
         return [
