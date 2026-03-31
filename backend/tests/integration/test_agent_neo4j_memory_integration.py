@@ -190,7 +190,7 @@ class TestContextEnrichmentIntegration:
         # Get Neo4j memories
         neo4j_context = await service._get_learning_memories(content="组合上下文测试")
 
-        # Simulate combining with other context (textbook, cross-canvas)
+        # Simulate combining with other context
         other_context = "## 教材参考\n- 第三章: 微积分基础"
         combined_context = f"{other_context}\n\n{neo4j_context}"
 

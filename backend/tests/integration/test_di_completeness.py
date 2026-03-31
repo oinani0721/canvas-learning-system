@@ -202,7 +202,6 @@ SERVICES_DI_CONFIG = {
         "init_class_name": "VerificationService",
         "critical_params": [
             "rag_service",
-            "textbook_context_service",
             "canvas_service",
             "agent_service",
             "canvas_base_path",
@@ -211,7 +210,6 @@ SERVICES_DI_CONFIG = {
         ],
         "critical_attrs": [
             "_rag_service",
-            "_textbook_context_service",
             "_canvas_service",
             "_agent_service",
             "_canvas_base_path",
@@ -225,8 +223,8 @@ SERVICES_DI_CONFIG = {
         "init_class_module": "app.services.context_enrichment_service",
         "init_class_name": "ContextEnrichmentService",
         # canvas_service is REQUIRED (no default), others are optional
-        "critical_params": ["textbook_service", "learning_memory_service"],
-        "critical_attrs": ["_textbook_service", "_learning_memory_service"],
+        "critical_params": ["learning_memory_service"],
+        "critical_attrs": ["_learning_memory_service"],
     },
     "ReviewService": {
         "factory_module": "app.dependencies",

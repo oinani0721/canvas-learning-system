@@ -300,9 +300,6 @@ class TestDependencyChain:
             assert hasattr(service, "_rag_service"), (
                 "VerificationService should have _rag_service attribute"
             )
-            assert hasattr(service, "_textbook_context_service"), (
-                "VerificationService should have _textbook_context_service attribute"
-            )
             assert hasattr(service, "_graphiti_client"), (
                 "VerificationService should have _graphiti_client attribute"
             )

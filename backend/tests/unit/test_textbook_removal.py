@@ -66,6 +66,11 @@ class TestTextbookFilesRemoved:
         path = Path(__file__).parent.parent / "e2e" / "test_textbook_mount_flow.py"
         assert not path.exists(), f"Expected deleted: {path}"
 
+    def test_agent_generates_links_deleted(self):
+        """test_agent_generates_links.py must not exist (textbook link tests)."""
+        path = Path(__file__).parent.parent / "e2e" / "test_agent_generates_links.py"
+        assert not path.exists(), f"Expected deleted: {path}"
+
 
 # ============================================================================
 # Import Verification

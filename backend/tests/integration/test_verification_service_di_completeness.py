@@ -1,10 +1,12 @@
 """
 VerificationService DI Completeness Regression Test
 
-Verifies that get_verification_service() injects all 7 optional parameters
-(rag_service, textbook_context_service, canvas_service,
+Verifies that get_verification_service() injects all 6 optional parameters
+(rag_service, canvas_service,
 agent_service, canvas_base_path, graphiti_client, memory_service) so that
 no dependency silently degrades to None.
+
+Feature 2.2: textbook_context_service removed per GDA-2 decision.
 
 Pattern: Follows test_di_completeness.py (Story 36.11) runtime verification approach.
 
@@ -33,7 +35,6 @@ class TestVerificationServiceInitSignature:
 
     EXPECTED_OPTIONAL_PARAMS = [
         "rag_service",
-        "textbook_context_service",
         "canvas_service",
         "agent_service",
         "canvas_base_path",
@@ -228,7 +229,6 @@ class TestVerificationServiceDegradationLogging:
         with patch("app.services.verification_service.logger") as mock_logger:
             VerificationService(
                 rag_service=None,
-                textbook_context_service=None,
                 canvas_service=None,
                 agent_service=None,
                 canvas_base_path=None,

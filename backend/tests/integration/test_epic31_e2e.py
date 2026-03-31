@@ -176,7 +176,7 @@ def mock_rag() -> MagicMock:
     service.query = AsyncMock(
         return_value={
             "learning_history": "用户之前学习过线性代数基础",
-            "textbook_excerpts": "梯度下降是一种迭代优化算法...",
+            "related_excerpts": "梯度下降是一种迭代优化算法...",
             "related_concepts": ["凸优化", "学习率"],
             "common_mistakes": "容易混淆梯度和导数",
         }

@@ -774,7 +774,7 @@ async def decompose_basic(
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1basic]
     [Source: specs/data/decompose-request.schema.json]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
-    [Story 25.2: TextbookContextService Integration]
+
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     [Story 12.H.5: Request Deduplication]
@@ -880,7 +880,7 @@ async def decompose_deep(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1deep]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
-    [Story 25.2: TextbookContextService Integration]
+
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     [Story 12.H.5: Request Deduplication]
@@ -1132,7 +1132,7 @@ async def _call_explanation(
 
     [Story 21.1: 统一位置信息提取]
     [Story 21.2: 使用ContextEnrichmentService获取邻居上下文]
-    [Story 25.2: TextbookContextService Integration]
+
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     [Story 12.B.1: 增强错误处理]
@@ -1407,7 +1407,7 @@ async def explain_oral(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1oral]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
-    [Story 25.2: TextbookContextService Integration]
+
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
@@ -1444,7 +1444,7 @@ async def explain_clarification(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1clarification]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
-    [Story 25.2: TextbookContextService Integration]
+
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
@@ -1481,7 +1481,7 @@ async def explain_comparison(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1comparison]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
-    [Story 25.2: TextbookContextService Integration]
+
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
@@ -1518,7 +1518,7 @@ async def explain_memory(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1memory]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
-    [Story 25.2: TextbookContextService Integration]
+
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
@@ -1555,7 +1555,7 @@ async def explain_four_level(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1four-level]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
-    [Story 25.2: TextbookContextService Integration]
+
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """
@@ -1592,7 +1592,7 @@ async def explain_example(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1example]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
-    [Story 25.2: TextbookContextService Integration]
+
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     """

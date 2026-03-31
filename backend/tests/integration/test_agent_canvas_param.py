@@ -130,7 +130,6 @@ class TestAgentCanvasParamValidation:
             mock_enriched.y = 0
             mock_enriched.width = 250
             mock_enriched.height = 60
-            mock_enriched.has_textbook_refs = False
             mock_ctx_svc.enrich_with_adjacent_nodes = AsyncMock(
                 return_value=mock_enriched
             )

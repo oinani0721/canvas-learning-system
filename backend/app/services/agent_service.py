@@ -2299,7 +2299,7 @@ class AgentService:
         Args:
             agent_type: Type of agent to invoke
             prompt: User prompt to send
-            context: Optional additional context (e.g., adjacent nodes, textbook refs)
+            context: Optional additional context (e.g., adjacent nodes, RAG context)
             canvas_name: Optional Canvas name for memory lookup
             node_id: Optional node ID for memory lookup
 
@@ -3451,7 +3451,7 @@ class AgentService:
         Args:
             content: Content to explain
             explanation_type: Type of explanation (oral, clarification, comparison, memory, four_level, example)
-            context: Optional additional context (adjacent nodes, textbook refs, user understanding text, RAG context)
+            context: Optional additional context (adjacent nodes, user understanding text, RAG context)
             images: Optional list of images for multimodal analysis
             user_understanding: Optional[str] - User's understanding from yellow nodes.
                 This is passed to the JSON prompt's `user_understanding` field for Agents

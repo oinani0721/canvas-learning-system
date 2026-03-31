@@ -1,12 +1,12 @@
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing)
 """
 Integration tests for Context Enrichment Service
-[Source: docs/stories/25.2.story.md#TextbookContextService-Integration]
-
 Tests:
 - EnrichedContext dataclass structure
 - Graphiti integration
 - Timeout fallback behavior
+
+Feature 2.2: textbook references removed per GDA-2 decision.
 """
 
 from unittest.mock import AsyncMock, MagicMock

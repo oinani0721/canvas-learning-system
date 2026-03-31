@@ -172,13 +172,13 @@ def mock_rag_service() -> MagicMock:
         if "机器学习" in query:
             return {
                 "learning_history": "用户之前学习过统计学基础和Python编程",
-                "textbook_excerpts": "机器学习是人工智能的一个子领域...",
+                "related_excerpts": "机器学习是人工智能的一个子领域...",
                 "related_concepts": ["统计学习", "深度学习", "监督学习"],
                 "common_mistakes": "容易混淆过拟合和欠拟合的概念",
             }
         return {
             "learning_history": "无相关学习历史",
-            "textbook_excerpts": "无教材引用",
+            "related_excerpts": "无相关引用",
             "related_concepts": [],
             "common_mistakes": "无已知错误模式",
         }

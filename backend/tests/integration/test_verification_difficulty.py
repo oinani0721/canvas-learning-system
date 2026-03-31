@@ -47,7 +47,6 @@ def _make_service(**kwargs) -> VerificationService:
     """Create a VerificationService with mocked dependencies."""
     return VerificationService(
         rag_service=kwargs.get("rag_service"),
-        textbook_context_service=kwargs.get("textbook_context_service"),
         canvas_service=kwargs.get("canvas_service"),
         agent_service=kwargs.get("agent_service"),
         canvas_base_path=kwargs.get("canvas_base_path"),

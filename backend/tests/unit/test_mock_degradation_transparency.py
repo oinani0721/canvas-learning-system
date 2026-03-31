@@ -79,7 +79,7 @@ def mock_rag_service() -> MagicMock:
     service.query = AsyncMock(
         return_value={
             "learning_history": "之前学习过",
-            "textbook_excerpts": "教材内容",
+            "related_excerpts": "相关内容",
             "related_concepts": ["概念1"],
             "common_mistakes": "常见错误",
         }

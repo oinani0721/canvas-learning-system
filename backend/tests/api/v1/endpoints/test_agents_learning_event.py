@@ -86,7 +86,6 @@ class MockEnrichedContext:
         self.width = 400
         self.height = 200
         self.color = "3"  # Purple (Obsidian Canvas: "3"=purple, "4"=red)
-        self.has_textbook_refs = False
 
 
 class MockRAGService:

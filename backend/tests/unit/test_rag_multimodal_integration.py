@@ -30,7 +30,6 @@ def sample_rag_state() -> Dict[str, Any]:
         "graphiti_results": [],
         "lancedb_results": [],
         "multimodal_results": [],
-        "textbook_results": [],
         "fused_results": [],
         "reranked_results": [],
         "fusion_strategy": "rrf",
@@ -316,14 +315,15 @@ class TestRRFMultimodalFusion:
         assert DEFAULT_SOURCE_WEIGHTS["multimodal"] == 0.15
 
     def test_all_source_weights_sum_to_one(self):
-        """验证所有 5 源权重总和为 1.0，且每个权重值正确"""
+        """验证所有 5 源权重总和为 1.0，且每个权重值正确 (Feature 2.2: textbook removed)"""
         from agentic_rag.nodes import DEFAULT_SOURCE_WEIGHTS
 
         expected = {
             "graphiti": 0.25,
             "lancedb": 0.25,
-            "textbook": 0.20,
+            "cross_canvas": 0.10,
             "multimodal": 0.15,
+            "vault_notes": 0.25,
         }
         assert set(DEFAULT_SOURCE_WEIGHTS.keys()) == set(expected.keys()), (
             f"权重 key 不匹配: {set(DEFAULT_SOURCE_WEIGHTS.keys())} != {set(expected.keys())}"
@@ -348,12 +348,11 @@ class TestRRFMultimodalFusion:
             }
         ]
 
-        # all_source_results应该包含multimodal
+        # all_source_results应该包含multimodal (Feature 2.2: textbook removed)
         all_source_results = {
             "graphiti": sample_rag_state.get("graphiti_results", []),
             "lancedb": sample_rag_state.get("lancedb_results", []),
             "multimodal": sample_rag_state.get("multimodal_results", []),
-            "textbook": sample_rag_state.get("textbook_results", []),
         }
 
         assert "multimodal" in all_source_results
@@ -388,7 +387,6 @@ class TestRRFMultimodalFusion:
                     "metadata": {"type": "image"},
                 }
             ],
-            "textbook": [],
         }
 
         fused = _fuse_rrf_multi_source(all_source_results)
@@ -427,7 +425,6 @@ class TestRRFMultimodalFusion:
                     "metadata": {"type": "image"},
                 }
             ],
-            "textbook": [],
         }
 
         fused = _fuse_rrf_multi_source(all_source_results)
@@ -477,7 +474,6 @@ class TestRRFMultimodalFusion:
                     "metadata": {"type": "image"},
                 }
             ],
-            "textbook": [],
         }
 
         fused = _fuse_weighted_multi_source(all_source_results, DEFAULT_SOURCE_WEIGHTS)
