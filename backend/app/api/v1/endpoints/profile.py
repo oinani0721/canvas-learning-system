@@ -73,6 +73,8 @@ class TipItem(BaseModel):
     category: str = ""
     annotated_at: str
     context_messages: list[str] = Field(default_factory=list)
+    source_canvas_id: Optional[str] = Field(None, description="Canvas board where this tip originated")
+    source_node_id: Optional[str] = Field(None, description="Node ID where this tip originated")
 
 
 class WeaknessItem(BaseModel):
@@ -82,6 +84,8 @@ class WeaknessItem(BaseModel):
     frequency: int = Field(description="How many times this appeared")
     last_seen: Optional[str] = None
     related_exam_summaries: list[str] = Field(default_factory=list)
+    source_canvas_id: Optional[str] = Field(None, description="Canvas board where this weakness was identified")
+    source_node_id: Optional[str] = Field(None, description="Node ID where this weakness was identified")
 
 
 class QAHighlight(BaseModel):
@@ -202,7 +206,9 @@ async def get_profile_tips(
            e.content AS content,
            COALESCE(e.source_description, '') AS category,
            COALESCE(toString(e.created_at), '') AS annotated_at,
-           COALESCE(e.episode_body, '') AS context
+           COALESCE(e.episode_body, '') AS context,
+           COALESCE(e.source_canvas_id, '') AS source_canvas_id,
+           COALESCE(e.source_node_id, n.mastery_concept_id, '') AS source_node_id
     ORDER BY e.created_at DESC
     """
     try:
@@ -225,6 +231,8 @@ async def get_profile_tips(
                     category=data.get("category", ""),
                     annotated_at=data.get("annotated_at", ""),
                     context_messages=context_messages[:5],  # Limit to 5 context messages
+                    source_canvas_id=data.get("source_canvas_id") or None,
+                    source_node_id=data.get("source_node_id") or None,
                 ).model_dump()
             )
 
@@ -259,7 +267,9 @@ async def get_profile_weaknesses(
            OR e.source_description CONTAINS 'problem_trap')
     RETURN COALESCE(e.name, r.fact, e.content, '') AS direction,
            count(*) AS frequency,
-           COALESCE(toString(max(e.created_at)), '') AS last_seen
+           COALESCE(toString(max(e.created_at)), '') AS last_seen,
+           COALESCE(head(collect(e.source_canvas_id)), '') AS source_canvas_id,
+           COALESCE(head(collect(e.source_node_id)), n.mastery_concept_id, '') AS source_node_id
     ORDER BY frequency DESC
     LIMIT 20
     """
@@ -283,6 +293,8 @@ async def get_profile_weaknesses(
                     frequency=data.get("frequency", 1),
                     last_seen=data.get("last_seen"),
                     related_exam_summaries=[],
+                    source_canvas_id=data.get("source_canvas_id") or None,
+                    source_node_id=data.get("source_node_id") or None,
                 ).model_dump()
             )
 

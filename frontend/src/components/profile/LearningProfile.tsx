@@ -30,6 +30,7 @@ interface LearningProfileProps {
   backendUrl?: string;
   onStartExam?: (nodeId: string) => void;
   onSwitchToChat?: () => void;
+  onNavigateToSource?: (canvasId: string, nodeId: string) => void;
 }
 
 type LoadState = 'loading' | 'loaded' | 'error';
@@ -54,6 +55,7 @@ export function LearningProfile({
   backendUrl = 'http://localhost:8001',
   onStartExam,
   onSwitchToChat,
+  onNavigateToSource,
 }: LearningProfileProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [summary, setSummary] = useState<ProfileSummary | null>(null);
@@ -197,24 +199,38 @@ export function LearningProfile({
           <div className="pb-2">
             {tips.map((tip) => (
               <div key={tip.tipId} className="px-4 py-1.5">
-                <button
-                  onClick={() =>
-                    setExpandedTip(expandedTip === tip.tipId ? null : tip.tipId)
-                  }
-                  className="w-full text-left"
-                >
-                  <div className="text-xs text-gray-700 line-clamp-2">
-                    {tip.content}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    {tip.category && (
-                      <span className="bg-gray-100 px-1 rounded mr-1">
-                        {tip.category}
-                      </span>
-                    )}
-                    {tip.annotatedAt && formatRelativeDate(tip.annotatedAt)}
-                  </div>
-                </button>
+                <div className="flex items-start gap-1">
+                  <button
+                    onClick={() =>
+                      setExpandedTip(expandedTip === tip.tipId ? null : tip.tipId)
+                    }
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <div className="text-xs text-gray-700 line-clamp-2">
+                      {tip.content}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {tip.category && (
+                        <span className="bg-gray-100 px-1 rounded mr-1">
+                          {tip.category}
+                        </span>
+                      )}
+                      {tip.annotatedAt && formatRelativeDate(tip.annotatedAt)}
+                    </div>
+                  </button>
+                  {tip.sourceCanvasId && tip.sourceNodeId && onNavigateToSource && (
+                    <button
+                      onClick={() =>
+                        onNavigateToSource(tip.sourceCanvasId!, tip.sourceNodeId!)
+                      }
+                      aria-label="Navigate to source"
+                      title="Jump to source canvas"
+                      className="shrink-0 p-0.5 text-gray-400 hover:text-blue-500 transition-colors"
+                    >
+                      <span className="text-xs">{'\u2192'}</span>
+                    </button>
+                  )}
+                </div>
                 {expandedTip === tip.tipId && tip.contextMessages.length > 0 && (
                   <div className="mt-1.5 pl-2 border-l-2 border-gray-200 space-y-1">
                     {tip.contextMessages.map((msg, i) => (
@@ -245,26 +261,40 @@ export function LearningProfile({
           <div className="pb-2">
             {weaknesses.map((w, idx) => (
               <div key={idx} className="px-4 py-1.5">
-                <button
-                  onClick={() =>
-                    setExpandedWeakness(
-                      expandedWeakness === w.direction ? null : w.direction,
-                    )
-                  }
-                  className="w-full text-left"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-700">{w.direction}</span>
-                    <span className="text-xs text-gray-400 ml-2 shrink-0">
-                      {w.frequency}x
-                    </span>
-                  </div>
-                  {w.lastSeen && (
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      Last seen: {formatRelativeDate(w.lastSeen)}
+                <div className="flex items-start gap-1">
+                  <button
+                    onClick={() =>
+                      setExpandedWeakness(
+                        expandedWeakness === w.direction ? null : w.direction,
+                      )
+                    }
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-700">{w.direction}</span>
+                      <span className="text-xs text-gray-400 ml-2 shrink-0">
+                        {w.frequency}x
+                      </span>
                     </div>
+                    {w.lastSeen && (
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        Last seen: {formatRelativeDate(w.lastSeen)}
+                      </div>
+                    )}
+                  </button>
+                  {w.sourceCanvasId && w.sourceNodeId && onNavigateToSource && (
+                    <button
+                      onClick={() =>
+                        onNavigateToSource(w.sourceCanvasId!, w.sourceNodeId!)
+                      }
+                      aria-label="Navigate to source"
+                      title="Jump to source canvas"
+                      className="shrink-0 p-0.5 text-gray-400 hover:text-blue-500 transition-colors"
+                    >
+                      <span className="text-xs">{'\u2192'}</span>
+                    </button>
                   )}
-                </button>
+                </div>
                 {expandedWeakness === w.direction &&
                   w.relatedExamSummaries.length > 0 && (
                     <div className="mt-1.5 pl-2 border-l-2 border-orange-200 space-y-1">

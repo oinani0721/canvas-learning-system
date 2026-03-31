@@ -28,8 +28,8 @@ export interface SyncBatchResponse { results: SyncOperationResult[]; syncedCount
 export interface Recommendation { id: string; sourceNodeId: string; sourceNodeTitle: string; targetNodeId: string; targetNodeTitle: string; confidence: number; reason: string; suggestedLabel: string }
 export interface RecommendationResponse { recommendations: Recommendation[]; canvasId: string; analyzedAt: string }
 export interface ProfileSummary { conceptId: string; name: string; masteryLevel: number; masteryLabel: string; masteryColor: string; effectiveProficiency: number; prescriptiveMessage: string; interactionCount: number; examCount: number; lastExamDate: string | null; fsrsDueDate: string | null; freshness: string }
-export interface TipItem { tipId: string; content: string; category: string; annotatedAt: string; contextMessages: string[] }
-export interface WeaknessItem { direction: string; frequency: number; lastSeen: string | null; relatedExamSummaries: string[] }
+export interface TipItem { tipId: string; content: string; category: string; annotatedAt: string; contextMessages: string[]; sourceCanvasId?: string; sourceNodeId?: string }
+export interface WeaknessItem { direction: string; frequency: number; lastSeen: string | null; relatedExamSummaries: string[]; sourceCanvasId?: string; sourceNodeId?: string }
 export interface QAHighlight { question: string; answer: string; extractedAt: string }
 export interface QAHighlightCluster { topic: string; qaPairs: QAHighlight[] }
 export interface ExamSession { id: string; sourceBoardId: string; sourceBoardName: string; mode: 'point-to-point' | 'comprehensive' | 'mixed'; status: 'in-progress' | 'completed'; nodesExamined: number; masteryChangeSummary: string; createdAt: string; completedAt?: string }

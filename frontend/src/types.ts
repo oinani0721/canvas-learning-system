@@ -148,6 +148,8 @@ export interface TipItem {
 	category: string;
 	annotatedAt: string;
 	contextMessages: string[];
+	sourceCanvasId?: string;
+	sourceNodeId?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
