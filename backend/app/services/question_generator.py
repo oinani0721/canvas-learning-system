@@ -88,6 +88,7 @@ class QuestionGenerator:
         # Load 5-layer prompt templates once (Story 6.3 AC-3)
         self._layer1 = _load_prompt_file("layer1_role.md")
         self._layer2 = _load_prompt_file("layer2_mode.md")
+        self._layer3_template = _load_prompt_file("layer3.md")
         self._layer4 = _load_prompt_file("layer4_rules.md")
         self._layer5 = _load_prompt_file("layer5_scoring_preset.md")
 
@@ -365,36 +366,57 @@ class QuestionGenerator:
     # ═══════════════════════════════════════════════════════════════════════
 
     def _format_acp_layer(self, acp: ACPData) -> str:
-        """Format ACP data into Layer 3 prompt text."""
-        parts: List[str] = list()
+        """Format ACP data into Layer 3 prompt text using external template.
 
-        parts.append(f"**目标节点**: {acp.node_content[:200]}")
-        parts.append(f"**节点类型**: {acp.node_type}")
-        parts.append(
-            f"**精通度**: effective_proficiency={acp.effective_proficiency:.2f}, "
-            f"p_mastery={acp.p_mastery:.2f}, retrievability={acp.retrievability:.2f}, "
-            f"level={acp.mastery_label}"
-        )
+        Loads structure from layer3.md, builds optional sections in Python,
+        then injects all variables into the template.
+        """
+        # Build optional sections from conditional ACP data
+        optional_parts: List[str] = []
 
         if acp.student_tips:
             tips_str = "; ".join(acp.student_tips[:5])
-            parts.append(f"**学生标注(Tips)**: {tips_str}")
+            optional_parts.append(f"**学生标注(Tips)**: {tips_str}")
 
         if acp.error_history:
-            errors = list()
+            errors = []
             for err in acp.error_history[:4]:
                 err_type = err.get("error_type", "unknown")
                 err_desc = err.get("description", "")[:100]
                 errors.append(f"  - [{err_type}] {err_desc}")
-            parts.append("**历史错误**:\n" + "\n".join(errors))
+            optional_parts.append("**历史错误**:\n" + "\n".join(errors))
 
         if acp.edge_reasons:
             edges_str = "; ".join(acp.edge_reasons[:5])
-            parts.append(f"**概念关系(Edge理由)**: {edges_str}")
+            optional_parts.append(f"**概念关系(Edge理由)**: {edges_str}")
 
         if acp.conversation_summary:
-            parts.append(f"**对话历史摘要**: {acp.conversation_summary[:500]}")
+            optional_parts.append(f"**对话历史摘要**: {acp.conversation_summary[:500]}")
 
+        optional_sections = "\n".join(optional_parts)
+
+        # Inject variables into the externalized template
+        if self._layer3_template:
+            return self._layer3_template.format(
+                node_content=acp.node_content[:200],
+                node_type=acp.node_type,
+                effective_proficiency=f"{acp.effective_proficiency:.2f}",
+                p_mastery=f"{acp.p_mastery:.2f}",
+                retrievability=f"{acp.retrievability:.2f}",
+                mastery_label=acp.mastery_label,
+                optional_sections=optional_sections,
+            )
+
+        # Fallback if template file missing (graceful degradation)
+        parts = [
+            f"**目标节点**: {acp.node_content[:200]}",
+            f"**节点类型**: {acp.node_type}",
+            f"**精通度**: effective_proficiency={acp.effective_proficiency:.2f}, "
+            f"p_mastery={acp.p_mastery:.2f}, retrievability={acp.retrievability:.2f}, "
+            f"level={acp.mastery_label}",
+        ]
+        if optional_sections:
+            parts.append(optional_sections)
         return "\n".join(parts)
 
     async def _call_llm_for_question(

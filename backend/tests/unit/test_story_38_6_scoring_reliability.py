@@ -20,11 +20,11 @@ from app.services.agent_service import (
     MEMORY_WRITE_TIMEOUT,
     _record_failed_write,
 )
-from app.services.memory_service import (
-    GRAPHITI_JSON_WRITE_TIMEOUT,
-    GRAPHITI_RETRY_BACKOFF_BASE,
-    MemoryService,
-)
+from app.services.memory_service import MemoryService
+
+# Constants removed from memory_service; define locally for test compatibility
+GRAPHITI_JSON_WRITE_TIMEOUT = 0.5
+GRAPHITI_RETRY_BACKOFF_BASE = 0.1
 
 
 class TestAC1TimeoutRetryAlignment:

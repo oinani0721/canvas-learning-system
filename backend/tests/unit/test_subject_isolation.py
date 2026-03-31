@@ -16,9 +16,8 @@ Test Cases (from Story 30.8):
 """
 
 from app.core.subject_config import (
-    DEFAULT_SUBJECT,
+    DEFAULT_SUBJECT_ID as DEFAULT_SUBJECT,
     SKIP_DIRECTORIES_LOWER,
-    SubjectType,
     build_group_id,
     extract_subject_from_canvas_path,
     sanitize_subject_name,
@@ -208,17 +207,9 @@ class TestSkipDirectoriesConfig:
         assert "node_modules" in SKIP_DIRECTORIES_LOWER
 
 
-class TestSubjectTypeEnum:
-    """Tests for SubjectType enum."""
+class TestSubjectDefaults:
+    """Tests for subject defaults (SubjectType enum was removed; using string IDs now)."""
 
-    def test_subject_types_exist(self):
-        """Verify all expected subject types exist."""
-        assert SubjectType.MATH.value == "math"
-        assert SubjectType.PHYSICS.value == "physics"
-        assert SubjectType.COMPUTER_SCIENCE.value == "computer_science"
-        assert SubjectType.LANGUAGE.value == "language"
-        assert SubjectType.GENERAL.value == "general"
-
-    def test_default_subject(self):
-        """Verify default subject is GENERAL."""
-        assert DEFAULT_SUBJECT == SubjectType.GENERAL
+    def test_default_subject_is_general(self):
+        """Verify default subject is 'general'."""
+        assert DEFAULT_SUBJECT == "general"

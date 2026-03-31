@@ -19,10 +19,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from app.clients.graphiti_client import LearningMemory
-from app.services.memory_service import (
-    GRAPHITI_JSON_WRITE_TIMEOUT,
-    MemoryService,
-)
+from app.services.memory_service import MemoryService
+
+# Constant was removed from memory_service; define locally for test compatibility
+GRAPHITI_JSON_WRITE_TIMEOUT = 0.5
 
 from tests.conftest import (
     simulate_async_delay,

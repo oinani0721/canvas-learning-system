@@ -31,3 +31,13 @@
 - Feature 2.3: Fix vault_notes dual-search bug — COMPLETE
   - Removed vault_notes from LanceDB DEFAULT_TABLES (was queried twice)
   - DEFAULT_TABLES now ["canvas_nodes"] only, vault_notes via dedicated retriever ✅
+
+### Epic 3: Layer 3 ACP Prompt Externalization — COMPLETE
+- Feature 3.1: Create layer3.md template — COMPLETE
+  - Created backend/app/prompts/exam/layer3.md with 7 placeholders + optional_sections
+  - Follows existing layer1/2/4/5 pattern ✅
+- Feature 3.2: Refactor _format_acp_layer to load from file — COMPLETE
+  - _format_acp_layer now loads template via _load_prompt_file("layer3.md")
+  - Conditional sections (tips/errors/edges/conversation) built in Python, injected as {optional_sections}
+  - Graceful fallback if template file missing
+  - 11 pytest tests pass ✅
