@@ -41,3 +41,13 @@
   - Conditional sections (tips/errors/edges/conversation) built in Python, injected as {optional_sections}
   - Graceful fallback if template file missing
   - 11 pytest tests pass ✅
+
+### Epic 5: Chinese Hybrid Search Activation — COMPLETE (already implemented)
+- Feature 5.1: Default search mode is "hybrid" — ALREADY DONE ✅
+  - config.py:172 and lancedb_client.py:2192 both default to "hybrid"
+- Feature 5.2: Jieba tokenization wired into pipeline — ALREADY DONE ✅
+  - Index-time: add_documents() calls _jieba_tokenize() → content_tokenized column
+  - Query-time: _search_internal() hybrid branch calls _jieba_tokenize(query)
+  - FTS index: _rebuild_fts_index() creates Tantivy index on content_tokenized
+  - RRF fusion merges dense + FTS results (k=60)
+  - 23 verification tests pass ✅
