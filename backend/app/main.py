@@ -146,10 +146,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # This ensures the first /api/v1/memory/health call is fast (<100ms vs 21s)
     try:
         logger.info("Pre-warming MemoryService singleton...")
-        await get_memory_service()
+        memory_svc = await get_memory_service()
         logger.info("MemoryService pre-warmed successfully")
     except Exception as e:
+        memory_svc = None
         logger.warning(f"MemoryService pre-warm failed (non-fatal): {e}")
+
+    # ✅ Epic 4 Feature 4.1: Auto-create Neo4j fulltext index on startup
+    # Creates episode_content index for Tier 2 keyword search in search_memories
+    try:
+        if memory_svc is not None:
+            await memory_svc.ensure_fulltext_index()
+    except Exception as e:
+        logger.warning(f"[Epic 4] Fulltext index setup failed (non-fatal): {e}")
 
     # ✅ Story 38.1 AC-3: Recover pending LanceDB index operations on startup
     try:

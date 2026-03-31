@@ -51,3 +51,12 @@
   - FTS index: _rebuild_fts_index() creates Tantivy index on content_tokenized
   - RRF fusion merges dense + FTS results (k=60)
   - 23 verification tests pass ✅
+
+### Epic 4: Neo4j Fulltext Index + search_memories Completion — COMPLETE
+- Feature 4.1: Auto-create episode_content fulltext index on startup — COMPLETE
+  - Added ensure_fulltext_index() to MemoryService (IF NOT EXISTS for idempotency)
+  - Called during FastAPI lifespan startup in main.py
+  - Graceful degradation when Neo4j unavailable ✅
+- Feature 4.2: Three-tier search with logging — COMPLETE
+  - Tier 1→2→3 fallthrough with per-tier result count logging
+  - Tests verify tier fallthrough behavior ✅

@@ -203,6 +203,36 @@ class MemoryService:
         logger.info("MemoryService initialized successfully")
         return True
 
+    async def ensure_fulltext_index(self) -> None:
+        """
+        Create the episode_content fulltext index in Neo4j if it doesn't exist.
+
+        Epic 4 Feature 4.1: Auto-create Neo4j fulltext index on startup.
+        Uses IF NOT EXISTS for idempotency — safe to call multiple times.
+
+        Gracefully handles:
+        - Neo4j not initialized / unavailable
+        - Index already exists
+        - Permission errors or connection failures
+        """
+        if not self.neo4j.stats.get("initialized", False):
+            logger.info(
+                "[Epic 4] Skipping fulltext index creation: Neo4j not initialized"
+            )
+            return
+
+        cypher = (
+            "CREATE FULLTEXT INDEX episode_content IF NOT EXISTS "
+            "FOR (n:EpisodicNode) ON EACH [n.content]"
+        )
+        try:
+            await self.neo4j.run_query(cypher)
+            logger.info(
+                "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content"
+            )
+        except (RuntimeError, ConnectionError, Exception) as e:
+            logger.warning(f"[Epic 4] Fulltext index creation failed (non-fatal): {e}")
+
     async def _recover_episodes_from_neo4j(self) -> None:
         """
         Recover episodes from Neo4j on startup.
@@ -1293,6 +1323,7 @@ class MemoryService:
                 merged.append(ep)
 
         # Tier 3: In-memory cache (always available fallback)
+        tier3_count = 0
         query_lower = query.lower()
         for episode in reversed(self._episodes):
             if len(merged) >= effective_limit:
@@ -1310,6 +1341,15 @@ class MemoryService:
                 seen_ids.add(ep_id)
                 episode_with_source = {**episode, "source": "in_memory"}
                 merged.append(episode_with_source)
+                tier3_count += 1
+
+        # Epic 4 Feature 4.2: Log which tier(s) produced results
+        logger.info(
+            f"[search_memories] Tier 1: {len(graphiti_hits)} results, "
+            f"Tier 2: {len(neo4j_hits)} results, "
+            f"Tier 3: {tier3_count} results "
+            f"(total merged: {len(merged[:effective_limit])})"
+        )
 
         return merged[:effective_limit]
 
