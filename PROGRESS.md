@@ -52,6 +52,16 @@
   - RRF fusion merges dense + FTS results (k=60)
   - 23 verification tests pass ✅
 
+### Epic 6: group_id Dynamic Binding — COMPLETE
+- Feature 6.1: Pass canvas name as group_id — COMPLETE
+  - Added extract_canvas_name() to subject_config.py
+  - Updated all 4 build_group_id() calls in memory_service.py to pass canvas_name
+  - group_id now formatted as "subject:canvas_name" (e.g., "math:离散数学")
+  - Different canvases produce isolated memory namespaces ✅
+- Feature 6.2: Normalize canvas name to group_id format — COMPLETE
+  - sanitize_subject_name() handles Unicode + ASCII normalization
+  - 21 pytest tests pass ✅
+
 ### Epic 4: Neo4j Fulltext Index + search_memories Completion — COMPLETE
 - Feature 4.1: Auto-create episode_content fulltext index on startup — COMPLETE
   - Added ensure_fulltext_index() to MemoryService (IF NOT EXISTS for idempotency)

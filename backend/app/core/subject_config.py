@@ -154,6 +154,41 @@ def extract_subject_from_canvas_path(canvas_path: str) -> str:
     return path.stem or DEFAULT_SUBJECT_ID
 
 
+def extract_canvas_name(canvas_path: str) -> str:
+    """
+    Extract canvas filename without .canvas extension.
+
+    Used to derive the canvas-level component of group_id for
+    per-canvas memory namespace isolation (Epic 6 Feature 6.1).
+
+    Examples:
+        - "数学/离散数学.canvas" -> "离散数学"
+        - "Math 54/chapter1/calc.canvas" -> "calc"
+        - "random" -> "random"
+        - "" -> "untitled"
+
+    Args:
+        canvas_path: Canvas file path (may include directories)
+
+    Returns:
+        Canvas filename stem, or "untitled" if empty/missing.
+
+    [Source: Phase 3 PRD Epic 6 - group_id Dynamic Binding]
+    """
+    from pathlib import PurePosixPath
+
+    if not canvas_path:
+        return "untitled"
+
+    # Use PurePosixPath to handle forward-slash paths consistently
+    name = PurePosixPath(canvas_path).stem
+
+    # PurePosixPath(".canvas").stem returns ".canvas" (hidden file with no real name)
+    if not name or name.startswith("."):
+        return "untitled"
+    return name
+
+
 def build_group_id(subject: str, canvas_name: Optional[str] = None) -> str:
     """
     Build a group_id for Neo4j/Graphiti memory isolation.

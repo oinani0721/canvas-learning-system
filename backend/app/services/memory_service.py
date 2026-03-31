@@ -50,6 +50,7 @@ from app.config import DEFAULT_GROUP_ID, settings
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 from app.core.subject_config import (
     build_group_id,
+    extract_canvas_name,
     extract_subject_from_canvas_path,
 )
 from app.services.episode_worker import EpisodeTask, get_episode_worker
@@ -382,8 +383,9 @@ class MemoryService:
         # ✅ AC-30.8.2: Auto-infer subject from canvas_path if not provided
         inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
 
-        # ✅ AC-30.8.1: Build group_id for namespace isolation
-        group_id = build_group_id(inferred_subject)
+        # ✅ AC-30.8.1: Build group_id for namespace isolation (Epic 6: canvas-scoped)
+        canvas_name = extract_canvas_name(canvas_path)
+        group_id = build_group_id(inferred_subject, canvas_name=canvas_name)
 
         try:
             # ✅ Verified: Store to Neo4j - Create learning relationship
@@ -1087,13 +1089,14 @@ class MemoryService:
             p = record["payload"]
             concept = p.get("concept", "unknown")
             inferred_subject = extract_subject_from_canvas_path(p["canvas_path"])
+            c_name = extract_canvas_name(p["canvas_path"])
             self._enqueue_episode(
                 name=f"batch_learning:{concept[:80]}",
                 episode_body=(
                     f"Student learned '{concept}' using {p.get('agent_type', 'unknown')} agent "
                     f"on canvas '{p['canvas_path']}'. Node: {p['node_id']}."
                 ),
-                group_id=build_group_id(inferred_subject),
+                group_id=build_group_id(inferred_subject, canvas_name=c_name),
                 source_description=f"canvas_batch:{inferred_subject}",
             )
 
@@ -1456,13 +1459,14 @@ class MemoryService:
         if not concept:
             concept = f"{event_type}:{node_id or edge_id or 'unknown'}"
         inferred_subject = extract_subject_from_canvas_path(canvas_path)
+        c_name = extract_canvas_name(canvas_path)
         self._enqueue_episode(
             name=f"temporal:{event_type}:{concept[:60]}",
             episode_body=(
                 f"Canvas event '{event_type}' on path '{canvas_path}'. "
                 f"Node: {node_id or edge_id or 'unknown'}. Concept: {concept}."
             ),
-            group_id=build_group_id(inferred_subject),
+            group_id=build_group_id(inferred_subject, canvas_name=c_name),
             source_description=f"canvas_temporal:{event_type}",
         )
 
@@ -1523,15 +1527,16 @@ class MemoryService:
             try:
                 # Phase 2: Enqueue recovered entry to GraphitiEpisodeWorker
                 concept = entry.get("concept", "") or entry.get("concept_id", "unknown")
-                canvas_name = entry.get("canvas_name", "")
-                inferred_subject = extract_subject_from_canvas_path(canvas_name)
+                entry_canvas = entry.get("canvas_name", "")
+                inferred_subject = extract_subject_from_canvas_path(entry_canvas)
+                c_name = extract_canvas_name(entry_canvas)
                 enqueued = self._enqueue_episode(
                     name=f"recovery:{concept[:80]}",
                     episode_body=(
                         f"Recovered learning event for concept '{concept}' "
-                        f"on canvas '{canvas_name}'."
+                        f"on canvas '{entry_canvas}'."
                     ),
-                    group_id=build_group_id(inferred_subject),
+                    group_id=build_group_id(inferred_subject, canvas_name=c_name),
                     source_description="canvas_recovery",
                 )
                 if enqueued:
