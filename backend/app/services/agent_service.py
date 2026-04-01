@@ -3385,16 +3385,17 @@ class AgentService:
                 node_id=node_id,
             )
 
-        # Self-reflection for boundary scores (60-89): improves accuracy from 78.6% to 97.1%
+        # Self-reflection for boundary scores (7-9 on 0-12 scale): improves accuracy
         if (
             initial_result.success
             and initial_result.data
             and os.getenv("ENABLE_SCORING_REFLECTION", "true").lower() == "true"
         ):
             initial_score = initial_result.data.get(
-                "total_score", initial_result.data.get("total", 0)
+                "total_score",
+                initial_result.data.get("overall_score", initial_result.data.get("total", 0)),
             )
-            if isinstance(initial_score, (int, float)) and 60 <= initial_score < 90:
+            if isinstance(initial_score, (int, float)) and 7 <= initial_score <= 9:
                 logger.info(
                     f"[Reflection] Boundary score {initial_score}, triggering self-reflection"
                 )
@@ -3405,11 +3406,11 @@ class AgentService:
                         "user_understanding": user_understanding,
                         "reference_material": node_content,
                         "self_reflection": (
-                            f"你刚才给出了 {initial_score} 分。请自我检查：\n"
-                            f"1. 准确性 {initial_result.data.get('accuracy', '?')}/25 — 是否有高估或低估？\n"
+                            f"你刚才给出了 {initial_score}/12 分。请自我检查：\n"
+                            f"1. 概念准确性 {initial_result.data.get('concept_accuracy', initial_result.data.get('accuracy', '?'))}/3 — 是否有高估或低估？\n"
                             f"2. 各维度评分是否独立？有无循环论证？\n"
                             f"3. 如果学生看到这个分数，是否公平？\n"
-                            f"重新给出最终评分。"
+                            f"重新给出最终评分（0-12 分制）。"
                         ),
                     },
                     ensure_ascii=False,
@@ -4035,26 +4036,23 @@ class AgentService:
                 )
 
             # Determine color based on score
-            # scoring.md template uses "total_score" (0-100 scale), fallback to "total" for compatibility
+            # AutoSCORE 4D uses 0-12 scale (4 dimensions * 0-3 each).
+            # Fields: "total_score" or "total" or "overall_score" from scoring agent.
             total_score = 0.0
             if result.success and result.data:
-                # Try both field names for compatibility
+                # Try multiple field names for compatibility
                 total_score = result.data.get(
-                    "total_score", result.data.get("total", 0.0)
+                    "total_score",
+                    result.data.get("overall_score", result.data.get("total", 0.0)),
                 )
-                # Ensure score is in 0-100 range (normalize if needed)
-                # Use < 2 threshold: scores of 0-1 on 0-100 scale are impossible given
-                # the rubric (each of 4 dims scores 0-25, min real answer ~20 total).
-                # This correctly handles LLM returning 0-1 normalized float (e.g. 0.85→85)
-                # without misclassifying a legitimate integer score of 1 as 100.
-                # [GDA-8] Fix: was <= 1.0, changed to < 2 to avoid edge-case false positive.
-                if total_score < 2 and total_score > 0:
-                    total_score = total_score * 100  # Convert 0-1 to 0-100
 
-            # Color mapping: scoring.md defines ≥80=green, 60-79=purple, <60=red (0-100 scale)
-            if total_score >= 80:
+            # Color mapping on 0-12 scale:
+            #   >=10 → green (strong understanding)
+            #    >=7 → purple (partial understanding)
+            #    < 7 → red (weak understanding)
+            if total_score >= 10:
                 new_color = "2"  # green (完全理解/已通过)
-            elif total_score >= 60:
+            elif total_score >= 7:
                 new_color = "3"  # purple (似懂非懂/待检验)
             else:
                 new_color = "4"  # red (不理解/未通过)
@@ -4065,20 +4063,29 @@ class AgentService:
             if result.success and result.data:
                 feedback = result.data.get("feedback", "")
                 color_action = result.data.get("color_action", "")
-                # Also check breakdown structure from scoring.md template
-                breakdown = result.data.get("breakdown", {})
-                if breakdown:
-                    # Use breakdown values if available (0-25 scale per dimension)
-                    accuracy = breakdown.get(
-                        "accuracy", result.data.get("accuracy", 0.0)
-                    )
-                    imagery = breakdown.get("imagery", result.data.get("imagery", 0.0))
-                    completeness = breakdown.get(
-                        "completeness", result.data.get("completeness", 0.0)
-                    )
-                    originality = breakdown.get(
-                        "originality", result.data.get("originality", 0.0)
-                    )
+                # Extract AutoSCORE 4D breakdown (0-3 per dimension)
+                # Fields: concept_accuracy, reasoning_quality, knowledge_coverage, knowledge_integration
+                # Legacy aliases: accuracy, imagery, completeness, originality
+                scores_data = result.data.get("scores", result.data.get("breakdown", {}))
+                if scores_data:
+                    # Handle nested {"score": N, "justification": ...} format from AutoSCORE
+                    def _dim_score(d: Any) -> float:
+                        if isinstance(d, dict):
+                            return float(d.get("score", 0.0))
+                        return float(d) if d else 0.0
+
+                    accuracy = _dim_score(scores_data.get(
+                        "concept_accuracy", scores_data.get("accuracy", result.data.get("accuracy", 0.0))
+                    ))
+                    imagery = _dim_score(scores_data.get(
+                        "reasoning_quality", scores_data.get("imagery", result.data.get("imagery", 0.0))
+                    ))
+                    completeness = _dim_score(scores_data.get(
+                        "knowledge_coverage", scores_data.get("completeness", result.data.get("completeness", 0.0))
+                    ))
+                    originality = _dim_score(scores_data.get(
+                        "knowledge_integration", scores_data.get("originality", result.data.get("originality", 0.0))
+                    ))
                 else:
                     accuracy = result.data.get("accuracy", 0.0)
                     imagery = result.data.get("imagery", 0.0)
@@ -4095,7 +4102,9 @@ class AgentService:
                 from app.services.mastery_store import MasteryStore
                 from memory.temporal.fsrs_manager import get_rating_from_score
 
-                grade = get_rating_from_score(total_score)
+                # Normalize 0-12 AutoSCORE to 0-100 for FSRS rating mapping
+                score_normalized = (total_score / 12.0) * 100.0 if total_score > 0 else 0.0
+                grade = get_rating_from_score(score_normalized)
                 concept_id = node_id  # Use node_id as concept_id
                 engine = get_mastery_engine()  # Uses fusion-enabled singleton
                 store = MasteryStore(get_neo4j_client())

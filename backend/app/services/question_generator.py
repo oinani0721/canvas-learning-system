@@ -246,6 +246,95 @@ class QuestionGenerator:
         )
         return acp
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # Remediation Strategy — MathCCS 4-type error → differentiated approach
+    # (layer4_rules.md: Error Type to Question Strategy Mapping)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    # MathCCS 4 error types mapped to remediation strategies
+    REMEDIATION_STRATEGIES: Dict[str, str] = {
+        "破题错误": (
+            "【补救策略：破题错误】\n"
+            "该学生存在破题错误——能记住解法但无法灵活应用。\n"
+            "请出「同结构不同包装」的新题，验证破题能力而非记忆。\n"
+            "例如：更换题目的表面情境但保持底层数学/逻辑结构不变。"
+        ),
+        "推理谬误": (
+            "【补救策略：推理谬误】\n"
+            "该学生存在推理谬误——推理过程中出现逻辑错误。\n"
+            "请采用以下策略之一：\n"
+            "1. 给出一段包含错误推理的过程，让学生找出错误并修正；\n"
+            "2. 出反例题，要求学生判断某个看似正确的推理为何是错的。"
+        ),
+        "知识点缺失": (
+            "【补救策略：知识点缺失】\n"
+            "该学生存在知识点缺失——基础定义/概念尚未掌握。\n"
+            "请回退到定义级别的基础题，确认学生理解核心定义后再逐步升级难度。\n"
+            "例如：先考察「请用自己的话解释 X 是什么」，通过后再出应用题。"
+        ),
+        "似懂非懂": (
+            "【补救策略：似懂非懂】\n"
+            "该学生处于似懂非懂状态——表面理解但缺乏深度。\n"
+            "请采用以下策略之一：\n"
+            "1. 辨析题：给出两个易混淆概念让学生区分；\n"
+            "2. 反例题：给出一个看似正确但实际错误的例子让学生判断；\n"
+            "3. 迁移题：要求将概念应用到全新的场景中。"
+        ),
+    }
+
+    # Alias mapping for English error type keys → Chinese strategy keys
+    _ERROR_TYPE_ALIASES: Dict[str, str] = {
+        "breakthrough_error": "破题错误",
+        "reasoning_fallacy": "推理谬误",
+        "knowledge_gap": "知识点缺失",
+        "partial_understanding": "似懂非懂",
+        "breaking": "破题错误",
+        "reasoning": "推理谬误",
+        "knowledge": "知识点缺失",
+        "partial": "似懂非懂",
+    }
+
+    def _determine_remediation_strategy(self, acp: ACPData) -> str:
+        """Determine the remediation strategy based on student's error history.
+
+        Analyzes the error_history in ACP to find the dominant error type,
+        then returns the matching remediation strategy text for prompt injection.
+
+        Args:
+            acp: ACP data containing error_history.
+
+        Returns:
+            Remediation strategy text, or empty string if no error history.
+        """
+        if not acp.error_history:
+            return ""
+
+        # Count occurrences of each error type
+        error_counts: Dict[str, int] = {}
+        for err in acp.error_history:
+            err_type = err.get("error_type", "").strip()
+            if not err_type or err_type == "unknown":
+                continue
+            # Normalize: try direct match first, then alias mapping
+            normalized = err_type
+            if err_type not in self.REMEDIATION_STRATEGIES:
+                normalized = self._ERROR_TYPE_ALIASES.get(err_type.lower(), err_type)
+            error_counts[normalized] = error_counts.get(normalized, 0) + 1
+
+        if not error_counts:
+            return ""
+
+        # Pick the most frequent error type
+        dominant_type = max(error_counts, key=error_counts.get)  # type: ignore[arg-type]
+        strategy = self.REMEDIATION_STRATEGIES.get(dominant_type, "")
+
+        if strategy:
+            logger.info(
+                f"[Story 6.3] Remediation strategy selected: {dominant_type} "
+                f"(count={error_counts[dominant_type]}/{len(acp.error_history)})"
+            )
+        return strategy
+
     def build_5_layer_prompt(self, acp: ACPData, exam_mode: ExamMode) -> str:
         """Construct the 5-layer prompt for LLM question generation.
 
@@ -253,7 +342,7 @@ class QuestionGenerator:
         Layer 1 (static): Examiner role
         Layer 2 (user-selected): Exam mode
         Layer 3 (dynamic): ACP student data
-        Layer 4 (static): Question rules
+        Layer 4 (static): Question rules + dynamic remediation strategy
         Layer 5 (static): Scoring preset
 
         Args:
@@ -278,8 +367,11 @@ class QuestionGenerator:
         # Layer 3: ACP (dynamic)
         layer3 = self._format_acp_layer(acp)
 
-        # Layer 4: Rules
+        # Layer 4: Rules (static base + dynamic remediation strategy)
         layer4 = self._layer4 or "一次只出一道题，从弱点出题，不暗示答案。"
+        remediation = self._determine_remediation_strategy(acp)
+        if remediation:
+            layer4 = f"{layer4}\n\n{remediation}"
 
         # Layer 5: Scoring preset
         layer5 = self._layer5 or "题目将按4维4分制Rubric评分，需有区分度。"
