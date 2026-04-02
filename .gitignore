@@ -159,8 +159,8 @@ node_modules/
 # Repomix local config
 repomix.config.json
 
-# 敏感文件（绝不推送）
-CLAUDE.md
+# CLAUDE.md — 仓库已设为私有，允许推送
+# CLAUDE.md
 
 # MCP 配置（含 API keys 和本地路径，环境相关）
 .mcp.json
