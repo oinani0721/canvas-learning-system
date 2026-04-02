@@ -148,6 +148,17 @@ canvas-progress-tracker/obsidian-plugin/C*
 # Root node_modules (lefthook, commitlint)
 node_modules/
 
+# Git worktrees (large repo copies, managed by Claude Code)
+.worktrees/
+
+# Research pack XML (large generated files)
+.gdr/*.xml
+.gdr/full-project-pack.xml
+.gdr/repomix-output.xml
+
+# Repomix local config
+repomix.config.json
+
 # 敏感文件（绝不推送）
 CLAUDE.md
 

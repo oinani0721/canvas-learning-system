@@ -1,0 +1,113 @@
+# === NEVER PACK: 环境和依赖 ===
+.venv/
+backend/.venv/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+
+# === NEVER PACK: 代码副本（worktrees）===
+.worktrees/
+.claude/worktrees/
+
+# === NEVER PACK: 开发工具框架（不是产品代码）===
+_bmad/
+_bmad-output/
+_archive/
+
+# === NEVER PACK: 运行时数据 ===
+data/
+backend/data/
+logs/
+*.db
+*.jsonl
+
+# === NEVER PACK: 构建产物和缓存 ===
+dist/
+build/
+htmlcov/
+.pytest_cache/
+.hypothesis/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage/
+
+# === NEVER PACK: 打包输出（防循环）===
+.gdr/
+
+# === NEVER PACK: 大量低价值文档（454 个 story + 187 个 PRD 版本 = 3M+ tokens）===
+docs/stories/
+docs/prd/sharded/
+docs/prd/sections/
+docs/prd/EPIC-*
+docs/prd/*.backup*
+docs/prd/*.OLD*
+docs/implementation-artifacts/
+docs/test-artifacts/
+docs/reviews/
+
+# === NEVER PACK: 大型生成文件 ===
+backend/openapi.json
+backend/src/
+
+# === NEVER PACK: 测试代码（需要时单独打包）===
+backend/tests/
+src/tests/
+tests/
+**/test_*
+**/*_test.*
+**/*.test.*
+**/*.spec.*
+**/conftest.py
+**/fixtures/
+
+# === NEVER PACK: deep-research 历史报告（需要时单独打包）===
+docs/deep-research-*
+
+# === NEVER PACK: 其它大型文件 ===
+demo/
+.archive/
+*.canvas
+wsl2-*
+
+# === NEVER PACK: 巨型单文件 ===
+src/canvas_utils.py
+
+# === NEVER PACK: 更多文档噪音（需要时单独打包）===
+docs/architecture/
+docs/epics/
+docs/prd/
+docs/superpowers/
+docs/design/
+
+# === NEVER PACK: 决策目录（需要时单独打包）===
+_decisions/
+
+# === NEVER PACK: IDE 和 Git ===
+.vscode/
+.idea/
+.git/
+
+# === NEVER PACK: Claude Code 个人配置 ===
+.claude/settings.json
+.claude/settings.local.json
+.claude/audit/
+.claude/backups/
+.claude/image-cache/
+
+# === NEVER PACK: PRD 备份（重复内容，占 260K tokens）===
+*.backup*
+*.OLD*
+*.bak
+*.OLD-BACKUP
+
+# === NEVER PACK: 临时文件 ===
+UsersHeishing*
+
+# === NEVER PACK: 大型二进制/锁文件 ===
+*.lock
+package-lock.json
+uv.lock
+*.lance
+*.pen

@@ -1,40 +1,40 @@
 {
-  "research_topic": "Canvas Learning System 规范驱动开发工作流诊断",
+  "research_topic": "平替 Gemini 索引(File Search Store) + Deep Research 原生深度调研能力的技术框架/项目",
   "active_decisions": [
-    "S31决策:放弃BMAD/SuperPower框架层,保留Hook+DD+Commands+bmad-code-review",
-    "DD-01~DD-13 开发纪律(2026-03-16固化,DD-11/12/13后续追加)",
-    "9个Hook+8生命周期事件的确定性执行体系",
+    "检索本地(LanceDB+bge-m3) + 理解Gemini（双轨制）",
+    "Gemini DR code模式经多轮修复但2026-03-30起服务端全面故障(API级别,非Store问题)",
+    "Boris工作流（Hook+DD+Commands替代BMAD+SuperPower）",
+    "Gemini DR已有4份报告（web改进/代码诊断/反门面部署/上下文传递）",
     "Graphiti-canvas MCP(group_id:canvas-dev, Neo4j bolt://localhost:7689)",
-    "Agent SDK sidecar对话引擎(取代Mode D→SDK→Tier B)",
-    "四层搜索+A-RAG(RAG+CLI+Graphiti+Grep)",
-    "Tauri+React+ReactFlow+shadcn/ui前端技术栈"
+    "Agent SDK sidecar对话引擎(取代Mode D→SDK→Tier B)"
   ],
   "do_not_research": [
     "HyDE - 教育场景不适用",
-    "KG-RAG/Self-RAG/Speculative RAG - 已有Graphiti方案",
-    "GraphRAG(Microsoft) - 已选Graphiti",
+    "Self-RAG - 多次独立否定",
+    "KG-RAG - 过度工程",
+    "LongLLMLingua - 当前规模不需要",
+    "Full Agentic RAG Level 3 - 过度设计",
+    "Kafka - 桌面应用过度设计",
     "Qdrant/Milvus - 已选LanceDB",
-    "Kafka - 单用户应用过度设计",
-    "Web Worker - 已选Tauri sidecar",
-    "BMAD完整框架 - 社区共识不适合独立开发者"
+    "Gemini text-embedding-004/text-embedding-3-small - 已选bge-m3",
+    "tiktoken - 中文20-40%失配",
+    "全量OpenCode/Agentic - 明确否定",
+    "SDK迁移 - Tauri WebView不支持",
+    "Pure BMAD - 已废弃",
+    "双向同步/实时同步 - 已选单向/事件驱动",
+    "固定字符切分 - 截断公式代码"
   ],
   "priority_gaps": [
-    "P0: Graphiti exclude_invalidated从未使用,搜索返回过期决策",
-    "P0: Graphiti 11/16工具被权限阻断,高级参数0%使用率",
-    "P0: DD-13名实一致Hook只警告不阻断(应exit 2)",
-    "P1: SuperPower高价值技能(brainstorming,writing-plans,systematic-debugging)可cherry-pick",
-    "P1: DD-07用户验收被评估为'正确但失败',Stop hook v7是否修复?",
-    "P1: DD-12范围约束结构性导致DD-11管道断裂",
-    "P2: Decision-Review完成率仅15.4%(11待验证)",
-    "P2: GDR-CRITICAL Gemini额度阻塞记忆重构实施"
+    {"gap": "Gemini DR API服务不稳定(2026-03-30起全面故障),需要平替方案", "priority": "HIGH"},
+    {"gap": "代码索引替代File Search Store(当前3000+文件37MB)", "priority": "HIGH"},
+    {"gap": "深度调研Agent能力替代Deep Research API", "priority": "HIGH"},
+    {"gap": "本地可运行,不依赖单一云服务商", "priority": "MEDIUM"}
   ],
   "decision_clusters": [
-    "对话引擎: Mode D→sidecar(3级推翻链)",
-    "前端重构: Obsidian→Tauri+React(DE-1~5+GDR-P1)",
-    "记忆系统: 假命名审计→策略C→Neo4j拓扑→Gemini(阻塞:额度)",
-    "检索系统: 四层搜索→4路(取消教材/跨Canvas)",
-    "开发纪律: CLAUDE.md概率→Hook确定性(9个hook)",
-    "学习功能: PRD 15项→GDA 10项→S29验证→Phase4规划"
+    "Gemini DR Tool (S32-S35) — 独立cluster,4份报告+脚本修复",
+    "Workflow Overhaul mega-cluster (S28-S32-S35) — Gemini DR诊断→SuperPower废弃→Boris工作流",
+    "Agent Integration (Tier B CLI → Mode D MCP → +LiteLLM layer)"
   ],
-  "injection_instruction": "你是一个专项调研agent。开始前必须阅读以上上下文：do_not_research中的方向无需深入,除非发现颠覆性证据(标记CONFLICT)。priority_gaps是本次调研重点。所有发现必须标注与active_decisions的关系:验证/冲突/新发现。每个发现必须标注证据等级:✅社区验证(3+独立案例)/🟡有案例但少(1-2案例)/❌无验证。"
+  "rejected_worth_revisiting": ["Speculative RAG (标记midterm optimization)"],
+  "injection_instruction": "你是一个专项调研agent。开始前必须阅读以上上下文：do_not_research中的方向无需深入,除非发现颠覆性证据(标记CONFLICT)。priority_gaps是本次调研重点。聚焦两大能力:(1)代码索引+语义搜索替代Gemini File Search Store (2)深度调研Agent替代Deep Research API。所有发现必须标注与active_decisions的关系:验证/冲突/新发现。"
 }

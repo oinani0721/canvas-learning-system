@@ -112,6 +112,9 @@ async function handleQuery(cmd) {
         // breaking agentic tool-use workflows (Issue #214).
         // Must explicitly set effort:high to restore proper tool-use behavior.
         effort: 'high',
+        // Enable adaptive extended thinking (Opus 4.6+ / Sonnet 4.6+).
+        // SDK dynamically allocates thinking tokens based on task complexity.
+        thinking: { type: 'adaptive' },
         // S29: canUseTool — SDK dedicated permission handler (sdk.d.ts:126-168)
         // Sidecar is headless (no terminal), must handle all cases to prevent hanging.
         canUseTool: async (toolName, input, _options) => {
@@ -329,8 +332,16 @@ async function handleQuery(cmd) {
         continue;
       }
 
-      // ── system: Init and compact boundary — no UI action ──
+      // ── system: Init (slash_commands list), compact_boundary, etc. ──
       if (msg.type === 'system') {
+        emit({
+          id,
+          type: 'system',
+          subtype: msg.subtype || '',
+          sessionId: msg.session_id,
+          slashCommands: msg.slash_commands,
+          compactMetadata: msg.compact_metadata,
+        });
         continue;
       }
 

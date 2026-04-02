@@ -12,11 +12,22 @@ stepsCompleted:
   - step-10-nonfunctional-requirements
   - step-11-polish
   - step-12-complete
+  - step-e-01-discovery
+  - step-e-02-review
+  - step-e-03-edit
 classification:
   projectType: desktop_app
   domain: edtech
   complexity: high
   projectContext: brownfield
+lastEdited: '2026-04-01'
+editHistory:
+  - date: '2026-04-01'
+    changes: 'BMAD验证后修复: 17个FR修复 + 20条NFR量化强化 + 新增FR-CONV-10/11 + 新增Accessibility + Performance/Compatibility加验证方法列(13项)'
+  - date: '2026-04-01'
+    changes: '架构迁移同步(Obsidian→Tauri+React), 搜索管道6路→4路, Reranker升级, Graphiti集成方案更新, 对话引擎→Sidecar, 计时器删除'
+  - date: '2026-04-01'
+    changes: 'Deep Research 12报告同步: Adaptive Router四路搜索, CRAG用Reranker置信度, Calibration阈值<100/100-400/400+, 评分默认1x+CoT动态3x, IRT连续难度, Token预算8K+中文, Neo4j heap 2-4GB, 90天图清理, BKT+SAINT+注记, FIRe→FSRS, 错误子类型, SOLO+Bloom分工'
 inputDocuments:
   - docs/architecture/index.md
   - docs/canvas-backend-research-report.md
@@ -38,25 +49,26 @@ workflowType: 'prd'
 
 **Author:** ROG
 **Date:** 2026-03-15
-**Project Type:** Desktop App（Obsidian Plugin + Docker Backend）
+**Project Type:** Desktop App（Tauri 2 + React + Docker Backend）
 **Domain:** EdTech — AI 驱动的个性化学习
 
 ---
 
 ## Executive Summary
 
-Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 AI 对话式学习深度融合。用户在白板上构建知识节点和关系，每个节点拥有独立的 AI 对话窗口，系统通过算法管道追踪学习轨迹，精准识别薄弱环节并递归考察。
+Canvas Learning System 是一个独立桌面应用（Tauri 2 + React），将可视化知识图谱与 AI 对话式学习深度融合。用户在白板上构建知识节点和关系，每个节点拥有独立的 AI 对话窗口，系统通过算法管道追踪学习轨迹，精准识别薄弱环节并递归考察。
 
 **核心差异化**：没有任何现有产品同时整合可视化知识图谱 + AI 节点对话 + 精通度追踪 + 间隔重复 + 递归考察检验 + 元认知校准。竞品最多覆盖 4/9 组件。
 
 **成功标志**："系统越来越懂你"——Agent 精准记住你的 Tips、Edge 理由、犯过的错误，并在考察和对话中精准利用这些记忆。
 
+
 **技术架构**：
-- **前端**：Obsidian Plugin（自建 Svelte 对话 UI + Claude Agent SDK 驱动，Tool-UI Bridge 模式）
-- **后端**：Docker 容器（FastAPI MCP Server + Neo4j/Graphiti + LanceDB + Ollama bge-m3）
-- **对话引擎**：Claude Agent SDK / OpenCode 兼容，通过 MCP 协议接入后端算法管道（Mode D 架构）
-- **模型灵活性**：LLM 不锁定厂商（LiteLLM SDK 统一调用层），用户可在插件 Dashboard 配置 API Key 和模型
-- **Agent 行为保障**：6 层防御架构（后端算法权威 + 密码学令牌管道 + CLAUDE.md + Hooks + 后端审计 + 结构化输出）
+- **前端**：Tauri 2 独立桌面应用（React + ReactFlow + Zustand + shadcn/ui + Catppuccin Mocha 暗色主题）
+- **后端**：Docker 容器（FastAPI + FastAPI-MCP + Neo4j 7691/Graphiti + LanceDB + Ollama bge-m3）
+- **对话引擎**：Agent SDK Sidecar（Node.js 独立进程，@anthropic-ai/claude-agent-sdk，通过 NDJSON stdin/stdout IPC 与 Tauri 通信，canUseTool 白名单权限控制）
+- **模型灵活性**：LLM 不锁定厂商，用户可在 Settings 页面配置 API Key 和模型
+- **Agent 行为保障**：canUseTool 工具白名单 + PostToolUse BEA 学习提取 Hook + 后端算法权威 + 结构化输出
 
 **实施策略**：Layer 1+2+3 全功能实施，质量优先。6 阶段增量集成控制技术风险，每阶段验证后才进下一层。每个 Layer 3 创新功能均有回退策略。
 
@@ -84,7 +96,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 1. **竞品空白** — 竞品分析确认没有现有产品整合 canvas + retrieval + self-explanation + AI scoring + metacognitive monitoring 的组合
 2. **检索练习效应量** — Karpicke (2011) 检索练习 vs 概念图的效应量 d=1.50，检验白板直接复用此学术证据
-3. **双重学习策略叠加** — Edge 对话同时触发 Elaborative Interrogation（精细化追问）+ Self-Explanation（自我解释），单次交互激活两种经论文验证的学习策略。Active Recall（主动回忆）归属检验白板场景（信息不可见时才构成回忆检索，Karpicke & Blunt 2011）
+3. **双重学习策略叠加** — Edge 对话用于在原白板剖析场景中记录用户对两个节点关系的理解，对话过程中自然触发 Elaborative Interrogation（精细化追问）和 Self-Explanation（自我解释）。Edge 对话属于原白板的知识剖析功能，不属于验证/考察。Active Recall（主动回忆）归属检验白板场景（信息不可见时才构成回忆检索，Karpicke & Blunt 2011）
 4. **白箱学生模型** — Bull & Kay OLM 研究表明 Inspectable OLM 是最受欢迎且最有效的学生模型类型，而 Anki/Duolingo/RemNote 均未提供白箱可检视的学习者模型
 
 ### 可衡量指标
@@ -95,12 +107,12 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 | 检索质量 | MRR@10 | >= 0.70 | RAG 生产验收标准 |
 | 检索质量 | Recall@10 | >= 0.80 | RAG 生产验收标准 |
 | 学习效果 | 检索练习效应量 | d >= 1.00 | Karpicke (2011) 基线 d=1.50 |
-| 精通度准确性 | Calibration 偏差趋势 | 持续缩小 | Area9 2x2 矩阵模式，三阶段渐进（<10 收集/10-20 初步/20+ 可靠），Fleming & Lau 2014 |
-| AI 评分可靠性 | 自一致性 sigma | <= 5 分 | 3 次采样多数投票 + Rubric 分解评分 |
+| 精通度准确性 | Calibration 偏差趋势 | 持续缩小 | Area9 2x2 矩阵模式，三阶段渐进（<100 条仅收集不做判断/100-400 条趋势参考/400+ 条统计可靠），Fleming & Lau 2014 |
+| AI 评分可靠性 | 自一致性 sigma | <= 5 分 | 默认 1x CoT Rubric 评分，低信心时才触发 3x 采样多数投票（Dynamic Confidence Routing，节省 2/3 评分延迟） |
 | LLM 输出忠实度 | Faithfulness | >= 0.85 | RAGAS (EACL 2024) 评估框架 |
 | 回答相关性 | Answer Relevancy | >= 0.80 | RAGAS (EACL 2024) 评估框架 |
 | 性能 | 单次查询延迟 | < 3s | 本地单用户场景 |
-| 管道健康 | 搜索通道存活率 | 6/6 通道返回真实数据 | 当前仅 2/6 工作，修复后全部打通 |
+| 管道健康 | 搜索通道存活率 | 4/4 通道返回真实数据 | 四路搜索（取消教材+跨Canvas，决策 GDA-2） |
 | 管道健康 | 配置参数传递 | 全部参数正确生效 | 当前 adapter.py 配置传递断裂 |
 | 管道健康 | 索引无重复 | 笔记修改 N 次仍只有 1 份索引 | 当前纯追加无去重 |
 | 管道健康 | Reranker 生效 | 精排后 MRR 提升 >= +0.10 | 当前 Reranker 为空壳实现 |
@@ -119,9 +131,10 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 | # | 功能 | 学术/产品先例 | 说明 |
 |---|------|-------------|------|
 | 1 | FSRS 间隔重复调度 | Anki（FSRS-6 默认算法）、Duolingo（Half-life Regression） | 基于遗忘曲线的复习时机计算 |
-| 2 | BKT 知识追踪 | Coursera、Khan Academy | 贝叶斯知识追踪，估算每个知识点的掌握概率 |
+| 2 | BKT 知识追踪 | Coursera、Khan Academy | 贝叶斯知识追踪，估算每个知识点的掌握概率。MVP 保留（可解释性优先——用户可直观理解"掌握概率"含义），Phase 2 评估 SAINT+ 替换（深度学习模型，精度更高但黑箱） |
 | 3 | Hybrid Search（bge-m3 + jieba 中文分词） | bge-m3 MIRACL nDCG@10=63.9、ECIR2026 metadata prefix Cohen's d 0.45→2.25、jieba 中文预分词解决 FTS 中文不工作问题 | 语义+关键词双路检索融合，中英双语支持 |
 | 4 | 知识图谱存储（Neo4j/Graphiti） | 方案 C 内嵌 graphiti_core，统一知识图谱管理 | 节点关系图持久化与语义检索 |
+
 | 5 | LLM 对话式学习 | ChatGPT、Claude 等验证的对话学习模式 | 每节点独立 AI 对话 |
 
 #### Layer 2：创新层（有根据的创新）
@@ -129,8 +142,8 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 | # | 功能 | 学术依据 | 说明 |
 |---|------|---------|------|
 | 1 | 多信号融合（5-6 核心信号） | 贝叶斯融合理论，Nature 2025 确认 >5 变量边际递减 | BKT+FSRS+考察评分+校准+自信度自评 → 单维掌握度 + 题目标签统计薄弱方向。信号互补性验收：相关系数 < 0.7 |
-| 2 | Calibration Tracking（校准追踪） | Area9 Lyceum（3000 万用户）2x2 置信度矩阵 | 答前显式自评"你觉得自己会吗？" + 答案正误对比。三阶段：<10 条仅收集/10-20 初步趋势/20+ 可靠评估（Fleming & Lau 2014） |
-| 3 | Agentic RAG Level 1+2 + 六路搜索 | LangGraph Corrective RAG + A-RAG (arXiv:2602.03442) | 六路搜索协作：LanceDB Dense 语义 + LanceDB Sparse 关键词（jieba 中文分词）+ Graphiti 时序记忆 + Vault 笔记搜索 + Obsidian CLI 图遍历 + 图片 OCR 搜索，分层 RRF 融合 + gte-reranker-modernbert-base 精排。迭代 Retrieve-Verify 循环（最多 2 次） |
+| 2 | Calibration Tracking（校准追踪） | Area9 Lyceum（3000 万用户）2x2 置信度矩阵 | 答前显式自评"你觉得自己会吗？" + 答案正误对比。三阶段：<100 条仅收集不做判断/100-400 条趋势参考/400+ 条统计可靠（Fleming & Lau 2014 校准研究要求足够样本量才有统计意义） |
+| 3 | Agentic RAG Level 1+2 + 四路搜索 | LangGraph Corrective RAG + A-RAG (arXiv:2602.03442) | 四路搜索协作（Adaptive Router 智能路由，非无条件并行）：简单事实查询 → 仅 LanceDB Dense；时序相关查询 → Graphiti 时序记忆；视觉相关 → 多模态通道；复杂查询 → 多通道并行。通道：LanceDB Dense 语义 + LanceDB Sparse 关键词（jieba 中文分词）+ Graphiti 时序记忆 + Vault 笔记搜索，分层 RRF 融合 + 交叉编码器精排模型（中文原生多语言支持）。迭代 Retrieve-Verify 循环（最多 2 次）。已取消教材检索和跨 Canvas 检索（决策 GDA-2） |
 | 4 | 白箱 Inspectable OLM | Bull & Kay OLM 研究 + LAK'24 处方性 Dashboard 效应量 ES=1.36 | 单维掌握度 + 题目标签统计薄弱方向 + 趋势曲线。处方性展示（"建议复习 X"）优于描述性展示（"你的 X 是 40%"） |
 
 #### Layer 3：实验层（全球独创，附回退策略）
@@ -139,6 +152,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 |---|------|---------|------|
 | 1 | Edge 对话（双重学习策略叠加） | 退化为静态标签边 | 点击连线触发 Elaborative Interrogation + Self-Explanation（Active Recall 归属检验白板，Karpicke & Blunt 2011） |
 | 2 | 检验白板递归考察 + 多模式考察 | 退化为单轮考察 | 三种考察模式（点对点突破/综合题/混合）+ 内容类型自动映射（Constructive Alignment, Biggs 1996）+ 考后审查面板（新节点确认后才回写） |
+
 | 3 | 元认知校准（Area9 式） | 退化为单一精通度百分比 | Area9 2x2 置信度矩阵（3000 万用户验证），答前自评 + 答后对比。不使用 Dunning-Kruger 标签（Gignac & Zajenkowski 2020 指出 DK 大部分是统计伪影） |
 | 4 | 对话拉出节点（见解提取） | 退化为手动创建节点 | 对话中选取文字→拖出为新知识节点→自动建立关系边 |
 
@@ -176,7 +190,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 ```
 用户打开白板 → 点击节点 → 右侧面板 AI 对话
   → 对话中标注 Tips / 发现错误 / 提出追问
-  → 点击 Edge → 触发双重学习策略对话（EI+SE，Layer 3）
+  → 点击 Edge → 记录节点间关系理由，让 AI 理解节点关联（Layer 3）
   → 选取对话文字 → 拉出为新节点
   → 自我评估 → FSRS 更新 → 精通度变化可视
 ```
@@ -187,10 +201,13 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 用户在 Dashboard 选择原白板 → 选择考察模式（点对点/综合题/混合）
   → 系统基于 FSRS+BKT+KG 三角协作选择薄弱节点
   → AI 基于 ACP 考察数据包 + 4 维 Rubric 出题考察
+
   → 用户答前自评"你觉得自己会吗？"（Calibration 采集）
   → 用户回答 → AI 4 维 4 分制评分（概念准确/推理质量/知识覆盖/知识整合）
   → 评分后 BKT+FSRS 更新 → 精通度变化通知
-  → 发现新盲区 → 生成新节点（每次最多 3 个）→ 考后审查面板确认 → 回写原白板
+  → 发现新盲区 → 用户从对话中拉出不限数量的新节点，新节点归属原白板并支持剖析模式
+
+→ 考后审查面板确认 → 回写原白板
   → 递归：确认的新节点可继续考察
 ```
 
@@ -214,22 +231,32 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 **模块影响评估**（38 个后端服务文件逐模块分析）：
 - **保留不动（66%）** — LangGraph 管道、算法核心、Graphiti 蒸馏等完全不受前端重构影响
 - **新建 8 个** — per-node 独立对话系统、对话继承、Edge 对话触发、Tips 标注、对话拉出节点、检验白板服务、对话归档、精通度更新通知（现有后端完全不支持这些功能）
+
+
 - **局部调整** — API 端点适配新前端数据格式、节点 CRUD 接口对接
 
-**Graphiti 统一（方案 C）**：
-- 内嵌 graphiti_core 到后端，统一知识图谱管理
-- 方案 C 经三方案对比后确认为最优，兼顾功能完整性和维护成本
+
+**Graphiti 统一
+
+
+（方案 C + GraphitiEpisodeWorker）**：
+- 内嵌 graphiti-core>=0.28.2 到后端，asyncio.Queue Worker 异步处理 episode 写入
+- GraphitiEpisodeWorker 使用 GeminiClient + GeminiEmbedder，死信 JSONL 保障零丢失
+- 三层分级搜索：Graphiti 语义搜索 → Neo4j fulltext 索引 → 内存缓存
+- MCP 工具通过 FastAPI-MCP 暴露（决策：不用原生 Graphiti MCP）
+- Neo4j 端口 7691（决策 GDA-1），group_id 按白板命名（决策 GDA-3）
 
 **检索管道升级**（详见专项文档 `prd-backend-retrieval-pipeline.md`）：
 - 检索管道是所有上层功能的基础——节点对话、Edge 对话、检验白板、/命令技能都依赖精确的笔记片段检索
 - 当前管道严重损坏：6 条搜索通道仅 2 条工作、排序器空壳、质量检查永远误判、配置传递断裂、中文搜索不工作、索引无去重
-- 升级后：6 通道全打通、bge-m3 中英双语、智能分块、混合搜索、精排、CRAG 质量门控、增量索引、图片 OCR 检索
+- 升级后：6 通道全打通、bge-m3 中英双语、智能分块、混合搜索、精排、CRAG 质量门控（Reranker 置信度分数兼作质量门控信号，无需独立 LLM 评估器）、增量索引、图片 OCR 检索
 - 实施策略：4 Phase 渐进式（Phase 0 基础修复 → Phase 1 核心升级 → Phase 2 新功能 → Phase 3 前端集成）
 - 8 个 CRITICAL 级 + 7 个 HIGH 级代码缺陷已在专项文档中记录，含具体修复方案
 - 专项文档同时包含完整的技术选型表、验收标准来源、风险缓解策略
 
 **LangGraph 保留**：
 - LangGraph 保留不变，完全不受前端重构影响
+
 - 启用 agent_graph.py 实现 Agentic RAG Level1+2
 
 **6 阶段增量算法集成**：
@@ -243,10 +270,12 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 ### 前端架构
 
-**新前端方案**：
-- **Frontend-first + Backend sync 架构** — 前端本地优先操作，异步同步到后端 Neo4j
-- **Svelte 框架** — 1.6KB bundle、内置 CSS 隔离、80% 基础设施可复用
-- **Obsidian 插件集成** — 在 Obsidian 环境内运行，非独立浏览器页面
+**新前端方案**（决策 DE-1~DE-5，2026-03-17）：
+- **Tauri 2 独立桌面应用** — 脱离 Obsidian，独立运行。Tauri 2 提供原生窗口管理和 Shell Plugin
+- **React + ReactFlow 12.10.1** — 知识图谱白板用 ReactFlow 渲染，Zustand 状态管理（决策 GDR-P1-2）
+- **shadcn/ui + Catppuccin Mocha** — 暗色主题统一，CSS 变量体系
+- **Dexie (IndexedDB)** — 前端本地优先持久化，异步同步到后端 Neo4j
+- **Node.js Sidecar** — Agent SDK 通过独立 Node.js 进程运行，NDJSON IPC 通信
 
 **节点数据格式**：
 - 5 种节点来源验证（手动创建、对话拉出、检验白板生成、导入、AI 推荐）
@@ -254,7 +283,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 - 竞品数据格式对比（ReactFlow 等）后采用 Frontend-first 方案
 
 **图片节点支持（两层方案）**：
-- **对话层**：Mode D 原生多模态——用户贴图后可直接与 Agent 对话讨论图片内容，Agent 引擎原生支持图片理解，无需等待 OCR
+- **对话层**：Agent SDK Sidecar 原生多模态——用户贴图后可直接与 Agent 对话讨论图片内容，Agent 引擎原生支持图片理解，无需等待 OCR
 - **检索层**：后台异步 Vision API 提取文字/公式/概念 → embedding → 存入 LanceDB 搜索索引
 - 用户体感：贴图后**立即可对话**（对话层），后台同时建索引（检索层），索引建立前的窗口期用 Agent 原生图片理解兜底
 - 复用已有 vision 处理模块（gemini_vision.py 可适配多模型）
@@ -263,13 +292,16 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 **三层存储**：
 - **Neo4j（Graphiti）** — 知识图谱、节点关系、学习轨迹、语义边
+
 - **LanceDB** — 向量检索（bge-m3 1024d embedding）、对话消息向量化
+
 - **SQLite + aiosqlite** — 对话消息持久化、结构化查询、会话管理
 
 **三层对话归档（Hot-Warm-Cold）**：
 - **Hot（0-30 天）** — 完整保留所有对话消息，支持全文检索
 - **Warm（30 天-6 个月）** — 保留摘要 + 结构化提取（错误/Tips/关键问答）
 - **Cold（6 个月以上）** — 仅保留结构化提取和摘要，原始消息可选删除
+
 - 行业标准：30-90 天 hot + cold archival 分层
 
 **对话继承**：
@@ -285,7 +317,8 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 ### 算法架构
 
 **核心算法管道**：
-- 核心算法：BKT（掌握度追踪）、FSRS（复习调度）、KG 三角协作（选题排序）、ACP（考察数据包）、Hybrid Search + Agentic RAG（六路检索 + 分层 RRF 融合 + gte-reranker-modernbert-base 精排 + CRAG 质量门控）
+- 核心算法：BKT（掌握度追踪）、FSRS（复习调度）、KG 三角协作（选题排序）、ACP（考察数据包）、Hybrid Search + Agentic RAG（四路检索 Adaptive Router 智能路由 + 分层 RRF 融合 + 交叉编码器精排模型 + CRAG 质量门控——Reranker 置信度分数兼作质量门控信号，省去独立 LLM 评估延迟）
+
 - 检验白板功能组合 ACP、FSRS、BKT、Karpicke 检索练习等算法
 - 算法实现本身不是最大工作量，管道集成和测试才是
 
@@ -300,16 +333,16 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 - 第 4 层（静态）：出题规则——一次一题、从弱点出题、不暗示答案、难度适配
 - 第 5 层（静态）：评分预设——告知 AI 将按 4 维 Rubric 评分，出的题需有区分度
 
-**错误类型 → 出题策略映射**（MathCCS 9 大类映射为 4 类，Conversational AI Tutors 2025）：
-- 破题错误 → 出"同结构不同包装"新题验证破题能力
-- 推理谬误 → 给错误推理过程让学生找哪步错了 / 出反例题
+**错误类型 → 出题策略映射**（MathCCS 9 大类映射为 4 主类 + 2 子类，Conversational AI Tutors 2025）：
+- 破题错误（含子类：阅读理解错误——题意误读/条件遗漏） → 出"同结构不同包装"新题验证破题能力
+- 推理谬误（含子类：编码/表达错误——逻辑正确但表述有误） → 出与原题结构相似的新题，设置能诱导学生重蹈同一推理错误的陷阱，验证学生是否已真正克服该推理谬误
 - 知识点缺失 → 回退到 Bloom Remember 层先出定义题，确认后再升级
 - 似懂非懂 → 出辨析题/反例题/迁移题（"如果场景换了，X 还成立吗？"）
 
 **Calibration Tracking** — 详见 Layer 2 表格第 2 项。补充设计细节：
 - 四种知识状态：确定且正确（掌握）/ 确定但错误（误解，最危险）/ 不确定但正确（运气）/ 不确定且错误（未学）
 - 偏差计算：签名偏差（方向）+ 绝对偏差（大小）双指标
-- AI 评分可靠性三层保险：自一致性（3 次采样多数投票）+ 4 维 Rubric 分解评分 + 可选双模型交叉验证
+- AI 评分可靠性三层保险：默认 1x CoT Rubric 评分（低信心时才触发 3x 采样多数投票，Dynamic Confidence Routing）+ 4 维 Rubric 分解评分 + 可选双模型交叉验证
 
 **Agentic RAG Level 1+2**：
 - Level 1：智能路由（根据查询意图选择检索策略）
@@ -324,10 +357,12 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 - 10K 消息总量约 128MB，本地存储完全无压力
 
 **性能保障策略**：
-- ACP token budget 核心策略（上下文压缩 15K→3K，句子级提取，公式/代码整块保护）
+- ACP token budget 核心策略（上下文压缩 15K→8K+，中文内容 token 膨胀率约 2x 需要更大预算，句子级提取，公式/代码整块保护）
 - Metadata pre-filtering 核心策略（按课程/标签前置过滤 + 渐进范围搜索：同课程→相关课程→全库）
 - Hot-Warm-Cold 三层归档（控制活跃数据规模）
+- Graph Temporal Compaction：90 天以上无引用的低价值 episode 自动压缩/清理，防止 Graphiti 知识图谱无限膨胀
 - 单用户场景下 5 年内无需任何性能优化措施
+
 
 ---
 
@@ -335,7 +370,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 ### 旅程 1：ROG 的日常学习（原白板 — 学习模式）
 
-> ROG 在学 CS188 人工智能课程。他打开 Obsidian，在白板上粘贴了一张课件截图和一段笔记文本。截图底部出现"处理中..."提示，几秒后变为"已识别：A* 搜索、启发函数、admissibility"。他点击"A* 搜索"节点，右侧打开 Agent 对话窗口。他问："A* 和 Dijkstra 有什么区别？" Agent 不仅回答了问题，还提醒他"你上次在启发函数的 admissibility 上标记了一个知识谬误"。
+> ROG 在学 CS188 人工智能课程。他打开 Canvas Learning System，在白板上粘贴了一张课件截图和一段笔记文本。截图底部出现"处理中..."提示，几秒后变为"已识别：A* 搜索、启发函数、admissibility"。他点击"A* 搜索"节点，右侧打开 Agent 对话窗口。他问："A* 和 Dijkstra 有什么区别？" Agent 不仅回答了问题，还提醒他"你上次在启发函数的 admissibility 上标记了一个知识谬误"。
 >
 > ROG 恍然大悟，想把"A*"和"启发函数"连起来。他拖线连接两个节点，连线上出现一个小图标提示"点击讨论关系"。他点击连线，Agent 问他"为什么连在一起"，他回答"A* 的最优性取决于启发函数的 admissibility"。Agent 记录了这个理由。
 >
@@ -349,13 +384,13 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 > 学完一周后，ROG 想检验自己对"搜索"章节的理解。他在 Dashboard 选择原白板，点击"生成检验白板"，出现一个完全空白的白板。Agent 在对话框说："让我来检查你对搜索算法的理解。"
 >
-> Agent 先考他"请用自己的话解释 A* 搜索的 admissibility 条件"——ROG 用自己的话回答。Agent 评分 75/100，指出"你的描述忽略了 h(n) 不能大于实际代价这个关键条件"。精通度从 0.45 更新到 0.55，温度计可视化变化。
+> Agent 先考他"请用自己的话解释 A* 搜索的 admissibility 条件"——ROG 用自己的话回答。Agent 指出"你的描述忽略了 h(n) 不能大于实际代价这个关键条件"，继续追问深入。当 Agent 切换到下一个考察节点时，后台按 4 维 4 分制 Rubric 自动评分并更新 BKT+FSRS，用户通过节点颜色变化感知精通度变化。
 >
-> 接着 Agent 出了一道关系题："A* 搜索和启发函数之间是什么关系？请解释为什么 admissibility 是最优性的保证。"——这道题精准利用了 ROG 之前写的 Edge 理由。
+> 接着 Agent 出了一道需要主动回忆的考察题，不直接点明节点间关系——"在什么条件下 A* 搜索能保证找到最优解？"——迫使 ROG 自行回想起 admissibility 条件以及他之前记录的 Edge 理由，实现真正的 Active Recall。
 >
-> 考着考着，ROG 发现自己对"一致性"和"admissibility"的区别不清楚。他从对话中选取"一致性 ≠ admissibility"这句话拖出来生成新节点。他点击这个新节点继续让 Agent 帮他剖析——这和原白板上的操作完全一样。剖析完后 Agent 又可以考他这个新冒出来的概念。
+> 考着考着，ROG 发现自己对"一致性"和"admissibility"的区别不清楚。他从对话中选取"一致性 ≠ admissibility"这句话拖出来生成新节点。他点击这个新节点，进入原白板的剖析模式——和原白板上的操作完全一样，用于深入剖析这个新发现的概念。如需考察此概念，用户需从原白板重新生成检验白板。
 
-**揭示的需求**：检验白板生成+空白+考察、精准出题（利用 Tips/Edge/对话历史）、精通度更新可视化、递归考察（新节点可剖析也可被考）
+**揭示的需求**：检验白板生成+空白+考察、Active Recall 式精准出题（不暗示关系，利用 Tips/Edge/对话历史）、隐形评分+节点颜色传达精通度变化、新节点进入原白板剖析模式（非考察模式）
 
 ---
 
@@ -363,7 +398,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 > ROG 在做作业时发现自己之前理解错了"consistent heuristic"。他回到白板，在 Agent 对话中说"我之前把 consistent 和 admissible 搞混了"。Agent 记录了这个误解。ROG 选中对话中 Agent 的纠正解释，标记为"✓ 已理解"并写了 Tips："consistent 是更强的条件——consistent 一定 admissible，但反过来不一定"。
 >
-> 三天后，他再次打开这个节点对话，Agent 主动说："你上次纠正了 consistent 和 admissible 的区分，让我用一个新的例子验证你是否真的理解了。"——系统通过 Graphiti 检索到了他标记的误解和 Tips，精准追问。
+> 三天后，他再次打开这个节点对话，Agent 主动说："你上次纠正了 consistent 和 admissible 的区分，我帮你把这两个概念梳理得更清楚。"——系统通过 Graphiti 检索到了他标记的误解和 Tips，在剖析模式中精准提供相关上下文辅助理解（原白板用于剖析，不做验证考察）。
 >
 > 一周后检验白板考察时，Agent 出了一道辨析题直接针对这个曾经的误解点："给出一个启发函数是 admissible 但不是 consistent 的例子"。
 
@@ -387,7 +422,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 >
 > 他连续粘贴了 5 张截图。每张都能立即对话讨论，后台同时异步建索引。索引建立完成后，状态变为"✅ 已加入搜索索引"。后来在检验白板中，Agent 出题时通过搜索索引精准引用了他截图中的一个具体公式。
 
-**揭示的需求**：图片贴入后立即可对话（Mode D 原生多模态）、后台异步建索引、索引状态可见、图片内容可搜索
+**揭示的需求**：图片贴入后立即可对话（Agent SDK Sidecar 原生多模态）、后台异步建索引、索引状态可见、图片内容可搜索
 
 ---
 
@@ -395,8 +430,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 > 学了几周后，ROG 想回顾自己在"搜索算法"白板上积累了哪些知识。他点击"A* 搜索"节点，除了对话窗口，旁边出现了一个"学习档案"面板。
 >
-> 面板顶部显示掌握度 65%，下方写着"建议复习 admissibility 相关内容"。接着是他之前标注的 3 条 Tips——"consistent 是更强条件""admissibility 保证最优性""曼哈顿距离在有障碍物时可能不 admissible"。每条 Tips 都可以展开看当时的对话上下文。
->
+> 面板顶部通过颜色和描述性标签显示掌握状态（如"需要加强"/"基本掌握"/"已熟练"），下方写着"建议复习 admissibility 相关内容"。面板上有"启动单节点考察"按钮（FR-EXAM-17），可直接对该节点发起专项考察。接着是他之前标注的 3 条 Tips——"consistent 是更强条件""admissibility 保证最优性""曼哈顿距离在有障碍物时可能不 admissible"。每条 Tips 都可以展开看当时的对话上下文。
 > 再往下是"需要加强的方向"——系统告诉他"admissibility 相关题目反复出错（3 次）"和"一致性 vs admissibility 的辨析"。用词是正面的——"需要加强"而非"你的错误"。
 >
 > ROG 点击其中一条"需要加强"，直接跳转到对应的对话片段，看到当时 AI 是怎么纠正他的。他感觉这就像一本**按概念自动整理的学习笔记**。
@@ -416,6 +450,17 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 | 旅程 5 图片学习 | 图片贴入即可对话、后台异步索引、图片感知对话 |
 | 旅程 6 学习档案 | 节点学习档案面板、Tips 可追溯、薄弱方向正面展示、跳转到对话片段 |
 
+### 旅程 → 算法映射
+
+| 旅程 | 涉及算法/系统 | 触发方式 |
+|------|-------------|---------|
+| 旅程 1 日常学习 | Hybrid Search（笔记检索）、Graphiti（Tips/Edge 理由/错误写入）、LanceDB（向量化） | 用户对话/标注时自动触发 |
+| 旅程 2 检验白板 | BKT（选题排序）、FSRS（复习调度）、ACP（考察数据包组装）、4 维 Rubric（隐形评分）、信号融合（精通度更新） | 切换节点时后台自动触发评分 |
+| 旅程 3 错误修正 | Graphiti（误解检索+Tips 检索）、Hybrid Search（跨 session 上下文） | Agent 打开节点时自动检索相关历史 |
+| 旅程 4 新用户 | BKT 默认先验值、FSRS 默认参数 | 渐进建立，无冷启动诊断 |
+| 旅程 5 图片学习 | Vision API（OCR 提取）、LanceDB（向量化）、Graphiti（结构化记忆） | 贴图后异步触发 |
+| 旅程 6 学习档案 | BKT（掌握度）、FSRS（复习提醒）、Graphiti（Tips/错误聚合） | 用户打开档案面板时实时聚合 |
+
 ---
 
 ## 创新聚焦
@@ -424,7 +469,8 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 | 创新 | 竞品有吗 | 学术支撑 | 最大风险 | 应对 |
 |------|---------|---------|---------|------|
-| **检验白板递归考察** | 零竞品 | Karpicke d=1.50 + 生成式学习 g=0.41 | 递归越深越打击信心 + 误差累积 | 认知负荷控制（15/25/35/45 分钟提醒）+ 多题验证（3 题多数投票 85%→95%） |
+| **检验白板递归考察** | 零竞品 | Karpicke d=1.50 + 生成式学习 g=0.41 | 递归越深越打击信心 + 误差累积 | 多题验证（同一知识点 3 题不同角度多数投票，误判率从 15%→5%） |
+
 | **Edge 对话（双重策略叠加）** | 零竞品 | 精细化追问 d=0.56 + 自我解释 g=0.55（Dunlosky 2013） | 频繁打断建图流程 | 分离建边和对话（拖线建边→完成，点击边→才开对话） |
 | **多信号融合（5-6 核心信号）** | Area9 Lyceum 有多信号但不公开细节 | 贝叶斯融合理论，Nature 2025 确认 >5 变量边际递减 | 信号冗余导致过拟合 | 信号互补性验收（相关系数<0.7）+ 融合净收益验收 |
 | **Calibration Tracking（Area9 模式）** | Area9 Lyceum 2x2 矩阵（3000 万用户） | Fleming & Lau 2014 校准研究 | AI 评分不可靠→校准测的是噪音 | 三层评分保险（自一致性+Rubric 分解+可选双模型）先保证评分质量 |
@@ -460,9 +506,9 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 | 约束 | 缓解策略 |
 |------|---------|
 | **AI 幻觉零容忍** | 选用幻觉率最低的模型（可配置）+ RAG 优先检索用户已有内容 |
-| **评分公正性** | 4 维 4 分制 Rubric（概念准确/推理质量/知识覆盖/知识整合，SOLO 锚定）+ 自一致性（3 次采样）+ AutoSCORE 两阶段（先证据提取→再逐维打分）+ 用户反馈校准（"偏高/偏低/准确"按钮）+ AI 不确定时低信心标记（Trust or Escalate, ICLR 2025 Oral） |
+| **评分公正性** | 4 维 4 分制 Rubric（概念准确/推理质量/知识覆盖/知识整合，SOLO 锚定评分侧 + Bloom 控制出题难度层级）+ 默认 1x CoT Rubric 评分（低信心时才触发 3x 采样多数投票，Dynamic Confidence Routing）+ AutoSCORE 两阶段（先证据提取→再逐维打分）+ 用户反馈校准（"偏高/偏低/准确"按钮）+ AI 不确定时低信心标记（Trust or Escalate, ICLR 2025 Oral） |
 | **学习数据持久性** | 三层归档（Hot-Warm-Cold）+ Graphiti 永久保留结构化提取 |
-| **过度考察风险** | 检验白板认知负荷控制（15/25/35/45 分钟递进提醒） |
+| **过度考察风险** | 多题验证降低误判 + 用户自主控制考察节奏（用户驱动终止） |
 | **虚假掌握感** | 元认知校准 + Calibration Tracking 识别过度自信 |
 
 ### 多学科与扩展性
@@ -477,18 +523,18 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 ---
 
-## 项目类型深度分析（Desktop App — Obsidian Plugin）
+## 项目类型深度分析（Desktop App — Tauri 2 + React）
 
 ### 平台支持
 
 | 维度 | 规格 |
 |------|------|
 | **目标平台** | Windows 10+, macOS 12+, Linux (Ubuntu 20.04+/Fedora 36+) |
-| **运行环境** | Obsidian v1.4+ (Electron) + 本地 Docker 后端 |
+| **运行环境** | Tauri 2 独立桌面应用 + 本地 Docker 后端 |
 | **移动端** | 不支持（依赖本地 Docker 运行 Neo4j + FastAPI） |
-| **架构模式** | 前端 = Obsidian Plugin（Svelte + TypeScript），后端 = Docker 容器（FastAPI + Neo4j + LanceDB） |
-| **跨平台策略** | Obsidian 本身跨平台，插件 UI 层无需适配；后端 Docker 天然跨平台 |
-| **最低硬件** | 8GB RAM（Neo4j 4GB + Obsidian 2GB + Python 后端 2GB），SSD 推荐 |
+| **架构模式** | 前端 = Tauri 2 独立桌面应用（React + TypeScript + ReactFlow），后端 = Docker 容器（FastAPI + Neo4j + LanceDB），对话引擎 = Node.js Sidecar（Agent SDK） |
+| **跨平台策略** | Tauri 2 天然跨平台（Windows/macOS/Linux），前端 React 代码无需适配；后端 Docker 天然跨平台 |
+| **最低硬件** | 8GB RAM（Neo4j 2-4GB heap 最低配置 + Tauri 应用 2GB + Python 后端 2GB），SSD 推荐。注：Neo4j heap 建议 2-4GB 最低，Graphiti 全文索引和 episode 积累会消耗额外内存 |
 
 ### 系统集成
 
@@ -496,7 +542,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 | 组件 | 角色 | 通信方式 | 版本要求 |
 |------|------|---------|---------|
-| **Obsidian** | 前端宿主 | Plugin API + Svelte UI | v1.4+ |
+| **Tauri 2** | 前端宿主 | Rust 原生窗口 + React UI + Shell Plugin | v2.x |
 | **Docker Desktop** | 容器运行环境 | 管理后端所有服务 | Docker 20.10+ |
 | **FastAPI Backend** | API 网关 + 业务逻辑 | HTTP REST (localhost:8000) | Python 3.11+ |
 | **Neo4j** | 知识图谱 + 学习记忆 | Bolt (localhost:7689) | 5.x Community |
@@ -509,32 +555,32 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 #### 模型灵活性（⚠️ 核心设计原则）
 
-> **主力 LLM 模型不锁定任何厂商。** 用户可在 Obsidian 插件设置面板中配置 API Key 和选择模型。
+> **主力 LLM 模型不锁定任何厂商。** 用户可在 独立桌面应用设置面板中配置 API Key 和选择模型。
 
 | 设计决策 | 说明 |
 |---------|------|
-| **API Key 配置位置** | Obsidian 插件 Settings Tab → "模型配置" 面板 |
+| **API Key 配置位置** | 独立桌面应用 Settings Tab → "模型配置" 面板 |
 | **支持的模型提供商** | Google Gemini, Anthropic Claude, OpenAI GPT, 本地模型 (Ollama/LM Studio) |
 | **配置粒度** | 可为不同任务指定不同模型（如：对话用 Claude，评分用 Gemini，Embedding 用本地模型） |
 | **默认推荐** | 提供推荐配置模板（MVP 阶段验证后确定最优默认值） |
 | **后端抽象层** | LiteLLM SDK 统一调用接口（支持 100+ 模型），通过配置切换 provider，内置成本计算 |
 | **双层 Key 分离** | 外层（Agent 对话）用用户自己的 Key；内层（后端评分/提取/索引）用后端配置的 Key，互不干扰 |
 | **嵌入模型** | Ollama 容器运行 bge-m3（CPU 可运行，独立进程不占 FastAPI 内存，`ollama pull bge-m3` 一键安装） |
-| **API Key 安全** | 存储在 Obsidian vault 本地配置中（`.obsidian/plugins/canvas-learning/data.json`），不上传任何外部服务 |
+| **API Key 安全** | 存储在应用本地配置目录中（加密存储，优先使用 OS keychain），不上传任何外部服务 |
 
 #### 组件间启动顺序与依赖
 
 ```
 1. Docker Desktop 运行中
 2. docker-compose up → Neo4j (等待就绪) → Ollama (加载 bge-m3) → FastAPI Backend (等待 Neo4j + Ollama 连接)
-3. 打开 Obsidian → 插件加载 → Agent SDK 初始化 → MCP 连接后端 → 就绪
+3. 打开 Tauri 应用 → Sidecar 进程启动 → Agent SDK 初始化 → MCP 连接后端 → 就绪
 ```
 
 ### 更新策略
 
 | 组件 | 更新方式 | 频率 |
 |------|---------|------|
-| **Obsidian 插件** | Obsidian 社区插件市场自动更新 / 手动 BRAT 安装 | 随功能发布 |
+| **独立桌面应用** | Tauri 2 自动更新（tauri-plugin-updater）/ GitHub Releases 手动下载 | 随功能发布 |
 | **Docker 后端** | `docker-compose pull && docker-compose up -d` | 随后端版本发布 |
 | **Neo4j 数据** | 向后兼容，重大版本升级提供迁移脚本 | 极少 |
 | **数据库 Schema** | Alembic 迁移（SQL）+ Cypher 迁移脚本（Neo4j） | 随后端更新 |
@@ -566,7 +612,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 
 #### 系统健康状态面板（P1 — MVP 必须）
 
-Obsidian 插件 Settings Tab 中常驻的健康面板：
+独立桌面应用 Settings Tab 中常驻的健康面板：
 
 | 组件 | 检测方式 | 状态显示 |
 |------|---------|---------|
@@ -582,8 +628,8 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 |------|------|
 | Windows | `start-canvas.bat` / PowerShell 脚本 |
 | macOS/Linux | `start-canvas.sh` |
-| 功能 | 检查 Docker → 启动容器 → 等待健康检查 → 打开 Obsidian |
-| Obsidian 内 | 插件命令面板注册 "Canvas Learning: Start Backend" 命令 |
+| 功能 | 检查 Docker → 启动容器 → 等待健康检查 → 启动应用 |
+| 应用内 | 命令面板注册 "Canvas Learning: Start Backend" 命令 |
 
 #### 自动备份（P2 — MVP 后优先迭代）
 
@@ -618,7 +664,7 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 | **检验白板** | 空白生成、AI 出题、递归考察、新节点回写 | Layer 3 |
 | **精通度系统** | FSRS+BKT 单维追踪、题目标签统计薄弱方向、处方性 OLM 展示 | Layer 1+2 |
 | **信号融合** | 5-6 核心信号融合为单维掌握度 | Layer 2 |
-| **校准追踪** | Area9 式 Calibration（答前自评 + 2x2 矩阵） | Layer 2 |
+| **校准追踪** | Area9 式 Calibration（答前自评：考察前 AI 询问"你觉得自己会吗？"收集自信度，答后与实际表现对比 + 2x2 矩阵） | Layer 2 |
 | **MCP Server** | 后端算法通过 MCP 协议暴露给 Agent CLI | 新建 |
 | **Agent 对话引擎** | Claude Agent SDK / OpenCode，Tool-UI Bridge 模式 | 新建 |
 | **学习档案** | 节点学习痕迹浏览（Tips/错误/问答） | 新建 |
@@ -635,7 +681,8 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 | 能力域 | 功能 | 优先级 |
 |--------|------|--------|
 | **自动备份** | 每日自动 + 手动触发 + 一键恢复 | P2 |
-| **精通度详情面板** | 白箱 OLM 详情展示（趋势、证据、可协商） | P2（MVP 阶段精通度通过节点颜色+考察通知+FSRS 提醒传达） |
+| **精通度详情面板** | 白箱 OLM 详情展示：(1) 掌握度百分比+颜色编码 (2) 题目标签薄弱方向分布 (3) 掌握度趋势曲线 (4) 处方性建议（"建议复习 X"） (5) 证据追溯（哪些考察贡献了该评估）。用户可质疑评估结果（可协商） |
+| P2（MVP 阶段精通度通过节点颜色+考察通知+FSRS 提醒传达） |
 | **对话拉出节点** | 选取对话文字→生成新节点 | P2 |
 | **对话继承** | Edge 语义检索+摘要注入 | P2 |
 | **多学科隔离** | subject 字段隔离 + 跨学科桥接 | P2 |
@@ -648,7 +695,7 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 | **多 vault 支持** | vault_id 数据隔离 | 同一 Neo4j 实例 |
 | **他人部署** | Docker Compose 一键部署包 | 从个人使用到分享 |
 | **数据迁移** | 跨电脑迁移工具 | 备份+恢复 |
-| **高级分析** | SOLO 量表、FIRe 等实验算法 | 6 阶段 Phase 4-5 |
+| **高级分析** | SOLO 量表、FSRS 高级参数调优等实验算法 | 6 阶段 Phase 4-5（原 FIRe 已替换为 FSRS 长期优化路线） |
 | **社区技能市场** | 用户分享自定义 /命令技能 | 插件生态 |
 
 ### 风险缓解策略
@@ -659,7 +706,7 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 | **技术** | Layer 3 创新功能全球首创 | 每个创新功能均有回退策略（退化仍有 Math Academy 级质量） |
 | **技术** | 多组件本地依赖（Docker+Neo4j+...） | 安装引导向导 + 健康面板 + 一键启动脚本 |
 | **体验** | AI 评分不准确导致校准失效 | 先验证评分可靠性（Pearson>0.7）再启用校准 |
-| **体验** | 递归考察打击学习信心 | 认知负荷控制（15/25/35/45 分钟提醒）+ 多题投票验证 |
+| **体验** | 递归考察打击学习信心 | 多题投票验证（3 题多数投票）+ 用户自主控制节奏 |
 | **资源** | 新建 8 个后端模块工作量大 | 优先 per-node 对话（最大工作量+最高价值），其他按依赖顺序推进 |
 
 ---
@@ -684,11 +731,13 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 |----|---------|
 | FR-KG-01 | 用户可以在白板上创建、编辑、删除知识节点（文本节点和图片节点） |
 | FR-KG-02 | 用户可以通过拖拽创建节点间的有向/无向连线（Edge），并为连线添加语义标签 |
-| FR-KG-03 | 用户可以在白板上自由拖拽节点和连线，缩放和平移画布 |
+| FR-KG-03 | 用户可以在白板上拖拽节点和连线、缩放（10%-500%）和平移画布，操作延迟 < 16ms (60fps) |
 | FR-KG-04 | 系统自动将白板上的节点和连线同步到后端知识图谱存储 |
 | FR-KG-05 | 系统可以为用户推荐可能的概念关联（基于知识图谱分析） |
-| FR-KG-06 | 用户粘贴图片到白板时，对话层通过 Agent 原生多模态能力立即可对话讨论图片；检索层后台异步提取文字/公式/概念进入搜索索引 |
-| FR-KG-07 | 搜索索引建立过程中显示状态指示（建立中→已完成），对话功能不受索引状态影响 |
+| FR-KG-06 | 用户粘贴图片到白板时，对话层通过 Agent 原生多模态能力立即可对话讨论图片；检索层后台异步提取文字/公式/概念进入搜索索引和知识图谱（作为结构化学习记忆持久化，支持跨 session 引用） |
+| FR-KG-07 | 搜索索引建立过程中显示四种状态指示：处理中/已完成/部分失败/失败（附重试选项）。用户可点击状态指示器查看详情（已提取内容、错误信息）。对话功能不受索引状态影响 |
+| FR-KG-08 | 用户可以为每个白板绑定一个笔记文件夹路径。Agent 检索系统以此路径为搜索范围，向用户返回精确的笔记片段 |
+| FR-KG-09 | 用户可以在节点内容区域内粘贴行内图片（文本+图片混排），也可以在白板上创建独立图片节点。支持的内容类型包括：文本、图片、文件嵌入、链接 |
 
 ### 能力域 2：节点 AI 对话
 
@@ -697,12 +746,16 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 | FR-CONV-01 | 用户点击任意节点可以打开该节点的独立 AI 对话窗口 |
 | FR-CONV-02 | 每个节点拥有独立的对话历史，跨 session 持久化 |
 | FR-CONV-09 | 用户切换节点时，前一个节点的 AI 回答在后台继续生成（不取消）。用户切回时看到完整回答或继续流式输出。节点上显示生成状态指示（生成中/完成未读/空闲）。同时并发生成上限 3 个（可配置），超出排队 |
-| FR-CONV-03 | AI 对话时自动注入用户在该节点和相关节点的学习上下文（Tips、错误记录、Edge 理由等） |
+| FR-CONV-03 | AI 对话时自动注入用户在该节点及其 1-hop 邻居节点的学习上下文（Tips、错误记录、Edge 理由等） |
 | FR-CONV-04 | 用户可以在对话中使用 `/命令` 调用已注册的 Agent 技能 |
 | FR-CONV-05 | 用户可以在对话窗口中标记 Tips（关键知识点） |
-| FR-CONV-06 | 系统自动从对话中提取、分类并归档用户的错误（4 类：破题错误/推理谬误/知识点缺失/似懂非懂）、误解和关键问答，不同错误类型触发差异化补救策略 |
+| FR-CONV-06 | 系统自动从对话中提取、分类并归档用户的错误（4 主类：破题错误/推理谬误/知识点缺失/似懂非懂，含 2 个子类：阅读理解错误归属破题、编码表达错误归属推理谬误）、误解和关键问答，不同错误类型触发差异化补救策略 |
 | FR-CONV-07 | 对话消息按时间进行三层归档（完整保留→摘要+提取→仅提取） |
 | FR-CONV-08 | 用户可以选取对话中的文字拖出为新的知识节点，系统自动建议与原节点的关系 |
+| FR-CONV-10 | 用户切换到新节点对话时，系统通过 Edge 语义检索相关的前序节点对话摘要，自动注入新节点对话上下文（Phase 2） |
+| FR-CONV-11 | 系统按三层策略管理对话上下文窗口：Tier 1 全量注入（当前节点完整对话历史）+ Tier 2 摘要注入（1-hop 邻居节点对话摘要）+ Tier 3 按需检索（远端节点按需检索）。当节点拥有超过 5 个（可配置）1-hop 邻居时，按查询相关性、交互时间和精通度缺口优先排序注入，总量受 ACP token 预算约束 |
+| FR-CONV-12 | 用户可通过 `/resume` 命令查看和切换节点对话 session。系统显示 session-节点映射关系（哪个 session 属于哪个节点），支持快速导航 |
+| FR-CONV-13 | Agent 上下文窗口压缩发生时，系统保留关键学习数据（Tips、错误记录、精通度状态）在压缩后的上下文中，并通知用户压缩已发生 |
 
 ### 能力域 3：Edge 对话（连线交互）
 
@@ -711,7 +764,7 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 | FR-EDGE-01 | 用户创建连线后，连线上显示可交互的图标提示，表示可以点击讨论关系 |
 | FR-EDGE-02 | 用户点击连线图标时，触发 AI 对话，Agent 询问用户为何连接这两个概念 |
 | FR-EDGE-03 | Agent 记录用户对连线关系的解释理由，存储为结构化的 Edge 语义标签 |
-| FR-EDGE-04 | Edge 对话同时激活精细化追问（Elaborative Interrogation）和自我解释（Self-Explanation）两种学习策略。Active Recall 归属检验白板场景（连线时两端概念可见，不构成回忆检索，Karpicke & Blunt 2011） |
+| FR-EDGE-04 | 系统在 Edge 对话中同时激活精细化追问（Elaborative Interrogation）和自我解释（Self-Explanation）两种学习策略。Active Recall 归属检验白板场景（连线时两端概念可见，不构成回忆检索，Karpicke & Blunt 2011） |
 
 ### 能力域 4：检验白板
 
@@ -719,25 +772,22 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 |----|---------|
 | FR-EXAM-01 | 用户可以基于已有白板生成一个空白的检验白板 |
 | FR-EXAM-02 | 检验白板中，AI 基于 FSRS+BKT 选择用户最薄弱的知识节点进行考察 |
-| FR-EXAM-03 | AI 通过对话框出题考察用户，利用用户的 Tips、Edge 理由和历史错误精准出题 |
-| FR-EXAM-04 | AI 对用户回答进行 4 维 4 分制评分（概念准确/推理质量/知识覆盖/知识整合，SOLO 锚定），采用 AutoSCORE 两阶段执行（先证据提取→再逐维打分）。AI 不确定时明确标记低信心并邀请用户复核。评分结果更新精通度并可视化反馈 |
-| FR-EXAM-05 | 考察过程中用户可从对话中选中文字拖拽到检验白板生成新节点（与原白板 FR-CONV-08 操作一致），新节点及其数据实时同步回原白板 |
+| FR-EXAM-03 | AI 通过对话框出题考察用户，利用从知识图谱检索的个人学习历史（Tips、Edge 理由、对话错误/混淆点）精准出题。出题 Prompt 包含结构化的 Graphiti 检索结果作为上下文。错误来源为用户在原白板解题对话中的记录 |
+| FR-EXAM-04 | AI 对用户回答进行 4 维 4 分制评分（概念准确/推理质量/知识覆盖/知识整合，SOLO 锚定）。SOLO+Bloom 双框架分工：出题侧用 Bloom 控制难度层级（Remember→Evaluate），评分侧用 SOLO 评估回答结构深度（单点→拓展抽象）。采用 AutoSCORE 两阶段执行（先证据提取→再逐维打分）。AI 不确定时明确标记低信心并邀请用户复核。评分结果更新精通度并可视化反馈 |
+| FR-EXAM-05 | 考察过程中用户可从对话中选中文字拖拽到检验白板生成新节点（不限数量，与原白板 FR-CONV-08 操作一致）。新节点自动继承原白板的分类属性（subject、canvas_id、group_id），实时同步回原白板 |
 | FR-EXAM-06 | 检验白板支持递归考察——用户确认的新节点可被点击继续深入剖析和考察（用户驱动终止，用户"不点"= 自然结束） |
 | FR-EXAM-07 | 检验白板继承原白板的所有基础功能（节点对话、Edge 对话、拖拽连线等） |
-| FR-EXAM-08 | 系统提供认知负荷控制，在持续考察一段时间后给出休息提醒 |
-| FR-EXAM-09 | （已合并至 FR-EXAM-05，用户手动拉出节点不受数量限制） |
-| FR-EXAM-10 | （已废除，无考后审查面板——用户在对话中实时拉出节点，无需事后审查） |
 | FR-EXAM-11 | 检验白板支持三种考察模式选择：点对点突破（逐知识点考察）、综合题考察（跨概念整合题）、混合模式（先点对点找弱点再综合题验证） |
-| FR-EXAM-12 | 原白板内容类型与考察模式自动映射：知识点白板推荐点对点突破，题目白板推荐综合题考察（Constructive Alignment, Biggs 1996），用户可手动覆盖 |
-| FR-EXAM-13 | 点对点突破按白板类型定制出题策略：知识点白板侧重定义+解释+辨析（考理解度），题目白板侧重易错点意识+破题方法+混淆排除（考思维正确性） |
-| FR-EXAM-14 | （已废除，检验白板为对话式考察，答前自评按钮打断对话流。Calibration 数据通过其他方式采集） |
+| FR-EXAM-12 | 系统根据原白板内容类型自动推荐考察模式：知识点白板推荐点对点突破，题目白板推荐综合题考察（Constructive Alignment, Biggs 1996），用户可手动覆盖 |
+| FR-EXAM-13 | 系统按白板类型定制出题策略：知识点白板侧重定义+解释+辨析（考理解度），题目白板侧重易错点意识+破题方法+混淆排除（考思维正确性） |
 | FR-EXAM-15 | 评分后 Agent 在话题切换时顺带询问"你觉得评分准确吗"（可选不强制），用户可回应偏高/偏低/准确，标记数据作为 few-shot 校准样本 |
-| FR-EXAM-16 | 评分触发时机为 Topic-level（知识节点切换时）：Agent 考完当前节点、切换到下一个节点时，后台对已讨论节点执行 AutoSCORE 评分并更新 BKT/FSRS。评分对用户隐形，通过节点颜色变化传达（AutoTutor 期望覆盖机制，Stealth Assessment） |
+| FR-EXAM-16 | 系统在知识节点切换时自动触发评分：Agent 考完当前节点、切换到下一个节点时，后台对已讨论节点执行评分并更新精通度。评分对用户隐形，通过节点颜色变化传达 |
 | FR-EXAM-17 | 用户可从节点学习档案面板启动单节点考察（第二考察入口）。操作流程与 FR-DASH-03 一致（选模式→开始），考察范围限于该节点 |
 | FR-EXAM-18 | 检验白板中的所有数据变更（Tips/Tag 标注、新节点拉出、精通度更新）实时同步回原白板对应节点，前端 UI 即时反映变化（用户回到原白板时能立刻看到） |
 | FR-EXAM-19 | 用户答不出来时可点击"给我提示"，系统采用 4 级渐进提示（Chain-of-Hints, 2025 验证最优）：Level 1 方向提示（不暴露答案）→ Level 2 关键词提示 → Level 3 部分答案框架 → Level 4 分步脚手架引导。每次点击升一级。不提供"直接告诉答案"选项。用户也可选"跳过这题"（标记为未作答，不惩罚 BKT） |
 | FR-EXAM-20 | 每个检验白板的完整考察记录永久保存（考察对话、评分历史、精通度变化、新发现节点），用户可在 Dashboard 查看所有历史检验白板。同一原白板可生成不限数量的检验白板 |
 | FR-EXAM-21 | 检验白板不可再生成检验白板。如需再次考察，从原白板重新生成（原白板已包含上次考察发现的新节点） |
+| FR-EXAM-22 | AI 出题难度必须匹配用户当前精通度水平——避免过于简单（无学习价值）或过于困难（造成挫败感）。难度采用连续 IRT difficulty 参数（非 Easy/Medium/Hard 离散分级），校准依据 BKT 掌握概率和同类主题历史表现，难度匹配率 >= 70%（与 FR-QA-06 联动） |
 
 ### 能力域 5：精通度与学习追踪
 
@@ -745,37 +795,37 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 |----|---------|
 | FR-MAST-01 | 系统为每个知识节点维护精通度状态（基于 BKT 和 FSRS） |
 | FR-MAST-02 | 精通度仅通过考察表现更新（非自评直接修改） |
-| FR-MAST-03 | MVP 阶段精通度通过三种方式传达：(1) 白板上节点颜色表示掌握状态 (2) 点击节点在学习档案面板中查看详细掌握度和薄弱方向 (3) FSRS 复习提醒在 Dashboard 展示。展示方式为处方性（"建议复习 X"）而非仅描述性。独立 OLM 三层面板延后至 Phase 2 |
+| FR-MAST-03 | MVP 阶段精通度通过三种方式传达：(1) 白板上节点的精通度色条（左侧）和进度条（底部）表示掌握状态，由后端算法权威控制，用户不可覆盖 (2) 点击节点在学习档案面板中查看详细掌握度和薄弱方向 (3) FSRS 复习提醒在 Dashboard 展示。精通度颜色与用户手选标记颜色（边框/角标）分离——两套颜色互不干扰，精通度颜色永远反映后端算法评估。展示方式为处方性（"建议复习 X"）而非仅描述性。独立 OLM 三层面板延后至 Phase 2 |
 | FR-MAST-04 | 系统基于 FSRS 算法为用户安排复习时机提醒 |
-| FR-MAST-05 | 系统通过 Area9 式 2x2 置信度矩阵追踪用户元认知校准（答前自评 vs 实际表现），识别"以为会了其实不会"的危险盲区。三阶段渐进：<10 条仅收集/10-20 初步趋势/20+ 可靠评估 |
-| FR-MAST-06 | 5-6 核心信号（BKT+FSRS+考察评分+校准偏差+自信度自评）融合为单维掌握度。信号互补性验收：相关系数 < 0.7。多维精通度为远期研究目标（Phase 3+） |
+| FR-MAST-05 | 系统通过 Area9 式 2x2 置信度矩阵追踪用户元认知校准（答前自评 vs 实际表现），识别"以为会了其实不会"的危险盲区。三阶段渐进：<100 条仅收集不做判断/100-400 条趋势参考/400+ 条统计可靠 |
+| FR-MAST-06 | 系统将 5 个核心信号（BKT 掌握概率 + FSRS 记忆稳定性 + 考察评分 + 校准偏差 + 自信度自评）融合为单维掌握度。验收标准：信号互补性相关系数 < 0.7，融合后掌握度与考察表现 Spearman rho > 0.6。多维精通度为远期研究目标（Phase 3+） |
 
 ### 能力域 6：检索与个性化
 
 | ID | 功能需求 |
 |----|---------|
 | FR-RET-01 | 系统支持语义+关键词混合检索用户的知识内容（节点、对话、Tips、Edge 理由） |
-| FR-RET-02 | AI 对话时自动检索相关上下文，为用户提供个性化的回答 |
-| FR-RET-03 | 检索系统利用 Graphiti 中存储的学习记忆（错误、Tips、关键问答）增强回答质量 |
-| FR-RET-04 | 系统支持智能路由（根据查询意图选择最优检索策略）和迭代 Retrieve-Verify 循环（低质量结果自动改写查询重检索，最多 2 次，A-RAG arXiv:2602.03442） |
-| FR-RET-05 | 系统支持六路搜索协作：LanceDB Dense 语义搜索 + LanceDB Sparse 关键词搜索（jieba 中文分词）+ Graphiti 时序记忆搜索 + Vault 笔记搜索 + Obsidian CLI 图遍历（backlinks/links）+ 图片 OCR 文本搜索，通过分层 RRF 融合 + 交叉编码器精排 |
-| FR-RET-06 | RAG 检索到候选结果后，支持回源文件验证（Staleness Check：content_hash 比对 + Context Expansion：读取完整段落上下文） |
-| FR-RET-07 | 系统自动检测 Obsidian vault 中笔记文件的变化，通过文件指纹比对只对修改过的文件重新建立搜索索引，同一文件修改后旧索引数据自动清除 |
+| FR-RET-02 | AI 对话时自动检索相关上下文，回答中引用至少 1 条用户历史数据（Tips/错误记录/Edge 理由/精通度） |
+| FR-RET-03 | 检索系统利用知识图谱中存储的学习记忆（错误、Tips、关键问答），使回答覆盖用户历史错误的比率 >= 80%（当存在相关历史错误时） |
+| FR-RET-04 | 系统根据查询意图分类（事实型/推理型/导航型）自动选择最优检索策略，并支持迭代 Retrieve-Verify 循环（低质量结果自动改写查询重检索，最多 2 次） |
+| FR-RET-05 | 系统支持四路搜索协作（语义搜索 + 关键词搜索 + 时序记忆搜索 + 笔记搜索），根据查询复杂度智能选择检索通道（简单查询仅走单通道，复杂查询才多通道并行）+ 分层融合排序 + 交叉编码器精排模型优化结果质量。已取消教材检索和跨 Canvas 检索（决策 GDA-2） |
+| FR-RET-06 | RAG 检索到候选结果后，支持回源文件验证（过期检测：比对文件指纹确认内容未变 + 上下文扩展：读取完整段落上下文） |
+| FR-RET-07 | 系统自动检测用户指定笔记文件夹中的文件变化，通过文件指纹比对只对修改过的文件重新建立搜索索引，同一文件修改后旧索引数据自动清除 |
 | FR-RET-08 | 笔记分块时保护代码块、数学公式、表格不被切断，每个分块自动附带面包屑路径前缀（文档 > 章节 > 小节） |
-| FR-RET-09 | 中文笔记搜索与英文笔记搜索效果相当，中文查询能正确匹配中文笔记内容 |
+| FR-RET-09 | 中文笔记搜索与英文笔记搜索效果对齐（中文查询 Recall@10 与等价英文查询的 Recall@10 差距 < 15%），中文查询能正确匹配中文笔记内容 |
 | FR-RET-10 | 检索结果通过交叉编码器精排模型重新排序，并通过分数断崖自动决定返回数量（简单问题少返回、复杂问题多返回） |
 | FR-RET-11 | 检索质量不达标时自动改写查询并重新搜索（最多 2 次），全部不相关时安全降级（告知"信息不足"而非生成幻觉） |
 | FR-RET-12 | 检索上下文压缩后注入对话（控制 token 消耗），压缩时公式和代码块整块保护不切断，用户掌握度信息注入 prompt 前端位置 |
-| FR-RET-13 | Agent 引用笔记内容时附带可点击的 Obsidian 双向链接，推荐使用章节级精度 `[[文件名#章节标题]]`（零侵入，不修改用户笔记）。Obsidian 原生支持三级精度：文件级 `[[文件名]]`、章节级 `[[文件名#标题]]`（自动滚动到标题位置）、块级 `[[文件名#^block-id]]`（需笔记中有标记）。RAG 索引时 chunk 元数据必须保留 source_file + heading 字段以支持精准链接生成。前端通过 MarkdownRenderer.render() + 事件 hook 实现可点击跳转 |
+| FR-RET-13 | Agent 引用笔记内容时附带可点击的双向链接，支持文件级、章节级、块级三种精度跳转（零侵入，不修改用户笔记）。章节级精度为默认推荐（自动滚动到标题位置） |
 
 ### 能力域 7：命令技能系统
 
 | ID | 功能需求 |
 |----|---------|
-| FR-SKILL-01 | 用户在对话中输入 `/` 时显示已注册的技能命令列表，支持模糊搜索 |
+| FR-SKILL-01 | 用户在对话中输入 `/` 时显示已注册的技能命令列表，支持模糊搜索。`/` 命令系统基于 Agent SDK 原生技能注册机制（等价于 Claude Code 的原生 `/` 命令系统），通过 SDK 内置开关激活 |
 | FR-SKILL-02 | 系统预装一组学习辅助技能命令（拆解、解释、对比、记忆、练习、检验等） |
 | FR-SKILL-03 | 用户和开发者可以通过在约定目录下添加 prompt 模板文件来注册新技能 |
-| FR-SKILL-04 | Agent 执行技能命令时注入用户的学习历史上下文，提供个性化输出 |
+| FR-SKILL-04 | Agent 执行技能命令时注入用户的学习历史上下文（精通度、错误记录、Tips），输出内容引用至少 1 条用户历史数据 |
 | FR-SKILL-05 | 技能命令的执行结果显示在对话中，可被选中拉出为新节点 |
 
 ### 能力域 8：学习档案与痕迹浏览
@@ -784,7 +834,7 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 |----|---------|
 | FR-TRACE-01 | 用户点击节点可查看该节点的学习档案面板，包含聚合精通度指示器和学习摘要 |
 | FR-TRACE-02 | 学习档案展示用户标注的所有 Tips，可展开查看来源对话上下文 |
-| FR-TRACE-03 | 学习档案展示"需要加强方向"（聚合误解模式），使用正面支持性语言（"需要加强的方向"而非"你的错误列表"） |
+| FR-TRACE-03 | 学习档案展示"需要加强方向"（聚合误解模式），措辞使用"建议加强/可以改进"而非"错误/失败/不合格"等负面标签 |
 | FR-TRACE-04 | 学习档案展示关键问答精选（按主题聚类），默认折叠按需展开 |
 | FR-TRACE-05 | 系统在对话归档时自动提取并持久化错误/Tips/关键问答到知识图谱（支撑 Hot-Warm-Cold 三层归档） |
 
@@ -793,7 +843,7 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 | ID | 功能需求 |
 |----|---------|
 | FR-QA-01 | 系统对 LLM 生成的回答进行忠实度检查（Faithfulness >= 0.85），检测幻觉内容 |
-| FR-QA-02 | Prompt 模板支持版本管理，模板变更后自动触发回归测试 |
+| FR-QA-02 | Prompt 模板支持版本管理，支持版本间 diff 对比和输出比较。模板变更后自动触发回归测试，开发者可查看版本历史 |
 | FR-QA-03 | 系统记录所有 LLM 调用的结构化日志（输入/输出/延迟/token 数），支持问题排查 |
 | FR-QA-04 | 系统追踪 Token 消耗和 LLM 调用成本，在 Dashboard 中展示使用统计 |
 | FR-QA-05 | 系统对用户输入进行 Prompt 注入防护（system/user 消息隔离），LLM 输出进行安全检查 |
@@ -814,9 +864,9 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 | ID | 功能需求 |
 |----|---------|
 | FR-MCP-01 | 后端通过 MCP 协议暴露核心算法能力为标准化工具（query_mastery、generate_question、score_answer、search_memories、update_fsrs 等），任何 MCP 兼容的 Agent CLI 均可接入 |
-| FR-MCP-02 | MCP 工具执行采用密码学令牌管道：每步产生 token，下一步必须携带上一步 token，跳步则后端拒绝，确保算法管道顺序不可绕过 |
+| FR-MCP-02 | MCP 工具执行采用防篡改顺序验证机制：每步产生验证凭证，下一步必须携带上一步凭证，跳步则后端拒绝，确保算法管道顺序不可绕过 |
 | FR-MCP-03 | 后端审计守护层异步检测每个 session 的工具调用记录，识别管道违规（信号丢失、跳步、算法未更新）并标记 |
-| FR-AGENT-01 | 前端对话框通过 Claude Agent SDK（或兼容 Agent 引擎）驱动，采用 Tool-UI Bridge 模式：Agent 调用自定义工具时同时更新数据库和 Svelte Store，UI 响应式更新 |
+| FR-AGENT-01 | 前端对话框通过可替换的 Agent Sidecar 进程驱动，Agent 调用 MCP 工具时同时更新后端数据库和前端 UI 状态（响应式同步）。工具调用权限通过白名单机制控制 |
 | FR-AGENT-02 | Agent 对话支持 per-node 独立 Session（createSession/resumeSession），切换节点时保持独立对话上下文 |
 | FR-AGENT-03 | Agent 引擎可替换（Claude Agent SDK / OpenCode / 未来 MCP 兼容 Agent），后端通过 MCP 开放标准暴露，不锁定任何 Agent 厂商 |
 
@@ -828,9 +878,11 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 | FR-SYS-02 | 用户可以在插件设置面板中配置 LLM 模型供应商和 API Key |
 | FR-SYS-03 | 用户可以为不同任务（对话、评分、Embedding）指定不同的模型 |
 | FR-SYS-04 | 插件设置面板显示常驻的系统健康状态（Docker、后端、Neo4j、LLM API、LanceDB） |
-| FR-SYS-05 | 用户可以通过 Obsidian 命令面板一键启动/重启后端服务 |
+| FR-SYS-05 | 用户可以通过应用命令面板一键启动/重启后端服务 |
 | FR-SYS-06 | 系统提供手动触发的数据备份和一键恢复功能 |
-| FR-SYS-07 | 用户可以管理多学科的知识图谱隔离与切换 |
+| FR-SYS-07 | 用户可以管理多学科的知识图谱隔离与切换（Phase 2） |
+| FR-SYS-08 | 用户可以切换 Agent 订阅账号，无需重启应用 |
+| FR-SYS-09 | 用户可以在对话中通过 `/` 命令切换当前活跃 LLM 模型（基于 Agent SDK 原生命令机制），切换从下一条消息起生效 |
 
 ---
 
@@ -838,63 +890,82 @@ Obsidian 插件 Settings Tab 中常驻的健康面板：
 
 ### 性能
 
-| 指标 | 目标值 | 场景 | 说明 |
-|------|--------|------|------|
-| 白板操作响应 | < 16ms (60fps) | 拖拽/缩放/平移 | Frontend-first 架构，本地操作不等待后端 |
-| 节点 CRUD 同步 | < 500ms | 创建/删除节点 | 乐观更新+后端异步确认 |
-| 对话首 token | < 2s | 发送消息到首 token 返回 | 取决于 LLM API 延迟，本地计算可控 |
-| RAG 检索 | < 3s | 单次查询完成 | Hybrid Search 本地执行，单用户无并发 |
-| 图片 OCR | < 10s | 单张图片处理完成 | 异步不阻塞，依赖 LLM API |
-| 精通度更新 | < 100ms | 单节点 BKT+FSRS 计算 | O(1) 复杂度，数据量不影响 |
-| 插件启动 | < 3s | 从 Obsidian 打开到插件就绪 | 后端连接异步建立 |
+| 指标 | 目标值 | 场景 | 验证方法 | 说明 |
+|------|--------|------|---------|------|
+| 白板操作响应 | < 16ms (60fps) | 拖拽/缩放/平移 | 1000 节点白板上连续拖拽 10s，测量 P95 帧耗时 | Frontend-first 架构，本地操作不等待后端 |
+| 节点 CRUD 同步 | < 500ms | 创建/删除节点 | 创建 50 个节点，测量操作到后端确认的 P95 延迟 | 乐观更新+后端异步确认 |
+| 对话首 token | < 2s | 发送消息到首 token 返回 | 发送 10 条测试消息，测量 P95 首 token 延迟（排除 LLM API 的本地耗时 < 200ms） | 取决于 LLM API 延迟，本地计算可控 |
+| RAG 检索 | < 3s | 单次查询完成 | 20 条测试查询（中英各半），测量 P95 端到端检索延迟 | 本地执行，单用户无并发 |
+| 图片 OCR | < 10s | 单张图片处理完成 | 10 张不同尺寸测试图片，测量 P95 处理延迟 | 异步不阻塞，依赖 LLM API |
+| 精通度更新 | < 100ms | 单节点计算 | 连续 100 次精通度更新，测量 P95 计算延迟 | O(1) 复杂度，数据量不影响 |
+| 插件启动 | < 3s | 从打开应用到 UI 就绪（可交互） | 冷启动 5 次，测量到 UI 可交互的 P95 延迟 | 后端连接异步建立，UI 就绪 = 白板可渲染 |
 
 ### 可靠性
 
-| 指标 | 目标值 | 说明 |
-|------|--------|------|
-| 数据零丢失 | 所有用户创建的内容不可丢失 | 白板操作后 500ms-1s 内同步到后端 |
-| LLM API 断连降级 | 白板浏览/编辑正常、FSRS 提醒正常 | AI 功能不可用时显示明确提示 |
-| Neo4j 异常降级 | 插件不崩溃、已加载内容可浏览 | 写操作队列暂存，恢复后重放 |
-| 备份可恢复 | 任意备份点可完整恢复 | 备份包含 Neo4j + LanceDB + 配置 |
-| 错误不静默 | 所有异常在 UI 中有明确反馈 | 无静默失败，用户知道发生了什么 |
+| 指标 | 目标值 | 验证方法 | 说明 |
+|------|--------|---------|------|
+| 数据零丢失 (RPO=0) | 用户操作后 1s 内同步确认写入后端 | 崩溃恢复测试：强制终止进程后重启，验证最后操作已持久化 | 白板操作后乐观更新 + 后端异步确认 |
+| LLM API 断连降级 | 断连检测 < 5s，降级后白板操作延迟不变（< 16ms） | 模拟 LLM API 不可达，验证白板操作和 FSRS 提醒正常 | AI 功能不可用时显示"离线模式"提示 |
+| Neo4j 异常降级 | 写操作队列暂存上限 1000 条或 24h，超出告警 | 模拟 Neo4j 停止，验证队列暂存和恢复后重放 | 插件不崩溃，已加载内容可浏览 |
+| 备份可恢复 (RTO < 5min) | 任意备份点 5 分钟内完整恢复 | 定期备份完整性自动校验（hash 比对） | 备份包含知识图谱 + 向量索引 + 配置 |
+| 错误不静默 | 所有 HTTP 4xx/5xx 在 UI 2s 内展示错误提示 | 注入各类异常，验证 UI 均有明确反馈 | 无静默失败，用户知道发生了什么 |
 
 ### 可观测性
 
-| 指标 | 目标值 | 说明 |
-|------|--------|------|
-| LLM 调用日志 | 100% 覆盖 | 每次 LLM 调用记录输入/输出/延迟/token 数/成本 |
-| 管道健康指标 | 实时可查 | 算法管道各环节的连通性和延迟监控 |
-| 错误聚合 | 自动分类 | LLM 错误、网络错误、算法异常分类统计 |
-| Token 消耗追踪 | 按任务统计 | 对话/评分/提取/索引各占多少 token |
+| 指标 | 目标值 | 验证方法 | 说明 |
+|------|--------|---------|------|
+| LLM 调用日志 | 100% 覆盖，保留 30 天，> 500MB 自动轮转归档 | 抽样验证：随机 10 次 LLM 调用，确认全部有对应日志记录 | 每次 LLM 调用记录输入/输出/延迟/token 数/成本 |
+| 管道健康指标 | 健康检查端点响应 < 1s，展示各管道阶段延迟和存活状态 | 调用 `/health` 端点验证响应时间和返回内容完整性 | 算法管道各环节（检索/评分/FSRS/BKT）的连通性监控 |
+| 错误聚合 | 按 4 类自动分类（LLM/网络/算法/数据），分类准确率 > 90% | 注入 20 种已知错误，验证分类正确率 | 错误统计面板按类别展示计数和趋势 |
+| Token 消耗追踪 | 按任务类型分别统计（对话/评分/提取/索引），精度到单次调用 | 对比日志中 token 记录与 LLM API 账单数据 | Dashboard 展示各任务类型 token 消耗占比 |
 
 ### 可维护性与可测试性
 
-| 维度 | 要求 |
-|------|------|
-| **接口契约测试** | MCP 工具接口有 schema 验证，变更需向后兼容 |
-| **Prompt 回归测试** | Prompt 模板变更后自动运行标准测试集 |
-| **算法单元测试** | BKT/FSRS 等确定性算法有 100% 覆盖率的单元测试 |
-| **集成测试** | 评分→精通度更新→FSRS 调度 端到端管道测试 |
+| 维度 | 要求 | 验证标准 |
+|------|------|---------|
+| **接口契约测试** | MCP 工具接口 schema 验证覆盖率 100%，向后兼容最近 2 个版本 | 每个 MCP 工具有 schema 定义文件，CI 自动验证请求/响应格式 |
+| **Prompt 回归测试** | 标准测试集 >= 20 题，模板变更后 3 次采样多数投票一致率 >= 80% | 模板变更触发 CI 自动运行测试集，一致率低于阈值阻断合并 |
+| **算法单元测试** | BKT/FSRS/信号融合/ACP/RRF 5 个核心模块 100% 行覆盖率 | CI 报告覆盖率，低于 100% 阻断合并 |
+| **集成测试** | 评分→精通度更新→FSRS 调度端到端管道，每次 CI 运行，通过率 100% | CI 管道包含端到端测试 stage，失败阻断部署 |
 
 ### 安全与隐私
 
-| 维度 | 要求 |
-|------|------|
-| **数据存储** | 所有学习数据存储在本地（Neo4j/SQLite/LanceDB），不上传外部服务 |
-| **API Key 安全** | API Key 仅存储在 Obsidian 本地插件配置中，不明文显示、不写入日志 |
-| **网络请求** | 仅向配置的 LLM API 发送请求，请求内容为用户对话消息和知识节点内容 |
-| **敏感数据提示** | 首次配置时提示用户：对话内容会发送给 LLM API 供应商 |
-| **本地通信** | 前端-后端通信走 localhost，不暴露外部端口 |
-| **Prompt 注入防护** | system/user 消息严格隔离，LLM 输出进行安全检查，防止 Prompt 注入攻击 |
-| **Agent 行为约束** | 6 层防御架构：后端算法权威（不可绕过）+ 密码学令牌管道 + CLAUDE.md/AGENTS.md + Hooks + 后端审计 + 结构化输出 |
+| 维度 | 要求 | 验证方法 |
+|------|------|---------|
+| **数据存储本地化** | 所有学习数据存储在本地，不上传外部服务 | 网络审计：出站连接仅允许 localhost + 用户配置的 LLM API 域名，其他一律阻断 |
+| **API Key 安全** | API Key 加密存储（优先使用 OS keychain），配置面板掩码显示，日志自动脱敏 | 代码审查：grep 日志输出确认无明文 Key；UI 检查确认掩码显示 |
+| **网络请求白名单** | 仅向用户配置的 LLM API 域名发送请求，非白名单请求阻断并记录 | 模拟非白名单出站请求，验证阻断并产生告警日志 |
+| **敏感数据提示** | 首次配置 API Key 时弹出模态对话框告知"对话内容会发送给 LLM API 供应商"，用户确认后才能继续 | UI 测试：首次配置流程验证模态对话框存在且不可跳过 |
+| **本地通信** | 前端-后端通信绑定 127.0.0.1，不接受外部连接 | 端口扫描：验证后端服务仅监听 127.0.0.1，外部 IP 连接被拒绝 |
+| **Prompt 注入防护** | system/user 消息严格隔离 + LLM 输出过滤已知攻击模式（指令注入/角色劫持） | 注入测试集（>= 10 种攻击模式），验证隔离有效且输出过滤拦截率 >= 90% |
+| **Agent 行为约束** | 6 层防御架构，每层定义通过/失败标准，应用启动时自检 6 层状态并报告 | 启动自检：6/6 层通过才显示"就绪"，任一层失败降级并告警 |
 
 ### 兼容性
 
-| 维度 | 要求 |
-|------|------|
-| **Obsidian 版本** | v1.4+（Plugin API 稳定版） |
-| **操作系统** | Windows 10+, macOS 12+, Linux (Ubuntu 20.04+) |
-| **Docker** | Docker Desktop 4.x (Win/Mac) / Docker Engine 20.10+ (Linux) |
-| **Node.js** | 不需要（Obsidian 内置 Electron） |
-| **Python** | 3.11+（Docker 容器内，用户无需安装） |
-| **主题兼容** | 适配 Obsidian 默认 Light/Dark 主题 + 遵循 CSS 变量体系 |
+| 维度 | 要求 | 验证方法 | 理由 |
+|------|------|---------|------|
+| **Tauri 2** | v2.x（稳定版） | 在 Tauri 2 stable 上 smoke test 核心流程（创建节点/对话/检验白板） | Tauri 2 稳定版提供完整窗口管理和 Shell Plugin 支持 |
+| **操作系统** | Windows 10+, macOS 12+, Linux (Ubuntu 20.04+) | CI matrix 在 3 个 OS 上运行 e2e 测试 | Tauri 2 官方支持的最低 OS 版本 |
+| **Docker** | Docker Desktop 4.x (Win/Mac) / Docker Engine 20.10+ (Linux) | `docker-compose up` 后验证 `/health` 返回 200 | compose v2 语法最低要求 |
+| **Node.js** | 不需要（Tauri 内置 WebView） | 确认安装包不包含 Node.js 依赖 | Sidecar 为独立打包进程 |
+| **Python** | 3.11+（Docker 容器内，用户无需安装） | Docker 构建验证 Python 版本 | 3.11 起支持 asyncio.TaskGroup |
+| **主题兼容** | Catppuccin Mocha 暗色主题 + CSS 变量体系，对比度 >= 4.5:1 | 自动化对比度检测工具扫描所有 UI 组件 | WCAG 2.1 AA 标准 |
+
+### 可访问性
+
+| 维度 | 要求 | 验证方法 |
+|------|------|---------|
+| **键盘导航** | 所有核心操作（节点选择/对话发送/菜单导航）可通过键盘完成，焦点顺序符合逻辑 | 纯键盘操作完成一次完整学习流程（创建节点→对话→连线→检验白板） |
+| **颜色对比** | 文本与背景对比度 >= 4.5:1（WCAG 2.1 AA 标准），精通度颜色不仅靠色相区分 | 自动化对比度检测工具扫描所有 UI 组件 |
+| **屏幕阅读器** | 节点标题、对话内容、精通度状态可被辅助技术读取（ARIA 标签） | 使用 NVDA/VoiceOver 验证核心流程可访问 |
+
+---
+
+## 附录：已废弃的功能需求
+
+| ID | 原内容 | 废弃原因 |
+|----|--------|---------|
+| FR-EXAM-08 | 计时功能，考察节奏由用户自主控制 | 决策 GDA-5 移除计时功能 |
+| FR-EXAM-09 | 用户手动拉出节点不受数量限制 | 已合并至 FR-EXAM-05 |
+| FR-EXAM-10 | 考后审查面板 | 无考后审查面板，用户实时拉出节点 |
+| FR-EXAM-14 | 答前自评按钮 | 对话式考察，答前自评按钮打断对话流 |

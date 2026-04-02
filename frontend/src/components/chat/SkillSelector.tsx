@@ -20,6 +20,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ApiClient, type SkillItem } from '../../services/api-client';
+import { useChatStore } from '../../stores/chat-store';
 
 const skillApiClient = new ApiClient();
 
@@ -39,19 +40,48 @@ export function SkillSelector({ query, onSelect, onDismiss }: SkillSelectorProps
   const listRef = useRef<HTMLUListElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // ── Fetch skills on mount ──────────────────────────────────────────
+  // SDK slash commands from Agent SDK init message
+  const sdkSlashCommands = useChatStore((s) => s.slashCommands);
+
+  // ── Fetch skills on mount + merge SDK slash commands ────────────────
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     skillApiClient.getSkills().then((fetched) => {
       if (!cancelled) {
-        setSkills(fetched);
+        // Merge SDK slash commands as SkillItem entries
+        const sdkItems: SkillItem[] = sdkSlashCommands.map((cmd) => ({
+          id: `sdk-${cmd.name}`,
+          name: cmd.name.replace(/^\//, ''),
+          command: cmd.name.replace(/^\//, ''),
+          description: cmd.description || 'SDK built-in command',
+          category: 'SDK',
+          // argumentHint available in cmd.argumentHint if needed
+        }));
+        // Deduplicate: SDK commands take precedence if name conflicts
+        const fetchedNames = new Set(sdkItems.map((s) => s.command));
+        const merged = [...sdkItems, ...fetched.filter((s) => !fetchedNames.has(s.command))];
+        setSkills(merged);
+        setLoading(false);
+      }
+    }).catch(() => {
+      // Backend unavailable — show SDK commands only
+      if (!cancelled) {
+        const sdkItems: SkillItem[] = sdkSlashCommands.map((cmd) => ({
+          id: `sdk-${cmd.name}`,
+          name: cmd.name.replace(/^\//, ''),
+          command: cmd.name.replace(/^\//, ''),
+          description: cmd.description || 'SDK built-in command',
+          category: 'SDK',
+          // argumentHint available in cmd.argumentHint if needed
+        }));
+        setSkills(sdkItems);
         setLoading(false);
       }
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [sdkSlashCommands]);
 
   // ── Filter skills by query ─────────────────────────────────────────
 

@@ -84,7 +84,7 @@ export interface CrashRecoveryEntry {
 }
 
 /** Chat message roles. GDR-P0-2: Added tool_use/tool_result for tool call visibility. */
-export type ChatMessageRole = 'user' | 'assistant' | 'error' | 'tool_use' | 'tool_result';
+export type ChatMessageRole = 'user' | 'assistant' | 'error' | 'tool_use' | 'tool_result' | 'system';
 
 /**
  * Persisted chat message entity.

@@ -63,7 +63,12 @@ export type StreamEvent =
   | { type: 'error'; error: string; raw?: string }
   | { type: 'done'; sessionId?: string; costUsd?: number; raw?: string }
   // GDR: Permission request from sidecar PreToolUse hook
-  | { type: 'permission_request'; toolUseId: string; toolName: string; toolInput: Record<string, unknown>; nodeId: string; raw?: string };
+  | { type: 'permission_request'; toolUseId: string; toolName: string; toolInput: Record<string, unknown>; nodeId: string; raw?: string }
+  // SDK system events: init (slash_commands list), compact_boundary, etc.
+  | { type: 'system'; subtype: string; sessionId?: string;
+      slashCommands?: Array<{ name: string; description?: string; argumentHint?: string }>;
+      compactMetadata?: { pre_tokens: number; trigger: string };
+      raw?: string };
 
 /** Options for sending a message to a node. */
 export interface SendMessageOptions {
@@ -546,6 +551,16 @@ export class ClaudeEngine {
         pending.resolve();
         break;
       }
+
+      case 'system':
+        pending.onEvent({
+          type: 'system',
+          subtype: msg.subtype as string,
+          sessionId: msg.sessionId as string | undefined,
+          slashCommands: msg.slashCommands as Array<{ name: string; description?: string; argumentHint?: string }> | undefined,
+          compactMetadata: msg.compactMetadata as { pre_tokens: number; trigger: string } | undefined,
+        });
+        break;
 
       case 'ack':
         // Acknowledgment for abort/shutdown — no action needed

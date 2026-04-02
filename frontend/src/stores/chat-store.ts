@@ -144,6 +144,10 @@ interface ChatStoreState {
   chatMode: ChatMode;
   /** Edge context when chatMode === 'edge'. */
   currentEdge: EdgeContext | null;
+
+  // ── Slash Commands (SDK system init) ──────────────────────────────
+  /** Available slash commands discovered from Agent SDK init message. */
+  slashCommands: Array<{ name: string; description?: string; argumentHint?: string }>;
 }
 
 interface ChatStoreActions {
@@ -427,6 +431,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   chatMode: 'normal',
   currentEdge: null,
 
+  // Slash Commands
+  slashCommands: [],
+
   switchNode: async (nodeId: string) => {
     // Abort any in-progress stream for the previous node
     const prevNodeId = get().currentNodeId;
@@ -687,6 +694,27 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 waitingForFirstToken: false,
                 messages: [...state.messages, permToolMsg],
               }));
+              break;
+            }
+
+            case 'system': {
+              // Save available slash commands from SDK init message
+              if (event.slashCommands) {
+                set({ slashCommands: event.slashCommands });
+              }
+              // Show compact result as a system message in conversation
+              if (event.subtype === 'compact_boundary' && event.compactMetadata) {
+                const sysMsg: ChatMessage = {
+                  id: crypto.randomUUID(),
+                  nodeId,
+                  role: 'system' as const,
+                  content: `上下文已压缩（原 ${event.compactMetadata.pre_tokens} tokens）`,
+                  createdAt: new Date().toISOString(),
+                };
+                set((state) => ({
+                  messages: [...state.messages, sysMsg],
+                }));
+              }
               break;
             }
 
