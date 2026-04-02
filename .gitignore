@@ -165,3 +165,19 @@ repomix.config.json
 
 # MCP 配置（含 API keys 和本地路径，环境相关）
 .mcp.json
+
+# ── GSD baseline (auto-generated) ──
+.gsd
+*~
+*.code-workspace
+.env.*
+.next/
+dist/
+build/
+*.pyc
+.venv/
+target/
+vendor/
+coverage/
+.cache/
+tmp/

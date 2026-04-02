@@ -2,7 +2,7 @@
 name: research-pack
 description: |
   Smart codebase packing — dynamically select relevant files based on a research topic,
-  pack into <1M token XML for Deep Research / LLM analysis.
+  pack into under 1M token XML for Deep Research / LLM analysis.
   智能打包 — 根据议题用并行 Agent 深度探索代码库，精准打包供 Deep Research 分析。
   
   Use this skill when the user wants to: pack code for analysis, bundle files for

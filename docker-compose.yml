@@ -89,10 +89,14 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   # Ollama - Local LLM / Embedding Server
   # Story 1.1 Task 1.2: Ollama service for bge-m3 embeddings
+  # ⚠️ Mac: Ollama runs NATIVELY (brew install ollama) for Metal GPU access.
+  #    Docker Ollama is Windows/Linux only (NVIDIA GPU passthrough).
+  #    On Mac, backend reaches native Ollama via host.docker.internal:11434.
   # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     image: ollama/ollama:latest
     container_name: canvas-learning-system-ollama
+    profiles: ["windows"]  # Only start on Windows/Linux with NVIDIA GPU
 
     environment:
       - OLLAMA_NUM_PARALLEL=1    # V7: explicit single-request (RTX 4060 8GB VRAM budget)
@@ -142,7 +146,7 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
-      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434  # Mac: native Ollama via host
       - CANVAS_BASE_PATH=/app/vault
       - PYTHONPATH=/app:/app/src
       - DEBUG=true
@@ -155,14 +159,13 @@ services:
       - canvas-lancedb:/app/data/lancedb
       - ./data:/app/data
       # Obsidian vault notes for RAG indexing
-      - "C:/Users/Heishing/Desktop/spring course 2026/CS188:/app/vault/CS188:ro"
-      - "C:/Users/Heishing/Desktop/spring course 2026/CS 189:/app/vault/CS189:ro"
+      - "/Users/Heishing/Desktop/spring course 2026/CS188:/app/vault/CS188:ro"
+      - "/Users/Heishing/Desktop/spring course 2026/CS 189:/app/vault/CS189:ro"
 
     depends_on:
       neo4j:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
+      # ollama: removed — Mac uses native Ollama (host.docker.internal:11434)
 
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8001/api/v1/health || exit 1"]

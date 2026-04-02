@@ -19,5 +19,10 @@
       "mcp__graphiti-canvas__get_entity_edge"
     ]
   },
-  "outputStyle": "Learning"
+  "outputStyle": "Learning",
+  "enabledMcpjsonServers": [
+    "sequential-thinking",
+    "context7",
+    "graphiti-canvas"
+  ]
 }
