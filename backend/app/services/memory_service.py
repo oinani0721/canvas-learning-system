@@ -54,6 +54,7 @@ from app.core.subject_config import (
     extract_subject_from_canvas_path,
 )
 from app.services.episode_worker import EpisodeTask, get_episode_worker
+from app.graphiti.entity_types import CANVAS_ENTITY_TYPES, CANVAS_EDGE_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ def _generate_deterministic_episode_id(
     [Source: docs/stories/30.10.idempotency-fix.story.md#AC-30.10.1]
     """
     content = f"{user_id}:{canvas_path}:{node_id}:{concept}"
-    hash_hex = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+    hash_hex = hashlib.sha256(content.encode("utf-8")).hexdigest()[:32]
     return f"episode-{hash_hex}"
 
 
@@ -93,7 +94,7 @@ def _generate_batch_episode_id(
     [Source: docs/stories/30.10.idempotency-fix.story.md#AC-30.10.4]
     """
     content = f"{canvas_path}:{node_id}:{event_type}:{timestamp}"
-    hash_hex = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+    hash_hex = hashlib.sha256(content.encode("utf-8")).hexdigest()[:32]
     return f"batch-{hash_hex}"
 
 
@@ -309,6 +310,8 @@ class MemoryService:
         episode_body: str,
         group_id: str,
         source_description: str = "canvas_learning_system",
+        entity_types: Optional[Dict[str, Any]] = None,
+        edge_types: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Enqueue a learning episode for Graphiti processing.
@@ -328,6 +331,8 @@ class MemoryService:
             episode_body=episode_body,
             group_id=group_id,
             source_description=source_description,
+            entity_types=entity_types,
+            edge_types=edge_types,
         )
         return worker.enqueue(task)
 
@@ -447,6 +452,8 @@ class MemoryService:
                 ),
                 group_id=group_id,
                 source_description=f"canvas_learning:{inferred_subject}",
+                entity_types=CANVAS_ENTITY_TYPES,
+                edge_types=CANVAS_EDGE_TYPES,
             )
 
             return episode_id
@@ -1219,6 +1226,8 @@ class MemoryService:
             episode_body=content,
             group_id=resolved_group_id,
             source_description=f"canvas_learning:{event_type}",
+            entity_types=CANVAS_ENTITY_TYPES,
+            edge_types=CANVAS_EDGE_TYPES,
         )
 
         logger.info(

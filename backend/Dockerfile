@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Install system dependencies (curl for healthcheck, build tools for some pip packages)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl build-essential && \
+    apt-get install -y --no-install-recommends curl build-essential zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for Docker layer caching

@@ -188,3 +188,69 @@ RELATION_TYPE_LABELS: dict[str, str] = {
     EDGE_IS_SUBCONCEPT: "是子概念",
     EDGE_SUPPLEMENTS: "是补充说明",
 }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# S02: Graphiti Typed Extraction Models
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class LearningConcept(BaseModel):
+    """
+    A structured learning concept extracted by Graphiti's LLM pipeline.
+
+    Used as an entity_type in add_episode() so Graphiti can extract
+    typed concept nodes instead of generic untyped entities.
+
+    [Source: S02 T01 — Wire entity types into add_episode]
+    """
+
+    name: str = Field(..., description="Concept name")
+    description: str = Field(..., description="Brief description of the concept")
+    subject_area: str = Field(..., description="Subject/discipline area (e.g. 数学, 物理)")
+    difficulty_level: str = Field(default="", description="Difficulty level (e.g. beginner, intermediate)")
+    prerequisites: List[str] = Field(default_factory=list, description="Prerequisite concept names")
+
+
+class MasteryRecord(BaseModel):
+    """
+    A student's mastery status for a concept, extracted by Graphiti.
+
+    Tracks mastery level, review recency, and error frequency.
+
+    [Source: S02 T01 — Wire entity types into add_episode]
+    """
+
+    concept_name: str = Field(..., description="Name of the concept being tracked")
+    mastery_level: str = Field(..., description="Current mastery level (e.g. novice, proficient, expert)")
+    last_reviewed: str = Field(..., description="ISO timestamp of last review")
+    error_count: int = Field(default=0, description="Number of errors made on this concept")
+
+
+class PrerequisiteRelation(BaseModel):
+    """
+    A prerequisite relationship between two concepts, used as an edge_type
+    in Graphiti's add_episode() for typed edge extraction.
+
+    [Source: S02 T01 — Wire entity types into add_episode]
+    """
+
+    source_concept: str = Field(..., description="The concept that is a prerequisite")
+    target_concept: str = Field(..., description="The concept that requires the prerequisite")
+    relation_strength: str = Field(default="strong", description="Strength of the prerequisite relation (strong/weak)")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# S02: Canvas Entity/Edge Type Registries for Graphiti add_episode()
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CANVAS_ENTITY_TYPES: dict[str, type[BaseModel]] = {
+    "LearningConcept": LearningConcept,
+    "LearningTip": LearningTip,
+    "Misconception": Misconception,
+    "MasteryRecord": MasteryRecord,
+}
+
+CANVAS_EDGE_TYPES: dict[str, type[BaseModel]] = {
+    "PrerequisiteRelation": PrerequisiteRelation,
+}

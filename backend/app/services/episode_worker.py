@@ -50,6 +50,8 @@ class EpisodeTask:
     retry_count: int = 0
     max_retries: int = 3
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    entity_types: dict[str, Any] | None = field(default=None)
+    edge_types: dict[str, Any] | None = field(default=None)
 
     @property
     def can_retry(self) -> bool:
@@ -63,7 +65,7 @@ class EpisodeTask:
         return random.uniform(0, cap)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "name": self.name,
             "episode_body": self.episode_body[:200],  # truncate for logging
             "group_id": self.group_id,
@@ -72,6 +74,12 @@ class EpisodeTask:
             "retry_count": self.retry_count,
             "created_at": self.created_at.isoformat(),
         }
+        # Log type names only (type references are not JSON-serializable)
+        if self.entity_types:
+            result["entity_type_names"] = list(self.entity_types.keys())
+        if self.edge_types:
+            result["edge_type_names"] = list(self.edge_types.keys())
+        return result
 
 
 @dataclass
@@ -393,13 +401,19 @@ class GraphitiEpisodeWorker:
         if self._graphiti is None:
             raise RuntimeError("Graphiti client not initialized")
 
-        await self._graphiti.add_episode(
-            name=task.name,
-            episode_body=task.episode_body,
-            group_id=task.group_id,
-            source_description=task.source_description,
-            reference_time=task.reference_time,
-        )
+        kwargs: dict[str, Any] = {
+            "name": task.name,
+            "episode_body": task.episode_body,
+            "group_id": task.group_id,
+            "source_description": task.source_description,
+            "reference_time": task.reference_time,
+        }
+        if task.entity_types is not None:
+            kwargs["entity_types"] = task.entity_types
+        if task.edge_types is not None:
+            kwargs["edge_types"] = task.edge_types
+
+        await self._graphiti.add_episode(**kwargs)
 
     async def _handle_failure(self, task: EpisodeTask, error: Exception) -> None:
         """Handle a failed episode: retry with backoff or dead-letter."""
