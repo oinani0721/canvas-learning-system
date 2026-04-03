@@ -1236,14 +1236,150 @@ class MemoryService:
         )
         return entity_id
 
+    # Search config recipe mapping: string name → SearchConfig object
+    _SEARCH_RECIPES: Dict[str, Any] = {}  # populated lazily to avoid import-time side effects
+
+    @classmethod
+    def _get_search_recipes(cls) -> Dict[str, Any]:
+        """Lazily load search config recipes from graphiti_core."""
+        if not cls._SEARCH_RECIPES:
+            try:
+                from graphiti_core.search.search_config_recipes import (
+                    COMBINED_HYBRID_SEARCH_RRF,
+                    COMBINED_HYBRID_SEARCH_CROSS_ENCODER,
+                    EDGE_HYBRID_SEARCH_CROSS_ENCODER,
+                    EDGE_HYBRID_SEARCH_RRF,
+                    NODE_HYBRID_SEARCH_RRF,
+                )
+                cls._SEARCH_RECIPES = {
+                    "combined_rrf": COMBINED_HYBRID_SEARCH_RRF,
+                    "combined_cross_encoder": COMBINED_HYBRID_SEARCH_CROSS_ENCODER,
+                    "edge_cross_encoder": EDGE_HYBRID_SEARCH_CROSS_ENCODER,
+                    "edge_rrf": EDGE_HYBRID_SEARCH_RRF,
+                    "node_rrf": NODE_HYBRID_SEARCH_RRF,
+                }
+            except ImportError:
+                logger.warning("graphiti_core search recipes not available")
+        return cls._SEARCH_RECIPES
+
     async def _search_graphiti(
-        self, query: str, group_id: Optional[str] = None, limit: int = 20
+        self,
+        query: str,
+        group_id: Optional[str] = None,
+        limit: int = 20,
+        search_config: str = "combined_rrf",
+        search_filter: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
-        """Tier 1: Search via graphiti-core semantic + temporal search."""
+        """Tier 1: Search via graphiti-core search_() with advanced recipes.
+
+        Args:
+            query: Search query string
+            group_id: Optional group namespace for filtering
+            limit: Max results to return
+            search_config: Recipe name — one of 'combined_rrf', 'combined_cross_encoder',
+                          'edge_cross_encoder', 'edge_rrf', 'node_rrf'
+            search_filter: Optional SearchFilters instance for date/label/type filtering
+
+        Returns:
+            List of result dicts with 'relevance_score' from reranker scores.
+        """
         worker = get_episode_worker()
         if not worker.is_ready or worker._graphiti is None:
             return list()  # worker not initialized yet
 
+        # Resolve search config recipe
+        recipes = self._get_search_recipes()
+        config_obj = recipes.get(search_config)
+        if config_obj is None:
+            logger.warning(
+                f"Unknown search config '{search_config}', falling back to combined_rrf"
+            )
+            config_obj = recipes.get("combined_rrf")
+
+        # If recipes are unavailable (import failed), fall back to old search()
+        if config_obj is None:
+            return await self._search_graphiti_legacy(query, group_id, limit)
+
+        try:
+            # Override the limit in config
+            from graphiti_core.search.search_config import SearchConfig
+            # Create a copy with updated limit
+            config_with_limit = config_obj.model_copy(update={"limit": limit})
+
+            search_kwargs: Dict[str, Any] = {
+                "query": query,
+                "config": config_with_limit,
+                "group_ids": [group_id] if group_id else None,
+            }
+            if search_filter is not None:
+                search_kwargs["search_filter"] = search_filter
+
+            results = await asyncio.wait_for(
+                worker._graphiti.search_(**search_kwargs),
+                timeout=3.0,
+            )
+
+            episodes: List[Dict[str, Any]] = []
+
+            # Parse edges with reranker scores
+            edges = getattr(results, "edges", []) or []
+            edge_scores = getattr(results, "edge_reranker_scores", []) or []
+            for i, edge in enumerate(edges):
+                score = edge_scores[i] if i < len(edge_scores) else 0.0
+                episodes.append(
+                    {
+                        "episode_id": getattr(edge, "uuid", ""),
+                        "content": getattr(edge, "fact", ""),
+                        "name": getattr(edge, "name", ""),
+                        "episode_type": "graphiti_search",
+                        "timestamp": (
+                            getattr(edge, "created_at", datetime.now()).isoformat()
+                            if hasattr(edge, "created_at")
+                            else datetime.now().isoformat()
+                        ),
+                        "group_id": group_id or "",
+                        "source": "graphiti",
+                        "result_type": "edge",
+                        "relevance_score": float(score),
+                    }
+                )
+
+            # Parse nodes with reranker scores
+            nodes = getattr(results, "nodes", []) or []
+            node_scores = getattr(results, "node_reranker_scores", []) or []
+            for i, node in enumerate(nodes):
+                score = node_scores[i] if i < len(node_scores) else 0.0
+                episodes.append(
+                    {
+                        "episode_id": getattr(node, "uuid", ""),
+                        "content": getattr(node, "summary", "")
+                        or getattr(node, "name", ""),
+                        "name": getattr(node, "name", ""),
+                        "episode_type": "graphiti_search",
+                        "timestamp": (
+                            getattr(node, "created_at", datetime.now()).isoformat()
+                            if hasattr(node, "created_at")
+                            else datetime.now().isoformat()
+                        ),
+                        "group_id": group_id or "",
+                        "source": "graphiti",
+                        "result_type": "node",
+                        "relevance_score": float(score),
+                    }
+                )
+
+            return episodes
+        except (RuntimeError, asyncio.TimeoutError, AttributeError, TypeError) as e:
+            logger.warning(f"Graphiti search_() failed or timed out: {e}")
+            return list()
+
+    async def _search_graphiti_legacy(
+        self, query: str, group_id: Optional[str] = None, limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        """Legacy fallback: search via graphiti.search() when recipes unavailable."""
+        worker = get_episode_worker()
+        if not worker.is_ready or worker._graphiti is None:
+            return list()
         try:
             results = await asyncio.wait_for(
                 worker._graphiti.search(
@@ -1268,12 +1404,88 @@ class MemoryService:
                         ),
                         "group_id": group_id or "",
                         "source": "graphiti",
+                        "relevance_score": 0.5,  # default score for legacy results
                     }
                 )
             return episodes
         except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
-            logger.warning(f"Graphiti search failed or timed out: {e}")
+            logger.warning(f"Graphiti legacy search failed or timed out: {e}")
             return list()
+
+    @staticmethod
+    def _compute_unified_score(episode: Dict[str, Any], tier: int) -> float:
+        """Compute a normalized relevance score for a search result.
+
+        Normalizes scores across 3 search tiers to a 0.0-1.0 range so results
+        can be sorted consistently regardless of source.
+
+        Args:
+            episode: Search result dict (may already have 'relevance_score' or 'score')
+            tier: 1=graphiti (reranker score), 2=neo4j fulltext, 3=in-memory
+
+        Returns:
+            Normalized score in [0.0, 1.0]
+        """
+        if tier == 1:
+            # Graphiti: reranker score is already 0.0-1.0
+            return float(episode.get("relevance_score", 0.0))
+        elif tier == 2:
+            # Neo4j fulltext: raw Lucene score varies; normalize by capping at 10.0
+            raw_score = float(episode.get("score", 0.0))
+            return min(raw_score / 10.0, 1.0)
+        else:
+            # In-memory substring match: fixed baseline score
+            return 0.1
+
+    def _inject_fsrs_r_values(self, results: List[Dict[str, Any]]) -> None:
+        """Inject FSRS retrievability values into search results as a reranking signal.
+
+        For each result that has a 'concept' or 'name' field, attempts to look up
+        the concept's FSRS R-value. Low R-value concepts (about to be forgotten)
+        get up to 50% score boost to prioritize review-worthy material.
+
+        Boost formula: final_score = relevance_score * (1.0 + (1.0 - r_value) * 0.5)
+
+        Modifies results in-place. Graceful degradation: if MasteryEngine is
+        unavailable or concept not found, the result is left unchanged.
+        """
+        try:
+            from app.services.mastery_engine import get_mastery_engine
+            engine = get_mastery_engine()
+        except (ImportError, RuntimeError, Exception) as e:
+            logger.debug(f"MasteryEngine unavailable for FSRS injection: {e}")
+            return
+
+        for result in results:
+            concept_name = result.get("concept") or result.get("name")
+            if not concept_name:
+                continue
+            try:
+                # Build a minimal ConceptState for retrievability lookup.
+                # MasteryEngine.get_retrievability needs a ConceptState with fsrs_card_data.
+                # Without persisted card data, we skip — no crash.
+                from app.models.mastery_state import ConceptState
+                # Attempt to find existing concept state via engine's known concepts
+                # This is best-effort — engine may not have this concept loaded
+                concept_state = None
+                if hasattr(engine, "_concept_cache") and isinstance(
+                    engine._concept_cache, dict
+                ):
+                    concept_state = engine._concept_cache.get(concept_name)
+
+                if concept_state is not None:
+                    r_value = engine.get_retrievability(concept_state)
+                    r_value = max(0.0, min(1.0, r_value))  # clamp to [0, 1]
+                    result["fsrs_r_value"] = round(r_value, 4)
+
+                    # Boost: low R-value concepts get higher final score
+                    base_score = result.get("relevance_score", 0.0)
+                    result["relevance_score"] = base_score * (
+                        1.0 + (1.0 - r_value) * 0.5
+                    )
+            except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+                logger.debug(f"FSRS R-value lookup failed for '{concept_name}': {e}")
+                continue
 
     async def _search_neo4j_fulltext(
         self, query: str, group_id: Optional[str] = None, limit: int = 20
@@ -1320,17 +1532,31 @@ class MemoryService:
         group_id: Optional[str] = None,
         max_results: int = 50,
         limit: Optional[int] = None,
+        search_config: str = "combined_rrf",
+        search_filter: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Search learning memories using 3-tier layered search.
+        Search learning memories using 3-tier layered search with unified scoring.
 
-        Phase 2: Upgraded from in-memory substring to layered search.
-        Tier 1: Graphiti semantic search (if available, 2s timeout)
-        Tier 2: Neo4j fulltext index (keyword match)
-        Tier 3: In-memory cache (recent events, substring match)
+        Phase 2: Upgraded with search_() recipes, unified relevance scoring,
+        and FSRS R-value injection for reranking.
 
-        Results merged and deduplicated by episode_id.
-        Signature unchanged — 25+ callers unaffected.
+        Tier 1: Graphiti search_() with configurable recipes (reranker scores)
+        Tier 2: Neo4j fulltext index (Lucene scores normalized to 0-1)
+        Tier 3: In-memory cache (fixed 0.1 baseline score)
+
+        Results merged, deduplicated, scored uniformly, boosted by FSRS R-value,
+        and sorted by relevance_score descending.
+
+        Args:
+            query: Search query string
+            group_id: Optional group namespace for filtering
+            max_results: Maximum results to return (default 50)
+            limit: Override for max_results (backward compat)
+            search_config: Recipe name for Graphiti search_ ('combined_rrf', etc.)
+            search_filter: Optional SearchFilters for date/label filtering
+
+        Signature backward-compatible — existing callers unaffected.
         """
         if not self._initialized:
             await self.initialize()
@@ -1339,12 +1565,18 @@ class MemoryService:
         seen_ids: set = set()
         merged: List[Dict[str, Any]] = []
 
-        # Tier 1: Graphiti semantic search
-        graphiti_hits = await self._search_graphiti(query, group_id, effective_limit)
+        # Tier 1: Graphiti semantic search via search_()
+        graphiti_hits = await self._search_graphiti(
+            query, group_id, effective_limit,
+            search_config=search_config,
+            search_filter=search_filter,
+        )
         for ep in graphiti_hits:
             ep_id = ep.get("episode_id", "")
             if ep_id and ep_id not in seen_ids:
                 seen_ids.add(ep_id)
+                # Tier 1 results already have relevance_score from reranker
+                ep["relevance_score"] = self._compute_unified_score(ep, tier=1)
                 merged.append(ep)
 
         # Tier 2: Neo4j fulltext search
@@ -1353,6 +1585,7 @@ class MemoryService:
             ep_id = ep.get("episode_id", "")
             if ep_id and ep_id not in seen_ids:
                 seen_ids.add(ep_id)
+                ep["relevance_score"] = self._compute_unified_score(ep, tier=2)
                 merged.append(ep)
 
         # Tier 3: In-memory cache (always available fallback)
@@ -1373,15 +1606,24 @@ class MemoryService:
             if query_lower in searchable:
                 seen_ids.add(ep_id)
                 episode_with_source = {**episode, "source": "in_memory"}
+                episode_with_source["relevance_score"] = self._compute_unified_score(
+                    episode_with_source, tier=3
+                )
                 merged.append(episode_with_source)
                 tier3_count += 1
+
+        # FSRS R-value injection: boost low-retrievability concepts
+        self._inject_fsrs_r_values(merged)
+
+        # Sort by relevance_score descending (unified across all tiers)
+        merged.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
 
         # Epic 4 Feature 4.2: Log which tier(s) produced results
         logger.info(
             f"[search_memories] Tier 1: {len(graphiti_hits)} results, "
             f"Tier 2: {len(neo4j_hits)} results, "
             f"Tier 3: {tier3_count} results "
-            f"(total merged: {len(merged[:effective_limit])})"
+            f"(total merged: {len(merged[:effective_limit])}, sorted by relevance)"
         )
 
         return merged[:effective_limit]
