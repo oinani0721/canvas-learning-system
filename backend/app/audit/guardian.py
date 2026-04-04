@@ -40,6 +40,7 @@ class AuditEvent:
     node_id: str
     details: Dict = field(default_factory=dict)
     violation_type: Optional[str] = None  # "signal_loss" | "step_skip" | "time_anomaly"
+    request_id: Optional[str] = None  # Correlation ID from logging middleware
 
 
 @dataclass
@@ -86,6 +87,7 @@ class AuditGuardian:
         tool_name: str,
         session_id: str,
         node_id: str,
+        request_id: Optional[str] = None,
     ) -> None:
         """
         Record a tool call and check for pipeline violations.
@@ -97,6 +99,7 @@ class AuditGuardian:
             tool_name: Name of the MCP tool that was called.
             session_id: The dialogue session identifier.
             node_id: The canvas node identifier.
+            request_id: Optional correlation request ID from middleware.
         """
         now = time.time()
         key = self._pipeline_key(session_id, node_id)
@@ -108,6 +111,7 @@ class AuditGuardian:
             tool_name=tool_name,
             session_id=session_id,
             node_id=node_id,
+            request_id=request_id,
         )
         await self._write_event(call_event)
 

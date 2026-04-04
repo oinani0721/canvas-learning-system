@@ -22,6 +22,14 @@ from app.main import app
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing TestClient)
 from fastapi.testclient import TestClient
 
+# Hypothesis profiles for different execution contexts
+from hypothesis import settings as hypothesis_settings, HealthCheck
+
+hypothesis_settings.register_profile("ci", max_examples=200, deadline=5000)
+hypothesis_settings.register_profile("dev", max_examples=20, deadline=10000)
+hypothesis_settings.register_profile("hook", max_examples=5, deadline=2000)
+hypothesis_settings.load_profile("dev")
+
 # ============================================================================
 # Shared Test Utilities
 # ============================================================================

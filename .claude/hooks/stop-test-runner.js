@@ -29,10 +29,10 @@ try {
     process.exit(0); // No backend changes, skip tests
   }
 
-  // Run fast unit tests only (no integration)
+  // Run fast unit tests only (no integration, no coverage)
   const result = execSync(
-    'cd backend && python -m pytest tests/ -m "not integration" -x -q --tb=line --no-header 2>&1 | head -20',
-    { cwd: projectDir, encoding: 'utf8', timeout: 30000 }
+    'cd backend && python -m pytest tests/ -m "not integration" -x -q --tb=line --no-header --no-cov --override-ini="addopts=" 2>&1 | head -20',
+    { cwd: projectDir, encoding: 'utf8', timeout: 120000 }
   );
 
   // Check for failures

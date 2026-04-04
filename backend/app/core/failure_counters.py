@@ -80,6 +80,7 @@ def write_dead_letter(
     episode_id: Optional[str] = None,
     retry_count: int = 0,
     timeout_ms: Optional[int] = None,
+    request_id: Optional[str] = None,
 ) -> None:
     """
     Append a failure record to a dead-letter JSONL file.
@@ -95,6 +96,7 @@ def write_dead_letter(
         episode_id: Episode ID (for dual_write failures)
         retry_count: Number of retries attempted
         timeout_ms: Timeout in milliseconds (for dual_write timeouts)
+        request_id: Optional correlation request ID from middleware
     """
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -110,6 +112,8 @@ def write_dead_letter(
         entry["episode_id"] = episode_id
     if timeout_ms is not None:
         entry["timeout_ms"] = timeout_ms
+    if request_id is not None:
+        entry["request_id"] = request_id
 
     try:
         file_path.parent.mkdir(parents=True, exist_ok=True)

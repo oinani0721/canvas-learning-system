@@ -69,6 +69,7 @@ from enum import Enum
 from pathlib import Path as _Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from app.core.decision_tracker import log_decision
 from app.core.exceptions import CanvasNotFoundException, TaskNotFoundError
 from app.services.weight_calculator import ConceptWeightData, WeightCalculator
 
@@ -78,8 +79,8 @@ try:
     import sys
     from pathlib import Path
 
-    _project_root = Path(__file__).parent.parent.parent.parent
-    _src_path = _project_root / "src"
+    _project_root = Path(__file__).parent.parent.parent
+    _src_path = _project_root / "lib"
     if str(_src_path) not in sys.path:
         sys.path.insert(0, str(_src_path))
 
@@ -728,6 +729,18 @@ class ReviewService:
             "fallback_used": fallback_used,  # AC2 of Story 24.6: Indicate if fallback was triggered
         }
 
+        log_decision(
+            function="generate_verification_canvas",
+            input_summary={
+                "source_canvas": source_canvas_name,
+                "mode": mode,
+                "eligible_nodes": len(eligible_nodes),
+            },
+            output=f"selected {len(selected_concepts)} nodes -> {review_canvas_name}",
+            reason=f"mode={mode}, fallback_used={fallback_used}, "
+            f"weak_weight={weak_weight}, mastered_weight={mastered_weight}",
+        )
+
         logger.info(
             f"Generated verification canvas: {review_canvas_name} "
             f"with {len(selected_concepts)} questions (mode={mode})"
@@ -796,6 +809,18 @@ class ReviewService:
                     )
                 else:
                     interval_days = 0  # New card, due immediately
+
+                log_decision(
+                    function="schedule_review",
+                    input_summary={
+                        "canvas_name": canvas_name,
+                        "concept_id": concept_id,
+                        "card_state_provided": card_state is not None,
+                    },
+                    output=f"interval={interval_days}d, R={retrievability:.3f}",
+                    reason=f"FSRS-4.5 scheduling, stability={getattr(card, 'stability', 0.0):.2f}, "
+                    f"difficulty={getattr(card, 'difficulty', 0.0):.2f}",
+                )
 
                 return {
                     "canvas_name": canvas_name,

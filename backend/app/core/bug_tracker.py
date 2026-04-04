@@ -52,6 +52,9 @@ class BugRecord(BaseModel):
     request_params: dict = Field(default_factory=dict, description="Request parameters")
     stack_trace: Optional[str] = Field(None, description="Full stack trace")
     user_action: Optional[str] = Field(None, description="User action description")
+    request_id: Optional[str] = Field(
+        None, description="Correlation request ID from middleware"
+    )
 
 
 class BugTracker:
@@ -97,6 +100,7 @@ class BugTracker:
         error: Exception,
         request_params: dict,
         user_action: Optional[str] = None,
+        request_id: Optional[str] = None,
     ) -> str:
         """
         Log an error to the bug log file.
@@ -108,6 +112,7 @@ class BugTracker:
             error: The caught exception object
             request_params: Request parameters dictionary
             user_action: Optional description of user action
+            request_id: Optional correlation request ID from middleware
 
         Returns:
             str: Generated bug_id (format: BUG-{uuid8})
@@ -136,6 +141,7 @@ class BugTracker:
             request_params=request_params,
             stack_trace=traceback.format_exc(),
             user_action=user_action,
+            request_id=request_id,
         )
 
         # Append to JSONL file

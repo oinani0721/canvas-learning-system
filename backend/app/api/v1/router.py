@@ -42,6 +42,7 @@ from app.api.v1.endpoints.subjects import subjects_router  # Story 1.9
 from app.api.v1.endpoints.suggestions import suggestions_router  # Story 3.7
 from app.api.v1.endpoints.sync import sync_router  # Story 1.5
 from app.api.v1.endpoints.tips import tips_router  # Story 3.6
+from app.api.v1.endpoints.traces import router as traces_router
 from app.api.v1.system import router as system_router  # Story 1.1
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter include_router)
@@ -202,6 +203,16 @@ router.include_router(
         404: {"description": "Bug not found"},
         500: {"description": "Debug service error"},
     },
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Traces Routes (Decision ID + Request Trace)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    traces_router,
+    tags=["Traces"],
+    responses={500: {"description": "Trace query error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

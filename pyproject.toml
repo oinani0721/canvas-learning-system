@@ -90,6 +90,13 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["canvas_learning_system"]
 
+[tool.mutmut]
+# mutmut 3.x config — run manually: cd backend && mutmut run
+# NOT in PostToolUse hook (too slow: each mutant = full pytest cycle)
+# Use after bug fixes to verify tests aren't facades
+paths_to_mutate = ["app/"]
+tests_dir = ["tests/"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

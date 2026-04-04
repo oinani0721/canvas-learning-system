@@ -1,41 +1,59 @@
 #!/bin/bash
-# Canvas Learning System - PostToolUse Composite Oracle
-# Runs: pytest + mutmut + vulture (backend) or stryker + knip (frontend)
-# Works in both Docker (/workspace) and WSL2/native ($CLAUDE_PROJECT_DIR) environments
+# Canvas Learning System - PostToolUse Composite Oracle v2
+# Tiers: smoke (2s) → impact-scoped unit (10-20s) → lint (1s) → dead code (1s)
+# mutmut excluded (too slow for per-edit; run manually after bug fixes)
 
 PAYLOAD=$(cat)
 FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // .tool_input.filePath // empty')
 
-# Resolve project root: prefer $CLAUDE_PROJECT_DIR, fallback to /workspace (Docker)
+# Resolve project root
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-/workspace}"
 
-if [[ "$FILE_PATH" == *"backend/app/"* ]]; then
-    echo "=== Composite Oracle: pytest + mutmut + vulture ==="
-    cd "$PROJECT_ROOT/backend"
-
-    # 1. pytest (unit tests only, skip integration/slow)
-    python -m pytest tests/ -m "not integration and not slow" -q --tb=short 2>&1 | tail -20
-    [ $? -ne 0 ] && echo "TEST FAILURES" && exit 1
-
-    # 2. mutmut (only mutate the changed file, not full scan)
-    RELATIVE=$(echo "$FILE_PATH" | sed 's|.*/backend/||')
-    mutmut run --paths-to-mutate="$RELATIVE" 2>&1 | tail -20
-    SURVIVING=$(mutmut results 2>/dev/null | grep -c "Survived" || echo "0")
-    if [ "$SURVIVING" -gt 0 ]; then
-        echo "FACADE DETECTED! $SURVIVING mutants survived."
-        mutmut results 2>/dev/null | grep "Survived" | head -10
-        exit 1
+if [[ "$FILE_PATH" == *"backend/app/"* ]] || [[ "$FILE_PATH" == *"backend/lib/"* ]]; then
+    # Activate backend venv (has ruff, vulture, pytest, fastapi)
+    if [ -f "$PROJECT_ROOT/backend/.venv/bin/activate" ]; then
+        source "$PROJECT_ROOT/backend/.venv/bin/activate"
+    elif [ -f "$PROJECT_ROOT/.venv/bin/activate" ]; then
+        source "$PROJECT_ROOT/.venv/bin/activate"
     fi
 
-    # 3. vulture (dead code detection — catches broken pipelines)
+    # Auto-format
+    ruff format "$FILE_PATH" 2>/dev/null || true
+    ruff check --fix "$FILE_PATH" 2>/dev/null || true
+
+    echo "=== Composite Oracle: smoke → unit → vulture ==="
+    cd "$PROJECT_ROOT/backend"
+
+    # Tier 1: Smoke tests (2s) — app boots, health responds
+    if [ -d "tests/smoke" ]; then
+        python -m pytest tests/smoke/ -x -q --no-cov --no-header --override-ini="addopts=" --tb=line 2>&1 | tail -5
+        [ $? -ne 0 ] && echo "SMOKE FAILED" && exit 1
+    fi
+
+    # Tier 2: Impact-scoped tests (10-20s) — only tests related to changed file
+    MODULE=$(echo "$FILE_PATH" | sed 's|.*/app/||;s|\.py$||;s|/|.|g')
+    RELATED_TESTS=$(grep -rl "from app\.${MODULE}\|import.*$(basename "$FILE_PATH" .py)" tests/ 2>/dev/null | head -20 | tr '\n' ' ')
+    if [ -n "$RELATED_TESTS" ]; then
+        python -m pytest $RELATED_TESTS -m "not integration and not slow" -x -q --no-cov --no-header --override-ini="addopts=" --tb=short 2>&1 | tail -20
+        [ $? -ne 0 ] && echo "TEST FAILURES" && exit 1
+    fi
+
+    # Tier 3: Dead code detection (1s)
     vulture app/ --min-confidence 100 2>&1
     [ $? -ne 0 ] && echo "DEAD CODE DETECTED" && exit 1
 
     cd "$PROJECT_ROOT"
 
 elif [[ "$FILE_PATH" == *"backend/tests/"* ]]; then
+    # Test file edited — just run that test file
+    if [ -f "$PROJECT_ROOT/backend/.venv/bin/activate" ]; then
+        source "$PROJECT_ROOT/backend/.venv/bin/activate"
+    elif [ -f "$PROJECT_ROOT/.venv/bin/activate" ]; then
+        source "$PROJECT_ROOT/.venv/bin/activate"
+    fi
+
     cd "$PROJECT_ROOT/backend"
-    python -m pytest tests/ -m "not integration and not slow" -q --tb=short 2>&1 | tail -20
+    python -m pytest "$FILE_PATH" -x -q --no-cov --no-header --override-ini="addopts=" --tb=short 2>&1 | tail -20
     [ $? -ne 0 ] && exit 1
     cd "$PROJECT_ROOT"
 

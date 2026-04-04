@@ -52,6 +52,7 @@ class EpisodeTask:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     entity_types: dict[str, Any] | None = field(default=None)
     edge_types: dict[str, Any] | None = field(default=None)
+    request_id: str | None = field(default=None)
 
     @property
     def can_retry(self) -> bool:
@@ -74,6 +75,8 @@ class EpisodeTask:
             "retry_count": self.retry_count,
             "created_at": self.created_at.isoformat(),
         }
+        if self.request_id is not None:
+            result["request_id"] = self.request_id
         # Log type names only (type references are not JSON-serializable)
         if self.entity_types:
             result["entity_type_names"] = list(self.entity_types.keys())

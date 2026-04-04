@@ -82,6 +82,23 @@ Agent(prompt: "你是 TDD implementer。只写让测试通过的最小代码。
 3. 每次改动后运行测试确认仍然全部通过
 4. 如果测试失败，撤销改动
 
+## Phase 4: MUTATION VERIFY (optional)
+
+GREEN 通过后，可选对实现文件运行 mutmut 突变测试，验证测试套件的杀伤力:
+
+```bash
+cd backend && ./scripts/mutmut-targeted.sh <implementation_file>
+# 例: ./scripts/mutmut-targeted.sh app/services/review_service.py
+```
+
+1. mutmut 对实现文件逐行注入突变（替换运算符、删除语句等）
+2. 每个突变体跑一遍完整 pytest，未被测试杀死的即为 "surviving mutant"
+3. 如果在 **新增代码** 中有存活突变体，说明测试覆盖不足 — 补写测试杀死它们
+4. 重复直到新增代码无存活突变体
+
+> **何时使用**: 仅用于关键代码路径（核心算法、评分逻辑、数据一致性等）。
+> 日常小修改无需运行，mutation testing 耗时较长。
+
 ## 轻量模式（快速修复）
 
 对于 30 分钟内的小修复，跳过子 Agent:

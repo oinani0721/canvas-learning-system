@@ -243,6 +243,7 @@ async def generic_exception_handler(
         endpoint=str(request.url.path),
         error=exc,
         request_params=request_params,
+        request_id=request_id,
     )
 
     logger.error(

@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from app.core.decision_tracker import log_decision
 from app.models.mastery_state import (
     DEFAULT_BKT_PARAMS,
     MASTERY_COLORS,
@@ -42,8 +43,8 @@ from app.models.mastery_state import (
 
 logger = logging.getLogger(__name__)
 
-# Ensure src/ is on sys.path for cross-package imports (project standard pattern)
-_src_path = str(Path(__file__).parent.parent.parent.parent / "src")
+# Ensure backend/lib is on sys.path for memory.temporal imports
+_src_path = str(Path(__file__).parent.parent.parent / "lib")
 if _src_path not in sys.path:
     sys.path.insert(0, _src_path)
 
@@ -186,6 +187,18 @@ class MasteryEngine:
                 f"p_mastery={concept.p_mastery:.3f} grade={grade} "
                 f"surprise_failures={concept.surprise_failures}"
             )
+
+        log_decision(
+            function="update_on_interaction",
+            input_summary={
+                "concept_id": concept.concept_id,
+                "grade": grade,
+                "is_correct": is_correct,
+            },
+            output=f"p_mastery={concept.p_mastery:.3f}",
+            reason=f"BKT({concept.bkt_difficulty})+FSRS grade={grade}, "
+            f"interactions={concept.interaction_count}, fluent={concept.fluent_count}",
+        )
 
         logger.info(
             f"Mastery updated: {concept.concept_id} grade={grade} "
@@ -404,16 +417,31 @@ class MasteryEngine:
         eff = self.effective_proficiency(concept)
 
         if eff < self.config.shaky_threshold:
-            return 1  # Shaky
-        if eff < self.config.developing_threshold:
-            return 2  # Developing
-        if eff < self.config.proficient_threshold:
-            return 3  # Proficient
+            level = 1  # Shaky
+        elif eff < self.config.developing_threshold:
+            level = 2  # Developing
+        elif eff < self.config.proficient_threshold:
+            level = 3  # Proficient
+        elif concept.fluent_count >= self.config.mastered_fluent_min:
+            level = 4  # Mastered (verified)
+        else:
+            level = 3  # High score but unverified -> Proficient
 
-        # High score - check explanation gate
-        if concept.fluent_count >= self.config.mastered_fluent_min:
-            return 4  # Mastered (verified)
-        return 3  # High score but unverified -> Proficient
+        log_decision(
+            function="mastery_level",
+            input_summary={
+                "concept_id": concept.concept_id,
+                "effective_proficiency": round(eff, 3),
+                "fluent_count": concept.fluent_count,
+                "interaction_count": concept.interaction_count,
+            },
+            output=f"level={level} ({MASTERY_LABELS.get(level, 'Unknown')})",
+            reason=f"eff={eff:.3f}, thresholds=[shaky={self.config.shaky_threshold}, "
+            f"dev={self.config.developing_threshold}, prof={self.config.proficient_threshold}], "
+            f"fluent_gate={concept.fluent_count}/{self.config.mastered_fluent_min}",
+        )
+
+        return level
 
     def mastery_label(self, concept: ConceptState) -> str:
         """Get human-readable mastery label."""

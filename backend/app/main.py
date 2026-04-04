@@ -509,6 +509,7 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
                 endpoint=str(request.url.path),
                 error=e,
                 request_params=request_params,
+                request_id=getattr(request.state, "request_id", None),
             )
 
             # ✅ Story 12.J.5: 使用安全消息记录日志，限制长度为 200 字符

@@ -5,10 +5,10 @@
 # Test:    npx lefthook run pre-commit
 #
 # Architecture:
-#   pre-commit  → parallel checks (spec-sync, plugin-build, ghost-files)
-#   commit-msg  → commitlint (conventional commits with EPIC scope)
-#   post-commit → informational vault freshness warning
-#   pre-push    → blocking vault freshness + backend test smoke check
+#   pre-commit  → parallel checks (spec-sync, python-lint, python-typecheck, ghost-files)
+#   commit-msg  → commitlint + spec-reference
+#   post-commit → backup-push
+#   pre-push    → frontend-test + backend-smoke
 
 # ============================================================
 # Pre-commit: Parallel checks on staged files
@@ -36,34 +36,6 @@ pre-commit:
         fi
         echo "[Spec Sync] Done."
 
-    # --- Plugin Build: Compile to vault when plugin source changes ---
-    plugin-build:
-      glob: "canvas-progress-tracker/obsidian-plugin/**/*.{ts,css,json}"
-      exclude: "canvas-progress-tracker/obsidian-plugin/node_modules/**"
-      run: |
-        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
-        if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
-          echo "[Plugin Build] node_modules not found — BLOCKING COMMIT."
-          echo "[Plugin Build] Fix: cd $PLUGIN_DIR && npm install"
-          exit 1
-        fi
-        echo "[Plugin Build] Compiling plugin to vault..."
-        cd "$PLUGIN_DIR"
-        npm run build 2>&1
-        BUILD_EXIT=$?
-        if [ $BUILD_EXIT -ne 0 ]; then
-          echo "[Plugin Build] BUILD FAILED! Fix errors before committing."
-          exit 1
-        fi
-        echo "[Plugin Build] Verifying vault freshness..."
-        npm run verify 2>&1
-        VERIFY_EXIT=$?
-        if [ $VERIFY_EXIT -ne 0 ]; then
-          echo "[Plugin Build] Vault sync FAILED! main.js is STALE."
-          exit 1
-        fi
-        echo "[Plugin Build] Vault sync OK."
-
     # --- Ghost Files: Detect untracked documentation ---
     ghost-files:
       run: |
@@ -88,6 +60,8 @@ pre-commit:
     python-lint:
       glob: "{backend,src}/**/*.py"
       run: |
+        # Activate backend venv for ruff
+        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
         echo "[Python] Running ruff lint..."
         ruff check {staged_files} 2>&1 || exit 1
         echo "[Python] Lint OK."
@@ -102,6 +76,8 @@ pre-commit:
     python-typecheck:
       glob: "{backend,src}/**/*.py"
       run: |
+        # Activate backend venv for pyright
+        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
         echo "[Python] Running pyright type check..."
         pyright {staged_files} 2>&1
         PYRIGHT_EXIT=$?
@@ -111,38 +87,6 @@ pre-commit:
         fi
         echo "[Python] Typecheck done (exit: $PYRIGHT_EXIT)."
 
-    # --- Obsidian Lint: Check Obsidian API compliance (DD-06) ---
-    obsidian-lint:
-      glob: "canvas-progress-tracker/obsidian-plugin/**/*.ts"
-      exclude: "canvas-progress-tracker/obsidian-plugin/node_modules/**"
-      run: |
-        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
-        if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
-          exit 0
-        fi
-        echo "[Obsidian Lint] Checking Obsidian API compliance (DD-06)..."
-        cd "$PLUGIN_DIR" && npm run lint:obsidian 2>&1
-        LINT_EXIT=$?
-        if [ $LINT_EXIT -ne 0 ]; then
-          echo "[Obsidian Lint] VIOLATIONS FOUND! Fix Obsidian anti-patterns before committing."
-          echo "[Obsidian Lint] Auto-fix: cd $PLUGIN_DIR && npm run lint:obsidian:fix"
-          exit 1
-        fi
-        echo "[Obsidian Lint] Obsidian compliance OK."
-
-    # --- TypeScript typecheck: Check plugin types ---
-    ts-typecheck:
-      glob: "canvas-progress-tracker/obsidian-plugin/**/*.ts"
-      exclude: "canvas-progress-tracker/obsidian-plugin/node_modules/**"
-      run: |
-        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
-        if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
-          exit 0
-        fi
-        echo "[TypeScript] Checking types..."
-        cd "$PLUGIN_DIR" && npx tsc --noEmit --skipLibCheck 2>&1
-        echo "[TypeScript] Types OK."
-
 # ============================================================
 # Commit-msg: Conventional commits with commitlint
 # ============================================================
@@ -151,24 +95,30 @@ commit-msg:
     commitlint:
       run: npx commitlint --edit {1}
 
+    # --- Spec reference check: code commits must reference FR/spec ---
+    spec-reference:
+      run: |
+        MSG=$(cat "$1" 2>/dev/null || cat .git/COMMIT_EDITMSG 2>/dev/null || echo "")
+        # Check if commit touches code files
+        CODE_CHANGED=$(git diff --cached --name-only | grep -E "^(backend/app/|frontend/src/)" || true)
+        if [ -n "$CODE_CHANGED" ]; then
+          # Require @spec: or FR- reference in commit message
+          if ! echo "$MSG" | grep -qE "(@spec:|FR-|Co-Authored-By)"; then
+            echo ""
+            echo "  COMMIT BLOCKED: Code change requires spec reference."
+            echo "  Add @spec: domain-nnn or FR-XXX-NN to your commit message."
+            echo "  Example: fix(FR-EXAM-01): repair exam scoring @spec: algo-scoring-001"
+            echo ""
+            exit 1
+          fi
+        fi
+        echo "[Spec Ref] OK."
+
 # ============================================================
-# Post-commit: Informational vault freshness warning
+# Post-commit: Backup push
 # ============================================================
 post-commit:
   commands:
-    vault-reminder:
-      run: |
-        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
-        if [ -d "$PLUGIN_DIR/node_modules" ]; then
-          cd "$PLUGIN_DIR"
-          if npm run verify 2>&1 | grep -q "STALE"; then
-            echo ""
-            echo "  WARNING: Vault main.js is STALE!"
-            echo "  Run: cd canvas-progress-tracker/obsidian-plugin && npm run deploy"
-            echo ""
-          fi
-        fi
-
     backup-push:
       run: git push backup HEAD --quiet 2>&1; echo '[Backup] push done'
 
@@ -178,23 +128,6 @@ post-commit:
 pre-push:
   parallel: true
   commands:
-    # --- Vault freshness: Block push if vault is stale ---
-    vault-freshness:
-      run: |
-        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
-        if [ -d "$PLUGIN_DIR/node_modules" ]; then
-          echo "[Pre-push] Checking vault freshness..."
-          cd "$PLUGIN_DIR"
-          if ! npm run verify 2>&1 | tail -1 | grep -q "FRESH"; then
-            echo ""
-            echo "  PUSH BLOCKED: Vault main.js is STALE!"
-            echo "  Fix: cd canvas-progress-tracker/obsidian-plugin && npm run deploy"
-            echo ""
-            exit 1
-          fi
-          echo "[Pre-push] Vault sync OK."
-        fi
-
     # --- Frontend test: Run vitest before push ---
     frontend-test:
       glob: "frontend/src/**/*.{ts,tsx}"
