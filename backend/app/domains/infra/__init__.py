@@ -1,0 +1,1 @@
+"""infra domain module."""

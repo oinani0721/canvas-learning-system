@@ -1,0 +1,125 @@
+# Canvas Learning System — C4 Level 2 Container Diagram
+# 生成命令: d2 docs/architecture/c4-container.d2 docs/architecture/c4-container.svg
+
+direction: right
+
+# ── 用户 ──
+user: User {
+  shape: person
+  style.fill: "#89b4fa"
+}
+
+# ── Tauri 桌面应用（外框）──
+tauri: Tauri 2 Desktop App {
+  style.fill: "#1e1e2e"
+  style.stroke: "#cba6f7"
+  style.font-color: "#cdd6f4"
+
+  # React 前端
+  react: React 19 Frontend {
+    style.fill: "#313244"
+    style.stroke: "#89b4fa"
+
+    app: App.tsx\n(路由: canvas/dashboard/settings/exam)
+    stores: Zustand Stores x4\n(canvas/chat/exam/mastery)
+    components: Components\n(KnowledgeNode, ChatPanel,\nExamCanvas, Settings...)
+    services: Frontend Services\n(api-client, sync-engine,\ncrash-recovery, backup)
+    dexie: Dexie (IndexedDB)\n离线优先存储\n(boards/nodes/edges/messages)
+
+    app -> stores: 读写状态
+    app -> components: 渲染
+    components -> stores: 订阅状态
+    components -> services: 调用
+    services -> dexie: 本地持久化
+  }
+
+  # Node.js Sidecar
+  sidecar: Node.js Sidecar {
+    style.fill: "#313244"
+    style.stroke: "#a6e3a1"
+
+    agent_sdk: Claude Agent SDK\n(@anthropic-ai/claude-agent-sdk)
+    ipc: Tauri Channel\n(NDJSON IPC)
+  }
+
+  react.services -> sidecar.ipc: Tauri Shell spawn
+  sidecar.agent_sdk -> sidecar.ipc: tool results
+}
+
+# ── FastAPI 后端 ──
+backend: FastAPI Backend (port 8001) {
+  style.fill: "#1e1e2e"
+  style.stroke: "#f9e2af"
+  style.font-color: "#cdd6f4"
+
+  api: API Endpoints\n(/api/v1/*)\n37 routers
+  deps: dependencies.py\nDI Container
+  services: 59 Service Files\n(agent, canvas, review,\nmastery, memory, rag...)
+  mcp_server: MCP Server\n15 tools
+  middleware: Middleware\n(metrics, cost, prompt-guard,\nerror-tracking)
+  audit: Audit Guardian\n(pipeline violation detection)
+
+  api -> deps: Depends() 注入
+  deps -> services: 构造 service
+  api -> middleware: 请求过滤
+  mcp_server -> services: MCP tool 调用
+  audit -> services: 审计检查
+}
+
+# ── 外部服务 ──
+neo4j: Neo4j 5.26 {
+  shape: cylinder
+  style.fill: "#45475a"
+  style.stroke: "#f38ba8"
+  label: Neo4j 5.26\nbolt://localhost:7691\n(知识图谱 + 学习记录)
+}
+
+lancedb: LanceDB {
+  shape: cylinder
+  style.fill: "#45475a"
+  style.stroke: "#fab387"
+  label: LanceDB\ndata/lancedb/\n(bge-m3 1024d 向量)
+}
+
+ollama: Ollama {
+  shape: hexagon
+  style.fill: "#45475a"
+  style.stroke: "#94e2d5"
+  label: Ollama\nlocalhost:11434\n(Qwen3 8B + bge-m3)
+}
+
+litellm: LiteLLM Gateway {
+  shape: hexagon
+  style.fill: "#45475a"
+  style.stroke: "#89dceb"
+  label: LiteLLM\n(Gemini/Claude/OpenAI/\nDeepSeek/Ollama)
+}
+
+# ── 连接线 ──
+user -> tauri.react.app: 桌面交互 {
+  style.stroke: "#89b4fa"
+}
+
+tauri.react.services -> backend.api: HTTP REST\n(fetch /api/v1/*) {
+  style.stroke: "#f9e2af"
+}
+
+tauri.sidecar.agent_sdk -> backend.mcp_server: MCP Protocol\n(15 tools) {
+  style.stroke: "#a6e3a1"
+}
+
+backend.services -> neo4j: Bolt async driver\n(connection pool 50) {
+  style.stroke: "#f38ba8"
+}
+
+backend.services -> lancedb: File I/O\n(jieba tokenization) {
+  style.stroke: "#fab387"
+}
+
+backend.services -> ollama: HTTP\n(embedding + inference) {
+  style.stroke: "#94e2d5"
+}
+
+backend.services -> litellm: HTTP\n(multi-provider LLM calls) {
+  style.stroke: "#89dceb"
+}

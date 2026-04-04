@@ -1,0 +1,38 @@
+[importlinter]
+root_packages =
+    app
+
+# ═══════════════════════════════════════════════════════════════════
+# Contract 1: Domain modules 之间不能直接互相导入
+# ═══════════════════════════════════════════════════════════════════
+# 这条规则确保每个 domain 是独立的"菜系区"
+# 如果 exam 需要调 mastery，必须通过 gateway 或 event_bus，不能直接导入
+#
+# 注意：这条规则暂时只监控 domains/ 目录下的 gateway 文件
+# 现有 services/ 文件的交叉引用在逐步迁移过程中不受此规则约束
+
+[importlinter:contract:domain-gateway-independence]
+name = Domain gateways must not import from other domain gateways
+type = independence
+modules =
+    app.domains.agent
+    app.domains.exam
+    app.domains.mastery
+    app.domains.memory
+    app.domains.canvas
+    app.domains.rag
+    app.domains.infra
+
+# ═══════════════════════════════════════════════════════════════════
+# Contract 2: 分层架构 — API 层不能绕过 DI 直接构造 service
+# ═══════════════════════════════════════════════════════════════════
+# 未来目标：endpoint 只通过 dependencies.py 或 domain gateway 获取 service
+# 当前状态：很多 endpoint 直接 from app.services.xxx import，需要逐步迁移
+# 这条规则暂时注释掉，等 Strangler Fig 迁移完成后再启用
+#
+# [importlinter:contract:api-uses-gateways]
+# name = API endpoints should use domain gateways (future)
+# type = forbidden
+# source_modules = app.api
+# forbidden_modules =
+#     app.services
