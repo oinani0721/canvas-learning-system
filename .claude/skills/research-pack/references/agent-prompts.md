@@ -2,6 +2,7 @@
 
 执行 Phase 2 时，将以下 prompt 传给对应的 Explore Agent。
 用 Phase 1 生成的关键词和 Phase 0 的项目元数据替换占位符。
+如果 Phase 1.5 codebase-memory 有输出，将其作为 `[Codebase-Memory Context]` 段注入每个 Agent prompt 的开头。
 
 ---
 
@@ -11,9 +12,11 @@
 任务：用关键词搜索种子文件，然后追踪 import 调用链。
 输入：Phase 1 的直接关键词、扩展关键词、路径模式、排除模式。
       Phase 0 的 tsconfig paths 映射（如有）。
+      [Codebase-Memory Context]（如有）：模块摘要、已知关联、代码陷阱。
+      利用 codebase-memory 上下文中提到的模块名和关联关系作为额外搜索种子。
 
 步骤：
-1. 用 Grep 搜索所有关键词组（直接 + 扩展），排除 Phase 1 的排除模式
+1. 用 Grep 搜索所有关键词组（直接 + 扩展 + codebase-memory 提到的模块名），排除 Phase 1 的排除模式
 2. 对每个种子文件，读取内容找到它 import 的模块（下游 2 层）
    - TypeScript：如果 import 路径以 @ 开头，用 tsconfig paths 映射替换为实际路径
    - Python：追踪 from X import Y 和 import X
@@ -32,6 +35,8 @@
 ```
 任务：找到通过非 import 方式关联的文件——配置引用、事件注册、框架约定。
 输入：Phase 1 的关键词。Phase 0 检测到的技术栈列表。
+      [Codebase-Memory Context]（如有）：模块摘要、已知关联、代码陷阱。
+      利用 codebase-memory 提到的隐式依赖（事件、配置引用）作为搜索线索。
 
 步骤：
 1. 搜索配置文件中的代码引用：YAML/TOML/JSON 中以字符串形式引用的类路径
@@ -78,6 +83,7 @@
 ```
 任务：收集最近修改的相关文件和项目级文件（不依赖 A+B 结果）。
 输入：Phase 1 的关键词。
+      [Codebase-Memory Context]（如有）：模块摘要、已知关联、代码陷阱。
 
 步骤：
 1. 找 git 最近修改的相关文件：

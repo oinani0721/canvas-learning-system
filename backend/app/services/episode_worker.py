@@ -20,6 +20,8 @@ import asyncio
 import json
 import logging
 import os
+
+import structlog
 import random
 import time
 from dataclasses import dataclass, field
@@ -29,7 +31,7 @@ from typing import Any, Optional
 
 from graphiti_core import Graphiti
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -143,7 +145,9 @@ class DeadLetterStore:
         self._file_path = Path(file_path)
         self._file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def store(self, task: EpisodeTask, error: Exception) -> None:
+    def store(
+        self, task: EpisodeTask, error: Exception, *, request_id: str | None = None
+    ) -> None:
         """Append failed task to JSONL file synchronously (tiny payload, acceptable)."""
         record = {
             **task.to_dict(),
@@ -152,6 +156,8 @@ class DeadLetterStore:
             "error_type": type(error).__name__,
             "failed_at": datetime.now(timezone.utc).isoformat(),
         }
+        if request_id is not None:
+            record["request_id"] = request_id
         with open(self._file_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 

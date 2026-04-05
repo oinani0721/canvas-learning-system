@@ -23,6 +23,10 @@ allowed-tools:
   - Grep
   - Agent
   - AskUserQuestion
+  - ToolSearch
+  - mcp__codebase-memory__recall
+  - mcp__codebase-memory__brief
+  - mcp__codebase-memory__gotchas
 ---
 
 # Research Pack — 智能打包 Skill
@@ -61,6 +65,31 @@ allowed-tools:
 
 同时判断涉及的模块（后端/前端/全栈）和分析类型（架构审查/PRD对照/安全/测试迁移/其它）。
 
+### Phase 1.5：Codebase-Memory 预探索（如果 MCP 可用）
+
+在启动 Phase 2 Agent 之前，尝试用 codebase-memory MCP 获取模块关系概要。
+
+**执行步骤**（顺序执行，任何一步失败则跳过整个 Phase 1.5）：
+
+1. 用 `ToolSearch(query: "select:mcp__codebase-memory__recall")` 加载 recall 工具
+2. 调用 `mcp__codebase-memory__recall(context: "{Phase 1 的核心关键词，用自然语言描述}", lobe: "canvas-learning-system")`
+3. 用 `ToolSearch(query: "select:mcp__codebase-memory__gotchas")` 加载 gotchas 工具
+4. 调用 `mcp__codebase-memory__gotchas(lobe: "canvas-learning-system")`
+
+**输出**: 将 recall 和 gotchas 的返回内容拼接为 `[Codebase-Memory Context]` 文本块，格式：
+```
+[Codebase-Memory Context]
+=== Recall Results ===
+{recall 返回的条目，每条一行}
+
+=== Known Gotchas ===
+{gotchas 返回的条目，每条一行}
+```
+
+这个文本块注入 Phase 2 每个 Agent 的 prompt 开头，帮助 Agent 更精准地定位文件。
+
+**降级**: 如果 ToolSearch 找不到 codebase-memory 工具，或调用返回错误/空结果，直接跳过进入 Phase 2，不阻塞流程。
+
 ### Phase 2：按发现方法启动 Agent（两波）
 
 详细 Agent prompt 模板见 → `Read references/agent-prompts.md`
@@ -69,6 +98,8 @@ allowed-tools:
 - **Agent A** — 精确匹配 + 调用链追踪（Grep 关键词 → import 链上下游各 2 层）
 - **Agent B** — 模式发现（配置引用/事件注册/Docker-CI/环境变量/schema + 技术栈专用追踪）
 - **Agent C1** — git 历史 + 项目级文件（不依赖 A+B，自适应时间窗口）
+
+每个 Agent 的 prompt 中包含 Phase 1.5 的 codebase-memory 输出（如有），用于缩小搜索范围和补全 Grep 可能遗漏的隐式关联。
 
 **第二波（A+B+C1 完成后）**：
 - **Agent C2** — 补全测试+文档（基于 A+B 结果找对应测试/conftest/PRD/决策记录）
@@ -129,26 +160,58 @@ allowed-tools:
 
 确保 `.gdr/` 目录存在。默认不压缩，超限时对非核心文件 `--compress`。输出 XML。
 
-### Phase 5：生成 instruction 并注入
+### Phase 5：增量确认 instruction（用户确认后再生成）
 
-动态生成 instruction 文件，用 `--instruction-file-path` 注入打包文件末尾：
+**禁止直接生成 instruction。必须先向用户提问确认。**
 
+**Step 5.1 — 向用户展示 instruction 草案并逐项确认：**
+
+```
+📝 Instruction 草案（将注入打包文件末尾，指导 Deep Research 如何分析）
+
+1️⃣ 项目背景（自动填充，请确认是否准确）：
+   - 技术栈：{Phase 0 tech stack}
+   - 架构：{检测到的架构概要}
+   - 关键入口：{Phase 0 入口列表}
+
+2️⃣ 分析议题："{用户议题原文}"
+   → 这个表述准确吗？还是要调整措辞/补充背景？
+
+3️⃣ 分析方向（默认以下 4 项，你可以增删改）：
+   a. 设计/实现是否合理？
+   b. 问题列表（CRITICAL / HIGH / MEDIUM / LOW）
+   c. 与社区最佳实践差距
+   d. 改善建议（附代码示例）
+   → 有没有你特别想深挖的方向？或者不需要的方向？
+
+4️⃣ 输出格式偏好：
+   a. 表格（| 编号 | 严重度 | 文件:行号 | 问题 | 建议 |）
+   b. 分章节叙述
+   c. 其他偏好？
+
+5️⃣ 额外上下文（可选）：
+   有没有 Deep Research 需要知道的背景信息？
+   例如：已知的问题、之前做过的决策、特别关注的风险...
+```
+
+**等待用户确认/修改后才继续。不要自动生成。**
+
+**Step 5.2 — 根据用户反馈生成最终 instruction：**
+
+将用户确认的内容组装为 instruction 文件，用 `--instruction-file-path` 注入打包文件末尾。
+
+instruction 结构：
 ```markdown
 # Deep Research 分析请求
 
 ## 项目背景
-<project_context>
-- 技术栈：{Phase 0 tech stack}
-- 架构：{前端 ↔ IPC ↔ 后端 ↔ 数据库}
-- 关键入口：{Phase 0 入口列表}
-- 目录概要：{ls -d */}
-</project_context>
+{Step 5.1 确认的项目背景}
 
 ## 分析议题
-{用户议题原文}
+{Step 5.1 确认/调整后的议题}
 
 ## 打包内容
-{N} 个文件，{M}K tokens：核心源码 / 调用链 / 测试 / 文档
+{N} 个文件，{M}K tokens
 
 ## 分析方法
 1. 通读 <directory_structure> 建立心智模型
@@ -157,13 +220,13 @@ allowed-tools:
 4. 验证发现与代码实际行为一致
 
 ## 请分析
-1. 设计/实现是否合理？
-2. 问题列表（CRITICAL / HIGH / MEDIUM / LOW）
-3. 与社区最佳实践差距
-4. 改善建议（附代码示例）
+{Step 5.1 确认的分析方向}
+
+## 额外上下文
+{Step 5.1 用户提供的额外信息，无则省略此节}
 
 ## 输出格式
-| 编号 | 严重度 | 文件:行号 | 问题 | 影响 | 建议 |
+{Step 5.1 确认的格式偏好}
 ```
 
 ### Phase 6：报告结果
