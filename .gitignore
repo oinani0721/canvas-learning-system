@@ -205,3 +205,9 @@ images/generated*
 # ── Research pack XML artifacts (generated, ~1MB each) ──
 research-pack-*.xml
 research-pack-fr-*.xml
+
+# ── Repomix codebase pack artifacts (local only) ──
+.repomix/
+
+# ── Legacy archive directories (local reference only) ──
+_archive/
