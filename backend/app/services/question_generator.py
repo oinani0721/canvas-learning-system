@@ -664,14 +664,21 @@ class QuestionGenerator:
 
         Nodes with more connections to high-mastery neighbors but low self-mastery
         represent structural knowledge gaps — these get higher relevance scores.
+
+        FR-KG-04 fix: Aligned to SyncService write schema. SyncService persists
+        nodes as ``CanvasNode {id, canvasId}`` and edges as ``CANVAS_EDGE``.
+        The previous query used ``uuid`` and ``canvas_id``, which never matched
+        and silently returned the default 0.5 — making this factor a no-op in
+        the priority formula and was the root cause of A11's "algorithm feels
+        fake" complaint.
         """
         try:
             from app.clients.neo4j_client import get_neo4j_client
 
             client = get_neo4j_client()
             query = """
-            MATCH (n:CanvasNode {uuid: $node_id})-[r]-(neighbor:CanvasNode)
-            WHERE neighbor.canvas_id = $canvas_id
+            MATCH (n:CanvasNode {id: $node_id})-[r:CANVAS_EDGE]-(neighbor:CanvasNode)
+            WHERE neighbor.canvasId = $canvas_id
             RETURN count(neighbor) AS degree
             """
             records = await client.run_query(
@@ -742,15 +749,22 @@ class QuestionGenerator:
             return list()
 
     async def _get_edge_reasons(self, node_id: str) -> List[str]:
-        """Get edge relationship reasons from Graphiti for a node."""
+        """Get edge relationship reasons for a node.
+
+        FR-KG-04 fix: Aligned to SyncService write schema. SyncService stores
+        edge labels in ``CANVAS_EDGE.label``; the previous query read
+        ``r.rationale`` (a field never written by any active path) so this
+        always returned an empty list, depriving the LLM of relationship
+        semantics for question generation.
+        """
         try:
             from app.clients.neo4j_client import get_neo4j_client
 
             client = get_neo4j_client()
             query = """
-            MATCH (n:CanvasNode {uuid: $node_id})-[r]->(m:CanvasNode)
-            WHERE r.rationale IS NOT NULL
-            RETURN r.rationale AS rationale
+            MATCH (n:CanvasNode {id: $node_id})-[r:CANVAS_EDGE]->(m:CanvasNode)
+            WHERE r.label IS NOT NULL AND r.label <> ''
+            RETURN r.label AS rationale
             LIMIT 5
             """
             records = await client.run_query(query, node_id=node_id)
