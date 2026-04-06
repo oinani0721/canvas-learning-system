@@ -14,6 +14,8 @@
  * 6. [CHANGED] postModelConfig accepts ModelConfigPayload instead of full settings
  */
 
+import { createLogger } from './logger';
+
 // [CHANGED] All types defined inline - no external imports needed
 // See v1-ref/src/types/api.d.ts and v1-ref/src/types/canvas.d.ts for originals
 
@@ -77,6 +79,7 @@ export type EdgeLabelUpdateCallback = (edgeId: string, relationType: string) => 
 
 export class ApiClient {
   private baseUrl: string;
+  private readonly logger = createLogger('ApiClient');
   /** [CHANGED] Callback replaces v1 direct masteryState Svelte store import */
   private onMasteryUpdate: MasteryUpdateCallback | null = null;
   /** Story 4-2: Callback for edge label updates from WebSocket. */
@@ -85,6 +88,44 @@ export class ApiClient {
   /** [CHANGED] Parameter renamed to backendUrl for clarity */
   constructor(backendUrl = 'http://localhost:8001') {
     this.baseUrl = backendUrl.replace(/\/+$/, '');
+  }
+
+  /**
+   * Core HTTP request method. Injects X-Request-ID for frontend-backend correlation.
+   */
+  private async request<T>(
+    method: 'GET' | 'POST' | 'PATCH',
+    path: string,
+    body?: unknown,
+    options?: { signal?: AbortSignal },
+  ): Promise<T> {
+    const requestId = crypto.randomUUID();
+    const url = `${this.baseUrl}${path}`;
+
+    this.logger.debug('request', { method, path, requestId });
+
+    const init: RequestInit = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Request-ID': requestId,
+      },
+      signal: options?.signal,
+    };
+
+    if (body !== undefined) {
+      init.body = JSON.stringify(convertKeys(body, camelToSnake));
+    }
+
+    const response = await fetch(url, init);
+
+    if (!response.ok) {
+      this.logger.warn('response error', { method, path, status: response.status, requestId });
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const raw: unknown = await response.json();
+    return convertKeys(raw, snakeToCamel) as T;
   }
 
   /** [CHANGED] New method - decouples from Svelte masteryState store */
@@ -97,61 +138,16 @@ export class ApiClient {
     this.onEdgeLabelUpdate = cb;
   }
 
-  /**
-   * Perform a GET request to the backend.
-   * [CHANGED] Uses standard fetch() instead of Obsidian's requestUrl().
-   * Response keys are converted from snake_case to camelCase.
-   */
   async get<T>(path: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const raw: unknown = await response.json();
-    return convertKeys(raw, snakeToCamel) as T;
+    return this.request<T>('GET', path);
   }
 
-  /**
-   * Perform a POST request to the backend.
-   * [CHANGED] Uses standard fetch() instead of Obsidian's requestUrl().
-   */
   async post<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(convertKeys(body, camelToSnake)),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const raw: unknown = await response.json();
-    return convertKeys(raw, snakeToCamel) as T;
+    return this.request<T>('POST', path, body);
   }
 
-  /**
-   * Perform a PATCH request to the backend.
-   * [CHANGED] Uses standard fetch() instead of Obsidian's requestUrl().
-   */
   async patch<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(convertKeys(body, camelToSnake)),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const raw: unknown = await response.json();
-    return convertKeys(raw, snakeToCamel) as T;
+    return this.request<T>('PATCH', path, body);
   }
 
   /**
@@ -164,7 +160,8 @@ export class ApiClient {
         '/api/v1/health',
       );
       return envelope.data;
-    } catch {
+    } catch (err) {
+      this.logger.debug('checkHealth failed — backend unreachable', err instanceof Error ? err.message : err);
       return null;
     }
   }
@@ -205,7 +202,8 @@ export class ApiClient {
         },
       });
       return true;
-    } catch {
+    } catch (err) {
+      this.logger.warn('postModelConfig failed', err instanceof Error ? err.message : err);
       return false;
     }
   }
@@ -640,7 +638,8 @@ export class ApiClient {
         canvas_id: canvasId,
         target_node_id: targetNodeId || null,
       });
-    } catch {
+    } catch (err) {
+      this.logger.warn('analyzeCanvas failed', err instanceof Error ? err.message : err);
       return null;
     }
   }
@@ -687,20 +686,26 @@ export class ApiClient {
    * @param imageData - Base64 DataURL of the image.
    * @param signal - Optional AbortSignal for cancellation.
    */
-  /** [CHANGED] Uses standard fetch() with AbortSignal now wired up */
   async indexImage(
     nodeId: string,
     imageData: string,
     signal?: AbortSignal,
   ): Promise<ImageIndexResult> {
+    const requestId = crypto.randomUUID();
+    this.logger.debug('request', { method: 'POST', path: '/api/v1/index/image', requestId });
+
     const response = await fetch(`${this.baseUrl}/api/v1/index/image`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Request-ID': requestId,
+      },
       body: JSON.stringify({ node_id: nodeId, image_data: imageData }),
-      signal, // [CHANGED] was unused (_signal) in v1
+      signal,
     });
 
     if (!response.ok) {
+      this.logger.warn('response error', { path: '/api/v1/index/image', status: response.status, requestId });
       throw new Error(`API error: ${response.status}`);
     }
 

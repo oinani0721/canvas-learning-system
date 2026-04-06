@@ -15,6 +15,7 @@ interface SettingsData {
   chatModel: string;
   scoringProvider: string;
   scoringModel: string;
+  enableRecommendations: boolean;
 }
 
 /** API Keys — stored in sessionStorage for security (not persisted across browser sessions). */
@@ -67,6 +68,7 @@ const DEFAULT_SETTINGS: SettingsData = {
   chatModel: '',
   scoringProvider: 'gemini',
   scoringModel: '',
+  enableRecommendations: false,
 };
 
 /** AC-3: Provider dropdown options */
@@ -880,6 +882,34 @@ export function Settings({ onBack }: SettingsProps) {
             <span className="text-sm font-medium text-gray-700">bge-m3 &middot; Ollama</span>
             <span className="text-xs text-gray-400">(只读，由后端 Docker 管理)</span>
           </div>
+        </section>
+
+        {/* ── Section 4b: Feature Toggles ─────────────────────────────── */}
+        <section className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">功能开关</h2>
+          <p className="text-sm text-gray-500 mb-5">控制实验性功能的启用状态</p>
+
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <span className="text-sm font-medium text-gray-700">概念关联推荐</span>
+              <p className="text-xs text-gray-400 mt-0.5">系统自动分析节点间的潜在关联并给出建议</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={settings.enableRecommendations}
+              onClick={() => updateField('enableRecommendations', !settings.enableRecommendations)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                settings.enableRecommendations ? 'bg-blue-500' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  settings.enableRecommendations ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </label>
         </section>
 
         {/* ── Section 5: Backend Connection (AC-7) ───────────────────── */}

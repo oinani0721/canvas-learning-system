@@ -37,6 +37,9 @@ import { ExamCanvas } from './components/exam/ExamCanvas';
 import { ExamSummary } from './components/exam/ExamSummary';
 import { ExamModeSelector } from './components/exam/ExamModeSelector';
 import { useExamStore } from './stores/exam-store';
+import { useRecommendations } from './hooks/useRecommendations';
+import { RecommendationBar } from './components/RecommendationBar';
+import type { Recommendation } from './services/api-client';
 
 // --- Inline input dialog (replaces prompt()) ---
 
@@ -292,6 +295,19 @@ function Canvas() {
   const triggerSync = useCallback(() => {
     syncEngine.triggerSync();
   }, [syncEngine]);
+
+  // FR-KG-05: Concept relation recommendations
+  const { recommendations, loading: recLoading, accept: recAccept, dismiss: recDismiss } =
+    useRecommendations({ boardId: currentBoardId, nodes, edges, apiClient });
+
+  const handleAcceptRecommendation = useCallback(
+    async (rec: Recommendation) => {
+      await storeAddEdge(rec.sourceNodeId, rec.targetNodeId, rec.suggestedLabel);
+      triggerSync();
+      recAccept(rec);
+    },
+    [storeAddEdge, triggerSync, recAccept],
+  );
 
   // Story 5-4: Load dashboard data (exam sessions + mastery batch for review)
   const loadDashboardData = useCallback(async () => {
@@ -1013,7 +1029,7 @@ function Canvas() {
   return (
     <div className="flex h-screen bg-white">
       {/* Canvas area */}
-      <div className="flex-1">
+      <div className="flex-1 relative">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -1073,6 +1089,14 @@ function Canvas() {
             onDelete={handleContextMenuDelete}
           />
         )}
+
+        {/* FR-KG-05: Concept relation recommendations */}
+        <RecommendationBar
+          recommendations={recommendations}
+          loading={recLoading}
+          onAccept={handleAcceptRecommendation}
+          onDismiss={recDismiss}
+        />
       </div>
 
       {/* Sidebar */}
