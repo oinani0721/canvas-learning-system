@@ -1,6 +1,6 @@
 # Fix structlog ↔ caplog 兼容性 — 解锁 256 个 backend 单元测试
 
-## What & Why
+## Why
 
 ### 问题
 
@@ -57,6 +57,8 @@ assert any("Low clustering quality" in r.message for r in caplog.records)
 为了解锁 push 流程，用户授权一次性 `--no-forget` 绕过 pre-push，并把测试失败作为独立任务拆出来 — 即本 change。
 
 当时采用的最小解锁方案：**revert** `intelligent_grouping_service.py` 一个文件的 structlog 迁移（commit `793cd53` 之后的 unstaged 改动），让 silhouette 测试重新通过。这是一次性应急，不是根因修复，且其他 46 个已 commit 的 structlog 迁移文件仍在 fail 状态。
+
+## What Changes
 
 ### 目标
 
