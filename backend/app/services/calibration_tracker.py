@@ -14,6 +14,8 @@ Architecture Reference:
 
 import logging
 from datetime import datetime, timezone
+
+import structlog
 from typing import Dict, List
 
 from app.models.mastery_models import (
@@ -23,7 +25,7 @@ from app.models.mastery_models import (
     CalibrationSummary,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Quadrant classification thresholds (configurable via mastery_config.json
 # "calibration_thresholds" section; these are the defaults)

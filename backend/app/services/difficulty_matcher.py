@@ -22,6 +22,8 @@ never blocking the question delivery to the user.
 import asyncio
 import logging
 from collections import deque
+
+import structlog
 from datetime import datetime, timezone
 from typing import Deque, Optional
 
@@ -29,7 +31,7 @@ import aiosqlite
 
 from app.models.qa_models import DifficultyMatchRecord, DifficultyMatchStats
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Constants

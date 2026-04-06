@@ -20,6 +20,8 @@ import logging
 import uuid
 from typing import Any, Dict, Optional
 
+import structlog
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +37,15 @@ def log_decision(
     reason: str,
     request_id: Optional[str] = None,
 ) -> str:
-    """Log a business decision with a unique ID. Returns the decision_id."""
+    """Log a business decision with a unique ID. Returns the decision_id.
+
+    If request_id is not provided, auto-reads from structlog contextvars
+    (set by MetricsMiddleware for every HTTP request).
+    """
+    if request_id is None:
+        ctx = structlog.contextvars.get_contextvars()
+        request_id = ctx.get("request_id", "unknown")
+
     decision_id = generate_decision_id()
     logger.info(
         "decision_recorded",
@@ -45,7 +55,7 @@ def log_decision(
             "input": json.dumps(input_summary, default=str),
             "output": str(output),
             "reason": reason,
-            "request_id": request_id or "unknown",
+            "request_id": request_id,
         },
     )
     return decision_id

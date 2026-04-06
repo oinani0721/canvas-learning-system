@@ -30,9 +30,12 @@ Routing Matrix (from Story 33.5 AC1):
 import json
 import logging
 import re
+
+import structlog
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.agent_memory_mapping import ALL_AGENT_NAMES
+from app.core.decision_tracker import log_decision
 from app.models.agent_routing_models import (
     BatchRoutingRequest,
     BatchRoutingResponse,
@@ -40,7 +43,7 @@ from app.models.agent_routing_models import (
     RoutingResult,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Routing Pattern Configuration (Task 5)
@@ -504,6 +507,16 @@ class AgentRoutingEngine:
             reason = "high_confidence_match"
         else:
             reason = "medium_confidence_match"
+
+        log_decision(
+            function="AgentRoutingEngine.route_single_node",
+            input_summary={
+                "node_id": request.node_id,
+                "confidence": round(confidence, 3),
+            },
+            output=top_agent,
+            reason=f"{reason}, fallback={fallback_agent}, patterns={len(patterns_matched)}",
+        )
 
         return RoutingResult(
             node_id=request.node_id,

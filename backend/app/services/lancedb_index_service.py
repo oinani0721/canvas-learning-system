@@ -17,6 +17,8 @@ import asyncio
 import json
 import logging
 import threading
+
+import structlog
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -30,7 +32,7 @@ from tenacity import (
 
 from app.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LanceDB Index Service

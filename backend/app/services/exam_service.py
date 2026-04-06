@@ -20,11 +20,14 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
+
+import structlog
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from app.config import DEFAULT_GROUP_ID
+from app.core.decision_tracker import log_decision
 from app.models.exam_models import (
     AutoScoreResult,
     CanvasAnalysisResponse,
@@ -39,7 +42,7 @@ from app.models.exam_models import (
 # Path to hint prompt templates
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "exam"
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # In-memory session store (backed by Neo4j for persistence)
 _exam_sessions: Dict[str, ExamSessionResponse] = {}
@@ -95,9 +98,14 @@ class ExamService:
         self._sessions[session_id] = session
         await self._persist_session_to_neo4j(session)
 
-        logger.info(
-            f"[Story 6.1] Exam session created: {session_id} "
-            f"source={request.source_canvas_id} mode={request.exam_mode.value}"
+        log_decision(
+            function="ExamService.create_session",
+            input_summary={
+                "source_canvas": request.source_canvas_id,
+                "exam_mode": request.exam_mode.value,
+            },
+            output=session_id,
+            reason=f"new exam session, mode={request.exam_mode.value}, target={request.target_node_id}",
         )
 
         return session

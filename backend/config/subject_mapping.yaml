@@ -1,10 +1,25 @@
-# Subject Mapping Configuration (Story 1.9)
-# Users can add their own mappings via the Settings UI or by editing this file.
-# Mappings are ordered: first match wins.
-mappings: []
-
-# Category inference rules: when no explicit mapping matches, the first
-# significant directory component is tested against these patterns.
+mappings:
+- pattern: Math 54/**
+  subject: math54
+  category: math
+- pattern: Physics 7A/**
+  subject: physics7a
+  category: physics
+- pattern: "\aI\U000181D2"
+  subject: +Nh
+  category: "}4#\U000A1CDF\\\U000E4790\x81\a[]æ%O\N¼"
+- pattern: '2'
+  subject: '`uß6Aú'
+  category: "ÚÛ¯धsê\x15*f"
+- pattern: "À\x0E\U000101FD"
+  subject: 𴾖¼Â􏎇
+  category: ''
+- pattern: æœÆŒﬀʤʨß
+  subject: Jê𜆤h
+  category: "\x94\U000943B4Q"
+- pattern: ¢
+  subject: "Ù\U000B2F1F\x86"
+  category: "U\x1Eº\U00096B32\U000D8495N"
 category_rules:
   math:
   - math*
@@ -12,22 +27,17 @@ category_rules:
   physics:
   - physics*
   - 物理*
-  cs:
-  - CS*
-  - cs*
-  - 计算机*
-
-# Fallback defaults when nothing matches
 defaults:
   category: general
   subject: general
-
-# Directories to skip when inferring subject from path
 skip_directories:
-- notes
-- templates
 - .canvas-links
 - .trash
-- .obsidian
+- vault
+- attachments
 - .git
+- .obsidian
 - node_modules
+- notes
+- templates
+- 笔记库

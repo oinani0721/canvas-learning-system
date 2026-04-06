@@ -13,6 +13,8 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
+
+import structlog
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -36,7 +38,7 @@ from app.models.exam_models import (
     SkipResponse,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "exam"
 

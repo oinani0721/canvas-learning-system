@@ -25,6 +25,8 @@ import asyncio
 import json
 import logging
 import math
+
+import structlog
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,7 +43,7 @@ from app.models.mastery_state import (
     MasteryConfig,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Ensure backend/lib is on sys.path for memory.temporal imports
 _src_path = str(Path(__file__).parent.parent.parent / "lib")

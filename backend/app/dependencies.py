@@ -736,8 +736,8 @@ GraphitiClientDep = Neo4jEdgeClientDep
 import sys
 from pathlib import Path as _PathLib
 
-# Add src to path if needed
-_src_path = _PathLib(__file__).parent.parent.parent / "src"
+# Add backend/lib to path for agentic_rag and memory imports
+_src_path = _PathLib(__file__).parent.parent / "lib"
 if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 

@@ -13,6 +13,8 @@ Returns top-5 recommendations per canvas, filtered by dismissed pairs.
 import asyncio
 import logging
 from typing import Dict, List, Set
+
+import structlog
 from uuid import uuid4
 
 from app.models.recommendation_models import (
@@ -22,7 +24,7 @@ from app.models.recommendation_models import (
     RecommendationResponse,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Similarity threshold for L1 text matching
 TEXT_SIMILARITY_THRESHOLD = 0.6

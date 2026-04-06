@@ -21,6 +21,8 @@ Key Features:
 import asyncio
 import logging
 from datetime import datetime
+
+import structlog
 from typing import Dict, List, Optional, Set
 
 from fastapi import WebSocket
@@ -32,7 +34,7 @@ from app.models.intelligent_parallel_models import (
     create_ws_ping_event,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ConnectionManager:

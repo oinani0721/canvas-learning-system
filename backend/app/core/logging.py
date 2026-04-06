@@ -14,6 +14,17 @@ import logging
 import sys
 from typing import Optional
 
+import structlog
+
+
+class ContextVarsFilter(logging.Filter):
+    """Bridge structlog contextvars (request_id) into stdlib LogRecords."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        ctx = structlog.contextvars.get_contextvars()
+        record.request_id = ctx.get("request_id", "-")  # type: ignore[attr-defined]
+        return True
+
 
 def setup_logging(
     log_level: str = "INFO", log_format: Optional[str] = None
@@ -39,7 +50,7 @@ def setup_logging(
     # Default structured log format
     # [Source: docs/architecture/coding-standards.md#日志规范]
     if log_format is None:
-        log_format = "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s"
+        log_format = "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | req=%(request_id)s | %(message)s"
 
     # Get numeric log level
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
@@ -76,6 +87,11 @@ def setup_logging(
     error_handler = logging.StreamHandler(utf8_stderr)
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(formatter)
+
+    # Add ContextVarsFilter so stdlib loggers also get request_id
+    ctx_filter = ContextVarsFilter()
+    console_handler.addFilter(ctx_filter)
+    error_handler.addFilter(ctx_filter)
 
     # Add handlers to root logger
     root_logger.addHandler(console_handler)

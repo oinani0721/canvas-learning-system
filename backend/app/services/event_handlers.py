@@ -14,6 +14,8 @@ Registers concrete event handlers that connect the mastery pipeline:
 import logging
 from typing import TYPE_CHECKING
 
+import structlog
+
 from app.models.canvas_events import (
     LearningEvent,
     LearningEventType,
@@ -22,7 +24,7 @@ from app.models.canvas_events import (
 if TYPE_CHECKING:
     from app.services.event_bus import EventBus
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

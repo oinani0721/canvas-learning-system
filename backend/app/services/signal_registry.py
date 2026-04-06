@@ -17,9 +17,11 @@ Signals:
 import logging
 from typing import Dict, List, Optional, Tuple
 
+import structlog
+
 from app.models.mastery_models import MasterySignal
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SignalRegistry:

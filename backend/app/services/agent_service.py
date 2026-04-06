@@ -17,6 +17,8 @@ import json
 import logging
 import os
 import re
+
+import structlog
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -84,7 +86,7 @@ THINKING_BUDGETS = {
     "example-teaching": 512,
 }
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Story 38.6: Scoring write reliability — outer timeout for fire-and-forget memory writes
 # Must be >= sum of inner retry backoffs (1+2+4=7s) + 3 × per-attempt timeout (2s) + margin
@@ -1481,8 +1483,8 @@ class AgentService:
 
         try:
             # Import agentic_rag clients at runtime
-            from src.agentic_rag.clients.graphiti_client import GraphitiClient
-            from src.agentic_rag.clients.lancedb_client import LanceDBClient
+            from agentic_rag.clients.graphiti_client import GraphitiClient
+            from agentic_rag.clients.lancedb_client import LanceDBClient
 
             from app.config import get_settings
 
@@ -1535,8 +1537,8 @@ class AgentService:
             return True
 
         try:
-            from src.agentic_rag.clients.graphiti_client import GraphitiClient
-            from src.agentic_rag.clients.lancedb_client import LanceDBClient
+            from agentic_rag.clients.graphiti_client import GraphitiClient
+            from agentic_rag.clients.lancedb_client import LanceDBClient
 
             from app.config import get_settings
             from app.services.react_agent import init_react_tools
@@ -2989,7 +2991,7 @@ class AgentService:
         start_time = datetime.now()
 
         try:
-            from src.agentic_rag.agent_graph import get_agent_rag_graph
+            from agentic_rag.agent_graph import get_agent_rag_graph
 
             graph = get_agent_rag_graph()
 
@@ -3393,7 +3395,9 @@ class AgentService:
         ):
             initial_score = initial_result.data.get(
                 "total_score",
-                initial_result.data.get("overall_score", initial_result.data.get("total", 0)),
+                initial_result.data.get(
+                    "overall_score", initial_result.data.get("total", 0)
+                ),
             )
             if isinstance(initial_score, (int, float)) and 7 <= initial_score <= 9:
                 logger.info(
@@ -4066,7 +4070,9 @@ class AgentService:
                 # Extract AutoSCORE 4D breakdown (0-3 per dimension)
                 # Fields: concept_accuracy, reasoning_quality, knowledge_coverage, knowledge_integration
                 # Legacy aliases: accuracy, imagery, completeness, originality
-                scores_data = result.data.get("scores", result.data.get("breakdown", {}))
+                scores_data = result.data.get(
+                    "scores", result.data.get("breakdown", {})
+                )
                 if scores_data:
                     # Handle nested {"score": N, "justification": ...} format from AutoSCORE
                     def _dim_score(d: Any) -> float:
@@ -4074,18 +4080,36 @@ class AgentService:
                             return float(d.get("score", 0.0))
                         return float(d) if d else 0.0
 
-                    accuracy = _dim_score(scores_data.get(
-                        "concept_accuracy", scores_data.get("accuracy", result.data.get("accuracy", 0.0))
-                    ))
-                    imagery = _dim_score(scores_data.get(
-                        "reasoning_quality", scores_data.get("imagery", result.data.get("imagery", 0.0))
-                    ))
-                    completeness = _dim_score(scores_data.get(
-                        "knowledge_coverage", scores_data.get("completeness", result.data.get("completeness", 0.0))
-                    ))
-                    originality = _dim_score(scores_data.get(
-                        "knowledge_integration", scores_data.get("originality", result.data.get("originality", 0.0))
-                    ))
+                    accuracy = _dim_score(
+                        scores_data.get(
+                            "concept_accuracy",
+                            scores_data.get(
+                                "accuracy", result.data.get("accuracy", 0.0)
+                            ),
+                        )
+                    )
+                    imagery = _dim_score(
+                        scores_data.get(
+                            "reasoning_quality",
+                            scores_data.get("imagery", result.data.get("imagery", 0.0)),
+                        )
+                    )
+                    completeness = _dim_score(
+                        scores_data.get(
+                            "knowledge_coverage",
+                            scores_data.get(
+                                "completeness", result.data.get("completeness", 0.0)
+                            ),
+                        )
+                    )
+                    originality = _dim_score(
+                        scores_data.get(
+                            "knowledge_integration",
+                            scores_data.get(
+                                "originality", result.data.get("originality", 0.0)
+                            ),
+                        )
+                    )
                 else:
                     accuracy = result.data.get("accuracy", 0.0)
                     imagery = result.data.get("imagery", 0.0)
@@ -4103,7 +4127,9 @@ class AgentService:
                 from memory.temporal.fsrs_manager import get_rating_from_score
 
                 # Normalize 0-12 AutoSCORE to 0-100 for FSRS rating mapping
-                score_normalized = (total_score / 12.0) * 100.0 if total_score > 0 else 0.0
+                score_normalized = (
+                    (total_score / 12.0) * 100.0 if total_score > 0 else 0.0
+                )
                 grade = get_rating_from_score(score_normalized)
                 concept_id = node_id  # Use node_id as concept_id
                 engine = get_mastery_engine()  # Uses fusion-enabled singleton

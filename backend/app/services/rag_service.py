@@ -18,18 +18,20 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-logger = logging.getLogger(__name__)
+import structlog
+
+from app.core.decision_tracker import log_decision
+
+logger = structlog.get_logger(__name__)
 
 # ============================================================
 # Path Configuration for agentic_rag import
 # ✅ Verified: backend needs src/ in sys.path for agentic_rag
 # ============================================================
 
-# Add src/ to sys.path if not already present
-_project_root = Path(
-    __file__
-).parent.parent.parent.parent  # backend/app/services/ -> project root
-_src_path = str(_project_root / "src")
+# Add backend/lib to sys.path for agentic_rag imports
+_project_root = Path(__file__).parent.parent.parent  # backend/app/services/ -> backend/
+_src_path = str(_project_root / "lib")
 if _src_path not in sys.path:
     sys.path.insert(0, _src_path)
     logger.debug(f"RAGService: Added {_src_path} to sys.path")
@@ -258,6 +260,12 @@ class RAGService:
         [Source: Story 1.9 Task 6 — retrieval scope isolation]
         """
         if not LANGGRAPH_AVAILABLE:
+            log_decision(
+                function="RAGService.query",
+                input_summary={"query": query[:80]},
+                output="unavailable",
+                reason=f"LangGraph not available: {_IMPORT_ERROR}",
+            )
             raise RAGUnavailableError(
                 f"LangGraph not available. Cannot execute RAG query. "
                 f"Error: {_IMPORT_ERROR}"

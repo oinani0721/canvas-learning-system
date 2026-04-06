@@ -22,9 +22,11 @@ import json
 import logging
 import time
 from pathlib import Path
+
+import structlog
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # 6-9 M1 fix: structlog import with fallback to standard logging
 try:

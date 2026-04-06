@@ -20,12 +20,14 @@ Features:
 import asyncio
 import logging
 import re
+
+import structlog
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 # Standard logger for backward compatibility
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ✅ Verified from ADR-010:77-100 (structlog get_logger)
 # 6-9 M1 fix: structlog import with fallback to standard logging

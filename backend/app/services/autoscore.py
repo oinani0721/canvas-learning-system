@@ -17,13 +17,15 @@ Majority vote + low-confidence detection per dimension.
 import json
 import logging
 import statistics
+
+import structlog
 from typing import Any, Dict, List, Optional
 
 from app.middleware.prompt_injection_guard import check_input
 from app.models.exam_models import AutoScoreResult, RubricDimension
 from app.services.prompt_registry import get_prompt_registry
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Rubric dimension names
 RUBRIC_DIMENSIONS = [

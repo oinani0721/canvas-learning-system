@@ -16,6 +16,8 @@ Neo4j state without duplicating data.
 import logging
 from datetime import datetime, timezone
 
+import structlog
+
 from neo4j import AsyncDriver, AsyncGraphDatabase
 
 from app.config import get_settings
@@ -26,7 +28,7 @@ from app.models.sync_models import (
     SyncOperationResult,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SyncService:

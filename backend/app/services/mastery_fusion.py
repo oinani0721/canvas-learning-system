@@ -19,6 +19,8 @@ Phase 2+: Beta-Bayesian fusion (architecture reserved, not implemented here).
 
 import logging
 import math
+
+import structlog
 from typing import Dict, List, Optional
 
 from app.models.mastery_models import (
@@ -28,7 +30,7 @@ from app.models.mastery_models import (
 )
 from app.services.signal_registry import SignalRegistry
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class MasteryFusionEngine:

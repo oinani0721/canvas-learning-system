@@ -16,9 +16,11 @@ Callers:
 import asyncio
 import logging
 from dataclasses import dataclass, field
+
+import structlog
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 INHERITANCE_CHAR_BUDGET = 800
 MAX_INHERITED_NEIGHBORS = 2

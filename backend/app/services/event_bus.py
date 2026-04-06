@@ -23,6 +23,8 @@ import asyncio
 import json
 import logging
 import time
+
+import structlog
 from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,9 +35,10 @@ from app.models.canvas_events import (
     LearningEvent,
     LearningEventType,
 )
+from app.core.decision_tracker import log_decision
 from app.utils.circuit_breaker import CircuitBreaker
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Type alias for async event handlers
 EventHandler = Callable[[LearningEvent], Coroutine[Any, Any, None]]
@@ -190,6 +193,13 @@ class EventBus:
         )
 
         tier = event.tier
+
+        log_decision(
+            function="EventBus.publish",
+            input_summary={"event_type": event.event_type.value, "tier": tier.value},
+            output=f"dispatch_tier{tier.value}",
+            reason=f"{len(handlers)} handlers, event_id={event.event_id[:8]}",
+        )
 
         if tier == EventTier.TIER_1_CRITICAL:
             await self._dispatch_tier1(event, handlers)

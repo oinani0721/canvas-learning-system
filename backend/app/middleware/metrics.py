@@ -107,6 +107,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         # ✅ Verified from ADR-010:77-100 (structlog contextvars bind)
         request_id = request.headers.get("X-Request-ID", str(id(request)))
         structlog.contextvars.bind_contextvars(request_id=request_id)
+        request.state.request_id = request_id
 
         logger.debug(
             "request.started", method=method, path=request.url.path, endpoint=endpoint

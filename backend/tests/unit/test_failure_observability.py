@@ -467,3 +467,63 @@ class TestResetCounters:
         reset_counters()
         assert get_edge_sync_failures() == 0
         assert get_dual_write_failures() == 0
+
+
+# ============================================================================
+# G-TRACE-02: request_id propagation to JSONL dead-letter files
+# ============================================================================
+
+
+class TestDeadLetterRequestId:
+    """Tests for request_id propagation to JSONL dead-letter files."""
+
+    def test_write_dead_letter_with_request_id(self, tmp_path):
+        """write_dead_letter includes request_id in JSONL when provided."""
+        dl_path = tmp_path / "test.jsonl"
+        write_dead_letter(
+            dl_path,
+            "edge_sync",
+            "ConnectionRefused",
+            edge_id="e1",
+            request_id="req-abc-123",
+        )
+        entry = json.loads(dl_path.read_text(encoding="utf-8").strip())
+        assert entry["request_id"] == "req-abc-123"
+
+    def test_write_dead_letter_without_request_id_omits_field(self, tmp_path):
+        """write_dead_letter omits request_id from JSONL when not provided (backward compat)."""
+        dl_path = tmp_path / "test.jsonl"
+        write_dead_letter(dl_path, "edge_sync", "err", edge_id="e1")
+        entry = json.loads(dl_path.read_text(encoding="utf-8").strip())
+        assert "request_id" not in entry
+
+    def test_dead_letter_store_includes_request_id(self, tmp_path):
+        """DeadLetterStore.store() propagates request_id from EpisodeTask to JSONL."""
+        from app.services.episode_worker import DeadLetterStore, EpisodeTask
+
+        store = DeadLetterStore(str(tmp_path / "dl.jsonl"))
+        task = EpisodeTask(
+            name="test_episode",
+            episode_body="Student learned calculus",
+            group_id="math",
+            source_description="test",
+            request_id="req-xyz-789",
+        )
+        store.store(task, RuntimeError("boom"))
+        entry = json.loads((tmp_path / "dl.jsonl").read_text(encoding="utf-8").strip())
+        assert entry["request_id"] == "req-xyz-789"
+
+    def test_dead_letter_store_omits_request_id_when_none(self, tmp_path):
+        """DeadLetterStore.store() omits request_id when EpisodeTask has None."""
+        from app.services.episode_worker import DeadLetterStore, EpisodeTask
+
+        store = DeadLetterStore(str(tmp_path / "dl.jsonl"))
+        task = EpisodeTask(
+            name="test",
+            episode_body="body",
+            group_id="g1",
+            source_description="test",
+        )
+        store.store(task, RuntimeError("err"))
+        entry = json.loads((tmp_path / "dl.jsonl").read_text(encoding="utf-8").strip())
+        assert "request_id" not in entry

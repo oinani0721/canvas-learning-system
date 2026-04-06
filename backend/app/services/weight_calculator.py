@@ -11,10 +11,12 @@ Story: 24.3 - Intelligent Weight Algorithm for Targeted Review
 
 import logging
 from dataclasses import dataclass
+
+import structlog
 from datetime import datetime
 from typing import Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass

@@ -63,6 +63,8 @@ import asyncio
 import json
 import logging
 import random
+
+import structlog
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -117,7 +119,7 @@ if TYPE_CHECKING:
     from app.services.background_task_manager import BackgroundTaskManager
     from app.services.canvas_service import CanvasService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ReviewStatus(str, Enum):

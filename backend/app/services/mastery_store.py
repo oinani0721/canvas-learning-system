@@ -14,13 +14,15 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
+
+import structlog
 from typing import List, Optional
 
 from app.config import DEFAULT_GROUP_ID
 from app.models.mastery_models import CalibrationRecord
 from app.models.mastery_state import ConceptState
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class MasteryStore:

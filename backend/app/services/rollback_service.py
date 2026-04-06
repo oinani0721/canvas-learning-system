@@ -15,13 +15,15 @@ Created: 2025-12-04
 
 import logging
 from datetime import datetime
+
+import structlog
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # ✅ Verified from Context7:/pydantic/pydantic (topic: BaseModel)
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class RollbackServiceConfig(BaseModel):

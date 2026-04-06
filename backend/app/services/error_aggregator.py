@@ -22,6 +22,8 @@ Time-window aggregation: 24h / 7d / 30d sliding windows via SQLite queries.
 import asyncio
 import logging
 import traceback
+
+import structlog
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -29,7 +31,7 @@ import aiosqlite
 
 from app.models.qa_models import ErrorAggregation, ErrorCategoryCounts
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Error Classification Rules

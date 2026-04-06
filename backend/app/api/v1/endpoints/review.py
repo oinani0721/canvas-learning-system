@@ -57,8 +57,8 @@ from app.models import (
 
 # ✅ Add src directory to Python path for EbbinghausReviewScheduler import
 # [Source: Plan - P0 Task #1: Connect review API to EbbinghausScheduler]
-_project_root = Path(__file__).parent.parent.parent.parent.parent
-_src_path = _project_root / "src"
+_project_root = Path(__file__).parent.parent.parent.parent
+_src_path = _project_root / "lib"
 if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 

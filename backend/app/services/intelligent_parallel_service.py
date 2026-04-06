@@ -16,6 +16,8 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
+
+import structlog
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional
 
@@ -49,7 +51,7 @@ from app.models.intelligent_parallel_models import (
 )
 from app.services.websocket_manager import ConnectionManager, get_connection_manager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class IntelligentParallelService:

@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
+# Add backend/lib to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lib"))
 
 from memory.temporal.fsrs_manager import (
     FSRS_AVAILABLE,

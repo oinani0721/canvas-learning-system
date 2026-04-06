@@ -21,6 +21,8 @@ Usage:
 import hashlib
 import logging
 import re
+
+import structlog
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,7 +30,7 @@ from typing import Dict, List, Optional
 
 from app.core.exceptions import PromptLoadError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Default prompts directory — relative to this file's location
 _DEFAULT_PROMPTS_DIR = Path(__file__).parent.parent / "prompts"

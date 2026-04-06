@@ -13,6 +13,8 @@ Uses LangChain's create_react_agent with 4 tools:
 
 import logging
 from datetime import datetime
+
+import structlog
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -21,7 +23,7 @@ from langchain_core.tools import tool
 
 from app.config import DEFAULT_GROUP_ID
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

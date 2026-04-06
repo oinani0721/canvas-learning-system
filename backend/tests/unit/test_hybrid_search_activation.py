@@ -14,12 +14,12 @@ import inspect
 
 import pytest
 
-from src.agentic_rag.clients.lancedb_client import (
+from agentic_rag.clients.lancedb_client import (
     JIEBA_AVAILABLE,
     LanceDBClient,
     _jieba_tokenize,
 )
-from src.agentic_rag.config import DEFAULT_CONFIG
+from agentic_rag.config import DEFAULT_CONFIG
 
 
 # ---------------------------------------------------------------------------

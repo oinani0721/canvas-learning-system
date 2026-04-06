@@ -21,12 +21,14 @@ Usage:
 import asyncio
 import logging
 import re
+
+import structlog
 import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Default commands directory — project root / .claude / commands
 _CONFIG_DIR = Path(__file__).parent.parent  # backend/app/

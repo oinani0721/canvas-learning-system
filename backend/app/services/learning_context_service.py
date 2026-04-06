@@ -17,9 +17,11 @@ Data sources:
 import asyncio
 import logging
 from datetime import datetime
+
+import structlog
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Token budget: Tier 1 + Tier 2 combined must stay under 4K tokens.
 # Conservative estimate: 1 token ~ 2 chars for mixed Chinese/English.

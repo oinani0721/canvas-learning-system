@@ -20,6 +20,8 @@ import base64
 import json
 import logging
 import math
+
+import structlog
 import mimetypes
 import uuid
 from datetime import datetime
@@ -47,7 +49,7 @@ from app.models.multimodal_schemas import (
     PaginationMeta,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Supported MIME types per media type
 SUPPORTED_MIME_TYPES = {
@@ -603,7 +605,7 @@ class MultimodalService:
 
         if self.multimodal_store:
             try:
-                from src.agentic_rag.models.multimodal_content import (
+                from agentic_rag.models.multimodal_content import (
                     MediaType,
                     MultimodalContent,
                     MultimodalMetadata,
@@ -1196,7 +1198,7 @@ class MultimodalService:
             try:
                 store_media_type = None
                 if media_type:
-                    from src.agentic_rag.models.multimodal_content import MediaType
+                    from agentic_rag.models.multimodal_content import MediaType
 
                     store_media_type = MediaType(media_type.value)
 
@@ -1312,7 +1314,7 @@ class MultimodalService:
                     # Convert media types
                     store_media_types = None
                     if request.media_types:
-                        from src.agentic_rag.models.multimodal_content import MediaType
+                        from agentic_rag.models.multimodal_content import MediaType
 
                         store_media_types = [
                             MediaType(mt.value) for mt in request.media_types
@@ -1398,7 +1400,7 @@ class MultimodalService:
             768-dimensional embedding vector, or None if failed
         """
         try:
-            from src.agentic_rag.embedding.embedding_service import (
+            from agentic_rag.embedding.embedding_service import (
                 get_embedding_service,
             )
         except ImportError:
@@ -1468,7 +1470,7 @@ class MultimodalService:
         if self.multimodal_store:
             try:
                 if media_type:
-                    from src.agentic_rag.models.multimodal_content import MediaType
+                    from agentic_rag.models.multimodal_content import MediaType
 
                     contents = await self.multimodal_store.list_by_type(
                         media_type=MediaType(media_type.value),
@@ -1492,7 +1494,7 @@ class MultimodalService:
                         )
                 else:
                     # Aggregate all types
-                    from src.agentic_rag.models.multimodal_content import MediaType
+                    from agentic_rag.models.multimodal_content import MediaType
 
                     for mt in MediaType:
                         try:

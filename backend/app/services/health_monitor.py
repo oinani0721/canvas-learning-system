@@ -31,6 +31,8 @@ Overall status:
 import asyncio
 import logging
 import time
+
+import structlog
 from typing import Optional
 
 from app.models.qa_models import (
@@ -39,7 +41,7 @@ from app.models.qa_models import (
     PipelineHealthStatus,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Cache TTL in seconds
 _CACHE_TTL_SECONDS = 30

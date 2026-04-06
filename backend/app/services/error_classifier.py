@@ -14,6 +14,8 @@
 import json
 import logging
 import uuid
+
+import structlog
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -26,7 +28,7 @@ from app.graphiti.entity_types import (
     RemedyStrategy,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

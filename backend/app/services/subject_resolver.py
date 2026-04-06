@@ -18,6 +18,8 @@ import fnmatch
 import logging
 import os
 import re
+
+import structlog
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -30,7 +32,7 @@ from app.models.metadata_models import (
     SubjectMappingRule,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SubjectResolver:

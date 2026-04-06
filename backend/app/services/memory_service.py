@@ -39,6 +39,8 @@ import json
 import logging
 import time
 import uuid
+
+import structlog
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -47,6 +49,7 @@ from cachetools import TTLCache
 
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
 from app.config import DEFAULT_GROUP_ID, settings
+from app.core.decision_tracker import log_decision
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 from app.core.subject_config import (
     build_group_id,
@@ -56,7 +59,7 @@ from app.core.subject_config import (
 from app.services.episode_worker import EpisodeTask, get_episode_worker
 from app.graphiti.entity_types import CANVAS_ENTITY_TYPES, CANVAS_EDGE_TYPES
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Story 31.5: Cache TTL for score history queries (30 seconds)
 SCORE_HISTORY_CACHE_TTL = 30
@@ -326,6 +329,9 @@ class MemoryService:
             logger.debug("Episode worker not ready, skipping enqueue")
             return False
 
+        # Capture request_id from structlog contextvars at enqueue time,
+        # since the worker processes tasks in a separate coroutine context.
+        _ctx = structlog.contextvars.get_contextvars()
         task = EpisodeTask(
             name=name,
             episode_body=episode_body,
@@ -333,6 +339,7 @@ class MemoryService:
             source_description=source_description,
             entity_types=entity_types,
             edge_types=edge_types,
+            request_id=_ctx.get("request_id"),
         )
         return worker.enqueue(task)
 
@@ -430,16 +437,26 @@ class MemoryService:
                 None,
             )
             if existing_idx is not None:
-                logger.info(
-                    f"Skipped duplicate episode: {episode_id} (already exists at idx={existing_idx})"
+                log_decision(
+                    function="MemoryService.record_learning_event",
+                    input_summary={"concept": concept, "episode_id": episode_id},
+                    output="skipped_duplicate",
+                    reason=f"episode already exists at idx={existing_idx}, preserving FSRS history",
                 )
             else:
                 self._episodes.append(episode)
                 # Fix C5: Enforce MAX_EPISODE_CACHE to prevent unbounded memory growth
                 if len(self._episodes) > self.MAX_EPISODE_CACHE:
                     self._episodes = self._episodes[-self.MAX_EPISODE_CACHE :]
-                logger.info(
-                    f"Recorded learning event: {episode_id} (subject={inferred_subject}, group_id={group_id})"
+                log_decision(
+                    function="MemoryService.record_learning_event",
+                    input_summary={
+                        "concept": concept,
+                        "agent": agent_type,
+                        "canvas": canvas_name,
+                    },
+                    output=episode_id,
+                    reason=f"new episode recorded, subject={inferred_subject}, group_id={group_id}",
                 )
 
             # Phase 2: Enqueue to GraphitiEpisodeWorker for real add_episode
@@ -1237,7 +1254,9 @@ class MemoryService:
         return entity_id
 
     # Search config recipe mapping: string name → SearchConfig object
-    _SEARCH_RECIPES: Dict[str, Any] = {}  # populated lazily to avoid import-time side effects
+    _SEARCH_RECIPES: Dict[
+        str, Any
+    ] = {}  # populated lazily to avoid import-time side effects
 
     @classmethod
     def _get_search_recipes(cls) -> Dict[str, Any]:
@@ -1251,6 +1270,7 @@ class MemoryService:
                     EDGE_HYBRID_SEARCH_RRF,
                     NODE_HYBRID_SEARCH_RRF,
                 )
+
                 cls._SEARCH_RECIPES = {
                     "combined_rrf": COMBINED_HYBRID_SEARCH_RRF,
                     "combined_cross_encoder": COMBINED_HYBRID_SEARCH_CROSS_ENCODER,
@@ -1303,6 +1323,7 @@ class MemoryService:
         try:
             # Override the limit in config
             from graphiti_core.search.search_config import SearchConfig
+
             # Create a copy with updated limit
             config_with_limit = config_obj.model_copy(update={"limit": limit})
 
@@ -1451,6 +1472,7 @@ class MemoryService:
         """
         try:
             from app.services.mastery_engine import get_mastery_engine
+
             engine = get_mastery_engine()
         except (ImportError, RuntimeError, Exception) as e:
             logger.debug(f"MasteryEngine unavailable for FSRS injection: {e}")
@@ -1465,6 +1487,7 @@ class MemoryService:
                 # MasteryEngine.get_retrievability needs a ConceptState with fsrs_card_data.
                 # Without persisted card data, we skip — no crash.
                 from app.models.mastery_state import ConceptState
+
                 # Attempt to find existing concept state via engine's known concepts
                 # This is best-effort — engine may not have this concept loaded
                 concept_state = None
@@ -1567,7 +1590,9 @@ class MemoryService:
 
         # Tier 1: Graphiti semantic search via search_()
         graphiti_hits = await self._search_graphiti(
-            query, group_id, effective_limit,
+            query,
+            group_id,
+            effective_limit,
             search_config=search_config,
             search_filter=search_filter,
         )

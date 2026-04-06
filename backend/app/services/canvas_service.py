@@ -21,6 +21,8 @@ import json
 import logging
 import time
 import uuid
+
+import structlog
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -38,6 +40,7 @@ from app.core.exceptions import (
     NodeNotFoundException,
     ValidationError,
 )
+from app.core.decision_tracker import log_decision
 from app.core.failure_counters import (
     EDGE_SYNC_DEAD_LETTER_PATH,
     increment_edge_sync_failures,
@@ -48,7 +51,7 @@ from app.models.canvas_events import CanvasEventContext, CanvasEventType
 if TYPE_CHECKING:
     from app.services.memory_service import MemoryService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class CanvasService:
@@ -513,6 +516,8 @@ class CanvasService:
                 f"error={type(e).__name__}: {e}, "
                 f"total_failures={count}"
             )
+            # Auto-read request_id from structlog contextvars (propagated via asyncio.create_task)
+            _ctx = structlog.contextvars.get_contextvars()
             write_dead_letter(
                 EDGE_SYNC_DEAD_LETTER_PATH,
                 "edge_sync",
@@ -520,6 +525,7 @@ class CanvasService:
                 edge_id=edge_id,
                 canvas_name=canvas_path,
                 retry_count=3,  # total attempts: 1 initial + 2 retries (stop_after_attempt=3)
+                request_id=_ctx.get("request_id"),
             )
             return None  # Fire-and-forget: don't raise
 
@@ -603,10 +609,20 @@ class CanvasService:
         elapsed_ms = (time.time() - start_time) * 1000
 
         logger.info(
-            f"Edge bulk sync completed for {canvas_name}: "
-            f"total={total_edges}, synced={synced_count}, "
-            f"failed={failed_count}, skipped={skipped_count}, "
-            f"time={elapsed_ms:.1f}ms"
+            "edge_bulk_sync_completed",
+            canvas=canvas_name,
+            total=total_edges,
+            synced=synced_count,
+            failed=failed_count,
+            skipped=skipped_count,
+            duration_ms=round(elapsed_ms, 1),
+        )
+
+        log_decision(
+            function="CanvasService.sync_all_edges_to_neo4j",
+            input_summary={"canvas": canvas_name, "total_edges": total_edges},
+            output=f"synced={synced_count}, failed={failed_count}, skipped={skipped_count}",
+            reason=f"batch sync completed in {elapsed_ms:.0f}ms",
         )
 
         return {
@@ -753,6 +769,16 @@ class CanvasService:
 
         canvas_data["nodes"].append(new_node)
         await self.write_canvas(canvas_name, canvas_data)
+
+        log_decision(
+            function="CanvasService.add_node",
+            input_summary={
+                "canvas": canvas_name,
+                "node_type": node_data.get("type", "text"),
+            },
+            output=node_id,
+            reason=f"created node {node_id} in {canvas_name}",
+        )
 
         # Story 30.5 AC-30.5.1: Trigger node_created memory event (fire-and-forget)
         await self._trigger_memory_event(

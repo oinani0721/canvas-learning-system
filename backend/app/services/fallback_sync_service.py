@@ -12,6 +12,8 @@ import asyncio
 import json
 import logging
 import threading
+
+import structlog
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -20,7 +22,7 @@ from typing import Any, Dict, List, Optional
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Directory paths
 _BACKEND_DIR = Path(__file__).parent.parent.parent  # backend/

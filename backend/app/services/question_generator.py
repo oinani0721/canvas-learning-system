@@ -21,9 +21,12 @@ import asyncio
 import json
 import logging
 import re
+
+import structlog
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
+from app.core.decision_tracker import log_decision
 from app.models.exam_models import (
     ACPData,
     ExamMode,
@@ -31,7 +34,7 @@ from app.models.exam_models import (
     QuestionGenerationResult,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 QuestionType = Literal["breakthrough", "verification", "application"]
 
@@ -186,10 +189,14 @@ class QuestionGenerator:
         priorities.sort(key=lambda p: p.priority_score, reverse=True)
         selected = priorities[0]
 
-        logger.info(
-            f"[Story 6.3] Target node selected: {selected.node_id} "
-            f"priority={selected.priority_score} p_mastery={selected.p_mastery} "
-            f"R={selected.retrievability} kg={selected.kg_relevance}"
+        log_decision(
+            function="QuestionGenerator.select_target_node",
+            input_summary={
+                "candidates": len(priorities),
+                "top_score": round(selected.priority_score, 3),
+            },
+            output=selected.node_id,
+            reason=f"p_mastery={selected.p_mastery}, R={selected.retrievability}, kg={selected.kg_relevance}",
         )
         return selected
 

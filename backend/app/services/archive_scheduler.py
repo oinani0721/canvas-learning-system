@@ -11,9 +11,11 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+
+import structlog
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Default check interval: 24 hours
 DEFAULT_CHECK_INTERVAL_SECONDS = 86400  # 24 * 60 * 60

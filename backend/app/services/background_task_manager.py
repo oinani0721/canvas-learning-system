@@ -13,6 +13,8 @@ Features:
 import asyncio
 import logging
 import uuid
+
+import structlog
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -21,7 +23,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from ..config import settings
 from ..core.exceptions import TaskNotFoundError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class TaskStatus(str, Enum):

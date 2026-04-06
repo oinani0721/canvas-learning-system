@@ -26,6 +26,7 @@ from typing import Optional
 from uuid import uuid4
 
 import aiosqlite
+import structlog
 
 from app.models.qa_models import (
     ExtractionRecord,
@@ -34,7 +35,7 @@ from app.models.qa_models import (
     TypeStats,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SQL Statements

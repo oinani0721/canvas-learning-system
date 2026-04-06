@@ -14,7 +14,9 @@ import asyncio
 import logging
 from typing import Dict, List, Set
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 def compute_tag_jaccard(tags_a: Set[str], tags_b: Set[str]) -> float:

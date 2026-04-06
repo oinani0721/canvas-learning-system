@@ -32,10 +32,14 @@ Created: 2025-12-13
 
 import logging
 from dataclasses import dataclass
+
+import structlog
+
+from app.core.decision_tracker import log_decision
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AnswerQuality(str, Enum):
@@ -231,6 +235,15 @@ class AgentSelector:
             key = (context.answer_quality, context.concept_type)
             if key in self.QUALITY_CONCEPT_MAP:
                 agent = self.QUALITY_CONCEPT_MAP[key]
+                log_decision(
+                    function="AgentSelector.select_agent",
+                    input_summary={
+                        "quality": context.answer_quality.value,
+                        "concept_type": context.concept_type.value,
+                    },
+                    output=agent.value,
+                    reason="精确匹配 quality+concept_type matrix",
+                )
                 return SelectionResult(
                     agent=agent,
                     reason=f"基于回答质量({context.answer_quality.value})和概念类型({context.concept_type.value})精确匹配",
@@ -241,6 +254,15 @@ class AgentSelector:
         # 2. 基于回答质量的默认选择
         if context.answer_quality in self.QUALITY_DEFAULT_MAP:
             agent = self.QUALITY_DEFAULT_MAP[context.answer_quality]
+            log_decision(
+                function="AgentSelector.select_agent",
+                input_summary={
+                    "quality": context.answer_quality.value,
+                    "concept_type": str(context.concept_type),
+                },
+                output=agent.value,
+                reason="quality-only default, no concept_type match",
+            )
             return SelectionResult(
                 agent=agent,
                 reason=f"基于回答质量({context.answer_quality.value})的默认选择",
@@ -249,6 +271,15 @@ class AgentSelector:
             )
 
         # 3. 兜底选择
+        log_decision(
+            function="AgentSelector.select_agent",
+            input_summary={
+                "quality": context.answer_quality.value,
+                "concept_type": str(context.concept_type),
+            },
+            output="BASIC_DECOMPOSITION",
+            reason="默认兜底选择, no matrix match",
+        )
         return SelectionResult(
             agent=GuidanceAgent.BASIC_DECOMPOSITION,
             reason="默认兜底选择",
