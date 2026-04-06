@@ -45,6 +45,21 @@ Tauri 2 + React + TypeScript + FastAPI + Neo4j + LanceDB 桌面学习应用。
 - G-FAKE: 42+ 假命名函数（名称含 graphiti 但实际调 Neo4j）
 - G-PIPE: 6 条断裂管道（已实现但无调用方）
 
+## 风格参考文件
+
+修改代码前先读对应的参考文件：
+- 后端 service: `backend/app/services/rag_service.py`
+- 后端 router: `backend/app/api/v1/endpoints/canvas.py`
+- 前端 state: `frontend/src/stores/chat-store.ts`
+- 前端组件: `frontend/src/components/ChatPanel.tsx`
+
+## Bug 修复规则
+
+- 复杂 bug（多文件）必须先分析根因，用户确认方案后再修
+- 禁止一次修复混合多个不相关变更
+- 修复后必须跑测试：`.venv/bin/pytest tests/ -x -q`
+- 批注追踪清单: `docs/project-status/annotation-tracker.md`
+
 ## 项目文档
 
 - 架构: `docs/architecture.md`
@@ -52,3 +67,7 @@ Tauri 2 + React + TypeScript + FastAPI + Neo4j + LanceDB 桌面学习应用。
 - 决策索引: `_decisions/decision-log.md`
 - 前端组件: `docs/component-inventory-frontend.md`
 - 后端 API: `docs/api-contracts-backend.md`
+- **Gap Analysis**: `docs/project-status/gap-analysis.md`（99 FR + 用户批注）
+- **批注追踪**: `docs/project-status/annotation-tracker.md`（108 条分类追踪）
+- **进度报告**: `docs/project-status/s40-progress-report.md`
+- **OpenSpec**: `openspec/config.yaml`

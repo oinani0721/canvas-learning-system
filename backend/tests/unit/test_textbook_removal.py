@@ -118,8 +118,8 @@ class TestRAGChannelCount:
     def test_agentic_rag_config_no_textbook_weight(self):
         """DEFAULT_SOURCE_WEIGHTS in config.py must not include textbook."""
         # Add src to path for import
-        project_root = Path(__file__).parent.parent.parent.parent
-        src_path = str(project_root / "src")
+        project_root = Path(__file__).parent.parent.parent
+        src_path = str(project_root / "lib")
         if src_path not in sys.path:
             sys.path.insert(0, src_path)
 
@@ -132,8 +132,8 @@ class TestRAGChannelCount:
 
     def test_agentic_rag_nodes_no_textbook_weight(self):
         """DEFAULT_SOURCE_WEIGHTS in nodes.py must not include textbook."""
-        project_root = Path(__file__).parent.parent.parent.parent
-        src_path = str(project_root / "src")
+        project_root = Path(__file__).parent.parent.parent
+        src_path = str(project_root / "lib")
         if src_path not in sys.path:
             sys.path.insert(0, src_path)
 
