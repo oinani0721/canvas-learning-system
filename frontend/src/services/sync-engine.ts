@@ -219,14 +219,10 @@ export class SyncEngine {
         // If all failed, treat as batch failure
         if (response.syncedCount === 0 && response.failedCount > 0) {
           allSuccess = false;
-        } else {
-          // Mark all as synced (even if some payload-level failures)
-          for (const entry of groupEntries) {
-            if (entry.id) {
-              await db.sync_outbox.update(entry.id, { syncedAt });
-            }
-          }
         }
+        // FR-KG-04 fix: Removed else-branch that overwrote per-operation
+        // success tracking (lines 200-210) by marking ALL entries as synced.
+        // Failed operations now stay in outbox for retry on next poll cycle.
       } catch (err) {
         if (err instanceof SyncNetworkError) {
           console.warn('[SyncEngine] Network error:', err.message);
