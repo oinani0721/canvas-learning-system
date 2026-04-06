@@ -250,16 +250,24 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   updateNode: async (id, changes) => {
-    await db.canvas_nodes.update(id, { ...changes, updatedAt: now() });
-    await writeOutbox('node', id, 'update', { id, ...changes });
-    // Update board's updatedAt
+    // FR-KG-04 fix: Read node first to get canvasId for outbox payload.
+    // sync-engine.ts groups by payload.canvasId; missing canvasId falls back to "default"
+    // and corrupts cross-canvas isolation in Neo4j.
     const node = await db.canvas_nodes.get(id);
+    await db.canvas_nodes.update(id, { ...changes, updatedAt: now() });
+    await writeOutbox('node', id, 'update', { id, canvasId: node?.canvasId, ...changes });
+    // Update board's updatedAt
     if (node) {
       await db.canvas_boards.update(node.canvasId, { updatedAt: now() });
     }
   },
 
   deleteNodes: async (ids) => {
+    // FR-KG-04 fix: Capture canvasId before deletion so outbox grouping is stable.
+    const nodes = await db.canvas_nodes.bulkGet(ids);
+    const nodeCanvas = new Map(
+      nodes.filter((n): n is CanvasNode => Boolean(n)).map((n) => [n.id, n.canvasId]),
+    );
     // Delete associated edges first
     for (const nodeId of ids) {
       const edges = await db.canvas_edges
@@ -268,13 +276,18 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         .toArray();
       for (const edge of edges) {
         await db.canvas_edges.delete(edge.id);
-        await writeOutbox('edge', edge.id, 'delete', { id: edge.id });
+        await writeOutbox('edge', edge.id, 'delete', {
+          id: edge.id,
+          canvasId: edge.canvasId,
+          sourceNodeId: edge.sourceNodeId,
+          targetNodeId: edge.targetNodeId,
+        });
       }
     }
     // Delete nodes
     await db.canvas_nodes.bulkDelete(ids);
     for (const id of ids) {
-      await writeOutbox('node', id, 'delete', { id });
+      await writeOutbox('node', id, 'delete', { id, canvasId: nodeCanvas.get(id) });
     }
     const state = get();
     if (state.selectedNodeId && ids.includes(state.selectedNodeId)) {
@@ -302,14 +315,40 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   updateEdge: async (id, changes) => {
+    // FR-KG-04 fix: Read edge first so outbox payload includes canvasId, sourceNodeId,
+    // and targetNodeId. Backend _upsert_edge needs both endpoints; without them the
+    // MATCH (source)(target) returns no record and the update silently fails.
+    const edge = await db.canvas_edges.get(id);
+    if (!edge) {
+      throw new Error(`updateEdge: edge ${id} not found in Dexie`);
+    }
     await db.canvas_edges.update(id, { ...changes, updatedAt: now() });
-    await writeOutbox('edge', id, 'update', { id, ...changes });
+    await writeOutbox('edge', id, 'update', {
+      id,
+      canvasId: edge.canvasId,
+      sourceNodeId: edge.sourceNodeId,
+      targetNodeId: edge.targetNodeId,
+      ...changes,
+    });
   },
 
   deleteEdges: async (ids) => {
+    // FR-KG-04 fix: Capture edge metadata before deletion for outbox payload.
+    const edges = await db.canvas_edges.bulkGet(ids);
+    const edgeMeta = new Map(
+      edges
+        .filter((e): e is CanvasEdge => Boolean(e))
+        .map((e) => [e.id, { canvasId: e.canvasId, sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId }]),
+    );
     await db.canvas_edges.bulkDelete(ids);
     for (const id of ids) {
-      await writeOutbox('edge', id, 'delete', { id });
+      const meta = edgeMeta.get(id);
+      await writeOutbox('edge', id, 'delete', {
+        id,
+        canvasId: meta?.canvasId,
+        sourceNodeId: meta?.sourceNodeId,
+        targetNodeId: meta?.targetNodeId,
+      });
     }
   },
 
