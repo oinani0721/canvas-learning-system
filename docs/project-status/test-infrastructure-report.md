@@ -95,13 +95,13 @@ Deep Explore 发现两个根本性问题：
 
 ### 1. 自改进飞轮（Self-Improving Flywheel）
 > 博主原话："只要有报错，查 log，看看生产环境用户遇到了什么 bug，它自动的把这些 bug 写成测试用例，然后在我的本地环境下复现...整个这个东西是一个闭环"
-
+User：自改进飞轮怎么进行自动触发？
 我们的状况：有 135 条错误日志（62 bug + 8 sync失败 + 65 死信），但从未转化为测试。缺的只是 `generate_regression_tests.py` 这一步。**已实现**。
 
 ### 2. Decision ID 追踪系统
 > 博主原话："决策ID的追踪系统 logging的这个系统...可观测性是什么意思，把这十个小朋友每个人编上号，然后把他们的行为模式也编上号"
 > 博主数据：12万行代码中 30% 是可观测性相关
-
+User：我们对于我们已有的代码都可以追踪吗？然后用我们的openspec 的时候开发新的代码和技术框架的时候，又能保证spec 和代码相互追踪，以及我们的追踪系统是怎么成立的？请你给我流程图
 我们的状况：有 request_id、BUG-ID、error_code，但 4 个 JSONL 日志没有共同 ID。**已修复**：统一 trace_id + DECN-{uuid8} Decision ID。
 
 ### 3. Smart Agent Dumb Tools
@@ -175,7 +175,7 @@ Deep Explore 发现两个根本性问题：
   ├── vulture (1s)
   └── 可观测性: structlog 自动记录 decision_id
 
-第三道（分钟级）commit/push
+第三道（分钟级）commit/push  User：我们有测试数据事gitcore 的，请问影响我们的用commit 触发测试吗？
   ├── pre-commit: ruff + pyright + spec-sync
   ├── pre-push: vitest + pytest smoke + Hypothesis(200) + Schemathesis + BDD + 真实DB
   └── Stop hook: 提醒跑 mutmut + 飞轮
@@ -219,6 +219,7 @@ Deep Explore 发现两个根本性问题：
 | 0.4 安装包 | hypothesis + schemathesis + pytest-bdd | ✅ |
 
 ### Phase 1: 激活已有设施
+User：Phase 1 这些是我们之前的设施吗？我只是要知道他们做了什么是否成熟
 
 | 步骤 | 新建文件 | 测试数 | 耗时 |
 |------|---------|--------|------|
@@ -248,10 +249,11 @@ Deep Explore 发现两个根本性问题：
 | P3 飞轮 | `generate_regression_tests.py` → 12 回归测试 | ✅ 6 passed, 5 skip, 1 xfail |
 
 **飞轮发现的真实 bug**: `POST /api/v1/canvas/nonexistent/sync-edges` 对 `CanvasNotFoundException` 返回 500 而不是 404。
-
----
+USer：飞轮什么时候，什么机制的情况下触发，以及我们的现在是所有模块都已经成功追踪了吗？然后如果我接下来用openspec 来讨论批注，生成新的代码的时候是否还能追踪。
+--
 
 ## 十、新增文件清单
+User：新增文件清单 请你用流程图来告诉我这10个测试是怎么触发的
 
 | 文件 | 类型 | 用途 |
 |------|------|------|

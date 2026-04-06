@@ -1,0 +1,31 @@
+schema: spec-driven
+context: |
+  Tech stack: Python 3.14 FastAPI + TypeScript React + Rust Tauri 2
+  Backend: backend/app/ (FastAPI + Neo4j 7691 + LanceDB + Graphiti)
+  Frontend: frontend/src/ (React + ReactFlow + Zustand + shadcn/ui)
+  Sidecar: frontend/sidecar/ (Node.js Agent SDK)
+
+  命名规范:
+  - Python: snake_case (函数/变量), PascalCase (类)
+  - TypeScript: camelCase (变量/函数), PascalCase (组件/类型)
+  - API payload: snake_case
+
+  禁止:
+  - any 类型 (TypeScript)
+  - stub 函数 (只有 pass/NotImplementedError)
+  - mock 替代 Neo4j/LanceDB 真实调用
+  - 函数名与实际行为不匹配 (DD-13)
+
+  已知问题:
+  - 42 处 graphiti 假命名 (函数名含 graphiti 实际调 Neo4j)
+  - ruff.toml 禁用了 lint (2000+ 预存违规)
+  - Tauri 桌面应用未编译，前端功能无法验证
+
+rules:
+  proposal:
+    - 先读相关文件确认现有模式，不要发明新模式
+    - 说明影响哪些文件
+    - 说明如何验证修复成功
+    - 包含回滚方式
+  specs:
+    - 用 Given/When/Then 格式写验收标准

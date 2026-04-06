@@ -1,0 +1,90 @@
+# Canvas Learning System — 7 Domain Modules (简洁版)
+
+direction: right
+
+# ═══ 用户入口 ═══
+user: User {shape: person; style.fill: "#89b4fa"}
+
+frontend: React Frontend\n(Zustand + ReactFlow) {
+  style.fill: "#313244"
+  style.stroke: "#89b4fa"
+  style.font-color: "#cdd6f4"
+  style.border-radius: 12
+}
+
+api: API Layer\n37 routers\ndependencies.py {
+  style.fill: "#313244"
+  style.stroke: "#cba6f7"
+  style.font-color: "#cdd6f4"
+  style.border-radius: 12
+}
+
+user -> frontend -> api
+
+# ═══ 7 Domain Modules ═══
+modules: 7 Domain Modules {
+  style.fill: "#11111b"
+  style.stroke: "#6c7086"
+  style.font-color: "#a6adc8"
+  style.border-radius: 16
+
+  agent: Agent\n14 services\nagent_service 5713L {
+    style.fill: "#f38ba8"
+    style.font-color: "#1e1e2e"
+    style.border-radius: 8
+    style.bold: true
+  }
+
+  exam: Exam\n9 services\nverification 2905L {
+    style.fill: "#fab387"
+    style.font-color: "#1e1e2e"
+    style.border-radius: 8
+    style.bold: true
+  }
+
+  mastery: Mastery\n6 services\nreview 2294L {
+    style.fill: "#a6e3a1"
+    style.font-color: "#1e1e2e"
+    style.border-radius: 8
+    style.bold: true
+  }
+
+  memory: Memory\n3 services\nmemory_svc 2032L {
+    style.fill: "#89dceb"
+    style.font-color: "#1e1e2e"
+    style.border-radius: 8
+    style.bold: true
+  }
+
+  canvas: Canvas\n5 services\ncanvas_svc 1097L {
+    style.fill: "#94e2d5"
+    style.font-color: "#1e1e2e"
+    style.border-radius: 8
+    style.bold: true
+  }
+
+  rag: RAG\n5 services\nrag_svc 481L {
+    style.fill: "#f5c2e7"
+    style.font-color: "#1e1e2e"
+    style.border-radius: 8
+    style.bold: true
+  }
+
+  infra: Infra\n17 services\nevent_bus + monitor {
+    style.fill: "#585b70"
+    style.font-color: "#cdd6f4"
+    style.border-radius: 8
+    style.bold: true
+  }
+}
+
+api -> modules
+
+# ═══ 外部服务 ═══
+neo4j: Neo4j\n知识图谱 {shape: cylinder; style.fill: "#45475a"; style.stroke: "#f38ba8"; style.font-color: "#cdd6f4"}
+lancedb: LanceDB\n向量搜索 {shape: cylinder; style.fill: "#45475a"; style.stroke: "#fab387"; style.font-color: "#cdd6f4"}
+ollama: Ollama\nLLM推理 {shape: hexagon; style.fill: "#45475a"; style.stroke: "#94e2d5"; style.font-color: "#cdd6f4"}
+
+modules -> neo4j: Bolt
+modules -> lancedb: File I/O
+modules -> ollama: HTTP

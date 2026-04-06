@@ -181,3 +181,27 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# ── OpenSpec active proposals (archived when complete) ──
+openspec/changes/*/
+!openspec/changes/archive/
+
+# ── Runtime data (not for version control) ──
+logs/
+*.db
+*.db-shm
+*.db-wal
+data/*.db
+data/*.jsonl
+data/lancedb/
+images/generated*
+
+# ── Personal editor/vault configs (nested Obsidian vaults) ──
+**/.obsidian/
+
+# ── Binary design artifacts (large, not source-controllable) ──
+*.pen
+
+# ── Research pack XML artifacts (generated, ~1MB each) ──
+research-pack-*.xml
+research-pack-fr-*.xml
