@@ -115,12 +115,17 @@ commit-msg:
         echo "[Spec Ref] OK."
 
 # ============================================================
-# Post-commit: Backup push
+# Post-commit: Dual-remote push
+# ─ backup → archive semantics, --no-verify (never lose work)
+# ─ origin → canonical semantics, triggers pre-push tests
+#           (ChatGPT Deep Research reads from origin)
 # ============================================================
 post-commit:
   commands:
     backup-push:
-      run: git push backup HEAD --quiet 2>&1; echo '[Backup] push done'
+      run: git push backup HEAD --quiet --no-verify 2>&1; echo '[Backup] push done'
+    origin-push:
+      run: git push origin HEAD --quiet 2>&1; echo '[Origin] push done (pre-push tests ran)'
 
 # ============================================================
 # Pre-push: Blocking checks before push
