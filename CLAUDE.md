@@ -60,6 +60,40 @@ Tauri 2 + React + TypeScript + FastAPI + Neo4j + LanceDB 桌面学习应用。
 - 修复后必须跑测试：`.venv/bin/pytest tests/ -x -q`
 - 批注追踪清单: `docs/project-status/annotation-tracker.md`
 
+## OpenSpec 工作流（Hybrid — CLI 强制结构 + Claude 填内容）
+
+从 2026-04-06 起，所有**新**的 OpenSpec change 必须走 CLI 流程：
+
+1. **创建**：`npx openspec new change <kebab-name>` —— 禁止手动 `mkdir` 或复制现有目录
+2. **获取模板**：`npx openspec instructions <artifact-id> --change <name> --json` —— 每个 artifact（proposal/design/specs/tasks）单独跑
+3. **填内容**：Claude 按 template + config.yaml 的 context + rules 填文件
+4. **校验**：`npx openspec validate <name> --strict` —— 失败即重写
+5. **状态**：`npx openspec status --change <name>` —— `Progress: 4/4 artifacts complete` 才算 apply-ready
+6. **归档**：`npx openspec archive <name>` —— 禁止 `git mv`，归档命令会自动合并 delta 到主 spec
+
+### Proposal 格式硬约束（CLI schema 要求）
+
+- `## Why`（必需，不能用 `## What & Why` 之类的变体）
+- `## What Changes`（必需）
+- `## Capabilities`（可选但推荐）
+- `## Impact`（可选）
+
+### Specs 格式硬约束
+
+- 每个 capability 一个文件：`specs/<capability>/spec.md`
+- Delta 头部：`## ADDED Requirements` / `## MODIFIED Requirements` / `## REMOVED Requirements`
+- 每个 requirement 必须至少 1 个 scenario
+- Scenario 头部**必须**是 4 个 hashtag（`#### Scenario:`）—— 3 个会静默失败
+- 语法：`### Requirement: <name>` + SHALL/MUST 描述 + `#### Scenario: <name>` + WHEN/THEN
+
+### 历史债（legacy changes）
+
+3 个 CLI 安装前手写的 change（`fr-kg-05-recommendation-mvp`, `trackpad-pan-support`, 以及 validate 失败的部分 `fr-kg-04-sync-pipeline-fix`）缺 `specs/` 目录，无法通过 `openspec archive`。这些 change 需要在真正归档前回填 specs，否则 `openspec/specs/` 下的主 spec 永远不累积。
+
+### 为什么是 Hybrid 而不是 Only CLI
+
+CLI 负责**结构 + 校验 + 归档**，Claude 负责**内容写作**。Boris 工作流（Plan → Design → Confirm → Execute）与 CLI 零冲突。
+
 ## 项目文档
 
 - 架构: `docs/architecture.md`
