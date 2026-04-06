@@ -43,6 +43,8 @@ import logging
 import os
 import re
 import uuid
+
+import structlog
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -67,6 +69,7 @@ GRAPHITI_QUERY_TIMEOUT = float(
     os.getenv("GRAPHITI_QUERY_TIMEOUT", "5.0")
 )  # 5s for Graphiti queries (M1 fix: 0.5s was too aggressive)
 
+from app.core.decision_tracker import log_decision
 from app.services.agent_service import AgentType
 
 if TYPE_CHECKING:
@@ -74,7 +77,7 @@ if TYPE_CHECKING:
     from app.services.canvas_service import CanvasService
     from app.services.memory_service import MemoryService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ===========================================================================
@@ -661,7 +664,12 @@ class VerificationService:
         # Store current question in state for hint generation context
         state["current_question"] = first_question
 
-        logger.info(f"Session {session_id} started with {len(concepts)} concepts")
+        log_decision(
+            function="VerificationService.start_session",
+            input_summary={"canvas": canvas_name, "include_mastered": include_mastered},
+            output=session_id,
+            reason=f"{len(concepts)} concepts extracted, first={concepts[0] if concepts else 'none'}",
+        )
 
         return {
             "session_id": session_id,
@@ -759,6 +767,17 @@ class VerificationService:
         else:
             # 已达最大提示次数，进入下一概念
             action = await self._advance_concept(state, progress, quality, score)
+
+        log_decision(
+            function="VerificationService.process_answer",
+            input_summary={
+                "concept": current_concept,
+                "score": score,
+                "quality": quality,
+            },
+            output=action["action"],
+            reason=f"score={score}, hints={hints_given}/{max_hints}, degraded={degraded}",
+        )
 
         # 更新进度时间
         progress.updated_at = datetime.now()
@@ -1810,12 +1829,33 @@ class VerificationService:
                 timeout=timeout,
             )
 
-            # Extract context from RAG result
-            # Note: Actual structure depends on RAG service implementation
+            # FR-KG-04 fix: RAG returns reranked_results (List[SearchResult]),
+            # not the learning_history/related_concepts/common_mistakes fields
+            # that this method originally expected. Transform search results
+            # into the downstream-expected format.
+            reranked = rag_result.get("reranked_results", [])
+            if reranked:
+                snippets = [
+                    r.get("content", "") for r in reranked[:3] if r.get("content")
+                ]
+                learning_history = "\n".join(snippets) if snippets else "无历史记录"
+                related_concepts: List[str] = []
+                seen: set = set()
+                for r in reranked[:5]:
+                    meta = r.get("metadata", {})
+                    name = meta.get("concept") or meta.get("source", "")
+                    if name and name not in seen:
+                        related_concepts.append(name)
+                        seen.add(name)
+                return {
+                    "learning_history": learning_history,
+                    "related_concepts": related_concepts,
+                    "common_mistakes": "无已知错误模式",
+                }
             return {
-                "learning_history": rag_result.get("learning_history", "无历史记录"),
-                "related_concepts": rag_result.get("related_concepts", []),
-                "common_mistakes": rag_result.get("common_mistakes", "无已知错误模式"),
+                "learning_history": "无历史记录",
+                "related_concepts": [],
+                "common_mistakes": "无已知错误模式",
             }
 
         except asyncio.TimeoutError:
@@ -1852,19 +1892,23 @@ class VerificationService:
             if not neo4j:
                 return
             try:
+                # FR-KG-04 fix: Query CANVAS_EDGE (written by SyncService path A)
+                # instead of CONNECTS_TO (written by CanvasService path B, never triggered by frontend).
+                # Join via CanvasBoard.name → CanvasNode.canvasId to bridge canvas_name → board UUID.
                 query = """
-                MATCH (c:Canvas)-[:CONTAINS_NODE]->(n:Node)
-                WHERE c.path = $canvasPath AND toLower(n.text) CONTAINS toLower($concept)
+                MATCH (b:CanvasBoard {name: $canvasName})
+                MATCH (n:CanvasNode {canvasId: b.id})
+                WHERE toLower(n.title) CONTAINS toLower($concept)
                 WITH n LIMIT 1
-                MATCH (n)-[r:CONNECTS_TO]-(m:Node)
-                WHERE m.text IS NOT NULL AND m.text <> ''
-                RETURN m.text AS related_concept,
+                MATCH (n)-[r:CANVAS_EDGE]-(m:CanvasNode)
+                WHERE m.title IS NOT NULL AND m.title <> ''
+                RETURN m.title AS related_concept,
                        r.label AS relationship,
                        CASE WHEN startNode(r) = n THEN 'outgoing' ELSE 'incoming' END AS direction
                 LIMIT 8
                 """
                 results = await neo4j.run_query(
-                    query, canvasPath=canvas_name, concept=concept
+                    query, canvasName=canvas_name, concept=concept
                 )
                 for r in results:
                     name = r.get("related_concept", "")
@@ -1883,15 +1927,17 @@ class VerificationService:
             if not neo4j:
                 return
             try:
+                # FR-KG-04 fix: Use CanvasNode/CanvasBoard model (SyncService path A)
                 query = """
-                MATCH (c:Canvas)-[:CONTAINS_NODE]->(n:Node)
-                WHERE c.path = $canvasPath AND n.text IS NOT NULL AND n.text <> ''
-                      AND toLower(n.text) <> toLower($concept)
-                RETURN DISTINCT n.text AS sibling
+                MATCH (b:CanvasBoard {name: $canvasName})
+                MATCH (n:CanvasNode {canvasId: b.id})
+                WHERE n.title IS NOT NULL AND n.title <> ''
+                      AND toLower(n.title) <> toLower($concept)
+                RETURN DISTINCT n.title AS sibling
                 LIMIT 10
                 """
                 results = await neo4j.run_query(
-                    query, canvasPath=canvas_name, concept=concept
+                    query, canvasName=canvas_name, concept=concept
                 )
                 for r in results:
                     s = r.get("sibling", "")
