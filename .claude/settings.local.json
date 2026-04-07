@@ -23,7 +23,9 @@
   "enabledMcpjsonServers": [
     "sequential-thinking",
     "context7",
-    "graphiti-canvas"
+    "graphiti-canvas",
+    "codebase-memory"
   ],
-  "outputStyle": "Learning"
+  "outputStyle": "Learning",
+  "enableAllProjectMcpServers": true
 }

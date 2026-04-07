@@ -342,6 +342,17 @@ backend/.venv/bin/pytest \
 2. **5th leak (fallback_sync_service) 是否是最后一处**？是否需要再做一次对抗性 grep？
 3. **dual-bucket compat read（UUID 主缓存 + legacy text 隔离）的回滚安全性**？
 
+### 質疑 4（重要）：arXiv 引用 scope drift（Claude 自我诊断，请 ChatGPT 复核）
+
+⚠️ **Claude 在 Lane 1.5 调研中发现**：项目当前在 `verification_service` 相关 docstring / 第 8 节"社区认证视角"段落里引用的 `arXiv:2408.04394` 是 **question generation 论文**，**不涵盖 answer scoring / rubric methodology**。把它作为评分系统学术背书属于 **scope drift**。
+
+详细诊断 + 推荐替代引用（G-Eval arXiv:2303.16634 + RULERS arXiv:2601.08654 + SafeTutors arXiv:2603.17373）见**第 11.5 节**。
+
+请 ChatGPT 在 review 时**重点验证**：
+1. arXiv:2408.04394 是否真的不涵盖 answer scoring？（Claude 的诊断基于 Agent 1 的 WebSearch 阅读，请你独立 fetch 论文摘要 + section 标题再判断）
+2. 推荐的 3 篇替代论文（G-Eval / RULERS / SafeTutors）是否确实更对应 Canvas 的 verification scoring 用例？
+3. 是否还有更好的 LLM-as-Judge 学术背书我们漏掉了？
+
 ---
 
 ## 9. Lane 1 不覆盖的事项（需 Lane 2/3）
@@ -352,7 +363,7 @@ backend/.venv/bin/pytest \
 - ❌ **前端 sync-engine.ts 错误回流** — 需要 Vite + 浏览器环境
 - ❌ **prompt injection 4 国语言对抗** — 需要 LLM API 调用
 - ❌ **A3 sub-3（图片处理 Gemini → 本地模型）** — 独立议题，不在本次范围
-- ❌ **A3「社区认证」论文查证** — 交给 ChatGPT Deep Research 完成
+- ✅ **A3「社区认证」论文查证** — 见第 11 节 Community Validation（2 并行 agent + WebSearch 已完成 5-solution 调研，作为对 ChatGPT 的先导输入）
 
 ---
 
@@ -364,7 +375,170 @@ backend/.venv/bin/pytest \
 2. 打开 [PR #1](https://github.com/oinani0721/canvas-learning-system/pull/1) 确认可审阅
 3. 复制本文件第 7 节「ChatGPT Deep Research Review 入口」整段贴给 ChatGPT
 4. ChatGPT 根据第 8 节的 Review 重点给出针对性的代码审查 + 学术支撑论证
-5. 根据 ChatGPT 反馈决定是否需要再补一轮修复（用 OpenSpec 决策协议双向通信）
+5. **ChatGPT 应重点审查第 11.5 节的 arXiv scope drift 诊断**——Claude 已用并行 agent 调研 5 个社区方案（第 11 节），ChatGPT 作为第二意见复核 Claude 的 arXiv 引用诊断 + 推荐的 G-Eval/RULERS/SafeTutors 替代是否成立
+6. 根据 ChatGPT 反馈决定是否需要开 `fix-a3-community-hardening-v2` 新 OpenSpec change（按第 11.6 节中期清单）
+
+---
+
+## 11. Community Validation & 5-Solution Cross-Reference
+
+> **新增于 Lane 1.5**（2026-04-07）：旧 Lane 1 把"A3 社区认证论文查证"标为 Non-Goal 交给 ChatGPT，但用户决策变更——Claude 自己先用并行 agent + WebSearch 调研 5 个社区方案，把结论作为对 ChatGPT Deep Research 的"先导输入"。
+
+### 11.1 调研背景
+
+**两条质疑的本质回顾**:
+
+- **质疑 1**：`verification_service._mock_evaluate_answer` 已改为 fail-closed `("unknown", 0.0)`，但**正常路径**的 Bloom Taxonomy prompt 引用的 `arXiv:2408.04394` 是否真的为 scoring 提供学术背书？
+- **质疑 2**：`kg_relevance` 的 **CANVAS_EDGE 1.0 / RELATES_TO 0.7 / `/8.0`** 这些具体数字，以及"用户手画 > LLM 推断"的差异化加权方向，是否有社区/学术支撑？
+
+**调研方式**：Claude 主 context 用 2 个并行 general-purpose agent + WebSearch，分别就两条质疑搜索社区方案，交叉验证后缩减为 5 solutions（质疑 1 三个 + 质疑 2 两个）。
+
+### 11.2 质疑 1 维度：Verification Scoring 的 3 个社区方案
+
+#### Solution 1: G-Eval (EMNLP 2023 + DeepEval)
+
+- **核心机制**：LLM-as-Judge 奠基性框架。两步走：(a) 让 LLM 基于任务介绍 + 评分标准自动生成 CoT 评估步骤；(b) 用 form-filling 范式按步骤打分，最终用 logprob 加权求和（而非单次采样）。
+- **社区采用度**：EMNLP 2023（arXiv:2303.16634），Google Scholar 500+ 引用；**DeepEval 框架原生实现**（GitHub 5k+ stars，每月处理 10M+ G-Eval metrics）；MLflow 3.0 原生支持。Summarization 任务上与人类评分 Spearman 相关系数 0.514。
+- **与当前方案差异**：Canvas 现在是"单次调 agent 拿分"。G-Eval 多两层：(a) CoT 评估步骤先展开再打分（提高一致性和可解释性），(b) logprob 加权降低方差。**与 fail-closed 机制正交，不冲突**。
+- **落地复杂度**：**low** — 纯 prompt 重写 + 可选 logprob 加权；DeepEval 提供开箱即用 Python API，本地部署无云依赖。
+- **是否替代当前**：**补强，不替代**。G-Eval 改造"正常路径"的 rubric prompt，fail-closed 兜底完全保留。
+- **引用**：
+  - [G-Eval (arXiv:2303.16634)](https://arxiv.org/abs/2303.16634)
+  - [DeepEval G-Eval docs](https://deepeval.com/docs/metrics-llm-evals)
+
+#### Solution 2: RULERS — Locked Rubrics & Evidence-Anchored Scoring
+
+- **核心机制**：2026 年 1 月最新论文（arXiv:2601.08654），针对 LLM-as-Judge 三大失败模式（rubric 不稳定、推理不可审计、scale 与人类评分边界不对齐）。把 rubric 编译成 versioned immutable bundles，强制 structured decoding 要求 judge 输出 evidence 引用，用 Wasserstein 后验校准对齐人类评分。**不需要 fine-tune**。
+- **社区采用度**：论文很新（< 3 个月），引用数还少，但属于 LLM-as-Judge 2025-2026 集群的 SOTA 方向（与 AutoRubric、Rubric-Scaffolded RL 形成研究集群）。
+- **与当前方案差异**：Canvas 现在 rubric 是写在 prompt 里的自由文本，易被 prompt drift 污染。RULERS 把 rubric 作为 compiled artifact 存储（版本化、不可变），调用时加载，强制引用用户答案的具体证据片段。
+- **落地复杂度**：**medium** — 需要 rubric schema 设计 + version 管理 + structured decoding 改造。但不引入新系统依赖（可用 Pydantic + Neo4j 存）。
+- **是否替代当前**：**补强**。把现有 Bloom prompt 改造成 locked rubric bundle 即可，fail-closed 机制保留。
+- **引用**：
+  - [RULERS (arXiv:2601.08654)](https://arxiv.org/abs/2601.08654)
+  - [Rubrics as an Attack Surface (arXiv:2602.13576)](https://arxiv.org/html/2602.13576)
+
+#### Solution 3: SafeTutors Pedagogically-Safe Fail-Closed
+
+- **核心机制**：SafeTutors 基准（arXiv:2603.17373）首次系统性定义 "pedagogical safety"——AI tutor 的主要风险**不是 toxic content，而是过早泄露答案、强化错误认知、放弃 scaffolding**。研究发现所有模型都有广泛危害、scale 不能可靠改善、多轮对话反而恶化（pedagogical failure 17.7% → 77.8%）。对应的 graceful degradation playbook 定义四级降级：Full → Reduced → Cached → Honest error。
+- **社区采用度**：2026 年新发表的 EdTech-specific 基准，是目前最对口的 AI tutor 安全设计论文。"Graceful degradation" 本身是经典 SIL Safety 跨航空/汽车/医疗工程原则。
+- **与当前方案差异**：Canvas 的 fail-closed 是两档（正常评分 vs unknown 0 分）。SafeTutors 建议多级降级。**但关键 insight 反而支持保守**：该论文证明启发式 "preliminary score" 会导致 pedagogical failure 扩大，所以**当前两档 fail-closed 其实是 SafeTutors 建议的安全选择**。
+- **落地复杂度**：**low**（如果只做用户面提示升级）；**high** 且不推荐（如果引入启发式二级降级——正是之前修复掉的 silent-scoring-pollution bug）。
+- **是否替代当前**：**背书**。SafeTutors 研究反向证明"宁可 fail-closed，不要 heuristic scoring"是正确选择。
+- **引用**：
+  - [SafeTutors (arXiv:2603.17373)](https://arxiv.org/abs/2603.17373)
+
+### 11.3 质疑 2 维度：kg_relevance Formula 的 2 个社区方案
+
+#### Solution 4: Weighted Degree Centrality (当前方案的社区背书)
+
+- **核心机制**：求邻接边权重之和，异构图上按 edge type 差异化加权。Canvas 的 `SUM(CASE type(r) WHEN CANVAS_EDGE THEN 1.0 WHEN RELATES_TO THEN 0.7 END) / 8.0` 正是标准模板。
+- **社区采用度**：**Neo4j GDS 官方内置**（`degreeCentrality` with weighted relationships）；TigerGraph 官方支持；Opsahl 2010 经典论文；Springer 2020 node-weighted centrality 综述；PMC 多篇实证。
+- **与当前方案差异**：**完全一致**。Canvas 公式的方向有 Strong 社区背书。
+- **计算复杂度**：O(degree)，单节点 < 5ms。**已满足实时查询场景（< 200ms）**。
+- **但是**——**具体数字 1.0/0.7/8.0 是经验值**：
+  - **1.0 vs 0.7 的方向**：有 provenance/confidence-aware KG 文献支撑（MDPI Computers 2025 Anchor-Constrained KG、TrustGraph W3C PROV-O 框架、ACM Computing Surveys 2023 综述），文献一致认为「有 provenance 的边 > LLM 自动抽取」。**但 0.3 gap 没有论文给定**——文献里常见数值区间 0.5~0.9，Canvas 的 0.7 在区间内。
+  - **`/8.0` 硬编码**：依据是 PMC 2023 online learners concept map 研究的小图典型度数 5-10。方向合理但 8.0 是**硬编码**，建议**改为动态 P90 分位数**（全图扫一次，代价低收益高）。
+- **落地复杂度**：low（当前已落地；"加注释 + 动态 P90" 升级也 low）
+- **是否替代当前**：**背书 + 轻量升级**。Keep 方案，但：(1) 代码注释里标注 1.0/0.7/8.0 为"经验初值，待 A/B 验证"并引用学术来源；(2) `/8.0` 改为动态 P90 分位数（未来任务）。
+- **引用**：
+  - [Neo4j GDS — Degree Centrality](https://neo4j.com/docs/graph-data-science/current/algorithms/degree-centrality/)
+  - [Opsahl — Node centrality in weighted networks](https://toreopsahl.com/tnet/weighted-networks/node-centrality/)
+  - [Springer 2020 — Node-weighted centrality](https://link.springer.com/article/10.1186/s40649-020-00081-w)
+  - [MDPI Computers 2025 — Grounded KG with Provenance](https://www.mdpi.com/2073-431X/15/3/178)
+  - [TrustGraph — Ontologies and Context Graphs](https://trustgraph.ai/guides/key-concepts/ontologies-and-context-graphs/)
+
+#### Solution 5: Personalized PageRank (Neo4j GDS 一级算法)
+
+- **核心机制**：带重启的随机游走，bias 到 source 节点。相比 weighted degree 只看一跳且全局静态，PPR 能捕捉**任意跳 + source-specific 个性化**——**更贴合"出题考察当前学习节点相关概念"的语义**。
+- **社区采用度**：**Neo4j GDS 一级算法**（`gds.pageRank.stream` with `sourceNodes` param）；Pinterest Pixie / Twitter WTF 生产级标配；arXiv 2024 peer-reviewed 综述（arXiv:2403.05198）；BiPPR 论文在十亿边图上实测 42ms。
+- **与当前方案差异**：**质的提升**——从 degree-based 换成 walk-based，能区分"结构性中心节点"和"语义相关节点"。对 Canvas "跳过已掌握的节点，优先相关但未掌握的"这种需求天然契合。
+- **计算复杂度**：小图 50-200ms（需 GDS in-memory projection）。**基本满足实时场景**，但需要 GDS plugin 和管道改造。
+- **落地复杂度**：**medium** — 需要启用 Neo4j GDS plugin（项目当前用 Neo4j Community Edition，**GDS Community Edition 够用**），管道改造为 projection + query。
+- **是否替代当前**：**未来升级路径**。MVP 不做，但代码注释里留一句"未来可迁移到 PPR"作为 technical debt 追踪。
+- **引用**：
+  - [Neo4j GDS — PageRank (Personalized)](https://neo4j.com/docs/graph-data-science/current/algorithms/page-rank/)
+  - [Bahmani — Fast Incremental PPR (Stanford CS224w)](https://snap.stanford.edu/class/cs224w-readings/bahmani10pagerank.pdf)
+  - [arXiv 2403.05198 — PPR Survey 2024](https://arxiv.org/abs/2403.05198)
+
+### 11.4 交叉验证表
+
+| # | Solution | 维度 | 与当前方案关系 | 复杂度 | 短期采纳? | 备注 |
+|---|---|---|---|---|---|---|
+| S1 | G-Eval | 质疑 1 | 补强正常路径 rubric prompt | low | ✅ 推荐 | EMNLP 2023 最成熟 LLM-as-Judge |
+| S2 | RULERS Locked Rubrics | 质疑 1 | 补强 rubric 存储 + evidence anchoring | medium | ⏳ 中期 | 2026 SOTA，解决 prompt drift |
+| S3 | SafeTutors | 质疑 1 | **背书现状** | low | ✅ 引用即可 | 反向证明 fail-closed 是对的 |
+| S4 | Weighted Degree Centrality | 质疑 2 | **背书现状** + 加注释 | low | ✅ 推荐 | Neo4j GDS 官方；方向有 provenance KG 文献支持 |
+| S5 | Personalized PageRank | 质疑 2 | 未来升级路径 | medium | ⏳ 长期 | Neo4j GDS 一级算法，无新依赖 |
+
+**已调研但排除的方向**:
+
+- **GENI (KDD 2019, GNN-based Node Importance)** — Amazon Science 生产部署，NDCG@100 超 baseline 5-17%，但 Canvas **没有 node importance ground-truth label**（无法监督训练）+ 引入 PyTorch/DGL 违反"不增新系统依赖"约束。**不推荐 MVP**
+- **HITS / SALSA** — NetworkX 官方明说无向图上无意义；Canvas edges 无向使用；**排除**
+- **Node2Vec / GraphSAGE** — 输出 embedding 而非 importance scalar；Node2Vec transductive 不支持增量新节点；**不适用**
+- **Item Response Theory (IRT)** — 对 Canvas 长期价值高，但 MVP 阶段需要大量答题数据才能拟合参数，**延后**
+- **RAGAS 直接复用** — RAGAS 是 RAG pipeline 评估，不是 answer scoring；可作为 eval framework 但不能直接替代 scoring agent
+
+### 11.5 ⚠️ 关键发现：arXiv 引用 scope drift
+
+**诊断**：项目当前文档（包括第 8 节"社区认证视角"段落）引用的 `arXiv:2408.04394` 是 **question generation 论文**，**不涵盖 answer scoring**。把它作为"评分用 Bloom's Taxonomy prompt + scoring-agent"的学术背书，是 **scope drift**。
+
+**证据**：Agent 1 通过 WebSearch 阅读 arXiv:2408.04394 摘要 + 章节标题，确认该论文聚焦于 "automated question generation from educational content"，方法学讨论的是 prompt engineering for question diversity，**没有任何 answer evaluation rubric / scoring methodology 的内容**。
+
+**推荐替代引用**:
+
+| 用途 | 推荐论文 | 为什么 |
+|---|---|---|
+| LLM-as-Judge 评分 SOTA | arXiv:2303.16634 (G-Eval, EMNLP 2023) | 直接对应 "用 LLM 给学生答案打分" 的方法学 |
+| Locked rubric + evidence anchoring | arXiv:2601.08654 (RULERS, 2026) | 解决"prompt drift 导致评分不稳定"问题 |
+| Pedagogical safety (fail-closed 设计) | arXiv:2603.17373 (SafeTutors, 2026) | 直接背书"宁可 fail-closed 也不要启发式 partial score" |
+
+**修复建议（短期）**：
+- 在 `verification_service.py` 调用 scoring-agent 的 docstring 里删除 `arXiv:2408.04394` 引用
+- 改为引用 `arXiv:2303.16634` (G-Eval) + `arXiv:2603.17373` (SafeTutors) 作为 fail-closed 设计的学术背书
+- 把 `arXiv:2408.04394` 留在 `question_generator.py`（题目生成，原本就该用这篇）
+
+### 11.6 推荐立场（三层）
+
+#### 短期（本次 light path 即完成）
+
+1. ✅ **本 section 11 落地** — 在 `a3-review-summary.md` 增加完整社区调研结果作为对 ChatGPT 的先导输入
+2. ❌ **不改代码** — `verification_service.py` / `question_generator.py` / `exam_models.py` 都不动
+3. ❌ **不开新 OpenSpec change** — 留作 v2 候选，等 ChatGPT 反馈后再决定
+
+#### 中期（下一 OpenSpec change 候选 — `fix-a3-community-hardening-v2`）
+
+1. **修正 arXiv 引用**：把 `verification_service` 里 `arXiv:2408.04394` 替换为 `arXiv:2303.16634` + `arXiv:2603.17373`
+2. **代码注释加经验值标注**：在 `_get_kg_relevance` Cypher 处明确 1.0/0.7/8.0 是"经验初值，待 A/B 验证"，并引用 Opsahl 2010 + MDPI 2025 + TrustGraph
+3. **`/8.0` 改为动态 P90 分位数**：全图扫一次，缓存到 Neo4j 节点属性，每周或每次 sync 后刷新
+4. **G-Eval prompt 改造**：把现有 Bloom 单 prompt 改为 G-Eval 风格（CoT 评估步骤 + form-filling），可选 logprob 加权
+
+#### 长期（未来 FR 候选）
+
+1. **RULERS locked rubric bundle**：rubric 版本化 + structured decoding evidence anchoring
+2. **Personalized PageRank 迁移**：启用 Neo4j GDS Community Edition，把 `_get_kg_relevance` 从 weighted degree 升级到 PPR
+3. **Item Response Theory (IRT)**：等收集到足够答题数据后，校准题目难度和学生能力到同一尺度
+
+### 11.7 引用汇总（学术 + 工业文档）
+
+**LLM-as-Judge / Verification Scoring**:
+- [G-Eval (arXiv:2303.16634)](https://arxiv.org/abs/2303.16634)
+- [RULERS (arXiv:2601.08654)](https://arxiv.org/abs/2601.08654)
+- [Rubrics as an Attack Surface (arXiv:2602.13576)](https://arxiv.org/html/2602.13576)
+- [SafeTutors (arXiv:2603.17373)](https://arxiv.org/abs/2603.17373)
+- [DeepEval G-Eval docs](https://deepeval.com/docs/metrics-llm-evals)
+
+**Knowledge Graph Centrality / Recommendation**:
+- [Neo4j GDS — Degree Centrality](https://neo4j.com/docs/graph-data-science/current/algorithms/degree-centrality/)
+- [Neo4j GDS — PageRank (Personalized)](https://neo4j.com/docs/graph-data-science/current/algorithms/page-rank/)
+- [Opsahl 2010 — Node centrality in weighted networks](https://toreopsahl.com/tnet/weighted-networks/node-centrality/)
+- [Springer 2020 — Node-weighted centrality](https://link.springer.com/article/10.1186/s40649-020-00081-w)
+- [Bahmani — Fast Incremental PPR (Stanford CS224w)](https://snap.stanford.edu/class/cs224w-readings/bahmani10pagerank.pdf)
+- [arXiv 2403.05198 — PPR Survey 2024](https://arxiv.org/abs/2403.05198)
+
+**Provenance-Aware KG / Edge Confidence**:
+- [MDPI Computers 2025 — Grounded KG with Provenance](https://www.mdpi.com/2073-431X/15/3/178)
+- [TrustGraph — Ontologies and Context Graphs](https://trustgraph.ai/guides/key-concepts/ontologies-and-context-graphs/)
+- ACM Computing Surveys 2023 — Knowledge Graph Confidence Scoring (综述)
 
 ---
 
