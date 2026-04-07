@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 import structlog
 from neo4j import AsyncDriver, AsyncGraphDatabase
+from neo4j.exceptions import ConstraintError
 from pydantic import ValidationError
 
 from app.config import get_settings
@@ -91,6 +92,8 @@ class SyncService:
                         success=False,
                         error="duplicate_operation_id_skipped",
                         error_class=SyncErrorClass.VALIDATION_ERROR,
+                        entity_type=op.entity_type,
+                        entity_id=op.entity_id,
                     )
                 )
                 continue
@@ -131,9 +134,19 @@ class SyncService:
 
         The frontend retry strategy depends on this classification, so the
         mapping is strict and explicit — never fall through to a default.
+
+        FR-KG-04 Phase 8 (2026-04-07): ``neo4j.exceptions.ConstraintError`` is
+        now classified as VALIDATION_ERROR. When the
+        ``canvasboard_subject_name_unique`` constraint (or any other unique
+        constraint) rejects a MERGE, the problem is in the client's payload
+        — retrying the same payload will always fail — so the frontend
+        should mark the entry permanently failed instead of exponentially
+        backing off.
         """
         if isinstance(exc, SyncDependencyError):
             return SyncErrorClass.DEPENDENCY_MISSING
+        if isinstance(exc, ConstraintError):
+            return SyncErrorClass.VALIDATION_ERROR
         if isinstance(exc, (ValidationError, ValueError)):
             return SyncErrorClass.VALIDATION_ERROR
         # Everything else (Neo4jError, ConnectionError, RuntimeError, etc.)
@@ -215,9 +228,16 @@ class SyncService:
                             await self._execute_operation(
                                 tx, op, request.canvas_id, request.subject_id
                             )
+                            # fix-rag-transform-and-episode-isolation Phase 6:
+                            # echo entity_type/entity_id so the sync.py POST
+                            # handler can dispatch matching memory events
+                            # without re-walking the request.
                             segment_results.append(
                                 SyncOperationResult(
-                                    operation_id=op.operation_id, success=True
+                                    operation_id=op.operation_id,
+                                    success=True,
+                                    entity_type=op.entity_type,
+                                    entity_id=op.entity_id,
                                 )
                             )
                         except Exception as e:  # noqa: BLE001 — per-op isolation
@@ -236,6 +256,8 @@ class SyncService:
                                     success=False,
                                     error=sanitized,
                                     error_class=error_class,
+                                    entity_type=op.entity_type,
+                                    entity_id=op.entity_id,
                                 )
                             )
                             segment_all_ok = False
@@ -268,6 +290,8 @@ class SyncService:
                                     success=False,
                                     error="upstream segment failed",
                                     error_class=SyncErrorClass.DEPENDENCY_MISSING,
+                                    entity_type=op.entity_type,
+                                    entity_id=op.entity_id,
                                 )
                             )
                     break

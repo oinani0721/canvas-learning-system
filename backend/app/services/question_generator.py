@@ -23,6 +23,7 @@ import logging
 import re
 
 import structlog
+from neo4j.exceptions import DriverError, Neo4jError
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
@@ -124,12 +125,18 @@ class QuestionGenerator:
         """
         if target_node_id:
             mastery_data = await self._get_mastery_data(target_node_id)
+            # M-3 (Sprint 1.2.1): explicit kg_relevance_degraded=None makes
+            # the contract self-documenting and resilient to future Pydantic
+            # default changes. When the caller specifies a target node we
+            # skip the KG query entirely, so there is no degraded reason
+            # to record.
             return NodePriority(
                 node_id=target_node_id,
                 priority_score=1.0,
                 p_mastery=mastery_data.get("p_mastery", 0.1),
                 retrievability=mastery_data.get("retrievability", 1.0),
                 kg_relevance=1.0,
+                kg_relevance_degraded=None,
             )
 
         examined = set(examined_nodes or list())
@@ -148,20 +155,49 @@ class QuestionGenerator:
         # 6-3 H3 fix: Batch mastery + KG queries with asyncio.gather to avoid N+1
         node_ids = [nid for _, nid in valid_nodes]
 
+        # Code-Review C-1 (Sprint 1.2.1) defense-in-depth:
+        # `return_exceptions=True` ensures any unanticipated exception leaking
+        # out of `_get_kg_relevance` or `_get_mastery_data` degrades the
+        # affected node instead of crashing the entire exam batch. The typed
+        # Neo4jError catch in `_get_kg_relevance` is the primary fix; this is
+        # the second layer — e.g. `_get_mastery_data` only catches
+        # (ImportError, AttributeError, ValueError), so a future TypeError
+        # would still escape without this guard.
         mastery_results, kg_results = await asyncio.gather(
-            asyncio.gather(*(self._get_mastery_data(nid) for nid in node_ids)),
             asyncio.gather(
-                *(self._get_kg_relevance(nid, source_canvas_id) for nid in node_ids)
+                *(self._get_mastery_data(nid) for nid in node_ids),
+                return_exceptions=True,
+            ),
+            asyncio.gather(
+                *(self._get_kg_relevance(nid, source_canvas_id) for nid in node_ids),
+                return_exceptions=True,
             ),
         )
 
         priorities: List[NodePriority] = list()
         for idx, (_node, node_id) in enumerate(valid_nodes):
+            # C-1 defense-in-depth: gather may yield BaseException for failed
+            # coroutines now. Degrade per node instead of crashing the batch.
             mastery_data = mastery_results[idx]
+            if isinstance(mastery_data, BaseException):
+                logger.warning(
+                    f"[Story 6.3] mastery query crashed for node {node_id}: "
+                    f"{type(mastery_data).__name__}: {mastery_data}"
+                )
+                mastery_data = {"p_mastery": 0.1, "retrievability": 1.0}
             p_mastery = mastery_data.get("p_mastery", 0.1)
             retrievability = mastery_data.get("retrievability", 1.0)
-            # FR-KG-04 fix: _get_kg_relevance now returns (score, degraded_reason)
-            kg_relevance, kg_degraded = kg_results[idx]
+
+            kg_result = kg_results[idx]
+            if isinstance(kg_result, BaseException):
+                logger.warning(
+                    f"[Story 6.3] kg_relevance crashed for node {node_id}: "
+                    f"{type(kg_result).__name__}: {kg_result}"
+                )
+                kg_relevance, kg_degraded = 0.5, "neo4j_unavailable"
+            else:
+                # FR-KG-04 fix: _get_kg_relevance returns (score, degraded_reason)
+                kg_relevance, kg_degraded = kg_result
 
             priority = (
                 W_MASTERY * (1.0 - p_mastery)
@@ -692,16 +728,28 @@ class QuestionGenerator:
             from app.clients.neo4j_client import get_neo4j_client
 
             client = get_neo4j_client()
+            # H-1 (Sprint 1.2.1): pre-aggregate by neighbor with MAX so
+            # multiple parallel edges between the same pair contribute the
+            # strongest edge type once, not inflated path counts. When both
+            # a CANVAS_EDGE (1.0) and a RELATES_TO (0.7) exist between the
+            # same pair, MAX(CASE ...) keeps 1.0 — i.e. the explicit user
+            # intent wins over the Graphiti-inferred relation.
+            # L-1 (Sprint 1.2.1): no ELSE branch — the MATCH filter already
+            # restricts r to CANVAS_EDGE|RELATES_TO, making any other type
+            # unreachable. Removing ELSE 0 drops dead code without changing
+            # behavior.
             query = """
             MATCH (n:CanvasNode {id: $node_id})-[r:CANVAS_EDGE|RELATES_TO]-(neighbor:CanvasNode)
             WHERE neighbor.canvasId = $canvas_id
+            WITH neighbor, MAX(
+                CASE type(r)
+                    WHEN 'CANVAS_EDGE' THEN 1.0
+                    WHEN 'RELATES_TO'  THEN 0.7
+                END
+            ) AS edge_weight
             RETURN
-                SUM(CASE type(r)
-                        WHEN 'CANVAS_EDGE' THEN 1.0
-                        WHEN 'RELATES_TO'  THEN 0.7
-                        ELSE 0
-                    END) AS weighted_degree,
-                COUNT(neighbor) AS neighbor_count
+                SUM(edge_weight)         AS weighted_degree,
+                COUNT(DISTINCT neighbor) AS neighbor_count
             """
             records = await client.run_query(
                 query, node_id=node_id, canvas_id=canvas_id
@@ -715,16 +763,27 @@ class QuestionGenerator:
                 return min(1.0, float(weighted) / 8.0), None
             # Empty result set: query succeeded but found nothing
             return 0.5, "empty_graph"
-        except Exception as e:
-            # Code-Review C-1: the original except tuple only caught
-            # (RuntimeError, ConnectionError, asyncio.TimeoutError) and would
-            # let neo4j driver exceptions escape — including ServiceUnavailable,
-            # TransientError, DatabaseError, AuthError — crashing
-            # select_target_node instead of degrading gracefully.
-            # We now catch the whole Exception hierarchy and fold it into the
-            # neo4j_unavailable degraded reason so the exam priority formula
-            # stays live with a moderate default rather than propagating the
-            # failure to the user.
+        except (
+            Neo4jError,
+            DriverError,
+            RuntimeError,
+            ConnectionError,
+            asyncio.TimeoutError,
+        ) as e:
+            # Code-Review C-1 (Sprint 1.2.1): typed catch replaces the narrow
+            # (RuntimeError, ConnectionError, asyncio.TimeoutError) tuple and
+            # the intermediate `except Exception` from 5ecf834.
+            #
+            # neo4j-python-driver 5.x has two parallel exception trees under
+            # the common ``GqlError`` ancestor:
+            #   - ``Neo4jError``  → ClientError / DatabaseError / TransientError
+            #     (server-side responses)
+            #   - ``DriverError`` → ServiceUnavailable / SessionExpired / AuthError
+            #     (client / connection-level failures)
+            # We catch both explicit bases so every documented Neo4j failure
+            # mode degrades to the moderate default while programming errors
+            # (TypeError / AttributeError / KeyError) still bubble up as real
+            # bugs instead of being silently labeled "neo4j_unavailable".
             logger.debug(
                 "[Story 6.3] KG relevance query failed: "
                 f"type={type(e).__name__} detail={str(e)[:200]}"

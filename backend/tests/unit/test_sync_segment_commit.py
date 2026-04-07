@@ -26,6 +26,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from neo4j.exceptions import ConstraintError
+
 from app.models.sync_models import (
     SyncBatchRequest,
     SyncDependencyError,
@@ -478,6 +480,51 @@ class TestSegmentCommitAtomicity:
 # ---------------------------------------------------------------------------
 # Full flow with duplicates (Task 11.12 integration)
 # ---------------------------------------------------------------------------
+
+
+class TestConstraintErrorClassification:
+    """FR-KG-04 Phase 8: Neo4j ConstraintError → VALIDATION_ERROR (permanent)."""
+
+    @pytest.mark.asyncio
+    async def test_constraint_error_maps_to_validation_error(
+        self, sync_service: SyncService, stub_driver_and_session
+    ) -> None:
+        """A (subjectId, name) composite constraint violation on a board
+        upsert must be classified as VALIDATION_ERROR so the frontend marks
+        the outbox entry permanently failed (retry cannot succeed)."""
+        _, session = stub_driver_and_session
+
+        def tx_factory() -> _StubTransaction:
+            tx = _StubTransaction()
+
+            async def handler(query: str, **kwargs: Any):
+                if "MERGE (b:CanvasBoard" in query:
+                    raise ConstraintError(
+                        "Node already exists with label `CanvasBoard` "
+                        "and property `(subjectId, name)`"
+                    )
+                result = MagicMock()
+                result.single = AsyncMock(return_value={"status": "ok", "edge_id": "e"})
+                return result
+
+            tx.set_run_handler(handler)
+            return tx
+
+        session.set_tx_factory(tx_factory)
+
+        request = SyncBatchRequest(
+            canvas_id="c1",
+            operations=[
+                _make_op(entity_type="board", entity_id="b1"),
+            ],
+        )
+        response = await sync_service.process_sync_batch(request)
+
+        assert response.synced_count == 0
+        assert response.failed_count == 1
+        board_result = response.results[0]
+        assert board_result.success is False
+        assert board_result.error_class == SyncErrorClass.VALIDATION_ERROR
 
 
 class TestFullFlowWithDuplicates:

@@ -245,3 +245,34 @@
 - [ ] 16.7 提交 PR 并附上 `kg_relevance` 修复前后的节点优先级对比截图
 - [ ] 16.8 PR merge 后运行 `npx openspec archive fix-fr-kg-04-schema-drift-and-sync-hardening` 归档
 - [ ] 16.9 归档时同时删除已 SUPERSEDED 的 `openspec/changes/fr-kg-04-sync-pipeline-fix/` 目录（`git rm -r`）
+
+## Sprint 1.2.1 — Code Review Fixes (Post-5ecf834) ✅ COMPLETE (2026-04-06)
+
+Follow-up to the code review that identified further issues after `5ecf834`
+broadened the `_get_kg_relevance` catch clause. All BLOCKING C-1 gaps closed;
+H-1 multi-edge inflation fixed; M-3 / L-1 / L-2 cleanups landed.
+
+- [x] C-1 (Critical) Tighten `except Exception` → typed catch `(Neo4jError, DriverError, RuntimeError, ConnectionError, asyncio.TimeoutError)` so programming bugs (TypeError/AttributeError/KeyError) bubble up while every documented Neo4j failure mode still degrades
+- [x] C-1 (Critical) Defense-in-depth: `select_target_node` asyncio.gather uses `return_exceptions=True` + per-node `BaseException` guards so any future leak degrades the affected node instead of crashing the batch
+- [x] H-1 (High) Pre-aggregate Cypher with `WITH neighbor, MAX(CASE type(r) ...)` + `COUNT(DISTINCT neighbor)` to prevent multi-edge inflation (two parallel CANVAS_EDGEs between the same pair no longer contribute 2.0)
+- [x] H-1 (High) Two regression tests in `TestKgRelevanceMultiEdgeInflation` pin the new contract (`with neighbor` + `max(` + `count(distinct neighbor)` + behavioral 1-neighbor=0.125 guard)
+- [x] M-3 (Medium) Explicit `kg_relevance_degraded=None` in `target_node_id` branch — resilient to future Pydantic default changes and self-documenting
+- [x] L-1 (Low) Dropped dead `ELSE 0` branch from CASE — MATCH filter already constrains `r` to `CANVAS_EDGE|RELATES_TO`
+- [x] L-2 (Low) `_patch_neo4j_client` helper double-patches both `app.clients.neo4j_client.get_neo4j_client` (source) and `app.services.question_generator.get_neo4j_client` (consumer, `create=True`) so the suite survives a future module-level import hoist
+- [x] Sprint 1.2.1 verification: `pytest tests/unit/test_kg_relevance_weighted.py` 19/19 passing; broader regression (`+ test_acp_prompt_externalization + test_neo4j_field_consistency + test_sync_batch_auth + test_sync_payload_validation`) 55/55 passing; `ruff check` clean
+
+### Key Correction (vs. original plan)
+
+The original fix plan claimed all Neo4j exceptions derive from `Neo4jError`.
+Empirical check (`python -c "print(ServiceUnavailable.__mro__)"`) shows
+neo4j-python-driver 5.x has **two parallel trees** under `GqlError`:
+- `Neo4jError` → ClientError / DatabaseError / TransientError (server-side)
+- `DriverError` → ServiceUnavailable / SessionExpired / AuthError (client-side)
+
+Typed catch therefore lists **both** bases explicitly. Original narrow tuple
+missed both; intermediate `except Exception` caught both but swallowed bugs.
+
+### Deferred to Follow-up
+
+- [ ] H-2 — Expand degraded-reason taxonomy with `node_not_found` + `schema_mismatch` (deferred to Sprint 1.2.2 — requires new Cypher branches, not a bug fix)
+- [ ] M-1 — JSON fallback log message disambiguation in `neo4j_client.py` (deferred to Sprint 1.3 observability — touches shared client surface)

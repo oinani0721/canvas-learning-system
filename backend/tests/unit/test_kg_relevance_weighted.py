@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -35,10 +36,19 @@ def _make_records(weighted_degree: float, neighbor_count: int) -> List[Dict[str,
 
 
 def _patch_neo4j_client(records_or_exception: Any) -> Any:
-    """Return a context manager that patches ``get_neo4j_client`` to a fake client.
+    """Return a context manager that double-patches ``get_neo4j_client``.
 
     ``records_or_exception``: either a list of dict records (success path) or an
     exception instance/class (failure path).
+
+    Code-Review L-2 (Sprint 1.2.1): patches both
+    ``app.clients.neo4j_client.get_neo4j_client`` (the source / canonical
+    path) and ``app.services.question_generator.get_neo4j_client`` (the
+    consumer path — with ``create=True`` because the import is function-local
+    in the current implementation). Function-local imports resolve through
+    the source path, so the source patch handles today's code; if a future
+    refactor hoists the import to module-level, the consumer patch catches
+    it. Either layout works without test changes.
     """
     fake_client = MagicMock()
     if isinstance(records_or_exception, BaseException) or (
@@ -48,10 +58,29 @@ def _patch_neo4j_client(records_or_exception: Any) -> Any:
         fake_client.run_query = AsyncMock(side_effect=records_or_exception)
     else:
         fake_client.run_query = AsyncMock(return_value=records_or_exception)
-    return patch(
-        "app.clients.neo4j_client.get_neo4j_client",
-        return_value=fake_client,
-    )
+
+    class _DualPatchContext:
+        def __enter__(self) -> Any:
+            self._stack = ExitStack()
+            self._stack.enter_context(
+                patch(
+                    "app.clients.neo4j_client.get_neo4j_client",
+                    return_value=fake_client,
+                )
+            )
+            self._stack.enter_context(
+                patch(
+                    "app.services.question_generator.get_neo4j_client",
+                    return_value=fake_client,
+                    create=True,
+                )
+            )
+            return fake_client
+
+        def __exit__(self, *exc: Any) -> None:
+            self._stack.close()
+
+    return _DualPatchContext()
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +191,59 @@ class TestGetKgRelevanceFormula:
         assert score == 0.5
         assert degraded == "neo4j_unavailable"
 
+    @pytest.mark.asyncio
+    async def test_neo4j_service_unavailable_returns_degraded(self) -> None:
+        """Code-Review C-1: real driver exceptions must NOT escape.
+
+        ``neo4j.exceptions.ServiceUnavailable`` derives from
+        ``DriverError → GqlError → Exception`` and does *not* inherit from
+        ``ConnectionError``. The original except tuple missed it, so a real
+        Neo4j outage would crash ``select_target_node`` instead of degrading
+        gracefully.
+        """
+        from neo4j.exceptions import ServiceUnavailable
+
+        with _patch_neo4j_client(ServiceUnavailable("Neo4j cluster down")):
+            qg = QuestionGenerator()
+            score, degraded = await qg._get_kg_relevance("n1", "c1")
+        assert score == 0.5
+        assert degraded == "neo4j_unavailable"
+
+    @pytest.mark.asyncio
+    async def test_neo4j_transient_error_returns_degraded(self) -> None:
+        """Code-Review C-1: TransientError (retry-exhaustion) must degrade gracefully."""
+        from neo4j.exceptions import TransientError
+
+        with _patch_neo4j_client(TransientError("retry limit exceeded")):
+            qg = QuestionGenerator()
+            score, degraded = await qg._get_kg_relevance("n1", "c1")
+        assert score == 0.5
+        assert degraded == "neo4j_unavailable"
+
+    @pytest.mark.asyncio
+    async def test_neo4j_database_error_returns_degraded(self) -> None:
+        """Code-Review C-1: generic Neo4jError must also degrade gracefully."""
+        from neo4j.exceptions import DatabaseError
+
+        with _patch_neo4j_client(DatabaseError("storage failure")):
+            qg = QuestionGenerator()
+            score, degraded = await qg._get_kg_relevance("n1", "c1")
+        assert score == 0.5
+        assert degraded == "neo4j_unavailable"
+
+    @pytest.mark.asyncio
+    async def test_threshold_boundary_exact_eight(self) -> None:
+        """Code-Review M-2: weighted_degree=8.0 should cap at exactly 1.0.
+
+        Pins the normalization divisor of 8.0. Any future divisor change
+        will trip this test before it ships.
+        """
+        with _patch_neo4j_client(_make_records(weighted_degree=8.0, neighbor_count=8)):
+            qg = QuestionGenerator()
+            score, degraded = await qg._get_kg_relevance("n1", "c1")
+        assert score == 1.0
+        assert degraded is None
+
 
 # ---------------------------------------------------------------------------
 # Cypher string assertions: the query must reference both edge types and the
@@ -184,9 +266,19 @@ class TestKgRelevanceCypherShape:
             return _make_records(weighted_degree=1.0, neighbor_count=1)
 
         fake_client.run_query = AsyncMock(side_effect=fake_run_query)
-        with patch(
-            "app.clients.neo4j_client.get_neo4j_client",
-            return_value=fake_client,
+        # L-2 (Sprint 1.2.1): dual-patch both source + consumer paths, same
+        # rationale as the `_patch_neo4j_client` helper — survives a future
+        # hoist of the import from function-local to module-level.
+        with (
+            patch(
+                "app.clients.neo4j_client.get_neo4j_client",
+                return_value=fake_client,
+            ),
+            patch(
+                "app.services.question_generator.get_neo4j_client",
+                return_value=fake_client,
+                create=True,
+            ),
         ):
             qg = QuestionGenerator()
             await qg._get_kg_relevance("n1", "c1")
@@ -208,6 +300,74 @@ class TestKgRelevanceCypherShape:
         assert "sum" in normalized and "case" in normalized, (
             "Weighted formula must aggregate via SUM(CASE type(r) ...)"
         )
+
+
+# ---------------------------------------------------------------------------
+# Multi-edge inflation (Code-Review H-1)
+# ---------------------------------------------------------------------------
+
+
+class TestKgRelevanceMultiEdgeInflation:
+    """Code-Review H-1: parallel edges between the same pair must NOT inflate.
+
+    The original Cypher did ``SUM(CASE type(r) ... )`` over enumerated paths,
+    so 2 parallel CANVAS_EDGEs between the same pair contributed 2.0 instead
+    of 1.0. The fix pre-aggregates per neighbor via ``WITH neighbor, MAX(...)``
+    so the strongest edge type wins once per pair.
+    """
+
+    @pytest.mark.asyncio
+    async def test_cypher_uses_per_neighbor_max_aggregation(self) -> None:
+        """The Cypher query MUST pre-aggregate per neighbor via WITH+MAX."""
+        captured: Dict[str, Any] = {}
+        fake_client = MagicMock()
+
+        async def fake_run_query(query: str, **kwargs: Any) -> List[Dict[str, Any]]:
+            captured["query"] = query
+            return _make_records(weighted_degree=1.0, neighbor_count=1)
+
+        fake_client.run_query = AsyncMock(side_effect=fake_run_query)
+        with (
+            patch(
+                "app.clients.neo4j_client.get_neo4j_client",
+                return_value=fake_client,
+            ),
+            patch(
+                "app.services.question_generator.get_neo4j_client",
+                return_value=fake_client,
+                create=True,
+            ),
+        ):
+            qg = QuestionGenerator()
+            await qg._get_kg_relevance("n1", "c1")
+
+        cypher = " ".join(captured["query"].split()).lower()
+        assert "with neighbor" in cypher, (
+            "kg_relevance Cypher must pre-aggregate via WITH neighbor (H-1)"
+        )
+        assert "max(" in cypher, (
+            "kg_relevance Cypher must use MAX(...) per neighbor (H-1)"
+        )
+        assert "count(distinct neighbor)" in cypher, (
+            "neighbor_count must use COUNT(DISTINCT neighbor) (H-1)"
+        )
+
+    @pytest.mark.asyncio
+    async def test_two_parallel_canvas_edges_count_as_one_neighbor(self) -> None:
+        """Behavioral guard: 1 neighbor with 2 parallel CANVAS_EDGEs → 1.0 not 2.0.
+
+        The new Cypher MAX-aggregates per neighbor, so the Neo4j result set
+        would carry weighted_degree=1.0 / neighbor_count=1. The original
+        path-counting Cypher would have produced weighted_degree=2.0 which
+        would normalize to 0.25 instead of 0.125 — a silent 2× overcount
+        of a single-neighbor node.
+        """
+        with _patch_neo4j_client(_make_records(weighted_degree=1.0, neighbor_count=1)):
+            qg = QuestionGenerator()
+            score, degraded = await qg._get_kg_relevance("n1", "c1")
+        # 1.0 / 8.0 = 0.125
+        assert score == pytest.approx(0.125, rel=1e-3)
+        assert degraded is None
 
 
 # ---------------------------------------------------------------------------
