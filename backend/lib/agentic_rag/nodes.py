@@ -504,12 +504,44 @@ async def fuse_results(
 
     latency_ms = (time.perf_counter() - start_time) * 1000
 
+    # Phase 3 (fix-rag-faithfulness-and-add-crag-quality-loop): publish
+    # observability report to state so downstream / outer callers can
+    # distinguish "low recall" from "bad fusion" from "no multi-source
+    # consensus".
+    topk_size = min(10, len(fused_results))
+    topk = fused_results[:topk_size]
+    support_counts_topk = [r.get("metadata", {}).get("support_count", 0) for r in topk]
+    avg_support_topk = (
+        sum(support_counts_topk) / len(support_counts_topk)
+        if support_counts_topk
+        else 0.0
+    )
+    support_ge_2 = sum(1 for c in support_counts_topk if c >= 2)
+    support_ge_2_ratio = (
+        support_ge_2 / len(support_counts_topk) if support_counts_topk else 0.0
+    )
+    fusion_report = {
+        "channel_status": channel_status,
+        "active_channels": active_channels,
+        "coverage_score": active_channels / 5.0,
+        "total_results": total_results,
+        "fusion_strategy": fusion_strategy,
+        "rrf_k": rrf_k,
+        "avg_support_topk": avg_support_topk,
+        "support_ge_2_ratio": support_ge_2_ratio,
+        "topk_size": topk_size,
+    }
+
     # ✅ Story 23.3: 节点出口日志
     logger.debug(
         f"[fuse_results] END - strategy={fusion_strategy}, results={len(fused_results)}, latency={latency_ms:.2f}ms"
     )
 
-    return {"fused_results": fused_results, "fusion_latency_ms": latency_ms}
+    return {
+        "fused_results": fused_results,
+        "fusion_latency_ms": latency_ms,
+        "fusion_report": fusion_report,
+    }
 
 
 def _apply_time_decay(
@@ -584,12 +616,19 @@ def _fuse_rrf_multi_source(
 
     Story 23.4: 支持6个数据源
     Story 2.2 Task 5: 基于doc_id去重 + content指纹去重
+
+    Phase 3 (fix-rag-faithfulness-and-add-crag-quality-loop): each fused result
+    carries `support_sources` (sorted list of channels that contributed) and
+    `support_count` in its metadata, exposing multi-source consensus to
+    downstream observability.
     """
     import hashlib
 
     # 收集所有文档及其rank
     doc_scores: Dict[str, float] = {}
     doc_data: Dict[str, SearchResult] = {}
+    # Phase 3: track which sources contributed to each canonical doc_id
+    doc_sources: Dict[str, set] = {}
     # Story 2.2 Task 5.3: Content fingerprint dedup (same content from different sources)
     content_fingerprints: Dict[str, str] = {}  # fingerprint -> doc_id (first seen)
 
@@ -613,6 +652,7 @@ def _fuse_rrf_multi_source(
                 doc_scores[existing_doc_id] = (
                     doc_scores.get(existing_doc_id, 0.0) + rrf_score
                 )
+                doc_sources.setdefault(existing_doc_id, set()).add(source_name)
                 logger.debug(
                     f"[_fuse_rrf] Dedup: {source_name} result merged into {existing_doc_id} (content fingerprint match)"
                 )
@@ -623,6 +663,7 @@ def _fuse_rrf_multi_source(
             # RRF分数累加
             rrf_score = 1.0 / (k + rank)
             doc_scores[doc_id] = doc_scores.get(doc_id, 0.0) + rrf_score
+            doc_sources.setdefault(doc_id, set()).add(source_name)
 
             # 保存文档数据 (首次出现)
             if doc_id not in doc_data:
@@ -642,6 +683,10 @@ def _fuse_rrf_multi_source(
         result = doc_data[doc_id]
         result["score"] = rrf_score  # 使用RRF分数
         result["metadata"]["fusion_method"] = "rrf"
+        # Phase 3: expose multi-source consensus via metadata
+        sources = sorted(doc_sources.get(doc_id, set()))
+        result["metadata"]["support_sources"] = sources
+        result["metadata"]["support_count"] = len(sources)
         fused_results.append(result)
 
     return fused_results
@@ -681,6 +726,8 @@ def _fuse_layered_rrf(
         # RRF within group (reuse flat RRF logic with dedup)
         doc_scores: Dict[str, float] = {}
         doc_data: Dict[str, SearchResult] = {}
+        # Phase 3: per-doc support set within this group
+        group_doc_sources: Dict[str, set] = {}
         content_fps: Dict[str, str] = {}
 
         for source_name, results in group_source_results.items():
@@ -697,10 +744,12 @@ def _fuse_layered_rrf(
                     doc_scores[existing_id] = doc_scores.get(existing_id, 0.0) + 1.0 / (
                         k + rank
                     )
+                    group_doc_sources.setdefault(existing_id, set()).add(source_name)
                     continue
 
                 content_fps[fp] = doc_id
                 doc_scores[doc_id] = doc_scores.get(doc_id, 0.0) + 1.0 / (k + rank)
+                group_doc_sources.setdefault(doc_id, set()).add(source_name)
 
                 if doc_id not in doc_data:
                     doc_data[doc_id] = dict(result)
@@ -718,6 +767,11 @@ def _fuse_layered_rrf(
             result["score"] = rrf_score
             result["metadata"]["fusion_group"] = group_name
             result["metadata"]["fusion_method"] = "layered_rrf"
+            # Phase 3: stamp the in-group support set onto metadata so the
+            # cross-group dedup pass below can union them.
+            result["metadata"]["support_sources"] = sorted(
+                group_doc_sources.get(doc_id, set())
+            )
             group_fused.append(result)
 
         group_results[group_name] = group_fused
@@ -776,6 +830,8 @@ def _fuse_layered_rrf(
     # Step 3: Cross-group content fingerprint dedup
     # Story 2.2 Task 5: Same content appearing in different groups (e.g. vault_notes
     # and lancedb) should be merged — keep the one with higher z-score.
+    # Phase 3: when merging, UNION the support_sources lists from both entries
+    # so downstream observers see the full multi-source consensus.
     global_fps: Dict[str, int] = {}  # fingerprint -> index in all_normalized
     deduped: List[SearchResult] = []
     dedup_count = 0
@@ -790,8 +846,19 @@ def _fuse_layered_rrf(
             # Already seen — keep existing (higher z-score since list is appended per group,
             # but we haven't sorted yet, so compare scores)
             existing_idx = global_fps[fp]
-            if result["score"] > deduped[existing_idx]["score"]:
+            existing = deduped[existing_idx]
+            # Union support_sources from both entries BEFORE deciding which to keep
+            merged_sources = set(
+                existing.get("metadata", {}).get("support_sources", [])
+            )
+            merged_sources.update(result.get("metadata", {}).get("support_sources", []))
+            if result["score"] > existing["score"]:
                 deduped[existing_idx] = result
+                deduped[existing_idx]["metadata"]["support_sources"] = sorted(
+                    merged_sources
+                )
+            else:
+                existing["metadata"]["support_sources"] = sorted(merged_sources)
             dedup_count += 1
             continue
 
@@ -805,6 +872,15 @@ def _fuse_layered_rrf(
 
     # Step 4: Global sort by normalized z-score
     deduped.sort(key=lambda x: x["score"], reverse=True)
+
+    # Phase 3: stamp support_count on every returned result for parity with
+    # _fuse_rrf_multi_source, and default empty support_sources if the group
+    # loop above never set one (shouldn't happen but defensive).
+    for result in deduped:
+        md = result.setdefault("metadata", {})
+        sources = md.get("support_sources", [])
+        md["support_sources"] = sources
+        md["support_count"] = len(sources)
 
     # Return top-30 candidates (reranker will further filter in next node)
     return deduped[:30]
@@ -1054,13 +1130,41 @@ async def rerank_results(
     adaptive_buffer = _safe_get_config(runtime, "adaptive_k_buffer", 5)
     adaptive_min = _safe_get_config(runtime, "adaptive_k_min", 3)
     adaptive_max = _safe_get_config(runtime, "adaptive_k_max", 15)
+    adaptive_epsilon = _safe_get_config(runtime, "adaptive_k_epsilon", 0.01)
     pre_truncate_count = len(reranked_results)
+
+    # Phase 3 (fix-rag-faithfulness-and-add-crag-quality-loop):
+    # Compute sharpness_report BEFORE adaptive_k_truncate so top_scores /
+    # max_gap / is_flat reflect the full reranked list, then stamp `cut`
+    # after truncation. This duplicates a few lines from the adaptive_k
+    # helper but keeps that helper single-purpose.
+    top_scores = [float(r["score"]) for r in reranked_results[:5]]
+    if len(reranked_results) >= 2:
+        all_scores = [float(r["score"]) for r in reranked_results]
+        gaps = [all_scores[i] - all_scores[i + 1] for i in range(len(all_scores) - 1)]
+        max_gap = max(gaps) if gaps else 0.0
+        max_gap_idx: Optional[int] = gaps.index(max_gap) if gaps else None
+    else:
+        max_gap = 0.0
+        max_gap_idx = None
+    sharpness_report = {
+        "pre_count": pre_truncate_count,
+        "top_scores": top_scores,
+        "max_gap": max_gap,
+        "max_gap_idx": max_gap_idx,
+        "is_flat": max_gap < adaptive_epsilon,
+        "epsilon": adaptive_epsilon,
+        "reranking_strategy": reranking_strategy,
+    }
+
     reranked_results = _adaptive_k_truncate(
         reranked_results,
         buffer=adaptive_buffer,
         min_k=adaptive_min,
         max_k=adaptive_max,
+        epsilon=adaptive_epsilon,
     )
+    sharpness_report["cut"] = len(reranked_results)
 
     latency_ms = (time.perf_counter() - start_time) * 1000
 
@@ -1071,7 +1175,11 @@ async def rerank_results(
         f"latency={latency_ms:.2f}ms"
     )
 
-    return {"reranked_results": reranked_results, "reranking_latency_ms": latency_ms}
+    return {
+        "reranked_results": reranked_results,
+        "reranking_latency_ms": latency_ms,
+        "sharpness_report": sharpness_report,
+    }
 
 
 async def _rerank_local(

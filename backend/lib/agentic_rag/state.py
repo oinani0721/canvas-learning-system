@@ -165,6 +165,21 @@ class CanvasRAGState(MessagesState):
     ]
     faithfulness_degraded: Annotated[Optional[bool], "是否触发忠实度安全降级"]
 
+    # fix-rag-faithfulness-and-add-crag-quality-loop Phase 3:
+    # Fusion / Reranking observability reports written by fuse_results /
+    # rerank_results, plus a one-shot CRAG fallback guard.
+    fusion_report: Annotated[
+        Optional[Dict[str, Any]],
+        "融合阶段可观测性指标 (channel_status / coverage / multi-source consensus)",
+    ]
+    sharpness_report: Annotated[
+        Optional[Dict[str, Any]],
+        "重排阶段断崖/锐度指标 (top_scores / max_gap / is_flat / cut)",
+    ]
+    deep_research_used: Annotated[
+        bool, "是否已触发一次性 CRAG deep research 兜底 (one-shot guard)"
+    ]
+
     # 性能监控字段 (Optional) - Separate keys to avoid concurrent update conflicts
     graphiti_latency_ms: Annotated[Optional[float], "Graphiti检索延迟 (ms)"]
     lancedb_latency_ms: Annotated[Optional[float], "LanceDB检索延迟 (ms)"]
@@ -230,6 +245,10 @@ def create_initial_state(**overrides: Any) -> Dict[str, Any]:
         "faithfulness_score": None,
         "faithfulness_details": None,
         "faithfulness_degraded": None,
+        # Phase 3 observability + Phase 4 CRAG one-shot guard
+        "fusion_report": None,
+        "sharpness_report": None,
+        "deep_research_used": False,
         # Latency
         "graphiti_latency_ms": None,
         "lancedb_latency_ms": None,
