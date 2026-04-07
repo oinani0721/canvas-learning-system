@@ -1272,11 +1272,16 @@ class VerificationService:
         """
         Internal method to extract concepts from Canvas file.
 
-        This method contains the actual extraction logic, separated for timeout wrapping.
+        FR-KG-04 P0-3 fix: Path traversal hardening.
+        - Prefer CanvasService.read_canvas(canvas_name) which delegates to its
+          own _validate_canvas_name (rejects "..", "/", "\0", "\\", "//" etc.)
+        - If canvas_path is provided, it MUST resolve inside _canvas_base_path
+          (otherwise return fallback concepts — never read the unsafe path).
+        - The previous unsafe fallback to bare open() has been removed.
 
         Args:
-            canvas_name: Canvas name
-            canvas_path: Optional full path to Canvas file
+            canvas_name: Canvas logical name (no path components recommended)
+            canvas_path: Optional full path to Canvas file (will be base-checked)
             node_ids: Optional list of specific node IDs
 
         Returns:
@@ -1284,29 +1289,27 @@ class VerificationService:
 
         [Source: backend/app/services/canvas_service.py - read_canvas pattern]
         """
-        # Determine Canvas file path
-        if canvas_path:
-            file_path = canvas_path
-        elif self._canvas_base_path:
-            file_path = os.path.join(self._canvas_base_path, f"{canvas_name}.canvas")
-        else:
-            logger.warning(f"No canvas path provided for {canvas_name}, using fallback")
-            return ["默认概念"]
-
-        # Try reading Canvas file
         canvas_data = None
 
-        # Method 1: Use canvas_service if available
+        # Method 1 (preferred): Use CanvasService with logical canvas_name —
+        # delegates path resolution + traversal validation to CanvasService.
         if self._canvas_service:
             try:
-                canvas_data = await self._canvas_service.read_canvas(file_path)
+                canvas_data = await self._canvas_service.read_canvas(canvas_name)
             except Exception as e:
-                logger.debug(
-                    f"Canvas service read failed: {e}, trying direct file read"
-                )
+                logger.debug(f"CanvasService.read_canvas('{canvas_name}') failed: {e}")
 
-        # Method 2: Direct file read as fallback
+        # Method 2 (degraded): Direct file read with strict base-path validation.
+        # Only used when CanvasService is unavailable (DI failure or test isolation).
+        # SECURITY: file_path MUST resolve inside self._canvas_base_path.
         if canvas_data is None:
+            file_path = self._resolve_safe_canvas_path(canvas_name, canvas_path)
+            if file_path is None:
+                logger.warning(
+                    f"Cannot resolve safe canvas path for '{canvas_name}', "
+                    f"using fallback concepts"
+                )
+                return ["默认概念"]
             try:
                 canvas_data = await asyncio.to_thread(
                     self._read_canvas_file_sync, file_path
@@ -1356,12 +1359,86 @@ class VerificationService:
 
         return concepts if concepts else ["默认概念"]
 
+    def _resolve_safe_canvas_path(
+        self, canvas_name: str, canvas_path: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Resolve a canvas file path with strict base-directory enforcement.
+
+        FR-KG-04 P0-3: Path traversal hardening.
+        Returns the resolved file path ONLY if it falls inside _canvas_base_path.
+        Returns None on any of:
+        - Missing base path config
+        - canvas_name contains traversal patterns ("..", "/", "\\", "\0", "//")
+        - Resolved path escapes the base directory
+        - Resolved path doesn't end with .canvas
+        """
+        if not self._canvas_base_path:
+            logger.debug("No canvas_base_path configured, cannot resolve safely")
+            return None
+
+        # Reject traversal patterns in canvas_name (defense-in-depth alongside CanvasService)
+        if canvas_name:
+            dangerous = ["..", "\0", "\\", "//", "/./"]
+            for pattern in dangerous:
+                if pattern in canvas_name:
+                    logger.warning(
+                        f"Rejected canvas_name with dangerous pattern '{pattern}': "
+                        f"{canvas_name!r}"
+                    )
+                    return None
+            if canvas_name.startswith("/"):
+                logger.warning(f"Rejected absolute canvas_name: {canvas_name!r}")
+                return None
+
+        from pathlib import Path
+
+        base = Path(self._canvas_base_path).resolve()
+
+        # Determine the candidate path
+        if canvas_path:
+            candidate = Path(canvas_path)
+        else:
+            # Strip .canvas/.md suffix to avoid double-suffix
+            normalized = canvas_name.removesuffix(".canvas").removesuffix(".md")
+            candidate = base / f"{normalized}.canvas"
+
+        # Resolve and verify it stays inside base
+        try:
+            resolved = candidate.resolve()
+        except (OSError, RuntimeError) as e:
+            logger.warning(f"Failed to resolve canvas path {candidate}: {e}")
+            return None
+
+        # Must be inside base directory
+        try:
+            resolved.relative_to(base)
+        except ValueError:
+            logger.warning(
+                f"Rejected canvas path outside base directory: "
+                f"{resolved} not under {base}"
+            )
+            return None
+
+        # Must end with .canvas (not .py, .sh, /etc/passwd, etc.)
+        if resolved.suffix != ".canvas":
+            logger.warning(
+                f"Rejected non-canvas file: {resolved} (suffix={resolved.suffix})"
+            )
+            return None
+
+        return str(resolved)
+
     def _read_canvas_file_sync(self, file_path: str) -> Optional[Dict[str, Any]]:
         """
         Synchronous Canvas file read (for use with asyncio.to_thread).
 
+        FR-KG-04 P0-3: Callers MUST pre-validate file_path via
+        _resolve_safe_canvas_path() before calling this method. This method
+        does NOT do its own validation — it trusts the caller.
+
         Args:
-            file_path: Path to Canvas JSON file
+            file_path: Path to Canvas JSON file (already validated)
 
         Returns:
             Parsed Canvas data dict or None
@@ -1856,8 +1933,126 @@ class VerificationService:
     # [Source: docs/stories/24.5.story.md#Dev-Notes]
     # =========================================================================
 
+    async def _extract_common_mistakes_from_bkt(
+        self,
+        concept: str,
+        canvas_name: str,
+        node_id: Optional[str] = None,
+        group_id: Optional[str] = None,
+    ) -> str:
+        """
+        Build a "common mistakes" signal from real learner state.
+
+        fix-rag-transform-and-episode-isolation Phase 2:
+            Replaces the prior placeholder string with two real data
+            sources, combined into a single short Chinese signal that
+            the LLM can use to bias question generation toward the
+            learner's actual weak spots.
+
+        Sources (each independently optional, both can fail silently):
+            1. BKT lapse rate from MasteryStore.get_concept(): the ratio
+               fsrs_lapses / max(interaction_count, 1). A rate above 0.3
+               with at least 1 lapse is treated as "easy to forget".
+            2. Recent low-score history from MemoryService
+               .get_concept_score_history(): scores below 60 in the last
+               10 attempts are aggregated as "近期低分".
+
+        Args:
+            concept: Concept name (used for logging only)
+            canvas_name: Canvas/board name for score-history lookup
+            node_id: Frontend node UUID; preferred lookup key for both
+                MasteryStore and the score-history Cypher
+            group_id: Optional group_id for multi-subject mastery isolation
+
+        The result is capped at 500 chars. When neither source yields a
+        usable signal, the sentinel "无已知错误模式" is produced so the
+        downstream prompt builder can stay backward compatible.
+        """
+        lapse_signal = ""
+        # Source 1: BKT lapse rate from mastery_store
+        try:
+            from app.services.mastery_store import (  # local import avoids hard dep
+                get_mastery_store,
+            )
+
+            store = get_mastery_store()
+            lookup_id = node_id or concept
+            state = await store.get_concept(lookup_id, group_id=group_id or "default")
+            if state is not None:
+                interactions = max(state.interaction_count, 1)
+                lapses = state.fsrs_lapses
+                lapse_rate = lapses / interactions
+                if lapse_rate > 0.3 and lapses > 0:
+                    lapse_signal = (
+                        f"该概念历史遗忘率 {lapse_rate:.0%}"
+                        f"（{lapses}/{interactions} 次失败）"
+                    )
+        except Exception as e:
+            logger.warning(
+                "common_mistakes BKT extraction failed",
+                extra={"concept": concept, "error": str(e)[:200]},
+            )
+
+        # Source 2: low-score fragments from memory_service
+        fragments: List[str] = []
+        if self._memory_service is not None:
+            try:
+                history = await self._memory_service.get_concept_score_history(
+                    node_id or concept, canvas_name, limit=10
+                )
+                if history and history.scores:
+                    low_scores = [s for s in history.scores if s < 60]
+                    if low_scores:
+                        recent_low = low_scores[-3:]
+                        fragments = [f"得分 {s}" for s in recent_low]
+            except Exception as e:
+                logger.warning(
+                    "common_mistakes score-history extraction failed",
+                    extra={"concept": concept, "error": str(e)[:200]},
+                )
+
+        if not lapse_signal and not fragments:
+            logger.debug(
+                "common_mistakes_extracted",
+                extra={
+                    "concept": concept,
+                    "lapse_signal": False,
+                    "fragments_count": 0,
+                    "extraction_source": "none",
+                },
+            )
+            return "无已知错误模式"
+
+        parts: List[str] = []
+        if lapse_signal:
+            parts.append(lapse_signal)
+        if fragments:
+            parts.append("近期低分: " + ", ".join(fragments))
+
+        result = "; ".join(parts)[:500]
+
+        logger.debug(
+            "common_mistakes_extracted",
+            extra={
+                "concept": concept,
+                "lapse_signal": bool(lapse_signal),
+                "fragments_count": len(fragments),
+                "extraction_source": (
+                    "both"
+                    if lapse_signal and fragments
+                    else ("bkt" if lapse_signal else "score_history")
+                ),
+            },
+        )
+        return result
+
     async def _get_rag_context_for_concept(
-        self, concept: str, canvas_name: str, timeout: float = 5.0
+        self,
+        concept: str,
+        canvas_name: str,
+        timeout: float = 5.0,
+        node_id: Optional[str] = None,
+        group_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Query RAG for concept-related context with timeout fallback.
@@ -1871,9 +2066,11 @@ class VerificationService:
             concept: Concept to query about
             canvas_name: Canvas file name
             timeout: Query timeout in seconds (default: 5.0)
+            node_id: Optional frontend node UUID — passed through to
+                _extract_common_mistakes_from_bkt for precise lookup
+            group_id: Optional group_id for multi-subject isolation
 
-        Returns:
-            Dict with RAG context or None on error/timeout
+        The dict shape (or None on error/timeout) is:
             {
                 "learning_history": str,
                 "related_concepts": List[str],
@@ -1895,6 +2092,14 @@ class VerificationService:
                     is_review_canvas=False,
                 ),
                 timeout=timeout,
+            )
+
+            # fix-rag-transform-and-episode-isolation Phase 2:
+            #   common_mistakes now sources from BKT lapses + low-score history
+            #   instead of the prior placeholder string. The extraction is
+            #   independent of RAG availability and degrades silently.
+            common_mistakes = await self._extract_common_mistakes_from_bkt(
+                concept, canvas_name, node_id=node_id, group_id=group_id
             )
 
             # FR-KG-04 fix (commit f215830): RAG returns reranked_results
@@ -1921,12 +2126,12 @@ class VerificationService:
                 return {
                     "learning_history": learning_history,
                     "related_concepts": related_concepts,
-                    "common_mistakes": "无已知错误模式",
+                    "common_mistakes": common_mistakes,
                 }
             return {
                 "learning_history": "无历史记录",
                 "related_concepts": [],
-                "common_mistakes": "无已知错误模式",
+                "common_mistakes": common_mistakes,
             }
 
         except asyncio.TimeoutError:
@@ -2117,14 +2322,21 @@ class VerificationService:
         canvas_name: str,
         node_id: Optional[str] = None,
         timeout: float = 5.0,
+        group_id: Optional[str] = None,
     ) -> Dict[str, Optional[Dict[str, Any]]]:
         """
         Fetch RAG + Graph + FSRS context in parallel.
 
         All failures degrade silently — each source returning None on error.
         Total latency ≈ max(RAG, Graph, FSRS) due to parallel execution.
+
+        node_id and group_id are forwarded into the RAG transform so that
+        common_mistakes can be computed against the learner's BKT state
+        (Phase 2 of fix-rag-transform-and-episode-isolation).
         """
-        rag_coro = self._get_rag_context_for_concept(concept, canvas_name, timeout)
+        rag_coro = self._get_rag_context_for_concept(
+            concept, canvas_name, timeout, node_id=node_id, group_id=group_id
+        )
         graph_coro = self._get_graph_context_for_concept(
             concept, canvas_name, min(timeout, 3.0)
         )
@@ -2360,7 +2572,11 @@ class VerificationService:
 
         # P2: Get enriched context (RAG + Graph + FSRS in parallel)
         enriched = await self._get_enriched_context(
-            concept, canvas_name, node_id=node_id, timeout=self.RAG_TIMEOUT
+            concept,
+            canvas_name,
+            node_id=node_id,
+            timeout=self.RAG_TIMEOUT,
+            group_id=group_id,
         )
         rag_context = enriched.get("rag")
         graph_context = enriched.get("graph")
