@@ -24,11 +24,13 @@ Acceptance Criteria:
 import asyncio
 import importlib
 import importlib.util
-import logging
+import logging  # kept for level constants and stdlib helpers
 import sys
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import structlog
 
 from app.core.subject_config import (
     build_group_id,
@@ -41,7 +43,10 @@ from app.models.intelligent_parallel_models import (
     NodeInGroup,
 )
 
-logger = logging.getLogger(__name__)
+# Use structlog now that core/logging.py wires the stdlib bridge
+# (caplog can capture both structlog and stdlib records uniformly).
+# [Source: openspec/changes/fix-structlog-caplog-compat — Task 4]
+logger = structlog.get_logger(__name__)
 
 # Lock for thread-safe lazy loading of canvas_utils module
 _canvas_utils_load_lock = threading.Lock()

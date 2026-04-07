@@ -11,12 +11,15 @@ This module provides test fixtures and configuration for the test suite.
 
 import asyncio
 import json
+import logging
 import tempfile
 from pathlib import Path
 from typing import Generator
 
 import pytest
+import structlog
 from app.config import Settings, get_settings
+from app.core.logging import configure_logging
 from app.main import app
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing TestClient)
@@ -29,6 +32,38 @@ hypothesis_settings.register_profile("ci", max_examples=200, deadline=5000)
 hypothesis_settings.register_profile("dev", max_examples=20, deadline=10000)
 hypothesis_settings.register_profile("hook", max_examples=5, deadline=2000)
 hypothesis_settings.load_profile("dev")
+
+
+# ============================================================================
+# Logging fixtures (autouse) — bridge structlog into stdlib so caplog works
+# [Source: openspec/changes/fix-structlog-caplog-compat — Task 3]
+# ============================================================================
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _configure_logging_for_tests():
+    """Install the unified structlog↔stdlib bridge once per test session.
+
+    Without this, structlog logs bypass stdlib's logging module and pytest's
+    `caplog` fixture cannot capture them. We also force `propagate=True` on
+    the root logger so child loggers fan records up to caplog's handler.
+    """
+    configure_logging(level=logging.DEBUG)
+    logging.getLogger().propagate = True
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_structlog_contextvars():
+    """Prevent structlog ContextVars (e.g. request_id) from leaking across tests.
+
+    Clears before AND after every test to defend against tests that bind
+    contextvars but never unbind them on failure paths.
+    """
+    structlog.contextvars.clear_contextvars()
+    yield
+    structlog.contextvars.clear_contextvars()
+
 
 # ============================================================================
 # Shared Test Utilities

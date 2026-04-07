@@ -14,6 +14,7 @@ Usage:
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
@@ -23,48 +24,51 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Logging Setup — MUST run before any app.* import that may construct a logger
+# at module level. Otherwise those loggers fall through to structlog's default
+# (ConsoleRenderer) and the first few startup lines escape the JSON pipeline.
+# [Source: ADR-010 - Logging聚合策略]
+# [Source: openspec/changes/fix-structlog-caplog-compat — Task 2]
+# ═══════════════════════════════════════════════════════════════════════════════
+from app.core.logging import configure_logging  # noqa: E402
+
+_log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+configure_logging(level=getattr(logging, _log_level_name, logging.INFO))
+logger = logging.getLogger(__name__)
+
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: FastAPI CORSMiddleware)
-from fastapi import FastAPI, Request, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import FastAPI, Request, WebSocket  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 
 # ✅ Story 5.2: Mastery WebSocket endpoint
-from app.api.v1.endpoints.mastery_ws import websocket_mastery_endpoint
-from app.api.v1.endpoints.monitoring import set_alert_manager
+from app.api.v1.endpoints.mastery_ws import websocket_mastery_endpoint  # noqa: E402
+from app.api.v1.endpoints.monitoring import set_alert_manager  # noqa: E402
 
 # ✅ Story 33.2: WebSocket endpoint import
-from app.api.v1.endpoints.websocket import (
+from app.api.v1.endpoints.websocket import (  # noqa: E402
     websocket_intelligent_parallel,
 )
-from app.api.v1.router import router as api_v1_router
-from app.config import settings
-from app.core.bug_tracker import bug_tracker
-from app.core.litellm_config import register_litellm_callbacks
-from app.core.logging import setup_logging
+from app.api.v1.router import router as api_v1_router  # noqa: E402
+from app.config import settings  # noqa: E402
+from app.core.bug_tracker import bug_tracker  # noqa: E402
+from app.core.litellm_config import register_litellm_callbacks  # noqa: E402
 
 # ✅ Story 7.2: LLM Call Logging & Token Tracking
-from app.middleware.cost_tracker import cleanup_cost_tracker, get_cost_tracker
-from app.middleware.llm_call_logger import llm_call_logger
-from app.middleware.metrics import MetricsMiddleware
-from app.services.alert_manager import AlertManager, load_alert_rules_from_yaml
+from app.middleware.cost_tracker import cleanup_cost_tracker, get_cost_tracker  # noqa: E402
+from app.middleware.llm_call_logger import llm_call_logger  # noqa: E402
+from app.middleware.metrics import MetricsMiddleware  # noqa: E402
+from app.services.alert_manager import AlertManager, load_alert_rules_from_yaml  # noqa: E402
 
 # ✅ Story 30.3 Fix: Import MemoryService from canonical singleton location
-from app.services.memory_service import cleanup_memory_service, get_memory_service
-from app.services.notification_channels import create_default_dispatcher
+from app.services.memory_service import cleanup_memory_service, get_memory_service  # noqa: E402
+from app.services.notification_channels import create_default_dispatcher  # noqa: E402
 
 # ✅ Story 7.3: Prompt Version Management & Regression Testing
-from app.services.prompt_registry import get_prompt_registry
-from app.services.resource_monitor import get_default_monitor
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Logging Setup
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# Configure logging before application starts
-# [Source: ADR-010 - Logging聚合策略]
-setup_logging(log_level=settings.LOG_LEVEL)
-logger = logging.getLogger(__name__)
+from app.services.prompt_registry import get_prompt_registry  # noqa: E402
+from app.services.resource_monitor import get_default_monitor  # noqa: E402
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

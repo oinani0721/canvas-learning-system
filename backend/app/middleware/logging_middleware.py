@@ -25,26 +25,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-# ✅ Verified from Context7:/hynek/structlog (topic: configure processors)
-# Configure structlog with processors compatible with PrintLoggerFactory
-# Note: Using simpler processor chain that doesn't require stdlib logging
-structlog.configure(
-    processors=[
-        structlog.contextvars.merge_contextvars,
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer(),
-    ],
-    wrapper_class=structlog.BoundLogger,
-    context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(),
-    cache_logger_on_first_use=True,
-)
-
-# Get logger instance
+# Logging is configured globally via app.core.logging.configure_logging()
+# called from main.py at startup. This module just acquires a logger.
+# [Source: openspec/changes/fix-structlog-caplog-compat — Task 1]
 logger = structlog.get_logger(__name__)
 
 
