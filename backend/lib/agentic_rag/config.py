@@ -96,6 +96,15 @@ class CanvasRAGConfig(TypedDict, total=False):
     lancedb_batch_size: Optional[int]  # LanceDB专用 (默认同retrieval_batch_size)
     search_type: Literal["vector", "hybrid"]  # 默认搜索模式
 
+    # === L1 LLM Router (A9 / OpenSpec agentic-rag-l1-llm-router) ===
+    # Replaces rule-based classify_query_intent with LLM judgment.
+    # strategy="hybrid" (default): try LLM, fall back to rule on any failure
+    # strategy="llm":   LLM only, fall back to "comprehensive" on failure (no rule)
+    # strategy="rule":  legacy keyword matcher only (no LLM call)
+    l1_router_strategy: Literal["llm", "rule", "hybrid"]
+    l1_router_llm_model: str  # LiteLLM model id, e.g. "gemini/gemini-2.0-flash"
+    l1_router_timeout_seconds: float  # Hard timeout for the LLM router call
+
     # === 融合配置 ===
     fusion_strategy: Literal["rrf", "weighted", "cascade", "layered_rrf"]  # 融合算法
     fusion_groups: Dict[str, List[str]]  # 3 组分层映射
@@ -181,6 +190,10 @@ DEFAULT_CONFIG = CanvasRAGConfig(
     # === 检索 ===
     retrieval_batch_size=10,
     search_type="hybrid",
+    # === L1 LLM Router (A9) ===
+    l1_router_strategy="hybrid",
+    l1_router_llm_model="gemini/gemini-2.0-flash",
+    l1_router_timeout_seconds=3.0,
     # === 融合 ===
     fusion_strategy="layered_rrf",
     fusion_groups=DEFAULT_FUSION_GROUPS,
@@ -268,6 +281,8 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         "deep_research_timeout_s": {"type": (int, float), "min": 1.0, "max": 60.0},
         "deep_research_max_queries": {"type": int, "min": 1, "max": 20},
         "deep_research_max_tokens": {"type": int, "min": 100, "max": 4000},
+        # A9 / OpenSpec agentic-rag-l1-llm-router: L1 LLM router budget
+        "l1_router_timeout_seconds": {"type": (int, float), "min": 0.5, "max": 30.0},
     }
 
     for param, rules in _VALIDATION_RULES.items():
@@ -299,6 +314,8 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         "fusion_strategy": {"rrf", "weighted", "cascade", "layered_rrf"},
         "reranking_strategy": {"local", "cohere", "hybrid_auto"},
         "search_type": {"vector", "hybrid"},
+        # A9: L1 router strategy — hybrid is default, llm/rule are opt-in overrides
+        "l1_router_strategy": {"llm", "rule", "hybrid"},
     }
     for param, allowed in _ENUM_RULES.items():
         if param not in validated:
@@ -341,6 +358,8 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         "rewrite_model",
         "multi_query_model",
         "ocr_model",
+        # A9: L1 LLM router model id
+        "l1_router_llm_model",
     ]
     for param in _STRING_FIELDS:
         if param not in validated:

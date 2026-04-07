@@ -168,16 +168,80 @@ def _build_sends_for_intent(intent: str, state: CanvasRAGState) -> list[Send]:
         return all_sends
 
 
-def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
+async def _classify_intent_with_strategy(query: str) -> tuple[str, str, dict]:
     """
-    Fan-out to parallel retrieval nodes — Story 2.6 AC-5: L1 智能路由
+    A9 / OpenSpec agentic-rag-l1-llm-router: Hybrid LLM → rule fallback chain.
 
-    Uses classify_query_intent to determine which retrieval channels to activate.
-    Falls back to all 6 routes if routing fails.
+    Picks the L1 routing intent for `query` according to `l1_router_strategy`
+    config (llm / rule / hybrid). On any LLM failure (timeout, parse, network),
+    silently degrades to the rule-based classifier; on rule failure, degrades
+    to "comprehensive".
+
+    Args:
+        query: Raw user query text.
+
+    Returns:
+        (intent, strategy_used, metrics) — strategy_used is one of
+        "llm" / "rule" / "comprehensive_fallback"; metrics is a dict
+        suitable for structured logging (latency_ms, llm_error, etc.).
+    """
+    from agentic_rag.config import DEFAULT_CONFIG
+
+    strategy = DEFAULT_CONFIG.get("l1_router_strategy", "hybrid")
+    llm_model = DEFAULT_CONFIG.get("l1_router_llm_model", "gemini/gemini-2.0-flash")
+    llm_timeout = float(DEFAULT_CONFIG.get("l1_router_timeout_seconds", 3.0))
+
+    metrics: dict = {"strategy_requested": strategy}
+
+    # Strategy: rule (skip LLM entirely — used for benchmarks / explicit rollback)
+    if strategy == "rule":
+        try:
+            return classify_query_intent(query), "rule", metrics
+        except Exception as exc:
+            metrics["rule_error"] = f"{type(exc).__name__}: {exc}"
+            return "comprehensive", "comprehensive_fallback", metrics
+
+    # Strategy: llm or hybrid — try LLM first
+    try:
+        from agentic_rag.llm_router import llm_route
+
+        result = await llm_route(query, model=llm_model, timeout_s=llm_timeout)
+        metrics["llm_latency_ms"] = result.latency_ms
+        metrics["llm_success"] = result.success
+        if result.error:
+            metrics["llm_error"] = result.error
+        if result.success:
+            return result.intent, "llm", metrics
+    except Exception as exc:
+        # Defensive: llm_route is documented as never-raises, but guard anyway
+        metrics["llm_exception"] = f"{type(exc).__name__}: {exc}"
+        logger.warning(f"[fan_out_retrieval] LLM router raised: {exc}")
+
+    # Strategy: llm-only — caller asked for LLM, no rule fallback
+    if strategy == "llm":
+        return "comprehensive", "comprehensive_fallback", metrics
+
+    # Strategy: hybrid (default) — fall back to rule on LLM failure
+    try:
+        return classify_query_intent(query), "rule", metrics
+    except Exception as exc:
+        metrics["rule_error"] = f"{type(exc).__name__}: {exc}"
+        return "comprehensive", "comprehensive_fallback", metrics
+
+
+async def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
+    """
+    Fan-out to parallel retrieval nodes — Story 2.6 AC-5 + A9 LLM upgrade.
+
+    A9 / OpenSpec agentic-rag-l1-llm-router: Now uses an LLM-based router
+    (Gemini Flash via LiteLLM) when `l1_router_strategy=hybrid` (default),
+    falling back to rule-based classify_query_intent on any LLM failure.
 
     Story 2.10 fix: When multi_queries is populated by multi_query_rewrite_node,
-    creates Send objects for each rewritten query (broadening recall). Otherwise
-    uses the original query from messages.
+    creates Send objects for each rewritten query (broadening recall). The
+    L1 routing decision is made ONCE on the original query and shared across
+    all rewritten variants — matches the existing behavior, the LLM/rule
+    distinction does not change this.
 
     Returns:
         List[Send]: Send objects for parallel execution
@@ -196,14 +260,18 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
             else getattr(last_msg, "content", "")
         )
 
-    # L1 routing with exception safety
-    try:
-        intent = classify_query_intent(query)
-    except Exception as e:
-        logger.warning(
-            f"[fan_out_retrieval] L1 routing failed: {e}, falling back to comprehensive"
-        )
-        intent = "comprehensive"
+    # A9: Hybrid LLM → rule fallback (async — requires LangGraph 1.x async
+    # conditional edge support, verified by test_langgraph_async_conditional_edge_smoke.py)
+    intent, strategy_used, route_metrics = await _classify_intent_with_strategy(query)
+
+    # Structured route_decision log — facilitates compare_l1_router_strategies.py
+    logger.info(
+        "[l1_router] route_decision strategy=%s intent=%s query=%r metrics=%s",
+        strategy_used,
+        intent,
+        query[:60],
+        route_metrics,
+    )
 
     # Story 2.10: If multi_queries exist, create Sends for each query variant
     # Each query variant gets its own set of retrieval channels based on intent
