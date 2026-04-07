@@ -338,11 +338,49 @@ class MasteryEngine:
 
         After fusion/fallback, applies override and self-assessment decay.
 
+        A10 Phase 0 Hardening #2: this method is now a thin wrapper around
+        `effective_proficiency_with_fallback_info`, which returns the same
+        float along with a boolean indicating whether the fallback path was
+        used. This method discards the boolean for backward compatibility;
+        callers that need fallback observability should use the new helper.
+
         Returns:
             float in [0.0, 1.0]
         """
+        eff, _ = self.effective_proficiency_with_fallback_info(concept)
+        return eff
+
+    def effective_proficiency_with_fallback_info(
+        self, concept: ConceptState
+    ) -> tuple[float, bool]:
+        """Compute effective proficiency and report whether fallback was used.
+
+        A10 Phase 0 Hardening #2: this is the canonical method for callers that
+        need cross-layer observability of the fusion-fallback state. The
+        existing `effective_proficiency(concept) -> float` is now a thin
+        wrapper that discards the boolean for backward compatibility.
+
+        Semantic of the boolean:
+          - True when the conservative `min(p_mastery, R)` fallback path was
+            taken, either because no fusion engine is attached, or because
+            `compute_fused_mastery` returned `active_signal_count == 0` and the
+            engine fell through to the Story 5.1 strategy.
+          - False when fusion was actually consumed (`active_signal_count > 0`)
+            OR when `interaction_count == 0` and the "not assessed" early exit
+            returned `base = 0.0`. A not-assessed concept returning 0.0 is the
+            documented expected behavior, not a degradation — flagging it as
+            a fallback would flood the observability pipeline with false
+            signals for every fresh node.
+
+        Returns:
+            tuple (effective_proficiency: float in [0.0, 1.0], fusion_fallback: bool)
+        """
+        fusion_fallback = False
+
         if concept.interaction_count == 0:
-            # Not assessed yet - only consider override/self-assess if present
+            # Not assessed yet - only consider override/self-assess if present.
+            # fusion_fallback stays False: this is the expected "not assessed"
+            # output, not a degradation of the fusion path.
             base = 0.0
         elif self._fusion_engine is not None:
             # Story 5.6: Auto-preload signal caches before fusion
@@ -353,14 +391,22 @@ class MasteryEngine:
             )
             if fusion_result.active_signal_count > 0:
                 base = fusion_result.fused_mastery
+                # fusion_fallback stays False: fusion actually produced a value
             else:
-                # Fallback to min(p_mastery, R) when no signals available
+                # Fallback to min(p_mastery, R) when no signals available.
+                # Mark the fallback state so downstream observability can show
+                # "this value came from the conservative strategy, not fusion".
                 R = self._get_retrievability(concept)
                 base = min(concept.p_mastery, R)
+                fusion_fallback = True
         else:
-            # Original Story 5.1 fallback: Conservative min strategy
+            # Original Story 5.1 fallback: Conservative min strategy.
+            # No fusion engine attached at all - this is observably different
+            # from fusion-engine-returned-zero-signals but both are fallback
+            # paths from the caller's perspective.
             R = self._get_retrievability(concept)
             base = min(concept.p_mastery, R)
+            fusion_fallback = True
 
         # Apply override decay (explicit override from Sidebar)
         result = self._apply_override(concept, base)
@@ -368,7 +414,7 @@ class MasteryEngine:
         # Apply self-assessment signal (implicit from Canvas color)
         result = self._apply_self_assess(concept, result)
 
-        return max(0.0, min(1.0, result))
+        return max(0.0, min(1.0, result)), fusion_fallback
 
     def _apply_override(self, concept: ConceptState, base: float) -> float:
         """Apply override with exponential decay."""

@@ -66,16 +66,33 @@ def _patch_engine_and_store(
     mastery_level_value: int = 0,
     mastery_label_value: str = "Not Assessed",
     retrievability_value: float = 1.0,
+    fusion_fallback_value: bool = False,
 ) -> tuple[MagicMock, AsyncMock]:
     """Install AsyncMock store + MagicMock engine for the duration of one test.
+
+    A10 Phase 0 Hardening #2 update: the production code now calls
+    `effective_proficiency_with_fallback_info(concept)` which returns a
+    tuple `(float, bool)`. The helper configures that method's return tuple
+    using `effective_proficiency_value` and the new `fusion_fallback_value`
+    kwarg (defaults to False for the happy path).
+
+    The older `effective_proficiency` mock is still configured for any test
+    that calls it directly, but _get_mastery_data in production no longer
+    uses that entry point.
 
     Returns (engine_mock, store_mock) for assertions.
     """
     engine_mock = MagicMock(name="MasteryEngine")
     engine_mock.effective_proficiency.return_value = effective_proficiency_value
-    # A10 Phase 0 Hardening: the production code now calls the pre-computed
-    # helpers (mastery_level_from_proficiency / mastery_label_from_level)
-    # to avoid 3x redundant effective_proficiency calls per node.
+    # A10 Phase 0 Hardening #2: configure the fallback-aware helper to return
+    # a tuple (eff, fusion_fallback). Production code reads both components.
+    engine_mock.effective_proficiency_with_fallback_info.return_value = (
+        effective_proficiency_value,
+        fusion_fallback_value,
+    )
+    # A10 Phase 0 Hardening: the production code uses pre-computed helpers
+    # (mastery_level_from_proficiency / mastery_label_from_level) to avoid
+    # 3x redundant effective_proficiency calls per node.
     engine_mock.mastery_level_from_proficiency.return_value = mastery_level_value
     engine_mock.mastery_label_from_level.return_value = mastery_label_value
     engine_mock.get_retrievability.return_value = retrievability_value
@@ -128,10 +145,13 @@ async def test_effective_proficiency_from_fusion(
     assert result["p_mastery"] == 0.65  # stable field via direct attribute access
 
     # Verify the engine methods were called with the actual ConceptState (not a default)
-    # A10 Phase 0 Hardening: effective_proficiency is called exactly once and the
-    # resulting value is piped into mastery_level_from_proficiency (which receives
-    # both the cached eff and the concept) and mastery_label_from_level (level only).
-    engine_mock.effective_proficiency.assert_called_once_with(studied_concept)
+    # A10 Phase 0 Hardening #2: production now calls
+    # effective_proficiency_with_fallback_info (which returns (eff, bool))
+    # instead of the old effective_proficiency. The cached eff is piped into
+    # mastery_level_from_proficiency and mastery_label_from_level.
+    engine_mock.effective_proficiency_with_fallback_info.assert_called_once_with(
+        studied_concept
+    )
     engine_mock.mastery_level_from_proficiency.assert_called_once_with(
         0.85, studied_concept
     )
@@ -139,12 +159,15 @@ async def test_effective_proficiency_from_fusion(
     engine_mock.get_retrievability.assert_called_once_with(studied_concept)
     # The old un-cached variants must NOT be called by _get_mastery_data — calling
     # them would re-invoke effective_proficiency internally, re-introducing the 3x
-    # performance regression this hardening eliminates.
+    # performance regression the first Phase 0 Hardening round eliminated.
+    # A10 Phase 0 Hardening #2: the direct effective_proficiency(concept) call
+    # also must NOT appear — production now uses the fallback-aware helper only.
+    engine_mock.effective_proficiency.assert_not_called()
     engine_mock.mastery_level.assert_not_called()
     engine_mock.mastery_label.assert_not_called()
     store_mock.get_concept.assert_awaited_once_with("c-studied")
     # A10 Phase 0 Hardening: happy-path returns mastery_degraded=None so downstream
-    # observability can distinguish it from concept_not_found / exception fallbacks.
+    # observability can distinguish it from concept_not_found / exception / fusion_fallback.
     assert result["mastery_degraded"] is None
 
 
@@ -323,11 +346,16 @@ async def test_effective_proficiency_called_exactly_once(
     studied_concept: ConceptState,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A10 Phase 0 Hardening: effective_proficiency called 1x per _get_mastery_data.
+    """A10 Phase 0 Hardening #2: effective_proficiency_with_fallback_info
+    called 1x per _get_mastery_data.
 
-    Pre-hardening: called 3x (direct + via mastery_level + via mastery_label).
-    Post-hardening: called 1x, result is cached and passed to
-    mastery_level_from_proficiency and mastery_label_from_level.
+    Pre-Hardening-1: effective_proficiency called 3x (direct + via mastery_level
+    + via mastery_label).
+    Post-Hardening-1: effective_proficiency called 1x, result cached and passed
+    to mastery_level_from_proficiency and mastery_label_from_level.
+    Post-Hardening-2 (this test): the single-call path is the fallback-aware
+    helper `effective_proficiency_with_fallback_info`, not the old
+    `effective_proficiency`. The old method must NOT be called at all.
     """
     engine_mock, _ = _patch_engine_and_store(
         monkeypatch,
@@ -339,14 +367,15 @@ async def test_effective_proficiency_called_exactly_once(
 
     await generator._get_mastery_data(studied_concept.concept_id)
 
-    assert engine_mock.effective_proficiency.call_count == 1, (
-        f"Expected effective_proficiency called 1 time, got "
-        f"{engine_mock.effective_proficiency.call_count}. "
-        f"Phase 0 Hardening regression — the 3x redundancy is back."
+    assert engine_mock.effective_proficiency_with_fallback_info.call_count == 1, (
+        f"Expected effective_proficiency_with_fallback_info called 1 time, got "
+        f"{engine_mock.effective_proficiency_with_fallback_info.call_count}. "
+        f"Phase 0 Hardening #2 regression — the fallback-aware helper path is broken."
     )
     assert engine_mock.mastery_level_from_proficiency.call_count == 1
     assert engine_mock.mastery_label_from_level.call_count == 1
-    # The un-cached variants must not be called
+    # The old un-cached variants must not be called
+    assert engine_mock.effective_proficiency.call_count == 0
     assert engine_mock.mastery_level.call_count == 0
     assert engine_mock.mastery_label.call_count == 0
 
@@ -471,3 +500,79 @@ def test_mastery_label_from_level_matches_mastery_label_lookup() -> None:
         )
     # Out-of-range levels return "Unknown"
     assert engine.mastery_label_from_level(99) == "Unknown"
+
+
+# ===========================================================================
+# A10 Phase 0 Hardening #2 scenarios — fusion_fallback observability
+# ===========================================================================
+#
+# These scenarios protect the gap identified by ChatGPT Deep Research round 3:
+# when MasteryEngine.effective_proficiency falls through to the min(p_mastery, R)
+# strategy (because fusion returned active_signal_count == 0, or no fusion
+# engine is attached), the fallback state must propagate to _get_mastery_data
+# as mastery_degraded="fusion_fallback" — distinct from concept_not_found,
+# exception, and the happy-path None.
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_fusion_fallback_propagates_to_mastery_degraded(
+    generator: QuestionGenerator,
+    studied_concept: ConceptState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A10 Phase 0 Hardening #2: fusion fallback surfaces as mastery_degraded.
+
+    When MasteryEngine.effective_proficiency_with_fallback_info returns
+    (eff, True) — meaning the engine computed eff via min(p_mastery, R)
+    instead of the multi-signal fusion — _get_mastery_data must set
+    mastery_degraded="fusion_fallback" (NOT None, NOT concept_not_found).
+    """
+    engine_mock, _ = _patch_engine_and_store(
+        monkeypatch,
+        concept=studied_concept,
+        effective_proficiency_value=0.3,  # eff from min(p_mastery, R)
+        mastery_level_value=1,
+        mastery_label_value="Shaky",
+        fusion_fallback_value=True,  # fusion fell through to Story 5.1 strategy
+    )
+
+    result = await generator._get_mastery_data(studied_concept.concept_id)
+
+    # The observable marker must be set — this is the whole point of Hardening #2
+    assert result["mastery_degraded"] == "fusion_fallback"
+    # The numerical value itself is still valid (not 0.0 like concept_not_found)
+    assert result["effective_proficiency"] == 0.3
+    assert result["mastery_level"] == 1
+    assert result["mastery_label"] == "Shaky"
+    # Engine helper was called exactly once
+    engine_mock.effective_proficiency_with_fallback_info.assert_called_once_with(
+        studied_concept
+    )
+
+
+@pytest.mark.asyncio
+async def test_happy_path_fusion_has_none_degraded(
+    generator: QuestionGenerator,
+    studied_concept: ConceptState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A10 Phase 0 Hardening #2: fusion-active happy path sets mastery_degraded=None.
+
+    Regression guard: when fusion actually runs (active_signal_count > 0), the
+    engine helper returns (eff, False) and _get_mastery_data must emit None
+    for mastery_degraded — distinct from the fusion_fallback value.
+    """
+    _patch_engine_and_store(
+        monkeypatch,
+        concept=studied_concept,
+        effective_proficiency_value=0.72,
+        mastery_level_value=3,
+        mastery_label_value="Proficient",
+        fusion_fallback_value=False,  # fusion actually produced a value
+    )
+
+    result = await generator._get_mastery_data(studied_concept.concept_id)
+
+    assert result["mastery_degraded"] is None
+    assert result["effective_proficiency"] == 0.72

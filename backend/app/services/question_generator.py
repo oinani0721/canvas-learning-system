@@ -744,9 +744,17 @@ class QuestionGenerator:
             engine = get_mastery_engine()
             concept = await store.get_concept(node_id)
             if concept:
-                # Compute effective_proficiency exactly once and reuse via the
-                # pre-computed helpers. See Phase 0 Hardening contract above.
-                eff = engine.effective_proficiency(concept)
+                # A10 Phase 0 Hardening #2: call the fallback-aware helper to
+                # surface cross-layer observability of the fusion fallback state.
+                # The helper returns (eff, fusion_fallback). When fusion_fallback
+                # is True, the concept was found and the engine returned a
+                # value, but that value came from the conservative
+                # min(p_mastery, R) strategy instead of the multi-signal fusion.
+                # Downstream consumers (prompts, dashboards) can now distinguish
+                # "fusion produced a confident value" from "fusion fell through".
+                eff, fusion_fallback = engine.effective_proficiency_with_fallback_info(
+                    concept
+                )
                 level = engine.mastery_level_from_proficiency(eff, concept)
                 label = engine.mastery_label_from_level(level)
                 return {
@@ -755,7 +763,7 @@ class QuestionGenerator:
                     "effective_proficiency": eff,
                     "mastery_level": level,
                     "mastery_label": label,
-                    "mastery_degraded": None,
+                    "mastery_degraded": "fusion_fallback" if fusion_fallback else None,
                 }
             # concept_not_found: CanvasNode.id has no matching EntityNode.mastery_concept_id
             # (typical cause: score event has not been processed yet, or ID mapping gap).

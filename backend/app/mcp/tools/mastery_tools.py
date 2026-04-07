@@ -37,7 +37,19 @@ class QueryMasteryInput(BaseModel):
 
 
 class QueryMasteryOutput(BaseModel):
-    """Output schema for query_mastery tool."""
+    """Output schema for query_mastery tool.
+
+    A10 Phase 0 Hardening #2: ``mastery_degraded`` mirrors the cross-layer
+    observability pattern established on ``NodePriority`` and ``ACPData``.
+    Possible values:
+
+    - ``None``: mastery values came from the fusion happy path
+    - ``"concept_not_found"``: ``mastery_store.get_concept`` returned None
+    - ``"exception"``: mastery lookup raised a non-fatal error
+    - ``"fusion_fallback"``: the engine fell through to ``min(p_mastery, R)``
+      (either because no fusion engine is attached, or because
+      ``compute_fused_mastery`` returned ``active_signal_count == 0``)
+    """
 
     node_id: str
     p_mastery: Optional[float] = Field(
@@ -60,6 +72,13 @@ class QueryMasteryOutput(BaseModel):
         None, description="Last interaction timestamp (ISO 8601)"
     )
     status: str = Field("ok", description="Query status")
+    mastery_degraded: Optional[str] = Field(
+        None,
+        description=(
+            "Cross-layer observability marker. None on happy path; "
+            "'concept_not_found' / 'exception' / 'fusion_fallback' otherwise."
+        ),
+    )
 
 
 class UpdateFsrsInput(BaseModel):

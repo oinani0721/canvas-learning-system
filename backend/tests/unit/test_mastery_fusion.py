@@ -155,16 +155,27 @@ class TestMasteryFusionEngine:
         assert result.active_signal_count == 5
 
     def test_no_signals_registered(self):
-        """No signals at all → 0.0."""
+        """No signals at all → 0.0 with is_fallback=True.
+
+        A10 Phase 0 Hardening #2: the spec scenario "Zero signals active is
+        fail-safe" requires is_fallback=True so downstream observability can
+        distinguish "fusion confidently returned 0.0" from "fusion had no data".
+        """
         registry = SignalRegistry()
         engine = MasteryFusionEngine(registry)
 
         result = engine.compute_fused_mastery("node1")
         assert result.fused_mastery == 0.0
         assert result.active_signal_count == 0
+        assert result.is_fallback is True
 
     def test_all_signals_no_data(self):
-        """All signals return None → 0.0."""
+        """All signals return None → 0.0 with is_fallback=True.
+
+        A10 Phase 0 Hardening #2: same fail-safe semantic as no-signals-registered.
+        The registry has entries but none have data for this node_id, so
+        active_signal_count == 0 and the engine must emit is_fallback=True.
+        """
         registry = SignalRegistry()
         registry.register(FakeSignal("bkt", None))
         registry.register(FakeSignal("fsrs", None))
@@ -173,6 +184,55 @@ class TestMasteryFusionEngine:
         result = engine.compute_fused_mastery("node1")
         assert result.fused_mastery == 0.0
         assert result.active_signal_count == 0
+        assert result.is_fallback is True
+
+    def test_single_signal_active_is_fallback_false(self):
+        """1 active signal → is_fallback=False (fusion actually ran).
+
+        A10 Phase 0 Hardening #2: the happy-path semantic — any non-zero
+        active_signal_count indicates the fusion engine produced a value
+        from real data, not a fallback.
+        """
+        registry = SignalRegistry()
+        registry.register(FakeSignal("bkt", 0.8, weight=0.30))
+        engine = MasteryFusionEngine(registry)
+
+        result = engine.compute_fused_mastery("node1")
+        assert result.fused_mastery == pytest.approx(0.8, abs=0.01)
+        assert result.active_signal_count == 1
+        assert result.is_fallback is False
+
+    def test_five_signals_active_is_fallback_false(self):
+        """All 5 signals active → is_fallback=False (canonical happy path)."""
+        registry = SignalRegistry()
+        registry.register(FakeSignal("bkt", 0.8, weight=0.30))
+        registry.register(FakeSignal("fsrs", 0.7, weight=0.25))
+        registry.register(FakeSignal("exam", 0.6, weight=0.25))
+        registry.register(FakeSignal("calibration", 0.9, weight=0.10))
+        registry.register(FakeSignal("confidence", 0.5, weight=0.10))
+        engine = MasteryFusionEngine(registry)
+
+        result = engine.compute_fused_mastery("node1")
+        assert result.active_signal_count == 5
+        assert result.is_fallback is False
+
+    def test_weight_sum_zero_is_fallback_true(self):
+        """Defensive branch: active signals but zero weight sum → is_fallback=True.
+
+        A10 Phase 0 Hardening #2: the weight_sum <= 0 branch is technically
+        unreachable because all registered signal weights are non-negative by
+        spec, but we still lock down its semantic for defense-in-depth. If a
+        future signal is added with a zero weight or a bug flips a sign,
+        downstream observability should still see an observable fallback marker.
+        """
+        registry = SignalRegistry()
+        registry.register(FakeSignal("zero_weight", 0.8, weight=0.0))
+        engine = MasteryFusionEngine(registry)
+
+        result = engine.compute_fused_mastery("node1")
+        assert result.fused_mastery == 0.0
+        assert result.active_signal_count == 1
+        assert result.is_fallback is True
 
     def test_some_signals_no_data(self):
         """Mix of data and no-data → only active signals contribute."""
