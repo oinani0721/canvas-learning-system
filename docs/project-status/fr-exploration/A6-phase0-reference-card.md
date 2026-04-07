@@ -11,6 +11,7 @@
 | 时间 | 执行者 | 分支 | 结果 |
 |---|---|---|---|
 | 2026-04-07 | Claude Code | `main` + worktree `fix-concept-id-identity-unification`@`34c4152` | **全部验证通过** |
+| 2026-04-07（第 2 次进入） | Claude Code | 文档追加（无代码变更） | **§C traceability 映射新增**（基于 A6-resolution-summary.md §3-§7 和 design.md §Deferred 的 grep 验证） |
 
 ### 验证证据
 
@@ -115,6 +116,54 @@ TBD - created by archiving change a6-phase0-fsrs-card-state-bucket-preservation.
 | `.../proposal.md` | 叙述性（ChatGPT review 链 + 发现过程），与 `design.md` 的 Context 冗余。onboard 新人有用，日常追踪 forward value 低 |
 | `.../tasks.md` | 纯实施 checklist，所有 `[x]` 完成。前向追踪价值为零 |
 | `docs/project-status/fr-exploration/A6.md` | User 2 原问题，**未被修改**。查原问用，追踪修复状态 → `A6-resolution-summary.md` 更高效 |
+
+---
+
+## §C · A6.md Q1/Q2/Q3 → 3 个 OpenSpec 文件的 traceability 映射
+
+> **目的**：§A 从"工程结构"视角选 Top 3（决策中枢 / 全局地图 / 规范契约）。本段从 **user-intent**（A6.md 原题 Q1/Q2/Q3）视角补上映射，显示 Top 3 选择**同时满足**两个视角。
+>
+> **信息论角度的选择正当性**：每个 Q 至少被 2 个 Top 文件命中，Q3 被全部 3 个命中，**没有**任何 Q 被全部 3 个文件漏掉 — 详见 C.4。
+
+### C.1 A6.md 原题重述（User 2 verbatim）
+
+源文件: `docs/project-status/fr-exploration/A6.md`
+
+- **Q1（图谱合并）**: 白板节点 edges 图谱 vs 概念 edges 图谱，是否合并为一？能否直接用 Graphiti 工具包？前端 edges 涉及增加和修改，真的有成熟方案构建一个可读的关系图谱吗？
+- **Q2（RAG 语义检索）**: "这里的 RAG 语义检索是什么？用了哪一个 RAG？是笔记片段的精确检索返回的 RAG 吗？"
+- **Q3（FSRS 评分历史）**: "FSRS 评分历史如何融入关系图谱？对使用检验白板实际有什么影响？这个算法在我们的变量中是如何进行调用使用的？"
+
+### C.2 三层视角：Surface fix → Phase 0 fix → Deferred deep gap
+
+| Q | Surface fix（已在 `origin/main`） | Phase 0 fix（2026-04-07） | Deferred deep gap |
+|---|---|---|---|
+| **Q1 图谱合并** | `fix-fr-kg-04-schema-drift-and-sync-hardening` 加权融合 `CANVAS_EDGE (1.0) + RELATES_TO (0.7)`（不合并物理图谱，在查询层加权融合） | — | design.md §Deferred §1 `a6-phase1-relates-to-write-side-activation` (P0, RELATES_TO 写入路径零调用方) + §3 `a6-phase1-frontend-edge-sync-pipeline` (P0, 前端画边不同步) |
+| **Q2 RAG** | 3 个归档 change 合成 Agentic RAG 5 路并行 + L1 LLM 路由 + Faithfulness + CRAG fallback（`agentic-rag-l1-llm-router` / `fix-rag-faithfulness-and-add-crag-quality-loop` / `fix-rag-transform-and-episode-isolation`） | — | design.md §Deferred §5 `a6-phase2-rag-faithfulness-ci-gate` (P2, Faithfulness 有 check 但无 CI gate 门) |
+| **Q3 FSRS** | `fix-concept-id-identity-unification` ConceptRef 身份契约统一（**worktree 分支未 merge**，让 memory_service 按 UUID 直查 `review_service.get_fsrs_state()`） | `a6-phase0-fsrs-card-state-bucket-preservation` 双桶 preservation，防止 `_save_card_states` silent data loss | design.md §Deferred §2 `a6-phase1-fsrs-difficulty-integration-to-priority` (P0, `fsrs_difficulty` 被算但 `question_generator.py:202-206` priority 公式不读) |
+
+### C.3 Q × 文件 covering matrix（3 Top 文件 × 3 Q）
+
+| Q | design.md | A6-resolution-summary.md | concept-identity/spec.md |
+|---|---|---|---|
+| **Q1** | §Context 表第 1 行 RELATES_TO verdict + §Deferred §1 + §Deferred §3 | ★ §3 "Q1 图谱合并：CANVAS_EDGE vs RELATES_TO" 全节（解答/commits/证据/决策/限制 共 5 小节）+ §6 Q1 测试覆盖 (13 unit + 7 e2e: `test_kg_relevance_weighted.py`, `test_a11_kg_relevance_e2e.py`) + §7 `fix-fr-kg-04-schema-drift-and-sync-hardening` | **无直接契约**（spec 只 cover FSRS 双桶，与图谱合并不相关） |
+| **Q2** | §Deferred §5 (`rag-faithfulness-ci-gate`) | ★ §4 "Q2 RAG 语义检索" 全节（解答/commits/证据/决策 共 4 小节）+ §6 Q2 测试覆盖 (25 unit) + §7 三个 Q2 archived changes | **无直接契约** |
+| **Q3** | ★ §Context 表（phase 0 根因 silent data loss）+ §Decisions D1/D2/D3 + §Deferred §2 | §5 "Q3 FSRS 评分历史如何融入" 全节 ⚠️ **未更新 phase 0 fix** + §6 Q3 测试覆盖 (77 unit on worktree 分支) + §7 `fix-concept-id-identity-unification` 未归档说明 + §9 "Q3 worktree 分支 merge 决策 待 review 后定" | ★★ **3 个 scenario 全部是 Q3 相关**：`FSRS Card State Legacy Bucket Preservation On Save`（round-trip / empty-legacy / save preserves new UUID） |
+
+**Legend**:
+- ★ = 该文件是该 Q 的主要回答点
+- ★★ = 该文件是该 Q 的唯一正式契约
+
+### C.4 为什么这 3 个 OpenSpec 文件是 Top 3（user-intent 答案）
+
+- **design.md** 回答所有 3 个 Q 的 **"为什么 surface fix 不够"** — Context 表（5 parallel Explore agents 的 verdict）+ Deferred §1~§5（每一条都挂钩到某个 Q 的 deep gap）。这是 A6 系列的 **真相源 / 诚实版本**。没有它，读者会以为 A6.md 的 3 问已 ✅ 解决；有它，读者知道真实解决度 ≈ 30%（4 个 P0 中仅 1 个被 phase 0 修）
+- **A6-resolution-summary.md** 回答所有 3 个 Q 的 **"surface fix 在哪 + 覆盖率"** — §3/§4/§5 逐题 walkthrough（每节有解答/commits/证据/决策 4 小节），§6 测试覆盖总览（Q1: 13u+7e / Q2: 25u / Q3: 77u），§7 OpenSpec 规范化证据。这是 A6 系列的 **全景地图 / 乐观版本**
+- **concept-identity/spec.md** 只回答 Q3 的 **"不变式 acceptance criteria"** — 3 个 scenario 锁住 phase 0 fix 的语义。这是 A6 系列在 phase 0 唯一触达的 **正式契约**。Q1/Q2 没有对应 spec 条目，因为它们的修复已由其他 archived change 累积进 `openspec/specs/algo-rag/spec.md`、`openspec/specs/algo-question/spec.md` 等（详见 A6-resolution-summary.md §7）
+
+**信息论角度的选择理由**:
+- **每个 Q 至少命中 2 个 Top 文件**（冗余带来容错）
+- **Q3 命中全部 3 个**（phase 0 fix 本身就是 Q3 相关，自然覆盖全栈）
+- **Q1/Q2 各命中 2 个**（spec.md 不 cover，但 design.md + summary.md 已足够回答 "为什么不够" + "现状在哪"）
+- **没有任何一个 Q 被 3 个文件全部漏掉** ← 这是 "Top 3" 选择正当性的核心证明
 
 ---
 
