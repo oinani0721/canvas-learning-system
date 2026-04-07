@@ -560,6 +560,15 @@ class MemoryService:
 
         memory_episodes = [e for e in self._episodes if e.get("user_id") == user_id]
 
+        # FR-KG-04 fix: Apply group_id filter to in-memory episodes for canvas-scoped
+        # isolation (Story 30.8 AC-30.8.1). Without this, when Neo4j is unavailable
+        # and we fall back to in-memory _episodes, queries with canvas_path would
+        # leak data from other canvases that share the same user_id.
+        if group_id:
+            memory_episodes = [
+                e for e in memory_episodes if e.get("group_id", "") == group_id
+            ]
+
         # Apply date filters to in-memory episodes
         # S34 Bug fix #3: Normalize both sides to str for consistent comparison
         # (Neo4j returns offset-aware DateTime, in-memory uses ISO strings)
@@ -644,6 +653,26 @@ class MemoryService:
                 )
                 failed_scores = [
                     fs for fs in failed_scores if str(fs.get("timestamp", "")) <= e_str
+                ]
+            # FR-KG-04 fix: Apply group_id filter to fallback failed_scores for
+            # canvas-scoped isolation (Story 30.8 AC-30.8.1). Derive group_id from
+            # canvas_name + inferred subject — failed_writes.jsonl historical entries
+            # don't carry group_id directly, so we reconstruct it the same way the
+            # write path does.
+            if group_id:
+
+                def _derive_group_id(fs: Dict[str, Any]) -> str:
+                    canvas_name_field = fs.get("canvas_name", "") or ""
+                    if not canvas_name_field:
+                        return ""
+                    inferred_subj = subject or extract_subject_from_canvas_path(
+                        canvas_name_field
+                    )
+                    cn_only = extract_canvas_name(canvas_name_field)
+                    return build_group_id(inferred_subj, canvas_name=cn_only)
+
+                failed_scores = [
+                    fs for fs in failed_scores if _derive_group_id(fs) == group_id
                 ]
             # Deduplicate: only include fallback entries not already in episodes
             existing_keys = {
