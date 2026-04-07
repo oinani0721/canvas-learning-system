@@ -160,15 +160,43 @@ export class SyncEngine {
     this.schedulePoll();
   }
 
-  /** Send a batch of outbox entries to the backend. */
+  /** Send a batch of outbox entries to the backend.
+   *
+   * FR-KG-04 Phase 14 (Tasks 14.1-14.3): canvasId is strictly required.
+   *
+   * The previous implementation fell back to the literal string 'default'
+   * when an outbox entry was missing both payload.canvasId and
+   * payload.canvas_id. That silently routed orphaned entries into a
+   * virtual "default" canvas bucket — which then either masked a Wave 1
+   * canvas-store bug (the original motivation for the fallback) or
+   * polluted a real canvas named "default". Wave 1 fixed the upstream
+   * omission, so this fallback now has zero legitimate triggers and only
+   * hides bugs. We enforce the invariant instead: an entry with no
+   * resolvable canvasId is skipped for this poll cycle, a structured
+   * warning is logged identifying the entry id, and the entry remains
+   * in sync_outbox so a follow-up fix can re-submit it without data
+   * loss.
+   */
   private async sendBatch(entries: SyncOutboxEntry[]): Promise<boolean> {
-    // Group by canvasId (from payload)
+    // Group by canvasId (from payload). Skip entries whose canvasId cannot
+    // be resolved — they stay in the outbox for the next poll, which
+    // surfaces the bug instead of quietly sending to a 'default' bucket.
     const grouped = new Map<string, SyncOutboxEntry[]>();
     for (const entry of entries) {
       const canvasId =
         (entry.payload.canvasId as string) ??
-        (entry.payload.canvas_id as string) ??
-        'default';
+        (entry.payload.canvas_id as string);
+      if (!canvasId) {
+        console.warn(
+          '[SyncEngine] Outbox entry missing canvasId, skipping',
+          entry.id,
+          {
+            entityType: entry.entityType,
+            entityId: entry.entityId,
+          },
+        );
+        continue;
+      }
       const existing = grouped.get(canvasId);
       if (existing) {
         existing.push(entry);
