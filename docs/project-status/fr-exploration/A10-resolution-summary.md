@@ -355,6 +355,66 @@ These are Phase 1 candidates for a dedicated "silent-except cleanup" change.
 
 ---
 
+## 15. Phase 1 Progress (2026-04-07 session 3)
+
+Phase 1 kicked off after ChatGPT Deep Research's third review. The plan session split the remaining incremental questions into "ChatGPT can answer" (parallel research) and "user must answer" (blocking). The user answered the 5 blocking questions and unblocked the first 2 of 4 planned Phase 1 changes.
+
+### 5 User Decisions (Q1-Q5)
+
+| # | Question | Decision | Phase 1 change |
+|---|---|---|---|
+| Q1 | `group_id` product semantics | **Isolate by subject** | Change 3 (deferred) |
+| Q2 | Concept identity (multiple node_ids → one concept) | **Manual user merge** | Change 4 (deferred) |
+| Q3 | Ablation data source | **Synthetic data allowed** | Change 2 (done) |
+| Q4 | Ablation run cadence | **Local-only, manual** | Change 2 (done) |
+| Q5 | `node_id` long-term rule | **Permanent `{id, canvasId}` dual binding** | Change 1 (done) |
+
+### 4 OpenSpec Changes Planned
+
+| # | Change | Status | Notes |
+|---|---|---|---|
+| 1 | `a10-phase1-lock-canvasnode-dual-binding` | **archived** (commit `6e91f86`) | Pure spec hardening, zero code. Locks the existing Phase 0 Hardening #1 Cypher as a long-term architectural commitment with 2 new scenarios in `algo-question`. |
+| 2 | `a10-phase1-ablation-harness-synthetic` | **archived** (commit `5ec705b`) | Offline research tooling at `scripts/ablation_fusion_weights.py`. Scores 6 candidate weight sets against synthetic (BKT + FSRS) or real JSONL data. New capability `algo-fusion-ablation`. Zero backend touches, zero CI. |
+| 3 | `a10-phase1-subject-group-isolation` | **deferred** | Needs a prior plan session to define how "subject" is expressed in Canvas Learning System (filename? metadata? folder? setting?). Touches `mastery_store` / `event_handlers` / `question_generator` / `verification_service`. |
+| 4 | `a10-phase1-manual-concept-merge-prep` | **deferred** | Largest Phase 1 change. Needs Pencil UX design, new backend endpoint, and a Neo4j data-model extension for `concept_id ↔ node_id` mapping. |
+
+### Early Observations from Change 2 (synthetic ablation, n=1000, seed=42)
+
+| Candidate | logloss | auc | ece |
+|---|---|---|---|
+| baseline | 0.4556 | 0.9983 | 0.0476 |
+| no_exam | 0.4593 | 0.9986 | 0.0605 |
+| no_cal_conf | 0.4774 | 0.9970 | 0.0633 |
+| bkt_only | 1.5253 | 0.9995 | 0.0871 |
+| fsrs_only | 0.6951 | 0.7553 | 0.1649 |
+| equal | 0.4527 | 0.9978 | 0.0389 |
+
+Observations (on synthetic data only — **do not ship weight changes based on this alone**):
+- `baseline` and `equal` are statistically indistinguishable on this corpus. The hand-tuned weights do not outperform the ignorance prior here.
+- `bkt_only` has the best AUC but the worst logloss — a classic discrimination-vs-calibration split. This is why the harness reports all three metrics, not just one.
+- `fsrs_only` collapses. FSRS alone is a retention model, not a mastery model; it needs other signals to be useful.
+
+These are early signals for the Phase 2+ ReviewPriorityEngine / reliability weighting work. The harness is now available to re-run against real beta-user data when it exists.
+
+### 3 Parallel Research Questions for ChatGPT (not blocking anything)
+
+| # | Question | Feeds into |
+|---|---|---|
+| Q-2a | `concept_id ↔ node_id` mapping technical options (3 approaches compared with code) | Change 4 |
+| Q-3a | Academically standard evaluation protocol for fusion weight ablation in educational models | Change 2 review / Phase 2 |
+| Q-6a | Per-signal reliability computation method (inverse variance / Beta-Bayesian posterior variance / Bayesian model averaging) | Phase 2+ reliability-weighted fusion |
+
+The user can paste these to ChatGPT Deep Research in parallel while Changes 3 and 4 await their own plan sessions.
+
+### What's Next
+
+Next Phase 1 plan session should cover:
+1. Change 3 startup: product exploration of "subject" semantics in Canvas Learning System.
+2. Change 4 startup: Pencil UX design for manual concept merge.
+3. Phase 2+ kickoff: once ChatGPT's 3 research answers arrive, design ReviewPriorityEngine + reliability weighting.
+
+---
+
 ## How to use this document with ChatGPT Deep Research
 
 1. Copy this entire file (≈ 23 KB after Phase 0 Hardening #2 update) into ChatGPT Deep Research as the primary input.
