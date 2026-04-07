@@ -17,15 +17,17 @@
       "mcp__graphiti-canvas__get_graph_stats",
       "mcp__graphiti-canvas__get_episode_lineage",
       "mcp__graphiti-canvas__get_entity_edge",
-      "mcp__codebase-memory__brief"
+      "mcp__codebase-memory__brief",
+      "mcp__claude_ai_Gmail__gmail_search_messages",
+      "mcp__claude_ai_Gmail__gmail_read_message"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "sequential-thinking",
     "context7",
     "graphiti-canvas",
     "codebase-memory"
   ],
-  "outputStyle": "Learning",
-  "enableAllProjectMcpServers": true
+  "outputStyle": "Learning"
 }
