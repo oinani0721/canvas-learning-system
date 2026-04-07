@@ -422,21 +422,47 @@ async def faithfulness_check(state: dict) -> dict:
             "faithfulness_degraded": False,
         }
 
-    # ── Extract answer from messages ──
+    # ── Extract answer + role from messages ──
+    # Vacuous-true fix: must distinguish "no assistant answer" from "perfect score"
     messages = state.get("messages", list())
+    last_role = ""
     answer = ""
     if messages:
         last_msg = messages[-1]
         if isinstance(last_msg, dict):
+            last_role = str(last_msg.get("role", "")).lower()
             answer = last_msg.get("content", "")
         else:
+            # LangChain BaseMessage uses .type (e.g. "ai"/"human"); fallback to .role
+            last_role = str(
+                getattr(last_msg, "type", "") or getattr(last_msg, "role", "")
+            ).lower()
             answer = getattr(last_msg, "content", "")
 
-    if not answer or not answer.strip():
-        logger.debug("[faithfulness_check] No answer to check, skipping")
+    # ── Vacuous-true fix #1: short-circuit when last message isn't an assistant turn ──
+    # Avoids burning tokens on extract_claims when there's no answer to verify.
+    # Returns score=None so llm_call_logger.record_faithfulness_score early-returns
+    # and health_monitor's _faithfulness_stats stays clean.
+    if last_role not in ("assistant", "ai"):
+        logger.debug(
+            f"[faithfulness_check] last_role={last_role!r} is not assistant; "
+            f"returning not_applicable without LLM call"
+        )
         return {
-            "faithfulness_score": 1.0,
-            "faithfulness_details": {"status": "no_answer"},
+            "faithfulness_score": None,
+            "faithfulness_details": {
+                "status": "not_applicable_no_assistant_answer",
+                "last_role": last_role,
+            },
+            "faithfulness_degraded": False,
+        }
+
+    # ── Vacuous-true fix #2: empty/whitespace answer is not a passing score ──
+    if not answer or not answer.strip():
+        logger.debug("[faithfulness_check] Empty answer, marking not_applicable")
+        return {
+            "faithfulness_score": None,
+            "faithfulness_details": {"status": "not_applicable_no_answer"},
             "faithfulness_degraded": False,
         }
 
@@ -486,18 +512,19 @@ async def faithfulness_check(state: dict) -> dict:
     claims = await extract_claims(answer)
 
     if not claims:
-        logger.debug("[faithfulness_check] No claims extracted, score = 1.0")
+        # Vacuous-true fix #3: no extractable claims is not a passing score.
+        # Skip _log_faithfulness_result entirely so health_monitor stats stay clean
+        # and no virtual "score=1.0" log line is emitted.
+        logger.debug("[faithfulness_check] No claims extracted, marking not_applicable")
         latency = (time.perf_counter() - start_time) * 1000
-        result = FaithfulnessResult(
-            score=1.0,
-            total_claims=0,
-            supported_claims=0,
-            latency_ms=latency,
-        )
-        _log_faithfulness_result(result, answer)
         return {
-            "faithfulness_score": 1.0,
-            "faithfulness_details": _result_to_details(result),
+            "faithfulness_score": None,
+            "faithfulness_details": {
+                "status": "not_applicable_no_claims",
+                "total_claims": 0,
+                "answer_length": len(answer),
+                "latency_ms": round(latency, 2),
+            },
             "faithfulness_degraded": False,
         }
 

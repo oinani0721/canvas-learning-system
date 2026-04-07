@@ -155,24 +155,36 @@ class AutoScoreResult(BaseModel):
     )
 
     # Story 6.9: Scoring Faithfulness fields (AC-1, AC-2)
-    faithfulness_score: float = Field(
-        default=1.0,
+    # Vacuous-true fix: scores are Optional because empty evidence/rubric
+    # is "not applicable", not "perfect 1.0". Downstream consumers must use
+    # `score is not None and score >= threshold` instead of `score >= threshold`.
+    faithfulness_score: Optional[float] = Field(
+        default=None,
         ge=0.0,
         le=1.0,
-        description="Combined faithfulness score (grounding + consistency) / 2",
+        description=(
+            "Combined faithfulness score (grounding + consistency) / 2. "
+            "None when both sub-checks are not_applicable."
+        ),
     )
     faithfulness_passed: bool = Field(
         default=True,
-        description="True if faithfulness_score >= 0.85 and not overall low confidence",
+        description=(
+            "True if faithfulness_score is None or >= 0.85, "
+            "and not overall low confidence"
+        ),
     )
-    evidence_grounding_score: float = Field(
-        default=1.0, ge=0.0, le=1.0, description="Stage 1 evidence grounding score"
-    )
-    score_consistency_score: float = Field(
-        default=1.0,
+    evidence_grounding_score: Optional[float] = Field(
+        default=None,
         ge=0.0,
         le=1.0,
-        description="Stage 2 score-evidence consistency score",
+        description="Stage 1 evidence grounding score (None if not_applicable)",
+    )
+    score_consistency_score: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Stage 2 score-evidence consistency score (None if not_applicable)",
     )
     faithfulness_details: Dict[str, Any] = Field(
         default_factory=dict, description="Detailed faithfulness check results"

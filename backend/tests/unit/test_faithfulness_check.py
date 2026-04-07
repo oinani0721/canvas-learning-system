@@ -97,7 +97,8 @@ class TestFaithfulnessCheckNode:
             assert result["faithfulness_degraded"] is False
 
     @pytest.mark.asyncio
-    async def test_empty_answer_returns_perfect_score(self):
+    async def test_empty_answer_returns_not_applicable(self):
+        """Vacuous-true fix: empty assistant answer returns None, not 1.0."""
         state = {
             "messages": [{"role": "assistant", "content": ""}],
             "reranked_results": list(),
@@ -107,7 +108,12 @@ class TestFaithfulnessCheckNode:
                 "agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True
             ):
                 result = await faithfulness_check(state)
-                assert result["faithfulness_score"] == 1.0
+                assert result["faithfulness_score"] is None
+                assert (
+                    result["faithfulness_details"]["status"]
+                    == "not_applicable_no_answer"
+                )
+                assert result["faithfulness_degraded"] is False
 
     @pytest.mark.asyncio
     async def test_no_context_triggers_degradation(self):

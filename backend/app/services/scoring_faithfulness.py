@@ -48,9 +48,14 @@ SCORING_FAITHFULNESS_THRESHOLD = 0.85
 
 
 class EvidenceGroundingResult:
-    """Result of evidence grounding verification (Stage 1 check)."""
+    """Result of evidence grounding verification (Stage 1 check).
 
-    __slots__ = ("verifications", "grounded_count", "total_count", "score")
+    Vacuous-true fix: when total_count == 0 we cannot compute a meaningful
+    score, so `score` is None and `status` is "not_applicable". This prevents
+    polluting downstream aggregations with a fake 1.0.
+    """
+
+    __slots__ = ("verifications", "grounded_count", "total_count", "score", "status")
 
     def __init__(
         self,
@@ -61,13 +66,22 @@ class EvidenceGroundingResult:
         self.verifications = verifications
         self.grounded_count = grounded_count
         self.total_count = total_count
-        self.score = grounded_count / total_count if total_count > 0 else 1.0
+        if total_count > 0:
+            self.score: Optional[float] = grounded_count / total_count
+            self.status: str = "ok"
+        else:
+            self.score = None
+            self.status = "not_applicable"
 
 
 class ScoreConsistencyResult:
-    """Result of score-evidence consistency verification (Stage 2 check)."""
+    """Result of score-evidence consistency verification (Stage 2 check).
 
-    __slots__ = ("checks", "consistent_count", "total_count", "score")
+    Same not_applicable contract as EvidenceGroundingResult: empty rubric
+    -> score=None + status="not_applicable".
+    """
+
+    __slots__ = ("checks", "consistent_count", "total_count", "score", "status")
 
     def __init__(
         self,
@@ -78,11 +92,23 @@ class ScoreConsistencyResult:
         self.checks = checks
         self.consistent_count = consistent_count
         self.total_count = total_count
-        self.score = consistent_count / total_count if total_count > 0 else 1.0
+        if total_count > 0:
+            self.score: Optional[float] = consistent_count / total_count
+            self.status: str = "ok"
+        else:
+            self.score = None
+            self.status = "not_applicable"
 
 
 class ScoringFaithfulnessResult:
-    """Complete scoring faithfulness check result."""
+    """Complete scoring faithfulness check result.
+
+    Vacuous-true fix: any sub-score may be None if its corresponding stage
+    had nothing to verify (e.g. empty evidence or empty rubric). The combined
+    `faithfulness_score` is None when ALL sub-scores are None, otherwise it
+    is the average of the non-None sub-scores. `not_applicable_checks` lists
+    the names of skipped sub-checks for downstream observability.
+    """
 
     __slots__ = (
         "evidence_grounding_score",
@@ -93,18 +119,20 @@ class ScoringFaithfulnessResult:
         "overall_low_confidence",
         "details",
         "latency_ms",
+        "not_applicable_checks",
     )
 
     def __init__(
         self,
-        evidence_grounding_score: float = 1.0,
-        score_consistency_score: float = 1.0,
-        faithfulness_score: float = 1.0,
+        evidence_grounding_score: Optional[float] = None,
+        score_consistency_score: Optional[float] = None,
+        faithfulness_score: Optional[float] = None,
         faithfulness_passed: bool = True,
         low_confidence_dimensions: Optional[List[str]] = None,
         overall_low_confidence: bool = False,
         details: Optional[Dict[str, Any]] = None,
         latency_ms: float = 0.0,
+        not_applicable_checks: Optional[List[str]] = None,
     ) -> None:
         self.evidence_grounding_score = evidence_grounding_score
         self.score_consistency_score = score_consistency_score
@@ -114,15 +142,25 @@ class ScoringFaithfulnessResult:
         self.overall_low_confidence = overall_low_confidence
         self.details = details or dict()
         self.latency_ms = latency_ms
+        self.not_applicable_checks = not_applicable_checks or list()
+
+    @staticmethod
+    def _round_or_none(value: Optional[float], digits: int) -> Optional[float]:
+        return round(value, digits) if value is not None else None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "evidence_grounding_score": round(self.evidence_grounding_score, 4),
-            "score_consistency_score": round(self.score_consistency_score, 4),
-            "faithfulness_score": round(self.faithfulness_score, 4),
+            "evidence_grounding_score": self._round_or_none(
+                self.evidence_grounding_score, 4
+            ),
+            "score_consistency_score": self._round_or_none(
+                self.score_consistency_score, 4
+            ),
+            "faithfulness_score": self._round_or_none(self.faithfulness_score, 4),
             "faithfulness_passed": self.faithfulness_passed,
             "low_confidence_dimensions": self.low_confidence_dimensions,
             "overall_low_confidence": self.overall_low_confidence,
+            "not_applicable_checks": self.not_applicable_checks,
             "latency_ms": round(self.latency_ms, 2),
         }
 
@@ -393,9 +431,26 @@ class ScoringFaithfulnessChecker:
             rubric_scores, evidence_points
         )
 
-        # Combined score (AC-1/AC-2: average of both)
-        combined_score = (grounding.score + consistency.score) / 2.0
-        passed = combined_score >= SCORING_FAITHFULNESS_THRESHOLD
+        # Vacuous-true fix: aggregate only non-None sub-scores. When BOTH are
+        # None, combined is None and we treat the check as not_applicable
+        # (faithfulness_passed=True so the scoring pipeline doesn't block).
+        sub_scores: List[float] = [
+            s for s in (grounding.score, consistency.score) if s is not None
+        ]
+        not_applicable_checks: List[str] = []
+        if grounding.score is None:
+            not_applicable_checks.append("evidence_grounding")
+        if consistency.score is None:
+            not_applicable_checks.append("score_consistency")
+
+        if sub_scores:
+            combined_score: Optional[float] = sum(sub_scores) / len(sub_scores)
+            passed = combined_score >= SCORING_FAITHFULNESS_THRESHOLD
+        else:
+            combined_score = None
+            # Nothing to verify -> don't block scoring; downstream sees
+            # not_applicable_checks=["evidence_grounding","score_consistency"]
+            passed = True
 
         # Low-confidence detection (AC-3): already tracked in AutoScoreResult
         low_conf_dims = getattr(autoscore_result, "low_confidence_dimensions", list())
@@ -413,8 +468,11 @@ class ScoringFaithfulnessChecker:
             details={
                 "grounding_verifications": grounding.verifications,
                 "consistency_checks": consistency.checks,
+                "grounding_status": grounding.status,
+                "consistency_status": consistency.status,
             },
             latency_ms=latency_ms,
+            not_applicable_checks=not_applicable_checks,
         )
 
         # Structured log (AC-5)
@@ -422,8 +480,9 @@ class ScoringFaithfulnessChecker:
 
         logger.info(
             f"[Story 6.9] Scoring faithfulness check: "
-            f"grounding={grounding.score:.3f} consistency={consistency.score:.3f} "
-            f"combined={combined_score:.3f} passed={result.faithfulness_passed} "
+            f"grounding={grounding.score} consistency={consistency.score} "
+            f"combined={combined_score} passed={result.faithfulness_passed} "
+            f"not_applicable={not_applicable_checks} "
             f"low_conf_dims={low_conf_dims} latency={latency_ms:.1f}ms"
         )
 
@@ -457,16 +516,21 @@ def _log_scoring_faithfulness(
     autoscore_result: Any,
 ) -> None:
     """Emit structured log for scoring faithfulness check (AC-5)."""
+
+    def _round_or_none(value: Optional[float], digits: int) -> Optional[float]:
+        return round(value, digits) if value is not None else None
+
     try:
         struct_logger.info(
             "scoring_faithfulness_check_completed",
             check_type="scoring_faithfulness",
-            evidence_grounding_score=round(result.evidence_grounding_score, 4),
-            score_consistency_score=round(result.score_consistency_score, 4),
-            faithfulness_score=round(result.faithfulness_score, 4),
+            evidence_grounding_score=_round_or_none(result.evidence_grounding_score, 4),
+            score_consistency_score=_round_or_none(result.score_consistency_score, 4),
+            faithfulness_score=_round_or_none(result.faithfulness_score, 4),
             faithfulness_passed=result.faithfulness_passed,
             low_confidence_dimensions=result.low_confidence_dimensions,
             overall_low_confidence=result.overall_low_confidence,
+            not_applicable_checks=result.not_applicable_checks,
             node_id=getattr(autoscore_result, "node_id", ""),
             exam_id=getattr(autoscore_result, "exam_id", ""),
             latency_ms=round(result.latency_ms, 2),
@@ -474,7 +538,9 @@ def _log_scoring_faithfulness(
     except (TypeError, ValueError, AttributeError, OSError) as e:
         logger.error(f"[Story 6.9] Failed to emit structured log: {e}")
 
-    # Record for health_monitor aggregation (reuse Story 7.1 pattern)
+    # Record for health_monitor aggregation (reuse Story 7.1 pattern).
+    # Vacuous-true fix: record_faithfulness_score(None) early-returns,
+    # so health_monitor stats stay clean when nothing was verified.
     try:
         from app.middleware.llm_call_logger import get_llm_call_logger
 
