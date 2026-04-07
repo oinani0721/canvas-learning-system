@@ -242,15 +242,20 @@ canvas_service.add_edge()  [lines 901-956]
 
 ---
 
-## 6. 被替代的旧代码
+## 6. ~~被替代的旧代码~~ 修正：实际都是 Active
 
-以下文件曾服务于 FR-KG-04，现已被 Story 36.3/36.4 在 `canvas_service.py` 中的实现替代：
+> **⚠️ 2026-04-06 修正**：原先标记为 Orphaned 的三个文件**全部在 main 分支仍然被 import 和调用**。此节标题误导了多轮探索 Agent，是 FR-KG-04 第一阶段走错路径的根本原因之一。真实情况是这些文件是 **Story 1.5 路径 A** 的核心实现，被 Phase 0-2 架构恢复（commit `c79a3a2`）通过 `domains/canvas/gateway.py` 正式接入，与 Story 36.3/36.4 的 `canvas_service._sync_edge_to_neo4j` 形成两条并存路径（路径 B 因前端 SyncEngine 只走路径 A 而实际上未被触发）。
 
-| 文件 | 原用途 | 状态 |
-|------|--------|------|
-| `backend/app/services/fallback_sync_service.py` | 离线同步 | Orphaned |
-| `backend/app/services/sync_service.py` | Neo4j 同步 | Orphaned |
-| `backend/app/api/v1/endpoints/sync.py` | batch sync 端点 | Orphaned |
+| 文件 | 原用途 | 真实状态 | 引用位置 |
+|------|--------|----------|----------|
+| `backend/app/services/fallback_sync_service.py` | 离线同步（Dexie → JSONL → Neo4j 补偿） | ✅ Active（Story 1.5 路径 A） | `backend/app/domains/canvas/gateway.py:19` |
+| `backend/app/services/sync_service.py` | `/sync/batch` 的业务层 | ✅ Active（Story 1.5 路径 A） | `backend/app/domains/canvas/gateway.py:16`, `backend/app/api/v1/endpoints/sync.py:52` |
+| `backend/app/api/v1/endpoints/sync.py` | `/api/v1/sync/batch` HTTP 端点 | ✅ Active（Story 1.5 路径 A） | `backend/app/api/v1/router.py:43` `sync_router` 已注册到 `/api/v1` 前缀 |
+
+### 两条路径的实际关系（验证后）
+- **路径 A** = SyncService（本节三个文件）→ `/sync/batch` → Neo4j CANVAS_EDGE 关系。前端 SyncEngine 走此路径。
+- **路径 B** = CanvasService._sync_edge_to_neo4j → Neo4j CONNECTS_TO 关系。Story 36.3/36.4 实现但前端不经过，实际上未被触发。
+- **结论**：路径 A 才是真正的"快递员"，文档应更新为"路径 B 是未被触发的备份实现"而非"Story 36.3/36.4 替代了路径 A"。
 
 ---
 
