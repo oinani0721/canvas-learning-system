@@ -98,11 +98,18 @@ EXPECTED_KG: Dict[str, tuple[float, Optional[str]]] = {
     "nodeE": (1.0, None),
 }
 
+# A10 Phase 0 NOTE: the constant 0.0 here is INTENTIONAL test simplification,
+# not a regression of the silent bug fixed in commit ${PHASE0_COMMIT}.
+# This stub replaces _get_mastery_data wholesale (see stubbed_qg fixture below),
+# bypassing the real MasteryEngine routing entirely. The test pins
+# effective_proficiency to a constant so that kg_relevance is the only variable
+# affecting priority ordering. Any constant value works — we kept 0.0 for
+# git-history clarity.
 STUB_MASTERY: Dict[str, Any] = {
     "p_mastery": 0.5,
     "retrievability": 1.0,
     "effective_proficiency": 0.0,
-    "mastery_level": 0.0,
+    "mastery_level": 0,
     "mastery_label": "Not Assessed",
 }
 

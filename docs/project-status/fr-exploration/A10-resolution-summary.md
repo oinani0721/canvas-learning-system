@@ -221,9 +221,48 @@ These are the core review request. Please provide academic backing or empirical 
 
 ---
 
+## 12. Discovered During ChatGPT Review (2026-04-07)
+
+ChatGPT Deep Research reviewed this document and the associated `a10-fsrs-fusion-formalization` change. Two corrections emerged from that review and were addressed by the follow-up Phase 0 change `a10-phase0-fix-question-generator-mastery-bug`.
+
+### 12.1 Correction: "compute_fused_mastery zero call sites" was wrong
+
+Section 4 ("Three Parallel Weighting Systems") originally claimed that a backend-wide grep for `compute_fused_mastery` returns zero external call sites. ChatGPT used the GitHub connector to read the actual codebase and corrected this:
+
+- **`mastery_engine.py:347-355`** — `effective_proficiency()` calls `compute_fused_mastery(concept_id)` and uses the fused result as `base` (Story 5.6 multi-signal fusion path)
+- **`mastery_engine.py:563-567`** — `concept_to_response()` calls `compute_fused_mastery` and includes `fused_mastery` in the API response payload
+- **`backend/app/main.py:220-261`** — startup wires the fusion engine into a global `MasteryEngine` singleton via `set_fusion_engine`
+
+The corrected statement is: **`compute_fused_mastery` IS consumed by `mastery_engine.effective_proficiency()`. The decoupling is that `verification_service`, `recommendation_service`, and `question_generator` do not call `effective_proficiency()` either** — so the fusion result still does not reach the three downstream business paths.
+
+The "three parallel weighting systems" finding remains correct; it was just one layer deeper than originally diagnosed.
+
+### 12.2 Deeper finding: question_generator silent bug (fixed by Phase 0)
+
+Following ChatGPT's correction, deeper exploration of `question_generator.py` revealed a **silent production bug**:
+
+- `question_generator._get_mastery_data` (lines 673-698 pre-fix) used `getattr(concept, "effective_proficiency", 0.0)` and similar `getattr` calls for `mastery_level`, `mastery_label`, and `retrievability`
+- `ConceptState` (`mastery_state.py:74`) explicitly states: "Volatile values (retrievability, effective_proficiency) are computed on read and never stored"
+- A backend-wide grep for `concept\.effective_proficiency\s*=` finds no setters anywhere
+- Therefore the `getattr(... 0.0)` calls **always returned the default** — every exam question was silently classified as `"easy"` difficulty (because `0.0 < 0.3`), and the Gemini prompt always told the LLM the learner had zero mastery for every concept
+
+The fix in Phase 0:
+- `question_generator._get_mastery_data` now imports `get_mastery_engine` lazily and calls `engine.effective_proficiency(concept)`, `engine.mastery_level(concept)`, `engine.mastery_label(concept)`, `engine.get_retrievability(concept)`
+- The existing `MasteryEngine.get_retrievability(concept)` public method (lines 301-307) is reused (no new wrapper needed — the Phase 0 plan initially assumed one had to be added)
+- A new regression test file `backend/tests/unit/test_question_generator_mastery_data.py` covers 5 scenarios including a static-grep guard against the broken `getattr` pattern reappearing
+
+### 12.3 Phase 0 change reference
+
+- **OpenSpec change**: `a10-phase0-fix-question-generator-mastery-bug` (archived after this Phase 0 commit)
+- **New `algo-question` Requirement**: "Mastery Data Flows Through MasteryEngine" — codifies that volatile mastery fields MUST be read via `MasteryEngine` instance methods, not via `getattr` on `ConceptState`
+- **Files changed**: `backend/app/services/question_generator.py` (the fix), `backend/tests/unit/test_question_generator_mastery_data.py` (new), `backend/tests/e2e/test_a11_kg_relevance_e2e.py` (clarifying comment on the intentional stub), `openspec/specs/algo-question/spec.md` (merged Requirement), `openspec/specs/algo-fusion/spec.md` (Purpose updated)
+- **Out of scope**: ChatGPT's other 5 architectural recommendations (ReviewPriorityEngine, advance_strategy, recommendation mastery factor, reliability weighting, ablation harness) — those become Phase 1+ changes after the user reviews ChatGPT's full response
+
+---
+
 ## How to use this document with ChatGPT Deep Research
 
-1. Copy this entire file (≈ 14 KB) into ChatGPT Deep Research as the primary input.
+1. Copy this entire file (≈ 17 KB after Phase 0 update) into ChatGPT Deep Research as the primary input.
 2. Tell ChatGPT it has access to the GitHub repo (provide the repo URL), so it can resolve the relative source links in Section 9.
 3. Direct ChatGPT to focus on the 7 questions in Section 8.
 4. Expect 1-3 rounds of clarifying questions before ChatGPT produces a `[FINAL]` recommendation per question.

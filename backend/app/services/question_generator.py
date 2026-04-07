@@ -671,21 +671,34 @@ class QuestionGenerator:
             return dict()
 
     async def _get_mastery_data(self, node_id: str) -> Dict[str, Any]:
-        """Get mastery data for a node from mastery_engine."""
+        """Get mastery data for a node by routing volatile fields through MasteryEngine.
+
+        A10 Phase 0 fix: previously this function used getattr(concept, "<volatile>", default)
+        for effective_proficiency / mastery_level / mastery_label / retrievability — but
+        ConceptState (mastery_state.py:68-110) explicitly does NOT store volatile fields
+        ("Volatile values [...] are computed on read and never stored"). The getattr calls
+        therefore always returned the defaults (0.0 / "Not Assessed" / 1.0), silently
+        corrupting downstream difficulty selection and Gemini prompt rendering.
+
+        The correct pattern (mirroring backend/app/mcp/tools/mastery_tools.py:175) is to
+        call MasteryEngine instance methods on the concept. The MasteryEngine global
+        singleton is wired with a fusion engine at startup (main.py:220-261), so this
+        function now consumes the multi-signal fusion result via Story 5.6 path.
+        """
         try:
+            from app.services.mastery_engine import get_mastery_engine
             from app.services.mastery_store import get_mastery_store
 
             store = get_mastery_store()
+            engine = get_mastery_engine()
             concept = await store.get_concept(node_id)
             if concept:
                 return {
-                    "p_mastery": getattr(concept, "p_mastery", 0.1),
-                    "retrievability": getattr(concept, "retrievability", 1.0),
-                    "effective_proficiency": getattr(
-                        concept, "effective_proficiency", 0.0
-                    ),
-                    "mastery_level": getattr(concept, "mastery_level", 0.0),
-                    "mastery_label": getattr(concept, "mastery_label", "Not Assessed"),
+                    "p_mastery": concept.p_mastery,
+                    "retrievability": engine.get_retrievability(concept),
+                    "effective_proficiency": engine.effective_proficiency(concept),
+                    "mastery_level": engine.mastery_level(concept),
+                    "mastery_label": engine.mastery_label(concept),
                 }
         except (ImportError, AttributeError, ValueError) as e:
             logger.debug(f"[Story 6.3] Failed to get mastery data: {e}")
@@ -693,7 +706,7 @@ class QuestionGenerator:
             "p_mastery": 0.1,
             "retrievability": 1.0,
             "effective_proficiency": 0.0,
-            "mastery_level": 0.0,
+            "mastery_level": 0,
             "mastery_label": "Not Assessed",
         }
 

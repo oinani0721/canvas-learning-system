@@ -1,7 +1,13 @@
 # algo-fusion Specification
 
 ## Purpose
-TBD - created by archiving change a10-fsrs-fusion-formalization. Update Purpose after archive.
+
+The `algo-fusion` capability defines the contract for **node-level multi-signal mastery fusion**: how the system aggregates 5 mastery signals (BKT Mastery, FSRS Retrievability, Exam Score Average, Calibration Bias, Self-Confidence Average) into a single `fused_mastery: float ∈ [0.0, 1.0]` value that downstream services consume as the canonical "how well does the learner know this concept" metric.
+
+The capability codifies four guarantees: (1) the 5 signals and their base weights are stable contracts; (2) when a strict subset of signals lack data, the engine renormalizes the remaining active weights so they sum to 1.0 (rather than treating missing signals as zero, which would falsely depress the result); (3) per-signal `reliability` is recorded for observability but does **not** participate in the weighted average in Phase 1 (Phase 2 may introduce reliability-weighted fusion); (4) the output is clamped to `[0.0, 1.0]` as the engine's final invariant.
+
+The capability was first formalized by archive change `a10-fsrs-fusion-formalization` (2026-04-07) in response to A10 (`docs/project-status/fr-exploration/A10.md`). The implementation lives at `backend/app/services/mastery_fusion.py` (`MasteryFusionEngine`) with signal definitions at `backend/app/services/signal_registry.py`. The fusion result is consumed by `backend/app/services/mastery_engine.py` (`MasteryEngine.effective_proficiency()`) at the global singleton level, which is the canonical entry point for all callers — see `algo-question` capability's "Mastery Data Flows Through MasteryEngine" Requirement for the consumption pattern.
+
 ## Requirements
 ### Requirement: Five-Signal Mastery Fusion Engine
 
