@@ -17,9 +17,11 @@ Author: Canvas Learning System
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import re
 
 import structlog
 import random
@@ -138,32 +140,101 @@ class WorkerMetrics:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+# audit-2026-04-07/p1-1: secret patterns we redact from any string before
+# it lands on disk. Defense in depth — even if upstream callers think they're
+# sending sanitized data, the dead-letter file is the last stop and a common
+# place for forensic exfiltration. CWE-532 (Insertion of Sensitive Information
+# into Log File). Patterns mirror common LLM/cloud key formats.
+_SECRET_PATTERNS = (
+    re.compile(r"sk-[A-Za-z0-9_-]{20,}"),  # OpenAI/Anthropic
+    re.compile(r"AIza[0-9A-Za-z_-]{20,}"),  # Google
+    re.compile(r"ghp_[A-Za-z0-9]{20,}"),  # GitHub
+    re.compile(r"Bearer\s+[A-Za-z0-9._-]{20,}", re.IGNORECASE),
+    re.compile(r"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}"),  # JWT
+)
+
+
+def _redact(text: str) -> str:
+    """Replace secret-looking substrings with ***REDACTED***. No-op for non-strings."""
+    if not isinstance(text, str):
+        return text
+    result = text
+    for pat in _SECRET_PATTERNS:
+        result = pat.sub("***REDACTED***", result)
+    return result
+
+
 class DeadLetterStore:
-    """Persists failed episodes to JSONL for manual inspection and replay."""
+    """Persists failed episodes to JSONL for manual inspection and replay.
+
+    audit-2026-04-07/p1-1: privacy-by-default rewrite.
+
+    Previously this stored the full ``episode_body`` plaintext on every failure,
+    which means all content the LLM saw — including potentially PII, student
+    answers, system prompts containing instructions, and the rare leaked
+    credential — was permanently archived in ``data/dead_letter_episodes.jsonl``.
+    Combined with the file being committed to git in some failure modes, this
+    is a CWE-532 vector.
+
+    New default behavior:
+      - Always store ``episode_body_sha256`` (16-byte hex prefix) so replays can
+        verify content matches without revealing it.
+      - Only store ``episode_body_full`` when env ``DEAD_LETTER_STORE_FULL_BODY``
+        is set to ``true`` / ``1`` / ``yes`` (opt-in for debugging).
+      - When stored, the full body is run through ``_redact`` to scrub obvious
+        secret patterns (OpenAI/Google/GitHub/Bearer/JWT).
+      - Error messages are truncated to 200 chars and redacted.
+      - Logger.error no longer interpolates the raw error string — only the
+        type name — so accidentally-leaked secrets in exception messages don't
+        end up in the structured log stream either.
+    """
 
     def __init__(self, file_path: str = "data/dead_letter_episodes.jsonl") -> None:
         self._file_path = Path(file_path)
         self._file_path.parent.mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def _store_full_body_enabled() -> bool:
+        flag = (os.environ.get("DEAD_LETTER_STORE_FULL_BODY") or "").strip().lower()
+        return flag in ("1", "true", "yes", "on")
+
     def store(
         self, task: EpisodeTask, error: Exception, *, request_id: str | None = None
     ) -> None:
-        """Append failed task to JSONL file synchronously (tiny payload, acceptable)."""
+        """Append failed task to JSONL file synchronously (tiny payload, acceptable).
+
+        Privacy: episode_body_full is omitted unless DEAD_LETTER_STORE_FULL_BODY=true.
+        """
+        # Always: hash + minimal metadata (safe to keep forever)
+        body_bytes = task.episode_body.encode("utf-8", errors="replace")
+        body_hash = hashlib.sha256(body_bytes).hexdigest()
+
         record = {
             **task.to_dict(),
-            "episode_body_full": task.episode_body,  # full content for replay
-            "error": str(error),
+            "episode_body_sha256": body_hash,
+            "episode_body_length": len(task.episode_body),
+            "error": _redact(str(error))[:200],
             "error_type": type(error).__name__,
             "failed_at": datetime.now(timezone.utc).isoformat(),
         }
+
+        # Opt-in: full body (still redacted for known secret patterns)
+        if self._store_full_body_enabled():
+            record["episode_body_full"] = _redact(task.episode_body)
+
         if request_id is not None:
             record["request_id"] = request_id
+
         with open(self._file_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
+        # audit-2026-04-07/p1-1: scrub error from logger interpolation. Type
+        # name only — full message is in the JSONL record (already redacted).
         logger.error(
             f"Dead-lettered episode: name={task.name}, "
-            f"retries={task.retry_count}/{task.max_retries}, error={error}"
+            f"retries={task.retry_count}/{task.max_retries}, "
+            f"error_type={type(error).__name__}, "
+            f"sha256={body_hash[:16]}"
         )
 
     def count(self) -> int:
