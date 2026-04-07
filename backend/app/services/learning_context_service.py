@@ -199,102 +199,6 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
     return tips, errors
 
 
-async def _fetch_edge_reasons(node_id: str) -> list[dict]:
-    """Fetch edge reasons (relationships from/to this node) from Neo4j.
-
-    Returns list of dicts with keys: neighbor_name, reason.
-    """
-    reasons: list[dict] = []
-    try:
-        from app.clients.neo4j_client import get_neo4j_client
-
-        client = get_neo4j_client()
-        records = await client.run_query(
-            "MATCH (n:EntityNode)-[r]-(m:EntityNode) "
-            "WHERE n.mastery_concept_id = $cid OR n.name = $cid "
-            "RETURN m.name AS neighbor, r.reason AS reason, "
-            "r.label AS label "
-            "LIMIT $lim",
-            cid=node_id,
-            lim=MAX_NEIGHBORS,
-        )
-        for rec in records or []:
-            neighbor = rec.get("neighbor")
-            if neighbor:
-                reasons.append(
-                    {
-                        "neighbor_name": neighbor,
-                        "reason": rec.get("reason") or rec.get("label") or "",
-                    }
-                )
-    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-        logger.warning("Failed to fetch edge reasons for %s: %s", node_id, e)
-    return reasons
-
-
-async def assemble_tier1(node_id: str, group_id: str) -> dict:
-    """Assemble Tier 1: full context for the current node.
-
-    AC-2 Tier 1: All tips + all errors + mastery + edge reasons.
-    """
-    mastery_data = await _fetch_mastery(node_id, group_id)
-    tips, errors = await _fetch_tips_and_errors(node_id)
-    edge_reasons = await _fetch_edge_reasons(node_id)
-
-    return {
-        "node_name": mastery_data["node_name"],
-        "mastery": {
-            "p_mastery": mastery_data["p_mastery"],
-            "stability": mastery_data["stability"],
-            "next_review": mastery_data["next_review"],
-        },
-        "tips": tips,
-        "errors": errors,
-        "edge_reasons": edge_reasons,
-    }
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Tier 2 Assembly
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-async def assemble_tier2(node_id: str) -> dict:
-    """Assemble Tier 2: 1-hop neighbor summaries.
-
-    AC-2 Tier 2: Neighbor title + mastery level + edge reason.
-    """
-    neighbors: list[dict] = []
-    try:
-        from app.clients.neo4j_client import get_neo4j_client
-
-        client = get_neo4j_client()
-        records = await client.run_query(
-            "MATCH (n:EntityNode)-[r]-(m:EntityNode) "
-            "WHERE n.mastery_concept_id = $cid OR n.name = $cid "
-            "RETURN m.name AS name, m.p_mastery AS mastery, "
-            "m.effective_proficiency AS eff_prof, "
-            "r.reason AS reason, r.label AS label "
-            "LIMIT $lim",
-            cid=node_id,
-            lim=MAX_NEIGHBORS,
-        )
-        for rec in records or []:
-            name = rec.get("name")
-            if name:
-                neighbors.append(
-                    {
-                        "name": name,
-                        "mastery_level": rec.get("mastery") or rec.get("eff_prof"),
-                        "edge_reason": rec.get("reason") or rec.get("label") or "",
-                    }
-                )
-    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-        logger.warning("Failed to fetch neighbors for %s: %s", node_id, e)
-
-    return {"neighbors": neighbors}
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Full Context Assembly
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -333,7 +237,7 @@ async def get_node_context(
     mastery_data, (tips, errors), neighbor_records = await asyncio.gather(
         _fetch_mastery(node_id, group_id),
         _fetch_tips_and_errors(node_id),
-        _fetch_neighbor_records(node_id),
+        _fetch_neighbor_records(node_id, group_id),
     )
 
     # Tier 1: edge reasons extracted from neighbor records
@@ -409,8 +313,11 @@ async def _fetch_inherited_context(node_id: str, group_id: str) -> list[dict]:
         return list()
 
 
-async def _fetch_neighbor_records(node_id: str) -> list[dict]:
+async def _fetch_neighbor_records(node_id: str, group_id: str) -> list[dict]:
     """Fetch neighbor records from Neo4j (shared by Tier 1 and Tier 2).
+
+    Applies group_id isolation: only neighbors belonging to the same group
+    (or legacy NULL-group_id nodes for backward compatibility) are returned.
 
     Returns raw dicts with keys: name, mastery, eff_prof, reason, label.
     """
@@ -421,12 +328,15 @@ async def _fetch_neighbor_records(node_id: str) -> list[dict]:
         client = get_neo4j_client()
         records = await client.run_query(
             "MATCH (n:EntityNode)-[r]-(m:EntityNode) "
-            "WHERE n.mastery_concept_id = $cid OR n.name = $cid "
+            "WHERE (n.mastery_concept_id = $cid OR n.name = $cid) "
+            "AND (n.group_id = $gid OR n.group_id IS NULL) "
+            "AND (m.group_id = $gid OR m.group_id IS NULL) "
             "RETURN m.name AS name, m.p_mastery AS mastery, "
             "m.effective_proficiency AS eff_prof, "
             "r.reason AS reason, r.label AS label "
             "LIMIT $lim",
             cid=node_id,
+            gid=group_id,
             lim=MAX_NEIGHBORS,
         )
         for rec in records or []:

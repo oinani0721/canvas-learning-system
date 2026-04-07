@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
+from app.security import require_internal_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -427,6 +428,13 @@ class _SystemModelConfigRequest(BaseModel):
         "API keys are never persisted to disk. (Story 1.3 AC-8)"
     ),
     tags=["System"],
+    dependencies=[Depends(require_internal_api_key)],
+    responses={
+        403: {"description": "Invalid internal API key"},
+        503: {
+            "description": "Internal API key not configured (production fail-closed)"
+        },
+    },
 )
 async def update_model_config(body: _SystemModelConfigRequest) -> dict:
     """Receive model configuration from the frontend Settings Tab.
@@ -487,6 +495,13 @@ async def update_model_config(body: _SystemModelConfigRequest) -> dict:
         "the provided model and API key are valid. (Story 1.3 AC-3/AC-4)"
     ),
     tags=["System"],
+    dependencies=[Depends(require_internal_api_key)],
+    responses={
+        403: {"description": "Invalid internal API key"},
+        503: {
+            "description": "Internal API key not configured (production fail-closed)"
+        },
+    },
 )
 async def test_llm_connection(config: _ModelTaskConfigRequest) -> dict:
     """Test LLM connection with the given provider, model, and API key.

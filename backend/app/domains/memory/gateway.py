@@ -23,10 +23,10 @@ from app.services.episode_worker import (
 )
 
 # ── 三层上下文组装（Tier 1/2/3） ──
+# Note: assemble_tier1/assemble_tier2 were removed (dead code, superseded by
+# inline neighbor extraction inside get_node_context — see isolation Phase 1).
 from app.services.learning_context_service import (
     get_node_context,
-    assemble_tier1,
-    assemble_tier2,
     format_as_markdown,
 )
 
@@ -38,7 +38,5 @@ __all__ = [
     "EpisodeTask",
     "get_episode_worker",
     "get_node_context",
-    "assemble_tier1",
-    "assemble_tier2",
     "format_as_markdown",
 ]

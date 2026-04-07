@@ -28,6 +28,8 @@ from fastapi import APIRouter, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
+from app.config import DEFAULT_GROUP_ID
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -95,26 +97,37 @@ CACHE_TTL_SECONDS = 30.0
 _context_cache: dict[str, tuple[float, dict]] = {}
 
 
-def _get_cached(node_id: str) -> dict | None:
-    """Return cached context dict if still fresh (within TTL)."""
-    entry = _context_cache.get(node_id)
+def _get_cached(cache_key: str) -> dict | None:
+    """Return cached context dict if still fresh (within TTL).
+
+    cache_key must encode both node_id and group_id so that the same
+    node accessed under different subjects receives isolated entries.
+    Callers should pass ``f"{group_id or DEFAULT_GROUP_ID}:{node_id}"``
+    — using the app-level DEFAULT_GROUP_ID (not a literal "default" string)
+    keeps the cache entry aligned with the group_id that
+    ``get_node_context`` actually resolves to under its own fallback.
+    """
+    entry = _context_cache.get(cache_key)
     if entry is None:
         return None
     cached_at, response = entry
     if time.time() - cached_at > CACHE_TTL_SECONDS:
-        del _context_cache[node_id]
+        del _context_cache[cache_key]
         return None
     return response
 
 
-def _set_cache(node_id: str, response: dict) -> None:
-    """Cache a context response dict with LRU eviction at CACHE_MAX_SIZE."""
+def _set_cache(cache_key: str, response: dict) -> None:
+    """Cache a context response dict with LRU eviction at CACHE_MAX_SIZE.
+
+    cache_key must encode both node_id and group_id (see _get_cached).
+    """
     # Evict oldest entries if cache exceeds max size
-    if len(_context_cache) >= CACHE_MAX_SIZE and node_id not in _context_cache:
+    if len(_context_cache) >= CACHE_MAX_SIZE and cache_key not in _context_cache:
         # Remove the oldest entry by cached_at timestamp
         oldest_key = min(_context_cache, key=lambda k: _context_cache[k][0])
         del _context_cache[oldest_key]
-    _context_cache[node_id] = (time.time(), response)
+    _context_cache[cache_key] = (time.time(), response)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -202,11 +215,17 @@ async def get_node_context_endpoint(
         get_node_context,
     )
 
-    # Check cache first
-    cached = _get_cached(node_id)
+    # Check cache first. Key is scoped to (group_id, node_id) so that the
+    # same node accessed under different subjects receives isolated entries
+    # — otherwise a cross-subject hit would leak neighbors from group A to
+    # group B when their TTLs overlap (FR-KG-04 isolation Phase 2).
+    # Use DEFAULT_GROUP_ID (not the literal string "default") so that the
+    # cache key stays aligned with get_node_context's own fallback branch.
+    cache_key = f"{group_id or DEFAULT_GROUP_ID}:{node_id}"
+    cached = _get_cached(cache_key)
     if cached is None:
         cached = await get_node_context(node_id=node_id, group_id=group_id)
-        _set_cache(node_id, cached)
+        _set_cache(cache_key, cached)
 
     # Return Markdown if requested
     if format and format.lower() == "markdown":

@@ -36,6 +36,14 @@ except ImportError:
     LOGURU_ENABLED = False
 
 
+# Module-level sentinel used to deduplicate the "cross_canvas disabled"
+# warning. Without this, every retrieval call under the placeholder
+# implementation would spam structured logs at WARNING level.
+# Reset is intentional: test suites that want to re-assert the warning
+# path can monkey-patch this back to False.
+_warned_unimplemented = False
+
+
 # ============================================================
 # Exceptions
 # ============================================================
@@ -206,32 +214,32 @@ class CrossCanvasService:
             List[Dict]: 搜索结果
         """
         if not related_canvases:
-            # 搜索所有Canvas (不限定canvas_file)
-            results = await self.lancedb.search(
-                query=query,
-                table_name=self.config.canvas_table,
-                num_results=num_results,
-            )
-        else:
-            # 聚合多个Canvas的搜索结果
-            all_results: List[Dict[str, Any]] = []
+            # Fail-soft: when find_related_canvases is still a placeholder
+            # (returning empty list), do NOT fall back to whole-vault search.
+            # Cross-subject leakage was the root cause of FR-KG-04 isolation
+            # gap — if the feature is disabled, return empty and let the
+            # aggregator use other retrievers.
+            return []
 
-            for canvas in related_canvases:
-                try:
-                    canvas_results = await self.lancedb.search(
-                        query=query,
-                        table_name=self.config.canvas_table,
-                        canvas_file=canvas,
-                        num_results=num_results // len(related_canvases) + 1,
-                    )
-                    all_results.extend(canvas_results)
-                except Exception as e:
-                    if LOGURU_ENABLED:
-                        logger.debug(f"Search failed for {canvas}: {e}")
+        # 聚合多个Canvas的搜索结果
+        all_results: List[Dict[str, Any]] = []
 
-            # 按分数排序并截取
-            all_results.sort(key=lambda x: x.get("score", 0), reverse=True)
-            results = all_results[:num_results]
+        for canvas in related_canvases:
+            try:
+                canvas_results = await self.lancedb.search(
+                    query=query,
+                    table_name=self.config.canvas_table,
+                    canvas_file=canvas,
+                    num_results=num_results // len(related_canvases) + 1,
+                )
+                all_results.extend(canvas_results)
+            except Exception as e:
+                if LOGURU_ENABLED:
+                    logger.debug(f"Search failed for {canvas}: {e}")
+
+        # 按分数排序并截取
+        all_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+        results = all_results[:num_results]
 
         return results
 
@@ -334,6 +342,21 @@ class CrossCanvasService:
             List[str]: 关联Canvas列表 (不含当前)
         """
         related = await self.find_related_canvases(canvas_file)
+        if not related:
+            # Dedup warning: find_related_canvases is currently a placeholder
+            # that returns an empty list. Log once so operators know the
+            # feature is effectively off, but do NOT spam every RAG call.
+            # search_related_nodes() already fail-softs to [] on this path.
+            global _warned_unimplemented
+            if not _warned_unimplemented:
+                if LOGURU_ENABLED:
+                    logger.warning(
+                        "cross_canvas disabled: find_related_canvases "
+                        "returns empty (placeholder implementation). "
+                        "Retrieval will return [] until a real relation "
+                        "strategy is wired in."
+                    )
+                _warned_unimplemented = True
         return [c for c in related if c != canvas_file]
 
 

@@ -123,13 +123,33 @@ class VaultNotesService:
         self._initialized = True
         return True
 
-    async def search(self, query: str, num_results: int = 10) -> List[Dict[str, Any]]:
+    async def search(
+        self,
+        query: str,
+        num_results: int = 10,
+        group_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         搜索 vault 笔记内容
 
         Args:
             query: 搜索查询
             num_results: 返回结果数量
+            group_id: Subject isolation namespace.  When ``None`` (default),
+                results are returned unchanged — single-vault assumption,
+                backward compatible with existing callers. When provided,
+                results are filtered using a **common-note downgrade** rule:
+                a row SURVIVES if its ``metadata.subject_id`` (or the nested
+                ``metadata.metadata_json.subject_id``) either equals the
+                requested ``group_id`` OR is ``None``. Rows with ``None``
+                subject_id are treated as **common / 通用主题 notes** that
+                join every group's result set. This avoids collapsing the
+                filter to an empty list under the current ingestion paths
+                that do not yet backfill ``subject_id`` for every document.
+                This is an isolation Phase 4 placeholder for the multi-vault
+                future; once vault_notes ingestion starts writing subject_id
+                consistently, the common-note downgrade becomes a minority
+                path and the filter becomes load-bearing for non-common rows.
 
         Returns:
             List[SearchResult]: 笔记检索结果，每个包含 source="vault_note"
@@ -172,8 +192,43 @@ class VaultNotesService:
                         r["metadata"]["timestamp_end"] = parsed.get("timestamp_end")
                         r["metadata"]["video_file"] = parsed.get("video_file")
                         r["metadata"]["source_type"] = parsed.get("source_type", "note")
+                        # Surface subject_id from the embedded JSON so that
+                        # group_id filtering below can see it without
+                        # re-parsing.
+                        if "subject_id" in parsed and "subject_id" not in r["metadata"]:
+                            r["metadata"]["subject_id"] = parsed.get("subject_id")
                     except (json.JSONDecodeError, TypeError):
                         pass
+
+            # Phase 4 placeholder: apply group_id filter when caller requests
+            # isolation. Accept both flattened metadata.subject_id and the
+            # nested metadata_json.subject_id fallback (some ingestion paths
+            # still write only the JSON string).
+            #
+            # Common-note downgrade: a row with ``subject_id == None`` (or
+            # missing entirely) is treated as a common / 通用主题 note and
+            # joins every group. This prevents the filter from collapsing
+            # to an empty list under current ingestion paths that do not
+            # yet backfill subject_id consistently. See FR-KG-04 isolation
+            # Phase 4 (F9) for the rationale.
+            if group_id is not None:
+
+                def _effective_subject_id(row: Dict[str, Any]) -> Optional[str]:
+                    meta = row.get("metadata") or {}
+                    flat = meta.get("subject_id")
+                    if flat is not None:
+                        return flat
+                    nested = meta.get("metadata_json")
+                    if isinstance(nested, dict):
+                        return nested.get("subject_id")
+                    return None
+
+                def _matches_group(row: Dict[str, Any]) -> bool:
+                    sid = _effective_subject_id(row)
+                    # Common-note downgrade: None (unset / common) joins every group.
+                    return sid is None or sid == group_id
+
+                results = [r for r in results if _matches_group(r)]
 
             latency_ms = (time.perf_counter() - start_time) * 1000
 
