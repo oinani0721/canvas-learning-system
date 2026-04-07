@@ -62,6 +62,19 @@
 |----|------|------|---------|---------|
 | G-FAI-001 | `faithfulness_check` 在图内无 assistant answer 时返回 `None`（not_applicable），不是 `1.0`。`scoring_faithfulness.run_full_check` 在 evidence/rubric 为空时返回 `score=None` + `not_applicable_checks` 列表。依赖此字段的下游必须用 `score is not None and score >= threshold` 判断，否则会 TypeError 或错过健康信号。`llm_call_logger.record_faithfulness_score(None)` 已做 early-return 所以 health_monitor 自动干净。 | 旧实现 vacuous-true (`grounded/total if total > 0 else 1.0`) 把"不适用"伪装成"满分" | ✅ fix-rag-faithfulness-and-add-crag-quality-loop Phase 1 | 不适用路径必须返回 None，不是 1.0 |
 
+## G-MOCK: Degraded Scoring 对抗性绕过 (2026-04-07 新增, FR-KG-04 Phase 17.1)
+
+| ID | 问题 | 根因 | 修复状态 | 防止规则 |
+|----|------|------|---------|---------|
+| G-MOCK-001 | `verification_service._mock_evaluate_answer` 按 `user_answer` 长度映射 quality/score：`>100→90 "excellent" / >50→70 "good" / >20→50 "partial" / else→20 "wrong"`。对抗者提交 101 字符噪音字符串（例如 `"x"*101`）可稳定获得 90 分，而 19 字符的正确答案（如 `"F=ma"`）只得 20 分。触发路径四处：`USE_MOCK_VERIFICATION=true` / `asyncio.TimeoutError` / `Exception` / `agent_service=None`。代码注释甚至坦白 "KNOWN ISSUE: A 101-character nonsense string scores higher than a 19-character correct answer"。 | Story 31.A.8 把"可观测的降级"和"实际打分"混为一谈。降级代理用启发式长度规则假装有分数，缺少 fail-closed 契约。 | ✅ commit `d0824e9` (2026-04-07): `_mock_evaluate_answer` 恒返回 `("unknown", 0.0)`；`_advance_concept` 加 `degraded: bool` 参数，degraded 时跳过 green/yellow/red/purple 计数更新；`process_answer` 在 degraded 路径直接走 `_advance_concept(degraded=True)` 绕过 hint 循环；前端 `degraded_warning` 文案改为"评分服务暂时不可用，本次回答不计分也不更新掌握度。您可以继续下一题。"；6 个对抗性回归测试（`TestFailClosedDegradedScoring`）固化此契约。 | Degraded scoring 必须 fail-closed（不得产生可用的数值分数），并且必须跳过所有长期状态更新（掌握度、FSRS 卡片、Neo4j SCORED 关系）。只允许推进 `completed_concepts` 避免阻塞 UX。测试必须覆盖 "101 字符噪音 vs 19 字符正确答案" 对抗性用例。 |
+| G-MOCK-002 | 降级评分的 `[DEGRADED SCORING]` 日志文案声称 "NOT based on content quality" / "User may receive inaccurate assessment"，但仍然返回了非零分数且 `process_answer` 用这个分数更新了 mastery 计数。日志和行为不一致：告警说"结果不可信"，但仍然污染了长期学习状态。 | `_evaluate_answer_with_scoring_agent` 返回 `degraded=True` 标志，但 `process_answer` 的掌握度计数分支没有检查这个标志，只根据 quality/score 分流。 | ✅ commit `d0824e9`: 4 个 logger 文案改为 "mastery state will NOT be updated"（反映实际行为）；`process_answer` 新增 degraded 优先分支，直接传 `degraded=True` 给 `_advance_concept`；`test_degraded_mode_does_not_update_mastery_counts` 固化 green/yellow/red/purple 计数在 degraded 路径不变的契约。 | 告警文案必须反映实际行为，不能 "警告说 X 不会发生" 而 "代码依然做 X"。用 contract test 固化告警-行为一致性。 |
+
+## G-PATH: Canvas File Access 路径穿越 (2026-04-07 新增, FR-KG-04 Phase 17.2)
+
+| ID | 问题 | 根因 | 修复状态 | 防止规则 |
+|----|------|------|---------|---------|
+| G-PATH-001 | `verification_service._do_extract_concepts` 的 Method 2 fallback 用裸 `open(file_path)` 读取 Canvas 文件，完全绕过 `CanvasService._validate_canvas_name` 的路径穿越防护。攻击链：`review.py:1679` 用 f-string 拼接 `canvas_path = str(_canvas_base_path / f"{request.canvas_name}.canvas")`，`pathlib.Path` 不解析 `..` 段 → `canvas_name="../../etc/passwd"` 得到 `"/Users/x/vault/../../etc/passwd.canvas"` → `CanvasService.read_canvas` 抛 `ValidationError` → except 分支 fallback 到 `_read_canvas_file_sync(file_path)` → 操作系统在 `open()` 时解析 `..` → 读取 `/etc/passwd.canvas`。CanvasService 的防护本身是有效的，但 fallback 路径 deliberately 绕过了它。 | `CanvasService.read_canvas` 可能因各种原因抛异常（文件格式错误、权限、IO 等），Story 原作者为提高可用性加了 fallback 到直接文件读取。但 fallback 路径继承了 CanvasService 的"信任"，却没继承 CanvasService 的"校验"。这是教科书级的信任传递失败（OWASP A01 Broken Access Control）。 | ✅ commit `b50a52b` (2026-04-07): 新增 `_resolve_safe_canvas_path` 辅助方法，用 `pathlib.Path.resolve() + relative_to(base)` 严格校验目标路径在 `_canvas_base_path` 内；拒绝 `..` / `\0` / `\\` / `//` / `/./`、绝对路径、非 `.canvas` 后缀；Method 2 fallback 必须先经过该校验，失败返回 `["默认概念"]` 而非继续 `open()`；`_read_canvas_file_sync` docstring 明确标注"callers MUST pre-validate"；8 个对抗性回归测试（`TestPathTraversalHardening`）覆盖每个拒绝分支 + 端到端 `canvas_name="../../etc/passwd"` 拒绝测试。 | 任何 fallback 路径 MUST 继承原路径的完整安全保证。模式：`try: safe_read() except: fallback_read()` 必须满足 `fallback_read` 独立等效于 `safe_read` 的所有校验。用 defense-in-depth（两层独立校验）而非单点依赖 CanvasService。永远用 `pathlib.resolve()` + `relative_to()` 做 base 边界检查，不要用字符串前缀比较。 |
+
 ## G-PARAM: 参数/类型 Bug (S33 real-DB 测试暴露，已修复)
 
 | ID | 问题 | 根因 | 修复状态 | 防止规则 |
@@ -96,12 +109,17 @@
 
 | 分类 | 总计 | 已修复 | 有意保留/延后 | 待修复 |
 |------|------|--------|-------------|--------|
-| G-FAKE | 5 | 5 | 0 | 0 |
+| G-FAKE | 6 | 5 | 1 (006 FR-KG-04 Phase 7 弃用) | 0 |
 | G-PIPE | 7 | 5 | 2 (002 future feature, 004 有意禁用) | 0 |
 | G-TYPE | 2 | 2 | 0 | 0 |
 | G-ASYNC | 2 | 2 | 0 | 0 |
 | G-API | 2 | 2 | 0 | 0 |
 | G-PERF | 2 | 1 | 1 (002 Phase4 约束) | 0 |
 | G-SILENT | 2 | 1 | 0 | 1 (001 S35修复中) |
+| G-FAI | 1 | 1 | 0 | 0 |
+| G-MOCK | 2 | 2 | 0 | 0 |
+| G-PATH | 1 | 1 | 0 | 0 |
 | G-PARAM | 3 | 3 | 0 | 0 |
-| **合计** | **25** | **21** | **3** | **1** |
+| G-MCP | 2 | 2 | 0 | 0 |
+| G-DECISION | 1 | 1 | 0 | 0 |
+| **合计** | **33** | **28** | **4** | **1** |
