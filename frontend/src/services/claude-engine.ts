@@ -82,6 +82,14 @@ export interface SendMessageOptions {
   mcpConfigPath?: string;
   /** Optional allowed-tools list. */
   allowedTools?: string[];
+  /**
+   * audit-2026-04-07/p0-2: relative canvas path for memory group_id derivation.
+   * Format: "<subject>/<canvasName>.canvas" (e.g. "数学/微积分.canvas").
+   * The sidecar forwards this to backend /memory/extract-conversation so the
+   * fallback distiller writes into the correct Graphiti group instead of the
+   * legacy hard-coded DEFAULT_GROUP_ID.
+   */
+  canvasPath?: string;
 }
 
 /** Result of a CLI availability check. */
@@ -735,6 +743,12 @@ export class ClaudeEngine {
       // Allowed tools
       if (options.allowedTools && options.allowedTools.length > 0) {
         queryCmd.allowedTools = options.allowedTools;
+      }
+
+      // audit-2026-04-07/p0-2: forward canvasPath so the sidecar can attach
+      // it to /memory/extract-conversation calls (fallback group_id derivation).
+      if (options.canvasPath) {
+        queryCmd.canvasPath = options.canvasPath;
       }
 
       // Send command to sidecar stdin

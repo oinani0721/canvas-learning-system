@@ -35,6 +35,7 @@ import { type StreamEvent } from '../services/claude-engine';
 import { EngineFallbackManager, type ActiveEngine } from '../services/engine-fallback';
 import { CrashRecoveryManager, type RecoveryStatus } from '../services/crash-recovery';
 import { ApiClient } from '../services/api-client';
+import { useCanvasStore } from './canvas-store';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Constants
@@ -619,6 +620,22 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       }
     }
 
+    // audit-2026-04-07/p0-2: build a relative canvas_path so the sidecar's
+    // /memory/extract-conversation calls can derive the real Graphiti group_id
+    // (subject:canvasName) instead of falling back to the hard-coded cs188
+    // default. Format: "<subject>/<boardName>.canvas".
+    let canvasPath: string | undefined;
+    try {
+      const { currentBoardId, currentBoardName } = useCanvasStore.getState();
+      if (currentBoardId && currentBoardName) {
+        const boardRecord = await db.canvas_boards.get(currentBoardId);
+        const subject = boardRecord?.subjectId || 'general';
+        canvasPath = `${subject}/${currentBoardName}.canvas`;
+      }
+    } catch {
+      // Non-blocking: canvasPath stays undefined → backend uses DEFAULT_GROUP_ID
+    }
+
     // Story 4-1/4-2: Edge mode uses edge-specific system prompt
     const baseSystemPrompt = currentMode === 'edge' && currentEdge
       ? buildEdgeSystemPrompt(currentEdge)
@@ -645,6 +662,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           message: wrappedMessage,
           nodeId,
           systemPrompt,
+          canvasPath,
         },
         (event: StreamEvent) => {
           // Ignore events if user switched away

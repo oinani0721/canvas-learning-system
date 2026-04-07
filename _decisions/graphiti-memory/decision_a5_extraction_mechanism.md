@@ -92,7 +92,56 @@ A5 三个结论在 4 份文档中表述一致（**无矛盾**）：
 - **失败路径**：API 不可用时，episode 进 `data/dead_letter_episodes.jsonl` 死信队列，**不重试**也**不切本地模型**
 - **没有本地 fallback** 是设计选择，不是缺失 —— 用户明确要求云端模型保证质量
 
-**Why:** A5 是 user2 对"项目是否在用 Claude Code 同款 hook 偷懒、或用本地模型糊弄"的核心 challenge。三方对账证明项目用的是最规范的 graphiti-core 官方路径，结论可信度高。
-**How to apply:** 任何后续涉及 Graphiti 提取机制的设计/改动，都应基于"事件驱动 + 官方 SDK + Gemini 云端"这个事实出发，禁止重新走 hook 或本地兜底路线（除非用户显式要求）。
+### ⚠️ 修正：Sidecar Fallback Path（2026-04-07 ChatGPT 对抗审计补充）
 
-**决策状态: [Decision-Review] CONFIRMED — 三方对账（代码侧 Agent + 文档侧 Agent + Git 历史 Agent）2026-04-07 通过，记录为本项目 Graphiti 提取机制的事实基线。**
+**起因**：user2 此前提到"我看到了 hook 调用"。我之前的 A5 三方对账只看了**后端事件驱动主路径**（`agents.py → memory_service → episode_worker → add_episode`），结论是 ❌ 不是 Hook。三个并行 Explore agent 后续验证 ChatGPT 对抗审计时，发现还有**第二条由前端 sidecar 触发的回退路径**，这条路径的入口确实是 hook。我之前的对账**没有矛盾，但片面**——主路径不是 hook，sidecar 这条 fallback 路径是。修正如下：
+
+**Path B（sidecar PostToolUse hook → 后端 Distiller → Graphiti）**：
+
+1. **触发器**：Agent SDK 内部的 `PostToolUse` hook（不是 Claude Code 的 OS-level hook）
+   - 实现：`frontend/sidecar/sidecar.js:163-194` 在 `queryOpts.options.hooks.PostToolUse[0].hooks[0]` 注册 async 回调
+   - 命中条件：`BEA_EXTRACTION_TOOLS = {'score_answer', 'record_error'}`（sidecar.js:77-80）
+   - 当 Agent 调用这两个 MCP 工具中的任一时，回调 fire-and-forget POST 到 backend
+
+2. **第二个触发器**：sidecar 的 SDK result loop（不是 hook，是 stream 监听）
+   - 实现：`frontend/sidecar/sidecar.js:328-360` 在 `msg.type === 'result' && msg.subtype === 'success' && !learningRecorded` 时触发
+   - 兜底意图：当一整轮对话**没有任何 memory tool** 被调用时，把整段对话发给后端做 Ollama-based fallback 提取
+
+3. **后端入口**：`POST /api/v1/memory/extract-conversation`
+   - Handler：`backend/app/api/v1/endpoints/memory.py:435+`
+   - 调用 `ConversationDistiller(messages, node_id)` → `result.tips` + `result.errors` → `memory_service.record_knowledge_entity()` → 同样进 episode_worker → `add_episode()`
+
+4. **和主路径的关系**：
+   - **主路径（事件驱动）**：Agent 在后端通过 background_task 直接 enqueue → 这条无 hook
+   - **回退路径 A（sidecar PostToolUse hook）**：Agent 在 sidecar 内调 MCP 工具 → hook 命中 → 前端 fetch → 后端 Distiller → enqueue
+   - **回退路径 B（sidecar Stop fallback）**：整轮对话没用 memory 工具 → 前端 fetch → 后端 Distiller → enqueue
+   - 三条路径**最终都汇聚到同一个** `episode_worker._process_episode()` → `graphiti.add_episode()`，所以原结论"是 graphiti-core 官方 SDK"和"是 Gemini 2.5 Flash 云端"**仍然成立**
+
+5. **修正后的"是 Hook 吗？"答案**：
+   - **后端主路径**：❌ NO（事件驱动 background_task）
+   - **sidecar PostToolUse 路径**：✅ YES（Agent SDK 内部的 PostToolUse hook）
+   - **sidecar Stop fallback 路径**：❌ NO（result message 监听，不是 hook）
+
+### 修正后的代码锚点（完整）
+
+| 路径 | 触发器 | 文件:行 |
+|---|---|---|
+| 后端主路径入口 | FastAPI BackgroundTasks | `backend/app/api/v1/endpoints/agents.py:831-838` |
+| sidecar PostToolUse hook | Agent SDK hooks API | `frontend/sidecar/sidecar.js:163-194` |
+| sidecar Stop fallback | SDK result loop | `frontend/sidecar/sidecar.js:328-360` |
+| sidecar 触发的 backend 入口 | extract-conversation handler | `backend/app/api/v1/endpoints/memory.py:435+` |
+| 三路径汇聚点 | episode_worker enqueue | `backend/app/services/episode_worker.py:336-362` |
+
+### 修正影响：审计闭环
+
+ChatGPT 对抗审计还在 sidecar fallback 这条路径上发现了 5 类安全/正确性 bug，已在 audit-2026-04-07 修复批次中处理（详见 `_decisions/decision-log.md` 对应条目）：
+
+- **P0-1**：sidecar `canUseTool` 默认 deny + 高风险工具走 `permission_request` 闭环（`sidecar.js:140-189`）
+- **P0-2**：`/extract-conversation` 加 `X-Canvas-Observer-Token` opt-in 鉴权 + canvas_path 参数化解析 group_id（`memory.py:402-490`）
+- **P1-1**：`DeadLetterStore` 默认不落盘完整 episode_body，仅 sha256 + redact secrets
+- **P1-2**：sync_outbox `retryCount` 字段 + dexie schema v7 + full jitter exponential backoff
+
+**Why:** A5 是 user2 对"项目是否在用 Claude Code 同款 hook 偷懒、或用本地模型糊弄"的核心 challenge。三方对账证明项目主路径用的是最规范的 graphiti-core 官方路径；ChatGPT 对抗审计补充发现 sidecar fallback 路径才是 user2 看到的"hook 调用"，但这条路径**最终汇聚到同一 SDK**，所以"是官方 SDK + Gemini 云端"的核心结论依然成立。
+**How to apply:** 后续 Graphiti 提取机制的设计/改动，都应基于"3 条路径并存（主+2 fallback），最终汇聚到 episode_worker → graphiti.add_episode"这个事实出发。任何讨论"是不是 hook"必须区分主路径（不是）和 sidecar fallback（是 PostToolUse hook + Stop fallback 监听）。禁止重新走"本地模型兜底"路线（除非用户显式要求）。
+
+**决策状态: [Decision-Review] CONFIRMED — 三方对账（代码侧 Agent + 文档侧 Agent + Git 历史 Agent）2026-04-07 通过 + ChatGPT 对抗审计 2026-04-07 补充修正 sidecar fallback path，记录为本项目 Graphiti 提取机制的事实基线。**
