@@ -400,7 +400,40 @@ async def create_batch_episodes(
 # POST /extract-conversation - Sidecar fallback learning extraction
 # =============================================================================
 
+import os
+from typing import Optional
+
+from fastapi import Header
 from pydantic import BaseModel, Field
+
+
+def _require_observer_token(
+    x_canvas_observer_token: Optional[str] = Header(default=None),
+) -> None:
+    """
+    audit-2026-04-07/p0-2: gate /extract-conversation behind a shared token.
+
+    T1 threat model (single user / localhost): env SIDECAR_OBSERVER_TOKEN
+    defaults to empty, in which case the endpoint stays open. The moment the
+    operator sets the env, the endpoint requires `X-Canvas-Observer-Token`
+    on every request and rejects mismatches with 401.
+
+    This is the "opt-in tighten" pattern: zero migration friction for the
+    common single-user setup, but a real auth boundary the moment the
+    deployment leaves the laptop. Pairs with the sidecar header set in
+    `frontend/sidecar/sidecar.js` (CANVAS_OBSERVER_TOKEN).
+    """
+    expected = (os.environ.get("SIDECAR_OBSERVER_TOKEN") or "").strip()
+    if not expected:
+        # Token unset → open mode (T1 default).
+        return
+    if (x_canvas_observer_token or "").strip() != expected:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing X-Canvas-Observer-Token",
+        )
 
 
 class ExtractConversationRequest(BaseModel):
@@ -411,6 +444,19 @@ class ExtractConversationRequest(BaseModel):
     messages: List[dict] = Field(
         ..., description="List of {role, content} message dicts"
     )
+    # audit-2026-04-07/p0-2: callers may now scope the extraction to a real
+    # canvas/subject instead of falling back to the global DEFAULT_GROUP_ID.
+    group_id: Optional[str] = Field(
+        default=None,
+        description="Explicit Graphiti group_id. Overrides canvas_path inference.",
+    )
+    canvas_path: Optional[str] = Field(
+        default=None,
+        description=(
+            "Canvas file path (e.g. '数学/微积分.canvas'). Used to derive "
+            "group_id via subject_config helpers when group_id is not set."
+        ),
+    )
 
 
 class ExtractConversationResponse(BaseModel):
@@ -420,6 +466,7 @@ class ExtractConversationResponse(BaseModel):
     extracted_count: int = 0
     status: str = "ok"
     message: str = ""
+    group_id: Optional[str] = None
 
 
 @memory_router.post(
@@ -431,6 +478,7 @@ class ExtractConversationResponse(BaseModel):
         "record_learning_memory being invoked. Uses ConversationDistiller "
         "(Ollama Tier1) to extract structured learning data and write to Graphiti."
     ),
+    dependencies=[Depends(_require_observer_token)],
 )
 async def extract_conversation_learning(
     request: ExtractConversationRequest,
@@ -438,6 +486,26 @@ async def extract_conversation_learning(
 ) -> ExtractConversationResponse:
     try:
         from app.services.conversation_distiller import ConversationDistiller
+        from app.config import DEFAULT_GROUP_ID
+        from app.core.subject_config import (
+            build_group_id,
+            extract_canvas_name,
+            extract_subject_from_canvas_path,
+        )
+
+        # audit-2026-04-07/p0-2: resolve target group_id with graceful fallback.
+        # Priority:
+        #   1. explicit request.group_id (caller knows best)
+        #   2. derived from canvas_path (subject + canvas filename)
+        #   3. DEFAULT_GROUP_ID (legacy / unknown caller)
+        if request.group_id:
+            resolved_group_id = request.group_id
+        elif request.canvas_path:
+            subject = extract_subject_from_canvas_path(request.canvas_path)
+            canvas_name = extract_canvas_name(request.canvas_path)
+            resolved_group_id = build_group_id(subject, canvas_name)
+        else:
+            resolved_group_id = DEFAULT_GROUP_ID
 
         distiller = ConversationDistiller()
         result = await distiller.distill(
@@ -446,7 +514,6 @@ async def extract_conversation_learning(
         )
 
         extracted_count = 0
-        from app.config import DEFAULT_GROUP_ID
 
         for tip in result.tips:
             await memory_service.record_knowledge_entity(
@@ -457,7 +524,7 @@ async def extract_conversation_learning(
                     "source": "sidecar_fallback",
                     "tags": tip.tags,
                 },
-                group_id=DEFAULT_GROUP_ID,
+                group_id=resolved_group_id,
             )
             extracted_count += 1
 
@@ -470,12 +537,13 @@ async def extract_conversation_learning(
                     "source": "sidecar_fallback",
                     "error_type": error.error_type,
                 },
-                group_id=DEFAULT_GROUP_ID,
+                group_id=resolved_group_id,
             )
             extracted_count += 1
 
         logger.info(
-            f"[Observer-Fallback] Extracted {extracted_count} items for node {request.node_id}"
+            f"[Observer-Fallback] Extracted {extracted_count} items "
+            f"for node {request.node_id} into group {resolved_group_id}"
         )
 
         return ExtractConversationResponse(
@@ -483,6 +551,7 @@ async def extract_conversation_learning(
             extracted_count=extracted_count,
             status="ok",
             message=f"Extracted {extracted_count} learning items",
+            group_id=resolved_group_id,
         )
 
     except Exception as e:

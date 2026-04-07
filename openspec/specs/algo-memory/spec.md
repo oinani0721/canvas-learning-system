@@ -1,7 +1,8 @@
 # algo-memory Specification
 
 ## Purpose
-TBD - created by archiving change fix-rag-transform-and-episode-isolation. Update Purpose after archive.
+
+The `algo-memory` capability covers Canvas Learning System's Graphiti-backed learning memory subsystem: how learning episodes are extracted, stored, isolated by group, and recovered after restart. The extraction mechanism is **event-driven, not hook-based**: Agent responses trigger a FastAPI `BackgroundTask` that calls `memory_service.record_learning_event() → episode_worker.enqueue() → graphiti_core.Graphiti.add_episode()`, using the official `graphiti-core>=0.28.2` SDK with Gemini 2.5 Flash as the LLM (no local-model fallback). Typed extraction is enforced via Pydantic entities (`LearningConcept`, `Misconception`, `LearningTip`, `MasteryRecord`) and the `PrerequisiteRelation` edge type. See `_decisions/graphiti-memory/decision_a5_extraction_mechanism.md` for the full A5 three-way reconciliation between code, docs, and git history.
 ## Requirements
 ### Requirement: Episode Cache Per-Group Isolation
 
