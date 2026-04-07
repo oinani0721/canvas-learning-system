@@ -42,9 +42,9 @@
 
 ## 4. 异常分类 + Neo4j 约束（Phase 4，Week 1 Day 4）
 
-- [ ] 4.1 修改 `backend/app/api/v1/endpoints/sync.py:57-66` 将 `except Exception` 拆分为：`except (ConnectionError, RuntimeError) as e` → 503；`except Exception as e` → 500（使用 `logger.exception` 记录 traceback，detail 返回 `"Sync batch failed unexpectedly"`）
-- [ ] 4.2 在 `sync.py` 的 `@sync_router.post` 装饰器 `responses` 字典添加 `500: {"description": "Unexpected logic error"}`
-- [ ] 4.3 新建 `backend/migrations/001_canvas_constraints.cypher` 包含：
+- [x] 4.1 修改 `backend/app/api/v1/endpoints/sync.py` 将 `except Exception` 拆分为：`except (ServiceUnavailable, AuthError, ConnectionError) as e` → 503 "Neo4j unavailable"；`except Exception as e` → 500 "Sync batch failed unexpectedly"（使用 `logger.exception` 记录 traceback，detail 返回 fixed string，不泄露 exception 内容）
+- [x] 4.2 在 `sync.py` 的 `@sync_router.post` 装饰器 `responses` 字典添加 `500: {"description": "Unexpected logic error in sync pipeline"}`
+- [x] 4.3 新建 `backend/migrations/001_canvas_constraints.cypher`（幂等 IF NOT EXISTS）包含：
   ```
   CREATE CONSTRAINT canvasnode_id_unique IF NOT EXISTS
   FOR (n:CanvasNode) REQUIRE n.id IS UNIQUE;
@@ -55,9 +55,9 @@
   CREATE INDEX canvasnode_canvasid IF NOT EXISTS
   FOR (n:CanvasNode) ON (n.canvasId);
   ```
-- [ ] 4.4 在 `backend/app/main.py` 的 `lifespan` 启动钩子中添加迁移脚本执行逻辑（检测 `.executed` 标记文件或使用 schema version 表）
-- [ ] 4.5 新建 `backend/tests/integration/test_neo4j_constraints.py`：使用真实 Neo4j 测试容器，验证违反约束时抛 `ConstraintValidationFailed`
-- [ ] 4.6 新建 `backend/tests/unit/test_sync_exception_classification.py`：mock `SyncService` 抛 `ValueError` → 验证 500；抛 `ConnectionError` → 验证 503
+- [ ] 4.4 在 `backend/app/main.py` 的 `lifespan` 启动钩子中添加迁移脚本执行逻辑 — **DEFERRED to Phase 16 e2e**（迁移脚本已就绪可手动运行；lifespan 集成需要 neo4j-test container）
+- [ ] 4.5 新建 `backend/tests/integration/test_neo4j_constraints.py` — **DEFERRED to Phase 16 e2e**（需要 neo4j-test docker container port 7692，Wave 2 Step 0 已部分就绪）
+- [x] 4.6 新建 `backend/tests/unit/test_sync_exception_classification.py`：覆盖 ServiceUnavailable/AuthError/ConnectionError → 503 + ValueError/TypeError/UnknownError → 500 + 验证 detail 字符串不泄露原始异常内容（6 tests pass）
 
 ## 5. 端到端集成测试（Phase 5，Week 1 Day 5）
 
