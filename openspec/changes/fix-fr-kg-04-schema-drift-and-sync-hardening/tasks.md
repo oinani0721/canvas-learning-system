@@ -67,11 +67,11 @@
 
 ## 6. kg_relevance 加权公式实装（Phase 6，Week 2 Day 1-2）
 
-- [ ] 6.1 验证 Task 1.5 的 Cypher 在真实数据上正确返回 `weighted_degree`（使用 `EXPLAIN` 确认利用了 `canvasnode_canvasid` 索引）
-- [ ] 6.2 在 `_get_kg_relevance` 中更新归一化逻辑 `return min(1.0, weighted_degree / 8.0), None`
-- [ ] 6.3 新建 `backend/tests/unit/test_kg_relevance_weighted.py` 覆盖：3 个 CANVAS_EDGE → 0.375；4 个 RELATES_TO → 0.35；混合 2+3 → ~0.5125；10 个 CANVAS_EDGE → 1.0；0 个 → `(0.5, "empty_graph")`；只有 HAS_TIP → `(0.5, "empty_graph")`
-- [ ] 6.4 运行 `pytest backend/tests/unit/test_kg_relevance_weighted.py -v` 确认所有场景通过
-- [ ] 6.5 在真实 Neo4j 数据上运行 `select_target_node`，对比修复前后的节点优先级分布，确认 kg_relevance 确实参与排序
+- [ ] 6.1 验证 Task 1.5 的 Cypher 在真实数据上正确返回 `weighted_degree` — **DEFERRED to Phase 16 e2e**（需要真实 Neo4j + EXPLAIN 输出验证 NodeIndexSeek）
+- [x] 6.2 在 `_get_kg_relevance` 中更新归一化逻辑 `return min(1.0, weighted_degree / 8.0), None` — 已在 Phase 1 Task 1.7 中完成 (commit a6da4f7)
+- [x] 6.3 新建 `backend/tests/unit/test_kg_relevance_weighted.py` 覆盖所有场景 — 15 tests pass (含 3 CANVAS_EDGE=0.375 / 4 RELATES_TO=0.35 / 混合=0.5125 / 10 capped=1.0 / empty_graph / neo4j_unavailable 所有 exception 类型)
+- [x] 6.4 运行 `pytest backend/tests/unit/test_kg_relevance_weighted.py -v` 确认所有场景通过 — 15 tests pass
+- [ ] 6.5 在真实 Neo4j 数据上运行 `select_target_node` — **DEFERRED to Phase 16 e2e**（需要真实数据对比修复前后节点排序）
 
 ## 7. CONNECTS_TO 死代码弃用（Phase 7，Week 2 Day 3）
 
