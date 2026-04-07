@@ -298,9 +298,66 @@ While writing the cross-canvas isolation test, the test setup itself reproduced 
 
 ---
 
+## 14. Phase 0 Hardening #2: Fallback Observability (2026-04-07)
+
+After the first Phase 0 Hardening round shipped, ChatGPT Deep Research adversarially reviewed commit `ed2bf8e` and identified **three residual gaps in the fusion-fallback path** that the initial hardening round did not cover. A follow-up OpenSpec change `a10-phase0-fallback-observability` was executed in the same session to close them.
+
+### 14.1 Three gaps closed
+
+| # | Gap identified by review round 3 | Fix applied |
+|---|---|---|
+| **1** | **`FusionResult.is_fallback` spec/impl drift** — `mastery_fusion.py:89` and `:100` both set `is_fallback=False` on the fallback return paths, while `algo-fusion/spec.md` scenario "Zero signals active is fail-safe" requires `is_fallback=True`. The drift was completely unprotected by tests (zero `is_fallback` assertions in `test_mastery_fusion.py`). | Aligned both fallback branches to `is_fallback=True` (happy path at `:120` stays `False`). Added 5 test scenarios (updated 2 existing + 3 new) locking down the semantic for all return sites. |
+| **2** | **Cross-layer state loss through `effective_proficiency(concept)`** — The method returned a plain `float`, losing the fusion fallback state. `question_generator._get_mastery_data` received a float and could not tell whether fusion was consumed or fell through to `min(p_mastery, R)`. | Added new public method `MasteryEngine.effective_proficiency_with_fallback_info(concept) -> tuple[float, bool]`. Refactored the existing `effective_proficiency` as a thin wrapper that discards the bool for backward compat. `_get_mastery_data` now consumes the helper and translates `fusion_fallback=True` into `mastery_degraded="fusion_fallback"` (a fourth legal value alongside `None` / `"concept_not_found"` / `"exception"`). |
+| **3** | **MCP `QueryMasteryOutput` schema inconsistency** — The Pydantic model at `backend/app/mcp/tools/mastery_tools.py:39-62` lacked `mastery_degraded`, breaking the cross-layer observability contract established by Phase 0 Hardening round 1. | Added `mastery_degraded: Optional[str] = None` field with docstring mirroring the 4 legal values. External Claude Code sessions using the MCP tool can now observe the same cross-layer state as internal callers. |
+
+### 14.2 Semantic of the new `"fusion_fallback"` value
+
+The new helper returns `fusion_fallback=True` **only** when the `min(p_mastery, R)` fallback path was taken — either because no fusion engine is attached, or because `compute_fused_mastery` returned `active_signal_count == 0` and the engine fell through to the conservative Story 5.1 strategy.
+
+It returns `fusion_fallback=False` when `interaction_count == 0` and `base = 0.0` is returned from the "not assessed" early exit. A not-assessed concept correctly returning 0.0 is the documented expected behavior, not a degradation — flagging it would flood the observability pipeline with false signals for every fresh node.
+
+This distinguishes "truly not assessed" from "fusion fell through" — exactly the signal operators need to diagnose production drift.
+
+### 14.3 Spec deltas merged to `algo-question`
+
+- **MODIFIED Requirement**: "Mastery Data Degraded Observability" — extended from 3 legal values (`None`, `"concept_not_found"`, `"exception"`) to 4 by adding `"fusion_fallback"`. Added 2 new scenarios: "Fusion fallback returns fusion_fallback marker" and "Not-assessed concept returns None degraded flag (not fusion_fallback)".
+
+### 14.4 Test coverage expansion
+
+- Existing Phase 0 + Hardening 1 suite: 13 unit scenarios (updated assertions to match new API)
+- Phase 0 Hardening #2 unit scenarios on `test_mastery_fusion.py`: 5 (updated 2 existing + 3 new) locking down `is_fallback` at all 3 return sites
+- Phase 0 Hardening #2 unit scenarios on `test_question_generator_mastery_data.py`: 2 new (fusion_fallback propagation, happy-path regression guard)
+- A11 e2e regression suite: unchanged (13 tests)
+- **Total A10 guard surface**: 27 unit + 13 e2e = **40 tests**
+
+### 14.5 Phase 0 Hardening #2 change reference
+
+- **OpenSpec change**: `a10-phase0-fallback-observability` (archived as `2026-04-07-a10-phase0-fallback-observability`)
+- **Key files changed**: `backend/app/services/mastery_fusion.py`, `backend/app/services/mastery_engine.py`, `backend/app/services/question_generator.py`, `backend/app/mcp/tools/mastery_tools.py`, `backend/tests/unit/test_mastery_fusion.py`, `backend/tests/unit/test_question_generator_mastery_data.py`, `openspec/specs/algo-question/spec.md` (merged via archive)
+- **`algo-fusion/spec.md` unchanged** — implementation aligned to the existing (correct) spec, not the other way around
+
+### 14.6 Still open for Phase 1+ (unchanged from Section 13)
+
+ChatGPT review round 3 repeated the same Phase 1+ recommendations as round 2:
+- ReviewPriorityEngine (strategy layer to unify question priority formulas)
+- advance_strategy (verification_service linear queue → mastery-aware hybrid_windowed)
+- recommendation mastery factor (with Reciprocal Rank Fusion pattern)
+- Reliability weighting (Beta-Bayesian or inverse-variance pooling)
+- Ablation harness (offline evaluation pipeline for weight validation)
+
+These require either product decisions (group_id semantics, concept_id ↔ node_id mapping contract) or data exports (ablation baseline events) that this session does not have. They remain Phase 1+ scope.
+
+Round 3 also identified two P1 silent-fallback gaps NOT in the Hardening #2 scope:
+- `mastery_engine.py:603-604` bare `except: pass` on FSRS card deserialization
+- `verification_service.py:1973-1994` `_extract_lapse_signal` silent BKT exception
+
+These are Phase 1 candidates for a dedicated "silent-except cleanup" change.
+
+---
+
 ## How to use this document with ChatGPT Deep Research
 
-1. Copy this entire file (≈ 20 KB after Phase 0 Hardening update) into ChatGPT Deep Research as the primary input.
+1. Copy this entire file (≈ 23 KB after Phase 0 Hardening #2 update) into ChatGPT Deep Research as the primary input.
 2. Tell ChatGPT it has access to the GitHub repo (provide the repo URL), so it can resolve the relative source links in Section 9.
 3. Direct ChatGPT to focus on the 7 questions in Section 8.
 4. Expect 1-3 rounds of clarifying questions before ChatGPT produces a `[FINAL]` recommendation per question.
