@@ -260,9 +260,47 @@ The fix in Phase 0:
 
 ---
 
+## 13. Phase 0 Hardening (2026-04-07)
+
+Following ChatGPT Deep Research's **second-round adversarial review** of the Phase 0 fix itself, a follow-up OpenSpec change `a10-phase0-hardening` was executed in the same session to close three residual risks that the original Phase 0 did not cover.
+
+### 13.1 Four hardenings applied
+
+| # | Risk identified by review | Hardening applied |
+|---|---|---|
+| **1** | Phase 0 silently fails when `mastery_store.get_concept` returns None (ID mapping drift or unprocessed score events) — fallback dict is indistinguishable from the pre-fix bug | Added `mastery_degraded: Optional[str]` key to `_get_mastery_data` return dict with values `None` / `"concept_not_found"` / `"exception"`. Propagated to `ACPData.mastery_degraded` and `NodePriority.mastery_degraded` (mirroring the existing `kg_relevance_degraded` pattern). |
+| **2** | `effective_proficiency` was called **3×** per node (direct + via `mastery_level` internal + via `mastery_label → mastery_level` recursion) | Added public helpers `MasteryEngine.mastery_level_from_proficiency(eff, concept)` and `mastery_label_from_level(level)` that accept pre-computed values. Refactored `_get_mastery_data` to compute eff exactly once. 50-node batch drops from 150 → 50 fusion computations (3× reduction). |
+| **3** | `_get_kg_relevance` MATCH only bound primary node to `id` (not `canvasId`), leaving a forward-looking cross-canvas contamination path | Tightened Cypher `MATCH (n:CanvasNode {id: $node_id, canvasId: $canvas_id})` — dual binding eliminates the risk even if per-canvas node_id namespaces are later introduced. |
+| **4** | `select_target_node` batch `asyncio.gather` had no concurrency cap → 1000+ simultaneous Neo4j queries on a 500-node canvas | Added function-local `asyncio.Semaphore(20)` wrapping each per-node coroutine (mirrors `canvas_service.py:598-616` pattern). |
+
+### 13.2 Spec deltas merged to `algo-question`
+
+- **NEW Requirement**: "Mastery Data Degraded Observability" (4 scenarios)
+- **NEW Requirement**: "Effective Proficiency Computed Once Per Mastery Query" (2 scenarios)
+- **NEW Requirement**: "Bounded Concurrency for Batch Node Scoring" (2 scenarios)
+- **MODIFIED Requirement**: "kg_relevance Schema Correctness" — added "Primary node is bound to canvasId" + "Cypher syntax check" scenarios
+
+### 13.3 Test coverage expansion
+
+- Existing Phase 0 regression suite: 8 scenarios (unchanged semantics, updated to match new API)
+- New Phase 0 Hardening unit scenarios: 5 (1x eff call count, concept_not_found marker, exception marker, mastery_level_from_proficiency equivalence, mastery_label_from_level equivalence)
+- New Phase 0 Hardening e2e scenarios: 2 (cross-canvas isolation, bounded concurrency instrumentation)
+- Total A10 guard surface: **13 unit + 13 e2e = 26 tests**
+
+### 13.4 Phase 0 Hardening change reference
+
+- **OpenSpec change**: `a10-phase0-hardening` (archived in the same commit)
+- **Files changed**: `backend/app/services/question_generator.py`, `backend/app/services/mastery_engine.py`, `backend/app/models/exam_models.py`, `backend/tests/unit/test_question_generator_mastery_data.py`, `backend/tests/e2e/test_a11_kg_relevance_e2e.py`, `openspec/specs/algo-question/spec.md` (Requirements merged via archive)
+
+### 13.5 Self-reinforcing discovery in the test suite
+
+While writing the cross-canvas isolation test, the test setup itself reproduced the exact bug the production fix was guarding against: a `MERGE (n:CanvasNode {id: 'nodeE'}) ... ON MATCH SET canvasId=$parallel` clause stole the original canvas's nodeE into the parallel canvas. The fix in both test and production is the same — bind both `id` and `canvasId` in the MERGE/MATCH. This is documented here because it demonstrates why the ChatGPT review was correct to flag the forward-looking risk: the footgun is easy to step on.
+
+---
+
 ## How to use this document with ChatGPT Deep Research
 
-1. Copy this entire file (≈ 17 KB after Phase 0 update) into ChatGPT Deep Research as the primary input.
+1. Copy this entire file (≈ 20 KB after Phase 0 Hardening update) into ChatGPT Deep Research as the primary input.
 2. Tell ChatGPT it has access to the GitHub repo (provide the repo URL), so it can resolve the relative source links in Section 9.
 3. Direct ChatGPT to focus on the 7 questions in Section 8.
 4. Expect 1-3 rounds of clarifying questions before ChatGPT produces a `[FINAL]` recommendation per question.

@@ -130,6 +130,8 @@ class QuestionGenerator:
             # default changes. When the caller specifies a target node we
             # skip the KG query entirely, so there is no degraded reason
             # to record.
+            # A10 Phase 0 Hardening: propagate mastery_degraded to NodePriority
+            # so single-target observability is symmetric with batch path.
             return NodePriority(
                 node_id=target_node_id,
                 priority_score=1.0,
@@ -137,6 +139,7 @@ class QuestionGenerator:
                 retrievability=mastery_data.get("retrievability", 1.0),
                 kg_relevance=1.0,
                 kg_relevance_degraded=None,
+                mastery_degraded=mastery_data.get("mastery_degraded"),
             )
 
         examined = set(examined_nodes or list())
@@ -163,13 +166,30 @@ class QuestionGenerator:
         # the second layer — e.g. `_get_mastery_data` only catches
         # (ImportError, AttributeError, ValueError), so a future TypeError
         # would still escape without this guard.
+        #
+        # A10 Phase 0 Hardening: bound per-batch Neo4j concurrency at 20 using
+        # a function-local asyncio.Semaphore. Mirrors the canvas_service.py:598
+        # pattern. Prevents pool exhaustion on large canvases (N=500 → 1000+
+        # simultaneous queries without the bound). 20 is higher than
+        # canvas_service's 12 because kg_relevance + mastery queries are
+        # read-only and lighter than edge sync writes.
+        semaphore = asyncio.Semaphore(20)
+
+        async def _gated_mastery(nid: str) -> Dict[str, Any]:
+            async with semaphore:
+                return await self._get_mastery_data(nid)
+
+        async def _gated_kg(nid: str) -> tuple[float, Optional[str]]:
+            async with semaphore:
+                return await self._get_kg_relevance(nid, source_canvas_id)
+
         mastery_results, kg_results = await asyncio.gather(
             asyncio.gather(
-                *(self._get_mastery_data(nid) for nid in node_ids),
+                *(_gated_mastery(nid) for nid in node_ids),
                 return_exceptions=True,
             ),
             asyncio.gather(
-                *(self._get_kg_relevance(nid, source_canvas_id) for nid in node_ids),
+                *(_gated_kg(nid) for nid in node_ids),
                 return_exceptions=True,
             ),
         )
@@ -184,9 +204,18 @@ class QuestionGenerator:
                     f"[Story 6.3] mastery query crashed for node {node_id}: "
                     f"{type(mastery_data).__name__}: {mastery_data}"
                 )
-                mastery_data = {"p_mastery": 0.1, "retrievability": 1.0}
+                # A10 Phase 0 Hardening: mark batch-level exception distinctly
+                # from concept_not_found so observability can differentiate
+                # "query threw" from "data missing".
+                mastery_data = {
+                    "p_mastery": 0.1,
+                    "retrievability": 1.0,
+                    "mastery_degraded": "exception",
+                }
             p_mastery = mastery_data.get("p_mastery", 0.1)
             retrievability = mastery_data.get("retrievability", 1.0)
+            # A10 Phase 0 Hardening: surface mastery_degraded to NodePriority
+            mastery_degraded = mastery_data.get("mastery_degraded")
 
             kg_result = kg_results[idx]
             if isinstance(kg_result, BaseException):
@@ -217,6 +246,7 @@ class QuestionGenerator:
                     retrievability=retrievability,
                     kg_relevance=kg_relevance,
                     kg_relevance_degraded=kg_degraded,
+                    mastery_degraded=mastery_degraded,
                     already_examined=already_examined,
                 )
             )
@@ -268,6 +298,10 @@ class QuestionGenerator:
         acp.effective_proficiency = mastery.get("effective_proficiency", 0.0)
         acp.mastery_level = mastery.get("mastery_level", 0.0)
         acp.mastery_label = mastery.get("mastery_label", "Not Assessed")
+        # A10 Phase 0 Hardening: propagate mastery_degraded observability marker
+        # so downstream callers can distinguish happy-path "truly not assessed"
+        # from concept_not_found / exception fallback paths.
+        acp.mastery_degraded = mastery.get("mastery_degraded")
 
         # 3. Get Tips from Graphiti
         acp.student_tips = await self._get_tips(node_id)
@@ -684,6 +718,23 @@ class QuestionGenerator:
         call MasteryEngine instance methods on the concept. The MasteryEngine global
         singleton is wired with a fusion engine at startup (main.py:220-261), so this
         function now consumes the multi-signal fusion result via Story 5.6 path.
+
+        A10 Phase 0 Hardening (2nd ChatGPT review round):
+
+        1. **1x effective_proficiency per call**: previously this function called
+           engine.effective_proficiency (direct) + engine.mastery_level (which re-invokes
+           effective_proficiency internally) + engine.mastery_label (which re-invokes
+           mastery_level), for a total of 3 fusion computations per node. For batch
+           callers like select_target_node on a 50-node canvas this was 150 redundant
+           calls. Now effective_proficiency is computed once and reused via the new
+           `mastery_level_from_proficiency` / `mastery_label_from_level` helpers.
+
+        2. **mastery_degraded observability**: the returned dict always contains a
+           `mastery_degraded` key that distinguishes happy path (None) from
+           concept_not_found ("concept_not_found") from exception ("exception").
+           This mirrors the existing kg_relevance_degraded pattern and lets production
+           log pipelines distinguish "Phase 0 fix worked" from "ID mapping silently
+           failed, looks like the pre-fix bug".
         """
         try:
             from app.services.mastery_engine import get_mastery_engine
@@ -693,13 +744,33 @@ class QuestionGenerator:
             engine = get_mastery_engine()
             concept = await store.get_concept(node_id)
             if concept:
+                # Compute effective_proficiency exactly once and reuse via the
+                # pre-computed helpers. See Phase 0 Hardening contract above.
+                eff = engine.effective_proficiency(concept)
+                level = engine.mastery_level_from_proficiency(eff, concept)
+                label = engine.mastery_label_from_level(level)
                 return {
                     "p_mastery": concept.p_mastery,
                     "retrievability": engine.get_retrievability(concept),
-                    "effective_proficiency": engine.effective_proficiency(concept),
-                    "mastery_level": engine.mastery_level(concept),
-                    "mastery_label": engine.mastery_label(concept),
+                    "effective_proficiency": eff,
+                    "mastery_level": level,
+                    "mastery_label": label,
+                    "mastery_degraded": None,
                 }
+            # concept_not_found: CanvasNode.id has no matching EntityNode.mastery_concept_id
+            # (typical cause: score event has not been processed yet, or ID mapping gap).
+            # This is observably distinct from "happy-path truly not assessed".
+            logger.debug(
+                f"[Story 6.3] mastery_store.get_concept returned None for node_id={node_id}"
+            )
+            return {
+                "p_mastery": 0.1,
+                "retrievability": 1.0,
+                "effective_proficiency": 0.0,
+                "mastery_level": 0,
+                "mastery_label": "Not Assessed",
+                "mastery_degraded": "concept_not_found",
+            }
         except (ImportError, AttributeError, ValueError) as e:
             logger.debug(f"[Story 6.3] Failed to get mastery data: {e}")
         return {
@@ -708,6 +779,7 @@ class QuestionGenerator:
             "effective_proficiency": 0.0,
             "mastery_level": 0,
             "mastery_label": "Not Assessed",
+            "mastery_degraded": "exception",
         }
 
     async def _get_kg_relevance(
@@ -751,8 +823,13 @@ class QuestionGenerator:
             # restricts r to CANVAS_EDGE|RELATES_TO, making any other type
             # unreachable. Removing ELSE 0 drops dead code without changing
             # behavior.
+            # A10 Phase 0 Hardening: the primary node `n` is bound to BOTH
+            # `id` and `canvasId` (not just `id`). This eliminates a forward-looking
+            # cross-canvas contamination risk if per-canvas node_id namespaces are
+            # ever introduced (e.g., duplicated canvases). The neighbor WHERE
+            # filter is kept as belt-and-suspenders defense.
             query = """
-            MATCH (n:CanvasNode {id: $node_id})-[r:CANVAS_EDGE|RELATES_TO]-(neighbor:CanvasNode)
+            MATCH (n:CanvasNode {id: $node_id, canvasId: $canvas_id})-[r:CANVAS_EDGE|RELATES_TO]-(neighbor:CanvasNode)
             WHERE neighbor.canvasId = $canvas_id
             WITH neighbor, MAX(
                 CASE type(r)

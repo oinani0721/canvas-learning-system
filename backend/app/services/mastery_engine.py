@@ -449,6 +449,52 @@ class MasteryEngine:
         """Get human-readable mastery label."""
         return MASTERY_LABELS.get(self.mastery_level(concept), "Unknown")
 
+    def mastery_level_from_proficiency(self, eff: float, concept: ConceptState) -> int:
+        """Compute 0-4 mastery level from a pre-computed effective_proficiency.
+
+        A10 Phase 0 Hardening: this helper accepts a pre-computed `eff` value so
+        callers that already invoked `effective_proficiency(concept)` do not pay
+        the cost of recomputing it inside `mastery_level`. The existing
+        `mastery_level(concept)` method remains the convenience API for callers
+        that don't have a pre-computed value; use this method when batch-querying
+        (e.g., `question_generator._get_mastery_data` / `select_target_node`) to
+        avoid 3x redundant fusion computation per node.
+
+        The classification logic is identical to `mastery_level`:
+          - Level 0 (Not Assessed): no interactions, no override, no self-assess
+          - Levels 1-3: based on `eff` thresholds from `config.shaky_threshold`,
+            `config.developing_threshold`, `config.proficient_threshold`
+          - Level 4 (Mastered): requires both `eff >= proficient_threshold` AND
+            `fluent_count >= mastered_fluent_min` (explanation-gated verification)
+        """
+        if (
+            concept.interaction_count == 0
+            and concept.override_value is None
+            and concept.self_assess_value is None
+        ):
+            return 0  # Not Assessed
+
+        if eff < self.config.shaky_threshold:
+            return 1  # Shaky
+        elif eff < self.config.developing_threshold:
+            return 2  # Developing
+        elif eff < self.config.proficient_threshold:
+            return 3  # Proficient
+        elif concept.fluent_count >= self.config.mastered_fluent_min:
+            return 4  # Mastered (verified)
+        else:
+            return 3  # High score but unverified -> Proficient
+
+    def mastery_label_from_level(self, level: int) -> str:
+        """Get human-readable mastery label from a pre-computed level.
+
+        A10 Phase 0 Hardening: symmetric with `mastery_level_from_proficiency`.
+        Use this when a caller already has a computed level to avoid the
+        `mastery_label(concept) -> mastery_level(concept) -> effective_proficiency(concept)`
+        recursion.
+        """
+        return MASTERY_LABELS.get(level, "Unknown")
+
     def mastery_color(self, concept: ConceptState) -> str:
         """Get sidebar display color hex."""
         return MASTERY_COLORS.get(self.mastery_level(concept), "#6c757d")
