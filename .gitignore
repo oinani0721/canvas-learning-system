@@ -211,3 +211,9 @@ research-pack-fr-*.xml
 
 # ── Legacy archive directories (local reference only) ──
 _archive/
+
+# ── Build / test / backup artifacts (local only) ──
+backend/mutants/
+backend/config/rag_config.yaml
+_backups/
+canvas-docs/
