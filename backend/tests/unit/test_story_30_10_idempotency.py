@@ -58,13 +58,13 @@ class TestDeterministicEpisodeId:
         assert id1 != id2
 
     def test_id_format(self):
-        """Episode ID format is episode-{hash16}."""
+        """Episode ID format is episode-{hash32}."""
         from app.services.memory_service import _generate_deterministic_episode_id
 
         eid = _generate_deterministic_episode_id("u", "c", "n", "concept")
         assert eid.startswith("episode-")
-        # 16 hex chars after "episode-"
-        assert len(eid) == len("episode-") + 16
+        # 32 hex chars after "episode-" (sha256[:32], see memory_service.py:84)
+        assert len(eid) == len("episode-") + 32
 
     def test_empty_inputs_no_crash(self):
         """Empty strings don't crash, still produce deterministic output."""
@@ -109,12 +109,13 @@ class TestBatchDeterministicEpisodeId:
         assert id1 != id2
 
     def test_batch_id_format(self):
-        """Batch episode ID format is batch-{hash16}."""
+        """Batch episode ID format is batch-{hash32}."""
         from app.services.memory_service import _generate_batch_episode_id
 
         bid = _generate_batch_episode_id("c", "n", "t", "ts")
         assert bid.startswith("batch-")
-        assert len(bid) == len("batch-") + 16
+        # 32 hex chars after "batch-" (sha256[:32], see memory_service.py:100)
+        assert len(bid) == len("batch-") + 32
 
 
 # ============================================================================
