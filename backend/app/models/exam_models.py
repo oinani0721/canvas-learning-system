@@ -205,6 +205,15 @@ class ACPData(BaseModel):
 
     Assembled from Graphiti + mastery_engine + SQLite.
     Token budget: 3K tokens max.
+
+    A10 Phase 0 Hardening: ``mastery_degraded`` mirrors the existing
+    ``NodePriority.kg_relevance_degraded`` pattern. Possible values:
+
+    - ``None``: mastery data was computed from real ConceptState + MasteryEngine
+    - ``"concept_not_found"``: ``mastery_store.get_concept`` returned None
+      (typical cause: CanvasNode.id has no matching EntityNode.mastery_concept_id
+      because the score event has not been processed yet)
+    - ``"exception"``: ``_get_mastery_data`` caught ImportError/AttributeError/ValueError
     """
 
     node_id: str
@@ -222,6 +231,7 @@ class ACPData(BaseModel):
     retrievability: float = 1.0
     p_mastery: float = 0.1
     kg_relevance: float = 0.0
+    mastery_degraded: Optional[str] = None
 
 
 class QuestionGenerationResult(BaseModel):
@@ -249,6 +259,14 @@ class NodePriority(BaseModel):
     - ``None``: kg_relevance was computed from real graph data
     - ``"empty_graph"``: query ran but found no CANVAS_EDGE/RELATES_TO neighbors
     - ``"neo4j_unavailable"``: query raised ConnectionError/RuntimeError/timeout
+
+    A10 Phase 0 Hardening: ``mastery_degraded`` mirrors the ``kg_relevance_degraded``
+    pattern for the mastery-data path. Possible values:
+
+    - ``None``: mastery data was computed from real ConceptState + MasteryEngine
+    - ``"concept_not_found"``: ``mastery_store.get_concept`` returned None
+      (typical cause: CanvasNode.id has no matching EntityNode.mastery_concept_id)
+    - ``"exception"``: ``_get_mastery_data`` caught a non-fatal exception during lookup
     """
 
     node_id: str
@@ -257,6 +275,7 @@ class NodePriority(BaseModel):
     retrievability: float
     kg_relevance: float
     kg_relevance_degraded: Optional[str] = None
+    mastery_degraded: Optional[str] = None
     already_examined: bool = False
 
 

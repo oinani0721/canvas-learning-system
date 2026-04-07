@@ -284,9 +284,14 @@ class TestKgRelevanceCypherShape:
             await qg._get_kg_relevance("n1", "c1")
 
         cypher = captured["query"]
-        # Schema correctness (FR-KG-04)
-        assert "CanvasNode {id: $node_id}" in cypher, (
-            "kg_relevance must query by {id: $node_id} to match SyncService writes"
+        # Schema correctness (FR-KG-04 + A10 Phase 0 Hardening):
+        # Post-hardening the primary node is bound to BOTH id and canvasId
+        # so cross-canvas node_id collisions are impossible. See
+        # openspec/specs/algo-question/spec.md "kg_relevance Schema Correctness"
+        # Requirement, scenario "Primary node is bound to canvasId".
+        assert "CanvasNode {id: $node_id, canvasId: $canvas_id}" in cypher, (
+            "kg_relevance must query by {id: $node_id, canvasId: $canvas_id} "
+            "to match SyncService writes AND prevent cross-canvas leakage"
         )
         assert "neighbor.canvasId" in cypher, (
             "kg_relevance must filter on canvasId (camelCase) not canvas_id"

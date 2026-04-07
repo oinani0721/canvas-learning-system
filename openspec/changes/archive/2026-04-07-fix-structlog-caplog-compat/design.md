@@ -45,28 +45,62 @@ structlog.configure(
 - **C**: 在 conftest 里给每个测试 swap factory — 意味着 dev/test 行为不一致，难以排查
 - **D**: 放弃 structlog 回到 stdlib logging — 丢失 47 个服务已做的 observability 工作
 
-### D2: stdlib root handler 单次初始化
+### D2: stdlib root handler 单次初始化（marker-based ownership）
 
 **问题**：D1 要求 stdlib root logger 配一个 handler 用 `ProcessorFormatter` 渲染最终 JSON。这个初始化不能重复，否则会有多行重复日志。
 
-**方案**：在 `backend/app/core/logging.py` 定义 `configure_stdlib_logging()` 函数，由 `app/main.py` 在 FastAPI 启动阶段调用一次。函数内部用 `root_logger.hasHandlers()` 检查幂等性。
+**关键陷阱（2026-04-07 实证发现）**：当前 `core/logging.py:62-64` 的 `setup_logging()` 在挂新 handler 之前**显式清空所有 root handlers**：
 
 ```python
-# core/logging.py（新增函数）
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+```
+
+如果 `configure_logging()` 在 pytest session 中被调用（即使是被 conftest fixture 调用），这段"全量清空"会**把 pytest `LogCaptureHandler` 一并踢掉**——caplog.records 永远为空，bridging 形同虚设。pytest 文档也明确警告这种"clear-all-then-add"模式。
+
+朴素的 `if root_logger.hasHandlers(): return` 也不可靠：pytest 的 `_LiveLoggingStreamHandler` 在 session start 就会 attach，导致 `configure_logging()` 直接 return early，**我们的 JSON handler 永远没机会装上**。
+
+**方案**：marker-based handler ownership。我们装的 handler 都打上 `_canvas_setup_logging_owned = True` 属性。重入时**只清自己装的**，其他（包括 pytest 的）一律保留。
+
+```python
+# core/logging.py（新增函数 — replaces buggy setup_logging）
+import io
 import logging
+import sys
 import structlog
 
-def configure_stdlib_logging(level: int = logging.INFO) -> None:
-    """
-    Mount a StreamHandler on the root logger with structlog ProcessorFormatter.
-    Idempotent — safe to call multiple times (e.g., in tests).
-    """
-    root_logger = logging.getLogger()
-    if root_logger.hasHandlers():
-        return  # already configured
+OWNED_MARKER = "_canvas_setup_logging_owned"
 
-    formatter = structlog.stdlib.ProcessorFormatter(
-        # 这些 processor 只在最终渲染时跑（foreign_pre_chain 处理非 structlog 日志）
+def configure_logging(level: int = logging.INFO) -> None:
+    """
+    Idempotent + caplog-safe logging setup.
+
+    1. Configure structlog with stdlib factory + ProcessorFormatter bridging
+    2. Mount a JSON-rendering StreamHandler on root logger
+    3. On re-entry, remove only handlers WE previously installed (marker-based),
+       leaving pytest LogCaptureHandler / LiveLoggingStreamHandler intact.
+    """
+    if getattr(configure_logging, "_configured", False):
+        return
+
+    # 1. Configure structlog (idempotent at structlog level via cache_logger_on_first_use)
+    _configure_structlog()
+
+    # 2. Mount stdlib JSON handler on root, preserving non-owned handlers
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+
+    # Marker-based incremental cleanup: only remove handlers we installed previously
+    for handler in root_logger.handlers[:]:
+        if getattr(handler, OWNED_MARKER, False):
+            root_logger.removeHandler(handler)
+
+    # UTF-8 wrapping (preserve Story 12.I.1 / 12.J.1 Windows compat)
+    utf8_stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+
+    json_formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=[
             structlog.contextvars.merge_contextvars,
             structlog.processors.add_log_level,
@@ -74,23 +108,35 @@ def configure_stdlib_logging(level: int = logging.INFO) -> None:
         ],
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            structlog.processors.JSONRenderer(),  # ← 最终 JSON 渲染在这里
+            structlog.processors.JSONRenderer(),
         ],
     )
 
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-    root_logger.addHandler(handler)
-    root_logger.setLevel(level)
+    json_handler = logging.StreamHandler(utf8_stdout)
+    json_handler.setLevel(level)
+    json_handler.setFormatter(json_formatter)
+    setattr(json_handler, OWNED_MARKER, True)  # mark as owned
+    root_logger.addHandler(json_handler)
+
+    # Reduce noise from third-party libraries (preserved from setup_logging)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+    configure_logging._configured = True
 ```
 
-`app/main.py` 的 `lifespan` 或 startup 处调用：
+`app/main.py` 启动阶段调用（**replaces** the existing `setup_logging(log_level=settings.LOG_LEVEL)` call at main.py:66）：
 ```python
-from app.core.logging import configure_stdlib_logging
-configure_stdlib_logging()
+from app.core.logging import configure_logging
+configure_logging(level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 ```
 
-**理由**：集中配置，避免分散在多处；幂等检查让 pytest 每次 fixture 重入时不会重复挂 handler。
+**理由**：
+- 集中配置，避免分散
+- Marker-based 重入安全：pytest LogCaptureHandler 永不被踢
+- 保留 UTF-8 wrapping 兼容 Windows（Story 12.I.1 / 12.J.1）
+- 删除买一送一：旧 `setup_logging()` 和 `ContextVarsFilter` 一起作废（contextvars 注入由 `foreign_pre_chain` 的 `merge_contextvars` 接管）
 
 ### D3: `structlog.configure` 的调用位置
 

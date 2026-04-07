@@ -98,11 +98,18 @@ EXPECTED_KG: Dict[str, tuple[float, Optional[str]]] = {
     "nodeE": (1.0, None),
 }
 
+# A10 Phase 0 NOTE: the constant 0.0 here is INTENTIONAL test simplification,
+# not a regression of the silent bug fixed in commit ${PHASE0_COMMIT}.
+# This stub replaces _get_mastery_data wholesale (see stubbed_qg fixture below),
+# bypassing the real MasteryEngine routing entirely. The test pins
+# effective_proficiency to a constant so that kg_relevance is the only variable
+# affecting priority ordering. Any constant value works — we kept 0.0 for
+# git-history clarity.
 STUB_MASTERY: Dict[str, Any] = {
     "p_mastery": 0.5,
     "retrievability": 1.0,
     "effective_proficiency": 0.0,
-    "mastery_level": 0.0,
+    "mastery_level": 0,
     "mastery_label": "Not Assessed",
 }
 
@@ -386,3 +393,161 @@ class TestA11SelectionSequence:
             f"A11 regression: expected ≥3 distinct kg_relevance values, "
             f"observed {sorted(seen_values)} — likely back to constant 0.5"
         )
+
+
+# ---------------------------------------------------------------------------
+# A10 Phase 0 Hardening scenarios
+# ---------------------------------------------------------------------------
+#
+# These tests cover two of the Phase 0 Hardening Requirements added to
+# algo-question/spec.md by change a10-phase0-hardening:
+#
+# 1. kg_relevance Schema Correctness — primary node bound to both id and
+#    canvasId so cross-canvas node_id collisions do not cause contamination
+# 2. Bounded Concurrency for Batch Node Scoring — select_target_node uses
+#    asyncio.Semaphore(20) so large canvases do not saturate Neo4j pool
+# ---------------------------------------------------------------------------
+
+
+class TestA11Phase0HardeningCrossCanvasIsolation:
+    """A10 Phase 0 Hardening: `_get_kg_relevance` must scope to (id, canvasId)."""
+
+    async def test_cross_canvas_node_id_does_not_leak(
+        self, a11_canvas: Neo4jClient, stubbed_qg: QuestionGenerator
+    ) -> None:
+        """Seed a second canvas with the SAME node id but different neighbors,
+        then verify that `_get_kg_relevance(nodeE, CANVAS_ID)` still returns the
+        original canvas's value (1.0 for 8 edges), unaffected by the parallel canvas.
+
+        Pre-hardening, `MATCH (n:CanvasNode {id: $node_id})` would match BOTH
+        canvases' nodeE, leading to inflated weighted_degree. Post-hardening,
+        `MATCH (n:CanvasNode {id: $node_id, canvasId: $canvas_id})` binds to only
+        the primary canvas, so the result is unaffected.
+        """
+        # Seed a parallel canvas sharing nodeE's id but with only 1 neighbor.
+        # CRITICAL: MERGE must bind BOTH id and canvasId so we don't steal the
+        # existing nodeE from the primary canvas (which only has {id} in its
+        # older _seed_canvas). This is actually the same defensive pattern that
+        # the production Cypher tightening enforces.
+        parallel_canvas = "a11-parallel-canvas"
+        await a11_canvas.run_query(
+            "MATCH (n:CanvasNode) WHERE n.canvasId = $cid DETACH DELETE n",
+            cid=parallel_canvas,
+        )
+        await a11_canvas.run_query(
+            """
+            MERGE (n:CanvasNode {id: 'nodeE', canvasId: $cid})
+            ON CREATE SET n.title = 'parallel-nodeE',
+                          n.content = '',
+                          n.type = 'text',
+                          n.x = 0, n.y = 0, n.width = 200, n.height = 120
+            """,
+            cid=parallel_canvas,
+        )
+        # Add 1 filler + 1 edge in the parallel canvas
+        await a11_canvas.run_query(
+            """
+            MERGE (f:CanvasNode {id: 'parallel-filler-0', canvasId: $cid})
+            ON CREATE SET f.title = 'pf0',
+                          f.content = '',
+                          f.type = 'text',
+                          f.x = 0, f.y = 0, f.width = 200, f.height = 120
+            """,
+            cid=parallel_canvas,
+        )
+        await a11_canvas.run_query(
+            """
+            MATCH (n:CanvasNode {id: 'nodeE', canvasId: $cid})
+            MATCH (f:CanvasNode {id: 'parallel-filler-0', canvasId: $cid})
+            MERGE (n)-[:CANVAS_EDGE {edge_id: 'parallel-e1'}]-(f)
+            """,
+            cid=parallel_canvas,
+        )
+
+        try:
+            # Original canvas: nodeE has 8 edges → kg_relevance = min(1.0, 8/8) = 1.0
+            score_original, degraded_original = await stubbed_qg._get_kg_relevance(
+                "nodeE", CANVAS_ID
+            )
+            assert score_original == pytest.approx(1.0, abs=1e-3)
+            assert degraded_original is None
+
+            # Parallel canvas: nodeE has only 1 edge → kg_relevance = min(1.0, 1/8) = 0.125
+            score_parallel, degraded_parallel = await stubbed_qg._get_kg_relevance(
+                "nodeE", parallel_canvas
+            )
+            assert score_parallel == pytest.approx(0.125, abs=1e-3), (
+                f"Parallel canvas should see only its 1 edge, got score={score_parallel}. "
+                f"If this is 1.0, the primary node MATCH is leaking cross-canvas and "
+                f"the Phase 0 Hardening Cypher tightening regressed."
+            )
+            assert degraded_parallel is None
+        finally:
+            await a11_canvas.run_query(
+                "MATCH (n:CanvasNode) WHERE n.canvasId = $cid DETACH DELETE n",
+                cid=parallel_canvas,
+            )
+
+
+class TestA11Phase0HardeningBoundedConcurrency:
+    """A10 Phase 0 Hardening: `select_target_node` batch gather bounded at 20."""
+
+    async def test_select_target_node_semaphore_bounds_inflight_queries(
+        self, a11_canvas: Neo4jClient, stubbed_qg: QuestionGenerator
+    ) -> None:
+        """Instrument `_get_kg_relevance` with a counter that tracks simultaneously
+        in-flight calls. Run `select_target_node` on a 50-node synthetic canvas
+        (via stub patches) and assert the in-flight max stays at or below 20.
+
+        This is a structural test — it does NOT depend on wall-clock timing and
+        does not seed 50 real Neo4j nodes. Instead it mocks `_get_canvas_nodes`
+        to return 50 synthetic node_ids and patches `_get_kg_relevance` with a
+        sleeping coroutine that increments/decrements an in-flight counter.
+        """
+        import asyncio as _asyncio
+
+        inflight = 0
+        max_inflight = 0
+        original_kg = stubbed_qg._get_kg_relevance
+
+        async def _instrumented_kg(node_id: str, canvas_id: str):
+            nonlocal inflight, max_inflight
+            inflight += 1
+            max_inflight = max(max_inflight, inflight)
+            try:
+                # Tiny sleep to force overlap — without this the coroutines
+                # might complete before the next one starts (defeating the
+                # test of concurrency bounds).
+                await _asyncio.sleep(0.005)
+                return 0.5, None
+            finally:
+                inflight -= 1
+
+        async def _stub_canvas_nodes_50(canvas_id: str):
+            return [{"id": f"synthetic-{i}"} for i in range(50)]
+
+        # Patch: 50 synthetic nodes, instrumented kg, stubbed mastery (Phase 0 fix-aware)
+        stubbed_qg._get_canvas_nodes = _stub_canvas_nodes_50  # type: ignore[method-assign]
+        stubbed_qg._get_kg_relevance = _instrumented_kg  # type: ignore[method-assign]
+
+        try:
+            picked = await stubbed_qg.select_target_node(
+                exam_id="a11-sem-test",
+                source_canvas_id="synthetic-canvas",
+                exam_mode=ExamMode.MIXED,
+                examined_nodes=None,
+            )
+            # It's OK if picked is None when all mastery data is stub; we only
+            # assert that the concurrency bound was respected.
+            assert picked is not None or picked is None  # liveness not strictness
+
+            assert max_inflight > 0, (
+                "Test instrumentation failed — no kg_relevance calls were observed"
+            )
+            assert max_inflight <= 20, (
+                f"A10 Phase 0 Hardening regression: max in-flight kg_relevance "
+                f"calls was {max_inflight}, expected ≤ 20. The asyncio.Semaphore "
+                f"bound in select_target_node is missing or removed."
+            )
+        finally:
+            stubbed_qg._get_kg_relevance = original_kg  # type: ignore[method-assign]

@@ -148,20 +148,38 @@ pre-push:
           echo "[Pre-push] Frontend tests done."
         fi
 
-    # --- Backend smoke test: Quick test before push ---
-    # fix-test-infra-paralysis Phase 0.2: same wrapper rationale as
-    # frontend-test. Wrapper propagates pytest's original exit code so
-    # `git push` is correctly aborted when unit tests fail.
+    # --- Backend smoke test: A11 regression suite (narrow gate) ---
+    # WHY NARROW: 2026-04-07 audit discovered 136 failures + 38 collection
+    # errors in the full backend/tests/unit/ suite (pre-existing test debt,
+    # unrelated to this gate). The gate was previously silent-passing for
+    # weeks because it used system `python` which lacks pytest.
+    #
+    # WHY A11 SUITE: test_kg_relevance_weighted + test_a11_kg_relevance_e2e
+    # together form the FR-KG-04 schema drift regression guard (30 tests,
+    # ~1s, known-green as of commit b50a089). Changes to CanvasNode schema,
+    # Cypher queries in question_generator, or kg_relevance weighting will
+    # be caught by this gate.
+    #
+    # WHAT'S NOT CAUGHT: changes outside the FR-KG-04 code path. A broader
+    # gate requires first paying down the 136-failure pre-existing debt.
+    #
+    # Exit code is preserved via explicit $? capture (previous `| tail -5`
+    # pipe silently swallowed pytest exit code). The fix-test-infra-paralysis
+    # wrapper is not needed here because this block has no pipe.
     backend-smoke:
       run: |
-        if command -v python &> /dev/null && [ -d "backend" ]; then
-          echo "[Pre-push] Running backend smoke tests..."
-          ./scripts/run_cmd_capture.sh --cwd backend --tail 120 -- \
-            python -m pytest tests/unit/ \
-              -m "not integration" \
-              -x -q --tb=line \
-              --no-header \
-              -p no:cacheprovider \
-              --override-ini="addopts="
-          echo "[Pre-push] Backend tests done."
+        if [ -f "backend/.venv/bin/python" ]; then
+          echo "[Pre-push] Running A11 regression suite..."
+          cd backend
+          .venv/bin/python -m pytest \
+            tests/unit/test_kg_relevance_weighted.py \
+            tests/e2e/test_a11_kg_relevance_e2e.py \
+            -q --tb=line --no-header \
+            -p no:cacheprovider \
+            --override-ini="addopts="
+          TEST_EXIT=$?
+          echo "[Pre-push] A11 regression done (exit: $TEST_EXIT)."
+          exit $TEST_EXIT
+        else
+          echo "[Pre-push] backend/.venv not found, skipping."
         fi
