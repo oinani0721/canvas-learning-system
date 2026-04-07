@@ -117,6 +117,17 @@ class CanvasRAGConfig(TypedDict, total=False):
     quality_check_model: str  # CRAG 二元评分 LLM 模型
     rewrite_model: str  # 查询改写 LLM 模型
 
+    # === CRAG 一次性深度兜底 (fix-rag-faithfulness-and-add-crag-quality-loop Phase 4) ===
+    # One-shot deep research fallback triggered when quality stays low after
+    # max_rewrite_iterations. LLM plans multi-queries + widens recall via
+    # cross_subject=True, then fan_out_retrieval reruns once. Bounded by
+    # deep_research_used state guard so it cannot loop.
+    deep_research_enabled: bool  # 是否启用 CRAG 一次性兜底 (默认 True)
+    deep_research_model: str  # 计划/改写 LLM 模型 (默认 gemini-2.0-flash)
+    deep_research_timeout_s: float  # LLM 调用超时 (秒，默认 12.0)
+    deep_research_max_queries: int  # 最多改写查询数 (默认 6)
+    deep_research_max_tokens: int  # LLM max_tokens 预算 (默认 600)
+
     # === 压缩配置 (Story 2.10) ===
     context_max_tokens: int  # 上下文压缩目标 token 数 (默认 3000)
     mastery_injection_enabled: bool  # 是否注入掌握度信息 (默认 True)
@@ -188,6 +199,12 @@ DEFAULT_CONFIG = CanvasRAGConfig(
     max_rewrite_iterations=2,
     quality_check_model="ollama/qwen3:8b",
     rewrite_model="ollama/qwen3:8b",
+    # === CRAG 一次性深度兜底 (Phase 4) ===
+    deep_research_enabled=True,
+    deep_research_model="gemini/gemini-2.0-flash",
+    deep_research_timeout_s=12.0,
+    deep_research_max_queries=6,
+    deep_research_max_tokens=600,
     # === 压缩 (Story 2.10) ===
     context_max_tokens=3000,
     mastery_injection_enabled=True,
@@ -247,6 +264,10 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         "retrieval_batch_size": {"type": int, "min": 1},
         "time_decay_factor": {"type": (int, float), "min": 0.0, "max": 1.0},
         "cohere_monthly_limit": {"type": int, "min": 0},
+        # Phase 4: CRAG deep research fallback budget
+        "deep_research_timeout_s": {"type": (int, float), "min": 1.0, "max": 60.0},
+        "deep_research_max_queries": {"type": int, "min": 1, "max": 20},
+        "deep_research_max_tokens": {"type": int, "min": 100, "max": 4000},
     }
 
     for param, rules in _VALIDATION_RULES.items():

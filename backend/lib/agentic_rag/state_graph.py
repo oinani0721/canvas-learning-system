@@ -38,6 +38,7 @@ from langgraph.types import RetryPolicy, Send
 logger = logging.getLogger(__name__)
 
 from agentic_rag.config import CanvasRAGConfig  # noqa: E402
+from agentic_rag.deep_research import deep_research_fallback  # noqa: E402
 from agentic_rag.faithfulness_check import (  # noqa: E402
     faithfulness_check as faithfulness_check_node,
 )
@@ -250,30 +251,35 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
 
 def route_after_quality_check(
     state: CanvasRAGState,
-) -> Literal["rewrite_query", "faithfulness_check"]:
+) -> Literal["rewrite_query", "deep_research_fallback", "faithfulness_check"]:
     """
-    Route based on quality grade — Story 2.6 AC-3/AC-4
+    Route based on quality grade — Story 2.6 AC-3/AC-4 + Phase 4 CRAG fallback
 
+    Three exits:
     - low quality + NOT safe_degradation: rewrite_query (loop back for re-retrieval)
-    - medium/high quality OR safe_degradation set: faithfulness_check (final gate)
-    - safe_degradation is set in check_quality node (not here, per LangGraph convention)
+    - low quality + safe_degradation + NOT deep_research_used: deep_research_fallback
+      (one-shot CRAG tier, Phase 4 of fix-rag-faithfulness-and-add-crag-quality-loop)
+    - everything else: faithfulness_check (final gate)
 
-    Uses safe_degradation flag from state (set by check_quality based on config-driven
-    max_rewrite_iterations) rather than hardcoding max_rewrite here, so the router
-    stays in sync with runtime config.
+    The deep_research_fallback exit is guarded by a dedicated
+    `deep_research_used: bool` state field so the router cannot re-enter
+    it after the single fallback attempt has completed.
 
-    Story 7.1: Routes to faithfulness_check instead of END for final quality gate.
+    Story 7.1: Routes to faithfulness_check (via compress_context) for
+    final quality gate.
 
     Returns:
-        "rewrite_query" or "faithfulness_check"
+        "rewrite_query" | "deep_research_fallback" | "faithfulness_check"
     """
     quality_grade = state.get("quality_grade")
     rewrite_count = state.get("rewrite_count", 0)
     safe_degradation = state.get("safe_degradation", False)
+    deep_research_used = state.get("deep_research_used", False)
 
     logger.debug(
         f"[route_after_quality_check] quality={quality_grade}, "
-        f"rewrite_count={rewrite_count}, safe_degradation={safe_degradation}"
+        f"rewrite_count={rewrite_count}, safe_degradation={safe_degradation}, "
+        f"deep_research_used={deep_research_used}"
     )
 
     # Low quality and NOT yet degraded -> rewrite and retry
@@ -283,8 +289,21 @@ def route_after_quality_check(
         )
         return "rewrite_query"
 
-    # Acceptable quality or safe degradation triggered -> faithfulness check
-    if safe_degradation:
+    # Phase 4: low + safe_degradation + NOT used -> one-shot CRAG deep research
+    if quality_grade == "low" and safe_degradation and not deep_research_used:
+        logger.info(
+            "[route_after_quality_check] -> deep_research_fallback "
+            "(CRAG one-shot: quality=low + safe_degradation)"
+        )
+        return "deep_research_fallback"
+
+    # Acceptable quality or safe degradation + already used fallback -> faithfulness check
+    if safe_degradation and deep_research_used:
+        logger.debug(
+            f"[route_after_quality_check] -> faithfulness_check "
+            f"(safe_degradation=True AND deep_research already used)"
+        )
+    elif safe_degradation:
         logger.debug(
             f"[route_after_quality_check] -> faithfulness_check (safe_degradation=True after {rewrite_count} rewrites)"
         )
@@ -554,6 +573,11 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     # Quality control node
     builder.add_node("rewrite_query", rewrite_query)
 
+    # Phase 4 (fix-rag-faithfulness-and-add-crag-quality-loop):
+    # One-shot CRAG deep research fallback. Guarded by deep_research_used
+    # state field so it can only run once per query.
+    builder.add_node("deep_research_fallback", deep_research_fallback)
+
     # ========================================
     # Add Edges
     # ========================================
@@ -586,13 +610,26 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
 
     # check_quality → route_after_quality_check (conditional)
     # Story 2.10: Routes to compress_context instead of faithfulness_check
+    # Phase 4: third exit "deep_research_fallback" for CRAG one-shot widening
     builder.add_conditional_edges(
         "check_quality",
         route_after_quality_check,
         {
             "rewrite_query": "rewrite_query",
+            "deep_research_fallback": "deep_research_fallback",
             "faithfulness_check": "compress_context",
         },
+    )
+
+    # Phase 4: deep_research_fallback reruns retrieval once via the same
+    # fan_out_retrieval conditional edge. Because deep_research_fallback
+    # sets deep_research_used=True + populates multi_queries, the router
+    # on the second trip through check_quality will NOT re-enter the
+    # fallback exit.
+    builder.add_conditional_edges(
+        "deep_research_fallback",
+        fan_out_retrieval,
+        # No path_map needed - Send objects specify destinations
     )
 
     # Story 2.10: compress_context → faithfulness_check
