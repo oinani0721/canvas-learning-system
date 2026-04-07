@@ -715,8 +715,20 @@ class QuestionGenerator:
                 return min(1.0, float(weighted) / 8.0), None
             # Empty result set: query succeeded but found nothing
             return 0.5, "empty_graph"
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-            logger.debug(f"[Story 6.3] KG relevance query failed: {e}")
+        except Exception as e:
+            # Code-Review C-1: the original except tuple only caught
+            # (RuntimeError, ConnectionError, asyncio.TimeoutError) and would
+            # let neo4j driver exceptions escape — including ServiceUnavailable,
+            # TransientError, DatabaseError, AuthError — crashing
+            # select_target_node instead of degrading gracefully.
+            # We now catch the whole Exception hierarchy and fold it into the
+            # neo4j_unavailable degraded reason so the exam priority formula
+            # stays live with a moderate default rather than propagating the
+            # failure to the user.
+            logger.debug(
+                "[Story 6.3] KG relevance query failed: "
+                f"type={type(e).__name__} detail={str(e)[:200]}"
+            )
             return 0.5, "neo4j_unavailable"
 
     async def _get_tips(self, node_id: str) -> List[str]:
