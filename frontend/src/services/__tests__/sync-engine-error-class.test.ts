@@ -121,7 +121,14 @@ describe('SyncEngine error_class routing (FR-KG-04 Phase 12)', () => {
     expect(patch.lastError).toBe('upstream missing');
   });
 
-  it('TRANSIENT_ERROR schedules exponential backoff via nextRetryAt', async () => {
+  it('TRANSIENT_ERROR schedules full-jitter backoff via nextRetryAt + retryCount', async () => {
+    // audit-2026-04-07/p1-2: TRANSIENT_ERROR now uses real exponential
+    // backoff with full jitter — delay is uniform in [0, capMs] where
+    // capMs = min(BASE_RETRY_MS * 2^retryCount, 60_000). On the first
+    // failure (retryCount=0) capMs is 2000ms, so delay is in [0, 2000].
+    // The previous test asserted >= 2000 which was the old broken
+    // "always exactly 2s" behavior; the new contract is that delay
+    // never exceeds the cap and retryCount is incremented.
     const entry = makeEntry(3);
     setResponse({
       results: [
@@ -147,15 +154,20 @@ describe('SyncEngine error_class routing (FR-KG-04 Phase 12)', () => {
       nextRetryAt?: string;
       lastError?: string;
       permanentlyFailed?: boolean;
+      retryCount?: number;
     };
     expect(patch.failureClass).toBe('TRANSIENT_ERROR');
     expect(patch.permanentlyFailed).toBeUndefined();
     expect(patch.nextRetryAt).toBeDefined();
+    // retryCount must be incremented (0 → 1) on the first failure
+    expect(patch.retryCount).toBe(1);
 
-    // nextRetryAt should be >= now + 2s (BASE_RETRY_MS)
+    // nextRetryAt should be in [now, now + capMs] where capMs = 2000 for
+    // first retry (retryCount was 0). Allow small clock skew on the upper
+    // bound (test machine variance).
     const nextMs = new Date(patch.nextRetryAt as string).getTime();
-    expect(nextMs - before).toBeGreaterThanOrEqual(2000);
-    expect(nextMs - after).toBeLessThanOrEqual(2000 + 100); // allow small jitter
+    expect(nextMs - before).toBeGreaterThanOrEqual(0);
+    expect(nextMs - after).toBeLessThanOrEqual(2000 + 100);
   });
 
   it('undefined errorClass (old backend) falls back to TRANSIENT behavior', async () => {

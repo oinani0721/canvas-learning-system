@@ -104,6 +104,17 @@ export interface SyncOutboxEntry {
    * failed outbox entry for diagnostics.
    */
   lastError?: string;
+  /**
+   * audit-2026-04-07/p1-2: real retry counter for TRANSIENT_ERROR
+   * exponential backoff. Previously the sync-engine approximated this as
+   * `entry.nextRetryAt ? 1 : 0` (a 1-bit counter), which meant every
+   * retry after the first used the same 4s base — no real backoff, no
+   * thundering herd protection. With this field the sync-engine can do
+   * proper full-jitter exponential backoff capped at 60s. Default 0
+   * for fresh entries; backfilled to 0 for pre-v7 entries by the
+   * upgrade callback.
+   */
+  retryCount?: number;
 }
 
 /**
@@ -298,6 +309,38 @@ class CanvasLearningDB extends Dexie {
             }
             // failureClass / nextRetryAt / lastError stay undefined on
             // upgrade — they only appear on the next real failure.
+          });
+      });
+
+    // v7: audit-2026-04-07/p1-2 — real retryCount field on sync_outbox
+    // for proper exponential backoff with full jitter. v6 approximated
+    // retries as a 1-bit signal (`nextRetryAt ? 1 : 0`), so every retry
+    // after the first used the same 4s base — no real backoff. v7 stores
+    // the actual count so sync-engine can do `random(0, min(60s, base*2^n))`.
+    // Schema-wise: only retryCount is added; nothing is removed; index list
+    // unchanged (retryCount is read by every entry update so an index would
+    // be wasted). Pre-v7 entries get retryCount=0 via the upgrade callback.
+    this.version(7)
+      .stores({
+        canvas_boards: 'id, name, subjectId, createdAt, updatedAt',
+        canvas_nodes:
+          'id, canvasId, type, title, x, y, indexStatus, createdAt, updatedAt',
+        canvas_edges:
+          'id, canvasId, sourceNodeId, targetNodeId, createdAt, updatedAt',
+        sync_outbox:
+          '++id, entityType, entityId, operation, createdAt, syncedAt, permanentlyFailed, retryPriority, nextRetryAt',
+        chat_messages: 'id, nodeId, role, createdAt',
+        crash_recovery: 'id, nodeId',
+        exam_sessions: 'id, sourceCanvasId, status, createdAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table<SyncOutboxEntry>('sync_outbox')
+          .toCollection()
+          .modify((entry) => {
+            if (entry.retryCount === undefined) {
+              entry.retryCount = 0;
+            }
           });
       });
   }
