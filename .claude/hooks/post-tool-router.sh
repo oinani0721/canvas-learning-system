@@ -65,14 +65,11 @@ elif [[ "$FILE_PATH" == *"backend/tests/"* ]]; then
         python -m pytest "$FILE_PATH" -x -q --no-cov --no-header --override-ini="addopts=" --tb=short || exit 1
 
 elif [[ "$FILE_PATH" == *"frontend/src/"* ]] && [[ "$FILE_PATH" != *".test."* ]]; then
-    cd "$PROJECT_ROOT/frontend"
-    # stryker (frontend mutation testing)
-    npx stryker run 2>&1 | tail -20
-    [ $? -ne 0 ] && exit 1
-    # knip (frontend dead code/unused exports detection)
-    npx knip --production 2>&1
+    # stryker (frontend mutation testing) via wrapper for reliable exit-code propagation
+    "$WRAPPER" --cwd "$PROJECT_ROOT/frontend" --tail 20 -- npx stryker run || exit 1
+    # knip (frontend dead code/unused exports detection) — no pipe, safe to keep direct
+    ( cd "$PROJECT_ROOT/frontend" && npx knip --production 2>&1 )
     [ $? -ne 0 ] && echo "UNUSED EXPORTS DETECTED" && exit 1
-    cd "$PROJECT_ROOT"
 fi
 
 exit 0
