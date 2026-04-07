@@ -55,6 +55,11 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-test-runner.js",
             "timeout": 60000
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-auto-sync-to-remote.sh",
+            "timeout": 90000
           }
         ]
       }
