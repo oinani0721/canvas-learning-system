@@ -708,6 +708,9 @@ class Neo4jClient:
         Returns:
             True if successful
         """
+        # FR-KG-04 Phase 15 Task 15.2: Increment review_count on every scoring
+        # event so get_review_suggestions can prioritize concepts by review history.
+        # coalesce() handles the first-time case where review_count is null → 1.
         query = """
         MERGE (u:User {id: $userId})
         MERGE (c:Concept {name: $concept})
@@ -716,7 +719,8 @@ class Neo4jClient:
         SET r.timestamp = datetime(),
             r.score = $score,
             r.group_id = $groupId,
-            r.next_review = datetime() + duration('P1D')
+            r.next_review = datetime() + duration('P1D'),
+            r.review_count = coalesce(r.review_count, 0) + 1
         RETURN r
         """
         results = await self.run_query(
@@ -779,14 +783,18 @@ class Neo4jClient:
 
         [Source: docs/stories/30.8.story.md#Task-3.1]
         """
-        # ✅ AC-30.8.3: Build query with optional group_id filter
+        # FR-KG-04 Phase 15 Task 15.1: Single source of truth for the score is
+        # r.score (set by create_learning_relationship). Earlier this query
+        # read r.last_score, a property no write path ever set, so the API
+        # always returned null and the review scheduler operated blind.
+        # The alias keeps the JSON key "last_score" for backwards compatibility.
         if group_id:
             query = """
             MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept)
             WHERE r.next_review < datetime() AND c.group_id = $groupId
             RETURN c.name as concept,
                    c.id as concept_id,
-                   r.last_score as last_score,
+                   r.score as last_score,
                    r.review_count as review_count,
                    r.next_review as due_date
             ORDER BY r.next_review
@@ -801,7 +809,7 @@ class Neo4jClient:
             WHERE r.next_review < datetime()
             RETURN c.name as concept,
                    c.id as concept_id,
-                   r.last_score as last_score,
+                   r.score as last_score,
                    r.review_count as review_count,
                    r.next_review as due_date
             ORDER BY r.next_review

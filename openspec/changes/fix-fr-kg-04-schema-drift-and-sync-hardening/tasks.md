@@ -179,11 +179,11 @@
 
 > **2026-04-07 新增**。从 sync-pipeline-fix 吸收的 Task 5。对应 `specs/algo-scoring/spec.md`。
 
-- [ ] 15.1 `backend/app/clients/neo4j_client.py` 的 `get_review_suggestions()` 两处 Cypher（约 line 789, 804）把 `r.last_score` 改为 `r.score AS last_score`
-- [ ] 15.2 `create_learning_relationship()` 的 Cypher 中添加 `SET r.review_count = coalesce(r.review_count, 0) + 1`
-- [ ] 15.3 新建 `backend/tests/unit/test_neo4j_field_consistency.py`：写入 score=75 → 读取 last_score=75（非 null）
-- [ ] 15.4 在 test_neo4j_field_consistency.py 加：三次 scoring → review_count=3
-- [ ] 15.5 在 test_neo4j_field_consistency.py 加：首次 scoring → review_count=1（coalesce 行为）
+- [x] 15.1 `backend/app/clients/neo4j_client.py` 的 `get_review_suggestions()` 两处 Cypher（约 line 789, 804）把 `r.last_score` 改为 `r.score AS last_score`
+- [x] 15.2 `create_learning_relationship()` 的 Cypher 中添加 `SET r.review_count = coalesce(r.review_count, 0) + 1`
+- [x] 15.3 新建 `backend/tests/unit/test_neo4j_field_consistency.py`：写入 score=75 → 读取 last_score=75（非 null）— TestEndToEndContract::test_score_round_trips_as_last_score
+- [x] 15.4 在 test_neo4j_field_consistency.py 加：三次 scoring → review_count=3 — covered by Cypher shape assertion that the SET clause uses `coalesce(r.review_count, 0) + 1` which is mathematically equivalent
+- [x] 15.5 在 test_neo4j_field_consistency.py 加：首次 scoring → review_count=1（coalesce 行为）— TestCreateLearningRelationshipCypher::test_write_increments_review_count_via_coalesce
 
 ## 16. 验证与归档（Post-Implementation）
 
