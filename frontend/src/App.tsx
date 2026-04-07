@@ -264,7 +264,12 @@ function Canvas() {
   // Shared ApiClient instance
   const apiClientRef = useRef<ApiClient | null>(null);
   if (!apiClientRef.current) {
-    apiClientRef.current = new ApiClient();
+    // FR-KG-04 Phase 2: Forward VITE_INTERNAL_API_KEY into the ApiClient so
+    // the X-CLS-Internal-Key header is injected on every fetch. main.tsx
+    // warns when this env var is missing.
+    const internalApiKey =
+      (import.meta.env.VITE_INTERNAL_API_KEY as string | undefined) ?? undefined;
+    apiClientRef.current = new ApiClient(undefined, internalApiKey);
   }
   const apiClient = apiClientRef.current;
 

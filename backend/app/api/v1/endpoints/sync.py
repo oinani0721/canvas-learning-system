@@ -11,9 +11,10 @@ operations and applies them idempotently to Neo4j.
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.models.sync_models import SyncBatchRequest, SyncBatchResponse
+from app.security import require_internal_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +29,18 @@ sync_router = APIRouter()
         "Receives a batch of canvas sync operations (create/update/delete) "
         "from the frontend Outbox and applies them idempotently to Neo4j. "
         "Individual operation failures are reported without aborting the batch. "
+        "Requires the X-CLS-Internal-Key header (FR-KG-04 Phase 2). "
         "(Story 1.5 AC-7)"
     ),
+    dependencies=[Depends(require_internal_api_key)],
     responses={
-        503: {"description": "Neo4j connection unavailable"},
+        403: {"description": "Invalid or missing internal API key"},
+        503: {
+            "description": (
+                "Neo4j connection unavailable, OR internal API key not "
+                "configured in production mode (fail-closed)"
+            )
+        },
     },
 )
 async def sync_batch(request: SyncBatchRequest) -> SyncBatchResponse:

@@ -84,14 +84,72 @@ export class ApiClient {
   private onMasteryUpdate: MasteryUpdateCallback | null = null;
   /** Story 4-2: Callback for edge label updates from WebSocket. */
   private onEdgeLabelUpdate: EdgeLabelUpdateCallback | null = null;
+  /**
+   * FR-KG-04 Phase 2: Device-scoped internal API key for sensitive backend
+   * endpoints (currently /api/v1/sync/batch). Sent via the X-CLS-Internal-Key
+   * header. Initialized via constructor or setInternalApiKey(); when null,
+   * the header is omitted (the backend will reject with 403 in production).
+   */
+  private internalApiKey: string | null = null;
 
   /** [CHANGED] Parameter renamed to backendUrl for clarity */
-  constructor(backendUrl = 'http://localhost:8001') {
+  constructor(backendUrl = 'http://localhost:8001', internalApiKey?: string) {
     this.baseUrl = backendUrl.replace(/\/+$/, '');
+    // FR-KG-04 Phase 2: Resolve internal API key from (1) explicit arg or
+    // (2) Vite build-time env var VITE_INTERNAL_API_KEY. Falling back to env
+    // lets every `new ApiClient()` call across the codebase pick up the key
+    // automatically without threading it through every call site.
+    // When neither is provided, the key stays null and requests to sensitive
+    // endpoints will receive 403 in production (see backend/app/security.py).
+    if (internalApiKey) {
+      this.internalApiKey = internalApiKey;
+    } else {
+      const envKey =
+        typeof import.meta !== 'undefined' &&
+        import.meta.env?.VITE_INTERNAL_API_KEY;
+      if (envKey) {
+        this.internalApiKey = envKey;
+      } else {
+        this.logger.warn(
+          'VITE_INTERNAL_API_KEY is not set — requests to /api/v1/sync/batch ' +
+            'will be rejected with 403 in production. Configure this env var ' +
+            'via your Tauri build or dev environment.',
+        );
+      }
+    }
   }
 
   /**
-   * Core HTTP request method. Injects X-Request-ID for frontend-backend correlation.
+   * FR-KG-04 Phase 2: Update the internal API key at runtime.
+   *
+   * Used by the Tauri startup flow when VITE_INTERNAL_API_KEY is provisioned
+   * after the ApiClient was constructed (e.g. read from a secure store).
+   */
+  setInternalApiKey(key: string): void {
+    this.internalApiKey = key || null;
+  }
+
+  /**
+   * FR-KG-04 Phase 2: Build the headers dict for every outgoing request.
+   *
+   * Always includes Content-Type and X-Request-ID. Adds X-CLS-Internal-Key
+   * when an internal key has been provisioned. Centralizing this logic here
+   * means every fetch path picks up the auth header automatically.
+   */
+  private buildHeaders(requestId: string): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Request-ID': requestId,
+    };
+    if (this.internalApiKey) {
+      headers['X-CLS-Internal-Key'] = this.internalApiKey;
+    }
+    return headers;
+  }
+
+  /**
+   * Core HTTP request method. Injects X-Request-ID for frontend-backend correlation
+   * and X-CLS-Internal-Key for sensitive endpoint auth (FR-KG-04 Phase 2).
    */
   private async request<T>(
     method: 'GET' | 'POST' | 'PATCH',
@@ -106,10 +164,7 @@ export class ApiClient {
 
     const init: RequestInit = {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Request-ID': requestId,
-      },
+      headers: this.buildHeaders(requestId),
       signal: options?.signal,
     };
 
@@ -696,10 +751,9 @@ export class ApiClient {
 
     const response = await fetch(`${this.baseUrl}/api/v1/index/image`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Request-ID': requestId,
-      },
+      // FR-KG-04 Phase 2: route through buildHeaders so X-CLS-Internal-Key
+      // is injected on this side-path the same way as the main request().
+      headers: this.buildHeaders(requestId),
       body: JSON.stringify({ node_id: nodeId, image_data: imageData }),
       signal,
     });

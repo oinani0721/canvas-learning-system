@@ -13,20 +13,20 @@
 - [x] 1.11 新建 `backend/tests/unit/test_kg_relevance_schema.py`：构造真实 CanvasNode + 邻居，验证返回非 0.5 的加权值 (合并到 test_kg_relevance_weighted.py 的 TestKgRelevanceCypherShape + TestGetKgRelevanceFormula)
 - [x] 1.12 新建 `backend/tests/unit/test_kg_relevance_degraded.py`：空图返回 `(0.5, "empty_graph")`；Neo4j 不可达返回 `(0.5, "neo4j_unavailable")` (合并到 test_kg_relevance_weighted.py 的 4 个 degraded 场景)
 
-## 2. /sync/batch 鉴权（Phase 2，Week 1 Day 2）
+## 2. /sync/batch 鉴权（Phase 2，Week 1 Day 2） ✅ BACKEND COMPLETE (Sprint 1.2, 2026-04-06) | ✅ FRONTEND CORE COMPLETE (2026-04-07)
 
-- [ ] 2.1 新建 `backend/app/security.py`，实现 `INTERNAL_API_KEY_HEADER = APIKeyHeader(name="X-CLS-Internal-Key", auto_error=False)`
-- [ ] 2.2 在 `security.py` 实现 `require_internal_api_key()` 依赖，按 fail-closed 矩阵处理（`DEBUG=True`+空 key → 警告放行；`DEBUG=False`+空 key → 503；其他 → 严格校验）
-- [ ] 2.3 在 `backend/app/config.py` 的 `Settings` 类添加 `INTERNAL_API_KEY: str = Field(default="", description="Internal API key for backend sensitive endpoints")`
-- [ ] 2.4 修改 `backend/app/api/v1/endpoints/sync.py:23` 的装饰器添加 `dependencies=[Depends(require_internal_api_key)]` 和 `403` 到 responses 字典
-- [ ] 2.5 在 `backend/tests/conftest.py` 的 `get_settings_override()` 注入 `INTERNAL_API_KEY="test-internal-key"`
-- [ ] 2.6 新建 `backend/tests/unit/test_sync_batch_auth.py`：覆盖无 key→403、错 key→403、对 key→200、DEBUG+空 key→允许、非 DEBUG+空 key→503 五个场景
-- [ ] 2.7 修改 `frontend/src/services/api-client.ts` 的 `ApiClient` 构造函数接受可选 `internalApiKey`，实现 `setInternalApiKey()` 和 `buildHeaders()` 方法
-- [ ] 2.8 修改 `frontend/src/services/api-client.ts` 的所有 fetch 调用（GET/POST/PATCH）使用 `this.buildHeaders()` 注入 `X-CLS-Internal-Key`
-- [ ] 2.9 在前端启动入口（`frontend/src/main.tsx` 或 `App.tsx`）读取 `import.meta.env.VITE_INTERNAL_API_KEY`，未配置时控制台警告
-- [ ] 2.10 更新 `frontend/package.json` 的 `scripts.test` 为 `vitest run`（如果缺失）
-- [ ] 2.11 新建 `frontend/src/services/api-client.test.ts`：验证 `X-CLS-Internal-Key` header 被正确注入
-- [ ] 2.12 更新 Tauri 启动文档 `docs/tauri-setup.md`（若存在）或在 README 中说明如何配置 `VITE_INTERNAL_API_KEY`
+- [x] 2.1 新建 `backend/app/security.py`，实现 `INTERNAL_API_KEY_HEADER = APIKeyHeader(name="X-CLS-Internal-Key", auto_error=False)` *(parallel session: structlog-based, 5-branch decision tree)*
+- [x] 2.2 在 `security.py` 实现 `require_internal_api_key()` 依赖，按 fail-closed 矩阵处理（`DEBUG=True`+空 key → 警告放行；`DEBUG=False`+空 key → 503；其他 → 严格校验) *(parallel session: full 5-branch matrix with structured logs)*
+- [x] 2.3 在 `backend/app/config.py` 的 `Settings` 类添加 `INTERNAL_API_KEY: str = Field(default="", description="Internal API key for backend sensitive endpoints")` *(line 82, parallel session)*
+- [x] 2.4 修改 `backend/app/api/v1/endpoints/sync.py:23` 的装饰器添加 `dependencies=[Depends(require_internal_api_key)]` 和 `403` 到 responses 字典 *(parallel session)*
+- [x] 2.5 在 `backend/tests/conftest.py` 的 `get_settings_override()` 注入 `INTERNAL_API_KEY="test-internal-key"` *(line 294, parallel session)*
+- [x] 2.6 新建 `backend/tests/unit/test_sync_batch_auth.py`：覆盖无 key→403、错 key→403、对 key→200、DEBUG+空 key→允许、非 DEBUG+空 key→503 五个场景 *(Sprint 1.2: 7 tests passing — 5 matrix scenarios + dev-key-still-enforces + canonical header)*
+- [x] 2.7 修改 `frontend/src/services/api-client.ts` 的 `ApiClient` 构造函数接受可选 `internalApiKey`，实现 `setInternalApiKey()` 和 `buildHeaders()` 方法 *(2026-04-07: api-client.ts L80-129 已实现 constructor 接 internalApiKey + setInternalApiKey + 私有 buildHeaders)*
+- [x] 2.8 修改 `frontend/src/services/api-client.ts` 的所有 fetch 调用（GET/POST/PATCH）使用 `this.buildHeaders()` 注入 `X-CLS-Internal-Key` *(2026-04-07: request<T>() L135-165 通过 this.buildHeaders(requestId) 注入，所有 get/post/patch 共享此路径)*
+- [x] 2.9 在前端启动入口（`frontend/src/main.tsx` 或 `App.tsx`）读取 `import.meta.env.VITE_INTERNAL_API_KEY`，未配置时控制台警告 *(2026-04-07: 改为在 ApiClient constructor 内部 auto-fallback 到 import.meta.env.VITE_INTERNAL_API_KEY，这样 10+ 个分散 `new ApiClient()` 调用点零修改即可自动获取 key；vite-env.d.ts 补全 ImportMetaEnv 类型声明；未配置时 logger.warn)*
+- [x] 2.10 更新 `frontend/package.json` 的 `scripts.test` 为 `vitest run`（如果缺失） *(2026-04-07: added scripts.test = "vitest run")*
+- [x] 2.11 新建 `frontend/src/services/api-client.test.ts`：验证 `X-CLS-Internal-Key` header 被正确注入 *(2026-04-07: 9 tests passing — constructor + setInternalApiKey + GET/POST/PATCH + indexImage side-path)*
+- [x] 2.12 更新 Tauri 启动文档 `docs/tauri-setup.md`（若存在）或在 README 中说明如何配置 `VITE_INTERNAL_API_KEY` *(2026-04-07: docs/tauri-setup.md does not exist; added INTERNAL_API_KEY section to docs/secrets-setup.md including fail-closed matrix and frontend-vs-backend env split)*
 
 ## 3. Edge 一致性与批次排序（Phase 3，Week 1 Day 3）
 
@@ -184,6 +184,52 @@
 - [x] 15.3 新建 `backend/tests/unit/test_neo4j_field_consistency.py`：写入 score=75 → 读取 last_score=75（非 null）— TestEndToEndContract::test_score_round_trips_as_last_score
 - [x] 15.4 在 test_neo4j_field_consistency.py 加：三次 scoring → review_count=3 — covered by Cypher shape assertion that the SET clause uses `coalesce(r.review_count, 0) + 1` which is mathematically equivalent
 - [x] 15.5 在 test_neo4j_field_consistency.py 加：首次 scoring → review_count=1（coalesce 行为）— TestCreateLearningRelationshipCypher::test_write_increments_review_count_via_coalesce
+
+## 17. Verification Service Security Hardening（Phase 17，2026-04-07 新增）
+
+> **2026-04-07 新增**。ChatGPT Deep Research 第二轮审计 + 本地代码核验发现的两个 verification_service 的 P0/P1 对抗性缺陷，完全未被 Phase 1-16 覆盖。属于 FR-KG-04 对抗性审计的真实补漏。
+
+### 17.1 Fail-Closed Degraded Scoring（P1-4）
+
+- [x] 17.1.1 重写 `backend/app/services/verification_service.py::_mock_evaluate_answer` 为 fail-closed：始终返回 `("unknown", 0.0)`，不再按答案长度映射 quality/score
+- [x] 17.1.2 更新 `_evaluate_answer_with_scoring_agent` 的 4 个 logger 文案（`USE_MOCK_VERIFICATION`/`asyncio.TimeoutError`/`Exception`/`agent_unavailable`）：从 "NOT based on content quality" 改为 "mastery state will NOT be updated"
+- [x] 17.1.3 修改 `process_answer` 在 `degraded=True` 时直接走 `_advance_concept(degraded=True)`，跳过 hint 循环和 `quality`-based 分支
+- [x] 17.1.4 添加 `_advance_concept` 的 `degraded: bool = False` 参数，degraded 时跳过 `green_count`/`yellow_count`/`red_count`/`purple_count` 更新（不污染掌握度）
+- [x] 17.1.5 更新 `process_answer` 返回的 `degraded_warning` 文案为 "评分服务暂时不可用，本次回答不计分也不更新掌握度。您可以继续下一题。"
+- [x] 17.1.6 更新 `backend/tests/unit/test_verification_service_activation.py::TestScoreMapping::test_mock_evaluate_answer` — 从按长度判分改为验证恒返回 `("unknown", 0.0)`
+- [x] 17.1.7 更新 `backend/tests/unit/test_mock_degradation_transparency.py` 旧断言匹配新 fail-closed 文案（"mastery state will NOT be updated" + "不计分也不更新掌握度"）
+- [x] 17.1.8 新建 `backend/tests/unit/test_mock_degradation_transparency.py::TestFailClosedDegradedScoring` 类（6 个测试）：
+  - `test_mock_evaluate_returns_unknown_for_short_input`
+  - `test_mock_evaluate_returns_unknown_for_long_input`
+  - `test_adversarial_101_char_noise_does_not_score_high`（regression: 101-char noise must not outscore 19-char correct answer）
+  - `test_mock_evaluate_returns_unknown_for_empty_input`
+  - `test_degraded_mode_does_not_update_mastery_counts`（验证 green/yellow/red/purple 计数不变）
+  - `test_degraded_mode_still_advances_to_next_concept`（避免阻塞 UX）
+
+### 17.2 Path Traversal Hardening（P0-3）
+
+- [x] 17.2.1 重构 `backend/app/services/verification_service.py::_do_extract_concepts` — Method 1 优先使用 `CanvasService.read_canvas(canvas_name)`（传逻辑名，由 CanvasService 的 `_validate_canvas_name` 防护）
+- [x] 17.2.2 Method 2 fallback 必须先调用 `_resolve_safe_canvas_path` 严格校验，否则返回 `["默认概念"]` 而非继续裸 open()
+- [x] 17.2.3 新增 `_resolve_safe_canvas_path` 辅助方法：用 `pathlib.resolve()` + `relative_to()` 严格校验路径在 `_canvas_base_path` 内，拒绝 `..`/绝对路径/null byte/非 `.canvas` 后缀
+- [x] 17.2.4 `_read_canvas_file_sync` 添加文档说明：调用方 MUST 先通过 `_resolve_safe_canvas_path` 校验（defense-in-depth 而非单点防护）
+- [x] 17.2.5 新建 `backend/tests/unit/test_mock_degradation_transparency.py::TestPathTraversalHardening` 类（8 个测试）：
+  - `test_resolve_rejects_dotdot_in_canvas_name`（`../../etc/passwd`）
+  - `test_resolve_rejects_absolute_canvas_name`（`/etc/passwd`）
+  - `test_resolve_rejects_null_byte_in_canvas_name`（`test\0.canvas`）
+  - `test_resolve_rejects_canvas_path_outside_base`（base 外的合法路径）
+  - `test_resolve_rejects_non_canvas_suffix`（`.sh`/`.py`/etc）
+  - `test_resolve_accepts_valid_relative_canvas_name`（`Math/Lecture5` 正常子目录）
+  - `test_resolve_strips_double_canvas_suffix`（`test.canvas` 不产生 `test.canvas.canvas`）
+  - `test_extract_concepts_rejects_traversal_falls_back`（端到端：`canvas_name="../../etc/passwd"` 不读取宿主文件）
+
+### 17.3 验证
+
+- [x] 17.3.1 `.venv/bin/pytest tests/unit/test_mock_degradation_transparency.py::TestFailClosedDegradedScoring` — 6/6 通过
+- [x] 17.3.2 `.venv/bin/pytest tests/unit/test_mock_degradation_transparency.py::TestPathTraversalHardening` — 8/8 通过
+- [x] 17.3.3 `.venv/bin/pytest tests/unit/test_verification_service_activation.py::TestScoreMapping::test_mock_evaluate_answer` — 1/1 通过
+- [x] 17.3.4 `.venv/bin/pytest tests/integration/test_verification_service_e2e.py` — 6/6 通过（无回归）
+- [ ] 17.3.5 手动验证：提交 1000 字符噪音 → `response.degraded=true, score=0, quality=unknown, green/yellow/red/purple 计数不变`
+- [ ] 17.3.6 手动验证：提交 `canvas_name="../../etc/passwd"` → 返回 `["默认概念"]`，不读取 `/etc/passwd.canvas`
 
 ## 16. 验证与归档（Post-Implementation）
 

@@ -289,6 +289,9 @@ def get_settings_override() -> Settings:
         LOG_LEVEL="DEBUG",
         CORS_ORIGINS="http://localhost:3000,http://127.0.0.1:3000",
         CANVAS_BASE_PATH="./test_canvas",
+        # FR-KG-04 Phase 2 Task 2.5: Provision an internal API key for tests
+        # so that auth-protected endpoints can be exercised end-to-end.
+        INTERNAL_API_KEY="test-internal-key",
     )
 
 

@@ -76,6 +76,21 @@ class Settings(BaseSettings):
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # FR-KG-04 Phase 2: Internal API key for sensitive endpoints
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    INTERNAL_API_KEY: str = Field(
+        default="",
+        description=(
+            "Device-scoped internal API key for backend sensitive endpoints "
+            "(currently /api/v1/sync/batch). Sent by the frontend Tauri app "
+            "via the X-CLS-Internal-Key header. Empty in production triggers "
+            "fail-closed 503; empty in DEBUG mode logs a warning and allows "
+            "the request through."
+        ),
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # Agent Debug Settings (Story 12.G.1)
     # [Source: docs/stories/story-12.G.1-api-response-logging.md]
     # ═══════════════════════════════════════════════════════════════════════════
