@@ -81,23 +81,31 @@ class MasteryFusionEngine:
             signal_details_map[name] = sd
 
         if not active:
-            # No signals with data — return 0.0 (unassessed)
+            # No signals with data — return 0.0 (unassessed).
+            # A10 Phase 0 Hardening #2: is_fallback=True per algo-fusion spec
+            # scenario "Zero signals active is fail-safe". Downstream consumers
+            # (observability dashboards, MCP tools) use this flag to distinguish
+            # "fusion confidently returned 0.0" from "fusion had no data".
             return FusionResult(
                 fused_mastery=0.0,
                 signal_details=signal_details,
                 active_signal_count=0,
-                is_fallback=False,
+                is_fallback=True,
             )
 
         # Compute weight sum for active signals
         weight_sum = sum(w for _, _, w, _ in active)
 
         if weight_sum <= 0:
+            # A10 Phase 0 Hardening #2: defense-in-depth fallback. All registered
+            # signal weights should be positive by spec, but if a future signal
+            # is added with a zero weight or a bug flips a sign, this branch
+            # guarantees we still emit an observable fallback marker.
             return FusionResult(
                 fused_mastery=0.0,
                 signal_details=signal_details,
                 active_signal_count=len(active),
-                is_fallback=False,
+                is_fallback=True,
             )
 
         # Compute weighted average with renormalized weights
