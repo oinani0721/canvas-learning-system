@@ -14,7 +14,7 @@
   - `python -c "from app.core.logging import configure_logging; configure_logging(); configure_logging()"`（幂等检查）
   - `grep -n "structlog.configure" backend/app/ -r` 应只有 1 处在 core/logging.py
 - **依赖**: 无
-- **状态**: [ ] 未开始
+- **状态**: [x] 完成
 
 ## Task 2: main.py 启动阶段调用 configure_logging
 - **文件**: `backend/app/main.py`
@@ -26,7 +26,7 @@
   - `curl http://localhost:8001/health` 应看到 JSON 格式的 access log
   - log 行应包含 `"request_id"`, `"level"`, `"timestamp"` 字段
 - **依赖**: Task 1
-- **状态**: [ ] 未开始
+- **状态**: [x] 完成
 
 ## Task 3: conftest.py 添加测试环境 fixture
 - **文件**: `backend/tests/conftest.py`
@@ -43,7 +43,7 @@
     预期：PASS（修复前 FAIL）
   - 确认 `request_id` 不跨测试泄露：手动写一个临时测试 A 调 `bind_contextvars(request_id="test-A")`，测试 B 读 `get_contextvars()` 应为空
 - **依赖**: Task 1, Task 2
-- **状态**: [ ] 未开始
+- **状态**: [x] 完成
 
 ## Task 4: 重新迁移 intelligent_grouping_service.py 到 structlog
 - **文件**: `backend/app/services/intelligent_grouping_service.py`
@@ -61,7 +61,7 @@
     ```
     预期：7/7 PASS（确认 bridge 对 structlog logger 也有效，不只是 stdlib logger）
 - **依赖**: Task 3（必须先跑通 stdlib logger 场景）
-- **状态**: [ ] 未开始
+- **状态**: [x] 完成
 
 ## Task 5: 全量 caplog 类回归验收
 - **文件**: 无改动，只跑测试
@@ -82,7 +82,7 @@
     2. 断言过严 → 在本 change 内调整
     3. out-of-scope → 加 `@pytest.mark.skip(reason="...")` 并记录
 - **依赖**: Task 1-4 全部完成
-- **状态**: [ ] 未开始
+- **状态**: [x] 完成
 
 ## Task 6: 生产日志格式回归（人工验证）
 - **文件**: 无改动
@@ -100,7 +100,7 @@
      - [ ] 含 `"logger"` 字段（源头定位）
   4. 检查同一请求的所有 log 行 `request_id` 一致（贯穿 middleware → service → Neo4j 客户端）
 - **依赖**: Task 2
-- **状态**: [ ] 未开始
+- **状态**: [x] 完成
 
 ## Task 7: pre-push hook 真实跑测试验证
 - **文件**: 无改动，只触发 hook
@@ -112,7 +112,7 @@
   4. 预期：**≥ 30 秒**（之前只有 0.03s，说明 cwd/PATH 问题实际没有跑测试）
   5. 如果仍是 0.03s：说明 pre-push hook 的 cwd/PATH 问题独立于本 change，需要单开 task 修复 hook 脚本
 - **依赖**: Task 5 通过
-- **状态**: [ ] 未开始
+- **状态**: [x] 完成
 
 ## Task 8: 更新 proposal.md 的"发现来源"与 commit
 - **文件**: `openspec/changes/fix-structlog-caplog-compat/proposal.md`
@@ -121,14 +121,14 @@
   - 更新 tasks.md 所有状态为 `[x]`
 - **验证**: `git diff openspec/changes/fix-structlog-caplog-compat/` 仅影响本 change 目录
 - **依赖**: Task 5, Task 7 均通过
-- **状态**: [ ] 未开始
+- **状态**: [x] 完成
 
 ## Task 9: archive change
 - **文件**: 移动 `openspec/changes/fix-structlog-caplog-compat/` → `openspec/changes/archive/<date>-fix-structlog-caplog-compat/`
 - **改动**: 按项目 OpenSpec archive 规范（如果有 `openspec` CLI 就 `openspec archive`，否则 `git mv`）
 - **验证**: `ls openspec/changes/archive/` 含新条目
 - **依赖**: Task 8 完成
-- **状态**: [ ] 未开始
+- **状态**: [x] 完成
 
 ---
 

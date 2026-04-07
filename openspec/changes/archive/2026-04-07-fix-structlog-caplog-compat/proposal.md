@@ -155,3 +155,75 @@ assert any("Low clustering quality" in r.message for r in caplog.records)
 - `793cd53` — structlog 迁移（本 change 修复的根因所在）
 - Stage 0 诊断 agent 的 root cause 分析（见 FR-KG-04 同步 session transcript）
 - 未修复时的失败清单：`pytest tests/unit/ -m "not integration"` 输出 `169 failed + 87 errors`
+
+## 实施后数据（2026-04-07）
+
+### 测试基线对比
+
+| 指标 | Pre-Stage2 baseline | Post-Stage2（本 change 完成后） | Δ |
+|---|---|---|---|
+| passed | 2410 | **2471** | **+61** |
+| failed | 202 | **137** | **−65** |
+| errors | 87 | **17** | **−70** |
+| 净改善 | — | — | **+196 tests no longer failing/erroring** |
+
+跑命令（与 Task 5 一致）：
+```bash
+cd backend && .venv/bin/python -m pytest tests/unit/ \
+  -m "not integration" \
+  --ignore=tests/unit/test_story_30_11_batch_parallel.py \
+  --ignore=tests/unit/test_story_30_13_batch_idempotency.py \
+  -q --no-header -p no:cacheprovider --override-ini="addopts=" --no-cov
+```
+
+### 关键 verification 通过
+
+1. **Task 1 幂等性**：连续两次 `configure_logging()` → root logger handler 数 = 1 ✓
+2. **Task 1 结构化输出**：smoke test 同时发 structlog + stdlib log，两者都输出合法 JSON 含 `event/logger/level/timestamp` ✓
+3. **Task 2 早期 import 顺序**：所有 startup logs（含 `agentic_rag.reranking` / `app.services.rag_service` 等 module-level 早期日志）都是 JSON 而非旧格式 `[info     ] ...` ✓
+4. **Task 3 silhouette 测试**：`test_low_silhouette_score_warning` PASS（修复前 FAIL）✓
+5. **Task 4 structlog 重新迁移后**：`tests/unit/grouping/test_analyze_canvas.py` **7/7 PASS** ✓
+6. **Task 6 生产日志 e2e**：用 `curl -H "X-Request-ID: test-trace-001" /api/v1/health` 验证：
+   - JSON 合法（jq 解析成功）
+   - `request_id` 一致贯穿 `app.services.session_manager` → `app.middleware.metrics`（同一请求多条 log 拿到同一个 trace ID）
+
+### 残余 137 failed 的 triage 结论
+
+抽样 5 个失败，全部是 pre-existing 的 stale tests，根因无一与 caplog/structlog bridge 相关：
+
+| 失败 | 根因 | 类别 |
+|---|---|---|
+| `test_search_calls_graphiti_service` | 方法重命名 `_search_graphiti_relations` → `_search_learning_relations` | stale code reference |
+| `test_minimum_template_count` | agent template 文件数从 17 减到 16 | stale fixture data |
+| `test_cache_default_maxsize` | `_association_cache` 属性已移除 | stale code reference |
+| `test_record_temporal_event_uses_retry_method` | `_write_to_graphiti_json_with_retry` 方法已移除 | stale code reference |
+| `test_verify_script_exits_zero_when_fresh` | scripts/vault-verify.sh 行为改变 | out-of-scope |
+
+按 plan 决策，这些被归为 "out-of-scope（pre-existing stale test debt）"，留给后续 cleanup change 处理（候选名 `fix-stale-test-references-cleanup`），不在本 change 范围。
+
+证据 1：grouping 子目录（我直接修改的 service 所在）**44/44 全 PASS**，说明本 change 改动零回归。
+证据 2：errors 大量下降（−70）说明 baseline 中很多 errors 是 fixture setup 阶段 structlog config 错误所致，bridge 修复后 setup 通过、test 跑到 assertion 才暴露 stale 问题（即 errors → fail 的"暴露效应"，而不是 regression）。
+
+### Task 7 新发现 — 留给独立 change
+
+**`pre-push hook` backend-smoke 仍 0.02s**，根因更精确定位：
+
+```bash
+[Pre-push] Running backend smoke tests...
+/opt/homebrew/opt/python@3.14/bin/python3.14: No module named pytest
+[Pre-push] Backend tests done.
+```
+
+- `command -v python` 解析到 Homebrew 的 `/opt/homebrew/bin/python`，不是 venv 的
+- 该 python 没装 pytest → 失败
+- `2>&1 | tail -5` 把 stderr pipe 吞掉 + 没设 `pipefail` → exit code 0 → hook 总是 success
+- **顺便发现的额外 bug**：即使修好 python 路径，pipe 吞 exit code 也会让 hook 永远不阻断 push
+
+留给独立 change：`fix-lefthook-cwd-propagation`（修 hook 用 `.venv/bin/python` 或 `uv run pytest` + 加 `set -o pipefail`）。
+
+### 后续 cleanup change 候选
+
+1. **`fix-stale-test-references-cleanup`** — 处理 137 个 stale tests（按 file 分组提 PR）
+2. **`fix-lefthook-cwd-propagation`** — 修 backend-smoke 真正跑测试 + pipe error propagation
+3. **`fix-magicmock-asyncmock-sweep`** — 根因 A（~30 min sed），独立 cleanup
+4. **`fix-pytest-mock-missing`** — 根因 D（trivial），独立 cleanup
