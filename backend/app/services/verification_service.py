@@ -835,8 +835,14 @@ class VerificationService:
         hints_given = state["hints_given"]
         max_hints = state["max_hints"]
 
+        # FR-KG-04 P1-4: degraded 模式下直接前进到下一题，不计分不更新掌握度
+        # 不阻塞用户学习流程，但避免 fail-closed 分数污染掌握度
+        if degraded:
+            action = await self._advance_concept(
+                state, progress, quality, score, degraded=True
+            )
         # Unified 0-100 scale: 60+ = passing threshold
-        if quality in ["excellent", "good"] or score >= 60:
+        elif quality in ["excellent", "good"] or score >= 60:
             # 掌握，进入下一概念
             action = await self._advance_concept(state, progress, quality, score)
         elif hints_given < max_hints:
@@ -866,7 +872,9 @@ class VerificationService:
             "degraded": degraded,
             "degraded_reason": degraded_reason if degraded else None,
             "degraded_warning": (
-                "评分基于答案长度而非内容质量，仅供参考" if degraded else None
+                "评分服务暂时不可用，本次回答不计分也不更新掌握度。您可以继续下一题。"
+                if degraded
+                else None
             ),
             "action": action["action"],
             "hint": action.get("hint"),
@@ -881,29 +889,37 @@ class VerificationService:
         progress: VerificationProgress,
         quality: str,
         score: float,
+        degraded: bool = False,
     ) -> Dict[str, Any]:
         """
         前进到下一概念
 
         Story 31.1: Updated to async for real question generation.
         Score thresholds use unified 0-100 scale.
+
+        FR-KG-04 P1-4 fix: When degraded=True, skip mastery counter updates
+        (green/yellow/red/purple) to prevent fail-closed scores from polluting
+        long-term mastery state. The user still advances to the next concept.
         """
-        # 更新颜色计数 (unified 0-100 scale)
-        # - score >= 80: excellent (掌握良好)
-        # - score 60-79: good (部分掌握)
-        # - score < 60: needs improvement
-        if quality == "excellent" or score >= 80:
-            state["green_count"] += 1
-            progress.green_count += 1
-        elif quality == "good" or score >= 60:
-            state["yellow_count"] += 1
-            progress.yellow_count += 1
-        elif quality == "skipped":
-            state["purple_count"] += 1
-            progress.purple_count += 1
-        else:
-            state["red_count"] += 1
-            progress.red_count += 1
+        # FR-KG-04 P1-4: degraded 模式下不更新掌握度计数（fail-closed）
+        # 但仍然推进到下一题，避免阻塞用户学习流程
+        if not degraded:
+            # 更新颜色计数 (unified 0-100 scale)
+            # - score >= 80: excellent (掌握良好)
+            # - score 60-79: good (部分掌握)
+            # - score < 60: needs improvement
+            if quality == "excellent" or score >= 80:
+                state["green_count"] += 1
+                progress.green_count += 1
+            elif quality == "good" or score >= 60:
+                state["yellow_count"] += 1
+                progress.yellow_count += 1
+            elif quality == "skipped":
+                state["purple_count"] += 1
+                progress.purple_count += 1
+            else:
+                state["red_count"] += 1
+                progress.red_count += 1
 
         state["completed_concepts"] += 1
         progress.completed_concepts += 1
@@ -1427,9 +1443,9 @@ class VerificationService:
         if USE_MOCK_VERIFICATION:
             quality, score = self._mock_evaluate_answer(user_answer)
             logger.warning(
-                f"[DEGRADED SCORING] Using character-length mock for concept '{concept}'. "
-                f"Reason: mock_mode_enabled. Score={score} is NOT based on content quality. "
-                "User may receive inaccurate assessment."
+                f"[DEGRADED SCORING] Fail-closed neutral result for concept '{concept}'. "
+                f"Reason: mock_mode_enabled. quality={quality}, score={score} — "
+                "mastery state will NOT be updated."
             )
             return quality, score, True, "mock_mode_enabled"
 
@@ -1444,20 +1460,18 @@ class VerificationService:
         except asyncio.TimeoutError:
             quality, score = self._mock_evaluate_answer(user_answer)
             logger.warning(
-                f"[DEGRADED SCORING] Using character-length mock for concept '{concept}'. "
+                f"[DEGRADED SCORING] Fail-closed neutral result for concept '{concept}'. "
                 f"Reason: agent_timeout (timeout={VERIFICATION_AI_TIMEOUT}s). "
-                f"Score={score} is NOT based on content quality. "
-                "User may receive inaccurate assessment."
+                f"quality={quality}, score={score} — mastery state will NOT be updated."
             )
             return quality, score, True, "agent_timeout"
 
         except Exception as e:
             quality, score = self._mock_evaluate_answer(user_answer)
             logger.warning(
-                f"[DEGRADED SCORING] Using character-length mock for concept '{concept}'. "
+                f"[DEGRADED SCORING] Fail-closed neutral result for concept '{concept}'. "
                 f"Reason: agent_exception ({e}). "
-                f"Score={score} is NOT based on content quality. "
-                "User may receive inaccurate assessment."
+                f"quality={quality}, score={score} — mastery state will NOT be updated."
             )
             return quality, score, True, "agent_exception"
 
@@ -1552,9 +1566,9 @@ class VerificationService:
         # Fallback to mock evaluation
         quality, score = self._mock_evaluate_answer(user_answer)
         logger.warning(
-            f"[DEGRADED SCORING] Using character-length mock for concept '{concept}'. "
-            f"Reason: agent_unavailable. Score={score} is NOT based on content quality. "
-            "User may receive inaccurate assessment."
+            f"[DEGRADED SCORING] Fail-closed neutral result for concept '{concept}'. "
+            f"Reason: agent_unavailable. quality={quality}, score={score} — "
+            "mastery state will NOT be updated."
         )
         return quality, score, True, "agent_unavailable"
 
@@ -1585,57 +1599,33 @@ class VerificationService:
 
     def _mock_evaluate_answer(self, user_answer: str) -> tuple:
         """
-        DEGRADED FALLBACK (Story 31.A.8): Character-length based scoring.
+        DEGRADED FALLBACK (fail-closed): Returns neutral unknown grade.
 
-        This method scores answers based SOLELY on character length.
-        It does NOT evaluate content quality, correctness, or understanding.
+        SECURITY/INTEGRITY FIX (FR-KG-04 P1-4): This method previously
+        scored answers by character length, allowing trivial adversarial
+        bypass (101-char noise > 19-char correct answer). It now returns
+        a fail-closed neutral signal that prevents mastery state pollution.
 
-        Scoring thresholds:
-        - >100 chars -> 90 ("excellent") -- regardless of content
-        - >50 chars  -> 70 ("good")
-        - >20 chars  -> 50 ("partial")
-        - <=20 chars -> 20 ("wrong")
+        The caller MUST propagate (degraded=True, degraded_reason=...) and
+        skip mastery updates in _advance_concept().
 
-        This is used when:
+        Used when:
         1. USE_MOCK_VERIFICATION=true (dev/test mode)
         2. AI scoring agent times out (VERIFICATION_AI_TIMEOUT exceeded)
         3. AI scoring agent throws an exception
         4. agent_service is not injected (DI failure or unavailable)
 
-        KNOWN ISSUE: A 101-character nonsense string scores higher than
-        a 19-character correct answer. This is by design as an emergency
-        fallback, not a quality assessment.
-
-        When this method is used, the caller MUST:
-        - Log a WARNING with [DEGRADED SCORING] prefix
-        - Set degraded=True and degraded_reason in the return value
-        - The API response will include degraded_warning for frontend display
-
         Args:
-            user_answer: User's answer text
+            user_answer: User's answer text (length logged for telemetry only)
 
         Returns:
-            Tuple of (quality: str, score: float) in 0-100 range
+            Tuple of (quality="unknown", score=0.0) — always
         """
-        answer_len = len(user_answer.strip())
-
-        if answer_len > 100:
-            quality = "excellent"
-            score = 90.0
-        elif answer_len > 50:
-            quality = "good"
-            score = 70.0
-        elif answer_len > 20:
-            quality = "partial"
-            score = 50.0
-        else:
-            quality = "wrong"
-            score = 20.0
-
         logger.debug(
-            f"Mock evaluation: len={answer_len}, quality={quality}, score={score}"
+            f"Degraded mock evaluation (fail-closed): "
+            f"answer_len={len(user_answer.strip())}, returning quality=unknown, score=0.0"
         )
-        return quality, score
+        return "unknown", 0.0
 
     # =========================================================================
     # Story 31.5: Difficulty Adaptation Methods

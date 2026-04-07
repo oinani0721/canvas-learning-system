@@ -412,26 +412,36 @@ class TestScoreMapping:
     """Test score mapping functions."""
 
     def test_mock_evaluate_answer(self, verification_service: VerificationService):
-        """Test mock evaluation based on answer length (unified 0-100 scale)."""
-        # Long answer (>100 chars)
+        """Test mock evaluation returns fail-closed neutral result.
+
+        FR-KG-04 P1-4: _mock_evaluate_answer no longer scores by length.
+        It returns ("unknown", 0.0) in all cases to prevent adversarial
+        input length manipulation from polluting mastery state.
+        """
+        # Long answer (previously scored 90 "excellent")
         quality, score = verification_service._mock_evaluate_answer("a" * 101)
-        assert quality == "excellent"
-        assert score == 90.0
+        assert quality == "unknown"
+        assert score == 0.0
 
-        # Medium answer (>50 chars)
+        # Medium answer (previously scored 70 "good")
         quality, score = verification_service._mock_evaluate_answer("a" * 51)
-        assert quality == "good"
-        assert score == 70.0
+        assert quality == "unknown"
+        assert score == 0.0
 
-        # Short answer (>20 chars)
+        # Short answer (previously scored 50 "partial")
         quality, score = verification_service._mock_evaluate_answer("a" * 21)
-        assert quality == "partial"
-        assert score == 50.0
+        assert quality == "unknown"
+        assert score == 0.0
 
-        # Very short answer
+        # Very short answer (previously scored 20 "wrong")
         quality, score = verification_service._mock_evaluate_answer("a" * 10)
-        assert quality == "wrong"
-        assert score == 20.0
+        assert quality == "unknown"
+        assert score == 0.0
+
+        # Empty answer
+        quality, score = verification_service._mock_evaluate_answer("")
+        assert quality == "unknown"
+        assert score == 0.0
 
 
 # ===========================================================================

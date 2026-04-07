@@ -170,7 +170,10 @@ class TestMockScoringWarningLogs:
 
         assert any("DEGRADED SCORING" in r.message for r in caplog.records)
         assert any("mock_mode_enabled" in r.message for r in caplog.records)
-        assert any("NOT based on content quality" in r.message for r in caplog.records)
+        # FR-KG-04 P1-4: fail-closed 设计 — 不再按长度判分
+        assert any(
+            "mastery state will NOT be updated" in r.message for r in caplog.records
+        )
 
     @pytest.mark.asyncio
     async def test_agent_timeout_logs_warning(
@@ -250,7 +253,9 @@ class TestDegradedResponseFields:
 
         assert result["degraded"] is True
         assert result["degraded_reason"] == "mock_mode_enabled"
-        assert "仅供参考" in result["degraded_warning"]
+        # FR-KG-04 P1-4: fail-closed warning 文案
+        assert "不计分" in result["degraded_warning"]
+        assert "不更新掌握度" in result["degraded_warning"]
 
     @pytest.mark.asyncio
     async def test_degraded_response_includes_reason_unavailable(
@@ -264,7 +269,9 @@ class TestDegradedResponseFields:
 
         assert result["degraded"] is True
         assert result["degraded_reason"] == "agent_unavailable"
-        assert "仅供参考" in result["degraded_warning"]
+        # FR-KG-04 P1-4: fail-closed warning 文案
+        assert "不计分" in result["degraded_warning"]
+        assert "不更新掌握度" in result["degraded_warning"]
 
     @pytest.mark.asyncio
     async def test_normal_response_no_degradation_fields(
@@ -305,14 +312,19 @@ class TestDegradedResponseFields:
 
 
 class TestMockEvaluateDocstring:
-    """AC-31.A.8.3: _mock_evaluate_answer has comprehensive docstring."""
+    """AC-31.A.8.3: _mock_evaluate_answer has comprehensive docstring.
 
-    def test_docstring_exists_and_explains_limitations(self, verification_service):
-        """Docstring explains character-length scoring limitations."""
+    FR-KG-04 P1-4: Updated to verify fail-closed design (was: character-length scoring).
+    """
+
+    def test_docstring_exists_and_explains_fail_closed_design(
+        self, verification_service
+    ):
+        """Docstring explains fail-closed neutral return design."""
         doc = verification_service._mock_evaluate_answer.__doc__
         assert doc is not None
         assert "DEGRADED FALLBACK" in doc
-        assert "character length" in doc.lower() or "character-length" in doc.lower()
+        assert "fail-closed" in doc.lower()
 
     def test_docstring_mentions_four_trigger_scenarios(self, verification_service):
         """Docstring lists all 4 trigger scenarios."""
@@ -322,10 +334,11 @@ class TestMockEvaluateDocstring:
         assert "exception" in doc.lower()
         assert "not injected" in doc.lower() or "unavailable" in doc.lower()
 
-    def test_docstring_mentions_known_issue(self, verification_service):
-        """Docstring mentions the known scoring flaw."""
+    def test_docstring_explains_mastery_protection(self, verification_service):
+        """Docstring explains why fail-closed protects mastery state."""
         doc = verification_service._mock_evaluate_answer.__doc__
-        assert "KNOWN ISSUE" in doc
+        assert "mastery" in doc.lower()
+        assert "neutral" in doc.lower() or "unknown" in doc.lower()
 
 
 # ===========================================================================
@@ -426,3 +439,198 @@ class TestFourTupleReturn:
         _, _, degraded, reason = result
         assert degraded is True
         assert reason == "agent_unavailable"
+
+
+# ===========================================================================
+# FR-KG-04 P1-4: Fail-Closed Degraded Scoring
+# ===========================================================================
+
+
+class TestFailClosedDegradedScoring:
+    """FR-KG-04 P1-4: degraded mode must NOT score by length and MUST NOT
+    update mastery state. Adversarial inputs (long noise) must not produce
+    high scores."""
+
+    def test_mock_evaluate_returns_unknown_for_short_input(self, verification_service):
+        """Short answer in degraded mode returns ('unknown', 0.0)."""
+        quality, score = verification_service._mock_evaluate_answer("hi")
+        assert quality == "unknown"
+        assert score == 0.0
+
+    def test_mock_evaluate_returns_unknown_for_long_input(self, verification_service):
+        """Long answer in degraded mode also returns ('unknown', 0.0)."""
+        long_answer = "x" * 200
+        quality, score = verification_service._mock_evaluate_answer(long_answer)
+        assert quality == "unknown"
+        assert score == 0.0
+
+    def test_adversarial_101_char_noise_does_not_score_high(self, verification_service):
+        """REGRESSION: 101-character noise must NOT outscore 19-char correct answer.
+
+        Before P1-4 fix, "x"*101 → score=90, while "正确答案是力等于质量乘加速度" (~16 chars) → score=20.
+        After fix, both must return ("unknown", 0.0).
+        """
+        long_noise = "x" * 101
+        short_correct = "F=ma"
+
+        q1, s1 = verification_service._mock_evaluate_answer(long_noise)
+        q2, s2 = verification_service._mock_evaluate_answer(short_correct)
+
+        assert q1 == q2 == "unknown"
+        assert s1 == s2 == 0.0
+
+    def test_mock_evaluate_returns_unknown_for_empty_input(self, verification_service):
+        """Empty answer in degraded mode also returns ('unknown', 0.0)."""
+        quality, score = verification_service._mock_evaluate_answer("")
+        assert quality == "unknown"
+        assert score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_degraded_mode_does_not_update_mastery_counts(
+        self, verification_service_no_agent, temp_canvas_file
+    ):
+        """In degraded mode, _advance_concept must NOT increment color counts."""
+        sid = await _create_session_and_get_sid(
+            verification_service_no_agent, temp_canvas_file
+        )
+
+        # Capture progress before
+        progress_before = verification_service_no_agent._progress[sid]
+        green_before = progress_before.green_count
+        yellow_before = progress_before.yellow_count
+        red_before = progress_before.red_count
+        purple_before = progress_before.purple_count
+
+        # Submit an answer in degraded mode (agent_service=None)
+        result = await verification_service_no_agent.process_answer(
+            sid,
+            "x" * 200,  # Long noise — would have scored 90 before fix
+        )
+
+        # Verify degraded flag set
+        assert result["degraded"] is True
+        assert result["score"] == 0.0
+        assert result["quality"] == "unknown"
+
+        # Verify mastery counts UNCHANGED (fail-closed)
+        progress_after = verification_service_no_agent._progress[sid]
+        assert progress_after.green_count == green_before
+        assert progress_after.yellow_count == yellow_before
+        assert progress_after.red_count == red_before
+        assert progress_after.purple_count == purple_before
+
+    @pytest.mark.asyncio
+    async def test_degraded_mode_still_advances_to_next_concept(
+        self, verification_service_no_agent, temp_canvas_file
+    ):
+        """In degraded mode, completed_concepts MUST still advance to avoid blocking UX."""
+        sid = await _create_session_and_get_sid(
+            verification_service_no_agent, temp_canvas_file
+        )
+
+        progress_before = verification_service_no_agent._progress[sid]
+        completed_before = progress_before.completed_concepts
+
+        result = await verification_service_no_agent.process_answer(sid, "anything")
+
+        assert result["degraded"] is True
+        # Action should advance (not block on hint loop)
+        assert result["action"] in ("next", "complete")
+
+        progress_after = verification_service_no_agent._progress[sid]
+        assert progress_after.completed_concepts == completed_before + 1
+
+
+# ===========================================================================
+# FR-KG-04 P0-3: Path Traversal Hardening
+# ===========================================================================
+
+
+class TestPathTraversalHardening:
+    """FR-KG-04 P0-3: _resolve_safe_canvas_path must reject all traversal
+    attempts (../, absolute paths, null bytes, paths outside base, non-.canvas
+    files). Defense-in-depth alongside CanvasService._validate_canvas_name."""
+
+    def test_resolve_rejects_dotdot_in_canvas_name(self, verification_service):
+        """canvas_name with '..' must be rejected."""
+        result = verification_service._resolve_safe_canvas_path(
+            "../../etc/passwd", None
+        )
+        assert result is None
+
+    def test_resolve_rejects_absolute_canvas_name(self, verification_service):
+        """canvas_name starting with '/' must be rejected."""
+        result = verification_service._resolve_safe_canvas_path("/etc/passwd", None)
+        assert result is None
+
+    def test_resolve_rejects_null_byte_in_canvas_name(self, verification_service):
+        """canvas_name with null byte must be rejected."""
+        result = verification_service._resolve_safe_canvas_path("test\0.canvas", None)
+        assert result is None
+
+    def test_resolve_rejects_canvas_path_outside_base(
+        self, verification_service, tmp_path
+    ):
+        """canvas_path that resolves outside _canvas_base_path must be rejected."""
+        # Pin base to a fresh subdirectory inside tmp_path to ensure we have
+        # control over what's "inside" vs "outside" the base.
+        base = tmp_path / "vault"
+        base.mkdir()
+        verification_service._canvas_base_path = str(base)
+
+        # canvas_path points OUTSIDE the base (sibling directory)
+        outside = str(tmp_path / "evil.canvas")
+        result = verification_service._resolve_safe_canvas_path("test", outside)
+        assert result is None
+
+    def test_resolve_rejects_non_canvas_suffix(self, verification_service, tmp_path):
+        """Resolved file must end with .canvas, not .py/.sh/etc."""
+        # Use a path inside base but with wrong suffix
+        verification_service._canvas_base_path = str(tmp_path)
+        evil = str(tmp_path / "evil.sh")
+        result = verification_service._resolve_safe_canvas_path("evil", evil)
+        assert result is None
+
+    def test_resolve_accepts_valid_relative_canvas_name(
+        self, verification_service, tmp_path
+    ):
+        """Normal canvas_name with subfolder should resolve safely."""
+        verification_service._canvas_base_path = str(tmp_path)
+        # Create a fake canvas file inside base
+        sub = tmp_path / "Math"
+        sub.mkdir()
+        (sub / "Lecture5.canvas").write_text("{}")
+
+        result = verification_service._resolve_safe_canvas_path("Math/Lecture5", None)
+        assert result is not None
+        assert result.endswith("Lecture5.canvas")
+        # Must be inside base
+        assert str(tmp_path) in result
+
+    def test_resolve_strips_double_canvas_suffix(self, verification_service, tmp_path):
+        """canvas_name with .canvas suffix should not produce .canvas.canvas."""
+        verification_service._canvas_base_path = str(tmp_path)
+        (tmp_path / "test.canvas").write_text("{}")
+
+        result = verification_service._resolve_safe_canvas_path("test.canvas", None)
+        assert result is not None
+        assert result.endswith("test.canvas")
+        assert not result.endswith(".canvas.canvas")
+
+    @pytest.mark.asyncio
+    async def test_extract_concepts_rejects_traversal_falls_back(
+        self, verification_service_no_agent
+    ):
+        """End-to-end: canvas_name with traversal returns fallback concepts.
+
+        REGRESSION for P0-3: Previously the fallback open() would have
+        successfully read /etc/passwd.canvas if it existed.
+        """
+        # Use the no-agent fixture so canvas_service is available but
+        # we test the safe path resolution rather than CanvasService
+        result = await verification_service_no_agent._do_extract_concepts(
+            canvas_name="../../etc/passwd",
+            canvas_path=None,
+        )
+        # Should return fallback, never read traversal target
+        assert result == ["默认概念"]
