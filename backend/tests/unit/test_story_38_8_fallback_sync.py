@@ -10,9 +10,10 @@
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from app.services import fallback_sync_service as fss_module
 from app.services.fallback_sync_service import (
     _SYNCED_FILE_RETENTION_DAYS,
     FallbackSyncService,
@@ -605,8 +606,15 @@ class TestAC4ConflictResolution:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_conflict_logged(self, sync_service, mock_neo4j, caplog):
-        """When Neo4j has newer data, a log message is emitted."""
+    async def test_conflict_logged(self, sync_service, mock_neo4j):
+        """When Neo4j has newer data, a log message is emitted.
+
+        Uses ``patch.object(fss_module, "logger")`` instead of pytest's
+        ``caplog`` fixture because the service module uses structlog, which
+        writes to its own LoggerFactory rather than the stdlib logging tree
+        that ``caplog`` hooks into. See the mock_logger fixture in
+        ``test_fallback_sync_concept_id_contract.py`` for the rationale.
+        """
         mock_neo4j.run_query = AsyncMock(return_value=[{"should_update": False}])
 
         entry = {
@@ -616,12 +624,14 @@ class TestAC4ConflictResolution:
             "score": 60,
             "concept": "Calculus",
         }
-        import logging
 
-        with caplog.at_level(logging.INFO):
+        with patch.object(fss_module, "logger", new=MagicMock()) as mock_log:
             await sync_service._replay_scoring_entry_to_neo4j(entry)
 
-        assert any("Conflict" in r.message for r in caplog.records)
+        info_messages = [
+            call.args[0] for call in mock_log.info.call_args_list if call.args
+        ]
+        assert any("Conflict" in msg for msg in info_messages)
 
     @pytest.mark.asyncio
     async def test_learning_memory_older_fallback_preserves_neo4j(
@@ -648,9 +658,12 @@ class TestAC4ConflictResolution:
         self,
         sync_service,
         mock_neo4j,
-        caplog,
     ):
-        """Learning memory conflict with Neo4j emits log message."""
+        """Learning memory conflict with Neo4j emits log message.
+
+        See ``test_conflict_logged`` above for why this uses ``patch.object``
+        instead of ``caplog`` (structlog vs stdlib logging).
+        """
         mock_neo4j.run_query = AsyncMock(return_value=[{"should_update": False}])
 
         mem = {
@@ -659,12 +672,14 @@ class TestAC4ConflictResolution:
             "score": 60,
             "timestamp": "2026-01-01T10:00:00",
         }
-        import logging
 
-        with caplog.at_level(logging.INFO):
+        with patch.object(fss_module, "logger", new=MagicMock()) as mock_log:
             await sync_service._replay_learning_memory_to_neo4j(mem)
 
-        assert any("Conflict" in r.message for r in caplog.records)
+        info_messages = [
+            call.args[0] for call in mock_log.info.call_args_list if call.args
+        ]
+        assert any("Conflict" in msg for msg in info_messages)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -850,13 +865,21 @@ class TestAC5FileRotation:
         ]
         write_jsonl(tmp_failed_writes, entries)
 
-        # Make run_query fail on second call
+        # Make run_query fail on second call.
+        #
+        # IMPORTANT: raise a ConnectionError (not a bare Exception) so the
+        # service's narrow ``except (RuntimeError, ConnectionError,
+        # asyncio.TimeoutError)`` clauses in ``_replay_scoring_entry_to_neo4j``
+        # and ``_sync_failed_writes`` actually catch it and downgrade the
+        # failure to ``pending`` instead of letting it propagate out of
+        # ``sync_all_fallbacks`` entirely (which used to crash this test
+        # with "Neo4j connection lost" regardless of Phase 7 changes).
         call_count = {"n": 0}
 
         async def run_query_side_effect(*args, **kwargs):
             call_count["n"] += 1
             if call_count["n"] == 2:
-                raise Exception("Neo4j connection lost")
+                raise ConnectionError("Neo4j connection lost")
             return [{"should_update": True}]
 
         mock_neo4j.run_query = AsyncMock(side_effect=run_query_side_effect)
