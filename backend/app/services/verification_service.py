@@ -81,6 +81,84 @@ logger = structlog.get_logger(__name__)
 
 
 # ===========================================================================
+# fix-rag-transform-and-episode-isolation Phase 3:
+# Path-like string detection for related_concepts guard.
+#
+# RAG metadata.source often contains file paths like /vault/notes/x.md instead
+# of concept names. Without filtering, the verification LLM would see "/vault
+# /notes/导数.md" in its prompt as a "related concept" — semantically useless.
+#
+# Strategy:
+#   1. Reject anything matching path/URL patterns outright
+#   2. Where the source IS a file path, extract the file stem as a fallback
+#      (e.g. /vault/notes/导数.md → 导数)
+# ===========================================================================
+
+_PATH_LIKE_PATTERNS = re.compile(
+    r"(^https?://|^file://|[/\\]|\.(md|pdf|txt|html|docx)$)",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_path(value: Any) -> bool:
+    """Return True when *value* resembles a file path or URL."""
+    if not value or not isinstance(value, str):
+        return True
+    return bool(_PATH_LIKE_PATTERNS.search(value))
+
+
+def _extract_concept_name(meta: Optional[Dict[str, Any]]) -> str:
+    """
+    Extract a usable concept name from a SearchResult metadata dict.
+
+    Priority order:
+        1. metadata.concept       (Graphiti temporal store)
+        2. metadata.title         (some LanceDB / cross-canvas results)
+        3. metadata.source        (only when not path-like)
+        4. file stem of source    (last-resort fallback for path-only sources)
+
+    Returns an empty string when no valid concept name can be derived;
+    callers should skip empty strings rather than emit them to the LLM.
+    """
+    if not meta or not isinstance(meta, dict):
+        return ""
+
+    concept = meta.get("concept", "")
+    if concept and not _looks_like_path(concept):
+        return concept
+
+    title = meta.get("title", "")
+    if title and not _looks_like_path(title):
+        return title
+
+    source = meta.get("source", "")
+    if source and not _looks_like_path(source):
+        return source
+
+    # Path-like source: try to recover a file stem only when the source
+    # is a local path (not a URL). URLs are rejected outright because their
+    # final segment is rarely a meaningful concept name.
+    if (
+        source
+        and isinstance(source, str)
+        and not source.lower().startswith(("http://", "https://", "file://"))
+    ):
+        try:
+            from pathlib import PurePosixPath, PureWindowsPath
+
+            stem = PurePosixPath(source).stem or PureWindowsPath(source).stem
+            # Strip extension manually if PurePath.stem still kept one
+            if stem and "." in stem:
+                stem = stem.rsplit(".", 1)[0]
+            if stem and not _looks_like_path(stem):
+                return stem
+        except Exception:
+            pass
+
+    return ""
+
+
+# ===========================================================================
 # Story 31.5: Difficulty Adaptive Algorithm
 # [Source: docs/stories/31.5.story.md]
 # ===========================================================================
@@ -1829,10 +1907,14 @@ class VerificationService:
                 timeout=timeout,
             )
 
-            # FR-KG-04 fix: RAG returns reranked_results (List[SearchResult]),
-            # not the learning_history/related_concepts/common_mistakes fields
-            # that this method originally expected. Transform search results
-            # into the downstream-expected format.
+            # FR-KG-04 fix (commit f215830): RAG returns reranked_results
+            # (List[SearchResult]), not the learning_history / related_concepts
+            # / common_mistakes fields that this method originally expected.
+            # Transform search results into the downstream-expected format.
+            #
+            # fix-rag-transform-and-episode-isolation Phase 3:
+            #   related_concepts now goes through _extract_concept_name() which
+            #   rejects path-like strings and recovers file stems where possible.
             reranked = rag_result.get("reranked_results", [])
             if reranked:
                 snippets = [
@@ -1842,8 +1924,7 @@ class VerificationService:
                 related_concepts: List[str] = []
                 seen: set = set()
                 for r in reranked[:5]:
-                    meta = r.get("metadata", {})
-                    name = meta.get("concept") or meta.get("source", "")
+                    name = _extract_concept_name(r.get("metadata", {}))
                     if name and name not in seen:
                         related_concepts.append(name)
                         seen.add(name)
