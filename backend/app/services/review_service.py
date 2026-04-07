@@ -399,17 +399,25 @@ class ReviewService:
 
         H2 fix: Uses asyncio.Lock to prevent concurrent writes and atomic
         write (temp file + rename) to prevent file corruption.
+
+        A6 Phase 0 fix: Serialize the union of both UUID and legacy text
+        buckets so that pre-migration FSRS card states are not silently
+        dropped on save. The UUID bucket wins on defensive key collision
+        (disjoint by construction via ``is_uuid_v4`` in
+        ``_split_card_state_buckets``). See
+        ``openspec/changes/a6-phase0-fsrs-card-state-bucket-preservation/``.
         """
         async with _card_states_lock:
             try:
                 _CARD_STATES_FILE.parent.mkdir(parents=True, exist_ok=True)
-                data = json.dumps(self._card_states, ensure_ascii=False, indent=2)
+                combined = {**self._legacy_card_states, **self._card_states}
+                data = json.dumps(combined, ensure_ascii=False, indent=2)
                 # Atomic write: write to temp file then rename
                 tmp_file = _CARD_STATES_FILE.with_suffix(".json.tmp")
                 await asyncio.to_thread(tmp_file.write_text, data, "utf-8")
                 await asyncio.to_thread(tmp_file.replace, _CARD_STATES_FILE)
                 logger.debug(
-                    f"Saved {len(self._card_states)} FSRS card states to {_CARD_STATES_FILE}"
+                    f"Saved {len(combined)} FSRS card states to {_CARD_STATES_FILE}"
                 )
             except (OSError, TypeError) as e:
                 logger.warning(f"Failed to save FSRS card states: {e}")
