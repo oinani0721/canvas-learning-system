@@ -30,15 +30,15 @@
 
 ## 3. Edge 一致性与批次排序（Phase 3，Week 1 Day 3）
 
-- [ ] 3.1 在 `backend/app/services/sync_service.py` 添加静态方法 `_operation_sort_key(op: SyncOperation) -> tuple[int, int]`，实现 create/update 的 `board→node→edge` 顺序 + delete 的 `edge→node→board` 反向顺序
-- [ ] 3.2 修改 `process_sync_batch` 第 90 行 `for op in request.operations:` 为 `for op in sorted(request.operations, key=self._operation_sort_key):`
-- [ ] 3.3 修改 `_upsert_edge` 在 payload 提取后立即校验 `if not source_node_id or not target_node_id: raise ValueError(...)`
-- [ ] 3.4 修改 `_upsert_edge` 的 Cypher 添加 `RETURN e.id AS edge_id`
-- [ ] 3.5 修改 `_upsert_edge` 在 `tx.run` 后添加 `result = await tx.run(...)`；`record = await result.single()`；`if record is None: raise RuntimeError(f"edge upsert no-op: missing nodes source={source_node_id} target={target_node_id}")`
-- [ ] 3.6 修改 `process_sync_batch` 第 101 行的 `except (RuntimeError, ConnectionError)` 扩展为 `except Exception as e`（per-op 级隔离失败）
-- [ ] 3.7 新建 `backend/tests/unit/test_sync_service_edge_noop.py`：模拟 `result.single()` 返回 None，验证抛 `RuntimeError`；payload 缺字段时抛 `ValueError`
-- [ ] 3.8 新建 `backend/tests/unit/test_sync_service_topo_sort.py`：构造 `[edge, node1, node2]` 输入，断言排序后 nodes 先于 edge；构造 `[edge_delete, node_delete, board_delete]`，断言反向顺序
-- [ ] 3.9 新建 `backend/tests/unit/test_sync_service_partial_failure.py`：构造 3 个 op，第 2 个抛 `ValueError`，验证 op1 和 op3 仍执行，`synced_count=2 failed_count=1`
+- [x] 3.1 在 `backend/app/services/sync_service.py` 添加静态方法 ~~`_operation_sort_key`~~ `_partition_by_entity_type`（被 D7 Segment Commit 架构替代：按 entity_type 分段比拓扑排序更准确，天然包含 delete 逆序）
+- [x] 3.2 修改 `process_sync_batch` 为 3 段独立事务循环（Segment Commit 取代 sorted() 单循环）
+- [x] 3.3 修改 `_upsert_edge` 在 payload 提取后立即校验 — 改为 `raise SyncDependencyError`（替代原 ValueError，为前端错误分类服务）
+- [x] 3.4 修改 `_upsert_edge` 的 Cypher 添加 `RETURN status, edge_id`（升级为 OPTIONAL MATCH + CALL (source, target) 分支）
+- [x] 3.5 修改 `_upsert_edge` 在 `tx.run` 后添加 `result.single()` 检查，status="missing" 时抛 `SyncDependencyError`
+- [x] 3.6 修改 `process_sync_batch` 异常捕获为 `except Exception as e`（per-op 级隔离失败），按 exception 类型映射 error_class
+- [x] 3.7 新建 `backend/tests/unit/test_sync_service_edge_noop.py` — 合并到 test_sync_segment_commit.py 的 TestUpsertEdgeFailFast (4 tests)
+- [x] 3.8 新建 `backend/tests/unit/test_sync_service_topo_sort.py` — 合并到 test_sync_segment_commit.py 的 TestPartitionByEntityType (3 tests)
+- [x] 3.9 新建 `backend/tests/unit/test_sync_service_partial_failure.py` — 合并到 test_sync_segment_commit.py 的 TestSegmentCommitAtomicity::test_edge_segment_partial_failure_still_commits
 
 ## 4. 异常分类 + Neo4j 约束（Phase 4，Week 1 Day 4）
 
@@ -116,19 +116,20 @@
 
 > **2026-04-07 新增**。从 sync-pipeline-fix 吸收的设计 D7。天然包含原 Phase 3 的"拓扑排序"和"edge fail fast"意图。
 
-- [ ] 11.1 在 `backend/app/models/sync_models.py` 新增 `SyncDependencyError` 自定义异常类
-- [ ] 11.2 在 `backend/app/services/sync_service.py` 新增 `_deduplicate_by_operation_id(ops: list[SyncOperation]) -> list[SyncOperation]` 辅助函数：重复 op_id 只保留首次出现
-- [ ] 11.3 在 `sync_service.py` 新增 `_partition_by_entity_type(ops, operation: str) -> list[list[SyncOperation]]` 辅助函数：create/update 返回 `[board_segment, node_segment, edge_segment]`，delete 返回逆序
-- [ ] 11.4 改写 `process_sync_batch` 为 3 段独立事务结构（详见 design.md D7 代码）
-- [ ] 11.5 Board/Node 段实现"原子提交 + 任一失败 rollback + 后续段标记 DEPENDENCY_MISSING"
-- [ ] 11.6 Edge 段实现"per-op try/except + 至少一个成功才 commit"（保留 AC-7 精神）
-- [ ] 11.7 修改 `_upsert_edge` 使用 `OPTIONAL MATCH (source {id:$sid}), (target {id:$tid}) WITH source, target WHERE source IS NULL OR target IS NULL RETURN 'missing' as status`；status=missing 时抛 `SyncDependencyError`
-- [ ] 11.8 修改 `_upsert_edge` 在 Cypher 之前校验 payload 非空 source/target，缺失抛 `SyncDependencyError`
-- [ ] 11.9 新建 `backend/tests/unit/test_sync_segment_commit.py`：构造乱序 batch [edge, node] → Segment 提交后 edge 在 Segment 3 成功创建
-- [ ] 11.10 在 test_sync_segment_commit.py 加：Segment 2 Node 失败 → Segment 3 所有 Edge op 标记为 DEPENDENCY_MISSING（return 早退）
-- [ ] 11.11 在 test_sync_segment_commit.py 加：Segment 3 内某个 Edge 缺端点 → 该 Edge 标记 DEPENDENCY_MISSING + 其他成功 Edge 仍 commit
-- [ ] 11.12 在 test_sync_segment_commit.py 加：重复 op_id → 标记为 `duplicate_operation_id_skipped`
-- [ ] 11.13 在 test_sync_segment_commit.py 加：delete batch → 验证 Edge → Node → Board 逆序执行
+- [x] 11.1 在 `backend/app/models/sync_models.py` 新增 `SyncDependencyError` 自定义异常类
+- [x] 11.2 在 `backend/app/services/sync_service.py` 新增 `_deduplicate_by_operation_id(ops) -> (unique, duplicates)` — 返回 tuple 直接携带 VALIDATION_ERROR 结果
+- [x] 11.3 新增 `_partition_by_entity_type(ops) -> list[list[SyncOperation]]` — 根据 all-delete 判断顺序 (upsert Board→Node→Edge, delete Edge→Node→Board)
+- [x] 11.4 改写 `process_sync_batch` 为 3 段独立事务结构（详见 design.md D7 代码）— 实现完毕 + 增加 _classify_exception 和 _sanitize_error_message 辅助方法
+- [x] 11.5 Board/Node 段实现"原子提交 + 任一失败 rollback + 后续段标记 DEPENDENCY_MISSING" — test_node_segment_failure_aborts_edge_segment 验证
+- [x] 11.6 Edge 段实现"per-op try/except + 至少一个成功才 commit"（保留 AC-7 精神）— test_edge_segment_partial_failure_still_commits 验证
+- [x] 11.7 修改 `_upsert_edge` 使用 OPTIONAL MATCH + CALL 子查询 + status='missing' 返回 — test_optional_match_missing_status_raises 验证
+- [x] 11.8 修改 `_upsert_edge` 在 Cypher 之前校验 payload 非空 source/target — test_missing_source_in_payload_raises_before_cypher 验证（Neo4j 零交互）
+- [x] 11.9 新建 `backend/tests/unit/test_sync_segment_commit.py`：构造乱序 batch [edge, node] → Segment 提交后 edge 在 Node Segment 之后成功创建 — test_out_of_order_batch_executes_node_before_edge
+- [x] 11.10 Segment 2 Node 失败 → Segment 3 所有 Edge op 标记为 DEPENDENCY_MISSING — test_node_segment_failure_aborts_edge_segment
+- [x] 11.11 Segment 3 内某个 Edge 缺端点 → 该 Edge 标记 DEPENDENCY_MISSING + 其他成功 Edge 仍 commit — test_edge_segment_partial_failure_still_commits
+- [x] 11.12 重复 op_id → 标记为 `duplicate_operation_id_skipped` — test_duplicate_op_id_marked_skipped + test_duplicate_op_id_in_batch_skipped_not_executed
+- [x] 11.13 delete batch → 验证 Edge → Node → Board 逆序执行 — test_delete_order_is_edge_node_board
+# 13 tests pass (Phase 3 + 11 complete)
 
 ## 12. SyncErrorClass + 前端错误回流（Phase 12，Week 2 Day 3-4）
 

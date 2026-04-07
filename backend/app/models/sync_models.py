@@ -17,9 +17,34 @@ actionable error.
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from enum import Enum
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
+
+
+# FR-KG-04 Phase 11: exception class for missing upstream entities
+# Raised by SyncService._upsert_edge when source/target CanvasNode is absent.
+class SyncDependencyError(Exception):
+    """Raised when a sync operation depends on an entity that is missing
+    or failed upstream in the Segment Commit pipeline."""
+
+
+# FR-KG-04 Phase 12: per-operation error classification enum.
+# The frontend sync-engine.ts uses this to decide retry strategy:
+#   VALIDATION_ERROR   → permanently failed, never retry
+#   DEPENDENCY_MISSING → retry with priority 1 after upstream succeeds
+#   TRANSIENT_ERROR    → exponential backoff retry
+class SyncErrorClass(str, Enum):
+    """Three-value classification of per-operation sync failures.
+
+    Values are str-backed so JSON serialization is straightforward and
+    the frontend can switch on them as string literals.
+    """
+
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    DEPENDENCY_MISSING = "DEPENDENCY_MISSING"
+    TRANSIENT_ERROR = "TRANSIENT_ERROR"
 
 
 # FR-KG-04 Phase 13 size budgets — chosen to match real-world canvas use cases
@@ -128,12 +153,27 @@ class SyncBatchRequest(BaseModel):
 class SyncOperationResult(BaseModel):
     """Result of a single sync operation.
 
+    FR-KG-04 Phase 12 (Task 12.2): ``error_class`` is attached whenever
+    ``success=False`` so the frontend sync-engine can pick a retry strategy
+    without inspecting the human-readable ``error`` string. When
+    ``success=True`` the field is omitted/null.
+
     [Source: Story 1.5 AC-7 — partial success support]
     """
 
     operation_id: str = Field(..., description="Matches the request operation_id")
     success: bool = Field(..., description="Whether the operation succeeded")
     error: str | None = Field(default=None, description="Error message if failed")
+    error_class: Optional[SyncErrorClass] = Field(
+        default=None,
+        description=(
+            "FR-KG-04 Phase 12: classification of the failure. "
+            "VALIDATION_ERROR → permanently failed; "
+            "DEPENDENCY_MISSING → retry with priority; "
+            "TRANSIENT_ERROR → exponential backoff. "
+            "Null/absent when success=True."
+        ),
+    )
 
 
 class SyncBatchResponse(BaseModel):
