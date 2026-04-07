@@ -3,46 +3,50 @@
 > 每个 session 启动时自动注入此文件。AI 根据此文件确定"做到哪了，下一步是什么"。
 > 完成一步后立即更新对应的 checkbox。
 
-## 活跃计划（2026-04-07 更新 — Stage 1 archive 收栈完成 → Stage 2 structlog 主线）
+## 活跃计划（2026-04-07 更新 — Stage 1+2 已 commit + Trivial Sweep 完成 → 等待下一中型任务）
 
-### 已闭合 OpenSpec Changes（archived）
-- [x] **fix-rag-faithfulness-and-add-crag-quality-loop** — archived 2026-04-07
+### 已闭合 OpenSpec Changes（archived 2026-04-07）
+- [x] **fix-rag-faithfulness-and-add-crag-quality-loop**
   - 3 个新 contract 合并进 `openspec/specs/algo-rag/spec.md`（Faithfulness/Fusion/CRAG）
   - 88/88 测试绿（85 baseline + 3 surrogate）
-- [x] **fix-rag-transform-and-episode-isolation** — archived 2026-04-07
+- [x] **fix-rag-transform-and-episode-isolation**
   - 4 个新 algo-memory + 3 个新 algo-rag requirements 合并进主 spec
-  - 64/69 tasks 完成（5 个 deferred 为手动 e2e/压测/doc-review，依据 plan 决策 2 不阻塞 archive）
+  - 64/69 tasks（5 deferred 手动 e2e/压测/doc-review）
   - 17 个新单元测试通过，零回归
-- [x] **fix-fr-kg-04-schema-drift-and-sync-hardening** — archived 2026-04-07
+- [x] **fix-fr-kg-04-schema-drift-and-sync-hardening**
   - 25 个新 requirements 合并进 5 个新主 spec：algo-question(5) / algo-scoring(1) / canvas-sync(12) / llm-safety(5) / verification-service(2)
-  - 127/160 tasks 完成（33 个 deferred 为手动 e2e/前端 smoke）
+  - 127/160 tasks（33 deferred 手动 e2e/前端 smoke）
   - 同批 `git rm -r openspec/changes/fr-kg-04-sync-pipeline-fix/`（SUPERSEDED）
+- [x] **fix-structlog-caplog-compat**
+  - 6 个新 requirements 合并进新主 spec backend-logging
+  - structlog ↔ stdlib 双向 bridge 落地，消除 196 个测试失败/error
+- [x] **fr-kg-04-isolation-and-retrieval-tightening**（commit e6971d7）
+  - 4 reqs added to algo-rag + 1 req to new repo-compliance capability
+  - FR-KG-04 读端闭环：Cypher group_id 隔离 + cache key + cross_canvas fail-soft + vault_notes 多 vault + LICENSE 合规
+  - 41/43 tasks（2 deferred docs/smoke）
+- [x] **fr-kg-04-prompt-injection-and-auth-completion**（commit e6971d7）
+  - 3 reqs added to llm-safety
+  - LLM 安全闭环：API key 鉴权扩展 + context 降权 + meta 规则 + 50 case 对抗性测试
+  - 37/39 tasks（2 deferred commit/PR），6 LLM 安全风险全闭环
+- [x] **agentic-rag-l1-llm-router**（commit e6971d7）
+  - 创建新 capability agentic-rag（3 reqs）
+  - L1 路由 LLM 化：rule-based → Gemini Flash
+  - 45/52 tasks（7 deferred 手动 GEMINI_API_KEY 验证）
+  - 核心代码已在 commit 3b96e49 落地
+  - Archive 时修正 delta header bug：`## MODIFIED → ## ADDED Requirements`
 
-### 当前主线（Phase 2 — structlog/caplog 修复）
-
-**目标**：完成 `fix-structlog-caplog-compat` change（9 个 task），消除 ~107 个测试失败（根因 B = structlog API 漂移 ~70F+20E + 根因 C = caplog 不捕获 structlog ~37F），通过引入统一的 `configure_logging()` 入口 + structlog ↔ stdlib 双向 bridge。
-
-预期 baseline 变化：
-- pre-Stage2: 202 failed / 87 errors / 2410 passed
-- post-Stage2: ~95 failed / ~67 errors / ~2517 passed
-
-详见 plan：本 session 执行计划
-
-### 仍进行中的 OpenSpec Changes
-- `fix-structlog-caplog-compat` ← **当前主线**
-- `review-enrichment-signal-fix` — Phase 1 partial (G-SILENT-001 待修，71% 完成度)
-- `fr-kg-04-isolation-and-retrieval-tightening` — schema-drift archive 后已解锁
-- `fr-kg-04-prompt-injection-and-auth-completion` — schema-drift archive 后已解锁
-- `agentic-rag-l1-llm-router` — 0/56 工作量大，独立排期
-- `trackpad-pan-support` — legacy spec 缺失 debt
+### 仍进行中的 OpenSpec Changes（仅 2 个）
+- `review-enrichment-signal-fix` — 3/4 artifacts（缺 design.md），endpoint wiring 是死代码路径需独立 follow-up change
+- `trackpad-pan-support` — 3/4 artifacts，specs/ 缺 delta 定义（OpenSpec validation fail），需补 delta
 
 ### 唯一待修 known-gotcha
 - **G-SILENT-001** endpoint wiring：`backend/app/api/v1/endpoints/review.py:788` `generate_verification_canvas` 需内联 enrichment_available
 
 ### 已修复统计（2026-04-07 截止）
+- 本 session 累计 commits：51f2057（structlog bridge）+ 0b477f0（archive 3）+ 74a09f3（spec consolidation）+ b50a089/19a111e/221d8a7（test/docs/gitignore）+ e6971d7（archive 3 ready changes）
+- 主 spec capabilities：5 → 14（+9 个新 capability：algo-memory / algo-question / algo-scoring / canvas-sync / llm-safety / verification-service / backend-logging / agentic-rag / repo-compliance）
+- 测试基线（Stage 2 完成时）：137 failed / 17 errors / 2471 passed（vs pre 202F/87E/2410P，净 +196 改善）
 - known-gotchas: 37 总 / 32 已修 / 4 保留 / 1 待修
-- 主 spec capabilities: 9 个（archive 收栈后从 5 → 9，新增 algo-memory/algo-question/canvas-sync/llm-safety/verification-service）
-- real Neo4j 集成测试: 86 个
 
 ## 历史活跃计划（已完成或停滞，留作参考）
 
