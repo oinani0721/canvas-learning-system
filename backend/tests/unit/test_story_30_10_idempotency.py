@@ -122,6 +122,18 @@ class TestBatchDeterministicEpisodeId:
 # ============================================================================
 
 
+# fix-test-infra-paralysis Phase 2: skip — TestEpisodesDedup, TestBatchEpisodesDedup,
+# and TestGraphitiJsonWriteDedup all rely on the deleted symbol
+# `MemoryService._write_to_graphiti_json_with_retry` (either directly via call or
+# indirectly via mock chains that no longer match the new EpisodeWorker pipeline).
+# The dedup semantics they tested moved to GraphitiEpisodeWorker; the new
+# baseline is in backend/tests/unit/test_episode_worker_retry.py.
+# TestDeterministicEpisodeId and TestBatchDeterministicEpisodeId remain active —
+# they only test pure hash logic and have no dependency on the deleted method.
+@pytest.mark.skip(
+    reason="Depends on deleted MemoryService._write_to_graphiti_json_with_retry; "
+    "EpisodeWorker pipeline coverage in test_episode_worker_retry.py"
+)
 class TestEpisodesDedup:
     """AC-30.10.3: _episodes list dedup on record_learning_event."""
 
@@ -241,6 +253,10 @@ class TestEpisodesDedup:
 # ============================================================================
 
 
+@pytest.mark.skip(
+    reason="Depends on deleted MemoryService._write_to_graphiti_json_with_retry; "
+    "EpisodeWorker pipeline coverage in test_episode_worker_retry.py"
+)
 class TestBatchEpisodesDedup:
     """AC-30.10.4: Batch episodes dedup."""
 
@@ -318,6 +334,10 @@ class TestBatchEpisodesDedup:
 # ============================================================================
 
 
+@pytest.mark.skip(
+    reason="Tests deleted method MemoryService._write_to_graphiti_json_with_retry directly; "
+    "EpisodeWorker pipeline coverage in test_episode_worker_retry.py"
+)
 class TestGraphitiJsonWriteDedup:
     """AC-30.10.2: Graphiti JSON write dedup via search check."""
 

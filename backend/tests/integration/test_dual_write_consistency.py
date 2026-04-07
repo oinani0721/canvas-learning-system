@@ -20,6 +20,17 @@ import pytest
 
 from tests.conftest import wait_for_condition
 
+# fix-test-infra-paralysis Phase 2: skip whole module —
+# `_write_to_graphiti_json_with_retry` is deleted; dual-write consistency
+# semantics moved to GraphitiEpisodeWorker (see test_episode_worker_retry.py
+# for the new contract). This integration test would need an EpisodeWorker
+# fixture + a mock graphiti client to be re-implemented; tracked separately.
+pytestmark = pytest.mark.skip(
+    reason="MemoryService._write_to_graphiti_json_with_retry deleted by "
+    "fix-rag-transform-and-episode-isolation; dual-write consistency under "
+    "EpisodeWorker pipeline needs separate integration test design"
+)
+
 # =============================================================================
 # AC-31.A.5.3: Dual Write Consistency Tests
 # [Source: docs/stories/31.A.5.story.md#AC-31.A.5.3]

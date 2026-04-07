@@ -262,6 +262,16 @@ class TestCanvasServiceEdgeSyncFailure:
 # ============================================================================
 
 
+# fix-test-infra-paralysis Phase 2: skip — class tests deleted methods
+# `_write_to_graphiti_json` and `_write_to_graphiti_json_with_retry` directly.
+# Both methods removed by fix-rag-transform-and-episode-isolation; dual-write
+# pipeline is now `MemoryService._enqueue_episode → GraphitiEpisodeWorker`.
+# Failure observability for the new path: covered by test_episode_worker_retry.py
+# (dead-letter scenario asserts metrics + JSONL fields).
+@pytest.mark.skip(
+    reason="Tests deleted MemoryService._write_to_graphiti_json[_with_retry] directly; "
+    "EpisodeWorker dead-letter coverage in test_episode_worker_retry.py"
+)
 class TestMemoryServiceDualWriteFailure:
     """Test that dual-write failures increment counter + write dead-letter."""
 

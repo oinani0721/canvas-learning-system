@@ -134,26 +134,34 @@ pre-push:
   parallel: true
   commands:
     # --- Frontend test: Run vitest before push ---
+    # fix-test-infra-paralysis Phase 0.2: invocation goes through
+    # scripts/run_cmd_capture.sh so non-zero vitest exit codes are NOT swallowed
+    # by `| tail`. POSIX pipe semantics return only the rightmost command's
+    # exit status, which is why the previous version silently let failing
+    # tests through pre-push.
     frontend-test:
       glob: "frontend/src/**/*.{ts,tsx}"
       run: |
         if [ -d "frontend/node_modules" ]; then
           echo "[Pre-push] Running frontend tests..."
-          cd frontend && npx vitest run --run 2>&1 | tail -20
+          ./scripts/run_cmd_capture.sh --cwd frontend --tail 120 -- npx vitest run --run
           echo "[Pre-push] Frontend tests done."
         fi
 
     # --- Backend smoke test: Quick test before push ---
+    # fix-test-infra-paralysis Phase 0.2: same wrapper rationale as
+    # frontend-test. Wrapper propagates pytest's original exit code so
+    # `git push` is correctly aborted when unit tests fail.
     backend-smoke:
       run: |
         if command -v python &> /dev/null && [ -d "backend" ]; then
           echo "[Pre-push] Running backend smoke tests..."
-          cd backend
-          python -m pytest tests/unit/ \
-            -m "not integration" \
-            -x -q --tb=line \
-            --no-header \
-            -p no:cacheprovider \
-            --override-ini="addopts=" 2>&1 | tail -5
+          ./scripts/run_cmd_capture.sh --cwd backend --tail 120 -- \
+            python -m pytest tests/unit/ \
+              -m "not integration" \
+              -x -q --tb=line \
+              --no-header \
+              -p no:cacheprovider \
+              --override-ini="addopts="
           echo "[Pre-push] Backend tests done."
         fi
