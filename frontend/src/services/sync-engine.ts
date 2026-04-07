@@ -93,30 +93,43 @@ export class SyncEngine {
     }, DEBOUNCE_MS);
   }
 
-  /** Main sync loop: consume outbox entries in batches. */
+  /** Main sync loop: consume outbox entries in batches.
+   *
+   * FR-KG-04 Phase 12 Tasks 12.11-12.12: pending queue is now sensitive to
+   * the failure-tracking fields added in schema v6:
+   *   - permanentlyFailed=true entries are skipped entirely (no poll will
+   *     ever touch them again; the user must explicitly clear them)
+   *   - entries with nextRetryAt in the future are skipped this cycle
+   *   - remaining entries are sorted by retryPriority DESC so
+   *     DEPENDENCY_MISSING retries jump the queue ahead of normal entries
+   */
   private async processOutbox() {
     if (this.state === 'syncing') return;
     if (this.state === 'offline') return;
 
-    // Get pending entries (not yet synced)
-    const pending = await db.sync_outbox
-      .where('syncedAt')
-      .equals('')
-      .or('syncedAt')
-      .equals(undefined as unknown as string)
-      .toArray()
-      .catch(() =>
-        // Fallback: get all entries without syncedAt
-        db.sync_outbox.filter((e) => !e.syncedAt).toArray(),
-      );
+    // Collect all pending entries (not yet synced, not permanently failed).
+    // Dexie's filter() runs in JavaScript, which is fine for outbox sizes
+    // we expect (hundreds, not millions) and lets us use the full type-safe
+    // predicate API.
+    const nowIso = new Date().toISOString();
+    const allPending: SyncOutboxEntry[] = await db.sync_outbox
+      .filter((entry) => {
+        if (entry.syncedAt) return false;
+        if (entry.permanentlyFailed === true) return false;
+        if (entry.nextRetryAt && entry.nextRetryAt > nowIso) return false;
+        return true;
+      })
+      .toArray();
 
-    // Also try getting entries that were never synced (syncedAt is undefined)
-    let allPending: SyncOutboxEntry[];
-    try {
-      allPending = await db.sync_outbox.filter((e) => !e.syncedAt).toArray();
-    } catch {
-      allPending = pending;
-    }
+    // Sort by retryPriority DESC (1 → 0), then by createdAt ASC so older
+    // entries go first. DEPENDENCY_MISSING entries get retryPriority=1 and
+    // therefore jump ahead of normal (priority=0 or undefined) entries.
+    allPending.sort((a, b) => {
+      const priA = a.retryPriority ?? 0;
+      const priB = b.retryPriority ?? 0;
+      if (priA !== priB) return priB - priA;
+      return a.createdAt.localeCompare(b.createdAt);
+    });
 
     this.pendingCount = allPending.length;
     this.notify();
@@ -224,16 +237,77 @@ export class SyncEngine {
 
       try {
         const response = await this.apiClient.syncBatch(request);
-        // Mark successful entries as synced
+        // FR-KG-04 Phase 12 Tasks 12.7-12.10: per-op error_class routing.
+        //
+        // Walk every result and update the matching outbox entry based on
+        // the backend's SyncErrorClass verdict:
+        //   success              → mark synced
+        //   VALIDATION_ERROR     → permanentlyFailed=true, never retry
+        //   DEPENDENCY_MISSING   → retryPriority=1, jumps the queue
+        //   TRANSIENT_ERROR      → exponentialBackoff(retryCount)
+        //   undefined (old API)  → fall through to TRANSIENT behavior
         const syncedAt = new Date().toISOString();
-        const successIds = response.results
-          .filter((r) => r.success)
-          .map((r) => r.operationId);
-
+        // Index groupEntries by their outbox id for O(1) lookup
+        const entryById = new Map<string, (typeof groupEntries)[0]>();
         for (const entry of groupEntries) {
           const opId = entry.id?.toString() ?? '';
-          if (successIds.includes(opId)) {
-            await db.sync_outbox.update(entry.id!, { syncedAt });
+          if (opId) entryById.set(opId, entry);
+        }
+
+        for (const result of response.results) {
+          const entry = entryById.get(result.operationId);
+          if (!entry || entry.id == null) continue;
+
+          if (result.success) {
+            await db.sync_outbox.update(entry.id, { syncedAt });
+            continue;
+          }
+
+          const errorClass = result.errorClass ?? 'TRANSIENT_ERROR';
+          const lastError = (result.error ?? '').slice(0, 200);
+
+          switch (errorClass) {
+            case 'VALIDATION_ERROR':
+              // Payload itself is wrong — retrying is a dead-end waste of
+              // round-trips and will never change outcome. Mark permanent.
+              await db.sync_outbox.update(entry.id, {
+                permanentlyFailed: true,
+                failureClass: 'VALIDATION_ERROR',
+                lastError,
+              });
+              break;
+
+            case 'DEPENDENCY_MISSING':
+              // Upstream entity (node/board) hasn't synced yet — bump the
+              // priority so this entry gets retried first in the next poll.
+              // Do NOT set permanentlyFailed: the retry might succeed once
+              // the upstream catches up.
+              await db.sync_outbox.update(entry.id, {
+                failureClass: 'DEPENDENCY_MISSING',
+                retryPriority: 1,
+                lastError,
+              });
+              break;
+
+            case 'TRANSIENT_ERROR':
+            default: {
+              // Neo4j driver hiccup or similar — exponential backoff.
+              // We approximate retryCount from how many times this entry
+              // has been seen with a nextRetryAt already set (stored on
+              // the row itself). The backoff base is 2s, doubling.
+              const currentRetries = entry.nextRetryAt ? 1 : 0;
+              const delayMs =
+                BASE_RETRY_MS * Math.pow(2, currentRetries);
+              const nextRetryAt = new Date(
+                Date.now() + delayMs,
+              ).toISOString();
+              await db.sync_outbox.update(entry.id, {
+                failureClass: 'TRANSIENT_ERROR',
+                nextRetryAt,
+                lastError,
+              });
+              break;
+            }
           }
         }
 
@@ -248,9 +322,6 @@ export class SyncEngine {
         if (response.syncedCount === 0 && response.failedCount > 0) {
           allSuccess = false;
         }
-        // FR-KG-04 fix: Removed else-branch that overwrote per-operation
-        // success tracking (lines 200-210) by marking ALL entries as synced.
-        // Failed operations now stay in outbox for retry on next poll cycle.
       } catch (err) {
         if (err instanceof SyncNetworkError) {
           console.warn('[SyncEngine] Network error:', err.message);

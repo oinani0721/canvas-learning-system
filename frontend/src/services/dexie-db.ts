@@ -56,6 +56,15 @@ export interface CanvasEdge {
   updatedAt: string;
 }
 
+/**
+ * SyncOutboxEntry — a pending sync operation awaiting the backend.
+ *
+ * FR-KG-04 Phase 12 Task 12.5: extended with 5 failure-tracking fields so
+ * the sync-engine can route each failure into the right retry bucket
+ * (permanent / priority / backoff). Optional fields stay backwards
+ * compatible with entries written before the schema v6 upgrade — the
+ * Dexie upgrade callback backfills defaults where needed.
+ */
 export interface SyncOutboxEntry {
   id?: number;
   entityType: 'node' | 'edge' | 'board';
@@ -64,6 +73,37 @@ export interface SyncOutboxEntry {
   payload: Record<string, unknown>;
   createdAt: string;
   syncedAt?: string;
+  /**
+   * FR-KG-04 Phase 12: VALIDATION_ERROR path marks the entry permanently
+   * failed so the sync-engine skips it on every future poll. This is how
+   * we stop wasting round-trips on payloads that will never succeed
+   * (missing fields, oversized content, unique-constraint violations).
+   */
+  permanentlyFailed?: boolean;
+  /**
+   * FR-KG-04 Phase 12: the SyncErrorClass the backend returned for the
+   * most recent failure. Used to classify UI error messages and for
+   * observability/metrics downstream.
+   */
+  failureClass?: 'VALIDATION_ERROR' | 'DEPENDENCY_MISSING' | 'TRANSIENT_ERROR';
+  /**
+   * FR-KG-04 Phase 12: DEPENDENCY_MISSING path bumps this to 1 so the
+   * entry jumps the queue in the next poll — once its upstream node
+   * syncs, the edge retry has the best chance of succeeding. Default 0.
+   */
+  retryPriority?: number;
+  /**
+   * FR-KG-04 Phase 12: TRANSIENT_ERROR path schedules the next retry via
+   * exponential backoff. ISO-8601 timestamp; the sync-engine skips the
+   * entry until current time crosses this value.
+   */
+  nextRetryAt?: string;
+  /**
+   * FR-KG-04 Phase 12: the last error message the backend returned,
+   * truncated to ≤200 chars. Shown in the UI when the user opens a
+   * failed outbox entry for diagnostics.
+   */
+  lastError?: string;
 }
 
 /**
@@ -221,6 +261,45 @@ class CanvasLearningDB extends Dexie {
       crash_recovery: 'id, nodeId',
       exam_sessions: 'id, sourceCanvasId, status, createdAt',
     });
+
+    // v6: FR-KG-04 Phase 12 Task 12.5-12.6 — sync_outbox gains failure
+    // tracking fields (permanentlyFailed, failureClass, retryPriority,
+    // nextRetryAt, lastError). Only permanentlyFailed and retryPriority
+    // are indexed so the sync-engine's ordering query can use
+    // `sync_outbox.where('permanentlyFailed').notEqual(true)` efficiently
+    // and sort by retryPriority DESC without a table scan.
+    this.version(6)
+      .stores({
+        canvas_boards: 'id, name, subjectId, createdAt, updatedAt',
+        canvas_nodes:
+          'id, canvasId, type, title, x, y, indexStatus, createdAt, updatedAt',
+        canvas_edges:
+          'id, canvasId, sourceNodeId, targetNodeId, createdAt, updatedAt',
+        sync_outbox:
+          '++id, entityType, entityId, operation, createdAt, syncedAt, permanentlyFailed, retryPriority, nextRetryAt',
+        chat_messages: 'id, nodeId, role, createdAt',
+        crash_recovery: 'id, nodeId',
+        exam_sessions: 'id, sourceCanvasId, status, createdAt',
+      })
+      .upgrade(async (tx) => {
+        // Backfill defaults on every pre-v6 sync_outbox entry so that
+        // `where('permanentlyFailed').notEqual(true)` queries find them
+        // (Dexie's indexing treats undefined as equal to neither true
+        // nor false).
+        await tx
+          .table<SyncOutboxEntry>('sync_outbox')
+          .toCollection()
+          .modify((entry) => {
+            if (entry.permanentlyFailed === undefined) {
+              entry.permanentlyFailed = false;
+            }
+            if (entry.retryPriority === undefined) {
+              entry.retryPriority = 0;
+            }
+            // failureClass / nextRetryAt / lastError stay undefined on
+            // upgrade — they only appear on the next real failure.
+          });
+      });
   }
 }
 

@@ -25,8 +25,38 @@ export interface HealthResponse { status: 'healthy' | 'degraded' | 'unhealthy'; 
 export interface ImageIndexResult { nodeId: string; ocrText: string; summary: string; concepts: string[]; processingTimeMs: number }
 export interface SyncOperation { operationId: string; entityType: 'node' | 'edge' | 'board'; entityId: string; operation: 'create' | 'update' | 'delete'; payload: Record<string, unknown>; timestamp: string }
 export interface SyncBatchRequest { canvasId: string; subjectId?: string | null; operations: SyncOperation[] }
-export interface SyncOperationResult { operationId: string; success: boolean; error?: string | null }
-export interface SyncBatchResponse { results: SyncOperationResult[]; syncedCount: number; failedCount: number }
+/**
+ * FR-KG-04 Phase 12: three-value error classification for sync operations.
+ * The backend attaches one of these to every failed op so the sync-engine
+ * can pick a retry strategy without parsing the human-readable error string.
+ */
+export type SyncErrorClass =
+  | 'VALIDATION_ERROR'
+  | 'DEPENDENCY_MISSING'
+  | 'TRANSIENT_ERROR';
+
+export interface SyncOperationResult {
+  operationId: string;
+  success: boolean;
+  error?: string | null;
+  /**
+   * FR-KG-04 Phase 12: failure classification. Optional so older backends
+   * that do not yet emit this field still work (the sync-engine falls back
+   * to TRANSIENT behavior when undefined).
+   */
+  errorClass?: SyncErrorClass | null;
+  /**
+   * fix-rag-transform-and-episode-isolation Phase 6: entity metadata
+   * echoed back for memory-event dispatch. Optional.
+   */
+  entityType?: 'node' | 'edge' | 'board' | null;
+  entityId?: string | null;
+}
+export interface SyncBatchResponse {
+  results: SyncOperationResult[];
+  syncedCount: number;
+  failedCount: number;
+}
 export interface Recommendation { id: string; sourceNodeId: string; sourceNodeTitle: string; targetNodeId: string; targetNodeTitle: string; confidence: number; reason: string; suggestedLabel: string }
 export interface RecommendationResponse { recommendations: Recommendation[]; canvasId: string; analyzedAt: string }
 export interface ProfileSummary { conceptId: string; name: string; masteryLevel: number; masteryLabel: string; masteryColor: string; effectiveProficiency: number; prescriptiveMessage: string; interactionCount: number; examCount: number; lastExamDate: string | null; fsrsDueDate: string | null; freshness: string }

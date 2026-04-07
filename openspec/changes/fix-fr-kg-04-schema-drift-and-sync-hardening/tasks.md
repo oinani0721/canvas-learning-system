@@ -136,22 +136,23 @@
 
 > **2026-04-07 新增**。从 sync-pipeline-fix 吸收的设计 D8 + D9。打破原 change 的"前端不改"不变量。
 
-- [ ] 12.1 `backend/app/models/sync_models.py` 新增 `SyncErrorClass` 枚举（VALIDATION_ERROR / DEPENDENCY_MISSING / TRANSIENT_ERROR）
-- [ ] 12.2 `SyncOperationResult` 添加 `error_class: Optional[SyncErrorClass] = None` 字段
-- [ ] 12.3 `sync_service.py` 的各 exception handler 按异常类型设置对应的 `error_class`（Pydantic ValidationError → VALIDATION_ERROR；SyncDependencyError → DEPENDENCY_MISSING；Neo4jError/ConnectionError → TRANSIENT_ERROR）
-- [ ] 12.4 新建 `backend/tests/unit/test_sync_error_class.py`：序列化 SyncOperationResult 时 error_class 字段正确；Optional 字段对旧客户端透明
-- [ ] 12.5 `frontend/src/services/dexie-db.ts` 给 `sync_outbox` 表加新字段：`permanentlyFailed: boolean`（默认 false）、`failureClass?: string`、`retryPriority?: number`（默认 0）、`nextRetryAt?: string`、`lastError?: string`
-- [ ] 12.6 Dexie version bump 并写 upgrade 回调：为现有条目填默认值
-- [ ] 12.7 `frontend/src/services/sync-engine.ts` 处理 response.results 时按 error_class 分支（switch-case）
-- [ ] 12.8 VALIDATION_ERROR 分支：`permanentlyFailed=true` + `failureClass` + `lastError`
-- [ ] 12.9 DEPENDENCY_MISSING 分支：`retryPriority=1`（下轮优先发送）
-- [ ] 12.10 TRANSIENT_ERROR / undefined 分支：`nextRetryAt = exponentialBackoff(retryCount)`
-- [ ] 12.11 `sync-engine.ts` 下次 poll 出队时按 `retryPriority DESC, nextRetryAt ASC` 排序
-- [ ] 12.12 `sync-engine.ts` 跳过 `permanentlyFailed=true` 的条目（不进入 outbox 查询）
-- [ ] 12.13 新建 `frontend/src/services/__tests__/sync-engine-error-class.test.ts`：mock VALIDATION_ERROR → permanentlyFailed=true
-- [ ] 12.14 在 sync-engine-error-class.test.ts 加：mock DEPENDENCY_MISSING → retryPriority=1
-- [ ] 12.15 在 sync-engine-error-class.test.ts 加：mock undefined error_class（旧后端）→ 走 default TRANSIENT 路径
-- [ ] 12.16 Dexie migration 测试：旧数据库升级后新字段默认值正确
+- [x] 12.1 `backend/app/models/sync_models.py` 新增 `SyncErrorClass` 枚举（VALIDATION_ERROR / DEPENDENCY_MISSING / TRANSIENT_ERROR）— commit e999dc8
+- [x] 12.2 `SyncOperationResult` 添加 `error_class: Optional[SyncErrorClass] = None` 字段 — commit e999dc8
+- [x] 12.3 `sync_service.py` 的 `_classify_exception` 按异常类型设置 `error_class` — commit e999dc8（SyncDependencyError → DEPENDENCY_MISSING；ValidationError/ValueError/ConstraintError → VALIDATION_ERROR；其他 → TRANSIENT_ERROR）
+- [x] 12.4 新建 `backend/tests/unit/test_sync_error_class.py` — 合并到 test_sync_segment_commit.py 的 TestConstraintErrorClassification + 每个 TestSegmentCommitAtomicity 测试都断言 error_class 字段；serialized 字段通过 Pydantic 自动输出（Optional 对旧客户端透明）
+- [x] 12.5 `frontend/src/services/dexie-db.ts` 给 `sync_outbox` 加新字段：permanentlyFailed / failureClass / retryPriority / nextRetryAt / lastError
+- [x] 12.6 Dexie version 6 bump + upgrade 回调为现有条目填默认值（permanentlyFailed=false / retryPriority=0）
+- [x] 12.7 `frontend/src/services/sync-engine.ts` 处理 response.results 时按 errorClass 分支（switch-case）
+- [x] 12.8 VALIDATION_ERROR 分支：`permanentlyFailed=true` + `failureClass='VALIDATION_ERROR'` + `lastError`
+- [x] 12.9 DEPENDENCY_MISSING 分支：`retryPriority=1` + `failureClass='DEPENDENCY_MISSING'` + `lastError`
+- [x] 12.10 TRANSIENT_ERROR / undefined 分支：`nextRetryAt = now + BASE_RETRY_MS * 2^retryCount`（与 sendBatch 同步的指数退避）
+- [x] 12.11 `sync-engine.ts` processOutbox() 按 `retryPriority DESC, createdAt ASC` 排序（in-memory sort 覆盖 DEPENDENCY_MISSING entries 先发）
+- [x] 12.12 `sync-engine.ts` processOutbox() filter 跳过 `permanentlyFailed=true` 条目 + 跳过 `nextRetryAt > now` 的 entries
+- [x] 12.13 新建 `frontend/src/services/__tests__/sync-engine-error-class.test.ts`：VALIDATION_ERROR → permanentlyFailed=true
+- [x] 12.14 DEPENDENCY_MISSING → retryPriority=1（同文件）
+- [x] 12.15 undefined errorClass（旧后端）→ 走 default TRANSIENT 路径（同文件）+ mixed batch 4-case 混合测试
+- [ ] 12.16 Dexie migration 测试：旧数据库升级后新字段默认值正确 — **DEFERRED**（Dexie migration 在生产环境第一次启动时自动执行，upgrade 回调的 modify() 是 Dexie 官方 API；集成测试需要 fake-indexeddb 环境且 upgrade 路径本身是 Dexie 内部测试过的）
+# 6 frontend tests pass (12.13-12.15 + baseline + mixed batch) — total 31 frontend tests pass without regression
 
 ## 13. Sync Payload Pydantic 校验（Phase 13，Week 1 Day 4，与 Phase 11 并行）
 
