@@ -1064,6 +1064,14 @@ class ContextEnrichmentService:
 
         Formats historical learning memories as context for the agent prompt.
 
+        FR-KG-04 Phase 9 Task 9.4: scan every chunk's user_understanding
+        preview through ``check_input`` before concatenation. Because these
+        chunks originate from historical user notes and may be attacker-
+        controlled when shared vaults enter the picture, we cannot trust
+        them as "internal" data. Any chunk that trips the injection
+        classifier is replaced with a ``[filtered: suspicious content]``
+        marker so the downstream agent prompt never ingests it.
+
         [Source: Story 12.A.3 AC4 - Format learning memory relations for agent]
 
         Args:
@@ -1074,6 +1082,9 @@ class ContextEnrichmentService:
         """
         if not learning_results:
             return ""
+
+        # FR-KG-04 Phase 9 Task 9.4: import lazily to avoid circular imports
+        from app.middleware.prompt_injection_guard import check_input
 
         parts = ["--- 历史学习记忆 (Learning Memory) ---"]
 
@@ -1095,14 +1106,20 @@ class ContextEnrichmentService:
 
             parts.append(entry)
 
-            # Add brief understanding preview if available
+            # Add brief understanding preview if available.
+            # Phase 9 Task 9.4: scan before concatenation. The chunk may be
+            # attacker-controlled in shared-vault or imported-note flows.
             if understanding:
-                preview = (
-                    understanding[:100] + "..."
-                    if len(understanding) > 100
-                    else understanding
-                )
-                parts.append(f"  历史理解: {preview}")
+                understanding_check = check_input(understanding)
+                if understanding_check.is_blocked:
+                    parts.append("  历史理解: [filtered: suspicious content]")
+                else:
+                    preview = (
+                        understanding[:100] + "..."
+                        if len(understanding) > 100
+                        else understanding
+                    )
+                    parts.append(f"  历史理解: {preview}")
 
         return "\n".join(parts)
 

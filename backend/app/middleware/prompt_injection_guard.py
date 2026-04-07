@@ -22,6 +22,7 @@ References:
 
 import base64
 import codecs
+import hashlib
 import logging
 import os
 import re
@@ -72,7 +73,17 @@ class OutputCheckResult:
 
 
 class PromptTemplate:
-    """Enforces structural isolation between system and user messages."""
+    """Enforces structural isolation between system and user messages.
+
+    FR-KG-04 Phase 9 Task 9.1: the ``build()`` method now scans the
+    ``context`` parameter for prompt injection patterns. Retrieved context
+    (RAG chunks, vault notes, OCR text, external documents) used to be
+    concatenated into the user message without any scanning, giving an
+    attacker who controls a source document a direct channel to the
+    system prompt. We now apply the same ``check_input`` classifier the
+    user-input path uses, and replace flagged context with the safety
+    block message before it reaches the LLM.
+    """
 
     @staticmethod
     def build(system_prompt, user_input, context="", assistant_prefix=""):
@@ -83,6 +94,14 @@ class PromptTemplate:
             }
         ]
         if context:
+            # FR-KG-04 Phase 9 Task 9.1: scan retrieved context for indirect
+            # prompt injection. If the risk classifier blocks the context,
+            # replace it with the safety block message so the downstream
+            # LLM never sees the attacker-controlled content. The user input
+            # path is scanned independently at the client level.
+            ctx_check = check_input(context)
+            if ctx_check.is_blocked:
+                context = SAFETY_BLOCK_INPUT_MESSAGE
             messages.append(
                 {"role": "user", "content": f"Reference context:\n---\n{context}\n---"}
             )
@@ -431,7 +450,22 @@ def _sanitize_output(output, violations):
 
 
 def _log_injection_detection(result, input_text, latency_ms):
+    """Emit a structured log for every injection-detection event.
+
+    FR-KG-04 Phase 9 Task 9.5: log hashes, not raw input.
+
+    The previous implementation logged the first 100 chars of the input
+    via ``input_preview``. Attacker-controlled RAG chunks and user-typed
+    secrets (API keys, passwords pasted by mistake) would end up in
+    structured logs that may be persisted, tailed, or exported to remote
+    log aggregators. We now log a SHA-256 hex digest of the full input
+    plus the length — enough to correlate multiple hits of the same
+    input without leaking any content.
+    """
     try:
+        input_sha256 = hashlib.sha256(
+            input_text.encode("utf-8", errors="ignore")
+        ).hexdigest()
         struct_logger.warning(
             "injection_detection",
             check_type="prompt_injection",
@@ -439,9 +473,7 @@ def _log_injection_detection(result, input_text, latency_ms):
             is_blocked=result.is_blocked,
             matched_patterns=result.matched_patterns,
             input_length=len(input_text),
-            input_preview=input_text[:100] + "..."
-            if len(input_text) > 100
-            else input_text,
+            input_sha256=input_sha256,
             latency_ms=round(latency_ms, 2),
         )
     except (ValueError, TypeError, RuntimeError, OSError) as e:

@@ -241,9 +241,19 @@ class ClaudeClient:
         # Load agent prompt template
         template = self.load_prompt_template(agent_type)
 
-        # Build system prompt with optional context
+        # Build system prompt with optional context.
+        #
+        # FR-KG-04 Phase 9 Task 9.2: scan retrieved context for prompt
+        # injection before concatenating it into the system prompt. Without
+        # this scan, an attacker who controls an upstream RAG source can
+        # inject instructions that the model will obey as if they came from
+        # the platform operator. Blocked context is replaced with a fixed
+        # marker so the call proceeds with a degraded (but safe) prompt.
         system_prompt = template.system_prompt
         if context:
+            context_check = check_input(context)
+            if context_check.is_blocked:
+                context = "[filtered: suspicious content detected]"
             system_prompt = f"{system_prompt}\n\n## Additional Context\n{context}"
 
         # Build messages
@@ -340,9 +350,19 @@ class ClaudeClient:
         # Load agent prompt template
         template = self.load_prompt_template(agent_type)
 
-        # Build system prompt with optional context
+        # Build system prompt with optional context.
+        #
+        # FR-KG-04 Phase 9 Task 9.2: scan retrieved context for prompt
+        # injection before concatenating it into the system prompt. Without
+        # this scan, an attacker who controls an upstream RAG source can
+        # inject instructions that the model will obey as if they came from
+        # the platform operator. Blocked context is replaced with a fixed
+        # marker so the call proceeds with a degraded (but safe) prompt.
         system_prompt = template.system_prompt
         if context:
+            context_check = check_input(context)
+            if context_check.is_blocked:
+                context = "[filtered: suspicious content detected]"
             system_prompt = f"{system_prompt}\n\n## Additional Context\n{context}"
 
         # ✅ Verified from Context7:/anthropics/anthropic-cookbook (multimodal/best_practices_for_vision.ipynb)

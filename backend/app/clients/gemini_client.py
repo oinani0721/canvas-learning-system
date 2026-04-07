@@ -426,6 +426,13 @@ class GeminiClient:
         # Build system prompt with optional context
         system_prompt = template.system_prompt
         if context:
+            # FR-KG-04 Phase 9 Task 9.3: scan retrieved context for prompt
+            # injection before concatenating into the Gemini system prompt.
+            # Blocked content is replaced with a fixed marker so downstream
+            # LLM never ingests attacker-controlled instructions.
+            context_check = check_input(context)
+            if context_check.is_blocked:
+                context = "[filtered: suspicious content detected]"
             context_instruction = (
                 "\n\n## Context Usage Rules\n"
                 "下方的「Additional Context」包含了与当前内容相关的检索结果。\n\n"
@@ -603,6 +610,13 @@ class GeminiClient:
         # Build system prompt with optional context
         system_prompt = template.system_prompt
         if context:
+            # FR-KG-04 Phase 9 Task 9.3: scan retrieved context for prompt
+            # injection before concatenating into the Gemini system prompt.
+            # Blocked content is replaced with a fixed marker so downstream
+            # LLM never ingests attacker-controlled instructions.
+            context_check = check_input(context)
+            if context_check.is_blocked:
+                context = "[filtered: suspicious content detected]"
             context_instruction = (
                 "\n\n## Context Usage Rules\n"
                 "下方的「Additional Context」包含了与当前内容相关的检索结果。\n\n"
@@ -813,6 +827,13 @@ class GeminiClient:
         # Build system prompt with optional context
         system_prompt = template.system_prompt
         if context:
+            # FR-KG-04 Phase 9 Task 9.3: scan retrieved context for prompt
+            # injection before concatenating into the Gemini system prompt.
+            # Blocked content is replaced with a fixed marker so downstream
+            # LLM never ingests attacker-controlled instructions.
+            context_check = check_input(context)
+            if context_check.is_blocked:
+                context = "[filtered: suspicious content detected]"
             context_instruction = (
                 "\n\n## Context Usage Rules\n"
                 "下方的「Additional Context」包含了与当前内容相关的检索结果。\n\n"
