@@ -480,6 +480,8 @@ backend/.venv/bin/pytest \
 
 ### 11.5 ⚠️ 关键发现：arXiv 引用 scope drift
 
+**Update 2026-04-07 (post-ChatGPT Deep Research review)**: 三方并行 Explore agent 实测后修正本节框架。`grep -n 2408.04394 backend/app/services/verification_service.py` 返回 **0 处**——代码层并不存在引用错位。全部 5 处 `arXiv:2408.04394` 引用都在题目生成路径(`question_generator.py:6`、`:386`、`prompts/question_gen_v1.md:38`、`prompts/exam/layer1_role.md:3`、`prompts/exam/layer4_rules.md:4`)，那些位置正确。真正的 gap 是 **normal-path scoring 代码缺学术背书**：`agent_service.call_scoring` 在 `agent_service.py:3332-3341` 处在线构建 JSON prompt，docstring 无任何 peer-reviewed 引用，rubric 也没有版本号。"scope drift" 应理解为 a3-review-summary 自身的措辞精度问题(把"正常路径 scoring 缺背书"误描述为"代码层引用错位")，而非代码 bug。
+
 **诊断**：项目当前文档（包括第 8 节"社区认证视角"段落）引用的 `arXiv:2408.04394` 是 **question generation 论文**，**不涵盖 answer scoring**。把它作为"评分用 Bloom's Taxonomy prompt + scoring-agent"的学术背书，是 **scope drift**。
 
 **证据**：Agent 1 通过 WebSearch 阅读 arXiv:2408.04394 摘要 + 章节标题，确认该论文聚焦于 "automated question generation from educational content"，方法学讨论的是 prompt engineering for question diversity，**没有任何 answer evaluation rubric / scoring methodology 的内容**。
@@ -496,6 +498,8 @@ backend/.venv/bin/pytest \
 - 在 `verification_service.py` 调用 scoring-agent 的 docstring 里删除 `arXiv:2408.04394` 引用
 - 改为引用 `arXiv:2303.16634` (G-Eval) + `arXiv:2603.17373` (SafeTutors) 作为 fail-closed 设计的学术背书
 - 把 `arXiv:2408.04394` 留在 `question_generator.py`（题目生成，原本就该用这篇）
+
+→ 见 OpenSpec change `a3-phase0-scoring-citation-rectification` → `specs/algo-scoring/spec.md`，2 个新增 Requirement (`Normal-Path Scoring Rubric Citation Contract` + `Scoring Rubric Versioning Visibility`) 是该 gap 的正式 spec 契约。
 
 ### 11.6 推荐立场（三层）
 
