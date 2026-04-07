@@ -1,10 +1,17 @@
 # Canvas Learning System - Sync Models
 # Story 1.5: Canvas Data Sync to Backend KG (AC-7)
+# FR-KG-04 Phase 13: payload validation guards
 """
 Pydantic models for the canvas-to-Neo4j sync API.
 
 Defines the request/response schemas for batch sync operations
 that replicate IndexedDB canvas data into Neo4j.
+
+FR-KG-04 Phase 13 (openspec change fix-fr-kg-04-schema-drift-and-sync-hardening)
+adds boundary validation that rejects malformed payloads at ingress instead of
+letting them flow through the segment-commit pipeline. This prevents resource
+exhaustion (oversized fields, oversized batches) and gives the frontend a clear,
+actionable error.
 
 [Source: _bmad-output/implementation-artifacts/1-5-canvas-data-sync-backend-kg.md#Task 5]
 """
@@ -12,7 +19,14 @@ that replicate IndexedDB canvas data into Neo4j.
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+# FR-KG-04 Phase 13 size budgets — chosen to match real-world canvas use cases
+# and bounded so a malicious or buggy client cannot exhaust Neo4j memory.
+MAX_NODE_CONTENT_CHARS = 20000  # Task 13.3
+MAX_EDGE_LABEL_CHARS = 2000  # Task 13.4
+MAX_OPERATIONS_PER_BATCH = 500  # Task 13.5
 
 
 class SyncOperation(BaseModel):
@@ -40,6 +54,54 @@ class SyncOperation(BaseModel):
     )
     timestamp: datetime = Field(..., description="Frontend operation timestamp")
 
+    @model_validator(mode="after")
+    def _validate_payload(self) -> "SyncOperation":
+        """FR-KG-04 Phase 13 boundary validation.
+
+        Rules:
+        - edge create/update MUST carry source_node_id/target_node_id
+          (snake_case OR camelCase, since the frontend uses camelCase)
+        - node payload content length MUST be <= MAX_NODE_CONTENT_CHARS
+        - edge payload label length MUST be <= MAX_EDGE_LABEL_CHARS
+        - delete operations are exempt from endpoint requirements
+        """
+        payload = self.payload or {}
+
+        # Edge endpoint validation (Tasks 13.1, 13.2, 13.9)
+        if self.entity_type == "edge" and self.operation in ("create", "update"):
+            source = payload.get("source_node_id") or payload.get("sourceNodeId")
+            target = payload.get("target_node_id") or payload.get("targetNodeId")
+            if not source:
+                raise ValueError(
+                    "edge create/update payload missing source_node_id "
+                    "(also accepts camelCase sourceNodeId)"
+                )
+            if not target:
+                raise ValueError(
+                    "edge create/update payload missing target_node_id "
+                    "(also accepts camelCase targetNodeId)"
+                )
+
+        # Node content length cap (Task 13.3)
+        if self.entity_type == "node":
+            content = payload.get("content") or ""
+            if isinstance(content, str) and len(content) > MAX_NODE_CONTENT_CHARS:
+                raise ValueError(
+                    f"node content exceeds {MAX_NODE_CONTENT_CHARS} character limit "
+                    f"(got {len(content)})"
+                )
+
+        # Edge label length cap (Task 13.4)
+        if self.entity_type == "edge":
+            label = payload.get("label") or ""
+            if isinstance(label, str) and len(label) > MAX_EDGE_LABEL_CHARS:
+                raise ValueError(
+                    f"edge label exceeds {MAX_EDGE_LABEL_CHARS} character limit "
+                    f"(got {len(label)})"
+                )
+
+        return self
+
 
 class SyncBatchRequest(BaseModel):
     """Batch of sync operations from a single canvas.
@@ -52,7 +114,14 @@ class SyncBatchRequest(BaseModel):
         default=None, description="Subject UUID for multi-subject isolation (Story 1.9)"
     )
     operations: list[SyncOperation] = Field(
-        ..., min_length=1, description="Non-empty list of sync operations"
+        ...,
+        min_length=1,
+        max_length=MAX_OPERATIONS_PER_BATCH,
+        description=(
+            f"Sync operations list (1..{MAX_OPERATIONS_PER_BATCH}). "
+            "FR-KG-04 Phase 13 Task 13.5: cap at 500 to prevent unbounded "
+            "consumption."
+        ),
     )
 
 

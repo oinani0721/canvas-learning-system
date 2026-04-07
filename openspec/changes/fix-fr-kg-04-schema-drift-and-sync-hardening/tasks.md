@@ -155,15 +155,16 @@
 
 > **2026-04-07 新增**。从 sync-pipeline-fix 吸收的 Task 3。
 
-- [ ] 13.1 在 `backend/app/models/sync_models.py` 给 `SyncOperation` 添加 `model_validator(mode="after")` 校验
-- [ ] 13.2 校验 edge `create`/`update` 必须有 `source_node_id`/`sourceNodeId` 和 `target_node_id`/`targetNodeId`（snake_case 和 camelCase 双兼容）
-- [ ] 13.3 校验 node `content` 长度 ≤ 20000 字符
-- [ ] 13.4 校验 edge `label` 长度 ≤ 2000 字符
-- [ ] 13.5 `SyncBatchRequest.operations` 字段添加 `max_length=500`
-- [ ] 13.6 新建 `backend/tests/unit/test_sync_payload_validation.py`：缺 source → ValidationError
-- [ ] 13.7 在 test_sync_payload_validation.py 加：content 超长 → ValidationError
-- [ ] 13.8 在 test_sync_payload_validation.py 加：batch 超 500 条 → ValidationError
-- [ ] 13.9 在 test_sync_payload_validation.py 加：camelCase 字段名能通过校验
+- [x] 13.1 在 `backend/app/models/sync_models.py` 给 `SyncOperation` 添加 `model_validator(mode="after")` 校验
+- [x] 13.2 校验 edge `create`/`update` 必须有 `source_node_id`/`sourceNodeId` 和 `target_node_id`/`targetNodeId`（snake_case 和 camelCase 双兼容）
+- [x] 13.3 校验 node `content` 长度 ≤ 20000 字符 (MAX_NODE_CONTENT_CHARS constant)
+- [x] 13.4 校验 edge `label` 长度 ≤ 2000 字符 (MAX_EDGE_LABEL_CHARS constant)
+- [x] 13.5 `SyncBatchRequest.operations` 字段添加 `max_length=500` (MAX_OPERATIONS_PER_BATCH constant, plus min_length=1 preserved)
+- [x] 13.6 新建 `backend/tests/unit/test_sync_payload_validation.py`：缺 source → ValidationError (test_edge_missing_source_raises_validation_error + test_edge_missing_target_raises_validation_error)
+- [x] 13.7 在 test_sync_payload_validation.py 加：content 超长 → ValidationError (test_node_content_oversize_raises + test_node_content_at_limit_passes boundary)
+- [x] 13.8 在 test_sync_payload_validation.py 加：batch 超 500 条 → ValidationError (test_batch_with_501_ops_raises + test_batch_with_500_ops_passes boundary)
+- [x] 13.9 在 test_sync_payload_validation.py 加：camelCase 字段名能通过校验 (test_edge_with_camelcase_endpoints_passes)
+# 11 tests pass (Phase 13 complete)
 
 ## 14. 前端 sync-engine canvasId fallback 删除（Phase 14，Week 2 Day 4，与 Phase 12 并行）
 
