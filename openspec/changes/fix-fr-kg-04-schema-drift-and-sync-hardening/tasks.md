@@ -75,12 +75,12 @@
 
 ## 7. CONNECTS_TO 死代码弃用（Phase 7，Week 2 Day 3）
 
-- [ ] 7.1 运行 `grep -rn "CONNECTS_TO" backend/app/` 收集所有引用点
-- [ ] 7.2 运行 `grep -rn "_sync_edge_to_neo4j" backend/app/` 确认只有 `canvas_service.py` 自身引用
-- [ ] 7.3 将上述 grep 结果写入 `docs/project-status/fr-exploration/CONNECTS_TO-deprecation-evidence.md` 作为"零消费"证据
-- [ ] 7.4 在 `canvas_service._sync_edge_to_neo4j` 方法顶部添加 docstring `"""DEPRECATED v0.X.Y: CONNECTS_TO is bypassed by verification_service (see # FR-KG-04 fix comments). Will be removed in v0.(X+1).0."""`
-- [ ] 7.5 更新 `docs/known-gotchas.md` 添加 G-FAKE-XX 条目：`CONNECTS_TO write dead code, scheduled for removal next minor version`
-- [ ] 7.6 确认新版本号并记录在 `openspec/changes/fix-fr-kg-04-schema-drift-and-sync-hardening/deprecation-schedule.md`
+- [x] 7.1 运行 `grep -rn "CONNECTS_TO" backend/app/` 收集所有引用点 (9 refs: neo4j_client.py x4, neo4j_edge_client.py x2, canvas_service.py x2, verification_service.py x1 comment)
+- [x] 7.2 运行 `grep -rn "_sync_edge_to_neo4j" backend/app/` 确认只有 `canvas_service.py` 自身引用 (4 refs all inside canvas_service.py, 0 external)
+- [x] 7.3 将上述 grep 结果写入 `docs/project-status/fr-exploration/CONNECTS_TO-deprecation-evidence.md` 作为"零消费"证据
+- [x] 7.4 在 `canvas_service._sync_edge_to_neo4j` 方法顶部添加 DEPRECATED docstring 完整说明（指向 deprecation-schedule.md 与 CONNECTS_TO-deprecation-evidence.md）
+- [x] 7.5 更新 `docs/known-gotchas.md` 添加 G-FAKE-006 条目
+- [x] 7.6 确认新版本号并记录在 `openspec/changes/fix-fr-kg-04-schema-drift-and-sync-hardening/deprecation-schedule.md`
 
 ## 8. Canvas 主键联合唯一约束（Phase 8，Week 2 Day 4-5）
 

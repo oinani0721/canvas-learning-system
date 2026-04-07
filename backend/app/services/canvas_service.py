@@ -424,13 +424,32 @@ class CanvasService:
         edge_label: Optional[str] = None,
     ) -> Optional[bool]:
         """
+        DEPRECATED (FR-KG-04 Phase 7, openspec fix-fr-kg-04-schema-drift-and-sync-hardening):
+
+        This path writes CONNECTS_TO relationships via the legacy MemoryService
+        Graphiti adapter, but it is superseded by the CANVAS_EDGE relationship
+        that SyncService._upsert_edge writes through the /sync/batch endpoint.
+        The verification_service path already bypasses CONNECTS_TO (see the
+        ``# FR-KG-04 fix:`` comments in verification_service.py). The
+        canvas_service direct-write legacy path is retained for one minor
+        version as a safety net while we validate that the SyncService path
+        fully covers every edge-creation entry point. After that window, this
+        method and all CONNECTS_TO write code will be removed.
+
+        Until removal, every call to this method is a potential source of
+        duplicate writes (CONNECTS_TO via canvas_service + CANVAS_EDGE via
+        SyncService). If you are extending the sync pipeline, do NOT add new
+        callers — use the /sync/batch endpoint with a SyncOperation instead.
+
+        Tracking: docs/project-status/fr-exploration/CONNECTS_TO-deprecation-evidence.md
+
         Sync edge to Neo4j with retry mechanism (fire-and-forget).
 
         Story 36.3: Canvas Edge automatic sync to Neo4j.
         - AC-1: Triggered after add_edge() completes successfully
         - AC-2: Fire-and-forget pattern - Canvas operation returns immediately
         - AC-3: Retry mechanism with 3 attempts, exponential backoff (1s, 2s, 4s)
-        - AC-5: Creates CONNECTS_TO relationship in Neo4j with edge metadata
+        - AC-5: Creates CONNECTS_TO relationship in Neo4j with edge metadata (DEPRECATED)
 
         Args:
             canvas_path: Canvas file path (e.g., "笔记库/离散数学.canvas")
