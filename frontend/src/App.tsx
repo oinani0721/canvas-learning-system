@@ -29,6 +29,8 @@ import { IndexingService } from './services/indexing-service';
 import { EdgeGuideTooltip } from './components/chat/EdgeGuideTooltip';
 import { LearningProfile } from './components/profile/LearningProfile';
 import { ReviewItem } from './components/dashboard/ReviewItem';
+import { VerificationModal } from './components/review/VerificationModal';
+import type { ReviewNode } from './types';
 import { ExamCard } from './components/dashboard/ExamCard';
 import { useMasteryStore } from './stores/mastery-store';
 import type { ExamSession } from './services/api-client';
@@ -221,6 +223,10 @@ function Canvas() {
   const [backendOffline, setBackendOffline] = useState(false);
   const reviewNodes = useMasteryStore((s) => s.reviewNodes);
   const loadBatchData = useMasteryStore((s) => s.loadBatchData);
+
+  // EPIC-31 / A4 Runbook: Interactive verification modal state (MVP local state)
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationNode, setVerificationNode] = useState<ReviewNode | null>(null);
 
   // Story 6.1/6.2: Exam whiteboard state
   const isExamActive = useExamStore((s) => s.isExamActive);
@@ -988,7 +994,14 @@ function Canvas() {
                   </div>
                   <div className="space-y-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
                     {reviewNodes.map((node) => (
-                      <ReviewItem key={node.conceptId} node={node} />
+                      <ReviewItem
+                        key={node.conceptId}
+                        node={node}
+                        onClick={(n) => {
+                          setVerificationNode(n);
+                          setShowVerificationModal(true);
+                        }}
+                      />
                     ))}
                   </div>
                 </>
@@ -1025,6 +1038,17 @@ function Canvas() {
             targetNodeId={examTargetNodeId}
             onExamCreated={handleExamCreated}
             onCancel={() => setShowExamModeSelector(false)}
+          />
+        )}
+
+        {/* EPIC-31 / A4 Runbook: Interactive verification modal */}
+        {showVerificationModal && verificationNode && (
+          <VerificationModal
+            node={verificationNode}
+            onClose={() => {
+              setShowVerificationModal(false);
+              setVerificationNode(null);
+            }}
           />
         )}
       </div>

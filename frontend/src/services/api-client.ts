@@ -15,9 +15,16 @@
  */
 
 import { createLogger } from './logger';
+import type {
+  StartSessionResponse,
+  SubmitAnswerResponse,
+  VerificationProgress,
+} from '../types';
 
 // [CHANGED] All types defined inline - no external imports needed
 // See v1-ref/src/types/api.d.ts and v1-ref/src/types/canvas.d.ts for originals
+// EXCEPTION: EPIC-31 verification types live in ../types because they are
+// shared with VerificationModal.tsx.
 
 export interface ApiResponse<T> { data: T; meta: { timestamp: string } }
 export interface ComponentStatus { name: string; status: 'healthy' | 'unhealthy' | 'unknown'; message?: string }
@@ -754,6 +761,83 @@ export class ApiClient {
       });
     } catch (err) {
       console.error('[Story 6.5] syncExamNode failed:', err);
+      return null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EPIC-31: Interactive Verification Session APIs (A4 Runbook)
+  // Bridges VerificationModal.tsx ↔ backend review.py:1640-1807
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * EPIC-31 AC-1: Start an interactive verification session for a canvas.
+   *
+   * POST /api/v1/review/session/start (review.py:1640)
+   * Returns sessionId + first AI-generated question, or null on failure.
+   *
+   * Phase 17.2 note: `canvasName` is sanitized server-side (rejects path
+   * traversal like "../../etc/passwd" → resolves to sentinel ["默认概念"]),
+   * so the frontend can pass user input through without pre-validation.
+   */
+  async startVerificationSession(
+    canvasName: string,
+    nodeIds?: string[] | null,
+    includeMastered = true,
+  ): Promise<StartSessionResponse | null> {
+    try {
+      return await this.post<StartSessionResponse>('/api/v1/review/session/start', {
+        canvas_name: canvasName,
+        node_ids: nodeIds ?? null,
+        include_mastered: includeMastered,
+      });
+    } catch (err) {
+      console.error('[EPIC-31] startVerificationSession failed:', err);
+      return null;
+    }
+  }
+
+  /**
+   * EPIC-31 AC-2: Submit user answer and receive scoring result.
+   *
+   * POST /api/v1/review/session/{session_id}/answer (review.py:1719)
+   * Returns score, quality, degraded flag, next question, or null on failure.
+   *
+   * Phase 17.1 fail-closed contract: When the scoring-agent is unreachable,
+   * the response will contain `degraded=true`, `score=0`, `quality='unknown'`,
+   * and a Chinese `degradedWarning` string. The UI must display the warning
+   * prominently so users know the answer is not counted toward mastery.
+   */
+  async submitVerificationAnswer(
+    sessionId: string,
+    userAnswer: string,
+  ): Promise<SubmitAnswerResponse | null> {
+    try {
+      return await this.post<SubmitAnswerResponse>(
+        `/api/v1/review/session/${sessionId}/answer`,
+        { user_answer: userAnswer },
+      );
+    } catch (err) {
+      console.error('[EPIC-31] submitVerificationAnswer failed:', err);
+      return null;
+    }
+  }
+
+  /**
+   * EPIC-31 AC-3: Poll current verification progress (used on modal reopen).
+   *
+   * GET /api/v1/review/session/{session_id}/progress
+   * Returns a progress snapshot, or null on failure.
+   */
+  async getVerificationProgress(
+    sessionId: string,
+  ): Promise<VerificationProgress | null> {
+    try {
+      return await this.get<VerificationProgress>(
+        `/api/v1/review/session/${sessionId}/progress`,
+      );
+    } catch (err) {
+      console.error('[EPIC-31] getVerificationProgress failed:', err);
       return null;
     }
   }

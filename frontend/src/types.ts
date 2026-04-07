@@ -512,3 +512,84 @@ export interface HealthResponse {
 	}>;
 	timestamp: string;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EPIC-31: Interactive Verification Session Types (A4 Runbook)
+// Mirror of backend SessionProgressResponse / StartSessionResponse / SubmitAnswerResponse.
+// Field names are camelCase (auto-converted from snake_case by api-client.ts request()).
+// Backend source: backend/app/api/v1/endpoints/review.py:1640-1807
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Status of a verification session. */
+export type VerificationSessionStatus = 'in_progress' | 'completed' | 'paused';
+
+/** Quality bucket emitted by scoring-agent ('unknown' when fail-closed degraded). */
+export type VerificationQuality = 'excellent' | 'good' | 'partial' | 'wrong' | 'unknown';
+
+/** Next action the session should take. */
+export type VerificationAction = 'next' | 'hint' | 'complete';
+
+/**
+ * Response from POST /api/v1/review/session/start.
+ * Returns the first AI-generated question and a session token used for subsequent answers.
+ */
+export interface StartSessionResponse {
+	sessionId: string;
+	totalConcepts: number;
+	firstQuestion: string;
+	currentConcept: string;
+	status: VerificationSessionStatus;
+}
+
+/**
+ * Progress snapshot embedded inside SubmitAnswerResponse and emitted by
+ * GET /api/v1/review/session/{session_id}/progress.
+ *
+ * Note: Phase 17.1 fail-closed scoring does NOT increment mastery counters
+ * (greenCount etc.) when `degraded=true` — the sentinel quality 'unknown'
+ * is excluded from all aggregation.
+ */
+export interface VerificationProgress {
+	sessionId: string;
+	canvasName: string;
+	totalConcepts: number;
+	completedConcepts: number;
+	currentConcept: string;
+	currentConceptIdx: number;
+	greenCount: number;
+	yellowCount: number;
+	purpleCount: number;
+	redCount: number;
+	status: VerificationSessionStatus;
+	progressPercentage: number;
+	masteryPercentage: number;
+	hintsGiven?: number;
+	maxHints?: number;
+	startedAt?: string;
+	updatedAt?: string;
+}
+
+/**
+ * Response from POST /api/v1/review/session/{session_id}/answer.
+ *
+ * Phase 17.1 fail-closed contract:
+ *   - When scoring-agent is unreachable: score=0, quality='unknown',
+ *     degraded=true, degradedWarning populated (Chinese).
+ *   - Frontend MUST display degradedWarning prominently when degraded=true
+ *     so users know the answer is NOT being counted toward mastery.
+ *
+ * Phase 17.2 path traversal contract: Backend sanitizes canvas_name,
+ * so frontend can pass user input through without additional validation.
+ */
+export interface SubmitAnswerResponse {
+	quality: VerificationQuality;
+	score: number;
+	degraded: boolean;
+	degradedReason: string | null;
+	degradedWarning: string | null;
+	action: VerificationAction;
+	hint: string | null;
+	nextQuestion: string | null;
+	currentConcept: string;
+	progress: VerificationProgress;
+}
