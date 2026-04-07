@@ -58,6 +58,7 @@ from app.core.subject_config import (
 )
 from app.services.episode_worker import EpisodeTask, get_episode_worker
 from app.graphiti.entity_types import CANVAS_ENTITY_TYPES, CANVAS_EDGE_TYPES
+from app.utils.identifier_validators import is_uuid_v4
 
 logger = structlog.get_logger(__name__)
 
@@ -1487,57 +1488,119 @@ class MemoryService:
             # In-memory substring match: fixed baseline score
             return 0.1
 
-    def _inject_fsrs_r_values(self, results: List[Dict[str, Any]]) -> None:
+    async def _inject_fsrs_r_values(self, results: List[Dict[str, Any]]) -> None:
         """Inject FSRS retrievability values into search results as a reranking signal.
 
-        For each result that has a 'concept' or 'name' field, attempts to look up
-        the concept's FSRS R-value. Low R-value concepts (about to be forgotten)
-        get up to 50% score boost to prioritize review-worthy material.
+        fix-concept-id-identity-unification (path B):
+            Previous implementation looked up ``mastery_engine._concept_cache``
+            keyed by the concept *text*. That cache does not exist on
+            MasteryEngine — the hasattr check was always False, making the
+            entire injection a silent no-op.
 
-        Boost formula: final_score = relevance_score * (1.0 + (1.0 - r_value) * 0.5)
+            New implementation requires each result to carry a ``concept_id``
+            (UUID v4) field and looks up the FSRS card state via
+            ``review_service.get_fsrs_state(concept_id)``, which is the actual
+            source of truth for FSRS card data (``ReviewService._card_states``).
+            ``get_fsrs_state`` already returns a ``retrievability`` field, so
+            we no longer need to deserialize the card or call FSRSManager
+            directly from this layer.
 
-        Modifies results in-place. Graceful degradation: if MasteryEngine is
-        unavailable or concept not found, the result is left unchanged.
+        For each result with a UUID concept_id and a persisted FSRS card,
+        the relevance_score is boosted by the formula:
+            final_score = relevance_score * (1.0 + (1.0 - r_value) * 0.5)
+
+        Low R-value concepts (about to be forgotten) get up to 50% score boost
+        to prioritize review-worthy material.
+
+        Modifies ``results`` in place. Graceful degradation: if
+        review_service is unavailable, or any individual concept has no
+        persisted card / invalid concept_id, that result is left unchanged.
+        Hit/miss/hit_rate are emitted as a structured log line so future
+        regressions are immediately visible.
+
+        [Source: openspec/changes/fix-concept-id-identity-unification/specs/concept-identity/spec.md
+         — Requirement "FSRS R-value Injection Uses concept_id Lookup"]
         """
         try:
-            from app.services.mastery_engine import get_mastery_engine
-
-            engine = get_mastery_engine()
-        except (ImportError, RuntimeError, Exception) as e:
-            logger.debug(f"MasteryEngine unavailable for FSRS injection: {e}")
+            from app.services.review_service import get_review_service
+        except ImportError as e:
+            logger.debug(
+                "review_service_unavailable_for_fsrs_inject",
+                error=str(e),
+            )
             return
 
+        try:
+            review_service = await get_review_service()
+        except Exception as e:
+            logger.debug(
+                "review_service_factory_failed_for_fsrs_inject",
+                error=str(e),
+            )
+            return
+
+        hit_count = 0
+        miss_count = 0
         for result in results:
-            concept_name = result.get("concept") or result.get("name")
-            if not concept_name:
+            concept_id = result.get("concept_id")
+            if not concept_id:
+                # Result lacks concept_id — likely an episode-only result with
+                # no concept linkage. This is the cold-start path; counted as
+                # miss but not warned (it's normal).
+                miss_count += 1
                 continue
+
+            if not is_uuid_v4(concept_id):
+                # Bad data: an upstream code path put text or a legacy id in
+                # the concept_id slot. This IS a bug worth surfacing.
+                logger.warning(
+                    "fsrs_inject_invalid_concept_id",
+                    concept_id=str(concept_id)[:80],
+                )
+                miss_count += 1
+                continue
+
             try:
-                # Build a minimal ConceptState for retrievability lookup.
-                # MasteryEngine.get_retrievability needs a ConceptState with fsrs_card_data.
-                # Without persisted card data, we skip — no crash.
-                from app.models.mastery_state import ConceptState
-
-                # Attempt to find existing concept state via engine's known concepts
-                # This is best-effort — engine may not have this concept loaded
-                concept_state = None
-                if hasattr(engine, "_concept_cache") and isinstance(
-                    engine._concept_cache, dict
-                ):
-                    concept_state = engine._concept_cache.get(concept_name)
-
-                if concept_state is not None:
-                    r_value = engine.get_retrievability(concept_state)
-                    r_value = max(0.0, min(1.0, r_value))  # clamp to [0, 1]
-                    result["fsrs_r_value"] = round(r_value, 4)
-
-                    # Boost: low R-value concepts get higher final score
-                    base_score = result.get("relevance_score", 0.0)
-                    result["relevance_score"] = base_score * (
-                        1.0 + (1.0 - r_value) * 0.5
-                    )
-            except (AttributeError, TypeError, ValueError, RuntimeError) as e:
-                logger.debug(f"FSRS R-value lookup failed for '{concept_name}': {e}")
+                state = await review_service.get_fsrs_state(concept_id)
+            except Exception as e:
+                logger.debug(
+                    "fsrs_inject_get_state_failed",
+                    concept_id=concept_id,
+                    error=str(e),
+                )
+                miss_count += 1
                 continue
+
+            if not state or not state.get("found"):
+                # Cold-start: no FSRS card persisted for this concept yet.
+                # Normal path, count as miss without warning.
+                miss_count += 1
+                continue
+
+            r_value_raw = state.get("retrievability")
+            if r_value_raw is None:
+                miss_count += 1
+                continue
+
+            try:
+                r_value = max(0.0, min(1.0, float(r_value_raw)))
+            except (TypeError, ValueError):
+                miss_count += 1
+                continue
+
+            result["fsrs_r_value"] = round(r_value, 4)
+            base_score = float(result.get("relevance_score", 0.0))
+            result["relevance_score"] = base_score * (1.0 + (1.0 - r_value) * 0.5)
+            hit_count += 1
+
+        total = hit_count + miss_count
+        hit_rate = (hit_count / total) if total > 0 else 0.0
+        logger.info(
+            "fsrs_inject_summary",
+            hit=hit_count,
+            miss=miss_count,
+            hit_rate=round(hit_rate, 4),
+        )
 
     async def _search_neo4j_fulltext(
         self, query: str, group_id: Optional[str] = None, limit: int = 20
@@ -1667,7 +1730,10 @@ class MemoryService:
                 tier3_count += 1
 
         # FSRS R-value injection: boost low-retrievability concepts
-        self._inject_fsrs_r_values(merged)
+        # fix-concept-id-identity-unification: now async because path B
+        # uses review_service.get_fsrs_state(concept_id) instead of the
+        # synchronous (and never-existing) mastery_engine._concept_cache.
+        await self._inject_fsrs_r_values(merged)
 
         # Sort by relevance_score descending (unified across all tiers)
         merged.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)

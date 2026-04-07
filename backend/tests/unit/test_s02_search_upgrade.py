@@ -268,88 +268,46 @@ def test_unified_score_tier3_fixed():
 
 
 # ══════════════════════════════════════════════════════════════════════
-# (d) FSRS R-value injection with mock MasteryEngine
+# (d) FSRS R-value injection — DEPRECATED: see new tests
 # ══════════════════════════════════════════════════════════════════════
+# These four tests targeted the legacy `mastery_engine._concept_cache`
+# code path. fix-concept-id-identity-unification proved that path was
+# dead code (the cache attribute never existed on MasteryEngine), and
+# replaced it with a UUID-keyed lookup against review_service.get_fsrs_state.
+#
+# Coverage of the new path lives in:
+#   tests/unit/test_fsrs_rerank_concept_id_keying.py
+#
+# These four tests are kept as skipped placeholders so the regression
+# remains visible in test history but does not fail the suite.
 
+import pytest as _pytest_for_skip
+
+_LEGACY_FSRS_SKIP_REASON = (
+    "Replaced by tests/unit/test_fsrs_rerank_concept_id_keying.py — "
+    "targeted dead code path mastery_engine._concept_cache "
+    "(see openspec/changes/fix-concept-id-identity-unification)"
+)
+
+
+@_pytest_for_skip.mark.skip(reason=_LEGACY_FSRS_SKIP_REASON)
 def test_fsrs_injection_boosts_low_r():
-    """Low R-value concept gets up to 50% score boost."""
-    svc = _make_service()
-
-    results = [
-        {"name": "calculus", "relevance_score": 0.8},
-        {"name": "algebra", "relevance_score": 0.6},
-    ]
-
-    # Mock MasteryEngine with concept cache
-    mock_engine = MagicMock()
-    mock_concept_calculus = MagicMock()
-    mock_concept_algebra = MagicMock()
-
-    mock_engine._concept_cache = {
-        "calculus": mock_concept_calculus,
-        "algebra": mock_concept_algebra,
-    }
-    # Calculus: low R (about to forget) → big boost
-    # Algebra: high R (fresh) → small boost
-    mock_engine.get_retrievability.side_effect = lambda c: (
-        0.2 if c is mock_concept_calculus else 0.9
-    )
-
-    with patch("app.services.mastery_engine.get_mastery_engine", return_value=mock_engine):
-        svc._inject_fsrs_r_values(results)
-
-    # calculus: 0.8 * (1.0 + (1.0 - 0.2) * 0.5) = 0.8 * 1.4 = 1.12
-    assert abs(results[0]["relevance_score"] - 1.12) < 0.001
-    assert results[0]["fsrs_r_value"] == 0.2
-
-    # algebra: 0.6 * (1.0 + (1.0 - 0.9) * 0.5) = 0.6 * 1.05 = 0.63
-    assert abs(results[1]["relevance_score"] - 0.63) < 0.001
-    assert results[1]["fsrs_r_value"] == 0.9
+    pass
 
 
+@_pytest_for_skip.mark.skip(reason=_LEGACY_FSRS_SKIP_REASON)
 def test_fsrs_injection_graceful_when_engine_unavailable():
-    """MasteryEngine import fails → no crash, results unchanged."""
-    svc = _make_service()
-    results = [{"name": "physics", "relevance_score": 0.7}]
-
-    with patch(
-        "app.services.mastery_engine.get_mastery_engine",
-        side_effect=ImportError("no engine"),
-    ):
-        svc._inject_fsrs_r_values(results)
-
-    # Score unchanged, no fsrs_r_value added
-    assert results[0]["relevance_score"] == 0.7
-    assert "fsrs_r_value" not in results[0]
+    pass
 
 
+@_pytest_for_skip.mark.skip(reason=_LEGACY_FSRS_SKIP_REASON)
 def test_fsrs_injection_skips_unknown_concepts():
-    """Concepts not in engine cache are skipped, not crashed."""
-    svc = _make_service()
-    results = [{"name": "unknown_topic", "relevance_score": 0.5}]
-
-    mock_engine = MagicMock()
-    mock_engine._concept_cache = {}  # empty cache
-
-    with patch("app.services.mastery_engine.get_mastery_engine", return_value=mock_engine):
-        svc._inject_fsrs_r_values(results)
-
-    assert results[0]["relevance_score"] == 0.5
-    assert "fsrs_r_value" not in results[0]
+    pass
 
 
+@_pytest_for_skip.mark.skip(reason=_LEGACY_FSRS_SKIP_REASON)
 def test_fsrs_injection_no_name_or_concept():
-    """Results without 'name' or 'concept' are skipped."""
-    svc = _make_service()
-    results = [{"content": "some content", "relevance_score": 0.3}]
-
-    mock_engine = MagicMock()
-    mock_engine._concept_cache = {}
-
-    with patch("app.services.mastery_engine.get_mastery_engine", return_value=mock_engine):
-        svc._inject_fsrs_r_values(results)
-
-    assert results[0]["relevance_score"] == 0.3
+    pass
 
 
 # ══════════════════════════════════════════════════════════════════════

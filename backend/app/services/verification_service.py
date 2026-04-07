@@ -69,8 +69,21 @@ GRAPHITI_QUERY_TIMEOUT = float(
     os.getenv("GRAPHITI_QUERY_TIMEOUT", "5.0")
 )  # 5s for Graphiti queries (M1 fix: 0.5s was too aggressive)
 
+# fix-concept-id-identity-unification: deterministic UUIDs for synthetic
+# fallback ConceptRefs. Using fixed UUIDs makes degraded paths observable
+# in tests and logs without polluting any real concept_id slot. They are
+# valid UUID v4 strings so ConceptRef construction succeeds.
+_FALLBACK_CONCEPT_UUID = "00000000-0000-4000-8000-000000000999"
+_MOCK_CONCEPT_UUIDS = [
+    "00000000-0000-4000-8000-000000000001",
+    "00000000-0000-4000-8000-000000000002",
+    "00000000-0000-4000-8000-000000000003",
+]
+
 from app.core.decision_tracker import log_decision
+from app.models.concept_ref import ConceptRef
 from app.services.agent_service import AgentType
+from app.utils.identifier_validators import is_uuid_v4
 
 if TYPE_CHECKING:
     from app.services.agent_service import AgentService
@@ -572,26 +585,37 @@ class VerificationService:
         )
 
         # Story 31.1 AC-31.1.1: Read Canvas file and extract concepts from red/purple nodes
-        concepts = await self._extract_concepts_from_canvas(
+        # fix-concept-id-identity-unification: returns List[ConceptRef] now,
+        # so concept_id (UUID) and concept_name (text) propagate together.
+        concept_refs = await self._extract_concepts_from_canvas(
             canvas_name=canvas_name, canvas_path=canvas_path, node_ids=node_ids
         )
 
-        # Degradation transparency: warn if using fallback concepts
-        if concepts == ["默认概念"]:
+        # Degradation transparency: warn if using fallback concept ref
+        if (
+            len(concept_refs) == 1
+            and concept_refs[0].concept_id == _FALLBACK_CONCEPT_UUID
+        ):
             logger.warning(
-                f"Session {session_id} starting with degraded fallback concepts for canvas '{canvas_name}'. "
-                "Concept extraction failed or returned empty — verification quality may be reduced."
+                "session_starting_degraded_fallback",
+                session_id=session_id,
+                canvas_name=canvas_name,
             )
 
         # Story 31.5 AC-31.5.4 (Task 5.3): Filter out mastered concepts
-        if not include_mastered and self._memory_service and concepts:
-            filtered = []
-            skipped = []
-            for concept in concepts:
+        # fix-concept-id-identity-unification: pass ref.concept_id (UUID) to
+        # mastery query, NOT ref.concept_name (text). Previously this loop
+        # passed the concept text to ``concept_id=`` which always missed.
+        if not include_mastered and self._memory_service and concept_refs:
+            filtered: List[ConceptRef] = []
+            skipped: List[ConceptRef] = []
+            for ref in concept_refs:
                 try:
                     history = await asyncio.wait_for(
                         self._memory_service.get_concept_score_history(
-                            concept_id=concept, canvas_name=canvas_name, limit=5
+                            concept_id=ref.concept_id,
+                            canvas_name=canvas_name,
+                            limit=5,
                         ),
                         timeout=min(VERIFICATION_AI_TIMEOUT, 5.0),
                     )
@@ -600,35 +624,56 @@ class VerificationService:
                         and history.scores
                         and is_concept_mastered(history.scores)
                     ):
-                        skipped.append(concept)
-                        logger.info(f"Skipping mastered concept: '{concept}'")
+                        skipped.append(ref)
+                        logger.info(
+                            "skipping_mastered_concept",
+                            concept_name=ref.concept_name,
+                            concept_id=ref.concept_id,
+                        )
                     else:
-                        filtered.append(concept)
+                        filtered.append(ref)
                 except Exception as e:
                     logger.warning(
-                        f"Mastery check failed for '{concept}': {e}, including concept"
+                        "mastery_check_failed",
+                        concept_name=ref.concept_name,
+                        concept_id=ref.concept_id,
+                        error=str(e),
                     )
-                    filtered.append(concept)
+                    filtered.append(ref)
 
             if filtered:
-                concepts = filtered
+                concept_refs = filtered
                 if skipped:
                     logger.info(
-                        f"Filtered {len(skipped)} mastered concepts, "
-                        f"{len(filtered)} remaining: {skipped}"
+                        "mastered_concepts_filtered",
+                        skipped_count=len(skipped),
+                        remaining_count=len(filtered),
+                        skipped_names=[r.concept_name for r in skipped],
                     )
             elif skipped:
-                logger.info("All concepts mastered, including all for review")
+                logger.info("all_concepts_mastered_including_all_for_review")
                 # Don't leave empty — include all if everything is mastered
 
+        # Pre-compute the head ref so we can write display fields without
+        # constantly re-checking emptiness later.
+        first_ref: Optional[ConceptRef] = concept_refs[0] if concept_refs else None
+        first_concept_name = first_ref.concept_name if first_ref else ""
+        first_concept_id = first_ref.concept_id if first_ref else ""
+
         # 创建初始状态
+        # NOTE: state["concept_queue"] now stores List[ConceptRef] internally.
+        # state["current_concept"] is kept as the *display name* string for
+        # backward compatibility with internal helpers (_provide_hint, log
+        # messages) that consume it as text. The authoritative ref is stored
+        # in state["current_concept_ref"].
         state = {
             "session_id": session_id,
             "source_canvas": canvas_name,
-            "concept_queue": concepts,
-            "current_concept": concepts[0] if concepts else "",
+            "concept_queue": concept_refs,
+            "current_concept": first_concept_name,
+            "current_concept_ref": first_ref,
             "current_concept_idx": 0,
-            "total_concepts": len(concepts),
+            "total_concepts": len(concept_refs),
             "completed_concepts": 0,
             "green_count": 0,
             "yellow_count": 0,
@@ -646,9 +691,9 @@ class VerificationService:
         progress = VerificationProgress(
             session_id=session_id,
             canvas_name=canvas_name,
-            total_concepts=len(concepts),
+            total_concepts=len(concept_refs),
             completed_concepts=0,
-            current_concept=concepts[0] if concepts else "",
+            current_concept=first_concept_name,
             current_concept_idx=0,
             status=VerificationStatus.IN_PROGRESS,
         )
@@ -656,9 +701,11 @@ class VerificationService:
 
         # Story 31.1 AC-31.1.2: Generate first question using Gemini API with RAG context
         first_question = ""
-        if concepts:
+        if first_ref:
             first_question = await self.generate_question_with_rag(
-                concept=concepts[0], canvas_name=canvas_name
+                concept=first_concept_name,
+                canvas_name=canvas_name,
+                node_id=first_concept_id,
             )
 
         # Store current question in state for hint generation context
@@ -668,14 +715,14 @@ class VerificationService:
             function="VerificationService.start_session",
             input_summary={"canvas": canvas_name, "include_mastered": include_mastered},
             output=session_id,
-            reason=f"{len(concepts)} concepts extracted, first={concepts[0] if concepts else 'none'}",
+            reason=f"{len(concept_refs)} concepts extracted, first={first_concept_name or 'none'}",
         )
 
         return {
             "session_id": session_id,
-            "total_concepts": len(concepts),
+            "total_concepts": len(concept_refs),
             "first_question": first_question,
-            "current_concept": concepts[0] if concepts else "",
+            "current_concept": first_concept_name,
             "status": "in_progress",
         }
 
@@ -708,6 +755,7 @@ class VerificationService:
 
         state = self._sessions[session_id]
         progress = self._progress[session_id]
+        current_concept_ref: Optional[ConceptRef] = state.get("current_concept_ref")
         current_concept = state["current_concept"]
         canvas_name = state["source_canvas"]
 
@@ -731,12 +779,22 @@ class VerificationService:
         state["last_score"] = score
 
         # G-PIPE-006 Fix: Persist exam attempt to memory (close the feedback loop)
+        # fix-concept-id-identity-unification: include both concept_id (UUID)
+        # and concept_name (text) in the metadata so downstream consumers
+        # can dispatch on identity instead of guessing.
         if self._memory_service:
             try:
                 await self._memory_service.record_knowledge_entity(
                     event_type="exam_attempt",
                     content=f"Verification: {current_concept} scored {score}/100 ({quality})",
                     metadata={
+                        "concept_id": (
+                            current_concept_ref.concept_id
+                            if current_concept_ref
+                            else None
+                        ),
+                        "concept_name": current_concept,
+                        # legacy alias preserved for old consumers; equals concept_name
                         "concept": current_concept,
                         "score": score,
                         "quality": quality,
@@ -835,19 +893,26 @@ class VerificationService:
         state["current_hints"] = []
 
         # 前进到下一概念
+        # fix-concept-id-identity-unification: concept_queue is now
+        # List[ConceptRef]; index into it and propagate both fields.
         next_idx = state["current_concept_idx"] + 1
-        concept_queue = state["concept_queue"]
+        concept_queue: List[ConceptRef] = state["concept_queue"]
 
         if next_idx < len(concept_queue):
+            next_ref = concept_queue[next_idx]
             state["current_concept_idx"] = next_idx
-            state["current_concept"] = concept_queue[next_idx]
-            progress.current_concept = concept_queue[next_idx]
+            state["current_concept_ref"] = next_ref
+            state["current_concept"] = next_ref.concept_name
+            progress.current_concept = next_ref.concept_name
             progress.current_concept_idx = next_idx
             progress.hints_given = 0
 
             # Story 31.1 AC-31.1.2: Generate next question using Gemini API
+            # Pass the UUID via node_id so difficulty / FSRS lookups hit.
             next_question = await self.generate_question_with_rag(
-                concept=concept_queue[next_idx], canvas_name=state["source_canvas"]
+                concept=next_ref.concept_name,
+                canvas_name=state["source_canvas"],
+                node_id=next_ref.concept_id,
             )
             # Store question in state for hint generation context
             state["current_question"] = next_question
@@ -1028,13 +1093,20 @@ class VerificationService:
         progress.updated_at = datetime.now()
 
         current_concept = state["current_concept"]
+        current_concept_ref: Optional[ConceptRef] = state.get("current_concept_ref")
         # Story 31.4 AC-31.4.1: Use stored question (already deduped) or regenerate with dedup
         current_question = state.get("current_question")
         if not current_question:
             # Regenerate with dedup logic if no stored question
+            # fix-concept-id-identity-unification: pass node_id from the
+            # stored ref so difficulty / FSRS lookups still hit on resume.
             canvas_name = state.get("source_canvas", "")
             current_question = await self.generate_question_with_rag(
-                concept=current_concept, canvas_name=canvas_name
+                concept=current_concept,
+                canvas_name=canvas_name,
+                node_id=(
+                    current_concept_ref.concept_id if current_concept_ref else None
+                ),
             )
             state["current_question"] = current_question
 
@@ -1119,11 +1191,18 @@ class VerificationService:
         canvas_name: str,
         canvas_path: Optional[str] = None,
         node_ids: Optional[List[str]] = None,
-    ) -> List[str]:
+    ) -> List[ConceptRef]:
         """
         Extract concepts from Canvas file by reading red(color="4") and purple(color="3") nodes.
 
         Story 31.1 AC-31.1.1: From Canvas file read red+purple nodes and extract concepts.
+
+        fix-concept-id-identity-unification: returns List[ConceptRef] so that
+        downstream code (mastery filter, difficulty query, FSRS rerank) gets
+        both the node UUID and the human-readable text together. The previous
+        List[str] return type forced callers to invent a fallback like
+        ``concept_id = node_id if node_id else concept`` which silently
+        substituted text for UUID and made all FSRS-history queries miss.
 
         Args:
             canvas_name: Canvas name (used to construct path if canvas_path not provided)
@@ -1131,54 +1210,88 @@ class VerificationService:
             node_ids: Optional list of specific node IDs to extract
 
         Returns:
-            List of concept names extracted from qualifying nodes
+            List of ConceptRef. Each ref carries `concept_id` (UUID v4 from
+            the canvas node id) and `concept_name` (the cleaned node text).
+            Always non-empty — degraded paths return a single fallback ref
+            with a deterministic synthetic UUID.
 
         [Source: docs/stories/31.1.story.md#Task-1]
         [Source: specs/data/canvas-node.schema.json - color enum]
+        [Source: openspec/changes/fix-concept-id-identity-unification/specs/concept-identity/spec.md]
         """
         # AC-31.1.5: Check mock mode or timeout protection
         if USE_MOCK_VERIFICATION:
-            logger.debug("Mock mode enabled, returning default concepts")
-            return ["概念1", "概念2", "概念3"]
+            logger.debug("Mock mode enabled, returning default concept refs")
+            return [
+                ConceptRef(concept_id=_MOCK_CONCEPT_UUIDS[0], concept_name="概念1"),
+                ConceptRef(concept_id=_MOCK_CONCEPT_UUIDS[1], concept_name="概念2"),
+                ConceptRef(concept_id=_MOCK_CONCEPT_UUIDS[2], concept_name="概念3"),
+            ]
 
         try:
             # AC-31.1.5: 15s timeout protection for Canvas reading
-            concepts = await asyncio.wait_for(
+            concept_refs = await asyncio.wait_for(
                 self._do_extract_concepts(canvas_name, canvas_path, node_ids),
                 timeout=VERIFICATION_AI_TIMEOUT,
             )
-            if not concepts:
+            if not concept_refs:
                 logger.warning(
-                    f"Canvas extraction returned empty concepts for {canvas_name}, "
-                    "using degraded fallback concepts [默认概念]"
+                    "concept_extraction_empty",
+                    canvas_name=canvas_name,
+                    fallback="default_concept_ref",
                 )
-                return ["默认概念"]
-            return concepts
+                return [self._fallback_concept_ref()]
+            return concept_refs
 
         except asyncio.TimeoutError:
             logger.warning(
-                f"Canvas extraction timeout for {canvas_name} (timeout={VERIFICATION_AI_TIMEOUT}s), "
-                "using degraded fallback concepts [默认概念]"
+                "concept_extraction_timeout",
+                canvas_name=canvas_name,
+                timeout_s=VERIFICATION_AI_TIMEOUT,
+                fallback="default_concept_ref",
             )
-            return ["默认概念"]
+            return [self._fallback_concept_ref()]
 
         except Exception as e:
             logger.warning(
-                f"Canvas extraction failed for {canvas_name}: {e}, "
-                "using degraded fallback concepts [默认概念]"
+                "concept_extraction_failed",
+                canvas_name=canvas_name,
+                error=str(e),
+                fallback="default_concept_ref",
             )
-            return ["默认概念"]
+            return [self._fallback_concept_ref()]
+
+    @staticmethod
+    def _fallback_concept_ref() -> ConceptRef:
+        """Synthetic ConceptRef used when Canvas extraction degrades.
+
+        Uses a deterministic UUID so that fallback paths are observable in
+        tests and metrics. The concept_name "默认概念" is preserved for
+        human-readable display, but the concept_id is now a real UUID v4
+        instead of the literal text — the latter would have leaked into
+        Neo4j queries and caused 100% miss.
+        """
+        return ConceptRef(
+            concept_id=_FALLBACK_CONCEPT_UUID,
+            concept_name="默认概念",
+        )
 
     async def _do_extract_concepts(
         self,
         canvas_name: str,
         canvas_path: Optional[str] = None,
         node_ids: Optional[List[str]] = None,
-    ) -> List[str]:
+    ) -> List[ConceptRef]:
         """
         Internal method to extract concepts from Canvas file.
 
         This method contains the actual extraction logic, separated for timeout wrapping.
+
+        fix-concept-id-identity-unification: each filtered canvas node is
+        converted into a ``ConceptRef(concept_id=node["id"], concept_name=text)``.
+        Nodes missing an ``id`` field — or whose ``id`` is not a UUID v4 —
+        are skipped with a structured warning instead of being silently
+        rewritten with the text as id.
 
         Args:
             canvas_name: Canvas name
@@ -1186,7 +1299,8 @@ class VerificationService:
             node_ids: Optional list of specific node IDs
 
         Returns:
-            List of concept strings
+            List of ConceptRef. May be empty if no qualifying nodes were
+            found; caller is responsible for falling back.
 
         [Source: backend/app/services/canvas_service.py - read_canvas pattern]
         """
@@ -1196,8 +1310,11 @@ class VerificationService:
         elif self._canvas_base_path:
             file_path = os.path.join(self._canvas_base_path, f"{canvas_name}.canvas")
         else:
-            logger.warning(f"No canvas path provided for {canvas_name}, using fallback")
-            return ["默认概念"]
+            logger.warning(
+                "concept_extraction_no_path",
+                canvas_name=canvas_name,
+            )
+            return []
 
         # Try reading Canvas file
         canvas_data = None
@@ -1219,17 +1336,23 @@ class VerificationService:
                 )
             except Exception as e:
                 logger.error(f"Direct canvas file read failed: {e}")
-                return ["默认概念"]
+                return []
 
         if not canvas_data:
-            logger.warning(f"Empty canvas data for {canvas_name}")
-            return ["默认概念"]
+            logger.warning(
+                "concept_extraction_empty_canvas",
+                canvas_name=canvas_name,
+            )
+            return []
 
         # Extract nodes
         nodes = canvas_data.get("nodes", [])
         if not nodes:
-            logger.warning(f"No nodes found in canvas {canvas_name}")
-            return ["默认概念"]
+            logger.warning(
+                "concept_extraction_no_nodes",
+                canvas_name=canvas_name,
+            )
+            return []
 
         # Filter by color: "4" (red/不理解) and "3" (purple/似懂非懂)
         # [Source: specs/data/canvas-node.schema.json - color enum]
@@ -1248,19 +1371,66 @@ class VerificationService:
 
             filtered_nodes.append(node)
 
-        # Extract concepts from node text
-        concepts = []
+        # Build ConceptRef list — preserve both UUID and text identity
+        concept_refs: List[ConceptRef] = []
+        skipped_no_id = 0
+        skipped_bad_id = 0
         for node in filtered_nodes:
+            node_id_raw = node.get("id")
             concept_text = self._extract_concept_from_node(node)
-            if concept_text:
-                concepts.append(concept_text)
+            if not concept_text:
+                continue
+
+            if not node_id_raw:
+                skipped_no_id += 1
+                logger.warning(
+                    "concept_extraction_node_missing_id",
+                    canvas_name=canvas_name,
+                    concept_text=concept_text[:50],
+                )
+                continue
+
+            if not is_uuid_v4(node_id_raw):
+                # Node has *some* id but it isn't a UUID v4. Treat as data
+                # corruption and skip — we refuse to silently propagate a
+                # non-UUID id into downstream concept_id slots.
+                skipped_bad_id += 1
+                logger.warning(
+                    "concept_extraction_node_invalid_id",
+                    canvas_name=canvas_name,
+                    node_id=str(node_id_raw)[:80],
+                    concept_text=concept_text[:50],
+                )
+                continue
+
+            try:
+                concept_refs.append(
+                    ConceptRef(
+                        concept_id=node_id_raw,
+                        concept_name=concept_text,
+                        canvas_id=canvas_name,
+                    )
+                )
+            except ValueError as exc:
+                # Defensive: ConceptRef.__post_init__ may reject on
+                # path-shaped concept_name etc.
+                logger.warning(
+                    "concept_extraction_ref_construction_failed",
+                    canvas_name=canvas_name,
+                    error=str(exc),
+                )
 
         logger.info(
-            f"Extracted {len(concepts)} concepts from {canvas_name} "
-            f"(filtered {len(filtered_nodes)} from {len(nodes)} nodes)"
+            "concept_extraction_summary",
+            canvas_name=canvas_name,
+            extracted=len(concept_refs),
+            filtered=len(filtered_nodes),
+            total_nodes=len(nodes),
+            skipped_no_id=skipped_no_id,
+            skipped_bad_id=skipped_bad_id,
         )
 
-        return concepts if concepts else ["默认概念"]
+        return concept_refs
 
     def _read_canvas_file_sync(self, file_path: str) -> Optional[Dict[str, Any]]:
         """
@@ -1597,12 +1767,34 @@ class VerificationService:
             logger.debug("Memory service not available, using default difficulty")
             return default_result
 
+        # fix-concept-id-identity-unification: refuse to use concept text
+        # as a fallback for concept_id. The previous code did
+        # ``concept_id = node_id if node_id else concept`` which silently
+        # routed text into a UUID slot and made every history query miss.
+        if not node_id:
+            logger.warning(
+                "difficulty_query_missing_node_id",
+                concept_name=concept,
+                canvas_name=canvas_name,
+                degraded_reason="missing_node_id",
+            )
+            return default_result
+
+        if not is_uuid_v4(node_id):
+            logger.warning(
+                "difficulty_query_invalid_node_id",
+                concept_name=concept,
+                node_id=str(node_id)[:80],
+                canvas_name=canvas_name,
+                degraded_reason="non_uuid_node_id",
+            )
+            return default_result
+
         try:
             # AC-31.1.5: 15s timeout protection (Story 31.5 Task 7.2)
-            concept_id = node_id if node_id else concept
             score_history = await asyncio.wait_for(
                 self._memory_service.get_concept_score_history(
-                    concept_id=concept_id, canvas_name=canvas_name, limit=5
+                    concept_id=node_id, canvas_name=canvas_name, limit=5
                 ),
                 timeout=VERIFICATION_AI_TIMEOUT,
             )
@@ -2006,11 +2198,28 @@ class VerificationService:
         """
         if not self._memory_service:
             return None
+        # fix-concept-id-identity-unification: do NOT fall back to concept
+        # text when node_id is missing. FSRS history is keyed by UUID; a
+        # text key always misses, and continuing past this point would
+        # waste a Neo4j roundtrip and silently mask the bug.
+        if not node_id:
+            logger.debug(
+                "fsrs_history_missing_node_id",
+                concept_name=concept,
+                canvas_name=canvas_name,
+            )
+            return None
+        if not is_uuid_v4(node_id):
+            logger.warning(
+                "fsrs_history_invalid_node_id",
+                concept_name=concept,
+                node_id=str(node_id)[:80],
+            )
+            return None
         try:
-            concept_id = node_id or concept
             score_history = await asyncio.wait_for(
                 self._memory_service.get_concept_score_history(
-                    concept_id, canvas_name, limit=5
+                    node_id, canvas_name, limit=5
                 ),
                 timeout=timeout,
             )

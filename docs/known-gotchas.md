@@ -14,6 +14,7 @@
 | G-FAKE-003 | ~~Memory query API 端点全部返回空数据~~ | ~~占位实现从未被替换~~ | ✅ S33诊断纠正：7个memory端点均为真实实现，DI正确接线。返回空是因为Neo4j无数据（正确行为） | DD-03 |
 | G-FAKE-004 | ~~Agent API 端点大量使用硬编码假数据~~ | ~~原型阶段占位未清理~~ | ✅ S35审计确认：全部13个agent端点调用真实服务（GeminiClient/Neo4j/RAG），无硬编码假数据。原S18审查时的占位已在后续Story中替换 | DD-03 |
 | G-FAKE-005 | ~~Frontend /explain/four-level 等端点使用假实现~~ | ~~前后端分离时占位~~ | ✅ S35审计确认：后端6个explain端点全部接入真实LLM（agent_service.generate_explanation），前端为API wrapper。Story 21.1已完成集成 | DD-03 |
+| G-FAKE-006 | ~~MemoryService._inject_fsrs_r_values 是 dead code（mastery_engine._concept_cache 不存在）+ verification_service 两处文本 fallback 把概念名当 UUID 用~~ | ~~concept 字段身份在 verification ↔ memory ↔ review 三个 service 之间被 UUID 和文本双重占用，4 轮对抗性核实才发现~~ | ✅ openspec/changes/fix-concept-id-identity-unification 修复：新增 ConceptRef + is_uuid_v4 强类型契约，FSRS 注入改走 review_service.get_fsrs_state(concept_id)，删除 verification_service:1602/2010 文本 fallback，72 个新单测覆盖 | DD-03 + DD-13 + 强类型 ConceptRef 契约 |
 
 ## G-PIPE: 管道断裂 (DD-11)
 
@@ -76,7 +77,7 @@
 
 | 分类 | 总计 | 已修复 | 有意保留/延后 | 待修复 |
 |------|------|--------|-------------|--------|
-| G-FAKE | 5 | 5 | 0 | 0 |
+| G-FAKE | 6 | 6 | 0 | 0 |
 | G-PIPE | 7 | 5 | 2 (002 future feature, 004 有意禁用) | 0 |
 | G-TYPE | 2 | 2 | 0 | 0 |
 | G-ASYNC | 2 | 2 | 0 | 0 |
@@ -84,4 +85,4 @@
 | G-PERF | 2 | 1 | 1 (002 Phase4 约束) | 0 |
 | G-SILENT | 2 | 1 | 0 | 1 (001 S35修复中) |
 | G-PARAM | 3 | 3 | 0 | 0 |
-| **合计** | **25** | **21** | **3** | **1** |
+| **合计** | **26** | **22** | **3** | **1** |

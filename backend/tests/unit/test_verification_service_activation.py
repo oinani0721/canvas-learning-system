@@ -31,15 +31,35 @@ from app.services.verification_service import (
 
 @pytest.fixture
 def mock_canvas_data() -> Dict[str, Any]:
-    """Sample Canvas data with nodes of different colors."""
+    """Sample Canvas data with nodes of different colors.
+
+    Node IDs are real UUID v4 strings — fix-concept-id-identity-unification
+    refuses to construct ConceptRef from non-UUID node ids.
+    """
     return {
         "nodes": [
-            {"id": "node1", "text": "概念A - 测试", "color": "4"},  # Red
-            {"id": "node2", "text": "概念B - 理解", "color": "3"},  # Purple
-            {"id": "node3", "text": "概念C - 已掌握", "color": "2"},  # Green (ignored)
-            {"id": "node4", "text": "概念D - 不理解", "color": "4"},  # Red
             {
-                "id": "node5",
+                "id": "11111111-1111-4111-8111-111111111111",
+                "text": "概念A - 测试",
+                "color": "4",
+            },  # Red
+            {
+                "id": "22222222-2222-4222-8222-222222222222",
+                "text": "概念B - 理解",
+                "color": "3",
+            },  # Purple
+            {
+                "id": "33333333-3333-4333-8333-333333333333",
+                "text": "概念C - 已掌握",
+                "color": "2",
+            },  # Green (ignored)
+            {
+                "id": "44444444-4444-4444-8444-444444444444",
+                "text": "概念D - 不理解",
+                "color": "4",
+            },  # Red
+            {
+                "id": "55555555-5555-4555-8555-555555555555",
                 "text": "概念E - 无颜色",
                 "color": "",
             },  # No color (ignored)
@@ -387,20 +407,30 @@ class TestTimeoutGracefulDegradation:
 
     @pytest.mark.asyncio
     async def test_mock_mode_returns_default_concepts(self):
-        """Test that mock mode returns default concepts."""
+        """Mock mode yields three ConceptRef with synthetic UUIDs.
+
+        After fix-concept-id-identity-unification the output type is
+        List[ConceptRef] instead of List[str], so concept_id (UUID) and
+        concept_name (text) travel together as one immutable bundle.
+        """
         # H2 fix: Use direct patching instead of importlib.reload to avoid
         # module-level class duplication and test isolation poisoning.
         import app.services.verification_service as vs
+        from app.models.concept_ref import ConceptRef
 
         with patch.object(vs, "USE_MOCK_VERIFICATION", True):
             service = vs.VerificationService()
 
-            # Mock mode should return hardcoded concepts
-            concepts = await service._extract_concepts_from_canvas(
+            refs = await service._extract_concepts_from_canvas(
                 canvas_name="test", canvas_path=None, node_ids=None
             )
 
-            assert concepts == ["概念1", "概念2", "概念3"]
+            assert len(refs) == 3
+            for ref in refs:
+                assert isinstance(ref, ConceptRef)
+            extracted_names = [r.concept_name for r in refs]
+            expected_names = ["概念1", "概念2", "概念3"]
+            assert extracted_names == expected_names
 
 
 # ===========================================================================

@@ -297,14 +297,27 @@ class ReviewService:
         self._initialized = True
         self._task_canvas_map: Dict[str, str] = {}  # Maps task_id to canvas_name
         # Story 32.2 + P0-2: Card state storage with file persistence
-        self._card_states: Dict[str, str] = self._load_card_states()
+        # fix-concept-id-identity-unification: _load_card_states still
+        # returns the merged dict for backward compat with existing tests
+        # and any external callers. The split into UUID vs legacy buckets
+        # happens here in __init__ via _split_card_state_buckets.
+        merged_states = self._load_card_states()
+        uuid_states, legacy_states = self._split_card_state_buckets(merged_states)
+        self._card_states: Dict[str, str] = uuid_states
+        self._legacy_card_states: Dict[str, str] = legacy_states
         # Story 32.10 AC-3: Track fire-and-forget persistence failures
         self._auto_persist_failures: int = 0
         logger.debug("ReviewService initialized")
 
     @staticmethod
     def _load_card_states() -> Dict[str, str]:
-        """P0-2: Load card states from persistent JSON file on startup."""
+        """P0-2: Load card states from persistent JSON file on startup.
+
+        Returns the raw merged dict from disk (or empty dict on any error).
+        Bucket-splitting (UUID vs legacy text) happens in
+        ``_split_card_state_buckets`` so this static method retains its
+        original signature for backward compatibility.
+        """
         try:
             if _CARD_STATES_FILE.exists():
                 data = _CARD_STATES_FILE.read_text(encoding="utf-8")
@@ -317,6 +330,69 @@ class ReviewService:
         except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
             logger.warning(f"Failed to load FSRS card states: {e}")
         return {}
+
+    @staticmethod
+    def _split_card_state_buckets(
+        merged: Dict[str, str],
+    ) -> tuple[Dict[str, str], Dict[str, str]]:
+        """fix-concept-id-identity-unification: classify card-state keys
+        into UUID and legacy text buckets.
+
+        UUID-shaped keys land in the authoritative primary bucket. Non-UUID
+        keys are quarantined into a separate legacy bucket so lookups can
+        still hit them via ``_get_card_state`` while emitting a structured
+        warning suggesting re-sync.
+
+        Args:
+            merged: The raw dict returned by ``_load_card_states``.
+
+        Returns:
+            (uuid_states, legacy_states) — two non-overlapping dicts whose
+            union equals ``merged``.
+        """
+        from app.utils.identifier_validators import is_uuid_v4
+
+        uuid_states: Dict[str, str] = {}
+        legacy_states: Dict[str, str] = {}
+        for key, value in merged.items():
+            if is_uuid_v4(key):
+                uuid_states[key] = value
+            else:
+                legacy_states[key] = value
+        if legacy_states:
+            logger.warning(
+                "fsrs_card_states_legacy_keys_loaded",
+                count=len(legacy_states),
+                uuid_count=len(uuid_states),
+                hint=(
+                    "Legacy text-keyed FSRS card states will not "
+                    "be migrated automatically; re-sync the affected "
+                    "concepts to upgrade them to UUID keys."
+                ),
+            )
+        return uuid_states, legacy_states
+
+    def _get_card_state(self, concept_id: str) -> Optional[str]:
+        """Lookup a card state by concept_id with legacy fallback.
+
+        fix-concept-id-identity-unification: prefer the UUID bucket; on
+        miss, consult the legacy text bucket and emit a one-time warning
+        per lookup so operators get a signal that re-sync is overdue.
+        """
+        state = self._card_states.get(concept_id)
+        if state is not None:
+            return state
+        legacy = self._legacy_card_states.get(concept_id)
+        if legacy is not None:
+            logger.warning(
+                "fsrs_card_states_legacy_hit",
+                hint=(
+                    "Legacy text-keyed FSRS card hit. Re-sync this concept "
+                    "to upgrade the cache key to a UUID."
+                ),
+            )
+            return legacy
+        return None
 
     async def _save_card_states(self) -> None:
         """P0-2: Persist card states to JSON file with concurrency protection.
@@ -1990,22 +2066,52 @@ class ReviewService:
         canvas_name: str,
         rating: int,
         score: Optional[float] = None,
+        concept_name: Optional[str] = None,
     ) -> bool:
         """
         Save FSRS card state to persistence layer.
 
         Story 32.2 AC-32.2.4: Stores card state in review records.
 
+        fix-concept-id-identity-unification:
+            - ``concept_id`` MUST be a UUID v4 string. Non-UUID inputs are
+              rejected at the entrance with a structured error log.
+            - New ``concept_name`` parameter carries the human-readable
+              text. Old call sites can omit it; we then fall back to
+              ``concept_id`` itself for the display field. Once all call
+              sites are upgraded, ``concept_name`` will become required.
+            - The Graphiti ``memory_data`` dict is upgraded with explicit
+              ``concept_id`` (UUID) and ``concept_name`` (text) fields.
+              The legacy ``concept`` key is preserved as an alias of
+              ``concept_name`` so historical consumers do not break.
+
         Args:
-            concept_id: Concept identifier
+            concept_id: UUID v4 concept identifier (REQUIRED, validated)
             card_data: Serialized FSRS card JSON
             canvas_name: Canvas file name
             rating: FSRS rating (1-4)
             score: Optional legacy score (0-100)
+            concept_name: Human-readable concept text (optional during
+                migration; will become required in a follow-up change)
 
         Returns:
-            True if saved successfully
+            True if saved successfully, False if concept_id is not a UUID v4
         """
+        from app.utils.identifier_validators import is_uuid_v4
+
+        if not is_uuid_v4(concept_id):
+            logger.error(
+                "save_card_state_invalid_concept_id",
+                concept_id=str(concept_id)[:80],
+                hint=(
+                    "concept_id must be a UUID v4 string. Refusing to write "
+                    "to FSRS cache or Graphiti to prevent text/UUID confusion."
+                ),
+            )
+            return False
+
+        display_name = concept_name if concept_name else concept_id
+
         # Always update in-memory cache + persist to file (P0-2)
         self._card_states[concept_id] = card_data
         await self._save_card_states()
@@ -2020,8 +2126,13 @@ class ReviewService:
                 await memory_client.initialize()
 
                 # Create learning memory with FSRS data
+                # fix-concept-id-identity-unification: explicit identity
+                # split — concept_id (UUID) + concept_name (text), and
+                # `concept` retained as alias for legacy consumers.
                 memory_data = {
-                    "concept": concept_id,
+                    "concept_id": concept_id,
+                    "concept_name": display_name,
+                    "concept": display_name,  # legacy alias = concept_name
                     "canvas_name": canvas_name,
                     "rating": rating,
                     "score": score,
