@@ -52,7 +52,7 @@
 
 | ID | 问题 | 根因 | 修复状态 | 防止规则 |
 |----|------|------|---------|---------|
-| G-SILENT-001 | Review Schedule 在 scheduler 不可用时静默返回 200+空数据 | review_service mastery enrichment 失败时无信号 | ⛔ S35修复：添加enrichment_available标记 | API 应返回 degraded 标记 |
+| G-SILENT-001 | Review Schedule 在 scheduler 不可用时静默返回 200+空数据 | review_service mastery enrichment 失败时无信号 | 🟡 部分修复 (2026-04-06, OpenSpec: review-enrichment-signal-fix): schemas.py:WeightConfig 已加 enrichment_available 字段 + 4 个 schema 单测护栏 (test_review_enrichment_signal.py)。⚠️ **endpoint wiring 是独立 follow-up**: app/api/v1/endpoints/review.py:788 generate_verification_canvas 是独立内联实现，不调用 review_service.generate_verification_canvas（service 方法实质是 G-FAKE 死代码，生产路径零 caller，仅 tests/unit/test_review_mode_support.py 引用）。前端要真正收到 enrichment_available 信号，需要后续将 endpoint 接到 service 或在 endpoint 内联 enrichment 逻辑。 | API 应返回 degraded 标记 |
 | G-SILENT-002 | ~~Cross-Canvas Search 硬编码返回空列表~~ | ~~cross_canvas.py:557 placeholder~~ | ✅ S35审计确认：cross_canvas_service.py已完整实现（get_associated_canvases/get_lecture_for_exercise/list_associations），原gotchas行号引用过期 | DD-03 |
 
 ## G-PARAM: 参数/类型 Bug (S33 real-DB 测试暴露，已修复)

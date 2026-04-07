@@ -737,6 +737,7 @@ class WeightConfig(BaseModel):
     Weight configuration for targeted review.
 
     [Source: Story 24.3 - Weight Algorithm Implementation]
+    [Source: G-SILENT-001 fix — enrichment_available propagation]
     """
 
     weak_weight: float = Field(..., ge=0, le=1, description="Weight for weak concepts")
@@ -744,6 +745,14 @@ class WeightConfig(BaseModel):
         ..., ge=0, le=1, description="Weight for mastered concepts"
     )
     applied: bool = Field(..., description="Whether weights were applied")
+    enrichment_available: bool = Field(
+        default=True,
+        description=(
+            "G-SILENT-001: Signal whether mastery enrichment succeeded. "
+            "False indicates Neo4j/MasteryStore unavailable — review fell back to "
+            "color-only filtering. Frontend should surface a degraded indicator."
+        ),
+    )
 
 
 class GenerateReviewResponse(BaseModel):

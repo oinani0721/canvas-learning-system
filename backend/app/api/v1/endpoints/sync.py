@@ -12,6 +12,7 @@ operations and applies them idempotently to Neo4j.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from neo4j.exceptions import AuthError, Neo4jError, ServiceUnavailable
 
 from app.models.sync_models import SyncBatchRequest, SyncBatchResponse
 from app.security import require_internal_api_key
@@ -35,6 +36,7 @@ sync_router = APIRouter()
     dependencies=[Depends(require_internal_api_key)],
     responses={
         403: {"description": "Invalid or missing internal API key"},
+        500: {"description": "Unexpected logic error in sync pipeline"},
         503: {
             "description": (
                 "Neo4j connection unavailable, OR internal API key not "
@@ -46,30 +48,50 @@ sync_router = APIRouter()
 async def sync_batch(request: SyncBatchRequest) -> SyncBatchResponse:
     """Process a batch of canvas sync operations.
 
+    FR-KG-04 Phase 4 Task 4.1: exception classification.
+
+    The previous implementation caught every exception and returned 503
+    "Neo4j unreachable". This hid logic bugs (ValueError, TypeError,
+    KeyError from malformed payloads) behind a "service degraded" veneer.
+    The new classification:
+
+    - ``ServiceUnavailable`` / ``AuthError`` / ``ConnectionError`` → 503
+      (genuine infrastructure issue — retrying might help)
+    - ``Neo4jError`` (non-service) / anything else → 500
+      (logic bug; retrying will not help, client should give up)
+
+    Neither response body contains the raw exception text because that
+    may leak driver state or internal paths. Only fixed strings like
+    "Neo4j unavailable" / "Sync batch failed unexpectedly" are returned.
+
     [Source: Story 1.5 AC-7 — POST /api/v1/sync/batch]
     [Source: Story 1.5 AC-4 — idempotent Neo4j writes]
-
-    Args:
-        request: Batch of sync operations for a single canvas.
-
-    Returns:
-        SyncBatchResponse with per-operation results.
-
-    Raises:
-        HTTPException 503: If Neo4j is unreachable.
     """
     from app.services.sync_service import get_sync_service
 
     try:
         service = get_sync_service()
         return await service.process_sync_batch(request)
-    except Exception as e:
-        # Neo4j connection failure -> 503 Service Unavailable
+    except (ServiceUnavailable, AuthError, ConnectionError) as e:
+        # Infrastructure-level failures → 503
         logger.error(
-            "[Story 1.5] Sync batch failed — Neo4j unreachable: %s",
+            "sync_batch_neo4j_unavailable: type=%s detail=%s",
+            type(e).__name__,
             str(e)[:200],
         )
         raise HTTPException(
             status_code=503,
-            detail=f"Neo4j connection failed: {str(e)[:200]}",
+            detail="Neo4j unavailable",
+        ) from e
+    except Exception as e:
+        # Everything else (logic bugs, unexpected Neo4jError) → 500
+        # Use logger.exception to capture the full traceback for debugging,
+        # but return a generic message so no internal state leaks.
+        logger.exception(
+            "sync_batch_unexpected_error: type=%s",
+            type(e).__name__,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Sync batch failed unexpectedly",
         ) from e
