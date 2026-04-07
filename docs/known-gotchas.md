@@ -14,7 +14,7 @@
 | G-FAKE-003 | ~~Memory query API 端点全部返回空数据~~ | ~~占位实现从未被替换~~ | ✅ S33诊断纠正：7个memory端点均为真实实现，DI正确接线。返回空是因为Neo4j无数据（正确行为） | DD-03 |
 | G-FAKE-004 | ~~Agent API 端点大量使用硬编码假数据~~ | ~~原型阶段占位未清理~~ | ✅ S35审计确认：全部13个agent端点调用真实服务（GeminiClient/Neo4j/RAG），无硬编码假数据。原S18审查时的占位已在后续Story中替换 | DD-03 |
 | G-FAKE-005 | ~~Frontend /explain/four-level 等端点使用假实现~~ | ~~前后端分离时占位~~ | ✅ S35审计确认：后端6个explain端点全部接入真实LLM（agent_service.generate_explanation），前端为API wrapper。Story 21.1已完成集成 | DD-03 |
-| G-FAKE-006 | ~~MemoryService._inject_fsrs_r_values 是 dead code（mastery_engine._concept_cache 不存在）+ verification_service 两处文本 fallback 把概念名当 UUID 用~~ | ~~concept 字段身份在 verification ↔ memory ↔ review 三个 service 之间被 UUID 和文本双重占用，4 轮对抗性核实才发现~~ | ✅ openspec/changes/fix-concept-id-identity-unification 修复：新增 ConceptRef + is_uuid_v4 强类型契约，FSRS 注入改走 review_service.get_fsrs_state(concept_id)，删除 verification_service:1602/2010 文本 fallback，72 个新单测覆盖 | DD-03 + DD-13 + 强类型 ConceptRef 契约 |
+| G-FAKE-006 | ~~MemoryService._inject_fsrs_r_values 是 dead code（mastery_engine._concept_cache 不存在）+ verification_service 两处文本 fallback 把概念名当 UUID 用 + fallback_sync_service:369 把 entry 文本 concept 作为 record_score_history 的 UUID fallback~~ | ~~concept 字段身份在 verification ↔ memory ↔ review ↔ fallback_sync 四个 service 之间被 UUID 和文本双重占用，需 4 轮对抗性核实 + 后续 Agent 2 对抗性 grep 才全部发现~~ | ✅ openspec/changes/fix-concept-id-identity-unification 修复：Phase 1-6 (d569da0) 新增 ConceptRef + is_uuid_v4 强类型契约，FSRS 注入改走 review_service.get_fsrs_state(concept_id)，删除 verification_service:1602/2010 文本 fallback，72 个新单测覆盖；Phase 7 补 fallback_sync_service._replay_scoring_entry_to_neo4j 的 is_uuid_v4 guard + 6 个 contract scenarios，共 78 个新单测 | DD-03 + DD-13 + 强类型 ConceptRef 契约 |
 
 ## G-PIPE: 管道断裂 (DD-11)
 

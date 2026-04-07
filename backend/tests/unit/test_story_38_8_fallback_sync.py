@@ -122,11 +122,14 @@ class TestAC1StartupReplay:
         tmp_path,
     ):
         """failed_writes.jsonl entries are replayed via run_query."""
+        # Phase 7 (fix-concept-id-identity-unification): concept_id MUST be
+        # a UUID v4 per record_score_history contract. Legacy "c1"/"c2"
+        # short IDs would now be skipped by the is_uuid_v4 guard.
         entries = [
             {
                 "timestamp": "2026-02-07T10:00:00",
                 "event_type": "scoring",
-                "concept_id": "c1",
+                "concept_id": "c1111111-1111-4111-8111-111111111111",
                 "canvas_name": "math.canvas",
                 "score": 85,
                 "error_reason": "timeout",
@@ -135,7 +138,7 @@ class TestAC1StartupReplay:
             {
                 "timestamp": "2026-02-07T10:01:00",
                 "event_type": "scoring",
-                "concept_id": "c2",
+                "concept_id": "c2222222-2222-4222-8222-222222222222",
                 "canvas_name": "physics.canvas",
                 "score": 70,
                 "error_reason": "connection",

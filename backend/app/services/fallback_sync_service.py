@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+from app.utils.identifier_validators import is_uuid_v4
 
 logger = structlog.get_logger(__name__)
 
@@ -363,20 +364,49 @@ class FallbackSyncService:
             logger.warning(f"[Story 38.8] Neo4j scoring replay failed: {e}")
             return False
 
-        # Also record score history if score present
+        # Also record score history if score present.
+        #
+        # Contract (fix-concept-id-identity-unification Phase 7):
+        #   record_score_history(concept_id: str) is typed as UUID v4.
+        #   Legacy failed_writes.jsonl entries may only carry a text
+        #   `concept` field (no concept_id) or may have stuffed the text
+        #   into concept_id by mistake. We must never silently leak text
+        #   into the UUID slot — skip score_history and warn structurally.
+        #
+        #   The main LEARNED MERGE above has already succeeded at this
+        #   point, so we return True regardless: score_history is a
+        #   non-fatal side-effect and retrying the whole entry would
+        #   risk timestamp-ordering regressions on the primary write.
         if score is not None:
-            try:
-                concept_id = entry.get("concept_id", concept)
-                await self._neo4j.record_score_history(
-                    concept_id=concept_id,
-                    canvas_name=canvas_name,
-                    score=int(score),
-                    timestamp=ts,
-                )
-            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+            raw_concept_id = entry.get("concept_id")
+            if not is_uuid_v4(raw_concept_id):
                 logger.warning(
-                    f"[Story 38.8] Score history record failed (non-fatal): {e}"
+                    "[Story 38.8] Skipping score_history for entry with "
+                    "invalid concept_id",
+                    extra={
+                        "concept_name": concept,
+                        "canvas_name": canvas_name,
+                        "concept_id_type": type(raw_concept_id).__name__,
+                        "concept_id_preview": (
+                            str(raw_concept_id)[:40]
+                            if raw_concept_id is not None
+                            else None
+                        ),
+                        "reason": "concept_id is not a UUID v4",
+                    },
                 )
+            else:
+                try:
+                    await self._neo4j.record_score_history(
+                        concept_id=raw_concept_id,
+                        canvas_name=canvas_name,
+                        score=int(score),
+                        timestamp=ts,
+                    )
+                except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+                    logger.warning(
+                        f"[Story 38.8] Score history record failed (non-fatal): {e}"
+                    )
 
         return True
 
