@@ -1,0 +1,15 @@
+# RAGAS evaluation fixtures
+#
+# FR-KG-04 Phase 10 Task 10.2 (openspec change
+# fix-fr-kg-04-schema-drift-and-sync-hardening).
+#
+# Add fixture JSON files here following the format documented in
+# docs/ragas-evaluation.md. Example filename: linear-algebra.json.
+#
+# Each file must contain:
+#   - "topic": string identifier for this topic area
+#   - "cases": list of {query, expected_retrieval_contexts, ground_truth_answer}
+#
+# The .gitkeep placeholder ensures this directory exists in git history
+# even before the first real fixture is added. Remove it once the first
+# fixture is committed.

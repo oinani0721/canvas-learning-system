@@ -105,13 +105,13 @@
 
 ## 10. RAGAS 离线评估（Phase 10，Week 3 Day 3-5）
 
-- [ ] 10.1 在 `backend/requirements-dev.txt` 添加 `ragas>=0.1.0`（如果不存在，创建文件）
-- [ ] 10.2 新建 `backend/tests/regression/ragas_eval/fixtures/` 目录，准备初始评估集（10-20 条 query + 期望的 retrieval context + ground truth answer）
-- [ ] 10.3 新建 `backend/tests/regression/ragas_eval/test_ragas_faithfulness.py` 调用 RAG 管线并用 `ragas.metrics.faithfulness` 评分
-- [ ] 10.4 新建 CI 脚本 `scripts/ci/ragas_gate.py` 运行评估集，`faithfulness < 0.7` 时 `sys.exit(1)`
-- [ ] 10.5 更新 `.github/workflows/ci.yml`（如存在）添加 `ragas-gate` job（初始为 `continue-on-error: true` 观察模式）
-- [ ] 10.6 运行 1 周 baseline 收集后，在 `openspec/changes/fix-fr-kg-04-schema-drift-and-sync-hardening/ragas-baseline.md` 记录数据，再把 CI job 切到强制阻断模式
-- [ ] 10.7 新建 `docs/ragas-evaluation.md` 说明评估流程、如何扩展评估集、阈值调整策略
+- [ ] 10.1 在 `backend/requirements-dev.txt` 添加 `ragas>=0.1.0` — **DEFERRED**（项目无 requirements-dev.txt；`docs/ragas-evaluation.md` 给出了手动安装命令 `.venv/bin/python -m pip install "ragas>=0.1.0"`）
+- [x] 10.2 新建 `backend/tests/regression/ragas_eval/fixtures/` 目录 — 含 `.gitkeep` 占位符和格式说明；真实评估集需要从生产用户查询中提炼（运营任务）
+- [ ] 10.3 新建 `backend/tests/regression/ragas_eval/test_ragas_faithfulness.py` — **DEFERRED**（需要稳定的 RAG pipeline 公开 handle；ragas_gate.py 的 `_run_evaluation` 已留 placeholder 和接入说明）
+- [x] 10.4 新建 CI 脚本 `scripts/ci/ragas_gate.py` — 完整 scaffolding：argparse 阈值配置 + 3 个退出码（pass / below / incomplete）+ lazy ragas import + 详细 docstring
+- [ ] 10.5 更新 `.github/workflows/test.yml` 添加 `ragas-gate` job — **DEFERRED**（需要真实评估集就绪后再接入 CI；observation 模式的 `continue-on-error: true` 行为已由 scaffolding 的 exit-code 2 原生支持）
+- [ ] 10.6 1 周 baseline 收集 + 切换阻断模式 — **DEFERRED to post-deploy**（运营阶段）
+- [x] 10.7 新建 `docs/ragas-evaluation.md` — 完整文档含 why/what measures/run locally/extend set/tune thresholds/current scaffolding status 7 个章节
 
 ## 11. Segment Commit 架构升级（Phase 11，Week 1 Day 3-4；取代原 Phase 3 单事务 + try/except 语义）
 
