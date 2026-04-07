@@ -16,13 +16,14 @@
       "mcp__graphiti-canvas__search_communities",
       "mcp__graphiti-canvas__get_graph_stats",
       "mcp__graphiti-canvas__get_episode_lineage",
-      "mcp__graphiti-canvas__get_entity_edge"
+      "mcp__graphiti-canvas__get_entity_edge",
+      "mcp__codebase-memory__brief"
     ]
   },
-  "outputStyle": "Learning",
   "enabledMcpjsonServers": [
     "sequential-thinking",
     "context7",
     "graphiti-canvas"
-  ]
+  ],
+  "outputStyle": "Learning"
 }

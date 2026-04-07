@@ -95,7 +95,12 @@ fi
 
 # ─── Stage 6: 收集变化信息 (用于 commit message) ────────────
 COUNT=$(git status --short 2>/dev/null | wc -l | tr -d ' ')
-SAMPLE=$(git status --short 2>/dev/null | head -5 | awk '{print $NF}' | tr '\n' ' ' | sed 's/ $//')
+# 取第一个变化文件的 basename，截短到 40 字符，用于 header
+FIRST_FILE=$(git status --short 2>/dev/null | head -1 | awk '{print $NF}')
+FIRST_BASENAME=$(basename "${FIRST_FILE:-unknown}" 2>/dev/null)
+SHORT_DESC="${FIRST_BASENAME:0:40}"
+# 完整文件清单放到 body (最多 20 个)
+FULL_LIST=$(git status --short 2>/dev/null | head -20 | awk '{print "  - " $NF}')
 
 # ─── Stage 7: git add -A，但排除危险目录 (双保险) ──────────
 git add -A 2>/dev/null
@@ -109,11 +114,18 @@ if git diff --cached --quiet 2>/dev/null; then
 fi
 
 # ─── Stage 9: commit (Co-Authored-By 是 spec-ref escape hatch) ──
+# commitlint 约束:
+#   - type 必须是 [feat, fix, refactor, test, docs, chore, style, perf, ci, revert]
+#     → 用 'chore' (最接近 wip 的语义)
+#   - header 最多 100 字符 → 用 basename + 截短
 SESSION_ID="${CLAUDE_SESSION_ID:-unknown}"
-COMMIT_MSG="wip(auto-sync): ${COUNT} files [${SAMPLE}]
+COMMIT_MSG="chore(auto-sync): ${COUNT} files, ${SHORT_DESC}
 
 Auto-synced by Claude Code Stop hook.
 Session: ${SESSION_ID}
+
+Files:
+${FULL_LIST}
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 
