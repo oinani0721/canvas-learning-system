@@ -23,6 +23,9 @@ type SyncListener = (state: SyncState, pendingCount: number) => void;
 
 const DEBOUNCE_MS = 2000;
 const BASE_RETRY_MS = 2000;
+// audit-2026-04-07/p1-2: cap exponential backoff so a stuck TRANSIENT_ERROR
+// entry doesn't sleep for hours. 60s is the AWS-recommended ceiling.
+const MAX_RETRY_DELAY_MS = 60_000;
 const MAX_RETRIES = 5;
 const HEALTH_CHECK_INTERVAL_MS = 30000;
 const BATCH_SIZE = 50;
@@ -291,18 +294,34 @@ export class SyncEngine {
 
             case 'TRANSIENT_ERROR':
             default: {
-              // Neo4j driver hiccup or similar — exponential backoff.
-              // We approximate retryCount from how many times this entry
-              // has been seen with a nextRetryAt already set (stored on
-              // the row itself). The backoff base is 2s, doubling.
-              const currentRetries = entry.nextRetryAt ? 1 : 0;
-              const delayMs =
-                BASE_RETRY_MS * Math.pow(2, currentRetries);
+              // audit-2026-04-07/p1-2: real exponential backoff with
+              // full jitter, replacing the broken 1-bit `entry.nextRetryAt
+              // ? 1 : 0` approximation.
+              //
+              // Algorithm (AWS "Exponential Backoff and Jitter"):
+              //   capMs   = min(BASE_RETRY_MS * 2^n, MAX_RETRY_DELAY_MS)
+              //   delayMs = floor(random(0, capMs))    ← FULL JITTER
+              //
+              // Why full jitter (vs equal/half jitter): when many tabs/
+              // worktrees retry the same Neo4j outage simultaneously,
+              // full jitter spreads them out the most uniformly, giving
+              // the database the best chance to recover before being
+              // re-stampeded.
+              //
+              // Cap at 60s so a stuck entry doesn't sleep for hours and
+              // user-perceived latency on recovery stays bounded.
+              const currentRetries = entry.retryCount ?? 0;
+              const capMs = Math.min(
+                BASE_RETRY_MS * Math.pow(2, currentRetries),
+                MAX_RETRY_DELAY_MS,
+              );
+              const delayMs = Math.floor(Math.random() * capMs);
               const nextRetryAt = new Date(
                 Date.now() + delayMs,
               ).toISOString();
               await db.sync_outbox.update(entry.id, {
                 failureClass: 'TRANSIENT_ERROR',
+                retryCount: currentRetries + 1,
                 nextRetryAt,
                 lastError,
               });
