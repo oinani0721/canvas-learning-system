@@ -160,7 +160,8 @@ class QuestionGenerator:
             mastery_data = mastery_results[idx]
             p_mastery = mastery_data.get("p_mastery", 0.1)
             retrievability = mastery_data.get("retrievability", 1.0)
-            kg_relevance = kg_results[idx]
+            # FR-KG-04 fix: _get_kg_relevance now returns (score, degraded_reason)
+            kg_relevance, kg_degraded = kg_results[idx]
 
             priority = (
                 W_MASTERY * (1.0 - p_mastery)
@@ -179,6 +180,7 @@ class QuestionGenerator:
                     p_mastery=p_mastery,
                     retrievability=retrievability,
                     kg_relevance=kg_relevance,
+                    kg_relevance_degraded=kg_degraded,
                     already_examined=already_examined,
                 )
             )
@@ -659,39 +661,63 @@ class QuestionGenerator:
             "mastery_label": "Not Assessed",
         }
 
-    async def _get_kg_relevance(self, node_id: str, canvas_id: str) -> float:
+    async def _get_kg_relevance(
+        self, node_id: str, canvas_id: str
+    ) -> tuple[float, Optional[str]]:
         """Compute KG-based relevance score for a node.
 
-        Nodes with more connections to high-mastery neighbors but low self-mastery
-        represent structural knowledge gaps — these get higher relevance scores.
+        Returns a 2-tuple ``(score, degraded_reason)`` where ``score`` is in
+        ``[0, 1]`` and ``degraded_reason`` is ``None`` on the happy path or one
+        of ``"empty_graph"`` / ``"neo4j_unavailable"`` when the moderate default
+        (0.5) had to be used.
 
-        FR-KG-04 fix: Aligned to SyncService write schema. SyncService persists
-        nodes as ``CanvasNode {id, canvasId}`` and edges as ``CANVAS_EDGE``.
-        The previous query used ``uuid`` and ``canvas_id``, which never matched
-        and silently returned the default 0.5 — making this factor a no-op in
-        the priority formula and was the root cause of A11's "algorithm feels
-        fake" complaint.
+        Nodes with more strongly-typed connections (CANVAS_EDGE = user-drawn,
+        RELATES_TO = Graphiti-inferred) represent richer structural context and
+        therefore get higher relevance scores.
+
+        FR-KG-04 fix history:
+        1. ``c7215ca`` aligned the schema (``{uuid}`` → ``{id}``,
+           ``canvas_id`` → ``canvasId``) so the query stops returning empty.
+        2. This change (openspec fix-fr-kg-04-schema-drift-and-sync-hardening
+           Phase 1) upgrades the formula to a weighted SUM(CASE type(r) ...)
+           and replaces the silent ``return 0.5`` with an observable
+           ``(0.5, degraded_reason)`` tuple — see A11 in the FR-KG-04 batch.
+
+        Weighted formula:
+            CANVAS_EDGE neighbor → weight 1.0 (explicit user intent)
+            RELATES_TO neighbor  → weight 0.7 (Graphiti-inferred)
+            normalized           → min(1.0, weighted_degree / 8.0)
         """
         try:
             from app.clients.neo4j_client import get_neo4j_client
 
             client = get_neo4j_client()
             query = """
-            MATCH (n:CanvasNode {id: $node_id})-[r:CANVAS_EDGE]-(neighbor:CanvasNode)
+            MATCH (n:CanvasNode {id: $node_id})-[r:CANVAS_EDGE|RELATES_TO]-(neighbor:CanvasNode)
             WHERE neighbor.canvasId = $canvas_id
-            RETURN count(neighbor) AS degree
+            RETURN
+                SUM(CASE type(r)
+                        WHEN 'CANVAS_EDGE' THEN 1.0
+                        WHEN 'RELATES_TO'  THEN 0.7
+                        ELSE 0
+                    END) AS weighted_degree,
+                COUNT(neighbor) AS neighbor_count
             """
             records = await client.run_query(
                 query, node_id=node_id, canvas_id=canvas_id
             )
             if records:
                 data = records[0] if isinstance(records[0], dict) else records[0].data()
-                degree = data.get("degree", 0)
-                # Normalize: more connections = higher relevance, capped at 1.0
-                return min(1.0, degree / 5.0)
+                weighted = data.get("weighted_degree") or 0.0
+                neighbor_count = data.get("neighbor_count") or 0
+                if neighbor_count == 0 or weighted == 0:
+                    return 0.5, "empty_graph"
+                return min(1.0, float(weighted) / 8.0), None
+            # Empty result set: query succeeded but found nothing
+            return 0.5, "empty_graph"
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"[Story 6.3] KG relevance query failed: {e}")
-        return 0.5  # Default moderate relevance
+            return 0.5, "neo4j_unavailable"
 
     async def _get_tips(self, node_id: str) -> List[str]:
         """Get user-annotated Tips from Graphiti for a node."""

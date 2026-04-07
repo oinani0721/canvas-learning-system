@@ -63,16 +63,19 @@ async def sync_node_to_source_canvas(
     client = get_neo4j_client()
     now_iso = datetime.now(timezone.utc).isoformat()
 
+    # FR-KG-04 Phase 1 Task 1.3: Unified to {id} + canvasId schema
+    # (matches SyncService write contract; previously used {uuid} + canvas_id
+    # which never collided with SyncService writes and broke kg_relevance.)
     node_query = """
-    MERGE (n:CanvasNode {uuid: $node_id})
+    MERGE (n:CanvasNode {id: $node_id})
     SET n.text = $node_text,
-        n.canvas_id = $source_canvas_id,
+        n.canvasId = $source_canvas_id,
         n.source_exam_id = $exam_id,
         n.source_node_id = $source_node_id,
         n.group_id = $group_id,
         n.created_at = datetime($created_at),
         n.node_type = 'discovered'
-    RETURN n.uuid AS id
+    RETURN n.id AS id
     """
     try:
         await client.run_query(
@@ -96,9 +99,10 @@ async def sync_node_to_source_canvas(
             message=f"Neo4j node write failed: {e}",
         )
 
+    # FR-KG-04 Phase 1 Task 1.4: Unified MATCH to {id} schema (was {uuid})
     edge_query = """
-    MATCH (src:CanvasNode {uuid: $source_node_id})
-    MATCH (tgt:CanvasNode {uuid: $node_id})
+    MATCH (src:CanvasNode {id: $source_node_id})
+    MATCH (tgt:CanvasNode {id: $node_id})
     MERGE (src)-[r:EXAM_DISCOVERED {relation_type: $relation}]->(tgt)
     SET r.exam_id = $exam_id,
         r.group_id = $group_id,

@@ -227,13 +227,24 @@ class QuestionGenerationResult(BaseModel):
 
 
 class NodePriority(BaseModel):
-    """Node priority for exam target selection (Story 6.3 AC-1)."""
+    """Node priority for exam target selection (Story 6.3 AC-1).
+
+    FR-KG-04 (openspec change fix-fr-kg-04-schema-drift-and-sync-hardening):
+    ``kg_relevance_degraded`` records *why* the knowledge-graph relevance
+    factor fell back to the moderate default (0.5), preventing the silent
+    degradation that hid the original schema-drift bug. Possible values:
+
+    - ``None``: kg_relevance was computed from real graph data
+    - ``"empty_graph"``: query ran but found no CANVAS_EDGE/RELATES_TO neighbors
+    - ``"neo4j_unavailable"``: query raised ConnectionError/RuntimeError/timeout
+    """
 
     node_id: str
     priority_score: float
     p_mastery: float
     retrievability: float
     kg_relevance: float
+    kg_relevance_degraded: Optional[str] = None
     already_examined: bool = False
 
 

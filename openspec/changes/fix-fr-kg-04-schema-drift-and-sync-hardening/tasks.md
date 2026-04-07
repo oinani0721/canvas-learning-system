@@ -1,0 +1,198 @@
+## 1. Schema 统一与 kg_relevance 修复（Phase 1，Week 1 Day 1）
+
+- [x] 1.1 在测试 Neo4j 实例上运行 dry-run 脚本 `MATCH (n:CanvasNode) WHERE n.uuid IS NOT NULL RETURN count(n) AS legacy_count` 评估历史 `{uuid}` 节点规模 (dry-run 步骤记录在 migration 002 注释顶部)
+- [x] 1.2 编写反向迁移脚本 `backend/migrations/002_canvasnode_uuid_to_id.cypher` 实现 `SET n.id = coalesce(n.id, n.uuid) REMOVE n.uuid` (含 canvas_id → canvasId 同步)
+- [x] 1.3 修改 `backend/app/services/exam_service_ext.py:67` 将 `MERGE (n:CanvasNode {uuid: $node_id})` 改为 `MERGE (n:CanvasNode {id: $node_id})` (同时改 n.canvas_id → n.canvasId, n.uuid → n.id)
+- [x] 1.4 修改 `backend/app/services/exam_service_ext.py:100-101` 同步将 `{uuid: $source_node_id}` 和 `{uuid: $node_id}` 改为 `{id: ...}`
+- [x] 1.5 修改 `backend/app/services/question_generator.py:673-675` Cypher 为 `MATCH (n:CanvasNode {id: $node_id})-[r:CANVAS_EDGE|RELATES_TO]-(neighbor:CanvasNode) WHERE neighbor.canvasId = $canvas_id RETURN SUM(CASE type(r) WHEN 'CANVAS_EDGE' THEN 1.0 WHEN 'RELATES_TO' THEN 0.7 ELSE 0 END) AS weighted_degree`
+- [x] 1.6 修改 `backend/app/services/question_generator.py:751` 中的类似查询，统一 `{uuid}`→`{id}`、`canvas_id`→`canvasId` (Wave 1 commit c7215ca 已完成 _get_edge_reasons schema 对齐)
+- [x] 1.7 更新 `_get_kg_relevance` 返回签名为 `tuple[float, Optional[str]]`，空结果返回 `(0.5, "empty_graph")`；异常路径返回 `(0.5, "neo4j_unavailable")`
+- [x] 1.8 更新所有 `_get_kg_relevance` 调用方接受新的 tuple 返回值（如 `select_target_node` 中的 `kg_relevance` 赋值）
+- [x] 1.9 在 `NodePriority` 模型中添加 `kg_relevance_degraded: Optional[str]` 字段用于观测
+- [x] 1.10 CI linter 检查：`grep -rn "CanvasNode {uuid" backend/app/` 应无结果（排除 `backend/mutants/`） — 0 matches confirmed
+- [x] 1.11 新建 `backend/tests/unit/test_kg_relevance_schema.py`：构造真实 CanvasNode + 邻居，验证返回非 0.5 的加权值 (合并到 test_kg_relevance_weighted.py 的 TestKgRelevanceCypherShape + TestGetKgRelevanceFormula)
+- [x] 1.12 新建 `backend/tests/unit/test_kg_relevance_degraded.py`：空图返回 `(0.5, "empty_graph")`；Neo4j 不可达返回 `(0.5, "neo4j_unavailable")` (合并到 test_kg_relevance_weighted.py 的 4 个 degraded 场景)
+
+## 2. /sync/batch 鉴权（Phase 2，Week 1 Day 2）
+
+- [ ] 2.1 新建 `backend/app/security.py`，实现 `INTERNAL_API_KEY_HEADER = APIKeyHeader(name="X-CLS-Internal-Key", auto_error=False)`
+- [ ] 2.2 在 `security.py` 实现 `require_internal_api_key()` 依赖，按 fail-closed 矩阵处理（`DEBUG=True`+空 key → 警告放行；`DEBUG=False`+空 key → 503；其他 → 严格校验）
+- [ ] 2.3 在 `backend/app/config.py` 的 `Settings` 类添加 `INTERNAL_API_KEY: str = Field(default="", description="Internal API key for backend sensitive endpoints")`
+- [ ] 2.4 修改 `backend/app/api/v1/endpoints/sync.py:23` 的装饰器添加 `dependencies=[Depends(require_internal_api_key)]` 和 `403` 到 responses 字典
+- [ ] 2.5 在 `backend/tests/conftest.py` 的 `get_settings_override()` 注入 `INTERNAL_API_KEY="test-internal-key"`
+- [ ] 2.6 新建 `backend/tests/unit/test_sync_batch_auth.py`：覆盖无 key→403、错 key→403、对 key→200、DEBUG+空 key→允许、非 DEBUG+空 key→503 五个场景
+- [ ] 2.7 修改 `frontend/src/services/api-client.ts` 的 `ApiClient` 构造函数接受可选 `internalApiKey`，实现 `setInternalApiKey()` 和 `buildHeaders()` 方法
+- [ ] 2.8 修改 `frontend/src/services/api-client.ts` 的所有 fetch 调用（GET/POST/PATCH）使用 `this.buildHeaders()` 注入 `X-CLS-Internal-Key`
+- [ ] 2.9 在前端启动入口（`frontend/src/main.tsx` 或 `App.tsx`）读取 `import.meta.env.VITE_INTERNAL_API_KEY`，未配置时控制台警告
+- [ ] 2.10 更新 `frontend/package.json` 的 `scripts.test` 为 `vitest run`（如果缺失）
+- [ ] 2.11 新建 `frontend/src/services/api-client.test.ts`：验证 `X-CLS-Internal-Key` header 被正确注入
+- [ ] 2.12 更新 Tauri 启动文档 `docs/tauri-setup.md`（若存在）或在 README 中说明如何配置 `VITE_INTERNAL_API_KEY`
+
+## 3. Edge 一致性与批次排序（Phase 3，Week 1 Day 3）
+
+- [ ] 3.1 在 `backend/app/services/sync_service.py` 添加静态方法 `_operation_sort_key(op: SyncOperation) -> tuple[int, int]`，实现 create/update 的 `board→node→edge` 顺序 + delete 的 `edge→node→board` 反向顺序
+- [ ] 3.2 修改 `process_sync_batch` 第 90 行 `for op in request.operations:` 为 `for op in sorted(request.operations, key=self._operation_sort_key):`
+- [ ] 3.3 修改 `_upsert_edge` 在 payload 提取后立即校验 `if not source_node_id or not target_node_id: raise ValueError(...)`
+- [ ] 3.4 修改 `_upsert_edge` 的 Cypher 添加 `RETURN e.id AS edge_id`
+- [ ] 3.5 修改 `_upsert_edge` 在 `tx.run` 后添加 `result = await tx.run(...)`；`record = await result.single()`；`if record is None: raise RuntimeError(f"edge upsert no-op: missing nodes source={source_node_id} target={target_node_id}")`
+- [ ] 3.6 修改 `process_sync_batch` 第 101 行的 `except (RuntimeError, ConnectionError)` 扩展为 `except Exception as e`（per-op 级隔离失败）
+- [ ] 3.7 新建 `backend/tests/unit/test_sync_service_edge_noop.py`：模拟 `result.single()` 返回 None，验证抛 `RuntimeError`；payload 缺字段时抛 `ValueError`
+- [ ] 3.8 新建 `backend/tests/unit/test_sync_service_topo_sort.py`：构造 `[edge, node1, node2]` 输入，断言排序后 nodes 先于 edge；构造 `[edge_delete, node_delete, board_delete]`，断言反向顺序
+- [ ] 3.9 新建 `backend/tests/unit/test_sync_service_partial_failure.py`：构造 3 个 op，第 2 个抛 `ValueError`，验证 op1 和 op3 仍执行，`synced_count=2 failed_count=1`
+
+## 4. 异常分类 + Neo4j 约束（Phase 4，Week 1 Day 4）
+
+- [ ] 4.1 修改 `backend/app/api/v1/endpoints/sync.py:57-66` 将 `except Exception` 拆分为：`except (ConnectionError, RuntimeError) as e` → 503；`except Exception as e` → 500（使用 `logger.exception` 记录 traceback，detail 返回 `"Sync batch failed unexpectedly"`）
+- [ ] 4.2 在 `sync.py` 的 `@sync_router.post` 装饰器 `responses` 字典添加 `500: {"description": "Unexpected logic error"}`
+- [ ] 4.3 新建 `backend/migrations/001_canvas_constraints.cypher` 包含：
+  ```
+  CREATE CONSTRAINT canvasnode_id_unique IF NOT EXISTS
+  FOR (n:CanvasNode) REQUIRE n.id IS UNIQUE;
+  
+  CREATE CONSTRAINT canvasboard_subject_name_unique IF NOT EXISTS
+  FOR (b:CanvasBoard) REQUIRE (b.subjectId, b.name) IS UNIQUE;
+  
+  CREATE INDEX canvasnode_canvasid IF NOT EXISTS
+  FOR (n:CanvasNode) ON (n.canvasId);
+  ```
+- [ ] 4.4 在 `backend/app/main.py` 的 `lifespan` 启动钩子中添加迁移脚本执行逻辑（检测 `.executed` 标记文件或使用 schema version 表）
+- [ ] 4.5 新建 `backend/tests/integration/test_neo4j_constraints.py`：使用真实 Neo4j 测试容器，验证违反约束时抛 `ConstraintValidationFailed`
+- [ ] 4.6 新建 `backend/tests/unit/test_sync_exception_classification.py`：mock `SyncService` 抛 `ValueError` → 验证 500；抛 `ConnectionError` → 验证 503
+
+## 5. 端到端集成测试（Phase 5，Week 1 Day 5）
+
+- [ ] 5.1 新建 `backend/tests/integration/test_fr_kg_04_e2e.py` 覆盖"画白板→sync→查询"完整链路：前端提交 batch（含 auth）→ SyncService 写 Neo4j → question_generator 查询 kg_relevance 返回非默认值
+- [ ] 5.2 在 e2e 测试中验证异常路径：无 auth header → 403；batch 内 edge 无效 node → 503 + failed_count 增加
+- [ ] 5.3 运行 `pytest backend/tests/ -x -q` 全套测试并修复回归
+
+## 6. kg_relevance 加权公式实装（Phase 6，Week 2 Day 1-2）
+
+- [ ] 6.1 验证 Task 1.5 的 Cypher 在真实数据上正确返回 `weighted_degree`（使用 `EXPLAIN` 确认利用了 `canvasnode_canvasid` 索引）
+- [ ] 6.2 在 `_get_kg_relevance` 中更新归一化逻辑 `return min(1.0, weighted_degree / 8.0), None`
+- [ ] 6.3 新建 `backend/tests/unit/test_kg_relevance_weighted.py` 覆盖：3 个 CANVAS_EDGE → 0.375；4 个 RELATES_TO → 0.35；混合 2+3 → ~0.5125；10 个 CANVAS_EDGE → 1.0；0 个 → `(0.5, "empty_graph")`；只有 HAS_TIP → `(0.5, "empty_graph")`
+- [ ] 6.4 运行 `pytest backend/tests/unit/test_kg_relevance_weighted.py -v` 确认所有场景通过
+- [ ] 6.5 在真实 Neo4j 数据上运行 `select_target_node`，对比修复前后的节点优先级分布，确认 kg_relevance 确实参与排序
+
+## 7. CONNECTS_TO 死代码弃用（Phase 7，Week 2 Day 3）
+
+- [ ] 7.1 运行 `grep -rn "CONNECTS_TO" backend/app/` 收集所有引用点
+- [ ] 7.2 运行 `grep -rn "_sync_edge_to_neo4j" backend/app/` 确认只有 `canvas_service.py` 自身引用
+- [ ] 7.3 将上述 grep 结果写入 `docs/project-status/fr-exploration/CONNECTS_TO-deprecation-evidence.md` 作为"零消费"证据
+- [ ] 7.4 在 `canvas_service._sync_edge_to_neo4j` 方法顶部添加 docstring `"""DEPRECATED v0.X.Y: CONNECTS_TO is bypassed by verification_service (see # FR-KG-04 fix comments). Will be removed in v0.(X+1).0."""`
+- [ ] 7.5 更新 `docs/known-gotchas.md` 添加 G-FAKE-XX 条目：`CONNECTS_TO write dead code, scheduled for removal next minor version`
+- [ ] 7.6 确认新版本号并记录在 `openspec/changes/fix-fr-kg-04-schema-drift-and-sync-hardening/deprecation-schedule.md`
+
+## 8. Canvas 主键联合唯一约束（Phase 8，Week 2 Day 4-5）
+
+- [ ] 8.1 编写冲突检测查询 `MATCH (b1:CanvasBoard), (b2:CanvasBoard) WHERE b1.subjectId = b2.subjectId AND b1.name = b2.name AND id(b1) < id(b2) RETURN b1, b2 LIMIT 10`
+- [ ] 8.2 在测试 Neo4j 上运行冲突检测，若有冲突则先手动解决再执行约束创建
+- [ ] 8.3 Task 4.3 的迁移脚本已包含 `(subjectId, name)` 约束；运行该脚本
+- [ ] 8.4 新建 `backend/tests/integration/test_canvasboard_unique.py`：尝试写入 `(subjectId="math", name="linear-algebra")` 两次，验证第二次抛 `ConstraintValidationFailed`
+- [ ] 8.5 更新 `backend/app/services/canvas_service.py` 的 `create_canvas` 方法捕获 `ConstraintValidationFailed` 并返回友好错误给前端
+
+## 9. PromptTemplate 检索上下文扫描（Phase 9，Week 3 Day 1-2）
+
+- [ ] 9.1 修改 `backend/app/middleware/prompt_injection_guard.py` 的 `PromptTemplate.build()` 方法：在 `if context:` 分支内添加 `ctx_check = check_input(context)`；`if ctx_check.is_blocked: context = SAFETY_BLOCK_INPUT_MESSAGE`
+- [ ] 9.2 修改 `backend/app/clients/claude_client.py:247` 区域：在 `system_prompt = f"{system_prompt}\n\n## Additional Context\n{context}"` 之前添加 `context_check = check_input(context); if context_check.is_blocked: context = "[filtered: suspicious content detected]"`
+- [ ] 9.3 修改 `backend/app/clients/gemini_client.py:441` 区域应用相同的扫描 + 替换逻辑
+- [ ] 9.4 修改 `backend/app/services/context_enrichment_service.py` 的 `_format_learning_context` 方法：在返回格式化结果前对每条 chunk 调用 `check_input`，命中时替换为 `[filtered: suspicious content]`
+- [ ] 9.5 修改 `backend/app/middleware/prompt_injection_guard.py` 的 `_log_injection_detection` 函数：计算 `input_sha256 = hashlib.sha256(input_text.encode("utf-8", errors="ignore")).hexdigest()` 替换原 `input_preview` 字段
+- [ ] 9.6 在现有 `backend/tests/unit/test_prompt_injection_guard.py` 增加 `test_prompt_template_filters_malicious_context` 测试
+- [ ] 9.7 新建 `backend/tests/unit/test_prompt_injection_context.py` 覆盖：英文直接注入、中文注入、base64 编码注入、合法引用上下文（不应拦截）4 个场景
+- [ ] 9.8 新建 `backend/tests/unit/test_claude_client_context_scan.py` 和 `test_gemini_client_context_scan.py`：mock `check_input` 返回 blocked，验证 context 被替换
+- [ ] 9.9 验证 `_log_injection_detection` 不再输出原文预览：`pytest -v -k "injection_log"` 检查日志不含敏感字段
+
+## 10. RAGAS 离线评估（Phase 10，Week 3 Day 3-5）
+
+- [ ] 10.1 在 `backend/requirements-dev.txt` 添加 `ragas>=0.1.0`（如果不存在，创建文件）
+- [ ] 10.2 新建 `backend/tests/regression/ragas_eval/fixtures/` 目录，准备初始评估集（10-20 条 query + 期望的 retrieval context + ground truth answer）
+- [ ] 10.3 新建 `backend/tests/regression/ragas_eval/test_ragas_faithfulness.py` 调用 RAG 管线并用 `ragas.metrics.faithfulness` 评分
+- [ ] 10.4 新建 CI 脚本 `scripts/ci/ragas_gate.py` 运行评估集，`faithfulness < 0.7` 时 `sys.exit(1)`
+- [ ] 10.5 更新 `.github/workflows/ci.yml`（如存在）添加 `ragas-gate` job（初始为 `continue-on-error: true` 观察模式）
+- [ ] 10.6 运行 1 周 baseline 收集后，在 `openspec/changes/fix-fr-kg-04-schema-drift-and-sync-hardening/ragas-baseline.md` 记录数据，再把 CI job 切到强制阻断模式
+- [ ] 10.7 新建 `docs/ragas-evaluation.md` 说明评估流程、如何扩展评估集、阈值调整策略
+
+## 11. Segment Commit 架构升级（Phase 11，Week 1 Day 3-4；取代原 Phase 3 单事务 + try/except 语义）
+
+> **2026-04-07 新增**。从 sync-pipeline-fix 吸收的设计 D7。天然包含原 Phase 3 的"拓扑排序"和"edge fail fast"意图。
+
+- [ ] 11.1 在 `backend/app/models/sync_models.py` 新增 `SyncDependencyError` 自定义异常类
+- [ ] 11.2 在 `backend/app/services/sync_service.py` 新增 `_deduplicate_by_operation_id(ops: list[SyncOperation]) -> list[SyncOperation]` 辅助函数：重复 op_id 只保留首次出现
+- [ ] 11.3 在 `sync_service.py` 新增 `_partition_by_entity_type(ops, operation: str) -> list[list[SyncOperation]]` 辅助函数：create/update 返回 `[board_segment, node_segment, edge_segment]`，delete 返回逆序
+- [ ] 11.4 改写 `process_sync_batch` 为 3 段独立事务结构（详见 design.md D7 代码）
+- [ ] 11.5 Board/Node 段实现"原子提交 + 任一失败 rollback + 后续段标记 DEPENDENCY_MISSING"
+- [ ] 11.6 Edge 段实现"per-op try/except + 至少一个成功才 commit"（保留 AC-7 精神）
+- [ ] 11.7 修改 `_upsert_edge` 使用 `OPTIONAL MATCH (source {id:$sid}), (target {id:$tid}) WITH source, target WHERE source IS NULL OR target IS NULL RETURN 'missing' as status`；status=missing 时抛 `SyncDependencyError`
+- [ ] 11.8 修改 `_upsert_edge` 在 Cypher 之前校验 payload 非空 source/target，缺失抛 `SyncDependencyError`
+- [ ] 11.9 新建 `backend/tests/unit/test_sync_segment_commit.py`：构造乱序 batch [edge, node] → Segment 提交后 edge 在 Segment 3 成功创建
+- [ ] 11.10 在 test_sync_segment_commit.py 加：Segment 2 Node 失败 → Segment 3 所有 Edge op 标记为 DEPENDENCY_MISSING（return 早退）
+- [ ] 11.11 在 test_sync_segment_commit.py 加：Segment 3 内某个 Edge 缺端点 → 该 Edge 标记 DEPENDENCY_MISSING + 其他成功 Edge 仍 commit
+- [ ] 11.12 在 test_sync_segment_commit.py 加：重复 op_id → 标记为 `duplicate_operation_id_skipped`
+- [ ] 11.13 在 test_sync_segment_commit.py 加：delete batch → 验证 Edge → Node → Board 逆序执行
+
+## 12. SyncErrorClass + 前端错误回流（Phase 12，Week 2 Day 3-4）
+
+> **2026-04-07 新增**。从 sync-pipeline-fix 吸收的设计 D8 + D9。打破原 change 的"前端不改"不变量。
+
+- [ ] 12.1 `backend/app/models/sync_models.py` 新增 `SyncErrorClass` 枚举（VALIDATION_ERROR / DEPENDENCY_MISSING / TRANSIENT_ERROR）
+- [ ] 12.2 `SyncOperationResult` 添加 `error_class: Optional[SyncErrorClass] = None` 字段
+- [ ] 12.3 `sync_service.py` 的各 exception handler 按异常类型设置对应的 `error_class`（Pydantic ValidationError → VALIDATION_ERROR；SyncDependencyError → DEPENDENCY_MISSING；Neo4jError/ConnectionError → TRANSIENT_ERROR）
+- [ ] 12.4 新建 `backend/tests/unit/test_sync_error_class.py`：序列化 SyncOperationResult 时 error_class 字段正确；Optional 字段对旧客户端透明
+- [ ] 12.5 `frontend/src/services/dexie-db.ts` 给 `sync_outbox` 表加新字段：`permanentlyFailed: boolean`（默认 false）、`failureClass?: string`、`retryPriority?: number`（默认 0）、`nextRetryAt?: string`、`lastError?: string`
+- [ ] 12.6 Dexie version bump 并写 upgrade 回调：为现有条目填默认值
+- [ ] 12.7 `frontend/src/services/sync-engine.ts` 处理 response.results 时按 error_class 分支（switch-case）
+- [ ] 12.8 VALIDATION_ERROR 分支：`permanentlyFailed=true` + `failureClass` + `lastError`
+- [ ] 12.9 DEPENDENCY_MISSING 分支：`retryPriority=1`（下轮优先发送）
+- [ ] 12.10 TRANSIENT_ERROR / undefined 分支：`nextRetryAt = exponentialBackoff(retryCount)`
+- [ ] 12.11 `sync-engine.ts` 下次 poll 出队时按 `retryPriority DESC, nextRetryAt ASC` 排序
+- [ ] 12.12 `sync-engine.ts` 跳过 `permanentlyFailed=true` 的条目（不进入 outbox 查询）
+- [ ] 12.13 新建 `frontend/src/services/__tests__/sync-engine-error-class.test.ts`：mock VALIDATION_ERROR → permanentlyFailed=true
+- [ ] 12.14 在 sync-engine-error-class.test.ts 加：mock DEPENDENCY_MISSING → retryPriority=1
+- [ ] 12.15 在 sync-engine-error-class.test.ts 加：mock undefined error_class（旧后端）→ 走 default TRANSIENT 路径
+- [ ] 12.16 Dexie migration 测试：旧数据库升级后新字段默认值正确
+
+## 13. Sync Payload Pydantic 校验（Phase 13，Week 1 Day 4，与 Phase 11 并行）
+
+> **2026-04-07 新增**。从 sync-pipeline-fix 吸收的 Task 3。
+
+- [ ] 13.1 在 `backend/app/models/sync_models.py` 给 `SyncOperation` 添加 `model_validator(mode="after")` 校验
+- [ ] 13.2 校验 edge `create`/`update` 必须有 `source_node_id`/`sourceNodeId` 和 `target_node_id`/`targetNodeId`（snake_case 和 camelCase 双兼容）
+- [ ] 13.3 校验 node `content` 长度 ≤ 20000 字符
+- [ ] 13.4 校验 edge `label` 长度 ≤ 2000 字符
+- [ ] 13.5 `SyncBatchRequest.operations` 字段添加 `max_length=500`
+- [ ] 13.6 新建 `backend/tests/unit/test_sync_payload_validation.py`：缺 source → ValidationError
+- [ ] 13.7 在 test_sync_payload_validation.py 加：content 超长 → ValidationError
+- [ ] 13.8 在 test_sync_payload_validation.py 加：batch 超 500 条 → ValidationError
+- [ ] 13.9 在 test_sync_payload_validation.py 加：camelCase 字段名能通过校验
+
+## 14. 前端 sync-engine canvasId fallback 删除（Phase 14，Week 2 Day 4，与 Phase 12 并行）
+
+> **2026-04-07 新增**。对应 ChatGPT 审计报告的 Patch-4 微补。
+
+- [ ] 14.1 `frontend/src/services/sync-engine.ts` 中 `sendBatch()` 的 canvasId 解析删除 `?? 'default'` fallback
+- [ ] 14.2 缺失 canvasId 时改为：`console.warn('[SyncEngine] Outbox entry missing canvasId, skipping', entry.id); continue;`
+- [ ] 14.3 entry 保留在 outbox 不被标记为 synced，下次 poll 时会再次尝试
+- [ ] 14.4 新建 `frontend/src/services/__tests__/sync-engine-canvasid-enforcement.test.ts`：构造无 canvasId entry → 验证 warn 日志 + 未进入 canvas group + 未发送到后端
+- [ ] 14.5 回归测试：带 canvasId 的正常 entry 流程不受影响
+
+## 15. Learning relationship 字段一致性（Phase 15，Week 1 Day 2，与 Phase 2 并行）
+
+> **2026-04-07 新增**。从 sync-pipeline-fix 吸收的 Task 5。对应 `specs/algo-scoring/spec.md`。
+
+- [ ] 15.1 `backend/app/clients/neo4j_client.py` 的 `get_review_suggestions()` 两处 Cypher（约 line 789, 804）把 `r.last_score` 改为 `r.score AS last_score`
+- [ ] 15.2 `create_learning_relationship()` 的 Cypher 中添加 `SET r.review_count = coalesce(r.review_count, 0) + 1`
+- [ ] 15.3 新建 `backend/tests/unit/test_neo4j_field_consistency.py`：写入 score=75 → 读取 last_score=75（非 null）
+- [ ] 15.4 在 test_neo4j_field_consistency.py 加：三次 scoring → review_count=3
+- [ ] 15.5 在 test_neo4j_field_consistency.py 加：首次 scoring → review_count=1（coalesce 行为）
+
+## 16. 验证与归档（Post-Implementation）
+
+- [ ] 16.1 运行全套后端测试 `cd backend && .venv/bin/pytest tests/ -x -q` 确认 0 失败
+- [ ] 16.2 运行前端测试 `cd frontend && npm test` 确认 0 失败
+- [ ] 16.3 手动 e2e 验证：启动 Tauri → 画白板 → 观察 Neo4j CanvasNode 写入 → 进入验证白板 → 进入考试白板 → 断言 `kg_relevance` 日志显示非 0.5
+- [ ] 16.4 手动 e2e 验证：触发 Segment 2 Node 失败场景 → 前端 outbox 中 edge entry 标记为 DEPENDENCY_MISSING 且 retryPriority=1
+- [ ] 16.5 手动 e2e 验证：触发 VALIDATION_ERROR → 前端 outbox 中对应 entry 标记为 permanentlyFailed
+- [ ] 16.6 运行 `npx openspec validate fix-fr-kg-04-schema-drift-and-sync-hardening --strict` 确认所有 spec 语法正确
+- [ ] 16.7 提交 PR 并附上 `kg_relevance` 修复前后的节点优先级对比截图
+- [ ] 16.8 PR merge 后运行 `npx openspec archive fix-fr-kg-04-schema-drift-and-sync-hardening` 归档
+- [ ] 16.9 归档时同时删除已 SUPERSEDED 的 `openspec/changes/fr-kg-04-sync-pipeline-fix/` 目录（`git rm -r`）
