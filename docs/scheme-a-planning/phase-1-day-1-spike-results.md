@@ -4,10 +4,10 @@ subtitle: Real-run L5 Evidence for Plan v23 v5 → Plan v24 feedback
 date: 2026-04-09
 spike-1-status: COMPLETE-WITH-FINDINGS
 spike-2-status: CONFIRMED (matches Plan v23 Stage 1)
-spike-3-status: SETUP-COMPLETE-PENDING-REAL-SESSION-TEST
-l5-findings-count: 7
-recorded-by: Plan v24 Part B execution
-feeds-into: Plan v25 (Phase 1 §10.1 task 1-7 kickoff)
+spike-3-status: RELOCATED-TO-CS188-VAULT-PENDING-REAL-SESSION-TEST
+l5-findings-count: 8
+recorded-by: Plan v24 Part B + Part C execution
+feeds-into: Plan v25 (Phase 1 §10.1 task 1-7 kickoff · Part C2 spec)
 ---
 
 # Phase 1 Day 1 Spike Results
@@ -22,9 +22,9 @@ feeds-into: Plan v25 (Phase 1 §10.1 task 1-7 kickoff)
 |---|---|---|---|
 | **1 · Canvas backend 13 svc + 15 MCP** | COMPLETE WITH L5 FINDINGS | 5 | Backend boots in degraded mode · **15/15 MCP tools confirmed** · but Graphiti background task exception bypasses lifespan try/except · health check false-positive |
 | **2 · canvas_agentic_rag import** | CONFIRMED | 0 new | `LANGGRAPH_AVAILABLE=True ERROR=None` · matches Plan v23 Stage 1 ground truth |
-| **3 · UserPromptSubmit hook** | SETUP-COMPLETE · REAL-SESSION TEST PENDING | 1 | Dry-run all 5 edge cases passed · user must verify in new Claude Code session |
+| **3 · UserPromptSubmit hook** | RELOCATED TO CS188 VAULT · REAL-SESSION TEST PENDING | 2 | Initially mis-installed to global `~/.claude/` · Part C1 relocated to vault-scoped `CS188/.claude/` per PRD §4.7.4 L4663-4665 · scope-isolation dry-run confirmed |
 
-**Total L5 findings discovered**: **7** (detailed in Section 4).
+**Total L5 findings discovered**: **8** (detailed in Section 4).
 
 **Decision point**: Spikes do NOT block Phase 1 §10.1 task 1-7 (vault init / Claudian / skill set). L5 findings feed into future erratum correction in 14-PRD v6.
 
@@ -232,23 +232,109 @@ SPIKE_2_RESULT: LANGGRAPH_AVAILABLE= True ERROR= None
 
 **Lesson for future hooks** (see L5-#7): Never use `set -eu` in Claude Code hook scripts. Silent failures > loud crashes for non-blocking hooks.
 
-### Real-Session Verification · PENDING USER ACTION
+### Relocation Event (Plan v24 Part C1 · 2026-04-09 post-Spike3)
 
-The current Claude Code session loaded `settings.json` at start — hook edits do not hot-reload. **User must verify in a fresh session**:
+**Why**: User review of Spike 3 setup revealed a critical scope violation — I had installed the UserPromptSubmit hook into **global** `~/.claude/settings.json`, causing it to trigger for **every** Claude Code session across all projects. PRD §4.7.4 Step 5 L4663-4665 clearly specified the hook must live in `<vault_root>/.claude/`.
 
-1. **Open a NEW Claude Code session** (Ctrl+N or new window)
-2. Type any prompt (e.g., "hello")
+**What was relocated** (6 atomic actions):
+
+1. **Rolled back global `settings.json`**:
+   ```
+   cp ~/.claude/settings.json.bak.spike3-2026-04-09 ~/.claude/settings.json
+   md5 verified: f4ed678015fe4620c4768b2a4fbbd534 (both identical)
+   jq '.hooks.UserPromptSubmit // "absent"' → "absent"
+   ```
+
+2. **Created vault hooks directory**:
+   ```
+   mkdir -p "/Users/Heishing/Desktop/spring course 2026/CS188/.claude/hooks"
+   ```
+
+3. **Copied hook script to vault**:
+   ```
+   cp ~/.claude/user-prompt-hook.sh CS188/.claude/hooks/user-prompt-hook.sh
+   chmod +x ...
+   ```
+
+4. **Refactored script for vault-scoped logging**:
+   - Header comments updated (relocation notice + PRD §4.7.4 reference)
+   - Log path changed from `~/.claude/user-prompt-history.log` to `${CLAUDE_PROJECT_DIR:-$HOME}/.claude/user-prompt-history.log`
+   - Fallback to `$HOME` ensures script works even if Claude Code doesn't inject `CLAUDE_PROJECT_DIR` (defensive)
+
+5. **Created vault `settings.json`** (NEW file, separate from existing `settings.local.json`):
+   ```json
+   {
+     "hooks": {
+       "UserPromptSubmit": [{
+         "hooks": [{
+           "type": "command",
+           "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/user-prompt-hook.sh",
+           "timeout": 5
+         }]
+       }]
+     }
+   }
+   ```
+   - Why separate from `settings.local.json`: PRD §4.7.4 Step 5 L4691-4716 uses `settings.json` (non-local) for hooks · `settings.local.json` already holds user permissions + outputStyle · Claude Code merges both files automatically
+
+6. **Scope-isolation dry-run**:
+   ```
+   (export CLAUDE_PROJECT_DIR="/Users/Heishing/Desktop/spring course 2026/CS188"; \
+    echo '{"session_id":"c1-relocation-test-001","cwd":"...","prompt":"Part C1 relocation dry-run 2026-04-09"}' | \
+    bash "$CLAUDE_PROJECT_DIR/.claude/hooks/user-prompt-hook.sh")
+   exit=0
+   ```
+   - Verified: new line in `CS188/.claude/user-prompt-history.log` · session `c1-relocation-test-001`
+   - Verified: `~/.claude/user-prompt-history.log` tail is UNCHANGED (still `61a11f9b-...` from pre-rollback period)
+   - **Scope isolation confirmed at runtime**
+
+**L5 finding**: registered as L5-#8 (see registry below).
+
+### Real-Session Verification · PENDING USER ACTION (post-relocation)
+
+The current Claude Code session loaded `settings.json` at start — hook edits do not hot-reload. **User must verify in a fresh session with CWD inside the CS188 vault**:
+
+1. **Open a NEW Claude Code session with CWD = CS188 vault** (critical):
+   ```
+   cd "/Users/Heishing/Desktop/spring course 2026/CS188" && claude
+   ```
+   (alternatively: open Claudian plugin tab in Obsidian pointed at the CS188 vault)
+2. Type any prompt (e.g., `test cs188 hook relocation 2026-04-09`)
 3. After prompt submission, run in a terminal:
    ```
-   tail -5 ~/.claude/user-prompt-history.log
+   tail -5 "/Users/Heishing/Desktop/spring course 2026/CS188/.claude/user-prompt-history.log"
    ```
-4. **Expected**: new line with current UTC timestamp · session_id matching the new session · prompt preview containing "hello"
+4. **Expected** (all must match):
+   - New line with current UTC timestamp
+   - `session=` is a **real UUID** (not `no-session` · not `c1-relocation-test-*`)
+   - `cwd=` contains `/Users/Heishing/Desktop/spring course 2026/CS188`
+   - `prompt=` contains `test cs188 hook relocation`
+5. **Also verify scope isolation** (critical):
+   ```
+   tail -1 ~/.claude/user-prompt-history.log
+   ```
+   Should NOT contain the new session_id (proves vault-scoped hook did NOT pollute global log).
 
-### Rollback Plan (if hook misbehaves)
+**Failure modes**:
+- No new line: run `jq empty CS188/.claude/settings.json` to check JSON format · or Claude Code may not support UserPromptSubmit in current version (record as L5-#9 fallback)
+- CWD ≠ CS188: hook will not trigger at all · user must verify CWD before testing (use `pwd` in terminal after `cd`)
 
+### Rollback History + Future Rollback
+
+**Global rollback already completed (Plan v24 Part C1)**:
 ```bash
+# 2026-04-09: Plan v24 Part C1 rolled back global settings.json (scope violation fix)
 cp ~/.claude/settings.json.bak.spike3-2026-04-09 ~/.claude/settings.json
-# (hook script ~/.claude/user-prompt-hook.sh can remain · it only runs if settings.json references it)
+# md5 verified: f4ed678015fe4620c4768b2a4fbbd534 (both files identical post-rollback)
+# Note: source hook script ~/.claude/user-prompt-hook.sh kept for reference · no longer referenced by any settings.json
+```
+
+**Future vault rollback (if CS188 hook misbehaves)**:
+```bash
+# Delete vault hook files (safe — no global impact on other projects)
+mv "/Users/Heishing/Desktop/spring course 2026/CS188/.claude/hooks/user-prompt-hook.sh" /tmp/
+mv "/Users/Heishing/Desktop/spring course 2026/CS188/.claude/settings.json" /tmp/
+# Note: CS188/.claude/settings.local.json is preserved (user permissions + outputStyle · unaffected)
 ```
 
 ---
@@ -382,6 +468,35 @@ exception=ServiceUnavailable(...)>", "logger": "asyncio", "level": "error",
 
 **Lesson for future hooks**: Document this in Phase 1 §10.1 `developer-guide.md` when skill set includes hook scripts.
 
+### L5-#8 · CRITICAL · Spike 3 UserPromptSubmit hook scope misplacement (global vs vault)
+
+**Severity**: Critical · architectural scope violation
+
+**Discovered during**: User review of Spike 3 setup (2026-04-09) · fixed in Plan v24 Part C1 same day
+
+**Evidence**:
+- During Spike 3 Setup Actions, I wrote the UserPromptSubmit hook to `~/.claude/settings.json` (global · all projects · all sessions)
+- PRD §4.7.4 Step 5 L4663-4665 explicitly states: `# Hook 配置在 vault 根目录 / cd /path/to/your/canvas-vault / ls -la .claude/`
+- Correct location: `<vault_root>/.claude/settings.json` · where `vault_root = CANVAS_BASE_PATH` env var `= /Users/Heishing/Desktop/spring course 2026/CS188` (confirmed from `backend/.env` L? and `docker-compose.yml` L162-163)
+- Impact: hook would have triggered in **every** Claude Code session across all projects (cs61b, canvas-learning-system dev, any future vault) · not just Canvas Learning System CS188 vault sessions · polluting `~/.claude/user-prompt-history.log` with non-Canvas prompts
+
+**Root cause**:
+- During Spike 3, I read PRD §7.6.5 ("UserPromptSubmit hook is a Desktop-layer mechanism, not backend/sidecar") and concluded "Desktop-layer means install globally to `~/.claude/settings.json`"
+- I did NOT cross-reference PRD §4.7.4 Step 5 which scopes "Desktop-layer" to mean "vault-scoped Desktop settings" (the `.claude/` directory *inside* the vault root, which Claude Code Desktop reads when CWD matches)
+- **Reading §7.6.5 alone gave the wrong scope conclusion** · §7.6.5 + §4.7.4 must be read together
+
+**Fix applied (Plan v24 Part C1 · 2026-04-09)**:
+1. Rolled back `~/.claude/settings.json` from `settings.json.bak.spike3-2026-04-09` (md5 verified identical post-rollback)
+2. Created `CS188/.claude/hooks/user-prompt-hook.sh` (copy of source script · log path refactored to `${CLAUDE_PROJECT_DIR:-$HOME}/.claude/user-prompt-history.log`)
+3. Created `CS188/.claude/settings.json` with only the `hooks.UserPromptSubmit` block · kept separate from pre-existing `settings.local.json` (which holds user permissions + `outputStyle: "Learning"`) · both files merged by Claude Code
+4. Dry-run verified scope isolation: log written to `CS188/.claude/user-prompt-history.log` (c1-relocation-test-001) · `~/.claude/user-prompt-history.log` remains UNPOLLUTED
+
+**Lesson for future PRD-faithful implementation**:
+- Never act on a single PRD section in isolation — cross-reference with neighboring sections that might modify scope
+- When PRD mentions "Desktop level" or "global level", hunt for qualifiers in adjacent sections (`§4.7.4 Step 5` was the qualifier for `§7.6.5`)
+- For config changes that could affect "all projects", default-deny and demand explicit PRD quote confirming global scope
+- **Meta-lesson**: This L5 is itself evidence for PRD §1.5.9's four-layer nested errata pattern — L5 is "real-run discovery" · and Spike 3's own execution *created* a new L5 that couldn't have been caught by recursive review alone (only by user review of the setup actions)
+
 ---
 
 ## Decision Matrix
@@ -395,29 +510,41 @@ exception=ServiceUnavailable(...)>", "logger": "asyncio", "level": "error",
 | L5-#5 4 degraded subsystems | No | Out of scope |
 | L5-#6 JSON fallback DDL warning | No | Suppress warning in future |
 | L5-#7 `set -eu` hook hazard | No | Document in developer-guide |
+| L5-#8 Hook scope misplacement (global vs vault) | **No (fixed in Part C1)** | **Already fixed** · add to errata-log for future reviewers |
 
-**Verdict**: **Phase 1 §10.1 task 1-7 can proceed without blocking on L5 findings**. Register all 7 findings in 14-PRD v6 (or a dedicated `errata-log.md`) for future correction.
+**Verdict**: **Phase 1 §10.1 task 1-7 can proceed without blocking on L5 findings**. Register all 8 findings in 14-PRD v6 (or a dedicated `errata-log.md`) for future correction. L5-#8 is already resolved — only the documentation of the meta-lesson remains.
 
 ---
 
 ## Next Steps
 
 1. **Part A complete** (commit `208c26a` pushed to origin + backup)
-2. **Part B Spike 1 complete with findings**
-3. **Part B Spike 2 confirmed**
-4. **Part B Spike 3 setup complete · awaiting user real-session verification**
-5. **Wait for user to verify Spike 3 in new Claude Code session** → report result
-6. **Next plan (Plan v25)**: Phase 1 §10.1 task 1-7 (vault init / Claudian / skill set / minimal skill set)
+2. **Part B Spike 1 complete with findings** (7 initial L5 findings)
+3. **Part B Spike 2 confirmed** (matches Plan v23 Stage 1 ground truth)
+4. **Part B Spike 3 initial setup → MISPLACED GLOBALLY** (discovered by user · see L5-#8)
+5. **Part C1 complete** (rollback global + vault-scoped install + scope-isolation dry-run verified)
+6. **Part C2 complete** (Obsidian deploy plugin spec written to `docs/scheme-a-planning/obsidian-deploy-plugin-spec.md`)
+7. **Wait for user to verify Spike 3 in new Claude Code session with `CWD=CS188` vault** → report result
+8. **Next plan (Plan v25)**: Phase 1 §10.1 task 1-7 (vault init / Claudian / skill set / minimal skill set) · will leverage Part C2 spec as the implementation target for the Obsidian deploy plugin
 
 ---
 
 ## Appendix · Raw Log Pointers
 
+**Spike 1 artifacts**:
 - Full Spike 1 backend log: `/tmp/canvas-spike1.log` (630 lines)
 - uvicorn PID tracking: `/tmp/canvas-spike1.pid` (contains `uvicorn_pid=47449`)
-- User prompt history (Spike 3 dry-run + future real-session): `~/.claude/user-prompt-history.log`
-- settings.json backup: `~/.claude/settings.json.bak.spike3-2026-04-09`
-- hook script: `~/.claude/user-prompt-hook.sh`
+
+**Spike 3 artifacts (pre-Part C1 · frozen)**:
+- Pre-relocation hook log (dry-run only · frozen after Part C1): `~/.claude/user-prompt-history.log`
+- Global settings.json backup (pre-Spike 3): `~/.claude/settings.json.bak.spike3-2026-04-09`
+- Source hook script (kept for reference · no longer referenced): `~/.claude/user-prompt-hook.sh`
+
+**Spike 3 artifacts (post-Part C1 · active)**:
+- **Active hook script**: `/Users/Heishing/Desktop/spring course 2026/CS188/.claude/hooks/user-prompt-hook.sh`
+- **Active vault settings.json**: `/Users/Heishing/Desktop/spring course 2026/CS188/.claude/settings.json`
+- **Active hook log**: `/Users/Heishing/Desktop/spring course 2026/CS188/.claude/user-prompt-history.log`
+- Pre-existing vault `.claude/settings.local.json` (user permissions + `outputStyle: "Learning"`): untouched by Part C1
 
 ## Cross-References
 
@@ -429,3 +556,9 @@ exception=ServiceUnavailable(...)>", "logger": "asyncio", "level": "error",
 - `backend/.env` L11 · `NEO4J_URI=bolt://localhost:7691` (authoritative)
 - `backend/app/main.py` L266-285 · lifespan Phase 2 block (L5-#1 location)
 - `lefthook.yml` L123-128 · post-commit auto-push (Part A verified)
+- **14-PRD v5 §4.7.4 Step 5 L4663-4665** · vault-root hook location — the PRD quote that proves L5-#8 scope violation
+- **14-PRD v5 §4.7.4 Step 5 L4691-4716** · `settings.json` (non-local) naming convention · justifies Part C1 file separation from `settings.local.json`
+- **`backend/.env` `CANVAS_BASE_PATH=/Users/Heishing/Desktop/spring course 2026/CS188`** · authoritative source proving CS188 is the active vault (Part C1 target)
+- **`docker-compose.yml` L162-163** · `CANVAS_BASE_PATH` env passthrough to container · secondary confirmation
+- **14-PRD v5 §1.5.9** · four-layer nested errata theory · Part C1 is a real-world L5 case that validates the theory (Spike 3 created its own L5 during execution · only user review + real-run could detect it)
+- **`docs/scheme-a-planning/obsidian-deploy-plugin-spec.md`** (Part C2) · the spec document that will be implemented in Plan v25 to prevent future manual scope violations
