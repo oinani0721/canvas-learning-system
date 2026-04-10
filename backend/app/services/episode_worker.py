@@ -297,7 +297,65 @@ class GraphitiEpisodeWorker:
 
         Sets os.environ GOOGLE_API_KEY so the Gemini SDK can find it.
         Returns True on success, False if degraded (worker runs but skips episodes).
+
+        ⚠️ CRITICAL: Pre-flight Neo4j connectivity probe MUST run BEFORE Graphiti(...)
+        instantiation. graphiti-core v0.28.2's Neo4jDriver.__init__ contains a
+        fire-and-forget asyncio task that triggers an unawaited
+        build_indices_and_constraints() coroutine on construction:
+
+            # graphiti_core/driver/neo4j_driver.py:91-101
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.build_indices_and_constraints())  # L98 - LEAKED
+            except RuntimeError:
+                pass
+
+        The created task reference is never stored, no done-callback is attached,
+        and no exception handler wraps it. If Neo4j is unreachable, the task raises
+        ServiceUnavailable inside the loop and Python emits
+        "Task exception was never retrieved" warnings. We cannot patch graphiti-core
+        (pinned 0.28.2). The only safe approach is: probe connectivity with a bare
+        neo4j AsyncDriver first, and only instantiate Graphiti(...) after the probe
+        succeeds. If the probe fails we never construct Graphiti, so the leaked task
+        never starts.
         """
+        # Pre-flight: bare-driver Neo4j reachability probe (no graphiti-core involved).
+        # ✅ Verified pattern: neo4j-python-driver verify_connectivity() probe.
+        # Reference: graphiti_core/driver/neo4j_driver.py:98 (fire-and-forget bug)
+        from neo4j import (
+            AsyncGraphDatabase,
+        )  # local import: avoid module-load side effects
+        from neo4j.exceptions import AuthError, ServiceUnavailable
+
+        temp_driver = None
+        try:
+            temp_driver = AsyncGraphDatabase.driver(
+                uri=neo4j_uri,
+                auth=(neo4j_user or "", neo4j_password or ""),
+            )
+            await asyncio.wait_for(temp_driver.verify_connectivity(), timeout=5.0)
+            logger.info(
+                "GraphitiEpisodeWorker: Neo4j pre-flight ok "
+                f"(uri={neo4j_uri}, db=neo4j)"
+            )
+        except (ServiceUnavailable, AuthError, asyncio.TimeoutError, OSError) as e:
+            logger.error(
+                "GraphitiEpisodeWorker: Neo4j pre-flight failed "
+                f"({type(e).__name__}: {e}). "
+                "Skipping Graphiti instantiation to avoid graphiti-core "
+                "fire-and-forget task leak (neo4j_driver.py:98). "
+                "Worker will run in degraded mode."
+            )
+            self._graphiti = None
+            return False
+        finally:
+            if temp_driver is not None:
+                try:
+                    await temp_driver.close()
+                except Exception as close_err:  # noqa: BLE001
+                    logger.debug(f"temp_driver.close() best-effort: {close_err}")
+
+        # Pre-flight passed → safe to instantiate Graphiti (existing logic below)
         try:
             # Make API key available to Gemini SDK
             os.environ.setdefault("GOOGLE_API_KEY", google_api_key)
@@ -325,6 +383,9 @@ class GraphitiEpisodeWorker:
             )
             cross_encoder = GeminiRerankerClient(config=llm_config)
 
+            # Safe: pre-flight passed, Neo4j is reachable. graphiti-core's L98
+            # leaked task will still fire, but build_indices_and_constraints will
+            # succeed instead of raising, so no "Task exception never retrieved".
             self._graphiti = Graphiti(
                 uri=neo4j_uri,
                 user=neo4j_user,
