@@ -94,6 +94,14 @@ Tauri 2 + React + TypeScript + FastAPI + Neo4j + LanceDB 桌面学习应用。
 
 CLI 负责**结构 + 校验 + 归档**，Claude 负责**内容写作**。Boris 工作流（Plan → Design → Confirm → Execute）与 CLI 零冲突。
 
+## 锚定文档（Read-Only）
+
+- `/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md` — PRD v5，唯一真相源
+  - Claude 只能 READ，不能 Edit/Write（`pretool-guard.js` hook 强制阻断）
+  - 用户手动批注 §12 决策区（D1-D14）
+  - 所有 OpenSpec change 和 Claude plan 必须在头部引用对应 § 章节
+  - 引用格式：`> **From PRD**: §X [标题] (line YYYY-ZZZZ)`
+
 ## 项目文档
 
 - 架构: `docs/architecture.md`
