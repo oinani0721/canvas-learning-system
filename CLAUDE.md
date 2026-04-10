@@ -10,6 +10,7 @@ Tauri 2 + React + TypeScript + FastAPI + Neo4j + LanceDB 桌面学习应用。
 1. **DD-03 禁 mock** — 禁止假 API/模拟数据/TODO 空函数。PreToolUse hook 检测 mock 模式并 exit 2 阻断
 2. **DD-12 范围约束** — frontend agent 只改 frontend/，backend agent 只改 backend/。PreToolUse hook exit 2 阻断
 3. **DD-13 名实一致** — 函数名必须匹配实际行为。PreToolUse hook 检测名称-导入不匹配并 exit 2 阻断
+4. **DD-14 追踪链** — Plan 步骤打勾 + commit 含 PLAN-NNN + /clear 前更新 CURRENT_TASK。详见 `.claude/rules/plan-traceability.md`
 
 > 其余 DD 规则详见 `.claude/rules/development-discipline.md`（自动加载）
 

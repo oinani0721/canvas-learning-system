@@ -1,0 +1,21 @@
+name: Traceability Check
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const body = (context.payload.pull_request.body || "");
+            const hasPlan = /PLAN-\d+/.test(body);
+            const hasPRD  = /FR-[A-Z]+-\d+|§\d+/.test(body);
+            if (!hasPlan || !hasPRD) {
+              core.setFailed(
+                "Missing traceability: PR body must contain PLAN-NNN and FR-XX-NN or §N.\n" +
+                "Fill in the '关联追踪' section of the PR template."
+              );
+            }

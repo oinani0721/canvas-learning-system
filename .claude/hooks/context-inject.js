@@ -30,11 +30,27 @@ try {
     }
   }
 
-  // Load current task
+  // Load current task - skip YAML frontmatter, then take 10 lines
   const taskPath = path.join(projectDir, '_decisions', 'CURRENT_TASK.md');
   if (fs.existsSync(taskPath)) {
     const content = fs.readFileSync(taskPath, 'utf8');
-    const summary = content.split('\n').slice(0, 10).join('\n');
+    let lines = content.split('\n');
+
+    // Skip YAML frontmatter if present
+    if (lines[0] === '---') {
+      const endIdx = lines.findIndex((line, idx) => idx > 0 && line === '---');
+      if (endIdx !== -1) {
+        // Extract frontmatter fields for traceability injection
+        const fmBlock = lines.slice(1, endIdx).join('\n');
+        const planMatch = fmBlock.match(/active_plan:\s*"?([^"\n]+)"?/);
+        if (planMatch && planMatch[1].trim()) {
+          parts.push(`[Traceability] Active Plan: ${planMatch[1].trim()}. Commit 必须包含此 ID。完成步骤后更新 checkbox。`);
+        }
+        lines = lines.slice(endIdx + 1);
+      }
+    }
+
+    const summary = lines.slice(0, 10).join('\n');
     parts.push(`[Current Task]\n${summary}`);
   }
 

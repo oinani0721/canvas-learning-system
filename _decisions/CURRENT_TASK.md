@@ -1,6 +1,14 @@
+---
+active_plan: ""
+active_plan_file: ""
+prd_sections: []
+current_step: ""
+commit_rule: "代码 commit 必须包含 PLAN-NNN 或 FR-XXX-NN"
+---
+
 # CURRENT_TASK — 当前任务状态（唯一真相源）
 
-> 每个 session 启动时自动注入此文件。AI 根据此文件确定"做到哪了，下一步是什么"。
+> 每个 session 启动时自动注入此文件。frontmatter 包含 Plan 锚定，正文包含进度详情。
 > 完成一步后立即更新对应的 checkbox。
 
 ## 活跃计划（2026-04-07 更新 — Stage 1+2 已 commit + Trivial Sweep 完成 → 等待下一中型任务）

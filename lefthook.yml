@@ -102,12 +102,12 @@ commit-msg:
         # Check if commit touches code files
         CODE_CHANGED=$(git diff --cached --name-only | grep -E "^(backend/app/|frontend/src/)" || true)
         if [ -n "$CODE_CHANGED" ]; then
-          # Require @spec: or FR- reference in commit message
-          if ! echo "$MSG" | grep -qE "(@spec:|FR-|Co-Authored-By)"; then
+          # Require @spec:, FR-, or PLAN- reference in commit message
+          if ! echo "$MSG" | grep -qE "(@spec:|FR-|PLAN-|Co-Authored-By)"; then
             echo ""
-            echo "  COMMIT BLOCKED: Code change requires spec reference."
-            echo "  Add @spec: domain-nnn or FR-XXX-NN to your commit message."
-            echo "  Example: fix(FR-EXAM-01): repair exam scoring @spec: algo-scoring-001"
+            echo "  COMMIT BLOCKED: Code change requires spec/plan reference."
+            echo "  Add @spec: domain-nnn, FR-XXX-NN, or PLAN-NNN to your commit message."
+            echo "  Example: fix(FR-EXAM-01): implement exam scoring PLAN-003 @spec: algo-scoring-001"
             echo ""
             exit 1
           fi
