@@ -130,17 +130,29 @@ async def health_check(
     except Exception:
         components["batch_sessions"] = "unavailable"
 
-    # Neo4j connectivity check — verifies the driver can actually execute a query.
-    # Previously the health endpoint did not test Neo4j reachability, so a
-    # misconfigured or down Neo4j instance would not be reflected in health status.
+    # Neo4j connectivity check — mode-aware probe (Story 30.3 pattern parity).
+    # ✅ Pattern source: app/services/memory_service.py:969-987 (Story 30.3 fix)
+    # Bug history: previously this block only checked stats["initialized"], so
+    # JSON_FALLBACK mode (initialized=True, mode=JSON_FALLBACK) would dispatch
+    # `RETURN 1 AS ping` to _run_query_json_fallback, which silently no-ops
+    # instead of raising. That produced a false-positive components.neo4j == "ok"
+    # even though Neo4j was unreachable. The fix mirrors memory_service.py's
+    # 4-way classification: NEO4J ok / NEO4J degraded / JSON_FALLBACK / unavailable.
     try:
         from app.clients.neo4j_client import get_neo4j_client
 
         neo4j = get_neo4j_client()
         neo4j_stats = neo4j.stats if hasattr(neo4j, "stats") else {}
-        if neo4j_stats.get("initialized", False):
+
+        is_real_neo4j = (
+            neo4j_stats.get("initialized", False)
+            and neo4j_stats.get("mode") == "NEO4J"
+            and neo4j_stats.get("health_status", False)
+        )
+
+        if is_real_neo4j:
+            # Real Neo4j path — verify with a lightweight ping
             try:
-                # Lightweight connectivity test — single-row query
                 await asyncio.wait_for(
                     neo4j.run_query("RETURN 1 AS ping"),
                     timeout=3.0,
@@ -149,9 +161,16 @@ async def health_check(
             except Exception as neo4j_err:
                 logger.warning(f"Neo4j connectivity test failed: {neo4j_err}")
                 components["neo4j"] = "degraded"
+        elif neo4j_stats.get("mode") == "JSON_FALLBACK":
+            # Tauri sidecar / desktop app fallback — operational, not an error
+            components["neo4j"] = "json_fallback"
+        elif neo4j_stats.get("initialized", False):
+            # Initialized but neither healthy NEO4J nor JSON_FALLBACK
+            components["neo4j"] = "degraded"
         else:
             components["neo4j"] = "not_initialized"
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Neo4j health probe unavailable: {e}")
         components["neo4j"] = "unavailable"
 
     return HealthCheckResponse(

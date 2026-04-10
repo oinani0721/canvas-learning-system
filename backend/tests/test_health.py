@@ -631,3 +631,88 @@ class TestHealthEndpointsPerformance:
         # 200 = all OK, 503 = degraded (both valid)
         assert response.status_code in [200, 503]
         assert elapsed_ms < 500, f"Response time {elapsed_ms:.2f}ms exceeds 500ms limit"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# L5-#2 Regression: Neo4j Mode-Aware Probe (Plan v25 Option C)
+# Pattern source: app/services/memory_service.py:969-987 (Story 30.3 fix)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestHealthCheckNeo4jFallback:
+    """
+    L5-#2 regression: components.neo4j must distinguish 4 states:
+    NEO4J + ping ok / NEO4J + ping fail / JSON_FALLBACK / not_initialized.
+
+    Pattern source: app/services/memory_service.py:969-987
+
+    Bug history: previously the health endpoint only checked stats["initialized"],
+    so JSON_FALLBACK mode (initialized=True, mode=JSON_FALLBACK) would dispatch
+    RETURN 1 AS ping to _run_query_json_fallback, which silently no-ops instead
+    of raising. That produced a false-positive components.neo4j == "ok" even
+    though Neo4j was unreachable.
+    """
+
+    def _patch_neo4j_client(self, monkeypatch, stats: dict, run_query=None):
+        """Inject a fake Neo4jClient into the get_neo4j_client factory."""
+        from app.clients import neo4j_client as nc_module
+
+        class _FakeClient:
+            def __init__(self) -> None:
+                self.stats = stats
+
+            async def run_query(self, q):
+                if run_query is None:
+                    return [{"ping": 1}]
+                return await run_query(q)
+
+        monkeypatch.setattr(nc_module, "get_neo4j_client", lambda: _FakeClient())
+
+    def test_neo4j_real_ok(self, client: TestClient, monkeypatch):
+        """Real NEO4J mode + healthy + ping success → 'ok'."""
+        self._patch_neo4j_client(
+            monkeypatch,
+            stats={"initialized": True, "mode": "NEO4J", "health_status": True},
+        )
+        resp = client.get("/api/v1/health")
+        assert resp.status_code == 200
+        assert resp.json()["components"]["neo4j"] == "ok"
+
+    def test_neo4j_real_ping_fail_degraded(self, client: TestClient, monkeypatch):
+        """Real NEO4J mode + healthy stats + ping raises → 'degraded'."""
+
+        async def _boom(_q):
+            raise RuntimeError("connection refused")
+
+        self._patch_neo4j_client(
+            monkeypatch,
+            stats={"initialized": True, "mode": "NEO4J", "health_status": True},
+            run_query=_boom,
+        )
+        resp = client.get("/api/v1/health")
+        assert resp.status_code == 200
+        assert resp.json()["components"]["neo4j"] == "degraded"
+
+    def test_neo4j_json_fallback(self, client: TestClient, monkeypatch):
+        """JSON_FALLBACK mode → 'json_fallback' (not 'ok' false-positive)."""
+        self._patch_neo4j_client(
+            monkeypatch,
+            stats={
+                "initialized": True,
+                "mode": "JSON_FALLBACK",
+                "health_status": False,
+            },
+        )
+        resp = client.get("/api/v1/health")
+        assert resp.status_code == 200
+        assert resp.json()["components"]["neo4j"] == "json_fallback"
+
+    def test_neo4j_not_initialized(self, client: TestClient, monkeypatch):
+        """Uninitialized client → 'not_initialized'."""
+        self._patch_neo4j_client(
+            monkeypatch,
+            stats={"initialized": False, "mode": "NEO4J", "health_status": False},
+        )
+        resp = client.get("/api/v1/health")
+        assert resp.status_code == 200
+        assert resp.json()["components"]["neo4j"] == "not_initialized"
