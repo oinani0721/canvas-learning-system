@@ -343,9 +343,10 @@ mv "/Users/Heishing/Desktop/spring course 2026/CS188/.claude/settings.json" /tmp
 
 Collected during Plan v24 Part B execution · 2026-04-09.
 
-### L5-#1 · CRITICAL · Graphiti background task exception bypasses lifespan try/except
+### L5-#1 · ✅ FIXED in 990e958 · Graphiti background task exception bypasses lifespan try/except
 
-**Severity**: Critical · silent degradation
+**Status**: ✅ **FIXED** in commit `990e958` (2026-04-09 · Plan v25 Option C)
+**Original severity**: Critical · silent degradation
 
 **Location**: `backend/app/main.py` L266-285 (lifespan Phase 2 block) + graphiti-core `Neo4jDriver.build_indices_and_constraints()`
 
@@ -357,35 +358,69 @@ exception=ServiceUnavailable(...)>", "logger": "asyncio", "level": "error",
 "timestamp": "2026-04-09T21:12:11.923878Z"}
 ```
 
-**Root cause**: `episode_worker.initialize_graphiti()` schedules `build_indices_and_constraints` as a fire-and-forget async task. The task's `ServiceUnavailable` exception is never awaited · so the lifespan try/except block at L283-285 never sees it · exception leaks as "unhandled asyncio task exception".
+**Real root cause** (PRD assumption was wrong — verified by 4 independent agents):
 
-**Impact**:
+The leak does **NOT** originate from our `episode_worker.initialize_graphiti()`. It originates from **graphiti-core v0.28.2 library internals** at `backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/neo4j_driver.py:91-101`:
+
+```python
+def __init__(self, uri, user, password, database='neo4j'):
+    self.client = AsyncGraphDatabase.driver(uri=uri, auth=(user or '', password or ''))
+    # ...
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(self.build_indices_and_constraints())  # L98 LEAKED
+    except RuntimeError:
+        pass
+```
+
+The task reference is never stored, no done-callback is attached, no exception handler wraps it. Our own `await self._graphiti.build_indices_and_constraints()` at episode_worker.py L338 is actually the **second** call — the leaked task already fired the moment `Graphiti(...)` returned.
+
+**Impact (pre-fix)**:
 - Backend appears to "start successfully" (port 8000 LISTEN)
-- But Graphiti subsystem is completely broken
-- Background retry loop **never terminates** · spams log every ~1-3 seconds with Neo4j connection errors
+- Graphiti subsystem completely broken
+- Background retry loop never terminates · spams stderr every 1-3 seconds with `ServiceUnavailable`
 - Each retry consumes CPU + opens TCP connections to non-existent Neo4j
 
-**Fix recommendation** (for Phase 1 §10.1):
-- `episode_worker.initialize_graphiti` should await `build_indices_and_constraints` inside the try block
-- OR register an `asyncio.Task.add_done_callback` that catches the exception and sets `app.state.episode_worker = None`
-- OR add startup timeout with fallback
+**Fix applied** (commit `990e958`):
 
-### L5-#2 · CRITICAL · `/api/v1/health` endpoint false-positive on Neo4j
+Pre-flight Neo4j connectivity probe with a bare `neo4j.AsyncGraphDatabase.driver` **before** instantiating `Graphiti(...)`. If the probe fails, we never construct Graphiti — so the leaked task at L98 is never scheduled. Code change: ~70 lines added at the head of `GraphitiEpisodeWorker.initialize_graphiti` in `backend/app/services/episode_worker.py`.
 
-**Severity**: Critical · operational
+**Why other approaches were rejected**:
+- Awaiting `build_indices_and_constraints` inside our try block → too late, task already fired
+- `asyncio.set_exception_handler` → fragile, only suppresses, doesn't fix
+- Patching graphiti-core → pinned 0.28.2, not in our source tree
 
-**Location**: `backend/app/api/v1/endpoints/health.py` (or equivalent)
+**Tests**: `backend/tests/test_episode_worker_preflight.py` (2 cases · ServiceUnavailable + Timeout · monkeypatch self-contained · 5.39s wall clock)
 
-**Evidence**: Health endpoint responds with `{"status":"healthy","components":{"neo4j":"ok"}}` at 21:12:47 · but we KNOW from lifespan log that Neo4j connection failed and MemoryService is in JSON fallback mode.
+### L5-#2 · ✅ FIXED in 1f170a6 · `/api/v1/health` endpoint false-positive on Neo4j
 
-**Root cause** (needs investigation): the health check may be reading `app.state.memory_service` which exists (even if in degraded mode) and reporting ok. OR it is checking `NEO4J_ENABLED` env flag rather than actual connectivity.
+**Status**: ✅ **FIXED** in commit `1f170a6` (2026-04-09 · Plan v25 Option C)
+**Original severity**: Critical · operational
+**Location**: `backend/app/api/v1/endpoints/health.py:133-156` (pre-fix) · `L133-168` (post-fix, 4-way mode-aware)
 
-**Impact**:
-- Monitoring / oncall dashboards will show false-green
-- Docker compose healthcheck (`curl -sf http://localhost:8001/api/v1/health`) would say healthy when backend is actually broken
-- **Phase 1 pre-verification cannot rely on `/health` as oracle**
+**Evidence**: Health endpoint responded with `{"status":"healthy","components":{"neo4j":"ok"}}` at 21:12:47 · but lifespan log showed Neo4j connection failed and MemoryService was in JSON fallback mode.
 
-**Fix recommendation**: Health endpoint should actively ping Neo4j with a lightweight query (e.g., `RETURN 1`) and emit `neo4j: degraded` if it fails.
+**Real root cause** (PRD assumption was wrong — verified by 4 independent agents):
+
+The endpoint **already had** a `RETURN 1 AS ping` check (not missing). The bug was that the ping dispatched through `Neo4jClient.run_query` which auto-fell-back to `_run_query_json_fallback` (backend/app/clients/neo4j_client.py:450-452). The JSON fallback parser **no-ops silently** on simple queries instead of raising, so `ping` "succeeded" and the endpoint reported `"ok"`.
+
+**False-positive chain**:
+1. `Neo4jClient` initializes with `use_json_fallback=False`, retries 3x, fails
+2. Auto-fallback triggers → `_use_json_fallback = True`, `stats.mode = "JSON_FALLBACK"`, but `initialized` stays `True`
+3. Health endpoint checks `stats["initialized"]` only (not `mode`) → enters ping branch
+4. `run_query("RETURN 1 AS ping")` → dispatched to `_run_query_json_fallback` → returns empty list (no raise)
+5. `components["neo4j"] = "ok"` ← false-positive
+
+**Fix applied** (commit `1f170a6`):
+
+Mirror the production 4-way classification from `backend/app/services/memory_service.py:969-987` (Story 30.3 fix). Now treats `stats["mode"] == "NEO4J" AND health_status == True` as real-healthy; `JSON_FALLBACK` is reported as `"json_fallback"` (operational, not error); otherwise `"degraded"` or `"not_initialized"`. HTTP stays 200 at top level because the Tauri desktop sidecar should still operate in JSON fallback.
+
+**Why other approaches were rejected**:
+- Let fallback raise on simple queries → breaks "silent degrade" contract for 6+ consumers
+- Let fallback set `initialized=False` → breaks 6 invariants in memory_service.py and health.py (L223/1113/1250/1546/1742/996)
+- K8s readiness/liveness split → Canvas is Tauri desktop, not K8s
+
+**Tests**: `backend/tests/test_health.py::TestHealthCheckNeo4jFallback` (4 cases · NEO4J ok / NEO4J ping-fail / JSON_FALLBACK / not_initialized · monkeypatch self-contained)
 
 ### L5-#3 · MEDIUM · MCP tool count log/reality mismatch
 
@@ -503,8 +538,8 @@ exception=ServiceUnavailable(...)>", "logger": "asyncio", "level": "error",
 
 | Finding | Blocks Phase 1 §10.1 task 1-7? | Must fix before Phase 1? |
 |---|---|---|
-| L5-#1 Graphiti exception leak | No (Phase 1 does not start Graphiti subsystem by default) | Deferred to Phase 2 |
-| L5-#2 Health false-positive | No | Deferred — note for monitoring setup |
+| L5-#1 Graphiti exception leak | No (Phase 1 does not start Graphiti subsystem by default) | ✅ **FIXED** in `990e958` (Plan v25 Option C) |
+| L5-#2 Health false-positive | No | ✅ **FIXED** in `1f170a6` (Plan v25 Option C) |
 | L5-#3 MCP log count 14 vs 15 | No | Trivial docstring fix |
 | L5-#4 EventBus 8 vs 9 | No | PRD update |
 | L5-#5 4 degraded subsystems | No | Out of scope |
@@ -512,7 +547,7 @@ exception=ServiceUnavailable(...)>", "logger": "asyncio", "level": "error",
 | L5-#7 `set -eu` hook hazard | No | Document in developer-guide |
 | L5-#8 Hook scope misplacement (global vs vault) | **No (fixed in Part C1)** | **Already fixed** · add to errata-log for future reviewers |
 
-**Verdict**: **Phase 1 §10.1 task 1-7 can proceed without blocking on L5 findings**. Register all 8 findings in 14-PRD v6 (or a dedicated `errata-log.md`) for future correction. L5-#8 is already resolved — only the documentation of the meta-lesson remains.
+**Verdict**: **Phase 1 §10.1 task 1-7 can proceed without blocking on L5 findings**. Register all 8 findings in 14-PRD v6 (or a dedicated `errata-log.md`) for future correction. L5-#1, L5-#2, and L5-#8 are now **all resolved** (L5-#1/#2 via Plan v25 Option C commits `1f170a6` + `990e958`). Remaining: L5-#3/#4/#5/#6/#7 documentation-only fixes.
 
 ---
 
@@ -562,3 +597,6 @@ exception=ServiceUnavailable(...)>", "logger": "asyncio", "level": "error",
 - **`docker-compose.yml` L162-163** · `CANVAS_BASE_PATH` env passthrough to container · secondary confirmation
 - **14-PRD v5 §1.5.9** · four-layer nested errata theory · Part C1 is a real-world L5 case that validates the theory (Spike 3 created its own L5 during execution · only user review + real-run could detect it)
 - **`docs/scheme-a-planning/obsidian-deploy-plugin-spec.md`** (Part C2) · the spec document that will be implemented in Plan v25 to prevent future manual scope violations
+- **Plan v25 Option C** (L5-#1 + L5-#2 fix) · commits `1f170a6` (health mode-aware) + `990e958` (episode_worker pre-flight) · 2026-04-09 · completes the remediation of both Critical findings discovered during Spike 1
+- **`backend/app/services/memory_service.py:969-987`** · production pattern source for health.py 4-way Neo4j mode classification (Story 30.3 fix)
+- **`backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/neo4j_driver.py:91-101`** · real root cause of L5-#1 fire-and-forget task leak (library internal, not our code)
