@@ -8,6 +8,7 @@ stepsCompleted:
   - step-06-innovation
   - step-07-project-type
   - step-08-scoping
+  - step-09-functional
 classification:
   projectType: desktop_app
   domain: edtech
@@ -391,3 +392,77 @@ Canvas Learning System 是基于 Obsidian 的桌面学习应用，通过 Claudia
 **Dependency Risks:**
 - Claudian 插件不稳定 → 降级为纯 Claude Code CLI 交互（失去 sidebar 但保留 Skill 功能）
 - Obsidian 插件兼容性 → 锁定 Obsidian v1.5+ 版本，5 强制插件优先验证
+
+## Functional Requirements
+
+> **Capability Contract**: 所有下游工作（UX 设计、架构、Epic 拆分）只做这里列出的功能。未列出的能力不会出现在最终产品中。
+
+### 学习对话与知识探索
+
+- **FR1**: 学习者可以在 Obsidian 笔记上启动 AI 对话，AI 通过解析当前 .md 文件中的 `[[wikilinks]]` 发现相邻概念（使用 obsidiantools NetworkX 图遍历），读取这些概念的 frontmatter 和内容作为对话上下文
+- **FR2**: 学习者可以在对话中获得基于个人历史误解的主动提醒
+- **FR3**: 学习者可以在对话回答中看到可点击的补充学习材料列表（课堂笔记、讨论、真题片段，由 LanceDB hybrid search 返回）
+- **FR4**: 学习者可以选中两个概念之间的关系文本启动 EI+SE 双策略深度讨论
+- **FR5**: 系统可以在对话结束时自动归档会话到长期记忆（Graphiti）
+
+### 考察与评估
+
+- **FR6**: 学习者可以启动完全空白的检验白板考察，考察过程中看不到笔记原文（信息隔离）
+- **FR7**: 系统可以基于 BKT/FSRS 掌握度分数自动选出薄弱节点作为考察范围
+- **FR8**: 系统可以融合个人记忆（Graphiti）、知识图谱关系（Graphify graph.json）和掌握度数据（frontmatter）生成个人化题目
+- **FR9**: 学习者可以在 markdown 编辑器中手写答案并手动触发提交
+- **FR10**: 系统可以静默评分（用户不感知评分过程），结果写入 frontmatter
+- **FR11**: 学习者可以在答不出时请求 4 级渐进提示（方向 → 关键词 → 框架 → 脚手架）
+- **FR12**: 学习者可以跳过题目且不受惩罚
+- **FR13**: 学习者可以基于笔记中的 callout 批注触发快速考察
+- **FR14**: 系统可以防止在检验白板内再次生成检验白板（防嵌套）
+
+### 知识图谱构建
+
+- **FR15**: 学习者可以从对话或考察中提取新概念，自动创建双向链接 `[[wikilink]]` 的概念 .md 文件
+- **FR16**: 考察中提取新概念时不中断当前考察流程（书签式 `[!discussion_later]+` callout，考后再深度讨论）
+- **FR17**: 系统可以通过 Graphify 从笔记文本中自动提取概念关系，生成独立的 AI 检索索引（graph.json），作为用户手动 wikilink 图谱的补充（Graphify 不读写用户的 wikilinks）
+- **FR18**: 系统可以为 Graphify 提取的每个概念标注三级置信度（EXTRACTED / INFERRED / AMBIGUOUS）
+
+### 掌握度追踪
+
+- **FR19**: 系统可以使用 BKT 模型实时更新每个概念的掌握概率
+- **FR20**: 系统可以使用 FSRS 算法计算最优复习间隔
+- **FR21**: 系统可以维护 5 信号融合的掌握度评估（BKT + FSRS + 错误历史 + 校准偏差 + 自评置信度）
+- **FR22**: 系统可以通过 pipeline_token 链保证评分→更新→记录的操作顺序不被篡改
+
+### 学习记忆管理
+
+- **FR23**: 系统可以记录学习者的错误并按 4 类分类存储（Graphiti + frontmatter）
+- **FR24**: 系统可以记录学习者的自我评估校准数据（考后校准投票）
+- **FR25**: 学习者可以对 AI 评分投票反馈（准确 / 偏高 / 偏低）
+- **FR26**: 系统可以搜索学习者的历史记忆（3 层检索：Graphiti → Neo4j → 缓存）
+- **FR27**: 系统可以异步非阻塞地将学习事件写入知识图谱
+
+### 学习进度可视化
+
+- **FR28**: 学习者可以查看全局 Dashboard（wiki/dashboard.md，Dataview 驱动，三层布局）
+- **FR29**: Dashboard 使用处方性措辞（"🔴 建议优先复习 X" 而非 "mastery: 0.62"）
+- **FR30**: 学习者可以查看元认知 2x2 校准矩阵（会+自信 / 会+不自信 / 不会+自信 / 不会+不自信）
+- **FR31**: 学习者可以从 Dashboard 一键启动指定主题的检验白板（Buttons + QuickAdd → Skill）
+- **FR32**: 学习者可以查看单个概念的详细档案（5 信号 + Tips + 待纠正 + 相关 Edges）
+
+### 间隔复习与错误修正
+
+- **FR33**: 系统可以在 Day 3 和 Day 7 主动提醒学习者复习标记的误解（Spaced Repetition + Tasks 插件）
+- **FR34**: 系统可以在复习时自动注入历史误解上下文（search_memories）
+- **FR35**: 系统可以基于历史误解生成辨析题验证纠正效果
+- **FR36**: 学习者可以查看待完成的复习任务列表（含截止日期）
+
+### Vault 管理与配置
+
+- **FR37**: 学习者可以自定义所有 Skill 的 hotkey 绑定（Obsidian Settings 或 Claude Code settings.json）
+- **FR38**: 系统可以通过 Templater 模板自动生成考察文件、概念文件和边文件的标准 frontmatter
+- **FR39**: 学习者可以选择性启用 Obsidian Git 自动备份
+- **FR40**: 系统可以执行 Graphify health check 检测孤立节点和矛盾关系
+- **FR41**: 系统在启动时可以检测 hotkey 冲突并警告
+
+### 架构适配（降级后必修）
+
+- **FR42**: 系统必须重构 context_enrichment 从 .canvas JSON 读取改为通过 obsidiantools 解析 .md wikilink 图遍历（Phase 1 必修，解决降级架构断层）
+- **FR43**: 系统必须支持通过 wikilink 双向链接发现概念间的邻居关系（替代原 Canvas edge JSON）
