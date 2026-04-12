@@ -7,16 +7,32 @@
     intent field. It is the ACTION counterpart to scan-feedback (which only READS).
     The intent field maps 1:1 to BMAD correct-course severity levels.</critical>
 
-  <step n="1" goal="Classify annotation by intent and scope">
+  <critical>STORY STATUS AWARENESS — Annotations mean different things depending on when they are written:
+    - PRE-IMPLEMENTATION (story_status = ready-for-dev): Annotations are for INTENT ALIGNMENT.
+      Minor AC edits are safe because no code exists yet. Direct edit is appropriate.
+    - POST-IMPLEMENTATION (story_status = in-progress / review / done): Annotations signal either:
+      (a) A BUG found during UAT → action: fix_bug → Step 2a (add fix task, minor is OK)
+      (b) Feature does NOT match requirements → needs re-discussion → MUST be at least moderate.
+    scan_feedback.py auto-escalates post-impl change_ac from minor to moderate (intent_escalated=true).
+    If you see intent_escalated, explain to the user WHY it was escalated before proceeding.</critical>
+
+  <step n="1" goal="Classify annotation by intent, scope, and story status">
     <action>For each annotation to process:</action>
     <action>1. Read the intent field: minor, moderate, or major</action>
     <action>2. Read the scope field: story (default) or prd-section</action>
     <action>3. Read the action field: change_ac, fix_bug, add_dev_note, rework_interaction,
       lock_decision, annotate_fr, erratum, upgrade_epic, question</action>
-    <action>4. Route to the appropriate step based on intent + scope + action combination</action>
+    <action>4. Read the story_status field: ready-for-dev, in-progress, review, done, unknown</action>
+    <action>5. Check intent_escalated flag: if true, the intent was auto-escalated by scan_feedback.py
+      because this is a post-implementation AC change. Inform the user before proceeding.</action>
+    <action>6. Route to the appropriate step based on intent + scope + action combination</action>
 
     <action>Routing table:</action>
-    <action>- intent:minor + scope:story → Step 2a (direct edit)</action>
+    <action>- intent:minor + scope:story + action:fix_bug → Step 2a (direct edit, safe at any stage)</action>
+    <action>- intent:minor + scope:story + action:add_dev_note → Step 2a (direct edit, safe at any stage)</action>
+    <action>- intent:minor + scope:story + action:change_ac + story_status:ready-for-dev → Step 2a (pre-impl, safe)</action>
+    <action>- intent:minor + scope:story + action:change_ac + story_status:in-progress/review → AUTO-ESCALATE to moderate → Step 2b
+      (post-impl AC change = feature mismatch, needs correct-course re-discussion)</action>
     <action>- intent:moderate + scope:story → Step 2b (BMAD correct-course)</action>
     <action>- intent:major + scope:story → Step 2c (correct-course + PM/Architect)</action>
     <action>- scope:prd-section + action:lock_decision → Step 2d (PRD decision lock)</action>
@@ -26,7 +42,13 @@
     <action>- action:question → Step 2g (TECH decision protocol)</action>
   </step>
 
-  <step n="2a" goal="Minor: Direct Story edit">
+  <step n="2a" goal="Minor: Direct Story edit (pre-implementation or bug fix)">
+    <action>This step is ONLY for:</action>
+    <action>- Pre-implementation AC edits (story_status = ready-for-dev)</action>
+    <action>- Bug fix references (action = fix_bug, safe at any stage)</action>
+    <action>- Dev note additions (action = add_dev_note, safe at any stage)</action>
+    <action>If a post-implementation change_ac reaches this step, HALT and escalate to Step 2b.</action>
+
     <action>Open the target Story file</action>
     <action>Based on the action field:</action>
     <action>- change_ac: Replace the specified AC text with the new content from changes[]</action>

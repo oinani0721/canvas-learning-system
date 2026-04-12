@@ -42,6 +42,29 @@ CALLOUT_RE = re.compile(
 )
 
 
+def _load_story_statuses(sprint_status_path: Path | None) -> dict[str, str]:
+    """Return {story_key: status} from sprint-status.yaml."""
+    if not sprint_status_path or not sprint_status_path.exists():
+        return {}
+    data = yaml.safe_load(sprint_status_path.read_text(encoding="utf-8"))
+    dev_status = data.get("development_status", {})
+    result: dict[str, str] = {}
+    for story_key, status in dev_status.items():
+        if isinstance(status, str):
+            result[str(story_key)] = status
+        elif isinstance(status, dict):
+            result[str(story_key)] = status.get("status", "unknown")
+    return result
+
+
+def _match_story_status(filename: str, statuses: dict[str, str]) -> str:
+    """Best-effort match a Story filename to its sprint status."""
+    for key, status in statuses.items():
+        if key in filename:
+            return status
+    return "unknown"
+
+
 def find_story_files(
     sprint_status_path: Path | None = None,
     story_filter: str | None = None,
@@ -50,15 +73,8 @@ def find_story_files(
         pattern = f"*{story_filter}*"
         return sorted(STORY_DIR.glob(pattern))
 
-    active_ids: set[str] = set()
-    if sprint_status_path and sprint_status_path.exists():
-        data = yaml.safe_load(sprint_status_path.read_text(encoding="utf-8"))
-        dev_status = data.get("development_status", {})
-        for story_key, status in dev_status.items():
-            if isinstance(status, str) and status in ACTIVE_STATUSES:
-                active_ids.add(str(story_key))
-            elif isinstance(status, dict) and status.get("status") in ACTIVE_STATUSES:
-                active_ids.add(str(story_key))
+    statuses = _load_story_statuses(sprint_status_path)
+    active_ids = {k for k, v in statuses.items() if v in ACTIVE_STATUSES}
 
     if active_ids:
         files = []
@@ -115,11 +131,15 @@ def is_processed(anno: dict) -> bool:
     return anno_file.exists()
 
 
+POST_IMPL_STATUSES = {"in-progress", "review", "done"}
+
+
 def scan(
     sprint_status_path: Path | None = None,
     story_filter: str | None = None,
 ) -> list[dict]:
     results = []
+    statuses = _load_story_statuses(sprint_status_path)
 
     story_files = find_story_files(sprint_status_path, story_filter)
     prd_files = find_prd_register_files()
@@ -131,13 +151,23 @@ def scan(
         section = extract_feedback_section(text)
         if not section:
             continue
+
+        story_status = _match_story_status(fpath.name, statuses)
+        is_post_impl = story_status in POST_IMPL_STATUSES
+
         callouts = parse_callouts(section)
         for c in callouts:
             if not is_processed(c):
-                results.append({
+                entry = {
                     "source_file": str(fpath.relative_to(PROJECT_ROOT)),
+                    "story_status": story_status,
                     **c,
-                })
+                }
+                if is_post_impl and c.get("action") == "change_ac" and c.get("intent") == "minor":
+                    entry["intent_escalated"] = True
+                    entry["original_intent"] = "minor"
+                    entry["intent"] = "moderate"
+                results.append(entry)
     return results
 
 
@@ -159,8 +189,11 @@ def mode_interactive(results: list[dict]) -> None:
     print()
     for i, r in enumerate(results, 1):
         print(f"[{i}] {r.get('id', '?')}")
-        print(f"    Source: {r.get('source_file', '?')}")
-        print(f"    Intent: {r.get('intent', '?')} | Action: {r.get('action', '?')}")
+        print(f"    Source: {r.get('source_file', '?')} (status: {r.get('story_status', '?')})")
+        intent_display = r.get("intent", "?")
+        if r.get("intent_escalated"):
+            intent_display += f" (escalated from {r['original_intent']} — post-implementation AC change)"
+        print(f"    Intent: {intent_display} | Action: {r.get('action', '?')}")
         print(f"    Reason: {r.get('reason', '-')}")
         if r.get("target"):
             print(f"    Target: {r['target']}")
