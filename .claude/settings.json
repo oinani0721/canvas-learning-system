@@ -60,6 +60,31 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-auto-sync-to-remote.sh",
             "timeout": 90000
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-decision-router.js",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-deep-research-clipboard.js",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/bmad/scan_feedback.py --mode=batch-silent --sprint-status \"$CLAUDE_PROJECT_DIR\"/_bmad-output/implementation-artifacts/sprint-status.yaml",
+            "timeout": 15000
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/sync_links.py",
+            "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/trace/build_story_file_map.py --all",
+            "timeout": 10000
           }
         ]
       }

@@ -36,26 +36,32 @@ def log_decision(
     output: Any,
     reason: str,
     request_id: Optional[str] = None,
+    story_id: Optional[str] = None,
 ) -> str:
     """Log a business decision with a unique ID. Returns the decision_id.
 
     If request_id is not provided, auto-reads from structlog contextvars
     (set by MetricsMiddleware for every HTTP request).
+    story_id is optional — set by contextvars when running within a BMAD Story scope.
     """
     if request_id is None:
         ctx = structlog.contextvars.get_contextvars()
         request_id = ctx.get("request_id", "unknown")
 
+    if story_id is None:
+        ctx = structlog.contextvars.get_contextvars()
+        story_id = ctx.get("current_story_id")
+
     decision_id = generate_decision_id()
-    logger.info(
-        "decision_recorded",
-        extra={
-            "decision_id": decision_id,
-            "function": function,
-            "input": json.dumps(input_summary, default=str),
-            "output": str(output),
-            "reason": reason,
-            "request_id": request_id,
-        },
-    )
+    extra = {
+        "decision_id": decision_id,
+        "function": function,
+        "input": json.dumps(input_summary, default=str),
+        "output": str(output),
+        "reason": reason,
+        "request_id": request_id,
+    }
+    if story_id:
+        extra["story_id"] = story_id
+    logger.info("decision_recorded", extra=extra)
     return decision_id

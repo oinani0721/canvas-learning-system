@@ -1,0 +1,98 @@
+<workflow>
+  <critical>The workflow execution engine is governed by: {project-root}/_bmad/core/tasks/workflow.xml</critical>
+  <critical>You MUST have already loaded and processed: {installed_path}/workflow.yaml</critical>
+  <critical>Communicate all responses in {communication_language}</critical>
+
+  <critical>This workflow processes BMAD-ANNO annotations by dispatching them according to their
+    intent field. It is the ACTION counterpart to scan-feedback (which only READS).
+    The intent field maps 1:1 to BMAD correct-course severity levels.</critical>
+
+  <step n="1" goal="Classify annotation by intent and scope">
+    <action>For each annotation to process:</action>
+    <action>1. Read the intent field: minor, moderate, or major</action>
+    <action>2. Read the scope field: story (default) or prd-section</action>
+    <action>3. Read the action field: change_ac, fix_bug, add_dev_note, rework_interaction,
+      lock_decision, annotate_fr, erratum, upgrade_epic, question</action>
+    <action>4. Route to the appropriate step based on intent + scope + action combination</action>
+
+    <action>Routing table:</action>
+    <action>- intent:minor + scope:story → Step 2a (direct edit)</action>
+    <action>- intent:moderate + scope:story → Step 2b (BMAD correct-course)</action>
+    <action>- intent:major + scope:story → Step 2c (correct-course + PM/Architect)</action>
+    <action>- scope:prd-section + action:lock_decision → Step 2d (PRD decision lock)</action>
+    <action>- scope:prd-section + action:erratum → Step 2e (PRD erratum)</action>
+    <action>- scope:prd-section + action:annotate_fr → Step 2f (Story draft from PRD)</action>
+    <action>- scope:prd-section + action:upgrade_epic → Step 2c (treat as major)</action>
+    <action>- action:question → Step 2g (TECH decision protocol)</action>
+  </step>
+
+  <step n="2a" goal="Minor: Direct Story edit">
+    <action>Open the target Story file</action>
+    <action>Based on the action field:</action>
+    <action>- change_ac: Replace the specified AC text with the new content from changes[]</action>
+    <action>- fix_bug: Add bug reference to Dev Notes + create fix task in Tasks section</action>
+    <action>- add_dev_note: Append content to Dev Notes section</action>
+    <action>After edit:</action>
+    <action>1. Append entry to "### Deviation Notes" with timestamp and annotation ID</action>
+    <action>2. Mark the annotation as processed (add "processed: true" + timestamp to callout)</action>
+    <action>3. Update sprint-status.yaml if story status changed</action>
+  </step>
+
+  <step n="2b" goal="Moderate: Invoke BMAD correct-course">
+    <action>Prepare change description from the annotation's reason and details fields</action>
+    <action>Invoke the BMAD native correct-course workflow:</action>
+    <action>- Load {correct_course_workflow}/workflow.yaml</action>
+    <action>- Pass the change description as the triggering issue</action>
+    <action>- correct-course will generate a Sprint Change Proposal</action>
+    <action>- Output file: {default_output_file}</action>
+    <action>After correct-course completes:</action>
+    <action>1. Mark annotation as processed</action>
+    <action>2. Link the SCP to the originating annotation ID in Deviation Notes</action>
+  </step>
+
+  <step n="2c" goal="Major: correct-course + PM/Architect escalation">
+    <action>Same as Step 2b but with additional escalation flag:</action>
+    <action>1. Invoke correct-course workflow (same as moderate)</action>
+    <action>2. Add "ESCALATION: Route to PM/Architect for review" header to the SCP</action>
+    <action>3. Flag in sprint-status.yaml: story status → "blocked-by-major-change"</action>
+    <action>4. Output warning to user: "This change may affect multiple Epics. Review the SCP before proceeding."</action>
+  </step>
+
+  <step n="2d" goal="PRD Decision Lock">
+    <action>Read the target_decision field (D1-D14)</action>
+    <action>Read the choice field</action>
+    <action>Open {prd_decisions} and update the corresponding decision line:</action>
+    <action>- Change "- [ ] PENDING" to "- [x] Locked {date} — choice: {choice}"</action>
+    <action>Mark annotation as processed</action>
+  </step>
+
+  <step n="2e" goal="PRD Erratum">
+    <action>Generate an erratum file at {errata_dir}/ERRATUM-{annotation-id}.md</action>
+    <action>Include: original PRD text reference, user correction, reason, date</action>
+    <action>Mark annotation as processed</action>
+  </step>
+
+  <step n="2f" goal="Story draft from PRD annotation">
+    <action>Based on the target_fr field, generate a Story draft file</action>
+    <action>Output to {draft_dir}/DRAFT-{target_fr}.md</action>
+    <action>Use the create-story-ext template but mark status as "draft-pending-review"</action>
+    <action>Mark annotation as processed</action>
+  </step>
+
+  <step n="2g" goal="Route to TECH decision protocol">
+    <action>Extract the question from the annotation</action>
+    <action>Generate a [DECISION-TECH:&lt;annotation-id&gt;] marker</action>
+    <action>Follow the OpenSpec decision protocol from .claude/rules/openspec-decision-protocol.md</action>
+    <action>Generate the copy-to-deep-research block for ChatGPT Deep Research</action>
+  </step>
+
+  <step n="3" goal="Post-processing summary">
+    <action>After all annotations are processed, output summary:</action>
+    <action>- How many annotations processed by category</action>
+    <action>- Which Story files were modified</action>
+    <action>- Any SCPs generated (moderate/major)</action>
+    <action>- Any erratum files created</action>
+    <action>- Any draft Story files generated</action>
+    <action>- Remaining unprocessed annotations (if user selected partial processing)</action>
+  </step>
+</workflow>

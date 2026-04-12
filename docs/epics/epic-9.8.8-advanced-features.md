@@ -1702,3 +1702,6 @@ export default MobileCanvas;
 ---
 
 **Epic 9.8.8 高级功能实现**将通过智能推荐、实时协作和移动端适配，将Canvas Learning System升级为现代化的智能协同学习平台，为用户提供更加智能化、个性化的学习体验。这是Canvas学习系统实现全面智能化和移动化的关键阶段。 🚀
+
+## Relations
+

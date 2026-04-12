@@ -1,0 +1,19 @@
+name: locate-by-bug
+description: "Trace BugID to DecisionID to Story to code paths — one-hop bug localization for UAT"
+author: "Canvas Learning System"
+
+config_source: "{project-root}/_bmad/bmm/config.yaml"
+communication_language: "{config_source}:communication_language"
+document_output_language: "{config_source}:document_output_language"
+implementation_artifacts: "{config_source}:implementation_artifacts"
+
+installed_path: "{project-root}/_bmad/custom-bmm-ext/workflows/locate-by-bug"
+template: false
+instructions: "{installed_path}/instructions.xml"
+
+variables:
+  story_dir: "{implementation_artifacts}"
+  bug_log: "{project-root}/backend/data/bug_log.jsonl"
+  decision_log: "{project-root}/backend/data/decision_log.jsonl"
+  story_file_map: "{project-root}/docs/_meta/indices/story-file-map.yaml"
+  locate_script: "{project-root}/scripts/trace/locate_by_bug.py"

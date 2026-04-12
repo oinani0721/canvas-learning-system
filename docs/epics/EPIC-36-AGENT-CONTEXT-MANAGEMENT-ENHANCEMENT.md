@@ -364,3 +364,6 @@ Agent节点间上下文管理增强 - Brownfield Enhancement
 | 2026-01-18 | 0.2 | 添加EPIC-30依赖声明 | PM Agent (John) |
 | 2026-02-10 | 0.3 | **对抗性审查修复 (13项发现)**：F1 每个Story标注实现状态(75%已实现)；F2 修正行数(CES 1007→1515, TCS 628→658)；F3 修复自相矛盾validation；F4 新增代码现实检查表(14项验证)；F5 新增OpenAPI验证+Context7引用；F9 验证EPIC-30 30.2/30.4已完成；F12 新增跨EPIC责任承接(34.1→36.5, 34.6→36.6)；新增Story 36.11 E2E集成验证；更新实现状态汇总表和剩余工作量估算 | 对抗性审查 |
 | 2026-02-10 | 0.4 | **对抗性审查修复执行**: (1) 36.6 修复 F1 — 新增 on-open API + plugin auto-discover listener; (2) 36.12 Draft→Complete — 代码现实检查发现 8/10 AC 已在其他 Story 中实现; (3) 新增 36.13 Ready — asyncio.sleep 审计 + TTLCache 配置化 (F6/F8); 整体完成度 80%→88% | Dev Agent |
+
+## Relations
+

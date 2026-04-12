@@ -55,6 +55,9 @@ class BugRecord(BaseModel):
     request_id: Optional[str] = Field(
         None, description="Correlation request ID from middleware"
     )
+    story_id: Optional[str] = Field(
+        None, description="BMAD Story ID for traceability (e.g., '30.23')"
+    )
 
 
 class BugTracker:
@@ -101,6 +104,7 @@ class BugTracker:
         request_params: dict,
         user_action: Optional[str] = None,
         request_id: Optional[str] = None,
+        story_id: Optional[str] = None,
     ) -> str:
         """
         Log an error to the bug log file.
@@ -142,6 +146,7 @@ class BugTracker:
             stack_trace=traceback.format_exc(),
             user_action=user_action,
             request_id=request_id,
+            story_id=story_id,
         )
 
         # Append to JSONL file
@@ -209,6 +214,27 @@ class BugTracker:
 
         # Return last N records in reverse order (newest first)
         return bugs[-limit:][::-1]
+
+    def get_bug_by_id(self, bug_id: str) -> Optional[BugRecord]:
+        """Look up a single bug by its BUG-XXXXXXXX ID."""
+        if not self.log_path.exists():
+            return None
+        try:
+            with open(self.log_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if bug_id in line:
+                        try:
+                            record = BugRecord.model_validate_json(line)
+                            if record.bug_id == bug_id:
+                                return record
+                        except (ValueError, KeyError):
+                            continue
+        except OSError:
+            pass
+        return None
 
     def clear_log(self) -> bool:
         """

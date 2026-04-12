@@ -1,0 +1,59 @@
+<workflow>
+  <critical>The workflow execution engine is governed by: {project-root}/_bmad/core/tasks/workflow.xml</critical>
+  <critical>You MUST have already loaded and processed: {installed_path}/workflow.yaml</critical>
+  <critical>Communicate all responses in {communication_language}</critical>
+
+  <critical>This is a PURE FUNCTION workflow - it reads Story files and PRD register files,
+    extracts BMAD-ANNO callouts, and outputs structured results. It does NOT modify any files.
+    Three modes: pending-summary (count only), interactive (list for processing), batch-silent (dump to annotations dir).</critical>
+
+  <step n="1" goal="Load sprint status and identify active stories">
+    <action>Read {sprint_status} to find stories in active states: ready-for-dev, in-progress, review</action>
+    <action>If sprint_status does not exist, scan all .md files in {story_dir} instead</action>
+    <action>Also scan {prd_register}/PRD14-S*.md files for PRD-section annotations</action>
+    <action>Build list of files to scan</action>
+  </step>
+
+  <step n="2" goal="Parse BMAD-ANNO callouts from each file">
+    <action>For each file in the scan list:</action>
+    <action>1. Extract the "## User Feedback &amp; Changes" section (or "## 用户批注区" for PRD register files)</action>
+    <action>2. Find all Obsidian callouts matching: &gt; [!BMAD-ANNO] &lt;annotation-id&gt;</action>
+    <action>3. Parse the YAML body of each callout (strip leading "&gt; " prefix from each line)</action>
+    <action>4. Extract fields: scope, target, intent, action, reason, changes, bug_id, target_decision</action>
+    <action>5. Check if annotation ID has already been processed (look for "processed" marker or check annotations_dir)</action>
+    <action>6. Collect unprocessed annotations into results list</action>
+
+    <action>YAML parsing rules:</action>
+    <action>- Each line in the callout body starts with "&gt; " which must be stripped</action>
+    <action>- The first line after [!BMAD-ANNO] is the annotation ID</action>
+    <action>- Remaining lines are YAML key-value pairs</action>
+    <action>- Multi-line values use YAML block scalar (| or &gt;)</action>
+  </step>
+
+  <step n="3" goal="Output results based on mode">
+    <check if="mode == 'pending-summary'">
+      <action>Output a one-line summary: count of unprocessed annotations grouped by intent</action>
+      <action>Format: "N unprocessed annotations: X minor / Y moderate / Z major"</action>
+      <action>If count is 0, output empty string (for SessionStart hook: zero injection)</action>
+    </check>
+
+    <check if="mode == 'interactive'">
+      <action>Display each unprocessed annotation with full details:</action>
+      <action>- Source file path</action>
+      <action>- Annotation ID</action>
+      <action>- Intent level (minor/moderate/major)</action>
+      <action>- Action type</action>
+      <action>- Reason text</action>
+      <action>Ask user which annotations to process, or "all" to process everything</action>
+      <action>Selected annotations are passed to the apply-feedback workflow</action>
+    </check>
+
+    <check if="mode == 'batch-silent'">
+      <action>Write each unprocessed annotation as a YAML file to {annotations_dir}/</action>
+      <action>Filename: ANNO-{annotation-id}.yaml</action>
+      <action>Include: source_file, annotation_id, intent, action, reason, changes, scan_timestamp</action>
+      <action>Failed annotations go to {annotations_dir}/_failed/ with error details</action>
+      <action>No stdout output (silent mode for Stop hook)</action>
+    </check>
+  </step>
+</workflow>

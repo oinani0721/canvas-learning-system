@@ -1,0 +1,5 @@
+command,description,agent,module
+SX,Create Story Ext - Extended story creation with UAT Script and User Feedback sections,sm,custom-bmm-ext
+SF,Scan Feedback - Scan active stories for unprocessed user annotations,sm,custom-bmm-ext
+AF,Apply Feedback - Process user annotations by intent (minor/moderate/major),dev,custom-bmm-ext
+LB,Locate By Bug - Trace BugID to DecisionID to Story to code paths,dev,custom-bmm-ext

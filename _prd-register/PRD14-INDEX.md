@@ -1,28 +1,24 @@
----
-doc_type: prd-index
-prd_version: v5
-total_sections: 14
----
+# PRD14 Section Index
 
-# PRD v5 Section 索引
+> **PRD v5 根文档 read-only** (pretool-guard.js 硬挡)
+> 影子层 `_prd-register/` 允许 Claude 和用户批注，零改动原文。
 
-> **PRD**: `14-scheme-a-implementation-prd.md` (v5, 7594 行)
-> **Status**: 只读锚定文档，Claude 不可编辑
-
-## S 覆盖率
+## Section Overview
 
 ```dataview
-TABLE prd_title AS "标题", prd_lines AS "行号", length(related_frs) AS "FRs", status AS "状态"
+TABLE section_title, status, length(links_frs) as "FR Count", length(file.inlinks) as "References"
 FROM "_prd-register"
 WHERE doc_type = "prd-section"
-SORT file.name ASC
+SORT section ASC
 ```
 
-## 状态汇总
+## Dual-Source Reference
 
-```dataview
-TABLE length(rows) AS "数量"
-FROM "_prd-register"
-WHERE doc_type = "prd-section"
-GROUP BY status
-```
+| Source | Role | Path |
+|---|---|---|
+| **PRD v5** (真相源) | 人类可读完整产品愿景，永远 read-only | `/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md` |
+| **BMAD PRD** (工作流输入) | 供 BMAD V6 CE/CA/IR/correct-course 消费 | `_bmad-output/planning-artifacts/prd.md` (Phase 0.5 生成) |
+
+## Decision Lock Status
+
+See [[PRD14-decisions]] for D1-D14 lock status.

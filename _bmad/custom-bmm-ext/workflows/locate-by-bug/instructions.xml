@@ -1,0 +1,71 @@
+<workflow>
+  <critical>The workflow execution engine is governed by: {project-root}/_bmad/core/tasks/workflow.xml</critical>
+  <critical>You MUST have already loaded and processed: {installed_path}/workflow.yaml</critical>
+  <critical>Communicate all responses in {communication_language}</critical>
+
+  <critical>This workflow traces a BugID through 4 layers:
+    bug_log.jsonl → decision_log.jsonl → Story file → BMAD native File List section.
+    It reads the SAME File List section that BMAD dev-story and code-review workflows use,
+    ensuring a single source of truth for code paths.</critical>
+
+  <step n="1" goal="Parse BugID from user input">
+    <action>Extract BugID from user input (format: BUG-XXXXXXXX, 8-char hex)</action>
+    <check if="no BugID provided">
+      <ask>Please provide the BugID (format: BUG-XXXXXXXX). You can find it in the error dialog or browser Network panel.</ask>
+    </check>
+  </step>
+
+  <step n="2" goal="Look up bug record">
+    <action>Execute: python {locate_script} {bug_id}</action>
+    <action>If the script is not available, fall back to manual JSONL search:</action>
+    <action>1. Read {bug_log} and find the entry matching bug_id</action>
+    <action>2. Extract: endpoint, error_type, error_message, request_id, story_id, timestamp</action>
+    <check if="bug_id not found">
+      <output>Bug {bug_id} not found in bug_log.jsonl. It may have been rotated out or the ID is incorrect.</output>
+      <action>HALT</action>
+    </check>
+  </step>
+
+  <step n="3" goal="Find related decisions">
+    <action>Using the request_id from the bug record:</action>
+    <action>1. Search {decision_log} for entries with matching request_id</action>
+    <action>2. Extract all related DecisionIDs (DECN-XXXXXXXX)</action>
+    <action>3. Note the decision context: function_name, reason, timestamp</action>
+  </step>
+
+  <step n="4" goal="Resolve Story file">
+    <action>If bug record has story_id:</action>
+    <action>- Find Story file: {story_dir}/*{story_id}*.md</action>
+    <action>If story_id is missing:</action>
+    <action>- Infer from endpoint URL: map API path to the most likely Story</action>
+    <action>- Check {story_file_map} for reverse mapping</action>
+    <action>Once Story file is found:</action>
+    <action>1. Read the "### File List" section (BMAD native, same source as code-review Step 1)</action>
+    <action>2. Read the "## UAT Script" section for reproduction steps</action>
+    <action>3. Read the "## Acceptance Criteria" to identify which AC is affected</action>
+  </step>
+
+  <step n="5" goal="Output trace report">
+    <action>Present the complete trace report in {communication_language}:</action>
+    <action>
+      Bug Trace: {bug_id}
+      Time: {timestamp}
+      Endpoint: {endpoint}
+      Error: {error_type}: {error_message}
+      Related Decisions: {decision_ids} (with context)
+      Story: {story_id} "{story_title}"
+      Story File: {story_file_path}
+      Code Paths (from BMAD File List):
+        - {file1}
+        - {file2}
+      UAT Reproduction Steps:
+        1. {uat_step_1}
+        2. {uat_step_2}
+      Affected AC: AC-{story_id}.{ac_num}
+    </action>
+    <action>After presenting the report, offer to:</action>
+    <action>1. Read the relevant code files to locate the bug</action>
+    <action>2. Create a fix annotation in the Story's User Feedback section</action>
+    <action>3. Start a dev-story session to fix the bug</action>
+  </step>
+</workflow>

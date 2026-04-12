@@ -111,6 +111,13 @@ commit-msg:
             echo ""
             exit 1
           fi
+          # Require Story: trailer for backend/frontend code changes
+          if ! echo "$MSG" | grep -qE "^Story:\s*[0-9]+\.[0-9]+" && ! echo "$MSG" | grep -q "Co-Authored-By"; then
+            echo ""
+            echo "  WARNING: backend/frontend change missing 'Story: x.y' trailer."
+            echo "  Add 'Story: 30.23' as a git trailer for traceability."
+            echo ""
+          fi
         fi
         echo "[Spec Ref] OK."
 

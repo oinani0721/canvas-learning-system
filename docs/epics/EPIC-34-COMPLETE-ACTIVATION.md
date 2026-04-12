@@ -396,3 +396,6 @@ Story 34.4 (历史分页) ──┘                                             
 | 2026-02-10 | 1.3 | **EPIC 文档同步**: Goal 1/3标注Deferred; Story 34.7 AC1/AC3标注已删除; 追加34.8/34.9摘要段落; Change Log补全; 34.9状态→Done | Adversarial Audit |
 | 2026-02-10 | 1.4 | **对抗性审查 Wave 1 修复**: (1) Story 34.8 状态→Done; (2) Risk Mitigation表更新为实际交付功能的风险; (3) Story 34.4 Dev Agent Record 追溯补填; (4) 恢复被误删的集成测试文件(48个ERROR待34.10修复); (5) 发现集成测试回归根因=Story 38.9 DI重构未同步更新测试 | Adversarial Review Wave 1 |
 | 2026-02-10 | 1.5 | **R4 对抗性审查**: (1) Status "Done"→"Done (Scoped)"; (2) 34.10 补入 DoD; (3) Deferred 功能跟踪表 — 标记 EPIC-31 接收方 FAIL 风险; (4) 创建 3 个补救 Story: 34.11(测试质量≥70), 34.12(静默降级修复), 34.13(教材挂载真实E2E); (5) ATDD 执行强制化模板 | R4 Adversarial Review |
+
+## Relations
+

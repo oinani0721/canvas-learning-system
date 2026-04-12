@@ -54,6 +54,31 @@ try {
     parts.push(`[Current Task]\n${summary}`);
   }
 
+  // BMAD Process Awareness: only inject annotation summary when in BMAD workflow
+  // Reads plan_kind from CURRENT_TASK.md frontmatter — non-BMAD gets zero injection
+  if (fs.existsSync(taskPath)) {
+    const taskContent = fs.readFileSync(taskPath, 'utf8');
+    const fmMatch = taskContent.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      const planKindMatch = fmMatch[1].match(/plan_kind:\s*"?([^"\n]+)"?/);
+      const planKind = planKindMatch ? planKindMatch[1].trim() : '';
+      if (planKind.startsWith('bmad')) {
+        try {
+          const { execSync } = require('child_process');
+          const summary = execSync(
+            'python3 scripts/bmad/scan_feedback.py --mode=pending-summary',
+            { cwd: projectDir, timeout: 2000, encoding: 'utf8' }
+          ).trim();
+          if (summary && summary !== '0') {
+            parts.push(`[BMAD-ANNO] ${summary}`);
+          }
+        } catch (_scanErr) {
+          // scan_feedback failure is non-blocking
+        }
+      }
+    }
+  }
+
   if (parts.length > 0) {
     process.stdout.write(parts.join('\n---\n'));
   }

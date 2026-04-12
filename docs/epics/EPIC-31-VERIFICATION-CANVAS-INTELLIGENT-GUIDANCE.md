@@ -490,3 +490,6 @@ canvas-progress-tracker/obsidian-plugin/
 ├── src/modals/VerificationProgressModal.ts # 进度Modal (765行)
 └── src/services/VerificationHistoryService.ts # 历史服务 (303行)
 ```
+
+## Relations
+

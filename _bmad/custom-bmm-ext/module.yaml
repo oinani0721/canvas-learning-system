@@ -1,0 +1,11 @@
+module:
+  name: custom-bmm-ext
+  version: 1.0.0
+  description: "Canvas BMAD BMM Extension — User Feedback driven workflows for story validation, annotation processing, and bug traceability"
+  extends: bmm
+  author: "Canvas Learning System"
+  workflows:
+    - create-story-ext
+    - scan-feedback
+    - apply-feedback
+    - locate-by-bug

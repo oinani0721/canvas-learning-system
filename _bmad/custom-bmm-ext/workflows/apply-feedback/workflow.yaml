@@ -1,0 +1,27 @@
+name: apply-feedback
+description: "Dispatch user annotations by intent level: minor (direct edit), moderate (BMAD correct-course), major (correct-course + PM/Architect route)"
+author: "Canvas Learning System"
+
+config_source: "{project-root}/_bmad/bmm/config.yaml"
+user_name: "{config_source}:user_name"
+communication_language: "{config_source}:communication_language"
+document_output_language: "{config_source}:document_output_language"
+implementation_artifacts: "{config_source}:implementation_artifacts"
+planning_artifacts: "{config_source}:planning_artifacts"
+date: system-generated
+
+installed_path: "{project-root}/_bmad/custom-bmm-ext/workflows/apply-feedback"
+correct_course_workflow: "{project-root}/_bmad/bmm/workflows/4-implementation/correct-course"
+template: false
+instructions: "{installed_path}/instructions.xml"
+
+variables:
+  sprint_status: "{implementation_artifacts}/sprint-status.yaml"
+  story_dir: "{implementation_artifacts}"
+  prd_register: "{project-root}/_prd-register"
+  prd_decisions: "{project-root}/_decisions/PRD14-decisions.md"
+  annotations_dir: "{project-root}/docs/_meta/annotations"
+  errata_dir: "{project-root}/_prd-register/errata"
+  draft_dir: "{project-root}/_prd-register/_draft"
+
+default_output_file: "{planning_artifacts}/sprint-change-proposal-{date}.md"
