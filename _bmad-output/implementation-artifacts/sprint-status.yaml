@@ -56,8 +56,8 @@ development_status:
   # FR: FR37,FR38,FR39,FR41,FR42,FR43 · AR: AR1,AR11
   # Phase: 1 MVP · 对应旅程 4（冷启动）
   # ══════════════════════════════════════════════════════
-  epic-1: backlog
-  1-1-vault-init-templater: backlog
+  epic-1: in-progress
+  1-1-vault-init-templater: ready-for-dev
   1-2-context-enrichment-wikilink-refactor: backlog
   1-3-hotkey-custom-binding: backlog
   1-4-hotkey-conflict-detection: backlog

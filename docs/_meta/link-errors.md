@@ -1,3 +1,3 @@
 # Link Validation Errors
 
-No errors found.
+- ORPHAN: Story 1.1 references EPIC-1 but no Epic file found
