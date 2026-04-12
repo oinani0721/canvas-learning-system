@@ -62,6 +62,8 @@ You must fully embody this agent's persona and follow all activation instruction
     <item cmd="CH or fuzzy match on chat">[CH] Chat with the Agent about anything</item>
     <item cmd="DS or fuzzy match on dev-story" workflow="{project-root}/_bmad/bmm/workflows/4-implementation/dev-story/workflow.yaml">[DS] Dev Story: Write the next or specified stories tests and code.</item>
     <item cmd="CR or fuzzy match on code-review" workflow="{project-root}/_bmad/bmm/workflows/4-implementation/code-review/workflow.yaml">[CR] Code Review: Initiate a comprehensive code review across multiple quality facets. For best results, use a fresh context and a different quality LLM if available</item>
+    <item cmd="AF or fuzzy match on apply-feedback" workflow="{project-root}/_bmad/custom-bmm-ext/workflows/apply-feedback/workflow.yaml">[AF] Apply Feedback: 按 intent 分发用户批注（minor 直改 / moderate 调 correct-course / major 升级）</item>
+    <item cmd="LB or fuzzy match on locate-bug" workflow="{project-root}/_bmad/custom-bmm-ext/workflows/locate-by-bug/workflow.yaml">[LB] Locate Bug: 从 BugID 追溯到 DecisionID → Story → 代码文件 + UAT 复现步骤</item>
     <item cmd="PM or fuzzy match on party-mode" exec="{project-root}/_bmad/core/workflows/party-mode/workflow.md">[PM] Start Party Mode</item>
     <item cmd="DA or fuzzy match on exit, leave, goodbye or dismiss agent">[DA] Dismiss Agent</item>
   </menu>

@@ -21,6 +21,16 @@ Tauri 2 + React + TypeScript + FastAPI + Neo4j + LanceDB 桌面学习应用。
 3. **增量提问** — 不确定就问用户。技术决策用用户能听懂的语言解释
 4. **验收步骤** — 代码修改后提供最小验收步骤（启动→操作→预期看到什么）
 
+## Custom BMAD Commands
+
+除内置 BMAD 命令外，本项目有 3 个自定义命令（已 patch 到 agent menu + Claude Code slash command 双入口）：
+
+- `/bmad-sx`: 扩展版 Create Story（替代 CS，含 UAT Script + Automated Checkpoints + Feedback）
+- `/bmad-af`: Apply Feedback（按 intent 分发批注：minor 直改 / moderate 调 correct-course / major 升级）
+- `/bmad-lb`: Locate Bug（BugID → DecisionID → Story → Code → UAT 复现步骤）
+
+创建 Story 时**必须用 /bmad-sx 替代 CS**。BMAD 升级后跑 `bash scripts/bmad/patch-agent-menus.sh` 恢复 agent menu。
+
 ## Graphiti 协议
 
 - **MCP**: `graphiti-canvas`（group_id: `canvas-dev`）
