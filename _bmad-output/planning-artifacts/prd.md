@@ -10,6 +10,8 @@ stepsCompleted:
   - step-08-scoping
   - step-09-functional
   - step-10-nonfunctional
+  - step-11-polish
+  - step-12-complete
 classification:
   projectType: desktop_app
   domain: edtech
@@ -43,479 +45,322 @@ workflowType: 'prd'
 anchor_source: '/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md'
 ---
 
-# Product Requirements Document - Canvas
+# Product Requirements Document - Canvas Learning System
 
 **Author:** ROG
 **Date:** 2026-04-12
+**Anchor Source:** PRD v5 (`14-scheme-a-implementation-prd.md`, 7594 lines, read-only)
+
+## Executive Summary
+
+Canvas Learning System 是基于 Obsidian + Claudian + Canvas 后端的个人化学习桌面应用。从 Tauri+React 架构降级到 Obsidian Hybrid 部署后，追求**学习效果守恒**而非 UI 1:1 还原。
+
+**产品差异化**: 12 个学习设计各有学术效应量 (d-value)，通过 narrative synthesis（Cochrane Handbook Ch 12）独立评估守恒度，而非传统 UI 机械对照（Agent G 44.2%）。
+
+**目标用户**: 个人学习者（ROG，CS 61B 学生），使用 Obsidian markdown + wikilinks 构建个人知识图谱，通过 6 个 Claude Code Skill 触发 AI 驱动的学习闭环。
+
+**核心诉求**（用户批注 #8 锁定）: "批注驱动的精确考察" — LLM 读懂 callout 批注 → 生成针对个人的考察 → 用户回答 → 更新掌握度 → 循环。
+
+**技术栈**: Obsidian v1.5+ · Claudian plugin · 10 Obsidian 插件 · FastAPI 后端 · 14 MCP 工具 · 6 Claude Code Skill · Graphiti/Neo4j · LanceDB/bge-m3 · Graphify · Claude API
+
+**灵魂设计**: 检验白板 100% 等价实现（Karpicke 2011, Retrieval Practice d=1.50）— 不可妥协底线。
 
 ## Success Criteria
 
 ### User Success
 
-- **核心诉求**（用户批注 #8 锁定）："批注驱动的精确考察" — LLM 读懂 callout 批注 → 生成针对个人的考察 → 用户回答 → 更新掌握度 → 循环
-- **灵魂标准**：检验白板提供 100% 等价的 Active Recall 环境（Karpicke 2011, d=1.50）
-- **守恒标准**：12 个学习设计的效应量独立保留（narrative synthesis，不给单一百分比）
-  - 9 个设计 ≥ 85% 守恒（检验白板 95%、Generation Effect 95%、BKT+FSRS 95%、正面措辞 100% 等）
-  - 3 个设计 60-80% 有降级策略（Edge 对话 75%、隐形评分 70%、节点颜色 75%）
-  - 0 个设计严重丢失（< 50%）
-- **交互标准**：6 个 Claude Code Skill 通过 hotkey 触发完整学习闭环
-- **出题个人化**：三路数据源融合（Graphiti 个人记忆 + Graphify 知识图谱 + Obsidian frontmatter 掌握度）生成针对用户当前状态的题目
+- **灵魂标准**: 检验白板提供 100% 等价的 Active Recall 环境（d=1.50）
+- **守恒标准**: 12 个学习设计效应量独立保留（9 个 ≥85%，3 个 60-80% 有降级策略，0 个 <50%）
+- **交互标准**: 6 个 Skill 通过 hotkey 触发完整学习闭环
+- **出题个人化**: 三路融合（Graphiti 个人记忆 + Graphify 知识图谱 + frontmatter 掌握度）
 
 ### Business Success
 
-- 能走通完整的"贴入笔记 → Graphify 知识图谱构建 → 检验白板考察 → 错误修正 → 掌握度更新"闭环
-- Phase 1 骨架 2-3 周内可验证灵魂流程（检验白板 10 步 workflow）
-- Phase 2 所有 12 个设计可验证（6 skill 全落地）
-- 三套检索系统协同运行：Graphify（笔记关系，71x token 减少）+ LanceDB（笔记片段精确召回）+ Graphiti（个人学习记忆）
+- 完整闭环可走通：贴入笔记 → 知识图谱 → 检验白板 → 错误修正 → 掌握度更新
+- Phase 1 骨架 2-3 周内验证灵魂流程
+- 三套检索系统协同：Graphify（笔记关系，71x 压缩）+ LanceDB（片段召回）+ Graphiti（个人记忆）
 
 ### Technical Success
 
-- FastAPI 后端 + 14 MCP 工具正常运行（Day 1 Spike 1 验证）
-- canvas_agentic_rag import 链 LANGGRAPH_AVAILABLE=True（Plan v23 已验证）
-- Obsidian vault + Claudian + 10 插件稳定协作
-- Graphify 7 层管道正确处理 wiki/ 目录输出 graph.json（定期全量索引）
-- LanceDB + bge-m3 实时增量索引（MIRACL nDCG@10=63.9）
-- BKT + FSRS + 5 信号融合系统正确更新 wiki/concepts/*.md frontmatter 掌握度
-- Graphiti 通过 MCP 工具异步非阻塞写入 Neo4j
+- FastAPI 后端 + 14 MCP 工具正常运行（Day 1 Spike 验证）
+- canvas_agentic_rag LANGGRAPH_AVAILABLE=True（Plan v23 已验证）
+- Graphiti 通过 MCP 异步非阻塞写入 Neo4j
+- BKT + FSRS + 5 信号融合正确更新 frontmatter 掌握度
 
 ### Measurable Outcomes
 
-- 检验白板：exam_boards/*.md 打开时零 wiki/concepts/ 内容泄漏（§2.4 三重保证）
-- Generation Effect：书签式新节点正确归入 wiki/concepts/（不中断考察流程）
-- 隐形评分：frontmatter 5 信号成功更新（用户感知不到评分过程）
-- Dataview Dashboard：处方性措辞实时反映学习状态
+- 检验白板：exam_boards/*.md 打开时零 wiki/concepts/ 内容泄漏
+- Generation Effect：书签式新节点正确归入 wiki/concepts/
+- 隐形评分：frontmatter 5 信号更新，用户不感知评分过程
 - RAG 管道：Precision@5 ≥ 0.70、Recall@10 ≥ 0.80、MRR@10 ≥ 0.70
 
 ## Product Scope
 
-### MVP - Phase 1 骨架 (2-3 周)
+### MVP — Phase 1 骨架 (2-3 周)
 
-- vault 初始化（canvas-vault/ 目录结构 + CLAUDE.md + 5 强制插件）
-- Claudian 配置（Claude Code CLI path + hotkey 绑定验证）
-- Canvas 后端启动（14 MCP 工具可调用 + Blocker #1/#2/#3 修复）
-- 3 个最小 skill：`/chat_with_context`、`/start_exam_board`（灵魂）、`/extract_node`
-- Templater 模板：exam-board.md、concept.md、edge.md
-- Graphify 集成（pip install + 第一次 /graphify 验证）
-- 第一次检验白板 demo（完整 10 步 workflow 跑通）
+**MVP Approach:** Problem-Solving MVP — 验证检验白板灵魂流程能否在 Obsidian 中完整跑通。
+**MVP 判定标准:** `/start_exam_board` 完成一次完整 10 步考察，信息隔离 + 静默评分 + 书签式提取全部工作。
+**资源:** 单人开发（ROG + Claude Code）。
 
-### Growth Features - Phase 2 学习闭环 (2-4 周)
+**Must-Have:**
+- vault 初始化（canvas-vault/ + CLAUDE.md + 5 强制插件：Dataview/Templater/QuickAdd/Periodic Notes/Spaced Repetition）
+- Claudian 配置 + Canvas 后端启动（14 MCP 工具可调用）
+- 3 核心 Skill：`/chat_with_context` (Cmd+Option+C) · `/start_exam_board` (Cmd+Option+E) · `/extract_node` (Cmd+Option+X)
+- Templater 模板：exam-board.md · concept.md · edge.md
+- Day 1 Spike：后端启动验证 + canvas_agentic_rag import + UserPromptSubmit hook
+- context_enrichment 重构：从 .canvas JSON 改为 obsidiantools wikilink 图遍历（降级架构断层修复）
+- Graphify 集成（Phase 1 后段）
 
-- 剩余 3 个 skill：`/edge_discuss`、`/quiz_from_callout`、`/review_profile`
-- Dataview Dashboard 完善（2x2 校准矩阵可视化 + 处方性措辞全覆盖）
-- 10 个插件全装（Tasks/Smart Connections/Kanban/Metadata Menu/Obsidian Git）
-- Graphify health check 定期任务
-- 第一个真实学习 demo（MT2 LLRB 章节完整闭环）
+**Core Journeys Supported:** 旅程 2（检验白板）完整 · 旅程 1（日常学习）基础 · 旅程 4（冷启动）自然
 
-### Vision - Phase 3 精修 (持续)
+### Growth — Phase 2 学习闭环 (2-4 周)
 
-- FSRS 插件替换 SM-2（等社区 FSRS 插件稳定）
-- Canvas↔Graphiti 双向同步（历史会话归档）
-- 校准投票的 few-shot 改进 LLM 评分
-- 元认知 2x2 可视化升级
-- Graphify cluster-based 主题自动发现
+- 剩余 3 Skill：`/edge_discuss` · `/quiz_from_callout` · `/review_profile`
+- Dataview Dashboard（三层布局 + CSS 卡片 + 处方性措辞 + 2x2 校准矩阵）
+- 10 插件全装 · Graphify health check · 错误修正闭环（3 天 + 1 周）
+- 真实学习 demo（MT2 LLRB 章节）
+
+### Vision — Phase 3 精修 (持续)
+
+- FSRS 插件替换 SM-2 · Canvas↔Graphiti 双向同步 · 校准投票 few-shot 改进
+- 元认知 2x2 可视化升级（需 400+ 题） · Graphify cluster 主题发现 · 图片学习增强
 
 ## User Journeys
 
 ### 旅程 1 · 日常学习（剖析模式）
 
-**用户**: ROG（CS 61B 学生）
 **核心原理**: Edge 对话 EI+SE (d=0.80-1.00) + Generation Effect (d=0.65)
-**场景**: 解题过程中遇到不懂的知识点
 
-**故事**:
-ROG 正在做 A* 搜索的练习题，遇到"为什么 consistent 蕴含 admissible"这个点看不懂。他在 Obsidian 笔记里用 `[!question]+` callout 批注了这个困惑，Claudian 侧边栏立刻回答了他关于批注的疑问（`/chat_with_context` 自动挂载当前笔记 + `search_memories` 拉取历史误解）。
-
-讨论中 ROG 发现"admissible heuristic reasoning"是一个更深的知识点需要单独理解。他选中对话文本，按 Cmd+Option+X 触发 `/extract_node`，在批注附近自动插入 `[[admissible-heuristic-reasoning]]` wikilink（双向链接），同时创建 `wiki/concepts/admissible-heuristic-reasoning.md`（frontmatter 骨架，默认 BKT=0.30）。
-
-ROG 点击 wikilink 切到新文档，Claudian 重新挂载并检测到 `extracted_from` 字段，自动进入剖析模式。他用 `/chat_with_context` 深度讨论这个概念，又用 `/edge_discuss` 探索它与 A* 最优性的关系，产出 `edges/admissible-heuristic-reasoning--a-star.md`。
-
-**产物**: 对话记录 + 新 Edge + 新概念节点（Generation Effect）
-**守恒度**: 85%
+ROG 做 A* 练习题遇到不懂的点，用 `[!question]+` callout 批注困惑。Claudian 通过 `/chat_with_context` 回答（自动挂载笔记 + search_memories 拉取历史误解）。发现更深知识点 → Cmd+Option+X `/extract_node` → 在批注附近插入 `[[new-concept]]` wikilink + 创建概念 .md 骨架。点击 wikilink 切到新文档 → Claudian 重新挂载检测 `extracted_from` → 进入剖析模式深度讨论 → `/edge_discuss` 探索关系。**守恒 85%**
 
 ### 旅程 2 · 检验白板考察（灵魂旅程）
 
-**用户**: ROG
-**核心原理**: Retrieval Practice d=1.50 (Karpicke & Blunt 2011)
-**场景**: 主动测试自己对搜索算法的掌握程度
+**核心原理**: Retrieval Practice d=1.50 (Karpicke 2011)
 
-**故事**:
-ROG 按 Cmd+Option+E 触发 `/start_exam_board`。Skill 防嵌套检查通过后，询问考察主题和模式。`query_mastery` 从 Neo4j 读出��握度分数，选出 admissibility (0.62)、a-star (0.68) 等弱项。Templater 生成空白 `exam_boards/search-algorithms-2026-04-08-20-00.md`。
-
-ROG 在 Obsidian 打开这个空白文件，Claudian 重置上下文。`generate_question` 融合三路数据（Graphiti 个人记忆 + Graphify 知识图谱 + frontmatter 掌握度）生成个人化题目。ROG 在 md 编辑器手写答案，按 Cmd+Option+S 提交。系统静默评分，更新 BKT/FSRS。
-
-考察中发现"不懂 consistent 和 admissible 的区别"→ `/extract_node` 书签式创建新节点（不切 Tab，保护 Active Recall）→ 考完后再深度讨论。
-
-**产物**: 完整考察记录 + 掌握度更新 + 书签式新节点
-**守恒度**: 95%
+Cmd+Option+E → 防嵌套检查 → 选题模式 → `query_mastery` 选弱项 → Templater 生成空白 exam board → Claudian 重置上下文 → `generate_question` 三路融合出题 → md 编辑器手写答案 → Cmd+Option+S 提交 → 静默评分 + BKT/FSRS 更新。考察中发现不懂 → 书签式 `/extract_node`（不切 Tab）→ 考后深度讨论。**守恒 95%**
 
 ### 旅程 3 · 错误修正记忆闭环
 
-**用户**: ROG
-**核心原理**: Error Correction (Metcalfe 2017) + Spacing Effect d≈0.55 (Cepeda 2008)
-**场景**: 3 天 + 1 周自动提醒纠正历史误解
+**核心原理**: Error Correction (Metcalfe 2017) + Spacing Effect d≈0.55
 
-**故事**:
-Day 0: ROG 在对话中发现"把 consistent 和 admissible 搞混了"，标记 `[!fail]+` callout，Skill 自动生成 Tasks 提醒（Day 3 复习 + Day 7 辨析题），调 `record_error` 写入 Graphiti。
-
-Day 3: Spaced Repetition 插件弹出提醒��ROG 打开笔记，Claudian 自动挂载并注入"你 3 天前标记过这个误解"，引导复习，调 `update_fsrs` 更新稳定性。
-
-Day 7: Tasks dashboard 显示辨析题考察到期。ROG 触发 `/start_exam_board`，`generate_question` 基于 Graphiti 历史误解出辨析题："给出一个启发函数是 admissible 但不是 consistent 的例子"。答对 → 误解永久纠正。
-
-**产物**: 完整 3 天 + 1 周闭环
-**守恒度**: 90%
+Day 0：标记 `[!fail]+` callout + `record_error` 写入 Graphiti + Tasks 生成提醒。Day 3：Spaced Repetition 弹出 + Claudian 注入历史误解 + `update_fsrs`。Day 7：辨析题考察验证纠正。**守恒 90%**
 
 ### 旅程 4 · 新用户冷启动
 
-**用户**: 首次使用 Canvas Learning System 的学习者
-**核心原理**: Progressive Calibration（渐进画像）
-**场景**: 从安装到"系统越来越懂我"
+**核心原理**: Progressive Calibration
 
-**故事**:
-新用户安装 Obsidian + Claudian + 10 插件 + 启动 Canvas 后端。创建第一个主题笔记，贴入课件文本，触发 `/chat_with_context`。因为 Graphiti 历史为空，LLM 回答无个性化（默认 BKT=0.30）。
-
-第 5 次调用时 `search_memories` 开始返回有价值的历史。第 8 次时 `generate_question` 能基于历史错误出题。用户体感"Agent 记住了我上次的错"。
-
-**产物**: 从零到个性化的渐进体验
-**守恒度**: 90%
+安装 vault + 插件 + 后端 → 首次对话无个性化（BKT=0.30）→ 第 5 次 `search_memories` 返回有价值历史 → 第 8 次 `generate_question` 基于错误出题 → 体感"越来越懂我"。**守恒 90%**
 
 ### 旅程 5 · 图片密集型学习
 
-**用户**: ROG（学习含大量图示的算法课件）
 **核心原理**: Multi-modal Learning (Mayer 2009) d=0.40-0.60
-**场景**: 贴入算法流程图后讨论
 
-**故事**:
-ROG 在笔记里贴入 A* 搜索的树状展开图 `![[a-star-tree.png]]`。触发 `/chat_with_context`，Claudian 原生图像识别读取图片内容，Claude 分析图中的搜索路径并回答问题。但图片内容不会自动持久化到 Graphify 索引（降级部分）。
-
-**产物**: 多模态对话记录
-**守恒度**: 70%（Claudian 原生多模态，但异步索引降级）
+贴入图片 `![[img.png]]` → Claudian 原生图像识别 → Claude 分析回答。降级：图片不自动持久化到 Graphify。**守恒 70%**
 
 ### 旅程 6 · 学习档案浏览
 
-**用户**: ROG
-**核心原理**: Formative Feedback d=0.50-0.80 (Hattie 2007) + Open Learner Model
-**场景**: 查看学习进度和元认知状态
+**核心原理**: Formative Feedback d=0.50-0.80 (Hattie 2007)
 
-**故事**:
-ROG 按 Cmd+Option+P 触发 `/review_profile`，或直接打开 `wiki/dashboard.md`。Dashboard 由 Dataview 插件驱动，三层布局：
+Cmd+Option+P `/review_profile` 或直接打开 `wiki/dashboard.md`。Dataview 三层布局：Layer 1 原白板卡片（CSS Grid + Buttons 一键考察） · Layer 2 处方性措辞复习建议（🔴🟡🟢） · Layer 3 元认知 2x2 校准矩阵（dataviewjs）。插件栈：Dataview + Buttons + QuickAdd + TfTHacker Dashboard++ CSS + Homepage。**守恒 75%**
 
-Layer 1 · 原白板卡片（CSS Grid 布局）：每个主题显示节点数 + 平均掌握度 + emoji 状态 + [🧪考察] 按钮（Buttons 插件触发 QuickAdd → Skill）。
+### Journey → Capability Mapping
 
-Layer 2 · 建议优先复习（Dataview 处方性措辞）：🔴 建议优先复习: admissibility (62%) — 今天。不给数字让用户自己判断，直接告诉"下一步该做什么"。
-
-Layer 3 · 元认知 2x2 校准矩阵（dataviewjs）：按"实际掌握度 × 自我评估置信度"分四象限，重点标出 🔴 "不会但以为会"。
-
-ROG 点击某个概念 → 进入单节点 profile → 5 信号状态 + Tips + 待纠正理解 + 相关 Edges + [启动考察] 按钮。
-
-**插件栈**: Dataview（查询）+ Buttons（交互）+ QuickAdd（桥接 Skill）+ CSS snippets（卡片布局，TfTHacker Dashboard++ 社区方案）+ Homepage（自动打开）
-
-**产物**: 实时学习进度可视化
-**守恒度**: 75%
-
-### Journey Requirements Summary
-
-| 旅程 | 依赖的核心能力 |
+| 旅程 | 核心能力 |
 |---|---|
-| 1 日常学习 | `/chat_with_context` + `/edge_discuss` + `/extract_node` + context_enrichment MCP |
-| 2 检验白板 | `/start_exam_board` + query_mastery + generate_question + score_answer MCP |
-| 3 错误修正 | record_error MCP + Spaced Repetition 插件 + Tasks 插件 + search_memories |
+| 1 日常学习 | `/chat_with_context` + `/edge_discuss` + `/extract_node` + context_enrichment |
+| 2 检验白板 | `/start_exam_board` + query_mastery + generate_question + score_answer |
+| 3 错误修正 | record_error + Spaced Repetition + Tasks + search_memories |
 | 4 冷启动 | Claudian + 后端 + 默认 BKT 先验 |
-| 5 图片学习 | Claudian 图像识别 + Vision API |
-| 6 档案浏览 | `/review_profile` + Dataview Dashboard + Buttons + QuickAdd + CSS snippets |
+| 5 图片学习 | Claudian 图像识别 |
+| 6 档案浏览 | `/review_profile` + Dataview Dashboard + Buttons + QuickAdd |
 
 ## Domain-Specific Requirements
 
-### 学习科学合规（核心领域约束）
+### 学习科学合规
 
-本产品的领域合规不来自传统 EdTech 法规（COPPA/FERPA 不适用于个人工具），而来自**学习科学效应量标准**：
+领域合规来自**学习科学效应量标准**（非传统 EdTech 法规）：
+- 12 个设计各有学术来源和 d-value（PRD v5 §1）
+- 每个设计独立评估守恒度（narrative synthesis，Cochrane Handbook Ch 12）
+- 9 个 ≥85% 守恒是可行性前提
+- 检验白板 d=1.50 不可妥协
 
-- 12 个学习设计各有明确的学术来源和效应量 d-value（PRD v5 §1）
-- 每个设计独立评估守恒度（narrative synthesis，Cochrane Handbook Ch 12 方法学）
-- 9 个设计 ≥ 85% 守恒是产品可行性的前提
-- 检验白板 Retrieval Practice d=1.50 (Karpicke 2011) 是不可妥协底线
+### 评估完整性
 
-### 评估完整性约束
-
-- **信息隔离**：检验白板考察时必须保证 exam_boards/*.md 不泄漏 wiki/concepts/ 内容（§2.4 三重保证）
-- **静默评分**：用户不感知评分过程（Cassady 2002 考试焦虑防护，§1.6）
-- **个人化出题**：三路数据融合（Graphiti 个人记忆 + Graphify 知识图谱 + frontmatter 掌握度）
-- **校准机制**：考后校准投票防止 AI 评分偏差（§1.11）
+- **信息隔离**: exam_boards/*.md 不泄漏 wiki/concepts/（§2.4 三重保证）
+- **静默评分**: 用户不感知评分过程（Cassady 2002 焦虑防护）
+- **个人化出题**: 三路融合（Graphiti + Graphify + frontmatter）
+- **校准机制**: 考后投票防 AI 评分偏差
 
 ### 数据本地性
 
-- 所有学习数据本地存储（Obsidian vault 文件 + Neo4j + LanceDB）
-- LLM API 调用是唯一的外部数据流出
-- Obsidian Git 插件可选备份（用户控制是否推送远程）
-- 无云端同步、无数据收集、无遥测
-
-### 性能约束
-
-- LLM 出题延迟 < 5 秒（用户等待耐心）
-- Dataview Dashboard 查询 < 1 秒刷新
-- Graphify 全量索引 < 30 秒（wiki/ 目录规模 ~100 文件）
-- LanceDB 增量索引实时（文件保存后自动触发）
-- Graphiti 写入异步非阻塞（不影响答题体验）
+所有数据本地存储（vault + Neo4j + LanceDB）。LLM API 是唯一外部数据流出。无云端同步、无数据收集、无遥测。
 
 ## Innovation & Novel Patterns
 
-### Detected Innovation Areas
+**1. "学习效果守恒"评估范式**: 用 12 个 d-value 替代 UI 机械对照（44.2%），采用 Cochrane Ch 12 narrative synthesis。
 
-**1. "学习效果守恒"评估范式**
-不用 UI 机械对照评估平台迁移（传统方法得出 44.2% 悲观结论），而用 12 个学习科学效应量（d-value）独立评估每个学习设计的守恒度。这是从"能不能拖拽连线"到"能不能保留 Retrieval Practice d=1.50"的范式转移。采用 Cochrane Handbook Ch 12 narrative synthesis 方法学，拒绝给出伪精确的单一百分比。
+**2. Markdown 里的 Active Recall 隔离区**: frontmatter `type: exam_board` 防嵌套 + Claudian 上下文重置 + Skill prompt 禁读 wiki/concepts/ = 三重信息隔离。Obsidian 生态无先例。
 
-**2. 检验白板 = Markdown 环境里的 Active Recall 隔离区**
-在 Obsidian 笔记工具中实现完全空白的考察环境。通过 frontmatter `type: exam_board` 防嵌套 + Claudian 上下文重置 + Skill system prompt 禁止读取 wiki/concepts/ 实现三重信息隔离。在 Obsidian 生态系统中没有先例。
+**3. 三路数据融合出题**: Graphiti（错误历史）+ Graphify（概念关系，71x 压缩）+ frontmatter（BKT/FSRS）= 个人化题目。
 
-**3. 三路数据融合个人化出题**
-Graphiti（个人学习记忆 — 你过去的错误和误解）+ Graphify（知识图谱 — 概念间关系，71x token 压缩）+ Obsidian frontmatter（BKT/FSRS 掌握度分数）= 针对用户当前认知状态的题目生成。三个独立系统的组合在学习工具领域是独特的。
+**4. 书签式节点提取**: 考察中 `/extract_node` 不切 Tab，只插 `[!discussion_later]+` 书签。保护 d=1.50 Active Recall + 不丢失 d=0.65 Generation Effect。
 
-**4. 书签式节点提取（Generation Effect 保护）**
-考察中发现不懂的概念时，`/extract_node` 不切换 Tab，只插入 `[!discussion_later]+` 书签 + wikilink。考完后再深度讨论。这保护了 Retrieval Practice d=1.50 的 Active Recall 条件，同时不丢失 Generation Effect d=0.65。
-
-### Validation Approach
-
-- Phase 1 骨架验证：检验白板 10 步 workflow 完整跑通（信息隔离 + 静默评分 + 书签式提取）
-- Phase 2 真实学习验证：MT2 LLRB 章节完整闭环（三路融合出题质量实测）
-- 每个设计独立验证守恒度（增量验证，不等全部完成）
-- 用户体感验证："5-8 次后感受到越来越懂我"（旅程 4 冷启动标准）
-
-### Risk Mitigation
-
-- 检验白板信息隔离失败 → 降级到 `/quiz_from_callout` 单 skill（d=1.50 → d≈1.09 Chi 1994）
-- 三路融合过于复杂 → 先跑 Graphiti-only 出题，逐步加入 Graphify 和 frontmatter 维度
-- Graphify 全量索引太慢 → 独立于 LanceDB 实时索引，不阻塞日常学习
-- narrative synthesis 用户不理解 → §9.6 提供"逐条对照用户诉求"简化视图
+**Validation:** Phase 1 检验白板 demo → Phase 2 真实学习验证 → 每个设计增量验证。
+**Fallback:** 隔离失败 → `/quiz_from_callout`（d≈1.09）· 三路融合复杂 → Graphiti-only 先行。
 
 ## Desktop Application Specific Requirements
 
-### Project-Type Overview
+### 6 层通信栈
 
-Canvas Learning System 是基于 Obsidian 的桌面学习应用，通过 Claudian 插件连接 Canvas 后端（FastAPI + 14 MCP 工具），实现 AI 驱动的个人化学习闭环。核心特征是 6 层系统集成（UI → Skill → MCP → Service → Data → Model）通过 Model Context Protocol 桥接。
+1. **UI**: Obsidian editor + Claudian 侧边栏
+2. **Skill**: 6 个 Claude Code Skill（Claudian → Claude Code CLI）
+3. **MCP**: 14 工具（Claude Code → FastAPI `/mcp`）— 评估 5 + 记忆 5 + 检索 4
+4. **Service**: RAG（4 路融合）· Memory（3 层 fallback）· Scoring
+5. **Data**: Neo4j · LanceDB · Obsidian vault
+6. **Model**: Claude API · Ollama bge-m3
 
-### Platform Support
+### Platform & Offline
 
-- **主平台**: macOS（M5 Max，开发和使用环境）
-- **跨平台能力**: Obsidian 原生跨 macOS/Windows/Linux；Canvas 后端依赖 Neo4j + Ollama 容器，实际约束为 macOS/Linux
-- **Obsidian 版本**: v1.5+（Dataview + Mermaid 11.4.1 渲染依赖）
-- **Python**: 3.12+（后端 + Graphify）
-- **Node.js**: 不直接依赖（Obsidian 内置）
+- **主平台**: macOS M5 Max · Obsidian v1.5+ · Python 3.12+
+- **离线可用**: 笔记编辑 · wikilink · Dataview · Graph View · LanceDB 查询 · Spaced Repetition
+- **需要网络**: Claude API 对话/出题/评分 · Graphify 索引 · Ollama 首次下载
 
-### System Integration Architecture
+### 三套检索系统
 
-**6 层通信栈**:
+| 系统 | 搜什么 | 更新机制 | Token 效率 |
+|---|---|---|---|
+| Graphify | 笔记关系（概念间结构） | 定期手动 `/graphify ./wiki` | 71x 压缩 |
+| LanceDB + bge-m3 | 笔记片段（精确段落） | 实时增量（文件保存触发） | 1x |
+| Graphiti + Neo4j | 个人记忆（错误/历史/掌握度） | 自动（EventBus + MCP 写入） | N/A |
 
-1. **UI 层**: Obsidian editor + Claudian 侧边栏（用户直接交互）
-2. **Skill 层**: 6 个 Claude Code Skill（Claudian → Claude Code CLI）
-   - `/chat_with_context` (Cmd+Option+C) · `/start_exam_board` (Cmd+Option+E) · `/extract_node` (Cmd+Option+X)
-   - `/edge_discuss` (Cmd+Option+R) · `/quiz_from_callout` (Cmd+Option+Q) · `/review_profile` (Cmd+Option+P)
-3. **MCP 层**: 14 个 MCP 工具（Claude Code → FastAPI `/mcp` endpoint）
-   - 评估: query_mastery · generate_question · score_answer · update_bkt · update_fsrs
-   - 记忆: search_memories · record_learning_memory · record_error · record_calibration · archive_conversation
-   - 检索: context_enrichment · search_vault_notes · get_node_profile · health_check
-4. **Service 层**: RAG Service（4 路融合）· Memory Service（3 层 fallback）· Scoring Service
-5. **Data 层**: Neo4j（Graphiti 知识图谱）· LanceDB（向量索引）· Obsidian vault（markdown 文件）
-6. **Model 层**: Claude API（对话 + 评分）· Ollama bge-m3（嵌入）
+Graphify 生成独立 graph.json，**不读写**用户 wikilinks。两个图谱互补共存。
 
-### Update Strategy
+### Graphiti 读写时序
 
-- **Obsidian + 10 插件**: 应用内自动更新
-- **Canvas 后端**: `git pull` + `uv sync`（手动，版本控制）
-- **Graphify**: `pip install --upgrade graphifyy`（手动）
-- **Neo4j / Ollama**: Docker 容器更新（手动）
-- **Obsidian vault 数据**: Obsidian Git 插件可选自动备份
+**READ（LLM 回答前注入记忆）**: `/chat_with_context` Step 4 · `/start_exam_board` Step 4+7.1 · `/edge_discuss` Step 2 · `/review_profile` Step 2-3
+**WRITE（用户操作后异步记录）**: 对话结束 `archive_conversation` · 评分后 EventBus 级联 · 考后 `record_calibration` · 发现错误 `record_error` · Edge 讨论/新节点 `record_learning_memory`
 
-### Offline Capabilities
+### 错误双存储
 
-- **完全离线可用**: 笔记编辑 · wikilink 导航 · Dataview Dashboard · Graph View · Spaced Repetition 提醒 · LanceDB 本地向量查询
-- **需要网络**: Claude API 对话/出题/评分 · Graphify LLM 实体提取 · Ollama 模型下载（首次）
-- **核心约束**: Claude API 是在线学习流程的瓶颈；离线时可阅读/复习/查看 Dashboard，但无法对话/出题/评分
-
-### Implementation Considerations
-
-- Claudian 插件是唯一的 UI ↔ 后端桥接点，其稳定性决定整个系统可用性
-- MCP 协议层使 Skill 与后端松耦合，可独立升级
-- 后端 14 MCP 工具已全部实现（LANGGRAPH_AVAILABLE=True，Plan v23 验证）
-- Graphify 是唯一需要定期手动触发的子系统（`/graphify ./wiki` 全量索引）
-
-## Project Scoping & Phased Development
-
-### MVP Strategy & Philosophy
-
-**MVP Approach:** Problem-Solving MVP — 验证检验白板灵魂流程能否在 Obsidian 环境中完整跑通
-**MVP 判定标准:** 用户能用 `/start_exam_board` 完成一次完整 10 步考察，信息隔离 + 静默评分 + 书签式提取全部工作
-**Resource Requirements:** 单人开发（ROG + Claude Code），预估 Phase 1 需 2-3 周
-
-### MVP Feature Set (Phase 1 · 2-3 周)
-
-**Core User Journeys Supported:**
-- 旅程 2 · 检验白板考察（灵魂旅程，完整支持）
-- 旅程 1 · 日常学习（基础支持：`/chat_with_context` + `/extract_node`）
-- 旅程 4 · 冷启动（自然支持：首次使用流程）
-
-**Must-Have Capabilities:**
-- vault 初始化（canvas-vault/ 目录结构 + CLAUDE.md + 5 强制插件：Dataview/Templater/QuickAdd/Periodic Notes/Spaced Repetition）
-- Claudian 配置（Claude Code CLI path + hotkey 绑定）
-- Canvas 后端启动（14 MCP 工具可调用）
-- 3 个核心 Skill：`/chat_with_context` (Cmd+Option+C) · `/start_exam_board` (Cmd+Option+E) · `/extract_node` (Cmd+Option+X)
-- Templater 模板：exam-board.md · concept.md · edge.md
-- Graphify 集成（Phase 1 后段，不阻塞 MVP 判定）
-- Day 1 Spike 验证：后端 13 服务启动 + canvas_agentic_rag import + UserPromptSubmit hook
-
-### Post-MVP Features
-
-**Phase 2 (Growth · 2-4 周):**
-- 剩余 3 个 Skill：`/edge_discuss` · `/quiz_from_callout` · `/review_profile`
-- Dataview Dashboard 完善（三层布局 + CSS 卡片 + 处方性措辞）
-- 10 个插件全装（Tasks/Smart Connections/Kanban/Metadata Menu/Obsidian Git）
-- Graphify health check 定期任务
-- 错误修正记忆闭环（旅程 3 · 3 天 + 1 周提醒完整跑通）
-- 第一个真实学习 demo（MT2 LLRB 章节）
-
-**Phase 3 (Vision · 持续):**
-- FSRS 插件替换 SM-2（等社区插件稳定）
-- Canvas↔Graphiti 双向同步（历史会话归档）
-- 校准投票 few-shot 改进 LLM 评分
-- 元认知 2x2 可视化升级（需 400+ 题数据量）
-- Graphify cluster-based 主题自动发现
-- 图片密集型学习增强（旅程 5 · 异步索引持久化）
-
-### Risk Mitigation Strategy
-
-**Technical Risks:**
-- 检验白板信息隔离失败（最大风险）→ Phase 1 Day 1 Spike 立即验证 Claudian 上下文重置可靠性；失败 → 降级 `/quiz_from_callout` (d=1.50 → d≈1.09)
-- 三路数据融合复杂度 → 先跑 Graphiti-only 出题，Phase 2 逐步加入 Graphify + frontmatter
-- Graphify 集成失败 → Skill 直接读 frontmatter + wikilink，损失 71x token 压缩但功能不受影响
-
-**Resource Risks:**
-- 单人开发延期 → Phase 1 严格限制 3 个 Skill，不贪多
-- Claude API 成本 → Graphify 71x 压缩 + context_enrichment 限制 1-hop 邻居
-
-**Dependency Risks:**
-- Claudian 插件不稳定 → 降级为纯 Claude Code CLI 交互（失去 sidebar 但保留 Skill 功能）
-- Obsidian 插件兼容性 → 锁定 Obsidian v1.5+ 版本，5 强制插件优先验证
+- **Obsidian .md**（用户可见）: frontmatter `errors[]` + `[!fail]+` callout + Dataview 查询
+- **Graphiti Neo4j**（AI 可见）: 4 类分类（conceptual_confusion / procedural_error / careless_slip / metacognitive_error）+ 修正策略 + session 链接
 
 ## Functional Requirements
 
-> **Capability Contract**: 所有下游工作（UX 设计、架构、Epic 拆分）只做这里列出的功能。未列出的能力不会出现在最终产品中。
+> **Capability Contract**: 下游工作只做这里列出的功能。
 
 ### 学习对话与知识探索
 
-- **FR1**: 学习者可以在 Obsidian 笔记上启动 AI 对话，AI 通过解析当前 .md 文件中的 `[[wikilinks]]` 发现相邻概念（使用 obsidiantools NetworkX 图遍历），读取这些概念的 frontmatter 和内容作为对话上下文
-- **FR2**: 学习者可以在对话中获得基于个人历史误解的主动提醒
-- **FR3**: 学习者可以在对话回答中看到可点击的补充学习材料列表（课堂笔记、讨论、真题片段，由 LanceDB hybrid search 返回）
-- **FR4**: 学习者可以选中两个概念之间的关系文本启动 EI+SE 双策略深度讨论
-- **FR5**: 系统可以在对话结束时自动归档会话到长期记忆（Graphiti）
+- **FR1**: 学习者可以启动 AI 对话，AI 通过 obsidiantools 解析 `[[wikilinks]]` 发现相邻概念，读取 frontmatter 和内容作为上下文
+- **FR2**: 对话中基于个人历史误解主动提醒
+- **FR3**: 对话中显示可点击的补充学习材料列表（LanceDB hybrid search）
+- **FR4**: 选中关系文本启动 EI+SE 双策略深度讨论
+- **FR5**: 对话结束自动归档到 Graphiti
 
 ### 考察与评估
 
-- **FR6**: 学习者可以启动完全空白的检验白板考察，考察过程中看不到笔记原文（信息隔离）
-- **FR7**: 系统可以基于 BKT/FSRS 掌握度分数自动选出薄弱节点作为考察范围
-- **FR8**: 系统可以融合个人记忆（Graphiti）、知识图谱关系（Graphify graph.json）和掌握度数据（frontmatter）生成个人化题目
-- **FR9**: 学习者可以在 markdown 编辑器中手写答案并手动触发提交
-- **FR10**: 系统可以静默评分（用户不感知评分过程），结果写入 frontmatter
-- **FR11**: 学习者可以在答不出时请求 4 级渐进提示（方向 → 关键词 → 框架 → 脚手架）
-- **FR12**: 学习者可以跳过题目且不受惩罚
-- **FR13**: 学习者可以基于笔记中的 callout 批注触发快速考察
-- **FR14**: 系统可以防止在检验白板内再次生成检验白板（防嵌套）
+- **FR6**: 启动完全空白的检验白板（信息隔离，看不到笔记原文）
+- **FR7**: 基于 BKT/FSRS 自动选出薄弱节点
+- **FR8**: 三路融合生成个人化题目（Graphiti + Graphify + frontmatter）
+- **FR9**: markdown 编辑器手写答案 + 手动触发提交
+- **FR10**: 静默评分，结果写入 frontmatter
+- **FR11**: 4 级渐进提示（方向 → 关键词 → 框架 → 脚手架）
+- **FR12**: 跳过题目不受惩罚
+- **FR13**: 基于 callout 批注触发快速考察
+- **FR14**: 防嵌套（检验白板内不能再生成检验白板）
 
 ### 知识图谱构建
 
-- **FR15**: 学习者可以从对话或考察中提取新概念，自动创建双向链接 `[[wikilink]]` 的概念 .md 文件
-- **FR16**: 考察中提取新概念时不中断当前考察流程（书签式 `[!discussion_later]+` callout，考后再深度讨论）
-- **FR17**: 系统可以通过 Graphify 从笔记文本中自动提取概念关系，生成独立的 AI 检索索引（graph.json），作为用户手动 wikilink 图谱的补充（Graphify 不读写用户的 wikilinks）
-- **FR18**: 系统可以为 Graphify 提取的每个概念标注三级置信度（EXTRACTED / INFERRED / AMBIGUOUS）
+- **FR15**: 提取新概念自动创建 `[[wikilink]]` 双向链接的 .md 文件
+- **FR16**: 考察中提取不中断流程（书签式 `[!discussion_later]+`）
+- **FR17**: Graphify 从文本自动提取概念关系生成独立 graph.json（不读写用户 wikilinks）
+- **FR18**: Graphify 三级置信度标注（EXTRACTED / INFERRED / AMBIGUOUS）
 
 ### 掌握度追踪
 
-- **FR19**: 系统可以使用 BKT 模型实时更新每个概念的掌握概率
-- **FR20**: 系统可以使用 FSRS 算法计算最优复习间隔
-- **FR21**: 系统可以维护 5 信号融合的掌握度评估（BKT + FSRS + 错误历史 + 校准偏差 + 自评置信度）
-- **FR22**: 系统可以通过 pipeline_token 链保证评分→更新→记录的操作顺序不被篡改
+- **FR19**: BKT 模型实时更新掌握概率
+- **FR20**: FSRS 算法计算最优复习间隔
+- **FR21**: 5 信号融合（BKT + FSRS + 错误历史 + 校准偏差 + 自评置信度）
+- **FR22**: pipeline_token 链防篡改（generate → score → bkt → fsrs → calibration）
 
 ### 学习记忆管理
 
-- **FR23**: 系统可以记录学习者的错误并按 4 类分类存储（Graphiti + frontmatter）
-- **FR24**: 系统可以记录学习者的自我评估校准数据（考后校准投票）
-- **FR25**: 学习者可以对 AI 评分投票反馈（准确 / 偏高 / 偏低）
-- **FR26**: 系统可以搜索学习者的历史记忆（3 层检索：Graphiti → Neo4j → 缓存）
-- **FR27**: 系统可以异步非阻塞地将学习事件写入知识图谱
+- **FR23**: 错误按 4 类分类存储（Graphiti + frontmatter 双写）
+- **FR24**: 记录自我评估校准数据
+- **FR25**: 对 AI 评分投票反馈（准确 / 偏高 / 偏低）
+- **FR26**: 搜索历史记忆（3 层：Graphiti → Neo4j → 缓存）
+- **FR27**: 异步非阻塞写入知识图谱
 
 ### 学习进度可视化
 
-- **FR28**: 学习者可以查看全局 Dashboard（wiki/dashboard.md，Dataview 驱动，三层布局）
-- **FR29**: Dashboard 使用处方性措辞（"🔴 建议优先复习 X" 而非 "mastery: 0.62"）
-- **FR30**: 学习者可以查看元认知 2x2 校准矩阵（会+自信 / 会+不自信 / 不会+自信 / 不会+不自信）
-- **FR31**: 学习者可以从 Dashboard 一键启动指定主题的检验白板（Buttons + QuickAdd → Skill）
-- **FR32**: 学习者可以查看单个概念的详细档案（5 信号 + Tips + 待纠正 + 相关 Edges）
+- **FR28**: 全局 Dashboard（wiki/dashboard.md，Dataview 三层布局）
+- **FR29**: 处方性措辞（"🔴 建议优先复习 X" 而非 "mastery: 0.62"）
+- **FR30**: 元认知 2x2 校准矩阵
+- **FR31**: Dashboard 一键启动检验白板（Buttons + QuickAdd → Skill）
+- **FR32**: 单概念详细档案（5 信号 + Tips + 待纠正 + Edges）
 
 ### 间隔复习与错误修正
 
-- **FR33**: 系统可以在 Day 3 和 Day 7 主动提醒学习者复习标记的误解（Spaced Repetition + Tasks 插件）
-- **FR34**: 系统可以在复习时自动注入历史误解上下文（search_memories）
-- **FR35**: 系统可以基于历史误解生成辨析题验证纠正效果
-- **FR36**: 学习者可以查看待完成的复习任务列表（含截止日期）
+- **FR33**: Day 3 + Day 7 主动提醒复习误解（Spaced Repetition + Tasks）
+- **FR34**: 复习时自动注入历史误解上下文
+- **FR35**: 基于历史误解生成辨析题
+- **FR36**: 待复习任务列表（含截止日期）
 
 ### Vault 管理与配置
 
-- **FR37**: 学习者可以自定义所有 Skill 的 hotkey 绑定（Obsidian Settings 或 Claude Code settings.json）
-- **FR38**: 系统可以通过 Templater 模板自动生成考察文件、概念文件和边文件的标准 frontmatter
-- **FR39**: 学习者可以选择性启用 Obsidian Git 自动备份
-- **FR40**: 系统可以执行 Graphify health check 检测孤立节点和矛盾关系
-- **FR41**: 系统在启动时可以检测 hotkey 冲突并警告
+- **FR37**: 自定义 Skill hotkey 绑定
+- **FR38**: Templater 模板自动生成标准 frontmatter
+- **FR39**: Obsidian Git 可选自动备份
+- **FR40**: Graphify health check（孤立节点 + 矛盾关系）
+- **FR41**: 启动时 hotkey 冲突检测
 
-### 架构适配（降级后必修）
+### 架构适配
 
-- **FR42**: 系统必须重构 context_enrichment 从 .canvas JSON 读取改为通过 obsidiantools 解析 .md wikilink 图遍历（Phase 1 必修，解决降级架构断层）
-- **FR43**: 系统必须支持通过 wikilink 双向链接发现概念间的邻居关系（替代原 Canvas edge JSON）
+- **FR42**: context_enrichment 重构为 obsidiantools wikilink 图遍历（Phase 1 必修）
+- **FR43**: wikilink 双向链接邻居发现（替代 .canvas JSON edges）
 
 ### Graphiti 可观测性
 
-- **FR44**: Skill 在每次对话/考察结束时，在 Claudian 侧边栏回复末尾附加一行 Graphiti 操作摘要（已加载 N 条记忆 · 已保存 M 条记录 · 连接状态），不暴露中间 MCP 调用细节，不暴露评分数值（保护静默评分设计）
-- **FR45**: 系统在 vault 内维护 Graphiti 操作审计日志（`outputs/graphiti-audit.log`），记录每次读写操作的时间戳、类型、目标节点、延迟和状态，用户可直接查看和用 Dataview 检索
+- **FR44**: Skill 结束时 Claudian 末尾附加 Graphiti 摘要行（N 条记忆 · M 条记录 · 状态）
+- **FR45**: vault 内审计日志 `outputs/graphiti-audit.log`（时间戳 + 类型 + 延迟 + 状态）
 
 ## Non-Functional Requirements
 
 ### Performance
 
-- LLM 出题/评分响应 < 5 秒（用户等待耐心阈值）
-- Dataview Dashboard 查询刷新 < 1 秒
-- Graphify 全量索引 < 30 秒（wiki/ ~100 文件规模）
-- LanceDB 增量索引 < 500ms（单文件保存后自动触发）
-- obsidiantools vault 图构建 < 2 秒（后端启动时加载）
-- context_enrichment wikilink 图遍历 < 200ms（N-hop 查询）
-- Graphiti search_memories 响应 < 3 秒（3 层检索超时上限）
-- Graphiti 写入队列处理 < 10 秒（episode_worker 后台异步）
+- LLM 出题/评分 < 5s · Dataview 刷新 < 1s · Graphify 全量索引 < 30s
+- LanceDB 增量 < 500ms · obsidiantools 图构建 < 2s · wikilink 遍历 < 200ms
+- Graphiti search < 3s · Graphiti 写入队列 < 10s
 
-### Data Integrity & Security
+### Data Integrity
 
-- frontmatter 掌握度数据不可因 Skill 异常而损坏（pipeline_token 防篡改链）
-- 学习记忆写入 Graphiti 必须原子性（写入失败不产生半截数据）
-- LLM API 调用不传输 vault 全文，只传 context_enrichment 筛选后的片段
-- Obsidian Git 备份可选但不强制
-- 所有数据本地存储（vault 文件 + Neo4j + LanceDB），无云端同步
+- frontmatter 不可因 Skill 异常损坏（pipeline_token 防篡改）
+- Graphiti 写入原子性（失败不产生半截数据）
+- LLM API 只传 context_enrichment 筛选片段（不传 vault 全文）
+- 全部数据本地（vault + Neo4j + LanceDB），无云端同步
 
 ### Integration Reliability
 
-- Claudian ↔ Canvas 后端通过 MCP 协议通信，Claudian 故障时降级为 Claude Code CLI 直接交互
-- 14 MCP 工具必须全部可调用（Day 1 Spike 1 验证）
-- pipeline_token 链在 5 步内完整传递（generate → score → bkt → fsrs → calibration）
-- obsidiantools vault 图在后端启动时构建，文件变更时支持热更新
-- Graphiti 读写时序：读在 LLM 回答前（注入记忆），写在用户操作后（异步非阻塞）
-- EventBus 自动级联保证评分事件即使 Skill 未显式调用也会触发 Graphiti 写入
+- Claudian 故障 → Claude Code CLI 降级
+- 14 MCP 工具全部可调用（Day 1 Spike 验证）
+- pipeline_token 5 步完整传递
+- obsidiantools 图支持热更新
+- Graphiti 读写时序：读在 LLM 前，写在操作后（异步）
+- EventBus 级联保证评分事件自动触发 Graphiti 写入
 
-### Reliability & Graceful Degradation
+### Graceful Degradation
 
-- Claudian 挂掉 → 降级为 Claude Code CLI 直接交互（保留 Skill 功能）
-- Claude API 不可用 → 离线模式可阅读/复习/查看 Dashboard（Dataview 本地查询）
-- Graphiti/Neo4j 不可用 → Skill 仍可运行但无个人化（默认先验出题）+ 状态栏显示 🔴
-- Graphify 失败 → Skill 直接读 frontmatter + wikilinks（损失 71x 压缩）
-- 检验白板信息隔离失败 → 降级 `/quiz_from_callout`（d=1.50 → d≈1.09）
-- 单个 MCP 工具超时 → 不阻塞其他工具，返回降级响应
-- Graphiti 写入失败 → 自动重试 3 次，失败后记录到审计日志 + Toast 通知用户
+| 故障 | 降级方案 |
+|---|---|
+| Claudian 挂掉 | Claude Code CLI 直接交互 |
+| Claude API 不可用 | 离线阅读/复习/Dashboard |
+| Graphiti/Neo4j 不可用 | 无个人化出题（默认先验）+ 🔴 状态指示 |
+| Graphify 失败 | 读 frontmatter + wikilinks（损失 71x 压缩） |
+| 检验白板隔离失败 | `/quiz_from_callout`（d=1.50 → d≈1.09） |
+| Graphiti 写入失败 | 自动重试 3 次 + 审计日志 + Toast 通知 |
 
 ### Graphiti 可观测性
 
-- Graphiti 读写操作通过 Skill 末尾摘要行告知用户（透明度分层：状态可见，分数隐藏）
-- 状态栏持续显示 Graphiti 连接状态（🟢 正常 / 🟡 重试 / 🔴 断开）
-- 审计日志 `outputs/graphiti-audit.log` 记录所有操作（时间戳 + 类型 + 延迟 + 状态）
-- 连接断开时 Toast 通知 + Dashboard 显示降级状态
+- Skill 末尾摘要行：状态可见，分数隐藏（透明度分层）
+- 状态栏指示灯（🟢 正常 / 🟡 重试 / 🔴 断开）
+- 审计日志全操作记录 · 断开时 Toast 通知
