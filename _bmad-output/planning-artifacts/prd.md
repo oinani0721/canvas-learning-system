@@ -7,6 +7,7 @@ stepsCompleted:
   - step-05-domain
   - step-06-innovation
   - step-07-project-type
+  - step-08-scoping
 classification:
   projectType: desktop_app
   domain: edtech
@@ -333,3 +334,60 @@ Canvas Learning System 是基于 Obsidian 的桌面学习应用，通过 Claudia
 - MCP 协议层使 Skill 与后端松耦合，可独立升级
 - 后端 14 MCP 工具已全部实现（LANGGRAPH_AVAILABLE=True，Plan v23 验证）
 - Graphify 是唯一需要定期手动触发的子系统（`/graphify ./wiki` 全量索引）
+
+## Project Scoping & Phased Development
+
+### MVP Strategy & Philosophy
+
+**MVP Approach:** Problem-Solving MVP — 验证检验白板灵魂流程能否在 Obsidian 环境中完整跑通
+**MVP 判定标准:** 用户能用 `/start_exam_board` 完成一次完整 10 步考察，信息隔离 + 静默评分 + 书签式提取全部工作
+**Resource Requirements:** 单人开发（ROG + Claude Code），预估 Phase 1 需 2-3 周
+
+### MVP Feature Set (Phase 1 · 2-3 周)
+
+**Core User Journeys Supported:**
+- 旅程 2 · 检验白板考察（灵魂旅程，完整支持）
+- 旅程 1 · 日常学习（基础支持：`/chat_with_context` + `/extract_node`）
+- 旅程 4 · 冷启动（自然支持：首次使用流程）
+
+**Must-Have Capabilities:**
+- vault 初始化（canvas-vault/ 目录结构 + CLAUDE.md + 5 强制插件：Dataview/Templater/QuickAdd/Periodic Notes/Spaced Repetition）
+- Claudian 配置（Claude Code CLI path + hotkey 绑定）
+- Canvas 后端启动（14 MCP 工具可调用）
+- 3 个核心 Skill：`/chat_with_context` (Cmd+Option+C) · `/start_exam_board` (Cmd+Option+E) · `/extract_node` (Cmd+Option+X)
+- Templater 模板：exam-board.md · concept.md · edge.md
+- Graphify 集成（Phase 1 后段，不阻塞 MVP 判定）
+- Day 1 Spike 验证：后端 13 服务启动 + canvas_agentic_rag import + UserPromptSubmit hook
+
+### Post-MVP Features
+
+**Phase 2 (Growth · 2-4 周):**
+- 剩余 3 个 Skill：`/edge_discuss` · `/quiz_from_callout` · `/review_profile`
+- Dataview Dashboard 完善（三层布局 + CSS 卡片 + 处方性措辞）
+- 10 个插件全装（Tasks/Smart Connections/Kanban/Metadata Menu/Obsidian Git）
+- Graphify health check 定期任务
+- 错误修正记忆闭环（旅程 3 · 3 天 + 1 周提醒完整跑通）
+- 第一个真实学习 demo（MT2 LLRB 章节）
+
+**Phase 3 (Vision · 持续):**
+- FSRS 插件替换 SM-2（等社区插件稳定）
+- Canvas↔Graphiti 双向同步（历史会话归档）
+- 校准投票 few-shot 改进 LLM 评分
+- 元认知 2x2 可视化升级（需 400+ 题数据量）
+- Graphify cluster-based 主题自动发现
+- 图片密集型学习增强（旅程 5 · 异步索引持久化）
+
+### Risk Mitigation Strategy
+
+**Technical Risks:**
+- 检验白板信息隔离失败（最大风险）→ Phase 1 Day 1 Spike 立即验证 Claudian 上下文重置可靠性；失败 → 降级 `/quiz_from_callout` (d=1.50 → d≈1.09)
+- 三路数据融合复杂度 → 先跑 Graphiti-only 出题，Phase 2 逐步加入 Graphify + frontmatter
+- Graphify 集成失败 → Skill 直接读 frontmatter + wikilink，损失 71x token 压缩但功能不受影响
+
+**Resource Risks:**
+- 单人开发延期 → Phase 1 严格限制 3 个 Skill，不贪多
+- Claude API 成本 → Graphify 71x 压缩 + context_enrichment 限制 1-hop 邻居
+
+**Dependency Risks:**
+- Claudian 插件不稳定 → 降级为纯 Claude Code CLI 交互（失去 sidebar 但保留 Skill 功能）
+- Obsidian 插件兼容性 → 锁定 Obsidian v1.5+ 版本，5 强制插件优先验证
