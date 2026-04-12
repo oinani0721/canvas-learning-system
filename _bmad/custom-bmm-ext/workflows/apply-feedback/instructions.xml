@@ -5,35 +5,37 @@
 
   <critical>This workflow processes BMAD-ANNO annotations by dispatching them according to their
     intent field. It is the ACTION counterpart to scan-feedback (which only READS).
-    The intent field maps 1:1 to BMAD correct-course severity levels.</critical>
+    The intent field maps 1:1 to BMAD correct-course severity levels.
 
-  <critical>STORY STATUS AWARENESS — Annotations mean different things depending on when they are written:
-    - PRE-IMPLEMENTATION (story_status = ready-for-dev): Annotations are for INTENT ALIGNMENT.
-      Minor AC edits are safe because no code exists yet. Direct edit is appropriate.
-    - POST-IMPLEMENTATION (story_status = in-progress / review / done): Annotations signal either:
-      (a) A BUG found during UAT → action: fix_bug → Step 2a (add fix task, minor is OK)
-      (b) Feature does NOT match requirements → needs re-discussion → MUST be at least moderate.
-    scan_feedback.py auto-escalates post-impl change_ac from minor to moderate (intent_escalated=true).
-    If you see intent_escalated, explain to the user WHY it was escalated before proceeding.</critical>
+    LIFECYCLE AWARENESS: Each annotation carries a story_status field (from scan_feedback.py).
+    The same intent has DIFFERENT semantics depending on whether the Story has been implemented:
+    - PRE-IMPLEMENTATION (ready-for-dev): Annotations align intent before code is written. Safe to edit AC directly.
+    - POST-IMPLEMENTATION (in-progress/review): Code already exists. AC changes risk drift.
+      Post-impl change_ac is auto-escalated to moderate (correct-course discussion).</critical>
 
-  <step n="1" goal="Classify annotation by intent, scope, and story status">
+  <step n="1" goal="Classify annotation + apply lifecycle escalation">
     <action>For each annotation to process:</action>
     <action>1. Read the intent field: minor, moderate, or major</action>
     <action>2. Read the scope field: story (default) or prd-section</action>
     <action>3. Read the action field: change_ac, fix_bug, add_dev_note, rework_interaction,
       lock_decision, annotate_fr, erratum, upgrade_epic, question</action>
-    <action>4. Read the story_status field: ready-for-dev, in-progress, review, done, unknown</action>
-    <action>5. Check intent_escalated flag: if true, the intent was auto-escalated by scan_feedback.py
-      because this is a post-implementation AC change. Inform the user before proceeding.</action>
-    <action>6. Route to the appropriate step based on intent + scope + action combination</action>
+    <action>4. Read the story_status field (provided by scan_feedback.py)</action>
 
+    <action>5. LIFECYCLE ESCALATION RULES (apply BEFORE routing):</action>
+    <action>   Rule A: If scope=story AND action=change_ac AND story_status in [in-progress, review]:</action>
+    <action>     → ESCALATE intent to moderate (even if user wrote minor)</action>
+    <action>     → Print: "⚠ AC 变更发生在代码已实现之后 — 自动升级为 moderate，走 correct-course 讨论"</action>
+    <action>     → Reason: Changing AC after code is written risks AC-code drift. Must discuss first.</action>
+    <action>   Rule B: If scope=story AND action=rework_interaction AND intent=minor:</action>
+    <action>     → ESCALATE intent to moderate</action>
+    <action>     → Print: "⚠ 交互重做不是小改 — 自动升级为 moderate"</action>
+
+    <action>6. Route to the appropriate step based on FINAL intent + scope + action:</action>
     <action>Routing table:</action>
-    <action>- intent:minor + scope:story + action:fix_bug → Step 2a (direct edit, safe at any stage)</action>
-    <action>- intent:minor + scope:story + action:add_dev_note → Step 2a (direct edit, safe at any stage)</action>
-    <action>- intent:minor + scope:story + action:change_ac + story_status:ready-for-dev → Step 2a (pre-impl, safe)</action>
-    <action>- intent:minor + scope:story + action:change_ac + story_status:in-progress/review → AUTO-ESCALATE to moderate → Step 2b
-      (post-impl AC change = feature mismatch, needs correct-course re-discussion)</action>
-    <action>- intent:moderate + scope:story → Step 2b (BMAD correct-course)</action>
+    <action>- intent:minor + scope:story + action:change_ac (pre-impl only) → Step 2a-pre</action>
+    <action>- intent:minor + scope:story + action:fix_bug → Step 2a-bug</action>
+    <action>- intent:minor + scope:story + action:add_dev_note → Step 2a-note</action>
+    <action>- intent:moderate + scope:story → Step 2b (BMAD correct-course discussion)</action>
     <action>- intent:major + scope:story → Step 2c (correct-course + PM/Architect)</action>
     <action>- scope:prd-section + action:lock_decision → Step 2d (PRD decision lock)</action>
     <action>- scope:prd-section + action:erratum → Step 2e (PRD erratum)</action>
@@ -42,25 +44,40 @@
     <action>- action:question → Step 2g (TECH decision protocol)</action>
   </step>
 
-  <step n="2a" goal="Minor: Direct Story edit (pre-implementation or bug fix)">
-    <action>This step is ONLY for:</action>
-    <action>- Pre-implementation AC edits (story_status = ready-for-dev)</action>
-    <action>- Bug fix references (action = fix_bug, safe at any stage)</action>
-    <action>- Dev note additions (action = add_dev_note, safe at any stage)</action>
-    <action>If a post-implementation change_ac reaches this step, HALT and escalate to Step 2b.</action>
-
+  <step n="2a-pre" goal="Minor PRE-implementation: Direct AC/Task edit">
+    <action>PRECONDITION: story_status must be ready-for-dev (enforced by Step 1 escalation)</action>
     <action>Open the target Story file</action>
-    <action>Based on the action field:</action>
-    <action>- change_ac: Replace the specified AC text with the new content from changes[]</action>
-    <action>- fix_bug: Add bug reference to Dev Notes + create fix task in Tasks section</action>
-    <action>- add_dev_note: Append content to Dev Notes section</action>
+    <action>Replace the specified AC text with the new content from changes[]</action>
     <action>After edit:</action>
-    <action>1. Append entry to "### Deviation Notes" with timestamp and annotation ID</action>
-    <action>2. Mark the annotation as processed (add "processed: true" + timestamp to callout)</action>
-    <action>3. Update sprint-status.yaml if story status changed</action>
+    <action>1. Append entry to "### Deviation Notes": "[PRE-IMPL] {timestamp} ANNO-{id}: AC aligned before dev"</action>
+    <action>2. Mark the annotation as processed</action>
   </step>
 
-  <step n="2b" goal="Moderate: Invoke BMAD correct-course">
+  <step n="2a-bug" goal="Minor: Bug fix task (any lifecycle phase)">
+    <action>This step does NOT modify Acceptance Criteria — the AC was correct, the code had a defect.</action>
+    <action>Open the target Story file</action>
+    <action>1. Add bug reference to Dev Notes: "Bug Fix: {bug_id} — {reason}"</action>
+    <action>2. Create fix task in Tasks section: "- [ ] Fix {bug_id}: {description} (AC unchanged)"</action>
+    <action>3. If bug_id provided, link to /bmad-lb trace for full context</action>
+    <action>After edit:</action>
+    <action>1. Append to "### Deviation Notes": "[BUG-FIX] {timestamp} ANNO-{id}: {bug_id}"</action>
+    <action>2. Mark annotation as processed</action>
+    <action>3. Remind user: after fix is implemented, re-run BMAD code-review (CR) to validate</action>
+  </step>
+
+  <step n="2a-note" goal="Minor: Add dev note (any lifecycle phase)">
+    <action>Open the target Story file</action>
+    <action>Append content to Dev Notes section</action>
+    <action>After edit:</action>
+    <action>1. Append to "### Deviation Notes": "[NOTE] {timestamp} ANNO-{id}"</action>
+    <action>2. Mark annotation as processed</action>
+  </step>
+
+  <step n="2b" goal="Moderate: Invoke BMAD correct-course (POST-impl discussion)">
+    <action>This step handles two scenarios:</action>
+    <action>  A. User explicitly wrote intent:moderate (feature direction needs rethinking)</action>
+    <action>  B. System escalated from minor change_ac because story is post-implementation</action>
+    <action>In both cases, the flow is: DISCUSS FIRST, then decide what to change.</action>
     <action>Prepare change description from the annotation's reason and details fields</action>
     <action>Invoke the BMAD native correct-course workflow:</action>
     <action>- Load {correct_course_workflow}/workflow.yaml</action>
@@ -110,7 +127,8 @@
 
   <step n="3" goal="Post-processing summary">
     <action>After all annotations are processed, output summary:</action>
-    <action>- How many annotations processed by category</action>
+    <action>- How many annotations processed by category (with lifecycle phase: pre/post-impl)</action>
+    <action>- How many were auto-escalated (and why)</action>
     <action>- Which Story files were modified</action>
     <action>- Any SCPs generated (moderate/major)</action>
     <action>- Any erratum files created</action>
