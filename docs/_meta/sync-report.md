@@ -1,6 +1,6 @@
 # Sync Report
 
-- Stories synced: 3
+- Stories synced: 17
 - Epics synced: 0
-- Skipped (unchanged): 2
-- Validation errors: 5
+- Skipped (unchanged): 27
+- Validation errors: 44

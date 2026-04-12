@@ -70,11 +70,11 @@ development_status:
   # Phase: 1 MVP · 对应旅程 1（日常学习）+ 旅程 5（图片学习）
   # ══════════════════════════════════════════════════════
   epic-2: backlog
-  2-1-ai-dialog-wikilink-context: backlog
-  2-2-supplementary-material-search: backlog
-  2-3-historical-misconception-reminder: backlog
-  2-4-dialog-archive-graphiti: backlog
-  2-5-image-recognition-dialog-context: backlog
+  2-1-ai-dialog-wikilink-context: ready-for-dev
+  2-2-supplementary-material-search: ready-for-dev
+  2-3-historical-misconception-reminder: ready-for-dev
+  2-4-dialog-archive-graphiti: ready-for-dev
+  2-5-image-recognition-dialog-context: ready-for-dev
   epic-2-retrospective: optional
 
   # ══════════════════════════════════════════════════════
@@ -83,14 +83,14 @@ development_status:
   # Phase: 1 MVP · 对应旅程 2（灵魂旅程）
   # ══════════════════════════════════════════════════════
   epic-3: backlog
-  3-1-blank-exam-board-isolation: backlog
-  3-2-bkt-fsrs-weak-selection: backlog
-  3-3-triple-fusion-question-generation: backlog
-  3-4-markdown-editor-answer-submit: backlog
-  3-5-silent-scoring-autoscore: backlog
-  3-6-progressive-hints: backlog
-  3-7-skip-no-penalty: backlog
-  3-8-bookmark-concept-extraction: backlog
+  3-1-blank-exam-board-isolation: ready-for-dev
+  3-2-bkt-fsrs-weak-selection: ready-for-dev
+  3-3-triple-fusion-question-generation: ready-for-dev
+  3-4-markdown-editor-answer-submit: ready-for-dev
+  3-5-silent-scoring-autoscore: ready-for-dev
+  3-6-progressive-hints: ready-for-dev
+  3-7-skip-no-penalty: ready-for-dev
+  3-8-bookmark-concept-extraction: ready-for-dev
   epic-3-retrospective: optional
 
   # ══════════════════════════════════════════════════════
@@ -99,10 +99,10 @@ development_status:
   # Phase: 1-2 · 对应旅程 1（深度剖析部分）
   # ══════════════════════════════════════════════════════
   epic-4: backlog
-  4-1-concept-extraction-wikilink: backlog
-  4-2-graphify-relation-extraction: backlog
-  4-3-confidence-level-annotation: backlog
-  4-4-ei-se-dual-strategy-discussion: backlog
+  4-1-concept-extraction-wikilink: ready-for-dev
+  4-2-graphify-relation-extraction: ready-for-dev
+  4-3-confidence-level-annotation: ready-for-dev
+  4-4-ei-se-dual-strategy-discussion: ready-for-dev
   epic-4-retrospective: optional
 
   # ══════════════════════════════════════════════════════
@@ -111,14 +111,14 @@ development_status:
   # Phase: 1-2 · 支撑 Epic 3 和 Epic 6
   # ══════════════════════════════════════════════════════
   epic-5: backlog
-  5-1-bkt-mastery-update: backlog
-  5-2-fsrs-review-interval: backlog
-  5-3-five-signal-fusion-mastery: backlog
-  5-4-error-classification-dual-write: backlog
-  5-5-self-calibration-data: backlog
-  5-6-ai-scoring-vote-feedback: backlog
-  5-7-three-layer-memory-retrieval: backlog
-  5-8-async-knowledge-graph-write: backlog
+  5-1-bkt-mastery-update: ready-for-dev
+  5-2-fsrs-review-interval: ready-for-dev
+  5-3-five-signal-fusion-mastery: ready-for-dev
+  5-4-error-classification-dual-write: ready-for-dev
+  5-5-self-calibration-data: ready-for-dev
+  5-6-ai-scoring-vote-feedback: ready-for-dev
+  5-7-three-layer-memory-retrieval: ready-for-dev
+  5-8-async-knowledge-graph-write: ready-for-dev
   epic-5-retrospective: optional
 
   # ══════════════════════════════════════════════════════
@@ -127,11 +127,11 @@ development_status:
   # Phase: 2 · 对应旅程 3（错误修正闭环）
   # ══════════════════════════════════════════════════════
   epic-6: backlog
-  6-1-review-task-list: backlog
-  6-2-day3-day7-review-reminder: backlog
-  6-3-review-misconception-context: backlog
-  6-4-discrimination-question-generation: backlog
-  6-5-callout-quick-exam: backlog
+  6-1-review-task-list: ready-for-dev
+  6-2-day3-day7-review-reminder: ready-for-dev
+  6-3-review-misconception-context: ready-for-dev
+  6-4-discrimination-question-generation: ready-for-dev
+  6-5-callout-quick-exam: ready-for-dev
   epic-6-retrospective: optional
 
   # ══════════════════════════════════════════════════════
@@ -140,11 +140,11 @@ development_status:
   # Phase: 2 · 对应旅程 6（档案浏览）
   # ══════════════════════════════════════════════════════
   epic-7: backlog
-  7-1-global-dashboard-dataview: backlog
-  7-2-prescriptive-wording-status: backlog
-  7-3-metacognition-calibration-matrix: backlog
-  7-4-dashboard-one-click-exam: backlog
-  7-5-concept-detail-profile: backlog
+  7-1-global-dashboard-dataview: ready-for-dev
+  7-2-prescriptive-wording-status: ready-for-dev
+  7-3-metacognition-calibration-matrix: ready-for-dev
+  7-4-dashboard-one-click-exam: ready-for-dev
+  7-5-concept-detail-profile: ready-for-dev
   epic-7-retrospective: optional
 
   # ══════════════════════════════════════════════════════
@@ -153,8 +153,8 @@ development_status:
   # Phase: 2 · 来源于可观测性需求
   # ══════════════════════════════════════════════════════
   epic-8: backlog
-  8-1-graphiti-operation-summary: backlog
-  8-2-graphiti-audit-log: backlog
-  8-3-graphify-health-check: backlog
-  8-4-token-cost-tracking: backlog
+  8-1-graphiti-operation-summary: ready-for-dev
+  8-2-graphiti-audit-log: ready-for-dev
+  8-3-graphify-health-check: ready-for-dev
+  8-4-token-cost-tracking: ready-for-dev
   epic-8-retrospective: optional
