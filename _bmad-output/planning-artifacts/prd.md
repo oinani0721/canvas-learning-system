@@ -9,6 +9,7 @@ stepsCompleted:
   - step-07-project-type
   - step-08-scoping
   - step-09-functional
+  - step-10-nonfunctional
 classification:
   projectType: desktop_app
   domain: edtech
@@ -466,3 +467,55 @@ Canvas Learning System 是基于 Obsidian 的桌面学习应用，通过 Claudia
 
 - **FR42**: 系统必须重构 context_enrichment 从 .canvas JSON 读取改为通过 obsidiantools 解析 .md wikilink 图遍历（Phase 1 必修，解决降级架构断层）
 - **FR43**: 系统必须支持通过 wikilink 双向链接发现概念间的邻居关系（替代原 Canvas edge JSON）
+
+### Graphiti 可观测性
+
+- **FR44**: Skill 在每次对话/考察结束时，在 Claudian 侧边栏回复末尾附加一行 Graphiti 操作摘要（已加载 N 条记忆 · 已保存 M 条记录 · 连接状态），不暴露中间 MCP 调用细节，不暴露评分数值（保护静默评分设计）
+- **FR45**: 系统在 vault 内维护 Graphiti 操作审计日志（`outputs/graphiti-audit.log`），记录每次读写操作的时间戳、类型、目标节点、延迟和状态，用户可直接查看和用 Dataview 检索
+
+## Non-Functional Requirements
+
+### Performance
+
+- LLM 出题/评分响应 < 5 秒（用户等待耐心阈值）
+- Dataview Dashboard 查询刷新 < 1 秒
+- Graphify 全量索引 < 30 秒（wiki/ ~100 文件规模）
+- LanceDB 增量索引 < 500ms（单文件保存后自动触发）
+- obsidiantools vault 图构建 < 2 秒（后端启动时加载）
+- context_enrichment wikilink 图遍历 < 200ms（N-hop 查询）
+- Graphiti search_memories 响应 < 3 秒（3 层检索超时上限）
+- Graphiti 写入队列处理 < 10 秒（episode_worker 后台异步）
+
+### Data Integrity & Security
+
+- frontmatter 掌握度数据不可因 Skill 异常而损坏（pipeline_token 防篡改链）
+- 学习记忆写入 Graphiti 必须原子性（写入失败不产生半截数据）
+- LLM API 调用不传输 vault 全文，只传 context_enrichment 筛选后的片段
+- Obsidian Git 备份可选但不强制
+- 所有数据本地存储（vault 文件 + Neo4j + LanceDB），无云端同步
+
+### Integration Reliability
+
+- Claudian ↔ Canvas 后端通过 MCP 协议通信，Claudian 故障时降级为 Claude Code CLI 直接交互
+- 14 MCP 工具必须全部可调用（Day 1 Spike 1 验证）
+- pipeline_token 链在 5 步内完整传递（generate → score → bkt → fsrs → calibration）
+- obsidiantools vault 图在后端启动时构建，文件变更时支持热更新
+- Graphiti 读写时序：读在 LLM 回答前（注入记忆），写在用户操作后（异步非阻塞）
+- EventBus 自动级联保证评分事件即使 Skill 未显式调用也会触发 Graphiti 写入
+
+### Reliability & Graceful Degradation
+
+- Claudian 挂掉 → 降级为 Claude Code CLI 直接交互（保留 Skill 功能）
+- Claude API 不可用 → 离线模式可阅读/复习/查看 Dashboard（Dataview 本地查询）
+- Graphiti/Neo4j 不可用 → Skill 仍可运行但无个人化（默认先验出题）+ 状态栏显示 🔴
+- Graphify 失败 → Skill 直接读 frontmatter + wikilinks（损失 71x 压缩）
+- 检验白板信息隔离失败 → 降级 `/quiz_from_callout`（d=1.50 → d≈1.09）
+- 单个 MCP 工具超时 → 不阻塞其他工具，返回降级响应
+- Graphiti 写入失败 → 自动重试 3 次，失败后记录到审计日志 + Toast 通知用户
+
+### Graphiti 可观测性
+
+- Graphiti 读写操作通过 Skill 末尾摘要行告知用户（透明度分层：状态可见，分数隐藏）
+- 状态栏持续显示 Graphiti 连接状态（🟢 正常 / 🟡 重试 / 🔴 断开）
+- 审计日志 `outputs/graphiti-audit.log` 记录所有操作（时间戳 + 类型 + 延迟 + 状态）
+- 连接断开时 Toast 通知 + Dashboard 显示降级状态
