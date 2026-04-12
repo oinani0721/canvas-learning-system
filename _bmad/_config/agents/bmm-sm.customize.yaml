@@ -16,9 +16,6 @@ critical_actions: []
 memories: []
 
 menu:
-  - trigger: sf
-    workflow: "{project-root}/_bmad/custom-bmm-ext/workflows/scan-feedback/workflow.yaml"
-    description: "[SF] Scan Feedback - Scan active stories for unprocessed user annotations"
   - trigger: sx
     workflow: "{project-root}/_bmad/custom-bmm-ext/workflows/create-story-ext/workflow.yaml"
     description: "[SX] Create Story Ext - Extended story creation with UAT Script and User Feedback sections"

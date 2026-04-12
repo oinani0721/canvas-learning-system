@@ -6,6 +6,5 @@ module:
   author: "Canvas Learning System"
   workflows:
     - create-story-ext
-    - scan-feedback
     - apply-feedback
     - locate-by-bug
