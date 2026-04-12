@@ -23,9 +23,10 @@ from pathlib import Path
 
 import yaml
 
-from scripts.trace._story_reader import read_file_list
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.trace._story_reader import read_file_list
 STORY_DIR = PROJECT_ROOT / "_bmad-output" / "implementation-artifacts"
 INDEX_DIR = PROJECT_ROOT / "docs" / "_meta" / "indices"
 INDEX_FILE = INDEX_DIR / "story-file-map.yaml"

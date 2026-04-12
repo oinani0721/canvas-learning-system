@@ -18,9 +18,10 @@ import json
 import sys
 from pathlib import Path
 
-from scripts.trace._story_reader import extract_section, find_story_file, read_file_list
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.trace._story_reader import extract_section, find_story_file, read_file_list
 BUG_LOG = PROJECT_ROOT / "backend" / "data" / "bug_log.jsonl"
 DECISION_LOG = PROJECT_ROOT / "backend" / "data" / "decision_log.jsonl"
 STORY_DIR = PROJECT_ROOT / "_bmad-output" / "implementation-artifacts"
