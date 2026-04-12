@@ -17,7 +17,7 @@ SORT section ASC
 | Source | Role | Path | 状态 |
 |---|---|---|---|
 | **PRD v5** (真相源) | 人类可读完整产品愿景，永远 read-only | `/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md` | ✅ 活跃 |
-| **BMAD PRD** (工作流输入) | 供 BMAD V6 CE/CA/IR/correct-course 消费 | `_bmad-output/planning-artifacts/prd.md` (CP 从 PRD v5 重新生成) | ⏳ 待生成 |
+| **BMAD PRD** (工作流输入) | 供 BMAD V6 CE/CA/IR/correct-course 消费 | `_bmad-output/planning-artifacts/prd.md` (383 行, 46 FR) | ✅ 已生成 2026-04-12 · VP 4/5 Good |
 | ~~旧 BMAD PRD~~ (参考文档) | Tauri+React 架构版本，降级前的产物 | `_bmad-output/planning-artifacts/prd-tauri-archived-20260401.md` | 📦 已归档 |
 
 ## Decision Lock Status
