@@ -1,6 +1,12 @@
 ---
 stepsCompleted:
   - step-01-init
+  - step-02-discovery
+classification:
+  projectType: desktop_app
+  domain: edtech
+  complexity: high
+  projectContext: brownfield
 inputDocuments:
   - path: '/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md'
     type: 'prd-source'
