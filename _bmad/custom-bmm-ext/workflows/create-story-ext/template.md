@@ -1,6 +1,19 @@
-# Story {{epic_num}}.{{story_num}}: {{story_title}}
+---
+doc_type: story
+story_id: "{{epic_num}}.{{story_num}}"
+epic_id: "EPIC-{{epic_num}}"
+prd_id: "PRD14"
+status: ready-for-dev
+priority: "{{priority}}"
+estimate_hours: {{estimate_hours}}
+depends_on: []
+blocks: []
+trace:
+  decisions: []
+  bugs: []
+---
 
-Status: ready-for-dev
+# Story {{epic_num}}.{{story_num}}: {{story_title}}
 
 ## Story
 
