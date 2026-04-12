@@ -1,4 +1,4 @@
-# generated: 2026-03-17
+# generated: 2026-04-12
 # project: Canvas
 # project_key: NOKEY
 # tracking_system: file-system
@@ -11,11 +11,15 @@
 #   - in-progress: Epic actively being worked on
 #   - done: All stories in epic completed
 #
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
 # Story Status:
 #   - backlog: Story only exists in epic file
-#   - ready-for-dev: Story file created, ready for development
+#   - ready-for-dev: Story file created in stories folder
 #   - in-progress: Developer actively working on implementation
-#   - review: Implementation complete, ready for review
+#   - review: Ready for code review (via Dev's code-review workflow)
 #   - done: Story completed
 #
 # Retrospective Status:
@@ -24,16 +28,23 @@
 #
 # WORKFLOW NOTES:
 # ===============
-# - Mark epic as 'in-progress' when starting work on its first story
-# - SM typically creates next story ONLY after previous one is 'done' to incorporate learnings
-# - Dev moves story to 'review', then Dev runs code-review (fresh context, ideally different LLM)
-# - Architecture (DE-1~DE-5 target): Tauri 2.0 + React + ReactFlow + shadcn/ui
-# - Dialogue Engine: Agent SDK sidecar (2026-03-19, supersedes Mode D/SDK/Tier B)
-# - Dependencies: E1/E2 parallel → E3 → {E4, E5} → E6
-# - E7(QA) dissolved: FR-QA-01~07 distributed to E1/E2/E3/E5/E6
-# - Reranker: gte-reranker-modernbert-base (Story 2.5, supersedes bge-reranker)
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Architecture: Obsidian Hybrid (Tauri 降级后，2026-04 重新规划)
+# - 创建 Story 时必须用 /bmad-sx（含 UAT + Checkpoints + Feedback + Frontmatter）
+#
+# DEPENDENCY NOTES:
+# =================
+# Epic 1 (环境搭建) → Epic 2 (对话) → Epic 3 (检验白板, 灵魂 Epic)
+# Epic 4 (知识图谱) depends on Epic 2
+# Epic 5 (掌握度) supports Epic 3 + Epic 6
+# Epic 6 (错误修正) depends on Epic 3 + Epic 5
+# Epic 7 (Dashboard) depends on Epic 5
+# Epic 8 (可观测性) independent, Phase 2
 
-generated: 2026-03-17
+generated: 2026-04-12
 project: Canvas
 project_key: NOKEY
 tracking_system: file-system
@@ -41,102 +52,109 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # ══════════════════════════════════════════════════════
-  # Epic 1: 桌面应用搭建与画布基础 (11 stories)
-  # FR: SYS-01~07, KG-01~07, QA-01(基础), QA-03
+  # Epic 1: 学习环境搭建 (5 stories)
+  # FR: FR37,FR38,FR39,FR41,FR42,FR43 · AR: AR1,AR11
+  # Phase: 1 MVP · 对应旅程 4（冷启动）
   # ══════════════════════════════════════════════════════
-  epic-1: in-progress
-  1-1-project-scaffold-docker-setup: done
-  1-2-setup-wizard: done
-  1-3-model-config-settings-panel: done
-  1-4-canvas-core-crud-mini-dashboard: done
-  1-5-canvas-data-sync-backend-kg: done
-  1-6-image-node-async-index: done
-  1-7-concept-relation-recommendation: ready-for-dev
-  1-8-backend-service-management: done
-  1-9-multi-subject-kg-isolation: done
-  1-10-llm-structured-logging-infra: done
-  1-11-llm-faithfulness-check-base: done
+  epic-1: backlog
+  1-1-vault-init-templater: backlog
+  1-2-context-enrichment-wikilink-refactor: backlog
+  1-3-hotkey-custom-binding: backlog
+  1-4-hotkey-conflict-detection: backlog
+  1-5-obsidian-git-backup: backlog
   epic-1-retrospective: optional
 
   # ══════════════════════════════════════════════════════
-  # Epic 2: 智能检索管道 (13 stories)
-  # FR: RET-01~12, IDX-01~08, RET-P-01~08, QA-P-01~05, OPS-01~04, QA-02, QA-06(检索侧)
+  # Epic 2: 智能学习对话 (5 stories)
+  # FR: FR1,FR2,FR3,FR5,FR46 · AR: AR5,AR6,AR7
+  # Phase: 1 MVP · 对应旅程 1（日常学习）+ 旅程 5（图片学习）
   # ══════════════════════════════════════════════════════
-  epic-2: in-progress
-  2-1-dead-code-cleanup-config-fix: done
-  2-2-search-channel-repair-activation: done
-  2-3-bge-m3-migration-chunking-upgrade: done
-  2-4-chinese-search-hybrid-retrieval: done
-  2-5-reranker-fusion-upgrade: done
-  2-6-crag-quality-gate-safe-degradation: done
-  2-7-file-fingerprint-incremental-index: done
-  2-8-metadata-filter-neighbor-expansion: done
-  2-9-image-retrieval-pipeline: done
-  2-10-context-compression-mastery-injection: ready-for-dev
-  2-11-search-pipeline-configurable: ready-for-dev
-  2-12-full-rebuild-acceptance-test: ready-for-dev
-  2-13-prompt-version-regression-test: done
+  epic-2: backlog
+  2-1-ai-dialog-wikilink-context: backlog
+  2-2-supplementary-material-search: backlog
+  2-3-historical-misconception-reminder: backlog
+  2-4-dialog-archive-graphiti: backlog
+  2-5-image-recognition-dialog-context: backlog
   epic-2-retrospective: optional
 
   # ══════════════════════════════════════════════════════
-  # Epic 3: 节点 AI 对话与交互 (13 stories)
-  # FR: CONV-01~09, AGENT-01~03, MCP-01~03, RET-13, SKILL-01~05, QA-04, QA-05
+  # Epic 3: 检验白板 — Active Recall (8 stories) [灵魂 Epic]
+  # FR: FR6,FR7,FR8,FR9,FR10,FR11,FR12,FR14,FR16,FR22 · AR: AR4
+  # Phase: 1 MVP · 对应旅程 2（灵魂旅程）
   # ══════════════════════════════════════════════════════
-  epic-3: in-progress
-  3-1-claude-code-cli-per-node-session: ready-for-dev
-  3-2-mcp-tool-exposure-backend-api: ready-for-dev
-  3-3-chat-panel-ui-streaming: ready-for-dev
-  3-4-learning-context-auto-injection: ready-for-dev
-  3-5-skill-command-integration: ready-for-dev
-  3-6-tips-annotation-error-archiving: ready-for-dev
-  3-7-dialog-pullout-node: ready-for-dev
-  3-8-dialog-archive-async-generation: ready-for-dev
-  3-9-engine-fallback: ready-for-dev
-  3-10-quota-management-degradation: ready-for-dev
-  3-11-crash-recovery: ready-for-dev
-  3-12-token-tracking-cost-statistics: ready-for-dev
-  3-13-prompt-injection-output-safety: ready-for-dev
+  epic-3: backlog
+  3-1-blank-exam-board-isolation: backlog
+  3-2-bkt-fsrs-weak-selection: backlog
+  3-3-triple-fusion-question-generation: backlog
+  3-4-markdown-editor-answer-submit: backlog
+  3-5-silent-scoring-autoscore: backlog
+  3-6-progressive-hints: backlog
+  3-7-skip-no-penalty: backlog
+  3-8-bookmark-concept-extraction: backlog
   epic-3-retrospective: optional
 
   # ══════════════════════════════════════════════════════
-  # Epic 4: Edge 连线对话与关系学习 (4 stories)
-  # FR: EDGE-01~04
+  # Epic 4: 知识图谱构建 (4 stories)
+  # FR: FR4,FR15,FR17,FR18
+  # Phase: 1-2 · 对应旅程 1（深度剖析部分）
   # ══════════════════════════════════════════════════════
   epic-4: backlog
-  4-1-edge-dialog-trigger: ready-for-dev
-  4-2-edge-dialog-agent-reasoning: ready-for-dev
-  4-3-ei-se-dual-strategy: ready-for-dev
-  4-4-edge-dialog-fallback: ready-for-dev
+  4-1-concept-extraction-wikilink: backlog
+  4-2-graphify-relation-extraction: backlog
+  4-3-confidence-level-annotation: backlog
+  4-4-ei-se-dual-strategy-discussion: backlog
   epic-4-retrospective: optional
 
   # ══════════════════════════════════════════════════════
-  # Epic 5: 精通度追踪、学习档案与 Dashboard (8 stories)
-  # FR: MAST-01~06, TRACE-01~05, DASH-01~04, QA-07
+  # Epic 5: 掌握度追踪与记忆管理 (8 stories)
+  # FR: FR19,FR20,FR21,FR23,FR24,FR25,FR26,FR27 · AR: AR2,AR3
+  # Phase: 1-2 · 支撑 Epic 3 和 Epic 6
   # ══════════════════════════════════════════════════════
   epic-5: backlog
-  5-1-bkt-fsrs-mastery-system: ready-for-dev
-  5-2-node-color-mastery-visualization: ready-for-dev
-  5-3-learning-profile-panel: ready-for-dev
-  5-4-fsrs-review-dashboard: ready-for-dev
-  5-5-calibration-tracking: ready-for-dev
-  5-6-multi-signal-fusion: ready-for-dev
-  5-7-eventbus-triconnect: ready-for-dev
-  5-8-structured-extraction-manual-review: ready-for-dev
+  5-1-bkt-mastery-update: backlog
+  5-2-fsrs-review-interval: backlog
+  5-3-five-signal-fusion-mastery: backlog
+  5-4-error-classification-dual-write: backlog
+  5-5-self-calibration-data: backlog
+  5-6-ai-scoring-vote-feedback: backlog
+  5-7-three-layer-memory-retrieval: backlog
+  5-8-async-knowledge-graph-write: backlog
   epic-5-retrospective: optional
 
   # ══════════════════════════════════════════════════════
-  # Epic 6: 检验白板与递归考察 (10 stories)
-  # FR: EXAM-01~08,11~13,15~21, QA-01(深化), QA-06(出题侧)
+  # Epic 6: 错误修正与间隔复习 (5 stories)
+  # FR: FR13,FR33,FR34,FR35,FR36
+  # Phase: 2 · 对应旅程 3（错误修正闭环）
   # ══════════════════════════════════════════════════════
   epic-6: backlog
-  6-1-exam-board-generation: ready-for-dev
-  6-2-exam-mode-selection: ready-for-dev
-  6-3-ai-precise-question-acp: ready-for-dev
-  6-4-autoscore-stealth-grading: ready-for-dev
-  6-5-recursive-exam-node-sync: ready-for-dev
-  6-6-progressive-hints-skip: ready-for-dev
-  6-7-cognitive-load-rest-reminder: ready-for-dev
-  6-8-exam-record-persistence: ready-for-dev
-  6-9-scoring-faithfulness-deep-check: ready-for-dev
-  6-10-question-difficulty-matching: ready-for-dev
+  6-1-review-task-list: backlog
+  6-2-day3-day7-review-reminder: backlog
+  6-3-review-misconception-context: backlog
+  6-4-discrimination-question-generation: backlog
+  6-5-callout-quick-exam: backlog
   epic-6-retrospective: optional
+
+  # ══════════════════════════════════════════════════════
+  # Epic 7: 学习 Dashboard 与档案 (5 stories)
+  # FR: FR28,FR29,FR30,FR31,FR32
+  # Phase: 2 · 对应旅程 6（档案浏览）
+  # ══════════════════════════════════════════════════════
+  epic-7: backlog
+  7-1-global-dashboard-dataview: backlog
+  7-2-prescriptive-wording-status: backlog
+  7-3-metacognition-calibration-matrix: backlog
+  7-4-dashboard-one-click-exam: backlog
+  7-5-concept-detail-profile: backlog
+  epic-7-retrospective: optional
+
+  # ══════════════════════════════════════════════════════
+  # Epic 8: 系统健康与 Graphiti 可观测性 (4 stories)
+  # FR: FR40,FR44,FR45 · AR: AR8,AR9,AR10
+  # Phase: 2 · 来源于可观测性需求
+  # ══════════════════════════════════════════════════════
+  epic-8: backlog
+  8-1-graphiti-operation-summary: backlog
+  8-2-graphiti-audit-log: backlog
+  8-3-graphify-health-check: backlog
+  8-4-token-cost-tracking: backlog
+  epic-8-retrospective: optional
