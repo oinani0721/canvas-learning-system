@@ -6,6 +6,7 @@ stepsCompleted:
   - step-04-journeys
   - step-05-domain
   - step-06-innovation
+  - step-07-project-type
 classification:
   projectType: desktop_app
   domain: edtech
@@ -281,3 +282,54 @@ Graphiti（个人学习记忆 — 你过去的错误和误解）+ Graphify（知
 - 三路融合过于复杂 → 先跑 Graphiti-only 出题，逐步加入 Graphify 和 frontmatter 维度
 - Graphify 全量索引太慢 → 独立于 LanceDB 实时索引，不阻塞日常学习
 - narrative synthesis 用户不理解 → §9.6 提供"逐条对照用户诉求"简化视图
+
+## Desktop Application Specific Requirements
+
+### Project-Type Overview
+
+Canvas Learning System 是基于 Obsidian 的桌面学习应用，通过 Claudian 插件连接 Canvas 后端（FastAPI + 14 MCP 工具），实现 AI 驱动的个人化学习闭环。核心特征是 6 层系统集成（UI → Skill → MCP → Service → Data → Model）通过 Model Context Protocol 桥接。
+
+### Platform Support
+
+- **主平台**: macOS（M5 Max，开发和使用环境）
+- **跨平台能力**: Obsidian 原生跨 macOS/Windows/Linux；Canvas 后端依赖 Neo4j + Ollama 容器，实际约束为 macOS/Linux
+- **Obsidian 版本**: v1.5+（Dataview + Mermaid 11.4.1 渲染依赖）
+- **Python**: 3.12+（后端 + Graphify）
+- **Node.js**: 不直接依赖（Obsidian 内置）
+
+### System Integration Architecture
+
+**6 层通信栈**:
+
+1. **UI 层**: Obsidian editor + Claudian 侧边栏（用户直接交互）
+2. **Skill 层**: 6 个 Claude Code Skill（Claudian → Claude Code CLI）
+   - `/chat_with_context` (Cmd+Option+C) · `/start_exam_board` (Cmd+Option+E) · `/extract_node` (Cmd+Option+X)
+   - `/edge_discuss` (Cmd+Option+R) · `/quiz_from_callout` (Cmd+Option+Q) · `/review_profile` (Cmd+Option+P)
+3. **MCP 层**: 14 个 MCP 工具（Claude Code → FastAPI `/mcp` endpoint）
+   - 评估: query_mastery · generate_question · score_answer · update_bkt · update_fsrs
+   - 记忆: search_memories · record_learning_memory · record_error · record_calibration · archive_conversation
+   - 检索: context_enrichment · search_vault_notes · get_node_profile · health_check
+4. **Service 层**: RAG Service（4 路融合）· Memory Service（3 层 fallback）· Scoring Service
+5. **Data 层**: Neo4j（Graphiti 知识图谱）· LanceDB（向量索引）· Obsidian vault（markdown 文件）
+6. **Model 层**: Claude API（对话 + 评分）· Ollama bge-m3（嵌入）
+
+### Update Strategy
+
+- **Obsidian + 10 插件**: 应用内自动更新
+- **Canvas 后端**: `git pull` + `uv sync`（手动，版本控制）
+- **Graphify**: `pip install --upgrade graphifyy`（手动）
+- **Neo4j / Ollama**: Docker 容器更新（手动）
+- **Obsidian vault 数据**: Obsidian Git 插件可选自动备份
+
+### Offline Capabilities
+
+- **完全离线可用**: 笔记编辑 · wikilink 导航 · Dataview Dashboard · Graph View · Spaced Repetition 提醒 · LanceDB 本地向量查询
+- **需要网络**: Claude API 对话/出题/评分 · Graphify LLM 实体提取 · Ollama 模型下载（首次）
+- **核心约束**: Claude API 是在线学习流程的瓶颈；离线时可阅读/复习/查看 Dashboard，但无法对话/出题/评分
+
+### Implementation Considerations
+
+- Claudian 插件是唯一的 UI ↔ 后端桥接点，其稳定性决定整个系统可用性
+- MCP 协议层使 Skill 与后端松耦合，可独立升级
+- 后端 14 MCP 工具已全部实现（LANGGRAPH_AVAILABLE=True，Plan v23 验证）
+- Graphify 是唯一需要定期手动触发的子系统（`/graphify ./wiki` 全量索引）
