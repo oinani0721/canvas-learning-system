@@ -1,6 +1,7 @@
 ---
 stepsCompleted:
   - step-01-validate-prerequisites
+  - step-02-design-epics
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
@@ -110,8 +111,109 @@ From Architecture (backend-relevant, Tauri frontend excluded):
 
 ### FR Coverage Map
 
-{{requirements_coverage_map}}
+| FR | Epic | 简述 |
+|---|---|---|
+| FR1 | Epic 2 | AI 对话 + wikilink 上下文 |
+| FR2 | Epic 2 | 历史误解提醒 |
+| FR3 | Epic 2 | 补充材料列表 |
+| FR4 | Epic 4 | Edge 讨论 |
+| FR5 | Epic 2 | 对话归档 Graphiti |
+| FR6 | Epic 3 | 空白检验白板 |
+| FR7 | Epic 3 | BKT/FSRS 选弱项 |
+| FR8 | Epic 3 | 三路融合出题 |
+| FR9 | Epic 3 | md 编辑器手写答案 |
+| FR10 | Epic 3 | 静默评分 |
+| FR11 | Epic 3 | 4 级渐进提示 |
+| FR12 | Epic 3 | 跳过不惩罚 |
+| FR13 | Epic 6 | callout 批注考察 |
+| FR14 | Epic 3 | 防嵌套 |
+| FR15 | Epic 4 | 提取新概念 wikilink |
+| FR16 | Epic 3 | 书签式提取 |
+| FR17 | Epic 4 | Graphify graph.json |
+| FR18 | Epic 4 | 三级置信度 |
+| FR19 | Epic 5 | BKT 掌握概率 |
+| FR20 | Epic 5 | FSRS 复习间隔 |
+| FR21 | Epic 5 | 5 信号融合 |
+| FR22 | Epic 3 | 操作链顺序保证 |
+| FR23 | Epic 5 | 错误 4 类分类 |
+| FR24 | Epic 5 | 校准数据 |
+| FR25 | Epic 5 | AI 评分投票 |
+| FR26 | Epic 5 | 历史记忆搜索 |
+| FR27 | Epic 5 | 异步写入 |
+| FR28 | Epic 7 | 全局 Dashboard |
+| FR29 | Epic 7 | 处方性措辞 |
+| FR30 | Epic 7 | 2x2 校准矩阵 |
+| FR31 | Epic 7 | 一键启动考察 |
+| FR32 | Epic 7 | 单概念档案 |
+| FR33 | Epic 6 | Day 3+7 提醒 |
+| FR34 | Epic 6 | 复习注入历史 |
+| FR35 | Epic 6 | 辨析题 |
+| FR36 | Epic 6 | 任务列表 |
+| FR37 | Epic 1 | hotkey 自定义 |
+| FR38 | Epic 1 | Templater 模板 |
+| FR39 | Epic 1 | Git 备份 |
+| FR40 | Epic 8 | Graphify health |
+| FR41 | Epic 1 | hotkey 冲突检测 |
+| FR42 | Epic 1 | context_enrichment 重构 |
+| FR43 | Epic 1 | wikilink 邻居发现 |
+| FR44 | Epic 8 | Graphiti 摘要行 |
+| FR45 | Epic 8 | 审计日志 |
+| FR46 | Epic 2 | 图片识别 |
 
 ## Epic List
 
-{{epics_list}}
+### Epic 1: 学习环境搭建
+
+学习者可以拥有一个配置完整的 Obsidian vault，启动 Claudian 和后端，开始第一次学习。包括 vault 初始化、Templater 模板、hotkey 配置、context_enrichment 从 .canvas JSON 重构为 wikilink 图遍历。
+
+**FRs covered:** FR37, FR38, FR39, FR41, FR42, FR43
+**Phase:** 1 MVP · 对应旅程 4（冷启动）
+
+### Epic 2: 智能学习对话
+
+学习者可以和 AI 进行有上下文感知的对话。AI 通过 wikilink 图遍历获取相邻概念、注入个人历史记忆、显示补充学习材料，并在对话结束后自动归档到 Graphiti。
+
+**FRs covered:** FR1, FR2, FR3, FR5, FR46
+**Phase:** 1 MVP · 对应旅程 1（日常学习）+ 旅程 5（图片学习）
+
+### Epic 3: 检验白板 — Active Recall（灵魂 Epic）
+
+学习者可以在完全空白的检验白板中接受个人化考察。系统通过三路融合出题，支持 md 编辑器手写答案、静默评分、4 级渐进提示、跳过不惩罚、书签式概念提取和防嵌套保护。
+
+**FRs covered:** FR6, FR7, FR8, FR9, FR10, FR11, FR12, FR14, FR16, FR22
+**Phase:** 1 MVP · 对应旅程 2（灵魂旅程）
+
+### Epic 4: 知识图谱构建
+
+学习者可以从对话中提取新概念创建双向链接，探索概念间关系（EI+SE 双策略），并通过 Graphify 自动提取隐含关系生成 AI 检索索引。
+
+**FRs covered:** FR4, FR15, FR17, FR18
+**Phase:** 1-2 · 对应旅程 1（深度剖析部分）
+
+### Epic 5: 掌握度追踪与记忆管理
+
+系统准确追踪每个概念的掌握程度（BKT+FSRS+5 信号融合），记录错误（4 类分类双写），管理学习记忆（3 层检索+异步写入），支持校准投票。
+
+**FRs covered:** FR19, FR20, FR21, FR23, FR24, FR25, FR26, FR27
+**Phase:** 1-2 · 支撑 Epic 3 和 Epic 6
+
+### Epic 6: 错误修正与间隔复习
+
+学习者在犯错后获得 Day 3 + Day 7 定时提醒，复习时自动注入历史误解上下文，通过辨析题验证误解已纠正。支持 callout 批注驱动的快速考察。
+
+**FRs covered:** FR13, FR33, FR34, FR35, FR36
+**Phase:** 2 · 对应旅程 3（错误修正闭环）
+
+### Epic 7: 学习 Dashboard 与档案
+
+学习者可以查看全局 Dashboard（Dataview 三层布局 + 处方性措辞），浏览元认知 2x2 校准矩阵，一键启动考察，查看单概念详细档案。
+
+**FRs covered:** FR28, FR29, FR30, FR31, FR32
+**Phase:** 2 · 对应旅程 6（档案浏览）
+
+### Epic 8: 系统健康与 Graphiti 可观测性
+
+学习者可以确认 Graphiti 记忆系统正常工作（Skill 末尾摘要行 + 状态栏指示灯），审计操作历史（vault 内日志），执行 Graphify health check。
+
+**FRs covered:** FR40, FR44, FR45
+**Phase:** 2 · 来源于 PRD 创建 session 发现的可观测性需求
