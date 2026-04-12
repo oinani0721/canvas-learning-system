@@ -357,6 +357,23 @@ backend/
 - [Source: _bmad-output/implementation-artifacts/1-5-canvas-data-sync-backend-kg.md] — Story 1.5 数据同步上下文（SyncEngine、Neo4j 数据模型、sync Outbox）
 - [Source: _bmad-output/planning-artifacts/ux-design-specification.md#Obsidian Components] — Notice 类用于轻量通知
 
+## User Feedback & Changes
+
+### Feedback Log
+
+> [!BMAD-ANNO] ANNO-TEST-001
+> scope: story
+> target: STORY-1.7
+> intent: minor
+> action: change_ac
+> reason: "AC#2 文案歧义，需要明确 node relationship 的类型枚举"
+> changes:
+>   - op: replace_ac
+>     ac_number: 2
+>     content: "系统应支持 4 种 node relationship: depends_on, blocks, related_to, extends"
+
+### Deviation Notes
+
 ## Dev Agent Record
 
 ### Agent Model Used

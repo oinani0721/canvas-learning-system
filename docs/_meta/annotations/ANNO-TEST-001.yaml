@@ -1,0 +1,12 @@
+action: change_ac
+changes:
+- ac_number: 2
+  content: '系统应支持 4 种 node relationship: depends_on, blocks, related_to, extends'
+  op: replace_ac
+id: ANNO-TEST-001
+intent: minor
+reason: AC#2 文案歧义，需要明确 node relationship 的类型枚举
+scan_timestamp: '2026-04-12T07:19:10.591811+00:00'
+scope: story
+source_file: _bmad-output/implementation-artifacts/1-7-concept-relation-recommendation.md
+target: STORY-1.7

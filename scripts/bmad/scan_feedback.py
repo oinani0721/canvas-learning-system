@@ -109,7 +109,9 @@ def parse_callouts(section: str) -> list[dict]:
 def is_processed(anno: dict) -> bool:
     if anno.get("processed"):
         return True
-    anno_file = ANNOTATIONS_DIR / f"ANNO-{anno['id']}.yaml"
+    anno_id = anno['id']
+    fname = anno_id if anno_id.startswith("ANNO-") else f"ANNO-{anno_id}"
+    anno_file = ANNOTATIONS_DIR / f"{fname}.yaml"
     return anno_file.exists()
 
 
@@ -173,7 +175,8 @@ def mode_batch_silent(results: list[dict]) -> None:
 
     for r in results:
         anno_id = r.get("id", "unknown")
-        out_file = ANNOTATIONS_DIR / f"ANNO-{anno_id}.yaml"
+        fname = anno_id if anno_id.startswith("ANNO-") else f"ANNO-{anno_id}"
+        out_file = ANNOTATIONS_DIR / f"{fname}.yaml"
         try:
             payload = {
                 **r,
@@ -185,7 +188,7 @@ def mode_batch_silent(results: list[dict]) -> None:
             )
         except Exception as exc:
             failed_dir.mkdir(parents=True, exist_ok=True)
-            err_file = failed_dir / f"ANNO-{anno_id}.yaml"
+            err_file = failed_dir / f"{fname}.yaml"
             err_file.write_text(
                 yaml.dump(
                     {"id": anno_id, "error": str(exc), "_raw": r},
