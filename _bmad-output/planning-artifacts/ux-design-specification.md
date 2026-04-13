@@ -2,7 +2,7 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/prd-validation-report.md
+  - _bmad-archive/stale-planning/prd-validation-report.md
   - docs/architecture/ui-component-architecture.md
   - docs/architecture/index.md
   - "UI 相关设计样式.pen"

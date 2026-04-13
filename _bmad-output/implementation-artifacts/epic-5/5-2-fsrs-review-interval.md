@@ -1,162 +1,134 @@
 ---
-doc_type: story
 story_id: "5.2"
-aliases: ["5.2"]
-epic_id: "EPIC-5"
-prd_id: "PRD14"
-status: ready-for-dev
+epic_id: "5"
+prd_id: "canvas-learning-system"
+status: "ready-for-dev"
 priority: "P0"
 estimate_hours: 8
-depends_on: []
-blocks: []
+depends_on: ["5.1"]
+blocks: ["5.3", "7.1"]
 trace:
-  decisions: []
-  bugs: []
+  - "FR-MAST-02"
 ---
+
 # Story 5.2: FSRS 复习间隔计算
 
-## Story
+Status: ready-for-dev
 
+## Story
 As a 系统,
-I want 使用 FSRS（Free Spaced Repetition Scheduler）算法计算每个概念的最优复习间隔,
-so that 学习者可以在记忆衰退前得到复习提醒。
+I want 使用 FSRS（Free Spaced Repetition Scheduler）算法计算最优复习间隔,
+So that 学习者在记忆衰退前得到科学安排的复习提醒（Ye et al. 2024, 比 SM-2 减少 20-30% 复习次数）。
 
 ## Acceptance Criteria
 
-1. **Given** 学习者完成某概念的考察
-   **When** 评分结果写入
-   **Then** FSRS 算法根据难度、稳定性、可提取性计算下次 due_date
-   **And** due_date 写入概念笔记的 frontmatter
-   **And** 多次练习后 FSRS 参数根据实际表现动态调整
+1. **Given** BKT 更新完成（Story 5.1 产生的 pipeline_token 有效）**When** 系统调用 `update_fsrs` MCP 工具 **Then** FSRS DSR 三元组更新：Difficulty（难度）、Stability（记忆稳定性/天）、Retrievability（即时检索概率）**And** 计算 `next_review_at` 日期 **And** pipeline_token 被消费并产生新 token 供下游校准步骤使用
 
-2. **Given** 某概念第一次考察（无 FSRS 历史）
-   **When** 需要计算 due_date
-   **Then** 使用 FSRS 初始参数（difficulty=5.0, stability=1.0, retrievability=1.0）
-   **And** 第一次间隔固定为 1 天（FSRS 新卡片规则）
+2. **Given** FSRS 更新完成 **When** 系统写回 frontmatter **Then** 以下字段全部更新：`fsrs_difficulty`、`fsrs_stability`、`fsrs_retrievability`、`fsrs_next_review_at`、`mastery_updated_at` **And** 写入原子性（中途失败不留半截数据）
 
-3. **Given** 学习者答题评分为 1（Again）/ 2（Hard）/ 3（Good）/ 4（Easy）
-   **When** FSRS 更新触发
-   **Then** stability 和 difficulty 按 FSRS v5 公式更新
-   **And** 间隔 = stability * ln(FSRS_REQUEST_RETENTION) / ln(0.9)（可配置 REQUEST_RETENTION，默认 0.9）
-   **And** due_date = today + interval（四舍五入到整天）
+3. **Given** 学习者对某概念连续 grade=4（Fluent）**When** FSRS 计算复习间隔 **Then** Stability 持续增长，next_review_at 间隔越来越长（自适应特性）**And** Difficulty 逐步下降
 
-4. **Given** FSRS 参数写入 frontmatter 时文件锁定
-   **When** 写入失败
-   **Then** 操作回滚，不留中间状态（NFR-INT-1）
-   **And** 写入失败不影响当前考察会话继续
+4. **Given** 学习者对某概念 grade=1（Forgot）**When** FSRS 计算复习间隔 **Then** Stability 大幅下降（接近重置）**And** next_review_at 设为近期（1-2 天内）**And** Difficulty 上升
+
+5. **Given** FSRSManager 不可用（导入失败）**When** 系统尝试 FSRS 更新 **Then** 降级为仅 BKT 更新（不中断流程）**And** 日志记录降级事件 **And** frontmatter fsrs_* 字段保持上一次值不变
+
+6. **Given** `update_fsrs` 被调用但缺少上一步（score_answer）的 pipeline_token **When** 后端验证 token **Then** 返回 PIPELINE_TOKEN_INVALID 拒绝执行（AR8）
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 集成 FSRS v5 算法库 (AC: #1, #2, #3)
-  - [ ] 1.1 安装 `fsrs` Python 库（`pip install fsrs`），版本锁定到 `fsrs>=1.0.0`
-  - [ ] 1.2 在 `backend/app/services/mastery_service.py` 实现 `fsrs_update(fsrs_params: FSRSParams, rating: int) -> FSRSParams`
-  - [ ] 1.3 rating 映射：correct=3(Good), partial=2(Hard), incorrect=1(Again)（与 BKT Story 5.1 对齐）
-  - [ ] 1.4 实现 `calculate_due_date(stability: float, request_retention: float = 0.9) -> date`
-  - [ ] 1.5 REQUEST_RETENTION 可通过 `backend/app/core/config.py` 中 `FSRS_REQUEST_RETENTION` 配置
+- [ ] Task 1: 实现 update_fsrs MCP 工具端点 (AC: #1, #6)
+  - [ ] 在 `backend/app/mcp/tools/mastery_tools.py` 创建 `update_fsrs` 工具函数
+  - [ ] 定义 `UpdateFsrsInput`（node_id, session_id, answer_quality, pipeline_token）和 `UpdateFsrsOutput` Pydantic schema
+  - [ ] 调用 `MasteryEngine._fsrs_update()` 执行 FSRS DSR 计算
+  - [ ] 验证 pipeline_token（score_answer → update_fsrs 合法转移）
+  - [ ] 返回 updated DSR + next_review_at + 新 pipeline_token
 
-- [ ] Task 2: FSRSParams Pydantic 模型 (AC: #1, #2)
-  - [ ] 2.1 在 `backend/app/schemas/mastery.py` 定义 `FSRSParams`：`difficulty: float, stability: float, retrievability: float, due_date: Optional[date], last_review: Optional[date], review_count: int`
-  - [ ] 2.2 初始值常量：`FSRS_INITIAL_PARAMS = FSRSParams(difficulty=5.0, stability=1.0, retrievability=1.0, due_date=None, last_review=None, review_count=0)`
-  - [ ] 2.3 first-review 逻辑：`review_count == 0` 时 interval=1（固定 1 天），跳过 stability 公式
+- [ ] Task 2: 实现 frontmatter 写回 (AC: #2)
+  - [ ] 创建 `write_fsrs_to_frontmatter(node_id, difficulty, stability, retrievability, next_review_at, timestamp)` 函数
+  - [ ] 使用原子写入模式（写临时文件 → rename）
+  - [ ] 单个写操作更新所有 5 个 fsrs_* 字段 + mastery_updated_at
+  - [ ] 单元测试：写入后读回验证所有字段值正确
 
-- [ ] Task 3: 读写 frontmatter fsrs_params (AC: #1, #4)
-  - [ ] 3.1 扩展 `backend/app/services/frontmatter_service.py`：`read_fsrs_params(note_path: str) -> FSRSParams`
-  - [ ] 3.2 实现 `write_fsrs_params(note_path: str, fsrs_params: FSRSParams) -> None`（原子写入，同 Story 5.1 机制）
-  - [ ] 3.3 frontmatter 缺失 fsrs_params 时注入 FSRS_INITIAL_PARAMS 默认值
-  - [ ] 3.4 due_date 序列化为 ISO 8601 字符串（`"2026-04-15"`）存入 frontmatter
+- [ ] Task 3: 自适应间隔验证 (AC: #3, #4)
+  - [ ] 单元测试：连续 grade=4 后 stability 递增、next_review_at 间隔递增
+  - [ ] 单元测试：grade=1 后 stability 大幅下降、next_review_at 近期
+  - [ ] 单元测试：difficulty 随 grade 变化正确调整
 
-- [ ] Task 4: API 端点 (AC: #1, #3)
-  - [ ] 4.1 在 `backend/app/api/v1/endpoints/mastery.py` 创建 `POST /api/v1/mastery/fsrs-update` 端点
-  - [ ] 4.2 请求体：`NoteId, rating: Literal[1, 2, 3, 4]`（1=Again, 2=Hard, 3=Good, 4=Easy）
-  - [ ] 4.3 响应体：`fsrs_params: FSRSParams, due_date: date, interval_days: int`
-  - [ ] 4.4 同时更新 frontmatter 中的 `last_reviewed` 字段为当天日期
+- [ ] Task 4: FSRS 不可用降级 (AC: #5)
+  - [ ] 验证 `FSRS_ENGINE_AVAILABLE` 标志位已存在于 mastery_engine.py
+  - [ ] 在 update_fsrs MCP 工具中检查 FSRS 可用性，不可用时返回降级响应
+  - [ ] 降级时 status="degraded"，message 说明原因
+  - [ ] 单元测试：mock FSRS_ENGINE_AVAILABLE=False 时降级路径正确
 
-- [ ] Task 5: 编写测试 (AC: #1, #2, #3, #4)
-  - [ ] 5.1 `tests/unit/test_fsrs_algorithm.py`：验证 FSRS 公式对四种 rating 的数值输出（基准值与 fsrs 官方测试向量对齐）
-  - [ ] 5.2 `tests/unit/test_fsrs_first_review.py`：验证第一次评分 interval=1 固定规则
-  - [ ] 5.3 `tests/unit/test_fsrs_due_date.py`：验证 due_date 计算（stability=7.0, retention=0.9 → interval≈7天）
-  - [ ] 5.4 `tests/integration/test_mastery_fsrs_update.py`：端到端 POST 请求验证 frontmatter 更新
+- [ ] Task 5: MCP server 注册 + 集成测试 (AC: #1, #2)
+  - [ ] 在 `backend/app/mcp/server.py` 注册 update_fsrs 路由
+  - [ ] 集成测试：score_answer → update_fsrs 完整 token 链
+  - [ ] 集成测试：frontmatter 写回后 Dataview 可查询 next_review_at
 
 ## Dev Notes
 
-- **FSRS v5 算法**：来自 Jarrett Ye (L-M-Sheep) 的 FSRS-5 论文，PyPI 包 `fsrs` 是官方 Python 实现
-- **间隔公式**：I(r, S) = S * (r^(1/c) - 1)，其中 c 由 REQUEST_RETENTION 决定。简化版：interval = S * ln(REQUEST_RETENTION) / ln(0.9)
-- **stability vs retrievability**：stability 是长期记忆强度（天），retrievability = e^(-t/S) 是当前记忆可提取概率
-- **fsrs 库版本**：截至 2026-04，fsrs 包最新为 v1.x，API 为 `fsrs.FSRS().next_card(card, rating)`
-- **与 BKT 并行**：FSRS 和 BKT 是独立计算，都在 Story 5.3 中融合。两个更新可以在同一个 API 调用中串联执行
+### Architecture
+- FSRS 是 Ye et al. (2024) 的开源间隔复习调度器，19 参数神经网络模型
+- DSR 三元组：Difficulty（概念对该学生的难度）、Stability（记忆半衰期/天）、Retrievability（当前即时检索概率，随时间衰减）
+- 现有 `FSRSManager` 在 `backend/lib/memory/temporal/fsrs_manager.py` 已封装 FSRS 核心算法
+- `MasteryEngine._fsrs_update()` 已实现 FSRS Card/State 更新逻辑
+- 本 Story 的核心工作是 MCP 工具包装 + frontmatter 写回 + 自适应验证
 
-### Project Structure Notes
+### File Paths
+- FSRS 管理器：`backend/lib/memory/temporal/fsrs_manager.py`
+- FSRS 更新逻辑：`backend/app/services/mastery_engine.py` (MasteryEngine._fsrs_update)
+- ConceptState FSRS 字段：`backend/app/models/mastery_state.py` (fsrs_stability, fsrs_difficulty, fsrs_state, line 86-88)
+- Pipeline token：`backend/app/mcp/pipeline_token.py` (PIPELINE_STEPS: score_answer → update_fsrs)
+- MCP 工具目录：`backend/app/mcp/tools/`
+- frontmatter schema：anchor PRD §1.5 (line 632-648)
 
-- 核心服务：`backend/app/services/mastery_service.py`（与 Story 5.1 共享同一文件）
-- Pydantic 模型：`backend/app/schemas/mastery.py`（与 Story 5.1 共享）
-- API 端点：`backend/app/api/v1/endpoints/mastery.py`（与 Story 5.1 共享文件，新增端点）
-- 配置项：`backend/app/core/config.py`（添加 FSRS_REQUEST_RETENTION=0.9）
-- 参考样式：`backend/app/services/rag_service.py`
+### Testing
+- 单元测试覆盖：DSR 计算正确性、自适应间隔特性、降级路径
+- 集成测试覆盖：MCP token 链（score_answer → update_fsrs）、frontmatter 写回
+- 属性测试：任意 grade 序列后 stability 始终 >= 0、next_review_at 始终在未来
 
 ### References
-
-- [Source: _bmad-output/planning-artifacts/epics.md#Story-5.2] — AC 和 FR 映射
-- [Source: _bmad-output/planning-artifacts/prd.md#FR20] — FSRS 复习间隔需求
-- [Source: docs/_meta/FRONTMATTER-SPEC.md] — fsrs_params 字段定义
-- [Algorithm: FSRS-5 Paper] — https://github.com/open-spaced-repetition/fsrs5
+- **From PRD**: §1.5 BKT+FSRS+5 信号融合 (line 599-681)
+- Ye et al. (2024): Free Spaced Repetition Scheduler, open-source
+- `backend/app/mcp/pipeline_token.py`: PIPELINE_STEPS 定义 score_answer → [update_fsrs, update_bkt]
 
 ## UAT Script
 
-> Non-technical user validation: no code terminology, only describe what to click and what to see.
-
-1. **验证复习日期自动设置** (AC: #1)
-   - 完成某概念的一次考察并给出评分
-   - 打开该概念笔记，frontmatter 中应有 `due_date` 字段，显示一个未来日期
-   - 如果 `due_date` 是今天或过去的日期，记录 Story 5.2
-
-2. **验证全新概念第一次复习间隔为 1 天** (AC: #2)
-   - 对一个从未考察过的概念完成第一次考察
-   - 打开笔记，`due_date` 应该是明天的日期
-   - 如果 `due_date` 是一周后或更远，记录 Story 5.2
-
-3. **验证多次练习后间隔延长** (AC: #3)
-   - 对同一概念连续答对 3 次（每次都给"答对"评分）
-   - 比较每次考察后的 `due_date`：第 1 次→1天后，第 2 次→几天后，第 3 次→更长
-   - 如果间隔没有递增，记录 Story 5.2 和每次的 due_date
-
-4. **验证答错后间隔缩短** (AC: #3)
-   - 找一个已有较长间隔（due_date 在很远将来）的熟练概念
-   - 故意答错一次，再查看 due_date
-   - due_date 应该比之前近了（间隔缩短）
-   - 如果 due_date 没有变近，记录 Story 5.2
+> 1. 完成一道考察题（grade 3），确认 frontmatter 出现 fsrs_stability 和 fsrs_next_review_at
+> 2. 连续答对 3 道题（grade 4），观察 fsrs_stability 持续增长
+> 3. 确认 fsrs_next_review_at 间隔越来越远（如从 3 天 → 7 天 → 14 天）
+> 4. 故意答错 1 道题（grade 1），确认 fsrs_stability 大幅下降
+> 5. 确认 fsrs_next_review_at 回到近期（1-2 天内）
+> 6. 用 Dataview 查询 `WHERE fsrs_next_review_at <= date(today)` 确认可检索到需复习的概念
 
 ## Automated Checkpoints
 
 | Checkpoint | Type | Command | Pass Signal |
 |---|---|---|---|
-| CP-5.2.1 | pytest | `.venv/bin/pytest tests/unit/test_fsrs_algorithm.py -x -q` | 0 failed |
-| CP-5.2.2 | pytest | `.venv/bin/pytest tests/unit/test_fsrs_first_review.py -x -q` | 0 failed |
-| CP-5.2.3 | pytest | `.venv/bin/pytest tests/unit/test_fsrs_due_date.py -x -q` | 0 failed |
-| CP-5.2.4 | pytest | `.venv/bin/pytest tests/integration/test_mastery_fsrs_update.py -x -q` | 0 failed |
+| FSRS DSR 计算 | unit | `pytest tests/unit/test_fsrs_update.py -x` | 0 failures |
+| 自适应间隔 | unit | `pytest tests/unit/test_fsrs_adaptive.py -x` | 0 failures |
+| FSRS 降级 | unit | `pytest tests/unit/test_fsrs_degradation.py -x` | 0 failures |
+| Pipeline token 链 | unit | `pytest tests/unit/test_pipeline_token_fsrs.py -x` | 0 failures |
+| MCP → frontmatter | integration | `pytest tests/integration/test_fsrs_mcp_chain.py -x` | 0 failures |
 
 ## User Feedback & Changes
 
 ### Feedback Log
-
-<!-- Users write BMAD-ANNO callouts below. Claude scans and dispatches by intent. -->
+(to be filled during/after implementation)
 
 ### Deviation Notes
-
-<!-- Claude auto-fills: summary of historically processed feedback -->
+(to be filled if implementation deviates from spec)
 
 ## Dev Agent Record
 
 ### Agent Model Used
-
 (to be filled by Dev agent)
 
 ### Debug Log References
+(to be filled by Dev agent)
 
 ### Completion Notes List
+(to be filled by Dev agent)
 
 ### File List
-
-## Relations
-
-- EPIC: [[EPIC-5]]
-- PRD: [[PRD14]]
+(to be filled by Dev agent)

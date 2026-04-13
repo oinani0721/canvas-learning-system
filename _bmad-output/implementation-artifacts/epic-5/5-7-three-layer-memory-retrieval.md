@@ -1,172 +1,147 @@
 ---
-doc_type: story
 story_id: "5.7"
-aliases: ["5.7"]
-epic_id: "EPIC-5"
-prd_id: "PRD14"
-status: ready-for-dev
+epic_id: "5"
+prd_id: "canvas-learning-system"
+status: "ready-for-dev"
 priority: "P0"
 estimate_hours: 8
-depends_on: []
-blocks: []
+depends_on: ["5.5"]
+blocks: ["7.3"]
 trace:
-  decisions: []
-  bugs: []
+  - "FR-MEM-04"
 ---
-# Story 5.7: 历史记忆 3 层检索
+
+# Story 5.7: 3 层记忆检索
+
+Status: ready-for-dev
 
 ## Story
-
 As a 系统,
-I want 通过 3 层检索搜索学习者的历史记忆,
-so that 系统可以准确找到相关的历史学习数据。
+I want 通过 3 层优先级检索找到学习者的历史记忆（知识图谱 → 图数据库 → 缓存）,
+So that AI 对话和出题有个人化的上下文，且搜索延迟 < 3 秒。
 
 ## Acceptance Criteria
 
-1. **Given** 系统需要查询学习者关于某概念的历史记忆
-   **When** 执行 3 层检索
-   **Then** 第 1 层：frontmatter 本地数据（最快，< 100ms）
-   **And** 第 2 层：LanceDB 向量检索（语义相关，< 500ms）
-   **And** 第 3 层：Graphiti 知识图谱检索（关系推理，< 3s，NFR-PERF-7）
-   **And** 三层结果融合去重后返回
+1. **Given** 需要检索学习者历史记忆 **When** 调用 `search_memories` MCP 工具 **Then** 按 3 层优先级顺序检索：Layer 1 Graphiti 知识图谱（语义搜索，最丰富）→ Layer 2 Neo4j 图数据库（结构化查询，次丰富）→ Layer 3 TTLCache 内存缓存（最快，有限数据）
 
-2. **Given** Graphiti 不可用
-   **When** 系统执行 3 层检索
-   **Then** 退回到前 2 层（frontmatter + LanceDB），不报错（NFR-DEG-3）
-   **And** 响应体中包含 `degraded: true` 标记
-   **And** 整体延迟保持在 < 600ms
+2. **Given** Layer 1 Graphiti 返回结果 **When** 结果数量 >= 请求数量 **Then** 直接返回 Graphiti 结果（不查 Layer 2/3）**And** 结果包含 `source: "graphiti"` 标记
 
-3. **Given** 历史记忆有时间维度
-   **When** 记忆超过 6 个月
-   **Then** 自动归档到 Cold 层（AR2 Hot-Warm-Cold 三层时间归档）
-   **And** Cold 层记忆仍可检索但排序权重降低
-   **And** Hot 层（< 1 个月）和 Warm 层（1-6 个月）保持完整权重
+3. **Given** Layer 1 Graphiti 返回结果不足或超时 **When** 降级到 Layer 2 **Then** 用 Neo4j Cypher 查询补充结果 **And** 结果包含 `source: "neo4j"` 标记 **And** 如果 Layer 2 也不足，继续降级到 Layer 3 缓存
 
-4. **Given** 三层返回不同粒度的结果（frontmatter=结构化数据, LanceDB=向量块, Graphiti=图节点）
-   **When** 执行结果融合
-   **Then** 按统一的 `MemoryItem` 结构返回（含 source, relevance_score, content, timestamp）
-   **And** 同一概念在多层出现时合并为单条（按 note_id 去重）
+4. **Given** Graphiti 服务完全不可用（连接失败/超时 > 3s）**When** 系统检索记忆 **Then** 降级到 Neo4j + 缓存（跳过 Graphiti）**And** 返回 `degraded: true` 标记 **And** 日志记录降级原因 **And** 如果 Neo4j 也不可用，返回默认先验值（NFR-DEG）
+
+5. **Given** 任何层级的检索 **When** 总延迟超过 3 秒 **Then** 立即返回已获得的结果（不等待慢层完成）**And** 结果中标注 `truncated: true` 和 `latency_ms` **And** 慢层结果异步缓存到 Layer 3 供后续使用（NFR-PERF）
+
+6. **Given** 检索成功返回结果 **When** 结果包含学习历史 **Then** 返回结构化数据：`{memories: [{concept, event_type, timestamp, content, source}], total_count, query_latency_ms, degraded, layers_queried}`
+
+7. **Given** 全部 3 层都无数据（新用户或新概念）**When** 系统检索 **Then** 返回空列表 `memories: []` **And** `degraded: false`（非降级，是正常的无数据状态）**And** 下游系统使用默认先验值（BKT P_L0=0.30）
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: MemoryItem 统一数据模型 (AC: #4)
-  - [ ] 1.1 在 `backend/app/schemas/memory.py` 定义 `MemorySource` enum：`FRONTMATTER`, `LANCEDB`, `GRAPHITI`
-  - [ ] 1.2 定义 `MemoryLayer` enum：`HOT`, `WARM`, `COLD`（按时间）
-  - [ ] 1.3 定义 `MemoryItem` Pydantic 模型：`note_id: str, source: MemorySource, layer: MemoryLayer, relevance_score: float, content: str, mastery_score: Optional[float], error_summary: Optional[str], timestamp: datetime`
-  - [ ] 1.4 时间到层映射：`< 30 天 = HOT`，`30-180 天 = WARM`，`> 180 天 = COLD`
+- [ ] Task 1: 实现 3 层检索调度器 (AC: #1, #2, #3)
+  - [ ] 创建 `ThreeLayerRetriever` 类（或扩展现有 MemoryService）
+  - [ ] Layer 1：调用 Graphiti `search_memory_facts` / `search_nodes`
+  - [ ] Layer 2：调用 Neo4j Cypher 查询（learning episodes by node_id）
+  - [ ] Layer 3：查询 `TTLCache`（cachetools，30s TTL，已在 memory_service.py 中使用）
+  - [ ] 逐层降级逻辑：结果够则短路，不够则继续查下一层
+  - [ ] 单元测试：每层独立测试 + 降级路径测试
 
-- [ ] Task 2: 第 1 层 frontmatter 检索 (AC: #1, #4)
-  - [ ] 2.1 在 `backend/app/services/memory_retrieval_service.py` 实现 `search_frontmatter_layer(query_note_id: str) -> list[MemoryItem]`
-  - [ ] 2.2 直接读取笔记 frontmatter，提取：mastery_score, bkt_params, error_history(最近 3 条), calibration_bias, last_reviewed
-  - [ ] 2.3 如果 frontmatter 中有 `error_history`，提取最新错误分类的摘要文本
-  - [ ] 2.4 性能要求：< 100ms（本地文件读取，无网络调用）
+- [ ] Task 2: 实现 Graphiti 不可用降级 (AC: #4)
+  - [ ] Graphiti 连接失败时自动跳过 Layer 1
+  - [ ] 超时保护：Graphiti 查询限制 2s（给 Neo4j + 缓存留 1s）
+  - [ ] 降级到默认先验值的最终兜底
+  - [ ] 单元测试：mock Graphiti ConnectionError → 降级到 Neo4j
 
-- [ ] Task 3: 第 2 层 LanceDB 向量检索 (AC: #1, #4)
-  - [ ] 3.1 在 `backend/app/services/memory_retrieval_service.py` 实现 `search_lancedb_layer(query: str, top_k: int = 5) -> list[MemoryItem]`
-  - [ ] 3.2 使用已有 `backend/app/services/rag_service.py` 中的 LanceDB 客户端（不新建连接）
-  - [ ] 3.3 查询向量从 query 字符串生成（调用已有的 embedding 服务）
-  - [ ] 3.4 返回结果包含 cosine similarity 作为 relevance_score
-  - [ ] 3.5 性能要求：< 500ms
+- [ ] Task 3: 实现 3s 超时截断 (AC: #5)
+  - [ ] 使用 `asyncio.wait_for` 对每层查询设置超时
+  - [ ] Layer 1: 2000ms，Layer 2: 800ms，Layer 3: 200ms（总计 3000ms 预算）
+  - [ ] 超时时返回已获得的部分结果
+  - [ ] 慢层结果异步回填到 Layer 3 缓存
+  - [ ] 单元测试：mock 慢查询 → 截断返回
 
-- [ ] Task 4: 第 3 层 Graphiti 知识图谱检索 (AC: #1, #2, #4)
-  - [ ] 4.1 在 `backend/app/services/memory_retrieval_service.py` 实现 `search_graphiti_layer(query: str, group_id: str) -> list[MemoryItem]`
-  - [ ] 4.2 调用 `graphiti_service.search_memory_facts(query, group_id)` 获取相关 episodes 和 facts
-  - [ ] 4.3 Graphiti 不可用时捕获异常，返回空列表 + 设置降级标志（不向上抛出）
-  - [ ] 4.4 性能要求：< 3s（NFR-PERF-7），超时后自动截断并返回已有结果
+- [ ] Task 4: 实现结果结构化 + source 标记 (AC: #2, #3, #6, #7)
+  - [ ] 统一返回格式：`SearchMemoriesOutput` Pydantic model
+  - [ ] 每条 memory 标注 source（graphiti/neo4j/cache）
+  - [ ] 返回元数据：total_count, query_latency_ms, degraded, layers_queried
+  - [ ] 空结果（新用户）返回 `memories: [], degraded: false`
+  - [ ] 单元测试：各场景的返回格式验证
 
-- [ ] Task 5: 三层融合去重 (AC: #1, #3, #4)
-  - [ ] 5.1 实现 `merge_memory_layers(layer1: list[MemoryItem], layer2: list[MemoryItem], layer3: list[MemoryItem]) -> list[MemoryItem]`
-  - [ ] 5.2 按 note_id 去重：同一 note_id 的多层结果合并，relevance_score 取最高值
-  - [ ] 5.3 时间归档权重：`HOT * 1.0, WARM * 0.8, COLD * 0.5`（乘到 relevance_score）
-  - [ ] 5.4 最终结果按 relevance_score 降序排列，返回 top_k（默认 10）
-
-- [ ] Task 6: 3 层检索统一接口 (AC: #1, #2)
-  - [ ] 6.1 实现 `three_layer_search(query: str, note_id: Optional[str], group_id: str) -> ThreeLayerSearchResult`
-  - [ ] 6.2 `ThreeLayerSearchResult` 包含：`items: list[MemoryItem], degraded: bool, layer_latencies: dict[str, float]`
-  - [ ] 6.3 三层并发执行（`asyncio.gather`），Graphiti 层设置 3s 超时
-  - [ ] 6.4 创建 `GET /api/v1/mastery/memory-search` 端点，query params：`q: str, note_id: Optional[str]`
-
-- [ ] Task 7: 编写测试 (AC: #1, #2, #3, #4)
-  - [ ] 7.1 `tests/unit/test_memory_layer_search.py`：单独验证每层的检索逻辑
-  - [ ] 7.2 `tests/unit/test_memory_fusion.py`：验证去重合并和时间归档权重
-  - [ ] 7.3 `tests/unit/test_graphiti_degradation.py`：验证 Graphiti 不可用时降级到 2 层
-  - [ ] 7.4 `tests/integration/test_three_layer_search_endpoint.py`：端到端验证搜索 API（含降级场景）
+- [ ] Task 5: MCP 工具更新 + 集成测试 (AC: #1-#7)
+  - [ ] 更新 `search_memories` MCP 工具调用 `ThreeLayerRetriever`
+  - [ ] 验证 `backend/app/mcp/server.py` 路由已注册
+  - [ ] 集成测试：全 3 层可用场景
+  - [ ] 集成测试：Graphiti 不可用降级场景
+  - [ ] 性能测试：100 次查询的 p95 延迟 < 3s
 
 ## Dev Notes
 
-- **3 层架构依据**：参考 Retrieval-Augmented Generation (RAG) 多源融合论文（Lewis et al., 2020）+ Graphiti 知识图谱检索（AR2 Hot-Warm-Cold）
-- **并发执行**：使用 `asyncio.gather(l1_task, l2_task, l3_task, return_exceptions=True)` 三层同时发起，避免串行等待
-- **Graphiti 超时**：3s 是 NFR-PERF-7 定义的上限，超时不报错（降级处理）
-- **LanceDB 客户端复用**：`rag_service.py` 中已有 LanceDB 连接池，直接注入依赖，不新建实例
-- **Cold 层权重 0.5**：降低但不忽略 Cold 层，6 个月前的深度错误仍有参考价值
-- **去重策略**：同 note_id 合并时保留来自多层的 content 摘要（用 `|` 分隔），便于下游使用
+### Architecture
+- 3 层检索架构是 FR-MEM-04 的核心实现，NFR-PERF 要求 < 3s，NFR-DEG 要求 Graphiti 不可用时降级
+- Layer 1 Graphiti 是最丰富的（语义搜索 + 知识图谱关系），但延迟最高
+- Layer 2 Neo4j 是结构化查询（精确但无语义），中等延迟
+- Layer 3 TTLCache 是内存缓存（最快但数据最旧），30s TTL
+- 现有 `MemoryService`（memory_service.py）已有 Neo4j 查询和 TTLCache，需要新增 Graphiti 层和调度逻辑
+- 超时预算分配：2000ms Graphiti + 800ms Neo4j + 200ms Cache = 3000ms 总预算
 
-### Project Structure Notes
+### File Paths
+- 记忆服务：`backend/app/services/memory_service.py` (MemoryService)
+- MCP 工具：`backend/app/mcp/tools/memory_tools.py` (search_memories, line 157-241)
+- SearchMemoriesInput/Output：`backend/app/mcp/tools/memory_tools.py` (line 26-58)
+- Neo4j 客户端：`backend/app/clients/neo4j_client.py`
+- TTLCache：`backend/app/services/memory_service.py` (SCORE_HISTORY_CACHE_TTL, line 64)
+- Graphiti entity types：`backend/app/graphiti/entity_types.py`
 
-- 检索服务：`backend/app/services/memory_retrieval_service.py`（新建）
-- 复用：`backend/app/services/rag_service.py`（LanceDB 客户端）
-- 复用：`backend/app/services/graphiti_service.py`（Graphiti 检索）
-- Pydantic 模型：`backend/app/schemas/memory.py`（新建）
-- API 端点：`backend/app/api/v1/endpoints/mastery.py`（新增 /memory-search）
+### Testing
+- 单元测试：各层独立检索、降级路径、超时截断、结果格式化
+- 集成测试：3 层级联、Graphiti 不可用降级
+- 性能测试：p95 延迟 < 3s
+- 边界测试：空结果、单层可用、全部不可用
 
 ### References
-
-- [Source: _bmad-output/planning-artifacts/epics.md#Story-5.7] — AC 和 FR 映射
-- [Source: _bmad-output/planning-artifacts/prd.md#FR26] — 历史记忆检索需求
-- [Source: _bmad-output/planning-artifacts/prd.md#AR2] — Hot-Warm-Cold 三层时间归档
-- [Source: backend/app/services/rag_service.py] — LanceDB 连接参考
+- **From PRD**: FR-MEM-04 3 层检索
+- **From PRD**: NFR-PERF 搜索 < 3s
+- **From PRD**: NFR-DEG Graphiti 不可用降级
+- `backend/app/services/memory_service.py`: 现有 Neo4j 查询 + TTLCache 实现
 
 ## UAT Script
 
-> Non-technical user validation: no code terminology, only describe what to click and what to see.
-
-1. **验证检索到历史学习记录** (AC: #1)
-   - 对某个已经考察过多次的概念，开始新的对话
-   - 查看 AI 是否在对话中提到了你之前的学习历史（例如"你上次在这个概念上遇到过..."）
-   - 如果 AI 完全不了解你的历史，记录 Story 5.7
-
-2. **验证 Graphiti 不可用时系统不崩溃** (AC: #2)
-   - 临时关闭 Neo4j（停止 Docker neo4j 服务）
-   - 进行一次学习会话和概念检索
-   - 系统应该继续工作（可能速度稍慢），不出现红色错误界面
-   - 如果出现系统崩溃或无法继续，记录 Story 5.7
-
-3. **验证旧记忆（6 个月以上）仍可检索但权重较低** (AC: #3)
-   - 这项测试需要有超过 6 个月的历史数据（或开发者手动调整时间戳测试）
-   - 系统应该能检索到旧记忆，但相同查询时新记忆排在旧记忆前面
+> 1. 完成若干考察题产生学习历史数据
+> 2. 调用 search_memories 查询某概念的历史记忆
+> 3. 确认返回结果包含 memories 数组和 source 标记
+> 4. 确认 query_latency_ms < 3000
+> 5. 停止 Graphiti 服务
+> 6. 再次查询，确认返回 degraded: true 但仍有 Neo4j 层的结果
+> 7. 在新概念上查询，确认返回 memories: [] 空列表
 
 ## Automated Checkpoints
 
 | Checkpoint | Type | Command | Pass Signal |
 |---|---|---|---|
-| CP-5.7.1 | pytest | `.venv/bin/pytest tests/unit/test_memory_layer_search.py -x -q` | 0 failed |
-| CP-5.7.2 | pytest | `.venv/bin/pytest tests/unit/test_memory_fusion.py -x -q` | 0 failed |
-| CP-5.7.3 | pytest | `.venv/bin/pytest tests/unit/test_graphiti_degradation.py -x -q` | 0 failed |
-| CP-5.7.4 | pytest | `.venv/bin/pytest tests/integration/test_three_layer_search_endpoint.py -x -q` | 0 failed |
+| 3 层检索调度 | unit | `pytest tests/unit/test_three_layer_retrieval.py -x` | 0 failures |
+| Graphiti 降级 | unit | `pytest tests/unit/test_memory_degradation.py -x` | 0 failures |
+| 3s 超时截断 | unit | `pytest tests/unit/test_memory_timeout.py -x` | 0 failures |
+| 结果格式化 | unit | `pytest tests/unit/test_memory_output_format.py -x` | 0 failures |
+| 3 层集成 | integration | `pytest tests/integration/test_three_layer_memory.py -x` | 0 failures |
+| 性能 p95<3s | performance | `pytest tests/performance/test_memory_latency.py -x` | p95 < 3000ms |
 
 ## User Feedback & Changes
 
 ### Feedback Log
-
-<!-- Users write BMAD-ANNO callouts below. Claude scans and dispatches by intent. -->
+(to be filled during/after implementation)
 
 ### Deviation Notes
-
-<!-- Claude auto-fills: summary of historically processed feedback -->
+(to be filled if implementation deviates from spec)
 
 ## Dev Agent Record
 
 ### Agent Model Used
-
 (to be filled by Dev agent)
 
 ### Debug Log References
+(to be filled by Dev agent)
 
 ### Completion Notes List
+(to be filled by Dev agent)
 
 ### File List
-
-## Relations
-
-- EPIC: [[EPIC-5]]
-- PRD: [[PRD14]]
+(to be filled by Dev agent)

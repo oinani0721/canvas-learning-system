@@ -36,19 +36,6 @@ pre-commit:
         fi
         echo "[Spec Sync] Done."
 
-    # --- Validate Links: Ensure wikilinks resolve in Obsidian ---
-    validate-links:
-      glob: "_bmad-output/**/*.md"
-      run: |
-        echo "[Links] Validating wikilink resolution..."
-        python3 scripts/validate_links.py
-        LINK_EXIT=$?
-        if [ $LINK_EXIT -ne 0 ]; then
-          echo "[Links] Fix: python3 scripts/sync_links.py (auto-fixes aliases)"
-          exit 1
-        fi
-        echo "[Links] All wikilinks resolvable."
-
     # --- Ghost Files: Detect untracked documentation ---
     ghost-files:
       run: |

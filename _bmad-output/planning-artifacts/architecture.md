@@ -8,7 +8,7 @@ updateReason: 'Frontend migration: Obsidian+Svelte → Tauri+React+ReactFlow (DE
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
-  - _bmad-output/planning-artifacts/prd-backend-retrieval-pipeline.md
+  - _bmad-archive/stale-planning/prd-backend-retrieval-pipeline.md
 workflowType: 'architecture'
 project_name: 'Canvas'
 user_name: 'ROG'

@@ -2,10 +2,10 @@
 active_plan: "BMAD-V6-WORKFLOW-ENHANCE"
 active_plan_file: ""
 prd_sections: []
-current_step: "Phase 2 — customize.yaml + hook wiring"
+current_step: "BMAD-V6-WORKFLOW-ENHANCE 全部 5 步完成（第二轮批注回应 + FSRS 后端驱动）"
 plan_kind: "bmad-implementation"
-active_phase: "workflow-enhance-phase-2"
-last_updated: "2026-04-11T12:00:00Z"
+active_phase: "workflow-enhance-done"
+last_updated: "2026-04-13T12:00:00Z"
 commit_rule: "代码 commit 必须包含 PLAN-NNN 或 FR-XXX-NN"
 ---
 

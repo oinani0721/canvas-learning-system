@@ -49,7 +49,7 @@ def extract_frontmatter(content: str) -> dict | None:
         return None
 
 
-def find_files(directory: Path, pattern: str = "**/*.md") -> list[Path]:
+def find_files(directory: Path, pattern: str = "*.md") -> list[Path]:
     if not directory.exists():
         return []
     return sorted(directory.glob(pattern))
@@ -94,65 +94,6 @@ def build_epic_index() -> dict[str, Path]:
     return index
 
 
-EPIC_TEMPLATE = """\
----
-doc_type: epic
-epic_id: "{eid}"
-prd_id: "PRD14"
-child_stories: []
-status: backlog
----
-
-# {eid}
-
-(Auto-created by sync_links.py — fill in description from epics.md)
-"""
-
-
-def ensure_aliases(story_index: dict[str, dict]) -> int:
-    """Ensure every story file has aliases: [story_id] in frontmatter."""
-    fixed = 0
-    for sid, data in story_index.items():
-        path: Path = data["path"]
-        content = path.read_text(encoding="utf-8")
-        fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
-        if not fm_match:
-            continue
-        fm_text = fm_match.group(1)
-        fm = yaml.safe_load(fm_text) or {}
-        aliases = fm.get("aliases", []) or []
-        if str(sid) in [str(a) for a in aliases]:
-            continue
-        sid_line = re.search(r'^(story_id:\s*".*")\s*$', fm_text, re.MULTILINE)
-        if not sid_line:
-            continue
-        pos = sid_line.end()
-        new_fm = fm_text[:pos] + f'\naliases: ["{sid}"]' + fm_text[pos:]
-        new_content = f"---\n{new_fm}\n---\n" + content[fm_match.end():]
-        path.write_text(new_content, encoding="utf-8")
-        fixed += 1
-    return fixed
-
-
-def create_missing_epics(
-    story_index: dict, epic_index: dict[str, Path]
-) -> list[str]:
-    """Create EPIC-N.md files for any epic_id referenced by stories but missing."""
-    needed: set[str] = set()
-    for data in story_index.values():
-        eid = data.get("epic_id", "")
-        if eid and eid not in epic_index:
-            needed.add(eid)
-    created: list[str] = []
-    epic_dir = EPIC_DIR_CANDIDATES[0]
-    for eid in sorted(needed):
-        epic_path = epic_dir / f"{eid}.md"
-        epic_path.write_text(EPIC_TEMPLATE.format(eid=eid), encoding="utf-8")
-        epic_index[eid] = epic_path
-        created.append(eid)
-    return created
-
-
 def build_reverse_index(story_index: dict) -> dict[str, list[str]]:
     """epic_id → [story_ids]"""
     rev: dict[str, list[str]] = defaultdict(list)
@@ -183,32 +124,6 @@ def validate(
         for blk in data.get("blocks", []):
             if str(blk) not in story_index:
                 errors.append(f"BROKEN_BLOCK: Story {sid} blocks {blk} which doesn't exist")
-
-    # Build Obsidian resolution set (stems + aliases)
-    all_stems: set[str] = set()
-    alias_set: set[str] = set()
-    for story_file in find_files(STORY_DIR):
-        all_stems.add(story_file.stem)
-        content = story_file.read_text(encoding="utf-8")
-        fm = extract_frontmatter(content)
-        if fm:
-            for alias in fm.get("aliases", []) or []:
-                alias_set.add(str(alias))
-    for epic_path in epic_index.values():
-        all_stems.add(epic_path.stem)
-    for prd_file in find_files(PRD_DIR):
-        all_stems.add(prd_file.stem)
-    resolvable = all_stems | alias_set
-
-    for sid, data in story_index.items():
-        if sid not in resolvable:
-            errors.append(
-                f"UNRESOLVABLE: [[{sid}]] has no matching file stem or alias "
-                f"(add aliases: [\"{sid}\"] to {data['path'].name})"
-            )
-        eid = data.get("epic_id", "")
-        if eid and eid not in resolvable:
-            errors.append(f"UNRESOLVABLE: [[{eid}]] has no matching file stem or alias")
 
     dep_graph: dict[str, set[str]] = {}
     for sid, data in story_index.items():
@@ -286,8 +201,7 @@ def upsert_relations(file_path: Path, new_section: str) -> bool:
 
 
 def sync(story_index: dict, epic_index: dict, reverse_index: dict) -> dict:
-    stats = {"stories_synced": 0, "epics_synced": 0, "skipped": 0, "aliases_fixed": 0}
-    stats["aliases_fixed"] = ensure_aliases(story_index)
+    stats = {"stories_synced": 0, "epics_synced": 0, "skipped": 0}
 
     for sid, data in story_index.items():
         section = generate_relations_section(sid, data)
@@ -338,12 +252,6 @@ def main() -> None:
 
     story_index = build_story_index()
     epic_index = build_epic_index()
-
-    # Auto-create missing EPIC files before validation
-    created_epics = create_missing_epics(story_index, epic_index)
-    if created_epics:
-        print(f"Created missing epic files: {', '.join(created_epics)}")
-
     reverse_index = build_reverse_index(story_index)
 
     errors = validate(story_index, epic_index)

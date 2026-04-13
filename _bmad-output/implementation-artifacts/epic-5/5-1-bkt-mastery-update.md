@@ -1,150 +1,134 @@
 ---
-doc_type: story
 story_id: "5.1"
-aliases: ["5.1"]
-epic_id: "EPIC-5"
-prd_id: "PRD14"
-status: ready-for-dev
+epic_id: "5"
+prd_id: "canvas-learning-system"
+status: "ready-for-dev"
 priority: "P0"
 estimate_hours: 8
-depends_on: []
-blocks: []
+depends_on: ["4.6"]
+blocks: ["5.2", "5.3"]
 trace:
-  decisions: []
-  bugs: []
+  - "FR-MAST-01"
 ---
-# Story 5.1: BKT 模型实时更新掌握概率
+
+# Story 5.1: BKT 掌握概率更新
+
+Status: ready-for-dev
 
 ## Story
-
 As a 系统,
 I want 使用 BKT（Bayesian Knowledge Tracing）模型实时更新每个概念的掌握概率,
-so that 系统始终拥有学习者对每个概念的最新掌握估计。
+So that 掌握度 p_mastery 反映学习者对该概念的真实水平（Corbett & Anderson 1995）。
 
 ## Acceptance Criteria
 
-1. **Given** 学习者完成一道关于概念 X 的考察题
-   **When** 评分结果产生（正确/部分正确/错误）
-   **Then** 系统用贝叶斯更新公式计算 X 的新 mastery_score
-   **And** 更新后的 mastery_score 写入 X 笔记的 frontmatter
-   **And** 更新过程原子性保证（NFR-INT-1）
+1. **Given** 考察评分完成（grade 1-4 由 Story 4.6 AutoSCORE 产生）**When** 系统调用 `update_bkt` MCP 工具 **Then** p_mastery 基于 BKT 贝叶斯后验公式更新：correct 时 `p_posterior = p_prev*(1-P_S) / (p_prev*(1-P_S) + (1-p_prev)*P_G)`，incorrect 时 `p_posterior = p_prev*P_S / (p_prev*P_S + (1-p_prev)*(1-P_G))`，之后学习转移 `p_new = p_posterior + (1-p_posterior)*P_T` **And** 结果 clamp 到 [0.001, 0.999]
 
-2. **Given** 学习者第一次考察某概念（无历史数据）
-   **When** BKT 更新触发
-   **Then** 系统使用默认先验参数（p_know=0.1, p_guess=0.25, p_slip=0.1, p_transit=0.3）初始化 bkt_params
-   **And** 贝叶斯更新在默认先验基础上正常执行
+2. **Given** 一个从未被考察过的新概念 **When** 首次调用 `update_bkt` **Then** p_mastery 初始先验为 0.30（而非 mastery_state.py 中 ConceptState 默认的 0.1）**And** 先验值来自 `DEFAULT_BKT_PARAMS[difficulty]["P_L0"]` 配置 **And** 难度默认为 "easy"（P_L0=0.30）除非 frontmatter 指定其他难度
 
-3. **Given** frontmatter 写入失败（IO 错误或文件锁定）
-   **When** 原子写入尝试失败
-   **Then** 系统回滚到前一个 mastery_score（不留中间状态）
-   **And** 记录错误日志，不向学习者显示崩溃界面
+3. **Given** BKT 更新完成 **When** 系统写回 frontmatter **Then** `bkt_p_mastery` 字段更新为新的 p_mastery 值 **And** `mastery_updated_at` 更新为当前 UTC 时间戳 **And** 写入原子性（中途失败不留半截数据）
+
+4. **Given** grade=4（Fluent）**When** BKT 更新 **Then** P_G 设为 0.0（学生流利解释时不存在猜对）**And** p_mastery 上升幅度大于 grade=3 的情况
+
+5. **Given** 高 p_mastery（>0.7）的概念答错（grade 1 或 2）**When** BKT 更新 **Then** surprise_failures 计数器 +1 **And** 该信号可被下游 5.3 融合引擎使用
+
+6. **Given** `update_bkt` 被调用但缺少上一步的 pipeline_token **When** 后端验证 token **Then** 返回 PIPELINE_TOKEN_INVALID 拒绝执行（AR8 评分链完整性，详见 Story 5.4）
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 BKT 贝叶斯更新核心算法 (AC: #1, #2)
-  - [ ] 1.1 在 `backend/app/services/mastery_service.py` 实现 `bkt_update(p_know, p_guess, p_slip, p_transit, is_correct: bool) -> float`
-  - [ ] 1.2 贝叶斯更新公式：P(Know|correct) = P(correct|Know)*P(Know) / P(correct)，其中 P(correct) = P(Know)*(1-p_slip) + (1-P(Know))*p_guess
-  - [ ] 1.3 实现负向（答错）更新：P(Know|incorrect) = P(slip)*P(Know) / P(incorrect)
-  - [ ] 1.4 实现 `transit_update(p_know_posterior) -> float`：P(Know_t+1) = P(Know_posterior) + (1-P(Know_posterior)) * p_transit
+- [ ] Task 1: 实现 update_bkt MCP 工具端点 (AC: #1, #4, #6)
+  - [ ] 在 `backend/app/mcp/tools/mastery_tools.py` 创建 `update_bkt` 工具函数
+  - [ ] 定义 `UpdateBktInput`（node_id, session_id, grade, pipeline_token）和 `UpdateBktOutput` Pydantic schema
+  - [ ] 调用 `MasteryEngine.update_on_interaction()` 执行 BKT 更新
+  - [ ] 验证 pipeline_token（调用 `PipelineTokenManager.validate_token`）
+  - [ ] grade=4 时验证 P_G=0.0 特殊路径
+  - [ ] 返回 updated p_mastery + 新 pipeline_token 供下游 FSRS 使用
 
-- [ ] Task 2: 读写 frontmatter bkt_params (AC: #1, #2)
-  - [ ] 2.1 在 `backend/app/services/frontmatter_service.py` 实现 `read_bkt_params(note_path: str) -> BKTParams` 解析 YAML frontmatter
-  - [ ] 2.2 实现 `write_mastery_score(note_path: str, score: float, bkt_params: BKTParams) -> None` 原子写（先写临时文件再 rename）
-  - [ ] 2.3 BKTParams Pydantic 模型：`p_know: float, p_guess: float, p_slip: float, p_transit: float`
-  - [ ] 2.4 frontmatter 缺失 bkt_params 时自动注入默认值（不覆盖现有字段）
+- [ ] Task 2: 实现新概念默认先验 0.30 逻辑 (AC: #2)
+  - [ ] 修改 `MasteryEngine._bkt_update` 或调用方，检测首次考察（interaction_count == 0）
+  - [ ] 首次考察时使用 `DEFAULT_BKT_PARAMS[difficulty]["P_L0"]` 作为 p_prev
+  - [ ] 默认难度为 "easy"（P_L0=0.30），可被 frontmatter `bkt_difficulty` 覆盖
+  - [ ] 单元测试：新概念首次更新后 p_mastery 基于 0.30 先验计算
 
-- [ ] Task 3: 集成评分结果触发器 (AC: #1)
-  - [ ] 3.1 在 `backend/app/api/v1/endpoints/mastery.py` 创建 `POST /api/v1/mastery/bkt-update` 端点
-  - [ ] 3.2 请求体：`NoteId, score_result: Literal["correct", "partial", "incorrect"]`
-  - [ ] 3.3 "partial" 答案映射为 0.5 概率正确（is_correct=True with weight 0.5）
-  - [ ] 3.4 响应体：`new_mastery_score: float, bkt_params: BKTParams, updated_at: datetime`
+- [ ] Task 3: 实现 frontmatter 写回 (AC: #3)
+  - [ ] 创建 `write_bkt_to_frontmatter(node_id, p_mastery, timestamp)` 函数
+  - [ ] 使用原子写入模式（写临时文件 → rename）
+  - [ ] 更新 `bkt_p_mastery` 和 `mastery_updated_at` 两个字段
+  - [ ] 单元测试：写入后读回验证字段值正确
 
-- [ ] Task 4: 原子写入保护 (AC: #3)
-  - [ ] 4.1 frontmatter 写入使用 Python `tempfile.NamedTemporaryFile` + `os.replace` 确保原子性
-  - [ ] 4.2 获取文件锁（`filelock` 库）防止并发写入冲突
-  - [ ] 4.3 写入失败时 `structlog` 记录 error 级别日志（含 note_path, previous_score, attempted_score）
-  - [ ] 4.4 写入失败返回 500 with `{"error": "mastery_write_failed", "current_score": <previous_value>}`
+- [ ] Task 4: surprise_failures 追踪 (AC: #5)
+  - [ ] 验证 `MasteryEngine.update_on_interaction` 中已有的 surprise_failures 逻辑
+  - [ ] 确保 surprise_failures 写入 ConceptState 并持久化
+  - [ ] 单元测试：p_mastery>0.7 + grade<3 时 surprise_failures 递增
 
-- [ ] Task 5: 编写测试 (AC: #1, #2, #3)
-  - [ ] 5.1 `tests/unit/test_bkt_algorithm.py`：验证贝叶斯更新公式数值正确性（正确/错误/partial 三种路径）
-  - [ ] 5.2 `tests/unit/test_frontmatter_service.py`：验证原子写入、缺失字段补全、文件锁保护
-  - [ ] 5.3 `tests/integration/test_mastery_bkt_update.py`：端到端验证 POST 请求更新 frontmatter
+- [ ] Task 5: MCP server 注册 + 集成测试 (AC: #1, #6)
+  - [ ] 在 `backend/app/mcp/server.py` 注册 update_bkt 路由
+  - [ ] 集成测试：完整调用链 MCP → MasteryEngine → frontmatter 写回
+  - [ ] 集成测试：无 pipeline_token 时拒绝
 
 ## Dev Notes
 
-- **BKT 算法来源**：Corbett & Anderson (1994) "Knowledge Tracing: Modeling the Acquisition of Procedural Knowledge"，标准四参数模型
-- **原子写入**：Python `os.replace()` 在 POSIX 系统上是原子操作（POSIX rename 语义），Windows 需 `pathlib.Path.replace`
-- **文件锁**：使用 `filelock` 库（`pip install filelock`）避免多进程同时写入同一笔记的竞态条件
-- **partial 答案**：概率权重 0.5 是保守估计；可通过配置调整（`settings.bkt.partial_correct_weight`）
-- **NFR-INT-1**：frontmatter 损坏将导致整个 Dataview/BKT 管道失效，原子写入是最高优先级保护
+### Architecture
+- BKT 是 Corbett & Anderson (1995) 的标准实现，4 参数模型：P_L0（初始先验）、P_T（学习转移）、P_G（猜对率）、P_S（失误率）
+- 现有 `MasteryEngine._bkt_update()` 已实现完整的贝叶斯后验更新，本 Story 的核心工作是将其包装为 MCP 工具 + frontmatter 写回
+- 先验 0.30 的变更：PRD §1.5 要求新概念 BKT=0.30，但 `ConceptState.p_mastery` 默认 0.1——需要区分"系统默认"和"首次考察先验"
 
-### Project Structure Notes
+### File Paths
+- BKT 核心算法：`backend/app/services/mastery_engine.py` (MasteryEngine._bkt_update, line 216-264)
+- BKT 参数：`backend/app/models/mastery_state.py` (DEFAULT_BKT_PARAMS, line 25-29)
+- ConceptState：`backend/app/models/mastery_state.py` (line 69-89)
+- Pipeline token：`backend/app/mcp/pipeline_token.py` (PipelineTokenManager)
+- MCP server：`backend/app/mcp/server.py`
+- MCP 工具目录：`backend/app/mcp/tools/`
 
-- 核心服务：`backend/app/services/mastery_service.py`（新建）
-- frontmatter 工具：`backend/app/services/frontmatter_service.py`（已存在，需扩展）
-- API 端点：`backend/app/api/v1/endpoints/mastery.py`（新建）
-- Pydantic 模型：`backend/app/schemas/mastery.py`（新建）
-- 参考样式：`backend/app/services/rag_service.py`（服务层结构）
+### Testing
+- 单元测试覆盖：贝叶斯更新公式正确性、先验 0.30、grade=4 P_G=0 特殊路径、surprise_failures
+- 集成测试覆盖：MCP 工具 → MasteryEngine → frontmatter 写回完整链路
+- 边界测试：p_mastery 极值 0.001/0.999 clamp、重复更新幂等性
 
 ### References
-
-- [Source: _bmad-output/planning-artifacts/epics.md#Story-5.1] — AC 和 FR 映射
-- [Source: _bmad-output/planning-artifacts/prd.md#FR19] — BKT 更新需求
-- [Source: docs/_meta/FRONTMATTER-SPEC.md] — mastery_score / bkt_params 字段定义
-- [Algorithm: Corbett & Anderson 1994] — BKT 四参数贝叶斯公式
+- **From PRD**: §1.5 BKT+FSRS+5 信号融合 (line 599-681)
+- Corbett & Anderson (1995): Bayesian Knowledge Tracing, UMUAI 4(4):253-278
+- `backend/app/mcp/pipeline_token.py`: PIPELINE_STEPS 定义 score_answer → update_bkt 合法转移
 
 ## UAT Script
 
-> Non-technical user validation: no code terminology, only describe what to click and what to see.
-
-1. **验证答对时掌握度上升** (AC: #1)
-   - 打开一个概念笔记（例如"递归"），记录顶部 frontmatter 中的 `mastery_score` 数值
-   - 完成该概念的一道考察题并答对
-   - 重新打开笔记，`mastery_score` 数值应该比之前更高
-   - 如果数值没有变化或变低了，记录 Story 5.1 和前后数值
-
-2. **验证答错时掌握度下降** (AC: #1)
-   - 记录某概念笔记当前 `mastery_score`
-   - 故意答错该概念的考察题
-   - 重新检查笔记，`mastery_score` 应该比之前更低
-   - 如果数值升高或不变，记录 Story 5.1
-
-3. **验证新概念自动初始化** (AC: #2)
-   - 对一个从未考察过的全新概念进行第一次考察
-   - 完成后打开该概念笔记，frontmatter 中应出现 `bkt_params` 字段（含 p_know/p_guess/p_slip/p_transit）
-   - 如果没有 bkt_params 字段，记录 Story 5.1 和概念名称
+> 1. 打开一个新的 wiki/concepts/ 笔记（从未被考察过）
+> 2. 触发考察并完成一道题（获得 grade 3）
+> 3. 检查笔记 frontmatter，确认 `bkt_p_mastery` 从默认值更新（基于 0.30 先验）
+> 4. 再做一道题获得 grade 4（Fluent）
+> 5. 确认 `bkt_p_mastery` 上升幅度明显大于 grade 3 时的上升
+> 6. 故意答错一道题（grade 1），确认 `bkt_p_mastery` 下降
+> 7. 确认 `mastery_updated_at` 每次都更新为最新时间
 
 ## Automated Checkpoints
 
 | Checkpoint | Type | Command | Pass Signal |
 |---|---|---|---|
-| CP-5.1.1 | pytest | `.venv/bin/pytest tests/unit/test_bkt_algorithm.py -x -q` | 0 failed |
-| CP-5.1.2 | pytest | `.venv/bin/pytest tests/unit/test_frontmatter_service.py -x -q` | 0 failed |
-| CP-5.1.3 | pytest | `.venv/bin/pytest tests/integration/test_mastery_bkt_update.py -x -q` | 0 failed |
+| BKT 贝叶斯更新 | unit | `pytest tests/unit/test_bkt_update.py -x` | 0 failures |
+| 先验 0.30 | unit | `pytest tests/unit/test_bkt_prior.py -x` | 0 failures |
+| Grade 4 P_G=0 | unit | `pytest tests/unit/test_bkt_fluent.py -x` | 0 failures |
+| Pipeline token 验证 | unit | `pytest tests/unit/test_pipeline_token_bkt.py -x` | 0 failures |
+| MCP → frontmatter | integration | `pytest tests/integration/test_bkt_mcp_chain.py -x` | 0 failures |
 
 ## User Feedback & Changes
 
 ### Feedback Log
-
-<!-- Users write BMAD-ANNO callouts below. Claude scans and dispatches by intent. -->
+(to be filled during/after implementation)
 
 ### Deviation Notes
-
-<!-- Claude auto-fills: summary of historically processed feedback -->
+(to be filled if implementation deviates from spec)
 
 ## Dev Agent Record
 
 ### Agent Model Used
-
 (to be filled by Dev agent)
 
 ### Debug Log References
+(to be filled by Dev agent)
 
 ### Completion Notes List
+(to be filled by Dev agent)
 
 ### File List
-
-## Relations
-
-- EPIC: [[EPIC-5]]
-- PRD: [[PRD14]]
+(to be filled by Dev agent)

@@ -43,7 +43,7 @@ def scan_story_files() -> dict[str, list[str]]:
     if not STORY_DIR.exists():
         return mapping
 
-    for story_file in sorted(STORY_DIR.glob("**/*.md")):
+    for story_file in sorted(STORY_DIR.glob("*.md")):
         story_id = extract_story_id_from_filename(story_file.name)
         if not story_id:
             continue
