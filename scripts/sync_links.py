@@ -49,7 +49,7 @@ def extract_frontmatter(content: str) -> dict | None:
         return None
 
 
-def find_files(directory: Path, pattern: str = "*.md") -> list[Path]:
+def find_files(directory: Path, pattern: str = "**/*.md") -> list[Path]:
     if not directory.exists():
         return []
     return sorted(directory.glob(pattern))

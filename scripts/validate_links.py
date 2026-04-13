@@ -40,7 +40,7 @@ def main() -> int:
     scan_dirs = [d for d in [STORY_DIR, EPIC_DIR] if d.exists()]
     all_files: list[Path] = []
     for d in scan_dirs:
-        all_files.extend(sorted(d.glob("*.md")))
+        all_files.extend(sorted(d.glob("**/*.md")))
 
     for f in all_files:
         resolvable.add(f.stem)
@@ -53,7 +53,7 @@ def main() -> int:
     errors: list[str] = []
 
     # Check 1: Every story has aliases containing story_id
-    for f in sorted(STORY_DIR.glob("*.md")) if STORY_DIR.exists() else []:
+    for f in sorted(STORY_DIR.glob("**/*.md")) if STORY_DIR.exists() else []:
         content = f.read_text(encoding="utf-8")
         fm = extract_frontmatter(content)
         if not fm or fm.get("doc_type") != "story":

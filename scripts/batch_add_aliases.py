@@ -74,7 +74,7 @@ def main() -> None:
     modified: list[str] = []
     skipped = 0
 
-    for story_file in sorted(STORY_DIR.glob("*.md")):
+    for story_file in sorted(STORY_DIR.glob("**/*.md")):
         result = process_file(story_file, args.dry_run)
         if result:
             modified.append(result)

@@ -62,7 +62,7 @@ def find_story_files(
 ) -> list[Path]:
     if story_filter:
         pattern = f"*{story_filter}*"
-        return sorted(STORY_DIR.glob(pattern))
+        return sorted(STORY_DIR.glob(f"**/{pattern}"))
 
     active_ids: set[str] = set()
     if sprint_status_path and sprint_status_path.exists():
@@ -74,10 +74,10 @@ def find_story_files(
     if active_ids:
         files = []
         for sid in active_ids:
-            files.extend(STORY_DIR.glob(f"*{sid}*"))
+            files.extend(STORY_DIR.glob(f"**/*{sid}*"))
         return sorted(set(files))
 
-    return sorted(STORY_DIR.glob("*.md"))
+    return sorted(STORY_DIR.glob("**/*.md"))
 
 
 def find_prd_register_files() -> list[Path]:
