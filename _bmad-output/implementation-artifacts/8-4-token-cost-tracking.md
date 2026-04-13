@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "8.4"
+aliases: ["8.4"]
 epic_id: "EPIC-8"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 8.4: Token 成本追踪
 
 ## Story

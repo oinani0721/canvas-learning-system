@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "2.5"
+aliases: ["2.5"]
 epic_id: "EPIC-2"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 2.5: 图片识别纳入 AI 对话上下文
 
 ## Story

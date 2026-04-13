@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "8.2"
+aliases: ["8.2"]
 epic_id: "EPIC-8"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 8.2: Vault 内 Graphiti 操作审计日志
 
 ## Story

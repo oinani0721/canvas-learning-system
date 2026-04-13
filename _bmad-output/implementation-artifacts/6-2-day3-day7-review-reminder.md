@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "6.2"
+aliases: ["6.2"]
 epic_id: "EPIC-6"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 6.2: Day 3 + Day 7 主动复习提醒
 
 ## Story

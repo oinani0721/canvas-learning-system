@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "2.2"
+aliases: ["2.2"]
 epic_id: "EPIC-2"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 2.2: 补充学习材料搜索
 
 ## Story

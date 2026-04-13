@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "3.1"
+aliases: ["3.1"]
 epic_id: "EPIC-3"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 3.1: 空白检验白板创建 + 信息隔离 + 防嵌套
 
 ## Story

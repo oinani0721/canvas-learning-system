@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "2.4"
+aliases: ["2.4"]
 epic_id: "EPIC-2"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 2.4: 对话归档到 Graphiti
 
 ## Story

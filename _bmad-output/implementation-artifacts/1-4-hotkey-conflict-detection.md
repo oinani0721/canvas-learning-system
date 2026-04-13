@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "1.4"
+aliases: ["1.4"]
 epic_id: "EPIC-1"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 1.4: Hotkey 冲突检测与警告
 
 ## Story

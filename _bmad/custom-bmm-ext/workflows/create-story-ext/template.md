@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "{{epic_num}}.{{story_num}}"
+aliases: ["{{epic_num}}.{{story_num}}"]
 epic_id: "EPIC-{{epic_num}}"
 prd_id: "PRD14"
 status: ready-for-dev

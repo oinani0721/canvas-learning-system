@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "1.1"
+aliases: ["1.1"]
 epic_id: "EPIC-1"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 1.1: Vault 初始化与 Templater 标准模板
 
 ## Story

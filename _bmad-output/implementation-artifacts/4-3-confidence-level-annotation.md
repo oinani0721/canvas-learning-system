@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "4.3"
+aliases: ["4.3"]
 epic_id: "EPIC-4"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 4.3: 三级置信度标注
 
 ## Story

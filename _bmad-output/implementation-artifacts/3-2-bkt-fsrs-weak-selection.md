@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "3.2"
+aliases: ["3.2"]
 epic_id: "EPIC-3"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 3.2: BKT/FSRS 自动选弱项
 
 ## Story

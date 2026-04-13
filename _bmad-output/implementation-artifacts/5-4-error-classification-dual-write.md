@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "5.4"
+aliases: ["5.4"]
 epic_id: "EPIC-5"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 5.4: 错误 4 类分类 + 双写存储
 
 ## Story

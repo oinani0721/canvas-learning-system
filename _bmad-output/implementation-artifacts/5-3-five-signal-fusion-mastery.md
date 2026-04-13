@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "5.3"
+aliases: ["5.3"]
 epic_id: "EPIC-5"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 5.3: 5 信号融合掌握度评估
 
 ## Story

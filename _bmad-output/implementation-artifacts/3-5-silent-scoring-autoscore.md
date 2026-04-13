@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "3.5"
+aliases: ["3.5"]
 epic_id: "EPIC-3"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 3.5: 静默评分 + AutoSCORE + 操作链顺序保证
 
 ## Story

@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "1.2"
+aliases: ["1.2"]
 epic_id: "EPIC-1"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 1.2: context_enrichment 重构为 wikilink 图遍历
 
 ## Story

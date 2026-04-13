@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "6.1"
+aliases: ["6.1"]
 epic_id: "EPIC-6"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 6.1: 待复习任务列表
 
 ## Story

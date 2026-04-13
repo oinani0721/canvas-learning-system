@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "4.4"
+aliases: ["4.4"]
 epic_id: "EPIC-4"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 4.4: EI+SE 双策略深度讨论
 
 ## Story

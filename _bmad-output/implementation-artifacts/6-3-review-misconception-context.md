@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "6.3"
+aliases: ["6.3"]
 epic_id: "EPIC-6"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 6.3: 复习时注入历史误解上下文
 
 ## Story

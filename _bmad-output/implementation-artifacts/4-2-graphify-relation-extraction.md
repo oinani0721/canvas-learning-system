@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "4.2"
+aliases: ["4.2"]
 epic_id: "EPIC-4"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 4.2: Graphify 关系提取 + graph.json 索引
 
 ## Story

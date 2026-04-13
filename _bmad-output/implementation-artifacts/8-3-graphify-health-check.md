@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "8.3"
+aliases: ["8.3"]
 epic_id: "EPIC-8"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 8.3: Graphify Health Check
 
 ## Story

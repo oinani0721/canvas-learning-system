@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "5.7"
+aliases: ["5.7"]
 epic_id: "EPIC-5"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 5.7: 历史记忆 3 层检索
 
 ## Story

@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "3.3"
+aliases: ["3.3"]
 epic_id: "EPIC-3"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 3.3: 三路融合个人化出题
 
 ## Story

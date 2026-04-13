@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "7.5"
+aliases: ["7.5"]
 epic_id: "EPIC-7"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 7.5: 单概念详细档案
 
 ## Story

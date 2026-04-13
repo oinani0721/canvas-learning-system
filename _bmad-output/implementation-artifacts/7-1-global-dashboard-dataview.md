@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "7.1"
+aliases: ["7.1"]
 epic_id: "EPIC-7"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 7.1: 全局 Dashboard — Dataview 三层布局
 
 ## Story

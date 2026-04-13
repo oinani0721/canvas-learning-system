@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "6.5"
+aliases: ["6.5"]
 epic_id: "EPIC-6"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 6.5: Callout 批注驱动快速考察
 
 ## Story

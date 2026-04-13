@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "3.4"
+aliases: ["3.4"]
 epic_id: "EPIC-3"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 3.4: Markdown 编辑器手写答案 + 手动提交
 
 ## Story

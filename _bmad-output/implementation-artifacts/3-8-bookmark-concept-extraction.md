@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "3.8"
+aliases: ["3.8"]
 epic_id: "EPIC-3"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 3.8: 书签式概念提取（不中断考察）
 
 ## Story

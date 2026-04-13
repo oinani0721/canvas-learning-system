@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "2.1"
+aliases: ["2.1"]
 epic_id: "EPIC-2"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 2.1: AI 对话 + wikilink 上下文注入
 
 ## Story

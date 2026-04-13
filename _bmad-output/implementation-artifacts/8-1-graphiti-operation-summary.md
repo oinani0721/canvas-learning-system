@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "8.1"
+aliases: ["8.1"]
 epic_id: "EPIC-8"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 8.1: Skill 末尾 Graphiti 操作摘要行
 
 ## Story

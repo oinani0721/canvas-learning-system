@@ -1,6 +1,7 @@
 ---
 doc_type: story
 story_id: "5.8"
+aliases: ["5.8"]
 epic_id: "EPIC-5"
 prd_id: "PRD14"
 status: ready-for-dev
@@ -12,7 +13,6 @@ trace:
   decisions: []
   bugs: []
 ---
-
 # Story 5.8: 异步非阻塞知识图谱写入
 
 ## Story
