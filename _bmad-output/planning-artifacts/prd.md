@@ -141,6 +141,7 @@ Canvas Learning System 是基于 Obsidian + Claudian + Canvas 后端的个人化
 - 3 核心 Skill：`/chat_with_context` · `/start_exam_board` · `/extract_node`
 - Templater 模板：exam-board.md · concept.md（relationships[] 在 frontmatter 中）
 - **复习调度由后端 FSRS 驱动**：`update_fsrs()` MCP 计算 nextReview/reviewLevel → 写入 frontmatter（权威源），前端只读展示
+- **Dashboard 插件栈** [CONFIRMED 2026-04-13]：Dataview + QuickAdd + Meta Bind（按钮 UX）+ Obsidian Bases（核心插件）。数据流：DataviewJS `requestUrl()` 调后端 REST API（非 FrontmatterWriter）
 - Day 1 Spike：后端启动验证 + canvas_agentic_rag import + UserPromptSubmit hook
 - context_enrichment 重构为双向链接图遍历（降级架构断层修复）
 - Graphify 集成（Phase 1 后段）
@@ -150,7 +151,7 @@ Canvas Learning System 是基于 Obsidian + Claudian + Canvas 后端的个人化
 ### Growth — Phase 2 学习闭环 (2-4 周)
 
 - 剩余 3 Skill：`/edge_discuss` · `/quiz_from_callout` · `/review_profile`
-- Dataview Dashboard [DECISION-PENDING: dashboard-interactive-ui]（三层布局 + CSS 卡片 + 处方性措辞 + 2x2 校准矩阵。交互式 UI 方案待社区调研：Meta Bind+Dataview+Buttons / Obsidian Bases / Kanban / React Components / Custom CSS）
+- Dataview Dashboard [DECISION-CONFIRMED: dashboard-interactive-ui 2026-04-13]（三层布局 + 4 区块 + Meta Bind Button primary 样式 + CSS 卡片化 ~220 行）。数据流：DataviewJS `requestUrl()` REST API。详见 Story 8.0 + 8.1-8.4。
 - 7 插件全装 · Graphify health check · 错误修正闭环（3 天 + 1 周）
 - 真实学习 demo（MT2 LLRB 章节）
 

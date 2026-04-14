@@ -1,11 +1,11 @@
 ---
-active_plan: "BMAD-V6-WORKFLOW-ENHANCE"
-active_plan_file: ""
-prd_sections: []
-current_step: "BMAD-V6-WORKFLOW-ENHANCE 全部 5 步完成（第二轮批注回应 + FSRS 后端驱动）"
+active_plan: "DASHBOARD-UI-DECISION-v1"
+active_plan_file: "/Users/Heishing/.claude/plans/squishy-purring-hoare.md"
+prd_sections: ["MVP Must-Have", "Phase 2 Growth"]
+current_step: "Dashboard UI 决策确认完成：Story 1.1 + PRD + 新建 Story 8.0"
 plan_kind: "bmad-implementation"
-active_phase: "workflow-enhance-done"
-last_updated: "2026-04-13T12:00:00Z"
+active_phase: "dashboard-ui-decision-confirmed"
+last_updated: "2026-04-13T15:00:00Z"
 commit_rule: "代码 commit 必须包含 PLAN-NNN 或 FR-XXX-NN"
 ---
 
