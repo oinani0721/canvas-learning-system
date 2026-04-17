@@ -1,12 +1,12 @@
 ---
-active_plan: "OBSIDIAN-QA-ROUND12-2026-04-16"
+active_plan: "OBSIDIAN-QA-ROUND13-2026-04-16"
 active_plan_file: "/Users/Heishing/.claude/plans/squishy-purring-hoare.md"
 prd_sections: ["Q1-Q8 整体推荐矩阵", "BKT/MCP 认证/Exam/FSRS 实施", "Claude Code 压缩算法", "ZOMBIE 归档执行", "Graphiti 部署适配 Obsidian"]
-current_step: "Round 12 完成（4 section：R12-Q1 修正 vault 方案为 Claudian 自动检测 + R12-Q2 [C1]-[C4] 全部承认+修正 + R12-Q3 [I1]-[I4] 承认 + R12-Q4 [N1]-[N3] 采纳含 Mode 3 PoC 30 行代码）等待用户跑 Mode 3 PoC → 结果决定最终架构"
+current_step: "Round 13 完成（12 轮 QA → EPIC 1 扩展 13 Story + 4 Phase 路线图；Mode 3 已由现有 canvas-review-system 插件代码证明可行；Story 1.1 Vault Init 确认先行）→ 下一步进入 Story 1.1 Plan Mode 实施"
 plan_kind: "bmad-planning"
-active_phase: "obsidian-scheme-v2-qa-round12-answered"
-round: 12
-last_updated: "2026-04-16T06:00:00Z"
+active_phase: "obsidian-scheme-v2-qa-round13-story-breakdown"
+round: 13
+last_updated: "2026-04-16T07:00:00Z"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
 round9_key_finding: "推荐保留 Graphiti 做错误/学习事件检索 — 时序+关系查询天然匹配 Episode 模型；数据量小（20-50MB）；启动 Docker 2 分钟；Zep AI 社区源码 https://github.com/getzep/graphiti"
 round8_key_findings:
