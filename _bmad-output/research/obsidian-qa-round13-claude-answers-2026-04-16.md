@@ -189,6 +189,13 @@ Story 1.1 (Vault Init)     Story 1.7 (根 .env)
 - `_bmad-output/implementation-artifacts/epic-1/1-1-vault-init-templates.md` — Story 1.1 详细规格
 - `_bmad-output/implementation-artifacts/epic-1/1-2-wikilink-graph-build.md` — Story 1.2 规格
 - `_bmad-output/implementation-artifacts/epic-1/1-3-wikilink-context-assembly.md` — Story 1.3 规格（Paradigm 2）
+- `_bmad-output/implementation-artifacts/epic-1/1-7-root-env-docker-compose.md` — Story 1.7 根 .env + Docker Compose 变量化
+- `_bmad-output/implementation-artifacts/epic-1/1-8-vault-switch-runtime-api.md` — Story 1.8 Vault Switch Runtime API
+- `_bmad-output/implementation-artifacts/epic-1/1-9-lancedb-vault-id-isolation.md` — Story 1.9 LanceDB vault_id 隔离
+- `_bmad-output/implementation-artifacts/epic-1/1-10-health-endpoint-unification.md` — Story 1.10 健康端点统一
+- `_bmad-output/implementation-artifacts/epic-1/1-11-config-unification.md` — Story 1.11 配置统一 + 漂移防护
+- `_bmad-output/implementation-artifacts/epic-1/1-12-mcp-infra-tools-deployment-tier.md` — Story 1.12 MCP 基础设施工具
+- `_bmad-output/implementation-artifacts/epic-1/1-13-deployment-checklist-external-net.md` — Story 1.13 部署预检清单
 - `_decisions/mvp-plan.md` — MVP 14 项清单
 - `docs/project-status/gap-analysis.md` — 99 FR + 批注
 - `docs/project-status/annotation-tracker.md` — 108 条批注追踪
