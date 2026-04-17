@@ -3,7 +3,8 @@ title: "Obsidian 翻译问答 Round 11 主答复文件（Vault 动态切换 + Cl
 date: 2026-04-16
 trigger: "用户在 Round 10 主文件追加 4 条 Round 11 批注（vault 动态切换方案 ×2 + MCP 可行性证明 + ChatGPT 对抗性审查提示词 + git push）"
 type: "qa-round11-answers"
-status: "awaiting-user-audit"
+status: "round12-continued"
+round12_followup_file: "[[obsidian-qa-round12-claude-answers-2026-04-16]]"
 parent_files:
   - "[[obsidian-qa-round10-claude-answers-2026-04-16]]"
 related_plan: "OBSIDIAN-QA-ROUND11-2026-04-16"
@@ -125,6 +126,9 @@ integrity_rules: "IC-1 ~ IC-8（沿用）"
 ---
 
 #### Part D: 推荐 Phase 1 — .env 父目录挂载 + ACTIVE_VAULT
+**User：请你看一下这个方案可不可行，在我启动后端的时候，claudian 不是通过 MCP 的方式来调动后端，那么 claudian 在回答我们的问题的时候不就是可以自动检查我们当前的 vault 吗？你这些修改文件的操作，对于非技术用户来说都是不友好的，请您 deep explore 社区成熟的方案来解决。**
+
+`[A13 2026-04-16 → round12]` — 承认 Round 11 方案 3 个致命缺陷 + 修正为 Claudian 自动检测 vault（零文件编辑 UX）。见 [[obsidian-qa-round12-claude-answers-2026-04-16]] R12-Q1。
 
 ##### D.1 具体改动（共 3 个文件，5 行变更）
 
@@ -604,3 +608,55 @@ environment:
 ---
 
 **下一轮触发条件**: 用户粘回 ChatGPT Deep Research 的对抗性审计结果 → Round 12 回应
+
+
+```
+
+
+`[A13 2026-04-16 → round12]` — ChatGPT 审计 11 条发现全部回应（4 Critical 承认+修正 / 4 Important 承认 / 3 Nice-to-have 采纳）。见 [[obsidian-qa-round12-claude-answers-2026-04-16]] R12-Q2~Q4。
+
+**User：以下是 ChatGpt 调研结果**
+
+# Canvas 部署方案的对抗性审查
+
+## 审查结论
+
+这套方案**不是不可救药**，但我不同意 Round 10/11 里两个最关键的前提：第一，Round 11 的 Vault 切换方案按现在的写法**实际上不会生效**；第二，Round 10 把“Obsidian Plugin 自动 spawn Docker”判成“平台硬不可能”，这个结论**没有被一手证据充分证明**，官方 Obsidian 文档反而表明桌面插件可以使用 NodeJS / Electron API，只是需要做桌面限定和谨慎的运行时加载。换句话说，你们现在最大的风险不是“技术做不到”，而是**用错误的约束做了错误的架构裁剪**。citeturn1search0turn7search0turn3search0turn3search1turn3search2 fileciteturn22file0
+
+## Critical 发现
+
+这些问题在上线前必须修。
+
+- **[C1] Round 11 的 Vault 切换操作链是错的：改 `.env` 后执行 `docker-compose restart backend`，不会把新的 `ACTIVE_VAULT` 和 `CANVAS_BASE_PATH` 注入容器。** Docker 官方文档明确写明，`docker compose restart` **不会反映** `compose.yml` 配置变更，环境变量变更也不会在 restart 后更新；相反，`docker compose up` 才会在服务配置变化时重建容器。你们提议的 `CANVAS_BASE_PATH=/app/vaults/${ACTIVE_VAULT}` 正是一个 **Compose 插值后的容器环境变量**，所以只 `restart`，backend 仍会沿用旧值。仓库当前 `backend` 服务也确实主要通过 Compose 注入运行时环境，而应用自身又会额外读取 `backend/.env`，这会进一步制造“我改了值但系统没切过去”的错觉。换言之，Round 11 里最核心的 UX 承诺——“改一行 `.env` + restart 30s 完成切 vault”——按现设计是**伪命题**。citeturn1search0turn7search0turn5search0turn5search1 fileciteturn22file0 fileciteturn40file0 fileciteturn39file0
+
+- **[C2] 模式 2 的安全模型有明显缺口：如果把“启动 Canvas”做成 MCP tool，它极可能被 sidecar 当成“自动放行”能力，而不是高风险能力。** 现在 sidecar 的权限模型里，`HIGH_RISK_SDK_TOOLS` 才会走用户审批，但 **MCP backend tools** 被设计成 auto-allow；代码里不仅显式维护了 `MCP_TOOLS` 白名单，还对 `mcp__*` 名称前缀做了直接放行。与此同时，项目自己的安全记录已经承认过：不可信学习上下文和检索结果一度能诱导模型做未授权工具调用，后来才靠 `<UNTRUSTED_*>` 包装和 meta-rule 缓解。把“启动 Docker 服务”这种宿主级动作塞进 auto-allowed MCP 区域，会把先前“可能写错 Neo4j / 学习记忆”的风险，升级成“可能拉起/停止本地基础设施”的风险。对抗性地看，这几乎就是在给 prompt injection 新增一个更高影响面的执行面。fileciteturn25file0 fileciteturn26file0
+
+- **[C3] 你们把模式 3 判死刑的依据不够硬，甚至很可能方向错了。** Obsidian 官方文档明确写了两件事：其一，插件 manifest 的 `isDesktopOnly` 专门用于声明插件会使用 **NodeJS 或 Electron API**；其二，对于需要兼容移动端的插件，官方要求你把 `fs`、`path`、`electron` 这类 Node 模块放到运行时、并用 `Platform.isDesktopApp` 做门控。这一套指导的含义不是“插件处在不可越过的浏览器沙箱里”，而是“桌面插件可以碰 Node/Electron，但你必须把桌面专用能力和移动能力分开”。官方 Vault 文档还进一步写明，插件可以像 Node.js 应用一样访问文件系统。因此，“Obsidian Plugin 无法 spawn 本地进程”至少**不是**一个已经被官方文档证实的硬约束。更稳妥的表述应该是：**模式 3 需要最小 PoC 来验证，不应在无 PoC 的情况下被宣判为物理不可能。** 这会直接影响你对三种部署模式的排序。citeturn3search0turn3search1turn3search2 fileciteturn21file0
+
+- **[C4] 父目录挂载方案没有给“vault 身份”做真正的命名空间隔离，导致跨 vault 污染、误删、误跳过是真实风险。** 你们的 LanceDB `vault_notes` 索引和 `file_fingerprints` 机制，核心键值都基于**相对路径**：索引过程把 `canvas_file` 存成相对路径，删除旧块也是按这个相对路径删；指纹表也是按相对路径比对新旧文件。只要两个 vault 内部存在同名相对路径，如都叫 `Lecture1.md`、`week1/summary.md`，切换 active vault 后，去重、删除、跳过重建都可能打到**错误的 vault 语义对象**上。更糟的是，vault 级索引入口还把 `subject` 直接写成单一的 `DEFAULT_GROUP_ID`，而不是走 `SubjectResolver` 生成新的学科命名空间；这意味着“新增学科=新建文件夹零配置”在语义隔离层面是站不住的。再加上父目录挂载会把所有兄弟 vault 一次性暴露给容器，而项目历史上又确实出现过 vault 文件访问的路径穿越类问题，父目录挂载是在**扩大一次 bug 的读取爆炸半径**。fileciteturn28file0 fileciteturn31file0 fileciteturn26file0 citeturn4search0
+
+## Important 发现
+
+这些问题不一定阻断上线，但会稳定制造误报、坏体验和运维负担。
+
+- **[I1] “健康”与“可用”在当前系统里不是同一个概念，而你们的文档正把它们混为一谈。** 仓库里至少存在三套不同口径：backend 容器的 Docker healthcheck 看的是 `/api/v1/health`；旧 Tauri DockerManager 轮询的是 `/api/v1/system/health`；Round 10 给 Obsidian Plugin 的伪代码又假设返回体里有 `graphiti === 'connected'` 这样的字段。可实际上，`/api/v1/health` 返回的是一个顶层 `status` 和组件列表，且在部分依赖降级时仍可能给出 HTTP 200；`/api/v1/system/health` 则会把 Neo4j、Ollama、LanceDB 一起算进系统状态；旧 DockerManager 还只等 60 秒，而 Round 10 自己估的冷启动却是 120–150 秒。结果就是：你很容易出现“容器绿了但 Graphiti 还不可用”“系统黄了但实际查询已能跑”“冷启动被前端过早判死”的三重歧义。fileciteturn20file0 fileciteturn34file0 fileciteturn23file0 fileciteturn21file0
+
+- **[I2] 这套方案声称自己是“本地个人部署”，但仓库里仍残留了隐含的外部前提。** `backend` 现在接入了一个 `external: true` 的 `cliproxyapi_default` 网络；Docker 官方文档说明，external network 的生命周期不归 Compose 管，**如果它不存在，Compose 会直接报错**。另外，`claude-dev` 处在 `dev` profile，却依赖一个只放在 `windows` profile 里的 `ollama`；Docker 官方文档也明确写了：profiles 不会自动启用被引用的服务，依赖如果不在激活 profile 里，Compose model 会变成 invalid。对一个“Mac 本地、非技术用户、希望操作极少”的体系来说，这种隐式前置条件和 profile 交叉依赖都会显著拉低首启成功率。fileciteturn40file0 citeturn6search1turn1search1
+
+- **[I3] 配置漂移还没有解决，反而被新方案放大了。** Compose 默认从项目根 `.env` 做插值；backend 代码又在启动时 `load_dotenv` 读取 `backend/.env`；Docker 对容器环境变量还有它自己的优先级规则。于是“Vault 在哪里”“Neo4j 用什么口令”“backend 读的是谁的变量”分别可能来自三个地方。Round 10 自己已经承认过 Compose 与 `backend/.env` 口令不一致会把 Graphiti 推入 degraded mode。Round 11 再把 vault 切换也塞进 root `.env`，只会让非技术用户更难理解“到底该改哪个文件，为什么改了还没生效”。fileciteturn21file0 fileciteturn22file0 fileciteturn39file0 fileciteturn40file0 citeturn5search0turn5search1
+
+- **[I4] 路径里有空格本身不是最大问题，真正的问题是 bind mount 对宿主路径结构和 Docker Desktop 文件共享状态高度敏感。** Docker 文档说明，bind mount 强依赖宿主机目录结构；换一台机器、改一个父目录名、或者 Docker Desktop 没把那个目录正确共享进 VM，容器就会失败或看不到文件。另一方面，Compose 的 `.env` 语法支持 key-value 变量，值可以被引用到 Compose 文件里；你当前的 volume 写法整体带引号，因此“`CS 189` 里有空格”本身并不是最脆弱的那一环。对抗性地看，真正会把非技术用户坑到的是**路径迁移、文件共享、和宿主目录依赖**，而不是单独那个空格。citeturn4search0turn4search4turn5search0
+
+## Nice-to-have 发现
+
+这些不是当前最致命的点，但如果不提前想清楚，后面会越修越贵。
+
+- **[N1] 如果保留父目录挂载，就不要再假装“active vault”只是一个环境变量。它应该变成一等命名空间。** 最低限度，LanceDB 文档、指纹表、dead-letter 记录、Graphiti `group_id`、以及任何增量索引 API 都应该带 `vault_id` 或 `vault_root_hash`，否则所有观测、清理、重放、回溯最终都会变成“这条数据到底属于哪个 vault”的取证题。fileciteturn28file0 fileciteturn31file0
+
+- **[N2] 如果你坚持做模式 2，就别把“部署工具”混到现有 auto-allow MCP 通道里。** 它应该被视作比 `record_learning_memory` 更高一档的能力：至少显式二次确认、明确的 allowlist 参数、固定 project root、固定服务集合、严格禁止自由命令拼接。否则你是在给本地桌面应用补一个“看起来不像 Shell，但实际上能改本机运行态”的新后门。fileciteturn25file0 fileciteturn26file0
+
+- **[N3] 在你们彻底否决模式 3 之前，应该做一个最小、桌面专用的 PoC。** 因为官方文档已经说明桌面插件可以使用 NodeJS / Electron API，正确的工程做法不是“先宣判不可能”，而是“做 30 行实验，确认 child process、PATH、权限提示、跨平台行为、以及是否真的值得承担安全成本”。这个 PoC 也会帮助你把“技术不可行”与“产品上不该默认开启”分开。citeturn3search0turn3search1turn3search2
+
+## 对方案的总体评价
+
+**[FINAL]** 一句话总结：**方案方向可以成立，但当前版本最大的风险不是 Neo4j 或 Docker 本身，而是你们把一个“实际上不会生效的 vault 切换流程”和一个“未经充分验证就被判死刑的插件自动启动假设”写成了架构前提；如果不先修正这两个前提，后面的健康检查、MCP 自动化、和多 vault UX 都会建立在错误地基上。**citeturn1search0turn7search0turn3search0turn3search1turn3search2 fileciteturn22file0

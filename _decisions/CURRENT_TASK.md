@@ -1,12 +1,12 @@
 ---
-active_plan: "OBSIDIAN-QA-ROUND11-2026-04-16"
+active_plan: "OBSIDIAN-QA-ROUND12-2026-04-16"
 active_plan_file: "/Users/Heishing/.claude/plans/squishy-purring-hoare.md"
 prd_sections: ["Q1-Q8 整体推荐矩阵", "BKT/MCP 认证/Exam/FSRS 实施", "Claude Code 压缩算法", "ZOMBIE 归档执行", "Graphiti 部署适配 Obsidian"]
-current_step: "Round 11 补答完成（3 个 R11-Q section：R11-Q1 vault 父目录挂载方案 + R11-Q2 MCP 4 证据链 + R11-Q3 ChatGPT 对抗性审查 prompt；Round 10 4 处 [A12] 追加；全量 git push 完成）等待 ChatGPT Deep Research 审计结果 → Round 12 回应"
+current_step: "Round 12 完成（4 section：R12-Q1 修正 vault 方案为 Claudian 自动检测 + R12-Q2 [C1]-[C4] 全部承认+修正 + R12-Q3 [I1]-[I4] 承认 + R12-Q4 [N1]-[N3] 采纳含 Mode 3 PoC 30 行代码）等待用户跑 Mode 3 PoC → 结果决定最终架构"
 plan_kind: "bmad-planning"
-active_phase: "obsidian-scheme-v2-qa-round11-answered"
-round: 11
-last_updated: "2026-04-16T05:00:00Z"
+active_phase: "obsidian-scheme-v2-qa-round12-answered"
+round: 12
+last_updated: "2026-04-16T06:00:00Z"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
 round9_key_finding: "推荐保留 Graphiti 做错误/学习事件检索 — 时序+关系查询天然匹配 Episode 模型；数据量小（20-50MB）；启动 Docker 2 分钟；Zep AI 社区源码 https://github.com/getzep/graphiti"
 round8_key_findings:
@@ -19,8 +19,9 @@ round7_key_findings:
   - "LanceDB 实际存 Canvas 节点对象，非笔记片段（纠正用户假设）"
   - "社区无向量存储熟练度专门方案，推荐 Obsidian frontmatter + Dataview"
   - "Graphiti 存学习事件（对话内容），不存 md 节点内容"
-next_round_trigger: "用户粘回 ChatGPT Deep Research 对抗性审计结果 → Round 12 回应（修改方案 / 补充证据 / 关闭决策 D1-D5）"
-commit_rule: "文档 commit 必须包含 PLAN-OBSIDIAN-QA-ROUND11-2026-04-16"
+next_round_trigger: "用户跑 Mode 3 PoC（Obsidian Plugin child_process 测试）→ ✅ Mode 3 可行 / ❌ 正式关闭 → Round 13 最终架构定稿"
+commit_rule: "文档 commit 必须包含 PLAN-OBSIDIAN-QA-ROUND12-2026-04-16"
+round12_main_file: "[[obsidian-qa-round12-claude-answers-2026-04-16]]"
 round11_main_file: "[[obsidian-qa-round11-claude-answers-2026-04-16]]"
 round10_main_file: "[[obsidian-qa-round10-claude-answers-2026-04-16]]"
 round9_main_file: "[[obsidian-qa-round9-claude-answers-2026-04-15]]"
