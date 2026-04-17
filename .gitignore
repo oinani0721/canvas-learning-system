@@ -199,6 +199,10 @@ images/generated*
 
 # ── Personal editor/vault configs (nested Obsidian vaults) ──
 **/.obsidian/
+# Exception: canvas-vault templates are project code (Templater templates)
+!canvas-vault/.obsidian/
+!canvas-vault/.obsidian/templates/
+!canvas-vault/.obsidian/templates/**
 
 # ── Binary design artifacts (large, not source-controllable) ──
 *.pen

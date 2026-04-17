@@ -157,6 +157,158 @@ async def system_health_check(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Startup Health Check (Story 1.1 Task 4)
+# [Source: _bmad-output/implementation-artifacts/epic-1/1-1-vault-init-templates.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class StartupCheckResult(BaseModel):
+    service: str
+    status: str
+    latency_ms: float
+    error_detail: str | None = None
+    fix_hint: str | None = None
+
+
+async def _timed_check(name: str, coro, fix_hint: str = "") -> StartupCheckResult:
+    import time
+
+    start = time.monotonic()
+    try:
+        result = await coro
+        elapsed = (time.monotonic() - start) * 1000
+        return StartupCheckResult(
+            service=name,
+            status=result.status,
+            latency_ms=round(elapsed, 1),
+            error_detail=result.message if result.status != "healthy" else None,
+            fix_hint=fix_hint if result.status != "healthy" else None,
+        )
+    except Exception as exc:
+        elapsed = (time.monotonic() - start) * 1000
+        return StartupCheckResult(
+            service=name,
+            status="unhealthy",
+            latency_ms=round(elapsed, 1),
+            error_detail=str(exc)[:200],
+            fix_hint=fix_hint,
+        )
+
+
+async def _check_fastapi() -> ComponentStatus:
+    return ComponentStatus(name="fastapi", status="healthy", message="Self-check OK")
+
+
+async def _check_mcp() -> ComponentStatus:
+    try:
+        from app.mcp.server import mcp
+
+        tools = await mcp.list_tools()
+        count = len(tools)
+        return ComponentStatus(
+            name="mcp",
+            status="healthy" if count > 0 else "unhealthy",
+            message=f"{count} tools registered",
+        )
+    except Exception as exc:
+        return ComponentStatus(name="mcp", status="unhealthy", message=str(exc)[:200])
+
+
+@router.get("/startup-check")
+async def startup_health_check(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> dict:
+    """
+    AR1-ordered startup verification (Story 1.1 AC #3).
+
+    Checks: Neo4j → Ollama(bge-m3) → FastAPI → MCP tools.
+    """
+    checks = [
+        await _timed_check(
+            "neo4j",
+            _check_neo4j(settings),
+            "确认 Neo4j 容器运行中: docker-compose up -d neo4j",
+        ),
+        await _timed_check(
+            "ollama",
+            _check_ollama(settings),
+            "确认 Ollama 运行中: brew services start ollama && ollama pull bge-m3",
+        ),
+        await _timed_check("fastapi", _check_fastapi(), "FastAPI 进程异常"),
+        await _timed_check(
+            "mcp",
+            _check_mcp(),
+            "MCP server 初始化失败，检查 backend/app/mcp/server.py",
+        ),
+    ]
+
+    all_ok = all(c.status == "healthy" for c in checks)
+    now = datetime.now(timezone.utc).isoformat()
+
+    return {
+        "data": {
+            "overall_status": "ready" if all_ok else "not_ready",
+            "checks": [c.model_dump() for c in checks],
+        },
+        "meta": {"timestamp": now},
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Setup Wizard (Story 1.1 Task 5)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class SetupWizardRequest(BaseModel):
+    vault_path: str = Field(..., description="Path to the Obsidian vault directory")
+
+
+@router.post("/setup-wizard")
+async def setup_wizard(
+    request: SetupWizardRequest,
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> dict:
+    """
+    Installation wizard: vault init → plugin check → startup verify (Story 1.1 AC #1-3).
+    """
+    from app.services.vault_init_service import VaultInitService
+
+    svc = VaultInitService()
+    vault_result = svc.initialize_vault(request.vault_path)
+    plugins = svc.check_required_plugins(request.vault_path)
+
+    startup_resp = await startup_health_check(settings)
+    backend_checks = startup_resp["data"]["checks"]
+
+    plugins_ok = all(p.installed for p in plugins)
+    backend_ok = startup_resp["data"]["overall_status"] == "ready"
+    vault_ok = True
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    return {
+        "data": {
+            "vault_ready": vault_ok,
+            "vault_dirs": vault_result,
+            "plugins": [
+                {
+                    "id": p.plugin_id,
+                    "name": p.display_name,
+                    "type": p.plugin_type,
+                    "installed": p.installed,
+                }
+                for p in plugins
+            ],
+            "backend": backend_checks,
+            "overall_status": "ready"
+            if (vault_ok and plugins_ok and backend_ok)
+            else "not_ready",
+        },
+        "meta": {"timestamp": now},
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # LLM Usage Statistics (Story 7.2)
 # [Source: _bmad-output/implementation-artifacts/7-2-llm-logging-token-tracking.md]
 # ═══════════════════════════════════════════════════════════════════════════════
