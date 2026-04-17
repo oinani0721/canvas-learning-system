@@ -52,7 +52,7 @@ development_status:
   # 架构: Obsidian Vault + MCP sidecar + Docker (Neo4j/Ollama/LanceDB)
   # ══════════════════════════════════════════════════════
   epic-1: in-progress
-  1-1-vault-init-templates: review
+  1-1-vault-init-templates: done
   1-2-wikilink-graph-build: ready-for-dev
   1-3-wikilink-context-assembly: ready-for-dev
   1-4-hotkey-binding-config: ready-for-dev

@@ -23,14 +23,18 @@ VAULT_DIRECTORIES = [
 ]
 
 REQUIRED_COMMUNITY_PLUGINS = [
-    ("dataview", "Dataview"),
-    ("templater-obsidian", "Templater"),
-    ("quickadd", "QuickAdd"),
-    ("obsidian-meta-bind-plugin", "Meta Bind"),
+    ("dataview", "Dataview", "obsidian://show-plugin?id=dataview"),
+    ("templater-obsidian", "Templater", "obsidian://show-plugin?id=templater-obsidian"),
+    ("quickadd", "QuickAdd", "obsidian://show-plugin?id=quickadd"),
+    (
+        "obsidian-meta-bind-plugin",
+        "Meta Bind",
+        "obsidian://show-plugin?id=obsidian-meta-bind-plugin",
+    ),
 ]
 
 REQUIRED_CORE_PLUGINS = [
-    ("bases", "Bases"),
+    ("bases", "Bases", "Settings → Core plugins → Bases → Enable"),
 ]
 
 CLAUDE_MD_SKELETON = """\
@@ -65,6 +69,7 @@ class PluginStatus:
     display_name: str
     plugin_type: str
     installed: bool
+    install_hint: str = ""
 
 
 class VaultInitService:
@@ -112,13 +117,14 @@ class VaultInitService:
                     "community_plugins_parse_error", path=str(community_plugins_file)
                 )
 
-        for plugin_id, display_name in REQUIRED_COMMUNITY_PLUGINS:
+        for plugin_id, display_name, hint in REQUIRED_COMMUNITY_PLUGINS:
             results.append(
                 PluginStatus(
                     plugin_id=plugin_id,
                     display_name=display_name,
                     plugin_type="community",
                     installed=plugin_id in community_installed,
+                    install_hint=hint,
                 )
             )
 
@@ -130,13 +136,14 @@ class VaultInitService:
             except (json.JSONDecodeError, OSError):
                 logger.warning("core_plugins_parse_error", path=str(core_plugins_file))
 
-        for plugin_id, display_name in REQUIRED_CORE_PLUGINS:
+        for plugin_id, display_name, hint in REQUIRED_CORE_PLUGINS:
             results.append(
                 PluginStatus(
                     plugin_id=plugin_id,
                     display_name=display_name,
                     plugin_type="core",
                     installed=plugin_id in core_installed,
+                    install_hint=hint,
                 )
             )
 

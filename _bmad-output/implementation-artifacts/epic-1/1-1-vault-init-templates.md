@@ -14,7 +14,7 @@ trace:
 
 # Story 1.1: Vault 初始化 + Templater 模板
 
-Status: review
+Status: done
 
 ## Story
 

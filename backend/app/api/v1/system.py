@@ -10,6 +10,7 @@ the API response envelope: {"data": {...}, "meta": {...}}.
 
 import logging
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Optional
@@ -171,8 +172,6 @@ class StartupCheckResult(BaseModel):
 
 
 async def _timed_check(name: str, coro, fix_hint: str = "") -> StartupCheckResult:
-    import time
-
     start = time.monotonic()
     try:
         result = await coro
@@ -196,19 +195,41 @@ async def _timed_check(name: str, coro, fix_hint: str = "") -> StartupCheckResul
 
 
 async def _check_fastapi() -> ComponentStatus:
-    return ComponentStatus(name="fastapi", status="healthy", message="Self-check OK")
+    try:
+        from app.main import app
+
+        route_count = len(app.routes)
+        if route_count > 5:
+            return ComponentStatus(
+                name="fastapi",
+                status="healthy",
+                message=f"{route_count} routes loaded",
+            )
+        return ComponentStatus(
+            name="fastapi",
+            status="unhealthy",
+            message=f"Only {route_count} routes (expected 50+)",
+        )
+    except Exception as exc:
+        return ComponentStatus(
+            name="fastapi", status="unhealthy", message=str(exc)[:200]
+        )
 
 
 async def _check_mcp() -> ComponentStatus:
     try:
-        from app.mcp.server import mcp
+        from app.mcp import server as mcp_module
 
-        tools = await mcp.list_tools()
-        count = len(tools)
+        if hasattr(mcp_module, "mcp") and mcp_module.mcp is not None:
+            return ComponentStatus(
+                name="mcp",
+                status="healthy",
+                message="MCP server mounted",
+            )
         return ComponentStatus(
             name="mcp",
-            status="healthy" if count > 0 else "unhealthy",
-            message=f"{count} tools registered",
+            status="unhealthy",
+            message="MCP server not initialized",
         )
     except Exception as exc:
         return ComponentStatus(name="mcp", status="unhealthy", message=str(exc)[:200])
@@ -273,9 +294,17 @@ async def setup_wizard(
     """
     from app.services.vault_init_service import VaultInitService
 
+    vault = Path(request.vault_path).resolve()
+    if str(vault) in ("/", "/etc", "/usr", "/var", "/tmp", "/System"):
+        raise HTTPException(
+            status_code=400, detail=f"拒绝在系统目录初始化 vault: {vault}"
+        )
+    if ".." in request.vault_path:
+        raise HTTPException(status_code=400, detail="vault_path 不能包含 '..'")
+
     svc = VaultInitService()
-    vault_result = svc.initialize_vault(request.vault_path)
-    plugins = svc.check_required_plugins(request.vault_path)
+    vault_result = svc.initialize_vault(str(vault))
+    plugins = svc.check_required_plugins(str(vault))
 
     startup_resp = await startup_health_check(settings)
     backend_checks = startup_resp["data"]["checks"]
@@ -296,6 +325,7 @@ async def setup_wizard(
                     "name": p.display_name,
                     "type": p.plugin_type,
                     "installed": p.installed,
+                    "install_hint": p.install_hint if not p.installed else None,
                 }
                 for p in plugins
             ],
