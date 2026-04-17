@@ -14,7 +14,7 @@ trace:
 
 # Story 1.7: 根 .env + Docker Compose 变量化
 
-Status: review
+Status: done
 
 ## Story
 
@@ -178,6 +178,10 @@ So that 我在不同机器上部署时只需改一个文件，而不是在 docke
 2. **R12 [C1]**: restart 不刷新 env — 本 Story 只解决静态配置统一，动态刷新由 Story 1.8 解决
 3. **R12 [I3]**: 配置漂移 3 源冲突（root .env / backend/.env / Docker env）— 本 Story 建立根 .env 为唯一真相源
 
+**实现偏差记录**:
+4. **AC #3 变量名偏差**: AC 指定 `VAULT_READONLY`（布尔），实现用 `VAULT_MOUNT_MODE`（rw/ro 字符串）。原因：Docker Compose volume 语法不支持条件表达式，无法将布尔值转为 `:ro`/`:rw`，直接用 mount mode 字符串更直接且无歧义。
+5. **Vault 挂载结构变化**: 原 2 个独立 mount（CS188, CS 189 → 各自容器子路径）合并为 1 个 `${CANVAS_BASE_PATH}:/app/vault` mount。要求用户将 CANVAS_BASE_PATH 指向包含所有课程文件夹的**父目录**，而非单个课程。
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -196,13 +200,16 @@ Claude Opus 4.6 (1M context) via Claude Code CLI
 
 ### Change Log
 - 2026-04-17: Story 1.7 implementation complete — root .env centralization + docker-compose variable-ization + validate-env.sh
+- 2026-04-17: Code review (adversarial) — 2 HIGH + 4 MEDIUM fixed: H1 header comment, H2 deviation note, M1 shell injection fix, M2 GOOGLE_API_KEY comment restored, M3 File List completed, M4 neo4j-test variable-ized
 
 ### File List
 - NEW: `.env.example` — root environment variable template
 - NEW: `scripts/validate-env.sh` — environment validation script
 - NEW: `backend/tests/unit/test_story_1_7_env_config.py` — 13 TDD validation tests
 - MOD: `docker-compose.yml` — variable-ized all hardcoded values (ports, paths, env vars)
-- MOD: `backend/.env` — added sync header + shared variable markers
+- MOD: `backend/.env` — added sync header + shared variable markers (not in git, .gitignore)
+- MOD: `.gitignore` — added `!.env.example` after `.env.*` to prevent re-ignoring
 - MOD: `README.md` — updated Docker deployment quickstart section
+- MOD: `_decisions/CURRENT_TASK.md` — updated current step to Story 1.7 complete
 - MOD: `_bmad-output/implementation-artifacts/sprint-status.yaml` — story status in-progress → review
 - MOD: `_bmad-output/implementation-artifacts/epic-1/1-7-root-env-docker-compose.md` — tasks marked [x]

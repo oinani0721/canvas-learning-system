@@ -58,7 +58,7 @@ development_status:
   1-4-hotkey-binding-config: ready-for-dev
   1-5-hotkey-conflict-detection: ready-for-dev
   1-6-git-backup-kg-health: ready-for-dev
-  1-7-root-env-docker-compose: review
+  1-7-root-env-docker-compose: done
   1-8-vault-switch-runtime-api: ready-for-dev
   1-9-lancedb-vault-id-isolation: ready-for-dev
   1-10-health-endpoint-unification: ready-for-dev

@@ -31,8 +31,17 @@ fi
 echo -e "${GREEN}✓${NC} .env 文件存在"
 
 # --- 2. Load .env and check required variables ---
-# shellcheck source=/dev/null
-source "$ENV_FILE"
+# Safe parser: only match KEY=VALUE lines, reject shell commands
+while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*($|#) ]] && continue
+    if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z_0-9]*)=(.*) ]]; then
+        key="${BASH_REMATCH[1]}"
+        value="${BASH_REMATCH[2]}"
+        value="${value#\"}" && value="${value%\"}"
+        value="${value#\'}" && value="${value%\'}"
+        export "$key=$value"
+    fi
+done < "$ENV_FILE"
 
 REQUIRED_VARS=(
     "NEO4J_PASSWORD:Neo4j 数据库密码（至少 8 位）"
