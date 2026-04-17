@@ -64,6 +64,10 @@ lancedb>=0.14.0
 # ✅ For local cross-encoder reranking with bge-reranker-base
 sentence-transformers>=3.0.0
 
+# Obsidian Vault Parsing (Story 1.2: Wikilink Graph Build)
+# ✅ obsidiantools: Vault parsing, wikilink graph, backlink extraction
+obsidiantools>=0.10
+
 # Knowledge Graph (Story 12.1, 22.x)
 # ✅ Verified from ADR-003: Neo4j for Graphiti knowledge graph
 neo4j>=5.0.0

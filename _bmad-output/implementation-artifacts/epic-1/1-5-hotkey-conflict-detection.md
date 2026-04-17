@@ -130,8 +130,8 @@ So that 我不会因冲突而无法触发 Skill 命令。
    - 重新打开 Obsidian
    - 不应看到冲突通知（因为只检查 Canvas 插件自身的命令）
 
-4. **验证修饰符归一化** (AC: #4)
-   - 如果能通过 JSON 配置文件手动设置不同顺序的修饰符组合（如 Shift+Cmd 和 Cmd+Shift），检测应该识别为冲突
+4. **验证修饰符顺序不影响检测** (AC: #4)
+   - 如果两个命令绑定了相同按键但修饰符顺序不同（如 Shift+Cmd+C 和 Cmd+Shift+C），系统应正确识别为同一快捷键并报冲突
 
 ## Automated Checkpoints
 

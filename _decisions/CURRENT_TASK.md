@@ -1,10 +1,10 @@
 ---
-active_plan: "OBSIDIAN-QA-ROUND13-2026-04-16"
-active_plan_file: "/Users/Heishing/.claude/plans/squishy-purring-hoare.md"
+active_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
+active_plan_file: ""
 prd_sections: ["Q1-Q8 整体推荐矩阵", "BKT/MCP 认证/Exam/FSRS 实施", "Claude Code 压缩算法", "ZOMBIE 归档执行", "Graphiti 部署适配 Obsidian"]
-current_step: "Round 13 完成（12 轮 QA → EPIC 1 扩展 13 Story + 4 Phase 路线图；Mode 3 已由现有 canvas-review-system 插件代码证明可行；Story 1.1 Vault Init 确认先行）→ 下一步进入 Story 1.1 Plan Mode 实施"
-plan_kind: "bmad-planning"
-active_phase: "obsidian-scheme-v2-qa-round13-story-breakdown"
+current_step: "Story 1.7 完成 (review) → 下一个: Story 1.1 (vault-init-templates)"
+plan_kind: "bmad-implementation"
+active_phase: "epic1-v2-prerequisites-done"
 round: 13
 last_updated: "2026-04-16T07:00:00Z"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
@@ -76,7 +76,14 @@ next_round_trigger: "用户审计 Round 5 后，可能触发 Round 6：(1) Q4 Ma
 > 每个 session 启动时自动注入此文件。frontmatter 包含 Plan 锚定，正文包含进度详情。
 > 完成一步后立即更新对应的 checkbox。
 
-## 活跃计划（2026-04-07 更新 — Stage 1+2 已 commit + Trivial Sweep 完成 → 等待下一中型任务）
+## 活跃计划（2026-04-17 更新 — EPIC 1 v2 BMAD 开发前置完成）
+
+### EPIC 1 v2 BMAD 开发就绪（2026-04-17）
+- [x] 前置 1: sprint-status.yaml 更新（旧 v1 归档，新 13 Story 注册为 ready-for-dev）
+- [x] 前置 2: 高风险 Story deviation notes 对齐（1.1 dashboard-interactive-ui CONFIRMED / 1.2 paradigm 切换已记录 / 1.3 context-assembly-paradigm CONFIRMED）
+- [x] 前置 3: obsidiantools>=0.10 添加到 requirements.txt
+- [x] Story 1.7 (root-env-docker-compose) — ✅ review (13/13 tests, all AC satisfied)
+- [ ] Story 1.1 (vault-init-templates) — 核心 Story，依赖 1.7 流程经验
 
 ### 已闭合 OpenSpec Changes（archived 2026-04-07）
 - [x] **fix-rag-faithfulness-and-add-crag-quality-loop**

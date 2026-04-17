@@ -41,21 +41,30 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # ══════════════════════════════════════════════════════
-  # Epic 1: 桌面应用搭建与画布基础 (11 stories)
-  # FR: SYS-01~07, KG-01~07, QA-01(基础), QA-03
+  # Epic 1 v1 归档 (Tauri 架构, 11 stories — superseded)
+  # 降级决策后整体替换为 v2 (Obsidian+Claudian 架构)
+  # ══════════════════════════════════════════════════════
+  epic-1-v1-archived: done
+
+  # ══════════════════════════════════════════════════════
+  # Epic 1 v2: Obsidian+Claudian 基础设施 (13 stories)
+  # FR: SYS-01~07, DEPLOY-01, KG-01~07
+  # 架构: Obsidian Vault + MCP sidecar + Docker (Neo4j/Ollama/LanceDB)
   # ══════════════════════════════════════════════════════
   epic-1: in-progress
-  1-1-project-scaffold-docker-setup: done
-  1-2-setup-wizard: done
-  1-3-model-config-settings-panel: done
-  1-4-canvas-core-crud-mini-dashboard: done
-  1-5-canvas-data-sync-backend-kg: done
-  1-6-image-node-async-index: done
-  1-7-concept-relation-recommendation: ready-for-dev
-  1-8-backend-service-management: done
-  1-9-multi-subject-kg-isolation: done
-  1-10-llm-structured-logging-infra: done
-  1-11-llm-faithfulness-check-base: done
+  1-1-vault-init-templates: ready-for-dev
+  1-2-wikilink-graph-build: ready-for-dev
+  1-3-wikilink-context-assembly: ready-for-dev
+  1-4-hotkey-binding-config: ready-for-dev
+  1-5-hotkey-conflict-detection: ready-for-dev
+  1-6-git-backup-kg-health: ready-for-dev
+  1-7-root-env-docker-compose: review
+  1-8-vault-switch-runtime-api: ready-for-dev
+  1-9-lancedb-vault-id-isolation: ready-for-dev
+  1-10-health-endpoint-unification: ready-for-dev
+  1-11-config-unification: ready-for-dev
+  1-12-mcp-infra-tools-deployment-tier: ready-for-dev
+  1-13-deployment-checklist-external-net: ready-for-dev
   epic-1-retrospective: optional
 
   # ══════════════════════════════════════════════════════

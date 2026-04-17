@@ -134,70 +134,55 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 #### Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- Ports available: `7475` (Neo4j HTTP), `7688` (Neo4j Bolt), `8000` (Backend API)
+- Ports available: `7478` (Neo4j HTTP), `7691` (Neo4j Bolt), `8001` (Backend API)
 - Memory: ≥1GB available for Neo4j container
+- Mac 用户需原生安装 Ollama: `brew install ollama && brew services start ollama`
 
 #### Step 1: Configure Environment
 
 ```bash
-cd backend
+# 从项目根目录开始
 cp .env.example .env
 ```
 
 Edit `.env` with the following critical settings:
 
 ```env
-# IMPORTANT: Use port 7688, NOT the default 7687
-NEO4J_URI=bolt://localhost:7688
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your_password_here
+# ⚠️ 必填项
+NEO4J_PASSWORD=your_secure_password_here
+CANVAS_BASE_PATH=/path/to/your/obsidian/vault
 ```
 
-> **Warning**: The password in `.env` and `docker-compose.yml` must match exactly. Mismatched passwords cause silent authentication failures.
+> **Note**: Root `.env` is the single source of truth. `docker-compose.yml` reads variables from it automatically. You do NOT need to edit `docker-compose.yml` or `backend/.env` separately.
 
 #### Step 2: Start Services
 
 ```bash
-# Start Neo4j container
-docker-compose up -d neo4j
-
-# Wait for Neo4j to initialize (~10 seconds)
-# Then start the backend
-cd backend
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-Or use the one-click startup script (Windows):
-```bash
-./start-canvas-services.bat
+docker-compose up -d
 ```
 
 #### Step 3: Verify Deployment
 
 ```bash
-# Neo4j Browser (note: port 7475, not 7474)
-curl http://localhost:7475
+# Validate environment variables
+scripts/validate-env.sh
+
+# Neo4j Browser
+curl http://localhost:7478
 
 # Backend health check
-curl http://localhost:8000/api/v1/health
-
-# Neo4j connection check
-curl http://localhost:8000/api/v1/health/neo4j
-
-# Storage health check
-curl http://localhost:8000/api/v1/health/storage
+curl http://localhost:8001/api/v1/health
 ```
 
 #### Troubleshooting
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| Connection timeout | Wrong port in NEO4J_URI (7687 vs 7688) | Set `NEO4J_URI=bolt://localhost:7688` |
-| Auth failure with no error | Password mismatch between .env and docker-compose | Ensure both passwords match |
-| Queries return empty results | Silent fallback to JSON mode | Check logs for "JSON_FALLBACK" |
-| Neo4j Browser won't open | Port mapping is 7475, not 7474 | Visit `http://localhost:7475` |
-| Backend process orphaned | Obsidian didn't kill backend on exit | Fixed: uses execSync + taskkill |
-| LanceDB path error | Incorrect relative path when running from backend/ | Fixed: normalized to project-relative paths |
+| Connection timeout | Wrong port in NEO4J_URI | Set `NEO4J_URI=bolt://localhost:7691` in `backend/.env` |
+| Auth failure | Password mismatch | Only set `NEO4J_PASSWORD` in root `.env` |
+| Vault files not found | `CANVAS_BASE_PATH` not set | Set it in root `.env` to your vault parent directory |
+| Backend can't write vault | Vault mounted read-only | Set `VAULT_MOUNT_MODE=rw` in root `.env` (default) |
+| Ollama not reachable (Mac) | Docker can't reach host Ollama | Ensure `OLLAMA_HOST=http://host.docker.internal:11434` |
 
 ---
 

@@ -171,6 +171,7 @@ repomix.config.json
 *~
 *.code-workspace
 .env.*
+!.env.example
 .next/
 dist/
 build/
