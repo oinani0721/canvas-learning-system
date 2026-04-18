@@ -276,6 +276,140 @@ async def startup_health_check(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Detailed Health Check (Story 1.10)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from typing import Literal
+import asyncio
+
+
+class ComponentHealth(BaseModel):
+    name: str
+    status: Literal["ready", "degraded", "unavailable"]
+    latency_ms: float = 0.0
+    detail: str = ""
+    fix_hint: str = ""
+
+
+class DetailedHealthResponse(BaseModel):
+    overall_status: Literal["ready", "degraded", "unavailable"]
+    components: list[ComponentHealth]
+    checked_at: str
+
+
+_CORE_COMPONENTS = {"neo4j"}
+
+_FIX_HINTS = {
+    "neo4j": "确认 Neo4j 容器运行中: docker compose up -d neo4j",
+    "ollama": "确保 Ollama 正在运行: ollama serve && ollama pull bge-m3",
+    "lancedb": "LanceDB 数据目录将在首次索引时自动创建",
+    "fastapi": "FastAPI 进程异常，检查后端日志",
+    "mcp": "MCP server 初始化失败，检查 backend/app/mcp/server.py",
+}
+
+
+async def _probe_with_timeout(
+    name: str, coro, fix_hint: str, timeout: float = 5.0
+) -> ComponentHealth:
+    start = time.monotonic()
+    try:
+        result = await asyncio.wait_for(coro, timeout=timeout)
+        elapsed = (time.monotonic() - start) * 1000
+        status_map = {
+            "healthy": "ready",
+            "unknown": "degraded",
+            "unhealthy": "unavailable",
+        }
+        mapped = status_map.get(result.status, "unavailable")
+        return ComponentHealth(
+            name=name,
+            status=mapped,
+            latency_ms=round(elapsed, 1),
+            detail=result.message or "",
+            fix_hint=fix_hint if mapped != "ready" else "",
+        )
+    except asyncio.TimeoutError:
+        elapsed = (time.monotonic() - start) * 1000
+        return ComponentHealth(
+            name=name,
+            status="unavailable",
+            latency_ms=round(elapsed, 1),
+            detail=f"Health check timed out ({timeout}s)",
+            fix_hint=fix_hint,
+        )
+    except Exception as exc:
+        elapsed = (time.monotonic() - start) * 1000
+        return ComponentHealth(
+            name=name,
+            status="unavailable",
+            latency_ms=round(elapsed, 1),
+            detail=str(exc)[:200],
+            fix_hint=fix_hint,
+        )
+
+
+def _aggregate_status(
+    components: list[ComponentHealth],
+) -> Literal["ready", "degraded", "unavailable"]:
+    statuses = {c.status for c in components}
+    core_unavailable = any(
+        c.status == "unavailable" and c.name in _CORE_COMPONENTS for c in components
+    )
+    if core_unavailable:
+        return "unavailable"
+    if "unavailable" in statuses or "degraded" in statuses:
+        return "degraded"
+    return "ready"
+
+
+@router.get("/health/detailed")
+async def detailed_health_check(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> dict:
+    """Story 1.10: 3-level component health with fix hints (AC #1-6)."""
+    probes = await asyncio.gather(
+        _probe_with_timeout("neo4j", _check_neo4j(settings), _FIX_HINTS["neo4j"]),
+        _probe_with_timeout("ollama", _check_ollama(settings), _FIX_HINTS["ollama"]),
+        _probe_with_timeout("lancedb", _check_lancedb(settings), _FIX_HINTS["lancedb"]),
+        _probe_with_timeout("fastapi", _check_fastapi(), _FIX_HINTS["fastapi"]),
+        _probe_with_timeout("mcp", _check_mcp(), _FIX_HINTS["mcp"]),
+    )
+
+    components = list(probes)
+    overall = _aggregate_status(components)
+    now = datetime.now(timezone.utc).isoformat()
+    status_code = 503 if overall == "unavailable" else 200
+
+    resp = DetailedHealthResponse(
+        overall_status=overall,
+        components=components,
+        checked_at=now,
+    )
+
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        content={"data": resp.model_dump(), "meta": {"timestamp": now}},
+        status_code=status_code,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Config Drift Check (Story 1.11)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/config-check")
+async def config_drift_check() -> dict:
+    """Story 1.11: Compare root .env vs backend/.env for shared variable drift."""
+    from app.services.config_drift_service import detect_config_drift
+
+    result = detect_config_drift()
+    now = datetime.now(timezone.utc).isoformat()
+    return {"data": result, "meta": {"timestamp": now}}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Setup Wizard (Story 1.1 Task 5)
 # ═══════════════════════════════════════════════════════════════════════════════
 

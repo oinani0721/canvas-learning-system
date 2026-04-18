@@ -40,7 +40,9 @@ from app.api.v1.endpoints.rollback import rollback_router
 from app.api.v1.endpoints.skills import skills_router  # Story 3.5
 from app.api.v1.endpoints.subjects import subjects_router  # Story 1.9
 from app.api.v1.endpoints.index import index_router  # Story 1.9
+from app.api.v1.endpoints.kg_health import kg_health_router  # Story 1.6
 from app.api.v1.endpoints.vault import vault_router  # Story 1.8
+from app.api.v1.endpoints.wikilink import wikilink_router  # Story 1.2
 from app.api.v1.endpoints.suggestions import suggestions_router  # Story 3.7
 from app.api.v1.endpoints.sync import sync_router  # Story 1.5
 from app.api.v1.endpoints.tips import tips_router  # Story 3.6
@@ -362,6 +364,28 @@ router.include_router(
         503: {"description": "Neo4j connection unavailable"},
         500: {"description": "Sync processing error"},
     },
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Wikilink Graph Routes (Story 1.2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    wikilink_router,
+    prefix="/wikilink",
+    tags=["Wikilink"],
+    responses={409: {"description": "Graph not built yet"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# KG Health Routes (Story 1.6)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    kg_health_router,
+    prefix="/kg",
+    tags=["KG Health"],
+    responses={500: {"description": "KG health check error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

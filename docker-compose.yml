@@ -178,7 +178,9 @@ services:
 
     networks:
       - canvas-network
-      - cliproxyapi-network
+      # Story 1.13: cliproxyapi-network only when ENABLE_CLIPROXY=true
+      # Uncomment the line below if using CLIProxy API integration:
+      # - cliproxyapi-network
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Claude Dev Container - Automated development pipeline
@@ -222,9 +224,10 @@ networks:
   canvas-network:
     driver: bridge
     name: canvas-learning-network
-  cliproxyapi-network:
-    external: true
-    name: cliproxyapi_default
+  # Story 1.13: conditional external network (only needed for CLIProxy integration)
+  # cliproxyapi-network:
+  #   external: true
+  #   name: cliproxyapi_default
 
 volumes:
   canvas-lancedb:

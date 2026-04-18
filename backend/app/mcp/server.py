@@ -524,4 +524,81 @@ def _register_tool_routes(app: FastAPI) -> None:
             fusion_strategy=input.fusion_strategy,
         )
 
-    logger.info("[Story 3.2] Registered 14 MCP tool routes (incl. F2 search_notes)")
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Wikilink Tools (Story 1.3: Wikilink MCP 工具注册)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    from app.mcp.tools.wikilink_tools import (
+        GetNeighborsInput,
+        GetNeighborsOutput,
+        ReadNoteInput,
+        ReadNoteOutput,
+        get_neighbors,
+        read_note,
+    )
+
+    @app.post(
+        "/mcp/tools/get_neighbors",
+        response_model=GetNeighborsOutput,
+        tags=[MCP_TAG],
+        operation_id="get_neighbors",
+        summary="Query wikilink neighbors of a note",
+        description="Find notes related to a given note via wikilink graph traversal. "
+        "Returns N-hop neighbors with title, path, distance, and frontmatter. "
+        "Use this when you need to discover related concepts in the vault.",
+    )
+    async def _get_neighbors(input: GetNeighborsInput) -> Dict[str, Any]:
+        return await get_neighbors(input)
+
+    @app.post(
+        "/mcp/tools/read_note",
+        response_model=ReadNoteOutput,
+        tags=[MCP_TAG],
+        operation_id="read_note",
+        summary="Read a vault note's content",
+        description="Read the full markdown content of a specific note in the vault. "
+        "Use this after get_neighbors to read the content of related notes.",
+    )
+    async def _read_note(input: ReadNoteInput) -> Dict[str, Any]:
+        return await read_note(input)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Infrastructure Tools (Story 1.12: DEPLOYMENT_TOOLS tier)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    from app.mcp.tools.infra_tools import (
+        CheckHealthInput,
+        CheckHealthOutput,
+        SwitchVaultInput,
+        SwitchVaultOutput,
+        check_backend_health,
+        switch_vault,
+    )
+
+    @app.post(
+        "/mcp/tools/check_backend_health",
+        response_model=CheckHealthOutput,
+        tags=[MCP_TAG],
+        operation_id="check_backend_health",
+        summary="Check backend health (DEPLOYMENT_TOOLS)",
+        description="Returns detailed health status of all backend components. "
+        "Requires user confirmation. Use when diagnosing backend issues.",
+    )
+    async def _check_health(input: CheckHealthInput) -> Dict[str, Any]:
+        return await check_backend_health(input)
+
+    @app.post(
+        "/mcp/tools/switch_vault",
+        response_model=SwitchVaultOutput,
+        tags=[MCP_TAG],
+        operation_id="switch_vault",
+        summary="Switch active vault (DEPLOYMENT_TOOLS)",
+        description="Switch the backend to a different Obsidian vault. "
+        "Requires user confirmation. vault_path must contain .obsidian/ directory.",
+    )
+    async def _switch_vault(input: SwitchVaultInput) -> Dict[str, Any]:
+        return await switch_vault(input)
+
+    logger.info(
+        "[Story 3.2] Registered 18 MCP tool routes (incl. Story 1.3 wikilink + Story 1.12 infra)"
+    )
