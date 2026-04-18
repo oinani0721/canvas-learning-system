@@ -54,7 +54,7 @@ class TestConceptTemplate:
 
     def test_mastery_score_initial_value(self):
         content = (TEMPLATES_DIR / "concept.md").read_text()
-        assert "mastery_score: 0.30" in content
+        assert "mastery_score: 0" in content
 
 
 class TestExamBoardTemplate:

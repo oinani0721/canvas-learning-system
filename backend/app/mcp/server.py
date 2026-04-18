@@ -15,6 +15,8 @@ from fastapi import FastAPI
 
 logger = logging.getLogger(__name__)
 
+mcp: Any = None
+
 
 def _patch_fastapi_mcp_anyof_bug() -> None:
     """
@@ -103,6 +105,7 @@ def setup_mcp_server(app: FastAPI) -> None:
     Args:
         app: The FastAPI application instance.
     """
+    global mcp
     try:
         from fastapi_mcp import FastApiMCP
 
