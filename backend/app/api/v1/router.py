@@ -39,6 +39,8 @@ from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
 from app.api.v1.endpoints.skills import skills_router  # Story 3.5
 from app.api.v1.endpoints.subjects import subjects_router  # Story 1.9
+from app.api.v1.endpoints.index import index_router  # Story 1.9
+from app.api.v1.endpoints.vault import vault_router  # Story 1.8
 from app.api.v1.endpoints.suggestions import suggestions_router  # Story 3.7
 from app.api.v1.endpoints.sync import sync_router  # Story 1.5
 from app.api.v1.endpoints.tips import tips_router  # Story 3.6
@@ -359,6 +361,34 @@ router.include_router(
     responses={
         503: {"description": "Neo4j connection unavailable"},
         500: {"description": "Sync processing error"},
+    },
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Index Management Routes (Story 1.9)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    index_router,
+    prefix="/index",
+    tags=["Index Management"],
+    responses={
+        404: {"description": "Vault index not found"},
+        503: {"description": "LanceDB client unavailable"},
+    },
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vault Switch Routes (Story 1.8)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    vault_router,
+    prefix="/vault",
+    tags=["Vault"],
+    responses={
+        400: {"description": "Invalid vault path"},
+        503: {"description": "Vault switch in progress"},
     },
 )
 

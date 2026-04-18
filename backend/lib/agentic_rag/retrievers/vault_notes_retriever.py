@@ -200,35 +200,12 @@ class VaultNotesService:
                     except (json.JSONDecodeError, TypeError):
                         pass
 
-            # Phase 4 placeholder: apply group_id filter when caller requests
-            # isolation. Accept both flattened metadata.subject_id and the
-            # nested metadata_json.subject_id fallback (some ingestion paths
-            # still write only the JSON string).
-            #
-            # Common-note downgrade: a row with ``subject_id == None`` (or
-            # missing entirely) is treated as a common / 通用主题 note and
-            # joins every group. This prevents the filter from collapsing
-            # to an empty list under current ingestion paths that do not
-            # yet backfill subject_id consistently. See FR-KG-04 isolation
-            # Phase 4 (F9) for the rationale.
-            if group_id is not None:
-
-                def _effective_subject_id(row: Dict[str, Any]) -> Optional[str]:
-                    meta = row.get("metadata") or {}
-                    flat = meta.get("subject_id")
-                    if flat is not None:
-                        return flat
-                    nested = meta.get("metadata_json")
-                    if isinstance(nested, dict):
-                        return nested.get("subject_id")
-                    return None
-
-                def _matches_group(row: Dict[str, Any]) -> bool:
-                    sid = _effective_subject_id(row)
-                    # Common-note downgrade: None (unset / common) joins every group.
-                    return sid is None or sid == group_id
-
-                results = [r for r in results if _matches_group(r)]
+            # Story 1.9: Table-level vault_id isolation replaced the Phase 4
+            # metadata-based group_id filter. The LanceDB client now prefixes
+            # table names with vault_id (e.g. "cs_61b_vault_notes"), so
+            # cross-vault data leakage is prevented at the storage layer.
+            # The group_id parameter is kept for backward compatibility but
+            # is no longer used for filtering here.
 
             latency_ms = (time.perf_counter() - start_time) * 1000
 

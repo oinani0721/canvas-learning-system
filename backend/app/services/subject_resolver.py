@@ -183,11 +183,19 @@ class SubjectResolver:
         normalized_path = self._normalize_path(canvas_path)
         canvas_name = self._extract_canvas_name(normalized_path)
 
+        # Story 1.9: vault_id prefix for cross-vault uniqueness
+        try:
+            from app.config import get_current_vault_id
+
+            _vid = get_current_vault_id()
+        except Exception:
+            _vid = "default"
+
         # 1. Manual override (highest priority)
         # Story 1.9: Accept manual_subject alone (category defaults to subject)
         if manual_subject:
             category = manual_category or manual_subject
-            group_id = f"{manual_subject}:{canvas_name}"
+            group_id = f"{_vid}:{manual_subject}:{canvas_name}"
             return SubjectInfo(
                 subject=manual_subject,
                 category=category,
@@ -203,7 +211,7 @@ class SubjectResolver:
         config_result = self._resolve_from_config(normalized_path)
         if config_result:
             subject, category = config_result
-            group_id = f"{subject}:{canvas_name}"
+            group_id = f"{_vid}:{subject}:{canvas_name}"
             return SubjectInfo(
                 subject=subject,
                 category=category,
@@ -215,7 +223,7 @@ class SubjectResolver:
         inferred_result = self._infer_from_path(normalized_path)
         if inferred_result:
             subject, category = inferred_result
-            group_id = f"{subject}:{canvas_name}"
+            group_id = f"{_vid}:{subject}:{canvas_name}"
             return SubjectInfo(
                 subject=subject,
                 category=category,
@@ -231,7 +239,7 @@ class SubjectResolver:
         )
         subject = defaults.get("subject", "general")
         category = defaults.get("category", "general")
-        group_id = f"{subject}:{canvas_name}"
+        group_id = f"{_vid}:{subject}:{canvas_name}"
 
         return SubjectInfo(
             subject=subject,

@@ -133,6 +133,16 @@ class Settings(BaseSettings):
     # Canvas Settings
     # ═══════════════════════════════════════════════════════════════════════════
 
+    # Story 1.8: Multi-vault support — VAULTS_ROOT + ACTIVE_VAULT
+    VAULTS_ROOT: str = Field(
+        default=_PROJECT_ROOT,
+        description="Parent directory containing all vault subdirectories",
+    )
+    ACTIVE_VAULT: str = Field(
+        default="canvas-vault",
+        description="Currently active vault subdirectory name",
+    )
+
     # FIX-4.0: Use absolute path to avoid encoding issues with Chinese characters
     # The relative path "../笔记库" was causing 404 errors due to path resolution issues
     CANVAS_BASE_PATH: str = Field(
@@ -634,6 +644,11 @@ class Settings(BaseSettings):
         return self.CANVAS_BASE_PATH
 
     @property
+    def vault_id(self) -> str:
+        """Story 1.9: Derive vault_id from ACTIVE_VAULT name (sanitized)."""
+        return sanitize_vault_id(self.ACTIVE_VAULT)
+
+    @property
     def api_v1_prefix(self) -> str:
         """Alias for API_V1_PREFIX (lowercase for convenience)."""
         return self.API_V1_PREFIX
@@ -810,3 +825,48 @@ settings = get_settings()
 # All modules should import this instead of hardcoding "cs188".
 # Story 2.1 AC-5: cs188 hardcode cleanup.
 DEFAULT_GROUP_ID: str = settings.DEFAULT_GROUP_ID
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 1.8: Vault Switch — Runtime Settings Reload
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import re
+
+
+def sanitize_vault_id(vault_name: str) -> str:
+    """Derive a safe vault_id from a vault directory name.
+
+    Lowercase, replace non-alphanumeric with underscore, collapse runs.
+    Example: "CS 61B" -> "cs_61b", "canvas-vault" -> "canvas_vault"
+    """
+    s = vault_name.lower().strip()
+    s = re.sub(r"[^a-z0-9]", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s or "default"
+
+
+def get_current_vault_id() -> str:
+    """Return the vault_id for the currently active vault."""
+    return get_settings().vault_id
+
+
+def reload_settings(overrides: dict | None = None) -> Settings:
+    """Hot-reload settings with optional overrides (Story 1.8 AC #4).
+
+    Clears the lru_cache on get_settings(), injects overrides into
+    os.environ so the next Settings() picks them up, then rebuilds.
+
+    Returns the new Settings instance.
+    """
+    global settings, DEFAULT_GROUP_ID
+
+    overrides = overrides or {}
+    for key, value in overrides.items():
+        os.environ[key] = str(value)
+
+    get_settings.cache_clear()
+
+    settings = get_settings()
+    DEFAULT_GROUP_ID = settings.DEFAULT_GROUP_ID
+    return settings

@@ -334,11 +334,13 @@ class LanceDBClient:
         timeout_ms: int = 30000,  # Ollama GPU cold start ~15s, warm ~300ms. Must cover cold start.
         batch_size: int = 100,
         enable_fallback: bool = True,
+        vault_id: Optional[str] = None,
     ):
         """
         初始化 LanceDBClient
 
         Story 2.3: 默认使用 bge-m3 1024d Dense 向量
+        Story 1.9: vault_id 前缀隔离
 
         Args:
             db_path: LanceDB数据库路径 (默认: data/lancedb)
@@ -347,6 +349,7 @@ class LanceDBClient:
             timeout_ms: 超时时间(毫秒), 默认400ms (Story 12.2 AC 2.3)
             batch_size: 批量处理大小 (默认: 100, Story 23.2 AC 2)
             enable_fallback: 启用降级(超时/错误时返回空结果)
+            vault_id: Vault namespace (None = dynamic from config)
         """
         self.db_path = os.path.expanduser(db_path)
         self.embedding_dim = embedding_dim
@@ -354,6 +357,7 @@ class LanceDBClient:
         self.timeout_ms = timeout_ms
         self.batch_size = batch_size
         self.enable_fallback = enable_fallback
+        self._vault_id_override = vault_id
 
         self._db = None
         self._initialized = False
@@ -363,6 +367,73 @@ class LanceDBClient:
         # ✅ Story 23.2: MultimodalVectorizer for embedding
         self._vectorizer = None
         self._vectorizer_initialized = False
+
+    # =========================================================================
+    # Story 1.9: Vault-ID table namespacing
+    # =========================================================================
+
+    @property
+    def active_vault_id(self) -> str:
+        if self._vault_id_override is not None:
+            return self._vault_id_override
+        try:
+            from app.config import get_current_vault_id
+
+            return get_current_vault_id()
+        except Exception:
+            return "default"
+
+    def resolve_table_name(self, table_name: str) -> str:
+        """Prefix table_name with vault_id for namespace isolation."""
+        vid = self.active_vault_id
+        if not vid or vid == "default":
+            return table_name
+        if table_name.startswith(f"{vid}_"):
+            return table_name
+        return f"{vid}_{table_name}"
+
+    def list_vault_tables(self, vault_id: str | None = None) -> list[str]:
+        """Return table names belonging to a specific vault."""
+        if self._db is None:
+            return []
+        prefix = f"{vault_id}_" if vault_id and vault_id != "default" else ""
+        all_tables = self._db.table_names()
+        if not prefix:
+            return [
+                t for t in all_tables if "_" not in t or t == self.FINGERPRINT_TABLE
+            ]
+        return [t for t in all_tables if t.startswith(prefix)]
+
+    def get_all_vault_stats(self) -> dict[str, dict]:
+        """Return per-vault table/row statistics."""
+        if self._db is None:
+            return {}
+        stats: dict[str, dict] = {}
+        for tname in self._db.table_names():
+            parts = tname.split("_", 1)
+            vid = parts[0] if len(parts) >= 2 else "default"
+            if vid not in stats:
+                stats[vid] = {"tables": 0, "rows": 0}
+            stats[vid]["tables"] += 1
+            try:
+                tbl = self._db.open_table(tname)
+                stats[vid]["rows"] += tbl.count_rows()
+            except Exception:
+                pass
+        return stats
+
+    def drop_vault_tables(self, vault_id: str) -> int:
+        """Drop all tables for a given vault_id. Returns count of dropped tables."""
+        if self._db is None:
+            return 0
+        tables = self.list_vault_tables(vault_id)
+        for tname in tables:
+            try:
+                self._db.drop_table(tname, ignore_missing=True)
+                self._tables_cache.pop(tname, None)
+            except Exception:
+                pass
+        return len(tables)
 
     async def initialize(self) -> bool:
         """
@@ -669,6 +740,7 @@ class LanceDBClient:
         Returns:
             Dict with total_files, total_chunks, duration_ms.
         """
+        table_name = self.resolve_table_name(table_name)
         start_time = time.perf_counter()
 
         if not self._initialized:
@@ -754,6 +826,7 @@ class LanceDBClient:
         Returns:
             Number of chunks indexed.
         """
+        table_name = self.resolve_table_name(table_name)
         import hashlib
 
         if not self._initialized:
@@ -1040,6 +1113,7 @@ class LanceDBClient:
         Returns:
             int: 索引的节点数量
         """
+        table_name = self.resolve_table_name(table_name)
         if not self._initialized:
             await self.initialize()
 
@@ -1149,6 +1223,7 @@ class LanceDBClient:
         Returns:
             int: Total number of chunks indexed.
         """
+        table_name = self.resolve_table_name(table_name)
         index_start = time.perf_counter()
 
         if not self._initialized:
@@ -1392,6 +1467,7 @@ class LanceDBClient:
         Returns:
             Number of chunks indexed.
         """
+        table_name = self.resolve_table_name(table_name)
         import hashlib
 
         if not os.path.isfile(file_path):
@@ -2225,6 +2301,7 @@ class LanceDBClient:
         Returns:
             List[SearchResult]: 标准化的搜索结果
         """
+        table_name = self.resolve_table_name(table_name)
         start_time = time.perf_counter()
 
         if not self._initialized:
@@ -2690,6 +2767,7 @@ class LanceDBClient:
         Returns:
             添加的文档数量
         """
+        table_name = self.resolve_table_name(table_name)
         if self._db is None:
             return 0
 

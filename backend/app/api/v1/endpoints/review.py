@@ -62,8 +62,13 @@ _src_path = _project_root / "lib"
 if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
-# Canvas base path configuration (reads from project root)
-_canvas_base_path = _project_root / "笔记库"
+# Story 1.8: read vault path from settings instead of hardcoding
+from app.config import get_settings as _get_settings
+
+
+def _get_canvas_base_path() -> Path:
+    return Path(_get_settings().CANVAS_BASE_PATH)
+
 
 # ✅ Import real EbbinghausReviewScheduler
 try:
@@ -816,10 +821,10 @@ async def generate_verification_canvas(
     verification_canvas_name = f"{request.source_canvas}-检验白板-{today}"
 
     # Step 1: Build source canvas path
-    source_canvas_path = _canvas_base_path / f"{request.source_canvas}.canvas"
+    source_canvas_path = _get_canvas_base_path() / f"{request.source_canvas}.canvas"
     if not source_canvas_path.exists():
         # Try without .canvas extension (user might have included it)
-        source_canvas_path = _canvas_base_path / request.source_canvas
+        source_canvas_path = _get_canvas_base_path() / request.source_canvas
         if not source_canvas_path.exists():
             logger.error(f"Source canvas not found: {request.source_canvas}")
             return GenerateReviewResponse(
@@ -1029,7 +1034,9 @@ async def generate_verification_canvas(
     }
 
     # Step 7: Save verification canvas
-    verification_canvas_path = _canvas_base_path / f"{verification_canvas_name}.canvas"
+    verification_canvas_path = (
+        _get_canvas_base_path() / f"{verification_canvas_name}.canvas"
+    )
     success = _write_canvas(verification_canvas_path, verification_canvas_data)
 
     if not success:
@@ -1675,8 +1682,8 @@ async def start_verification_session(
         # H1 Fix: Use properly-injected singleton
         verification_service = await _get_or_create_verification_service()
 
-        # Build canvas_path from canvas_name + _canvas_base_path
-        canvas_path = str(_canvas_base_path / f"{request.canvas_name}.canvas")
+        # Build canvas_path from canvas_name + _get_canvas_base_path()
+        canvas_path = str(_get_canvas_base_path() / f"{request.canvas_name}.canvas")
 
         result = await verification_service.start_session(
             canvas_name=request.canvas_name,
