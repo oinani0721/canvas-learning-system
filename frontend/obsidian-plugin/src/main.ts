@@ -1,4 +1,11 @@
-import { Notice, Plugin } from "obsidian";
+import {
+  type App,
+  type Editor,
+  FuzzySuggestModal,
+  Notice,
+  Plugin,
+} from "obsidian";
+import { CALLOUT_TYPES, type CalloutType, wrapSelection } from "./callout";
 
 const BACKEND_URL = "http://localhost:8001";
 
@@ -7,6 +14,7 @@ const BACKEND_URL = "http://localhost:8001";
  *
  * Story 1.4: Registers 6 core commands in Obsidian Hotkeys panel.
  * Story 1.5: Detects hotkey conflicts on plugin load.
+ * Story 1.16: Adds 7th command `canvas:annotate-callout` — wrap selection as Obsidian callout.
  */
 export default class CanvasLearningPlugin extends Plugin {
   async onload() {
@@ -36,8 +44,9 @@ export default class CanvasLearningPlugin extends Plugin {
     this.addCommand({
       id: "canvas:extract-concept",
       name: "提取概念",
-      editorCallback: (editor) => {
-        const selected = editor.getSelection();
+      callback: () => {
+        const editor = this.app.workspace.activeEditor?.editor;
+        const selected = editor?.getSelection();
         if (!selected) {
           new Notice("请先选中文本再提取概念");
           return;
@@ -63,6 +72,29 @@ export default class CanvasLearningPlugin extends Plugin {
       name: "打开复习队列",
       callback: () => this.callBackend("/api/v1/review/queue", "打开复习队列"),
     });
+
+    this.addCommand({
+      id: "canvas:annotate-callout",
+      name: "批注为标注",
+      callback: () => this.handleAnnotateCallout(),
+    });
+  }
+
+  /**
+   * Story 1.16: Prompt for callout type and wrap the current selection.
+   */
+  private handleAnnotateCallout() {
+    const editor = this.app.workspace.activeEditor?.editor;
+    if (!editor) {
+      new Notice("编辑器未激活");
+      return;
+    }
+    const selected = editor.getSelection();
+    if (!selected) {
+      new Notice("请先选中文本再批注", 3000);
+      return;
+    }
+    new CalloutTypeModal(this.app, editor, selected).open();
   }
 
   /**
@@ -119,5 +151,28 @@ export default class CanvasLearningPlugin extends Plugin {
     } catch {
       new Notice("后端未连接，请先启动 Canvas 后端", 5000);
     }
+  }
+}
+
+class CalloutTypeModal extends FuzzySuggestModal<CalloutType> {
+  constructor(
+    app: App,
+    private editor: Editor,
+    private selected: string,
+  ) {
+    super(app);
+    this.setPlaceholder("选择标注类型");
+  }
+
+  getItems(): CalloutType[] {
+    return [...CALLOUT_TYPES];
+  }
+
+  getItemText(item: CalloutType): string {
+    return item;
+  }
+
+  onChooseItem(item: CalloutType) {
+    this.editor.replaceSelection(wrapSelection(this.selected, item));
   }
 }
