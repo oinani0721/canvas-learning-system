@@ -5,7 +5,13 @@ import {
   Notice,
   Plugin,
 } from "obsidian";
-import { CALLOUT_TYPES, type CalloutType, wrapSelection } from "./callout";
+import {
+  TAG_OPTIONS,
+  type TagOption,
+  UNDERSTANDING_OPTIONS,
+  type UnderstandingOption,
+  wrapSelection,
+} from "./callout";
 
 const BACKEND_URL = "http://localhost:8001";
 
@@ -14,7 +20,8 @@ const BACKEND_URL = "http://localhost:8001";
  *
  * Story 1.4: Registers 6 core commands in Obsidian Hotkeys panel.
  * Story 1.5: Detects hotkey conflicts on plugin load.
- * Story 1.16: Adds 7th command `canvas:annotate-callout` — wrap selection as Obsidian callout.
+ * Story 1.16: Adds 7th command `canvas:annotate-callout` — select text, pick Tag + UnderstandingLevel,
+ *             wrap as semantic callout with 3-state checkbox (Round 3 QA 2026-04-14 alignment).
  */
 export default class CanvasLearningPlugin extends Plugin {
   async onload() {
@@ -81,7 +88,8 @@ export default class CanvasLearningPlugin extends Plugin {
   }
 
   /**
-   * Story 1.16: Prompt for callout type and wrap the current selection.
+   * Story 1.16: Two-step modal — pick Tag (4 semantic) then UnderstandingLevel (3 states).
+   * Wraps the selection as a callout with the chosen Tag and 3-state checkbox.
    */
   private handleAnnotateCallout() {
     const editor = this.app.workspace.activeEditor?.editor;
@@ -94,7 +102,7 @@ export default class CanvasLearningPlugin extends Plugin {
       new Notice("请先选中文本再批注", 3000);
       return;
     }
-    new CalloutTypeModal(this.app, editor, selected).open();
+    new TagTypeModal(this.app, editor, selected).open();
   }
 
   /**
@@ -154,25 +162,53 @@ export default class CanvasLearningPlugin extends Plugin {
   }
 }
 
-class CalloutTypeModal extends FuzzySuggestModal<CalloutType> {
+class TagTypeModal extends FuzzySuggestModal<TagOption> {
   constructor(
     app: App,
     private editor: Editor,
     private selected: string,
   ) {
     super(app);
-    this.setPlaceholder("选择标注类型");
+    this.setPlaceholder("第 1/2 步：选标签类型");
   }
 
-  getItems(): CalloutType[] {
-    return [...CALLOUT_TYPES];
+  getItems(): TagOption[] {
+    return [...TAG_OPTIONS];
   }
 
-  getItemText(item: CalloutType): string {
-    return item;
+  getItemText(item: TagOption): string {
+    return item.label;
   }
 
-  onChooseItem(item: CalloutType) {
-    this.editor.replaceSelection(wrapSelection(this.selected, item));
+  onChooseItem(tag: TagOption) {
+    setTimeout(() => {
+      new UnderstandingModal(this.app, this.editor, this.selected, tag).open();
+    }, 50);
+  }
+}
+
+class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> {
+  constructor(
+    app: App,
+    private editor: Editor,
+    private selected: string,
+    private tag: TagOption,
+  ) {
+    super(app);
+    this.setPlaceholder(`第 2/2 步：选理解度（Tag: ${tag.label}）`);
+  }
+
+  getItems(): UnderstandingOption[] {
+    return [...UNDERSTANDING_OPTIONS];
+  }
+
+  getItemText(item: UnderstandingOption): string {
+    return item.label;
+  }
+
+  onChooseItem(und: UnderstandingOption) {
+    this.editor.replaceSelection(
+      wrapSelection(this.selected, this.tag, und.value),
+    );
   }
 }

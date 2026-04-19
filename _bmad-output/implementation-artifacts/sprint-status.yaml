@@ -66,7 +66,7 @@ development_status:
   1-12-mcp-infra-tools-deployment-tier: ready-for-dev
   1-13-deployment-checklist-external-net: ready-for-dev
   # Round 4 additions (2026-04-17, 4 MVP stories)
-  1-16-annotate-callout-hotkey: review
+  1-16-annotate-callout-hotkey: in-progress
   1-17-ai-linked-doc: ready-for-dev
   1-18-dashboard-md-mvp: ready-for-dev
   1-19-configure-whiteboard-skill: ready-for-dev
