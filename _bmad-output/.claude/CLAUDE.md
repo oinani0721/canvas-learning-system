@@ -262,7 +262,41 @@ claude --add-dir ../backend --add-dir ../frontend/obsidian-plugin --add-dir ../c
 
 ---
 
-## ⛔⛔⛔ R4 × BMAD Definition of Done (DoD) — 2026-04-18 round-6 固化
+## ⛔⛔⛔ 双 Vault 架构（2026-04-19 round-7 固化）
+
+> **用户 2026-04-19 明确**："开发相关的文档在 bmad output，然后测试相关的内容在 canvas vault"
+
+| Vault | 存放 | 用户场景 |
+|---|---|---|
+| **`_bmad-output/`** | 开发文档：PRD / spec / review / 验收单 / 研究报告 / 模板 | 打开读文档、勾验收单 checkbox、在验收单批注 |
+| **`canvas-vault/`** | 测试环境：插件 main.js / Claudian / Skills / 真实笔记 / hotkey 绑定 / 白板 / 实测 KG 数据 | 实际跑 UAT、Cmd+Shift+A 批注、Cmd+Shift+D 触发 AI 双链、日常学习使用 |
+
+### 资产归属规则（违反 = 错配）
+
+| 资产 | 正确位置 | 禁止位置 |
+|---|---|---|
+| Obsidian plugin `main.js`/`manifest.json` | `canvas-vault/.obsidian/plugins/<id>/` | ❌ _bmad-output/.obsidian/plugins/ |
+| Claudian (Claude Code sidebar) | `canvas-vault/.obsidian/plugins/claudian/` | ❌ _bmad-output |
+| Claudian Skills | `canvas-vault/.claude/skills/<name>/SKILL.md` | ❌ _bmad-output/.claude/skills/ |
+| hotkeys.json（用户绑定） | `canvas-vault/.obsidian/hotkeys.json` | ❌ _bmad-output/.obsidian/ |
+| community-plugins.json | `canvas-vault/.obsidian/community-plugins.json`（含真实 plugin 列表） | `_bmad-output/.obsidian/community-plugins.json` 保持 `[]` |
+| Story spec / 验收单 / 模板 | `_bmad-output/...` | ❌ canvas-vault |
+| frontend plugin 源码 | `frontend/obsidian-plugin/src/` (Git-tracked) | — |
+| build 产物 main.js | `frontend/obsidian-plugin/main.js` (Git-ignored) + cp → canvas-vault | ❌ _bmad-output/.obsidian/plugins/ |
+
+### Deploy 命令模板（未来所有 Story）
+
+```bash
+cd frontend/obsidian-plugin && npm run build
+cp main.js ../../canvas-vault/.obsidian/plugins/canvas-learning-system/main.js
+# (验收单单独 ship)
+cp _bmad-output/templates/uat-sheet-template.md \
+   _bmad-output/验收单/Story-{id}-{kebab-title}.md  # 然后填充
+```
+
+---
+
+## ⛔⛔⛔ R4 × BMAD Definition of Done (DoD) — 2026-04-18 round-6 固化 + 2026-04-19 round-7 修正
 
 > **用户刚需**：R4 工作流中的"ship demo + 用户 hands-on"环节之前靠 Claude 记性，现固化为 **dev-story 完成的三项必要条件**。任一缺失 = 未完成。
 
@@ -270,7 +304,7 @@ claude --add-dir ../backend --add-dir ../frontend/obsidian-plugin --add-dir ../c
 
 | # | 条件 | 验收信号 |
 |---|---|---|
-| **DoD-1 技术层** | Git commit + tests 通过 + sprint-status `review` | `git log` 最新 commit 含 Story ID + `npm test` / `pytest` green |
+| **DoD-1 技术层** | Git commit + tests 通过 + sprint-status `review` + **插件 deploy 到 `canvas-vault/.obsidian/plugins/`** | `git log` 最新 commit 含 Story ID + `npm test` green + `ls canvas-vault/.obsidian/plugins/canvas-learning-system/main.js` |
 | **DoD-2 spec 层** | Story spec 的 Dev Agent Record / File List / Change Log / Tasks 全打勾 | `_bmad-output/implementation-artifacts/epic-N/X-Y-*.md` 所有 `- [ ]` 变 `- [x]`，新增 Change Log 条目 |
 | **DoD-3 R4 层** | **`_bmad-output/验收单/Story-{id}-{kebab-title}.md` 已 ship** | `ls _bmad-output/验收单/` 能看到新增文件，且结构符合 `_bmad-output/templates/uat-sheet-template.md` |
 
@@ -317,6 +351,7 @@ claude --add-dir ../backend --add-dir ../frontend/obsidian-plugin --add-dir ../c
 DoD-1 ☐ git log 最新 commit 含 "Story: X.Y" 或 "PLAN-NNN"
 DoD-1 ☐ tests 命令跑完 0 fail
 DoD-1 ☐ sprint-status.yaml 里对应 key 是 "review"
+DoD-1 ☐ canvas-vault/.obsidian/plugins/<id>/main.js 已更新（不是 _bmad-output）
 
 DoD-2 ☐ Story spec 的 Dev Tasks 全部 [x]
 DoD-2 ☐ Dev Agent Record / File List / Change Log 已填
@@ -324,7 +359,7 @@ DoD-2 ☐ AC 列表每条对应实现有 trace
 
 DoD-3 ☐ _bmad-output/验收单/Story-{id}-*.md 存在
 DoD-3 ☐ 该文件含 7 段（目标/Behavior/交互/UAT/结果/批注/trace）
-DoD-3 ☐ 对用户消息中通知该文件位置
+DoD-3 ☐ 对用户消息中通知该文件位置 + **提醒用户在 canvas-vault 跑 UAT**
 
 3 × ☐ 全部 ✓ → 才能告诉用户 "Story X.Y ready for review"
 任一 ✗ → HALT，补齐后才算完成

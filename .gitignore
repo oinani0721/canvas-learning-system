@@ -203,6 +203,16 @@ images/generated*
 !canvas-vault/.obsidian/
 !canvas-vault/.obsidian/templates/
 !canvas-vault/.obsidian/templates/**
+# 但 canvas-vault 里的 build 产物和用户状态仍 ignore
+canvas-vault/.obsidian/plugins/*/main.js
+canvas-vault/.obsidian/plugins/*/main.js.map
+canvas-vault/.obsidian/plugins/*/data.json
+canvas-vault/.obsidian/workspace.json
+canvas-vault/.obsidian/workspace-*.json
+canvas-vault/.obsidian/app.json
+canvas-vault/.obsidian/appearance.json
+canvas-vault/.obsidian/core-plugins.json
+# Keep track: plugin manifest.json, community-plugins.json, hotkeys.json
 
 # ── Binary design artifacts (large, not source-controllable) ──
 *.pen

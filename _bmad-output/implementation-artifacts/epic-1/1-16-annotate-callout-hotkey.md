@@ -143,7 +143,7 @@ uat_sheet: "_bmad-output/验收单/Story-1.16-批注-hotkey.md"
    - 9 用例：TAG_OPTIONS / UNDERSTANDING_OPTIONS 结构 + wrapSelection 4 组合 + 4×3=12 穷举 + 空行保留 + 纯空格
 - [x] **build + deploy**:
    - `npm run build` → `main.js` 7886 bytes (v1 6535)
-   - `cp main.js _bmad-output/.obsidian/plugins/canvas-learning-system/`
+   - `cp main.js canvas-vault/.obsidian/plugins/canvas-learning-system/`
    - grep 验证 canvas-vault/main.js 含 `TagTypeModal / UnderstandingModal / TAG_OPTIONS / UNDERSTANDING_OPTIONS / 已懂 / 模糊 / 不懂` 9 处
 - [ ] **UAT v2**：用户 hotkey `Cmd+Shift+A`（已绑），跑 2 步 modal + 理解度选择，验证 6 行 callout + Reading View 渲染 + 可点 checkbox 切换
 
@@ -287,7 +287,7 @@ class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> { /* 第
 | Checkpoint | Type | Command | Pass Signal |
 |---|---|---|---|
 | CP-1 | build | `cd frontend/obsidian-plugin && npm run build` | exit 0, main.js updated |
-| CP-2 | deploy | `cp main.js _bmad-output/.obsidian/plugins/canvas-learning-system/` | file copied |
+| CP-2 | deploy | `cp main.js canvas-vault/.obsidian/plugins/canvas-learning-system/` | file copied |
 | CP-3 | reload | Manual: Obsidian Cmd+Shift+P → "Reload app" | no console error (F12) |
 | CP-4 | UAT | Run "## UAT Script" steps | all steps pass |
 
@@ -307,7 +307,7 @@ Claude Opus 4.7 (1M context) via `bmad-bmm-dev-story` skill — 2026-04-18
 ### Debug Log References
 - Build: `cd frontend/obsidian-plugin && npm run build` → `main.js` 6535 bytes (was 5071)
 - Test: `npm test` → `node --test tests/.out/callout.test.cjs` → 6 passed / 0 failed
-- Deploy: `cp main.js _bmad-output/.obsidian/plugins/canvas-learning-system/main.js`
+- Deploy: `cp main.js canvas-vault/.obsidian/plugins/canvas-learning-system/main.js`
 - Symbol grep: canvas-vault/main.js 含 `annotate-callout / CalloutTypeModal / 批注为标注` 3 处命中
 
 ### Completion Notes List
@@ -342,7 +342,7 @@ Claude Opus 4.7 (1M context) via `bmad-bmm-dev-story` skill — 2026-04-18
 - **MOD**: `_bmad-output/implementation-artifacts/sprint-status.yaml` — 1-16 状态 `review → in-progress`（correct-course 回退）
 - **MOD**: `_bmad-output/implementation-artifacts/epic-1/1-16-annotate-callout-hotkey.md` — AC v2 重写、Dev Tasks v2、File List v2、Change Log v2 条目
 
-构建产物 `frontend/obsidian-plugin/main.js` (v2 7886 bytes，v1 6535) 和部署副本 `_bmad-output/.obsidian/plugins/canvas-learning-system/main.js` 不入 git（`.gitignore`），由 `npm run build` 即时重建。
+构建产物 `frontend/obsidian-plugin/main.js` (v2 7886 bytes，v1 6535) 和部署副本 `canvas-vault/.obsidian/plugins/canvas-learning-system/main.js` 不入 git（`.gitignore`），由 `npm run build` 即时重建。
 
 ### Change Log
 
