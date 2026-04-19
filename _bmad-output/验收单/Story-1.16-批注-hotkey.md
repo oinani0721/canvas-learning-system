@@ -1,9 +1,10 @@
 ---
 story: "1.16"
 title: "批注 Hotkey + 4 Tag + 3 态理解度"
-status: "review"
+status: "done"
 version: "v2"
 date: "2026-04-18"
+uat_passed_date: "2026-04-19"
 developer: "Claude Code (Opus 4.7)"
 ---
 
@@ -68,41 +69,41 @@ developer: "Claude Code (Opus 4.7)"
 
 ### 第 0 步：前置（必须做）
 
-- [ ] 已经按 `Cmd+Q` 完全关闭 Obsidian 再重开（加载新 main.js v2）
-- [ ] Settings > Hotkeys 搜 "批注" 看到 "批注为标注" 绑着 `Cmd+Shift+A`
-- [ ] 知道 `Cmd+E` 可以在编辑/阅读视图之间切换
+- [x] 已经按 `Cmd+Q` 完全关闭 Obsidian 再重开（加载新 main.js v2）
+- [x] Settings > Hotkeys 搜 "批注" 看到 "批注为标注" 绑着 `Cmd+Shift+A`
+- [x] 知道 `Cmd+E` 可以在编辑/阅读视图之间切换
 
 ### 第 1 步：空选中提醒
 
-- [ ] 不选任何文字，按 `Cmd+Shift+A`
-- [ ] 右上角弹出 3 秒黑色 Notice："**请先选中文本再批注**"
-- [ ] **不**弹任何 modal 窗口
+- [x] 不选任何文字，按 `Cmd+Shift+A`
+- [x] 右上角弹出 3 秒黑色 Notice："**请先选中文本再批注**"
+- [x] **不**弹任何 modal 窗口
 
 ### 第 2 步：第 1/2 步 modal
 
-- [ ] 在笔记里选中 "this is important"
-- [ ] 按 `Cmd+Shift+A`
-- [ ] 弹出一个 modal，顶部输入框写着 "**第 1/2 步：选标签类型**"
-- [ ] 看到 4 个选项（带 emoji）：💡 Tips / ❌ 错误 / ❓ 提问 / 📌 关键点
+- [x] 在笔记里选中 "this is important"
+- [x] 按 `Cmd+Shift+A`
+- [x] 弹出一个 modal，顶部输入框写着 "**第 1/2 步：选标签类型**"
+- [x] 看到 4 个选项（带 emoji）：💡 Tips / ❌ 错误 / ❓ 提问 / 📌 关键点
 
 ### 第 3 步：选 Tag "💡 Tips"
 
-- [ ] 输 "tips" 过滤，或用上下箭头选到 "💡 Tips"
-- [ ] 按回车
-- [ ] 第 1 步 modal 关闭
+- [x] 输 "tips" 过滤，或用上下箭头选到 "💡 Tips"
+- [x] 按回车
+- [x] 第 1 步 modal 关闭
 
 ### 第 4 步：第 2/2 步 modal 自动弹出
 
-- [ ] 大约 50 毫秒后，第二个 modal 自动弹出
-- [ ] 输入框写着 "**第 2/2 步：选理解度（Tag: 💡 Tips）**"（注意包含你刚选的 Tag）
-- [ ] 看到 3 个选项：✅ 已懂 / 🤔 模糊 / ❌ 不懂
+- [x] 大约 50 毫秒后，第二个 modal 自动弹出
+- [x] 输入框写着 "**第 2/2 步：选理解度（Tag: 💡 Tips）**"（注意包含你刚选的 Tag）
+- [x] 看到 3 个选项：✅ 已懂 / 🤔 模糊 / ❌ 不懂
 
 ### 第 5 步：选 "🤔 模糊"
 
-- [ ] 输 "模糊" 或箭头选中
-- [ ] 按回车
-- [ ] modal 关闭，焦点回到笔记
-- [ ] 选中的 "this is important" 变成 6 行：
+- [x] 输 "模糊" 或箭头选中
+- [x] 按回车
+- [x] modal 关闭，焦点回到笔记
+- [x] 选中的 "this is important" 变成 6 行：
   ```
   > [!tips]+ 💡 Tips
   > - [ ] ✅ 已懂
@@ -114,49 +115,51 @@ developer: "Claude Code (Opus 4.7)"
 
 ### 第 6 步：Reading View 看渲染
 
-- [ ] 按 `Cmd+E` 切到 Reading View
-- [ ] 看到一个灰色 callout 块（`[!tips]` 非 Obsidian 原生会 fallback 灰色，但 header 显示 💡 Tips）
-- [ ] callout 块里包含 3 个 checkbox
-- [ ] 第 2 个 checkbox（🤔 模糊）**是打勾状态**
-- [ ] 最底下有你原本的文字 "this is important"
+- [x] 按 `Cmd+E` 切到 Reading View
+- [x] 看到一个灰色 callout 块（`[!tips]` 非 Obsidian 原生会 fallback 灰色，但 header 显示 💡 Tips）
+- [x] callout 块里包含 3 个 checkbox
+- [x] 第 2 个 checkbox（🤔 模糊）**是打勾状态**
+- [x] 最底下有你原本的文字 "this is important"
 
 ### 第 7 步：点击 checkbox 切换理解度
 
-- [ ] 在 Reading View 里点击 "✅ 已懂" 这个 checkbox
-- [ ] 它从 `[ ]` 变 `[x]`（打勾）
-- [ ] 再点一次变回 `[ ]`（取消）
-- [ ] 能和其他 checkbox 独立切换（不是单选）
+- [x] 在 Reading View 里点击 "✅ 已懂" 这个 checkbox
+- [x] 它从 `[ ]` 变 `[x]`（打勾）
+- [x] 再点一次变回 `[ ]`（取消）
+- [x] 能和其他 checkbox 独立切换（不是单选）
 
 ### 第 8 步：多行 + 另一 Tag + 不懂
 
-- [ ] 切回编辑视图（再按 `Cmd+E`）
-- [ ] 选中**两行**新文字（比如 "第一行\n第二行"）
-- [ ] 按 `Cmd+Shift+A` → 选 "❌ 错误" → 选 "❌ 不懂"
-- [ ] 生成结果的 header 是 `> [!error]+ ❌ 错误`
-- [ ] 第 3 个 checkbox（❌ 不懂）打勾
-- [ ] body 部分两行文字**各自**有 `> ` 前缀
+- [x] 切回编辑视图（再按 `Cmd+E`）
+- [x] 选中**两行**新文字（比如 "第一行\n第二行"）
+- [x] 按 `Cmd+Shift+A` → 选 "❌ 错误" → 选 "❌ 不懂"
+- [x] 生成结果的 header 是 `> [!error]+ ❌ 错误`
+- [x] 第 3 个 checkbox（❌ 不懂）打勾
+- [x] body 部分两行文字**各自**有 `> ` 前缀
 
 ### 第 9 步：Esc 取消（第 1 步）
 
-- [ ] 选中文字 → `Cmd+Shift+A`
-- [ ] 第 1/2 步 modal 出现
-- [ ] 按 `Esc`
-- [ ] modal 关闭，**原文字不变**
+- [x] 选中文字 → `Cmd+Shift+A`
+- [x] 第 1/2 步 modal 出现
+- [x] 按 `Esc`
+- [x] modal 关闭，**原文字不变**
 
 ### 第 10 步：Esc 取消（第 2 步）
 
-- [ ] 选中文字 → `Cmd+Shift+A` → 随便选一个 Tag
-- [ ] 第 2/2 步 modal 出现
-- [ ] 按 `Esc`
-- [ ] modal 关闭，**原文字不变**（第 1 步选的 Tag 也不会写入）
+- [x] 选中文字 → `Cmd+Shift+A` → 随便选一个 Tag
+- [x] 第 2/2 步 modal 出现
+- [x] 按 `Esc`
+- [x] modal 关闭，**原文字不变**（第 1 步选的 Tag 也不会写入）
 
 ---
 
 ## 🚦 验收结果
 
-**如果 10 步全部 ✅**：告诉我 "**Story 1.16 通过**"，我把它 mark as **done**，立即启动 Story 1.17（AI 双链文档）。
-
-**如果有任何一步 ❌**：在下面批注区写出具体哪一步 + 你看到的实际现象，我根据你反馈 `bmad-bmm-correct-course` 调整。
+> [!success]+ 已通过 · 2026-04-19
+> 用户批注原话："**前端验证都没有什么问题**"
+> 10 步 UAT 全部 ✅ 勾选完成
+> Status: `review` → **`done`**
+> 下一步：启动 Story 1.17（AI 双链文档 + index.md 更新）
 
 ---
 

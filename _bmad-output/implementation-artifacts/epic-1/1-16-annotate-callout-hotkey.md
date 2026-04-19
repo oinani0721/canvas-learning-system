@@ -2,7 +2,7 @@
 story_id: "1.16"
 epic_id: "1"
 prd_id: "canvas-learning-system"
-status: "in-progress"
+status: "done"
 priority: "P0"
 estimate_hours: 6
 depends_on: ["1.4"]
@@ -10,12 +10,14 @@ blocks: ["1.17"]
 trace: ["FR-SYS-02","FR-SYS-04","FR-CONV-05"]
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 revision: "v2-round3-qa-align-2026-04-18"
+uat_passed_date: "2026-04-19"
+uat_sheet: "_bmad-output/验收单/Story-1.16-批注-hotkey.md"
 ---
 
 # Story 1.16: 批注 Hotkey + 4 Tag + 3 态理解度 Callout
 
 **Epic**: 1 — 基础设施 + Obsidian 插件命令
-**Status**: in-progress (v2 correct-course 对齐 Round 3 QA；v1 实施后 UAT 发现缺 3 态理解度 2026-04-18)
+**Status**: done (v2 UAT 10 步全通过 2026-04-19；用户批注 "前端验证都没有什么问题")
 **Plan**: EPIC1-BMAD-DEV-ASSESS-2026-04-17
 **Priority**: P0
 **Estimate**: ~4h
@@ -344,5 +346,6 @@ Claude Opus 4.7 (1M context) via `bmad-bmm-dev-story` skill — 2026-04-18
 
 ### Change Log
 
+- 2026-04-19 v2 UAT 通过 → **done** — 用户 10 步 UAT 全部 ✅（_bmad-output/验收单/Story-1.16-批注-hotkey.md），批注原话"前端验证都没有什么问题"。sprint-status 1-16 `review → done`。Story 1.16 闭环，blocks: ["1.17"] 解锁。
 - 2026-04-18 v1 — 初次实施 Story 1.16。新增 callout 模块 + 第 7 命令 + CalloutTypeModal（7 Obsidian 原生 callout）。6/6 单元测试通过。部署到 canvas-vault。Commit `799b33c`. [PLAN: EPIC1-BMAD-DEV-ASSESS-2026-04-17]
 - 2026-04-18 v2 correct-course — 用户 UAT v1 后批注 "没看到批注可以标记理解程度"，溯源确认 Story 1.16 spec 偏离 Round 3 QA 定案（`obsidian-qa-round3-claude-answers-2026-04-14.md:283-291` 锁定的 "4 Tag + 3 态 checkbox" 被 Round 3 审计报告 `epic-1-audit-response-round-3-2026-04-17.md:102-110` 降级为 "7 callout"），且 PRD Persona (`prd-tauri-original-2ae5897.md:399`) 和前端旧代码 (`frontend/src/components/chat/InlineAnnotation.tsx:35-38, 58-69`) 交叉印证 4 AnnotationTag + 3 UnderstandingLevel。用户 `[DECISION-UX:story-1.16/tips-markdown-format]` 选 Option B（2 步 modal + 3 checkbox）。重写 `src/callout.ts`（TAG_OPTIONS 4 / UNDERSTANDING_OPTIONS 3 / 新 wrapSelection）+ `src/main.ts`（TagTypeModal + UnderstandingModal）+ `tests/callout.test.ts` 扩至 9 用例（含 4×3=12 穷举）。9/9 测试通过。build 7886 bytes（v1 6535）。待 UAT v2 + code review。[PLAN: EPIC1-BMAD-DEV-ASSESS-2026-04-17]
