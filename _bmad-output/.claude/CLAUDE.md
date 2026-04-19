@@ -254,7 +254,7 @@ claude --add-dir ../backend --add-dir ../frontend/obsidian-plugin --add-dir ../c
 
 你只需 4 个动作:
 1. 写产品行为期望（PRD/EPIC，plain English）
-2. **在 Obsidian 打开 `canvas-vault/验收单/Story-{id}-*.md`**（Claude dev 完会自动 ship）
+2. **在 Obsidian 打开 `_bmad-output/验收单/Story-{id}-*.md`**（Claude dev 完会自动 ship）
 3. 在 Obsidian 跑 UAT 清单，满意就勾 ✅，不满意就用 `Cmd+Shift+A` 批注 `❌ 错误` 或 `❓ 提问`
 4. 说一句 "dev story X.Y" 推进下一步，或 "Story X.Y 通过" mark done
 
@@ -272,11 +272,11 @@ claude --add-dir ../backend --add-dir ../frontend/obsidian-plugin --add-dir ../c
 |---|---|---|
 | **DoD-1 技术层** | Git commit + tests 通过 + sprint-status `review` | `git log` 最新 commit 含 Story ID + `npm test` / `pytest` green |
 | **DoD-2 spec 层** | Story spec 的 Dev Agent Record / File List / Change Log / Tasks 全打勾 | `_bmad-output/implementation-artifacts/epic-N/X-Y-*.md` 所有 `- [ ]` 变 `- [x]`，新增 Change Log 条目 |
-| **DoD-3 R4 层** | **`canvas-vault/验收单/Story-{id}-{kebab-title}.md` 已 ship** | `ls canvas-vault/验收单/` 能看到新增文件，且结构符合 `_bmad-output/templates/uat-sheet-template.md` |
+| **DoD-3 R4 层** | **`_bmad-output/验收单/Story-{id}-{kebab-title}.md` 已 ship** | `ls _bmad-output/验收单/` 能看到新增文件，且结构符合 `_bmad-output/templates/uat-sheet-template.md` |
 
 ### DoD-3 验收单强制结构（7 段）
 
-每份 `canvas-vault/验收单/Story-*.md` **必须包含**以下 7 段，用模板复制后填充：
+每份 `_bmad-output/验收单/Story-*.md` **必须包含**以下 7 段，用模板复制后填充：
 
 ```
 1. 🎯 一句话目标（非技术，你能看懂）
@@ -290,12 +290,12 @@ claude --add-dir ../backend --add-dir ../frontend/obsidian-plugin --add-dir ../c
 
 ### 模板位置
 
-`_bmad-output/templates/uat-sheet-template.md` — Claude 每次 dev-story 完成后 **复制此模板**填充，ship 到 `canvas-vault/验收单/`。
+`_bmad-output/templates/uat-sheet-template.md` — Claude 每次 dev-story 完成后 **复制此模板**填充，ship 到 `_bmad-output/验收单/`。
 
 ### correct-course 触发的验收单行为
 
 当 `bmad-bmm-correct-course` 调整 Story 后：
-- **不新建**新验收单，**覆盖**原 `canvas-vault/验收单/Story-{id}-*.md`
+- **不新建**新验收单，**覆盖**原 `_bmad-output/验收单/Story-{id}-*.md`
 - 在批注区"已知的已批注问题（历史追溯）"小节加 `[!error]+ v{N} → v{N+1} 修复` callout 记录变更
 - 在"v{N} → v{N+1} 你将看到的变化"表格里列出 diff
 
@@ -322,7 +322,7 @@ DoD-2 ☐ Story spec 的 Dev Tasks 全部 [x]
 DoD-2 ☐ Dev Agent Record / File List / Change Log 已填
 DoD-2 ☐ AC 列表每条对应实现有 trace
 
-DoD-3 ☐ canvas-vault/验收单/Story-{id}-*.md 存在
+DoD-3 ☐ _bmad-output/验收单/Story-{id}-*.md 存在
 DoD-3 ☐ 该文件含 7 段（目标/Behavior/交互/UAT/结果/批注/trace）
 DoD-3 ☐ 对用户消息中通知该文件位置
 

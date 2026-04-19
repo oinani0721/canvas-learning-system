@@ -142,7 +142,7 @@ Claude 在 correct-course 后在此处追加 [!error]+ v{N} → v{N+1} 修复 ca
 ## 模板使用说明（Claude 内部）
 
 每次 dev-story 完成后:
-1. cp _bmad-output/templates/uat-sheet-template.md canvas-vault/验收单/Story-{id}-{kebab-title}.md
+1. cp _bmad-output/templates/uat-sheet-template.md _bmad-output/验收单/Story-{id}-{kebab-title}.md
 2. 全文替换 {PLACEHOLDER} 为实际值
 3. UAT 步骤条数按实际情况 (一般 5-10 步)
 4. 历史追溯段若是首次 ship 写"无"，correct-course 后追加 [!error]+ callout
