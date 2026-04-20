@@ -12,7 +12,7 @@ import {
   type UnderstandingOption,
   wrapSelection,
 } from "./callout";
-import { buildAIDocPrompt } from "./ai-linked-doc";
+import { buildAIDocPrompt, isCanvasesPath } from "./ai-linked-doc";
 
 const BACKEND_URL = "http://localhost:8001";
 
@@ -97,15 +97,20 @@ export default class CanvasLearningPlugin extends Plugin {
   }
 
   /**
-   * Story 1.17: Copy selection + prompt template to clipboard, then open Claudian sidebar.
-   * The actual AI generation / file creation / wikilink replacement / index.md update
-   * is handled by the Claudian Skill `canvas-vault/.claude/skills/ai-linked-doc/SKILL.md`,
-   * which runs in Claude Code CLI using the user's subscription (Mode D, architecture.md:113).
+   * Story 1.17 v2.1: Copy selection + Skill-invoke prompt to clipboard, open Claudian sidebar.
+   * Guidance Notice tells user to type /ai-linked-doc + paste. AI generation / file i/o /
+   * wikilink replacement / index.md update is handled by the Claudian Skill
+   * `canvas-vault/.claude/skills/ai-linked-doc/SKILL.md`, running in Claude Code CLI
+   * with the user's subscription (Mode D, architecture.md:113).
    */
   private async handleAILinkedDoc() {
+    console.log("[canvas:ai-linked-doc] triggered");
     const editor = this.app.workspace.activeEditor?.editor;
     if (!editor) {
-      new Notice("编辑器未激活");
+      new Notice(
+        "编辑器未激活：请在 Markdown 笔记正文内点一下让光标进入 Edit View，再按快捷键",
+        5000,
+      );
       return;
     }
     const selected = editor.getSelection();
@@ -120,6 +125,13 @@ export default class CanvasLearningPlugin extends Plugin {
       ? this.app.metadataCache.getFileCache(activeFile)
       : null;
     const subject = (cache?.frontmatter?.subject as string) ?? "unknown";
+
+    if (!isCanvasesPath(sourcePath)) {
+      new Notice(
+        `当前笔记 ${sourcePath} 不在原白板路径下 (wiki/canvases/<subject>/)。Skill 会在 Claudian 里用 AskUserQuestion 问你要落到哪个原白板。`,
+        7000,
+      );
+    }
 
     const prompt = buildAIDocPrompt(selected, sourcePath, subject);
 
@@ -141,7 +153,10 @@ export default class CanvasLearningPlugin extends Plugin {
       return;
     }
 
-    new Notice("已复制到剪贴板，切到 Claudian 粘贴即可触发", 5000);
+    new Notice(
+      "已复制到剪贴板。切到 Claudian 侧栏 → 输入框 Cmd+V 粘贴 → 回车。首行是 /ai-linked-doc 会触发 Skill。",
+      8000,
+    );
     (this.app as any).commands.executeCommandById("claudian:open-view");
   }
 

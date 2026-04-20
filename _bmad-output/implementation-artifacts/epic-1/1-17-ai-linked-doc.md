@@ -9,7 +9,7 @@ depends_on: ["1.16"]
 blocks: []
 trace: ["FR-CONV-08","FR-KG-06"]
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
-revision: "v2-claudian-skill-align-2026-04-19"
+revision: "v2.1-skill-trigger-strengthen-2026-04-20"
 uat_sheet: "_bmad-output/验收单/Story-1.17-ai-linked-doc.md"
 ---
 

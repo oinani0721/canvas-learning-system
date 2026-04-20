@@ -2,11 +2,34 @@
 story: "1.17"
 title: "AI 双链文档（形态 β：Plugin + Claudian Skill）"
 status: "review"
-version: "v2"
+version: "v2.1"
 date: "2026-04-20"
 developer: "Claude Code (Opus 4.7)"
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
+
+> [!error]+ 2026-04-20 — v2 → v2.1 critical correct-course（基于你的 UAT 批注）
+> **你的原批注**（上一轮 UAT）：
+> 1. "Cmd+Shift+D 和 Cmd+Shift+V 有什么区别吗？Cmd+Shift+D 我是使用后也没有自动把文字复制到剪贴板，然后后续的操作也都没有触发"
+> 2. "最后这 3 行没看到，感觉成为了类似的幻觉"
+> 3. "创建了不存在的双向链接，生成文档自以为是偏离主题没有原文，然后也没有返回从哪一个拉出来的双向链接"
+> 4. "没有双链 / 文档不存在" (index.md)
+>
+> **3 并行 Agent 调研根因**：
+> - **Claudian plugin 本身不路由 Skill** — 核心颠覆发现！Claudian 只在用户输入框显示 slash 提示的 dropdown，**Skill 是否调用完全由 Claude 模型判断**（Claudian main.js:60410 把整段 prompt 送 Claude Agent SDK，不做路由）。原 SKILL.md 的 description 写的是"做什么"不是"何时调用" → 模型看不到强 signal → 自由发挥，写到 `wiki/concepts/` 还捏造一堆不存在的 wikilink。
+> - **源笔记路径问题** — 你测试用的是 `未命名.md`（vault 根），不在 `wiki/canvases/math240/` 下 → Plugin 拿到 `sourcePath=未命名.md` + `subject=unknown` → Skill 应该 AskUserQuestion，但 Claude 自由发挥时跳过了。
+> - **Notice 不够醒目** — Obsidian 右下角 Notice 3 秒太短，文案不够明确。
+>
+> **已修复**（v2.1）：
+> - `buildAIDocPrompt` prompt 加显式指令：`Please invoke the Skill tool with skill_name="ai-linked-doc"` + `Do NOT answer freely`
+> - SKILL.md description 重写为触发条件（"当消息以 /ai-linked-doc 开头时必须调用"）
+> - SKILL.md 开头加 `⛔ CRITICAL TRIGGER & HARD CONSTRAINTS` 7 条硬约束（必须 Step 1-7 顺序 / 不得自由发挥 / 必写 wiki/canvases/ / 禁捏造 wikilink / 必返 3 行 ✓ / unknown subject 必问 / 非 canvases 路径必问）
+> - SKILL.md Step 4 加硬验证（路径不以 wiki/canvases/ 开头则 abort）
+> - SKILL.md 末尾加 6 项执行自检清单
+> - Plugin `handleAILinkedDoc` 加 `console.log("[canvas:ai-linked-doc] triggered")`，"编辑器未激活"Notice 改为 5 秒详细指引，非 canvases 路径预警 7 秒 Notice，成功 Notice 改为 8 秒含 "首行是 /ai-linked-doc 会触发 Skill" 提示
+> - build 11608 bytes（v2 10571 + 1037B 强化）
+>
+> **请按下方 v2.1 UAT Script 重新跑**（主要区别见清单"v2 → v2.1 你将看到的变化"）。
 
 # Story 1.17 验收单（给你看的版本）
 
@@ -18,7 +41,7 @@ plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
 
 ## 🎯 这个 Story 要做到什么
-
+**User:按 Cmd+Shift+D    和 Cmd+Shift+V 有什么区别吗？你这里好像就变成了单纯的复制操作，然后Cmd+Shift+D 我是使用后也没有自动把文字复制到剪贴板 ，然后后续的操作也都没有触发**
 你在学习笔记里**选中一段看不懂/要提炼的文字**，按 **`Cmd+Shift+D`**，插件会自动把文字复制到剪贴板并打开 Claudian 侧栏。你在侧栏 `Cmd+V` 粘贴 → 回车，**Claude Code 用你的订阅额度**（不用额外充 API key 钱）生成一份结构化的概念文档，把源笔记里你选的那段文字自动替换成 `[[概念名]]` 双链，还会在当前"原白板"的 `index.md` 里自动加一条记录。
 
 等同于：**一键从"阅读中的一段话" → "一个可跳转的独立概念笔记 + 自动入目录"**。
@@ -72,15 +95,15 @@ Claudian 返回 3 行 ✓ 摘要
 > 每跑完一步点击对应 `- [ ]` 切换为 `[x]`。
 > 发现不对劲 → 选中行 `Cmd+Shift+A`（Story 1.16 的 hotkey）→ `❌ 错误` + `❌ 不懂`，把问题批到文档里。
 
-### 第 0 步：前置（必须全部满足）
+### 第 0 步：前置（v2.1 — 每项必须逐条满足）
 
-- [ ] Claudian 已在 canvas-vault 启用（Settings > Community plugins 开关打开）
+- [ ] **关键**：Obsidian 里按 `Cmd+P` → 搜 "reload" → 点 "**Reload app without saving**"（让新 main.js v2.1 加载到内存，不能仅靠 Cmd+Q，有时窗口复用会保留旧插件实例）
+- [ ] 确认 canvas-vault 左下角显示 "canvas-vault"（不是 _bmad-output）
+- [ ] Claudian 已启用（Settings > Community plugins 开关打开）
 - [ ] Claudian Settings 里 "Claude CLI Path" 填了 `/Users/Heishing/.local/bin/claude`
-- [ ] 已经 `Cmd+Q` 完全关闭 Obsidian 再重开加载新 main.js v2（10571 bytes）
-- [ ] canvas-vault 左下角显示 "canvas-vault"
-- [ ] Settings > Hotkeys 搜 "AI 创建双链文档" 给它绑 `Cmd+Shift+D`（或你喜欢的任意组合键）
-- [ ] **重要**：在 `canvas-vault/wiki/canvases/math240/` 下建一个 `Fundamentals.md`（frontmatter 含 `subject: math240`，body 含一段 "Eigenvalues are special vectors that satisfy Av = λv"）
-- [ ] `wiki/canvases/math240/index.md` **可以不存在**（下方第 13 步验证 auto-create）
+- [ ] Settings > Hotkeys 搜 "AI 创建双链文档" 给它绑 `Cmd+Shift+D`（**看到绑定显示 `⌘⇧D` 才算成功**）
+- [ ] **测试文件必须在正确路径**：在 `canvas-vault/wiki/canvases/math240/` 下建一个 `Fundamentals.md`（frontmatter `subject: math240`，body 写一段 "Eigenvalues are special vectors that satisfy Av = λv"）—— 不能用 vault 根的"未命名.md"（v2 就是被这个坑了）
+- [ ] `wiki/canvases/math240/index.md` **可以不存在**（下方验证 auto-create）
 
 ### 第 1 步：验证第 8 命令注册
 
@@ -113,8 +136,8 @@ Claudian 返回 3 行 ✓ 摘要
 
 ### 第 6 步：粘贴 prompt
 
-- [ ] 点击 Claudian 输入框获取焦点
-- [ ] `Cmd+V` 粘贴 → 应该看到：
+- [x] 点击 Claudian 输入框获取焦点
+- [x] `Cmd+V` 粘贴 → 应该看到：
   ```
   /ai-linked-doc
   选中文本:
@@ -125,16 +148,16 @@ Claudian 返回 3 行 ✓ 摘要
 
   请为这段内容创建一个概念文档（三段式：## 核心概念 / ## 关键点 / ## 关联概念）。
   ```
-- [ ] 按 Enter 提交
+- [x] 按 Enter 提交
 
 ### 第 7 步：等 Skill 执行（10-30 秒）
 
-- [ ] Claudian 开始 "Thinking..." 或类似指示
-- [ ] 看到 Claude 在工作：解析输入 → 生成文档 → 写文件 → 替换 → 更新 index.md
+- [x] Claudian 开始 "Thinking..." 或类似指示
+- [x] 看到 Claude 在工作：解析输入 → 生成文档 → 写文件 → 替换 → 更新 index.md
 
 ### 第 8 步：验证最终摘要
 
-- [ ] Claudian 输出**最后 3 行**类似：
+- [ ] Claudian 输出**最后 3 行**类似： **User：最后这 3 行没看到，感觉成为了类似的幻觉**
   ```
   ✓ Eigenvalues.md 已创建 (wiki/canvases/math240/)
   ✓ 源笔记 [[Fundamentals]] 已替换为 [[Eigenvalues]]
@@ -151,14 +174,15 @@ Claudian 返回 3 行 ✓ 摘要
   - `## 核心概念` 一段（1-2 句定义）
   - `## 关键点` 3-5 个 bullet
   - `## 关联概念` 含 `- [[Fundamentals]] — extracted from this note`
-
+**User：创建了不存在的双向链接，生成文档自以为是偏离主题没有原文，然后也没有返回从哪一个拉出来的双向链接**
 ### 第 10 步：验证源笔记替换
 
 - [ ] 切回源笔记 `Fundamentals.md` tab
 - [ ] 原本选中的 `Eigenvalues are special vectors that satisfy Av = λv` 这段 → 已经变成 `[[Eigenvalues]]`
 - [ ] 点击 `[[Eigenvalues]]` → 跳转到新文件（双链工作）
-
+**User：没有双链**
 ### 第 11 步：验证 index.md（auto-create 或更新）
+**User：文档不存在**
 
 - [ ] 打开 `wiki/canvases/math240/index.md`
 - [ ] frontmatter 含 `doc_count: 1`（若第 0 步前 index.md 就存在则 +1）
@@ -220,18 +244,27 @@ Claudian 返回 3 行 ✓ 摘要
 >
 > **已修复**：插件 main.js / Claudian / Skills 全部规范在 canvas-vault；_bmad-output 只放验收单 + spec + 开发文档。CLAUDE.md 已固化"双 Vault 架构"规则（round-7）。
 
-### v1 → v2 你将看到的变化
+### v2 → v2.1 你将看到的变化
 
-| 维度 | v1（已淘汰） | v2（现在） |
+| 维度 | v2（失败原因） | v2.1（修复） |
 |---|---|---|
-| AI 调用方式 | Obsidian plugin 直调 Anthropic API | **Claudian Skill 走 Claude Code 订阅** |
-| API key 配置 | 用户在 Settings 填独立 API key | **无需配置，零额外付费** |
-| 交互步骤 | 弹 Modal 输入 → 等 API 响应 | **Cmd+Shift+D → 粘贴 → Enter**（Claudian 原生） |
-| Settings UI | 需要 API key / Model 下拉 | **不需要** |
-| 文件操作 | Plugin 侧用 `vault.create/modify` | **Skill 用 Write/Edit 工具** |
-| index.md 缺失 | 硬报错（依赖 Story 1.19） | **Skill auto-create 骨架** |
-| debounce | 200ms Map<path, timeout> | **不需要**（Skill 同步执行） |
-| 估时 | 10h | **6h**（实施完成） |
+| Plugin prompt 强制力 | 只说"请为这段内容创建概念文档" | **加 `Please invoke the Skill tool with skill_name="ai-linked-doc"` + `Do NOT answer freely` 显式指令** |
+| SKILL.md description | 描述"做什么"（生成文档、写路径...） | **改为描述"何时调用"（当消息以 /ai-linked-doc 开头时必须调用）** |
+| Skill 硬约束 | 无明确防幻觉指令 → Claudian 自由发挥 | **开头 7 条 CRITICAL TRIGGER 硬约束 + Step 4 硬验证 + 末尾 6 项执行自检清单** |
+| 路径保护 | Plugin 无检查 → 源文件在 vault 根也能触发 | **Plugin 预警 Notice + Skill Step 1 降级 AskUserQuestion** |
+| 捏造 wikilink | Claudian 自由列 `[[其他相关概念]]` | **硬约束：关联概念只能列源笔记 stem，禁止列未确认存在的概念** |
+| Notice 时长 | 3-5 秒 | **5-8 秒**，文案加长指引 |
+| 控制台诊断 | 无 | `console.log("[canvas:ai-linked-doc] triggered")` 供 F12 Console 验证 |
+| 构建大小 | 10571 bytes | **11608 bytes** (+1037B 强化) |
+
+### v1 → v2 历史变化（存档参考）
+
+| 维度 | v1（已淘汰） | v2 |
+|---|---|---|
+| AI 调用方式 | Obsidian plugin 直调 Anthropic API | Claudian Skill 走 Claude Code 订阅 |
+| API key 配置 | 用户在 Settings 填独立 API key | 无需配置 |
+| index.md 缺失 | 硬报错 | auto-create |
+| 估时 | 10h | 6h |
 
 ---
 
