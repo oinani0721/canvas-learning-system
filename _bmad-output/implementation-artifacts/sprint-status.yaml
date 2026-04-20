@@ -67,9 +67,9 @@ development_status:
   1-13-deployment-checklist-external-net: ready-for-dev
   # Round 4 additions (2026-04-17, 4 MVP stories)
   1-16-annotate-callout-hotkey: done
-  1-17-ai-linked-doc: review
+  1-17-ai-linked-doc: blocked  # 挂起，等 1.19 完成再重跑 UAT（用户 2026-04-20 批注：双链功能必须在原白板内用；1.19 yaml blocks: [1.17] 早声明）
   1-18-dashboard-md-mvp: ready-for-dev
-  1-19-configure-whiteboard-skill: ready-for-dev
+  1-19-configure-whiteboard-skill: in-progress  # 用户实际使用链路第 1 入口：从零建白板 + 任意 md 派生
   epic-1-retrospective: optional
 
   # ══════════════════════════════════════════════════════

@@ -1,14 +1,55 @@
 ---
 story: "1.17"
 title: "AI 双链文档（形态 β：Plugin + Claudian Skill）"
-status: "review"
+status: "blocked"
+blocked_by: "1.19"
 version: "v2.1"
 date: "2026-04-20"
 developer: "Claude Code (Opus 4.7)"
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
 
-# Story 1.17 验收单 v2.1（重新设计的完整验收流程）
+# Story 1.17 验收单 v2.1 — ⛔ 暂时挂起（等 Story 1.19 完成）
+
+> [!error]+ ⛔⛔⛔ 本 UAT 暂时挂起 — 请先等 Story 1.19 完成
+> **2026-04-20 你的批注精准命中 bug**：
+> 
+> > "双链提问节点的功能本身就是要在原白板里面使用的。"
+> > "我现在有一个在任意文件夹的 md 文件那么我想要从这个文件开始生成原白板，请问我该如何操作？"
+> 
+> **3 并行 Agent deep explore 结论**：
+> - Story 1.19 (`configure-whiteboard` Skill) 的 YAML 早就写了 `blocks: ["1.17","1.18"]` — **数据层早就规定 1.19 要先做**
+> - 但 Claude 此前在 CLAUDE.md line 145 按"工作量从小到大"排序成 `1.16→1.17→1.18→3.X`，违反 Story 1.19 blocks 声明
+> - 用户实际使用链路：**第一件事是建白板（Story 1.19），之后才能在白板里用双链（Story 1.17）**
+> - PRD Persona 旅程 4 明确："新同学**创建了第一个白板**，粘贴了课件内容"（prd-tauri-original-2ae5897.md:411）
+> 
+> **立即行动**（Claude 已执行）：
+> 1. ✅ sprint-status 1.17 状态 `review → blocked`（blocked_by: 1.19）
+> 2. ✅ sprint-status 1.19 状态 `ready-for-dev → in-progress`
+> 3. ✅ CLAUDE.md 实施顺序修正为 `1.16 → 1.19 → 1.17 → 1.18`
+> 4. ✅ Story 1.19 scope 扩展：v1 只有场景 A（从零建）→ v2 新增场景 B（从任意 md 派生），回应你的"我现在有一个任意文件夹的 md..."诉求
+> 5. ⏳ 立即启动 Story 1.19 实施（~8h = 原 6h + 场景 B 扩展 2h）
+> 
+> **你现在要做的**：**不要**按下面 v2.1 UAT 测 1.17。等我 ship Story 1.19 的验收单，**先跑 1.19 的 UAT 建第一个原白板**，之后再回来跑 1.17 UAT（本文档仍保留，前置条件届时会成立）。
+> 
+> **1.17 代码本身不变**（v2.1 已 ship commit `67faa9d`），只是暂停测试 — 代码不丢，等待白板环境就绪。
+
+---
+
+## 📋 等 1.19 完成后，你会看到什么
+
+1. 你打开 canvas-vault，看到一个随意位置的 md（如 `raw/my-notes.md` 或 vault 根的 `未命名.md`）
+2. 在 Claudian 侧栏输 `/configure-whiteboard` → Skill 弹 AskUserQuestion 问你：
+   - 种子笔记路径（可 `from <path>`，或直接用当前 active 笔记）
+   - 学科代码（例 `math240`）+ 板名（例 `Linear Algebra`）
+   - move 还是 copy（默认 move）
+3. Skill 自动建 `wiki/canvases/math240/` + `index.md` + 把你的笔记迁入 + 更新 wikilink
+4. 此时**第一个原白板诞生**。
+5. 回到 1.17 UAT：打开迁入的笔记 → 选中文本 → `Cmd+Shift+D` → Claudian → Skill 派生新概念笔记到同一白板目录下
+
+---
+
+## 🔽 以下是原 v2.1 UAT 文档（等 1.19 done 后再跑）
 
 > [!info]+ 这份文档为什么被重写
 > 你的 v2 UAT 批注指出了 4 个核心问题（Cmd+Shift+D 像纯 copy / 3 行 ✓ 没看到 / 捏造双向链接 / 没更新 index.md）。3 个并行 Agent 深度调研发现根因是：
@@ -130,6 +171,7 @@ plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 - [ ] 窗口短暂刷新 → 所有插件强制重新加载内存
 
 ### P3 · 准备测试文件（必须在正确路径）
+**User：我现在有一个在任意文件夹的 md 文件那么我想要从这个文件开始生成原白板，请问我该如何操作？**
 
 - [ ] 在 Obsidian 左边文件树 `wiki/canvases/` 下建新文件夹 `math240`（如果没有）
 - [ ] 在 `wiki/canvases/math240/` 下建文件 `Fundamentals.md`

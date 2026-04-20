@@ -142,7 +142,9 @@ sibling 代码目录通过 `--add-dir` 接入：
 | 3 | 原白板配置 | Claude Code Skill | 3.X | P1 | ~6h |
 | 4 | Dashboard 一键考察 (MD MVP) | dashboard.md + Buttons URI | 1.18 | P1 | ~6h |
 
-实施顺序: 1.16 → 1.17 → 1.18 → 3.X
+实施顺序: 1.16 (done) → **1.19 (configure-whiteboard 原白板入口)** → 1.17 (AI 双链) → 1.18 (Dashboard)
+
+> **2026-04-20 round-8 顺序修正**：之前顺序 `1.16 → 1.17 → 1.18 → 3.X` 按工作量排序，但违反 Story 1.19 yaml `blocks: ["1.17","1.18"]` 和用户使用链路。3 并行 agent deep explore（2026-04-20）确诊：Story 1.19 是"用户打开 Canvas 第一件事"（onboarding 入口），没有白板 1.17 AI 双链 UAT 前置不成立、1.18 Dashboard 数据源为空。用户 2026-04-20 批注"双链提问节点的功能本身就是要在原白板里面使用的" + "我现在有一个在任意文件夹的 md 文件那么我想要从这个文件开始生成原白板" 精准命中此 bug。修正见 Round 4 Sec X4 正确依赖图（`review/epic-1-audit-response-round-4-2026-04-17.md:117-128`）。
 
 ---
 
