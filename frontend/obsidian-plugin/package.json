@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
-    "test": "esbuild tests/callout.test.ts --bundle --platform=node --format=cjs --outfile=tests/.out/callout.test.cjs && node --test tests/.out/callout.test.cjs"
+    "test": "esbuild tests/callout.test.ts tests/ai-linked-doc.test.ts --bundle --platform=node --format=cjs --outdir=tests/.out && node --test tests/.out/callout.test.js tests/.out/ai-linked-doc.test.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

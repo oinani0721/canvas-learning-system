@@ -12,6 +12,7 @@ import {
   type UnderstandingOption,
   wrapSelection,
 } from "./callout";
+import { buildAIDocPrompt } from "./ai-linked-doc";
 
 const BACKEND_URL = "http://localhost:8001";
 
@@ -22,6 +23,8 @@ const BACKEND_URL = "http://localhost:8001";
  * Story 1.5: Detects hotkey conflicts on plugin load.
  * Story 1.16: Adds 7th command `canvas:annotate-callout` — select text, pick Tag + UnderstandingLevel,
  *             wrap as semantic callout with 3-state checkbox (Round 3 QA 2026-04-14 alignment).
+ * Story 1.17: Adds 8th command `canvas:ai-linked-doc` — copy selection + prompt to clipboard,
+ *             open Claudian sidebar to trigger `/ai-linked-doc` Skill (Mode D subscription usage).
  */
 export default class CanvasLearningPlugin extends Plugin {
   async onload() {
@@ -85,6 +88,61 @@ export default class CanvasLearningPlugin extends Plugin {
       name: "批注为标注",
       callback: () => this.handleAnnotateCallout(),
     });
+
+    this.addCommand({
+      id: "canvas:ai-linked-doc",
+      name: "AI 创建双链文档",
+      callback: () => this.handleAILinkedDoc(),
+    });
+  }
+
+  /**
+   * Story 1.17: Copy selection + prompt template to clipboard, then open Claudian sidebar.
+   * The actual AI generation / file creation / wikilink replacement / index.md update
+   * is handled by the Claudian Skill `canvas-vault/.claude/skills/ai-linked-doc/SKILL.md`,
+   * which runs in Claude Code CLI using the user's subscription (Mode D, architecture.md:113).
+   */
+  private async handleAILinkedDoc() {
+    const editor = this.app.workspace.activeEditor?.editor;
+    if (!editor) {
+      new Notice("编辑器未激活");
+      return;
+    }
+    const selected = editor.getSelection();
+    if (!selected) {
+      new Notice("请先选中文本再创建双链", 3000);
+      return;
+    }
+
+    const activeFile = this.app.workspace.getActiveFile();
+    const sourcePath = activeFile?.path ?? "unknown";
+    const cache = activeFile
+      ? this.app.metadataCache.getFileCache(activeFile)
+      : null;
+    const subject = (cache?.frontmatter?.subject as string) ?? "unknown";
+
+    const prompt = buildAIDocPrompt(selected, sourcePath, subject);
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch {
+      new Notice("剪贴板写入失败，请检查 Obsidian 权限", 5000);
+      return;
+    }
+
+    const claudianCmd = (this.app as any).commands.findCommand?.(
+      "claudian:open-view",
+    );
+    if (!claudianCmd) {
+      new Notice(
+        "未检测到 Claudian 插件，请先安装并登录 Claude Code",
+        5000,
+      );
+      return;
+    }
+
+    new Notice("已复制到剪贴板，切到 Claudian 粘贴即可触发", 5000);
+    (this.app as any).commands.executeCommandById("claudian:open-view");
   }
 
   /**

@@ -67,7 +67,7 @@ development_status:
   1-13-deployment-checklist-external-net: ready-for-dev
   # Round 4 additions (2026-04-17, 4 MVP stories)
   1-16-annotate-callout-hotkey: done
-  1-17-ai-linked-doc: ready-for-dev
+  1-17-ai-linked-doc: review
   1-18-dashboard-md-mvp: ready-for-dev
   1-19-configure-whiteboard-skill: ready-for-dev
   epic-1-retrospective: optional
