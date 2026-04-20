@@ -2,7 +2,7 @@
 story_id: "1.19"
 epic_id: "1"
 prd_id: "canvas-learning-system"
-status: "in-progress"
+status: "review"
 priority: "P0"
 estimate_hours: 8
 depends_on: []
@@ -10,6 +10,7 @@ blocks: ["1.17","1.18"]
 trace: ["FR-KG-08","FR-SYS-06","FR-DASH-01"]
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 revision: "v2-scope-extended-2026-04-20"
+uat_sheet: "_bmad-output/验收单/Story-1.19-configure-whiteboard.md"
 ---
 
 # Story 1.19: 原白板配置 Skill — 场景 A 新建 + 场景 B 从任意 md 派生
@@ -319,10 +320,47 @@ doc_mastery_avg: 0
 ### Deviation Notes
 <!-- Dev agent 偏离 spec 时记录原因 -->
 
-## Dev Agent Record
+## Dev Agent Record (v2 实施 2026-04-20)
 
 ### Agent Model Used
-<!-- to be filled by dev-story Skill -->
+Claude Opus 4.7 (1M context) — 3 并行 Agent deep explore (story 依赖链 / 原白板定义 / 用户旅程) → correct-course scope 扩展 + 直接实施
+
+### Debug Log References
+- Skill 部署：`canvas-vault/.claude/skills/configure-whiteboard/SKILL.md` + `templates/index.md.template`
+- 无 Plugin 侧代码改动（纯 Skill 驱动，对齐 architecture.md:113 Mode D）
+- 无 npm build / test（纯 md 文件，靠 UAT 验证）
+
+### Completion Notes List
+
+1. **AC #1 Skill 注册** — `canvas-vault/.claude/skills/configure-whiteboard/SKILL.md` 存在，frontmatter `name: configure-whiteboard` + `description`（触发条件式）+ `argument-hint` + 6 项 `allowed-tools`（Bash/Read/Write/Edit/Glob/AskUserQuestion）+ `model: sonnet`。Claudian vault-level 自动发现（重启后 dropdown 应出现 `/configure-whiteboard`）。
+2. **AC #2 缺参数 → AskUserQuestion** — Skill Step 2 明确流程：先枚举已有 subject + 列选项 + "新建"；选新建后追问 board_name 和 subject 代码。
+3. **AC #3 文件夹创建 + 重名保护** — Step 3 用 Glob 检查 + AskUserQuestion "重用/换代码"。Step 4 `mkdir -p`。
+4. **AC #4 index.md 模板化** — 用 Read + 字符串替换 `{{board_name}}` / `{{subject}}` / `{{created_at}}` + Write。模板在独立文件方便更新。
+5. **AC #5 种子笔记归类** — Step 5 场景 A 可选（询问用户）/ 场景 B 必跑。move 跨卷失败时降级为 cp + rm。
+6. **AC #6 完成回执** — Step 7 区分场景 A（空白板）/ 场景 A+B（含种子笔记 3 行 ✓）/ 部分失败（✓/✗/⚠ 组合）。
+7. **AC #7 (v2 新增) 显式 from 子命令** — Step 1 场景路由：含 `from <path>` → 场景 B；含两个引号参数 → 场景 A；无参 + active note 不在 canvases → 降级场景 B。源路径不存在 / 已在白板里 → 明确错误处理。
+8. **AC #8 (v2 新增) move vs copy 选择** — Step 5 AskUserQuestion 明确二选一，默认 move。
+9. **AC #9 (v2 新增) subject 智能候选** — Step 2 用 Glob 枚举 `wiki/canvases/*/index.md` 读 frontmatter → AskUserQuestion 列选项；场景 B 的源 md 若有 subject frontmatter 作为预填。
+10. **Template 完整性** — index.md.template 含 frontmatter 6 字段 + 5 个 body sections（Concepts / Theorems / Errors / Relationship / Recent Activity）+ [!info] callout 简介 + Recent Activity 初始条目。
+11. **CRITICAL TRIGGER & HARD CONSTRAINTS** — SKILL.md 开头 6 条硬约束（对齐 Story 1.17 v2.1 防自由发挥的经验）：必须 Step 1-7 顺序 / 必须写 wiki/canvases/ / subject 代码验证 / move 失败保护 / 已有白板保护 / 必返 Step 7 回执。
+12. **执行自检清单** — SKILL.md 末尾 6 项 tick box（同 Story 1.17 v2.1 模式）：路径 / frontmatter / 种子笔记 / subject 字段 / wikilink / 回执。
+13. **Mode D 架构对齐** — 完全无 Plugin 代码，纯 Claudian Skill + Obsidian 文件系统操作。Zero API cost。
+
+### File List (v2 实施)
+
+- **NEW** `canvas-vault/.claude/skills/configure-whiteboard/SKILL.md` — Skill 主体（9 AC / Step 1-7 / CRITICAL TRIGGER + 自检 + 错误速查表）
+- **NEW** `canvas-vault/.claude/skills/configure-whiteboard/templates/index.md.template` — 原白板 index.md 模板（whiteboard_index schema + 5 sections）
+- **MOD** `_bmad-output/implementation-artifacts/sprint-status.yaml` — 1-19 `in-progress → review`
+- **MOD** `_bmad-output/implementation-artifacts/epic-1/1-19-configure-whiteboard-skill.md` — 本 spec（frontmatter status review + Dev Agent Record 13 条 + File List + Change Log）
+- **NEW** `_bmad-output/验收单/Story-1.19-configure-whiteboard.md` — 用户友好 10 步 UAT 验收单（场景 A + B 双路径）
+
+### Change Log
+
+- 2026-04-20 v2 实施完成 — SKILL.md + index.md.template ship 到 canvas-vault。待用户 UAT 10 步（场景 A 从零建 + 场景 B 任意 md 派生 + 边界测试）。通过后 mark done → unblock Story 1.17 UAT。[PLAN: EPIC1-BMAD-DEV-ASSESS-2026-04-17]
+- 2026-04-20 v2 scope 扩展 — 3 并行 Agent deep explore 确诊：Story 1.19 yaml 早声明 blocks 1.17/1.18，但 CLAUDE.md 按工作量排序覆盖 → 错序。Scope 从 v1 "场景 A 从零建" 扩展到 v2 "场景 A + 场景 B 从任意 md 派生"，回应用户 2026-04-20 UAT 批注"我现在有一个在任意文件夹的 md 文件那么我想要从这个文件开始生成原白板"。Priority P1 → P0（onboarding 入口）。Estimate 6h → 8h。[PLAN: EPIC1-BMAD-DEV-ASSESS-2026-04-17]
+
+### Agent Model Used (historical placeholder)
+<!-- archived -->
 
 ### Debug Log References
 <!-- placeholder -->

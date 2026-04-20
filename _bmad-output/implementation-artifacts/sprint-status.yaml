@@ -69,7 +69,7 @@ development_status:
   1-16-annotate-callout-hotkey: done
   1-17-ai-linked-doc: blocked  # 挂起，等 1.19 完成再重跑 UAT（用户 2026-04-20 批注：双链功能必须在原白板内用；1.19 yaml blocks: [1.17] 早声明）
   1-18-dashboard-md-mvp: ready-for-dev
-  1-19-configure-whiteboard-skill: in-progress  # 用户实际使用链路第 1 入口：从零建白板 + 任意 md 派生
+  1-19-configure-whiteboard-skill: review  # v2 Skill + template 已 ship，待用户 UAT 10 步（场景 A + B）
   epic-1-retrospective: optional
 
   # ══════════════════════════════════════════════════════

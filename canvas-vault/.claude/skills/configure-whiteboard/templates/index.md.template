@@ -1,0 +1,36 @@
+---
+type: whiteboard_index
+board_name: "{{board_name}}"
+subject: "{{subject}}"
+created_at: "{{created_at}}"
+doc_count: 0
+doc_mastery_avg: 0.00
+---
+
+# {{board_name}}
+
+> [!info]+ 原白板说明
+> 这是学习主题"**{{board_name}}**"（代码 `{{subject}}`）的原白板。所有相关概念笔记都归入本文件夹 `wiki/canvases/{{subject}}/`。
+>
+> - 用 Canvas plugin 的 `Cmd+Shift+D` 在任意概念笔记里选中文本 → AI 自动派生新概念 + 自动更新本 index.md
+> - 用 `Cmd+Shift+A` 在任意文本上加 Tips/错误/提问/关键点 + 理解度 checkbox
+
+## Concepts
+
+<!-- 由 /ai-linked-doc Skill 自动维护；按需手动添加 -->
+
+## Theorems & Proofs
+
+<!-- 定理 / 证明 / 推导过程 -->
+
+## Common Errors
+
+<!-- 典型错误 / 陷阱 / 易混淆点（来自 Tips 系统 [!error]+ 批注）-->
+
+## Relationship Graph
+
+<!-- 概念之间的关系图（可嵌入 Dataview 或 Obsidian Graph 截图）-->
+
+## Recent Activity
+
+- {{created_at}}: Whiteboard created
