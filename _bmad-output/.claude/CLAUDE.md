@@ -113,6 +113,87 @@ sibling 代码目录通过 `--add-dir` 接入：
 
 ---
 
+## ⛔⛔⛔ Vault 扁平架构（2026-04-20 round-11 固化 — 对齐 Nick Milo Ideaverse）
+
+> **来源**：用户 2026-04-20 批注"白板是 index.md 本身 / 节点扁平池 / 一 vault 一学科"。3 并行 Agent deep explore 确诊 = Nick Milo Ideaverse 官方 Atlas/Maps+Atlas/Notes 结构的精确镜像（社区 70,000+ 下载）。见 `_bmad-output/验收单/批注回复/Round-10-架构重设计.md`。
+
+### Canvas Vault 目录规范（单学科 vault）
+
+```
+canvas-vault-<subject>/                    # 一 vault 一学科（例 canvas-vault-cs61b）
+├── .canvas-config.yaml                    # vault 级配置（subject / vault_id / active_board）
+├── 原白板/                                # 所有原白板 md（=学习 MOC）— 扁平
+│   ├── CS 61B 数据结构.md                 # 白板本身是 md 文件（= 以前 index.md 语义）
+│   └── BST.md
+├── 节点/                                  # 所有概念节点 md — 扁平池（一 vault 一学科零重名）
+│   ├── base-case.md
+│   ├── recursion.md
+│   └── eigenvalue.md
+├── 检验白板/                              # 所有检验白板 md — 扁平
+│   └── CS 61B 期末.md
+├── raw/                                   # 原始课件 / 视频转录 / 图片
+├── outputs/
+│   └── exam_boards/                       # 检验白板输出
+├── templates/                             # Templater 模板
+└── .obsidian/
+    ├── plugins/
+    │   ├── canvas-learning-system/
+    │   └── claudian/
+    └── .claude/skills/
+        ├── configure-whiteboard/
+        └── ai-linked-doc/
+```
+
+### 弃用的旧结构（不要再出现在任何 spec/code/skill）
+
+```
+❌ wiki/canvases/<subject>/index.md         # 嵌套目录，弃用
+❌ wiki/canvases/<subject>/<concept>.md     # 同上
+❌ wiki/concepts/                           # Claudian 自由发挥的历史遗留
+```
+
+### 资产归属规则（违反 = 错配）
+
+| 资产 | 正确位置 | 禁止位置 |
+|---|---|---|
+| 原白板 md（白板本身） | `原白板/<board>.md` | ❌ `wiki/canvases/<subject>/index.md` |
+| 节点 md（概念） | `节点/<concept>.md`（扁平） | ❌ `wiki/canvases/<subject>/<concept>.md` / `wiki/concepts/` |
+| 检验白板 md | `检验白板/<exam>.md` | ❌ `outputs/exam_boards/` 作白板（只放输出） |
+| subject 字段 | **vault 级** `.canvas-config.yaml` 单一值 | ❌ 每个 md frontmatter 重复（retain `board_name` 即可） |
+
+### subject 字段处置（round-11 固化）
+
+- **一 vault 一学科** → subject 固化为 vault 级值
+- **存储位置**：`canvas-vault-<subject>/.canvas-config.yaml` 的 `subject:` 字段
+- **md 文件 frontmatter**：保留 `board_name`、去掉 `subject`（vault 级透明读取）
+- **后端 P0 工作量留待下轮**（mastery_store / subject_resolver / memory_service 等 ~14-18h MVP 阶段非阻塞）
+- **Skill 侧立即固化**：configure-whiteboard 和 ai-linked-doc 都从 `.canvas-config.yaml` 读 subject，不再向用户问
+
+### 节点可见性（round-11 固化 = a 侧栏折叠但可点）
+
+- 节点 md 物理位置 `节点/`，左栏文件树**默认折叠不展开**
+- 用户主要通过"打开原白板 md → Cmd+Click 双链跳到节点"的路径工作
+- **但** Cmd+Click 双链/命令面板搜索/wikilink 补全 **仍能打开节点 md**（兼容 PRD FR-CONV-01 + 未来 Story 3.x 节点对话）
+
+### 中文目录名编码 QA（round-11 必跑）
+
+中文目录 `原白板/节点/检验白板/` 有编码风险（Dataview / Bash mv / wikilink / Graph View filter）。实施必跑 **4 个编码边界测试**：
+
+1. Bash: `mkdir "原白板"` 成功 + `ls "原白板"` 可查
+2. Obsidian Graph View: Filters 输 `path:原白板/` 过滤生效
+3. Wikilink: `[[原白板/CS 61B]]` 能自动补全 + 跳转
+4. Dataview: `FROM "原白板"` query 无报错
+
+任一失败 → 记入 Story 1.19 v4 的 deviation notes，降级到混合方案（目录英文 + frontmatter 中文）。
+
+### Nick Milo 社区参考（设计一致性验证）
+
+- Ideaverse Atlas/Maps = 原白板/
+- Ideaverse Atlas/Notes = 节点/（扁平 atomic pool）
+- 参考：https://www.linkingyourthinking.com/
+
+---
+
 ## BMAD 流程（你的开发循环）
 
 ```
@@ -142,7 +223,7 @@ sibling 代码目录通过 `--add-dir` 接入：
 | 3 | 原白板配置 | Claude Code Skill | 3.X | P1 | ~6h |
 | 4 | Dashboard 一键考察 (MD MVP) | dashboard.md + Buttons URI | 1.18 | P1 | ~6h |
 
-实施顺序: 1.16 (done) → **1.19 (configure-whiteboard 原白板入口)** → 1.17 (AI 双链) → 1.18 (Dashboard)
+实施顺序: 1.16 (done) → **1.19 v4 (扁平架构 configure-whiteboard)** → 1.17 v4 (AI 双链 · 路径对齐) → 1.18 (Dashboard · Dataview FROM "原白板")
 
 > **2026-04-20 round-8 顺序修正**：之前顺序 `1.16 → 1.17 → 1.18 → 3.X` 按工作量排序，但违反 Story 1.19 yaml `blocks: ["1.17","1.18"]` 和用户使用链路。3 并行 agent deep explore（2026-04-20）确诊：Story 1.19 是"用户打开 Canvas 第一件事"（onboarding 入口），没有白板 1.17 AI 双链 UAT 前置不成立、1.18 Dashboard 数据源为空。用户 2026-04-20 批注"双链提问节点的功能本身就是要在原白板里面使用的" + "我现在有一个在任意文件夹的 md 文件那么我想要从这个文件开始生成原白板" 精准命中此 bug。修正见 Round 4 Sec X4 正确依赖图（`review/epic-1-audit-response-round-4-2026-04-17.md:117-128`）。
 

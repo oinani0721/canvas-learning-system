@@ -2,18 +2,35 @@
 story_id: "1.19"
 epic_id: "1"
 prd_id: "canvas-learning-system"
-status: "review"
+status: "in-progress"
 priority: "P0"
-estimate_hours: 8
+estimate_hours: 10
 depends_on: []
 blocks: ["1.17","1.18"]
 trace: ["FR-KG-08","FR-SYS-06","FR-DASH-01"]
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
-revision: "v2.1-subject-vs-boardname-and-relationship-scope-2026-04-20"
+revision: "v3-flat-architecture-2026-04-20"
 uat_sheet: "_bmad-output/验收单/Story-1.19-configure-whiteboard.md"
+v3_summary:
+  architecture_change: "白板 = 原白板/<board>.md 单 md 文件（非目录）；节点扁平池 节点/*.md；一 vault 一学科"
+  community_alignment: "Nick Milo Ideaverse Atlas/Maps+Atlas/Notes"
+  user_decisions_round_10: "a 侧栏折叠 + B vault 级 subject + 中文目录 + X 一 vault 零冲突"
 ---
 
-# Story 1.19: 原白板配置 Skill — 场景 A 新建 + 场景 B 从任意 md 派生
+# Story 1.19 v3: 原白板配置 Skill — 扁平架构（对齐 Nick Milo Ideaverse）
+
+> [!warning]+ v3 架构重构（2026-04-20 round-11）
+> v2.1 假设 `wiki/canvases/<subject>/index.md + <concept>.md` 嵌套目录 — 已完全废弃。
+> v3 新架构（用户 round-10 批注 + 3 agent 调研 + 用户 4 决策）：
+> - **白板 = `原白板/<board>.md`** 单 md 文件（不是目录）
+> - **节点 = `节点/<concept>.md`** 扁平池（一 vault 一学科零重名）
+> - **检验白板 = `检验白板/<exam>.md`** 平行扁平
+> - **subject 字段** vault 级固化在 `.canvas-config.yaml`，对用户透明
+> - **节点可见性**：侧栏折叠但 wikilink/Cmd+Click 可打开
+> - **目录命名**：中文（`原白板/` / `节点/` / `检验白板/`）— 需跑中文编码 QA
+> - **社区对齐**：Nick Milo Ideaverse Atlas/Maps + Atlas/Notes
+>
+> 旧 v2.1 的 `wiki/canvases/<subject>/` scope 全部废弃。见 `_bmad-output/验收单/批注回复/Round-10-架构重设计.md`。
 
 **Epic**: 1 — 基础设施 + Obsidian 插件命令
 **Status**: in-progress (v2 scope 扩展 2026-04-20；因 1.17 UAT 批注暴露用户实际使用链路)
