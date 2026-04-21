@@ -34,6 +34,41 @@ uat_sheet: "_bmad-output/验收单/Story-1.17-ai-linked-doc.md"
 >
 > **来源对齐**：Round 3 QA `research/obsidian-qa-round3-claude-answers-2026-04-14.md:141-177`（System Prompt 模板三段式结构：核心概念 / 关键点 / 关联概念）+ Story 1.16 v2 实施经验（plugin 第 N 命令 + handler + `src/main.ts` 注册模式 + `cp main.js → canvas-vault/.obsidian/plugins/canvas-learning-system/` 部署范式）+ Story 1.19 的 `.claude/skills/<name>/SKILL.md` vault-level skill 发现机制。
 
+## FAQ（对抗性审查回应 2026-04-20）
+
+### Q: AI 双链和 Story 3.1 `/extract_node` 重复吗？
+
+**不重复，互补分工**（二者共享 concept.md schema + index.md 更新逻辑，差异在触发源）：
+
+| 入口 | Story | 触发源 | 使用场景 |
+|---|---|---|---|
+| Obsidian Plugin hotkey `Cmd+Shift+D` | 1.17 `canvas:ai-linked-doc` | **主动** — 读笔记时选中"没解释清楚的术语"一键派生 | 阅读时 / 编辑笔记时 |
+| Claudian Skill `/extract_node` | 3.1（未实施） | **被动** — 对话/考察/Edge 中 AI 发现盲点拉出 | Claudian 对话 / 检验白板考察 / Edge 讨论 |
+
+两者产出相同（新 `wiki/canvases/<subject>/<slug>.md` + 源笔记替换为 `[[...]]` + index.md 更新），frontmatter `created_from` 字段区分（`ai_linked_doc` vs `chat_session` / `exam_board`）。
+
+### Q: AI 双链和旧 `canvas:extract-concept` 命令重复吗？
+
+**旧命令是僵尸壳，已于 2026-04-20 删除**（round-9 correct-course）：
+- Story 1.4 的 `canvas:extract-concept` callback 调 `/api/v1/wikilink/build` endpoint
+- 但 `BuildRequest{vault_path}` schema 只接受 `vault_path`，Plugin 发的 `{text: selected}` **被 Pydantic 默认丢弃**
+- 用户触发后 **无任何"提取"行为**，只是让 Story 1.2 的全 vault 图重建跑一次（用户完全感知不到）
+- 违反 DD-13 名实一致
+- Story 1.17 `ai-linked-doc` 完全替代了它应该做的事
+
+### Q: "AI 双链" 和后端 "知识图谱 (Graphiti)" 重复吗？
+
+**两件完全不同的事，不重复**：
+
+| 层 | 在哪 | 存什么 | 用户可见？ | 谁用 |
+|---|---|---|---|---|
+| **L1 Obsidian wikilink 图** | vault 里 md 的 `[[...]]` + Graph View | 文件级引用（无语义类型） | ✅ | 用户点击跳转 / Graph View 可视化 |
+| **L2 AI 双链文档**（本 Story） | Plugin + Claudian Skill | 新 concept md + wikilink + index.md | ✅ | 学习派生 |
+| **L3 Wikilink NetworkX 缓存**（Story 1.2）| 后端 obsidiantools | 内存 NetworkX 图 | ❌ | N-hop 邻居 MCP 工具 |
+| **L4 Graphiti KG**（Epic 2.x/3.x）| 后端 Neo4j :7689 | 实体 + 关系 + 时序三元组 | ❌ | AI Agent 跨笔记推理 |
+
+**AI 双链 = L2**，产出物到 L1（用户可见）+ 触发 L3 重建，**不直接入 L4**。Graphiti L4 存的是"学习者动态学习史"（tips / 误解 / 掌握度 / Edge 讨论），由对话/考察/错误通道异步写入。
+
 ## Behavior（用户视角）
 
 ```

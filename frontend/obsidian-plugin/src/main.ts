@@ -51,19 +51,12 @@ export default class CanvasLearningPlugin extends Plugin {
       callback: () => this.callBackend("/api/v1/exam/start", "启动考察"),
     });
 
-    this.addCommand({
-      id: "canvas:extract-concept",
-      name: "提取概念",
-      callback: () => {
-        const editor = this.app.workspace.activeEditor?.editor;
-        const selected = editor?.getSelection();
-        if (!selected) {
-          new Notice("请先选中文本再提取概念");
-          return;
-        }
-        this.callBackend("/api/v1/wikilink/build", "提取概念", { text: selected });
-      },
-    });
+    // Story 1.4 `canvas:extract-concept` removed 2026-04-20 (round-9 correct-course).
+    // Reason: 僵尸壳命令 — callback 调 /api/v1/wikilink/build (Story 1.2 全 vault 图重建),
+    // 但 BuildRequest schema 只吃 {vault_path}，Plugin 发的 {text} 被 Pydantic 丢弃。
+    // 用户触发后无任何"提取"行为，违反 DD-13 名实一致。真正的"提取"功能拆成:
+    //   - Story 1.17 canvas:ai-linked-doc (Cmd+Shift+D, Plugin 主动派生)
+    //   - Story 3.1 /extract_node (Claudian Skill, 对话/考察被动拉出, 未实施)
 
     this.addCommand({
       id: "canvas:quiz-from-callout",

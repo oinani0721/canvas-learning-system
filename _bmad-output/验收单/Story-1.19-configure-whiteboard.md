@@ -85,13 +85,13 @@ Step 7: 返回 "✓ 白板已从 my-notes.md 派生，种子笔记已归入"
 
 ### P1 · 环境验证
 
-- [ ] canvas-vault 的 Claudian 已启用 + CLI path 填对（Story 1.17 P1 完成后这里就 OK）
-- [ ] 终端 `ls canvas-vault/.claude/skills/configure-whiteboard/SKILL.md` 存在
-- [ ] 终端 `ls canvas-vault/.claude/skills/configure-whiteboard/templates/index.md.template` 存在
+- [x] canvas-vault 的 Claudian 已启用 + CLI path 填对（Story 1.17 P1 完成后这里就 OK）
+- [x] 终端 `ls canvas-vault/.claude/skills/configure-whiteboard/SKILL.md` 存在
+- [x] 终端 `ls canvas-vault/.claude/skills/configure-whiteboard/templates/index.md.template` 存在
 
 ### P2 · 强制 Reload Obsidian
 
-- [ ] `Cmd+P` → "Reload app without saving"（让 Claudian 重新扫描 Skills）
+- [x] `Cmd+P` → "Reload app without saving"（让 Claudian 重新扫描 Skills）
 
 ---
 
@@ -99,34 +99,34 @@ Step 7: 返回 "✓ 白板已从 my-notes.md 派生，种子笔记已归入"
 
 ### 第 1 步：F12 DevTools Console（用于诊断，可选）
 
-- [ ] `Cmd+Opt+I` 打开 Console
+- [x] `Cmd+Opt+I` 打开 Console
 
 ### 第 2 步：Claudian slash 补全验证
 
-- [ ] 打开 Claudian 侧栏
-- [ ] 在输入框输 `/config`
-- [ ] Slash dropdown 里应**看到 `/configure-whiteboard`**（如没有 → Skill 文件没被扫到，转诊断 A）
+- [x] 打开 Claudian 侧栏
+- [x] 在输入框输 `/config`
+- [x] Slash dropdown 里应**看到 `/configure-whiteboard`**（如没有 → Skill 文件没被扫到，转诊断 A）
 
 ### 第 3 步：场景 A 测试（从零建）
 
-- [ ] 在 Claudian 输入：
+- [x] 在 Claudian 输入：
   ```
   /configure-whiteboard "Linear Algebra" "math240"
   ```
-- [ ] 按 Enter
-- [ ] Claudian 开始执行 Skill（约 5-20s）
+- [x] 按 Enter
+- [x] Claudian 开始执行 Skill（约 5-20s）
 
 ### 第 4 步：场景 A · Skill 询问"种子笔记"
 
-- [ ] Claude 应该 AskUserQuestion 问："把当前打开的笔记作为种子迁入吗？"
-- [ ] 若你没打开任何笔记或选"不"→ 跳过迁入，只建空白板
-- [ ] 若选"是" → Skill 进入 Step 5-6 流程
+- [x] Claude 应该 AskUserQuestion 问："把当前打开的笔记作为种子迁入吗？"
+- [x] 若你没打开任何笔记或选"不"→ 跳过迁入，只建空白板
+- [x] 若选"是" → Skill 进入 Step 5-6 流程
 
 ### 第 5 步：场景 A · 验证回执 + 结构
 
-- [ ] Claudian 最终返回回执，含 `✓ 原白板 "Linear Algebra" 已建立`
-- [ ] Obsidian 左侧文件树刷新看到 `wiki/canvases/math240/` 文件夹
-- [ ] 里面有 `index.md`
+- [x] Claudian 最终返回回执，含 `✓ 原白板 "Linear Algebra" 已建立`
+- [x] Obsidian 左侧文件树刷新看到 `wiki/canvases/math240/` 文件夹
+- [x] 里面有 `index.md`
 - [ ] 打开 `index.md` 看到：
   - frontmatter 含 `type: whiteboard_index` / `board_name: "Linear Algebra"` / `subject: "math240"` / `doc_count: 0` / `doc_mastery_avg: 0.00`
   - `# Linear Algebra` 标题
@@ -223,6 +223,50 @@ Step 7: 返回 "✓ 白板已从 my-notes.md 派生，种子笔记已归入"
 > 1. **最快**：按 `Cmd+G` 打开 Obsidian Graph View → 左上 `Filters` 输 `path:wiki/canvases/<subject>/` → 实际 wikilink 拓扑立刻可见（不需装任何插件）
 > 2. **让 AI 帮你建关系**：在 `my-recursion-notes.md` 里选中 "base case" 文本 → `Cmd+Shift+D`（Story 1.17） → AI 派生 `base-case.md` + **自动**在两个笔记里建 `[[...]]`
 > 3. **自己手写**：在任意笔记里写 `这个概念依赖 [[another-note]]` → Graph View 立即多一条线 + 对方笔记的 backlinks 面板也会出现反链
+
+> [!tip]+ 2026-04-20 round-9 对抗性审查回应（3 并行 agent deep explore）
+> **你的批注**：
+> 1. "知识图谱和 AI 双链究竟是要实现什么功能？"
+> 2. "AI 双链命令和我的提取节点命令是否重复了？都是变成了选中文本后自定双链"
+>
+> ---
+>
+> **Q1 · 知识图谱 vs AI 双链** — 项目里"图/关系/链接"分 **4 层**：
+>
+> | 层 | 机制 | 用户可见？ | 谁在用 |
+> |---|---|---|---|
+> | **L1 Wikilink 图** | Obsidian `[[...]]` + Graph View | ✅ 肉眼可见 | 用户点击跳转 |
+> | **L2 AI 双链**（Story 1.17） | Cmd+Shift+D → AI 派生 concept.md + 替换选中为 `[[...]]` + 更新 index.md | ✅ wikilink 立即看到 | 学习派生 |
+> | **L3 Wikilink 图缓存**（Story 1.2 待实施）| `obsidiantools` NetworkX 内存图 | ❌ 纯后端 | N-hop 邻居 MCP 工具 |
+> | **L4 Graphiti KG**（Epic 2.x/3.x 未来）| Neo4j :7689 + 实体+关系+时序三元组 | ❌ 纯后端 | AI Agent 跨笔记推理 |
+>
+> **AI 双链 = L2**，产出到 L1（用户可见），触发 L3 重建，**不直接入 L4**。Graphiti L4 存的是"学习者动态学习史"（tips/误解/掌握度/Edge 讨论），由对话/考察/错误通道异步写入，**和 AI 双链互补不重叠**。
+>
+> ---
+>
+> **Q2 · AI 双链 vs 提取节点 — 判定：你现有的 1.4 老命令是僵尸壳，真正的对立是 1.17 vs 3.1**
+>
+> | 命令 | Story | 状态 | 实际做什么 | 结论 |
+> |---|---|---|---|---|
+> | `canvas:extract-concept` | 1.4 | **僵尸壳** | callback 调 `/api/v1/wikilink/build`，但 endpoint schema 只接 `{vault_path}`，Plugin 发的 `{text}` 被 Pydantic 忽略 — 用户触发后 **什么都不会发生**（只是让全 vault 图重建跑一次）。违反 DD-13。| **已删** (main.ts:54-66) |
+> | `canvas:ai-linked-doc` | 1.17 v2.1 | review (blocked on 1.19) | Cmd+Shift+D 选中 → 剪贴板 + Claudian Skill → AI 派生 md + wikilink + index.md | **保留** |
+> | `/extract_node` | 3.1 | backlog 未实施 | **Claudian Skill**（不是 Plugin 命令），对话/考察/Edge 中 LLM 发现盲点时拉出 | **保留**，和 1.17 互补 |
+>
+> **1.17 vs 3.1 的本质差异**：
+> - **1.17 = 主动**（你读笔记主动选中派生）— Plugin hotkey 入口，场景"阅读/编辑"
+> - **3.1 = 被动**（AI 在对话/考察中发现你不懂，拉出概念）— Claudian Skill 入口，场景"对话/考察/Edge"
+> - 产出相同（concept.md + wikilink + index.md），frontmatter `created_from` 区分：`ai_linked_doc` vs `chat_session` / `exam_board`
+>
+> ---
+>
+> **已执行**（round-9 commit）：
+> 1. `frontend/obsidian-plugin/src/main.ts:54-66` — 删除 `canvas:extract-concept` 注册（13 行），替换为删除原因注释
+> 2. `npm test` 14/14 绿；build `main.js` 11608 → 11027 (-581B)；cp 部署到 canvas-vault（grep extract-concept = 0）
+> 3. `_bmad-output/implementation-artifacts/epic-1/1-4-hotkey-binding-config.md:52` — 加 Deviation Note
+> 4. `_bmad-output/implementation-artifacts/epic-1/1-17-ai-linked-doc.md` — 新增 **FAQ 段**（3 Q&A 回答对抗性质疑）
+> 5. 下次 1.17 UAT Cmd+Shift+P 搜 "Canvas" 看到 **7 条命令**（不再有 "提取概念" 僵尸条目）
+>
+> **明确结论**：你的质疑对，但真相是"**Story 1.4 extract-concept 是僵尸**"，不是"1.17 和 3.1 重复"。1.17（Plugin 主动）和 3.1（Skill 被动）刻意分工。知识图谱 L1-L4 各司其职，AI 双链只管 L2。
 
 **UAT 验证步骤**：
 
