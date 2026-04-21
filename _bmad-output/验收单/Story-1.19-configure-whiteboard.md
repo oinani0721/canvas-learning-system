@@ -2,7 +2,7 @@
 story: "1.19"
 title: "原白板配置 Skill（场景 A 从零建 + 场景 B 从任意 md 派生）"
 status: "review"
-version: "v2"
+version: "v2.1"
 date: "2026-04-20"
 developer: "Claude Code (Opus 4.7)"
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
@@ -12,8 +12,13 @@ plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 
 > [!info]+ 这是什么
 > 这是 Story 1.19 的用户验收文档。Story 1.19 是"**用户打开 Canvas 第一件事**" — 创建第一个原白板。之前 Story 1.17 UAT 卡住就是因为没有这个入口。
-> 
+>
 > 技术 spec 在 `_bmad-output/implementation-artifacts/epic-1/1-19-configure-whiteboard-skill.md`（Claude 读的）。
+
+> [!question]+ 2026-04-20 用户第 7 步批注 — 已在 v2.1 回应（跳到第 7 步 + 第 11 步）
+> 用户在 v2 第 7 步批注：
+> 1. **"学科和白板名之间怎么区分？"** → v2.1 改进：AskUserQuestion 文案明确 `subject` = **文件夹代码**（ASCII slug）vs `board_name` = **显示名**（可中文），**分两步问**你，不让你搞混。详见第 7 步下方 [!tip]+ callout。
+> 2. **"我移动的 md 文档如果没提双向链接关系，你如何在 index.md 归纳两个 md 文件的联系？"** → v2.1 回答：**Skill 刻意不做语义关系归纳**（做了就是幻觉）。关系有 3 来源：(a) 用户手写 `[[wikilink]]` (b) Story 1.17 AI 双链自动建 (c) 未来 Story 2.x 知识图谱。现在就能看关系 → 按 `Cmd+G` 打开 Graph View。详见第 11 步下方 [!tip]+ callout + index.md 的 `## Relationship Graph` section 内的 [!info]+ 解释。
 
 ---
 
@@ -90,7 +95,7 @@ Step 7: 返回 "✓ 白板已从 my-notes.md 派生，种子笔记已归入"
 
 ---
 
-## ✅ UAT（10 步 — 场景 A + B 双路径）
+## ✅ UAT（11 步 — 场景 A + B 双路径 + v2.1 关系归纳验证）
 
 ### 第 1 步：F12 DevTools Console（用于诊断，可选）
 
@@ -144,13 +149,31 @@ Step 7: 返回 "✓ 白板已从 my-notes.md 派生，种子笔记已归入"
   ```
 - [ ] 按 Enter
 
-### 第 7 步：场景 B · Skill AskUserQuestion 流程
+### 第 7 步：场景 B · Skill AskUserQuestion 流程（v2.1 文案改进）
 
-- [ ] Claudian 问 "归属哪个学科？"
-- [ ] 选项列出已有的 `math240`（第 3-5 步建的）+ "新建"
-- [ ] 选"新建" → 再问 subject 代码 → 输 `cs-61b` → 再问 board_name → 输 `CS 61B 数据结构`
+- [ ] Claudian 问 "这个原白板归属哪个学科**文件夹**（**subject 是文件夹代码**，例 `math240`、`cs-61b`）？"（注意：问法明确是 "文件夹代码"，不是含糊的"学科"）
+- [ ] 选项列出已有的 `math240 → "线性代数"（N 笔记）`（显示 "代码 → 板名" 对应关系）+ "新建"
+- [ ] 选 **"新建"** → Claudian 分**两步**问你：
+  - 第 1 问：**subject 代码**（文件夹名 slug，必须 lowercase + 字母数字 + 连字符）→ 输 `cs-61b`
+  - 第 2 问：**board_name 显示名**（可含中文 / 空格 / 大小写，出现在 H1 + Dashboard 列表）→ 输 `CS 61B 数据结构`
 - [ ] Claudian 问 "move 还是 copy？" → 选 move
 - [ ] Skill 开始执行
+
+> [!tip]+ 2026-04-20 用户批注回应 — subject vs board_name 的分工
+> **用户原批注**："学科和白板名之间怎么区分？"
+>
+> **回答**：这是**两个不同的字段**，刻意分开：
+>
+> | 字段 | 角色 | 格式 | 例子 |
+> |---|---|---|---|
+> | **`subject`** | 机器可读 **文件夹代码 / slug** | lowercase + 字母数字 + 连字符 | `math240`, `cs-61b`, `phil-a250` |
+> | **`board_name`** | 人类可读 **显示名** | 自由（可中文 / 空格 / 大小写） | `线性代数`, `CS 61B 数据结构`, `Linear Algebra II` |
+>
+> **为什么分两个？**
+> - 文件夹名 `wiki/canvases/<subject>/` 要给 wikilink、Graph View 分组、Dataview 查询、Dashboard 筛选用 → **必须短 + ASCII + 无空格**，不然各种工具会坏
+> - 但你自己看的时候想看到自然语言 → 所以 `board_name` 保留完整中文 / 正常大小写 / 带空格
+>
+> **两个字段 1:1 对应**（一个 subject 配一个 board_name）。Skill v2.1 把 AskUserQuestion 改成**显式分两问**了 — 不会再让你搞混哪个是哪个。
 
 ### 第 8 步：场景 B · 验证派生结果
 
@@ -183,11 +206,47 @@ Step 7: 返回 "✓ 白板已从 my-notes.md 派生，种子笔记已归入"
 - [ ] Skill AskUserQuestion 问 "重用还是换代码？"
 - [ ] 选"换代码" → 输新代码 → 确认建新白板
 
+### 第 11 步（v2.1 新增）：验证 `## Relationship Graph` section + Graph View 关系
+
+> [!tip]+ 2026-04-20 用户批注回应 — 关系归纳的职责分工
+> **用户原批注**："我移动的 md 文档，如果我没有提及各个 md 文件之间的双向链接关系的话，那么请问你如何在 index.md 文件中，归纳这两个 md 文件的联系呢？"
+>
+> **回答（核心）**：Skill 1.19 **刻意不做语义关系归纳** — 因为 Skill 自己臆造"A 依赖 B"这类关系 = 幻觉，严禁。关系有 3 个真实来源，分工如下：
+>
+> | 来源 | 谁建的 | 什么时候触发 | 在哪看 |
+> |---|---|---|---|
+> | **你手写的 `[[wikilink]]`** | 你自己 | 任何笔记正文打 `[[` 自动补全 | Graph View（Cmd+G）立即可见 |
+> | **Story 1.17 AI 双链**（`Cmd+Shift+D`）| `/ai-linked-doc` Skill | 选中文本 → AI 派生新概念时**自动给源笔记 + 新概念**建双向 wikilink | Graph View 自动更新 + 两个笔记正文里都有 `[[...]]` |
+> | **Story 2.x 知识图谱**（未来）| 后端 Graphiti 语义抽取 | 后端异步跑 entity extraction | 写入 index.md 的 `## Relationship Graph` section |
+>
+> 所以**你现在移动了两个 md 但没手写 wikilink → `## Relationship Graph` 就是空的**。这不是 bug，是刻意设计。要看关系有 3 条路：
+> 1. **最快**：按 `Cmd+G` 打开 Obsidian Graph View → 左上 `Filters` 输 `path:wiki/canvases/<subject>/` → 实际 wikilink 拓扑立刻可见（不需装任何插件）
+> 2. **让 AI 帮你建关系**：在 `my-recursion-notes.md` 里选中 "base case" 文本 → `Cmd+Shift+D`（Story 1.17） → AI 派生 `base-case.md` + **自动**在两个笔记里建 `[[...]]`
+> 3. **自己手写**：在任意笔记里写 `这个概念依赖 [[another-note]]` → Graph View 立即多一条线 + 对方笔记的 backlinks 面板也会出现反链
+
+**UAT 验证步骤**：
+
+- [ ] 打开 `wiki/canvases/cs-61b/index.md`（第 8 步建的）
+- [ ] 滚到 `## Relationship Graph` section → 看到 **[!info]+ callout 说明** 而**不是空白**
+  - Callout 标题："怎么看笔记之间的关系（/configure-whiteboard Skill 不做语义归纳）"
+  - 列出 3 个关系来源 + "现在就能看的关系"段（Graph View）+ "想嵌入怎么办"段（Dataview 示例）
+- [ ] 按 `Cmd+G` 打开 Graph View
+  - 左上 `Filters` 面板输入 `path:wiki/canvases/cs-61b/`
+  - 应该看到 `my-recursion-notes` + `index` 两个节点，**之间有线**（因为 Step 6 在 `index.md` 的 `## Concepts` 段 append 了 `- [[my-recursion-notes]] — seed note`，触发 wikilink）
+- [ ] 在 `my-recursion-notes.md` 正文手写一行 `这里依赖 [[index]] 的定义`
+- [ ] 回 Graph View → 看到 `my-recursion-notes → index` 多了一条反向线（双向关系自动出现，不需要 Skill 干预）
+- [ ] 选中 `my-recursion-notes.md` 里的 "base case" 文本 → `Cmd+Shift+D`（Story 1.17 命令）
+  - 等 AI 派生 `base-case.md` 完成
+  - 回 Graph View → 看到 `base-case` 节点 + 到 `my-recursion-notes` 的线（AI 自动建双链）
+  - 这就是 Story 1.17 的职责，不是 1.19 的
+
+**如果你看到 `## Relationship Graph` section 空白（只有 `<!-- -->` 注释，没 callout）** → 说明 template 未更新到 v2.1，检查 `canvas-vault/.claude/skills/configure-whiteboard/templates/index.md.template`。
+
 ---
 
 ## 🚦 验收结果
 
-### 理想（全 10 步 ✅）
+### 理想（全 11 步 ✅）
 → 告诉我 "**Story 1.19 通过**"  
 → 我 mark done → 然后**自动回到 Story 1.17 UAT**（前置条件终于成立了）
 

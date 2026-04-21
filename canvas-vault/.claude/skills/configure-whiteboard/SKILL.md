@@ -64,23 +64,44 @@ model: sonnet
 
 ### Step 2 · 补齐 subject 和 board_name
 
-**subject 智能候选**（场景 A + B 共用）：
-1. 用 `Glob` 搜 `wiki/canvases/*/index.md` 枚举现有 subject（读 frontmatter `subject` 字段）
-2. 若场景 B + 源 md 有 `subject` frontmatter → 预填该值为默认推荐
-3. `AskUserQuestion`：
-   > 这个原白板归属哪个学科？
-   > 
-   > - （已有学科逐个列出，用户选其一 → 归入该白板）
-   > - 或选 "新建" → 我会继续问学科代码 + 板名
-   
-   若已有白板被选 → 跳到 Step 4（直接 append 到现有 index.md，不重建）
-4. 若选"新建" → `AskUserQuestion`：
-   > 新学科的代码（文件夹名）？格式：lowercase + 字母数字 + 可含连字符。例 `math240`、`cs-61b`。
-5. 若场景 A → `AskUserQuestion`：
-   > 白板显示名（board_name）？例 `Linear Algebra`、`CS 61B 数据结构`。
-6. 若场景 B → board_name 可选（默认用 source_path 的文件名 stem 作为 board_name）
+> **两个字段的分工**（必须向用户讲清楚，不可混用）：
+> - **`subject`** = **机器可读的文件夹代码** = 文件夹名 `wiki/canvases/<subject>/` + frontmatter `subject:` 字段 + Dashboard 过滤用的 slug。格式：`^[a-z0-9]+(-[a-z0-9]+)*$`（lowercase + 数字 + 连字符）。例 `math240`、`cs-61b`。
+> - **`board_name`** = **人类可读的显示名** = index.md 的 `# H1` 标题 + frontmatter `board_name:` + Dashboard 列表里显示给用户看的名字。格式自由（可含中文、空格、大小写）。例 `线性代数`、`CS 61B 数据结构`、`Linear Algebra II`。
+>
+> 一个 subject 对应一个 board_name（1:1）。subject 变更 = 文件夹改名（破坏性），board_name 变更 = 只改 frontmatter + H1（安全）。
 
-**subject 验证**：正则 `^[a-z0-9]+(-[a-z0-9]+)*$`。不符合 → 重问。
+**subject 智能候选**（场景 A + B 共用）：
+1. 用 `Glob` 搜 `wiki/canvases/*/index.md` 枚举现有 subject + board_name（读 frontmatter `subject` 和 `board_name` 字段配对）
+2. 若场景 B + 源 md 有 `subject` frontmatter → 预填该值为默认推荐
+3. `AskUserQuestion`（必须显式区分两个字段的角色，不要只写 "归属哪个学科"）：
+   > 这个原白板归属哪个学科文件夹（**subject 是文件夹代码**，例如 `math240`、`cs-61b`）？
+   >
+   > **已有学科**（显示 "代码 → 板名" 对应关系，帮你记住哪个是哪个）：
+   > - `math240` → "线性代数"（5 笔记）
+   > - `cs-61b` → "CS 61B 数据结构"（12 笔记）
+   > - ...
+   >
+   > 选已有代码 → 种子笔记直接并入该白板，**不会新建**；
+   > 或选 **"新建"** → 我会分两步问你：先问新 subject 代码（机器用），再问 board_name 显示名（人看的）。
+
+   若已有白板被选 → 跳到 Step 4（直接 append 到现有 index.md，不重建）
+4. 若选"新建" → `AskUserQuestion`（**第 1 问：subject 代码**）：
+   > 新白板的 **subject 代码**（文件夹名 + frontmatter slug）是什么？
+   >
+   > 格式要求：lowercase + 字母数字 + 可含连字符（正则 `^[a-z0-9]+(-[a-z0-9]+)*$`）。
+   >
+   > 例 `math240`（数学 240）、`cs-61b`（CS 61B）、`phil-a250`（哲学 A250）。
+   >
+   > 为什么是代码不是中文？因为文件夹名 + frontmatter slug 要给 Dataview 过滤、Graph View 分组、跨笔记 wikilink 用，必须短 + ASCII + 无空格。
+5. 若场景 A（继续问 board_name）→ `AskUserQuestion`（**第 2 问：board_name 显示名**）：
+   > 这个白板的 **显示名**（board_name，出现在 index.md 的 H1 标题 + Dashboard 列表里给你看）是什么？
+   >
+   > 格式自由（可含中文、空格、大小写）。例 `线性代数`、`CS 61B 数据结构`、`Linear Algebra`、`抽象代数 II`。
+   >
+   > 可以和 subject 代码长得不一样（subject `math240` 配 board_name `线性代数` 很常见）。
+6. 若场景 B → board_name 可选（默认用 source_path 的文件名 stem 作为 board_name，**但仍要 AskUserQuestion 确认** — 文件名不总是好的白板名）
+
+**subject 验证**：正则 `^[a-z0-9]+(-[a-z0-9]+)*$`。不符合 → 重问（显示 "subject 必须是 lowercase 字母数字和连字符，例 `math240`；这不是 board_name，board_name 可以是中文"）。
 
 ### Step 3 · 重名冲突处理
 
@@ -161,6 +182,26 @@ echo "$template" | \
   - {ISO}: Seed note {basename-stem}.md imported into whiteboard
   ```
 
+### Step 6.5 · 关系归纳边界（重要 — 不要越权）
+
+**本 Skill 不做 "笔记之间的语义关系归纳"**。明确职责分工：
+
+| 职责 | 归属 | 什么时候触发 |
+|---|---|---|
+| 把种子笔记"归入白板目录" + 记 wikilink 到 `## Concepts` 列表 | **本 Skill（1.19）** | 用户 `/configure-whiteboard` |
+| 从现有笔记派生**新概念**并在源笔记里建 `[[wikilink]]` 双链 | **Story 1.17 `/ai-linked-doc`** | 用户 `Cmd+Shift+D` 选中文本 |
+| 批量读白板里所有笔记的现有 wikilink 在 `## Relationship Graph` 里可视化 | **Obsidian 原生 Graph View** | 用户 `Cmd+G` 或 hover 预览 |
+| 识别"概念 A **依赖** 概念 B" / "概念 A **是** 概念 B 的特例" 这类语义关系 | **Story 2.x Knowledge Graph**（未来） | 后端 Graphiti + entity extraction |
+
+**所以 index.md 的 `## Relationship Graph` section 在本 Skill 执行完后是空的 — 这是预期行为，不是 bug**。关系图的填充来源：
+
+1. **用户手动 `[[wikilink]]`** 写在任意笔记正文里（你在 Obsidian 打 `[[` 就会自动补全）
+2. **Story 1.17 AI 派生概念**时自动给源笔记 + 新概念笔记**双向**建 wikilink
+3. **Obsidian Graph View**（`Cmd+G`）聚合所有 wikilink 自动绘关系图 — **不需要本 Skill 干预**
+4. **未来 Story 2.x** 通过 Graphiti 在 `## Relationship Graph` 写入"A depends on B"这类带类型的语义关系
+
+**本 Skill 只做"归类 + 列条目"，不做"语义归纳"**。这是刻意的设计边界 — 防止自由发挥臆造笔记之间的关系（例如断言 "递归 依赖 循环" 这种没证据的声明）。用户看到 `## Relationship Graph` 为空时，请打开 Graph View 看 wikilink 拓扑图。
+
 ### Step 7 · 返回回执
 
 **场景 A 成功**（无种子笔记）：
@@ -176,11 +217,16 @@ echo "$template" | \
 - 选中内容 → Cmd+Shift+A 加 Tips/错误/提问标注
 ```
 
-**场景 A/B 成功含种子笔记**（3 行 ✓）：
+**场景 A/B 成功含种子笔记**（3 行 ✓ + 1 行关系图提示）：
 ```
-✓ 原白板 "{board_name}" 已建立
+✓ 原白板 "{board_name}" 已建立（subject 代码 {subject} / 显示名 {board_name}）
 ✓ 种子笔记 {basename} 已归入 wiki/canvases/{subject}/
 ✓ index.md 的 Concepts section 已添加 [[{basename-stem}]]
+
+💡 关系图怎么看：index.md 的 ## Relationship Graph 现在是空的（Skill 不做语义归纳）。
+   - 按 Cmd+G 打开 Obsidian Graph View → 聚焦 wiki/canvases/{subject}/ 文件夹
+   - 看到的线条 = 笔记之间实际存在的 [[wikilink]]
+   - 没有线？先手写 [[名字]] 或用 Cmd+Shift+D（Story 1.17）让 AI 自动建双链
 ```
 
 **部分失败**（ ✓/✗/⚠ 组合）：

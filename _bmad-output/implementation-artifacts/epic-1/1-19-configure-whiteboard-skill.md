@@ -9,7 +9,7 @@ depends_on: []
 blocks: ["1.17","1.18"]
 trace: ["FR-KG-08","FR-SYS-06","FR-DASH-01"]
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
-revision: "v2-scope-extended-2026-04-20"
+revision: "v2.1-subject-vs-boardname-and-relationship-scope-2026-04-20"
 uat_sheet: "_bmad-output/验收单/Story-1.19-configure-whiteboard.md"
 ---
 
@@ -356,6 +356,7 @@ Claude Opus 4.7 (1M context) — 3 并行 Agent deep explore (story 依赖链 / 
 
 ### Change Log
 
+- 2026-04-20 v2.1 — 回应用户 UAT v2 第 7 步批注 2 个深层问题：(1) subject vs board_name 混淆 → SKILL.md Step 2 改为**显式分两问**（先问 subject 代码 slug，再问 board_name 显示名），文案明确两字段**不同角色**；template 顶部 [!info]+ callout 加 "subject vs board_name 分工表"。(2) 关系归纳越权风险 → SKILL.md 新增 Step 6.5 "关系归纳边界"明确本 Skill **不做语义归纳**（避免幻觉），职责切分：1.19 只归类 + 列 wikilink / 1.17 AI 双链 / Graph View 可视化 / 未来 2.x KG；template 的 `## Relationship Graph` section 从空注释改为 [!info]+ callout 说明 3 关系来源 + 现在就能看的路径（Cmd+G Graph View）+ Dataview 嵌入示例（未预装）。验收单加第 11 步验证 Relationship Graph section + Graph View 关系，并在第 7 步旁附 subject vs board_name 对照表 tip。[PLAN: EPIC1-BMAD-DEV-ASSESS-2026-04-17]
 - 2026-04-20 v2 实施完成 — SKILL.md + index.md.template ship 到 canvas-vault。待用户 UAT 10 步（场景 A 从零建 + 场景 B 任意 md 派生 + 边界测试）。通过后 mark done → unblock Story 1.17 UAT。[PLAN: EPIC1-BMAD-DEV-ASSESS-2026-04-17]
 - 2026-04-20 v2 scope 扩展 — 3 并行 Agent deep explore 确诊：Story 1.19 yaml 早声明 blocks 1.17/1.18，但 CLAUDE.md 按工作量排序覆盖 → 错序。Scope 从 v1 "场景 A 从零建" 扩展到 v2 "场景 A + 场景 B 从任意 md 派生"，回应用户 2026-04-20 UAT 批注"我现在有一个在任意文件夹的 md 文件那么我想要从这个文件开始生成原白板"。Priority P1 → P0（onboarding 入口）。Estimate 6h → 8h。[PLAN: EPIC1-BMAD-DEV-ASSESS-2026-04-17]
 
