@@ -277,6 +277,79 @@ Tauri v0 节点旁面板有 mastery 颜色 + Tips 列表 + 单节点考察按钮
 
 ---
 
+## ⭐ Q7: 三种检索路径技术对比（用户审核重点 — 来自验收单批注）
+
+### 用户原话（2026-05-03 批注 Story 2.1 验收单）
+
+> 这里的上下文注入，你是学习 Karpathy 的 wiki 方式通过双向链接方式读取了链接的文档，然后同时后端的 Graphiti 也是有把前端 md 文件之间联系构建了关系图谱然后读取，那么我要明确你这里用到了什么 RAG，以及和 Claude Code 自己 Grep 文件来读，哪一个是更优的，我需要你在技术角度来 deep explore 这一点。
+
+### 项目内三种检索路径现状（事实嵌入 — 来自 backend 代码 + Round-13 决策）
+
+**路径 A · Wikilink BFS（Karpathy 风格）— Story 2.1 当前实施的唯一路径**
+- 实现：`backend/app/services/wikilink_graph_service.py` (NetworkX BFS N-hop, 200ms 超时)
+- 数据源：obsidiantools 解析 vault md 文件的 `[[X]]` wikilink 语法 → 内存图
+- 调用方：Story 2.1 `wikilink_context_service.enrich_from_wikilink_graph` → `get_neighbors(node_path, hop=2)`
+- 特点：零成本 / 显式关系 / 静态结构 / 启动 < 2s / 遍历 < 200ms
+
+**路径 B · Graphiti 时序图（Neo4j 知识图谱）— 项目内已集成但 Story 2.1 未用**
+- 实现：`graphiti-core v0.28.2` + `backend/app/clients/graphiti_client.py`
+- 三个未通电的 API：`search_facts` / `search_nodes` / `search_communities`
+- `valid_at` / `invalid_at` 时序追踪能力（用户 mastery 演化、错误修正历史）
+- 计划用法：Round-13 决策 — 仅对**会变化的属性**（mastery_score / understanding / last_reviewed）通过 `add_episode` 写入；md frontmatter 是"声明式快照"，Graphiti 是"事件流"，单向同步（永不反向）
+
+**路径 C · Claude Code Grep + Read（Mode D Skill 内置工具）— chat-with-context Skill 允许**
+- 实现：Claudian sidebar 内的 Claude Code CLI 自带 `Read / Glob / Grep` 工具
+- Skill 配置：`canvas-vault/.claude/skills/chat-with-context/SKILL.md` 的 `allowed-tools: [Read, Glob, Grep]`
+- 调用模式：用户粘贴 enriched_context 后 Claude 可在对话中**主动 Grep / Read** 邻居节点 md 获取更多细节
+- 特点：lazy 检索 / 用户语义驱动 / 不限定 hop / 但每次调用消耗 tokens
+
+### Round-12/13 已锁定的决策结论（项目历史）
+
+来源：`_bmad-output/research/round-13-wikilink-vs-graphiti-five-questions-answer-2026-04-29.md`
+
+| Q | 结论 |
+|---|---|
+| Q1 谁更高效精确 | **不是替代关系，是分工** — Wikilink 做骨架（零成本 + 显式），Graphiti 做时序补充（语义 + 演化） |
+| Q5 双引擎并用 | **✅ 2026 社区共识** — 三层分层检索（Wikilink → Graphiti → LanceDB）+ RRF 融合 |
+| Q3 md 属性进 Graphiti | 仅时序属性（mastery / understanding / last_reviewed），单向 md → Graphiti，永不反向 |
+
+**关键认知差距**：Round-13 决策"三层 RRF 融合"，但 Story 2.1 实施**只用了路径 A wikilink BFS**，未集成 Graphiti（路径 B）也未让 Skill 主动 Grep（路径 C）。
+
+### 待你（ChatGPT）评估的具体问题
+
+**Q7-1 · 三路径的技术权衡**：
+对比下表中每条维度，给出技术优劣判断（**仅基于上方事实，不准引用其他项目**）：
+
+| 维度 | A. Wikilink BFS | B. Graphiti 时序 | C. Claude Grep |
+|---|---|---|---|
+| 检索精度（相关性）| ?  | ? | ? |
+| 时序感知（mastery 演化）| ? | ? | ? |
+| 调用延迟（< 200ms / < 5s / ?）| ? | ? | ? |
+| Token 成本（每次对话）| ? | ? | ? |
+| 实现复杂度 | ? | ? | ? |
+| 冷启动时间 | ? | ? | ? |
+| 数据一致性风险（双源真理）| ? | ? | ? |
+| 用户场景适配（学习对话 vs 复习查史）| ? | ? | ? |
+
+**Q7-2 · Story 2.1 现状（仅路径 A）vs Round-13 决策（三层 RRF）的差距**：
+- Story 2.1 v1.0 是否实质偏离 Round-13 决策？
+- 如果偏离，是渐进可接受（先 wikilink 再加 Graphiti）还是必须立即补 Graphiti？
+
+**Q7-3 · Claude Grep（路径 C）的角色定位**：
+- chat-with-context Skill 已经允许 Claude 主动 Grep — 这是否实质上提供了"延迟检索的兜底"？
+- 还是说"显式 backend 检索（路径 A/B）"vs "Claude 自主 Grep（路径 C）"在工程上是两种哲学（pre-fetch vs lazy-fetch），各有适用场景？
+- 哪种适合 Canvas 学习对话场景（学习者每次提问的相关性变化大）？
+
+**Q7-4 · 三选一推荐**：
+对于 Story 2.1 的 v1.x 演进路线，给出三选一推荐：
+- (A) **保持 wikilink-only**（当前），Graphiti 推迟到 Story 2.5/2.6（错误归档 / 对话归档）
+- (B) **立即加 Graphiti search_facts**（v1.1 实施，激活 Round-13 决策的三层 RRF 第二层）
+- (C) **依赖 Claude Grep 兜底**（让 Skill 自主 Grep 替代部分 Graphiti 功能，简化 backend）
+
+请给出**学术或工业证据**（如 Karpathy second brain wikilink 论文 / Zep Graphiti 案例 / RAG vs lazy retrieval benchmark / Aider Cursor 上下文管理）。**不要编造证据来源，如果你没有具体证据请说"无具体证据"**。
+
+---
+
 # 已知约束（请勿建议这些方案 — 不可逆）
 
 - ❌ Obsidian 无法实现"点击节点弹独立窗口"（Obsidian 是 markdown 编辑器，节点 = .md 文件，无 React 节点的视觉概念）
@@ -312,6 +385,13 @@ Tauri v0 节点旁面板有 mastery 颜色 + Tips 列表 + 单节点考察按钮
 
 ## Q6 整体判断 (A/B/C)
 （三选一 + 学术/工业证据，不能编造证据来源）
+
+## Q7 三种检索路径技术对比（用户审核重点）
+- Q7-1 三路径权衡表（A wikilink / B Graphiti / C Claude Grep 各 8 维度）
+- Q7-2 Story 2.1 vs Round-13 决策的差距（是否实质偏离）
+- Q7-3 Claude Grep 的角色（lazy retrieval vs pre-fetch RAG）
+- Q7-4 三选一推荐：保持 wikilink-only / 立即加 Graphiti / 依赖 Claude Grep 兜底
+- 必须给学术或工业证据，不能编造证据来源
 
 ## Story 2.1 处置建议
 - 是否继续 review 通过 / 回炉 / 加 stub 后通过
