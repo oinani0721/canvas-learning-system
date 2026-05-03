@@ -97,7 +97,7 @@ development_status:
   # FR: CONV-01~09, AGENT-01~03, MCP-01~03, RET-13, SKILL-01~05, QA-04, QA-05
   # ══════════════════════════════════════════════════════
   epic-3: in-progress
-  3-1-claude-code-cli-per-node-session: ready-for-dev
+  3-1-claude-code-cli-per-node-session: review  # ✅ 2026-05-02 v1.0 dev — 路线 A 节点 AI 对话原型（4 MVP 闭环达成后启动）；plugin 第 12 命令 canvas:open-node-chat（Cmd+Shift+C 自绑）+ src/node-chat-context.ts 纯函数模块（17 单测 green）+ canvas-vault/.claude/skills/node-chat/SKILL.md（纯对话模式）；复用 1.17 v3.0 Hybrid 范式（plugin clipboard → Claudian invoke）；main.js 72731→83672B（+10.7KB）；121/121 tests green；顺手修 main.ts:990 closure bug（recountBoardConcepts(updated) reorder 到 vault.modify 后）
   3-2-mcp-tool-exposure-backend-api: ready-for-dev
   3-3-chat-panel-ui-streaming: ready-for-dev
   3-4-learning-context-auto-injection: ready-for-dev
