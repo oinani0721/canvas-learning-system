@@ -17,6 +17,7 @@ from app.api.v1.endpoints import debug, health, ping
 from app.api.v1.endpoints.agents import agents_router
 from app.api.v1.endpoints.archive import archive_router  # Story 3.8
 from app.api.v1.endpoints.canvas import canvas_router
+from app.api.v1.endpoints.chat import chat_router  # Story 2.1
 from app.api.v1.endpoints.config import config_router
 from app.api.v1.endpoints.context import context_router  # Story 3.4
 from app.api.v1.endpoints.edges import edges_router  # Story 4.1-4.4
@@ -375,6 +376,17 @@ router.include_router(
     prefix="/wikilink",
     tags=["Wikilink"],
     responses={409: {"description": "Graph not built yet"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Chat Context Enrichment Routes (Story 2.1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    chat_router,
+    prefix="/chat",
+    tags=["Chat"],
+    responses={400: {"description": "Invalid request"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
