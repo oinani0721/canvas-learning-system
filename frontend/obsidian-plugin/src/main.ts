@@ -274,6 +274,137 @@ export default class CanvasLearningPlugin extends Plugin {
       name: "节点对话（注入上下文 + 切 Claudian）",
       callback: () => this.handleOpenNodeChat(),
     });
+
+    this.addCommand({
+      id: "canvas:chat-with-context",
+      name: "AI 对话 v2（backend RAG 上下文增强 + 切 Claudian）",
+      callback: () => this.handleChatWithContext(),
+    });
+  }
+
+  /**
+   * Story 2.1 v1.0 — Backend RAG 上下文增强对话入口（路线 A 第 2 步）
+   *
+   * 区别于 canvas:open-node-chat（plugin 端纯本地 1-hop 邻居）：
+   * - 调 backend POST /api/v1/chat/enrich-context
+   * - backend 用 wikilink_graph_service 做 N-hop 遍历 + token 预算压缩 + LaTeX/代码块保护
+   * - 降级处理：图未 build / 超时 / 异常 → backend 返回 degraded=True + 通知文本
+   *
+   * 流程：
+   *   1. 检 active file 在 节点/ 路径
+   *   2. 收集 current_note (path + 正文 + frontmatter)
+   *   3. POST /chat/enrich-context（含 max_hops + token_budget）
+   *   4. 拿 enriched_context（含降级通知 if any）
+   *   5. 写剪贴板 + Notice + 切 Claudian sidebar
+   *   6. 用户粘贴 → /chat-with-context Skill 接管对话（纯对话，不写文件）
+   */
+  private async handleChatWithContext() {
+    console.log("[canvas:chat-with-context] triggered");
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice("请先打开 节点/<concept>.md 节点页", 3000);
+      return;
+    }
+    if (!isNodePath(activeFile.path)) {
+      new Notice(
+        `对话仅在 节点/ 下的概念页可用（当前 path: ${activeFile.path}）`,
+        5000,
+      );
+      return;
+    }
+
+    let content: string;
+    try {
+      content = await this.app.vault.read(activeFile);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      new Notice(`❌ 读节点正文失败: ${msg}`, 6000);
+      return;
+    }
+    const body = extractBodyWithoutFrontmatter(content);
+    const fmRaw =
+      (this.app.metadataCache.getFileCache(activeFile)?.frontmatter as
+        | Record<string, unknown>
+        | undefined) ?? {};
+
+    const t0 = Date.now();
+    const url = `${this.settings.backendUrl}/api/v1/chat/enrich-context`;
+    let resp: Response;
+    try {
+      resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_path: activeFile.path,
+          current_note_content: body,
+          current_note_frontmatter: fmRaw,
+          max_hops: 2,
+        }),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      new Notice(
+        `❌ backend 未连接（${msg}）\n请先 docker compose up 启动 Canvas 后端`,
+        6000,
+      );
+      return;
+    }
+
+    let parsed: any;
+    try {
+      parsed = await resp.json();
+    } catch {
+      new Notice(`❌ backend 返回非 JSON（HTTP ${resp.status}）`, 6000);
+      return;
+    }
+    if (!resp.ok) {
+      const detail = parsed?.detail || `HTTP ${resp.status}`;
+      new Notice(`❌ enrich-context 失败: ${detail}`, 6000);
+      return;
+    }
+
+    const enrichedContext = parsed.enriched_context as string;
+    const usedTokens = parsed.used_tokens as number;
+    const budget = parsed.budget as number;
+    const neighborsCount = parsed.neighbors_count as number;
+    const degraded = parsed.degraded as boolean;
+
+    const prompt =
+      `/chat-with-context\n\n${enrichedContext}\n\n---\n` +
+      `请基于以上上下文回答我的问题。问题：（在这里输入）`;
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.showRetryNotice(
+        `❌ 剪贴板写入失败（${msg}），点重试`,
+        () => void this.handleChatWithContext(),
+      );
+      return;
+    }
+
+    const elapsedMs = Date.now() - t0;
+    const sizeKb = (new Blob([prompt]).size / 1024).toFixed(1);
+    const degradeHint = degraded
+      ? `（⚠ ${parsed.degraded_reason} — 仅当前笔记）`
+      : "";
+    new Notice(
+      `已组装 backend RAG 上下文 ${sizeKb}KB / ${neighborsCount} 邻居 / ${usedTokens}/${budget} tokens${degradeHint}（${elapsedMs}ms）\n切到 Claudian 粘贴`,
+      7000,
+    );
+
+    const claudianCmd = (this.app as any).commands?.findCommand?.(
+      "claudian:open-view",
+    );
+    if (!claudianCmd) {
+      new Notice(
+        "未检测到 Claudian 插件，请先安装并登录 Claude Code",
+        5000,
+      );
+      return;
+    }
+    (this.app as any).commands.executeCommandById("claudian:open-view");
   }
 
   /**
