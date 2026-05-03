@@ -67,9 +67,9 @@ development_status:
   1-13-deployment-checklist-external-net: ready-for-dev
   # Round 4 additions (2026-04-17, 4 MVP stories)
   1-16-annotate-callout-hotkey: done
-  1-17-ai-linked-doc: blocked  # 挂起，等 1.19 完成再重跑 UAT（用户 2026-04-20 批注：双链功能必须在原白板内用；1.19 yaml blocks: [1.17] 早声明）
-  1-18-dashboard-md-mvp: ready-for-dev
-  1-19-configure-whiteboard-skill: review  # v2 Skill + template 已 ship，待用户 UAT 10 步（场景 A + B）
+  1-17-ai-linked-doc: done  # ✅ 2026-05-01 v4.1 用户实测通过（Fundamentals 截图证明：原文保留 + callout 标注 + 节点 quote+三段空白模板 + 白板 ## Concepts 加行）；4 命令体系完整：① configure-whiteboard 建白板 / ② append-note-to-board 追加 / ③ ai-linked-doc 派生 / ④ annotate-callout 批注；零 LLM 全脚本，PKM 非破坏性原则对齐
+  1-18-dashboard-md-mvp: done  # ✅ 2026-05-02 v1.2 用户实测通过（截图证明"最近学习活动" bug 已修 + 4 节点表格正常渲染 + 24h 统计）— **4 MVP 闭环达成 100%** ⭐ B(修 5 个 plugin 错误契约 + plugin Settings 可配 BACKEND_URL) + A(plugin 暴露 3 公共方法 + metadataCache 实时刷新 + Dashboard 交互按钮)；main.js 72731B；103 单元测试 green
+  1-19-configure-whiteboard-skill: done  # ✅ 2026-05-01 v4.1 用户实测通过（命令 ② skip 模式修 Fundamentals frontmatter 跑通 + plugin BoardNameInputModal/BacklinkWarningModal/SeedModeModal/SelectExistingBoardModal 4 modal 完整；3 命令场景全实现：① 建空白板 / ② 建+种子 / ③ 追加已有白板）；Skill v3.1 [DEPRECATED] 保留 fallback；plugin 105+ 单元测试 green
   epic-1-retrospective: optional
 
   # ══════════════════════════════════════════════════════
