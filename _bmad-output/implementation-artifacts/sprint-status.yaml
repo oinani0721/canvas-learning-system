@@ -77,19 +77,22 @@ development_status:
   # FR: RET-01~12, IDX-01~08, RET-P-01~08, QA-P-01~05, OPS-01~04, QA-02, QA-06(检索侧)
   # ══════════════════════════════════════════════════════
   epic-2: in-progress
-  2-1-dead-code-cleanup-config-fix: done
-  2-2-search-channel-repair-activation: done
-  2-3-bge-m3-migration-chunking-upgrade: done
-  2-4-chinese-search-hybrid-retrieval: done
-  2-5-reranker-fusion-upgrade: done
-  2-6-crag-quality-gate-safe-degradation: done
-  2-7-file-fingerprint-incremental-index: done
-  2-8-metadata-filter-neighbor-expansion: done
-  2-9-image-retrieval-pipeline: done
+  # 2026-05-02 10-Agent 逐 Story 真实状态审计（方案 A 保守修正）：
+  # 2 个真实 done（2-6 / 2-7），5 个改 review（缺验收单/测试），1 个改 in-progress（plugin 未接入），
+  # 1 个改 archived（原 spec 无代码 commit），1 个保留 done 加注释（实际在 Epic 5 Phase 3 完成）
+  2-1-dead-code-cleanup-config-fix: review  # 🟡 commit ad98665+b08931c 真删 9 死模块(~5090 行)；技术 100% 但缺验收单 + spec 移至 _bmad-archive
+  2-2-search-channel-repair-activation: archived  # ❌ 原 spec 无代码 commit(4cd81df 只改 PROGRESS.md)；epic-2 实际 spec 替换为 2-2-supplementary-material-search ready-for-dev
+  2-3-bge-m3-migration-chunking-upgrade: review  # 🟡 commit 9f55474+213e700；BGEM3FlagModel + 1024d + tiktoken 分块 + ollama 配置全实现；缺单元测试 + 验收单
+  2-4-chinese-search-hybrid-retrieval: done  # ✅ 实际在 Epic 5 Phase 3 完成(commit afae145 + 23 测试 + jieba+hybrid 默认)；epic-2/ 文件名错位为 callout-annotation-tips
+  2-5-reranker-fusion-upgrade: review  # 🟡 commit 89c2255+d922c0b；gte-reranker-modernbert-base + RRF + z-score 全实现；缺 MRR@10 对比 + 可观测性日志
+  2-6-crag-quality-gate-safe-degradation: done  # ✅ commit 43d291d → 102c91e → a1c3317；二元评分 + safe_degradation + router 三路 + one-shot guard + 测试齐全
+  2-7-file-fingerprint-incremental-index: done  # ✅ commit 89c2255+d922c0b；SHA-256 + delete-before-insert + 8 AC 全实现 + 2H BMAD review 修复
+  2-8-metadata-filter-neighbor-expansion: review  # 🟡 commit 102c91e；progressive_scope_search + expand_neighbors 在 nodes.py 调用；零测试覆盖 + spec 错位
+  2-9-image-retrieval-pipeline: in-progress  # 🟡 backend 完整(multimodal_service 1600+ 行 + 6 endpoint)；plugin 零集成 + epic-2 spec 缺失
   2-10-context-compression-mastery-injection: ready-for-dev
   2-11-search-pipeline-configurable: ready-for-dev
   2-12-full-rebuild-acceptance-test: ready-for-dev
-  2-13-prompt-version-regression-test: done
+  2-13-prompt-version-regression-test: review  # 🟡 PromptRegistry 372 行 + 7 prompt 模板 + 8 回归基线齐；缺 pre-commit hook + 端到端 MRR 指标对比
   epic-2-retrospective: optional
 
   # ══════════════════════════════════════════════════════
