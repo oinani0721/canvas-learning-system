@@ -98,6 +98,23 @@ development_status:
   epic-2-retrospective: optional
 
   # ══════════════════════════════════════════════════════
+  # Epic 2 (epics.md 真相源 — 与上面 sprint 旧编号 13 stories 不同)：智能学习对话 (8 stories)
+  # FR: FR-CONV-01~11 部分
+  # 归属物理目录: _bmad-output/implementation-artifacts/epic-2/ (8 个 spec 文件)
+  # 注：sprint 旧 Epic 2 (检索管道 13) 是 backend 底座；本段是用户视角的 epics.md 真相源 Story
+  # ══════════════════════════════════════════════════════
+  epic-2-truth-source: in-progress  # ⭐ 2026-05-02 Story 2.1 v1.0 ship review
+  2-1-ai-dialog-context-injection: review  # ✅ 2026-05-02 v1.0 dev — Epic 2 第 1 Story 完整端到端 ship；backend wikilink_context_service + chat_context_assembler + POST /api/v1/chat/enrich-context (50 backend tests green) + plugin handleChatWithContext + chat-with-context Skill (98 plugin tests green)；commits fc27e44 + 0d0c302 + 0c45296 + 06ecca5；main.js 88684B；待用户跑 10 步 UAT
+  2-2-supplementary-material-search: ready-for-dev  # blocks: 等 2.1 review 通过
+  2-3-historical-error-reminder: ready-for-dev
+  2-4-callout-annotation-tips: ready-for-dev
+  2-5-error-extraction-classification: ready-for-dev
+  2-6-dialog-archive-3tier: ready-for-dev
+  2-7-concept-extraction-edge-inject: ready-for-dev
+  2-8-image-recognition-dialog: ready-for-dev
+  epic-2-truth-source-retrospective: optional
+
+  # ══════════════════════════════════════════════════════
   # Epic 3: 节点 AI 对话与交互 (13 stories)
   # FR: CONV-01~09, AGENT-01~03, MCP-01~03, RET-13, SKILL-01~05, QA-04, QA-05
   # ══════════════════════════════════════════════════════
