@@ -131,18 +131,17 @@ def _normalize_target_slug(node_path: str) -> str:
 # 节点规模 ≤30 性能不敏感。社区先例：Quartz 4 + Dataview 都用 regex 提取 callout。
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Obsidian callout 起始行：`> [!kind]+/-? title?`
-# kind 可含 `/`（如 Canvas 自定义 `relation/extends`）
-_CALLOUT_PATTERN = re.compile(
-    r"^[ ]{0,3}>[ ]?\[!(?P<kind>[\w/-]+)\][+-]?[ \t]*(?P<title>[^\n]*)\n"
-    r"(?P<body>(?:^[ ]{0,3}>.*\n?)*)",
-    re.MULTILINE,
+# Phase 1.7+ (2026-05-03 ChatGPT 对抗审查 P0#5 fix):
+# 旧 regex `(?P<body>(?:^[ ]{0,3}>.*\n?)*)` 贪婪匹配下一个 callout header,
+# 把相邻 callout 吞进上一个的 body. 改用 line scanner (O(n), 无 backtracking).
+_CALLOUT_HEADER_PATTERN = re.compile(
+    r"^[ ]{0,3}>[ ]?\[!(?P<kind>[\w/-]+)\][+-]?[ \t]*(?P<title>.*)$"
 )
-_FRONTMATTER_PATTERN = re.compile(r"^---\n.*?\n---\n", re.DOTALL)
-_QUOTE_LINE_PATTERN = re.compile(r"^[ ]{0,3}>.*\n?", re.MULTILINE)
+_QUOTE_PREFIX_PATTERN = re.compile(r"^[ ]{0,3}>")
+_FRONTMATTER_PATTERN = re.compile(r"^\ufeff?---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 
-# Canvas Story 1.16 锁定 7 类（question/tip/error/hint/note/warning/info）。
-# Canvas ai-linked-doc skill 自动派生的 `relation/extends` 是噪音，过滤掉。
+# Canvas Story 1.16 锁定 7 类（question/tip/error/hint/note/warning/info）.
+# Canvas ai-linked-doc skill 自动派生的 `relation/extends` 是噪音, 过滤掉.
 _USER_ANNOTATION_KINDS = {
     "question", "tip", "error", "hint", "note", "warning", "info",
 }
@@ -152,66 +151,165 @@ _CALLOUT_TITLE_MAX = 80
 _CALLOUT_CONTENT_MAX = 200
 _MAX_CALLOUTS_PER_NEIGHBOR = 8
 
+# Phase 1.7+ (2026-05-03 ChatGPT P0-A fix): 防 path traversal / DoS
+_MAX_NEIGHBOR_MD_BYTES = 1_000_000  # 1MB cap
+
 
 def _strip_quote_prefix(line: str) -> str:
     return re.sub(r"^[ ]{0,3}>[ ]?", "", line).rstrip()
 
 
 def _extract_user_callouts(text: str) -> list[dict[str, str]]:
-    """从 markdown 提取用户批注 callout（仅 Canvas 7 类，过滤 relation/* 噪音）。
+    """从 markdown 提取用户批注 callout (仅 Canvas 7 类, 过滤 relation/* 噪音).
+
+    Phase 1.7+ (2026-05-03): 改 line scanner. 正确处理:
+    - 相邻 callout (P0#5 fix): 遇到下一个 header 就 flush 上一个
+    - 嵌套 code fence: ``` 内跳过避免误识别
+    - 非 quote 行 break: 退出当前 callout 而非吞并
+    - Filtered kind: 不阻断后续 callout (relation/* 跳过, 但下一条还能识别)
 
     Returns: [{"kind": "tip", "title": "...", "content": "..."}, ...]
     """
     if not text:
         return []
+    callouts: list[dict] = []
+    current: dict | None = None
+    in_code_fence = False
+    for line in text.split("\n"):
+        stripped = line.strip()
+        # Code fence toggle (``` 或 ~~~)
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code_fence = not in_code_fence
+            if current is not None:
+                callouts.append(current)
+                current = None
+            continue
+        if in_code_fence:
+            continue
+        # Callout header
+        m = _CALLOUT_HEADER_PATTERN.match(line)
+        if m:
+            if current is not None:
+                callouts.append(current)
+                current = None
+            kind_raw = (m.group("kind") or "").lower().strip()
+            if not kind_raw:
+                continue
+            if any(kind_raw.startswith(p) for p in _NOISE_CALLOUT_KIND_PREFIXES):
+                continue
+            if kind_raw not in _USER_ANNOTATION_KINDS:
+                continue
+            title = (m.group("title") or "").strip()[:_CALLOUT_TITLE_MAX]
+            current = {"kind": kind_raw, "title": title, "_lines": []}
+            continue
+        # Quote line (> ...) — 只装入当前 callout
+        if _QUOTE_PREFIX_PATTERN.match(line):
+            if current is not None:
+                stripped_q = _strip_quote_prefix(line)
+                if stripped_q or current["_lines"]:
+                    current["_lines"].append(stripped_q)
+            continue
+        # 非 quote 行 break 当前 callout
+        if current is not None:
+            callouts.append(current)
+            current = None
+    if current is not None:
+        callouts.append(current)
+
     out: list[dict[str, str]] = []
-    for match in _CALLOUT_PATTERN.finditer(text):
-        kind_raw = (match.group("kind") or "").lower().strip()
-        if not kind_raw:
-            continue
-        # 过滤 Canvas 自动派生的 relation/* callout
-        if any(kind_raw.startswith(p) for p in _NOISE_CALLOUT_KIND_PREFIXES):
-            continue
-        if kind_raw not in _USER_ANNOTATION_KINDS:
-            continue
-        title = (match.group("title") or "").strip()[:_CALLOUT_TITLE_MAX]
-        body_block = match.group("body") or ""
-        content_lines = [
-            _strip_quote_prefix(ln)
-            for ln in body_block.split("\n")
-            if ln.strip().startswith(">")
-        ]
-        content = "\n".join(content_lines).strip()[:_CALLOUT_CONTENT_MAX]
-        if title or content:
-            out.append({"kind": kind_raw, "title": title, "content": content})
+    for c in callouts:
+        content = "\n".join(c["_lines"]).strip()[:_CALLOUT_CONTENT_MAX]
+        if c["title"] or content:
+            out.append({"kind": c["kind"], "title": c["title"], "content": content})
         if len(out) >= _MAX_CALLOUTS_PER_NEIGHBOR:
             break
     return out
 
 
 def _extract_body_excerpt(text: str, max_chars: int = _BODY_EXCERPT_MAX_CHARS) -> str:
-    """去 frontmatter + 全部 callout / quote 行后的 prose excerpt。"""
+    """去 frontmatter + callout block 后的 prose excerpt.
+
+    Phase 1.7+ (2026-05-03): 不再用 regex 跨块吞并 (P0#5 同根因).
+    保留普通 blockquote (如教材引文); 只抠掉已识别的 callout 块.
+    """
     if not text:
         return ""
+    # 去 frontmatter (兼容 BOM + CRLF)
     no_fm = _FRONTMATTER_PATTERN.sub("", text, count=1)
-    no_callouts = _CALLOUT_PATTERN.sub("", no_fm)
-    no_quotes = _QUOTE_LINE_PATTERN.sub("", no_callouts)
-    cleaned = re.sub(r"\n{3,}", "\n\n", no_quotes).strip()
+    # line scanner: 跳过 callout block (header + 后续 quote 行直到非 quote)
+    out_lines: list[str] = []
+    skipping_callout = False
+    in_code_fence = False
+    for line in no_fm.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code_fence = not in_code_fence
+            skipping_callout = False
+            out_lines.append(line)
+            continue
+        if in_code_fence:
+            out_lines.append(line)
+            continue
+        if _CALLOUT_HEADER_PATTERN.match(line):
+            skipping_callout = True
+            continue
+        if skipping_callout:
+            if _QUOTE_PREFIX_PATTERN.match(line):
+                continue
+            skipping_callout = False
+        out_lines.append(line)
+    cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(out_lines)).strip()
     return cleaned[:max_chars]
 
 
-def _read_neighbor_md(neighbor_path: str, vault_path: str | None) -> str | None:
-    """读邻居 .md 文件内容（兼容 absolute 与 vault-relative 两种 path 形式）。"""
-    if not neighbor_path:
+def _resolve_vault_md_path(
+    neighbor_path: str, vault_path: str | None
+) -> Path | None:
+    """安全解析邻居 .md 路径 (Phase 1.7+ ChatGPT P0-A path traversal fix).
+
+    必须 1) 落在 vault_path resolve 后的根内, 2) 后缀 .md, 3) size <= 1MB.
+    防御 absolute path attack / symlink escape / DoS.
+    """
+    if not neighbor_path or not vault_path:
         return None
-    p = Path(neighbor_path)
-    if not p.is_absolute() and vault_path:
-        p = Path(vault_path) / p
     try:
-        return p.read_text(encoding="utf-8")
+        root = Path(vault_path).resolve(strict=True)
+        raw = Path(neighbor_path)
+        candidate = (raw if raw.is_absolute() else root / raw).resolve(strict=True)
+        # 边界检查: 必须在 vault root 下 (含 symlink resolve)
+        candidate.relative_to(root)
+        if candidate.suffix.lower() != ".md":
+            return None
+        if candidate.stat().st_size > _MAX_NEIGHBOR_MD_BYTES:
+            logger.debug(
+                "wikilink_context.neighbor_too_large",
+                path=str(candidate),
+                size=candidate.stat().st_size,
+            )
+            return None
+        return candidate
+    except (OSError, ValueError) as e:
+        logger.debug(
+            "wikilink_context.neighbor_resolve_failed",
+            path=neighbor_path,
+            vault_path=vault_path,
+            error=str(e),
+        )
+        return None
+
+
+def _read_neighbor_md(neighbor_path: str, vault_path: str | None) -> str | None:
+    """读邻居 .md 文件内容 (sandbox: 必须在 vault_path 内 + 1MB size cap)."""
+    candidate = _resolve_vault_md_path(neighbor_path, vault_path)
+    if candidate is None:
+        return None
+    try:
+        return candidate.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as e:
         logger.debug(
-            "wikilink_context.neighbor_read_failed", path=str(p), error=str(e)
+            "wikilink_context.neighbor_read_failed",
+            path=str(candidate),
+            error=str(e),
         )
         return None
 

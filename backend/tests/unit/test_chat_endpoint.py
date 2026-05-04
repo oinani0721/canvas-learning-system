@@ -159,3 +159,142 @@ def test_enrich_context_response_includes_elapsed_ms(client):
         )
     assert response.status_code == 200
     assert response.json()["enrichment_elapsed_ms"] == 12.35
+
+
+# ════════════════════════════════════════════════════════════════════
+# Story 2.1 P1 — retrieval_trace + user_question + mode + assembler_budget
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_enrich_context_returns_retrieval_trace(client):
+    """P1.1 — response 含 retrieval_trace（included + graph_version + degradations）"""
+    from app.services.wikilink_context_service import RetrievalTrace, TraceItem
+
+    trace = RetrievalTrace(
+        seed="节点/Eigenvalues.md",
+        max_hops=2,
+        graph_version="2026-05-03T10:00:00+00:00",
+        elapsed_ms=15.5,
+        included=[
+            TraceItem(
+                path="节点/Linear-Independence.md",
+                hop=1,
+                relationship_type="prerequisite",
+                reason="frontmatter_link",
+                tokens=0,
+            )
+        ],
+        omitted=[],
+        degradations=[],
+    )
+    fake_result = EnrichmentResult(
+        neighbors=[
+            WikilinkNeighborContext(
+                slug="Linear-Independence",
+                path="节点/Linear-Independence.md",
+                hop_distance=1,
+                relationship_type="prerequisite",
+                frontmatter={"type": "concept"},
+            )
+        ],
+        degraded=False,
+        elapsed_ms=15.5,
+        trace=trace,
+    )
+    with patch(
+        "app.api.v1.endpoints.chat.enrich_from_wikilink_graph",
+        return_value=fake_result,
+    ):
+        response = client.post(
+            "/api/v1/chat/enrich-context",
+            json=_enrich_payload(),
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["retrieval_trace"] is not None
+    rt = body["retrieval_trace"]
+    assert rt["seed"] == "节点/Eigenvalues.md"
+    assert rt["max_hops"] == 2
+    assert rt["graph_version"] == "2026-05-03T10:00:00+00:00"
+    assert len(rt["included"]) == 1
+    assert rt["included"][0]["reason"] == "frontmatter_link"
+    assert rt["included"][0]["relationship_type"] == "prerequisite"
+    assert rt["omitted"] == []
+    assert rt["degradations"] == []
+
+
+def test_enrich_context_trace_includes_degradation_when_graph_unbuilt(client):
+    """P1.1 — graph 未构建时 trace.degradations 含 'wikilink_graph_not_built'"""
+    from app.services.wikilink_context_service import RetrievalTrace
+
+    fake_result = EnrichmentResult(
+        neighbors=[],
+        degraded=True,
+        degraded_reason="wikilink_graph_not_built",
+        elapsed_ms=2.0,
+        trace=RetrievalTrace(
+            seed="节点/X.md",
+            max_hops=2,
+            graph_version="unbuilt",
+            elapsed_ms=2.0,
+            degradations=["wikilink_graph_not_built"],
+        ),
+    )
+    with patch(
+        "app.api.v1.endpoints.chat.enrich_from_wikilink_graph",
+        return_value=fake_result,
+    ):
+        response = client.post(
+            "/api/v1/chat/enrich-context",
+            json=_enrich_payload(),
+        )
+
+    body = response.json()
+    assert body["degraded"] is True
+    assert "wikilink_graph_not_built" in body["retrieval_trace"]["degradations"]
+
+
+def test_enrich_context_assembler_budget_field(client):
+    """P1.3 — response 含 assembler_budget（默认 8192 - 1400 = 6792）"""
+    fake_result = EnrichmentResult(neighbors=[], degraded=False, elapsed_ms=1.0)
+    with patch(
+        "app.api.v1.endpoints.chat.enrich_from_wikilink_graph",
+        return_value=fake_result,
+    ):
+        response = client.post(
+            "/api/v1/chat/enrich-context",
+            json=_enrich_payload(),
+        )
+
+    body = response.json()
+    assert body["budget"] == 8192
+    assert body["assembler_budget"] == 8192 - 1400
+
+
+def test_enrich_context_accepts_user_question_and_mode_answer(client):
+    """P1.4 — request 接受 user_question + mode='answer'（rerank Phase 2 实施，Phase 1 仅校验字段）"""
+    fake_result = EnrichmentResult(neighbors=[], degraded=False, elapsed_ms=1.0)
+    with patch(
+        "app.api.v1.endpoints.chat.enrich_from_wikilink_graph",
+        return_value=fake_result,
+    ):
+        response = client.post(
+            "/api/v1/chat/enrich-context",
+            json={
+                **_enrich_payload(),
+                "user_question": "特征值和 PCA 的关系？",
+                "mode": "answer",
+            },
+        )
+
+    assert response.status_code == 200
+
+
+def test_enrich_context_rejects_invalid_mode(client):
+    """P1.4 — mode 限制在 'preload' / 'answer'，其他值 422"""
+    response = client.post(
+        "/api/v1/chat/enrich-context",
+        json={**_enrich_payload(), "mode": "invalid_mode"},
+    )
+    assert response.status_code == 422

@@ -10,6 +10,7 @@ import asyncio
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -36,6 +37,7 @@ class WikilinkGraphService:
         self._lock = asyncio.Lock()
         self._node_count = 0
         self._edge_count = 0
+        self._build_timestamp: Optional[str] = None
 
     @property
     def is_built(self) -> bool:
@@ -48,6 +50,11 @@ class WikilinkGraphService:
     @property
     def edge_count(self) -> int:
         return self._edge_count
+
+    @property
+    def build_timestamp(self) -> Optional[str]:
+        """Story 2.1 P1.1 — ISO-8601 时间戳（UTC，秒精度），作为 RetrievalTrace.graph_version。"""
+        return self._build_timestamp
 
     async def build(self, vault_path: str) -> dict[str, Any]:
         """Build the full wikilink graph from vault (AC #1)."""
@@ -68,6 +75,9 @@ class WikilinkGraphService:
             self._graph = vault.graph
             self._node_count = self._graph.number_of_nodes()
             self._edge_count = self._graph.number_of_edges()
+            self._build_timestamp = datetime.now(timezone.utc).isoformat(
+                timespec="seconds"
+            )
 
         duration_ms = (time.monotonic() - start) * 1000
         logger.info(
@@ -85,18 +95,52 @@ class WikilinkGraphService:
         }
 
     def get_neighbors(self, note_path: str, hop: int = 2) -> list[NeighborNote]:
-        """BFS N-hop neighbor traversal (AC #2, #3, #5)."""
+        """BFS N-hop neighbor traversal (AC #2, #3, #5).
+
+        Story 2.1 Phase 1 hotfix（2026-05-03）：
+        plugin 端传 vault 相对路径（如 ``节点/Eigenvalues.md``），
+        但 obsidiantools graph 的 node key 是 **basename only**（如 ``Eigenvalues``）。
+        本方法对 full path → basename 做 fallback 匹配，避免邻居总是 0 的隐性 bug。
+        """
         if self._graph is None:
             return []
 
-        # Normalize: strip .md extension for obsidiantools key matching
         key = note_path
         if key.endswith(".md"):
             key = key[:-3]
 
-        if key not in self._graph:
-            logger.debug("wikilink.note_not_found", note_path=note_path)
-            return []
+        # Story 2.1 Phase 1 hotfix（2026-05-03）：obsidiantools 行为：
+        # 同一物理文件有"两个图节点"——vault 相对路径 key（孤立，0 邻居）
+        # 和 wikilink 文本 key（如 basename，有真实邻居关系）。
+        # plugin 端传 vault 路径会命中孤立节点 → 总是 0 邻居。
+        # 修复策略：路径 key 找到但 0 邻居时，回退到 basename。
+        primary_in_graph = key in self._graph
+        primary_adj = (
+            list(self._graph.neighbors(key)) if primary_in_graph else []
+        )
+
+        if not primary_in_graph or len(primary_adj) == 0:
+            basename = key.rsplit("/", 1)[-1]
+            if basename and basename != key and basename in self._graph:
+                basename_adj = list(self._graph.neighbors(basename))
+                if len(basename_adj) > 0:
+                    logger.info(
+                        "wikilink.path_normalized_to_basename",
+                        note_path=note_path,
+                        primary_key=key,
+                        primary_adj_count=len(primary_adj),
+                        basename_key=basename,
+                        basename_adj_count=len(basename_adj),
+                    )
+                    key = basename
+                else:
+                    # 路径和 basename 都是孤立节点 → 真正无邻居
+                    return []
+            else:
+                if not primary_in_graph:
+                    return []
+                # primary 在图里但 0 邻居（真正孤立节点）
+                return []
 
         start = time.monotonic()
         neighbors: list[NeighborNote] = []
@@ -145,6 +189,7 @@ class WikilinkGraphService:
             "is_built": self.is_built,
             "total_nodes": self._node_count,
             "total_edges": self._edge_count,
+            "build_timestamp": self._build_timestamp,
         }
 
     def _get_frontmatter(self, note_key: str) -> dict[str, Any]:

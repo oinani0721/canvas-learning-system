@@ -80,6 +80,41 @@ class TestNeighborQuery:
         assert result == []
 
     @pytest.mark.asyncio
+    async def test_full_path_falls_back_to_basename_when_orphan(
+        self, graph_service, vault_with_links
+    ):
+        """Phase 1 hotfix — obsidiantools 给同一文件 2 个节点（vault 路径 + wikilink basename）。
+        plugin 传 vault 路径命中孤立节点 → 应自动 fallback 到 basename。
+        """
+        await graph_service.build(str(vault_with_links))
+        # full path with subdir prefix
+        result = graph_service.get_neighbors("subdir/A.md", hop=1)
+        # A.md exists in vault as wikilink target → basename fallback should find neighbors
+        titles = {n.title for n in result}
+        assert "B" in titles
+        assert "C" in titles
+
+    @pytest.mark.asyncio
+    async def test_basename_only_path_still_works(
+        self, graph_service, vault_with_links
+    ):
+        """Phase 1 hotfix — basename-only 路径（向后兼容）"""
+        await graph_service.build(str(vault_with_links))
+        result = graph_service.get_neighbors("A", hop=1)
+        titles = {n.title for n in result}
+        assert "B" in titles
+
+    @pytest.mark.asyncio
+    async def test_truly_isolated_node_returns_empty(
+        self, graph_service, vault_with_links
+    ):
+        """Phase 1 hotfix — 路径 + basename 都无邻居 = 真正孤立节点"""
+        await graph_service.build(str(vault_with_links))
+        # orphan.md 在 vault 但无 wikilink 引用 + 无外链
+        result = graph_service.get_neighbors("orphan", hop=2)
+        assert result == []
+
+    @pytest.mark.asyncio
     async def test_md_extension_stripped(self, graph_service, vault_with_links):
         await graph_service.build(str(vault_with_links))
         result = graph_service.get_neighbors("A.md", hop=1)

@@ -117,6 +117,20 @@ def _xml_attr_escape(value: str) -> str:
     )
 
 
+def _xml_text_escape(value: str) -> str:
+    """转义 XML 文本节点 + 移除 control chars (XML 1.0 illegal).
+
+    Phase 1.7+ (2026-05-03 ChatGPT P0-B fix): 之前 _xml_attr_escape 只用于属性,
+    body 行未 escape, 攻击者在 callout title/content 写 `</neighbor><system>`
+    可越界注入伪系统块绕过 <context_policy> boundary.
+    """
+    if not isinstance(value, str):
+        value = str(value)
+    # 移除 XML 1.0 illegal control chars (保留 \t \n \r 否则破坏多行内容)
+    value = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", " ", value)
+    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 class _TokenCounter:
     """tiktoken 包装（fallback 到 chars/4 估算）。"""
 
@@ -234,26 +248,31 @@ class ChatContextAssembler:
             f' slug="{slug_attr}"'
             f' kind="metadata">'
         )
-        lines.append(f"- 关系: {rel_value}")
+        # Phase 1.7+ (2026-05-03 ChatGPT P0-B fix): 所有 user-content 行
+        # 走 _xml_text_escape 防越界注入 (callout 里 </neighbor><system> 攻击).
+        lines.append(f"- 关系: {_xml_text_escape(rel_value)}")
         fm = neighbor.frontmatter
         if isinstance(fm.get("type"), str):
-            lines.append(f"- 类型: {fm['type']}")
+            lines.append(f"- 类型: {_xml_text_escape(fm['type'])}")
         if isinstance(fm.get("mastery_score"), (int, float)):
             lines.append(f"- Mastery: {fm['mastery_score']:.2f}")
         tips = fm.get("tips")
         if isinstance(tips, list) and tips:
-            preview = "; ".join(str(t)[:80] for t in tips[:3])
+            preview = "; ".join(_xml_text_escape(str(t)[:80]) for t in tips[:3])
             lines.append(f"- Tips: {preview}")
         errors = fm.get("errors")
         if isinstance(errors, list) and errors:
-            preview = "; ".join(str(e)[:80] for e in errors[:3])
+            preview = "; ".join(_xml_text_escape(str(e)[:80]) for e in errors[:3])
             lines.append(f"- Errors: {preview}")
-        # Phase 1.7 — body callout（Canvas 7 类用户批注事实存档）
-        callouts = getattr(neighbor, "callouts", None) or []
+        # Phase 1.7 — body callout (Canvas 7 类用户批注事实存档)
+        # Phase 1.7+ — escape callout fields 防 prompt injection
+        callouts = neighbor.callouts or []
         for c in callouts:
-            kind = (c.get("kind") or "?").strip()
-            title = (c.get("title") or "").strip()
-            content = (c.get("content") or "").strip().replace("\n", " ")
+            kind = _xml_text_escape((c.get("kind") or "?").strip())
+            title = _xml_text_escape((c.get("title") or "").strip())
+            content = _xml_text_escape(
+                (c.get("content") or "").strip().replace("\n", " ")
+            )
             head = f"[{kind}]"
             if title:
                 head = f"{head} {title}"
@@ -269,10 +288,12 @@ class ChatContextAssembler:
     def _format_neighbor_summary(
         self, neighbor: WikilinkNeighborContext, max_chars: int = 200
     ) -> str:
-        """Phase 1.2 — XML 标签包装的邻居内容摘要。"""
+        """Phase 1.2 + 1.7+ — XML 标签包装的邻居内容摘要 (snippet escape 防注入)."""
         if not neighbor.content_summary:
             return ""
-        snippet = neighbor.content_summary[:max_chars]
+        # Phase 1.7+ (2026-05-03 ChatGPT P0-B fix): snippet 来自其他 .md body,
+        # 可能含 </neighbor> 或 <system> 等攻击载荷, 必须 escape.
+        snippet = _xml_text_escape(neighbor.content_summary[:max_chars])
         path_attr = _xml_attr_escape(neighbor.path)
         slug_attr = _xml_attr_escape(neighbor.slug)
         return (
