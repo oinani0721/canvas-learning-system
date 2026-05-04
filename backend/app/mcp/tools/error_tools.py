@@ -249,7 +249,8 @@ async def record_error(
 
         return RecordErrorOutput(
             node_id=node_id,
-            recorded=fm_written or graphiti_status in ("ok", "scheduled"),
+            # MEDIUM#1 fix (ChatGPT 三轮审查): "scheduled" → "queued" 残留漏修
+            recorded=fm_written or graphiti_status in ("ok", "queued"),
             misconception_id=misconception_id,
             # Story 3.6 legacy fields (保持向后兼容)
             error_type=classified.legacy_type.value,

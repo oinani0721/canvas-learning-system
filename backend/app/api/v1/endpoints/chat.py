@@ -210,22 +210,38 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
 
 
 class PostTurnMessage(BaseModel):
-    """对话单轮消息 (与 ErrorExtractor.DialogMessage 一致)."""
+    """对话单轮消息.
 
-    role: Literal["user", "assistant"] = Field(
-        ..., description='"user" | "assistant" (其他 role 会被过滤)'
+    Story 2.5 ChatGPT 三轮审查 fix (2026-05-04):
+    - HIGH#2: content 加 max_length=8000 防 LLM prompt 爆炸 (DoS / 成本)
+    - MEDIUM#2: role 改 str + endpoint 真过滤 (而非 422 拒绝)
+    """
+
+    role: str = Field(
+        ...,
+        description=(
+            "对话角色. user/assistant 进入 LLM 提取链路; "
+            "其他 (system/tool) 自动过滤跳过."
+        ),
     )
-    content: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1, max_length=8000)
     turn_index: int = Field(default=0)
 
 
 class PostTurnExtractRequest(BaseModel):
-    """Story 2.5 — 对话轮次结束后请求自动错误提取."""
+    """Story 2.5 — 对话轮次结束后请求自动错误提取.
+
+    Story 2.5 ChatGPT 三轮审查 HIGH#2 fix:
+    - messages min_length=1 防空 + max_length=40 防超长对话历史
+    """
 
     node_id: str = Field(..., description="Canvas 节点 ID (vault-relative path).")
     session_id: str = Field(..., description="对话 session ID.")
     messages: list[PostTurnMessage] = Field(
-        ..., description="对话消息列表 (按时间顺序, 通常 ≥2 个 turn 才有错误)."
+        ...,
+        min_length=1,
+        max_length=40,
+        description="对话消息 (≤40 轮 + 每轮 ≤8000 字符, 防 LLM 成本爆炸).",
     )
     fire_and_forget_graphiti: bool = Field(
         default=True,
@@ -285,10 +301,21 @@ async def post_turn_extract(
     start = time.monotonic()
 
     extractor = get_error_extractor()
+    # MEDIUM#2 fix — system/tool 自动过滤而非 422 拒绝 (与 description 一致)
     dialog = [
         DialogMessage(role=m.role, content=m.content, turn_index=m.turn_index)
         for m in req.messages
+        if m.role in ("user", "assistant")
     ]
+    if not dialog:
+        # 全部被过滤 → 直接返回空 (AC #5)
+        return PostTurnExtractResponse(
+            node_id=req.node_id,
+            session_id=req.session_id,
+            extracted_count=0,
+            errors=[],
+            elapsed_ms=round((time.monotonic() - start) * 1000.0, 2),
+        )
 
     classified = await extractor.extract_and_classify(
         dialog, node_id=req.node_id, session_id=req.session_id
@@ -309,9 +336,18 @@ async def post_turn_extract(
             graphiti_status = dual["graphiti"]
             err_id = dual.get("error_id")
         else:
+            # MEDIUM#3 fix (ChatGPT 三轮审查): file_path 不可解析时仍尝试
+            # Graphiti-only 写入 (与 record_error MCP tool 一致行为)
+            import uuid as _uuid
+
+            from app.services.error_writer import write_error_to_graphiti
+
+            err_id = str(_uuid.uuid4())
             fm_ok = False
-            graphiti_status = "skipped_frontmatter_failed"
-            err_id = None
+            graphiti_ok = await write_error_to_graphiti(
+                err, req.node_id, req.session_id, error_id=err_id
+            )
+            graphiti_status = "ok" if graphiti_ok else "failed"
 
         out_errors.append(
             PostTurnExtractedError(
