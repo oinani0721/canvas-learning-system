@@ -2,18 +2,22 @@
 story_id: "2.5"
 epic_id: "2"
 prd_id: "canvas-learning-system"
-status: "ready-for-dev"
+status: "done"
 priority: "P0"
 estimate_hours: 10
 depends_on: ["2.1"]
 blocks: []
 trace:
   - "FR-CONV-06"
+ship_date: "2026-05-04"
+ship_decision: "D 方案 (双标签共存) — PedagogyErrorType + 现 ErrorType 并存"
+chatgpt_decision_review: "PRD §FR-CONV-06 4 主类 vs Story 3.6 4 类不匹配, 选 D 不破坏现有 production data"
+test_count: 55  # 24 mapping + 11 extractor + 15 writer + 5 e2e
 ---
 
 # Story 2.5: 错误自动提取与分类
 
-Status: ready-for-dev
+Status: ✅ done (2026-05-04, ship via incremental commits d7621f4 + 57aa3bd + this commit)
 
 ## Story
 
