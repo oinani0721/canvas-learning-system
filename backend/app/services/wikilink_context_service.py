@@ -415,16 +415,24 @@ async def enrich_from_wikilink_graph(
     vault_root = getattr(service, "_vault_path", None)
     contexts: list[WikilinkNeighborContext] = []
     trace_items: list[TraceItem] = []
+    seen_slugs: set[str] = set()
     for n in raw_neighbors:
+        # Phase 1.7+ (2026-05-03 用户 UAT P1 fix): 过滤 seed 自循环 + 同 slug 去重.
+        # 根因: obsidiantools graph 同一文件可能有 path-prefixed key (节点/X) 与
+        # basename key (X) 双 node, BFS visited set 用 path-prefixed 时 basename
+        # 在 2-hop 处会被误识别为新邻居, seed 自己出现在 2-hop 里 (用户实测发现).
+        slug_basename = _normalize_target_slug(n.title)
+        if slug_basename == target_slug:
+            continue  # 跳过 seed 自循环
+        if slug_basename in seen_slugs:
+            continue  # 跳过同 slug 重复 (path/basename 双 node 同时出现)
+        seen_slugs.add(slug_basename)
+
         rel_type = _extract_relationship_type(n.frontmatter, target_slug)
         # Phase 1.7 — 读邻居 .md body 提取 callout + prose excerpt
         n_text = _read_neighbor_md(n.path, vault_root)
         callouts = _extract_user_callouts(n_text) if n_text else []
         excerpt = _extract_body_excerpt(n_text) if n_text else None
-        # Phase 1.7 — slug 规范化为 basename（obsidiantools graph key 在某些
-        # 版本带路径前缀如 "节点/X"，验收单步骤 3 要求纯 basename "X"）。
-        # 同时 [[X]] 形式更符合 Obsidian wikilink 简写惯例（Skill 默认引用方式）。
-        slug_basename = _normalize_target_slug(n.title)
         contexts.append(
             WikilinkNeighborContext(
                 slug=slug_basename,

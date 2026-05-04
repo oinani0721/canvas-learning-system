@@ -474,3 +474,63 @@ def test_resolve_vault_md_path_rejects_oversized(tmp_path):
     big.write_text("a" * (_MAX_NEIGHBOR_MD_BYTES + 100), encoding="utf-8")
 
     assert _resolve_vault_md_path(str(big), str(vault)) is None
+
+
+@pytest.mark.asyncio
+async def test_enrich_filters_seed_self_loop():
+    """P1 (用户 UAT 发现) — seed 自身出现在邻居里时必须过滤掉.
+
+    根因: obsidiantools graph 同一文件可能有 path-prefixed key (节点/X) 与
+    basename key (X) 双 node, BFS 在 2-hop 时把 seed 自己当邻居返回.
+    """
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.build_timestamp = "2026-05-03T10:00:00+00:00"
+    # 模拟 BFS 返回邻居含 seed 自身 (basename 形式 vs path 形式)
+    mock_service.get_neighbors.return_value = [
+        _make_neighbor("Fundamentals", hop=1),
+        _make_neighbor(
+            "Characteristic-Equation-for-Eigenvalues", hop=2
+        ),  # ← seed 自身, 必须过滤
+        _make_neighbor("Eigenvalues-are-special-vectors-that-sat", hop=2),
+    ]
+
+    result = await enrich_from_wikilink_graph(
+        "节点/Characteristic-Equation-for-Eigenvalues.md",
+        graph_service=mock_service,
+    )
+
+    slugs = [n.slug for n in result.neighbors]
+    assert "Characteristic-Equation-for-Eigenvalues" not in slugs, (
+        f"seed 自循环没被过滤: {slugs}"
+    )
+    assert len(result.neighbors) == 2
+    assert set(slugs) == {
+        "Fundamentals",
+        "Eigenvalues-are-special-vectors-that-sat",
+    }
+
+
+@pytest.mark.asyncio
+async def test_enrich_dedupes_same_slug_neighbors():
+    """P1 — obsidiantools 同一文件双 node (path/basename) 同 slug 必须去重."""
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.build_timestamp = "2026-05-03T10:00:00+00:00"
+    mock_service.get_neighbors.return_value = [
+        _make_neighbor("Linear-Algebra", hop=1),
+        # 同 slug, 不同 path (模拟 obsidiantools 双 node)
+        NeighborNote(
+            title="节点/Linear-Algebra",
+            path="节点/Linear-Algebra.md",
+            hop_distance=2,
+            frontmatter={},
+        ),
+    ]
+
+    result = await enrich_from_wikilink_graph(
+        "节点/Seed.md", graph_service=mock_service
+    )
+
+    assert len(result.neighbors) == 1
+    assert result.neighbors[0].slug == "Linear-Algebra"
