@@ -34,6 +34,21 @@ from app.graphiti.entity_types import (
 logger = structlog.get_logger(__name__)
 
 
+def _safe_json_for_xml_envelope(obj: Any) -> str:
+    """Story 2.5 ChatGPT round-4 HIGH#1 fix (2026-05-04) — escape `<>&`.
+
+    json.dumps 不 escape `<` `>` `&`. 用户描述里可包含 `</student_error_data>`
+    closing tag 让 LLM 越界. 本函数把序列化后的 JSON 中 `<>&` 转 unicode
+    escape, 既保持 JSON 合法又防字面 closing tag 出现在 prompt.
+    """
+    s = json.dumps(obj, ensure_ascii=False)
+    return (
+        s.replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+    )
+
+
 def _strip_markdown_fence(content: str) -> str:
     """Story 2.5 HIGH#8 fix (ChatGPT 二轮审查 2026-05-04) — 剥离 markdown 代码块.
 
@@ -243,14 +258,13 @@ class ErrorClassifier:
             from app.config import settings
 
             model = self._get_litellm_model(settings)
-            # Story 2.5 ChatGPT 三轮审查 HIGH#3 fix (2026-05-04):
-            # JSON envelope 防 prompt injection (extractor 输出可能含恶意指令).
-            error_data_json = json.dumps(
+            # HIGH#3 + round-4 HIGH#1 fix: JSON envelope + _safe_json escape
+            # `<>&` 防 `</student_error_data>` 越界注入.
+            error_data_json = _safe_json_for_xml_envelope(
                 {
                     "error_description": error_description,
                     "context": context or "",
-                },
-                ensure_ascii=False,
+                }
             )
             prompt = CLASSIFICATION_PROMPT.format(error_data_json=error_data_json)
             response = await litellm.acompletion(
@@ -308,14 +322,13 @@ class ErrorClassifier:
             # Build the LLM model string for LiteLLM
             model = self._get_litellm_model(settings)
 
-            # Story 2.5 ChatGPT 三轮审查 HIGH#3 fix (2026-05-04):
-            # JSON envelope 防 prompt injection (extractor 输出可能含恶意指令).
-            error_data_json = json.dumps(
+            # HIGH#3 + round-4 HIGH#1 fix: JSON envelope + _safe_json escape
+            # `<>&` 防 `</student_error_data>` 越界注入.
+            error_data_json = _safe_json_for_xml_envelope(
                 {
                     "error_description": error_description,
                     "context": context or "",
-                },
-                ensure_ascii=False,
+                }
             )
             prompt = CLASSIFICATION_PROMPT.format(error_data_json=error_data_json)
 

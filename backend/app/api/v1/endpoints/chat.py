@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.services.chat_context_assembler import (
     ChatContextAssembler,
@@ -228,11 +228,18 @@ class PostTurnMessage(BaseModel):
     turn_index: int = Field(default=0)
 
 
+# Story 2.5 ChatGPT round-4 HIGH#2 fix: 总字符预算 (40 × 8000 = 320k 仍可
+# 打爆成本/上下文, 加 total chars cap 防过大对话整体).
+MAX_TOTAL_DIALOG_CHARS = 48_000
+
+
 class PostTurnExtractRequest(BaseModel):
     """Story 2.5 — 对话轮次结束后请求自动错误提取.
 
     Story 2.5 ChatGPT 三轮审查 HIGH#2 fix:
     - messages min_length=1 防空 + max_length=40 防超长对话历史
+    Story 2.5 ChatGPT round-4 HIGH#2 fix:
+    - 加 total chars budget validator (≤48000) 防 40 × 8000 总和爆炸
     """
 
     node_id: str = Field(..., description="Canvas 节点 ID (vault-relative path).")
@@ -241,12 +248,30 @@ class PostTurnExtractRequest(BaseModel):
         ...,
         min_length=1,
         max_length=40,
-        description="对话消息 (≤40 轮 + 每轮 ≤8000 字符, 防 LLM 成本爆炸).",
+        description=(
+            "对话消息 (≤40 轮 + 每轮 ≤8000 字符 + 总字符 ≤48000, "
+            "防 LLM 成本/上下文爆炸)."
+        ),
     )
     fire_and_forget_graphiti: bool = Field(
         default=True,
         description="True → Graphiti 后台异步; False → 同步等待 Graphiti 结果.",
     )
+
+    @model_validator(mode="after")
+    def _validate_total_dialog_chars(self):
+        """ChatGPT round-4 HIGH#2 fix — 总字符预算上限.
+
+        只统计 user/assistant role (system/tool 后续被过滤但仍在 message 列表里
+        会被纳入 char 总数 — 这是 deliberate, 防止用户用 system role 绕过预算).
+        """
+        total = sum(len(m.content) for m in self.messages)
+        if total > MAX_TOTAL_DIALOG_CHARS:
+            raise ValueError(
+                f"dialog total chars {total} exceeds budget "
+                f"{MAX_TOTAL_DIALOG_CHARS}"
+            )
+        return self
 
 
 class PostTurnExtractedError(BaseModel):
@@ -336,18 +361,28 @@ async def post_turn_extract(
             graphiti_status = dual["graphiti"]
             err_id = dual.get("error_id")
         else:
-            # MEDIUM#3 fix (ChatGPT 三轮审查): file_path 不可解析时仍尝试
-            # Graphiti-only 写入 (与 record_error MCP tool 一致行为)
+            # MEDIUM#3 + round-4 fix (ChatGPT): file_path 不可解析时仍尝试
+            # Graphiti-only, 但**遵守** fire_and_forget_graphiti flag
+            # (上轮漏修: Graphiti-only fallback 永远同步等, 与 flag 语义不一致).
+            import asyncio as _asyncio
             import uuid as _uuid
 
             from app.services.error_writer import write_error_to_graphiti
 
             err_id = str(_uuid.uuid4())
             fm_ok = False
-            graphiti_ok = await write_error_to_graphiti(
-                err, req.node_id, req.session_id, error_id=err_id
-            )
-            graphiti_status = "ok" if graphiti_ok else "failed"
+            if req.fire_and_forget_graphiti:
+                _asyncio.create_task(
+                    write_error_to_graphiti(
+                        err, req.node_id, req.session_id, error_id=err_id
+                    )
+                )
+                graphiti_status = "queued"
+            else:
+                graphiti_ok = await write_error_to_graphiti(
+                    err, req.node_id, req.session_id, error_id=err_id
+                )
+                graphiti_status = "ok" if graphiti_ok else "failed"
 
         out_errors.append(
             PostTurnExtractedError(

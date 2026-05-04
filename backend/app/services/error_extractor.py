@@ -25,6 +25,23 @@ from app.services.error_classifier import (
 logger = structlog.get_logger(__name__)
 
 
+def _safe_json_for_xml_envelope(obj: Any) -> str:
+    """Story 2.5 ChatGPT round-4 HIGH#1 fix (2026-05-04).
+
+    json.dumps 不 escape `<` `>` `&`, 用户内容里可包含 `</dialog_json>` 这样的
+    XML-like closing tag, 让 LLM 误以为越界出 envelope 区域执行后续指令.
+
+    本函数把 JSON 序列化后, 把 `< > &` 转成 unicode escape 序列, 既保持 JSON
+    合法 (LLM parse 后字符串值仍是原文), 又防止字面 closing tag 出现在 prompt 中.
+    """
+    s = json.dumps(obj, ensure_ascii=False)
+    return (
+        s.replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Models
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -214,11 +231,10 @@ class ErrorExtractor:
             from app.config import settings
 
             model = self._get_litellm_model(settings)
-            # HIGH#3 fix: dialog_text 已经是 _format_dialog 输出的 string,
-            # 包成 JSON 字符串再插入. 即使内含 "忽略规则" 也是 JSON 内的字符串值.
-            dialog_json = json.dumps(
-                {"dialog_lines": dialog_text.split("\n")},
-                ensure_ascii=False,
+            # HIGH#3 + round-4 HIGH#1 fix: dialog_text → JSON envelope, 同时
+            # _safe_json_for_xml_envelope escape `<>&` 防 `</dialog_json>` 越界注入.
+            dialog_json = _safe_json_for_xml_envelope(
+                {"dialog_lines": dialog_text.split("\n")}
             )
             prompt = EXTRACTION_PROMPT.format(dialog_json=dialog_json)
 

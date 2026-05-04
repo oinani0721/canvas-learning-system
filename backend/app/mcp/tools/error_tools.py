@@ -87,8 +87,8 @@ class RecordErrorOutput(BaseModel):
     )
     graphiti_status: str = Field(
         default="not_attempted",
-        description="Story 2.5 Task 4: scheduled / ok / failed / "
-        "skipped_frontmatter_failed / not_attempted.",
+        description="Story 2.5 Task 4: queued / ok / failed / "
+        "skipped_frontmatter_failed / not_attempted.",  # round-4 MEDIUM fix
     )
     status: str = "ok"
     message: str = ""
