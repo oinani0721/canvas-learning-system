@@ -40,12 +40,41 @@ class RemedyStrategy(str, Enum):
     Differentiated remedy strategies mapped to error types.
 
     [Source: _bmad-output/implementation-artifacts/3-6-tips-annotation-error-archiving.md#AC-4]
+    Story 2.5 (2026-05-04 D 方案): 加 2 项细分策略对齐 PRD §FR-CONV-06.
     """
 
     SAME_STRUCTURE_NEW_PROBLEM = "same_structure_new_problem"  # 同结构新题练习
     FIND_ERROR_COUNTEREXAMPLE = "find_error_counterexample"  # 找错练习 + 反例构造
     BACKTRACK_DEFINITION = "backtrack_definition"  # 回退到定义题
     DISCRIMINATION_TRANSFER = "discrimination_transfer"  # 辨析题 + 迁移应用题
+    # Story 2.5 — PRD §FR-CONV-06 期望的 2 项细分:
+    DISCRIMINATION_COMPARISON = "discrimination_comparison"  # 辨析题 + 对比练习 (conceptual_confusion)
+    TRANSFER_SELF_EXPLANATION = "transfer_self_explanation"  # 迁移应用题 + 自我解释 (metacognitive_error)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 2.5 (2026-05-04) — PedagogyErrorType (D 方案: 双标签共存)
+#
+# PRD §FR-CONV-06 期望 4 主类与 Story 3.6 现有 ErrorType (production data 已存)
+# 命名/概念都不完全一致. D 方案选择"扩展不破坏":
+#
+# - ErrorType (Story 3.6, 保留): 低层标签, 现 production data 用此
+# - PedagogyErrorType (Story 2.5, 新增): 高层 pedagogy 标签, UI / remedy /
+#   间隔复习算法用此
+# - LEGACY_TO_PEDAGOGY: 自动映射, SUPERFICIAL 通过 sub_tag 二义性消解
+#
+# [Source: _bmad-output/implementation-artifacts/epic-2/2-5-error-extraction-classification.md]
+# [Source: PRD §FR-CONV-06 (line 3387-3393)]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class PedagogyErrorType(str, Enum):
+    """PRD §FR-CONV-06 教育心理学 4 主类 (Story 2.5)."""
+
+    CONCEPTUAL_CONFUSION = "conceptual_confusion"  # 概念混淆: 混淆相关但不同的概念
+    PROCEDURAL_ERROR = "procedural_error"  # 推理谬误: 逻辑跳跃, 因果倒置, 无效归纳
+    CARELESS_SLIP = "careless_slip"  # 粗心: 已掌握但笔误, 计算错误, 遗漏条件
+    METACOGNITIVE_ERROR = "metacognitive_error"  # 元认知错误: 能背但不能迁移, 过度自信
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -58,6 +87,90 @@ ERROR_TYPE_TO_REMEDY: dict[ErrorType, RemedyStrategy] = {
     ErrorType.KNOWLEDGE_GAP: RemedyStrategy.BACKTRACK_DEFINITION,
     ErrorType.SUPERFICIAL: RemedyStrategy.DISCRIMINATION_TRANSFER,
 }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 2.5 — PRD 4 主类 → 细分补救策略映射 (AC #3)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+PEDAGOGY_TYPE_TO_REMEDIES: dict[PedagogyErrorType, list[RemedyStrategy]] = {
+    PedagogyErrorType.CONCEPTUAL_CONFUSION: [
+        RemedyStrategy.DISCRIMINATION_COMPARISON,  # 辨析 + 对比 (PRD AC#3)
+    ],
+    PedagogyErrorType.PROCEDURAL_ERROR: [
+        RemedyStrategy.FIND_ERROR_COUNTEREXAMPLE,  # 找错 + 反例 (PRD AC#3)
+    ],
+    PedagogyErrorType.CARELESS_SLIP: [
+        RemedyStrategy.SAME_STRUCTURE_NEW_PROBLEM,  # 同结构新题 (PRD AC#3)
+    ],
+    PedagogyErrorType.METACOGNITIVE_ERROR: [
+        RemedyStrategy.TRANSFER_SELF_EXPLANATION,  # 迁移 + 自我解释 (PRD AC#3)
+    ],
+}
+
+
+# 现有 4 类 → PRD 4 类映射 (Story 2.5 D 方案核心)
+# SUPERFICIAL 是歧义点, 默认映射到 CONCEPTUAL_CONFUSION,
+# 通过 disambiguate_superficial() 在分类时根据 sub_tag / 关键词二次拆分.
+LEGACY_TO_PEDAGOGY: dict[ErrorType, PedagogyErrorType] = {
+    ErrorType.PROBLEM_FRAMING: PedagogyErrorType.CARELESS_SLIP,  # 破题=粗心 (审题失误)
+    ErrorType.REASONING_FALLACY: PedagogyErrorType.PROCEDURAL_ERROR,  # 推理谬误等价
+    ErrorType.KNOWLEDGE_GAP: PedagogyErrorType.CONCEPTUAL_CONFUSION,  # 缺概念 ≈ 概念混淆
+    ErrorType.SUPERFICIAL: PedagogyErrorType.CONCEPTUAL_CONFUSION,  # 默认, 可被二义消解覆盖
+}
+
+
+# 用于 SUPERFICIAL 二义性消解 — 含这些关键词倾向 METACOGNITIVE_ERROR
+_METACOGNITIVE_KEYWORDS = (
+    "迁移", "应用", "新场景", "新情境", "transfer", "metacogniti",
+    "过度自信", "过度信心", "self-explanation", "无法应用",
+)
+_METACOGNITIVE_SUB_TAGS = frozenset({
+    "transfer_failure", "metacognitive", "overconfidence", "application_failure",
+})
+
+
+def disambiguate_superficial(
+    error_description: str,
+    sub_tags: list[str] | None = None,
+) -> PedagogyErrorType:
+    """SUPERFICIAL 二义性消解: 决定映射到 CONCEPTUAL_CONFUSION 还是 METACOGNITIVE_ERROR.
+
+    优先级:
+    1. sub_tags 含 transfer_failure / metacognitive / overconfidence
+       → METACOGNITIVE_ERROR (能背不能用, 过度自信)
+    2. error_description 含"迁移/应用/新场景/transfer"等关键词
+       → METACOGNITIVE_ERROR
+    3. 否则 → CONCEPTUAL_CONFUSION (默认, 概念表面理解≈混淆)
+
+    Args:
+        error_description: 错误描述文本.
+        sub_tags: 可选子标签列表 (Story 2.5 Task 2.3 引入).
+
+    Returns:
+        PedagogyErrorType.METACOGNITIVE_ERROR 或 CONCEPTUAL_CONFUSION.
+    """
+    if sub_tags:
+        if any(t in _METACOGNITIVE_SUB_TAGS for t in sub_tags):
+            return PedagogyErrorType.METACOGNITIVE_ERROR
+    text = error_description.lower()
+    if any(kw in text for kw in _METACOGNITIVE_KEYWORDS):
+        return PedagogyErrorType.METACOGNITIVE_ERROR
+    return PedagogyErrorType.CONCEPTUAL_CONFUSION
+
+
+def map_legacy_to_pedagogy(
+    legacy_type: ErrorType,
+    error_description: str = "",
+    sub_tags: list[str] | None = None,
+) -> PedagogyErrorType:
+    """统一映射函数: legacy ErrorType → PedagogyErrorType (含 SUPERFICIAL 消解).
+
+    用于 Story 2.5 ErrorClassifier.classify_with_pedagogy() 的 D 方案.
+    """
+    if legacy_type == ErrorType.SUPERFICIAL:
+        return disambiguate_superficial(error_description, sub_tags)
+    return LEGACY_TO_PEDAGOGY[legacy_type]
 
 # Human-readable descriptions for each error type
 ERROR_TYPE_DESCRIPTIONS: dict[ErrorType, dict[str, str]] = {
