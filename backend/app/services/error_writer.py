@@ -10,8 +10,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -32,6 +34,28 @@ GRAPHITI_TIMEOUT_S = 0.5  # 单次 record_knowledge_entity 超时 (Task 4.3)
 GRAPHITI_MAX_RETRIES = 3  # 重试上限 (Task 4.4)
 GRAPHITI_RETRY_INTERVAL_S = 1.0  # 重试间隔
 
+# Story 2.5 P0 fix (ChatGPT 二轮审查 2026-05-04):
+# per-file async lock 防并发 read-modify-write 丢数据.
+# 多个 record_error 并发写同一个 .md 时 errors[] 不丢条.
+_FILE_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def _get_file_lock(file_path: str | Path) -> asyncio.Lock:
+    """Per-file async lock (Story 2.5 P0 fix concurrency)."""
+    key = str(Path(file_path).resolve())
+    if key not in _FILE_LOCKS:
+        _FILE_LOCKS[key] = asyncio.Lock()
+    return _FILE_LOCKS[key]
+
+
+def _make_dedupe_hash(error: ClassifiedError, node_id: str) -> str:
+    """Story 2.5 HIGH#11 fix — error 去重 hash (ChatGPT 二轮审查).
+
+    同 (pedagogy_type, description, node_id) 视为同一错误, 避免无限增长.
+    """
+    raw = f"{error.pedagogy_type.value}|{error.description}|{node_id}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Frontmatter 写入 (Task 4.1, 4.5)
@@ -41,33 +65,49 @@ GRAPHITI_RETRY_INTERVAL_S = 1.0  # 重试间隔
 def write_error_to_frontmatter(
     file_path: str | Path,
     error: ClassifiedError,
-) -> bool:
+    error_id: str | None = None,
+    node_id_for_dedupe: str = "",
+) -> tuple[bool, str | None]:
     """Story 2.5 Task 4.1 — 追加错误到 .md frontmatter `errors[]` (原子写入).
 
-    PRD §3.2 schema (扩展含 D 方案双标签):
+    Story 2.5 ChatGPT 二轮审查 fix (2026-05-04):
+    - HIGH#10: error_id 写入 frontmatter, 与 Graphiti misconception_id 一致
+    - HIGH#11: dedupe_hash 检测同错误重复 → update last_seen_at + count 不 append
+    - 注意: 并发安全由 write_error_to_frontmatter_async() 提供 per-file lock
+
+    PRD §3.2 schema (扩展含 D 方案双标签 + dedupe):
     ```yaml
     errors:
-      - type: conceptual_confusion         # PRD pedagogy 标签
-        legacy_type: knowledge_gap          # Story 3.6 兼容标签
+      - id: <uuid>                          # 与 Graphiti misconception_id 一致
+        dedupe_hash: <16 chars sha256>      # 同错误检测 key
+        type: conceptual_confusion           # PRD pedagogy 标签
+        legacy_type: knowledge_gap           # Story 3.6 兼容
+        legacy_remedy: backtrack_definition  # Story 3.6 单一策略 (MEDIUM#13)
         description: "..."
         corrected_at: null
+        last_seen_at: "2026-05-04T..."       # 重复错误更新
+        seen_count: 1                        # 重复次数
         tags: [synonym_confusion]
         remedy_strategies: [discrimination_comparison]
         confidence: 0.85
+        confidence_source: llm | heuristic   # MEDIUM (二轮审查建议)
         created_at: "2026-05-04T..."
     ```
 
     Args:
-        file_path: 节点 .md 路径 (绝对或相对).
+        file_path: 节点 .md 路径.
         error: ClassifiedError 双标签错误.
+        error_id: 可选 UUID, 与 Graphiti misconception_id 关联.
+        node_id_for_dedupe: 用于生成 dedupe_hash 的 node_id.
 
     Returns:
-        True 写入成功, False 失败 (不抛异常, 让调用方判断).
+        (success, error_id) — 成功时返回 (True, error_id used);
+        失败时返回 (False, None). 重复错误算成功 (返回 existing id).
     """
     p = Path(file_path)
     if not p.exists():
         logger.warning("error_writer.file_not_found", path=str(p))
-        return False
+        return False, None
 
     try:
         text = p.read_text(encoding="utf-8")
@@ -81,17 +121,55 @@ def write_error_to_frontmatter(
         if not isinstance(errors_list, list):
             errors_list = []
 
-        new_record = {
-            "type": error.pedagogy_type.value,
-            "legacy_type": error.legacy_type.value,
-            "description": error.description,
-            "corrected_at": None,
-            "tags": list(error.sub_tags),
-            "remedy_strategies": [r.value for r in error.pedagogy_remedies],
-            "confidence": round(error.confidence, 3),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        errors_list.append(new_record)
+        # Story 2.5 HIGH#11 fix — dedupe 检测
+        dedupe_hash = _make_dedupe_hash(error, node_id_for_dedupe)
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        existing_idx: int | None = None
+        for i, rec in enumerate(errors_list):
+            if (
+                isinstance(rec, dict)
+                and rec.get("dedupe_hash") == dedupe_hash
+                and rec.get("corrected_at") is None  # 已纠正的不算重复
+            ):
+                existing_idx = i
+                break
+
+        if existing_idx is not None:
+            # 同错误重复: 更新 last_seen_at + seen_count, 不 append
+            existing = errors_list[existing_idx]
+            existing["last_seen_at"] = now_iso
+            existing["seen_count"] = int(existing.get("seen_count", 1)) + 1
+            existing_id = existing.get("id") or error_id or str(uuid.uuid4())
+            existing["id"] = existing_id
+            logger.info(
+                "error_writer.frontmatter_duplicate_updated",
+                path=str(p),
+                error_id=existing_id,
+                seen_count=existing["seen_count"],
+            )
+            error_id = existing_id
+        else:
+            # 新错误: append 完整 record
+            if error_id is None:
+                error_id = str(uuid.uuid4())
+            new_record = {
+                "id": error_id,
+                "dedupe_hash": dedupe_hash,
+                "type": error.pedagogy_type.value,
+                "legacy_type": error.legacy_type.value,
+                "legacy_remedy": error.legacy_remedy.value,  # MEDIUM#13 fix
+                "description": error.description,
+                "corrected_at": None,
+                "last_seen_at": now_iso,
+                "seen_count": 1,
+                "tags": list(error.sub_tags),
+                "remedy_strategies": [r.value for r in error.pedagogy_remedies],
+                "confidence": round(error.confidence, 3),
+                "created_at": now_iso,
+            }
+            errors_list.append(new_record)
+
         fm_dict["errors"] = errors_list
 
         new_fm = yaml.safe_dump(fm_dict, allow_unicode=True, sort_keys=False)
@@ -110,13 +188,15 @@ def write_error_to_frontmatter(
         os.replace(tmp_path, p)
 
         logger.info(
-            "error_writer.frontmatter_appended",
+            "error_writer.frontmatter_written",
             path=str(p),
             pedagogy_type=error.pedagogy_type.value,
             legacy_type=error.legacy_type.value,
             confidence=error.confidence,
+            error_id=error_id,
+            duplicate=existing_idx is not None,
         )
-        return True
+        return True, error_id
     except Exception as e:
         logger.warning(
             "error_writer.frontmatter_failed",
@@ -124,7 +204,28 @@ def write_error_to_frontmatter(
             error=str(e),
             error_type=type(e).__name__,
         )
-        return False
+        return False, None
+
+
+async def write_error_to_frontmatter_async(
+    file_path: str | Path,
+    error: ClassifiedError,
+    error_id: str | None = None,
+    node_id_for_dedupe: str = "",
+) -> tuple[bool, str | None]:
+    """Story 2.5 P0 fix — Async wrapper with per-file lock 防并发数据丢失.
+
+    多个 record_error 并发写同一 .md 时, errors[] 不丢条.
+    """
+    lock = _get_file_lock(file_path)
+    async with lock:
+        return await asyncio.to_thread(
+            write_error_to_frontmatter,
+            file_path,
+            error,
+            error_id,
+            node_id_for_dedupe,
+        )
 
 
 def _split_frontmatter(text: str) -> tuple[str, str]:
@@ -151,6 +252,7 @@ async def write_error_to_graphiti(
     error: ClassifiedError,
     node_id: str,
     session_id: str = "",
+    error_id: str | None = None,
 ) -> bool:
     """Story 2.5 Task 4.2 — 通过 memory_service.record_knowledge_entity 写 Graphiti.
 
@@ -179,6 +281,7 @@ async def write_error_to_graphiti(
         return False
 
     metadata: dict[str, Any] = {
+        "misconception_id": error_id,  # Story 2.5 HIGH#10 fix — 与 frontmatter id 关联
         "pedagogy_type": error.pedagogy_type.value,
         "legacy_type": error.legacy_type.value,
         "description": error.description,
@@ -253,8 +356,14 @@ async def write_error_dual(
 ) -> dict[str, Any]:
     """Story 2.5 Task 4 — 双写入口 (frontmatter sync + Graphiti async).
 
+    Story 2.5 ChatGPT 二轮审查 fix (2026-05-04):
+    - P0#3 fix: 使用 write_error_to_frontmatter_async + per-file lock 防并发
+    - HIGH#5 fix: graphiti_status 改名 "queued" 表示异步任务已调度
+    - HIGH#10 fix: error_id 在 frontmatter + Graphiti metadata 一致
+    - HIGH#11 fix: dedupe 同错误重复时返回相同 error_id, 不 append
+
     AC #4 + #6 综合:
-    - frontmatter 同步原子写入 (本地优先).
+    - frontmatter 同步原子写入 + per-file lock (本地优先, 并发安全).
     - Graphiti 默认 fire-and-forget (调用方不必 await), 可改为同步等待.
     - frontmatter 失败 → 跳过 Graphiti (因为本地都没成功, 远端无意义).
 
@@ -266,24 +375,41 @@ async def write_error_dual(
         fire_and_forget_graphiti: True (默认) → 后台 task; False → 同步等待.
 
     Returns:
-        {"frontmatter": bool, "graphiti": "scheduled" | "ok" | "failed"
-                                     | "skipped_frontmatter_failed"}
+        {
+          "frontmatter": bool,
+          "graphiti": "queued" | "ok" | "failed" | "skipped_frontmatter_failed",
+          "error_id": str | None,  # frontmatter + Graphiti 一致 id (HIGH#10)
+        }
     """
-    fm_ok = write_error_to_frontmatter(file_path, error)
+    # Story 2.5 P0#3 fix — 走 async wrapper 拿 per-file lock
+    fm_ok, error_id = await write_error_to_frontmatter_async(
+        file_path, error, error_id=None, node_id_for_dedupe=node_id
+    )
 
     if not fm_ok:
         return {
             "frontmatter": False,
             "graphiti": "skipped_frontmatter_failed",
+            "error_id": None,
         }
 
     if fire_and_forget_graphiti:
         # Task 4.3: fire-and-forget, 不阻塞主流程
-        asyncio.create_task(write_error_to_graphiti(error, node_id, session_id))
-        return {"frontmatter": True, "graphiti": "scheduled"}
+        # HIGH#5 fix: 状态名 "queued" 而非 "scheduled" (避免误以为已成功)
+        asyncio.create_task(
+            write_error_to_graphiti(error, node_id, session_id, error_id=error_id)
+        )
+        return {
+            "frontmatter": True,
+            "graphiti": "queued",
+            "error_id": error_id,
+        }
 
-    graphiti_ok = await write_error_to_graphiti(error, node_id, session_id)
+    graphiti_ok = await write_error_to_graphiti(
+        error, node_id, session_id, error_id=error_id
+    )
     return {
         "frontmatter": True,
         "graphiti": "ok" if graphiti_ok else "failed",
+        "error_id": error_id,
     }

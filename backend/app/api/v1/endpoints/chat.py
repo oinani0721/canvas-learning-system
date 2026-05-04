@@ -14,7 +14,7 @@ Plugin 的调用流程（Mode D 替代方案）：
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -196,4 +196,142 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
         degraded_reason=enrichment.degraded_reason,
         enrichment_elapsed_ms=round(enrichment.elapsed_ms, 2),
         retrieval_trace=trace_model,
+    )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Story 2.5 P0#4 fix (ChatGPT 二轮审查 2026-05-04) — Post-turn extract hook
+#
+# PRD §FR-CONV-06 AC #1: "对话轮次结束 → 系统自动分析对话内容, 提取学习者错误".
+# 之前 Story 2.5 spec done 但缺真实 lifecycle hook (依赖 Agent 主动调
+# record_error MCP tool). 本 endpoint 给 plugin / 外部对话引擎一个明确入口,
+# 一次 POST 完成 提取 + 分类 + 双写 完整链路.
+# ════════════════════════════════════════════════════════════════════════════
+
+
+class PostTurnMessage(BaseModel):
+    """对话单轮消息 (与 ErrorExtractor.DialogMessage 一致)."""
+
+    role: Literal["user", "assistant"] = Field(
+        ..., description='"user" | "assistant" (其他 role 会被过滤)'
+    )
+    content: str = Field(..., min_length=1)
+    turn_index: int = Field(default=0)
+
+
+class PostTurnExtractRequest(BaseModel):
+    """Story 2.5 — 对话轮次结束后请求自动错误提取."""
+
+    node_id: str = Field(..., description="Canvas 节点 ID (vault-relative path).")
+    session_id: str = Field(..., description="对话 session ID.")
+    messages: list[PostTurnMessage] = Field(
+        ..., description="对话消息列表 (按时间顺序, 通常 ≥2 个 turn 才有错误)."
+    )
+    fire_and_forget_graphiti: bool = Field(
+        default=True,
+        description="True → Graphiti 后台异步; False → 同步等待 Graphiti 结果.",
+    )
+
+
+class PostTurnExtractedError(BaseModel):
+    """单条提取并分类后的错误 (response 结构)."""
+
+    error_id: Optional[str] = None
+    pedagogy_type: str
+    legacy_type: str
+    description: str
+    confidence: float
+    is_ambiguous: bool
+    pedagogy_remedies: list[str]
+    frontmatter_written: bool
+    graphiti_status: str  # queued / ok / failed / skipped_frontmatter_failed
+
+
+class PostTurnExtractResponse(BaseModel):
+    node_id: str
+    session_id: str
+    extracted_count: int
+    errors: list[PostTurnExtractedError] = Field(default_factory=list)
+    elapsed_ms: float
+
+
+@chat_router.post(
+    "/post-turn-extract",
+    response_model=PostTurnExtractResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Auto-extract errors from a completed dialog turn (Story 2.5 AC #1)",
+    description=(
+        "Plugin / 外部对话引擎在每轮 AI 回复完成后调用此 endpoint, "
+        "传入完整 dialog messages. backend 会:\n"
+        "1. 用 ErrorExtractor LLM 分析对话提取错误描述 (AC #1, #5)\n"
+        "2. classify_with_pedagogy 双标签分类 (D 方案, AC #2)\n"
+        "3. write_error_dual 双写 frontmatter + Graphiti (AC #4, #6)\n"
+        "无错误时 errors=[] (AC #5 防 false positive)."
+    ),
+)
+async def post_turn_extract(
+    req: PostTurnExtractRequest,
+) -> PostTurnExtractResponse:
+    """Story 2.5 — 真实对话生命周期 hook (ChatGPT 二轮审查 P0#4 fix)."""
+    import time
+
+    from app.mcp.tools.error_tools import _resolve_node_file_path
+    from app.services.error_extractor import (
+        DialogMessage,
+        get_error_extractor,
+    )
+    from app.services.error_writer import write_error_dual
+
+    start = time.monotonic()
+
+    extractor = get_error_extractor()
+    dialog = [
+        DialogMessage(role=m.role, content=m.content, turn_index=m.turn_index)
+        for m in req.messages
+    ]
+
+    classified = await extractor.extract_and_classify(
+        dialog, node_id=req.node_id, session_id=req.session_id
+    )
+
+    file_path = _resolve_node_file_path(req.node_id)
+    out_errors: list[PostTurnExtractedError] = []
+    for err in classified:
+        if file_path:
+            dual = await write_error_dual(
+                file_path=file_path,
+                error=err,
+                node_id=req.node_id,
+                session_id=req.session_id,
+                fire_and_forget_graphiti=req.fire_and_forget_graphiti,
+            )
+            fm_ok = dual["frontmatter"]
+            graphiti_status = dual["graphiti"]
+            err_id = dual.get("error_id")
+        else:
+            fm_ok = False
+            graphiti_status = "skipped_frontmatter_failed"
+            err_id = None
+
+        out_errors.append(
+            PostTurnExtractedError(
+                error_id=err_id,
+                pedagogy_type=err.pedagogy_type.value,
+                legacy_type=err.legacy_type.value,
+                description=err.description,
+                confidence=err.confidence,
+                is_ambiguous=err.is_ambiguous,
+                pedagogy_remedies=[r.value for r in err.pedagogy_remedies],
+                frontmatter_written=fm_ok,
+                graphiti_status=graphiti_status,
+            )
+        )
+
+    elapsed_ms = (time.monotonic() - start) * 1000.0
+    return PostTurnExtractResponse(
+        node_id=req.node_id,
+        session_id=req.session_id,
+        extracted_count=len(out_errors),
+        errors=out_errors,
+        elapsed_ms=round(elapsed_ms, 2),
     )

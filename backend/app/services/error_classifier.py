@@ -34,6 +34,22 @@ from app.graphiti.entity_types import (
 logger = structlog.get_logger(__name__)
 
 
+def _strip_markdown_fence(content: str) -> str:
+    """Story 2.5 HIGH#8 fix (ChatGPT 二轮审查 2026-05-04) — 剥离 markdown 代码块.
+
+    LLM 偶尔会把 JSON 包在 ```json ... ``` fence 里, 导致 json.loads 失败.
+    """
+    s = content.strip()
+    if s.startswith("```"):
+        lines = s.split("\n")
+        if lines:
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        s = "\n".join(lines).strip()
+    return s
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Classification Prompt
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -233,6 +249,8 @@ class ErrorClassifier:
                 temperature=0.1,
             )
             content = response.choices[0].message.content.strip()
+            # Story 2.5 HIGH#8 fix — 剥离 markdown fence 防 json.loads 失败
+            content = _strip_markdown_fence(content)
             parsed = json.loads(content)
             raw_type = parsed.get("error_type", "")
             confidence = float(parsed.get("confidence", 0.8))

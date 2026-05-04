@@ -65,8 +65,9 @@ def test_frontmatter_appends_to_existing_errors_list(tmp_path):
     )
 
     error = _make_error()
-    ok = write_error_to_frontmatter(f, error)
+    ok, error_id = write_error_to_frontmatter(f, error)
     assert ok is True
+    assert error_id is not None  # Story 2.5 HIGH#10 fix — id 必须返回
 
     new_text = f.read_text(encoding="utf-8")
     fm_dict = yaml.safe_load(new_text.split("---")[1])
@@ -76,6 +77,7 @@ def test_frontmatter_appends_to_existing_errors_list(tmp_path):
     assert fm_dict["errors"][1]["legacy_type"] == "knowledge_gap"
     assert fm_dict["errors"][1]["confidence"] == 0.85
     assert "discrimination_comparison" in fm_dict["errors"][1]["remedy_strategies"]
+    assert fm_dict["errors"][1]["id"] == error_id  # HIGH#10 fix — id 写入
 
 
 def test_frontmatter_creates_errors_list_when_missing(tmp_path):
@@ -87,14 +89,16 @@ def test_frontmatter_creates_errors_list_when_missing(tmp_path):
     )
 
     error = _make_error()
-    ok = write_error_to_frontmatter(f, error)
+    ok, error_id = write_error_to_frontmatter(f, error)
     assert ok is True
+    assert error_id is not None
 
     new_text = f.read_text(encoding="utf-8")
     fm_dict = yaml.safe_load(new_text.split("---")[1])
     assert isinstance(fm_dict["errors"], list)
     assert len(fm_dict["errors"]) == 1
     assert fm_dict["errors"][0]["type"] == "conceptual_confusion"
+    assert fm_dict["errors"][0]["id"] == error_id
 
 
 def test_frontmatter_preserves_body_unchanged(tmp_path):
@@ -109,10 +113,11 @@ def test_frontmatter_preserves_body_unchanged(tmp_path):
 
 
 def test_frontmatter_file_not_found_returns_false(tmp_path):
-    """文件不存在 → False (不抛异常)."""
+    """文件不存在 → (False, None) (不抛异常)."""
     f = tmp_path / "missing.md"
-    ok = write_error_to_frontmatter(f, _make_error())
+    ok, error_id = write_error_to_frontmatter(f, _make_error())
     assert ok is False
+    assert error_id is None
 
 
 def test_frontmatter_atomic_no_temp_left_on_success(tmp_path):
@@ -254,7 +259,8 @@ async def test_dual_write_frontmatter_success_graphiti_scheduled(tmp_path):
         )
 
     assert result["frontmatter"] is True
-    assert result["graphiti"] == "scheduled"
+    assert result["graphiti"] == "queued"  # HIGH#5 fix: scheduled → queued
+    assert result["error_id"] is not None  # HIGH#10 fix
 
 
 @pytest.mark.asyncio
@@ -300,6 +306,100 @@ async def test_dual_write_sync_mode_returns_graphiti_status(tmp_path):
 
     assert result["frontmatter"] is True
     assert result["graphiti"] == "ok"
+
+
+# ════════════════════════════════════════════════════════════════════
+# Story 2.5 ChatGPT 二轮审查 P0/HIGH regression (2026-05-04)
+# ════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_concurrent_writes_no_data_loss(tmp_path):
+    """P0#3 — per-file lock 防 read-modify-write 竞态丢数据.
+
+    并发 N 个 record_error 写同一文件, errors[] 应有 N 条 (无丢失).
+    """
+    import asyncio as _asyncio
+
+    from app.services.error_writer import write_error_dual
+
+    f = tmp_path / "concurrent.md"
+    f.write_text("---\ntype: concept\n---\n# Body\n", encoding="utf-8")
+
+    mock_memory_svc = AsyncMock()
+    mock_memory_svc.record_knowledge_entity = AsyncMock(return_value=None)
+
+    errors = [
+        _make_error(description=f"错误 {i}", confidence=0.7 + i * 0.01)
+        for i in range(10)
+    ]
+
+    with patch(
+        "app.services.memory_service.get_memory_service",
+        new=AsyncMock(return_value=mock_memory_svc),
+    ):
+        # 10 个并发 write
+        results = await _asyncio.gather(
+            *[
+                write_error_dual(
+                    f, err, node_id=f"node-{i}", session_id="s",
+                    fire_and_forget_graphiti=True,
+                )
+                for i, err in enumerate(errors)
+            ]
+        )
+
+    # 所有 frontmatter 都成功
+    assert all(r["frontmatter"] for r in results)
+    # 所有 error_id 唯一
+    error_ids = [r["error_id"] for r in results]
+    assert len(set(error_ids)) == 10, f"id 重复: {error_ids}"
+
+    # frontmatter errors[] 应有 10 条
+    fm_dict = yaml.safe_load(f.read_text().split("---")[1])
+    assert len(fm_dict["errors"]) == 10, (
+        f"并发写丢数据: 期望 10, 实际 {len(fm_dict['errors'])}"
+    )
+
+
+def test_frontmatter_dedupe_same_error_updates_seen_count(tmp_path):
+    """HIGH#11 — 同 (pedagogy_type, description, node_id) 错误重复时更新 seen_count."""
+    f = tmp_path / "dedupe.md"
+    f.write_text("---\ntype: concept\n---\n# Body\n", encoding="utf-8")
+
+    error = _make_error()
+
+    # 写 3 次同样的错误
+    ok1, id1 = write_error_to_frontmatter(f, error, node_id_for_dedupe="x")
+    ok2, id2 = write_error_to_frontmatter(f, error, node_id_for_dedupe="x")
+    ok3, id3 = write_error_to_frontmatter(f, error, node_id_for_dedupe="x")
+
+    assert ok1 and ok2 and ok3
+    # 同错误返回同 id
+    assert id1 == id2 == id3
+
+    fm_dict = yaml.safe_load(f.read_text().split("---")[1])
+    # errors[] 应只有 1 条 (无限增长被防住)
+    assert len(fm_dict["errors"]) == 1
+    assert fm_dict["errors"][0]["seen_count"] == 3
+    assert fm_dict["errors"][0]["id"] == id1
+
+
+def test_frontmatter_legacy_remedy_field_present(tmp_path):
+    """MEDIUM#13 — frontmatter 同时写 legacy_remedy + pedagogy_remedies."""
+    f = tmp_path / "node.md"
+    f.write_text("---\ntype: concept\n---\n# Body\n", encoding="utf-8")
+
+    error = _make_error()  # KNOWLEDGE_GAP (legacy) → CONCEPTUAL_CONFUSION (pedagogy)
+
+    write_error_to_frontmatter(f, error)
+    fm_dict = yaml.safe_load(f.read_text().split("---")[1])
+    rec = fm_dict["errors"][0]
+
+    # MEDIUM#13: legacy_remedy 不丢
+    assert rec["legacy_remedy"] == "backtrack_definition"
+    # pedagogy_remedies 也存在
+    assert "discrimination_comparison" in rec["remedy_strategies"]
 
 
 @pytest.mark.asyncio

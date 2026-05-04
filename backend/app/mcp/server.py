@@ -453,6 +453,8 @@ def _register_tool_routes(app: FastAPI) -> None:
             session_id=input.session_id,
             error_description=input.error_description,
             context=input.context,
+            sub_tags=input.sub_tags,  # Story 2.5 P0 fix (ChatGPT 二轮审查):
+            # 之前漏传, 导致 D 方案 SUPERFICIAL 二义消解在真实 MCP 路由失效.
         )
 
     # ═══════════════════════════════════════════════════════════════════════════

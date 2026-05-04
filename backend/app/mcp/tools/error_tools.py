@@ -100,17 +100,26 @@ class RecordErrorOutput(BaseModel):
 
 
 def _resolve_node_file_path(node_id: str) -> Optional[str]:
-    """Story 2.5 — 从 node_id 推断 .md 文件绝对路径.
+    """Story 2.5 — 从 node_id 推断 .md 文件绝对路径 (vault sandbox).
 
-    node_id 形式可能是:
-    - "节点/X" → vault_root/节点/X.md
-    - "节点/X.md" → vault_root/节点/X.md
-    - "X" → vault_root/X.md (vault root level)
-    - 已经是绝对路径 → 直接返回
+    Story 2.5 P0-A fix (ChatGPT 二轮审查 2026-05-04):
+    - 必须 resolve(strict=True) + relative_to(vault_root) 防 path traversal
+    - absolute path / .. escape / symlink escape / 非 .md 后缀全部拒绝
+    - 与 Story 2.1 wikilink_context_service._resolve_vault_md_path 同模式
 
-    返回 None 表示无法解析 (vault_root 不存在 / settings 不可用).
+    解析顺序 (HIGH#9 ChatGPT fix):
+    1. 已是 .md 后缀的相对路径 → vault_root / 路径 (含子目录如 节点/X.md)
+    2. 无 .md 后缀 → 优先尝试 vault_root/节点/{node_id}.md
+       (Canvas vault 大多数概念节点在 节点/ 子目录)
+    3. fallback vault_root/{node_id}.md (root level)
+    4. absolute path 必须落在 vault_root 内才接受
+
+    返回 None 表示无法安全解析或文件不存在.
     """
     from pathlib import Path
+
+    if not node_id:
+        return None
 
     try:
         from app.config import settings
@@ -118,18 +127,36 @@ def _resolve_node_file_path(node_id: str) -> Optional[str]:
         vault_root_str = getattr(settings, "canvas_base_path", None)
         if not vault_root_str:
             return None
-        vault_root = Path(vault_root_str)
-        if not vault_root.exists():
-            return None
-
-        candidate = Path(node_id)
-        if not candidate.is_absolute():
-            candidate = vault_root / node_id
-        if not str(candidate).endswith(".md"):
-            candidate = candidate.with_suffix(".md")
-        return str(candidate)
+        vault_root = Path(vault_root_str).resolve(strict=True)
     except (ImportError, AttributeError, OSError):
         return None
+
+    raw = Path(node_id)
+
+    # 候选路径列表 (按优先级)
+    candidates: list[Path] = []
+    if raw.is_absolute():
+        # absolute path: 必须落在 vault_root 内
+        candidates.append(raw if raw.suffix == ".md" else raw.with_suffix(".md"))
+    elif raw.suffix == ".md":
+        # 已含 .md 后缀的相对路径: 直接拼 vault_root
+        candidates.append(vault_root / raw)
+    else:
+        # 无 .md 后缀: 试 节点/X.md 优先 (HIGH#9), fallback root level
+        candidates.append(vault_root / "节点" / f"{node_id}.md")
+        candidates.append(vault_root / f"{node_id}.md")
+
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve(strict=True)
+            # 必须在 vault_root 内 (防 path traversal / symlink escape)
+            resolved.relative_to(vault_root)
+            if resolved.suffix.lower() != ".md":
+                continue
+            return str(resolved)
+        except (OSError, ValueError):
+            continue
+    return None
 
 
 async def record_error(
@@ -184,7 +211,10 @@ async def record_error(
         legacy_type_info = ERROR_TYPE_DESCRIPTIONS.get(classified.legacy_type, {})
 
         # Story 2.5 Task 4 — 双写 (frontmatter + Graphiti fire-and-forget)
+        # ChatGPT 二轮审查 HIGH#10 fix (2026-05-04): misconception_id 用
+        # dual_write 返回的 error_id (frontmatter + Graphiti metadata 一致).
         file_path = _resolve_node_file_path(node_id)
+        misconception_id: Optional[str] = None
         if file_path:
             dual_result = await write_error_dual(
                 file_path=file_path,
@@ -195,22 +225,21 @@ async def record_error(
             )
             fm_written = dual_result["frontmatter"]
             graphiti_status = dual_result["graphiti"]
+            misconception_id = dual_result.get("error_id")
         else:
-            # vault_root 不可用 → 跳过 frontmatter, Graphiti 同步尝试
+            # vault_root 不可用或 sandbox 拒绝 → 跳过 frontmatter, Graphiti 同步尝试
             logger.warning(
-                f"[Story 2.5] record_error: vault_root unavailable for "
+                f"[Story 2.5] record_error: file path unresolvable for "
                 f"node_id={node_id}, skipping frontmatter; trying Graphiti only"
             )
             fm_written = False
+            import uuid
+
+            misconception_id = str(uuid.uuid4())  # Graphiti only 路径生成新 id
             graphiti_ok = await write_error_to_graphiti(
-                classified, node_id, session_id
+                classified, node_id, session_id, error_id=misconception_id
             )
             graphiti_status = "ok" if graphiti_ok else "failed"
-
-        # 生成 misconception_id (向后兼容 Story 3.6 输出 schema)
-        import uuid
-
-        misconception_id = str(uuid.uuid4())
 
         logger.info(
             f"[Story 2.5] record_error: pedagogy={classified.pedagogy_type.value} "

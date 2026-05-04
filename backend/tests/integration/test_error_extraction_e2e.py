@@ -240,7 +240,7 @@ async def test_e2e_record_error_mcp_tool_full_pipeline(tmp_path, monkeypatch):
     assert result["confidence"] == 0.7
     assert result["is_ambiguous"] is False  # 0.7 >= 0.6
     assert result["frontmatter_written"] is True
-    assert result["graphiti_status"] == "scheduled"  # fire-and-forget
+    assert result["graphiti_status"] == "queued"  # HIGH#5 fix (scheduled→queued)
 
     # 验证 frontmatter 真的写入
     fm_dict = yaml.safe_load(node_file.read_text().split("---")[1])
@@ -363,4 +363,4 @@ async def test_e2e_record_error_graphiti_failure_frontmatter_succeeds(
     # frontmatter 写入后 Graphiti 仍尝试 (fire-and-forget scheduled)
     # 但调度后失败不阻断 recorded
     assert result["recorded"] is True
-    assert result["graphiti_status"] == "scheduled"  # 任务被调度,实际失败由后台处理
+    assert result["graphiti_status"] == "queued"  # 任务被调度,实际失败由后台处理
