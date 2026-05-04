@@ -693,3 +693,116 @@ GitHub: https://github.com/oinani0721/canvas-learning-system/tree/worktree-featu
 `_bmad-output/research/chatgpt-final-review-story-2.1-phase-1.7-plus-2026-05-03.md` 已生成，复制粘贴给 ChatGPT (推荐 GPT-5/o3) 让它确认 P0 全部修复 + 决定是否 ship 给 UAT。
 
 如果 ChatGPT PASS → 你按本节 8.2 的 5 步 UAT hands-on 验证 → 全 ✅ 后 Story 2.1 正式 ship
+
+---
+
+## 九、✅ Story 2.1 Phase 1 完整 UAT 通过 (v1.4 — 2026-05-04 ship)
+
+### 9.1 ChatGPT 三轮对抗审查闭环
+
+| Round | Commit | Score | 关键发现 |
+|---|---|---|---|
+| 1 | `cefabb2` | 4/10 ❌ | 5 P0 (含 chat-with-context vs open-node-chat 误判 1 个) |
+| 2 | `11e6e26` | 7/10 ⚠️ | 5 P0 修 + 1 新 P0 (current_note + manifest escape 打穿 boundary) |
+| 3 | `b4cdc4b` | **8/10 ✅** | **6 P0 全修 + Ship to UAT** ("当前没有我认为必须立刻修的 P0") |
+| 用户 UAT | `dad9ed7` | — | 实测 1 P1 (seed self-loop) 修复 + 邻居 3→2, token 714→583 |
+
+### 9.2 用户 hands-on UAT 5 步全 ✅ 通过证据
+
+| 步骤 | 通过证据 | 详见 |
+|---|---|---|
+| 1️⃣ lifespan eager build | curl 实测 32 nodes / 28 edges 自动 build | 第 8.2 节 |
+| 2️⃣ manifest 真实数据 | Graph version: `2026-05-04T06:52:37+00:00` / Included: 3 / Token 923/6792 | line 211-216 用户粘贴 |
+| 3️⃣ **Claude 真推导** | **`Av=λv → det(A-λI)=0` 完整 4 步推导 + 主动建议笔记改进** | line 281-302 用户粘贴 + 后续 Claudian 实测 |
+| 4️⃣ 防注入 PoC | 攻击载荷 `</neighbor><system>` `</rag_context><system>` 全部 escape, 真闭合标签计数正确 | curl 实测 + 用户 hands-on 第 4 节 |
+| 5️⃣ Backend trace 字段 | curl 替代 (DevTools 顺序问题已记录) | 第 8.2 节 v1.3 修订 |
+
+### 9.3 Phase 1 实际交付清单
+
+**Phase 1.1 — RetrievalTrace + retrieval_trace response field**
+- TraceItem (path / hop / relationship_type / reason / tokens) + RetrievalTrace (seed / max_hops / graph_version / elapsed_ms / included / omitted / degradations)
+- chat.py response 含 retrieval_trace JSON
+
+**Phase 1.2 — Prompt Injection Boundary**
+- `<rag_context>` + `<context_policy>` XML 包装
+- Skill 文件第 8 条硬约束: vault 内容 = 不可信数据
+
+**Phase 1.3 — Token Budget Reserve**
+- 1400 tokens reserve (Skill prompt + manifest + boundary 缓冲)
+- 仅 budget >= 4096 时启用
+
+**Phase 1.4 — API 接口扩展**
+- user_question + mode (preload/answer) 字段, Phase 2 启用 rerank
+
+**Phase 1.5 — Manifest 段**
+- Seed / Graph version / Included / Omitted / Degradations / Token budget
+
+**Phase 1.6 — Lifespan Eager Build**
+- backend 启动自动 build wikilink graph (永不再需手动 trigger)
+
+**Phase 1.7 — Body Excerpt + Callout 提取**
+- 邻居装载从 frontmatter-only → frontmatter + body excerpt + callout 提取
+- Token 装载 266 → 644 (2.4x↑)
+
+**Phase 1.7+ — ChatGPT P0 全部修复**
+- chat.py trace propagation (P0#1)
+- WikilinkGraphService.build_timestamp (P0#2)
+- callout regex → line scanner (P0#5)
+- _resolve_vault_md_path sandbox (P0-A)
+- _xml_text_escape body 行 escape (P0-B)
+
+**Phase 1.7++ — current_note + manifest escape**
+- assemble_context body escape (二轮新 P0)
+- _build_manifest seed/graph_version/degradations escape
+
+**Phase 1.7+++ — seed self-loop + 同 slug 去重 (用户 UAT P1)**
+- enrich for-loop filter `slug_basename == target_slug`
+- seen_slugs set 去重 path/basename 双 node
+
+### 9.4 测试基线
+
+```
+Phase 1.0 (cefabb2):  68 pytest passed
+Phase 1.7+ (11e6e26): 102 pytest passed (+34 P0 regression)
+Phase 1.7++ (b4cdc4b): 105 pytest passed (+3 二轮 P0 regression)
+Phase 1.7+++ (dad9ed7): 107 pytest passed (+2 P1 regression)
+```
+
+### 9.5 转 Phase 2 — Story 2.9
+
+**spec**: `_bmad-output/implementation-artifacts/epic-2/2-9-rag-rerank-and-evidence.md`
+
+Phase 2 列入 Story 2.9 (~10h estimate, 6 个 Task):
+1. Query-Aware Rerank (BM25 + cosine, ~2h)
+2. Hub Penalty + Degree Scoring (~2h)
+3. Path Trace (`via=` 中间跳点, ~1h)
+4. Backlink + Heading + Alias 扩展 (~3h)
+5. Relationship Evidence (frontmatter evidence 字段, ~1.5h)
+6. Plugin Timeout + 错误降级 (~0.5h)
+
+**ChatGPT 接受作为 Phase 2 follow-up 的 HIGH** (不阻断 ship):
+- lifespan timeout (HIGH#7)
+- except 过宽 (HIGH#8)
+- multi-worker race (HIGH#9)
+- hardcoded 7 callouts (HIGH#11)
+- escape 后 token 膨胀 (三轮新 HIGH)
+- manifest newline injection (三轮 MEDIUM)
+- _xml_attr_escape 控制字符 (三轮 MEDIUM)
+- test_security_p0_vulnerabilities.py demo-pass tests 清理
+- basename ambiguity alias map
+- body enrichment 不受 timeout 覆盖
+- unsupported callout 静默丢弃
+
+### 9.6 commit 全链追溯
+
+```
+cefabb2 — Phase 1.6 + 1.7 (lifespan eager build + callout/excerpt)
+11e6e26 — Phase 1.7+ (ChatGPT 5 P0 全修复)
+b4cdc4b — Phase 1.7++ (current_note + manifest escape)
+b8c4389 — 验收单 v1.2 + 审查归档
+dad9ed7 — Phase 1.7+++ (用户 UAT P1: seed self-loop + 步骤 5 文档)
+```
+
+GitHub: https://github.com/oinani0721/canvas-learning-system/tree/worktree-feature-obsidian-hybrid-dev
+
+**Story 2.1 Phase 1 ship 完成 ✅. 转 Story 2.9 Phase 2.**

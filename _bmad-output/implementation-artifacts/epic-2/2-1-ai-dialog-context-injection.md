@@ -2,7 +2,7 @@
 story_id: "2.1"
 epic_id: "2"
 prd_id: "canvas-learning-system"
-status: "ready-for-dev"
+status: "done"
 priority: "P0"
 estimate_hours: 10
 depends_on: ["1.3"]
@@ -10,11 +10,21 @@ blocks: ["2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8"]
 trace:
   - "FR-CONV-01"
   - "FR-CONV-04"
+ship_commit: "dad9ed7"
+ship_date: "2026-05-04"
+phase_2_followup: "2.9"
+uat_evidence:
+  - "_bmad-output/验收单/Story-2.1-Phase1-成熟度升级-2026-05-03.md"
+chatgpt_audit_rounds:
+  - {commit: "cefabb2", score: "4/10", new_p0: 5}
+  - {commit: "11e6e26", score: "7/10", new_p0: 1}
+  - {commit: "b4cdc4b", score: "8/10", recommendation: "Ship to UAT"}
+  - {commit: "dad9ed7", note: "用户 UAT P1 (seed self-loop) 修复完毕"}
 ---
 
 # Story 2.1: AI 对话 + 邻居上下文注入
 
-Status: ready-for-dev
+Status: ✅ done (2026-05-04, ship commit `dad9ed7`)
 
 ## Story
 
