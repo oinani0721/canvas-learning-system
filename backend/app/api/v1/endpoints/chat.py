@@ -262,8 +262,8 @@ class PostTurnExtractRequest(BaseModel):
     def _validate_total_dialog_chars(self):
         """ChatGPT round-4 HIGH#2 fix — 总字符预算上限.
 
-        只统计 user/assistant role (system/tool 后续被过滤但仍在 message 列表里
-        会被纳入 char 总数 — 这是 deliberate, 防止用户用 system role 绕过预算).
+        统计**所有 role** (含 user/assistant/system/tool) — deliberate 决定:
+        防止用户用 system/tool role 大 payload 绕过总预算.
         """
         total = sum(len(m.content) for m in self.messages)
         if total > MAX_TOTAL_DIALOG_CHARS:

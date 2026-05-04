@@ -626,6 +626,87 @@ async def test_post_turn_total_chars_within_budget_passes():
 
 
 @pytest.mark.asyncio
+async def test_post_turn_fallback_respects_fire_and_forget_flag(
+    tmp_path, monkeypatch
+):
+    """ChatGPT round-5 follow-up — MEDIUM#3 file_path=None 时 Graphiti-only
+    fallback 应遵守 fire_and_forget_graphiti flag.
+
+    True → asyncio.create_task + status="queued" (不阻塞)
+    False → 同步 await + status="ok"/"failed"
+    """
+    from app.main import app
+    from app.services.error_classifier import get_error_classifier
+    from app.services.error_extractor import get_error_extractor
+
+    classifier = get_error_classifier()
+    extractor = get_error_extractor()
+
+    # mock 提取拿到 1 个错误
+    with patch.object(
+        extractor,
+        "_llm_extract",
+        new=AsyncMock(
+            return_value=[{"description": "学生混淆 X/Y", "context": ""}]
+        ),
+    ), patch.object(
+        classifier,
+        "_llm_classify_with_confidence",
+        new=AsyncMock(return_value=(ErrorType.KNOWLEDGE_GAP, 0.85)),
+    ), patch(
+        "app.mcp.tools.error_tools._resolve_node_file_path",
+        return_value=None,  # 触发 file_path=None fallback
+    ), patch(
+        "app.services.memory_service.get_memory_service",
+        new=AsyncMock(side_effect=ImportError("graphiti unavailable")),
+    ):
+        # Test fire_and_forget=True → graphiti_status="queued"
+        client = TestClient(app)
+        response_async = client.post(
+            "/api/v1/chat/post-turn-extract",
+            json={
+                "node_id": "节点/missing",
+                "session_id": "s",
+                "messages": [
+                    {"role": "user", "content": "X 是 Y 吗?"},
+                    {"role": "assistant", "content": "不是"},
+                ],
+                "fire_and_forget_graphiti": True,
+            },
+        )
+
+        # Test fire_and_forget=False → graphiti_status="failed"
+        # (memory_service ImportError → write_error_to_graphiti 返回 False)
+        response_sync = client.post(
+            "/api/v1/chat/post-turn-extract",
+            json={
+                "node_id": "节点/missing",
+                "session_id": "s",
+                "messages": [
+                    {"role": "user", "content": "Y 是 Z 吗?"},
+                    {"role": "assistant", "content": "不是"},
+                ],
+                "fire_and_forget_graphiti": False,
+            },
+        )
+
+    # 两个请求都成功响应
+    assert response_async.status_code == 200
+    assert response_sync.status_code == 200
+
+    async_data = response_async.json()
+    sync_data = response_sync.json()
+
+    # async path → graphiti_status="queued" (fire-and-forget)
+    assert async_data["extracted_count"] == 1
+    assert async_data["errors"][0]["graphiti_status"] == "queued"
+
+    # sync path → graphiti_status="failed" (memory_service unavailable)
+    assert sync_data["extracted_count"] == 1
+    assert sync_data["errors"][0]["graphiti_status"] == "failed"
+
+
+@pytest.mark.asyncio
 async def test_post_turn_extract_no_errors_returns_empty():
     """P0#4 边界 — 无错误对话, extracted_count=0 (AC #5)."""
     from app.main import app
