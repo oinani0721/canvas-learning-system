@@ -23,10 +23,28 @@ Tauri 2 + React + TypeScript + FastAPI + Neo4j + LanceDB 桌面学习应用。
 
 ## Graphiti 协议
 
-- **MCP**: `graphiti-canvas`（group_id: `canvas-dev`）
+- **MCP**: `graphiti-canvas`（group_id 命名规约见下方 §Story 2.5.Y）
 - **搜索**: 每轮 `search_memory_facts(exclude_invalidated: true)`。需要精确结果时用 `center_node_uuid`
 - **记录**: 决策记 `[Decision]`，审查记 `[Code-Review]`，不确定→记录
 - **搜索模式**: 默认 `rrf`。审计用 `mmr`(去重)。精确查询用 `cross_encoder`
+
+### Graphiti group_id 命名规约（Story 2.5.Y D16 锁定 2026-05-05）
+
+**新格式（所有新写入必须用此）**:
+- `vault:<vault_id>` — 单 vault（`vault:cs_61b` / `vault:数学`）
+- `vault:<vault_id>:<subject_id>` — vault 内学科二级（`vault:cs_61b:algorithms`）
+- `vault:<vault_id>:<canvas_name>` — vault 内 canvas 二级（`vault:cs_61b:admissibility`）
+
+**构造**: 调 `backend/app/core/subject_config.py::build_vault_group_id(vault_id, subject_id, canvas_path)`
+
+**Cypher 查询防御**: 必须用 `backend/app/utils/cypher_helpers.py::cypher_with_group_filter()`（防忘传 group_id 跨 vault 泄漏）
+
+**已弃用格式**（仅 read-only 兼容历史数据，新写入禁用）:
+- `cs188`（config.py 默认，Story 2.5.Y AC #3 改为 deprecated fallback + warning）
+- `canvas-dev`（旧 CLAUDE.md 全局默认，已替换）
+- `cs_61b:main`（Story 1.9 推断格式，仅历史数据保留）
+
+**迁移**: 旧 group_id 数据由 `backend/scripts/migrate_group_ids.py` 迁移到新格式（Task 6 dry-run 测试就绪）
 
 ## MCP 工具
 

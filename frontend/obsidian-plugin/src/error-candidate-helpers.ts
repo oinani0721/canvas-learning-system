@@ -24,6 +24,8 @@ export interface AcceptCandidatePayload {
   candidate_id: string;
   node_id: string;
   session_id: string;
+  vault_id?: string;  // Story 2.5.Y AC #1 — multi-vault 隔离
+  subject_id?: string;
   user_edits?: {
     description?: string;
     pedagogy_type?: string;
@@ -35,12 +37,16 @@ export interface AcceptCandidatePayload {
 export interface DismissCandidatePayload {
   candidate_id: string;
   node_id: string;
+  vault_id?: string;  // Story 2.5.Y
+  subject_id?: string;
 }
 
 export interface DisputeCandidatePayload {
   candidate_id: string;
   node_id: string;
   dispute_reason: string;
+  vault_id?: string;  // Story 2.5.Y
+  subject_id?: string;
 }
 
 /**
@@ -89,6 +95,8 @@ export function buildAcceptPayload(
   nodeId: string,
   options: {
     sessionId?: string;
+    vaultId?: string;  // Story 2.5.Y
+    subjectId?: string;
     userEdits?: AcceptCandidatePayload["user_edits"];
     fireAndForgetGraphiti?: boolean;
   } = {},
@@ -98,6 +106,12 @@ export function buildAcceptPayload(
     node_id: nodeId,
     session_id: options.sessionId ?? "",
   };
+  if (options.vaultId) {
+    payload.vault_id = options.vaultId;
+  }
+  if (options.subjectId) {
+    payload.subject_id = options.subjectId;
+  }
   if (options.userEdits) {
     payload.user_edits = options.userEdits;
   }
@@ -110,23 +124,54 @@ export function buildAcceptPayload(
 export function buildDismissPayload(
   candidateId: string,
   nodeId: string,
+  options: { vaultId?: string; subjectId?: string } = {},
 ): DismissCandidatePayload {
-  return {
+  const payload: DismissCandidatePayload = {
     candidate_id: candidateId,
     node_id: nodeId,
   };
+  if (options.vaultId) payload.vault_id = options.vaultId;
+  if (options.subjectId) payload.subject_id = options.subjectId;
+  return payload;
 }
 
 export function buildDisputePayload(
   candidateId: string,
   nodeId: string,
   disputeReason: string,
+  options: { vaultId?: string; subjectId?: string } = {},
 ): DisputeCandidatePayload {
-  return {
+  const payload: DisputeCandidatePayload = {
     candidate_id: candidateId,
     node_id: nodeId,
     dispute_reason: disputeReason,
   };
+  if (options.vaultId) payload.vault_id = options.vaultId;
+  if (options.subjectId) payload.subject_id = options.subjectId;
+  return payload;
+}
+
+/**
+ * Story 2.5.Y Task 9 — 从 Obsidian app 推断 vault_id.
+ *
+ * 优先级:
+ * 1. settings.vaultId (用户在 Settings 显式配置)
+ * 2. app.vault.getName() (Obsidian vault 名)
+ * 3. fallback "default"
+ *
+ * vault_id 用作 Graphiti namespace, 不应包含 sensitive info.
+ */
+export function inferVaultId(
+  vaultName: string | undefined,
+  configuredVaultId?: string,
+): string {
+  if (configuredVaultId && configuredVaultId.trim()) {
+    return configuredVaultId.trim();
+  }
+  if (vaultName && vaultName.trim()) {
+    return vaultName.trim();
+  }
+  return "default";
 }
 
 /**

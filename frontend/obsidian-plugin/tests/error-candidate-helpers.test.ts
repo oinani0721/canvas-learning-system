@@ -13,6 +13,7 @@ import {
   type ErrorCandidate,
   filterPendingCandidates,
   formatCandidateLabel,
+  inferVaultId,
   validateDisputeReason,
 } from "../src/error-candidate-helpers";
 
@@ -179,5 +180,74 @@ describe("validateDisputeReason", () => {
     const r = validateDisputeReason("   \n\t  ");
     assert.equal(r.valid, false);
     assert.ok(r.error?.includes("空白"));
+  });
+});
+
+// Story 2.5.Y Task 9 — vault_id 注入
+describe("inferVaultId", () => {
+  test("uses configuredVaultId when provided", () => {
+    assert.equal(inferVaultId("OtherName", "cs_61b"), "cs_61b");
+  });
+
+  test("falls back to vault name when no config", () => {
+    assert.equal(inferVaultId("canvas-vault", undefined), "canvas-vault");
+  });
+
+  test("falls back to 'default' when both missing", () => {
+    assert.equal(inferVaultId(undefined, undefined), "default");
+    assert.equal(inferVaultId("", ""), "default");
+  });
+
+  test("trims whitespace", () => {
+    assert.equal(inferVaultId(undefined, "  cs_61b  "), "cs_61b");
+    assert.equal(inferVaultId("  canvas-vault  ", undefined), "canvas-vault");
+  });
+});
+
+describe("buildAcceptPayload with vault_id (Story 2.5.Y)", () => {
+  test("includes vault_id when provided", () => {
+    const p = buildAcceptPayload("cand-1", "节点/x.md", {
+      vaultId: "cs_61b",
+    });
+    assert.equal(p.vault_id, "cs_61b");
+  });
+
+  test("omits vault_id when not provided", () => {
+    const p = buildAcceptPayload("cand-1", "节点/x.md");
+    assert.equal(p.vault_id, undefined);
+  });
+
+  test("includes subject_id when provided", () => {
+    const p = buildAcceptPayload("cand-1", "节点/x.md", {
+      vaultId: "cs_61b",
+      subjectId: "algorithms",
+    });
+    assert.equal(p.vault_id, "cs_61b");
+    assert.equal(p.subject_id, "algorithms");
+  });
+});
+
+describe("buildDismissPayload with vault_id (Story 2.5.Y)", () => {
+  test("includes vault_id", () => {
+    const p = buildDismissPayload("cand-1", "节点/x.md", { vaultId: "cs_61b" });
+    assert.equal(p.vault_id, "cs_61b");
+  });
+
+  test("omits when not provided", () => {
+    const p = buildDismissPayload("cand-1", "节点/x.md");
+    assert.equal(p.vault_id, undefined);
+  });
+});
+
+describe("buildDisputePayload with vault_id (Story 2.5.Y)", () => {
+  test("includes vault_id with reason", () => {
+    const p = buildDisputePayload(
+      "cand-1",
+      "节点/x.md",
+      "我没误解",
+      { vaultId: "cs_61b" },
+    );
+    assert.equal(p.vault_id, "cs_61b");
+    assert.equal(p.dispute_reason, "我没误解");
   });
 });

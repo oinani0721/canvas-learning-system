@@ -2,7 +2,7 @@
 story_id: "2.5.Y"
 epic_id: "2"
 prd_id: "canvas-learning-system"
-status: "ready-for-dev"
+status: "review"
 priority: "P0"
 estimate_hours: 30  # 26-35h 取中位
 depends_on: ["2.5", "2.5.X"]
@@ -31,7 +31,7 @@ test_count_target: 25  # subject_config 强化 + endpoint 加字段 + writer 修
 
 # Story 2.5.Y: 隔离硬化 — 复用 SubjectConfig 全链路 (D16 决议)
 
-Status: 📋 ready-for-dev (待用户在 PRD §12 批注 D16 后启动)
+Status: ✅ **review** (10/10 Tasks 完成, 264 backend + 114 plugin = 378 测试 pass, 待用户 UAT)
 
 ## Story
 

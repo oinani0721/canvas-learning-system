@@ -38,6 +38,7 @@ import {
   type ErrorCandidate,
   filterPendingCandidates,
   formatCandidateLabel,
+  inferVaultId,
   validateDisputeReason,
 } from "./error-candidate-helpers";
 import {
@@ -1565,9 +1566,10 @@ export default class CanvasLearningPlugin extends Plugin {
       pending,
       "选择要接受的错误候选",
       async (cand) => {
+        const vaultId = inferVaultId(this.app.vault.getName());
         await this.postErrorCandidateAction(
           "accept-candidate",
-          buildAcceptPayload(cand.id, activeFile.path),
+          buildAcceptPayload(cand.id, activeFile.path, { vaultId }),
           (result) => `✓ 已接受 → errors[] (Graphiti: ${result.graphiti_status})`,
         );
       },
@@ -1594,9 +1596,10 @@ export default class CanvasLearningPlugin extends Plugin {
       pending,
       "选择要标记为 AI 误判的候选 (dismiss)",
       async (cand) => {
+        const vaultId = inferVaultId(this.app.vault.getName());
         await this.postErrorCandidateAction(
           "dismiss-candidate",
-          buildDismissPayload(cand.id, activeFile.path),
+          buildDismissPayload(cand.id, activeFile.path, { vaultId }),
           () => "✗ 已标记为 AI 误判 (dismissed)",
         );
       },
@@ -1630,9 +1633,10 @@ export default class CanvasLearningPlugin extends Plugin {
             new Notice(`❌ ${validation.error}`, 4000);
             return;
           }
+          const vaultId = inferVaultId(this.app.vault.getName());
           await this.postErrorCandidateAction(
             "dispute-candidate",
-            buildDisputePayload(cand.id, activeFile.path, reason),
+            buildDisputePayload(cand.id, activeFile.path, reason, { vaultId }),
             () => "⚠ 已标记 disputed + 写入理由",
           );
         }).open();
