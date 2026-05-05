@@ -18,6 +18,7 @@ from app.api.v1.endpoints.agents import agents_router
 from app.api.v1.endpoints.archive import archive_router  # Story 3.8
 from app.api.v1.endpoints.canvas import canvas_router
 from app.api.v1.endpoints.chat import chat_router  # Story 2.1
+from app.api.v1.endpoints.errors import errors_router  # Story 2.5.X
 from app.api.v1.endpoints.config import config_router
 from app.api.v1.endpoints.context import context_router  # Story 3.4
 from app.api.v1.endpoints.edges import edges_router  # Story 4.1-4.4
@@ -387,6 +388,20 @@ router.include_router(
     prefix="/chat",
     tags=["Chat"],
     responses={400: {"description": "Invalid request"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Errors Candidate Management Routes (Story 2.5.X — D15 用户主权 C+)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    errors_router,
+    prefix="/errors",
+    tags=["Errors"],
+    responses={
+        404: {"description": "Candidate or node not found"},
+        422: {"description": "Illegal status transition or invalid edits"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
