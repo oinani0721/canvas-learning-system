@@ -32,6 +32,15 @@ import {
   resolveUniqueNodeName,
 } from "./node-derivation";
 import {
+  buildAcceptPayload,
+  buildDismissPayload,
+  buildDisputePayload,
+  type ErrorCandidate,
+  filterPendingCandidates,
+  formatCandidateLabel,
+  validateDisputeReason,
+} from "./error-candidate-helpers";
+import {
   type BacklinkSummary,
   buildSeedActivityLine,
   buildSeedConceptsLine,
@@ -58,13 +67,50 @@ import {
 } from "./node-chat-context";
 
 const DEFAULT_BACKEND_URL = "http://localhost:8001";
+const DEFAULT_NODE_PATH_PREFIXES = ["节点/"];
+
+/**
+ * Story 2.1 Phase 1 P1.6 — 默认快捷键表（路径 D：成熟方案）。
+ *
+ * 设计原则（3 agent deep explore 后定）：
+ * - 用 Mod+Shift+<字母> 体系（Obsidian + Excalidraw + QuickAdd 等惯例）
+ * - 避开 Obsidian 内置（Mod+S/P/O/F/N 等）+ 常用第三方插件占用
+ * - 用户自定义优先：Obsidian 内核保证 hotkeys.json 的 customKeys 覆盖默认值
+ * - migration 安全：用户已绑过的命令重 install plugin 不会被覆盖
+ *
+ * Story 决策来源：
+ * - Mod+Shift+A → annotate-callout（Story 1.16 决定）
+ * - Mod+Shift+D → ai-linked-doc（Story 1.17 决定）
+ * - Mod+Shift+E → chat-with-context（Story 2.1 用户决定）
+ * - Mod+Shift+C → open-node-chat（Story 3.1 spec 提及）
+ * - 其他按命令首字母联想分配
+ */
+type HotkeyDef = { modifiers: ("Mod" | "Shift" | "Alt" | "Ctrl")[]; key: string };
+const DEFAULT_HOTKEYS: Record<string, HotkeyDef[]> = {
+  "canvas:chat-with-context": [{ modifiers: ["Mod", "Shift"], key: "E" }],
+  "canvas:open-node-chat": [{ modifiers: ["Mod", "Shift"], key: "C" }],
+  "canvas:ai-linked-doc": [{ modifiers: ["Mod", "Shift"], key: "D" }],
+  "canvas:annotate-callout": [{ modifiers: ["Mod", "Shift"], key: "A" }],
+  "canvas:configure-whiteboard": [{ modifiers: ["Mod", "Shift"], key: "W" }],
+  "canvas:append-note-to-board": [{ modifiers: ["Mod", "Shift"], key: "B" }],
+  "canvas:open-dashboard": [{ modifiers: ["Mod", "Shift"], key: "H" }],
+  "canvas:open-review-queue": [{ modifiers: ["Mod", "Shift"], key: "R" }],
+  "canvas:start-dialog": [{ modifiers: ["Mod", "Shift"], key: "L" }],
+  "canvas:start-examination-confirm": [{ modifiers: ["Mod", "Shift"], key: "X" }],
+  "canvas:extract-concept": [{ modifiers: ["Mod", "Alt"], key: "C" }],
+  "canvas:quiz-from-callout": [{ modifiers: ["Mod", "Alt"], key: "Q" }],
+  // start-examination（直调无 confirm）刻意不绑：与 -confirm 重复触发风险，由用户主动选 confirm 版
+};
 
 interface CanvasPluginSettings {
   backendUrl: string;
+  /** Story 2.1 P1.6 — 节点池前缀（默认 ["节点/"]）。可在 data.json 配置多前缀（如英文 vault 用 ["Nodes/"]）。 */
+  nodePathPrefixes: string[];
 }
 
 const DEFAULT_SETTINGS: CanvasPluginSettings = {
   backendUrl: DEFAULT_BACKEND_URL,
+  nodePathPrefixes: [...DEFAULT_NODE_PATH_PREFIXES],
 };
 
 /**
@@ -123,7 +169,7 @@ export default class CanvasLearningPlugin extends Plugin {
       return cached.value as any;
     }
     const allFiles = this.app.vault.getMarkdownFiles().filter((f) =>
-      f.path.startsWith("节点/"),
+      isNodePath(f.path, this.settings.nodePathPrefixes),
     );
     const matched: Array<{ path: string; name: string; mastery: number }> = [];
     for (const f of allFiles) {
@@ -185,101 +231,128 @@ export default class CanvasLearningPlugin extends Plugin {
   }
 
   /**
-   * Story 1.4 AC #1: Register 6 commands in Obsidian's command palette.
-   * All commands default to unbound — user binds in Settings > Hotkeys.
+   * Story 1.4 + Story 2.1 Phase 1 P1.6（路径 D 成熟方案）：
+   * 注册 13 个命令，每个命令注入 DEFAULT_HOTKEYS 默认快捷键。
+   *
+   * Obsidian 内核行为：
+   * - hotkeys.json 的 customKeys 覆盖 default（用户自绑优先）
+   * - default 对没绑过的命令开箱即用
+   * - migration 安全（用户已绑过的不会被覆盖）
    */
   private registerCanvasCommands() {
-    this.addCommand({
-      id: "canvas:start-dialog",
-      name: "启动学习对话",
-      callback: () => this.callBackend("/api/v1/agents/dialog", "启动学习对话"),
-    });
-
-    this.addCommand({
-      id: "canvas:start-examination",
-      name: "启动考察（直调，无 confirm）",
-      callback: () => this.handleStartExaminationDirect(),
-    });
-
-    this.addCommand({
-      id: "canvas:extract-concept",
-      name: "提取概念",
-      callback: () => {
-        const editor = this.app.workspace.activeEditor?.editor;
-        const selected = editor?.getSelection();
-        if (!selected) {
-          new Notice("请先选中文本再提取概念");
-          return;
-        }
-        this.callBackend("/api/v1/wikilink/build", "提取概念", { text: selected });
+    const cmds: Array<{
+      id: string;
+      name: string;
+      callback: () => unknown | Promise<unknown>;
+    }> = [
+      {
+        id: "canvas:start-dialog",
+        name: "启动学习对话",
+        callback: () => this.callBackend("/api/v1/agents/dialog", "启动学习对话"),
       },
-    });
+      {
+        id: "canvas:start-examination",
+        name: "启动考察（直调，无 confirm）",
+        callback: () => this.handleStartExaminationDirect(),
+      },
+      {
+        id: "canvas:extract-concept",
+        name: "提取概念",
+        callback: () => {
+          const editor = this.app.workspace.activeEditor?.editor;
+          const selected = editor?.getSelection();
+          if (!selected) {
+            new Notice("请先选中文本再提取概念");
+            return;
+          }
+          this.callBackend("/api/v1/wikilink/build", "提取概念", {
+            text: selected,
+          });
+        },
+      },
+      {
+        id: "canvas:quiz-from-callout",
+        name: "批注考察",
+        callback: () => this.handleStartExaminationDirect(),
+      },
+      {
+        id: "canvas:open-dashboard",
+        name: "打开 Dashboard.md",
+        callback: () => this.handleOpenDashboard(),
+      },
+      {
+        id: "canvas:open-review-queue",
+        name: "打开复习队列（GET /review/schedule）",
+        callback: () =>
+          this.callBackend(
+            "/api/v1/review/schedule?days=7",
+            "打开复习队列",
+            undefined,
+            "GET",
+          ),
+      },
+      {
+        id: "canvas:annotate-callout",
+        name: "批注为标注",
+        callback: () => this.handleAnnotateCallout(),
+      },
+      {
+        id: "canvas:ai-linked-doc",
+        name: "AI 创建双链文档",
+        callback: () => this.handleAILinkedDoc(),
+      },
+      {
+        id: "canvas:configure-whiteboard",
+        name: "建/配置原白板（v4 全 plugin 脚本）",
+        callback: () => this.handleConfigureWhiteboard(),
+      },
+      {
+        id: "canvas:append-note-to-board",
+        name: "把当前笔记追加到已有原白板",
+        callback: () => this.handleAppendNoteToBoard(),
+      },
+      {
+        id: "canvas:start-examination-confirm",
+        name: "启动考察（带 confirm 弹窗）",
+        callback: () => this.handleStartExaminationConfirm(),
+      },
+      {
+        id: "canvas:open-node-chat",
+        name: "节点对话（注入上下文 + 切 Claudian）",
+        callback: () => this.handleOpenNodeChat(),
+      },
+      {
+        id: "canvas:chat-with-context",
+        name: "AI 对话 v2（backend RAG 上下文增强 + 切 Claudian）",
+        callback: () => this.handleChatWithContext(),
+      },
+      // Story 2.5.X (D15 用户主权 C+) — 错误候选 3 命令
+      {
+        id: "canvas:accept-error-candidate",
+        name: "接受错误候选（移入正式 errors[] + Graphiti）",
+        callback: () => this.handleAcceptErrorCandidate(),
+      },
+      {
+        id: "canvas:dismiss-error-candidate",
+        name: "标记错误候选为 AI 误判（dismiss）",
+        callback: () => this.handleDismissErrorCandidate(),
+      },
+      {
+        id: "canvas:dispute-error-candidate",
+        name: "异议错误候选（写理由）",
+        callback: () => this.handleDisputeErrorCandidate(),
+      },
+    ];
 
-    this.addCommand({
-      id: "canvas:quiz-from-callout",
-      name: "批注考察",
-      callback: () => this.handleStartExaminationDirect(),
-    });
-
-    this.addCommand({
-      id: "canvas:open-dashboard",
-      name: "打开 Dashboard.md",
-      callback: () => this.handleOpenDashboard(),
-    });
-
-    this.addCommand({
-      id: "canvas:open-review-queue",
-      name: "打开复习队列（GET /review/schedule）",
-      callback: () =>
-        this.callBackend(
-          "/api/v1/review/schedule?days=7",
-          "打开复习队列",
-          undefined,
-          "GET",
-        ),
-    });
-
-    this.addCommand({
-      id: "canvas:annotate-callout",
-      name: "批注为标注",
-      callback: () => this.handleAnnotateCallout(),
-    });
-
-    this.addCommand({
-      id: "canvas:ai-linked-doc",
-      name: "AI 创建双链文档",
-      callback: () => this.handleAILinkedDoc(),
-    });
-
-    this.addCommand({
-      id: "canvas:configure-whiteboard",
-      name: "建/配置原白板（v4 全 plugin 脚本）",
-      callback: () => this.handleConfigureWhiteboard(),
-    });
-
-    this.addCommand({
-      id: "canvas:append-note-to-board",
-      name: "把当前笔记追加到已有原白板",
-      callback: () => this.handleAppendNoteToBoard(),
-    });
-
-    this.addCommand({
-      id: "canvas:start-examination-confirm",
-      name: "启动考察（带 confirm 弹窗）",
-      callback: () => this.handleStartExaminationConfirm(),
-    });
-
-    this.addCommand({
-      id: "canvas:open-node-chat",
-      name: "节点对话（注入上下文 + 切 Claudian）",
-      callback: () => this.handleOpenNodeChat(),
-    });
-
-    this.addCommand({
-      id: "canvas:chat-with-context",
-      name: "AI 对话 v2（backend RAG 上下文增强 + 切 Claudian）",
-      callback: () => this.handleChatWithContext(),
-    });
+    for (const cmd of cmds) {
+      const hotkeys = DEFAULT_HOTKEYS[cmd.id];
+      this.addCommand({
+        id: cmd.id,
+        name: cmd.name,
+        callback: cmd.callback,
+        ...(hotkeys ? { hotkeys } : {}),
+      });
+    }
   }
 
   /**
@@ -305,7 +378,7 @@ export default class CanvasLearningPlugin extends Plugin {
       new Notice("请先打开 节点/<concept>.md 节点页", 3000);
       return;
     }
-    if (!isNodePath(activeFile.path)) {
+    if (!isNodePath(activeFile.path, this.settings.nodePathPrefixes)) {
       new Notice(
         `对话仅在 节点/ 下的概念页可用（当前 path: ${activeFile.path}）`,
         5000,
@@ -426,7 +499,7 @@ export default class CanvasLearningPlugin extends Plugin {
       new Notice("请先打开 节点/<concept>.md 节点页", 3000);
       return;
     }
-    if (!isNodePath(activeFile.path)) {
+    if (!isNodePath(activeFile.path, this.settings.nodePathPrefixes)) {
       new Notice(
         `对话仅在 节点/ 下的概念页可用（当前 path: ${activeFile.path}）`,
         5000,
@@ -632,7 +705,10 @@ export default class CanvasLearningPlugin extends Plugin {
   ) {
     const t0 = Date.now();
     const boardName = boardFile.basename;
-    const sourceInNodesPool = sourceFile.path.startsWith("节点/");
+    const sourceInNodesPool = isNodePath(
+      sourceFile.path,
+      this.settings.nodePathPrefixes,
+    );
 
     if (mode === "skip" && !sourceInNodesPool) {
       new Notice(
@@ -1001,7 +1077,10 @@ export default class CanvasLearningPlugin extends Plugin {
 
     const seedStem = seedFile.basename;
     const seedBasename = `${seedStem}.md`;
-    const inNodesPool = seedFile.path.startsWith("节点/");
+    const inNodesPool = isNodePath(
+      seedFile.path,
+      this.settings.nodePathPrefixes,
+    );
 
     if (!inNodesPool) {
       try {
@@ -1449,6 +1528,156 @@ export default class CanvasLearningPlugin extends Plugin {
     }
     await this.app.workspace.getLeaf(false).openFile(dashFile as TFile);
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Story 2.5.X (D15 用户主权 C+) — 错误候选 3 命令 handler
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Story 2.5.X Task 7 — 接受错误候选 (移入正式 errors[] + Graphiti).
+   *
+   * 流程:
+   * 1. 检查 active file 是节点
+   * 2. 读 frontmatter error_candidates[] 过滤 status=pending
+   * 3. CandidateSuggestModal 让用户选条
+   * 4. POST /api/v1/errors/accept-candidate
+   * 5. Notice 反馈结果
+   */
+  private async handleAcceptErrorCandidate() {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice("请先打开 节点/<concept>.md 节点页", 3000);
+      return;
+    }
+
+    const fm = (this.app.metadataCache.getFileCache(activeFile)?.frontmatter as
+      | Record<string, unknown>
+      | undefined) ?? {};
+    const pending = filterPendingCandidates(fm.error_candidates);
+
+    if (pending.length === 0) {
+      new Notice("当前节点无待复盘错误候选 (error_candidates[] 为空)", 4000);
+      return;
+    }
+
+    new CandidateSuggestModal(
+      this.app,
+      pending,
+      "选择要接受的错误候选",
+      async (cand) => {
+        await this.postErrorCandidateAction(
+          "accept-candidate",
+          buildAcceptPayload(cand.id, activeFile.path),
+          (result) => `✓ 已接受 → errors[] (Graphiti: ${result.graphiti_status})`,
+        );
+      },
+    ).open();
+  }
+
+  private async handleDismissErrorCandidate() {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice("请先打开 节点/<concept>.md 节点页", 3000);
+      return;
+    }
+    const fm = (this.app.metadataCache.getFileCache(activeFile)?.frontmatter as
+      | Record<string, unknown>
+      | undefined) ?? {};
+    const pending = filterPendingCandidates(fm.error_candidates);
+    if (pending.length === 0) {
+      new Notice("当前节点无待复盘错误候选", 4000);
+      return;
+    }
+
+    new CandidateSuggestModal(
+      this.app,
+      pending,
+      "选择要标记为 AI 误判的候选 (dismiss)",
+      async (cand) => {
+        await this.postErrorCandidateAction(
+          "dismiss-candidate",
+          buildDismissPayload(cand.id, activeFile.path),
+          () => "✗ 已标记为 AI 误判 (dismissed)",
+        );
+      },
+    ).open();
+  }
+
+  private async handleDisputeErrorCandidate() {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice("请先打开 节点/<concept>.md 节点页", 3000);
+      return;
+    }
+    const fm = (this.app.metadataCache.getFileCache(activeFile)?.frontmatter as
+      | Record<string, unknown>
+      | undefined) ?? {};
+    const pending = filterPendingCandidates(fm.error_candidates);
+    if (pending.length === 0) {
+      new Notice("当前节点无待复盘错误候选", 4000);
+      return;
+    }
+
+    new CandidateSuggestModal(
+      this.app,
+      pending,
+      "选择要异议的候选",
+      (cand) => {
+        // 第 2 步: 弹 DisputeReasonModal 收集理由
+        new DisputeReasonModal(this.app, async (reason) => {
+          const validation = validateDisputeReason(reason);
+          if (!validation.valid) {
+            new Notice(`❌ ${validation.error}`, 4000);
+            return;
+          }
+          await this.postErrorCandidateAction(
+            "dispute-candidate",
+            buildDisputePayload(cand.id, activeFile.path, reason),
+            () => "⚠ 已标记 disputed + 写入理由",
+          );
+        }).open();
+      },
+    ).open();
+  }
+
+  /**
+   * 共享 POST 路径 (3 命令复用) — fetch + Notice 反馈.
+   */
+  private async postErrorCandidateAction(
+    endpoint: "accept-candidate" | "dismiss-candidate" | "dispute-candidate",
+    payload: unknown,
+    successMsg: (result: any) => string,
+  ): Promise<void> {
+    const url = `${this.settings.backendUrl}/api/v1/errors/${endpoint}`;
+    let resp: Response;
+    try {
+      resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      new Notice(`❌ 后端未连接 (${msg})`, 6000);
+      return;
+    }
+
+    let parsed: any;
+    try {
+      parsed = await resp.json();
+    } catch {
+      new Notice(`❌ 后端返回非 JSON (HTTP ${resp.status})`, 6000);
+      return;
+    }
+
+    if (!resp.ok) {
+      const detail = parsed?.detail || `HTTP ${resp.status}`;
+      new Notice(`❌ 失败: ${detail}`, 6000);
+      return;
+    }
+
+    new Notice(successMsg(parsed), 5000);
+  }
 }
 
 /**
@@ -1467,6 +1696,10 @@ class CanvasSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h2", { text: "Canvas Learning System · 设置" });
 
+    // ─── 快捷键状态 + 导航（Story 2.1 Phase 1 P1.6 — UX 改进） ──────
+    this.renderHotkeyStatus(containerEl);
+
+    // ─── Backend URL ──────────────────────────────────────────────
     new Setting(containerEl)
       .setName("Backend URL")
       .setDesc(
@@ -1481,11 +1714,141 @@ class CanvasSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
-
     containerEl.createEl("p", {
       text: "注意：本地开发用 http://localhost:8001。如部署到远端（含 IP / 域名），用对应 URL。",
       cls: "setting-item-description",
     });
+
+    // ─── 节点路径前缀（Phase 1 P1.6 暴露） ─────────────────────────
+    new Setting(containerEl)
+      .setName("节点路径前缀")
+      .setDesc(
+        "识别「节点池」的目录前缀（JSON 数组）。默认 [\"节点/\"]。"
+        + "英文 vault 可改为 [\"Nodes/\"]，多前缀同时生效如 [\"节点/\", \"Nodes/\"]。",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder('["节点/"]')
+          .setValue(JSON.stringify(this.plugin.settings.nodePathPrefixes))
+          .onChange(async (value) => {
+            try {
+              const parsed = JSON.parse(value);
+              if (
+                Array.isArray(parsed)
+                && parsed.every((p) => typeof p === "string" && p.length > 0)
+              ) {
+                this.plugin.settings.nodePathPrefixes = parsed;
+                await this.plugin.saveSettings();
+              } else {
+                new Notice("❌ 需要非空字符串数组（如 [\"节点/\"]）", 4000);
+              }
+            } catch {
+              new Notice("❌ JSON 格式错误", 4000);
+            }
+          }),
+      );
+  }
+
+  /**
+   * Story 2.1 Phase 1 P1.6 — 快捷键状态导航段
+   *
+   * 不在 plugin SettingTab 内造 hotkey UI（违 Obsidian 社区惯例）。
+   * 仅显示当前绑定状态 + 一键跳转到全局 Hotkeys 设置页。
+   */
+  private renderHotkeyStatus(container: HTMLElement): void {
+    const section = container.createDiv({ cls: "canvas-hotkey-status" });
+    section.createEl("h3", { text: "⌨️ 快捷键绑定" });
+    section.createEl("p", {
+      text: "Obsidian 设计：所有命令的快捷键统一在「Settings → 快捷键」全局管理。本插件命令默认未绑定，请按需自定义。",
+      cls: "setting-item-description",
+    });
+
+    // 收集本插件命令 + 当前绑定状态
+    const PLUGIN_PREFIX = "canvas-learning-system:";
+    const allCommands = (this.app as any).commands?.commands ?? {};
+    const hotkeyMgr = (this.app as any).hotkeyManager;
+    const customKeys = hotkeyMgr?.customKeys ?? {};
+    const defaultKeys = hotkeyMgr?.defaultKeys ?? {};
+
+    const pluginCmds = Object.keys(allCommands)
+      .filter((id) => id.startsWith(PLUGIN_PREFIX))
+      .sort();
+
+    let boundCount = 0;
+    const formatHotkey = (h: any): string => {
+      if (!h) return "";
+      const mods = (h.modifiers ?? []).join("+");
+      return mods ? `${mods}+${h.key}` : h.key;
+    };
+
+    const list = section.createEl("ul", { cls: "canvas-hotkey-list" });
+    for (const cmdId of pluginCmds) {
+      const name = allCommands[cmdId]?.name ?? cmdId;
+      const keys = customKeys[cmdId] ?? defaultKeys[cmdId] ?? [];
+      const bound = Array.isArray(keys) && keys.length > 0;
+      if (bound) boundCount++;
+      const li = list.createEl("li");
+      li.createEl("span", {
+        text: bound ? "✅ " : "⚠️ ",
+      });
+      li.createEl("strong", { text: name });
+      li.createEl("span", {
+        text: bound
+          ? `  [${keys.map(formatHotkey).join(", ")}]`
+          : "  （未绑定）",
+        cls: bound ? "" : "mod-warning",
+      });
+    }
+
+    const summary = section.createEl("p", {
+      cls: "setting-item-description",
+    });
+    summary.createEl("strong", {
+      text: boundCount === pluginCmds.length
+        ? `✅ 已绑定 ${boundCount}/${pluginCmds.length} 个命令`
+        : `⚠️ ${pluginCmds.length - boundCount} 个命令未绑定快捷键`,
+    });
+
+    new Setting(section)
+      .setName("配置快捷键")
+      .setDesc("跳转到 Obsidian「Settings → 快捷键」并自动搜索 canvas-learning-system 命令。")
+      .addButton((btn) =>
+        btn
+          .setButtonText("打开快捷键设置")
+          .setCta()
+          .onClick(() => {
+            const setting = (this.app as any).setting;
+            if (!setting) {
+              new Notice("无法打开设置页", 3000);
+              return;
+            }
+            setting.open();
+            setting.openTabById("hotkeys");
+            // 多候选 selector + 重试，应对不同 Obsidian 版本的 DOM 结构
+            const trySetSearch = (attempts = 0): void => {
+              const candidates = [
+                ".hotkey-list-search-container input",
+                "input.hotkey-list-search-input",
+                ".search-input-container input[type=\"search\"]",
+                ".vertical-tab-content-container input[type=\"text\"]",
+                ".vertical-tab-content-container input[type=\"search\"]",
+              ];
+              for (const sel of candidates) {
+                const el = document.querySelector(sel) as HTMLInputElement | null;
+                if (el && el.offsetParent !== null) {
+                  el.focus();
+                  el.value = "canvas-learning-system";
+                  el.dispatchEvent(new Event("input", { bubbles: true }));
+                  return;
+                }
+              }
+              if (attempts < 10) {
+                setTimeout(() => trySetSearch(attempts + 1), 100);
+              }
+            };
+            trySetSearch();
+          }),
+      );
   }
 }
 
@@ -2003,5 +2366,89 @@ class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> {
     this.editor.replaceSelection(
       wrapSelection(this.selected, this.tag, und.value),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Story 2.5.X (D15 用户主权 C+) — Candidate selection + Dispute reason Modals
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Story 2.5.X Task 7 — FuzzySuggestModal 显示 pending candidates 让用户选条.
+ *
+ * 显示格式: "🟢 描述 (pedagogy_type, conf=0.85, seen=2)"
+ */
+class CandidateSuggestModal extends FuzzySuggestModal<ErrorCandidate> {
+  constructor(
+    app: App,
+    private candidates: ErrorCandidate[],
+    placeholder: string,
+    private onPicked: (cand: ErrorCandidate) => void | Promise<void>,
+  ) {
+    super(app);
+    this.setPlaceholder(placeholder);
+  }
+
+  getItems(): ErrorCandidate[] {
+    return this.candidates;
+  }
+
+  getItemText(item: ErrorCandidate): string {
+    return formatCandidateLabel(item);
+  }
+
+  onChooseItem(item: ErrorCandidate) {
+    void this.onPicked(item);
+  }
+}
+
+/**
+ * Story 2.5.X Task 7 — Modal 让用户输入 dispute_reason (必填).
+ */
+class DisputeReasonModal extends Modal {
+  private reason = "";
+
+  constructor(
+    app: App,
+    private onConfirm: (reason: string) => void | Promise<void>,
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: "异议错误候选 — 写下你的理由" });
+    contentEl.createEl("p", {
+      text: "请说明为何认为 AI 误判。这条理由会写入 candidate.dispute_reason 字段，未来用于训练 prompt。",
+    });
+
+    const textarea = contentEl.createEl("textarea", {
+      attr: {
+        placeholder: "例如: 我没把 X 当成 Y, 我只是问它们的关系",
+        rows: 4,
+      },
+    });
+    textarea.style.width = "100%";
+    textarea.addEventListener("input", () => {
+      this.reason = textarea.value;
+    });
+
+    const btnRow = contentEl.createEl("div", {
+      attr: { style: "margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end;" },
+    });
+    const cancelBtn = btnRow.createEl("button", { text: "❌ 取消 (Esc)" });
+    cancelBtn.addEventListener("click", () => this.close());
+
+    const confirmBtn = btnRow.createEl("button", { text: "✅ 提交异议", cls: "mod-cta" });
+    confirmBtn.addEventListener("click", async () => {
+      this.close();
+      await this.onConfirm(this.reason);
+    });
+
+    setTimeout(() => textarea.focus(), 50);
+  }
+
+  onClose() {
+    this.contentEl.empty();
   }
 }
