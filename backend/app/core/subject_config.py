@@ -191,19 +191,81 @@ def extract_canvas_name(canvas_path: str) -> str:
 
 def build_group_id(subject: str, canvas_name: Optional[str] = None) -> str:
     """
-    Build a group_id for Neo4j/Graphiti memory isolation.
+    Build a group_id for Neo4j/Graphiti memory isolation (Story 1.9 legacy).
+
+    ⚠️ Story 2.5.Y 推荐使用 build_vault_group_id() 实现统一 vault: 前缀命名.
+    本函数保留是为 Story 1.9 backward compatibility (production data 已用此格式).
 
     Args:
         subject: Subject name (e.g., "math", "physics")
         canvas_name: Optional canvas name for further isolation
 
     Returns:
-        Group ID string for memory isolation
+        Group ID string for memory isolation (e.g., "math" / "math:calc")
     """
     sanitized = sanitize_subject_name(subject)
     if canvas_name:
         return f"{sanitized}:{sanitize_subject_name(canvas_name)}"
     return sanitized
+
+
+def build_vault_group_id(
+    vault_id: str,
+    subject_id: Optional[str] = None,
+    canvas_path: Optional[str] = None,
+) -> str:
+    """Story 2.5.Y Task 1 + AC #2 — vault: 前缀命名统一 group_id 构造.
+
+    新统一格式: ``vault:<vault_id>[:<subject_or_canvas>]``
+
+    与旧 build_group_id 区别:
+    - 强制 ``vault:`` 前缀 (区分新旧数据 + Story 2.5.Y 迁移识别)
+    - vault_id 是必填主参数 (Story 1.9 的 subject 作为可选二级)
+    - subject_id 与 canvas_path 互斥 (优先 subject_id)
+
+    Args:
+        vault_id: Vault stable identifier (必填), 如 "cs_61b" / "数学"
+        subject_id: 可选学科二级隔离 (优先级 > canvas_path)
+        canvas_path: 可选 canvas/board 名 (subject_id 为空时使用)
+
+    Returns:
+        统一格式 group_id
+
+    Examples:
+        >>> build_vault_group_id("cs_61b")
+        'vault:cs_61b'
+        >>> build_vault_group_id("cs_61b", subject_id="algorithms")
+        'vault:cs_61b:algorithms'
+        >>> build_vault_group_id("cs_61b", canvas_path="admissibility")
+        'vault:cs_61b:admissibility'
+        >>> build_vault_group_id("数学")
+        'vault:数学'
+
+    Raises:
+        ValueError: vault_id 为空 (Story 2.5.Y AC #2 强制要求)
+    """
+    if not vault_id or not vault_id.strip():
+        raise ValueError(
+            "vault_id is required for Story 2.5.Y vault: prefix isolation"
+        )
+
+    sanitized_vault = sanitize_subject_name(vault_id)
+    base = f"vault:{sanitized_vault}"
+
+    # subject_id 优先于 canvas_path (互斥)
+    if subject_id:
+        return f"{base}:{sanitize_subject_name(subject_id)}"
+    if canvas_path:
+        # canvas_path 可能是完整路径, 提取 stem
+        canvas_name = extract_canvas_name(canvas_path)
+        if canvas_name and canvas_name != "untitled":
+            return f"{base}:{sanitize_subject_name(canvas_name)}"
+    return base
+
+
+def is_vault_group_id(group_id: str) -> bool:
+    """Story 2.5.Y Task 6 — 检测 group_id 是否已是 vault: 前缀格式 (用于迁移脚本)."""
+    return isinstance(group_id, str) and group_id.startswith("vault:")
 
 
 def sanitize_subject_name(name: str) -> str:

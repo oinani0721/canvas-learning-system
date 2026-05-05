@@ -110,7 +110,7 @@ development_status:
   2-4-callout-annotation-tips: ready-for-dev
   2-5-error-extraction-classification: review  # ✅ 2026-05-04 v1.0 ship commit 0d05ad8 — backend 服务 75 tests + ChatGPT 8/10；后端就绪但 plugin 未集成 hook（Phase A 半手动 UAT 已 ship）；待 2.5.X/Y 实施
   2-5-x-error-candidate-progressive-confirmation: review  # ✅ 2026-05-05 ship — D15 用户主权 C+ 方案 10/10 Tasks 完成 (Backend 167 + Plugin 104 = 271 测试 pass), 待用户 UAT
-  2-5-y-isolation-hardening-subject-config-reuse: ready-for-dev  # 待 2.5.X review 后启动 — D16 隔离硬化方案 (复用 SubjectConfig, 26-35h)
+  2-5-y-isolation-hardening-subject-config-reuse: in-progress  # 🚀 2026-05-05 用户要求并行启动 — D16 隔离硬化 (复用 SubjectConfig + LanceDB 修漏洞, 26-35h)
   2-6-dialog-archive-3tier: ready-for-dev
   2-7-concept-extraction-edge-inject: ready-for-dev
   2-8-image-recognition-dialog: ready-for-dev

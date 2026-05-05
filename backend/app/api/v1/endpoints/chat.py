@@ -257,6 +257,23 @@ class PostTurnExtractRequest(BaseModel):
         default=True,
         description="True → Graphiti 后台异步; False → 同步等待 Graphiti 结果.",
     )
+    # Story 2.5.Y AC #1 — vault_id 必填 (multi-vault 隔离强制)
+    vault_id: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Vault stable identifier (Story 2.5.Y multi-vault 隔离强制). "
+            "如 'cs_61b' / '数学'. 缺失 → 422."
+        ),
+    )
+    subject_id: Optional[str] = Field(
+        default=None,
+        description="Story 2.5.Y AC #1 — 可选 subject 二级隔离 (优先级 > canvas_path).",
+    )
+    canvas_path: Optional[str] = Field(
+        default=None,
+        description="Story 2.5.Y AC #1 — 可选 canvas/board 名 (subject_id 为空时使用).",
+    )
 
     @model_validator(mode="after")
     def _validate_total_dialog_chars(self):
@@ -313,8 +330,20 @@ class PostTurnExtractResponse(BaseModel):
 async def post_turn_extract(
     req: PostTurnExtractRequest,
 ) -> PostTurnExtractResponse:
-    """Story 2.5 — 真实对话生命周期 hook (ChatGPT 二轮审查 P0#4 fix)."""
+    """Story 2.5 — 真实对话生命周期 hook (ChatGPT 二轮审查 P0#4 fix).
+
+    Story 2.5.Y AC #2: 入口注入 group_id 到 ContextVar (复用 SubjectConfig).
+    所有下游 service 通过 get_current_subject_id() 获取当前请求的 group_id.
+    """
     import time
+
+    # Story 2.5.Y Task 2 — 注入 ContextVar (vault_id 是必填, Pydantic 已校验)
+    from app.core.subject_config import build_vault_group_id, set_current_subject_id
+
+    derived_group_id = build_vault_group_id(
+        req.vault_id, subject_id=req.subject_id, canvas_path=req.canvas_path
+    )
+    set_current_subject_id(derived_group_id)
 
     from app.mcp.tools.error_tools import _resolve_node_file_path
     from app.services.error_extractor import (

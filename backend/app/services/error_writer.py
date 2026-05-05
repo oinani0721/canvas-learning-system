@@ -488,8 +488,14 @@ async def write_error_to_graphiti(
     node_id: str,
     session_id: str = "",
     error_id: str | None = None,
+    *,
+    group_id: str | None = None,
 ) -> bool:
-    """Story 2.5 Task 4.2 — 通过 memory_service.record_knowledge_entity 写 Graphiti.
+    """Story 2.5 Task 4.2 + Story 2.5.Y AC #3 — 通过 memory_service.record_knowledge_entity 写 Graphiti.
+
+    Story 2.5.Y AC #3 (2026-05-05): 移除 DEFAULT_GROUP_ID 硬编码.
+    - group_id 改为优先 ContextVar (get_current_subject_id) → 否则参数 group_id → 否则 fallback DEFAULT_GROUP_ID + warning
+    - 新代码应通过 endpoint 注入 ContextVar (build_vault_group_id), 不应依赖 DEFAULT_GROUP_ID 兜底
 
     AC #6: 失败 → structlog warning + 3 次重试 (间隔 1s) + 最终返回 False.
 
@@ -497,13 +503,37 @@ async def write_error_to_graphiti(
         error: ClassifiedError 双标签.
         node_id: Canvas 节点 ID.
         session_id: 对话 session ID.
+        error_id: misconception_id 与 frontmatter 一致.
+        group_id: 显式传入的 group_id (优先级 < ContextVar). 通常由 ContextVar 注入, 此参数仅用于无 ContextVar 上下文 (如 cron / CLI).
 
     Returns:
         True 写入成功, False 重试耗尽仍失败.
     """
     try:
-        from app.config import DEFAULT_GROUP_ID
+        from app.core.subject_config import get_current_subject_id
         from app.services.memory_service import get_memory_service
+
+        # Story 2.5.Y AC #3 — group_id 解析优先级:
+        # 1. 显式 group_id 参数 (cron/CLI 场景)
+        # 2. ContextVar (endpoint 注入)
+        # 3. fallback DEFAULT_GROUP_ID + warning (deprecated 兜底)
+        if group_id:
+            effective_group_id = group_id
+        else:
+            ctx_group_id = get_current_subject_id()
+            if ctx_group_id and ctx_group_id != "general":  # DEFAULT_SUBJECT_ID
+                effective_group_id = ctx_group_id
+            else:
+                # Story 2.5.Y deprecated fallback (Task 6 迁移后应移除)
+                from app.config import DEFAULT_GROUP_ID
+
+                effective_group_id = DEFAULT_GROUP_ID
+                logger.warning(
+                    "error_writer.group_id_fallback_to_default",
+                    fallback=DEFAULT_GROUP_ID,
+                    node_id=node_id,
+                    hint="Story 2.5.Y AC #3: 调用方应通过 ContextVar 或参数传入 group_id",
+                )
 
         memory_svc = await get_memory_service()
     except (ImportError, AttributeError, RuntimeError) as e:
@@ -540,7 +570,7 @@ async def write_error_to_graphiti(
                     event_type="misconception",
                     content=content,
                     metadata=metadata,
-                    group_id=DEFAULT_GROUP_ID,
+                    group_id=effective_group_id,  # Story 2.5.Y AC #3: 不再硬编码 DEFAULT_GROUP_ID
                 ),
                 timeout=GRAPHITI_TIMEOUT_S,
             )

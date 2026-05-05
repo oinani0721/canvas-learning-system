@@ -248,6 +248,7 @@ async def test_post_turn_extract_endpoint_pipeline(tmp_path):
             "/api/v1/chat/post-turn-extract",
             json={
                 "node_id": "节点/post-turn-test",
+                "vault_id": "cs_61b",
                 "session_id": "s-e2e",
                 "messages": [
                     {"role": "user", "content": "X 就是 Y 吧?"},
@@ -289,6 +290,7 @@ async def test_post_turn_rejects_oversized_message_content():
         "/api/v1/chat/post-turn-extract",
         json={
             "node_id": "节点/X",
+            "vault_id": "cs_61b",
             "session_id": "s",
             "messages": [
                 {
@@ -311,6 +313,7 @@ async def test_post_turn_rejects_too_many_messages():
         "/api/v1/chat/post-turn-extract",
         json={
             "node_id": "节点/X",
+            "vault_id": "cs_61b",
             "session_id": "s",
             "messages": [
                 {"role": "user", "content": f"msg {i}"} for i in range(41)
@@ -336,6 +339,7 @@ async def test_post_turn_filters_system_role_messages_silently():
             "/api/v1/chat/post-turn-extract",
             json={
                 "node_id": "节点/X",
+                "vault_id": "cs_61b",
                 "session_id": "s",
                 "messages": [
                     {"role": "system", "content": "你是 AI 老师"},  # 应被过滤
@@ -586,6 +590,7 @@ async def test_post_turn_rejects_total_dialog_chars_over_budget():
         "/api/v1/chat/post-turn-extract",
         json={
             "node_id": "节点/X",
+            "vault_id": "cs_61b",
             "session_id": "s",
             "messages": [
                 {"role": "user", "content": "A" * 2000} for _ in range(40)
@@ -615,6 +620,7 @@ async def test_post_turn_total_chars_within_budget_passes():
             "/api/v1/chat/post-turn-extract",
             json={
                 "node_id": "节点/X",
+                "vault_id": "cs_61b",
                 "session_id": "s",
                 "messages": [
                     {"role": "user", "content": "A" * 1000}
@@ -666,6 +672,7 @@ async def test_post_turn_fallback_respects_fire_and_forget_flag(
             "/api/v1/chat/post-turn-extract",
             json={
                 "node_id": "节点/missing",
+                "vault_id": "cs_61b",
                 "session_id": "s",
                 "messages": [
                     {"role": "user", "content": "X 是 Y 吗?"},
@@ -681,6 +688,7 @@ async def test_post_turn_fallback_respects_fire_and_forget_flag(
             "/api/v1/chat/post-turn-extract",
             json={
                 "node_id": "节点/missing",
+                "vault_id": "cs_61b",
                 "session_id": "s",
                 "messages": [
                     {"role": "user", "content": "Y 是 Z 吗?"},
@@ -722,6 +730,7 @@ async def test_post_turn_extract_no_errors_returns_empty():
             "/api/v1/chat/post-turn-extract",
             json={
                 "node_id": "节点/no-error",
+                "vault_id": "cs_61b",
                 "session_id": "s",
                 "messages": [
                     {"role": "user", "content": "什么是 X?"},
