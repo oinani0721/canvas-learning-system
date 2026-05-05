@@ -350,12 +350,15 @@ async def post_turn_extract(
     out_errors: list[PostTurnExtractedError] = []
     for err in classified:
         if file_path:
+            # Story 2.5.X (D15=C+) 兼容: 显式 mode="write_confirmed" 保留 v1.0 行为
+            # (write_error_dual 默认改为 candidate_only, post-turn-extract 在 Task 5 切到 candidate_only)
             dual = await write_error_dual(
                 file_path=file_path,
                 error=err,
                 node_id=req.node_id,
                 session_id=req.session_id,
                 fire_and_forget_graphiti=req.fire_and_forget_graphiti,
+                mode="write_confirmed",
             )
             fm_ok = dual["frontmatter"]
             graphiti_status = dual["graphiti"]

@@ -255,7 +255,8 @@ async def test_dual_write_frontmatter_success_graphiti_scheduled(tmp_path):
         new=AsyncMock(return_value=mock_memory_svc),
     ):
         result = await write_error_dual(
-            f, _make_error(), node_id="x", session_id="s1"
+            f, _make_error(), node_id="x", session_id="s1",
+            mode="write_confirmed",
         )
 
     assert result["frontmatter"] is True
@@ -276,7 +277,8 @@ async def test_dual_write_skips_graphiti_when_frontmatter_fails(tmp_path):
         new=AsyncMock(return_value=mock_memory_svc),
     ):
         result = await write_error_dual(
-            missing, _make_error(), node_id="x"
+            missing, _make_error(), node_id="x",
+            mode="write_confirmed",
         )
 
     assert result["frontmatter"] is False
@@ -302,6 +304,7 @@ async def test_dual_write_sync_mode_returns_graphiti_status(tmp_path):
             _make_error(),
             node_id="x",
             fire_and_forget_graphiti=False,
+            mode="write_confirmed",
         )
 
     assert result["frontmatter"] is True
@@ -344,6 +347,7 @@ async def test_concurrent_writes_no_data_loss(tmp_path):
                 write_error_dual(
                     f, err, node_id=f"node-{i}", session_id="s",
                     fire_and_forget_graphiti=True,
+                    mode="write_confirmed",
                 )
                 for i, err in enumerate(errors)
             ]
@@ -417,6 +421,7 @@ async def test_dual_write_sync_mode_graphiti_failed(tmp_path):
             _make_error(),
             node_id="x",
             fire_and_forget_graphiti=False,
+            mode="write_confirmed",
         )
 
     assert result["frontmatter"] is True  # AC #6: 本地优先

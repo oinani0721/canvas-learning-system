@@ -16,12 +16,17 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 import yaml
 
 from app.services.error_classifier import ClassifiedError
+
+# Story 2.5.X (D15 = C+) — write_error_dual mode 选项
+WriteMode = Literal["candidate_only", "write_confirmed"]
+CANDIDATE_INITIAL_STATUS = "pending"
+CANDIDATE_SOURCE_AI = "ai_suggested"
 
 logger = structlog.get_logger(__name__)
 
@@ -55,6 +60,236 @@ def _make_dedupe_hash(error: ClassifiedError, node_id: str) -> str:
     """
     raw = f"{error.pedagogy_type.value}|{error.description}|{node_id}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 2.5.X Task 1 — Candidate writer (C+ 渐进式确认)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _make_candidate_record(
+    error: ClassifiedError,
+    *,
+    node_id: str,
+    session_id: str,
+    group_id: str,
+    candidate_id: str,
+    dedupe_hash: str,
+    now_iso: str,
+    ai_reason: str | None = None,
+    evidence_turns: list[int] | None = None,
+    raw_dialog_excerpt: str | None = None,
+) -> dict[str, Any]:
+    """Story 2.5.X AC #1 — 构造 candidate dict (含 6 状态机初始值 pending)."""
+    return {
+        "id": candidate_id,
+        "status": CANDIDATE_INITIAL_STATUS,
+        "source": CANDIDATE_SOURCE_AI,
+        "node_id": node_id,
+        "session_id": session_id,
+        "group_id": group_id,
+        "candidate_dedupe_hash": dedupe_hash,
+        "pedagogy_type": error.pedagogy_type.value,
+        "legacy_type": error.legacy_type.value,
+        "description": error.description,
+        "context": error.context,
+        "ai_reason": ai_reason,  # Task 5 LLM 升级后填
+        "evidence_turns": evidence_turns or [],  # Task 5 LLM 升级后填
+        "raw_dialog_excerpt": raw_dialog_excerpt,  # Task 5 透传后填
+        "confidence": round(error.confidence, 3),
+        "confidence_source": "llm",  # 当前 ErrorClassifier 已输出 confidence
+        "sub_tags": list(error.sub_tags),
+        "suggested_remedy_strategies": [r.value for r in error.pedagogy_remedies],
+        "legacy_remedy": error.legacy_remedy.value,
+        "created_at": now_iso,
+        "last_seen_at": now_iso,
+        "seen_count": 1,
+        "seen_sessions": [session_id] if session_id else [],
+        "status_changed_at": None,  # 状态变更时填 (AC #2)
+        "status_changed_by": None,
+    }
+
+
+def write_candidate_to_frontmatter(
+    file_path: str | Path,
+    error: ClassifiedError,
+    *,
+    node_id: str,
+    session_id: str = "",
+    group_id: str = "",
+    candidate_id: str | None = None,
+    ai_reason: str | None = None,
+    evidence_turns: list[int] | None = None,
+    raw_dialog_excerpt: str | None = None,
+) -> tuple[bool, str | None]:
+    """Story 2.5.X Task 1 — 追加候选错误到 frontmatter `error_candidates[]` (原子写入).
+
+    与 `write_error_to_frontmatter` 区别：
+    - 写 `error_candidates[]` 而非 `errors[]` (双数组并存)
+    - candidate.status = "pending" (6 状态机初始值, AC #2)
+    - 不写 Graphiti (AC #1: candidate 阶段不进知识图谱)
+    - 复用同一 dedupe_hash 算法 (不含 session_id, AC #3)
+    - 重复同错误时更新 last_seen_at / seen_count / seen_sessions (不 append)
+
+    Args:
+        file_path: 节点 .md 路径
+        error: ClassifiedError 双标签错误
+        node_id: Canvas 节点 ID (用于 dedupe + metadata)
+        session_id: 当前对话 session ID (Round-2 修正: 加 frontmatter 但不进 dedupe)
+        group_id: vault namespace (Story 2.5.Y 前期占位, 当前可为 "")
+        candidate_id: 可选 UUID, None 时自动生成
+        ai_reason: AI 判错理由 (Task 5 升级 LLM 后传)
+        evidence_turns: 触发轮次 (Task 5 升级 LLM 后传)
+        raw_dialog_excerpt: 原始对话摘录 (Task 5 透传后传)
+
+    Returns:
+        (success, candidate_id) — 重复错误算成功 (返回 existing id).
+    """
+    p = Path(file_path)
+    if not p.exists():
+        logger.warning("candidate_writer.file_not_found", path=str(p))
+        return False, None
+
+    try:
+        text = p.read_text(encoding="utf-8")
+        fm_str, body = _split_frontmatter(text)
+
+        fm_dict = yaml.safe_load(fm_str) if fm_str else {}
+        if not isinstance(fm_dict, dict):
+            fm_dict = {}
+
+        candidates_list = fm_dict.get("error_candidates", [])
+        if not isinstance(candidates_list, list):
+            candidates_list = []
+
+        # AC #3: dedupe hash 复用 errors[] 算法 (不含 session_id, 跨 session 同错应 update 不 append)
+        dedupe_hash = _make_dedupe_hash(error, node_id)
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        existing_idx: int | None = None
+        for i, rec in enumerate(candidates_list):
+            if (
+                isinstance(rec, dict)
+                and rec.get("candidate_dedupe_hash") == dedupe_hash
+                and rec.get("status") == CANDIDATE_INITIAL_STATUS  # 仅 pending 算重复
+            ):
+                existing_idx = i
+                break
+
+        if existing_idx is not None:
+            # AC #3: 同错误重复 → 更新 last_seen_at / seen_count / seen_sessions / max(confidence)
+            existing = candidates_list[existing_idx]
+            existing["last_seen_at"] = now_iso
+            existing["seen_count"] = int(existing.get("seen_count", 1)) + 1
+
+            existing_sessions = existing.get("seen_sessions") or []
+            if not isinstance(existing_sessions, list):
+                existing_sessions = []
+            if session_id and session_id not in existing_sessions:
+                existing_sessions.append(session_id)
+            existing["seen_sessions"] = existing_sessions
+
+            # 取最大 confidence (Round-2 修正建议)
+            existing_conf = float(existing.get("confidence", 0.0))
+            new_conf = round(error.confidence, 3)
+            if new_conf > existing_conf:
+                existing["confidence"] = new_conf
+
+            existing_id = existing.get("id") or candidate_id or str(uuid.uuid4())
+            existing["id"] = existing_id
+
+            logger.info(
+                "candidate_writer.frontmatter_duplicate_updated",
+                path=str(p),
+                candidate_id=existing_id,
+                seen_count=existing["seen_count"],
+                seen_sessions=len(existing_sessions),
+            )
+            candidate_id = existing_id
+        else:
+            # 新候选: append 完整 record
+            if candidate_id is None:
+                candidate_id = str(uuid.uuid4())
+            new_record = _make_candidate_record(
+                error,
+                node_id=node_id,
+                session_id=session_id,
+                group_id=group_id,
+                candidate_id=candidate_id,
+                dedupe_hash=dedupe_hash,
+                now_iso=now_iso,
+                ai_reason=ai_reason,
+                evidence_turns=evidence_turns,
+                raw_dialog_excerpt=raw_dialog_excerpt,
+            )
+            candidates_list.append(new_record)
+
+        fm_dict["error_candidates"] = candidates_list
+
+        new_fm = yaml.safe_dump(fm_dict, allow_unicode=True, sort_keys=False)
+        new_text = f"---\n{new_fm}---\n{body}"
+
+        # 复用 errors[] 的原子写入模式 (AC #4 Task 4.5 from Story 2.5 v1.0)
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            delete=False,
+            dir=p.parent,
+            prefix=f".{p.name}.tmp",
+        ) as tmp:
+            tmp.write(new_text)
+            tmp_path = tmp.name
+        os.replace(tmp_path, p)
+
+        logger.info(
+            "candidate_writer.frontmatter_written",
+            path=str(p),
+            pedagogy_type=error.pedagogy_type.value,
+            confidence=error.confidence,
+            candidate_id=candidate_id,
+            duplicate=existing_idx is not None,
+        )
+        return True, candidate_id
+    except Exception as e:
+        logger.warning(
+            "candidate_writer.frontmatter_failed",
+            path=str(file_path),
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return False, None
+
+
+async def write_candidate_to_frontmatter_async(
+    file_path: str | Path,
+    error: ClassifiedError,
+    *,
+    node_id: str,
+    session_id: str = "",
+    group_id: str = "",
+    candidate_id: str | None = None,
+    ai_reason: str | None = None,
+    evidence_turns: list[int] | None = None,
+    raw_dialog_excerpt: str | None = None,
+) -> tuple[bool, str | None]:
+    """Story 2.5.X — Async wrapper 复用 per-file lock 防并发数据丢失.
+
+    多个 candidate write 并发写同一 .md 时, error_candidates[] 不丢条.
+    """
+    lock = _get_file_lock(file_path)
+    async with lock:
+        return await asyncio.to_thread(
+            write_candidate_to_frontmatter,
+            file_path,
+            error,
+            node_id=node_id,
+            session_id=session_id,
+            group_id=group_id,
+            candidate_id=candidate_id,
+            ai_reason=ai_reason,
+            evidence_turns=evidence_turns,
+            raw_dialog_excerpt=raw_dialog_excerpt,
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -353,53 +588,97 @@ async def write_error_dual(
     node_id: str,
     session_id: str = "",
     fire_and_forget_graphiti: bool = True,
+    *,
+    mode: WriteMode = "candidate_only",
+    group_id: str = "",
+    ai_reason: str | None = None,
+    evidence_turns: list[int] | None = None,
+    raw_dialog_excerpt: str | None = None,
 ) -> dict[str, Any]:
-    """Story 2.5 Task 4 — 双写入口 (frontmatter sync + Graphiti async).
+    """Story 2.5 Task 4 + Story 2.5.X Task 1 — 双写入口 (含 C+ 渐进式确认 mode).
 
-    Story 2.5 ChatGPT 二轮审查 fix (2026-05-04):
+    Story 2.5.X (D15 = C+) 修正 (2026-05-04):
+    - 加 `mode` 参数 (默认 "candidate_only" — AI 不直接写 errors[], 写候选区)
+    - mode="candidate_only" → 调 write_candidate_to_frontmatter_async, 跳过 Graphiti (AC #1)
+    - mode="write_confirmed" → 现有 v1.0 行为 (用户 accept_candidate 时使用)
+
+    Story 2.5 v1.0 ChatGPT 二轮审查 fix (commit 0d05ad8):
     - P0#3 fix: 使用 write_error_to_frontmatter_async + per-file lock 防并发
-    - HIGH#5 fix: graphiti_status 改名 "queued" 表示异步任务已调度
+    - HIGH#5 fix: graphiti_status "queued" 表示异步任务已调度
     - HIGH#10 fix: error_id 在 frontmatter + Graphiti metadata 一致
     - HIGH#11 fix: dedupe 同错误重复时返回相同 error_id, 不 append
-
-    AC #4 + #6 综合:
-    - frontmatter 同步原子写入 + per-file lock (本地优先, 并发安全).
-    - Graphiti 默认 fire-and-forget (调用方不必 await), 可改为同步等待.
-    - frontmatter 失败 → 跳过 Graphiti (因为本地都没成功, 远端无意义).
 
     Args:
         file_path: .md 路径.
         error: ClassifiedError.
         node_id: Canvas 节点 ID.
         session_id: 对话 session ID.
-        fire_and_forget_graphiti: True (默认) → 后台 task; False → 同步等待.
+        fire_and_forget_graphiti: True → 后台 task; False → 同步等待 (仅 write_confirmed 模式生效).
+        mode: "candidate_only" (默认 Story 2.5.X) → 写 error_candidates[] / "write_confirmed" → 写 errors[] + Graphiti.
+        group_id: vault namespace (Story 2.5.Y 前期占位).
+        ai_reason / evidence_turns / raw_dialog_excerpt: candidate 模式的辅助元数据 (Task 5 升级 LLM 后使用).
 
     Returns:
+        candidate_only mode:
         {
+          "mode": "candidate_only",
+          "frontmatter": bool,
+          "graphiti": "skipped_candidate_mode" | "skipped_frontmatter_failed",
+          "candidate_id": str | None,
+        }
+        write_confirmed mode:
+        {
+          "mode": "write_confirmed",
           "frontmatter": bool,
           "graphiti": "queued" | "ok" | "failed" | "skipped_frontmatter_failed",
-          "error_id": str | None,  # frontmatter + Graphiti 一致 id (HIGH#10)
+          "error_id": str | None,
         }
     """
-    # Story 2.5 P0#3 fix — 走 async wrapper 拿 per-file lock
+    # Story 2.5.X Task 1: candidate_only 模式 (默认) — 写 error_candidates[], 不写 Graphiti
+    if mode == "candidate_only":
+        fm_ok, candidate_id = await write_candidate_to_frontmatter_async(
+            file_path,
+            error,
+            node_id=node_id,
+            session_id=session_id,
+            group_id=group_id,
+            ai_reason=ai_reason,
+            evidence_turns=evidence_turns,
+            raw_dialog_excerpt=raw_dialog_excerpt,
+        )
+        if not fm_ok:
+            return {
+                "mode": "candidate_only",
+                "frontmatter": False,
+                "graphiti": "skipped_frontmatter_failed",
+                "candidate_id": None,
+            }
+        return {
+            "mode": "candidate_only",
+            "frontmatter": True,
+            "graphiti": "skipped_candidate_mode",  # AC #1: candidate 阶段不进 Graphiti
+            "candidate_id": candidate_id,
+        }
+
+    # mode == "write_confirmed" — Story 2.5 v1.0 原行为 (accept_candidate 触发)
     fm_ok, error_id = await write_error_to_frontmatter_async(
         file_path, error, error_id=None, node_id_for_dedupe=node_id
     )
 
     if not fm_ok:
         return {
+            "mode": "write_confirmed",
             "frontmatter": False,
             "graphiti": "skipped_frontmatter_failed",
             "error_id": None,
         }
 
     if fire_and_forget_graphiti:
-        # Task 4.3: fire-and-forget, 不阻塞主流程
-        # HIGH#5 fix: 状态名 "queued" 而非 "scheduled" (避免误以为已成功)
         asyncio.create_task(
             write_error_to_graphiti(error, node_id, session_id, error_id=error_id)
         )
         return {
+            "mode": "write_confirmed",
             "frontmatter": True,
             "graphiti": "queued",
             "error_id": error_id,
@@ -409,6 +688,7 @@ async def write_error_dual(
         error, node_id, session_id, error_id=error_id
     )
     return {
+        "mode": "write_confirmed",
         "frontmatter": True,
         "graphiti": "ok" if graphiti_ok else "failed",
         "error_id": error_id,

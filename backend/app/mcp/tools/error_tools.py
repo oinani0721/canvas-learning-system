@@ -216,12 +216,15 @@ async def record_error(
         file_path = _resolve_node_file_path(node_id)
         misconception_id: Optional[str] = None
         if file_path:
+            # Story 2.5.X (D15=C+) 兼容: 显式 mode="write_confirmed" 保留 v1.0 record_error MCP 行为
+            # (write_error_dual 默认改为 candidate_only, record_error 仍是直写 errors[] 路径)
             dual_result = await write_error_dual(
                 file_path=file_path,
                 error=classified,
                 node_id=node_id,
                 session_id=session_id,
                 fire_and_forget_graphiti=True,
+                mode="write_confirmed",
             )
             fm_written = dual_result["frontmatter"]
             graphiti_status = dual_result["graphiti"]

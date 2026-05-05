@@ -103,7 +103,7 @@ async def test_e2e_dialog_to_frontmatter_full_pipeline(tmp_path):
             error=classified,
             node_id="admissibility",
             session_id="sess1",
-            fire_and_forget_graphiti=False,  # 同步等待 Graphiti
+            fire_and_forget_graphiti=False,  # 同步等待 Graphiti, mode="write_confirmed"
         )
 
     # 验证结果
