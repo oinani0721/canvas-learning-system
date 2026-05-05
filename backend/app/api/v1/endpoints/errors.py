@@ -24,6 +24,10 @@ from app.services.candidate_service import (
     dismiss_candidate,
     dispute_candidate,
 )
+from app.services.error_rebuild_service import (
+    RebuildStats,
+    rebuild_graphiti_from_frontmatter,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -143,4 +147,44 @@ async def dispute_candidate_endpoint(
         file_path=file_path,
         candidate_id=req.candidate_id,
         dispute_reason=req.dispute_reason,
+    )
+
+
+@errors_router.post("/rebuild-graphiti", response_model=RebuildStats)
+async def rebuild_graphiti_endpoint(
+    group_id: str,
+    dry_run: bool = False,
+) -> RebuildStats:
+    """Story 2.5.X AC #6 — 从 frontmatter errors[] 重建 Graphiti 知识图谱.
+
+    用户场景:
+    - 切设备 / 重建索引 (Graphiti 数据丢失但 markdown 保留)
+    - 验证 frontmatter 与 Graphiti 一致性
+
+    使用建议: 先 dry_run=True 看会写多少, 再 dry_run=False 实际跑.
+
+    Args:
+        group_id: Graphiti namespace (如 "vault:cs_61b" or "cs_61b:main"). Story 2.5.Y 后改为强制从 vault config 推断.
+        dry_run: True 仅扫描计数 (不调 Graphiti), False 实际写入.
+
+    Returns:
+        RebuildStats — total_files_scanned / total_errors_scanned / newly_written / failed + failures details
+
+    Errors:
+        404: vault root 不可解析
+        500: 致命错误 (单条失败不影响, 写入 failures[] 数组)
+    """
+    from app.config import settings
+
+    vault_root_str = getattr(settings, "canvas_base_path", None)
+    if not vault_root_str:
+        raise HTTPException(
+            status_code=404,
+            detail="vault root (canvas_base_path) not configured",
+        )
+
+    return await rebuild_graphiti_from_frontmatter(
+        vault_root=vault_root_str,
+        group_id=group_id,
+        dry_run=dry_run,
     )
