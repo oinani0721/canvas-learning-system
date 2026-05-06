@@ -721,7 +721,7 @@ error_candidates:
   npm test 2>&1 | tail -5
   ```
 
-- [x] **预期**：`# tests 104, # pass 104, # fail 0`
+- [x] **预期**：`# tests ≥ 104, # pass = tests, # fail 0` (Story 2.5.Y 后实际 ≥ 133)
 
 ---
 

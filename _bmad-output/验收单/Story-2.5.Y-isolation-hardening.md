@@ -578,7 +578,7 @@ PASS: 两 vault 同名节点 group_id 独立
 
 **你应该看到**：
 
-- [ ] `# tests 124, # pass 124, # fail 0`（含 inferVaultId 4 个新测试）
+- [x] `# tests ≥ 124, # pass = tests, # fail 0` (Story 2.5.Y 后实际 ≥ 133, package.json test script 已加 error-candidate-helpers.test.ts)
 
 ---
 
