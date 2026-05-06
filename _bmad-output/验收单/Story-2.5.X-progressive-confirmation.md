@@ -127,7 +127,7 @@ test_summary: "Backend 167 + Plugin 104 = 271 全 pass, 0 regression"
   python start_server.py
   ```
 - [ ] 看到 `Application startup complete` 或 `Uvicorn running on http://0.0.0.0:8001`
-- [ ] **快速验证 4 endpoint 注册**（方法 A: OpenAPI URL 修正版）：
+- [x] **快速验证 4 endpoint 注册**（方法 A: OpenAPI URL 修正版）：
   ```bash
   # ⚠️ OpenAPI 实际路径是 /api/v1/openapi.json (main.py:379 openapi_url 配置)
   curl -s http://localhost:8001/api/v1/openapi.json | grep -o '"/api/v1/errors/[^"]*"' | sort -u
@@ -140,7 +140,7 @@ test_summary: "Backend 167 + Plugin 104 = 271 全 pass, 0 regression"
   "/api/v1/errors/rebuild-graphiti"
   ```
 
-- [ ] **方法 B（备选, 不启动 backend 也能验证）**：
+- [x] **方法 B（备选, 不启动 backend 也能验证）**：
   ```bash
   cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -c "
@@ -154,7 +154,7 @@ test_summary: "Backend 167 + Plugin 104 = 271 全 pass, 0 regression"
   ```
   预期输出: `✅ All 4 endpoints registered`
 
-- [ ] **方法 C（最简单, 直接试 endpoint 是否响应）**：
+- [x] **方法 C（最简单, 直接试 endpoint 是否响应）**：
   ```bash
   for ep in accept-candidate dismiss-candidate dispute-candidate rebuild-graphiti; do
     code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8001/api/v1/errors/${ep}" -H 'Content-Type: application/json' -d '{}')

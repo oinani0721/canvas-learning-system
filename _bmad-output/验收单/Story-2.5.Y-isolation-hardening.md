@@ -133,7 +133,7 @@ UAT 主流程 (15-20 分钟)
   python start_server.py
   ```
 - [ ] 看到 `Application startup complete`
-- [ ] **快速验证 Story 2.5.Y schema 已生效**（方法 A: OpenAPI URL 修正版）：
+- [x] **快速验证 Story 2.5.Y schema 已生效**（方法 A: OpenAPI URL 修正版）：
   ```bash
   # ⚠️ OpenAPI 实际路径是 /api/v1/openapi.json (main.py:379 openapi_url 配置)
   curl -s http://localhost:8001/api/v1/openapi.json | python3 -c "
@@ -151,7 +151,7 @@ UAT 主流程 (15-20 分钟)
   vault_id required: True
   ```
 
-- [ ] **方法 B（备选, 直接 curl 触发 422 验证）**：
+- [x] **方法 B（备选, 直接 curl 触发 422 验证）**：
   ```bash
   curl -s -o /dev/null -w "缺 vault_id → HTTP %{http_code}\n" \
     -X POST 'http://localhost:8001/api/v1/chat/post-turn-extract' \
@@ -160,7 +160,7 @@ UAT 主流程 (15-20 分钟)
   ```
   应输出: `缺 vault_id → HTTP 422` ✅
 
-- [ ] **方法 C（不启动 backend 静态验证）**：
+- [x] **方法 C（不启动 backend 静态验证）**：
   ```bash
   cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -c "
