@@ -1,0 +1,24 @@
+{
+  "id": "conv-1777539396556-9t8uipa1q",
+  "providerId": "claude",
+  "title": "Configure whiteboard",
+  "titleGenerationStatus": "success",
+  "createdAt": 1777539396556,
+  "updatedAt": 1777612726018,
+  "lastResponseAt": 1777540398704,
+  "sessionId": "5d70ff8d-4831-48cf-8077-faa7e5228527",
+  "providerState": {
+    "providerSessionId": "5d70ff8d-4831-48cf-8077-faa7e5228527"
+  },
+  "currentNote": "raw/my-recursion-notes.md",
+  "usage": {
+    "model": "haiku",
+    "inputTokens": 8,
+    "cacheCreationInputTokens": 322,
+    "cacheReadInputTokens": 76519,
+    "contextWindow": 200000,
+    "contextTokens": 76849,
+    "percentage": 38,
+    "contextWindowIsAuthoritative": true
+  }
+}

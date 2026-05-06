@@ -1,17 +1,224 @@
 ---
 story: "1.17"
 title: "AI 双链文档（形态 β：Plugin + Claudian Skill）"
-status: "blocked"
-blocked_by: "1.19"
-version: "v2.1"
-date: "2026-04-20"
+status: "review"
+unblocked_by: "1.19 v4 UAT 通过 (2026-04-30)"
+version: "v3.0"
+date: "2026-04-30"
 developer: "Claude Code (Opus 4.7)"
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
+d4_decisions: "v3.0 Hybrid (plugin 脚本 <100ms 建骨架 + Skill v5.0 异步填正文); 含 v2.2 + v2.4 + v2.5 + v2.6 行为"
 ---
 
-# Story 1.17 验收单 v2.1 — ⛔ 暂时挂起（等 Story 1.19 完成）
+# Story 1.17 验收单 v3.0 — ✅ Hybrid 架构落地（plugin 立即建骨架 + Skill 异步填正文）
 
-> [!error]+ ⛔⛔⛔ 本 UAT 暂时挂起 — 请先等 Story 1.19 完成
+> [!tip]+ ✅ 2026-04-30 v3.0 已 ship — 请跑 v3.0 hybrid UAT（22 步 = v2.6 20 步 + v3 hybrid 2 步）
+>
+> **v3.0 颠覆性变化**：截图你看到的"Claudian 跑 15-45s 才看到节点"问题已根治。现在按 Cmd+Shift+D 后：
+>
+> ```
+> 阶段 1（plugin 脚本，<100ms）：
+>   ✓ 节点 md 立即建好（含 frontmatter + status: ai_pending + placeholder 正文）
+>   ✓ 源笔记 wikilink + 关系 callout 立即替换
+>   ✓ 白板 ## Concepts + ## Recent Activity 立即更新
+>   ✓ 你**马上**看到 Notice "节点骨架已建好（阶段 1: XXms）"
+>
+> 阶段 2（Claudian Skill v5.0 异步，15-45s）：
+>   ✓ 你不需要等！继续读源笔记或干别的
+>   ✓ Claudian 后台跑：仅生成 3 段正文 + Edit 替换 placeholder + 改 status 为 ai_complete
+>   ✓ 跑完后节点 md 自动从 placeholder 变成完整的概念笔记（你打开节点 md 即可看到）
+> ```
+>
+> **架构对比**：
+>
+> | 维度 | v2.6 当前 | v3.0 hybrid |
+> |---|---|---|
+> | 看到新节点的延迟 | 15-45s 等 LLM | **<100ms** |
+> | 你能继续读源笔记？ | 不能 | **能（异步）** |
+> | LLM token 量 | ~2000-3000 | **~800-1200** |
+> | Skill 失败时 | 整个流程崩 | 节点骨架保留 + 可重试 |
+> | Mode D 合规 | ✅ | ✅ 仍走 Claudian/CLI 订阅额度 |
+>
+> **跑 UAT 之前**：在 obsidian Settings → Community plugins → 重启 canvas-learning-system 插件（让 main.js v3.0 生效，应 31768B）。
+
+---
+
+> [!info]+ v2.6 → v3.0 行为变化（本次重点测）
+>
+> **触发的命令变了**：剪贴板 prompt 首行从 `/ai-linked-doc` 改成 `/ai-linked-doc-fill`，触发新 Skill `ai-linked-doc-fill`（v5.0 极简版）
+>
+> **Skill 工作量变了**：
+> - v2.6 Skill `ai-linked-doc`：8 步全 LLM 推理（Step 1-8 含 Glob 白板 / 读 yaml / AskUserQuestion / 派生 / 替换 / 更新白板）
+> - v3.0 Skill `ai-linked-doc-fill`：仅 2 步（Read 节点 md → 生成 3 段 + Edit 替换 placeholder + 改 status）
+>
+> **节点 md 状态机**：
+> - 阶段 1 完成：`status: ai_pending`，正文是 placeholder（含 ⏳ callout 提示用户 AI 还在跑）
+> - 阶段 2 完成：`status: ai_complete`，正文是 3 段（## 核心概念 / ## 关键点 / ## 关联概念）
+>
+> **白板 ## Concepts 行**：阶段 1 写入 `- [[节点/X]] — refines, weak (0.30) ⏳ ai_pending`，阶段 2 不改这一行（保留 ⏳，因为 dataviewjs 用 frontmatter status 过滤显示）
+
+---
+
+> [!warning]+ ⛔ 旧 v2.6 UAT 步骤（v2.5 19 步）已不再适用 — 请用下方 v3.0 UAT
+>
+> 旧 UAT 假设你需要等 Claudian 跑完才看到节点；v3.0 后**阶段 1 立即可见**，UAT 重点变成"骨架立即生成 + 异步填充"。
+>
+> 旧 UAT 文档保留在文件下方供历史追溯，但**请优先跑下面 v3.0 UAT 22 步**。
+
+---
+
+## v3.0 UAT 22 步（最新主测）
+
+### 前置（P1-P4 不变）
+- 重启 obsidian + main.js 已是 31768B
+- canvas-vault 至少有 1 个白板（如 `原白板/特征值与特征向量.md`）
+- 至少有 1 个已派生节点（如 `节点/Characteristic-Equation-for-Eigenvalues.md`，v2.4 测过的）
+- Cmd+Shift+D 已绑定 `canvas:ai-linked-doc`
+
+### V3-1 至 V3-4 · Modal 链（与 v2.5 一致，确保兼容）
+- [ ] V3-1：在 `节点/Characteristic-Equation-for-Eigenvalues.md`（已有 source_board）选一段文字
+- [ ] V3-2：按 Cmd+Shift+D → 立即弹关系 modal（7 类）→ 选 `extends`
+- [ ] V3-3：弹描述 modal → 输入"测试 v3 hybrid 流程的派生意图"→ Cmd+Enter
+- [ ] V3-4：v2.6 节点继承 Notice 应该弹（"继承源节点白板归属：特征值与特征向量"）
+
+### V3-5 · ⭐ 阶段 1 立即骨架（v3.0 核心新功能）
+- [ ] modal 关闭后**立即**（<200ms）右下角弹绿色 Notice：
+  ```
+  ✓ 节点骨架已建好 [[节点/<新概念名>]]（阶段 1: XXms）。
+  继续读源笔记，AI 后台填正文。
+  ```
+- [ ] **关键**：你**不需要等**，立刻可以做下面 V3-6 ~ V3-8 的验证
+
+### V3-6 · ⭐ 阶段 1 节点 md 立即可见且含 placeholder
+- [ ] 立即（不等 Claudian）打开新建的 `节点/<新概念名>.md`
+- [ ] frontmatter 含完整字段：
+  ```yaml
+  type: concept
+  mastery_score: 0.3
+  source_note: "[[Characteristic-Equation-for-Eigenvalues]]"
+  source_board: "[[原白板/特征值与特征向量]]"
+  created_from: ai_linked_doc
+  up: "[[Characteristic-Equation-for-Eigenvalues]]"
+  derived-from: "[[Characteristic-Equation-for-Eigenvalues]]"
+  status: ai_pending          ← v3.0 新字段
+  relationships:
+    - type: extends
+      target: "[[Characteristic-Equation-for-Eigenvalues]]"
+      description: "测试 v3 hybrid 流程的派生意图"
+  ```
+- [ ] 正文是 **placeholder**（不是 3 段正文）：
+  ```markdown
+  # <概念名>
+
+  <!-- AI_BODY_PLACEHOLDER -->
+
+  > [!info]+ ⏳ AI 正在生成正文
+  > ...
+
+  <!-- 选中文本（供 Skill 阶段 2 生成正文用） -->
+  <!-- SELECTED_TEXT_START
+  <你选的原文>
+  SELECTED_TEXT_END -->
+  ```
+
+### V3-7 · ⭐ 阶段 1 源笔记立即更新
+- [ ] 切回源笔记 `节点/Characteristic-Equation-for-Eigenvalues.md`
+- [ ] 你刚才选中的文字已**立即**替换为 wikilink + 关系 callout（5 行，含派生意图）
+- [ ] **不**需要等 Claudian
+
+### V3-8 · ⭐ 阶段 1 白板立即更新
+- [ ] 打开 `原白板/特征值与特征向量.md`
+- [ ] `## Concepts` 末尾**立即**新增一行：`- [[节点/<新概念名>]] — extends, weak (0.30) ⏳ ai_pending`（含 ⏳ status 标记）
+- [ ] `## Recent Activity` 末尾**立即**新增一行：`- <ISO>: Extracted [[节点/<新概念名>]] via /ai-linked-doc from [[Characteristic-Equation-for-Eigenvalues]]（关系: extends, status: ai_pending）`
+
+### V3-9 · 阶段 2 触发 Claudian
+- [ ] V3-5 Notice 后 plugin 自动切到 Claudian sidebar
+- [ ] Claudian 输入框已**自动**粘贴 prompt（剪贴板）—— 你**不需要 Cmd+V**，直接看到内容
+- [ ] 输入框首行是 `/ai-linked-doc-fill`（**不是** `/ai-linked-doc`）
+- [ ] prompt 内容含：节点路径 / 概念名 / 关系类型 / 用户派生意图 / 选中文本
+
+### V3-10 · 阶段 2 Skill v5.0 跑（验证 Skill 极简）
+- [ ] 在 Claudian 输入框按 Cmd+V 粘贴（如 plugin 自动粘贴失败）+ Enter
+- [ ] **关键**：Skill 应**只**调 2-3 个 tool：
+  1. `Read 节点/<概念>.md`（读节点验证 placeholder 标记）
+  2. `Edit 节点/<概念>.md`（替换 placeholder 为 3 段正文）
+  3. `Edit 节点/<概念>.md`（改 status: ai_pending → ai_complete）
+- [ ] **不应**调：Glob 原白板/、Read .canvas-config.yaml、AskUserQuestion、Write 白板 md、Edit 源笔记
+- [ ] 总耗时应**比 v2.6 短**（v2.6 ~30s 含 8 步推理；v3 ~10-15s 仅生成 + Edit）
+
+### V3-11 · 阶段 2 完成后节点 md 状态
+- [ ] Claudian 跑完后打开 `节点/<新概念名>.md`
+- [ ] frontmatter `status: ai_complete`（不再是 ai_pending）
+- [ ] 正文是 3 段（不再是 placeholder）：
+  ```markdown
+  # <概念名>
+
+  ## 核心概念
+  （AI 生成的 1-2 句定义，应呼应你的派生意图"为了测试 v3 hybrid 流程"）
+
+  ## 关键点
+  - 要点 1
+  - ...
+
+  ## 关联概念
+  - [[Characteristic-Equation-for-Eigenvalues]] — extracted from this note
+  ```
+- [ ] **不**含 AI_BODY_PLACEHOLDER 标记
+- [ ] **不**含 SELECTED_TEXT_START/END 注释
+
+### V3-12 · ⭐ 失败恢复（partial commit 哲学）
+
+**测试 1：阶段 2 跑一半你关 Claudian**
+- [ ] 在 Claudian 跑步骤时手动关 sidebar
+- [ ] 节点 md 应保持 `status: ai_pending` + placeholder 正文
+- [ ] **不**回滚阶段 1（节点 md / 源笔记 wikilink / 白板都保留）
+- [ ] 你可以手动调 `/ai-linked-doc-fill <概念名>` 重跑（plugin 写剪贴板的 prompt 仍可粘贴）
+
+**测试 2：节点 md 已被 Skill 跑过（再次触发 fill）**
+- [ ] 对已 ai_complete 的节点再次手动调 `/ai-linked-doc-fill`
+- [ ] Skill 应返回 `✗ 节点 md 不含 AI_BODY_PLACEHOLDER 标记，可能已被填过` → skip
+
+### V3-13 至 V3-16 · 验证 v2.6 行为不破坏（回归）
+- [ ] V3-13：在原白板 md 派生（不是节点）→ activeBoard 直接从路径取，不走继承
+- [ ] V3-14：节点继承 source_board 仍工作（v2.6 验证）
+- [ ] V3-15：关系类型 7 选 modal 仍工作
+- [ ] V3-16：描述 modal 留空提交仍工作（描述行 `(用户留空)`）
+
+### V3-17 至 V3-22 · 边界 + 性能
+- [ ] V3-17：选中含 emoji / 特殊符号的文本 → stub 名清洗后仍能建文件
+- [ ] V3-18：选中超长文本（500+ 字符）→ stub 截断到 40 字符
+- [ ] V3-19：节点池已有同名 → 自动 `_2 / _3`
+- [ ] V3-20：源笔记不在 `原白板/` 也不在 `节点/`（如 `wiki/canvases/...`）→ Notice 报错"未确定活动白板"，不建文件
+- [ ] V3-21：原白板 md 不存在（用户删了）→ Notice 报错"请先 /configure-whiteboard"，不建文件
+- [ ] V3-22：阶段 1 总耗时 < 200ms（看 V3-5 Notice 中的 XXms 数字）
+
+### 全 22 步 ✅ → 告诉我 "**Story 1.17 v3.0 通过**"
+
+---
+
+## 旧 v2.6 UAT 文档（保留追溯，不需要跑）
+
+> [!tip]+ ✅ 2026-04-30 v2.6 已 ship — 请跑 v2.6 UAT（20 步 = v2.5 19 步 + v2.6 节点继承 1 步）
+> **截图 bug 已修**：之前你在节点 md 派生时 Skill 弹 AskUserQuestion 让你选白板（明明节点本身已有 source_board frontmatter），现在 plugin 自动读 frontmatter 继承。main.js 20348B 已 ship。
+>
+> **v2.6 新增功能**（你这次跑 UAT 时会感知）：
+> - **节点派生节点自动继承白板归属**：
+>   - 当源笔记是 `节点/<concept>.md`（已有 source_board frontmatter）→ Cmd+Shift+D 后 plugin 自动读取并继承
+>   - 不再弹 AskUserQuestion 让你重选
+>   - 弹 Notice `继承源节点白板归属：<board>（v2.6 自动）` (3s) 让你知道发生了什么
+> - **不命中场景的 fallback**（保持原行为）：
+>   - 源笔记**不是**节点（如 wiki/canvases/old/Foo.md / vault 根的未命名.md）→ Skill 走 .canvas-config.yaml 或 AskUserQuestion
+>   - 节点 frontmatter 缺 source_board / 格式异常 → Skill 走 .canvas-config.yaml fallback（规则 2.5 双保险）
+>
+> **v2.5 已有功能保留**：派生描述 modal（textarea，可选）+ 三处落地（callout body + frontmatter + AI prompt）
+> **v2.4 已有功能保留**：关系类型 modal（7 类）+ 双写
+> **v2.2 已有功能保留**：D4-1 toast 不打断 + D4-2 toast + 重试按钮
+>
+> **跑 UAT 之前**：在 obsidian Settings → Community plugins → 重启 canvas-learning-system 插件（让 main.js v2.6 生效）。
+>
+> 历史"暂挂起"上下文（已解决）：
+
+> [!error]+ ~~⛔⛔⛔ 本 UAT 暂时挂起 — 请先等 Story 1.19 完成~~ （✅ 2026-04-30 已解决）
 > **2026-04-20 你的批注精准命中 bug**：
 > 
 > > "双链提问节点的功能本身就是要在原白板里面使用的。"
@@ -154,28 +361,28 @@ plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 
 ### P1 · 部署完整性（我已做完，你只需验证）
 
-| 项 | 验证方法 | 预期 |
-|---|---|---|
-| Plugin main.js v2.1 已部署 | 终端 `wc -c canvas-vault/.obsidian/plugins/canvas-learning-system/main.js` | **11608** |
-| Skill 文件已部署 | 终端 `ls canvas-vault/.claude/skills/ai-linked-doc/SKILL.md` | 存在 |
-| Claudian v2.0.2 已装 | Obsidian Settings > Community plugins | 启用状态 |
-| Claude CLI 可用 | 终端 `which claude && claude --version` | `/Users/Heishing/.local/bin/claude` + v2.1.114 |
+| 项                       | 验证方法                                                                     | 预期                                             |
+| ----------------------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
+| Plugin main.js v2.1 已部署 | 终端 `wc -c canvas-vault/.obsidian/plugins/canvas-learning-system/main.js` | **11608**                                      |
+| Skill 文件已部署             | 终端 `ls canvas-vault/.claude/skills/ai-linked-doc/SKILL.md`               | 存在                                             |
+| Claudian v2.0.2 已装      | Obsidian Settings > Community plugins                                    | 启用状态                                           |
+| Claude CLI 可用           | 终端 `which claude && claude --version`                                    | `/Users/Heishing/.local/bin/claude` + v2.1.114 |
 
 ### P2 · 强制 Reload Obsidian（关键！）
 
 **v2 失败很可能就是因为旧插件实例还在内存**。Cmd+Q 有时不够（窗口复用）。必须：
 
-- [ ] **在 Obsidian 里按 `Cmd+P`** 打开命令面板
-- [ ] 输入 `reload`
-- [ ] 选 **"Reload app without saving"** → 回车
-- [ ] 窗口短暂刷新 → 所有插件强制重新加载内存
+- [x] **在 Obsidian 里按 `Cmd+P`** 打开命令面板
+- [x] 输入 `reload`
+- [x] 选 **"Reload app without saving"** → 回车
+- [x] 窗口短暂刷新 → 所有插件强制重新加载内存
 
 ### P3 · 准备测试文件（必须在正确路径）
 **User：我现在有一个在任意文件夹的 md 文件那么我想要从这个文件开始生成原白板，请问我该如何操作？**
 
-- [ ] 在 Obsidian 左边文件树 `wiki/canvases/` 下建新文件夹 `math240`（如果没有）
-- [ ] 在 `wiki/canvases/math240/` 下建文件 `Fundamentals.md`
-- [ ] 文件内容粘贴以下（**完整**，**不能缺 frontmatter**）：
+- [x] 在 Obsidian 左边文件树 `wiki/canvases/` 下建新文件夹 `math240`（如果没有）
+- [x] 在 `wiki/canvases/math240/` 下建文件 `Fundamentals.md`
+- [x] 文件内容粘贴以下（**完整**，**不能缺 frontmatter**）：
 
 ```markdown
 ---
@@ -196,9 +403,9 @@ Determinants help us find eigenvalues by solving det(A - λI) = 0.
 
 ### P4 · 确认 Hotkey 绑定
 
-- [ ] Settings > Hotkeys → 搜 "AI 创建双链文档"
-- [ ] 看到右边显示 `⌘⇧D`
-- [ ] 如果未绑定 → 点 `+` 按 Cmd+Shift+D
+- [x] Settings > Hotkeys → 搜 "AI 创建双链文档"
+- [x] 看到右边显示 `⌘⇧D`
+- [x] 如果未绑定 → 点 `+` 按 Cmd+Shift+D
 
 ---
 
@@ -206,45 +413,89 @@ Determinants help us find eigenvalues by solving det(A - λI) = 0.
 
 ### 第 1 步：F12 打开 DevTools Console（用于诊断）
 
-- [ ] 在 Obsidian 里按 `Cmd+Opt+I`（或菜单 Help > Toggle Developer Tools）
-- [ ] 切到 **Console** 标签页
-- [ ] 清屏（垃圾桶图标）
-- [ ] 保持 DevTools 打开（可以拖一边让 Obsidian 主窗口仍可见）
+- [x] 在 Obsidian 里按 `Cmd+Opt+I`（或菜单 Help > Toggle Developer Tools）
+- [x] 切到 **Console** 标签页
+- [x] 清屏（垃圾桶图标）
+- [x] 保持 DevTools 打开（可以拖一边让 Obsidian 主窗口仍可见）
 
 ### 第 2 步：打开源笔记 + 点击正文让光标进入
 
-- [ ] 打开 `wiki/canvases/math240/Fundamentals.md`
-- [ ] **顶部 tab 必须显示铅笔图标**（Edit view，不是书本图标 Reading view）
-- [ ] 点击 body 任意位置让光标进入正文（看到光标闪）
+- [x] 打开 `wiki/canvases/math240/Fundamentals.md`
+- [x] **顶部 tab 必须显示铅笔图标**（Edit view，不是书本图标 Reading view）
+- [x] 点击 body 任意位置让光标进入正文（看到光标闪）
 
 ### 第 3 步：空选中测试（Plugin 防护）
 
-- [ ] 不选中任何文字（光标空置）
-- [ ] 按 `Cmd+Shift+D`
-- [ ] **Console 应看到** `[canvas:ai-linked-doc] triggered`
-- [ ] 右下角 Notice："请先选中文本再创建双链"（3 秒）
-- [ ] Claudian sidebar **不**自动打开
+- [x] 不选中任何文字（光标空置）
+- [x] 按 `Cmd+Shift+D`
+- [x] **Console 应看到** `[canvas:ai-linked-doc] triggered`
+- [x] 右下角 Notice："请先选中文本再创建双链"（3 秒）
+- [x] Claudian sidebar **不**自动打开
 
 **如果没看到 Console 日志** → Plugin 命令没触发，转下方"🔴 诊断 A"
 
 ### 第 4 步：选中目标文本
 
-- [ ] 用鼠标或 Shift+Arrow 选中文字：
+- [x] 用鼠标或 Shift+Arrow 选中文字：
   ```
   Eigenvalues are special vectors that satisfy Av = λv
   ```
-- [ ] 选中高亮（蓝底白字）显示
+- [x] 选中高亮（蓝底白字）显示![[截屏2026-04-30 上午3.14.32.png]]
 
 ### 第 5 步：按 Cmd+Shift+D 触发
 
 - [ ] 按 `Cmd+Shift+D`
 - [ ] **Console 必看到** `[canvas:ai-linked-doc] triggered`
-- [ ] 右下角 Notice（**8 秒**）："已复制到剪贴板。切到 Claudian 侧栏 → 输入框 Cmd+V 粘贴 → 回车。首行是 /ai-linked-doc 会触发 Skill。"
-- [ ] Claudian sidebar 自动激活（如果没打开会打开；已打开会保持前台）
+- [ ] **v2.4 新行为**：屏幕中央**立即弹出 modal**（不再立即写剪贴板），placeholder："派生关系：新节点和当前源笔记是什么关系？(7 类，输入过滤)"
 
-**如果 Console 没日志 + 没 Notice** → 转 "🔴 诊断 A"  
+**如果 Console 没日志 + 没 modal** → 转 "🔴 诊断 A"  
 **如果有 Console 日志但 Notice 是"编辑器未激活"** → 转 "🔴 诊断 B"  
-**如果 Notice 是"当前笔记 XXX 不在原白板路径下"** → 你的测试文件路径不对，按 P3 重建
+**如果 Notice 是"当前笔记 XXX 不在原白板路径下"** → 你的测试文件路径不对，按 P3 重建（warning Notice 不阻止 modal 出现）
+
+### 第 5.5 步：⭐ v2.4 新增 — 关系类型 modal（D1-2）
+
+- [ ] modal 显示 **7 个选项**（顺序固定）：
+  1. **先修 (prerequisite)** — 新节点是源笔记的先修知识
+  2. **依赖 (depends_on)** — 新节点在概念上依赖源笔记
+  3. **细化 (refines)** — 新节点是源笔记某段的更细化版本
+  4. **扩展 (extends)** — 新节点在源笔记基础上延伸或补全
+  5. **例子 (example_of)** — 新节点是源笔记某概念的具体例子
+  6. **反驳 (contradicts)** — 新节点与源笔记观点矛盾或反驳
+  7. **相关 (related_to)** — 一般性关联（兜底）
+- [ ] 输入"细"过滤 → 只剩"细化 (refines)"
+- [ ] 用键盘 ↓↓↓ 或鼠标点选一项（如选 `refines`）
+- [ ] **v2.5 新行为**：选完关系类型后**不立即写剪贴板**，**继续弹 DescriptionModal**（见第 5.6 步）
+
+**如果 modal 没弹出** → main.js 不是 v2.5 版本（应 19159B），重启 obsidian 让插件刷新；仍无 → 转"🔴 诊断 E"  
+**如果按 Esc 取消 RelationTypeModal** → 应该 silent return，不写剪贴板 / 不开 Claudian / 没弹 description modal
+
+### 第 5.6 步：⭐ v2.5 新增 — 派生描述 modal（D1-4 可选 + D1-5 三处落地）
+
+关系 modal 选完后立即弹出第二个 modal：
+
+- [ ] 标题: `派生描述（关系: refines）`（含你刚选的关系 key）
+- [ ] 一句说明: `可选：用一句话描述「为什么把这个节点拉出来」。留空 / 按 Esc 跳过。`
+- [ ] 一个 4 行 textarea，placeholder 示例: `例如：为了单独梳理特征方程的求解步骤，避免 Fundamentals 笔记过长。`
+- [ ] 右下角两个按钮：「跳过 (Esc)」+「提交 (Cmd/Ctrl+Enter)」(蓝色 mod-cta)
+
+**测试 3 条提交路径，3 选 1 跑**：
+
+**路径 a · 写描述并提交**（推荐路径，验证三处落地）
+- [ ] 在 textarea 输入 "为了单独梳理特征方程的求解步骤"
+- [ ] 按 `Cmd+Enter` 或点「提交」按钮
+- [ ] modal 关闭 → Notice 出现，文案含 `+描述` 标识："已复制到剪贴板（关系: refines+描述）。"
+
+**路径 b · 留空跳过**（验证 D1-4 可选）
+- [ ] textarea 不输入任何东西
+- [ ] 按 Esc / 点「跳过」/ 直接关闭 modal
+- [ ] modal 关闭 → Notice 出现，文案**不**含 `+描述`："已复制到剪贴板（关系: refines）。"
+
+**路径 c · 输入后按 Esc**
+- [ ] textarea 输入文字
+- [ ] 不点提交，直接按 Esc
+- [ ] **预期行为**：当作"留空跳过"处理（onClose 默认 onPicked("")）→ 路径 b 的 Notice
+
+**3 条路径任一通过 + Claudian sidebar 自动激活** → 第 5.6 步 ✅
 
 ### 第 6 步：粘贴到 Claudian 输入框
 
@@ -252,12 +503,16 @@ Determinants help us find eigenvalues by solving det(A - λI) = 0.
 - [ ] `Cmd+V` 粘贴
 - [ ] 输入框**首行**必须显示 `/ai-linked-doc`（这是关键！）
 - [ ] 第二行是 `Please invoke the Skill tool with skill_name="ai-linked-doc"...`
-- [ ] 后面是 `选中文本: / 源笔记路径: / 学科:` 三字段
+- [ ] 后面是 `选中文本: / 源笔记路径: / 活动白板: / 关系类型: / 派生描述:` **五**字段（v2.5 加 派生描述 行）
+- [ ] **关系类型行**形如 `关系类型: refines (细化 (refines))`（key + 中文标签）
+- [ ] **派生描述行**：路径 a → `派生描述: 为了单独梳理特征方程的求解步骤`；路径 b/c → `派生描述: (用户留空)`
 
 **如果粘贴出来不是上述格式** → 说明 plugin 剪贴板写入没成功，转 "🔴 诊断 A"
 
+**User：1，我发现节点创建原白板的时候，并没有标记来源于哪一个原白板；2，我们的原白板标记节点之间的联系我觉得使用 mermaid 还是用 Karpathy 的 wiki 方式表示关联的方式会更好？因为我现在打开原白板中并不是很明显表示出节点之间的关系，请你启动并行 agent deep explore 社区成熟的方案**
+![[截屏2026-04-30 上午4.44.24.png]]
 ### 第 7 步：发送 prompt
-
+![[截屏2026-04-30 上午4.47.27.png]]
 - [ ] 按 `Enter`
 - [ ] Claudian 开始显示 "Thinking..." 或类似指示
 - [ ] 你应该看到 Claude 在**按顺序调用工具**（Glob / Read / Write / Edit），约 15-45 秒
@@ -275,20 +530,151 @@ Determinants help us find eigenvalues by solving det(A - λI) = 0.
   ✓ index.md (math240) 已更新 (doc_count → 1)
   ```
 - [ ] 或部分失败时，含 `✓` / `✗` / `⚠` 组合（Step 7 Skill 规范）
+      
+最终输出：
+
+> [!NOTE]
+> 
+> ## **Step 8 · 执行自检 + 回执**
+
+```
+自检清单：
+[x] Step 5 new_file_path = "节点/Characteristic-Equation-for-Eigenvalues.md"（以 "节点/" 开头）
+[x] generated_md frontmatter 无 subject 字段 + 无 tags 数组
+[x] ## 关联概念 只列 [[Fundamentals]] 一条，无捏造
+[x] Step 6 实际调了 Edit 工具 + replace_all: false
+[x] Step 7 白板 md 路径 = 原白板/特征值与特征向量.md
+[x] ## Concepts 的 wikilink 用完整路径 "节点/Characteristic-Equation-for-Eigenvalues"
+[x] 回执 3 行格式
+```
+
+---
+
+```
+✓ 节点/Characteristic-Equation-for-Eigenvalues.md 已创建（扁平池）
+✓ 源笔记 [[Fundamentals]] 第 12 行已替换为 [[节点/Characteristic-Equation-for-Eigenvalues]]
+✓ 原白板/特征值与特征向量.md 的 ## Concepts 已添加新节点（doc_count → 1）
+
+💡 你想看新节点 → Cmd+Click [[节点/Characteristic-Equation-for-Eigenvalues]] 跳转
+   （不强制，可继续留在源笔记读下去）
+```
 
 **如果没有 3 行 ✓ 结构** → Skill 自检失败或没完整跑，转 "🔴 诊断 C"
 
+### 第 8.5 步：⭐ v2.4 新增 — 验证回执含关系类型（D1-3 视觉确认）
+
+v2.4 回执是 **4 行**（不再是 3 行），最后一行写关系类型：
+
+- [ ] Skill 回执的**最后一行**形如 `关系类型: refines (细化 (refines))`
+- [ ] 4 行回执其中 ✓ 第 1 行末尾包含 `frontmatter relationships: [{type: refines}]` 文字
+- [ ] 4 行回执其中 ✓ 第 2 行末尾包含 `+ [!relation/refines]+ callout` 文字
+- [ ] 4 行回执其中 ✓ 第 3 行末尾包含 `（关系: refines）` 文字
+
+**如果回执还是 v2.2 的 3 行格式（无关系类型行）** → SKILL.md 不是 v4.4 版本，检查 `cat canvas-vault/.claude/skills/ai-linked-doc/SKILL.md | head -20` 应见 `v4.4 扁平架构 + 关系类型双写`
+
 ### 第 9 步：验证新概念文件
 
-- [ ] Obsidian 左边文件树展开 `wiki/canvases/math240/`
-- [ ] 看到**新文件** `Eigenvalues.md`
-- [ ] **路径必须是 wiki/canvases/math240/，不能是 wiki/concepts/**
+- [ ] Obsidian 左边文件树展开 `节点/`（v4.4 扁平池，不再是 wiki/canvases/）
+- [ ] 看到**新文件** `节点/<concept-name>.md`
+- [ ] **路径必须是 `节点/`，不能是 `wiki/canvases/` 或 `wiki/concepts/`**
 - [ ] 打开它，内容满足：
-  - frontmatter 含 `type: concept` / `subject: math240` / `mastery_score: 0.30` / `source_note: "[[Fundamentals]]"` / `created_from: ai_linked_doc`
-  - `# Eigenvalues` 标题
-  - `## 核心概念` 1-2 句英文定义（v2 中文原文，这里也应该是英文因为选中文本是英文）
+  - frontmatter 含 `type: concept` / `mastery_score: 0.30` / `source_note: "[[源笔记]]"` / `source_board: "[[原白板/<board>]]"` / `created_from: ai_linked_doc` / `up: [[源笔记]]` / `derived-from: [[源笔记]]`
+  - **⭐ v2.4 新增**：frontmatter 含 `relationships:` 数组：
+    ```yaml
+    relationships:
+      - type: refines
+        target: "[[Fundamentals]]"
+    ```
+  - frontmatter **无** `subject` / `tags` 字段
+  - `# <概念名>` 标题
+  - `## 核心概念` 1-2 句定义（语言匹配选中文本）
   - `## 关键点` 3-5 个 bullet
-  - `## 关联概念` **只列 `- [[Fundamentals]] — extracted from this note`**（不能列捏造的其他概念）
+  - `## 关联概念` **只列 `- [[源笔记]] — extracted from this note`**（不能列捏造的其他概念）
+
+### 第 9.5 步：⭐ v2.4 新增 — 验证源笔记 callout 双写（D1-3 视觉半边）
+
+回到源笔记，找到选中文本被替换的位置：
+
+- [ ] 选中文本已**替换为 wikilink** `[[节点/<concept-name>]]`
+- [ ] wikilink **下方紧跟 callout**（5 行格式）：
+  ```
+  [[节点/<concept-name>]]
+
+  > [!relation/refines]+ 派生关系: 细化
+  > 上方 wikilink 节点派生自这段文本，关系类型为 **refines**。
+  ```
+- [ ] callout 标题中文标签匹配你选的关系（refines→细化 / extends→扩展 / prerequisite→先修 等）
+- [ ] callout 类型 `[!relation/refines]+` 中的 key 和 frontmatter `relationships[0].type` **一致**
+- [ ] Reading View（按 `Cmd+E`）下，callout 渲染为带颜色的可折叠块（具体颜色取决于 obsidian 主题对未知 callout type 的处理）
+
+**如果只有 wikilink 没 callout** → SKILL.md Step 6 没改对，检查 `grep -A 5 "Step 6" canvas-vault/.claude/skills/ai-linked-doc/SKILL.md`
+
+### 第 9.6 步：⭐ v2.4 新增 — 验证白板 ## Concepts 含关系 key
+
+打开 `原白板/<active_board>.md`：
+
+- [ ] `## Concepts` section 末尾新加一行：`- [[节点/<concept-name>]] — refines, weak (0.30)`（**关系 key 替代 v2.2 的 `extracted` 字样**）
+- [ ] `## Recent Activity` section 末尾新加一行末尾含 `（关系: refines）`
+
+### 第 4.5 步：⭐ v2.6 新增 — 节点派生节点自动继承白板（截图 bug 修复）
+
+**前提**：你已经至少派生过 1 个节点（v2.4 / v2.5 测过的话已有 `节点/Characteristic-Equation-for-Eigenvalues.md` 这种）。
+
+**测试场景 A · 节点继承（v2.6 主路径）**：
+
+- [ ] 在 obsidian 打开**已派生的节点 md**（例 `节点/Characteristic-Equation-for-Eigenvalues.md`）
+- [ ] 确认其 frontmatter 含 `source_board: "[[原白板/特征值与特征向量]]"`（这是之前派生时 Skill 写的）
+- [ ] 在节点 md 正文选一段文字（任意句子）
+- [ ] 按 Cmd+Shift+D
+- [ ] **预期**：右下角弹 Notice `继承源节点白板归属：特征值与特征向量（v2.6 自动）` (3s)
+- [ ] 关系 modal + 描述 modal 正常出现（不变）
+- [ ] 提交 prompt 到 Claudian
+- [ ] **关键验收**：Skill 跑完后**不**弹 AskUserQuestion 问你白板归属
+- [ ] 新节点正确写到 `节点/<新概念>.md`，frontmatter `source_board: "[[原白板/特征值与特征向量]]"` 与源节点一致
+- [ ] 原白板 `原白板/特征值与特征向量.md` 的 ## Concepts 多 1 行新节点
+
+**测试场景 B · 不在节点路径下（v2.6 fallback 验证）**：
+
+- [ ] 在 `wiki/canvases/math140/Fundamentals.md`（非 `节点/` 路径）选中文字
+- [ ] 按 Cmd+Shift+D
+- [ ] **预期**：Notice `当前笔记 wiki/canvases/math140/Fundamentals.md 不在 原白板/ 或 节点/ 路径下...`
+- [ ] **不**弹"继承源节点白板归属"的 Notice（因为不是节点）
+- [ ] Skill 仍走 .canvas-config.yaml / AskUserQuestion 流程（保持原行为）
+
+**测试场景 C · 节点 frontmatter 无 source_board（v2.6 fallback 验证）**：
+
+- [ ] 手动建一个 `节点/test-no-board.md`，frontmatter 不写 source_board 字段
+- [ ] 在其中选中文字按 Cmd+Shift+D
+- [ ] **预期**：plugin 不弹"继承源节点白板归属"的 Notice
+- [ ] Skill Step 2.5 fallback 命中：Skill 自己 Read 源节点 frontmatter（仍无 source_board）→ 走规则 3 / 4
+- [ ] AskUserQuestion 出现，你能正常选白板
+
+**3 个场景任一通过即 v2.6 节点继承核心 OK**。场景 A 是正路，场景 B/C 验证不破坏原行为。
+
+### 第 9.7 步：⭐ v2.5 新增 — 验证派生描述三处落地（仅路径 a 跑此步）
+
+跑路径 a 的用户必须验证 3 处落地。**留空（路径 b/c）跳过此步**：
+
+- [ ] **落地 1 · 源笔记 callout body** — 回到源笔记，找 `[!relation/refines]+ 派生关系: 细化` callout，body 应有 **3 行**（v2.5 路径 B 6 行模板）：
+  ```
+  > 上方 wikilink 节点派生自这段文本，关系类型为 **refines**。
+  > 你的派生意图: 为了单独梳理特征方程的求解步骤
+  ```
+- [ ] **落地 2 · 新节点 frontmatter** — 打开 `节点/<concept>.md`，frontmatter `relationships[0]` 含 `description` 子字段：
+  ```yaml
+  relationships:
+    - type: refines
+      target: "[[Fundamentals]]"
+      description: "为了单独梳理特征方程的求解步骤"
+  ```
+- [ ] **落地 3 · AI 写的正文反映你的意图** — `## 核心概念` 段不应只是机械复读你的描述，而是：
+  - 真的从"特征方程的求解步骤"角度展开
+  - 不是从其他角度（如 "what is 特征方程" 一般定义）切入
+  - **路径 b/c 留空的对比**：留空时 AI 自己选最常见的角度，可能是一般定义；填了描述则按你的角度切入
+
+**留空（路径 b/c）的反向验证**：
+- [ ] frontmatter `relationships[0]` **不**含 `description` 字段（不要 `description: ""`）
+- [ ] callout body **没有**第三行 `> 你的派生意图:`（5 行模板，路径 A）
 
 **如果路径是 wiki/concepts/** → Skill 没走，转 "🔴 诊断 C"  
 **如果 `## 关联概念` 列了一堆不存在的 `[[XXX]]`** → Skill 硬约束没生效，转 "🔴 诊断 C"
@@ -377,13 +763,31 @@ Notice: "当前笔记 xxx 不在原白板路径下"
 - 解决：按 P3 把文件放到正确路径
 - 或：继续推进，Skill 的 Step 1 会 AskUserQuestion 让你选 subject
 
+### 🔴 诊断 E — v2.5 modal 没弹出（关系 modal 或描述 modal 任一缺失）
+
+按完 Cmd+Shift+D 立刻进入剪贴板写入而**跳过两个 modal**：
+
+1. 检查 main.js 大小：`stat -f "%z" canvas-vault/.obsidian/plugins/canvas-learning-system/main.js` 应见 `20348`（v2.6）
+2. 不是 20348 → 重新 build + cp：
+   ```bash
+   cd frontend/obsidian-plugin && npm run build
+   cp main.js ../../canvas-vault/.obsidian/plugins/canvas-learning-system/main.js
+   ```
+3. cp 完后**必须**在 obsidian 重启（Cmd+Q 退出再开 / Cmd+P → "Reload app without saving"）
+4. 仍跳过 modal → 检查 `frontend/obsidian-plugin/src/main.ts` 第 130 行附近含 `new RelationTypeModal(this.app, ...)`
+
+modal 弹出但选完没反应（剪贴板没写入）：
+1. F12 console 看是否报 `RelationTypeModal is not defined`
+2. 或 `RELATION_TYPES is not exported` → ai-linked-doc.ts 没改对
+3. 重 build 即可
+
 ---
 
 ## 🚦 验收结果
 
-### 理想情况（全 12 步 ✅）
-→ 告诉我 "**Story 1.17 通过**"  
-→ 我 mark done + 启动下一个 Story（1.18 Dashboard MVP 或 1.19 原白板配置 Skill，你选）
+### 理想情况（全 20 步 ✅，含 v2.4 关系类型 3 步 + v2.5 派生描述 2 步 + v2.6 节点继承 1 步）
+→ 告诉我 "**Story 1.17 v2.6 通过**"  
+→ 我 mark done + 启动下一个 Story（1.18 Dashboard MVP 或 wikilink 图谱构建 Story 1.2）
 
 ### 部分失败（哪步 ❌ 告诉我哪个诊断）
 → 告诉我 "**诊断 [A/B/C/D]**" + 截图  

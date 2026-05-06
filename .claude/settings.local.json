@@ -20,7 +20,8 @@
       "mcp__codebase-memory__brief",
       "mcp__claude_ai_Gmail__gmail_search_messages",
       "mcp__claude_ai_Gmail__gmail_read_message",
-      "mcp__codebase-memory__recall"
+      "mcp__codebase-memory__recall",
+      "mcp__graphiti__search_memory_facts"
     ]
   },
   "enableAllProjectMcpServers": true,

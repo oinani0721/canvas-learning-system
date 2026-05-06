@@ -1,0 +1,24 @@
+{
+  "id": "conv-1777538503276-uhmk7u8ol",
+  "providerId": "claude",
+  "title": "Configure Linear Algebra whiteboard",
+  "titleGenerationStatus": "success",
+  "createdAt": 1777538503276,
+  "updatedAt": 1777612732364,
+  "lastResponseAt": 1777538565857,
+  "sessionId": "703d41d4-368d-4c02-8fb5-a72cf50e418e",
+  "providerState": {
+    "providerSessionId": "703d41d4-368d-4c02-8fb5-a72cf50e418e"
+  },
+  "currentNote": "原白板/CS 61B.md",
+  "usage": {
+    "model": "haiku",
+    "inputTokens": 1,
+    "cacheCreationInputTokens": 1519,
+    "cacheReadInputTokens": 42324,
+    "contextWindow": 600000,
+    "contextTokens": 43844,
+    "percentage": 7,
+    "contextWindowIsAuthoritative": true
+  }
+}

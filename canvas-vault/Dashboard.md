@@ -273,7 +273,7 @@ if (totalPending === 0) {
       const desc = c.description || "(无描述)";
       const ptype = c.pedagogy_type || "—";
       const seen = c.seen_count || 1;
-      const lastSeen = c.last_seen_at ? c.last_seen_at.slice(0, 10) : "—";
+      const lastSeen = c.last_seen_at ? String(c.last_seen_at).slice(0, 10) : "—";
       return [icon, desc.slice(0, 80), ptype, conf.toFixed(2), seen, lastSeen];
     });
     dv.table(

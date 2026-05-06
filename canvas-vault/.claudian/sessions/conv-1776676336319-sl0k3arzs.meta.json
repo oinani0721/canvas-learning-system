@@ -1,0 +1,24 @@
+{
+  "id": "conv-1776676336319-sl0k3arzs",
+  "providerId": "claude",
+  "title": "Create concept document for CSM tutoring credit",
+  "titleGenerationStatus": "success",
+  "createdAt": 1776676336320,
+  "updatedAt": 1776729461287,
+  "lastResponseAt": 1776676369121,
+  "sessionId": "a176ec8a-e744-415f-88ad-dc18325f0490",
+  "providerState": {
+    "providerSessionId": "a176ec8a-e744-415f-88ad-dc18325f0490"
+  },
+  "currentNote": "未命名.md",
+  "usage": {
+    "model": "haiku",
+    "inputTokens": 8,
+    "cacheCreationInputTokens": 1250,
+    "cacheReadInputTokens": 61346,
+    "contextWindow": 200000,
+    "contextTokens": 62604,
+    "percentage": 31,
+    "contextWindowIsAuthoritative": true
+  }
+}

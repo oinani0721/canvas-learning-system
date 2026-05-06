@@ -1,0 +1,20 @@
+{
+  "canvas-learning-system:canvas:annotate-callout": [
+    {
+      "modifiers": [
+        "Mod",
+        "Shift"
+      ],
+      "key": "A"
+    }
+  ],
+  "canvas-learning-system:canvas:ai-linked-doc": [
+    {
+      "modifiers": [
+        "Mod",
+        "Shift"
+      ],
+      "key": "D"
+    }
+  ]
+}

@@ -249,10 +249,52 @@ function takeBytes(s: string, maxBytes: number): string {
 }
 
 /**
- * 检查 path 是否在 节点/ 路径下。
+ * 路径规范化（不依赖 obsidian module，让单元测试好跑）。
+ *
+ * - 反斜杠 → 正斜杠（Windows 兼容）
+ * - 折叠重复 `/`
+ * - 去掉前导 `/` 或 `./`
+ * - 解析 `..` 段（防 path traversal escape）
+ *
+ * `节点/../escape.md` → `escape.md`（前缀检查会失败 → escape 拒绝）
  */
-export function isNodePath(path: string): boolean {
-  return path.startsWith("节点/") && path.endsWith(".md");
+function _normalizePath(path: string): string {
+  const normalized = path.replace(/[\\/]+/g, "/").replace(/^\.?\//, "");
+  const segments = normalized.split("/");
+  const resolved: string[] = [];
+  for (const seg of segments) {
+    if (seg === ".." && resolved.length > 0) {
+      resolved.pop();
+    } else if (seg === ".." || seg === "." || seg === "") {
+      continue;
+    } else {
+      resolved.push(seg);
+    }
+  }
+  return resolved.join("/");
+}
+
+/**
+ * Story 2.1 P1.6 — 检查 path 是否在 nodePathPrefixes 任一前缀下，且为 .md 笔记。
+ *
+ * 升级（v1.1）：
+ * - 接受 prefixes 参数（DD-10 配置化，默认 `["节点/"]` 兼容现有 vault）
+ * - 内置 path normalization（防反斜杠 / `..` 路径逃逸）
+ *
+ * @param path - 要检查的路径（任意大小写 / 任意斜杠形式）
+ * @param prefixes - 允许的前缀列表（默认 `["节点/"]`），不带 `/` 的会自动补
+ */
+export function isNodePath(
+  path: string,
+  prefixes: string[] = ["节点/"],
+): boolean {
+  if (!path) return false;
+  const normalized = _normalizePath(path);
+  if (!normalized.endsWith(".md")) return false;
+  return prefixes.some((p) => {
+    const prefix = p.endsWith("/") ? p : `${p}/`;
+    return normalized.startsWith(prefix);
+  });
 }
 
 /**

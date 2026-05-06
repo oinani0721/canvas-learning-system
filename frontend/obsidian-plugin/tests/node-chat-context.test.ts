@@ -209,6 +209,50 @@ test("isNodePath: 节点/ 起头 + .md 结尾", () => {
   assert.equal(isNodePath(""), false);
 });
 
+// ════════════════════════════════════════════════════════════════════
+// Story 2.1 P1.6 — isNodePath 配置化前缀 + path normalization
+// ════════════════════════════════════════════════════════════════════
+
+test("isNodePath: 自定义前缀（英文 vault 用 'Nodes/'）", () => {
+  assert.equal(isNodePath("Nodes/Eigenvalues.md", ["Nodes/"]), true);
+  assert.equal(isNodePath("节点/Eigenvalues.md", ["Nodes/"]), false);
+  // 默认前缀不变
+  assert.equal(isNodePath("节点/X.md"), true);
+});
+
+test("isNodePath: 多前缀同时支持", () => {
+  const prefixes = ["节点/", "Nodes/"];
+  assert.equal(isNodePath("节点/X.md", prefixes), true);
+  assert.equal(isNodePath("Nodes/Y.md", prefixes), true);
+  assert.equal(isNodePath("Other/Z.md", prefixes), false);
+});
+
+test("isNodePath: 前缀缺失尾部斜杠时自动补", () => {
+  // "节点" 自动补成 "节点/"
+  assert.equal(isNodePath("节点/X.md", ["节点"]), true);
+  // 不会误匹配 "节点其他/"
+  assert.equal(isNodePath("节点其他/X.md", ["节点"]), false);
+});
+
+test("isNodePath: path traversal escape (..) 被拒绝", () => {
+  // 节点/../escape.md 经 normalizePath 后 = escape.md，不在 节点/ 下
+  assert.equal(isNodePath("节点/../escape.md"), false);
+  assert.equal(isNodePath("节点/sub/../../escape.md"), false);
+  // 合法的 .. 段（不离开根）仍能被识别
+  assert.equal(isNodePath("节点/sub/../X.md"), true);
+});
+
+test("isNodePath: Windows 反斜杠路径自动归一", () => {
+  assert.equal(isNodePath("节点\\Eigenvalues.md"), true);
+  assert.equal(isNodePath("节点\\sub\\X.md"), true);
+});
+
+test("isNodePath: 前导 ./ 或 / 自动剥离", () => {
+  assert.equal(isNodePath("./节点/X.md"), true);
+  assert.equal(isNodePath("/节点/X.md"), true);
+  assert.equal(isNodePath("节点//X.md"), true);  // 重复斜杠
+});
+
 test("extractFrontmatterType: 取 type 字段或 undefined", () => {
   assert.equal(
     extractFrontmatterType({ type: "concept", source_board: "X" }),

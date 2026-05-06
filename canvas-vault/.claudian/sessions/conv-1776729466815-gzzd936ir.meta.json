@@ -1,0 +1,23 @@
+{
+  "id": "conv-1776729466815-gzzd936ir",
+  "providerId": "claude",
+  "title": "Configure whiteboard",
+  "titleGenerationStatus": "success",
+  "createdAt": 1776729466817,
+  "updatedAt": 1777537529474,
+  "lastResponseAt": 1776730562209,
+  "sessionId": "b54ea7c4-d230-42b7-be54-07011352a719",
+  "providerState": {
+    "providerSessionId": "b54ea7c4-d230-42b7-be54-07011352a719"
+  },
+  "usage": {
+    "model": "haiku",
+    "inputTokens": 8,
+    "cacheCreationInputTokens": 287,
+    "cacheReadInputTokens": 72978,
+    "contextWindow": 200000,
+    "contextTokens": 73273,
+    "percentage": 37,
+    "contextWindowIsAuthoritative": true
+  }
+}

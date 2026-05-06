@@ -1,0 +1,24 @@
+{
+  "id": "conv-1777544824333-47ssohh5w",
+  "providerId": "claude",
+  "title": "Derive eigenvalue concept node",
+  "titleGenerationStatus": "success",
+  "createdAt": 1777544824333,
+  "updatedAt": 1777612724025,
+  "lastResponseAt": 1777548936402,
+  "sessionId": "8cc2cacc-11d9-4222-a3ae-fc5443f4f00b",
+  "providerState": {
+    "providerSessionId": "8cc2cacc-11d9-4222-a3ae-fc5443f4f00b"
+  },
+  "currentNote": "wiki/canvases/math140/Fundamentals.md",
+  "usage": {
+    "model": "haiku",
+    "inputTokens": 1,
+    "cacheCreationInputTokens": 1867,
+    "cacheReadInputTokens": 66153,
+    "contextWindow": 200000,
+    "contextTokens": 68021,
+    "percentage": 34,
+    "contextWindowIsAuthoritative": true
+  }
+}

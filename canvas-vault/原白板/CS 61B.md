@@ -36,27 +36,57 @@ migrated_at: "2026-04-21T00:00:00Z"
 wikilink 目标都指向 vault 根的 节点/ 文件夹下 md。
 -->
 
-## Theorems & Proofs
+## 🔗 节点关系图（v2.7 · 白板核心 · 自动从真实双链生成）
 
-<!-- 定理 / 证明 / 推导过程（手写；后续 Story 1.18 Dashboard 可聚合全部原白板的定理）-->
+```dataviewjs
+const here = dv.current().file.link;
+const nodes = dv.pages('"节点"')
+  .where(p => p.source_board?.path === here.path);
 
-## Common Errors
+if (nodes.length === 0) {
+  dv.paragraph("> 🌱 当前白板暂无派生节点，用 Cmd+Shift+D 派生第一个");
+} else {
+  let chart = "graph TD\n";
+  const declared = new Set();
+  nodes.forEach(n => {
+    const id = n.file.name.replace(/[^a-zA-Z0-9_]/g, "_");
+    if (!declared.has(id)) {
+      const mastery = n.mastery_score ?? '—';
+      chart += `  ${id}["${n.file.name}<br/>精通度 ${mastery}"]\n`;
+      chart += `  style ${id} fill:#fff3e0,stroke:#f57c00\n`;
+      declared.add(id);
+    }
+    if (n["derived-from"]) {
+      const srcName = n["derived-from"].fileName ? n["derived-from"].fileName() : n["derived-from"].path.split('/').pop().replace('.md','');
+      const srcId = srcName.replace(/[^a-zA-Z0-9_]/g, "_");
+      if (!declared.has(srcId)) {
+        chart += `  ${srcId}["${srcName}<br/>(源笔记)"]\n`;
+        chart += `  style ${srcId} fill:#e1f5ff,stroke:#0288d1\n`;
+        declared.add(srcId);
+      }
+    }
+  });
+  nodes.forEach(n => {
+    if (n["derived-from"]) {
+      const srcName = n["derived-from"].fileName ? n["derived-from"].fileName() : n["derived-from"].path.split('/').pop().replace('.md','');
+      const src = srcName.replace(/[^a-zA-Z0-9_]/g, "_");
+      const dst = n.file.name.replace(/[^a-zA-Z0-9_]/g, "_");
+      chart += `  ${src} -->|派生| ${dst}\n`;
+    }
+    (n.file.outlinks || []).forEach(link => {
+      const target = nodes.find(p => p.file.path === link.path);
+      if (target && target.file.name !== n.file.name) {
+        const src = n.file.name.replace(/[^a-zA-Z0-9_]/g, "_");
+        const dst = target.file.name.replace(/[^a-zA-Z0-9_]/g, "_");
+        chart += `  ${src} -.->|wikilink| ${dst}\n`;
+      }
+    });
+  });
+  dv.paragraph("```mermaid\n" + chart + "```");
+}
+```
 
-<!-- 典型错误 / 陷阱 / 易混淆点（来自 Tips 系统 [!error]+ 批注；Story 1.18 Dashboard 可聚合）-->
-
-## Relationship Graph
-
-> [!info]+ 怎么看笔记之间的关系（/configure-whiteboard Skill 不做语义归纳）
-> **本 Skill 刻意不生成"概念 A 依赖概念 B"这类语义关系** — 因为关系要么是你手写的 `[[wikilink]]`，要么是 Story 1.17 AI 派生新节点时自动建的双链，要么是未来 Story 2.x 知识图谱从 Graphiti 推断的。Skill 自己臆造关系 = 幻觉，严禁。
->
-> **关系的 3 个真实来源**：
-> 1. 你手写的 `[[wikilink]]` — 任何笔记正文打 `[[` 触发文件名补全
-> 2. Story 1.17 AI 双链（`Cmd+Shift+D`）— AI 派生新节点时双向建链
-> 3. 未来 Story 2.x Graphiti 知识图谱 — 后端语义抽取
->
-> ## 现在就能看的关系
-> - `Cmd+G` 打开 Graph View
-> - 左上 `Filters` → 输 `path:节点/` 或 `path:原白板/CS 61B`
+> **白板 = 节点关系**（社区共识：5 大思想领袖 + 5 真实成熟项目均零分类容器段）。Cmd+G 看 Graph View 全 vault 拓扑。
 
 ## Recent Activity
 

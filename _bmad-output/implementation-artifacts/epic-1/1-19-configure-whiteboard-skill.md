@@ -2,19 +2,26 @@
 story_id: "1.19"
 epic_id: "1"
 prd_id: "canvas-learning-system"
-status: "in-progress"
+status: "review"
 priority: "P0"
-estimate_hours: 10
+estimate_hours: 16
 depends_on: []
 blocks: ["1.17","1.18"]
 trace: ["FR-KG-08","FR-SYS-06","FR-DASH-01"]
 plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
-revision: "v3-flat-architecture-2026-04-20"
+revision: "v4-full-plugin-deterministic-2026-05-01"
 uat_sheet: "_bmad-output/验收单/Story-1.19-configure-whiteboard.md"
 v3_summary:
   architecture_change: "白板 = 原白板/<board>.md 单 md 文件（非目录）；节点扁平池 节点/*.md；一 vault 一学科"
   community_alignment: "Nick Milo Ideaverse Atlas/Maps+Atlas/Notes"
   user_decisions_round_10: "a 侧栏折叠 + B vault 级 subject + 中文目录 + X 一 vault 零冲突"
+v4_summary:
+  refactor: "Skill v3.1 7 步 LLM 流程 → plugin v4 100% 脚本，<300ms"
+  rationale: "configure-whiteboard 7 步全 deterministic（读 yaml / 路径 / vault 操作），不需要 LLM"
+  bug_fix_inline: "v3.1 反向引用检测从 Skill Glob 500ms → plugin metadataCache.resolvedLinks 10ms"
+  skill_status: "v3.1 SKILL.md 标 [DEPRECATED]，保留作 fallback（用户输 /configure-whiteboard 仍能跑）"
+  new_command: "canvas:configure-whiteboard（默认未绑快捷键，用户自绑或命令面板搜）"
+  modal_chain: "BoardNameInputModal → (BacklinkWarningModal if 反向引用) → SeedModeModal → 完成"
 ---
 
 # Story 1.19 v3: 原白板配置 Skill — 扁平架构（对齐 Nick Milo Ideaverse）
@@ -392,3 +399,66 @@ Claude Opus 4.7 (1M context) — 3 并行 Agent deep explore (story 依赖链 / 
 - NEW: frontend/obsidian-plugin/src/modals/CalloutTypeModal.ts
 - MOD: frontend/obsidian-plugin/src/main.ts (added canvas:annotate-callout)
 -->
+
+---
+
+## v4.0 Dev 完成（2026-05-01 · 全 plugin 重构 + 反向引用检测）
+
+**Status**: review → 待用户跑 v4.0 plugin UAT
+
+**触发**：用户在 v3.1 ship 后立即提出"哪些功能用脚本会稳定迅速，而不是用 Skill"。3 并行 Explore agent 调研结论：configure-whiteboard 7 步全 deterministic，零 LLM 必需。同时 v3.1 Skill Glob 反向引用检测 ~500ms，plugin metadataCache.resolvedLinks ~10ms (50x 加速)。用户决定立即 v4 重构。
+
+### v4.0 Acceptance Criteria（追加 v3.1 之外的 6 条）
+
+#### AC #10: 新 plugin 命令 `canvas:configure-whiteboard`
+- [x] `frontend/obsidian-plugin/src/main.ts` 注册 9 个 command（v4 +1）
+- [x] 命令面板搜"建/配置原白板（v4 全 plugin 脚本）"
+- [x] 用户可绑快捷键到 `canvas:configure-whiteboard`
+- [x] Skill v3.1 SKILL.md 标 [DEPRECATED]，保留作 fallback
+
+#### AC #11: 全脚本流程（零 LLM 调用，<300ms）
+- [x] Step 1（读 .canvas-config.yaml）：`vault.adapter.read()` + `parseVaultConfigYaml()` 极简 YAML 解析
+- [x] Step 2（场景判定）：`determineScenario()` 路径前缀检查
+- [x] Step 3（输入 board_name）：`BoardNameInputModal` Modal 含实时校验提示
+- [x] Step 4.1（文件冲突）：`vault.getAbstractFileByPath()`
+- [x] Step 4.2（反向引用）：`metadataCache.resolvedLinks` 直接遍历（10ms）+ `BacklinkWarningModal` 3 选项
+- [x] Step 5（建白板）：`vault.create()` + 内嵌 `WHITEBOARD_TEMPLATE` 字符串替换
+- [x] Step 6（种子归类）：`SeedModeModal` move/copy/skip + `fileManager.renameFile()` (move 自动更新 backlink) + `processFrontMatter()` 加 type:concept
+- [x] Step 7（回执）：`new Notice` 显示总耗时 + 路径
+
+#### AC #12: 反向引用检测（v3.1 bug 修复加速 50x）
+- [x] `findBacklinkingNotes()` 一次性遍历 `resolvedLinks` (`Record<string, Record<string, number>>`)
+- [x] `summarizeBacklinks()` 提取每个反向引用节点的 source_board
+- [x] `deduplicateExistingBoards()` 按频次降序的已属白板列表
+- [x] `BacklinkWarningModal` 3 选项：A 追加到已有白板 / B 仍建新白板（碎片化警告）/ C 取消
+- [x] 200 笔记 < 100ms（实测 < 10ms，单元测试覆盖）
+
+#### AC #13: Modal 链 UX
+- [x] `BoardNameInputModal`：input 实时校验（hint 颜色变红/绿）+ Enter 提交 + Esc 取消
+- [x] `BacklinkWarningModal`（条件出现）：仅场景 B + 检测到反向引用时
+- [x] `SeedModeModal`（条件出现）：仅场景 B + 用户已选择建新白板（含忽略反向引用情形）
+- [x] 场景 A（active 已在 原白板/）只走 BoardNameInputModal → 直接建白板
+
+#### AC #14: 错误恢复（partial commit）
+- [x] 文件级冲突 → bail 不建白板，提示用户换名
+- [x] 用户选 cancel → notice 提示去查已有白板
+- [x] vault.create 失败 → notice 报错，无副作用
+- [x] 种子 move/copy 失败 → 白板已建好，notice 提示种子归类失败（白板保留）
+- [x] frontmatter 处理失败（小概率）→ 白板和种子都已建好，notice 警告 doc_count 未更新
+
+#### AC #15: Skill v3.1 兼容性 fallback
+- [x] `canvas-vault/.claude/skills/configure-whiteboard/SKILL.md` 头部 [DEPRECATED] banner
+- [x] Skill 仍能跑（原 Step 4.2 反向引用检测保留）
+- [x] 用户输 `/configure-whiteboard` 触发 Skill；点命令面板 / 绑快捷键触发 plugin
+- [x] 双轨并行不冲突（plugin 写到 `原白板/X.md`，Skill 也写到同一路径）
+
+### File List (v4.0 增量)
+- **NEW** `frontend/obsidian-plugin/src/configure-whiteboard.ts` — 175 行：12 个纯函数（YAML 解析 / 反向引用 / 模板渲染 / 重名 / 场景判定）+ WHITEBOARD_TEMPLATE 内嵌
+- **MOD** `frontend/obsidian-plugin/src/main.ts` — 注册 `canvas:configure-whiteboard` 命令；新增 `handleConfigureWhiteboard` / `continueConfigureWhiteboard` / `actuallyCreateWhiteboard` / `handleSeedRelocation` / `appendSeedToExistingBoard` / `readVaultConfig` 6 个方法；新增 `BoardNameInputModal` / `BacklinkWarningModal` / `SeedModeModal` 3 个 Modal class
+- **NEW** `frontend/obsidian-plugin/tests/configure-whiteboard.test.ts` — 30 个 v4 测试（sanitize / validate / parse YAML / 反向引用 / scenario / template render / seed lines / 重名）
+- **MOD** `frontend/obsidian-plugin/package.json` — test script 加 configure-whiteboard.test.ts
+- **MOD** `canvas-vault/.claude/skills/configure-whiteboard/SKILL.md` — 头部加 [DEPRECATED v4.0] banner，保留作 fallback
+- **MOD** `canvas-vault/.obsidian/plugins/canvas-learning-system/main.js` — build 57836B（v3 31768B，+26068B）
+
+### Change Log (v4.0)
+- 2026-05-01 v4.0 — 用户问"哪些功能用脚本会稳定迅速"，3 并行 agent 调研确认 configure-whiteboard 100% deterministic，0 LLM 必需。Plugin 重构完成：configure-whiteboard.ts 175 行 + main.ts 加 1 命令 + 6 方法 + 3 Modal class。30 个 v4 单元测试 green（含 50x 加速验证：200 笔记反向引用查询 < 10ms）。Skill v3.1 标 DEPRECATED 保留 fallback。105 总测试 green。main.js 31768B → 57836B。Plan: `/Users/Heishing/.claude/plans/swift-mapping-alpaca.md` configure-whiteboard v4 hybrid 落地 2026-05-01。

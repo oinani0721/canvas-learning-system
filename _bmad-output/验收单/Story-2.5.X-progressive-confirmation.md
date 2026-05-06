@@ -176,8 +176,8 @@ test_summary: "Backend 167 + Plugin 104 = 271 全 pass, 0 regression"
 
 #### P3 · 准备测试节点（含手动 error_candidates[]）
 
-- [ ] 在 `节点/` 下新建 `UAT-2.5.X-test.md`
-- [ ] **完整粘贴**以下内容（注意 yaml 缩进！）：
+- [x] 在 `节点/` 下新建 `UAT-2.5.X-test.md`
+- [x] **完整粘贴**以下内容（注意 yaml 缩进！）：
 
 ```markdown
 ---
@@ -253,17 +253,18 @@ error_candidates:
 - [ ] 打开 vault 根的 `Dashboard.md`
 - [ ] 滚到 "📋 待复盘错误候选" section（在 "⏰ 待复习 (FSRS 到期)" 上方）
 
+**User：你这里的错误列表我并没有在 dashboard 看到**
 **你应该看到**：
 
-- [ ] **总览表**显示 6 状态机各状态数：
+- [x] **总览表**显示 6 状态机各状态数：
   - `⏳ pending`：**2** ✅
   - `✅ accepted`：0
   - `✗ dismissed`：0
   - `⚠️ disputed`：0
   - `🗄️ expired`：0
-- [ ] **"⏳ 待复盘 2 条 (按节点分组)"** 标题
-- [ ] 节点链接 `[[UAT-2.5.X-test]]` (2 条)
-- [ ] 每条候选显示：
+- [x] **"⏳ 待复盘 2 条 (按节点分组)"** 标题
+- [x] 节点链接 `[[UAT-2.5.X-test]]` (2 条)
+- [x] 每条候选显示：
   - 🟢 (uat-cand-001 confidence=0.85, 高置信)
   - 🔴 (uat-cand-002 confidence=0.55, 低置信)
   - description 截断 + pedagogy_type + confidence + seen_count + last_seen 时间
@@ -290,6 +291,8 @@ error_candidates:
 - [ ] 选第 1 条（uat-cand-001）→ Enter
 - [ ] 几秒钟后右下角弹 Notice：
   - ✅ **`✓ 已接受 → errors[] (Graphiti: queued)`**
+    
+**User：1，你这里的错误记录没有显示的告诉我错误是什么？这里接受错误的使用操作体验，我是需要具体进行 claudian 的使用才知道具体的效果如何；2，我觉得最好是 我在使用 claudian 的时候，agent 能亲自检测到错误后向我增量提问，问我是否需要把我的这个错误描述列为批注然后记录到 Graphiti，3,我这里有一个很重要的思想，Graphiti 的后端记录，应该和我前端记录的批注内容高度一致，4，Graphiti 后端所记录各个节点和批注之间的联系，应该也是要我个人定义各个节点之间的联系高度一致，那么我为什么要用 Graphiti 在后端上进行RAG 的检索的话，我觉得是比我前端只靠双向链接和 md 文件内容检索，更加快速可靠。 5，请你现在 deep explore 我们 Graphiti 所有检索算法并向我解释，由此我来判断这里的错误管理，在我们长上下文一多是否还能保持可靠的定位，我这里还需要启动并行 agent 来 deep explore 相关的案例。**
 
 **回 Obsidian 验证 frontmatter**：
 

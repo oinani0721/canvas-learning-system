@@ -1,0 +1,23 @@
+{
+  "id": "conv-1777612864902-v0pz027xr",
+  "providerId": "claude",
+  "title": "Create eigenvalues concept node",
+  "titleGenerationStatus": "success",
+  "createdAt": 1777612864903,
+  "updatedAt": 1777615562145,
+  "lastResponseAt": 1777615557621,
+  "sessionId": "b86d5894-d5b7-4b60-9b2d-60a8aecf1ce3",
+  "providerState": {
+    "providerSessionId": "b86d5894-d5b7-4b60-9b2d-60a8aecf1ce3"
+  },
+  "currentNote": "wiki/canvases/math140/Fundamentals.md",
+  "usage": {
+    "model": "haiku",
+    "inputTokens": 8,
+    "cacheCreationInputTokens": 404,
+    "cacheReadInputTokens": 69625,
+    "contextWindow": 200000,
+    "contextTokens": 70037,
+    "percentage": 35
+  }
+}

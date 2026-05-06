@@ -14,6 +14,16 @@ model: sonnet
 
 # 原白板配置 Skill v3（Canvas Learning System · 扁平架构）
 
+> **v3.1 (2026-05-01) 修复**：Step 4 加入"反向引用检测"防止盲建重复白板（用户 2026-04-30 批注 bug 修复）。详见 Step 4.2。
+>
+> ## ⚠️ [DEPRECATED v4.0 起] — 推荐用 plugin 命令 `canvas:configure-whiteboard`
+>
+> Story 1.19 v4.0（2026-05-01）已把全部 7 步流程迁回 plugin script，零 LLM 调用，<300ms 完成（vs 本 Skill 15-30s LLM 推理）。社区共识：deterministic 工作（文件 I/O / 路径检测 / 反向引用查询）必须脚本，不该 LLM。
+>
+> **新主路径**：在 obsidian 命令面板搜 `建/配置原白板（v4 全 plugin 脚本）` 或绑快捷键到 `canvas:configure-whiteboard`。
+>
+> **本 Skill 仍保留作 fallback**（用户在 Claudian 输 `/configure-whiteboard` 时触发），但 v3.1 SKILL 不再积极维护。所有 deterministic 改进只进 plugin 端。
+
 ## ⛔⛔⛔ CRITICAL TRIGGER & HARD CONSTRAINTS（round-11 扁平架构）
 
 **识别触发**：
@@ -85,7 +95,9 @@ model: sonnet
 - 默认用 source md 的文件名 stem 作为 board_name 候选
 - 但仍 `AskUserQuestion` 确认（源文件名可能不是理想白板名）
 
-### Step 4 · 冲突检测（文件级）
+### Step 4 · 冲突检测（文件级 + 反向引用）
+
+#### Step 4.1 · 文件级冲突
 
 用 `Glob 原白板/{board_name}.md` 检查：
 
@@ -94,7 +106,48 @@ model: sonnet
   > - 覆盖重建（丢弃现有内容）
   > - 追加种子笔记到现有白板的 `## Concepts` section（仅场景 B）
   > - 换名（回 Step 3 重问）
-- **不存在** → 继续 Step 5
+- **不存在** → 继续 Step 4.2
+
+#### Step 4.2 · 反向引用检测（v3.1 新增 · bug 修复）
+
+**为什么**：用户原批注（2026-04-30）— "用 configure-whiteboard 把 `wiki/canvases/math140/Fundamentals.md` 迁成新白板，但 Fundamentals 已被 `节点/Characteristic-Equation-for-Eigenvalues.md` 的 `derived-from: [[Fundamentals]]` 反向引用"。Skill 此前不检测反向引用 → 用户错把已有白板的种子笔记当作新白板源头建了重复白板。
+
+**仅场景 B 跑此步**（场景 A 从零建无 source_path，跳过）：
+
+1. **提取 source_path 文件名**：从 `source_path` 取 stem（去掉路径 + `.md` 后缀），例 `wiki/canvases/math140/Fundamentals.md` → `Fundamentals`
+
+2. **Glob `节点/*.md`**：枚举所有节点
+
+3. **逐个 Read frontmatter**：检查 3 个反向引用字段：
+   - `source_note: "[[<source_stem>]]"`
+   - `derived-from: "[[<source_stem>]]"`
+   - `up: "[[<source_stem>]]"`
+   
+   匹配方式（robust）：用 regex `\[\[(?:[^\]]*\/)?<source_stem>(?:\.md)?(?:\|[^\]]*)?\]\]` 处理 `[[Fundamentals]]` / `[[节点/Fundamentals]]` / `[[Fundamentals.md]]` / `[[Fundamentals|alias]]` 4 种格式
+
+4. **若任一节点反向引用 source_stem**：
+   - 收集这些节点的 `source_board` frontmatter（提取 board name）
+   - 去重得 `existing_boards` 集合
+   - **AskUserQuestion**（强制阻止盲建新白板）：
+     > ⚠️ **检测到反向引用**：
+     > 
+     > `{source_path}` 已被以下节点引用：
+     > - `[[节点/X]]` derived-from `[[{source_stem}]]`（属于白板 `{board_A}`）
+     > - `[[节点/Y]]` source_note `[[{source_stem}]]`（属于白板 `{board_B}`）
+     > 
+     > 这意味着 `{source_stem}` 已经是某个白板的种子或派生节点。怎么处理？
+     > 
+     > - **A. 追加到已有白板 `{board_A}`** （把 source_path 的内容作为新种子加到 `{board_A}.md` 的 `## Concepts`）— 推荐
+     > - **B. 仍建新白板 `{board_name}`**（覆盖反向引用，承担"碎片化"风险，可能造成同一概念多白板分裂）
+     > - **C. 取消**（先去看一下 `{board_A}` 再决定）
+
+5. **若用户选 A**：跳到 Step 6 但用 `existing_boards[0]` 替换 `{board_name}`（即追加到已有白板）
+
+6. **若用户选 B**：继续原 Step 5（建新白板，记录 `⚠ 用户选择忽略反向引用` 到回执）
+
+7. **若用户选 C**：halt，输出 `✗ 用户取消，请去 [[原白板/{board_A}]] 查看后再决定`
+
+8. **零反向引用**：直接继续 Step 5
 
 ### Step 5 · 创建目录结构 + 白板 md
 

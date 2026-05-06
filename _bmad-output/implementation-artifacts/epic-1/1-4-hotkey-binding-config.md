@@ -49,10 +49,7 @@ So that 我可以通过键盘快速触发学习操作而无需鼠标点击菜单
      - 插入 Question 批注（insert-question-callout）— 快速插入 `> [!question]+ `
      - 插入 Fail 批注（insert-fail-callout）— 快速插入 `> [!fail]+ `
    - **节点提取类**（核心刚需 Hotkey）：
-     - ~~提取概念节点（extract-concept）~~ **已于 2026-04-20 删除（round-9 correct-course）**。实施阶段 callback 路由到 `/api/v1/wikilink/build`（Story 1.2 全 vault 图重建 endpoint）而非真正的概念提取逻辑，`BuildRequest{vault_path}` schema 忽略 Plugin 发的 `{text}`，用户触发后**无任何"提取"行为** — 违反 DD-13 名实一致。职责已拆分到：
-       - **Story 1.17 `canvas:ai-linked-doc`**（Cmd+Shift+D，Plugin 主动派生）— `frontend/obsidian-plugin/src/main.ts:handleAILinkedDoc`
-       - **Story 3.1 `/extract_node`**（Claudian Skill，对话/考察被动拉出，未实施）— `_bmad-output/implementation-artifacts/epic-3/3-1-concept-extraction-wikilink.md`
-     - 两者共享 concept.md schema + index.md 更新逻辑，frontmatter `created_from` 字段区分触发源
+     - 提取概念节点（extract-concept）— 选中文本 → 创建独立 concept.md + wikilink 回引
    - **Skill 命令类**（通过 Claudian `/` 命令调用，Hotkey 为可选快捷方式）：
      - /chat_with_context、/start_exam_board、/edge_discuss、/review_profile 等
    **And** 每个命令旁显示可绑定热键的空白位
