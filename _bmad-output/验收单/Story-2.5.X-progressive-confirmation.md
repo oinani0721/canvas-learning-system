@@ -127,9 +127,10 @@ test_summary: "Backend 167 + Plugin 104 = 271 全 pass, 0 regression"
   python start_server.py
   ```
 - [ ] 看到 `Application startup complete` 或 `Uvicorn running on http://0.0.0.0:8001`
-- [ ] **快速验证 4 endpoint 注册**：
+- [ ] **快速验证 4 endpoint 注册**（方法 A: OpenAPI URL 修正版）：
   ```bash
-  curl -s http://localhost:8001/openapi.json | grep -o '"/api/v1/errors/[^"]*"' | sort -u
+  # ⚠️ OpenAPI 实际路径是 /api/v1/openapi.json (main.py:379 openapi_url 配置)
+  curl -s http://localhost:8001/api/v1/openapi.json | grep -o '"/api/v1/errors/[^"]*"' | sort -u
   ```
   应输出 4 行：
   ```
@@ -138,6 +139,29 @@ test_summary: "Backend 167 + Plugin 104 = 271 全 pass, 0 regression"
   "/api/v1/errors/dispute-candidate"
   "/api/v1/errors/rebuild-graphiti"
   ```
+
+- [ ] **方法 B（备选, 不启动 backend 也能验证）**：
+  ```bash
+  cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend
+  PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -c "
+  from app.main import app
+  required = {'/api/v1/errors/accept-candidate', '/api/v1/errors/dismiss-candidate',
+              '/api/v1/errors/dispute-candidate', '/api/v1/errors/rebuild-graphiti'}
+  registered = {r.path for r in app.routes if hasattr(r, 'path')}
+  missing = required - registered
+  print('✅ All 4 endpoints registered' if not missing else f'❌ Missing: {missing}')
+  "
+  ```
+  预期输出: `✅ All 4 endpoints registered`
+
+- [ ] **方法 C（最简单, 直接试 endpoint 是否响应）**：
+  ```bash
+  for ep in accept-candidate dismiss-candidate dispute-candidate rebuild-graphiti; do
+    code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8001/api/v1/errors/${ep}" -H 'Content-Type: application/json' -d '{}')
+    echo "  /errors/${ep} → HTTP $code"
+  done
+  ```
+  预期: 4 个 endpoint 都返回 422 (schema 校验) 或 404 (resource 缺失) 而非 405 (method) / 不存在
 
 #### P2 · Obsidian 已重启 + main.js 是新版
 

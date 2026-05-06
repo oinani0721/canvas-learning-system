@@ -133,9 +133,10 @@ UAT 主流程 (15-20 分钟)
   python start_server.py
   ```
 - [ ] 看到 `Application startup complete`
-- [ ] **快速验证 Story 2.5.Y schema 已生效**（vault_id 已加入 OpenAPI）：
+- [ ] **快速验证 Story 2.5.Y schema 已生效**（方法 A: OpenAPI URL 修正版）：
   ```bash
-  curl -s http://localhost:8001/openapi.json | python -c "
+  # ⚠️ OpenAPI 实际路径是 /api/v1/openapi.json (main.py:379 openapi_url 配置)
+  curl -s http://localhost:8001/api/v1/openapi.json | python3 -c "
   import json, sys
   spec = json.load(sys.stdin)
   comps = spec.get('components', {}).get('schemas', {})
@@ -149,6 +150,30 @@ UAT 主流程 (15-20 分钟)
   vault_id in props: True
   vault_id required: True
   ```
+
+- [ ] **方法 B（备选, 直接 curl 触发 422 验证）**：
+  ```bash
+  curl -s -o /dev/null -w "缺 vault_id → HTTP %{http_code}\n" \
+    -X POST 'http://localhost:8001/api/v1/chat/post-turn-extract' \
+    -H 'Content-Type: application/json' \
+    -d '{"node_id":"x","session_id":"s","messages":[{"role":"user","content":"a"}]}'
+  ```
+  应输出: `缺 vault_id → HTTP 422` ✅
+
+- [ ] **方法 C（不启动 backend 静态验证）**：
+  ```bash
+  cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend
+  PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -c "
+  from app.api.v1.endpoints.chat import PostTurnExtractRequest
+  fields = PostTurnExtractRequest.model_fields
+  required = [name for name, f in fields.items() if f.is_required()]
+  print(f'vault_id in fields: {\"vault_id\" in fields}')
+  print(f'vault_id required: {\"vault_id\" in required}')
+  print(f'subject_id in fields: {\"subject_id\" in fields}')
+  print(f'canvas_path in fields: {\"canvas_path\" in fields}')
+  "
+  ```
+  应输出 4 行 True/False, 其中 vault_id 两行均 True
 
 #### P2 · Plugin main.js 是 2.5.Y 版本
 

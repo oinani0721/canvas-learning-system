@@ -15,7 +15,7 @@ Usage:
 
 Default:
     Host: 127.0.0.1
-    Port: 8001
+    Port: 8001 (与 plugin DEFAULT_BACKEND_URL + docker-compose 对齐)
 """
 
 import argparse
@@ -110,8 +110,12 @@ def main():
     parser.add_argument(
         "--port",
         type=int,
-        default=8000,
-        help="Port to bind to (default: 8000)"
+        default=8001,
+        help=(
+            "Port to bind to (default: 8001 — 与 plugin DEFAULT_BACKEND_URL "
+            "+ docker-compose API_PORT 对齐). "
+            "Story 2.5.X/Y UAT 标准配置."
+        )
     )
     parser.add_argument(
         "--reload",
