@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
-    "test": "esbuild tests/callout.test.ts tests/ai-linked-doc.test.ts tests/node-derivation.test.ts tests/configure-whiteboard.test.ts tests/node-chat-context.test.ts --bundle --platform=node --format=cjs --outdir=tests/.out && node --test tests/.out/callout.test.js tests/.out/ai-linked-doc.test.js tests/.out/node-derivation.test.js tests/.out/configure-whiteboard.test.js tests/.out/node-chat-context.test.js"
+    "test": "esbuild tests/callout.test.ts tests/ai-linked-doc.test.ts tests/node-derivation.test.ts tests/configure-whiteboard.test.ts tests/node-chat-context.test.ts tests/error-candidate-helpers.test.ts --bundle --platform=node --format=cjs --outdir=tests/.out && node --test tests/.out/callout.test.js tests/.out/ai-linked-doc.test.js tests/.out/node-derivation.test.js tests/.out/configure-whiteboard.test.js tests/.out/node-chat-context.test.js tests/.out/error-candidate-helpers.test.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

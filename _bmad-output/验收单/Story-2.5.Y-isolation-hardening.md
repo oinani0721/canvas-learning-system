@@ -178,7 +178,7 @@ UAT 主流程 (15-20 分钟)
 #### P2 · Plugin main.js 是 2.5.Y 版本
 
 - [ ] `Cmd+Q` 完全关 Obsidian → 重开
-- [ ] 验证 main.js 是 Story 2.5.Y 版本：
+- [x] 验证 main.js 是 Story 2.5.Y 版本：
   ```bash
   stat -f "%z" /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/canvas-vault/.obsidian/plugins/canvas-learning-system/main.js
   ```
@@ -199,7 +199,7 @@ UAT 主流程 (15-20 分钟)
 
 **你做的事**：
 
-- [ ] 用 curl 调 post-turn-extract，**不**传 vault_id：
+- [x] 用 curl 调 post-turn-extract，**不**传 vault_id：
   ```bash
   curl -i -X POST 'http://localhost:8001/api/v1/chat/post-turn-extract' \
     -H 'Content-Type: application/json' \
@@ -212,12 +212,12 @@ UAT 主流程 (15-20 分钟)
 
 **你应该看到**：
 
-- [ ] **HTTP `422 Unprocessable Entity`** ✅
+- [x] **HTTP `422 Unprocessable Entity`** ✅
 - [ ] response body 含 `"loc": ["body", "vault_id"]` 和 `"type": "missing"`
 
 **加上 vault_id 重试**：
 
-- [ ] ```bash
+- [x] ```bash
   curl -i -X POST 'http://localhost:8001/api/v1/chat/post-turn-extract' \
     -H 'Content-Type: application/json' \
     -d '{
@@ -227,7 +227,7 @@ UAT 主流程 (15-20 分钟)
       "messages": [{"role": "user", "content": "test"}]
     }'
   ```
-- [ ] **HTTP 200** ✅（即使返回 `extracted_count: 0`，schema 校验已通过）
+- [x] **HTTP 200** ✅（即使返回 `extracted_count: 0`，schema 校验已通过）
 
 **你不应该看到**：
 
@@ -301,7 +301,7 @@ UAT 主流程 (15-20 分钟)
 
 **你做的事**：
 
-- [ ] 跑 Python REPL 测试 `cypher_with_group_filter` 校验逻辑：
+- [x] 跑 Python REPL 测试 `cypher_with_group_filter` 校验逻辑：
   ```bash
   cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -c "
@@ -354,7 +354,7 @@ PASS: assert helper rejects None: True
 
 **你做的事**：
 
-- [ ] 测试 `map_legacy_group_id` 映射规则：
+- [x] 测试 `map_legacy_group_id` 映射规则：
   ```bash
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -c "
   from app.services.group_id_migration_service import map_legacy_group_id, LEGACY_TO_VAULT_MAPPING
@@ -401,14 +401,14 @@ PASS: ''                   → 'vault:default'
 
 **你做的事**：
 
-- [ ] 跑防御性测试：
+- [x] 跑防御性测试：
   ```bash
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/pytest tests/unit/test_lancedb_isolation_assertions.py -q 2>&1 | tail -3
   ```
 
 **你应该看到**：
 
-- [ ] `13 passed, 0 failed` ✅
+- [x] `13 passed, 0 failed` ✅
 
 **你不应该看到**：
 
@@ -422,7 +422,7 @@ PASS: ''                   → 'vault:default'
 
 **你做的事**：
 
-- [ ] 跑 Python REPL 模拟两 vault 同名节点：
+- [x] 跑 Python REPL 模拟两 vault 同名节点：
   ```bash
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -c "
   from app.core.subject_config import build_vault_group_id
@@ -461,32 +461,32 @@ PASS: 两 vault 同名节点 group_id 独立
 
 #### V8 · vault_id 空字符串被拒（AC #1）
 
-- [ ] curl 测试空字符串：
+- [x] curl 测试空字符串：
   ```bash
   curl -i -X POST 'http://localhost:8001/api/v1/chat/post-turn-extract' \
     -H 'Content-Type: application/json' \
     -d '{"node_id":"x","session_id":"s","vault_id":"","messages":[{"role":"user","content":"a"}]}'
   ```
-- [ ] **预期 HTTP 422**（min_length=1 校验）
+- [x] **预期 HTTP 422**（min_length=1 校验）
 
 ---
 
 #### V9 · vault_id 中文通过（AC #2 sanitize）
 
-- [ ] curl 测试中文 vault_id：
+- [x] curl 测试中文 vault_id：
   ```bash
   curl -i -X POST 'http://localhost:8001/api/v1/chat/post-turn-extract' \
     -H 'Content-Type: application/json' \
     -d '{"node_id":"x","session_id":"s","vault_id":"数学","messages":[{"role":"user","content":"a"}]}'
   ```
-- [ ] **预期 HTTP 200**（中文 vault_id 通过）
+- [x] **预期 HTTP 200**（中文 vault_id 通过）
 - [ ] 后端日志的 group_id 应是 **`vault:数学`**（保留 unicode）
 
 ---
 
 #### V10 · subject_id 优先于 canvas_path（AC #2 互斥）
 
-- [ ] Python REPL：
+- [x] Python REPL：
   ```bash
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -c "
   from app.core.subject_config import build_vault_group_id
@@ -499,7 +499,7 @@ PASS: 两 vault 同名节点 group_id 独立
   print('PASS')
   "
   ```
-- [ ] **预期**：`vault:cs_61b:algorithms`（subject 优先，canvas_path 被忽略）
+- [x] **预期**：`vault:cs_61b:algorithms`（subject 优先，canvas_path 被忽略）
 
 ---
 
@@ -542,7 +542,7 @@ PASS: 两 vault 同名节点 group_id 独立
 
 #### V12 · cypher_helpers Cypher injection 防御（AC #5）
 
-- [ ] Python REPL：
+- [x] Python REPL：
   ```bash
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -c "
   from app.utils.cypher_helpers import cypher_with_group_filter
@@ -562,9 +562,9 @@ PASS: 两 vault 同名节点 group_id 独立
 
 **你应该看到**：
 
-- [ ] `PASS: 参数化绑定防 injection`
-- [ ] Query 文本无 `DROP DATABASE`（仅 `\$group_id` 占位）
-- [ ] 参数 dict 含原始字符串（driver 层会安全 escape）
+- [x] `PASS: 参数化绑定防 injection`
+- [x] Query 文本无 `DROP DATABASE`（仅 `\$group_id` 占位）
+- [x] 参数 dict 含原始字符串（driver 层会安全 escape）
 
 ---
 
@@ -586,24 +586,24 @@ PASS: 两 vault 同名节点 group_id 独立
 
 #### V14 · backend Story 2.5.Y 全栈 75 测试 pass
 
-- [ ] 跑 Story 2.5.Y 全部测试：
+- [x] 跑 Story 2.5.Y 全部测试：
   ```bash
   cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/pytest tests/unit/test_subject_config_vault.py tests/unit/test_post_turn_request_vault_id.py tests/unit/test_cypher_helpers.py tests/unit/test_lancedb_isolation_assertions.py tests/unit/test_group_id_migration.py -q 2>&1 | tail -3
   ```
 
-- [ ] **预期**：`75 passed, 0 failed`（21 + 7 + 18 + 13 + 16）
+- [x] **预期**：`75 passed, 0 failed`（21 + 7 + 18 + 13 + 16）
 
 ---
 
 #### V15 · 全栈 264 测试无 regression
 
-- [ ] 跑 Story 2.5 全家桶（v1.0 + 2.5.X + 2.5.Y）：
+- [x] 跑 Story 2.5 全家桶（v1.0 + 2.5.X + 2.5.Y）：
   ```bash
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/pytest tests/unit/test_subject_config_vault.py tests/unit/test_post_turn_request_vault_id.py tests/unit/test_cypher_helpers.py tests/unit/test_lancedb_isolation_assertions.py tests/unit/test_group_id_migration.py tests/unit/test_candidate_writer.py tests/unit/test_candidate_state_machine.py tests/unit/test_candidate_service.py tests/unit/test_error_rebuild_service.py tests/unit/test_candidate_expiry_service.py tests/unit/test_error_writer.py tests/unit/test_error_extractor.py tests/unit/test_error_classification_mapping.py tests/integration/test_2_5_x_e2e.py tests/integration/test_story_2_5_chatgpt_round2_p0.py tests/integration/test_error_extraction_e2e.py -q 2>&1 | tail -3
   ```
 
-- [ ] **预期**：`264 passed, 0 failed`
+- [x] **预期**：`264 passed, 0 failed`
 
 ---
 

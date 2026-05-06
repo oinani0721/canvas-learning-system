@@ -166,7 +166,7 @@ test_summary: "Backend 167 + Plugin 104 = 271 全 pass, 0 regression"
 #### P2 · Obsidian 已重启 + main.js 是新版
 
 - [ ] `Cmd+Q` 完全关 Obsidian → 重开
-- [ ] 验证 main.js 是 Story 2.5.X 版本：
+- [x] 验证 main.js 是 Story 2.5.X 版本：
   ```bash
   stat -f "%z" /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/canvas-vault/.obsidian/plugins/canvas-learning-system/main.js
   ```
@@ -401,7 +401,7 @@ error_candidates:
 
 **你做的事**：
 
-- [ ] 在另一个终端跑：
+- [x] 在另一个终端跑：
 
   ```bash
   curl -X POST 'http://localhost:8001/api/v1/errors/rebuild-graphiti?group_id=vault:cs_61b&dry_run=true' | python -m json.tool
@@ -423,8 +423,8 @@ error_candidates:
 ```
 
 - [ ] `total_errors_scanned >= 1` ✅
-- [ ] `newly_written = 0` ✅（dry_run）
-- [ ] 改 `dry_run=false` 实际写：
+- [x] `newly_written = 0` ✅（dry_run）
+- [x] 改 `dry_run=false` 实际写：
 
   ```bash
   curl -X POST 'http://localhost:8001/api/v1/errors/rebuild-graphiti?group_id=vault:cs_61b&dry_run=false' | python -m json.tool
@@ -470,7 +470,7 @@ error_candidates:
 
 #### V8 · dispute 空理由被拒
 
-- [ ] 直接 curl 测试空 dispute_reason：
+- [x] 直接 curl 测试空 dispute_reason：
 
   ```bash
   curl -X POST 'http://localhost:8001/api/v1/errors/dispute-candidate' \
@@ -483,13 +483,13 @@ error_candidates:
   ```
 
 **预期**：
-- [ ] HTTP **422**（Pydantic min_length=1 校验）
+- [x] HTTP **422**（Pydantic min_length=1 校验）
 
 ---
 
 #### V9 · 不存在 candidate 返回 404
 
-- [ ] 直接 curl 测试不存在 candidate_id：
+- [x] 直接 curl 测试不存在 candidate_id：
 
   ```bash
   curl -X POST 'http://localhost:8001/api/v1/errors/accept-candidate' \
@@ -501,7 +501,7 @@ error_candidates:
   ```
 
 **预期**：
-- [ ] HTTP **404**
+- [x] HTTP **404**
 - [ ] detail 含 "not found"
 
 ---
@@ -699,14 +699,14 @@ error_candidates:
 
 #### V18 · backend 167 测试全 pass
 
-- [ ] 跑全套 backend 测试：
+- [x] 跑全套 backend 测试：
 
   ```bash
   cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend
   PYTHONPATH=. /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/pytest tests/unit/test_candidate_writer.py tests/unit/test_candidate_state_machine.py tests/unit/test_candidate_service.py tests/unit/test_error_rebuild_service.py tests/unit/test_candidate_expiry_service.py tests/integration/test_2_5_x_e2e.py -q 2>&1 | tail -3
   ```
 
-- [ ] **预期**：`X passed, 0 failed`（应 ≥ 113，含 16+41+14+13+20+10）
+- [x] **预期**：`X passed, 0 failed`（应 ≥ 113，含 16+41+14+13+20+10）
 
 ---
 
@@ -714,14 +714,14 @@ error_candidates:
 
 #### V19 · plugin 19+85 测试全 pass
 
-- [ ] 跑 plugin 测试：
+- [x] 跑 plugin 测试：
 
   ```bash
   cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/frontend/obsidian-plugin
   npm test 2>&1 | tail -5
   ```
 
-- [ ] **预期**：`# tests 104, # pass 104, # fail 0`
+- [x] **预期**：`# tests 104, # pass 104, # fail 0`
 
 ---
 
