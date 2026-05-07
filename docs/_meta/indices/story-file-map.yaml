@@ -1,5 +1,9 @@
 generated: build_story_file_map.py
 stories:
+  '1.16':
+    files: []
+    source_file_list: 0
+    source_git_trailer: 0
   '21.5':
     files: []
     source_file_list: 0

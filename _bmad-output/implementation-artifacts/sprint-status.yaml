@@ -235,3 +235,24 @@ development_status:
   9-1-image-exam-material: ready-for-dev
   9-2-phase3-enhancements: ready-for-dev
   epic-9-retrospective: optional
+
+  # ══════════════════════════════════════════════════════
+  # Epic 10 (Round-22 决策落地): DeepTutor Fork + Canvas 5 大核心 MVP 集成
+  # FR: FR-DEEP-01 ~ FR-DEEP-09
+  # 归属物理目录: _bmad-output/implementation-artifacts/epic-10/
+  # 决策来源: Round-22 (round-22-deeptutor-fork-mvp-2026-05-06.md + deep-explore)
+  # 用户批注落地: D1-D5 决定性 + M1-M13 映射 + UX-1~6 痛点 + NEG-1~4 反对
+  # 验收: 5 验证场景 (S1-S5) + 决策矩阵 (Day 10 选 A/B/C)
+  # 关联决策批注: 决策批注/D17-round22-fork-mvp-2026-05-06.md
+  # ══════════════════════════════════════════════════════
+  epic-10: in-progress
+  10-1-day0-fork-baseline: done
+  10-2-day1-wikilink-frontend: done
+  10-3-day2-cleanup-vault-mount: ready-for-dev
+  10-4-day3-4-canvas-vault-adapter: ready-for-dev
+  10-5-day5-6-whiteboard-route: ready-for-dev
+  10-6-day7-mastery-dashboard: ready-for-dev
+  10-7-day8-exam-error-candidate: ready-for-dev
+  10-8-day9-user-note-edit: ready-for-dev
+  10-9-day10-uat-final: ready-for-dev
+  epic-10-retrospective: optional

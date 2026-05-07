@@ -1,0 +1,100 @@
+# CURRENT_TASK: DeepTutor Fork MVP 集成（Round-22）
+
+> **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
+
+**当前状态**：Day 1 wikilink 集成 ✅ 完整收官。fork ready + Canvas + DeepTutor 双服务跑 + B1-B6 全部通 + 5 agent 独立调研验证集成必要性 100%。
+
+**下一步**：commit Day 1 改动到 fork (tag `mvp-day-1-patches`)，启动 Day 2（修 wikilink_neighbors path param + vault 数据挂载验证 + Co-Writer wikilink 渲染样式美化）。
+
+**关键路径**：
+- 本 worktree：`~/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-deeptutor-canvas-mvp/`
+- DeepTutor fork（待）：`~/Desktop/canvas/deeptutor-fork/`
+- Round-22 决策报告：`_bmad-output/research/round-22-deeptutor-fork-mvp-2026-05-06.md`
+
+**端口约定**：Canvas :8011 / DeepTutor :8001 / Neo4j Bolt :7691 / DeepTutor UI :3782
+
+**一键启动**：`./integration/scripts/start-integration.sh --canvas-only`（fork 没就绪）或 `./integration/scripts/start-integration.sh`（双服务）
+
+---
+
+## Round-22 用户决策（2026-05-06）
+
+> "我是想要舍弃 obsidian，直接把我们 Canvas learning systeam 思想在 deeptutor 实现，我的批注有列出来哪些 deeptutor 和我们 Canvas learning systeam 的思想和功能相对应，缺少功能我们就参考我们的 Canvas learning systeam 的源码集成。**我先试一下集成的效果先**"
+
+**核心**：
+- ⛔ Fork DeepTutor + 嵌入 Canvas 5 大核心
+- ⛔ 舍弃 Obsidian
+- ⛔ MVP 验证（不是 production）
+- ⛔ 工程量：10 天
+
+## 已完成（Day 0）
+
+- [x] Canvas worktree `feature-deeptutor-canvas-mvp` 创建（基于 `worktree-feature-obsidian-hybrid-dev`）
+- [x] Canvas backend 端口 8011（让出 8001 给 DeepTutor）
+  - `.env` API_PORT=8011
+  - `backend/.env` FASTAPI_PORT=8011
+  - `backend/.env.example` FASTAPI_PORT=8011
+- [x] CORS 加 DeepTutor 端口（:3782, :8001）
+- [x] Staging 文件 cp 到 `integration/deeptutor-patches/`
+  - backend/{canvas_client,wikilink_proxy_router,exam_proxy_router}.py
+  - frontend/{wikilink-parser,remark-wikilink-plugin}.ts
+  - frontend/BLOCK_TYPE_PATCH.md
+  - docker/docker-compose.canvas.yml
+- [x] 3 个 shell 脚本就位：
+  - `integration/scripts/start-integration.sh`
+  - `integration/scripts/health-check.sh`
+  - `integration/scripts/apply-staging-patches.sh`
+- [x] Round-22 决策报告：`_bmad-output/research/round-22-deeptutor-fork-mvp-2026-05-06.md`
+- [x] Memory 决策：`decision_round22_fork_mvp.md`
+
+## 用户必须自己做（GitHub 操作）
+
+```bash
+# 1. 浏览器 fork
+open https://github.com/HKUDS/DeepTutor
+
+# 2. clone 到 deeptutor-fork（不是 .references！.references 保留参考）
+cd ~/Desktop/canvas
+git clone https://github.com/oinani0721/DeepTutor.git deeptutor-fork
+cd deeptutor-fork
+git checkout -b mvp-canvas-integration
+git tag mvp-baseline
+git remote add upstream https://github.com/HKUDS/DeepTutor.git
+
+# 3. baseline smoke test（不改代码）
+docker compose up -d
+curl http://localhost:8001/api/v1/health  # 期望 200
+open http://localhost:3782                  # 期望看到 DeepTutor UI
+```
+
+## Day 1 路线（用户 fork 完成后立即开始）
+
+| 步 | 内容 | 工具 |
+|---|---|---|
+| 1 | cp staging frontend → fork | `./integration/scripts/apply-staging-patches.sh --dry-run` 然后真应用 |
+| 2 | 改 fork web/components/common/RichMarkdownRenderer.tsx:624-628 注入 remarkWikilink | 手动 Edit |
+| 3 | 验证 `[[recursion]]` 渲染（浏览器 :3782） | DevTools 看 `<a class="wikilink">` |
+| 4 | cp staging backend → fork | apply-staging-patches.sh |
+| 5 | 注册 wikilink_proxy router 到 fork main.py | 手动 Edit |
+| 6 | curl `:8001/api/v1/wikilink/build` 端到端 | 验证 DeepTutor → Canvas HTTP 链路 |
+
+## 5 个验证场景（Day 10 全过 = MVP 成功）
+
+| # | 场景 | Pass 标准 |
+|---|---|---|
+| **S1** | DeepTutor 写 `[[recursion]]` → 自动跳转 | < 1s |
+| **S2** | 右键 callout → Canvas ACP 出题 | DeepTutor quiz 块渲染 |
+| **S3** | 答题 → mastery 更新 → UI 显示 | mastery.value 改变 |
+| **S4** | Graph View tab 显示节点 + 边 | ≥ 10 节点 |
+| **S5** | 答错 → Day 0/3/7 推送 console | `[REVIEW DUE] T+0/3/7` |
+
+## 风险红线
+
+🚫 不 `git pull upstream`（DeepTutor 30 天 24 release）
+🚫 不跑 DeepTutor 完整测试（Enum patch 会破坏部分单测）
+🚫 vault md 单一源（DeepTutor 只 read-only mount）
+🚫 不在本 worktree 跑 Canvas 业务开发
+
+## 退出策略
+
+Day 6 / Day 10 弃集成：`rm -rf ~/Desktop/canvas/deeptutor-fork && git worktree remove .claude/worktrees/feature-deeptutor-canvas-mvp`。Canvas 主线零影响。

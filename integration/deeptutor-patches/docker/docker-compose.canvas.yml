@@ -1,0 +1,77 @@
+# DeepTutor Fork + Canvas Backend 双服务编排（Day 3）
+#
+# 用法：
+#   cd ~/Desktop/canvas/deeptutor-fork/
+#   docker compose -f docker-compose.yml -f docker-compose.canvas.yml up -d
+#
+# 服务:
+#   - DeepTutor backend  :8001（不变）
+#   - DeepTutor frontend :3782（不变）
+#   - Canvas backend     :8011（让出 8001）
+#   - Canvas Neo4j       Bolt :7691, HTTP :7478
+#
+# 注意：Canvas backend 通过 build 直接读 worktree 源码（不重新打包）
+
+services:
+  canvas-backend:
+    build:
+      context: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend
+      dockerfile: Dockerfile
+    container_name: canvas-backend-mvp
+    ports:
+      - "8011:8011"
+    environment:
+      API_PORT: 8011
+      NEO4J_URI: bolt://canvas-neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${CANVAS_NEO4J_PASSWORD:-canvas_mvp_pwd}
+      VAULT_PATH: /vault
+      CORS_ORIGINS: http://localhost:8001,http://127.0.0.1:8001,http://localhost:3782,http://127.0.0.1:3782
+    volumes:
+      # 挂载 vault md 内容到容器
+      - /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/canvas-vault:/vault:rw
+      # LanceDB 数据持久化
+      - canvas-lancedb:/data/lancedb
+    depends_on:
+      canvas-neo4j:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8011/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - canvas-net
+      - default  # 跨 network 让 DeepTutor backend 也能访问
+
+  canvas-neo4j:
+    image: neo4j:5.26
+    container_name: canvas-neo4j-mvp
+    ports:
+      - "7691:7687"  # Bolt
+      - "7478:7474"  # HTTP Browser
+    environment:
+      NEO4J_AUTH: neo4j/${CANVAS_NEO4J_PASSWORD:-canvas_mvp_pwd}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    volumes:
+      - canvas-neo4j-data:/data
+      - canvas-neo4j-logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:7474 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - canvas-net
+
+volumes:
+  canvas-neo4j-data:
+  canvas-neo4j-logs:
+  canvas-lancedb:
+
+networks:
+  canvas-net:
+    driver: bridge

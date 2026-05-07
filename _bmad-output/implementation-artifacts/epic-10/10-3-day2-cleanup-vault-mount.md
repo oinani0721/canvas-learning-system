@@ -1,0 +1,127 @@
+---
+story_id: "10.3"
+epic_id: "10"
+prd_id: "canvas-learning-system"
+status: "ready-for-dev"
+priority: "P0"
+estimate_hours: 4
+depends_on: ["10.2"]
+blocks: ["10.4"]
+trace: ["FR-DEEP-03", "M11", "UX-1"]
+plan_id: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
+day: "Day 2"
+target_date: "2026-05-08"
+uat_sheet: "_bmad-output/验收单/Story-10.3-day2-cleanup-vault-mount.md"
+---
+
+# Story 10.3: Day 2 Cleanup + Vault Mount
+
+**Status**: ready-for-dev (target Day 2, 2026-05-08)
+
+## Story（用户故事）
+
+As a 学习者, I want my Canvas vault md files to be readable by DeepTutor + my callouts to render `[[wikilinks]]` so that all my existing notes work seamlessly without copying or syncing.
+
+> **映射对**: M11（vault 不上传文件，知识库直接访问，Round-18 L805）+ UX-1（批注是核心操作单位）
+
+## 通俗化解释（给学习者）
+
+> **一句话说**: 让 DeepTutor 直接读你已有的 vault md 文件夹（不用上传不用同步），并且 callout 里写的 `[[xxx]]` 也能渲染成蓝链。
+
+**你会遇到的场景**:
+- 在 Obsidian 写了 `> [!question]+ 这个 [[递归]] 重要`
+- 在 DeepTutor 打开同一笔记
+- 期望 callout 内的 `[[递归]]` 显示为蓝色链接
+
+**这个功能帮你**:
+- vault 不用复制粘贴，DeepTutor 直接读你本地文件
+- callout（`[!question]+ [!error]+`）内的双链也生效
+
+**用个比喻**: 📁 就像 Mac 的"映射网络硬盘"——本地文件夹直接挂到 DeepTutor 容器里，DeepTutor 看到的就是你 Obsidian 里的实时内容。
+
+## Acceptance Criteria
+
+### AC #1: CalloutBlock wikilink 渲染（1 行修）
+
+- **Given** fork `web/components/blocks/CalloutBlock.tsx` 当前 body 是 `<div>{body}</div>` 纯文本
+- **When** 替换为 `<MarkdownRenderer content={body} variant="compact" />`
+- **Then** `> [!question]+ See [[sorting]]` 中 `[[sorting]]` 渲染为蓝链
+- **And** TimelineBlock/FlashCardsBlock/DeepDiveBlock 同理修复（顺手 4 个 block）
+
+### AC #2: Canvas vault 路径挂载到 fork 容器
+
+- **Given** Canvas vault 在 `~/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-deeptutor-canvas-mvp/canvas-vault/`
+- **When** 修改 fork 的 `docker-compose.canvas.yml` bind mount path
+- **Then** fork 容器内 `/vault` 指向真实 vault 路径
+- **And** Canvas backend `:8011/api/v1/wikilink/build` 返回 `total_nodes > 0`
+
+### AC #3: wikilink_neighbors path param 修复
+
+- **Given** Canvas backend 路由 `/neighbors/{note_path:path}`（path param）
+- **When** 修改 fork `deeptutor/services/canvas/client.py:65`
+- **Then** `wikilink_neighbors(note_path, hop)` 调用 `GET /api/v1/wikilink/neighbors/{note_path}?hop={hop}`（不是 query param `?note_path=`）
+- **And** 调用 `client.wikilink_neighbors("subjects/algorithms/recursion.md")` 返回邻居列表
+
+### AC #4: docker-compose.canvas.yml 路径修正
+
+- **Given** staging cp 进 fork 的 `docker-compose.canvas.yml` 路径写死指向旧 worktree
+- **When** 改为参数化 `${CANVAS_WORKTREE_PATH}` 或当前 worktree 真实路径
+- **Then** Day 3 时双服务 compose `docker compose -f docker-compose.yml -f docker-compose.canvas.yml up -d` 不报路径错误
+
+## Tasks / Subtasks
+
+- [ ] Task 1: CalloutBlock 1 行修 (AC: #1)
+  - [ ] 1.1: Edit `~/Desktop/canvas/deeptutor-fork/web/app/(workspace)/book/components/blocks/CalloutBlock.tsx`
+  - [ ] 1.2: 加 import `import MarkdownRenderer from "@/components/common/MarkdownRenderer"`
+  - [ ] 1.3: 替换 `<div>{body}</div>` → `<MarkdownRenderer content={body} variant="compact" />`
+  - [ ] 1.4: 同改 TimelineBlock.tsx + FlashCardsBlock.tsx + DeepDiveBlock.tsx（payload 字段不同，但逻辑同）
+
+- [ ] Task 2: 修复 client.py path param (AC: #3)
+  - [ ] 2.1: Edit `deeptutor/services/canvas/client.py:65`
+  - [ ] 2.2: 改为 `return await self._request("GET", f"/api/v1/wikilink/neighbors/{note_path}", params={"hop": hop})`
+  - [ ] 2.3: 注意 note_path URL encode（FastAPI `:path` 接受未编码 `/`）
+
+- [ ] Task 3: vault 路径挂载 (AC: #2, #4)
+  - [ ] 3.1: 修改 `docker-compose.canvas.yml` 把 `feature-obsidian-hybrid-dev` 路径替换为当前 worktree
+  - [ ] 3.2: 或参数化 `${CANVAS_WORKTREE_PATH:-/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-deeptutor-canvas-mvp}`
+  - [ ] 3.3: Canvas worktree compose 加 vault bind mount: `./canvas-vault:/vault:rw`
+
+- [ ] Task 4: vault 结构验证 (AC: #2)
+  - [ ] 4.1: 确认 `canvas-vault/` 目录存在
+  - [ ] 4.2: 确认 `.obsidian/` 子目录或建最小假目录
+  - [ ] 4.3: `curl -X POST :8011/api/v1/wikilink/build` 返回 `total_nodes > 0`
+
+- [ ] Task 5: rebuild + 验证
+  - [ ] 5.1: `docker compose up -d --build deeptutor`（Story 10.3 改了 frontend 必须 rebuild）
+  - [ ] 5.2: 浏览器验证 callout 内 `[[xxx]]` 渲染为蓝链
+  - [ ] 5.3: `curl :8001/api/v1/wikilink/neighbors/some-real-note?hop=2` 返回邻居
+
+## Dev Notes
+
+### 修复来源
+- **CalloutBlock**: Agent 2.3 发现"9/14 blocks 自动支持 wikilink"，CalloutBlock 是其中"低垂果实"，1 行修
+- **path param**: Agent 1.1 + 主线对照发现 client query param 与 backend path param 不匹配
+- **docker-compose.canvas.yml 路径**: Agent 2.4 发现路径硬编码指向旧 worktree
+
+### 复用 Canvas 后端（零改动）
+- `backend/app/api/v1/endpoints/wikilink.py` 已支持 `vault_path` 参数（无需改）
+- `backend/app/services/wikilink_graph_service.py` `build_graph()` 期望 obsidiantools 布局
+
+### 风险
+- **R4 obsidiantools vault 布局期望**: 若 canvas-vault 结构不标准 → 建假 `.obsidian/config.json` 或 fork 服务放宽检查
+- **R7 CalloutBlock 修复**: 1 行改动，但 4 个 block 同模式，必须一起修（避免遗漏）
+
+## UAT 验收
+
+详见 `_bmad-output/验收单/Story-10.3-day2-cleanup-vault-mount.md`
+
+## References
+
+- Round-22 主报告 §三 + §九（Canvas backend wikilink endpoints）
+- Deep Explore §2.3 14 BlockType 渲染对照（CalloutBlock 漏网之鱼）
+- Deep Explore §3.3 Day 2 路线
+- Story 10.2 Dev Notes 已知陷阱
+
+## 下一步
+
+→ Story 10.4 Day 3-4 CanvasVaultAdapter（路径 B：vault → Spine JSON 注入）
