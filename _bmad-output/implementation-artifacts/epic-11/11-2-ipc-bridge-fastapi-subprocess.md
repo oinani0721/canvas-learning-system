@@ -92,6 +92,37 @@ As a 学习者, I want Desktop App to automatically start the Docker compose sta
 - **And DocumentAdder vault_mode=True 强制启用**：Story 10.3 Phase B 已实现的 vault_mode 在 Epic-11 同样生效，**禁止上传 vault 文件到 DeepTutor 内部 KB**（NEG-2 落地，不只是"无外网请求"）
 - **And** 仅 Claude API 调用时才需网络（提示用户）
 
+### AC #6: Multi-Vault Picker UX 完整（2026-05-07 5 Agent 调研补全）
+
+> **背景**：原 AC #3 + Task 4 仅设计"首启 modal + Select Folder 按钮"，缺 Recent vaults / 多 vault 切换 / macOS App Sandbox security-scoped bookmarks / 跨平台 dialog 参数差异。Agent 1 审计标记为 🔴 CRITICAL 缺口；Agent 2 实测 Claude Desktop Code Tab 是反例（Issue #36175）；Agent 3 实测 macOS App Store 发布无 bookmarks 会重启失访权。
+
+- **Given** 用户启动 Desktop App，main window ready
+- **When** 检查 `app.getPath('userData') + '/vault-registry.json'`
+- **Then** 三种情况分别处理：
+  - **首启（registry 不存在）**：弹 Vault Picker Modal 三段（Recent 空 / Open Other / Create New）
+  - **有 Recent + lastVault 仍存在**：自动 startAccessingSecurityScopedResource(bookmark) → POST `:8011/api/v1/canvas/vault-config` → 直接进主界面
+  - **有 Recent 但 lastVault 失效（被删 / bookmark stale）**：弹 Vault Picker Modal，Recent 列表显示 + 标失效项灰色 + 提供 "Open Other"
+- **And** Vault Picker Modal 含三段：
+  1. **Recent Vaults 列表**（最多 10 个，按 lastOpened 倒序）：每行 `vault_name | path（缩略）| 最后打开时间相对时间`，点击切换
+  2. **"Open Other Folder..." 按钮** → 调 `dialog.showOpenDialog({ properties: ['openDirectory', 'noResolveAliases'], securityScopedBookmarks: true })`
+  3. **"Create New Vault..." 按钮** → 二级 picker 选父目录 + input 输入 vault 名 → 创建空目录 + 写空 `.canvas-config.yaml`
+- **And** vault-registry.json schema：
+  ```json
+  { "vaults": [{ "path": "...", "bookmark": "base64...|null", "lastOpened": 1234567890, "platform": "darwin" }], "currentIndex": 0, "maxRecent": 10 }
+  ```
+- **And** macOS：`result.bookmarks[0]` 持久化；启动时调 `app.startAccessingSecurityScopedResource(bookmark)` 恢复访问权；app `before-quit` 时 stopAccessing；切换 vault 时旧 vault stop + 新 vault start
+- **And** 主窗口顶栏显示 Vault Switcher：`[Current: {vault_name} ▼]` 点击展开 Recent dropdown，可不弹 Modal 直接切换（hot swap，复用 Story 1.8 VaultSwitchCoordinator）
+- **And** File menu 增加 "Open Recent ▶" 二级菜单 + "Open Other Vault... ⌘O" + "Clear Menu"
+- **And** 路径有效性校验（Electron main 进程层）：
+  - 必须是目录（非文件）
+  - 必须可读 + 可写
+  - 必须含至少 1 个 .md 文件 OR 含 `.obsidian/` 子目录 OR 用户在 Modal 选 "Create New" 路径
+  - 失败 → toast "No markdown files found" + 留在 Picker
+- **And** 跨平台 dialog 行为差异处理：
+  - **macOS**：`createDirectory: true`（dialog 内可建文件夹）+ `noResolveAliases: true`（防 symlink 逃逸）+ `securityScopedBookmarks: true`
+  - **Windows**：`properties: ['openDirectory']`（IFileDialog 自动 native folder picker）
+  - **Linux**：`properties: ['openDirectory']`（GtkFileChooserNative，Wayland/X11 兼容）
+
 ## Tasks / Subtasks
 
 ### Electron main 进程扩展（S1 C+ 修订 — Docker supervisor）
@@ -127,11 +158,44 @@ As a 学习者, I want Desktop App to automatically start the Docker compose sta
 
 ### Electron renderer + UI
 
-- [ ] Task 4: Vault 选择 modal 组件
-  - [ ] 4.1: 创建 React 组件 `VaultSelectorModal.tsx`
-  - [ ] 4.2: 按钮 "Select Folder" → 调用 `window.api.selectVaultFolder()`
-  - [ ] 4.3: IPC handler 返回用户选择的路径
-  - [ ] 4.4: 验证路径有效（contains *.md files）→ 保存 → 通知 FastAPI
+- [ ] Task 4: Multi-Vault Picker UX（AC #6 落地，2026-05-07 拆分为 4a-4e 5 子任务）
+
+  - [ ] **Task 4a: 首启 Vault Picker Modal + dialog.showOpenDialog**
+    - [ ] 4a.1: 创建 React 组件 `VaultPickerModal.tsx`（Obsidian 风格三段布局：Recent / Open Other / Create New）
+    - [ ] 4a.2: main 进程 `ipcMain.handle('vault:show-picker', ...)` → 触发 modal 显示
+    - [ ] 4a.3: "Open Other Folder..." 按钮 → `window.api.selectVaultFolder()` → main 进程调 `dialog.showOpenDialog({ properties: ['openDirectory', 'noResolveAliases'], securityScopedBookmarks: process.platform === 'darwin', createDirectory: true, title: 'Select Vault Folder' })`
+    - [ ] 4a.4: 路径有效性校验（fs.statSync + glob `*.md` + 检测 `.obsidian/`）→ 失败 toast "No markdown files found" + 留在 Picker
+    - [ ] 4a.5: "Create New Vault..." 按钮 → 二级 picker 选父目录 + input vault 名 → fs.mkdirSync + 写空 `.canvas-config.yaml`
+
+  - [ ] **Task 4b: Vault Switcher（主窗口顶栏 dropdown）**
+    - [ ] 4b.1: 创建 React 组件 `VaultSwitcher.tsx`（顶栏组件，显示 `[Current: {vault_name} ▼]`）
+    - [ ] 4b.2: 点击展开 Recent dropdown（Cursor 风格 + 不弹 Modal 直接切换）
+    - [ ] 4b.3: 切换时调 `window.api.switchVault(path)` → main 进程：
+      - macOS: 旧 vault `stopAccessingSecurityScopedResource()` + 新 vault `startAccessingSecurityScopedResource()`
+      - 共用：`POST :8011/api/v1/canvas/vault-config { path }` 通知 Canvas backend（hot swap，复用 Story 1.8 VaultSwitchCoordinator）
+    - [ ] 4b.4: File menu 增加 "Open Recent ▶" 二级菜单 + "Open Other Vault... ⌘O" + "Clear Menu" + "Switch Vault... ⇧⌘O"
+
+  - [ ] **Task 4c: Recent Vaults 持久化（vault-registry.json）**
+    - [ ] 4c.1: 引入 `electron-store@^8.x` 依赖
+    - [ ] 4c.2: 定义 schema：`{ vaults: [{ path, bookmark?, lastOpened, platform }], currentIndex, maxRecent: 10 }`
+    - [ ] 4c.3: 编写 `loadVaultRegistry()` / `saveVault(path, bookmark?)` / `removeVault(index)` / `getRecentVaults()` helpers
+    - [ ] 4c.4: 切换 vault 时 push 新 vault 到 vaults 数组顶部，保留前 10 个；currentIndex = 0
+    - [ ] 4c.5: 启动时检查 lastVault 是否仍存在 → 失效项标灰色但保留在 Recent 列表（用户可手动删）
+
+  - [ ] **Task 4d: macOS App Sandbox + security-scoped bookmarks**
+    - [ ] 4d.1: dialog.showOpenDialog 启用 `securityScopedBookmarks: true`（仅 darwin）
+    - [ ] 4d.2: result.bookmarks[0]（base64 string）保存到 vault-registry.json 对应 vault 的 bookmark 字段
+    - [ ] 4d.3: app `ready` 事件：读 lastVault.bookmark → `app.startAccessingSecurityScopedResource(bookmark)` → 保存返回的 stopAccessing 函数
+    - [ ] 4d.4: app `before-quit` 事件 + 切换 vault 时：调 stopAccessing()
+    - [ ] 4d.5: 失败处理：bookmark stale → 提示用户重新选择 + 标记 vault-registry 该项 invalid
+    - [ ] 4d.6: 注：仅在 macOS App Store 发布时严格需要（沙箱 mode），独立签名 DMG 可降级（直接路径访问）但仍建议启用以保前向兼容（Story 11.4 entitlements 章节关联）
+
+  - [ ] **Task 4e: 跨平台 dialog 参数差异处理**
+    - [ ] 4e.1: 抽取平台判断 helper：`getDialogOptions(platform)` 返回不同 properties 数组
+    - [ ] 4e.2: macOS：`['openDirectory', 'noResolveAliases', 'createDirectory']` + `securityScopedBookmarks: true` + `message: 'Choose a folder for your vault'`（macOS-only message field）
+    - [ ] 4e.3: Windows：`['openDirectory']`（IFileDialog 自动支持，不需 createDirectory）
+    - [ ] 4e.4: Linux：`['openDirectory']`（GtkFileChooserNative，注意 Wayland/X11 default path 行为差异）
+    - [ ] 4e.5: 跨平台测试矩阵（macOS arm64 / macOS x64 / Windows 11 / Ubuntu 22）— Story 11.4 CI/CD 验收
 
 - [ ] Task 5: IPC bridge (renderer side)
   - [ ] 5.1: 创建 `src/renderer/ipc-client.ts` 模块
@@ -186,8 +250,13 @@ As a 学习者, I want Desktop App to automatically start the Docker compose sta
 ### 关键决策（S1 C+ 修订后）
 - **Docker supervisor 模式**：Electron 不嵌入 Python / Neo4j / LanceDB / bge-m3，复用 Epic-10 docker-compose.yml + docker-compose.canvas.yml 编排（用户机器需装 Docker Desktop 一次性 600MB）
 - **不嵌入 Neo4j 的理由**：Neo4j 是 Java 应用（嵌入需 JRE +200MB），sqlite 替代会推翻 Story 10.2 已实施的 wikilink_proxy 架构 + 重写所有 Cypher 查询
-- **vault 单一真相源在 Canvas backend**：Electron main 进程不存 vault 路径状态，每次切 vault 通过 HTTP `POST :8011/api/v1/canvas/vault-config` 通知 Canvas backend，避免 main / backend 状态漂移
+- **vault 单一真相源在 Canvas backend**：Electron main 进程不存 vault active 路径状态（仅存 Recent vaults registry 用于 UX），每次切 vault 通过 HTTP `POST :8011/api/v1/canvas/vault-config` 通知 Canvas backend，避免 main / backend 状态漂移
 - **vault watch 单 owner**：Canvas backend Python watchdog 是唯一 watcher（Story 10.3 Phase B 已实现），Electron main 不用 chokidar / fs.watch（避免双 watcher race + 双 wikilink_graph rebuild）
+- **Vault Picker UX 边界划分（AC #6 拆分边界）**：
+  - **Electron 持久化**：vault-registry.json（Recent 列表 + bookmarks），跨 session 保留
+  - **Canvas backend 持久化**：active vault 路径（reload_settings + LanceDB index + Graphiti group_id）
+  - **不重叠**：Recent 列表纯 UX 层（Electron），active vault 状态纯数据层（backend）
+- **不抄 AnythingLLM 的根本理由（D18 澄清）**：Agent 4 实测 AnythingLLM 是 HTTP upload-and-embed（用户 upload 文件被 copy 到 app 内部 `/storage/documents/`），与 NEG-2"不上传文件，直接访问指定文件夹"完全冲突。本 Story 数据流：`IPC vault:read/write → main 进程 axios → Canvas backend :8011/api/v1/vault/* → 直接 fs 操作`
 
 ### 已知陷阱（C+ 方案）
 1. **Docker Desktop 未启动**：用户首次开机后第一次开 DeepTutor 可能 Docker 还没起，需 UI dialog 引导

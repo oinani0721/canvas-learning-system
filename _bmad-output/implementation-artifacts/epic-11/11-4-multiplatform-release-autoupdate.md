@@ -87,6 +87,40 @@ As a 学习者, I want to download and install DeepTutor Desktop App once, and t
 - **Then** 自动忽略 v0.1.0
 - **And** 不会询问用户是否降级
 
+### AC #6: macOS App Sandbox entitlements 完整配置（2026-05-07 5 Agent 调研补全）
+
+> **背景**：Story 11.2 AC #6 + Task 4d 实现 security-scoped bookmarks 是 App Store 发布前提，但 entitlements.mac.plist + electron-builder hardenedRuntime + notarize 的协同配置必须在本 Story 完成。Agent 3 实测：未配置 entitlements 时 App Store 审核会拒绝（"App Sandbox not enabled"），且重启后 bookmark 失效。
+
+- **Given** Story 11.2 已实现 dialog `securityScopedBookmarks: true` + `app.startAccessingSecurityScopedResource(bookmark)`
+- **When** Story 11.4 配置 electron-builder mac entitlements
+- **Then** 项目根目录创建 `build/entitlements.mac.plist`，含三个关键 key：
+  ```xml
+  <plist version="1.0"><dict>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+  </dict></plist>
+  ```
+  - `com.apple.security.app-sandbox=true` — 启用 App Sandbox（App Store 必需）
+  - `com.apple.security.files.user-selected.read-write=true` — 用户通过 dialog 选的文件夹有读写权（搭配 securityScopedBookmarks 持久化）
+  - `com.apple.security.network.client=true` — 允许调用 Claude API + Docker localhost（127.0.0.1 也算 client）
+- **And** electron-builder.yml 配置：
+  ```yaml
+  mac:
+    entitlements: build/entitlements.mac.plist
+    entitlementsInherit: build/entitlements.mac.plist
+    hardenedRuntime: true
+    gatekeeperAssess: false
+    notarize:
+      teamId: ${APPLE_TEAM_ID}
+  ```
+- **And** Mac App Store 发布路径（可选）：另写 `build/entitlements.mas.plist`（含 `com.apple.security.app-sandbox` 必填 + 不含 `com.apple.security.network.server`），electron-builder `mac.target: mas` 触发
+- **And** notarize 完成后 `xcrun stapler validate DeepTutor.app` 验证 staple 成功
+- **And** 用户首次安装后跑：选 vault → 退出 app → 重启 app → vault **仍可访问**（bookmark restore 成功）；如失败说明 entitlements 配置错
+
 ## Tasks / Subtasks
 
 ### electron-builder 配置
@@ -96,6 +130,12 @@ As a 学习者, I want to download and install DeepTutor Desktop App once, and t
   - [ ] 1.2: macOS 配置（`mac:`）：signingIdentity / certificateFile / notarize
   - [ ] 1.3: Windows 配置（`win:`）：certificateFile + signingHashAlgorithms
   - [ ] 1.4: Linux 配置（`linux:`）：target AppImage / category Utility
+  - [ ] 1.5: macOS App Sandbox entitlements（AC #6 落地）
+    - [ ] 1.5.1: 创建 `build/entitlements.mac.plist`（含 app-sandbox + files.user-selected.read-write + network.client 3 个 key）
+    - [ ] 1.5.2: electron-builder.yml `mac.entitlements` 指向 plist 路径 + `mac.entitlementsInherit` 同
+    - [ ] 1.5.3: 启用 `mac.hardenedRuntime: true`（notarize 前置）
+    - [ ] 1.5.4: 验证 `codesign -d --entitlements - DeepTutor.app/Contents/MacOS/DeepTutor` 输出含 3 个 key
+    - [ ] 1.5.5: （可选）创建 `build/entitlements.mas.plist` 用于 Mac App Store 路径（`mac.target: mas`），不含 network.server
 
 - [ ] Task 2: GitHub Secrets 配置
   - [ ] 2.1: macOS Secrets: APPLE_ID / APPLE_ID_PASSWORD / APPLE_TEAM_ID / CSC_LINK / CSC_KEY_PASSWORD
@@ -177,16 +217,37 @@ As a 学习者, I want to download and install DeepTutor Desktop App once, and t
 - **Apple notarization 流程**: 必须在 macOS runner 执行（`xcrun` 命令），Win/Linux 无法 notarize
 - **Delta updates 优先级**: electron-updater 内置支持，Day 22 基础实现可不启用
 - **版本字符串**: package.json 版本 = git tag = GitHub Release 版本
+- **App Sandbox 决策（AC #6）**：默认启用（`com.apple.security.app-sandbox=true`），即使非 App Store 路径也启用，理由：(a) 与 Story 11.2 securityScopedBookmarks 一致 (b) 提升用户安全感 (c) 为未来 App Store 发布留余量。代价：DocumentAdder vault_mode 必须严格落实（NEG-2）— Sandbox 模式下不能逃出 user-selected 范围
+
+### 跨平台 Dialog 行为差异（AC #6 落地，Story 11.2 Task 4e 协同）
+
+| 维度 | macOS | Windows | Linux |
+|---|---|---|---|
+| Native dialog | NSOpenPanel（dialog API 自动调） | IFileDialog（Windows 10+） | GtkFileChooserNative |
+| `properties: ['openDirectory']` | ✅ | ✅ | ✅ |
+| `createDirectory: true` | ✅ dialog 内可建文件夹 | ❌ Windows 不支持（需引导用户先在 Explorer 建） | ❌ |
+| `noResolveAliases: true` | ✅ macOS-only（防 symlink 逃逸） | n/a | n/a |
+| `securityScopedBookmarks: true` | ✅ App Sandbox 必需 | n/a（Windows 直接路径访问） | n/a（Linux 直接路径访问） |
+| `message` field | ✅ macOS-only（dialog 顶部副标题） | n/a | n/a |
+| 默认 path | `~` (用户 home) | `C:\Users\X` | `~` |
+| 重启 app 后访问 | 必须 `startAccessingSecurityScopedResource` | 直接 path 仍有效 | 直接 path 仍有效 |
+| App 卸载后 bookmark | 自动失效（OS 清理） | n/a | n/a |
 
 ### 已知陷阱
 1. **Apple Team ID vs Apple ID**: Team ID 是 10 字符码，Apple ID 是 email 地址
 2. **App-specific password**: Apple ID 不能直接用密码，需生成 App-specific password
 3. **notarytool vs altool**: 新版 macOS 用 notarytool，altool 已弃用
 4. **Gatekeeper 缓存**: 首次运行可能仍显示"未识别开发者"，清除 xattr 或重启 Gatekeeper
+5. **App Sandbox 启用后 Docker localhost 仍能通**: Docker 通信走 `127.0.0.1:8011/8001/3782/7691` localhost，App Sandbox 不阻止（`com.apple.security.network.client=true` 已开），但**不能 listen 端口**（不需要，Electron 是 client 不是 server）
+6. **bookmark stale 的诊断**: 用户重命名 / 移动 vault 文件夹后 bookmark 失效，错误码 `NSURLBookmarkResolutionWithoutUI` 失败 → Story 11.2 Task 4d.5 处理
+7. **electron-builder 的 entitlements 双指**: `mac.entitlements` 是 main app，`mac.entitlementsInherit` 是 child processes（如 GPU helper），两者通常一样
+8. **Windows 无 entitlements 概念**: AC #6 仅 macOS 路径，Windows / Linux 不需要
 
 ### 风险
 - **R1 macOS notarization 流程**: Day 19 提前申请开发者账号 + 测试 notarytool 流程
 - **R5 Windows Defender 误报**: code signing + timestamp authority
+- **R6（新）App Sandbox + Docker 兼容性**: Docker Desktop 在 macOS 启用 Sandbox 后仍能用 localhost socket，但若用户启用 firewall 可能阻断 → CI 验收测试 + 用户文档说明
+- **R7（新）bookmark stale 的用户体验**: 用户首次重命名 vault 后 app 启动会黑屏（恢复访问失败）→ Task 4d.5 + UI fallback "Vault not found, please re-select" + Recent vaults 列表保留路径（让用户能直观看到原路径）
 
 ## UAT 验收
 

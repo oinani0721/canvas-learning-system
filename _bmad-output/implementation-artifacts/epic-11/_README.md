@@ -15,11 +15,23 @@ trigger_condition: "Epic-10 Day 10 UAT (S1-S5 + S6 全 PASS) AND 用户在 DECIS
 
 # Epic-11: DeepTutor Desktop App 桌面化（Electron + 跨平台发布）
 
-> **决策锁定**（D18 - 2026-05-07）: Electron + AnythingLLM 模式 → 社区验证 59.7k ⭐ → 1-2 周快速交付 + 4 周跨平台发布
+> **决策锁定**（D18 - 2026-05-07）: Electron 框架 + 跨平台发布 → 社区验证 59.7k ⭐（AnythingLLM 工程实践参考）→ 1-2 周快速交付 + 4 周跨平台发布
 >
 > **触发条件**: Epic-10 Day 10 UAT 5 验证场景 S1-S5 全 PASS（用户选择 **Path A 继续 fork**）
 >
 > **总工作量**: ~80h（10-14 天一人全职 / 12 天可并行化）
+
+> ## ⛔ D18 关键澄清（2026-05-07 二轮调研发现 — Round-22 后续）
+>
+> **"AnythingLLM 模式"在本 Epic 的语义**：仅指 **Electron 工程实践**（`electron-builder` 跨平台打包 + GitHub Actions CI/CD + 自动更新机制），**不指 vault 数据流模式**。
+>
+> **背景**：5 Agent 实测调研（2026-05-07）证实 AnythingLLM Desktop 真实数据流是 **HTTP upload → /storage/documents/ → DB record docpath → embed**（用户 upload 文件，文件被 copy 到 app 内部存储），与 NEG-2 用户主权"不上传文件，直接访问指定文件夹"**完全不符**。
+>
+> **本 Epic 实施约束**：
+> - ✅ 抄 AnythingLLM：Electron 包装 + electron-builder + 自动更新 + 3 平台发布
+> - ❌ 不抄 AnythingLLM：upload-and-embed 数据流；vault 数据走 **IPC `vault:read/write` → Canvas backend HTTP `:8011` → 直接 fs 操作**（NEG-2 落地）
+>
+> **证据**：Agent 4 实测 https://github.com/Mintplex-Labs/anything-llm/blob/master/server/models/documents.js + GitHub Issues #2235/#3285（用户频繁报告"如何上传文件夹及其子文件夹？"）证明 AnythingLLM 不支持 folder picker / watch 模式。
 
 ---
 
@@ -174,6 +186,24 @@ Story 10.5 NodeDetailPanel 双 capability 入口：
 - **And** 文件变化由 **Canvas backend Python watchdog 单一负责**（不在 Electron main 用 chokidar，避免双 watcher race）
 - **And** wikilink 导航实时更新（< 100ms）
 
+### AC #6: Multi-Vault Picker UX（2026-05-07 5 Agent 调研补全）
+
+> **背景**：原 AC #3 只覆盖"首启选 vault + Canvas backend 同步"，缺 Recent vaults / 多 vault 切换 / macOS App Sandbox 三大现代桌面 app 标配（参考 Cursor/VSCode/Obsidian）。Claude Desktop Code Tab 当前缺这些功能（Issue #36175 用户吐槽），我们必须做得**比 Claude Desktop 更好**。
+
+- **Given** 用户启动 Desktop App
+- **When** main window ready 后
+- **Then** Vault Picker Modal 显示三段：
+  1. **Recent Vaults 列表**（最多 10 个）：每行 vault 路径 + 最后打开时间 + 点击直接切换
+  2. **"Open Other Folder..." 按钮** → 触发 `dialog.showOpenDialog({ properties: ['openDirectory'], securityScopedBookmarks: true })`
+  3. **"Create New Vault..." 按钮** → 创建空目录 + 写入空 `.canvas-config.yaml`
+- **And** 用户选定 vault → 通过 HTTP `POST :8011/api/v1/canvas/vault-config { path }` 通知 Canvas backend（AC #3 已定义路径）
+- **And** Recent vaults 持久化在 `app.getPath('userData') + '/vault-registry.json'`（schema：`{ vaults: [{ path, bookmark?, lastOpened, platform }], maxRecent: 10 }`）
+- **And** macOS：`securityScopedBookmarks: true` 返回的 `result.bookmarks[0]` 持久化到 vault-registry.json，启动时调 `app.startAccessingSecurityScopedResource(bookmark)` 恢复访问权（App Store 发布必需，详 Story 11.4）
+- **And** 主窗口标题栏显示当前 vault `[Current: {vault_name} ▼]`，点击展开 Recent dropdown 快速切换（Cursor/VSCode 风格）
+- **And** File menu → "Open Recent" 二级菜单显示 Recent 列表 + "Clear Menu"
+- **And** 跨平台 dialog 行为差异已处理：macOS 用 `noResolveAliases` 防 symlink 逃逸 / Windows 用 IFileDialog native picker / Linux 用 GtkFileChooserNative
+- **And** 路径有效性校验：选定目录必须含至少 1 个 .md 文件 OR 含 `.obsidian/` 子目录 OR 用户确认"创建新 vault"
+
 ### AC #4: 自动更新通知
 
 - **Given** 新版本发布到 GitHub Releases（Tag 格式 `v0.2.0`）
@@ -244,10 +274,11 @@ Story 10.5 NodeDetailPanel 双 capability 入口：
 
 ## 用户主权约束（NEG 反对批注落地）
 
-- **NEG-1（Round-22 派生）**: ❌ 不绕过用户选 vault（首次必须 modal 选择）
-- **NEG-2（Round-18 L805）**: ❌ 不上传 vault 文件，仅 IPC 读写本地
+- **NEG-1（Round-22 派生）**: ❌ 不绕过用户选 vault（首次必须 modal 选择 + Recent vaults 列表持久化 + 切换透明 — AC #6 已落地）
+- **NEG-2（Round-18 L805）**: ❌ 不上传 vault 文件，仅 IPC 读写本地（与 D18 澄清段一致 — 不抄 AnythingLLM upload-and-embed 数据流）
 - **NEG-3（Round-22）**: ❌ Desktop App 不强制使用，Web 仍可访问 :3782（双轨并存）
 - **NEG-4（D17 派生）**: ❌ MVP 期间不 git pull upstream（与 Epic-10 同源）
+- **NEG-5（2026-05-07 调研派生）**: ❌ 不学 Claude Desktop Code Tab（每次开新 session 必须重选 folder，无 Recent，被 issue #36175 吐槽），必须有 Recent + 多 vault 快切（参考 Obsidian + Cursor）
 
 ---
 

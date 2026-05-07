@@ -60,7 +60,7 @@ commit_worktree: "TBD-AFTER-COMMIT"
 ### 第 0 步：前置（必须做）
 
 - [ ] Story 10.2 已 done（Day 1 wikilink 前端管线已激活）
-- [ ] 浏览器打开 http://localhost:3782（DeepTutor frontend）
+- [ ] 浏览器打开 http://localhost:3782
 - [ ] 终端能跑 `docker ps` 看到 3 个容器：`deeptutor` / `canvas-learning-system-backend` / `canvas-learning-system-neo4j`
 
 ### 第 1 步：Canvas backend 读到你的 vault md
