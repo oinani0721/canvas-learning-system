@@ -151,6 +151,114 @@ As a 学习者, I want my Canvas vault wikilink network (NetworkX graph) to be d
 - Deep Explore §3.3 Day 3-4 路线
 - DeepTutor `deeptutor/api/routers/book.py` confirm_spine endpoint
 
+---
+
+## Round-22 修订（2026-05-07 — CLI/SDK/Book Engine 深度调研）
+
+> **修订源**: `_bmad-output/research/round-22-cli-sdk-book-engine-deep-explore-2026-05-07.md`（CLI/SDK 深度探索）
+
+### 关键发现
+
+**F1 ⛔ Guided Learning v1.2.0 已删除（Book Engine 是继任者）**
+
+DeepTutor v1.2.0 Release Notes 明确：Guided Learning 模块（~5300 行）已完全删除。**Book Engine 替代了它**：
+- Spine（章节骨架）+ 14 BlockType 渲染
+- `POST /books/confirm-spine` 是 Book Engine 的 spine 确认入口
+- 路径 B 注入的对象是 Book Engine（不是 Guided Learning）
+
+**影响**: 本 Story spec 中 "ConceptGraphBlock" 等术语对应 Book Engine 的 14 BlockType 之一，**不是 Guided Learning**。spec 描述准确，但术语应明确为 Book Engine。
+
+**F2 CanvasVaultAdapter 应拆为 5 模块（不是单文件 ~300 行）**
+
+调研推荐拆分（P0-P4 优先级）:
+
+| 模块 | 优先级 | 工作量 | 职责 |
+|---|---|---|---|
+| **CanvasVaultAdapter**（主类） | P0 | ~80 行 | 入口编排 + spine schema 输出 |
+| **VaultBlockGenerator** | P0 | ~60 行 | md → 14 BlockType 之一映射 |
+| **CalloutAnnotationParser** | P1 | ~80 行 | 7 callout 类型解析（UX-1 批注核心）|
+| **WikilinkGraphBuilder** | P0 | ~60 行 | obsidiantools → NetworkX |
+| **UserProgressExtractor** | P2 | ~50 行 | 已读/已完成状态从 frontmatter 提取 |
+
+**总计**: ~330 行（接近原 spec 估算 300 行）
+
+**F3 工作量重估 16h → 5-7 day（约 35-50h）**
+
+调研指出原 spec 估算严重低估：
+- VaultBlockGenerator 14 BlockType 映射 = 14 套渲染 spec（每个 1-2h）
+- CalloutAnnotationParser 7 callout 类型 = 7 套样式适配
+- 测试覆盖度（边界 + 循环引用 + 空 vault）
+
+**修正**: 推荐 Day 3-4 完成 P0 模块（最小可用），P1-P2 模块推迟到 Day 5（与 Whiteboard 路由并行）。
+
+**F4 BlockType Enum 无需扩展（Day 3-4 仅用 Spine 输出）**
+
+Story 10.4 的 spine.json 仅用 Book Engine 现有 14 BlockType（TEXT/CONCEPT_GRAPH 等）。**不要在 Day 3-4 加新 BlockType**（避免 Pydantic 30+ 连锁错误）。
+
+新 BlockType（MASTERY_DASHBOARD/EXAM_WHITEBOARD/ERROR_CANDIDATE）留给 Story 10.6/10.7（Day 7-8）。
+
+### 修订后任务清单
+
+#### Day 3 morning（P0 模块 — 最小可用 spine 输出）
+
+- [ ] Task 6: 拆分 CanvasVaultAdapter 为 5 模块（重构原 Task 1）
+  - [ ] 6.1: 新建 `adapter/canvas_vault_adapter.py`（主类，~80 行）
+  - [ ] 6.2: 新建 `adapter/vault_block_generator.py`（14 BlockType 映射，~60 行）
+  - [ ] 6.3: 新建 `adapter/wikilink_graph_builder.py`（obsidiantools 包装，~60 行）
+  - [ ] 6.4: 主类 `__init__` 注入 3 个 builder
+
+#### Day 3 afternoon（端到端最小注入）
+
+- [ ] Task 7: P0 模块端到端
+  - [ ] 7.1: 跑 `python -m adapter.cli --vault canvas-vault --output spine.json`
+  - [ ] 7.2: 验证 spine.json 含 chapters + concept_graph
+  - [ ] 7.3: `curl -X POST :8001/books/confirm-spine -d @spine.json` 返回 200
+  - [ ] 7.4: 浏览器 :3782 看到新 book（最小验证）
+
+#### Day 4 morning（P1 — Callout 解析）
+
+- [ ] Task 8: CalloutAnnotationParser（UX-1 批注核心落地）
+  - [ ] 8.1: 新建 `adapter/callout_annotation_parser.py`（~80 行）
+  - [ ] 8.2: 解析 `> [!question]+ [!error]+` 等 7 callout 类型
+  - [ ] 8.3: 转 Book Engine CalloutBlock（已 Story 10.3 修复 wikilink 渲染）
+  - [ ] 8.4: 测试：CS 61B vault `[!error]+ NEG-3` 标注解析
+
+#### Day 4 afternoon（P2 — 用户进度 + 端到端验证）
+
+- [ ] Task 9: UserProgressExtractor（已读状态）
+  - [ ] 9.1: 新建 `adapter/user_progress_extractor.py`（~50 行）
+  - [ ] 9.2: 从 md frontmatter 解析 `status: read/completed` 字段
+  - [ ] 9.3: 注入 spine.json 的 chapter `progress` 字段
+
+- [ ] Task 10: 完整端到端 + UAT
+  - [ ] 10.1: 跑完整 vault 注入（~100 节点 + 200 wikilink）
+  - [ ] 10.2: 浏览器验证：book 渲染 + ConceptGraph 显示 + Callout wikilink 蓝链
+  - [ ] 10.3: 性能：spine.json 生成 < 30s（100 节点）
+
+### 推荐路径（Chat vs TutorBot 双轨）
+
+| Canvas 核心 | 推荐 capability | Why |
+|---|---|---|
+| 5 大核心总结（M12，原白板/检验/记忆/返回/推测） | **Book Engine + spine 注入**（路径 B） | 用户主权 100% + LLM 成本 0 |
+| 节点深度问答（"递归 vs 归纳法"） | TutorBot 长程伴学 | 多回合 + 跨节点关联 |
+
+### 修订后估算
+
+- **Day 3-4 完成 P0+P1**（~25-30h）：spine 注入端到端可用 + Callout 解析
+- **Day 5 morning 顺手 P2**（~5h，与 Whiteboard 并行）：用户进度提取
+- **AC 不变**（保持原 4 个 AC）：P0 模块即可满足；P1/P2 是"加分项"
+
+### 新增 AC（Round-22 推荐）
+
+#### AC #5: Callout 7 类型注入 spine（UX-1 落地）
+
+- **Given** vault md 含 `> [!question]+ [[recursion]]` 类标注
+- **When** spine.json 生成
+- **Then** Book Engine CalloutBlock 渲染时 callout 类型正确（蓝色 question icon）
+- **And** callout 内 `[[recursion]]` 渲染为蓝链（依赖 Story 10.3 CalloutBlock 修复）
+
+---
+
 ## 下一步
 
 → Story 10.5 Day 5-6 Whiteboard 路由 + ReactFlow（让注入的 vault 图变成可交互白板）

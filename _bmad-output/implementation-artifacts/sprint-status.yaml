@@ -256,3 +256,20 @@ development_status:
   10-8-day9-user-note-edit: ready-for-dev
   10-9-day10-uat-final: ready-for-dev
   epic-10-retrospective: optional
+
+  # ══════════════════════════════════════════════════════
+  # Epic 11 (Round-22 D18 决策落地): DeepTutor Desktop App 桌面化
+  # FR: FR-DEEP-03 ~ FR-DEEP-06（桌面化外壳）
+  # 归属物理目录: _bmad-output/implementation-artifacts/epic-11/
+  # 决策来源: Round-22 (round-22-desktop-app-rendering-deep-explore-2026-05-07.md + cli-sdk-book-engine)
+  # 触发条件: Epic-10 Day 10 UAT 5 验证场景 S1-S5 全 PASS（Path A 选定）
+  # 工作量: ~80h（12 天，Day 11-22）+ 4 周跨平台发布
+  # 用户批注落地: 用户 2026-05-07 桌面化 Q3 + AnythingLLM 模式（59.7k ⭐）
+  # 关联决策批注: 决策批注/D18-desktop-app-electron-2026-05-07.md
+  # ══════════════════════════════════════════════════════
+  epic-11: backlog
+  11-1-electron-framework-web-bundling: backlog        # ~12h, Day 11-12
+  11-2-ipc-bridge-fastapi-subprocess: backlog          # ~16h, Day 13-14
+  11-3-vault-integration-rendering: backlog            # ~28h, Day 15-18 (M4 核心)
+  11-4-multiplatform-release-autoupdate: backlog       # ~24h, Day 19-22
+  epic-11-retrospective: optional

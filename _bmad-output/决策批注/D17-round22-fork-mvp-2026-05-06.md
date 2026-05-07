@@ -173,3 +173,109 @@ mvp_window_days: 10
 ---
 
 *D17 决策已落地为 Epic-10。等 Day 10 UAT 完成后用户回填批注 + 路径选择 (A/B/C)。*
+
+---
+
+## D17 二轮追加（2026-05-07 — Day 1 完成后 Round-22 6 报告深度调研）
+
+> **追加源**: 用户 Day 1 完成后批注 + 5 并行 Agent 深度调研
+> - `round-22-day2-vault-access-design-2026-05-06.md`（Day 2 vault Phase A/B 设计）
+> - `round-22-chat-vs-tutorbot-usage-comparison-2026-05-06.md`（Chat 6 vs TutorBot 7 决策矩阵）
+> - `round-22-cli-sdk-book-engine-deep-explore-2026-05-07.md`（CLI/SDK 深度探索 + Guided Learning 删除发现）
+> - `round-22-desktop-app-rendering-deep-explore-2026-05-07.md`（Math/Visualize server-side 验证 + Tauri vs Electron 决策）
+
+### 6 个 Round-22 期间新发现（Day 0-7 演化）
+
+#### F1 ⛔ Guided Learning v1.2.0 已删除（Book Engine 是继任者）
+
+**调研发现（CLI/SDK 报告 §五）**: DeepTutor v1.2.0 Release Notes 明确删除 Guided Learning 模块（~5300 行）。
+
+**影响**:
+- 原 D17 决策"5 大核心嵌入 Guided Learning"应改为"嵌入 Book Engine"
+- Story 10.4 路径 B 的 `POST /books/confirm-spine` API 是 Book Engine 入口
+- 所有"AI 推断图谱"语义 = Book Engine 的 Spine 推断（Path Y 绕过它）
+
+#### F2 Math Animator + Visualize 渲染 100% 在 server-side
+
+**调研发现（Desktop 报告 §一/§六）**: 5 个并行 Agent 验证:
+- Math Animator: Manim+ffmpeg 服务端生成 MP4
+- Visualize: 5 render_mode 服务端输出代码字符串，**客户端渲染**
+
+**影响**:
+- CLI/SDK 用户拿到的是文件路径或代码，**不能直接"看到"动画/图表**
+- M4 映射对（13 映射中最强）必保留可视化能力 → Story 10.5 必须内嵌渲染
+- Day 11+ 桌面化（Epic-11）必备：WebView 内嵌视频/图表
+
+#### F3 桌面化 100% 可行（Tauri vs Electron 决策）
+
+**调研发现（Desktop 报告 §四）**:
+- **Electron + AnythingLLM 模式**：59.7k stars 商用先例 + macOS notarization 成熟
+- **Tauri 2.0 备选**：包小（5-10MB）但 Rust 学习曲线 + macOS 签名坑
+
+**最终选 Electron**:
+- 包大可接受（VS Code 200+ MB 参照）
+- 工期 1-2 周框架 + 4 周跨平台发布
+- Next.js standalone 零改动复用
+
+**影响**:
+- Day 11+ 拆分为 **Epic-11**（D18 锚定，本批注为 D17 主体不变）
+- Epic-11 4 stories: 11.1 Electron 框架 / 11.2 IPC Bridge / 11.3 Vault 渲染 / 11.4 跨平台发布
+
+#### F4 Day 2 Vault 工作量翻倍（4h → 1.5-2 day）
+
+**调研发现（Day 2 报告 §四）**:
+- Phase A（2-3h）: 0 改动 + manager.py:438 `restrict_to_workspace=False` 默认开沙箱
+- Phase B（6-9h，可选）: VaultMonitor daemon (~120 行) + DocumentAdder vault_mode + file lock + atomic rename
+
+**影响**:
+- Story 10.3 spec estimate_hours=4 严重低估
+- 推荐拆为 10.3a（Phase A 必修）+ 10.3b（Phase B 推荐）
+
+#### F5 Chat 6 capability + TutorBot 7 features 双轨并存
+
+**调研发现（Chat vs TutorBot 报告 §三）**:
+- Chat Workspace（6 capability）: Chat / Deep Solve / Quiz Generation / Deep Research / Math Animator / Visualize
+- TutorBot（7 features）: Soul Templates / Independent Workspace / Proactive Heartbeat / Full Tool Access / Skill Learning / Multi-Channel / Team & Sub-Agents
+- **5 学习场景决策矩阵**: Chat 适合"瞬时问题"，TutorBot 适合"长程伴学"
+
+**影响**:
+- Canvas 5 大核心**通过双轨触达**: 白板讲题（Chat Math Animator）+ 长程复习（TutorBot 8 通道推送）
+- Story 10.3/10.5/10.8 加 TutorBot 优先注解（spec 中"推荐路径"段已落地）
+- 不需新增 Story，仅文档批注
+
+#### F6 ReactFlow 选定（CLI/SDK 报告 §四 + Day 0 实测）
+
+**调研验证**: DeepTutor fork 已装 Cytoscape v3.33.1 但**未用**（Agent 2.1 发现）。
+- ReactFlow 已在 Canvas 验证（cp Canvas 代码节省时间）
+- ReactFlow React 一等公民 + edge 自定义渲染（depends_on 实线 / extends 虚线）
+
+**影响**:
+- Story 10.5 Whiteboard 选 ReactFlow（Day 5-6 工作量 18-24h 不变）
+- Cytoscape 闲置，Production 阶段再决定
+
+---
+
+### 风险更新（基于新发现）
+
+| # | 新风险 | 触发 | 缓解 |
+|---|---|---|---|
+| **R9** | Math Animator MP4 生成超时（30s+ Manim 渲染） | Day 5-6 + Day 9 UAT | FastAPI subprocess 后台任务 + 进度条 + Day 6 verify Manim docker image 已含 |
+| **R10** | Visualize 5 render_mode 浏览器兼容性 | Day 5-6 | 优先 SVG（最广兼容），Chart.js/Mermaid 用 CDN fallback |
+| **R11** | Path A 后桌面化 macOS notarization 流程卡 | Day 22 (Epic-11.4) | Day 19 提前申请 Apple Developer 账号 + notarytool 测试 |
+
+---
+
+### 关联 Epic-11（D18 锚定）
+
+D17 决定**Day 0-10 MVP**（Epic-10）。**Day 11+ 桌面化**由 D18 决策批注独立锚定。
+
+D17 ↔ D18 关系:
+- D17 = Round-22 主决策（fork + 5 核心嵌入）
+- D18 = Round-22 子决策（Path A 后桌面化路线）
+- 两者通过 `related_round: round-22` 链接，但 Epic-11 启动条件是 Epic-10 Day 10 UAT 全 PASS
+
+详见 `_bmad-output/决策批注/D18-desktop-app-electron-2026-05-07.md`。
+
+---
+
+*D17 二轮追加日期: 2026-05-07 — 6 报告深度调研收敛 + Epic-11 路线确立*

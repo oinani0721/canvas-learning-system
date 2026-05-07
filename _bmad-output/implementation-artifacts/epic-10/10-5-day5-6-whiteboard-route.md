@@ -161,6 +161,111 @@ As a 学习者, I want a `/whiteboard` route in DeepTutor where I can see my ent
 - Deep Explore §3.3 Day 5-6 路线
 - Canvas worktree `frontend/src/App.tsx` ReactFlow 实现（Story 1.x）
 
+---
+
+## Round-22 修订（2026-05-07 — Math/Visualize + Desktop 调研）
+
+> **修订源**: `_bmad-output/research/round-22-desktop-app-rendering-deep-explore-2026-05-07.md`（5 Agent 渲染深度调研）+ `round-22-cli-sdk-book-engine-deep-explore-2026-05-07.md`
+
+### 关键发现
+
+**F1 Math Animator + Visualize 是 server-side 渲染（必内嵌 Whiteboard）**
+
+5 个并行 Agent 验证:
+- **Math Animator**: Manim 引擎 + ffmpeg → 服务端生成 MP4（不在客户端渲染）
+- **Visualize**: 5 render_mode（SVG / Chart.js / Mermaid / HTML / auto）— **全部代码字符串在客户端渲染**
+
+**M4 映射对（13 映射中最强 = Whiteboard 讲题）必保留可视化**：
+- Day 5-6 Whiteboard 必须能播放 Math Animator MP4（HTML5 `<video>` 元素）
+- Whiteboard 必须能内嵌 Visualize 5 render_mode（与 ChatPanel sidebar 同 routing）
+
+**F2 ReactFlow 决策依据补强**
+
+调研对比:
+- ReactFlow: Canvas 已验证 + 12k+ stars + Next.js 14 兼容性确认
+- Cytoscape: fork 已装 v3.33.1（其他模块用），但 `useReactFlow` 直接 cp 比迁移 Cytoscape 节省 1+ day
+- **不选 Cytoscape 关键原因**: ReactFlow 的 React 一等公民设计 + edge 自定义渲染（depends_on 实线 / extends 虚线）
+
+**F3 Math/Visualize 离线可用（重要）**
+
+FastAPI subprocess 包含 Manim + matplotlib + chart.js（local lib）→ 离线断网可用。
+**前提**: vault 写权限（已 Story 10.3 Phase B 提供）+ ffmpeg 系统装好（DeepTutor docker image 已含）。
+
+### 修订后任务清单
+
+#### Day 5 morning（Backend 增项）
+
+保持原 Task 1-2 不变（whiteboard router + Canvas backend graph query）。
+
+#### Day 5 afternoon（Frontend ReactFlow + Math/Visualize 集成）
+
+- [ ] Task 9: VisualizationRenderer 组件（5 render_mode 集成）
+  - [ ] 9.1: 新建 `web/components/whiteboard/VisualizationRenderer.tsx`
+  - [ ] 9.2: 根据 `render_mode` 字段分支：
+    - [ ] 9.2.1: **SVG** → `<div dangerouslySetInnerHTML={...sanitize(code)} />`（用 dompurify）
+    - [ ] 9.2.2: **Chart.js** → `<canvas>` + 动态 import('chart.js')
+    - [ ] 9.2.3: **Mermaid** → `<div class="mermaid">` + 动态 import('mermaid')
+    - [ ] 9.2.4: **HTML** → `<iframe sandbox srcDoc={code} />`
+    - [ ] 9.2.5: **auto** → AI 选定最佳 mode 后调用上述分支
+  - [ ] 9.3: 集成到 NodeDetailPanel sidebar（节点点击触发 visualize）
+
+- [ ] Task 10: MathAnimatorPlayer 组件（HTML5 video）
+  - [ ] 10.1: 新建 `web/components/whiteboard/MathAnimatorPlayer.tsx`
+  - [ ] 10.2: 接受 `videoUrl: string` prop（从 `:8001/api/v1/math-animator/output/:turn_id` fetch）
+  - [ ] 10.3: 渲染 `<video src={videoUrl} controls playsInline />`
+  - [ ] 10.4: 全屏 / 速度调整 / seekbar 标准 HTML5 功能
+  - [ ] 10.5: 集成到 NodeDetailPanel（"讲题"按钮触发）
+
+#### Day 6 morning（NodeDetailPanel 双轨 — Chat + TutorBot）
+
+- [ ] Task 11: NodeDetailPanel 双 capability 入口
+  - [ ] 11.1: 节点点击后右侧 sidebar 显示 metadata
+  - [ ] 11.2: 加两个按钮:
+    - "讲题（Chat Math Animator）" → 触发 Math Animator capability + 嵌入 MathAnimatorPlayer
+    - "深度伴学（TutorBot）" → 打开 TutorBot 长程会话（路径与 Story 10.8 接力）
+  - [ ] 11.3: Visualize 按钮触发 5 render_mode（VisualizationRenderer 渲染）
+
+#### Day 6 afternoon（端到端验证 + 性能）
+
+- [ ] Task 12: Math/Visualize 端到端验证
+  - [ ] 12.1: Whiteboard 加载 ≥ 10 节点
+  - [ ] 12.2: 点击 "递归" 节点 → NodeDetailPanel 打开
+  - [ ] 12.3: 点 "讲题" → Math Animator 调用（FastAPI subprocess 渲染 MP4）→ Whiteboard 内嵌 video 播放
+  - [ ] 12.4: 点 "Visualize" → 5 render_mode 任一选择 → Whiteboard 内嵌渲染（不弹窗）
+  - [ ] 12.5: 离线断网测试: Math/Visualize 仍可用（FastAPI subprocess 本地）
+
+### 推荐路径（Chat vs TutorBot 双轨）
+
+| Whiteboard 节点交互 | 推荐 capability | Why |
+|---|---|---|
+| **讲题（节点视觉化解释）** | **Chat Math Animator + Visualize** | 瞬时问题，AI 立即生成 MP4/SVG |
+| **深度概念伴学** | TutorBot 长程会话 | 多回合 + 跨节点关联（Story 10.8 接力） |
+| **导航（点节点跳转）** | wikilink_proxy（Story 10.3） | 已就绪，0 LLM 调用 |
+
+### 修订后估算
+
+- **Day 5-6 仅 ReactFlow + Math/Visualize**：18-24h（与原 spec 一致）
+- **Math/Visualize 集成只增 4-6h**（Task 9-10），性价比高
+- **AC 不变**（保持原 4 个 AC）：Math/Visualize 是"加分项"，但 UAT 强烈推荐验证（M4 最强映射）
+
+### 新增 AC（Round-22 推荐）
+
+#### AC #5: Math Animator MP4 在 Whiteboard 内播放
+
+- **Given** Whiteboard 加载 + 节点点击 + "讲题"按钮
+- **When** Math Animator capability 调用，返回 MP4 文件路径
+- **Then** NodeDetailPanel 内嵌 `<video>` 元素播放（不弹出系统播放器）
+- **And** 播放器支持 seekbar / 全屏 / 速度调整
+
+#### AC #6: Visualize 5 render_mode 在 Whiteboard 内渲染
+
+- **Given** Whiteboard 节点点击 + "Visualize"按钮
+- **When** Visualize capability 返回代码字符串 + render_mode
+- **Then** NodeDetailPanel 内渲染对应 mode（SVG inline / Chart.js canvas / Mermaid SVG / HTML iframe）
+- **And** 5 mode 全部支持（auto mode 由 AI 选择）
+
+---
+
 ## 下一步
 
 → Story 10.6 Day 7 MasteryDashboard Block（节点掌握度数据落地）

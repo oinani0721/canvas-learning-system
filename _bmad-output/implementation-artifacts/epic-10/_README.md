@@ -276,4 +276,114 @@ Round-22 (10 天 Fork MVP) ← 当前 Epic-10 起点
 
 ---
 
+## Round-22 二轮修订（2026-05-07 — Day 1 完成后 6 报告深度调研收敛）
+
+> **修订源**: 用户 Day 1 完成后批注 + 5 并行 Agent 深度调研（4 份新报告 + 2 份 Day 0 历史报告交叉引用）
+
+### 新发现（6 项 — 直接影响 Epic-10 spec 解读）
+
+#### F1 ⛔ Guided Learning v1.2.0 已删除（CLI/SDK 报告 §五 关键发现）
+
+DeepTutor v1.2.0 Release Notes 确认 **Guided Learning 模块完全删除**（~5300 行代码）。**Book Engine 是其继任者**（Spine + 14 BlockType 渲染体系）。
+
+**影响**:
+- 本 _README §"集成方案" 提到的 Guided Learning 实际为 Book Engine
+- Story 10.4 路径 B 的 `POST /books/confirm-spine` API 是 Book Engine 入口（非 GL）
+- 所有"AI 推断图谱"语义 = Book Engine 的 Spine 推断（Path Y 绕过它）
+
+#### F2 Math Animator + Visualize 渲染 100% 在 server-side（Desktop 报告 §一/§六）
+
+5 个并行 Agent 验证: Math Animator (Manim+ffmpeg→MP4) + Visualize (5 render_mode SVG/Chart.js/Mermaid/HTML/auto) **必须 server 渲染后客户端展示**。
+
+**影响**:
+- CLI/SDK 用户拿到的是文件路径或代码字符串，**不能直接"看到"动画/图表**
+- M4 映射对（13 映射中最强）必保留可视化能力 → Story 10.5 Whiteboard 必须能内嵌渲染
+- Story 10.9 UAT 必须含 Math/Visualize 视觉验证场景
+
+#### F3 桌面化 100% 可行（Desktop 报告 §四）
+
+Tauri 2.0 vs Electron 决策**已锁定 Electron + AnythingLLM 模式**（59.7k stars 商用先例）：
+- **包大小**: 100+ MB（可接受，VS Code 200+ MB 参照）
+- **工期**: 1-2 周框架 + 4 周跨平台发布（macOS notarization 含）
+- **不选 Tauri**: Rust 学习曲线 + macOS 签名坑 + 工期紧
+
+**影响**:
+- Day 11+ 桌面化拆分为 **Epic-11**（不扩展 Epic-10），见本文档末尾"后续路线"
+
+#### F4 Day 2 Vault 接入工作量重估（Day 2 Vault 报告 §四）
+
+原 Story 10.3 spec 0.5d 严重低估。Phase 拆分:
+- **Phase A**（2-3h，立即可做）: 0 改动 + manager.py:438 `restrict_to_workspace=False` 已默认开沙箱（实测验证）
+- **Phase B**（6-9h，可选升级）: VaultMonitor daemon (~120 行) + DocumentAdder vault_mode 参数 + file lock + atomic rename
+
+**影响**:
+- Story 10.3 工作量改为 **1.5-2 day**（推荐拆 10.3a + 10.3b）
+- Day 2 不一定全做完 Phase B，Phase A 即可解锁 Day 3+ 工作
+
+#### F5 Chat 6 capability + TutorBot 7 features 双轨并存（Chat vs TutorBot 报告 §三）
+
+DeepTutor 的功能体系:
+- **Chat Workspace**（6 capability）: Chat / Deep Solve / Quiz Generation / Deep Research / Math Animator / Visualize
+- **TutorBot**（7 features）: Soul Templates / Independent Workspace / Proactive Heartbeat / Full Tool Access / Skill Learning / Multi-Channel / Team & Sub-Agents
+- **5 学习场景决策矩阵**确认: Chat 适合"瞬时问题"，TutorBot 适合"长程伴学"
+
+**影响**:
+- Canvas 的 5 大核心**通过双轨触达**：白板讲题（Chat Math Animator）+ 长程复习（TutorBot Heartbeat→8 通道推送）
+- Story 10.3/10.5/10.8 加 TutorBot 优先注解（哪个 capability 适合哪个 Canvas 核心）
+- 不需新增 Story，仅文档批注
+
+#### F6 ReactFlow 选定（CLI/SDK 报告 §四 + Day 0 实测）
+
+Whiteboard 路由（Story 10.5）确认用 ReactFlow（非 Cytoscape）:
+- DeepTutor fork 已装 Cytoscape v3.33.1（用于其他场景）
+- ReactFlow 直接 cp Canvas worktree 已验证代码（更快）
+- 工作量 18-24h（Day 5-6 可控）
+
+---
+
+### 修订映射表（Round-22 → Epic-10 Story）
+
+| Round-22 新发现 | 落地 Story | 修订动作 |
+|---|---|---|
+| F1 Guided Learning 删除 / Book Engine 继任 | Story 10.4 | spec 文档批注 "API 是 Book Engine" |
+| F2 Math/Visualize server-side | Story 10.5 + 10.9 | 10.5 加内嵌渲染 Task；10.9 UAT 加 Math/Visualize 验证场景 |
+| F3 桌面化可行 | **Epic-11**（新建，本文档外） | Day 11+ 启动条件（Path A 触发后） |
+| F4 Day 2 vault 工作量翻倍 | Story 10.3 | spec 加 Phase A/B 拆分 + VaultMonitor 任务清单 |
+| F5 Chat vs TutorBot 双轨 | Story 10.3 / 10.5 / 10.8 | spec 加"推荐路径"注解（哪个 capability 用） |
+| F6 ReactFlow 选定 | Story 10.5 | spec 加 ReactFlow 决策依据 |
+
+---
+
+### 后续路线（Epic-11 预案，Day 11+ 触发）
+
+如 Day 10 UAT 选 **Path A（继续 fork）**，启动 Epic-11:
+
+| Story | 标题 | Day | 工作量 |
+|---|---|---|---|
+| 11.1 | Electron 框架 + Web 包装 | Day 11-12 | ~12h |
+| 11.2 | IPC Bridge + FastAPI subprocess | Day 13-14 | ~16h |
+| 11.3 | Vault 深度集成 + 渲染验证（Math/Visualize 内嵌） | Day 15-18 | ~28h |
+| 11.4 | 跨平台发布（macOS notarize + Win + Linux） + electron-updater | Day 19-22 | ~24h |
+
+**前置条件**: Epic-10 Day 10 UAT 5 验证场景 S1-S5 全 PASS。
+
+详见 `_bmad-output/implementation-artifacts/epic-11/_README.md` 和 `_bmad-output/决策批注/D18-desktop-app-electron-2026-05-07.md`。
+
+---
+
+### Round-22 调研报告索引
+
+| 报告 | 关键贡献 |
+|---|---|
+| `round-22-deeptutor-fork-mvp-2026-05-06.md` | 主决策报告（D17 锚定） |
+| `round-22-deeptutor-deep-explore-2026-05-06.md` | 10 Agent 5 大核心可行性整合 |
+| `round-22-day2-vault-access-design-2026-05-06.md` | Day 2 Phase A/B 设计 + VaultMonitor 代码 |
+| `round-22-chat-vs-tutorbot-usage-comparison-2026-05-06.md` | Chat 6 vs TutorBot 7 决策矩阵 |
+| `round-22-cli-sdk-book-engine-deep-explore-2026-05-07.md` | Guided Learning 删除发现 + Book Engine 继任 |
+| `round-22-desktop-app-rendering-deep-explore-2026-05-07.md` | Math/Visualize server-side 验证 + Electron 决策 |
+
+---
+
 *Epic-10 锚定文档。所有 Story 必须引用本文件 + 对应 Round-22 报告章节。*
+
+*二轮修订日期: 2026-05-07 — 6 报告深度调研收敛 + Epic-11 路线确立*
