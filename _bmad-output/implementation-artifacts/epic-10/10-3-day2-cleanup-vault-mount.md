@@ -4,7 +4,7 @@ epic_id: "10"
 prd_id: "canvas-learning-system"
 status: "ready-for-dev"
 priority: "P0"
-estimate_hours: 4
+estimate_hours: 12  # Phase A 2-3h + Phase B 6-9h（Round-22 二轮 F4 修订重估，2026-05-07 对抗性审查 L1 同步）
 depends_on: ["10.2"]
 blocks: ["10.4"]
 trace: ["FR-DEEP-03", "M11", "UX-1"]

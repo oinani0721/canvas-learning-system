@@ -162,6 +162,20 @@ Round-22 (10 天 Fork MVP) ← 当前 Epic-10 起点
 - **And** 无 mock 服务保留
 - **And** Day 6 go/no-go 决策已文档化（`DECISION-DAY-6.md` + `DECISION-DAY-10.md`）
 
+### AC #6: Graphiti 闭环贯穿（D4 落地，对抗性审查 H3+H4+M1 升级）
+
+> **新增依据**：用户 D4（Round-21 L1085）"整个闭环必须由 Graphiti 后端贯穿，否则检验白板无法'深刻'考察"。Round-22 二轮对抗性审查（2026-05-07 Claude 5 Agent + ChatGPT GPT-5 Pro 第二意见）发现 D4 在 Epic-10 仅 Story 10.8 一个 Task 写入未读取，升 Epic 级 AC。
+
+- **Given** Day 8 ErrorCandidate 已落地（Story 10.7）+ Day 9 UserNote 已落地（Story 10.8）+ Day 10 复习推送已可触发（Story 10.7 / Heartbeat）
+- **When** 用户答错 → ErrorCandidate 写 Graphiti episodic memory（含 `{时间, 概念 ID, 错误类型, 用户批注}`）
+- **And** ≥ 24h 后用户触发复习 → 系统多 hop 检索 Graphiti（关联节点 / 历史错题 / 跨概念错误模式）
+- **Then** 复习推送 / NodeDetailPanel 显示**关联历史错题摘要**（如 "3 天前你在 X 概念栽过，本次出题关联 Y 概念"）
+- **And** 出题（exam_proxy ACP）参数注入历史 episodic 上下文，针对性测试相关概念
+- **And** Day 10 UAT 验证场景 S6（新增）：写入 → 等待 → 多 hop 召回 → 针对性出题，全链路通过
+- **And** 协同验证两白板的应用：原白板答错的概念 → 检验白板出针对性题（核心 3 "在两白板的应用"语义落地）
+
+> **联动 Story**：Story 10.7（写入 episodic）+ Story 10.8（关联用户批注）+ Story 10.9（UAT S6 验证）
+
 ---
 
 ## Risks（用户批注风险红线 + Day 5 BlockType 连锁风险）
@@ -246,7 +260,7 @@ Round-22 (10 天 Fork MVP) ← 当前 Epic-10 起点
 
 ## 用户主权约束（NEG 反对批注落地）
 
-- **NEG-1（Round-12）**: ❌ 不做跨白板关联（旧 Tauri 时代功能已砍）
+- **NEG-1（Round-12 + 2026-05-07 对抗性审查澄清）**: ❌ 不做 **AI 自动**跨白板关联（不允许 AI 推断或自动建边）；✅ 允许"用户主动浏览全 vault wikilink 全景视图"（Story 10.5 Whiteboard 仅展示**用户已显式写的 wikilink** + 用户创建的边，禁止 AI 自动新增跨白板边）— 旧 Tauri 时代"AI 跨白板自动关联"功能已砍
 - **NEG-2（Round-19）**: ❌ 不是"集成 Canvas 模块"，是"参考 Canvas 思想在 DeepTutor 写新代码"
   - 落地体现: Day 1 staging 文件 cp 后必须修 import + visit.SKIP bug，不是直接 cp 即用
 - **NEG-3（Round-22）**: ❌ MVP 期间不 git pull upstream（已 tag `mvp-baseline`）

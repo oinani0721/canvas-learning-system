@@ -62,13 +62,18 @@ As a 学习者, I want to see Math Animator videos and Visualize charts rendered
 - **And** 导航至新笔记（更新 URL bar + re-render 内容）
 - **And** 导航速度 < 100ms（感觉流畅）
 
-### AC #3: Math Animator MP4 渲染（HTML5 video）
+### AC #3: Math Animator MP4 渲染（HTML5 video，S3 修订 — 不暴露 file://）
 
-- **Given** AI 生成 MP4 并保存至本地 vault 目录（如 `outputs/math_animator_turn123.mp4`）
+> **2026-05-07 对抗性审查 S3 修订**：原 spec `<video src="file:///path/...">` 暴露用户电脑绝对路径（隐私风险）+ 与 BrowserWindow 加载 `http://localhost`（S2 修订）的 origin 不一致触发 CORS 问题。修订为 `media://` 自定义协议或 HTTP localhost。
+
+- **Given** AI 生成 MP4 并保存至 FastAPI subprocess 输出目录（如容器内 `~/.cache/deeptutor/agent/math_animator/{turn_id}/video.mp4`）
 - **When** 结果区显示该输出
-- **Then** 渲染为 `<video src="file:///path/to/math_animator_turn123.mp4" controls>` 元素
+- **Then** 渲染为以下二选一：
+  - **方案 A（推荐）**：`<video src="media://math-animator/{turn_id}.mp4" controls>` — Electron main 进程注册 `media://` 协议处理器，映射到容器输出目录（路径白名单防穿越）
+  - **方案 B**：`<video src="http://127.0.0.1:8001/api/v1/math-animator/output/{turn_id}" controls>` — 走 DeepTutor backend 静态文件服务（已有 `NEXT_PUBLIC_API_BASE` 机制可复用）
 - **And** 视频在 WebView 内完全播放（不弹出系统播放器）
 - **And** 支持全屏、速度调整、截图等 HTML5 标准功能
+- **And** 用户右键复制视频地址 → 看到 `media://...` 或 `http://localhost:...`，**不暴露 `/Users/<name>/.cache/...` 等绝对路径**
 
 ### AC #4: Visualize 5 render_mode 全部支持
 
@@ -115,11 +120,17 @@ As a 学习者, I want to see Math Animator videos and Visualize charts rendered
 
 ### Math Animator + Visualize 渲染
 
-- [ ] Task 4: HTML5 video 元素
+- [ ] Task 4: HTML5 video 元素（S3 修订 — `media://` 协议）
   - [ ] 4.1: 修改结果渲染组件，检测输出类型是否为 `video/mp4`
-  - [ ] 4.2: 若是，渲染 `<video src="file://..." controls>`
-  - [ ] 4.3: 添加 CSS：`width: 100%; max-width: 800px; border-radius: 8px;`
-  - [ ] 4.4: 验证 seekbar + play/pause + fullscreen 功能
+  - [ ] 4.2: Electron main 进程注册 `media://` 协议（`protocol.registerFileProtocol('media', ...)`）：
+    - [ ] 4.2.1: `media://math-animator/{turn_id}.mp4` → 映射到容器卷挂载位置 `~/.cache/deeptutor/agent/math_animator/{turn_id}/video.mp4`
+    - [ ] 4.2.2: 路径白名单（仅允许 `~/.cache/deeptutor/` 子目录）
+    - [ ] 4.2.3: 失败 → 返回 404 而不是绝对路径
+  - [ ] 4.3: 渲染 `<video src="media://math-animator/{turn_id}.mp4" controls>`（**不是** file://）
+  - [ ] 4.4: Renderer 通过 IPC 询问 main 当前 turn_id 对应 mp4 是否存在 + 获取 media:// URL
+  - [ ] 4.5: 添加 CSS：`width: 100%; max-width: 800px; border-radius: 8px;`
+  - [ ] 4.6: 验证 seekbar + play/pause + fullscreen 功能
+  - [ ] 4.7: **fallback 方案 B**：若 `media://` 协议注册失败，降级用 `http://127.0.0.1:8001/api/v1/math-animator/output/{turn_id}`（HTTP localhost，CORS_ORIGINS 已含）
 
 - [ ] Task 5: Visualize renderer（5 modes）
   - [ ] 5.1: 创建 `web/components/VisualizationRenderer.tsx`
@@ -155,10 +166,12 @@ As a 学习者, I want to see Math Animator videos and Visualize charts rendered
 - **Mermaid DSL 和 SVG**: Mermaid 最终也是 SVG，但输出 DSL 时需动态 render
 - **iframe sandbox 隔离**: HTML mode 用 sandbox 防恶意代码（XSS 防护）
 
-### 已知陷阱
-1. **file:// URL 跨域问题**：video src="file://..." 在某些浏览器可能受同源策略限制。Electron WebView 默认放开
-2. **CDN 库 offline fallback**：chart.js 等库从 CDN 加载，离线则失败。考虑本地打包
-3. **wikilink 目标不存在时的处理**：`[[nonexistent]]` 点击时 vaultRead 返回 404 → 提示"笔记不存在"
+### 已知陷阱（S3 修订后）
+1. **`media://` 自定义协议必须 main 进程注册**：renderer 直接 fetch 不行，需 main 通过 `protocol.registerFileProtocol` 注册（在 `app.whenReady()` 之后）
+2. **`media://` 路径白名单**：必须强校验，否则攻击者构造 `media://../../etc/passwd` 可读任意文件
+3. **CDN 库 offline fallback**：chart.js 等库从 CDN 加载，离线则失败。考虑本地打包
+4. **wikilink 目标不存在时的处理**：`[[nonexistent]]` 点击时 vaultRead 返回 404 → 提示"笔记不存在"
+5. **HTTP localhost CORS**：BrowserWindow 走 `http://127.0.0.1:<frontend_port>`（S2 修订）→ fetch `http://127.0.0.1:8001/api/...` 同 origin 父级（localhost），但端口不同仍触发 CORS preflight，Canvas/DeepTutor backend CORS_ORIGINS 必须含 frontend dynamic port（`http://127.0.0.1:*` 或具体注入）
 
 ### 风险
 - **R2 Manim 依赖打包**: app 仅 Next.js，FastAPI subprocess 动态加载 Manim

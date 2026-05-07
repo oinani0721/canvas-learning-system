@@ -2,9 +2,9 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**：Day 1 wikilink 集成 ✅ 完整收官。fork ready + Canvas + DeepTutor 双服务跑 + B1-B6 全部通 + 5 agent 独立调研验证集成必要性 100%。
+**当前状态**：Day 1 wikilink 集成 ✅ 完整收官（fork commit `23a2853` + tag `mvp-day-1-patches` 已打）。Round-22 二轮对抗性设计审查完成（5 Claude Agent + ChatGPT GPT-5 Pro 第二意见 + 7 项 spec 修订 + L3 主报告补创）。
 
-**下一步**：commit Day 1 改动到 fork (tag `mvp-day-1-patches`)，启动 Day 2（修 wikilink_neighbors path param + vault 数据挂载验证 + Co-Writer wikilink 渲染样式美化）。
+**下一步**：启动 Day 2 Story 10.3 — Phase A（4 Tasks，2-3h）：CalloutBlock 1 行修 + client.py path param 修复 + docker-compose.canvas.yml 路径修正 + curl 验证 wikilink graph total_nodes>0。Phase B（VaultMonitor + DocumentAdder vault_mode + atomic write，6-9h）弹性安排 Day 2-3。
 
 **关键路径**：
 - 本 worktree：`~/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-deeptutor-canvas-mvp/`

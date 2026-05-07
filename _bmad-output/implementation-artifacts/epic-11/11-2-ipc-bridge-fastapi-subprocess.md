@@ -14,15 +14,17 @@ target_date: "2026-05-19 ~ 2026-05-20"
 uat_sheet: "_bmad-output/验收单/Story-11.2-ipc-bridge-fastapi-subprocess.md"
 ---
 
-# Story 11.2: IPC Bridge + FastAPI subprocess
+# Story 11.2: IPC Bridge + Docker Compose Supervisor
 
 **Status**: backlog（target Day 13-14, 2026-05-19 ~ 2026-05-20）
 
+> **2026-05-07 对抗性审查 S1 修订（C+ 方案锁定）**：原 spec 设计"Electron spawn 单个 FastAPI subprocess"，但 Epic-10 5 大核心 100% 依赖 Canvas backend (:8011) + Neo4j (:7691)，单 subprocess 无法承接（且 Neo4j 嵌入需 JRE 200MB / sqlite 重写所有 Cypher 推翻 Story 10.2）。修订为：**Electron 当 Docker compose supervisor**，复用 Epic-10 完整 docker-compose 编排（Canvas + DeepTutor + Neo4j），IPC 5 个 vault 命令路由到 Canvas backend HTTP。
+
 ## Story（用户故事）
 
-As a 学习者, I want Desktop App to automatically spawn a local FastAPI server process and communicate with it via IPC (inter-process communication) so that I can read/write vault files and trigger AI features without network calls — giving me true offline operation.
+As a 学习者, I want Desktop App to automatically start the Docker compose stack（Canvas + DeepTutor + Neo4j）on launch and provide IPC commands for local file operations, so that I can read/write vault files and trigger AI features through the same backend stack used during MVP — keeping the Day 0-10 verified architecture intact.
 
-> **映射对**: M11（vault 不上传文件，知识库直接访问）+ NEG-2（用户主权 vault 所有权）
+> **映射对**: M11（vault 不上传文件，知识库直接访问）+ NEG-2（用户主权 vault 所有权）+ S1 C+（Docker supervisor 不嵌入 Neo4j）
 
 ## 通俗化解释（给学习者）
 
@@ -44,65 +46,78 @@ As a 学习者, I want Desktop App to automatically spawn a local FastAPI server
 
 ## Acceptance Criteria
 
-### AC #1: FastAPI subprocess 生命周期管理
+### AC #1: Docker compose 编排生命周期管理（S1 C+ 修订）
 
-- **Given** Electron app 启动
+- **Given** Electron app 启动 + 用户已装 Docker Desktop
 - **When** main 进程初始化
-- **Then** main 进程调用 `spawn('python', ['-m', 'uvicorn', 'deeptutor.api.main:app', '--port', '0'])`
-- **And** 检测 stdout 中的 "Uvicorn running on http://127.0.0.1:XXXX" 消息
-- **And** 自动解析 port 号，存储在 main process 内存（不写配置文件）
+- **Then** main 进程检测 Docker 运行状态（`docker info` 退出码 0）→ 若未运行，UI dialog 提示用户启动 Docker Desktop
+- **And** main 进程调用 `spawn('docker', ['compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.canvas.yml', 'up', '-d'])`（cwd = fork 仓库路径，env 含 `CANVAS_WORKTREE_PATH=<user_vault_path>`）
+- **And** 等待 Canvas (:8011) + DeepTutor (:8001) + Neo4j (:7691) 全部 healthy（轮询 health endpoint，超时 60s）
+- **And** 服务端口写入 main process 内存 + 通过 IPC 暴露给 renderer（`window.api.getServicePorts()`）
 
-### AC #2: Health check heartbeat
+### AC #2: Health check heartbeat + Docker service 恢复
 
-- **Given** FastAPI subprocess 运行
-- **When** 每 5 秒执行一次 `GET /api/v1/health`
+- **Given** Docker compose 已启动
+- **When** 每 5 秒执行一次 `GET http://127.0.0.1:8011/api/v1/health` + `GET http://127.0.0.1:8001/api/v1/health`
 - **Then** 响应 HTTP 200 + `{"status": "healthy"}`
-- **And** 如果连续 3 次失败，自动重启 subprocess
-- **And** UI toast 通知用户 "Backend recovering..." → "Backend online"
+- **And** 如果连续 3 次失败，自动 `docker compose restart <service>` 单服务重启（不整体重启）
+- **And** UI toast 通知用户 "Canvas backend recovering..." / "DeepTutor recovering..." → "Backend online"
 
-### AC #3: Vault 目录首选授权 UI
+### AC #3: Vault 目录首选授权 UI + Canvas backend 同步切 vault（S1 C+ 修订）
 
 - **Given** 用户首次启动 Desktop App，vault 目录未设置
 - **When** main window 加载完毕
 - **Then** modal dialog 弹出：标题 "Select Your Notebook Location" + 说明文本 + "Select Folder" 按钮 + "Cancel" 按钮
 - **And** 用户点击 "Select Folder" → 打开系统文件选择对话框
 - **And** 选定后，app 将路径保存至 `~/.deeptutor-app/vault-path.json`
-- **And** 关闭对话框，main 进程通知 FastAPI subprocess 该 vault 路径
+- **And** main 进程通过 HTTP `POST :8011/api/v1/canvas/vault-config { path: <user_path> }` 通知 **Canvas backend** reload + reindex（vault 路径单一真相源在 Canvas backend，不在 main 进程内存）
+- **And** Canvas backend 触发 `wikilink_graph_service.build_graph(vault_path)` + LanceDB reindex + Graphiti episodic watcher 重启动
+- **And** 切换 vault 时同样通过此 API 通知（运行时可变 vault 支持）
 
-### AC #4: IPC 命令管道（5 个基础命令）
+### AC #4: IPC 命令管道（5 个基础命令路由到 Canvas backend，S1 C+ 修订）
 
 - **Given** renderer process 需要读/写文件或 watch 文件变化
-- **When** renderer 调用 `window.api.vaultRead(filename)` / `vault_write` / `vault_list` / `vault_watch` / `vault_unwatch`
-- **Then** main 进程代理请求至 FastAPI：`POST /api/v1/vault/{command}`
+- **When** renderer 调用 `window.api.vaultRead(filename)` / `vaultWrite` / `vaultList` / `vaultWatch` / `vaultUnwatch`
+- **Then** main 进程代理请求至 **Canvas backend**：`POST http://127.0.0.1:8011/api/v1/vault/{command}`（不是 DeepTutor :8001，也不是新 spawn 的 subprocess）
 - **And** renderer 接收 response JSON（含 data / error 字段）
 - **And** 5 个命令全部支持 error 回调（如 permission denied）
+- **And** vault watch 由 **Canvas backend Python watchdog 单一负责**（不在 main 进程用 chokidar，避免 Story 10.3 Phase B Python watcher 与 Electron Node watcher 双 watcher race condition）
 
-### AC #5: 无网络依赖验证
+### AC #5: 无外网依赖验证（C+ 方案 localhost-only）
 
 - **Given** 用户网络离线（disable WiFi / 断网线）
 - **When** Desktop App 运行 vault_read / AI 特性
-- **Then** 本地 subprocess 仍可交互（FastAPI 127.0.0.1:port）
+- **Then** 所有调用走 Docker compose 内 localhost（`127.0.0.1:8011` / `127.0.0.1:8001` / `127.0.0.1:3782` / `bolt://127.0.0.1:7691`）
 - **And** 无外网请求（tcpdump / network monitor 验证）
+- **And DocumentAdder vault_mode=True 强制启用**：Story 10.3 Phase B 已实现的 vault_mode 在 Epic-11 同样生效，**禁止上传 vault 文件到 DeepTutor 内部 KB**（NEG-2 落地，不只是"无外网请求"）
 - **And** 仅 Claude API 调用时才需网络（提示用户）
 
 ## Tasks / Subtasks
 
-### Electron main 进程扩展
+### Electron main 进程扩展（S1 C+ 修订 — Docker supervisor）
 
-- [ ] Task 1: FastAPI subprocess spawner
-  - [ ] 1.1: 导入 `child_process.spawn` + `os` + `path`
-  - [ ] 1.2: 编写 `spawnFastAPIServer()` 函数：
-    - [ ] 1.2.1: 确定 Python 可执行路径（`python3` 或 `python`）
-    - [ ] 1.2.2: 检查 `deeptutor` 包是否已安装（fallback 路径）
-    - [ ] 1.2.3: spawn 进程，监听 stdout，正则匹配 `http://127.0.0.1:(\d+)`
-    - [ ] 1.2.4: 提取 port，返回给 IPC handler
-  - [ ] 1.3: 编写 `killFastAPIServer()` 函数（app 关闭时）
+- [ ] Task 1: Docker compose supervisor
+  - [ ] 1.1: 导入 `child_process.spawn / exec` + `os` + `path`
+  - [ ] 1.2: 编写 `checkDockerRunning()` 函数：
+    - [ ] 1.2.1: `exec('docker info')` 退出码 0 = Docker 运行中
+    - [ ] 1.2.2: 失败 → UI dialog "Please start Docker Desktop" + "Quit" 按钮
+  - [ ] 1.3: 编写 `startDockerCompose(canvasPath, vaultPath)` 函数：
+    - [ ] 1.3.1: cwd = fork 仓库路径
+    - [ ] 1.3.2: env = `{ CANVAS_WORKTREE_PATH: vaultPath, ...process.env }`
+    - [ ] 1.3.3: `spawn('docker', ['compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.canvas.yml', 'up', '-d'], { cwd, env })`
+    - [ ] 1.3.4: 监听 stderr 收集启动错误
+  - [ ] 1.4: 编写 `waitForServicesHealthy()` 函数（轮询 60s 超时）：
+    - [ ] 1.4.1: poll `http://127.0.0.1:8011/api/v1/health` + `http://127.0.0.1:8001/api/v1/health` 每 2s
+    - [ ] 1.4.2: 全部 200 OK → resolve；超时 → reject + UI 错误提示
+  - [ ] 1.5: 编写 `stopDockerCompose()` 函数（app 关闭时）：
+    - [ ] 1.5.1: `spawn('docker', ['compose', 'down'])`（保留数据卷，不删 vault md / Neo4j data）
+    - [ ] 1.5.2: 等待退出 → `app.quit()`
 
-- [ ] Task 2: Health check heartbeat
+- [ ] Task 2: Health check heartbeat + 单服务恢复
   - [ ] 2.1: 导入 `axios` 或 `fetch`
-  - [ ] 2.2: 编写 `startHealthCheck()` 函数（5s interval）
-  - [ ] 2.3: 失败计数器 + 3 次失败自动重启
-  - [ ] 2.4: 编写 `notifyRenderer()` 通知 UI（via IPC）
+  - [ ] 2.2: 编写 `startHealthCheck()` 函数（5s interval，并行 ping Canvas + DeepTutor）
+  - [ ] 2.3: 失败计数器 + 3 次失败 → `docker compose restart <service>`（仅重启失败的服务，不整体重启）
+  - [ ] 2.4: 编写 `notifyRenderer()` 通知 UI（via IPC，区分 Canvas / DeepTutor 哪个 recovering）
 
 - [ ] Task 3: Vault 路径配置存储
   - [ ] 3.1: 导入 `fs.promises` + `electron.app.getPath('userData')`
@@ -140,14 +155,16 @@ As a 学习者, I want Desktop App to automatically spawn a local FastAPI server
   - [ ] 7.2: 每个 handler 调用相应 FastAPI endpoint（via axios POST）
   - [ ] 7.3: 异常捕获 → 返回 `{ error: "..." }`
 
-- [ ] Task 8: FastAPI backend 路由
-  - [ ] 8.1: 创建 `deeptutor/api/routers/vault_ops.py`
-  - [ ] 8.2: 4 个 endpoint：
-    - [ ] 8.2.1: `POST /api/v1/vault/read` → 读本地文件返回 content
-    - [ ] 8.2.2: `POST /api/v1/vault/write` → 写入本地文件
+- [ ] Task 8: Canvas backend vault router（S1 C+ 修订 — 路由到 Canvas backend，不是 DeepTutor）
+  - [ ] 8.1: 创建 `backend/app/api/v1/endpoints/vault_ops.py`（**Canvas backend，不是 DeepTutor**）
+  - [ ] 8.2: 5 个 endpoint：
+    - [ ] 8.2.1: `POST /api/v1/vault/read { filename }` → 读本地文件返回 content
+    - [ ] 8.2.2: `POST /api/v1/vault/write { filename, content }` → 写入本地文件 + 触发 wikilink_graph 增量重建
     - [ ] 8.2.3: `POST /api/v1/vault/list` → 列出 .md 文件
-    - [ ] 8.2.4: `GET /api/v1/vault/config` → 返回 vault 路径
+    - [ ] 8.2.4: `GET /api/v1/vault/config` → 返回当前 vault 路径
+    - [ ] 8.2.5: `POST /api/v1/canvas/vault-config { path }` → 切 vault（reload + reindex + 重启 watcher）
   - [ ] 8.3: 权限检查（路径必须在授权 vault 目录内，防路径穿越）
+  - [ ] 8.4: vault watch 复用 Canvas backend Story 10.3 Phase B 已实现的 Python watchdog daemon（不重新实现）
 
 ### Integration + Testing
 
@@ -166,18 +183,22 @@ As a 学习者, I want Desktop App to automatically spawn a local FastAPI server
 
 ## Dev Notes
 
-### 关键决策
-- **Port 0 自动检测** vs 固定端口：port 0 让 OS 分配空闲端口，避免冲突，但需 regex 解析 stdout
-- **IPC vs HTTP**: IPC 更安全（本地进程）且快（共享内存），HTTP 则需监听 localhost
-- **FastAPI subprocess 定位**：不是"后台服务"，而是 "AI 引擎 sidecar"，仅在 Desktop App 运行时存在
+### 关键决策（S1 C+ 修订后）
+- **Docker supervisor 模式**：Electron 不嵌入 Python / Neo4j / LanceDB / bge-m3，复用 Epic-10 docker-compose.yml + docker-compose.canvas.yml 编排（用户机器需装 Docker Desktop 一次性 600MB）
+- **不嵌入 Neo4j 的理由**：Neo4j 是 Java 应用（嵌入需 JRE +200MB），sqlite 替代会推翻 Story 10.2 已实施的 wikilink_proxy 架构 + 重写所有 Cypher 查询
+- **vault 单一真相源在 Canvas backend**：Electron main 进程不存 vault 路径状态，每次切 vault 通过 HTTP `POST :8011/api/v1/canvas/vault-config` 通知 Canvas backend，避免 main / backend 状态漂移
+- **vault watch 单 owner**：Canvas backend Python watchdog 是唯一 watcher（Story 10.3 Phase B 已实现），Electron main 不用 chokidar / fs.watch（避免双 watcher race + 双 wikilink_graph rebuild）
 
-### 已知陷阱
-1. **Python 可执行路径**：不同 OS + venv 状态下 `python3` 可能不存在。解决：try `python3` → fallback `python` → `which`
-2. **FastAPI 模块导入失败**：deeptutor 包未安装时需 sys.path 注入。解决：`PYTHONPATH=<fork-root> python ...`
-3. **Vault 路径权限**：`vaultWrite()` 时需验证路径在授权范围内。解决：每次 write 前 `os.path.normpath()` 检查
+### 已知陷阱（C+ 方案）
+1. **Docker Desktop 未启动**：用户首次开机后第一次开 DeepTutor 可能 Docker 还没起，需 UI dialog 引导
+2. **端口冲突**：用户机器可能已占 :8011 / :8001 / :7691（其他项目），需 health check 失败时给具体提示（`lsof -i :8011`）
+3. **首次 docker pull 慢**：首次启动需 pull Canvas + DeepTutor + Neo4j 镜像（~2GB），需 UI 进度提示
+4. **Vault 路径权限**：`vault:write` 时需验证路径在授权范围内（Canvas backend 已实现，Electron main 不重复检查）
+5. **DocumentAdder vault_mode 强制**：Story 10.3 Phase B 已加 vault_mode 参数，Epic-11 必须确保所有 KB 上传调用都传 `vault_mode=True`（否则违反 NEG-2）
 
-### 风险
-- **R4 subprocess 崩溃**: health check + 3 次失败自动重启（已落到 AC #2）
+### 风险（修订后）
+- **R4 → R4'**: Docker compose 服务崩溃 → health check 5s heartbeat + 单服务自动重启（已落到 AC #2）
+- **R7（新）**: 用户未装 Docker Desktop → Day 11 启动前用户必须确认（已落到 _README §"用户端必备"）
 
 ## UAT 验收
 

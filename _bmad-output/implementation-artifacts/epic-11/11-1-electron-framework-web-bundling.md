@@ -51,13 +51,16 @@ As a 学习者, I want to double-click a Desktop App icon and see DeepTutor Web 
 - **And** DevTools (Cmd+Option+I) 可打开（仅 dev mode）
 - **And** 应用关闭时主进程正确 cleanup（无僵尸进程）
 
-### AC #2: Next.js standalone build 集成
+### AC #2: Next.js standalone SSR 集成（S2 修订 — 不走 file:// SSG）
 
-- **Given** DeepTutor fork Next.js 应用已构建为 standalone（`npm run build`）
+> **2026-05-07 对抗性审查 S2 修订**：DeepTutor `web/next.config.js` 实际配置 `output: "standalone"`（SSR），`web/package.json` 仅 `next build` / `next start`，无 `next export`。原 spec "file:// + out/ 目录" 是 SSG 模式，与 D18 选 Electron 的根本理由（保 Next.js SSR + API routes）对立，且 next.config.js 不能同时配 `export` + `standalone`。修订为 standalone server 模式。
+
+- **Given** DeepTutor fork Next.js 应用已构建为 standalone（`npm run build` 产出 `.next/standalone/server.js`）
 - **When** Electron app 启动
-- **Then** 加载本地 `resources/app/out/` 目录作为静态文件源
-- **And** 在 BrowserWindow 中加载 `file:///.../out/index.html`
-- **And** 首屏显示 < 3 秒（包含 JS 执行）
+- **Then** main 进程 spawn `node .next/standalone/server.js`，监听 stdout 提取 `Local: http://localhost:<port>` 中的端口（Next 默认 3000，可通过 `PORT=0` 让 OS 分配）
+- **And** BrowserWindow 加载 `http://127.0.0.1:<dynamic_frontend_port>`（**不是** `file://...`）
+- **And** Next standalone server 完整支持 SSR + API routes（保留 DeepTutor 全部功能）
+- **And** 首屏显示 < 5 秒（包含 Node server 启动 + Docker compose health check 等候）
 
 ### AC #3: 窗口管理 + UI 完整性
 
@@ -78,12 +81,12 @@ As a 学习者, I want to double-click a Desktop App icon and see DeepTutor Web 
 
 ## Tasks / Subtasks
 
-### Frontend (Next.js Standalone)
+### Frontend (Next.js Standalone SSR — S2 修订)
 
 - [ ] Task 1: 验证 Next.js standalone build 产物
   - [ ] 1.1: `cd ~/Desktop/canvas/deeptutor-fork/web && npm run build`
-  - [ ] 1.2: 验证 `.next/standalone/` 和 `out/` 目录存在
-  - [ ] 1.3: 验证 `out/index.html` 可被 file:// 加载
+  - [ ] 1.2: 验证 `.next/standalone/server.js` 存在 + `.next/static/` 存在（**不再要求 out/ 目录，next.config.js 不可同时配 export 和 standalone**）
+  - [ ] 1.3: 验证 `node .next/standalone/server.js` 可启动 + curl `http://localhost:3000/` 返回 200 + 首屏 HTML 含 DeepTutor 标识
 
 ### Electron Setup
 
@@ -93,27 +96,31 @@ As a 学习者, I want to double-click a Desktop App icon and see DeepTutor Web 
   - [ ] 2.3: 保留 electron + webpack 基础设施
 
 - [ ] Task 3: main.ts 进程编写
-  - [ ] 3.1: 导入 `electron` + `path` + `isDev`
-  - [ ] 3.2: 编写 `createWindow()` 函数：
-    - [ ] 3.2.1: `new BrowserWindow({ width: 1200, height: 800, webPreferences: {...} })`
-    - [ ] 3.2.2: 指定 preload 脚本路径
-    - [ ] 3.2.3: 禁用 node integration（`nodeIntegration: false`）
-  - [ ] 3.3: 编写 app 事件监听：
-    - [ ] 3.3.1: `app.on('ready', createWindow)`
-    - [ ] 3.3.2: `app.on('window-all-closed', () => app.quit())`
-    - [ ] 3.3.3: `app.on('activate', ...)`（macOS reopen）
+  - [ ] 3.1: 导入 `electron` + `child_process.spawn` + `path` + `isDev`
+  - [ ] 3.2: 编写 `spawnNextServer()` 函数（S2 修订）：
+    - [ ] 3.2.1: `spawn('node', ['.next/standalone/server.js'], { env: { PORT: '0', HOSTNAME: '127.0.0.1' } })`
+    - [ ] 3.2.2: 监听 stdout，正则匹配 `http://localhost:(\d+)` 或 `http://127.0.0.1:(\d+)`，提取端口存内存
+    - [ ] 3.2.3: 进程 cleanup：`app.on('before-quit', () => nextServerProcess.kill())`
+  - [ ] 3.3: 编写 `createWindow()` 函数：
+    - [ ] 3.3.1: `new BrowserWindow({ width: 1200, height: 800, webPreferences: { contextIsolation: true, nodeIntegration: false, preload: ... } })`
+    - [ ] 3.3.2: `mainWindow.loadURL(\`http://127.0.0.1:${nextPort}\`)`（**不是 file://**）
+  - [ ] 3.4: 编写 app 事件监听：
+    - [ ] 3.4.1: `app.on('ready', async () => { await spawnNextServer(); createWindow(); })`
+    - [ ] 3.4.2: `app.on('window-all-closed', () => { nextServerProcess.kill(); app.quit(); })`
+    - [ ] 3.4.3: `app.on('activate', ...)`（macOS reopen）
 
 - [ ] Task 4: preload.ts 隔离脚本编写
   - [ ] 4.1: 导入 `contextBridge` + `ipcRenderer`
   - [ ] 4.2: 暴露 `window.api` 对象（最小版，Story 11.2 扩展 5 命令）
   - [ ] 4.3: 示例命令：`window.api.greet()` → main 返回 "Hello"
 
-- [ ] Task 5: electron-builder 配置
+- [ ] Task 5: electron-builder 配置（S2 修订）
   - [ ] 5.1: 编写 `electron-builder.yml`：
     - [ ] 5.1.1: `appId: com.deeptutor.app`
-    - [ ] 5.1.2: `files: ["dist/", "out/"]`（Next.js standalone）
-    - [ ] 5.1.3: `mac:` 块配置 code signing
-    - [ ] 5.1.4: `win:` + `linux:` 基础配置
+    - [ ] 5.1.2: `files: ["dist/", "../web/.next/standalone/", "../web/.next/static/", "../web/public/"]`（standalone server runtime + static assets，**不含 out/**）
+    - [ ] 5.1.3: `extraResources: [{ from: "../web/.next/static", to: "app/.next/static" }]`（standalone 需要 static 目录在运行时同位置）
+    - [ ] 5.1.4: `mac:` 块配置 code signing
+    - [ ] 5.1.5: `win:` + `linux:` 基础配置
   - [ ] 5.2: 添加 GitHub Secrets（`CSC_LINK`, `CSC_KEY_PASSWORD`）
 
 ### Build + Packaging
@@ -134,15 +141,18 @@ As a 学习者, I want to double-click a Desktop App icon and see DeepTutor Web 
 
 ## Dev Notes
 
-### 关键决策
-- **Next.js standalone vs SSR**: standalone 模式输出纯静态 HTML/CSS/JS，Electron 直接加载，无需 Node.js server
+### 关键决策（S2 修订后）
+- **Next.js standalone SSR**: `output: "standalone"` 产出 `.next/standalone/server.js`（Node SSR runtime + Next.js API routes 完整保留），Electron main spawn 这个 server，BrowserWindow 加载 `http://127.0.0.1:<port>`
+- **不走 SSG file://**: 原 spec "out/ 目录 + file://" 是 `next export` 模式（SSG，丢 API routes），与 DeepTutor 实际 next.config.js + D18 决策对立
 - **preload + contextBridge**: 原生 Electron 模式，避免 v20+ 弃用的 `nodeIntegration`
 - **Webpack vs Vite**: electron-react-boilerplate 用 Webpack，后续可迁移（不影响 Day 11 交付）
 
 ### 已知陷阱
-1. **`file://` 加载 SPA 路由问题**: Next.js standalone 用 `_next/` 子目录，浏览器 `file://` 加载时可能 404。解决：webpack dev server 或 electron-serve 包装
-2. **macOS 代码签名密钥来源**: 本地开发用 `codesign -s -`（自签），CI 用 GitHub Secrets
-3. **Windows code signing**: 可选（Day 11 跳过，Day 22 发布时补）
+1. **Next standalone 端口冲突**: `PORT=0` 让 OS 分配可避免，但需 regex 解析 stdout 提取端口
+2. **Next standalone 缺 static 资源**: `.next/static/` 目录必须 cp 或 symlink 到 standalone 运行目录同位置（electron-builder.yml extraResources 处理）
+3. **macOS 代码签名密钥来源**: 本地开发用 `codesign -s -`（自签），CI 用 GitHub Secrets
+4. **Windows code signing**: 可选（Day 11 跳过，Day 22 发布时补）
+5. **Docker compose 启动竞态**: Day 11 Story 11.1 仅启动 Next standalone，**不启 Docker compose**（Docker 编排在 Story 11.2 加入）
 
 ### 风险
 - **R2 Manim 依赖**: Story 11.1 仅 Next.js 无需 Manim（Story 11.3 后 FastAPI subprocess 才用）

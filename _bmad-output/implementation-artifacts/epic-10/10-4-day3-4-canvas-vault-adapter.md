@@ -4,7 +4,7 @@ epic_id: "10"
 prd_id: "canvas-learning-system"
 status: "ready-for-dev"
 priority: "P0"
-estimate_hours: 16
+estimate_hours: 35  # Round-22 调研重估 16 → 35-50h（P0 最小可用 Day 3-4，P1/P2 推 Day 5+，2026-05-07 对抗性审查 L1 同步）
 depends_on: ["10.3"]
 blocks: ["10.5"]
 trace: ["FR-DEEP-04", "M1", "M11", "M12"]

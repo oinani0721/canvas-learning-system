@@ -10,7 +10,7 @@ mvp_window: "12 days (Day 11-22)"
 start_date: "2026-05-17"
 target_complete: "2026-05-30"
 depends_on: ["epic-10"]
-trigger_condition: "Epic-10 Day 10 UAT 5 验证场景 S1-S5 全 PASS（Path A 选定）"
+trigger_condition: "Epic-10 Day 10 UAT (S1-S5 + S6 全 PASS) AND 用户在 DECISION-DAY-10.md 中明确勾选 Path A"
 ---
 
 # Epic-11: DeepTutor Desktop App 桌面化（Electron + 跨平台发布）
@@ -73,24 +73,35 @@ Story 10.5 NodeDetailPanel 双 capability 入口：
 
 ## Goals（3 大目标 - 12 天交付）
 
-### Goal 1: GUI 渲染 + Web 包装（Day 11-12）
+### Goal 1: GUI 渲染 + Next.js standalone SSR 包装（Day 11-12）
 
-- Next.js standalone build → Electron BrowserWindow 内嵌
+> **2026-05-07 对抗性审查 S2 修订**：DeepTutor `web/next.config.js` 实际配置为 `output: "standalone"` (SSR mode，非 SSG export)。Electron BrowserWindow **必须加载 `http://127.0.0.1:<port>`**（不能走 `file://out/index.html`，否则丢 Next.js API routes + 与 D18 选 Electron 的根本理由对立）。
+
+- Next.js standalone build → Electron main spawn `node .next/standalone/server.js`
+- BrowserWindow 加载 `http://127.0.0.1:<dynamic_frontend_port>`（Next standalone server）
 - 双击 `.app`（macOS）/ `.exe`（Windows）/ `.AppImage`（Linux）启动
-- 不依赖浏览器，完整离线 UI
-- 启动时间 < 3 秒
+- 不依赖系统浏览器，但应用内嵌 Node.js + Next.js server（standalone 模式）
+- 启动时间 < 5 秒（含 Node server 启动 + Docker compose 健康检查）
 
-### Goal 2: 本地文件 IPC + FastAPI subprocess（Day 13-14）
+### Goal 2: Electron 当 Docker compose Supervisor + 本地 IPC（Day 13-14）
 
-- main 进程 spawn `uvicorn deeptutor.api.main:app --port 0`
-- IPC 命令 5 个：`vault_read` / `vault_write` / `vault_list` / `vault_watch` / `vault_unwatch`
-- 用户首次选择 vault 目录（`~/.deeptutor-app/vault-path.json` 持久化）
-- Health check 5s heartbeat + subprocess 崩溃自愈
+> **2026-05-07 对抗性审查 S1 修订（C+ 方案锁定）**：保留 Epic-10 Docker compose 编排（Canvas FastAPI :8011 + DeepTutor FastAPI :8001 + Neo4j :7691 + DeepTutor frontend :3782），Electron 仅做 **GUI 包装 + 服务 supervisor**，**不嵌入 Neo4j / 不 spawn 独立 FastAPI subprocess**。
+
+- main 进程启动时：(a) 检查 Docker Desktop 是否运行；(b) `docker compose up -d` 启动所有服务；(c) 等待 health check 5s heartbeat 全绿；(d) BrowserWindow 加载 Next standalone server URL
+- main 进程退出时：(a) 优雅停止 BrowserWindow；(b) `docker compose down`（保留数据卷）
+- **IPC 命令 5 个仅用于本地文件操作（不替代 HTTP API）**：
+  - `vault:read / vault:write / vault:list / vault:watch / vault:unwatch` → main 进程代理到 Canvas backend HTTP `:8011/api/v1/vault/*`
+  - 业务 API（quiz / mastery / wikilink / exam）renderer 直接 fetch `http://localhost:8001` 走 DeepTutor proxy → Canvas backend
+- 用户首次选择 vault 目录（`~/.deeptutor-app/vault-path.json` 持久化），main 进程通过 HTTP `:8011/api/v1/canvas/vault-config` 通知 Canvas backend reload + reindex
+- Docker compose health check 失败 → UI toast 通知 + 自动重启 service
 
 ### Goal 3: 渲染验证 + 跨平台发布（Day 15-22）
 
-- Math Animator MP4 + Visualize 5 render_mode 全部 WebView 内渲染
-- wikilink 导航走 IPC（< 100ms 响应）
+> **2026-05-07 对抗性审查 S3 修订**：MP4 / 静态资源 URL 改用 `media://` 自定义协议（Electron main 注册）或 HTTP localhost，**不暴露裸 file://**（隐私 + 安全 + CORS 一致性）。
+
+- Math Animator MP4：渲染 `<video src="media://math-animator/{turn_id}.mp4">` 或 `<video src="http://127.0.0.1:8001/api/v1/math-animator/output/{turn_id}">`
+- Visualize 5 render_mode 全部 WebView 内渲染（HTTP base URL 注入 renderer）
+- wikilink 导航走 IPC（< 100ms 响应，仅 vault file 读取部分）
 - 3 平台安装包（macOS DMG + Windows EXE + Linux AppImage）
 - macOS Apple notarization（签名 + 公证）
 - electron-updater 自动更新
@@ -136,28 +147,32 @@ Story 10.5 NodeDetailPanel 双 capability 入口：
 
 ## Acceptance Criteria（Epic 级 AC）
 
-### AC #1: 3 平台桌面 App 启动
+### AC #1: 3 平台桌面 App 启动 + Docker compose 编排
 
-- **Given** GitHub Release 包含 macOS .dmg / Windows .exe / Linux .AppImage
+- **Given** GitHub Release 包含 macOS .dmg / Windows .exe / Linux .AppImage + 用户已装 Docker Desktop
 - **When** 用户下载并双击安装/运行
-- **Then** 应用启动 < 3 秒（冷启），DeepTutor Web UI 显示
-- **And** 进程树：main.js ← 1 renderer (BrowserWindow) ← N FastAPI 子进程
+- **Then** 应用启动：(a) Electron main 进程启动；(b) 检测 Docker → `docker compose up -d` 拉起 Canvas + DeepTutor + Neo4j 服务；(c) 等待 health check 全绿（5-10s）；(d) main spawn `node .next/standalone/server.js`；(e) BrowserWindow 加载 `http://127.0.0.1:<frontend_port>`
+- **And** 应用启动总时间 < 10 秒（冷启，含 Docker + health check）；< 3 秒（热启，Docker 已运行）
+- **And** 进程树：electron-main ← BrowserWindow (Next standalone) + Node server subprocess + (docker-managed) Canvas FastAPI + DeepTutor FastAPI + Neo4j
 
-### AC #2: Math Animator + Visualize 桌面内渲染（M4 落地）
+### AC #2: Math Animator + Visualize 桌面内渲染（M4 落地，S3 修订）
 
 - **Given** Math Animator 生成 MP4 + Visualize 输出 SVG/Chart.js 代码
 - **When** 用户在 Desktop App 中调用 capability
 - **Then** 渲染结果显示在 WebView 内（不弹出系统浏览器）
 - **And** 5 render_mode 全部 support
-- **And** MP4 通过 `<video src="file://...">` 播放无延迟
+- **And** MP4 通过 `<video src="media://math-animator/{turn_id}.mp4">` 或 `<video src="http://127.0.0.1:8001/api/v1/math-animator/output/{turn_id}">` 播放无延迟（**不暴露裸 file://**）
+- **And** main 进程注册 `media://` 自定义协议（如选用），将 `media://math-animator/{turn_id}.mp4` 映射到 `~/.cache/deeptutor/agent/math_animator/{turn_id}/video.mp4`，路径白名单防穿越
 
-### AC #3: Vault 沙箱写入生效
+### AC #3: Vault 沙箱写入生效 + Canvas backend 同步切 vault
 
 - **Given** 用户首次启动 Desktop App 点击 "Select Vault"
 - **When** 选择本地文件夹，Desktop App IPC 通信开始
-- **Then** main 进程代理文件读写请求至 FastAPI subprocess
-- **And** 用户在 Desktop App 编辑笔记 → 同步至本地 vault 目录文件
-- **And** 文件变化自动 watch，wikilink 导航实时更新（< 100ms）
+- **Then** main 进程通过 HTTP `POST :8011/api/v1/canvas/vault-config` 通知 Canvas backend reload + reindex（vault 路径单一真相源在 backend，不只在 main 进程内存）
+- **And** Canvas backend 触发 `wikilink_graph_service.build_graph(vault_path)` + LanceDB reindex + Graphiti episodic 重启动 watcher
+- **And** 用户在 Desktop App 编辑笔记 → IPC `vault:write` → main 进程代理 → Canvas backend `:8011/api/v1/vault/write` → 落本地文件 + 增量 reindex
+- **And** 文件变化由 **Canvas backend Python watchdog 单一负责**（不在 Electron main 用 chokidar，避免双 watcher race）
+- **And** wikilink 导航实时更新（< 100ms）
 
 ### AC #4: 自动更新通知
 
@@ -194,6 +209,15 @@ Story 10.5 NodeDetailPanel 双 capability 入口：
 - **依赖**: Epic-10 Day 10 验收通过（5 验证场景 S1-S5 全 PASS）
 - **前置**: DeepTutor fork 仓库代码稳定 + Next.js build 产物可用
 
+### 用户端必备（Day 11 启动前用户必须确认）
+
+> **2026-05-07 对抗性审查新增（C+ 方案 Docker 路线）**：
+
+- **Docker Desktop 已装**（Mac App Store 免费，约 600 MB 安装包；Windows / Linux 同等）
+- **Docker Desktop 已启动**（系统托盘看到 Docker 鲸鱼图标）
+- **vault 目录可读写**（用户在 fileDialog 选定的目录）
+- **Apple Developer 账号**（macOS 签名所需，$99/年）— **如无则 Story 11.4 macOS notarization 跳过，仅本地 dev build**
+
 ### 外部依赖
 - **macOS**: Apple Developer Team ID + code signing certificate（存放 GitHub Secrets）
 - **Windows**: 代码签名证书（optional，但推荐）
@@ -202,7 +226,19 @@ Story 10.5 NodeDetailPanel 双 capability 入口：
 ### 库依赖
 - `electron@^28.0.0` + `electron-builder@^25.0.0` + `electron-updater@^6.0.0`
 - `ipc-main` (Node.js native) + `contextBridge` (Electron preload)
-- `fastapi`, `uvicorn`（DeepTutor 既有）
+- Next.js standalone server runtime（含 Node.js v20+）
+- `fastapi`, `uvicorn`（DeepTutor 既有，跑 Docker 不打包到 Electron）
+
+### 不嵌入的依赖（C+ 方案明确）
+
+> 以下依赖**不嵌入 Electron 包**，由 Docker compose 提供：
+
+- ❌ Neo4j 5.26+（Java JRE 重，sqlite 替代会推翻 Story 10.2）
+- ❌ Canvas FastAPI Python venv + 28 services（200+ MB Python deps）
+- ❌ LanceDB / bge-m3 模型（4GB 模型分发不现实）
+- ❌ Ollama runtime / Graphiti / Manim+LaTeX
+
+**结果**：Electron 包大 ~150 MB（Next standalone + Node + Electron），Docker 镜像由用户首次启动时 pull，磁盘占用与 Epic-10 相同。
 
 ---
 

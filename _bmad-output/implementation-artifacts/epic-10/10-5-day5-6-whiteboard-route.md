@@ -16,16 +16,22 @@ graph_lib: "ReactFlow (cp Canvas 代码)"
 uat_sheet: "_bmad-output/验收单/Story-10.5-day5-6-whiteboard-route.md"
 ---
 
-# Story 10.5: Day 5-6 Whiteboard 路由 + ReactFlow（方案 Y）
+# Story 10.5: Day 5-6 全局学习地图 路由 + ReactFlow（方案 Y）
 
 **Status**: ready-for-dev (target Day 5-6, 2026-05-11 ~ 2026-05-12)
 
+> **2026-05-07 对抗性审查 H5 修订**：原标题 "Whiteboard 全 vault 跨 book" 与 NEG-1 "不做跨白板关联"字面冲突。修订澄清：
+> - **本 Story 实现的是"用户主动浏览全局 wikilink 视图"**（不是 AI 自动跨白板关联）
+> - **NEG-1 guardrail（强制约束）**：Whiteboard 节点边**仅来自用户已显式写的 wikilink + 用户创建的边**；后端禁止 AI 推断或自动新增跨白板边
+> - 路由名调整：`/whiteboard/:id` 仍保留（fork 代码已用），但用户面 UI 标签改为"全局学习地图"
+
 ## Story（用户故事）
 
-As a 学习者, I want a `/whiteboard` route in DeepTutor where I can see my entire vault knowledge graph as an interactive whiteboard — click nodes to see details, drag to rearrange, with mastery-colored nodes — so that "原白板作为 index 呈现各节点关系" 的 Canvas 范式完整承载。
+As a 学习者, I want a `/whiteboard` route in DeepTutor where I can **manually browse my entire vault as an interactive map of my own wikilinks** — click nodes to see details, drag to rearrange, with mastery-colored nodes — so that "原白板作为 index 呈现各节点关系" 的 Canvas 范式完整承载，**without AI auto-creating any cross-board edges**（NEG-1 guardrail）.
 
 > **映射对**: M9（拆分点 + 双链 → Graphiti）+ M12（5 大核心总结）+ UX-3（跨概念学习路径）
 > **方案选择**: Agent 2.5 方案 Y（中等改造，18-24h，与 10 天 MVP 契合）
+> **NEG-1 guardrail**: 仅展示用户显式 wikilink / 用户主动建边；禁止 AI 自动推断关联
 
 ## 通俗化解释（给学习者）
 
@@ -46,15 +52,17 @@ As a 学习者, I want a `/whiteboard` route in DeepTutor where I can see my ent
 
 ## Acceptance Criteria
 
-### AC #1: Whiteboard 后端 3 endpoint
+### AC #1: Whiteboard 后端 3 endpoint（NEG-1 guardrail 强制）
 
 - **Given** fork backend 加新 router
 - **When** 启动 fork
 - **Then** 新增 3 个 endpoint:
   - `POST /api/v1/whiteboard/` 创建白板（payload: `{title, vault_id?}`）
-  - `GET /api/v1/whiteboard/:id/graph` 返回 `{nodes: [{id, label, mastery, chapter}], edges: [{src, dst, relation, weight}]}`
-  - `POST /api/v1/whiteboard/:id/pull-node` 通过 AI 拉新节点
+  - `GET /api/v1/whiteboard/:id/graph` 返回 `{nodes: [{id, label, mastery, chapter}], edges: [{src, dst, relation, weight, source: "user_wikilink" | "user_manual"}]}`
+  - `POST /api/v1/whiteboard/:id/pull-node` 通过用户**手动**拉新节点（禁止 AI 自动建边）
 - **And** 后端代理到 Canvas Neo4j 查 nodes + edges + mastery
+- **And NEG-1 guardrail**：edges 必须满足 `source ∈ {"user_wikilink", "user_manual"}`，**禁止 AI 推断的 `source: "ai_inferred"` 边**（后端 schema validation 强制）
+- **And** Canvas wikilink_graph_service `find_neighbors()` 返回结果默认带 `source = "user_wikilink"`（来自用户显式 `[[xxx]]` 写法）
 
 ### AC #2: Whiteboard 前端 ReactFlow UI
 
