@@ -248,7 +248,7 @@ development_status:
   epic-10: in-progress
   10-1-day0-fork-baseline: done
   10-2-day1-wikilink-frontend: done
-  10-3-day2-cleanup-vault-mount: ready-for-dev
+  10-3-day2-cleanup-vault-mount: review  # ✅ 2026-05-07 Phase A ship (4 block MarkdownRenderer + client.py path param + vault /vault 直挂 + 31 nodes / 27 edges 后端联通)；Phase B deferred
   10-4-day3-4-canvas-vault-adapter: ready-for-dev
   10-5-day5-6-whiteboard-route: ready-for-dev
   10-6-day7-mastery-dashboard: ready-for-dev
