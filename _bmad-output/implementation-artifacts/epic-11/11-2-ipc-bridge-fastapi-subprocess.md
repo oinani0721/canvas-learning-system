@@ -247,6 +247,19 @@ As a 学习者, I want Desktop App to automatically start the Docker compose sta
 
 ## Dev Notes
 
+### D19 决策锁定（2026-05-07 ChatGPT DR 升级后）
+
+ChatGPT Deep Research (effort=max, GitHub connector only) 实读本仓库 Tier 1-5 文件 + 官方文档（Graphiti / Neo4j / Kuzu / Memgraph / Electron / Apple）后**独立得出与本 spec 一致的结论**：保留 C+ Docker Compose Supervisor 是 5-10 人日预算下的最优路径。
+
+- **不需修订 AC / Task**：AC #1 + Task 1 的 Docker Compose Supervisor 设计 = DR 主决策
+- **关键修正记录**：`wikilink_graph_service.py` 完全不依赖 Neo4j（obsidiantools + NetworkX 内存图），不是 Neo4j 锁定证据文件。未来 no-Docker spike 应**优先迁出 Memory / Graphiti / Exam 链**，而不是 wikilink
+- **未发现 APOC.* 运行期调用**：APOC 仅容器层启用（`NEO4J_PLUGINS=["apoc"]`），目标文件中无显式 `CALL apoc.*`。这降低了未来 Kuzu 迁移的语义复杂度
+- **后续 spike**：图访问抽象层（4-6 人日）+ Kuzu spike（5-8 人日）单独立项，**不进 Epic-11**。详见 `_bmad-output/research/spike-graph-store-abstraction-roadmap-2026-05-07.md`
+- **关联文档**：
+  - `决策批注/D19-desktop-db-stack-2026-05-07.md`（主决策 + 次决策锁定）
+  - `research/round-22-desktop-db-decision-deep-research-2026-05-07.md`（DR 报告原文）
+  - `research/round-22-chatgpt-dr-prompt-desktop-db-decision-2026-05-07.md`（DR 提示词）
+
 ### 关键决策（S1 C+ 修订后）
 - **Docker supervisor 模式**：Electron 不嵌入 Python / Neo4j / LanceDB / bge-m3，复用 Epic-10 docker-compose.yml + docker-compose.canvas.yml 编排（用户机器需装 Docker Desktop 一次性 600MB）
 - **不嵌入 Neo4j 的理由**：Neo4j 是 Java 应用（嵌入需 JRE +200MB），sqlite 替代会推翻 Story 10.2 已实施的 wikilink_proxy 架构 + 重写所有 Cypher 查询

@@ -264,8 +264,14 @@ development_status:
   # 决策来源: Round-22 (round-22-desktop-app-rendering-deep-explore-2026-05-07.md + cli-sdk-book-engine)
   # 触发条件: Epic-10 Day 10 UAT 5 验证场景 S1-S5 全 PASS（Path A 选定）
   # 工作量: ~80h（12 天，Day 11-22）+ 4 周跨平台发布
-  # 用户批注落地: 用户 2026-05-07 桌面化 Q3 + AnythingLLM 模式（59.7k ⭐）
-  # 关联决策批注: 决策批注/D18-desktop-app-electron-2026-05-07.md
+  # 用户批注落地: 用户 2026-05-07 桌面化 Q3 + AnythingLLM 模式（59.7k ⭐）+ 多 vault picker UX (5 Agent 调研)
+  # 关联决策批注: 决策批注/D17, D18, D19
+  #   - D18 锁定 Electron 框架 + 跨平台发布（D18 二轮澄清: AnythingLLM 仅工程实践参考，不抄数据流）
+  #   - D19 锁定数据库栈 = C+ Docker Compose Supervisor 主路径（ChatGPT DR effort=max corroborate）+ Kuzu 后续 spike 不进 Epic-11
+  # 关联 DR 报告:
+  #   - research/round-22-desktop-db-decision-deep-research-2026-05-07.md (DR 报告)
+  #   - research/round-22-chatgpt-dr-prompt-desktop-db-decision-2026-05-07.md (DR 提示词)
+  #   - research/spike-graph-store-abstraction-roadmap-2026-05-07.md (Kuzu spike backlog candidate)
   # ══════════════════════════════════════════════════════
   epic-11: backlog
   11-1-electron-framework-web-bundling: backlog        # ~12h, Day 11-12
