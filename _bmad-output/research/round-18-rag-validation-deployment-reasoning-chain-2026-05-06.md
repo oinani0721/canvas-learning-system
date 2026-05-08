@@ -751,7 +751,7 @@ Stage 0（RAG 开盒 + 数据基础）
 - `frontend/obsidian-plugin/src/main.ts:139-145, 582, 1168`（钩子 + diff 实现位置）
 - `backend/app/services/question_generator.py:271, 283-326`（ACP 组装 7 类数据）
 
-### Agent 4（需求对齐）
+### Agent 4（需求对齐）[[111]]
 - `backend/app/services/lancedb_index_service.py:42, 80`（双写 + 防抖）
 - `backend/app/services/wikilink_graph_service.py:59`（obsidiantools）
 - `backend/app/graphiti/entity_types.py:25, 46`（4 类 ErrorType + 4 种 RemedyStrategy）
