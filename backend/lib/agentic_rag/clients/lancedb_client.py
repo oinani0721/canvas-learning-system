@@ -328,7 +328,9 @@ class LanceDBClient:
 
     def __init__(
         self,
-        db_path: str = "data/lancedb",  # ✅ Story 38.1 Fix: 从 backend/ 目录运行时路径正确
+        db_path: Optional[
+            str
+        ] = None,  # Story 2.2 Phase A: env-aware (LANCEDB_DATA_PATH); fallback "data/lancedb"
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
         embedding_model: str = "BAAI/bge-m3",
         timeout_ms: int = 30000,  # Ollama GPU cold start ~15s, warm ~300ms. Must cover cold start.
@@ -341,9 +343,12 @@ class LanceDBClient:
 
         Story 2.3: 默认使用 bge-m3 1024d Dense 向量
         Story 1.9: vault_id 前缀隔离
+        Story 2.2 Phase A: db_path 默认读 LANCEDB_DATA_PATH env（解耦 docker volume mount）
 
         Args:
-            db_path: LanceDB数据库路径 (默认: data/lancedb)
+            db_path: LanceDB数据库路径
+                - 显式传字符串 → 用这个值
+                - None（默认）→ 读 env LANCEDB_DATA_PATH，env 未设则 fallback "data/lancedb"
             embedding_dim: 嵌入向量维度 (默认: 1024 for bge-m3)
             embedding_model: embedding模型名称 (默认: BAAI/bge-m3)
             timeout_ms: 超时时间(毫秒), 默认400ms (Story 12.2 AC 2.3)
@@ -351,6 +356,8 @@ class LanceDBClient:
             enable_fallback: 启用降级(超时/错误时返回空结果)
             vault_id: Vault namespace (None = dynamic from config)
         """
+        if db_path is None:
+            db_path = os.getenv("LANCEDB_DATA_PATH", "data/lancedb")
         self.db_path = os.path.expanduser(db_path)
         self.embedding_dim = embedding_dim
         self.embedding_model = embedding_model
