@@ -627,6 +627,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     """
     WebSocket endpoint for intelligent parallel batch processing progress.
 
+    Round-23 Story 7.5: 加入 INTERNAL_API_KEY 查询参数鉴权 (?token=xxx).
+    fail-closed 矩阵与 REST require_internal_api_key 一致.
+
     [Source: docs/stories/33.2.story.md - AC1]
     [Source: docs/architecture/decisions/ADR-007-WEBSOCKET-BATCH-PROCESSING.md]
 
@@ -634,6 +637,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         websocket: WebSocket connection
         session_id: Session ID to subscribe to
     """
+    from app.security import verify_websocket_internal_key
+
+    if not await verify_websocket_internal_key(websocket):
+        return  # close already invoked by verify helper
+
     await websocket_intelligent_parallel(websocket, session_id)
 
 
@@ -649,7 +657,10 @@ async def websocket_mastery(websocket: WebSocket):
     """
     WebSocket endpoint for real-time mastery update broadcasts.
 
-    The Obsidian frontend connects to ws://host:8001/ws and receives
+    Round-23 Story 7.5: 加入 INTERNAL_API_KEY 查询参数鉴权 (?token=xxx).
+    Obsidian 前端需在 connect URL 末尾追加 token, 否则连接被 close 1008.
+
+    The Obsidian frontend connects to ws://host:8001/ws?token=xxx and receives
     mastery_update messages whenever a node's mastery state changes.
     This enables live node color updates without polling.
 
@@ -658,6 +669,11 @@ async def websocket_mastery(websocket: WebSocket):
     Args:
         websocket: WebSocket connection from the Obsidian plugin
     """
+    from app.security import verify_websocket_internal_key
+
+    if not await verify_websocket_internal_key(websocket):
+        return  # close already invoked by verify helper
+
     await websocket_mastery_endpoint(websocket)
 
 

@@ -108,7 +108,13 @@ class TestEnsureFulltextIndex:
     async def test_ensure_fulltext_index_idempotent(
         self, memory_service, mock_neo4j_client
     ):
-        """Feature 4.1: IF NOT EXISTS means calling twice is safe."""
+        """Feature 4.1 + Round-23 Patch 3: IF NOT EXISTS means calling twice is safe.
+
+        After Round-23 Story 7.3 Patch 3, ensure_fulltext_index creates 2 indexes:
+        - episode_content (EpisodicNode.content)
+        - node_search_unified (Node|EntityNode multi-field)
+        So 2 calls × 2 indexes = 4 CREATE statements.
+        """
         await memory_service.initialize()
 
         await memory_service.ensure_fulltext_index()
@@ -120,8 +126,9 @@ class TestEnsureFulltextIndex:
             cypher = call.args[0] if call.args else call.kwargs.get("query", "")
             if "CREATE FULLTEXT INDEX" in cypher:
                 create_count += 1
-        assert create_count == 2, (
-            "Should execute CREATE FULLTEXT INDEX each time (IF NOT EXISTS handles idempotency)"
+        assert create_count == 4, (
+            "Should execute CREATE FULLTEXT INDEX each time × 2 indexes "
+            "(IF NOT EXISTS handles idempotency, Round-23 Patch 3 added node_search_unified)"
         )
 
 

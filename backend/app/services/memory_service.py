@@ -210,10 +210,14 @@ class MemoryService:
 
     async def ensure_fulltext_index(self) -> None:
         """
-        Create the episode_content fulltext index in Neo4j if it doesn't exist.
+        Create fulltext indexes in Neo4j if they don't exist.
 
-        Epic 4 Feature 4.1: Auto-create Neo4j fulltext index on startup.
+        Epic 4 Feature 4.1: Auto-create Neo4j fulltext indexes on startup.
         Uses IF NOT EXISTS for idempotency — safe to call multiple times.
+
+        Round-23 Story 7.3 · Patch 3: 新增 node_search_unified index 覆盖
+        Node/EntityNode 的 text/name/summary/concept/episode_body 多字段.
+        让 neo4j_edge_client.search_nodes() 可以走 fulltext 主路径 (替代 O(N) CONTAINS).
 
         Gracefully handles:
         - Neo4j not initialized / unavailable
@@ -226,17 +230,32 @@ class MemoryService:
             )
             return
 
-        cypher = (
-            "CREATE FULLTEXT INDEX episode_content IF NOT EXISTS "
-            "FOR (n:EpisodicNode) ON EACH [n.content]"
-        )
-        try:
-            await self.neo4j.run_query(cypher)
-            logger.info(
-                "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content"
-            )
-        except (RuntimeError, ConnectionError, Exception) as e:
-            logger.warning(f"[Epic 4] Fulltext index creation failed (non-fatal): {e}")
+        indexes = [
+            (
+                "episode_content",
+                "CREATE FULLTEXT INDEX episode_content IF NOT EXISTS "
+                "FOR (n:EpisodicNode) ON EACH [n.content]",
+                "EpisodicNode.content",
+            ),
+            (
+                "node_search_unified",
+                "CREATE FULLTEXT INDEX node_search_unified IF NOT EXISTS "
+                "FOR (n:Node|EntityNode) ON EACH "
+                "[n.text, n.name, n.summary, n.concept, n.episode_body]",
+                "Node|EntityNode multi-field",
+            ),
+        ]
+
+        for name, cypher, target in indexes:
+            try:
+                await self.neo4j.run_query(cypher)
+                logger.info(
+                    f"[Epic 4 + Round-23] Fulltext index '{name}' ensured on {target}"
+                )
+            except (RuntimeError, ConnectionError, Exception) as e:
+                logger.warning(
+                    f"[Epic 4 + Round-23] Fulltext index '{name}' creation failed (non-fatal): {e}"
+                )
 
     async def _recover_episodes_from_neo4j(self) -> None:
         """

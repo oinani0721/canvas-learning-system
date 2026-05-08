@@ -214,6 +214,25 @@ class Neo4jEdgeClient(Neo4jLearningBase):
         if not self._initialized:
             await self.initialize()
 
+        # Round-23 Story 7.3 · Patch 3 — Fulltext fast path (O(log N) Lucene)
+        # Fallback to CONTAINS (O(N) 全表扫) if fulltext fails / empty / index missing.
+        # Index 'node_search_unified' 在 memory_service.ensure_fulltext_index() startup 创建.
+        try:
+            ft_results = await self._search_nodes_fulltext(
+                query=query,
+                canvas_path=canvas_path,
+                group_id=group_id,
+                entity_types=entity_types,
+                limit=limit,
+            )
+            if ft_results:
+                return ft_results
+            # 空结果可能 index 不存在 OR 真无命中 — fallback CONTAINS 兜底
+        except Exception as e:
+            logger.debug(
+                f"[Patch 3] fulltext search_nodes failed, falling back to CONTAINS: {e}"
+            )
+
         try:
             # Build Cypher query based on filters
             where_clauses = []
@@ -281,9 +300,91 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             scored_results.sort(key=lambda x: x["score"], reverse=True)
             return scored_results
 
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+        except Exception as e:
+            # Round-23 Patch 3: 扩大兜底范围 — 任何异常 (含 Exception 基类) 返回 []
+            # AC-36.2.4 fail-soft: search_nodes 不应让上层失败, Neo4j 不可用时降级为空结果
             logger.warning(f"search_nodes failed: {e}")
             return []
+
+    async def _search_nodes_fulltext(
+        self,
+        query: str,
+        canvas_path: Optional[str] = None,
+        group_id: Optional[str] = None,
+        entity_types: Optional[List[str]] = None,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Round-23 Story 7.3 · Patch 3 — fulltext fast path for search_nodes.
+
+        Uses Neo4j fulltext index 'node_search_unified' (覆盖 Node/EntityNode 多字段),
+        avoiding O(N) CONTAINS scan. Lucene score 直接返回 (无需长度比启发式).
+
+        Returns empty list if:
+        - Fulltext index 'node_search_unified' missing
+        - No matches
+        - Filter (canvas_path/group_id/entity_types) excludes all results
+
+        Caller (search_nodes) should fallback to CONTAINS on empty/exception.
+        """
+        # 安全转义 Lucene 保留字符 (+ - && || ! ( ) { } [ ] ^ " ~ * ? : \ /)
+        # 简单策略: 加引号 → 整体 phrase match
+        escaped = query.replace('"', '\\"')
+        lucene_query = (
+            f'"{escaped}"'
+            if any(c in query for c in '+-&|!(){}[]^"~*?:\\/')
+            else escaped
+        )
+
+        post_filters = []
+        params: Dict[str, Any] = {"searchTerm": lucene_query, "limit": limit}
+
+        if canvas_path:
+            post_filters.append("n.canvas_path = $canvasPath")
+            params["canvasPath"] = canvas_path
+        if group_id:
+            post_filters.append("n.group_id = $groupId")
+            params["groupId"] = group_id
+        if entity_types:
+            post_filters.append("n.entity_type IN $entityTypes")
+            params["entityTypes"] = entity_types
+
+        where_clause = f"WHERE {' AND '.join(post_filters)}" if post_filters else ""
+
+        cypher_query = f"""
+        CALL db.index.fulltext.queryNodes('node_search_unified', $searchTerm)
+        YIELD node AS n, score
+        {where_clause}
+        RETURN n.id as node_id, coalesce(n.text, n.episode_body) as content,
+               n.canvas_path as canvas_path, n.group_id as group_id,
+               n.entity_type as entity_type, n.name as name,
+               n.source as source, score as relevance
+        ORDER BY score DESC
+        LIMIT $limit
+        """
+
+        results = await self._neo4j.run_query(cypher_query, **params)
+
+        scored_results = []
+        for r in results:
+            content = r.get("content", "") or ""
+            raw_score = r.get("relevance", 0.0) or 0.0
+            normalized_score = min(float(raw_score) / 10.0, 1.0)
+            scored_results.append(
+                {
+                    "doc_id": r.get("node_id", ""),
+                    "content": content,
+                    "score": round(normalized_score, 3),
+                    "metadata": {
+                        "canvas_path": r.get("canvas_path"),
+                        "group_id": r.get("group_id"),
+                        "entity_type": r.get("entity_type"),
+                        "name": r.get("name"),
+                        "source": r.get("source"),
+                        "search_method": "fulltext",
+                    },
+                }
+            )
+        return scored_results
 
     async def get_related_memories(
         self, node_id: str, canvas_path: Optional[str] = None, limit: int = 10

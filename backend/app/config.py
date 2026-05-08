@@ -232,6 +232,46 @@ class Settings(BaseSettings):
             self.AI_MODEL_NAME = clean_name
         return self
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Round-23 Story 7.1 · Patch 1 — fail-closed 安全默认值校验
+    # [Source: _bmad-output/research/round-23-chatgpt-dr-result-and-synthesis-2026-05-08.md]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    @model_validator(mode="after")
+    def validate_security_defaults(self) -> "Settings":
+        """
+        Round-23 Patch 1: fail-closed 安全默认值校验。
+
+        生产环境（非 local dev）强制：
+        - NEO4J_PASSWORD 在 NEO4J_ENABLED=True 时必须显式设置
+        - INTERNAL_API_KEY 必须显式设置（敏感 endpoint 鉴权）
+
+        本地 dev（DEBUG=True + CORS 含 localhost）允许 warning + 放行。
+        防止容器开放端口意外暴露弱密码或无鉴权状态。
+        """
+        is_local = self.DEBUG and (
+            "localhost" in self.CORS_ORIGINS or "127.0.0.1" in self.CORS_ORIGINS
+        )
+
+        if self.NEO4J_ENABLED and not self.NEO4J_PASSWORD:
+            if not is_local:
+                raise ValueError(
+                    "NEO4J_PASSWORD must be set explicitly outside local dev. "
+                    "Set env var or disable NEO4J_ENABLED."
+                )
+            logger.warning("NEO4J_PASSWORD empty in DEBUG mode. Set before deploying.")
+
+        if not is_local and not self.INTERNAL_API_KEY:
+            raise ValueError(
+                "INTERNAL_API_KEY required outside local dev. "
+                "Set env var or enable DEBUG with localhost CORS."
+            )
+
+        if "*" in self.CORS_ORIGINS:
+            logger.warning("CORS_ORIGINS contains wildcard '*'. Unsafe in production.")
+
+        return self
+
     MAX_CONCURRENT_REQUESTS: int = Field(
         default=100, description="Maximum concurrent requests limit"
     )
@@ -469,8 +509,12 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════════════════════════════════════
 
     DEFAULT_GROUP_ID: str = Field(
-        default="cs188",
-        description="Default Graphiti group_id for memory isolation. Configurable per subject. Story 2.1 AC-5.",
+        default="vault:default",
+        description=(
+            "Default Graphiti group_id for memory isolation. Story 2.1 AC-5. "
+            "Round-23 Patch 2: 默认改 'vault:default' (语义对齐 LEGACY_TO_VAULT_MAPPING). "
+            "deprecated 值 (cs188/canvas-dev/general/main) 经 canonical_group_id() 自动归一化 + WARNING."
+        ),
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -824,7 +868,11 @@ settings = get_settings()
 # Convenience constant: default group_id for Graphiti memory isolation.
 # All modules should import this instead of hardcoding "cs188".
 # Story 2.1 AC-5: cs188 hardcode cleanup.
-DEFAULT_GROUP_ID: str = settings.DEFAULT_GROUP_ID
+# Round-23 Story 7.2 · Patch 2: 经 canonical_group_id() 唯一入口归一化, deprecated 值会 WARNING.
+# Lazy import 避免 Settings 加载时循环 (subject_config 不反向依赖 config).
+from app.core.subject_config import canonical_group_id as _canonical_group_id
+
+DEFAULT_GROUP_ID: str = _canonical_group_id(settings.DEFAULT_GROUP_ID)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -868,5 +916,6 @@ def reload_settings(overrides: dict | None = None) -> Settings:
     get_settings.cache_clear()
 
     settings = get_settings()
-    DEFAULT_GROUP_ID = settings.DEFAULT_GROUP_ID
+    # Round-23 Patch 2: 经 canonical_group_id 归一化, 与 module-level DEFAULT_GROUP_ID 保持一致
+    DEFAULT_GROUP_ID = _canonical_group_id(settings.DEFAULT_GROUP_ID)
     return settings

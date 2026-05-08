@@ -245,9 +245,7 @@ def build_vault_group_id(
         ValueError: vault_id 为空 (Story 2.5.Y AC #2 强制要求)
     """
     if not vault_id or not vault_id.strip():
-        raise ValueError(
-            "vault_id is required for Story 2.5.Y vault: prefix isolation"
-        )
+        raise ValueError("vault_id is required for Story 2.5.Y vault: prefix isolation")
 
     sanitized_vault = sanitize_subject_name(vault_id)
     base = f"vault:{sanitized_vault}"
@@ -266,6 +264,94 @@ def build_vault_group_id(
 def is_vault_group_id(group_id: str) -> bool:
     """Story 2.5.Y Task 6 — 检测 group_id 是否已是 vault: 前缀格式 (用于迁移脚本)."""
     return isinstance(group_id, str) and group_id.startswith("vault:")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Round-23 Story 7.2 · Patch 2 — canonical_group_id 唯一入口
+# [Source: _bmad-output/research/round-23-chatgpt-dr-result-and-synthesis-2026-05-08.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import logging as _canon_logging
+from functools import lru_cache as _canon_lru_cache
+
+_canon_logger = _canon_logging.getLogger(__name__)
+
+
+# Round-23 Patch 2: 本地 deprecated mapping 副本 (避免循环依赖 services 层)
+# 与 app.services.group_id_migration_service.LEGACY_TO_VAULT_MAPPING 内容必须保持同步.
+# core 层是配置基石, 不依赖 services 层. services 层的 mapping 用于一次性迁移脚本.
+_DEPRECATED_GROUP_ID_MAPPING = {
+    "cs188": "vault:default",
+    "canvas-dev": "vault:default",
+    "general": "vault:default",
+    "main": "vault:default",
+}
+
+
+@_canon_lru_cache(maxsize=128)
+def canonical_group_id(value: str) -> str:
+    """Round-23 Patch 2: group_id 唯一归一化入口.
+
+    所有 group_id 输入路径必须经此函数, 杜绝以下泄漏:
+    - 旧硬编码 (cs188 / canvas-dev / cs_61b:main) 直接进 Neo4j
+    - 不同来源大小写/连字符差异 (CS-61B vs cs_61b)
+    - 用户输入未 sanitize 直接写库
+
+    deprecated 字符串触发 WARNING (但仍归一化, 不破坏现有数据读取).
+
+    归一化 4 条规则 (与 services.group_id_migration_service.map_legacy_group_id 一致):
+    1. 空/None/非 str → 'vault:default'
+    2. 已 vault: 前缀 → 幂等返回
+    3. 命中 _DEPRECATED_GROUP_ID_MAPPING → 映射 + WARNING
+    4. 含冒号 (Story 1.9 subject:canvas 格式) → vault:<sanitize(subject)>:<sanitize(canvas)>
+    5. 其他 → vault:<sanitize(value)>
+
+    Args:
+        value: 原始 group_id (可能是 deprecated / 已规范 / 任意字符串)
+
+    Returns:
+        归一化后的 vault: 前缀 group_id
+
+    Examples:
+        >>> canonical_group_id("vault:cs_61b")
+        'vault:cs_61b'
+        >>> canonical_group_id("cs188")  # 触发 WARNING
+        'vault:default'
+        >>> canonical_group_id("CS 61B")
+        'vault:cs_61b'
+
+    Notes:
+        - lru_cache 避免每次 import 重算
+        - core 层不依赖 services 层 (避免循环依赖)
+    """
+    if not isinstance(value, str) or not value.strip():
+        _canon_logger.warning(
+            "canonical_group_id received empty/non-str input, defaulting to 'vault:default'"
+        )
+        return "vault:default"
+
+    if is_vault_group_id(value):
+        return value
+
+    if value in _DEPRECATED_GROUP_ID_MAPPING:
+        new_value = _DEPRECATED_GROUP_ID_MAPPING[value]
+        _canon_logger.warning(
+            "Deprecated group_id '%s' detected — auto-canonicalized to '%s'. "
+            "Update callers to use vault: prefix directly.",
+            value,
+            new_value,
+        )
+        return new_value
+
+    if ":" in value:
+        parts = value.split(":", 1)
+        subject = sanitize_subject_name(parts[0])
+        rest = sanitize_subject_name(parts[1]) if len(parts) > 1 else ""
+        if rest:
+            return f"vault:{subject}:{rest}"
+        return f"vault:{subject}"
+
+    return f"vault:{sanitize_subject_name(value)}"
 
 
 def sanitize_subject_name(name: str) -> str:
