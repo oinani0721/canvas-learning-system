@@ -70,32 +70,37 @@ async def search_supplementary(
 
     try:
         if hasattr(lancedb_client, "_initialized") and not lancedb_client._initialized:
-            await lancedb_client.initialize()
+            await asyncio.wait_for(lancedb_client.initialize(), timeout=10.0)
 
-        results = await lancedb_client.search(
-            query=query,
-            table_name="vault_notes",
-            num_results=max(top_k * 2, 8),
-            query_type="hybrid",
+        results = await asyncio.wait_for(
+            _two_tier_search(
+                lancedb_client,
+                query=query,
+                num_results=max(top_k * 2, 8),
+            ),
+            timeout=10.0,
         )
-    except (RuntimeError, ConnectionError, ValueError, asyncio.TimeoutError) as e:
+    except asyncio.TimeoutError:
         logger.warning(
-            "[SupplementarySearch] hybrid 失败，回退到 vector-only",
+            "[SupplementarySearch] 超时降级（首次 model cold-start 可能 60s+）",
+            query=query[:80],
+        )
+        return {
+            "materials": [],
+            "degraded": True,
+            "reason": "timeout",
+        }
+    except (RuntimeError, ConnectionError, ValueError) as e:
+        logger.warning(
+            "[SupplementarySearch] 搜索失败",
             error=str(e)[:120],
             query=query[:80],
         )
-        try:
-            results = await lancedb_client.search(
-                query=query,
-                table_name="vault_notes",
-                num_results=max(top_k * 2, 8),
-            )
-        except (RuntimeError, ConnectionError, ValueError, asyncio.TimeoutError) as e2:
-            return {
-                "materials": [],
-                "degraded": True,
-                "reason": f"search_failed: {str(e2)[:80]}",
-            }
+        return {
+            "materials": [],
+            "degraded": True,
+            "reason": f"search_failed: {str(e)[:80]}",
+        }
 
     if not results:
         return {
@@ -181,6 +186,100 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+async def _two_tier_search(
+    client: Any,
+    query: str,
+    num_results: int,
+) -> list[dict[str, Any]]:
+    """先查 vault_id 隔离的 prefix 表（Story 1.9 主路径），空则 fallback 到 unprefixed 老索引。
+
+    Tier 1: client.search() 含 resolve_table_name 把 'vault_notes' 加 vault_id 前缀
+            （如 'canvas_vault_vault_notes'）。多 vault 切换时各自隔离，正确的主路径。
+    Tier 2: 直接 _db.open_table('vault_notes')（unprefixed），FTS 优先 + vector fallback。
+            兼容 Story 1.9 vault_id 隔离机制 land 前建立的老索引。
+            tier-2 命中时记 logger.warning 提醒 Ops 重建索引。
+    """
+    # ── Tier 1 ── prefix-resolved（Story 1.9 主路径，多 vault 隔离）
+    results: list[dict[str, Any]] = []
+    try:
+        results = await client.search(
+            query=query,
+            table_name="vault_notes",
+            num_results=num_results,
+            query_type="hybrid",
+        )
+    except (RuntimeError, ConnectionError, ValueError, asyncio.TimeoutError) as e:
+        logger.warning(
+            "[SupplementarySearch] tier-1 hybrid 失败，回退到 vector-only",
+            error=str(e)[:120],
+        )
+        try:
+            results = await client.search(
+                query=query,
+                table_name="vault_notes",
+                num_results=num_results,
+            )
+        except (RuntimeError, ConnectionError, ValueError, asyncio.TimeoutError):
+            results = []
+
+    if results:
+        return results
+
+    # ── Tier 2 ── unprefixed legacy table（兼容老索引；Story 1.9 升级前的数据）
+    try:
+        if not (hasattr(client, "_db") and client._db is not None):
+            return []
+        list_tables_fn = (
+            client._db.list_tables
+            if hasattr(client._db, "list_tables")
+            else getattr(client._db, "table_names", None)
+        )
+        if list_tables_fn is None:
+            return []
+        tables = list_tables_fn()
+        if "vault_notes" not in tables:
+            return []
+        # 仅当 Story 1.9 prefix !=unprefixed 时 tier-2 才有意义（避免重查 tier-1 同一表）
+        if hasattr(client, "resolve_table_name"):
+            resolved = client.resolve_table_name("vault_notes")
+            if resolved == "vault_notes":
+                return []
+        tbl = client._db.open_table("vault_notes")
+        # FTS 优先（已验证可用：BM25 score Top-1 ~11，覆盖中英文 jieba 分词）
+        try:
+            df = tbl.search(query, query_type="fts").limit(num_results).to_pandas()
+        except Exception:  # noqa: BLE001  fallback 到 vector
+            df = tbl.search(query).limit(num_results).to_pandas()
+        if df is None or df.empty:
+            return []
+        logger.warning(
+            "[SupplementarySearch] tier-2 fallback 命中 unprefixed vault_notes "
+            "(Story 1.9 升级前老索引；建议 Ops 跑 POST /api/v1/metadata/index/vault rebuild)",
+            rows=len(df),
+        )
+        # Phase A 简化：tier-2 命中时统一给 0.85 score（FTS BM25 与 cosine [0,1] 不可比）
+        # Phase B supplementary_reranker 才做精排（type weight + 真实 score 归一化）
+        normalized: list[dict[str, Any]] = []
+        for _, row in df.iterrows():
+            raw_canvas_file = str(row.get("canvas_file", "") or "")
+            normalized.append(
+                {
+                    "score": 0.85,
+                    "content": str(row.get("content", "") or ""),
+                    "doc_id": str(row.get("doc_id", "") or ""),
+                    "metadata": {"canvas_file": raw_canvas_file},
+                    "canvas_file": raw_canvas_file,
+                }
+            )
+        return normalized
+    except Exception as e:  # noqa: BLE001  tier-2 失败也不抛，让上层走 empty_index 降级
+        logger.warning(
+            "[SupplementarySearch] tier-2 fallback 失败",
+            error=str(e)[:120],
+        )
+        return []
+
+
 def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
     """LanceDB raw 行 → Phase A material dict（title / snippet / wikilink / score / source_path）。
 
@@ -190,7 +289,8 @@ def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
     score = float(raw.get("score", 0.0))
     content = raw.get("content", "") or ""
 
-    canvas_file = metadata.get("canvas_file", "") or ""
+    # 优先 metadata.canvas_file（新 schema），fallback 到顶层 canvas_file（老 schema / tier-2）
+    canvas_file = metadata.get("canvas_file", "") or raw.get("canvas_file", "") or ""
     heading = ""
     source_type = "note"
     meta_json_str = metadata.get("metadata_json", "")
