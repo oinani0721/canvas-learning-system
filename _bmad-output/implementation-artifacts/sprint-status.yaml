@@ -104,8 +104,8 @@ development_status:
   # 注：sprint 旧 Epic 2 (检索管道 13) 是 backend 底座；本段是用户视角的 epics.md 真相源 Story
   # ══════════════════════════════════════════════════════
   epic-2-truth-source: in-progress  # ⭐ 2026-05-02 Story 2.1 v1.0 ship review
-  2-1-ai-dialog-context-injection: review  # ✅ 2026-05-02 v1.0 dev — Epic 2 第 1 Story 完整端到端 ship；backend wikilink_context_service + chat_context_assembler + POST /api/v1/chat/enrich-context (50 backend tests green) + plugin handleChatWithContext + chat-with-context Skill (98 plugin tests green)；commits fc27e44 + 0d0c302 + 0c45296 + 06ecca5；main.js 88684B；待用户跑 10 步 UAT
-  2-2-supplementary-material-search: ready-for-dev  # blocks: 等 2.1 review 通过
+  2-1-ai-dialog-context-injection: done  # ✅ 2026-05-04 v1.1 ship commit dad9ed7 — Phase 1 成熟度升级（6 项工程地基：manifest+trace 可观测性 / prompt-injection XML boundary / token reserve 17% buffer / API 接口前置升级 / plugin 路径归一化 + 中英 vault / 顶部 Manifest 段）；ChatGPT 4 轮审计 8/10 ship；用户 UAT P1 (seed self-loop) 修复完毕；Phase 2 followup → Story 2.9 reranker
+  2-2-supplementary-material-search: ready-for-dev  # 2.1 done @ dad9ed7 解锁；下一步启动 dev story 2.2（Round-23 后续 Session 1）
   2-3-historical-error-reminder: ready-for-dev
   2-4-callout-annotation-tips: ready-for-dev
   2-5-error-extraction-classification: review  # ✅ 2026-05-04 v1.0 ship commit 0d05ad8 — backend 服务 75 tests + ChatGPT 8/10；后端就绪但 plugin 未集成 hook（Phase A 半手动 UAT 已 ship）；待 2.5.X/Y 实施
