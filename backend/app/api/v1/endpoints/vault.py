@@ -48,6 +48,19 @@ class VaultCurrentResponse(BaseModel):
     vaults_root: str
 
 
+class VaultInfo(BaseModel):
+    name: str
+    path: str
+    vault_id: str
+    is_active: bool
+
+
+class VaultListResponse(BaseModel):
+    vaults_root: str
+    active_vault: str
+    vaults: list[VaultInfo]
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -124,4 +137,60 @@ async def get_current_vault():
         vault_name=s.ACTIVE_VAULT,
         vault_id=s.vault_id,
         vaults_root=s.VAULTS_ROOT,
+    )
+
+
+@vault_router.get("/list", response_model=VaultListResponse)
+async def list_vaults():
+    """List all candidate Obsidian vaults under VAULTS_ROOT.
+
+    扫描 VAULTS_ROOT 下所有含 .obsidian/ 子目录的目录作为 vault 候选。
+    返回列表供前端 (plugin Settings) 渲染 vault selector dropdown。
+
+    支持用户主动切换 active vault（配合 POST /api/v1/vault/switch）。
+    """
+    s = get_settings()
+    vaults_root = Path(s.VAULTS_ROOT).resolve()
+    active_vault_path = Path(s.CANVAS_BASE_PATH).resolve()
+
+    if not vaults_root.is_dir():
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "vaults_root_invalid",
+                "message": f"VAULTS_ROOT not a directory: {vaults_root}",
+            },
+        )
+
+    candidates: list[VaultInfo] = []
+    try:
+        for entry in sorted(vaults_root.iterdir()):
+            if not entry.is_dir():
+                continue
+            if entry.name.startswith("."):
+                continue  # 跳过隐藏目录（.git / .vscode 等）
+            if not (entry / ".obsidian").is_dir():
+                continue  # 不是 Obsidian vault
+            entry_resolved = entry.resolve()
+            candidates.append(
+                VaultInfo(
+                    name=entry.name,
+                    path=str(entry_resolved),
+                    vault_id=sanitize_vault_id(entry.name),
+                    is_active=(entry_resolved == active_vault_path),
+                )
+            )
+    except OSError as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "vaults_root_scan_failed",
+                "message": f"Failed to scan VAULTS_ROOT: {e}",
+            },
+        )
+
+    return VaultListResponse(
+        vaults_root=str(vaults_root),
+        active_vault=s.ACTIVE_VAULT,
+        vaults=candidates,
     )

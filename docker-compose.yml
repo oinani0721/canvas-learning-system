@@ -147,8 +147,8 @@ services:
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
-      - CANVAS_BASE_PATH=/app/vaults/${ACTIVE_VAULT:-canvas-vault}
-      - VAULTS_ROOT=/app/vaults
+      - CANVAS_BASE_PATH=/vaults/${ACTIVE_VAULT:-canvas-vault}  # Story 2.2 follow-up: 顶级 /vaults 脱离 /app 嵌套
+      - VAULTS_ROOT=/vaults  # 同上
       - ACTIVE_VAULT=${ACTIVE_VAULT:-canvas-vault}
       - LANCEDB_DATA_PATH=/lancedb  # Story 2.2 Phase A: 顶级路径，完全脱离 /app 嵌套（worktree backend/lancedb 子目录会被 ./backend:/app bind mount 屏蔽 named volume）
       - PYTHONPATH=/app:/app/src
@@ -161,7 +161,7 @@ services:
       - ./src:/app/src
       - canvas-lancedb:/lancedb  # Story 2.2 Phase A: 顶级 /lancedb，完全脱离 /app 嵌套 — 避免任何 backend/* bind mount 屏蔽
       - ./data:/app/data
-      - "${VAULTS_ROOT:-.}:/app/vaults:${VAULT_MOUNT_MODE:-rw}"
+      - "${VAULTS_ROOT:-.}:/vaults:${VAULT_MOUNT_MODE:-rw}"  # Story 2.2 follow-up: 顶级 /vaults 与 /app 平行，无嵌套屏蔽
 
     depends_on:
       neo4j:

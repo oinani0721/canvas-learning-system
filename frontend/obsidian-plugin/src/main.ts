@@ -5,6 +5,7 @@ import {
   Modal,
   Notice,
   Plugin,
+  requestUrl,
   type TFile,
 } from "obsidian";
 import {
@@ -107,11 +108,14 @@ interface CanvasPluginSettings {
   backendUrl: string;
   /** Story 2.1 P1.6 — 节点池前缀（默认 ["节点/"]）。可在 data.json 配置多前缀（如英文 vault 用 ["Nodes/"]）。 */
   nodePathPrefixes: string[];
+  /** 用户视角的 active vault 名（vault selector 选中态镜像）。Backend 是 source of truth，本地仅记录最近选择 */
+  activeVaultName: string;
 }
 
 const DEFAULT_SETTINGS: CanvasPluginSettings = {
   backendUrl: DEFAULT_BACKEND_URL,
   nodePathPrefixes: [...DEFAULT_NODE_PATH_PREFIXES],
+  activeVaultName: "",
 };
 
 /**
@@ -1723,6 +1727,9 @@ class CanvasSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
+    // ─── 当前挂载 Vault（Story 2.2 follow-up · vault selector） ────────
+    this.renderVaultSelector(containerEl);
+
     // ─── 节点路径前缀（Phase 1 P1.6 暴露） ─────────────────────────
     new Setting(containerEl)
       .setName("节点路径前缀")
@@ -1751,6 +1758,110 @@ class CanvasSettingTab extends PluginSettingTab {
             }
           }),
       );
+  }
+
+  /**
+   * Story 2.2 follow-up · vault selector
+   *
+   * 异步从 backend /api/v1/vault/list 拿候选列表（VAULTS_ROOT 下含 .obsidian/ 的目录），
+   * 渲染 dropdown 让用户切换 active vault；选中变化时 POST /api/v1/vault/switch 触发
+   * backend reload_settings + vault_id 表名前缀切换。
+   *
+   * 设计：renderVaultSelector 立即返回（不阻塞 display），dropdown 用占位"加载中"，
+   * fetch 完成后填充选项。fetch 失败时显示降级提示 + Backend URL 检查指引。
+   */
+  private renderVaultSelector(container: HTMLElement): void {
+    const setting = new Setting(container)
+      .setName("当前挂载 Vault")
+      .setDesc(
+        "选择 backend 当前挂载的 vault。切换后 backend 自动 reload + LanceDB 表名前缀切到对应 vault_id。"
+        + "下拉项来自 backend VAULTS_ROOT 扫描（仅含 .obsidian/ 子目录的目录）。",
+      );
+    const statusEl = container.createEl("p", {
+      text: "正在加载 vault 列表...",
+      cls: "setting-item-description",
+    });
+
+    void (async () => {
+      try {
+        const url = `${this.plugin.settings.backendUrl.replace(/\/$/, "")}/api/v1/vault/list`;
+        const resp = await requestUrl({
+          url,
+          method: "GET",
+          throw: false,
+        });
+        if (resp.status !== 200) {
+          statusEl.setText(
+            `❌ 无法加载 vault 列表 (HTTP ${resp.status}). 请确认 backend 正在运行 + Backend URL 正确。`,
+          );
+          return;
+        }
+        const data = resp.json as {
+          vaults_root: string;
+          active_vault: string;
+          vaults: { name: string; path: string; vault_id: string; is_active: boolean }[];
+        };
+        if (!Array.isArray(data.vaults) || data.vaults.length === 0) {
+          statusEl.setText(
+            `⚠️ VAULTS_ROOT (${data.vaults_root}) 下未发现含 .obsidian/ 的目录。`,
+          );
+          return;
+        }
+        statusEl.setText(
+          `VAULTS_ROOT: ${data.vaults_root} · 候选 ${data.vaults.length} 个 · 当前: ${data.active_vault}`,
+        );
+
+        setting.addDropdown((dropdown) => {
+          for (const v of data.vaults) {
+            dropdown.addOption(v.path, `${v.name} (${v.vault_id})`);
+          }
+          // 选中当前 active vault（按 path 匹配，is_active 由 backend 标注）
+          const active = data.vaults.find((v) => v.is_active);
+          if (active) {
+            dropdown.setValue(active.path);
+          }
+          dropdown.onChange(async (newPath) => {
+            const target = data.vaults.find((v) => v.path === newPath);
+            if (!target) {
+              new Notice(`❌ 未识别的 vault path: ${newPath}`, 4000);
+              return;
+            }
+            new Notice(`正在切换到 ${target.name}...`, 2000);
+            try {
+              const switchUrl = `${this.plugin.settings.backendUrl.replace(/\/$/, "")}/api/v1/vault/switch`;
+              const switchResp = await requestUrl({
+                url: switchUrl,
+                method: "POST",
+                contentType: "application/json",
+                body: JSON.stringify({ vault_path: newPath }),
+                throw: false,
+              });
+              if (switchResp.status === 200) {
+                this.plugin.settings.activeVaultName = target.name;
+                await this.plugin.saveSettings();
+                new Notice(
+                  `✓ Vault 已切换到 ${target.name}\n后续对话/搜索使用新 vault 的隔离索引`,
+                  6000,
+                );
+              } else {
+                const errBody = switchResp.json as { detail?: { message?: string } };
+                const msg =
+                  (errBody && errBody.detail && errBody.detail.message)
+                  || `HTTP ${switchResp.status}`;
+                new Notice(`❌ 切换失败：${msg}`, 6000);
+                // dropdown 回滚到当前 active
+                if (active) dropdown.setValue(active.path);
+              }
+            } catch (e) {
+              new Notice(`❌ 切换异常：${(e as Error).message}`, 6000);
+              if (active) dropdown.setValue(active.path);
+            }
+          });
+        });
+      } catch (e) {
+        statusEl.setText(`❌ 加载 vault 列表异常：${(e as Error).message}`);
+      }
+    })();
   }
 
   /**
