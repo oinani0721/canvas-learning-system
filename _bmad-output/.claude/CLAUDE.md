@@ -391,19 +391,42 @@ cp _bmad-output/templates/uat-sheet-template.md \
 | **DoD-2 spec 层** | Story spec 的 Dev Agent Record / File List / Change Log / Tasks 全打勾 | `_bmad-output/implementation-artifacts/epic-N/X-Y-*.md` 所有 `- [ ]` 变 `- [x]`，新增 Change Log 条目 |
 | **DoD-3 R4 层** | **`_bmad-output/验收单/Story-{id}-{kebab-title}.md` 已 ship** | `ls _bmad-output/验收单/` 能看到新增文件，且结构符合 `_bmad-output/templates/uat-sheet-template.md` |
 
-### DoD-3 验收单强制结构（7 段）
+### DoD-3 验收单强制结构（7 段 + 第 4 段双段铁律 — 2026-05-07 强化）
 
-每份 `_bmad-output/验收单/Story-*.md` **必须包含**以下 7 段，用模板复制后填充：
+> **强化背景**：用户 2026-05-07 三次反馈"UAT 只验产品体验，技术 Claude 代验"。5-agent deep explore 收敛（Moments of Truth + JTBD + Nielsen + 5-Second Test + 现有 4 验收单审计）发现 Story 10.1 = 68% 技术违规、10.2 = 50%、10.3 = 45%、10.4 = 0%（已分双段范本）。固化以下铁律。
+
+每份 `_bmad-output/验收单/Story-*.md` **必须包含**以下结构：
 
 ```
 1. 🎯 一句话目标（非技术，你能看懂）
 2. 📖 你的视角（Behavior，作为...我想...以便...）
-3. 🖥️ 交互流程（step-by-step，带 ASCII 或表格图示）
-4. ✅ UAT 清单（N 步 - [ ] checkbox，可勾选，前置+主流程+边界+Esc 取消）
+3. 🖥️ 交互流程（用户屏幕变化，禁后端架构流）
+4-A. 🤖 Claude 已代验（技术 assert 全归这段：API status / docker / JSON / schema / pytest / cost）
+4-B. 👤 你来验（产品体验，禁出现技术词，句型"我做 X → 我看到 Y → 我感觉 Z"）
 5. 🚦 验收结果（通过/不通过的下一步指引）
 6. 📝 批注区（[!question]+ 空 callout 供你写，+ 历史 [!error]+ 追溯）
 7. 🔗 技术 spec 引用（Story spec 路径 / 源代码 / 测试 / commit — 给 Claude 读的）
 ```
+
+### DoD-3 双段铁律 D3-A ~ D3-E（违反 = 验收单作废重写）
+
+| # | 规则 | 违反信号（grep 可检测） |
+|---|---|---|
+| **D3-A** | 段 4-B "👤 你来验"中 **0 出现** 以下技术词：`curl` / `docker` / `:端口号`（如 `:8001`）/ `HTTP` / `JSON` / `.env` / `endpoint` / `adapter` / `pydantic` / `schema` / `pytest` / `build_time_ms` / `容器` / `daemon` / `forward ref` / `POST /api` / `GET /api` | grep 命中 = ❌ |
+| **D3-B** | 段 4-B 每条 checkbox 必须能被"60 岁不会编程的人在浏览器 / Obsidian 里一次照做" — 工具白名单：浏览器主窗口 / Obsidian / macOS Finder（仅 vault 内） | 含"终端"/"命令行"/"`cd `"/"`mkdir`"/"`git`"/"DevTools" = ❌ |
+| **D3-C** | 段 4-A 必须 Claude 自己跑完贴 ✅ + 证据，不能让用户跑 | 段内出现"请你跑" / "你执行" / "你打开终端" = ❌ |
+| **D3-D** | 段 3 "🖥️ 交互流程"画的是用户屏幕变化，不是后端架构 | 出现 `→ backend` / `→ endpoint` / `→ 容器` / `→ adapter` / `daemon` = ❌ |
+| **D3-E** | 段 4-B 每条 checkbox 用"我做 X → 我看到 Y → 我感觉 Z"三段式（felt-sense 至少每 3 条出现一次） | 全文 0 felt-sense（流畅/困惑/信任/期待）= ❌ |
+
+### DoD-3 方法论分层（不同 Phase 用不同重点）
+
+- **Phase A（产品骨架，content 空）**：5-Second Test + Moments of Truth — 测"你愿不愿意明天再打开"
+- **Phase B（功能可用，内容填充）**：JTBD + Nielsen Heuristic-Lite — 测"用户能否完成 job"
+- **Day 7+（产品成熟）**：NPS + Sean Ellis 40% PMF test — 测"明天消失你会非常失望吗"
+
+### 模板位置
+
+`_bmad-output/templates/uat-sheet-template.md` — 已升级为双段强制结构（2026-05-07）
 
 ### 模板位置
 
@@ -428,21 +451,27 @@ cp _bmad-output/templates/uat-sheet-template.md \
 | **6. 技术层 trace 诊断** | **DoD-2 Dev Agent Record** | Story spec `## Pitfalls + 诊断矩阵` 段对应 |
 | **7. correct-course 闭环** | **DoD-3 覆盖更新** | 验收单 v2/v3 + Change Log 记录 |
 
-### Claude Code 自检清单（dev-story 结束时必跑）
+### Claude Code 自检清单（dev-story 结束时必跑 — 2026-05-07 升级版）
 
 ```
 DoD-1 ☐ git log 最新 commit 含 "Story: X.Y" 或 "PLAN-NNN"
 DoD-1 ☐ tests 命令跑完 0 fail
 DoD-1 ☐ sprint-status.yaml 里对应 key 是 "review"
-DoD-1 ☐ canvas-vault/.obsidian/plugins/<id>/main.js 已更新（不是 _bmad-output）
+DoD-1 ☐ canvas-vault/ 或 deeptutor-fork/ 部署产物已更新
 
 DoD-2 ☐ Story spec 的 Dev Tasks 全部 [x]
 DoD-2 ☐ Dev Agent Record / File List / Change Log 已填
 DoD-2 ☐ AC 列表每条对应实现有 trace
 
 DoD-3 ☐ _bmad-output/验收单/Story-{id}-*.md 存在
-DoD-3 ☐ 该文件含 7 段（目标/Behavior/交互/UAT/结果/批注/trace）
-DoD-3 ☐ 对用户消息中通知该文件位置 + **提醒用户在 canvas-vault 跑 UAT**
+DoD-3 ☐ 含 7 段（目标/Behavior/交互/4-A 代验/4-B 你验/结果/批注/trace）
+DoD-3 ☐ 段 4-B 跑禁词 grep（curl|docker|HTTP|JSON|端口|.env|endpoint|adapter|pydantic|schema|pytest|容器|daemon|git|DevTools）= 0 命中 [D3-A]
+DoD-3 ☐ 段 4-B 每 checkbox 通过"60 岁照做"测试 [D3-B]
+DoD-3 ☐ 段 4-A 全部 ✅ 已带证据（Claude 自跑，非"请你跑"） [D3-C]
+DoD-3 ☐ 段 3 交互流程画用户屏幕变化，不是后端架构 [D3-D]
+DoD-3 ☐ 段 4-B 用"我做 X → 我看到 Y → 我感觉 Z"句型 + felt-sense ≥ 1 处 [D3-E]
+DoD-3 ☐ 5 题自检全过（见 templates/uat-sheet-template.md 末尾注释）
+DoD-3 ☐ 通知用户验收单文件位置 + 提醒"全在浏览器/Obsidian 里完成，3-5 分钟"
 
 3 × ☐ 全部 ✓ → 才能告诉用户 "Story X.Y ready for review"
 任一 ✗ → HALT，补齐后才算完成

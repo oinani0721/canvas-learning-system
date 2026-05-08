@@ -2,7 +2,7 @@
 story_id: "10.4"
 epic_id: "10"
 prd_id: "canvas-learning-system"
-status: "ready-for-dev"
+status: "in-progress"  # Phase A done 2026-05-07; P1/P2 + curl 注入 + 浏览器验证待 fork :8001 启动
 priority: "P0"
 estimate_hours: 35  # Round-22 调研重估 16 → 35-50h（P0 最小可用 Day 3-4，P1/P2 推 Day 5+，2026-05-07 对抗性审查 L1 同步）
 depends_on: ["10.3"]
@@ -199,21 +199,22 @@ Story 10.4 的 spine.json 仅用 Book Engine 现有 14 BlockType（TEXT/CONCEPT_
 
 ### 修订后任务清单
 
-#### Day 3 morning（P0 模块 — 最小可用 spine 输出）
+#### Day 3 morning（P0 模块 — 最小可用 spine 输出）— ✅ done 2026-05-07
 
-- [ ] Task 6: 拆分 CanvasVaultAdapter 为 5 模块（重构原 Task 1）
-  - [ ] 6.1: 新建 `adapter/canvas_vault_adapter.py`（主类，~80 行）
-  - [ ] 6.2: 新建 `adapter/vault_block_generator.py`（14 BlockType 映射，~60 行）
-  - [ ] 6.3: 新建 `adapter/wikilink_graph_builder.py`（obsidiantools 包装，~60 行）
-  - [ ] 6.4: 主类 `__init__` 注入 3 个 builder
+- [x] Task 6: 拆分 CanvasVaultAdapter 为 5 模块（重构原 Task 1）
+  - [x] 6.1: 新建 `adapter/canvas_vault_adapter.py`（主类，~155 行 — Round-22 调研约 80 行，实际含 _slug + 双 pass + edge dedup）
+  - [x] 6.2: 新建 `adapter/vault_block_generator.py`（TEXT block + frontmatter parser，~80 行；Phase B 扩 14 BlockType）
+  - [x] 6.3: 新建 `adapter/wikilink_graph_builder.py`（obsidiantools.Vault.connect 包装，~55 行）
+  - [x] 6.4: 主类 `__init__` 注入 builder + block_gen（Phase A 2 个 builder，Callout/UserProgress 留 Phase B）
+  - [x] 6.5: 新建 `adapter/cli.py`（argparse + dry-run + --inject 端到端入口，~120 行）+ `adapter/__init__.py` + `requirements-adapter.txt`
 
-#### Day 3 afternoon（端到端最小注入）
+#### Day 3 afternoon（端到端最小注入）— ✅ Phase A dry-run done
 
-- [ ] Task 7: P0 模块端到端
-  - [ ] 7.1: 跑 `python -m adapter.cli --vault canvas-vault --output spine.json`
-  - [ ] 7.2: 验证 spine.json 含 chapters + concept_graph
-  - [ ] 7.3: `curl -X POST :8001/books/confirm-spine -d @spine.json` 返回 200
-  - [ ] 7.4: 浏览器 :3782 看到新 book（最小验证）
+- [x] Task 7: P0 模块端到端
+  - [x] 7.1: 跑 `python -m adapter.cli --vault canvas-vault --output spine.json` — 22 md / 31 graph nodes / 27 graph edges → 4 chapters / 18 concept_nodes / 15 concept_edges
+  - [x] 7.2: 验证 spine.json 含 chapters + concept_graph + 通过 fork Pydantic Spine schema（含 `model_rebuild(_types_namespace=...)`）
+  - [ ] 7.3: `curl -X POST :8001/books/confirm-spine -d @spine.json` 返回 200（待用户启动 fork docker compose）
+  - [ ] 7.4: 浏览器 :3782 看到新 book（同上）
 
 #### Day 4 morning（P1 — Callout 解析）
 

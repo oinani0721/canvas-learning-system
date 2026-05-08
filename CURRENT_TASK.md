@@ -2,18 +2,28 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**：Day 1 wikilink 集成 ✅ 完整收官（fork commit `23a2853` + tag `mvp-day-1-patches` 已打）。Round-22 二轮对抗性设计审查完成（5 Claude Agent + ChatGPT GPT-5 Pro 第二意见 + 7 项 spec 修订 + L3 主报告补创）。
+**当前状态**：
+- Day 1 ✅ wikilink 集成完整收官（fork `23a2853` + tag `mvp-day-1-patches`）
+- Day 2 ✅ Story 10.3 Phase A ship（CalloutBlock + vault mount + client.py path param，commit `2fe058d`）
+- **Day 3 ✅ Story 10.4 Phase A 端到端 ship**（2026-05-07）：adapter 6 文件 + dry-run + Pydantic 验证 + cli endpoint prefix 修复（`/api/v1/book`）+ POST 创建 book `bk_a87d2cdff1` + confirm-spine 注入 5 chapters + LLM cost = $0（fork ideation fallback 到 stub）+ 验收单 v0.2-phase-a 重写为"Claude 代验/用户验"双段结构
 
-**下一步**：启动 Day 2 Story 10.3 — Phase A（4 Tasks，2-3h）：CalloutBlock 1 行修 + client.py path param 修复 + docker-compose.canvas.yml 路径修正 + curl 验证 wikilink graph total_nodes>0。Phase B（VaultMonitor + DocumentAdder vault_mode + atomic write，6-9h）弹性安排 Day 2-3。
+**下一步**（用户只看产品体验，3 步）：
+1. `open http://localhost:3782` — 看 fork UI 打开 + 中文不乱码
+2. Books 列表找到 `bk_a87d2cdff1`（title 可能是 "Untitled Book"）→ 点进去
+3. 看到 5 chapter 列表（本书导览 / 特征值 / 线性代数 / CS 61B / 递归）→ 点不报错
+
+通过 → Claude commit worktree + fork repo + 启 Day 4 Phase B（CalloutAnnotationParser P1 + 真实 insert-block 注入）
+不通过 → 截图给 Claude → correct-course
 
 **关键路径**：
 - 本 worktree：`~/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-deeptutor-canvas-mvp/`
-- DeepTutor fork（待）：`~/Desktop/canvas/deeptutor-fork/`
+- DeepTutor fork：`~/Desktop/canvas/deeptutor-fork/`（adapter 在 `adapter/`）
 - Round-22 决策报告：`_bmad-output/research/round-22-deeptutor-fork-mvp-2026-05-06.md`
+- 最新决策批注：`_bmad-output/决策批注/D19-desktop-db-stack-2026-05-07.md`
 
 **端口约定**：Canvas :8011 / DeepTutor :8001 / Neo4j Bolt :7691 / DeepTutor UI :3782
 
-**一键启动**：`./integration/scripts/start-integration.sh --canvas-only`（fork 没就绪）或 `./integration/scripts/start-integration.sh`（双服务）
+**一键启动**：`./integration/scripts/start-integration.sh --canvas-only`（仅 Canvas）或 `./integration/scripts/start-integration.sh`（双服务）
 
 ---
 
