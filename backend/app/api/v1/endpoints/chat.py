@@ -14,6 +14,7 @@ Plugin 的调用流程（Mode D 替代方案）：
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -33,6 +34,48 @@ from app.services.wikilink_context_service import enrich_from_wikilink_graph
 
 logger = structlog.get_logger(__name__)
 chat_router = APIRouter()
+
+# Story 2.2 Phase A — module-level LanceDBClient singleton + lock
+# 每个 endpoint call 之前 get_lancedb_client() 都 new instance → BGEM3 model 每次重加载 60s+
+# Module singleton 让 client 跨请求复用 — first request cold-start，subsequent warm
+_supp_lancedb_singleton: Any = None
+_supp_init_lock: asyncio.Lock | None = None
+
+
+async def _get_supp_lancedb_client(init_timeout: float = 30.0) -> Any:
+    """获取或懒初始化 module-level LanceDBClient singleton（Story 2.2 Phase A 优化）。
+
+    First request 路径: init_timeout=30s（不 block 用户主对话太久）
+    Backend startup eager init 路径: init_timeout=600s（4 min BGEM3 cold-start 留余）
+
+    First call: 触发 BGEM3 model 加载，cache 到全局
+    Subsequent: 复用 cached client，避免重复 init
+    """
+    global _supp_lancedb_singleton, _supp_init_lock
+    if _supp_lancedb_singleton is not None:
+        return _supp_lancedb_singleton
+    if _supp_init_lock is None:
+        _supp_init_lock = asyncio.Lock()
+    async with _supp_init_lock:
+        if _supp_lancedb_singleton is not None:
+            return _supp_lancedb_singleton
+        from app.api.v1.endpoints.metadata import get_lancedb_client
+
+        client = get_lancedb_client()
+        if client is None:
+            return None
+        if hasattr(client, "_initialized") and not client._initialized:
+            try:
+                await asyncio.wait_for(client.initialize(), timeout=init_timeout)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "[Story-2.2-PhaseA] LanceDBClient init timeout — singleton not cached",
+                    timeout=init_timeout,
+                )
+                return None
+        _supp_lancedb_singleton = client
+        logger.info("[Story-2.2-PhaseA] LanceDBClient singleton 缓存就绪")
+        return _supp_lancedb_singleton
 
 
 class EnrichContextRequest(BaseModel):
@@ -195,9 +238,9 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
     supp_reason: str | None = None
     if req.mode == "answer" and req.user_question and req.user_question.strip():
         try:
-            from app.api.v1.endpoints.metadata import get_lancedb_client
-
-            lancedb_client = get_lancedb_client()
+            # Story 2.2 Phase A: 用 module-level singleton 而非每请求 new instance
+            # — 避免 BGEM3 model 每次重加载 4 min+
+            lancedb_client = await _get_supp_lancedb_client()
             node_title = Path(req.node_path).stem
             supp_query = f"{node_title} {req.user_question}".strip()
             supp_result = await search_supplementary(

@@ -13,6 +13,7 @@ Usage:
     uvicorn app.main:app --reload
 """
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -306,6 +307,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             f"[Story 2.1] Wikilink graph eager-build failed (non-fatal, "
             f"endpoints will degrade until manual /wikilink/build): {e}"
         )
+
+    # ✅ Story 2.2 Phase A: Background eager-init LanceDB singleton + BGEM3 model
+    # Avoids per-request BGEM3 cold-start (4 min in docker) blocking enrich-context.
+    # Background task: 不 block startup，4 min 内后台完成；首批 request 仍触发降级，
+    # init 完成后 subsequent request 命中缓存 0.x s。
+    async def _eager_init_lancedb_singleton() -> None:
+        try:
+            from app.api.v1.endpoints.chat import _get_supp_lancedb_client
+
+            client = await _get_supp_lancedb_client(init_timeout=600.0)
+            if client is not None:
+                logger.info(
+                    "[Story 2.2 Phase A] LanceDB singleton eager-init complete — supplementary search warm"
+                )
+            else:
+                logger.warning(
+                    "[Story 2.2 Phase A] LanceDB singleton eager-init returned None — supplementary will degrade per-request"
+                )
+        except Exception as e:  # noqa: BLE001  background task 失败不影响主 service
+            logger.warning(
+                f"[Story 2.2 Phase A] LanceDB singleton eager-init exception (non-fatal): {e}"
+            )
+
+    asyncio.create_task(_eager_init_lancedb_singleton())
+    logger.info("[Story 2.2 Phase A] LanceDB singleton background init dispatched")
 
     yield  # Application runs here
 

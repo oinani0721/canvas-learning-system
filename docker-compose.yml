@@ -150,7 +150,7 @@ services:
       - CANVAS_BASE_PATH=/app/vaults/${ACTIVE_VAULT:-canvas-vault}
       - VAULTS_ROOT=/app/vaults
       - ACTIVE_VAULT=${ACTIVE_VAULT:-canvas-vault}
-      - LANCEDB_DATA_PATH=/app/lancedb  # Story 2.2 Phase A: 解耦 named volume mount，避免被 ./data bind mount 嵌套屏蔽
+      - LANCEDB_DATA_PATH=/lancedb  # Story 2.2 Phase A: 顶级路径，完全脱离 /app 嵌套（worktree backend/lancedb 子目录会被 ./backend:/app bind mount 屏蔽 named volume）
       - PYTHONPATH=/app:/app/src
       - DEBUG=${DEBUG:-true}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://tauri.localhost,app://obsidian.md}
@@ -159,7 +159,7 @@ services:
     volumes:
       - ./backend:/app
       - ./src:/app/src
-      - canvas-lancedb:/app/lancedb  # Story 2.2 Phase A: 移出 /app/data 嵌套（之前 ./data:/app/data bind mount 屏蔽 named volume，导致 5618 rows 不可见）
+      - canvas-lancedb:/lancedb  # Story 2.2 Phase A: 顶级 /lancedb，完全脱离 /app 嵌套 — 避免任何 backend/* bind mount 屏蔽
       - ./data:/app/data
       - "${VAULTS_ROOT:-.}:/app/vaults:${VAULT_MOUNT_MODE:-rw}"
 
@@ -233,5 +233,6 @@ networks:
 volumes:
   canvas-lancedb:
     name: canvas-lancedb-data
+    external: true  # Story 2.2 Phase A: 跨 worktree project 复用同一 LanceDB 数据；多 vault 切换的部署根基
   neo4j-test-data:
     name: canvas-neo4j-test-data

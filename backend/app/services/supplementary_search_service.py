@@ -236,8 +236,16 @@ async def _two_tier_search(
         )
         if list_tables_fn is None:
             return []
-        tables = list_tables_fn()
-        if "vault_notes" not in tables:
+        tables_raw = list_tables_fn()
+        # LanceDB ≥ 0.x 返回 ListTablesResponse(tables=[...], page_token=None)
+        # 旧版 / table_names() 返回 plain list — 兼容两者
+        if hasattr(tables_raw, "tables"):
+            tables_list = list(tables_raw.tables)
+        elif hasattr(tables_raw, "__iter__") and not isinstance(tables_raw, str):
+            tables_list = list(tables_raw)
+        else:
+            tables_list = []
+        if "vault_notes" not in tables_list:
             return []
         # 仅当 Story 1.9 prefix !=unprefixed 时 tier-2 才有意义（避免重查 tier-1 同一表）
         if hasattr(client, "resolve_table_name"):
