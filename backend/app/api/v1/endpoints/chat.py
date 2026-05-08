@@ -14,8 +14,10 @@ Plugin 的调用流程（Mode D 替代方案）：
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Literal, Optional
 
+import structlog
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 
@@ -23,8 +25,13 @@ from app.services.chat_context_assembler import (
     ChatContextAssembler,
     CurrentNoteContext,
 )
+from app.services.supplementary_search_service import (
+    format_supplementary_xml,
+    search_supplementary,
+)
 from app.services.wikilink_context_service import enrich_from_wikilink_graph
 
+logger = structlog.get_logger(__name__)
 chat_router = APIRouter()
 
 
@@ -117,6 +124,24 @@ class EnrichContextResponse(BaseModel):
         default=None,
         description="Story 2.1 P1.1 — 结构化检索追踪（None 表示历史降级路径未填充）",
     )
+    supplementary_count: int = Field(
+        default=0,
+        description=(
+            "Story 2.2 Phase A — 注入到 enriched_context 的补充材料数量。"
+            "0 = 降级 / 空索引 / preload 模式未触发搜索。"
+        ),
+    )
+    supplementary_degraded: bool = Field(
+        default=False,
+        description="Story 2.2 Phase A — 补充搜索是否降级（True 表示外部因素失败，主对话仍正常）。",
+    )
+    supplementary_reason: str | None = Field(
+        default=None,
+        description=(
+            "Story 2.2 Phase A — 降级或空结果原因（lancedb_unavailable / search_failed: ... / "
+            "empty_index / empty_query / all_filtered_below_threshold）。"
+        ),
+    )
 
 
 @chat_router.post(
@@ -163,6 +188,45 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
             "仅基于当前笔记回答。"
         )
 
+    # Story 2.2 Phase A — PRD §4.1.1 9-step workflow Step 5: 补充材料搜索
+    # mode=preload (hotkey 触发，未提问) 跳过；mode=answer 且有 user_question 才搜
+    supp_count = 0
+    supp_degraded = False
+    supp_reason: str | None = None
+    if req.mode == "answer" and req.user_question and req.user_question.strip():
+        try:
+            from app.api.v1.endpoints.metadata import get_lancedb_client
+
+            lancedb_client = get_lancedb_client()
+            node_title = Path(req.node_path).stem
+            supp_query = f"{node_title} {req.user_question}".strip()
+            supp_result = await search_supplementary(
+                query=supp_query,
+                lancedb_client=lancedb_client,
+                top_k=5,
+                min_relevance=0.70,
+            )
+            supp_xml = format_supplementary_xml(supp_result)
+            final_text += "\n\n" + supp_xml
+            supp_count = len(supp_result.get("materials", []))
+            supp_degraded = supp_result.get("degraded", False)
+            supp_reason = supp_result.get("reason")
+            logger.info(
+                "[Story-2.2-PhaseA] supplementary 注入完成",
+                count=supp_count,
+                degraded=supp_degraded,
+                reason=supp_reason,
+                query=supp_query[:80],
+            )
+        except Exception as e:  # noqa: BLE001  Task 4 降级铁律：主对话不受补充搜索失败影响
+            logger.warning(
+                "[Story-2.2-PhaseA] supplementary 异常降级",
+                error=str(e)[:120],
+                node_path=req.node_path,
+            )
+            supp_degraded = True
+            supp_reason = f"unexpected: {str(e)[:80]}"
+
     trace_model: RetrievalTraceModel | None = None
     if enrichment.trace is not None:
         trace_model = RetrievalTraceModel(
@@ -196,6 +260,9 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
         degraded_reason=enrichment.degraded_reason,
         enrichment_elapsed_ms=round(enrichment.elapsed_ms, 2),
         retrieval_trace=trace_model,
+        supplementary_count=supp_count,
+        supplementary_degraded=supp_degraded,
+        supplementary_reason=supp_reason,
     )
 
 
@@ -285,8 +352,7 @@ class PostTurnExtractRequest(BaseModel):
         total = sum(len(m.content) for m in self.messages)
         if total > MAX_TOTAL_DIALOG_CHARS:
             raise ValueError(
-                f"dialog total chars {total} exceeds budget "
-                f"{MAX_TOTAL_DIALOG_CHARS}"
+                f"dialog total chars {total} exceeds budget {MAX_TOTAL_DIALOG_CHARS}"
             )
         return self
 

@@ -23,6 +23,7 @@ model: sonnet
   - `<neighbor hop="1" path="..." kind="summary">` — 1-hop 邻居内容摘要（如有）
   - `<neighbor hop="2" path="..." kind="metadata">` — 2-hop 邻居元数据
   - `<neighbor hop="2" path="..." kind="summary">` — 2-hop 邻居内容摘要
+  - `<supplementary_materials count="N">` — Story 2.2 Phase A 补充学习材料（与节点直接 wikilink 邻居互补：来自 vault hybrid 搜索的语义相关讲义/讨论）。每条 `<material rank="i" score="0.XX">` 含 `<title>` `<wikilink>` `<snippet>` `<source_path>`。空段格式 `<supplementary_materials count="0" .../>` 自闭合（degraded=true 或 reason=empty_index 等）— 此时不展示补充材料区域
   - 末尾 `请基于以上上下文回答我的问题。问题：（在这里输入）`
   - 可能的降级通知 `邻居上下文暂时不可用（<原因>），仅基于当前笔记回答。`
 
@@ -57,6 +58,8 @@ model: sonnet
    - 标注 mastery 颜色（< 0.3 🔴 / < 0.7 🟡 / ≥ 0.7 🟢）
 
 ⚠️ **如有降级通知**：明确告知"backend 邻居上下文暂时不可用（<原因>），本回答仅基于当前笔记"
+
+📚 **相关材料**（如 `<supplementary_materials count="N">` 且 N ≥ 1）：列 2-3 个 score 最高的标题 + 一句"AI 觉得这些和你的问题最相关"。详细列表留到回答末尾用 `---` 分隔后展示。Phase A 阶段 wikilink 仍是简单 `[[file]]` 形式，Phase B 才升级到 heading / block 三精度
 
 💬 **可问方向**：
 - 概念定义 / 直觉解释（最常用）
@@ -106,6 +109,36 @@ model: sonnet
 
 下次按 Cmd+Shift+E 即可重启 backend RAG 增强对话（context 会自动重新组装）。
 ```
+
+## 补充材料展示（Story 2.2 Phase A）
+
+当 prompt 含非空 `<supplementary_materials count="N">` (N ≥ 1) 时，回答主体后追加以下区块：
+
+```
+---
+
+📚 **相关学习材料**（vault 内基于你的问题搜出来的 Top {N}）：
+
+1. **{title}** — score {0.XX}
+   {snippet}
+   🔗 {wikilink}
+
+2. ...
+```
+
+**展示规则**：
+- 主回答与补充材料用 `---` 分隔（Skill 端硬规则）
+- 每条按 XML 中 `rank` 顺序展示（已按 score 降序）
+- `<wikilink>` 直接 echo 给用户（已是 Obsidian 兼容格式 `[[file]]` 或 `[[file#heading|display]]`）
+- snippet 末尾的 `...` 截断标记保留
+- 末尾加一句 felt-sense 引导："如果想深入读完整笔记，点击上面任意 wikilink 跳转。"
+
+**降级处理**（match Story 2.2 AC #5）：
+- `count="0"` 且 `degraded="true"` → **不展示** 补充材料区域，主对话正常结束（不要骚扰用户报错）
+- `count="0"` 且 `reason="empty_index"` → 只在用户主动问"还有相关材料吗"时回 "暂无补充材料 — 你的 vault 还没建立索引"
+- 完全没有 `<supplementary_materials>` 段（旧版 backend）→ 静默跳过，按 Story 2.1 行为
+
+**Phase A 限制（用户已知）**：wikilink 是简单 `[[file]]`/`[[file#heading]]`，不含 block 级 (`^block_id`) 精度；类型权重精排（lecture > discussion > exam）留到 Phase B。
 
 ## 不在本 Skill 范围（明确告知用户）
 
