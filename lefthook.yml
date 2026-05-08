@@ -98,7 +98,12 @@ commit-msg:
     # --- Spec reference check: code commits must reference FR/spec ---
     spec-reference:
       run: |
-        MSG=$(cat "$1" 2>/dev/null || cat .git/COMMIT_EDITMSG 2>/dev/null || echo "")
+        # Round-23: 加 git rev-parse --git-dir fallback 兼容 worktree mode
+        # (worktree 下 .git 是文件 + lefthook shell `$1` 不被替换为 commit-msg path)
+        MSG=$(cat "$1" 2>/dev/null \
+          || cat "$(git rev-parse --git-dir)/COMMIT_EDITMSG" 2>/dev/null \
+          || cat .git/COMMIT_EDITMSG 2>/dev/null \
+          || echo "")
         # Check if commit touches code files
         CODE_CHANGED=$(git diff --cached --name-only | grep -E "^(backend/app/|frontend/src/)" || true)
         if [ -n "$CODE_CHANGED" ]; then
