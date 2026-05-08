@@ -208,6 +208,13 @@ canvas-vault/.obsidian/plugins/*/main.js
 canvas-vault/.obsidian/plugins/*/main.js.map
 canvas-vault/.obsidian/plugins/*/data.json
 canvas-vault/.obsidian/workspace.json
+# Runtime plugin installations (user-installed, not product code)
+canvas-vault/.obsidian/plugins/dataview/
+canvas-vault/.obsidian/plugins/breadcrumbs/
+canvas-vault/.obsidian/plugins/templater-obsidian/
+canvas-vault/.obsidian/plugins/claudian/
+# Obsidian trash (user-deleted files)
+canvas-vault/.trash/
 canvas-vault/.obsidian/workspace-*.json
 canvas-vault/.obsidian/app.json
 canvas-vault/.obsidian/appearance.json

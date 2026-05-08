@@ -710,9 +710,13 @@ class CanvasService:
             logger.debug(f"Acquired write lock for canvas: {canvas_name}")
 
             def _write_file() -> bool:
+                # Round-23 Story 8.2: atomic write — tempfile + os.replace
+                from app.utils.atomic_io import atomic_write_json
+
                 canvas_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(canvas_path, "w", encoding="utf-8") as f:
-                    json.dump(canvas_data, f, indent=2, ensure_ascii=False)
+                atomic_write_json(
+                    canvas_path, canvas_data, indent=2, ensure_ascii=False
+                )
                 return True
 
             result = await asyncio.to_thread(_write_file)

@@ -509,9 +509,10 @@ def _write_canvas(canvas_path: Path, canvas_data: Dict[str, Any]) -> bool:
 
             shutil.copy2(canvas_path, backup_path)
 
-        # Write new data
-        with open(canvas_path, "w", encoding="utf-8") as f:
-            json.dump(canvas_data, f, ensure_ascii=False, indent=2)
+        # Write new data — Round-23 Story 8.2: atomic write
+        from app.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(canvas_path, canvas_data, indent=2, ensure_ascii=False)
         return True
     except OSError as e:
         logger.error(f"Error writing canvas {canvas_path}: {e}")

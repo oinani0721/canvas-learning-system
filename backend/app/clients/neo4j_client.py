@@ -310,10 +310,17 @@ class Neo4jClient:
             return False
 
     async def _save_json_data(self) -> None:
-        """Save data to JSON storage file."""
+        """Save data to JSON storage file. Round-23 Story 8.2: atomic write."""
         try:
-            with open(self._storage_path, "w", encoding="utf-8") as f:
-                json.dump(self._data, f, ensure_ascii=False, indent=2, default=str)
+            from app.utils.atomic_io import atomic_write_json_async
+
+            await atomic_write_json_async(
+                self._storage_path,
+                self._data,
+                indent=2,
+                ensure_ascii=False,
+                default=str,
+            )
         except (OSError, IOError, TypeError) as e:
             logger.error(f"Failed to save JSON data: {e}")
 

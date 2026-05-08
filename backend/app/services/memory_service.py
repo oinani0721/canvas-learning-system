@@ -1007,14 +1007,36 @@ class MemoryService:
         # Temporal layer (in-memory/SQLite simulation) - always ok for now
         layers["temporal"]["status"] = "ok"
 
-        # Semantic layer (LanceDB) - check if available
+        # Semantic layer (LanceDB) — Round-23 Story 8.3: real vector_count
         try:
-            # For now, assume LanceDB is available if we can import it
-            layers["semantic"]["status"] = "ok"
-            layers["semantic"]["vector_count"] = 0  # Placeholder
-        except (ImportError, RuntimeError) as e:
+            from app.services.lancedb_index_service import get_lancedb_index_service
+
+            svc = get_lancedb_index_service()
+            client = svc._get_or_init_client() if svc is not None else None
+            if client is not None:
+                stats = (
+                    client.get_all_vault_stats()
+                    if hasattr(client, "get_all_vault_stats")
+                    else {}
+                )
+                # Sum row_count across all vaults+tables
+                vector_count = sum(
+                    int(t.get("row_count", 0))
+                    for vault_stats in stats.values()
+                    if isinstance(vault_stats, dict)
+                    for t in vault_stats.get("tables", [])
+                    if isinstance(t, dict)
+                )
+                layers["semantic"]["status"] = "ok"
+                layers["semantic"]["vector_count"] = vector_count
+            else:
+                layers["semantic"]["status"] = "ok"
+                layers["semantic"]["vector_count"] = 0
+                layers["semantic"]["note"] = "LanceDB client unavailable"
+        except (ImportError, RuntimeError, AttributeError) as e:
             layers["semantic"]["status"] = "error"
             layers["semantic"]["error"] = str(e)
+            layers["semantic"]["vector_count"] = 0
 
         # Determine overall status
         error_count = sum(

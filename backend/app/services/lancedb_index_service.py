@@ -112,6 +112,81 @@ class LanceDBIndexService:
             )
         )
 
+    def schedule_note_index(
+        self,
+        note_path: str,
+        vault_root: str,
+        coalesce_key: Optional[str] = None,
+    ) -> None:
+        """Round-23 Story 8.1 — Schedule debounced .md note re-index + wikilink graph refresh.
+
+        Tauri Obsidian plugin 在 file-save 调 POST /index/refresh-changed?paths=...
+        endpoint 把 paths 转发到本方法. 多 path 同时到达 → debounce 合并到 1 次重建.
+
+        Args:
+            note_path: vault 相对路径 (如 '节点/admissibility.md').
+            vault_root: vault 绝对路径.
+            coalesce_key: 可选合并 key (默认 vault_root, 同 vault 多文件合并到 1 次).
+        """
+        if not settings.ENABLE_LANCEDB_AUTO_INDEX:
+            return
+
+        key = coalesce_key or f"vault:{vault_root}"
+
+        existing = self._pending_tasks.get(key)
+        if existing and not existing.done():
+            existing.cancel()
+            logger.debug(
+                f"[Story 8.1] Cancelled previous note index debounce for {key}"
+            )
+
+        task = asyncio.create_task(
+            self._debounced_note_index(key, note_path, vault_root)
+        )
+        self._pending_tasks[key] = task
+
+        task.add_done_callback(
+            lambda _t, k=key: (
+                self._pending_tasks.pop(k, None)
+                if self._pending_tasks.get(k) is _t
+                else None
+            )
+        )
+
+    async def _debounced_note_index(
+        self, key: str, note_path: str, vault_root: str
+    ) -> None:
+        """Round-23 Story 8.1 — Wait debounce, then refresh wikilink graph + LanceDB note index."""
+        try:
+            await asyncio.sleep(self._debounce_seconds)
+        except asyncio.CancelledError:
+            return
+
+        if key in self._indexing_canvases:
+            logger.debug(f"[Story 8.1] Skipping duplicate note index for {key}")
+            self._pending_tasks.pop(key, None)
+            return
+
+        self._pending_tasks.pop(key, None)
+        self._indexing_canvases.add(key)
+        try:
+            from app.services.wikilink_graph_service import (
+                get_wikilink_graph_service,
+            )
+
+            wgs = get_wikilink_graph_service()
+            await wgs.refresh(changed_files=[note_path])
+            logger.info(
+                f"[Story 8.1] Wikilink graph refreshed for note {note_path} "
+                f"(vault={vault_root}, build_ts={wgs.build_timestamp})"
+            )
+        except Exception as e:
+            logger.warning(
+                f"[Story 8.1] Note index refresh failed for {note_path}: {e}"
+            )
+        finally:
+            self._indexing_canvases.discard(key)
+
     async def recover_pending(self, canvas_base_path: str) -> Dict[str, int]:
         """
         Recover and retry pending index operations from JSONL file.

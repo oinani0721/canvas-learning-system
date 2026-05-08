@@ -10,9 +10,11 @@ operations and applies them idempotently to Neo4j.
 """
 
 import logging
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from neo4j.exceptions import AuthError, Neo4jError, ServiceUnavailable
+from pydantic import BaseModel, Field
 
 from app.models.sync_models import SyncBatchRequest, SyncBatchResponse
 from app.security import require_internal_api_key
@@ -20,6 +22,30 @@ from app.security import require_internal_api_key
 logger = logging.getLogger(__name__)
 
 sync_router = APIRouter()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Round-23 Story 8.4 — Relationship sync (frontmatter relationships[] → Graphiti)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class RelationshipSyncResponse(BaseModel):
+    """Round-23 Story 8.4 — single-note 同步响应."""
+
+    note_path: str
+    synced: int = 0
+    skipped: int = 0
+    errors: List[str] = Field(default_factory=list)
+
+
+class VaultRelationshipSyncResponse(BaseModel):
+    """Round-23 Story 8.4 — full-vault 扫描响应."""
+
+    files_scanned: int = 0
+    total_synced: int = 0
+    total_skipped: int = 0
+    errors: List[str] = Field(default_factory=list)
+    dry_run: bool = True
 
 
 @sync_router.post(
@@ -95,3 +121,92 @@ async def sync_batch(request: SyncBatchRequest) -> SyncBatchResponse:
             status_code=500,
             detail="Sync batch failed unexpectedly",
         ) from e
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Round-23 Story 8.4 — Relationship sync endpoints (Round-14 残缺 #4 修复)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@sync_router.post(
+    "/relationships/by-node",
+    response_model=RelationshipSyncResponse,
+    summary="Sync single node frontmatter relationships → Graphiti edges",
+    dependencies=[Depends(require_internal_api_key)],
+)
+async def sync_relationships_by_node(
+    note_path: str = Query(..., description="vault 相对路径 (如 '节点/A.md')"),
+    group_id: Optional[str] = Query(default=None, description="可选 Graphiti group_id"),
+) -> RelationshipSyncResponse:
+    """Round-23 Story 8.4 — 单节点 relationships → Graphiti edges 同步.
+
+    Tauri Obsidian plugin 在 file-save 时调本 endpoint, 把 frontmatter
+    relationships[] 推到 Graphiti 形成 edge graph.
+
+    Errors:
+        404: vault root 不可解析或 note 文件不存在.
+    """
+    from app.config import settings
+    from app.services.relationship_sync_service import sync_relationships_for_note
+
+    vault_root = getattr(settings, "canvas_base_path", None)
+    if not vault_root:
+        raise HTTPException(
+            status_code=404,
+            detail="vault root (canvas_base_path) not configured",
+        )
+
+    result = await sync_relationships_for_note(
+        note_path=note_path, vault_root=vault_root, group_id=group_id
+    )
+
+    return RelationshipSyncResponse(
+        note_path=note_path,
+        synced=result["synced"],
+        skipped=result["skipped"],
+        errors=result["errors"],
+    )
+
+
+@sync_router.post(
+    "/relationships/vault",
+    response_model=VaultRelationshipSyncResponse,
+    summary="Full-vault scan + sync frontmatter relationships → Graphiti",
+    dependencies=[Depends(require_internal_api_key)],
+)
+async def sync_relationships_vault(
+    dry_run: bool = Query(default=True, description="True 默认仅扫描计数"),
+    group_id: Optional[str] = Query(default=None, description="可选 Graphiti group_id"),
+) -> VaultRelationshipSyncResponse:
+    """Round-23 Story 8.4 — 全量扫 vault 同步 frontmatter relationships.
+
+    用户场景:
+    - 切设备 / 重建 Graphiti 索引 (vault md 保留, Graphiti edge graph 丢)
+    - 用户 bulk 编辑后一键 reconcile
+
+    建议: 先 dry_run=True 看会写多少, 再 dry_run=False 实际跑.
+
+    Errors:
+        404: vault root 不可解析.
+    """
+    from app.config import settings
+    from app.services.relationship_sync_service import sync_relationships_in_vault
+
+    vault_root = getattr(settings, "canvas_base_path", None)
+    if not vault_root:
+        raise HTTPException(
+            status_code=404,
+            detail="vault root (canvas_base_path) not configured",
+        )
+
+    result = await sync_relationships_in_vault(
+        vault_root=vault_root, group_id=group_id, dry_run=dry_run
+    )
+
+    return VaultRelationshipSyncResponse(
+        files_scanned=result["files_scanned"],
+        total_synced=result["total_synced"],
+        total_skipped=result["total_skipped"],
+        errors=result["errors"],
+        dry_run=result["dry_run"],
+    )
