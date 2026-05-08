@@ -238,9 +238,11 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
     supp_reason: str | None = None
     if req.mode == "answer" and req.user_question and req.user_question.strip():
         try:
-            # Story 2.2 Phase A: 用 module-level singleton 而非每请求 new instance
-            # — 避免 BGEM3 model 每次重加载 4 min+
-            lancedb_client = await _get_supp_lancedb_client()
+            # Story 2.2 Phase A: 直接读 module singleton（不 acquire init lock）
+            # 避免 background eager-init 跑 BGEM3 期间持有 lock 阻塞用户 request
+            # singleton None = init 未完成 → service 内自然降级 (reason=lancedb_unavailable)
+            # second request 命中 ready singleton 立即工作
+            lancedb_client = _supp_lancedb_singleton
             node_title = Path(req.node_path).stem
             supp_query = f"{node_title} {req.user_question}".strip()
             supp_result = await search_supplementary(
