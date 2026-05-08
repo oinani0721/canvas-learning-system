@@ -43,6 +43,11 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-tool-router.sh",
             "timeout": 180000
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/uat-double-section-guard.js",
+            "timeout": 3000
           }
         ]
       }
