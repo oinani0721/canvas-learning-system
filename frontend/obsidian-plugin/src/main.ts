@@ -147,6 +147,77 @@ export default class CanvasLearningPlugin extends Plugin {
         }
       }),
     );
+
+    // Story 2.2 follow-up — 增量索引 hook：vault 文件 modify/create/delete/rename
+    // 批量 debounce 1500ms 后 POST /api/v1/index/refresh-changed 让 backend SHA-256
+    // fingerprint 比对 + 单文件 < 500ms 增量 reindex。无白名单（.obsidian/.git/.trash
+    // 已在 backend skip_dirs 默认过滤），仅过滤非 .md 文件。
+    this.registerIncrementalIndexHook();
+  }
+
+  /** Story 2.2 follow-up — 增量索引：plugin 监听文件事件 + 批量推送 backend */
+  private pendingRefreshPaths = new Set<string>();
+  private refreshDebounceTimer: number | null = null;
+  private readonly REFRESH_DEBOUNCE_MS = 1500;
+
+  private registerIncrementalIndexHook(): void {
+    const onFile = (file: TFile | { path: string }) => {
+      if (!file.path.toLowerCase().endsWith(".md")) return;
+      this.pendingRefreshPaths.add(file.path);
+      this.scheduleRefreshFlush();
+    };
+
+    this.registerEvent(this.app.vault.on("modify", onFile));
+    this.registerEvent(this.app.vault.on("create", onFile));
+    this.registerEvent(this.app.vault.on("delete", onFile));
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        // rename 既要 cleanup 老路径也要 reindex 新路径
+        if (oldPath.toLowerCase().endsWith(".md")) {
+          this.pendingRefreshPaths.add(oldPath);
+        }
+        if (file.path.toLowerCase().endsWith(".md")) {
+          this.pendingRefreshPaths.add(file.path);
+        }
+        this.scheduleRefreshFlush();
+      }),
+    );
+  }
+
+  private scheduleRefreshFlush(): void {
+    if (this.refreshDebounceTimer !== null) {
+      window.clearTimeout(this.refreshDebounceTimer);
+    }
+    this.refreshDebounceTimer = window.setTimeout(() => {
+      void this.flushPendingRefresh();
+    }, this.REFRESH_DEBOUNCE_MS);
+  }
+
+  private async flushPendingRefresh(): Promise<void> {
+    if (this.pendingRefreshPaths.size === 0) return;
+    const paths = Array.from(this.pendingRefreshPaths);
+    this.pendingRefreshPaths.clear();
+    this.refreshDebounceTimer = null;
+
+    const backendUrl = this.settings.backendUrl.replace(/\/$/, "");
+    try {
+      const resp = await requestUrl({
+        url: `${backendUrl}/api/v1/index/refresh-changed`,
+        method: "POST",
+        contentType: "application/json",
+        body: JSON.stringify({ paths }),
+        throw: false,
+      });
+      if (resp.status !== 200) {
+        // backend 不可达不打扰用户（降级日志即可），下次保存再试
+        console.warn(
+          `[Canvas] incremental index refresh failed: HTTP ${resp.status}`,
+          paths,
+        );
+      }
+    } catch (e) {
+      console.warn(`[Canvas] incremental index refresh exception:`, (e as Error).message);
+    }
   }
 
   async loadSettings() {
