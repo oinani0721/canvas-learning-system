@@ -248,11 +248,13 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
             supp_result = await search_supplementary(
                 query=supp_query,
                 lancedb_client=lancedb_client,
-                top_k=5,
-                # Story 2.2 Phase A 实测校准：LanceDB hybrid (RRF k=60) score 落在 0.3-0.6 区间，
-                # PRD §4.1.1 的 0.70 是 cosine 假设过严过滤。降到 0.30 适配 RRF。
-                # Phase B 应做 score 归一化让阈值跨 query 稳定。
-                min_relevance=0.30,
+                # 2026-05-09 RAG-as-tool 范式重构：用户原话"不硬编码 5 条，把有用的都提供"
+                # → top_k_max=20 大召回 + elbow_cut 动态截断（业界推荐 vs 硬编码 top_k）
+                # → Claude 用 Read tool 真核实是 verifier（candidate generator + verifier 分离）
+                top_k_max=20,
+                min_relevance=0.30,  # RRF 实测分布，Phase B sigmoid 归一化后恢复 0.70
+                elbow_drop_threshold=0.05,
+                hard_cap=15,
             )
             supp_xml = format_supplementary_xml(supp_result)
             final_text += "\n\n" + supp_xml

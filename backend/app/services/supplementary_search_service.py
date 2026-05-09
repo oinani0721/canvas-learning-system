@@ -36,22 +36,30 @@ logger = structlog.get_logger(__name__)
 async def search_supplementary(
     query: str,
     lancedb_client: Any | None,
-    top_k: int = 5,
-    min_relevance: float = 0.70,
+    top_k_max: int = 20,
+    min_relevance: float = 0.30,
+    elbow_drop_threshold: float = 0.05,
+    hard_cap: int = 15,
 ) -> dict[str, Any]:
-    """对 vault_notes 做 hybrid 搜索 + source priority + 阈值过滤。
+    """RAG-as-tool 范式（2026-05-09 重构）: 大召回 + Claude Read 真验证.
+
+    用户原话: "RAG 是辅助 claude code 用 grep 找得更准，把有用的材料都提供给我"
+    → supplementary = candidate generator (大召回不限 5)，Claude Read = verifier
+    → 不硬编码 top_k，按 score gap 动态截断 (elbow cut, 业界推荐)
 
     Args:
         query: 搜索 query（建议 user_question + node_title 组合）
         lancedb_client: 已 init 的 LanceDB client（None 表示降级）
-        top_k: 返回 Top N（默认 5）
-        min_relevance: 相关度阈值（默认 0.70，对齐 PRD §4.1.1）
+        top_k_max: 召回上限（默认 20，给 Claude 大候选池做 Read 验证）
+        min_relevance: 阈值（0.30 适配 RRF 实测分布，待 Phase B sigmoid 归一化恢复 0.70）
+        elbow_drop_threshold: 相邻 score gap > 此值视为"相关性悬崖"动态截断
+        hard_cap: 即使 elbow 不触发，最多返回此数量（保护 prompt 长度）
 
     Returns:
         {
-            "materials": list[dict],     # 排序后 Top N（每条含 title/snippet/wikilink/score/source_path）
-            "degraded": bool,             # True 表示因外部因素失败
-            "reason": str | None,         # 降级原因或空索引等可观测性信息
+            "materials": list[dict],   # 动态长度（不固定 5），含 title/snippet/wikilink/score/source_path
+            "degraded": bool,
+            "reason": str | None,
         }
     """
     if lancedb_client is None:
@@ -72,11 +80,12 @@ async def search_supplementary(
         if hasattr(lancedb_client, "_initialized") and not lancedb_client._initialized:
             await asyncio.wait_for(lancedb_client.initialize(), timeout=10.0)
 
+        # 大召回：top_k_max + 50% buffer 给 source_priority 重排和空文档过滤留空间
         results = await asyncio.wait_for(
             _two_tier_search(
                 lancedb_client,
                 query=query,
-                num_results=max(top_k * 2, 8),
+                num_results=int(top_k_max * 1.5),
             ),
             timeout=10.0,
         )
@@ -118,7 +127,9 @@ async def search_supplementary(
             "[SupplementarySearch] reference_config 不可用，跳过 source priority"
         )
 
+    # Filter + normalize + 空文档检测（防 ghost reference / 路径漂移 / 空 frontmatter）
     materials: list[dict[str, Any]] = []
+    skipped_empty = 0
     for raw in results:
         score = float(raw.get("score", 0.0))
         if score < min_relevance:
@@ -129,9 +140,28 @@ async def search_supplementary(
         if "-explanations/" in path:
             continue
 
+        # 空文档 / 路径不存在检测（防 Claude 引用空文件后凭 snippet 编内容）
+        if not _is_real_vault_file(path):
+            skipped_empty += 1
+            continue
+
         materials.append(normalized)
-        if len(materials) >= top_k:
+        if len(materials) >= top_k_max:
             break
+
+    if skipped_empty > 0:
+        logger.warning(
+            "[SupplementarySearch] 过滤空文档/不存在文件",
+            count=skipped_empty,
+            query=query[:60],
+        )
+
+    # Elbow cut: 按 score gap 动态截断（不硬编码 top_k）
+    materials = _elbow_cut(
+        materials,
+        drop_threshold=elbow_drop_threshold,
+        hard_cap=hard_cap,
+    )
 
     return {
         "materials": materials,
@@ -184,6 +214,61 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Internal helpers
 # ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _is_real_vault_file(rel_path: str, min_size_bytes: int = 64) -> bool:
+    """检查 vault 内文件存在 + 非空（防 ghost reference / 空文档 / 路径漂移）.
+
+    用户实测痛点: Claude 列 wikilink 但点击后"找不到此文件"，或文件存在但内容为空
+    （Claude 凭 snippet 编内容）。本函数在 supplementary 返回前过滤这些。
+    """
+    if not rel_path:
+        return False
+    try:
+        from pathlib import Path
+
+        from app.config import get_settings
+
+        s = get_settings()
+        vault_root = Path(s.canvas_base_path)
+        # rel_path 可能是 "节点/X.md" / "raw/CS188/.../merged.md" 等 vault 相对路径
+        abs_path = (vault_root / rel_path).resolve()
+        # 防路径穿越（resolve 后必须仍在 vault 内）
+        try:
+            abs_path.relative_to(vault_root.resolve())
+        except ValueError:
+            return False
+        if not abs_path.is_file():
+            return False
+        # < 64 字节视为空（仅 frontmatter / 空 md）
+        if abs_path.stat().st_size < min_size_bytes:
+            return False
+        return True
+    except Exception:  # noqa: BLE001  任何 OS 错误也跳过
+        return False
+
+
+def _elbow_cut(
+    materials: list[dict[str, Any]],
+    drop_threshold: float = 0.05,
+    hard_cap: int = 15,
+) -> list[dict[str, Any]]:
+    """按相邻 score gap 动态截断（业界推荐做法 vs 硬编码 top_k）.
+
+    用户原话: "我没硬编码要多少材料，要把有用的材料都提供给我"
+    → 当相邻 score 差 > drop_threshold 视为"相关性悬崖"截断
+    → 即使 elbow 不触发，最多 hard_cap 条（保护 prompt 长度）
+    """
+    if not materials:
+        return materials
+    # materials 已按 score 降序（apply_source_priority 之后）
+    cut_idx = len(materials)
+    for i in range(1, len(materials)):
+        gap = materials[i - 1]["score"] - materials[i]["score"]
+        if gap > drop_threshold:
+            cut_idx = i
+            break
+    return materials[: min(cut_idx, hard_cap)]
 
 
 async def _two_tier_search(

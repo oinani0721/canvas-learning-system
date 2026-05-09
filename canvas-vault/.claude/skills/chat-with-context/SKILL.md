@@ -64,6 +64,26 @@ model: sonnet
     title / wikilink / snippet / score）。这是 Phase A 设计的"主答案 + 探索补充"双层结构，
     用户可一键跳到任一相关材料深读。
 
+12. **⛔⛔⛔ Read 验证强制（最关键 anti-fabrication 守门）** —
+    引用任何 `<supplementary_materials>` 的 `[[wikilink]]` 作 inline evidence 前，
+    **必须先用 Read tool 实际读 `<source_path>` 完整内容**。禁止仅凭注入的 ~300 字
+    snippet 编 evidence — snippet 是召回 hint（用于知道这条材料"可能相关"），但
+    **真实回答中的引用必须基于 Read 核实文件存在 + 内容真相关**。
+    用户原话: "RAG 是辅助 claude code 用 grep 找得更准，目的是把有用的材料都提供给我"
+    — 即 supplementary 是 candidate generator，Claude 用 Read 才是 verifier。
+    Read 失败（文件不存在 / 空文件 / 路径错）→ 跳过该条 + 在回答末尾标注
+    `（rank=N 跳过：read_failed=<reason>）`，不要假装读过。
+
+13. **⛔ 至少 Read 2 条做多源交叉** —
+    即使 supplementary 只有 N=1 条命中也要 Read。N≥3 时至少 Read top-2（score 最高 +
+    第二高）做交叉验证防 ghost reference。Read 时间允许时建议 Read top-3。
+
+14. **⛔ 引用最小颗粒度（heading 级以上）** —
+    Read 完整文件后，inline wikilink 必须用 heading 级精度 `[[file#具体heading]]`
+    或 block 级 `[[file#^block_id]]`，**不允许 `[[file]]` 全文级模糊引用** —
+    那等于没核实（Read 不到具体段落直接糊一个文件名）。
+    例外：文件极短（< 200 字）整体引用 OK 但仍要 Read 过。
+
 ## 对话开场（解析 prompt 后的第一条回复）
 
 收到 prompt 后**第一条回复**应该是：

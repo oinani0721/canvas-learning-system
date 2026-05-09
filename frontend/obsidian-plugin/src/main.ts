@@ -537,16 +537,19 @@ export default class CanvasLearningPlugin extends Plugin {
     const suppDegraded = (parsed.supplementary_degraded as boolean) ?? false;
     const suppReason = (parsed.supplementary_reason as string | null) ?? null;
 
-    // Story 2.2 Phase A · Prompt Engineering 硬约束（commit 4ff093c followup）:
-    // 后端真实把 5 条 vault wikilink 塞进 <supplementary_materials> 但 Claude 仍
-    // fallback 到训练数据 (CS188/AIMA web 资源) — 必须用 prompt 末尾强 instruction
-    // 锁死 "答案必须 anchor vault 内容 + 至少 1 inline wikilink"
+    // Story 2.2 Phase A · RAG-as-tool 范式重构（2025 业界共识 — Anthropic Claude Code/
+    // Cursor/Devin/Augment 全部抛弃 vector RAG-as-prompt-injection 改 grep+agent verify）:
+    // 用户原话: "RAG 是辅助 claude code 用 grep 找得更准，把有用的材料都提供给我"
+    // → supplementary = candidate generator (大召回)，Claude Read = verifier (真核实)
     const ANCHOR_INSTRUCTION =
-      "请严格基于以上 <rag_context> 内的 <current_note> + <neighbor> + <supplementary_materials> 回答。"
-      + "若 <supplementary_materials count=\"N\"> 且 N>0，**回答正文中必须至少出现 1 个来自 supplementary 的 [[wikilink]] 作为 inline evidence**（不是末尾装饰列表，是答案行文中直接引用）。"
-      + "禁止凭训练数据答 CS188/AIMA/Berkeley 课程等课程教材类问题（用户 raw/CS188/ 已索引在 vault 内）。"
-      + "仅当 <current_note> + 全部 <neighbor> + 全部 <supplementary_materials> 都无关时才允许通用知识 + 必须显式标 `（通用知识 — vault 无相关材料）`。"
-      + "末尾用 `---` 分隔后再展示完整 supplementary 列表（title/wikilink/snippet/score）便于跳转。";
+      "⛔ 回答工作流（违反 = 答非所问 + 用户原痛点回归）：\n"
+      + "(1) 收到 <supplementary_materials count=\"N\"> 时 N>0，**必须先用 Read tool 实际读 top 2-3 条 <source_path>** — snippet 仅是召回 hint，真 evidence 来自 Read 后的完整文件内容。\n"
+      + "(2) Read 失败 / 文件空 / 路径错 → 跳过该条 + 在回答末尾标 `（rank=N 跳过：read_failed=<reason>）`，**禁止假装读过**。\n"
+      + "(3) 至少 Read 2 条做多源交叉验证（防 ghost reference）。\n"
+      + "(4) 主回答行文中必须含 ≥1 个 `[[file#具体heading]]` heading 级精度 wikilink（Read 后才知道有哪些 heading）— 不允许 `[[file]]` 全文模糊引用（等于没核实）。\n"
+      + "(5) **禁止凭训练数据答 CS188/AIMA/Berkeley 课程教材类问题** — 用户 raw/CS188/ 已索引在 vault 内，找不到就 Read 邻居 + supplementary 实际内容确认。\n"
+      + "(6) 仅当 Read 后全部 vault 段都无关时才允许通用知识 + 必须显式标 `（通用知识 — vault Read 后未找到相关）`。\n"
+      + "(7) 末尾用 `---` 分隔后展示完整 supplementary 列表（title/wikilink/snippet/score）便于用户跳转。";
     const prompt = userQuestion
       ? `/chat-with-context\n\n${enrichedContext}\n\n---\n${ANCHOR_INSTRUCTION}\n\n问题：${userQuestion}`
       : `/chat-with-context\n\n${enrichedContext}\n\n---\n${ANCHOR_INSTRUCTION}\n\n问题：（在这里输入）`;
