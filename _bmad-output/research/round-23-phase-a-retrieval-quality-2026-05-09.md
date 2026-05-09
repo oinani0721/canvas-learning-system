@@ -742,3 +742,248 @@ def _elbow_cut(materials, drop_threshold: float = 0.30, hard_cap: int = 15):
 
 **Plan Anchor**: EPIC1-BMAD-DEV-ASSESS-2026-04-17
 
+---
+
+# 📍 Round-3 ChatGPT V2 反馈 + Cross-check（2026-05-09 13:00 — ChatGPT 完胜）
+
+> **触发**：用户复制 round-23-chatgpt-dr-prompt §V2 给 ChatGPT Deep Research → ChatGPT 返回报告（已 ship 到 `round-23-chatgpt-dr-response-v2-2026-05-09.md`）→ Claude 启动 4 并行 Explore agent cross-check 关键 claim。
+>
+> **结果**：ChatGPT 找到 **4 个 6 agent 漏诊的新根因 H/I/J/K**，全部 cross-check **CONFIRMED**。其中 I 和 J 是**致命级 smoking gun** — 推翻我们 §13 根因 C 的核心假设。
+
+## 18. Cross-check 综合 — ChatGPT 完胜
+
+### 18.1 漏诊根因清单（H/I/J/K — 全部 CONFIRMED）
+
+| # | ChatGPT claim | Cross-check 实证 | 严重度 |
+|---|---|---|---|
+| **H** | supplementary 没传 query-time filter | ✅ `_two_tier_search` L317 只传 4 个参数；`search()` L2306 支持 course_id/tags/canvas_file/subject 但 supplementary 没用；hook 收 cwd 但 0 引用 | 高 |
+| **I** | tier-2 fallback 硬编码 0.85 score | 🚨 **FATAL CONFIRMED** — `supplementary_search_service.py:387` 字面 `"score": 0.85,`。绕过 min_relevance（0.85 > 0.30）+ 绕过 elbow_cut（全 0.85 gap=0）。Bonus: source_priority 乘法没 bounds check → score 可能 > 1.0 | **致命** |
+| **J** | priority pattern 前缀失配（lecture boost 永不生效） | 🚨 **SMOKING GUN CONFIRMED** — Python fnmatch 实测 8 真实路径 × 5 正向 pattern = **40/40 全失配**。唯一命中的是 demote 用的 `*-explanations/**`（前缀有通配符）。**推翻 §13 根因 C 假设** | **致命** |
+| **K** | LocalReranker English-first + 缺 mps | ✅ 全部 4 项 confirmed — 默认 `gte-reranker-modernbert-base` (HF 模型卡 "Primary Language: English") + device 只判 cuda/cpu + supplementary 完全没接 reranker | 中 |
+
+### 18.2 致命 bug I 代码实证
+
+`backend/app/services/supplementary_search_service.py:387`
+```python
+{
+    ...
+    "score": 0.85,   # ⛔ 硬编码 — 凭空给所有 tier-2 结果同一高分
+    ...
+}
+```
+
+触发条件（L337-366）：tier-1 prefix-resolved 表为空 AND unprefixed legacy `vault_notes` 表存在。
+
+下游连锁失效：
+| 防御机制 | 应该的工作 | 0.85 攻击下 |
+|---|---|---|
+| `min_relevance=0.30` | 过滤低分 | ❌ 0.85 > 0.30 全过 |
+| `_elbow_cut(0.05)` | gap-based 截断 | ❌ 全 0.85 → gap=0 不触发 |
+| `apply_source_priority` | 乘 weight 重排 | ⚠️ 0.85 × 1.5 = 1.275（无 bounds check）|
+
+### 18.3 致命 bug J Python fnmatch 实测矩阵
+
+```
+Pattern (boost 用)                 | raw/CS188/videos/lectures/...  | (8 paths)
+───────────────────────────────────────────────────────────────────────
+videos/lectures/**           1.5x  | ❌ False                       | ❌❌❌❌❌
+videos/discussions/**        1.4x  | ❌ False                       | ❌❌❌❌❌
+videos/exam_prep/**          1.3x  | ❌ False                       | ❌❌❌❌❌
+videos/review_sessions/**    1.2x  | ❌ False                       | ❌❌❌❌❌
+*-explanations/**            0.5x  | ✅ True (only demote 命中)     | ⚠️
+```
+
+**意味着**：
+- 我们一直以为 "lecture 1.5x boost 让 rank 1-7 都是 lecture"
+- **真相：boost 完全没生效**。rank 1-7 命中是 dense embedding + RRF 自然排序结果，纯巧合
+- §13 根因 C "apply_source_priority 只 boost 不 demote" 假设了 boost 在工作 — **前提就错了**
+
+### 18.4 ChatGPT vs 6 agent 互补关系
+
+| 维度 | 6 Claude agent | ChatGPT | 互补点 |
+|---|---|---|---|
+| 维度覆盖 | reranker / hybrid / rewrite / filter / 代码 / 业界 | 静态代码审查 + 外部官方文档 | 6 agent 偏调研，ChatGPT 偏代码 |
+| 找到根因 | A-G (7 个) | + H/I/J/K (4 个新) | **互补：6 agent 漏看 supplementary 自身 bug** |
+| 工时估算 | A+B+C+D 30-50 行 | 8-53h Phase A-C | ChatGPT 更现实 |
+| 致命发现 | 主要在 lancedb_client.py (主管道) | **主要在 supplementary_search_service.py (side-path)** | 6 agent 没仔细审 side-path |
+| 业界证据 | 引用 8+ 来源 | 引用 7+ 官方文档 + ColBERT paper | 双方都好但侧重不同 |
+
+**关键 insight**：6 agent 把焦点放在主 RAG pipeline (`state_graph.py` / `lancedb_client.py`)，**漏看了 hook pipeline 实际走的 supplementary side-path**。ChatGPT 直接读 `supplementary_search_service.py` 找到 the smoking gun。
+
+---
+
+## 19. 修复方案 v2（含 H/I/J/K — 重排优先级）
+
+### 19.1 优先级重排（之前 A+B+C+D 不够）
+
+**之前**（Round-2，错）：A → B → C → D 30-50 行最小集合
+**现在**（Round-3，正确）：**J → I → H → K → A-G**
+
+### 19.2 Phase A0：致命修复（1-2h，立即上）
+
+#### 修复 J — pattern 前缀加 `**/`（30 min，无风险）
+
+`backend/data/reference_priority.json`：
+```json
+{
+  "source_priorities": [
+    { "pattern": "**/videos/lectures/**",        "weight": 1.50, "label": "讲义" },
+    { "pattern": "**/videos/discussions/**",     "weight": 1.35, "label": "讨论" },
+    { "pattern": "**/videos/exam_prep/**",       "weight": 1.25, "label": "EP" },
+    { "pattern": "**/videos/review_sessions/**", "weight": 1.20, "label": "RS" },
+    { "pattern": "节点/**",                      "weight": 0.90, "label": "节点容器" },
+    { "pattern": "原白板/**",                    "weight": 0.30, "label": "白板导航层" },
+    { "pattern": "**/*-explanations/**",         "weight": 0.30, "label": "AI 解释" }
+  ]
+}
+```
+
+修后 fnmatch 实测：`fnmatch('raw/CS188/videos/lectures/...', '**/videos/lectures/**')` → **True ✅**
+
+**单测**：复用 ChatGPT 报告里的 Python 验证脚本（已在 §16 内）
+
+#### 修复 I — 关闭 tier-2 fallback 或加 degraded 标志（1-2h）
+
+`supplementary_search_service.py:387`：
+```python
+# 选项 A（推荐）：默认关闭 tier-2，由 settings flag 控制
+SUPPLEMENTARY_ENABLE_TIER2_FALLBACK = False  # config.py
+if not SUPPLEMENTARY_ENABLE_TIER2_FALLBACK:
+    return [], "no_tier_1_results_tier_2_disabled"
+
+# 选项 B：保留 tier-2 但用真实 score 而非 0.85
+"score": float(item.get("_distance", 1.0)),  # 用真实 dense distance
+"is_legacy": True,  # 标记 fallback
+"degraded": True,
+```
+
+下游过滤时尊重 `is_legacy / degraded` 标志（可选完全过滤或单独排序）。
+
+### 19.3 Phase A1：架构补缺（4-8h）
+
+#### 修复 H — 引入 RetrievalScope contract（4-6h）
+
+`backend/app/services/supplementary_search_service.py`：
+```python
+@dataclass
+class RetrievalScope:
+    course_id: str | None = None
+    tags: list[str] = field(default_factory=list)
+    current_note_path: str | None = None  # ← hook 用 cwd 推断
+    excluded_prefixes: list[str] = field(default_factory=lambda: [".claude/", "_bmad-output/"])
+    excluded_headings: set[str] = field(default_factory=lambda: {"recent activity", "concepts", "目录", "索引"})
+
+async def search_supplementary(query: str, ..., scope: RetrievalScope | None = None):
+    raw = await lancedb_client.search(
+        ...,
+        course_id=scope.course_id if scope else None,
+        tags=scope.tags if scope else None,
+    )
+```
+
+#### Hook 解析 cwd（2h）
+
+`chat.py:rag_enrich_hook`：
+```python
+scope = None
+if req.cwd:
+    cwd_path = Path(req.cwd)
+    if "节点" in cwd_path.parts:
+        scope = RetrievalScope(current_note_path=str(cwd_path))
+    # 或从 .canvas-config.yaml 读 course_id
+```
+
+### 19.4 Phase A2：系统升级（10-15h）
+
+#### 修复 K — 切换 reranker model + 补 mps 检测（4-6h）
+
+`backend/lib/agentic_rag/reranking.py`:
+```python
+# device 选择补 mps
+if torch.cuda.is_available():
+    device = "cuda"
+elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+    device = "mps"
+else:
+    device = "cpu"
+
+# config.py 切换默认
+reranker_model_name="BAAI/bge-reranker-v2-m3"  # 替换 gte-reranker-modernbert-base
+```
+
+#### supplementary 接 reranker（4-6h）+ 全量重建索引（2-3h）
+
+### 19.5 Phase A3：剩余根因（之前 A-G 大部分降级）
+
+降级原因：J/I 修后，A-G 大部分自动缓解或不再致命：
+- **A. skip 白板**：仍要做（与 J 互补防御）— 2h
+- **B. RRF 1/(1+d) 压缩**：J/I 修后变次要 — 1h
+- **C. demote 规则**：J 修后 demote 才有意义（已在 19.2 一并做）
+- **D. relative drop ratio**：I 修后才有真实分数差 — 1h
+- **E. _chunk_text 不丢小段**：补一个 min_len 过滤 — 1h
+- **F. 没 cross-encoder rerank**：K 修了
+- **G. hook 没用 cwd**：H 修了
+
+### 19.6 Phase A 总工时
+
+| Phase | 内容 | 工时 |
+|---|---|---|
+| A0 | 致命修复 J + I | 1-2h |
+| A1 | 架构 H + hook cwd | 4-8h |
+| A2 | reranker + 重建索引 | 10-15h |
+| A3 | 剩余 A/B/D/E | 5h |
+| **总** | | **20-30h** |
+
+跟 ChatGPT 估算（32-53h）大致吻合。
+
+---
+
+## 20. 用户最终决策点（请你勾选）
+
+> [!question]+ Q1: 是否立即上 Phase A0（致命修复 J + I）
+> - [ ] **立即上**（1-2h，零风险，30 分钟可见 fnmatch 修复效果）
+> - [ ] 等 ChatGPT V3 再审一次（用户希望多一轮对抗）
+> - [ ] 先 ship 实测脚本验证 J（不动代码，先看影响范围）
+
+> [!question]+ Q2: tier-2 legacy fallback 怎么处理（修复 I）
+> - [ ] 选项 A: 完全关闭（最快但有迁移风险）
+> - [ ] 选项 B: 加 degraded 标志保留兼容（折中）
+> - [ ] 选项 C: 强制全量重建索引后再关（最干净但 2-3h 额外）
+
+> [!question]+ Q3: Phase A 完整路线
+> - [ ] A0+A1+A2+A3 全部上（20-30h）
+> - [ ] 只上 A0+A1（5-10h，致命修复 + 架构补缺）
+> - [ ] 只上 A0（1-2h 立即止血）
+
+> [!question]+ Q4: 是否需要再发 V3 ChatGPT prompt
+> - [ ] 不需要 — V2 已找到致命 bug，直接修
+> - [ ] 需要 — V3 让 ChatGPT 审视 cross-check 后的修复方案 v2 是否还有漏诊
+> - [ ] 等 Phase A0 修完 ship 实测，然后 V3
+
+---
+
+## 21. ★ 关键 Insight（这一轮的元教训）
+
+### 21.1 漏诊原因分析
+
+我们 6 agent 漏看 H/I/J/K 的根本原因：
+- **6 agent 假设 hook 走主 RAG pipeline** — 实际 hook 走 supplementary side-path（这个 side-path 是 commit 98dbc2d 加的"RAG-as-tool"模式）
+- **没有人质疑 boost 是否真的生效** — 我们看到 rank 1-7 是 lecture 就以为 boost 在工作
+- **没有运行 fnmatch 实测** — 假设 pattern 都对，没用 Python 验证
+
+### 21.2 ChatGPT 优势
+
+- 它是 **静态代码审查 outsider** — 不带"我们之前怎么诊断"的偏见
+- 它直接读 `supplementary_search_service.py` 全文（6 agent 焦点在 lancedb_client.py）
+- 它质疑了我们的隐藏前提（"boost 真的生效吗？让我用 fnmatch 验证"）
+
+### 21.3 工程教训
+
+- **"假设" vs "实证"**：6 agent 全部假设 boost 生效，ChatGPT 一句"让我用 fnmatch 跑跑"就把 smoking gun 找到
+- **side-path 容易被忽视**：`supplementary_search_service.py` 是 hook 实际走的路径，但所有调研都聚焦主 pipeline
+- **第二意见的真正价值**：不是要 ChatGPT 重复我们的工作，而是让它**质疑我们没质疑的隐藏前提**
+
+---
+
+*Round-3 generated by 4 parallel Explore agents cross-checking ChatGPT V2 findings — 2026-05-09 13:00 持续 ~5 min*
+
