@@ -1704,15 +1704,212 @@ class CanvasSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h2", { text: "Canvas Learning System · 设置" });
 
+    // ─── 状态卡：当前 vault 是否被 backend 认识 ─────────────────
+    // 用户视角第一眼看到「✓ 已挂载 / ⚠️ 不匹配 / ❌ 后端未启动」+ 一键修复
+    this.renderVaultStatus(containerEl);
+
     // ─── 快捷键状态 + 导航（Story 2.1 Phase 1 P1.6 — UX 改进） ──────
     this.renderHotkeyStatus(containerEl);
 
-    // ─── Backend URL ──────────────────────────────────────────────
-    new Setting(containerEl)
+    // ─── 高级配置（折叠，默认收起；非技术用户无需展开） ────────────
+    this.renderAdvancedSection(containerEl);
+  }
+
+  /**
+   * Story 2.2 follow-up · vault status detector（用户视角主入口）
+   *
+   * 用户原话："我只是要确认当前的 Canvas Learning System 是否挂载在当前 vault"
+   * 设计：状态卡先行 — 进 Settings 第一眼看到「✓ 已挂载 / ⚠️ 不匹配 / ❌ 后端未启动」
+   * 三态都给恰好一个 CTA（重连 / 一键切换 / 重试），零端口暴露。
+   * 路径不可对比（host vs container 不同 namespace），改用 vault_name 作 stable key。
+   */
+  private renderVaultStatus(container: HTMLElement): void {
+    const card = container.createDiv({ cls: "canvas-vault-status-card" });
+    card.style.cssText = "padding: 16px; margin: 12px 0; border-radius: 8px; "
+      + "background: var(--background-secondary); border: 1px solid var(--background-modifier-border);";
+    card.createEl("h3", { text: "Canvas 后端状态", attr: { style: "margin: 0 0 8px 0;" } });
+    const bodyEl = card.createDiv();
+    bodyEl.setText("正在检查后端连通性...");
+    const ctaEl = card.createDiv({ attr: { style: "margin-top: 12px;" } });
+
+    void this.detectAndRender(bodyEl, ctaEl);
+  }
+
+  /**
+   * 异步检测 Obsidian 当前 vault ↔ backend active vault 是否同源，并渲染状态。
+   * 直接调用 backend /api/v1/vault/current 拿 source-of-truth，按 vault_name 比对。
+   */
+  private async detectAndRender(bodyEl: HTMLElement, ctaEl: HTMLElement): Promise<void> {
+    const localName = this.app.vault.getName();
+    const backendUrl = this.plugin.settings.backendUrl.replace(/\/$/, "");
+
+    let resp;
+    try {
+      resp = await requestUrl({
+        url: `${backendUrl}/api/v1/vault/current`,
+        method: "GET",
+        throw: false,
+      });
+    } catch (e) {
+      this.renderBackendDownState(bodyEl, ctaEl, localName, backendUrl, (e as Error).message);
+      return;
+    }
+
+    if (resp.status !== 200) {
+      this.renderBackendDownState(bodyEl, ctaEl, localName, backendUrl, `HTTP ${resp.status}`);
+      return;
+    }
+
+    const remote = resp.json as { vault_name: string; vault_path: string; vault_id: string };
+    if (remote.vault_name === localName) {
+      this.renderSyncedState(bodyEl, ctaEl, localName, remote.vault_id);
+    } else {
+      this.renderMismatchState(bodyEl, ctaEl, localName, remote);
+    }
+  }
+
+  private renderSyncedState(
+    bodyEl: HTMLElement,
+    ctaEl: HTMLElement,
+    localName: string,
+    vaultId: string,
+  ): void {
+    bodyEl.empty();
+    bodyEl.createSpan({
+      text: "✓ Canvas 已挂载当前 vault",
+      attr: { style: "color: var(--text-success); font-weight: 600;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: `当前 vault：「${localName}」  ·  vault_id: ${vaultId}`,
+      attr: { style: "color: var(--text-muted); font-size: 0.9em;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: "你可以放心使用所有 Canvas 功能（AI 对话 / 双链派生 / 检验白板等）。",
+      attr: { style: "color: var(--text-muted); font-size: 0.9em;" },
+    });
+    ctaEl.empty();
+  }
+
+  private renderMismatchState(
+    bodyEl: HTMLElement,
+    ctaEl: HTMLElement,
+    localName: string,
+    remote: { vault_name: string; vault_path: string; vault_id: string },
+  ): void {
+    bodyEl.empty();
+    bodyEl.createSpan({
+      text: "⚠️ Vault 不匹配 — Canvas 当前不在这个 vault",
+      attr: { style: "color: var(--text-warning); font-weight: 600;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: `Obsidian 当前打开：「${localName}」`,
+      attr: { style: "font-size: 0.9em;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: `Canvas 后端挂载在：「${remote.vault_name}」（${remote.vault_path}）`,
+      attr: { style: "font-size: 0.9em; color: var(--text-muted);" },
+    });
+
+    ctaEl.empty();
+    const fixBtn = ctaEl.createEl("button", { text: `让 Canvas 切换到「${localName}」` });
+    fixBtn.style.cssText = "padding: 6px 14px; cursor: pointer;";
+    fixBtn.onclick = () => void this.handleSwitchToCurrent(bodyEl, ctaEl, localName, fixBtn);
+  }
+
+  private renderBackendDownState(
+    bodyEl: HTMLElement,
+    ctaEl: HTMLElement,
+    localName: string,
+    backendUrl: string,
+    reason: string,
+  ): void {
+    bodyEl.empty();
+    bodyEl.createSpan({
+      text: "❌ Canvas 后端未启动",
+      attr: { style: "color: var(--text-error); font-weight: 600;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: `无法连接 ${backendUrl}（${reason}）。Obsidian 当前 vault：「${localName}」`,
+      attr: { style: "font-size: 0.9em; color: var(--text-muted);" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: "请检查 Docker 是否运行（终端：docker ps），或在「高级」段修改 Backend URL。",
+      attr: { style: "font-size: 0.9em; color: var(--text-muted);" },
+    });
+
+    ctaEl.empty();
+    const retryBtn = ctaEl.createEl("button", { text: "重新检查" });
+    retryBtn.style.cssText = "padding: 6px 14px; cursor: pointer;";
+    retryBtn.onclick = () => {
+      bodyEl.setText("正在重新检查...");
+      ctaEl.empty();
+      void this.detectAndRender(bodyEl, ctaEl);
+    };
+  }
+
+  private async handleSwitchToCurrent(
+    bodyEl: HTMLElement,
+    ctaEl: HTMLElement,
+    localName: string,
+    btn: HTMLButtonElement,
+  ): Promise<void> {
+    btn.disabled = true;
+    btn.setText("切换中...");
+    const adapter = this.app.vault.adapter as unknown as { getBasePath?: () => string };
+    const basePath = typeof adapter.getBasePath === "function" ? adapter.getBasePath() : "";
+    if (!basePath) {
+      new Notice("❌ 无法获取当前 vault 路径", 4000);
+      btn.disabled = false;
+      btn.setText(`让 Canvas 切换到「${localName}」`);
+      return;
+    }
+
+    try {
+      const backendUrl = this.plugin.settings.backendUrl.replace(/\/$/, "");
+      const switchResp = await requestUrl({
+        url: `${backendUrl}/api/v1/vault/switch`,
+        method: "POST",
+        contentType: "application/json",
+        body: JSON.stringify({ vault_path: basePath }),
+        throw: false,
+      });
+      if (switchResp.status === 200) {
+        new Notice(`✓ Canvas 已切换到「${localName}」`, 5000);
+        bodyEl.setText("切换成功，正在刷新状态...");
+        ctaEl.empty();
+        await this.detectAndRender(bodyEl, ctaEl);
+      } else {
+        const errBody = switchResp.json as { detail?: { message?: string } };
+        const msg = (errBody?.detail?.message) || `HTTP ${switchResp.status}`;
+        new Notice(`❌ 切换失败：${msg}`, 6000);
+        btn.disabled = false;
+        btn.setText(`让 Canvas 切换到「${localName}」`);
+      }
+    } catch (e) {
+      new Notice(`❌ 切换异常：${(e as Error).message}`, 6000);
+      btn.disabled = false;
+      btn.setText(`让 Canvas 切换到「${localName}」`);
+    }
+  }
+
+  /**
+   * 高级配置折叠段（默认收起）— 含 BackendURL / 节点前缀 / 显式 vault 选择 dropdown
+   * 非技术用户无需展开；进阶用户可手动调整 BackendURL、切换到任意 vault、改节点池前缀
+   */
+  private renderAdvancedSection(container: HTMLElement): void {
+    const details = container.createEl("details");
+    details.createEl("summary", { text: "▸ 高级配置（端口 / 节点前缀 / 显式 vault 切换）" });
+    const inner = details.createDiv({ attr: { style: "padding: 8px 0 0 16px;" } });
+
+    new Setting(inner)
       .setName("Backend URL")
-      .setDesc(
-        "FastAPI 后端 URL（默认 http://localhost:8011 — docker host 映射端口）。修改后立即生效，无需重启。",
-      )
+      .setDesc("FastAPI 后端 URL（默认 http://localhost:8011 — docker host 映射端口）")
       .addText((text) =>
         text
           .setPlaceholder(DEFAULT_BACKEND_URL)
@@ -1722,21 +1919,10 @@ class CanvasSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
-    containerEl.createEl("p", {
-      text: "注意：docker 模式默认 http://localhost:8011（host 映射）。如本地直跑 uvicorn 用 :8001。如部署到远端（含 IP / 域名），用对应 URL。",
-      cls: "setting-item-description",
-    });
 
-    // ─── 当前挂载 Vault（Story 2.2 follow-up · vault selector） ────────
-    this.renderVaultSelector(containerEl);
-
-    // ─── 节点路径前缀（Phase 1 P1.6 暴露） ─────────────────────────
-    new Setting(containerEl)
+    new Setting(inner)
       .setName("节点路径前缀")
-      .setDesc(
-        "识别「节点池」的目录前缀（JSON 数组）。默认 [\"节点/\"]。"
-        + "英文 vault 可改为 [\"Nodes/\"]，多前缀同时生效如 [\"节点/\", \"Nodes/\"]。",
-      )
+      .setDesc('识别「节点池」的目录前缀（JSON 数组）。默认 ["节点/"]。英文 vault 可改 ["Nodes/"]')
       .addText((text) =>
         text
           .setPlaceholder('["节点/"]')
@@ -1758,17 +1944,17 @@ class CanvasSettingTab extends PluginSettingTab {
             }
           }),
       );
+
+    // 老 vault selector dropdown 留在折叠段，进阶用户切换到任意 backend 已知 vault
+    this.renderVaultSelector(inner);
   }
 
   /**
-   * Story 2.2 follow-up · vault selector
+   * Story 2.2 follow-up · vault selector (legacy dropdown, 移到高级折叠段)
    *
    * 异步从 backend /api/v1/vault/list 拿候选列表（VAULTS_ROOT 下含 .obsidian/ 的目录），
    * 渲染 dropdown 让用户切换 active vault；选中变化时 POST /api/v1/vault/switch 触发
    * backend reload_settings + vault_id 表名前缀切换。
-   *
-   * 设计：renderVaultSelector 立即返回（不阻塞 display），dropdown 用占位"加载中"，
-   * fetch 完成后填充选项。fetch 失败时显示降级提示 + Backend URL 检查指引。
    */
   private renderVaultSelector(container: HTMLElement): void {
     const setting = new Setting(container)
