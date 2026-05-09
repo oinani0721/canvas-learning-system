@@ -476,19 +476,35 @@ export default class CanvasLearningPlugin extends Plugin {
         | Record<string, unknown>
         | undefined) ?? {};
 
+    // Story 2.2 Phase A · Gap 1 fix: 取用户问题触发补充材料搜索
+    // 优先级: editor selection > Modal 输入 > 留空跳过补充材料
+    const editor = this.app.workspace.activeEditor?.editor;
+    const selection = editor?.getSelection?.()?.trim() ?? "";
+    let userQuestion = selection;
+    if (!userQuestion) {
+      userQuestion = await new Promise<string>((resolve) => {
+        new UserQuestionModal(this.app, (q) => resolve(q ?? "")).open();
+      });
+    }
+
     const t0 = Date.now();
     const url = `${this.settings.backendUrl}/api/v1/chat/enrich-context`;
+    const payload: Record<string, unknown> = {
+      node_path: activeFile.path,
+      current_note_content: body,
+      current_note_frontmatter: fmRaw,
+      max_hops: 2,
+    };
+    if (userQuestion) {
+      payload.mode = "answer";
+      payload.user_question = userQuestion;
+    }
     let resp: Response;
     try {
       resp = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          node_path: activeFile.path,
-          current_note_content: body,
-          current_note_frontmatter: fmRaw,
-          max_hops: 2,
-        }),
+        body: JSON.stringify(payload),
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -517,10 +533,15 @@ export default class CanvasLearningPlugin extends Plugin {
     const budget = parsed.budget as number;
     const neighborsCount = parsed.neighbors_count as number;
     const degraded = parsed.degraded as boolean;
+    const suppCount = (parsed.supplementary_count as number) ?? 0;
+    const suppDegraded = (parsed.supplementary_degraded as boolean) ?? false;
+    const suppReason = (parsed.supplementary_reason as string | null) ?? null;
 
-    const prompt =
-      `/chat-with-context\n\n${enrichedContext}\n\n---\n` +
-      `请基于以上上下文回答我的问题。问题：（在这里输入）`;
+    // Story 2.2 Phase A: 如果用户已输入问题，prompt 直接附问题让 Claude 立即回答
+    // 否则保留旧"在这里输入"占位符（兼容空 user_question 路径）
+    const prompt = userQuestion
+      ? `/chat-with-context\n\n${enrichedContext}\n\n---\n请基于以上上下文回答以下问题：\n\n${userQuestion}`
+      : `/chat-with-context\n\n${enrichedContext}\n\n---\n请基于以上上下文回答我的问题。问题：（在这里输入）`;
 
     try {
       await navigator.clipboard.writeText(prompt);
@@ -538,8 +559,14 @@ export default class CanvasLearningPlugin extends Plugin {
     const degradeHint = degraded
       ? `（⚠ ${parsed.degraded_reason} — 仅当前笔记）`
       : "";
+    // Story 2.2 Phase A: supplementary 信息可见化
+    const suppHint = suppCount > 0
+      ? ` + ${suppCount} 补充材料 ⭐`
+      : userQuestion && suppDegraded
+        ? `（补充材料降级: ${suppReason ?? "?"}）`
+        : "";
     new Notice(
-      `已组装 backend RAG 上下文 ${sizeKb}KB / ${neighborsCount} 邻居 / ${usedTokens}/${budget} tokens${degradeHint}（${elapsedMs}ms）\n切到 Claudian 粘贴`,
+      `已组装 backend RAG 上下文 ${sizeKb}KB / ${neighborsCount} 邻居${suppHint} / ${usedTokens}/${budget} tokens${degradeHint}（${elapsedMs}ms）\n切到 Claudian 粘贴`,
       7000,
     );
 
@@ -2657,6 +2684,81 @@ class DescriptionModal extends Modal {
       this.submitted = true;
       this.onPicked("");
     }
+    this.contentEl.empty();
+  }
+}
+
+/**
+ * Story 2.2 Phase A · Gap 1 fix: 让 Cmd+Shift+E 真实触发 Phase A 补充材料搜索
+ *
+ * 用户原话："Phase A 的 LanceDB 设计是要实现回答我问题的时候可以精确返回我需要的笔记片段"
+ * 但旧 plugin 路径不带 user_question → backend 默认 mode=preload → Phase A 不触发。
+ * 本 Modal 在用户没选中文本时弹出，让 user 输入问题；提交后随 enrich-context 一起发送给
+ * backend 触发 mode=answer + supplementary search。留空 → 跳过补充材料（兼容旧行为）。
+ */
+class UserQuestionModal extends Modal {
+  constructor(
+    app: App,
+    private onSubmit: (question: string) => void,
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h3", { text: "💬 你想问什么？" });
+    contentEl.createEl("p", {
+      text:
+        "AI 会基于当前节点 + 你的问题，从你笔记库里找出最相关的 2-5 条补充材料。"
+        + " 留空 → 跳过补充材料，仅注入邻居上下文。",
+      cls: "setting-item-description",
+    });
+
+    const inputEl = contentEl.createEl("textarea", {
+      attr: {
+        rows: "4",
+        style:
+          "width: 100%; padding: 8px; font-family: var(--font-text); "
+          + "font-size: var(--font-ui-medium); border-radius: 4px;",
+        placeholder:
+          "例：alpha-beta pruning 怎么优化 minimax 搜索？\n\n"
+          + "（留空提交 → 跳过补充材料）",
+      },
+    });
+    inputEl.focus();
+
+    const btnRow = contentEl.createDiv({
+      attr: { style: "margin-top: 12px; text-align: right;" },
+    });
+
+    const skipBtn = btnRow.createEl("button", {
+      text: "跳过补充材料",
+      attr: { style: "margin-right: 8px;" },
+    });
+    skipBtn.onclick = () => {
+      this.onSubmit("");
+      this.close();
+    };
+
+    const submitBtn = btnRow.createEl("button", {
+      text: "提问 (⌘+Enter)",
+      cls: "mod-cta",
+    });
+    submitBtn.onclick = () => {
+      this.onSubmit(inputEl.value.trim());
+      this.close();
+    };
+
+    inputEl.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        submitBtn.click();
+      }
+    });
+  }
+
+  onClose() {
     this.contentEl.empty();
   }
 }
