@@ -537,11 +537,19 @@ export default class CanvasLearningPlugin extends Plugin {
     const suppDegraded = (parsed.supplementary_degraded as boolean) ?? false;
     const suppReason = (parsed.supplementary_reason as string | null) ?? null;
 
-    // Story 2.2 Phase A: 如果用户已输入问题，prompt 直接附问题让 Claude 立即回答
-    // 否则保留旧"在这里输入"占位符（兼容空 user_question 路径）
+    // Story 2.2 Phase A · Prompt Engineering 硬约束（commit 4ff093c followup）:
+    // 后端真实把 5 条 vault wikilink 塞进 <supplementary_materials> 但 Claude 仍
+    // fallback 到训练数据 (CS188/AIMA web 资源) — 必须用 prompt 末尾强 instruction
+    // 锁死 "答案必须 anchor vault 内容 + 至少 1 inline wikilink"
+    const ANCHOR_INSTRUCTION =
+      "请严格基于以上 <rag_context> 内的 <current_note> + <neighbor> + <supplementary_materials> 回答。"
+      + "若 <supplementary_materials count=\"N\"> 且 N>0，**回答正文中必须至少出现 1 个来自 supplementary 的 [[wikilink]] 作为 inline evidence**（不是末尾装饰列表，是答案行文中直接引用）。"
+      + "禁止凭训练数据答 CS188/AIMA/Berkeley 课程等课程教材类问题（用户 raw/CS188/ 已索引在 vault 内）。"
+      + "仅当 <current_note> + 全部 <neighbor> + 全部 <supplementary_materials> 都无关时才允许通用知识 + 必须显式标 `（通用知识 — vault 无相关材料）`。"
+      + "末尾用 `---` 分隔后再展示完整 supplementary 列表（title/wikilink/snippet/score）便于跳转。";
     const prompt = userQuestion
-      ? `/chat-with-context\n\n${enrichedContext}\n\n---\n请基于以上上下文回答以下问题：\n\n${userQuestion}`
-      : `/chat-with-context\n\n${enrichedContext}\n\n---\n请基于以上上下文回答我的问题。问题：（在这里输入）`;
+      ? `/chat-with-context\n\n${enrichedContext}\n\n---\n${ANCHOR_INSTRUCTION}\n\n问题：${userQuestion}`
+      : `/chat-with-context\n\n${enrichedContext}\n\n---\n${ANCHOR_INSTRUCTION}\n\n问题：（在这里输入）`;
 
     try {
       await navigator.clipboard.writeText(prompt);
