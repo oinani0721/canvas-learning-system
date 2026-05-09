@@ -377,18 +377,33 @@ async def _two_tier_search(
             "(Story 1.9 升级前老索引；建议 Ops 跑 POST /api/v1/metadata/index/vault rebuild)",
             rows=len(df),
         )
-        # Phase A 简化：tier-2 命中时统一给 0.85 score（FTS BM25 与 cosine [0,1] 不可比）
-        # Phase B supplementary_reranker 才做精排（type weight + 真实 score 归一化）
+        # Phase A0 修复 I (Round-3 ChatGPT V2 + cross-check confirmed FATAL bug):
+        # 旧逻辑硬编码 score=0.85 绕过 min_relevance=0.30 + 绕过 elbow_cut(0.05)
+        # 旧 BM25 与 cosine [0,1] 不可比的简化 trade-off 代价过大 — 让 tier-2 与真实 hybrid 命中
+        # 在下游过滤逻辑上完全等同对待。
+        # 新逻辑: rank-decay score [0.31, 0.50] (恰好 > min_relevance=0.30 但远低于真实 hybrid)
+        #        + degraded=True 顶层标志（下游可观测/过滤）
+        # Phase B 必须接 supplementary_reranker 做真实 cross-encoder 精排（解决 BM25/cosine 不可比）
         normalized: list[dict[str, Any]] = []
-        for _, row in df.iterrows():
+        df_size = max(len(df), 1)
+        for idx, (_, row) in enumerate(df.iterrows()):
             raw_canvas_file = str(row.get("canvas_file", "") or "")
+            # rank 0 → 0.50, rank N-1 → 0.31（保留 FTS BM25 排序信号但不绕过 min_relevance）
+            rank_score = (
+                0.50 - 0.19 * (idx / max(df_size - 1, 1)) if df_size > 1 else 0.50
+            )
             normalized.append(
                 {
-                    "score": 0.85,
+                    "score": rank_score,
                     "content": str(row.get("content", "") or ""),
                     "doc_id": str(row.get("doc_id", "") or ""),
-                    "metadata": {"canvas_file": raw_canvas_file},
+                    "metadata": {
+                        "canvas_file": raw_canvas_file,
+                        "is_legacy_fallback": True,
+                    },
                     "canvas_file": raw_canvas_file,
+                    "is_legacy_fallback": True,  # 顶层标志，方便下游 filter
+                    "degraded": True,
                 }
             )
         return normalized
