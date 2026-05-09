@@ -68,7 +68,7 @@ import {
   type NodeChatContext,
 } from "./node-chat-context";
 
-const DEFAULT_BACKEND_URL = "http://localhost:8001";
+const DEFAULT_BACKEND_URL = "http://localhost:8011";  // docker host 映射端口（container 内 8001 → host 8011，由 .env API_PORT 决定）
 const DEFAULT_NODE_PATH_PREFIXES = ["节点/"];
 
 /**
@@ -1711,7 +1711,7 @@ class CanvasSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Backend URL")
       .setDesc(
-        "FastAPI 后端 URL（默认 http://localhost:8001）。修改后立即生效，无需重启。",
+        "FastAPI 后端 URL（默认 http://localhost:8011 — docker host 映射端口）。修改后立即生效，无需重启。",
       )
       .addText((text) =>
         text
@@ -1723,7 +1723,7 @@ class CanvasSettingTab extends PluginSettingTab {
           }),
       );
     containerEl.createEl("p", {
-      text: "注意：本地开发用 http://localhost:8001。如部署到远端（含 IP / 域名），用对应 URL。",
+      text: "注意：docker 模式默认 http://localhost:8011（host 映射）。如本地直跑 uvicorn 用 :8001。如部署到远端（含 IP / 域名），用对应 URL。",
       cls: "setting-item-description",
     });
 
