@@ -425,23 +425,34 @@ def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
             pass
 
     # 2026-05-09 P0 fix: chunks/merged.md 派生路径回写到原文件
-    # LanceDB 切分时把 chunk 的 file_path 写成 "lecture 2/chunks/merged.md"
-    # 但 vault 内实际文件是 "lecture 2/lecture 2.md"
-    # → wikilink 必须指原文件 (业界共识：Smart Connections / Khoj / Copilot 100%)
     canvas_file = _resolve_chunks_to_source_file(canvas_file)
     file_display = canvas_file[:-3] if canvas_file.endswith(".md") else canvas_file
-    if heading:
-        # 仅清理 markdown link 残留（如视频时间戳 [01:05:34]() / 嵌入 [[wikilink]]）
-        # 不要 over-strip 真实 `()` / `-` / `:` 等字面字符（破坏 Obsidian heading 字面匹配）
-        heading = re.sub(r"\[\[.*?\]\]", "", heading).strip()
-        heading = re.sub(r"\[.*?\]\(.*?\)", "", heading).strip()
-        # 仅清残留空 `()` 紧跟空白（典型 timestamp 删后残留）
-        # ⛔ 不能 strip 文件名 / heading 真实含的 `()` — 用户实测 `规划的分类-1549()` 被误剥
-        heading = re.sub(r"^\s+|\s+$", "", heading)  # 仅 trim 首尾空白
 
+    # 2026-05-09 wikilink 跳转修复 (3 agent 实测确认):
+    # ⛔ heading anchor 必须**字面 100% 匹配** vault 内文档的 heading
+    # - 文档真实 heading: "6.4.1 解决局部最优陷阱的方法 [59:00]()-[01:00]()"
+    # - 之前 over-strip [time]() 后剩 "6.4.1 ... 方法 -" → Obsidian 找不到 → 仅跳文件不滚动
+    # → heading 字面完整保留（含视频 timestamp 残留），display text 才做清洗供视觉简洁
+    raw_heading = heading or ""  # 保留 LanceDB 索引时的原始 heading 字面（与文档一致）
+    display_heading = raw_heading
+    if display_heading:
+        # display text (用户视觉) 仅做清洗：去 [time]() / [[wikilink]] / 末尾空白
+        display_heading = re.sub(r"\[\[.*?\]\]", "", display_heading).strip()
+        display_heading = re.sub(r"\[.*?\]\(.*?\)", "", display_heading).strip()
+        display_heading = re.sub(
+            r"\s+-\s*$", "", display_heading
+        ).strip()  # 末尾 ` -` 残留
+        display_heading = re.sub(r"^\s+|\s+$", "", display_heading)
+    heading = raw_heading  # ⭐ wikilink anchor 用字面 raw heading（保跳转）
+
+    # 2026-05-09 wikilink 拼接: anchor 用 raw heading 字面匹配文档，display 用 clean 简洁视觉
+    # ⛔ wikilink heading anchor 含 `[time]()` 时 Obsidian wikilink parser 行为未公开
+    # 业界备选 (Smart Connections / Khoj): 用 markdown link `[display](file.md#heading)`
+    # 当前先试 wikilink 字面 anchor 路径，如 Obsidian 解析仍失败再切 markdown link
+    display_text = display_heading or heading or ""
     if file_display and heading and heading != file_display:
-        wikilink = f"[[{file_display}#{heading}|{heading}]]"
-        title = heading
+        wikilink = f"[[{file_display}#{heading}|{display_text}]]"
+        title = display_text
     elif file_display:
         wikilink = f"[[{file_display}]]"
         title = file_display.split("/")[-1]
