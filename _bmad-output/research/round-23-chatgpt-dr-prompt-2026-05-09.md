@@ -590,4 +590,320 @@ ChatGPT 应主动 web search 以下：
 
 ---
 
-*Generated 2026-05-09 03:01 (V1) + 2026-05-09 12:43 (V2 升级) — 待用户复制 V2 提示词到 ChatGPT Deep Research，回填响应到 round-23-chatgpt-dr-response-v2-2026-05-09.md*
+*Generated 2026-05-09 03:01 (V1) + 2026-05-09 12:43 (V2 升级) — V2 已 ChatGPT 回 + cross-check confirmed + Phase A0 已 ship (commit aef95be)*
+
+---
+
+# V3 — Multi-Vault Architecture Adversarial Review (2026-05-09 14:00 升级)
+
+> **V3 vs V1/V2 关系**:
+> - V1: 范式选择（X 单 vault LanceDB / Y grep / Z hybrid）
+> - V2: 单 vault hook RAG 的 7 根因修复 + 对抗审查
+> - **V3: 多 vault 架构演进** — 用户原话"以后 Canvas Learning System 会用到很多其他不同的 vault"
+>
+> **V3 触发**：Phase A0 修复 ship 后 (rank 8-10 漂移消失)，用户提出未来要支持很多 vault（不同课程一 vault）。需要 ChatGPT 审视架构是否真的 ready，以及 V2 修复方案在多 vault 下是否还成立。
+>
+> **V3 调研产物**: 4 并行 Explore/general-purpose agent 调研完成（多 vault 隔离 / Phase A0 多 vault 影响 / hardcode 审计 / 业界对照）
+
+## V3 调研关键发现汇总（4 agent 共识）
+
+### 当前 ready 度: **85%**
+
+✅ **已就绪 (5 项)**:
+1. LanceDB namespace 隔离 — 单 DB + `{vault_id}_table_name` 前缀（`backend/lib/agentic_rag/clients/lancedb_client.py:394-401`）
+2. Graphiti group_id — `vault:<vault_id>:<subject>` 格式 + cypher_with_group_filter 防御（Story 2.5.Y）
+3. Backend hot-reload — `reload_settings()` 支持无 restart 切 vault
+4. API 端点 vault_id 必填 — `/api/v1/chat/enrich-context` 等
+5. migrate_group_ids.py 完整覆盖已弃用格式
+
+❌ **Gap (4 项)**:
+1. **`reference_priority.json` 全局单一** — 不同 vault 目录结构不同（CS61B 用 `videos/lectures/` vs 数学课用 `课件/讲座/`），全局 pattern 跨 vault 必失配（Phase A0 修的 J 在多 vault 下问题重现！）
+2. **`apply_source_priority(results)` 无 vault_id 参数** — 无法 per-vault 加载 priority config（reference_config.py:66-94）
+3. **SQLite `qa_metrics.db` 无 vault 隔离字段** — 跨 vault 数据污染
+4. **`.canvas-config.yaml` 缺 `vault_id` 显式字段** — 依赖文件夹名 `sanitize_vault_id()` 推断，易出错
+
+### 业界对照（Agent 4 调研）
+
+**强隔离派系占主流** (NotebookLM / AnythingLLM / Logseq / RagFlow):
+- **NotebookLM**: 强物理隔离，**拒绝跨 notebook 搜索**（"isolation = strength" 设计哲学）
+- **AnythingLLM**: per-workspace LanceDB collection + 全局 embedder + **per-workspace reranker/LLM/top_k/system_prompt**
+- **Logseq**: per-graph 严格隔离，跨 graph FR **4 年悬而未决**
+- **RagFlow**: per-dataset 物理隔离 + 可选跨 dataset union（要求同 embedder）
+
+**唯一合并派**: Khoj (pgvector 单一索引 + `file:` filter 过滤，社区评价"次选"方案)
+
+**Pinecone/Weaviate 多租户结论**:
+- 小 tenant 数（< 100）+ 强隔离需求 → **per-collection**
+- 海量 tenant（10k+）→ metadata filter
+- Canvas 课程数预估 < 100 → **per-collection 是正解**
+
+### 业界对教育场景的明确建议
+
+> 1. **Per-vault LanceDB table**（已 ✅）— 强物理隔离符合用户"一门课一个 vault"心智
+> 2. **全局 embedder（bge-m3 锁）+ per-vault reranker/top_k/source-priority/system-prompt**
+> 3. **MVP 不做跨 vault RAG**；如未来需要"所有课程关于 algorithm" → 走 **LLM 层多 vault attachment**（学 Gemini-NotebookLM）
+
+## V3 提示词全文（复制下面 ~~~~~~ 整段给 ChatGPT Deep Research）
+
+> 使用方式：
+> 1. ChatGPT → 选 Deep Research 模式（GPT-5 / o3）
+> 2. 复制下面 `~~~~~~` 包裹的整段（不含外层包裹符）
+> 3. 等 5-15 min
+> 4. 回填到 `_bmad-output/research/round-23-chatgpt-dr-response-v3-multi-vault-2026-05-09.md`
+
+~~~~~~
+# Tech Decision: Canvas Learning System Multi-Vault Architecture — Adversarial Review
+
+## Context
+
+我做的是一个本地 Obsidian PKM RAG 系统。**关键演进需求**：未来用户会有**很多不同的 vault**（每门课程一个 vault — CS 61B / 数学 / 英语 / 历史 ...）。现在 Phase A0 修复刚 ship（commit aef95be），单 vault 召回精度从 30% 漂移降到 0%。但需要审视多 vault 下架构是否还成立。
+
+**仓库**: https://github.com/oinani0721/canvas-learning-system
+**Branch**: `worktree-feature-obsidian-hybrid-dev` （⚠️ 必须切此分支）
+
+**Tech Stack**:
+- Backend: FastAPI + LanceDB (单 DB 多 table 前缀 `{vault_id}_vault_notes`) + Neo4j (group_id 隔离) + bge-m3 1024d
+- Frontend: Obsidian plugin + Claudian sidebar
+- Hook: Claude Code SDK UserPromptSubmit hook (curl POST 到 `/rag/enrich-hook`)
+- 当前 Phase A0 修复: priority pattern 加 `**/` 前缀 + tier-2 fallback rank decay + degraded 标志
+
+---
+
+## 4 并行 Agent 调研发现（你需要审视/挑战）
+
+### 当前架构现状（Agent 1）
+
+**ready 部分**:
+- `backend/lib/agentic_rag/clients/lancedb_client.py:394-401` `resolve_table_name()` 单 DB + `{vault_id}_` 前缀
+- `backend/app/core/subject_config.py:212-262` `build_vault_group_id(vault_id, subject_id, canvas_path)` Graphiti group_id
+- `backend/app/utils/cypher_helpers.py:20-96` `cypher_with_group_filter()` 强制 WHERE 注入防跨 vault 泄漏
+- `backend/app/config.py:702-704` `Settings.vault_id` property + `reload_settings()` 支持 hot-reload
+- `backend/scripts/migrate_group_ids.py` 完整迁移脚本 (cs188/canvas-dev/cs_61b:main → vault:* 格式)
+- `frontend/obsidian-plugin/src/main.ts` plugin 读 `.canvas-config.yaml` + `buildAcceptPayload()` 传 vault_id
+
+**已知 Gap**:
+- `backend/data/reference_priority.json` 全局单一文件，跨 vault 目录结构不同（CS 61B 用 `videos/lectures/`，数学课可能用 `课件/讲座/`），Phase A0 修的 `**/videos/lectures/**` 在新 vault 上必失配
+- `backend/app/core/reference_config.py:66-94` `apply_source_priority(results)` 函数无 `vault_id` 参数
+- `backend/app/services/supplementary_search_service.py:387` Phase A0 修复 I 加了 `is_legacy_fallback=True` 标志，但**没区分哪个 vault 的 legacy**
+- SQLite `qa_metrics.db` 表无 vault_id 字段 → 跨 vault 数据污染
+- `.canvas-config.yaml` 当前只有 `subject` 字段，**缺 `vault_id` 显式字段**（依赖 `sanitize_vault_id(ACTIVE_VAULT)` 文件夹名推断，易出错）
+- DEFAULT_GROUP_ID="cs188" 硬编码 (config.py:471)
+
+### Phase A0 在多 vault 下的兼容性（Agent 2）
+
+我们 Phase A0 (commit aef95be) 修了 `reference_priority.json`：
+```json
+{
+  "source_priorities": [
+    {"pattern": "**/*-explanations/**", "weight": 0.5, "label": "..."},
+    {"pattern": "原白板/**", "weight": 0.3},
+    {"pattern": "节点/**", "weight": 0.9},
+    {"pattern": "**/videos/lectures/**", "weight": 1.5},
+    ...
+  ]
+}
+```
+
+**Agent 2 警告**：当前 pattern 假设所有 vault 都用相似目录结构。但：
+- CS 61B vault: `raw/CS61B/videos/lectures/...` ← 命中 1.5x boost
+- 数学课 vault: `课件/微积分/讲座1/...` ← **0 命中**，回到无 boost 状态
+- 英语 vault: `articles/...` + `vocabulary/...` ← 0 命中
+- 节点/原白板 是 Round-11 锁定的扁平架构（所有 vault 共用），但 demote weight 0.3 / 0.9 是否对所有学科都合理？
+
+### 业界对照（Agent 4）
+
+| 产品 | 隔离策略 | 跨 vault 搜索 | 配置粒度 |
+|---|---|---|---|
+| NotebookLM | 强物理隔离 | ❌ 拒绝（设计哲学） | per-notebook |
+| AnythingLLM | per-workspace LanceDB collection | ❌ 默认 | 全局 embedder + per-workspace reranker/LLM/top_k/prompt |
+| Logseq | per-graph Datascript DB | ❌ 4 年 FR 未解 | per-graph |
+| RagFlow | per-dataset 物理隔离 | ✅ 可选 union | 跨 dataset 要求**同 embedder** |
+| Khoj | 单 pgvector 索引 + `file:` filter | ✅（合并派少数） | per-agent custom KB |
+
+**Pinecone/Weaviate 多租户共识**：
+- 小数量 tenant（< 100）+ 强隔离需求 → **per-collection** (clean isolation, custom configs)
+- 海量 tenant（10k+）→ metadata filter
+- Canvas 课程数预估 < 100 → per-collection 完胜
+
+---
+
+## 必读文件清单（Tier 0 — GitHub URL 模板 `https://github.com/oinani0721/canvas-learning-system/blob/worktree-feature-obsidian-hybrid-dev/<path>#L<a>-L<b>`）
+
+### T0-1. V2 调研产物 + Phase A0 修复
+- `_bmad-output/research/round-23-phase-a-retrieval-quality-2026-05-09.md` (1000+ 行) — 完整调研含 §13 7 根因 + §18 cross-check + §19 修复方案
+- `_bmad-output/research/round-23-chatgpt-dr-response-v2-2026-05-09.md` — V2 ChatGPT 反馈 (确认 4 致命漏诊)
+- `_bmad-output/research/round-23-chatgpt-dr-prompt-2026-05-09.md` §V3 — 本 prompt 来源
+
+### T0-2. 多 vault 隔离机制核心
+- `backend/lib/agentic_rag/clients/lancedb_client.py:388-444` — `get_current_vault_id()` + `resolve_table_name()` + `list_vault_tables()` + `drop_vault_tables()`
+- `backend/app/config.py:702-704` — `Settings.vault_id` property
+- `backend/app/config.py:913-932` — `reload_settings()` hot-reload
+- `backend/app/config.py:471` — `DEFAULT_GROUP_ID="cs188"` 硬编码（待修）
+- `backend/app/core/subject_config.py:212-262` — `build_vault_group_id()`
+- `backend/app/core/subject_config.py:292-354` — `canonical_group_id()` backward compat
+- `backend/app/utils/cypher_helpers.py:20-96` — `cypher_with_group_filter()` 防御注入
+
+### T0-3. Phase A0 修复（多 vault 兼容性焦点）
+- `backend/data/reference_priority.json` — Phase A0 改后内容（全局单一文件）
+- `backend/app/core/reference_config.py:66-94` — `apply_source_priority()` 无 vault_id 参数
+- `backend/app/services/supplementary_search_service.py:380-409` — Phase A0 修复 I 后的 tier-2 fallback rank decay + degraded 标志
+
+### T0-4. Vault config 入口
+- `canvas-vault/.canvas-config.yaml` — 当前 schema (subject / subject_display / active_board / schema_version / deprecated_paths)
+- `frontend/obsidian-plugin/src/main.ts` — `readVaultConfig()` + `buildAcceptPayload()`
+- `backend/app/api/v1/endpoints/chat.py:589-696` — `rag_enrich_hook` Hook endpoint（注意 `req.cwd` 当前**未用**，多 vault 下需要解析）
+
+### T0-5. 数据迁移
+- `backend/scripts/migrate_group_ids.py` — 已弃用格式映射
+
+---
+
+## 选读文件（Tier 1）
+
+- `backend/app/api/v1/endpoints/chat.py:201-316` `enrich_context` — 另一路径（带 vault_id 必填参数）
+- `backend/app/services/lancedb_index_service.py` — 索引服务，文件监听 vault 路径
+- `backend/app/services/rag_service.py` — 主 RAG service
+- `backend/app/api/v1/endpoints/metadata.py:450-530` — skip_dirs 配置入口
+- 历史调研: `_bmad-output/research/round-13-wikilink-vs-graphiti-five-questions-answer-2026-04-29.md` — wikilink vs Graphiti 双轨决策
+
+---
+
+## 关键 Commits 时间线
+
+| Commit | 主题 |
+|---|---|
+| `aef95be` | **Phase A0**: 修 J pattern 失配 + I tier-2 fallback 0.85 (rank 8-10 漂移消失) |
+| `a614af0` | Round-3 ChatGPT V2 反馈 + 4 cross-check（4 致命漏诊确认）|
+| `f4d74fc` | chatgpt-dr-prompt md 追加 V2 完善版 |
+| `aad0c9a` | Round-2 6 agent 对抗调研 |
+| `fa814e7` | UserPromptSubmit hook 自动 RAG 注入 |
+
+---
+
+## What I Need From You (Adversarial Review)
+
+请你做 5 件事：
+
+### 1. 验证 4 agent 调研发现的 Gap
+
+直接读仓库源码（按 T0 清单），对照我列的 4 个 Gap：
+- `reference_priority.json` 全局单一是否真的会跨 vault 失配？
+- `apply_source_priority` 真的没 vault_id 参数？
+- SQLite qa_metrics.db 真的缺 vault 隔离字段？
+- `.canvas-config.yaml` 真的缺 vault_id 显式字段？
+
+找出**4 agent 漏诊的多 vault Gap**（H, I, ...）— 比如：是否还有更隐藏的"假设单 vault"硬编码？
+
+### 2. 挑战 Phase A0 修复在多 vault 下的兼容性
+
+Phase A0 (commit aef95be) 修复了 J（pattern 加 `**/`）+ I（tier-2 fallback rank decay）。但：
+- 修复 J 假设 vault 用 `videos/lectures/` 这种结构 — **跨 vault 不通用**。修复 J 是否需要降级为 vault 无关 fallback + per-vault override 机制？
+- 修复 I 的 `is_legacy_fallback` 标志在多 vault 下如何区分？是否要加 `vault_id` 到 metadata?
+- 节点/`原白板/`weight 0.3 / 0.9 是 CS 课程经验值，对数学/英语/历史 vault 是否仍合理？
+
+### 3. 设计 Per-Vault Retrieval Config Schema
+
+业界（AnythingLLM）做法：全局 embedder + per-workspace reranker/top_k/source-priority/system-prompt。请设计 Canvas Learning System 的 per-vault config schema：
+
+**.canvas-config.yaml 升级版应该有哪些字段？**
+- vault_id（显式，不依赖文件夹名推断）
+- subject（已有）
+- 是否加 `retrieval_hints` 段：
+  - `source_priorities` per-vault override（覆盖全局 reference_priority.json）
+  - `excluded_headings`（默认值 + per-vault 自定义）
+  - `excluded_prefixes`
+  - `reranker_model`（默认 BGE 全局，per-vault 覆盖）
+  - `top_k_max` / `min_relevance` / `elbow_drop_threshold`
+
+**全局 vs per-vault 的拆分原则是什么？业界共识？**
+
+### 4. 设计 Vault CRUD Onboarding 流程
+
+当前 onboarding 是 5 步手工：mkdir 目录 + 写 .canvas-config.yaml + 调 backend init API + 修改 .env ACTIVE_VAULT + 调 vault/switch API（小白友好度 3/5）
+
+请设计 production-ready 的多 vault 流程：
+
+**核心问题**:
+- **新建 vault**：用户在 Obsidian 里点一个按钮 → backend 自动创建 vault_id + LanceDB table + Graphiti group_id + 写 .canvas-config.yaml？
+- **切换 vault**：plugin 检测当前 active vault → 自动通知 backend reload_settings()？
+- **删除 vault**：用户删 Obsidian vault 后 → backend 自动 cleanup LanceDB tables / Neo4j group_id?
+- **复制/clone vault**：用户复制一门课的 vault 给新学期 → 是否需要重 index？
+- **vault rename**：vault_id 改了之后所有引用如何迁移？
+
+参考业界产品（AnythingLLM、NotebookLM）的 UX 流程。
+
+### 5. 跨 Vault 搜索的决策（Strategic Question）
+
+业界共识是**默认强隔离 + 拒绝跨 vault**（NotebookLM / Logseq / AnythingLLM）。但用户场景：
+- 学生在数学课 vault 里问"梯度下降跟 CS 188 lecture 4 的局部搜索算法有什么联系" — 需要跨 vault 检索
+- 学生想问"我所有课程里关于 alpha-beta pruning 的笔记" — 需要 union 检索
+
+**请决策**：
+- Canvas Learning System 应该支持跨 vault 搜索吗？
+- 如果支持：是 RAG 层 union（学 RagFlow）还是 LLM 层 multi-attachment（学 NotebookLM + Gemini）？
+- 如果不支持：用户怎么解决"跨课关联"需求？UI 提示？
+
+---
+
+## Constraints (你的方案必须满足)
+
+- **保持 LanceDB 单 DB + per-table 前缀架构**（已锁定，不接受换 DB）
+- **bge-m3 是全局 embedder**（不接受 per-vault embedder — 业界共识不接受切 embedder）
+- **保持 ACTIVE_VAULT env var + reload_settings hot-reload 机制**
+- **`.canvas-config.yaml` 作为单一 truth source**（不引入额外的 backend-side vault registry）
+- **保持 zero-fork Claudian / Obsidian**（只能动 plugin + backend）
+- **课程数预估 < 100**（per-collection 而非 metadata filter）
+
+---
+
+## Desired Output Format
+
+1. **4 个 Gap 验证**（per-gap confirmed/refuted + 漏诊补充）
+2. **Phase A0 多 vault 兼容性挑战**（J / I 在多 vault 下的修复方案重新设计）
+3. **Per-Vault Retrieval Config Schema 设计**（.canvas-config.yaml 完整 v2 版本 + 全局 vs per-vault 拆分原则）
+4. **Vault CRUD Onboarding 流程**（新建/切换/删除/复制/rename 5 套流程，带 UX wireframe）
+5. **跨 Vault 搜索决策**（支持 / 不支持 + 理由 + UX 方案）
+6. **Phase B 多 vault 增强路线**（在 Phase A0 ship 后，Phase B 应该做什么 — 含工作量到函数级）
+7. **你认为最大的多 vault 盲点**（一段长答）
+
+---
+
+## What I Specifically Want You to Push Back On
+
+不要只赞美我们的方案。请尖锐地：
+- 我们说 "85% ready 多 vault" — 但 SQLite 无隔离 + .canvas-config 缺 vault_id 字段 + DEFAULT_GROUP_ID 硬编码，这是 85% 还是 60%？
+- AnythingLLM 的"per-workspace reranker"在 macOS 本地 + 我们 5s hook 预算下是否过度（每个 vault 加载独立 reranker model 会 OOM 吗）？
+- "MVP 不做跨 vault" — 但学生场景天然有跨课关联需求，业界 NotebookLM 拒绝是否是 enterprise 偏见，教育场景应该不一样？
+- 我们的 Phase A0 修复 J（`**/videos/lectures/**`）— 在数学/英语 vault 上不命中 = 退化为无 boost = 漂移可能重现。是否应该立刻把 priority 配置 per-vault 化（不等 Phase B）？
+
+---
+
+## Output Length
+
+不限。Per-Vault Config Schema 越细越好，工作量估算到具体函数级。
+~~~~~~
+
+---
+
+## V3 ChatGPT 返回后工作流
+
+1. ChatGPT 报告 ship 到 `_bmad-output/research/round-23-chatgpt-dr-response-v3-multi-vault-2026-05-09.md`
+2. Claude 启动 4-6 个并行 Explore agent **cross-check** ChatGPT 关键 claim（特别是漏诊 Gap H+ / Phase B 路线 / per-vault config schema 是否合理）
+3. Claude 综合 → 产出 Phase A1 多 vault 增强 Story spec
+4. 用户决策 → 启动 dev → ship 多 vault demo（创建第二个 vault 实测）
+
+---
+
+## V1 vs V2 vs V3 关键决策对比
+
+| 决策 | V1 | V2 | V3 |
+|---|---|---|---|
+| 焦点 | 单 vault 范式选择 (X/Y/Z) | 单 vault 7 根因修复 | **多 vault 架构演进** |
+| 假设 | RAG 漂移修不掉 | hook RAG 已 ship 但漂移 | Phase A0 已 ship 0% 漂移 |
+| 用户痛点 | "Top 5 60% 噪音" | "Top 10 30% 漂移" | "未来很多 vault" |
+| 架构问题 | 范式不对 | side-path 实现 bug | 单 vault 假设到处都是 |
+| Output 颗粒度 | 范式对比 | file:line 根因 | per-vault config schema + CRUD 流程 |
+
+---
+
+*Generated 2026-05-09 03:01 (V1) + 2026-05-09 12:43 (V2) + 2026-05-09 14:00 (V3 multi-vault) — 待用户复制 V3 提示词到 ChatGPT Deep Research，回填响应到 round-23-chatgpt-dr-response-v3-multi-vault-2026-05-09.md*
