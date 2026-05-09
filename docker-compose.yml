@@ -147,6 +147,7 @@ services:
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - OLLAMA_BASE_URL=${OLLAMA_HOST:-http://host.docker.internal:11434}  # P0 fix: lancedb_client 读 OLLAMA_BASE_URL，与 OLLAMA_HOST 别名同步
       - CANVAS_BASE_PATH=/vaults/${ACTIVE_VAULT:-canvas-vault}  # Story 2.2 follow-up: 顶级 /vaults 脱离 /app 嵌套
       - VAULTS_ROOT=/vaults  # 同上
       - ACTIVE_VAULT=${ACTIVE_VAULT:-canvas-vault}

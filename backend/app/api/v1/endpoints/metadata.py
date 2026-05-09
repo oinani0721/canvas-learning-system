@@ -474,7 +474,11 @@ async def index_vault_notes(
 
         vault_path = settings.canvas_base_path
         skip_dirs_str = getattr(
-            settings, "VAULT_INDEX_SKIP_DIRS", ".obsidian,.git,.trash,node_modules"
+            settings,
+            "VAULT_INDEX_SKIP_DIRS",
+            # P0 fix (2026-05-09): 加 *-explanations 跳过 AI 生成解释目录
+            # 与 outputs 跳过验收/导出物，避免无意义索引扩张
+            ".obsidian,.git,.trash,node_modules,outputs,*-explanations",
         )
         skip_dirs = [d.strip() for d in skip_dirs_str.split(",")]
         chunk_size = getattr(settings, "VAULT_INDEX_CHUNK_SIZE", 500)
