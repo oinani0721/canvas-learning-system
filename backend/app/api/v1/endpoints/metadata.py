@@ -476,9 +476,15 @@ async def index_vault_notes(
         skip_dirs_str = getattr(
             settings,
             "VAULT_INDEX_SKIP_DIRS",
-            # P0 fix (2026-05-09): 加 *-explanations 跳过 AI 生成解释目录
-            # 与 outputs 跳过验收/导出物，避免无意义索引扩张
-            ".obsidian,.git,.trash,node_modules,outputs,*-explanations",
+            # Phase A T1.1 (2026-05-09): GPT DR 推荐 + 用户实测污染清单的完整黑名单
+            # - .claude/.claudian: Skill / Claudian 工具文档（用户实测 3 SKILL.md 进库噪音）
+            # - _bmad-output/archive/templates: 开发文档/归档/模板（非学习内容）
+            # - outputs: 验收/导出物
+            # - *-explanations: AI 生成解释（fnmatch glob，需配合 lancedb_client.py:1251 fix）
+            # - Excalidraw/_misc: 手绘图/杂项 junk
+            ".obsidian,.git,.trash,node_modules,"
+            ".claude,.claudian,_bmad-output,archive,templates,"
+            "outputs,*-explanations,Excalidraw,_misc",
         )
         skip_dirs = [d.strip() for d in skip_dirs_str.split(",")]
         chunk_size = getattr(settings, "VAULT_INDEX_CHUNK_SIZE", 500)

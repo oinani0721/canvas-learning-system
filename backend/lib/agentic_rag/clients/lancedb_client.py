@@ -39,6 +39,7 @@ Updated: 2026-03-16 (Story 2.3 - bge-m3 Migration)
 """
 
 import asyncio
+import fnmatch
 import json
 import os
 import time
@@ -1243,14 +1244,48 @@ class LanceDBClient:
         # Ollama and vectorizer are unavailable (checked per-file below).
 
         if skip_dirs is None:
-            skip_dirs = [".obsidian", ".git", ".trash", "node_modules"]
+            # Phase A T1.1 (2026-05-09): 扩展默认 skip + 加常见 PKM 噪音目录
+            skip_dirs = [
+                ".obsidian",
+                ".git",
+                ".trash",
+                "node_modules",
+                ".claude",
+                ".claudian",  # Skill / Claudian 工具文档
+                "_bmad-output",  # BMAD 开发文档（若 vault 内含此目录）
+                "archive",
+                "templates",  # 归档 / 模板目录
+                "outputs",  # 验收/导出物
+                "*-explanations",  # AI 生成解释（glob，需 fnmatch）
+                "Excalidraw",  # 手绘图（无文字检索价值）
+                "_misc",  # 杂项 / junk
+            ]
+
+        # Phase A T1.1 (2026-05-09): glob bug 修复 — 用 fnmatch 处理 *-explanations
+        # 之前 `d not in skip_dirs` 精确匹配，glob 永不命中 → 41 个 explanations 全进库
+        skip_files = [
+            # 工具/工程文档（非用户学习内容）
+            "CLAUDE.md",
+            "管道设计.md",
+            "Dashboard.md",
+            "未命名*.md",
+            "Untitled*.md",
+            "2111.md",  # 测试残留
+            "*.excalidraw.md",  # 手绘图 md 包装
+        ]
+
+        def _is_skipped_dir(name: str) -> bool:
+            return any(fnmatch.fnmatch(name, pat) for pat in skip_dirs)
+
+        def _is_skipped_file(name: str) -> bool:
+            return any(fnmatch.fnmatch(name, pat) for pat in skip_files)
 
         # Scan all .md files
         md_files: List[str] = []
         for root, dirs, files in os.walk(vault_path):
-            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            dirs[:] = [d for d in dirs if not _is_skipped_dir(d)]
             for f in files:
-                if f.endswith(".md"):
+                if f.endswith(".md") and not _is_skipped_file(f):
                     md_files.append(os.path.join(root, f))
 
         if not md_files:
