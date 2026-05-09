@@ -216,6 +216,33 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _resolve_chunks_to_source_file(path: str) -> str:
+    """把 LanceDB chunk 的 'X/chunks/<chunk>.md' 派生路径回写到原文件 X.md.
+
+    业界共识 (Smart Connections / Khoj / Copilot for Obsidian 100% 一致):
+    chunk 是索引时的虚拟切片，**绝不写虚拟派生文件**。citation 始终指向原 .md。
+
+    Examples:
+        'raw/CS188/videos/lectures/lecture 2/chunks/merged.md'
+            → 'raw/CS188/videos/lectures/lecture 2/lecture 2.md'
+        'raw/X/exam_prep/EP04_MDPs.../chunks/merged.md'
+            → 'raw/X/exam_prep/EP04_MDPs.../EP04_MDPs....md'
+        '节点/Eigenvalues.md' (不含 chunks/) → 原样返回
+    """
+    if not path or "/chunks/" not in path:
+        return path
+    parts = path.split("/")
+    try:
+        chunks_idx = parts.index("chunks")
+    except ValueError:
+        return path
+    if chunks_idx == 0:
+        return path  # 顶级 chunks/ 不应出现
+    parent_dir_name = parts[chunks_idx - 1]
+    # 父目录 + 父目录名.md = 原源文件
+    return "/".join(parts[:chunks_idx]) + "/" + parent_dir_name + ".md"
+
+
 def _is_real_vault_file(rel_path: str, min_size_bytes: int = 64) -> bool:
     """检查 vault 内文件存在 + 非空（防 ghost reference / 空文档 / 路径漂移）.
 
@@ -397,11 +424,20 @@ def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
+    # 2026-05-09 P0 fix: chunks/merged.md 派生路径回写到原文件
+    # LanceDB 切分时把 chunk 的 file_path 写成 "lecture 2/chunks/merged.md"
+    # 但 vault 内实际文件是 "lecture 2/lecture 2.md"
+    # → wikilink 必须指原文件 (业界共识：Smart Connections / Khoj / Copilot 100%)
+    canvas_file = _resolve_chunks_to_source_file(canvas_file)
     file_display = canvas_file[:-3] if canvas_file.endswith(".md") else canvas_file
     if heading:
+        # 仅清理 markdown link 残留（如视频时间戳 [01:05:34]() / 嵌入 [[wikilink]]）
+        # 不要 over-strip 真实 `()` / `-` / `:` 等字面字符（破坏 Obsidian heading 字面匹配）
         heading = re.sub(r"\[\[.*?\]\]", "", heading).strip()
         heading = re.sub(r"\[.*?\]\(.*?\)", "", heading).strip()
-        heading = re.sub(r"\(\)\s*$", "", heading).strip()
+        # 仅清残留空 `()` 紧跟空白（典型 timestamp 删后残留）
+        # ⛔ 不能 strip 文件名 / heading 真实含的 `()` — 用户实测 `规划的分类-1549()` 被误剥
+        heading = re.sub(r"^\s+|\s+$", "", heading)  # 仅 trim 首尾空白
 
     if file_display and heading and heading != file_display:
         wikilink = f"[[{file_display}#{heading}|{heading}]]"
