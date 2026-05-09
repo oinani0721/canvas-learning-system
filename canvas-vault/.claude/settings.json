@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sS -m 6 -X POST http://localhost:8011/api/v1/chat/rag/enrich-hook -H 'Content-Type: application/json' -d @-"
+          }
+        ]
+      }
+    ]
+  }
+}

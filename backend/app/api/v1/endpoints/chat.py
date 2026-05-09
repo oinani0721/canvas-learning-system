@@ -554,3 +554,143 @@ async def post_turn_extract(
         errors=out_errors,
         elapsed_ms=round(elapsed_ms, 2),
     )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 2026-05-09 Story 2.2 Phase A T1.7 — UserPromptSubmit hook auto-RAG injection
+# 用户原话: "对话过程中天然有很多次相关知识点返回，不要每次按快捷键"
+# 设计: Claude Code SDK UserPromptSubmit hook (Anthropic 钦定模式)
+# - 用户在 Claudian 内每次 user message 时，SDK 自动调本 endpoint
+# - endpoint 调 search_supplementary 拿 vault wikilink 候选
+# - 返回 {hookSpecificOutput.additionalContext} → SDK 自动 prepend 到 system context
+# - Claude 拿到 supplementary XML 后用 Read tool 真核实再回答（commit 98dbc2d 约束）
+# ════════════════════════════════════════════════════════════════════════════
+
+
+class HookEnrichRequest(BaseModel):
+    """Claude Code UserPromptSubmit hook stdin payload."""
+
+    session_id: str | None = None
+    transcript_path: str | None = None
+    cwd: str | None = None
+    hook_event_name: str | None = None
+    prompt: str = ""
+
+    class Config:
+        extra = "ignore"  # 容忍 Claude Code SDK 后续添加新字段
+
+
+class HookEnrichOutput(BaseModel):
+    """Claude Code hook output (additionalContext 会被 prepend 到 system context)."""
+
+    hookSpecificOutput: dict[str, Any]
+
+
+@chat_router.post(
+    "/rag/enrich-hook",
+    response_model=HookEnrichOutput,
+    summary="UserPromptSubmit hook — 自动 RAG 注入到 Claudian 每次对话",
+)
+async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
+    """每次 Claudian 内用户提问时被 SDK 自动调，注入 supplementary 到 system context.
+
+    设计要点:
+    - 短 prompt (< 5 char) 跳过（避免 "hi" 之类无意义触发）
+    - LanceDB singleton 未 ready → 静默跳过 (不阻塞用户对话)
+    - 5s timeout 内 supplementary 拿不到 → 静默跳过
+    - 0 命中 → 不注入（保持对话简洁，避免 spam）
+    - 命中 N 条 → 注入 anchor instruction + supplementary XML
+    """
+    user_prompt = (req.prompt or "").strip()
+    if len(user_prompt) < 5:
+        return HookEnrichOutput(
+            hookSpecificOutput={
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": "",
+            }
+        )
+
+    # 复用 chat.py module-level singleton (commit 5dfad13 endpoint 不 acquire lock)
+    lancedb_client = _supp_lancedb_singleton
+    if lancedb_client is None:
+        # singleton 还在 background eager-init，本次跳过
+        logger.debug(
+            "[T1.7-AutoRAG] lancedb singleton not ready, skip injection",
+            prompt=user_prompt[:60],
+        )
+        return HookEnrichOutput(
+            hookSpecificOutput={
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": "",
+            }
+        )
+
+    try:
+        supp_result = await asyncio.wait_for(
+            search_supplementary(
+                query=user_prompt,
+                lancedb_client=lancedb_client,
+                top_k_max=15,
+                min_relevance=0.30,
+                elbow_drop_threshold=0.05,
+                hard_cap=10,
+            ),
+            timeout=5.0,  # hook 严格延迟预算
+        )
+    except asyncio.TimeoutError:
+        logger.debug("[T1.7-AutoRAG] timeout 5s, skip", prompt=user_prompt[:60])
+        return HookEnrichOutput(
+            hookSpecificOutput={
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": "",
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[T1.7-AutoRAG] search exception", error=str(e)[:120])
+        return HookEnrichOutput(
+            hookSpecificOutput={
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": "",
+            }
+        )
+
+    materials = supp_result.get("materials", [])
+    if not materials:
+        # 0 命中（vault 无相关材料）→ 不注入（避免对话 spam）
+        return HookEnrichOutput(
+            hookSpecificOutput={
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": "",
+            }
+        )
+
+    supp_xml = format_supplementary_xml(supp_result)
+
+    anchor_instruction = (
+        "⛔ Canvas Auto-RAG (UserPromptSubmit hook 自动注入):\n"
+        "用户在 Canvas vault 内提问时，下方 <supplementary_materials> 是 vault 内"
+        "可能相关的笔记片段。回答时必须遵循:\n"
+        "(1) 必须先用 Read tool 实际读 top 2-3 条 <source_path> 完整文件，"
+        "禁止仅凭 snippet 编内容\n"
+        "(2) 回答正文必须含 ≥1 个 [[file#具体heading]] 精度 wikilink 作 inline evidence\n"
+        "(3) heading anchor 必须字面保留（含视频 timestamp [01:05:34]() 残留）"
+        "供 Obsidian 字面匹配跳转\n"
+        "(4) Read 失败/文件空 → 跳过该条 + 标 (read_failed=<reason>)\n"
+        "(5) 禁止凭训练数据答 vault 含的课程材料问题\n"
+        "(6) 末尾 `---` 分隔后展示完整 supplementary 列表便于跳转\n\n"
+    )
+    additional_context = anchor_instruction + supp_xml
+
+    logger.info(
+        "[T1.7-AutoRAG] supplementary auto-injected",
+        prompt=user_prompt[:60],
+        materials=len(materials),
+        bytes=len(additional_context),
+    )
+
+    return HookEnrichOutput(
+        hookSpecificOutput={
+            "hookEventName": "UserPromptSubmit",
+            "additionalContext": additional_context,
+        }
+    )
