@@ -535,7 +535,18 @@ class Settings(BaseSettings):
     )
 
     VAULT_INDEX_SKIP_DIRS: str = Field(
-        default=".obsidian,.git,.trash,node_modules",
+        default=(
+            # Phase A T1.1 (2026-05-09): GPT DR + 用户实测污染清单完整黑名单
+            # - .obsidian/.git/.trash/node_modules: 标准非笔记目录
+            # - .claude/.claudian: Skill / Claudian 工具文档（用户实测 3 SKILL.md 进库噪音）
+            # - _bmad-output/archive/templates: 开发文档/归档/模板（非学习内容）
+            # - outputs: 验收/导出物
+            # - *-explanations: AI 生成解释（fnmatch glob，配合 lancedb_client.py:1251 fix）
+            # - Excalidraw/_misc: 手绘图/杂项 junk
+            ".obsidian,.git,.trash,node_modules,"
+            ".claude,.claudian,_bmad-output,archive,templates,"
+            "outputs,*-explanations,Excalidraw,_misc"
+        ),
         description="Comma-separated list of directories to skip during vault indexing.",
     )
 

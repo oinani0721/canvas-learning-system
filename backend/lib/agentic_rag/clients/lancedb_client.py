@@ -1272,6 +1272,10 @@ class LanceDBClient:
             "Untitled*.md",
             "2111.md",  # 测试残留
             "*.excalidraw.md",  # 手绘图 md 包装
+            # Phase A T1.1 followup (2026-05-09): 补测试 + UAT 残留
+            "TestConcept*.md",
+            "UAT-*.md",
+            "*-test.md",
         ]
 
         def _is_skipped_dir(name: str) -> bool:
