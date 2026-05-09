@@ -463,21 +463,136 @@ def _elbow_cut(materials, drop_threshold: float = 0.30, hard_cap: int = 15):
 
 我在做一个本地 Obsidian vault 笔记 RAG 系统，给我（学生）解题时辅助召回相关教学笔记。
 
-**仓库**: https://github.com/oinani0721/canvas-learning-system （public，请直接 clone 阅读）
-**关键调研产物（先读）**:
-- `_bmad-output/research/round-23-phase-a-retrieval-quality-2026-05-09.md` — 本次完整调研（Round-1 + Round-2，含 6 agent 报告 + 7 根因 + 4 决策点）
-- `backend/app/services/supplementary_search_service.py` — RAG hook 主 pipeline
-- `backend/app/api/v1/endpoints/chat.py:589-696` — UserPromptSubmit hook endpoint
-- `backend/lib/agentic_rag/clients/lancedb_client.py:1248-2700` — chunker + LanceDB hybrid + RRF fuse
-- `backend/app/core/reference_config.py` + `backend/data/reference_priority.json` — source priority
-- `canvas-vault/.claude/settings.json` — vault 级 UserPromptSubmit hook 注册
-- `canvas-vault/原白板/CS188 lecture 2.md:25-95` — 实证：白板含 ## Concepts + ## Recent Activity 噪音
+**仓库**: https://github.com/oinani0721/canvas-learning-system （public）
+**Branch**: `worktree-feature-obsidian-hybrid-dev` （⚠️ 本次所有改动在此分支，不是 main。请先在 GitHub UI 切到此 branch 再读文件，或 `git clone -b worktree-feature-obsidian-hybrid-dev`）
 
 **项目背景**:
 - 学生用 Obsidian + Claudian sidebar，提问触发 Anthropic Claude Code SDK UserPromptSubmit hook
 - Hook curl POST 到 backend `/rag/enrich-hook` → backend 调 `search_supplementary` → 返回 `additionalContext` (XML)
 - SDK 自动 prepend additionalContext 到 system context → Claude 拿 vault wikilink 真材料 + Read tool 验证 + 回答
 - 当前 stack: Python 3.11 + FastAPI + LanceDB + bge-m3 (1024d) + jieba FTS + RRF k=60 + 无 reranker
+
+---
+
+## 📚 必读文件清单（Tier 0 — 必须全读）
+
+按 RAG 管道顺序排列。GitHub URL 模板：`https://github.com/oinani0721/canvas-learning-system/blob/worktree-feature-obsidian-hybrid-dev/<path>#L<start>-L<end>`
+
+### T0-1. 本次完整调研报告（最高优先，先读这个）
+- **`_bmad-output/research/round-23-phase-a-retrieval-quality-2026-05-09.md`** (629 行)
+  - L1-243: Round-1（3 agent 找 LanceDB 索引污染 + RAG vs Grep 范式差异）
+  - L290+: Round-2（6 agent 全管道审查 — §12 共识 / §13 7 根因 / §14 修复方案 / §15 用户决策 / §16 本 prompt / §17 文件参考）
+
+### T0-2. Hook Endpoint（管道入口，commit fa814e7 主体）
+- **`backend/app/api/v1/endpoints/chat.py`**
+  - L570-587: `HookEnrichRequest` / `HookEnrichOutput` Pydantic models（Anthropic hook 协议契约）
+  - L594-696: `rag_enrich_hook` — UserPromptSubmit hook 主 endpoint，调 search_supplementary 返回 additionalContext (XML)
+  - L201-316: `enrich_context` — Cmd+Shift+E 触发的另一路径（参考对比，**hook 不走此路**）
+
+### T0-3. Supplementary 主管道（hook 调的 service，全文必读）
+- **`backend/app/services/supplementary_search_service.py`** (475 行)
+  - L36-170: `search_supplementary` — RAG-as-tool 范式，top_k_max=20 + elbow_cut + Read 验证
+  - L178-211: `format_supplementary_xml` — XML 格式化（supplementary_materials tag）
+  - L219-243: `_resolve_chunks_to_source_file` — chunks 派生路径回写原文件（commit 275a201）
+  - L246-275: `_is_real_vault_file` — 文件存在性检测（防 ghost ref + 空文档 < 64B）
+  - L278-298: `_elbow_cut` — **根因 D 在此**（绝对差 0.05，但 RRF 后 gap 是 0.0005）
+  - L301-400: `_two_tier_search` — Tier-1 prefix-resolved + Tier-2 unprefixed legacy fallback
+  - L403-475: `_normalize_material` — wikilink heading anchor 字面保留（commit c3c06eb）
+
+### T0-4. LanceDB Client（核心，关键段读这些）
+- **`backend/lib/agentic_rag/clients/lancedb_client.py`** (3500+ 行，**只读关键段**)
+  - L85-280: `_chunk_text` + helper（句子切分 + token 计数 + chunk overlap）— **根因 E 在此**（不丢小段）
+  - L1204-1262: `index_vault_notes` — 入库 schema 定义（frontmatter / course / tags / canvas_file）
+  - L1248-1279: `skip_dirs` / `skip_files` 配置 — **根因 A 在此**（缺 `原白板`）
+  - L2098-2222: `_split_md_by_heading` + `_flush_section` — heading 切分（**没 NAV_HEADINGS_BLACKLIST**）
+  - L2306-2520: `search` → `_search_internal` — hybrid 入口（embedding + jieba FTS）
+  - L2431-2462: `_build_where_filters` — SQL WHERE 子句构建
+  - L2629-2653: `_rrf_fuse` — Reciprocal Rank Fusion k=60
+  - L2655-2700: `_convert_to_search_results` — **根因 B 在此**（`1/(1+d)` 二次压缩 score 到 [0.503, 0.508]）
+
+### T0-5. Source Priority 配置
+- **`backend/app/core/reference_config.py`**
+  - L22-48: `_load_config` — 从 reference_priority.json 加载
+  - L66-94: `apply_source_priority` — **根因 C 在此**（只 boost 不 demote）
+- **`backend/data/reference_priority.json`** — 当前 weight 数据（**缺 `原白板/`/`节点/`**）
+
+### T0-6. Vault 配置（hook 注册 + 噪音/命中实证）
+- **`canvas-vault/.claude/settings.json`** (15 行) — UserPromptSubmit hook 注册（commit fa814e7 创建）
+- **`canvas-vault/原白板/CS188 lecture 2.md`** — 噪音实证：
+  - L25-67 `## Concepts`（导航 section，含 dataviewjs）
+  - L96-105 `## Recent Activity`（审计日志，**0 学习价值但被向量化**）
+- **`canvas-vault/raw/CS188/videos/lectures/lecture 4/lecture 4.md`** (1456 行) — 命中标杆：
+  - L990-1010 `## 6.4 全局/局部最大值`
+  - L1020-1040 `## 6.4.1 解决局部最优陷阱的方法`（rank 1-2 完美命中段）
+  - L<later> `## 6.5 模拟退火` / `## 6.7 遗传算法` / `## 6.9 局部搜索算法对比表`
+
+---
+
+## 📂 选读文件（Tier 1 — context，理解周边架构）
+
+### T1-1. 主 RAG pipeline（hook 不走，但 rerank node 在这）
+- **`backend/app/services/rag_service.py`**
+  - L120-156: RAGService class
+  - L218-328: `query` 主接口
+- **`backend/lib/agentic_rag/state_graph.py`** (728 行)
+  - L66-130: `classify_query_intent` — L1 router (Gemini Flash)
+  - L320-388: `route_after_quality_check` — 质量检查后的重排逻辑
+  - L530-728: `build_canvas_agentic_rag_graph` — **rerank node 在此 build，但 hook pipeline 不调用**
+- **`backend/lib/agentic_rag/reranking.py`** (425 行)
+  - L57-66: `RerankStrategy` enum (local / cohere / hybrid_auto)
+  - L68-210: `LocalReranker` — 本地重排（priority + 相关性，**非 cross-encoder**）
+  - L210-315: `CohereReranker` — Cohere API
+  - L337-370: `get_reranker` — 单例
+- **`backend/lib/agentic_rag/config.py`** (546 行) — embedding/reranker 配置（含 `gte-reranker-modernbert-base` 但 hook 不用）
+
+### T1-2. Index 服务 + skip_dirs 入口
+- **`backend/app/services/lancedb_index_service.py`** L322-374 — 索引重建入口
+- **`backend/app/api/v1/endpoints/metadata.py`** L450-530 — skip_dirs 配置入口（query param / env var）
+
+### T1-3. 3 个 Claudian Skills（手动触发路径，理解 hook vs skill 分工）
+- **`canvas-vault/.claude/skills/ai-linked-doc/SKILL.md`** (322 行) — Cmd+Shift+D 派生新节点（与 RAG 互补）
+- **`canvas-vault/.claude/skills/node-chat/SKILL.md`** (104 行) — Cmd+Shift+C 节点级对话（与 RAG 正交）
+- **`canvas-vault/.claude/skills/chat-with-context/SKILL.md`** — Cmd+Shift+E 触发的 enrich-context（**与 hook 是替代关系**：skill = manual / hook = auto）
+
+### T1-4. 历史调研报告（理解架构演进）
+- **`_bmad-output/research/round-23-chatgpt-dr-result-and-synthesis-2026-05-08.md`** (371 行) — **前一次 ChatGPT DR 的结论**（你需要审视它是否被本轮 fa814e7 修复方案推翻）
+- **`_bmad-output/research/round-23-phase-a-architecture-report-2026-05-09.md`** (369 行) — Phase A 架构决策
+- **`_bmad-output/research/round-23-phase-abc-implementation-spec-2026-05-09.md`** (175 行) — Phase A/B/C 实现规格
+- **`_bmad-output/research/round-13-wikilink-vs-graphiti-five-questions-answer-2026-04-29.md`** (474 行) — **wikilink vs Graphiti 双轨检索决策**（hook 是否该跨双轨？）
+- **`_bmad-output/research/round-12-graphiti-karpathy-5-conjectures-audit-2026-04-21.md`** (587 行) — 个人记忆引擎论证
+
+### T1-5. 架构决策（PRD / Architecture）
+- **`_bmad-output/planning-artifacts/architecture.md`** L30-40 — 检索能力域（双系统 LanceDB + Graphiti）+ 后处理（gte-reranker / Adaptive-k / A-RAG Verify）
+- **`_bmad-output/planning-artifacts/prd.md`** L80-220 — RAG 相关 FR (FR-KG-06 / FR-EXAM-04 / FR-CONV-10)
+- **`_bmad-output/planning-artifacts/epics.md`** Epic 2 — 检索与个性化 FR-RETR-01~13
+
+---
+
+## 🕒 关键 Commits 时间线（理解 Phase A 演进）
+
+按时间倒序（仓库 `https://github.com/oinani0721/canvas-learning-system/commit/<hash>`）：
+
+| Commit | 日期 | 主题 | 改动文件 |
+|---|---|---|---|
+| `aad0c9a` | 2026-05-09 11:30 | docs: round-2 6 agent 对抗调研（**本调研报告**） | `_bmad-output/research/round-23-phase-a-retrieval-quality-2026-05-09.md` (+346 行) |
+| `fa814e7` | 2026-05-09 10:11 | feat: UserPromptSubmit hook 自动 RAG 注入到 Claudian | `chat.py` (+140) + `canvas-vault/.claude/settings.json` (+15) |
+| `c3c06eb` | 2026-05-09 | fix: wikilink anchor=raw heading 字面 + display=clean | `supplementary_search_service.py` 行 L403+ |
+| `275a201` | 2026-05-09 | fix: chunks 派生路径回写 + heading 不 over-strip | `supplementary_search_service.py` 行 L219+ |
+| `98dbc2d` | 2026-05-09 | feat: rag-as-tool 重构 — Read 验证 + 动态 top_k + 空文档过滤 | `supplementary_search_service.py` 行 L36-170 主体 |
+| `3001f00` | 2026-05-09 | fix: config.py pydantic skip_dirs 默认值同步 + skip_files 补 testconcept | `lancedb_client.py` L1248-1279 |
+| `3b96e49` | 2026-05-08 | feat(agentic-rag): A9 L1 LLM router — replace rule-based with Gemini Flash | `state_graph.py` L66-130 |
+| `b7feefb` | 2026-05-08 | chore(openspec): archive fix-rag-faithfulness-and-add-crag-quality-loop | RAG 质量环路 |
+| `c229291` | 2026-05-07 | test(crag): one-shot CRAG deep_research integration test | `tests/regression/` |
+
+**Phase A 演进逻辑**：
+1. 早期（< 2026-05-07）: 只有主 RAG pipeline (`rag_service.py` + `state_graph.py`)，含 rerank node 但需手动触发
+2. `98dbc2d`: 引入 supplementary_search_service.py — 把 RAG 当工具用，让 Claude 大召回 + Read 真验证（不预先精排）
+3. `275a201` / `c3c06eb`: 修复 wikilink anchor 跳转精度
+4. `3001f00`: 修 skip_dirs 配置（但仍缺 `原白板/`）
+5. `fa814e7`: **架构突破** — 用 Anthropic UserPromptSubmit hook 把 supplementary 自动注入每次提问
+6. `aad0c9a`: 本次 6 agent 对抗调研发现 hook 召回 rank 8-10 仍漂移
+
+**关键 insight**: hook pipeline 是**绕过**主 RAG pipeline 的简化路径 — 没有走 state_graph.py 的 rerank node。这是为什么 Phase A 没 cross-encoder（根因 F）。
 
 ## The Problem
 
