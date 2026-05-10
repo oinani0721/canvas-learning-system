@@ -1,0 +1,28 @@
+# Phase B0.6 Preset: 通用平衡（用户全选 4 种 source，平衡权重不偏向任何类型）
+# 适用 vault: 用户全选所有 source 类型, 或学科不明确, 或多学科混合 vault
+# 推断触发: 用户勾全部 4 种 source_types
+preset_type: generic
+preset_label: "通用平衡 (Generic)"
+recommended_source_types:
+  - video_transcript
+  - lecture_notes
+  - user_notes
+  - exercises
+priority_patterns:
+  # === Demote 优先匹配 ===
+  - {pattern: "**/*-explanations/**",         weight: 0.5, label: "AI 解释 (demote)"}
+  - {pattern: "原白板/**",                     weight: 0.3, label: "白板导航层"}
+  - {pattern: "节点/**",                       weight: 1.1, label: "派生节点"}
+  # === Boost (各类 source 平衡) ===
+  - {pattern: "**/videos/**",                 weight: 1.2, label: "视频转录"}
+  - {pattern: "**/{lectures,讲义,课件,lecture-notes,slides}/**", weight: 1.2, label: "讲义"}
+  - {pattern: "**/{notes,笔记,annotations,批注}/**", weight: 1.2, label: "用户笔记"}
+  - {pattern: "**/{exercises,习题,problem-sets,past_exams,真题,作业,homework}/**", weight: 1.1, label: "习题/真题"}
+max_references: 10
+excluded_headings:
+  - "Recent Activity"
+  - "Concepts"
+  - "目录"
+  - "索引"
+  - "Tags"
+  - "Backlinks"

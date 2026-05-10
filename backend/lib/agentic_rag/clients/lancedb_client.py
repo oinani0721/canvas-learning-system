@@ -392,13 +392,33 @@ class LanceDBClient:
             return "default"
 
     def resolve_table_name(self, table_name: str) -> str:
-        """Prefix table_name with vault_id for namespace isolation."""
+        """Prefix table_name with vault_id for namespace isolation.
+
+        Phase B0.7 (Round-4 ChatGPT V3 Q2 选项 B 兼容读策略):
+        若 {vid}_{table_name} 不存在但 unprefixed {table_name} 存在
+        → 回退到 unprefixed 读取（保留 'default' 旧数据兼容期）
+        新 vault 数据写入仍用 prefixed; 旧数据通过 fallback 仍可见.
+        """
         vid = self.active_vault_id
         if not vid or vid == "default":
             return table_name
         if table_name.startswith(f"{vid}_"):
             return table_name
-        return f"{vid}_{table_name}"
+        prefixed = f"{vid}_{table_name}"
+        # Phase B0.7 fallback: 若 prefixed 不存在但 unprefixed 存在 → 读 unprefixed
+        try:
+            if self._db is not None:
+                all_tables = self._db.table_names()
+                if prefixed not in all_tables and table_name in all_tables:
+                    logger.debug(
+                        "[LanceDB B0.7 fallback] %s not found, reading legacy %s",
+                        prefixed,
+                        table_name,
+                    )
+                    return table_name
+        except Exception:
+            pass
+        return prefixed
 
     def list_vault_tables(self, vault_id: str | None = None) -> list[str]:
         """Return table names belonging to a specific vault."""

@@ -891,18 +891,48 @@ DEFAULT_GROUP_ID: str = _canonical_group_id(settings.DEFAULT_GROUP_ID)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 import re
+import unicodedata
+
+# Phase B0.1 (Round-4 ChatGPT V3 + 4 agent confirmed P0):
+# 旧 sanitize_vault_id 用 [^a-z0-9] 剥离所有非 ASCII → 中文 vault 全部坍缩 'default' → 跨 vault 数据泄漏
+# 新实现采用与 sanitize_subject_name (subject_config.py:357) 一致的 unicode-aware 逻辑
+# 关键升级:
+#   - NFKC normalize (拆合字 ﬁ→fi, 兼容 macOS APFS NFD/NFC mismatch)
+#   - casefold (Unicode-aware lower; ß→ss, Σ→σ)
+#   - re.UNICODE \w (覆盖 CJK/西里尔/希腊/谚文等所有 Unicode 字母)
+#   - truncate 200 字符 (APFS 单段名 255 byte 限制 + Neo4j 4039 byte 边界)
+_VAULT_ID_MAX_LEN = 200
 
 
 def sanitize_vault_id(vault_name: str) -> str:
     """Derive a safe vault_id from a vault directory name.
 
-    Lowercase, replace non-alphanumeric with underscore, collapse runs.
-    Example: "CS 61B" -> "cs_61b", "canvas-vault" -> "canvas_vault"
+    Unicode-aware: keeps CJK/Cyrillic/Greek letters, normalizes ASCII to lowercase,
+    replaces special chars with underscores. Safe across LanceDB table prefix,
+    Neo4j group_id property, APFS file path, and shell command.
+
+    Examples:
+        "CS 61B"          -> "cs_61b"
+        "笔记库"          -> "笔记库"  (Phase B0.1: 不再坍缩 default)
+        "数学のノート"     -> "数学のノート"
+        "수학 노트"        -> "수학_노트"
+        "café"            -> "café"  (NFKC preserves)
+        "📚 笔记本"       -> "笔记本"  (emoji stripped)
+        "../etc/passwd"   -> "etc_passwd"  (path traversal defused)
+        ""                -> "default"
     """
-    s = vault_name.lower().strip()
-    s = re.sub(r"[^a-z0-9]", "_", s)
-    s = re.sub(r"_+", "_", s).strip("_")
-    return s or "default"
+    if not vault_name:
+        return "default"
+    # NFKC: 兼容字符归一化 (ﬁ→fi 拆合字, 同时 NFC normalize 防 APFS 坑)
+    normalized = unicodedata.normalize("NFKC", vault_name).casefold().strip()
+    # \w + UNICODE 覆盖所有 Unicode 字母数字下划线 (CJK/西里尔/希腊/谚文等)
+    sanitized = re.sub(r"[^\w]+", "_", normalized, flags=re.UNICODE)
+    # Collapse runs of underscores + strip edges
+    sanitized = re.sub(r"_+", "_", sanitized).strip("_")
+    # Truncate to APFS-safe length
+    if len(sanitized) > _VAULT_ID_MAX_LEN:
+        sanitized = sanitized[:_VAULT_ID_MAX_LEN].rstrip("_")
+    return sanitized or "default"
 
 
 def get_current_vault_id() -> str:

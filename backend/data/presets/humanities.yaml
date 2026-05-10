@@ -1,0 +1,26 @@
+# Phase B0.6 Preset: 英语/文科（重用户笔记 + 原文，无视频转录概念）
+# 适用 vault: 英语写作 / 文学 / 历史 / 哲学 等文科
+# 推断触发: source_types 仅含 "user_notes", 或含 "lecture_notes" + "user_notes" 但无 "exercises"
+preset_type: humanities
+preset_label: "文科 (Humanities)"
+recommended_source_types:
+  - user_notes
+priority_patterns:
+  # === Demote 优先匹配 ===
+  - {pattern: "**/*-explanations/**",         weight: 0.5, label: "AI 解释 (demote)"}
+  - {pattern: "原白板/**",                     weight: 0.4, label: "白板导航层"}
+  - {pattern: "节点/**",                       weight: 1.4, label: "用户笔记节点 (文科主体)"}
+  # === Boost ===
+  - {pattern: "**/{readings,原文,texts,articles}/**", weight: 1.5, label: "原文/阅读材料"}
+  - {pattern: "**/{annotations,批注,notes,笔记}/**", weight: 1.3, label: "批注/笔记"}
+  - {pattern: "**/{vocabulary,词汇,glossary}/**", weight: 1.2, label: "词汇表"}
+  - {pattern: "**/{essays,作文,papers}/**",    weight: 1.1, label: "作文/论文"}
+  - {pattern: "**/{lectures,讲义}/**",         weight: 1.0, label: "讲义 (文科次要)"}
+max_references: 10
+excluded_headings:
+  - "Recent Activity"
+  - "Concepts"
+  - "目录"
+  - "索引"
+  - "Tags"
+  - "Backlinks"

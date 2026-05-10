@@ -1,0 +1,29 @@
+# Phase B0.6 Preset: CS 课程（重视频转录 + 真题）
+# 适用 vault: CS 61B / CS 188 / 6.006 / Algorithms 等有大量录制讲座的课程
+# 推断触发: source_types 含 "video_transcript"
+preset_type: cs
+preset_label: "计算机科学 (CS)"
+recommended_source_types:
+  - video_transcript
+  - exercises
+priority_patterns:
+  # === Demote 优先匹配 (apply_source_priority break-on-first-match) ===
+  - {pattern: "**/*-explanations/**",         weight: 0.5, label: "AI 解释 (demote)"}
+  - {pattern: "原白板/**",                     weight: 0.3, label: "白板导航层"}
+  - {pattern: "节点/**",                       weight: 0.9, label: "派生节点"}
+  # === Boost ===
+  - {pattern: "**/videos/lectures/**",        weight: 1.5, label: "讲义视频转录"}
+  - {pattern: "**/videos/discussions/**",     weight: 1.4, label: "讨论视频"}
+  - {pattern: "**/videos/exam_prep/**",       weight: 1.3, label: "考试准备视频"}
+  - {pattern: "**/videos/review_sessions/**", weight: 1.2, label: "复习课视频"}
+  - {pattern: "**/{past_exams,真题}/**",       weight: 1.2, label: "真题/Past Exams"}
+  - {pattern: "**/{lectures,讲义,slides}/**", weight: 1.1, label: "讲义 PDF/slides"}
+  - {pattern: "**/{discussions,作业,homework,labs}/**", weight: 1.0, label: "作业/Labs"}
+max_references: 10
+excluded_headings:
+  - "Recent Activity"
+  - "Concepts"
+  - "目录"
+  - "索引"
+  - "Tags"
+  - "Backlinks"
