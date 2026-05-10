@@ -449,12 +449,20 @@ async def batch_index_canvas(
 )
 async def index_vault_notes(
     settings: SettingsDep,
+    force_rebuild: bool = False,
 ):
     """
     Scan all .md files in the vault and index them to LanceDB vault_notes table.
 
     This enables RAG retrieval to reference vault markdown notes
     when generating AI explanations.
+
+    Args:
+        force_rebuild: When True, treat all files as new and re-index everything.
+            Use after RAG-P0 schema changes (e.g. adding doc_type column) to
+            wipe legacy chunks and rebuild with the new metadata. The
+            _check_and_fix_dimension_mismatch path will auto-drop the table
+            if the schema is incompatible.
     """
     start_time = time.perf_counter()
 
@@ -497,6 +505,7 @@ async def index_vault_notes(
             max_tokens=chunk_size,
             overlap_tokens=chunk_overlap,
             subject=DEFAULT_GROUP_ID,
+            force_rebuild=force_rebuild,
         )
 
         duration_ms = (time.perf_counter() - start_time) * 1000

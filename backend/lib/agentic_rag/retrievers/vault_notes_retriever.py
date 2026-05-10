@@ -16,7 +16,7 @@ Created: 2026-03-08
 
 import asyncio
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol
 
 try:
@@ -63,6 +63,10 @@ class VaultNotesRetrieverConfig:
         timeout_ms: 检索超时毫秒数 (默认500)
         vault_notes_table: LanceDB表名
         enable_cache: 是否启用缓存
+        default_exclude_doc_types: RAG-P0 A3 (2026-05-10) — default exclude
+            ['whiteboard'] so MOC/index whiteboards (mostly boilerplate
+            dataviewjs/callout templates) don't pollute solving / concept
+            queries. Pass exclude_doc_types=[] at call site to opt in.
     """
 
     top_k: int = 10
@@ -70,6 +74,7 @@ class VaultNotesRetrieverConfig:
     timeout_ms: int = 500
     vault_notes_table: str = "vault_notes"
     enable_cache: bool = True
+    default_exclude_doc_types: List[str] = field(default_factory=lambda: ["whiteboard"])
 
 
 # ============================================================
@@ -87,6 +92,8 @@ class LanceDBClientProtocol(Protocol):
         canvas_file: Optional[str] = None,
         num_results: int = 10,
         metric: str = "cosine",
+        doc_type: Optional[List[str]] = None,
+        exclude_doc_types: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """Search for similar vectors."""
         ...
@@ -128,6 +135,8 @@ class VaultNotesService:
         query: str,
         num_results: int = 10,
         group_id: Optional[str] = None,
+        doc_type: Optional[List[str]] = None,
+        exclude_doc_types: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         搜索 vault 笔记内容
@@ -162,11 +171,22 @@ class VaultNotesService:
         try:
             timeout_seconds = self.config.timeout_ms / 1000.0
 
+            # RAG-P0 A3: caller's exclude_doc_types wins; fall back to
+            # config default (whiteboard) when caller didn't pass anything.
+            # Pass exclude_doc_types=[] explicitly to opt OUT of filtering.
+            effective_exclude = (
+                exclude_doc_types
+                if exclude_doc_types is not None
+                else list(self.config.default_exclude_doc_types)
+            )
+
             results = await asyncio.wait_for(
                 self.lancedb.search(
                     query=query,
                     table_name=self.config.vault_notes_table,
                     num_results=num_results,
+                    doc_type=doc_type,
+                    exclude_doc_types=effective_exclude,
                 ),
                 timeout=timeout_seconds,
             )

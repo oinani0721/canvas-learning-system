@@ -1423,6 +1423,16 @@ class LanceDBClient:
                     f"{chunk['file_path']}:{chunk.get('heading', '')}:{chunk['content'][:100]}".encode()
                 ).hexdigest()
 
+                # RAG-P0 A1: doc_type — frontmatter.type wins; video_transcript
+                # path overrides only when frontmatter has no explicit type.
+                fm_doc_type = chunk.get("doc_type", "note") or "note"
+                if fm_doc_type == "note" and LanceDBClient._is_video_transcript(
+                    chunk["file_path"]
+                ):
+                    final_doc_type = "video_transcript"
+                else:
+                    final_doc_type = fm_doc_type
+
                 metadata = {
                     "file_path": chunk["file_path"],
                     "heading": chunk.get("heading", ""),
@@ -1440,6 +1450,8 @@ class LanceDBClient:
                     "course": chunk.get("course", ""),
                     "tags_str": chunk.get("tags_str", ""),
                     "category": chunk.get("category", ""),
+                    # RAG-P0 A1: doc_type for source-aware filter/rerank
+                    "doc_type": final_doc_type,
                 }
 
                 if LanceDBClient._is_video_transcript(chunk["file_path"]):
@@ -1463,6 +1475,8 @@ class LanceDBClient:
                     "course": chunk.get("course", ""),
                     "tags_str": chunk.get("tags_str", ""),
                     "category": chunk.get("category", ""),
+                    # RAG-P0 A1: doc_type column for SQL where-clause filtering
+                    "doc_type": final_doc_type,
                     "timestamp": datetime.now().isoformat(),
                     "metadata_json": json.dumps(metadata, ensure_ascii=False),
                 }
@@ -1610,6 +1624,15 @@ class LanceDBClient:
                 f"{chunk['file_path']}:{chunk.get('heading', '')}:{chunk['content'][:100]}".encode()
             ).hexdigest()
 
+            # RAG-P0 A1: doc_type — frontmatter.type wins over path heuristic
+            fm_doc_type_2 = chunk.get("doc_type", "note") or "note"
+            if fm_doc_type_2 == "note" and LanceDBClient._is_video_transcript(
+                file_path
+            ):
+                final_doc_type_2 = "video_transcript"
+            else:
+                final_doc_type_2 = fm_doc_type_2
+
             metadata = {
                 "file_path": chunk.get("file_path", rel_path),
                 "heading": chunk.get("heading", ""),
@@ -1627,6 +1650,8 @@ class LanceDBClient:
                 "course": chunk.get("course", ""),
                 "tags_str": chunk.get("tags_str", ""),
                 "category": chunk.get("category", ""),
+                # RAG-P0 A1: doc_type for source-aware filter/rerank
+                "doc_type": final_doc_type_2,
             }
 
             if LanceDBClient._is_video_transcript(file_path):
@@ -1650,6 +1675,8 @@ class LanceDBClient:
                 "course": chunk.get("course", ""),
                 "tags_str": chunk.get("tags_str", ""),
                 "category": chunk.get("category", ""),
+                # RAG-P0 A1: doc_type column for SQL where-clause filtering
+                "doc_type": final_doc_type_2,
                 "timestamp": datetime.now().isoformat(),
                 "metadata_json": json.dumps(metadata, ensure_ascii=False),
             }
@@ -2115,6 +2142,65 @@ class LanceDBClient:
         return self._convert_to_search_results(all_raw)
 
     @staticmethod
+    def _strip_whiteboard_boilerplate(body: str) -> str:
+        """
+        RAG-P0 A4 (2026-05-10): Strip boilerplate from whiteboard (type: whiteboard) body.
+
+        Whiteboards used as MOC/index typically contain ~95% templated content:
+          - ```dataviewjs / ```dataview code blocks (auto-generate mermaid graphs)
+          - HTML comments (instructions for skills that maintain the file)
+          - `> [!info]+` / `> [!note]+` admonition callouts (template guidance)
+          - `## Recent Activity` section (timestamps, no semantic value)
+        Only the H1 title + `## Concepts` section + free-form user prose carry
+        learning value. This stripper preserves those and removes the rest, so
+        when the indexer later chunks the body, it doesn't generate fake
+        chunks like "你在这白板里能做什么\\n选中任意文本→Cmd+Shift+D".
+
+        Idempotent: applying twice is equivalent to applying once.
+        """
+        import re
+
+        # 1. Strip dataviewjs / dataview fenced code blocks
+        body = re.sub(
+            r"```(?:dataviewjs|dataview)\b.*?```",
+            "",
+            body,
+            flags=re.DOTALL,
+        )
+
+        # 2. Strip HTML comments
+        body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+
+        # 3. Strip Obsidian admonition callouts. A callout begins with
+        # `> [!type]+` and continues on every subsequent line starting with `>`,
+        # with optional blank lines treated as continuation if followed by `>`.
+        lines = body.split("\n")
+        out_lines: List[str] = []
+        in_callout = False
+        for line in lines:
+            if re.match(r"^>\s*\[![^\]]+\][\+\-]?", line):
+                in_callout = True
+                continue
+            if in_callout:
+                if line.startswith(">"):
+                    continue
+                # End of callout — fall through to normal processing
+                in_callout = False
+            out_lines.append(line)
+        body = "\n".join(out_lines)
+
+        # 4. Strip `## Recent Activity` section (heading + content through
+        # next H2 or EOF). Common in Canvas whiteboards as a timestamp log.
+        body = re.sub(
+            r"(?m)^##\s+Recent Activity\b.*?(?=^##\s|\Z)",
+            "",
+            body,
+            flags=re.DOTALL,
+        )
+
+        return body
+
+    @staticmethod
     def _split_md_by_heading(
         content: str, file_path: str, max_tokens: int = 512, overlap_tokens: int = 50
     ) -> List[Dict[str, Any]]:
@@ -2147,6 +2233,24 @@ class LanceDBClient:
         else:
             fm_tags_str = str(fm_tags_raw)
         fm_category = str(frontmatter.get("category", ""))
+        # RAG-P0 A1 (2026-05-10): doc_type from frontmatter.type, default 'note'.
+        # Drives source-aware filter/rerank — see _build_where_filters.
+        fm_doc_type = str(frontmatter.get("type", "") or "note").lower().strip()
+
+        # RAG-P0 A4 (2026-05-10): whiteboard differential chunking.
+        # Strip dataviewjs/HTML comments/callouts/Recent Activity before
+        # heading split — these chunks otherwise rank highly via bge-m3 because
+        # they contain learning-domain keywords (节点/wikilink/Concepts) but
+        # no real semantic value. After A3 default exclude, whiteboard chunks
+        # don't surface in search anyway, but stripping here also saves
+        # LanceDB storage and force_rebuild time.
+        if fm_doc_type == "whiteboard":
+            body = LanceDBClient._strip_whiteboard_boilerplate(body)
+            # If nothing remains beyond the H1 title, skip the file entirely
+            # (heading-only chunks have no embedding value).
+            body_after_h1 = re.sub(r"\A\s*#\s+[^\n]+\n*", "", body, count=1).strip()
+            if not body_after_h1:
+                return []
 
         heading_pattern = re.compile(r"^(#{1,4})\s+(.+)$")
         chunks = []
@@ -2199,6 +2303,8 @@ class LanceDBClient:
                         "course": fm_course,
                         "tags_str": fm_tags_str,
                         "category": fm_category,
+                        # RAG-P0 A1: doc_type for source-aware filtering
+                        "doc_type": fm_doc_type,
                     }
                 )
 
@@ -2335,6 +2441,8 @@ class LanceDBClient:
         course_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
         rrf_k: int = 60,
+        doc_type: Optional[List[str]] = None,
+        exclude_doc_types: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         向量搜索
@@ -2390,6 +2498,8 @@ class LanceDBClient:
                     course_id=course_id,
                     tags=tags,
                     rrf_k=rrf_k,
+                    doc_type=doc_type,
+                    exclude_doc_types=exclude_doc_types,
                 ),
                 timeout=timeout_seconds,
             )
@@ -2454,17 +2564,21 @@ class LanceDBClient:
         subject: Optional[str] = None,
         course_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
+        doc_type: Optional[List[str]] = None,
+        exclude_doc_types: Optional[List[str]] = None,
     ) -> List[str]:
         """
-        Story 2.4 AC-5: Build SQL WHERE filter clauses for LanceDB queries.
+        Story 2.4 AC-5 + RAG-P0 A2: SQL WHERE filter clauses for LanceDB queries.
 
         Supports canvas_file, subject, course_id (maps to 'course' column),
-        and tags (maps to 'tags_str' column, OR matching via LIKE).
-        Returns list of SQL clause strings to apply via .where().
+        tags (maps to 'tags_str' column, OR matching via LIKE), and source-aware
+        doc_type include/exclude filtering (RAG-P0 A2, 2026-05-10).
 
         Column mapping:
-        - course_id param → 'course' column (set by index_vault_notes from frontmatter)
+        - course_id param → 'course' column
         - tags param → 'tags_str' column (comma-separated tags from frontmatter)
+        - doc_type param → 'doc_type' column IN (include mode)
+        - exclude_doc_types param → 'doc_type' column NOT IN (exclude mode)
         """
         clauses: List[str] = []
         if canvas_file:
@@ -2479,6 +2593,18 @@ class LanceDBClient:
                 f"tags_str LIKE '%{self._escape_like(tag)}%'" for tag in tags
             )
             clauses.append(f"({tag_conditions})")
+        # RAG-P0 A2: doc_type include/exclude. Pre-A1 rows lack the column;
+        # we use IS NULL fallback so legacy data degrades to "treat as note"
+        # rather than disappearing from result sets.
+        if doc_type:
+            quoted = ", ".join(f"'{self._escape_sql(t)}'" for t in doc_type)
+            if "note" in doc_type:
+                clauses.append(f"(doc_type IN ({quoted}) OR doc_type IS NULL)")
+            else:
+                clauses.append(f"doc_type IN ({quoted})")
+        if exclude_doc_types:
+            quoted = ", ".join(f"'{self._escape_sql(t)}'" for t in exclude_doc_types)
+            clauses.append(f"(doc_type NOT IN ({quoted}) OR doc_type IS NULL)")
         return clauses
 
     def _apply_where_clauses(self, search_query, clauses: List[str]):
@@ -2499,8 +2625,10 @@ class LanceDBClient:
         course_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
         rrf_k: int = 60,
+        doc_type: Optional[List[str]] = None,
+        exclude_doc_types: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """内部搜索实现 (Story 2.4: hybrid default + jieba FTS + course/tags filter)"""
+        """内部搜索实现 (Story 2.4 + RAG-P0 A2: hybrid + course/tags + doc_type filter)"""
         if self._db is None:
             return []
 
@@ -2516,12 +2644,14 @@ class LanceDBClient:
                 logger.debug(f"Table {table_name} not found: {e}")
             return []
 
-        # Story 2.4 AC-5: Build pre-filter clauses
+        # Story 2.4 AC-5 + RAG-P0 A2: Build pre-filter clauses
         where_clauses = self._build_where_filters(
             canvas_file=canvas_file,
             subject=subject,
             course_id=course_id,
             tags=tags,
+            doc_type=doc_type,
+            exclude_doc_types=exclude_doc_types,
         )
 
         # Accumulator for raw results across branches
@@ -2736,6 +2866,8 @@ class LanceDBClient:
                 "source_type",
                 # Story 2.8: Neighbor expansion marker
                 "_source_type",
+                # RAG-P0 A1: doc_type for source-aware filter/rerank
+                "doc_type",
             ]:
                 if key in item:
                     metadata[key] = item[key]
@@ -2770,20 +2902,19 @@ class LanceDBClient:
         self, table_name: str, new_vector_dim: int
     ) -> bool:
         """
-        Story 2.3 Task 6: Detect vector dimension mismatch and auto drop+recreate.
-
-        When migrating from 384d (old model) to 1024d (bge-m3), existing tables
-        will have vectors of the wrong dimension. This method inspects the first
-        row of an existing table, compares its vector dimension against the new
-        expected dimension, and drops the table if mismatched.
+        Story 2.3 Task 6 + RAG-P0 A5 (2026-05-10): Detect schema drift and
+        auto drop+recreate. Triggers on:
+          - vector dimension mismatch (e.g. 384d → 1024d on bge-m3 upgrade)
+          - missing 'doc_type' column (RAG-P0 A1 added this column;
+            pre-A1 tables lack it and would reject inserts that include it)
 
         Args:
             table_name: LanceDB table name.
             new_vector_dim: Expected vector dimension (e.g. 1024 for bge-m3).
 
         Returns:
-            True if the table was dropped due to mismatch (caller should create new).
-            False if dimensions match or table doesn't exist.
+            True if the table was dropped (caller should create new). False
+            if schema matches or table doesn't exist.
         """
         if self._db is None:
             return False
@@ -2800,15 +2931,33 @@ class LanceDBClient:
                 return False
 
             existing_dim = len(vectors[0])
-            if existing_dim == new_vector_dim:
+            dim_mismatch = existing_dim != new_vector_dim
+
+            # RAG-P0 A5: detect missing doc_type column on pre-A1 tables.
+            # Use schema reflection rather than row-level inspection so that
+            # tables with empty doc_type values still register as compliant.
+            doc_type_missing = False
+            try:
+                col_names = set(tbl.schema.names)
+                doc_type_missing = "doc_type" not in col_names
+            except Exception:
+                # Schema reflection failure is non-fatal — fall back to
+                # row inspection
+                doc_type_missing = "doc_type" not in rows
+
+            if not dim_mismatch and not doc_type_missing:
                 return False
 
-            # Dimension mismatch detected — drop table
+            # Schema drift detected — drop table
             if LOGURU_ENABLED:
+                reasons = []
+                if dim_mismatch:
+                    reasons.append(f"vector dim {existing_dim}!={new_vector_dim}")
+                if doc_type_missing:
+                    reasons.append("missing 'doc_type' column (pre-RAG-P0)")
                 logger.warning(
-                    f"[SCHEMA] Vector dimension mismatch in '{table_name}': "
-                    f"existing={existing_dim}, expected={new_vector_dim}. "
-                    f"Dropping table for recreation with correct dimensions."
+                    f"[SCHEMA] Drift in '{table_name}': {', '.join(reasons)}. "
+                    f"Dropping table for recreation."
                 )
 
             self._db.drop_table(table_name, ignore_missing=True)
@@ -2817,7 +2966,7 @@ class LanceDBClient:
 
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.debug(f"[SCHEMA] Dimension check failed for '{table_name}': {e}")
+                logger.debug(f"[SCHEMA] Schema check failed for '{table_name}': {e}")
             return False
 
     async def add_documents(
@@ -2877,6 +3026,8 @@ class LanceDBClient:
                     "category",
                     # Story 2.9: Image OCR source type
                     "source_type",
+                    # RAG-P0 A1: doc_type column
+                    "doc_type",
                 ):
                     if key in doc:
                         lance_doc[key] = doc[key]

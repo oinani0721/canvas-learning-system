@@ -92,7 +92,13 @@ class ToolExecutor:
         query: str,
         num_results: int = 5,
     ) -> str:
-        """Search vault notes via LanceDB vector search."""
+        """Search vault notes via LanceDB vector search.
+
+        RAG-P0 A3 (2026-05-10): default exclude doc_type='whiteboard' so that
+        MOC/index whiteboards (mostly dataviewjs/callout boilerplate) don't
+        pollute solving / concept queries. The react_agent MCP path bypasses
+        VaultNotesService, so the default must be enforced here too.
+        """
         if not self._lancedb:
             return (
                 "[Error] LanceDB client not available. Vault note search is disabled."
@@ -103,6 +109,7 @@ class ToolExecutor:
                 query=query,
                 table_name="vault_notes",
                 num_results=num_results,
+                exclude_doc_types=["whiteboard"],
             )
         except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
             # Fallback: try the default table
@@ -114,6 +121,7 @@ class ToolExecutor:
                     query=query,
                     table_name="canvas_explanations",
                     num_results=num_results,
+                    exclude_doc_types=["whiteboard"],
                 )
             except (
                 RuntimeError,

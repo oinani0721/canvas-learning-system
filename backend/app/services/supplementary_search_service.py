@@ -381,6 +381,8 @@ async def _two_tier_search(
             tier-2 命中时记 logger.warning 提醒 Ops 重建索引。
     """
     # ── Tier 1 ── prefix-resolved（Story 1.9 主路径，多 vault 隔离）
+    # RAG-P0 A3 (2026-05-10): default exclude whiteboard. MOC/index whiteboards
+    # carry mostly dataviewjs/callout boilerplate that pollutes solving queries.
     results: list[dict[str, Any]] = []
     try:
         results = await client.search(
@@ -388,6 +390,7 @@ async def _two_tier_search(
             table_name="vault_notes",
             num_results=num_results,
             query_type="hybrid",
+            exclude_doc_types=["whiteboard"],
         )
     except (RuntimeError, ConnectionError, ValueError, asyncio.TimeoutError) as e:
         logger.warning(
@@ -399,6 +402,7 @@ async def _two_tier_search(
                 query=query,
                 table_name="vault_notes",
                 num_results=num_results,
+                exclude_doc_types=["whiteboard"],
             )
         except (RuntimeError, ConnectionError, ValueError, asyncio.TimeoutError):
             results = []
