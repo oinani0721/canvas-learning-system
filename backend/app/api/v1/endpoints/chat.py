@@ -126,11 +126,14 @@ class EnrichContextRequest(BaseModel):
             "Hotkey 预加载场景留 None。"
         ),
     )
-    mode: Literal["preload", "answer"] = Field(
+    mode: Literal["preload", "answer", "deep"] = Field(
         default="preload",
         description=(
-            "preload = 仅装通用上下文（hotkey 触发）；"
-            "answer = 用 user_question rerank（Phase 2 实施）"
+            "preload = 仅装通用上下文（hotkey 预加载）；"
+            "answer = 用 user_question rerank（Cmd+Shift+E 快问快答，"
+            "top_k_max=20 / hard_cap=15）；"
+            "deep = Story 2.3 study-question 解题深度模式（Cmd+Shift+Q，"
+            "top_k_max=30 / hard_cap=20，预算 30-45s）"
         ),
     )
 
@@ -242,12 +245,29 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
             "仅基于当前笔记回答。"
         )
 
-    # Story 2.2 Phase A — PRD §4.1.1 9-step workflow Step 5: 补充材料搜索
-    # mode=preload (hotkey 触发，未提问) 跳过；mode=answer 且有 user_question 才搜
+    # Story 2.2 Phase A + Story 2.3 v1.0 — PRD §4.1.1 9-step workflow Step 5: 补充材料搜索
+    # mode=preload (hotkey 触发，未提问) 跳过；
+    # mode=answer 用快问快答参数（top_k_max=20 / hard_cap=15）；
+    # mode=deep 用解题深度参数（top_k_max=30 / hard_cap=20，30-45s 预算）
     supp_count = 0
     supp_degraded = False
     supp_reason: str | None = None
-    if req.mode == "answer" and req.user_question and req.user_question.strip():
+    if (
+        req.mode in ("answer", "deep")
+        and req.user_question
+        and req.user_question.strip()
+    ):
+        # Story 2.3 v1.0 — deep mode 加大召回。设计 §4.3 关键参数对比：
+        # answer (5s)  → top_k_max=20 / hard_cap=15
+        # deep   (30s) → top_k_max=30 / hard_cap=20
+        # Claude 200K context 用 Read tool 在内部交叉验证（verifier 分离原则）
+        if req.mode == "deep":
+            supp_top_k_max = 30
+            supp_hard_cap = 20
+        else:
+            supp_top_k_max = 20
+            supp_hard_cap = 15
+
         try:
             # Story 2.2 Phase A: 直接读 module singleton（不 acquire init lock）
             # 避免 background eager-init 跑 BGEM3 期间持有 lock 阻塞用户 request
@@ -260,12 +280,12 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
                 query=supp_query,
                 lancedb_client=lancedb_client,
                 # 2026-05-09 RAG-as-tool 范式重构：用户原话"不硬编码 5 条，把有用的都提供"
-                # → top_k_max=20 大召回 + elbow_cut 动态截断（业界推荐 vs 硬编码 top_k）
+                # → top_k_max 大召回 + elbow_cut 动态截断（业界推荐 vs 硬编码 top_k）
                 # → Claude 用 Read tool 真核实是 verifier（candidate generator + verifier 分离）
-                top_k_max=20,
+                top_k_max=supp_top_k_max,
                 min_relevance=0.30,  # RRF 实测分布，Phase B sigmoid 归一化后恢复 0.70
                 elbow_drop_threshold=0.05,
-                hard_cap=15,
+                hard_cap=supp_hard_cap,
             )
             supp_xml = format_supplementary_xml(supp_result)
             final_text += "\n\n" + supp_xml

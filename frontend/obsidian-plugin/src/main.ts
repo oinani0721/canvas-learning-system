@@ -101,6 +101,8 @@ const DEFAULT_HOTKEYS: Record<string, HotkeyDef[]> = {
   "canvas:start-examination-confirm": [{ modifiers: ["Mod", "Shift"], key: "X" }],
   "canvas:extract-concept": [{ modifiers: ["Mod", "Alt"], key: "C" }],
   "canvas:quiz-from-callout": [{ modifiers: ["Mod", "Alt"], key: "Q" }],
+  // Story 2.3 v1.0 — study-question 解题深度模式（区别于 -E 快问快答的 30-45s 显式深化）
+  "canvas:study-question": [{ modifiers: ["Mod", "Shift"], key: "Q" }],
   // start-examination（直调无 confirm）刻意不绑：与 -confirm 重复触发风险，由用户主动选 confirm 版
 };
 
@@ -402,6 +404,11 @@ export default class CanvasLearningPlugin extends Plugin {
         name: "AI 对话 v2（backend RAG 上下文增强 + 切 Claudian）",
         callback: () => this.handleChatWithContext(),
       },
+      {
+        id: "canvas:study-question",
+        name: "解题深度模式（study-question · 30-45s 4 段结构化诊断）",
+        callback: () => this.handleStudyQuestion(),
+      },
       // Story 2.5.X (D15 用户主权 C+) — 错误候选 3 命令
       {
         id: "canvas:accept-error-candidate",
@@ -579,6 +586,169 @@ export default class CanvasLearningPlugin extends Plugin {
     new Notice(
       `已组装 backend RAG 上下文 ${sizeKb}KB / ${neighborsCount} 邻居${suppHint} / ${usedTokens}/${budget} tokens${degradeHint}（${elapsedMs}ms）\n切到 Claudian 粘贴`,
       7000,
+    );
+
+    const claudianCmd = (this.app as any).commands?.findCommand?.(
+      "claudian:open-view",
+    );
+    if (!claudianCmd) {
+      new Notice(
+        "未检测到 Claudian 插件，请先安装并登录 Claude Code",
+        5000,
+      );
+      return;
+    }
+    (this.app as any).commands.executeCommandById("claudian:open-view");
+  }
+
+  /**
+   * Story 2.3 v1.0 — Study-question 解题深度模式入口（Phase 1）
+   *
+   * 区别于 canvas:chat-with-context（Cmd+Shift+E 快问快答 5s 预算）：
+   * - mode="deep" → backend supplementary 用 top_k_max=30 / hard_cap=20（vs 20/15）
+   * - prompt 前缀 `/study-question` → 触发 study-question Skill 而非 chat-with-context
+   * - ANCHOR_INSTRUCTION 加 5 阶段进度透明化 + 4 段结构化输出强制
+   * - 用户预期等待 30-45s（vs 快问快答 5s）
+   *
+   * 用户场景：解题不解 / 知识点不懂时主动深化（不靠 hook auto 召回）
+   */
+  private async handleStudyQuestion() {
+    console.log("[canvas:study-question] triggered");
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice("请先打开 节点/<concept>.md 节点页", 3000);
+      return;
+    }
+    if (!isNodePath(activeFile.path, this.settings.nodePathPrefixes)) {
+      new Notice(
+        `解题深度模式仅在 节点/ 下的概念页可用（当前 path: ${activeFile.path}）`,
+        5000,
+      );
+      return;
+    }
+
+    let content: string;
+    try {
+      content = await this.app.vault.read(activeFile);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      new Notice(`❌ 读节点正文失败: ${msg}`, 6000);
+      return;
+    }
+    const body = extractBodyWithoutFrontmatter(content);
+    const fmRaw =
+      (this.app.metadataCache.getFileCache(activeFile)?.frontmatter as
+        | Record<string, unknown>
+        | undefined) ?? {};
+
+    // 优先级与 chat-with-context 一致：editor selection > Modal 输入 > 留空跳过
+    const editor = this.app.workspace.activeEditor?.editor;
+    const selection = editor?.getSelection?.()?.trim() ?? "";
+    let userQuestion = selection;
+    if (!userQuestion) {
+      userQuestion = await new Promise<string>((resolve) => {
+        new UserQuestionModal(this.app, (q) => resolve(q ?? "")).open();
+      });
+    }
+    if (!userQuestion) {
+      new Notice(
+        "深度解题模式需要明确的问题（无法空查询）。请输入要解的题/概念，例如 \"什么是 admissibility\"",
+        5000,
+      );
+      return;
+    }
+
+    const t0 = Date.now();
+    const url = `${this.settings.backendUrl}/api/v1/chat/enrich-context`;
+    const payload: Record<string, unknown> = {
+      node_path: activeFile.path,
+      current_note_content: body,
+      current_note_frontmatter: fmRaw,
+      max_hops: 2,
+      mode: "deep",
+      user_question: userQuestion,
+    };
+    let resp: Response;
+    try {
+      resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      new Notice(
+        `❌ backend 未连接（${msg}）\n请先 docker compose up 启动 Canvas 后端`,
+        6000,
+      );
+      return;
+    }
+
+    let parsed: any;
+    try {
+      parsed = await resp.json();
+    } catch {
+      new Notice(`❌ backend 返回非 JSON（HTTP ${resp.status}）`, 6000);
+      return;
+    }
+    if (!resp.ok) {
+      const detail = parsed?.detail || `HTTP ${resp.status}`;
+      new Notice(`❌ enrich-context (deep) 失败: ${detail}`, 6000);
+      return;
+    }
+
+    const enrichedContext = parsed.enriched_context as string;
+    const usedTokens = parsed.used_tokens as number;
+    const budget = parsed.budget as number;
+    const neighborsCount = parsed.neighbors_count as number;
+    const degraded = parsed.degraded as boolean;
+    const suppCount = (parsed.supplementary_count as number) ?? 0;
+    const suppDegraded = (parsed.supplementary_degraded as boolean) ?? false;
+    const suppReason = (parsed.supplementary_reason as string | null) ?? null;
+
+    // Study-question 专属 ANCHOR_INSTRUCTION — 5 阶段进度 + 4 段结构化强制
+    const DEEP_ANCHOR_INSTRUCTION =
+      "⛔ 解题深度模式工作流（违反 = 退化为普通对话，浪费 30-45s 预算）：\n"
+      + "(1) **先做 Query intent 分类**: Definition / Procedure / Causal / Comparison 四选一，分类前不答。规则关键词命中显示\"keyword=X 命中\"，规则全 miss 时显示\"Claude 推断\"。\n"
+      + "(2) **5 阶段进度透明化**: 输出 `[1/5] intent` → `[2/5] 检索维度` → `[3/5] backend 召回 N 条` → `[4/5] Read 完整章节` → `[5/5] 合成中...`。每阶段一行，不空跑。\n"
+      + "(3) **必须 Read top 3 完整章节**: <supplementary_materials> 的 score 顺序 Read top-3 的 <source_path> 完整内容（snippet 是 hint 不是答案）。N<3 时 Read 全部。Read 失败标 `（rank=N 跳过：read_failed=<reason>）`，禁假装读过。\n"
+      + "(4) **必须 wikilink 2-hop 邻居扩展**: 1-hop 来自 <neighbor hop=\"1\">，2-hop 来自 <neighbor hop=\"2\">。优先级 [!error]+ > [!question]+ > [!tip]+ > 普通邻居。\n"
+      + "(5) **强制 4 段输出结构**（按 intent 路由）：\n"
+      + "    - Definition: ## 严格定义 / ## 直觉理解 / ## 1 个反例 / ## 联系节点\n"
+      + "    - Procedure: ## 前提条件 / ## 执行步骤 / ## 完整例子 / ## 联系节点\n"
+      + "    - Causal: ## 因果链 / ## 每步证据 / ## 误区 / ## 联系节点\n"
+      + "    - Comparison: ## X 是什么 / ## Y 是什么 / ## 关键差异 / ## 何时选谁 / ## 共同祖先\n"
+      + "(6) **inline wikilink heading 级精度**: 每个声明必带 `[[file#heading]]` 或 `[[file#^block]]`，禁 `[[file]]` 全文模糊引用。\n"
+      + "(7) **Citation back-verification**: 生成后 self-check 每个 wikilink 是否真支持其所在声明；找不到证据的句子改 `（推论 — Read 章节中未找到直接证据）`。\n"
+      + "(8) **末尾 `---` 分隔后展示完整 supplementary 列表**（rank/title/wikilink/snippet/score）。\n"
+      + "(9) **禁止凭训练数据答课程材料类问题** — vault 已索引到的概念找不到就说\"vault 未索引到 X\"，禁止 fallback 训练数据。";
+
+    const prompt = `/study-question\n\n${enrichedContext}\n\n---\n${DEEP_ANCHOR_INSTRUCTION}\n\n问题：${userQuestion}`;
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.showRetryNotice(
+        `❌ 剪贴板写入失败（${msg}），点重试`,
+        () => void this.handleStudyQuestion(),
+      );
+      return;
+    }
+
+    const elapsedMs = Date.now() - t0;
+    const sizeKb = (new Blob([prompt]).size / 1024).toFixed(1);
+    const degradeHint = degraded
+      ? `（⚠ ${parsed.degraded_reason} — 仅当前笔记）`
+      : "";
+    const suppHint = suppCount > 0
+      ? ` + ${suppCount} 补充材料 ⭐（deep 模式）`
+      : suppDegraded
+        ? `（补充材料降级: ${suppReason ?? "?"}）`
+        : "";
+    new Notice(
+      `🧠 解题深度模式已就绪 ${sizeKb}KB / ${neighborsCount} 邻居${suppHint} / ${usedTokens}/${budget} tokens${degradeHint}（${elapsedMs}ms）\n切到 Claudian 粘贴 — 预计 30-45s 出 4 段结构化诊断`,
+      8000,
     );
 
     const claudianCmd = (this.app as any).commands?.findCommand?.(
