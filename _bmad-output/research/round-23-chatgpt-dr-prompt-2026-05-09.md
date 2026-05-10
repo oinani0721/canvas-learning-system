@@ -906,4 +906,265 @@ Phase A0 (commit aef95be) 修复了 J（pattern 加 `**/`）+ I（tier-2 fallbac
 
 ---
 
-*Generated 2026-05-09 03:01 (V1) + 2026-05-09 12:43 (V2) + 2026-05-09 14:00 (V3 multi-vault) — 待用户复制 V3 提示词到 ChatGPT Deep Research，回填响应到 round-23-chatgpt-dr-response-v3-multi-vault-2026-05-09.md*
+*Generated 2026-05-09 03:01 (V1) + 2026-05-09 12:43 (V2) + 2026-05-09 14:00 (V3 multi-vault) — V3 已 ChatGPT 回 + cross-check confirmed 4/5 P0 + Phase A0.5 已 ship*
+
+---
+
+# V4 — study-question Skill 对抗审查 + ChatGPT 替用户决定所有 Q（2026-05-10 升级）
+
+> **V4 vs V1/V2/V3 关系**:
+> - V1: 单 vault 范式选择（X/Y/Z）
+> - V2: 单 vault 7 根因修复
+> - V3: 多 vault 架构演进
+> - **V4: 解题深度模式 skill 设计 + 决策授权**
+>
+> **V4 触发**：用户授权 ChatGPT 替她决定 §7 的 4 个 Q（不再让用户勾选）— 因为 ChatGPT 有更广业界视野，能做更专业的设计决策。
+>
+> **V4 调研产物（已 ship）**: 4 并行 agent deep explore（业界对照 8 产品 + 技术方案 + Skill 机制 + 痛点边界）→ `round-23-study-question-skill-design-2026-05-10.md` 9 章 ~600 行
+
+## V4 调研关键发现汇总
+
+### 当前 hook RAG 边界论
+- hook 5s 预算严格 → **永远做不到** query rewrite + multi-hop + Read 完整章节 + 强制结构化
+- 这些"不能"不是实现 bug，是 hook 设计哲学
+- 用户最早原话"全局搜索教学笔记给我回复"= 解题深度模式，hook 不能满足
+
+### 4 痛点 hook vs skill 分工
+| 痛点 | hook 修了？ | study-question 该解？ |
+|---|---|---|
+| A 召回精度漂移 | ✅ Phase A0 commit aef95be | ❌ 不重复 |
+| B 深度不够 (10 条短 snippet) | ❌ 5s 预算 | ✅ 核心 |
+| C 缺乏命令触发 | ❌ auto-trigger 设计 | ✅ 必做 |
+| D 输出无结构 | ❌ hook 无 LLM 重排 | ✅ prompt 层 |
+| E Multi-hop wikilink | ❌ Phase A0.5 明确不做 | ✅ wikilink 2-hop BFS |
+
+### 业界 8 产品共识 (Agent 1)
+**解题/学习场景必须 multi-pass** — Perplexity / NotebookLM / Khoj / CausalRAG / StepChain / SocraticLM 全部用 query 拆解 → 多次 retrieve → 合成。**单 pass RAG 必然劣化**。
+
+## V4 提示词全文（复制下面 ~~~~~~ 整段给 ChatGPT Deep Research）
+
+> **使用方式**：
+> 1. ChatGPT → 选 Deep Research 模式（GPT-5 / o3）
+> 2. 复制下面 `~~~~~~` 包裹的整段（不含外层包裹符）
+> 3. **关键差异**：本 prompt **明确授权 ChatGPT 替用户决定** 4 个 Q（不让用户勾选）
+> 4. 等 5-15 min
+> 5. 回填到 `_bmad-output/research/round-23-chatgpt-dr-response-v4-study-question-2026-05-10.md`
+
+~~~~~~
+# Tech Decision: /study-question Claude Code Skill — 设计审查 + 替用户决定所有 Q
+
+## Context
+
+我做的是本地 Obsidian PKM 学习 RAG 系统。用户最早需求：
+> "我在解题的时候对待相关内容产生不解...对应的知识点不懂...需要全局搜索相关的教学笔记来给我回复"
+
+我整个 session 焦点偏移到 hook auto-RAG 改进（A0/A0.5/B0），**忘了 hook 是 baseline 不是深度模式**。Hook 解决了召回精度（A），但 4 个核心痛点 hook 架构边界做不到：B 深度不够 / C 缺乏命令触发 / D 输出无结构 / E Multi-hop wikilink。
+
+**仓库**: https://github.com/oinani0721/canvas-learning-system
+**Branch**: `worktree-feature-obsidian-hybrid-dev` （⚠️ 必须切此分支，不是 main）
+
+**用户授权**: 我授权你**替用户决定** §最后 4 个 Q + 推荐你认为合理的额外 Q5/Q6。用户原话"把所有 Q 给 ChatGPT 决定"。
+
+---
+
+## 📚 必读文件清单（Tier 0 — 必须全读）
+
+GitHub URL 模板: `https://github.com/oinani0721/canvas-learning-system/blob/worktree-feature-obsidian-hybrid-dev/<path>#L<a>-L<b>`
+
+### T0-1. study-question 设计完整报告（最高优先）
+- `_bmad-output/research/round-23-study-question-skill-design-2026-05-10.md` (~600 行) — 我的完整设计，含 9 章节 + 4 类 query 路由 + Phase 1/2 工时 + SKILL.md 骨架
+
+### T0-2. 现有 4 个 Claudian Skill（边界对照）
+- `canvas-vault/.claude/skills/chat-with-context/SKILL.md` — 最相关，Cmd+Shift+E 触发，已支持 enrich-context endpoint
+- `canvas-vault/.claude/skills/node-chat/SKILL.md` (104 行) — Cmd+Shift+C 节点级对话
+- `canvas-vault/.claude/skills/ai-linked-doc/SKILL.md` (322 行) — Cmd+Shift+D 派生新节点
+- `canvas-vault/.claude/skills/configure-whiteboard/SKILL.md` (286 行) — 白板创建
+
+### T0-3. Backend RAG 关键 endpoint
+- `backend/app/api/v1/endpoints/chat.py:201-316` — `/api/v1/chat/enrich-context` (chat-with-context 调)
+- `backend/app/api/v1/endpoints/chat.py:589-696` — `/api/v1/chat/rag/enrich-hook` (hook 主体, Phase A0.5-L 已加鉴权)
+- `backend/app/api/v1/endpoints/chat.py:36` — `chat_router` 全局 dependencies (require_internal_api_key, DEBUG 透明)
+
+### T0-4. Supplementary search 主管道
+- `backend/app/services/supplementary_search_service.py` (475 行) — 含 search_supplementary + format_supplementary_xml + Phase A0.5-P taint 扫描
+- L36-170 search_supplementary, L178-270 format_supplementary_xml, L380-410 tier-2 fallback (Phase A0 修)
+
+### T0-5. Multi-hop / Query rewrite 现有实现（可复用）
+- `backend/lib/agentic_rag/mastery_injection.py:296` — `multi_query_rewrite` (Gemini Flash + 3s timeout, 已实现可复用)
+- `backend/app/services/wikilink_context_service.py:317` — `enrich_from_wikilink_graph` N-hop
+- `backend/app/services/wikilink_graph_service.py` — BFS N-hop 已就绪 (hop=2 默认)
+
+### T0-6. 历史调研（理解演进）
+- `_bmad-output/research/round-23-chatgpt-dr-response-v3-multi-vault-2026-05-10.md` — V3 ChatGPT 多 vault 反馈（已 cross-check 4/5 confirmed）
+- `_bmad-output/research/round-23-multi-vault-implementation-plan-2026-05-10.md` — 多 vault 完整设计
+- `_bmad-output/research/round-23-phase-a-retrieval-quality-2026-05-09.md` — RAG 召回精度调研
+
+---
+
+## 📂 选读文件（Tier 1 — context）
+
+- `backend/lib/agentic_rag/state_graph.py` L530-728 — 主 RAG pipeline（含 rerank node 但 hook 不走）
+- `backend/lib/agentic_rag/reranking.py` L57-370 — LocalReranker（priority-based 非 cross-encoder）
+- `frontend/obsidian-plugin/src/main.ts` — plugin 主入口（Cmd+Shift+E/C/D 现有快捷键模式）
+- `canvas-vault/.canvas-config.yaml` — vault 配置（subject / vault_id 待 Phase B0 加）
+
+---
+
+## 🕒 关键 Commits 时间线
+
+| Commit | 主题 |
+|---|---|
+| `5deb15a` | docs: study-question skill 设计 + V4 prompt（本议题来源）|
+| `93ae117` | fix(phase-b0): m 中文 vault sanitize + 测试反 pattern + 4 preset |
+| `ecf16f2` | fix(phase-a0.5): l hook 鉴权 + n 规范 + p taint |
+| `aef95be` | fix(phase-a0): 修 j pattern 失配 + i tier-2 fallback 0.85 |
+| `fa814e7` | feat: UserPromptSubmit hook 自动 RAG 注入（hook 主体）|
+
+---
+
+## 我们的核心设计假设（请逐一挑战）
+
+### 假设 1: Hook 5s 预算 ≠ 设计 bug，是哲学边界
+hook 永远做不到 query rewrite / multi-hop / Read 完整章节 / 强制结构化 — 这些必须放新 skill。**真的吗？**还是其实可以异步预处理 + cache？
+
+### 假设 2: 4 类 query 路由（Definition/Procedure/Causal/Comparison）
+解题 query 大致这 4 类，每类 pipeline 不同（Causal 不走 vector，走因果链遍历）。**这 4 类够吗？还是该 6-7 类？边界 case 怎么处理？**
+
+### 假设 3: wikilink 2-hop BFS 足够（不做 3-hop）
+2-hop 在 ~30 节点 vault 上 LightRAG 实测 F1 最优。**真的吗？**还是 3-hop 在解题场景必须？
+
+### 假设 4: Phase 1 (4-6h) 单独 ship 可行
+Skill 直接调现有 search_supplementary + Claude 200K context 自己 multi-step — 不加新 backend endpoint 就能产出"4 层结构"输出。**真的吗？**还是 Phase 2 backend endpoint 是必须？
+
+### 假设 5: chat-with-context 跟 study-question 边界清晰
+chat-with-context 是 plugin 触发的"上下文增强对话"，study-question 是"主动深度解题"。**用户能区分吗？**还是该合并成一个 skill 加 mode flag？
+
+---
+
+## 🎯 我授权你决定的 4 个 Q（必答 — 给推荐选项 + 详细理由）
+
+### Q1: Phase 1 vs Phase 2 实施范围
+- 选项 A: 只做 Phase 1 (4-6h, skill + SKILL.md + plugin 快捷键, 复用现有 search_supplementary)
+- 选项 B: Phase 1 + Phase 2 (10-14h, 含 backend `/api/v1/study/decompose-search` endpoint)
+- 选项 C: 别的方案（你提）
+
+**你的推荐**: ___ + 详细理由 + 业界对照
+
+### Q2: Query intent 分类机制
+- 选项 A: 规则关键词（< 1ms 免费但漏分类风险）
+- 选项 B: Claude Haiku 3s（精准但延迟高）
+- 选项 C: 双层（规则优先 + Haiku 兜底模糊 case）
+- 选项 D: 别的方案
+
+**你的推荐**: ___ + 详细理由
+
+### Q3: study-question 触发方式
+- 选项 A: Plugin 快捷键 Cmd+Shift+Q（一致性，符合现有 E/C/D pattern）
+- 选项 B: 用户在 Claudian 直接打 `/study-question 概念`（无快捷键）
+- 选项 C: 双轨（快捷键 + 命令字都支持）
+- 选项 D: 别的方案
+
+**你的推荐**: ___ + 详细理由 + UX 业界对照
+
+### Q4: 输出结构强制度
+- 选项 A: 强制 4 段（定义/直觉/反例/联系），违反 = Skill 失败
+- 选项 B: 推荐 4 段，但 Claude 可根据 query 类型调整
+- 选项 C: 完全自由（不强制结构，靠 prompt engineering 引导）
+- 选项 D: 别的方案
+
+**你的推荐**: ___ + 详细理由（注意 Causal/Procedure 类需要不同结构）
+
+### Q5/Q6 (额外补充)
+你认为我们漏了哪些必须决策的 Q？请补充并给推荐答案。
+
+---
+
+## 对抗性挑战（5 任务）
+
+### 1. 验证我们的痛点诊断
+hook 真的不能 multi-hop / 长 context 吗？读 chat.py:589-696 + supplementary_search_service.py 确认。
+是否其实可以让 hook **异步**做 multi-hop（hook 返回 partial，后续异步补全）？
+
+### 2. 挑战 4 类 query 路由设计
+- "局部最优陷阱"是 Definition 还是 Procedure？分类边界如何处理？
+- Causal 走"图遍历不走 vector"会不会丢真相关材料？
+- 双层分类（规则 + Haiku）真的比单层稳吗？
+
+### 3. 提出 2 套对抗替代方案
+
+**方案 X**: 不新建 skill，**强化 chat-with-context** 加 query intent 路由。理由：减少 skill 数量，降低用户认知负担。
+
+**方案 Y**: 完全反其道 — 不做 query rewrite，而是**让 Claude Opus 用 200K context 直接读全 vault**。理由：长 context 模型已经 in-context multi-hop。
+
+请对比我们的方案 vs X/Y，给决策矩阵 + 推荐。
+
+### 4. 设计 study-question vs chat-with-context UI 边界
+两个 skill 都做 RAG，怎么避免用户混淆？
+- 命令字不同（/study-question vs Cmd+Shift+E）够吗？
+- 还是 study-question 入口应该提示"你是不是想用 chat-with-context"？
+
+### 5. 评估 Phase 1 (4-6h) 单独 ship 可行性
+- 不加 backend endpoint，仅靠 SKILL.md + 现有 search_supplementary，能不能产出"4 层结构"输出？
+- 还是 Phase 2 backend endpoint 是必须（query rewrite 必须在 backend）？
+
+---
+
+## Constraints (你的方案必须满足)
+
+- 本地 macOS M-series（M1 Max / M3 Max），无 NVIDIA GPU
+- 30-45s study-question 总预算（vs 5s hook）
+- bge-m3 embedding 锁定
+- 不 fork Claudian / Obsidian
+- 跟现有 4 个 skill 边界清晰（chat-with-context / node-chat / ai-linked-doc / configure-whiteboard）
+- Apache-2.0 / MIT 兼容
+
+---
+
+## Desired Output Format
+
+1. **Q1-Q4 各自决定**（你的推荐 + 详细理由 + 业界对照）⭐ 这是最重要的产出
+2. **Q5/Q6 补充**（你认为我们漏了什么）
+3. **5 个核心设计假设挑战结论**（哪些成立 / 哪些不成立）
+4. **4 类 query 路由对抗结论**
+5. **方案 X / Y 决策矩阵**（vs 我们当前方案）
+6. **study-question vs chat-with-context UI 边界设计**
+7. **Phase 1 vs Phase 2 必要性评估**
+8. **你的最终推荐**（按 priority 排）
+9. **你认为我们最大的盲点**（一段长答）
+
+---
+
+## What I Specifically Want You to Push Back On
+
+不要只赞美我们的方案。请尖锐地：
+- "Hook 5s 预算是哲学边界" — 真的吗？还是我们图省事？现代 RAG 系统 (Perplexity Lazy Loading) 怎么处理这个？
+- "wikilink 2-hop 够" — 业界 GraphRAG / LightRAG 用 2-hop 还是 3-hop？我们 vault 节点数小于 100 是不是该 3-hop？
+- "Phase 1 单独 ship 能做出 4 层结构" — 真的吗？还是必须 Phase 2 backend query rewrite 才行？
+- "新建 skill 比扩展 chat-with-context 好" — 用户认知负担 + skill 数量 5 个会不会过多？
+- 我们 "4 类 query 路由" 是否对应业界（Perplexity Search Intent / NotebookLM Mode）有更成熟分类？
+
+## Output Length
+
+不限。每个 Q 决策详细到工时级 + 业界对照引用。
+~~~~~~
+
+---
+
+## V4 ChatGPT 返回后工作流
+
+1. 报告 ship 到 `_bmad-output/research/round-23-chatgpt-dr-response-v4-study-question-2026-05-10.md`
+2. Claude 启动 4-6 个并行 cross-check agent 验证 ChatGPT 关键 claim（特别是 Q1-Q4 决策 + 漏诊 Q5/Q6）
+3. 综合 → 决定 Phase 1 / Phase 2 实施
+4. 启动 dev → ship → mini-UAT 闭环
+
+## V1 vs V2 vs V3 vs V4 关键决策对比
+
+| 决策 | V1 | V2 | V3 | V4 |
+|---|---|---|---|---|
+| 焦点 | 单 vault 范式 (X/Y/Z) | 单 vault 7 根因修复 | 多 vault 架构 | **解题 skill 设计 + 决策授权** |
+| 决策权 | 用户决定 | 用户决定 | 用户决定 | **ChatGPT 决定 (用户授权)** |
+| 关键产出 | 范式选择 | 7 根因 file:line | per-vault config schema | **4 个 Q 推荐 + 业界对照** |
+
+---
+
+*Generated 2026-05-09 03:01 (V1) + 2026-05-09 12:43 (V2) + 2026-05-09 14:00 (V3) + 2026-05-10 (V4 study-question 决策授权) — 待用户复制 V4 提示词到 ChatGPT Deep Research，回填响应到 round-23-chatgpt-dr-response-v4-study-question-2026-05-10.md*
