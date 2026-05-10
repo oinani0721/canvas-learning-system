@@ -136,6 +136,29 @@ class EnrichContextRequest(BaseModel):
             "top_k_max=30 / hard_cap=20，预算 30-45s）"
         ),
     )
+    # Multi-vault P0-1 (2026-05-10) — vault_id 必填，注入 ContextVar 防 5 vault 串库。
+    # 参考 PostTurnExtractRequest (Story 2.5.Y AC #2) 已建立的必填契约。
+    # Plugin 用 inferVaultId(app.vault.getName()) 取 raw vault name；backend 端
+    # 调 sanitize_vault_id 标准化（NFKC + casefold + Unicode \w）后再 build group_id。
+    vault_id: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "当前 active vault 标识符（plugin 端 app.vault.getName() 或 "
+            ".canvas-config.yaml 的 vault_id 字段）。Backend 用 sanitize_vault_id "
+            "标准化后调 build_vault_group_id → set_current_subject_id 注入 ContextVar，"
+            "让 downstream wikilink/lancedb/supplementary 都看到同一 vault_id。"
+            "5 vault 共存时多请求并发不互相串库。"
+        ),
+        examples=["cs_61b", "数学", "Physics 101"],
+    )
+    subject_id: str | None = Field(
+        default=None,
+        description=(
+            "（可选）vault 内学科二级 namespace。一 vault 一学科时留 None，"
+            "build_vault_group_id 自动 fallback 到默认。"
+        ),
+    )
 
 
 class TraceItemModel(BaseModel):
@@ -218,6 +241,25 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="node_path 不能为空",
         )
+
+    # Multi-vault P0-1 (2026-05-10) — 注入 ContextVar 防 5 vault 串库。
+    # Plugin 传 raw vault name (inferVaultId(app.vault.getName()))；
+    # backend 用 sanitize_vault_id 标准化（NFKC + casefold + Unicode \w）→
+    # build_vault_group_id 构造 group_id (vault:<sanitized>:<subject>) →
+    # set_current_subject_id 写 ContextVar，让 downstream 各 service
+    # (wikilink_graph_service / lancedb_client / supplementary_search) 都
+    # 通过 get_current_subject_id() 拿到同一 vault_id，5 vault 并发不互相串库。
+    # 参考 PostTurnExtractRequest (Story 2.5.Y AC #2) 已建立的契约。
+    from app.config import sanitize_vault_id
+    from app.core.subject_config import build_vault_group_id, set_current_subject_id
+
+    sanitized_vault_id = sanitize_vault_id(req.vault_id)
+    derived_group_id = build_vault_group_id(
+        sanitized_vault_id,
+        subject_id=req.subject_id,
+        canvas_path=req.node_path,
+    )
+    set_current_subject_id(derived_group_id)
 
     enrichment = await enrich_from_wikilink_graph(
         node_path=req.node_path,

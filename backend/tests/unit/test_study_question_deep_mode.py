@@ -29,12 +29,15 @@ def client():
 def _payload(
     mode: str | None = None,
     user_question: str | None = None,
+    vault_id: str = "test_vault",
 ) -> dict[str, Any]:
+    # Multi-vault P0-1: vault_id 必填，测试默认 'test_vault'
     p: dict[str, Any] = {
         "node_path": "节点/Eigenvalues.md",
         "current_note_content": "特征值是核心概念。",
         "current_note_frontmatter": {"type": "concept", "mastery_score": 0.5},
         "max_hops": 2,
+        "vault_id": vault_id,
     }
     if mode is not None:
         p["mode"] = mode

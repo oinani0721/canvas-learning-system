@@ -31,12 +31,16 @@ def _enrich_payload(
     content: str = "特征值是核心概念。",
     fm: dict[str, Any] | None = None,
     max_hops: int = 2,
+    vault_id: str = "test_vault",
 ) -> dict[str, Any]:
+    # Multi-vault P0-1: vault_id 必填（参考 PostTurnExtractRequest 契约）。
+    # 测试默认 'test_vault' 让现有测试无需逐一改；测必填行为请显式 omit。
     return {
         "node_path": node_path,
         "current_note_content": content,
         "current_note_frontmatter": fm or {"type": "concept", "mastery_score": 0.5},
         "max_hops": max_hops,
+        "vault_id": vault_id,
     }
 
 
@@ -140,15 +144,14 @@ def test_enrich_context_default_frontmatter(client):
             json={
                 "node_path": "节点/X.md",
                 "current_note_content": "test",
+                "vault_id": "test_vault",  # Multi-vault P0-1: 必填
             },
         )
     assert response.status_code == 200
 
 
 def test_enrich_context_response_includes_elapsed_ms(client):
-    fake_result = EnrichmentResult(
-        neighbors=[], degraded=False, elapsed_ms=12.3456
-    )
+    fake_result = EnrichmentResult(neighbors=[], degraded=False, elapsed_ms=12.3456)
     with patch(
         "app.api.v1.endpoints.chat.enrich_from_wikilink_graph",
         return_value=fake_result,

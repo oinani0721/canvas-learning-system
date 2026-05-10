@@ -496,11 +496,15 @@ export default class CanvasLearningPlugin extends Plugin {
 
     const t0 = Date.now();
     const url = `${this.settings.backendUrl}/api/v1/chat/enrich-context`;
+    // Multi-vault P0-1 (2026-05-10): vault_id 必填，防 5 vault 串库。
+    // Backend 端 sanitize_vault_id 标准化（NFKC + casefold + Unicode \w）后
+    // 调 build_vault_group_id → set_current_subject_id 注入 ContextVar。
     const payload: Record<string, unknown> = {
       node_path: activeFile.path,
       current_note_content: body,
       current_note_frontmatter: fmRaw,
       max_hops: 2,
+      vault_id: inferVaultId(this.app.vault.getName()),
     };
     if (userQuestion) {
       payload.mode = "answer";
@@ -660,6 +664,7 @@ export default class CanvasLearningPlugin extends Plugin {
 
     const t0 = Date.now();
     const url = `${this.settings.backendUrl}/api/v1/chat/enrich-context`;
+    // Multi-vault P0-1 (2026-05-10): vault_id 必填，深度模式同样防串库
     const payload: Record<string, unknown> = {
       node_path: activeFile.path,
       current_note_content: body,
@@ -667,6 +672,7 @@ export default class CanvasLearningPlugin extends Plugin {
       max_hops: 2,
       mode: "deep",
       user_question: userQuestion,
+      vault_id: inferVaultId(this.app.vault.getName()),
     };
     let resp: Response;
     try {
