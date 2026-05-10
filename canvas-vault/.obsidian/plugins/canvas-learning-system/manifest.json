@@ -1,0 +1,9 @@
+{
+  "id": "canvas-learning-system",
+  "name": "Canvas Learning System",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "AI-powered learning assistant with mastery tracking, exam boards, and knowledge graph",
+  "author": "Canvas Learning System",
+  "isDesktopOnly": true
+}

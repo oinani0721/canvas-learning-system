@@ -22,7 +22,7 @@ status: 待用户批注 → 选择 Phase B0/B1/B2 实施顺序
 ### 1.1 当前真实状况
 
 Phase A0.5（commit ecf16f2）解决的是**单 vault 内的安全攻击面**（L hook 鉴权 + P taint 扫描 + N Graphiti 规范），**不是多 vault 准备度**。
-
+	
 | 维度 | 当前 ready | 加第 2 个 vault 会怎样 |
 |---|---|---|
 | LanceDB 物理隔离 | ✅ 100% | 表名前缀正常工作 |
@@ -71,15 +71,15 @@ Phase B 完成 → 多 vault ready 度 95%
 
 ### 2.1 已就绪（Phase A0.5 + 历史积累，不动）
 
-| 组件 | 实现 | 状态 |
-|---|---|---|
-| LanceDB 单 DB 多 table 前缀 | `{vault_id}_vault_notes` | ✅ Story 1.9 ready |
-| Graphiti group_id 隔离 | `vault:<vault_id>:<subject>:<canvas>` | ✅ Phase A0.5-N ship |
-| Backend hot-reload | `reload_settings()` | ✅ 无需 restart |
-| API endpoint vault_id 必填 | `/api/v1/chat/enrich-context` | ✅ Story 2.5.Y |
-| migrate_group_ids.py | 旧格式 → vault: 规范 | ✅ ready |
-| Hook + Chat 鉴权 | `require_internal_api_key` | ✅ Phase A0.5-L ship（DEBUG 透明） |
-| Supplementary taint 扫描 | quarantine/review/clean 三级 | ✅ Phase A0.5-P ship |
+| 组件                       | 实现                                    | 状态                            |
+| ------------------------ | ------------------------------------- | ----------------------------- |
+| LanceDB 单 DB 多 table 前缀  | `{vault_id}_vault_notes`              | ✅ Story 1.9 ready             |
+| Graphiti group_id 隔离     | `vault:<vault_id>:<subject>:<canvas>` | ✅ Phase A0.5-N ship           |
+| Backend hot-reload       | `reload_settings()`                   | ✅ 无需 restart                  |
+| API endpoint vault_id 必填 | `/api/v1/chat/enrich-context`         | ✅ Story 2.5.Y                 |
+| migrate_group_ids.py     | 旧格式 → vault: 规范                       | ✅ ready                       |
+| Hook + Chat 鉴权           | `require_internal_api_key`            | ✅ Phase A0.5-L ship（DEBUG 透明） |
+| Supplementary taint 扫描   | quarantine/review/clean 三级            | ✅ Phase A0.5-P ship           |
 
 ### 2.2 致命 Gap（必须修才能加第 2 vault）
 
@@ -589,7 +589,7 @@ ChatGPT V3 推荐的"统一安全控制面"包含：
 ## 7. 用户决策点
 
 > [!question]+ Q1: Phase B 实施范围（最关键决策）
-> - [ ] 选项 A: 只做 B0 (5-8h, 加第 2 vault 不 break)
+> - [x] 选项 A: 只做 B0 (5-8h, 加第 2 vault 不 break)
 > - [ ] 选项 B: B0 + B1 (13-20h, per-vault 配置就绪)
 > - [ ] 选项 C: B0 + B1 + B2 (19-30h, 完整请求级绑定)
 >
@@ -597,22 +597,22 @@ ChatGPT V3 推荐的"统一安全控制面"包含：
 
 > [!question]+ Q2: M 修复迁移策略
 > - [ ] 选项 A: 强制重 index 现有 'default' 数据（最干净）
-> - [ ] 选项 B: 保留 'default' fallback 读取 + 用户主动迁移（最安全）
+> - [x] 选项 B: 保留 'default' fallback 读取 + 用户主动迁移（最安全）
 > - [ ] 选项 C: 用户当前没有中文 vault → 不需要 migration
 
 > [!question]+ Q3: Phase B0 onboarding modal 复杂度
 > - [ ] 简单: 只问"课程名"+学科 (2 字段)
 > - [ ] 中等: 加 priority pattern preset（CS / 数学 / 英语预设）
-> - [ ] 完整: 让用户选 source 类型（视频转录 / 讲义 / 笔记 / 习题）
+> - [x] 完整: 让用户选 source 类型（视频转录 / 讲义 / 笔记 / 习题）
 
 > [!question]+ Q4: 跨 vault 搜索是否做
-> - [ ] 不做 (业界共识: NotebookLM / AnythingLLM / Logseq 都拒绝)
+> - [x] 不做 (业界共识: NotebookLM / AnythingLLM / Logseq 都拒绝)
 > - [ ] LLM 层 multi-attachment（学 Gemini-NotebookLM）
 > - [ ] RAG 层 union 检索（学 RagFlow，要求同 embedder = 已满足）
 
 > [!question]+ Q5: 你计划什么时候真的加第 2 个 vault
 > - [ ] 1 周内 → 立刻做 B0
-> - [ ] 1 个月内 → 优先排 B0 但 B1 可推迟
+> - [x] 1 个月内 → 优先排 B0 但 B1 可推迟
 > - [ ] 暂时只用 1 vault → B0 也可推迟，先做 A1 业务功能
 
 ---
