@@ -700,7 +700,35 @@ class Settings(BaseSettings):
 
     @property
     def vault_id(self) -> str:
-        """Story 1.9: Derive vault_id from ACTIVE_VAULT name (sanitized)."""
+        """Story 1.9 + Phase B0.4 (Round-5 路径 A): Derive vault_id.
+
+        Priority order (Round-5 A2):
+        1. .canvas-config.yaml `vault_id` field (explicit, schema_version >= 2.0)
+        2. sanitize_vault_id(ACTIVE_VAULT) (fallback, legacy schema 1.0)
+
+        Reading yaml each access is OK because:
+        - get_settings() is @lru_cache → Settings instance reused
+        - vault_id property called frequently but yaml file rarely changes
+        - hot-reload via reload_settings() invalidates cache
+        """
+        try:
+            from pathlib import Path
+
+            import yaml
+
+            yaml_path = Path(self.CANVAS_BASE_PATH) / ".canvas-config.yaml"
+            if yaml_path.exists():
+                with open(yaml_path, encoding="utf-8") as f:
+                    config = yaml.safe_load(f) or {}
+                explicit_vault_id = config.get("vault_id")
+                if explicit_vault_id and isinstance(explicit_vault_id, str):
+                    # Validate explicit vault_id is well-formed
+                    sanitized = sanitize_vault_id(explicit_vault_id)
+                    if sanitized != "default":
+                        return sanitized
+        except Exception:
+            # Yaml parse failure or path error → fallback silently to ACTIVE_VAULT
+            pass
         return sanitize_vault_id(self.ACTIVE_VAULT)
 
     @property

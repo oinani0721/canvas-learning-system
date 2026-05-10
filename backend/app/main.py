@@ -407,6 +407,45 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# Round-5 A1 (ChatGPT V4 + cross-check D 部分成立):
+# 旧: openapi.json 缺 securitySchemes — 实现完整但 spec 没声明 → 第三方工具无法推导鉴权
+# 新: custom OpenAPI schema 加 InternalApiKey APIKey scheme + 全局 security requirement
+# 影响: openapi.json + /docs Swagger UI 自动显示 X-CLS-Internal-Key header 鉴权契约
+def _custom_openapi():
+    """Custom OpenAPI schema with securitySchemes declaration (Round-5 A1)."""
+    from fastapi.openapi.utils import get_openapi
+
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=settings.PROJECT_NAME,
+        version=settings.VERSION,
+        description=settings.PROJECT_DESCRIPTION,
+        routes=app.routes,
+    )
+    components = openapi_schema.setdefault("components", {})
+    components["securitySchemes"] = {
+        "InternalApiKey": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-CLS-Internal-Key",
+            "description": (
+                "Internal API key for backend authentication. "
+                "Required for /chat/*, /sync/*, /system/* endpoints in production mode (DEBUG=False). "
+                "DEBUG=True mode allows requests without key (dev_bypass with warning log). "
+                "See backend/app/security.py:require_internal_api_key for fail-closed matrix."
+            ),
+        }
+    }
+    # Global security requirement (per-endpoint can override)
+    openapi_schema["security"] = [{"InternalApiKey": []}]
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = _custom_openapi  # type: ignore[method-assign]
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Middleware Configuration
 # ═══════════════════════════════════════════════════════════════════════════════

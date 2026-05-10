@@ -135,6 +135,107 @@ class TestSanitizeVaultId:
         assert sanitize_vault_id("====") == "default"
 
 
+class TestVaultIdYamlFirst:
+    """Phase B0.4 (Round-5 A2): Settings.vault_id 优先读 .canvas-config.yaml.
+
+    Schema v2.0 引入显式 vault_id 字段, 替代依赖 ACTIVE_VAULT env sanitize.
+    优先级: yaml `vault_id` field > sanitize_vault_id(ACTIVE_VAULT).
+    """
+
+    def test_yaml_vault_id_takes_precedence(self, tmp_path, monkeypatch):
+        """yaml 显式字段优先于 ACTIVE_VAULT env."""
+        # Setup mock vault dir
+        vault_dir = tmp_path / "test-vault"
+        vault_dir.mkdir()
+        config_file = vault_dir / ".canvas-config.yaml"
+        config_file.write_text(
+            'vault_id: "explicit_yaml_id"\n'
+            "subject: math\n"
+            'schema_version: "2.0-multi-vault-2026-05-10"\n',
+            encoding="utf-8",
+        )
+
+        # Set CANVAS_BASE_PATH to mock dir
+        monkeypatch.setenv("CANVAS_BASE_PATH", str(vault_dir))
+        monkeypatch.setenv("ACTIVE_VAULT", "different-active-vault")
+
+        from app.config import reload_settings
+
+        settings = reload_settings()
+        # yaml vault_id "explicit_yaml_id" 应优先于 ACTIVE_VAULT "different-active-vault"
+        assert settings.vault_id == "explicit_yaml_id"
+
+    def test_fallback_to_active_vault_when_yaml_missing(self, tmp_path, monkeypatch):
+        """yaml 不存在或缺 vault_id 字段时 fallback 到 ACTIVE_VAULT sanitize."""
+        vault_dir = tmp_path / "test-vault-no-yaml"
+        vault_dir.mkdir()
+        # 不创建 .canvas-config.yaml
+
+        monkeypatch.setenv("CANVAS_BASE_PATH", str(vault_dir))
+        monkeypatch.setenv("ACTIVE_VAULT", "fallback-vault")
+
+        from app.config import reload_settings
+
+        settings = reload_settings()
+        assert settings.vault_id == "fallback_vault"
+
+    def test_fallback_when_yaml_lacks_vault_id_field(self, tmp_path, monkeypatch):
+        """schema 1.0 yaml (无 vault_id 字段) → fallback ACTIVE_VAULT."""
+        vault_dir = tmp_path / "legacy-vault"
+        vault_dir.mkdir()
+        config_file = vault_dir / ".canvas-config.yaml"
+        # Schema 1.0 不含 vault_id field (legacy)
+        config_file.write_text(
+            'subject: cs-61b\nschema_version: "1.0-flat-architecture-2026-04-20"\n',
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("CANVAS_BASE_PATH", str(vault_dir))
+        monkeypatch.setenv("ACTIVE_VAULT", "legacy-active")
+
+        from app.config import reload_settings
+
+        settings = reload_settings()
+        assert settings.vault_id == "legacy_active"
+
+    def test_chinese_vault_id_in_yaml_preserved(self, tmp_path, monkeypatch):
+        """中文 vault_id 在 yaml 中应被保留 (依赖 Phase B0.1 sanitize unicode 支持)."""
+        vault_dir = tmp_path / "chinese-vault"
+        vault_dir.mkdir()
+        config_file = vault_dir / ".canvas-config.yaml"
+        config_file.write_text(
+            'vault_id: "数学101"\n'
+            "subject: math\n"
+            'schema_version: "2.0-multi-vault-2026-05-10"\n',
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("CANVAS_BASE_PATH", str(vault_dir))
+        monkeypatch.setenv("ACTIVE_VAULT", "default")
+
+        from app.config import reload_settings
+
+        settings = reload_settings()
+        # 中文 vault_id 经 sanitize 后应保留 (B0.1 修复)
+        assert settings.vault_id == "数学101"
+
+    def test_invalid_yaml_silently_falls_back(self, tmp_path, monkeypatch):
+        """yaml 解析失败 → fallback ACTIVE_VAULT (不抛异常)."""
+        vault_dir = tmp_path / "broken-yaml-vault"
+        vault_dir.mkdir()
+        config_file = vault_dir / ".canvas-config.yaml"
+        config_file.write_text("this is: not valid: yaml: content: [", encoding="utf-8")
+
+        monkeypatch.setenv("CANVAS_BASE_PATH", str(vault_dir))
+        monkeypatch.setenv("ACTIVE_VAULT", "broken-fallback")
+
+        from app.config import reload_settings
+
+        settings = reload_settings()
+        # 静默 fallback, 不抛异常
+        assert settings.vault_id == "broken_fallback"
+
+
 class TestReloadSettings:
     def test_cache_clear_picks_up_new_value(self):
         from app.config import get_settings, reload_settings

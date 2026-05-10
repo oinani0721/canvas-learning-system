@@ -1,20 +1,30 @@
-# Canvas Learning System · Vault 级配置（round-11 扁平架构）
-# 本 vault 只学一个学科（subject），不跨学科。
-# 所有 Skill 从此文件读 subject，不再向用户问。
+# Canvas Learning System · Vault 级配置 (round-11 扁平架构 + B0.3 schema v2)
+# 本 vault 只学一个学科 (subject), 不跨学科.
+# 所有 Skill 从此文件读 subject + vault_id, 不再向用户问.
 #
-# 如需切换学科 → 建议新建另一个 vault（参考 .claude/skills/deploy-vault/）
+# 如需切换学科 → 建议新建另一个 vault (参考 .claude/skills/deploy-vault/)
 
-subject: cs-61b            # 机器代码（文件夹 slug 风格，lowercase+数字+连字符）
-subject_display: "CS 61B 数据结构"   # 人类显示名（用于 Dashboard 和 UI）
+# Phase B0.3 (2026-05-10): 显式 vault_id 字段 (新增, 替代依赖文件夹名 sanitize 推断)
+# 优先级: 本字段 > sanitize_vault_id(ACTIVE_VAULT env)
+# 中文 vault 名建议直接保留 (例 vault_id: "数学101"), 已 Phase B0.1 sanitize 支持 unicode
+vault_id: "canvas_vault"
+vault_display_name: "CS 61B Canvas Vault"
 
-# 当前活动白板（/ai-linked-doc Skill 的 active_board 默认值）
-# 用户可在 Claudian 里改，或在白板切换时手工改
+subject: cs-61b            # 机器代码 (文件夹 slug 风格, lowercase+数字+连字符)
+subject_display: "CS 61B 数据结构"   # 人类显示名 (用于 Dashboard 和 UI)
+
+# 当前活动白板 (/ai-linked-doc Skill 的 active_board 默认值)
+# 用户可在 Claudian 里改, 或在白板切换时手工改
 active_board: null
 
-# 架构版本（供 Skill 兼容检查用）
-schema_version: "1.0-flat-architecture-2026-04-20"
+# 架构版本 (供 Skill 兼容检查用)
+schema_version: "2.0-multi-vault-2026-05-10"
 
-# 弃用路径（v4 起绝对禁止写入）
+# Phase B0.3 schema v2 字段
+created_at: "2026-04-20T10:00:00Z"
+last_indexed_at: null
+
+# 弃用路径 (v4 起绝对禁止写入)
 deprecated_paths:
   - wiki/canvases/
   - wiki/concepts/
