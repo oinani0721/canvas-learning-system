@@ -191,15 +191,27 @@ class SubjectResolver:
         except Exception:
             _vid = "default"
 
+        # Phase A0.5-N (Round-4 ChatGPT V3 + cross-check confirmed P0):
+        # 旧: f"{_vid}:{subject}:{canvas_name}" (例 "default:math:离散数学") 缺 vault: 前缀
+        # 新: build_vault_group_id → vault: 前缀规范 + sanitize_subject_name 一致归一化
+        #     SubjectResolver 三层结构保留 (subject + canvas 都有业务意义)
+        #     与 Story 2.5.Y migration 目标 vault:<id>[:<sub>] 兼容
+        from app.core.subject_config import build_vault_group_id, sanitize_subject_name
+
+        def _make_group_id(subject: str) -> str:
+            base = build_vault_group_id(
+                _vid, subject_id=subject
+            )  # vault:<vid>:<subject>
+            return f"{base}:{sanitize_subject_name(canvas_name)}"
+
         # 1. Manual override (highest priority)
         # Story 1.9: Accept manual_subject alone (category defaults to subject)
         if manual_subject:
             category = manual_category or manual_subject
-            group_id = f"{_vid}:{manual_subject}:{canvas_name}"
             return SubjectInfo(
                 subject=manual_subject,
                 category=category,
-                group_id=group_id,
+                group_id=_make_group_id(manual_subject),
                 source=MetadataSource.MANUAL,
             )
 
@@ -211,11 +223,10 @@ class SubjectResolver:
         config_result = self._resolve_from_config(normalized_path)
         if config_result:
             subject, category = config_result
-            group_id = f"{_vid}:{subject}:{canvas_name}"
             return SubjectInfo(
                 subject=subject,
                 category=category,
-                group_id=group_id,
+                group_id=_make_group_id(subject),
                 source=MetadataSource.CONFIG,
             )
 
@@ -223,11 +234,10 @@ class SubjectResolver:
         inferred_result = self._infer_from_path(normalized_path)
         if inferred_result:
             subject, category = inferred_result
-            group_id = f"{_vid}:{subject}:{canvas_name}"
             return SubjectInfo(
                 subject=subject,
                 category=category,
-                group_id=group_id,
+                group_id=_make_group_id(subject),
                 source=MetadataSource.INFERRED,
             )
 
@@ -239,12 +249,11 @@ class SubjectResolver:
         )
         subject = defaults.get("subject", "general")
         category = defaults.get("category", "general")
-        group_id = f"{_vid}:{subject}:{canvas_name}"
 
         return SubjectInfo(
             subject=subject,
             category=category,
-            group_id=group_id,
+            group_id=_make_group_id(subject),
             source=MetadataSource.DEFAULT,
         )
 

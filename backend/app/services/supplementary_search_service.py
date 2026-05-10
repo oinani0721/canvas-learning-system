@@ -128,8 +128,13 @@ async def search_supplementary(
         )
 
     # Filter + normalize + 空文档检测（防 ghost reference / 路径漂移 / 空 frontmatter）
+    # Phase A0.5-P (Round-4 ChatGPT V3 + cross-check confirmed P0 安全):
+    # 加 classify_snippet 扫描 prompt injection 风险, 防钓鱼 .md 下载 → 注入 Claude additionalContext.
+    # 阈值 (Q4 选项 2 中等): is_blocked → quarantine; injection_risk >= 0.45 → review; else clean.
     materials: list[dict[str, Any]] = []
     skipped_empty = 0
+    quarantined_count = 0
+    review_count = 0
     for raw in results:
         score = float(raw.get("score", 0.0))
         if score < min_relevance:
@@ -145,6 +150,15 @@ async def search_supplementary(
             skipped_empty += 1
             continue
 
+        # Phase A0.5-P: prompt injection taint 扫描
+        taint_info = _classify_snippet_taint(normalized.get("snippet", ""))
+        normalized["taint"] = taint_info["taint"]
+        normalized["injection_risk"] = taint_info["risk_score"]
+        if taint_info["taint"] == "quarantine":
+            quarantined_count += 1
+        elif taint_info["taint"] == "review":
+            review_count += 1
+
         materials.append(normalized)
         if len(materials) >= top_k_max:
             break
@@ -153,6 +167,13 @@ async def search_supplementary(
         logger.warning(
             "[SupplementarySearch] 过滤空文档/不存在文件",
             count=skipped_empty,
+            query=query[:60],
+        )
+    if quarantined_count or review_count:
+        logger.warning(
+            "[SupplementarySearch] prompt injection taint 命中",
+            quarantined=quarantined_count,
+            review=review_count,
             query=query[:60],
         )
 
@@ -178,12 +199,10 @@ async def search_supplementary(
 def format_supplementary_xml(result: dict[str, Any]) -> str:
     """把 search_supplementary 返回的 dict 渲染成 `<supplementary_materials>` XML 段。
 
-    Story 2.1 的 `<rag_context>` 包装风格保持一致 — Skill 端按相同 XML pattern 解析。
-
-    降级场景：
-    - degraded=True → `<supplementary_materials count="0" degraded="true" reason="..."/>` 自闭合
-    - 空结果但未降级 → `<supplementary_materials count="0" reason="empty_index"/>`
-    - 有材料 → 完整 `<supplementary_materials count="N">...<material .../>...</supplementary_materials>`
+    Phase A0.5-P (Round-4): taint-aware 输出
+    - taint=quarantine: 不输出 snippet 正文 + 加 quarantined="true" attr (防 indirect injection)
+    - taint=review: snippet 截断 240 字 + injection_risk attr (中风险摘要)
+    - taint=clean (默认): 完整输出
     """
     materials = result.get("materials", [])
     degraded = result.get("degraded", False)
@@ -199,16 +218,66 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
 
     parts = [f'<supplementary_materials count="{len(materials)}">']
     for i, m in enumerate(materials, start=1):
+        taint = m.get("taint", "clean")
+        injection_risk = m.get("injection_risk", 0.0)
+
+        # Build material attrs
+        material_attrs = f'rank="{i}" score="{m["score"]:.3f}"'
+        if taint != "clean":
+            material_attrs += f' taint="{taint}" injection_risk="{injection_risk:.2f}"'
+
+        # Snippet content based on taint level
+        if taint == "quarantine":
+            snippet_content = (
+                "[QUARANTINED — content blocked due to suspected prompt injection. "
+                "Use Read tool on source_path to verify if needed.]"
+            )
+        elif taint == "review":
+            raw_snippet = (
+                m["snippet"][:240] + "…" if len(m["snippet"]) > 240 else m["snippet"]
+            )
+            snippet_content = _xml_escape(raw_snippet)
+        else:
+            snippet_content = _xml_escape(m["snippet"])
+
         parts.append(
-            f'  <material rank="{i}" score="{m["score"]:.3f}">\n'
+            f"  <material {material_attrs}>\n"
             f"    <title>{_xml_escape(m['title'])}</title>\n"
             f"    <wikilink>{_xml_escape(m['wikilink'])}</wikilink>\n"
-            f"    <snippet>{_xml_escape(m['snippet'])}</snippet>\n"
+            f"    <snippet>{snippet_content}</snippet>\n"
             f"    <source_path>{_xml_escape(m['source_path'])}</source_path>\n"
             f"  </material>"
         )
     parts.append("</supplementary_materials>")
     return "\n".join(parts)
+
+
+def _classify_snippet_taint(snippet: str) -> dict[str, Any]:
+    """Phase A0.5-P (Round-4 ChatGPT V3 P0 安全): supplementary 内容 prompt injection 扫描.
+
+    防御场景: 攻击者发钓鱼 .md 给用户 → 用户下载到 vault → hook 召回 → 注入 Claude additionalContext.
+    阈值 (Q4 选项 2 中等):
+    - is_blocked (>= INJECTION_THRESHOLD): quarantine, 不输出正文
+    - risk_score >= 0.45: review, 截断 240 字摘要
+    - else: clean, 正常输出
+    """
+    if not snippet or not snippet.strip():
+        return {"taint": "clean", "risk_score": 0.0}
+    try:
+        from app.middleware.prompt_injection_guard import check_input
+
+        result = check_input(snippet)
+        if result.is_blocked:
+            return {"taint": "quarantine", "risk_score": result.risk_score}
+        if result.risk_score >= 0.45:
+            return {"taint": "review", "risk_score": result.risk_score}
+        return {"taint": "clean", "risk_score": result.risk_score}
+    except (ImportError, RuntimeError) as e:
+        logger.debug(
+            "[SupplementarySearch] prompt_injection_guard 不可用，跳过 taint 扫描",
+            error=str(e)[:120],
+        )
+        return {"taint": "clean", "risk_score": 0.0}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -19,9 +19,10 @@ from pathlib import Path
 from typing import Any, Literal, Optional
 
 import structlog
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 
+from app.security import require_internal_api_key
 from app.services.chat_context_assembler import (
     ChatContextAssembler,
     CurrentNoteContext,
@@ -33,7 +34,17 @@ from app.services.supplementary_search_service import (
 from app.services.wikilink_context_service import enrich_from_wikilink_graph
 
 logger = structlog.get_logger(__name__)
-chat_router = APIRouter()
+
+# Phase A0.5-L (Round-4 ChatGPT V3 + cross-check confirmed P0 安全 bug):
+# 旧: chat_router 完全无鉴权 → 任何本地进程可 POST 注入 Claude additionalContext
+# 新: 全 chat router 加 require_internal_api_key 全局 dependency
+# fail-closed 矩阵:
+#   - DEBUG=True + key 未配置 → allow + warning log (dev 透明，不破坏现有 plugin/hook)
+#   - DEBUG=False + key 未配置 → 503 (强制 ops 配置)
+#   - DEBUG=False + key 配置 + header 不匹配 → 403
+# Phase A1 计划: plugin 与 settings.json hook 加 X-CLS-Internal-Key header,
+#               然后切到 production 模式 (DEBUG=False)
+chat_router = APIRouter(dependencies=[Depends(require_internal_api_key)])
 
 # Story 2.2 Phase A — module-level LanceDBClient singleton + lock
 # 每个 endpoint call 之前 get_lancedb_client() 都 new instance → BGEM3 model 每次重加载 60s+
