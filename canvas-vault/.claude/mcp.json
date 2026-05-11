@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "canvas-learning-mcp": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8011/mcp"
+    }
+  },
+  "_claudian": {
+    "servers": {
+      "canvas-learning-mcp": {
+        "enabled": true,
+        "contextSaving": false,
+        "description": "Canvas Learning System backend MCP — 19 tools (search_notes / get_neighbors / read_note / query_mastery / search_memories / record_error / generate_question / score_answer / ...). FastApiMCP SSE 协议，worktree backend port 8011 → container 8001。contextSaving=false 让所有 skill 直接看到 MCP tools 无需 @mention。"
+      }
+    }
+  },
+  "_doc": {
+    "purpose": "让 .claude/skills/ 下的 skill 主动调 backend RAG（study-question HARD-18 路径 A/C 自救核心依赖）",
+    "schema_fix_history": [
+      "v1: contextSaving 写在 mcpServers.canvas-learning-mcp 内部 → Claudian 静默忽略 → server 走默认 contextSaving=true → skill 看不到 MCP tools",
+      "v2 (现在): contextSaving 移到顶层兄弟字段 _claudian.servers.canvas-learning-mcp → Claudian main.js:10644-10657 直读此路径 → server 永远 active"
+    ],
+    "code_evidence": {
+      "main.js:10644": "const claudianMeta = file._claudian?.servers ?? {}",
+      "main.js:10657": "contextSaving: meta.contextSaving ?? DEFAULT.contextSaving",
+      "main.js:10624": "DEFAULT_MCP_SERVER = { enabled: true, contextSaving: true }",
+      "main.js:8238": "if (server.contextSaving && !mentionedNames.has(server.name)) continue // skip server"
+    },
+    "transport": "SSE — POST /mcp 返回 session_id + /mcp/messages/?session_id 通信",
+    "key_tools": [
+      "mcp__canvas-learning-mcp__search_notes (6-source RAG)",
+      "mcp__canvas-learning-mcp__get_neighbors (wikilink N-hop)",
+      "mcp__canvas-learning-mcp__read_note (read full md)"
+    ]
+  }
+}

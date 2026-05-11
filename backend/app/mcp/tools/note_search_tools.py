@@ -137,6 +137,92 @@ async def search_notes(
         if not raw_results:
             raw_results = rag_result.get("results", [])
 
+        # RAG-P0 v2 fallback (2026-05-11): LangGraph 5-channel fusion pipeline
+        # has a known `fan_out_retrieval` conditional_edges routing bug causing
+        # all 5 channels to silently skip execution (Channel health: 0/5 active).
+        # When the pipeline returns 0, fall back to direct LanceDBClient.search()
+        # single-path query so Claudian skill never gets empty supplementary.
+        # Long-term fix: state_graph.py fan_out_retrieval path_map (P1, deferred).
+        if not raw_results:
+            # RAG-P0 v2 fallback (2026-05-11): RAGService.query() returned 0 due to
+            # known LangGraph fan_out_retrieval routing bug + LanceDBClient.search
+            # hybrid path also returns 0 silently. Bypass BOTH layers — go raw
+            # LanceDB API. Proven path: tbl.search(vector).where(filter).limit(N).
+            try:
+                import os
+                from agentic_rag.clients import LanceDBClient
+                from agentic_rag.config import LANCEDB_CONFIG
+
+                # LANCEDB_CONFIG['db_path'] defaults to 'data/lancedb' (relative!)
+                # but actual data is at env LANCEDB_DATA_PATH (=/lancedb in container).
+                # Prefer env over config to avoid cwd-dependent empty connection.
+                resolved_db_path = os.environ.get(
+                    "LANCEDB_DATA_PATH", LANCEDB_CONFIG["db_path"]
+                )
+                logger.warning(
+                    f"[search_notes] RAG pipeline returned 0; bypassing to raw LanceDB "
+                    f"API (db_path={resolved_db_path})"
+                )
+
+                # Need bge-m3 query vector + already-connected db
+                helper_client = LanceDBClient(db_path=resolved_db_path)
+                await helper_client.initialize()
+                query_vector = await helper_client._get_query_vector(query)
+                if not query_vector:
+                    logger.error(
+                        "[search_notes] fallback failed: bge-m3 embedding returned None"
+                    )
+                else:
+                    # Use helper_client._db (already-connected) instead of new
+                    # lancedb.connect() to avoid path resolution mismatch
+                    db = helper_client._db
+                    if db is None:
+                        raise RuntimeError(
+                            "helper_client._db is None after initialize()"
+                        )
+                    # vault_id-prefixed table name
+                    table_name = helper_client.resolve_table_name("vault_notes")
+                    logger.debug(
+                        f"[search_notes] fallback opening table '{table_name}' "
+                        f"(available: {list(db.table_names())[:5]})"
+                    )
+                    tbl = db.open_table(table_name)
+                    # Filter out whiteboard, fallback to IS NULL for pre-A1 rows
+                    where_clause = (
+                        "(doc_type NOT IN ('whiteboard') OR doc_type IS NULL)"
+                    )
+                    raw_df = (
+                        tbl.search(query_vector)
+                        .where(where_clause)
+                        .limit(max_results)
+                        .to_pandas()
+                    )
+                    raw_results = [
+                        {
+                            "content": row.get("content", ""),
+                            "file_path": row.get("canvas_file", ""),
+                            "score": 1.0 - float(row.get("_distance", 0.0))
+                            if "_distance" in row
+                            else 0.0,
+                            "retrieval_source": "lancedb_raw_fallback",
+                            "metadata": {
+                                "doc_type": row.get("doc_type", ""),
+                                "subject": row.get("subject", ""),
+                                "category": row.get("category", ""),
+                            },
+                        }
+                        for _, row in raw_df.iterrows()
+                    ]
+                    logger.info(
+                        f"[search_notes] raw LanceDB fallback returned "
+                        f"{len(raw_results)} results from {table_name}"
+                    )
+            except Exception as fb_exc:
+                logger.error(
+                    f"[search_notes] raw LanceDB fallback failed: {fb_exc}",
+                    exc_info=True,
+                )
+
         items: List[NoteResultItem] = []
         for r in raw_results[:max_results]:
             content = r.get("content", r.get("text", ""))

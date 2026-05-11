@@ -2654,6 +2654,36 @@ class LanceDBClient:
             exclude_doc_types=exclude_doc_types,
         )
 
+        # RAG-P0 A5 v2 schema guard (2026-05-11) — drop clauses referencing
+        # columns not present in this table's schema. Without this, LanceDB
+        # raises LanceError(Schema): No field named X → entire branch fails
+        # silently (try/except below returns []). Legacy tables (vault_notes,
+        # canvas_vault_vault_notes pre-RAG-P0) lack the 'doc_type' column;
+        # the IS NULL fallback in _build_where_filters does NOT help because
+        # IS NULL still requires the column to exist in the schema.
+        try:
+            schema_columns = {f.name for f in table.schema}
+            missing_in_schema = []
+            for col in ("doc_type", "course", "tags_str"):
+                if col not in schema_columns:
+                    missing_in_schema.append(col)
+            if missing_in_schema:
+                filtered = [
+                    c
+                    for c in where_clauses
+                    if not any(col in c for col in missing_in_schema)
+                ]
+                if len(filtered) < len(where_clauses) and LOGURU_ENABLED:
+                    logger.debug(
+                        f"[schema-guard] table '{table_name}' missing columns "
+                        f"{missing_in_schema}; dropped "
+                        f"{len(where_clauses) - len(filtered)} filter clause(s)"
+                    )
+                where_clauses = filtered
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.debug(f"[schema-guard] schema introspection failed: {e}")
+
         # Accumulator for raw results across branches
         all_raw: List[Dict[str, Any]] = list()
 

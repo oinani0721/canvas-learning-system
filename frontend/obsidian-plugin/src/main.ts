@@ -101,8 +101,14 @@ const DEFAULT_HOTKEYS: Record<string, HotkeyDef[]> = {
   "canvas:start-examination-confirm": [{ modifiers: ["Mod", "Shift"], key: "X" }],
   "canvas:extract-concept": [{ modifiers: ["Mod", "Alt"], key: "C" }],
   "canvas:quiz-from-callout": [{ modifiers: ["Mod", "Alt"], key: "Q" }],
-  // Story 2.3 v1.0 — study-question 解题深度模式（区别于 -E 快问快答的 30-45s 显式深化）
-  "canvas:study-question": [{ modifiers: ["Mod", "Shift"], key: "Q" }],
+  // Story 2.3 v1.2 — study-question 不绑 hotkey（用户批注 2026-05-10）
+  // 理由：search-info 类 skill 不依赖编辑器 selection / 不改文件，hotkey 占心智但无价值。
+  // 触发路径双轨：
+  //   1. Claudian 输入框直接打 `/study-question 问题`（SDK 一等公民，但失 backend full RAG）
+  //   2. Cmd+P 命令面板搜 "解题深度模式"（保留 plugin full RAG 注入路径）
+  // hotkey 仅留给"必须依赖 selection 才能工作"的 ai-linked-doc / annotate-callout / configure-whiteboard。
+  // 旧绑定 Cmd+Shift+Q 是 macOS 系统级注销 hotkey（永远绑不上）；
+  // v1.1 改 Cmd+Shift+S 解决了冲突但仍无价值，v1.2 直接移除。
   // start-examination（直调无 confirm）刻意不绑：与 -confirm 重复触发风险，由用户主动选 confirm 版
 };
 
