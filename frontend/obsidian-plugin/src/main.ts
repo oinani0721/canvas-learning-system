@@ -147,6 +147,10 @@ export default class CanvasLearningPlugin extends Plugin {
     this.addSettingTab(new CanvasSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => {
       this.checkHotkeyConflicts();
+      // Round-23 Phase B0.3 (2026-05-11): 多 vault onboarding modal
+      // 检测 .canvas-config.yaml 不存在时弹出 modal，自动生成 vault_id 写入 yaml
+      // 已存在 config → 跳过（主仓 canvas-vault 已 ship，此 modal 仅对新 vault 触发）
+      void this.checkVaultOnboarding();
     });
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
@@ -161,6 +165,120 @@ export default class CanvasLearningPlugin extends Plugin {
     // fingerprint 比对 + 单文件 < 500ms 增量 reindex。无白名单（.obsidian/.git/.trash
     // 已在 backend skip_dirs 默认过滤），仅过滤非 .md 文件。
     this.registerIncrementalIndexHook();
+  }
+
+  /**
+   * Round-23 Phase B0.3 (2026-05-11) — 多 vault onboarding modal 检测
+   *
+   * 触发条件：.canvas-config.yaml 不存在（新 vault 首次打开）
+   * 已存在 config → 跳过（已 onboarded vault 不重弹）
+   *
+   * 设计理念：让用户加新 vault（如另一门课）时一键生成 vault_id + subject，
+   * 避免手动编辑 yaml 容易出错。Round-23 plan §3.1.3 落地。
+   */
+  private async checkVaultOnboarding(): Promise<void> {
+    const configPath = ".canvas-config.yaml";
+    try {
+      const exists = await this.app.vault.adapter.exists(configPath);
+      if (exists) {
+        return; // 已 onboarded，跳过
+      }
+      console.log(
+        "[canvas-onboarding] .canvas-config.yaml not found, opening onboarding modal",
+      );
+      new VaultOnboardingModal(this.app, async (input) => {
+        // 用 plugin 端 inferVaultId 生成（与 backend sanitize_vault_id 算法对齐已知漂移，
+        // backend 收到后会做权威 sanitize，前端只做 best-effort 初始化）
+        const vaultId = inferVaultId(input.displayName);
+        const yamlContent = this.buildOnboardingYaml(
+          vaultId,
+          input.displayName,
+          input.subject,
+        );
+        try {
+          await this.app.vault.adapter.write(configPath, yamlContent);
+          new Notice(
+            `✅ Canvas Vault 初始化完成\n` +
+              `vault_id: ${vaultId}\n` +
+              `subject: ${input.subject || "general"}\n` +
+              `配置已写入 .canvas-config.yaml`,
+            8000,
+          );
+          // 通知 backend 新 vault 创建（best-effort，失败不阻塞）
+          void this.notifyBackendVaultCreated(vaultId, input.displayName);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          new Notice(`❌ 写入 .canvas-config.yaml 失败: ${msg}`, 8000);
+        }
+      }).open();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[canvas-onboarding] check failed: ${msg}`);
+    }
+  }
+
+  /**
+   * 生成 .canvas-config.yaml v2 schema 内容（与 round-23 §3.1.2 schema 对齐）
+   */
+  private buildOnboardingYaml(
+    vaultId: string,
+    displayName: string,
+    subject: string,
+  ): string {
+    const createdAt = new Date().toISOString();
+    return `# Canvas Learning System · Vault 级配置 (Phase B0.3 onboarding 生成)
+# 本 vault 只学一个学科 (subject), 不跨学科.
+# 所有 Skill 从此文件读 subject + vault_id, 不再向用户问.
+
+# Phase B0.3 (2026-05-11): 显式 vault_id 字段
+vault_id: "${vaultId}"
+vault_display_name: "${displayName}"
+
+subject: ${subject || "general"}            # 机器代码 (lowercase+数字+连字符)
+subject_display: "${displayName}"   # 人类显示名
+
+# 当前活动白板 (ai-linked-doc Skill active_board 默认值)
+active_board: null
+
+# 架构版本 (Skill 兼容检查)
+schema_version: "2.0-multi-vault-2026-05-10"
+created_at: "${createdAt}"
+
+# 弃用路径 (Skill 不再向这些路径写入)
+deprecated_paths:
+  - "wiki/canvases/"
+  - "wiki/concepts/"
+`;
+  }
+
+  /**
+   * Best-effort 通知 backend 新 vault 创建（让 backend 预热 LanceDB 表前缀等）
+   */
+  private async notifyBackendVaultCreated(
+    vaultId: string,
+    displayName: string,
+  ): Promise<void> {
+    const backendUrl = this.settings.backendUrl.replace(/\/$/, "");
+    try {
+      const resp = await requestUrl({
+        url: `${backendUrl}/api/v1/vault/created`,
+        method: "POST",
+        contentType: "application/json",
+        body: JSON.stringify({ vault_id: vaultId, display_name: displayName }),
+        throw: false,
+      });
+      if (resp.status === 200) {
+        console.log(`[canvas-onboarding] backend notified: ${vaultId}`);
+      } else if (resp.status !== 404) {
+        // 404 = endpoint 还未实现，是预期行为；其他状态码记录
+        console.warn(
+          `[canvas-onboarding] backend notify returned ${resp.status}`,
+        );
+      }
+    } catch (err: unknown) {
+      // backend 未启动 / 网络问题 — onboarding 仍成功，只是 backend 预热失败
+      console.warn(`[canvas-onboarding] backend notify failed: ${err}`);
+    }
   }
 
   /** Story 2.2 follow-up — 增量索引：plugin 监听文件事件 + 批量推送 backend */
@@ -3113,6 +3231,115 @@ class DisputeReasonModal extends Modal {
     });
 
     setTimeout(() => textarea.focus(), 50);
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
+/**
+ * Round-23 Phase B0.3 (2026-05-11) — VaultOnboardingModal
+ *
+ * 用户首次打开新 Canvas vault（无 .canvas-config.yaml）时弹出，
+ * 收集 display name + subject，自动生成 vault_id 并写入 yaml。
+ *
+ * 设计哲学：让用户加新 vault 零代码（不用手动编辑 yaml），
+ * 避免中文 vault 名字段缺失导致 backend sanitize 坍缩 default 表（数据泄漏）。
+ */
+class VaultOnboardingModal extends Modal {
+  private displayName = "";
+  private subject = "";
+
+  constructor(
+    app: App,
+    private onSubmit: (input: { displayName: string; subject: string }) => void | Promise<void>,
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+
+    contentEl.createEl("h2", { text: "🎓 欢迎使用 Canvas Learning System" });
+    contentEl.createEl("p", {
+      text: "检测到这是一个新的 Canvas vault（缺少 .canvas-config.yaml）。请填写基本信息：",
+    });
+
+    // Display name 输入
+    const nameLabel = contentEl.createEl("label", {
+      text: "Vault 显示名（如 \"CS 61B 数据结构\" / \"数学 101\"）：",
+      attr: { style: "display: block; margin-top: 12px; font-weight: 600;" },
+    });
+    const nameInput = nameLabel.createEl("input", {
+      type: "text",
+      attr: {
+        placeholder: "CS 61B 数据结构",
+        style: "width: 100%; padding: 6px; margin-top: 4px;",
+      },
+    });
+    nameInput.addEventListener("input", () => {
+      this.displayName = nameInput.value;
+    });
+
+    // Subject 输入（可选）
+    const subjLabel = contentEl.createEl("label", {
+      text: "学科机器代码（lowercase + 数字 + 连字符，如 \"cs-61b\" / \"math-101\"，可留空走 general）：",
+      attr: { style: "display: block; margin-top: 12px; font-weight: 600;" },
+    });
+    const subjInput = subjLabel.createEl("input", {
+      type: "text",
+      attr: {
+        placeholder: "cs-61b",
+        style: "width: 100%; padding: 6px; margin-top: 4px;",
+      },
+    });
+    subjInput.addEventListener("input", () => {
+      this.subject = subjInput.value.trim();
+    });
+
+    // 提示
+    contentEl.createEl("p", {
+      text: "ℹ️ vault_id 自动从 display name 生成（保留中文 / 数字 / 字母 / 连字符）",
+      attr: { style: "margin-top: 12px; font-size: 12px; color: var(--text-muted);" },
+    });
+
+    // 按钮行
+    const btnRow = contentEl.createEl("div", {
+      attr: {
+        style: "margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end;",
+      },
+    });
+    const skipBtn = btnRow.createEl("button", {
+      text: "❌ 跳过（手动建 yaml）",
+    });
+    skipBtn.addEventListener("click", () => {
+      new Notice(
+        "已跳过 onboarding。Canvas Skill 将无法工作直到 .canvas-config.yaml 创建。\n"
+          + "随时可用命令面板搜 'Canvas: 重新初始化 vault' 重新触发。",
+        8000,
+      );
+      this.close();
+    });
+
+    const submitBtn = btnRow.createEl("button", {
+      text: "✅ 创建配置",
+      cls: "mod-cta",
+    });
+    submitBtn.addEventListener("click", async () => {
+      if (!this.displayName.trim()) {
+        new Notice("请填写 vault 显示名", 4000);
+        return;
+      }
+      this.close();
+      await this.onSubmit({
+        displayName: this.displayName.trim(),
+        subject: this.subject,
+      });
+    });
+
+    setTimeout(() => nameInput.focus(), 50);
   }
 
   onClose() {

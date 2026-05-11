@@ -1,15 +1,18 @@
 ---
 name: chat-with-context
-description: "当用户消息以 /chat-with-context 开头（通常由 Canvas plugin 通过 Cmd+Shift+E 触发 + 剪贴板注入），必须调用此 Skill 进入 backend RAG 上下文增强对话模式。Story 2.1 v1.0 路线 A 第 2 步：plugin 调 backend POST /api/v1/chat/enrich-context 拿到 N-hop wikilink 邻居 + 当前笔记 frontmatter/Tips/errors + token 预算压缩 + LaTeX/代码块保护后的上下文，让 Claude 围绕该笔记进行连贯学习对话。本 Skill 是纯对话模式 — 不创建 / 不修改任何文件，区别于 ai-linked-doc 派生流程。"
-argument-hint: "[由 Canvas plugin 从剪贴板注入 backend RAG 增强后的上下文 prompt]"
+description: "当用户消息以 /chat-with-context 开头（用户在 Claudian 直输或 Canvas plugin Cmd+Shift+E 触发 + 剪贴板注入），必须调用此 Skill 进入 backend RAG 上下文增强对话模式。Story 2.1 v2.0（2026-05-11 升级）借鉴 study-question v1.5 的 5 项 HARD（三态路径自检 / dedup + 低相关降权 / RAGAS-lite 量化自检 / mastery 颜色阈值 / 路径 A 调 MCP search_notes 自救），延迟预算保持 5s（vs study-question 30-45s）。路径 B（plugin Cmd+Shift+E）走 backend full RAG，路径 A（Claudian 直输）走 MCP search_notes 轻量自救。本 Skill 是纯对话模式 — 不创建 / 不修改任何文件，区别于 ai-linked-doc 派生流程。"
+argument-hint: "[路径 A：用户问题；路径 B：由 Cmd+Shift+E 从剪贴板注入 backend RAG 增强后的上下文 prompt]"
 allowed-tools:
   - Read
   - Glob
   - Grep
+  - mcp__canvas-learning-mcp__search_notes
+  - mcp__canvas-learning-mcp__get_neighbors
+  - mcp__canvas-learning-mcp__read_note
 model: sonnet
 ---
 
-# Backend RAG 上下文增强对话 Skill v1.0（Canvas Learning System · Story 2.1）
+# Backend RAG 上下文增强对话 Skill v2.0（Canvas Learning System · Story 2.1）
 
 ## ⛔ CRITICAL TRIGGER & HARD CONSTRAINTS
 
@@ -31,8 +34,8 @@ model: sonnet
 
 1. **本 Skill 是纯对话模式** — 不创建 / 不修改任何 vault 文件
 2. **区别于 node-chat**（Story 3.1 plugin 端 1-hop）和 **ai-linked-doc**（Cmd+Shift+D 派生）：
-   - 本 Skill 用 backend RAG 增强（N-hop + token 预算 + 公式保护）
-   - 上下文已由 backend 组装好，**不需要再调 MCP / REST 二次拉取**
+   - 路径 B（plugin Cmd+Shift+E）：本 Skill 用 backend RAG 增强（N-hop + token 预算 + 公式保护），上下文已组装好，**不需要再调 MCP**
+   - 路径 A（Claudian 直输 `/chat-with-context`，v2.0 新增）：消息无 `<rag_context>` 包装 → **必须主动调** `mcp__canvas-learning-mcp__search_notes(query=用户问题, max_results=15)` 反向拉 backend 召回（5s 预算限制下 max_results 比 study-question 的 30 少）
 3. **不要主动调用 Write / Edit 工具** — 即使用户问"帮我把这个写下来"也要明确告诉用户"派生新概念请用 /ai-linked-doc，本对话不会动 vault 文件"
 4. **使用 Read / Glob / Grep 辅助回答** — 当用户问及邻居节点细节或要扩展上下文时，可以用 Read 直接读 `节点/<X>.md` 或 `原白板/<X>.md` 获取更多信息
 5. **严禁捏造概念关系** — 如果用户问的关系不在注入的 1-hop / 2-hop 邻居中，明确说"目前 vault 内没有记录该关系，可考虑用 /ai-linked-doc 派生"
@@ -83,6 +86,36 @@ model: sonnet
     或 block 级 `[[file#^block_id]]`，**不允许 `[[file]]` 全文级模糊引用** —
     那等于没核实（Read 不到具体段落直接糊一个文件名）。
     例外：文件极短（< 200 字）整体引用 OK 但仍要 Read 过。
+
+### v2.0 新增（2026-05-11 借鉴 study-question v1.5）
+
+15. **⛔ HARD-15 三态路径自检（v2.0 新增）** — 解析 prompt 第一步识别路径：
+    - **路径 B（plugin Cmd+Shift+E）**：含 `<rag_context version="1">` 包装 → 按原 v1.0 流程
+    - **路径 C（hook auto-RAG 注入）**：无 `<rag_context>` 但有 `<supplementary_materials count="N">` 且 N < 8（hook 5s 预算上限）→ 调 MCP `search_notes(max_results=15)` 补充
+    - **路径 A（Claudian 裸触发）**：无任何注入 → 主动调 `mcp__canvas-learning-mcp__search_notes(query=用户问题, max_results=15)` + `get_neighbors(note_path, max_hops=1)` 自救
+    - **首行必须**输出 `💬 进入 RAG 对话（路径 X · <说明>）`，禁止伪造 backend 召回数字
+
+16. **⛔ HARD-16 升级末尾 supplementary dump（dedup + 低相关降权）** — HARD-11 升级版：
+    - 仅 `read_failed` 才标 `(rank=N 跳过：read_failed=<reason>)` 占位
+    - **重复 source_path 直接合并不占 rank 位**，去重后 rank 必须连续 1~N
+    - **score < 0.2** 的条目前缀加 `⚠️ 低相关` 视觉降权但不删除
+    - dump 标题加 `（hook M + MCP K → 去重 N / 含 X 条 ⚠️ 低相关）` 透明告知
+
+17. **⛔ HARD-17 RAGAS-lite 量化自检（v2.0 新增）** — 主回答 + 末尾 supplementary 之间插 1 行：
+    `✅ Faithfulness <X/Y 句带引用> · ContextPrecision <Read 命中率 a/b> · 矛盾点 <无/列出>`
+    任一指标 < 0.8 → 主动追加 1 轮 Grep 补证再交付（5s 预算限制下不强制重输）
+
+18. **⛔ HARD-18 mastery 颜色阈值固定（v2.0 新增）** — 邻居 mastery 颜色统一：
+    - mastery ≥ 0.7 → 🟢 / 0.3-0.7 🟡 / <0.3 🔴 / 缺失 ⚪ 未评估
+    - 每条邻居后括号注 `(mastery 0.42)` 数值或 `(mastery 未评估)`
+    - **禁止 Claude 凭直觉配色**
+
+19. **⛔ HARD-19 路径 A/C MCP 自救分支（v2.0 新增）** — HARD-15 配套实现：
+    - 路径 A：调 `search_notes(query=用户问题, max_results=15)` + `get_neighbors(推断 path, max_hops=1)`
+    - 路径 C：调 `search_notes(query=用户问题, max_results=15)` 补充 hook 已注入的少量条目
+    - 合并去重（按 source_path）→ 当 supplementary 走完原 [Read top-2] [4 段输出] 流程
+    - **MCP 失败明示**：`⚠️ backend MCP 不可用（<reason>），推荐改走 Cmd+Shift+E plugin 路径拿 full RAG`
+    - **5s 预算限制**：max_results=15（vs study-question 的 30），保持快问快答定位
 
 ## 对话开场（解析 prompt 后的第一条回复）
 
