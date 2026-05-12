@@ -9,6 +9,24 @@
  *
  * Reference: Anthropic SDK messages.stream() API
  * Reference: v1-ref/src/services/api-key-engine.ts (Obsidian version)
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⛔ @deprecated 自 2026-04 起 — Tauri 前端整体 deprecated (见 frontend/DEPRECATED.md)
+ *
+ * 已知安全风险 (ChatGPT 2026-05-12 对抗审查 P0):
+ *   - 浏览器直接 fetch https://api.anthropic.com (line 79 / 170)
+ *   - API key 通过 x-api-key header 在浏览器传 (line 83 / 174)
+ *   - 设置 anthropic-dangerous-direct-browser-access: true (Anthropic 文档警告
+ *     prod 勿用此 header)
+ *   - API key 存 sessionStorage (同源 JS 可读 → XSS 风险面)
+ *   - 对话历史存 localStorage (永久 + 同源可读)
+ *
+ * 当前 Hybrid 部署 (frontend/obsidian-plugin/) 不使用本模块. 留 in-tree 仅供
+ * git history 参考. 如复活 Tauri 路径, 必须先改后端代理 (POST /api/v1/llm/proxy),
+ * 前端不持 key.
+ *
+ * ⛔ DO NOT IMPORT THIS FILE INTO ANY PRODUCTION PATH.
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 
 import type { StreamEvent, SendMessageOptions, EngineError, EngineErrorCallback } from './claude-engine';

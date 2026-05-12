@@ -202,22 +202,29 @@ curl http://localhost:8001/api/v1/health
 ```
 canvas-learning-system/
 ├── frontend/
-│   └── obsidian-plugin/          # Obsidian Plugin (TypeScript)
-│       ├── src/                  # Source code
-│       ├── main.js               # Build output
-│       └── manifest.json         # Plugin manifest
+│   ├── obsidian-plugin/          # ✅ ACTIVE — Obsidian Hybrid 部署 (TypeScript)
+│   │   ├── src/                  # Source code
+│   │   ├── main.js               # Build output
+│   │   └── manifest.json         # Plugin manifest
+│   ├── src/                      # ⛔ DEPRECATED Tauri React app (see frontend/DEPRECATED.md)
+│   ├── src-tauri/                # ⛔ DEPRECATED Tauri Rust shell
+│   ├── sidecar/                  # ⛔ DEPRECATED Tauri sidecar
+│   └── DEPRECATED.md             # Tauri deprecation note + 安全风险记录
 ├── backend/
 │   ├── app/
 │   │   ├── api/v1/endpoints/     # REST API endpoints
 │   │   ├── services/             # Business logic
 │   │   └── models/               # Data models
+│   ├── lib/agentic_rag/          # LangGraph RAG system
 │   └── requirements.txt
-├── backend/lib/agentic_rag/      # LangGraph RAG system (under backend tree)
 ├── docs/                         # Documentation
-│   ├── prd/                      # Product requirements
-│   └── architecture/             # Architecture design
 └── specs/                        # OpenAPI specifications
 ```
+
+> ⚠️ **Tauri 前端 (`frontend/src/`, `frontend/src-tauri/`, `frontend/sidecar/`) 已 DEPRECATED**
+> (架构决策 2026-04). 当前生效前端是 `frontend/obsidian-plugin/`. CI / build / lefthook
+> 已配置 skip Tauri 路径,只构建 Obsidian plugin. 详见 `frontend/DEPRECATED.md`
+> (含 api-key-engine browser-direct LLM 安全风险记录).
 
 ---
 

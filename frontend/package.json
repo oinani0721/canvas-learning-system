@@ -1,7 +1,8 @@
 {
-  "name": "canvas-learning-frontend",
+  "name": "canvas-learning-frontend-tauri-DEPRECATED",
+  "description": "⛔ DEPRECATED Tauri frontend (架构决策 2026-04). Active 前端 is frontend/obsidian-plugin/. See ./DEPRECATED.md for security notes (api-key-engine browser-direct LLM risk).",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.0-deprecated",
   "type": "module",
   "scripts": {
     "dev": "vite",
