@@ -212,7 +212,7 @@ canvas-learning-system/
 │   │   ├── services/             # Business logic
 │   │   └── models/               # Data models
 │   └── requirements.txt
-├── src/agentic_rag/              # LangGraph RAG system
+├── backend/lib/agentic_rag/      # LangGraph RAG system (under backend tree)
 ├── docs/                         # Documentation
 │   ├── prd/                      # Product requirements
 │   └── architecture/             # Architecture design
@@ -255,9 +255,9 @@ canvas-learning-system/
 
 ## API Documentation
 
-After starting the backend service:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+After starting the backend service (default port `8001`, configurable via `BACKEND_PORT` env):
+- Swagger UI: http://localhost:8001/docs
+- ReDoc: http://localhost:8001/redoc
 
 ---
 
