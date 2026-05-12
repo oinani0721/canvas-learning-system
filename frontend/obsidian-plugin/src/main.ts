@@ -43,6 +43,11 @@ import {
   validateDisputeReason,
 } from "./error-candidate-helpers";
 import {
+  buildOnboardingYaml,
+  shouldTriggerOnboarding,
+  validateOnboardingInput,
+} from "./onboarding-helpers";
+import {
   type BacklinkSummary,
   buildSeedActivityLine,
   buildSeedConceptsLine,
@@ -180,17 +185,23 @@ export default class CanvasLearningPlugin extends Plugin {
     const configPath = ".canvas-config.yaml";
     try {
       const exists = await this.app.vault.adapter.exists(configPath);
-      if (exists) {
-        return; // 已 onboarded，跳过
+      // P1 fix (ChatGPT 2026-05-11): 决策抽到纯函数 shouldTriggerOnboarding,
+      // 让测试可独立验证决策逻辑(IO 还在,但决策可测)
+      if (!shouldTriggerOnboarding(exists)) {
+        return;
       }
       console.log(
         "[canvas-onboarding] .canvas-config.yaml not found, opening onboarding modal",
       );
       new VaultOnboardingModal(this.app, async (input) => {
-        // 用 plugin 端 inferVaultId 生成（与 backend sanitize_vault_id 算法对齐已知漂移，
-        // backend 收到后会做权威 sanitize，前端只做 best-effort 初始化）
+        // P1 fix: 用纯函数 validate + buildOnboardingYaml(从 onboarding-helpers 导入,可测)
+        const validation = validateOnboardingInput(input.displayName, input.subject);
+        if (!validation.valid) {
+          new Notice(`❌ ${validation.error}`, 4000);
+          return;
+        }
         const vaultId = inferVaultId(input.displayName);
-        const yamlContent = this.buildOnboardingYaml(
+        const yamlContent = buildOnboardingYaml(
           vaultId,
           input.displayName,
           input.subject,
@@ -215,40 +226,6 @@ export default class CanvasLearningPlugin extends Plugin {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[canvas-onboarding] check failed: ${msg}`);
     }
-  }
-
-  /**
-   * 生成 .canvas-config.yaml v2 schema 内容（与 round-23 §3.1.2 schema 对齐）
-   */
-  private buildOnboardingYaml(
-    vaultId: string,
-    displayName: string,
-    subject: string,
-  ): string {
-    const createdAt = new Date().toISOString();
-    return `# Canvas Learning System · Vault 级配置 (Phase B0.3 onboarding 生成)
-# 本 vault 只学一个学科 (subject), 不跨学科.
-# 所有 Skill 从此文件读 subject + vault_id, 不再向用户问.
-
-# Phase B0.3 (2026-05-11): 显式 vault_id 字段
-vault_id: "${vaultId}"
-vault_display_name: "${displayName}"
-
-subject: ${subject || "general"}            # 机器代码 (lowercase+数字+连字符)
-subject_display: "${displayName}"   # 人类显示名
-
-# 当前活动白板 (ai-linked-doc Skill active_board 默认值)
-active_board: null
-
-# 架构版本 (Skill 兼容检查)
-schema_version: "2.0-multi-vault-2026-05-10"
-created_at: "${createdAt}"
-
-# 弃用路径 (Skill 不再向这些路径写入)
-deprecated_paths:
-  - "wiki/canvases/"
-  - "wiki/concepts/"
-`;
   }
 
   /**

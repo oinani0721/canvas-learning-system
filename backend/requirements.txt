@@ -1,5 +1,18 @@
 # Canvas Learning System - FastAPI Backend Dependencies
 # Verified from Context7:/websites/fastapi_tiangolo
+#
+# 最后更新: 2026-05-11 (ChatGPT Deep Research P1 反馈处理)
+#
+# 安全 advisory 状态 (本次审计):
+# - python-multipart>=0.0.22  ✅ 超过 CVE DoS 阈值 (<0.0.18)
+# - langgraph>=0.3.10          ✅ 升级 0.2.0 → 0.3.10 (匹配项目实际 import 版本)
+# - langchain-core>=0.3.81     ⚠️ 监控 CVE-2025-68664 (path traversal in <1.2.22 域)
+# - graphiti-core>=0.28.2      ✅ 等于 CVE-2026-32247 修复阈值 (Cypher 注入)
+#
+# 单一权威说明:
+# - 本文件管 backend 生产依赖 (pip / docker build)
+# - pyproject.toml [tool.uv] 管 dev/api extras (uv.lock 锁定)
+# - 不再有根 pytest.ini (P0 移除, pyproject.toml [tool.pytest.ini_options] 单一权威)
 
 # Core Framework
 fastapi>=0.104.0
@@ -50,8 +63,10 @@ litellm>=1.40.0
 
 # Core LangGraph (Story 12.5)
 # ✅ Verified from LangGraph Skill - StateGraph, Send, RetryPolicy
-langgraph>=0.2.0
-# ⚠️ CVE-2025-68664: >=0.3.81 required
+# ChatGPT P1 2026-05-11: 升 >=0.2.0 → >=0.3.10 匹配项目实际使用版本,
+# 避免 pip 解析回退到 0.2.x (checkpoint 反序列化老问题)
+langgraph>=0.3.10
+# ⚠️ CVE-2025-68664: >=0.3.81 required (path traversal)
 langchain-core>=0.3.81
 # React Agent: Gemini integration for create_react_agent
 langchain-google-genai>=2.0.0,<3.0.0
