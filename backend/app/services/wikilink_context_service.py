@@ -41,6 +41,15 @@ class WikilinkNeighborContext:
     Phase 1.7（2026-05-03）: 加 `callouts` 字段装载邻居 .md body 里的 Obsidian
     callout（[!tip]+/[!error]+/[!question]+ 等），让 Claude 看到用户批注事实存档，
     而非仅 frontmatter 元数据。content_summary 装去 frontmatter+callout 后的 prose excerpt。
+
+    Story 2.2+2.9 T2 (2026-05-11) — wikilink 4 精度 + backlink 字段:
+        backlink: True 表示邻居通过反向边 (predecessor) 到达（节点 Y 在正文里
+                  ``[[X]]`` 引用 seed=X 场景）。False 表示出边 (outgoing)。
+        heading_anchor: 当 seed 的正文用 ``[[X#Heading]]`` 引用此邻居时填入,
+                       下游可只装载该 heading 段落而非整文件。
+        alias: 当 seed 用 ``[[X|Y]]`` 引用时填入 Y, prompt 渲染时用 alias 替代 slug。
+        block_id: 当 seed 用 ``[[X#^block_id]]`` 引用时填入 block_id。
+        path_trace: BFS 路径 [seed, ..., self], 长度 = hop_distance + 1.
     """
 
     slug: str
@@ -50,17 +59,28 @@ class WikilinkNeighborContext:
     frontmatter: dict[str, Any] = field(default_factory=dict)
     content_summary: str | None = None
     callouts: list[dict[str, str]] = field(default_factory=list)
+    backlink: bool = False
+    heading_anchor: str | None = None
+    alias: str | None = None
+    block_id: str | None = None
+    path_trace: list[str] = field(default_factory=list)
 
 
 @dataclass
 class TraceItem:
-    """Story 2.1 P1.1 — RetrievalTrace 单条入选项。"""
+    """Story 2.1 P1.1 — RetrievalTrace 单条入选项。
+
+    Story 2.2+2.9 T2 (2026-05-11) — path_trace + backlink:
+        path_trace: BFS 路径 [seed, ..., self], 让 Claude 看到"通过哪个中间节点到达"。
+        reason 现已用 "wikilink_backlink" 区分反向边。
+    """
 
     path: str
     hop: int
     relationship_type: str | None
     reason: str  # "wikilink_outgoing" | "wikilink_backlink" | "frontmatter_link" | ...
     tokens: int = 0  # 占位，Phase 2 接入 query-aware rerank 后由 assembler 回填
+    path_trace: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -93,9 +113,7 @@ class EnrichmentResult:
     trace: RetrievalTrace | None = None
 
 
-def _extract_relationship_type(
-    fm: dict[str, Any], target_slug: str
-) -> str | None:
+def _extract_relationship_type(fm: dict[str, Any], target_slug: str) -> str | None:
     """从 frontmatter relationships[] 提取与 target_slug 关联的关系类型。
 
     relationships 期望格式：
@@ -143,7 +161,13 @@ _FRONTMATTER_PATTERN = re.compile(r"^\ufeff?---\r?\n.*?\r?\n---\r?\n", re.DOTALL
 # Canvas Story 1.16 锁定 7 类（question/tip/error/hint/note/warning/info）.
 # Canvas ai-linked-doc skill 自动派生的 `relation/extends` 是噪音, 过滤掉.
 _USER_ANNOTATION_KINDS = {
-    "question", "tip", "error", "hint", "note", "warning", "info",
+    "question",
+    "tip",
+    "error",
+    "hint",
+    "note",
+    "warning",
+    "info",
 }
 _NOISE_CALLOUT_KIND_PREFIXES = ("relation/", "relation-")
 _BODY_EXCERPT_MAX_CHARS = 400
@@ -262,9 +286,7 @@ def _extract_body_excerpt(text: str, max_chars: int = _BODY_EXCERPT_MAX_CHARS) -
     return cleaned[:max_chars]
 
 
-def _resolve_vault_md_path(
-    neighbor_path: str, vault_path: str | None
-) -> Path | None:
+def _resolve_vault_md_path(neighbor_path: str, vault_path: str | None) -> Path | None:
     """安全解析邻居 .md 路径 (Phase 1.7+ ChatGPT P0-A path traversal fix).
 
     必须 1) 落在 vault_path resolve 后的根内, 2) 后缀 .md, 3) size <= 1MB.
@@ -362,9 +384,7 @@ async def enrich_from_wikilink_graph(
 
     try:
         loop = asyncio.get_event_loop()
-        future = loop.run_in_executor(
-            None, service.get_neighbors, node_path, max_hops
-        )
+        future = loop.run_in_executor(None, service.get_neighbors, node_path, max_hops)
         try:
             raw_neighbors: list[NeighborNote] = await asyncio.wait_for(
                 future, timeout=timeout_ms / 1000.0
@@ -433,6 +453,9 @@ async def enrich_from_wikilink_graph(
         n_text = _read_neighbor_md(n.path, vault_root)
         callouts = _extract_user_callouts(n_text) if n_text else []
         excerpt = _extract_body_excerpt(n_text) if n_text else None
+        # Story 2.2+2.9 T2 (2026-05-11) — backlink + path_trace 字段透传
+        is_backlink = getattr(n, "is_backlink", False)
+        path_trace = list(getattr(n, "path_trace", []))
         contexts.append(
             WikilinkNeighborContext(
                 slug=slug_basename,
@@ -442,11 +465,18 @@ async def enrich_from_wikilink_graph(
                 frontmatter=n.frontmatter,
                 content_summary=excerpt,
                 callouts=callouts,
+                backlink=is_backlink,
+                path_trace=path_trace,
             )
         )
-        # Phase 1 仅区分 frontmatter 显式声明 vs BFS 默认推断；
-        # Phase 2 区分 outgoing / backlink，Phase 3 加 alias / heading
-        reason = "frontmatter_link" if rel_type is not None else "wikilink_outgoing"
+        # Story 2.2+2.9 T2 (2026-05-11) — reason 区分 outgoing vs backlink
+        # frontmatter_link 优先（用户显式声明），其次按边方向（outgoing/backlink）
+        if rel_type is not None:
+            reason = "frontmatter_link"
+        elif is_backlink:
+            reason = "wikilink_backlink"
+        else:
+            reason = "wikilink_outgoing"
         trace_items.append(
             TraceItem(
                 path=n.path,
@@ -454,6 +484,7 @@ async def enrich_from_wikilink_graph(
                 relationship_type=rel_type,
                 reason=reason,
                 tokens=0,
+                path_trace=path_trace,
             )
         )
 

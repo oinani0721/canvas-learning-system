@@ -25,6 +25,12 @@ class NeighborNote:
     path: str
     hop_distance: int
     frontmatter: dict[str, Any] = field(default_factory=dict)
+    # Story 2.2+2.9 T2 (2026-05-11) — 4 精度 wikilink + backlink 支持
+    is_backlink: bool = (
+        False  # True: 通过反向边 (predecessor) 到达; False: 出边 (outgoing)
+    )
+    # Story 2.2+2.9 T4 (path_trace, 2026-05-11) — BFS 路径 (含 seed → ... → self)
+    path_trace: list[str] = field(default_factory=list)
 
 
 class WikilinkGraphService:
@@ -94,13 +100,24 @@ class WikilinkGraphService:
             "build_time_ms": round(duration_ms, 1),
         }
 
-    def get_neighbors(self, note_path: str, hop: int = 2) -> list[NeighborNote]:
+    def get_neighbors(
+        self,
+        note_path: str,
+        hop: int = 2,
+        include_backlinks: bool = True,
+    ) -> list[NeighborNote]:
         """BFS N-hop neighbor traversal (AC #2, #3, #5).
 
         Story 2.1 Phase 1 hotfix（2026-05-03）：
         plugin 端传 vault 相对路径（如 ``节点/Eigenvalues.md``），
         但 obsidiantools graph 的 node key 是 **basename only**（如 ``Eigenvalues``）。
         本方法对 full path → basename 做 fallback 匹配，避免邻居总是 0 的隐性 bug。
+
+        Story 2.2+2.9 T2 (2026-05-11) — backlinks + path_trace:
+            ``include_backlinks=True``: 同时遍历出边 (successors) 和入边
+            (predecessors)，NeighborNote 标 ``is_backlink``。反向边对应
+            "节点 Y 在正文里 ``[[X]]`` 引用 seed=X" 场景，与 outgoing 等价
+            但来源不同。``path_trace``: BFS 时记录路径 [seed, ..., self]。
         """
         if self._graph is None:
             return []
@@ -109,20 +126,40 @@ class WikilinkGraphService:
         if key.endswith(".md"):
             key = key[:-3]
 
+        def _node_adj(node: str) -> list[str]:
+            """取节点的"出边 + 入边"邻居（去重，outgoing 优先排序）"""
+            if node not in self._graph:
+                return []
+            if hasattr(self._graph, "successors"):
+                out = list(self._graph.successors(node))
+            else:
+                out = list(self._graph.neighbors(node))
+            if include_backlinks and hasattr(self._graph, "predecessors"):
+                seen = set(out)
+                for b in self._graph.predecessors(node):
+                    if b not in seen:
+                        out.append(b)
+                        seen.add(b)
+            return out
+
+        def _is_backlink_edge(src: str, dst: str) -> bool:
+            """判断 dst 是 src 的 backlink（入边）而非 outgoing（出边）"""
+            if not hasattr(self._graph, "successors"):
+                return False
+            return dst not in list(self._graph.successors(src))
+
         # Story 2.1 Phase 1 hotfix（2026-05-03）：obsidiantools 行为：
         # 同一物理文件有"两个图节点"——vault 相对路径 key（孤立，0 邻居）
         # 和 wikilink 文本 key（如 basename，有真实邻居关系）。
         # plugin 端传 vault 路径会命中孤立节点 → 总是 0 邻居。
         # 修复策略：路径 key 找到但 0 邻居时，回退到 basename。
         primary_in_graph = key in self._graph
-        primary_adj = (
-            list(self._graph.neighbors(key)) if primary_in_graph else []
-        )
+        primary_adj = _node_adj(key) if primary_in_graph else []
 
         if not primary_in_graph or len(primary_adj) == 0:
             basename = key.rsplit("/", 1)[-1]
             if basename and basename != key and basename in self._graph:
-                basename_adj = list(self._graph.neighbors(basename))
+                basename_adj = _node_adj(basename)
                 if len(basename_adj) > 0:
                     logger.info(
                         "wikilink.path_normalized_to_basename",
@@ -145,34 +182,42 @@ class WikilinkGraphService:
         start = time.monotonic()
         neighbors: list[NeighborNote] = []
         visited: set[str] = {key}
-        queue: deque[tuple[str, int]] = deque([(key, 0)])
+        # BFS 队列含 path_trace (从 seed 起的累积路径)
+        queue: deque[tuple[str, int, list[str]]] = deque([(key, 0, [key])])
 
         while queue:
-            current, depth = queue.popleft()
+            current, depth, current_path = queue.popleft()
             if depth >= hop:
                 continue
-            for adj in self._graph.neighbors(current):
+            for adj in _node_adj(current):
                 if adj in visited:
                     continue
                 visited.add(adj)
 
                 fm = self._get_frontmatter(adj)
+                is_back = _is_backlink_edge(current, adj)
+                neighbor_path = current_path + [adj]
                 neighbors.append(
                     NeighborNote(
                         title=adj,
                         path=self._resolve_path(adj),
                         hop_distance=depth + 1,
                         frontmatter=fm,
+                        is_backlink=is_back,
+                        path_trace=neighbor_path,
                     )
                 )
-                queue.append((adj, depth + 1))
+                queue.append((adj, depth + 1, neighbor_path))
 
         duration_ms = (time.monotonic() - start) * 1000
+        backlink_count = sum(1 for n in neighbors if n.is_backlink)
         logger.debug(
             "wikilink.get_neighbors",
             note_path=note_path,
             hop=hop,
             neighbor_count=len(neighbors),
+            backlink_count=backlink_count,
+            include_backlinks=include_backlinks,
             traversal_time_ms=round(duration_ms, 2),
         )
         return neighbors

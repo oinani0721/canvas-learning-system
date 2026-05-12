@@ -19,9 +19,7 @@ from app.services.wikilink_context_service import (
 from app.services.wikilink_graph_service import NeighborNote
 
 
-def _make_neighbor(
-    title: str = "Eigenvalues", hop: int = 1, **fm
-) -> NeighborNote:
+def _make_neighbor(title: str = "Eigenvalues", hop: int = 1, **fm) -> NeighborNote:
     return NeighborNote(
         title=title,
         path=f"节点/{title}.md",
@@ -142,9 +140,7 @@ async def test_enrich_returns_wikilink_context_dataclass():
         _make_neighbor("X", hop=1, type="concept", mastery_score=0.5),
     ]
 
-    result = await enrich_from_wikilink_graph(
-        "节点/Y.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/Y.md", graph_service=mock_service)
     n = result.neighbors[0]
     assert isinstance(n, WikilinkNeighborContext)
     assert n.slug == "X"
@@ -163,9 +159,7 @@ async def test_enrich_relationship_type_extracted():
         _make_neighbor(
             "Linear-Independence",
             hop=1,
-            relationships=[
-                {"type": "prerequisite", "target": "[[Eigenvalues]]"}
-            ],
+            relationships=[{"type": "prerequisite", "target": "[[Eigenvalues]]"}],
         ),
     ]
 
@@ -182,9 +176,7 @@ async def test_enrich_graph_not_built_degraded():
     mock_service = MagicMock()
     mock_service.is_built = False
 
-    result = await enrich_from_wikilink_graph(
-        "节点/X.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/X.md", graph_service=mock_service)
 
     assert result.degraded is True
     assert result.degraded_reason == "wikilink_graph_not_built"
@@ -213,9 +205,7 @@ async def test_enrich_unexpected_error_degraded():
     mock_service.is_built = True
     mock_service.get_neighbors.side_effect = RuntimeError("graph corruption")
 
-    result = await enrich_from_wikilink_graph(
-        "节点/X.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/X.md", graph_service=mock_service)
 
     assert result.degraded is True
     assert result.degraded_reason is not None
@@ -242,9 +232,7 @@ async def test_enrich_neighbors_sorted_by_hop_then_slug():
         _make_neighbor("Mango", hop=1),
     ]
 
-    result = await enrich_from_wikilink_graph(
-        "节点/X.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/X.md", graph_service=mock_service)
 
     slugs = [n.slug for n in result.neighbors]
     assert slugs == ["Apple", "Mango", "Zebra"]
@@ -292,9 +280,7 @@ async def test_enrich_trace_marks_frontmatter_link_reason():
         _make_neighbor(
             "Linear-Independence",
             hop=1,
-            relationships=[
-                {"type": "prerequisite", "target": "[[Eigenvalues]]"}
-            ],
+            relationships=[{"type": "prerequisite", "target": "[[Eigenvalues]]"}],
         ),
         _make_neighbor("PlainNeighbor", hop=1, type="concept"),
     ]
@@ -317,9 +303,7 @@ async def test_enrich_trace_records_degradation_when_graph_unbuilt():
     mock_service.is_built = False
     mock_service.build_timestamp = None
 
-    result = await enrich_from_wikilink_graph(
-        "节点/X.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/X.md", graph_service=mock_service)
 
     assert result.trace is not None
     assert "wikilink_graph_not_built" in result.trace.degradations
@@ -335,14 +319,12 @@ async def test_enrich_trace_records_degradation_on_unexpected_error():
     mock_service.build_timestamp = "2026-05-03T10:00:00+00:00"
     mock_service.get_neighbors.side_effect = RuntimeError("boom")
 
-    result = await enrich_from_wikilink_graph(
-        "节点/X.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/X.md", graph_service=mock_service)
 
     assert result.trace is not None
-    assert any(
-        "RuntimeError" in d for d in result.trace.degradations
-    ), result.trace.degradations
+    assert any("RuntimeError" in d for d in result.trace.degradations), (
+        result.trace.degradations
+    )
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -378,11 +360,7 @@ def test_extract_user_callouts_three_adjacent():
     """P0#5 边界 — 3 个连续 callout 全部识别."""
     from app.services.wikilink_context_service import _extract_user_callouts
 
-    md = (
-        "> [!tip]+ A\n> aa\n"
-        "> [!error]+ B\n> bb\n"
-        "> [!question]+ C\n> cc\n"
-    )
+    md = "> [!tip]+ A\n> aa\n> [!error]+ B\n> bb\n> [!question]+ C\n> cc\n"
     out = _extract_user_callouts(md)
     assert len(out) == 3, out
     assert [c["kind"] for c in out] == ["tip", "error", "question"]
@@ -392,14 +370,7 @@ def test_extract_user_callouts_code_fence_skipped():
     """code fence 内的伪 callout 不应被识别为真 callout."""
     from app.services.wikilink_context_service import _extract_user_callouts
 
-    md = (
-        "```md\n"
-        "> [!tip]+ fake-in-code\n"
-        "> not real\n"
-        "```\n"
-        "> [!tip]+ real\n"
-        "> body\n"
-    )
+    md = "```md\n> [!tip]+ fake-in-code\n> not real\n```\n> [!tip]+ real\n> body\n"
     out = _extract_user_callouts(md)
     assert len(out) == 1, out
     assert out[0]["title"] == "real"
@@ -409,10 +380,7 @@ def test_extract_user_callouts_filters_relation_namespace():
     """relation/* callout (Canvas ai-linked-doc 自动派生) 应被过滤."""
     from app.services.wikilink_context_service import _extract_user_callouts
 
-    md = (
-        "> [!relation/extends]+ noise\n> ignore\n"
-        "> [!tip]+ real\n> keep\n"
-    )
+    md = "> [!relation/extends]+ noise\n> ignore\n> [!tip]+ real\n> keep\n"
     out = _extract_user_callouts(md)
     assert len(out) == 1, out
     assert out[0]["kind"] == "tip"
@@ -534,3 +502,86 @@ async def test_enrich_dedupes_same_slug_neighbors():
 
     assert len(result.neighbors) == 1
     assert result.neighbors[0].slug == "Linear-Algebra"
+
+
+# ════════════════════════════════════════════════════════════════════
+# Story 2.2+2.9 T2 — backlink + path_trace 字段透传集成测试
+# ════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_enrich_backlink_field_propagated():
+    """T2 — NeighborNote.is_backlink → WikilinkNeighborContext.backlink 透传 + reason=wikilink_backlink"""
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.get_neighbors.return_value = [
+        NeighborNote(
+            title="Y",
+            path="节点/Y.md",
+            hop_distance=1,
+            frontmatter={},
+            is_backlink=True,
+            path_trace=["X", "Y"],
+        ),
+    ]
+
+    result = await enrich_from_wikilink_graph("节点/X.md", graph_service=mock_service)
+    n = result.neighbors[0]
+    assert n.backlink is True, "backlink 字段必须从 NeighborNote 透传"
+    assert n.path_trace == ["X", "Y"], "path_trace 必须透传"
+    # reason 应区分为 wikilink_backlink (非 outgoing)
+    assert result.trace is not None
+    trace_item = result.trace.included[0]
+    assert trace_item.reason == "wikilink_backlink"
+    assert trace_item.path_trace == ["X", "Y"]
+
+
+@pytest.mark.asyncio
+async def test_enrich_outgoing_default_reason():
+    """T2 — 默认 is_backlink=False 时 reason 是 wikilink_outgoing"""
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.get_neighbors.return_value = [
+        NeighborNote(
+            title="Y",
+            path="节点/Y.md",
+            hop_distance=1,
+            frontmatter={},
+            # is_backlink 默认 False, path_trace 默认 []
+        ),
+    ]
+
+    result = await enrich_from_wikilink_graph("节点/X.md", graph_service=mock_service)
+    n = result.neighbors[0]
+    assert n.backlink is False
+    assert n.path_trace == []
+    trace_item = result.trace.included[0]
+    assert trace_item.reason == "wikilink_outgoing"
+
+
+@pytest.mark.asyncio
+async def test_enrich_frontmatter_link_overrides_backlink_reason():
+    """T2 — frontmatter_link 优先级最高 (即使 is_backlink=True 也用 frontmatter_link)"""
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.get_neighbors.return_value = [
+        NeighborNote(
+            title="Y",
+            path="节点/Y.md",
+            hop_distance=1,
+            frontmatter={
+                "relationships": [{"type": "prerequisite", "target": "[[X]]"}]
+            },
+            is_backlink=True,
+            path_trace=["X", "Y"],
+        ),
+    ]
+
+    result = await enrich_from_wikilink_graph("节点/X.md", graph_service=mock_service)
+    n = result.neighbors[0]
+    # backlink 字段仍透传 (信号没丢)
+    assert n.backlink is True
+    # 但 reason 走 frontmatter_link (优先级最高)
+    trace_item = result.trace.included[0]
+    assert trace_item.reason == "frontmatter_link"
+    assert n.relationship_type == "prerequisite"
