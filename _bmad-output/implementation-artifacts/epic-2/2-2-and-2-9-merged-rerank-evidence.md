@@ -23,6 +23,8 @@ merge_rationale: "ChatGPT Deep Research 揭示 Story 2.2 Phase B (精排+wikilin
 
 Status: ready-for-dev
 
+> ⚠️ **Wave-4 rollback (2026-05-12)**: 与本 spec 相邻短暂存在过的 Q3 "全局搜索" 扩展 (multi-seed BFS / TraceItem.seed_origin / `additional_seeds` 参数 / POST `/api/v1/chat/global-search` endpoint / frontend `canvas:global-search` 命令 + `global-search.ts` helper) 是 wave-1 scope 蔓延,已在 wave-4 (`1dfc688`) 整体 rollback。用户原意 = 改 `SKILL.md` 让 Claude 用 native Grep + Read 全局搜 vault (落地: `study-question` HARD-21 + `chat-with-context` HARD-19)。本 spec 本身**不含 Q3 footprint**,所有 7 AC + 7 Task (T0-T6) 不受影响。
+
 > **合并依据**: ChatGPT Deep Research 对抗性审查 (2026-05-11) 揭示 Story 2.2 Phase B (精排+wikilink 三精度) 与 Story 2.9 6 AC 实质重叠;且 ChatGPT P0-C 明确"现在 fallback 是救火方案,不应该成为常态——'搜索能跑'不等于'RAG 正常'",要求先修主检索链路+建立检索回归基准,再做精排。
 >
 > **Phase A 已 ship** (Story 2.2 Phase A MCP 集成+三档降级,验收单 2026-05-08)。本 spec 承接 Phase B+C,合并 Story 2.9 全部 6 AC。

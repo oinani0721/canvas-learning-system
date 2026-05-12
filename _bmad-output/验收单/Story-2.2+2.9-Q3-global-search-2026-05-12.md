@@ -3,24 +3,36 @@ story_id: "2.2+2.9"
 task_id: "Q3-global-search"
 title: "Skill 解题全局搜索 plugin 入口 + multi-seed BFS + global-search endpoint"
 ship_date: "2026-05-12"
-status: "review"
-phase: "B (功能可用)"
+status: "deprecated"
+deprecated_reason: "Wave-4 (2026-05-12) — 用户澄清 skill 自带全局搜索 = Claude native Grep + Read,wave-1 plugin command + backend endpoint 是 scope 蔓延已 rollback。改 SKILL.md (study-question HARD-21 + chat-with-context HARD-19) 让 native Grep 优先。"
+phase: "B (功能可用) — DEPRECATED"
 trace:
   - "用户原话: 解题不懂时全局搜索教学笔记"
   - "Story-3.1/3.5 Skill 全局搜索补完"
   - "PLAN-ID: EPIC1-BMAD-DEV-ASSESS-2026-04-17"
+  - "Wave-4 rollback: 改用 SKILL.md native Grep + Read 替代 plugin command + backend endpoint"
 deploy:
   backend_files: |
-    wikilink_context_service.py (multi-seed BFS + TraceItem.seed_origin)
-    chat.py (新 POST /api/v1/chat/global-search,在 enrich-context body 之外追加)
+    wikilink_context_service.py (multi-seed BFS + TraceItem.seed_origin) — ROLLED BACK
+    chat.py (新 POST /api/v1/chat/global-search,在 enrich-context body 之外追加) — ROLLED BACK
   frontend_files: |
-    src/global-search.ts (新增 helper)
-    src/main.ts (canvas:global-search 命令 + handleGlobalSearch)
-    tests/global-search.test.ts (新增 19 测试)
-  tests: backend 61/61 + frontend 173/173
+    src/global-search.ts (新增 helper) — ROLLED BACK
+    src/main.ts (canvas:global-search 命令 + handleGlobalSearch) — ROLLED BACK
+    tests/global-search.test.ts (新增 19 测试) — ROLLED BACK
+  tests: backend 61/61 + frontend 173/173 (已删除)
 ---
 
-# Story 2.2+2.9 Q3 — 全局搜索教学笔记验收单
+> ⚠️ **DEPRECATED — Wave-4 (2026-05-12)**
+>
+> 此验收单对应的 wave-1 实现已 **整体 rollback**。用户原意是改 `SKILL.md` 让 Claude 用 **native Grep + Read** 全局搜 vault,而不是在 plugin / backend 加新命令 + endpoint。
+>
+> **替代方案**: 改 `study-question` SKILL.md HARD-21 + `chat-with-context` SKILL.md HARD-19,Claude 在 skill 内直接调 native Grep 工具搜 vault → Read 命中文件,无需 plugin 命令、无需 backend endpoint。
+>
+> **新验收路径**: 见 `Story-2.2+2.9-wave-3-mini-UAT-2026-05-12.md` 的 Step 1 (Skill native Grep 验证)。
+>
+> 本文档**保留**作为 audit trail (wave-1 scope 蔓延 → wave-4 收口的记录),内容不删,但**不再执行**。
+
+# Story 2.2+2.9 Q3 — 全局搜索教学笔记验收单 (DEPRECATED)
 
 ## 1. 🎯 一句话目标
 

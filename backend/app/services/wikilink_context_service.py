@@ -82,11 +82,6 @@ class TraceItem:
     Story 2.2+2.9 T5 (2026-05-11) — Relationship Evidence (AC #6):
         evidence: 外部书目/公式锚点 (frontmatter relationships[].evidence). 让
                  trace 上能看到"为什么这条邻居被引入"的人工标注理由 (vs 纯 graph 邻接)。
-
-    Story 2.2+2.9 Global-Search (2026-05-12) — Multi-seed BFS 诊断字段:
-        seed_origin: 该 trace item 是通过哪个 seed 到达的 (single-seed 模式下为 None,
-                    multi-seed 模式下记录原始 seed node_path, 便于"节点 X 解题遇到
-                    外来概念 Y"场景下区分 X 邻居 vs Y 邻居)。
     """
 
     path: str
@@ -96,7 +91,6 @@ class TraceItem:
     tokens: int = 0  # 占位，Phase 2 接入 query-aware rerank 后由 assembler 回填
     path_trace: list[str] = field(default_factory=list)
     evidence: str | None = None
-    seed_origin: str | None = None
 
 
 @dataclass
@@ -373,7 +367,6 @@ async def enrich_from_wikilink_graph(
     max_hops: int = DEFAULT_MAX_HOPS,
     timeout_ms: int = DEFAULT_TIMEOUT_MS,
     graph_service: WikilinkGraphService | None = None,
-    additional_seeds: list[str] | None = None,
 ) -> EnrichmentResult:
     """Story 2.1 Task 1.1 — Wikilink graph N-hop 遍历邻居上下文。
 
@@ -381,18 +374,11 @@ async def enrich_from_wikilink_graph(
     AC #5: 图服务不可用 / 超时 / 异常 → degraded=True + 空 neighbors（不抛异常）
     NFR-PERF: 单次遍历 < 200ms（超时返回 degraded=True）
 
-    Story 2.2+2.9 Global-Search (2026-05-12) — Multi-seed BFS:
-        当 `additional_seeds` 提供时, 每个 seed 各跑一遍 BFS, merge 结果按 slug
-        去重保留 min(hop_distance), 用于"节点 X 解题遇到外来概念 Y, 装 Y 邻居"场景。
-        TraceItem.seed_origin 记录"通过哪个 seed 到达", 便于诊断。
-        additional_seeds=None 时保持单 seed 行为完全不变 (backward compat)。
-
     Args:
         node_path: 主 seed 节点 vault 相对路径（如 "节点/Eigenvalues.md"）
         max_hops: 遍历最大跳数（默认 2）
         timeout_ms: 单次遍历超时（默认 200ms 对齐 NFR-PERF）
         graph_service: 可注入测试 service（默认 singleton）
-        additional_seeds: 额外 seed 列表 (None / []: 纯 single-seed 模式)
 
     Returns:
         EnrichmentResult，degraded 字段标识降级状态
@@ -476,10 +462,6 @@ async def enrich_from_wikilink_graph(
     contexts: list[WikilinkNeighborContext] = []
     trace_items: list[TraceItem] = []
     seen_slugs: set[str] = set()
-    # Story 2.2+2.9 Global-Search (2026-05-12) — multi-seed 模式标记 seed_origin
-    # additional_seeds 提供时,主 seed 仍记录 seed_origin=node_path (诊断对称)
-    is_multi_seed = bool(additional_seeds)
-    primary_seed_origin: str | None = node_path if is_multi_seed else None
     for n in raw_neighbors:
         # Phase 1.7+ (2026-05-03 用户 UAT P1 fix): 过滤 seed 自循环 + 同 slug 去重.
         # 根因: obsidiantools graph 同一文件可能有 path-prefixed key (节点/X) 与
@@ -532,87 +514,8 @@ async def enrich_from_wikilink_graph(
                 tokens=0,
                 path_trace=path_trace,
                 evidence=evidence,
-                seed_origin=primary_seed_origin,
             )
         )
-
-    # Story 2.2+2.9 Global-Search (2026-05-12) — Multi-seed BFS merge.
-    # 对每个 additional_seed 单独跑 BFS, merge 邻居/trace 到主结果:
-    # - 按 slug 去重保留 min(hop_distance)
-    # - TraceItem.seed_origin 记录"通过哪个 seed 到达"
-    # - 任一 sub-seed 触发 degraded → 不影响主结果 (best-effort, 不阻断)
-    # - target_slug 自循环过滤扩展到所有 seed 的 slug 集合
-    if additional_seeds:
-        all_seed_slugs = {target_slug}
-        for s in additional_seeds:
-            all_seed_slugs.add(_normalize_target_slug(s))
-        # 主结果里把跨 seed 自循环也过滤掉 (e.g. seed=[X, Y], Y 出现在 X 的邻居里
-        # 应保留 — Y 是另一个 seed, 不是 X 邻居 noise; 但 if X 邻居含 Y, 视为
-        # "通过 X 到达 Y", path_trace 已记录, 不重复添加 — 留给 sub-seed 自己跑)
-        # 实现选择: 保留主 seed 邻居 (含其他 seed 节点本身 - 因为它确实是 1-hop 邻居)
-        # sub-seed 跑时再处理自循环过滤
-
-        for seed in additional_seeds:
-            if not seed or not seed.strip():
-                continue
-            try:
-                # 复用整个函数 (含 timeout / degraded handling), 但 additional_seeds=None
-                # 避免递归无限. timeout/graph_service/max_hops 沿用主调用参数.
-                sub_result = await enrich_from_wikilink_graph(
-                    node_path=seed,
-                    max_hops=max_hops,
-                    timeout_ms=timeout_ms,
-                    graph_service=graph_service,
-                    additional_seeds=None,
-                )
-            except Exception as e:
-                logger.warning(
-                    "wikilink_context.additional_seed_failed",
-                    seed=seed,
-                    error=str(e)[:120],
-                )
-                continue
-            if sub_result.degraded:
-                logger.debug(
-                    "wikilink_context.additional_seed_degraded",
-                    seed=seed,
-                    reason=sub_result.degraded_reason,
-                )
-                # 不阻断主结果, 跳过该 seed 邻居
-                continue
-            for sub_n in sub_result.neighbors:
-                if sub_n.slug in seen_slugs:
-                    # 已在主 seed 或前一 additional seed 中, 检查是否需要更新 min hop
-                    # 简化: 保留先到 (主 seed 优先), 不替换 (FIFO 语义符合"主 seed 是
-                    # 中心, additional 是补充" prompt 语义)
-                    continue
-                if (
-                    sub_n.slug in all_seed_slugs
-                    and sub_n.slug != _normalize_target_slug(seed)
-                ):
-                    # 跨 seed 自循环: e.g. sub_seed=Y 跑到主 seed X
-                    # 跳过 (主 seed 已是分析中心, 不当成 Y 的邻居装入)
-                    continue
-                seen_slugs.add(sub_n.slug)
-                contexts.append(sub_n)
-            # merge sub_result.trace.included 时标 seed_origin=seed
-            if sub_result.trace is not None:
-                sub_paths_in_main = {t.path for t in trace_items}
-                for sub_item in sub_result.trace.included:
-                    if sub_item.path in sub_paths_in_main:
-                        continue
-                    trace_items.append(
-                        TraceItem(
-                            path=sub_item.path,
-                            hop=sub_item.hop,
-                            relationship_type=sub_item.relationship_type,
-                            reason=sub_item.reason,
-                            tokens=sub_item.tokens,
-                            path_trace=sub_item.path_trace,
-                            evidence=sub_item.evidence,
-                            seed_origin=seed,
-                        )
-                    )
 
     contexts.sort(key=lambda c: (c.hop_distance, c.slug))
     trace_items.sort(key=lambda t: (t.hop, t.path))

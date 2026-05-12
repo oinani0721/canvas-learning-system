@@ -1,6 +1,6 @@
 ---
 name: study-question
-description: "当用户消息以 /study-question 开头（用户在 Claudian 输入框直接打入，或由 Canvas plugin 通过 Cmd+P 命令面板 → '解题深度模式' 触发 + 剪贴板注入），必须调用此 Skill 进入解题深度模式。Story 2.3 v1.4 Phase 1：5 阶段 pipeline（query intent 分类 / sub-query 拆解 / RAG 召回 / wikilink 2-hop / Read 5+ 独立 file 完整章节 + 跨 lecture Grep 平行结构） + 强制 4 段结构化输出（定义/直觉/反例/联系）+ 末尾必 dump 完整 supplementary 列表 + citation back-verification。三态触发路径：路径 B（plugin Cmd+P 注入 full RAG，N ≥ 10）/ 路径 C（hook auto-RAG 注入 N < 10，必须 MCP 补充到 ≥ 20）/ 路径 A（Claudian 裸触发，全量 MCP 自救）。本 Skill 是纯诊断对话 — 不创建/不修改任何文件，区别于 ai-linked-doc 派生流程。延迟预算 30-45s。"
+description: "当用户消息以 /study-question 开头（用户在 Claudian 输入框直接打入，或由 Canvas plugin 通过 Cmd+P 命令面板 → '解题深度模式' 触发 + 剪贴板注入），必须调用此 Skill 进入解题深度模式。v1.6 (2026-05-12): native Grep 优先路径 (HARD-21),取代 wave-1 plugin 命令。Story 2.3 v1.4 Phase 1：5 阶段 pipeline（query intent 分类 / sub-query 拆解 / RAG 召回 / wikilink 2-hop / Read 5+ 独立 file 完整章节 + 跨 lecture Grep 平行结构） + 强制 4 段结构化输出（定义/直觉/反例/联系）+ 末尾必 dump 完整 supplementary 列表 + citation back-verification。三态触发路径：路径 B（plugin Cmd+P 注入 full RAG，N ≥ 10）/ 路径 C（hook auto-RAG 注入 N < 10，必须 MCP 补充到 ≥ 20）/ 路径 A（Claudian 裸触发，native Grep 优先 + MCP 补充）。本 Skill 是纯诊断对话 — 不创建/不修改任何文件，区别于 ai-linked-doc 派生流程。延迟预算 30-45s。"
 argument-hint: "[路径 A：用户问题；路径 B：由 Cmd+P 命令面板触发后从剪贴板注入完整上下文 + supplementary]"
 allowed-tools:
   - Read
@@ -12,7 +12,7 @@ allowed-tools:
 model: sonnet
 ---
 
-# Study-Question Skill v1.5 — 解题深度模式（Canvas Learning System · Story 2.3）
+# Study-Question Skill v1.6 — 解题深度模式（Canvas Learning System · Story 2.3）
 
 ## ⛔ CRITICAL TRIGGER
 
@@ -85,6 +85,8 @@ model: sonnet
     - mastery < 0.3 → 🔴
     - 邻居 frontmatter.mastery 字段**缺失** → ⚪ 未评估（注："建议先用 /chat-with-context 评估"）
     - **必须**在每条邻居后括号注 mastery 数值，格式：`🟡 [[节点/X]] — prerequisite (mastery 0.42)` 或 `⚪ [[节点/Y]] — refines (mastery 未评估)`
+
+21. **⛔ HARD-21 Native Vault Grep 优先 (v1.6 新增)** — 路径 A 自检后,**第一步必须**用 Glob `canvas-vault/**/*.md` + Grep 用户问题中的核心术语 (含同义/英文/缩写,如 "Bellman|贝尔曼|价值迭代") **跨 vault 全局搜**,**不再优先调 MCP search_notes**。Grep 命中 ≥ 5 file 直接走 [4/5] Read; 命中 < 5 才调 MCP search_notes 补充。理由: 用户原话 "Claude Code skill 自带全局搜索,native Grep + Read 比 MCP RAG 快 2-3 倍且透明"。**适用所有触发位置 (Dashboard / 节点页 / 非节点页)** — 不假设用户在某个节点上下文,问的概念可能与当前页无关。
 
 ---
 
@@ -427,7 +429,7 @@ Phase 1 v1.3 目标：**路径 A/B 双轨召回质量等价 + 末尾必 dump 完
 
 ---
 
-## v1.0 → v1.1 → v1.2 → v1.3 → v1.4 → v1.5 版本演进
+## v1.0 → v1.1 → v1.2 → v1.3 → v1.4 → v1.5 → v1.6 版本演进
 
 | 版本 | 关键变化 | 触发原因 |
 |---|---|---|
@@ -436,4 +438,5 @@ Phase 1 v1.3 目标：**路径 A/B 双轨召回质量等价 + 末尾必 dump 完
 | v1.2 | 完全删 hotkey，保 plugin command | 用户批注 2：search-info skill 不依赖 selection，hotkey 占心智无价值 |
 | v1.3 | 加 HARD-0 路径自检 / HARD-16 末尾 dump supplementary / HARD-17 跨 lecture Grep / HARD-18 MCP 自救 / HARD-19 RAGAS-lite + allowed-tools 加 3 个 MCP tool | 用户批注 3：路径 A 输出仅 3 条 Read 验证，对比 chat-with-context 13 条 supplementary 巨大差距 — "怀疑没有接入 RAG" |
 | v1.4 | HARD-0 升级三态路径自检（A 裸 / B full / C hook light） + HARD-11 明确"独立 file"非 section + §3.A 双态自救（路径 C 合并 hook 注入 + MCP 补充） + §5 三态开场模板强制 | 用户实测 v1.3 输出："auto-RAG 注入 6 条" 而非预期 30 条 — 根因 v1.3 HARD-0 漏识 hook auto-RAG 注入的中间态（路径 C），Claude 看到 6 条以为够了没调 MCP search_notes |
-| **v1.5** | **HARD-15 升级 开场标识 + 5 阶段全显强制 / HARD-16 加 dedup（重复 source_path 合并不占 rank 位）+ score<0.2 加 ⚠️ 低相关 / HARD-20 新增 mastery 颜色阈值硬约束** | **用户实测 v1.4 输出：16 supp + 6 lecture + Faithfulness 11/12 — 已超越业界 3 处（4 段 intent 路由 / Faithfulness 量化 / 教材级反例），但 3 个骨架可见 bug：开场缺路径标识 / supplementary 含 "(skip 重复)" 占位 / mastery 颜色 Claude 凭直觉配** |
+| v1.5 | HARD-15 升级 开场标识 + 5 阶段全显强制 / HARD-16 加 dedup（重复 source_path 合并不占 rank 位）+ score<0.2 加 ⚠️ 低相关 / HARD-20 新增 mastery 颜色阈值硬约束 | 用户实测 v1.4 输出：16 supp + 6 lecture + Faithfulness 11/12 — 已超越业界 3 处（4 段 intent 路由 / Faithfulness 量化 / 教材级反例），但 3 个骨架可见 bug：开场缺路径标识 / supplementary 含 "(skip 重复)" 占位 / mastery 颜色 Claude 凭直觉配 |
+| **v1.6** | **HARD-21 新增 native Vault Grep 优先（路径 A 第一步 Glob+Grep 全局搜 canvas-vault/**/*.md，命中 ≥ 5 file 直走 [4/5] Read；< 5 才 fallback MCP search_notes 补充） — 适用 Dashboard / 节点页 / 非节点页所有触发位置** | **用户最新澄清 (wave-4)："claude code 的这个 skill 自带全局搜索" — Anthropic 官方 + kepano obsidian-skills 范式都是 Claude 主动 Glob+Grep+Read 搜 vault，native Grep 比 MCP RAG 快 2-3 倍且透明；取代 wave-1 加的 plugin command + backend endpoint** |

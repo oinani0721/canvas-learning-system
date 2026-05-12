@@ -1,6 +1,6 @@
 ---
 name: chat-with-context
-description: "当用户消息以 /chat-with-context 开头（用户在 Claudian 直输或 Canvas plugin Cmd+Shift+E 触发 + 剪贴板注入），必须调用此 Skill 进入 backend RAG 上下文增强对话模式。Story 2.1 v2.0（2026-05-11 升级）借鉴 study-question v1.5 的 5 项 HARD（三态路径自检 / dedup + 低相关降权 / RAGAS-lite 量化自检 / mastery 颜色阈值 / 路径 A 调 MCP search_notes 自救），延迟预算保持 5s（vs study-question 30-45s）。路径 B（plugin Cmd+Shift+E）走 backend full RAG，路径 A（Claudian 直输）走 MCP search_notes 轻量自救。本 Skill 是纯对话模式 — 不创建 / 不修改任何文件，区别于 ai-linked-doc 派生流程。"
+description: "当用户消息以 /chat-with-context 开头（用户在 Claudian 直输或 Canvas plugin Cmd+Shift+E 触发 + 剪贴板注入），必须调用此 Skill 进入 backend RAG 上下文增强对话模式。v2.1 (2026-05-12): native Grep 优先路径,取代 wave-1 plugin 命令。Story 2.1 v2.0（2026-05-11 升级）借鉴 study-question v1.5 的 5 项 HARD（三态路径自检 / dedup + 低相关降权 / RAGAS-lite 量化自检 / mastery 颜色阈值 / 路径 A 调 MCP search_notes 自救），延迟预算保持 5s（vs study-question 30-45s）。路径 B（plugin Cmd+Shift+E）走 backend full RAG，路径 A（Claudian 直输）走 native Glob+Grep 优先 + MCP fallback。本 Skill 是纯对话模式 — 不创建 / 不修改任何文件，区别于 ai-linked-doc 派生流程。"
 argument-hint: "[路径 A：用户问题；路径 B：由 Cmd+Shift+E 从剪贴板注入 backend RAG 增强后的上下文 prompt]"
 allowed-tools:
   - Read
@@ -12,7 +12,7 @@ allowed-tools:
 model: sonnet
 ---
 
-# Backend RAG 上下文增强对话 Skill v2.0（Canvas Learning System · Story 2.1）
+# Backend RAG 上下文增强对话 Skill v2.1（Canvas Learning System · Story 2.1）
 
 ## ⛔ CRITICAL TRIGGER & HARD CONSTRAINTS
 
@@ -110,12 +110,10 @@ model: sonnet
     - 每条邻居后括号注 `(mastery 0.42)` 数值或 `(mastery 未评估)`
     - **禁止 Claude 凭直觉配色**
 
-19. **⛔ HARD-19 路径 A/C MCP 自救分支（v2.0 新增）** — HARD-15 配套实现：
-    - 路径 A：调 `search_notes(query=用户问题, max_results=15)` + `get_neighbors(推断 path, max_hops=1)`
-    - 路径 C：调 `search_notes(query=用户问题, max_results=15)` 补充 hook 已注入的少量条目
-    - 合并去重（按 source_path）→ 当 supplementary 走完原 [Read top-2] [4 段输出] 流程
-    - **MCP 失败明示**：`⚠️ backend MCP 不可用（<reason>），推荐改走 Cmd+Shift+E plugin 路径拿 full RAG`
-    - **5s 预算限制**：max_results=15（vs study-question 的 30），保持快问快答定位
+19. **⛔ HARD-19 路径 A/C 自救 (v2.1 修订)** — 
+    - 路径 A: **先 Glob+Grep canvas-vault/**/*.md 找含用户提问术语的 file** (5s 预算内,限 top-8 命中)。**命中后直接 Read top-2 走 4 段输出**,**不再走 MCP**。命中 0 才 fallback 到 `mcp__search_notes(max_results=15)`。
+    - 路径 C 不变 (hook + MCP 合并)。
+    - 理由: Dashboard / 非节点页触发是常态,native Grep 比 MCP 快且透明,5s 预算足够。
 
 ## 对话开场（解析 prompt 后的第一条回复）
 

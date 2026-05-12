@@ -2,23 +2,23 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**（2026-05-11 续 · 合并 Story 2.2+2.9 T3+T5 ship）:
+**当前状态**（2026-05-12 续 · wave-4 Q3 rollback + SKILL.md native Grep ship）:
 - ✅ ChatGPT 全链路对抗审查完成（5 Tasks verdict + 3 P0：Multi-Vault 全链路 / 生产默认值 / 修主检索链路），response 归档 `_bmad-output/chatgpt-review-response-2026-05-11.md`
 - ✅ **合并 Story 2.2+2.9** spec ship + checklist 全勾 (7 AC + 7 Tasks 除 T0 / T6.2/T6.3 perf)
-- ✅ **T1 plugin timeout 降级 done** (`c5e5a92`, 156 frontend tests) + 用户 UAT 通过
-- ✅ **T2 backend 基础设施 done** (`6d2c05e`, 75 backend tests)
-- ✅ **T3a assembler 渲染 done** (`e0d91c0`, 119 tests)
-- ✅ **T3 rerank engine + T5 evidence done** (`549d5f0`, 209/209 unit tests green)
-- ✅ **T3+T5 用户 UAT 通过** (2026-05-12)
-- ✅ **Q1+Q2+Q3 三领域 P0 完全修复 done** (`de0b4a7`, 245 backend + 173 frontend = 418/418)
-- ✅ **ChatGPT v2 对抗审查 prompt 优化 + 跑过** (`d31e399`/`9bc04df`, GitHub URL 精确导航 + 强约束输出 + 内联代码 snippet)
-- ✅ **ChatGPT v2 verdict 揭示 3 P0 + 5 新发现 (frontend auth / lancedb vault wiring / review fail-open / metadata 漏扫 / __default__ fallback)** — 我和 audit agent 之前都漏了
-- ✅ **Wave-2 hotfix 全闭口 done** (`f018580`, backend 219 + frontend 186 + 4 security 回归测试): P0-1 frontend X-CLS-Internal-Key + P0-2 LanceDB ContextVar wiring + P0-3 真 fail-closed (a/b/c) + cleanup_loop + 4 漏修
+- ✅ T1 plugin timeout (`c5e5a92`) + T2 backend (`6d2c05e`) + T3a assembler (`e0d91c0`) + T3+T5 rerank/evidence (`549d5f0`) — 用户 UAT 通过
+- ✅ **Q1+Q2 P0 + Wave-2 hotfix 全闭口** (`de0b4a7` → `f018580`,backend 219 + frontend 186 + 4 security 回归)
+- ✅ **Wave-3 hotfix done** (`ec58ee0`,W3-1/2/3/4a/4b — metadata redaction / multi-vault 隔离 / lancedb ContextVar / trim auth header)
+- ✅ **Wave-4 Q3 rollback + SKILL.md native Grep 改造 done** (`1dfc688`):
+  - frontend 删除 `canvas:global-search` 命令 + `handleGlobalSearch` + `global-search.ts` helper + 19 测试
+  - backend 删除 POST `/api/v1/chat/global-search` endpoint + multi-seed BFS / `additional_seeds` / `TraceItem.seed_origin`
+  - `canvas-vault/.claude/skills/study-question/SKILL.md` 加 HARD-21（native Grep 优先）
+  - `canvas-vault/.claude/skills/chat-with-context/SKILL.md` 加 HARD-19（native Grep 优先）
+  - Q3 验收单标 `status: deprecated`（audit trail 保留）
 
 **下一步**:
-- 用户跑 3 UAT 验收单 (Q1/Q2/Q3 已在 `_bmad-output/验收单/`)
-- 可选: 再 round ChatGPT v2 prompt 验证 wave-2 (commit f018580) 是否真闭口
-- T0 主链路修复 + RAGAs 基准 (3-5d 独立 session, P0-C)
+- 用户跑 wave-3 mini-UAT（`Story-2.2+2.9-wave-3-mini-UAT-2026-05-12.md`,Step 1 改为 SKILL.md native Grep 验证）
+- 用户跑 Q1/Q2 验收单（Q3 已废,改走 wave-3 mini-UAT Step 1）
+- T0 主链路修复 + RAGAs 基准（3-5d 独立 session, P0-C）
 
 **8-Session 全 plan（Round-14 用户原话需求 #1#2#3 落地）**:
 - S1: Story 2.2 (用户原话 #1) | S2: 2.3 历史误解 | S3: 5.1 BKT MCP (用户原话 #2)

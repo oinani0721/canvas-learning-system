@@ -258,38 +258,9 @@ describe("handleStudyQuestion_sends_internal_key_header", () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// Test 5: handleGlobalSearch_sends_internal_key_header
+// Test 5 (removed Wave-4): handleGlobalSearch_sends_internal_key_header
+// — canvas:global-search 命令已 rollback（scope 蔓延），handler 不复存在。
 // ─────────────────────────────────────────────────────────────
-
-describe("handleGlobalSearch_sends_internal_key_header", () => {
-  test("global-search fetch headers 含 X-CLS-Internal-Key", async () => {
-    let capturedHeaders: Record<string, string> | undefined = undefined;
-    const stubFetch = async (
-      _url: string,
-      init: RequestInit,
-    ): Promise<Response> => {
-      capturedHeaders = init.headers as Record<string, string>;
-      return new Response(
-        JSON.stringify({ enriched_context: "g", supplementary_count: 0 }),
-        { status: 200 },
-      );
-    };
-
-    async function handleGlobalSearchSpy(settings: PluginSettingsLike) {
-      await stubFetch("http://localhost:8011/api/v1/chat/global-search", {
-        method: "POST",
-        headers: buildBackendHeadersPure(settings),
-        body: JSON.stringify({ user_question: "Q", vault_id: "v" }),
-      });
-    }
-
-    await handleGlobalSearchSpy({ internalApiKey: "g-key" });
-    assert.strictEqual(
-      (capturedHeaders as Record<string, string>)["X-CLS-Internal-Key"],
-      "g-key",
-    );
-  });
-});
 
 // ─────────────────────────────────────────────────────────────
 // Test 6: handleOpenNodeChat 不调 backend (clipboard-only)，
