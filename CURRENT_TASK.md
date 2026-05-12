@@ -2,18 +2,19 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**（2026-05-08 收尾 · Round-23 阶段 1+2 全 ship）:
-- ⛔ Round-22 DeepTutor fork MVP 路径已**弃用**（4 paper + 7 社区案例 + 5 paradigm 实证）→ archive `worktree-feature-deeptutor-canvas-mvp@d4295f3`
-- ✅ **Round-23 阶段 1 ship** (`f718d04`): fail-closed config + canonical_group_id + search_nodes fulltext + 错误读路径 + WS auth + cs188 迁移 (102/104 tests)
-- ✅ **Round-23 阶段 2 ship** (`07cdb83` + `17f376b`): Wikilink 增量 + atomic_io + Graphiti 真路径 + frontmatter 双写 (152/154 tests)
-- ✅ **Round-14 4 残缺 #1#2#3#4 全部修复** — felt-sense 4.0/10 → 9.0/10
-- ✅ **Story 2.1 review→done** (`dad9ed7`，ChatGPT 4 轮 8/10) → 解锁 2.2-2.8
+**当前状态**（2026-05-11 收尾 · 合并 Story 2.2+2.9 T1/T2/T3a ship）:
+- ✅ ChatGPT 全链路对抗审查完成（5 Tasks verdict + 3 P0：Multi-Vault 全链路 / 生产默认值 / 修主检索链路），response 归档 `_bmad-output/chatgpt-review-response-2026-05-11.md`
+- ✅ **合并 Story 2.2+2.9** spec ship (`_bmad-output/implementation-artifacts/epic-2/2-2-and-2-9-merged-rerank-evidence.md`, 7 AC + 7 Tasks, 原 2.2/2.9 superseded)
+- ✅ **T1 plugin timeout 降级 done** (`c5e5a92`, 156 frontend tests) + 用户 UAT 通过 + 验收单 `Story-2.2+2.9-T1-plugin-timeout-降级-2026-05-11.md`
+- ✅ **T2 backend 基础设施 done** (`6d2c05e`, 75 backend tests): wikilink_parser 4 精度 + backlinks/path_trace 字段 + 装载透传
+- ✅ **T3a assembler 渲染 done** (`e0d91c0`, 119 tests): _format_neighbor_metadata 输出 `backlink="true"` + `via="A"` + 中文路径行
 
-**下一步 — Story 2.2 渐进式 UAT 3-Phase 拆分（用户工作模式 2026-05-08）**:
-- Phase A (2-2.5h): MCP 集成 + 降级 → ship `Story-2.2-Phase-A-MCP-集成-2026-05-08.md`
-- Phase B (2.5-3h): 精排 + wikilink 三精度 → ship `Story-2.2-Phase-B-精排-wikilink-2026-05-08.md`
-- Phase C (1-1.5h): 测试 + final → ship `Story-2.2-final-综合验收-2026-05-08.md`
-- **新 session 启动指令**: `/bmad-bmm-dev-story 2-2-supplementary-material-search 按 Phase A/B/C 拆分实施`
+**下一步 — 合并 Story 2.2+2.9 剩余 4 Tasks（按 ROI 序）**:
+- T3b: type 权重 rerank (1h, 新建 supplementary_reranker.py)
+- T3c: query-aware BM25+cosine (1.5h, 新建 rerank_service.py)
+- T3d: hub penalty + degree stats (1h, wikilink_graph_service get_degree_stats)
+- T5: Relationship Evidence (1.5h) + T6: 集成 + 综合验收单 (2-3h) + T0: 修主检索链路 + RAGAs 基准 (3-5d 独立 session)
+- **新 session 启动指令**: `/bmad-bmm-dev-story epic-2/2-2-and-2-9-merged-rerank-evidence.md 从 T3b 起手`
 
 **8-Session 全 plan（Round-14 用户原话需求 #1#2#3 落地）**:
 - S1: Story 2.2 (用户原话 #1) | S2: 2.3 历史误解 | S3: 5.1 BKT MCP (用户原话 #2)
