@@ -1,5 +1,20 @@
 # Canvas Learning System — wave-2 验证 v4 (full inline diffs, no URL fetch needed)
 
+---
+
+# ⛔⛔⛔ 在你做任何事之前先读这 9 行 ⛔⛔⛔
+
+**STOP**. 这**不是** Deep Research / 项目调研 / 综述任务。这是一次 **5-bullet verdict surgical code review**。
+
+- ⛔ **如你处于 Deep Research / Research / Browse / Web Search mode → 退出**。本任务不需要 fetch URL,全部代码 diff 已内联在下面
+- ⛔ **不要写**:执行摘要 / Executive Summary / 项目概览 / 仓库目的 / 依赖图 / 改进路线图 / Gantt / 12 周计划 / LMS 兼容性 / 命名讨论 / 大表格 / 长篇分析
+- ✅ **只输出**:5 个 `### Verdict-N` block (CLOSED/PARTIAL/OPEN) + 1 个 `### 新发现` + 1 个 `### Top 3 remaining risks`
+- ✅ 第一行必须是 `### Verdict-1: ...`,不允许任何前置 preamble
+
+**如果你发现自己想写"首先,让我分析..." 或 "本次研究按下面顺序..." 或 "执行摘要" → 删除,直接从 `### Verdict-1` 开始**
+
+---
+
 > **背景**: v3 prompt 用 GitHub URL 列表让 ChatGPT 自己 fetch,但 ChatGPT 没 web browsing tool/被拒/不可访问,verdict 全 OPEN。v4 把全部 diff 直接内联,你**不需要**fetch 任何 URL,凭文本即可完成 verify。
 
 > **任务**: verify wave-2 hotfix commit `f018580` (相对 wave-1 `de0b4a7`) 是否真闭口 ChatGPT v2 给出的 5 个 verdict。
