@@ -405,6 +405,12 @@ class LanceDBClient:
         # ContextVar holds "vault:cs_61b" / "vault:cs_61b:algorithms" / etc.
         # We strip the "vault:" prefix and take the first segment as the
         # LanceDB table-namespace key (matches build_vault_group_id contract).
+        #
+        # Wave-3 hotfix (ChatGPT v4 verdict #3): narrow exception catch — must
+        # let BaseException/KeyboardInterrupt/SystemExit propagate; only swallow
+        # the specific import/attr/runtime/value failures expected when the
+        # `app.core.subject_config` module is unavailable or its ContextVar
+        # accessor misbehaves.
         try:
             from app.core.subject_config import (
                 DEFAULT_SUBJECT_ID,
@@ -427,16 +433,37 @@ class LanceDBClient:
                         first_seg,
                     )
                     return first_seg
-        except Exception:
-            # subject_config not importable (lib used standalone) → fall through
-            pass
+        except (ImportError, AttributeError, RuntimeError, ValueError) as e:
+            # subject_config not importable (lib used standalone) or accessor
+            # broke at runtime → fall through to Level 3. Surface in debug log
+            # so Ops can spot wiring regressions without flooding warnings on
+            # the legitimate standalone-lib path.
+            logger.debug(
+                "[LanceDB vault wiring] subject_config ContextVar unavailable "
+                "(%s: %s) — falling back to app.config",
+                type(e).__name__,
+                e,
+            )
 
         # Step 3: legacy fallback — global active vault from settings.
+        # Same narrow-exception discipline as Level 2.
         try:
             from app.config import get_current_vault_id
 
             return get_current_vault_id()
-        except Exception:
+        except (ImportError, AttributeError, RuntimeError, ValueError) as e:
+            # Level 4 (final): hard fallback to "default" table namespace.
+            # ⛔ This is the cross-vault-leak danger zone — warn loudly so Ops
+            # see it in production logs. Reaching here means BOTH the request
+            # ContextVar AND the legacy global config are unreachable, which
+            # should never happen inside a running FastAPI process.
+            logger.warning(
+                "[LanceDB vault wiring] active_vault_id fell back to 'default' "
+                "— both subject_config ContextVar and app.config unavailable "
+                "(last error: %s: %s); possible cross-vault leak",
+                type(e).__name__,
+                e,
+            )
             return "default"
 
     def resolve_table_name(self, table_name: str) -> str:

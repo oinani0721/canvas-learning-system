@@ -295,12 +295,22 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
         if m.get("is_link_list_chunk"):
             material_attrs += ' is_link_list="true"'
 
-        # Snippet content based on taint level
+        # Snippet + metadata content based on taint level.
+        #
+        # Wave-3 P0 hotfix (2026-05-12, ChatGPT v4 verdict #1): worst-takes-all
+        # 已让 title / wikilink / source_path 任一含 payload 升级 taint, 但渲染时
+        # 只 placeholder 了 snippet — 攻击者把 prompt injection payload 埋
+        # frontmatter title 即绕过 (snippet redacted 但 title 原样进 prompt).
+        # 升级: review/quarantine 时 title/wikilink/source_path 同样 placeholder.
+        # clean 路径保持 _xml_escape 原值, 不影响正常材料展示.
         if taint == "quarantine":
             snippet_content = (
                 "[QUARANTINED — content blocked due to suspected prompt injection. "
                 "Use Read tool on source_path to verify if needed.]"
             )
+            title_content = f"[QUARANTINED: tainted title (risk={injection_risk:.2f})]"
+            wikilink_content = "[QUARANTINED]"
+            source_path_content = "[QUARANTINED]"
         elif taint == "review":
             # P0-3a (2026-05-12 hotfix): fixed placeholder, 不暴露原文任何字符.
             # 旧逻辑截前 240 字保留原文 → 攻击 payload 在开头 240 字内 (典型
@@ -310,15 +320,21 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
                 f"[REDACTED: suspicious content (risk={injection_risk:.2f}); "
                 f"open source_path manually to verify]"
             )
+            title_content = f"[REDACTED: tainted title (risk={injection_risk:.2f})]"
+            wikilink_content = "[REDACTED]"
+            source_path_content = "[REDACTED]"
         else:
             snippet_content = _xml_escape(m["snippet"])
+            title_content = _xml_escape(m["title"])
+            wikilink_content = _xml_escape(m["wikilink"])
+            source_path_content = _xml_escape(m["source_path"])
 
         parts.append(
             f"  <material {material_attrs}>\n"
-            f"    <title>{_xml_escape(m['title'])}</title>\n"
-            f"    <wikilink>{_xml_escape(m['wikilink'])}</wikilink>\n"
+            f"    <title>{title_content}</title>\n"
+            f"    <wikilink>{wikilink_content}</wikilink>\n"
             f"    <snippet>{snippet_content}</snippet>\n"
-            f"    <source_path>{_xml_escape(m['source_path'])}</source_path>\n"
+            f"    <source_path>{source_path_content}</source_path>\n"
             f"  </material>"
         )
     parts.append("</supplementary_materials>")

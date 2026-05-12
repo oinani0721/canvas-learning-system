@@ -8,8 +8,8 @@ Scenario:
 - BE-B's joint P0-3a + P0-3b fix must ensure the review-tainted material's
   original injection prefix never appears verbatim in the assembled XML.
 
-This test depends on BE-B's review-floor sanitizer landing. Until then it
-is marked ``xfail(strict=False)``.
+wave-2 hotfix landed 2026-05-12, see commit f018580. The xfail marker has
+been removed; this test now enforces the sanitizer behavior under --strict-markers.
 """
 
 from __future__ import annotations
@@ -48,18 +48,16 @@ def _material(
     }
 
 
-@pytest.mark.xfail(
-    reason=(
-        "BE-B review-floor sanitizer (P0-3a + P0-3b joint fix) not yet merged. "
-        "Currently format_supplementary_xml renders the truncated review snippet "
-        "(first 240 chars) which still contains the injection prefix. After BE-B "
-        "lands the prefix must be redacted regardless of min_keep floor."
-    ),
-    strict=False,
-)
 def test_review_material_must_not_leak_instruction_prefix() -> None:
-    """3 materials (clean / review+injection / clean) → min_keep floor triggers
-    (all 3 pass filter) → XML output MUST NOT contain injection prefix verbatim."""
+    """3 materials (clean / review+injection / clean) → min_keep floor triggers.
+
+    wave-2 P0-3b expected behavior: review/quarantine taint materials MUST be
+    filtered out by the floor branch (fail-closed, no backdoor through floor).
+    Only clean materials survive. XML output MUST NOT contain the injection
+    prefix verbatim — whether because review material is dropped (current
+    P0-3b behavior) or because format_supplementary_xml redacts taint='review'
+    snippet/title/wikilink/source_path with placeholders (W3-1 defense-in-depth).
+    """
     materials = [
         _material(
             title="Clean concept A",
@@ -85,7 +83,7 @@ def test_review_material_must_not_leak_instruction_prefix() -> None:
 
     # Run the reranker with a threshold high enough that the filter would
     # normally drop everything (forcing the floor branch), min_keep=3 so the
-    # floor triggers and ALL three materials survive.
+    # floor triggers.
     reranked = rerank(
         materials,
         query="value iteration Bellman update",
@@ -95,23 +93,28 @@ def test_review_material_must_not_leak_instruction_prefix() -> None:
         top_k=5,
     )
 
-    # Sanity: filter_floor_triggered flag must be on the first material.
-    assert reranked, "rerank returned empty — floor should have kept all 3"
+    # Sanity: floor must have triggered (high threshold killed everything).
+    assert reranked, "rerank returned empty — floor should have kept clean materials"
     assert any(m.get("filter_floor_triggered") for m in reranked), (
         "min_keep floor should have fired given an impossibly high threshold"
     )
-    # The review-tainted material survived the floor.
-    review_passed = any(m.get("taint") == "review" for m in reranked)
-    assert review_passed, "review-tainted material must reach format step"
 
-    # Assemble XML — this is where BE-B's sanitizer must scrub the injection
-    # prefix even though the material is taint='review' (not 'quarantine').
+    # P0-3b expected: review/quarantine taint materials MUST be filtered out
+    # by the floor branch (fail-closed — floor cannot backdoor tainted material).
+    review_passed = any(m.get("taint") == "review" for m in reranked)
+    assert not review_passed, (
+        "wave-2 P0-3b regression: review-tainted material survived the floor. "
+        "Floor branch must drop taint ∈ {review, quarantine} even when triggered."
+    )
+
+    # Assemble XML — even if a tainted material had reached format
+    # (defense-in-depth), W3-1 redaction must scrub the injection prefix.
     xml_out = format_supplementary_xml(
         {"materials": reranked, "degraded": False, "reason": None}
     )
 
     assert INJECTION_PREFIX not in xml_out, (
         "Injection prefix leaked into supplementary XML despite review taint + "
-        "min_keep floor. BE-B P0-3a/P0-3b must redact review snippets when the "
-        f"floor branch keeps them.\n\nXML excerpt: {xml_out[:600]}"
+        "min_keep floor. wave-2 P0-3a/P0-3b + W3-1 redaction must keep the "
+        f"prefix out of the final prompt.\n\nXML excerpt: {xml_out[:600]}"
     )

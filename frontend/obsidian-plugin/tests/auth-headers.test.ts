@@ -34,8 +34,10 @@ function buildBackendHeadersPure(settings: PluginSettingsLike): Record<string, s
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (settings.internalApiKey && settings.internalApiKey.length > 0) {
-    headers["X-CLS-Internal-Key"] = settings.internalApiKey;
+  // Wave-3 W3-4a (Claude self-audit F1): mirror main.ts trim() logic.
+  const key = (settings.internalApiKey ?? "").trim();
+  if (key.length > 0) {
+    headers["X-CLS-Internal-Key"] = key;
   }
   return headers;
 }
@@ -97,6 +99,56 @@ describe("buildBackendHeaders_with_key_returns_internal_key_header", () => {
       128,
       "长 key 不能截断",
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Wave-3 W3-4a (Claude self-audit F1): trim whitespace
+// 防 user 误填 "   " 或 " key " 被当成有效 key 发到 backend 触发 403
+// ─────────────────────────────────────────────────────────────
+
+describe("buildBackendHeaders_trims_whitespace_key", () => {
+  test("仅空白字符 → header 不附加 X-CLS-Internal-Key (等同空 key, dev mode)", () => {
+    const headers = buildBackendHeadersPure({ internalApiKey: "   " });
+    assert.strictEqual(headers["Content-Type"], "application/json");
+    assert.strictEqual(
+      headers["X-CLS-Internal-Key"],
+      undefined,
+      "whitespace-only key 不应触发 prod auth header",
+    );
+    assert.strictEqual(Object.keys(headers).length, 1);
+  });
+
+  test("tab + 换行 + 空格混合也视为空 key", () => {
+    const headers = buildBackendHeadersPure({ internalApiKey: "\t\n  \r" });
+    assert.strictEqual(headers["X-CLS-Internal-Key"], undefined);
+  });
+
+  test("key 两端有空白 → 发送 trim 后的值 (防 backend constant_time_compare 失败)", () => {
+    const headers = buildBackendHeadersPure({ internalApiKey: "  secret-123  " });
+    assert.strictEqual(
+      headers["X-CLS-Internal-Key"],
+      "secret-123",
+      "key 必须 trim 后发送,backend 用 constant_time_compare 不忍 leading/trailing space",
+    );
+  });
+
+  test("内部空格保留 (仅 trim 两端)", () => {
+    const headers = buildBackendHeadersPure({ internalApiKey: "  a b c  " });
+    assert.strictEqual(
+      headers["X-CLS-Internal-Key"],
+      "a b c",
+      "trim 只去两端,中间空格保留",
+    );
+  });
+
+  test("undefined 安全处理 (settings shape drift 防御)", () => {
+    // 模拟设置加载失败 / migration 漏字段
+    const headers = buildBackendHeadersPure({
+      internalApiKey: undefined as unknown as string,
+    });
+    assert.strictEqual(headers["X-CLS-Internal-Key"], undefined);
+    assert.strictEqual(Object.keys(headers).length, 1);
   });
 });
 

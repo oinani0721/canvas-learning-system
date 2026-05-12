@@ -7,6 +7,7 @@ supports N-hop neighbor queries and hot updates via asyncio.Lock.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -325,6 +326,54 @@ class WikilinkGraphService:
 _wikilink_graph_services: dict[str, WikilinkGraphService] = {}
 _DEFAULT_VAULT_KEY = "__default__"
 
+# F3 hotfix (2026-05-12) — per-caller dedup set for default fallback warnings.
+# Key = "<filename>:<lineno>" of the caller frame (2 frames above this module's
+# _resolve_vault_key). 同 caller 多次命中 fallback 只 warn 一次,避免日志噪音.
+# 集合永不清空(进程级 cache),caller 修复后重启进程即可清理状态.
+_default_fallback_warned: set[str] = set()
+
+
+def _caller_fingerprint() -> str:
+    """取调用 _resolve_vault_key 的 caller frame 的 file:line 作 dedup key.
+
+    Frame layout:
+        [0] _caller_fingerprint (本函数)
+        [1] _warn_default_fallback_once (本函数的调用方,内部辅助)
+        [2] _resolve_vault_key (内部 fallback 触发点)
+        [3] real caller (我们想 dedup 的那一行)
+    """
+    try:
+        stack = inspect.stack()
+        if len(stack) >= 4:
+            frame = stack[3]
+            return f"{frame.filename}:{frame.lineno}"
+        # 退化情况(stack 不够深) — 用最深的非本模块 frame
+        if len(stack) >= 3:
+            frame = stack[2]
+            return f"{frame.filename}:{frame.lineno}"
+        return "unknown_caller"
+    except Exception:
+        return "unknown_caller"
+
+
+def _warn_default_fallback_once(reason: str) -> None:
+    """对每个 caller frame 最多 warn 一次,避免每请求日志噪音 (F3 hotfix).
+
+    Args:
+        reason: 触发 fallback 的原因 (e.g. "contextvar_empty", "exception").
+    """
+    key = _caller_fingerprint()
+    if key in _default_fallback_warned:
+        return
+    _default_fallback_warned.add(key)
+    logger.warning(
+        "[wikilink graph] vault_key fallback to __default__ at %s — "
+        "caller missed set_current_subject_id; possible cross-vault leak risk "
+        "(reason=%s)",
+        key,
+        reason,
+    )
+
 
 def _resolve_vault_key() -> str:
     """从 ContextVar 派生 sanitized vault key (P0-1 修复).
@@ -332,6 +381,10 @@ def _resolve_vault_key() -> str:
     取 ``app.core.subject_config.get_current_subject_id()`` 当前值.
     None / 空 / 未设置 → ``__default__`` (向后兼容,不破坏现有 caller).
     其他值用 ``sanitize_subject_name`` 归一化,杜绝大小写/连字符差异.
+
+    F3 hotfix (2026-05-12): 命中 ``__default__`` fallback 时按 caller frame
+    去重 logger.warning 一次,让 Ops 能察觉漏调 set_current_subject_id
+    导致的潜在跨 vault 串库风险.
     """
     try:
         from app.core.subject_config import (
@@ -341,11 +394,16 @@ def _resolve_vault_key() -> str:
 
         raw = get_current_subject_id()
         if not raw or not isinstance(raw, str) or not raw.strip():
+            _warn_default_fallback_once("contextvar_empty_or_none")
             return _DEFAULT_VAULT_KEY
         sanitized = sanitize_subject_name(raw)
-        return sanitized or _DEFAULT_VAULT_KEY
-    except Exception:
+        if not sanitized:
+            _warn_default_fallback_once("sanitize_empty")
+            return _DEFAULT_VAULT_KEY
+        return sanitized
+    except Exception as exc:
         # subject_config 不可用(测试/CLI 上下文)→ 安全降级到 default 桶
+        _warn_default_fallback_once(f"exception:{type(exc).__name__}")
         return _DEFAULT_VAULT_KEY
 
 

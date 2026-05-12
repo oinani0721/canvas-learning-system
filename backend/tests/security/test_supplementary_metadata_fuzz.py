@@ -14,7 +14,11 @@ back to a curated parametrize list of fuzz samples (control chars, SQL-ish
 quotes, prompt injection cues, scripts, long strings) for environments
 without hypothesis.
 
-Marked ``xfail(strict=False)`` until BE-B's metadata sanitizer lands.
+Wave-3 hotfix (2026-05-12, ChatGPT v4 verdict #1): metadata sanitizer landed
+in ``format_supplementary_xml`` — title/wikilink/source_path now render as
+[QUARANTINED ...] placeholders for quarantine taint. ``xfail`` markers have
+been removed; these tests now enforce the property as the live behavioural
+guarantee.
 """
 
 from __future__ import annotations
@@ -107,14 +111,6 @@ def _assert_verbatim_absent(payload: str, xml_out: str, field: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason=(
-        "BE-B metadata sanitizer (P0-3c) not yet merged: format_supplementary_xml "
-        "currently passes title/wikilink/source_path through _xml_escape only, "
-        "which keeps attacker-controlled metadata visible to Claude verbatim."
-    ),
-    strict=False,
-)
 @pytest.mark.parametrize("payload", CURATED_FUZZ_SAMPLES)
 def test_quarantine_title_must_not_leak_verbatim(payload: str) -> None:
     """For every curated fuzz payload installed in `title`, the rendered XML
@@ -124,10 +120,6 @@ def test_quarantine_title_must_not_leak_verbatim(payload: str) -> None:
     _assert_verbatim_absent(payload, xml_out, "title")
 
 
-@pytest.mark.xfail(
-    reason="BE-B P0-3c metadata sanitizer not yet merged (wikilink leak path).",
-    strict=False,
-)
 @pytest.mark.parametrize("payload", CURATED_FUZZ_SAMPLES)
 def test_quarantine_wikilink_must_not_leak_verbatim(payload: str) -> None:
     material = _quarantine_material_with(wikilink=payload)
@@ -135,10 +127,6 @@ def test_quarantine_wikilink_must_not_leak_verbatim(payload: str) -> None:
     _assert_verbatim_absent(payload, xml_out, "wikilink")
 
 
-@pytest.mark.xfail(
-    reason="BE-B P0-3c metadata sanitizer not yet merged (source_path leak path).",
-    strict=False,
-)
 @pytest.mark.parametrize("payload", CURATED_FUZZ_SAMPLES)
 def test_quarantine_source_path_must_not_leak_verbatim(payload: str) -> None:
     material = _quarantine_material_with(source_path=payload)
@@ -156,15 +144,6 @@ from hypothesis import HealthCheck, given, settings  # noqa: E402
 from hypothesis import strategies as st  # noqa: E402
 
 
-@pytest.mark.xfail(
-    reason=(
-        "BE-B P0-3c metadata sanitizer not yet merged (hypothesis fuzz path). "
-        "Property: for any verbatim string V embedded into title/wikilink/"
-        "source_path of a quarantined material, V MUST NOT appear in the "
-        "rendered XML output."
-    ),
-    strict=False,
-)
 @given(
     verbatim=st.text(min_size=1, max_size=80).filter(lambda s: s.strip() != ""),
     field_choice=st.sampled_from(["title", "wikilink", "source_path"]),
@@ -194,6 +173,16 @@ def test_quarantine_metadata_fuzz_property(verbatim: str, field_choice: str) -> 
     }
     if verbatim.lower() in LEGITIMATE_SCAFFOLDING:
         pytest.skip("verbatim collides with XML scaffolding term")
+
+    # Render a baseline (clean, with empty controlled field) to identify
+    # XML attribute/scaffolding text that is structurally present regardless
+    # of payload. If verbatim is a substring of that baseline, it would be a
+    # false positive (e.g. payload "0" colliding with score="0.400" or
+    # risk=0.85). Drop those — they cannot be controlled by the attacker.
+    baseline_material = _quarantine_material_with(**{field_choice: "X"})
+    baseline_xml = _xml_for(baseline_material)
+    if verbatim in baseline_xml:
+        pytest.skip("verbatim collides with structural XML attribute text")
 
     material = _quarantine_material_with(**{field_choice: verbatim})
     xml_out = _xml_for(material)

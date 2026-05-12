@@ -374,8 +374,13 @@ export default class CanvasLearningPlugin extends Plugin {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    if (this.settings.internalApiKey && this.settings.internalApiKey.length > 0) {
-      headers["X-CLS-Internal-Key"] = this.settings.internalApiKey;
+    // Wave-3 W3-4a (2026-05-12, Claude self-audit F1): use trim() so whitespace-only
+    // keys (e.g. user accidentally types "  ") don't reach backend as "valid" header
+    // and trigger 403. Also send trimmed value so trailing/leading spaces don't fail
+    // backend constant-time compare.
+    const key = (this.settings.internalApiKey ?? "").trim();
+    if (key.length > 0) {
+      headers["X-CLS-Internal-Key"] = key;
     }
     return headers;
   }

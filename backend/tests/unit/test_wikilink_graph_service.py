@@ -363,3 +363,118 @@ class TestMultiVaultIsolation:
             assert not svc2.is_built  # 新 instance 还没 build
         finally:
             _current_subject_id.reset(token)
+
+
+class TestDefaultFallbackObservability:
+    """F3 hotfix (2026-05-12) — silent __default__ fallback observability.
+
+    旧 _resolve_vault_key() 在 ContextVar None/empty/异常时静默返回
+    __default__,Ops 无法察觉 caller 漏调 set_current_subject_id 造成的
+    跨 vault 串库风险.新实现首次命中 fallback 时 logger.warning 一次
+    (按 caller stack 去重),保留可观测性同时避免每请求噪音.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_fallback_warned(self):
+        from app.services import wikilink_graph_service as svc_mod
+
+        svc_mod._default_fallback_warned.clear()
+        yield
+        svc_mod._default_fallback_warned.clear()
+
+    def test_default_fallback_warns_once_per_caller(self, caplog):
+        """同一 caller stack 调 _resolve_vault_key 多次 ContextVar None
+        → logger.warning 只触发一次 (per-caller dedup)."""
+        import logging
+
+        from app.core.subject_config import _current_subject_id
+        from app.services.wikilink_graph_service import (
+            _DEFAULT_VAULT_KEY,
+            _resolve_vault_key,
+        )
+
+        # 强制 ContextVar = empty 触发 fallback
+        token = _current_subject_id.set("")
+        try:
+            with caplog.at_level(logging.WARNING):
+                # 在同一行(同 caller frame)调 5 次
+                results = [_resolve_vault_key() for _ in range(5)]
+
+            assert all(r == _DEFAULT_VAULT_KEY for r in results)
+            fallback_warns = [
+                rec
+                for rec in caplog.records
+                if "vault_key fallback to __default__" in rec.getMessage()
+            ]
+            # 5 次调用 + 同一 caller frame → 应只 warn 一次
+            assert len(fallback_warns) == 1, (
+                f"期望只 warn 一次, 实际 {len(fallback_warns)} 次"
+            )
+        finally:
+            _current_subject_id.reset(token)
+
+    def test_different_callers_warn_independently(self, caplog):
+        """不同 caller (不同函数/不同行) 触发 fallback → 各自 warn 一次."""
+        import logging
+
+        from app.core.subject_config import _current_subject_id
+        from app.services.wikilink_graph_service import (
+            _DEFAULT_VAULT_KEY,
+            _resolve_vault_key,
+        )
+
+        def caller_one():
+            return _resolve_vault_key()
+
+        def caller_two():
+            return _resolve_vault_key()
+
+        token = _current_subject_id.set("")
+        try:
+            with caplog.at_level(logging.WARNING):
+                r1 = caller_one()
+                r1b = caller_one()  # same frame as r1
+                r2 = caller_two()
+                r2b = caller_two()  # same frame as r2
+
+            assert r1 == r1b == r2 == r2b == _DEFAULT_VAULT_KEY
+            fallback_warns = [
+                rec
+                for rec in caplog.records
+                if "vault_key fallback to __default__" in rec.getMessage()
+            ]
+            # 2 个不同 caller frame → 2 次 warn (各自一次)
+            assert len(fallback_warns) == 2, (
+                f"期望 2 次 warn, 实际 {len(fallback_warns)} 次"
+            )
+        finally:
+            _current_subject_id.reset(token)
+
+    def test_exception_path_also_warns(self, caplog, monkeypatch):
+        """subject_config import 失败路径也走 fallback → 应该 warn."""
+        import logging
+
+        from app.services import wikilink_graph_service as svc_mod
+        from app.services.wikilink_graph_service import (
+            _DEFAULT_VAULT_KEY,
+            _resolve_vault_key,
+        )
+
+        # 模拟 subject_config 不可用: 让 get_current_subject_id 抛错
+        import app.core.subject_config as subj_cfg
+
+        def _raise(*_a, **_kw):
+            raise RuntimeError("simulated subject_config failure")
+
+        monkeypatch.setattr(subj_cfg, "get_current_subject_id", _raise)
+
+        with caplog.at_level(logging.WARNING):
+            result = _resolve_vault_key()
+
+        assert result == _DEFAULT_VAULT_KEY
+        fallback_warns = [
+            rec
+            for rec in caplog.records
+            if "vault_key fallback to __default__" in rec.getMessage()
+        ]
+        assert len(fallback_warns) >= 1, "exception 路径也应 warn"

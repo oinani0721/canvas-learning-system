@@ -6,9 +6,9 @@ active vault). Without this, two browsers / two CLAUDE windows on the
 same backend can cross-leak — vault_a's prior request seeds the
 process-level state, then vault_b's request resolves to vault_a's table.
 
-This test depends on BE-A's multi-vault hotfix landing. Until then it is
-marked ``xfail(strict=False)`` so CI still surfaces it if a future change
-accidentally fixes the underlying bug.
+wave-2 hotfix landed 2026-05-12, see commit f018580. The xfail marker has
+been removed; this test now enforces the request-scoped vault_id behavior
+under --strict-markers.
 """
 
 from __future__ import annotations
@@ -79,14 +79,6 @@ def auth_client() -> Generator[TestClient, None, None]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason=(
-        "BE-A multi-vault hotfix (P0-2) not yet merged: process-level singleton "
-        "currently leaks vault_a's resolved table into vault_b's request. "
-        "After BE-A lands, this test should pass."
-    ),
-    strict=False,
-)
 def test_global_search_must_follow_request_vault_id(
     auth_client: TestClient,
 ) -> None:
