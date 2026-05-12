@@ -150,8 +150,12 @@ async def search_supplementary(
             skipped_empty += 1
             continue
 
-        # Phase A0.5-P: prompt injection taint 扫描
-        taint_info = _classify_snippet_taint(normalized.get("snippet", ""))
+        # Phase A0.5-P + P0-3c: prompt injection taint 扫描 (multi-field).
+        # 旧逻辑只扫 snippet → 攻击者把 payload 埋 frontmatter title / wikilink /
+        # source_path 即可绕过 (snippet 看着干净 → clean → 整条进 prompt).
+        # 新逻辑扫描 snippet + title + wikilink + source_path 各跑一遍 taint scan,
+        # 取 max risk_score + worst taint level (quarantine > review > clean).
+        taint_info = _classify_material_taint(normalized)
         normalized["taint"] = taint_info["taint"]
         normalized["injection_risk"] = taint_info["risk_score"]
         if taint_info["taint"] == "quarantine":
@@ -205,13 +209,17 @@ async def search_supplementary(
     # P0-D (2026-05-12 hotfix): tier-2 legacy fallback 命中时, 行级
     # is_legacy_fallback=True 但顶层 dict 仍 degraded=False, 下游观测拿不到旗帜.
     # 这里检测任一 material 是 legacy fallback, 顶层 degraded=True + reason
-    # append/set (保留原 reason 信息防丢失) + logger.warning 通知 Ops 重建索引.
+    # set + logger.warning 通知 Ops 重建索引.
+    #
+    # Wave-2 P0-2 漏修-2 (2026-05-12): 移除 ``prior_reason = None if materials
+    # else "all_filtered_below_threshold"`` 死分支 (信息丢失 bug).
+    # legacy_hit = any(materials...) 已隐含 materials 非空, 三元 else 分支永不触发,
+    # prior_reason 始终为 None, merged_reason 始终为 "tier2_legacy_unprefixed".
+    # 这是死代码且会让维护者误以为有"prior reason 保留"行为.
+    # 上游 _two_tier_search 返回 list (无 reason 字段) — 直接写单一标志.
     legacy_hit = any(m.get("is_legacy_fallback") for m in materials)
     if legacy_hit:
-        prior_reason = None if materials else "all_filtered_below_threshold"
-        # 已有 reason 时 append, 否则单一标志
-        new_reason = "tier2_legacy_unprefixed"
-        merged_reason = f"{prior_reason}; {new_reason}" if prior_reason else new_reason
+        merged_reason = "tier2_legacy_unprefixed"
         logger.warning(
             "[SupplementarySearch] degraded 顶层标志: tier-2 legacy fallback 命中",
             materials=len(materials),
@@ -240,8 +248,13 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
 
     Phase A0.5-P (Round-4): taint-aware 输出
     - taint=quarantine: 不输出 snippet 正文 + 加 quarantined="true" attr (防 indirect injection)
-    - taint=review: snippet 截断 240 字 + injection_risk attr (中风险摘要)
+    - taint=review: snippet 替换为 placeholder, **不暴露**原文任何字符 (P0-3a fail-closed)
     - taint=clean (默认): 完整输出
+
+    P0-3a (2026-05-12 hotfix, ChatGPT v2 对抗审查): review 之前截前 240 字保留原文,
+    攻击 payload 在开头 240 字内 (典型 "IGNORE ALL PREVIOUS INSTRUCTIONS...") 仍进
+    prompt → 升级为固定 placeholder + risk_score 提示, 用户可手动 Read source_path
+    verify (符合 RAG-as-tool 范式: Claude Read = verifier).
 
     Story 2.2+2.9 T3.8 (2026-05-11): 透出 rerank 4 字段 (rerank_score / type_weight
     / hub_penalty / query_overlap) 供 Claude 在 prompt 中看见排序原因 (AC #4 trace
@@ -289,10 +302,14 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
                 "Use Read tool on source_path to verify if needed.]"
             )
         elif taint == "review":
-            raw_snippet = (
-                m["snippet"][:240] + "…" if len(m["snippet"]) > 240 else m["snippet"]
+            # P0-3a (2026-05-12 hotfix): fixed placeholder, 不暴露原文任何字符.
+            # 旧逻辑截前 240 字保留原文 → 攻击 payload 在开头 240 字内 (典型
+            # "IGNORE ALL PREVIOUS INSTRUCTIONS...") 仍进 prompt. 升级为固定
+            # placeholder + risk_score 提示, 用户可手动 Read source_path verify.
+            snippet_content = (
+                f"[REDACTED: suspicious content (risk={injection_risk:.2f}); "
+                f"open source_path manually to verify]"
             )
-            snippet_content = _xml_escape(raw_snippet)
         else:
             snippet_content = _xml_escape(m["snippet"])
 
@@ -347,6 +364,46 @@ def _classify_snippet_taint(snippet: str) -> dict[str, Any]:
             error=str(e)[:120],
         )
         return {"taint": "review", "risk_score": 0.5}
+
+
+# P0-3c (2026-05-12 hotfix, ChatGPT v2 fail-closed real): taint priority order.
+# worst-takes-all 聚合: snippet/title/wikilink/source_path 任一字段含 payload
+# 都会让整条材料 taint 升级.
+_TAINT_PRIORITY: dict[str, int] = {"clean": 0, "review": 1, "quarantine": 2}
+
+
+def _classify_material_taint(material: dict[str, Any]) -> dict[str, Any]:
+    """P0-3c (ChatGPT v2 对抗审查): 扫描 material 全部 user-visible 字段.
+
+    旧逻辑只扫 snippet → 攻击者把 payload 埋 frontmatter title / wikilink /
+    source_path 即可绕过 (snippet 看着干净 → clean → 整条进 prompt).
+
+    新逻辑: snippet + title + wikilink + source_path 各跑一遍 _classify_snippet_taint,
+    取 max risk_score + worst taint level (quarantine > review > clean) — 任一字段
+    含注入 payload 都会被升级 review/quarantine.
+
+    Returns:
+        {"taint": "clean"|"review"|"quarantine", "risk_score": float in [0,1]}
+    """
+    fields = (
+        material.get("snippet", "") or "",
+        material.get("title", "") or "",
+        material.get("wikilink", "") or "",
+        material.get("source_path", "") or "",
+    )
+    worst_taint = "clean"
+    max_risk = 0.0
+    for field in fields:
+        if not field:
+            continue
+        info = _classify_snippet_taint(field)
+        t = info["taint"]
+        r = info["risk_score"]
+        if _TAINT_PRIORITY[t] > _TAINT_PRIORITY[worst_taint]:
+            worst_taint = t
+        if r > max_risk:
+            max_risk = r
+    return {"taint": worst_taint, "risk_score": max_risk}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

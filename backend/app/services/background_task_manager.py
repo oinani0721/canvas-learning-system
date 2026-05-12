@@ -350,7 +350,12 @@ class BackgroundTaskManager:
                 except Exception as e:
                     logger.error(f"Cleanup error: {e}")
 
-        self._cleanup_task = asyncio.create_task(cleanup_loop())
+        # P0-2 multi-vault hotfix (2026-05-12, wave-2 cleanup follow-up):
+        # 与 create_task 主流程同款,把 cleanup_loop 也绑定到 caller context.
+        # cleanup_loop 本身 vault-agnostic,但 inheritance 模式保持一致以防未来
+        # 误改 cleanup_old_tasks 时引入 ContextVar 漏 vault_id 的回归.
+        cleanup_ctx = contextvars.copy_context()
+        self._cleanup_task = asyncio.create_task(cleanup_loop(), context=cleanup_ctx)
         logger.info("Started background task cleanup scheduler")
 
     async def stop_cleanup_scheduler(self) -> None:

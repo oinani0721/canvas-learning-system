@@ -189,6 +189,11 @@ def rerank(
     # → filter 后剩 < min_keep 或删 > 80% 候选, 视为 threshold 误杀, 自动降级为
     #   不过滤但仍 top_k 截断, 第 1 条注入 filter_floor_triggered=True 供 logger
     #   观察以便调阈值. floor=0 关闭兜底 (现有测试 + 显式 opt-out).
+    #
+    # P0-3b (2026-05-12 hotfix, ChatGPT v2 fail-closed real): 即使 floor_triggered,
+    # 也必须过滤 taint ∈ {review, quarantine} 的材料. floor 初衷是 "保护边缘
+    # candidate 不被全删", 但 review/quarantine 是安全审查决定的污染标记, 不应
+    # 因 floor 而 backdoor 入选 (兜底也不能让可疑材料绕过审查).
     if min_score_threshold is not None:
         kept = [m for m in materials if m["rerank_score"] >= min_score_threshold]
         n_pre = len(materials)
@@ -206,7 +211,11 @@ def rerank(
                 threshold=round(min_score_threshold, 3),
                 min_keep=min_keep,
             )
-            # 不过滤, 标记兜底, 仍走 top_k
+            # P0-3b: floor 仍 fail-closed 过滤 review/quarantine 材料
+            materials = [
+                m for m in materials if m.get("taint") not in {"review", "quarantine"}
+            ]
+            # 标记兜底, 仍走 top_k
             if materials:
                 materials[0]["filter_floor_triggered"] = True
         else:

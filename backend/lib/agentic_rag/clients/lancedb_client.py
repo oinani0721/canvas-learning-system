@@ -382,8 +382,56 @@ class LanceDBClient:
 
     @property
     def active_vault_id(self) -> str:
+        """Resolve effective vault_id for table namespace.
+
+        Resolution order (Wave-2 P0-2 hotfix, 2026-05-12):
+        1. ``self._vault_id_override`` — explicit constructor arg (legacy POC tests)
+        2. ``app.core.subject_config.get_current_subject_id()`` ContextVar
+           — set per-request by ``set_current_subject_id`` in chat / metadata
+           endpoints. Strips ``vault:`` prefix and keeps the FIRST segment so
+           ``vault:cs_61b:algorithms`` → ``cs_61b``. This is the source of
+           truth for multi-vault isolation introduced by Story 2.5.Y.
+        3. ``app.config.get_current_vault_id()`` — legacy global active vault.
+           Kept as backward-compat fallback for callers that haven't migrated
+           to ContextVar (background tasks / CLI / older tests).
+        4. ``"default"`` — final fallback when imports fail (e.g. lib used
+           standalone outside the FastAPI app).
+        """
         if self._vault_id_override is not None:
             return self._vault_id_override
+
+        # Step 2: prefer ContextVar from subject_config (Story 2.5.Y vault wiring).
+        # Endpoints call set_current_subject_id(build_vault_group_id(...)) →
+        # ContextVar holds "vault:cs_61b" / "vault:cs_61b:algorithms" / etc.
+        # We strip the "vault:" prefix and take the first segment as the
+        # LanceDB table-namespace key (matches build_vault_group_id contract).
+        try:
+            from app.core.subject_config import (
+                DEFAULT_SUBJECT_ID,
+                get_current_subject_id,
+            )
+
+            ctx_value = get_current_subject_id()
+            if ctx_value and ctx_value != DEFAULT_SUBJECT_ID:
+                # vault:cs_61b → cs_61b ; vault:cs_61b:algorithms → cs_61b
+                derived = ctx_value
+                if derived.startswith("vault:"):
+                    derived = derived[len("vault:") :]
+                # take first segment (drop :subject / :canvas suffix)
+                first_seg = derived.split(":", 1)[0].strip()
+                if first_seg:
+                    logger.debug(
+                        "[LanceDB vault wiring] active_vault_id resolved from "
+                        "subject_config ContextVar: %s → %s",
+                        ctx_value,
+                        first_seg,
+                    )
+                    return first_seg
+        except Exception:
+            # subject_config not importable (lib used standalone) → fall through
+            pass
+
+        # Step 3: legacy fallback — global active vault from settings.
         try:
             from app.config import get_current_vault_id
 

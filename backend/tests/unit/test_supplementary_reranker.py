@@ -708,3 +708,106 @@ class TestFilterFloor:
         result = rerank(materials, min_score_threshold=0.42, top_k=5)
         assert len(result) == 5
         assert result[0].get("filter_floor_triggered") is True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P0-3b (2026-05-12, ChatGPT v2 fail-closed real): min_keep floor must still
+# exclude review/quarantine taint materials. Floor protects edge candidates
+# but security review trumps quantity safety net.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestFilterFloorTaintExclusion:
+    """P0-3b: floor 触发时也排除 review/quarantine 材料 (兜底也不能让可疑材料绕过审查)."""
+
+    def test_min_keep_floor_excludes_review_taint(self):
+        """3 个低分材料 (1 clean / 1 review / 1 clean), floor triggered →
+        输出仅 clean 2 条, review 不被 floor "救活"."""
+        from app.services.supplementary_reranker import rerank
+
+        materials = [
+            {
+                "score": 0.5,
+                "source_type": "note",  # 0.5 × 0.7 = 0.35 < 0.42 → 不通过 filter
+                "title": "clean-1",
+                "taint": "clean",
+            },
+            {
+                "score": 0.5,
+                "source_type": "note",
+                "title": "review-malicious",
+                "taint": "review",
+                "injection_risk": 0.55,
+            },
+            {
+                "score": 0.5,
+                "source_type": "note",
+                "title": "clean-2",
+                "taint": "clean",
+            },
+        ]
+        # filter 0.42 全删 (0.35 < 0.42) → floor triggered (n_post=0 < min_keep=3)
+        result = rerank(materials, min_score_threshold=0.42, min_keep=3)
+        # P0-3b: review 即使 floor 触发也被排除 → 仅剩 2 个 clean
+        assert len(result) == 2
+        titles = {m["title"] for m in result}
+        assert "clean-1" in titles
+        assert "clean-2" in titles
+        assert "review-malicious" not in titles
+        # floor 标志仍注入到第一条 (供 logger 观察)
+        assert result[0].get("filter_floor_triggered") is True
+
+    def test_min_keep_floor_excludes_quarantine_taint(self):
+        """quarantine 材料 floor 触发时也排除."""
+        from app.services.supplementary_reranker import rerank
+
+        materials = [
+            {
+                "score": 0.5,
+                "source_type": "note",
+                "title": "clean-1",
+                "taint": "clean",
+            },
+            {
+                "score": 0.5,
+                "source_type": "note",
+                "title": "quarantine-mal",
+                "taint": "quarantine",
+                "injection_risk": 0.95,
+            },
+        ]
+        result = rerank(materials, min_score_threshold=0.42, min_keep=3)
+        # quarantine 被 P0-3b 排除
+        titles = {m["title"] for m in result}
+        assert "clean-1" in titles
+        assert "quarantine-mal" not in titles
+
+    def test_floor_no_taint_field_treated_as_clean(self):
+        """无 taint 字段 (向后兼容) → 视为 clean, floor 保留."""
+        from app.services.supplementary_reranker import rerank
+
+        materials = [
+            {"score": 0.5, "source_type": "note", "title": f"n{i}"} for i in range(5)
+        ]
+        result = rerank(materials, min_score_threshold=0.42, min_keep=3)
+        # 无 taint 字段视为 clean → floor 保留全部 5 条
+        assert len(result) == 5
+        assert result[0].get("filter_floor_triggered") is True
+
+    def test_floor_all_review_returns_empty_list(self):
+        """全部材料都是 review → floor 触发后排除全部, 返回空 list (fail-closed)."""
+        from app.services.supplementary_reranker import rerank
+
+        materials = [
+            {
+                "score": 0.5,
+                "source_type": "note",
+                "title": f"mal-{i}",
+                "taint": "review",
+                "injection_risk": 0.6,
+            }
+            for i in range(5)
+        ]
+        result = rerank(materials, min_score_threshold=0.42, min_keep=3)
+        # 全 review → floor 排除全部 → 空 list (不能 backdoor 可疑内容)
+        assert len(result) == 0

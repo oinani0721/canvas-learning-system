@@ -472,3 +472,88 @@ def test_enrich_context_preload_mode_skips_supplementary(client):
 
     assert response.status_code == 200
     assert not captured_lazy.called
+
+
+# ════════════════════════════════════════════════════════════════════
+# Wave-2 P0-2 漏修-1 (2026-05-12) — rag_enrich_hook lazy-init path.
+# 旧 bug: 裸读 _supp_lancedb_singleton 绕过 lazy init, cold-start 期间永远跳过
+# 注入. 修法: 走 _get_supp_lancedb_client(init_timeout=0.5) 统一入口.
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_rag_enrich_hook_uses_lazy_init(client):
+    """Hook 必须调 _get_supp_lancedb_client (非裸读 module singleton)."""
+    from unittest.mock import AsyncMock
+
+    captured_lazy = AsyncMock()
+    captured_lazy.return_value = None  # ready 与否本测试不关心, 只验证调用路径
+
+    with patch(
+        "app.api.v1.endpoints.chat._get_supp_lancedb_client",
+        captured_lazy,
+    ):
+        response = client.post(
+            "/api/v1/chat/rag/enrich-hook",
+            json={
+                "session_id": "test-session",
+                "prompt": "How do I prove linear independence?",
+            },
+        )
+
+    assert response.status_code == 200
+    assert captured_lazy.called, (
+        "rag_enrich_hook 未调 _get_supp_lancedb_client → "
+        "Leak-1 回归 (裸读 _supp_lancedb_singleton 绕开 lazy init)"
+    )
+    # 验证 init_timeout 是 hook 专用的短预算 (0.5s) — 不阻塞用户对话
+    call_obj = captured_lazy.call_args
+    init_timeout = call_obj.kwargs.get("init_timeout") or (
+        call_obj.args[0] if call_obj.args else None
+    )
+    assert init_timeout == 0.5, (
+        f"hook 应用 init_timeout=0.5 (非阻塞), 实际 {init_timeout}"
+    )
+
+
+def test_rag_enrich_hook_short_prompt_skips_lazy_init(client):
+    """Hook 短 prompt (< 5 char) 直接 early-return, 不应触发 lazy init."""
+    from unittest.mock import AsyncMock
+
+    captured_lazy = AsyncMock()
+    captured_lazy.return_value = None
+
+    with patch(
+        "app.api.v1.endpoints.chat._get_supp_lancedb_client",
+        captured_lazy,
+    ):
+        response = client.post(
+            "/api/v1/chat/rag/enrich-hook",
+            json={"session_id": "test-session", "prompt": "hi"},
+        )
+
+    assert response.status_code == 200
+    assert not captured_lazy.called, "短 prompt 应在 lazy init 前 early-return"
+
+
+def test_rag_enrich_hook_lazy_init_returns_none_skips_injection(client):
+    """Lazy init 拿到 None (cold-start 未 ready) → 静默 additionalContext=''."""
+    from unittest.mock import AsyncMock
+
+    captured_lazy = AsyncMock()
+    captured_lazy.return_value = None  # singleton 未 ready
+
+    with patch(
+        "app.api.v1.endpoints.chat._get_supp_lancedb_client",
+        captured_lazy,
+    ):
+        response = client.post(
+            "/api/v1/chat/rag/enrich-hook",
+            json={
+                "session_id": "test-session",
+                "prompt": "What is admissible heuristic?",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["hookSpecificOutput"]["additionalContext"] == ""

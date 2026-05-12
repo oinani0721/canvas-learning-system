@@ -137,12 +137,20 @@ interface CanvasPluginSettings {
   nodePathPrefixes: string[];
   /** 用户视角的 active vault 名（vault selector 选中态镜像）。Backend 是 source of truth，本地仅记录最近选择 */
   activeVaultName: string;
+  /**
+   * Wave-2 P0-1 (2026-05-12) — Internal API key for backend auth header X-CLS-Internal-Key.
+   * 空字符串 = dev mode (DEBUG=True, backend 跳过 auth middleware)。
+   * 非空 = prod mode (DEBUG=False + INTERNAL_API_KEY 配置, 4 handler 必须带此 header 否则 403)。
+   * ChatGPT v2 对抗审查发现 plugin 4 handler 全部漏带 → P0 阻断生产部署。
+   */
+  internalApiKey: string;
 }
 
 const DEFAULT_SETTINGS: CanvasPluginSettings = {
   backendUrl: DEFAULT_BACKEND_URL,
   nodePathPrefixes: [...DEFAULT_NODE_PATH_PREFIXES],
   activeVaultName: "",
+  internalApiKey: "",
 };
 
 /**
@@ -344,6 +352,32 @@ export default class CanvasLearningPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+
+  /**
+   * Wave-2 P0-1 (2026-05-12) — 构造 backend fetch headers。
+   *
+   * ChatGPT v2 对抗审查 P0 发现：原 4 handler (handleChatWithContext / handleStudyQuestion /
+   * handleOpenNodeChat / handleGlobalSearch) 全部用裸 `{ "Content-Type": "application/json" }`,
+   * 在 DEBUG=False + INTERNAL_API_KEY 配置的生产 env 下全部 403 (backend 的 internal-key
+   * middleware 拒收)。
+   *
+   * 设计:
+   * - 始终含 `Content-Type: application/json`（4 handler 都 POST JSON）
+   * - 若 `settings.internalApiKey` 非空 → 加 `X-CLS-Internal-Key: <key>` (prod auth)
+   * - 若为空 → 不加（dev mode 兼容，DEBUG=True 时 backend 跳过 auth）
+   *
+   * 这是 pure function — 不读 fetch 调用方 body，只读 settings。helper 暴露为 public
+   * 以便单元测试可调（tests/auth-headers.test.ts）。
+   */
+  public buildBackendHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (this.settings.internalApiKey && this.settings.internalApiKey.length > 0) {
+      headers["X-CLS-Internal-Key"] = this.settings.internalApiKey;
+    }
+    return headers;
   }
 
   /**
@@ -644,9 +678,11 @@ export default class CanvasLearningPlugin extends Plugin {
     );
     let resp: Response;
     try {
+      // Wave-2 P0-1 (2026-05-12): 用 buildBackendHeaders() 注入 X-CLS-Internal-Key
+      // 防 DEBUG=False + INTERNAL_API_KEY 配置时 backend middleware 拒收 (403)
       resp = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.buildBackendHeaders(),
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
@@ -823,9 +859,10 @@ export default class CanvasLearningPlugin extends Plugin {
     };
     let resp: Response;
     try {
+      // Wave-2 P0-1 (2026-05-12): study-question deep 模式同样注入 X-CLS-Internal-Key
       resp = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.buildBackendHeaders(),
         body: JSON.stringify(payload),
       });
     } catch (err: unknown) {
@@ -963,9 +1000,10 @@ export default class CanvasLearningPlugin extends Plugin {
 
     let resp: Response;
     try {
+      // Wave-2 P0-1 (2026-05-12): global-search 也走 backend POST，同样需要 X-CLS-Internal-Key
       resp = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.buildBackendHeaders(),
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
@@ -2061,9 +2099,20 @@ export default class CanvasLearningPlugin extends Plugin {
   ): Promise<unknown | null> {
     const url = `${this.settings.backendUrl}${endpoint}`;
     try {
+      // Wave-2 P0-1 (2026-05-12): callBackend 也走 backend (exam/start 等), 注入 X-CLS-Internal-Key
+      // GET 请求不需要 Content-Type 但 X-CLS-Internal-Key 仍需带 (auth middleware 对所有 method 生效)
+      const headers = body
+        ? this.buildBackendHeaders()
+        : (() => {
+            const h: Record<string, string> = {};
+            if (this.settings.internalApiKey && this.settings.internalApiKey.length > 0) {
+              h["X-CLS-Internal-Key"] = this.settings.internalApiKey;
+            }
+            return h;
+          })();
       const resp = await fetch(url, {
         method,
-        headers: body ? { "Content-Type": "application/json" } : {},
+        headers,
         body: body ? JSON.stringify(body) : undefined,
       });
       let parsed: unknown = null;
@@ -2269,9 +2318,10 @@ export default class CanvasLearningPlugin extends Plugin {
     const url = `${this.settings.backendUrl}/api/v1/errors/${endpoint}`;
     let resp: Response;
     try {
+      // Wave-2 P0-1 (2026-05-12): 错误候选 3 命令 POST，同样需 X-CLS-Internal-Key
       resp = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.buildBackendHeaders(),
         body: JSON.stringify(payload),
       });
     } catch (err: unknown) {
@@ -2526,6 +2576,26 @@ class CanvasSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.backendUrl)
           .onChange(async (value) => {
             this.plugin.settings.backendUrl = value || DEFAULT_BACKEND_URL;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    // Wave-2 P0-1 (2026-05-12) — Internal API Key 配置
+    // 生产 env (DEBUG=False + backend INTERNAL_API_KEY 配置) 必须填，否则 4 命令全部 403。
+    // dev env (DEBUG=True) 留空即可，backend 跳过 auth middleware。
+    new Setting(inner)
+      .setName("Internal API Key (X-CLS-Internal-Key)")
+      .setDesc(
+        "生产环境 (DEBUG=False) 必填 — 与 backend 的 INTERNAL_API_KEY env 保持一致。"
+        + "留空 = dev mode (DEBUG=True, backend 跳过 auth)。"
+        + "Wave-2 P0-1 修复: 之前 4 命令 (chat / study / node-chat / global-search) 全部漏带此 header → 生产 403。",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("(留空 = dev mode)")
+          .setValue(this.plugin.settings.internalApiKey)
+          .onChange(async (value) => {
+            this.plugin.settings.internalApiKey = value;
             await this.plugin.saveSettings();
           }),
       );

@@ -740,10 +740,15 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
             }
         )
 
-    # 复用 chat.py module-level singleton (commit 5dfad13 endpoint 不 acquire lock)
-    lancedb_client = _supp_lancedb_singleton
+    # Wave-2 P0-2 漏修-1 (2026-05-12): 改用 lazy init 替代裸读 singleton.
+    # 原因: 直读 _supp_lancedb_singleton 在 cold-start 期间立即 None 跳过,
+    # 用户首问的 hook 永远拿不到 RAG 注入; 同时绕开了 _get_supp_lancedb_client
+    # 内部的 ContextVar resolve 时机契约 (虽然 active_vault_id 现已读 ContextVar,
+    # 统一入口仍是更安全的设计). init_timeout=0.5s — hook 是非阻塞,
+    # 已 ready 立即返回 client; 未 ready 短窗口内尝试不抢锁, 超时则降级跳过.
+    lancedb_client = await _get_supp_lancedb_client(init_timeout=0.5)
     if lancedb_client is None:
-        # singleton 还在 background eager-init，本次跳过
+        # singleton 仍在 background eager-init (timeout 0.5s 未拿到), 本次静默跳过
         logger.debug(
             "[T1.7-AutoRAG] lancedb singleton not ready, skip injection",
             prompt=user_prompt[:60],
