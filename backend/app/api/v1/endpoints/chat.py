@@ -162,13 +162,27 @@ class EnrichContextRequest(BaseModel):
 
 
 class TraceItemModel(BaseModel):
-    """Story 2.1 P1.1 — RetrievalTrace 单条入选项（API contract）。"""
+    """Story 2.1 P1.1 — RetrievalTrace 单条入选项（API contract）。
+
+    Story 2.2+2.9 T3.8 (2026-05-11) — rerank 4 字段加为 optional，让 API contract
+    前瞻包含 wikilink 邻居 rerank 维度 (本 iteration 仅 supplementary 走 rerank,
+    neighbor rerank 留待下一 Phase 接入,届时 ChatContextAssembler 回填这 4 字段).
+
+    Story 2.2+2.9 T5.1 (2026-05-11) — Relationship Evidence (AC #6):
+    evidence: frontmatter relationships[].evidence 字段, 让外部书目/公式锚点
+    跨过 prompt 进入 Claude 视野 (e.g. "see eq. 3.2 in Strang").
+    """
 
     path: str
     hop: int
     relationship_type: str | None = None
     reason: str
     tokens: int = 0
+    rerank_score: float | None = None
+    type_weight: float | None = None
+    hub_penalty: float | None = None
+    query_overlap: float | None = None
+    evidence: str | None = None
 
 
 class RetrievalTraceModel(BaseModel):
@@ -329,6 +343,47 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
                 elbow_drop_threshold=0.05,
                 hard_cap=supp_hard_cap,
             )
+            # Story 2.2+2.9 T3.7-T3.10 (2026-05-11) — query-aware rerank
+            # final_score = relevance × type_weight + query_overlap × 0.3 - hub_penalty
+            # 顺序: score → sort → filter(0.42) → truncate(top 5)
+            from app.services.supplementary_reranker import (
+                get_filter_threshold,
+                rerank,
+            )
+            from app.services.wikilink_graph_service import (
+                get_wikilink_graph_service,
+            )
+
+            graph_svc = get_wikilink_graph_service()
+            if graph_svc.is_built:
+                degree_stats = graph_svc.get_degree_stats()
+                median_degree = float(degree_stats.get("median", 0.0))
+                # 用 source_path 反查 degree (best-effort, basename fallback 已内置)
+                for m in supp_result.get("materials", []):
+                    sp = m.get("source_path", "")
+                    if sp:
+                        m["degree"] = graph_svc.get_degree(sp)
+            else:
+                median_degree = 0.0
+
+            pre_rerank_count = len(supp_result.get("materials", []))
+            supp_result["materials"] = rerank(
+                supp_result.get("materials", []),
+                query=req.user_question,
+                median_degree=median_degree,
+                min_score_threshold=get_filter_threshold(),
+                top_k=5,
+            )
+            post_rerank_count = len(supp_result["materials"])
+            logger.info(
+                "[Story-2.2+2.9-T3] rerank 完成",
+                pre=pre_rerank_count,
+                post=post_rerank_count,
+                filter_threshold=round(get_filter_threshold(), 3),
+                median_degree=median_degree,
+                query=req.user_question[:60] if req.user_question else None,
+            )
+
             supp_xml = format_supplementary_xml(supp_result)
             final_text += "\n\n" + supp_xml
             supp_count = len(supp_result.get("materials", []))
@@ -364,6 +419,7 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
                     relationship_type=item.relationship_type,
                     reason=item.reason,
                     tokens=item.tokens,
+                    evidence=getattr(item, "evidence", None),
                 )
                 for item in enrichment.trace.included
             ],

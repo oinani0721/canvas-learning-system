@@ -585,3 +585,115 @@ async def test_enrich_frontmatter_link_overrides_backlink_reason():
     trace_item = result.trace.included[0]
     assert trace_item.reason == "frontmatter_link"
     assert n.relationship_type == "prerequisite"
+
+
+# ════════════════════════════════════════════════════════════════════
+# Story 2.2+2.9 T5 — Relationship Evidence (AC #6)
+# _extract_relationship_info / WikilinkNeighborContext.evidence /
+# TraceItem.evidence 字段
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_extract_relationship_info_with_evidence():
+    from app.services.wikilink_context_service import _extract_relationship_info
+
+    fm = {
+        "relationships": [
+            {
+                "type": "prerequisite",
+                "target": "[[Fundamentals]]",
+                "evidence": "see eq. 3.2 in Strang",
+            },
+        ]
+    }
+    assert _extract_relationship_info(fm, "Fundamentals") == (
+        "prerequisite",
+        "see eq. 3.2 in Strang",
+    )
+
+
+def test_extract_relationship_info_no_evidence_field():
+    from app.services.wikilink_context_service import _extract_relationship_info
+
+    fm = {"relationships": [{"type": "refines", "target": "[[X]]"}]}
+    assert _extract_relationship_info(fm, "X") == ("refines", None)
+
+
+def test_extract_relationship_info_no_match():
+    from app.services.wikilink_context_service import _extract_relationship_info
+
+    fm = {"relationships": [{"type": "refines", "target": "[[Other]]"}]}
+    assert _extract_relationship_info(fm, "Fundamentals") == (None, None)
+
+
+def test_extract_relationship_info_malformed_evidence_dropped():
+    """非 str / 空 str evidence → None (避免序列化崩溃)."""
+    from app.services.wikilink_context_service import _extract_relationship_info
+
+    fm_int = {
+        "relationships": [{"type": "prerequisite", "target": "[[X]]", "evidence": 42}]
+    }
+    fm_empty = {
+        "relationships": [{"type": "prerequisite", "target": "[[X]]", "evidence": ""}]
+    }
+    assert _extract_relationship_info(fm_int, "X") == ("prerequisite", None)
+    assert _extract_relationship_info(fm_empty, "X") == ("prerequisite", None)
+
+
+def test_extract_relationship_type_backward_compat():
+    """shim 仍保 single-value type return (现有调用方未迁移)."""
+    fm = {
+        "relationships": [
+            {"type": "refines", "target": "[[X]]", "evidence": "ignored by shim"}
+        ]
+    }
+    assert _extract_relationship_type(fm, "X") == "refines"
+
+
+@pytest.mark.asyncio
+async def test_enrich_populates_evidence_on_neighbor_and_trace():
+    """T5: frontmatter relationships[evidence: ...] → neighbor.evidence + TraceItem.evidence."""
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.build_timestamp = "2026-05-11T00:00:00+00:00"
+    mock_service.get_neighbors.return_value = [
+        NeighborNote(
+            title="Fundamentals",
+            path="节点/Fundamentals.md",
+            hop_distance=1,
+            frontmatter={
+                "relationships": [
+                    {
+                        "type": "prerequisite",
+                        "target": "[[Eigenvalues]]",
+                        "evidence": "see eq. 3.2 in Strang Ch. 6",
+                    },
+                ]
+            },
+        ),
+    ]
+    result = await enrich_from_wikilink_graph(
+        "节点/Eigenvalues.md", graph_service=mock_service
+    )
+    assert len(result.neighbors) == 1
+    assert result.neighbors[0].evidence == "see eq. 3.2 in Strang Ch. 6"
+    assert result.trace.included[0].evidence == "see eq. 3.2 in Strang Ch. 6"
+
+
+@pytest.mark.asyncio
+async def test_enrich_no_evidence_when_field_absent():
+    """无 evidence 字段 → neighbor.evidence / trace.evidence 都为 None."""
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.build_timestamp = "2026-05-11T00:00:00+00:00"
+    mock_service.get_neighbors.return_value = [
+        NeighborNote(
+            title="X",
+            path="节点/X.md",
+            hop_distance=1,
+            frontmatter={"relationships": [{"type": "refines", "target": "[[Y]]"}]},
+        ),
+    ]
+    result = await enrich_from_wikilink_graph("节点/Y.md", graph_service=mock_service)
+    assert result.neighbors[0].evidence is None
+    assert result.trace.included[0].evidence is None

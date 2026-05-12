@@ -203,6 +203,10 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
     - taint=quarantine: 不输出 snippet 正文 + 加 quarantined="true" attr (防 indirect injection)
     - taint=review: snippet 截断 240 字 + injection_risk attr (中风险摘要)
     - taint=clean (默认): 完整输出
+
+    Story 2.2+2.9 T3.8 (2026-05-11): 透出 rerank 4 字段 (rerank_score / type_weight
+    / hub_penalty / query_overlap) 供 Claude 在 prompt 中看见排序原因 (AC #4 trace
+    可解释性). 字段缺失时 (rerank 未运行) 不渲染该 attribute, XML 仍兼容.
     """
     materials = result.get("materials", [])
     degraded = result.get("degraded", False)
@@ -223,6 +227,15 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
 
         # Build material attrs
         material_attrs = f'rank="{i}" score="{m["score"]:.3f}"'
+        # Story 2.2+2.9 T3.8: rerank trace attributes (仅当 rerank 已运行)
+        for field, fmt in [
+            ("rerank_score", ".3f"),
+            ("type_weight", ".2f"),
+            ("query_overlap", ".3f"),
+            ("hub_penalty", ".3f"),
+        ]:
+            if field in m:
+                material_attrs += f' {field}="{m[field]:{fmt}}"'
         if taint != "clean":
             material_attrs += f' taint="{taint}" injection_risk="{injection_risk:.2f}"'
 

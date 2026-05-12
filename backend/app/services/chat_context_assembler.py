@@ -281,6 +281,13 @@ class ChatContextAssembler:
         if isinstance(errors, list) and errors:
             preview = "; ".join(_xml_text_escape(str(e)[:80]) for e in errors[:3])
             lines.append(f"- Errors: {preview}")
+        # Story 2.2+2.9 T5.3 (2026-05-11) — Relationship Evidence (AC #6).
+        # 当 seed 的 frontmatter relationships[] 显式声明 evidence,渲染独立行供
+        # Claude 看到"为什么这条邻居与 seed 相关"的外部引证 (e.g. "see eq. 3.2 in Strang").
+        # 与 callout (用户对邻居内部的注解) 区分: evidence 是 seed → 邻居的关系标注.
+        if neighbor.evidence:
+            evidence_text = _xml_text_escape(neighbor.evidence[:200])
+            lines.append(f"- 引证: {evidence_text}")
         # Phase 1.7 — body callout (Canvas 7 类用户批注事实存档)
         # Phase 1.7+ — escape callout fields 防 prompt injection
         callouts = neighbor.callouts or []

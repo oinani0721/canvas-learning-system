@@ -138,6 +138,71 @@ class TestGraphNotBuilt:
         assert stats["is_built"] is False
 
 
+class TestDegreeStats:
+    """Story 2.2+2.9 T3.5 — degree percentile snapshot for hub penalty."""
+
+    def test_empty_graph_returns_zeros(self, graph_service):
+        stats = graph_service.get_degree_stats()
+        assert stats["median"] == 0.0
+        assert stats["p95"] == 0.0
+        assert stats["max"] == 0.0
+        assert stats["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_simple_graph_has_finite_stats(self, graph_service, vault_with_links):
+        await graph_service.build(str(vault_with_links))
+        stats = graph_service.get_degree_stats()
+        assert stats["count"] >= 4
+        assert stats["max"] >= stats["p95"] >= stats["median"] >= 0
+        # vault_with_links: A→B,C; B→C,D; C→A; D 无出边; orphan 完全孤立
+        # degree(A) = out(2) + in(1, from C) = 3
+        # 至少有节点 degree>0
+        assert stats["max"] >= 1
+
+    @pytest.mark.asyncio
+    async def test_p50_equals_median(self, graph_service, vault_with_links):
+        await graph_service.build(str(vault_with_links))
+        stats = graph_service.get_degree_stats()
+        assert stats["p50"] == stats["median"]
+
+
+class TestGetDegree:
+    """Story 2.2+2.9 T3.5 — per-node degree lookup with basename fallback."""
+
+    def test_empty_graph_returns_zero(self, graph_service):
+        assert graph_service.get_degree("A") == 0
+
+    @pytest.mark.asyncio
+    async def test_existing_node_returns_positive_degree(
+        self, graph_service, vault_with_links
+    ):
+        await graph_service.build(str(vault_with_links))
+        # A 在 graph 里有链接,degree > 0
+        assert graph_service.get_degree("A") >= 1
+
+    @pytest.mark.asyncio
+    async def test_unknown_node_returns_zero(self, graph_service, vault_with_links):
+        await graph_service.build(str(vault_with_links))
+        assert graph_service.get_degree("nonexistent_xyz") == 0
+
+    @pytest.mark.asyncio
+    async def test_basename_fallback_matches_neighbor_logic(
+        self, graph_service, vault_with_links
+    ):
+        """与 get_neighbors() 的 basename fallback 行为一致,degree 用同一节点."""
+        await graph_service.build(str(vault_with_links))
+        # 传 vault 相对路径,应回退到 basename
+        deg_basename = graph_service.get_degree("A")
+        deg_path = graph_service.get_degree("subdir/A.md")
+        assert deg_basename == deg_path
+        assert deg_basename >= 1
+
+    @pytest.mark.asyncio
+    async def test_md_extension_stripped(self, graph_service, vault_with_links):
+        await graph_service.build(str(vault_with_links))
+        assert graph_service.get_degree("A") == graph_service.get_degree("A.md")
+
+
 class TestRefresh:
     @pytest.mark.asyncio
     async def test_refresh_rebuilds(self, graph_service, vault_with_links):

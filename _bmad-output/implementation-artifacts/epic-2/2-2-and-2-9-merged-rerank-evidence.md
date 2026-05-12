@@ -168,23 +168,23 @@ So that 在大 vault (>50 节点) 场景下 AI 答案有可解释性、可追溯
 
 ### Task 3: 合并 Rerank Engine (4h)
 
-- [ ] **T3.1** backend/app/services/supplementary_reranker.py 新增 (合并 Story 2.2 Task 2 + Story 2.9 Task 1+2)
-- [ ] **T3.2** Type 权重函数 (PRD §4.1.1):
+- [x] **T3.1** backend/app/services/supplementary_reranker.py 新增 (合并 Story 2.2 Task 2 + Story 2.9 Task 1+2)
+- [x] **T3.2** Type 权重函数 (PRD §4.1.1):
   ```python
   TYPE_WEIGHTS = {
       "lecture_notes": 1.0, "discussion": 0.9, "exam_review": 0.85,
       "wiki_concepts": 0.8, "chat_session": 0.7, "raw_notes": 0.6
   }
   ```
-- [ ] **T3.3** Query-aware: BM25 (rank_bm25) lexical + 可选 cosine vector (sentence-transformers)
-- [ ] **T3.4** Hub Penalty: `hub_penalty = log(degree / median_degree + 1)`, degree 从 wikilink_graph_service.get_degree_stats() 取
-- [ ] **T3.5** wikilink_graph_service.py: 新增 `get_degree_stats() -> dict` 返回 P50/P95/median degree
-- [ ] **T3.6** 综合: `final_score = relevance * type_weight - hub_penalty + query_overlap * 0.3`
-- [ ] **T3.7** chat.py endpoint 把 user_question + mode 传到 enrich
-- [ ] **T3.8** TraceItem 加 `rerank_score / type_weight / hub_penalty / query_overlap` 字段
-- [ ] **T3.9** 过滤: final_score < 0.70 * min_type_weight 不显示
-- [ ] **T3.10** Top 5 返回
-- [ ] **T3.11** 测试: 同 hop 不同 score / score 相同 fallback 字典序 / 空 user_question 走 default / hub vault 模拟 / type 权重单元
+- [x] **T3.3** Query-aware: 自实现 BM25 Okapi (jieba 中英分词) + 可选 cosine vector (Phase B+ 启用)
+- [x] **T3.4** Hub Penalty: `hub_penalty = log(degree / median_degree + 1)`, degree 从 wikilink_graph_service.get_degree_stats() 取
+- [x] **T3.5** wikilink_graph_service.py: 新增 `get_degree_stats() -> dict` 返回 P50/P95/median + `get_degree(note_key) -> int`
+- [x] **T3.6** 综合: `final_score = relevance * type_weight - hub_penalty + query_overlap * 0.3`
+- [x] **T3.7** chat.py endpoint 把 user_question + mode 传到 enrich (signature 已有,wire rerank 完成)
+- [x] **T3.8** TraceItem 加 `rerank_score / type_weight / hub_penalty / query_overlap / evidence` 字段 (optional, supplementary 已通过 XML attribute 透出;neighbor 流向 wired 留待下 phase)
+- [x] **T3.9** 过滤: final_score < 0.70 * min_type_weight 不显示 (`get_filter_threshold()` = 0.42)
+- [x] **T3.10** Top 5 返回 (rerank() `top_k=5`)
+- [x] **T3.11** 测试: 同 hop 不同 score / score 相同 fallback 字典序 / 空 user_question 走 default / hub vault 模拟 / type 权重单元 (42+ unit tests)
 
 ### Task 4: Path Trace (1h)
 
@@ -196,11 +196,11 @@ So that 在大 vault (>50 节点) 场景下 AI 答案有可解释性、可追溯
 
 ### Task 5: Relationship Evidence (1.5h)
 
-- [ ] **T5.1** TraceItem.evidence: `str | None` (xml_text_escape)
-- [ ] **T5.2** _extract_relationship_type 扩展返回 `(type, evidence)` tuple
-- [ ] **T5.3** _format_neighbor_metadata 渲染 `- 引证: ...` 行
-- [ ] **T5.4** plugin Notice 显示引证数 (可选)
-- [ ] **T5.5** 测试: 含 evidence vs 不含的对比
+- [x] **T5.1** TraceItem.evidence: `str | None` (xml_text_escape) + WikilinkNeighborContext.evidence + TraceItemModel.evidence (API 透出)
+- [x] **T5.2** _extract_relationship_info() 返回 `(type, evidence)` tuple; _extract_relationship_type() 保留为 backward-compat shim
+- [x] **T5.3** _format_neighbor_metadata 渲染 `- 引证: ...` 行 (xml_text_escape + 截断 200 字)
+- [ ] **T5.4** plugin Notice 显示引证数 (可选, defer to plugin iteration)
+- [x] **T5.5** 测试: 含 evidence vs 不含 / xml 转义 / 截断 / shim 兼容
 
 ### Task 6: 集成测试 + 性能 + 验收单 (2-3h)
 
@@ -281,17 +281,59 @@ _bmad-output/验收单/
 
 ## Dev Agent Record
 
-待 dev-story 实施时填充.
+### Implementation Plan (Session 2026-05-11 续, T3+T5 ship)
+
+**Phase 演进 (rerank 4 维度递增, 签名稳定)**:
+1. T3b — 创建 `supplementary_reranker.py` + TYPE_WEIGHTS 表 + `rerank()` 基础排序
+2. T3c — 新建 `rerank_service.py` 自实现 BM25 Okapi (避免引入未声明 `rank-bm25` 依赖)
+3. T3d — wikilink_graph_service.py 加 `get_degree_stats()` + `get_degree()`; `compute_hub_penalty()` 加入 final_score
+4. T3.7-T3.10 — chat.py wire rerank; XML attribute 透出 rerank 4 字段; `get_filter_threshold()` + `top_k=5`
+5. T5 — TraceItem/WikilinkNeighborContext 加 evidence 字段; `_extract_relationship_info()` 返回 tuple; assembler `- 引证:` 行渲染
+
+**关键设计决策**:
+- **自实现 BM25 vs `rank-bm25` 包**: 候选集 N ≤ 30, BM25 < 1ms, 自实现 ~30 行 Okapi 公式可读, 避免依赖审计成本. jieba tokenizer 与 LanceDB hybrid 召回阶段对齐 (防 query 在 rerank 阶段丢 token)
+- **DEFAULT_TYPE_WEIGHT=0.5 < min(canonical)=0.6**: 未知 source_type 应在 trace 中"可视暴露"而非冒充某 canonical 类型
+- **median 而非 mean** 作 hub_penalty 基线: median 是 robust statistic, hub 节点不会拉高自身基线
+- **filter 阈值 = 0.70 × min(TYPE_WEIGHTS.values()) = 0.42**: 用 canonical 最低 (raw_notes=0.6), DEFAULT_TYPE_WEIGHT 不参与阈值计算
+- **pipeline 顺序: score → sort → filter → truncate**: 高质量 #6 不会被低质量 #5 挤掉
+
+**Scope 边界 (本 iteration 完成,后续 phase 接入)**:
+- ✅ supplementary 材料完整走 rerank pipeline
+- ⏳ wikilink 邻居走 rerank: TraceItem.rerank_score / type_weight / hub_penalty / query_overlap 已加为 optional, 但 ChatContextAssembler 尚未回填. 留 T6+ phase 或独立 follow-up
+- ⏳ cosine vector (sentence-transformers): rerank_service.py 文档预留, T3c 仅 BM25
+- ⏳ T0 主检索链路修复 + RAGAs Faithfulness/Context Relevance/MRR@10 基准: 3-5d 独立 session
+
+### Completion Notes
+- 全 rerank pipeline 单元测试覆盖 (T3b 18 + T3c BM25 18 + T3d 11 + T3.9 5 + XML rendering 3 + Evidence 6+4 = 65+ new tests)
+- 全后端 unit test 套零回归 (T3a/T2 前置覆盖维持 green)
+- 编辑符合 wave 工作模式: red-green-refactor 每 task 闭环
+- Pitfalls: hub_penalty 在 30-node vault scale 几乎不触发 (degree P95 ≤ 3), 1000+ node vault 后必要; LanceDB chunks/.../merged.md 派生路径已被 _resolve_chunks_to_source_file 回写, get_degree basename fallback 命中真实节点
 
 ## File List
 
-待实施时填充.
+**新增**:
+- `backend/app/services/supplementary_reranker.py` — rerank engine (TYPE_WEIGHTS + compute_hub_penalty + rerank + get_filter_threshold)
+- `backend/app/services/rerank_service.py` — BM25 Okapi primitives (tokenize / bm25_scores / normalize_to_unit)
+- `backend/tests/unit/test_supplementary_reranker.py` — 42 unit tests
+- `backend/tests/unit/test_rerank_service.py` — 18 BM25 + normalize unit tests
+
+**修改**:
+- `backend/app/services/wikilink_graph_service.py` — `get_degree_stats()` + `get_degree(note_key)` (T3.5)
+- `backend/app/services/wikilink_context_service.py` — `_extract_relationship_info()` tuple return; WikilinkNeighborContext.evidence; TraceItem.evidence (T5.1 + T5.2)
+- `backend/app/services/supplementary_search_service.py` — `format_supplementary_xml()` 透出 rerank 4 字段 attribute (T3.8)
+- `backend/app/services/chat_context_assembler.py` — `_format_neighbor_metadata()` 渲染 `- 引证:` 行 (T5.3)
+- `backend/app/api/v1/endpoints/chat.py` — wire rerank 进 supplementary 流程 (T3.7); TraceItemModel 加 5 optional 字段 (T3.8 + T5.1)
+- `backend/tests/unit/test_wikilink_graph_service.py` — degree stats / get_degree 测试 (+8)
+- `backend/tests/unit/test_supplementary_search_service.py` — XML rerank field 渲染测试 (+3)
+- `backend/tests/unit/test_wikilink_context_service.py` — evidence extract + enrich 透传测试 (+6)
+- `backend/tests/unit/test_chat_context_assembler.py` — `- 引证:` 渲染测试 (+4)
 
 ## Change Log
 
 | 日期 | 版本 | 说明 |
 |---|---|---|
 | 2026-05-11 | v1.0 | 合并 Story 2.2 (5 AC) + Story 2.9 (6 AC) → 7 AC + 7 Tasks; ChatGPT P0-C 加入 T0 前置 |
+| 2026-05-11 | v1.1 | T3 (T3.1-T3.11) + T5 (T5.1/T5.2/T5.3/T5.5) ship; 65+ new unit tests; rerank pipeline 在 chat.py supplementary 流程激活; PLAN-ID: EPIC1-BMAD-DEV-ASSESS-2026-04-17 |
 
 ## UAT Script (Phase A 已 ship,以下为 Phase B+C)
 

@@ -237,6 +237,64 @@ class WikilinkGraphService:
             "build_timestamp": self._build_timestamp,
         }
 
+    def get_degree_stats(self) -> dict[str, float]:
+        """Story 2.2+2.9 T3.5 — degree percentile snapshot for hub penalty.
+
+        Story 2.9 AC #2: hub_penalty = log(degree / median + 1) 用此 dict 的
+        `median` 字段做归一化基线，防 MOC/Index 类高 degree 节点垄断邻居列表。
+
+        Returns:
+            dict with keys:
+            - median (== p50): float, robust 基线
+            - p95: float, hub threshold 参考
+            - max: float, sanity check
+            - count: int, 节点总数
+            Empty graph / None → 全 0。
+        """
+        if self._graph is None or self._node_count == 0:
+            return {"median": 0.0, "p50": 0.0, "p95": 0.0, "max": 0.0, "count": 0}
+
+        # NetworkX DiGraph.degree(n) = in_degree + out_degree (total)
+        degrees = sorted(int(self._graph.degree(n)) for n in self._graph.nodes())
+        n = len(degrees)
+        if n == 0:
+            return {"median": 0.0, "p50": 0.0, "p95": 0.0, "max": 0.0, "count": 0}
+
+        median = float(degrees[n // 2])
+        p95_idx = min(int(n * 0.95), n - 1)
+        p95 = float(degrees[p95_idx])
+        max_deg = float(degrees[-1])
+        return {
+            "median": median,
+            "p50": median,
+            "p95": p95,
+            "max": max_deg,
+            "count": n,
+        }
+
+    def get_degree(self, note_key: str) -> int:
+        """Story 2.2+2.9 T3.5 — single-node degree lookup for hub penalty.
+
+        Mirrors get_neighbors() basename fallback logic so hub_penalty 用的
+        degree 与 BFS 找到的同一节点对齐 (避免路径 vs basename 不一致导致
+        penalty 被错误归零).
+        """
+        if self._graph is None or not note_key:
+            return 0
+
+        key = note_key
+        if key.endswith(".md"):
+            key = key[:-3]
+
+        if key in self._graph:
+            return int(self._graph.degree(key))
+
+        basename = key.rsplit("/", 1)[-1]
+        if basename and basename != key and basename in self._graph:
+            return int(self._graph.degree(basename))
+
+        return 0
+
     def _get_frontmatter(self, note_key: str) -> dict[str, Any]:
         if self._vault is None:
             return {}

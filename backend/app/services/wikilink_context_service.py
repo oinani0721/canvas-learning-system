@@ -50,6 +50,10 @@ class WikilinkNeighborContext:
         alias: 当 seed 用 ``[[X|Y]]`` 引用时填入 Y, prompt 渲染时用 alias 替代 slug。
         block_id: 当 seed 用 ``[[X#^block_id]]`` 引用时填入 block_id。
         path_trace: BFS 路径 [seed, ..., self], 长度 = hop_distance + 1.
+
+    Story 2.2+2.9 T5 (2026-05-11) — Relationship Evidence (AC #6):
+        evidence: 当 frontmatter relationships[] 含 `evidence: "..."` 字段时填入,
+                 Claude 看到引证可作为外部书目/公式锚点 (e.g. "see eq. 3.2 in Strang")
     """
 
     slug: str
@@ -64,6 +68,7 @@ class WikilinkNeighborContext:
     alias: str | None = None
     block_id: str | None = None
     path_trace: list[str] = field(default_factory=list)
+    evidence: str | None = None
 
 
 @dataclass
@@ -73,6 +78,10 @@ class TraceItem:
     Story 2.2+2.9 T2 (2026-05-11) — path_trace + backlink:
         path_trace: BFS 路径 [seed, ..., self], 让 Claude 看到"通过哪个中间节点到达"。
         reason 现已用 "wikilink_backlink" 区分反向边。
+
+    Story 2.2+2.9 T5 (2026-05-11) — Relationship Evidence (AC #6):
+        evidence: 外部书目/公式锚点 (frontmatter relationships[].evidence). 让
+                 trace 上能看到"为什么这条邻居被引入"的人工标注理由 (vs 纯 graph 邻接)。
     """
 
     path: str
@@ -81,6 +90,7 @@ class TraceItem:
     reason: str  # "wikilink_outgoing" | "wikilink_backlink" | "frontmatter_link" | ...
     tokens: int = 0  # 占位，Phase 2 接入 query-aware rerank 后由 assembler 回填
     path_trace: list[str] = field(default_factory=list)
+    evidence: str | None = None
 
 
 @dataclass
@@ -114,23 +124,39 @@ class EnrichmentResult:
 
 
 def _extract_relationship_type(fm: dict[str, Any], target_slug: str) -> str | None:
-    """从 frontmatter relationships[] 提取与 target_slug 关联的关系类型。
+    """Backward-compat shim — 单返回 type. 新代码用 _extract_relationship_info."""
+    info = _extract_relationship_info(fm, target_slug)
+    return info[0] if info else None
+
+
+def _extract_relationship_info(
+    fm: dict[str, Any], target_slug: str
+) -> tuple[str | None, str | None]:
+    """Story 2.2+2.9 T5.2 — 从 frontmatter relationships[] 提取关系 type + evidence.
 
     relationships 期望格式：
-        [{"type": "prerequisite", "target": "[[Fundamentals]]", ...}, ...]
+        [{"type": "prerequisite", "target": "[[Fundamentals]]",
+          "evidence": "see eq. 3.2 in Strang"}, ...]
+
+    Returns:
+        (type, evidence) tuple. 任一字段缺失返回 None。
+        无匹配 entry → (None, None)。
     """
     relationships = fm.get("relationships")
     if not isinstance(relationships, list):
-        return None
+        return (None, None)
     for rel in relationships:
         if not isinstance(rel, dict):
             continue
         target = rel.get("target", "")
         if isinstance(target, str) and target_slug in target:
             rel_type = rel.get("type")
-            if isinstance(rel_type, str) and rel_type:
-                return rel_type
-    return None
+            evidence = rel.get("evidence")
+            return (
+                rel_type if isinstance(rel_type, str) and rel_type else None,
+                evidence if isinstance(evidence, str) and evidence else None,
+            )
+    return (None, None)
 
 
 def _normalize_target_slug(node_path: str) -> str:
@@ -448,7 +474,8 @@ async def enrich_from_wikilink_graph(
             continue  # 跳过同 slug 重复 (path/basename 双 node 同时出现)
         seen_slugs.add(slug_basename)
 
-        rel_type = _extract_relationship_type(n.frontmatter, target_slug)
+        # Story 2.2+2.9 T5.2 (2026-05-11) — 同时取 type + evidence (单次扫 fm)
+        rel_type, evidence = _extract_relationship_info(n.frontmatter, target_slug)
         # Phase 1.7 — 读邻居 .md body 提取 callout + prose excerpt
         n_text = _read_neighbor_md(n.path, vault_root)
         callouts = _extract_user_callouts(n_text) if n_text else []
@@ -467,6 +494,7 @@ async def enrich_from_wikilink_graph(
                 callouts=callouts,
                 backlink=is_backlink,
                 path_trace=path_trace,
+                evidence=evidence,
             )
         )
         # Story 2.2+2.9 T2 (2026-05-11) — reason 区分 outgoing vs backlink
@@ -485,6 +513,7 @@ async def enrich_from_wikilink_graph(
                 reason=reason,
                 tokens=0,
                 path_trace=path_trace,
+                evidence=evidence,
             )
         )
 

@@ -2,19 +2,20 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**（2026-05-11 收尾 · 合并 Story 2.2+2.9 T1/T2/T3a ship）:
+**当前状态**（2026-05-11 续 · 合并 Story 2.2+2.9 T3+T5 ship）:
 - ✅ ChatGPT 全链路对抗审查完成（5 Tasks verdict + 3 P0：Multi-Vault 全链路 / 生产默认值 / 修主检索链路），response 归档 `_bmad-output/chatgpt-review-response-2026-05-11.md`
-- ✅ **合并 Story 2.2+2.9** spec ship (`_bmad-output/implementation-artifacts/epic-2/2-2-and-2-9-merged-rerank-evidence.md`, 7 AC + 7 Tasks, 原 2.2/2.9 superseded)
-- ✅ **T1 plugin timeout 降级 done** (`c5e5a92`, 156 frontend tests) + 用户 UAT 通过 + 验收单 `Story-2.2+2.9-T1-plugin-timeout-降级-2026-05-11.md`
-- ✅ **T2 backend 基础设施 done** (`6d2c05e`, 75 backend tests): wikilink_parser 4 精度 + backlinks/path_trace 字段 + 装载透传
-- ✅ **T3a assembler 渲染 done** (`e0d91c0`, 119 tests): _format_neighbor_metadata 输出 `backlink="true"` + `via="A"` + 中文路径行
+- ✅ **合并 Story 2.2+2.9** spec ship + checklist 全勾 (7 AC + 7 Tasks 除 T0 / T6.2/T6.3 perf)
+- ✅ **T1 plugin timeout 降级 done** (`c5e5a92`, 156 frontend tests) + 用户 UAT 通过
+- ✅ **T2 backend 基础设施 done** (`6d2c05e`, 75 backend tests)
+- ✅ **T3a assembler 渲染 done** (`e0d91c0`, 119 tests)
+- ✅ **T3 rerank engine + T5 evidence done** (本 session, 209/209 unit tests green): supplementary_reranker.py + rerank_service.py(BM25 自实现) + wikilink_graph_service.get_degree_stats() + chat.py wire rerank + assembler 渲染 `- 引证:` 行 + 验收单 `Story-2.2+2.9-T3-T5-rerank-evidence-2026-05-11.md`
 
-**下一步 — 合并 Story 2.2+2.9 剩余 4 Tasks（按 ROI 序）**:
-- T3b: type 权重 rerank (1h, 新建 supplementary_reranker.py)
-- T3c: query-aware BM25+cosine (1.5h, 新建 rerank_service.py)
-- T3d: hub penalty + degree stats (1h, wikilink_graph_service get_degree_stats)
-- T5: Relationship Evidence (1.5h) + T6: 集成 + 综合验收单 (2-3h) + T0: 修主检索链路 + RAGAs 基准 (3-5d 独立 session)
-- **新 session 启动指令**: `/bmad-bmm-dev-story epic-2/2-2-and-2-9-merged-rerank-evidence.md 从 T3b 起手`
+**下一步 — 合并 Story 2.2+2.9 剩余**:
+- T6.1 端到端集成测试 (chat endpoint + mocked LanceDB, 2h)
+- T6.2/T6.3 性能测试 (需 LanceDB/Ollama 实跑, defer 独立 perf session)
+- T0 修主检索链路 + RAGAs 基准 (3-5d 独立 session, P0-C)
+- 用户 UAT T3+T5 验收单后 → 决定继续 T6 还是切 Epic 2 其他 Story
+- **新 session 启动指令**: `/bmad-bmm-dev-story epic-2/2-2-and-2-9-merged-rerank-evidence.md 从 T6.1 起手` (或换 story)
 
 **8-Session 全 plan（Round-14 用户原话需求 #1#2#3 落地）**:
 - S1: Story 2.2 (用户原话 #1) | S2: 2.3 历史误解 | S3: 5.1 BKT MCP (用户原话 #2)

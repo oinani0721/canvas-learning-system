@@ -9,6 +9,7 @@ supplementary_search_service / chat endpoints 完全无 unit test.
 - _elbow_cut: Phase A0 relative drop ratio 截断
 - _two_tier_search rank decay: Phase A0-I tier-2 fallback [0.31, 0.50] 防绕过过滤
 - apply_source_priority: Phase A0-J pattern 加 **/ 前缀防失配
+- Story 2.2+2.9 T3.8: format_supplementary_xml 透出 rerank 4 字段 attribute
 """
 
 from __future__ import annotations
@@ -178,6 +179,85 @@ class TestFormatSupplementaryXmlTaintAware:
         assert 'degraded="true"' in xml
         assert 'reason="lancedb_unavailable"' in xml
         assert "<material" not in xml
+
+
+class TestFormatSupplementaryXmlRerankFields:
+    """Story 2.2+2.9 T3.8: format_supplementary_xml 透出 rerank 4 字段."""
+
+    def test_rerank_fields_rendered_when_present(self):
+        from app.services.supplementary_search_service import format_supplementary_xml
+
+        result = {
+            "materials": [
+                {
+                    "title": "Reranked Title",
+                    "wikilink": "[[x]]",
+                    "snippet": "content",
+                    "source_path": "节点/x.md",
+                    "score": 0.7,
+                    "rerank_score": 0.812,
+                    "type_weight": 1.0,
+                    "query_overlap": 0.420,
+                    "hub_penalty": 0.123,
+                }
+            ],
+            "degraded": False,
+        }
+        xml = format_supplementary_xml(result)
+        assert 'rerank_score="0.812"' in xml
+        assert 'type_weight="1.00"' in xml
+        assert 'query_overlap="0.420"' in xml
+        assert 'hub_penalty="0.123"' in xml
+
+    def test_rerank_fields_absent_when_not_reranked(self):
+        """rerank 未运行 (原 supplementary_search 直接返回) → 不渲染 rerank 字段."""
+        from app.services.supplementary_search_service import format_supplementary_xml
+
+        result = {
+            "materials": [
+                {
+                    "title": "X",
+                    "wikilink": "[[x]]",
+                    "snippet": "c",
+                    "source_path": "x.md",
+                    "score": 0.5,
+                }
+            ],
+            "degraded": False,
+        }
+        xml = format_supplementary_xml(result)
+        # 4 字段全缺 → XML attribute 也全缺 (向后兼容)
+        assert "rerank_score" not in xml
+        assert "type_weight" not in xml
+        assert "query_overlap" not in xml
+        assert "hub_penalty" not in xml
+        # 原有 score 仍存在
+        assert 'score="0.500"' in xml
+
+    def test_partial_rerank_fields_renders_what_exists(self):
+        """部分字段存在 (例 hub_penalty 缺) 也能 graceful 渲染."""
+        from app.services.supplementary_search_service import format_supplementary_xml
+
+        result = {
+            "materials": [
+                {
+                    "title": "X",
+                    "wikilink": "[[x]]",
+                    "snippet": "c",
+                    "source_path": "x.md",
+                    "score": 0.5,
+                    "rerank_score": 0.4,
+                    "type_weight": 0.8,
+                    # 无 query_overlap / hub_penalty
+                }
+            ],
+            "degraded": False,
+        }
+        xml = format_supplementary_xml(result)
+        assert 'rerank_score="0.400"' in xml
+        assert 'type_weight="0.80"' in xml
+        assert "query_overlap" not in xml
+        assert "hub_penalty" not in xml
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
