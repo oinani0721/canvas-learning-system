@@ -301,3 +301,174 @@ def test_enrich_context_rejects_invalid_mode(client):
         json={**_enrich_payload(), "mode": "invalid_mode"},
     )
     assert response.status_code == 422
+
+
+# ════════════════════════════════════════════════════════════════════
+# Story 2.2+2.9 Global-Search (2026-05-12) — POST /chat/global-search
+# 不依赖节点的 vault 全域 RAG 搜索
+# ════════════════════════════════════════════════════════════════════
+
+
+def _global_search_payload(
+    user_question: str = "如何求 Linear Independence?",
+    vault_id: str = "test_vault",
+    **kwargs,
+) -> dict[str, Any]:
+    return {
+        "user_question": user_question,
+        "vault_id": vault_id,
+        **kwargs,
+    }
+
+
+def test_global_search_endpoint_returns_xml(client):
+    """全局搜索 happy path — mock lancedb_client, 返回 200 + supplementary XML."""
+    stub_supp_result = {
+        "materials": [
+            {
+                "title": "Linear Independence Lecture",
+                "snippet": "Vectors v1..vn are linearly independent iff...",
+                "wikilink": "[[lectures/lec03#Linear-Independence]]",
+                "source_path": "lectures/lec03.md",
+                "source_type": "lecture",
+                "score": 0.85,
+            }
+        ],
+        "degraded": False,
+        "reason": None,
+    }
+    with (
+        patch(
+            "app.api.v1.endpoints.chat._get_supp_lancedb_client",
+            return_value="stub_client",
+        ),
+        patch(
+            "app.api.v1.endpoints.chat.search_supplementary",
+            return_value=stub_supp_result,
+        ),
+    ):
+        response = client.post(
+            "/api/v1/chat/global-search",
+            json=_global_search_payload(),
+        )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert "enriched_context" in body
+    # manifest 必须含 vault / query / sources
+    assert "Global Search Manifest" in body["enriched_context"]
+    assert "test_vault" in body["enriched_context"]
+    assert body["supplementary_count"] >= 1
+    assert body["supplementary_degraded"] is False
+    assert body["elapsed_ms"] >= 0
+    # XML body 应含 supplementary_materials 标签
+    assert "supplementary_materials" in body["enriched_context"]
+
+
+def test_global_search_endpoint_rejects_empty_question(client):
+    """空 user_question → 422 (Pydantic min_length=1)."""
+    response = client.post(
+        "/api/v1/chat/global-search",
+        json=_global_search_payload(user_question=""),
+    )
+    assert response.status_code == 422
+
+
+def test_global_search_endpoint_degrades_on_lancedb_none(client):
+    """lancedb 不可用 (singleton None) → degraded=True + reason=lancedb_unavailable."""
+    # _get_supp_lancedb_client 返回 None → search_supplementary 内部短路返回 degraded
+    stub_degraded_result = {
+        "materials": [],
+        "degraded": True,
+        "reason": "lancedb_unavailable",
+    }
+    with (
+        patch(
+            "app.api.v1.endpoints.chat._get_supp_lancedb_client",
+            return_value=None,
+        ),
+        patch(
+            "app.api.v1.endpoints.chat.search_supplementary",
+            return_value=stub_degraded_result,
+        ),
+    ):
+        response = client.post(
+            "/api/v1/chat/global-search",
+            json=_global_search_payload(),
+        )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["supplementary_degraded"] is True
+    assert body["supplementary_count"] == 0
+    assert body["supplementary_reason"] == "lancedb_unavailable"
+    # manifest 应明示 degradation reason
+    assert "lancedb_unavailable" in body["enriched_context"]
+
+
+# ====================================================================
+# P0-C (2026-05-12 hotfix): enrich-context cold-start lazy init verification.
+# ====================================================================
+
+
+def test_enrich_context_answer_mode_uses_lazy_init_path(client):
+    """P0-C: answer + user_question triggers _get_supp_lancedb_client(init_timeout=5.0)."""
+    from unittest.mock import AsyncMock
+
+    enrich_result = EnrichmentResult(neighbors=[], degraded=False, elapsed_ms=1.0)
+    captured_lazy = AsyncMock()
+    captured_lazy.side_effect = lambda *a, **kw: None
+
+    with (
+        patch(
+            "app.api.v1.endpoints.chat.enrich_from_wikilink_graph",
+            return_value=enrich_result,
+        ),
+        patch(
+            "app.api.v1.endpoints.chat._get_supp_lancedb_client",
+            captured_lazy,
+        ),
+    ):
+        response = client.post(
+            "/api/v1/chat/enrich-context",
+            json={
+                **_enrich_payload(),
+                "user_question": "what is admissible heuristic?",
+                "mode": "answer",
+            },
+        )
+
+    assert response.status_code == 200
+    assert captured_lazy.called
+    call_obj = captured_lazy.call_args
+    init_timeout = call_obj.kwargs.get("init_timeout") or (
+        call_obj.args[0] if call_obj.args else None
+    )
+    assert init_timeout == 5.0
+
+
+def test_enrich_context_preload_mode_skips_supplementary(client):
+    """P0-C inverse: preload mode (no user_question) skips lazy init path."""
+    from unittest.mock import AsyncMock
+
+    enrich_result = EnrichmentResult(neighbors=[], degraded=False, elapsed_ms=1.0)
+    captured_lazy = AsyncMock()
+    captured_lazy.side_effect = lambda *a, **kw: None
+
+    with (
+        patch(
+            "app.api.v1.endpoints.chat.enrich_from_wikilink_graph",
+            return_value=enrich_result,
+        ),
+        patch(
+            "app.api.v1.endpoints.chat._get_supp_lancedb_client",
+            captured_lazy,
+        ),
+    ):
+        response = client.post(
+            "/api/v1/chat/enrich-context",
+            json={**_enrich_payload(), "mode": "preload"},
+        )
+
+    assert response.status_code == 200
+    assert not captured_lazy.called

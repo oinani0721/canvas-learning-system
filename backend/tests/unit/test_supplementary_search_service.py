@@ -402,3 +402,223 @@ class TestApplySourcePriority:
         assert "lecture" in boosted[0]["metadata"]["canvas_file"]
         assert "节点" in boosted[1]["metadata"]["canvas_file"]
         assert "原白板" in boosted[2]["metadata"]["canvas_file"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P0-E (2026-05-12 hotfix): prompt injection guard fail-closed on RuntimeError.
+# ImportError 保持 clean (开发环境), RuntimeError → review + risk_score=0.5.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestClassifySnippetTaintFailClosed:
+    """P0-E: guard 运行时故障 fail-closed."""
+
+    def test_runtime_error_returns_review_fail_closed(self):
+        """check_input 抛 RuntimeError → 强制 review + risk_score=0.5
+        让下游 XML 截 240 字摘要 + 注 injection_risk."""
+        from unittest.mock import patch
+
+        from app.services.supplementary_search_service import _classify_snippet_taint
+
+        with patch(
+            "app.middleware.prompt_injection_guard.check_input",
+            side_effect=RuntimeError("guard backend down"),
+        ):
+            result = _classify_snippet_taint("normal looking content")
+        assert result["taint"] == "review"
+        assert result["risk_score"] == 0.5
+
+    def test_import_error_still_returns_clean(self):
+        """模块未安装 → 保持 clean (开发环境功能不阻断)."""
+        from unittest.mock import patch
+
+        from app.services.supplementary_search_service import _classify_snippet_taint
+
+        # 模拟 import 时抛 ImportError (PhaseA0.5-P 原行为)
+        import builtins
+
+        real_import = builtins.__import__
+
+        def faulty_import(name, *args, **kwargs):
+            if "prompt_injection_guard" in name:
+                raise ImportError("no module")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=faulty_import):
+            result = _classify_snippet_taint("any content")
+        assert result["taint"] == "clean"
+        assert result["risk_score"] == 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P0-D (2026-05-12 hotfix): tier-2 legacy fallback degraded 顶层旗帜.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestTopLevelDegradedFromLegacyFallback:
+    """P0-D: tier-2 行级 is_legacy_fallback 必须冒泡到顶层 degraded=True."""
+
+    def test_legacy_hit_propagates_degraded_true(self):
+        """is_real_vault_file 通过 + materials 带 is_legacy_fallback=True →
+        顶层 degraded=True + reason 含 tier2_legacy_unprefixed."""
+        import asyncio
+        from unittest.mock import patch
+
+        from app.services import supplementary_search_service as svc
+
+        async def _run():
+            client_obj = object()  # 任意 non-None
+
+            async def stub_two_tier(client, query, num_results):
+                return [
+                    {
+                        "score": 0.5,
+                        "content": "real content " * 30,  # 凑足 >=64 字节
+                        "doc_id": "d1",
+                        "metadata": {
+                            "canvas_file": "节点/X.md",
+                            "is_legacy_fallback": True,
+                        },
+                        "canvas_file": "节点/X.md",
+                        "is_legacy_fallback": True,
+                        "degraded": True,
+                    }
+                ]
+
+            with patch.object(svc, "_two_tier_search", new=stub_two_tier):
+                # bypass file existence check
+                with patch.object(svc, "_is_real_vault_file", return_value=True):
+                    return await svc.search_supplementary(
+                        query="some query",
+                        lancedb_client=client_obj,
+                        min_relevance=0.30,
+                    )
+
+        result = asyncio.run(_run())
+        assert result["degraded"] is True
+        assert result["reason"] is not None
+        assert "tier2_legacy_unprefixed" in result["reason"]
+
+    def test_non_legacy_keeps_degraded_false(self):
+        """正常 hybrid 命中 (无 is_legacy_fallback) → 顶层 degraded=False."""
+        import asyncio
+        from unittest.mock import patch
+
+        from app.services import supplementary_search_service as svc
+
+        async def _run():
+            client_obj = object()
+
+            async def stub_two_tier(client, query, num_results):
+                return [
+                    {
+                        "score": 0.7,
+                        "content": "normal content " * 20,
+                        "doc_id": "d2",
+                        "metadata": {"canvas_file": "节点/Y.md"},
+                        "canvas_file": "节点/Y.md",
+                    }
+                ]
+
+            with patch.object(svc, "_two_tier_search", new=stub_two_tier):
+                with patch.object(svc, "_is_real_vault_file", return_value=True):
+                    return await svc.search_supplementary(
+                        query="other query",
+                        lancedb_client=client_obj,
+                        min_relevance=0.30,
+                    )
+
+        result = asyncio.run(_run())
+        assert result["degraded"] is False
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Bonus (2026-05-12 hotfix): chunk-type-aware link-list filter.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestIsLinkListChunk:
+    """Bonus: _is_link_list_chunk 检测纯 wikilink 列表 chunk (MOC/index 节点)."""
+
+    def test_pure_link_list_returns_true(self):
+        from app.services.supplementary_search_service import _is_link_list_chunk
+
+        # 纯 wikilink, 几乎无 non-link token
+        content = "[[A]] [[B]] [[C]] [[D]] [[E]]"
+        # wikilink=5, non_link_token=0 → ratio = 5/1 = 5.0 > 0.6
+        assert _is_link_list_chunk(content) is True
+
+    def test_prose_with_one_link_returns_false(self):
+        from app.services.supplementary_search_service import _is_link_list_chunk
+
+        content = (
+            "我们用 [[A*算法]] 找最短路径, 该算法基于启发式函数评估每个节点的距离."
+        )
+        # wikilink=1, non_link_token >= 10 (中文按 ASCII 空白分仍多 token)
+        assert _is_link_list_chunk(content) is False
+
+    def test_zero_links_returns_false(self):
+        from app.services.supplementary_search_service import _is_link_list_chunk
+
+        assert _is_link_list_chunk("just plain text without any wikilinks") is False
+
+    def test_empty_content_returns_false(self):
+        from app.services.supplementary_search_service import _is_link_list_chunk
+
+        assert _is_link_list_chunk("") is False
+
+    def test_link_list_with_some_prose_still_true_at_high_threshold(self):
+        """5 个 link + 3 word → ratio = 5/3 ≈ 1.67 > 0.6 → True (link-list)."""
+        from app.services.supplementary_search_service import _is_link_list_chunk
+
+        content = "[[A]] [[B]] [[C]] [[D]] [[E]] see also notes"
+        assert _is_link_list_chunk(content) is True
+
+    def test_threshold_parameter_tunable(self):
+        """threshold=1.5 让上面 ratio=1.67 仍是 link-list, threshold=2.0 会改 False."""
+        from app.services.supplementary_search_service import _is_link_list_chunk
+
+        content = "[[A]] [[B]] [[C]] [[D]] [[E]] see also notes"
+        assert _is_link_list_chunk(content, threshold=1.5) is True
+        assert _is_link_list_chunk(content, threshold=2.0) is False
+
+
+class TestFormatSupplementaryXmlLinkListAttr:
+    """Bonus: XML 渲染 is_link_list="true" 仅当 chunk 标志为 True 时."""
+
+    def test_renders_is_link_list_attr_when_true(self):
+        from app.services.supplementary_search_service import format_supplementary_xml
+
+        result = {
+            "materials": [
+                {
+                    "title": "MOC",
+                    "wikilink": "[[moc]]",
+                    "snippet": "[[A]] [[B]]",
+                    "source_path": "节点/MOC.md",
+                    "score": 0.5,
+                    "is_link_list_chunk": True,
+                }
+            ],
+            "degraded": False,
+        }
+        xml = format_supplementary_xml(result)
+        assert 'is_link_list="true"' in xml
+
+    def test_no_attr_when_false_or_absent(self):
+        from app.services.supplementary_search_service import format_supplementary_xml
+
+        result = {
+            "materials": [
+                {
+                    "title": "atomic",
+                    "wikilink": "[[atomic]]",
+                    "snippet": "正文内容",
+                    "source_path": "节点/atomic.md",
+                    "score": 0.5,
+                }
+            ],
+            "degraded": False,
+        }
+        xml = format_supplementary_xml(result)
+        assert "is_link_list" not in xml

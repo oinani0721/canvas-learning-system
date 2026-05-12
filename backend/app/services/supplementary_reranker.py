@@ -34,13 +34,25 @@ logger = structlog.get_logger(__name__)
 # Type weight table (PRD §4.1.1, frozen 2026-05-11)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# P0-A 过渡映射 (2026-05-12 hotfix): indexer 当前实际写入的 source_type
+# (lancedb_client.py:1444/1644) 只有 {note, video_transcript, image_ocr}, PRD §4.1.1
+# 6 档分类 (lecture_notes / discussion / ...) 是 indexer 升级目标。如果只保留 PRD
+# 6 keys, 所有真实数据 fallback 到 DEFAULT_TYPE_WEIGHT=0.5 → P0-B filter 0.42 几乎
+# 全删材料。解法: 表里同时包含 PRD 6 档 (forward compat, indexer 升级后立刻可用)
+# 加 indexer 当前真实 3 类 (过渡兜底)。indexer 升级到 PRD 6 档后, 过渡 3 类自然
+# 失去命中, 行为优雅退化。
 TYPE_WEIGHTS: dict[str, float] = {
+    # PRD §4.1.1 frozen 2026-05-11 (forward compat for indexer 升级)
     "lecture_notes": 1.0,
     "discussion": 0.9,
     "exam_review": 0.85,
     "wiki_concepts": 0.8,
     "chat_session": 0.7,
     "raw_notes": 0.6,
+    # P0-A 过渡 (indexer 升级到 PRD 6 档前的实际命中映射, 2026-05-12 hotfix):
+    "video_transcript": 0.9,  # 视频 transcript → 近 discussion 价值
+    "note": 0.7,  # 普通 vault 笔记 → 近 chat_session 中档
+    "image_ocr": 0.6,  # OCR 出来的图片文字 → 同 raw_notes 低档 (准确度有限)
 }
 
 # Unknown / None / empty source_type fallback. Below all canonical (min 0.6) so
@@ -107,6 +119,7 @@ def rerank(
     type_weights: dict[str, float] | None = None,
     min_score_threshold: float | None = None,
     top_k: int | None = None,
+    min_keep: int = 3,
 ) -> list[dict[str, Any]]:
     """Phase T3b+T3c+T3d+T3.9+T3.10: full final_score formula (Story 2.2 AC #4 / 2.9 AC #1+#2).
 
@@ -136,6 +149,10 @@ def rerank(
         min_score_threshold: T3.9 filter — 过滤 rerank_score < 此值的材料
             （None = 不过滤；典型值 get_filter_threshold() = 0.42）
         top_k: T3.10 — 截取前 N 条（None = 不截断；典型 Top 5）
+        min_keep: P0-B floor — filter 后剩 < min_keep 条 OR 删掉 > 80% candidates
+            时, 兜底放弃 filter (改返回未 filter 的 sorted list, 仍 top_k 截断),
+            并在第 1 条材料注入 `filter_floor_triggered=True` 供 logger 观测.
+            min_keep=0 关闭兜底.
 
     Returns:
         重排后的 list（已 in-place sort + 字段注入；过滤+截断的可能是新 list）
@@ -165,8 +182,35 @@ def rerank(
         key=lambda m: (-m["rerank_score"], str(m.get("title", ""))),
     )
 
+    # P0-B (2026-05-12 hotfix): 过滤 floor 兜底.
+    # 当 indexer 未升级到 PRD 6 档时, real-world 数据 source_type="note" 命中过渡
+    # 表 0.7, 典型 relevance ~0.5 → final ~0.35 < filter_threshold 0.42 → 全删.
+    # 用户原话: "不硬编码 5 条, 把有用的都提供给我"
+    # → filter 后剩 < min_keep 或删 > 80% 候选, 视为 threshold 误杀, 自动降级为
+    #   不过滤但仍 top_k 截断, 第 1 条注入 filter_floor_triggered=True 供 logger
+    #   观察以便调阈值. floor=0 关闭兜底 (现有测试 + 显式 opt-out).
     if min_score_threshold is not None:
-        materials = [m for m in materials if m["rerank_score"] >= min_score_threshold]
+        kept = [m for m in materials if m["rerank_score"] >= min_score_threshold]
+        n_pre = len(materials)
+        n_post = len(kept)
+        floor_triggered = False
+        if min_keep > 0 and n_pre > 0:
+            kill_ratio = 1.0 - (n_post / n_pre)
+            if n_post < min_keep or kill_ratio > 0.80:
+                floor_triggered = True
+        if floor_triggered:
+            logger.warning(
+                "[Rerank] filter_floor_triggered",
+                pre=n_pre,
+                post=n_post,
+                threshold=round(min_score_threshold, 3),
+                min_keep=min_keep,
+            )
+            # 不过滤, 标记兜底, 仍走 top_k
+            if materials:
+                materials[0]["filter_floor_triggered"] = True
+        else:
+            materials = kept
 
     if top_k is not None and top_k >= 0:
         return materials[:top_k]

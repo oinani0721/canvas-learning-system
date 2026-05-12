@@ -212,3 +212,154 @@ class TestRefresh:
         (vault_with_links / "E.md").write_text("# E\nLinks to [[A]]\n")
         result = await graph_service.refresh()
         assert graph_service.node_count >= original_nodes
+
+
+class TestMultiVaultIsolation:
+    """P0-1 hotfix (2026-05-11) — per-vault singleton isolation.
+
+    回归 Story 2.5.Y 留下的串库风险:旧 module-level Optional 单例在
+    多 vault 并发场景下,第一个 vault build 后的 graph 被永久 cache,
+    其余 vault 全用错的 graph.新实现按 sanitized vault key 分桶.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_caches(self):
+        from app.services.wikilink_graph_service import clear_all_caches
+
+        clear_all_caches()
+        yield
+        clear_all_caches()
+
+    @pytest.fixture
+    def vault_a(self, tmp_path):
+        vault = tmp_path / "vault_a"
+        vault.mkdir()
+        (vault / "Alpha.md").write_text("# Alpha\nLinks to [[Beta]]\n")
+        (vault / "Beta.md").write_text("# Beta\n")
+        return vault
+
+    @pytest.fixture
+    def vault_b(self, tmp_path):
+        vault = tmp_path / "vault_b"
+        vault.mkdir()
+        (vault / "Gamma.md").write_text("# Gamma\nLinks to [[Delta]] and [[Epsilon]]\n")
+        (vault / "Delta.md").write_text("# Delta\nLinks to [[Epsilon]]\n")
+        (vault / "Epsilon.md").write_text("# Epsilon\n")
+        return vault
+
+    @pytest.mark.asyncio
+    async def test_per_vault_isolation(self, vault_a, vault_b):
+        """set ContextVar vault_A → build graph A → ContextVar vault_B → build
+        graph B → 两个 service instance 不同,各自 node_count 独立."""
+        from app.core.subject_config import (
+            _current_subject_id,
+            set_current_subject_id,
+        )
+        from app.services.wikilink_graph_service import (
+            get_cache_stats,
+            get_wikilink_graph_service,
+        )
+
+        # Vault A 上下文
+        token_a = _current_subject_id.set("vault_A_test")
+        try:
+            svc_a = get_wikilink_graph_service()
+            await svc_a.build(str(vault_a))
+            assert svc_a.is_built
+            nodes_a = svc_a.node_count
+            assert nodes_a >= 2
+        finally:
+            _current_subject_id.reset(token_a)
+
+        # Vault B 上下文 — 必须拿到不同 instance
+        token_b = _current_subject_id.set("vault_B_test")
+        try:
+            svc_b = get_wikilink_graph_service()
+            assert svc_b is not svc_a, (
+                "P0-1 violation: 两个 vault 拿到同一 WikilinkGraphService instance"
+            )
+            await svc_b.build(str(vault_b))
+            assert svc_b.is_built
+            nodes_b = svc_b.node_count
+            assert nodes_b >= 3
+            # 两个 vault 的 node_count 独立(B 比 A 多)
+            assert nodes_b > nodes_a
+        finally:
+            _current_subject_id.reset(token_b)
+
+        # 回到 Vault A 上下文 — 应拿回原 instance, A 的 graph 未被 B 覆盖
+        token_c = _current_subject_id.set("vault_A_test")
+        try:
+            svc_a_again = get_wikilink_graph_service()
+            assert svc_a_again is svc_a, "vault_A 第二次 lookup 应返回同一 instance"
+            assert svc_a_again.node_count == nodes_a, (
+                "vault_A 的 node_count 被 vault_B build 污染了"
+            )
+        finally:
+            _current_subject_id.reset(token_c)
+
+        # cache_stats 应记录两个 vault
+        stats = get_cache_stats()
+        assert stats["total_vaults"] >= 2
+        assert "vault_a_test" in stats["vaults"]
+        assert "vault_b_test" in stats["vaults"]
+
+    @pytest.mark.asyncio
+    async def test_no_contextvar_uses_default_key(self, vault_a):
+        """ContextVar 未设(或为 DEFAULT_SUBJECT_ID)→ 落 __default__ slot,正常工作."""
+        from app.core.subject_config import (
+            DEFAULT_SUBJECT_ID,
+            _current_subject_id,
+        )
+        from app.services.wikilink_graph_service import (
+            get_cache_stats,
+            get_wikilink_graph_service,
+        )
+
+        # 显式 reset 到 DEFAULT_SUBJECT_ID(模拟无请求上下文)
+        token = _current_subject_id.set(DEFAULT_SUBJECT_ID)
+        try:
+            svc = get_wikilink_graph_service()
+            await svc.build(str(vault_a))
+            assert svc.is_built
+            assert svc.node_count >= 2
+
+            # default 桶第二次 lookup 应返回同一 instance
+            svc_again = get_wikilink_graph_service()
+            assert svc_again is svc
+
+            stats = get_cache_stats()
+            # DEFAULT_SUBJECT_ID = "general", sanitize 后 = "general"(非 __default__)
+            # 但因 ContextVar default 也是 "general", 落在 "general" 桶
+            assert any(k in stats["vaults"] for k in ("general", "__default__")), (
+                f"既不在 'general' 也不在 '__default__': {list(stats['vaults'].keys())}"
+            )
+        finally:
+            _current_subject_id.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_clear_cache_for_vault(self, vault_a):
+        """clear_cache_for_vault 可清掉指定 vault 的 instance,后续 lookup 会重建."""
+        from app.core.subject_config import _current_subject_id
+        from app.services.wikilink_graph_service import (
+            clear_cache_for_vault,
+            get_wikilink_graph_service,
+        )
+
+        token = _current_subject_id.set("vault_clear_test")
+        try:
+            svc1 = get_wikilink_graph_service()
+            await svc1.build(str(vault_a))
+
+            removed = clear_cache_for_vault("vault_clear_test")
+            assert removed is True
+
+            # 不存在的 key 返 False
+            assert clear_cache_for_vault("vault_clear_test") is False
+
+            # 重新 lookup 应拿到新 instance
+            svc2 = get_wikilink_graph_service()
+            assert svc2 is not svc1
+            assert not svc2.is_built  # 新 instance 还没 build
+        finally:
+            _current_subject_id.reset(token)

@@ -75,9 +75,10 @@ class TestGetTypeWeight:
             get_type_weight,
         )
 
-        # "note" 是 supplementary_search_service _normalize_material 的默认值
-        # — 必须落到 DEFAULT 而非任何 canonical
-        assert get_type_weight("note") == DEFAULT_TYPE_WEIGHT
+        # P0-A (2026-05-12): "note" 现在是 indexer 过渡映射的 canonical 0.7
+        # (lancedb_client.py 实际写入 source_type ∈ {note,video_transcript,image_ocr}).
+        # 真正未识别的 source_type 才落 DEFAULT.
+        assert get_type_weight("totally_unknown_xyz") == DEFAULT_TYPE_WEIGHT
         assert get_type_weight("foobar") == DEFAULT_TYPE_WEIGHT
 
 
@@ -517,7 +518,8 @@ class TestFilterThreshold:
         ]
         # high: 0.9 × 1.0 = 0.9 (above 0.42)
         # low: 0.3 × 0.6 = 0.18 (below 0.42)
-        result = rerank(materials, min_score_threshold=0.42)
+        # P0-B (2026-05-12): 显式 min_keep=0 关闭 floor 兜底, 验证纯 filter 语义.
+        result = rerank(materials, min_score_threshold=0.42, min_keep=0)
         assert len(result) == 1
         assert result[0]["title"] == "high"
 
@@ -543,7 +545,8 @@ class TestFilterThreshold:
         materials.append(
             {"score": 0.4, "source_type": "raw_notes", "title": "marginal-6"}
         )  # 0.4 × 0.6 = 0.24, 低于 0.42 → 应被过滤
-        result = rerank(materials, min_score_threshold=0.42, top_k=5)
+        # P0-B (2026-05-12): min_keep=0 关闭 floor 验证 filter 纯逻辑.
+        result = rerank(materials, min_score_threshold=0.42, top_k=5, min_keep=0)
         # marginal-6 应被过滤;剩 5 个 good-X 保留
         assert len(result) == 5
         titles = {m["title"] for m in result}
@@ -556,5 +559,152 @@ class TestFilterThreshold:
             {"score": 0.9, "source_type": "lecture_notes", "title": f"hit-{i}"}
             for i in range(10)
         ]
-        result = rerank(materials, min_score_threshold=0.42, top_k=3)
+        # P0-B (2026-05-12): min_keep=0 关闭 floor, 测试 top_k 截断行为.
+        result = rerank(materials, min_score_threshold=0.42, top_k=3, min_keep=0)
         assert len(result) == 3
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P0-A (2026-05-12 hotfix): indexer 真实 source_type 过渡映射.
+# lancedb_client.py:1444/1644 实际写入 {note, video_transcript, image_ocr},
+# PRD §4.1.1 6 档 (lecture_notes/discussion/...) 是 indexer 升级目标.
+# 这组测试锁定过渡映射, 防 PRD 6 档误删.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestTypeWeightsIndexerTransition:
+    """P0-A: TYPE_WEIGHTS 必须覆盖 indexer 真实 source_type 防全删."""
+
+    def test_indexer_note_mapped_to_canonical(self):
+        """indexer 写入 source_type='note' 必须 → 中档 0.7 (近 chat_session)
+        而不是 DEFAULT 0.5 — DEFAULT 会让真实数据被 0.42 filter 全删."""
+        from app.services.supplementary_reranker import (
+            DEFAULT_TYPE_WEIGHT,
+            get_type_weight,
+        )
+
+        w = get_type_weight("note")
+        assert w == 0.7
+        assert w > DEFAULT_TYPE_WEIGHT
+
+    def test_indexer_video_transcript_mapped_to_canonical(self):
+        from app.services.supplementary_reranker import get_type_weight
+
+        # video transcript 是核心讲义内容 → 0.9 近 discussion
+        assert get_type_weight("video_transcript") == 0.9
+
+    def test_indexer_image_ocr_mapped_to_low_canonical(self):
+        from app.services.supplementary_reranker import get_type_weight
+
+        # OCR 准确度有限 → 同 raw_notes 0.6 下限
+        assert get_type_weight("image_ocr") == 0.6
+
+    def test_prd_six_categories_still_present(self):
+        """P0-A 加过渡映射后, PRD 6 档必须仍在表 (forward compat)."""
+        from app.services.supplementary_reranker import TYPE_WEIGHTS
+
+        for k in (
+            "lecture_notes",
+            "discussion",
+            "exam_review",
+            "wiki_concepts",
+            "chat_session",
+            "raw_notes",
+        ):
+            assert k in TYPE_WEIGHTS
+
+    def test_real_indexer_data_clears_default_filter(self):
+        """P0-A regression: relevance 0.5 + note 0.7 = 0.35 vs 0.42 filter
+        single-shot 仍会被删 → 需要 P0-B floor 兜底; 但若 relevance 0.7+
+        × note 0.7 = 0.49 通过 filter, 验证过渡映射给真实数据通道."""
+        from app.services.supplementary_reranker import (
+            get_filter_threshold,
+            rerank,
+        )
+
+        m = {"score": 0.7, "source_type": "note", "title": "X"}
+        result = rerank([m], min_score_threshold=get_filter_threshold(), min_keep=0)
+        # 0.7 × 0.7 = 0.49 > 0.42 → 不被 filter 删
+        assert len(result) == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P0-B (2026-05-12 hotfix): filter floor 兜底 (防 P0-A note=0.7 + relevance=0.5
+# = 0.35 仍 < 0.42 把材料全删).
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestFilterFloor:
+    """P0-B: filter 后剩 < min_keep 或 删 > 80% 候选 → 降级不过滤 + 标记."""
+
+    def test_floor_triggered_marks_first_material(self):
+        """所有 material 都低于 threshold → floor 触发, 返回未过滤 sorted +
+        第一条注 filter_floor_triggered=True 供 logger 观测."""
+        from app.services.supplementary_reranker import rerank
+
+        # 全部 note × 0.5 = 0.35 < 0.42, 默认 min_keep=3 → floor 触发
+        materials = [
+            {"score": 0.5, "source_type": "note", "title": f"n{i}"} for i in range(5)
+        ]
+        result = rerank(materials, min_score_threshold=0.42)
+        # floor 触发 → 不删, 5 条全保留
+        assert len(result) == 5
+        # 第一条 (sorted 后) 注 floor 旗帜
+        assert result[0].get("filter_floor_triggered") is True
+
+    def test_floor_not_triggered_when_enough_pass(self):
+        """足够多材料通过 filter → floor 不触发, filter 正常.
+
+        高分 × 高 type_weight = 通过, 低分 × 低 type_weight = 不通过."""
+        from app.services.supplementary_reranker import rerank
+
+        materials = [
+            # 4 条 high: 0.9 × 1.0 = 0.9 > 0.42 → 通过
+            {"score": 0.9, "source_type": "lecture_notes", "title": f"high-{i}"}
+            for i in range(4)
+        ] + [
+            # 1 条 low: 0.3 × 0.6 = 0.18 < 0.42 → 被过滤
+            {"score": 0.3, "source_type": "raw_notes", "title": "low"},
+        ]
+        result = rerank(materials, min_score_threshold=0.42)
+        # 4 条 high 全通过 (>=min_keep=3, kill_ratio=20% <= 80%) → floor 不触发
+        assert len(result) == 4
+        # 无 floor 标志
+        assert all("filter_floor_triggered" not in m for m in result)
+
+    def test_min_keep_zero_disables_floor(self):
+        """显式 min_keep=0 关闭 floor, 保留原 filter 语义."""
+        from app.services.supplementary_reranker import rerank
+
+        materials = [
+            {"score": 0.5, "source_type": "note", "title": f"n{i}"} for i in range(5)
+        ]
+        result = rerank(materials, min_score_threshold=0.42, min_keep=0)
+        # min_keep=0 → 全删, 返回空
+        assert len(result) == 0
+
+    def test_floor_triggered_when_kill_ratio_high(self):
+        """删超 80% 也触发 floor (即使 min_keep 数量满足)."""
+        from app.services.supplementary_reranker import rerank
+
+        # 100 条都过 filter 但只剩 5 条? 我们要构造 80%+ kill 的场景:
+        # 100 条 note × 0.5 = 0.35 < 0.42 全部不过 → kill_ratio=100% → floor
+        materials = [
+            {"score": 0.5, "source_type": "note", "title": f"n{i}"} for i in range(20)
+        ]
+        result = rerank(materials, min_score_threshold=0.42, min_keep=1)
+        # n_post=0, n_pre=20, kill_ratio=100% > 80% → floor
+        assert len(result) == 20  # 全保留
+        assert result[0].get("filter_floor_triggered") is True
+
+    def test_floor_still_respects_top_k(self):
+        """floor 触发后仍走 top_k 截断."""
+        from app.services.supplementary_reranker import rerank
+
+        materials = [
+            {"score": 0.5, "source_type": "note", "title": f"n{i:02d}"}
+            for i in range(10)
+        ]
+        result = rerank(materials, min_score_threshold=0.42, top_k=5)
+        assert len(result) == 5
+        assert result[0].get("filter_floor_triggered") is True

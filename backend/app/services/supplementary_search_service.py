@@ -159,6 +159,24 @@ async def search_supplementary(
         elif taint_info["taint"] == "review":
             review_count += 1
 
+        # Bonus (2026-05-12 hotfix): chunk-type-aware link-list 标记.
+        # 用 raw content (完整 chunk 文本) 比 snippet (截 300 字) 更准.
+        # 不过滤 — 标记给 rerank 看见, 让下游可降权 link-list chunk 优先 atomic 笔记.
+        raw_content_for_check = str(raw.get("content", "") or "") or normalized.get(
+            "snippet", ""
+        )
+        if _is_link_list_chunk(raw_content_for_check):
+            normalized["is_link_list_chunk"] = True
+
+        # P0-D (2026-05-12 hotfix): tier-2 legacy fallback flag 必须从 raw
+        # 透传到 normalized, 否则下面 any(...is_legacy_fallback) 永不命中.
+        # raw['is_legacy_fallback'] 由 _two_tier_search tier-2 路径设置 (top-level
+        # 也保留以备 metadata 嵌套不一致).
+        if raw.get("is_legacy_fallback") or (raw.get("metadata") or {}).get(
+            "is_legacy_fallback"
+        ):
+            normalized["is_legacy_fallback"] = True
+
         materials.append(normalized)
         if len(materials) >= top_k_max:
             break
@@ -183,6 +201,27 @@ async def search_supplementary(
         drop_threshold=elbow_drop_threshold,
         hard_cap=hard_cap,
     )
+
+    # P0-D (2026-05-12 hotfix): tier-2 legacy fallback 命中时, 行级
+    # is_legacy_fallback=True 但顶层 dict 仍 degraded=False, 下游观测拿不到旗帜.
+    # 这里检测任一 material 是 legacy fallback, 顶层 degraded=True + reason
+    # append/set (保留原 reason 信息防丢失) + logger.warning 通知 Ops 重建索引.
+    legacy_hit = any(m.get("is_legacy_fallback") for m in materials)
+    if legacy_hit:
+        prior_reason = None if materials else "all_filtered_below_threshold"
+        # 已有 reason 时 append, 否则单一标志
+        new_reason = "tier2_legacy_unprefixed"
+        merged_reason = f"{prior_reason}; {new_reason}" if prior_reason else new_reason
+        logger.warning(
+            "[SupplementarySearch] degraded 顶层标志: tier-2 legacy fallback 命中",
+            materials=len(materials),
+            query=query[:60],
+        )
+        return {
+            "materials": materials,
+            "degraded": True,
+            "reason": merged_reason,
+        }
 
     return {
         "materials": materials,
@@ -238,6 +277,10 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
                 material_attrs += f' {field}="{m[field]:{fmt}}"'
         if taint != "clean":
             material_attrs += f' taint="{taint}" injection_risk="{injection_risk:.2f}"'
+        # Bonus (2026-05-12 hotfix): link-list chunk 标记 (仿同款 rerank attribute,
+        # 只在 True 时渲染保持 XML 兼容).
+        if m.get("is_link_list_chunk"):
+            material_attrs += ' is_link_list="true"'
 
         # Snippet content based on taint level
         if taint == "quarantine":
@@ -273,6 +316,11 @@ def _classify_snippet_taint(snippet: str) -> dict[str, Any]:
     - is_blocked (>= INJECTION_THRESHOLD): quarantine, 不输出正文
     - risk_score >= 0.45: review, 截断 240 字摘要
     - else: clean, 正常输出
+
+    P0-E (2026-05-12 hotfix): 异常分类处理.
+    - ImportError → clean (开发环境模块缺失正常, 不能因此 fail-closed 影响功能)
+    - RuntimeError / 其他 → review + risk_score=0.5 (fail-closed, 让 snippet
+      被截 240 字 + 注入 risk_score 让下游可见, 防 guard 故障时绕过审查).
     """
     if not snippet or not snippet.strip():
         return {"taint": "clean", "risk_score": 0.0}
@@ -285,12 +333,20 @@ def _classify_snippet_taint(snippet: str) -> dict[str, Any]:
         if result.risk_score >= 0.45:
             return {"taint": "review", "risk_score": result.risk_score}
         return {"taint": "clean", "risk_score": result.risk_score}
-    except (ImportError, RuntimeError) as e:
+    except ImportError as e:
+        # 模块未安装/开发环境 — 标志 clean (与 PhaseA0.5-P 原行为一致)
         logger.debug(
-            "[SupplementarySearch] prompt_injection_guard 不可用，跳过 taint 扫描",
+            "[SupplementarySearch] prompt_injection_guard 模块不可用，跳过 taint 扫描",
             error=str(e)[:120],
         )
         return {"taint": "clean", "risk_score": 0.0}
+    except RuntimeError as e:
+        # P0-E: guard 运行时故障 — fail-closed, 强制 review 让 snippet 被截断
+        logger.warning(
+            "[SupplementarySearch] prompt_injection_guard 运行时故障, fail-closed",
+            error=str(e)[:120],
+        )
+        return {"taint": "review", "risk_score": 0.5}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -355,6 +411,34 @@ def _is_real_vault_file(rel_path: str, min_size_bytes: int = 64) -> bool:
         return True
     except Exception:  # noqa: BLE001  任何 OS 错误也跳过
         return False
+
+
+# Bonus (2026-05-12 hotfix): chunk-type-aware filter helper.
+# 用户痛点: MOC / index 节点 (大量 [[wikilink]] 但少正文) 被 RAG 召回到 supplementary,
+# 占名额却没真信息 (链接列表是引用关系, 不是知识本体). 不在过滤层删除 — 标记给 rerank
+# 看见, 让 Claude 在 supplementary XML 里看到 is_link_list="true" 后能优先 Read 真节点.
+_WIKILINK_RE = re.compile(r"\[\[[^\[\]]+\]\]")
+
+
+def _is_link_list_chunk(content: str, threshold: float = 0.6) -> bool:
+    """检测内容是否以 wikilink 列表为主 (MOC/index chunk 标志).
+
+    算 wikilink_count / max(non_link_token_count, 1) > threshold 即标 link-list.
+    `non_link_tokens` = 去除全部 wikilink 后按空白分词的 token 数 (近似正文 token).
+
+    Examples:
+        "[[A]] [[B]] [[C]]" → 3/1 = 3.0 > 0.6 → True (纯 link 列表)
+        "我们用 [[A*]] 算法" → 1/3 ≈ 0.33 < 0.6 → False (正文夹带 link)
+    """
+    if not content:
+        return False
+    wikilink_count = len(_WIKILINK_RE.findall(content))
+    if wikilink_count == 0:
+        return False
+    stripped = _WIKILINK_RE.sub(" ", content)
+    non_link_tokens = [tok for tok in stripped.split() if tok.strip()]
+    ratio = wikilink_count / max(len(non_link_tokens), 1)
+    return ratio > threshold
 
 
 def _elbow_cut(

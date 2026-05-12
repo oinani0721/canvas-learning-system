@@ -74,6 +74,14 @@ import {
   type NeighborSummary,
   type NodeChatContext,
 } from "./node-chat-context";
+import {
+  buildFailureNoticeMessage,
+  buildGlobalSearchPayload,
+  buildSuccessNoticeMessage,
+  classifyFetchFailure,
+  GLOBAL_SEARCH_TIMEOUT_MS,
+  type GlobalSearchResponse,
+} from "./global-search";
 
 const DEFAULT_BACKEND_URL = "http://localhost:8011";  // docker host 映射端口（container 内 8001 → host 8011，由 .env API_PORT 决定）
 const DEFAULT_NODE_PATH_PREFIXES = ["节点/"];
@@ -516,6 +524,14 @@ export default class CanvasLearningPlugin extends Plugin {
         name: "解题深度模式（study-question · 30-45s 4 段结构化诊断）",
         callback: () => this.handleStudyQuestion(),
       },
+      // Story 2.10 (2026-05-12) — global-search: 任意视图可触发的全局搜索。
+      // 区别于 chat-with-context: 不依赖 active file 在 节点/ 路径下；Dashboard、教学
+      // 笔记、设置 tab 等任意视图都可发起。delay 预算 8s（vs chat 3s）给 deep search 留余地。
+      {
+        id: "canvas:global-search",
+        name: "全局搜索教学笔记 (Global Search,任意视图可触发)",
+        callback: () => this.handleGlobalSearch(),
+      },
       // Story 2.5.X (D15 用户主权 C+) — 错误候选 3 命令
       {
         id: "canvas:accept-error-candidate",
@@ -896,6 +912,122 @@ export default class CanvasLearningPlugin extends Plugin {
         "未检测到 Claudian 插件，请先安装并登录 Claude Code",
         5000,
       );
+      return;
+    }
+    (this.app as any).commands.executeCommandById("claudian:open-view");
+  }
+
+  /**
+   * Story 2.10 (2026-05-12) — Global Search 全局搜索教学笔记入口
+   *
+   * 区别于 canvas:chat-with-context（Cmd+Shift+E）:
+   *   - 不要求 active file 在 节点/ 路径下 — Dashboard / 教学笔记 / 设置 tab 等任意视图都可触发
+   *   - timeout 8000ms（vs 3000ms）给 backend 的 deep search 留预算
+   *   - payload 不带 node_path / current_note_content — 纯 query-driven
+   *   - subject_id=null 让 backend 按"一 vault 一学科"约定 fallback
+   *
+   * 流程:
+   *   1. UserQuestionModal 取问题。空问题 → silently 退出
+   *   2. POST {backendUrl}/api/v1/chat/global-search
+   *   3. 成功 → 剪贴板写 enriched_context + Notice + 切 Claudian sidebar
+   *   4. 失败（AbortError / TypeError / non-200）→ 友好 Notice，不 crash
+   */
+  private async handleGlobalSearch() {
+    console.log("[canvas:global-search] triggered");
+
+    // Step 1: 取用户问题（不依赖 editor selection — 任意视图触发时 editor 可能不存在）
+    const userQuestion = await new Promise<string>((resolve) => {
+      new UserQuestionModal(this.app, (q) => resolve(q ?? "")).open();
+    });
+    const trimmed = userQuestion.trim();
+    if (!trimmed) {
+      // 空问题 silently 退出（与 chat-with-context Modal "跳过补充材料" 习惯一致：但
+      // 全局搜索没有 fallback context 可用，所以直接退）
+      console.log("[canvas:global-search] empty question, silently abort");
+      return;
+    }
+
+    const t0 = Date.now();
+    const vaultId = inferVaultId(this.app.vault.getName());
+    const payload = buildGlobalSearchPayload({
+      userQuestion: trimmed,
+      vaultId,
+    });
+
+    const url = `${this.settings.backendUrl}/api/v1/chat/global-search`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      GLOBAL_SEARCH_TIMEOUT_MS,
+    );
+
+    let resp: Response;
+    try {
+      resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (err: unknown) {
+      clearTimeout(timeoutId);
+      const reason = classifyFetchFailure(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`[canvas:global-search] fetch failed: ${reason} (${msg})`);
+      new Notice(buildFailureNoticeMessage(reason), 6000);
+      return;
+    }
+
+    if (!resp.ok) {
+      console.log(`[canvas:global-search] non-2xx status ${resp.status}`);
+      new Notice(buildFailureNoticeMessage("backend_error"), 6000);
+      return;
+    }
+
+    let parsed: GlobalSearchResponse;
+    try {
+      parsed = (await resp.json()) as GlobalSearchResponse;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`[canvas:global-search] non-JSON response: ${msg}`);
+      new Notice(buildFailureNoticeMessage("non_json_response"), 6000);
+      return;
+    }
+
+    const enrichedContext = parsed.enriched_context;
+    if (typeof enrichedContext !== "string" || enrichedContext.length === 0) {
+      console.log("[canvas:global-search] empty enriched_context in response");
+      new Notice(buildFailureNoticeMessage("backend_error"), 6000);
+      return;
+    }
+
+    // 写剪贴板 — 仿 chat-with-context 用 /chat-with-context skill 前缀（global-search
+    // 走的也是 backend RAG-as-tool 范式，Skill 端的工作流一致：Read top-3 supplementary
+    // + heading 级 wikilink）。复用 ANCHOR_INSTRUCTION 思路防"假装读过"回归。
+    const prompt = `/chat-with-context\n\n${enrichedContext}\n\n---\n问题：${trimmed}`;
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.showRetryNotice(
+        `❌ 剪贴板写入失败（${msg}），点重试`,
+        () => void this.handleGlobalSearch(),
+      );
+      return;
+    }
+
+    const elapsedMs = Date.now() - t0;
+    new Notice(
+      buildSuccessNoticeMessage({ response: parsed, elapsedMs }),
+      7000,
+    );
+
+    const claudianCmd = (this.app as any).commands?.findCommand?.(
+      "claudian:open-view",
+    );
+    if (!claudianCmd) {
+      new Notice("未检测到 Claudian 插件，请先安装并登录 Claude Code", 5000);
       return;
     }
     (this.app as any).commands.executeCommandById("claudian:open-view");

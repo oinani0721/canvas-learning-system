@@ -11,6 +11,7 @@ Features:
 """
 
 import asyncio
+import contextvars
 import logging
 import uuid
 
@@ -198,8 +199,13 @@ class BackgroundTaskManager:
                 # 清理running futures
                 self._running_futures.pop(task_id, None)
 
-        # 创建asyncio.Task
-        future = asyncio.create_task(wrapped_task())
+        # P0-2 multi-vault hotfix (2026-05-11):
+        # 旧实现 asyncio.create_task(coro) 不继承 ContextVar,导致 background task
+        # 内 get_current_subject_id() 返回默认值 → 跨 vault 串库泄漏.
+        # 修复:snapshot 当前 contextvars.Context,Python 3.11+ asyncio.create_task
+        # 原生支持 context= 参数,把 wrapped_task 绑定到 snapshot 上下文.
+        ctx = contextvars.copy_context()
+        future = asyncio.create_task(wrapped_task(), context=ctx)
         self._running_futures[task_id] = future
 
         return task_id

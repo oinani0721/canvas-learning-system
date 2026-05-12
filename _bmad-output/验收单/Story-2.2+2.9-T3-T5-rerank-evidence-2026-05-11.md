@@ -167,6 +167,10 @@ Claude 回答里引用的材料应该是 lecture_notes / discussion 类型在前
 
 无，本次 ship 是 T3 + T5 首次 review
 
+### 用户验收记录
+
+- **2026-05-12**: 用户确认 "T3+T5 通过，可启 T6 验证 / T0 主链路修复" — Story 2.2+2.9 sub-slice 通过 ✅
+
 ## 7. 🔗 技术 spec 引用（给 Claude 读的，你不用看）
 
 - Spec: `_bmad-output/implementation-artifacts/epic-2/2-2-and-2-9-merged-rerank-evidence.md`

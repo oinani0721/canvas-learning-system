@@ -697,3 +697,116 @@ async def test_enrich_no_evidence_when_field_absent():
     result = await enrich_from_wikilink_graph("节点/Y.md", graph_service=mock_service)
     assert result.neighbors[0].evidence is None
     assert result.trace.included[0].evidence is None
+
+
+# ════════════════════════════════════════════════════════════════════
+# Story 2.2+2.9 Global-Search (2026-05-12) — Multi-seed BFS
+# additional_seeds parameter (节点 X 解题遇到外来概念 Y, 装 Y 邻居)
+# ════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_enrich_multi_seed_dedup():
+    """两 seed 各返 [A, B] / [B, C], merge 后 [A, B, C] 不重复.
+
+    主 seed=X 邻居 [A, B], additional seed=Y 邻居 [B, C].
+    B 已在主 seed 出现, sub-seed Y 跑时跳过, 结果 [A, B, C].
+    """
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.build_timestamp = "2026-05-12T00:00:00+00:00"
+
+    def get_neighbors_side(node_path, max_hops):
+        if node_path == "节点/X.md":
+            return [
+                _make_neighbor("A", hop=1, type="concept"),
+                _make_neighbor("B", hop=1, type="concept"),
+            ]
+        if node_path == "节点/Y.md":
+            return [
+                _make_neighbor("B", hop=1, type="concept"),
+                _make_neighbor("C", hop=1, type="concept"),
+            ]
+        return []
+
+    mock_service.get_neighbors.side_effect = get_neighbors_side
+
+    result = await enrich_from_wikilink_graph(
+        "节点/X.md",
+        max_hops=2,
+        graph_service=mock_service,
+        additional_seeds=["节点/Y.md"],
+    )
+
+    slugs = sorted(n.slug for n in result.neighbors)
+    assert slugs == ["A", "B", "C"], f"merge dedup failed: {slugs}"
+    # 主 seed (X) 邻居 A/B 的 seed_origin=节点/X.md (multi-seed 标记)
+    # additional seed (Y) 邻居 C 的 seed_origin=节点/Y.md
+    by_path = {item.path: item for item in result.trace.included}
+    assert by_path["节点/A.md"].seed_origin == "节点/X.md"
+    assert by_path["节点/B.md"].seed_origin == "节点/X.md"
+    assert by_path["节点/C.md"].seed_origin == "节点/Y.md"
+
+
+@pytest.mark.asyncio
+async def test_enrich_additional_seeds_none_preserves_behavior():
+    """additional_seeds=None 时与单 seed 完全等价 (backward compat).
+
+    seed_origin 在 single-seed 模式应保持 None (不污染已有 trace 消费方).
+    """
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.build_timestamp = "2026-05-12T00:00:00+00:00"
+    mock_service.get_neighbors.return_value = [
+        _make_neighbor("A", hop=1, type="concept"),
+        _make_neighbor("B", hop=2, type="concept"),
+    ]
+
+    # 单 seed 调用 (无 additional_seeds)
+    result_baseline = await enrich_from_wikilink_graph(
+        "节点/X.md", max_hops=2, graph_service=mock_service
+    )
+    # 显式 additional_seeds=None
+    result_explicit_none = await enrich_from_wikilink_graph(
+        "节点/X.md", max_hops=2, graph_service=mock_service, additional_seeds=None
+    )
+
+    assert len(result_baseline.neighbors) == 2
+    assert len(result_explicit_none.neighbors) == 2
+    # single-seed 模式 seed_origin 必须保持 None (不污染已有 API 消费方)
+    for item in result_baseline.trace.included:
+        assert item.seed_origin is None, (
+            f"single-seed 模式 seed_origin 必须 None, got {item.seed_origin}"
+        )
+    for item in result_explicit_none.trace.included:
+        assert item.seed_origin is None
+
+
+@pytest.mark.asyncio
+async def test_enrich_multi_seed_skips_degraded_sub_seed():
+    """additional seed BFS 降级 → 不影响主结果 (best-effort)."""
+    mock_service = MagicMock()
+    mock_service.is_built = True
+    mock_service.build_timestamp = "2026-05-12T00:00:00+00:00"
+
+    call_count = {"n": 0}
+
+    def get_neighbors_side(node_path, max_hops):
+        call_count["n"] += 1
+        if node_path == "节点/X.md":
+            return [_make_neighbor("A", hop=1, type="concept")]
+        # additional seed Y 跑时 raise → degraded
+        raise RuntimeError("sub-seed graph corruption")
+
+    mock_service.get_neighbors.side_effect = get_neighbors_side
+
+    result = await enrich_from_wikilink_graph(
+        "节点/X.md",
+        graph_service=mock_service,
+        additional_seeds=["节点/Y.md"],
+    )
+
+    # 主 seed 邻居仍正常返回, sub-seed 降级被吞掉
+    assert result.degraded is False
+    slugs = [n.slug for n in result.neighbors]
+    assert "A" in slugs

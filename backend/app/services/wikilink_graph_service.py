@@ -314,12 +314,104 @@ class WikilinkGraphService:
             return f"{note_key}.md"
 
 
-# Singleton
-_wikilink_graph_service: Optional[WikilinkGraphService] = None
+# ═══════════════════════════════════════════════════════════════════════════════
+# Multi-vault isolation P0-1 hotfix (2026-05-11)
+# 旧实现是 module-level Optional[WikilinkGraphService] 单例,在多 vault 并发场景下
+# 第一个 vault build 完 graph 会被 cache,后续 vault 全用错的 graph (串库泄漏).
+# 新实现按 sanitized vault_id (派生自 get_current_subject_id() ContextVar) 分桶,
+# 每个 vault 独立 instance,各自 lifecycle 管理.无 ContextVar 时落 __default__ 桶.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_wikilink_graph_services: dict[str, WikilinkGraphService] = {}
+_DEFAULT_VAULT_KEY = "__default__"
+
+
+def _resolve_vault_key() -> str:
+    """从 ContextVar 派生 sanitized vault key (P0-1 修复).
+
+    取 ``app.core.subject_config.get_current_subject_id()`` 当前值.
+    None / 空 / 未设置 → ``__default__`` (向后兼容,不破坏现有 caller).
+    其他值用 ``sanitize_subject_name`` 归一化,杜绝大小写/连字符差异.
+    """
+    try:
+        from app.core.subject_config import (
+            get_current_subject_id,
+            sanitize_subject_name,
+        )
+
+        raw = get_current_subject_id()
+        if not raw or not isinstance(raw, str) or not raw.strip():
+            return _DEFAULT_VAULT_KEY
+        sanitized = sanitize_subject_name(raw)
+        return sanitized or _DEFAULT_VAULT_KEY
+    except Exception:
+        # subject_config 不可用(测试/CLI 上下文)→ 安全降级到 default 桶
+        return _DEFAULT_VAULT_KEY
 
 
 def get_wikilink_graph_service() -> WikilinkGraphService:
-    global _wikilink_graph_service
-    if _wikilink_graph_service is None:
-        _wikilink_graph_service = WikilinkGraphService()
-    return _wikilink_graph_service
+    """Per-vault WikilinkGraphService 获取入口 (P0-1).
+
+    按当前 request 的 vault_id (派生自 ContextVar) 分桶取 instance.
+    Cache miss 时新建 instance 写入 dict.
+    无 ContextVar / 异常路径落 ``__default__`` 桶,保留旧单例语义.
+    """
+    key = _resolve_vault_key()
+    svc = _wikilink_graph_services.get(key)
+    if svc is None:
+        svc = WikilinkGraphService()
+        _wikilink_graph_services[key] = svc
+        logger.debug("wikilink.graph_service_created", vault_key=key)
+    return svc
+
+
+def clear_cache_for_vault(vault_key: str) -> bool:
+    """删除指定 vault key 的 cached instance (P0-1 test/admin helper).
+
+    Args:
+        vault_key: sanitized vault key (与 ``_resolve_vault_key`` 输出一致)
+                   或显式 ``__default__``.
+
+    Returns:
+        True 表示清掉了一个 instance, False 表示该 key 不在 cache.
+    """
+    return _wikilink_graph_services.pop(vault_key, None) is not None
+
+
+def clear_all_caches() -> int:
+    """清空所有 vault cached instance (P0-1 test helper / 进程退出清理).
+
+    Returns:
+        清掉的 instance 数量.
+    """
+    count = len(_wikilink_graph_services)
+    _wikilink_graph_services.clear()
+    return count
+
+
+def get_cache_stats() -> dict[str, Any]:
+    """诊断 helper: 返回当前 cache 的 vault keys 和每个 instance 的 node count.
+
+    格式:
+        {
+            "total_vaults": int,
+            "vaults": {
+                "<vault_key>": {
+                    "is_built": bool,
+                    "node_count": int,
+                    "edge_count": int,
+                    "vault_path": Optional[str],
+                },
+                ...
+            },
+        }
+    """
+    vaults: dict[str, dict[str, Any]] = {}
+    for key, svc in _wikilink_graph_services.items():
+        vaults[key] = {
+            "is_built": svc.is_built,
+            "node_count": svc.node_count,
+            "edge_count": svc.edge_count,
+            "vault_path": svc._vault_path,
+        }
+    return {"total_vaults": len(_wikilink_graph_services), "vaults": vaults}

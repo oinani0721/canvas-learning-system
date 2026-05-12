@@ -8,14 +8,17 @@
 - ✅ **T1 plugin timeout 降级 done** (`c5e5a92`, 156 frontend tests) + 用户 UAT 通过
 - ✅ **T2 backend 基础设施 done** (`6d2c05e`, 75 backend tests)
 - ✅ **T3a assembler 渲染 done** (`e0d91c0`, 119 tests)
-- ✅ **T3 rerank engine + T5 evidence done** (本 session, 209/209 unit tests green): supplementary_reranker.py + rerank_service.py(BM25 自实现) + wikilink_graph_service.get_degree_stats() + chat.py wire rerank + assembler 渲染 `- 引证:` 行 + 验收单 `Story-2.2+2.9-T3-T5-rerank-evidence-2026-05-11.md`
+- ✅ **T3 rerank engine + T5 evidence done** (`549d5f0`, 209/209 unit tests green)
+- ✅ **T3+T5 用户 UAT 通过** (2026-05-12)
+- ✅ **Q1+Q2+Q3 三领域 P0 完全修复 done** (2026-05-12 续, 245 backend + 173 frontend = 418/418 tests green): 5 P0 rerank hotfix + chunk filter + multi-vault per-vault dict + BackgroundTaskManager copy_context + multi-seed BFS + global-search endpoint + plugin canvas:global-search 命令 + 3 UAT 验收单 + ChatGPT 对抗审查 prompt
 
-**下一步 — 合并 Story 2.2+2.9 剩余**:
-- T6.1 端到端集成测试 (chat endpoint + mocked LanceDB, 2h)
-- T6.2/T6.3 性能测试 (需 LanceDB/Ollama 实跑, defer 独立 perf session)
-- T0 修主检索链路 + RAGAs 基准 (3-5d 独立 session, P0-C)
-- 用户 UAT T3+T5 验收单后 → 决定继续 T6 还是切 Epic 2 其他 Story
-- **新 session 启动指令**: `/bmad-bmm-dev-story epic-2/2-2-and-2-9-merged-rerank-evidence.md 从 T6.1 起手` (或换 story)
+**下一步 — 用户复制 ChatGPT 对抗审查 prompt + 跑 3 UAT**:
+- ChatGPT prompt: `_bmad-output/research/chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md` (用户复制全文到 ChatGPT)
+- 3 UAT 验收单:
+  - `_bmad-output/验收单/Story-2.2+2.9-Q1-rerank-hotfix-2026-05-12.md`
+  - `_bmad-output/验收单/Story-2.5.Y-Q2-multi-vault-hardening-2026-05-12.md`
+  - `_bmad-output/验收单/Story-2.2+2.9-Q3-global-search-2026-05-12.md`
+- 待 ChatGPT verdict 回来后,如有 P0 → hotfix;如全 PASS → 用户跑 UAT 闭环 → 启 T0 (RAGAs 基准) 独立 session
 
 **8-Session 全 plan（Round-14 用户原话需求 #1#2#3 落地）**:
 - S1: Story 2.2 (用户原话 #1) | S2: 2.3 历史误解 | S3: 5.1 BKT MCP (用户原话 #2)
