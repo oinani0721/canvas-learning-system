@@ -2,8 +2,11 @@
 story_id: "2.9"
 epic_id: "2"
 prd_id: "canvas-learning-system"
-status: "ready-for-dev"
-priority: "P1"
+status: "superseded"
+superseded_by: "2.2+2.9"
+superseded_at: "2026-05-11"
+superseded_reason: "ChatGPT Deep Research 揭示与 Story 2.2 Phase B 实质重叠;合并为 2-2-and-2-9-merged-rerank-evidence.md。原 6 AC (rerank/hub-penalty/path-trace/backlink-heading-alias/evidence/timeout) 全部并入合并 spec。"
+priority: "P0"
 estimate_hours: 10
 depends_on: ["2.1"]
 blocks: []
@@ -15,7 +18,7 @@ trace:
 
 # Story 2.9: AI 对话 RAG Phase 2 — Rerank + Evidence + Path Trace
 
-Status: ready-for-dev
+Status: superseded → 2.2+2.9 (2026-05-11)
 
 > Story 2.1 Phase 1 (commit `dad9ed7`) 已 ship 并通过完整 UAT (3 轮 ChatGPT 对抗审查
 > 4/10 → 7/10 → 8/10 + 用户实测 Claude 真推导 `Av=λv → det(A-λI)=0` + 防注入 PoC).

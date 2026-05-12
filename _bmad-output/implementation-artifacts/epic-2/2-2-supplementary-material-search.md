@@ -2,7 +2,10 @@
 story_id: "2.2"
 epic_id: "2"
 prd_id: "canvas-learning-system"
-status: "ready-for-dev"
+status: "superseded"
+superseded_by: "2.2+2.9"
+superseded_at: "2026-05-11"
+superseded_reason: "ChatGPT Deep Research 揭示与 Story 2.9 实质重叠;合并为 2-2-and-2-9-merged-rerank-evidence.md。Phase A (Task 1+4 MCP 集成+降级) 已 ship 验收单 2026-05-08。"
 priority: "P1"
 estimate_hours: 6
 depends_on: ["2.1"]
@@ -13,7 +16,7 @@ trace:
 
 # Story 2.2: 补充学习材料搜索
 
-Status: ready-for-dev
+Status: superseded → 2.2+2.9 (2026-05-11)
 
 ## Story
 
