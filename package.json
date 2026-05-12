@@ -6,10 +6,10 @@
   "scripts": {
     "prepare": "lefthook install",
     "lint:backend": "cd backend && python -m pytest tests/ -m \"not integration\" --co -q",
-    "lint:plugin": "cd canvas-progress-tracker/obsidian-plugin && npm run typecheck",
-    "build:plugin": "cd canvas-progress-tracker/obsidian-plugin && npm run build",
-    "deploy:plugin": "cd canvas-progress-tracker/obsidian-plugin && npm run deploy",
-    "verify:plugin": "cd canvas-progress-tracker/obsidian-plugin && npm run verify",
+    "lint:plugin": "cd frontend/obsidian-plugin && npm run typecheck",
+    "build:plugin": "cd frontend/obsidian-plugin && npm run build",
+    "deploy:plugin": "cd frontend/obsidian-plugin && npm run deploy",
+    "verify:plugin": "cd frontend/obsidian-plugin && npm run verify",
     "verify:spec": "python scripts/spec-tools/verify-sync.py"
   },
   "devDependencies": {

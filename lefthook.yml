@@ -105,7 +105,9 @@ commit-msg:
           || cat .git/COMMIT_EDITMSG 2>/dev/null \
           || echo "")
         # Check if commit touches code files
-        CODE_CHANGED=$(git diff --cached --name-only | grep -E "^(backend/app/|frontend/src/)" || true)
+        # ChatGPT-Review 2026-05-11 P0-1 fix: `frontend/src/` → `frontend/obsidian-plugin/src/`
+        # (旧路径不存在, 真实插件代码在 frontend/obsidian-plugin/src/)
+        CODE_CHANGED=$(git diff --cached --name-only | grep -E "^(backend/app/|frontend/obsidian-plugin/src/)" || true)
         if [ -n "$CODE_CHANGED" ]; then
           # Require @spec:, FR-, or PLAN- reference in commit message
           if ! echo "$MSG" | grep -qE "(@spec:|FR-|PLAN-|Co-Authored-By)"; then
@@ -145,14 +147,20 @@ post-commit:
 pre-push:
   parallel: true
   commands:
-    # --- Frontend test: Run vitest before push ---
+    # --- Frontend test: Run plugin tests before push ---
+    # ChatGPT-Review 2026-05-11 P0-1 fix: glob from `frontend/src/**` (non-existent)
+    # → `frontend/obsidian-plugin/src/**`; command from `vitest` (not used) → `npm test`
+    # (esbuild + node --test, matches frontend/obsidian-plugin/package.json scripts.test).
+    # Pre-fix the gate was silently passing because no files matched the glob.
     frontend-test:
-      glob: "frontend/src/**/*.{ts,tsx}"
+      glob: "frontend/obsidian-plugin/{src,tests}/**/*.{ts,tsx}"
       run: |
-        if [ -d "frontend/node_modules" ]; then
-          echo "[Pre-push] Running frontend tests..."
-          cd frontend && npx vitest run --run 2>&1 | tail -20
-          echo "[Pre-push] Frontend tests done."
+        if [ -d "frontend/obsidian-plugin/node_modules" ]; then
+          echo "[Pre-push] Running plugin tests (node --test via esbuild bundle)..."
+          npm --prefix frontend/obsidian-plugin test 2>&1 | tail -20
+          echo "[Pre-push] Plugin tests done."
+        else
+          echo "[Pre-push] frontend/obsidian-plugin/node_modules missing — run 'npm --prefix frontend/obsidian-plugin install' first. Skipping."
         fi
 
     # --- Backend smoke test: A11 regression suite (narrow gate) ---

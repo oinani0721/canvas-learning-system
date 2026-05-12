@@ -101,7 +101,7 @@ Canvas Learning System transforms **passive learning** into an **active learning
 **Method 2: Manual Build**
 
 ```bash
-cd canvas-progress-tracker/obsidian-plugin
+cd frontend/obsidian-plugin
 npm install
 npm run build
 # Copy main.js and manifest.json to your Vault's plugins folder
@@ -201,7 +201,7 @@ curl http://localhost:8001/api/v1/health
 
 ```
 canvas-learning-system/
-├── canvas-progress-tracker/
+├── frontend/
 │   └── obsidian-plugin/          # Obsidian Plugin (TypeScript)
 │       ├── src/                  # Source code
 │       ├── main.js               # Build output
@@ -265,7 +265,7 @@ After starting the backend service:
 
 ```bash
 # Plugin development
-cd canvas-progress-tracker/obsidian-plugin
+cd frontend/obsidian-plugin
 npm run dev
 
 # Backend development
@@ -274,7 +274,7 @@ uvicorn app.main:app --reload
 
 # Run tests
 cd backend && pytest
-cd canvas-progress-tracker/obsidian-plugin && npm test
+cd frontend/obsidian-plugin && npm test
 ```
 
 ---
