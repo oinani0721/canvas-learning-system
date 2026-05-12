@@ -10,15 +10,15 @@
 - ✅ **T3a assembler 渲染 done** (`e0d91c0`, 119 tests)
 - ✅ **T3 rerank engine + T5 evidence done** (`549d5f0`, 209/209 unit tests green)
 - ✅ **T3+T5 用户 UAT 通过** (2026-05-12)
-- ✅ **Q1+Q2+Q3 三领域 P0 完全修复 done** (2026-05-12 续, 245 backend + 173 frontend = 418/418 tests green): 5 P0 rerank hotfix + chunk filter + multi-vault per-vault dict + BackgroundTaskManager copy_context + multi-seed BFS + global-search endpoint + plugin canvas:global-search 命令 + 3 UAT 验收单 + ChatGPT 对抗审查 prompt
+- ✅ **Q1+Q2+Q3 三领域 P0 完全修复 done** (`de0b4a7`, 245 backend + 173 frontend = 418/418)
+- ✅ **ChatGPT v2 对抗审查 prompt 优化 + 跑过** (`d31e399`/`9bc04df`, GitHub URL 精确导航 + 强约束输出 + 内联代码 snippet)
+- ✅ **ChatGPT v2 verdict 揭示 3 P0 + 5 新发现 (frontend auth / lancedb vault wiring / review fail-open / metadata 漏扫 / __default__ fallback)** — 我和 audit agent 之前都漏了
+- ✅ **Wave-2 hotfix 全闭口 done** (`f018580`, backend 219 + frontend 186 + 4 security 回归测试): P0-1 frontend X-CLS-Internal-Key + P0-2 LanceDB ContextVar wiring + P0-3 真 fail-closed (a/b/c) + cleanup_loop + 4 漏修
 
-**下一步 — 用户复制 ChatGPT 对抗审查 prompt + 跑 3 UAT**:
-- ChatGPT prompt: `_bmad-output/research/chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md` (用户复制全文到 ChatGPT)
-- 3 UAT 验收单:
-  - `_bmad-output/验收单/Story-2.2+2.9-Q1-rerank-hotfix-2026-05-12.md`
-  - `_bmad-output/验收单/Story-2.5.Y-Q2-multi-vault-hardening-2026-05-12.md`
-  - `_bmad-output/验收单/Story-2.2+2.9-Q3-global-search-2026-05-12.md`
-- 待 ChatGPT verdict 回来后,如有 P0 → hotfix;如全 PASS → 用户跑 UAT 闭环 → 启 T0 (RAGAs 基准) 独立 session
+**下一步**:
+- 用户跑 3 UAT 验收单 (Q1/Q2/Q3 已在 `_bmad-output/验收单/`)
+- 可选: 再 round ChatGPT v2 prompt 验证 wave-2 (commit f018580) 是否真闭口
+- T0 主链路修复 + RAGAs 基准 (3-5d 独立 session, P0-C)
 
 **8-Session 全 plan（Round-14 用户原话需求 #1#2#3 落地）**:
 - S1: Story 2.2 (用户原话 #1) | S2: 2.3 历史误解 | S3: 5.1 BKT MCP (用户原话 #2)
