@@ -307,3 +307,34 @@ export function extractFrontmatterType(
   const t = fm.type;
   return typeof t === "string" ? t : undefined;
 }
+
+/**
+ * Story 2.2+2.9 T1 (2026-05-11) — chat-with-context 降级路径输入。
+ *
+ * 触发场景:
+ *   - backend_timeout: AbortController abort (>3000ms)
+ *   - backend_unreachable: fetch TypeError (docker 没启 / 网络断 / DNS fail)
+ */
+export type ChatFallbackReason = "backend_timeout" | "backend_unreachable";
+
+export interface ChatWithContextFallbackInput {
+  reason: ChatFallbackReason;
+  localPrompt: string;
+}
+
+/**
+ * Story 2.2+2.9 T1 (2026-05-11) — 组装 backend 降级路径的 chat-with-context prompt。
+ *
+ * 保留 /chat-with-context skill 前缀（用户视角连续，不混淆为 /node-chat）,
+ * 在 prompt 顶部加 HTML 注释 marker 让 Claude/Skill 端识别降级路径
+ * （邻居数从 N-hop 降到 1-hop, supplementary=0, 应跳过 ANCHOR_INSTRUCTION 的 Read 步骤）。
+ *
+ * HTML 注释格式 `<!-- ... -->` 是 Obsidian-safe 的（渲染时不可见，不暴露给用户）。
+ */
+export function buildChatWithContextFallbackPrompt(
+  input: ChatWithContextFallbackInput,
+): string {
+  const { reason, localPrompt } = input;
+  const header = `<!-- Degradations: ${reason} / fallback=local_metadata / hop=1 -->`;
+  return `/chat-with-context\n\n${header}\n\n${localPrompt}`;
+}

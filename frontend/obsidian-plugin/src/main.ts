@@ -65,7 +65,9 @@ import {
   type VaultConfig,
 } from "./configure-whiteboard";
 import {
+  buildChatWithContextFallbackPrompt,
   buildNodeChatPrompt,
+  type ChatFallbackReason,
   extractBodyWithoutFrontmatter,
   extractFrontmatterType,
   isNodePath,
@@ -75,6 +77,10 @@ import {
 
 const DEFAULT_BACKEND_URL = "http://localhost:8011";  // docker host 映射端口（container 内 8001 → host 8011，由 .env API_PORT 决定）
 const DEFAULT_NODE_PATH_PREFIXES = ["节点/"];
+// Story 2.2+2.9 T1 (2026-05-11) — chat-with-context backend 超时阈值
+// 3000ms = chat-with-context 设计预算（study-question deep mode 30-45s 走独立路径）
+// 超时触发 plugin 端 1-hop local fallback（collectNodeNeighbors + buildNodeChatPrompt）
+const CHAT_ENRICH_TIMEOUT_MS = 3000;
 
 /**
  * Story 2.1 Phase 1 P1.6 — 默认快捷键表（路径 D：成熟方案）。
@@ -611,18 +617,42 @@ export default class CanvasLearningPlugin extends Plugin {
       payload.mode = "answer";
       payload.user_question = userQuestion;
     }
+    // Story 2.2+2.9 T1 (2026-05-11) — AC #2: backend timeout 3000ms + 1-hop local fallback
+    // AbortController 防 backend 无响应永久挂起; AbortError | TypeError(网络) 触发降级,
+    // 等价 Cmd+Shift+C (handleOpenNodeChat) 的 1-hop local 路径, 但保留 /chat-with-context skill 前缀,
+    // prompt 顶部加 Degradations marker 让 Skill 知道走的是降级路径。
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      CHAT_ENRICH_TIMEOUT_MS,
+    );
     let resp: Response;
     try {
       resp = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
     } catch (err: unknown) {
+      clearTimeout(timeoutId);
+      const isAbort =
+        err instanceof DOMException && err.name === "AbortError";
+      const reason: ChatFallbackReason = isAbort
+        ? "backend_timeout"
+        : "backend_unreachable";
       const msg = err instanceof Error ? err.message : String(err);
-      new Notice(
-        `❌ backend 未连接（${msg}）\n请先 docker compose up 启动 Canvas 后端`,
-        6000,
+      console.log(
+        `[canvas:chat-with-context] fallback triggered: ${reason} (${msg})`,
+      );
+      await this.fallbackToLocalNeighbors(
+        activeFile,
+        body,
+        fmRaw,
+        userQuestion,
+        reason,
+        t0,
       );
       return;
     }
@@ -955,6 +985,68 @@ export default class CanvasLearningPlugin extends Plugin {
         "未检测到 Claudian 插件，请先安装并登录 Claude Code",
         5000,
       );
+      return;
+    }
+    (this.app as any).commands.executeCommandById("claudian:open-view");
+  }
+
+  /**
+   * Story 2.2+2.9 T1 (2026-05-11) — handleChatWithContext backend 超时/不可达时的降级路径。
+   *
+   * 行为等价于 Cmd+Shift+C (handleOpenNodeChat) 的 1-hop local 邻居装载,
+   * 但保留 /chat-with-context skill 前缀（用户视角连续）, 在 prompt 顶部加
+   * Degradations marker 让 Skill 端知道走的是降级路径（邻居数量从 N-hop 降到 1-hop, supplementary=0）。
+   *
+   * 触发条件:
+   *   - backend_timeout: AbortController abort (>3000ms)
+   *   - backend_unreachable: fetch TypeError (docker 没启 / 网络断 / DNS fail)
+   */
+  private async fallbackToLocalNeighbors(
+    activeFile: TFile,
+    body: string,
+    fmRaw: Record<string, unknown>,
+    userQuestion: string,
+    reason: ChatFallbackReason,
+    t0: number,
+  ): Promise<void> {
+    const neighbors = await this.collectNodeNeighbors(activeFile.path, 5);
+    const context: NodeChatContext = {
+      nodePath: activeFile.path,
+      nodeBasename: activeFile.basename,
+      frontmatter: fmRaw,
+      body,
+      selection: userQuestion || undefined,
+      neighbors,
+    };
+    const localResult = buildNodeChatPrompt(context);
+    // 保留 /chat-with-context skill 入口（用户视角不变）；body 用 1-hop local 替代 backend RAG
+    const prompt = buildChatWithContextFallbackPrompt({
+      reason,
+      localPrompt: localResult.prompt,
+    });
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.showRetryNotice(
+        `❌ 剪贴板写入失败（${msg}），点重试`,
+        () => void this.handleChatWithContext(),
+      );
+      return;
+    }
+    const elapsedMs = Date.now() - t0;
+    const sizeKb = (new Blob([prompt]).size / 1024).toFixed(1);
+    const reasonText =
+      reason === "backend_timeout" ? "backend 超时" : "backend 未连接";
+    new Notice(
+      `⚠️ ${reasonText}，已降级到本地 1-hop（${neighbors.length} 邻居 / ${sizeKb}KB / ${elapsedMs}ms）\n切到 Claudian 粘贴`,
+      7000,
+    );
+    const claudianCmd = (this.app as any).commands?.findCommand?.(
+      "claudian:open-view",
+    );
+    if (!claudianCmd) {
+      new Notice("未检测到 Claudian 插件，请先安装并登录 Claude Code", 5000);
       return;
     }
     (this.app as any).commands.executeCommandById("claudian:open-view");
