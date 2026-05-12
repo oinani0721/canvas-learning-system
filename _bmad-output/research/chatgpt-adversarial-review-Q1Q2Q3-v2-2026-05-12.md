@@ -5,11 +5,69 @@
 
 ---
 
+## 📍 必读资源 (你**必须**先 fetch 完所有 URL 再开始 review)
+
+### 仓库定位
+- **GitHub Repo**: https://github.com/oinani0721/canvas-learning-system
+- **审查目标分支**: `worktree-feature-obsidian-hybrid-dev` (不是 main!)
+- **审查目标 commit**: `de0b4a7` (Q1+Q2+Q3 P0 hotfix,2026-05-12)
+- **baseline commit** (修复前状态,用于对比 diff): `549d5f0` (T3+T5 with original 5 P0s)
+- **commit diff 直接看这里**: https://github.com/oinani0721/canvas-learning-system/commit/de0b4a7
+
+### Q1 (RAG 精度 5 P0 + chunk filter) — 6 file
+- 实现:
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/app/services/supplementary_reranker.py
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/app/services/supplementary_search_service.py
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/app/api/v1/endpoints/chat.py
+- 测试:
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/tests/unit/test_supplementary_reranker.py
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/tests/unit/test_supplementary_search_service.py
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/tests/unit/test_chat_endpoint.py
+
+### Q2 (Multi-vault 隔离 2 P0) — 4 file
+- 实现:
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/app/services/wikilink_graph_service.py
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/app/services/background_task_manager.py
+- 测试:
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/tests/unit/test_wikilink_graph_service.py
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/tests/unit/test_background_task_manager.py
+
+### Q3 (Skill 全局搜索 plugin 入口 + multi-seed BFS) — 6 file
+- Backend 实现:
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/app/services/wikilink_context_service.py
+  - (chat.py 已在 Q1 列出)
+- Backend 测试:
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/backend/tests/unit/test_wikilink_context_service.py
+- Frontend 实现:
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/frontend/obsidian-plugin/src/main.ts
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/frontend/obsidian-plugin/src/global-search.ts
+- Frontend 测试:
+  - https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/frontend/obsidian-plugin/tests/global-search.test.ts
+
+### Story spec + 3 UAT 验收单 (DoD-3 双段铁律评估,Cross-cutting 部分要用)
+- Story spec (整 story 的 7 AC + 7 Tasks): https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/_bmad-output/implementation-artifacts/epic-2/2-2-and-2-9-merged-rerank-evidence.md
+- UAT Q1: https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/_bmad-output/%E9%AA%8C%E6%94%B6%E5%8D%95/Story-2.2%2B2.9-Q1-rerank-hotfix-2026-05-12.md
+- UAT Q2: https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/_bmad-output/%E9%AA%8C%E6%94%B6%E5%8D%95/Story-2.5.Y-Q2-multi-vault-hardening-2026-05-12.md
+- UAT Q3: https://github.com/oinani0721/canvas-learning-system/blob/de0b4a7/_bmad-output/%E9%AA%8C%E6%94%B6%E5%8D%95/Story-2.2%2B2.9-Q3-global-search-2026-05-12.md
+
+### 如果你的工具无法 fetch GitHub blob URL
+- 改 fetch raw 形式:把 `github.com/<user>/<repo>/blob/<sha>/<path>` 换成 `raw.githubusercontent.com/<user>/<repo>/<sha>/<path>`
+- 例: https://raw.githubusercontent.com/oinani0721/canvas-learning-system/de0b4a7/backend/app/services/supplementary_reranker.py
+- 如果还不行,本 prompt **下半部分内联了所有关键代码 snippet** (~150 行) 作为 fallback 证据
+
+### ⛔ 不要读这些 (会污染你的判断)
+- main 分支(因为 audit 目标在 worktree 分支,不在 main)
+- 之前 commits 的 README / sprint-status / C4 文档 (那是项目级综述,你这次不做综述)
+- 任何 `_archive/` 或 `_decisions/` 历史目录
+- `canvas-progress-tracker/` (旧路径已废弃)
+
+---
+
 ## ⚠️ 这是一次 SURGICAL CODE REVIEW,不是 project audit
 
 我已经在前一次 Deep Research 里得到过项目级宏观分析(命名/LMS 兼容性/文档漂移/测试债)。这些**不是**本次任务。
 
-本次任务**只**评估:在 worktree `feature-obsidian-hybrid-dev` commit `de0b4a7` 中,3 组 P0 hotfix 是否真实落地、是否还有暗病。
+本次任务**只**评估:在 worktree 分支 `worktree-feature-obsidian-hybrid-dev` 的 commit `de0b4a7` 中,3 组 P0 hotfix 是否真实落地、是否还有暗病。
 
 ### ⛔ 禁止行为 (违反任一 = 输出作废)
 
