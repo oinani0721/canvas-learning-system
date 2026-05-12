@@ -565,3 +565,85 @@ def test_manifest_degradations_field_is_escaped():
     text = result.text
     assert text.count("</manifest>") == 1
     assert "<system>injected</system>" not in text
+
+
+# ════════════════════════════════════════════════════════════════════
+# Story 2.2+2.9 T2/T3 — backlink + via (path_trace) prompt 渲染
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_assemble_renders_backlink_attribute():
+    """T2/T3 — backlink=True 邻居在 <neighbor> 标签输出 backlink="true" 属性 + 来源行"""
+    a = ChatContextAssembler(token_budget=4096)
+    n = WikilinkNeighborContext(
+        slug="Y",
+        path="节点/Y.md",
+        hop_distance=1,
+        relationship_type=None,
+        frontmatter={"type": "concept"},
+        content_summary=None,
+        callouts=[],
+        backlink=True,
+    )
+    result = a.assemble_context(_current_note(), [n])
+    text = result.text
+    assert 'backlink="true"' in text, "backlink 标签属性必须输出"
+    assert "反向引用" in text, "metadata 行必须含中文说明"
+
+
+def test_assemble_no_backlink_attribute_when_outgoing():
+    """T2/T3 — backlink=False 时 <neighbor> 标签不输出 backlink 属性（避免噪音）"""
+    a = ChatContextAssembler(token_budget=4096)
+    n = WikilinkNeighborContext(
+        slug="Y",
+        path="节点/Y.md",
+        hop_distance=1,
+        relationship_type=None,
+        frontmatter={"type": "concept"},
+        content_summary=None,
+        callouts=[],
+        backlink=False,
+    )
+    result = a.assemble_context(_current_note(), [n])
+    text = result.text
+    assert 'backlink="true"' not in text
+    assert "反向引用" not in text
+
+
+def test_assemble_renders_via_attribute_for_2hop():
+    """T2/T3 — 2-hop 邻居 path_trace=[seed, A, self] 输出 via="A" 属性 + 路径行"""
+    a = ChatContextAssembler(token_budget=4096)
+    n = WikilinkNeighborContext(
+        slug="Distant",
+        path="节点/Distant.md",
+        hop_distance=2,
+        relationship_type=None,
+        frontmatter={"type": "concept"},
+        content_summary=None,
+        callouts=[],
+        path_trace=["Eigenvalues", "Linear-Algebra", "Distant"],
+    )
+    result = a.assemble_context(_current_note(), [n])
+    text = result.text
+    assert 'via="Linear-Algebra"' in text, "2-hop via 属性必须显示中间跳点"
+    assert "Eigenvalues → Linear-Algebra → Distant" in text, (
+        "metadata 行必须显示完整路径"
+    )
+
+
+def test_assemble_no_via_for_1hop():
+    """T2/T3 — 1-hop 邻居 path_trace 长度 2，不输出 via 属性（直接相邻无中间跳点）"""
+    a = ChatContextAssembler(token_budget=4096)
+    n = WikilinkNeighborContext(
+        slug="Direct",
+        path="节点/Direct.md",
+        hop_distance=1,
+        relationship_type=None,
+        frontmatter={"type": "concept"},
+        content_summary=None,
+        callouts=[],
+        path_trace=["Eigenvalues", "Direct"],
+    )
+    result = a.assemble_context(_current_note(), [n])
+    text = result.text
+    assert "via=" not in text, "1-hop 无中间跳点，不应输出 via 属性"
