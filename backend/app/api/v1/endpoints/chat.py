@@ -27,6 +27,7 @@ from app.services.chat_context_assembler import (
     ChatContextAssembler,
     CurrentNoteContext,
 )
+from app.services.memory_service import get_memory_service
 from app.services.supplementary_search_service import (
     format_supplementary_xml,
     search_supplementary,
@@ -281,6 +282,64 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
         timeout_ms=req.timeout_ms,
     )
 
+    # Story 2.3 (2026-05-13) — Historical error reminders (Task 3 + Task 4).
+    # 检索当前节点的历史误解记录, 3s 超时, Graphiti/Neo4j 不可用静默降级.
+    # AC #3 性能门槛: search_memories < 3s; AC #4: 降级时对话照常进行, 不感知.
+    # 双路径熔断: TimeoutError = 检索超时; (ConnectionError/RuntimeError/OSError)
+    # = 后端服务不可用; reason 字段区分根因便于 ops 诊断.
+    historical_errors: list[dict[str, Any]] = []
+    _hist_node_slug = Path(req.node_path).stem
+    _hist_start_ms = asyncio.get_event_loop().time()
+    try:
+        _mem_svc = await get_memory_service()
+        historical_errors = await asyncio.wait_for(
+            _mem_svc.search_error_memories(
+                node_id=_hist_node_slug,
+                group_id=derived_group_id,
+                limit=5,
+            ),
+            timeout=3.0,
+        )
+        _hist_elapsed_ms = int(
+            (asyncio.get_event_loop().time() - _hist_start_ms) * 1000
+        )
+        logger.info(
+            "story_2_3_error_memories_loaded",
+            node_id=_hist_node_slug,
+            group_id=derived_group_id,
+            count=len(historical_errors),
+            memory_search_latency_ms=_hist_elapsed_ms,
+        )
+    except asyncio.TimeoutError:
+        # AC #3 超时降级: 3s 内 search_memories 未返回 → 空 list, 对话继续
+        _hist_elapsed_ms = int(
+            (asyncio.get_event_loop().time() - _hist_start_ms) * 1000
+        )
+        logger.warning(
+            "story_2_3_error_memories_timeout",
+            node_id=_hist_node_slug,
+            group_id=derived_group_id,
+            timeout_seconds=3.0,
+            memory_search_latency_ms=_hist_elapsed_ms,
+            reason="search_timeout",
+        )
+        historical_errors = []
+    except (ConnectionError, RuntimeError, OSError) as exc:
+        # AC #4 服务不可用降级: Graphiti/Neo4j 连接失败 → 空 list, 对话继续
+        # 包含 neo4j.exceptions.ServiceUnavailable (RuntimeError 子类).
+        _hist_elapsed_ms = int(
+            (asyncio.get_event_loop().time() - _hist_start_ms) * 1000
+        )
+        logger.warning(
+            "story_2_3_error_memories_degraded",
+            node_id=_hist_node_slug,
+            group_id=derived_group_id,
+            memory_search_latency_ms=_hist_elapsed_ms,
+            reason="service_unavailable",
+            error=str(exc),
+        )
+        historical_errors = []
+
     assembler = ChatContextAssembler(token_budget=req.token_budget)
     current_note = CurrentNoteContext(
         path=req.node_path,
@@ -296,6 +355,7 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
         token_budget=req.token_budget,
         trace=enrichment.trace,
         vault_id=sanitized_vault_id,
+        historical_errors=historical_errors,
     )
 
     final_text = assembled.text

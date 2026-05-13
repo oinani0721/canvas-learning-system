@@ -327,6 +327,79 @@ class ChatContextAssembler:
             f' kind="summary">\n{snippet}\n</neighbor>'
         )
 
+    def _format_historical_errors(
+        self, errors: list[dict[str, Any]], max_desc_chars: int = 240
+    ) -> str:
+        """Story 2.3 — XML 标签包装的历史误解记录段.
+
+        与 <neighbor> / <current_note> 风格统一,全字段 escape 防 prompt injection.
+        顶部 <policy> 段明确指示 LLM 用正面措辞 + 自然过渡 (Story 2.3 AC #2 +
+        Task 2.2 / 2.4).
+
+        Args:
+            errors: list of error_record dicts from memory_service.search_error_memories.
+                Each dict contains: error_type / description / corrected_at / tags
+                / source_session (+ debug _episode_id / _node_id).
+            max_desc_chars: per-error description truncation (default 240 — enough
+                for typical misconception note, prevents single error eating budget).
+
+        Returns:
+            XML string starting with <historical_errors count="N"> or empty
+            string when errors list is empty/None (Story 2.3 AC #5: no
+            redundant "no errors" message).
+        """
+        if not errors:
+            return ""
+
+        lines: list[str] = [
+            f'<historical_errors count="{len(errors)}">',
+            "<policy>",
+            "学习者过去对当前节点曾标记过下列误解。如果本次问题涉及此话题,"
+            '请在回答中自然过渡地提醒区分(用正面措辞如"你之前标记过"),'
+            "不要生硬插入或反复提及。本次问题与误解无关时,正常回答不主动提及。",
+            "</policy>",
+        ]
+
+        # Story 2.3 Task 2.2 — 正面措辞模板. 使用统一 phrasing 避免 LLM 自由发挥
+        # 生成负面描述 ("你犯了错误" / "你失败过") 触犯 AC #2 反面词禁止规则.
+        TEMPLATE = (
+            "学习者之前标记过：{description}。如果讨论涉及此话题，请自然地提醒区分。"
+        )
+
+        for err in errors:
+            err_type = _xml_attr_escape(str(err.get("error_type") or "error"))
+            corrected_at = _xml_attr_escape(str(err.get("corrected_at") or ""))
+            raw_desc = str(err.get("description") or "").strip()
+            if not raw_desc:
+                continue
+            # 截断 + escape (escape 在最后做,防长度计算偏差)
+            truncated = raw_desc[:max_desc_chars]
+            phrased = TEMPLATE.format(description=truncated)
+            body = _xml_text_escape(phrased)
+            lines.append(
+                f'<error type="{err_type}" corrected_at="{corrected_at}">{body}</error>'
+            )
+
+        lines.append("</historical_errors>")
+        return "\n".join(lines)
+
+    def inject_error_reminders(self, errors: list[dict[str, Any]]) -> str:
+        """Story 2.3 Task 2 — 公开 API.
+
+        将 memory_service.search_error_memories() 返回的历史误解记录格式化为
+        可注入 RAG context 的 XML 片段。`assemble_context` 内部已自动调用此方法
+        (当 historical_errors 参数传入时);外部 caller (chat router / 测试)
+        也可直接调用拿到 raw 字符串再自由拼接到 prompt。
+
+        Args:
+            errors: List of error_record dicts (see search_error_memories schema).
+                Empty list / None → returns empty string (no insertion).
+
+        Returns:
+            XML-wrapped string (or empty string when no errors).
+        """
+        return self._format_historical_errors(errors)
+
     def _build_manifest(
         self,
         seed_path: str,
@@ -381,6 +454,7 @@ class ChatContextAssembler:
         token_budget: int | None = None,
         trace: RetrievalTrace | None = None,
         vault_id: str | None = None,
+        historical_errors: list[dict[str, Any]] | None = None,
     ) -> AssembledContext:
         """按优先级填充 token 预算（AC #2 + AC #3）。
 
@@ -392,6 +466,11 @@ class ChatContextAssembler:
 
         Wave-5 Stage A (2026-05-12): vault_id 可选,manifest 顶部输出
         `Vault: <vault_id>` 行,多 vault 并存避免交叉引用.None 时 fallback "unknown".
+
+        Story 2.3 (2026-05-13): historical_errors 可选 — 当前节点的历史误解
+        记录 (来自 memory_service.search_error_memories()).有错误记录时
+        在 Priority 1.5 (current_note 之后,1-hop 邻居之前) 插入
+        <historical_errors> 段; None 或空 list 时跳过此段 (AC #5).
         """
         full_budget = (
             _resolve_token_budget(token_budget)
@@ -430,6 +509,22 @@ class ChatContextAssembler:
         used = self.count_tokens(current_section)
         sections_included.append("current_note")
         parts: list[str] = [current_section]
+
+        # Priority 1.5 — Story 2.3 historical_errors (当前节点时间维度纵深).
+        # 放在 current_note 之后, 1-hop 邻居之前 — 因为历史误解与当前节点的
+        # 关联性强于任何邻居 (邻居是空间维度, 误解是时间维度).空 list 跳过 (AC #5).
+        if historical_errors:
+            errors_block = self._format_historical_errors(historical_errors)
+            if errors_block:
+                errors_tokens = self.count_tokens(errors_block)
+                if used + errors_tokens <= assembler_budget:
+                    parts.append(errors_block)
+                    used += errors_tokens
+                    sections_included.append("historical_errors")
+                else:
+                    # Token 不够装下整段历史误解 — 跳过 (不 compress, 因为单条
+                    # error 截断会失真,误导 LLM 提醒不完整的概念).标记 truncated.
+                    truncated = True
 
         # Priority 2 — 1-hop frontmatter + Tips + errors
         if one_hop:

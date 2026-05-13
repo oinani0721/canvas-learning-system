@@ -1683,6 +1683,7 @@ class MemoryService:
         limit: Optional[int] = None,
         search_config: str = "combined_rrf",
         search_filter: Optional[Any] = None,
+        node_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search learning memories using 3-tier layered search with unified scoring.
@@ -1704,6 +1705,11 @@ class MemoryService:
             limit: Override for max_results (backward compat)
             search_config: Recipe name for Graphiti search_ ('combined_rrf', etc.)
             search_filter: Optional SearchFilters for date/label filtering
+            node_id: Story 2.3 — optional precise filter by episode.node_id
+                (None=no filter, backward-compat for existing callers).
+                Tier 2/3 already return node_id; Tier 1 episodes have node_id
+                from their original record. Applied post-merge to avoid
+                touching Cypher / Graphiti recipes.
 
         Signature backward-compatible — existing callers unaffected.
         """
@@ -1763,6 +1769,12 @@ class MemoryService:
                 merged.append(episode_with_source)
                 tier3_count += 1
 
+        # Story 2.3 (2026-05-13): node_id filter — applied post-merge so all 3
+        # tiers benefit without touching Cypher / Graphiti recipes. Empty string
+        # treated as no-match (vs None which means no filter).
+        if node_id:
+            merged = [ep for ep in merged if (ep.get("node_id", "") or "") == node_id]
+
         # FSRS R-value injection: boost low-retrievability concepts
         self._inject_fsrs_r_values(merged)
 
@@ -1778,6 +1790,98 @@ class MemoryService:
         )
 
         return merged[:effective_limit]
+
+    async def search_error_memories(
+        self,
+        node_id: str,
+        group_id: Optional[str] = None,
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """
+        Story 2.3 — 检索特定节点的历史误解记录 (historical error reminders).
+
+        Layer on top of search_memories(): adds (1) episode_type filter to
+        keep only error/misconception/mistake records, (2) chronological
+        sort by created_at/timestamp DESC, (3) truncation to `limit`.
+
+        Note: Tier 1 (Graphiti) / Tier 2 (Neo4j fulltext) / Tier 3 (in-memory)
+        already return episode_type + node_id; this method does post-merge
+        filtering, no Cypher / recipe changes needed.
+
+        Args:
+            node_id: 节点 slug / path (required, exact match)
+            group_id: vault group_id (optional, multi-vault isolation)
+            limit: 最多返回条数 (default 5, per Story 2.3 AC #1)
+
+        Returns:
+            List[Dict] normalized to error_record schema:
+                - error_type: episode_type ('error' / 'misconception' / 'mistake')
+                - description: episode content
+                - corrected_at: metadata.corrected_at or timestamp fallback
+                - tags: metadata.tags or []
+                - source_session: metadata.session_id or source tier
+                - _episode_id / _node_id: debugging fields
+
+            Empty list when:
+                - node_id empty/None (caller bug)
+                - Graphiti+Neo4j unavailable (silent degradation per AC #4)
+                - no error episodes found (per AC #5)
+        """
+        if not node_id:
+            return list()
+
+        # Episode types recognized as "error" records. Case-insensitive match.
+        # Includes legacy '[error]' prefix variant for older Graphiti episodes.
+        ERROR_TYPES = {"error", "misconception", "mistake", "[error]"}
+
+        # Pull a wider set so episode_type filter doesn't starve us. limit*4
+        # is heuristic: typical error rate ≤25% of all episodes for a node.
+        oversample = max(20, limit * 4)
+        raw = await self.search_memories(
+            query=node_id,
+            group_id=group_id,
+            max_results=oversample,
+            node_id=node_id,
+        )
+
+        # Filter by episode_type (only keep error-class records)
+        filtered: List[Dict[str, Any]] = []
+        for ep in raw:
+            ep_type = (ep.get("episode_type", "") or "").lower().strip()
+            if ep_type in ERROR_TYPES:
+                filtered.append(ep)
+
+        # Sort chronologically DESC (Story 2.3 AC #1: "按时间倒序")
+        # timestamp / created_at fallback chain — Graphiti uses created_at,
+        # Neo4j uses timestamp, in-memory cache uses timestamp.
+        filtered.sort(
+            key=lambda ep: ep.get("timestamp", "") or ep.get("created_at", "") or "",
+            reverse=True,
+        )
+
+        # Truncate + normalize to error_record schema (Story 2.3 Task 1.3)
+        normalized: List[Dict[str, Any]] = []
+        for ep in filtered[:limit]:
+            meta = ep.get("metadata", {}) or {}
+            normalized.append(
+                {
+                    "error_type": ep.get("episode_type", "error"),
+                    "description": ep.get("content", ""),
+                    "corrected_at": meta.get("corrected_at")
+                    or ep.get("timestamp", "")
+                    or ep.get("created_at", ""),
+                    "tags": meta.get("tags") or [],
+                    "source_session": meta.get("session_id") or ep.get("source", ""),
+                    "_episode_id": ep.get("episode_id", ""),
+                    "_node_id": ep.get("node_id", ""),
+                }
+            )
+
+        logger.debug(
+            f"[search_error_memories] node_id={node_id} group_id={group_id} "
+            f"raw={len(raw)} filtered={len(filtered)} returned={len(normalized)}"
+        )
+        return normalized
 
     async def record_temporal_event(
         self,
