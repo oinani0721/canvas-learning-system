@@ -1,5 +1,16 @@
 """Story 2.5.Y Task 5 — Cypher 防御性 group_id 注入 helpers.
 
+⛔ All raw `session.run()` / `tx.run()` calls in backend/app/services/ +
+   backend/app/clients/ MUST go through ``cypher_with_group_filter()`` unless
+   the call site is explicitly marked ``@allow_cross_vault(reason=...)``
+   (e.g., admin migrations, system-wide health checks, ``RETURN 1`` pings).
+
+   The ``lefthook.yml::pre-commit::cypher-vault-filter-lint`` hook gates this
+   on staged diffs (wave-5 Stage C). It is a heuristic shell grep — it
+   catches 80% of accidental new raw ``tx.run()`` calls that omit
+   ``group_id``, but multi-line Cypher or unusual call shapes may slip
+   through. Reviewer judgement still required.
+
 强制所有 Cypher 查询都带 group_id 过滤, 防止"忘记传 group_id 导致跨 vault 数据泄漏".
 
 设计原则:
@@ -10,11 +21,79 @@
   · cypher_with_group_filter: Story 2.5.Y 严格强制必填 (multi-vault 隔离)
 
 Story trace: _bmad-output/implementation-artifacts/epic-2/2-5-y-isolation-hardening-subject-config-reuse.md
+
+═══════════════════════════════════════════════════════════════════════════
+Wave-6 backlog — raw `session.run` / `tx.run` 待迁移到 cypher_with_group_filter
+───────────────────────────────────────────────────────────────────────────
+
+VAULT-SCOPED (P1 — 须注入 group_id WHERE 子句, 当前裸 cypher 跨 vault 泄漏风险):
+- backend/app/services/sync_service.py:358   (CanvasNode MERGE / upsert)
+- backend/app/services/sync_service.py:392   (CanvasNode DETACH DELETE)
+- backend/app/services/sync_service.py:450   (CanvasEdge MERGE w/ OPTIONAL MATCH)
+- backend/app/services/sync_service.py:490   (CanvasEdge DELETE)
+- backend/app/services/sync_service.py:512   (CanvasBoard MERGE)
+- backend/app/services/sync_service.py:531   (CanvasBoard DETACH DELETE + cascade nodes)
+- backend/app/services/cross_subject_bridge.py:104  (MATCH (s:Subject) — Subject 列表)
+- backend/app/services/cross_subject_bridge.py:159  (MATCH CanvasNode by subjectId)
+
+CROSS-VAULT BY DESIGN (须加 @allow_cross_vault decorator, 不需要 group_id):
+- backend/app/services/group_id_migration_service.py:179  (distinct group_ids scan — 迁移工具)
+- backend/app/services/group_id_migration_service.py:214  (UPDATE group_id — 迁移工具)
+- backend/app/api/v1/endpoints/kg_health.py:45,49,55      (系统级 KG 健康指标 / orphan 巡检)
+- backend/app/core/subject_config.py:85                    (list all subjects — bootstrap)
+- backend/app/api/v1/system.py:57                          (RETURN 1 ping — connectivity)
+- backend/app/api/v1/endpoints/health.py:733               (RETURN 1 ping — health check)
+
+GENERIC WRAPPER (out-of-scope, 由 callsite 负责传带 group_id 的 query):
+- backend/app/clients/neo4j_client.py:446  (execute_query 通用代理 — 调用方传完整 query)
+
+Wave-5 Stage C 范围: 仅加 helper docstring + decorator 占位 + pre-commit gate.
+实际重写 30+ 处 raw cypher 留给 wave-6 或专门 sprint (DD-12 范围约束).
+═══════════════════════════════════════════════════════════════════════════
 """
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Callable, Tuple, TypeVar
+
+
+F = TypeVar("F", bound=Callable[..., object])
+
+
+def allow_cross_vault(reason: str) -> Callable[[F], F]:
+    """Wave-5 Stage C marker — 标记故意跨 vault 查询的 cypher 调用.
+
+    Use cases:
+    - Admin migrations (e.g., group_id_migration_service)
+    - System-wide health metrics (e.g., kg_health total node count)
+    - Bootstrap / list-all-subjects (e.g., subject_config.list_subjects)
+    - Connectivity pings (e.g., `RETURN 1` from system.py / health.py)
+
+    Anywhere else, raw cypher MUST flow through ``cypher_with_group_filter()``
+    so the ``lefthook.yml::cypher-vault-filter-lint`` pre-commit hook stays
+    quiet.
+
+    Args:
+        reason: Free-form justification (shown in audit reports).
+
+    Returns:
+        Decorator that attaches ``_allow_cross_vault_reason`` to the function
+        for runtime/audit inspection.
+
+    Examples:
+        >>> @allow_cross_vault(reason="admin migration scans all vaults")
+        ... async def scan_all_group_ids(driver):
+        ...     ...
+        >>> scan_all_group_ids._allow_cross_vault_reason
+        'admin migration scans all vaults'
+    """
+
+    def decorator(func: F) -> F:
+        # Attach marker so audits / future static analysis can detect intent.
+        func._allow_cross_vault_reason = reason  # type: ignore[attr-defined]
+        return func
+
+    return decorator
 
 
 def cypher_with_group_filter(

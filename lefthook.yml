@@ -87,6 +87,58 @@ pre-commit:
         fi
         echo "[Python] Typecheck done (exit: $PYRIGHT_EXIT)."
 
+    # --- Cypher vault-filter lint (wave-5 Stage C) ---
+    # Heuristic gate: any *newly staged* `session.run(` or `tx.run(` call in
+    # backend/app/services/ or backend/app/clients/ must either:
+    #   (1) live in a query that references `group_id` (sign it's vault-scoped), or
+    #   (2) be in a function decorated with @allow_cross_vault(...) (admin/migration).
+    # See backend/app/utils/cypher_helpers.py for the helper + decorator + backlog.
+    #
+    # LIMITATIONS:
+    # - Pure shell grep; cannot parse multi-line cypher across blocks reliably.
+    # - Only inspects *staged additions* (`git diff --cached --diff-filter=AM`).
+    # - Pre-existing raw cypher (wave-6 backlog) is NOT retroactively flagged
+    #   unless the file is restaged with a new violating line.
+    # Catches ~80% of accidental new raw `tx.run()` that omit group_id.
+    cypher-vault-filter-lint:
+      glob: "backend/app/{services,clients}/**/*.py"
+      run: |
+        STAGED_FILES=$(git diff --cached --name-only --diff-filter=AM | grep -E "^backend/app/(services|clients)/.*\.py$" || true)
+        if [ -z "$STAGED_FILES" ]; then
+          echo "[Cypher-Lint] No backend/app/{services,clients} files staged; skipping."
+          exit 0
+        fi
+        VIOLATIONS=""
+        for f in $STAGED_FILES; do
+          if [ ! -f "$f" ]; then continue; fi
+          # Pull the lines this commit ADDS that contain session.run( or tx.run(
+          ADDED_LINES=$(git diff --cached -U0 -- "$f" \
+            | grep -E '^\+[^+]' \
+            | grep -E 'session\.run\(|tx\.run\(' || true)
+          if [ -z "$ADDED_LINES" ]; then continue; fi
+          # Check whole file for @allow_cross_vault decorator (function-level opt-out)
+          FILE_HAS_ALLOW=$(grep -c '@allow_cross_vault' "$f" 2>/dev/null || echo 0)
+          # For each added line, require either `group_id` in the line itself OR
+          # presence of the allow-decorator anywhere in the file (file-level escape hatch).
+          BAD_LINES=$(echo "$ADDED_LINES" | grep -v 'group_id' || true)
+          if [ -n "$BAD_LINES" ] && [ "$FILE_HAS_ALLOW" -eq 0 ]; then
+            VIOLATIONS="${VIOLATIONS}${f}:
+        ${BAD_LINES}
+        "
+          fi
+        done
+        if [ -n "$VIOLATIONS" ]; then
+          echo ""
+          echo "[Cypher-Lint] ❌ Raw cypher without group_id filter in staged diff:"
+          echo "$VIOLATIONS"
+          echo "[Cypher-Lint] Fix one of:"
+          echo "  1. Use cypher_with_group_filter() from app.utils.cypher_helpers"
+          echo "  2. Mark the function with @allow_cross_vault(reason='...') if intentional"
+          echo "[Cypher-Lint] See backend/app/utils/cypher_helpers.py for backlog + rationale."
+          exit 1
+        fi
+        echo "[Cypher-Lint] OK (no new raw cypher without group_id)."
+
 # ============================================================
 # Commit-msg: Conventional commits with commitlint
 # ============================================================

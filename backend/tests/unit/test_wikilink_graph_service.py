@@ -478,3 +478,233 @@ class TestDefaultFallbackObservability:
             if "vault_key fallback to __default__" in rec.getMessage()
         ]
         assert len(fallback_warns) >= 1, "exception 路径也应 warn"
+
+
+class TestLazyBuildOnCacheMiss:
+    """Wave-5 Stage C (ChatGPT v4 P1-7, 2026-05-12) — per-vault lazy build.
+
+    Bug: main.py boot 只为 settings.canvas_base_path build 一次 wikilink graph。
+    Multi-vault 下,vault B 用户调 enrich-context 时,get_wikilink_graph_service
+    cache miss → 创建空 instance → enrich_from_wikilink_graph 立即返
+    degraded=True, degraded_reason=wikilink_graph_not_built → vault B 邻居全空。
+
+    Fix: get_wikilink_graph_service() 检测到新建/空 instance + vault_path 可解析时
+    调度 lazy build (asyncio.create_task)。_lazy_build_attempted 防重入。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_caches(self):
+        from app.services.wikilink_graph_service import clear_all_caches
+
+        clear_all_caches()
+        yield
+        clear_all_caches()
+
+    @pytest.fixture
+    def lazy_vault(self, tmp_path):
+        """A vault dir with .obsidian + linked .md files for lazy build resolution."""
+        vault = tmp_path / "vault_lazy"
+        vault.mkdir()
+        (vault / ".obsidian").mkdir()
+        (vault / "Lazy1.md").write_text("# Lazy1\nLinks to [[Lazy2]]\n")
+        (vault / "Lazy2.md").write_text("# Lazy2\n")
+        return vault
+
+    @pytest.mark.asyncio
+    async def test_lazy_build_triggered_on_cache_miss(self, lazy_vault, monkeypatch):
+        """Cache miss + _resolve_vault_path 解出 path → build() 被调度."""
+        from app.core.subject_config import _current_subject_id
+        from app.services import wikilink_graph_service as svc_mod
+
+        # monkeypatch _resolve_vault_path 返指定 vault
+        monkeypatch.setattr(svc_mod, "_resolve_vault_path", lambda key: lazy_vault)
+
+        token = _current_subject_id.set("vault_lazy_test")
+        try:
+            svc = svc_mod.get_wikilink_graph_service()
+            # 标记应被设置以阻止重入
+            assert getattr(svc, "_lazy_build_attempted", False) is True
+
+            # build() 被 create_task 调度,等待完成 (let event loop run)
+            await asyncio.sleep(0.05)
+            # 拿到当前 task 完成的等待时间;为防 flake 用循环等待
+            for _ in range(50):
+                if svc.is_built:
+                    break
+                await asyncio.sleep(0.05)
+
+            assert svc.is_built, "lazy build 应该已完成"
+            assert svc.node_count >= 2
+        finally:
+            _current_subject_id.reset(token)
+
+    def test_lazy_build_skipped_when_vault_path_none(self, monkeypatch, caplog):
+        """_resolve_vault_path 返 None → 不调 build,log warning."""
+        import logging
+
+        from app.core.subject_config import _current_subject_id
+        from app.services import wikilink_graph_service as svc_mod
+
+        monkeypatch.setattr(svc_mod, "_resolve_vault_path", lambda key: None)
+
+        token = _current_subject_id.set("vault_unresolvable")
+        try:
+            with caplog.at_level(logging.WARNING):
+                svc = svc_mod.get_wikilink_graph_service()
+            assert svc.is_built is False
+            assert svc.node_count == 0
+            # 标记仍设置 (阻止反复尝试)
+            assert getattr(svc, "_lazy_build_attempted", False) is True
+            # warning 含 unresolvable 标识 (structlog 渲染成 event key)
+            unresolved = [
+                r
+                for r in caplog.records
+                if "lazy_build_skipped_unresolvable_vault_path" in r.getMessage()
+            ]
+            assert len(unresolved) >= 1, "应 warn vault_path 无法解析"
+        finally:
+            _current_subject_id.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_lazy_build_not_retried_after_attempt(self, lazy_vault, monkeypatch):
+        """_lazy_build_attempted=True 后,下次 lookup 不再触发 build."""
+        from app.core.subject_config import _current_subject_id
+        from app.services import wikilink_graph_service as svc_mod
+
+        call_count = {"count": 0}
+
+        def _counting_resolve(_key):
+            call_count["count"] += 1
+            return lazy_vault
+
+        monkeypatch.setattr(svc_mod, "_resolve_vault_path", _counting_resolve)
+
+        token = _current_subject_id.set("vault_retry_test")
+        try:
+            svc1 = svc_mod.get_wikilink_graph_service()
+            first_count = call_count["count"]
+            assert first_count == 1, "第一次 lookup 应调 _resolve_vault_path"
+            assert getattr(svc1, "_lazy_build_attempted", False) is True
+
+            # 第二次 lookup, 应直接返同 instance, 不再 _resolve_vault_path
+            svc2 = svc_mod.get_wikilink_graph_service()
+            assert svc2 is svc1
+            assert call_count["count"] == first_count, (
+                "第二次 lookup 不应重复调 _resolve_vault_path"
+            )
+        finally:
+            _current_subject_id.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_lazy_build_skipped_when_already_built(self, lazy_vault, monkeypatch):
+        """已 build 过的 instance (node_count>0) 不触发 lazy build."""
+        from app.core.subject_config import _current_subject_id
+        from app.services import wikilink_graph_service as svc_mod
+
+        call_count = {"count": 0}
+
+        def _counting_resolve(_key):
+            call_count["count"] += 1
+            return lazy_vault
+
+        monkeypatch.setattr(svc_mod, "_resolve_vault_path", _counting_resolve)
+
+        token = _current_subject_id.set("vault_already_built")
+        try:
+            svc = svc_mod.get_wikilink_graph_service()
+            # 等首次 build 完成
+            for _ in range(50):
+                if svc.is_built:
+                    break
+                await asyncio.sleep(0.05)
+            assert svc.is_built
+            base_count = call_count["count"]
+
+            # 再次 lookup, 不应 _resolve_vault_path (已 built)
+            svc2 = svc_mod.get_wikilink_graph_service()
+            assert svc2 is svc
+            assert call_count["count"] == base_count, (
+                "已 built 的 instance 不应再次 resolve vault_path"
+            )
+        finally:
+            _current_subject_id.reset(token)
+
+
+class TestResolveVaultPath:
+    """Wave-5 Stage C — _resolve_vault_path helper."""
+
+    def test_returns_none_when_no_match(self, monkeypatch, tmp_path):
+        """ContextVar key 与 VAULTS_ROOT 下任何 vault 不匹配 → None."""
+        from app.services import wikilink_graph_service as svc_mod
+
+        # 构造一个空 VAULTS_ROOT
+        empty_root = tmp_path / "empty_vaults_root"
+        empty_root.mkdir()
+
+        class _MockSettings:
+            VAULTS_ROOT = str(empty_root)
+            CANVAS_BASE_PATH = str(empty_root / "nonexistent")
+            ACTIVE_VAULT = "nonexistent"
+
+            @property
+            def canvas_base_path(self) -> str:
+                return self.CANVAS_BASE_PATH
+
+        monkeypatch.setattr("app.config.get_settings", lambda: _MockSettings())
+
+        result = svc_mod._resolve_vault_path("unknown_vault_key")
+        assert result is None
+
+    def test_resolves_via_vaults_root_match(self, monkeypatch, tmp_path):
+        """VAULTS_ROOT 下有 sanitize_vault_id(entry.name) == vault_key 的目录 → 返该 Path."""
+        from app.config import sanitize_vault_id
+        from app.services import wikilink_graph_service as svc_mod
+
+        vaults_root = tmp_path / "vaults_root"
+        vaults_root.mkdir()
+        vault_dir = vaults_root / "Test Vault B"
+        vault_dir.mkdir()
+        (vault_dir / ".obsidian").mkdir()
+
+        sanitized = sanitize_vault_id("Test Vault B")
+        # 模拟 ContextVar 已 build 出 "vault_<sanitized>" 形式的 key 也能命中
+        # _resolve_vault_path 应能直接匹配 sanitized name
+
+        class _MockSettings:
+            VAULTS_ROOT = str(vaults_root)
+            CANVAS_BASE_PATH = str(vault_dir)
+            ACTIVE_VAULT = "Test Vault B"
+
+            @property
+            def canvas_base_path(self) -> str:
+                return self.CANVAS_BASE_PATH
+
+        monkeypatch.setattr("app.config.get_settings", lambda: _MockSettings())
+
+        result = svc_mod._resolve_vault_path(sanitized)
+        assert result is not None
+        assert Path(result).resolve() == vault_dir.resolve()
+
+    def test_falls_back_to_active_vault_for_default_key(self, monkeypatch, tmp_path):
+        """vault_key == __default__ 或 active vault sanitized → 返 settings.canvas_base_path."""
+        from app.services import wikilink_graph_service as svc_mod
+
+        vault_dir = tmp_path / "active_vault"
+        vault_dir.mkdir()
+        (vault_dir / ".obsidian").mkdir()
+
+        class _MockSettings:
+            VAULTS_ROOT = str(tmp_path)
+            CANVAS_BASE_PATH = str(vault_dir)
+            ACTIVE_VAULT = "active_vault"
+
+            @property
+            def canvas_base_path(self) -> str:
+                return self.CANVAS_BASE_PATH
+
+        monkeypatch.setattr("app.config.get_settings", lambda: _MockSettings())
+
+        # __default__ 应回退到 canvas_base_path
+        result_default = svc_mod._resolve_vault_path("__default__")
+        assert result_default is not None
+        assert Path(result_default).resolve() == vault_dir.resolve()

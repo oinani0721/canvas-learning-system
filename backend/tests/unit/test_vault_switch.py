@@ -315,3 +315,70 @@ class TestVaultSwitchEndpoint:
         client.post("/api/v1/vault/switch", json={"vault_path": str(_obsidian_vault)})
         resp = client.get("/api/v1/vault/current")
         assert resp.json()["vault_name"] == "test-vault"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Wave-5 Stage C P0-6 (ChatGPT v4): vault_switch deprecate
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVaultSwitchDeprecation:
+    """P0-6: POST /api/v1/vault/switch is deprecated — emits log.warning + OpenAPI mark."""
+
+    @pytest.fixture(autouse=True)
+    def _restore_settings(self):
+        from app.config import get_settings, reload_settings
+
+        original_path = get_settings().CANVAS_BASE_PATH
+        original_vault = get_settings().ACTIVE_VAULT
+        yield
+        reload_settings(
+            overrides={
+                "CANVAS_BASE_PATH": original_path,
+                "ACTIVE_VAULT": original_vault,
+            }
+        )
+
+    @pytest.fixture
+    def client(self):
+        from app.main import app
+
+        return TestClient(app, raise_server_exceptions=False)
+
+    def test_vault_switch_emits_deprecation_warning(
+        self, client, _obsidian_vault, caplog
+    ):
+        """P0-6: /vault/switch must emit a WARNING containing 'DEPRECATED' when called."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            resp = client.post(
+                "/api/v1/vault/switch", json={"vault_path": str(_obsidian_vault)}
+            )
+        assert resp.status_code == 200, (
+            f"deprecated endpoint must still work, got {resp.status_code}"
+        )
+
+        warning_messages = [
+            r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING
+        ]
+        combined = " ".join(warning_messages)
+        assert "DEPRECATED" in combined, (
+            f"expected 'DEPRECATED' in WARNING logs, got: {combined[:400]}"
+        )
+        assert "vault_switch" in combined, (
+            f"expected '[vault_switch]' prefix in WARNING logs, got: {combined[:400]}"
+        )
+
+    def test_vault_switch_openapi_marked_deprecated(self):
+        """P0-6: OpenAPI schema must mark /vault/switch as deprecated=true."""
+        from app.main import app
+
+        spec = app.openapi()
+        paths = spec.get("paths", {})
+        switch_path = paths.get("/api/v1/vault/switch", {})
+        post_op = switch_path.get("post", {})
+        assert post_op.get("deprecated") is True, (
+            "POST /api/v1/vault/switch must be marked deprecated=true in OpenAPI; "
+            f"got {post_op.get('deprecated')!r}"
+        )

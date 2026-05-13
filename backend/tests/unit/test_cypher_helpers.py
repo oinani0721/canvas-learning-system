@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 
 from app.utils.cypher_helpers import (
+    allow_cross_vault,
     assert_group_id_required,
     cypher_with_group_filter,
 )
@@ -47,18 +48,14 @@ def test_none_group_id_raises():
 
 def test_inject_before_return_clause():
     """MATCH (n) RETURN n → MATCH (n) WHERE n.group_id = $group_id RETURN n."""
-    q, params = cypher_with_group_filter(
-        "MATCH (n:Concept) RETURN n", "vault:cs_61b"
-    )
+    q, params = cypher_with_group_filter("MATCH (n:Concept) RETURN n", "vault:cs_61b")
     assert "WHERE n.group_id = $group_id" in q
     assert q.index("WHERE") < q.index("RETURN")  # filter 在 RETURN 前
     assert params == {"group_id": "vault:cs_61b"}
 
 
 def test_inject_with_unicode_group_id():
-    q, params = cypher_with_group_filter(
-        "MATCH (n) RETURN n", "vault:数学:离散"
-    )
+    q, params = cypher_with_group_filter("MATCH (n) RETURN n", "vault:数学:离散")
     assert "WHERE n.group_id = $group_id" in q
     assert params["group_id"] == "vault:数学:离散"
 
@@ -90,9 +87,7 @@ def test_inject_before_set_clause():
 
 def test_inject_before_delete_clause():
     """MATCH (n) DELETE n → 注入到 DELETE 前 (防误删跨 vault 数据)."""
-    q, _ = cypher_with_group_filter(
-        "MATCH (n:Concept) DELETE n", "vault:cs_61b"
-    )
+    q, _ = cypher_with_group_filter("MATCH (n:Concept) DELETE n", "vault:cs_61b")
     assert q.index("WHERE") < q.index("DELETE")
 
 
@@ -189,3 +184,35 @@ def test_typical_misconception_query():
     )
     # filter 应在 RETURN 前 (而非 ORDER BY 前)
     assert q.index("WHERE") < q.index("RETURN")
+
+
+# ════════════════════════════════════════════════════════════════════
+# Wave-5 Stage C — allow_cross_vault decorator + helper return contract
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_allow_cross_vault_decorator_marks_function():
+    """Decorator must stamp _allow_cross_vault_reason on the wrapped fn."""
+
+    @allow_cross_vault(reason="admin migration scans all vaults")
+    def scan_all_group_ids():
+        return "ok"
+
+    assert (
+        scan_all_group_ids._allow_cross_vault_reason
+        == "admin migration scans all vaults"
+    )
+    # Wrapper must remain the original callable (no wraps swap; pass-through).
+    assert scan_all_group_ids() == "ok"
+
+
+def test_cypher_with_group_filter_returns_filtered_query():
+    """Helper must (a) inject WHERE n.group_id = $group_id, (b) return params dict."""
+    q, params = cypher_with_group_filter(
+        "MATCH (n:Concept) RETURN n.id", "vault:cs_61b"
+    )
+    # (a) WHERE clause injected before RETURN
+    assert "WHERE n.group_id = $group_id" in q
+    assert q.index("WHERE") < q.index("RETURN")
+    # (b) params dict carries the group_id (ready for tx.run(q, **params))
+    assert params == {"group_id": "vault:cs_61b"}

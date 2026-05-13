@@ -66,9 +66,32 @@ class VaultListResponse(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@vault_router.post("/switch", response_model=VaultSwitchResponse)
+@vault_router.post(
+    "/switch",
+    response_model=VaultSwitchResponse,
+    deprecated=True,
+    summary="DEPRECATED — use per-request vault_id instead",
+    description=(
+        "DEPRECATED (Wave-5 Stage C P0-6, ChatGPT v4): mutates global Settings "
+        "via reload_settings(overrides=...) — multi-vault concurrent requests "
+        "(e.g. Story 2.3 deep mode 30-45s) on vault A can read vault B's path "
+        "mid-flight, causing race conditions. Use per-request vault_id field "
+        "(POST /api/v1/chat/enrich-context with vault_id) for isolation."
+    ),
+)
 async def switch_vault(request: VaultSwitchRequest):
-    """Switch the active vault at runtime (Story 1.8 AC #1, #2, #4, #6)."""
+    """Switch the active vault at runtime (Story 1.8 AC #1, #2, #4, #6).
+
+    DEPRECATED — emits log.warning on every call. Endpoint remains functional
+    for backwards compatibility but new code MUST use per-request vault_id
+    pattern (see backend/app/api/v1/endpoints/chat.py enrich-context route).
+    """
+    logger.warning(
+        "[vault_switch] DEPRECATED endpoint called — multi-vault deployments should "
+        "use per-request vault_id (POST /api/v1/chat/enrich-context with vault_id field). "
+        "This endpoint mutates global Settings causing race conditions with concurrent requests.",
+        vault_path=request.vault_path,
+    )
     vault_path = Path(request.vault_path).resolve()
 
     # AC #2: validate path exists and is an Obsidian vault

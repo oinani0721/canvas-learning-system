@@ -20,12 +20,37 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from typing import Any
 
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Wave-5 Stage C P1-9 (ChatGPT v4): LanceDB Tier-2 unprefixed fallback gate
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Bug: Tier-2 fallback reads unprefixed ``vault_notes`` table (Story 1.9 legacy
+# index). If legacy vault data exists in residual unprefixed table, vault A's
+# query can pick up legacy mixed-content rows via fallback path → cross-vault
+# leak in multi-vault deployments.
+#
+# Fix: env-var gated. Default ``"false"`` (production-safe, multi-vault). Dev /
+# single-vault legacy can opt-in with ``ENABLE_LANCEDB_TIER2_FALLBACK=true``.
+
+
+def _enable_tier2_fallback() -> bool:
+    """Return True only if ENABLE_LANCEDB_TIER2_FALLBACK env var is truthy.
+
+    Production default: ``False`` (skip tier-2 unprefixed fallback to prevent
+    cross-vault leakage in multi-vault deployments). Single-vault legacy dev
+    can opt-in with ``ENABLE_LANCEDB_TIER2_FALLBACK=true``.
+    """
+    val = os.environ.get("ENABLE_LANCEDB_TIER2_FALLBACK", "false").strip().lower()
+    return val in ("1", "true", "yes", "on")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -579,6 +604,32 @@ async def _two_tier_search(
 
     if results:
         return results
+
+    # Wave-5 Stage C P1-9 (ChatGPT v4) — Tier-2 fallback gated by env var.
+    # Default production: skip tier-2 to prevent cross-vault leak via legacy
+    # unprefixed table (residual Story 1.9 升级前老索引). Dev / single-vault
+    # legacy can opt-in with ENABLE_LANCEDB_TIER2_FALLBACK=true.
+    if not _enable_tier2_fallback():
+        return []
+
+    # Tier-2 enabled — emit warning so Ops sees we're running in legacy mode.
+    try:
+        _active_vault_id = ""
+        try:
+            from app.config import get_settings as _gs
+
+            _active_vault_id = getattr(_gs(), "vault_id", "") or ""
+        except Exception:  # noqa: BLE001  config 缺失时不阻断 fallback
+            _active_vault_id = ""
+        logger.warning(
+            "[SupplementarySearch] tier-2 fallback enabled — single-vault legacy mode "
+            "(ENABLE_LANCEDB_TIER2_FALLBACK=true); cross-vault leak risk if residual "
+            "unprefixed vault_notes carries other vaults' data",
+            vault_id=_active_vault_id,
+            query=query[:60],
+        )
+    except Exception:  # noqa: BLE001  日志失败不阻断
+        pass
 
     # ── Tier 2 ── unprefixed legacy table（兼容老索引；Story 1.9 升级前的数据）
     try:

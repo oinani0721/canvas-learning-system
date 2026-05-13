@@ -407,12 +407,101 @@ def _resolve_vault_key() -> str:
         return _DEFAULT_VAULT_KEY
 
 
+def _resolve_vault_path(vault_key: str) -> Optional[Path]:
+    """Wave-5 Stage C (2026-05-12) — vault_key → filesystem Path 解析.
+
+    用于 lazy build: 当 ``get_wikilink_graph_service()`` 命中 cache miss 时,
+    需要拿到该 vault_key 对应的 vault dir 才能 build graph.
+
+    解析策略 (按优先级):
+    1. 若 vault_key == ``__default__`` 或与 active vault 的 sanitized id 一致,
+       → 返 ``settings.canvas_base_path`` (active vault 已 boot-time built,
+       但 fallback 需要 supports default 桶)
+    2. 扫 ``VAULTS_ROOT`` 下所有子目录, 找 ``sanitize_vault_id(entry.name) == vault_key``
+       的目录, 返该 Path
+    3. 都失败 → 返 None (调用方 log warning + 跳过 build)
+
+    Args:
+        vault_key: 已 sanitized 的 vault key (由 ``_resolve_vault_key`` 输出)
+
+    Returns:
+        vault directory Path, 或 None (无法解析)
+    """
+    try:
+        from app.config import get_settings, sanitize_vault_id
+
+        settings = get_settings()
+
+        # 优先级 1: __default__ 或匹配 active vault
+        active_vault = getattr(settings, "ACTIVE_VAULT", "")
+        if active_vault:
+            active_sanitized = sanitize_vault_id(active_vault)
+            if vault_key == _DEFAULT_VAULT_KEY or vault_key == active_sanitized:
+                base = getattr(settings, "canvas_base_path", None)
+                if base:
+                    base_path = Path(base)
+                    if base_path.exists() and base_path.is_dir():
+                        return base_path
+
+        # 优先级 2: 扫 VAULTS_ROOT
+        vaults_root = getattr(settings, "VAULTS_ROOT", None)
+        if vaults_root:
+            root_path = Path(vaults_root)
+            if root_path.exists() and root_path.is_dir():
+                for entry in root_path.iterdir():
+                    if not entry.is_dir() or entry.name.startswith("."):
+                        continue
+                    if sanitize_vault_id(entry.name) == vault_key:
+                        return entry
+
+        return None
+    except Exception as exc:
+        logger.warning(
+            "wikilink.resolve_vault_path_failed",
+            vault_key=vault_key,
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        return None
+
+
+def _schedule_lazy_build(svc: WikilinkGraphService, vault_path: Path) -> None:
+    """Wave-5 Stage C — 调度 lazy build 到 event loop.
+
+    若已在 event loop 中: asyncio.create_task (fire-and-forget, 当前请求继续,
+    下次请求受益). 若无 event loop (CLI/测试 sync 上下文): 跳过, log warning.
+
+    Args:
+        svc: 目标 WikilinkGraphService (空 instance)
+        vault_path: 已解析的 vault directory
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(svc.build(str(vault_path)))
+        logger.info(
+            "wikilink.lazy_build_scheduled",
+            vault_path=str(vault_path),
+        )
+    except RuntimeError:
+        # 无 running event loop (sync 上下文) — 跳过 lazy build
+        logger.warning(
+            "wikilink.lazy_build_no_event_loop",
+            vault_path=str(vault_path),
+            hint="caller invoked get_wikilink_graph_service outside async context",
+        )
+
+
 def get_wikilink_graph_service() -> WikilinkGraphService:
     """Per-vault WikilinkGraphService 获取入口 (P0-1).
 
     按当前 request 的 vault_id (派生自 ContextVar) 分桶取 instance.
     Cache miss 时新建 instance 写入 dict.
     无 ContextVar / 异常路径落 ``__default__`` 桶,保留旧单例语义.
+
+    Wave-5 Stage C (2026-05-12) — per-vault lazy build:
+        新建/空 instance 命中 ``_resolve_vault_path`` 解出 path 时,
+        调度 ``asyncio.create_task(svc.build(...))`` 后台 build graph.
+        ``_lazy_build_attempted`` 标志防止重入. 若 vault_path 无法解析,
+        仍设标志阻止反复 resolve, log warning 让 Ops 察觉部署 misconfig.
     """
     key = _resolve_vault_key()
     svc = _wikilink_graph_services.get(key)
@@ -420,6 +509,30 @@ def get_wikilink_graph_service() -> WikilinkGraphService:
         svc = WikilinkGraphService()
         _wikilink_graph_services[key] = svc
         logger.debug("wikilink.graph_service_created", vault_key=key)
+
+    # Wave-5 Stage C lazy build: 仅当 (1) 未尝试过 lazy build 且
+    # (2) 图为空 (避免 build 完成的 instance 重复 build).
+    if (
+        not getattr(svc, "_lazy_build_attempted", False)
+        and svc.node_count == 0
+        and not svc.is_built
+    ):
+        svc._lazy_build_attempted = True  # type: ignore[attr-defined]  # 防重入,无论成功失败
+        vault_path = _resolve_vault_path(key)
+        if vault_path is not None:
+            _schedule_lazy_build(svc, vault_path)
+        else:
+            logger.warning(
+                "wikilink.lazy_build_skipped_unresolvable_vault_path",
+                vault_key=key,
+                hint=(
+                    "vault path could not be resolved from VAULTS_ROOT or "
+                    "settings.canvas_base_path — first request will return "
+                    "degraded=True; check VAULTS_ROOT config or sanitize_vault_id "
+                    "match"
+                ),
+            )
+
     return svc
 
 

@@ -985,3 +985,138 @@ class TestFormatSupplementaryXmlMetadataRedaction:
         # + source_path) — at least 3 placeholders (snippet uses different prefix)
         marker = "[QUARANTINED" if info["taint"] == "quarantine" else "[REDACTED"
         assert xml.count(marker) >= 3
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Wave-5 Stage C P1-9 (ChatGPT v4): LanceDB Tier-2 unprefixed fallback gate
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestTier2FallbackGate:
+    """P1-9: Tier-2 unprefixed fallback gated by ENABLE_LANCEDB_TIER2_FALLBACK env."""
+
+    def test_enable_tier2_fallback_default_false(self, monkeypatch):
+        """No env var → False (production-safe default)."""
+        from app.services.supplementary_search_service import _enable_tier2_fallback
+
+        monkeypatch.delenv("ENABLE_LANCEDB_TIER2_FALLBACK", raising=False)
+        assert _enable_tier2_fallback() is False
+
+    def test_enable_tier2_fallback_explicit_false(self, monkeypatch):
+        """Env var 'false' / '0' / 'no' → False."""
+        from app.services.supplementary_search_service import _enable_tier2_fallback
+
+        for v in ("false", "FALSE", "0", "no", "off", ""):
+            monkeypatch.setenv("ENABLE_LANCEDB_TIER2_FALLBACK", v)
+            assert _enable_tier2_fallback() is False, f"value {v!r} should disable"
+
+    def test_enable_tier2_fallback_truthy_values(self, monkeypatch):
+        """Env var 'true' / '1' / 'yes' / 'on' → True (case-insensitive)."""
+        from app.services.supplementary_search_service import _enable_tier2_fallback
+
+        for v in ("true", "TRUE", "True", "1", "yes", "YES", "on", "ON"):
+            monkeypatch.setenv("ENABLE_LANCEDB_TIER2_FALLBACK", v)
+            assert _enable_tier2_fallback() is True, f"value {v!r} should enable"
+
+    def test_tier2_fallback_disabled_by_default_skips_unprefixed_table(
+        self, monkeypatch
+    ):
+        """P1-9: When env var unset (production default), tier-2 must NOT open
+        unprefixed vault_notes table — _two_tier_search returns [] after tier-1 empty."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services import supplementary_search_service as svc
+
+        # Ensure default — env var unset.
+        monkeypatch.delenv("ENABLE_LANCEDB_TIER2_FALLBACK", raising=False)
+
+        async def _run():
+            client = MagicMock()
+            # Tier-1 returns empty (no hybrid results).
+            client.search = AsyncMock(return_value=[])
+            # Tier-2 path would access client._db / list_tables / open_table.
+            # We assert none of these get touched when gate is disabled.
+            client._db = MagicMock()
+            client._db.list_tables = MagicMock(return_value=["vault_notes"])
+            client._db.open_table = MagicMock()
+            client.resolve_table_name = MagicMock(
+                return_value="canvas_vault_vault_notes"
+            )
+
+            result = await svc._two_tier_search(client, query="x", num_results=5)
+            return result, client
+
+        result, client = asyncio.run(_run())
+        assert result == [], "tier-2 must NOT execute when gate disabled"
+        # Tier-2 internals must not be touched.
+        client._db.list_tables.assert_not_called()
+        client._db.open_table.assert_not_called()
+
+    def test_tier2_fallback_enabled_via_env_var_proceeds(self, monkeypatch):
+        """P1-9: When ENABLE_LANCEDB_TIER2_FALLBACK=true, tier-2 must proceed
+        (i.e. attempt to access ``client._db`` after tier-1 empty)."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services import supplementary_search_service as svc
+
+        monkeypatch.setenv("ENABLE_LANCEDB_TIER2_FALLBACK", "true")
+
+        async def _run():
+            client = MagicMock()
+            client.search = AsyncMock(return_value=[])  # tier-1 empty
+            # Tier-2 path: list_tables returns vault_notes, resolve_table_name
+            # returns a prefixed name → tier-2 logic proceeds to open_table.
+            client._db = MagicMock()
+            client._db.list_tables = MagicMock(return_value=["vault_notes"])
+            client.resolve_table_name = MagicMock(
+                return_value="canvas_vault_vault_notes"
+            )
+
+            # Stub open_table → table whose search returns an empty df so the
+            # function still returns [], but list_tables MUST have been called.
+            tbl = MagicMock()
+            empty_df = MagicMock()
+            empty_df.empty = True
+            tbl.search.return_value.limit.return_value.to_pandas.return_value = empty_df
+            client._db.open_table = MagicMock(return_value=tbl)
+
+            result = await svc._two_tier_search(client, query="x", num_results=5)
+            return result, client
+
+        result, client = asyncio.run(_run())
+        # Result may be [] (empty df), but the key contract is: tier-2 path was
+        # invoked (list_tables called once when gate enabled).
+        assert client._db.list_tables.called, (
+            "tier-2 must execute and call list_tables when gate enabled"
+        )
+        assert result == [], "empty df → empty result (still no exception)"
+
+    def test_tier2_fallback_enabled_emits_warning_log(self, monkeypatch, caplog):
+        """P1-9: When tier-2 proceeds via env var, log.warning announces
+        'tier-2 fallback enabled' so Ops sees legacy-mode signal."""
+        import asyncio
+        import logging
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services import supplementary_search_service as svc
+
+        monkeypatch.setenv("ENABLE_LANCEDB_TIER2_FALLBACK", "true")
+
+        async def _run():
+            client = MagicMock()
+            client.search = AsyncMock(return_value=[])
+            client._db = MagicMock()
+            client._db.list_tables = MagicMock(return_value=[])  # tier-2 bails on empty
+            return await svc._two_tier_search(client, query="probe", num_results=3)
+
+        with caplog.at_level(logging.WARNING):
+            asyncio.run(_run())
+
+        warning_text = " ".join(
+            r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING
+        )
+        assert "tier-2 fallback enabled" in warning_text, (
+            f"expected 'tier-2 fallback enabled' in WARNING, got: {warning_text[:400]}"
+        )
