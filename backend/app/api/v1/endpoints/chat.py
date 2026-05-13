@@ -287,11 +287,15 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
         content=req.current_note_content,
         frontmatter=req.current_note_frontmatter,
     )
+    # Wave-5 Stage A (2026-05-12) — manifest 顶行加 `Vault: <vault_id>`,
+    # 让 Claude 在读 prompt 时立刻看到 vault 归属,多 vault 并存避免交叉引用
+    # ("数据冲突和数据混乱" — 用户原话).透传 sanitized_vault_id (已 NFKC + casefold).
     assembled = assembler.assemble_context(
         current_note=current_note,
         neighbors=enrichment.neighbors,
         token_budget=req.token_budget,
         trace=enrichment.trace,
+        vault_id=sanitized_vault_id,
     )
 
     final_text = assembled.text

@@ -717,3 +717,49 @@ def test_assemble_evidence_truncated_at_200_chars():
     result = a.assemble_context(_current_note(), [n])
     # 500 字 evidence 应被截断到 200 (不应有完整 "x"*500)
     assert "x" * 500 not in result.text
+
+
+# ════════════════════════════════════════════════════════════════════
+# Wave-5 Stage A — Vault 归属可见行 (manifest 顶部)
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_manifest_contains_vault_line():
+    """Wave-5 Stage A: manifest 顶部含 `Vault: <vault_id>` 行,且在 `Seed:` 之前.
+
+    多 vault 并存时,Claude 读 enriched_context 第一眼就要看到 vault 归属,
+    避免跨 vault 数据冲突 / 数据混乱(用户原话).
+    """
+    a = ChatContextAssembler(token_budget=4096)
+    result = a.assemble_context(_current_note(), [], vault_id="cs_61b")
+    text = result.text
+    # Vault 行必须存在
+    assert "Vault: cs_61b" in text, "manifest 必须含 `Vault: <vault_id>` 行"
+    # Vault 行必须在 manifest 段内 (在 <manifest> 和 </manifest> 之间)
+    manifest_open = text.index("<manifest>")
+    manifest_close = text.index("</manifest>")
+    vault_idx = text.index("Vault: cs_61b")
+    assert manifest_open < vault_idx < manifest_close, "Vault 行必须在 <manifest> 段内"
+    # Vault 行必须在 Seed 行之前 (顶部位置)
+    seed_idx = text.index("Seed:")
+    assert vault_idx < seed_idx, "Vault 行必须在 Seed 行之前"
+
+
+def test_manifest_vault_line_special_chars():
+    """Wave-5 Stage A: vault_id 含空格 / 中文时,manifest 原样透出.
+
+    sanitize_vault_id 在 backend 调用处已做 (chat.py line 270),
+    manifest 接到的就是 sanitized 值,无需二次处理.
+    本测试模拟"未 sanitize 的原始 vault 名"也能安全显示(escape 防注入即可).
+    """
+    a = ChatContextAssembler(token_budget=4096)
+
+    # 中文 vault_id
+    result_zh = a.assemble_context(_current_note(), [], vault_id="数学")
+    assert "Vault: 数学" in result_zh.text, "中文 vault_id 应原样显示"
+
+    # 含空格的 vault_id (Physics 101)
+    result_space = a.assemble_context(_current_note(), [], vault_id="Physics 101")
+    assert "Vault: Physics 101" in result_space.text, (
+        "含空格的 vault_id 应原样显示 (不 escape 空格)"
+    )

@@ -74,6 +74,13 @@ import {
   type NeighborSummary,
   type NodeChatContext,
 } from "./node-chat-context";
+import {
+  type BackendHealthState,
+  buildStatusBarClassName,
+  buildStatusBarLabel,
+  buildVaultPrefix,
+  classifyBackendHealth,
+} from "./vault-indicator";
 
 const DEFAULT_BACKEND_URL = "http://localhost:8011";  // docker host 映射端口（container 内 8001 → host 8011，由 .env API_PORT 决定）
 const DEFAULT_NODE_PATH_PREFIXES = ["节点/"];
@@ -81,6 +88,10 @@ const DEFAULT_NODE_PATH_PREFIXES = ["节点/"];
 // 3000ms = chat-with-context 设计预算（study-question deep mode 30-45s 走独立路径）
 // 超时触发 plugin 端 1-hop local fallback（collectNodeNeighbors + buildNodeChatPrompt）
 const CHAT_ENRICH_TIMEOUT_MS = 3000;
+// Wave-5 Stage A (2026-05-12) — Status bar 周期刷新间隔 (60s)
+// + 2s AbortController timeout 防 status bar 自身阻塞 UI
+const STATUS_BAR_REFRESH_MS = 60_000;
+const STATUS_BAR_HEALTH_TIMEOUT_MS = 2000;
 
 /**
  * Story 2.1 Phase 1 P1.6 — 默认快捷键表（路径 D：成熟方案）。
@@ -159,11 +170,43 @@ export default class CanvasLearningPlugin extends Plugin {
   settings: CanvasPluginSettings = { ...DEFAULT_SETTINGS };
   /** v4.3 A 路线：mastery 聚合缓存。Story 1.18 路径 1 plugin API 暴露。 */
   private masteryCache = new Map<string, { value: number; ts: number }>();
+  /**
+   * Wave-5 Stage A (2026-05-12) — Status bar 常驻 vault 指示器元素。
+   * onload() 初始化, updateStatusBar() 周期更新 (60s) + 切 vault 即时刷新。
+   * 用户原话: "在 obsidian 中关于 Canvas learning system 中可以**明确分隔开来**"
+   */
+  private statusBarItem: HTMLElement | null = null;
 
   async onload() {
     await this.loadSettings();
     this.registerCanvasCommands();
     this.addSettingTab(new CanvasSettingTab(this.app, this));
+
+    // Wave-5 Stage A (2026-05-12) — Status bar 常驻 vault 指示器
+    // 3 态: ✓ (backend ok + vault 一致) / ⚠ (vault mismatch) / ❌ (backend down)
+    this.statusBarItem = this.addStatusBarItem();
+    this.statusBarItem.addEventListener("click", () => {
+      // 点击 → 打开 Settings tab (用户主动切 vault / 改 backend URL)
+      const setting = (this.app as any).setting;
+      if (setting && typeof setting.open === "function") {
+        setting.open();
+        if (typeof setting.openTabById === "function") {
+          setting.openTabById("canvas-learning-system");
+        }
+      }
+    });
+    void this.updateStatusBar(); // 初始化（不 await, 避免阻塞 onload）
+
+    // 周期刷新 (60s) — registerInterval 让 Obsidian 自动清理避免 unload leak
+    this.registerInterval(
+      window.setInterval(() => void this.updateStatusBar(), STATUS_BAR_REFRESH_MS),
+    );
+
+    // 切 vault 即时刷新 (Obsidian 切 vault 会触发 layout-change)
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => void this.updateStatusBar()),
+    );
+
     this.app.workspace.onLayoutReady(() => {
       this.checkHotkeyConflicts();
       // Round-23 Phase B0.3 (2026-05-11): 多 vault onboarding modal
@@ -184,6 +227,70 @@ export default class CanvasLearningPlugin extends Plugin {
     // fingerprint 比对 + 单文件 < 500ms 增量 reindex。无白名单（.obsidian/.git/.trash
     // 已在 backend skip_dirs 默认过滤），仅过滤非 .md 文件。
     this.registerIncrementalIndexHook();
+  }
+
+  /**
+   * Wave-5 Stage A (2026-05-12) — Status bar 状态刷新.
+   *
+   * 流程:
+   *   1. 取 plugin 端 vault_id = inferVaultId(app.vault.getName())
+   *   2. fetch backend /api/v1/vault/current (2s timeout AbortController)
+   *   3. classifyBackendHealth → ok / mismatch / down
+   *   4. buildStatusBarLabel + buildStatusBarClassName → 更新 element
+   *
+   * 异步且不阻塞 UI; fetch 失败/超时 → "down" 状态。
+   * 注：用 /api/v1/vault/current 而非 /api/v1/health, 因为前者同时返回 vault_id
+   * 用于 mismatch 检测 (一次请求覆盖 ok + mismatch 检查)。
+   */
+  public async updateStatusBar(): Promise<void> {
+    if (!this.statusBarItem) return;
+    const vaultIdLocal = inferVaultId(this.app.vault.getName());
+
+    let ok = false;
+    let vaultIdRemote: string | undefined = undefined;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      STATUS_BAR_HEALTH_TIMEOUT_MS,
+    );
+    try {
+      const resp = await fetch(
+        `${this.settings.backendUrl}/api/v1/vault/current`,
+        {
+          method: "GET",
+          headers: this.buildBackendHeaders(),
+          signal: controller.signal,
+        },
+      );
+      clearTimeout(timeoutId);
+      ok = resp.ok;
+      if (resp.ok) {
+        try {
+          const parsed = (await resp.json()) as { vault_id?: string };
+          vaultIdRemote = parsed.vault_id;
+        } catch {
+          // JSON 解析失败 → 视为 backend 半 down, 仍按 200 处理但 remote 未知
+        }
+      }
+    } catch {
+      clearTimeout(timeoutId);
+      ok = false;
+    }
+
+    const state: BackendHealthState = classifyBackendHealth({
+      ok,
+      vaultIdLocal,
+      vaultIdRemote,
+    });
+    this.statusBarItem.setText(
+      buildStatusBarLabel({ state, vaultId: vaultIdLocal }),
+    );
+    this.statusBarItem.className = buildStatusBarClassName(state);
+    this.statusBarItem.setAttribute(
+      "aria-label",
+      `Canvas vault: ${vaultIdLocal} (backend ${state})`,
+    );
+    this.statusBarItem.style.cursor = "pointer";
   }
 
   /**
@@ -759,8 +866,10 @@ export default class CanvasLearningPlugin extends Plugin {
       : userQuestion && suppDegraded
         ? `（补充材料降级: ${suppReason ?? "?"}）`
         : "";
+    // Wave-5 Stage A: 加 vault 前缀让用户每次触发都"瞥见"当前 vault
+    const vaultPrefix = buildVaultPrefix(inferVaultId(this.app.vault.getName()));
     new Notice(
-      `已组装 backend RAG 上下文 ${sizeKb}KB / ${neighborsCount} 邻居${suppHint} / ${usedTokens}/${budget} tokens${degradeHint}（${elapsedMs}ms）\n切到 Claudian 粘贴`,
+      `${vaultPrefix}已组装 backend RAG 上下文 ${sizeKb}KB / ${neighborsCount} 邻居${suppHint} / ${usedTokens}/${budget} tokens${degradeHint}（${elapsedMs}ms）\n切到 Claudian 粘贴`,
       7000,
     );
 
@@ -925,8 +1034,10 @@ export default class CanvasLearningPlugin extends Plugin {
       : suppDegraded
         ? `（补充材料降级: ${suppReason ?? "?"}）`
         : "";
+    // Wave-5 Stage A: vault 前缀 (study-question deep 模式同样防多 vault 串库)
+    const vaultPrefix = buildVaultPrefix(inferVaultId(this.app.vault.getName()));
     new Notice(
-      `🧠 解题深度模式已就绪 ${sizeKb}KB / ${neighborsCount} 邻居${suppHint} / ${usedTokens}/${budget} tokens${degradeHint}（${elapsedMs}ms）\n切到 Claudian 粘贴 — 预计 30-45s 出 4 段结构化诊断`,
+      `${vaultPrefix}🧠 解题深度模式已就绪 ${sizeKb}KB / ${neighborsCount} 邻居${suppHint} / ${usedTokens}/${budget} tokens${degradeHint}（${elapsedMs}ms）\n切到 Claudian 粘贴 — 预计 30-45s 出 4 段结构化诊断`,
       8000,
     );
 
@@ -1014,8 +1125,10 @@ export default class CanvasLearningPlugin extends Plugin {
     const truncatedHint = result.truncated
       ? `（已截断: ${result.truncationReason}）`
       : "";
+    // Wave-5 Stage A: vault 前缀
+    const vaultPrefix = buildVaultPrefix(inferVaultId(this.app.vault.getName()));
     new Notice(
-      `已复制节点 "${activeFile.basename}" 上下文（${sizeKb}KB / ${neighbors.length} 邻居）${truncatedHint}\n切到 Claudian 粘贴即可触发对话`,
+      `${vaultPrefix}已复制节点 "${activeFile.basename}" 上下文（${sizeKb}KB / ${neighbors.length} 邻居）${truncatedHint}\n切到 Claudian 粘贴即可触发对话`,
       6000,
     );
 
@@ -1080,8 +1193,10 @@ export default class CanvasLearningPlugin extends Plugin {
     const sizeKb = (new Blob([prompt]).size / 1024).toFixed(1);
     const reasonText =
       reason === "backend_timeout" ? "backend 超时" : "backend 未连接";
+    // Wave-5 Stage A: vault 前缀 (降级路径同样需要可见性)
+    const vaultPrefix = buildVaultPrefix(inferVaultId(this.app.vault.getName()));
     new Notice(
-      `⚠️ ${reasonText}，已降级到本地 1-hop（${neighbors.length} 邻居 / ${sizeKb}KB / ${elapsedMs}ms）\n切到 Claudian 粘贴`,
+      `${vaultPrefix}⚠️ ${reasonText}，已降级到本地 1-hop（${neighbors.length} 邻居 / ${sizeKb}KB / ${elapsedMs}ms）\n切到 Claudian 粘贴`,
       7000,
     );
     const claudianCmd = (this.app as any).commands?.findCommand?.(

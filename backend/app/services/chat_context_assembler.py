@@ -334,12 +334,18 @@ class ChatContextAssembler:
         assembler_budget: int,
         full_budget: int,
         trace: RetrievalTrace | None,
+        vault_id: str | None = None,
     ) -> str:
         """Story 2.1 P1.5 — 顶部 manifest 段, 让 Claude 第一眼看到 RAG 边界 + 状态.
 
         Phase 1.7+ (2026-05-03 ChatGPT 二轮审查 P0 fix): seed_path / graph_version /
         degradations 全部 escape, 防 path 含 </manifest> 或 trace.degradations 含
         attacker-controlled string 时打穿 manifest 边界.
+
+        Wave-5 Stage A (2026-05-12): vault_id 顶部行,让 Claude 在读 prompt 时立刻
+        看到 vault 归属,多 vault 并存避免交叉引用("数据冲突和数据混乱" — 用户原话).
+        sanitize_vault_id 在 backend 调用处已做,manifest 接到的就是 sanitized 值,
+        但仍 escape 防注入(纵深防御).vault_id=None 时 fallback "unknown"(legacy 路径).
         """
         if trace is not None:
             graph_version = _xml_text_escape(trace.graph_version)
@@ -356,8 +362,10 @@ class ChatContextAssembler:
             omitted_count = 0
             degradations = "trace_unavailable"
         safe_seed = _xml_text_escape(seed_path)
+        safe_vault = _xml_text_escape(vault_id) if vault_id else "unknown"
         return (
             "<manifest>\n"
+            f"Vault: {safe_vault}\n"
             f"Seed: {safe_seed}\n"
             f"Graph version: {graph_version}\n"
             f"Included: {included_count} | Omitted: {omitted_count} | "
@@ -372,6 +380,7 @@ class ChatContextAssembler:
         neighbors: list[WikilinkNeighborContext],
         token_budget: int | None = None,
         trace: RetrievalTrace | None = None,
+        vault_id: str | None = None,
     ) -> AssembledContext:
         """按优先级填充 token 预算（AC #2 + AC #3）。
 
@@ -380,6 +389,9 @@ class ChatContextAssembler:
         - 顶部加 <manifest> 段（让 Claude 看到 Seed/Graph version/Included）
         - 1400 token reserve（仅 budget >= 4096 时启用）
         - 邻居用 <neighbor> XML 标签包装（替代 markdown headers）
+
+        Wave-5 Stage A (2026-05-12): vault_id 可选,manifest 顶部输出
+        `Vault: <vault_id>` 行,多 vault 并存避免交叉引用.None 时 fallback "unknown".
         """
         full_budget = (
             _resolve_token_budget(token_budget)
@@ -479,12 +491,14 @@ class ChatContextAssembler:
         inner_text = "\n".join(parts)
 
         # Story 2.1 P1.5 — 顶部 manifest（计算用 inner used，反映 assembler 装载的真实量）
+        # Wave-5 Stage A (2026-05-12) — 透传 vault_id 到 manifest 顶行
         manifest = self._build_manifest(
             seed_path=current_note.path,
             used=used,
             assembler_budget=assembler_budget,
             full_budget=full_budget,
             trace=trace,
+            vault_id=vault_id,
         )
 
         # Story 2.1 P1.2 — boundary 包装
