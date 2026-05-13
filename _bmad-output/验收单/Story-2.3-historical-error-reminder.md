@@ -5,7 +5,7 @@ status: "review"
 version: "1.0"
 date: "2026-05-13"
 developer: "Claude Code (Opus 4.7 1M)"
-commit: "pending-ship"
+commit: "d9a7164"
 ---
 
 # Story 2.3 验收单（给你看的版本）
