@@ -33,8 +33,11 @@ from typing import Any, Dict, List, Optional
 import structlog
 
 from app.core.subject_config import (
-    build_group_id,
+    build_vault_group_id,
+    canonical_group_id,
     extract_subject_from_canvas_path,
+    get_current_subject_id,
+    is_vault_group_id,
 )
 from app.models.intelligent_parallel_models import (
     GroupPriority,
@@ -193,9 +196,22 @@ class IntelligentGroupingService:
         )
 
         # AC-33.4.5: Extract subject and build group_id (依赖30.8)
+        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault: prefix) so
+        # parallel grouping clusters within the originating vault — Story 1.9
+        # build_group_id collision across vaults eliminated.
         subject = extract_subject_from_canvas_path(canvas_path)
         canvas_name = Path(canvas_path).stem
-        subject_group_id = build_group_id(subject, canvas_name)
+        _ctx_value = get_current_subject_id()
+        if _ctx_value and _ctx_value != "general":
+            subject_group_id = (
+                _ctx_value
+                if is_vault_group_id(_ctx_value)
+                else canonical_group_id(_ctx_value)
+            )
+        else:
+            subject_group_id = build_vault_group_id(
+                "default", subject_id=subject, canvas_path=canvas_name
+            )
         logger.debug(
             f"Subject isolation: subject={subject}, group_id={subject_group_id}"
         )

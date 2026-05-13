@@ -118,6 +118,20 @@ class CanvasIndexRequest(BaseModel):
     force: bool = Field(
         default=False, description="Force re-index even if already indexed"
     )
+    # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
+    # LanceDB index 此前无 vault 隔离 → 5 vault 共存 时索引串库.
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Multi-vault P0-2 — 推荐必填. Plugin 端 inferVaultId(app.vault.getName()) 取. "
+            "Backend 注入 ContextVar 让 LanceDB/Graphiti 自动 vault scoped."
+        ),
+        examples=["cs_61b", "数学"],
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -126,6 +140,7 @@ class CanvasIndexRequest(BaseModel):
                 "subject": "math54",
                 "category": "math",
                 "force": False,
+                "vault_id": "cs_61b",
             }
         }
     )
@@ -302,6 +317,14 @@ class BatchIndexRequest(BaseModel):
     force: bool = Field(
         default=False, description="Force re-index even if already indexed"
     )
+    # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 让批量索引 vault scoped.",
+        examples=["cs_61b"],
+    )
+    subject_id: Optional[str] = Field(default=None)
 
 
 class BatchIndexResponse(BaseModel):

@@ -755,14 +755,28 @@ class Neo4jClient:
         group_id = data.get("group_id")
 
         # Infer group_id from canvas_path if not provided
+        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault: prefix);
+        # fall back to vault:default with subject so cross-vault writes don't
+        # collide under the legacy Story 1.9 build_group_id namespace.
         if not group_id and data.get("canvas_path"):
             from app.core.subject_config import (
-                build_group_id,
+                build_vault_group_id,
+                canonical_group_id,
                 extract_subject_from_canvas_path,
+                get_current_subject_id,
+                is_vault_group_id,
             )
 
-            subject = extract_subject_from_canvas_path(data["canvas_path"])
-            group_id = build_group_id(subject)
+            ctx_value = get_current_subject_id()
+            if ctx_value and ctx_value != "general":
+                group_id = (
+                    ctx_value
+                    if is_vault_group_id(ctx_value)
+                    else canonical_group_id(ctx_value)
+                )
+            else:
+                subject = extract_subject_from_canvas_path(data["canvas_path"])
+                group_id = build_vault_group_id("default", subject_id=subject)
 
         return await self.create_learning_relationship(
             user_id=user_id,

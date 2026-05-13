@@ -52,9 +52,16 @@ from app.config import DEFAULT_GROUP_ID, settings
 from app.core.decision_tracker import log_decision
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 from app.core.subject_config import (
-    build_group_id,
+    # wave-5 Stage B P0 (2026-05-11): legacy build_group_id removed — every
+    # call site now goes through _resolve_memory_group_id below so that
+    # ContextVar (vault: prefix) wins and Story 1.9 collisions across vaults
+    # no longer leak.
+    build_vault_group_id,
+    canonical_group_id,
     extract_canvas_name,
     extract_subject_from_canvas_path,
+    get_current_subject_id,
+    is_vault_group_id,
 )
 from app.services.episode_worker import EpisodeTask, get_episode_worker
 from app.graphiti.entity_types import CANVAS_ENTITY_TYPES, CANVAS_EDGE_TYPES
@@ -66,6 +73,43 @@ SCORE_HISTORY_CACHE_TTL = 30
 
 # Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
 # app.core.failed_writes_constants (shared with agent_service.py)
+
+
+# wave-5 Stage B P0 helper (2026-05-11):
+# Resolve the effective group_id for memory writes.  Story 2.5.Y migrated all
+# new writes to the unified vault: prefix.  The legacy build_group_id(subject,
+# canvas_name=...) call still exists in many places below and is collision-prone
+# across vaults — different vaults under the same subject all collapse to the
+# same group_id ("math:calc"), leaking each others' memories.
+#
+# Resolution priority:
+#   1. ContextVar (get_current_subject_id) — set by per-request middleware
+#      (chat.py / memory.py / metadata.py / mastery.py / rag.py).  If it's
+#      already a vault: prefix, return as-is. Otherwise canonicalize.
+#   2. fall back to build_vault_group_id with subject/canvas_name (legacy
+#      behaviour, still under vault: prefix so it is unambiguous in Neo4j).
+#
+# [ChatGPT v4 Agent C P0 fix]
+def _resolve_memory_group_id(
+    inferred_subject: str, canvas_name: Optional[str] = None
+) -> str:
+    ctx_value = get_current_subject_id()
+    if ctx_value and ctx_value != "general":
+        # If ContextVar already holds a fully-qualified vault: id, trust it.
+        # Otherwise canonicalize (handles deprecated 'cs188', 'cs_61b:main' etc.)
+        return (
+            ctx_value if is_vault_group_id(ctx_value) else canonical_group_id(ctx_value)
+        )
+
+    # Fallback (no ContextVar / DEFAULT_SUBJECT_ID): use vault: prefix +
+    # subject path-derived bucket so the write is still namespace-correct.
+    # 'vault:default' is the safe shared bucket — collisions risk for legacy
+    # data, but it is no worse than the old build_group_id collapse.
+    return build_vault_group_id(
+        "default",
+        subject_id=inferred_subject if inferred_subject else None,
+        canvas_path=canvas_name,
+    )
 
 
 # Story 30.10 AC-30.10.1: Deterministic episode ID generation
@@ -415,8 +459,11 @@ class MemoryService:
         inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
 
         # ✅ AC-30.8.1: Build group_id for namespace isolation (Epic 6: canvas-scoped)
+        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault: prefix) via
+        # _resolve_memory_group_id — eliminates Story 1.9 build_group_id
+        # collision across vaults that share the same subject:canvas pair.
         canvas_name = extract_canvas_name(canvas_path)
-        group_id = build_group_id(inferred_subject, canvas_name=canvas_name)
+        group_id = _resolve_memory_group_id(inferred_subject, canvas_name=canvas_name)
 
         try:
             # ✅ Verified: Store to Neo4j - Create learning relationship
@@ -542,12 +589,14 @@ class MemoryService:
             await self.initialize()
 
         # ✅ Epic 6: Build canvas-scoped group_id when canvas_path is available
+        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar via
+        # _resolve_memory_group_id so we don't read other vaults' histories.
         if canvas_path:
             inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
             c_name = extract_canvas_name(canvas_path)
-            group_id = build_group_id(inferred_subject, canvas_name=c_name)
+            group_id = _resolve_memory_group_id(inferred_subject, canvas_name=c_name)
         elif subject:
-            group_id = build_group_id(subject)
+            group_id = _resolve_memory_group_id(subject)
         else:
             group_id = None
 
@@ -688,7 +737,10 @@ class MemoryService:
                         canvas_name_field
                     )
                     cn_only = extract_canvas_name(canvas_name_field)
-                    return build_group_id(inferred_subj, canvas_name=cn_only)
+                    # wave-5 Stage B P0 (2026-05-11): match the write-path
+                    # _resolve_memory_group_id so the fallback filter aligns
+                    # with new vault: prefix writes.
+                    return _resolve_memory_group_id(inferred_subj, canvas_name=cn_only)
 
                 failed_scores = [
                     fs for fs in failed_scores if _derive_group_id(fs) == group_id
@@ -904,12 +956,14 @@ class MemoryService:
             await self.initialize()
 
         # ✅ Epic 6: Build canvas-scoped group_id when canvas_path is available
+        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar via
+        # _resolve_memory_group_id (no cross-vault suggestion leak).
         if canvas_path:
             inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
             c_name = extract_canvas_name(canvas_path)
-            group_id = build_group_id(inferred_subject, canvas_name=c_name)
+            group_id = _resolve_memory_group_id(inferred_subject, canvas_name=c_name)
         elif subject:
-            group_id = build_group_id(subject)
+            group_id = _resolve_memory_group_id(subject)
         else:
             group_id = None
 
@@ -1211,7 +1265,9 @@ class MemoryService:
                     f"Student learned '{concept}' using {p.get('agent_type', 'unknown')} agent "
                     f"on canvas '{p['canvas_path']}'. Node: {p['node_id']}."
                 ),
-                group_id=build_group_id(inferred_subject, canvas_name=c_name),
+                # wave-5 Stage B P0 (2026-05-11): batch-write also resolves
+                # group_id from ContextVar to keep multi-vault isolation.
+                group_id=_resolve_memory_group_id(inferred_subject, canvas_name=c_name),
                 source_description=f"canvas_batch:{inferred_subject}",
             )
 
@@ -1833,7 +1889,9 @@ class MemoryService:
                 f"Canvas event '{event_type}' on path '{canvas_path}'. "
                 f"Node: {node_id or edge_id or 'unknown'}. Concept: {concept}."
             ),
-            group_id=build_group_id(inferred_subject, canvas_name=c_name),
+            # wave-5 Stage B P0 (2026-05-11): temporal event also prefers
+            # ContextVar to keep vault isolation in multi-vault deploys.
+            group_id=_resolve_memory_group_id(inferred_subject, canvas_name=c_name),
             source_description=f"canvas_temporal:{event_type}",
         )
 
@@ -1903,7 +1961,12 @@ class MemoryService:
                         f"Recovered learning event for concept '{concept}' "
                         f"on canvas '{entry_canvas}'."
                     ),
-                    group_id=build_group_id(inferred_subject, canvas_name=c_name),
+                    # wave-5 Stage B P0 (2026-05-11): recovery path also
+                    # resolves via ContextVar — failed write replays into
+                    # the originating vault.
+                    group_id=_resolve_memory_group_id(
+                        inferred_subject, canvas_name=c_name
+                    ),
                     source_description="canvas_recovery",
                 )
                 if enqueued:

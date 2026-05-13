@@ -22,6 +22,48 @@ logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Query, status
 
+
+# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
+# Review / Verification endpoints 此前无 vault_id 隔离 → 跨 vault 检验记录 / FSRS 状态串库 (P0).
+def _resolve_vault_group_id(
+    vault_id: Optional[str],
+    subject_id: Optional[str] = None,
+    canvas_path: Optional[str] = None,
+    legacy_group_id: Optional[str] = None,
+) -> str:
+    """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
+    from app.config import DEFAULT_GROUP_ID, sanitize_vault_id
+    from app.core.subject_config import (
+        build_vault_group_id,
+        canonical_group_id,
+        set_current_subject_id,
+    )
+
+    if vault_id and vault_id.strip():
+        sanitized = sanitize_vault_id(vault_id)
+        derived = build_vault_group_id(
+            sanitized,
+            subject_id=subject_id,
+            canvas_path=canvas_path,
+        )
+    elif legacy_group_id and legacy_group_id.strip():
+        logger.warning(
+            "Wave-5 Stage B: review endpoint vault_id missing, "
+            "falling back to deprecated group_id=%s",
+            legacy_group_id,
+        )
+        derived = canonical_group_id(legacy_group_id)
+    else:
+        logger.warning(
+            "Wave-5 Stage B: review endpoint both vault_id and group_id missing, "
+            "falling back to DEFAULT_GROUP_ID"
+        )
+        derived = DEFAULT_GROUP_ID
+
+    set_current_subject_id(derived)
+    return derived
+
+
 from app.models import (
     ErrorResponse,
     # Story 32.3: FSRS State Query Response
@@ -666,6 +708,15 @@ async def get_review_history(
     show_all: bool = Query(
         False, description="If true, return all records up to hard cap"
     ),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 检验历史串库.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> HistoryResponse:
     """
     Get review history with pagination support.
@@ -680,11 +731,22 @@ async def get_review_history(
     - **limit**: Maximum records to return (default: 5, Story 34.4 AC1)
     - **show_all**: If True, ignore limit and return all records (Story 34.4 AC2)
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填, 注入 ContextVar 防跨 vault 检验历史串库.
+
     [Source: specs/api/review-api.openapi.yml#L185-216]
     [Source: docs/stories/34.4.story.md]
     """
     from datetime import date
     from datetime import datetime as dt
+
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        vault_id,
+        subject_id=subject_id,
+        canvas_path=canvas_path,
+        legacy_group_id=group_id,
+    )
 
     logger.info(
         "GET /review/history days=%d limit=%d show_all=%s concept=%s",
@@ -803,11 +865,21 @@ async def generate_verification_canvas(
     - **weak_weight**: Weight for weak concepts in targeted mode (default: 0.7)
     - **mastered_weight**: Weight for mastered concepts in targeted mode (default: 0.3)
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - request.vault_id 推荐必填, 注入 ContextVar 防跨 vault 检验白板串库.
+
     PRD F8: Extract red+purple nodes, generate questions, topic clustering
     [Source: docs/prd/FULL-PRD-REFERENCE.md - F8, Story 4.1-4.4]
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1generate]
     [Source: Story 24.1 - Mode Support]
     """
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        canvas_path=request.source_canvas,
+    )
+
     logger.info(
         "POST /review/generate source=%s mode=%s node_count=%d",
         request.source_canvas,
@@ -1086,6 +1158,9 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
     - **card_state**: Optional serialized FSRS card JSON for persistence
     - **review_duration**: Optional review time in seconds
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - request.vault_id 推荐必填, 注入 ContextVar 防 FSRS 状态串库.
+
     Rating Conversion (Story 32.2 AC-32.2.4):
     - score < 40 → rating 1 (Again/Forgot)
     - score 40-59 → rating 2 (Hard)
@@ -1096,6 +1171,13 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
     [Source: docs/stories/32.2.story.md - FSRS Integration]
     """
     from datetime import date
+
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        canvas_path=request.canvas_name,
+    )
 
     logger.info(
         "PUT /review/record canvas=%s node=%s rating=%s score=%s",
@@ -1237,7 +1319,17 @@ async def get_verification_history(
     canvas_name: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
-    group_id: Optional[str] = None,
+    group_id: Optional[str] = Query(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id (Wave-5 Stage B).",
+    ),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 验证历史串库.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
 ) -> VerificationHistoryResponse:
     """
     Get verification question history for a concept.
@@ -1249,7 +1341,10 @@ async def get_verification_history(
     - **canvas_name**: Optional filter by canvas name
     - **limit**: Number of items per page (default: 20, max: 100)
     - **offset**: Offset for pagination (default: 0)
-    - **group_id**: Optional group ID for multi-subject isolation
+    - **group_id**: Deprecated — 改用 vault_id (Wave-5 Stage B)
+
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填, 注入 ContextVar 防跨 vault 验证历史串库.
 
     Returns:
     - Total count of history records
@@ -1259,6 +1354,16 @@ async def get_verification_history(
     [Source: specs/api/review-api.openapi.yml#/verification/history/{concept}]
     [Source: docs/stories/31.4.story.md#Task-4]
     """
+    # Wave-5 Stage B — vault_id ContextVar 注入. 同时用 group_id 兼容老调用.
+    resolved_group_id = _resolve_vault_group_id(
+        vault_id,
+        subject_id=subject_id,
+        canvas_path=canvas_name,
+        legacy_group_id=group_id,
+    )
+    # 透传到下游 search_verification_questions (group_id 参数已有)
+    group_id = resolved_group_id
+
     logger.info(
         "GET /verification/history concept=%s limit=%d offset=%d",
         concept,
@@ -1381,7 +1486,18 @@ async def get_verification_history(
     },
     tags=["fsrs"],
 )
-async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
+async def get_fsrs_state(
+    concept_id: str,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault FSRS 状态串库.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
+) -> FSRSStateQueryResponse:
     """
     Get FSRS card state for a concept.
 
@@ -1391,6 +1507,9 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
 
     - **concept_id**: Concept identifier (node_id from canvas)
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填, 注入 ContextVar 防跨 vault FSRS 状态串库.
+
     Returns:
     - FSRS state with all algorithm parameters
     - card_state: Serialized FSRS card JSON for local caching
@@ -1399,6 +1518,9 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
     [Source: specs/api/review-api.openapi.yml#/review/fsrs-state/{concept_id}]
     [Source: docs/stories/32.3.story.md#Task-1]
     """
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
+
     logger.info("GET /review/fsrs-state concept_id=%s", concept_id)
     # Story 38.9 AC3: Use canonical singleton from services layer
     try:
@@ -1670,8 +1792,18 @@ async def start_verification_session(
     - **node_ids**: Optional specific node IDs to verify
     - **include_mastered**: Whether to include already-mastered concepts (default: true)
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - request.vault_id 推荐必填, 注入 ContextVar 防跨 vault 验证会话串库.
+
     Returns session_id and first_question for the frontend modal.
     """
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        canvas_path=request.canvas_name,
+    )
+
     logger.info(
         "POST /verification/start canvas=%s node_ids=%s",
         request.canvas_name,
@@ -1749,8 +1881,17 @@ async def submit_verification_answer(
     - **session_id**: Active session identifier
     - **user_answer**: User's answer text
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - request.vault_id 推荐必填, 注入 ContextVar 防跨 vault 评分串库.
+
     Returns scoring result and updated progress.
     """
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+    )
+
     logger.info("POST /session/%s/answer len=%d", session_id, len(request.user_answer))
     from fastapi import HTTPException
 

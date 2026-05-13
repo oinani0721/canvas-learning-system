@@ -48,6 +48,23 @@ class LearningEpisodeCreate(BaseModel):
     agent_type: str = Field(..., description="使用的Agent类型")
     score: Optional[int] = Field(None, ge=0, le=100, description="得分 (0-100)")
     duration_seconds: Optional[int] = Field(None, ge=0, description="学习时长 (秒)")
+    # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
+    # 学习记录必须 vault 隔离, 否则用户每次切 vault 看到的学习历史串库.
+    vault_id: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Multi-vault 隔离必填. Plugin 端 inferVaultId(app.vault.getName()) 取. "
+            "Backend 用 sanitize_vault_id 标准化 → build_vault_group_id → "
+            "set_current_subject_id 注入 ContextVar, "
+            "让 memory_service / graphiti 都看到同一 vault."
+        ),
+        examples=["cs_61b", "数学"],
+    )
+    subject_id: Optional[str] = Field(
+        default=None,
+        description="可选 vault 内学科二级 namespace.",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -59,6 +76,7 @@ class LearningEpisodeCreate(BaseModel):
                 "agent_type": "basic-decomposition",
                 "score": 85,
                 "duration_seconds": 300,
+                "vault_id": "cs_61b",
             }
         }
     )

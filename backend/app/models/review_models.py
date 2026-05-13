@@ -593,6 +593,14 @@ class StartSessionRequest(BaseModel):
     include_mastered: bool = Field(
         True, description="Whether to include already-mastered concepts"
     )
+    # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 验证会话串库.",
+        examples=["cs_61b"],
+    )
+    subject_id: Optional[str] = Field(default=None)
 
 
 class StartSessionResponse(BaseModel):
@@ -642,6 +650,14 @@ class SubmitAnswerRequest(BaseModel):
             "example": "逆否命题是将原命题的条件和结论同时取反再交换..."
         },
     )
+    # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 答案评分串库.",
+        examples=["cs_61b"],
+    )
+    subject_id: Optional[str] = Field(default=None)
 
 
 class SubmitAnswerResponse(BaseModel):

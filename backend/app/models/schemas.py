@@ -715,6 +715,14 @@ class GenerateReviewRequest(BaseModel):
     skip_mastered: bool = Field(
         default=False, description="跳过已掌握概念 (连续3次>=80)"
     )
+    # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 检验白板串库.",
+        examples=["cs_61b"],
+    )
+    subject_id: Optional[str] = Field(default=None)
 
 
 class WeakConceptData(BaseModel):
@@ -820,6 +828,14 @@ class RecordReviewRequest(BaseModel):
     review_duration: Optional[int] = Field(
         None, description="Review time in seconds (for metrics)"
     )
+    # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防 FSRS 状态串库.",
+        examples=["cs_61b"],
+    )
+    subject_id: Optional[str] = Field(default=None)
 
     @property
     def concept_id(self) -> str:

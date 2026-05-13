@@ -161,14 +161,33 @@ class ArchiveScheduler:
             List of node IDs.
         """
         from app.config import DEFAULT_GROUP_ID
+        from app.core.subject_config import (
+            canonical_group_id,
+            get_current_subject_id,
+        )
         from app.services.memory_service import get_memory_service
+
+        # wave-5 Stage B P0 (2026-05-11): scheduled cron does not have a
+        # per-request ContextVar; fall back to DEFAULT_GROUP_ID with a
+        # WARNING so the leak risk surfaces in logs.  Future: schedule
+        # cron per-vault and propagate vault_id via the scheduler.
+        ctx_value = get_current_subject_id()
+        if ctx_value:
+            effective_group_id = canonical_group_id(ctx_value)
+        else:
+            effective_group_id = DEFAULT_GROUP_ID
+            logger.warning(
+                "[archive_scheduler] No vault ContextVar — falling back to "
+                "DEFAULT_GROUP_ID. Risk: scheduled archive may scan wrong vault.",
+                fallback=DEFAULT_GROUP_ID,
+            )
 
         memory_svc = await get_memory_service()
 
         # Search for all conversation events to find active nodes
         results = await memory_svc.search_memories(
             query="conversation node",
-            group_id=DEFAULT_GROUP_ID,
+            group_id=effective_group_id,
             max_results=50,
         )
 

@@ -13,6 +13,7 @@ wrapping the Gemini API functionality with async support.
 """
 
 import asyncio
+import contextvars
 import json
 import logging
 import os
@@ -1920,6 +1921,18 @@ class AgentService:
                 get_color_meaning,
                 get_source_description,
             )
+            from app.core.subject_config import (
+                canonical_group_id,
+                get_current_subject_id,
+            )
+
+            # wave-5 Stage B P0 (2026-05-11): prefer ContextVar so the color
+            # transition is stored under the originating request's vault —
+            # prevents cross-vault leak. [ChatGPT v4 Agent C P0 fix]
+            ctx_value = get_current_subject_id()
+            effective_group_id = (
+                canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
+            )
 
             old_meaning = get_color_meaning(old_color)
             new_meaning = get_color_meaning(new_color)
@@ -1962,7 +1975,7 @@ class AgentService:
             await self._neo4j_client.run_query(
                 cypher,
                 nodeId=f"transition-{timestamp}",
-                groupId=DEFAULT_GROUP_ID,
+                groupId=effective_group_id,
                 name=name,
                 body=body,
                 sourceDesc=source_desc,
@@ -2160,8 +2173,20 @@ class AgentService:
         LIMIT 5
         """
 
+        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault) over the
+        # global DEFAULT_GROUP_ID so memory queries don't leak across vaults.
+        from app.core.subject_config import (
+            canonical_group_id,
+            get_current_subject_id,
+        )
+
+        _mem_ctx = get_current_subject_id()
+        effective_group_id = (
+            canonical_group_id(_mem_ctx) if _mem_ctx else DEFAULT_GROUP_ID
+        )
+
         # Execute query
-        params = {"query_text": content[:100], "group_id": DEFAULT_GROUP_ID}
+        params = {"query_text": content[:100], "group_id": effective_group_id}
         if canvas_name:
             params["canvas_name"] = canvas_name
 
@@ -4038,10 +4063,22 @@ class AgentService:
                 from app.services.mastery_engine import get_mastery_engine
                 from app.services.mastery_store import MasteryStore
 
+                # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault)
+                # so mastery lookup is scoped to the originating vault.
+                from app.core.subject_config import (
+                    canonical_group_id,
+                    get_current_subject_id,
+                )
+
+                _mctx = get_current_subject_id()
+                _mastery_group_id = (
+                    canonical_group_id(_mctx) if _mctx else DEFAULT_GROUP_ID
+                )
+
                 _m_engine = get_mastery_engine()  # Uses fusion-enabled singleton
                 _m_store = MasteryStore(get_neo4j_client())
                 _m_concept = await _m_store.get_concept(
-                    node_id, group_id=DEFAULT_GROUP_ID
+                    node_id, group_id=_mastery_group_id
                 )
                 if _m_concept and _m_concept.interaction_count > 0:
                     _eff = _m_engine.effective_proficiency(_m_concept)
@@ -4230,6 +4267,10 @@ class AgentService:
                 topic = (
                     self._extract_topic_from_content(content) if content else "Unknown"
                 )
+                # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar so the
+                # color transition Graphiti background write inherits the
+                # originating request's vault — prevents cross-vault leak.
+                _ctx = contextvars.copy_context()
                 asyncio.create_task(
                     self._record_color_transition(
                         concept=content[:50] if content else "Unknown",
@@ -4244,7 +4285,8 @@ class AgentService:
                             "originality": originality,
                         },
                         trigger="scoring",
-                    )
+                    ),
+                    context=_ctx,
                 )
 
         return {"scores": scores}
@@ -5084,8 +5126,11 @@ class AgentService:
                 )
 
         # Fire-and-forget: create task but don't await it
+        # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar so the
+        # async memory write inherits the originating request's vault.
         try:
-            asyncio.create_task(_write_with_timeout())
+            _trigger_ctx = contextvars.copy_context()
+            asyncio.create_task(_write_with_timeout(), context=_trigger_ctx)
             logger.debug(f"[Story 30.4] Memory write task created for {agent_type}")
         except (RuntimeError, TypeError) as e:
             # Even task creation failure should be silent

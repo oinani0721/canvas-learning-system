@@ -93,12 +93,24 @@ class ArchiveManager:
         self._initialized = True
         try:
             from app.config import DEFAULT_GROUP_ID
+            from app.core.subject_config import (
+                canonical_group_id,
+                get_current_subject_id,
+            )
             from app.services.memory_service import get_memory_service
+
+            # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault) over the
+            # global DEFAULT_GROUP_ID — avoids restoring archive markers from
+            # the wrong vault when called from a per-request scope.
+            ctx_value = get_current_subject_id()
+            effective_group_id = (
+                canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
+            )
 
             memory_svc = await get_memory_service()
             results = await memory_svc.search_memories(
                 query="archive_marker",
-                group_id=DEFAULT_GROUP_ID,
+                group_id=effective_group_id,
                 max_results=500,
             )
             if not isinstance(results, list):
@@ -280,13 +292,23 @@ class ArchiveManager:
         # Run distillation
         try:
             from app.config import DEFAULT_GROUP_ID
+            from app.core.subject_config import (
+                canonical_group_id,
+                get_current_subject_id,
+            )
             from app.services.conversation_distiller import get_conversation_distiller
+
+            # wave-5 Stage B P0 (2026-05-11): prefer ContextVar over DEFAULT_GROUP_ID.
+            ctx_value = get_current_subject_id()
+            effective_group_id = (
+                canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
+            )
 
             distiller = get_conversation_distiller()
             result = await distiller.distill_and_persist(
                 messages=messages,
                 node_id=node_id,
-                group_id=DEFAULT_GROUP_ID,
+                group_id=effective_group_id,
             )
 
             has_summary = bool(result.summary)
@@ -349,15 +371,25 @@ class ArchiveManager:
         if prior is None or not prior.has_structured_data:
             try:
                 from app.config import DEFAULT_GROUP_ID
+                from app.core.subject_config import (
+                    canonical_group_id,
+                    get_current_subject_id,
+                )
                 from app.services.conversation_distiller import (
                     get_conversation_distiller,
+                )
+
+                # wave-5 Stage B P0 (2026-05-11): prefer ContextVar.
+                ctx_value = get_current_subject_id()
+                effective_group_id = (
+                    canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
                 )
 
                 distiller = get_conversation_distiller()
                 result = await distiller.distill_and_persist(
                     messages=messages,
                     node_id=node_id,
-                    group_id=DEFAULT_GROUP_ID,
+                    group_id=effective_group_id,
                 )
                 has_structured = bool(
                     result.tips or result.errors or result.qa_highlights
@@ -475,14 +507,25 @@ class ArchiveManager:
             List of message dicts with role, content, timestamp.
         """
         from app.config import DEFAULT_GROUP_ID
+        from app.core.subject_config import (
+            canonical_group_id,
+            get_current_subject_id,
+        )
         from app.services.memory_service import get_memory_service
+
+        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar to scope the
+        # message search to the originating request's vault.
+        ctx_value = get_current_subject_id()
+        effective_group_id = (
+            canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
+        )
 
         memory_svc = await get_memory_service()
 
         # Search for episodes related to this node
         results = await memory_svc.search_memories(
             query=node_id,
-            group_id=DEFAULT_GROUP_ID,
+            group_id=effective_group_id,
             max_results=200,
         )
 
@@ -530,7 +573,17 @@ class ArchiveManager:
         """
         try:
             from app.config import DEFAULT_GROUP_ID
+            from app.core.subject_config import (
+                canonical_group_id,
+                get_current_subject_id,
+            )
             from app.services.memory_service import get_memory_service
+
+            # wave-5 Stage B P0 (2026-05-11): prefer ContextVar.
+            ctx_value = get_current_subject_id()
+            effective_group_id = (
+                canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
+            )
 
             memory_svc = await get_memory_service()
 
@@ -556,7 +609,7 @@ class ArchiveManager:
                     "oldest_message_ts": oldest_ts,
                     "newest_message_ts": newest_ts,
                 },
-                group_id=DEFAULT_GROUP_ID,
+                group_id=effective_group_id,
             )
 
             # Update internal archive log to prevent re-archiving

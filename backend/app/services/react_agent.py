@@ -22,8 +22,39 @@ from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 
 from app.config import DEFAULT_GROUP_ID
+from app.core.subject_config import (
+    DEFAULT_SUBJECT_ID,
+    canonical_group_id,
+    get_current_subject_id,
+)
 
 logger = structlog.get_logger(__name__)
+
+
+def _resolve_effective_group_id() -> str:
+    """Wave-5 Stage B — group_id 解析优先级:
+
+    1. ContextVar (get_current_subject_id) → canonical_group_id 归一化
+    2. fallback DEFAULT_GROUP_ID + warning (deprecated 兜底)
+
+    模式参考 backend/app/services/error_writer.py:~520-536.
+
+    Returns:
+        归一化后的 vault: 前缀 group_id (跨 vault 隔离的关键).
+    """
+    ctx_value = get_current_subject_id()
+    if ctx_value and ctx_value != DEFAULT_SUBJECT_ID:
+        return canonical_group_id(ctx_value)
+
+    logger.warning(
+        "react_agent.group_id_fallback_to_default",
+        fallback=DEFAULT_GROUP_ID,
+        hint=(
+            "Wave-5 Stage B: ReAct agent caller should inject ContextVar "
+            "(set_current_subject_id) for vault isolation"
+        ),
+    )
+    return DEFAULT_GROUP_ID
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -179,8 +210,9 @@ async def search_knowledge_graph(
         ORDER BY n.updated_at DESC
         LIMIT $limit
         """
+        effective_group_id = _resolve_effective_group_id()
         records = await _neo4j_client.run_query(
-            cypher, query=query, limit=num_results, group_id=DEFAULT_GROUP_ID
+            cypher, query=query, limit=num_results, group_id=effective_group_id
         )
 
         if not records:
@@ -338,10 +370,11 @@ async def record_learning_memory(
         })
         """
         timestamp = datetime.now().isoformat()
+        effective_group_id = _resolve_effective_group_id()
         await _neo4j_client.run_query(
             cypher,
             nodeId=f"agent-{timestamp}",
-            groupId=DEFAULT_GROUP_ID,
+            groupId=effective_group_id,
             name=name,
             entityType=entity_type,
             body=body,
@@ -381,13 +414,14 @@ async def search_obsidian_cli(query: str, limit: int = 10) -> str:
     if not os.path.exists(obs_path):
         return "[Error] Obsidian CLI not available. Use search_vault_notes instead."
 
+    effective_group_id = _resolve_effective_group_id()
     try:
         result = subprocess.run(
             [
                 obs_path,
                 "search:context",
                 f"query={query}",
-                f"vault={DEFAULT_GROUP_ID.upper()}",
+                f"vault={effective_group_id.upper()}",
                 f"limit={limit}",
             ],
             capture_output=True,
@@ -420,13 +454,14 @@ async def get_note_outline(file_name: str) -> str:
     if not os.path.exists(obs_path):
         return "[Error] Obsidian CLI not available."
 
+    effective_group_id = _resolve_effective_group_id()
     try:
         result = subprocess.run(
             [
                 obs_path,
                 "outline",
                 f"file={file_name}",
-                f"vault={DEFAULT_GROUP_ID.upper()}",
+                f"vault={effective_group_id.upper()}",
             ],
             capture_output=True,
             text=True,
@@ -456,13 +491,14 @@ async def find_backlinks(file_name: str) -> str:
     if not os.path.exists(obs_path):
         return "[Error] Obsidian CLI not available."
 
+    effective_group_id = _resolve_effective_group_id()
     try:
         result = subprocess.run(
             [
                 obs_path,
                 "backlinks",
                 f"file={file_name}",
-                f"vault={DEFAULT_GROUP_ID.upper()}",
+                f"vault={effective_group_id.upper()}",
             ],
             capture_output=True,
             text=True,

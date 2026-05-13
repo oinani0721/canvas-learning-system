@@ -54,9 +54,17 @@ async def get_inherited_context(
         Returns empty when no neighbors have conversation history (graceful degradation).
     """
     if group_id is None:
+        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault) over the
+        # global DEFAULT_GROUP_ID — adjacent-neighbor summaries must stay
+        # scoped to the originating request's vault.
         from app.config import DEFAULT_GROUP_ID
+        from app.core.subject_config import (
+            canonical_group_id,
+            get_current_subject_id,
+        )
 
-        group_id = DEFAULT_GROUP_ID
+        ctx_value = get_current_subject_id()
+        group_id = canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
 
     neighbor_records = await _fetch_neighbor_records_for_inheritance(node_id)
 

@@ -19,6 +19,7 @@ Exam REST endpoints:
 """
 
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -47,6 +48,47 @@ from app.services.exam_service import get_exam_service
 logger = logging.getLogger(__name__)
 
 exam_router = APIRouter()
+
+
+# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
+# Exam endpoints (4 个 group_id Query) 此前 ContextVar 未注入 → 跨 vault 考试记录串库.
+def _resolve_vault_group_id(
+    vault_id: Optional[str],
+    subject_id: Optional[str] = None,
+    canvas_path: Optional[str] = None,
+    legacy_group_id: Optional[str] = None,
+) -> str:
+    """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
+    from app.config import sanitize_vault_id
+    from app.core.subject_config import (
+        build_vault_group_id,
+        canonical_group_id,
+        set_current_subject_id,
+    )
+
+    if vault_id and vault_id.strip():
+        sanitized = sanitize_vault_id(vault_id)
+        derived = build_vault_group_id(
+            sanitized,
+            subject_id=subject_id,
+            canvas_path=canvas_path,
+        )
+    elif legacy_group_id and legacy_group_id.strip():
+        logger.warning(
+            "Wave-5 Stage B: exam endpoint vault_id missing, "
+            "falling back to deprecated group_id=%s",
+            legacy_group_id,
+        )
+        derived = canonical_group_id(legacy_group_id)
+    else:
+        logger.warning(
+            "Wave-5 Stage B: exam endpoint both vault_id and group_id missing, "
+            "falling back to DEFAULT_GROUP_ID"
+        )
+        derived = DEFAULT_GROUP_ID
+
+    set_current_subject_id(derived)
+    return derived
 
 
 @exam_router.post("/exam/start", response_model=ExamSessionResponse)
@@ -181,15 +223,29 @@ async def analyze_canvas(
 async def sync_exam_node(
     exam_id: str,
     request: ExamNodeSyncRequest,
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 考试节点串库.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> ExamNodeSyncResponse:
     """Sync a node discovered during recursive exam back to source canvas.
+
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填.
 
     Creates the node and edge in Neo4j, updates the exam session.
     [Source: Story 6.5 AC-2, AC-3]
     """
+    resolved_group_id = _resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
     svc = get_exam_service()
-    return await svc.sync_node_to_source_canvas(request, group_id=group_id)
+    return await svc.sync_node_to_source_canvas(request, group_id=resolved_group_id)
 
 
 # ======================================================================
@@ -299,16 +355,30 @@ async def resume_exam(exam_id: str) -> ExamStatusUpdateResponse:
 async def complete_exam(
     exam_id: str,
     request: ExamCompleteRequest,
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> ExamCompleteResponse:
     """Finalize and permanently save the complete exam record.
+
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填.
 
     Records are immutable (no delete). Includes scores, conversations,
     discovered nodes, and mastery changes.
     [Source: Story 6.8 AC-1, AC-8]
     """
+    resolved_group_id = _resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
     svc = get_exam_service()
-    return await svc.complete_exam(request, group_id=group_id)
+    return await svc.complete_exam(request, group_id=resolved_group_id)
 
 
 @exam_router.get(
@@ -319,14 +389,29 @@ async def complete_exam(
 async def list_exam_records(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> ExamRecordListResponse:
     """Get paginated list of exam records, newest first.
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2: vault_id 推荐必填.
+
     [Source: Story 6.8 AC-7]
     """
+    resolved_group_id = _resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
     svc = get_exam_service()
-    return await svc.get_exam_records(page=page, limit=limit, group_id=group_id)
+    return await svc.get_exam_records(
+        page=page, limit=limit, group_id=resolved_group_id
+    )
 
 
 @exam_router.get(
@@ -336,14 +421,32 @@ async def list_exam_records(
 )
 async def get_records_by_canvas(
     canvas_id: str,
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> ExamRecordListResponse:
     """Get all exam records associated with a specific source canvas.
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2: vault_id 推荐必填.
+
     [Source: Story 6.8 AC-6, AC-7]
     """
+    resolved_group_id = _resolve_vault_group_id(
+        vault_id,
+        subject_id=subject_id,
+        canvas_path=canvas_id,
+        legacy_group_id=group_id,
+    )
     svc = get_exam_service()
-    return await svc.get_records_by_canvas(canvas_id=canvas_id, group_id=group_id)
+    return await svc.get_records_by_canvas(
+        canvas_id=canvas_id, group_id=resolved_group_id
+    )
 
 
 @exam_router.get(
@@ -353,14 +456,29 @@ async def get_records_by_canvas(
 )
 async def get_exam_record_detail(
     record_exam_id: str,
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> ExamRecordDetail:
     """Get a complete exam record including conversation replay.
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2: vault_id 推荐必填.
+
     [Source: Story 6.8 AC-3, AC-7]
     """
+    resolved_group_id = _resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
     svc = get_exam_service()
-    record = await svc.get_exam_record(exam_id=record_exam_id, group_id=group_id)
+    record = await svc.get_exam_record(
+        exam_id=record_exam_id, group_id=resolved_group_id
+    )
     if record is None:
         raise HTTPException(
             status_code=404,

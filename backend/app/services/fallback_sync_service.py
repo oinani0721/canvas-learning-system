@@ -596,17 +596,34 @@ class FallbackSyncService:
 
     @staticmethod
     def _build_group_id_from_canvas(canvas_name: str) -> Optional[str]:
-        """Build group_id from canvas name using subject_config."""
+        """Build group_id from canvas name using subject_config.
+
+        wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault: prefix) over
+        the legacy Story 1.9 build_group_id which collapses cross-vault
+        subject:canvas pairs to the same id (collision risk).
+        """
         if not canvas_name:
             return None
         try:
             from app.core.subject_config import (
-                build_group_id,
+                build_vault_group_id,
+                canonical_group_id,
                 extract_subject_from_canvas_path,
+                get_current_subject_id,
+                is_vault_group_id,
             )
 
+            ctx_value = get_current_subject_id()
+            if ctx_value and ctx_value != "general":
+                return (
+                    ctx_value
+                    if is_vault_group_id(ctx_value)
+                    else canonical_group_id(ctx_value)
+                )
             subject = extract_subject_from_canvas_path(canvas_name)
-            return build_group_id(subject, canvas_name)
+            return build_vault_group_id(
+                "default", subject_id=subject, canvas_path=canvas_name
+            )
         except (ImportError, AttributeError, ValueError):
             return None
 

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import hashlib
 import os
 import tempfile
@@ -704,8 +705,13 @@ async def write_error_dual(
         }
 
     if fire_and_forget_graphiti:
+        # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar so background
+        # Graphiti write inherits the vault/subject_id of the originating
+        # request — prevents cross-vault leak after parent request returns.
+        ctx = contextvars.copy_context()
         asyncio.create_task(
-            write_error_to_graphiti(error, node_id, session_id, error_id=error_id)
+            write_error_to_graphiti(error, node_id, session_id, error_id=error_id),
+            context=ctx,
         )
         return {
             "mode": "write_confirmed",

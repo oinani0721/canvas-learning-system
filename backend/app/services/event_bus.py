@@ -20,6 +20,7 @@ Features:
 """
 
 import asyncio
+import contextvars
 import json
 import logging
 import time
@@ -237,9 +238,16 @@ class EventBus:
     async def _dispatch_tier2(
         self, event: LearningEvent, handlers: List[EventHandler]
     ) -> None:
-        """Tier 2 IMPORTANT: fire with retry + JSONL outbox on final failure."""
+        """Tier 2 IMPORTANT: fire with retry + JSONL outbox on final failure.
+
+        wave-5 Stage B P0 (2026-05-11): snapshot ContextVar (vault/subject_id) via
+        contextvars.copy_context() so background retry task inherits the originating
+        request's vault — prevents cross-vault leak when Tier 2 handlers run after
+        the parent request finishes. [ChatGPT v4 Agent C P0 fix]
+        """
         for handler in handlers:
-            asyncio.create_task(self._tier2_retry_wrapper(event, handler))
+            ctx = contextvars.copy_context()
+            asyncio.create_task(self._tier2_retry_wrapper(event, handler), context=ctx)
 
     async def _tier2_retry_wrapper(
         self, event: LearningEvent, handler: EventHandler
@@ -298,9 +306,15 @@ class EventBus:
     def _dispatch_tier3(
         self, event: LearningEvent, handlers: List[EventHandler]
     ) -> None:
-        """Tier 3 BEST_EFFORT: fire-and-forget, failures only logged."""
+        """Tier 3 BEST_EFFORT: fire-and-forget, failures only logged.
+
+        wave-5 Stage B P0 (2026-05-11): snapshot ContextVar (vault/subject_id) so
+        Tier 3 fire-and-forget handlers run under the originating request's vault.
+        [ChatGPT v4 Agent C P0 fix]
+        """
         for handler in handlers:
-            asyncio.create_task(self._tier3_fire_wrapper(event, handler))
+            ctx = contextvars.copy_context()
+            asyncio.create_task(self._tier3_fire_wrapper(event, handler), context=ctx)
 
     async def _tier3_fire_wrapper(
         self, event: LearningEvent, handler: EventHandler

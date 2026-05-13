@@ -15,6 +15,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.config import DEFAULT_GROUP_ID
 from app.mcp.tools.error_tools import _resolve_node_file_path
 from app.services.candidate_service import (
     AcceptCandidateResult,
@@ -39,6 +40,47 @@ logger = structlog.get_logger(__name__)
 errors_router = APIRouter()
 
 
+# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
+# 4 errors 端点此前无 vault_id 隔离 → 跨 vault 错误记录泄漏 (P0).
+def _resolve_vault_group_id(
+    vault_id: Optional[str],
+    subject_id: Optional[str] = None,
+    canvas_path: Optional[str] = None,
+    legacy_group_id: Optional[str] = None,
+) -> str:
+    """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
+    from app.config import sanitize_vault_id
+    from app.core.subject_config import (
+        build_vault_group_id,
+        canonical_group_id,
+        set_current_subject_id,
+    )
+
+    if vault_id and vault_id.strip():
+        sanitized = sanitize_vault_id(vault_id)
+        derived = build_vault_group_id(
+            sanitized,
+            subject_id=subject_id,
+            canvas_path=canvas_path,
+        )
+    elif legacy_group_id and legacy_group_id.strip():
+        logger.warning(
+            "Wave-5 Stage B: errors endpoint vault_id missing, "
+            "falling back to deprecated group_id=%s",
+            legacy_group_id,
+        )
+        derived = canonical_group_id(legacy_group_id)
+    else:
+        logger.warning(
+            "Wave-5 Stage B: errors endpoint both vault_id and group_id missing, "
+            "falling back to DEFAULT_GROUP_ID"
+        )
+        derived = DEFAULT_GROUP_ID
+
+    set_current_subject_id(derived)
+    return derived
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Request models
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -57,6 +99,24 @@ class AcceptCandidateRequest(BaseModel):
     fire_and_forget_graphiti: bool = Field(
         default=True, description="True 默认 → 后台 task; False 同步等待 Graphiti"
     )
+    # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
+    # 用户错误记录 / Graphiti misconception 必须 vault 隔离,
+    # 否则 5 vault 并存 时跨 vault Misconception 串库.
+    vault_id: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Multi-vault 隔离必填. Plugin 端 inferVaultId(app.vault.getName()) 取. "
+            "Backend 用 sanitize_vault_id 标准化 → build_vault_group_id → "
+            "set_current_subject_id 注入 ContextVar, "
+            "让 candidate_service / error_reader 等 downstream 都看到同一 vault."
+        ),
+        examples=["cs_61b", "数学"],
+    )
+    subject_id: Optional[str] = Field(
+        default=None,
+        description="可选 vault 内学科二级 namespace.",
+    )
 
 
 class DismissCandidateRequest(BaseModel):
@@ -64,6 +124,13 @@ class DismissCandidateRequest(BaseModel):
 
     candidate_id: str = Field(..., description="error_candidates[].id")
     node_id: str = Field(..., description="vault-relative node path")
+    vault_id: str = Field(
+        ...,
+        min_length=1,
+        description="Multi-vault P0-2 — 必填. 注入 ContextVar 防跨 vault 泄漏.",
+        examples=["cs_61b"],
+    )
+    subject_id: Optional[str] = Field(default=None)
 
 
 class DisputeCandidateRequest(BaseModel):
@@ -74,6 +141,13 @@ class DisputeCandidateRequest(BaseModel):
     dispute_reason: str = Field(
         ..., min_length=1, description="用户简短说明为何认为 AI 判断错"
     )
+    vault_id: str = Field(
+        ...,
+        min_length=1,
+        description="Multi-vault P0-2 — 必填.",
+        examples=["cs_61b"],
+    )
+    subject_id: Optional[str] = Field(default=None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -95,6 +169,13 @@ async def accept_candidate_endpoint(
         422: candidate 状态非 pending (反向/终态间不可逆) OR ClassifiedError 构造失败
         500: file 读写失败
     """
+    # Wave-5 Stage B (2026-05-12) — 注入 ContextVar 防跨 vault Misconception 串库.
+    _resolve_vault_group_id(
+        req.vault_id,
+        subject_id=req.subject_id,
+        canvas_path=req.node_id,
+    )
+
     file_path = _resolve_node_file_path(req.node_id)
     if not file_path:
         raise HTTPException(
@@ -120,6 +201,10 @@ async def dismiss_candidate_endpoint(
     candidate.status pending → dismissed. 不入 errors[]. 不写 Graphiti.
     保留 candidate 供训练 prompt 改进.
     """
+    _resolve_vault_group_id(
+        req.vault_id, subject_id=req.subject_id, canvas_path=req.node_id
+    )
+
     file_path = _resolve_node_file_path(req.node_id)
     if not file_path:
         raise HTTPException(
@@ -139,6 +224,10 @@ async def dispute_candidate_endpoint(
     candidate.status pending → disputed + dispute_reason 写入.
     不入 errors[]. 不写 Graphiti.
     """
+    _resolve_vault_group_id(
+        req.vault_id, subject_id=req.subject_id, canvas_path=req.node_id
+    )
+
     file_path = _resolve_node_file_path(req.node_id)
     if not file_path:
         raise HTTPException(

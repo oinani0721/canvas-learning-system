@@ -283,3 +283,68 @@ class TestLearningEvent:
     def test_tier_not_overridable(self):
         event = _make_event(LearningEventType.SCORE_SUBMITTED)
         assert event.tier == EventTier.TIER_1_CRITICAL
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# wave-5 Stage B P0 (2026-05-11): EventBus ContextVar inheritance leak fix.
+# Tier 2 retry tasks + Tier 3 fire-and-forget tasks must inherit the originating
+# request's vault ContextVar so background handlers don't read/write the wrong
+# vault after the parent request returns.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestEventBusContextVarInheritance:
+    @pytest.mark.asyncio
+    async def test_event_bus_dispatch_inherits_contextvar(self):
+        """Set vault:A ContextVar before publishing a Tier 2 event; the retry
+        wrapper running in a background task must observe vault:A, not the
+        DEFAULT_SUBJECT_ID it would default to without context= propagation.
+
+        Regression guard for ChatGPT v4 Agent C P0 leak.
+        """
+        from app.core.subject_config import (
+            get_current_subject_id,
+            set_current_subject_id,
+        )
+
+        observed: list[str] = []
+
+        async def handler(event):
+            observed.append(get_current_subject_id())
+
+        bus = EventBus()
+        bus.subscribe(LearningEventType.BKT_UPDATED, handler)
+        set_current_subject_id("vault:cs_61b")
+
+        await bus.publish(_make_event(LearningEventType.BKT_UPDATED))
+        await asyncio.sleep(0.05)
+
+        assert observed, "Tier 2 handler did not run"
+        assert observed[0] == "vault:cs_61b", (
+            f"ContextVar not inherited; got {observed[0]} expected 'vault:cs_61b'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_tier3_dispatch_inherits_contextvar(self):
+        """Tier 3 fire-and-forget tasks must also inherit ContextVar."""
+        from app.core.subject_config import (
+            get_current_subject_id,
+            set_current_subject_id,
+        )
+
+        observed: list[str] = []
+
+        async def handler(event):
+            observed.append(get_current_subject_id())
+
+        bus = EventBus()
+        bus.subscribe(LearningEventType.UI_MASTERY_PUSH, handler)
+        set_current_subject_id("vault:数学")
+
+        await bus.publish(_make_event(LearningEventType.UI_MASTERY_PUSH))
+        await asyncio.sleep(0.05)
+
+        assert observed, "Tier 3 handler did not run"
+        assert observed[0] == "vault:数学", (
+            f"ContextVar not inherited; got {observed[0]}"
+        )

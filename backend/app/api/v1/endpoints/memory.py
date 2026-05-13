@@ -54,6 +54,47 @@ logger = logging.getLogger(__name__)
 memory_router = APIRouter()
 
 
+# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
+# 3 memory endpoints 此前无 vault_id 隔离 → 跨 vault 学习历史串库 (P0).
+def _resolve_vault_group_id(
+    vault_id: Optional[str],
+    subject_id: Optional[str] = None,
+    canvas_path: Optional[str] = None,
+    legacy_group_id: Optional[str] = None,
+) -> str:
+    """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
+    from app.config import DEFAULT_GROUP_ID, sanitize_vault_id
+    from app.core.subject_config import (
+        build_vault_group_id,
+        canonical_group_id,
+        set_current_subject_id,
+    )
+
+    if vault_id and vault_id.strip():
+        sanitized = sanitize_vault_id(vault_id)
+        derived = build_vault_group_id(
+            sanitized,
+            subject_id=subject_id,
+            canvas_path=canvas_path,
+        )
+    elif legacy_group_id and legacy_group_id.strip():
+        logger.warning(
+            "Wave-5 Stage B: memory endpoint vault_id missing, "
+            "falling back to deprecated group_id=%s",
+            legacy_group_id,
+        )
+        derived = canonical_group_id(legacy_group_id)
+    else:
+        logger.warning(
+            "Wave-5 Stage B: memory endpoint both vault_id and group_id missing, "
+            "falling back to DEFAULT_GROUP_ID"
+        )
+        derived = DEFAULT_GROUP_ID
+
+    set_current_subject_id(derived)
+    return derived
+
+
 # =============================================================================
 # Dependency Injection - Singleton Pattern for Neo4j Connection Pooling
 # Singleton lives in app.services.memory_service (single source of truth).
@@ -87,8 +128,18 @@ async def create_learning_episode(
     - 调用 memory_service.record_learning_event()
     - 返回 episode_id 和 status
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - episode.vault_id 必填, 注入 ContextVar 防跨 vault 学习记录串库.
+
     [Source: docs/stories/22.4.story.md#API端点实现]
     """
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        episode.vault_id,
+        subject_id=episode.subject_id,
+        canvas_path=episode.canvas_path,
+    )
+
     try:
         episode_id = await memory_service.record_learning_event(
             user_id=episode.user_id,
@@ -135,6 +186,20 @@ async def get_learning_history(
     ),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(50, ge=1, le=100, description="每页大小"),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "Multi-vault P0-2 (Wave-5 Stage B) — 推荐必填. 注入 ContextVar 防跨 vault 历史串库. "
+            "Plugin 端 inferVaultId(app.vault.getName()) 取."
+        ),
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id.",
+    ),
 ) -> LearningHistoryResponse:
     """
     查询学习历史
@@ -149,9 +214,20 @@ async def get_learning_history(
 
     ✅ Epic 6: 支持 canvas_path 查询参数进行 canvas 级别过滤
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填, 注入 ContextVar 防跨 vault 历史串库.
+
     [Source: docs/stories/22.4.story.md#API端点实现]
     [Source: docs/stories/30.8.story.md#Task-3.2]
     """
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        vault_id,
+        subject_id=subject_id,
+        canvas_path=canvas_path,
+        legacy_group_id=group_id,
+    )
+
     try:
         result = await memory_service.get_learning_history(
             user_id=user_id,
@@ -261,6 +337,15 @@ async def get_review_suggestions(
     canvas_path: Optional[str] = Query(
         None, description="Canvas路径 (Epic 6: canvas-scoped filtering)"
     ),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 复习建议串库.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> List[ReviewSuggestionResponse]:
     """
     获取复习建议
@@ -275,9 +360,20 @@ async def get_review_suggestions(
 
     ✅ Epic 6: 支持 canvas_path 查询参数进行 canvas 级别过滤
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填, 注入 ContextVar 防跨 vault 复习建议串库.
+
     [Source: docs/stories/22.4.story.md#API端点实现]
     [Source: docs/stories/30.8.story.md#Task-3.2]
     """
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        vault_id,
+        subject_id=subject_id,
+        canvas_path=canvas_path,
+        legacy_group_id=group_id,
+    )
+
     try:
         suggestions = await memory_service.get_review_suggestions(
             user_id=user_id, limit=limit, subject=subject, canvas_path=canvas_path

@@ -60,6 +60,7 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
 """
 
 import asyncio
+import contextvars
 import json
 import logging
 import random
@@ -600,8 +601,19 @@ class ReviewService:
             m_engine = get_mastery_engine()  # Uses fusion-enabled singleton
             m_store = MasteryStore(get_neo4j_client())
             from app.config import DEFAULT_GROUP_ID
+            from app.core.subject_config import (
+                canonical_group_id,
+                get_current_subject_id,
+            )
 
-            all_mastery = await m_store.get_all_concepts(group_id=DEFAULT_GROUP_ID)
+            # wave-5 Stage B P0 (2026-05-11): prefer ContextVar so the review
+            # candidates are pulled from the originating request's vault.
+            _ctx_value = get_current_subject_id()
+            _effective_group_id = (
+                canonical_group_id(_ctx_value) if _ctx_value else DEFAULT_GROUP_ID
+            )
+
+            all_mastery = await m_store.get_all_concepts(group_id=_effective_group_id)
             review_candidates = m_engine.get_review_candidates(all_mastery)
 
             # Build name -> proficiency lookup for question_generator
@@ -2142,7 +2154,14 @@ class ReviewService:
                             f"(total failures: {_self_ref._auto_persist_failures}): {e}"
                         )
 
-                asyncio.create_task(_persist_auto_created_card(concept_id, card_data))
+                # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar so the
+                # auto-create-card Graphiti background write inherits the
+                # originating request's vault — prevents cross-vault leak.
+                _persist_ctx = contextvars.copy_context()
+                asyncio.create_task(
+                    _persist_auto_created_card(concept_id, card_data),
+                    context=_persist_ctx,
+                )
             else:
                 # Deserialize existing card
                 card = self._fsrs_manager.deserialize_card(card_data)

@@ -61,14 +61,53 @@ async def list_exam_sessions(
     board_id: Optional[str] = Query(
         default=None, description="Filter by source board ID"
     ),
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 (Wave-5 Stage B) — 推荐必填. 注入 ContextVar 防跨 vault 会话串库.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ):
     """
     List all exam sessions, optionally filtered by source board ID.
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2: vault_id 推荐必填.
+
     Queries Neo4j for EpisodicNode entities with source_description='exam_session'.
     Returns empty list when no exam sessions exist (valid state before Story 6.1/6.2).
     """
+    # Wave-5 Stage B — vault_id ContextVar 注入 + 派生 group_id
+    from app.config import sanitize_vault_id
+    from app.core.subject_config import (
+        build_vault_group_id,
+        canonical_group_id,
+        set_current_subject_id,
+    )
+
+    if vault_id and vault_id.strip():
+        sanitized = sanitize_vault_id(vault_id)
+        resolved_group_id = build_vault_group_id(sanitized, subject_id=subject_id)
+    elif group_id and group_id.strip():
+        logger.warning(
+            "Wave-5 Stage B: exam_sessions endpoint vault_id missing, "
+            "falling back to deprecated group_id=%s",
+            group_id,
+        )
+        resolved_group_id = canonical_group_id(group_id)
+    else:
+        logger.warning(
+            "Wave-5 Stage B: exam_sessions endpoint both vault_id and group_id missing, "
+            "falling back to DEFAULT_GROUP_ID"
+        )
+        resolved_group_id = DEFAULT_GROUP_ID
+
+    set_current_subject_id(resolved_group_id)
+    # 透传到 Cypher params
+    group_id = resolved_group_id
+
     from app.clients.neo4j_client import get_neo4j_client
 
     client = get_neo4j_client()

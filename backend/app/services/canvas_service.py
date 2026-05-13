@@ -17,6 +17,7 @@ Story 30.5: Canvas CRUD Operations Memory Trigger
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 import time
@@ -287,7 +288,13 @@ class CanvasService:
             )
 
             # [Review H1] Fire-and-forget with timeout + fallback on timeout/error
-            asyncio.create_task(self._safe_write_memory_event(event_type, context))
+            # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar (vault) so the
+            # background memory event handler inherits the originating request's
+            # vault — prevents cross-vault leak. [ChatGPT v4 Agent C P0 fix]
+            ctx = contextvars.copy_context()
+            asyncio.create_task(
+                self._safe_write_memory_event(event_type, context), context=ctx
+            )
             logger.debug(
                 f"Triggered memory event: {event_type.value} for {canvas_name}"
             )
@@ -961,7 +968,10 @@ class CanvasService:
         # Story 36.3: Fire-and-forget Neo4j edge sync
         # AC-2: Canvas operation returns immediately without waiting
         # AC-4: Sync failure does not affect Canvas operation result
+        # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar so background
+        # Neo4j sync inherits the originating request's vault (prevent leak).
         try:
+            ctx = contextvars.copy_context()
             asyncio.create_task(
                 self._sync_edge_to_neo4j(
                     canvas_path=f"{canvas_name}.canvas",
@@ -969,7 +979,8 @@ class CanvasService:
                     from_node_id=new_edge["fromNode"],
                     to_node_id=new_edge["toNode"],
                     edge_label=new_edge.get("label"),
-                )
+                ),
+                context=ctx,
             )
             logger.debug(f"Scheduled edge sync to Neo4j: {new_edge['id']}")
         except (RuntimeError, TypeError) as e:
@@ -1008,8 +1019,11 @@ class CanvasService:
 
         # Story 36.3 P0 Fix: Fire-and-forget Neo4j edge deletion sync
         # Symmetric with add_edge() which syncs creation via _sync_edge_to_neo4j()
+        # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar so background
+        # Neo4j delete inherits the originating request's vault.
         try:
-            asyncio.create_task(self._delete_edge_from_neo4j(edge_id))
+            ctx = contextvars.copy_context()
+            asyncio.create_task(self._delete_edge_from_neo4j(edge_id), context=ctx)
             logger.debug(f"Scheduled edge deletion sync to Neo4j: {edge_id}")
         except (RuntimeError, TypeError) as e:
             logger.warning(f"Failed to schedule edge deletion sync to Neo4j: {e}")

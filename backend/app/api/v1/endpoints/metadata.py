@@ -14,6 +14,7 @@ Provides endpoints for:
 
 import logging
 import time
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -32,6 +33,47 @@ from app.models.metadata_models import (
 from app.services.subject_resolver import SubjectResolver, get_subject_resolver
 
 logger = logging.getLogger(__name__)
+
+
+# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
+# Metadata / Index endpoints 此前无 vault_id 隔离 → LanceDB index 跨 vault 串库.
+def _resolve_vault_group_id(
+    vault_id: Optional[str],
+    subject_id: Optional[str] = None,
+    canvas_path: Optional[str] = None,
+    legacy_group_id: Optional[str] = None,
+) -> str:
+    """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
+    from app.config import sanitize_vault_id
+    from app.core.subject_config import (
+        build_vault_group_id,
+        canonical_group_id,
+        set_current_subject_id,
+    )
+
+    if vault_id and vault_id.strip():
+        sanitized = sanitize_vault_id(vault_id)
+        derived = build_vault_group_id(
+            sanitized,
+            subject_id=subject_id,
+            canvas_path=canvas_path,
+        )
+    elif legacy_group_id and legacy_group_id.strip():
+        logger.warning(
+            "Wave-5 Stage B: metadata endpoint vault_id missing, "
+            "falling back to deprecated group_id=%s",
+            legacy_group_id,
+        )
+        derived = canonical_group_id(legacy_group_id)
+    else:
+        logger.warning(
+            "Wave-5 Stage B: metadata endpoint both vault_id and group_id missing, "
+            "falling back to DEFAULT_GROUP_ID"
+        )
+        derived = DEFAULT_GROUP_ID
+
+    set_current_subject_id(derived)
+    return derived
 
 
 # =============================================================================
@@ -100,6 +142,15 @@ async def get_canvas_metadata(
         description="Canvas file path (relative to vault)",
         example="Math 54/离散数学.canvas",
     ),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 元数据混淆.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
     resolver: SubjectResolver = Depends(get_resolver),
 ) -> CanvasMetadataResponse:
     """
@@ -116,8 +167,18 @@ async def get_canvas_metadata(
     2. Path-based auto-inference
     3. Default values
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填, 注入 ContextVar 防跨 vault 元数据混淆.
+
     [Source: Design doc - Phase 1.1 Canvas Metadata Query API]
     """
+    _resolve_vault_group_id(
+        vault_id,
+        subject_id=subject_id,
+        canvas_path=canvas_path,
+        legacy_group_id=group_id,
+    )
+
     try:
         info = resolver.resolve(canvas_path)
 
@@ -153,6 +214,15 @@ async def get_canvas_index_status(
         ..., description="Canvas file path", example="Math 54/离散数学.canvas"
     ),
     table_name: str = Query(default="canvas_nodes", description="LanceDB table name"),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防 LanceDB 索引串库.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
     resolver: SubjectResolver = Depends(get_resolver),
 ) -> CanvasIndexStatusResponse:
     """
@@ -164,8 +234,18 @@ async def get_canvas_index_status(
     - **last_indexed**: Last indexing timestamp
     - **subject**: Subject used during indexing
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填, 注入 ContextVar 防 LanceDB 索引串库.
+
     [Source: Design doc - Phase 1.2 LanceDB Index Status API]
     """
+    _resolve_vault_group_id(
+        vault_id,
+        subject_id=subject_id,
+        canvas_path=canvas_path,
+        legacy_group_id=group_id,
+    )
+
     try:
         # Get LanceDB client
         lancedb_client = get_lancedb_client()
@@ -268,9 +348,19 @@ async def index_canvas(
     3. Vectorizes text content
     4. Stores in LanceDB with metadata
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - request.vault_id 推荐必填, 注入 ContextVar 防 LanceDB 索引串库.
+
     [Source: Design doc - Phase 1.3 Manual Index Trigger API]
     """
     start_time = time.perf_counter()
+
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        canvas_path=request.canvas_path,
+    )
 
     try:
         # Resolve metadata
@@ -386,18 +476,31 @@ async def batch_index_canvas(
 
     Limited to 50 files per request.
 
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - request.vault_id 推荐必填, 注入 ContextVar 让批量索引 vault scoped.
+
     [Source: Design doc - Batch Operations]
     """
     start_time = time.perf_counter()
+
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+    )
+
     results = []
     success_count = 0
     failed_count = 0
 
     for canvas_path in request.canvas_paths:
         try:
-            # Create individual request
+            # Create individual request — 透传 vault_id 让 index_canvas 也注入
             individual_request = CanvasIndexRequest(
-                canvas_path=canvas_path, force=request.force
+                canvas_path=canvas_path,
+                force=request.force,
+                vault_id=request.vault_id,
+                subject_id=request.subject_id,
             )
 
             # Index
@@ -450,12 +553,24 @@ async def batch_index_canvas(
 async def index_vault_notes(
     settings: SettingsDep,
     force_rebuild: bool = False,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 让 vault notes 索引 vault scoped.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ):
     """
     Scan all .md files in the vault and index them to LanceDB vault_notes table.
 
     This enables RAG retrieval to reference vault markdown notes
     when generating AI explanations.
+
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - vault_id 推荐必填, 注入 ContextVar 让 vault_notes 表 vault scoped.
 
     Args:
         force_rebuild: When True, treat all files as new and re-index everything.
@@ -465,6 +580,9 @@ async def index_vault_notes(
             if the schema is incompatible.
     """
     start_time = time.perf_counter()
+
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
 
     try:
         lancedb_client = get_lancedb_client()
@@ -537,8 +655,24 @@ async def index_vault_notes(
     summary="Get vault note indexing status",
     operation_id="vault_index_status",
 )
-async def vault_index_status():
-    """Check the status of vault note indexing in LanceDB."""
+async def vault_index_status(
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 让 status 查询 vault scoped.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
+):
+    """Check the status of vault note indexing in LanceDB.
+
+    Wave-5 Stage B (2026-05-12) — vault_id 推荐必填.
+    """
+    # Wave-5 Stage B — vault_id ContextVar 注入
+    _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
+
     try:
         lancedb_client = get_lancedb_client()
 
@@ -583,11 +717,21 @@ async def index_vault_incremental(
     Much faster than full rebuild — only processes the specified files.
     Designed to be called by the Obsidian plugin when files are modified.
 
-    Request body: { "file_paths": ["path/to/note.md", ...] }
+    Request body: { "file_paths": ["path/to/note.md", ...], "vault_id": "<vault>", "subject_id": "..." }
     file_paths are relative to the vault root.
+
+    Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
+    - request.vault_id 推荐必填 (放在 body 内), 注入 ContextVar 防 LanceDB 索引串库.
     """
     start_time = time.perf_counter()
     file_paths = request.get("file_paths", [])
+
+    # Wave-5 Stage B — vault_id ContextVar 注入 (dict body 内)
+    _resolve_vault_group_id(
+        request.get("vault_id"),
+        subject_id=request.get("subject_id"),
+        legacy_group_id=request.get("group_id"),
+    )
 
     if not file_paths:
         return {

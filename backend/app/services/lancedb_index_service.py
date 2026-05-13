@@ -14,6 +14,7 @@ AC-3: Pending operations recovered on startup from JSONL file
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 import threading
@@ -97,8 +98,13 @@ class LanceDBIndexService:
             logger.debug(f"[Story 38.1] Cancelled previous debounce for {canvas_name}")
 
         # Create new debounced task
+        # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar (vault) so the
+        # debounced LanceDB index task runs under the originating request's
+        # vault — prevents cross-vault leak. [ChatGPT v4 Agent C P0 fix]
+        ctx = contextvars.copy_context()
         task = asyncio.create_task(
-            self._debounced_index(canvas_name, canvas_base_path, trigger_node_id)
+            self._debounced_index(canvas_name, canvas_base_path, trigger_node_id),
+            context=ctx,
         )
         self._pending_tasks[canvas_name] = task
 
@@ -140,8 +146,11 @@ class LanceDBIndexService:
                 f"[Story 8.1] Cancelled previous note index debounce for {key}"
             )
 
+        # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar so debounced
+        # note re-index inherits vault context — prevents cross-vault leak.
+        ctx = contextvars.copy_context()
         task = asyncio.create_task(
-            self._debounced_note_index(key, note_path, vault_root)
+            self._debounced_note_index(key, note_path, vault_root), context=ctx
         )
         self._pending_tasks[key] = task
 
