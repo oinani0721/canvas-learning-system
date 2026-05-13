@@ -29,7 +29,7 @@ from datetime import datetime
 from typing import Annotated, List, Optional
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.models.memory_schemas import (
     BatchEpisodesRequest,
@@ -504,32 +504,64 @@ from pydantic import BaseModel, Field
 
 
 def _require_observer_token(
+    request: Request,
     x_canvas_observer_token: Optional[str] = Header(default=None),
 ) -> None:
     """
-    audit-2026-04-07/p0-2: gate /extract-conversation behind a shared token.
+    audit-2026-04-07/p0-2 + ChatGPT-DR-2026-05-13 P0-1 (Wave-6 hardening):
+    Gate /extract-conversation behind a shared token. **Default fail-closed**.
 
-    T1 threat model (single user / localhost): env SIDECAR_OBSERVER_TOKEN
-    defaults to empty, in which case the endpoint stays open. The moment the
-    operator sets the env, the endpoint requires `X-Canvas-Observer-Token`
-    on every request and rejects mismatches with 401.
+    Threat model rationale (ChatGPT Deep Research 2026-05-13):
+        Previous default-open behavior allowed any reachable client to POST
+        misconceptions into Graphiti when SIDECAR_OBSERVER_TOKEN was unset.
+        This is a memory poisoning attack vector — attackers could weaponize
+        the personal memory pipeline by injecting bogus misconceptions, which
+        would later drive AI exam questions based on attacker-controlled
+        misunderstandings ("the personal memory weaponization scenario").
 
-    This is the "opt-in tighten" pattern: zero migration friction for the
-    common single-user setup, but a real auth boundary the moment the
-    deployment leaves the laptop. Pairs with the sidecar header set in
-    `frontend/sidecar/sidecar.js` (CANVAS_OBSERVER_TOKEN).
+    Auth decision matrix:
+        - SIDECAR_OBSERVER_TOKEN set + header matches              → allow
+        - SIDECAR_OBSERVER_TOKEN set + header mismatch             → 401
+        - SIDECAR_OBSERVER_TOKEN unset + ALLOW_LOCAL_OBSERVER_BYPASS=true
+          AND client.host ∈ {127.0.0.1, ::1}                       → allow + warning log
+        - SIDECAR_OBSERVER_TOKEN unset + (not loopback OR bypass disabled) → 503
+
+    Local dev bypass requires BOTH (a) explicit env opt-in AND (b) loopback
+    client.host check — neither alone is sufficient. Pairs with sidecar
+    header set in frontend/sidecar/sidecar.js (CANVAS_OBSERVER_TOKEN).
     """
     expected = (os.environ.get("SIDECAR_OBSERVER_TOKEN") or "").strip()
-    if not expected:
-        # Token unset → open mode (T1 default).
-        return
-    if (x_canvas_observer_token or "").strip() != expected:
-        from fastapi import HTTPException
+    provided = (x_canvas_observer_token or "").strip()
 
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-Canvas-Observer-Token",
+    if expected:
+        # Production path — token configured, must match
+        if provided != expected:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or missing X-Canvas-Observer-Token",
+            )
+        return
+
+    # Token unset — fail-closed unless explicit local bypass
+    bypass_env = (os.environ.get("ALLOW_LOCAL_OBSERVER_BYPASS") or "").lower() == "true"
+    client_host = request.client.host if request.client else None
+    is_loopback = client_host in {"127.0.0.1", "::1"}
+
+    if bypass_env and is_loopback:
+        logger.warning(
+            "observer_token_bypass_local: client=%s reason=ALLOW_LOCAL_OBSERVER_BYPASS=true "
+            "on loopback. Configure SIDECAR_OBSERVER_TOKEN for production.",
+            client_host,
         )
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=(
+            "Observer auth not configured. Set SIDECAR_OBSERVER_TOKEN env "
+            "for production, or ALLOW_LOCAL_OBSERVER_BYPASS=true for loopback dev."
+        ),
+    )
 
 
 class ExtractConversationRequest(BaseModel):
