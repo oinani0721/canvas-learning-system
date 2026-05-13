@@ -142,48 +142,25 @@ class TestProductionFailClosed:
 class TestDevelopmentConvenience:
     """When DEBUG=True, missing INTERNAL_API_KEY is allowed (with warning)."""
 
-    def test_dev_mode_no_key_allows_missing_header(
+    def test_dev_mode_no_key_now_fails_closed_503_p0_2(
         self, auth_client: TestClient
     ) -> None:
-        """DEBUG=True + empty key should allow the request and emit a warning.
+        """ChatGPT-DR-2026-05-13 P0-2: DEBUG=True + empty key now fails closed (503).
 
-        security.py uses a module-level structlog logger. The most reliable
-        way to verify it emitted a warning during the request is to spy on
-        ``security.logger.warning`` directly.
+        Previous contract (pre-P0-2): DEBUG+empty=200 (silent fail-open dev bypass).
+        New contract (P0-2 hardening): DEBUG+empty=503 unless explicit env opt-in
+        ALLOW_UNSAFE_DEV_AUTH_BYPASS=true AND client.host is loopback.
+
+        TestClient client.host defaults to "testclient" (not loopback), so even
+        with the env set, this test still returns 503 — confirming defense in
+        depth. The bypass + loopback path is covered by unit-level test in
+        test_internal_api_key_p0_2_hardening.py using mocked Request objects.
         """
-        from app import security as security_mod
-
         app.dependency_overrides[get_settings] = _settings_factory(debug=True, key="")
-        with patch.object(security_mod.logger, "warning") as warning_spy:
-            response = auth_client.post("/api/v1/sync/batch", json=SAMPLE_PAYLOAD)
+        response = auth_client.post("/api/v1/sync/batch", json=SAMPLE_PAYLOAD)
 
-        assert response.status_code == 200
-        # The dev-bypass branch must emit at least one warning so the bypass
-        # is observable. Either the event name or any kwarg should mention
-        # the dev-mode condition.
-        assert warning_spy.called, (
-            "DEBUG mode bypass should emit at least one structured warning"
-        )
-
-        # Inspect the call args for the dev-bypass signature. security.py
-        # may use either structlog kwargs or stdlib %-format positional args,
-        # so accept both styles.
-        def _flatten(call) -> str:
-            args, kwargs = call.args, call.kwargs
-            return " ".join(
-                [str(a) for a in args] + [f"{k}={v}" for k, v in kwargs.items()]
-            )
-
-        bypass_call_found = any(
-            ("INTERNAL_API_KEY" in _flatten(call) and "DEBUG" in _flatten(call))
-            or "auth_dev_bypass" in _flatten(call)
-            or "unconfigured_in_dev" in _flatten(call)
-            for call in warning_spy.call_args_list
-        )
-        assert bypass_call_found, (
-            f"None of the warning calls match the dev-bypass event signature: "
-            f"{warning_spy.call_args_list}"
-        )
+        assert response.status_code == 503
+        assert "Internal API key not configured" in response.json().get("detail", "")
 
     def test_dev_mode_with_key_still_enforces(self, auth_client: TestClient) -> None:
         """Even in DEBUG mode, if a key IS configured, it must match."""

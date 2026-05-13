@@ -29,9 +29,10 @@ unauthenticated, every request gets a clear "key not configured" error.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader
 
 from app.config import Settings, get_settings
@@ -61,15 +62,23 @@ INTERNAL_API_KEY_HEADER = APIKeyHeader(
 
 
 async def require_internal_api_key(
+    request: Request,
     provided_key: Optional[str] = Depends(INTERNAL_API_KEY_HEADER),
     settings: Settings = Depends(get_settings),
 ) -> None:
     """FastAPI dependency that enforces the internal API key fail-closed matrix.
 
     Raises ``HTTPException(403)`` when a configured key does not match,
-    ``HTTPException(503)`` when no key is configured in production mode.
+    ``HTTPException(503)`` when no key is configured in production mode
+    OR when DEBUG+empty-key lacks explicit ALLOW_UNSAFE_DEV_AUTH_BYPASS=true.
+
+    ChatGPT-DR-2026-05-13 P0-2 hardening:
+        Previous Branch 2 (DEBUG=True + empty key → allow) was a silent
+        fail-open. Now requires BOTH (a) explicit env opt-in AND
+        (b) loopback client.host. Pairs with P0-1 observer fail-closed.
 
     Args:
+        request: FastAPI Request injected for client.host loopback check.
         provided_key: Value of the ``X-CLS-Internal-Key`` request header
             (or ``None`` when the header is absent).
         settings: Application settings (injected so that test overrides
@@ -95,15 +104,42 @@ async def require_internal_api_key(
             detail="Internal API key not configured",
         )
 
-    # Branch 2: dev + no configured key → allow with warning
-    # Convenience for local development without sacrificing observability.
+    # Branch 2 (HARDENED): dev + no configured key → require explicit bypass + loopback
+    # ChatGPT-DR-2026-05-13 P0-2: previous "auto-allow on DEBUG=True" was fail-open.
+    # Now requires (a) ALLOW_UNSAFE_DEV_AUTH_BYPASS=true env AND (b) loopback client.
     if not configured_key and debug_mode:
-        logger.warning(
-            "INTERNAL_API_KEY is not configured but DEBUG=True; "
-            "allowing request (dev mode auth_dev_bypass) — header_present=%s",
-            bool(provided_key),
+        bypass_env = (
+            os.environ.get("ALLOW_UNSAFE_DEV_AUTH_BYPASS") or ""
+        ).lower() == "true"
+        client_host = request.client.host if request.client else None
+        is_loopback = client_host in {"127.0.0.1", "::1"}
+
+        if bypass_env and is_loopback:
+            logger.warning(
+                "auth_unsafe_dev_bypass: client=%s reason=DEBUG=True+empty key"
+                "+ALLOW_UNSAFE_DEV_AUTH_BYPASS=true+loopback. "
+                "Configure INTERNAL_API_KEY for production.",
+                client_host,
+            )
+            return None
+
+        logger.error(
+            "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass "
+            "(client_host=%s, bypass_env=%s, is_loopback=%s); refusing request. "
+            "Set INTERNAL_API_KEY for production, or "
+            "ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.",
+            client_host,
+            bypass_env,
+            is_loopback,
         )
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Internal API key not configured. Set INTERNAL_API_KEY env "
+                "for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true for "
+                "loopback dev."
+            ),
+        )
 
     # Branch 3: configured key, request missing the header → 403
     if not provided_key:

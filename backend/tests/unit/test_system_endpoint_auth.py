@@ -143,11 +143,22 @@ class TestSystemConfigAuth:
         assert response.status_code == 200
         assert response.json()["data"]["status"] == "ok"
 
-    def test_dev_mode_empty_key_allows_200(self, auth_client: TestClient) -> None:
-        """DEBUG=True + empty key should allow the request (dev convenience)."""
+    def test_dev_mode_empty_key_now_fails_closed_503_p0_2(
+        self, auth_client: TestClient
+    ) -> None:
+        """ChatGPT-DR-2026-05-13 P0-2: DEBUG+empty no longer auto-allows.
+
+        Previous contract (pre-P0-2): DEBUG=True + empty key + missing header → 200.
+        New contract (P0-2 hardening): → 503 unless explicit env opt-in
+        ALLOW_UNSAFE_DEV_AUTH_BYPASS=true AND client.host is loopback.
+
+        TestClient client.host defaults to "testclient" (not loopback), so the
+        env-only path here yields 503. The bypass+loopback allow path is
+        covered in test_internal_api_key_p0_2_hardening.py (unit-level mock).
+        """
         app.dependency_overrides[get_settings] = _settings_factory(debug=True, key="")
         response = auth_client.post("/api/v1/system/config", json=CONFIG_PAYLOAD)
-        assert response.status_code == 200
+        assert response.status_code == 503
 
 
 class TestSystemTestLLMAuth:
@@ -189,8 +200,14 @@ class TestSystemTestLLMAuth:
         # LiteLLM is mocked to no-op; success path returns status=success.
         assert response.json()["data"]["status"] == "success"
 
-    def test_dev_mode_empty_key_allows_200(self, auth_client: TestClient) -> None:
-        """DEBUG=True + empty key should allow (dev convenience)."""
+    def test_dev_mode_empty_key_now_fails_closed_503_p0_2(
+        self, auth_client: TestClient
+    ) -> None:
+        """ChatGPT-DR-2026-05-13 P0-2: DEBUG+empty no longer auto-allows.
+
+        See test_internal_api_key_p0_2_hardening.py for full 6-branch coverage
+        including the bypass+loopback allow path (uses mocked Request).
+        """
         app.dependency_overrides[get_settings] = _settings_factory(debug=True, key="")
         response = auth_client.post("/api/v1/system/test-llm", json=TEST_LLM_PAYLOAD)
-        assert response.status_code == 200
+        assert response.status_code == 503
