@@ -135,8 +135,27 @@ class SyncBatchRequest(BaseModel):
     """
 
     canvas_id: str = Field(..., description="Canvas board UUID")
+    # Wave-5 Stage B 续 (2026-05-12) — vault_id 推荐必填 (P0 写入路径, 防 5 vault 共存
+    # 时 sync_batch 跨 vault 写 Neo4j. plugin Phase B0 已升级带 vault_id).
+    # 暂用 Optional 保兼容 (旧 plugin 调用), 但生产场景缺 vault_id 会触发 warning.
+    vault_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin "
+            "inferVaultId(app.vault.getName()) 取的 raw vault name. "
+            "空时 fallback 到 deprecated group_id."
+        ),
+    )
     subject_id: str | None = Field(
         default=None, description="Subject UUID for multi-subject isolation (Story 1.9)"
+    )
+    group_id: str | None = Field(
+        default=None,
+        deprecated=True,
+        description=(
+            "Deprecated — 改用 vault_id. Wave-5 Stage B 续保留作 plugin 旧调用兼容."
+        ),
     )
     operations: list[SyncOperation] = Field(
         ...,

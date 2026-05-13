@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from neo4j.exceptions import AuthError, Neo4jError, ServiceUnavailable
 from pydantic import BaseModel, Field
 
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 from app.models.sync_models import SyncBatchRequest, SyncBatchResponse
 from app.security import require_internal_api_key
 
@@ -95,6 +96,14 @@ async def sync_batch(request: SyncBatchRequest) -> SyncBatchResponse:
     """
     from app.services.sync_service import get_sync_service
 
+    # Wave-5 Stage B 续 — P0 写入路径! 多 vault 串库就在这条 sync 路径出
+    # bug. 注入 ContextVar 在调 sync_service 之前.
+    resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
+
     try:
         service = get_sync_service()
         return await service.process_sync_batch(request)
@@ -136,7 +145,22 @@ async def sync_batch(request: SyncBatchRequest) -> SyncBatchResponse:
 )
 async def sync_relationships_by_node(
     note_path: str = Query(..., description="vault 相对路径 (如 '节点/A.md')"),
-    group_id: Optional[str] = Query(default=None, description="可选 Graphiti group_id"),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin "
+            "inferVaultId(app.vault.getName()). 空时 fallback 到 deprecated group_id."
+        ),
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id.",
+    ),
 ) -> RelationshipSyncResponse:
     """Round-23 Story 8.4 — 单节点 relationships → Graphiti edges 同步.
 
@@ -156,8 +180,12 @@ async def sync_relationships_by_node(
             detail="vault root (canvas_base_path) not configured",
         )
 
+    resolved_group_id = resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
+
     result = await sync_relationships_for_note(
-        note_path=note_path, vault_root=vault_root, group_id=group_id
+        note_path=note_path, vault_root=vault_root, group_id=resolved_group_id
     )
 
     return RelationshipSyncResponse(
@@ -176,7 +204,22 @@ async def sync_relationships_by_node(
 )
 async def sync_relationships_vault(
     dry_run: bool = Query(default=True, description="True 默认仅扫描计数"),
-    group_id: Optional[str] = Query(default=None, description="可选 Graphiti group_id"),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin inferVaultId. "
+            "空时 fallback 到 deprecated group_id."
+        ),
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id.",
+    ),
 ) -> VaultRelationshipSyncResponse:
     """Round-23 Story 8.4 — 全量扫 vault 同步 frontmatter relationships.
 
@@ -199,8 +242,12 @@ async def sync_relationships_vault(
             detail="vault root (canvas_base_path) not configured",
         )
 
+    resolved_group_id = resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
+
     result = await sync_relationships_in_vault(
-        vault_root=vault_root, group_id=group_id, dry_run=dry_run
+        vault_root=vault_root, group_id=resolved_group_id, dry_run=dry_run
     )
 
     return VaultRelationshipSyncResponse(

@@ -12,10 +12,12 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,20 @@ class SaveTipRequest(BaseModel):
     node_id: str = Field(..., description="Source canvas node ID")
     source_timestamp: str = Field(
         ..., description="ISO timestamp of the source dialogue message"
+    )
+    # Wave-5 Stage B 续 — vault_id 注入. Tips 写到 per-vault group_id, 防多 vault 串库.
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填 Plugin inferVaultId. Tips per-vault.",
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
+    group_id: Optional[str] = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id.",
     )
 
 
@@ -82,6 +98,19 @@ class GetTipsResponse(BaseModel):
 )
 async def get_tips(
     node_id: str,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Tips 读取 per-vault."
+        ),
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> Dict[str, Any]:
     """
     Retrieve tips for a canvas node from Graphiti memory.
@@ -94,8 +123,10 @@ async def get_tips(
     Returns:
         GetTipsResponse with list of tips and total count.
     """
+    resolved_group_id = resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
     try:
-        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -103,7 +134,7 @@ async def get_tips(
         # Search for tips related to this node
         results = await memory_svc.search_memories(
             query=f"learning_tip node_id:{node_id}",
-            group_id=DEFAULT_GROUP_ID,
+            group_id=resolved_group_id,
             limit=50,
         )
 
@@ -161,9 +192,13 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
         SaveTipResponse with tip_id and status.
     """
     tip_id = str(uuid.uuid4())
+    resolved_group_id = resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
 
     try:
-        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -185,7 +220,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
                 "source_timestamp": request.source_timestamp,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
-            group_id=DEFAULT_GROUP_ID,
+            group_id=resolved_group_id,
         )
 
         logger.info(

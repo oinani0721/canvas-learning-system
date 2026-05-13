@@ -68,6 +68,21 @@ class EdgeRationaleCreate(BaseModel):
         description="Agent's internal assessment of explanation depth (1-5)",
     )
 
+    # Wave-5 Stage B 续 — vault_id 注入 (Edge rationale 双写 Neo4j+LanceDB 都需 per-vault group_id)
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Edge rationale per-vault 双写.",
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
+    group_id: Optional[str] = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id.",
+    )
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Response Models

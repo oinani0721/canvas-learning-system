@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: BackgroundTasks)
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 from app.api.v1.endpoints.memory import MemoryServiceDep
 from app.config import settings
 from app.core.exceptions import CanvasNotFoundException
@@ -779,6 +780,13 @@ async def decompose_basic(
     [Story 12.A.5: 学习事件自动记录]
     [Story 12.H.5: Request Deduplication]
     """
+    # Wave-5 Stage B 续 — vault_id 注入 ContextVar (memory_service / rag_service 都依赖此)
+    resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
+
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
@@ -885,6 +893,13 @@ async def decompose_deep(
     [Story 12.A.5: 学习事件自动记录]
     [Story 12.H.5: Request Deduplication]
     """
+    # Wave-5 Stage B 续 — vault_id 注入 ContextVar
+    resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
+
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
@@ -997,6 +1012,13 @@ async def score_understanding(
     [Story 12.A.5: 学习事件自动记录]
     [Story 12.H.5: Request Deduplication]
     """
+    # Wave-5 Stage B 续 — vault_id 注入 ContextVar (scoring 调 mastery_store per-vault)
+    resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
+
     # Story 12.A.2: Get RAG context for first node (for scoring context)
     first_node_id = request.node_ids[0] if request.node_ids else ""
 
@@ -1138,6 +1160,14 @@ async def _call_explanation(
     [Story 12.B.1: 增强错误处理]
     [Story 12.H.5: Request Deduplication]
     """
+    # Wave-5 Stage B 续 — vault_id 注入 ContextVar
+    # (覆盖全部 6 explain_* endpoints, 因为它们都 delegate 到本 helper)
+    resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
+
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
@@ -1639,6 +1669,13 @@ async def generate_verification_questions(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.H.5: Request Deduplication]
     """
+    # Wave-5 Stage B 续 — vault_id 注入 ContextVar
+    resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
+
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
@@ -1752,6 +1789,13 @@ async def decompose_question(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.H.5: Request Deduplication]
     """
+    # Wave-5 Stage B 续 — vault_id 注入 ContextVar
+    resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
+
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,
@@ -1991,6 +2035,13 @@ async def recommend_action(
     [Source: specs/data/recommend-action-request.schema.json]
     [Source: specs/data/recommend-action-response.schema.json]
     """
+    # Wave-5 Stage B 续 — vault_id 注入 ContextVar (memory_service.get_learning_history per-vault)
+    resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
+
     # [Code Review M3 fix]: Add request dedup for consistency with other endpoints
     cache_key = check_duplicate_request(
         canvas_name=request.canvas_name,

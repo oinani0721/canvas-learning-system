@@ -10,8 +10,10 @@
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,21 @@ class ArchiveSummaryResponse(BaseModel):
     description="Trigger an immediate archive check for all active conversation nodes. "
     "Normally this runs automatically every 24 hours.",
 )
-async def trigger_archive() -> Dict[str, Any]:
+async def trigger_archive(
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Archive trigger per-vault."
+        ),
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
+) -> Dict[str, Any]:
     """
     Manually trigger an archive check.
 
@@ -76,6 +92,7 @@ async def trigger_archive() -> Dict[str, Any]:
     Returns:
         ArchiveTriggerResponse with check results.
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         from app.services.archive_scheduler import get_archive_scheduler
 
@@ -97,7 +114,20 @@ async def trigger_archive() -> Dict[str, Any]:
     summary="Get node archive status",
     description="Query the archive status (Hot/Warm/Cold tier) for a specific node.",
 )
-async def get_archive_status(node_id: str) -> Dict[str, Any]:
+async def get_archive_status(
+    node_id: str,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Archive status per-vault.",
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
+) -> Dict[str, Any]:
     """
     Get the archive status for a node.
 
@@ -107,6 +137,7 @@ async def get_archive_status(node_id: str) -> Dict[str, Any]:
     Returns:
         NodeArchiveStatusResponse with tier and metadata.
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         from app.services.conversation_archive import get_archive_manager
 
@@ -142,7 +173,20 @@ async def get_archive_status(node_id: str) -> Dict[str, Any]:
     description="Get the LLM-generated conversation summary for a node "
     "that has been archived to Warm tier.",
 )
-async def get_archive_summary(node_id: str) -> Dict[str, Any]:
+async def get_archive_summary(
+    node_id: str,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Archive summary per-vault.",
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
+) -> Dict[str, Any]:
     """
     Get the archive summary for a Warm-tier node.
 
@@ -152,8 +196,10 @@ async def get_archive_summary(node_id: str) -> Dict[str, Any]:
     Returns:
         ArchiveSummaryResponse with summary and extraction counts.
     """
+    resolved_group_id = resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
     try:
-        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -161,7 +207,7 @@ async def get_archive_summary(node_id: str) -> Dict[str, Any]:
         # Search for distillation results for this node
         results = await memory_svc.search_memories(
             query=f"distillation summary node:{node_id}",
-            group_id=DEFAULT_GROUP_ID,
+            group_id=resolved_group_id,
             max_results=5,
         )
 

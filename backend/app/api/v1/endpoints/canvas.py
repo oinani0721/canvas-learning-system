@@ -12,11 +12,12 @@ real .canvas JSON files and triggers memory events + Neo4j sync.
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Response, status
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Query, Response, status
+from pydantic import BaseModel, Field
 
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 from app.core.exceptions import CanvasNotFoundException, NodeNotFoundException
 from app.dependencies import CanvasServiceDep
 from app.models import (
@@ -170,6 +171,22 @@ def _serialize_enum_values(data: dict) -> dict:
 async def read_canvas(
     canvas_name: str,
     canvas_service: CanvasServiceDep,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin inferVaultId. "
+            "Canvas 文件 per-vault, 注入 ContextVar 防跨 vault 读串库."
+        ),
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id.",
+    ),
 ) -> CanvasResponse:
     """
     Read a Canvas file and return its contents (nodes + edges).
@@ -180,6 +197,7 @@ async def read_canvas(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1canvas~1{canvas_name}]
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         canvas_data = await canvas_service.read_canvas(canvas_name)
     except CanvasNotFoundException as exc:
@@ -209,6 +227,17 @@ async def create_node(
     canvas_name: str,
     node: NodeCreate,
     canvas_service: CanvasServiceDep,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Canvas 写入 per-vault.",
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> NodeRead:
     """
     Create a new node in a Canvas.
@@ -220,6 +249,7 @@ async def create_node(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1canvas~1{canvas_name}~1nodes]
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         node_data = _serialize_enum_values(node.model_dump(exclude_none=True))
         created = await canvas_service.add_node(canvas_name, node_data)
@@ -243,6 +273,17 @@ async def update_node(
     node_id: str,
     node: NodeUpdate,
     canvas_service: CanvasServiceDep,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Canvas 更新 per-vault.",
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> NodeRead:
     """
     Update an existing node in a Canvas.
@@ -253,6 +294,7 @@ async def update_node(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1canvas~1{canvas_name}~1nodes~1{node_id}]
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         update_data = _serialize_enum_values(node.model_dump(exclude_none=True))
         updated = await canvas_service.update_node(canvas_name, node_id, update_data)
@@ -280,6 +322,17 @@ async def delete_node(
     canvas_name: str,
     node_id: str,
     canvas_service: CanvasServiceDep,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Canvas 删除 per-vault.",
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> Response:
     """
     Delete a node from a Canvas. Also removes all edges connected to this node.
@@ -289,6 +342,7 @@ async def delete_node(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1canvas~1{canvas_name}~1nodes~1{node_id}]
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         deleted = await canvas_service.delete_node(canvas_name, node_id)
     except CanvasNotFoundException as exc:
@@ -317,6 +371,17 @@ async def create_edge(
     canvas_name: str,
     edge: EdgeCreate,
     canvas_service: CanvasServiceDep,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Edge 写入 per-vault, 触发 Neo4j sync.",
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> EdgeRead:
     """
     Create a new edge in a Canvas. Also triggers Neo4j sync (fire-and-forget).
@@ -326,6 +391,7 @@ async def create_edge(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1canvas~1{canvas_name}~1edges]
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         edge_data = _serialize_enum_values(edge.model_dump(exclude_none=True))
         created = await canvas_service.add_edge(canvas_name, edge_data)
@@ -348,6 +414,17 @@ async def delete_edge(
     canvas_name: str,
     edge_id: str,
     canvas_service: CanvasServiceDep,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Edge 删除 per-vault.",
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> Response:
     """
     Delete an edge from a Canvas. Also triggers Neo4j deletion sync (fire-and-forget).
@@ -357,6 +434,7 @@ async def delete_edge(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1canvas~1{canvas_name}~1edges~1{edge_id}]
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         deleted = await canvas_service.delete_edge(canvas_name, edge_id)
     except CanvasNotFoundException as exc:
@@ -390,6 +468,17 @@ async def delete_edge(
 async def sync_edges(
     canvas_name: str,
     canvas_service: CanvasServiceDep,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Sync all edges per-vault Neo4j sync.",
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> SyncEdgesSummaryResponse:
     """
     Sync all Canvas edges to Neo4j knowledge graph.
@@ -402,6 +491,7 @@ async def sync_edges(
     Story 36.4: Canvas打开时全量Edge同步
     [Source: docs/stories/36.4.story.md#AC-1]
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     summary = await canvas_service.sync_all_edges_to_neo4j(canvas_name)
     return SyncEdgesSummaryResponse(
         canvas_path=summary["canvas_path"],
@@ -428,6 +518,20 @@ async def sync_edges(
 async def get_recommendations(
     canvas_id: str,
     request: DismissedPairsRequest,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "Wave-5 Stage B — 推荐必填. Plugin inferVaultId. "
+            "Recommendations 跑 bge-m3 + Neo4j 2-hop per-vault."
+        ),
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> RecommendationResponse:
     """
     Analyze a canvas and return concept-relation recommendations.
@@ -441,6 +545,7 @@ async def get_recommendations(
 
     Story 1.7 AC-1, AC-2, AC-6
     """
+    resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         from app.clients.neo4j_client import get_neo4j_client
         from app.services.recommendation_service import RecommendationService

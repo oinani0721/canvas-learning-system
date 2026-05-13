@@ -47,68 +47,13 @@ def _get_store():
     return get_mastery_store()
 
 
-# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助。
-# 67 endpoint 中此前零调用 set_current_subject_id → 67% endpoint 无隔离 →
-# 5 vault 共存时跨 vault 数据泄漏。
-# 此 helper 统一处理 vault_id → sanitize → build_vault_group_id → ContextVar 写入,
-# 同时返回派生的 group_id 供 endpoint body 用作 store / service 调用参数,
-# 保持向后兼容 (旧 group_id Query 仍读得到, 但优先 vault_id).
-#
-# 兼容策略:
-#   - vault_id 提供 → 走新路径 (推荐, plugin 端 Phase B0 改完后所有调用走此路径)
-#   - vault_id 空 + group_id 提供 → 走 deprecated 路径 (warning log, plugin 旧调用兼容)
-#   - 两者都空 → DEFAULT_GROUP_ID fallback (背景任务 / 旧脚本)
-def _resolve_vault_group_id(
-    vault_id: Optional[str],
-    subject_id: Optional[str] = None,
-    canvas_path: Optional[str] = None,
-    legacy_group_id: Optional[str] = None,
-) -> str:
-    """Wave-5 Stage B — vault_id → ContextVar 注入 + group_id 派生.
+# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
+# Stage B 续 (2026-05-12) helper 已提取到 ._vault_id_resolver 共享模块,
+# 供 canvas / agents / sync / wikilink / tips / suggestions / archive / edges /
+# context / skills 等 11 个 endpoint files 复用. 此处保留同名 alias 兼容旧 import.
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 
-    Args:
-        vault_id: Plugin 端 inferVaultId(app.vault.getName()) 取的 raw vault name.
-        subject_id: 可选 vault 内学科二级 (Stage A 透传).
-        canvas_path: 可选 canvas 路径 (subject_id 为空时 fallback).
-        legacy_group_id: 兼容旧 plugin 调用 (deprecated, 仅 vault_id 空时使用).
-
-    Returns:
-        Sanitized + canonical vault: 前缀 group_id (注入 ContextVar 后再返回).
-    """
-    from app.config import sanitize_vault_id
-    from app.core.subject_config import (
-        build_vault_group_id,
-        canonical_group_id,
-        set_current_subject_id,
-    )
-
-    if vault_id and vault_id.strip():
-        sanitized = sanitize_vault_id(vault_id)
-        derived = build_vault_group_id(
-            sanitized,
-            subject_id=subject_id,
-            canvas_path=canvas_path,
-        )
-    elif legacy_group_id and legacy_group_id.strip():
-        # Deprecated 路径 — 旧 plugin 调用兼容. 经 canonical_group_id 归一化避免
-        # 'cs188' / 'canvas-dev' 等历史硬编码直进 Neo4j (Round-23 Patch 2).
-        logger.warning(
-            "Wave-5 Stage B: vault_id missing, falling back to deprecated "
-            "group_id=%s. Update plugin caller to pass vault_id.",
-            legacy_group_id,
-        )
-        derived = canonical_group_id(legacy_group_id)
-    else:
-        # 两者都空 — 极端 fallback (背景任务 / health check)
-        logger.warning(
-            "Wave-5 Stage B: both vault_id and group_id missing, "
-            "falling back to DEFAULT_GROUP_ID=%s.",
-            DEFAULT_GROUP_ID,
-        )
-        derived = DEFAULT_GROUP_ID
-
-    set_current_subject_id(derived)
-    return derived
+_resolve_vault_group_id = resolve_vault_group_id
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -21,6 +21,7 @@ from datetime import datetime
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 from app.models.edge_rationale import (
     EdgeRationaleCreate,
     EdgeRationaleResponse,
@@ -40,6 +41,7 @@ edges_router = APIRouter()
 async def _write_neo4j_triplet(
     rationale: EdgeRationaleCreate,
     record_id: str,
+    resolved_group_id: str,
 ) -> WriteStatus:
     """
     Write edge rationale to Neo4j as structured KG-triplet.
@@ -50,10 +52,12 @@ async def _write_neo4j_triplet(
 
     Story 4.2 AC-5: Time-series aware — new rationale creates new node,
     does not overwrite old (append-only for version history).
+
+    Wave-5 Stage B 续: resolved_group_id 由 endpoint 顶部 resolve_vault_group_id 派生,
+    确保 Neo4j 写入用 per-vault group_id 防多 vault 串库.
     """
     try:
         from app.clients.neo4j_client import get_neo4j_client
-        from app.config import DEFAULT_GROUP_ID
 
         neo4j = get_neo4j_client()
         if neo4j is None:
@@ -96,8 +100,6 @@ async def _write_neo4j_triplet(
         RETURN er.record_id AS record_id
         """
 
-        group_id = DEFAULT_GROUP_ID if DEFAULT_GROUP_ID else "canvas-learning"
-
         await neo4j.execute_query(
             query,
             {
@@ -114,7 +116,7 @@ async def _write_neo4j_triplet(
                 "questioning_rounds": rationale.questioning_rounds,
                 "explanation_depth_score": rationale.explanation_depth_score,
                 "episode_body": episode_body,
-                "group_id": group_id,
+                "group_id": resolved_group_id,
             },
         )
 
@@ -283,6 +285,14 @@ async def record_edge_rationale(
     """
     record_id = str(uuid.uuid4())
 
+    # Wave-5 Stage B 续 — P0 双写路径! vault_id 注入 ContextVar +
+    # 派生 group_id 供 Neo4j INSERT 用.
+    resolved_group_id = resolve_vault_group_id(
+        rationale.vault_id,
+        subject_id=rationale.subject_id,
+        legacy_group_id=rationale.group_id,
+    )
+
     logger.info(
         "Recording edge rationale: edge=%s, %s --[%s]--> %s (confidence=%.2f)",
         rationale.edge_id,
@@ -294,7 +304,7 @@ async def record_edge_rationale(
 
     # Story 4.2 AC-3: Dual-write async — both writes run concurrently
     graphiti_status, lancedb_status = await asyncio.gather(
-        _write_neo4j_triplet(rationale, record_id),
+        _write_neo4j_triplet(rationale, record_id, resolved_group_id),
         _write_lancedb(rationale, record_id),
     )
 

@@ -454,6 +454,20 @@ class DecomposeRequest(BaseModel):
 
     canvas_name: str = Field(..., description="Canvas file name")
     node_id: str = Field(..., description="Target node ID")
+    # Wave-5 Stage B 续 — vault_id 注入 (Agent decompose 调 Memory + Neo4j per-vault)
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Agent 调 per-vault Memory.",
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
+    group_id: Optional[str] = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id.",
+    )
 
 
 class DecomposeResponse(BaseModel):
@@ -484,6 +498,20 @@ class ScoreRequest(BaseModel):
     node_ids: List[str] = Field(..., description="Node IDs to score")
     node_content: Optional[str] = Field(
         None, description="Node content to score (passed from plugin)"
+    )
+    # Wave-5 Stage B 续 — vault_id 注入
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Scoring per-vault.",
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
+    group_id: Optional[str] = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id.",
     )
 
 
@@ -540,6 +568,20 @@ class ExplainRequest(BaseModel):
         description="Real-time node content from plugin (Story 12.B.2). "
         "If provided, used directly instead of reading from disk.",
     )
+    # Wave-5 Stage B 续 — vault_id 注入
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Explain per-vault.",
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
+    group_id: Optional[str] = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated — 改用 vault_id.",
+    )
 
 
 class ExplainResponse(BaseModel):
@@ -575,6 +617,18 @@ class VerificationQuestionRequest(BaseModel):
 
     canvas_name: str = Field(..., description="Canvas file name")
     node_id: str = Field(..., description="Target node ID")
+    # Wave-5 Stage B 续 — vault_id 注入
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId.",
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
+    group_id: Optional[str] = Field(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    )
 
 
 class VerificationQuestion(BaseModel):
@@ -624,6 +678,18 @@ class QuestionDecomposeRequest(BaseModel):
 
     canvas_name: str = Field(..., description="Canvas file name")
     node_id: str = Field(..., description="Target node ID")
+    # Wave-5 Stage B 续 — vault_id 注入
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId.",
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
+    group_id: Optional[str] = Field(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    )
 
 
 class SubQuestion(BaseModel):
@@ -1112,6 +1178,18 @@ class RecommendActionRequest(BaseModel):
     )
     concept: Optional[str] = Field(
         None, description="Concept name (optional, used for history lookup)"
+    )
+    # Wave-5 Stage B 续 — vault_id 注入 (history lookup per-vault)
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId.",
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
+    group_id: Optional[str] = Field(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
     )
 
 

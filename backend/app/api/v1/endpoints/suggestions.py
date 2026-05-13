@@ -17,10 +17,12 @@ import asyncio
 import json
 import logging
 import re
+from typing import Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 from app.core.litellm_config import format_litellm_model, get_runtime_model_config
 from app.graphiti.entity_types import (
     RELATION_TYPE_LABELS,
@@ -47,6 +49,19 @@ class RelationSuggestionRequest(BaseModel):
         ..., min_length=1, description="Content of the new (pulled-out) node"
     )
     source_node_id: str = Field(default="", description="Source node ID for reference")
+    # Wave-5 Stage B 续 — vault_id 注入. LLM 调用无 Neo4j 写入但需 ContextVar 给
+    # 下游 logging / runtime model config (per-vault provider 可能不同).
+    vault_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Wave-5 Stage B — 推荐必填 Plugin inferVaultId.",
+    )
+    subject_id: Optional[str] = Field(
+        default=None, description="可选 vault 内学科二级 namespace."
+    )
+    group_id: Optional[str] = Field(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    )
 
 
 class RelationSuggestionResponse(BaseModel):
@@ -111,6 +126,11 @@ async def suggest_relation(
     Returns:
         RelationSuggestionResponse with type, confidence, and reason.
     """
+    resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        legacy_group_id=request.group_id,
+    )
     try:
         result = await asyncio.wait_for(
             _llm_suggest_relation(request.source_content, request.new_content),

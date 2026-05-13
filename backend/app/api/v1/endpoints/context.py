@@ -28,6 +28,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 from app.config import DEFAULT_GROUP_ID
 
 logger = logging.getLogger(__name__)
@@ -191,9 +192,21 @@ async def get_node_context_endpoint(
         description='Response format: omit for JSON, "markdown" for plain-text Markdown '
         "(ready for --append-system-prompt).",
     ),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin inferVaultId. "
+            "Context 注入 per-vault — Neo4j mastery + Memory tips."
+        ),
+    ),
+    subject_id: Optional[str] = Query(
+        default=None, description="可选 vault 内学科二级 namespace."
+    ),
     group_id: Optional[str] = Query(
         default=None,
-        description="Subject isolation namespace. Defaults to app-level DEFAULT_GROUP_ID.",
+        deprecated=True,
+        description="Deprecated — 改用 vault_id. Subject isolation namespace.",
     ),
 ):
     """
@@ -208,8 +221,12 @@ async def get_node_context_endpoint(
 
     Query params:
         format: "markdown" returns plain-text Markdown; default returns JSON.
-        group_id: override subject namespace for multi-subject isolation.
+        vault_id: Wave-5 Stage B — multi-vault isolation namespace (推荐必填).
+        group_id: Deprecated — Subject isolation namespace.
     """
+    resolved_group_id = resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
     from app.services.learning_context_service import (
         format_as_markdown,
         get_node_context,
@@ -219,12 +236,11 @@ async def get_node_context_endpoint(
     # same node accessed under different subjects receives isolated entries
     # — otherwise a cross-subject hit would leak neighbors from group A to
     # group B when their TTLs overlap (FR-KG-04 isolation Phase 2).
-    # Use DEFAULT_GROUP_ID (not the literal string "default") so that the
-    # cache key stays aligned with get_node_context's own fallback branch.
-    cache_key = f"{group_id or DEFAULT_GROUP_ID}:{node_id}"
+    # Wave-5 Stage B 续: cache_key 用 resolved_group_id 防多 vault 同 node_id 串库.
+    cache_key = f"{resolved_group_id or DEFAULT_GROUP_ID}:{node_id}"
     cached = _get_cached(cache_key)
     if cached is None:
-        cached = await get_node_context(node_id=node_id, group_id=group_id)
+        cached = await get_node_context(node_id=node_id, group_id=resolved_group_id)
         _set_cache(cache_key, cached)
 
     # Return Markdown if requested
