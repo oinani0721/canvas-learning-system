@@ -384,6 +384,8 @@ class TestSharedResolverImportedByEndpoints:
             "app.api.v1.endpoints.edges",
             "app.api.v1.endpoints.context",
             "app.api.v1.endpoints.agents",
+            # Wave-5 Stage B 续 follow-up (2026-05-13) — 第 12 个 endpoint 补齐
+            "app.api.v1.endpoints.index",
         ],
     )
     def test_endpoint_imports_shared_resolver(self, module_name):
@@ -395,3 +397,93 @@ class TestSharedResolverImportedByEndpoints:
             f"{module_name} did not import resolve_vault_group_id from "
             "_vault_id_resolver"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 10: index.py DELETE /api/v1/index/{vault_id} — Wave-5 Stage B 续 follow-up
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestIndexDeleteVaultEndpointVaultIdInjection:
+    """Wave-5 Stage B 续 follow-up (2026-05-13).
+
+    `index.py:delete_vault_index` 是 Stage B 续 audit 漏掉的第 12 个 endpoint:
+    vault_id 作 path param 直接 forward 给 LanceDB 的 drop_vault_tables, 但未走
+    resolver 模式 → silent 串库回归风险窗口 (与 wave-2 F2 LanceDBClient direct
+    instantiation 同源).
+
+    本 follow-up patch (commit pending) 加 resolve_vault_group_id(vault_id) 注入
+    ContextVar; 测试断言 endpoint 调用后 ContextVar 含正确 group_id, drop_vault_tables
+    仍接 raw path param (向后兼容表名查找, 零业务逻辑变更).
+    """
+
+    @pytest.mark.asyncio
+    async def test_delete_vault_index_injects_contextvar(self, monkeypatch):
+        """endpoint 调用走 resolver → ContextVar 被正确注入 + drop_vault_tables 接 raw."""
+        from unittest.mock import MagicMock
+
+        from app.api.v1.endpoints.index import delete_vault_index
+        from app.core.subject_config import (
+            get_current_subject_id,
+            set_current_subject_id,
+        )
+
+        # 先把 ContextVar 重置到 baseline
+        set_current_subject_id("vault:baseline_before_call")
+
+        # Mock LanceDB client - drop_vault_tables 返回 3 (3 tables dropped)
+        mock_client = MagicMock()
+        mock_client.drop_vault_tables.return_value = 3
+
+        # Patch _get_lancedb_client → return mock
+        from app.api.v1.endpoints import index as index_module
+
+        monkeypatch.setattr(index_module, "_get_lancedb_client", lambda: mock_client)
+
+        # 调 endpoint
+        result = await delete_vault_index(vault_id="cs_61b")
+
+        # ContextVar 应该被 resolver 重写 (不再是 baseline)
+        new_subject = get_current_subject_id()
+        assert new_subject != "vault:baseline_before_call"
+        assert new_subject.startswith("vault:")
+        assert "cs_61b" in new_subject
+
+        # drop_vault_tables 应该接 raw vault_id (向后兼容)
+        mock_client.drop_vault_tables.assert_called_once_with("cs_61b")
+        assert result == {"vault_id": "cs_61b", "tables_dropped": 3}
+
+    @pytest.mark.asyncio
+    async def test_delete_vault_index_404_when_no_tables(self, monkeypatch):
+        """drop_vault_tables 返回 0 → 404 (现有契约不变)."""
+        from unittest.mock import MagicMock
+
+        from fastapi import HTTPException
+
+        from app.api.v1.endpoints.index import delete_vault_index
+        from app.api.v1.endpoints import index as index_module
+
+        mock_client = MagicMock()
+        mock_client.drop_vault_tables.return_value = 0
+        monkeypatch.setattr(index_module, "_get_lancedb_client", lambda: mock_client)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_vault_index(vault_id="empty_vault")
+
+        assert exc_info.value.status_code == 404
+        assert "empty_vault" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_delete_vault_index_503_when_client_unavailable(self, monkeypatch):
+        """LanceDB client None → 503 (现有契约不变)."""
+        from fastapi import HTTPException
+
+        from app.api.v1.endpoints.index import delete_vault_index
+        from app.api.v1.endpoints import index as index_module
+
+        monkeypatch.setattr(index_module, "_get_lancedb_client", lambda: None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_vault_index(vault_id="any_vault")
+
+        assert exc_info.value.status_code == 503
