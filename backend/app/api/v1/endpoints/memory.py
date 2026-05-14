@@ -43,6 +43,7 @@ from app.models.memory_schemas import (
     MemoryHealthResponse,
     ReviewSuggestionResponse,
 )
+from app.security import require_internal_api_key
 from app.services.memory_service import (
     MemoryService,
     get_memory_service,
@@ -50,7 +51,9 @@ from app.services.memory_service import (
 
 logger = logging.getLogger(__name__)
 
-# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter prefix tags)
+# ChatGPT-DR-2026-05-13 P0-3: Memory API 统一鉴权 — 6 个 non-extract endpoint
+# endpoint-level 加 Depends(require_internal_api_key), 防匿名 LAN/external 访问.
+# /extract-conversation 保留 _require_observer_token 单独鉴权 (sidecar 兼容).
 memory_router = APIRouter()
 
 
@@ -117,6 +120,7 @@ MemoryServiceDep = Annotated[MemoryService, Depends(get_memory_service)]
     status_code=status.HTTP_201_CREATED,
     summary="记录学习事件",
     description="记录用户的学习事件，存储到Neo4j和Graphiti",
+    dependencies=[Depends(require_internal_api_key)],  # P0-3
 )
 async def create_learning_episode(
     episode: LearningEpisodeCreate, memory_service: MemoryServiceDep
@@ -172,6 +176,7 @@ async def create_learning_episode(
     "/episodes",
     response_model=LearningHistoryResponse,
     summary="查询学习历史",
+    dependencies=[Depends(require_internal_api_key)],  # P0-3
     description="查询用户的学习历史，支持分页和过滤",
 )
 async def get_learning_history(
@@ -285,6 +290,7 @@ async def get_learning_history(
     response_model=ConceptHistoryResponse,
     summary="查询概念学习历史",
     description="查询特定概念的学习历史，包含时间线和得分变化",
+    dependencies=[Depends(require_internal_api_key)],  # P0-3
 )
 async def get_concept_history(
     concept_id: str,
@@ -328,6 +334,7 @@ async def get_concept_history(
     response_model=List[ReviewSuggestionResponse],
     summary="获取复习建议",
     description="获取基于艾宾浩斯遗忘曲线的复习建议",
+    dependencies=[Depends(require_internal_api_key)],  # P0-3
 )
 async def get_review_suggestions(
     memory_service: MemoryServiceDep,
@@ -410,6 +417,7 @@ async def get_review_suggestions(
     response_model=MemoryHealthResponse,
     summary="Memory系统健康检查",
     description="获取3层记忆系统的健康状态",
+    dependencies=[Depends(require_internal_api_key)],  # P0-3
 )
 async def get_memory_health(memory_service: MemoryServiceDep) -> MemoryHealthResponse:
     """
@@ -447,6 +455,7 @@ async def get_memory_health(memory_service: MemoryServiceDep) -> MemoryHealthRes
     status_code=status.HTTP_200_OK,
     summary="批量记录学习事件",
     description="批量记录Canvas节点颜色变化等学习事件(最多50个)",
+    dependencies=[Depends(require_internal_api_key)],  # P0-3
 )
 async def create_batch_episodes(
     request: BatchEpisodesRequest, memory_service: MemoryServiceDep
