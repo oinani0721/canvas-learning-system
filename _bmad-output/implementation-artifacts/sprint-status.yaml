@@ -33,6 +33,59 @@
 # - E7(QA) dissolved: FR-QA-01~07 distributed to E1/E2/E3/E5/E6
 # - Reranker: gte-reranker-modernbert-base (Story 2.5, supersedes bge-reranker)
 
+# ⛔⛔⛔ EPIC 编号双轨混乱警告 (2026-05-13 工程治理修复 — 强制阅读)
+# ════════════════════════════════════════════════════════════════════
+# sprint-status.yaml Epic 编号 与 _bmad-output/implementation-artifacts/epic-N/
+# 物理目录之间存在 3 处错位。BMAD dev-story Skill / 人类协调员使用本文件时，
+# **必须**按下方 Epic-N 段的 README.md 指针找物理 spec 路径，
+# 不要盲信 sprint id 自动匹配 epic-N/N-X-*.md 命名规则。
+#
+# ────────────────────────────────────────────────────────────────────
+# 错位 1: Epic 4 ↔ Epic 6 物理目录互换
+# ────────────────────────────────────────────────────────────────────
+#   sprint Epic 4 (Edge 对话, 4 stories, line 144-149)
+#     → 物理 spec 在  _bmad-output/implementation-artifacts/epic-6/  (3 文件)
+#   sprint Epic 6 (检验白板, 10 stories, line 170-181)
+#     → 物理 spec 在  _bmad-output/implementation-artifacts/epic-4/  (11 文件)
+#   原因: sprint 编号源自 Tauri 旧 sprint 计划; epics.md (Obsidian 真相源)
+#         用不同 9 Epic 编号体系; 物理目录跟 epics.md 编号
+#         (epics.md Epic 4 = 检验白板, Epic 6 = Edge 对话)。
+#
+# ────────────────────────────────────────────────────────────────────
+# 错位 2: Epic 5 命名 8/8 全错配 (sprint 用语义命名 vs 物理用 PRD 章节命名)
+# ────────────────────────────────────────────────────────────────────
+#   sprint id (语义命名)                              物理文件名 (PRD 章节命名)
+#   5-1-bkt-fsrs-mastery-system                  →   epic-5/5-1-bkt-mastery-update.md
+#   5-2-node-color-mastery-visualization         →   epic-5/5-2-fsrs-review-interval.md
+#   5-3-learning-profile-panel                   →   epic-5/5-3-five-signal-fusion.md
+#   5-4-fsrs-review-dashboard                    →   epic-5/5-4-scoring-chain-integrity.md
+#   5-5-calibration-tracking                     →   epic-5/5-5-error-classification-dual-write.md
+#   5-6-multi-signal-fusion                      →   epic-5/5-6-calibration-data-voting.md
+#   5-7-eventbus-triconnect                      →   epic-5/5-7-three-layer-memory-retrieval.md
+#   5-8-structured-extraction-manual-review      →   epic-5/5-8-async-write-hot-warm-cold.md
+#   详细对照见 epic-5/README.md alias 表。
+#
+# ────────────────────────────────────────────────────────────────────
+# 错位 3: Epic 3 spec 12/13 物理缺失 + 5 个旧 KG 构建 spec 待归档
+# ────────────────────────────────────────────────────────────────────
+#   sprint Epic 3 (节点 AI 对话, 13 stories, line 124-138):
+#     ✅ 3-1-claude-code-cli-per-node-session.md (review)
+#     ❌ 3-2 ~ 3-13 (12 个 ready-for-dev 占位, 物理 spec 尚未编写)
+#   epic-3/ 同时含 5 个旧 epics.md 编号 KG 构建 spec (待归档到 _bmad-archive/):
+#     3-1-concept-extraction-wikilink.md  (旧编号, 与 3-1 节点对话同名冲突)
+#     3-2-graphify-relation-extraction.md
+#     3-3-edge-relationship-files.md
+#     3-4-bookmark-exam-extraction.md
+#     3-5-kg-health-image.md
+#   详细见 epic-3/README.md。
+#
+# ────────────────────────────────────────────────────────────────────
+# 修复策略 (2026-05-13):
+#   方案 A = 注释 + README 索引 (不重命名物理文件, 保护 git 历史)
+#   每个有错位的 epic-N/ 目录已 ship README.md 作为索引文件,
+#   sprint-status 头部加本警告 + epic 段加文件路径注释。
+# ════════════════════════════════════════════════════════════════════
+
 generated: 2026-03-17
 project: Canvas
 project_key: NOKEY
@@ -123,61 +176,65 @@ development_status:
   # ══════════════════════════════════════════════════════
   epic-3: in-progress
   3-1-claude-code-cli-per-node-session: review  # ✅ 2026-05-02 v1.0 dev — 路线 A 节点 AI 对话原型（4 MVP 闭环达成后启动）；plugin 第 12 命令 canvas:open-node-chat（Cmd+Shift+C 自绑）+ src/node-chat-context.ts 纯函数模块（17 单测 green）+ canvas-vault/.claude/skills/node-chat/SKILL.md（纯对话模式）；复用 1.17 v3.0 Hybrid 范式（plugin clipboard → Claudian invoke）；main.js 72731→83672B（+10.7KB）；121/121 tests green；顺手修 main.ts:990 closure bug（recountBoardConcepts(updated) reorder 到 vault.modify 后）
-  3-2-mcp-tool-exposure-backend-api: ready-for-dev
-  3-3-chat-panel-ui-streaming: ready-for-dev
-  3-4-learning-context-auto-injection: ready-for-dev
-  3-5-skill-command-integration: ready-for-dev
-  3-6-tips-annotation-error-archiving: ready-for-dev
-  3-7-dialog-pullout-node: ready-for-dev
-  3-8-dialog-archive-async-generation: ready-for-dev
-  3-9-engine-fallback: ready-for-dev
-  3-10-quota-management-degradation: ready-for-dev
-  3-11-crash-recovery: ready-for-dev
-  3-12-token-tracking-cost-statistics: ready-for-dev
-  3-13-prompt-injection-output-safety: ready-for-dev
+  3-2-mcp-tool-exposure-backend-api: ready-for-dev      # 物理: ❌ 未写, dev 启动前先 bmad-bmm-create-story 新建; 见 epic-3/README.md
+  3-3-chat-panel-ui-streaming: ready-for-dev            # 物理: ❌ 未写
+  3-4-learning-context-auto-injection: ready-for-dev    # 物理: ❌ 未写
+  3-5-skill-command-integration: ready-for-dev          # 物理: ❌ 未写
+  3-6-tips-annotation-error-archiving: ready-for-dev    # 物理: ❌ 未写
+  3-7-dialog-pullout-node: ready-for-dev                # 物理: ❌ 未写
+  3-8-dialog-archive-async-generation: ready-for-dev    # 物理: ❌ 未写
+  3-9-engine-fallback: ready-for-dev                    # 物理: ❌ 未写
+  3-10-quota-management-degradation: ready-for-dev      # 物理: ❌ 未写
+  3-11-crash-recovery: ready-for-dev                    # 物理: ❌ 未写
+  3-12-token-tracking-cost-statistics: ready-for-dev    # 物理: ❌ 未写
+  3-13-prompt-injection-output-safety: ready-for-dev    # 物理: ❌ 未写
   epic-3-retrospective: optional
 
   # ══════════════════════════════════════════════════════
   # Epic 4: Edge 连线对话与关系学习 (4 stories)
   # FR: EDGE-01~04
+  # ⛔ 物理 spec 在 epic-6/ (3 文件, epics.md 真相源 Epic 6); 详见 epic-6/README.md
   # ══════════════════════════════════════════════════════
   epic-4: backlog
-  4-1-edge-dialog-trigger: ready-for-dev
-  4-2-edge-dialog-agent-reasoning: ready-for-dev
-  4-3-ei-se-dual-strategy: ready-for-dev
-  4-4-edge-dialog-fallback: ready-for-dev
+  4-1-edge-dialog-trigger: ready-for-dev           # 物理: epic-6/6-1-edge-discussion-trigger.md ✅
+  4-2-edge-dialog-agent-reasoning: ready-for-dev   # 物理: ❌ 缺独立 spec, 融入 epic-6/6-1 或新建
+  4-3-ei-se-dual-strategy: ready-for-dev           # 物理: epic-6/6-2-ei-se-dual-strategy.md ✅
+  4-4-edge-dialog-fallback: ready-for-dev          # 物理: ❌ 缺独立 spec, 融入 epic-6/6-1 或新建
   epic-4-retrospective: optional
 
   # ══════════════════════════════════════════════════════
   # Epic 5: 精通度追踪、学习档案与 Dashboard (8 stories)
   # FR: MAST-01~06, TRACE-01~05, DASH-01~04, QA-07
+  # ⛔ sprint id (语义) 与物理文件名 (PRD 章节) 8/8 全错配; 完整 alias 表见 epic-5/README.md
   # ══════════════════════════════════════════════════════
   epic-5: backlog
-  5-1-bkt-fsrs-mastery-system: ready-for-dev
-  5-2-node-color-mastery-visualization: ready-for-dev
-  5-3-learning-profile-panel: ready-for-dev
-  5-4-fsrs-review-dashboard: ready-for-dev
-  5-5-calibration-tracking: ready-for-dev
-  5-6-multi-signal-fusion: ready-for-dev
-  5-7-eventbus-triconnect: ready-for-dev
-  5-8-structured-extraction-manual-review: ready-for-dev
+  5-1-bkt-fsrs-mastery-system: ready-for-dev              # 物理: epic-5/5-1-bkt-mastery-update.md + 5-2-fsrs-review-interval.md
+  5-2-node-color-mastery-visualization: ready-for-dev     # 物理: ❌ UI 层 spec 未写
+  5-3-learning-profile-panel: ready-for-dev               # 物理: epic-5/5-3-five-signal-fusion.md (信号融合) + UI 层 spec 待新建
+  5-4-fsrs-review-dashboard: ready-for-dev                # 物理: epic-5/5-4-scoring-chain-integrity.md (评分链) + Dashboard UI spec 待新建
+  5-5-calibration-tracking: ready-for-dev                 # 物理: epic-5/5-6-calibration-data-voting.md
+  5-6-multi-signal-fusion: ready-for-dev                  # 物理: epic-5/5-3-five-signal-fusion.md (与 5-3 共享 spec)
+  5-7-eventbus-triconnect: ready-for-dev                  # 物理: ❌ 基础设施 spec 未写
+  5-8-structured-extraction-manual-review: ready-for-dev  # 物理: epic-5/5-7-three-layer-memory-retrieval.md + 5-8-async-write-hot-warm-cold.md
   epic-5-retrospective: optional
 
   # ══════════════════════════════════════════════════════
   # Epic 6: 检验白板与递归考察 (10 stories)
   # FR: EXAM-01~08,11~13,15~21, QA-01(深化), QA-06(出题侧)
+  # ⛔ 物理 spec 在 epic-4/ (11 文件, epics.md 真相源 Epic 4 检验白板); 详见 epic-4/README.md
+  # 注: sprint 10 stories vs 物理 11 stories, 划分不同, 无法逐一对齐
   # ══════════════════════════════════════════════════════
   epic-6: backlog
-  6-1-exam-board-generation: ready-for-dev
-  6-2-exam-mode-selection: ready-for-dev
-  6-3-ai-precise-question-acp: ready-for-dev
-  6-4-autoscore-stealth-grading: ready-for-dev
-  6-5-recursive-exam-node-sync: ready-for-dev
-  6-6-progressive-hints-skip: ready-for-dev
-  6-7-cognitive-load-rest-reminder: ready-for-dev
-  6-8-exam-record-persistence: ready-for-dev
-  6-9-scoring-faithfulness-deep-check: ready-for-dev
-  6-10-question-difficulty-matching: ready-for-dev
+  6-1-exam-board-generation: ready-for-dev          # 物理: epic-4/4-1-exam-isolation-anti-nesting.md (隔离+防嵌套基础) + epic-4/4-3-triple-fusion-question-gen.md (三路融合出题)
+  6-2-exam-mode-selection: ready-for-dev            # 物理: epic-4/4-4-exam-mode-selection.md ✅
+  6-3-ai-precise-question-acp: ready-for-dev        # 物理: epic-4/4-3-triple-fusion-question-gen.md (出题精度)
+  6-4-autoscore-stealth-grading: ready-for-dev      # 物理: epic-4/4-6-silent-scoring-autoscore.md ✅
+  6-5-recursive-exam-node-sync: ready-for-dev       # 物理: epic-4/4-8-bookmark-concept-extraction.md (递归同步)
+  6-6-progressive-hints-skip: ready-for-dev         # 物理: epic-4/4-7-progressive-hints-skip.md ✅
+  6-7-cognitive-load-rest-reminder: ready-for-dev   # 物理: ❌ 未写
+  6-8-exam-record-persistence: ready-for-dev        # 物理: epic-4/4-10-exam-record-persistence.md ✅
+  6-9-scoring-faithfulness-deep-check: ready-for-dev # 物理: epic-4/4-9-calibration-vote-data-sync.md (校准+忠实度)
+  6-10-question-difficulty-matching: ready-for-dev  # 物理: epic-4/4-11-irt-difficulty-callout-exam.md (IRT 难度匹配)
   epic-6-retrospective: optional
 
   # ══════════════════════════════════════════════════════
