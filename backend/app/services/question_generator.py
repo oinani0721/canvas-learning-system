@@ -28,11 +28,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
 from app.core.decision_tracker import log_decision
-from app.core.source_descriptions import (
-    CONVERSATION_ARCHIVE_SOURCES,
-    MISCONCEPTION_SOURCES,
-    TIP_SOURCES,
-)
 from app.models.exam_models import (
     ACPData,
     ExamMode,
@@ -894,25 +889,26 @@ class QuestionGenerator:
             return 0.5, "neo4j_unavailable"
 
     async def _get_tips(self, node_id: str) -> List[str]:
-        """Get user-annotated Tips from Graphiti for a node."""
+        """Get user-annotated Tips from Graphiti for a node.
+
+        P0-2b (2026-05-13): source_description 对齐 memory_format.py canonical:
+        - 'learning-tip-record' (LearningTip, Story 3.6 侧栏 tip)
+        - 'callout-annotation-record' (CalloutAnnotation, Story 1.16 白板 callout)
+        之前查 'tip' 永远 0 命中（无 writer 写此值）。
+        """
         try:
             from app.clients.neo4j_client import get_neo4j_client
 
             client = get_neo4j_client()
-            # ChatGPT-DR-2026-05-13 P0-5: IN list 覆盖 writer 实际写入的多个 source_description 变体
-            # (canvas_learning:tip / canvas_temporal:tip / ...). 历史 bug: 之前查 = 'tip'
-            # 永远命中 0 条因为 writer 写 prefix:tip 格式.
             query = """
             MATCH (e:EpisodicNode)
-            WHERE e.source_description IN $tip_sources
+            WHERE e.source_description IN ['learning-tip-record', 'callout-annotation-record']
               AND e.node_id = $node_id
             RETURN e.content AS content
             ORDER BY e.created_at DESC
             LIMIT 5
             """
-            records = await client.run_query(
-                query, node_id=node_id, tip_sources=list(TIP_SOURCES)
-            )
+            records = await client.run_query(query, node_id=node_id)
             tips: List[str] = list()
             for record in records or list():
                 data = record if isinstance(record, dict) else record.data()
@@ -925,27 +921,34 @@ class QuestionGenerator:
             return list()
 
     async def _get_error_history(self, node_id: str) -> List[Dict[str, str]]:
-        """Get 4-type error history from Graphiti for a node."""
+        """Get 4-type error history from Graphiti for a node.
+
+        P0-2c (2026-05-13): source_description 对齐 memory_format.py canonical
+        4 类错误 entity types:
+        - misconception-record (Misconception)
+        - problem-trap-record (ProblemTrap)
+        - logical-fallacy-record (LogicalFallacy)
+        - guided-thinking-record (GuidedThinking)
+        之前查 'error_record' 永远 0 命中（无 writer 写此值）。
+        """
         try:
             from app.clients.neo4j_client import get_neo4j_client
 
             client = get_neo4j_client()
-            # ChatGPT-DR-2026-05-13 P0-5: IN list 覆盖 writer 实际写入的多个 misconception
-            # 变体. 历史 bug: writer 写 'misconception-record' / 'canvas_learning:misconception',
-            # 但 reader 查 'error_record' → 永远 0 命中, exam board 无法读用户误解.
             query = """
             MATCH (e:EpisodicNode)
-            WHERE e.source_description IN $misconception_sources
+            WHERE e.source_description IN [
+                'misconception-record',
+                'problem-trap-record',
+                'logical-fallacy-record',
+                'guided-thinking-record'
+            ]
               AND e.node_id = $node_id
             RETURN e.error_type AS error_type, e.description AS description
             ORDER BY e.created_at DESC
             LIMIT 4
             """
-            records = await client.run_query(
-                query,
-                node_id=node_id,
-                misconception_sources=list(MISCONCEPTION_SOURCES),
-            )
+            records = await client.run_query(query, node_id=node_id)
             errors: List[Dict[str, str]] = list()
             for record in records or list():
                 data = record if isinstance(record, dict) else record.data()
@@ -997,20 +1000,15 @@ class QuestionGenerator:
             from app.clients.neo4j_client import get_neo4j_client
 
             client = get_neo4j_client()
-            # ChatGPT-DR-2026-05-13 P0-5: IN list 覆盖 archive writer 实际写入的变体.
             query = """
             MATCH (e:EpisodicNode)
-            WHERE e.source_description IN $archive_sources
+            WHERE e.source_description = 'conversation_archive'
               AND e.node_id = $node_id
             RETURN e.summary AS summary
             ORDER BY e.created_at DESC
             LIMIT 1
             """
-            records = await client.run_query(
-                query,
-                node_id=node_id,
-                archive_sources=list(CONVERSATION_ARCHIVE_SOURCES),
-            )
+            records = await client.run_query(query, node_id=node_id)
             if records:
                 data = records[0] if isinstance(records[0], dict) else records[0].data()
                 return data.get("summary", "")

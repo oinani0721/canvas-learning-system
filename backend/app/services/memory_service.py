@@ -52,16 +52,9 @@ from app.config import DEFAULT_GROUP_ID, settings
 from app.core.decision_tracker import log_decision
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 from app.core.subject_config import (
-    # wave-5 Stage B P0 (2026-05-11): legacy build_group_id removed — every
-    # call site now goes through _resolve_memory_group_id below so that
-    # ContextVar (vault: prefix) wins and Story 1.9 collisions across vaults
-    # no longer leak.
-    build_vault_group_id,
-    canonical_group_id,
+    build_group_id,
     extract_canvas_name,
     extract_subject_from_canvas_path,
-    get_current_subject_id,
-    is_vault_group_id,
 )
 from app.services.episode_worker import EpisodeTask, get_episode_worker
 from app.graphiti.entity_types import CANVAS_ENTITY_TYPES, CANVAS_EDGE_TYPES
@@ -73,43 +66,6 @@ SCORE_HISTORY_CACHE_TTL = 30
 
 # Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
 # app.core.failed_writes_constants (shared with agent_service.py)
-
-
-# wave-5 Stage B P0 helper (2026-05-11):
-# Resolve the effective group_id for memory writes.  Story 2.5.Y migrated all
-# new writes to the unified vault: prefix.  The legacy build_group_id(subject,
-# canvas_name=...) call still exists in many places below and is collision-prone
-# across vaults — different vaults under the same subject all collapse to the
-# same group_id ("math:calc"), leaking each others' memories.
-#
-# Resolution priority:
-#   1. ContextVar (get_current_subject_id) — set by per-request middleware
-#      (chat.py / memory.py / metadata.py / mastery.py / rag.py).  If it's
-#      already a vault: prefix, return as-is. Otherwise canonicalize.
-#   2. fall back to build_vault_group_id with subject/canvas_name (legacy
-#      behaviour, still under vault: prefix so it is unambiguous in Neo4j).
-#
-# [ChatGPT v4 Agent C P0 fix]
-def _resolve_memory_group_id(
-    inferred_subject: str, canvas_name: Optional[str] = None
-) -> str:
-    ctx_value = get_current_subject_id()
-    if ctx_value and ctx_value != "general":
-        # If ContextVar already holds a fully-qualified vault: id, trust it.
-        # Otherwise canonicalize (handles deprecated 'cs188', 'cs_61b:main' etc.)
-        return (
-            ctx_value if is_vault_group_id(ctx_value) else canonical_group_id(ctx_value)
-        )
-
-    # Fallback (no ContextVar / DEFAULT_SUBJECT_ID): use vault: prefix +
-    # subject path-derived bucket so the write is still namespace-correct.
-    # 'vault:default' is the safe shared bucket — collisions risk for legacy
-    # data, but it is no worse than the old build_group_id collapse.
-    return build_vault_group_id(
-        "default",
-        subject_id=inferred_subject if inferred_subject else None,
-        canvas_path=canvas_name,
-    )
 
 
 # Story 30.10 AC-30.10.1: Deterministic episode ID generation
@@ -254,14 +210,10 @@ class MemoryService:
 
     async def ensure_fulltext_index(self) -> None:
         """
-        Create fulltext indexes in Neo4j if they don't exist.
+        Create the episode_content fulltext index in Neo4j if it doesn't exist.
 
-        Epic 4 Feature 4.1: Auto-create Neo4j fulltext indexes on startup.
+        Epic 4 Feature 4.1: Auto-create Neo4j fulltext index on startup.
         Uses IF NOT EXISTS for idempotency — safe to call multiple times.
-
-        Round-23 Story 7.3 · Patch 3: 新增 node_search_unified index 覆盖
-        Node/EntityNode 的 text/name/summary/concept/episode_body 多字段.
-        让 neo4j_edge_client.search_nodes() 可以走 fulltext 主路径 (替代 O(N) CONTAINS).
 
         Gracefully handles:
         - Neo4j not initialized / unavailable
@@ -274,32 +226,17 @@ class MemoryService:
             )
             return
 
-        indexes = [
-            (
-                "episode_content",
-                "CREATE FULLTEXT INDEX episode_content IF NOT EXISTS "
-                "FOR (n:EpisodicNode) ON EACH [n.content]",
-                "EpisodicNode.content",
-            ),
-            (
-                "node_search_unified",
-                "CREATE FULLTEXT INDEX node_search_unified IF NOT EXISTS "
-                "FOR (n:Node|EntityNode) ON EACH "
-                "[n.text, n.name, n.summary, n.concept, n.episode_body]",
-                "Node|EntityNode multi-field",
-            ),
-        ]
-
-        for name, cypher, target in indexes:
-            try:
-                await self.neo4j.run_query(cypher)
-                logger.info(
-                    f"[Epic 4 + Round-23] Fulltext index '{name}' ensured on {target}"
-                )
-            except (RuntimeError, ConnectionError, Exception) as e:
-                logger.warning(
-                    f"[Epic 4 + Round-23] Fulltext index '{name}' creation failed (non-fatal): {e}"
-                )
+        cypher = (
+            "CREATE FULLTEXT INDEX episode_content IF NOT EXISTS "
+            "FOR (n:EpisodicNode) ON EACH [n.content]"
+        )
+        try:
+            await self.neo4j.run_query(cypher)
+            logger.info(
+                "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content"
+            )
+        except (RuntimeError, ConnectionError, Exception) as e:
+            logger.warning(f"[Epic 4] Fulltext index creation failed (non-fatal): {e}")
 
     async def _recover_episodes_from_neo4j(self) -> None:
         """
@@ -459,11 +396,8 @@ class MemoryService:
         inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
 
         # ✅ AC-30.8.1: Build group_id for namespace isolation (Epic 6: canvas-scoped)
-        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault: prefix) via
-        # _resolve_memory_group_id — eliminates Story 1.9 build_group_id
-        # collision across vaults that share the same subject:canvas pair.
         canvas_name = extract_canvas_name(canvas_path)
-        group_id = _resolve_memory_group_id(inferred_subject, canvas_name=canvas_name)
+        group_id = build_group_id(inferred_subject, canvas_name=canvas_name)
 
         try:
             # ✅ Verified: Store to Neo4j - Create learning relationship
@@ -589,14 +523,12 @@ class MemoryService:
             await self.initialize()
 
         # ✅ Epic 6: Build canvas-scoped group_id when canvas_path is available
-        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar via
-        # _resolve_memory_group_id so we don't read other vaults' histories.
         if canvas_path:
             inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
             c_name = extract_canvas_name(canvas_path)
-            group_id = _resolve_memory_group_id(inferred_subject, canvas_name=c_name)
+            group_id = build_group_id(inferred_subject, canvas_name=c_name)
         elif subject:
-            group_id = _resolve_memory_group_id(subject)
+            group_id = build_group_id(subject)
         else:
             group_id = None
 
@@ -737,10 +669,7 @@ class MemoryService:
                         canvas_name_field
                     )
                     cn_only = extract_canvas_name(canvas_name_field)
-                    # wave-5 Stage B P0 (2026-05-11): match the write-path
-                    # _resolve_memory_group_id so the fallback filter aligns
-                    # with new vault: prefix writes.
-                    return _resolve_memory_group_id(inferred_subj, canvas_name=cn_only)
+                    return build_group_id(inferred_subj, canvas_name=cn_only)
 
                 failed_scores = [
                     fs for fs in failed_scores if _derive_group_id(fs) == group_id
@@ -956,14 +885,12 @@ class MemoryService:
             await self.initialize()
 
         # ✅ Epic 6: Build canvas-scoped group_id when canvas_path is available
-        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar via
-        # _resolve_memory_group_id (no cross-vault suggestion leak).
         if canvas_path:
             inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
             c_name = extract_canvas_name(canvas_path)
-            group_id = _resolve_memory_group_id(inferred_subject, canvas_name=c_name)
+            group_id = build_group_id(inferred_subject, canvas_name=c_name)
         elif subject:
-            group_id = _resolve_memory_group_id(subject)
+            group_id = build_group_id(subject)
         else:
             group_id = None
 
@@ -1061,36 +988,14 @@ class MemoryService:
         # Temporal layer (in-memory/SQLite simulation) - always ok for now
         layers["temporal"]["status"] = "ok"
 
-        # Semantic layer (LanceDB) — Round-23 Story 8.3: real vector_count
+        # Semantic layer (LanceDB) - check if available
         try:
-            from app.services.lancedb_index_service import get_lancedb_index_service
-
-            svc = get_lancedb_index_service()
-            client = svc._get_or_init_client() if svc is not None else None
-            if client is not None:
-                stats = (
-                    client.get_all_vault_stats()
-                    if hasattr(client, "get_all_vault_stats")
-                    else {}
-                )
-                # Sum row_count across all vaults+tables
-                vector_count = sum(
-                    int(t.get("row_count", 0))
-                    for vault_stats in stats.values()
-                    if isinstance(vault_stats, dict)
-                    for t in vault_stats.get("tables", [])
-                    if isinstance(t, dict)
-                )
-                layers["semantic"]["status"] = "ok"
-                layers["semantic"]["vector_count"] = vector_count
-            else:
-                layers["semantic"]["status"] = "ok"
-                layers["semantic"]["vector_count"] = 0
-                layers["semantic"]["note"] = "LanceDB client unavailable"
-        except (ImportError, RuntimeError, AttributeError) as e:
+            # For now, assume LanceDB is available if we can import it
+            layers["semantic"]["status"] = "ok"
+            layers["semantic"]["vector_count"] = 0  # Placeholder
+        except (ImportError, RuntimeError) as e:
             layers["semantic"]["status"] = "error"
             layers["semantic"]["error"] = str(e)
-            layers["semantic"]["vector_count"] = 0
 
         # Determine overall status
         error_count = sum(
@@ -1265,9 +1170,7 @@ class MemoryService:
                     f"Student learned '{concept}' using {p.get('agent_type', 'unknown')} agent "
                     f"on canvas '{p['canvas_path']}'. Node: {p['node_id']}."
                 ),
-                # wave-5 Stage B P0 (2026-05-11): batch-write also resolves
-                # group_id from ContextVar to keep multi-vault isolation.
-                group_id=_resolve_memory_group_id(inferred_subject, canvas_name=c_name),
+                group_id=build_group_id(inferred_subject, canvas_name=c_name),
                 source_description=f"canvas_batch:{inferred_subject}",
             )
 
@@ -1364,11 +1267,27 @@ class MemoryService:
                 )
 
         # Phase 2: Enqueue to GraphitiEpisodeWorker
+        # P0-2a (2026-05-13): source_description 对齐 memory_format.py canonical schema
+        # 修复 G3 — reader (question_generator._get_tips / _get_error_history) 之前查
+        # 'tip' / 'error_record'，writer 写 'canvas_learning:learning_tip'，永远查不到。
+        # 现在已知 event_type 走 canonical ('learning-tip-record' / 等），未知 event_type
+        # 走 fallback 保持向后兼容（react_agent / mcp tools 不受影响）。
+        from app.core.memory_format import (
+            entity_type_from_event,
+            get_source_description,
+        )
+
+        canonical_entity_type = entity_type_from_event(event_type)
+        canonical_source_desc = (
+            get_source_description(canonical_entity_type)
+            if canonical_entity_type
+            else f"canvas_learning:{event_type}"
+        )
         self._enqueue_episode(
             name=f"{event_type}:{meta.get('title', content[:40])}",
             episode_body=content,
             group_id=resolved_group_id,
-            source_description=f"canvas_learning:{event_type}",
+            source_description=canonical_source_desc,
             entity_types=CANVAS_ENTITY_TYPES,
             edge_types=CANVAS_EDGE_TYPES,
         )
@@ -1378,6 +1297,71 @@ class MemoryService:
             f"group={resolved_group_id}"
         )
         return entity_id
+
+    async def find_episode_by_content_hash(
+        self,
+        node_id: str,
+        content_hash: str,
+        group_id: Optional[str] = None,
+    ) -> bool:
+        """Story 2.4 Plan B Phase 3 (2026-05-14): 幂等查询。
+
+        Check if a callout with given content_hash already exists in Neo4j for
+        the given node_id. Used by /api/v1/tips/batch to skip duplicates and
+        avoid creating redundant Graphiti episodes when user re-saves the
+        same file without changing callouts.
+
+        Args:
+            node_id: Canvas node id (file basename).
+            content_hash: SHA256 hex of node_id|tag|understanding|content.
+            group_id: Optional namespace filter.
+
+        Returns:
+            True if an EpisodicNode with this content_hash exists (skip),
+            False if not (proceed to create new episode).
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            from app.clients.neo4j_client import get_neo4j_client
+            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+
+            client = get_neo4j_client()
+            resolved_group_id = group_id or DEFAULT_GROUP_ID
+            # Graphiti EpisodicNode stores sanitized group_id (P0-5 边界 sanitize)
+            graphiti_group_id = sanitize_group_id_for_graphiti(resolved_group_id)
+
+            # P0-7 (2026-05-14): Graphiti 不持久化 metadata 到 EpisodicNode。
+            # tips.py batch_sync 把 content_hash 内嵌为 [hash:abc123] 后缀写到
+            # content 字段，这里用 CONTAINS 匹配前 16 hex chars。
+            hash_marker = f"[hash:{content_hash[:16]}]"
+            query = """
+            MATCH (e:Episodic)
+            WHERE (e.group_id = $group_id OR e.group_id = $graphiti_group_id)
+              AND e.source_description = 'callout-annotation-record'
+              AND e.content CONTAINS $hash_marker
+            RETURN count(e) AS cnt
+            LIMIT 1
+            """
+            records = await client.run_query(
+                query,
+                group_id=resolved_group_id,
+                graphiti_group_id=graphiti_group_id,
+                hash_marker=hash_marker,
+            )
+            for record in records or []:
+                data = record if isinstance(record, dict) else record.data()
+                cnt = data.get("cnt", 0)
+                if cnt > 0:
+                    return True
+            return False
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+            logger.debug(
+                f"[Story 2.4 batch] find_episode_by_content_hash failed (non-fatal): {e}"
+            )
+            # 失败时 fail-open — 允许 batch 继续（重复同步比丢失数据更可接受）
+            return False
 
     # Search config recipe mapping: string name → SearchConfig object
     _SEARCH_RECIPES: Dict[
@@ -1453,10 +1437,15 @@ class MemoryService:
             # Create a copy with updated limit
             config_with_limit = config_obj.model_copy(update={"limit": limit})
 
+            # P0-5 (2026-05-14): sanitize group_id at Graphiti boundary
+            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+
             search_kwargs: Dict[str, Any] = {
                 "query": query,
                 "config": config_with_limit,
-                "group_ids": [group_id] if group_id else None,
+                "group_ids": (
+                    [sanitize_group_id_for_graphiti(group_id)] if group_id else None
+                ),
             }
             if search_filter is not None:
                 search_kwargs["search_filter"] = search_filter
@@ -1528,10 +1517,15 @@ class MemoryService:
         if not worker.is_ready or worker._graphiti is None:
             return list()
         try:
+            # P0-5 (2026-05-14): sanitize group_id at Graphiti boundary
+            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+
             results = await asyncio.wait_for(
                 worker._graphiti.search(
                     query=query,
-                    group_ids=[group_id] if group_id else None,
+                    group_ids=(
+                        [sanitize_group_id_for_graphiti(group_id)] if group_id else None
+                    ),
                     num_results=limit,
                 ),
                 timeout=2.0,
@@ -1683,7 +1677,6 @@ class MemoryService:
         limit: Optional[int] = None,
         search_config: str = "combined_rrf",
         search_filter: Optional[Any] = None,
-        node_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search learning memories using 3-tier layered search with unified scoring.
@@ -1705,11 +1698,6 @@ class MemoryService:
             limit: Override for max_results (backward compat)
             search_config: Recipe name for Graphiti search_ ('combined_rrf', etc.)
             search_filter: Optional SearchFilters for date/label filtering
-            node_id: Story 2.3 — optional precise filter by episode.node_id
-                (None=no filter, backward-compat for existing callers).
-                Tier 2/3 already return node_id; Tier 1 episodes have node_id
-                from their original record. Applied post-merge to avoid
-                touching Cypher / Graphiti recipes.
 
         Signature backward-compatible — existing callers unaffected.
         """
@@ -1769,12 +1757,6 @@ class MemoryService:
                 merged.append(episode_with_source)
                 tier3_count += 1
 
-        # Story 2.3 (2026-05-13): node_id filter — applied post-merge so all 3
-        # tiers benefit without touching Cypher / Graphiti recipes. Empty string
-        # treated as no-match (vs None which means no filter).
-        if node_id:
-            merged = [ep for ep in merged if (ep.get("node_id", "") or "") == node_id]
-
         # FSRS R-value injection: boost low-retrievability concepts
         self._inject_fsrs_r_values(merged)
 
@@ -1790,98 +1772,6 @@ class MemoryService:
         )
 
         return merged[:effective_limit]
-
-    async def search_error_memories(
-        self,
-        node_id: str,
-        group_id: Optional[str] = None,
-        limit: int = 5,
-    ) -> List[Dict[str, Any]]:
-        """
-        Story 2.3 — 检索特定节点的历史误解记录 (historical error reminders).
-
-        Layer on top of search_memories(): adds (1) episode_type filter to
-        keep only error/misconception/mistake records, (2) chronological
-        sort by created_at/timestamp DESC, (3) truncation to `limit`.
-
-        Note: Tier 1 (Graphiti) / Tier 2 (Neo4j fulltext) / Tier 3 (in-memory)
-        already return episode_type + node_id; this method does post-merge
-        filtering, no Cypher / recipe changes needed.
-
-        Args:
-            node_id: 节点 slug / path (required, exact match)
-            group_id: vault group_id (optional, multi-vault isolation)
-            limit: 最多返回条数 (default 5, per Story 2.3 AC #1)
-
-        Returns:
-            List[Dict] normalized to error_record schema:
-                - error_type: episode_type ('error' / 'misconception' / 'mistake')
-                - description: episode content
-                - corrected_at: metadata.corrected_at or timestamp fallback
-                - tags: metadata.tags or []
-                - source_session: metadata.session_id or source tier
-                - _episode_id / _node_id: debugging fields
-
-            Empty list when:
-                - node_id empty/None (caller bug)
-                - Graphiti+Neo4j unavailable (silent degradation per AC #4)
-                - no error episodes found (per AC #5)
-        """
-        if not node_id:
-            return list()
-
-        # Episode types recognized as "error" records. Case-insensitive match.
-        # Includes legacy '[error]' prefix variant for older Graphiti episodes.
-        ERROR_TYPES = {"error", "misconception", "mistake", "[error]"}
-
-        # Pull a wider set so episode_type filter doesn't starve us. limit*4
-        # is heuristic: typical error rate ≤25% of all episodes for a node.
-        oversample = max(20, limit * 4)
-        raw = await self.search_memories(
-            query=node_id,
-            group_id=group_id,
-            max_results=oversample,
-            node_id=node_id,
-        )
-
-        # Filter by episode_type (only keep error-class records)
-        filtered: List[Dict[str, Any]] = []
-        for ep in raw:
-            ep_type = (ep.get("episode_type", "") or "").lower().strip()
-            if ep_type in ERROR_TYPES:
-                filtered.append(ep)
-
-        # Sort chronologically DESC (Story 2.3 AC #1: "按时间倒序")
-        # timestamp / created_at fallback chain — Graphiti uses created_at,
-        # Neo4j uses timestamp, in-memory cache uses timestamp.
-        filtered.sort(
-            key=lambda ep: ep.get("timestamp", "") or ep.get("created_at", "") or "",
-            reverse=True,
-        )
-
-        # Truncate + normalize to error_record schema (Story 2.3 Task 1.3)
-        normalized: List[Dict[str, Any]] = []
-        for ep in filtered[:limit]:
-            meta = ep.get("metadata", {}) or {}
-            normalized.append(
-                {
-                    "error_type": ep.get("episode_type", "error"),
-                    "description": ep.get("content", ""),
-                    "corrected_at": meta.get("corrected_at")
-                    or ep.get("timestamp", "")
-                    or ep.get("created_at", ""),
-                    "tags": meta.get("tags") or [],
-                    "source_session": meta.get("session_id") or ep.get("source", ""),
-                    "_episode_id": ep.get("episode_id", ""),
-                    "_node_id": ep.get("node_id", ""),
-                }
-            )
-
-        logger.debug(
-            f"[search_error_memories] node_id={node_id} group_id={group_id} "
-            f"raw={len(raw)} filtered={len(filtered)} returned={len(normalized)}"
-        )
-        return normalized
 
     async def record_temporal_event(
         self,
@@ -1993,9 +1883,7 @@ class MemoryService:
                 f"Canvas event '{event_type}' on path '{canvas_path}'. "
                 f"Node: {node_id or edge_id or 'unknown'}. Concept: {concept}."
             ),
-            # wave-5 Stage B P0 (2026-05-11): temporal event also prefers
-            # ContextVar to keep vault isolation in multi-vault deploys.
-            group_id=_resolve_memory_group_id(inferred_subject, canvas_name=c_name),
+            group_id=build_group_id(inferred_subject, canvas_name=c_name),
             source_description=f"canvas_temporal:{event_type}",
         )
 
@@ -2065,12 +1953,7 @@ class MemoryService:
                         f"Recovered learning event for concept '{concept}' "
                         f"on canvas '{entry_canvas}'."
                     ),
-                    # wave-5 Stage B P0 (2026-05-11): recovery path also
-                    # resolves via ContextVar — failed write replays into
-                    # the originating vault.
-                    group_id=_resolve_memory_group_id(
-                        inferred_subject, canvas_name=c_name
-                    ),
+                    group_id=build_group_id(inferred_subject, canvas_name=c_name),
                     source_description="canvas_recovery",
                 )
                 if enqueued:

@@ -12,12 +12,10 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-
-from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 
 logger = logging.getLogger(__name__)
 
@@ -42,19 +40,13 @@ class SaveTipRequest(BaseModel):
     source_timestamp: str = Field(
         ..., description="ISO timestamp of the source dialogue message"
     )
-    # Wave-5 Stage B 续 — vault_id 注入. Tips 写到 per-vault group_id, 防多 vault 串库.
-    vault_id: Optional[str] = Field(
-        default=None,
-        min_length=1,
-        description="Wave-5 Stage B — 推荐必填 Plugin inferVaultId. Tips per-vault.",
-    )
-    subject_id: Optional[str] = Field(
-        default=None, description="可选 vault 内学科二级 namespace."
-    )
-    group_id: Optional[str] = Field(
-        default=None,
-        deprecated=True,
-        description="Deprecated — 改用 vault_id.",
+    event_type: str = Field(
+        default="learning_tip",
+        description=(
+            "Entity type for memory_format canonical schema. "
+            "Use 'learning_tip' for sidebar dialogue tips (Story 3.6) or "
+            "'callout_annotation' for whiteboard Cmd+Shift+A callout (Story 1.16, P0-1)."
+        ),
     )
 
 
@@ -65,6 +57,46 @@ class SaveTipResponse(BaseModel):
     saved: bool
     status: str = "ok"
     message: str = ""
+
+
+# ─── Story 2.4 Plan B Phase 2 (2026-05-14): Batch sync schema ───
+# 用户在 callout 内继续输入"我的理解"后，plugin debounce 500ms 触发 batch sync。
+# Backend 用 content_hash 做幂等去重 — 同 hash 跳过，不同 hash 创建 v2 EpisodicNode。
+
+
+class CalloutBatchItem(BaseModel):
+    """Single callout entry in batch sync."""
+
+    tag: str = Field(..., description="tips | error | question | keypoint")
+    tag_label: str = Field(default="", description="Display label e.g. '💡 Tips'")
+    understanding: str = Field(
+        default="",
+        description="understood | fuzzy | not-understood | '' (无 checkbox)",
+    )
+    content: str = Field(..., min_length=1, description="Callout body content")
+    content_hash: str = Field(
+        ..., min_length=64, max_length=64, description="SHA256 hex"
+    )
+
+
+class BatchSyncRequest(BaseModel):
+    """Plugin debounce 触发的整文件 callout batch 同步。"""
+
+    node_id: str = Field(..., description="Source canvas node basename (no ext)")
+    callouts: List[CalloutBatchItem] = Field(
+        ..., description="All callouts parsed from the file"
+    )
+    source_timestamp: str = Field(..., description="ISO timestamp")
+
+
+class BatchSyncResponse(BaseModel):
+    """Aggregate result of batch sync."""
+
+    total_received: int
+    new_synced: int  # 新创建 episode 数
+    skipped_duplicate: int  # content_hash 已存在跳过
+    failed: int
+    status: str = "ok"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -98,19 +130,6 @@ class GetTipsResponse(BaseModel):
 )
 async def get_tips(
     node_id: str,
-    vault_id: Optional[str] = Query(
-        default=None,
-        min_length=1,
-        description=(
-            "Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Tips 读取 per-vault."
-        ),
-    ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
 ) -> Dict[str, Any]:
     """
     Retrieve tips for a canvas node from Graphiti memory.
@@ -123,10 +142,8 @@ async def get_tips(
     Returns:
         GetTipsResponse with list of tips and total count.
     """
-    resolved_group_id = resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
     try:
+        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -134,7 +151,7 @@ async def get_tips(
         # Search for tips related to this node
         results = await memory_svc.search_memories(
             query=f"learning_tip node_id:{node_id}",
-            group_id=resolved_group_id,
+            group_id=DEFAULT_GROUP_ID,
             limit=50,
         )
 
@@ -192,13 +209,9 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
         SaveTipResponse with tip_id and status.
     """
     tip_id = str(uuid.uuid4())
-    resolved_group_id = resolve_vault_group_id(
-        request.vault_id,
-        subject_id=request.subject_id,
-        legacy_group_id=request.group_id,
-    )
 
     try:
+        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -206,8 +219,18 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
         # Build tip content for Graphiti
         tags_str = ", ".join(request.tags) if request.tags else "none"
 
+        # P0-1 (2026-05-13): event_type 由 client 决定 — callout 走 callout_annotation,
+        # 侧栏 tip 走 learning_tip。两者都通过 memory_format.py canonical schema 映射。
+        # Whitelist 防止任意 event_type 注入（只允许已知的 2 种）。
+        allowed_event_types = {"learning_tip", "callout_annotation"}
+        effective_event_type = (
+            request.event_type
+            if request.event_type in allowed_event_types
+            else "learning_tip"
+        )
+
         await memory_svc.record_knowledge_entity(
-            event_type="learning_tip",
+            event_type=effective_event_type,
             content=(
                 f"Tip: {request.title} | Content: {request.content} | Tags: {tags_str}"
             ),
@@ -220,7 +243,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
                 "source_timestamp": request.source_timestamp,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
-            group_id=resolved_group_id,
+            group_id=DEFAULT_GROUP_ID,
         )
 
         logger.info(
@@ -240,4 +263,131 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to save tip: {str(e)}",
+        ) from e
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 2.4 Plan B Phase 2 (2026-05-14): Batch sync endpoint
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# P0-8 (2026-05-14): in-memory cache for hash dedup race condition.
+# Graphiti add_episode 是异步（~20-30s LLM extraction），Neo4j 查询可能 lag。
+# In-memory cache 同步检查，杜绝同一 batch 处理窗口内重复 enqueue。
+# 简单 LRU：> 1000 条时保留最新 800 条。多进程部署会丢一致性，但开发期单进程 OK。
+_BATCH_HASH_CACHE: set[str] = set()
+_BATCH_HASH_CACHE_MAX = 1000
+_BATCH_HASH_CACHE_KEEP = 800
+
+
+def _hash_cache_check_or_add(hash_marker: str) -> bool:
+    """Return True if hash already seen (skip), False if new (proceed + add)."""
+    if hash_marker in _BATCH_HASH_CACHE:
+        return True
+    _BATCH_HASH_CACHE.add(hash_marker)
+    if len(_BATCH_HASH_CACHE) > _BATCH_HASH_CACHE_MAX:
+        # Simple eviction: keep most recently added (rough — set has no order
+        # but for in-process dedup this is acceptable)
+        keep = list(_BATCH_HASH_CACHE)[-_BATCH_HASH_CACHE_KEEP:]
+        _BATCH_HASH_CACHE.clear()
+        _BATCH_HASH_CACHE.update(keep)
+    return False
+
+
+@tips_router.post(
+    "/batch",
+    response_model=BatchSyncResponse,
+    summary="Batch sync all callouts from a file (idempotent by content_hash)",
+    description=(
+        "Called by plugin vault.on('modify') + 500ms debounce. Receives all "
+        "callouts parsed from a .md file; backend checks each content_hash "
+        "against Neo4j — already exists → skip (idempotent), new → create "
+        "v2 EpisodicNode via Graphiti add_episode."
+    ),
+)
+async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
+    """Batch sync callouts using SHA256 content_hash for idempotency.
+
+    Story 2.4 Plan B Phase 2 (2026-05-14).
+    """
+    try:
+        from app.config import DEFAULT_GROUP_ID
+        from app.services.memory_service import get_memory_service
+
+        memory_svc = await get_memory_service()
+
+        new_synced = 0
+        skipped = 0
+        failed = 0
+
+        for callout in request.callouts:
+            try:
+                # 双层幂等：(1) in-memory cache 杜绝异步 race，(2) Neo4j 持久去重
+                hash_marker_for_cache = f"{request.node_id}|{callout.content_hash}"
+                if _hash_cache_check_or_add(hash_marker_for_cache):
+                    skipped += 1
+                    continue
+                already_exists = await memory_svc.find_episode_by_content_hash(
+                    node_id=request.node_id,
+                    content_hash=callout.content_hash,
+                    group_id=DEFAULT_GROUP_ID,
+                )
+                if already_exists:
+                    skipped += 1
+                    continue
+
+                # 创建新 episode（Graphiti 自动生成 valid_at 作时序版本标记）
+                # P0-7 (2026-05-14): content_hash 必须内嵌到 content 字段才能持久化
+                # 查询 — Graphiti 不存 metadata 到 EpisodicNode。`[hash:xxx]` 后缀
+                # 让 find_episode_by_content_hash 能用 CONTAINS 匹配。
+                tip_id = str(uuid.uuid4())
+                tags_repr = (
+                    f"tag:{callout.tag},understanding:{callout.understanding or 'none'}"
+                )
+                hash_marker = f"[hash:{callout.content_hash[:16]}]"
+                await memory_svc.record_knowledge_entity(
+                    event_type="callout_annotation",
+                    content=(
+                        f"Callout [{callout.tag_label}]: {callout.content} | "
+                        f"Tags: {tags_repr} | {hash_marker}"
+                    ),
+                    metadata={
+                        "tip_id": tip_id,
+                        "title": f"{callout.tag_label} · {request.node_id}",
+                        "content": callout.content,
+                        "tag": callout.tag,
+                        "understanding": callout.understanding,
+                        "node_id": request.node_id,
+                        "content_hash": callout.content_hash,
+                        "source_timestamp": request.source_timestamp,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "batch_sync": True,
+                    },
+                    group_id=DEFAULT_GROUP_ID,
+                )
+                new_synced += 1
+            except Exception as inner_e:
+                logger.warning(
+                    f"[Story 2.4 batch] Failed one callout (hash={callout.content_hash[:8]}): {inner_e}"
+                )
+                failed += 1
+
+        logger.info(
+            f"[Story 2.4 batch] node={request.node_id} "
+            f"received={len(request.callouts)} new={new_synced} "
+            f"skipped={skipped} failed={failed}"
+        )
+
+        return BatchSyncResponse(
+            total_received=len(request.callouts),
+            new_synced=new_synced,
+            skipped_duplicate=skipped,
+            failed=failed,
+            status="ok",
+        ).model_dump()
+
+    except Exception as e:
+        logger.error(f"[Story 2.4 batch] Batch sync failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch sync failed: {str(e)}",
         ) from e

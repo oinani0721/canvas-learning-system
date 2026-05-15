@@ -115,7 +115,62 @@ ENTITY_TYPES: Dict[str, dict] = {
             "触发: {trigger} | 时间: {timestamp}"
         ),
     },
+    "LearningTip": {
+        "name_prefix": "LearningTip",
+        "source_description": "learning-tip-record",
+        "keywords": set(),
+        "body_template": (
+            "[Topic: {topic}] Tip: {title} | 内容: {content} | Tags: {tags}"
+        ),
+    },
+    "CalloutAnnotation": {
+        "name_prefix": "CalloutAnnotation",
+        "source_description": "callout-annotation-record",
+        "keywords": set(),
+        "body_template": (
+            "[Topic: {topic}] Tag: {tag} | 理解度: {understanding} | "
+            "内容: {content} | 节点: {node_id}"
+        ),
+    },
 }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# event_type → entity_type Mapping
+# ═══════════════════════════════════════════════════════════════════════════════
+# memory_service.record_knowledge_entity(event_type=...) 接受自由文本 event_type,
+# 这里映射到 canonical entity_type 以查出正确 source_description。
+# 未在表中的 event_type 走 fallback (大小写规范化匹配)。
+
+EVENT_TO_ENTITY_TYPE: Dict[str, str] = {
+    "learning_tip": "LearningTip",
+    "callout_annotation": "CalloutAnnotation",
+    "misconception": "Misconception",
+    "problem_trap": "ProblemTrap",
+    "logical_fallacy": "LogicalFallacy",
+    "guided_thinking": "GuidedThinking",
+    "concept": "Concept",
+    "problem": "Problem",
+    "topic": "Topic",
+    "mastery_update": "MasteryUpdate",
+    "self_assessment": "SelfAssessment",
+    "color_transition": "ColorTransition",
+}
+
+
+def entity_type_from_event(event_type: str) -> Optional[str]:
+    """Map memory_service event_type to canonical entity_type.
+
+    Returns None when event_type 不在表中 — caller 应走 fallback
+    (e.g. memory_service 会用 f'canvas_learning:{event_type}' 作降级).
+    """
+    if event_type in EVENT_TO_ENTITY_TYPE:
+        return EVENT_TO_ENTITY_TYPE[event_type]
+    # Try CamelCase normalization (e.g. 'learning_tip' → 'LearningTip')
+    camel = "".join(part.capitalize() for part in event_type.split("_"))
+    if camel in ENTITY_TYPES:
+        return camel
+    return None
+
 
 # Color code → semantic name (canvas_utils.py authoritative)
 COLOR_SEMANTICS: Dict[str, str] = {

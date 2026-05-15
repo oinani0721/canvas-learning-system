@@ -155,7 +155,9 @@ services:
       - PYTHONPATH=/app:/app/src
       - DEBUG=${DEBUG:-false}  # ChatGPT-DR-2026-05-13 P0-2: 默认 false (fail-closed)
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://tauri.localhost,app://obsidian.md}
-      # GOOGLE_API_KEY: read from backend/.env via load_dotenv (not from host env)
+      # GOOGLE_API_KEY: P0 2026-05-14 — 从 host shell env 传入容器以让 GraphitiEpisodeWorker 启用。
+      # 之前的注释"read from backend/.env via load_dotenv"在 worker 启动早于 dotenv load 时不生效。
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
 
     volumes:
       - ./backend:/app

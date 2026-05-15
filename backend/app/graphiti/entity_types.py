@@ -48,8 +48,12 @@ class RemedyStrategy(str, Enum):
     BACKTRACK_DEFINITION = "backtrack_definition"  # 回退到定义题
     DISCRIMINATION_TRANSFER = "discrimination_transfer"  # 辨析题 + 迁移应用题
     # Story 2.5 — PRD §FR-CONV-06 期望的 2 项细分:
-    DISCRIMINATION_COMPARISON = "discrimination_comparison"  # 辨析题 + 对比练习 (conceptual_confusion)
-    TRANSFER_SELF_EXPLANATION = "transfer_self_explanation"  # 迁移应用题 + 自我解释 (metacognitive_error)
+    DISCRIMINATION_COMPARISON = (
+        "discrimination_comparison"  # 辨析题 + 对比练习 (conceptual_confusion)
+    )
+    TRANSFER_SELF_EXPLANATION = (
+        "transfer_self_explanation"  # 迁移应用题 + 自我解释 (metacognitive_error)
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -122,12 +126,25 @@ LEGACY_TO_PEDAGOGY: dict[ErrorType, PedagogyErrorType] = {
 
 # 用于 SUPERFICIAL 二义性消解 — 含这些关键词倾向 METACOGNITIVE_ERROR
 _METACOGNITIVE_KEYWORDS = (
-    "迁移", "应用", "新场景", "新情境", "transfer", "metacogniti",
-    "过度自信", "过度信心", "self-explanation", "无法应用",
+    "迁移",
+    "应用",
+    "新场景",
+    "新情境",
+    "transfer",
+    "metacogniti",
+    "过度自信",
+    "过度信心",
+    "self-explanation",
+    "无法应用",
 )
-_METACOGNITIVE_SUB_TAGS = frozenset({
-    "transfer_failure", "metacognitive", "overconfidence", "application_failure",
-})
+_METACOGNITIVE_SUB_TAGS = frozenset(
+    {
+        "transfer_failure",
+        "metacognitive",
+        "overconfidence",
+        "application_failure",
+    }
+)
 
 
 def disambiguate_superficial(
@@ -171,6 +188,7 @@ def map_legacy_to_pedagogy(
     if legacy_type == ErrorType.SUPERFICIAL:
         return disambiguate_superficial(error_description, sub_tags)
     return LEGACY_TO_PEDAGOGY[legacy_type]
+
 
 # Human-readable descriptions for each error type
 ERROR_TYPE_DESCRIPTIONS: dict[ErrorType, dict[str, str]] = {
@@ -233,7 +251,10 @@ class LearningTip(BaseModel):
     source_timestamp: str = Field(
         ..., description="ISO timestamp of the source dialogue message"
     )
-    created_at: str = Field(
+    # P0-4 (2026-05-14): rename created_at → tip_created_at to avoid Graphiti
+    # EntityNode protected attribute conflict (graphiti_core.nodes.Node reserves
+    # uuid/name/group_id/labels/created_at).
+    tip_created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="When the tip was created",
     )
@@ -264,7 +285,9 @@ class Misconception(BaseModel):
     )
     node_id: str = Field(..., description="Source canvas node ID")
     session_id: str = Field(default="", description="Dialogue session ID")
-    created_at: str = Field(
+    # P0-4 (2026-05-14): rename created_at → misconception_created_at to avoid
+    # Graphiti protected attribute conflict.
+    misconception_created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="When the misconception was recorded",
     )
@@ -316,13 +339,23 @@ class LearningConcept(BaseModel):
     typed concept nodes instead of generic untyped entities.
 
     [Source: S02 T01 — Wire entity types into add_episode]
+
+    P0-4 (2026-05-14): rename `name` → `concept_name` to avoid Graphiti's
+    protected attribute namespace (graphiti_core reserves `name` for internal
+    EntityNode identifier). 与同文件 MasteryRecord.concept_name 命名风格一致。
     """
 
-    name: str = Field(..., description="Concept name")
+    concept_name: str = Field(..., description="Concept name")
     description: str = Field(..., description="Brief description of the concept")
-    subject_area: str = Field(..., description="Subject/discipline area (e.g. 数学, 物理)")
-    difficulty_level: str = Field(default="", description="Difficulty level (e.g. beginner, intermediate)")
-    prerequisites: List[str] = Field(default_factory=list, description="Prerequisite concept names")
+    subject_area: str = Field(
+        ..., description="Subject/discipline area (e.g. 数学, 物理)"
+    )
+    difficulty_level: str = Field(
+        default="", description="Difficulty level (e.g. beginner, intermediate)"
+    )
+    prerequisites: List[str] = Field(
+        default_factory=list, description="Prerequisite concept names"
+    )
 
 
 class MasteryRecord(BaseModel):
@@ -335,9 +368,13 @@ class MasteryRecord(BaseModel):
     """
 
     concept_name: str = Field(..., description="Name of the concept being tracked")
-    mastery_level: str = Field(..., description="Current mastery level (e.g. novice, proficient, expert)")
+    mastery_level: str = Field(
+        ..., description="Current mastery level (e.g. novice, proficient, expert)"
+    )
     last_reviewed: str = Field(..., description="ISO timestamp of last review")
-    error_count: int = Field(default=0, description="Number of errors made on this concept")
+    error_count: int = Field(
+        default=0, description="Number of errors made on this concept"
+    )
 
 
 class PrerequisiteRelation(BaseModel):
@@ -349,8 +386,13 @@ class PrerequisiteRelation(BaseModel):
     """
 
     source_concept: str = Field(..., description="The concept that is a prerequisite")
-    target_concept: str = Field(..., description="The concept that requires the prerequisite")
-    relation_strength: str = Field(default="strong", description="Strength of the prerequisite relation (strong/weak)")
+    target_concept: str = Field(
+        ..., description="The concept that requires the prerequisite"
+    )
+    relation_strength: str = Field(
+        default="strong",
+        description="Strength of the prerequisite relation (strong/weak)",
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
