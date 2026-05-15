@@ -1,0 +1,153 @@
+# MVP-α Broadcast — Session B (Plugin)
+# Plan: EPIC1-BMAD-DEV-ASSESS-2026-04-17
+# Coordinator file: _bmad-output/research/2026-05-14-mvp-alpha-parallel-dev-plan.md
+
+session: B
+worker_lane: plugin (frontend/obsidian-plugin/src/)
+plan_nnn: EPIC1-BMAD-DEV-ASSESS-2026-04-17
+timestamp: 2026-05-14T19:25:00Z
+
+# ─────────────────────────────────────────────────────────────
+# α-5: plugin 反馈 toast + 状态栏 (零依赖, 已 ship)
+# ─────────────────────────────────────────────────────────────
+alpha_5:
+  status: done
+  feedback_moments_covered:
+    - "#1 批注同步成功 — 已复用 Story 2.4 frontmatterSync 的 metadataCache 写入循环"
+    - "#2 Tips 数自增 — StatusBarController.handleMetadataChanged + Notice 🎓 已记住 N 条"
+    - "#3 导航路径 — StatusBarController.handleFileOpen 显示 'prev → current'"
+  files:
+    - path: frontend/obsidian-plugin/src/status-bar.ts
+      kind: new
+      lines: 230
+      pure_exports:
+        - countTipsFromFrontmatter
+        - buildNavPath
+        - buildStatusBarText
+        - classifyTipsTransition
+        - shouldTrackInNavPath
+        - buildTipsIncreaseNotice
+      runtime_class: StatusBarController
+    - path: frontend/obsidian-plugin/src/main.ts
+      kind: modified
+      onload_added:
+        - "addStatusBarItem() → HTMLElement"
+        - "new StatusBarController(this, el, { onTipsIncreased })"
+        - "registerEvent metadataCache.on('changed') 同回调 fan-out 到 statusBar.handleMetadataChanged"
+        - "registerEvent workspace.on('file-open') → statusBar.handleFileOpen"
+        - "onLayoutReady 用 getActiveFile() 触发一次初始化 handleFileOpen"
+    - path: frontend/obsidian-plugin/tests/status-bar.test.ts
+      kind: new
+      tests: 37
+      all_pass: true
+
+# ─────────────────────────────────────────────────────────────
+# α-3: 答题 markdown UI (依赖 α-2 / α-4 backend, 接口契约已按协调文档锁定)
+# ─────────────────────────────────────────────────────────────
+alpha_3:
+  status: done_pending_backend
+  reason: "plugin 侧完整实现, backend α-2/α-4 ready 后立即可端到端跑"
+  feedback_moments_covered:
+    - "#4 '🤔 正在生成题目...' Notice + '📄 题目已生成: 考察-X-YYYY-MM-DD' Notice"
+    - "#5 '⏳ 正在评分...' Notice + '✅ 评分完成: N/5' Notice + 文件追加 ## 反馈 段"
+  backend_contract_assumed:
+    POST_exam_quick:
+      endpoint: /api/v1/exam/quick
+      body: {node_id: str, vault_id: str}
+      response: {question_id: str, question_text: str, generated_at?: iso}
+    POST_exam_grade:
+      endpoint: /api/v1/exam/grade
+      body: {question_id: str, user_answer: str}
+      response: {score: int (0..5), feedback: str, mastery_delta?: int}
+    note: "若 Session A 的实际 schema 与上方不一致 — plugin 会 Notice '后端返回数据缺 X — 接口契约未对齐' 提示协调员"
+  files:
+    - path: frontend/obsidian-plugin/src/exam-quick.ts
+      kind: new
+      lines: 295
+      pure_exports:
+        - buildExamFilePath
+        - todayDateStr
+        - buildExamFileBody
+        - extractAnswer
+        - hasFeedbackSection
+        - buildFeedbackAppend
+      runtime_class: QuickExamController
+    - path: frontend/obsidian-plugin/src/main.ts
+      kind: modified
+      onload_added:
+        - "new QuickExamController({ app, callBackendJson, inferCurrentVaultId })"
+        - "registerEvent vault.on('modify') → quickExam.onFileModified"
+        - "addCommand id='canvas:start-quick-exam' name='Quick Exam（单题考察, MVP-α）'"
+    - path: frontend/obsidian-plugin/tests/exam-quick.test.ts
+      kind: new
+      tests: 35
+      all_pass: true
+  exam_file_protocol:
+    location: 节点/考察-{concept}-{YYYY-MM-DD}[-{n}].md
+    frontmatter:
+      - exam_question_id
+      - source_concept
+      - generated_at
+      - exam_status: pending
+    sections:
+      - "# 考察: {concept}"
+      - "## 题目"
+      - "## 你的回答"
+      - "## 提交 (Cmd+S 自动触发评分)"
+    after_grade:
+      - "## 反馈 ({score}/5)"
+  guards:
+    - "active file 必须在 节点/ 下 且 basename 不以 '考察-' 开头"
+    - "vault.on('modify') 用 in-memory session map 守门, 非考察文件 0 开销"
+    - "hasFeedbackSection 防重复 grade + session.graded flag 防并发"
+    - "回答区 '[在此填写]' 占位符不触发 grade"
+
+# ─────────────────────────────────────────────────────────────
+# build & test
+# ─────────────────────────────────────────────────────────────
+build:
+  command: npm run build
+  artifact: frontend/obsidian-plugin/main.js
+  size_bytes: 103608
+  ts_errors: 0
+
+test:
+  command: npm test
+  total: 265
+  pass: 253
+  fail: 12
+  fail_attribution:
+    - 6 个 callout wrapSelection — pre-existing baseline (callout.test.ts:20-25, 不在 α 范围)
+    - 6 个 vault-indicator wiring — pre-existing baseline (Wave-5 Stage A 待补 wiring)
+  new_tests_added: 72  # 37 (α-5) + 35 (α-3)
+  new_tests_pass: 72
+
+# ─────────────────────────────────────────────────────────────
+# deploy 待协调员执行 (DD-12 阻断 plugin session 直接 cp 到 canvas-vault/)
+# ─────────────────────────────────────────────────────────────
+deploy_pending:
+  step_1:
+    command: cp frontend/obsidian-plugin/main.js canvas-vault/.obsidian/plugins/canvas-learning-system/main.js
+    note: "Session B 不能动 canvas-vault/ (协调文档 §3 工种边界)"
+  step_2:
+    action: "用户在 Obsidian 中 Reload App (Ctrl/Cmd+R)"
+  step_3:
+    verify:
+      - "Status bar 出现 '📝 Tips: N · 📍 {当前文件}' 文本"
+      - "命令面板 (Cmd+P) 搜 'Quick Exam' 能看到 'Quick Exam（单题考察, MVP-α）'"
+      - "在 节点/<concept>.md 上写新 callout → status bar 数字跳变 + Notice 🎓 已记住 N 条"
+      - "Cmd+Click wikilink 跳到另一节点 → status bar 显示 'prev → current'"
+      - "Quick Exam 命令 (依赖 backend α-2/α-4 done) → 见 exam_file_protocol"
+
+# ─────────────────────────────────────────────────────────────
+# Sign-off
+# ─────────────────────────────────────────────────────────────
+notes: |
+  Session B 完成. Plugin 侧零阻塞 — α-2 done 后任何节点都能立即跑 Quick Exam.
+
+  接口契约已按协调文档 §5 Session A Task 清单锁定. 若 Session A 实施时 schema
+  有任何调整, plugin 会发 Notice 提示 "后端返回数据缺 X — 接口契约未对齐", 协调员
+  可以在那个时点对齐.
+
+  下一同步点: 协调员 cp main.js 到 canvas-vault → 用户 reload Obsidian 测 α-5
+  3 个反馈瞬间 → 等 Session A α-2/α-4 done → 端到端 UAT.

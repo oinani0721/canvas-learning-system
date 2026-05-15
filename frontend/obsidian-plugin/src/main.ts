@@ -61,6 +61,12 @@ import {
   type NeighborSummary,
   type NodeChatContext,
 } from "./node-chat-context";
+import {
+  buildTipsIncreaseNotice,
+  StatusBarController,
+} from "./status-bar";
+import { QuickExamController } from "./exam-quick";
+import { inferVaultId } from "./error-candidate-helpers";
 
 const DEFAULT_BACKEND_URL = "http://localhost:8001";
 
@@ -90,6 +96,10 @@ export default class CanvasLearningPlugin extends Plugin {
   private calloutSync!: CalloutSyncDebouncer;
   /** Story 2.4 Plan A (2026-05-14): frontmatter tips[] 自动同步 */
   private frontmatterSync!: FrontmatterTipsSync;
+  /** MVP-α-5 (2026-05-14): status bar 反馈瞬间 #2/#3 (Tips 计数 + 导航路径) */
+  private statusBar!: StatusBarController;
+  /** MVP-α-3 (2026-05-14): 单题考察 quick exam (反馈瞬间 #4/#5) */
+  private quickExam!: QuickExamController;
 
   async onload() {
     await this.loadSettings();
@@ -102,12 +112,61 @@ export default class CanvasLearningPlugin extends Plugin {
     // 用 Obsidian 内部 throttle 的 metadataCache 事件触发 frontmatter tips[] 自动维护
     // (vs Plan B 用 vault.on('modify') 容易跟自己写 frontmatter 形成循环)
     this.frontmatterSync = new FrontmatterTipsSync(this);
+
+    // MVP-α-5 (2026-05-14): status bar 反馈瞬间 #2/#3.
+    // addStatusBarItem 在 plugin 实例上挂常驻 element, controller 持有它后只 setText.
+    // Notice 触发用 callback 注入 — status-bar.ts 保持无 Obsidian runtime 依赖 (跟
+    // vault-indicator 一致, 测试可直接 import pure functions).
+    const statusBarEl = this.addStatusBarItem();
+    this.statusBar = new StatusBarController(this, statusBarEl, {
+      onTipsIncreased: (count) => {
+        new Notice(buildTipsIncreaseNotice(count), 2500);
+      },
+    });
+
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
         if (file.path.startsWith("节点/") || file.path.startsWith("原白板/")) {
           this.masteryCache.clear();
           // Plan A core: 文件变化 → 重新解析 callout → 同步到 frontmatter tips[]
           void this.frontmatterSync.syncFile(file);
+          // MVP-α-5: 同一事件下读 frontmatter tips[] 长度刷新 status bar.
+          // controller 自己判定是否当前 active file (避免后台 sync 触发噪音).
+          // 时序保险: syncFile 还在写 frontmatter, metadataCache 此刻读到的 tips[]
+          // 可能是旧值 — 但 syncFile 写完会再触发一次 'changed', 让 controller 拿到新值.
+          this.statusBar.handleMetadataChanged(file);
+        }
+      }),
+    );
+
+    // MVP-α-5: workspace.on('file-open') → 更新 nav path "prev → current".
+    // onLayoutReady 之后立即用 getActiveFile() 触发一次初始化, 让用户打开 Obsidian
+    // 时 status bar 直接显示当前节点 (不必等下次切文件).
+    this.registerEvent(
+      this.app.workspace.on("file-open", (file) => {
+        this.statusBar.handleFileOpen(file);
+      }),
+    );
+    this.app.workspace.onLayoutReady(() => {
+      const active = this.app.workspace.getActiveFile();
+      if (active) this.statusBar.handleFileOpen(active);
+    });
+
+    // MVP-α-3 (2026-05-14): Quick Exam markdown UI (反馈瞬间 #4/#5).
+    // controller 通过 closure 拿到 plugin 内的 callBackend + inferVaultId, 不需要
+    // 改 callBackend visibility. vault.on('modify') 在这里注册一个 fast-path 分发,
+    // controller 自己用 sessions map 守门, 非考察文件 0 开销.
+    this.quickExam = new QuickExamController({
+      app: this.app,
+      callBackendJson: (endpoint, label, body, method) =>
+        this.callBackend(endpoint, label, body, method),
+      inferCurrentVaultId: () =>
+        inferVaultId(this.app.vault.getName(), undefined),
+    });
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (file instanceof TFile) {
+          void this.quickExam.onFileModified(file, Notice);
         }
       }),
     );
@@ -345,6 +404,14 @@ export default class CanvasLearningPlugin extends Plugin {
       id: "canvas:open-node-chat",
       name: "节点对话（注入上下文 + 切 Claudian）",
       callback: () => this.handleOpenNodeChat(),
+    });
+
+    // MVP-α-3 (2026-05-14): 单题考察命令
+    // 触发: active file 在 节点/<concept>.md → 生成考察文件并打开 → 用户答 → 自动评分
+    this.addCommand({
+      id: "canvas:start-quick-exam",
+      name: "Quick Exam（单题考察, MVP-α）",
+      callback: () => this.quickExam.startExam(Notice),
     });
   }
 
