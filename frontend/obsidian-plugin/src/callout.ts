@@ -71,12 +71,22 @@ export async function parseCalloutsFromContent(
   let i = 0;
 
   while (i < lines.length) {
-    // Plan A 修复 (2026-05-14): 兼容 Story 2.4 spec 协议
-    // - 支持 [!tip] 单数 + [!tips] 复数 (spec 写 [!tip] 但 plugin UI 写 [!tips])
-    // - 支持 [!tag]+ 展开 + [!tag]- 折叠 (spec AC#3 明确要求两种状态都识别)
-    // 见 ChatGPT 5-14 对抗审查盲点 #1 "协议悄改"
+    // Plan A v2 (2026-05-14): 严格协议 — 4 路 agent 对抗审查共识
+    //
+    // 双 telltale 防误识别:
+    //   1. 仅 4 种复数 tag (tips/error/question/keypoint) — 对齐 plugin UI
+    //      TAG_OPTIONS (line 2-7), 排除 [!tip] 单数 (Story 1.16 4-tag 决策更新版)
+    //   2. +/- 后缀必填 — Story 2.4 spec AC#3 折叠/展开两态都要识别,
+    //      模板 [!tip] 💬 (node-derivation.ts:218 自动生成) 无后缀, 双不匹配排除
+    //
+    // 协议规约 (用户 callout vs 模板 hint):
+    //   - 用户 Cmd+Shift+A 写: [!tips]+ / [!error]+ / [!question]+ / [!keypoint]+
+    //   - 模板/AI 自动写: [!tip] (单数无后缀) / [!quote]+ / [!relation/*]+ / [!info]+ 等
+    //   - 4 个复数 tag 是 "用户保留" 命名空间, 模板不准用
+    //
+    // 见 _bmad-output/research/2026-05-14-plan-b-postmortem.md
     const headerMatch = lines[i].match(
-      /^>\s*\[!(tip|tips|error|question|keypoint)\][+-]?\s*(.*)$/i,
+      /^>\s*\[!(tips|error|question|keypoint)\][+-]\s*(.*)$/i,
     );
     if (!headerMatch) {
       i++;
