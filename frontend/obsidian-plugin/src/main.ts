@@ -5,6 +5,7 @@ import {
   Modal,
   Notice,
   Plugin,
+  requestUrl,
   TFile,
 } from "obsidian";
 import {
@@ -61,21 +62,27 @@ import {
   type NeighborSummary,
   type NodeChatContext,
 } from "./node-chat-context";
-import {
-  buildTipsIncreaseNotice,
-  StatusBarController,
-} from "./status-bar";
-import { QuickExamController } from "./exam-quick";
-import { inferVaultId } from "./error-candidate-helpers";
 
 const DEFAULT_BACKEND_URL = "http://localhost:8001";
 
+const DEFAULT_NODE_PATH_PREFIXES = ["节点/"];
+
 interface CanvasPluginSettings {
   backendUrl: string;
+  /** Story 2.1 P1.6 — 节点池前缀（默认 ["节点/"]）。可在 data.json 配置多前缀。 */
+  nodePathPrefixes: string[];
+  /** 用户视角的 active vault 名（vault selector 选中态镜像）。Backend 是 source of truth */
+  activeVaultName: string;
+  /** Wave-2 P0-1 (2026-05-12) — Internal API key for backend auth (X-CLS-Internal-Key)。
+   *  空字符串 = dev mode (DEBUG=True 时 backend 跳过 auth middleware)。 */
+  internalApiKey: string;
 }
 
 const DEFAULT_SETTINGS: CanvasPluginSettings = {
   backendUrl: DEFAULT_BACKEND_URL,
+  nodePathPrefixes: [...DEFAULT_NODE_PATH_PREFIXES],
+  activeVaultName: "",
+  internalApiKey: "",
 };
 
 /**
@@ -96,10 +103,6 @@ export default class CanvasLearningPlugin extends Plugin {
   private calloutSync!: CalloutSyncDebouncer;
   /** Story 2.4 Plan A (2026-05-14): frontmatter tips[] 自动同步 */
   private frontmatterSync!: FrontmatterTipsSync;
-  /** MVP-α-5 (2026-05-14): status bar 反馈瞬间 #2/#3 (Tips 计数 + 导航路径) */
-  private statusBar!: StatusBarController;
-  /** MVP-α-3 (2026-05-14): 单题考察 quick exam (反馈瞬间 #4/#5) */
-  private quickExam!: QuickExamController;
 
   async onload() {
     await this.loadSettings();
@@ -112,61 +115,12 @@ export default class CanvasLearningPlugin extends Plugin {
     // 用 Obsidian 内部 throttle 的 metadataCache 事件触发 frontmatter tips[] 自动维护
     // (vs Plan B 用 vault.on('modify') 容易跟自己写 frontmatter 形成循环)
     this.frontmatterSync = new FrontmatterTipsSync(this);
-
-    // MVP-α-5 (2026-05-14): status bar 反馈瞬间 #2/#3.
-    // addStatusBarItem 在 plugin 实例上挂常驻 element, controller 持有它后只 setText.
-    // Notice 触发用 callback 注入 — status-bar.ts 保持无 Obsidian runtime 依赖 (跟
-    // vault-indicator 一致, 测试可直接 import pure functions).
-    const statusBarEl = this.addStatusBarItem();
-    this.statusBar = new StatusBarController(this, statusBarEl, {
-      onTipsIncreased: (count) => {
-        new Notice(buildTipsIncreaseNotice(count), 2500);
-      },
-    });
-
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
         if (file.path.startsWith("节点/") || file.path.startsWith("原白板/")) {
           this.masteryCache.clear();
           // Plan A core: 文件变化 → 重新解析 callout → 同步到 frontmatter tips[]
           void this.frontmatterSync.syncFile(file);
-          // MVP-α-5: 同一事件下读 frontmatter tips[] 长度刷新 status bar.
-          // controller 自己判定是否当前 active file (避免后台 sync 触发噪音).
-          // 时序保险: syncFile 还在写 frontmatter, metadataCache 此刻读到的 tips[]
-          // 可能是旧值 — 但 syncFile 写完会再触发一次 'changed', 让 controller 拿到新值.
-          this.statusBar.handleMetadataChanged(file);
-        }
-      }),
-    );
-
-    // MVP-α-5: workspace.on('file-open') → 更新 nav path "prev → current".
-    // onLayoutReady 之后立即用 getActiveFile() 触发一次初始化, 让用户打开 Obsidian
-    // 时 status bar 直接显示当前节点 (不必等下次切文件).
-    this.registerEvent(
-      this.app.workspace.on("file-open", (file) => {
-        this.statusBar.handleFileOpen(file);
-      }),
-    );
-    this.app.workspace.onLayoutReady(() => {
-      const active = this.app.workspace.getActiveFile();
-      if (active) this.statusBar.handleFileOpen(active);
-    });
-
-    // MVP-α-3 (2026-05-14): Quick Exam markdown UI (反馈瞬间 #4/#5).
-    // controller 通过 closure 拿到 plugin 内的 callBackend + inferVaultId, 不需要
-    // 改 callBackend visibility. vault.on('modify') 在这里注册一个 fast-path 分发,
-    // controller 自己用 sessions map 守门, 非考察文件 0 开销.
-    this.quickExam = new QuickExamController({
-      app: this.app,
-      callBackendJson: (endpoint, label, body, method) =>
-        this.callBackend(endpoint, label, body, method),
-      inferCurrentVaultId: () =>
-        inferVaultId(this.app.vault.getName(), undefined),
-    });
-    this.registerEvent(
-      this.app.vault.on("modify", (file) => {
-        if (file instanceof TFile) {
-          void this.quickExam.onFileModified(file, Notice);
         }
       }),
     );
@@ -404,14 +358,6 @@ export default class CanvasLearningPlugin extends Plugin {
       id: "canvas:open-node-chat",
       name: "节点对话（注入上下文 + 切 Claudian）",
       callback: () => this.handleOpenNodeChat(),
-    });
-
-    // MVP-α-3 (2026-05-14): 单题考察命令
-    // 触发: active file 在 节点/<concept>.md → 生成考察文件并打开 → 用户答 → 自动评分
-    this.addCommand({
-      id: "canvas:start-quick-exam",
-      name: "Quick Exam（单题考察, MVP-α）",
-      callback: () => this.quickExam.startExam(Notice),
     });
   }
 
@@ -1511,11 +1457,212 @@ class CanvasSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h2", { text: "Canvas Learning System · 设置" });
 
-    new Setting(containerEl)
+    // ─── 状态卡：当前 vault 是否被 backend 认识 ─────────────────
+    // 用户视角第一眼看到「✓ 已挂载 / ⚠️ 不匹配 / ❌ 后端未启动」+ 一键修复
+    this.renderVaultStatus(containerEl);
+
+    // ─── 快捷键状态 + 导航（Story 2.1 Phase 1 P1.6 — UX 改进） ──────
+    this.renderHotkeyStatus(containerEl);
+
+    // ─── 高级配置（折叠，默认收起；非技术用户无需展开） ────────────
+    this.renderAdvancedSection(containerEl);
+  }
+
+  /**
+   * Story 2.2 follow-up · vault status detector（用户视角主入口）
+   *
+   * 用户原话："我只是要确认当前的 Canvas Learning System 是否挂载在当前 vault"
+   * 设计：状态卡先行 — 进 Settings 第一眼看到「✓ 已挂载 / ⚠️ 不匹配 / ❌ 后端未启动」
+   * 三态都给恰好一个 CTA（重连 / 一键切换 / 重试），零端口暴露。
+   * 路径不可对比（host vs container 不同 namespace），改用 vault_name 作 stable key。
+   */
+  private renderVaultStatus(container: HTMLElement): void {
+    const card = container.createDiv({ cls: "canvas-vault-status-card" });
+    card.style.cssText = "padding: 16px; margin: 12px 0; border-radius: 8px; "
+      + "background: var(--background-secondary); border: 1px solid var(--background-modifier-border);";
+    card.createEl("h3", { text: "Canvas 后端状态", attr: { style: "margin: 0 0 8px 0;" } });
+    const bodyEl = card.createDiv();
+    bodyEl.setText("正在检查后端连通性...");
+    const ctaEl = card.createDiv({ attr: { style: "margin-top: 12px;" } });
+
+    void this.detectAndRender(bodyEl, ctaEl);
+  }
+
+  /**
+   * 异步检测 Obsidian 当前 vault ↔ backend active vault 是否同源，并渲染状态。
+   * 直接调用 backend /api/v1/vault/current 拿 source-of-truth，按 vault_name 比对。
+   */
+  private async detectAndRender(bodyEl: HTMLElement, ctaEl: HTMLElement): Promise<void> {
+    const localName = this.app.vault.getName();
+    const backendUrl = this.plugin.settings.backendUrl.replace(/\/$/, "");
+
+    let resp;
+    try {
+      resp = await requestUrl({
+        url: `${backendUrl}/api/v1/vault/current`,
+        method: "GET",
+        throw: false,
+      });
+    } catch (e) {
+      this.renderBackendDownState(bodyEl, ctaEl, localName, backendUrl, (e as Error).message);
+      return;
+    }
+
+    if (resp.status !== 200) {
+      this.renderBackendDownState(bodyEl, ctaEl, localName, backendUrl, `HTTP ${resp.status}`);
+      return;
+    }
+
+    const remote = resp.json as { vault_name: string; vault_path: string; vault_id: string };
+    if (remote.vault_name === localName) {
+      this.renderSyncedState(bodyEl, ctaEl, localName, remote.vault_id);
+    } else {
+      this.renderMismatchState(bodyEl, ctaEl, localName, remote);
+    }
+  }
+
+  private renderSyncedState(
+    bodyEl: HTMLElement,
+    ctaEl: HTMLElement,
+    localName: string,
+    vaultId: string,
+  ): void {
+    bodyEl.empty();
+    bodyEl.createSpan({
+      text: "✓ Canvas 已挂载当前 vault",
+      attr: { style: "color: var(--text-success); font-weight: 600;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: `当前 vault：「${localName}」  ·  vault_id: ${vaultId}`,
+      attr: { style: "color: var(--text-muted); font-size: 0.9em;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: "你可以放心使用所有 Canvas 功能（AI 对话 / 双链派生 / 检验白板等）。",
+      attr: { style: "color: var(--text-muted); font-size: 0.9em;" },
+    });
+    ctaEl.empty();
+  }
+
+  private renderMismatchState(
+    bodyEl: HTMLElement,
+    ctaEl: HTMLElement,
+    localName: string,
+    remote: { vault_name: string; vault_path: string; vault_id: string },
+  ): void {
+    bodyEl.empty();
+    bodyEl.createSpan({
+      text: "⚠️ Vault 不匹配 — Canvas 当前不在这个 vault",
+      attr: { style: "color: var(--text-warning); font-weight: 600;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: `Obsidian 当前打开：「${localName}」`,
+      attr: { style: "font-size: 0.9em;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: `Canvas 后端挂载在：「${remote.vault_name}」（${remote.vault_path}）`,
+      attr: { style: "font-size: 0.9em; color: var(--text-muted);" },
+    });
+
+    ctaEl.empty();
+    const fixBtn = ctaEl.createEl("button", { text: `让 Canvas 切换到「${localName}」` });
+    fixBtn.style.cssText = "padding: 6px 14px; cursor: pointer;";
+    fixBtn.onclick = () => void this.handleSwitchToCurrent(bodyEl, ctaEl, localName, fixBtn);
+  }
+
+  private renderBackendDownState(
+    bodyEl: HTMLElement,
+    ctaEl: HTMLElement,
+    localName: string,
+    backendUrl: string,
+    reason: string,
+  ): void {
+    bodyEl.empty();
+    bodyEl.createSpan({
+      text: "❌ Canvas 后端未启动",
+      attr: { style: "color: var(--text-error); font-weight: 600;" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: `无法连接 ${backendUrl}（${reason}）。Obsidian 当前 vault：「${localName}」`,
+      attr: { style: "font-size: 0.9em; color: var(--text-muted);" },
+    });
+    bodyEl.createEl("br");
+    bodyEl.createSpan({
+      text: "请检查 Docker 是否运行（终端：docker ps），或在「高级」段修改 Backend URL。",
+      attr: { style: "font-size: 0.9em; color: var(--text-muted);" },
+    });
+
+    ctaEl.empty();
+    const retryBtn = ctaEl.createEl("button", { text: "重新检查" });
+    retryBtn.style.cssText = "padding: 6px 14px; cursor: pointer;";
+    retryBtn.onclick = () => {
+      bodyEl.setText("正在重新检查...");
+      ctaEl.empty();
+      void this.detectAndRender(bodyEl, ctaEl);
+    };
+  }
+
+  private async handleSwitchToCurrent(
+    bodyEl: HTMLElement,
+    ctaEl: HTMLElement,
+    localName: string,
+    btn: HTMLButtonElement,
+  ): Promise<void> {
+    btn.disabled = true;
+    btn.setText("切换中...");
+    const adapter = this.app.vault.adapter as unknown as { getBasePath?: () => string };
+    const basePath = typeof adapter.getBasePath === "function" ? adapter.getBasePath() : "";
+    if (!basePath) {
+      new Notice("❌ 无法获取当前 vault 路径", 4000);
+      btn.disabled = false;
+      btn.setText(`让 Canvas 切换到「${localName}」`);
+      return;
+    }
+
+    try {
+      const backendUrl = this.plugin.settings.backendUrl.replace(/\/$/, "");
+      const switchResp = await requestUrl({
+        url: `${backendUrl}/api/v1/vault/switch`,
+        method: "POST",
+        contentType: "application/json",
+        body: JSON.stringify({ vault_path: basePath }),
+        throw: false,
+      });
+      if (switchResp.status === 200) {
+        new Notice(`✓ Canvas 已切换到「${localName}」`, 5000);
+        bodyEl.setText("切换成功，正在刷新状态...");
+        ctaEl.empty();
+        await this.detectAndRender(bodyEl, ctaEl);
+      } else {
+        const errBody = switchResp.json as { detail?: { message?: string } };
+        const msg = (errBody?.detail?.message) || `HTTP ${switchResp.status}`;
+        new Notice(`❌ 切换失败：${msg}`, 6000);
+        btn.disabled = false;
+        btn.setText(`让 Canvas 切换到「${localName}」`);
+      }
+    } catch (e) {
+      new Notice(`❌ 切换异常：${(e as Error).message}`, 6000);
+      btn.disabled = false;
+      btn.setText(`让 Canvas 切换到「${localName}」`);
+    }
+  }
+
+  /**
+   * 高级配置折叠段（默认收起）— 含 BackendURL / 节点前缀 / 显式 vault 选择 dropdown
+   * 非技术用户无需展开；进阶用户可手动调整 BackendURL、切换到任意 vault、改节点池前缀
+   */
+  private renderAdvancedSection(container: HTMLElement): void {
+    const details = container.createEl("details");
+    details.createEl("summary", { text: "▸ 高级配置（端口 / 节点前缀 / 显式 vault 切换）" });
+    const inner = details.createDiv({ attr: { style: "padding: 8px 0 0 16px;" } });
+
+    new Setting(inner)
       .setName("Backend URL")
-      .setDesc(
-        "FastAPI 后端 URL（默认 http://localhost:8001）。修改后立即生效，无需重启。",
-      )
+      .setDesc("FastAPI 后端 URL（默认 http://localhost:8011 — docker host 映射端口）")
       .addText((text) =>
         text
           .setPlaceholder(DEFAULT_BACKEND_URL)
@@ -1526,12 +1673,266 @@ class CanvasSettingTab extends PluginSettingTab {
           }),
       );
 
-    containerEl.createEl("p", {
-      text: "注意：本地开发用 http://localhost:8001。如部署到远端（含 IP / 域名），用对应 URL。",
+    // Wave-2 P0-1 (2026-05-12) — Internal API Key 配置
+    // 生产 env (DEBUG=False + backend INTERNAL_API_KEY 配置) 必须填，否则 4 命令全部 403。
+    // dev env (DEBUG=True) 留空即可，backend 跳过 auth middleware。
+    new Setting(inner)
+      .setName("Internal API Key (X-CLS-Internal-Key)")
+      .setDesc(
+        "生产环境 (DEBUG=False) 必填 — 与 backend 的 INTERNAL_API_KEY env 保持一致。"
+        + "留空 = dev mode (DEBUG=True, backend 跳过 auth)。"
+        + "Wave-2 P0-1 修复: 之前 3 命令 (chat / study / node-chat) 全部漏带此 header → 生产 403。",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("(留空 = dev mode)")
+          .setValue(this.plugin.settings.internalApiKey)
+          .onChange(async (value) => {
+            this.plugin.settings.internalApiKey = value;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(inner)
+      .setName("节点路径前缀")
+      .setDesc('识别「节点池」的目录前缀（JSON 数组）。默认 ["节点/"]。英文 vault 可改 ["Nodes/"]')
+      .addText((text) =>
+        text
+          .setPlaceholder('["节点/"]')
+          .setValue(JSON.stringify(this.plugin.settings.nodePathPrefixes))
+          .onChange(async (value) => {
+            try {
+              const parsed = JSON.parse(value);
+              if (
+                Array.isArray(parsed)
+                && parsed.every((p) => typeof p === "string" && p.length > 0)
+              ) {
+                this.plugin.settings.nodePathPrefixes = parsed;
+                await this.plugin.saveSettings();
+              } else {
+                new Notice("❌ 需要非空字符串数组（如 [\"节点/\"]）", 4000);
+              }
+            } catch {
+              new Notice("❌ JSON 格式错误", 4000);
+            }
+          }),
+      );
+
+    // 老 vault selector dropdown 留在折叠段，进阶用户切换到任意 backend 已知 vault
+    this.renderVaultSelector(inner);
+  }
+
+  /**
+   * Story 2.2 follow-up · vault selector (legacy dropdown, 移到高级折叠段)
+   *
+   * 异步从 backend /api/v1/vault/list 拿候选列表（VAULTS_ROOT 下含 .obsidian/ 的目录），
+   * 渲染 dropdown 让用户切换 active vault；选中变化时 POST /api/v1/vault/switch 触发
+   * backend reload_settings + vault_id 表名前缀切换。
+   */
+  private renderVaultSelector(container: HTMLElement): void {
+    const setting = new Setting(container)
+      .setName("当前挂载 Vault")
+      .setDesc(
+        "选择 backend 当前挂载的 vault。切换后 backend 自动 reload + LanceDB 表名前缀切到对应 vault_id。"
+        + "下拉项来自 backend VAULTS_ROOT 扫描（仅含 .obsidian/ 子目录的目录）。",
+      );
+    const statusEl = container.createEl("p", {
+      text: "正在加载 vault 列表...",
       cls: "setting-item-description",
     });
+
+    void (async () => {
+      try {
+        const url = `${this.plugin.settings.backendUrl.replace(/\/$/, "")}/api/v1/vault/list`;
+        const resp = await requestUrl({
+          url,
+          method: "GET",
+          throw: false,
+        });
+        if (resp.status !== 200) {
+          statusEl.setText(
+            `❌ 无法加载 vault 列表 (HTTP ${resp.status}). 请确认 backend 正在运行 + Backend URL 正确。`,
+          );
+          return;
+        }
+        const data = resp.json as {
+          vaults_root: string;
+          active_vault: string;
+          vaults: { name: string; path: string; vault_id: string; is_active: boolean }[];
+        };
+        if (!Array.isArray(data.vaults) || data.vaults.length === 0) {
+          statusEl.setText(
+            `⚠️ VAULTS_ROOT (${data.vaults_root}) 下未发现含 .obsidian/ 的目录。`,
+          );
+          return;
+        }
+        statusEl.setText(
+          `VAULTS_ROOT: ${data.vaults_root} · 候选 ${data.vaults.length} 个 · 当前: ${data.active_vault}`,
+        );
+
+        setting.addDropdown((dropdown) => {
+          for (const v of data.vaults) {
+            dropdown.addOption(v.path, `${v.name} (${v.vault_id})`);
+          }
+          // 选中当前 active vault（按 path 匹配，is_active 由 backend 标注）
+          const active = data.vaults.find((v) => v.is_active);
+          if (active) {
+            dropdown.setValue(active.path);
+          }
+          dropdown.onChange(async (newPath) => {
+            const target = data.vaults.find((v) => v.path === newPath);
+            if (!target) {
+              new Notice(`❌ 未识别的 vault path: ${newPath}`, 4000);
+              return;
+            }
+            new Notice(`正在切换到 ${target.name}...`, 2000);
+            try {
+              const switchUrl = `${this.plugin.settings.backendUrl.replace(/\/$/, "")}/api/v1/vault/switch`;
+              const switchResp = await requestUrl({
+                url: switchUrl,
+                method: "POST",
+                contentType: "application/json",
+                body: JSON.stringify({ vault_path: newPath }),
+                throw: false,
+              });
+              if (switchResp.status === 200) {
+                this.plugin.settings.activeVaultName = target.name;
+                await this.plugin.saveSettings();
+                new Notice(
+                  `✓ Vault 已切换到 ${target.name}\n后续对话/搜索使用新 vault 的隔离索引`,
+                  6000,
+                );
+              } else {
+                const errBody = switchResp.json as { detail?: { message?: string } };
+                const msg =
+                  (errBody && errBody.detail && errBody.detail.message)
+                  || `HTTP ${switchResp.status}`;
+                new Notice(`❌ 切换失败：${msg}`, 6000);
+                // dropdown 回滚到当前 active
+                if (active) dropdown.setValue(active.path);
+              }
+            } catch (e) {
+              new Notice(`❌ 切换异常：${(e as Error).message}`, 6000);
+              if (active) dropdown.setValue(active.path);
+            }
+          });
+        });
+      } catch (e) {
+        statusEl.setText(`❌ 加载 vault 列表异常：${(e as Error).message}`);
+      }
+    })();
+  }
+
+  /**
+   * Story 2.1 Phase 1 P1.6 — 快捷键状态导航段
+   *
+   * 不在 plugin SettingTab 内造 hotkey UI（违 Obsidian 社区惯例）。
+   * 仅显示当前绑定状态 + 一键跳转到全局 Hotkeys 设置页。
+   */
+  private renderHotkeyStatus(container: HTMLElement): void {
+    const section = container.createDiv({ cls: "canvas-hotkey-status" });
+    section.createEl("h3", { text: "⌨️ 快捷键绑定" });
+    section.createEl("p", {
+      text: "Obsidian 设计：所有命令的快捷键统一在「Settings → 快捷键」全局管理。本插件命令默认未绑定，请按需自定义。",
+      cls: "setting-item-description",
+    });
+
+    // 收集本插件命令 + 当前绑定状态
+    const PLUGIN_PREFIX = "canvas-learning-system:";
+    const allCommands = (this.app as any).commands?.commands ?? {};
+    const hotkeyMgr = (this.app as any).hotkeyManager;
+    const customKeys = hotkeyMgr?.customKeys ?? {};
+    const defaultKeys = hotkeyMgr?.defaultKeys ?? {};
+
+    const pluginCmds = Object.keys(allCommands)
+      .filter((id) => id.startsWith(PLUGIN_PREFIX))
+      .sort();
+
+    let boundCount = 0;
+    const formatHotkey = (h: any): string => {
+      if (!h) return "";
+      const mods = (h.modifiers ?? []).join("+");
+      return mods ? `${mods}+${h.key}` : h.key;
+    };
+
+    const list = section.createEl("ul", { cls: "canvas-hotkey-list" });
+    for (const cmdId of pluginCmds) {
+      const name = allCommands[cmdId]?.name ?? cmdId;
+      const keys = customKeys[cmdId] ?? defaultKeys[cmdId] ?? [];
+      const bound = Array.isArray(keys) && keys.length > 0;
+      if (bound) boundCount++;
+      const li = list.createEl("li");
+      li.createEl("span", {
+        text: bound ? "✅ " : "⚠️ ",
+      });
+      li.createEl("strong", { text: name });
+      li.createEl("span", {
+        text: bound
+          ? `  [${keys.map(formatHotkey).join(", ")}]`
+          : "  （未绑定）",
+        cls: bound ? "" : "mod-warning",
+      });
+    }
+
+    const summary = section.createEl("p", {
+      cls: "setting-item-description",
+    });
+    summary.createEl("strong", {
+      text: boundCount === pluginCmds.length
+        ? `✅ 已绑定 ${boundCount}/${pluginCmds.length} 个命令`
+        : `⚠️ ${pluginCmds.length - boundCount} 个命令未绑定快捷键`,
+    });
+
+    new Setting(section)
+      .setName("配置快捷键")
+      .setDesc("跳转到 Obsidian「Settings → 快捷键」并自动搜索 canvas-learning-system 命令。")
+      .addButton((btn) =>
+        btn
+          .setButtonText("打开快捷键设置")
+          .setCta()
+          .onClick(() => {
+            const setting = (this.app as any).setting;
+            if (!setting) {
+              new Notice("无法打开设置页", 3000);
+              return;
+            }
+            setting.open();
+            setting.openTabById("hotkeys");
+            // 多候选 selector + 重试，应对不同 Obsidian 版本的 DOM 结构
+            const trySetSearch = (attempts = 0): void => {
+              const candidates = [
+                ".hotkey-list-search-container input",
+                "input.hotkey-list-search-input",
+                ".search-input-container input[type=\"search\"]",
+                ".vertical-tab-content-container input[type=\"text\"]",
+                ".vertical-tab-content-container input[type=\"search\"]",
+              ];
+              for (const sel of candidates) {
+                const el = document.querySelector(sel) as HTMLInputElement | null;
+                if (el && el.offsetParent !== null) {
+                  el.focus();
+                  el.value = "canvas-learning-system";
+                  el.dispatchEvent(new Event("input", { bubbles: true }));
+                  return;
+                }
+              }
+              if (attempts < 10) {
+                setTimeout(() => trySetSearch(attempts + 1), 100);
+              }
+            };
+            trySetSearch();
+          }),
+      );
   }
 }
+
+/**
+ * Story 1.19 v4.0 — 白板名输入 modal（无 LLM）。
+ *
+ * 默认值启发式：场景 A 留空让用户输；场景 B 用 active file basename 作 placeholder
+ * （但不预填，避免误用同名 — 用户应主动思考白板名是否与种子笔记一致）。
+ */
+
 
 /**
  * Story 1.19 v4.0 — 白板名输入 modal（无 LLM）。
