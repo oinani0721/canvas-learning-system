@@ -135,7 +135,24 @@ backend/tests/unit/
 
 ### Agent Model Used
 
-(to be filled by Dev agent)
+Claude Opus 4.7 (1M context) — 2026-05-14
+
+### Implementation Path
+
+**Plan A 实施** (4 路对抗审查共识后, 从 Plan B 回退):
+- 1st attempt Plan B (plugin debounce + Graphiti append-only): 实施完发现 ChatGPT-2 找的 ghost field bug + 7 个盲点, 不满足 AC#5 删除追踪
+- 2nd attempt Plan A (frontmatter 真相源): 完美对齐 spec + 5 AC 全通
+- 决策文档: `_bmad-output/research/2026-05-14-plan-b-postmortem.md` (212 行)
+- Plan B 代码保留 git history (commit 3d10a02) 作 Plan C 未来参考
+
+### Architecture Highlights
+
+1. **Plugin 端真相源**: `FrontmatterTipsSync` 监听 `metadataCache.on('changed')` 用 Obsidian 官方 `app.fileManager.processFrontMatter` API 原子写入
+2. **完全覆盖语义**: `buildNewTips` 每次重写 tips[] 而非 append, 天然支持 AC#5 删除追踪
+3. **防无限循环**: `tipsEqual` 比对新旧内容相同则跳过, 不重复 trigger metadataCache
+4. **保留 added_at**: 旧 tip 匹配 (text+tag+understanding) 沿用 added_at, 新 tip 写当前时间
+5. **严格协议**: regex `/^>\s*\[!(tips|error|question|keypoint)\][+-]\s*(.*)$/i` 双 telltale 排除模板 hint
+6. **Backend 第 3 source**: `learning_context_service._fetch_tips_and_errors` 加 yaml.safe_load 路径读 .md frontmatter, 跟 MemoryService + LearningMemoryClient 三路 fallback
 
 ### Debug Log References
 
@@ -147,4 +164,30 @@ backend/tests/unit/
 
 ### File List
 
-(to be filled by Dev agent)
+**Plan A v3.0 新建 (1 个)**:
+- `frontend/obsidian-plugin/src/frontmatter-tips-sync.ts` (115 行)
+
+**Plan A v3.0 修改 (4 个)**:
+- `frontend/obsidian-plugin/src/callout.ts` (parser 协议修复 + parseCalloutsFromContent + SHA256)
+- `frontend/obsidian-plugin/src/main.ts` (集成 FrontmatterTipsSync + onload 注册 metadataCache.on('changed'))
+- `backend/app/services/learning_context_service.py` (加第 3 source frontmatter reader, +51 行)
+- `backend/app/api/v1/endpoints/tips.py` (/batch endpoint 加 410 deprecated marker)
+
+**Plan A 验收单** (覆盖 v2.0 → v3.0):
+- `_bmad-output/验收单/Story-P0-callout-backend-sync.md` (v3.0 含 v1→v3 历史追溯)
+
+**Postmortem 决策文档**:
+- `_bmad-output/research/2026-05-14-plan-b-postmortem.md` (212 行)
+
+**Plan B 代码 (保留 git history 作 Plan C 参考)**:
+- commit 3d10a02 含 backend/app/graphiti/group_id_compat.py 等 11 个文件
+- 入口已 disable (saveCalloutToBackend 调用注释 + /tips/batch 返回 410 Gone)
+
+### Change Log
+
+| 日期 | 版本 | 说明 |
+|---|---|---|
+| 2026-05-14 早 | v1.0 (Plan B) | plugin debounce + Graphiti append-only, 实测端到端 8 sync + 3 EpisodicNode |
+| 2026-05-14 中 | v2.0 (Plan B 升级) | 加 4 agent 对抗审查 + ChatGPT 第二意见 |
+| 2026-05-14 晚 | v3.0 (Plan A) | 回退 Plan A frontmatter 真相源 + 5 AC 全通 |
+| 2026-05-14 晚 | v3.1 (regex fix) | 严格协议 regex (4 复数 tag + 必带 +/-) 排除模板 hint 误识别 |
