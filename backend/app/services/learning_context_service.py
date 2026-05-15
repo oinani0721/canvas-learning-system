@@ -193,7 +193,7 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
                         "annotated_at": mem.get("timestamp", ""),
                     }
                 )
-    except (RuntimeError, ConnectionError, ImportError, AttributeError) as e:
+    except (RuntimeError, ConnectionError, ImportError, AttributeError, TypeError) as e:
         logger.debug("LearningMemoryClient unavailable for %s: %s", node_id, e)
 
     # Plan A (2026-05-14): 第 3 source — 从 .md frontmatter tips[] 读
@@ -359,7 +359,13 @@ async def _fetch_inherited_context(node_id: str, group_id: str) -> list[dict]:
             }
             for ctx in inherited
         ]
-    except (RuntimeError, ConnectionError, asyncio.TimeoutError, AttributeError) as e:
+    except (
+        RuntimeError,
+        ConnectionError,
+        asyncio.TimeoutError,
+        AttributeError,
+        TypeError,
+    ) as e:
         logger.warning("Failed to fetch inherited context for %s: %s", node_id, e)
         return list()
 

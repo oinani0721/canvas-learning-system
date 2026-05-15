@@ -1646,8 +1646,18 @@ class MemoryService:
             ORDER BY score DESC
             LIMIT $limit
             """
+            # MVP-α fix (2026-05-15): escape Lucene 特殊字符防 ParseException
+            # 节点名含 ( ) [ ] 等会让 Lucene parser 抛 ClientError, 之前吞掉下游 fallback.
+            import re
+
+            safe_query = re.sub(r'([+\-!(){}\[\]^"~*?:\\/])', r"\\\1", query or "")
+            safe_query = safe_query.replace("&&", r"\&\&").replace("||", r"\|\|")
+
             records = await self.neo4j.run_query(
-                cypher, search_term=query, group_id=group_id, limit=limit
+                cypher,
+                search_term=safe_query,
+                group_id=group_id,
+                limit=limit,
             )
             episodes = []
             for r in records if records else list():
@@ -1665,7 +1675,13 @@ class MemoryService:
                     }
                 )
             return episodes
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            asyncio.TimeoutError,
+            neo4j.exceptions.ClientError,  # MVP-α fix: Lucene ParseException
+            neo4j.exceptions.Neo4jError,
+        ) as e:
             logger.debug(f"Neo4j fulltext search failed (non-fatal): {e}")
             return list()  # fulltext index may not exist yet
 
