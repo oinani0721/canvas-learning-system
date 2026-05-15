@@ -71,8 +71,12 @@ export async function parseCalloutsFromContent(
   let i = 0;
 
   while (i < lines.length) {
+    // Plan A 修复 (2026-05-14): 兼容 Story 2.4 spec 协议
+    // - 支持 [!tip] 单数 + [!tips] 复数 (spec 写 [!tip] 但 plugin UI 写 [!tips])
+    // - 支持 [!tag]+ 展开 + [!tag]- 折叠 (spec AC#3 明确要求两种状态都识别)
+    // 见 ChatGPT 5-14 对抗审查盲点 #1 "协议悄改"
     const headerMatch = lines[i].match(
-      /^>\s*\[!(tips|error|question|keypoint)\]\+\s*(.*)$/i,
+      /^>\s*\[!(tip|tips|error|question|keypoint)\][+-]?\s*(.*)$/i,
     );
     if (!headerMatch) {
       i++;

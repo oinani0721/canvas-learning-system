@@ -17,7 +17,8 @@ import {
   wrapSelection,
   type ParsedCallout,
 } from "./callout";
-import { CalloutSyncDebouncer } from "./callout-sync";
+import { CalloutSyncDebouncer } from "./callout-sync"; // DEPRECATED Plan B
+import { FrontmatterTipsSync } from "./frontmatter-tips-sync";
 import {
   extractBoardNameFromPath,
   extractSourceBoardFromFrontmatter,
@@ -85,8 +86,10 @@ export default class CanvasLearningPlugin extends Plugin {
   settings: CanvasPluginSettings = { ...DEFAULT_SETTINGS };
   /** v4.3 A 路线：mastery 聚合缓存。Story 1.18 路径 1 plugin API 暴露。 */
   private masteryCache = new Map<string, { value: number; ts: number }>();
-  /** Story 2.4 Plan B Phase 1 (2026-05-14): callout debounce 同步器 */
+  /** Story 2.4 Plan B Phase 1 (2026-05-14) DEPRECATED — 见 plan-b-postmortem.md */
   private calloutSync!: CalloutSyncDebouncer;
+  /** Story 2.4 Plan A (2026-05-14): frontmatter tips[] 自动同步 */
+  private frontmatterSync!: FrontmatterTipsSync;
 
   async onload() {
     await this.loadSettings();
@@ -95,28 +98,39 @@ export default class CanvasLearningPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.checkHotkeyConflicts();
     });
+    // Story 2.4 Plan A (2026-05-14): metadataCache.on('changed') → FrontmatterTipsSync
+    // 用 Obsidian 内部 throttle 的 metadataCache 事件触发 frontmatter tips[] 自动维护
+    // (vs Plan B 用 vault.on('modify') 容易跟自己写 frontmatter 形成循环)
+    this.frontmatterSync = new FrontmatterTipsSync(this);
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
         if (file.path.startsWith("节点/") || file.path.startsWith("原白板/")) {
           this.masteryCache.clear();
+          // Plan A core: 文件变化 → 重新解析 callout → 同步到 frontmatter tips[]
+          void this.frontmatterSync.syncFile(file);
         }
       }),
     );
 
-    // Story 2.4 Plan B Phase 1 (2026-05-14): 监听 vault 文件修改 → 500ms debounce
-    // → 解析 callout → batch 同步到 backend。
-    // 修复"用户在 callout 后续输入'我的理解'后系统无感知"的 P0-1 缺口。
-    this.calloutSync = new CalloutSyncDebouncer(this);
-    this.registerEvent(
-      this.app.vault.on("modify", (file) => {
-        if (file instanceof TFile) {
-          this.calloutSync.scheduleSync(file);
-        }
-      }),
-    );
+    // Story 2.4 Plan B Phase 1 (2026-05-14) — DEPRECATED 2026-05-14 路径 1 决策:
+    // 4 方对抗审查 (Canvas / Claude / ChatGPT-1 / ChatGPT-2) 一致建议回退 Plan A。
+    // 详见 _bmad-output/research/2026-05-14-plan-b-postmortem.md
+    //
+    // Plan B 入口已 disable — vault.on('modify') 监听不再触发 batch sync。
+    // 代码保留作为 Plan C 未来重启时的参考（修复 ChatGPT 找的 7 盲点后才能复活）。
+    //
+    // this.calloutSync = new CalloutSyncDebouncer(this);
+    // this.registerEvent(
+    //   this.app.vault.on("modify", (file) => {
+    //     if (file instanceof TFile) {
+    //       this.calloutSync.scheduleSync(file);
+    //     }
+    //   }),
+    // );
   }
 
   onunload() {
+    // Plan B disabled — calloutSync 不再实例化
     this.calloutSync?.shutdown();
   }
 
@@ -1986,14 +2000,13 @@ class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> {
     this.editor.setCursor({ line: targetLine, ch: targetCh });
     this.editor.focus();
 
-    // 3) P0-1 (2026-05-13): 同步到后端 — 修复 G1
-    // 当前同步的只是"原文 + tag + understanding 元数据"。用户在 callout 内继续
-    // 输入的"我的理解"留在本地 .md（后续 Story 2.4 完整版做 frontmatter sync /
-    // 文件保存 debounce 同步）。
-    void this.plugin.saveCalloutToBackend(
-      this.selected,
-      this.tag,
-      und.value as UnderstandingValue,
-    );
+    // 3) P0-1 (2026-05-13) DEPRECATED 2026-05-14 路径 1 决策:
+    // Plan B 数据入口已禁用 — 不再 POST /api/v1/tips。
+    // Plan A 改由 FrontmatterTipsSync 监听 vault.on('modify') 写 frontmatter
+    // tips[] 直接到本地 .md, 无 backend call. 见 plan-b-postmortem.md
+    //
+    // void this.plugin.saveCalloutToBackend(
+    //   this.selected, this.tag, und.value as UnderstandingValue,
+    // );
   }
 }

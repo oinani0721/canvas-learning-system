@@ -296,15 +296,24 @@ def _hash_cache_check_or_add(hash_marker: str) -> bool:
 @tips_router.post(
     "/batch",
     response_model=BatchSyncResponse,
-    summary="Batch sync all callouts from a file (idempotent by content_hash)",
+    summary="[DEPRECATED 2026-05-14] Plan B batch sync — DISABLED",
     description=(
-        "Called by plugin vault.on('modify') + 500ms debounce. Receives all "
-        "callouts parsed from a .md file; backend checks each content_hash "
-        "against Neo4j — already exists → skip (idempotent), new → create "
-        "v2 EpisodicNode via Graphiti add_episode."
+        "DEPRECATED: 4 方对抗审查 (Canvas/Claude/ChatGPT-1/ChatGPT-2) 一致回退 "
+        "Plan A. 此 endpoint 保留作 archive, 不再被 plugin 调用. 任何调用方将"
+        "收到 410 Gone. 详见 _bmad-output/research/2026-05-14-plan-b-postmortem.md"
     ),
+    deprecated=True,
 )
 async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
+    # Plan B disable 2026-05-14 — 显式拒绝, 即使 plugin 误调也不写入 Graphiti
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Plan B batch sync deprecated 2026-05-14. Plan A frontmatter "
+            "tips[] is now the source of truth. See plan-b-postmortem.md."
+        ),
+    )
+    # 下面是原 Plan B 实现, 保留代码作 archive 但不可达 (raise 之后):
     """Batch sync callouts using SHA256 content_hash for idempotency.
 
     Story 2.4 Plan B Phase 2 (2026-05-14).
