@@ -232,7 +232,7 @@ DD-04 + DD-08 + DD-12 全部生效. PLAN-NNN: EPIC1-BMAD-DEV-ASSESS-2026-04-17.
 
 YAML frontmatter:
   name: exam-quick
-  trigger: "Cmd+Shift+E 或 /exam-quick 命令"
+  trigger: "Cmd+Shift+Q 或 /exam-quick 命令"
   scope: "vault 内任意节点"
 
 内容:
