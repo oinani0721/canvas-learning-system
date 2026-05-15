@@ -2,22 +2,48 @@
 story: "MVP-α-end-to-end"
 title: "MVP-α 最小学习循环 — 端到端 e2e 验收 (Session A + B + C 全套)"
 status: "review"
-version: "v1.0"
-date: "2026-05-14"
-developer: "Session A (backend) + Session B (plugin) + Session C (skill) — 3 工种并行 ship"
+version: "v1.1"
+date: "2026-05-15"
+developer: "Session A (backend) + Session B (plugin) + Session C (skill) — 3 工种并行 ship + 用户批注 hotkey 修复"
 plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 parent_plan: "_bmad-output/research/2026-05-14-mvp-alpha-parallel-dev-plan.md (336 行协调文档)"
 review_score: "Agent A 9/10 (Session A) + Agent B 9/10 (Session B) + 38/40 (Session C)"
+v1_1_change: "用户批注修复 — quick-exam Cmd+Shift+E → Cmd+Shift+Q (commit 5cec794, 4 键语义对齐 A/C/D/E/Q)"
 session_uat_individual:
   - "Session C 独立 UAT: _bmad-output/验收单/Story-MVP-α-3-exam-quick-skill.md (已 ship)"
   - "Session A + B 整合在本文档 (因 backend 无独立 UI, plugin 是触发入口)"
 ---
 
-# Story MVP-α 端到端学习循环验收单 v1.0
+# Story MVP-α 端到端学习循环验收单 v1.1
 
 > [!info]+ 这是什么?
 > 用户 10 分钟体验脚本: 批注 → AI 看到我的话 → 针对性出题 → 答题 → 评分反馈.
-> **3 工种并行 ship 在同一天完成 (Session A backend + B plugin + C skill).** 全部代码已就位, 待你 hands-on UAT.
+> **3 工种并行 ship + 用户批注热修复完成. 全部代码就位, 待你 hands-on UAT.**
+
+---
+
+## 🚀 起跑前 30 秒（v1.1 新增）
+
+> [!warning]+ 这 3 步是 v1.0 验收发现的前置, **必须做完才能开始第 4 步**
+
+### 准备 1: 绑定 Cmd+Shift+Q (Quiz 快捷键)
+
+- [ ] 我打开 Obsidian Settings (⌘,)
+- [ ] 我点左栏 "Hotkeys" → 搜索框输 "Quick Exam"
+- [ ] 我找到 "Canvas Learning System: Quick Exam (单题考察, MVP-α)"
+- [ ] 我点右侧 "+" 按钮 → 按下 Cmd+Shift+Q → 看到绑定成功
+- [ ] 我感觉: 5 键 (A/C/D/E/Q) 各司其职, 清晰
+
+### 准备 2: Reload Obsidian 让 main.js 101K + 新 skill 生效
+
+- [ ] 我用 Cmd+P → 输入 "Reload app without saving" → 回车
+- [ ] Obsidian 重启 → 5 秒内界面回来
+
+### 准备 3: 打开 Properties 面板 (Story 2.4 frontmatter tips[] 可见)
+
+- [ ] 我打开任意 节点 .md → 右上角 "..." → "Show properties in document"
+- [ ] 我看到笔记顶部出现 YAML properties 区
+- [ ] 我感觉: 数据透明, 我能看见
 
 ---
 
