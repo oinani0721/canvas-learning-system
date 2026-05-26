@@ -8,7 +8,7 @@ next_story_title: "docker-compose healthcheck 路径修复"
 next_story_files:
   - "backend/docker-compose.yml"
   - "backend/app/interfaces/api/health.py"
-last_commit_hash: "16b648d"  # auto-synced; msg: chore(sprint-v3): bmad 化基础设施 + chatgpt v-07/v-08/v-10/v-11 修
+last_commit_hash: "aed9751"  # auto-synced; msg: docs(audit): chatgpt graphiti deep research + sprint 2 决策清单
 last_commit_hash_alt: "548d14d"  # INFRA-002 装路由
 sprint_status_file: "_bmad-output/implementation-artifacts/sprint-status.yaml"
 sprint_status_key: "development_status.sprint_v3_obsidian_hybrid"
@@ -17,7 +17,7 @@ session_handover_sop: "新 session 5 min 启动 — 见正文 §1"
 plan_kind: "bmad-implementation"
 active_phase: "sprint-v3-day-2-pending"
 round: 13
-last_updated: "2026-05-26T05:51:06Z"
+last_updated: "2026-05-26T08:45:11Z"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
 round9_key_finding: "推荐保留 Graphiti 做错误/学习事件检索 — 时序+关系查询天然匹配 Episode 模型；数据量小（20-50MB）；启动 Docker 2 分钟；Zep AI 社区源码 https://github.com/getzep/graphiti"
 round8_key_findings:
@@ -86,6 +86,65 @@ next_round_trigger: "用户审计 Round 5 后，可能触发 Round 6：(1) Q4 Ma
 
 > ⛔ **新 session 启动前 20 行自包含状态卡片** — 不读完整文档即可接续开发
 > ⛔ 完成一步后立即更新 checkbox；commit 必含 `active_plan` ID（`EPIC1-BMAD-DEV-ASSESS-2026-04-17`）。
+
+## §0 · v3.0 update — Sprint v3 v3 起步 (2026-05-26 ChatGPT 体系审查后)
+
+⛔ **新 session 优先读此段, §1-§6 是 v3 v1 历史背景**.
+
+### 当前 Sprint 2 v3 状态 (2026-05-26 锁定)
+
+- ✅ **commit aed9751 已 push origin + backup** (含 V-07~V-11 修复回应 + ChatGPT Graphiti 审计 + 5 个 ChatGPT 5 必修新 spec + 体系全图诊断)
+- ✅ **新 epic-5-graphiti-era/ 子 epic 已建** (5 个 spec: 5-ge-1 ~ 5-ge-5)
+- ✅ **用户 4+4 决策全 ack 推荐**: ChatGPT 体系审查 + 5 session 真并行 + ChatGPT 审完再砍 + 新建 epic-5-graphiti-era
+
+### Sprint 2 v3 起步序列 (5 session 并行, Day 5-10)
+
+| Session | 干什么 | 工时 | spec |
+|---|---|---:|---|
+| **A** UX 收尾 (轻) | NEW-UX-001/002 + LITE-5-7 AC#1 Tauri 残留修 + mvp-plan-obsidian-hybrid.md 重写 | ~4h | sprint_v3_graphiti_era.STORY-NEW-UX-001/002 |
+| **B** 核心 (重) | **5-ge-1** CanvasGraphEpisodeV1 + edge_type_map 透传 + 改 episode_worker | 16h | epic-5-graphiti-era/5-ge-1 |
+| **C** 时序 (中) | **5-ge-2 → 5-ge-3 → 5-ge-4** belief_key 版本链 + flush + sync production (顺序) | 15h | epic-5-graphiti-era/5-ge-2,3,4 |
+| **D** facade (等 B done) | **5-ge-5** GraphitiRelationService facade + 接入 LITE-4-3/5-7 | 3h | epic-5-graphiti-era/5-ge-5 |
+| **E** Plugin (中) | callout-sync.ts / wikilink-sync.ts / wikilink-context.ts 改造发 CanvasGraphEpisodeV1 payload | ~10h | (融入 5-ge-1) |
+
+**真并行 = A + B + C + E (4 session), D 等 B done. 41h 总工时, 4 并行 ~10h 实际 wall time.**
+
+### ChatGPT 体系级审查并行进行
+
+- 📦 已 ship 5 个 ChatGPT 必修 spec + 1 README → 可加入审查包
+- ⏳ 待 ship: research-pack v3 全图 (76 spec + 5 new + sprint-status + key code + 4 audit 报告)
+- 📋 任务书: 见 `_bmad-output/审查/2026-05-26-bmad-spec-体系全图诊断.md` §6
+
+### 5 必修包关键 file paths (Sprint 2 v3 起步必读)
+
+```
+_bmad-output/implementation-artifacts/epic-5-graphiti-era/
+├── README.md                              # 子 epic 说明 + 5 session mapping
+├── 5-ge-1-canvas-graph-episode-v1.md      # Session B (16h)
+├── 5-ge-2-belief-key-version-chain.md     # Session C (9h)
+├── 5-ge-3-query-time-flush.md             # Session C (4h)
+├── 5-ge-4-relationship-sync-production.md # Session C (2h)
+└── 5-ge-5-graphiti-relation-service-facade.md  # Session D (3h)
+```
+
+### ⚠️ V-07/V-08/V-10/V-11 旧修复方案状态 (重要 — 防新 session 误读)
+
+- ❌ **V-07** `1-16-callout-graphiti-hook` 加 5 字段 — **superseded by 5-ge-1** (callout 走 unified schema)
+- ❌ **V-10** `questions_registry` 新表 — **superseded by 5-ge-2** (belief_key 版本链更通用)
+- ⚠️ **V-08** `LITE-4-3` 路线 0 wikilink 邻居 — **partial superseded by 5-ge-5 facade** (路线 4 改调 facade)
+- ⚠️ **V-11** `LITE-5-6` dual-write — **partial superseded by 5-ge-1** (calibration 走 unified schema)
+
+### 接续上手 5 min 命令
+
+```bash
+git pull
+cat _bmad-output/审查/2026-05-26-bmad-spec-体系全图诊断.md  # 体系决策依据
+cat _bmad-output/implementation-artifacts/epic-5-graphiti-era/README.md  # 5 session mapping
+cat _bmad-output/implementation-artifacts/sprint-status.yaml | grep -A 8 "STORY-5-ge-1\|STORY-NEW-UX-001"
+# 选 session A/B/C/E 一个起步 (D 等 B done)
+```
+
+---
 
 ## §1 · 新 session 5 min 启动检查清单
 

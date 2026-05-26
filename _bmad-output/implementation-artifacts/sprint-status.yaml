@@ -602,6 +602,92 @@ development_status:
       simplification: "single-write 模型, 去 dual-write 审计"
       saves_hours: 1  # vs 原 2h
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Sprint v3 Graphiti-Era 子段 (2026-05-26 新增 by ChatGPT 体系审查 + 用户 Q4 决策)
+  # 替代 V-07/V-08/V-10 拼凑方案为统一 ChatGPT 5 必修包
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  sprint_v3_graphiti_era:
+    STORY-5-ge-1:
+      title: "CanvasGraphEpisodeV1 统一事件 schema + edge_type_map 透传"
+      status: ready-for-dev
+      estimate_hours: 16
+      priority: P0
+      sprint: "Sprint 2 v3 Day 6-7 (Session B)"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-1-canvas-graph-episode-v1.md"
+      depends_on: ["INFRA-002"]
+      blocks: ["5-ge-2", "5-ge-3", "5-ge-5"]
+      chatgpt_required: "#1 + #2"
+      supersedes: ["epic-1/1-16-callout-graphiti-hook.md (partial, V-07 5 字段并入 unified schema)", "epic-2/2-10-wikilink-graphiti-sync.md (partial, wikilink 走 unified event_type)"]
+
+    STORY-5-ge-2:
+      title: "belief_key 版本链 + Graphiti add_triplet API + valid_at/invalid_at 真用"
+      status: ready-for-dev
+      estimate_hours: 9
+      priority: P0
+      sprint: "Sprint 2 v3 Day 8 (Session C)"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-2-belief-key-version-chain.md"
+      depends_on: ["5-ge-1"]
+      chatgpt_required: "#3"
+      supersedes: ["epic-4/LITE-4-3.md V-10 questions_registry 方案 (questions_registry 退化为 belief_key 一种实例)"]
+
+    STORY-5-ge-3:
+      title: "query-time flush + Hot/Warm/Cold 三层时延"
+      status: ready-for-dev
+      estimate_hours: 4
+      priority: P0
+      sprint: "Sprint 2 v3 Day 9 AM (Session C)"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-3-query-time-flush.md"
+      depends_on: ["5-ge-1"]
+      chatgpt_required: "#4 (前半)"
+      supersedes: ["epic-2/2-10-wikilink-graphiti-sync.md sweep 1h → 5 min + Cold path 加 build_communities"]
+
+    STORY-5-ge-4:
+      title: "relationship_sync_service 改 production (dry_run=False + 强制 vault_id)"
+      status: ready-for-dev
+      estimate_hours: 2
+      priority: P0
+      sprint: "Sprint 2 v3 Day 9 PM (Session C)"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-4-relationship-sync-production.md"
+      depends_on: ["5-ge-1"]
+      chatgpt_required: "#4 (后半) + 议题 5 + 议题 6"
+
+    STORY-5-ge-5:
+      title: "GraphitiRelationService facade (search_relation_facts + search_error_communities)"
+      status: ready-for-dev
+      estimate_hours: 3
+      priority: P0
+      sprint: "Sprint 2 v3 Day 10 AM (Session D)"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-5-graphiti-relation-service-facade.md"
+      depends_on: ["5-ge-1", "5-ge-2", "5-ge-3"]
+      chatgpt_required: "#5"
+      supersedes: ["LITE-5-7 路线 B 直调 search_facts (改调 facade)", "LITE-4-3 路线 4 直调 search_facts (改调 facade)"]
+
+    STORY-NEW-UX-001:
+      title: "Dashboard 空状态 sample data + 引导按钮 (Agent C 断层 #1)"
+      status: ready-for-dev
+      estimate_hours: 1.5
+      priority: P0
+      sprint: "Sprint 2 v3 Day 6 AM (Session A)"
+      spec_path: "epic-1/1-18-dashboard-md-mvp.md (v2 待 update)"
+
+    STORY-NEW-UX-002:
+      title: "status-bar 移除虚假 '🎓 N 条 Tips' 显示 (Agent C 断层 #2)"
+      status: ready-for-dev
+      estimate_hours: 0.5
+      priority: P0
+      sprint: "Sprint 2 v3 Day 6 AM (Session A)"
+      files: ["frontend/obsidian-plugin/src/status-bar.ts"]
+
+    # ─── V-07/V-08/V-10 旧修复 spec 状态变更 ───
+    superseded_specs:
+      V-07_1-16-callout-graphiti-hook: "superseded by 5-ge-1 (callout 走 unified schema)"
+      V-08_LITE-4-3_route_0: "partial superseded by 5-ge-5 facade (路线 0 改调 search_relation_facts)"
+      V-10_questions_registry: "superseded by 5-ge-2 belief_key 版本链"
+      V-11_LITE-5-6_dual-write: "partial superseded by 5-ge-1 (calibration 走 unified schema), LITE-5-6 仍保留 dual-write 编排逻辑"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+
     # ─── 砍掉清单 (9 个, 4 方共识, 不做) ───
     deferred:
       story_8_3: "元认知 2x2 矩阵 — 砍 (统计视图, 单人样本少, 400+ 题后回头)"
