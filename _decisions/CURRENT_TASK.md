@@ -8,7 +8,7 @@ next_story_title: "docker-compose healthcheck 路径修复"
 next_story_files:
   - "backend/docker-compose.yml"
   - "backend/app/interfaces/api/health.py"
-last_commit_hash: "84954f9"  # auto-synced; msg: fix(plugin): restore canvassettingtab — 5 个 setting field + 
+last_commit_hash: "16b648d"  # auto-synced; msg: chore(sprint-v3): bmad 化基础设施 + chatgpt v-07/v-08/v-10/v-11 修
 last_commit_hash_alt: "548d14d"  # INFRA-002 装路由
 sprint_status_file: "_bmad-output/implementation-artifacts/sprint-status.yaml"
 sprint_status_key: "development_status.sprint_v3_obsidian_hybrid"
@@ -17,7 +17,7 @@ session_handover_sop: "新 session 5 min 启动 — 见正文 §1"
 plan_kind: "bmad-implementation"
 active_phase: "sprint-v3-day-2-pending"
 round: 13
-last_updated: "2026-05-26T04:29:02Z"
+last_updated: "2026-05-26T05:51:06Z"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
 round9_key_finding: "推荐保留 Graphiti 做错误/学习事件检索 — 时序+关系查询天然匹配 Episode 模型；数据量小（20-50MB）；启动 Docker 2 分钟；Zep AI 社区源码 https://github.com/getzep/graphiti"
 round8_key_findings:
