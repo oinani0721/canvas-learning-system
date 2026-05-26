@@ -10,7 +10,18 @@ blocks: []
 trace:
   - "FR-EXAM-19"
   - "FR-EXAM-09"
+superseded_by: "sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-4-11"
+sprint_v3_status: "deprecated-by-lite-simplification"
+deprecated_date: "2026-05-24"
+deprecated_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
+
+> ⛔ **[DEPRECATED] 2026-05-24 Sprint v3 简化决策** — Lite 版替代此完整 spec
+>
+> - **替代 entry**: `sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-4-11`（entry-only，无独立 spec — 简化规则在 entry `simplification` 字段）
+> - **简化原因**: 完整 4h 版含 IRT (Item Response Theory) 连续难度算法 — Sprint v3 **保留 callout 快速入口，砍 IRT 连续校准算法** (1h)
+> - ⚠️ **新 session 警告**: 看到此 marker → 不读下方 AC，改读 sprint-status entry simplification 字段
+> - **Plan**: `EPIC1-BMAD-DEV-ASSESS-2026-04-17`
 
 # Story 4.11: IRT 连续难度匹配 + Callout 批注快速考察
 

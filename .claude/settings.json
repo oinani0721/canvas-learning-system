@@ -90,6 +90,11 @@
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/trace/build_story_file_map.py --all",
             "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/sprint/update-current-task.py",
+            "timeout": 10000
           }
         ]
       }

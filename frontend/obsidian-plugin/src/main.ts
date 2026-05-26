@@ -62,6 +62,12 @@ import {
   type NeighborSummary,
   type NodeChatContext,
 } from "./node-chat-context";
+import {
+  buildTipsIncreaseNotice,
+  StatusBarController,
+} from "./status-bar";
+import { QuickExamController } from "./exam-quick";
+import { inferVaultId } from "./error-candidate-helpers";
 
 const DEFAULT_BACKEND_URL = "http://localhost:8001";
 
@@ -103,6 +109,10 @@ export default class CanvasLearningPlugin extends Plugin {
   private calloutSync!: CalloutSyncDebouncer;
   /** Story 2.4 Plan A (2026-05-14): frontmatter tips[] 自动同步 */
   private frontmatterSync!: FrontmatterTipsSync;
+  /** MVP-α-5 (2026-05-14, 恢复自 f860f57): status bar 反馈瞬间 #2/#3 */
+  private statusBar!: StatusBarController;
+  /** MVP-α-3 (2026-05-14, 恢复自 f860f57): 单题考察 quick exam (反馈瞬间 #4/#5) */
+  private quickExam!: QuickExamController;
 
   async onload() {
     await this.loadSettings();
@@ -110,17 +120,58 @@ export default class CanvasLearningPlugin extends Plugin {
     this.addSettingTab(new CanvasSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => {
       this.checkHotkeyConflicts();
+      // MVP-α-5 (恢复自 f860f57): 打开 Obsidian 时让 status bar 直接显示当前节点.
+      const active = this.app.workspace.getActiveFile();
+      if (active) this.statusBar.handleFileOpen(active);
     });
     // Story 2.4 Plan A (2026-05-14): metadataCache.on('changed') → FrontmatterTipsSync
     // 用 Obsidian 内部 throttle 的 metadataCache 事件触发 frontmatter tips[] 自动维护
     // (vs Plan B 用 vault.on('modify') 容易跟自己写 frontmatter 形成循环)
     this.frontmatterSync = new FrontmatterTipsSync(this);
+
+    // MVP-α-5 (2026-05-14, 恢复自 f860f57): status bar 反馈瞬间 #2/#3.
+    // addStatusBarItem 在 plugin 实例上挂常驻 element, controller 持有它后只 setText.
+    const statusBarEl = this.addStatusBarItem();
+    this.statusBar = new StatusBarController(this, statusBarEl, {
+      onTipsIncreased: (count) => {
+        new Notice(buildTipsIncreaseNotice(count), 2500);
+      },
+    });
+
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
         if (file.path.startsWith("节点/") || file.path.startsWith("原白板/")) {
           this.masteryCache.clear();
           // Plan A core: 文件变化 → 重新解析 callout → 同步到 frontmatter tips[]
           void this.frontmatterSync.syncFile(file);
+          // MVP-α-5: fan-out 到 statusBar 更新 Tips 计数
+          this.statusBar.handleMetadataChanged(file);
+        }
+      }),
+    );
+
+    // MVP-α-5: workspace.on('file-open') → 更新 nav path "prev → current".
+    this.registerEvent(
+      this.app.workspace.on("file-open", (file) => {
+        this.statusBar.handleFileOpen(file);
+      }),
+    );
+
+    // MVP-α-3 (2026-05-14, 恢复自 f860f57): Quick Exam markdown UI (反馈瞬间 #4/#5).
+    // controller 通过 closure 拿到 plugin 内的 callBackend + inferVaultId.
+    // vault.on('modify') 在这里注册一个 fast-path 分发, controller 自己用 sessions
+    // map 守门, 非考察文件 0 开销.
+    this.quickExam = new QuickExamController({
+      app: this.app,
+      callBackendJson: (endpoint, label, body, method) =>
+        this.callBackend(endpoint, label, body, method),
+      inferCurrentVaultId: () =>
+        inferVaultId(this.app.vault.getName(), undefined),
+    });
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (file instanceof TFile) {
+          void this.quickExam.onFileModified(file, Notice);
         }
       }),
     );
@@ -358,6 +409,15 @@ export default class CanvasLearningPlugin extends Plugin {
       id: "canvas:open-node-chat",
       name: "节点对话（注入上下文 + 切 Claudian）",
       callback: () => this.handleOpenNodeChat(),
+    });
+
+    // MVP-α-3 (2026-05-14, 恢复自 f860f57): 单题快速考察 (节点级).
+    // 用户在 节点/<concept>.md 上触发 → 后端出题 → 写入 节点/考察-{concept}-{date}.md
+    // → 用户答题 Cmd+S → vault.on('modify') 触发评分 → 文件底部追加反馈.
+    this.addCommand({
+      id: "canvas:start-quick-exam",
+      name: "Quick Exam（单题考察, MVP-α）",
+      callback: () => this.quickExam.startExam(Notice),
     });
   }
 

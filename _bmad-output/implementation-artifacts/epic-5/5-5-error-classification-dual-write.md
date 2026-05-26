@@ -9,7 +9,18 @@ depends_on: ["4.6"]
 blocks: ["5.7", "5.8"]
 trace:
   - "FR-MEM-01"
+superseded_by: "sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-5-5"
+sprint_v3_status: "deprecated-by-lite-simplification"
+deprecated_date: "2026-05-24"
+deprecated_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
+
+> ⛔ **[DEPRECATED] 2026-05-24 Sprint v3 简化决策** — Lite 版替代此完整 spec
+>
+> - **替代 entry**: `sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-5-5`（entry-only，无独立 spec）
+> - **简化原因**: 完整 2h 版含 dual-write 审计（双写错误分类到 Tips + Mastery） — Sprint v3 **single-write 模型，去 dual-write 审计** (1h)
+> - ⚠️ **新 session 警告**: 看到此 marker → 不读下方 AC，改读 sprint-status entry simplification 字段
+> - **Plan**: `EPIC1-BMAD-DEV-ASSESS-2026-04-17`
 
 # Story 5.5: 错误 4 类分类双写
 

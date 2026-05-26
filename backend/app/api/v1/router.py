@@ -23,6 +23,8 @@ from app.api.v1.endpoints.config import config_router
 from app.api.v1.endpoints.context import context_router  # Story 3.4
 from app.api.v1.endpoints.edges import edges_router  # Story 4.1-4.4
 from app.api.v1.endpoints.exam import exam_router
+from app.api.v1.endpoints.exam_grade import exam_grade_router  # MVP-α-4
+from app.api.v1.endpoints.exam_quick import exam_quick_router  # MVP-α-2
 from app.api.v1.endpoints.exam_sessions import exam_sessions_router
 from app.api.v1.endpoints.index_image import index_image_router
 from app.api.v1.endpoints.inheritance import inheritance_router  # F9
@@ -337,6 +339,32 @@ router.include_router(
         400: {"description": "Nesting prohibited or invalid request"},
         404: {"description": "Exam session not found"},
         500: {"description": "Exam service error"},
+    },
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MVP-α Exam Routes (2026-05-14) — PLAN-NNN: EPIC1-BMAD-DEV-ASSESS-2026-04-17
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# MVP-α-2: POST /api/v1/exam/quick — 一键基于批注出题 (单 LLM call, 跳过 ACP)
+# MVP-α-4: POST /api/v1/exam/grade — 单次 LLM 评分 + 文字反馈 (跳过 AutoSCORE 4 维)
+#
+# 与 exam_router 关系: 兄弟路由, 同 /exam 前缀但走极简管道.
+# β 阶段会被 exam_router 取代或合并 — 当前为闭环优先 MVP.
+# [Source: _bmad-output/research/2026-05-14-mvp-alpha-parallel-dev-plan.md]
+router.include_router(
+    exam_quick_router,
+    tags=["Exam (MVP-α)"],
+    responses={
+        502: {"description": "Question generation LLM unavailable"},
+    },
+)
+router.include_router(
+    exam_grade_router,
+    tags=["Exam (MVP-α)"],
+    responses={
+        404: {"description": "question_id not found (重启或已淘汰)"},
+        502: {"description": "Grading LLM unavailable"},
     },
 )
 

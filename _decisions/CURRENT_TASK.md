@@ -1,12 +1,23 @@
 ---
 active_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
-active_plan_file: ""
-prd_sections: ["Q1-Q8 整体推荐矩阵", "BKT/MCP 认证/Exam/FSRS 实施", "Claude Code 压缩算法", "ZOMBIE 归档执行", "Graphiti 部署适配 Obsidian"]
-current_step: "Story 1.7 完成 (review) → 下一个: Story 1.1 (vault-init-templates)"
+active_plan_file: "_bmad-output/research/2026-05-21-sprint-plan-v3.md"
+current_sprint: "Sprint v3 · Obsidian Hybrid Day 2"
+sprint_progress: "3/27 done (11.1%) — auto-synced"
+next_story_id: "INFRA-003"
+next_story_title: "docker-compose healthcheck 路径修复"
+next_story_files:
+  - "backend/docker-compose.yml"
+  - "backend/app/interfaces/api/health.py"
+last_commit_hash: "84954f9"  # auto-synced; msg: fix(plugin): restore canvassettingtab — 5 个 setting field + 
+last_commit_hash_alt: "548d14d"  # INFRA-002 装路由
+sprint_status_file: "_bmad-output/implementation-artifacts/sprint-status.yaml"
+sprint_status_key: "development_status.sprint_v3_obsidian_hybrid"
+prd_anchor: "/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md"
+session_handover_sop: "新 session 5 min 启动 — 见正文 §1"
 plan_kind: "bmad-implementation"
-active_phase: "epic1-v2-prerequisites-done"
+active_phase: "sprint-v3-day-2-pending"
 round: 13
-last_updated: "2026-04-16T07:00:00Z"
+last_updated: "2026-05-26T04:29:02Z"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
 round9_key_finding: "推荐保留 Graphiti 做错误/学习事件检索 — 时序+关系查询天然匹配 Episode 模型；数据量小（20-50MB）；启动 Docker 2 分钟；Zep AI 社区源码 https://github.com/getzep/graphiti"
 round8_key_findings:
@@ -71,12 +82,75 @@ previous_plans:
 next_round_trigger: "用户审计 Round 5 后，可能触发 Round 6：(1) Q4 Mastery Store 明示 A/B/C；(2) Q5 是否接受 Claude 推 A 覆盖用户选 B；(3) 批准 KVzip+ACON 压缩迁移；(4) 批准 ZOMBIE 归档脚本执行"
 ---
 
-# CURRENT_TASK — 当前任务状态（唯一真相源）
+# CURRENT_TASK — Sprint v3 接管状态（唯一真相源）
 
-> 每个 session 启动时自动注入此文件。frontmatter 包含 Plan 锚定，正文包含进度详情。
-> 完成一步后立即更新对应的 checkbox。
+> ⛔ **新 session 启动前 20 行自包含状态卡片** — 不读完整文档即可接续开发
+> ⛔ 完成一步后立即更新 checkbox；commit 必含 `active_plan` ID（`EPIC1-BMAD-DEV-ASSESS-2026-04-17`）。
 
-## 活跃计划（2026-04-17 更新 — EPIC 1 v2 BMAD 开发前置完成）
+## §1 · 新 session 5 min 启动检查清单
+
+1. ☐ `git status` 干净（或了解 uncommitted 修改）
+2. ☐ `git log --oneline -5` 看到 `769d59a`（INFRA-001/004） + `548d14d`（INFRA-002）
+   - ⚠️ 若 commit 不在 git log → 当前 worktree 没拉到 chat history 的实施 commit，需用户介入确认
+3. ☐ 读 `_bmad-output/implementation-artifacts/sprint-status.yaml::sprint_v3_obsidian_hybrid` 次 ready story = `INFRA-003`
+4. ☐ 读当前 Story spec 或 entry，确认**无** `[DEPRECATED]` marker（防新 session 误读旧 spec）
+5. ☐ `python3 .scripts/smoke_test.py` PASS（验证 import 闭合）
+
+## §2 · 当前状态（2026-05-24 Sprint v3 BMAD 化完成时）
+
+- ✅ **Sprint 1 Day 1 完成**（3/25 stories done）
+  - INFRA-002（app_factory + 18 router 装配）@ commit `548d14d`
+  - INFRA-001（grading EventBus 修复）@ commit `769d59a`
+  - INFRA-004（pyproject deps）@ commit `769d59a`
+- 🟡 **Day 2 待干**（3 stories, 6h）— 下一个 `INFRA-003`
+  - INFRA-003（1h, docker healthcheck 修）← **下一个 Story**
+  - EXAM-001（3h, /api/v1/exam/grade endpoint）
+  - EXAM-002（2h, /api/v1/exam/quick endpoint）
+- ⏳ **Day 3-10 计划** 17 stories（含 6 Lite 重编 + WIKILINK-GRAPHITI 新需求）
+
+## §3 · 接下来 8 步开干流程（新 session 第 1 个动作）
+
+1. SessionStart hook 自动注入此前 20 行（已配置 `.claude/hooks/context-inject.js`）
+2. 读 `_bmad-output/.claude/CLAUDE.md`（BMAD scope + 硬规则 DD-03/DD-12/DD-13/DD-14）
+3. 读 `sprint-status.yaml::sprint_v3_obsidian_hybrid`（25 Story 状态总览）
+4. 验证 git log + commit hash 一致（若 mismatch → halt 问用户）
+5. 读 next_story_id 的 entry（接通任务）或完整 spec（Lite/新需求）
+6. 跑 `python3 .scripts/smoke_test.py`（确保 import 闭合）
+7. 开干 Story（e.g., Day 2 第 1 步 INFRA-003 修 docker healthcheck）
+8. commit 必含 plan ID：`EPIC1-BMAD-DEV-ASSESS-2026-04-17`（pre-commit hook 强制）
+
+## §4 · BMAD 化进度（本 plan 2026-05-24 执行）
+
+- [x] Step 1: sprint-status.yaml 加 25 Story entry（含 6 Lite + 9 deferred 砍掉清单）
+- [x] Step 2: 升级 CURRENT_TASK.md 为新 session 5min 启动模板
+- [x] Step 3: update-current-task.py 脚本 + Stop hook 自动化（验证 PASS: next=INFRA-003, progress=3/26, commit=84954f9）
+- [x] Step 4a: 7 个旧 spec 加 [DEPRECATED]/[MERGED] marker（防污染高 ROI 5min 完成 — 见 §6 表）
+- [ ] Step 4b: 4 个 Lite/新需求完整 spec（~3h，待用户决策今天写 vs 留新 session 自己写）
+
+## §5 · 关键决策（用户 2026-05-22 锁定，新 session 必读）
+
+- **1B**: WIKILINK-GRAPHITI-SYNC 加入 Sprint 2 Day 9（+6h，单向 Lazy+Batch）
+- **2A**: 检验白板 11 处误区修正后接受（3 重隔离 + 三路融合 + ZPD 4 级 + canvas_type concept/problem 区分）
+- **3A**: 8.3 元认知 2x2 矩阵 sprint 1+2 砍，400+ 题后回头加
+- **4B-mixed**: 接通任务 entry-only + Lite/新需求完整 spec（本 BMAD 化 plan 核心）
+
+## §6 · 防污染策略（新 session 防误读旧 spec）
+
+| 旧 spec 路径 | 状态 | 替代 |
+|---|---|---|
+| `epic-4/4-3-triple-fusion-question-gen.md` | ✅ `[DEPRECATED]` 已标 | `epic-4/LITE-4-3.md`（待写） |
+| `epic-5/5-6-calibration-data-voting.md` | ✅ `[DEPRECATED]` 已标 | `epic-5/LITE-5-6.md`（合并 4.9，待写） |
+| `epic-4/4-9-calibration-vote-data-sync.md` | ✅ `[MERGED]` 已标 | 并入 `epic-5/LITE-5-6.md` |
+| `epic-5/5-7-three-layer-memory-retrieval.md` | ✅ `[DEPRECATED]` 已标 | `epic-5/LITE-5-7.md`（待写） |
+| `epic-4/4-11-irt-difficulty-callout-exam.md` | ✅ `[DEPRECATED]` 已标 | sprint-status entry 描述够（IRT 砍） |
+| `epic-5/5-4-scoring-chain-integrity.md` | ✅ `[DEPRECATED]` 已标 | sprint-status entry 描述够（顺序调用） |
+| `epic-5/5-5-error-classification-dual-write.md` | ✅ `[DEPRECATED]` 已标 | sprint-status entry 描述够（single-write） |
+
+⚠️ **新 session 启动 step 5 必检** — 读 Story spec 时如发现 `[DEPRECATED]`/`[MERGED]` marker → halt + 查 sprint-status 的 `supersedes` 字段找对应 Lite spec 或 entry。
+
+---
+
+## §99 · 历史活跃计划（Sprint v3 之前的 EPIC 1 v2 BMAD 开发，参考留底）
 
 ### EPIC 1 v2 BMAD 开发就绪（2026-04-17）
 - [x] 前置 1: sprint-status.yaml 更新（旧 v1 归档，新 13 Story 注册为 ready-for-dev）

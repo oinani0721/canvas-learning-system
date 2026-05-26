@@ -533,6 +533,120 @@ class QuestionGenerator:
         return question_result
 
     # ═══════════════════════════════════════════════════════════════════════
+    # MVP-α-1 (2026-05-14): 简化版"一键考察"出题 — 直接拼 prompt, 不走 ACP / 5-layer
+    # PLAN-NNN: EPIC1-BMAD-DEV-ASSESS-2026-04-17
+    #
+    # 目标: 用户在批注中说的原话, 必须出现在题目里 — "AI 看到了我说的话"
+    # 跳过的复杂度: ACP 5-layer assemble / 三路融合 RAG / FSRS+BKT+KG triangle
+    # 用法: backend/app/api/v1/endpoints/exam_quick.py POST /exam/quick 调用此方法
+    # ═══════════════════════════════════════════════════════════════════════
+
+    async def generate_question(
+        self,
+        node_id: str,
+        user_tips: List[Dict[str, Any]],
+        node_text: str = "",
+    ) -> Dict[str, Any]:
+        """MVP-α-1: 极简出题 — 跳过 ACP / 5-layer, 直接 string concat 调单次 LLM.
+
+        与 generate_exam_question 的关系: 兄弟方法, 共享 LLM 调用模式但跳过所有
+        Graphiti / mastery_engine 依赖. 闭环优先于精度.
+
+        Args:
+            node_id: 节点 ID (用于日志和回退题)
+            user_tips: 来自 learning_context_service._fetch_tips_and_errors 的 tips list,
+                       每条 dict 形如 {"content": str, "category": str, "annotated_at": str}.
+                       frontmatter.tips 已在 _fetch_tips_and_errors 第 3 source 合并进来.
+            node_text: 节点正文 (可选, 增强 prompt 上下文)
+
+        Returns:
+            dict {question_text: str, tip_count: int, tips_used: List[str]}
+        """
+        tip_texts: List[str] = []
+        for t in user_tips or []:
+            content = t.get("content") or t.get("text") or ""
+            content = content.strip()
+            if content:
+                tip_texts.append(content)
+
+        concept = (node_text or node_id).strip()[:200]
+
+        tip_quote_block = ""
+        if tip_texts:
+            joined = "\n".join(f"- 「{t}」" for t in tip_texts[:5])
+            tip_quote_block = (
+                "\n## 用户的批注（必须基于这些原话出题）\n"
+                f"用户在批注中提到 {joined}, 请基于此出题。\n"
+                "要求: 题目必须显式引用上述批注的某一条原话, "
+                "让用户感觉「AI 看到了我说的话」。"
+            )
+
+        system_prompt = (
+            "你是一位耐心的学习考官。基于学生对当前知识节点的批注, "
+            "出一道针对其困惑/疑问的开放式题目。"
+            "题目应该直接呼应学生说过的话, 不是泛泛而问。"
+        )
+        user_message = (
+            f"## 当前知识节点\n{concept}\n"
+            f"{tip_quote_block}\n\n"
+            "请出一道题(1-3 句话即可)。"
+            "如果有用户批注, 必须把其中一句作为题目开头的情境引用。"
+            "直接返回题目文字, 无需多余解释或前缀。"
+        )
+
+        question_text = ""
+        try:
+            from litellm import acompletion
+
+            from app.config import settings
+
+            model = settings.SCORING_MODEL
+            if not model:
+                provider = settings.AI_PROVIDER
+                model_name = settings.AI_MODEL_NAME
+                if provider and not model_name.startswith(provider):
+                    model = f"{provider}/{model_name}"
+                else:
+                    model = model_name
+
+            response = await acompletion(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.6,
+            )
+            question_text = (response.choices[0].message.content or "").strip()
+        except Exception as e:
+            # MVP-α 降级: LLM 不可用时, 直接拼用户原话出回退题
+            logger.warning(
+                f"[MVP-α-1] LLM call failed for node {node_id}, "
+                f"falling back to template: {e}"
+            )
+
+        if not question_text:
+            if tip_texts:
+                quote = tip_texts[0][:80]
+                question_text = (
+                    f"你在批注中提到「{quote}」, "
+                    f"请用自己的话解释一下「{concept[:60]}」, "
+                    "并具体说明你这个疑问背后的思考。"
+                )
+            else:
+                question_text = f"请用自己的话解释: {concept[:60]}"
+
+        logger.info(
+            f"[MVP-α-1] generate_question node={node_id} "
+            f"tips_used={len(tip_texts)} q_len={len(question_text)}"
+        )
+        return {
+            "question_text": question_text,
+            "tip_count": len(tip_texts),
+            "tips_used": tip_texts[:5],
+        }
+
+    # ═══════════════════════════════════════════════════════════════════════
     # Internal Helpers
     # ═══════════════════════════════════════════════════════════════════════
 

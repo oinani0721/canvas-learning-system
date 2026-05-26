@@ -10,7 +10,20 @@ blocks: []
 trace:
   - "FR-MEM-02"
   - "FR-MEM-03"
+superseded_by: "_bmad-output/implementation-artifacts/epic-5/LITE-5-6.md"
+merges_in_lite: "_bmad-output/implementation-artifacts/epic-4/4-9-calibration-vote-data-sync.md"
+sprint_v3_status: "deprecated-by-lite-simplification"
+deprecated_date: "2026-05-24"
+deprecated_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
+
+> ⛔ **[DEPRECATED] 2026-05-24 Sprint v3 简化决策** — Lite 版替代此完整 spec
+>
+> - **替代 spec**: `_bmad-output/implementation-artifacts/epic-5/LITE-5-6.md`（待写, 合并 4.9 一起做）
+> - **状态登记**: `sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-5-6`
+> - **简化原因**: 完整 5h 版含 4 选项投票 + 8.3 元认知 2x2 矩阵 — Sprint v3 砍 8.3 矩阵（400+ 题后回头），**只 accurate/too_high/too_low/skip 投票 + 本地回写** (2h)
+> - ⚠️ **新 session 警告**: 看到此 marker → 不读下方 AC，改读 Lite spec 或 sprint-status entry
+> - **Plan**: `EPIC1-BMAD-DEV-ASSESS-2026-04-17`
 
 # Story 5.6: 校准数据 + 评分投票
 

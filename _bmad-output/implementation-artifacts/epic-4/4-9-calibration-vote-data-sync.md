@@ -10,7 +10,20 @@ blocks: []
 trace:
   - "FR-EXAM-15"
   - "FR-EXAM-17"
+superseded_by: "_bmad-output/implementation-artifacts/epic-5/LITE-5-6.md"
+merged_into: "STORY-LITE-5-6"
+sprint_v3_status: "merged-into-lite-5-6"
+deprecated_date: "2026-05-24"
+deprecated_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
+
+> ⛔ **[MERGED] 2026-05-24 Sprint v3 简化决策** — 此 Story 合并入 STORY-LITE-5-6
+>
+> - **合并位置**: `_bmad-output/implementation-artifacts/epic-5/LITE-5-6.md`（待写）
+> - **状态登记**: `sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-5-6.merges`
+> - **合并原因**: 4.9 校准投票数据回源 + 5.6 评分投票是同一闭环 — Sprint v3 合并简化为 single Lite story (2h)
+> - ⚠️ **新 session 警告**: 看到此 marker → 不读下方 AC，改读 LITE-5-6 spec
+> - **Plan**: `EPIC1-BMAD-DEV-ASSESS-2026-04-17`
 
 # Story 4.9: 校准投票 + 数据同步回源白板
 

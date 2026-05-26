@@ -293,3 +293,323 @@ development_status:
   9-1-image-exam-material: ready-for-dev
   9-2-phase3-enhancements: ready-for-dev
   epic-9-retrospective: optional
+
+  # ════════════════════════════════════════════════════════════════════
+  # Sprint v3 · Obsidian Hybrid 接通工作 (2026-05-24 BMAD 化, 25 stories)
+  # Plan ID: EPIC1-BMAD-DEV-ASSESS-2026-04-17
+  # Plan 真相源: _bmad-output/research/2026-05-21-sprint-plan-v3.md
+  # 决策追溯: _bmad-output/研究/2026-05-22-3批注答疑v2-我的认知校准.md
+  #
+  # 3 类 BMAD scope 分级:
+  #   类别 1 接通任务 (15 INFRA/EXAM/PLUGIN/TEST/MASTERY) — entry-only, 无独立 spec
+  #   类别 2 Lite 重编 (6 stories) — sprint-status mark + 完整 spec at epic-N/LITE-*.md
+  #   类别 3 新需求 (1 wikilink-graphiti + DOC/VERIFY 元任务) — 完整 spec
+  #
+  # 关键决策 (用户 2026-05-22 锁定 1B+2A+3A):
+  #   1B: WIKILINK-GRAPHITI-SYNC 加入 Sprint 2 Day 9 (+6h)
+  #   2A: 检验白板 11 处误区修正后接受
+  #   3A: 8.3 元认知矩阵 sprint 1+2 砍, 400+ 题后回头加
+  #   4B-mixed: 接通 entry only + Lite/新需求完整 spec
+  # ════════════════════════════════════════════════════════════════════
+  sprint_v3_obsidian_hybrid:
+    sprint_label: "Sprint v3 · Obsidian Hybrid 接通工作"
+    total_estimate_hours: 52
+    total_stories: 25
+    active_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
+    plan_doc: "_bmad-output/research/2026-05-21-sprint-plan-v3.md"
+
+    # ─── Sprint 1 Day 1 完成 (3 done, ⚠️ commit hash 来自 plan brief 待 git log 验证) ───
+    INFRA-002:
+      title: "app_factory + 18 APIRouter 装配 (Day 1 第 1 优先)"
+      status: done
+      commit: "548d14d"  # plan brief 提供; 当前 git log 未含, 验证待新 session 拉取
+      estimate_hours: 4
+      completed_date: "2026-05-23"
+      day: 1
+      spec_path: null  # entry-only
+
+    INFRA-001:
+      title: "grading.py EventBus 签名修复"
+      status: done
+      commit: "769d59a"  # plan brief 提供; 当前 git log 未含, 验证待新 session 拉取
+      estimate_hours: 1
+      completed_date: "2026-05-23"
+      day: 1
+      spec_path: null
+
+    INFRA-004:
+      title: "pyproject.toml 加真实 deps"
+      status: done
+      commit: "769d59a"  # 同上 (与 INFRA-001 同 commit)
+      estimate_hours: 1
+      completed_date: "2026-05-23"
+      day: 1
+      spec_path: null
+
+    # ─── Sprint 1 Day 2 (3 ready-for-dev) ───
+    INFRA-003:
+      title: "docker-compose healthcheck 路径修复"
+      status: ready-for-dev
+      estimate_hours: 1
+      depends_on: ["INFRA-002"]
+      day: 2
+      files:
+        - "backend/docker-compose.yml"
+        - "backend/app/interfaces/api/health.py"
+      acceptance: "docker compose ps 显示 backend healthy"
+
+    EXAM-001:
+      title: "POST /api/v1/exam/grade endpoint"
+      status: ready-for-dev
+      estimate_hours: 3
+      depends_on: ["INFRA-002"]
+      day: 2
+      files:
+        - "backend/app/interfaces/api/exam.py"
+      acceptance: "curl POST /api/v1/exam/grade {...} 返回 4 维 AutoScoreResult"
+
+    EXAM-002:
+      title: "POST /api/v1/exam/quick endpoint"
+      status: ready-for-dev
+      estimate_hours: 2
+      depends_on: ["INFRA-002"]
+      day: 2
+      files:
+        - "backend/app/interfaces/api/exam.py"
+      acceptance: "curl POST /api/v1/exam/quick {...} 返回 question_id + tip 引用题目"
+
+    # ─── Sprint 1 Day 3 (3 ready-for-dev) ───
+    INFRA-005:
+      title: "_stubs.py 改 fail-loud (warning log)"
+      status: ready-for-dev
+      estimate_hours: 1
+      depends_on: ["INFRA-002"]
+      day: 3
+      files:
+        - "backend/app/_stubs.py"
+      acceptance: "scope creep 调用在 logs 出现 [_stubs] WARNING 标记 (silent 吞 bug 杜绝)"
+
+    TEST-001:
+      title: "解除 contract test skip 加 8+ 真测试 (Day 3 提前)"
+      status: ready-for-dev
+      estimate_hours: 4
+      depends_on: ["EXAM-001", "EXAM-002"]
+      day: 3
+      files:
+        - "backend/tests/contract/test_exam_endpoints.py"
+        - "backend/tests/contract/test_vault_endpoints.py"
+      acceptance: "pytest -m contract 至少 8 个真测试 pass"
+
+    PLUGIN-001:
+      title: "抽取 plugin/src/backend-client.ts helper"
+      status: ready-for-dev
+      estimate_hours: 1
+      day: 3
+      files:
+        - "frontend/obsidian-plugin/src/backend-client.ts"
+        - "frontend/obsidian-plugin/src/main.ts"
+      acceptance: "tests/auth-headers.test.ts import buildBackendHeaders 生产 helper"
+
+    # ─── Sprint 1 Day 4 (2 ready-for-dev) ───
+    PLUGIN-002:
+      title: "exam-quick.ts 升级解析 4 维 AutoScoreResult"
+      status: ready-for-dev
+      estimate_hours: 3
+      depends_on: ["EXAM-001", "PLUGIN-001"]
+      day: 4
+      files:
+        - "frontend/obsidian-plugin/src/exam-quick.ts"
+      acceptance: "答题保存后反馈段显示 4 维分数 + grade + confidence"
+
+    PLUGIN-003:
+      title: "设置页加 X-CLS-Internal-Key 输入框"
+      status: ready-for-dev
+      estimate_hours: 2
+      depends_on: ["PLUGIN-001"]
+      day: 4
+      files:
+        - "frontend/obsidian-plugin/src/main.ts"
+      acceptance: "设置页可输入 internal API key 并 X-CLS-Internal-Key 头真发送"
+
+    # ─── Sprint 2 Day 6-8 接通 (6 backlog) ───
+    INFRA-006:
+      title: "infra/llm/executor.py 统一 LLM 入口"
+      status: backlog
+      estimate_hours: 4
+      day: 6
+      files:
+        - "backend/app/infra/llm/executor.py"
+      acceptance: "grep -r 'from litellm import' backend/app/domain/ 输出 0"
+
+    EXAM-003:
+      title: "generator.py + scorer.py 替换 → executor"
+      status: backlog
+      estimate_hours: 3
+      depends_on: ["INFRA-006"]
+      day: 6
+      files:
+        - "backend/app/domain/exam/generator.py"
+        - "backend/app/domain/exam/scorer.py"
+
+    MASTERY-001:
+      title: "SignalRegistry V1 + V0 通过 SignalAdapter (V0/V1 协议升级)"
+      status: backlog
+      estimate_hours: 3
+      day: 7
+      files:
+        - "backend/app/domain/mastery/signals.py"
+      scope_note: "涉及 V0/V1 协议升级 — 新 session 看 entry 需明确范围 (entry-only 但 commit 留 trace)"
+
+    MASTERY-002:
+      title: "mastery_engine + fusion 用 V1 接口"
+      status: backlog
+      estimate_hours: 3
+      depends_on: ["MASTERY-001"]
+      day: 7
+      files:
+        - "backend/app/domain/mastery/engine.py"
+        - "backend/app/domain/mastery/fusion.py"
+      acceptance: "融合结果含每信号 health_score + fallback_reason metadata"
+
+    TEST-002:
+      title: "解除 1 个 E2E 黄金路径 skip"
+      status: backlog
+      estimate_hours: 4
+      depends_on: ["EXAM-003", "MASTERY-002"]
+      day: 8
+      files:
+        - "backend/tests/e2e/test_golden_path.py"
+      acceptance: "E2E 至少 1 条真实 pass (批注→出题→评分→mastery 更新)"
+
+    INFRA-007:
+      title: "XML 打包脚本补全 (含 main.py / interfaces/api/* / event_bus.py)"
+      status: backlog
+      estimate_hours: 1
+      day: 8
+      files:
+        - ".scripts/pack_review.py"
+
+    # ─── Sprint 2 Day 9-10 新需求 + 元任务 (3 backlog) ───
+    STORY-2-10-wikilink-graphiti-sync:
+      title: "wikilink → Graphiti 单向事件流 (Lazy + Batch) — 用户 1B 决策插队"
+      status: backlog
+      estimate_hours: 6
+      day: 9
+      spec_path: "_bmad-output/implementation-artifacts/epic-2/2-10-wikilink-graphiti-sync.md"
+      decision_trace: "round-13-wikilink-vs-graphiti-five-questions-answer-2026-04-29 Q4 (line 237-259)"
+      files:
+        - "backend/app/services/episode_worker.py"
+        - "backend/app/interfaces/api/event.py"
+      requires_spec: true  # 类别 3 新需求, 必写完整 spec
+
+    DOC-001:
+      title: "sprint-status.yaml 更新 + 6 Lite Story spec 补充"
+      status: backlog
+      estimate_hours: 3
+      day: 9
+      meta_task: true  # 元任务
+
+    VERIFY-001:
+      title: "用户 hands-on UAT 完整黄金路径 + NPS ≥ 8"
+      status: backlog
+      estimate_hours: 4
+      day: 10
+      meta_task: true  # 用户 UAT, 非 Claude 干
+
+    # ─── 类别 2 Lite 重编 (Sprint 3+, 完整 spec 必写, 旧 spec 标 [DEPRECATED]) ───
+    STORY-LITE-4-3:
+      title: "5 路融合出题 (V-08 + V-10 修正, 2026-05-26 升 P0)"
+      status: backlog
+      estimate_hours: 6  # V-08 + V-10 修正: 3 → 6 (+2h wikilink 邻居 +1h question_text 持久化)
+      priority: P0  # 2026-05-26 升级: P1 → P0 (ChatGPT 审计 CRITICAL)
+      sprint: "Sprint 2"  # 2026-05-26 升级: Sprint 3+ → Sprint 2 (与 1.16-hook + 2-10 同期)
+      spec_path: "_bmad-output/implementation-artifacts/epic-4/LITE-4-3.md"
+      supersedes: "_bmad-output/implementation-artifacts/epic-4/4-3-triple-fusion-question-gen.md"
+      depends_on: ["INFRA-002", "EXAM-001", "EXAM-002", "STORY-2-10-wikilink-graphiti-sync"]  # 2026-05-26 加 STORY-2-10 (路线 0 wikilink 邻居必需)
+      simplification: "5 路融合 = wikilink 邻居 (V-08 路线 0) + 当前节点 + frontmatter + 最近 3 tips + Graphiti search_facts. 必加 questions_registry 持久化 + score_answer 强制回读 (V-10)"
+      saves_hours: 0  # 升级后不再节省
+      requires_spec: true
+      patch_note_2026_05_26: "ChatGPT Deep Research 审计判定 V-08 (WIKILINK_NOT_IN_EXAM_PATH) + V-10 (SCORING_TARGET_DRIFT) 双 CRITICAL → spec 已升级 (estimate 3→6, P1→P0, Sprint 3+→Sprint 2). 详见 _bmad-output/审查/2026-05-26-chatgpt-v7-v8-v10-v11-修复回应.md"
+
+    STORY-LITE-5-6:
+      title: "calibration 投票 dual-write (合并 4.9, V-11 修复 2026-05-26 spec 内部统一)"
+      status: backlog
+      estimate_hours: 2.5  # V-11 修复: 2 → 2.5 (+0.5h calibration_events schema + sweep 扩展)
+      sprint: "Sprint 3+"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5/LITE-5-6.md"
+      supersedes: "_bmad-output/implementation-artifacts/epic-5/5-6-calibration-data-voting.md"
+      merges: "_bmad-output/implementation-artifacts/epic-4/4-9-calibration-vote-data-sync.md"
+      depends_on: ["EXAM-001", "PLUGIN-002", "STORY-2-10-wikilink-graphiti-sync"]  # 2026-05-26 加 STORY-2-10 (共用 events_queue 管道)
+      simplification: "投票 + frontmatter 同步主写 + Graphiti 异步副写 (经 STORY-2-10 events_queue + sweep). 砍 8.3 矩阵 / Dunning-Kruger 红区警告"
+      saves_hours: 2.5  # vs 原 5h
+      requires_spec: true
+      patch_note_2026_05_26: "ChatGPT 审计判定 V-11 (CALIBRATION_SPLIT_BRAIN) HIGH — spec 4 处自相矛盾 (AC#7 双写 vs Task 6 禁 vs Simplification 砍 vs Checkpoint grep=0) → 4 处统一为异步 dual-write. 详见 _bmad-output/审查/2026-05-26-chatgpt-v7-v8-v10-v11-修复回应.md"
+
+    STORY-LITE-5-7:
+      title: "两个记忆系统最小接通 (2026-05-24 偏差修正 重写)"
+      status: backlog
+      estimate_hours: 3  # 修正: 2h → 3h (加 Graphiti search_facts 路线 B)
+      sprint: "Sprint 3+"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5/LITE-5-7.md"
+      supersedes: "_bmad-output/implementation-artifacts/epic-5/5-7-three-layer-memory-retrieval.md"
+      simplification: "保 LanceDB vault_notes 笔记检索 (已在跑) + Graphiti search_facts 节点级查询 (路线 B, 1s 超时降级). 砍 FR-MEM-04 完整 3 层 fallback / Hot-Warm-Cold 归档 / 71x token 压缩"
+      saves_hours: 2  # vs 原 5h, 减少 ~60%
+      requires_spec: true
+      revision_note: "v1 旧名'三层记忆简化' 把 PRD §1.5 三层 fallback (FR-MEM-04) 跟用户 mental model 的 2 系统 (LanceDB + Graphiti) 混淆全砍. 用户 2026-05-24 指出偏差 → 4 Agent 调研找回 round-7 Q2 / round-9 Q1 / 2026-05-13 核心闭环 / 2026-05-22 答疑 v2 用户原话证据链 → v2 完全重写"
+
+    STORY-1-16-callout-graphiti-hook:
+      title: "Callout 写 Graphiti Episode 自动 hook (含 wikilink 上下文, V-07 修复 2026-05-26)"
+      status: backlog
+      estimate_hours: 5  # V-07 修复: 3 → 5 (+2h Task 1.5 wikilink-context plugin helper)
+      sprint: "Sprint 2 (修正方案 A 第 4 步, V-07 patch 升级)"
+      spec_path: "_bmad-output/implementation-artifacts/epic-1/1-16-callout-graphiti-hook.md"
+      depends_on: ["INFRA-002", "STORY-2-10-wikilink-graphiti-sync"]
+      decision_trace: "round-9 Q1 + 2026-05-13 核心闭环 + 2026-05-22 答疑 v2 + 2026-05-24 偏差修正 + 2026-05-26 ChatGPT V-07 修复"
+      requires_spec: true
+      revision_note: "V-07 修复后: callout 写 Graphiti 必带 node_id / source_board / out_links / in_links / path_trace (5 个新字段). 复用 STORY-2-10 events_queue + sweep cron 管道, 零新基础设施"
+      patch_note_2026_05_26: "ChatGPT 审计判定 V-07 (CALL_OUT_OF_GRAPH) CRITICAL — 旧 spec callout episode 只存句子不存学习上下文 → search_facts 查不出探索路径 → 违背用户 2026-05-13 核心闭环. 详见 _bmad-output/审查/2026-05-26-chatgpt-v7-v8-v10-v11-修复回应.md"
+      files:
+        - "frontend/obsidian-plugin/src/callout-sync.ts"
+        - "frontend/obsidian-plugin/src/wikilink-context.ts"  # V-07 新加
+        - "backend/app/interfaces/api/event.py (扩展)"
+        - "backend/scripts/wikilink_batch_sweep.py (扩展)"
+
+    STORY-LITE-4-11:
+      title: "IRT 难度匹配简化"
+      status: backlog
+      estimate_hours: 1
+      sprint: "Sprint 3+"
+      supersedes: "_bmad-output/implementation-artifacts/epic-4/4-11-irt-difficulty-callout-exam.md"
+      simplification: "保留 callout 快速入口, 砍 IRT 连续校准算法"
+      saves_hours: 3  # vs 原 4h
+      requires_spec: true  # 短小但简化规则关键
+
+    STORY-LITE-5-4:
+      title: "pipeline_token 简化"
+      status: backlog
+      estimate_hours: 1
+      sprint: "Sprint 3+"
+      supersedes: "_bmad-output/implementation-artifacts/epic-5/5-4-scoring-chain-integrity.md"
+      simplification: "grade_answer() 内顺序调用, 去 token 防篡改 5 步链"
+      saves_hours: 2  # vs 原 3h
+
+    STORY-LITE-5-5:
+      title: "错误分类 single-write"
+      status: backlog
+      estimate_hours: 1
+      sprint: "Sprint 3+"
+      supersedes: "_bmad-output/implementation-artifacts/epic-5/5-5-error-classification-dual-write.md"
+      simplification: "single-write 模型, 去 dual-write 审计"
+      saves_hours: 1  # vs 原 2h
+
+    # ─── 砍掉清单 (9 个, 4 方共识, 不做) ───
+    deferred:
+      story_8_3: "元认知 2x2 矩阵 — 砍 (统计视图, 单人样本少, 400+ 题后回头)"
+      story_6_1_2_3: "Edge 讨论 EI+SE — 砍 (LMS 痕迹, 单人无双策略价值)"
+      story_5_8: "Hot/Warm/Cold 异步归档 — 砍 (单人 <10MB, 过早优化)"
+      story_9_1: "多模态考察 — 砍 (scope 扩展)"
+      story_8_7: "操作审计日志 — 砍 (平台运维, 单人 debug)"
+      candidate_service: "砍 (多用户嫌疑)"
+      batch_orchestrator: "砍 (只 health 探针用)"
+      cross_subject_bridge: "砍 (附件无实现)"
+      agent_graph_全部: "砍 (已明确不迁)"

@@ -9,7 +9,19 @@ depends_on: ["5.5"]
 blocks: ["7.3"]
 trace:
   - "FR-MEM-04"
+superseded_by: "_bmad-output/implementation-artifacts/epic-5/LITE-5-7.md"
+sprint_v3_status: "deprecated-by-lite-simplification"
+deprecated_date: "2026-05-24"
+deprecated_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
+
+> ⛔ **[DEPRECATED] 2026-05-24 Sprint v3 简化决策** — Lite 版替代此完整 spec
+>
+> - **替代 spec**: `_bmad-output/implementation-artifacts/epic-5/LITE-5-7.md`（待写）
+> - **状态登记**: `sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-5-7`
+> - **简化原因**: 完整 5h 版含 Layer 1/2/3 三层记忆调度 + 上下文压缩 — Sprint v3 **只读最近上下文，禁 Layer 1/2/3 调度** (2h)
+> - ⚠️ **新 session 警告**: 看到此 marker → 不读下方 AC，改读 Lite spec 或 sprint-status entry
+> - **Plan**: `EPIC1-BMAD-DEV-ASSESS-2026-04-17`
 
 # Story 5.7: 3 层记忆检索
 

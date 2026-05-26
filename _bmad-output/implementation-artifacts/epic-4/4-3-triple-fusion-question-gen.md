@@ -10,7 +10,19 @@ blocks: ["4.4", "4.5", "4.11"]
 trace:
   - "FR-EXAM-03"
   - "FR-EXAM-13"
+superseded_by: "_bmad-output/implementation-artifacts/epic-4/LITE-4-3.md"
+sprint_v3_status: "deprecated-by-lite-simplification"
+deprecated_date: "2026-05-24"
+deprecated_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
+
+> ⛔ **[DEPRECATED] 2026-05-24 Sprint v3 简化决策** — Lite 版替代此完整 spec
+>
+> - **替代 spec**: `_bmad-output/implementation-artifacts/epic-4/LITE-4-3.md`（待写, 见 sprint-status `supersedes` 字段）
+> - **状态登记**: `sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-4-3`
+> - **简化原因**: 完整 6h 版含 Graphiti 个人记忆 + Graphify 知识图谱 + frontmatter 三路融合 — Sprint v3 砍 Graphiti/Graphify 路径，**只保留当前节点 + frontmatter + 最近 3 tips** (3h)
+> - ⚠️ **新 session 警告**: 看到此 marker → 不读下方 AC，改读 Lite spec 或 sprint-status entry
+> - **Plan**: `EPIC1-BMAD-DEV-ASSESS-2026-04-17`
 
 # Story 4.3: 三路融合出题 + 出题策略分化
 

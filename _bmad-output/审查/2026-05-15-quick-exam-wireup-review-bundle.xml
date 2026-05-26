@@ -1,0 +1,503 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<adversarial-review-bundle>
+
+  <metadata>
+    <date>2026-05-15</date>
+    <reviewer-target>ChatGPT (GPT-5 / Opus / Gemini, 三方任选)</reviewer-target>
+    <task-type>对抗性审查 (adversarial review)</task-type>
+    <subject>诊断 Plugin "Quick Exam" 命令 G-PIPE 断裂 + 评估 4 处改动修复方案</subject>
+    <project>Canvas Learning System — Obsidian Plugin (Tauri+React+FastAPI 桌面学习应用)</project>
+    <epic>MVP-α-3 (单题快速考察, fallback path for Epic 4 多题批量)</epic>
+  </metadata>
+
+  <!-- ─────────────────────────────────────────────────────────────────────────── -->
+
+  <executive-summary>
+    <problem>
+      用户验收单 Story-MVP-α-end-to-end-learning-loop.md v1.1 第 29-35 行要求用户在 Obsidian
+      Settings → Hotkeys 搜索 "Quick Exam" 并绑定 Cmd+Shift+Q. Claude 调研发现:
+      Plugin 主入口 `src/main.ts` **从未** import `QuickExamController`,
+      **从未** 在 onload() 实例化, **从未** 调 `addCommand({id:"canvas:start-quick-exam"})`.
+      Hotkeys 面板因此永远搜不到这个命令.
+
+      然而:
+      - `src/exam-quick.ts` 已实现完整的 QuickExamController 类 (190+ 行, 含 startExam / onFileModified)
+      - `tests/exam-quick.test.ts` 通过 (它是 spec-as-test, grep main.ts 字符串验证 wire-up)
+      - commit 5cec794 "fix: quick-exam Cmd+Shift+E → Cmd+Shift+Q" 实际只改了 2 份 .md 文档,
+        未触代码
+      - 用户已签字"MVP-α-3 验收通过" — 实际只测了 Claudian Skill `/exam-quick` fallback 路径,
+        plugin 主路径从未端到端跑通
+
+      这是 Canvas Learning System CLAUDE.md 明确标注的 "G-PIPE 6 条断裂管道" 之一:
+      已实现但无调用方.
+    </problem>
+
+    <claude-proposed-fix>
+      在 main.ts 做 4 处改动 (~10 行):
+      1. 顶部 import { QuickExamController } from "./exam-quick"
+      2. 类 properties 加 private quickExam!: QuickExamController
+      3. onload() 末尾 new + addCommand 注册 (默认 hotkey Cmd+Shift+Q)
+      4. 删除 L303-307 死命令 canvas:quiz-from-callout (与 canvas:start-examination 完全 duplicate)
+    </claude-proposed-fix>
+
+    <ask>
+      请对抗性审查以下 3 个层次:
+      (1) 诊断是否成立 (G-PIPE 假设)
+      (2) 4 处改动是否充分 + 安全
+      (3) 是否存在更深层结构问题 Claude 没发现
+    </ask>
+  </executive-summary>
+
+  <!-- ─────────────────────────────────────────────────────────────────────────── -->
+
+  <hypothesis-to-attack>
+    <h1 confidence="high">
+      `canvas:start-quick-exam` 命令注册在 main.ts 中完全不存在 (grep 0 matches).
+      QuickExamController 类是 G-PIPE 死代码.
+    </h1>
+    <h2 confidence="high">
+      用户的 v1 UAT "通过" 是假性通过 — plugin 主入口路径 (Cmd+Shift+Q → 节点出题 → md 答题 →
+      Cmd+S 评分) 从未端到端跑通过. 用户只走了 Claudian Skill `/exam-quick` fallback 路径.
+    </h2>
+    <h3 confidence="medium">
+      4 处改动 (import + property + new + addCommand + 删 duplicate) 足以完成 wire-up.
+      callBackend → callBackendJson 接口不匹配可以在 addCommand 内用闭包适配器解决.
+    </h3>
+    <h4 confidence="medium">
+      默认 hotkey Cmd+Shift+Q 不冲突 (Cmd+Shift+A/D 已占用, Cmd+Shift+C/E 仅预留, Cmd+Shift+Q 完全空).
+    </h4>
+    <h5 confidence="low">
+      MVP-α 范围内不需要修复 PRD v5 §12 D6 锁定的 Cmd+Option+{C,R,E,Q,X,P} 体系冲突 —
+      Cmd+Shift 是既成事实, 应顺从代码现状而非 PRD 字面.
+    </h5>
+  </hypothesis-to-attack>
+
+  <!-- ─────────────────────────────────────────────────────────────────────────── -->
+
+  <evidence>
+
+    <file-reference id="E1" path="frontend/obsidian-plugin/src/main.ts" lines="1-60" purpose="主 plugin 文件 import 区, 证明 QuickExamController 未 import">
+<![CDATA[
+import {
+  type App,
+  type Editor,
+  FuzzySuggestModal,
+  Modal,
+  Notice,
+  Plugin,
+  requestUrl,
+  TFile,
+} from "obsidian";
+import {
+  TAG_OPTIONS, type TagOption, UNDERSTANDING_OPTIONS, type UnderstandingOption,
+  type UnderstandingValue, USER_INPUT_PROMPT, wrapSelection, type ParsedCallout,
+} from "./callout";
+import { CalloutSyncDebouncer } from "./callout-sync"; // DEPRECATED Plan B
+import { FrontmatterTipsSync } from "./frontmatter-tips-sync";
+import {
+  extractBoardNameFromPath, extractSourceBoardFromFrontmatter,
+  isFlatArchPath, isNodesPath, RELATION_TYPES, type RelationTypeOption,
+} from "./ai-linked-doc";
+import {
+  buildBoardActivityLine, buildBoardConceptsLine, buildNodeBody, buildNodeFrontmatter,
+  buildSourceReplacement, deriveConceptStub, resolveUniqueNodeName,
+} from "./node-derivation";
+import {
+  type BacklinkSummary, buildSeedActivityLine, buildSeedConceptsLine, type ConfigureScenario,
+  deduplicateExistingBoards, determineScenario, findBacklinkingNotes, parseVaultConfigYaml,
+  recountBoardConcepts, renderWhiteboardTemplate, resolveUniqueSeedName, sanitizeBoardName,
+  summarizeBacklinks, validateBoardName, type VaultConfig,
+} from "./configure-whiteboard";
+import {
+  buildNodeChatPrompt, extractBodyWithoutFrontmatter, extractFrontmatterType,
+  ...
+} from "./node-chat-context";
+
+// ⚠️ 注意: 整个 import 区没有 QuickExamController, 没有 ./exam-quick.
+// grep "QuickExamController|exam-quick|start-quick-exam" /src/main.ts → 0 matches.
+]]>
+    </file-reference>
+
+    <file-reference id="E2" path="frontend/obsidian-plugin/src/main.ts" lines="260-362" purpose="onload() 完整 addCommand 注册区, 证明 12 个命令中无 start-quick-exam">
+<![CDATA[
+// onload() 内部 — 全部 12 个 addCommand 块:
+this.addCommand({ id: "canvas:dialog", ... });          // L278-281
+this.addCommand({ id: "canvas:start-examination",       // L283-287 ⚠️ MVP-α 误以为这是 Quick Exam
+  name: "启动考察（直调，无 confirm）",
+  callback: () => this.handleStartExaminationDirect(),
+});
+this.addCommand({ id: "canvas:extract-concept", ... }); // L289-301
+this.addCommand({ id: "canvas:quiz-from-callout",       // L303-307 ⚠️ duplicate, 同 handler
+  name: "批注考察",
+  callback: () => this.handleStartExaminationDirect(), // ← 与 start-examination 完全一致
+});
+this.addCommand({ id: "canvas:open-dashboard", ... });
+this.addCommand({ id: "canvas:open-review-queue", ... });
+this.addCommand({ id: "canvas:annotate-callout", ... });  // hotkey Cmd+Shift+A (hotkeys.json)
+this.addCommand({ id: "canvas:ai-linked-doc", ... });     // hotkey Cmd+Shift+D (hotkeys.json)
+this.addCommand({ id: "canvas:configure-whiteboard", ... });
+this.addCommand({ id: "canvas:append-note-to-board", ... });
+this.addCommand({ id: "canvas:start-examination-confirm", // L351-355, handler 不同 (有 ConfirmExamModal)
+  name: "启动考察（带 confirm 弹窗）",
+  callback: () => this.handleStartExaminationConfirm(),
+});
+this.addCommand({ id: "canvas:open-node-chat", ... });
+// END onload() — 第 362 行
+// 🚨 没有 canvas:start-quick-exam 注册!
+]]>
+    </file-reference>
+
+    <file-reference id="E3" path="frontend/obsidian-plugin/src/exam-quick.ts" lines="160-260" purpose="QuickExamController 类完整实现, 已写好但无人调用">
+<![CDATA[
+// L172-181: QuickExamPluginAPI 接口要求 ──────
+export interface QuickExamPluginAPI {
+  app: App;
+  callBackendJson(
+    endpoint: string, label: string,
+    body: Record<string, unknown>,
+    method?: "GET" | "POST",
+  ): Promise<unknown | null>;          // ⚠️ 接口要求, 返回 JSON
+  inferCurrentVaultId(): string;       // ⚠️ 接口要求, 返回 vault_id
+}
+
+// L190-272: QuickExamController 类实现 (节选) ──────
+export class QuickExamController {
+  private sessions = new Map<string, ExamSession>();
+  constructor(private plugin: QuickExamPluginAPI) {}
+
+  async startExam(NoticeCtor: typeof import("obsidian").Notice): Promise<void> {
+    const active = this.plugin.app.workspace.getActiveFile();
+    if (!active) {
+      new NoticeCtor("请先打开你想考察的节点 (节点/<concept>.md)", 5000);
+      return;
+    }
+    if (!active.path.startsWith("节点/") || active.basename.startsWith("考察-")) {
+      new NoticeCtor("考察命令需在 节点/<concept>.md 上触发", 5000);
+      return;
+    }
+
+    const concept = active.basename;
+    new NoticeCtor("🤔 正在生成题目...", 3000);
+
+    const resp = await this.plugin.callBackendJson(
+      "/api/v1/exam/quick",
+      `生成 "${concept}" 的考察题`,
+      { node_id: concept, vault_id: this.plugin.inferCurrentVaultId() },
+      "POST",
+    );
+    if (!resp) return;
+    // ... 创建 节点/考察-{concept}-{date}.md, register session, openLinkText
+  }
+
+  async onFileModified(file: TFile, NoticeCtor: ...): Promise<void> {
+    const session = this.sessions.get(file.path);
+    if (!session || session.graded) return;
+    // ... extract answer → POST /api/v1/exam/grade → 文件底部追加反馈
+  }
+}
+]]>
+    </file-reference>
+
+    <file-reference id="E4" path="frontend/obsidian-plugin/src/main.ts" lines="1352-1430" purpose="主类有 callBackend 但签名与 QuickExamPluginAPI 要求的 callBackendJson 不同">
+<![CDATA[
+// L1352: 主类的 callBackend 方法签名 (非 JSON, 直接吞返回值并发 Notice)
+private async callBackend(
+  endpoint: string,
+  label: string,
+  body?: Record<string, unknown>,
+  method: "GET" | "POST" = "POST",
+): Promise<void>   // ⚠️ 注意: 返回 Promise<void> 不是 Promise<unknown|null>
+
+// grep "callBackendJson|inferCurrentVaultId|inferVaultId" /src/main.ts → 0 matches
+// 主类既没 callBackendJson, 也没 inferCurrentVaultId — 直接 `new QuickExamController(this)` 会 TS error
+]]>
+    </file-reference>
+
+    <file-reference id="E5" path="frontend/obsidian-plugin/tests/exam-quick.test.ts" lines="285-340" purpose="测试是 spec-as-test, grep main.ts 字符串验证 wire-up — 如果当前真跑, 5 个 assertion 全 fail">
+<![CDATA[
+// T7. main.ts 已 wire QuickExam (spec-as-test) ──────
+describe("main_ts_wires_quick_exam", () => {
+  const mainPath = join(process.cwd(), "src", "main.ts");
+  const mainTs = readFileSync(mainPath, "utf-8");
+
+  test("import QuickExamController from ./exam-quick", () => {
+    assert.match(mainTs,
+      /import\s*\{\s*QuickExamController\s*\}\s*from\s*["']\.\/exam-quick["']/,
+      "main.ts 必须 import QuickExamController");
+  });
+
+  test("import inferVaultId from ./error-candidate-helpers", () => {
+    assert.match(mainTs,
+      /import\s*\{\s*inferVaultId\s*\}\s*from\s*["']\.\/error-candidate-helpers["']/);
+  });
+
+  test("onload new QuickExamController + 接 callBackend 闭包", () => {
+    assert.match(mainTs,
+      /new\s+QuickExamController\s*\(\s*\{[\s\S]{0,400}?callBackendJson[\s\S]{0,200}?this\.callBackend/,
+      "main.ts 必须 new QuickExamController 并把 callBackendJson 绑到 this.callBackend");
+  });
+
+  test("addCommand 注册 canvas:start-quick-exam", () => {
+    assert.match(mainTs,
+      /id:\s*["']canvas:start-quick-exam["']/,
+      "命令 ID canvas:start-quick-exam 未注册 — 命令面板看不到 Quick Exam");
+  });
+
+  test("命令 callback 调 quickExam.startExam(Notice)", () => {
+    assert.match(mainTs,
+      /quickExam\.startExam\s*\(\s*Notice\s*\)/);
+  });
+
+  test("vault.on('modify') 分发到 quickExam.onFileModified", () => {
+    assert.match(mainTs, /vault\.on\s*\(\s*["']modify["']/);
+  });
+});
+
+// ⚠️ 当前状态: 这 6 个 assertion 全部应 fail (因为 main.ts 0 matches)
+// 但 npm run test 在 package.json 里有 exam-quick.test.js — 需要审查者判断:
+//   (a) 测试当前实际跑过 (CI 通过) → 那 wire-up 一定在某处, Claude 漏看
+//   (b) 测试当前 fail 但被忽略 → 工作流松散
+//   (c) 测试压根没在 CI 跑 → 测试是 vapor test
+]]>
+    </file-reference>
+
+    <file-reference id="E6" path="_bmad-output/验收单/Story-MVP-α-end-to-end-learning-loop.md" lines="25-50" purpose="验收单 v1.1 起跑前 30 秒, 假定 Quick Exam 命令存在">
+<![CDATA[
+## 🚀 起跑前 30 秒（v1.1 新增）
+
+> [!warning]+ 这 3 步是 v1.0 验收发现的前置, **必须做完才能开始第 4 步**
+
+### 准备 1: 绑定 Cmd+Shift+Q (Quiz 快捷键)
+
+- [ ] 我打开 Obsidian Settings (⌘,)
+- [ ] 我点左栏 "Hotkeys" → 搜索框输 "Quick Exam"
+- [ ] 我找到 "Canvas Learning System: Quick Exam (单题考察, MVP-α)"
+                          ↑↑↑ 这条命令实际不存在!
+- [ ] 我点右侧 "+" 按钮 → 按下 Cmd+Shift+Q → 看到绑定成功
+- [ ] 我感觉: 5 键 (A/C/D/E/Q) 各司其职, 清晰
+]]>
+    </file-reference>
+
+    <file-reference id="E7" path="commit 5cec794" lines="-" purpose="所谓的 hotkey 修复 commit 实际只动了 2 份 .md, 未触代码">
+<![CDATA[
+commit 5cec794ddcc578a0c8e49f6ff498215a33b2a845
+Date:   2026-05-14
+Subject: fix(mvp-alpha): quick-exam 快捷键 cmd+shift+e → cmd+shift+q (用户批注修复)
+
+Files changed:
+  _bmad-output/验收单/Story-MVP-α-end-to-end-learning-loop.md   |  +XX -XX
+  _bmad-output/research/2026-05-14-mvp-alpha-parallel-dev-plan.md |  +XX -XX
+
+⚠️ 注意: 没有 frontend/obsidian-plugin/src/main.ts 在改动列表里.
+   没有 frontend/obsidian-plugin/manifest.json.
+   没有 frontend/obsidian-plugin/hotkeys.json.
+   修复声称针对代码, 实际只改了 spec 文档.
+]]>
+    </file-reference>
+
+    <file-reference id="E8" path="frontend/obsidian-plugin/hotkeys.json" purpose="当前实际绑定的 hotkey, 用于冲突分析">
+<![CDATA[
+{
+  "canvas:annotate-callout": [{ "modifiers": ["Mod", "Shift"], "key": "A" }],
+  "canvas:ai-linked-doc":    [{ "modifiers": ["Mod", "Shift"], "key": "D" }]
+}
+// Cmd+Shift+Q 完全未占用. Cmd+Shift+C/E 仅在 Story spec 预留, 代码未实施.
+]]>
+    </file-reference>
+
+    <file-reference id="E9" path="canvas-learning-system/CLAUDE.md" lines="-" purpose="项目已记录的 G-PIPE 警告, 证明这类断裂在项目中是已知模式">
+<![CDATA[
+## 已知问题
+详见 docs/known-gotchas.md（20 条，12 待修）。重点关注:
+- G-FAKE: 42+ 假命名函数（名称含 graphiti 但实际调 Neo4j）
+- G-PIPE: 6 条断裂管道（已实现但无调用方）
+]]>
+    </file-reference>
+
+  </evidence>
+
+  <!-- ─────────────────────────────────────────────────────────────────────────── -->
+
+  <proposed-plan>
+    <change id="C1" file="src/main.ts" location="import 区 (大约 L60 后)" risk="low">
+      ➕ 新增 1 行 import:
+      <![CDATA[
+      import { QuickExamController } from "./exam-quick";
+      // 可能还需要: import { inferVaultId } from "./error-candidate-helpers";
+      ]]>
+    </change>
+
+    <change id="C2" file="src/main.ts" location="主 Plugin 类内, onload 方法之前" risk="low">
+      ➕ 新增 1 行 class property:
+      <![CDATA[
+      private quickExam!: QuickExamController;
+      ]]>
+    </change>
+
+    <change id="C3" file="src/main.ts" location="onload() 末尾 (现在 L362 之前)" risk="medium">
+      ➕ 新增 ~15 行实例化 + addCommand. 因 main.ts 的 callBackend 返回 void, 需用闭包适配为 callBackendJson 返回 unknown|null:
+      <![CDATA[
+      this.quickExam = new QuickExamController({
+        app: this.app,
+        callBackendJson: async (endpoint, label, body, method) => {
+          // 适配主类 callBackend: 主类发 Notice 后吞返回值, 这里需要 JSON
+          // 需要审查: 是否应该把 main.ts callBackend 改返回 unknown|null,
+          // 而不是写适配闭包? (减少分叉)
+          return await this.callBackendForJson(endpoint, label, body, method);
+        },
+        inferCurrentVaultId: () => inferVaultId(this.app),
+      });
+
+      this.addCommand({
+        id: "canvas:start-quick-exam",
+        name: "Quick Exam (单题快速考察, MVP-α)",
+        hotkeys: [{ modifiers: ["Mod", "Shift"], key: "Q" }],
+        callback: () => this.quickExam.startExam(Notice),
+      });
+
+      this.registerEvent(
+        this.app.vault.on("modify", (file) => {
+          if (file instanceof TFile) this.quickExam.onFileModified(file, Notice);
+        }),
+      );
+      ]]>
+    </change>
+
+    <change id="C4" file="src/main.ts" location="L303-307" risk="low">
+      ❌ 删除 duplicate 命令注册块 (与 canvas:start-examination 同 handler, 0 外部引用):
+      <![CDATA[
+      this.addCommand({
+        id: "canvas:quiz-from-callout",
+        name: "批注考察",
+        callback: () => this.handleStartExaminationDirect(),
+      });
+      ]]>
+    </change>
+
+    <verification>
+      <step>cd frontend/obsidian-plugin/ && npm run build</step>
+      <step>cp main.js ../../canvas-vault/.obsidian/plugins/canvas-learning-system/main.js</step>
+      <step>Obsidian Cmd+P → "Reload app without saving"</step>
+      <step>Settings → Hotkeys → 搜 "Quick Exam" → 看到命令 + Cmd+Shift+Q 已默认绑定</step>
+      <step>打开 节点/递归.md → Cmd+Shift+Q → 应弹 "🤔 正在生成题目..." Notice</step>
+      <step>验证 后端 POST /api/v1/exam/quick 被调用 (后端 log)</step>
+      <step>验证 节点/考察-递归-2026-05-15.md 文件被创建并打开</step>
+      <step>npm run test 应通过 exam-quick.test.ts 6 个 spec-as-test assertion</step>
+    </verification>
+  </proposed-plan>
+
+  <!-- ─────────────────────────────────────────────────────────────────────────── -->
+
+  <questions-for-reviewer>
+
+    <q id="Q1" category="诊断完整性">
+      Claude 通过 grep "QuickExamController|exam-quick|start-quick-exam" 在 main.ts 0 matches 来
+      证明 wire-up 缺失. 但这个 grep 是否充分?
+      可能的反例:
+      - main.ts 是否可能通过动态 import / 字符串拼接 import 间接加载?
+      - 是否可能存在第三个文件 (如 wiring.ts / register-commands.ts) 接管了命令注册?
+      - manifest.json 是否可能直接定义 commands (Obsidian plugin API 是否支持)?
+
+      请反向论证: 如果 wire-up 不在 main.ts, 它**可能藏在哪些位置**? 给出排查 grep 命令.
+    </q>
+
+    <q id="Q2" category="测试可信度">
+      `tests/exam-quick.test.ts` L289-340 是 spec-as-test, 6 个 assertion 全 grep main.ts 字符串.
+      在 package.json scripts.test 里包含了 `exam-quick.test.js`. 但 main.ts 0 matches 意味着
+      这 6 个 assertion 都应 fail.
+
+      请审查 3 种可能性:
+      (a) 测试当前在 CI 跑且通过 → 那 Claude 一定漏看了 wire-up 代码 (要求审查者**自己跑** npm run test 验证)
+      (b) 测试通过但 assertion 实际没断言 → spec-as-test 模式 (grep 失败时直接 throw) 是否真的会失败?
+      (c) 测试压根没 CI 跑 → 项目工作流问题, 不仅是 wire-up 问题
+
+      你认为最可能的是哪个? 请基于 Node test runner 行为 + 项目 commit 频率给出概率判断.
+    </q>
+
+    <q id="Q3" category="改动充分性">
+      Claude 提议 4 处改动 (~15 行) 完成 wire-up. 但 QuickExamPluginAPI 接口要 callBackendJson
+      (返回 Promise<unknown|null>) 而主类只有 callBackend (返回 Promise<void>).
+      Claude 用闭包适配是否合理?
+      或者更应该:
+      (a) 把主类 callBackend 改返回 unknown|null (但会影响 12 个现有调用方)
+      (b) 在主类加一个新方法 callBackendJson 与现有 callBackend 并存 (分叉)
+      (c) 闭包适配 (Claude 当前提议, 局部, 不影响现有调用)
+      (d) 把 QuickExamPluginAPI 接口降级要求 callBackend 而非 callBackendJson (改 exam-quick.ts)
+
+      4 个选项各自的长期维护风险是什么? 哪个最好?
+    </q>
+
+    <q id="Q4" category="命名歧义">
+      当前 main.ts L284-287 有 `canvas:start-examination` (name: "启动考察（直调，无 confirm）"),
+      它对应 Epic 4 主流程 (多题批量) 但 handler 实际是 handleStartExaminationDirect — 在 Epic 4
+      Stories 4.1~4.10 还没全 ship 之前, 这个命令其实**也是部分死代码** (调 /api/v1/exam/start
+      但后端可能未实现).
+
+      问题: MVP-α-3 Wire-up 是否应该**顺手把 canvas:start-examination 也禁用**, 避免用户在
+      Cmd+P 看到 "启动考察" 误以为这是 Quick Exam?
+      或者**保留**做 PRD 锚定 (表示 Epic 4 主流程在 backlog)?
+    </q>
+
+    <q id="Q5" category="UAT 假性通过">
+      用户在 commit `5cec794` 之前已签字"MVP-α-3 验收通过 v1.0". 5cec794 是 v1.1 (用户批注热修复).
+      Claude 推测: 用户 v1.0 通过实际只测了 Claudian Skill `/exam-quick` fallback 路径 (Skill 路径
+      独立, 直接在 Claudian 输 `/exam-quick` 触发 — 不需要 plugin 命令).
+
+      请反向验证: 如果用户真的从未触发过 plugin Cmd+Shift+Q 主路径, **为什么 v1.0 UAT 报告里
+      没人发现 Hotkeys 面板搜不到 "Quick Exam"**? 几种可能:
+      (a) 用户 v1.0 UAT 完全跳过准备步骤, 只走 Claudian 测 e2e (验收单 v1.0 没有"起跑前 30 秒"
+          这一段, 加这段恰恰是因为 v1.0 用户发现 hotkey 体验不对)
+      (b) 用户**意识到 hotkey 不行**, 但归因为"我没手动绑", 没意识到根本没命令可绑
+      (c) Claude 漏看了某处 wire-up
+
+      请给出最可能解释 + 验证 prompt (我可以拿去问用户/查历史 chat log).
+    </q>
+
+    <q id="Q6" category="范围蔓延">
+      Claude 在调研中发现的几个边缘问题, 是否应该一并修?
+      (a) main.ts L246-248 Dashboard 内部 executeCommandById("canvas:start-examination-confirm") —
+          start-examination-confirm 被保留, 这个跳转 OK
+      (b) Cmd+Shift+C (node-chat) 命令已注册但 hotkeys.json 未默认绑定, MVP-α 是否需要顺手补?
+      (c) Cmd+Shift+E (chat-with-context) — Story 2.1 spec 要求绑, 但命令注册和 hotkey 都缺
+      (d) PRD v5 §12 D6 锁定的 Cmd+Option+{C,R,E,Q,X,P} 体系 vs 实际 Cmd+Shift 体系冲突 —
+          应该现在批注 PRD 还是等 D14 决策窗口?
+
+      请给出: 哪些是"修当前 G-PIPE 必做", 哪些是"独立 issue 不要混入", 哪些是"先记录后续做".
+      避免 PR 蔓延.
+    </q>
+
+    <q id="Q7" category="深层结构">
+      项目 CLAUDE.md 明确警告 "G-PIPE: 6 条断裂管道（已实现但无调用方）".
+      MVP-α-3 Quick Exam 是第 6 条吗? 还是第 7 条 (即 6 条之外又多一条)?
+
+      如果这种"实现了但忘 wire-up"的模式在项目里反复出现, **根因是什么**?
+      可能候选:
+      - BMAD Story spec 写得太完整, 让 dev (Claude/人) 误以为只要类实现完就算 done
+      - spec-as-test 模式让"测试通过"成假信号 — assertion 验证字符串存在不等于功能可用
+      - 用户 UAT 只测体验, 不测功能矩阵 — fallback path 通过遮盖了主 path 缺失
+      - 多 Session 并行 ship (协调文档 §1.5 提到 Session A/B/C) 导致整合阶段被遗忘
+
+      请基于证据排序最可能的根因, 并建议**一次性预防机制** (如 plugin reload 后自动 dump command
+      list 到 console, CI 用 obsidian-mock 真跑命令, 等).
+    </q>
+
+  </questions-for-reviewer>
+
+  <!-- ─────────────────────────────────────────────────────────────────────────── -->
+
+  <how-to-reply-format>
+    请按以下结构回答:
+
+    1. **诊断验证** (5 句以内): Claude 的 G-PIPE 假设是否成立? 给出你做的额外验证步骤.
+    2. **Q1-Q7 逐条回答**: 每条 100-300 字, 不要泛泛而谈.
+    3. **修订后的 plan**: 如果你认为 Claude 的 4 处改动不足/过度, 给出你的版本 (file:line + diff).
+    4. **风险矩阵**: 列 3-5 个最大风险, 各自 likelihood × impact.
+    5. **一句话结论**: 这个 plan 可以 GO / 需要 1 处修改 GO / 需要根本性重做.
+
+    禁忌:
+    - 禁止建议"做更多调研"(已有充分证据, 要的是判断)
+    - 禁止建议"加更多测试" (除非测试是 wire-up gap 必要补丁)
+    - 禁止建议非局部架构改动 (本次 PR 范围 ≤ 20 行)
+  </how-to-reply-format>
+
+</adversarial-review-bundle>

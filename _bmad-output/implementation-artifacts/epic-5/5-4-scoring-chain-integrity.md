@@ -9,7 +9,18 @@ depends_on: ["5.3"]
 blocks: []
 trace:
   - "FR-MAST-04"
+superseded_by: "sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-5-4"
+sprint_v3_status: "deprecated-by-lite-simplification"
+deprecated_date: "2026-05-24"
+deprecated_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 ---
+
+> ⛔ **[DEPRECATED] 2026-05-24 Sprint v3 简化决策** — Lite 版替代此完整 spec
+>
+> - **替代 entry**: `sprint-status.yaml::sprint_v3_obsidian_hybrid.STORY-LITE-5-4`（entry-only，无独立 spec）
+> - **简化原因**: 完整 3h 版含 5 步 Pipeline Token 链 + 防篡改加密 — Sprint v3 **grade_answer() 内顺序调用，去 token 防篡改** (1h)
+> - ⚠️ **新 session 警告**: 看到此 marker → 不读下方 AC，改读 sprint-status entry simplification 字段
+> - **Plan**: `EPIC1-BMAD-DEV-ASSESS-2026-04-17`
 
 # Story 5.4: 评分操作链完整性（Pipeline Token 5 步链）
 
