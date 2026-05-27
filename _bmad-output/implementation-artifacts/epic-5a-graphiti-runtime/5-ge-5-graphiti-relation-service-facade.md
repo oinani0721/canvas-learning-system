@@ -1,6 +1,6 @@
 ---
 story_id: "5-ge-5-graphiti-relation-service-facade"
-epic_id: "5-graphiti-era"
+epic_id: "5a-graphiti-runtime"
 prd_id: "canvas-learning-system"
 status: "ready-for-dev"
 priority: "P0"

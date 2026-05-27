@@ -1,6 +1,6 @@
 ---
 story_id: "5-ge-1-canvas-graph-episode-v1"
-epic_id: "5-graphiti-era"
+epic_id: "5a-graphiti-runtime"
 prd_id: "canvas-learning-system"
 status: "ready-for-dev"
 priority: "P0"

@@ -1,6 +1,6 @@
 ---
 story_id: "5-ge-2-belief-key-version-chain"
-epic_id: "5-graphiti-era"
+epic_id: "5a-graphiti-runtime"
 prd_id: "canvas-learning-system"
 status: "ready-for-dev"
 priority: "P0"

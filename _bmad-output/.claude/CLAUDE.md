@@ -266,6 +266,47 @@ canvas-vault-<subject>/                    # 一 vault 一学科（例 canvas-va
 
 ---
 
+## ⛔⛔⛔ Graphiti Runtime 体系契约（2026-05-26 ChatGPT 体系审查固化）
+
+> **背景**: ChatGPT Deep Research 判定 BMAD 体系健康度 4.5/10，根因是 G-FAKE-001（名字像 Graphiti 身体是 Neo4j）+ G-PIPE-006（桥有了但没单一主干）历史重演风险。多 session 并行开发 Graphiti runtime（`epic-5a-graphiti-runtime/`）前，必须先锁以下契约。
+>
+> **开发流程定调（用户 2026-05-26 确认）**: 保留 BMAD spec 格式（frontmatter `story_id/status/depends_on/blocks` + AC + Tasks checkbox，多 session 接续靠它）+ R4 循环手写实施。**不走** `bmad-bmm-dev-story` skill 自动实施（Graphiti 精确 schema 手写更稳）。
+
+### 3 个接口契约（违反 = 体系撕裂，code review 必拦）
+
+| # | 契约 | 唯一 owner / 路径 | 禁止 |
+|---|---|---|---|
+| **C-1 写入契约** | 所有学习事件（callout/wikilink/calibration/error）必须通过 `5-ge-1` 的 `CanvasGraphEpisodeV1` 统一 episode schema 入图 | `backend/app/graphiti/canvas_episode.py`（Session B 定义，唯一 owner） | ❌ 各 story 自造发散 payload；❌ Session E 反向定义 schema（只能消费） |
+| **C-2 读取契约** | 所有 Graphiti 关系读取统一过 `5-ge-5` 的 `GraphitiRelationService` facade | `backend/app/services/graphiti_relation_service.py` | ❌ LITE-4-3 / LITE-5-7 直调底层 `search_facts`；❌ 新 story 私接 Neo4j-backed learning memory search |
+| **C-3 隔离契约** | `group_id` 业务层统一 `build_vault_group_id()`，Graphiti 边界统一 `sanitize_group_id_for_graphiti()` | `backend/app/core/subject_config.py` + `backend/app/graphiti/group_id_compat.py` | ❌ 任何 writer/reader 拿 `DEFAULT_GROUP_ID` 走生产路径（跨 vault 污染） |
+
+### 6 条多 session 协同硬规则
+
+1. **每个 Session 必须绑定 `spec_path` + `changed_files`** — 没有 spec_path 的工作项不能直接进 live 分支
+2. **任何 supersede 必须同 commit 改旧 spec 状态** — 新 spec 合并时旧 spec 不允许继续挂 `ready-for-dev`
+3. **产品读写路径不允许双主干** — 写统一走 episode runtime（C-1），读统一走 relation facade（C-2）
+4. **所有 group_id 相关改动必须同时过 `subject_config.py` 与 `group_id_compat.py`**（C-3）
+5. **`dry_run=True` 只允许出现在恢复/批量重建工具，不允许默默成为生产默认** — 当前 `relationship_sync_service` + `/relationships/vault` endpoint 的 `dry_run=True` 默认必须由 `5-ge-4` 显式翻转为 `False`
+6. **Session D（`5-ge-5` facade）不是与 B/C 并行，而是"等待依赖完成后的快速收口 Session"** — 必等 B（schema）+ C（belief/flush contract）定版
+
+### Sprint 2 v3 三波次（ChatGPT 校正，非纯 5 并行）
+
+```
+波一: Session A (UX/UAT) ‖ Session B (5-ge-1 schema) ‖ Session E (1.16/2.10 scaffold, 不锁 payload)
+波二: Session C (5-ge-2/3/4) ‖ Session E (对齐 5-ge-1 后完成 payload) ‖ Session A (1.18/1.19 收尾)
+波三: Session D (5-ge-5 facade) → Consumer LITE-4-3 (等 2.10+facade) → LITE-5-7 AC#1 patch only
+```
+
+硬依赖：**B↔E 协议依赖**（E 不能在 B 的 schema 定版前合并 payload）；**C↔D 服务依赖**（D 读的 facade 依赖 C 立 belief/flush contract）。
+
+### live / archive 治理（2026-05-26）
+
+- `_bmad-output/implementation-artifacts/archive/` — 17 个归档旧 spec（13 高确定 supersede/deprecated + 4 候选 infra/多模态）。**只读参考，不在 live 开发队列**
+- `epic-5a-graphiti-runtime/` — Graphiti runtime 主干（5-ge-1~5），**不是旧 epic-5 的替代品，是其上游 runtime**（旧 5.1/5.2/5.3 BKT/FSRS 是下游消费方，Sprint 3+ 激活）
+- ⚠️ **1-4-hotkey-binding-config 不归档**（ChatGPT 误判为 Excalidraw 遗留，实证是 hotkey 核心 onboarding）
+
+---
+
 ## MCP 工具
 
 - **Sequential Thinking**: 复杂推理必调

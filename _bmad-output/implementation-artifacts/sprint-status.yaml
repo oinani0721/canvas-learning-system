@@ -614,7 +614,7 @@ development_status:
       estimate_hours: 16
       priority: P0
       sprint: "Sprint 2 v3 Day 6-7 (Session B)"
-      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-1-canvas-graph-episode-v1.md"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-1-canvas-graph-episode-v1.md"
       depends_on: ["INFRA-002"]
       blocks: ["5-ge-2", "5-ge-3", "5-ge-5"]
       chatgpt_required: "#1 + #2"
@@ -626,7 +626,7 @@ development_status:
       estimate_hours: 9
       priority: P0
       sprint: "Sprint 2 v3 Day 8 (Session C)"
-      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-2-belief-key-version-chain.md"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-2-belief-key-version-chain.md"
       depends_on: ["5-ge-1"]
       chatgpt_required: "#3"
       supersedes: ["epic-4/LITE-4-3.md V-10 questions_registry 方案 (questions_registry 退化为 belief_key 一种实例)"]
@@ -637,7 +637,7 @@ development_status:
       estimate_hours: 4
       priority: P0
       sprint: "Sprint 2 v3 Day 9 AM (Session C)"
-      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-3-query-time-flush.md"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-3-query-time-flush.md"
       depends_on: ["5-ge-1"]
       chatgpt_required: "#4 (前半)"
       supersedes: ["epic-2/2-10-wikilink-graphiti-sync.md sweep 1h → 5 min + Cold path 加 build_communities"]
@@ -648,7 +648,7 @@ development_status:
       estimate_hours: 2
       priority: P0
       sprint: "Sprint 2 v3 Day 9 PM (Session C)"
-      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-4-relationship-sync-production.md"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-4-relationship-sync-production.md"
       depends_on: ["5-ge-1"]
       chatgpt_required: "#4 (后半) + 议题 5 + 议题 6"
 
@@ -658,7 +658,7 @@ development_status:
       estimate_hours: 3
       priority: P0
       sprint: "Sprint 2 v3 Day 10 AM (Session D)"
-      spec_path: "_bmad-output/implementation-artifacts/epic-5-graphiti-era/5-ge-5-graphiti-relation-service-facade.md"
+      spec_path: "_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-5-graphiti-relation-service-facade.md"
       depends_on: ["5-ge-1", "5-ge-2", "5-ge-3"]
       chatgpt_required: "#5"
       supersedes: ["LITE-5-7 路线 B 直调 search_facts (改调 facade)", "LITE-4-3 路线 4 直调 search_facts (改调 facade)"]

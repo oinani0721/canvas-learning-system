@@ -8,7 +8,7 @@ next_story_title: "docker-compose healthcheck 路径修复"
 next_story_files:
   - "backend/docker-compose.yml"
   - "backend/app/interfaces/api/health.py"
-last_commit_hash: "aed9751"  # auto-synced; msg: docs(audit): chatgpt graphiti deep research + sprint 2 决策清单
+last_commit_hash: "c8538d5"  # auto-synced; msg: docs(epic-5-graphiti-era): bmad 体系重构 + chatgpt 5 必修 5 spec
 last_commit_hash_alt: "548d14d"  # INFRA-002 装路由
 sprint_status_file: "_bmad-output/implementation-artifacts/sprint-status.yaml"
 sprint_status_key: "development_status.sprint_v3_obsidian_hybrid"
@@ -17,7 +17,7 @@ session_handover_sop: "新 session 5 min 启动 — 见正文 §1"
 plan_kind: "bmad-implementation"
 active_phase: "sprint-v3-day-2-pending"
 round: 13
-last_updated: "2026-05-26T08:45:11Z"
+last_updated: "2026-05-26T09:17:16Z"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
 round9_key_finding: "推荐保留 Graphiti 做错误/学习事件检索 — 时序+关系查询天然匹配 Episode 模型；数据量小（20-50MB）；启动 Docker 2 分钟；Zep AI 社区源码 https://github.com/getzep/graphiti"
 round8_key_findings:
@@ -91,11 +91,14 @@ next_round_trigger: "用户审计 Round 5 后，可能触发 Round 6：(1) Q4 Ma
 
 ⛔ **新 session 优先读此段, §1-§6 是 v3 v1 历史背景**.
 
-### 当前 Sprint 2 v3 状态 (2026-05-26 锁定)
+### 当前 Sprint 2 v3 状态 (2026-05-26 ChatGPT 体系审查后锁定)
 
-- ✅ **commit aed9751 已 push origin + backup** (含 V-07~V-11 修复回应 + ChatGPT Graphiti 审计 + 5 个 ChatGPT 5 必修新 spec + 体系全图诊断)
-- ✅ **新 epic-5-graphiti-era/ 子 epic 已建** (5 个 spec: 5-ge-1 ~ 5-ge-5)
-- ✅ **用户 4+4 决策全 ack 推荐**: ChatGPT 体系审查 + 5 session 真并行 + ChatGPT 审完再砍 + 新建 epic-5-graphiti-era
+- ✅ **commit c8538d5 已 push origin + backup** (含 5 个 ChatGPT 5 必修新 spec + 体系全图诊断 + 体系审查包)
+- ✅ **epic 改名 `epic-5-graphiti-era` → `epic-5a-graphiti-runtime`** (ChatGPT: 它是旧 Epic 5 的上游 runtime, 非替代品)
+- ✅ **17 个旧 spec 归档 `archive/`** (13 高确定 supersede/deprecated + 4 候选; ⚠️ 1-4 hotkey ChatGPT 误判, 保留 live)
+- ✅ **3 接口契约 + 6 协同硬规则写入 `_bmad-output/.claude/CLAUDE.md`** (C-1 写入唯一 schema / C-2 读取唯一 facade / C-3 group_id 唯一语法链)
+- ✅ **开发流程定调**: BMAD spec 格式 (frontmatter/AC/Tasks) + R4 循环手写实施 (不走 bmad-bmm-dev-story skill, Graphiti 精确 schema 手写更稳)
+- ✅ **ChatGPT 体系判定 4.5/10**: 该开发的是 5-ge 主干 + 1.16/2.10/LITE-4-3 适配/消费, 不是旧 64 ready-for-dev
 
 ### Sprint 2 v3 起步序列 (5 session 并行, Day 5-10)
 
@@ -118,14 +121,25 @@ next_round_trigger: "用户审计 Round 5 后，可能触发 Round 6：(1) Q4 Ma
 ### 5 必修包关键 file paths (Sprint 2 v3 起步必读)
 
 ```
-_bmad-output/implementation-artifacts/epic-5-graphiti-era/
+_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/   # ⭐ 已改名 (原 epic-5-graphiti-era)
 ├── README.md                              # 子 epic 说明 + 5 session mapping
-├── 5-ge-1-canvas-graph-episode-v1.md      # Session B (16h)
-├── 5-ge-2-belief-key-version-chain.md     # Session C (9h)
-├── 5-ge-3-query-time-flush.md             # Session C (4h)
-├── 5-ge-4-relationship-sync-production.md # Session C (2h)
-└── 5-ge-5-graphiti-relation-service-facade.md  # Session D (3h)
+├── 5-ge-1-canvas-graph-episode-v1.md      # Session B (16h) — 波 1
+├── 5-ge-2-belief-key-version-chain.md     # Session C (9h) — 波 2
+├── 5-ge-3-query-time-flush.md             # Session C (4h) — 波 2
+├── 5-ge-4-relationship-sync-production.md # Session C (2h) — 波 2
+└── 5-ge-5-graphiti-relation-service-facade.md  # Session D (3h) — 波 3 (等 B done)
 ```
+
+### Sprint 2 v3 三波次 (ChatGPT 校正, 非纯 5 并行)
+
+```
+波一: A (UX/UAT) ‖ B (5-ge-1 schema) ‖ E (1.16/2.10 scaffold, 不锁 payload)
+波二: C (5-ge-2/3/4) ‖ E (对齐 5-ge-1 后完成 payload) ‖ A (1.18/1.19 收尾)
+波三: D (5-ge-5 facade) → LITE-4-3 (等 2.10+facade) → LITE-5-7 AC#1 patch only
+```
+
+硬依赖: B↔E 协议依赖 (E 不能在 B schema 定版前合并 payload) / C↔D 服务依赖 (D 依赖 C belief+flush contract).
+**3 接口契约 + 6 硬规则见 `_bmad-output/.claude/CLAUDE.md` §Graphiti Runtime 体系契约**.
 
 ### ⚠️ V-07/V-08/V-10/V-11 旧修复方案状态 (重要 — 防新 session 误读)
 
