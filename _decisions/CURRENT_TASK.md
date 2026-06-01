@@ -8,7 +8,7 @@ next_story_title: "docker-compose healthcheck 路径修复"
 next_story_files:
   - "backend/docker-compose.yml"
   - "backend/app/interfaces/api/health.py"
-last_commit_hash: "c8538d5"  # auto-synced; msg: docs(epic-5-graphiti-era): bmad 体系重构 + chatgpt 5 必修 5 spec
+last_commit_hash: "d25447e"  # auto-synced; msg: docs(sprint-2): S2-1 V-10 修复规划记录 + BMAD 追踪 (代码已 commit main 
 last_commit_hash_alt: "548d14d"  # INFRA-002 装路由
 sprint_status_file: "_bmad-output/implementation-artifacts/sprint-status.yaml"
 sprint_status_key: "development_status.sprint_v3_obsidian_hybrid"
@@ -17,7 +17,7 @@ session_handover_sop: "新 session 5 min 启动 — 见正文 §1"
 plan_kind: "bmad-implementation"
 active_phase: "sprint-v3-day-2-pending"
 round: 13
-last_updated: "2026-05-26T09:17:16Z"
+last_updated: "2026-06-01T02:11:48Z"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
 round9_key_finding: "推荐保留 Graphiti 做错误/学习事件检索 — 时序+关系查询天然匹配 Episode 模型；数据量小（20-50MB）；启动 Docker 2 分钟；Zep AI 社区源码 https://github.com/getzep/graphiti"
 round8_key_findings:
@@ -90,6 +90,31 @@ next_round_trigger: "用户审计 Round 5 后，可能触发 Round 6：(1) Q4 Ma
 ## §0 · v3.0 update — Sprint v3 v3 起步 (2026-05-26 ChatGPT 体系审查后)
 
 ⛔ **新 session 优先读此段, §1-§6 是 v3 v1 历史背景**.
+
+### ⭐⭐ 2026-06-01 最新状态 — 新 session 从这里起步 S2-2
+
+**已 commit**:
+- ✅ **S2-1 V-10 评分对象漂移修复 → main `bb00ed5`** (backend/app/services/question_registry.py 新建 + exam_tools.py generate_question 存题面×2 + score_answer 回读 + degraded 防污染; test_question_registry.py **8 passed**). worktree 规划记录 `d25447e`
+
+**用户 2026-06-01 三大决策 (已拍板)**:
+1. **仓库**: 以 `canvas-learning-system` 为唯一开发仓库 (643 commit/208 py/67 spec). hybrid 仓库是空壳 (1 commit) → **用户授权删除** (`gh repo delete oinani0721/canvas-obsidian-hybrid --yes`, hook 拦了我, 待用户/新 session 跑)
+2. **代码主线 = main** (真相源 = main sprint-status, 用 epic-1/2/3 + Epic 6 检验白板编号). worktree 是规划层
+3. **下一步 = 在 main 起步 S2-2 Graphiti 个人记忆脊柱** (用户最看重, 当前 main 无人实施)
+
+**⛔ 新 session 起步 S2-2 前必做 (2 个清理)**:
+- [~] **restore 删除文件** (frontend/src 已恢复; 剩 866 = docs/838 + frontend/27 + _bmad/1). 完整命令 (hook 拦我, 用户跑): `cd /Users/Heishing/Desktop/canvas/canvas-learning-system && git restore frontend/ docs/ _bmad-output/` — ⚠️ **不要 `git restore .`** (会抹掉别人正在做的 backend M 改动). ⚠️ docs/ 838 是 Tauri 时期文档 (CLAUDE.md 说已迁移 archive/legacy-docs/), **可能是有意清理** — 用户若确认 Tauri docs 要删, 恢复后专门做 deprecation commit; 不确定则全恢复 (无损 HEAD 完整). 别人 backend M (episode_worker/memory_service 等) 保留不碰
+- [ ] **删 hybrid 空壳仓库** (gh 缺 delete_repo scope): `gh auth refresh -h github.com -s delete_repo` 再 `gh repo delete oinani0721/canvas-obsidian-hybrid --yes`; 或 GitHub 网页删; 或不管 (空壳 1 commit 无害, 以 canvas-learning-system 为准即可)
+
+**S2-2 起步指引 (在 main 实施)**:
+- spec: `worktree _bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-1-canvas-graph-episode-v1.md + 5-ge-2-belief-key-version-chain.md`
+- 内容: CanvasGraphEpisodeV1 统一事件 schema + edge_type_map 透传 episode_worker + belief_key 版本链 (valid_at/invalid_at) + questions_registry 持久化 (让 S2-1 的 in-memory registry 升级为持久化, 彻底修 V-10 重启丢题)
+- ⚠️ main 工作树有别人改动 (956 脏状态 restore 后 + 可能其他) → **精确 git add 只 commit 自己文件** (V-10 已示范)
+- ⚠️ main 用 Epic 6 检验白板编号, worktree 用 epic-4/5a → commit message 用 Epic 6 对接 + 标注 worktree spec 来源
+- 执行流程: BMAD 追踪 (in-progress → Tasks 打勾 → Dev Agent Record → DoD-3 UAT → review), commit message 承载追踪
+
+**待续 (S2-2 后)**: main↔worktree epic 映射表 + S2-1 收尾 V-08 (wikilink 进出题) + S2-3/4/5
+
+**双审查收敛结论** (Sprint 2 五任务定稿): `_bmad-output/审查/2026-05-27-双审查收敛-Sprint2-执行计划.md` (原白板真 68% / 检验白板 42% / 核心闭环 37.5%; 唯一先手 = Graphiti 记忆脊柱)
 
 ### 当前 Sprint 2 v3 状态 (2026-05-26 ChatGPT 体系审查后锁定)
 
