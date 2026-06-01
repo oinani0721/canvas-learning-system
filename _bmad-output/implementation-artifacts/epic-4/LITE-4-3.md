@@ -224,7 +224,27 @@ So that Sprint 2 阶段就能跑通"批注 + 沿双链探索 → 极其针对性
 
 ## Dev Agent Record
 
-待 dev 填充（commit hash / 测试结果 / 文件清单）。
+### S2-1 进展 (2026-05-31, in-progress)
+
+**V-10 评分对象漂移修复 (第一刀, 已落地)**:
+- ✅ 新建 `backend/app/services/question_registry.py` — 共享题面 registry (复用 MVP-α `_QUESTION_STORE` ring buffer 模式, DD-04 参考成熟案例)
+- ✅ `exam_tools.py` generate_question 两条路径 (mastery line ~232 + legacy line ~360) 生成题目后 `put_question(question_id, question_text, ...)` 持久化真实题面
+- ✅ `exam_tools.py` score_answer (line ~456) 改为 `get_question(question_id)` 按 ID 回读真实题面, 删除"取节点正文当题面"逻辑 (V-10 根因)
+- ✅ degraded 防污染: registry 未命中 (重启/未注册) → 降级节点正文 **但标记 `scoring_context_degraded=True`** → faithfulness gate 中 `not scoring_context_degraded` 一并 suppress mastery 更新, 不污染 BKT/FSRS (fail-closed, 符合 G-MOCK 精神)
+- ✅ 测试: `backend/tests/unit/test_question_registry.py` **8 passed** (含 V-10 漂移场景 + ring buffer 淘汰 + copy 隔离)
+
+**剩余 (本 story 未完, 故 in-progress 非 done)**:
+- [ ] T4 V-08: get_wikilink_neighbors 进出题主路径 (LITE-4-3 路线 0) — 未做
+- [ ] V-10 完全 fail-closed (registry 未命中直接 422 而非降级) — 待 S2-2 持久化 questions_registry 后收紧 (当前 in-memory 重启会丢, 降级是务实折中)
+- [ ] T5 集成测试 test_scoring_target_consistency.py — 待写
+- [x] 回归检查 exam_tools 相关测试 — 2 passed / 2 failed; 2 failures 是 **pre-existing baseline** (test_openapi_contract schemathesis fuzzing generate_question/score_answer, status_code_conformance), **非本次引入**: git diff 证明 0 碰 Pydantic schema class/Field, OpenAPI schema 字节级不变, schema-based contract 不可能因纯函数体逻辑改动而变
+
+**文件清单**:
+- 新建: `backend/app/services/question_registry.py`
+- 新建: `backend/tests/unit/test_question_registry.py`
+- 改: `backend/app/mcp/tools/exam_tools.py` (generate_question ×2 存 + score_answer ×1 读 + faithfulness gate)
+
+**技术债标注**: 当前 MCP 路径用本 registry, MVP-α 路径 (exam_quick.py) 用各自 `_QUESTION_STORE`, 两份并存。S2-2 (CanvasGraphEpisodeV1 + 持久化 questions_registry) 统一。
 
 ## Change Log
 

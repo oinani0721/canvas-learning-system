@@ -688,6 +688,100 @@ development_status:
 
   # ═══════════════════════════════════════════════════════════════════════════
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Sprint 2 · 白板核心闭环 (2026-05-31 双审查收敛后定稿)
+  # 主线: 打通 个人记忆脊柱 (批注/关系/对话 → Graphiti → 针对性考察)
+  # 依据: Claude 9-agent workflow 实证 + ChatGPT 设计审查 (高度收敛)
+  # 追踪: 状态机 backlog→ready-for-dev→in-progress→review→done
+  #       每个 story Tasks 逐条打勾 + Dev Agent Record + DoD-3 UAT 验收单
+  # ═══════════════════════════════════════════════════════════════════════════
+  sprint_2_whiteboard_loop:
+    S2-1-scoring-target-fix-and-wikilink-exam:
+      title: "修 V-10 评分回读真实题面 + V-08 wikilink 邻居进出题主路径"
+      status: in-progress
+      priority: P0
+      estimate_hours: 8
+      depends_on: ["S2-2 题面持久化部分"]  # V-10 回读需要题面先被持久化
+      spec_path: "_bmad-output/implementation-artifacts/epic-4/LITE-4-3.md"
+      evidence_baseline: "exam_tools.py:435-462 评分用 find_node_across_canvases 取节点正文当 question_text (V-10 漂移, 2026-05-31 复核仍在)"
+      tasks:
+        - "[x] T1 读 generate_question→score_answer 链路, 确认题面持久化点 (2026-05-31)"
+        - "[x] T2 建 question_registry.py 持久化真实 question_text (复用 MVP-α ring buffer 模式)"
+        - "[x] T3 score_answer 改为按 question_id 回读真实题面 + degraded 防污染 (删取正文逻辑)"
+        - "[ ] T4 V-08: get_wikilink_neighbors 进出题主路径 (LITE-4-3 路线 0) — 未做"
+        - "[x] T5 pytest question_registry 单元测试 8 passed (含 V-10 漂移场景)"
+      progress: "V-10 评分回读已落地 (8 tests pass); V-08 wikilink + 完全 fail-closed 待 S2-2"
+      uat:
+        - "出题引用我的批注原话 + 至少 1 个 wikilink 邻居关系"
+        - "评分针对的是我看到的那道题, 不是泛节点概念"
+      started: "2026-05-31"
+
+    S2-2-unified-event-belief-chain:
+      title: "统一学习事件入口 CanvasGraphEpisodeV1 + belief_key 版本链"
+      status: ready-for-dev
+      priority: P0
+      estimate_hours: 16
+      depends_on: ["INFRA-002"]
+      spec_path: "_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-1-canvas-graph-episode-v1.md + 5-ge-2"
+      tasks:
+        - "[ ] T1 CanvasGraphEpisodeV1 Pydantic schema + EventType enum"
+        - "[ ] T2 edge_type_map 透传 episode_worker:550-560"
+        - "[ ] T3 belief_key 版本链 + add_triplet API (valid_at/invalid_at)"
+        - "[ ] T4 questions_registry 题面持久化 (供 S2-1 回读)"
+        - "[ ] T5 pytest 7 event_type + belief 版本链 + edge_type_map"
+      uat:
+        - "我改一条批注, 系统能记住旧版+新版 (我以前认为 X 后来改成 Y)"
+
+    S2-3-callout-graphiti-decision:
+      title: "决断批注→Graphiti: 修 tips.py:309 死代码 410 或确认纯本地"
+      status: blocked  # 等用户产品决策 (修死代码 vs 纯本地)
+      priority: P0
+      estimate_hours: 4
+      depends_on: ["用户产品决策", "S2-2"]
+      spec_path: "_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-1 + epic-2/2-4"
+      evidence_baseline: "tips.py:309 batch_sync_callouts 首行 raise HTTPException(410); main.ts:186 同步器从未实例化"
+      decision_needed: "(a) 修死代码让批注入 Graphiti 个人记忆 / (b) 正式确认纯本地 frontmatter 策略"
+      tasks:
+        - "[ ] T0 用户拍板 (a) 或 (b)"
+        - "[ ] T1 (若 a) 修 tips.py:309 → 走 5-ge-1 unified schema"
+        - "[ ] T2 (若 a) main.ts callout-sync 实例化 + file-save hook"
+      uat:
+        - "我打的批注能被检验白板出题时引用 (跨 session)"
+
+    S2-4-hint-skip-calibration-frontend:
+      title: "hint/skip/校准接 plugin UI + 静默评分哲学修正"
+      status: ready-for-dev
+      priority: P1
+      estimate_hours: 6
+      depends_on: []  # 后端现成, 纯前端 fetch
+      spec_path: "_bmad-output/implementation-artifacts/epic-4/4-7-progressive-hints-skip.md + epic-5/LITE-5-6"
+      evidence_baseline: "hint/skip/校准后端齐全, plugin 0 调用 (G-PIPE); exam-quick.ts:146 静默评分不自洽 (追加 ## 反馈 (x/5)+Notice)"
+      tasks:
+        - "[ ] T1 plugin hint 按钮 → 后端 4 级提示"
+        - "[ ] T2 plugin skip 按钮 → 不惩罚跳过"
+        - "[ ] T3 plugin 校准投票 (准/偏高/偏低/跳过)"
+        - "[ ] T4 静默评分修正: 保存后轻量状态标记, 详细反馈默认折叠"
+      uat:
+        - "卡壳时点提示能逐级求助, 不被打断心流"
+        - "评分默认安静, 我想看才展开"
+
+    S2-5-relationship-sync-production:
+      title: "接 /sync/relationships (plugin file-save hook) + 改 G-FAKE 命名"
+      status: ready-for-dev
+      priority: P1
+      estimate_hours: 3
+      depends_on: ["S2-2"]
+      spec_path: "_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-4-relationship-sync-production.md"
+      evidence_baseline: "plugin 对 /sync 0 命中; relationship_sync_service.py:169 G-FAKE (名 Graphiti 实写 Neo4j)"
+      tasks:
+        - "[ ] T1 plugin file-save hook → POST /sync/relationships"
+        - "[ ] T2 relationship_sync_service dry_run=False + 强制 vault_id"
+        - "[ ] T3 改 G-FAKE 命名 (或真走 graphiti_core)"
+      uat:
+        - "我填的节点关系真入库, 检验白板能多段推理节点关系"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+
     # ─── 砍掉清单 (9 个, 4 方共识, 不做) ───
     deferred:
       story_8_3: "元认知 2x2 矩阵 — 砍 (统计视图, 单人样本少, 400+ 题后回头)"
