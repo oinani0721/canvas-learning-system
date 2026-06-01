@@ -23,9 +23,12 @@ from pydantic import BaseModel, Field
 
 from app.graphiti.entity_types import (
     ERROR_TYPE_TO_REMEDY,
+    PEDAGOGY_TYPE_TO_REMEDIES,
     ErrorType,
     Misconception,
+    PedagogyErrorType,
     RemedyStrategy,
+    map_legacy_to_pedagogy,
 )
 
 logger = structlog.get_logger(__name__)
@@ -62,6 +65,43 @@ class ClassificationResult(BaseModel):
     remedy_strategy: RemedyStrategy
     confidence: float = Field(ge=0.0, le=1.0)
     misconception: Misconception
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 2.5 — ClassifiedError (D 方案: 双标签共存)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class ClassifiedError(BaseModel):
+    """Story 2.5 双标签错误分类结果 (D 方案).
+
+    legacy_type: Story 3.6 兼容标签 (现 production 数据用此, 不破坏向后兼容).
+    pedagogy_type: PRD §FR-CONV-06 教育心理学标签 (UI / remedy / 间隔复习算法用此).
+
+    legacy_remedy 与 pedagogy_remedies 共存, frontmatter 写入用 pedagogy_*,
+    Graphiti Misconception entity 兼容写 legacy_type (现 schema 没动).
+
+    AC #2 (PRD): confidence < 0.6 标记 AMBIGUOUS (调用方解读 is_ambiguous).
+    """
+
+    legacy_type: ErrorType = Field(..., description="Story 3.6 兼容 4 类")
+    pedagogy_type: PedagogyErrorType = Field(..., description="PRD §FR-CONV-06 4 主类")
+    description: str = Field(..., description="错误描述")
+    context: str = Field(default="", description="对话上下文")
+    confidence: float = Field(ge=0.0, le=1.0, description="LLM 分类置信度")
+    legacy_remedy: RemedyStrategy = Field(..., description="Story 3.6 单一补救策略")
+    pedagogy_remedies: list[RemedyStrategy] = Field(
+        default_factory=list, description="PRD §FR-CONV-06 补救策略列表"
+    )
+    sub_tags: list[str] = Field(
+        default_factory=list,
+        description="子标签 (如 synonym_confusion / transfer_failure)",
+    )
+
+    @property
+    def is_ambiguous(self) -> bool:
+        """confidence < 0.6 视为 AMBIGUOUS (PRD AC #2)."""
+        return self.confidence < 0.6
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -121,6 +161,100 @@ class ErrorClassifier:
             confidence=0.8,  # Updated by LLM if available
             misconception=misconception,
         )
+
+    async def classify_with_pedagogy(
+        self,
+        error_description: str,
+        node_id: str = "",
+        session_id: str = "",
+        context: str = "",
+        sub_tags: list[str] | None = None,
+    ) -> ClassifiedError:
+        """Story 2.5 — 双标签分类 (D 方案).
+
+        步骤:
+        1. 调 _llm_classify 拿 legacy ErrorType (Story 3.6 4 类).
+        2. map_legacy_to_pedagogy 映射到 PRD 4 类 (含 SUPERFICIAL 二义消解).
+        3. 双向 remedy 关联: legacy_remedy + pedagogy_remedies.
+        4. 返回 ClassifiedError 含双标签 + confidence + sub_tags.
+
+        Args:
+            error_description: 错误描述文本.
+            node_id: Canvas 节点 ID (写入 frontmatter / Graphiti 用).
+            session_id: 对话 session ID.
+            context: 对话上下文.
+            sub_tags: 可选子标签 (如 transfer_failure 提示 SUPERFICIAL → METACOGNITIVE).
+
+        Returns:
+            ClassifiedError 含 legacy_type + pedagogy_type + 双 remedy + sub_tags.
+        """
+        legacy_type, confidence = await self._llm_classify_with_confidence(
+            error_description, context
+        )
+        legacy_remedy = ERROR_TYPE_TO_REMEDY[legacy_type]
+        pedagogy_type = map_legacy_to_pedagogy(legacy_type, error_description, sub_tags)
+        pedagogy_remedies = list(PEDAGOGY_TYPE_TO_REMEDIES[pedagogy_type])
+
+        return ClassifiedError(
+            legacy_type=legacy_type,
+            pedagogy_type=pedagogy_type,
+            description=error_description,
+            context=context,
+            confidence=confidence,
+            legacy_remedy=legacy_remedy,
+            pedagogy_remedies=pedagogy_remedies,
+            sub_tags=list(sub_tags or []),
+        )
+
+    async def _llm_classify_with_confidence(
+        self, error_description: str, context: str
+    ) -> tuple[ErrorType, float]:
+        """LLM 分类 + 提取 confidence (Story 2.5).
+
+        基于 _llm_classify, 但额外解析 LLM 返回的 confidence 字段.
+        LLM 不可用 fallback 到 heuristic, confidence=0.5 (AMBIGUOUS).
+        """
+        try:
+            import litellm
+
+            from app.config import settings
+
+            model = self._get_litellm_model(settings)
+            prompt = CLASSIFICATION_PROMPT.format(
+                error_description=error_description,
+                context=context or "(no additional context)",
+            )
+            response = await litellm.acompletion(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0.1,
+            )
+            content = response.choices[0].message.content.strip()
+            parsed = json.loads(content)
+            raw_type = parsed.get("error_type", "")
+            confidence = float(parsed.get("confidence", 0.8))
+            confidence = max(0.0, min(1.0, confidence))  # clamp [0, 1]
+            try:
+                return ErrorType(raw_type), confidence
+            except ValueError:
+                logger.warning(
+                    f"[Story 2.5] LLM returned invalid error_type: {raw_type}, "
+                    "falling back to heuristic (confidence=0.5)"
+                )
+                return self._heuristic_classify(error_description), 0.5
+        except (ImportError, json.JSONDecodeError, ValueError, TypeError) as e:
+            logger.warning(
+                f"[Story 2.5] LLM classification failed ({type(e).__name__}): {e}, "
+                "fallback heuristic (confidence=0.5)"
+            )
+            return self._heuristic_classify(error_description), 0.5
+        except Exception as e:
+            logger.warning(
+                f"[Story 2.5] LLM classification unexpected error: {e}, "
+                "fallback heuristic (confidence=0.5)"
+            )
+            return self._heuristic_classify(error_description), 0.5
 
     async def _llm_classify(self, error_description: str, context: str) -> ErrorType:
         """

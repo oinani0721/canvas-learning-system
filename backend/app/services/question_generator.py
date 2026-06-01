@@ -889,14 +889,20 @@ class QuestionGenerator:
             return 0.5, "neo4j_unavailable"
 
     async def _get_tips(self, node_id: str) -> List[str]:
-        """Get user-annotated Tips from Graphiti for a node."""
+        """Get user-annotated Tips from Graphiti for a node.
+
+        P0-2b (2026-05-13): source_description 对齐 memory_format.py canonical:
+        - 'learning-tip-record' (LearningTip, Story 3.6 侧栏 tip)
+        - 'callout-annotation-record' (CalloutAnnotation, Story 1.16 白板 callout)
+        之前查 'tip' 永远 0 命中（无 writer 写此值）。
+        """
         try:
             from app.clients.neo4j_client import get_neo4j_client
 
             client = get_neo4j_client()
             query = """
             MATCH (e:EpisodicNode)
-            WHERE e.source_description = 'tip'
+            WHERE e.source_description IN ['learning-tip-record', 'callout-annotation-record']
               AND e.node_id = $node_id
             RETURN e.content AS content
             ORDER BY e.created_at DESC
@@ -915,14 +921,28 @@ class QuestionGenerator:
             return list()
 
     async def _get_error_history(self, node_id: str) -> List[Dict[str, str]]:
-        """Get 4-type error history from Graphiti for a node."""
+        """Get 4-type error history from Graphiti for a node.
+
+        P0-2c (2026-05-13): source_description 对齐 memory_format.py canonical
+        4 类错误 entity types:
+        - misconception-record (Misconception)
+        - problem-trap-record (ProblemTrap)
+        - logical-fallacy-record (LogicalFallacy)
+        - guided-thinking-record (GuidedThinking)
+        之前查 'error_record' 永远 0 命中（无 writer 写此值）。
+        """
         try:
             from app.clients.neo4j_client import get_neo4j_client
 
             client = get_neo4j_client()
             query = """
             MATCH (e:EpisodicNode)
-            WHERE e.source_description = 'error_record'
+            WHERE e.source_description IN [
+                'misconception-record',
+                'problem-trap-record',
+                'logical-fallacy-record',
+                'guided-thinking-record'
+            ]
               AND e.node_id = $node_id
             RETURN e.error_type AS error_type, e.description AS description
             ORDER BY e.created_at DESC

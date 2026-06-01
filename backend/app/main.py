@@ -284,6 +284,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.episode_worker = None
         logger.warning(f"[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): {e}")
 
+    # ✅ Story 2.1 Phase 1.6: Eager-build wikilink graph on startup
+    # Eliminates "Graph version: unbuilt / wikilink_graph_not_built" degraded state
+    # observed by users when first invoking chat-with-context after backend restart.
+    # Pattern verified by 4 parallel Explore agents (FastAPI lifespan / Obsidian PKM
+    # ecosystem / RAG indexing / Dumb-client philosophy) — all converge on
+    # server-side eager init over plugin-side self-healing retry.
+    try:
+        from app.services.wikilink_graph_service import get_wikilink_graph_service
+
+        wikilink_svc = get_wikilink_graph_service()
+        wl_result = await wikilink_svc.build(settings.canvas_base_path)
+        logger.info(
+            f"[Story 2.1] Wikilink graph eager-built: "
+            f"{wl_result['total_nodes']} nodes, "
+            f"{wl_result['total_edges']} edges, "
+            f"{wl_result['build_time_ms']}ms"
+        )
+    except Exception as e:
+        logger.warning(
+            f"[Story 2.1] Wikilink graph eager-build failed (non-fatal, "
+            f"endpoints will degrade until manual /wikilink/build): {e}"
+        )
+
     yield  # Application runs here
 
     # Shutdown

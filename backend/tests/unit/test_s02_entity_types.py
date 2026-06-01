@@ -38,19 +38,19 @@ class TestLearningConcept:
 
     def test_valid_full(self):
         concept = LearningConcept(
-            name="Quadratic Formula",
+            concept_name="Quadratic Formula",
             description="Formula for solving quadratic equations",
             subject_area="数学",
             difficulty_level="intermediate",
             prerequisites=["Algebra Basics", "Square Roots"],
         )
-        assert concept.name == "Quadratic Formula"
+        assert concept.concept_name == "Quadratic Formula"
         assert concept.subject_area == "数学"
         assert len(concept.prerequisites) == 2
 
     def test_valid_defaults(self):
         concept = LearningConcept(
-            name="Newton's Laws",
+            concept_name="Newton's Laws",
             description="Three laws of motion",
             subject_area="物理",
         )
@@ -122,7 +122,12 @@ class TestCanvasTypeDicts:
     """CANVAS_ENTITY_TYPES and CANVAS_EDGE_TYPES have correct keys and values."""
 
     def test_entity_types_keys(self):
-        expected_keys = {"LearningConcept", "LearningTip", "Misconception", "MasteryRecord"}
+        expected_keys = {
+            "LearningConcept",
+            "LearningTip",
+            "Misconception",
+            "MasteryRecord",
+        }
         assert set(CANVAS_ENTITY_TYPES.keys()) == expected_keys
 
     def test_entity_types_values_are_basemodel_subclasses(self):
@@ -202,7 +207,12 @@ class TestEpisodeTaskEntityFields:
         )
         d = task.to_dict()
         assert "entity_type_names" in d
-        assert set(d["entity_type_names"]) == {"LearningConcept", "LearningTip", "Misconception", "MasteryRecord"}
+        assert set(d["entity_type_names"]) == {
+            "LearningConcept",
+            "LearningTip",
+            "Misconception",
+            "MasteryRecord",
+        }
         assert "edge_type_names" in d
         assert set(d["edge_type_names"]) == {"PrerequisiteRelation"}
 
@@ -299,10 +309,12 @@ class TestDeterministicIDWidening:
     def test_episode_id_length(self):
         from app.services.memory_service import _generate_deterministic_episode_id
 
-        eid = _generate_deterministic_episode_id("user1", "/math/canvas.json", "node-1", "algebra")
+        eid = _generate_deterministic_episode_id(
+            "user1", "/math/canvas.json", "node-1", "algebra"
+        )
         # Format: "episode-" + 32 hex chars
         assert eid.startswith("episode-")
-        hex_part = eid[len("episode-"):]
+        hex_part = eid[len("episode-") :]
         assert len(hex_part) == 32
         # Verify it's valid hex
         int(hex_part, 16)
@@ -310,9 +322,11 @@ class TestDeterministicIDWidening:
     def test_batch_id_length(self):
         from app.services.memory_service import _generate_batch_episode_id
 
-        bid = _generate_batch_episode_id("/math/canvas.json", "node-1", "learning", "2025-01-01T00:00:00")
+        bid = _generate_batch_episode_id(
+            "/math/canvas.json", "node-1", "learning", "2025-01-01T00:00:00"
+        )
         assert bid.startswith("batch-")
-        hex_part = bid[len("batch-"):]
+        hex_part = bid[len("batch-") :]
         assert len(hex_part) == 32
         int(hex_part, 16)
 

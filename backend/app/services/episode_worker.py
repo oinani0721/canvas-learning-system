@@ -542,10 +542,15 @@ class GraphitiEpisodeWorker:
         if self._graphiti is None:
             raise RuntimeError("Graphiti client not initialized")
 
+        # P0-5 (2026-05-14): Canvas D16 group_id 用冒号分隔 (vault:cs_61b:subj),
+        # 但 Graphiti 上游 validator 拒绝冒号。在 Graphiti 边界 sanitize 为
+        # 双下划线分隔形式 (vault__cs_61b__subj)，Canvas 业务逻辑保持 D16 不变。
+        from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+
         kwargs: dict[str, Any] = {
             "name": task.name,
             "episode_body": task.episode_body,
-            "group_id": task.group_id,
+            "group_id": sanitize_group_id_for_graphiti(task.group_id),
             "source_description": task.source_description,
             "reference_time": task.reference_time,
         }

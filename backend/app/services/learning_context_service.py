@@ -193,8 +193,59 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
                         "annotated_at": mem.get("timestamp", ""),
                     }
                 )
-    except (RuntimeError, ConnectionError, ImportError, AttributeError) as e:
+    except (RuntimeError, ConnectionError, ImportError, AttributeError, TypeError) as e:
         logger.debug("LearningMemoryClient unavailable for %s: %s", node_id, e)
+
+    # Plan A (2026-05-14): 第 3 source — 从 .md frontmatter tips[] 读
+    # Story 2.4 Plan A: frontmatter 是真相源。plugin FrontmatterTipsSync 把 callout
+    # 自动同步到本地 .md 文件的 frontmatter.tips[] (含 text/tag/understanding/added_at/source)。
+    # backend 在此把 frontmatter tips 加入返回, 让上下文注入 / 出题等下游消费方
+    # 看到用户最新批注 — 无 Graphiti / Gemini 依赖。
+    try:
+        import yaml
+        from pathlib import Path
+        from app.config import settings
+
+        canvas_base = (
+            getattr(settings, "CANVAS_BASE_PATH", None) or "/vaults/canvas-vault"
+        )
+        for prefix in ("节点", "原白板"):
+            md_path = Path(canvas_base) / prefix / f"{node_id}.md"
+            if not md_path.exists():
+                continue
+            text = md_path.read_text(encoding="utf-8")
+            if not text.startswith("---"):
+                break
+            parts = text.split("---", 2)
+            if len(parts) < 3:
+                break
+            fm = yaml.safe_load(parts[1]) or {}
+            fm_tips = fm.get("tips", [])
+            if not isinstance(fm_tips, list):
+                break
+            existing_contents = {t["content"] for t in tips}
+            for ft in fm_tips:
+                if not isinstance(ft, dict):
+                    continue
+                ft_text = ft.get("text", "")
+                if (
+                    ft_text
+                    and ft_text not in existing_contents
+                    and len(tips) < MAX_TIPS
+                ):
+                    tips.append(
+                        {
+                            "content": ft_text,
+                            "category": (
+                                f"{ft.get('tag', 'tips')}/{ft.get('understanding', '')}"
+                            ).strip("/"),
+                            "annotated_at": ft.get("added_at", ""),
+                        }
+                    )
+                    existing_contents.add(ft_text)
+            break
+    except (OSError, yaml.YAMLError, ImportError) as e:
+        logger.debug("Plan A frontmatter tips unavailable for %s: %s", node_id, e)
 
     return tips, errors
 
@@ -308,7 +359,13 @@ async def _fetch_inherited_context(node_id: str, group_id: str) -> list[dict]:
             }
             for ctx in inherited
         ]
-    except (RuntimeError, ConnectionError, asyncio.TimeoutError, AttributeError) as e:
+    except (
+        RuntimeError,
+        ConnectionError,
+        asyncio.TimeoutError,
+        AttributeError,
+        TypeError,
+    ) as e:
         logger.warning("Failed to fetch inherited context for %s: %s", node_id, e)
         return list()
 

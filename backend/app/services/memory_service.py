@@ -1267,11 +1267,27 @@ class MemoryService:
                 )
 
         # Phase 2: Enqueue to GraphitiEpisodeWorker
+        # P0-2a (2026-05-13): source_description 对齐 memory_format.py canonical schema
+        # 修复 G3 — reader (question_generator._get_tips / _get_error_history) 之前查
+        # 'tip' / 'error_record'，writer 写 'canvas_learning:learning_tip'，永远查不到。
+        # 现在已知 event_type 走 canonical ('learning-tip-record' / 等），未知 event_type
+        # 走 fallback 保持向后兼容（react_agent / mcp tools 不受影响）。
+        from app.core.memory_format import (
+            entity_type_from_event,
+            get_source_description,
+        )
+
+        canonical_entity_type = entity_type_from_event(event_type)
+        canonical_source_desc = (
+            get_source_description(canonical_entity_type)
+            if canonical_entity_type
+            else f"canvas_learning:{event_type}"
+        )
         self._enqueue_episode(
             name=f"{event_type}:{meta.get('title', content[:40])}",
             episode_body=content,
             group_id=resolved_group_id,
-            source_description=f"canvas_learning:{event_type}",
+            source_description=canonical_source_desc,
             entity_types=CANVAS_ENTITY_TYPES,
             edge_types=CANVAS_EDGE_TYPES,
         )
@@ -1281,6 +1297,71 @@ class MemoryService:
             f"group={resolved_group_id}"
         )
         return entity_id
+
+    async def find_episode_by_content_hash(
+        self,
+        node_id: str,
+        content_hash: str,
+        group_id: Optional[str] = None,
+    ) -> bool:
+        """Story 2.4 Plan B Phase 3 (2026-05-14): 幂等查询。
+
+        Check if a callout with given content_hash already exists in Neo4j for
+        the given node_id. Used by /api/v1/tips/batch to skip duplicates and
+        avoid creating redundant Graphiti episodes when user re-saves the
+        same file without changing callouts.
+
+        Args:
+            node_id: Canvas node id (file basename).
+            content_hash: SHA256 hex of node_id|tag|understanding|content.
+            group_id: Optional namespace filter.
+
+        Returns:
+            True if an EpisodicNode with this content_hash exists (skip),
+            False if not (proceed to create new episode).
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            from app.clients.neo4j_client import get_neo4j_client
+            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+
+            client = get_neo4j_client()
+            resolved_group_id = group_id or DEFAULT_GROUP_ID
+            # Graphiti EpisodicNode stores sanitized group_id (P0-5 边界 sanitize)
+            graphiti_group_id = sanitize_group_id_for_graphiti(resolved_group_id)
+
+            # P0-7 (2026-05-14): Graphiti 不持久化 metadata 到 EpisodicNode。
+            # tips.py batch_sync 把 content_hash 内嵌为 [hash:abc123] 后缀写到
+            # content 字段，这里用 CONTAINS 匹配前 16 hex chars。
+            hash_marker = f"[hash:{content_hash[:16]}]"
+            query = """
+            MATCH (e:Episodic)
+            WHERE (e.group_id = $group_id OR e.group_id = $graphiti_group_id)
+              AND e.source_description = 'callout-annotation-record'
+              AND e.content CONTAINS $hash_marker
+            RETURN count(e) AS cnt
+            LIMIT 1
+            """
+            records = await client.run_query(
+                query,
+                group_id=resolved_group_id,
+                graphiti_group_id=graphiti_group_id,
+                hash_marker=hash_marker,
+            )
+            for record in records or []:
+                data = record if isinstance(record, dict) else record.data()
+                cnt = data.get("cnt", 0)
+                if cnt > 0:
+                    return True
+            return False
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+            logger.debug(
+                f"[Story 2.4 batch] find_episode_by_content_hash failed (non-fatal): {e}"
+            )
+            # 失败时 fail-open — 允许 batch 继续（重复同步比丢失数据更可接受）
+            return False
 
     # Search config recipe mapping: string name → SearchConfig object
     _SEARCH_RECIPES: Dict[
@@ -1356,10 +1437,15 @@ class MemoryService:
             # Create a copy with updated limit
             config_with_limit = config_obj.model_copy(update={"limit": limit})
 
+            # P0-5 (2026-05-14): sanitize group_id at Graphiti boundary
+            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+
             search_kwargs: Dict[str, Any] = {
                 "query": query,
                 "config": config_with_limit,
-                "group_ids": [group_id] if group_id else None,
+                "group_ids": (
+                    [sanitize_group_id_for_graphiti(group_id)] if group_id else None
+                ),
             }
             if search_filter is not None:
                 search_kwargs["search_filter"] = search_filter
@@ -1431,10 +1517,15 @@ class MemoryService:
         if not worker.is_ready or worker._graphiti is None:
             return list()
         try:
+            # P0-5 (2026-05-14): sanitize group_id at Graphiti boundary
+            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+
             results = await asyncio.wait_for(
                 worker._graphiti.search(
                     query=query,
-                    group_ids=[group_id] if group_id else None,
+                    group_ids=(
+                        [sanitize_group_id_for_graphiti(group_id)] if group_id else None
+                    ),
                     num_results=limit,
                 ),
                 timeout=2.0,
@@ -1555,8 +1646,18 @@ class MemoryService:
             ORDER BY score DESC
             LIMIT $limit
             """
+            # MVP-α fix (2026-05-15): escape Lucene 特殊字符防 ParseException
+            # 节点名含 ( ) [ ] 等会让 Lucene parser 抛 ClientError, 之前吞掉下游 fallback.
+            import re
+
+            safe_query = re.sub(r'([+\-!(){}\[\]^"~*?:\\/])', r"\\\1", query or "")
+            safe_query = safe_query.replace("&&", r"\&\&").replace("||", r"\|\|")
+
             records = await self.neo4j.run_query(
-                cypher, search_term=query, group_id=group_id, limit=limit
+                cypher,
+                search_term=safe_query,
+                group_id=group_id,
+                limit=limit,
             )
             episodes = []
             for r in records if records else list():
@@ -1574,7 +1675,13 @@ class MemoryService:
                     }
                 )
             return episodes
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            asyncio.TimeoutError,
+            neo4j.exceptions.ClientError,  # MVP-α fix: Lucene ParseException
+            neo4j.exceptions.Neo4jError,
+        ) as e:
             logger.debug(f"Neo4j fulltext search failed (non-fatal): {e}")
             return list()  # fulltext index may not exist yet
 
