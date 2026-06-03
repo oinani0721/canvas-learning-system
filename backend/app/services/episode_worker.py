@@ -561,6 +561,26 @@ class GraphitiEpisodeWorker:
 
         await self._graphiti.add_episode(**kwargs)
 
+        # 5-ge-2 Phase B: 演化型事件 (callout 改写/删除、wikilink 删除、error、calibration)
+        # 在 add_episode 成功后旁路维护 belief 时序版本链 (旧版 invalid_at + 新版 active)。
+        # 双层解耦: belief 旁路失败非致命, 不回滚主 episode 写入; belief 业务不泄漏进 worker。
+        from app.graphiti.canvas_episode import EVOLUTION_EVENT_TYPES
+
+        if task.metadata.get("event_type") in EVOLUTION_EVENT_TYPES:
+            try:
+                from app.services.graphiti_belief_service import (
+                    maybe_update_belief_from_task,
+                )
+
+                await maybe_update_belief_from_task(self._graphiti, task)
+            except Exception as e:  # noqa: BLE001 — belief 旁路失败不阻断主写入
+                # 审查 M4: 带 belief_key/event_type 便于后续对账补偿 (旁路无重试)
+                logger.warning(
+                    "belief chain update skipped (non-fatal): "
+                    f"event_type={task.metadata.get('event_type')} "
+                    f"belief_key={task.metadata.get('belief_key')} err={e}"
+                )
+
     async def _handle_failure(self, task: EpisodeTask, error: Exception) -> None:
         """Handle a failed episode: retry with backoff or dead-letter."""
         if task.can_retry:
