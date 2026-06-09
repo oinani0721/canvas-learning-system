@@ -1292,11 +1292,85 @@ class MemoryService:
             edge_types=CANVAS_EDGE_TYPES,
         )
 
+        # Fix-D (2026-06-10): 同步直写一个 node_id-keyed EpisodicNode, 让检验白板
+        # question_generator._get_tips / _get_error_history 能按 node_id 精确查到。
+        # 根因 GAP-D: Graphiti add_episode 路径不传 node_id (EpisodicNode 无顶层
+        # node_id), 直接 record_episode 写的是 User-LEARNED-Concept — 两者都产不出
+        # _get_tips 能查的 EpisodicNode{source_description, node_id}。
+        # verify_targeted_exam_chain.py Layer 1 已证明: 写出此形状即可被检验白板读到。
+        node_id_for_exam = meta.get("node_id", "")
+        if node_id_for_exam and canonical_entity_type:
+            try:
+                await self._write_exam_queryable_episode(
+                    entity_id=entity_id,
+                    node_id=node_id_for_exam,
+                    source_description=canonical_source_desc,
+                    content=content,
+                    created_at=episode["timestamp"],
+                    group_id=resolved_group_id,
+                    error_type=meta.get("error_type"),
+                )
+            except Exception as e:  # noqa: BLE001 — 非致命, 不阻断主写入
+                logger.warning(
+                    f"[Fix-D] exam-queryable EpisodicNode write failed (non-fatal): {e}"
+                )
+
         logger.info(
             f"[Story 3.6] Recorded {event_type}: id={entity_id} "
             f"group={resolved_group_id}"
         )
         return entity_id
+
+    async def _write_exam_queryable_episode(
+        self,
+        *,
+        entity_id: str,
+        node_id: str,
+        source_description: str,
+        content: str,
+        created_at: str,
+        group_id: str,
+        error_type: Optional[str] = None,
+    ) -> bool:
+        """Fix-D: 直写一个供检验白板按 node_id 精确查的 EpisodicNode。
+
+        question_generator._get_tips 查 `EpisodicNode WHERE source_description IN
+        [canonical] AND node_id = $node_id` 返回 e.content;
+        _get_error_history 额外读 e.error_type / e.description。本方法确保写出的节点
+        同时带 source_description + 顶层 node_id (+ 错误时带 error_type/description)。
+
+        用确定性 uuid (node_id|source_description|content) MERGE → 同一批注重存幂等,
+        不与 Graphiti add_episode 自建节点冲突 (uuid 不同, 各管各)。
+        """
+        deterministic_uuid = (
+            "exam-ep-"
+            + hashlib.sha256(
+                f"{node_id}|{source_description}|{content}".encode("utf-8")
+            ).hexdigest()[:24]
+        )
+        await self.neo4j.run_query(
+            """
+            MERGE (e:EpisodicNode {uuid: $uuid})
+            SET e.node_id = $node_id,
+                e.source_description = $source_description,
+                e.content = $content,
+                e.created_at = $created_at,
+                e.group_id = $group_id,
+                e.entity_id = $entity_id,
+                e.error_type = $error_type,
+                e.description = $description
+            """,
+            uuid=deterministic_uuid,
+            node_id=node_id,
+            source_description=source_description,
+            content=content,
+            created_at=created_at,
+            group_id=group_id,
+            entity_id=entity_id,
+            error_type=error_type,
+            description=content if error_type else None,
+        )
+        return True
 
     async def find_episode_by_content_hash(
         self,
