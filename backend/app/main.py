@@ -307,6 +307,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             f"endpoints will degrade until manual /wikilink/build): {e}"
         )
 
+    # ✅ Fix-E1 (2026-06-10): 搭车扫 vault markdown, 把节点 frontmatter relationships[]
+    # 同步成 Neo4j CANVAS_EDGE{label=原因}, 让检验白板 _get_edge_reasons 能拿到"用户为什么
+    # 拉出这个节点"的原因 (GAP-E: 降级后 .canvas 边同步失效, 原因边写入路径缺失)。
+    try:
+        from app.services.node_relationship_sync_service import (
+            get_node_relationship_sync_service,
+        )
+
+        rel_svc = get_node_relationship_sync_service()
+        rel_result = await rel_svc.sync(settings.canvas_base_path)
+        logger.info(
+            f"[Fix-E1] 节点原因边同步: "
+            f"{rel_result['nodes_with_relationships']} nodes, "
+            f"{rel_result['edges_synced']} edges, "
+            f"{rel_result['failed']} failed"
+        )
+    except Exception as e:
+        logger.warning(f"[Fix-E1] 节点原因边同步 failed (non-fatal): {e}")
+
     yield  # Application runs here
 
     # Shutdown
