@@ -26,6 +26,7 @@ import asyncio
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 # standalone 脚本: 把 backend 根加进 path (scripts/ 的父目录), 否则 import app 失败
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -236,6 +237,49 @@ async def layer2_write_reality(client) -> None:
         warn("可在后端完整启动 (worker + Gemini) 后重跑本层。")
 
 
+async def layer3_node_spawn_reason(client) -> bool:
+    """Layer 3 (GAP-E): 临时 vault md frontmatter relationships → sync → _get_edge_reasons。
+
+    模拟用户拉新节点标原因 → Fix-E1 后端扫描 → 检验白板读到原因。
+    """
+    import shutil
+    import tempfile
+
+    header("Layer 3 — 节点增殖原因边 (frontmatter → Fix-E1 sync → _get_edge_reasons)")
+    reason = "base case 是 recursion 的前置 — 我为此拉出这个节点"
+    tmpdir = tempfile.mkdtemp(prefix="e2e_probe_vault_")
+    try:
+        md = Path(tmpdir) / f"{T_NODE}.md"
+        md.write_text(
+            "---\n"
+            "type: concept\n"
+            "relationships:\n"
+            "  - type: prerequisite\n"
+            f'    target: "[[{T_NODE2}]]"\n'
+            f"    description: {reason}\n"
+            "---\n\n选中文本派生而来。\n",
+            encoding="utf-8",
+        )
+
+        from app.services.node_relationship_sync_service import (
+            get_node_relationship_sync_service,
+        )
+
+        result = await get_node_relationship_sync_service().sync(tmpdir)
+        print(f"  Fix-E1 sync: {result}")
+
+        from app.services.question_generator import QuestionGenerator
+
+        reasons = await QuestionGenerator()._get_edge_reasons(T_NODE)
+        if reason in reasons:
+            ok(f"_get_edge_reasons 读到节点增殖原因: {reasons}")
+            return True
+        fail(f"_get_edge_reasons 没读到同步的原因 (得到: {reasons})")
+        return False
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 async def main() -> int:
     from app.clients.neo4j_client import get_neo4j_client
 
@@ -255,6 +299,7 @@ async def main() -> int:
         await probe0_real_data_census(client)
         l1 = await layer1_read_correctness(client)
         await layer2_write_reality(client)
+        l3 = await layer3_node_spawn_reason(client)
     finally:
         await _cleanup(client)
         print(f"\n{GREEN}probe 数据已清理。{RESET}")
@@ -263,10 +308,11 @@ async def main() -> int:
     print("  · Probe 0 = 你真实图谱里累积批注的可查性 (GAP-D 现实证据)")
     print("  · Layer 1 = 读查询本身对不对 (数据形状正确时能否取到)")
     print("  · Layer 2 = 真实写入端产出的形状对不对 (GAP-D 写侧根因)")
+    print("  · Layer 3 = 节点增殖原因边写→读 (GAP-E: Fix-E1 frontmatter→CANVAS_EDGE)")
     print(
         "  若 Layer 1 ✅ 但 Probe0/Layer2 ❌ → 读对、写断 → 修写入端补 node_id 即可打通主链。"
     )
-    return 0 if l1 else 1
+    return 0 if (l1 and l3) else 1
 
 
 if __name__ == "__main__":
