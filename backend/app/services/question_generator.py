@@ -1002,133 +1002,60 @@ class QuestionGenerator:
             )
             return 0.5, "neo4j_unavailable"
 
-    async def _get_tips(self, node_id: str) -> List[str]:
-        """Get user-annotated Tips from Graphiti for a node.
+    # ═══ GRAPHITI-NATIVE Phase 3 (2026-06-10) ═══════════════════════════════
+    # 四个 ACP 读取器从裸 Cypher 改为 graphiti_memory_reader 精确读。
+    # 旧实现的 G-FAKE 致命错配 (两轮对抗审查确认): 查 :EpisodicNode{node_id},
+    # 但 Graphiti add_episode 写的是 :Episodic (无 Node 后缀) 且 SET n={9字段}
+    # 无 node_id → 恒为空集。新实现读 structured_writer 写入的
+    # :Entity-[RELATES_TO]->:Entity canonical 图 (active-only + relation 方向过滤)。
+    # 历史 vault 数据由 Phase 4.5 backfill 重放进新图。
 
-        P0-2b (2026-05-13): source_description 对齐 memory_format.py canonical:
-        - 'learning-tip-record' (LearningTip, Story 3.6 侧栏 tip)
-        - 'callout-annotation-record' (CalloutAnnotation, Story 1.16 白板 callout)
-        之前查 'tip' 永远 0 命中（无 writer 写此值）。
-        """
+    def _graphiti_driver(self):
+        """取 Graphiti driver (结构化图所在); 未就绪返回 None → 读取降级为空。"""
         try:
-            from app.clients.neo4j_client import get_neo4j_client
+            from app.services.episode_worker import get_episode_worker
 
-            client = get_neo4j_client()
-            query = """
-            MATCH (e:EpisodicNode)
-            WHERE e.source_description IN ['learning-tip-record', 'callout-annotation-record']
-              AND e.node_id = $node_id
-            RETURN e.content AS content
-            ORDER BY e.created_at DESC
-            LIMIT 5
-            """
-            records = await client.run_query(query, node_id=node_id)
-            tips: List[str] = list()
-            for record in records or list():
-                data = record if isinstance(record, dict) else record.data()
-                content = data.get("content", "")
-                if content:
-                    tips.append(content)
-            return tips
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-            logger.debug(f"[Story 6.3] Failed to get tips: {e}")
+            graphiti = getattr(get_episode_worker(), "_graphiti", None)
+            return graphiti.driver if graphiti is not None else None
+        except Exception as e:  # noqa: BLE001 — 读侧降级, 不炸 ACP
+            logger.debug(f"[Story 6.3] graphiti driver unavailable: {e}")
+            return None
+
+    async def _get_tips(self, node_id: str) -> List[str]:
+        """累积批注 (structured_writer source=callout 自环边)。"""
+        driver = self._graphiti_driver()
+        if driver is None:
             return list()
+        from app.services.graphiti_memory_reader import read_node_tips
+
+        return await read_node_tips(driver, node_id)
 
     async def _get_error_history(self, node_id: str) -> List[Dict[str, str]]:
-        """Get 4-type error history from Graphiti for a node.
-
-        P0-2c (2026-05-13): source_description 对齐 memory_format.py canonical
-        4 类错误 entity types:
-        - misconception-record (Misconception)
-        - problem-trap-record (ProblemTrap)
-        - logical-fallacy-record (LogicalFallacy)
-        - guided-thinking-record (GuidedThinking)
-        之前查 'error_record' 永远 0 命中（无 writer 写此值）。
-        """
-        try:
-            from app.clients.neo4j_client import get_neo4j_client
-
-            client = get_neo4j_client()
-            query = """
-            MATCH (e:EpisodicNode)
-            WHERE e.source_description IN [
-                'misconception-record',
-                'problem-trap-record',
-                'logical-fallacy-record',
-                'guided-thinking-record'
-            ]
-              AND e.node_id = $node_id
-            RETURN e.error_type AS error_type, e.description AS description
-            ORDER BY e.created_at DESC
-            LIMIT 4
-            """
-            records = await client.run_query(query, node_id=node_id)
-            errors: List[Dict[str, str]] = list()
-            for record in records or list():
-                data = record if isinstance(record, dict) else record.data()
-                errors.append(
-                    {
-                        "error_type": data.get("error_type", "unknown"),
-                        "description": data.get("description", ""),
-                    }
-                )
-            return errors
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-            logger.debug(f"[Story 6.3] Failed to get error history: {e}")
+        """错误史 (structured_writer source=error 自环边)。"""
+        driver = self._graphiti_driver()
+        if driver is None:
             return list()
+        from app.services.graphiti_memory_reader import read_node_errors
+
+        return await read_node_errors(driver, node_id)
 
     async def _get_edge_reasons(self, node_id: str) -> List[str]:
-        """Get edge relationship reasons for a node.
-
-        FR-KG-04 fix: Aligned to SyncService write schema. SyncService stores
-        edge labels in ``CANVAS_EDGE.label``; the previous query read
-        ``r.rationale`` (a field never written by any active path) so this
-        always returned an empty list, depriving the LLM of relationship
-        semantics for question generation.
-        """
-        try:
-            from app.clients.neo4j_client import get_neo4j_client
-
-            client = get_neo4j_client()
-            query = """
-            MATCH (n:CanvasNode {id: $node_id})-[r:CANVAS_EDGE]->(m:CanvasNode)
-            WHERE r.label IS NOT NULL AND r.label <> ''
-            RETURN r.label AS rationale
-            LIMIT 5
-            """
-            records = await client.run_query(query, node_id=node_id)
-            reasons: List[str] = list()
-            for record in records or list():
-                data = record if isinstance(record, dict) else record.data()
-                rationale = data.get("rationale", "")
-                if rationale:
-                    reasons.append(rationale)
-            return reasons
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-            logger.debug(f"[Story 6.3] Failed to get edge reasons: {e}")
+        """节点增殖原因 (structured_writer source=relation 出边, D9 方向过滤)。"""
+        driver = self._graphiti_driver()
+        if driver is None:
             return list()
+        from app.services.graphiti_memory_reader import read_node_edge_reasons
+
+        return await read_node_edge_reasons(driver, node_id)
 
     async def _get_conversation_summary(self, node_id: str) -> str:
-        """Get Tier 2 conversation summary from archive."""
-        try:
-            from app.clients.neo4j_client import get_neo4j_client
+        """最新对话摘要 (structured_writer source=conversation 自环边)。"""
+        driver = self._graphiti_driver()
+        if driver is None:
+            return ""
+        from app.services.graphiti_memory_reader import read_node_conversation_summary
 
-            client = get_neo4j_client()
-            query = """
-            MATCH (e:EpisodicNode)
-            WHERE e.source_description = 'conversation_archive'
-              AND e.node_id = $node_id
-            RETURN e.summary AS summary
-            ORDER BY e.created_at DESC
-            LIMIT 1
-            """
-            records = await client.run_query(query, node_id=node_id)
-            if records:
-                data = records[0] if isinstance(records[0], dict) else records[0].data()
-                return data.get("summary", "")
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-            logger.debug(f"[Story 6.3] Failed to get conversation summary: {e}")
-        return ""
+        return await read_node_conversation_summary(driver, node_id)
 
     def _enforce_token_budget(self, acp: ACPData) -> None:
         """Enforce 3K token budget on ACP data.
