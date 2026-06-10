@@ -154,27 +154,20 @@ async def _find_all_edges_by_belief_key(
 
 
 async def _ensure_entity_node(graphiti: Any, node_name: str, group_id: str) -> str:
-    """按 (name=node_id, group_id) 确定性复用/新建 Entity 节点, 返回其 uuid。
+    """委托 Phase 0 身份层 (GRAPHITI-NATIVE-MEMORY-2026-06-10): 单一 uuid 真相源。
 
-    保证 belief 服务自身跨 run 不分裂: 同 node_id+gid 永远落同一节点 (先 Cypher 查复用,
-    查不到才 uuid5 新建)。
-    ⚠️ 局限 (审查 M2): add_episode 用 LLM 抽取的实体名 + uuid4, 与此处原始 node_id 名不同,
-    两套节点命名空间暂未统一 — belief 边与语义图节点尚未落同一节点 (架构待办, 非本期)。
+    保证 belief 边与 structured_writer 边落同一节点 (uuid5(node_id:gid) 统一映射)。
+    embedder 取自 graphiti 实例 (D8: Neo4j 的 EntityNode.save 无 name_embedding
+    会在 db.create.setNodeVectorProperty 抛 NPE — 实测确认)。
     """
-    driver = graphiti.driver
-    records, _, _ = await driver.execute_query(
-        "MATCH (n:Entity {name: $name, group_id: $group_id}) RETURN n.uuid AS uuid LIMIT 1",
-        name=node_name,
-        group_id=group_id,
-        routing_="r",
+    from app.graphiti.identity_registry import IdentityRegistry
+
+    return await IdentityRegistry.ensure_entity_node(
+        graphiti.driver,
+        node_name,
+        group_id,
+        embedder=getattr(graphiti, "embedder", None),
     )
-    if records:
-        return records[0]["uuid"]
-    # 确定性 uuid5(name:group_id) — 同 name+gid 跨 run 稳定
-    node_uuid = str(uuid5(NAMESPACE_DNS, f"{node_name}:{group_id}"))
-    node = EntityNode(uuid=node_uuid, name=node_name, group_id=group_id)
-    await node.save(driver)
-    return node_uuid
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -216,11 +209,21 @@ async def update_belief_version_chain(
     await _ensure_belief_key_index(driver)
 
     # 1. 旧 active 边 → invalid_at = 新 valid_at + status=superseded
+    embedder = getattr(graphiti, "embedder", None)
     old_edges = await _find_active_edges_by_belief_key(driver, gid, belief_key)
     for old in old_edges:
         old.invalid_at = occurred_at
         old.expired_at = occurred_at
         old.attributes = {**(old.attributes or {}), "status": "superseded"}
+        # D8 实测 (Neo4j): 读回的边 fact_embedding 默认不返回 (须 load_fact_embedding),
+        # 直接 save 会在 setRelationshipVectorProperty 抛 NPE → 先回载/重生成。
+        if old.fact_embedding is None:
+            try:
+                await old.load_fact_embedding(driver)
+            except Exception:  # noqa: BLE001 — 库中真无向量时退 embedder 重生成
+                pass
+        if old.fact_embedding is None and embedder is not None:
+            await old.generate_embedding(embedder)
         await old.save(driver)
 
     # 2. 解析 source/target 节点 (R5: 复用已存在 Entity)
@@ -253,6 +256,8 @@ async def update_belief_version_chain(
             "source": source,
         },
     )
+    if embedder is not None:  # D8: save 不自动 embed, Neo4j 无向量必 NPE
+        await new_edge.generate_embedding(embedder)
     await new_edge.save(driver)
     logger.info(
         "belief chain advanced: bk=%s superseded=%d new_uuid=%s",
