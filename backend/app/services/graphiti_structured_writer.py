@@ -21,13 +21,24 @@ Phase 1 (GRAPHITI-NATIVE-MEMORY-2026-06-10)。
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
 from typing import Any, Optional
+from uuid import NAMESPACE_DNS, uuid5
 
 from graphiti_core.edges import EntityEdge
 
 from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
 from app.graphiti.identity_registry import IdentityRegistry
+
+
+def _deterministic_edge_uuid(kind: str, node_key: str, gid: str, fact: str) -> str:
+    """同 (类型, 节点, group, 内容) → 同 uuid → save 的 MERGE 语义幂等。
+
+    重跑回填 / 重存同文件不重复建边; 内容变了 = 新边 (累积模型)。
+    """
+    fact_hash = hashlib.sha256(fact.encode("utf-8")).hexdigest()[:16]
+    return str(uuid5(NAMESPACE_DNS, f"{kind}:{node_key}:{gid}:{fact_hash}"))
 
 
 async def _save_edge_with_embedding(
@@ -57,6 +68,7 @@ async def _self_loop_edge(
         driver, node_id, gid, embedder=embedder
     )
     edge = EntityEdge(
+        uuid=_deterministic_edge_uuid(name, node_id, gid, fact),  # 幂等
         group_id=gid,
         source_node_uuid=uuid,
         target_node_uuid=uuid,
@@ -173,6 +185,12 @@ async def write_relation_reason(
         driver, target_node_id, gid, embedder=embedder
     )
     edge = EntityEdge(
+        uuid=_deterministic_edge_uuid(
+            relation_type or "RelatedTo",
+            f"{source_node_id}->{target_node_id}",
+            gid,
+            reason,
+        ),  # 幂等
         group_id=gid,
         source_node_uuid=su,
         target_node_uuid=tu,

@@ -77,13 +77,18 @@ async def read_node_errors(
 async def read_node_edge_reasons(
     driver: Any, node_id: str, group_id: Optional[str] = None
 ) -> list[str]:
-    """节点增殖原因 (source=relation), D9 方向过滤: 只取本节点的出边。"""
-    uuid, edges = await _node_uuid_and_active_edges(driver, node_id, group_id)
+    """节点增殖原因 (source=relation), D9 方向过滤: 只取本节点的出边。
+
+    ⚠️ 实测修正 (真实 Neo4j): get_by_node_uuid 的 undirected 查询
+    MATCH (n)-[e]-(m) 把锚点恒映射为 source → 反序列化的 source_node_uuid
+    不可靠。改用 writer 自己写的 attributes.node_id (= 真实持有方/出边源)。
+    """
+    _uuid, edges = await _node_uuid_and_active_edges(driver, node_id, group_id)
     return [
         e.fact
         for e in edges
         if (e.attributes or {}).get("source") == "relation"
-        and e.source_node_uuid == uuid
+        and (e.attributes or {}).get("node_id") == node_id
     ]
 
 

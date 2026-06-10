@@ -206,3 +206,43 @@ async def test_write_belief_version_delegates(monkeypatch):
     assert result == "EDGE"
     assert received["belief_key"] == "callout:n:abc"
     assert received["node_id"] == "n"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 幂等性 (Phase 4.5 回填前置): 同内容→同 uuid (save MERGE 不重复), 改内容→新边
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def test_same_callout_same_uuid_idempotent(capture):
+    kw = dict(
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tip",
+        text="同一条批注",
+        occurred_at=OCCURRED,
+    )
+    e1 = await w.write_callout(object(), None, **kw)
+    e2 = await w.write_callout(object(), None, **kw)
+    assert e1.uuid == e2.uuid  # MERGE on uuid → 重跑回填不重复
+
+
+async def test_changed_text_new_uuid_accretion(capture):
+    e1 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tip",
+        text="v1",
+        occurred_at=OCCURRED,
+    )
+    e2 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tip",
+        text="v2",
+        occurred_at=OCCURRED,
+    )
+    assert e1.uuid != e2.uuid  # 新内容=新边 (累积模型)

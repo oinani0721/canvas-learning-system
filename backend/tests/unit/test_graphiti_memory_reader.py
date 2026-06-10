@@ -52,10 +52,21 @@ def edges_store(monkeypatch):
     store: list[EntityEdge] = []
 
     async def fake_get_by_node_uuid(cls, driver, node_uuid):
-        # 复刻 undirected 语义: 返回 incident 于该 uuid 的全部边
-        return [
-            e for e in store if node_uuid in (e.source_node_uuid, e.target_node_uuid)
-        ]
+        # 忠实复刻真实 Neo4j 行为 (实测发现): MATCH (n)-[e]-(m) undirected,
+        # 反序列化时锚点 n 恒映射为 source_node_uuid — 入边的 source 会被
+        # "翻转"成锚点本身 → source_node_uuid 不可用于方向判断。
+        out = []
+        for e in store:
+            if node_uuid not in (e.source_node_uuid, e.target_node_uuid):
+                continue
+            remapped = e.model_copy()
+            if remapped.source_node_uuid != node_uuid:
+                remapped.source_node_uuid, remapped.target_node_uuid = (
+                    node_uuid,
+                    remapped.source_node_uuid,
+                )
+            out.append(remapped)
+        return out
 
     monkeypatch.setattr(
         EntityEdge, "get_by_node_uuid", classmethod(fake_get_by_node_uuid)
@@ -111,14 +122,20 @@ async def test_read_edge_reasons_direction_filter(edges_store):
         [
             _edge(
                 fact="我为此拉出节点", source="relation", src=MY_UUID, tgt=other
-            ),  # 出边 ✓
+            ),  # 出边 ✓ (attributes.node_id=NODE, writer 写的真实持有方)
             _edge(
-                fact="别人连到我的原因", source="relation", src=other, tgt=MY_UUID
+                fact="别人连到我的原因",
+                source="relation",
+                src=other,
+                tgt=MY_UUID,
+                node_id="lecture 2",  # 入边的真实持有方是对方
             ),  # 入边 ✗
         ]
     )
     reasons = await r.read_node_edge_reasons(object(), NODE, group_id=GID)
-    assert reasons == ["我为此拉出节点"]  # 对齐旧 _get_edge_reasons 只查出边
+    # 方向判定靠 attributes.node_id (实测: undirected 查询会把锚点翻转成 source,
+    # source_node_uuid 不可靠)
+    assert reasons == ["我为此拉出节点"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
