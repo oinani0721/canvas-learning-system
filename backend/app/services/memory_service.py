@@ -42,7 +42,7 @@ import uuid
 
 import structlog
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from cachetools import TTLCache
@@ -1246,51 +1246,96 @@ class MemoryService:
         if len(self._episodes) > self.MAX_EPISODE_CACHE:
             self._episodes = self._episodes[-self.MAX_EPISODE_CACHE :]
 
-        # Write to Neo4j if connected
-        if self.neo4j.stats.get("initialized", False):
-            try:
-                await self.neo4j.record_episode(
-                    {
-                        "episode_id": entity_id,
-                        "user_id": "system",  # Fixed: was incorrectly set to event_type
-                        "canvas_path": "",
-                        "node_id": meta.get("node_id", ""),
-                        "concept": meta.get("title", content[:80]),
-                        "agent_type": event_type,
-                        "timestamp": episode["timestamp"],
-                        "group_id": resolved_group_id,
-                    }
-                )
-            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-                logger.warning(
-                    f"[Story 3.6] Neo4j write for {event_type} failed (non-fatal): {e}"
+        # ═══ GRAPHITI-NATIVE Phase 2 (2026-06-10) ═══════════════════════════
+        # ① 删除 neo4j.record_episode 双写: 该路径实为 MERGE User-LEARNED-Concept,
+        #    丢弃 tip 内容且污染 review 调度 (ChatGPT 对抗审查: G-FAKE 假写)。
+        #    record_episode 方法本身保留 — batch_record_events/record_temporal_event
+        #    等真实学习事件调用方仍用它。
+        # ② 结构化 event (批注/错误/对话摘要) → graphiti_structured_writer 确定性写
+        #    :Entity/RELATES_TO (主路径, 零 LLM, 检验白板可按 node_id 精确读)。
+        #    非结构化 / graphiti 未就绪 / 缺 node_id / 写失败 → 原 add_episode
+        #    队列 (语义通道 fallback, 数据不丢)。
+        structured_written = False
+        node_id_for_exam = meta.get("node_id", "")
+        if node_id_for_exam:
+            worker = get_episode_worker()
+            graphiti = getattr(worker, "_graphiti", None)
+            if graphiti is not None:
+                from app.services.graphiti_structured_writer import (
+                    write_callout,
+                    write_conversation_summary,
+                    write_error,
                 )
 
-        # Phase 2: Enqueue to GraphitiEpisodeWorker
-        # P0-2a (2026-05-13): source_description 对齐 memory_format.py canonical schema
-        # 修复 G3 — reader (question_generator._get_tips / _get_error_history) 之前查
-        # 'tip' / 'error_record'，writer 写 'canvas_learning:learning_tip'，永远查不到。
-        # 现在已知 event_type 走 canonical ('learning-tip-record' / 等），未知 event_type
-        # 走 fallback 保持向后兼容（react_agent / mcp tools 不受影响）。
-        from app.core.memory_format import (
-            entity_type_from_event,
-            get_source_description,
-        )
+                occurred = datetime.now(timezone.utc)
+                try:
+                    if event_type in ("learning_tip", "callout_annotation"):
+                        await write_callout(
+                            graphiti.driver,
+                            graphiti.embedder,
+                            node_id=node_id_for_exam,
+                            group_id=resolved_group_id,
+                            callout_type=meta.get("tag")
+                            or ("tip" if event_type == "learning_tip" else "note"),
+                            text=content,
+                            occurred_at=occurred,
+                        )
+                        structured_written = True
+                    elif event_type in (
+                        "misconception",
+                        "problem_trap",
+                        "logical_fallacy",
+                        "guided_thinking",
+                    ):
+                        await write_error(
+                            graphiti.driver,
+                            graphiti.embedder,
+                            node_id=node_id_for_exam,
+                            group_id=resolved_group_id,
+                            error_type=meta.get("error_type", event_type),
+                            description=content,
+                            occurred_at=occurred,
+                        )
+                        structured_written = True
+                    elif event_type == "conversation_archive":
+                        await write_conversation_summary(
+                            graphiti.driver,
+                            graphiti.embedder,
+                            node_id=node_id_for_exam,
+                            group_id=resolved_group_id,
+                            summary=meta.get("summary") or content,
+                            occurred_at=occurred,
+                        )
+                        structured_written = True
+                except Exception as e:  # noqa: BLE001 — 结构化失败退语义队列保数据
+                    logger.warning(
+                        f"[Graphiti-native] structured write failed for "
+                        f"{event_type} (fallback to episode queue): {e}"
+                    )
+                    structured_written = False
 
-        canonical_entity_type = entity_type_from_event(event_type)
-        canonical_source_desc = (
-            get_source_description(canonical_entity_type)
-            if canonical_entity_type
-            else f"canvas_learning:{event_type}"
-        )
-        self._enqueue_episode(
-            name=f"{event_type}:{meta.get('title', content[:40])}",
-            episode_body=content,
-            group_id=resolved_group_id,
-            source_description=canonical_source_desc,
-            entity_types=CANVAS_ENTITY_TYPES,
-            edge_types=CANVAS_EDGE_TYPES,
-        )
+        if not structured_written:
+            # 语义通道 (add_episode): 非结构化材料 / fallback。
+            # P0-2a (2026-05-13): source_description 对齐 memory_format.py canonical。
+            from app.core.memory_format import (
+                entity_type_from_event,
+                get_source_description,
+            )
+
+            canonical_entity_type = entity_type_from_event(event_type)
+            canonical_source_desc = (
+                get_source_description(canonical_entity_type)
+                if canonical_entity_type
+                else f"canvas_learning:{event_type}"
+            )
+            self._enqueue_episode(
+                name=f"{event_type}:{meta.get('title', content[:40])}",
+                episode_body=content,
+                group_id=resolved_group_id,
+                source_description=canonical_source_desc,
+                entity_types=CANVAS_ENTITY_TYPES,
+                edge_types=CANVAS_EDGE_TYPES,
+            )
 
         logger.info(
             f"[Story 3.6] Recorded {event_type}: id={entity_id} "
