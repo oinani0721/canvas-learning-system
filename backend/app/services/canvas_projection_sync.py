@@ -41,7 +41,7 @@ def _resolve_node_id(raw: Any) -> str:
     return inner.split("/")[-1].strip().removesuffix(".md")
 
 
-class NodeRelationshipSyncService:
+class CanvasProjectionSync:
     """扫 vault md frontmatter relationships[] → Neo4j CANVAS_EDGE (原因边)。"""
 
     def __init__(self) -> None:
@@ -141,12 +141,12 @@ class NodeRelationshipSyncService:
         )
 
 
-_node_relationship_sync_service: Optional[NodeRelationshipSyncService] = None
+_canvas_projection_sync: Optional[CanvasProjectionSync] = None
 
 
-def get_node_relationship_sync_service() -> NodeRelationshipSyncService:
+def get_canvas_projection_sync() -> CanvasProjectionSync:
     """Singleton accessor。"""
-    global _node_relationship_sync_service
-    if _node_relationship_sync_service is None:
-        _node_relationship_sync_service = NodeRelationshipSyncService()
-    return _node_relationship_sync_service
+    global _canvas_projection_sync
+    if _canvas_projection_sync is None:
+        _canvas_projection_sync = CanvasProjectionSync()
+    return _canvas_projection_sync

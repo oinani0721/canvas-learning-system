@@ -338,11 +338,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 拉出这个节点"的原因 (GAP-E: 降级后 .canvas 边同步失效, 原因边写入路径缺失)。
     # ⚠️ Graphiti-native 重构 Phase 4 将把此服务降级为 canvas_projection_sync (仅 UI 投影)。
     try:
-        from app.services.node_relationship_sync_service import (
-            get_node_relationship_sync_service,
+        from app.services.canvas_projection_sync import (
+            get_canvas_projection_sync,
         )
 
-        rel_svc = get_node_relationship_sync_service()
+        rel_svc = get_canvas_projection_sync()
         rel_result = await rel_svc.sync(settings.canvas_base_path)
         logger.info(
             f"[Fix-E1] 节点原因边同步: "

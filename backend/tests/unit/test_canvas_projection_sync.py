@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from app.services.node_relationship_sync_service import (
-    NodeRelationshipSyncService,
+from app.services.canvas_projection_sync import (
+    CanvasProjectionSync,
     _resolve_node_id,
 )
 
@@ -56,7 +56,7 @@ def _write_node_md(vault: Path, stem: str, body: str) -> None:
 
 
 async def test_sync_writes_edge_with_reason_as_label(tmp_path, monkeypatch):
-    svc = NodeRelationshipSyncService()
+    svc = CanvasProjectionSync()
     cap = CaptureNeo4j()
     monkeypatch.setattr(svc, "_client", lambda: cap)
 
@@ -89,7 +89,7 @@ async def test_sync_writes_edge_with_reason_as_label(tmp_path, monkeypatch):
 
 
 async def test_sync_falls_back_to_type_when_no_description(tmp_path, monkeypatch):
-    svc = NodeRelationshipSyncService()
+    svc = CanvasProjectionSync()
     cap = CaptureNeo4j()
     monkeypatch.setattr(svc, "_client", lambda: cap)
     _write_node_md(
@@ -103,7 +103,7 @@ async def test_sync_falls_back_to_type_when_no_description(tmp_path, monkeypatch
 
 
 async def test_sync_skips_md_without_relationships(tmp_path, monkeypatch):
-    svc = NodeRelationshipSyncService()
+    svc = CanvasProjectionSync()
     cap = CaptureNeo4j()
     monkeypatch.setattr(svc, "_client", lambda: cap)
     _write_node_md(tmp_path, "plain", "---\ntype: concept\n---\n\n无 relationships。\n")
@@ -114,7 +114,7 @@ async def test_sync_skips_md_without_relationships(tmp_path, monkeypatch):
 
 
 async def test_sync_skips_self_loop_and_empty_target(tmp_path, monkeypatch):
-    svc = NodeRelationshipSyncService()
+    svc = CanvasProjectionSync()
     cap = CaptureNeo4j()
     monkeypatch.setattr(svc, "_client", lambda: cap)
     _write_node_md(
@@ -136,7 +136,7 @@ async def test_sync_skips_self_loop_and_empty_target(tmp_path, monkeypatch):
 
 
 async def test_sync_multiple_relationships_one_node(tmp_path, monkeypatch):
-    svc = NodeRelationshipSyncService()
+    svc = CanvasProjectionSync()
     cap = CaptureNeo4j()
     monkeypatch.setattr(svc, "_client", lambda: cap)
     _write_node_md(
@@ -155,7 +155,7 @@ async def test_sync_multiple_relationships_one_node(tmp_path, monkeypatch):
 
 
 async def test_sync_nonexistent_vault_returns_zero(monkeypatch):
-    svc = NodeRelationshipSyncService()
+    svc = CanvasProjectionSync()
     cap = CaptureNeo4j()
     monkeypatch.setattr(svc, "_client", lambda: cap)
     result = await svc.sync("/nonexistent/vault/path/xyz")
@@ -165,7 +165,7 @@ async def test_sync_nonexistent_vault_returns_zero(monkeypatch):
 
 async def test_merge_edge_deterministic_id(tmp_path, monkeypatch):
     """同一 (source, type, target) → 同 edge_id → MERGE 幂等。"""
-    svc = NodeRelationshipSyncService()
+    svc = CanvasProjectionSync()
     cap = CaptureNeo4j()
     await svc._merge_edge(cap, "s", "t", "prerequisite", "原因")
     await svc._merge_edge(cap, "s", "t", "prerequisite", "原因改了")

@@ -542,6 +542,24 @@ class GraphitiEpisodeWorker:
         if self._graphiti is None:
             raise RuntimeError("Graphiti client not initialized")
 
+        # GRAPHITI-NATIVE Phase 4 (D6): add_episode 语义队列收窄为非结构化材料
+        # (对话归档全文/自由文本日志/历史回灌)。结构化事件 (批注/错误/对话摘要)
+        # 主路径已在 memory_service 路由到 graphiti_structured_writer; 它们出现
+        # 在此队列 = fallback (graphiti 未就绪/写失败), 合法但需可观测。
+        _STRUCTURED_SOURCE_DESCS = {
+            "learning-tip-record",
+            "callout-annotation-record",
+            "misconception-record",
+            "problem-trap-record",
+            "logical-fallacy-record",
+            "guided-thinking-record",
+        }
+        if task.source_description in _STRUCTURED_SOURCE_DESCS:
+            logger.info(
+                f"[Graphiti-native D6] structured event in semantic queue "
+                f"(fallback path): {task.name}"
+            )
+
         # P0-5 (2026-05-14): Canvas D16 group_id 用冒号分隔 (vault:cs_61b:subj),
         # 但 Graphiti 上游 validator 拒绝冒号。在 Graphiti 边界 sanitize 为
         # 双下划线分隔形式 (vault__cs_61b__subj)，Canvas 业务逻辑保持 D16 不变。

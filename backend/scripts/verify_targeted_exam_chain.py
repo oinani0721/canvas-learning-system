@@ -261,11 +261,11 @@ async def layer3_node_spawn_reason(client) -> bool:
             encoding="utf-8",
         )
 
-        from app.services.node_relationship_sync_service import (
-            get_node_relationship_sync_service,
+        from app.services.canvas_projection_sync import (
+            get_canvas_projection_sync,
         )
 
-        result = await get_node_relationship_sync_service().sync(tmpdir)
+        result = await get_canvas_projection_sync().sync(tmpdir)
         print(f"  Fix-E1 sync: {result}")
 
         from app.services.question_generator import QuestionGenerator
