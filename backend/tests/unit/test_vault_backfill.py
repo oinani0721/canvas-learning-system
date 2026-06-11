@@ -117,3 +117,45 @@ async def test_execute_calls_writers(tmp_path, monkeypatch):
     assert written["error"][0]["description"] == "写漏了终止条件"
     assert written["relation"][0]["target_node_id"] == "lecture 2"
     assert written["relation"][0]["reason"] == "我想单独讨论这个点"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 实测修复 (2026-06-11): 插件真实输出格式 — 列表嵌套 `* > [!tips]+` + 理解度勾选模板
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def test_extract_list_nested_tips_plural():
+    """用户实际批注格式 (lecture 2.md:89): `* > [!tips]+` 列表嵌套 + tips 复数。"""
+    md = (
+        "* > [!tips]+ 💡 Tips\n"
+        "> - [ ] ✅ 已懂\n"
+        "> - [x] 🤔 模糊\n"
+        "> - [ ] ❌ 不懂\n"
+        ">\n"
+        "> **最大化 (Maximize)**：意味着代理面临选择，并做出决策\n"
+        ">\n"
+        "> ✍️ 我的理解：我对于最大化还是有点不理解。\n"
+    )
+    result = extract_callouts(md)
+    assert len(result) == 1
+    ctype, text = result[0]
+    assert ctype == "tips"
+    # 用户原话必须保留
+    assert "我对于最大化还是有点不理解" in text
+    assert "最大化 (Maximize)" in text
+    # 勾选的理解度保留 (信号), 未勾选的模板行剔除 (噪声)
+    assert "🤔 模糊" in text
+    assert "✅ 已懂" not in text
+    assert "❌ 不懂" not in text
+
+
+def test_extract_two_adjacent_list_nested_callouts():
+    md = (
+        "* > [!tips]+ 💡 Tips\n"
+        "> ✍️ 我的理解：A\n"
+        "* 中间正文行\n"
+        "* > [!tips]+ 💡 Tips\n"
+        "> ✍️ 我的理解：B\n"
+    )
+    result = extract_callouts(md)
+    assert [t for _, t in result] == ["💡 Tips ✍️ 我的理解：A", "💡 Tips ✍️ 我的理解：B"]

@@ -18,13 +18,17 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# callout 头: "> [!tip]+ 标题..." / "> [!question]- ..." / "> [!relation/related_to]+ ..."
-_CALLOUT_HEAD_RE = re.compile(r"^>\s*\[!([\w/-]+)\][+-]?\s*(.*)$")
+# callout 头: "> [!tip]+ ..." 以及插件实际输出的列表嵌套形态 "* > [!tips]+ ..."
+# (实测 2026-06-11: Cmd+Shift+A 在列表项内批注时, Obsidian 写出 `* > [!tips]+`,
+#  tips 为复数 — 旧正则 ^> + 单数词表两个条件都漏掉, 用户批注全部丢失)
+_CALLOUT_HEAD_RE = re.compile(r"^(?:\s*[*+-]\s+)?>\s*\[!([\w/-]+)\][+-]?\s*(.*)$")
 # 回填的批注类型 → (写入通道, 参数)
-_CALLOUT_BACKFILL_TYPES = {"tip", "question", "hint", "note", "warning", "info"}
+_CALLOUT_BACKFILL_TYPES = {"tip", "tips", "question", "hint", "note", "warning", "info"}
 _ERROR_TYPES = {"error"}
 # 跳过: 派生标记(relation/*, 由 frontmatter relationships 回填) / 引用 / 视频等
 _SKIP_PREFIXES = ("relation/", "quote", "video")
+# 理解度勾选模板: 未勾选行是噪声剔除, 勾选行 (- [x] 🤔 模糊) 是信号保留
+_UNCHECKED_TEMPLATE_RE = re.compile(r"^-\s*\[\s\]")
 # 插件脚手架模板 callout (非用户批注, 回填会污染每个派生节点的 tips)
 _TEMPLATE_MARKERS = ("💬 围绕这个概念讨论",)
 
@@ -42,7 +46,8 @@ def extract_callouts(md_text: str) -> list[tuple[str, str]]:
         nonlocal current
         if current is not None:
             ctype, parts = current
-            text = " ".join(p for p in parts if p).strip()
+            kept = [p for p in parts if p and not _UNCHECKED_TEMPLATE_RE.match(p)]
+            text = " ".join(kept).strip()
             if text and not text.startswith(_TEMPLATE_MARKERS):
                 results.append((ctype, text))
             current = None
