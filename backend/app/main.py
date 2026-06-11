@@ -353,6 +353,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"[Fix-E1] 节点原因边同步 failed (non-fatal): {e}")
 
+    # ✅ GRAPHITI-NATIVE Phase 4.5+ (2026-06-11): 启动时回填 vault → Graphiti 结构化图。
+    # 兜底两类离线写入: ① 拉节点理由 (插件只写 frontmatter, 无实时上报) ② 后端
+    # 不在线时打的批注。幂等 (边 uuid=内容hash, MERGE 不重复), 失败非致命。
+    try:
+        from app.config import DEFAULT_GROUP_ID
+        from app.services.episode_worker import get_episode_worker
+        from app.services.vault_backfill import backfill_vault
+
+        _worker_graphiti = getattr(get_episode_worker(), "_graphiti", None)
+        if _worker_graphiti is not None:
+            bf = await backfill_vault(
+                settings.canvas_base_path,
+                _worker_graphiti.driver,
+                getattr(_worker_graphiti, "embedder", None),
+                group_id=DEFAULT_GROUP_ID,
+                execute=True,
+            )
+            logger.info(
+                f"[Graphiti-native] 启动回填: {bf['callouts']} 批注, "
+                f"{bf['errors']} 错误, {bf['relations']} 原因, {bf['failed']} 失败"
+            )
+        else:
+            logger.info("[Graphiti-native] 启动回填跳过 (graphiti 未就绪)")
+    except Exception as e:
+        logger.warning(f"[Graphiti-native] 启动回填 failed (non-fatal): {e}")
+
     yield  # Application runs here
 
     # Shutdown
