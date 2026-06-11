@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   TAG_OPTIONS,
   UNDERSTANDING_OPTIONS,
+  parseCalloutsFromContent,
   wrapSelection,
 } from "../src/callout";
 
@@ -112,4 +113,32 @@ test("wrapSelection: pure whitespace line preserved", () => {
   const tips = TAG_OPTIONS[0];
   const out = wrapSelection("  ", tips, "understood");
   assert.ok(out.endsWith(">\n>   "));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 实测修复 (2026-06-11): 列表嵌套批注 `* > [!tips]+` — 用户真实格式 (lecture 2.md:89)
+// 旧正则锚定 ^> 漏识别 → Plan A frontmatter 同步 + batch 同步 双双静默丢失
+// ═══════════════════════════════════════════════════════════════════════════════
+
+test("parseCalloutsFromContent: list-nested `* > [!tips]+` is recognized", async () => {
+  const md = [
+    "* > [!tips]+ 💡 Tips",
+    "> - [ ] ✅ 已懂",
+    "> - [x] 🤔 模糊",
+    "> - [ ] ❌ 不懂",
+    ">",
+    "> **最大化 (Maximize)**：意味着代理面临选择",
+    ">",
+    "> ✍️ 我的理解：我对于最大化还是有点不理解。",
+  ].join("\n");
+  const result = await parseCalloutsFromContent(md, "lecture 2");
+  assert.equal(result.length, 1);
+  assert.equal(result[0].tag, "tips");
+  assert.match(result[0].content, /我对于最大化还是有点不理解/);
+});
+
+test("parseCalloutsFromContent: plain `> [!tips]+` still works (regression)", async () => {
+  const md = "> [!tips]+ 💡 Tips\n> ✍️ 我的理解：普通格式";
+  const result = await parseCalloutsFromContent(md, "n");
+  assert.equal(result.length, 1);
 });

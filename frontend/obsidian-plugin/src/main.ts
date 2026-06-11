@@ -2528,13 +2528,16 @@ class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> {
     this.editor.setCursor({ line: targetLine, ch: targetCh });
     this.editor.focus();
 
-    // 3) P0-1 (2026-05-13) DEPRECATED 2026-05-14 路径 1 决策:
-    // Plan B 数据入口已禁用 — 不再 POST /api/v1/tips。
-    // Plan A 改由 FrontmatterTipsSync 监听 vault.on('modify') 写 frontmatter
-    // tips[] 直接到本地 .md, 无 backend call. 见 plan-b-postmortem.md
-    //
-    // void this.plugin.saveCalloutToBackend(
-    //   this.selected, this.tag, und.value as UnderstandingValue,
-    // );
+    // 3) 实时同步到个人记忆 (RE-ENABLED 2026-06-11, GRAPHITI-NATIVE-MEMORY 计划):
+    // P0-1 曾于 2026-05-14 废弃 (plan-b postmortem) — 但该决策前提是"后端管道
+    // G-FAKE 断裂, POST 了也进不了记忆"。2026-06-10 后端已重构为 Graphiti-native
+    // (memory_service 结构化路由 → :Entity/RELATES_TO, e2e 10/10 验证), 前提失效。
+    // 恢复实时 POST = 用户批注即刻进时序记忆 (用户核心诉求: 打批注→读回原话)。
+    // 失败非致命 (callBackend 内部 Notice), vault 回填脚本兜底离线场景。
+    void this.plugin.saveCalloutToBackend(
+      this.selected,
+      this.tag,
+      und.value as UnderstandingValue,
+    );
   }
 }

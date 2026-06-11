@@ -85,8 +85,12 @@ export async function parseCalloutsFromContent(
     //   - 4 个复数 tag 是 "用户保留" 命名空间, 模板不准用
     //
     // 见 _bmad-output/research/2026-05-14-plan-b-postmortem.md
+    //
+    // 实测修复 (2026-06-11, 与后端 F6 同款): 用户在列表项内批注时, Obsidian 写出
+    // `* > [!tips]+` 带列表前缀 — 旧正则锚定 ^> 漏识别, 用户批注全部静默丢失。
+    // 头部允许可选列表前缀 (*/+/- + 空格); body 续行同样兼容。
     const headerMatch = lines[i].match(
-      /^>\s*\[!(tips|error|question|keypoint)\][+-]\s*(.*)$/i,
+      /^(?:\s*[*+-]\s+)?>\s*\[!(tips|error|question|keypoint)\][+-]\s*(.*)$/i,
     );
     if (!headerMatch) {
       i++;
