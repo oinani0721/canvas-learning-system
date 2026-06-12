@@ -41,6 +41,32 @@ def _deterministic_edge_uuid(kind: str, node_key: str, gid: str, fact: str) -> s
     return str(uuid5(NAMESPACE_DNS, f"{kind}:{node_key}:{gid}:{fact_hash}"))
 
 
+def canonical_callout_fact(
+    callout_type: str, understanding: Optional[str], body: str
+) -> str:
+    """三通道统一的批注存储格式 (去重修复 2026-06-13)。
+
+    此前即时上报/停笔同步/启动回填各自包装 ("Tip:…|Content:…" /
+    "Callout […]: … | [hash:…]" / "💡 Tips - [x] …") → 同一批注三个指纹
+    三条边。writer 持有唯一格式, 调用方一律传裸文本。
+    """
+    head = f"[{callout_type}·{understanding}]" if understanding else f"[{callout_type}]"
+    return f"{head} {body}"
+
+
+def _identity_first_line(text: str) -> str:
+    """批注的逻辑身份 = 首个非空行 (= 用户选中的文本, 三通道天然一致)。
+
+    同一批注的不同版本 (即时上报的'仅选中' → 停笔同步的'含我的理解全文')
+    → 同身份 → 同 uuid → MERGE 原地升级为最新最全, 不并排存多条。
+    新批注 (不同选中文本) → 新身份 → 累积模型不受影响。
+    """
+    for line in text.splitlines():
+        if line.strip():
+            return line.strip()
+    return text
+
+
 async def _save_edge_with_embedding(
     edge: EntityEdge, driver: Any, embedder: Optional[Any]
 ) -> EntityEdge:
@@ -61,14 +87,19 @@ async def _self_loop_edge(
     fact: str,
     occurred_at: datetime,
     attributes: dict[str, Any],
+    identity_text: Optional[str] = None,
 ) -> EntityEdge:
-    """callout/error/conversation 的自环建模: 节点对自身的陈述。"""
+    """callout/error/conversation 的自环建模: 节点对自身的陈述。
+
+    identity_text 给定时, uuid 按逻辑身份 (节点+批注首行) 而非全文指纹 —
+    同一批注的版本演进 (选中→续写全文) MERGE 原地升级, 不并排存多条。
+    """
     gid = sanitize_group_id_for_graphiti(group_id)  # C-3 边界 sanitize
     uuid = await IdentityRegistry.ensure_entity_node(
         driver, node_id, gid, embedder=embedder
     )
     edge = EntityEdge(
-        uuid=_deterministic_edge_uuid(name, node_id, gid, fact),  # 幂等
+        uuid=_deterministic_edge_uuid(name, node_id, gid, identity_text or fact),
         group_id=gid,
         source_node_uuid=uuid,
         target_node_uuid=uuid,
@@ -91,21 +122,28 @@ async def write_callout(
     callout_type: str,
     text: str,
     occurred_at: datetime,
+    understanding: Optional[str] = None,
 ) -> EntityEdge:
-    """用户批注 → 自环 SelfAnnotation 边 (fact=批注正文)。"""
+    """用户批注 → 自环 SelfAnnotation 边。
+
+    text 必须是裸批注正文 (选中文本 + 续写, 无通道包装) — 存储格式由
+    canonical_callout_fact 统一; 身份 = 节点 + 首行 (同批注版本自动合并)。
+    """
     return await _self_loop_edge(
         driver,
         embedder,
         node_id=node_id,
         group_id=group_id,
         name="SelfAnnotation",
-        fact=text,
+        fact=canonical_callout_fact(callout_type, understanding, text),
         occurred_at=occurred_at,
         attributes={
             "source": "callout",
             "event_type": "callout_added",
             "callout_type": callout_type,
+            "understanding": understanding,
         },
+        identity_text=_identity_first_line(text),
     )
 
 

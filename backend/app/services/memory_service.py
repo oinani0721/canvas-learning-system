@@ -1270,15 +1270,28 @@ class MemoryService:
                 occurred = datetime.now(timezone.utc)
                 try:
                     if event_type in ("learning_tip", "callout_annotation"):
+                        # 去重修复 (2026-06-13): 优先 meta['content'] (裸正文,
+                        # 三通道一致) — content 参数可能带通道包装 ("Tip:…|" 等),
+                        # 包装差异曾让同一批注三个指纹三条边。understanding 从
+                        # meta 直取或解析 tags 列表 ("understanding:fuzzy")。
+                        understanding = meta.get("understanding")
+                        callout_type = meta.get("tag")
+                        for t in meta.get("tags") or []:  # modal 把两者编进 tags 列表
+                            s = str(t)
+                            if not understanding and s.startswith("understanding:"):
+                                understanding = s.split(":", 1)[1]
+                            elif not callout_type and s.startswith("tag:"):
+                                callout_type = s.split(":", 1)[1]
                         await write_callout(
                             graphiti.driver,
                             graphiti.embedder,
                             node_id=node_id_for_exam,
                             group_id=resolved_group_id,
-                            callout_type=meta.get("tag")
+                            callout_type=callout_type
                             or ("tip" if event_type == "learning_tip" else "note"),
-                            text=content,
+                            text=meta.get("content") or content,
                             occurred_at=occurred,
+                            understanding=understanding or None,
                         )
                         structured_written = True
                     elif event_type in (

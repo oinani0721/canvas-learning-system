@@ -62,7 +62,7 @@ async def test_write_callout_self_loop_with_attributes(capture):
     assert capture == [edge]
     assert edge.source_node_uuid == edge.target_node_uuid == "uuid-recursion"  # 自环
     assert edge.name == "SelfAnnotation"
-    assert edge.fact == "先想 base case"
+    assert edge.fact == "[tip] 先想 base case"  # 规范格式 (无 understanding)
     assert edge.group_id == "vault__cs_61b__rec"  # C-3 sanitize 真用
     assert edge.valid_at == OCCURRED and edge.invalid_at is None
     a = edge.attributes
@@ -246,3 +246,73 @@ async def test_changed_text_new_uuid_accretion(capture):
         occurred_at=OCCURRED,
     )
     assert e1.uuid != e2.uuid  # 新内容=新边 (累积模型)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 去重修复 (2026-06-13): 规范 fact + 逻辑身份 (节点+批注首行) — 三通道合一
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def test_canonical_fact_format(capture):
+    """writer 持有唯一格式: [类型·理解度] 裸文本 — 调用方不再各自包装。"""
+    edge = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        understanding="fuzzy",
+        text="一个代理是实体\n✍️ 我的理解：还不太懂",
+        occurred_at=OCCURRED,
+    )
+    assert edge.fact == "[tips·fuzzy] 一个代理是实体\n✍️ 我的理解：还不太懂"
+
+
+async def test_identity_by_first_line_versions_collapse(capture):
+    """同一批注的不同版本(选中→续写全文) → 同 uuid → MERGE 原地升级, 不并排。"""
+    e1 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        understanding="fuzzy",
+        text="一个代理是实体",  # 即时上报: 仅选中
+        occurred_at=OCCURRED,
+    )
+    e2 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        understanding="fuzzy",
+        text="一个代理是实体\n✍️ 我的理解：还不太懂",  # 停笔同步: 全文
+        occurred_at=OCCURRED,
+    )
+    assert e1.uuid == e2.uuid  # 首行相同 = 同一条批注 → 覆盖升级
+
+
+async def test_different_annotations_different_identity(capture):
+    """新批注(不同选中文本) → 新身份 → 累积模型不受影响。"""
+    e1 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        understanding=None,
+        text="批注A",
+        occurred_at=OCCURRED,
+    )
+    e2 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        understanding=None,
+        text="批注B",
+        occurred_at=OCCURRED,
+    )
+    assert e1.uuid != e2.uuid

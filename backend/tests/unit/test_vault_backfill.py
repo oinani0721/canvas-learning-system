@@ -11,19 +11,19 @@ from app.services.vault_backfill import backfill_vault, extract_callouts
 
 def test_extract_single_tip():
     md = "# 标题\n\n> [!tip]+ 先想 base case\n\n正文"
-    assert extract_callouts(md) == [("tip", "先想 base case")]
+    assert extract_callouts(md) == [("tip", "", "先想 base case")]
 
 
 def test_extract_multiline_callout():
     md = "> [!question]+ 为什么递归要终止\n> 因为否则栈会爆\n> 第二行"
     assert extract_callouts(md) == [
-        ("question", "为什么递归要终止 因为否则栈会爆 第二行")
+        ("question", "", "为什么递归要终止\n因为否则栈会爆\n第二行")
     ]
 
 
 def test_extract_error_callout():
     md = "> [!error]+ 我把 base case 写漏了"
-    assert extract_callouts(md) == [("error", "我把 base case 写漏了")]
+    assert extract_callouts(md) == [("error", "", "我把 base case 写漏了")]
 
 
 def test_skip_relation_quote_video():
@@ -34,12 +34,12 @@ def test_skip_relation_quote_video():
         "> [!video]- 播放器\n"
         "> [!tip] 真批注\n"
     )
-    assert extract_callouts(md) == [("tip", "真批注")]
+    assert extract_callouts(md) == [("tip", "", "真批注")]
 
 
 def test_multiple_callouts_separated():
     md = "> [!tip] A\n\n中间正文\n\n> [!note] B\n> 续行"
-    assert extract_callouts(md) == [("tip", "A"), ("note", "B 续行")]
+    assert extract_callouts(md) == [("tip", "", "A"), ("note", "", "B\n续行")]
 
 
 def test_empty_callout_dropped():
@@ -138,15 +138,14 @@ def test_extract_list_nested_tips_plural():
     )
     result = extract_callouts(md)
     assert len(result) == 1
-    ctype, text = result[0]
+    ctype, understanding, body = result[0]
     assert ctype == "tips"
-    # 用户原话必须保留
-    assert "我对于最大化还是有点不理解" in text
-    assert "最大化 (Maximize)" in text
-    # 勾选的理解度保留 (信号), 未勾选的模板行剔除 (噪声)
-    assert "🤔 模糊" in text
-    assert "✅ 已懂" not in text
-    assert "❌ 不懂" not in text
+    assert understanding == "fuzzy"  # 勾选 🤔 模糊 → 单独字段 (去重修复)
+    # 裸正文: 首行 = 选中文本 (与实时通道同构 → 同逻辑身份自动合并)
+    assert body.splitlines()[0].startswith("**最大化 (Maximize)**")
+    assert "我对于最大化还是有点不理解" in body
+    # 泛型标题与勾选模板行不进正文
+    assert "💡 Tips" not in body and "已懂" not in body and "模糊" not in body
 
 
 def test_extract_two_adjacent_list_nested_callouts():
@@ -158,4 +157,4 @@ def test_extract_two_adjacent_list_nested_callouts():
         "> ✍️ 我的理解：B\n"
     )
     result = extract_callouts(md)
-    assert [t for _, t in result] == ["💡 Tips ✍️ 我的理解：A", "💡 Tips ✍️ 我的理解：B"]
+    assert [b for _, _, b in result] == ["✍️ 我的理解：A", "✍️ 我的理解：B"]

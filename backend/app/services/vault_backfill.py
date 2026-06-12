@@ -27,30 +27,65 @@ _CALLOUT_BACKFILL_TYPES = {"tip", "tips", "question", "hint", "note", "warning",
 _ERROR_TYPES = {"error"}
 # 跳过: 派生标记(relation/*, 由 frontmatter relationships 回填) / 引用 / 视频等
 _SKIP_PREFIXES = ("relation/", "quote", "video")
-# 理解度勾选模板: 未勾选行是噪声剔除, 勾选行 (- [x] 🤔 模糊) 是信号保留
-_UNCHECKED_TEMPLATE_RE = re.compile(r"^-\s*\[\s\]")
+# 理解度勾选模板行 (- [ ] / - [x])
+_CHECKBOX_RE = re.compile(r"^-\s*\[([ x])\]\s*(.*)$")
 # 插件脚手架模板 callout (非用户批注, 回填会污染每个派生节点的 tips)
 _TEMPLATE_MARKERS = ("💬 围绕这个概念讨论",)
+# 泛型标签标题 (插件写的 "💡 Tips" 等) — 丢弃以让正文首行=选中文本;
+# 人工 callout 的实义标题则保留进正文
+_GENERIC_TITLE_RE = re.compile(r"^\W*(Tips|Error|Question|Keypoint)\W*$", re.I)
 
 
-def extract_callouts(md_text: str) -> list[tuple[str, str]]:
-    """从 markdown 提取用户批注 callout → [(类型, 完整文本)]。
+def _understanding_from_label(label: str) -> str:
+    """勾选行文案 → understanding 值 (镜像前端 callout.ts 映射)。"""
+    if "已懂" in label:
+        return "understood"
+    if "模糊" in label:
+        return "fuzzy"
+    if "不懂" in label:
+        return "not-understood"
+    return ""
 
-    多行 callout: 头行标题 + 后续 "> " 续行合并; 嵌套新 [!] 头开新块。
-    跳过派生标记 [!relation/*]、[!quote]、[!video]。
+
+def extract_callouts(md_text: str) -> list[tuple[str, str, str]]:
+    """从 markdown 提取用户批注 callout → [(类型, understanding, 裸正文)]。
+
+    去重修复 (2026-06-13): 输出与实时通道同构 — 正文不含标题/勾选模板,
+    首行 = 用户选中的文本 → 三通道同一批注算出同一逻辑身份, 自动合并。
+    勾选的理解度单独提取为字段 (而非混在正文里)。
+    跳过派生标记 [!relation/*]、[!quote]、[!video]、脚手架模板。
     """
-    results: list[tuple[str, str]] = []
-    current: Optional[tuple[str, list[str]]] = None
+    results: list[tuple[str, str, str]] = []
+    current: Optional[tuple[str, str, list[str]]] = None  # (ctype, title, lines)
 
     def _flush():
         nonlocal current
-        if current is not None:
-            ctype, parts = current
-            kept = [p for p in parts if p and not _UNCHECKED_TEMPLATE_RE.match(p)]
-            text = " ".join(kept).strip()
-            if text and not text.startswith(_TEMPLATE_MARKERS):
-                results.append((ctype, text))
-            current = None
+        if current is None:
+            return
+        ctype, title, lines = current
+        current = None
+        if title.startswith(_TEMPLATE_MARKERS):
+            return
+        understanding = ""
+        body_lines: list[str] = []
+        for ln in lines:
+            cb = _CHECKBOX_RE.match(ln)
+            if cb:
+                if cb.group(1) == "x" and not understanding:
+                    understanding = _understanding_from_label(cb.group(2))
+                continue  # 勾选模板行不进正文
+            if ln:
+                body_lines.append(ln)
+        # 正文 = 续行内容 (与前端同构, 首行=选中文本)。实义标题保留进正文,
+        # 泛型标签 ("💡 Tips") 丢弃; 仅标题型 callout 退用标题。
+        if body_lines:
+            if title and not _GENERIC_TITLE_RE.match(title):
+                body_lines.insert(0, title)
+            body = "\n".join(body_lines).strip()
+        else:
+            body = title
+        if body:
+            results.append((ctype, understanding, body))
 
     for line in md_text.splitlines():
         head = _CALLOUT_HEAD_RE.match(line)
@@ -61,11 +96,11 @@ def extract_callouts(md_text: str) -> list[tuple[str, str]]:
                 current = None
                 continue
             if ctype in _CALLOUT_BACKFILL_TYPES or ctype in _ERROR_TYPES:
-                current = (ctype, [head.group(2).strip()])
+                current = (ctype, head.group(2).strip(), [])
             else:
                 current = None
         elif current is not None and line.startswith(">"):
-            current[1].append(line.lstrip("> ").strip())
+            current[2].append(line.lstrip("> ").strip())
         else:
             _flush()
     _flush()
@@ -117,7 +152,7 @@ async def backfill_vault(
             continue
         stats["files"] += 1
 
-        for ctype, body in callouts:
+        for ctype, understanding, body in callouts:
             try:
                 if execute:
                     if ctype in _ERROR_TYPES:
@@ -139,6 +174,7 @@ async def backfill_vault(
                             callout_type=ctype,
                             text=body,
                             occurred_at=occurred,
+                            understanding=understanding or None,
                         )
                 stats["errors" if ctype in _ERROR_TYPES else "callouts"] += 1
             except Exception as e:  # noqa: BLE001 — 单条失败不阻断回填
