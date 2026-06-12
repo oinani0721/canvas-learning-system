@@ -121,7 +121,8 @@ async def main() -> int:
         )
         # (c) reader 读回
         tips = await read_node_tips(driver, src)
-        check(tips == ["probe 批注"], f"(c) read_node_tips = {tips}")
+        # F10 去重修复后 fact = canonical_callout_fact("[类型·理解度] 裸正文")
+        check(tips == ["[tip] probe 批注"], f"(c) read_node_tips = {tips}")
         reasons_src = await read_node_edge_reasons(driver, src)
         reasons_tgt = await read_node_edge_reasons(driver, tgt)
         check(reasons_src == ["probe 拉出原因"], f"(c) 出边原因(src) = {reasons_src}")
