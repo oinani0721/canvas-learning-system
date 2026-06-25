@@ -303,16 +303,18 @@ class QuestionGenerator:
         # from concept_not_found / exception fallback paths.
         acp.mastery_degraded = mastery.get("mastery_degraded")
 
-        # 3. Get Tips from Graphiti
+        # P1 (A+-prime): 当前态(批注/错误/原因) 读 frontmatter 真相源, 非 Graphiti
+        # active 边 — 用户删改立即反映, 幽灵记忆不再污染出题。
+        # 3. 当前态批注 (frontmatter tips[] tag!=error)
         acp.student_tips = await self._get_tips(node_id)
 
-        # 4. Get error history from Graphiti
+        # 4. 当前态错误 (frontmatter tips[] tag==error)
         acp.error_history = await self._get_error_history(node_id)
 
-        # 5. Get edge reasons from Graphiti
+        # 5. 当前态节点增殖原因 (frontmatter relationships[].description)
         acp.edge_reasons = await self._get_edge_reasons(node_id)
 
-        # 6. Get conversation summary (Tier 2 summary level)
+        # 6. 对话摘要 = AI 生成的派生物(非用户当前态) → 仍读 Graphiti 历史事件流
         acp.conversation_summary = await self._get_conversation_summary(node_id)
 
         # Token budget enforcement
@@ -1022,31 +1024,27 @@ class QuestionGenerator:
             return None
 
     async def _get_tips(self, node_id: str) -> List[str]:
-        """累积批注 (structured_writer source=callout 自环边)。"""
-        driver = self._graphiti_driver()
-        if driver is None:
-            return list()
-        from app.services.graphiti_memory_reader import read_node_tips
+        """当前态批注 (P1 A+-prime: 读 frontmatter tips[], 非 Graphiti active 边)。
 
-        return await read_node_tips(driver, node_id)
+        切换原因: Graphiti 无 tombstone, 用户删/改 callout 后旧边仍 active → 幽灵
+        记忆污染出题。frontmatter 是真相源且原生支持删除 → 当前态读它。
+        Graphiti 降为历史事件流 (时光机/演化), 不再喂 ACP 当前态。
+        """
+        from app.services.frontmatter_signals import read_node_frontmatter_signals
+
+        return read_node_frontmatter_signals(node_id)["tips"]
 
     async def _get_error_history(self, node_id: str) -> List[Dict[str, str]]:
-        """错误史 (structured_writer source=error 自环边)。"""
-        driver = self._graphiti_driver()
-        if driver is None:
-            return list()
-        from app.services.graphiti_memory_reader import read_node_errors
+        """当前态错误 (P1: frontmatter tips[] 中 tag=error 项)。"""
+        from app.services.frontmatter_signals import read_node_frontmatter_signals
 
-        return await read_node_errors(driver, node_id)
+        return read_node_frontmatter_signals(node_id)["errors"]
 
     async def _get_edge_reasons(self, node_id: str) -> List[str]:
-        """节点增殖原因 (structured_writer source=relation 出边, D9 方向过滤)。"""
-        driver = self._graphiti_driver()
-        if driver is None:
-            return list()
-        from app.services.graphiti_memory_reader import read_node_edge_reasons
+        """当前态节点增殖原因 (P1: frontmatter relationships[].description)。"""
+        from app.services.frontmatter_signals import read_node_frontmatter_signals
 
-        return await read_node_edge_reasons(driver, node_id)
+        return read_node_frontmatter_signals(node_id)["edge_reasons"]
 
     async def _get_conversation_summary(self, node_id: str) -> str:
         """最新对话摘要 (structured_writer source=conversation 自环边)。"""

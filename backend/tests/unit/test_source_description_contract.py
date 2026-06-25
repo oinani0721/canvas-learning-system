@@ -108,35 +108,22 @@ def _read_question_generator_source() -> str:
     return qg_path.read_text(encoding="utf-8")
 
 
-def test_question_generator_uses_in_list_for_tips():
-    """Reader must use IN list, not = 'tip' hardcoded."""
+def test_question_generator_reads_frontmatter_for_current_state():
+    """P1 (A+-prime): 当前态(tips/errors/edge_reasons) 读 frontmatter 真相源。
+
+    历史: 旧断言 pin 裸 Cypher 精确匹配查询; 2026-06-10 Graphiti-native 重写
+    移除裸 Cypher, 2026-06-26 P1 切当前态到 frontmatter — 双重过时, 已更新。
+    """
     src = _read_question_generator_source()
-    assert "source_description IN $tip_sources" in src
-    # Belt-and-braces: ensure the dead string literal is gone
-    assert "source_description = 'tip'" not in src
+    assert "from app.services.frontmatter_signals import" in src
+    assert "read_node_frontmatter_signals" in src
 
 
-def test_question_generator_uses_in_list_for_misconceptions():
-    """Reader must use IN list, not = 'error_record' hardcoded."""
+def test_conversation_summary_still_reads_graphiti_history():
+    """P1: 对话摘要(AI 派生物, 非用户当前态) 仍读 Graphiti 历史事件流。"""
     src = _read_question_generator_source()
-    assert "source_description IN $misconception_sources" in src
-    assert "source_description = 'error_record'" not in src
-
-
-def test_question_generator_uses_in_list_for_archive():
-    """Reader must use IN list, not = 'conversation_archive' hardcoded."""
-    src = _read_question_generator_source()
-    assert "source_description IN $archive_sources" in src
-    assert "source_description = 'conversation_archive'" not in src
-
-
-def test_question_generator_imports_typed_constants():
-    """question_generator must import from app.core.source_descriptions."""
-    src = _read_question_generator_source()
-    assert "from app.core.source_descriptions import" in src
-    assert "TIP_SOURCES" in src
-    assert "MISCONCEPTION_SOURCES" in src
-    assert "CONVERSATION_ARCHIVE_SOURCES" in src
+    assert "_get_conversation_summary" in src
+    assert "read_node_conversation_summary" in src
 
 
 # ════════════════════════════════════════════════════════════════════
