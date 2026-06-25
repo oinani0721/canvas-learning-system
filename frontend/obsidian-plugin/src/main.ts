@@ -16,6 +16,7 @@ import {
   type UnderstandingValue,
   USER_INPUT_PROMPT,
   wrapSelection,
+  generateAnnotationId,
   type ParsedCallout,
 } from "./callout";
 import { CalloutSyncDebouncer } from "./callout-sync"; // DEPRECATED Plan B
@@ -180,17 +181,22 @@ export default class CanvasLearningPlugin extends Plugin {
     // 4 方对抗审查 (Canvas / Claude / ChatGPT-1 / ChatGPT-2) 一致建议回退 Plan A。
     // 详见 _bmad-output/research/2026-05-14-plan-b-postmortem.md
     //
-    // Plan B 入口已 disable — vault.on('modify') 监听不再触发 batch sync。
-    // 代码保留作为 Plan C 未来重启时的参考（修复 ChatGPT 找的 7 盲点后才能复活）。
-    //
-    // this.calloutSync = new CalloutSyncDebouncer(this);
-    // this.registerEvent(
-    //   this.app.vault.on("modify", (file) => {
-    //     if (file instanceof TFile) {
-    //       this.calloutSync.scheduleSync(file);
-    //     }
-    //   }),
-    // );
+    // Plan C 复活 (2026-06-11, GRAPHITI-NATIVE-MEMORY 计划) — 7 盲点逐条对照:
+    // #2 ghost field / #4 假 LRU / #7 顺序约束 → 已被 Graphiti-native 重构根治
+    //   (统一 writer/reader 落 :Entity/RELATES_TO, 确定性边 uuid MERGE 幂等,
+    //    直写 driver 不经 add_episode 队列); #1 协议 → F7 修列表嵌套解析;
+    // #3 Notice 轰炸 → callBackend 新增 silent 参数, batch 全静默;
+    // #5 cosmetic edit 版本噪声 → debounce 500→3000ms 缓解, 残留为已知项
+    //   (编辑型批注的多版本本就是用户要的时序演化素材); #6 basename 身份 → 阶段取舍。
+    // 作用: 用户在 callout 内续写"✍️ 我的理解"停笔 3s 后, 全文自动入个人记忆。
+    this.calloutSync = new CalloutSyncDebouncer(this);
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (file instanceof TFile) {
+          this.calloutSync.scheduleSync(file);
+        }
+      }),
+    );
   }
 
   onunload() {
@@ -228,6 +234,7 @@ export default class CanvasLearningPlugin extends Plugin {
           source_timestamp: new Date().toISOString(),
         },
         "POST",
+        true, // 盲点#3: 后台同步全静默, 成功/失败都不弹 Notice
       );
     } catch {
       // 静默：debounce sync 失败不应打扰用户体验
@@ -1344,6 +1351,7 @@ export default class CanvasLearningPlugin extends Plugin {
     selected: string,
     tag: TagOption,
     understanding: UnderstandingValue,
+    annotationId?: string,
   ): Promise<void> {
     const activeFile = this.app.workspace.getActiveFile();
     if (!activeFile) {
@@ -1355,6 +1363,8 @@ export default class CanvasLearningPlugin extends Plugin {
       title: `${tag.label} · ${nodeId}`,
       tags: [`tag:${tag.value}`, `understanding:${understanding}`],
       node_id: nodeId,
+      // P0 (A+-prime): 稳定逻辑身份, 后端 write_callout 用它而非首行做 identity
+      annotation_id: annotationId ?? "",
       source_timestamp: new Date().toISOString(),
       event_type: "callout_annotation",
     };
@@ -1414,6 +1424,7 @@ export default class CanvasLearningPlugin extends Plugin {
     label: string,
     body?: any,
     method: "GET" | "POST" | "PUT" | "DELETE" = body ? "POST" : "GET",
+    silent = false, // 盲点#3: 后台 debounce 同步用静默传输, 不弹 Notice 轰炸
   ): Promise<unknown | null> {
     const url = `${this.settings.backendUrl}${endpoint}`;
     try {
@@ -1433,23 +1444,33 @@ export default class CanvasLearningPlugin extends Plugin {
           (parsed as any)?.detail ||
           (parsed as any)?.message ||
           `HTTP ${resp.status}`;
-        new Notice(`${label} 失败: ${detail}`, 6000);
+        if (silent) {
+          console.warn(`[canvas] ${label} 失败: ${detail}`);
+        } else {
+          new Notice(`${label} 失败: ${detail}`, 6000);
+        }
         return null;
       }
-      const summary =
-        (parsed as any)?.id ||
-        (parsed as any)?.exam_id ||
-        (parsed as any)?.total_count !== undefined
-          ? `${label} 成功 · 共 ${(parsed as any).total_count} 项`
-          : `${label} 成功`;
-      new Notice(summary, 4000);
+      if (!silent) {
+        const summary =
+          (parsed as any)?.id ||
+          (parsed as any)?.exam_id ||
+          (parsed as any)?.total_count !== undefined
+            ? `${label} 成功 · 共 ${(parsed as any).total_count} 项`
+            : `${label} 成功`;
+        new Notice(summary, 4000);
+      }
       return parsed;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      new Notice(
-        `${label} 失败: 后端未连接（${msg}）\n请先 docker compose up 启动 Canvas 后端`,
-        6000,
-      );
+      if (silent) {
+        console.warn(`[canvas] ${label} 失败: 后端未连接（${msg}）`);
+      } else {
+        new Notice(
+          `${label} 失败: 后端未连接（${msg}）\n请先 docker compose up 启动 Canvas 后端`,
+          6000,
+        );
+      }
       return null;
     }
   }
@@ -2513,9 +2534,12 @@ class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> {
   }
 
   onChooseItem(und: UnderstandingOption) {
+    // P0 (A+-prime): 生成稳定批注 id，同时嵌入 callout 标题 + 随实时上报发送，
+    // 保证即时上报与停笔回填两条通道指向同一逻辑身份。
+    const annotationId = generateAnnotationId();
     // 1) 本地写入 callout
     const from = this.editor.getCursor("from");
-    const wrapped = wrapSelection(this.selected, this.tag, und.value);
+    const wrapped = wrapSelection(this.selected, this.tag, und.value, annotationId);
     this.editor.replaceSelection(wrapped);
 
     // 2) P0-6 (2026-05-14): 光标自动定位到 callout 末尾用户输入区
@@ -2538,6 +2562,7 @@ class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> {
       this.selected,
       this.tag,
       und.value as UnderstandingValue,
+      annotationId,
     );
   }
 }

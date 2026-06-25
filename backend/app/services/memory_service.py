@@ -1292,6 +1292,8 @@ class MemoryService:
                             text=meta.get("content") or content,
                             occurred_at=occurred,
                             understanding=understanding or None,
+                            # P0 (A+-prime): 稳定身份, 即时上报与停笔回填同 id
+                            annotation_id=meta.get("annotation_id") or None,
                         )
                         structured_written = True
                     elif event_type in (

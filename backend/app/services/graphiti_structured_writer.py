@@ -123,11 +123,17 @@ async def write_callout(
     text: str,
     occurred_at: datetime,
     understanding: Optional[str] = None,
+    annotation_id: Optional[str] = None,
 ) -> EntityEdge:
     """用户批注 → 自环 SelfAnnotation 边。
 
     text 必须是裸批注正文 (选中文本 + 续写, 无通道包装) — 存储格式由
-    canonical_callout_fact 统一; 身份 = 节点 + 首行 (同批注版本自动合并)。
+    canonical_callout_fact 统一。
+
+    P0 (A+-prime 2026-06-26): 身份优先用稳定 annotation_id (cb-xxx, 前端
+    wrapSelection 生成嵌入 callout 标题)。改批注正文不再换身份(防孤儿)，
+    同节点同一句原文的两条不同批注不再因首行相同碰撞合并。无 id 的历史批注
+    回退首行身份 (向后兼容)。
     """
     return await _self_loop_edge(
         driver,
@@ -142,8 +148,9 @@ async def write_callout(
             "event_type": "callout_added",
             "callout_type": callout_type,
             "understanding": understanding,
+            "annotation_id": annotation_id or None,
         },
-        identity_text=_identity_first_line(text),
+        identity_text=annotation_id or _identity_first_line(text),
     )
 
 

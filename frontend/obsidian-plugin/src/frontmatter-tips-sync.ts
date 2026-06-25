@@ -28,6 +28,7 @@ import type CanvasLearningPlugin from "./main";
 const ALLOWED_PATH_PREFIXES = ["节点/", "原白板/"];
 
 interface FrontmatterTip {
+  id: string; // P0 (A+-prime): 稳定批注身份 cb-xxx, 空=历史批注(回退内容匹配)
   text: string;
   tag: string;
   understanding: string;
@@ -87,13 +88,17 @@ export class FrontmatterTipsSync {
   ): FrontmatterTip[] {
     const now = new Date().toISOString();
     return callouts.map((c) => {
-      const matched = oldTips.find(
-        (t) =>
-          t.text === c.content &&
-          t.tag === c.tag &&
-          t.understanding === c.understanding,
-      );
+      // P0: 有稳定 id 时按 id 匹配旧 tip(改正文不丢 added_at); 否则回退内容匹配
+      const matched = c.annotationId
+        ? oldTips.find((t) => t.id === c.annotationId)
+        : oldTips.find(
+            (t) =>
+              t.text === c.content &&
+              t.tag === c.tag &&
+              t.understanding === c.understanding,
+          );
       return {
+        id: c.annotationId,
         text: c.content,
         tag: c.tag,
         understanding: c.understanding,
@@ -107,6 +112,7 @@ export class FrontmatterTipsSync {
     if (a.length !== b.length) return false;
     return a.every(
       (t, i) =>
+        t.id === b[i].id &&
         t.text === b[i].text &&
         t.tag === b[i].tag &&
         t.understanding === b[i].understanding,

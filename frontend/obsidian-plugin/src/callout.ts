@@ -51,6 +51,23 @@ export interface ParsedCallout {
   understanding: string; // understood / fuzzy / not-understood / ""
   content: string; // callout body（含用户输入的"我的理解"），已去掉 checkbox 行
   contentHash: string; // SHA256(node_id|tag|understanding|content)
+  annotationId: string; // P0 (A+-prime): 稳定逻辑身份 cb-xxx, 无则 ""（历史批注回退首行）
+}
+
+// P0 (A+-prime 2026-06-26): 批注稳定身份标记。嵌在 callout 标题行
+// "> [!tips]+ 💡 Tips %%cb-xxx%%" — %%%% 是 Obsidian 原生注释(阅读模式隐藏),
+// 标题行是解析锚点且最不易被用户编辑。身份从"首行内容"迁到此 id →
+// 改批注正文不再换身份(防孤儿)，同节点同一句原文的两条不同批注不再碰撞合并。
+const ANNOTATION_ID_RE = /%%\s*(cb-[a-z0-9]+)\s*%%/i;
+
+/**
+ * 生成稳定批注 id（本地生成，不依赖后端回执；插入后永不改变）。
+ * 格式 cb-<base36 时间><base36 随机> — 单用户场景碰撞安全 + 大致按时间可排序。
+ */
+export function generateAnnotationId(): string {
+  const ts = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 6);
+  return `cb-${ts}${rand}`;
 }
 
 /**
@@ -97,7 +114,11 @@ export async function parseCalloutsFromContent(
       continue;
     }
     const tag = headerMatch[1].toLowerCase();
-    const tagLabel = headerMatch[2].trim();
+    const rawLabel = headerMatch[2].trim();
+    // P0: 从标题行提取稳定 id, 并从 label 剥离 %%cb-xxx%%
+    const idMatch = rawLabel.match(ANNOTATION_ID_RE);
+    const annotationId = idMatch ? idMatch[1] : "";
+    const tagLabel = rawLabel.replace(ANNOTATION_ID_RE, "").trim();
 
     // 收集后续连续 `>` 开头的行作为 callout body
     const bodyLines: string[] = [];
@@ -136,6 +157,7 @@ export async function parseCalloutsFromContent(
       understanding,
       content: calloutContent,
       contentHash: hash,
+      annotationId,
     });
   }
 
@@ -154,8 +176,12 @@ export function wrapSelection(
   text: string,
   tag: TagOption,
   understanding: UnderstandingValue,
+  annotationId?: string,
 ): string {
-  const header = `> [!${tag.callout}]+ ${tag.label}`;
+  // P0: 稳定身份嵌入标题行(隐藏注释)。两条捕获通道(即时上报/停笔回填)
+  // 解析同一文件 → 同 id → Graphiti 同一逻辑身份, 不再靠首行内容判定。
+  const idMarker = annotationId ? ` %%${annotationId}%%` : "";
+  const header = `> [!${tag.callout}]+ ${tag.label}${idMarker}`;
   const checkboxes = UNDERSTANDING_OPTIONS.map(
     (opt) => `> - [${opt.value === understanding ? "x" : " "}] ${opt.label}`,
   ).join("\n");

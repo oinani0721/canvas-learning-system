@@ -37,6 +37,13 @@ class SaveTipRequest(BaseModel):
         description="Classification tags: important, confused, inspiration, review",
     )
     node_id: str = Field(..., description="Source canvas node ID")
+    annotation_id: str = Field(
+        default="",
+        description=(
+            "P0 (A+-prime): 稳定批注身份 cb-xxx (前端 wrapSelection 生成)。"
+            "后端 write_callout 用它做 identity, 空则回退首行。"
+        ),
+    )
     source_timestamp: str = Field(
         ..., description="ISO timestamp of the source dialogue message"
     )
@@ -240,6 +247,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
                 "content": request.content,
                 "tags": request.tags,
                 "node_id": request.node_id,
+                "annotation_id": request.annotation_id,
                 "source_timestamp": request.source_timestamp,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },

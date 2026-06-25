@@ -5,6 +5,7 @@ import {
   UNDERSTANDING_OPTIONS,
   parseCalloutsFromContent,
   wrapSelection,
+  generateAnnotationId,
 } from "../src/callout";
 
 test("TAG_OPTIONS exposes 4 semantic tags (tips/error/question/keypoint)", () => {
@@ -38,7 +39,9 @@ test("wrapSelection: tips + fuzzy produces callout with 3 checkboxes (fuzzy chec
       "> - [x] 🤔 模糊\n" +
       "> - [ ] ❌ 不懂\n" +
       ">\n" +
-      "> hello",
+      "> hello\n" +
+      ">\n" +
+      "> ✍️ 我的理解：",
   );
 });
 
@@ -52,7 +55,9 @@ test("wrapSelection: error + understood (understood checked)", () => {
       "> - [ ] 🤔 模糊\n" +
       "> - [ ] ❌ 不懂\n" +
       ">\n" +
-      "> bad logic",
+      "> bad logic\n" +
+      ">\n" +
+      "> ✍️ 我的理解：",
   );
 });
 
@@ -67,7 +72,9 @@ test("wrapSelection: question + not-understood (not-understood checked) + multi-
       "> - [x] ❌ 不懂\n" +
       ">\n" +
       "> line1\n" +
-      "> line2",
+      "> line2\n" +
+      ">\n" +
+      "> ✍️ 我的理解：",
   );
 });
 
@@ -83,7 +90,9 @@ test("wrapSelection: keypoint + fuzzy + blank line in body (blank line kept as `
       ">\n" +
       "> a\n" +
       "> \n" +
-      "> b",
+      "> b\n" +
+      ">\n" +
+      "> ✍️ 我的理解：",
   );
 });
 
@@ -99,7 +108,10 @@ test("wrapSelection: all 4 tags × all 3 levels = 12 combinations produce valid 
         out.includes(`> - [x] ${und.label}`),
         `checked box missing for ${und.value}`,
       );
-      assert.ok(out.endsWith(">\n> x"), `body incorrect for ${tag.value}/${und.value}`);
+      assert.ok(
+        out.endsWith("> x\n>\n> ✍️ 我的理解："),
+        `body incorrect for ${tag.value}/${und.value}`,
+      );
 
       const uncheckedCount = (out.match(/> - \[ \]/g) || []).length;
       const checkedCount = (out.match(/> - \[x\]/g) || []).length;
@@ -112,7 +124,7 @@ test("wrapSelection: all 4 tags × all 3 levels = 12 combinations produce valid 
 test("wrapSelection: pure whitespace line preserved", () => {
   const tips = TAG_OPTIONS[0];
   const out = wrapSelection("  ", tips, "understood");
-  assert.ok(out.endsWith(">\n>   "));
+  assert.ok(out.endsWith(">\n>   \n>\n> ✍️ 我的理解："));
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -141,4 +153,48 @@ test("parseCalloutsFromContent: plain `> [!tips]+` still works (regression)", as
   const md = "> [!tips]+ 💡 Tips\n> ✍️ 我的理解：普通格式";
   const result = await parseCalloutsFromContent(md, "n");
   assert.equal(result.length, 1);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P0 (A+-prime 2026-06-26): 稳定 annotation_id round-trip
+// ═══════════════════════════════════════════════════════════════════════════════
+
+test("generateAnnotationId: produces cb-prefixed unique ids", () => {
+  const a = generateAnnotationId();
+  const b = generateAnnotationId();
+  assert.match(a, /^cb-[a-z0-9]+$/);
+  assert.notEqual(a, b);
+});
+
+test("wrapSelection: embeds %%cb-xxx%% in header title line", () => {
+  const tips = TAG_OPTIONS[0];
+  const out = wrapSelection("hello", tips, "fuzzy", "cb-abc123");
+  assert.ok(out.startsWith("> [!tips]+ 💡 Tips %%cb-abc123%%\n"));
+});
+
+test("wrapSelection without id: header unchanged (backward compat)", () => {
+  const tips = TAG_OPTIONS[0];
+  assert.ok(wrapSelection("hi", tips, "fuzzy").startsWith("> [!tips]+ 💡 Tips\n"));
+});
+
+test("round-trip: wrapSelection id → parseCalloutsFromContent annotationId, not in content/label", async () => {
+  const id = generateAnnotationId();
+  const tips = TAG_OPTIONS[0];
+  const md = wrapSelection("一个代理是实体", tips, "fuzzy", id);
+  const result = await parseCalloutsFromContent(md, "lecture 2");
+  assert.equal(result.length, 1);
+  assert.equal(result[0].annotationId, id);
+  assert.equal(result[0].tagLabel, "💡 Tips"); // id 已从 label 剥离
+  assert.ok(!result[0].content.includes("%%")); // id 不污染正文
+});
+
+test("parse: two annotations same first line but different id are distinct", async () => {
+  const tips = TAG_OPTIONS[0];
+  const md =
+    wrapSelection("同一句原文", tips, "fuzzy", "cb-first0") +
+    "\n\n" +
+    wrapSelection("同一句原文", tips, "fuzzy", "cb-second");
+  const result = await parseCalloutsFromContent(md, "n");
+  assert.equal(result.length, 2);
+  assert.notEqual(result[0].annotationId, result[1].annotationId);
 });

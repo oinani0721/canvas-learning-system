@@ -316,3 +316,71 @@ async def test_different_annotations_different_identity(capture):
         occurred_at=OCCURRED,
     )
     assert e1.uuid != e2.uuid
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P0 (A+-prime 2026-06-26): 稳定 annotation_id 作身份 — 改正文不换身份, 同首行不碰撞
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def test_annotation_id_is_identity_over_content(capture):
+    """同 annotation_id + 改正文 → 同 uuid (改批注不产生孤儿边)。"""
+    kw = dict(
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        annotation_id="cb-abc123",
+        occurred_at=OCCURRED,
+    )
+    e1 = await w.write_callout(object(), None, text="初版理解", **kw)
+    e2 = await w.write_callout(object(), None, text="修订后的全新正文", **kw)
+    assert e1.uuid == e2.uuid  # 身份由 id 定, 不由内容定 → MERGE 原地升级
+    assert e2.attributes["annotation_id"] == "cb-abc123"
+
+
+async def test_same_first_line_different_id_no_collision(capture):
+    """同节点同一句原文的两条不同批注 (不同 id) → 不同 uuid (A1 碰撞已修)。"""
+    e1 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        annotation_id="cb-first0",
+        text="一个代理是实体\n✍️ 我从定义角度不懂",
+        occurred_at=OCCURRED,
+    )
+    e2 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        annotation_id="cb-second",
+        text="一个代理是实体\n✍️ 我从行动角度不懂",
+        occurred_at=OCCURRED,
+    )
+    assert e1.uuid != e2.uuid  # 首行相同但 id 不同 → 两条独立批注, 不再合并
+
+
+async def test_no_annotation_id_falls_back_to_first_line(capture):
+    """无 id 的历史批注 → 回退首行身份 (向后兼容)。"""
+    e1 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        text="同一句\n版本1",
+        occurred_at=OCCURRED,
+    )
+    e2 = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        text="同一句\n版本2",
+        occurred_at=OCCURRED,
+    )
+    assert e1.uuid == e2.uuid  # 无 id 时首行相同仍合并 (旧行为不变)

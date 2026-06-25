@@ -11,19 +11,19 @@ from app.services.vault_backfill import backfill_vault, extract_callouts
 
 def test_extract_single_tip():
     md = "# 标题\n\n> [!tip]+ 先想 base case\n\n正文"
-    assert extract_callouts(md) == [("tip", "", "先想 base case")]
+    assert extract_callouts(md) == [("tip", "", "先想 base case", "")]
 
 
 def test_extract_multiline_callout():
     md = "> [!question]+ 为什么递归要终止\n> 因为否则栈会爆\n> 第二行"
     assert extract_callouts(md) == [
-        ("question", "", "为什么递归要终止\n因为否则栈会爆\n第二行")
+        ("question", "", "为什么递归要终止\n因为否则栈会爆\n第二行", "")
     ]
 
 
 def test_extract_error_callout():
     md = "> [!error]+ 我把 base case 写漏了"
-    assert extract_callouts(md) == [("error", "", "我把 base case 写漏了")]
+    assert extract_callouts(md) == [("error", "", "我把 base case 写漏了", "")]
 
 
 def test_skip_relation_quote_video():
@@ -34,16 +34,35 @@ def test_skip_relation_quote_video():
         "> [!video]- 播放器\n"
         "> [!tip] 真批注\n"
     )
-    assert extract_callouts(md) == [("tip", "", "真批注")]
+    assert extract_callouts(md) == [("tip", "", "真批注", "")]
 
 
 def test_multiple_callouts_separated():
     md = "> [!tip] A\n\n中间正文\n\n> [!note] B\n> 续行"
-    assert extract_callouts(md) == [("tip", "", "A"), ("note", "", "B\n续行")]
+    assert extract_callouts(md) == [("tip", "", "A", ""), ("note", "", "B\n续行", "")]
 
 
 def test_empty_callout_dropped():
     assert extract_callouts("> [!tip]+\n") == []
+
+
+def test_extract_stable_annotation_id():
+    """P0 (A+-prime): 标题行 %%cb-xxx%% → 提取为第 4 元, 不污染正文/标题。"""
+    md = (
+        "* > [!tips]+ 💡 Tips %%cb-lq9x2k3p%%\n"
+        "> - [x] 🤔 模糊\n"
+        ">\n"
+        "> 一个代理是实体\n"
+        "> ✍️ 我的理解：还不太懂\n"
+    )
+    result = extract_callouts(md)
+    assert len(result) == 1
+    ctype, understanding, body, ann_id = result[0]
+    assert ctype == "tips"
+    assert understanding == "fuzzy"
+    assert ann_id == "cb-lq9x2k3p"
+    assert body.splitlines()[0] == "一个代理是实体"
+    assert "cb-" not in body and "%%" not in body  # id 不污染正文
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -138,7 +157,7 @@ def test_extract_list_nested_tips_plural():
     )
     result = extract_callouts(md)
     assert len(result) == 1
-    ctype, understanding, body = result[0]
+    ctype, understanding, body, _ann_id = result[0]
     assert ctype == "tips"
     assert understanding == "fuzzy"  # 勾选 🤔 模糊 → 单独字段 (去重修复)
     # 裸正文: 首行 = 选中文本 (与实时通道同构 → 同逻辑身份自动合并)
@@ -157,4 +176,4 @@ def test_extract_two_adjacent_list_nested_callouts():
         "> ✍️ 我的理解：B\n"
     )
     result = extract_callouts(md)
-    assert [b for _, _, b in result] == ["✍️ 我的理解：A", "✍️ 我的理解：B"]
+    assert [b for _, _, b, _ in result] == ["✍️ 我的理解：A", "✍️ 我的理解：B"]

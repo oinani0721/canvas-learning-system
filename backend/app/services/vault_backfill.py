@@ -34,6 +34,8 @@ _TEMPLATE_MARKERS = ("💬 围绕这个概念讨论",)
 # 泛型标签标题 (插件写的 "💡 Tips" 等) — 丢弃以让正文首行=选中文本;
 # 人工 callout 的实义标题则保留进正文
 _GENERIC_TITLE_RE = re.compile(r"^\W*(Tips|Error|Question|Keypoint)\W*$", re.I)
+# P0 (A+-prime 2026-06-26): 稳定批注身份, 嵌在标题行 "%%cb-xxx%%" (前端同构)
+_ANNOTATION_ID_RE = re.compile(r"%%\s*(cb-[a-z0-9]+)\s*%%", re.I)
 
 
 def _understanding_from_label(label: str) -> str:
@@ -47,15 +49,16 @@ def _understanding_from_label(label: str) -> str:
     return ""
 
 
-def extract_callouts(md_text: str) -> list[tuple[str, str, str]]:
-    """从 markdown 提取用户批注 callout → [(类型, understanding, 裸正文)]。
+def extract_callouts(md_text: str) -> list[tuple[str, str, str, str]]:
+    """从 markdown 提取用户批注 callout → [(类型, understanding, 裸正文, 稳定id)]。
 
     去重修复 (2026-06-13): 输出与实时通道同构 — 正文不含标题/勾选模板,
-    首行 = 用户选中的文本 → 三通道同一批注算出同一逻辑身份, 自动合并。
-    勾选的理解度单独提取为字段 (而非混在正文里)。
+    首行 = 用户选中的文本。勾选的理解度单独提取为字段 (而非混在正文里)。
+    P0 (A+-prime 2026-06-26): 标题行 "%%cb-xxx%%" 提取为稳定身份 (第 4 元),
+    无则 "" (历史批注回退首行)。
     跳过派生标记 [!relation/*]、[!quote]、[!video]、脚手架模板。
     """
-    results: list[tuple[str, str, str]] = []
+    results: list[tuple[str, str, str, str]] = []
     current: Optional[tuple[str, str, list[str]]] = None  # (ctype, title, lines)
 
     def _flush():
@@ -66,6 +69,10 @@ def extract_callouts(md_text: str) -> list[tuple[str, str, str]]:
         current = None
         if title.startswith(_TEMPLATE_MARKERS):
             return
+        # P0: 先从标题剥离稳定 id, 再做泛型标题判定
+        id_match = _ANNOTATION_ID_RE.search(title)
+        annotation_id = id_match.group(1) if id_match else ""
+        title = _ANNOTATION_ID_RE.sub("", title).strip()
         understanding = ""
         body_lines: list[str] = []
         for ln in lines:
@@ -85,7 +92,7 @@ def extract_callouts(md_text: str) -> list[tuple[str, str, str]]:
         else:
             body = title
         if body:
-            results.append((ctype, understanding, body))
+            results.append((ctype, understanding, body, annotation_id))
 
     for line in md_text.splitlines():
         head = _CALLOUT_HEAD_RE.match(line)
@@ -152,7 +159,7 @@ async def backfill_vault(
             continue
         stats["files"] += 1
 
-        for ctype, understanding, body in callouts:
+        for ctype, understanding, body, annotation_id in callouts:
             try:
                 if execute:
                     if ctype in _ERROR_TYPES:
@@ -175,6 +182,7 @@ async def backfill_vault(
                             text=body,
                             occurred_at=occurred,
                             understanding=understanding or None,
+                            annotation_id=annotation_id or None,
                         )
                 stats["errors" if ctype in _ERROR_TYPES else "callouts"] += 1
             except Exception as e:  # noqa: BLE001 — 单条失败不阻断回填
