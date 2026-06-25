@@ -17,7 +17,10 @@ import type { TFile } from "obsidian";
 import { parseCalloutsFromContent, type ParsedCallout } from "./callout";
 import type CanvasLearningPlugin from "./main";
 
-const DEBOUNCE_MS = 500;
+// 盲点#5 缓解 (2026-06-11): 500→3000ms — 用户在 callout 内续写"我的理解"时,
+// 打字间歇 <3s 不触发同步, 避免半句话被存成多个版本 (残留: 停笔 >3s 仍会
+// 产生中间版本, 属已知项 — 编辑型多版本本就是时序演化素材)。
+const DEBOUNCE_MS = 3000;
 const ALLOWED_PATH_PREFIXES = ["节点/", "原白板/"];
 
 export class CalloutSyncDebouncer {
