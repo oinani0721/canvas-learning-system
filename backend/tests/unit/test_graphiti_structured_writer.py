@@ -29,6 +29,8 @@ class FakeEmbedder:
 @pytest.fixture
 def capture(monkeypatch):
     """捕获 EntityEdge.save + 替换身份层为确定性 fake。"""
+    from graphiti_core.errors import EdgeNotFoundError
+
     saved: list[EntityEdge] = []
 
     async def fake_save(self, driver):
@@ -37,10 +39,15 @@ def capture(monkeypatch):
     async def fake_ensure(driver, node_id, sanitized_group_id, embedder=None, title=""):
         return f"uuid-{node_id}"
 
+    async def fake_get_by_uuid(driver, uuid):
+        # 默认: 边不存在 → _preserved_times 用 occurred_at (新边语义)
+        raise EdgeNotFoundError(uuid)
+
     monkeypatch.setattr(EntityEdge, "save", fake_save)
     monkeypatch.setattr(
         IdentityRegistry, "ensure_entity_node", staticmethod(fake_ensure)
     )
+    monkeypatch.setattr(EntityEdge, "get_by_uuid", staticmethod(fake_get_by_uuid))
     return saved
 
 
@@ -384,3 +391,75 @@ async def test_no_annotation_id_falls_back_to_first_line(capture):
         occurred_at=OCCURRED,
     )
     assert e1.uuid == e2.uuid  # 无 id 时首行相同仍合并 (旧行为不变)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P3 (A4 2026-06-26): create-or-preserve — 边已存在保留原始时间, 防回填覆写
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def test_new_edge_uses_occurred_at(capture):
+    """边不存在(EdgeNotFoundError) → valid_at/created_at = occurred_at (源事件时间)。"""
+    edge = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        annotation_id="cb-new",
+        text="新批注",
+        occurred_at=OCCURRED,
+    )
+    assert edge.valid_at == OCCURRED and edge.created_at == OCCURRED
+
+
+async def test_existing_edge_preserves_original_time(capture, monkeypatch):
+    """边已存在 → 保留其原始时间, 即使回填传入更晚的 occurred_at (A4 根治)。"""
+    old = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    class _Existing:
+        created_at = old
+        valid_at = old
+
+    async def fake_get(driver, uuid):
+        return _Existing()
+
+    monkeypatch.setattr(EntityEdge, "get_by_uuid", staticmethod(fake_get))
+    backfill_time = datetime(2026, 6, 26, tzinfo=timezone.utc)
+    edge = await w.write_callout(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        callout_type="tips",
+        annotation_id="cb-existing",
+        text="回填重写",
+        occurred_at=backfill_time,
+    )
+    # 回填时刻 6-26 被丢弃, 保留原始 1-1 → 时序不被污染
+    assert edge.valid_at == old and edge.created_at == old
+
+
+async def test_relation_reason_preserves_existing_time(capture, monkeypatch):
+    """write_relation_reason 同样 create-or-preserve。"""
+    old = datetime(2026, 2, 2, tzinfo=timezone.utc)
+
+    class _Existing:
+        created_at = old
+        valid_at = old
+
+    async def fake_get(driver, uuid):
+        return _Existing()
+
+    monkeypatch.setattr(EntityEdge, "get_by_uuid", staticmethod(fake_get))
+    edge = await w.write_relation_reason(
+        object(),
+        None,
+        source_node_id="a",
+        target_node_id="b",
+        group_id="vault:g",
+        relation_type="refines",
+        reason="原因",
+        occurred_at=datetime(2026, 6, 26, tzinfo=timezone.utc),
+    )
+    assert edge.valid_at == old and edge.created_at == old

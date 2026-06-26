@@ -142,7 +142,7 @@ async def backfill_vault(
         logger.warning("[Backfill] vault 不存在: %s", vault_path)
         return stats
 
-    occurred = datetime.now(timezone.utc)  # 回填统一时间戳 (原始时间 vault 无记录)
+    fallback_now = datetime.now(timezone.utc)
 
     for md in sorted(base.rglob("*.md")):
         if ".obsidian" in md.parts or "templates" in md.parts:
@@ -152,6 +152,12 @@ async def backfill_vault(
             text = md.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+        # P3 (A4): 回填用文件 mtime 作源事件时间近似(非统一 now)。配合 writer 的
+        # create-or-preserve, 此时间只用于"从未实时写过"的历史边; 已有边保留原始时间。
+        try:
+            occurred = datetime.fromtimestamp(md.stat().st_mtime, timezone.utc)
+        except (OSError, ValueError):
+            occurred = fallback_now
 
         callouts = extract_callouts(text)
         rels = CanvasProjectionSync._read_relationships(md) or []

@@ -22,14 +22,40 @@ Phase 1 (GRAPHITI-NATIVE-MEMORY-2026-06-10)。
 from __future__ import annotations
 
 import hashlib
+import logging
 from datetime import datetime
 from typing import Any, Optional
 from uuid import NAMESPACE_DNS, uuid5
 
 from graphiti_core.edges import EntityEdge
+from graphiti_core.errors import EdgeNotFoundError
 
 from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
 from app.graphiti.identity_registry import IdentityRegistry
+
+logger = logging.getLogger(__name__)
+
+
+async def _preserved_times(
+    driver: Any, edge_uuid: str, occurred_at: datetime
+) -> tuple[datetime, datetime]:
+    """create-or-preserve (P3/A4 2026-06-26): 边已存在则保留其 (created_at, valid_at),
+    否则用 occurred_at。
+
+    根治时序污染: EntityEdge.save 用 `SET e=$edge_data` 全量覆写。启动回填用回填
+    时刻 save 同 uuid 边时, 若不保留, 会把实时写入的真实事件时间冲成回填时刻
+    (实测: 图里所有边 created_at 全=容器启动时刻)。保留原始时间后, 回填只补缺边、
+    不篡改已有边的时间线。新边 (EdgeNotFoundError) 用 occurred_at (= 调用方传的
+    真实源事件时间)。
+    """
+    try:
+        existing = await EntityEdge.get_by_uuid(driver, edge_uuid)
+        return (existing.created_at or occurred_at, existing.valid_at or occurred_at)
+    except EdgeNotFoundError:
+        return occurred_at, occurred_at
+    except Exception as e:  # noqa: BLE001 — 查询失败退新建语义, 不阻断写入
+        logger.debug("[A4] preserve-times 查询失败, 用 occurred_at: %s", e)
+        return occurred_at, occurred_at
 
 
 def _deterministic_edge_uuid(kind: str, node_key: str, gid: str, fact: str) -> str:
@@ -95,16 +121,19 @@ async def _self_loop_edge(
     同一批注的版本演进 (选中→续写全文) MERGE 原地升级, 不并排存多条。
     """
     gid = sanitize_group_id_for_graphiti(group_id)  # C-3 边界 sanitize
-    uuid = await IdentityRegistry.ensure_entity_node(
+    node_uuid = await IdentityRegistry.ensure_entity_node(
         driver, node_id, gid, embedder=embedder
     )
+    edge_uuid = _deterministic_edge_uuid(name, node_id, gid, identity_text or fact)
+    # P3 (A4): 边已存在则保留原始时间, 防回填覆写真实事件时间
+    created_at, valid_at = await _preserved_times(driver, edge_uuid, occurred_at)
     edge = EntityEdge(
-        uuid=_deterministic_edge_uuid(name, node_id, gid, identity_text or fact),
+        uuid=edge_uuid,
         group_id=gid,
-        source_node_uuid=uuid,
-        target_node_uuid=uuid,
-        created_at=occurred_at,
-        valid_at=occurred_at,
+        source_node_uuid=node_uuid,
+        target_node_uuid=node_uuid,
+        created_at=created_at,
+        valid_at=valid_at,
         invalid_at=None,
         name=name,
         fact=fact,
@@ -229,18 +258,21 @@ async def write_relation_reason(
     tu = await IdentityRegistry.ensure_entity_node(
         driver, target_node_id, gid, embedder=embedder
     )
+    edge_uuid = _deterministic_edge_uuid(
+        relation_type or "RelatedTo",
+        f"{source_node_id}->{target_node_id}",
+        gid,
+        reason,
+    )  # 幂等
+    # P3 (A4): 边已存在则保留原始时间, 防回填覆写真实事件时间
+    created_at, valid_at = await _preserved_times(driver, edge_uuid, occurred_at)
     edge = EntityEdge(
-        uuid=_deterministic_edge_uuid(
-            relation_type or "RelatedTo",
-            f"{source_node_id}->{target_node_id}",
-            gid,
-            reason,
-        ),  # 幂等
+        uuid=edge_uuid,
         group_id=gid,
         source_node_uuid=su,
         target_node_uuid=tu,
-        created_at=occurred_at,
-        valid_at=occurred_at,
+        created_at=created_at,
+        valid_at=valid_at,
         invalid_at=None,
         name=relation_type or "RelatedTo",
         fact=reason,

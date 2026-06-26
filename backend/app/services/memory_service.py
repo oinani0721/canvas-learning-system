@@ -1294,7 +1294,17 @@ class MemoryService:
                     write_error,
                 )
 
+                # P3 (A4): valid_at = 真实源事件时间(客户端 source_timestamp =
+                # 用户操作时刻), 非 now(=系统入图时间)。解析失败退 now。
                 occurred = datetime.now(timezone.utc)
+                _src_ts = meta.get("source_timestamp")
+                if _src_ts:
+                    try:
+                        occurred = datetime.fromisoformat(
+                            str(_src_ts).replace("Z", "+00:00")
+                        )
+                    except (ValueError, TypeError):
+                        pass
                 try:
                     if event_type in ("learning_tip", "callout_annotation"):
                         # 去重修复 (2026-06-13): 优先 meta['content'] (裸正文,
