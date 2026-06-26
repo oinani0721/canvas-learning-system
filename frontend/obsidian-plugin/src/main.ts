@@ -1312,11 +1312,51 @@ export default class CanvasLearningPlugin extends Plugin {
       );
     }
 
+    // P4 (X1): 实时上报派生关系原因 → Graphiti (Graphiti-native, 不必等启动回填)。
+    // 派生节点(conceptName)持有 frontmatter relationship 指向源节点(sourceNoteStem),
+    // 故出边源=conceptName, target=sourceNoteStem。失败非致命(回填兜底)。
+    void this.saveRelationToBackend(
+      conceptName,
+      sourceNoteStem,
+      args.relationKey,
+      args.description,
+    );
+
     const elapsedMs = Date.now() - t0;
     new Notice(
       `✓ 派生完成 [[节点/${conceptName}]]（${elapsedMs}ms）。新节点已开 — 在三段空白处写下你的理解，或打开 Claudian 围绕本节点对话。`,
       8000,
     );
+  }
+
+  /**
+   * P4 (A+-prime): 派生关系原因实时上报 → POST /api/v1/tips/relation →
+   * record_knowledge_entity(node_derived) → write_relation_reason (Graphiti-native)。
+   * 修 X1: 用户写下"为什么拉出"后不必重启后端即可被针对性考察读回。
+   */
+  public async saveRelationToBackend(
+    sourceNodeId: string,
+    targetNodeId: string,
+    relationType: string,
+    reason: string,
+  ): Promise<void> {
+    try {
+      await this.callBackend(
+        "/api/v1/tips/relation",
+        "派生关系同步",
+        {
+          source_node_id: sourceNodeId,
+          target_node_id: targetNodeId,
+          relation_type: relationType,
+          reason,
+          source_timestamp: new Date().toISOString(),
+        },
+        "POST",
+        true, // 静默: 失败有回填兜底, 不打扰派生流程
+      );
+    } catch {
+      // 静默 — 实时上报失败由启动回填兜底
+    }
   }
 
   /**

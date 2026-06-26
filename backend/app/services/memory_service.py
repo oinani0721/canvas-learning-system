@@ -1292,6 +1292,7 @@ class MemoryService:
                     write_callout,
                     write_conversation_summary,
                     write_error,
+                    write_relation_reason,
                 )
 
                 # P3 (A4): valid_at = 真实源事件时间(客户端 source_timestamp =
@@ -1359,6 +1360,23 @@ class MemoryService:
                             occurred_at=occurred,
                         )
                         structured_written = True
+                    elif event_type in ("node_derived", "wikilink_added"):
+                        # P4 (X1): 派生关系原因实时入图 (非启动回填)。node_id_for_exam =
+                        # 持有 frontmatter relationships 的派生节点(出边源), target = 源节点。
+                        # 走 Graphiti-native write_relation_reason, 不走 CANVAS_EDGE 投影。
+                        target = meta.get("target_node_id", "")
+                        if target:
+                            await write_relation_reason(
+                                graphiti.driver,
+                                graphiti.embedder,
+                                source_node_id=node_id_for_exam,
+                                target_node_id=target,
+                                group_id=resolved_group_id,
+                                relation_type=meta.get("relation_type"),
+                                reason=meta.get("reason") or content,
+                                occurred_at=occurred,
+                            )
+                            structured_written = True
                 except Exception as e:  # noqa: BLE001 — 结构化失败退语义队列保数据
                     logger.warning(
                         f"[Graphiti-native] structured write failed for "

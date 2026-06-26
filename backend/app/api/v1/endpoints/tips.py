@@ -66,6 +66,30 @@ class SaveTipResponse(BaseModel):
     message: str = ""
 
 
+class SaveRelationRequest(BaseModel):
+    """P4 (A+-prime): 派生关系原因实时上报 (Cmd+Shift+D 拉新节点)。
+
+    走 Graphiti-native write_relation_reason (经 record_knowledge_entity), 不走
+    sync.py 的 CANVAS_EDGE 投影。让'写下为什么拉出 → 立即读回'不必等重启回填。
+    """
+
+    source_node_id: str = Field(
+        ..., description="持有 relationship 的派生节点 basename"
+    )
+    target_node_id: str = Field(..., description="源节点 basename")
+    relation_type: str = Field(
+        default="related_to", description="prerequisite/refines/extends/..."
+    )
+    reason: str = Field(default="", description="用户写的'为什么拉出/连接'")
+    source_timestamp: str = Field(default="", description="ISO 用户操作时刻")
+
+
+class SaveRelationResponse(BaseModel):
+    saved: bool
+    status: str = "written"
+    message: str = ""
+
+
 # ─── Story 2.4 Plan B Phase 2 (2026-05-14): Batch sync schema ───
 # 用户在 callout 内继续输入"我的理解"后，plugin debounce 500ms 触发 batch sync。
 # Backend 用 content_hash 做幂等去重 — 同 hash 跳过，不同 hash 创建 v2 EpisodicNode。
@@ -284,6 +308,59 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to save tip: {str(e)}",
+        ) from e
+
+
+@tips_router.post(
+    "/relation",
+    response_model=SaveRelationResponse,
+    summary="Save a derivation relation reason to Graphiti (P4)",
+    description="派生节点时实时上报'为什么拉出'的关系原因 → Graphiti-native "
+    "write_relation_reason。修 X1: 不必等启动回填即可读回。",
+)
+async def save_relation(request: SaveRelationRequest) -> Dict[str, Any]:
+    """P4 (A+-prime): 派生关系原因实时入图。"""
+    from app.config import DEFAULT_GROUP_ID
+    from app.services.memory_service import get_memory_service
+
+    try:
+        memory_svc = await get_memory_service()
+        result = await memory_svc.record_knowledge_entity(
+            event_type="node_derived",
+            content=(
+                request.reason
+                or f"{request.source_node_id} -> {request.target_node_id}"
+            ),
+            metadata={
+                "node_id": request.source_node_id,
+                "target_node_id": request.target_node_id,
+                "relation_type": request.relation_type,
+                "reason": request.reason,
+                "source_timestamp": request.source_timestamp,
+            },
+            group_id=DEFAULT_GROUP_ID,
+        )
+        write_status = (
+            result.get("status", "written") if isinstance(result, dict) else "written"
+        )
+        degraded = write_status == "degraded"
+        logger.info(
+            f"[P4] Relation saved: {request.source_node_id} -> "
+            f"{request.target_node_id} ({request.relation_type}) status={write_status}"
+        )
+        return SaveRelationResponse(
+            saved=not degraded,
+            status=write_status,
+            message=(
+                "记忆服务未就绪，关系已暂存，将在服务就绪后自动入图"
+                if degraded
+                else "Relation saved"
+            ),
+        ).model_dump()
+    except Exception as e:
+        logger.error(f"[P4] Failed to save relation: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to save relation: {str(e)}"
         ) from e
 
 

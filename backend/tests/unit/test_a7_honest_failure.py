@@ -148,3 +148,52 @@ async def test_recover_keeps_pending_when_replay_degrades(
     result = await service.recover_failed_writes()
     assert result["recovered"] == 0
     assert f.exists()  # 仍 degraded → 保留
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P4 (X1 2026-06-26): 派生关系原因实时路由 → write_relation_reason
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def test_node_derived_routes_to_write_relation_reason(service, monkeypatch):
+    """event_type=node_derived → write_relation_reason (Graphiti-native, 非 CANVAS_EDGE)。"""
+    g = MagicMock()
+    g.driver = MagicMock()
+    g.embedder = MagicMock()
+    _worker(monkeypatch, graphiti=g, is_ready=True)
+    captured = {}
+
+    async def spy_wrr(driver, embedder, **kw):
+        captured.update(kw)
+
+    monkeypatch.setattr(
+        "app.services.graphiti_structured_writer.write_relation_reason", spy_wrr
+    )
+    r = await service.record_knowledge_entity(
+        "node_derived",
+        "我想单独讨论",
+        {
+            "node_id": "代理函数",
+            "target_node_id": "lecture 2",
+            "relation_type": "refines",
+            "reason": "我想单独讨论",
+        },
+        "vault:g",
+    )
+    assert captured["source_node_id"] == "代理函数"  # 派生节点 = 出边源
+    assert captured["target_node_id"] == "lecture 2"
+    assert captured["relation_type"] == "refines"
+    assert captured["reason"] == "我想单独讨论"
+    assert r["status"] == "written"
+
+
+async def test_node_derived_no_target_falls_back_to_queue(service, monkeypatch):
+    """无 target_node_id → 不结构化写, 退语义队列 (不崩)。"""
+    g = MagicMock()
+    g.driver = MagicMock()
+    g.embedder = MagicMock()
+    _worker(monkeypatch, graphiti=g, is_ready=True, enqueue_ok=True)
+    r = await service.record_knowledge_entity(
+        "node_derived", "原因", {"node_id": "n"}, "vault:g"
+    )
+    assert r["status"] == "enqueued"  # 缺 target → fallback
