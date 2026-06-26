@@ -35,7 +35,6 @@ def check(ok: bool, msg: str) -> None:
 async def main() -> int:
     from app.config import DEFAULT_GROUP_ID, settings
     from graphiti_core.driver.neo4j_driver import Neo4jDriver
-    from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
 
     from app.services import graphiti_belief_service as bs
     from app.services.graphiti_memory_reader import (
@@ -49,20 +48,19 @@ async def main() -> int:
         write_relation_reason,
     )
 
+    from app.graphiti.embedder_factory import build_embedder, get_embedder_provider
+
     google_key = os.getenv("GOOGLE_API_KEY") or getattr(settings, "GOOGLE_API_KEY", "")
-    if not google_key:
-        print("⛔ 需 GOOGLE_API_KEY (D8: Neo4j save 无向量必 NPE)")
+    if get_embedder_provider() == "gemini" and not google_key:
+        print("⛔ provider=gemini 需 GOOGLE_API_KEY (D8: Neo4j save 无向量必 NPE)")
         return 2
     driver = Neo4jDriver(
         uri=settings.NEO4J_URI,
         user=settings.NEO4J_USER,
         password=settings.NEO4J_PASSWORD,
     )
-    embedder = GeminiEmbedder(
-        config=GeminiEmbedderConfig(
-            api_key=google_key, embedding_model="gemini-embedding-001"
-        )
-    )
+    embedder = build_embedder(google_key)
+    print(f"  embedder provider = {get_embedder_provider()}")
     gid = DEFAULT_GROUP_ID
     now = datetime.now(timezone.utc)
     src, tgt = f"{PROBE}src", f"{PROBE}tgt"
@@ -119,9 +117,8 @@ async def main() -> int:
             records[0]["n"] == 3,
             f"(a) :Entity-RELATES_TO canonical 边 = {records[0]['n']}/3",
         )
-        # (c) reader 读回
+        # (c) reader 读回 — canonical 格式 "[类型] 正文" (F10 去重 2026-06-13)
         tips = await read_node_tips(driver, src)
-        # F10 去重修复后 fact = canonical_callout_fact("[类型·理解度] 裸正文")
         check(tips == ["[tip] probe 批注"], f"(c) read_node_tips = {tips}")
         reasons_src = await read_node_edge_reasons(driver, src)
         reasons_tgt = await read_node_edge_reasons(driver, tgt)

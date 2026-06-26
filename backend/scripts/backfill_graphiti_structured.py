@@ -41,26 +41,16 @@ async def main() -> int:
 
     # embedder (D8 硬前提): Neo4j 的 save 查询无条件调 db.create.setNodeVectorProperty,
     # embedding=None 必 NPE → execute 模式必须有可用 embedder。
-    # 配置镜像 episode_worker:378-383 (embedding_model=gemini-embedding-001,
-    # 默认 text-embedding-001 已 404)。
+    # 可切换 embedder (EMBEDDER_PROVIDER=gemini|openai|local)。
     embedder = None
     google_key = os.getenv("GOOGLE_API_KEY") or getattr(settings, "GOOGLE_API_KEY", "")
-    if google_key:
-        try:
-            from graphiti_core.embedder.gemini import (
-                GeminiEmbedder,
-                GeminiEmbedderConfig,
-            )
+    try:
+        from app.graphiti.embedder_factory import build_embedder, get_embedder_provider
 
-            embedder = GeminiEmbedder(
-                config=GeminiEmbedderConfig(
-                    api_key=google_key,
-                    embedding_model="gemini-embedding-001",
-                )
-            )
-            print("embedder: GeminiEmbedder/gemini-embedding-001")
-        except Exception as e:  # noqa: BLE001
-            print(f"embedder 初始化失败: {e}")
+        embedder = build_embedder(google_key)
+        print(f"embedder: provider={get_embedder_provider()}")
+    except Exception as e:  # noqa: BLE001
+        print(f"embedder 初始化失败: {e}")
     if args.execute and embedder is None:
         print("⛔ execute 需要可用 embedder (Neo4j save 无向量会 NPE)。中止。")
         return 2

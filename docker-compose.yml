@@ -158,6 +158,18 @@ services:
       # GOOGLE_API_KEY: P0 2026-05-14 — 从 host shell env 传入容器以让 GraphitiEpisodeWorker 启用。
       # 之前的注释"read from backend/.env via load_dotenv"在 worker 启动早于 dotenv load 时不生效。
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # 可切换 embedder (2026-06-26): gemini(默认) | openai | local。
+      # local = Ollama/LM Studio 本地 bge-m3 (1024 维, 不受 Gemini 地理封锁)。
+      # 用法: 宿主 `ollama serve` + `ollama pull bge-m3`, 然后
+      #   EMBEDDER_PROVIDER=local docker compose up -d backend
+      - EMBEDDER_PROVIDER=${EMBEDDER_PROVIDER:-gemini}
+      - LOCAL_EMBEDDER_BASE_URL=${LOCAL_EMBEDDER_BASE_URL:-http://host.docker.internal:11434/v1}
+      - LOCAL_EMBEDDER_MODEL=${LOCAL_EMBEDDER_MODEL:-bge-m3}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_EMBEDDER_MODEL=${OPENAI_EMBEDDER_MODEL:-text-embedding-3-small}
+    extra_hosts:
+      # 让容器内能用 host.docker.internal 访问宿主机 Ollama (Linux 需要; Mac/Win 默认有)
+      - "host.docker.internal:host-gateway"
 
     volumes:
       - ./backend:/app
