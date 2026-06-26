@@ -131,13 +131,21 @@ async def backfill_vault(
         _resolve_node_id,
     )
     from app.services.graphiti_structured_writer import (
+        invalidate_missing_callouts,
         write_callout,
         write_error,
         write_relation_reason,
     )
 
     base = Path(vault_path)
-    stats = {"callouts": 0, "errors": 0, "relations": 0, "files": 0, "failed": 0}
+    stats = {
+        "callouts": 0,
+        "errors": 0,
+        "relations": 0,
+        "files": 0,
+        "failed": 0,
+        "invalidated": 0,
+    }
     if not base.exists():
         logger.warning("[Backfill] vault 不存在: %s", vault_path)
         return stats
@@ -194,6 +202,23 @@ async def backfill_vault(
             except Exception as e:  # noqa: BLE001 — 单条失败不阻断回填
                 stats["failed"] += 1
                 logger.debug("[Backfill] callout 写失败 %s: %s", node_id, e)
+
+        # P5 (A2): 删除对账 — 当前 frontmatter 已无的批注边置 invalid_at。
+        # 仅当本文件仍有带 id 的 callout 时跑 (keep 集合非空); 删光所有 callout
+        # 是边界场景, 当前不在此处理 (已知项, 影响仅图整洁非出题, P1 已隔离)。
+        keep_ids = {aid for (_, _, _, aid) in callouts if aid}
+        if execute and keep_ids:
+            try:
+                stats["invalidated"] += await invalidate_missing_callouts(
+                    driver,
+                    embedder,
+                    node_id=node_id,
+                    group_id=group_id,
+                    keep_annotation_ids=keep_ids,
+                    occurred_at=occurred,
+                )
+            except Exception as e:  # noqa: BLE001 — 对账失败不阻断回填
+                logger.debug("[Backfill] 删除对账失败 %s: %s", node_id, e)
 
         for rel in rels:
             target = _resolve_node_id(rel.get("target"))

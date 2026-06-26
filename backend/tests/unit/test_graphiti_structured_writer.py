@@ -463,3 +463,57 @@ async def test_relation_reason_preserves_existing_time(capture, monkeypatch):
         occurred_at=datetime(2026, 6, 26, tzinfo=timezone.utc),
     )
     assert edge.valid_at == old and edge.created_at == old
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P5 (A2 删除失效 2026-06-26): invalidate_missing_callouts 删除对账
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class _StubEdge:
+    def __init__(self, aid, source="callout"):
+        self.attributes = {"source": source}
+        if aid:
+            self.attributes["annotation_id"] = aid
+        self.invalid_at = None
+        self.fact_embedding = [0.1]  # 非空 → 跳过 embedding 重载
+        self.saved = False
+
+    async def load_fact_embedding(self, driver):
+        pass
+
+    async def generate_embedding(self, embedder):
+        pass
+
+    async def save(self, driver):
+        self.saved = True
+
+
+async def test_invalidate_missing_callouts(monkeypatch):
+    """当前 keep 集合之外、带 id 的 callout 边 → invalid_at; 其余不动。"""
+    occ = datetime(2026, 6, 26, tzinfo=timezone.utc)
+    keep = _StubEdge("cb-keep")
+    gone = _StubEdge("cb-gone")
+    legacy = _StubEdge(None)  # 无 id 历史边
+    rel = _StubEdge("cb-rel", source="relation")  # 非 callout
+
+    async def stub_active(driver, node_id, group_id):
+        return "uuid", [keep, gone, legacy, rel]
+
+    monkeypatch.setattr(
+        "app.services.graphiti_memory_reader._node_uuid_and_active_edges", stub_active
+    )
+    n = await w.invalidate_missing_callouts(
+        object(),
+        None,
+        node_id="n",
+        group_id="vault:g",
+        keep_annotation_ids={"cb-keep"},
+        occurred_at=occ,
+    )
+    assert n == 1  # 仅 gone 被失效
+    assert gone.invalid_at == occ and gone.saved
+    assert gone.attributes["status"] == "deleted"
+    assert keep.invalid_at is None and not keep.saved  # 保留的不动
+    assert legacy.invalid_at is None  # 无 id 历史边不对账
+    assert rel.invalid_at is None  # 非 callout 边不动

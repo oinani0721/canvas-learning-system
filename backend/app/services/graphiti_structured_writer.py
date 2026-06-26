@@ -295,3 +295,49 @@ async def write_belief_version(graphiti: Any, **kwargs: Any) -> Any:
     from app.services.graphiti_belief_service import update_belief_version_chain
 
     return await update_belief_version_chain(graphiti, **kwargs)
+
+
+async def invalidate_missing_callouts(
+    driver: Any,
+    embedder: Optional[Any],
+    *,
+    node_id: str,
+    group_id: str,
+    keep_annotation_ids: set[str],
+    occurred_at: datetime,
+) -> int:
+    """P5 (A2 删除失效 2026-06-26): 删除对账 — 节点当前已无的批注边置 invalid_at。
+
+    frontmatter/markdown 当前 callout 集合 keep_annotation_ids 之外的 active callout
+    自环边 → invalid_at + status=deleted (用户删了该 callout)。仅作用于带
+    annotation_id 的 P0+ 边; 无 id 的历史边不动 (无法可靠对账)。
+
+    注: P1 已让 ACP 当前态读 frontmatter, 删除立即不参与出题。此对账是图整洁/时光机
+    一致的最终一致性补充 (回填时跑), 非阻断出题的实时硬需求。
+    复用 belief 的 invalidate+embedding 模式 (读回边 fact_embedding 默认空, save 前补)。
+    返回失效条数。
+    """
+    from app.services.graphiti_memory_reader import _node_uuid_and_active_edges
+
+    _uuid, edges = await _node_uuid_and_active_edges(driver, node_id, group_id)
+    invalidated = 0
+    for edge in edges:
+        attrs = edge.attributes or {}
+        if attrs.get("source") != "callout":
+            continue
+        aid = attrs.get("annotation_id")
+        if not aid or aid in keep_annotation_ids:
+            continue
+        # 用户已删此批注 → tombstone
+        edge.invalid_at = occurred_at
+        edge.attributes = {**attrs, "status": "deleted"}
+        if edge.fact_embedding is None:
+            try:
+                await edge.load_fact_embedding(driver)
+            except Exception:  # noqa: BLE001 — 读回无 embedding 退生成
+                pass
+        if edge.fact_embedding is None and embedder is not None:
+            await edge.generate_embedding(embedder)
+        await edge.save(driver)
+        invalidated += 1
+    return invalidated
