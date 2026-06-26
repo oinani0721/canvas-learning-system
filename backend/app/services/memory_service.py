@@ -343,6 +343,27 @@ class MemoryService:
         )
         return worker.enqueue(task)
 
+    def _record_structured_outbox(self, entry: Dict[str, Any]) -> bool:
+        """A7 (P2): 结构化写入彻底失败时立即落盘 outbox, 不静默丢数据。
+
+        立即写 FAILED_WRITES_FILE (非等 shutdown flush) 抗进程崩溃。条目带
+        kind='knowledge_entity' 判别符, recover_failed_writes 据此重放
+        (重新走 record_knowledge_entity 的结构化写入, 此时 worker 通常已就绪)。
+
+        注: callout/relation 的主要持久化是 frontmatter + 启动回填 (vault md 是
+        真相源, backfill_vault 重建边), outbox 是非结构化材料/边界场景的兜底。
+        返回 True=已落盘, False=连兜底也失败(真数据丢失风险, 已 error 日志)。
+        """
+        try:
+            FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with failed_writes_lock:
+                with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            return True
+        except OSError as e:
+            logger.error("[A7] outbox 落盘失败 (数据可能丢失): %s", e)
+            return False
+
     async def record_learning_event(
         self,
         user_id: str,
@@ -1205,7 +1226,8 @@ class MemoryService:
         content: str,
         metadata: Optional[Dict[str, Any]] = None,
         group_id: Optional[str] = None,
-    ) -> str:
+        _from_recovery: bool = False,
+    ) -> Dict[str, Any]:
         """
         Record a knowledge entity (tip or misconception) as an episode.
 
@@ -1223,7 +1245,12 @@ class MemoryService:
             group_id: Namespace group for subject isolation.
 
         Returns:
-            str: Generated episode ID.
+            dict: {"entity_id": str, "status": "written"|"enqueued"|"degraded"}.
+            A7 (P2): status 诚实反映持久化结果 — written=结构化写入图,
+            enqueued=进语义队列, degraded=worker 未就绪已落 outbox 待重放
+            (调用方据此报告, 不再无条件 saved=True)。
+
+            _from_recovery=True 时不重落 outbox (recover 重放路径, 避免重复堆积)。
         """
         if not self._initialized:
             await self.initialize()
@@ -1329,6 +1356,7 @@ class MemoryService:
                     )
                     structured_written = False
 
+        status = "written"
         if not structured_written:
             # 语义通道 (add_episode): 非结构化材料 / fallback。
             # P0-2a (2026-05-13): source_description 对齐 memory_format.py canonical。
@@ -1343,7 +1371,7 @@ class MemoryService:
                 if canonical_entity_type
                 else f"canvas_learning:{event_type}"
             )
-            self._enqueue_episode(
+            enqueued = self._enqueue_episode(
                 name=f"{event_type}:{meta.get('title', content[:40])}",
                 episode_body=content,
                 group_id=resolved_group_id,
@@ -1351,12 +1379,36 @@ class MemoryService:
                 entity_types=CANVAS_ENTITY_TYPES,
                 edge_types=CANVAS_EDGE_TYPES,
             )
+            if enqueued:
+                status = "enqueued"
+            else:
+                # A7 (P2): worker 未就绪 → 既不入图也未入队。诚实标 degraded +
+                # 落 outbox 待重放, 不再静默返回成功。
+                status = "degraded"
+                if not _from_recovery:
+                    self._record_structured_outbox(
+                        {
+                            "kind": "knowledge_entity",
+                            "event_type": event_type,
+                            "content": content,
+                            "metadata": meta,
+                            "group_id": resolved_group_id,
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                    )
+                    logger.warning(
+                        "[A7] %s 未入图(worker未就绪), 已落 outbox 待重放: "
+                        "id=%s node=%s",
+                        event_type,
+                        entity_id,
+                        meta.get("node_id", ""),
+                    )
 
         logger.info(
             f"[Story 3.6] Recorded {event_type}: id={entity_id} "
-            f"group={resolved_group_id}"
+            f"group={resolved_group_id} status={status}"
         )
-        return entity_id
+        return {"entity_id": entity_id, "status": status}
 
     async def find_episode_by_content_hash(
         self,
@@ -2018,6 +2070,23 @@ class MemoryService:
                 continue
 
             try:
+                # A7 (P2): 结构化条目 (callout/error/relation/对话) → 重走
+                # record_knowledge_entity 的结构化写入 (启动时 worker 通常已就绪)。
+                # _from_recovery=True 防止再次失败时重复落 outbox。
+                if entry.get("kind") == "knowledge_entity":
+                    result = await self.record_knowledge_entity(
+                        event_type=entry.get("event_type", ""),
+                        content=entry.get("content", ""),
+                        metadata=entry.get("metadata"),
+                        group_id=entry.get("group_id"),
+                        _from_recovery=True,
+                    )
+                    if result.get("status") in ("written", "enqueued"):
+                        recovered += 1
+                    else:
+                        still_pending.append(line)
+                    continue
+
                 # Phase 2: Enqueue recovered entry to GraphitiEpisodeWorker
                 concept = entry.get("concept", "") or entry.get("concept_id", "unknown")
                 entry_canvas = entry.get("canvas_name", "")

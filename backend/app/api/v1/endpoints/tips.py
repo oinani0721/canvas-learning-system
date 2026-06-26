@@ -84,6 +84,10 @@ class CalloutBatchItem(BaseModel):
     content_hash: str = Field(
         ..., min_length=64, max_length=64, description="SHA256 hex"
     )
+    annotation_id: str = Field(
+        default="",
+        description="P0 (A+-prime): 稳定批注身份 cb-xxx, 空=历史批注(回退首行)",
+    )
 
 
 class BatchSyncRequest(BaseModel):
@@ -236,7 +240,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
             else "learning_tip"
         )
 
-        await memory_svc.record_knowledge_entity(
+        result = await memory_svc.record_knowledge_entity(
             event_type=effective_event_type,
             content=(
                 f"Tip: {request.title} | Content: {request.content} | Tags: {tags_str}"
@@ -254,16 +258,25 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
             group_id=DEFAULT_GROUP_ID,
         )
 
+        # A7 (P2): 诚实反映持久化结果 — 不再无条件 saved=True。
+        write_status = (
+            result.get("status", "written") if isinstance(result, dict) else "written"
+        )
+        degraded = write_status == "degraded"
         logger.info(
             f"[Story 3.6] Tip saved: id={tip_id} node={request.node_id} "
-            f"title={request.title[:50]}"
+            f"title={request.title[:50]} status={write_status}"
         )
 
         return SaveTipResponse(
             tip_id=tip_id,
-            saved=True,
-            status="ok",
-            message="Tips saved successfully",
+            saved=not degraded,
+            status=write_status,
+            message=(
+                "记忆服务未就绪，批注已暂存，将在服务就绪后自动入图"
+                if degraded
+                else "Tips saved successfully"
+            ),
         ).model_dump()
 
     except Exception as e:
@@ -353,7 +366,7 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
                     f"tag:{callout.tag},understanding:{callout.understanding or 'none'}"
                 )
                 hash_marker = f"[hash:{callout.content_hash[:16]}]"
-                await memory_svc.record_knowledge_entity(
+                batch_result = await memory_svc.record_knowledge_entity(
                     event_type="callout_annotation",
                     content=(
                         f"Callout [{callout.tag_label}]: {callout.content} | "
@@ -366,6 +379,7 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
                         "tag": callout.tag,
                         "understanding": callout.understanding,
                         "node_id": request.node_id,
+                        "annotation_id": callout.annotation_id,
                         "content_hash": callout.content_hash,
                         "source_timestamp": request.source_timestamp,
                         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -373,7 +387,14 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
                     },
                     group_id=DEFAULT_GROUP_ID,
                 )
-                new_synced += 1
+                # A7 (P2): degraded 未入图, 不计入 synced
+                if (
+                    isinstance(batch_result, dict)
+                    and batch_result.get("status") == "degraded"
+                ):
+                    failed += 1
+                else:
+                    new_synced += 1
             except Exception as inner_e:
                 logger.warning(
                     f"[Story 2.4 batch] Failed one callout (hash={callout.content_hash[:8]}): {inner_e}"

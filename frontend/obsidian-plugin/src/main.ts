@@ -230,6 +230,7 @@ export default class CanvasLearningPlugin extends Plugin {
             understanding: c.understanding,
             content: c.content,
             content_hash: c.contentHash,
+            annotation_id: c.annotationId, // P0: 批量通道也带稳定身份
           })),
           source_timestamp: new Date().toISOString(),
         },
