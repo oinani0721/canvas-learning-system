@@ -1,0 +1,20 @@
+canvas-vault/.claude/skills/start-exam-board/SKILL.md
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+canvas-vault/.claude/skills/exam-quick/SKILL.md
+frontend/obsidian-plugin/src/ai-linked-doc.ts
+frontend/obsidian-plugin/src/main.ts
+frontend/obsidian-plugin/src/node-derivation.ts
+frontend/obsidian-plugin/tests/ai-linked-doc.test.ts
+canvas-vault/检验白板/特征值与特征向量-2026-07-05-1815.md
+canvas-vault/原白板/特征值与特征向量.md
+canvas-vault/原白板/CS 61B.md
+canvas-vault/节点/Fundamentals.md
+canvas-vault/节点/Characteristic-Equation-for-Eigenvalues.md
+canvas-vault/节点/cs-61b-csm.md
+canvas-vault/Dashboard.md
+canvas-vault/.canvas-config.yaml
+_bmad-output/研究/2026-07-01-检验白板Skill-v1诚实版设计.md
+_bmad-output/研究/2026-07-01-quiz-answer-对抗审查-管道断裂裁决.md
+_bmad-output/研究/2026-06-27-熟练度定义与演化-PRD.md
+.gdr/instruction-exam-board-v1-dev.md
+_bmad-output/研究/2026-07-05-检验白板v1-真机质量评估.md

@@ -109,8 +109,22 @@ export function isNodesPath(sourcePath: string): boolean {
   return sourcePath !== "unknown" && sourcePath.startsWith("节点/");
 }
 
+/**
+ * 检验白板（exam board）路径判定 — 检验白板 v1 交付 3。
+ * 让 检验白板/ 下的文件在 Cmd+Shift+D 派生疑问节点时，能像 节点/ 一样从
+ * frontmatter 的 source_board 回链原白板（复用 extractSourceBoardFromFrontmatter）。
+ * 检验白板 frontmatter 的 source_board 格式与节点一致："[[原白板/<board>]]"。
+ */
+export function isExamBoardPath(sourcePath: string): boolean {
+  return sourcePath !== "unknown" && sourcePath.startsWith("检验白板/");
+}
+
 export function isFlatArchPath(sourcePath: string): boolean {
-  return isBoardsPath(sourcePath) || isNodesPath(sourcePath);
+  return (
+    isBoardsPath(sourcePath) ||
+    isNodesPath(sourcePath) ||
+    isExamBoardPath(sourcePath)
+  );
 }
 
 export function extractBoardNameFromPath(sourcePath: string): string | null {

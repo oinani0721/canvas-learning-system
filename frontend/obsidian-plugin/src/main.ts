@@ -24,6 +24,7 @@ import { FrontmatterTipsSync } from "./frontmatter-tips-sync";
 import {
   extractBoardNameFromPath,
   extractSourceBoardFromFrontmatter,
+  isExamBoardPath,
   isFlatArchPath,
   isNodesPath,
   RELATION_TYPES,
@@ -572,13 +573,17 @@ export default class CanvasLearningPlugin extends Plugin {
    * 用户点"取消"或 Esc → Modal 关闭无副作用
    */
   private handleStartExaminationConfirm() {
+    // 检验白板 v1（诚实版）：不再调旧后端 /api/v1/exam/start（熟练度管道 B1-B4 断裂，
+    // 调必失败）。改为复制 /start-exam-board 命令，引导用户走 Claude Code Skill 路径。
     const activeFile = this.app.workspace.getActiveFile();
-    const sourceContext = activeFile?.path.startsWith("原白板/")
-      ? `原白板"${activeFile.basename}"`
-      : "当前 vault";
-    new ConfirmExamModal(this.app, sourceContext, () => {
-      this.callBackend("/api/v1/exam/start", "启动考察");
-    }).open();
+    const cmd = activeFile?.path.startsWith("原白板/")
+      ? `/start-exam-board from ${activeFile.basename}`
+      : "/start-exam-board";
+    void navigator.clipboard.writeText(cmd);
+    new Notice(
+      `已复制：${cmd}\n打开 Claudian 侧栏或 claude code CLI 粘贴执行（v1 检验白板，不走旧后端）。`,
+      8000,
+    );
   }
 
   /**
@@ -1141,15 +1146,22 @@ export default class CanvasLearningPlugin extends Plugin {
 
     let activeBoard = extractBoardNameFromPath(sourcePath) ?? undefined;
 
-    if (!activeBoard && isNodesPath(sourcePath) && activeFile) {
+    if (
+      !activeBoard &&
+      (isNodesPath(sourcePath) || isExamBoardPath(sourcePath)) &&
+      activeFile
+    ) {
       const cache = this.app.metadataCache.getFileCache(activeFile);
       const inherited = extractSourceBoardFromFrontmatter(
         cache?.frontmatter as Record<string, unknown> | undefined,
       );
       if (inherited) {
         activeBoard = inherited;
+        const originLabel = isExamBoardPath(sourcePath)
+          ? "检验白板疑问派生"
+          : "源节点";
         new Notice(
-          `继承源节点白板归属：${inherited}（v2.6 自动）`,
+          `继承${originLabel}白板归属：${inherited}（自动）`,
           3000,
         );
       }
@@ -1207,15 +1219,42 @@ export default class CanvasLearningPlugin extends Plugin {
     description: string;
   }) {
     const t0 = Date.now();
-    const sourceNoteStem = args.activeFile.basename;
+    let sourceNoteStem = args.activeFile.basename;
 
     let activeBoard = args.activeBoard;
     if (!activeBoard) {
+      const examHint = isExamBoardPath(args.sourcePath)
+        ? "若在检验白板内派生，请确认其 frontmatter 含 source_board: \"[[原白板/<名>]]\"（由 /start-exam-board 自动写入）。"
+        : "请先在节点继承的笔记或原白板内派生。";
       new Notice(
-        `❌ 未确定活动白板：当前笔记 ${args.sourcePath} 不是白板路径也无 source_board frontmatter。请先在节点继承的笔记或原白板内派生。`,
+        `❌ 未确定活动白板：当前笔记 ${args.sourcePath} 不是白板路径也无 source_board frontmatter。${examHint}`,
         7000,
       );
       return;
+    }
+
+    // 检验白板派生（交付3 · 设计 §三轮①）：疑问节点应挂到"被考的原节点"，而非瞬态
+    // 检验白板会话文件。从检验白板 frontmatter 的 selected_node 读被考节点，令其成为疑问
+    // 节点的 source_note / up / derived-from / relationships.target 及入图 target。
+    // description 仍来自用户 modal（书签意图）；AI 判断的因果原因由 /quiz-answer 路径②回填。
+    // selected_node 缺失/被考节点不存在 → 硬失败（静默回退到检验白板文件名会造成错链：
+    // 疑问节点挂到瞬态考试文件，知识图谱与 Dataview 全被污染）。
+    if (isExamBoardPath(args.sourcePath)) {
+      const cache = this.app.metadataCache.getFileCache(args.activeFile);
+      const examined = cache?.frontmatter?.selected_node;
+      if (typeof examined !== "string" || !examined.trim()) {
+        new Notice(
+          "❌ 检验白板缺 selected_node，无法判断疑问源自哪个被考原节点。请用 /start-exam-board 重新生成检验白板。",
+          8000,
+        );
+        return;
+      }
+      const examinedStem = examined.trim();
+      if (!this.app.vault.getAbstractFileByPath(`节点/${examinedStem}.md`)) {
+        new Notice(`❌ 被考原节点不存在：节点/${examinedStem}.md`, 8000);
+        return;
+      }
+      sourceNoteStem = examinedStem;
     }
 
     const stub = deriveConceptStub(args.selected);
@@ -1471,7 +1510,12 @@ export default class CanvasLearningPlugin extends Plugin {
     try {
       const resp = await fetch(url, {
         method,
-        headers: body ? { "Content-Type": "application/json" } : {},
+        headers: {
+          ...(body ? { "Content-Type": "application/json" } : {}),
+          ...(this.settings.internalApiKey
+            ? { "X-CLS-Internal-Key": this.settings.internalApiKey }
+            : {}),
+        },
         body: body ? JSON.stringify(body) : undefined,
       });
       let parsed: unknown = null;

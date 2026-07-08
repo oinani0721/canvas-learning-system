@@ -4,8 +4,10 @@ import {
   buildAIDocPrompt,
   isBoardsPath,
   isNodesPath,
+  isExamBoardPath,
   isFlatArchPath,
   extractBoardNameFromPath,
+  extractSourceBoardFromFrontmatter,
 } from "../src/ai-linked-doc";
 
 test("buildAIDocPrompt v4: 首行 slash + 显式 Skill 调用指令", () => {
@@ -91,15 +93,68 @@ test("isNodesPath: 判断源笔记在 节点/ 下", () => {
   );
 });
 
-test("isFlatArchPath: 判断是否在扁平架构路径下（原白板/ 或 节点/）", () => {
+test("isExamBoardPath: 判断源笔记在 检验白板/ 下（检验白板 v1 交付3）", () => {
+  assert.equal(isExamBoardPath("检验白板/CS 61B-2026-07-05-1815.md"), true);
+  assert.equal(
+    isExamBoardPath("检验白板/特征值与特征向量-2026-07-05-1815.md"),
+    true,
+    "中文板名 + 时间戳",
+  );
+  assert.equal(isExamBoardPath("原白板/CS 61B.md"), false);
+  assert.equal(isExamBoardPath("节点/recursion.md"), false);
+  assert.equal(isExamBoardPath("unknown"), false);
+});
+
+test("isFlatArchPath: 判断是否在扁平架构路径下（原白板/ 或 节点/ 或 检验白板/）", () => {
   assert.equal(isFlatArchPath("原白板/CS 61B.md"), true);
   assert.equal(isFlatArchPath("节点/base-case.md"), true);
+  assert.equal(
+    isFlatArchPath("检验白板/CS 61B-2026-07-05-1815.md"),
+    true,
+    "检验白板 v1 起纳入扁平架构",
+  );
   assert.equal(isFlatArchPath("raw/notes.md"), false);
   assert.equal(isFlatArchPath("未命名.md"), false);
   assert.equal(
     isFlatArchPath("wiki/canvases/cs-61b/index.md"),
     false,
     "弃用 v2 路径",
+  );
+});
+
+test("extractSourceBoardFromFrontmatter: 字符串形态 wikilink", () => {
+  assert.equal(
+    extractSourceBoardFromFrontmatter({ source_board: "[[原白板/CS 61B]]" }),
+    "CS 61B",
+  );
+  assert.equal(
+    extractSourceBoardFromFrontmatter({
+      source_board: "[[原白板/特征值与特征向量]]",
+    }),
+    "特征值与特征向量",
+  );
+  assert.equal(
+    extractSourceBoardFromFrontmatter({ source_board: "[[节点/X]]" }),
+    null,
+    "非 原白板/ 前缀返回 null",
+  );
+  assert.equal(extractSourceBoardFromFrontmatter({}), null, "缺字段返回 null");
+  assert.equal(extractSourceBoardFromFrontmatter(undefined), null);
+});
+
+test("extractSourceBoardFromFrontmatter: Link-like 对象形态（新版 metadataCache）", () => {
+  assert.equal(
+    extractSourceBoardFromFrontmatter({
+      source_board: { link: "原白板/CS 61B" },
+    }),
+    "CS 61B",
+  );
+  assert.equal(
+    extractSourceBoardFromFrontmatter({
+      source_board: { path: "原白板/线性代数.md" },
+    }),
+    "线性代数",
+    ".md 后缀应被剥掉",
   );
 });
 

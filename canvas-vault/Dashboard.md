@@ -128,7 +128,7 @@ if (!plugin) {
       };
 
       const examBtn = actionsCell.createEl("button", { text: "🚀 考察" });
-      examBtn.title = "打开白板 + 弹 confirm Modal 启动考察";
+      examBtn.title = "复制 /start-exam-board 命令 → 粘贴到 Claudian / Claude Code 执行（v1 检验白板，不走旧后端）";
       examBtn.style.marginRight = "4px";
       examBtn.disabled = s.count === 0;
       if (s.count === 0) {

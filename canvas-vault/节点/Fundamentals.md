@@ -6,7 +6,7 @@ created_from: manual_repair_2026-05-01
 
 # Linear Algebra Fundamentals
 
-Eigenvalues are special vectors that satisfy Av = λv, where A is a square matrix, v is the eigenvector, and λ is the eigenvalue
+Eigenvectors are special vectors that satisfy Av = λv, where A is a square matrix, v is the eigenvector, and λ is the eigenvalue (a scalar)
 
 > [!relation/extends]+ 已派生为 [[节点/Eigenvalues-are-special-vectors-that-sat]] · 扩展
 > 这段文本已被派生为独立讨论节点（保留原文供你后续阅读 + 派生节点供你深度展开）。
