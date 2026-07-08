@@ -12,7 +12,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/context-inject.js",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && node .claude/hooks/context-inject.js",
             "timeout": 3000
           }
         ]
@@ -24,12 +24,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pretool-guard.js",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && node .claude/hooks/pretool-guard.js",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/mock-import-guard.js",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && node .claude/hooks/mock-import-guard.js",
             "timeout": 2000
           }
         ]
@@ -41,12 +41,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-tool-router.sh",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/post-tool-router.sh",
             "timeout": 180000
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/uat-double-section-guard.js",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && node .claude/hooks/uat-double-section-guard.js",
             "timeout": 3000
           }
         ]
@@ -58,42 +58,42 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-test-runner.js",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && node .claude/hooks/stop-test-runner.js",
             "timeout": 60000
           },
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-auto-sync-to-remote.sh",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/stop-auto-sync-to-remote.sh",
             "timeout": 90000
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-decision-router.js",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && node .claude/hooks/stop-decision-router.js",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-deep-research-clipboard.js",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && node .claude/hooks/stop-deep-research-clipboard.js",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/bmad/scan_feedback.py --mode=batch-silent --sprint-status \"$CLAUDE_PROJECT_DIR\"/_bmad-output/implementation-artifacts/sprint-status.yaml",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && python3 scripts/bmad/scan_feedback.py --mode=batch-silent --sprint-status _bmad-output/implementation-artifacts/sprint-status.yaml",
             "timeout": 15000
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/sync_links.py",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && python3 scripts/sync_links.py",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/trace/build_story_file_map.py --all",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && python3 scripts/trace/build_story_file_map.py --all",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/sprint/update-current-task.py",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && python3 scripts/sprint/update-current-task.py",
             "timeout": 10000
           }
         ]
