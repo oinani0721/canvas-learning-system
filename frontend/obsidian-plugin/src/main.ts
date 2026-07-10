@@ -334,36 +334,17 @@ export default class CanvasLearningPlugin extends Plugin {
    * All commands default to unbound — user binds in Settings > Hotkeys.
    */
   private registerCanvasCommands() {
-    this.addCommand({
-      id: "canvas:start-dialog",
-      name: "启动学习对话",
-      callback: () => this.callBackend("/api/v1/agents/dialog", "启动学习对话"),
-    });
-
+    // 2026-07-10 S3 死命令清理(全景审计裁决):
+    // - canvas:start-dialog 已删 —— 调用的 /api/v1/agents/dialog 后端不存在(必 404);
+    //   节点对话走 canvas:open-node-chat,自由 RAG 对话在 Claudian 输 /chat-with-context。
+    // - canvas:extract-concept 已删 —— 名实不符:选中文本被 /wikilink/build 静默丢弃,
+    //   实际触发整库图重建;真正的概念提取 = canvas:ai-linked-doc(Cmd+Shift+D)。
+    // - canvas:quiz-from-callout 已删 —— handleStartExaminationDirect 纯别名,零批注
+    //   逻辑,且直调已被 B1-B4 裁决弃用的旧后端链;批注驱动考察 = /start-exam-board。
     this.addCommand({
       id: "canvas:start-examination",
-      name: "启动考察（直调，无 confirm）",
-      callback: () => this.handleStartExaminationDirect(),
-    });
-
-    this.addCommand({
-      id: "canvas:extract-concept",
-      name: "提取概念",
-      callback: () => {
-        const editor = this.app.workspace.activeEditor?.editor;
-        const selected = editor?.getSelection();
-        if (!selected) {
-          new Notice("请先选中文本再提取概念");
-          return;
-        }
-        this.callBackend("/api/v1/wikilink/build", "提取概念", { text: selected });
-      },
-    });
-
-    this.addCommand({
-      id: "canvas:quiz-from-callout",
-      name: "批注考察",
-      callback: () => this.handleStartExaminationDirect(),
+      name: "启动考察（复制 /start-exam-board 命令）",
+      callback: () => this.handleStartExaminationConfirm(),
     });
 
     this.addCommand({
@@ -1560,39 +1541,9 @@ export default class CanvasLearningPlugin extends Plugin {
     }
   }
 
-  /**
-   * Story 1.18 路径 B 修复 · 启动考察（直调 POST /api/v1/exam/start）
-   * 修 v3 spec bug: 之前用 GET 触发 endpoint，但后端要求 POST + ExamSessionCreate body。
-   * 推断 source_canvas_id：
-   *   - active file 在 原白板/X.md → X 作为 board id（MVP 简化，正式应该用 vault_id + board UUID）
-   *   - active file 不在 → 弹错让用户先打开白板
-   */
-  private async handleStartExaminationDirect() {
-    const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile || !activeFile.path.startsWith("原白板/")) {
-      new Notice(
-        "请先打开一个原白板（原白板/<板名>.md）再启动考察",
-        5000,
-      );
-      return;
-    }
-    const boardName = activeFile.basename;
-    const result = await this.callBackend(
-      "/api/v1/exam/start",
-      `启动考察"${boardName}"`,
-      {
-        source_canvas_id: boardName,
-        exam_mode: "mixed",
-      },
-      "POST",
-    );
-    if (result && (result as any).id) {
-      new Notice(
-        `✓ 考察会话已建：${(result as any).id}\n查询：GET /api/v1/exam/${(result as any).id}`,
-        7000,
-      );
-    }
-  }
+  // 2026-07-10 S3: handleStartExaminationDirect 已删 —— 直调 /api/v1/exam/start 属
+  // B1-B4 裁决弃用的旧后端考察链;canvas:start-examination 现与 confirm 版同走
+  // handleStartExaminationConfirm(复制 /start-exam-board 命令,v1 检验白板路径)。
 
   /**
    * Story 1.18 路径 B 修复 · 打开 Dashboard.md launcher（不再调 health endpoint）
