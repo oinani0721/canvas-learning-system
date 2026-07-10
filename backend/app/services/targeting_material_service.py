@@ -32,6 +32,11 @@ _MAX_ERRORS_PER_NEIGHBOR = 3
 
 def _read_neighbor_errors(node_id: str) -> list[str]:
     """读邻居节点当前态错误描述 (正式 errors[] 优先 + tips tag=error)。"""
+    # 纵深防御: neighbor_id 来自图内受控数据 (sync 写入 md.stem), 但
+    # _node_md_path 本身无穿越防护 — 含路径分隔/父目录引用一律拒绝
+    if "/" in node_id or "\\" in node_id or ".." in node_id:
+        logger.warning("[T4] 拒绝可疑 neighbor_id: %r", node_id)
+        return []
     path = _node_md_path(node_id)
     if path is None:
         return []
