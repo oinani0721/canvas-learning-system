@@ -795,14 +795,14 @@ class LanceDBClient:
             return 0
 
         try:
-            if table_name in self._tables_cache:
-                tbl = self._tables_cache[table_name]
-            else:
-                try:
-                    tbl = self._db.open_table(table_name)
-                    self._tables_cache[table_name] = tbl
-                except Exception:
-                    return 0
+            # T3 根治 (2026-07-10): 不读缓存句柄 — rebuild/drop 后旧句柄指向
+            # 已删 dataset, 操作静默失败。open_table 轻量 (LanceDB 官方语义),
+            # 每次拿最新句柄; 仍写缓存供 create 流程等内部引用。
+            try:
+                tbl = self._db.open_table(table_name)
+                self._tables_cache[table_name] = tbl
+            except Exception:
+                return 0
 
             escaped = file_path.replace("'", "''")
             tbl.delete(f"canvas_file = '{escaped}'")
@@ -1006,14 +1006,12 @@ class LanceDBClient:
         # Delete old image OCR data for this node
         if self._db is not None:
             try:
-                if table_name in self._tables_cache:
-                    tbl = self._tables_cache[table_name]
-                else:
-                    try:
-                        tbl = self._db.open_table(table_name)
-                        self._tables_cache[table_name] = tbl
-                    except Exception:
-                        tbl = None
+                # T3 根治 (2026-07-10): 每次 open_table, 不读缓存句柄
+                try:
+                    tbl = self._db.open_table(table_name)
+                    self._tables_cache[table_name] = tbl
+                except Exception:
+                    tbl = None
 
                 if tbl is not None:
                     escaped_node = node_id.replace("'", "''")
@@ -1873,11 +1871,9 @@ class LanceDBClient:
             return results
 
         try:
-            if table_name in self._tables_cache:
-                tbl = self._tables_cache[table_name]
-            else:
-                tbl = self._db.open_table(table_name)
-                self._tables_cache[table_name] = tbl
+            # T3 根治 (2026-07-10): 每次 open_table, 不读缓存句柄
+            tbl = self._db.open_table(table_name)
+            self._tables_cache[table_name] = tbl
 
             # Collect doc_ids already in results to avoid duplicates
             existing_doc_ids: set = set()
@@ -1939,9 +1935,9 @@ class LanceDBClient:
             return list()
 
         try:
-            if table_name not in self._tables_cache:
-                self._tables_cache[table_name] = self._db.open_table(table_name)
-            tbl = self._tables_cache[table_name]
+            # T3 根治 (2026-07-10): 每次 open_table, 不读缓存句柄
+            tbl = self._db.open_table(table_name)
+            self._tables_cache[table_name] = tbl
             # Story 2-8 H5: Only select course and tags_str columns to avoid
             # loading full content/vector columns into memory.
             df = tbl.to_pandas(columns=["course", "tags_str"])
@@ -2160,11 +2156,9 @@ class LanceDBClient:
             return self._convert_to_search_results([])
 
         try:
-            if table_name in self._tables_cache:
-                table = self._tables_cache[table_name]
-            else:
-                table = self._db.open_table(table_name)
-                self._tables_cache[table_name] = table
+            # T3 根治 (2026-07-10): 每次 open_table, 不读缓存句柄
+            table = self._db.open_table(table_name)
+            self._tables_cache[table_name] = table
         except Exception:
             return self._convert_to_search_results([])
 
@@ -2708,12 +2702,11 @@ class LanceDBClient:
             return []
 
         # 获取表
+        # T3 根治 (2026-07-10): 每次 open_table, 不读缓存句柄 — rebuild 后
+        # 旧句柄指向已删 dataset, enrich 静默空 (原靠重启容器绕过)
         try:
-            if table_name in self._tables_cache:
-                table = self._tables_cache[table_name]
-            else:
-                table = self._db.open_table(table_name)
-                self._tables_cache[table_name] = table
+            table = self._db.open_table(table_name)
+            self._tables_cache[table_name] = table
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.debug(f"Table {table_name} not found: {e}")
@@ -3024,11 +3017,11 @@ class LanceDBClient:
         if self._db is None:
             return False
 
-        if table_name not in self._tables_cache:
-            return False
-
         try:
-            tbl = self._tables_cache[table_name]
+            # T3 根治 (2026-07-10): 存在性/句柄都以 db 为准, 不读缓存
+            if table_name not in self._db.table_names():
+                return False
+            tbl = self._db.open_table(table_name)
             # Sample first row to inspect vector dimension
             rows = tbl.head(1).to_pydict()
             vectors = rows.get("vector", [])
@@ -3151,7 +3144,8 @@ class LanceDBClient:
                 data.append(lance_doc)
 
             # Story 2.3 Task 6: Check vector dimension mismatch before insert
-            if data and table_name in self._tables_cache:
+            # T3 根治 (2026-07-10): 守卫改为 db 权威存在性 (缓存命中 ≠ 表存在)
+            if data and table_name in self._db.table_names():
                 sample_vector = data[0].get("vector")
                 if sample_vector is not None:
                     self._check_and_fix_dimension_mismatch(
@@ -3159,8 +3153,12 @@ class LanceDBClient:
                     )
 
             # 检查表是否存在
-            if table_name in self._tables_cache:
-                table = self._tables_cache[table_name]
+            # T3 根治 (2026-07-10): 存在性用 table_names() 权威判断, 不再以
+            # 缓存命中为准 — 原逻辑对"表存在但不在本实例缓存"会误走
+            # create_table 抛错; rebuild 后缓存句柄也已失效
+            if table_name in self._db.table_names():
+                table = self._db.open_table(table_name)
+                self._tables_cache[table_name] = table
                 table.add(data)
             else:
                 # 创建新表
