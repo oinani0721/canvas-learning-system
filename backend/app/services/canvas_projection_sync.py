@@ -54,8 +54,15 @@ class CanvasProjectionSync:
             self._neo4j = get_neo4j_client()
         return self._neo4j
 
-    async def sync(self, vault_path: str) -> dict[str, int]:
+    async def sync(self, vault_path: str, group_id: str = "") -> dict[str, int]:
         """扫描 vault, 把节点 frontmatter relationships 同步成 CANVAS_EDGE。
+
+        Args:
+            vault_path: vault 根目录。
+            group_id: 逻辑 D16 group_id (如 vault:canvas_vault), 由调用方
+                (main.py 启动流程) 经 build_vault_group_id 构造。T2 (2026-07-10):
+                MERGE 的 CanvasNode / CANVAS_EDGE 均落此 group (物理 __ 格式),
+                多 vault 不串。空值时回退当前 vault 推导。
 
         Returns: {nodes_with_relationships, edges_synced, failed}。
         """
@@ -63,6 +70,16 @@ class CanvasProjectionSync:
         if not base.exists():
             logger.warning("[Fix-E1] vault path 不存在, 跳过原因边同步: %s", vault_path)
             return {"nodes_with_relationships": 0, "edges_synced": 0, "failed": 0}
+
+        # T2 (2026-07-10): group 缺省回退当前 vault (与 vault_backfill 同源)
+        if not group_id:
+            from app.config import get_current_vault_id
+            from app.core.subject_config import build_vault_group_id
+
+            group_id = build_vault_group_id(get_current_vault_id())
+        from app.graphiti.group_id_compat import to_physical_group_id
+
+        physical_gid = to_physical_group_id(group_id)
 
         client = self._client()
         nodes_with_rel = 0
@@ -85,7 +102,7 @@ class CanvasProjectionSync:
                     continue
                 try:
                     await self._merge_edge(
-                        client, source_id, target_id, rel_type, label
+                        client, source_id, target_id, rel_type, label, physical_gid
                     )
                     edges_synced += 1
                 except Exception as e:  # noqa: BLE001 — 单边失败不阻断批量
@@ -120,17 +137,32 @@ class CanvasProjectionSync:
         return [r for r in rels if isinstance(r, dict)]
 
     async def _merge_edge(
-        self, client: Any, source_id: str, target_id: str, rel_type: str, label: str
+        self,
+        client: Any,
+        source_id: str,
+        target_id: str,
+        rel_type: str,
+        label: str,
+        physical_gid: str,
     ) -> None:
-        """MERGE (source)-[CANVAS_EDGE{label=原因}]->(target) (确定性 edge id 幂等)。"""
-        edge_id = f"rel-{source_id}-{rel_type}-{target_id}"
+        """MERGE (source)-[CANVAS_EDGE{label=原因}]->(target) (确定性 edge id 幂等)。
+
+        T2 (2026-07-10): 节点/边均 SET group_id (物理 __ 格式); edge_id 纳入
+        group 前缀 — 跨 vault 同名节点对的边不再共享 id 互相覆盖 label。
+        MERGE 键保持 {id} 不加 group, 对齐 SyncService / exam_service_ext 的
+        CanvasNode 写契约 (键结构分叉会造重复节点)。
+        """
+        edge_id = f"rel-{physical_gid}-{source_id}-{rel_type}-{target_id}"
         await client.run_query(
             """
             MERGE (s:CanvasNode {id: $source_id})
+            SET s.group_id = coalesce(s.group_id, $group_id)
             MERGE (t:CanvasNode {id: $target_id})
+            SET t.group_id = coalesce(t.group_id, $group_id)
             MERGE (s)-[e:CANVAS_EDGE {id: $edge_id}]->(t)
             SET e.label = $label,
                 e.relation_type = $rel_type,
+                e.group_id = $group_id,
                 e.synced_from = 'frontmatter'
             """,
             source_id=source_id,
@@ -138,6 +170,7 @@ class CanvasProjectionSync:
             edge_id=edge_id,
             label=label,
             rel_type=rel_type,
+            group_id=physical_gid,
         )
 
 
