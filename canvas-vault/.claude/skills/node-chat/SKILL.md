@@ -73,7 +73,7 @@ model: sonnet
 ### 用户要求"出题考我"
 - 基于节点正文 + Mastery 出 1 道题（不要一次出多道，避免认知超载）
 - 题型：定义题 / 选择题 / 应用题（看 Mastery 决定难度：< 0.3 用定义题，0.3-0.7 用选择题，> 0.7 用应用题）
-- 用户答完后给 1-3 句反馈，**不要打分**（评分留给检验白板 Story 6 流程）
+- 用户答完后给 1-3 句反馈，**不要打分**（评分留给检验白板流程 — 已上线：/start-exam-board 出题，答完 /quiz-answer 评分）
 
 ## 对话结束的"软关闭"
 
@@ -85,9 +85,9 @@ model: sonnet
 📝 **沉淀方式**：
 - 想把今天学的写到节点正文 → 直接打开 节点/<X>.md 编辑
 - 想派生新概念 → /ai-linked-doc（Cmd+Shift+D）
-- 想批注疑问点 → Cmd+Shift+A 标记
+- 想批注疑问点 → 命令面板 → 「批注为标注」标记（建议在 Settings→Hotkeys 绑定 Cmd+Shift+A）
 
-下次按 Cmd+Shift+C 即可重启对话（context 会自动重新注入）。
+下次用命令面板 → 「节点对话（注入上下文 + 切 Claudian）」即可重启对话（建议在 Settings→Hotkeys 绑定 Cmd+Shift+C；context 会自动重新注入）。
 ```
 
 ## 不在本 Skill 范围（明确告知用户）
@@ -99,6 +99,6 @@ model: sonnet
 | "帮我派生一个新概念" | `/ai-linked-doc`（Cmd+Shift+D） |
 | "帮我建一个新白板" | `/configure-whiteboard` 或 `Cmd+P` 命令面板 |
 | "把当前笔记追加到 X 白板" | `Cmd+P` → "把当前笔记追加到已有原白板" |
-| "考察我对这个节点的掌握" | 检验白板（未来 Story 6） |
+| "考察我对这个节点的掌握" | 检验白板（已上线：/start-exam-board 出题，答完 /quiz-answer 评分） |
 | "看我所有节点的 mastery 分布" | 打开 vault 根 `Dashboard.md` |
 | "记录我答错了什么" | 用 Cmd+Shift+A 标 `[!error]+` callout 在节点正文里 |

@@ -18,7 +18,7 @@ model: sonnet
 
 **识别触发**：
 - 若用户消息以 `/chat-with-context` 开头 → **立即调用本 Skill**
-- 消息由 Canvas plugin 的 Cmd+Shift+E 生成 + 剪贴板注入，被 backend 包在 `<rag_context version="1">` 标签内，含以下 sections：
+- 消息由 Canvas plugin 的 Cmd+Shift+E 生成 + 剪贴板注入，被 backend 包在 `<rag_context version="1">` 标签内（⛔ 路径 B 为 v2 规划，当前 plugin 未实现该注入；现阶段唯一真实路径 = 路径 A 直输 + 路径 C hook 注入），含以下 sections：
   - `<context_policy>` — Prompt injection boundary（参见硬约束 8）
   - `<manifest>` — 顶部状态行：Seed / Graph version / Included / Omitted / Token budget
   - `<current_note path="<path>">` — 节点 vault 路径 + 正文（已剥 frontmatter）
@@ -58,9 +58,9 @@ model: sonnet
 10. **⛔ 禁止凭训练数据答课程材料类问题** —
     禁止用你训练数据里的 CS188 / CS61B / AIMA / Berkeley 课程 / 其它任何课程教材作为主答案
     （包括但不限于：引用 Russell & Norvig AIMA 章节号、CS188 SP25 主页、aima-python GitHub、
-    课程 slides PDF 等外部 web 资源）。**用户的 raw/CS188/ 已在 vault 内被索引了 2594 chunks，
-    任何课程概念都应能在 supplementary_materials 找到** — 找不到就明说"vault 内未索引到 X，建议
-    `POST /metadata/index/vault` 重建索引"，不要悄悄 fallback 到训练数据。
+    课程 slides PDF 等外部 web 资源）。**vault 的学习资料目录（如 raw/）已被后端索引（数量随
+    vault 而异），课程概念都应能在 supplementary_materials 找到** — 找不到就明说"vault 内未索引到 X，建议
+    `POST /api/v1/canvas-meta/index/vault` 重建索引"，不要悄悄 fallback 到训练数据。
 
 11. **⛔ 回答末尾必须保留 `<supplementary_materials>` 完整列表展示** —
     主回答用 inline wikilink 引用 + 末尾用 `---` 分隔后再列完整 supplementary（按 rank 顺序展示
@@ -105,13 +105,13 @@ model: sonnet
     `✅ Faithfulness <X/Y 句带引用> · ContextPrecision <Read 命中率 a/b> · 矛盾点 <无/列出>`
     任一指标 < 0.8 → 主动追加 1 轮 Grep 补证再交付（5s 预算限制下不强制重输）
 
-18. **⛔ HARD-18 mastery 颜色阈值固定（v2.0 新增）** — 邻居 mastery 颜色统一：
-    - mastery ≥ 0.7 → 🟢 / 0.3-0.7 🟡 / <0.3 🔴 / 缺失 ⚪ 未评估
-    - 每条邻居后括号注 `(mastery 0.42)` 数值或 `(mastery 未评估)`
+18. **⛔ HARD-18 mastery_score 颜色阈值固定（v2.0 新增）** — 邻居 mastery_score 颜色统一：
+    - mastery_score ≥ 0.7 → 🟢 掌握 / 0.4-0.7 🟡 学习中 / <0.4 🔴 薄弱 / 缺失 ⚪ 未评估
+    - 每条邻居后括号注 `(mastery_score 0.42)` 数值或 `(mastery_score 未评估)`
     - **禁止 Claude 凭直觉配色**
 
 19. **⛔ HARD-19 路径 A/C 自救 (v2.1 修订)** — 
-    - 路径 A: **先 Glob+Grep canvas-vault/**/*.md 找含用户提问术语的 file** (5s 预算内,限 top-8 命中)。**命中后直接 Read top-2 走 4 段输出**,**不再走 MCP**。命中 0 才 fallback 到 `mcp__search_notes(max_results=15)`。
+    - 路径 A: **先 Glob+Grep **/*.md 找含用户提问术语的 file**（session 项目根即 vault 根）(5s 预算内,限 top-8 命中)。**命中后直接 Read top-2 走 4 段输出**,**不再走 MCP**。命中 0 才 fallback 到 `mcp__search_notes(max_results=15)`。
     - 路径 C 不变 (hook + MCP 合并)。
     - 理由: Dashboard / 非节点页触发是常态,native Grep 比 MCP 快且透明,5s 预算足够。
 
@@ -126,7 +126,7 @@ model: sonnet
 
 🔗 **关键邻居**：<列 2-3 个最相关的邻居 + 关系类型 + mastery>
    - 优先列 prerequisite / refines / depends_on 关系
-   - 标注 mastery 颜色（< 0.3 🔴 / < 0.7 🟡 / ≥ 0.7 🟢）
+   - 标注 mastery_score 颜色（< 0.4 🔴 薄弱 / 0.4-0.7 🟡 学习中 / ≥ 0.7 🟢 掌握）
 
 ⚠️ **如有降级通知**：明确告知"backend 邻居上下文暂时不可用（<原因>），本回答仅基于当前笔记"
 
@@ -167,7 +167,7 @@ model: sonnet
 - 基于节点正文 + 注入的 mastery / errors 出 1 道题
 - 题型基于 mastery：< 0.3 用定义题，0.3-0.7 用选择题，> 0.7 用应用题
 - 如果注入的 errors 显示某类错误模式，倾向出涉及该模式的辨析题
-- 用户答完后给 1-3 句反馈，**不要打分**（评分留给检验白板 Story 6 流程）
+- 用户答完后给 1-3 句反馈，**不要打分**（评分留给检验白板流程 — 已上线：/start-exam-board 出题，答完 /quiz-answer 评分）
 
 ## 对话结束的"软关闭"
 
@@ -220,7 +220,7 @@ model: sonnet
 |---|---|
 | "帮我派生一个新概念" | `/ai-linked-doc`（Cmd+Shift+D） |
 | "帮我建一个新白板" | `/configure-whiteboard` 或 `Cmd+P` 命令面板 |
-| "考察我对这个节点的掌握" | 检验白板（未来 Story 6） |
+| "考察我对这个节点的掌握" | 检验白板（已上线：/start-exam-board 出题，答完 /quiz-answer 评分） |
 | "看我所有节点的 mastery 分布" | 打开 vault 根 `Dashboard.md` |
 | "记录我答错了什么" | 用 Cmd+Shift+A 标 `[!error]+` callout 在节点正文里 |
 | "纯本地 1-hop 对话（不调 backend）" | `/node-chat`（Cmd+Shift+C，Story 3.1） |

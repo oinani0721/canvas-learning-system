@@ -93,7 +93,7 @@ model: sonnet
   "source_board": "[[原白板/<board_stem>]]",
   "self_confidence_raw": "半懂",
   "self_confidence_norm": 0.5,
-  "callout": "> [!question]+ 待剖析 · 源自检验白板 <文件名>（<日期>）\n> <疑问原文（逐字）>\n>\n> AI 判断来源：你在回答『<concept>』的考题时提出。原因：<一句话>"
+  "callout": "> [!question]+ 待剖析 · 源自 [[检验白板/<文件名>]]（<日期>）\n> <疑问原文（逐字）>\n>\n> AI 判断来源：你在回答『<concept>』的考题时提出。原因：<一句话>"
 }
 ```
 

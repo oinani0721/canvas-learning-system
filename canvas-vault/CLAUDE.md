@@ -2,21 +2,35 @@
 
 ## 目录结构
 
-| 目录 | 用途 |
+| 路径 | 用途 |
 |------|------|
-| `raw/` | 原始导入笔记（未处理） |
-| `wiki/concepts/` | 概念笔记（Templater 模板生成） |
-| `wiki/canvases/` | Obsidian Canvas 画布文件 |
-| `outputs/exam_boards/` | 考察板（exam-board 模板生成） |
+| `原白板/` | 学习白板（单 md 一板） |
+| `节点/` | 概念节点扁平池（一 vault 一学科） |
+| `检验白板/` | 信息隔离考察板（由 /start-exam-board 生成） |
+| `raw/` | 原始学习资料 |
+| `.canvas-config.yaml` | vault 级配置（vault_id / subject / active_board） |
 
-## Templater 模板
+## ⛔ 弃用路径
 
-- `concept.md` — 新建概念笔记时自动填充 frontmatter（掌握度、复习时间、关系等）
-- `exam-board.md` — 新建考察板时自动填充题目和评分结构
+严禁写入 `wiki/canvases/`、`wiki/concepts/`、`outputs/exam_boards/`。
 
-## Claudian 使用指南
+## Skill 索引
 
-通过 Claudian（Claude MCP sidecar）与后端交互：
-- "帮我检查系统状态" — 运行启动验证（Neo4j/Ollama/FastAPI/MCP）
-- "帮我复习" — 查看待复习概念（基于 FSRS 算法）
-- "拆解这个概念" — 将复杂概念分解为子问题
+| Skill | 用途 |
+|---|---|
+| `/configure-whiteboard` | 建板（推荐用插件命令） |
+| `/ai-linked-doc` | 派生节点（Cmd+Shift+D 注入） |
+| `/chat-with-context` | RAG 对话 |
+| `/node-chat` | 节点对话（Cmd+Shift+C 注入） |
+| `/study-question` | 解题深度 |
+| `/exam-quick` | 快速单题（不留档 fallback，要计分走检验白板） |
+| `/start-exam-board` | 生成检验白板 |
+| `/quiz-answer` | 检验白板评分 |
+
+## 核心学习闭环
+
+建白板 → Cmd+Shift+D 派生节点 → Cmd+Shift+A 批注 → /start-exam-board 考察 → 手写答 → /quiz-answer 静默评分 → Dashboard 看掌握度
+
+## 掌握度
+
+掌握度字段 = frontmatter `mastery_score`（0-1）：<0.4 薄弱 / 0.4-0.7 学习中 / ≥0.7 掌握。

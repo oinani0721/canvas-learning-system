@@ -19,7 +19,7 @@ model: sonnet
 **识别触发**：
 - 若用户消息以 `/study-question` 开头 → **立即调用本 Skill**
 - 两种触发路径（必须先做路径自检 — 见 HARD-0）：
-  - **路径 B（plugin Cmd+P → "解题深度模式"）**：消息包含 `<rag_context version="1" mode="deep">` 标签，含 `<current_note>` / `<neighbor>` / `<supplementary_materials count="N">` 等 section
+  - **路径 B（plugin Cmd+P → "解题深度模式"）**（v2 规划，当前 plugin 未实现；真实路径 = A 直输 / C hook）：消息包含 `<rag_context version="1" mode="deep">` 标签，含 `<current_note>` / `<neighbor>` / `<supplementary_materials count="N">` 等 section
   - **路径 A（Claudian 输入框直输 `/study-question 问题`）**：消息**仅有用户问题**，**无任何 `<rag_context>` 包装**
 
 ## ⛔⛔⛔ HARD CONSTRAINTS（违反 = Skill 失败）
@@ -27,7 +27,7 @@ model: sonnet
 ### 路径自检（v1.3 新增 — 用户批注修复）
 
 0. **⛔ HARD-0 三态路径自检（v1.4 升级 — 必须最先做）** — 解析 prompt 识别 3 种路径，**严禁**误把路径 C 当路径 B：
-   - **路径 B（plugin Cmd+P → "解题深度模式"，backend full RAG）**：消息含 `<rag_context version="1" mode="deep">` 外层包装 + `<supplementary_materials count="N">` 且 **N ≥ 10** → 按 §3 Pipeline 直接走，**无需** MCP 自救
+   - **路径 B（plugin Cmd+P → "解题深度模式"，backend full RAG）**（v2 规划，当前 plugin 未实现；真实路径 = A 直输 / C hook）：消息含 `<rag_context version="1" mode="deep">` 外层包装 + `<supplementary_materials count="N">` 且 **N ≥ 10** → 按 §3 Pipeline 直接走，**无需** MCP 自救
    - **路径 C（hook auto-RAG light 注入，v1.4 新识别）**：消息**无** `<rag_context>` 外层包装但**有** `<supplementary_materials count="N">` 且 **N < 10**（hook 5s 预算只回 5-8 条浅层召回）→ **必须**走 §3.A 调 MCP `search_notes(max_results=30)` **补充**到 ≥ 20 条（合并去重 hook 注入 + MCP 召回）
    - **路径 A（Claudian 裸触发，零注入）**：消息**既无** `<rag_context>` **也无** `<supplementary_materials>` → 必须走 §3.A 全量 MCP 自救
    - **严禁伪造** `[3/5] backend 召回 N 条` 进度行（v1.2 前 Claude 凭空捏造 N，违反 HARD-7）
@@ -69,7 +69,7 @@ model: sonnet
     - **score < 0.2 的条目**前缀加 `⚠️ 低相关` 视觉降权但**不删除**（保持 RAG-as-tool "把有用的都展示" 哲学，让用户自决）
     - 合并去重统计透明告知：在 dump 标题加 `（hook M + MCP K → 去重后 N 条 / 含 X 条 ⚠️ 低相关）`
 
-17. **⛔ HARD-17 跨 lecture 平行结构搜索** — `[4/5]` Read top-3 后，**必须**额外用 Grep 在 `raw/CS188/videos/lectures/` 跨 lecture 搜当前概念名 + intent 关键词找平行类比章节（如 "规划的分类" 在 lecture-2/7/10/12 各出现一次），再 Read 至少 2 个，**总计 ≥ 5 个 file**。Grep 命中后路径直接追加到 Read 列表，不要先回答。
+17. **⛔ HARD-17 跨 lecture 平行结构搜索** — `[4/5]` Read top-3 后，**必须**额外用 Grep 在 `raw/` 下的学科资料目录（不存在则跳过该步并如实标注"vault 无该目录"，禁止假装已 Grep）跨 lecture 搜当前概念名 + intent 关键词找平行类比章节（如 "规划的分类" 在 lecture-2/7/10/12 各出现一次），再 Read 至少 2 个，**总计 ≥ 5 个 file**。Grep 命中后路径直接追加到 Read 列表，不要先回答。
 
 18. **⛔ HARD-18 路径 A 自救（v1.3 关键修复）** — 路径 A 检测到无 `<rag_context>` 时，**必须**主动调：
     - `mcp__canvas-learning-mcp__search_notes(query="<用户问题>", max_results=30)` — 拉 backend 6-source RAG（BGE-M3 + Graphiti + multimodal + cross_canvas + vault_notes + reranker），与 plugin 路径 enrich-context 共享同一 `RAGService.query()`
@@ -79,14 +79,14 @@ model: sonnet
 
 19. **⛔ HARD-19 RAGAS-lite 量化自检** — `[5/5]` 合成后输出 1 行自检指标：`✅ Faithfulness <X/Y 句带引用> · ContextPrecision <Read 命中率 a/b> · 矛盾点 <无 / 列出>`。任一指标 < 0.8 → 主动追加 1 轮 Grep 补证后再交付，**不允许低质量输出**。
 
-20. **⛔ HARD-20 联系节点 mastery 颜色阈值固定（v1.5 新增）** — §4 4 个模板的「联系节点」段统一映射，**禁止 Claude 凭直觉配色**：
-    - mastery ≥ 0.7 → 🟢
-    - 0.3 ≤ mastery < 0.7 → 🟡
-    - mastery < 0.3 → 🔴
-    - 邻居 frontmatter.mastery 字段**缺失** → ⚪ 未评估（注："建议先用 /chat-with-context 评估"）
-    - **必须**在每条邻居后括号注 mastery 数值，格式：`🟡 [[节点/X]] — prerequisite (mastery 0.42)` 或 `⚪ [[节点/Y]] — refines (mastery 未评估)`
+20. **⛔ HARD-20 联系节点 mastery_score 颜色阈值固定（v1.5 新增）** — §4 4 个模板的「联系节点」段统一映射，**禁止 Claude 凭直觉配色**：
+    - mastery_score ≥ 0.7 → 🟢 掌握
+    - 0.4 ≤ mastery_score < 0.7 → 🟡 学习中
+    - mastery_score < 0.4 → 🔴 薄弱
+    - 邻居 frontmatter.mastery_score 字段**缺失** → ⚪ 未评估（注："建议先用 /chat-with-context 评估"）
+    - **必须**在每条邻居后括号注 mastery_score 数值，格式：`🟡 [[节点/X]] — prerequisite (mastery_score 0.42)` 或 `⚪ [[节点/Y]] — refines (mastery_score 未评估)`
 
-21. **⛔ HARD-21 Native Vault Grep 优先 (v1.6 新增)** — 路径 A 自检后,**第一步必须**用 Glob `canvas-vault/**/*.md` + Grep 用户问题中的核心术语 (含同义/英文/缩写,如 "Bellman|贝尔曼|价值迭代") **跨 vault 全局搜**,**不再优先调 MCP search_notes**。Grep 命中 ≥ 5 file 直接走 [4/5] Read; 命中 < 5 才调 MCP search_notes 补充。理由: 用户原话 "Claude Code skill 自带全局搜索,native Grep + Read 比 MCP RAG 快 2-3 倍且透明"。**适用所有触发位置 (Dashboard / 节点页 / 非节点页)** — 不假设用户在某个节点上下文,问的概念可能与当前页无关。
+21. **⛔ HARD-21 Native Vault Grep 优先 (v1.6 新增)** — 路径 A 自检后,**第一步必须**用 Glob `**/*.md`（session 项目根即 vault 根）+ Grep 用户问题中的核心术语 (含同义/英文/缩写,如 "Bellman|贝尔曼|价值迭代") **跨 vault 全局搜**,**不再优先调 MCP search_notes**。Grep 命中 ≥ 5 file 直接走 [4/5] Read; 命中 < 5 才调 MCP search_notes 补充。理由: 用户原话 "Claude Code skill 自带全局搜索,native Grep + Read 比 MCP RAG 快 2-3 倍且透明"。**适用所有触发位置 (Dashboard / 节点页 / 非节点页)** — 不假设用户在某个节点上下文,问的概念可能与当前页无关。
 
 ---
 
@@ -157,7 +157,7 @@ model: sonnet
 - 极短文件（< 200 字）整体 OK 但仍要实际 Read 过
 
 **Step 3 — 跨 lecture Grep 平行结构（HARD-17）**:
-- Grep 当前概念名 + intent 关键词在 `raw/CS188/videos/lectures/` 跨 lecture
+- Grep 当前概念名 + intent 关键词在 `raw/` 下的学科资料目录跨 lecture（目录不存在则跳过该步并如实标注"vault 无该目录"，禁止假装已 Grep）
 - 命中后追加路径到 Read 列表，再 Read ≥ 2 个
 - **总 Read 数 ≥ 5**
 
@@ -206,7 +206,7 @@ model: sonnet
    - 路径 A: "⚠️ backend MCP 不可用（<错误信息>）"
    - 路径 C: "⚠️ MCP 补充失败（<错误信息>），仅用 hook 注入的 <M> 条继续（可能 supplementary < 10）"
    - "推荐改走 Cmd+P → '解题深度模式' 让 plugin 拉 backend full RAG（top_k_max=30）"
-   - "本次 fallback 用 Glob/Grep 扫 canvas-vault/节点/*.md + raw/CS188/**/*.md 凑 top-15"
+   - "本次 fallback 用 Glob/Grep 扫 节点/*.md + raw/ 下的学科资料目录（session 项目根即 vault 根；目录不存在则跳过并如实标注）凑 top-15"
 ```
 
 ---
@@ -378,7 +378,7 @@ model: sonnet
 |---|---|
 | "派生新概念" | `/ai-linked-doc`（Cmd+Shift+D） |
 | "建新白板" | `/configure-whiteboard`（Cmd+Shift+W） |
-| "考察我对节点的掌握" | 检验白板（未来 Story 6） |
+| "考察我对节点的掌握" | 检验白板（已上线：/start-exam-board 出题，答完 /quiz-answer 评分） |
 | "节点速览快问快答" | `/chat-with-context`（Cmd+Shift+E） |
 | "纯本地不调 backend 的 1-hop 对话" | `/node-chat`（Cmd+Shift+C） |
 | "记录我答错了什么" | 用 Cmd+Shift+A 标 `[!error]+` callout |
@@ -391,10 +391,10 @@ model: sonnet
 ```
 本次解题诊断告一段落。建议沉淀方式：
 
-📝 标记掌握度
-- 完全懂 → 节点正文 mastery 改 ≥ 0.7 🟢
-- 部分懂 → 0.3-0.7 🟡
-- 仍不懂 → < 0.3 🔴 + Cmd+Shift+A 标 [!error]+ 错点
+📝 掌握度
+- 掌握度由 /quiz-answer 评分后 EMA 自动更新（frontmatter mastery_score），不手改
+- 想提升某节点掌握度 → /start-exam-board 考一次
+- 仍不懂 → Cmd+Shift+A 标 [!error]+ 错点
 
 📚 衍生学习
 - 想派生新概念 → /ai-linked-doc（Cmd+Shift+D）
@@ -414,7 +414,7 @@ model: sonnet
 - **路径 A + MCP 可用**：HARD-18 自救成功，与路径 B 召回质量等价
 - **路径 A + MCP 调用失败**：明示用户 `⚠️ backend MCP 不可用（<reason>），推荐 Cmd+P 路径` + 用 Glob/Grep 扫 vault 凑 top-15 fallback
 - `<supplementary_materials count="0">` 且 `degraded="true"` → 告知 "backend RAG 暂不可用，仅基于 `<current_note>` + 注入邻居诊断"，仍按 §4 结构输出（每段缺证据用 `（vault 暂不可用 — 通用知识）` 标注）
-- `<supplementary_materials count="0">` 且 `reason="empty_index"` → 直接告知 "vault 还没建立索引，请先 POST /api/v1/metadata/index/vault?force_rebuild=true"
+- `<supplementary_materials count="0">` 且 `reason="empty_index"` → 直接告知 "vault 还没建立索引，请先 POST /api/v1/canvas-meta/index/vault?force_rebuild=true"
 
 ---
 

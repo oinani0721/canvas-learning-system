@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -sS -m 6 -X POST http://localhost:8011/api/v1/chat/rag/enrich-hook -H 'Content-Type: application/json' -d @-"
+            "command": "curl -sS --fail -m 6 -X POST http://localhost:8011/api/v1/chat/rag/enrich-hook -H 'Content-Type: application/json' -H \"X-CLS-Internal-Key: $(cat \"${CLAUDE_PROJECT_DIR:-.}/.obsidian/cls-internal-key.txt\" 2>/dev/null)\" -d @- || printf '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"⚠️ Canvas RAG 后端离线或鉴权失败,本轮无笔记片段增强(修复: docker compose up -d backend)\"}}'"
           }
         ]
       }
