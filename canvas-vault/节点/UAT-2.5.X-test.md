@@ -2,6 +2,10 @@
 type: concept
 board_name: UAT-2.5.X
 mastery_score: 0.3
+relationships:
+- type: extends
+  target: "[[节点/Fundamentals]]"
+  description: "UAT-T4 跨节点素材测试增殖"
 errors:
 - id: uat-cand-001
   dedupe_hash: 528648784db878c5

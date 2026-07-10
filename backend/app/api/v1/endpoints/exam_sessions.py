@@ -13,11 +13,12 @@ the Dashboard's exam history tab.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from app.config import DEFAULT_GROUP_ID
 from app.graphiti.group_id_compat import to_physical_group_id
+from app.security import require_internal_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,36 @@ class ExamSessionListResponse(BaseModel):
 
     sessions: list[ExamSessionResponse]
     total: int
+
+
+class TargetingMaterialItem(BaseModel):
+    """T4 方案 A — 单条跨节点素材 (邻居节点的当前态错误)。"""
+
+    source_node: str = Field(description="错误来源节点 id")
+    relation_reason: str = Field(
+        description="用户增殖时写的关联原因 (CANVAS_EDGE.label)"
+    )
+    kind: str = Field(default="error", description="素材种类 (v1 仅 error)")
+    text: str = Field(description="错误描述原文")
+
+
+class TargetingMaterialRequest(BaseModel):
+    """T4 方案 A — 素材请求 (skill 经 curl 调用, 带 X-CLS-Internal-Key)。"""
+
+    node_id: str = Field(..., min_length=1, description="被考察节点 id (文件 basename)")
+    vault_id: str = Field(
+        ..., min_length=1, description="Multi-vault 隔离必填 (D16/C-3)"
+    )
+    subject_id: Optional[str] = Field(default=None)
+    budget_chars: int = Field(default=1200, ge=100, le=8000)
+
+
+class TargetingMaterialResponse(BaseModel):
+    """T4 方案 A — 素材响应; degraded=True 时 skill 静默退回仅本节点素材。"""
+
+    materials: list[TargetingMaterialItem]
+    degraded: bool = False
+    degraded_reason: Optional[str] = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -164,3 +195,40 @@ async def list_exam_sessions(
     except Exception as e:
         logger.warning(f"Failed to list exam sessions: {e}")
         return ExamSessionListResponse(sessions=[], total=0)
+
+
+@exam_sessions_router.post(
+    "/exam/targeting-material",
+    response_model=TargetingMaterialResponse,
+    dependencies=[Depends(require_internal_api_key)],
+    summary="T4 方案 A — 跨节点针对性考察素材 (增殖邻居的当前态错误)",
+)
+async def get_targeting_material(
+    req: TargetingMaterialRequest,
+) -> TargetingMaterialResponse:
+    """S2-2 针对性考察燃料: 节点 A 的错误在邻居节点 B 的考察中被引用。
+
+    start-exam-board skill 出题前可选调用 (curl + key + 5s 超时);
+    任何失败/空结果 → skill 静默退回仅本节点素材 (离线可用不破)。
+    信息隔离 (d=1.50): 素材只含邻居的错误描述 + 增殖原因,
+    绝不含节点定义正文。
+    """
+    from app.config import sanitize_vault_id
+    from app.core.subject_config import build_vault_group_id, set_current_subject_id
+    from app.services.targeting_material_service import collect_targeting_material
+
+    resolved_group_id = build_vault_group_id(
+        sanitize_vault_id(req.vault_id), subject_id=req.subject_id
+    )
+    set_current_subject_id(resolved_group_id)
+
+    result = await collect_targeting_material(
+        node_id=req.node_id,
+        group_id=resolved_group_id,
+        budget_chars=req.budget_chars,
+    )
+    return TargetingMaterialResponse(
+        materials=[TargetingMaterialItem(**m) for m in result["materials"]],
+        degraded=result["degraded"],
+        degraded_reason=result["degraded_reason"],
+    )
