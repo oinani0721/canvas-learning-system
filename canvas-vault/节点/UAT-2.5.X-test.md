@@ -1,58 +1,82 @@
 ---
 type: concept
 board_name: UAT-2.5.X
-mastery_score: 0.30
-errors: []
+mastery_score: 0.3
+errors:
+- id: uat-cand-001
+  dedupe_hash: 528648784db878c5
+  type: conceptual_confusion
+  legacy_type: knowledge_gap
+  legacy_remedy: backtrack_definition
+  description: 学生混淆了 admissibility 和 consistency, 认为它们等价
+  corrected_at: null
+  last_seen_at: '2026-07-10T05:32:39.379222+00:00'
+  seen_count: 1
+  tags:
+  - synonym_confusion
+  remedy_strategies:
+  - discrimination_comparison
+  confidence: 0.85
+  created_at: '2026-07-10T05:32:39.379222+00:00'
+  source: user_confirmed_ai
+  user_confirmed: true
+  user_confirmed_at: '2026-07-10T05:32:39.379222+00:00'
+  from_candidate_id: uat-cand-001
 error_candidates:
-  - id: "uat-cand-001"
-    status: pending
-    source: ai_suggested
-    node_id: "节点/UAT-2.5.X-test.md"
-    session_id: "s-uat-2026-05-05-001"
-    group_id: "cs_61b:main"
-    candidate_dedupe_hash: "uat001hash000abc"
-    pedagogy_type: conceptual_confusion
-    legacy_type: knowledge_gap
-    legacy_remedy: backtrack_definition
-    description: "学生混淆了 admissibility 和 consistency, 认为它们等价"
-    context: "对话第 3 轮"
-    ai_reason: null
-    evidence_turns: []
-    raw_dialog_excerpt: null
-    confidence: 0.85
-    confidence_source: llm
-    sub_tags: [synonym_confusion]
-    suggested_remedy_strategies: [discrimination_comparison]
-    created_at: "2026-05-05T08:00:00+00:00"
-    last_seen_at: "2026-05-05T08:00:00+00:00"
-    seen_count: 1
-    seen_sessions: [s-uat-2026-05-05-001]
-    status_changed_at: null
-    status_changed_by: null
-  - id: "uat-cand-002"
-    status: pending
-    source: ai_suggested
-    node_id: "节点/UAT-2.5.X-test.md"
-    session_id: "s-uat-2026-05-05-001"
-    group_id: "cs_61b:main"
-    candidate_dedupe_hash: "uat002hash000def"
-    pedagogy_type: procedural_error
-    legacy_type: reasoning_fallacy
-    legacy_remedy: counterexample_construction
-    description: "因果倒置: 把 'h ≤ optimal cost' 推成 admissibility 的因"
-    context: "对话第 5 轮"
-    confidence: 0.55
-    confidence_source: llm
-    sub_tags: []
-    suggested_remedy_strategies: [error_finding]
-    created_at: "2026-05-05T08:01:00+00:00"
-    last_seen_at: "2026-05-05T08:01:00+00:00"
-    seen_count: 1
-    seen_sessions: [s-uat-2026-05-05-001]
-    status_changed_at: null
-    status_changed_by: null
+- id: uat-cand-001
+  status: accepted
+  source: ai_suggested
+  node_id: 节点/UAT-2.5.X-test.md
+  session_id: s-uat-2026-05-05-001
+  group_id: cs_61b:main
+  candidate_dedupe_hash: uat001hash000abc
+  pedagogy_type: conceptual_confusion
+  legacy_type: knowledge_gap
+  legacy_remedy: backtrack_definition
+  description: 学生混淆了 admissibility 和 consistency, 认为它们等价
+  context: 对话第 3 轮
+  ai_reason: null
+  evidence_turns: []
+  raw_dialog_excerpt: null
+  confidence: 0.85
+  confidence_source: llm
+  sub_tags:
+  - synonym_confusion
+  suggested_remedy_strategies:
+  - discrimination_comparison
+  created_at: '2026-05-05T08:00:00+00:00'
+  last_seen_at: '2026-05-05T08:00:00+00:00'
+  seen_count: 1
+  seen_sessions:
+  - s-uat-2026-05-05-001
+  status_changed_at: '2026-07-10T05:32:39.379110+00:00'
+  status_changed_by: user
+- id: uat-cand-002
+  status: disputed
+  source: ai_suggested
+  node_id: 节点/UAT-2.5.X-test.md
+  session_id: s-uat-2026-05-05-001
+  group_id: cs_61b:main
+  candidate_dedupe_hash: uat002hash000def
+  pedagogy_type: procedural_error
+  legacy_type: reasoning_fallacy
+  legacy_remedy: counterexample_construction
+  description: '因果倒置: 把 ''h ≤ optimal cost'' 推成 admissibility 的因'
+  context: 对话第 5 轮
+  confidence: 0.55
+  confidence_source: llm
+  sub_tags: []
+  suggested_remedy_strategies:
+  - error_finding
+  created_at: '2026-05-05T08:01:00+00:00'
+  last_seen_at: '2026-05-05T08:01:00+00:00'
+  seen_count: 1
+  seen_sessions:
+  - s-uat-2026-05-05-001
+  status_changed_at: '2026-07-10T05:32:52.895690+00:00'
+  status_changed_by: user
+  dispute_reason: 'T5 验收: 这不是程序性错误, 是我笔误'
 ---
-
 # UAT-2.5.X-test
 
 这是 Story 2.5.X 用户主权 C+ 测试节点。frontmatter 已手动准备 2 条 pending candidates，供 UAT V1-V4 主流程使用：

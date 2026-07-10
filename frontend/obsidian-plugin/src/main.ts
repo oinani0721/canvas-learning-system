@@ -69,7 +69,15 @@ import {
   StatusBarController,
 } from "./status-bar";
 import { QuickExamController } from "./exam-quick";
-import { inferVaultId } from "./error-candidate-helpers";
+import {
+  buildAcceptPayload,
+  buildDisputePayload,
+  type ErrorCandidate,
+  filterPendingCandidates,
+  formatCandidateLabel,
+  inferVaultId,
+  validateDisputeReason,
+} from "./error-candidate-helpers";
 
 const DEFAULT_BACKEND_URL = "http://localhost:8001";
 
@@ -408,6 +416,21 @@ export default class CanvasLearningPlugin extends Plugin {
       id: "canvas:start-quick-exam",
       name: "Quick Exam（单题考察, MVP-α）",
       callback: () => this.quickExam.startExam(Notice),
+    });
+
+    // T5 (2026-07-10) — Story 2.5.X 三件套接线: Dashboard 候选块承诺的两条
+    // 命令 (接受/异议)。frontmatter error_candidates[] 由后端写入更新,
+    // plugin 只负责选择 + POST (端点直接改 md 文件, Obsidian 自动刷新)。
+    this.addCommand({
+      id: "canvas:accept-error-candidate",
+      name: "接受错误候选（移入 errors[] + 同步 Graphiti）",
+      callback: () => this.handleErrorCandidateAction("accept"),
+    });
+
+    this.addCommand({
+      id: "canvas:dispute-error-candidate",
+      name: "异议错误候选（标 disputed + 写理由）",
+      callback: () => this.handleErrorCandidateAction("dispute"),
     });
   }
 
@@ -1471,6 +1494,71 @@ export default class CanvasLearningPlugin extends Plugin {
 
     if (conflicts.length > 0) {
       new Notice(`Canvas 快捷键冲突:\n${conflicts.join("\n")}`, 8000);
+    }
+  }
+
+  /**
+   * T5 (2026-07-10) — Story 2.5.X AC #5/#7: 错误候选 accept/dispute。
+   *
+   * 流程: 活动文件 frontmatter error_candidates[] → filterPending →
+   * FuzzySuggestModal 选一条 → (dispute 再收理由) → POST 带 key →
+   * 后端直接改 md frontmatter (accept 移入 errors[] + Graphiti;
+   * dispute 标 disputed), plugin 不重复写文件。
+   */
+  private async handleErrorCandidateAction(
+    action: "accept" | "dispute",
+  ): Promise<void> {
+    const file = this.app.workspace.getActiveFile();
+    if (!file) {
+      new Notice("请先打开一个节点文件");
+      return;
+    }
+    const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    const pending = filterPendingCandidates(fm?.error_candidates);
+    if (pending.length === 0) {
+      new Notice(`「${file.basename}」没有待处理的错误候选`);
+      return;
+    }
+
+    const candidate = await new Promise<ErrorCandidate | null>((resolve) => {
+      new ErrorCandidateSuggestModal(this.app, pending, resolve).open();
+    });
+    if (!candidate) return;
+
+    const vaultId = inferVaultId(this.app.vault.getName());
+    const nodeId = file.path; // 端点契约: vault-relative path (如 '节点/X.md')
+
+    if (action === "accept") {
+      const result = await this.callBackend(
+        "/api/v1/errors/accept-candidate",
+        "接受错误候选",
+        buildAcceptPayload(candidate.id, nodeId, { vaultId }),
+      );
+      if (result) {
+        new Notice(
+          `✅ 候选已接受并移入 errors[]（Graphiti 后台同步中）`,
+          5000,
+        );
+      }
+      return;
+    }
+
+    const reason = await new Promise<string | null>((resolve) => {
+      new DisputeReasonModal(this.app, resolve).open();
+    });
+    if (reason === null) return;
+    const check = validateDisputeReason(reason);
+    if (!check.valid) {
+      new Notice(`异议理由无效: ${check.error}`);
+      return;
+    }
+    const result = await this.callBackend(
+      "/api/v1/errors/dispute-candidate",
+      "异议错误候选",
+      buildDisputePayload(candidate.id, nodeId, reason.trim(), { vaultId }),
+    );
+    if (result) {
+      new Notice("✅ 已标记 disputed（不入 errors[]，理由已记录）", 5000);
     }
   }
 
@@ -2600,5 +2688,88 @@ class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> {
       und.value as UnderstandingValue,
       annotationId,
     );
+  }
+}
+
+/**
+ * T5 (2026-07-10) — Story 2.5.X: 错误候选选择 Modal。
+ *
+ * resolve(null) 覆盖用户 Esc 关闭 (onClose 时未选择则视为取消)。
+ */
+class ErrorCandidateSuggestModal extends FuzzySuggestModal<ErrorCandidate> {
+  private chosen = false;
+
+  constructor(
+    app: App,
+    private candidates: ErrorCandidate[],
+    private onResolve: (c: ErrorCandidate | null) => void,
+  ) {
+    super(app);
+    this.setPlaceholder("选择要处理的错误候选（pending）");
+  }
+
+  getItems() {
+    return this.candidates;
+  }
+
+  getItemText(item: ErrorCandidate) {
+    return formatCandidateLabel(item);
+  }
+
+  onChooseItem(item: ErrorCandidate) {
+    this.chosen = true;
+    this.onResolve(item);
+  }
+
+  onClose() {
+    super.onClose();
+    if (!this.chosen) {
+      // 延迟一拍: onChooseItem 在 onClose 之后触发时避免误报取消
+      window.setTimeout(() => {
+        if (!this.chosen) this.onResolve(null);
+      }, 0);
+    }
+  }
+}
+
+/**
+ * T5 (2026-07-10) — Story 2.5.X AC #7: 异议理由输入 Modal (必填非空)。
+ */
+class DisputeReasonModal extends Modal {
+  private submitted = false;
+
+  constructor(
+    app: App,
+    private onResolve: (reason: string | null) => void,
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h3", { text: "异议理由（必填）" });
+    contentEl.createEl("p", {
+      text: "简短说明为什么你认为 AI 的判断是错的。候选将标为 disputed，不进入正式错题。",
+    });
+    const input = contentEl.createEl("textarea", {
+      attr: { rows: "3", style: "width: 100%;" },
+    });
+    input.focus();
+    const btnRow = contentEl.createDiv({
+      attr: { style: "margin-top: 12px; text-align: right;" },
+    });
+    const submit = btnRow.createEl("button", { text: "提交异议" });
+    submit.addEventListener("click", () => {
+      this.submitted = true;
+      this.close();
+      this.onResolve(input.value);
+    });
+  }
+
+  onClose() {
+    this.contentEl.empty();
+    if (!this.submitted) {
+      this.onResolve(null);
+    }
   }
 }
