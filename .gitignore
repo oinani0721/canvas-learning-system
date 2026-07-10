@@ -239,3 +239,4 @@ backend/mutants/
 backend/config/rag_config.yaml
 _backups/
 canvas-docs/
+canvas-vault/.obsidian/cls-internal-key.txt

@@ -543,9 +543,13 @@ class Settings(BaseSettings):
             # - outputs: 验收/导出物
             # - *-explanations: AI 生成解释（fnmatch glob，配合 lancedb_client.py:1251 fix）
             # - Excalidraw/_misc: 手绘图/杂项 junk
+            # - 检验白板/验收单: 信息隔离铁律——考题绝不能经 RAG 回流进学习对话
+            #   (检验白板 v1 审计 A5-7, 2026-07-10; 注意 metadata.py 的 getattr 默认值
+            #    永远被本字段覆盖, 黑名单只在这里改才生效)
             ".obsidian,.git,.trash,node_modules,"
             ".claude,.claudian,_bmad-output,archive,templates,"
-            "outputs,*-explanations,Excalidraw,_misc"
+            "outputs,*-explanations,Excalidraw,_misc,"
+            "检验白板,验收单"
         ),
         description="Comma-separated list of directories to skip during vault indexing.",
     )

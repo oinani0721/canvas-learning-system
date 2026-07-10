@@ -154,6 +154,12 @@ services:
       - LANCEDB_DATA_PATH=/lancedb  # Story 2.2 Phase A: 顶级路径，完全脱离 /app 嵌套（worktree backend/lancedb 子目录会被 ./backend:/app bind mount 屏蔽 named volume）
       - PYTHONPATH=/app:/app/src
       - DEBUG=${DEBUG:-false}  # ChatGPT-DR-2026-05-13 P0-2: 默认 false (fail-closed)
+      # 本机 loopback dev 旁路 (2026-07-10): 默认 false fail-closed; 单机开发在 .env 显式
+      # 开 true, 否则 enrich-hook/tips 同步全部 401。分发给他人时必须改用 INTERNAL_API_KEY。
+      - ALLOW_UNSAFE_DEV_AUTH_BYPASS=${ALLOW_UNSAFE_DEV_AUTH_BYPASS:-false}
+      # 内部 API key (2026-07-10): 宿主经 docker 端口映射的源 IP 非 loopback,旁路无效,
+      # 实际鉴权靠此 key(插件 X-CLS-Internal-Key 头 + vault hook 同头)
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://tauri.localhost,app://obsidian.md}
       # GOOGLE_API_KEY: P0 2026-05-14 — 从 host shell env 传入容器以让 GraphitiEpisodeWorker 启用。
       # 之前的注释"read from backend/.env via load_dotenv"在 worker 启动早于 dotenv load 时不生效。

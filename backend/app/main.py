@@ -357,17 +357,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 兜底两类离线写入: ① 拉节点理由 (插件只写 frontmatter, 无实时上报) ② 后端
     # 不在线时打的批注。幂等 (边 uuid=内容hash, MERGE 不重复), 失败非致命。
     try:
-        from app.config import DEFAULT_GROUP_ID
+        from app.config import get_current_vault_id
+        from app.core.subject_config import build_vault_group_id
         from app.services.episode_worker import get_episode_worker
         from app.services.vault_backfill import backfill_vault
 
         _worker_graphiti = getattr(get_episode_worker(), "_graphiti", None)
         if _worker_graphiti is not None:
+            # G-DEFAULT 根治 (2026-07-10): 回填不再落 DEFAULT_GROUP_ID——那让所有 vault
+            # 的结构图塌进同一 default 桶(cypher 实测 88 节点零真实 vault 身份)。
+            # 改用当前激活 vault 的 vault:<vault_id> 规约(D16/C-3)。
+            backfill_group = build_vault_group_id(get_current_vault_id())
             bf = await backfill_vault(
                 settings.canvas_base_path,
                 _worker_graphiti.driver,
                 getattr(_worker_graphiti, "embedder", None),
-                group_id=DEFAULT_GROUP_ID,
+                group_id=backfill_group,
                 execute=True,
             )
             logger.info(

@@ -66,11 +66,20 @@ def _resolve_vault_group_id(
         )
         derived = canonical_group_id(legacy_group_id)
     else:
+        # G-DEFAULT 根治 (2026-07-10): 缺省不再落 DEFAULT_GROUP_ID(cs188)——那会让
+        # 索引写入裸表/错桶,与 ContextVar 前缀表读取分裂(Sprint-0 实测 3534 行旧数据
+        # 被错读)。回退到当前激活 vault,保证写读恒同 vault 命名空间。
+        from app.config import get_current_vault_id
+
+        fallback_vid = sanitize_vault_id(get_current_vault_id())
         logger.warning(
             "Wave-5 Stage B: metadata endpoint both vault_id and group_id missing, "
-            "falling back to DEFAULT_GROUP_ID"
+            "falling back to ACTIVE vault '%s' (G-DEFAULT fix 2026-07-10)",
+            fallback_vid,
         )
-        derived = DEFAULT_GROUP_ID
+        derived = build_vault_group_id(
+            fallback_vid, subject_id=subject_id, canvas_path=canvas_path
+        )
 
     set_current_subject_id(derived)
     return derived
@@ -581,8 +590,10 @@ async def index_vault_notes(
     """
     start_time = time.perf_counter()
 
-    # Wave-5 Stage B — vault_id ContextVar 注入
-    _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
+    # Wave-5 Stage B — vault_id ContextVar 注入(缺省回退当前激活 vault,见 _resolve_vault_group_id)
+    effective_group_id = _resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
+    )
 
     try:
         lancedb_client = get_lancedb_client()
@@ -598,6 +609,26 @@ async def index_vault_notes(
         if not lancedb_client._initialized:
             await lancedb_client.initialize()
 
+        if force_rebuild:
+            # Sprint-1 (2026-07-10): 真 drop-and-rebuild —— 此前 force_rebuild 只把所有
+            # 文件当新文件重扫,不清旧行,导致跨 vault/跨时代残留(实测 3534 行旧数据被
+            # 检索命中)。先删本 vault 的前缀表再重建。
+            try:
+                stale_table = lancedb_client.resolve_table_name("vault_notes")
+                lancedb_client._db.drop_table(stale_table, ignore_missing=True)
+                # ⛔ 必须同步失效表句柄缓存(照抄 rebuild_index/drop_vault_tables 姿势)——
+                # 只 drop 不清缓存会让后续写入落在已删表的幽灵句柄上,产出损坏 manifest
+                # (2026-07-10 实测: count_rows=50 但数据文件 Not found)。
+                lancedb_client._tables_cache.pop(stale_table, None)
+                logger.info(
+                    "force_rebuild: dropped stale table '%s' before reindex",
+                    stale_table,
+                )
+            except Exception as drop_err:
+                logger.warning(
+                    "force_rebuild: drop stale table failed (continuing): %s", drop_err
+                )
+
         vault_path = settings.canvas_base_path
         skip_dirs_str = getattr(
             settings,
@@ -608,9 +639,12 @@ async def index_vault_notes(
             # - outputs: 验收/导出物
             # - *-explanations: AI 生成解释（fnmatch glob，需配合 lancedb_client.py:1251 fix）
             # - Excalidraw/_misc: 手绘图/杂项 junk
+            # - 检验白板/验收单: 信息隔离铁律——考题绝不能经 RAG 回流进学习对话
+            #   (检验白板 v1 审计 A5-7, 2026-07-10)
             ".obsidian,.git,.trash,node_modules,"
             ".claude,.claudian,_bmad-output,archive,templates,"
-            "outputs,*-explanations,Excalidraw,_misc",
+            "outputs,*-explanations,Excalidraw,_misc,"
+            "检验白板,验收单",
         )
         skip_dirs = [d.strip() for d in skip_dirs_str.split(",")]
         chunk_size = getattr(settings, "VAULT_INDEX_CHUNK_SIZE", 500)
@@ -622,7 +656,9 @@ async def index_vault_notes(
             table_name="vault_notes",
             max_tokens=chunk_size,
             overlap_tokens=chunk_overlap,
-            subject=DEFAULT_GROUP_ID,
+            # G-DEFAULT 根治 (2026-07-10): 行级 subject 用派生的 vault: 前缀 group,
+            # 不再写死 DEFAULT_GROUP_ID(cs188)——违反 C-3 且多 vault 下检索泄漏。
+            subject=effective_group_id,
             force_rebuild=force_rebuild,
         )
 

@@ -52,7 +52,7 @@ from app.config import DEFAULT_GROUP_ID, settings
 from app.core.decision_tracker import log_decision
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 from app.core.subject_config import (
-    build_group_id,
+    build_vault_group_id,
     extract_canvas_name,
     extract_subject_from_canvas_path,
 )
@@ -60,6 +60,25 @@ from app.services.episode_worker import EpisodeTask, get_episode_worker
 from app.graphiti.entity_types import CANVAS_ENTITY_TYPES, CANVAS_EDGE_TYPES
 
 logger = structlog.get_logger(__name__)
+
+
+def _vault_scoped_group_id(subject=None, canvas_name=None) -> str:
+    """G-DEFAULT 根治 (2026-07-10, D16/C-3): 写侧统一 vault:<vault_id>[:<二级>] 前缀.
+
+    取代本模块此前直接调 Story 1.9 legacy build_group_id(subject[, canvas])——
+    legacy 格式让所有 vault 的记忆塌进同一 subject 桶(2026-07-10 cypher 实测:
+    图中 88 节点 group_id 全为 default/cs188/test fallback, 零真实 vault 身份)。
+    二级优先 canvas_name(D16 vault:<id>:<canvas> 规约), 无 canvas 时用 subject。
+    """
+    from app.config import get_current_vault_id
+
+    vault_id = get_current_vault_id()
+    if canvas_name:
+        return build_vault_group_id(vault_id, canvas_path=canvas_name)
+    if subject:
+        return build_vault_group_id(vault_id, subject_id=subject)
+    return build_vault_group_id(vault_id)
+
 
 # Story 31.5: Cache TTL for score history queries (30 seconds)
 SCORE_HISTORY_CACHE_TTL = 30
@@ -418,7 +437,7 @@ class MemoryService:
 
         # ✅ AC-30.8.1: Build group_id for namespace isolation (Epic 6: canvas-scoped)
         canvas_name = extract_canvas_name(canvas_path)
-        group_id = build_group_id(inferred_subject, canvas_name=canvas_name)
+        group_id = _vault_scoped_group_id(inferred_subject, canvas_name=canvas_name)
 
         try:
             # ✅ Verified: Store to Neo4j - Create learning relationship
@@ -547,9 +566,9 @@ class MemoryService:
         if canvas_path:
             inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
             c_name = extract_canvas_name(canvas_path)
-            group_id = build_group_id(inferred_subject, canvas_name=c_name)
+            group_id = _vault_scoped_group_id(inferred_subject, canvas_name=c_name)
         elif subject:
-            group_id = build_group_id(subject)
+            group_id = _vault_scoped_group_id(subject)
         else:
             group_id = None
 
@@ -690,7 +709,7 @@ class MemoryService:
                         canvas_name_field
                     )
                     cn_only = extract_canvas_name(canvas_name_field)
-                    return build_group_id(inferred_subj, canvas_name=cn_only)
+                    return _vault_scoped_group_id(inferred_subj, canvas_name=cn_only)
 
                 failed_scores = [
                     fs for fs in failed_scores if _derive_group_id(fs) == group_id
@@ -909,9 +928,9 @@ class MemoryService:
         if canvas_path:
             inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
             c_name = extract_canvas_name(canvas_path)
-            group_id = build_group_id(inferred_subject, canvas_name=c_name)
+            group_id = _vault_scoped_group_id(inferred_subject, canvas_name=c_name)
         elif subject:
-            group_id = build_group_id(subject)
+            group_id = _vault_scoped_group_id(subject)
         else:
             group_id = None
 
@@ -1191,7 +1210,7 @@ class MemoryService:
                     f"Student learned '{concept}' using {p.get('agent_type', 'unknown')} agent "
                     f"on canvas '{p['canvas_path']}'. Node: {p['node_id']}."
                 ),
-                group_id=build_group_id(inferred_subject, canvas_name=c_name),
+                group_id=_vault_scoped_group_id(inferred_subject, canvas_name=c_name),
                 source_description=f"canvas_batch:{inferred_subject}",
             )
 
@@ -2039,7 +2058,7 @@ class MemoryService:
                 f"Canvas event '{event_type}' on path '{canvas_path}'. "
                 f"Node: {node_id or edge_id or 'unknown'}. Concept: {concept}."
             ),
-            group_id=build_group_id(inferred_subject, canvas_name=c_name),
+            group_id=_vault_scoped_group_id(inferred_subject, canvas_name=c_name),
             source_description=f"canvas_temporal:{event_type}",
         )
 
@@ -2126,7 +2145,9 @@ class MemoryService:
                         f"Recovered learning event for concept '{concept}' "
                         f"on canvas '{entry_canvas}'."
                     ),
-                    group_id=build_group_id(inferred_subject, canvas_name=c_name),
+                    group_id=_vault_scoped_group_id(
+                        inferred_subject, canvas_name=c_name
+                    ),
                     source_description="canvas_recovery",
                 )
                 if enqueued:
