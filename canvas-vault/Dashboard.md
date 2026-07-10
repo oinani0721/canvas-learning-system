@@ -343,6 +343,44 @@ if (weakNodes.length === 0) {
 
 ---
 
+## 🗂️ 考察历史（读 检验白板/ frontmatter 汇总）
+
+```dataviewjs
+// T6 (2026-07-10) — 考察历史聚合: 扫 检验白板/ type=exam_board 的 frontmatter。
+// HARD-SILENT 不破: 进行中场次只显示状态不显示分数; 完成场次才显示均分。
+const boards = dv.pages('"检验白板"')
+  .where(p => p.type === "exam_board")
+  .sort(p => p.created_at, "desc");
+
+if (boards.length === 0) {
+  dv.paragraph("_还没有考察记录。用 `/start-exam-board` 开第一场。_");
+} else {
+  let done = 0, inProgress = 0;
+  const rows = [];
+  for (const b of boards) {
+    const qs = Array.isArray(b.questions) ? b.questions : [];
+    const scored = qs.filter(q => q && typeof q.score === "number");
+    const isDone = b.status === "completed" || (qs.length > 0 && scored.length === qs.length);
+    if (isDone) done++; else inProgress++;
+    const scoreCell = isDone && scored.length > 0
+      ? (scored.reduce((s, q) => s + q.score, 0) / scored.length).toFixed(1)
+      : "—";
+    rows.push([
+      b.file.link,
+      b.source_board ?? "—",
+      b.status ?? "?",
+      `${scored.length}/${qs.length}`,
+      scoreCell,
+      String(b.created_at ?? "").slice(0, 10),
+    ]);
+  }
+  dv.paragraph(`**${boards.length}** 场考察 · ✅ 完成 ${done} · ⏳ 进行中 ${inProgress}`);
+  dv.table(["检验白板", "来源白板", "状态", "已评/总题", "均分", "日期"], rows);
+}
+```
+
+---
+
 ## 🛠️ Canvas 4 命令速查
 
 | 场景 | 命令 | 触发 |
