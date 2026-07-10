@@ -28,6 +28,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+# T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式 (graphiti_core validator 拒冒号)
+from app.graphiti.group_id_compat import to_physical_group_id
+
 # Story 36.1: Import unified base class
 from .graphiti_client_base import EdgeRelationship, Neo4jLearningBase
 
@@ -244,7 +247,8 @@ class Neo4jEdgeClient(Neo4jLearningBase):
 
             if group_id:
                 where_clauses.append("n.group_id = $groupId")
-                params["groupId"] = group_id
+                # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+                params["groupId"] = to_physical_group_id(group_id)
 
             if entity_types:
                 where_clauses.append("n.entity_type IN $entityTypes")
@@ -343,7 +347,8 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             params["canvasPath"] = canvas_path
         if group_id:
             post_filters.append("n.group_id = $groupId")
-            params["groupId"] = group_id
+            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+            params["groupId"] = to_physical_group_id(group_id)
         if entity_types:
             post_filters.append("n.entity_type IN $entityTypes")
             params["entityTypes"] = entity_types

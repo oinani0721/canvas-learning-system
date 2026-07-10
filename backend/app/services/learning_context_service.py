@@ -381,6 +381,7 @@ async def _fetch_neighbor_records(node_id: str, group_id: str) -> list[dict]:
     records_out: list[dict] = []
     try:
         from app.clients.neo4j_client import get_neo4j_client
+        from app.graphiti.group_id_compat import to_physical_group_id
 
         client = get_neo4j_client()
         records = await client.run_query(
@@ -393,7 +394,8 @@ async def _fetch_neighbor_records(node_id: str, group_id: str) -> list[dict]:
             "r.reason AS reason, r.label AS label "
             "LIMIT $lim",
             cid=node_id,
-            gid=group_id,
+            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+            gid=to_physical_group_id(group_id),
             lim=MAX_NEIGHBORS,
         )
         for rec in records or []:

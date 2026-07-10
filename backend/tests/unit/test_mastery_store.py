@@ -187,9 +187,12 @@ class TestFindConceptByName:
 class TestGroupIdIsolation:
     @pytest.mark.asyncio
     async def test_different_groups_different_queries(self, store, stub_neo4j):
+        # T1 统一 (2026-07-10): Cypher 绑定值已过 to_physical_group_id，
+        # 断言物理 __ 格式（group-A → vault__group_a）
         stub_neo4j.run_query = AsyncMock(return_value=[])
         await store.get_concept("c1", group_id="group-A")
         await store.get_concept("c1", group_id="group-B")
         calls = stub_neo4j.run_query.call_args_list
-        assert "group-A" in str(calls[0])
-        assert "group-B" in str(calls[1])
+        assert "vault__group_a" in str(calls[0])
+        assert "vault__group_b" in str(calls[1])
+        assert str(calls[0]) != str(calls[1])

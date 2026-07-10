@@ -28,6 +28,7 @@ from uuid import uuid4
 
 from app.config import DEFAULT_GROUP_ID
 from app.core.decision_tracker import log_decision
+from app.graphiti.group_id_compat import to_physical_group_id
 from app.models.exam_models import (
     AutoScoreResult,
     CanvasAnalysisResponse,
@@ -367,7 +368,8 @@ class ExamService:
             await client.run_query(
                 query,
                 id=session.id,
-                group_id=DEFAULT_GROUP_ID,
+                # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+                group_id=to_physical_group_id(DEFAULT_GROUP_ID),
                 source_canvas_id=session.source_canvas_id,
                 exam_mode=session.exam_mode.value,
                 status=session.status.value,
@@ -416,8 +418,11 @@ class ExamService:
         RETURN e
         ORDER BY e.created_at DESC
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
         records = await client.run_query(
-            query, canvas_id=canvas_id, group_id=DEFAULT_GROUP_ID
+            query,
+            canvas_id=canvas_id,
+            group_id=to_physical_group_id(DEFAULT_GROUP_ID),
         )
         sessions: List[ExamSessionResponse] = list()
         for record in records or []:

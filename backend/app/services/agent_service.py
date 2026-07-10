@@ -1925,12 +1925,14 @@ class AgentService:
                 canonical_group_id,
                 get_current_subject_id,
             )
+            from app.graphiti.group_id_compat import to_physical_group_id
 
             # wave-5 Stage B P0 (2026-05-11): prefer ContextVar so the color
             # transition is stored under the originating request's vault —
             # prevents cross-vault leak. [ChatGPT v4 Agent C P0 fix]
             ctx_value = get_current_subject_id()
-            effective_group_id = (
+            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（写侧，与 _query_neo4j_memories 读侧成对）
+            effective_group_id = to_physical_group_id(
                 canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
             )
 
@@ -2179,9 +2181,11 @@ class AgentService:
             canonical_group_id,
             get_current_subject_id,
         )
+        from app.graphiti.group_id_compat import to_physical_group_id
 
         _mem_ctx = get_current_subject_id()
-        effective_group_id = (
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（读侧，与 _record_color_transition 写侧成对）
+        effective_group_id = to_physical_group_id(
             canonical_group_id(_mem_ctx) if _mem_ctx else DEFAULT_GROUP_ID
         )
 

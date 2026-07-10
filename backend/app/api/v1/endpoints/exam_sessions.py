@@ -17,6 +17,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from app.config import DEFAULT_GROUP_ID
+from app.graphiti.group_id_compat import to_physical_group_id
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,8 @@ async def list_exam_sessions(
 
     set_current_subject_id(resolved_group_id)
     # 透传到 Cypher params
-    group_id = resolved_group_id
+    # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（ContextVar 保持逻辑冒号格式不变）
+    group_id = to_physical_group_id(resolved_group_id)
 
     from app.clients.neo4j_client import get_neo4j_client
 

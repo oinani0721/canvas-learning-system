@@ -66,3 +66,49 @@ def desanitize_group_id_from_graphiti(graphiti_group_id: str) -> str:
     if not graphiti_group_id:
         return graphiti_group_id
     return graphiti_group_id.replace(_GRAPHITI_SEPARATOR, ":")
+
+
+def to_physical_group_id(group_id: str) -> str:
+    """任意来源 group_id → Neo4j 物理存储格式 (T1 统一, 2026-07-10 交接任务书).
+
+    这是**唯一物理边界入口**: 一切直接读写 Neo4j group_id 属性的 Cypher
+    (MERGE/SET/WHERE), 参数绑定前必须过本函数。物理规范 = 双下划线形态
+    (`vault__cs_61b`), 因为 graphiti_core 上游 validator 拒绝冒号, 全图
+    只能向 `__` 统一; D16 冒号格式仍是业务层/API 的逻辑规约不变。
+
+    组合链: canonical_group_id (逻辑归一, deprecated 值映射 + WARNING)
+    → sanitize_group_id_for_graphiti (冒号 → __)。
+
+    幂等防御: canonical_group_id 会把已物理化的 `vault__x` 误判为未规范
+    输入回旋成 `vault:vault__x` (再 sanitize = `vault__vault__x` 数据损坏),
+    故检测到 `vault__` 前缀直接原样返回, 双重调用安全。
+
+    Examples:
+        vault:cs_61b        → vault__cs_61b
+        vault__cs_61b       → vault__cs_61b   (幂等)
+        cs188 (deprecated)  → vault__default  (canonical WARNING)
+        CS 61B              → vault__cs_61b
+    """
+    if not group_id:
+        return group_id
+    if group_id.startswith(f"vault{_GRAPHITI_SEPARATOR}"):
+        return group_id
+    # MEDIUM-1 防御 (T1 对抗审查 2026-07-10): canonical_group_id 对 vault:
+    # 前缀输入直通、不做段级 sanitize — 若段内含 __ (如 .env 手写
+    # vault:my__vault), sanitize 后 desanitize 会层级错乱 (vault:my:vault)。
+    # 标准管线 (sanitize_vault_id / sanitize_subject_name 均折叠 _+) 不会
+    # 产出这种值, 检测到即告警提示修配置。
+    if group_id.startswith("vault:") and _GRAPHITI_SEPARATOR in group_id:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "group_id %r contains '__' inside a vault: segment — "
+            "desanitize roundtrip will be lossy; fix the source config "
+            "(expected single underscores, e.g. from sanitize_vault_id)",
+            group_id,
+        )
+    # Lazy import: core 层不反向依赖 graphiti 层, 无循环, 但保持与
+    # config.py 相同的延迟加载姿势避免 Settings 初始化顺序问题。
+    from app.core.subject_config import canonical_group_id
+
+    return sanitize_group_id_for_graphiti(canonical_group_id(group_id))

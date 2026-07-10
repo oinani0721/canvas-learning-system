@@ -16,6 +16,7 @@ import structlog
 from pydantic import BaseModel, Field
 
 from app.core.subject_config import is_vault_group_id, sanitize_subject_name
+from app.graphiti.group_id_compat import to_physical_group_id
 
 logger = structlog.get_logger(__name__)
 
@@ -134,7 +135,9 @@ async def migrate_legacy_group_ids(
     - dry_run=False: 真实执行 SET n.group_id = new
 
     幂等性:
-    - 已是 vault: 格式的 group_id 自动跳过 (skipped_already_vault_format 计数)
+    - T1 统一 (2026-07-10): 迁移目标为物理 __ 格式 (vault__x)。已物理化的
+      group_id 自动跳过; D16 冒号格式 (vault:x) 与 legacy 值均迁移到
+      to_physical_group_id 输出 (skipped 计数含两类跳过)
 
     Args:
         driver: Neo4j async driver (mock 时传入测试 stub)
@@ -195,11 +198,19 @@ async def migrate_legacy_group_ids(
         if not old:
             continue
 
-        if is_vault_group_id(old):
+        # T1 统一 (2026-07-10): 迁移目标 = 物理 __ 格式 (graphiti_core validator
+        # 拒冒号, 全图读侧已统一查 __)。已物理化的行必须先跳过 — 否则
+        # map_legacy_group_id 会把 vault__x 绞成 vault:vault_x (段内 __ 被
+        # sanitize 折叠), 错误改写存量。
+        if old.startswith("vault__"):
             skipped += 1
             continue
 
-        new = map_legacy_group_id(old)
+        if is_vault_group_id(old):
+            # D16 冒号存量 → 物理格式 (T1 前后端自有 Cypher 写入的行)
+            new = to_physical_group_id(old)
+        else:
+            new = to_physical_group_id(map_legacy_group_id(old))
         if new == old:
             skipped += 1
             continue

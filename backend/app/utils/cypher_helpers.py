@@ -105,6 +105,16 @@ def cypher_with_group_filter(
 ) -> Tuple[str, dict]:
     """Story 2.5.Y AC #5 — 强制注入 group_id WHERE 子句.
 
+    ⚠️ T1 契约 (2026-07-10): Neo4j 物理层 group_id 已统一为双下划线格式
+    (`vault__cs_61b`), 因 graphiti_core validator 拒绝冒号。本函数只注入
+    WHERE 子句, **不做格式转换** — 调用方绑定 $group_id 参数值时必须传
+    `app.graphiti.group_id_compat.to_physical_group_id()` 转换后的物理格式
+    (`vault__x`), 否则过滤条件与库内数据不匹配, 查询静默返回空。
+    (to_physical_group_id 幂等, 已物理化输入原样返回, 可放心重复包裹。)
+    D16 冒号格式 (`vault:cs_61b`) 仍是业务层/API 的逻辑规约, 仅在 Cypher
+    参数绑定边界转换。下方 Examples 中的 `vault:cs_61b` 仅演示注入逻辑,
+    实际绑定值应为 `vault__cs_61b`。
+
     Args:
         base_query: 原始 Cypher 查询 (无 WHERE 子句, 如 "MATCH (n:Concept) RETURN n")
         group_id: 必填 group_id (空 → ValueError)

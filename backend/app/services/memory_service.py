@@ -298,6 +298,13 @@ class MemoryService:
                         # Skip if already in cache (from degraded-mode recording)
                         if (user_id, concept, timestamp) in existing_keys:
                             continue
+                        # T1 统一 (2026-07-10): Neo4j 物理层存 `__` 格式, 恢复进
+                        # 内存 cache 前转回 D16 冒号 — 否则 Tier 3 cache 过滤
+                        # (冒号比较) 对 recovered episodes 恒不匹配。
+                        from app.graphiti.group_id_compat import (
+                            desanitize_group_id_from_graphiti,
+                        )
+
                         episode = {
                             "episode_id": f"recovered-{idx}-{user_id or 'unknown'}-{record.get('concept_id') or 'unknown'}",
                             "user_id": user_id,
@@ -305,7 +312,9 @@ class MemoryService:
                             "concept_id": record.get("concept_id"),
                             "score": record.get("score"),
                             "timestamp": timestamp,
-                            "group_id": record.get("group_id"),
+                            "group_id": desanitize_group_id_from_graphiti(
+                                record.get("group_id") or ""
+                            ),
                             "review_count": record.get("review_count") or 0,
                             "episode_type": "recovered",
                         }
@@ -1484,12 +1493,11 @@ class MemoryService:
 
         try:
             from app.clients.neo4j_client import get_neo4j_client
-            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+            from app.graphiti.group_id_compat import to_physical_group_id
 
             client = get_neo4j_client()
-            resolved_group_id = group_id or DEFAULT_GROUP_ID
-            # Graphiti EpisodicNode stores sanitized group_id (P0-5 边界 sanitize)
-            graphiti_group_id = sanitize_group_id_for_graphiti(resolved_group_id)
+            # T1 统一 (2026-07-10): 物理层单一 `__` 格式, 双格式 OR 查询退役
+            physical_group_id = to_physical_group_id(group_id or DEFAULT_GROUP_ID)
 
             # P0-7 (2026-05-14): Graphiti 不持久化 metadata 到 EpisodicNode。
             # tips.py batch_sync 把 content_hash 内嵌为 [hash:abc123] 后缀写到
@@ -1497,7 +1505,7 @@ class MemoryService:
             hash_marker = f"[hash:{content_hash[:16]}]"
             query = """
             MATCH (e:Episodic)
-            WHERE (e.group_id = $group_id OR e.group_id = $graphiti_group_id)
+            WHERE e.group_id = $group_id
               AND e.source_description = 'callout-annotation-record'
               AND e.content CONTAINS $hash_marker
             RETURN count(e) AS cnt
@@ -1505,8 +1513,7 @@ class MemoryService:
             """
             records = await client.run_query(
                 query,
-                group_id=resolved_group_id,
-                graphiti_group_id=graphiti_group_id,
+                group_id=physical_group_id,
                 hash_marker=hash_marker,
             )
             for record in records or []:
@@ -1812,12 +1819,20 @@ class MemoryService:
             safe_query = re.sub(r'([+\-!(){}\[\]^"~*?:\\/])', r"\\\1", query or "")
             safe_query = safe_query.replace("&&", r"\&\&").replace("||", r"\|\|")
 
+            # T1 统一 (2026-07-10): episode 节点物理存 `__` 格式 — 冒号格式
+            # 直查恒空 (Tier 2 断了两个月, Tier 1 降级时整条 search 静默空)。
+            from app.graphiti.group_id_compat import to_physical_group_id
+
             records = await self.neo4j.run_query(
                 cypher,
                 search_term=safe_query,
-                group_id=group_id,
+                group_id=to_physical_group_id(group_id) if group_id else None,
                 limit=limit,
             )
+            from app.graphiti.group_id_compat import (
+                desanitize_group_id_from_graphiti,
+            )
+
             episodes = []
             for r in records if records else list():
                 node = r["node"]
@@ -1828,7 +1843,10 @@ class MemoryService:
                         "episode_type": node.get("episode_type", ""),
                         "score": r.get("score", 0.0),
                         "timestamp": node.get("timestamp", ""),
-                        "group_id": node.get("group_id", ""),
+                        # T1: 物理 `__` → 对外 D16 冒号 (与 Tier 1/3 输出一致)
+                        "group_id": desanitize_group_id_from_graphiti(
+                            node.get("group_id", "")
+                        ),
                         "node_id": node.get("node_id", ""),
                         "source": "neo4j_fulltext",
                     }

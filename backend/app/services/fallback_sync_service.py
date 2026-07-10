@@ -22,6 +22,9 @@ from typing import Any, Dict, List, Optional
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 
+# T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式 (graphiti_core validator 拒冒号)
+from app.graphiti.group_id_compat import to_physical_group_id
+
 logger = structlog.get_logger(__name__)
 
 # Directory paths
@@ -352,7 +355,8 @@ class FallbackSyncService:
                 concept=concept,
                 score=score,
                 ts=ts,
-                groupId=group_id,
+                # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+                groupId=to_physical_group_id(group_id) if group_id else group_id,
             )
             if results and not results[0].get("should_update", True):
                 logger.info(
@@ -457,7 +461,8 @@ class FallbackSyncService:
                 concept=concept,
                 score=int(score) if score is not None else None,
                 ts=ts,
-                groupId=group_id,
+                # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+                groupId=to_physical_group_id(group_id) if group_id else group_id,
             )
             if results and not results[0].get("should_update", True):
                 logger.info(

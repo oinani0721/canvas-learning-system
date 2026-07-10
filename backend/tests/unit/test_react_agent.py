@@ -53,12 +53,13 @@ class TestReactAgentGroupIdContextVar:
         finally:
             _current_subject_id.reset(token)
 
-        # assert cypher 调用了 + group_id kwarg == vault:cs_61b
+        # assert cypher 调用了 + group_id kwarg == 物理格式 vault__cs_61b
+        # T1 统一 (2026-07-10): Cypher 绑定值必须是物理层 __ 格式
         assert mock_neo4j.run_query.called, "search_knowledge_graph 未调用 neo4j"
         call_kwargs = mock_neo4j.run_query.call_args.kwargs
-        assert call_kwargs.get("group_id") == "vault:cs_61b", (
+        assert call_kwargs.get("group_id") == "vault__cs_61b", (
             f"P0 violation: cypher group_id={call_kwargs.get('group_id')} "
-            f"(预期 vault:cs_61b, 不能是 default)"
+            f"(预期物理格式 vault__cs_61b, 不能是 default 或冒号逻辑格式)"
         )
 
     @pytest.mark.asyncio
@@ -82,11 +83,15 @@ class TestReactAgentGroupIdContextVar:
                 {"query": "fallback test", "num_results": 3}
             )
 
-        # cypher 收到 DEFAULT_GROUP_ID fallback
+        # cypher 收到 DEFAULT_GROUP_ID fallback (T1: 绑定前转物理 __ 格式)
+        from app.graphiti.group_id_compat import to_physical_group_id
+
+        expected_physical = to_physical_group_id(DEFAULT_GROUP_ID)
         assert mock_neo4j.run_query.called
         call_kwargs = mock_neo4j.run_query.call_args.kwargs
-        assert call_kwargs.get("group_id") == DEFAULT_GROUP_ID, (
-            f"fallback path 应使用 DEFAULT_GROUP_ID={DEFAULT_GROUP_ID}, "
+        assert call_kwargs.get("group_id") == expected_physical, (
+            f"fallback path 应使用物理格式 {expected_physical} "
+            f"(DEFAULT_GROUP_ID={DEFAULT_GROUP_ID} 经 to_physical_group_id), "
             f"实际 group_id={call_kwargs.get('group_id')}"
         )
 
@@ -134,7 +139,8 @@ class TestReactAgentGroupIdContextVar:
         assert mock_neo4j.run_query.called
         call_kwargs = mock_neo4j.run_query.call_args.kwargs
         # record_learning_memory uses groupId (camelCase) not group_id
-        assert call_kwargs.get("groupId") == "vault:数学", (
+        # T1 统一 (2026-07-10): 写侧 Cypher 绑定值同样是物理 __ 格式
+        assert call_kwargs.get("groupId") == "vault__数学", (
             f"P0 write violation: cypher groupId={call_kwargs.get('groupId')} "
-            f"(预期 vault:数学)"
+            f"(预期物理格式 vault__数学)"
         )

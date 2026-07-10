@@ -22,6 +22,9 @@ from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 
 from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
+
+# T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式 (graphiti_core validator 拒冒号)
+from app.graphiti.group_id_compat import to_physical_group_id
 from app.models.edge_rationale import (
     EdgeRationaleCreate,
     EdgeRationaleResponse,
@@ -116,7 +119,8 @@ async def _write_neo4j_triplet(
                 "questioning_rounds": rationale.questioning_rounds,
                 "explanation_depth_score": rationale.explanation_depth_score,
                 "episode_body": episode_body,
-                "group_id": resolved_group_id,
+                # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+                "group_id": to_physical_group_id(resolved_group_id),
             },
         )
 

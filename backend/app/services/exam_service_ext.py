@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.config import DEFAULT_GROUP_ID
+from app.graphiti.group_id_compat import to_physical_group_id
 from app.models.exam_models import (
     COGNITIVE_LOAD_MESSAGES,
     COGNITIVE_LOAD_THRESHOLDS,
@@ -60,6 +61,8 @@ async def sync_node_to_source_canvas(
     """
     from app.clients.neo4j_client import get_neo4j_client
 
+    # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（node/edge/discovered 三条写入共用）
+    group_id = to_physical_group_id(group_id)
     client = get_neo4j_client()
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -578,6 +581,8 @@ async def complete_exam(
     """
     from app.clients.neo4j_client import get_neo4j_client
 
+    # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+    group_id = to_physical_group_id(group_id)
     client = get_neo4j_client()
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -719,6 +724,8 @@ async def get_exam_records(
     """Get paginated list of all exam records. [Story 6.8 AC-7]"""
     from app.clients.neo4j_client import get_neo4j_client
 
+    # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（count/list 两条查询共用）
+    group_id = to_physical_group_id(group_id)
     client = get_neo4j_client()
     skip_count = (page - 1) * limit
 
@@ -841,6 +848,8 @@ async def get_records_by_canvas(
     """Get all exam records for a specific source canvas. [Story 6.8 AC-6, AC-7]"""
     from app.clients.neo4j_client import get_neo4j_client
 
+    # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+    group_id = to_physical_group_id(group_id)
     client = get_neo4j_client()
     query = """
     MATCH (e:EpisodicNode)

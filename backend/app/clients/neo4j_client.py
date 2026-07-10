@@ -45,6 +45,10 @@ from tenacity import (
     wait_exponential,
 )
 
+# T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式 (graphiti_core validator 拒冒号),
+# 所有直接读写 Neo4j group_id 属性的 Cypher 绑定前必须转换
+from app.graphiti.group_id_compat import to_physical_group_id
+
 logger = logging.getLogger(__name__)
 
 # Default storage path for JSON fallback mode
@@ -730,8 +734,14 @@ class Neo4jClient:
             r.review_count = coalesce(r.review_count, 0) + 1
         RETURN r
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        physical_group_id = to_physical_group_id(group_id) if group_id else group_id
         results = await self.run_query(
-            query, userId=user_id, concept=concept, score=score, groupId=group_id
+            query,
+            userId=user_id,
+            concept=concept,
+            score=score,
+            groupId=physical_group_id,
         )
         return len(results) > 0
 
@@ -821,8 +831,12 @@ class Neo4jClient:
             ORDER BY r.next_review
             LIMIT $limit
             """
+            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
             results = await self.run_query(
-                query, userId=user_id, limit=limit, groupId=group_id
+                query,
+                userId=user_id,
+                limit=limit,
+                groupId=to_physical_group_id(group_id),
             )
         else:
             query = """
@@ -925,7 +939,8 @@ class Neo4jClient:
             params["concept"] = concept
         if group_id:
             query += " AND r.group_id = $groupId"
-            params["groupId"] = group_id
+            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+            params["groupId"] = to_physical_group_id(group_id)
 
         query += """
         RETURN c.name as concept,
@@ -941,6 +956,14 @@ class Neo4jClient:
         """
 
         results = await self.run_query(query, **params)
+        # T1 统一 (2026-07-10): 物理 __ 格式读回后转 D16 冒号, 对外输出一致
+        from app.graphiti.group_id_compat import desanitize_group_id_from_graphiti
+
+        for record in results or []:
+            if isinstance(record, dict) and record.get("group_id"):
+                record["group_id"] = desanitize_group_id_from_graphiti(
+                    record["group_id"]
+                )
         return results
 
     async def _get_learning_history_json(
@@ -987,8 +1010,18 @@ class Neo4jClient:
                     continue
 
             # Filter by group_id
-            if group_id and rel.get("group_id") != group_id:
-                continue
+            # T1 统一 (2026-07-10): 写侧 create_learning_relationship 在分派
+            # JSON fallback 前已物理化 (vault__x), 而调用方传逻辑冒号格式 —
+            # 两侧都过 to_physical_group_id 再比较, 顺带兼容 T1 前写入的
+            # 冒号存量 JSON (免清洗)。
+            if group_id:
+                stored_gid = rel.get("group_id") or ""
+                if to_physical_group_id(stored_gid) != to_physical_group_id(group_id):
+                    continue
+
+            from app.graphiti.group_id_compat import (
+                desanitize_group_id_from_graphiti,
+            )
 
             results.append(
                 {
@@ -997,7 +1030,11 @@ class Neo4jClient:
                     "concept_id": rel.get("concept_id"),
                     "score": rel.get("last_score"),
                     "timestamp": rel.get("timestamp"),
-                    "group_id": rel.get("group_id"),
+                    # T1: 输出 D16 冒号, 与 Neo4j 路径 get_learning_history
+                    # 的 desanitize 输出契约一致
+                    "group_id": desanitize_group_id_from_graphiti(
+                        rel.get("group_id") or ""
+                    ),
                     "agent_type": rel.get("agent_type"),
                     "review_count": rel.get("review_count", 0),
                 }

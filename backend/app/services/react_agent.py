@@ -27,6 +27,7 @@ from app.core.subject_config import (
     canonical_group_id,
     get_current_subject_id,
 )
+from app.graphiti.group_id_compat import to_physical_group_id
 
 logger = structlog.get_logger(__name__)
 
@@ -210,7 +211,8 @@ async def search_knowledge_graph(
         ORDER BY n.updated_at DESC
         LIMIT $limit
         """
-        effective_group_id = _resolve_effective_group_id()
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        effective_group_id = to_physical_group_id(_resolve_effective_group_id())
         records = await _neo4j_client.run_query(
             cypher, query=query, limit=num_results, group_id=effective_group_id
         )
@@ -370,7 +372,8 @@ async def record_learning_memory(
         })
         """
         timestamp = datetime.now().isoformat()
-        effective_group_id = _resolve_effective_group_id()
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（写侧与 search_knowledge_graph 读侧成对）
+        effective_group_id = to_physical_group_id(_resolve_effective_group_id())
         await _neo4j_client.run_query(
             cypher,
             nodeId=f"agent-{timestamp}",

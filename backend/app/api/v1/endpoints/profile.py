@@ -18,6 +18,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from app.config import DEFAULT_GROUP_ID
+from app.graphiti.group_id_compat import to_physical_group_id
 from app.services.mastery_engine import get_mastery_engine
 from app.services.mastery_store import get_mastery_store
 
@@ -228,7 +229,8 @@ async def get_profile_tips(
     try:
         records = await client.run_query(
             query,
-            group_id=group_id,
+            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+            group_id=to_physical_group_id(group_id),
             node_id=node_id,
         )
 
@@ -296,7 +298,8 @@ async def get_profile_weaknesses(
     try:
         records = await client.run_query(
             query,
-            group_id=group_id,
+            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+            group_id=to_physical_group_id(group_id),
             node_id=node_id,
         )
 
@@ -353,7 +356,8 @@ async def get_profile_qa_highlights(
     try:
         records = await client.run_query(
             query,
-            group_id=group_id,
+            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+            group_id=to_physical_group_id(group_id),
             node_id=node_id,
         )
 

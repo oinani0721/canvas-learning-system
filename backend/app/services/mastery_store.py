@@ -19,6 +19,7 @@ import structlog
 from typing import List, Optional
 
 from app.config import DEFAULT_GROUP_ID
+from app.graphiti.group_id_compat import to_physical_group_id
 from app.models.mastery_models import CalibrationRecord
 from app.models.mastery_state import ConceptState
 
@@ -43,6 +44,8 @@ class MasteryStore:
 
         Looks for EntityNode with matching mastery_concept_id or name.
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        group_id = to_physical_group_id(group_id)
         query = """
         MATCH (n:EntityNode)
         WHERE n.group_id = $group_id
@@ -77,6 +80,8 @@ class MasteryStore:
 
         Uses MERGE on mastery_concept_id to create or update.
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（MERGE 键 + props 属性同源）
+        group_id = to_physical_group_id(group_id)
         props = concept.to_neo4j_props()
         props["group_id"] = group_id
         props["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -105,6 +110,8 @@ class MasteryStore:
 
         Returns concepts that have p_mastery property set.
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        group_id = to_physical_group_id(group_id)
         query = """
         MATCH (n:EntityNode)
         WHERE n.group_id = $group_id
@@ -175,6 +182,8 @@ class MasteryStore:
 
         Phase 1: Simple property update. Phase 2: Separate EpisodicNode.
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        group_id = to_physical_group_id(group_id)
         query = """
         MATCH (n:EntityNode {group_id: $group_id, mastery_concept_id: $concept_id})
         SET n.last_grade = $grade,
@@ -200,6 +209,8 @@ class MasteryStore:
         group_id: str = DEFAULT_GROUP_ID,
     ) -> None:
         """Record an override event on the EntityNode."""
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        group_id = to_physical_group_id(group_id)
         query = """
         MATCH (n:EntityNode {group_id: $group_id, mastery_concept_id: $concept_id})
         SET n.last_override_level = $level,
@@ -229,6 +240,8 @@ class MasteryStore:
         Used by Graphiti bridge when concept_id is unknown but concept name
         is available from a Misconception/ProblemTrap episode_body.
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        group_id = to_physical_group_id(group_id)
         query = """
         MATCH (n:EntityNode)
         WHERE n.group_id = $group_id
@@ -275,6 +288,8 @@ class MasteryStore:
             Empty list on Neo4j errors (graceful degradation, consistent
             with get_all_concepts pattern).
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（fallback 转发幂等安全）
+        group_id = to_physical_group_id(group_id)
         # Try matching via Canvas -> CONTAINS_NODE -> Node -> EntityNode
         query = """
         MATCH (c:Canvas)-[:CONTAINS_NODE]->(n:Node)
@@ -334,6 +349,8 @@ class MasteryStore:
         group_id: str = DEFAULT_GROUP_ID,
     ) -> None:
         """Record a self-assessment event (Canvas color change)."""
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        group_id = to_physical_group_id(group_id)
         query = """
         MATCH (n:EntityNode {group_id: $group_id, mastery_concept_id: $concept_id})
         SET n.last_self_assess_color = $color,
@@ -365,6 +382,8 @@ class MasteryStore:
         Uses read-modify-write with json.loads/json.dumps to avoid string
         concatenation errors on malformed JSON.
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（读+写两条 Cypher 共用）
+        group_id = to_physical_group_id(group_id)
         record_dict = record.model_dump(mode="json")
 
         # Step 1: Read existing records
@@ -441,6 +460,8 @@ class MasteryStore:
             List of CalibrationRecord objects. Empty list on Neo4j errors
             (graceful degradation consistent with get_all_concepts pattern).
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        group_id = to_physical_group_id(group_id)
         query = """
         MATCH (n:EntityNode)
         WHERE n.group_id = $group_id
@@ -486,6 +507,8 @@ class MasteryStore:
             List of node_id strings. Empty list when no dangerous nodes exist
             (this is a valid state, not a fallback).
         """
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        group_id = to_physical_group_id(group_id)
         query = """
         MATCH (n:EntityNode)
         WHERE n.group_id = $group_id

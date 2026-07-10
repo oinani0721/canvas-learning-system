@@ -43,9 +43,7 @@ def test_map_legacy_general_to_vault_default():
 def test_map_already_vault_format_unchanged():
     """已是 vault: 前缀 → 幂等不变."""
     assert map_legacy_group_id("vault:cs_61b") == "vault:cs_61b"
-    assert (
-        map_legacy_group_id("vault:cs_61b:algorithms") == "vault:cs_61b:algorithms"
-    )
+    assert map_legacy_group_id("vault:cs_61b:algorithms") == "vault:cs_61b:algorithms"
     assert map_legacy_group_id("vault:数学") == "vault:数学"
 
 
@@ -146,17 +144,18 @@ async def test_migrate_dry_run_lists_migrations_no_apply():
         [
             {"gid": "cs188", "node_count": 100},
             {"gid": "canvas-dev", "node_count": 50},
-            {"gid": "vault:cs_61b", "node_count": 30},  # 已是新格式, 跳过
+            {"gid": "vault:cs_61b", "node_count": 30},  # T1: 冒号 → vault__cs_61b
         ]
     )
 
     stats = await migrate_legacy_group_ids(driver, dry_run=True)
 
     assert stats.dry_run is True
-    assert stats.total_old_group_ids == 2  # cs188 + canvas-dev
-    assert stats.total_nodes_affected == 150
-    assert stats.skipped_already_vault_format == 1  # vault:cs_61b
-    assert len(stats.migrations) == 2
+    # T1 (2026-07-10): 冒号 D16 也是迁移对象 (目标物理 __ 格式), 3 条全迁移
+    assert stats.total_old_group_ids == 3  # cs188 + canvas-dev + vault:cs_61b
+    assert stats.total_nodes_affected == 180
+    assert stats.skipped_already_vault_format == 0
+    assert len(stats.migrations) == 3
 
     # dry_run → 仅 distinct query, 不调 update
     update_calls = [
@@ -181,16 +180,18 @@ async def test_migrate_apply_mode_calls_update():
     assert len(update_calls) == 1
     # 验证参数
     assert update_calls[0][1]["old"] == "cs188"
-    assert update_calls[0][1]["new"] == "vault:default"
+    # T1 (2026-07-10): 迁移目标 = 物理 __ 格式
+    assert update_calls[0][1]["new"] == "vault__default"
 
 
 @pytest.mark.asyncio
 async def test_migrate_idempotent_second_run_no_changes():
     """二次跑 (假设第一次已迁移) → 全部跳过."""
+    # T1 (2026-07-10): 第一次迁移后的存量是物理 __ 格式
     driver = _make_mock_driver(
         [
-            {"gid": "vault:cs_61b", "node_count": 100},
-            {"gid": "vault:数学", "node_count": 50},
+            {"gid": "vault__cs_61b", "node_count": 100},
+            {"gid": "vault__数学", "node_count": 50},
         ]
     )
 
@@ -221,6 +222,7 @@ async def test_migrate_records_node_count_per_migration():
 
     by_old = {m.old: m for m in stats.migrations}
     assert by_old["cs188"].node_count == 100
-    assert by_old["cs188"].new == "vault:default"
+    # T1 (2026-07-10): 迁移目标 = 物理 __ 格式
+    assert by_old["cs188"].new == "vault__default"
     assert by_old["physics"].node_count == 25
-    assert by_old["physics"].new == "vault:physics"
+    assert by_old["physics"].new == "vault__physics"

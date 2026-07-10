@@ -121,7 +121,9 @@ class TestCreateLearningRelationshipCypher:
         assert kwargs["score"] == 75
         assert kwargs["userId"] == "u1"
         assert kwargs["concept"] == "addition"
-        assert kwargs["groupId"] == "math"
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式 —
+        # 绑定前过 to_physical_group_id ("math" → canonical → "vault__math")
+        assert kwargs["groupId"] == "vault__math"
 
 
 # ---------------------------------------------------------------------------
