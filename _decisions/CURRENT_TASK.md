@@ -1,23 +1,24 @@
 ---
 active_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
-active_plan_file: "_bmad-output/research/2026-05-21-sprint-plan-v3.md"
-current_sprint: "Sprint v3 · Obsidian Hybrid Day 2"
-sprint_progress: "3/27 done (11.1%) — auto-synced"
-next_story_id: "INFRA-003"
-next_story_title: "docker-compose healthcheck 路径修复"
+active_plan_file: ".gdr/dev-pack-next-session-convergence.xml (包尾任务书)"
+current_sprint: "基本功能收敛 T1-T6 (2026-07-10 交接)"
+sprint_progress: "T1✅ T3✅ T2✅ T5✅ T6(Dashboard✅/EXAM-08待拍板) T4(设计稿待批注)"
+next_story_id: "T4-S1"
+next_story_title: "T4 批注通过后: 后端 targeting-material 端点 (方案A推荐)"
 next_story_files:
-  - "backend/docker-compose.yml"
-  - "backend/app/interfaces/api/health.py"
-last_commit_hash: "d25447e"  # auto-synced; msg: docs(sprint-2): S2-1 V-10 修复规划记录 + BMAD 追踪 (代码已 commit main 
-last_commit_hash_alt: "548d14d"  # INFRA-002 装路由
+  - "_bmad-output/研究/2026-07-10-T4-Graphiti读侧接通检验白板-设计小节.md"
+  - "backend/app/services/graphiti_memory_reader.py"
+last_commit_hash: "ae323ba6"  # T5 错误候选命令接线; 前有 fc0adb11(T1) a31e6845(T3) 4af349da(T2)
+last_commit_hash_alt: "56ee681"  # 交接任务书 commit
 sprint_status_file: "_bmad-output/implementation-artifacts/sprint-status.yaml"
 sprint_status_key: "development_status.sprint_v3_obsidian_hybrid"
 prd_anchor: "/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md"
 session_handover_sop: "新 session 5 min 启动 — 见正文 §1"
 plan_kind: "bmad-implementation"
-active_phase: "sprint-v3-day-2-pending"
-round: 13
-last_updated: "2026-06-01T02:11:48Z"
+active_phase: "convergence-T4-awaiting-annotation"
+round: 14
+last_updated: "2026-07-10T05:45:00Z"
+round14_key_finding: "T1 洗号点=group_id_compat 边界 sanitize 铺设不彻底(非 bug 而是执行不完整); 物理层统一 __ 格式+to_physical_group_id 唯一入口(幂等防御 vault__ 前缀); 对抗审查修 3 缺陷(migration 反向写坏/JSON fallback 不成对/desanitize 有损告警); T3 根因=metadata rebuild 新建实例 drop 表而 chat singleton 持旧句柄, 9 处改按需 open_table; 额外发现 /enrich-context 500(search_error_memories 从未实现,无调用方,未修)"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
 round9_key_finding: "推荐保留 Graphiti 做错误/学习事件检索 — 时序+关系查询天然匹配 Episode 模型；数据量小（20-50MB）；启动 Docker 2 分钟；Zep AI 社区源码 https://github.com/getzep/graphiti"
 round8_key_findings:
