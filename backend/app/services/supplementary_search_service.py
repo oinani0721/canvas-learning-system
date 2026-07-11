@@ -161,7 +161,10 @@ async def search_supplementary(
     quarantined_count = 0
     review_count = 0
     for raw in results:
-        score = float(raw.get("score", 0.0))
+        # R1 根因二 (2026-07-12): 过滤用原始语义分 (_raw_score), 不用
+        # source_priority 加权后的 score — 否则 ×1.5 权重击穿门槛 /
+        # ×0.3 权重误杀正确命中 (真机: 烤面包查询 10 条全过)。
+        score = float(raw.get("_raw_score", raw.get("score", 0.0)))
         if score < min_relevance:
             continue
 

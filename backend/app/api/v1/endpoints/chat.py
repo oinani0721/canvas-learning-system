@@ -405,10 +405,13 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
                 # → Claude 用 Read tool 真核实是 verifier（candidate generator + verifier 分离）
                 top_k_max=supp_top_k_max,
                 # R1 止血 (2026-07-12): _rrf_fuse 不再覆盖 _distance, score 恢复
-                # 真实语义幅度 (1/(1+cosine_d)) — 0.62 切掉弱相关 (bge-m3 经验:
-                # sim<0.4 ≈ 无关)。旧值 0.30 在 RRF 压缩分布下恒过滤失效。
-                min_relevance=0.62,
-                elbow_drop_threshold=0.05,
+                # 真实语义幅度 (1/(1+cosine_d))。0.50 = 主仓 3604 chunks 真机校准:
+                # 相关查询 0.51-0.65 / 零相关 0.45-0.49, 分界干净。
+                min_relevance=0.50,
+                # R1 (2026-07-12): 0.05→0.25 — elbow 作用在 source_priority 加权分上,
+                # 权重跨度 (0.3~1.5) 造成的 gap 不是语义悬崖 (真机: 0.72→0.50 的
+                # 权重差把正确命中误砍); 真语义悬崖 (>0.25) 仍触发
+                elbow_drop_threshold=0.25,
                 hard_cap=supp_hard_cap,
             )
             # Story 2.2+2.9 T3.7-T3.10 (2026-05-11) — query-aware rerank
@@ -851,11 +854,15 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
                 query=user_prompt,
                 lancedb_client=lancedb_client,
                 top_k_max=15,
-                # R1 止血 (2026-07-12): score 已恢复语义幅度 (见 _rrf_fuse),
-                # 0.62 门槛让"0 命中→不注入"的设计目标重新可达 —— 旧 0.30
-                # 在压缩分布下任何查询 (含零相关) 都注入满额 10 条
-                min_relevance=0.62,
-                elbow_drop_threshold=0.05,
+                # R1 止血 (2026-07-12): score 已恢复语义幅度 (见 _rrf_fuse)。
+                # 0.50 = 主仓 3604 chunks 真机校准 (相关 0.51-0.65 / 零相关
+                # 0.45-0.49); "0 命中→不注入"重新可达 — 旧 0.30 在压缩分布
+                # 下任何查询都注入满额 10 条
+                min_relevance=0.50,
+                # R1 (2026-07-12): 0.05→0.25 — elbow 作用在 source_priority 加权分上,
+                # 权重跨度 (0.3~1.5) 造成的 gap 不是语义悬崖 (真机: 0.72→0.50 的
+                # 权重差把正确命中误砍); 真语义悬崖 (>0.25) 仍触发
+                elbow_drop_threshold=0.25,
                 hard_cap=10,
             ),
             timeout=5.0,  # hook 严格延迟预算

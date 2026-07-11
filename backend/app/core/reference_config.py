@@ -88,6 +88,12 @@ def apply_source_priority(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]
         for p in priorities:
             if fnmatch(path, p["pattern"]):
                 original_score = r.get("score", 0.0)
+                # R1 根因二 (2026-07-12): 保留原始语义分 — 乘性权重曾在
+                # min_relevance 过滤前执行, 把"语义相关性"和"来源优先级"两个
+                # 正交维度乘在一起: 无关材料 ×1.5 击穿门槛 (烤面包查询 10 条
+                # 全过), 正确命中 ×0.3/×0.9 被误杀。此后契约: 过滤用
+                # _raw_score (语义), 排序/展示用 score (加权) — 各司其职。
+                r["_raw_score"] = original_score
                 r["score"] = original_score * p["weight"]
                 break
 

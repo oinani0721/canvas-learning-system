@@ -2913,8 +2913,12 @@ class LanceDBClient:
         (0.50, 0.508] 窄带 —— 下游 min_relevance 过滤在数学上失效, 任何
         查询 (含零相关) 都注入满额材料。现在:
         - vector 通道命中: 保留原始 cosine `_distance` (真实语义幅度)
-        - FTS-only 命中: `_distance` 设 0.35 —— 精确词面命中本身是强相关
-          信号 (对应 score≈0.74), 应当通过下游相关性门槛
+        - FTS-only 命中 (vector 未确认): `_distance` 设 1.1 (score≈0.476,
+          低于 0.50 门槛) —— 第一版给过 0.35 特权值, 真机翻车: 英文
+          stop words (how/do/at) 在英文转录语料里海量 BM25 命中, 烤面包
+          查询照样注入 10 条 + 虚高分触发 elbow 假悬崖砍掉真 vector 命中。
+          纯词面命中不是强信号, **双通道确认才是** (那时用 vector 真实距离,
+          FTS 贡献体现在 RRF 排序加成)。
         - 融合排名放 `_rrf_score` 供调试/观测
         """
         scores: Dict[str, float] = {}
@@ -2927,10 +2931,11 @@ class LanceDBClient:
             doc_id = r.get("doc_id", f"f_{rank}")
             scores[doc_id] = scores.get(doc_id, 0) + 1.0 / (k + rank + 1)
             if doc_id not in doc_map:
-                # FTS-only 命中 — 无 cosine 距离, 给强词面命中的代理值
+                # FTS-only 命中 (vector 未确认) — 见 docstring: 不给特权,
+                # 1.1 → score≈0.476 低于门槛, 不进自动注入
                 fts_doc = r.copy()
                 if fts_doc.get("_distance") is None:
-                    fts_doc["_distance"] = 0.35
+                    fts_doc["_distance"] = 1.1
                 fts_doc["_fts_only"] = True
                 doc_map[doc_id] = fts_doc
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:limit]
