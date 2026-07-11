@@ -152,8 +152,30 @@ async def backfill_vault(
 
     fallback_now = datetime.now(timezone.utc)
 
+    # D2 修复 (2026-07-12 对抗审查): 复用 LanceDB 索引同款黑名单 — 旧逻辑只跳
+    # .obsidian/templates, 检验白板/Dashboard/skill 文档的 callout 全被当用户
+    # 批注回填进图 (Neo4j 已实测出现 'SKILL'/'Dashboard'/检验白板会话实体),
+    # 信息隔离 (d=1.50) 在 Graphiti 层破口: 考题内容可经 memory 读侧回流。
+    # 注意 VAULT_INDEX_SKIP_DIRS 是逗号分隔字符串 (config.py:537), 必须 split。
+    from fnmatch import fnmatch
+
+    from app.config import settings as _settings
+
+    _raw_skip = getattr(_settings, "VAULT_INDEX_SKIP_DIRS", "") or ""
+    _skip_dirs = {d.strip() for d in _raw_skip.split(",") if d.strip()}
+    _skip_dirs.update({".obsidian", "templates"})
+
+    def _is_blacklisted(md_path: Path) -> bool:
+        rel_parts = md_path.relative_to(base).parts
+        # vault 根级直下的 md (Dashboard/CLAUDE/杂项) 不是学习节点 — 学习内容
+        # 都在 节点/原白板/raw 等子目录; 根级 callout (如 Dashboard 的 info 块)
+        # 进图就是噪音/泄漏
+        if len(rel_parts) == 1:
+            return True
+        return any(any(fnmatch(part, pat) for pat in _skip_dirs) for part in rel_parts)
+
     for md in sorted(base.rglob("*.md")):
-        if ".obsidian" in md.parts or "templates" in md.parts:
+        if _is_blacklisted(md):
             continue
         node_id = md.stem
         try:

@@ -34,9 +34,13 @@ services:
       - "${NEO4J_BOLT_PORT:-7691}:7687"  # Bolt Protocol
 
     volumes:
-      - ./docker/neo4j/data:/data
-      - ./docker/neo4j/logs:/logs
-      - ./docker/neo4j/plugins:/plugins
+      # P0-C 迁移 (2026-07-12): 绝对路径指向主仓稳定目录 — 学习记忆图谱 (519MB,
+      # 唯一不可再生数据) 曾寄居 feature-deeptutor-canvas-mvp 旧 worktree 的
+      # bind-mount (相对路径 + 启动目录漂移所致), worktree 清理 = 记忆蒸发。
+      # 备份: backend/data/backups/neo4j-full-export-2026-07-12.cypher
+      - /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data
+      - /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs:/logs
+      - /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins:/plugins
 
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:7474"]
@@ -164,6 +168,8 @@ services:
       # GOOGLE_API_KEY: P0 2026-05-14 — 从 host shell env 传入容器以让 GraphitiEpisodeWorker 启用。
       # 之前的注释"read from backend/.env via load_dotenv"在 worker 启动早于 dotenv load 时不生效。
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # GEMINI_API_KEY: B1 修复 (2026-07-12) — litellm 的 gemini/ 路由查此变量名, 与 GOOGLE_API_KEY 同值
+      - GEMINI_API_KEY=${GOOGLE_API_KEY:-}
       # 可切换 embedder (2026-06-26): gemini(默认) | openai | local。
       # local = Ollama/LM Studio 本地 bge-m3 (1024 维, 不受 Gemini 地理封锁)。
       # 用法: 宿主 `ollama serve` + `ollama pull bge-m3`, 然后
