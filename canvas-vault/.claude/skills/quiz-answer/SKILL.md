@@ -105,6 +105,9 @@ import json, re, os
 P = "/tmp/quiz-answer-payload.json"
 p = json.load(open(P, encoding="utf-8"))
 NODE = p["node"]; GN = float(p["grade_norm"])
+# F3 修复 (2026-07-12): grade_norm 钳制 [0,1] — LLM 把 1-4 分误当 grade_norm
+# 传入时 (如 3.5), 首评分支会把 mastery_score 直接写成 3.5 污染全链
+GN = max(0.0, min(1.0, GN))
 
 s = open(NODE, encoding="utf-8").read()
 m = re.match(r'^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', s, re.S)
@@ -146,8 +149,19 @@ entry = (f'  - event_id: {q(eid)}\n'
          f'    self_confidence_raw: {q(p.get("self_confidence_raw") or "null")}\n'
          f'    self_confidence_norm: {scn if scn is not None else "null"}\n'
          f'    grade_norm: {round(GN, 2)}')
-if re.search(r'^calibration_log:', fm, re.M):
-    fm = fm.rstrip() + "\n" + entry
+# F3 修复 (2026-07-12): 定位 calibration_log 块末尾插入 — 旧逻辑无条件追加
+# 到 frontmatter 末尾, 当 calibration_log 非最后一个 key 时 (Obsidian
+# Properties 面板默认在末尾新增属性, 极常见), 事件条目会被 YAML 静默
+# 归档进相邻列表键 (如 aliases), 校准数据丢失且零报错。
+mcal = re.search(r'^calibration_log:', fm, re.M)
+if mcal:
+    lines = fm.split("\n")
+    li = next(i for i, ln in enumerate(lines) if re.match(r'^calibration_log:', ln))
+    j = li + 1
+    while j < len(lines) and lines[j].startswith("  "):
+        j += 1
+    lines[j:j] = entry.split("\n")
+    fm = "\n".join(lines)
 else:
     fm = fm.rstrip() + "\ncalibration_log:\n" + entry
 
@@ -156,7 +170,10 @@ cal = (p.get("callout") or "").strip()
 if cal and cal not in body:
     body = body.rstrip() + "\n\n" + cal + "\n"
 
-open(NODE, "w", encoding="utf-8").write(f"---\n{fm}\n---\n{body}")
+# F4 修复 (2026-07-12): 真原子写 — tmpfile + os.replace, 进程中断不再截断节点文件
+tmp = NODE + ".quiz-tmp"
+open(tmp, "w", encoding="utf-8").write(f"---\n{fm}\n---\n{body}")
+os.replace(tmp, NODE)
 os.remove(P)
 print(f"[quiz-answer] {NODE}: mastery {old}->{new}; event={eid}; callout={'yes' if cal else 'no'}")
 PYEOF

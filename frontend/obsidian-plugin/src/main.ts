@@ -232,6 +232,8 @@ export default class CanvasLearningPlugin extends Plugin {
         "/api/v1/tips/batch",
         "批注 debounce 同步",
         {
+          // B2 (2026-07-12): tips 落当前 vault 桶, 不再进 vault:default
+          vault_id: inferVaultId(this.app.vault.getName()),
           node_id: nodeId,
           callouts: callouts.map((c) => ({
             tag: c.tag,
@@ -1388,6 +1390,8 @@ export default class CanvasLearningPlugin extends Plugin {
         "/api/v1/tips/relation",
         "派生关系同步",
         {
+          // B2 (2026-07-12): tips 落当前 vault 桶
+          vault_id: inferVaultId(this.app.vault.getName()),
           source_node_id: sourceNodeId,
           target_node_id: targetNodeId,
           relation_type: relationType,
@@ -1443,6 +1447,8 @@ export default class CanvasLearningPlugin extends Plugin {
     }
     const nodeId = activeFile.basename;
     const body = {
+      // B2 (2026-07-12): tips 落当前 vault 桶
+      vault_id: inferVaultId(this.app.vault.getName()),
       content: selected,
       title: `${tag.label} · ${nodeId}`,
       tags: [`tag:${tag.value}`, `understanding:${understanding}`],
