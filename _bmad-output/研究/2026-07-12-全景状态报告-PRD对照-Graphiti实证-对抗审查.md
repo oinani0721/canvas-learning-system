@@ -43,6 +43,10 @@
 
 **后果**: 近一个月"已验证 ✅"的功能，在你的日常使用里一个都没生效。这必须最先解决（方案见 §9-Q1）。
 
+**User：请你查询一下我们当时是在哪一个路径使用 claude code ，因为`canvas-learning-system/canvas-vault` 是作为我们当时测试使用 Canvas learning systeam 的仓库**
+
+> **[A1 2026-07-12 → round1]** ✅ 已查证，你的记忆完全正确：主仓 canvas-vault 就是 round-7 契约钦定的测试 vault，你从未用错。分裂根因 = 5 月 3 日创建 worktree 后开发 session 迁入（6-13 起），插件部署目标和后端挂载被隐式带进 worktree 的 vault 副本，从未迁移使用侧——你 6-12 还在主仓学 CS188、7-07 还在主仓用 Claudian。完整时间线详见 [[R1-Q1_部署路径历史查证|📚 R1-Q1]]
+
 ---
 
 ## 3 · 已开发功能清单（证据分级；✅=真机验证 🟡=部分/带缺陷 ）
@@ -184,20 +188,29 @@
 **Q1 · 部署统一方向（最急）**：
 - **方案 A（推荐）**: 主仓 vault 原地升级——拷最新插件 build + 带鉴权的 settings.json + key 文件到主仓 vault，Obsidian 不用动；后端 CANVAS_BASE_PATH 切回主仓 vault 并重建索引。两副本内容差异需先 diff 合并（主仓多 CS188/CS189 文件）。
 - 方案 B: Obsidian 改开 worktree vault（补 data.json backendUrl）——但 worktree 本质是开发区，学习数据住在开发区不健康。
-- **User：**
+- **User：**请你查询一下我们当时是在哪一个路径使用 claude code ，因为`canvas-learning-system/canvas-vault` 是作为我们当时测试使用 Canvas learning systeam 的仓库**
+
+> **[A1 2026-07-12 → round1]** ✅ 已查证（与 §2 批注同题）：主仓 canvas-vault 是正统使用仓——这实质回答了 Q1 方向 = **方案 A 主仓原地升级**（插件/hook/key/skills 同步到主仓 + 后端挂载切回主仓 + 两副本内容以主仓为基底合并）。详见 [[R1-Q1_部署路径历史查证|📚 R1-Q1]] 的"这对 §9-Q1 意味着什么"节
 
 **Q2 · enrich-hook auto-RAG 何去何从**（R1+R2 连锁）：
 - 方案 A: 修分数归一化 + exam-prompt 跳过注入 + 保留 auto-RAG
 - 方案 B（更彻底）: auto-RAG 降级为"仅 FTS 强命中才注入"（弱信号不注入，消灭无关材料污染）
 - 方案 C: 暂时关闭 hook，检索改全手动（skill 调 MCP search_notes）
-- **User：**
+- **User：** enrich-hook auto-RAG 请你解释一下这个是什么功能设计出来是干什么的，
+
+> **[A1 2026-07-12 → round1]** ✅ 它是你 5-09 提的需求「对话里相关知识点太频繁，不要每次按快捷键」的落地：你在 Claudian 每发一条消息，系统自动去笔记库搜相关片段悄悄塞给 Claude，让它答题时引用你的真实笔记（带 [[wikilink]] 跳转）而非凭训练数据编。现在的问题是过滤器坏了（垃圾也注入）+ 不分场合（出题轮把答案塞给出题人）。三方案通俗对比和我的推荐（先两个一行止血、保留机关）详见 [[R1-Q2_enrich-hook是什么|📚 R1-Q2]]
 
 **Q3 · 评分主轨确认**：quiz-answer 本地 EMA 是事实上的唯一主轨（backend grade 分数被丢弃 + LLM 死）。确认"本地 EMA 为 v1 主轨、backend 评分链退役封存"？还是修 B1 后合流？
 - **User：**
+  请你解释一下
+
+> **[A1 2026-07-12 → round1]** ✅ 已解释：系统并存两套互不知情的评分体系——后端大管道（评分 LLM 配置错误必 502 + 就算修好分数也被插件丢弃 = 半死）和 quiz-answer 本地 EMA（活的、为你当前工作流设计、但你还没真实跑过一次）。Q3 要拍的是：承认本地 EMA 为 v1 唯一主轨（推荐，零维护负担），还是花数天修活合流（当前不划算）。两轨来龙去脉详见 [[R1-Q3_评分双轨解释|📚 R1-Q3]]
 
 **Q4 · Neo4j 数据迁移+备份**（D1）：需要停机几分钟做 dump + 把 bind-mount 迁出旧 worktree。现在做还是排到部署统一之后一起做？
 - **User：**
+部署后统一做
 
+> **[A1 2026-07-12 → round1]** ✅ 收到拍板：**Neo4j 迁移+备份排在部署统一之后一起做**（与 R1-Q1 结论正好排成同一个部署窗口：切主仓挂载 + 索引重建 + Neo4j dump/迁移一次停机完成）。已记入决策。
 **Q5 · P0 修复队列确认**（无异议我按此执行）：
 1. Q1 拍板后执行部署统一
 2. D1 Neo4j dump 备份（迁移可分离）
