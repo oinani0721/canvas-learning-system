@@ -908,6 +908,30 @@ def get_settings() -> Settings:
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings module pattern)
 settings = get_settings()
 
+
+# B1 修复 (2026-07-12): AI_PROVIDER → litellm 路由前缀映射。
+# litellm 的 Google AI Studio 路由前缀是 "gemini/" 而非 "google/" —— 旧拼接
+# f"{AI_PROVIDER}/{AI_MODEL_NAME}" 产出 litellm 不识别的 "google/gemini-..."
+# 使 /exam/grade 恒 502、/exam/quick 恒退化模板题（2026-07-12 对抗审查真机实证）。
+_LITELLM_PROVIDER_PREFIX = {"google": "gemini"}
+
+
+def resolve_litellm_model() -> str:
+    """出题/评分统一的 litellm model 字符串解析（唯一入口, DRY 两处调用点）。
+
+    优先级: SCORING_MODEL 显式配置 > AI_PROVIDER(映射后)/AI_MODEL_NAME。
+    前缀判断用 startswith(f"{provider}/") 而非 startswith(provider) —— 后者
+    会被 "gemini-2.5-flash" 这类以 provider 名开头的模型名误判为已带前缀。
+    """
+    s = get_settings()
+    if s.SCORING_MODEL:
+        return s.SCORING_MODEL
+    provider = _LITELLM_PROVIDER_PREFIX.get(s.AI_PROVIDER, s.AI_PROVIDER)
+    if provider and not s.AI_MODEL_NAME.startswith(f"{provider}/"):
+        return f"{provider}/{s.AI_MODEL_NAME}"
+    return s.AI_MODEL_NAME
+
+
 # Convenience constant: default group_id for Graphiti memory isolation.
 # All modules should import this instead of hardcoding "cs188".
 # Story 2.1 AC-5: cs188 hardcode cleanup.

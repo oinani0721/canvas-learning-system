@@ -404,7 +404,10 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
                 # → top_k_max 大召回 + elbow_cut 动态截断（业界推荐 vs 硬编码 top_k）
                 # → Claude 用 Read tool 真核实是 verifier（candidate generator + verifier 分离）
                 top_k_max=supp_top_k_max,
-                min_relevance=0.30,  # RRF 实测分布，Phase B sigmoid 归一化后恢复 0.70
+                # R1 止血 (2026-07-12): _rrf_fuse 不再覆盖 _distance, score 恢复
+                # 真实语义幅度 (1/(1+cosine_d)) — 0.62 切掉弱相关 (bge-m3 经验:
+                # sim<0.4 ≈ 无关)。旧值 0.30 在 RRF 压缩分布下恒过滤失效。
+                min_relevance=0.62,
                 elbow_drop_threshold=0.05,
                 hard_cap=supp_hard_cap,
             )
@@ -804,6 +807,24 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
             }
         )
 
+    # R2 修复 (2026-07-12 对抗审查): 出题/评分轮绝不注入 —— hook 曾把被考
+    # 节点的定义正文 snippet + "必须 Read 完整文件"指令灌进 /start-exam-board
+    # 出题对话, 与 HARD-ISO-4 信息隔离铁律 (d=1.50 命脉) 正面互斥。
+    # 这些 skill 的素材获取有自己的安全通道 (Grep 安全抽取器 / targeting-material)。
+    _EXAM_SKILL_PREFIXES = ("/start-exam-board", "/quiz-answer", "/exam-quick")
+    if user_prompt.startswith(_EXAM_SKILL_PREFIXES):
+        logger.info(
+            "[T1.7-AutoRAG] exam-skill prompt detected, injection skipped "
+            "(HARD-ISO isolation)",
+            prompt=user_prompt[:60],
+        )
+        return HookEnrichOutput(
+            hookSpecificOutput={
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": "",
+            }
+        )
+
     # Wave-2 P0-2 漏修-1 (2026-05-12): 改用 lazy init 替代裸读 singleton.
     # 原因: 直读 _supp_lancedb_singleton 在 cold-start 期间立即 None 跳过,
     # 用户首问的 hook 永远拿不到 RAG 注入; 同时绕开了 _get_supp_lancedb_client
@@ -830,7 +851,10 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
                 query=user_prompt,
                 lancedb_client=lancedb_client,
                 top_k_max=15,
-                min_relevance=0.30,
+                # R1 止血 (2026-07-12): score 已恢复语义幅度 (见 _rrf_fuse),
+                # 0.62 门槛让"0 命中→不注入"的设计目标重新可达 —— 旧 0.30
+                # 在压缩分布下任何查询 (含零相关) 都注入满额 10 条
+                min_relevance=0.62,
                 elbow_drop_threshold=0.05,
                 hard_cap=10,
             ),

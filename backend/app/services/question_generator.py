@@ -600,16 +600,11 @@ class QuestionGenerator:
         try:
             from litellm import acompletion
 
-            from app.config import settings
+            # B1 修复 (2026-07-12): 统一走 resolve_litellm_model —— 旧拼接
+            # 产出 litellm 不识别的 "google/..." 前缀, 出题恒退化模板题
+            from app.config import resolve_litellm_model
 
-            model = settings.SCORING_MODEL
-            if not model:
-                provider = settings.AI_PROVIDER
-                model_name = settings.AI_MODEL_NAME
-                if provider and not model_name.startswith(provider):
-                    model = f"{provider}/{model_name}"
-                else:
-                    model = model_name
+            model = resolve_litellm_model()
 
             response = await acompletion(
                 model=model,

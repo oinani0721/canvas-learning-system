@@ -22,6 +22,23 @@ logger = logging.getLogger(__name__)
 tips_router = APIRouter()
 
 
+def _resolve_tips_group_id(vault_id: str | None = None) -> str:
+    """B2 修复 (2026-07-12 对抗审查): tips 写读统一落当前 vault 桶。
+
+    旧契约 5 处全用 DEFAULT_GROUP_ID (vault:default) —— 实时批注落错桶,
+    要等下次重启 vault_backfill 重放 frontmatter 才进正确 vault 桶,
+    多 vault 并存时必串库。显式 vault_id (插件传) 优先; 缺省回退当前
+    激活 vault (与 vault_backfill / canvas_projection_sync 同源)。
+    写读两侧 (save/search/find_episode) 全部走本函数保持成对。
+    """
+    from app.config import get_current_vault_id, sanitize_vault_id
+    from app.core.subject_config import build_vault_group_id
+
+    if vault_id and vault_id.strip():
+        return build_vault_group_id(sanitize_vault_id(vault_id))
+    return build_vault_group_id(get_current_vault_id())
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Request / Response Models
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -29,6 +46,14 @@ tips_router = APIRouter()
 
 class SaveTipRequest(BaseModel):
     """Request body for saving a tip annotation."""
+
+    vault_id: str = Field(
+        default="",
+        description=(
+            "B2 (2026-07-12): vault 身份。插件端 inferVaultId(app.vault.getName()) 传; "
+            "空 = 回退后端当前激活 vault。tips 写读统一落 vault 桶, 不再用 vault:default。"
+        ),
+    )
 
     content: str = Field(..., min_length=1, description="The selected text content")
     title: str = Field(..., min_length=1, description="User-provided title for the tip")
@@ -73,6 +98,14 @@ class SaveRelationRequest(BaseModel):
     sync.py 的 CANVAS_EDGE 投影。让'写下为什么拉出 → 立即读回'不必等重启回填。
     """
 
+    vault_id: str = Field(
+        default="",
+        description=(
+            "B2 (2026-07-12): vault 身份。插件端 inferVaultId(app.vault.getName()) 传; "
+            "空 = 回退后端当前激活 vault。tips 写读统一落 vault 桶, 不再用 vault:default。"
+        ),
+    )
+
     source_node_id: str = Field(
         ..., description="持有 relationship 的派生节点 basename"
     )
@@ -116,6 +149,14 @@ class CalloutBatchItem(BaseModel):
 
 class BatchSyncRequest(BaseModel):
     """Plugin debounce 触发的整文件 callout batch 同步。"""
+
+    vault_id: str = Field(
+        default="",
+        description=(
+            "B2 (2026-07-12): vault 身份。插件端 inferVaultId(app.vault.getName()) 传; "
+            "空 = 回退后端当前激活 vault。tips 写读统一落 vault 桶, 不再用 vault:default。"
+        ),
+    )
 
     node_id: str = Field(..., description="Source canvas node basename (no ext)")
     callouts: List[CalloutBatchItem] = Field(
@@ -165,6 +206,7 @@ class GetTipsResponse(BaseModel):
 )
 async def get_tips(
     node_id: str,
+    vault_id: str = "",
 ) -> Dict[str, Any]:
     """
     Retrieve tips for a canvas node from Graphiti memory.
@@ -178,15 +220,15 @@ async def get_tips(
         GetTipsResponse with list of tips and total count.
     """
     try:
-        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
 
         # Search for tips related to this node
+        # B2 (2026-07-12): 读侧与写侧成对 — 同走 _resolve_tips_group_id
         results = await memory_svc.search_memories(
             query=f"learning_tip node_id:{node_id}",
-            group_id=DEFAULT_GROUP_ID,
+            group_id=_resolve_tips_group_id(vault_id),
             limit=50,
         )
 
@@ -246,7 +288,6 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
     tip_id = str(uuid.uuid4())
 
     try:
-        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -279,7 +320,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
                 "source_timestamp": request.source_timestamp,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
-            group_id=DEFAULT_GROUP_ID,
+            group_id=_resolve_tips_group_id(request.vault_id),
         )
 
         # A7 (P2): 诚实反映持久化结果 — 不再无条件 saved=True。
@@ -320,7 +361,6 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
 )
 async def save_relation(request: SaveRelationRequest) -> Dict[str, Any]:
     """P4 (A+-prime): 派生关系原因实时入图。"""
-    from app.config import DEFAULT_GROUP_ID
     from app.services.memory_service import get_memory_service
 
     try:
@@ -338,7 +378,7 @@ async def save_relation(request: SaveRelationRequest) -> Dict[str, Any]:
                 "reason": request.reason,
                 "source_timestamp": request.source_timestamp,
             },
-            group_id=DEFAULT_GROUP_ID,
+            group_id=_resolve_tips_group_id(request.vault_id),
         )
         write_status = (
             result.get("status", "written") if isinstance(result, dict) else "written"
@@ -409,7 +449,6 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
     Story 2.4 Plan B Phase 2 (2026-05-14), re-enabled 2026-06-11.
     """
     try:
-        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -428,7 +467,7 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
                 already_exists = await memory_svc.find_episode_by_content_hash(
                     node_id=request.node_id,
                     content_hash=callout.content_hash,
-                    group_id=DEFAULT_GROUP_ID,
+                    group_id=_resolve_tips_group_id(request.vault_id),
                 )
                 if already_exists:
                     skipped += 1
@@ -462,7 +501,7 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
                         "created_at": datetime.now(timezone.utc).isoformat(),
                         "batch_sync": True,
                     },
-                    group_id=DEFAULT_GROUP_ID,
+                    group_id=_resolve_tips_group_id(request.vault_id),
                 )
                 # A7 (P2): degraded 未入图, 不计入 synced
                 if (

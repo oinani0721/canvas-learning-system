@@ -279,6 +279,30 @@ def _chunk_text(
     return chunks if chunks else [text.strip()]
 
 
+# R3 (2026-07-12 对抗审查): vault 索引黑名单模块级常量 — index_vault_notes 与
+# index_single_file 共用同一份 (旧状态: 只有全量路径有黑名单, 单文件路径零检查,
+# incremental 端点构成信息隔离旁路)。app 层 (metadata.py) 传入 config 的
+# VAULT_INDEX_SKIP_DIRS 时覆盖本默认; 检验白板/验收单 内置兜底 — 即使调用方
+# 忘传, 信息隔离 (d=1.50) 也不破。
+DEFAULT_VAULT_SKIP_DIRS = [
+    ".obsidian",
+    ".git",
+    ".trash",
+    "node_modules",
+    ".claude",
+    ".claudian",  # Skill / Claudian 工具文档
+    "_bmad-output",  # BMAD 开发文档（若 vault 内含此目录）
+    "archive",
+    "templates",  # 归档 / 模板目录
+    "outputs",  # 验收/导出物
+    "*-explanations",  # AI 生成解释（glob，需 fnmatch）
+    "Excalidraw",  # 手绘图（无文字检索价值）
+    "_misc",  # 杂项 / junk
+    "检验白板",  # 信息隔离铁律 — 考题绝不能经 RAG 回流
+    "验收单",
+]
+
+
 class LanceDBClient:
     """
     LanceDB 向量数据库客户端
@@ -1338,21 +1362,9 @@ class LanceDBClient:
 
         if skip_dirs is None:
             # Phase A T1.1 (2026-05-09): 扩展默认 skip + 加常见 PKM 噪音目录
-            skip_dirs = [
-                ".obsidian",
-                ".git",
-                ".trash",
-                "node_modules",
-                ".claude",
-                ".claudian",  # Skill / Claudian 工具文档
-                "_bmad-output",  # BMAD 开发文档（若 vault 内含此目录）
-                "archive",
-                "templates",  # 归档 / 模板目录
-                "outputs",  # 验收/导出物
-                "*-explanations",  # AI 生成解释（glob，需 fnmatch）
-                "Excalidraw",  # 手绘图（无文字检索价值）
-                "_misc",  # 杂项 / junk
-            ]
+            # R3 (2026-07-12): 收敛到模块级常量 DEFAULT_VAULT_SKIP_DIRS —
+            # index_single_file 与本函数共用, 消除单文件路径的黑名单旁路
+            skip_dirs = list(DEFAULT_VAULT_SKIP_DIRS)
 
         # Phase A T1.1 (2026-05-09): glob bug 修复 — 用 fnmatch 处理 *-explanations
         # 之前 `d not in skip_dirs` 精确匹配，glob 永不命中 → 41 个 explanations 全进库
@@ -1653,6 +1665,20 @@ class LanceDBClient:
                     f"[INDEX] vault_path not provided for index_single_file({file_path}), "
                     f"falling back to parent dir: {vault_path}"
                 )
+
+        # R3 修复 (2026-07-12 对抗审查): 单文件路径落黑名单 — 旧状态零检查,
+        # /index/vault/incremental 可把 检验白板/ 考题直接送入库 (真机验证过
+        # 被接受), 信息隔离黑名单被单文件端点旁路。与全量路径同源
+        # DEFAULT_VAULT_SKIP_DIRS, 按路径段 fnmatch。
+        import fnmatch as _fnmatch
+
+        for part in rel_path.split("/")[:-1]:
+            if any(_fnmatch.fnmatch(part, pat) for pat in DEFAULT_VAULT_SKIP_DIRS):
+                if LOGURU_ENABLED:
+                    logger.warning(
+                        f"[INDEX] blacklisted dir in path, refuse single-file index: {rel_path}"
+                    )
+                return 0
 
         # Check fingerprint — skip if unchanged
         # H1 fix: Compute hash from in-memory content (already read above)
@@ -2880,7 +2906,17 @@ class LanceDBClient:
         limit: int,
         k: int = 60,
     ) -> List[Dict]:
-        """Reciprocal Rank Fusion — merge vector and FTS results."""
+        """Reciprocal Rank Fusion — merge vector and FTS results.
+
+        R1 止血 (2026-07-12 对抗审查): RRF 融合分只决定**排序**, 不再覆盖
+        `_distance`。旧实现 `_distance = 1 - rrf_score` 把语义信号压缩进
+        (0.50, 0.508] 窄带 —— 下游 min_relevance 过滤在数学上失效, 任何
+        查询 (含零相关) 都注入满额材料。现在:
+        - vector 通道命中: 保留原始 cosine `_distance` (真实语义幅度)
+        - FTS-only 命中: `_distance` 设 0.35 —— 精确词面命中本身是强相关
+          信号 (对应 score≈0.74), 应当通过下游相关性门槛
+        - 融合排名放 `_rrf_score` 供调试/观测
+        """
         scores: Dict[str, float] = {}
         doc_map: Dict[str, Dict] = {}
         for rank, r in enumerate(vector_results):
@@ -2891,12 +2927,21 @@ class LanceDBClient:
             doc_id = r.get("doc_id", f"f_{rank}")
             scores[doc_id] = scores.get(doc_id, 0) + 1.0 / (k + rank + 1)
             if doc_id not in doc_map:
-                doc_map[doc_id] = r
+                # FTS-only 命中 — 无 cosine 距离, 给强词面命中的代理值
+                fts_doc = r.copy()
+                if fts_doc.get("_distance") is None:
+                    fts_doc["_distance"] = 0.35
+                fts_doc["_fts_only"] = True
+                doc_map[doc_id] = fts_doc
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:limit]
         results = []
-        for doc_id, score in ranked:
+        for doc_id, rrf_score in ranked:
             doc = doc_map[doc_id].copy()
-            doc["_distance"] = 1.0 - score  # convert to distance-like format
+            doc["_rrf_score"] = rrf_score
+            # _distance 保留通道原始值 (vector=cosine 距离 / FTS-only=0.35);
+            # 极端兜底: 两边都没有 _distance 时给中性值防 KeyError
+            if doc.get("_distance") is None:
+                doc["_distance"] = 0.5
             results.append(doc)
         return results
 

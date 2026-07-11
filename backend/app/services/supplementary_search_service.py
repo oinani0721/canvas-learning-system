@@ -585,7 +585,10 @@ async def _two_tier_search(
             table_name="vault_notes",
             num_results=num_results,
             query_type="hybrid",
-            exclude_doc_types=["whiteboard"],
+            # R3 第二层防御 (2026-07-12): exam_board 加入查询侧排除 — 索引黑名单
+            # 是单层防御 (incremental/index_single_file 曾有旁路), 考题万一入库
+            # 也在查询层拦住, 信息隔离 (d=1.50) 不再靠单点
+            exclude_doc_types=["whiteboard", "exam_board"],
         )
     except (RuntimeError, ConnectionError, ValueError, asyncio.TimeoutError) as e:
         logger.warning(
