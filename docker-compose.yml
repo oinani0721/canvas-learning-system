@@ -189,6 +189,9 @@ services:
       - canvas-lancedb:/lancedb  # Story 2.2 Phase A: 顶级 /lancedb，完全脱离 /app 嵌套 — 避免任何 backend/* bind mount 屏蔽
       - ./data:/app/data
       - "${VAULTS_ROOT:-.}:/vaults:${VAULT_MOUNT_MODE:-rw}"  # Story 2.2 follow-up: 顶级 /vaults 与 /app 平行，无嵌套屏蔽
+      # HF 模型缓存持久化 (2026-07-12): BGEM3 2GB 权重曾缓存在容器层 —
+      # 每次容器重建都重新从 HF Hub 下载, 期间全部 embedding 请求挂起
+      - canvas-hf-cache:/root/.cache/huggingface
 
     depends_on:
       neo4j:
@@ -261,5 +264,7 @@ volumes:
   canvas-lancedb:
     name: canvas-lancedb-data
     external: true  # Story 2.2 Phase A: 跨 worktree project 复用同一 LanceDB 数据；多 vault 切换的部署根基
+  canvas-hf-cache:
+    name: canvas-hf-cache  # HF 模型缓存 (2026-07-12): 容器重建不再重新下载 BGEM3
   neo4j-test-data:
     name: canvas-neo4j-test-data
