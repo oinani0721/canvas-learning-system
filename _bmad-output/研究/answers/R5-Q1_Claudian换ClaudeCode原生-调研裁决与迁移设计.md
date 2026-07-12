@@ -52,7 +52,9 @@ parent: "[[批注总索引表-2026-07-12]]"
 这个决定**解锁而非推迟** Phase 2：对话记忆管道的触发器（会话收尾钩子）在 Claudian 里是结构性不可靠的（3 秒强杀），在原生里是官方保证——所以「改用 Claude Code」实质上是 Phase 2 的**前置条件**，两个决定互相成全。
 
 - **User：**
+**那么请你改为 claude code 然后重新进行规划开发路径**
 
+> **[A6 2026-07-13 → round6]** ✅ 已执行：① 切换第 0 步完成——标准 `.mcp.json` 已落位双 vault 副本，**你现在终端 `cd canvas-vault && claude` 即可用原生形态（skill/钩子/检索全部就绪）**；② ChatGPT DR 报告交叉验证完成——它带来两个关键新证据（LM Studio #1773 Qwen reasoning 空 content / llama.cpp #21228 嵌套 schema 静默失守），修正了内部"单运行时"方案为"多服务分工 + canary 门控 + fail-closed"；③ 开发路径已重新规划为路线图 v2（M0✅→M1 canary→M4 速赢→M2→M3→M5），详见 [[2026-07-13-开发路线图v2-ClaudeCode原生+本地模型激活|📚 路线图 v2]]。M1 canary 工具开发中。
 ## 关联
 
 - [[R4-Q2_对话记忆写入实现设计-不挂MCP用归档钩子|📚 R4-Q2]]（被批注的上文，归档钩子设计）
