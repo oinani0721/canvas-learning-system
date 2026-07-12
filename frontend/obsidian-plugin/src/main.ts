@@ -411,13 +411,14 @@ export default class CanvasLearningPlugin extends Plugin {
       callback: () => this.handleOpenNodeChat(),
     });
 
-    // MVP-α-3 (2026-05-14, 恢复自 f860f57): 单题快速考察 (节点级).
-    // 用户在 节点/<concept>.md 上触发 → 后端出题 → 写入 节点/考察-{concept}-{date}.md
-    // → 用户答题 Cmd+S → vault.on('modify') 触发评分 → 文件底部追加反馈.
+    // M4 吸收 (2026-07-13, 路线图 v2): Quick Exam 后端 Gemini 管道退役, 单节点
+    // 定向考察并入检验白板全链 (/start-exam-board node 参数: 订阅出题+静默评分
+    // +掌握度演化全复用, 且获得信息隔离保护)。本命令改引导范式 (与"启动考察"
+    // 同款)。旧 quickExam 后端链代码保留作 UAT 回退保险, UAT 通过后一并摘除。
     this.addCommand({
       id: "canvas:start-quick-exam",
-      name: "Quick Exam（单题考察, MVP-α）",
-      callback: () => this.quickExam.startExam(Notice),
+      name: "Quick Exam（单节点定向考察 · 复制 /start-exam-board node 命令）",
+      callback: () => this.handleQuickExamAbsorbed(),
     });
 
     // T5 (2026-07-10) — Story 2.5.X 三件套接线: Dashboard 候选块承诺的两条
@@ -587,7 +588,36 @@ export default class CanvasLearningPlugin extends Plugin {
       : "/start-exam-board";
     void navigator.clipboard.writeText(cmd);
     new Notice(
-      `已复制：${cmd}\n打开 Claudian 侧栏或 claude code CLI 粘贴执行（v1 检验白板，不走旧后端）。`,
+      `已复制：${cmd}\n切到 Claude Code 窗口粘贴执行（Claudian 侧栏亦可）。`,
+      8000,
+    );
+  }
+
+  /**
+   * M4 吸收 (2026-07-13 路线图 v2)：Quick Exam → 检验白板单节点定向考察。
+   *
+   * 引导范式：active file 须在 节点/ 下 → 读 frontmatter source_board 定
+   * 所属原白板 → 复制 `/start-exam-board from <板> node <节点>` + 提示去
+   * Claude Code 粘贴。出题/评分全走订阅（Skill 链），不再调后端 Gemini。
+   */
+  private handleQuickExamAbsorbed() {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile || !activeFile.path.startsWith("节点/")) {
+      new Notice("请先打开 节点/ 下的概念节点文件，再触发单节点定向考察");
+      return;
+    }
+    const concept = activeFile.basename;
+    const fm = this.app.metadataCache.getFileCache(activeFile)?.frontmatter;
+    // source_board 形如 "[[原白板/特征值与特征向量]]" — 抽 stem
+    const rawBoard: string = fm?.source_board ?? "";
+    const boardMatch = /\[\[(?:原白板\/)?([^\]|]+?)\]\]/.exec(rawBoard);
+    const boardStem = boardMatch?.[1]?.trim();
+    const cmd = boardStem
+      ? `/start-exam-board from ${boardStem} node ${concept}`
+      : `/start-exam-board node ${concept}`;
+    void navigator.clipboard.writeText(cmd);
+    new Notice(
+      `已复制：${cmd}\n切到 Claude Code 窗口粘贴执行——出题引用你的批注、答完 /quiz-answer 静默评分并演化掌握度。`,
       8000,
     );
   }

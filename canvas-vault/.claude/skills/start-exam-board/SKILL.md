@@ -1,7 +1,7 @@
 ---
 name: start-exam-board
 description: "当用户消息以 /start-exam-board 开头（用户在 Claudian 侧栏直输，或在 claude code CLI 直输），必须调用此 Skill 生成一张检验白板并出第一道针对性题。检验白板 = Karpicke 检索练习（d=1.50）的信息隔离主动回忆板：从选定的原白板挑最薄弱节点（读 frontmatter mastery_score），用你 frontmatter 里的批注/派生原因出一道『引用你原话』的针对题，写到 检验白板/<原白板名>-<时间戳>.md，你在 md 编辑器手写答。出题用 Claude Code 订阅（不调后端、不碰熟练度链）。⛔ 信息隔离铁律：严禁读/回显节点正文定义（## 核心概念 等），否则破坏 d=1.50。v1 诚实版：mastery_score 是本地简易估计，不宣称熟练度驱动有效。"
-argument-hint: "[from <原白板名>] 或无参（用当前打开的原白板 / AskUserQuestion 选）"
+argument-hint: "[from <原白板名>] [node <节点名>] 或无参（用当前打开的原白板 / AskUserQuestion 选）。node = 指定考察节点（M4 吸收 QuickExam 单节点定向场景），跳过薄弱选择"
 allowed-tools:
   - Read
   - Write
@@ -72,7 +72,17 @@ model: sonnet
 
 若最终无法确定 → 停止返回：`✗ 未能确定源原白板，请用 /start-exam-board from <原白板名>`。
 
-## Step 3 · 选最薄弱节点（Grep 定向抽取，不整段 Read）
+## Step 2.5 · node 参数（单节点定向考察 — M4 吸收 QuickExam，2026-07-13）
+
+用户传了 `node <节点名>` 时（如 `/start-exam-board from 特征值与特征向量 node Fundamentals`）：
+
+1. 校验 `节点/<节点名>.md` 存在（`Glob`；不存在 → 停止：`✗ 节点/<节点名>.md 不存在，检查拼写`）。
+2. 若未同时传 `from`：`Grep -n "^source_board:" 节点/<节点名>.md` 抽出所属原白板，回填 `board_stem`（抽不到 → 走 Step 2 级联兜底）。
+3. **`target` 直接 = 该节点，跳过 Step 3 薄弱选择**。
+4. 未剖析防御照常生效：`Grep "你的 1-2 句精准定义" 节点/<节点名>.md` 命中占位模板 → 停止：`⚠ 该节点还没剖析（正文是空模板），先写下你的理解/打批注再考`。
+5. 之后从 Step 4 继续，全链（安全抽取/信息隔离/quiz-answer 评分）不变。
+
+## Step 3 · 选最薄弱节点（Grep 定向抽取，不整段 Read；⛔ node 参数命中时跳过本步）
 
 - `Read 原白板/<board_stem>.md` 的 `## Concepts` 段（白板 md 不含节点定义，安全），抽出所有 `- [[节点/<X>]] — ...` 的 `<X>`。
 - 对每个节点 `<X>` **只 Grep 掌握度字段**（⛔ HARD-ISO-4：绝不裸 Read 节点）：

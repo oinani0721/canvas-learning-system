@@ -23,8 +23,8 @@
 | `/chat-with-context` | RAG 对话 |
 | `/node-chat` | 节点对话（Cmd+Shift+C 注入） |
 | `/study-question` | 解题深度 |
-| `/exam-quick` | 快速单题（不留档 fallback，要计分走检验白板） |
-| `/start-exam-board` | 生成检验白板 |
+| `/exam-quick` | 零留档口头抽查（不写文件不评分） |
+| `/start-exam-board` | 生成检验白板（`node <节点>` = 单节点定向考察，M4 吸收 QuickExam） |
 | `/quiz-answer` | 检验白板评分 |
 
 ## 核心学习闭环
