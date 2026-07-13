@@ -326,20 +326,20 @@ if (weakNodes.length === 0) {
 
 ## 🚀 一键考察
 
-> [!tip]+ D4-3 confirm Modal 已落地
-> Plugin v4.2 注册了 `canvas:start-examination-confirm` 命令。点击会**先弹 Modal 确认**（防误触），确认后才调后端 `/api/v1/exam/start`。
+> [!tip]+ v1 检验白板范式（2026-07-13 更新，旧后端管道已退役）
+> 「启动考察」不再调后端 `/api/v1/exam/start`——它把 `/start-exam-board` 命令**复制到剪贴板**，你切到 Claude Code 窗口粘贴执行（Claudian 侧栏亦可）。出题引用你的批注原话，答完 `/quiz-answer` 静默评分并演化掌握度。
 >
 > ## 触发方式（任选其一）
 >
-> 1. **命令面板** ⭐ 推荐：`Cmd+P` → 搜"启动考察（带 confirm 弹窗）" → Enter
-> 2. **快捷键**：去 Settings → Hotkeys 搜"启动考察"绑你喜欢的快捷键（如 `Cmd+Shift+E`）
-> 3. **从白板内触发**：在 `原白板/<板名>.md` 内打开命令面板调用 → Modal 会显示"从原白板「板名」"作为上下文
+> 1. **上方表格 🚀 按钮** ⭐ 推荐：活跃原白板表格每行的「🚀 考察」→ 自动打开白板并复制 `/start-exam-board from <板名>`
+> 2. **命令面板**：`Cmd+P` → 搜"启动考察" → Enter（在 `原白板/<板名>.md` 内触发会自动带 `from <板名>`）
+> 3. **单节点定向**：打开 `节点/<概念>.md` → `Cmd+P` → 搜"Quick Exam" → 复制 `/start-exam-board from <板> node <节点>`（跳过薄弱选择，直考此节点）
 >
 > ## 行为
 >
-> - Modal 文案：`确认从 <白板/vault> 进入考察模式？Plugin 将调用后端 /api/v1/exam/start 基于 mastery < 0.5 的节点生成 5 题。`
-> - 点 ✅ 开始考察 → 调 backend → 新 exam_board.md 在 outputs/exam_boards/ 创建
-> - 点 ❌ 取消 / Esc → 关闭 Modal，无副作用
+> - 触发后 Notice 显示已复制的完整命令 → 切 Claude Code 粘贴执行
+> - 新检验白板生成在 `检验白板/<板名>-<时间戳>.md`（不是 outputs/）
+> - 答题手写在 `<!-- answer:start/end -->` 区，填「理解自评」，然后 `/quiz-answer`
 
 ---
 

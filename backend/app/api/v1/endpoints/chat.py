@@ -47,47 +47,65 @@ logger = structlog.get_logger(__name__)
 #               然后切到 production 模式 (DEBUG=False)
 chat_router = APIRouter(dependencies=[Depends(require_internal_api_key)])
 
-# Story 2.2 Phase A — module-level LanceDBClient singleton + lock
+# Story 2.2 Phase A — module-level LanceDBClient singleton + 共享后台 init 任务
 # 每个 endpoint call 之前 get_lancedb_client() 都 new instance → BGEM3 model 每次重加载 60s+
 # Module singleton 让 client 跨请求复用 — first request cold-start，subsequent warm
+#
+# UAT-PRE 修复 (2026-07-13): 旧实现 wait_for(client.initialize()) 超时会**取消**
+# init — enrich-hook 只给 0.5s, BGEM3 加载 >>0.5s, 于是每次请求从头加载、
+# 每次都被取消, singleton 永远缓存不上 (启动 eager-init 若恰逢权重下载中
+# 失败一次, 整个 enrich 功能就死锁在"永远差一点")。新实现: 全局唯一 init
+# 任务 + asyncio.shield — 请求超时先降级返回, 任务继续跑完并缓存, 后续
+# 请求直接命中; 任务异常则下次调用自动重启 (自愈)。
 _supp_lancedb_singleton: Any = None
-_supp_init_lock: asyncio.Lock | None = None
+_supp_init_task: "asyncio.Task[Any] | None" = None
+
+
+async def _init_supp_lancedb_singleton() -> Any:
+    """共享后台 init: 只会有一个实例在跑, 完成后写入全局缓存。"""
+    global _supp_lancedb_singleton
+    from app.api.v1.endpoints.metadata import get_lancedb_client
+
+    client = get_lancedb_client()
+    if client is None:
+        return None
+    if hasattr(client, "_initialized") and not client._initialized:
+        await client.initialize()
+    _supp_lancedb_singleton = client
+    logger.info("[Story-2.2-PhaseA] LanceDBClient singleton 缓存就绪")
+    return client
 
 
 async def _get_supp_lancedb_client(init_timeout: float = 30.0) -> Any:
-    """获取或懒初始化 module-level LanceDBClient singleton（Story 2.2 Phase A 优化）。
+    """获取 module-level LanceDBClient singleton（Story 2.2 Phase A 优化）。
 
-    First request 路径: init_timeout=30s（不 block 用户主对话太久）
-    Backend startup eager init 路径: init_timeout=600s（4 min BGEM3 cold-start 留余）
+    enrich-hook 路径: init_timeout=0.5s（严格延迟预算, 未就绪即降级）
+    Backend startup eager init 路径: init_timeout=600s（BGEM3 cold-start 留余）
 
-    First call: 触发 BGEM3 model 加载，cache 到全局
-    Subsequent: 复用 cached client，避免重复 init
+    超时只影响本次请求的等待, 不取消共享 init 任务 (shield) —
+    模型加载一旦完成, 所有后续请求零等待命中缓存。
     """
-    global _supp_lancedb_singleton, _supp_init_lock
+    global _supp_init_task
     if _supp_lancedb_singleton is not None:
         return _supp_lancedb_singleton
-    if _supp_init_lock is None:
-        _supp_init_lock = asyncio.Lock()
-    async with _supp_init_lock:
-        if _supp_lancedb_singleton is not None:
-            return _supp_lancedb_singleton
-        from app.api.v1.endpoints.metadata import get_lancedb_client
-
-        client = get_lancedb_client()
-        if client is None:
-            return None
-        if hasattr(client, "_initialized") and not client._initialized:
-            try:
-                await asyncio.wait_for(client.initialize(), timeout=init_timeout)
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "[Story-2.2-PhaseA] LanceDBClient init timeout — singleton not cached",
-                    timeout=init_timeout,
-                )
-                return None
-        _supp_lancedb_singleton = client
-        logger.info("[Story-2.2-PhaseA] LanceDBClient singleton 缓存就绪")
-        return _supp_lancedb_singleton
+    if _supp_init_task is None or (
+        _supp_init_task.done() and _supp_lancedb_singleton is None
+    ):
+        _supp_init_task = asyncio.create_task(_init_supp_lancedb_singleton())
+    try:
+        await asyncio.wait_for(asyncio.shield(_supp_init_task), timeout=init_timeout)
+    except asyncio.TimeoutError:
+        logger.warning(
+            "[Story-2.2-PhaseA] LanceDBClient init 未就绪 (后台任务继续), 本次降级",
+            timeout=init_timeout,
+        )
+        return None
+    except Exception as e:  # noqa: BLE001 — init 失败降级, 下次调用自动重启任务
+        logger.warning(
+            "[Story-2.2-PhaseA] LanceDBClient init 失败 (下次调用重试): %s", e
+        )
+        return None
+    return _supp_lancedb_singleton
 
 
 class EnrichContextRequest(BaseModel):
