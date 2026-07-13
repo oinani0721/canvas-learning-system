@@ -29,7 +29,36 @@ Source:
     upstream group_id validator.
 """
 
+import re
+
 _GRAPHITI_SEPARATOR = "__"
+
+#: M1-E2E 修复 (2026-07-13): graphiti_core validator 只收 [A-Za-z0-9_-],
+#: 而 S27 决策"group_id 按白板名"使 canvas 段天然含中文 (特征值与特征向量)。
+#: 结构化主链直写 Cypher 绕过 validator 从未暴露; 语义通道 add_episode
+#: 一触即拒 (3 重试全挂)。修复采用 IDNA 同款方案 (RFC 3492): 非法段
+#: punycode 编码 + xn-- 前缀 — 确定性、可逆、输出字母表恒合规。
+#: 前提: 段由上游 sanitizer (NFKC + Unicode \w 折叠) 产出, 只含词字符;
+#: 已编码段 (xn--*) 本身合规, sanitize 幂等。
+_VALID_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_-]*$")
+_PUNY_PREFIX = "xn--"
+
+
+def _encode_segment(segment: str) -> str:
+    """非法段 → xn--<punycode>; 合规段 (含已编码段) 原样返回。"""
+    if _VALID_SEGMENT_RE.match(segment):
+        return segment
+    return _PUNY_PREFIX + segment.encode("punycode").decode("ascii")
+
+
+def _decode_segment(segment: str) -> str:
+    """xn-- 段 → 原文; 解码失败 (罕见: 真名恰为 xn--*) 原样返回。"""
+    if not segment.startswith(_PUNY_PREFIX):
+        return segment
+    try:
+        return segment[len(_PUNY_PREFIX) :].encode("ascii").decode("punycode")
+    except (UnicodeError, ValueError):
+        return segment
 
 
 def sanitize_group_id_for_graphiti(canvas_group_id: str) -> str:
@@ -38,8 +67,11 @@ def sanitize_group_id_for_graphiti(canvas_group_id: str) -> str:
     Examples:
         vault:cs_61b              → vault__cs_61b
         vault:cs_61b:algorithms   → vault__cs_61b__algorithms
+        vault:cv:特征值与特征向量  → vault__cv__xn--<punycode> (可逆)
         vault:default             → vault__default
         cs188 (legacy, no colon)  → cs188 (unchanged)
+
+    幂等: 已物理化/已编码输入再过一遍输出不变 (分隔符自适应 : 或 __)。
 
     Args:
         canvas_group_id: Canvas-side group_id in D16 format.
@@ -49,23 +81,29 @@ def sanitize_group_id_for_graphiti(canvas_group_id: str) -> str:
     """
     if not canvas_group_id:
         return canvas_group_id
-    return canvas_group_id.replace(":", _GRAPHITI_SEPARATOR)
+    sep = ":" if ":" in canvas_group_id else _GRAPHITI_SEPARATOR
+    return _GRAPHITI_SEPARATOR.join(
+        _encode_segment(seg) for seg in canvas_group_id.split(sep)
+    )
 
 
 def desanitize_group_id_from_graphiti(graphiti_group_id: str) -> str:
     """Convert Graphiti-stored group_id back to Canvas D16 format.
 
-    Inverse of `sanitize_group_id_for_graphiti`. Useful when surfacing
-    Graphiti's group_id back to Canvas-side code that expects D16 colons.
+    Inverse of `sanitize_group_id_for_graphiti` (含 xn-- 段 punycode 解码,
+    中文白板名往返无损)。Useful when surfacing Graphiti's group_id back
+    to Canvas-side code that expects D16 colons.
 
-    Caveat: this uses a simple "__" → ":" replace, which is unambiguous
-    only if no Canvas group_id segment legitimately contains "__".
-    D16 segments are vault_id / subject_id which use single underscores
-    (cs_61b, not cs__61b), so this is safe under the current spec.
+    Caveat: this splits on "__", which is unambiguous only if no Canvas
+    group_id segment legitimately contains "__". D16 segments are
+    vault_id / subject_id which use single underscores (cs_61b, not
+    cs__61b), so this is safe under the current spec.
     """
     if not graphiti_group_id:
         return graphiti_group_id
-    return graphiti_group_id.replace(_GRAPHITI_SEPARATOR, ":")
+    return ":".join(
+        _decode_segment(seg) for seg in graphiti_group_id.split(_GRAPHITI_SEPARATOR)
+    )
 
 
 #: M2 双图隔离 (2026-07-13, 路线图 v2 / R3-Q1 对抗审查): 语义影子图后缀。
@@ -85,6 +123,8 @@ def semantic_group_id(group_id: str) -> str:
     Examples:
         vault:canvas_vault   → vault:canvas_vault:semantic
         vault__canvas_vault  → vault__canvas_vault__semantic (物理形态输入)
+        cs188 (legacy 裸值)  → cs188__semantic (无冒号即视为物理形态,
+                               冒号后缀会被 graphiti validator 拒绝)
         已带 :semantic 后缀  → 原样返回 (幂等)
     """
     if not group_id:
@@ -93,7 +133,7 @@ def semantic_group_id(group_id: str) -> str:
         f"{_GRAPHITI_SEPARATOR}{_SEMANTIC_SUFFIX}"
     ):
         return group_id
-    sep = _GRAPHITI_SEPARATOR if _GRAPHITI_SEPARATOR in group_id else ":"
+    sep = ":" if ":" in group_id else _GRAPHITI_SEPARATOR
     return f"{group_id}{sep}{_SEMANTIC_SUFFIX}"
 
 
@@ -121,7 +161,9 @@ def to_physical_group_id(group_id: str) -> str:
     if not group_id:
         return group_id
     if group_id.startswith(f"vault{_GRAPHITI_SEPARATOR}"):
-        return group_id
+        # M1-E2E (2026-07-13): 早退也过 sanitize — ASCII 输入幂等不变,
+        # 中文物理历史形态 (vault__x__中文, 结构化直写产物) 收敛到 punycode。
+        return sanitize_group_id_for_graphiti(group_id)
     # MEDIUM-1 防御 (T1 对抗审查 2026-07-10): canonical_group_id 对 vault:
     # 前缀输入直通、不做段级 sanitize — 若段内含 __ (如 .env 手写
     # vault:my__vault), sanitize 后 desanitize 会层级错乱 (vault:my:vault)。

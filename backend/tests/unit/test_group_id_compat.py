@@ -144,3 +144,55 @@ def test_semantic_roundtrip_with_physical():
 
 def test_semantic_empty_passthrough():
     assert semantic_group_id("") == ""
+
+
+# ════════════════════════════════════════════════════════════════════
+# M1-E2E (2026-07-13) — 中文白板名段 punycode 编码 (graphiti validator 合规)
+# ════════════════════════════════════════════════════════════════════
+
+import re as _re
+
+from app.graphiti.group_id_compat import semantic_group_id
+
+_GRAPHITI_ALPHABET = _re.compile(r"^[A-Za-z0-9_-]+$")
+_CN = "vault:canvas_vault:特征值与特征向量"
+
+
+def test_sanitize_chinese_segment_is_validator_safe():
+    out = sanitize_group_id_for_graphiti(_CN)
+    assert _GRAPHITI_ALPHABET.match(out), out
+    assert out.startswith("vault__canvas_vault__xn--")
+
+
+def test_sanitize_chinese_roundtrip_lossless():
+    assert desanitize_group_id_from_graphiti(sanitize_group_id_for_graphiti(_CN)) == _CN
+
+
+def test_sanitize_chinese_idempotent():
+    once = sanitize_group_id_for_graphiti(_CN)
+    assert sanitize_group_id_for_graphiti(once) == once
+
+
+def test_sanitize_physical_chinese_input_normalized():
+    # 已物理化但含中文段 (结构化直写历史形态) → 同样收敛到 punycode 形态
+    physical_cn = "vault__canvas_vault__特征值与特征向量"
+    assert sanitize_group_id_for_graphiti(
+        physical_cn
+    ) == sanitize_group_id_for_graphiti(_CN)
+
+
+def test_semantic_of_sanitized_chinese_is_validator_safe():
+    # episode_worker 实际组合链: semantic_group_id(sanitize(gid))
+    out = semantic_group_id(sanitize_group_id_for_graphiti(_CN))
+    assert _GRAPHITI_ALPHABET.match(out), out
+    assert out.endswith("__semantic")
+
+
+def test_semantic_legacy_bare_group_stays_validator_safe():
+    # legacy 裸值无冒号 → 视为物理形态, 拼 __semantic 而非 :semantic
+    assert semantic_group_id("cs188") == "cs188__semantic"
+
+
+def test_desanitize_semantic_chinese_roundtrip():
+    phys = semantic_group_id(sanitize_group_id_for_graphiti(_CN))
+    assert desanitize_group_id_from_graphiti(phys) == f"{_CN}:semantic"
