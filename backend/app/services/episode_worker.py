@@ -366,22 +366,20 @@ class GraphitiEpisodeWorker:
             # 本地 35B 模型场景 compose 侧设 1, 云模型默认 3。
             os.environ.setdefault("SEMAPHORE_LIMIT", "3")
 
-            from graphiti_core.cross_encoder.gemini_reranker_client import (
-                GeminiRerankerClient,
-            )
-            from graphiti_core.llm_client.config import LLMConfig
-            from graphiti_core.llm_client.gemini_client import GeminiClient
-
             from app.graphiti.embedder_factory import build_embedder
+            from app.graphiti.llm_factory import (
+                build_cross_encoder,
+                build_llm_client,
+                get_graphiti_max_coroutines,
+            )
 
-            llm_config = LLMConfig(api_key=google_api_key, model=llm_model)
-
-            llm_client = GeminiClient(config=llm_config)
-            # 可切换 embedder (EMBEDDER_PROVIDER=gemini|openai|local): 摆脱 Gemini
-            # 地理封锁单点。LLM/reranker 仍 Gemini (主链零 LLM, 仅 add_episode 语义
-            # 通道用; 要完全脱 Gemini 另议)。
+            # M2 (2026-07-13, 路线图 v2): LLM/reranker 从硬编码 Gemini 改为
+            # 工厂注入 (GRAPHITI_LLM_PROVIDER / GRAPHITI_RERANKER_PROVIDER =
+            # gemini|local)。local 分支 fail-closed 契约: 上线前必过
+            # scripts/graphiti_schema_canary.py。embedder 沿用既有工厂。
+            llm_client = build_llm_client(google_api_key, llm_model)
             embedder = build_embedder(google_api_key)
-            cross_encoder = GeminiRerankerClient(config=llm_config)
+            cross_encoder = build_cross_encoder(google_api_key, llm_model)
 
             # Safe: pre-flight passed, Neo4j is reachable. graphiti-core's L98
             # leaked task will still fire, but build_indices_and_constraints will
@@ -393,7 +391,8 @@ class GraphitiEpisodeWorker:
                 llm_client=llm_client,
                 embedder=embedder,
                 cross_encoder=cross_encoder,
-                max_coroutines=3,
+                # local 35B 默认 1 (与 compose SEMAPHORE_LIMIT 配对), 云默认 3
+                max_coroutines=get_graphiti_max_coroutines(),
             )
 
             await self._graphiti.build_indices_and_constraints()
