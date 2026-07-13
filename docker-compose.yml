@@ -182,6 +182,16 @@ services:
       - LOCAL_EMBEDDER_MODEL=${LOCAL_EMBEDDER_MODEL:-bge-m3}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_EMBEDDER_MODEL=${OPENAI_EMBEDDER_MODEL:-text-embedding-3-small}
+      # 可切换 Graphiti LLM (M1/M2 2026-07-13): gemini(默认) | local。
+      # local = 宿主 llama-server Qwen3.5-35B-A3B (:12341, 启动脚本
+      # scripts/local-llm/start-qwen-graphiti.sh)。⛔ fail-closed: 切 local
+      # 前必须 schema canary 50 跑零失败 (2026-07-13 基线已通过, 见 .env)。
+      - GRAPHITI_LLM_PROVIDER=${GRAPHITI_LLM_PROVIDER:-gemini}
+      - GRAPHITI_LLM_BASE_URL=${GRAPHITI_LLM_BASE_URL:-http://host.docker.internal:12341/v1}
+      - GRAPHITI_LLM_MODEL=${GRAPHITI_LLM_MODEL:-}
+      # reranker (M5): local 必须指向 llama-server --rerank (:18012), 不可指 Ollama/LM Studio
+      - GRAPHITI_RERANKER_PROVIDER=${GRAPHITI_RERANKER_PROVIDER:-gemini}
+      - GRAPHITI_RERANKER_BASE_URL=${GRAPHITI_RERANKER_BASE_URL:-http://host.docker.internal:18012/v1}
     extra_hosts:
       # 让容器内能用 host.docker.internal 访问宿主机 Ollama (Linux 需要; Mac/Win 默认有)
       - "host.docker.internal:host-gateway"

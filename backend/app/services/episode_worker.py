@@ -562,12 +562,24 @@ class GraphitiEpisodeWorker:
         # P0-5 (2026-05-14): Canvas D16 group_id 用冒号分隔 (vault:cs_61b:subj),
         # 但 Graphiti 上游 validator 拒绝冒号。在 Graphiti 边界 sanitize 为
         # 双下划线分隔形式 (vault__cs_61b__subj)，Canvas 业务逻辑保持 D16 不变。
-        from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+        #
+        # M2 双图隔离 (2026-07-13): add_episode 是 LLM 抽取通道, 产物一律落
+        # 语义影子分组 (…__semantic) — graphiti 的 dedupe/invalidation 以
+        # group 为边界, 影子分组使 LLM 实体既不会 resolve 到主图 uuid5 节点
+        # 也不会 invalidate 主图边。分组在此单点固定, 不暴露给任何 enqueue
+        # 调用方; 主图只由 graphiti_structured_writer 直写。读侧已同构:
+        # search_memories 主图+影子图同查。
+        from app.graphiti.group_id_compat import (
+            sanitize_group_id_for_graphiti,
+            semantic_group_id,
+        )
 
         kwargs: dict[str, Any] = {
             "name": task.name,
             "episode_body": task.episode_body,
-            "group_id": sanitize_group_id_for_graphiti(task.group_id),
+            "group_id": semantic_group_id(
+                sanitize_group_id_for_graphiti(task.group_id)
+            ),
             "source_description": task.source_description,
             "reference_time": task.reference_time,
         }
