@@ -1604,13 +1604,20 @@ class MemoryService:
             config_with_limit = config_obj.model_copy(update={"limit": limit})
 
             # P0-5 (2026-05-14): sanitize group_id at Graphiti boundary
-            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+            # M2 双图检索 (2026-07-13, 路线图 v2): 主图 + 语义影子图同查 —
+            # 影子图只由 LLM 抽取通道写入 (semantic_group_id 服务端固定),
+            # 读侧扩展让对话上下文能召回蒸馏产物的隐式关系 fact。
+            from app.graphiti.group_id_compat import (
+                sanitize_group_id_for_graphiti,
+                semantic_group_id,
+            )
 
+            _gid_phys = sanitize_group_id_for_graphiti(group_id) if group_id else None
             search_kwargs: Dict[str, Any] = {
                 "query": query,
                 "config": config_with_limit,
                 "group_ids": (
-                    [sanitize_group_id_for_graphiti(group_id)] if group_id else None
+                    [_gid_phys, semantic_group_id(_gid_phys)] if _gid_phys else None
                 ),
             }
             if search_filter is not None:
@@ -1684,13 +1691,18 @@ class MemoryService:
             return list()
         try:
             # P0-5 (2026-05-14): sanitize group_id at Graphiti boundary
-            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+            # M2 双图检索 (2026-07-13): legacy 路径与 Tier1 保持同构 — 主图+影子图
+            from app.graphiti.group_id_compat import (
+                sanitize_group_id_for_graphiti,
+                semantic_group_id,
+            )
 
+            _gid_phys = sanitize_group_id_for_graphiti(group_id) if group_id else None
             results = await asyncio.wait_for(
                 worker._graphiti.search(
                     query=query,
                     group_ids=(
-                        [sanitize_group_id_for_graphiti(group_id)] if group_id else None
+                        [_gid_phys, semantic_group_id(_gid_phys)] if _gid_phys else None
                     ),
                     num_results=limit,
                 ),
