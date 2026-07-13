@@ -2,13 +2,13 @@
 active_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 active_plan_file: ".gdr/dev-pack-next-session-convergence.xml (包尾任务书)"
 current_sprint: "基本功能收敛 T1-T6 (2026-07-10 交接)"
-sprint_progress: "路线图v2: M0✅ M1✅(canary 50/50, 本地LLM已启用) M2✅(双图隔离全链) M4✅ — M3 进行中"
-next_story_id: "M3-sessionend-archive"
-next_story_title: "M3 SessionEnd 归档管道: vault hook → /archive 端点 → 蒸馏 → 影子图 + C类工具 group 硬编码修复"
+sprint_progress: "路线图v2 主体完成: M0-M5 全✅ (本地LLM+双图+SessionEnd归档+本地reranker) — 等用户 UAT"
+next_story_id: "UAT-then-backlog"
+next_story_title: "用户 UAT (QuickExam吸收+SessionEnd归档); backlog: .env Google key 轮换 / exam_quick 路由摘除 / embedding 迁移评估"
 next_story_files:
   - "_bmad-output/研究/2026-07-10-T4-Graphiti读侧接通检验白板-设计小节.md"
   - "backend/app/services/graphiti_memory_reader.py"
-last_commit_hash: "942f8e47"  # M1 punycode 修复+E2E; 前有 7a3d53bc(M1+M2 收口) ae323ba6(T5)
+last_commit_hash: "见 git log"  # a6b283b4(M3) 942f8e47(punycode) 7a3d53bc(M1+M2) + M5 reranker
 last_commit_hash_alt: "56ee681"  # 交接任务书 commit
 sprint_status_file: "_bmad-output/implementation-artifacts/sprint-status.yaml"
 sprint_status_key: "development_status.sprint_v3_obsidian_hybrid"

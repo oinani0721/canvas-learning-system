@@ -46,9 +46,9 @@ macOS 宿主（M5 Max 128G，launchd 三个 LaunchAgent 自启）
 | **M2 · llm/reranker 工厂 + 双图隔离** | llm_factory + reranker_factory ✅；semantic_group_id + 双图检索（读侧）✅；写侧 `_process_episode` 单点影子重定向 ✅；SEMAPHORE bug 修复 ✅ | 2.5d | **✅ 2026-07-13** |
 | **M3 · SessionEnd 归档管道** | vault settings.json 加 SessionEnd 钩子（原生环境，D-1 前置已满足）→ POST /archive/conversation 端点 → 蒸馏 → 影子图；修 C 类工具 group 硬编码 | 1d | 待 M2 |
 | **M4 · QuickExam 吸收** | start-exam-board 加 node 参数（~20 行）；插件命令引导化；exam-quick 文案改定位；后端管道 UAT 后摘除 | 0.5-1d | **独立可先行** |
-| **M5 · reranker 上线 + embedding 迁移** | llama-server rerank + 30 行适配器 + 后台链 cross_encoder；embedding 兼容验证（不达标保留 Ollama） | 1-2d | 最后 |
+| **M5 · reranker 上线 + embedding 迁移** | reranker ✅（bge-reranker-v2-m3 @ :18012 + LlamaServerRerankerClient 适配器，真机 0.9914 vs ≈0；gemini 分支实测已坏——Empty response 全零分）；embedding **保留 Ollama**（路线图预设的合格结局，迁移评估转 backlog，触发条件 = Ollama 出问题或需要减少运行时数量） | 1-2d | **✅ 2026-07-13（reranker）** |
 
-**执行顺序**: M0 ✅ → M1 ✅ → M4 ✅ → M2 ✅ → M3（进行中）→ M5。
+**执行顺序**: M0 ✅ → M1 ✅ → M4 ✅ → M2 ✅ → M3 ✅ → M5 ✅（embedding 迁移评估转 backlog）。**路线图 v2 主体完成 2026-07-13。**
 
 ## 四 · 风险与回退（承 ChatGPT DR）
 

@@ -105,9 +105,10 @@ def build_cross_encoder(google_api_key: str = "", llm_model: str = "") -> Any:
     provider = get_reranker_provider()
 
     if provider == "local":
-        from graphiti_core.cross_encoder.openai_reranker_client import (
-            OpenAIRerankerClient,
-        )
+        # M5 (2026-07-13): 不能用 graphiti 的 OpenAIRerankerClient —
+        # 它走 chat+logprobs 布尔分类协议, 而 llama-server --rerank 只
+        # 暴露 /v1/rerank 端点。用自研适配器直连 rerank 协议。
+        from app.graphiti.rerank_client import LlamaServerRerankerClient
 
         base_url = (
             os.getenv("GRAPHITI_RERANKER_BASE_URL") or _LOCAL_RERANK_DEFAULT_BASE_URL
@@ -115,17 +116,11 @@ def build_cross_encoder(google_api_key: str = "", llm_model: str = "") -> Any:
         model = os.getenv("GRAPHITI_RERANKER_MODEL") or "bge-reranker-v2-m3"
         logger.info(
             "[Graphiti-Reranker] provider=local model=%s base_url=%s "
-            "(须为 llama-server --rerank, 非 Ollama/LM Studio)",
+            "(llama-server --rerank, /v1/rerank 协议适配器)",
             model,
             base_url,
         )
-        return OpenAIRerankerClient(
-            config=LLMConfig(
-                api_key=os.getenv("GRAPHITI_RERANKER_API_KEY") or "local",
-                base_url=base_url,
-                model=model,
-            )
-        )
+        return LlamaServerRerankerClient(base_url=base_url, model=model)
 
     # 默认: gemini (向后兼容; 当前 cross_encoder recipe 无调用方, 占位为主)
     from graphiti_core.cross_encoder.gemini_reranker_client import (
