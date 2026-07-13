@@ -371,6 +371,27 @@ class MemoryService:
         )
         return worker.enqueue(task)
 
+    def enqueue_conversation_archive(
+        self,
+        *,
+        session_id: str,
+        conversation_text: str,
+        group_id: str,
+    ) -> bool:
+        """M3 (2026-07-13): SessionEnd 会话归档 → 语义通道 (D6 非结构化材料)。
+
+        对话全文经 worker add_episode 做 LLM 实体抽取; worker 在
+        _process_episode 单点把 group 重定向到 __semantic 影子分组
+        (M2 双图隔离), 本方法与调用方均无法指定主图 — 提示词被污染
+        也没有通路碰到结构化主链。返回 True=已入队 (异步, 非已写入)。
+        """
+        return self._enqueue_episode(
+            name=f"session-archive:{session_id[:16]}",
+            episode_body=conversation_text,
+            group_id=group_id,
+            source_description="conversation-archive",
+        )
+
     def _record_structured_outbox(self, entry: Dict[str, Any]) -> bool:
         """A7 (P2): 结构化写入彻底失败时立即落盘 outbox, 不静默丢数据。
 

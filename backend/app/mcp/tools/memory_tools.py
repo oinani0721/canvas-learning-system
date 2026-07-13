@@ -137,6 +137,13 @@ class RecordLearningMemoryInput(BaseModel):
     source_canvas_id: Optional[str] = Field(
         None, description="Canvas/board ID where the event occurred."
     )
+    group_id: Optional[str] = Field(
+        None,
+        description=(
+            "Graphiti group_id for memory isolation (D16 format, e.g. "
+            "'vault:canvas_vault'). Falls back to the global default when omitted."
+        ),
+    )
 
 
 class RecordLearningMemoryOutput(BaseModel):
@@ -344,6 +351,7 @@ async def record_learning_memory(
     severity: Optional[str] = None,
     source_session_id: Optional[str] = None,
     source_canvas_id: Optional[str] = None,
+    group_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Record a learning event (misconception, problem trap, logical fallacy,
@@ -396,6 +404,10 @@ async def record_learning_memory(
 
         memory_svc = await get_memory_service()
 
+        # M3 (2026-07-13): 修 group 硬编码 — 与 search_memories 同模式,
+        # 调用方可传 D16 group_id, 缺省才落全局默认组。
+        resolved_group_id = group_id or DEFAULT_GROUP_ID
+
         name = build_entity_name(entity_type, concept)
         body = build_episode_body(entity_type, topic=topic, error=details, correct="")
         content = f"{body}"
@@ -417,7 +429,7 @@ async def record_learning_memory(
                 "source_session_id": source_session_id,
                 "source_canvas_id": source_canvas_id,
             },
-            group_id=DEFAULT_GROUP_ID,
+            group_id=resolved_group_id,
         )
 
         logger.info(

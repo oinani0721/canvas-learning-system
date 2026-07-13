@@ -39,6 +39,13 @@ class ArchiveConversationInput(BaseModel):
         None,
         description="Change in mastery level during this conversation (-1.0 to 1.0).",
     )
+    group_id: Optional[str] = Field(
+        None,
+        description=(
+            "Graphiti group_id for memory isolation (D16 format, e.g. "
+            "'vault:canvas_vault'). Falls back to the global default when omitted."
+        ),
+    )
 
 
 class ArchiveConversationOutput(BaseModel):
@@ -90,6 +97,7 @@ async def archive_conversation(
     summary: str,
     key_insights: Optional[List[str]] = None,
     mastery_change: Optional[float] = None,
+    group_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Archive a completed conversation session to the learning memory system.
@@ -125,6 +133,10 @@ async def archive_conversation(
 
         memory_svc = await get_memory_service()
 
+        # M3 (2026-07-13): 修 group 硬编码 — 调用方可传 D16 group_id
+        # (与 search_memories 同模式), 缺省才落全局默认组。
+        resolved_group_id = group_id or DEFAULT_GROUP_ID
+
         # Build the archive content
         content_parts = [f"Conversation summary for node {node_id}: {summary}"]
         if key_insights:
@@ -148,7 +160,7 @@ async def archive_conversation(
                 "mastery_change": mastery_change,
                 "archived_at": datetime.now(timezone.utc).isoformat(),
             },
-            group_id=DEFAULT_GROUP_ID,
+            group_id=resolved_group_id,
         )
 
         return ArchiveConversationOutput(

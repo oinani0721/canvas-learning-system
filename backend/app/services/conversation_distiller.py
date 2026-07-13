@@ -226,57 +226,88 @@ class ConversationDistiller:
         prompt = DISTILLATION_PROMPT.format(conversation_text=conversation_text)
         response = None
 
-        # Tier 1: Ollama Qwen3 (best for Chinese content)
-        try:
-            response = await litellm.acompletion(
-                model=ollama_model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=1500,
-                temperature=0.2,
-                api_base=ollama_base,
-                timeout=30,  # V7: reduced from 120s; 30s covers Ollama cold start + inference
+        # M3 Tier 0 (2026-07-13): 宿主 llama-server Qwen3.5-35B — canary 已放行
+        # (50/50 零失败, 见 scripts/graphiti_schema_canary.py)。GRAPHITI_LLM_PROVIDER
+        # =local 时蒸馏与 Graphiti 语义抽取共用同一运行时, 归档链全本地。
+        # 失败静默降级到原有 Tier1-3 (Iron Rule 5: Tier2 cli-proxy 保持休眠)。
+        if (os.environ.get("GRAPHITI_LLM_PROVIDER") or "").strip().lower() == "local":
+            local_base = os.environ.get(
+                "GRAPHITI_LLM_BASE_URL", "http://host.docker.internal:12341/v1"
             )
-            logger.info("[F9] Distillation via Ollama Qwen3 succeeded")
-        except Exception as ollama_err:
-            logger.warning(
-                "[F9] Ollama Tier1 failed: %s (type=%s)",
-                str(ollama_err)[:200],
-                type(ollama_err).__name__,
+            local_model = (
+                os.environ.get("GRAPHITI_LLM_MODEL") or "qwen3.5-35b-a3b-q4_k_s"
             )
-
-            # Tier 2: CLIProxyAPI (Claude subscription, English content only)
             try:
                 response = await litellm.acompletion(
-                    model=cli_proxy_model,
+                    model=f"openai/{local_model}",
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=1500,
                     temperature=0.2,
-                    api_key=cli_proxy_key,
-                    api_base=cli_proxy_base,
-                    timeout=60,
+                    api_key=os.environ.get("GRAPHITI_LLM_API_KEY") or "local",
+                    api_base=local_base,
+                    timeout=45,
                 )
-                logger.info("[F9] Distillation via CLIProxyAPI succeeded")
-            except Exception as proxy_err:
+                logger.info("[M3] Distillation via local llama-server succeeded")
+            except Exception as local_err:
                 logger.warning(
-                    "[F9] CLIProxyAPI failed (%s), trying configured provider",
-                    str(proxy_err)[:100],
+                    "[M3] local llama-server Tier0 failed: %s (type=%s)",
+                    str(local_err)[:200],
+                    type(local_err).__name__,
+                )
+                response = None
+
+        # Tier 1: Ollama Qwen3 (best for Chinese content)
+        if response is None:
+            try:
+                response = await litellm.acompletion(
+                    model=ollama_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1500,
+                    temperature=0.2,
+                    api_base=ollama_base,
+                    timeout=30,  # V7: reduced from 120s; 30s covers Ollama cold start + inference
+                )
+                logger.info("[F9] Distillation via Ollama Qwen3 succeeded")
+            except Exception as ollama_err:
+                logger.warning(
+                    "[F9] Ollama Tier1 failed: %s (type=%s)",
+                    str(ollama_err)[:200],
+                    type(ollama_err).__name__,
                 )
 
-                # Tier 3: Configured LiteLLM provider (requires API key)
-                runtime_cfg = get_runtime_model_config()
-                api_key = (
-                    runtime_cfg.get_scoring_api_key() or settings.AI_API_KEY or None
-                )
-                provider = settings.AI_PROVIDER
-                model_name = settings.AI_MODEL_NAME
-                model = format_litellm_model(provider, model_name)
-                response = await litellm.acompletion(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=1500,
-                    temperature=0.2,
-                    api_key=api_key,
-                )
+                # Tier 2: CLIProxyAPI (Claude subscription, English content only)
+                try:
+                    response = await litellm.acompletion(
+                        model=cli_proxy_model,
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=1500,
+                        temperature=0.2,
+                        api_key=cli_proxy_key,
+                        api_base=cli_proxy_base,
+                        timeout=60,
+                    )
+                    logger.info("[F9] Distillation via CLIProxyAPI succeeded")
+                except Exception as proxy_err:
+                    logger.warning(
+                        "[F9] CLIProxyAPI failed (%s), trying configured provider",
+                        str(proxy_err)[:100],
+                    )
+
+                    # Tier 3: Configured LiteLLM provider (requires API key)
+                    runtime_cfg = get_runtime_model_config()
+                    api_key = (
+                        runtime_cfg.get_scoring_api_key() or settings.AI_API_KEY or None
+                    )
+                    provider = settings.AI_PROVIDER
+                    model_name = settings.AI_MODEL_NAME
+                    model = format_litellm_model(provider, model_name)
+                    response = await litellm.acompletion(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=1500,
+                        temperature=0.2,
+                        api_key=api_key,
+                    )
 
         content = response.choices[0].message.content.strip()
 

@@ -698,3 +698,125 @@ async def extract_conversation_learning(
             status="error",
             message=str(e)[:200],
         )
+
+
+# =============================================================================
+# POST /archive/session — M3 SessionEnd 归档管道 (2026-07-13, 路线图 v2)
+#
+# Claude Code SessionEnd hook (vault .claude/hooks/session-end-archive.py)
+# 解析 transcript 后调用本端点。双通道落库:
+#   1. 蒸馏 (distill_and_persist): tips/errors/qa → 结构化主链 (主图)
+#   2. 对话全文 episode → worker LLM 抽取 → __semantic 影子图 (M2 隔离)
+# 鉴权同 /episodes (X-CLS-Internal-Key, hook 读 .obsidian/cls-internal-key.txt)。
+# =============================================================================
+
+
+class SessionArchiveRequest(BaseModel):
+    """Request from the SessionEnd hook."""
+
+    session_id: str = Field(..., description="Claude Code session identifier")
+    vault_id: str = Field(..., description="Vault folder name (backend sanitizes)")
+    messages: List[dict] = Field(
+        ..., description="List of {role, content} dicts parsed from transcript"
+    )
+    canvas_path: Optional[str] = Field(
+        default=None, description="Optional canvas path for group derivation"
+    )
+    subject_id: Optional[str] = Field(default=None)
+    group_id: Optional[str] = Field(
+        default=None, description="Explicit group_id override (D16 format)"
+    )
+
+
+class SessionArchiveResponse(BaseModel):
+    """Response for the SessionEnd archive pipeline."""
+
+    archived: bool = False
+    distilled_tips: int = 0
+    distilled_errors: int = 0
+    episode_enqueued: bool = False
+    group_id: Optional[str] = None
+    status: str = "ok"
+    message: str = ""
+
+
+@memory_router.post(
+    "/archive/session",
+    response_model=SessionArchiveResponse,
+    summary="SessionEnd 会话归档（蒸馏 → 主链结构化 + 全文 → 语义影子图）",
+    dependencies=[Depends(require_internal_api_key)],
+)
+async def archive_session(
+    request: SessionArchiveRequest,
+    memory_service: MemoryServiceDep,
+) -> SessionArchiveResponse:
+    # hook 侧已做 <4 条过滤, 服务端复核 (直连调用方不一定守约)
+    if len(request.messages) < 4:
+        return SessionArchiveResponse(
+            archived=False,
+            status="skipped_trivial",
+            message=f"only {len(request.messages)} messages, below archive threshold",
+        )
+
+    try:
+        resolved_group_id = request.group_id or _resolve_vault_group_id(
+            request.vault_id,
+            subject_id=request.subject_id,
+            canvas_path=request.canvas_path,
+        )
+
+        from app.services.conversation_distiller import get_conversation_distiller
+
+        distiller = get_conversation_distiller()
+        node_id = f"session:{request.session_id[:16]}"
+
+        # 通道 1: 蒸馏 → 结构化主链 (summary/tips/errors/qa 经
+        # record_knowledge_entity / error_classifier 走 structured writer)
+        result = await distiller.distill_and_persist(
+            messages=request.messages,
+            node_id=node_id,
+            group_id=resolved_group_id,
+        )
+
+        # 通道 2: 对话全文 → 语义影子图 (worker 单点重定向 __semantic)。
+        # 截断对齐 distiller (尾部 8000 字符, 近因优先)。
+        conversation_text = "\n\n".join(
+            f"{'Student' if m.get('role') == 'user' else 'Tutor'}: {m.get('content', '')}"
+            for m in request.messages
+        )
+        if len(conversation_text) > 8000:
+            conversation_text = (
+                "...(earlier messages truncated)...\n\n" + conversation_text[-8000:]
+            )
+        enqueued = memory_service.enqueue_conversation_archive(
+            session_id=request.session_id,
+            conversation_text=conversation_text,
+            group_id=resolved_group_id,
+        )
+
+        logger.info(
+            "[M3] Session archived: session=%s group=%s tips=%d errors=%d "
+            "episode_enqueued=%s",
+            request.session_id[:16],
+            resolved_group_id,
+            len(result.tips),
+            len(result.errors),
+            enqueued,
+        )
+        return SessionArchiveResponse(
+            archived=True,
+            distilled_tips=len(result.tips),
+            distilled_errors=len(result.errors),
+            episode_enqueued=enqueued,
+            group_id=resolved_group_id,
+            status="ok",
+            message=result.summary[:200] if result.summary else "",
+        )
+
+    except Exception as e:
+        logger.error(f"[M3] archive-session error: {e}")
+        return SessionArchiveResponse(
+            archived=False,
+            status="error",
+            message=str(e)[:200],
+        )

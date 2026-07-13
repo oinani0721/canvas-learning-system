@@ -42,13 +42,13 @@ macOS 宿主（M5 Max 128G，launchd 三个 LaunchAgent 自启）
 | 里程碑 | 内容 | 工作量 | 状态 |
 |---|---|---|---|
 | **M0 · Claude Code 切换** | ✅ .mcp.json 双副本落位（终端 `cd canvas-vault && claude` 即用）；SKILL 文案双宿主化 + Notice 措辞（后置化妆项） | 0.1d | **✅ 2026-07-13** |
-| **M1 · Schema Canary 工具 + 模型验证** | canary 脚本（6 条硬标准 + Graphiti 真实嵌套 schema probe + 50 次压测 + 金标准 20 条中文批注对照）；brew llama.cpp + 拉 Q4_K_S；跑 llama-server 基线 → 决定 LLM 路线 | 1d | 本次开发 |
-| **M2 · llm/reranker 工厂 + 双图隔离** | llm_factory + reranker_factory（canary 门控 fail-closed）；semantic_group_id + 双图检索；enqueue 时序修复；SEMAPHORE bug 修复 | 2.5d | 待 M1 |
+| **M1 · Schema Canary 工具 + 模型验证** | canary 脚本（6 条硬标准 + Graphiti 真实嵌套 schema probe + 50 次压测）；llama-server 基线 **50/50 零失败, avg 1.42s/p95 1.57s**（关思考 `--reasoning off/budget 0` 是通过前提，开思考 5 跑 2 挂 avg 107s）；中文白板名 punycode 段编码修复 + E2E 全链验证（add_episode 6.9s，影子分组 1 Episodic + 3 Entity）；**GRAPHITI_LLM_PROVIDER=local 已启用** | 1d | **✅ 2026-07-13** |
+| **M2 · llm/reranker 工厂 + 双图隔离** | llm_factory + reranker_factory ✅；semantic_group_id + 双图检索（读侧）✅；写侧 `_process_episode` 单点影子重定向 ✅；SEMAPHORE bug 修复 ✅ | 2.5d | **✅ 2026-07-13** |
 | **M3 · SessionEnd 归档管道** | vault settings.json 加 SessionEnd 钩子（原生环境，D-1 前置已满足）→ POST /archive/conversation 端点 → 蒸馏 → 影子图；修 C 类工具 group 硬编码 | 1d | 待 M2 |
 | **M4 · QuickExam 吸收** | start-exam-board 加 node 参数（~20 行）；插件命令引导化；exam-quick 文案改定位；后端管道 UAT 后摘除 | 0.5-1d | **独立可先行** |
 | **M5 · reranker 上线 + embedding 迁移** | llama-server rerank + 30 行适配器 + 后台链 cross_encoder；embedding 兼容验证（不达标保留 Ollama） | 1-2d | 最后 |
 
-**执行顺序**: M0 ✅ → M1（canary 定路线）→ M4（独立速赢，可与 M1 并行）→ M2 → M3 → M5。
+**执行顺序**: M0 ✅ → M1 ✅ → M4 ✅ → M2 ✅ → M3（进行中）→ M5。
 
 ## 四 · 风险与回退（承 ChatGPT DR）
 
