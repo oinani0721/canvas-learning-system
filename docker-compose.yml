@@ -170,6 +170,9 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       # GEMINI_API_KEY: B1 修复 (2026-07-12) — litellm 的 gemini/ 路由查此变量名, 与 GOOGLE_API_KEY 同值
       - GEMINI_API_KEY=${GOOGLE_API_KEY:-}
+      # SEMAPHORE_LIMIT: M2 修复 (2026-07-13) — graphiti_core.helpers 在 import 时绑定,
+      # 必须进程启动前注入 (episode_worker 内的运行时赋值无效)。本地 35B 模型场景设 1。
+      - SEMAPHORE_LIMIT=${SEMAPHORE_LIMIT:-3}
       # 可切换 embedder (2026-06-26): gemini(默认) | openai | local。
       # local = Ollama/LM Studio 本地 bge-m3 (1024 维, 不受 Gemini 地理封锁)。
       # 用法: 宿主 `ollama serve` + `ollama pull bge-m3`, 然后

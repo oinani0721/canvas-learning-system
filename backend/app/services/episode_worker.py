@@ -359,8 +359,12 @@ class GraphitiEpisodeWorker:
         try:
             # Make API key available to Gemini SDK
             os.environ.setdefault("GOOGLE_API_KEY", google_api_key)
-            # Control graphiti-core internal concurrency (some operations use global env)
-            os.environ["SEMAPHORE_LIMIT"] = "3"
+            # M2 修复 (2026-07-13, 路线图 v2): graphiti_core.helpers 在 **import
+            # 时** 绑定 SEMAPHORE_LIMIT (对抗审查实证: 此处运行时赋值对已 import
+            # 的模块无效)。真正生效的注入点是 docker-compose 的 SEMAPHORE_LIMIT
+            # env (进程启动前)。此处仅作未设置时的兜底 setdefault, 不再硬覆盖 —
+            # 本地 35B 模型场景 compose 侧设 1, 云模型默认 3。
+            os.environ.setdefault("SEMAPHORE_LIMIT", "3")
 
             from graphiti_core.cross_encoder.gemini_reranker_client import (
                 GeminiRerankerClient,

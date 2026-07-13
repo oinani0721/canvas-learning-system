@@ -68,6 +68,35 @@ def desanitize_group_id_from_graphiti(graphiti_group_id: str) -> str:
     return graphiti_group_id.replace(_GRAPHITI_SEPARATOR, ":")
 
 
+#: M2 双图隔离 (2026-07-13, 路线图 v2 / R3-Q1 对抗审查): 语义影子图后缀。
+#: LLM 抽取产物绝不与结构化主图共享 group — graphiti 的 dedupe/invalidation
+#: 以 group_id 为搜索边界, 隔离后跨路径污染在机制上不可能 (LLM 抽取实体
+#: 不会被 resolve 到主图 uuid5 节点上, 也不会 invalidate 主图边)。
+_SEMANTIC_SUFFIX = "semantic"
+
+
+def semantic_group_id(group_id: str) -> str:
+    """主图 group_id → 语义影子图 sibling group_id (逻辑 D16 形态)。
+
+    任何经 LLM 抽取的内容 (add_episode 语义通道) 必须写入本函数返回的
+    影子分组; 分组由服务端代码固定, 不暴露给任何调用方 (含 MCP 工具与
+    hook 端点) — 即使提示词被污染也没有通路碰到主图。
+
+    Examples:
+        vault:canvas_vault   → vault:canvas_vault:semantic
+        vault__canvas_vault  → vault__canvas_vault__semantic (物理形态输入)
+        已带 :semantic 后缀  → 原样返回 (幂等)
+    """
+    if not group_id:
+        return group_id
+    if group_id.endswith(f":{_SEMANTIC_SUFFIX}") or group_id.endswith(
+        f"{_GRAPHITI_SEPARATOR}{_SEMANTIC_SUFFIX}"
+    ):
+        return group_id
+    sep = _GRAPHITI_SEPARATOR if _GRAPHITI_SEPARATOR in group_id else ":"
+    return f"{group_id}{sep}{_SEMANTIC_SUFFIX}"
+
+
 def to_physical_group_id(group_id: str) -> str:
     """任意来源 group_id → Neo4j 物理存储格式 (T1 统一, 2026-07-10 交接任务书).
 

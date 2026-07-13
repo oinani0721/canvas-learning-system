@@ -108,3 +108,39 @@ def test_physical_then_desanitize_returns_canonical_d16():
     """读回方向: 物理格式 desanitize 后 == canonical D16 (API 对外一致)."""
     physical = to_physical_group_id("vault:canvas_vault")
     assert desanitize_group_id_from_graphiti(physical) == "vault:canvas_vault"
+
+
+# ════════════════════════════════════════════════════════════════════
+# semantic_group_id — M2 双图隔离 (2026-07-13 路线图 v2)
+# ════════════════════════════════════════════════════════════════════
+
+from app.graphiti.group_id_compat import semantic_group_id
+
+
+def test_semantic_from_logical_d16():
+    assert semantic_group_id("vault:canvas_vault") == "vault:canvas_vault:semantic"
+
+
+def test_semantic_from_physical_form():
+    """物理形态输入 → 物理形态影子 (分隔符跟随输入)."""
+    assert semantic_group_id("vault__canvas_vault") == "vault__canvas_vault__semantic"
+
+
+def test_semantic_idempotent():
+    once = semantic_group_id("vault:canvas_vault")
+    assert semantic_group_id(once) == once
+
+
+def test_semantic_idempotent_physical():
+    once = semantic_group_id("vault__canvas_vault")
+    assert semantic_group_id(once) == once
+
+
+def test_semantic_roundtrip_with_physical():
+    """影子逻辑 group 经 to_physical 后 == 物理主 group 的影子 (通路一致)."""
+    logical_shadow = semantic_group_id("vault:canvas_vault")
+    assert to_physical_group_id(logical_shadow) == "vault__canvas_vault__semantic"
+
+
+def test_semantic_empty_passthrough():
+    assert semantic_group_id("") == ""
