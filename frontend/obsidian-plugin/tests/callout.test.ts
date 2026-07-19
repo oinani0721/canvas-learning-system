@@ -6,6 +6,10 @@ import {
   parseCalloutsFromContent,
   wrapSelection,
   generateAnnotationId,
+  buildNewQuestionCallout,
+  NEW_QUESTION_PROMPT,
+  NEW_QUESTION_PLACEHOLDER,
+  computeInsertionSpacing,
 } from "../src/callout";
 
 test("TAG_OPTIONS exposes 4 semantic tags (tips/error/question/keypoint)", () => {
@@ -197,4 +201,83 @@ test("parse: two annotations same first line but different id are distinct", asy
   const result = await parseCalloutsFromContent(md, "n");
   assert.equal(result.length, 2);
   assert.notEqual(result[0].annotationId, result[1].annotationId);
+});
+
+// ═══════════ P7 (2026-07-16 UAT): buildNewQuestionCallout 直插新疑问 ═══════════
+
+test("buildNewQuestionCallout: 2 lines — question header + visible prompt line", () => {
+  const out = buildNewQuestionCallout();
+  const lines = out.split("\n");
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0], "> [!question]+ ❓ 提问");
+  assert.equal(lines[1], NEW_QUESTION_PROMPT);
+});
+
+test("buildNewQuestionCallout: annotationId embedded as %%cb-xxx%% in header", () => {
+  const id = generateAnnotationId();
+  const out = buildNewQuestionCallout(id);
+  assert.ok(out.split("\n")[0].endsWith(`%%${id}%%`));
+});
+
+test("buildNewQuestionCallout: header matches quiz-answer / exam-board extraction regexes", () => {
+  const header = buildNewQuestionCallout(generateAnnotationId()).split("\n")[0];
+  // /quiz-answer 疑问归纳 Grep
+  assert.ok(/^>\s*\[!question\]\+/.test(header));
+  // /start-exam-board 安全抽取器
+  assert.ok(/>\s*\[!(question|error)\]\+/.test(header));
+});
+
+test("round-trip: user types question after prompt → parseCalloutsFromContent picks it up", async () => {
+  const id = generateAnnotationId();
+  const typed = buildNewQuestionCallout(id) + "特征向量到底是什么？";
+  const result = await parseCalloutsFromContent(typed, "Fundamentals");
+  assert.equal(result.length, 1);
+  assert.equal(result[0].tag, "question");
+  assert.equal(result[0].annotationId, id);
+  assert.ok(result[0].content.includes("特征向量到底是什么？"));
+});
+
+test("MEDIUM-2: untouched placeholder-only question callout is SKIPPED by parse (弃置不入 sync/归纳链)", async () => {
+  const result = await parseCalloutsFromContent(
+    buildNewQuestionCallout(generateAnnotationId()),
+    "n",
+  );
+  assert.equal(result.length, 0); // 内容只剩占位符 = 用户没写疑问 → 不收割
+});
+
+test("MEDIUM-2: placeholder constant stays in sync with prompt line (契约锁)", () => {
+  assert.equal(NEW_QUESTION_PROMPT.replace(/^>\s?/, ""), NEW_QUESTION_PLACEHOLDER);
+});
+
+// ═══════════ MEDIUM-1/LOW-3 (Code-Review 2026-07-16): computeInsertionSpacing ═══════════
+
+test("spacing: 非空锚点行 → lead 两个换行（行尾另起空行）", () => {
+  assert.deepEqual(computeInsertionSpacing("正在答题的一行", "", ""), {
+    lead: "\n\n",
+    tail: "",
+  });
+});
+
+test("spacing: 空行但上一行是 '>' 行 → lead 一个换行（保留空行隔离防并块）", () => {
+  assert.deepEqual(computeInsertionSpacing("", "> [!tips]+ 💡 Tips", ""), {
+    lead: "\n",
+    tail: "",
+  });
+});
+
+test("spacing: 双空行 → 原地起块，无 lead", () => {
+  assert.deepEqual(computeInsertionSpacing("", "", ""), { lead: "", tail: "" });
+});
+
+test("spacing: 下一行有内容（含 '>' 行）→ tail 垫空行防向下并块", () => {
+  assert.equal(computeInsertionSpacing("x", "", "> body").tail, "\n");
+  assert.equal(computeInsertionSpacing("x", "", "普通文本").tail, "\n");
+  assert.equal(computeInsertionSpacing("x", "", "   ").tail, "");
+});
+
+test("spacing: 纯空格行按空行处理（配合 handler 整行替换防 code block）", () => {
+  assert.deepEqual(computeInsertionSpacing("   ", "上面有字", ""), {
+    lead: "\n",
+    tail: "",
+  });
 });

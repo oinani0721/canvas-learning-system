@@ -53,7 +53,7 @@ model: sonnet
 
 - 读 `questions[0]`：`id`(q1) / `concept` / `concept_path` / `hook`；读 `source_board`（Step 4 回填用）。
 - **提取答案**：取 `<!-- answer:start -->` 与 `<!-- answer:end -->` 之间的文本。
-- **净化答案文本**（考中派生残留）：若答案区含 `> [!relation/...]` callout 块（用户考中 Cmd+Shift+D 派生插入的元数据），**剥离这些块后**再做空判定和评分——它们不是作答内容。
+- **净化答案文本**（考中派生残留）：若答案区含 `> [!relation/...]` callout 块（用户考中 Cmd+Shift+D 派生插入的元数据），**剥离这些块后**再做空判定和评分——它们不是作答内容。P7 补充（2026-07-16）：答案区的 `> [!question]+` / `> [!error]+` 疑问批注块（含「插入新疑问」命令直插的）**同样剥离后再评分**——它们是 Step 4a 的归纳素材，不是作答内容，混入会污染 4 维评分。
 - **提取理解自评**：Grep `理解自评` 行 → 取 `→` 之后文本 trim。**归一化** `self_confidence_norm`：懂=1.0 / 半懂=0.5 / 不懂=0.0；数字 0-5 → 除以 5；解析不了 → null（raw 照存）。
 - **未作答判定**：净化后的答案去掉占位符原句（含"在此手写"字样）若为空 → 停止：`⚠ 你还没作答。先在 <!-- answer:start/end --> 之间手写回答再 /quiz-answer。`
 
@@ -77,7 +77,7 @@ model: sonnet
 ## Step 4 · 节点原子写（JSON payload + 静态 python，injection-proof）
 
 **4a · 先由你（Claude）备料**：
-1. `Grep` 检验白板答题区疑问批注（`^>\s*\[!question\]\+` / `^>\s*\[!error\]\+` / `\*\*User[：:][^*]+\*\*`）。有则拼 callout 归纳块（含 AI 判断原因，一句话忠实不编造）；无则空串。
+1. `Grep` 检验白板答题区疑问批注（`^>\s*\[!question\]\+` / `^>\s*\[!error\]\+` / `\*\*User[：:][^*]+\*\*`）。有则拼 callout 归纳块（含 AI 判断原因，一句话忠实不编造）；无则空串。⛔ P7（2026-07-16）：**跳过内容只剩占位符「✍️ 我的疑问：」的空疑问 callout**（「插入新疑问」命令插入后弃置未填）——空占位不是疑问，归纳它是纯噪音。
 2. `Bash: date -u +"%Y-%m-%dT%H:%M:%SZ"` → ts。
 
 **4b · 用 `Write` 工具写 payload 到 `/tmp/quiz-answer-payload.json`**（⛔ 用 Write 工具写 JSON，不经 shell——引号/换行/反斜杠天然安全）：

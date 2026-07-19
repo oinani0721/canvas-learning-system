@@ -15,7 +15,10 @@ import {
   type UnderstandingOption,
   type UnderstandingValue,
   USER_INPUT_PROMPT,
+  NEW_QUESTION_PROMPT,
   wrapSelection,
+  buildNewQuestionCallout,
+  computeInsertionSpacing,
   generateAnnotationId,
   type ParsedCallout,
 } from "./callout";
@@ -128,12 +131,6 @@ export default class CanvasLearningPlugin extends Plugin {
     await this.loadSettings();
     this.registerCanvasCommands();
     this.addSettingTab(new CanvasSettingTab(this.app, this));
-    this.app.workspace.onLayoutReady(() => {
-      this.checkHotkeyConflicts();
-      // MVP-α-5 (恢复自 f860f57): 打开 Obsidian 时让 status bar 直接显示当前节点.
-      const active = this.app.workspace.getActiveFile();
-      if (active) this.statusBar.handleFileOpen(active);
-    });
     // Story 2.4 Plan A (2026-05-14): metadataCache.on('changed') → FrontmatterTipsSync
     // 用 Obsidian 内部 throttle 的 metadataCache 事件触发 frontmatter tips[] 自动维护
     // (vs Plan B 用 vault.on('modify') 容易跟自己写 frontmatter 形成循环)
@@ -146,6 +143,17 @@ export default class CanvasLearningPlugin extends Plugin {
       onTipsIncreased: (count) => {
         new Notice(buildTipsIncreaseNotice(count), 2500);
       },
+    });
+
+    // P10 修复 (2026-07-18): onLayoutReady 必须注册在 statusBar 初始化【之后】。
+    // 布局已就绪时（运行中手动启用插件）Obsidian 会【同步立即】执行回调——
+    // 旧版把本块放在 onload 开头, this.statusBar 尚未赋值 → TypeError →
+    // 每次手动 enable 必崩（启动加载因回调延后执行而侥幸不崩, 潜伏两个月）。
+    this.app.workspace.onLayoutReady(() => {
+      this.checkHotkeyConflicts();
+      // MVP-α-5 (恢复自 f860f57): 打开 Obsidian 时让 status bar 直接显示当前节点.
+      const active = this.app.workspace.getActiveFile();
+      if (active) this.statusBar.handleFileOpen(active);
     });
 
     this.registerEvent(
@@ -379,6 +387,16 @@ export default class CanvasLearningPlugin extends Plugin {
       id: "canvas:annotate-callout",
       name: "批注为标注",
       callback: () => this.handleAnnotateCallout(),
+    });
+
+    // P7 (2026-07-16 UAT): "自发写新疑问"直插命令。annotate-callout 硬要求选中
+    // 文本（选中式批注），检验白板答题中途冒出的新疑问只能纯手打 callout 格式 —
+    // 格式门槛导致纯文本疑问被 /quiz-answer 归纳链静默丢弃。本命令在光标处直插
+    // 空白 question callout。默认不绑键（用户在 设置→快捷键 搜"插入新疑问"自绑）。
+    this.addCommand({
+      id: "canvas:insert-question-callout",
+      name: "插入新疑问（空白 question callout）",
+      callback: () => this.handleInsertQuestionCallout(),
     });
 
     this.addCommand({
@@ -1434,6 +1452,65 @@ export default class CanvasLearningPlugin extends Plugin {
     } catch {
       // 静默 — 实时上报失败由启动回填兜底
     }
+  }
+
+  /**
+   * P7 (2026-07-16 UAT): 自发新疑问直插 — 与选中式批注（handleAnnotateCallout）
+   * 互补，无需选中文本。在光标处插入空白 question callout，光标自动停在
+   * "> ✍️ 我的疑问：" 之后直接打字（P0-6 同款体验）。
+   *
+   * 产出格式兼容：/quiz-answer 归纳 Grep + /start-exam-board 安全抽取器 +
+   * parseCalloutsFromContent（含 %%cb-xxx%% 稳定身份）。捕获路径按落点分工：
+   * 节点/、原白板/ 走 callout-sync 停笔回填；检验白板/ 不在 sync 前缀白名单内，
+   * 由 /quiz-answer 离线归纳兜底（本 handler 自身不做任何后端上报）。
+   */
+  private handleInsertQuestionCallout() {
+    const editor = this.app.workspace.activeEditor?.editor;
+    if (!editor) {
+      new Notice("编辑器未激活");
+      return;
+    }
+    const cursor = editor.getCursor();
+
+    // MEDIUM-1 (Code-Review 2026-07-16): 劈块防护 — 光标在 callout/引用块内部时
+    // 直插会把原批注拦腰劈开（尾行沦为无头 blockquote，且截断触发 sync 虚假 v2）。
+    // 锚点下移到引用块最后一行，在块外插入。
+    let anchor = cursor.line;
+    if (editor.getLine(anchor).trimStart().startsWith(">")) {
+      while (
+        anchor + 1 < editor.lineCount() &&
+        editor.getLine(anchor + 1).trimStart().startsWith(">")
+      ) {
+        anchor++;
+      }
+    }
+
+    const currentLine = editor.getLine(anchor);
+    const prevLine = anchor > 0 ? editor.getLine(anchor - 1) : "";
+    const nextLine =
+      anchor + 1 < editor.lineCount() ? editor.getLine(anchor + 1) : "";
+    const { lead, tail } = computeInsertionSpacing(
+      currentLine,
+      prevLine,
+      nextLine,
+    );
+
+    const block = buildNewQuestionCallout(generateAnnotationId());
+    // 空白行（含纯空格/Tab 行）整行替换，防止残留缩进把 ">" 变成 code block；
+    // 非空行从行尾追加。
+    const isBlankLine = currentLine.trim() === "";
+    editor.replaceRange(
+      `${lead}${block}${tail}`,
+      { line: anchor, ch: isBlankLine ? 0 : currentLine.length },
+      isBlankLine ? { line: anchor, ch: currentLine.length } : undefined,
+    );
+
+    // lead 只含 "\n"（条数 = anchor 行之后的新增行数）→ prompt 行 = anchor + lead 数 + 1
+    editor.setCursor({
+      line: anchor + lead.length + 1,
+      ch: NEW_QUESTION_PROMPT.length,
+    });
+    editor.focus();
   }
 
   /**

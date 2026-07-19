@@ -147,6 +147,9 @@ export async function parseCalloutsFromContent(
     );
     const calloutContent = contentLines.join("\n").trim();
     if (!calloutContent) continue; // 空 callout 跳过
+    // MEDIUM-2 (Code-Review 2026-07-16): P7 直插后弃置的空疑问（内容只剩占位符）
+    // 不入 sync 通道 — 它不是用户写下的疑问，收割进 Graphiti/归纳链是纯噪音。
+    if (calloutContent === NEW_QUESTION_PLACEHOLDER) continue;
 
     const hash = await sha256Hex(
       `${nodeId}|${tag}|${understanding}|${calloutContent}`,
@@ -170,6 +173,56 @@ async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+// P7 (2026-07-16 UAT): 自发新疑问的可见输入占位符 — F1 教训同款（Live Preview
+// 把纯空 "> " 行渲染成 0 高度，光标不可见，占位符必须含可见字符）。
+export const NEW_QUESTION_PROMPT = "> ✍️ 我的疑问：";
+
+// MEDIUM-2 (Code-Review 2026-07-16): 占位符裸内容（"> " 剥离后）。用户插入后
+// 弃置不填时 callout 内容恰等于它 — parse 侧据此跳过，防止空疑问被 sync/归纳
+// 链当成真疑问收割（wrapSelection 的占位符无此问题：其 callout 恒含选中原文）。
+export const NEW_QUESTION_PLACEHOLDER = "✍️ 我的疑问：";
+
+/**
+ * P7 (2026-07-16): 直插时的隔离空行决策 — 并块防护的纯函数部分（可测）。
+ * callout 上下紧邻 ">" 行会被 Obsidian 合并成同一个 callout，按需垫空行：
+ *   - 锚点行非空 → lead "\n\n"（行尾另起空行再插）
+ *   - 锚点行空但上一行有内容（可能是 ">" 行）→ lead "\n"（保留本空行作隔离）
+ *   - 锚点行与上一行都空 → lead ""（原地起块）
+ * lead 只含 "\n"，条数 = 锚点行之后新增的行数（handler 光标算术依赖此不变量）。
+ * tail：下一行有内容时垫一空行防向下并块。
+ */
+export function computeInsertionSpacing(
+  currentLine: string,
+  prevLine: string,
+  nextLine: string,
+): { lead: string; tail: string } {
+  let lead: string;
+  if (currentLine.trim() !== "") {
+    lead = "\n\n";
+  } else if (prevLine.trim() !== "") {
+    lead = "\n";
+  } else {
+    lead = "";
+  }
+  return { lead, tail: nextLine.trim() !== "" ? "\n" : "" };
+}
+
+/**
+ * P7 (2026-07-16 UAT): 凭空直插一条空白 question callout（"自发写新疑问"场景，
+ * 与选中式 wrapSelection 互补 — 后者硬要求已有文本）。
+ *
+ * 格式契约（三条下游链同时依赖，改动前必须核对）：
+ *   - /quiz-answer 疑问归纳 Grep：`^>\s*\[!question\]\+`
+ *   - /start-exam-board 安全抽取器：`>\s*\[!(question|error)\]\+`
+ *   - parseCalloutsFromContent 双 telltale：4 复数 tag + [+-] 后缀
+ * annotationId 同 wrapSelection 的 %%cb-xxx%% 稳定身份协议（A+-prime）。
+ */
+export function buildNewQuestionCallout(annotationId?: string): string {
+  const question = TAG_OPTIONS.find((t) => t.value === "question")!;
+  const idMarker = annotationId ? ` %%${annotationId}%%` : "";
+  return `> [!${question.callout}]+ ${question.label}${idMarker}\n${NEW_QUESTION_PROMPT}`;
 }
 
 export function wrapSelection(
