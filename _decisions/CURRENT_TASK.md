@@ -2,9 +2,9 @@
 active_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
 active_plan_file: ".gdr/dev-pack-next-session-convergence.xml (包尾任务书)"
 current_sprint: "基本功能收敛 T1-T6 (2026-07-10 交接)"
-sprint_progress: "路线图v2 主体完成: M0-M5 全✅ (本地LLM+双图+SessionEnd归档+本地reranker) — 等用户 UAT"
-next_story_id: "UAT-then-backlog"
-next_story_title: "用户 UAT (QuickExam吸收+SessionEnd归档); backlog: .env Google key 轮换 / exam_quick 路由摘除 / embedding 迁移评估"
+sprint_progress: "UAT A-D 四线全过 → 轨道 B 快修+方案A 全部完成(2026-07-20) — 下一个: 轨道 A 灵魂闭环"
+next_story_id: "track-A-soul-loop"
+next_story_title: "轨道A: 收敛机制+P12弃答+P11增量归纳+题目去重; 之后轨道③蒸馏写侧接通(P14); backlog: C0分叉合并/key轮换/exam_quick摘除"
 next_story_files:
   - "_bmad-output/研究/2026-07-10-T4-Graphiti读侧接通检验白板-设计小节.md"
   - "backend/app/services/graphiti_memory_reader.py"
