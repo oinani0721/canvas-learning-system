@@ -846,6 +846,43 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
             }
         )
 
+    # P6 (轨道 B 2026-07-20): 系统操作类问题不注入 — 用户问"callout 绑什么
+    # 快捷键"时曾被灌 10 条 CS188 lecture 片段 (rerank 0.72-0.81 虚高但零
+    # 相关)。斜杠命令一律跳过; 关键词黑名单只收系统操作词, 不碰课程词。
+    _SYSTEM_OP_KEYWORDS = (
+        "快捷键",
+        "命令面板",
+        "插件",
+        "docker",
+        "部署",
+        "重启",
+        "验收单",
+        "UAT",
+        "hook",
+        "MCP",
+        "Obsidian 设置",
+    )
+    if user_prompt.startswith("/") or any(
+        kw in user_prompt for kw in _SYSTEM_OP_KEYWORDS
+    ):
+        logger.info(
+            "[T1.7-AutoRAG] system-op prompt detected, injection skipped (P6)",
+            prompt=user_prompt[:60],
+        )
+        return HookEnrichOutput(
+            hookSpecificOutput={
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": "",
+            }
+        )
+
+    # P6 补 (2026-07-20): full-RAG 路径会注入 vault ContextVar 而 hook 路径
+    # 没有 — 跨 vault 候选可能混入。对齐 enrich_context 的隔离姿势。
+    from app.config import get_current_vault_id
+    from app.core.subject_config import build_vault_group_id, set_current_subject_id
+
+    set_current_subject_id(build_vault_group_id(get_current_vault_id()))
+
     # Wave-2 P0-2 漏修-1 (2026-05-12): 改用 lazy init 替代裸读 singleton.
     # 原因: 直读 _supp_lancedb_singleton 在 cold-start 期间立即 None 跳过,
     # 用户首问的 hook 永远拿不到 RAG 注入; 同时绕开了 _get_supp_lancedb_client

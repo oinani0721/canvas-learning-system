@@ -96,7 +96,15 @@ async def _check_ollama(settings: Settings) -> ComponentStatus:
 async def _check_lancedb(settings: Settings) -> ComponentStatus:
     """Check LanceDB data directory exists."""
     try:
-        lancedb_dir = Path(settings.CANVAS_BASE_PATH) / ".lancedb"
+        # P16 (轨道 B 2026-07-20): 真实数据在 LANCEDB_DATA_PATH volume
+        # (容器 /lancedb), 旧探测路径 CANVAS_BASE_PATH/.lancedb 恒不存在
+        # → 健康检查恒 degraded 误报。env 缺省时保留旧路径兼容裸跑。
+        import os as _os
+
+        lancedb_dir = Path(
+            _os.environ.get("LANCEDB_DATA_PATH")
+            or str(Path(settings.CANVAS_BASE_PATH) / ".lancedb")
+        )
         if lancedb_dir.exists() and lancedb_dir.is_dir():
             return ComponentStatus(
                 name="lancedb",

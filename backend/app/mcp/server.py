@@ -589,8 +589,12 @@ def _register_tool_routes(app: FastAPI) -> None:
         description="Returns detailed health status of all backend components. "
         "Requires user confirmation. Use when diagnosing backend issues.",
     )
-    async def _check_health(input: CheckHealthInput) -> Dict[str, Any]:
-        return await check_backend_health(input)
+    async def _check_health(
+        input: CheckHealthInput | None = None,
+    ) -> Dict[str, Any]:
+        # P16 (轨道 B 2026-07-20): MCP 桥对空 schema 不发 body, 必填 body
+        # 导致调用必 422 — body 改可选, 空 body 构造空模型。
+        return await check_backend_health(input or CheckHealthInput())
 
     @app.post(
         "/mcp/tools/switch_vault",

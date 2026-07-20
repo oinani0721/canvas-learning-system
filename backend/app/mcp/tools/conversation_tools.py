@@ -20,6 +20,13 @@ from app.audit.guardian import get_audit_guardian
 logger = logging.getLogger(__name__)
 
 
+def _default_group() -> str:
+    """P15 (轨道 B 2026-07-20): 缺省组推导当前 vault, 不落 vault:default。"""
+    from app.core.subject_config import default_vault_group_id
+
+    return default_vault_group_id()
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Pydantic Models
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -133,9 +140,11 @@ async def archive_conversation(
 
         memory_svc = await get_memory_service()
 
-        # M3 (2026-07-13): 修 group 硬编码 — 调用方可传 D16 group_id
-        # (与 search_memories 同模式), 缺省才落全局默认组。
-        resolved_group_id = group_id or DEFAULT_GROUP_ID
+        # M3 (2026-07-13) + P15 (2026-07-20): 调用方可传 D16 group_id,
+        # 缺省推导当前 vault 组 (不再落 vault:default 空桶)。
+        from app.core.subject_config import default_vault_group_id
+
+        resolved_group_id = group_id or default_vault_group_id()
 
         # Build the archive content
         content_parts = [f"Conversation summary for node {node_id}: {summary}"]
@@ -284,7 +293,7 @@ async def create_exam_node(
                     "edge_id": edge_id,
                     "exam_title": exam_title,
                 },
-                group_id=DEFAULT_GROUP_ID,
+                group_id=_default_group(),
             )
         except (RuntimeError, AttributeError, asyncio.TimeoutError) as mem_err:
             logger.debug(

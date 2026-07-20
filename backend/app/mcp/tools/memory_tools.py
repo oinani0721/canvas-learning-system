@@ -192,11 +192,12 @@ async def search_memories(
 
         memory_svc = await get_memory_service()
 
-        # Use the default group_id if not specified
+        # P15 (轨道 B 2026-07-20): 缺省推导当前 vault 组 (vault:canvas_vault),
+        # 不再回落 DEFAULT_GROUP_ID 空桶 — 归档写侧与读侧同组, 召回不踩空
         if group_id is None:
-            from app.config import DEFAULT_GROUP_ID
+            from app.core.subject_config import default_vault_group_id
 
-            group_id = DEFAULT_GROUP_ID
+            group_id = default_vault_group_id()
 
         # Search memories via the memory service
         search_result = await memory_svc.search_memories(
@@ -311,7 +312,8 @@ async def record_calibration(
             event_type="calibration",
             content=f"Calibration: predicted={predicted_score:.2f} actual={actual_score:.2f} gap={calibration_gap:.2f}",
             metadata=calibration_data,
-            group_id=DEFAULT_GROUP_ID,
+            # P15: 校准记录落当前 vault 组
+            group_id=default_vault_group_id(),
         )
 
         return RecordCalibrationOutput(
@@ -404,9 +406,9 @@ async def record_learning_memory(
 
         memory_svc = await get_memory_service()
 
-        # M3 (2026-07-13): 修 group 硬编码 — 与 search_memories 同模式,
-        # 调用方可传 D16 group_id, 缺省才落全局默认组。
-        resolved_group_id = group_id or DEFAULT_GROUP_ID
+        # M3 (2026-07-13) + P15 (2026-07-20): 调用方可传 D16 group_id,
+        # 缺省推导当前 vault 组 (不再落 vault:default 空桶)。
+        resolved_group_id = group_id or default_vault_group_id()
 
         name = build_entity_name(entity_type, concept)
         body = build_episode_body(entity_type, topic=topic, error=details, correct="")

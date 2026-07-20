@@ -17,7 +17,11 @@ import sys
 import urllib.request
 
 BACKEND_URL = "http://localhost:8011/api/v1/memory/archive/session"
-MIN_MESSAGES = 4  # 少于 4 轮 = trivial session, 不归档
+MIN_MESSAGES = 4  # 少于 4 条 = trivial session, 不归档
+MIN_USER_MESSAGES = 2  # 归档计数修正 (轨道 B 2026-07-20, UAT D2 ⑥):
+# assistant 在工具调用间产生多个 text 片段、各算一条 — 带工具的单轮问答
+# 也能凑满 4 条总数 ("1 轮不归档"假设不成立, 召回测试 session 被误归档)。
+# 加真实用户轮下限: user 角色 < 2 条不归档。
 MAX_MESSAGES = 40  # 只送尾部 40 轮 (近因优先, 与后端 8000 字符截断对齐)
 PER_MESSAGE_CHARS = 4000
 TIMEOUT_S = 8
@@ -70,7 +74,8 @@ def main() -> None:
     if not transcript.is_file():
         return
     messages = parse_transcript(transcript)
-    if len(messages) < MIN_MESSAGES:
+    user_turns = sum(1 for m in messages if m.get("role") == "user")
+    if len(messages) < MIN_MESSAGES or user_turns < MIN_USER_MESSAGES:
         return
     messages = messages[-MAX_MESSAGES:]
 

@@ -410,3 +410,16 @@ def build_neo4j_subject_filter(
         f"AND {node_alias}.subjectId = $subject_id",
         {"subject_id": subject_id},
     )
+
+
+def default_vault_group_id() -> str:
+    """轨道 B P15 (2026-07-20): MCP 工具缺省 group 推导。
+
+    写侧 (SessionEnd 归档等) 落 vault:<active_vault>, 而 MCP 读写工具
+    缺省曾回落 DEFAULT_GROUP_ID (vault:default) — 两侧异组, 不带
+    group_id 的召回必空手 (UAT D2 实测踩空根因)。统一走已在
+    main.py/tips.py/canvas_projection_sync 生产使用的推导链。
+    """
+    from app.config import get_current_vault_id
+
+    return build_vault_group_id(get_current_vault_id())
