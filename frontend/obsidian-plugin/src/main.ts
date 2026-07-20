@@ -322,7 +322,7 @@ export default class CanvasLearningPlugin extends Plugin {
         this.app.workspace.getLeaf(false).openFile(boardFile as TFile);
         setTimeout(() => {
           (this.app as any).commands.executeCommandById(
-            "canvas-learning-system:canvas:start-examination-confirm",
+            "canvas-learning-system:canvas:start-examination",
           );
         }, 200);
       } else {
@@ -417,15 +417,12 @@ export default class CanvasLearningPlugin extends Plugin {
       callback: () => this.handleAppendNoteToBoard(),
     });
 
-    this.addCommand({
-      id: "canvas:start-examination-confirm",
-      name: "启动考察（带 confirm 弹窗）",
-      callback: () => this.handleStartExaminationConfirm(),
-    });
-
+    // 轨道 B (2026-07-20) 过时文案清理: 原 canvas:start-examination-confirm
+    // 已删 — "带 confirm 弹窗"名实不符 (M4 后不弹窗、直接复制命令) 且与
+    // canvas:start-examination 完全同 handler。Dashboard 按钮已改指后者。
     this.addCommand({
       id: "canvas:open-node-chat",
-      name: "节点对话（注入上下文 + 切 Claudian）",
+      name: "节点对话（注入上下文 · 复制到 Claude Code）",
       callback: () => this.handleOpenNodeChat(),
     });
 
@@ -439,19 +436,15 @@ export default class CanvasLearningPlugin extends Plugin {
       callback: () => this.handleQuickExamAbsorbed(),
     });
 
-    // T5 (2026-07-10) — Story 2.5.X 三件套接线: Dashboard 候选块承诺的两条
-    // 命令 (接受/异议)。frontmatter error_candidates[] 由后端写入更新,
-    // plugin 只负责选择 + POST (端点直接改 md 文件, Obsidian 自动刷新)。
+    // 方案 A (轨道 B 2026-07-20, 用户拍板决策点 3) — P13 修复: 原「接受」
+    // 「异议」两条命令合并为一条「复盘错误候选」。active file 无候选时
+    // 自动全库扫 节点/ (Dashboard 上触发不再报"没有待处理")。流程:
+    // 选候选 → 选处理方式 (✅ 接受 / ⚠️ 异议) → 后端双写 frontmatter +
+    // 正文三态卡片原地变态。
     this.addCommand({
-      id: "canvas:accept-error-candidate",
-      name: "接受错误候选（移入 errors[] + 同步 Graphiti）",
-      callback: () => this.handleErrorCandidateAction("accept"),
-    });
-
-    this.addCommand({
-      id: "canvas:dispute-error-candidate",
-      name: "异议错误候选（标 disputed + 写理由）",
-      callback: () => this.handleErrorCandidateAction("dispute"),
+      id: "canvas:review-error-candidate",
+      name: "复盘错误候选（接受 / 异议）",
+      callback: () => this.handleReviewErrorCandidate(),
     });
   }
 
@@ -527,21 +520,18 @@ export default class CanvasLearningPlugin extends Plugin {
       ? `（已截断: ${result.truncationReason}）`
       : "";
     new Notice(
-      `已复制节点 "${activeFile.basename}" 上下文（${sizeKb}KB / ${neighbors.length} 邻居）${truncatedHint}\n切到 Claudian 粘贴即可触发对话`,
+      `已复制节点 "${activeFile.basename}" 上下文（${sizeKb}KB / ${neighbors.length} 邻居）${truncatedHint}\n切到 Claude Code 窗口粘贴即可触发对话`,
       6000,
     );
 
+    // 轨道 B (2026-07-20) D-1 文案收敛: 主路径 = Claude Code 原生窗口粘贴,
+    // Claudian 侧栏仅在已安装时顺手打开 (缺席不再报错阻断)。
     const claudianCmd = (this.app as any).commands?.findCommand?.(
       "claudian:open-view",
     );
-    if (!claudianCmd) {
-      new Notice(
-        "未检测到 Claudian 插件，请先安装并登录 Claude Code",
-        5000,
-      );
-      return;
+    if (claudianCmd) {
+      (this.app as any).commands.executeCommandById("claudian:open-view");
     }
-    (this.app as any).commands.executeCommandById("claudian:open-view");
   }
 
   /**
@@ -606,7 +596,7 @@ export default class CanvasLearningPlugin extends Plugin {
       : "/start-exam-board";
     void navigator.clipboard.writeText(cmd);
     new Notice(
-      `已复制：${cmd}\n切到 Claude Code 窗口粘贴执行（Claudian 侧栏亦可）。`,
+      `已复制：${cmd}\n切到 Claude Code 窗口粘贴执行。`,
       8000,
     );
   }
@@ -1417,7 +1407,7 @@ export default class CanvasLearningPlugin extends Plugin {
 
     const elapsedMs = Date.now() - t0;
     new Notice(
-      `✓ 派生完成 [[节点/${conceptName}]]（${elapsedMs}ms）。新节点已开 — 在三段空白处写下你的理解，或打开 Claudian 围绕本节点对话。`,
+      `✓ 派生完成 [[节点/${conceptName}]]（${elapsedMs}ms）。新节点已开 — 在三段空白处写下你的理解，或在 Claude Code 里围绕本节点对话。`,
       8000,
     );
   }
@@ -1618,38 +1608,51 @@ export default class CanvasLearningPlugin extends Plugin {
    * 后端直接改 md frontmatter (accept 移入 errors[] + Graphiti;
    * dispute 标 disputed), plugin 不重复写文件。
    */
-  private async handleErrorCandidateAction(
-    action: "accept" | "dispute",
-  ): Promise<void> {
-    const file = this.app.workspace.getActiveFile();
-    if (!file) {
-      new Notice("请先打开一个节点文件");
-      return;
+  private async handleReviewErrorCandidate(): Promise<void> {
+    // 方案 A + P13 (轨道 B 2026-07-20): active file 优先, 无候选自动
+    // 全库扫 节点/ (metadataCache 范式照抄 getMasteryBatch) — 在
+    // Dashboard 页面上触发也能列出全部待复盘候选, 消除循环跳转。
+    const collect = (file: TFile): ReviewCandidateItem[] => {
+      const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      return filterPendingCandidates(fm?.error_candidates).map(
+        (candidate) => ({ candidate, file }),
+      );
+    };
+    const active = this.app.workspace.getActiveFile();
+    let items: ReviewCandidateItem[] = active ? collect(active) : [];
+    if (items.length === 0) {
+      items = this.app.vault
+        .getMarkdownFiles()
+        .filter((f) => f.path.startsWith("节点/"))
+        .flatMap(collect);
     }
-    const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    const pending = filterPendingCandidates(fm?.error_candidates);
-    if (pending.length === 0) {
-      new Notice(`「${file.basename}」没有待处理的错误候选`);
+    if (items.length === 0) {
+      new Notice("全库没有待处理的错误候选 ✅");
       return;
     }
 
-    const candidate = await new Promise<ErrorCandidate | null>((resolve) => {
-      new ErrorCandidateSuggestModal(this.app, pending, resolve).open();
+    const chosen = await new Promise<ReviewCandidateItem | null>((resolve) => {
+      new ErrorCandidateSuggestModal(this.app, items, resolve).open();
     });
-    if (!candidate) return;
+    if (!chosen) return;
+
+    const action = await new Promise<"accept" | "dispute" | null>((resolve) => {
+      new ReviewActionModal(this.app, chosen, resolve).open();
+    });
+    if (!action) return;
 
     const vaultId = inferVaultId(this.app.vault.getName());
-    const nodeId = file.path; // 端点契约: vault-relative path (如 '节点/X.md')
+    const nodeId = chosen.file.path; // 端点契约: vault-relative path
 
     if (action === "accept") {
       const result = await this.callBackend(
         "/api/v1/errors/accept-candidate",
-        "接受错误候选",
-        buildAcceptPayload(candidate.id, nodeId, { vaultId }),
+        "复盘错误候选",
+        buildAcceptPayload(chosen.candidate.id, nodeId, { vaultId }),
       );
       if (result) {
         new Notice(
-          `✅ 候选已接受并移入 errors[]（Graphiti 后台同步中）`,
+          `✅ 候选已接受并移入 errors[]，节点里的卡片已变为「已确认」（Graphiti 后台同步中）`,
           5000,
         );
       }
@@ -1667,11 +1670,16 @@ export default class CanvasLearningPlugin extends Plugin {
     }
     const result = await this.callBackend(
       "/api/v1/errors/dispute-candidate",
-      "异议错误候选",
-      buildDisputePayload(candidate.id, nodeId, reason.trim(), { vaultId }),
+      "复盘错误候选",
+      buildDisputePayload(chosen.candidate.id, nodeId, reason.trim(), {
+        vaultId,
+      }),
     );
     if (result) {
-      new Notice("✅ 已标记 disputed（不入 errors[]，理由已记录）", 5000);
+      new Notice(
+        "✅ 已标记 disputed，节点里的卡片已变为「已异议」（不入 errors[]，理由已记录）",
+        5000,
+      );
     }
   }
 
@@ -2809,27 +2817,33 @@ class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> {
  *
  * resolve(null) 覆盖用户 Esc 关闭 (onClose 时未选择则视为取消)。
  */
-class ErrorCandidateSuggestModal extends FuzzySuggestModal<ErrorCandidate> {
+/** 方案 A (轨道 B 2026-07-20): 全库化后候选须携带来源节点。 */
+interface ReviewCandidateItem {
+  candidate: ErrorCandidate;
+  file: TFile;
+}
+
+class ErrorCandidateSuggestModal extends FuzzySuggestModal<ReviewCandidateItem> {
   private chosen = false;
 
   constructor(
     app: App,
-    private candidates: ErrorCandidate[],
-    private onResolve: (c: ErrorCandidate | null) => void,
+    private items: ReviewCandidateItem[],
+    private onResolve: (c: ReviewCandidateItem | null) => void,
   ) {
     super(app);
-    this.setPlaceholder("选择要处理的错误候选（pending）");
+    this.setPlaceholder("选择要复盘的错误候选（pending · 前缀为所在节点）");
   }
 
   getItems() {
-    return this.candidates;
+    return this.items;
   }
 
-  getItemText(item: ErrorCandidate) {
-    return formatCandidateLabel(item);
+  getItemText(item: ReviewCandidateItem) {
+    return `${item.file.basename} · ${formatCandidateLabel(item.candidate)}`;
   }
 
-  onChooseItem(item: ErrorCandidate) {
+  onChooseItem(item: ReviewCandidateItem) {
     this.chosen = true;
     this.onResolve(item);
   }
@@ -2841,6 +2855,56 @@ class ErrorCandidateSuggestModal extends FuzzySuggestModal<ErrorCandidate> {
       window.setTimeout(() => {
         if (!this.chosen) this.onResolve(null);
       }, 0);
+    }
+  }
+}
+
+/**
+ * 方案 A (轨道 B 2026-07-20) — 命令合并后的处理方式二选一。
+ * 样稿流程: 选候选 → 选处理方式 (✅ 接受 / ⚠️ 异议)。
+ */
+class ReviewActionModal extends Modal {
+  private resolved = false;
+
+  constructor(
+    app: App,
+    private item: ReviewCandidateItem,
+    private onResolve: (action: "accept" | "dispute" | null) => void,
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h3", { text: "这条候选怎么处理？" });
+    contentEl.createEl("p", {
+      text: `${this.item.file.basename} · ${formatCandidateLabel(this.item.candidate)}`,
+    });
+    const btnRow = contentEl.createDiv({
+      attr: { style: "margin-top: 12px; display: flex; gap: 8px;" },
+    });
+    const acceptBtn = btnRow.createEl("button", {
+      text: "✅ 接受（确认是我的误区，移入错题）",
+    });
+    acceptBtn.addEventListener("click", () => {
+      this.resolved = true;
+      this.close();
+      this.onResolve("accept");
+    });
+    const disputeBtn = btnRow.createEl("button", {
+      text: "⚠️ 异议（AI 判断错了，写理由）",
+    });
+    disputeBtn.addEventListener("click", () => {
+      this.resolved = true;
+      this.close();
+      this.onResolve("dispute");
+    });
+  }
+
+  onClose() {
+    this.contentEl.empty();
+    if (!this.resolved) {
+      this.onResolve(null);
     }
   }
 }
@@ -2862,10 +2926,14 @@ class DisputeReasonModal extends Modal {
     const { contentEl } = this;
     contentEl.createEl("h3", { text: "异议理由（必填）" });
     contentEl.createEl("p", {
-      text: "简短说明为什么你认为 AI 的判断是错的。候选将标为 disputed，不进入正式错题。",
+      text: "写一句真实理由（如「我没这么说过，是 AI 过度推断」）。候选将标为 disputed，不进入正式错题。占位字符（如 111）会被拒绝。",
     });
     const input = contentEl.createEl("textarea", {
-      attr: { rows: "3", style: "width: 100%;" },
+      attr: {
+        rows: "3",
+        style: "width: 100%;",
+        placeholder: "例：我没这么说过，是 AI 过度推断",
+      },
     });
     input.focus();
     const btnRow = contentEl.createDiv({

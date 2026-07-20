@@ -59,7 +59,15 @@ function fallbackStub(): string {
 function truncateUnicodeAware(s: string, maxLen: number): string {
   const chars = Array.from(s);
   if (chars.length <= maxLen) return s;
-  return chars.slice(0, maxLen).join("");
+  const cut = chars.slice(0, maxLen).join("");
+  // P4 (轨道 B 2026-07-20): 硬砍会产生句中截断文件名
+  // (Eigenvalues-are-special-vectors-that-sat)。回退到最近的 - 词边界;
+  // 边界太靠前 (< maxLen/2, 如无连字符的中文) 则保留硬砍。
+  const lastDash = cut.lastIndexOf("-");
+  if (lastDash >= Math.floor(maxLen / 2)) {
+    return cut.slice(0, lastDash);
+  }
+  return cut;
 }
 
 /**
@@ -218,7 +226,7 @@ export function buildNodeBody(
     "> [!tip] 💬 围绕这个概念讨论",
     "> 这个节点是**讨论容器**，不是 AI 写好的内容。你可以：",
     "> - 在上面三段空白处写下你的理解（最有学习价值）",
-    "> - 打开 Claudian sidebar 围绕本节点和 Claude 自由对话（节点级 AI 对话）",
+    "> - 在 Claude Code 里围绕本节点和 Claude 自由对话（节点级 AI 对话）",
     "> - `Cmd+Shift+D` 选中本节点正文继续派生子节点",
     "> - `Cmd+Shift+A` 选中文字加 Tips/疑问/错误标注",
     "",

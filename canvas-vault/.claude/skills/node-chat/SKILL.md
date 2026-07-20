@@ -87,7 +87,7 @@ model: sonnet
 - 想派生新概念 → /ai-linked-doc（Cmd+Shift+D）
 - 想批注疑问点 → 命令面板 → 「批注为标注」标记（建议在 Settings→Hotkeys 绑定 Cmd+Shift+A）
 
-下次用命令面板 → 「节点对话（注入上下文 + 切 Claudian）」即可重启对话（建议在 Settings→Hotkeys 绑定 Cmd+Shift+C；context 会自动重新注入）。
+下次用命令面板 → 「节点对话（注入上下文 · 复制到 Claude Code）」即可重启对话（建议在 Settings→Hotkeys 绑定 Cmd+Shift+C；context 会自动重新注入）。
 ```
 
 ## 不在本 Skill 范围（明确告知用户）

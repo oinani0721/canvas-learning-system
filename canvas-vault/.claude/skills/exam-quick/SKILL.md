@@ -1,6 +1,6 @@
 ---
 name: exam-quick
-description: "当用户消息以 /exam-quick 开头（用户在 Claudian 侧栏直输，或由 Canvas plugin 通过 Cmd+Shift+Q 触发 + 剪贴板注入），必须调用此 Skill 进入快速单题考察模式。MVP-α-3 后备路径：plugin 端 /api/v1/exam/quick 失败时用户改走 Claudian 拿到 1 道针对批注的练习题。本 Skill 是出题模式 — 围绕 vault 内任意节点 + 用户批注 + 1-hop wikilink 邻居出 1 道题，不修改任何文件。延迟预算 5-10s。区别于 plugin 端 backend 出题（IRT / 多模式 / 批量），本 Skill 是 LLM 直接生成单题 fallback。"
+description: "当用户消息以 /exam-quick 开头（用户在 Claude Code直输，或由 Canvas plugin 通过 Cmd+Shift+Q 触发 + 剪贴板注入），必须调用此 Skill 进入快速单题考察模式。MVP-α-3 后备路径：plugin 端 /api/v1/exam/quick 失败时用户改走 Claudian 拿到 1 道针对批注的练习题。本 Skill 是出题模式 — 围绕 vault 内任意节点 + 用户批注 + 1-hop wikilink 邻居出 1 道题，不修改任何文件。延迟预算 5-10s。区别于 plugin 端 backend 出题（IRT / 多模式 / 批量），本 Skill 是 LLM 直接生成单题 fallback。"
 argument-hint: "[路径 B：plugin Cmd+Shift+Q 触发后从剪贴板注入完整节点+批注上下文；路径 A：Claudian 裸触发 /exam-quick 或 /exam-quick <节点名>]"
 allowed-tools:
   - Read
@@ -63,7 +63,7 @@ backend 返回的 JSON 结构是 `{question_id: uuid, question_text: str, genera
 本 Skill 的对话末尾**必须**有一段 fenced code block，**markdown 等价表达**这 3 个字段，便于未来 plugin 抓取 fallback：
 
 ````markdown
-## 📝 单题考察（Claudian fallback · 后备路径）
+## 📝 单题考察（Claude Code fallback · 后备路径）
 
 **针对你的批注**：
 > {引用用户批注原文 — 不超过 2 行}
@@ -141,7 +141,7 @@ annotation_hook: {命中的批注 pattern，如 [!question]+ 或 **User：**}
 每次出题结束后，对话末尾必须有 1 行**明示告知**：
 
 ```
-ℹ️ 你正在使用 Claudian fallback 路径（plugin /api/v1/exam/quick 不可用时的后备）。
+ℹ️ 你正在使用 Claude Code fallback 路径（plugin /api/v1/exam/quick 不可用时的后备）。
    质量低于 plugin 出题（无 IRT 难度匹配 / 无 ACP 5-layer / 无 RAG 三路融合）。
    长期请修复 backend：检查 docker ps | grep canvas-backend 是否在跑。
 ```

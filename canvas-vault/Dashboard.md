@@ -9,7 +9,7 @@ story: "1.18"
 # 📊 Canvas 学习仪表盘
 
 > [!info]+ 这是什么？
-> 一站式查看所有原白板状态 + 节点总数 + 平均掌握度 + 待复习节点。**Cmd+P 打开命令面板** → 搜索"启动考察（带 confirm 弹窗）"可以一键发起考察。
+> 一站式查看所有原白板状态 + 节点总数 + 平均掌握度 + 待复习节点。**Cmd+P 打开命令面板** → 搜索"启动考察"可以一键发起考察（复制 /start-exam-board 命令）。
 >
 > **数据源**：Plugin 实时从 `原白板/*.md` 和 `节点/*.md` 的 frontmatter 自动聚合。手动派生 / 追加 / 配置后**无需刷新**，DataviewJS 会自动重算。
 
@@ -204,9 +204,10 @@ if (nodes.length === 0) {
 
 > [!info]+ 这是什么？
 > 你和 AI 对话时, 系统会**自动识别可能的误解**, 写入节点的 `error_candidates[]` 草稿区（**不直接进 errors[]**）。
-> 你需要**主动确认**这些候选才会成为正式错题：
-> - **Cmd+P → "Canvas: 接受错误候选"** → 移入正式 `errors[]` + 同步 Graphiti
-> - **Cmd+P → "Canvas: 异议错误候选"** → 标 disputed + 写理由（不进 errors[]）
+> 你需要**主动确认**这些候选才会成为正式错题（方案 A · 2026-07-20 起单命令）：
+> - **Cmd+P → "复盘错误候选"** → 选候选 → 选 ✅ 接受（移入 `errors[]` + 同步 Graphiti）或 ⚠️ 异议（写理由，不进 errors[]）
+> - 在 Dashboard 页面直接跑也可以——没打开节点时命令会自动扫全库列出所有待复盘候选
+> - 处理后节点正文里的候选卡片会自动变态（🔴 待复盘 → ✅ 已确认 / ⚠️ 已异议）
 > - **30 天未处理** → 自动 expired 归档
 
 ```dataviewjs
@@ -236,7 +237,8 @@ for (const note of allNodes) {
     else if (status === "disputed") totalDisputed++;
   }
   if (pendingHere.length > 0) {
-    pendingByNode.set(note.file.link, pendingHere);
+    // 方案 A: 按钮需要真实路径打开节点, link 仅供显示
+    pendingByNode.set(note.file.link, { cands: pendingHere, path: note.file.path });
   }
 }
 
@@ -263,14 +265,26 @@ if (totalPending === 0) {
   dv.paragraph("> ✅ 暂无待复盘的错误候选");
 } else {
   dv.header(4, `⏳ 待复盘 ${totalPending} 条 (按节点分组)`);
-  for (const [nodeLink, cands] of pendingByNode) {
+  for (const [nodeLink, entry] of pendingByNode) {
+    const cands = entry.cands;
     dv.header(5, `${nodeLink} (${cands.length} 条)`);
+    // 方案 A (轨道 B 2026-07-20, 决策点 4): 每节点一颗处理按钮 —
+    // 打开该节点 + 触发合并后的「复盘错误候选」命令
+    const btn = dv.el("button", "🔍 复盘此节点候选");
+    btn.onclick = async () => {
+      await app.workspace.openLinkText(entry.path, "", false);
+      setTimeout(() => {
+        app.commands.executeCommandById(
+          "canvas-learning-system:canvas:review-error-candidate"
+        );
+      }, 200);
+    };
     const rows = cands.map(c => {
       const conf = typeof c.confidence === "number" ? c.confidence : 0.5;
       let icon = "🔴";  // <0.6 低置信
       if (conf >= 0.8) icon = "🟢";
       else if (conf >= 0.6) icon = "🟡";
-      const desc = c.description || "(无描述)";
+      const desc = c.misconception || c.description || "(无描述)";
       const ptype = c.pedagogy_type || "—";
       const seen = c.seen_count || 1;
       const lastSeen = c.last_seen_at ? String(c.last_seen_at).slice(0, 10) : "—";
@@ -282,7 +296,33 @@ if (totalPending === 0) {
     );
   }
   dv.paragraph(
-    "💡 **如何处理**: 打开节点 → `Cmd+P` 搜 \"接受错误候选\" / \"异议错误候选\" → 选条处理"
+    "💡 **如何处理**: 点上方「🔍 复盘此节点候选」按钮，或任意位置 `Cmd+P` 搜 \"复盘错误候选\"（自动全库扫描）"
+  );
+}
+
+// 方案 A (轨道 B 2026-07-20, C2 观察 c): 已处理候选人类可读清单 —
+// 处理后不再"只有 Notice 没有去向", 折叠列表随时可回看
+const handled = [];
+for (const page of allNodes) {
+  for (const c of page.error_candidates) {
+    if (["accepted", "edited", "disputed", "dismissed"].includes(c.status)) {
+      handled.push({ node: page.file.link, c });
+    }
+  }
+}
+if (handled.length > 0) {
+  dv.header(4, `✅ 已处理 ${handled.length} 条（点开回看）`);
+  const stateIcon = { accepted: "✅ 已确认", edited: "✅ 已确认(改)", disputed: "⚠️ 已异议", dismissed: "🚫 已忽略" };
+  dv.table(
+    ["节点", "处理", "误解", "理由/时间"],
+    handled.map(({ node, c }) => [
+      node,
+      stateIcon[c.status] || c.status,
+      String(c.misconception || c.description || "").slice(0, 60),
+      c.dispute_reason
+        ? String(c.dispute_reason).slice(0, 30)
+        : String(c.status_changed_at || "").slice(0, 10),
+    ])
   );
 }
 ```
@@ -360,7 +400,11 @@ if (boards.length === 0) {
   for (const b of boards) {
     const qs = Array.isArray(b.questions) ? b.questions : [];
     const scored = qs.filter(q => q && typeof q.score === "number");
-    const isDone = b.status === "completed" || (qs.length > 0 && scored.length === qs.length);
+    // P8 修复 (轨道 B 2026-07-20): /quiz-answer 实际写 status: done, 旧字面量
+    // "completed" 永不命中 (靠全题已评兜底侥幸正确); scored_pending_node_update
+    // 半态明确排除, 防评分中途被提前当完成显示均分 (HARD-SILENT)。
+    const isDone = ["completed", "done"].includes(b.status)
+      || (b.status !== "scored_pending_node_update" && qs.length > 0 && scored.length === qs.length);
     if (isDone) done++; else inProgress++;
     const scoreCell = isDone && scored.length > 0
       ? (scored.reduce((s, q) => s + q.score, 0) / scored.length).toFixed(1)
@@ -390,7 +434,7 @@ if (boards.length === 0) {
 | 笔记追加到已有白板 | `canvas:append-note-to-board` | 打开 md → Cmd+P 搜"把当前笔记追加" |
 | 节点内派生子节点 | `canvas:ai-linked-doc` | 选中文字 → **Cmd+Shift+D** |
 | 文字加 callout 批注 | `canvas:annotate-callout` | 选中文字 → **Cmd+Shift+A** |
-| 启动考察（confirm）| `canvas:start-examination-confirm` | Cmd+P 搜"启动考察" |
+| 启动考察 | `canvas:start-examination` | Cmd+P 搜"启动考察" |
 
 ---
 

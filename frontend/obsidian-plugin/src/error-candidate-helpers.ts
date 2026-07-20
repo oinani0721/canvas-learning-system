@@ -187,5 +187,14 @@ export function validateDisputeReason(reason: string): {
   if (!reason.trim()) {
     return { valid: false, error: "dispute_reason 不能全为空白" };
   }
+  // 轨道 B (2026-07-20, C2 观察 a): 与后端同规则拒占位理由 —
+  // 用户实测填 "111" 也曾通过, 弱化异议数据质量。
+  const trimmed = reason.trim();
+  if (trimmed.length < 2 || new Set(Array.from(trimmed)).size === 1) {
+    return {
+      valid: false,
+      error: "请写一句真实理由（如「我没这么说过，是 AI 过度推断」），不接受占位字符",
+    };
+  }
   return { valid: true };
 }
