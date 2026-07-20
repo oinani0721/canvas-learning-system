@@ -17,7 +17,7 @@ import asyncio
 import os
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -30,6 +30,12 @@ from app.graphiti.entity_types import (
     ErrorType,
     PedagogyErrorType,
     RemedyStrategy,
+)
+from app.services.candidate_callout import (
+    candidate_correction,
+    candidate_misconception,
+    render_candidate_callout,
+    upsert_candidate_callout,
 )
 from app.services.candidate_state_machine import (
     apply_status_change,
@@ -56,7 +62,9 @@ class CandidateEdits(BaseModel):
 
     description: Optional[str] = Field(default=None, description="覆盖错误描述")
     pedagogy_type: Optional[str] = Field(default=None, description="覆盖 4 主类标签")
-    legacy_type: Optional[str] = Field(default=None, description="覆盖 Story 3.6 兼容标签")
+    legacy_type: Optional[str] = Field(
+        default=None, description="覆盖 Story 3.6 兼容标签"
+    )
 
 
 class AcceptCandidateResult(BaseModel):
@@ -95,10 +103,30 @@ def _read_frontmatter_dict(file_path: Path) -> tuple[dict[str, Any], str]:
     return fm_dict, body
 
 
+def _normalize_yaml_timestamps(obj: Any) -> Any:
+    """轨道 B (2026-07-20, C2 观察 b): 统一时间戳序列化格式。
+
+    yaml.safe_load 会把未加引号的 ISO 时间戳解析成 datetime 对象,
+    safe_dump 再吐成空格分隔形态 (`2026-05-05 08:00:00+00:00`), 与代码
+    新写的引号 T 串在同一 frontmatter 里两态并存。写回前统一转
+    isoformat 字符串, 每次写都向 T 格式收敛。
+    """
+    if isinstance(obj, dict):
+        return {k: _normalize_yaml_timestamps(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_normalize_yaml_timestamps(v) for v in obj]
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, date):
+        return obj.isoformat()
+    return obj
+
+
 def _atomic_write_frontmatter(
     file_path: Path, fm_dict: dict[str, Any], body: str
 ) -> None:
     """原子写回 frontmatter + body (临时文件 + os.replace)."""
+    fm_dict = _normalize_yaml_timestamps(fm_dict)
     new_fm = yaml.safe_dump(fm_dict, allow_unicode=True, sort_keys=False)
     new_text = f"---\n{new_fm}---\n{body}"
     with tempfile.NamedTemporaryFile(
@@ -226,9 +254,7 @@ async def accept_candidate(
     start = _time.monotonic()
     p = Path(file_path)
     if not p.exists():
-        raise HTTPException(
-            status_code=404, detail=f"Node file not found: {file_path}"
-        )
+        raise HTTPException(status_code=404, detail=f"Node file not found: {file_path}")
 
     lock = _get_file_lock(p)
     async with lock:
@@ -267,7 +293,9 @@ async def accept_candidate(
         node_id_for_dedupe = candidate.get("node_id") or ""
         dedupe_hash = _make_dedupe_hash(classified, node_id_for_dedupe)
         now_iso = datetime.now(timezone.utc).isoformat()
-        error_id = candidate_id  # AC #5: 复用 candidate_id 作为 error_id (frontmatter 一致)
+        error_id = (
+            candidate_id  # AC #5: 复用 candidate_id 作为 error_id (frontmatter 一致)
+        )
 
         errors_list = fm_dict.get("errors") or []
         if not isinstance(errors_list, list):
@@ -303,6 +331,11 @@ async def accept_candidate(
                 "legacy_type": classified.legacy_type.value,
                 "legacy_remedy": classified.legacy_remedy.value,
                 "description": classified.description,
+                # 方案 A 硬要求③ (P5): 误解/更正拆分透传到 errors[],
+                # 出题侧 (targeting-material) 只读 misconception 防泄题
+                "misconception": candidate_misconception(candidate),
+                "correction": candidate_correction(candidate),
+                "provenance": candidate.get("provenance") or "distilled",
                 "corrected_at": None,
                 "last_seen_at": now_iso,
                 "seen_count": 1,
@@ -322,13 +355,20 @@ async def accept_candidate(
         # candidate 已 mutated by apply_status_change, candidates 引用未变
         fm_dict["error_candidates"] = candidates
 
+        # 方案 A 双写回显 (轨道 B 2026-07-20): 正文卡片 🔴→✅。
+        # 容错 (提案风险提示): 用户手删卡片 → 锚点缺失 → 只改 frontmatter。
+        body, _card_updated = upsert_candidate_callout(
+            body,
+            candidate_id,
+            render_candidate_callout(candidate, "accepted"),
+            append_if_missing=False,
+        )
+
         # 原子写回
         try:
             await asyncio.to_thread(_atomic_write_frontmatter, p, fm_dict, body)
         except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Atomic write failed: {e}"
-            )
+            raise HTTPException(status_code=500, detail=f"Atomic write failed: {e}")
 
         # Fire-and-forget Graphiti
         graphiti_status = "skipped"
@@ -403,6 +443,17 @@ async def dispute_candidate(
         raise HTTPException(
             status_code=422, detail="dispute_reason is required for dispute"
         )
+    # 轨道 B (2026-07-20, C2 观察 a): 用户实测填占位"111"也能过 —
+    # 拒绝过短与单字符重复的占位理由, 保住异议数据质量。
+    _reason = dispute_reason.strip()
+    if len(_reason) < 2 or len(set(_reason)) == 1:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "dispute_reason too weak: 请写一句真实理由 "
+                "(如「我没这么说过, 是 AI 过度推断」), 不接受占位字符"
+            ),
+        )
 
     return await _change_candidate_status_only(
         file_path,
@@ -425,9 +476,7 @@ async def _change_candidate_status_only(
     start = _time.monotonic()
     p = Path(file_path)
     if not p.exists():
-        raise HTTPException(
-            status_code=404, detail=f"Node file not found: {file_path}"
-        )
+        raise HTTPException(status_code=404, detail=f"Node file not found: {file_path}")
 
     lock = _get_file_lock(p)
     async with lock:
@@ -456,12 +505,21 @@ async def _change_candidate_status_only(
 
         fm_dict["error_candidates"] = candidates
 
+        # 方案 A 双写回显 (轨道 B 2026-07-20): 正文卡片 🔴→⚠️。
+        # 锚点缺失 (用户手删) → 只改 frontmatter, 不补卡片。
+        body, _card_updated = upsert_candidate_callout(
+            body,
+            candidate_id,
+            render_candidate_callout(
+                candidate, target_status, dispute_reason=dispute_reason
+            ),
+            append_if_missing=False,
+        )
+
         try:
             await asyncio.to_thread(_atomic_write_frontmatter, p, fm_dict, body)
         except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Atomic write failed: {e}"
-            )
+            raise HTTPException(status_code=500, detail=f"Atomic write failed: {e}")
 
         elapsed_ms = (_time.monotonic() - start) * 1000.0
         logger.info(

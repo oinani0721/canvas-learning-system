@@ -30,8 +30,15 @@ logger = logging.getLogger(__name__)
 _MAX_ERRORS_PER_NEIGHBOR = 3
 
 
-def _read_neighbor_errors(node_id: str) -> list[str]:
-    """读邻居节点当前态错误描述 (正式 errors[] 优先 + tips tag=error)。"""
+def _read_neighbor_errors(node_id: str, group_id: str = "") -> list[str]:
+    """读邻居节点当前态错误描述 (正式 errors[] 优先 + tips tag=error)。
+
+    轨道 B P2 (2026-07-20): 两道新防线 —
+    ① vault 归属校验: 邻居 md 的 errors[].group_id 与请求 group 不一致
+       一律拒收 (UAT-2.5.X-test 的 CS188 素材曾混入线代 vault 出题链);
+    ② 泄题防御 (P5/硬要求③): 优先读 misconception 字段 (误解半句),
+       缺失才回退 description — 更正半句永不进出题素材。
+    """
     # 纵深防御: neighbor_id 来自图内受控数据 (sync 写入 md.stem), 但
     # _node_md_path 本身无穿越防护 — 含路径分隔/父目录引用一律拒绝
     if "/" in node_id or "\\" in node_id or ".." in node_id:
@@ -50,7 +57,18 @@ def _read_neighbor_errors(node_id: str) -> list[str]:
     # 正式 errors[] — 2.5.X accept/edited 移入, 用户主权确认过的错误
     for err in fm.get("errors") or []:
         if isinstance(err, dict):
-            desc = str(err.get("description") or "").strip()
+            # P2 vault 归属校验: 记录带 group_id 且与请求组不一致 → 拒收。
+            # (老记录无 group_id 时放行, 兼容存量; 测试种子会带异组标记)
+            err_group = str(err.get("group_id") or "").strip()
+            if group_id and err_group and err_group != group_id:
+                logger.info(
+                    "[T4-P2] 拒收跨 vault 邻居素材: node=%s err_group=%s req_group=%s",
+                    node_id,
+                    err_group,
+                    group_id,
+                )
+                continue
+            desc = str(err.get("misconception") or err.get("description") or "").strip()
             if desc:
                 out.append(desc)
     # tips[] 中用户手标的 error
@@ -88,10 +106,13 @@ async def collect_targeting_material(
 
         client = get_neo4j_client()
         # T1/T2: 投影图物理 __ 格式; 双向 1-hop, 边 label = 用户增殖原因
+        # 轨道 B P2 (2026-07-20): m 侧补 group 谓词 — 旧查询只滤边不滤
+        # 邻居节点, 跨 vault 节点经同组边混入 (UAT-2.5.X-test 污染根因之一)
         records = await client.run_query(
             """
             MATCH (n:CanvasNode {id: $node_id})-[e:CANVAS_EDGE]-(m:CanvasNode)
             WHERE e.group_id = $group_id AND m.id <> $node_id
+              AND (m.group_id IS NULL OR m.group_id = $group_id)
             RETURN DISTINCT m.id AS neighbor_id, e.label AS reason
             LIMIT 10
             """,
@@ -111,7 +132,7 @@ async def collect_targeting_material(
         reason = str(data.get("reason") or "").strip()
         if not neighbor_id:
             continue
-        for err_text in _read_neighbor_errors(neighbor_id):
+        for err_text in _read_neighbor_errors(neighbor_id, group_id=group_id):
             if used + len(err_text) > budget_chars:
                 logger.debug("[T4] 素材达字符预算 %d, 截断", budget_chars)
                 return result

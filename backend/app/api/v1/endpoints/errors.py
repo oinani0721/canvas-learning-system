@@ -139,7 +139,9 @@ class DisputeCandidateRequest(BaseModel):
     candidate_id: str = Field(..., description="error_candidates[].id")
     node_id: str = Field(..., description="vault-relative node path")
     dispute_reason: str = Field(
-        ..., min_length=1, description="用户简短说明为何认为 AI 判断错"
+        ...,
+        min_length=2,  # 轨道 B (2026-07-20): 拒占位理由, 服务层另拒单字符重复
+        description="用户简短说明为何认为 AI 判断错",
     )
     vault_id: str = Field(
         ...,

@@ -80,12 +80,24 @@ def _make_candidate_record(
     ai_reason: str | None = None,
     evidence_turns: list[int] | None = None,
     raw_dialog_excerpt: str | None = None,
+    provenance: str = "distilled",
 ) -> dict[str, Any]:
-    """Story 2.5.X AC #1 — 构造 candidate dict (含 6 状态机初始值 pending)."""
+    """Story 2.5.X AC #1 — 构造 candidate dict (含 6 状态机初始值 pending).
+
+    方案 A 硬要求 (2026-07-20 裁决): provenance 区分 seeded (测试种子) /
+    distilled (真实蒸馏); description 拆 misconception/correction 双字段
+    (出题侧只读前者防泄题, P5), description 保留兼容旧读侧。
+    """
+    from app.services.candidate_callout import split_description
+
+    misconception, correction = split_description(error.description)
     return {
         "id": candidate_id,
         "status": CANDIDATE_INITIAL_STATUS,
         "source": CANDIDATE_SOURCE_AI,
+        "provenance": provenance,
+        "misconception": misconception,
+        "correction": correction,
         "node_id": node_id,
         "session_id": session_id,
         "group_id": group_id,
@@ -224,6 +236,21 @@ def write_candidate_to_frontmatter(
                 raw_dialog_excerpt=raw_dialog_excerpt,
             )
             candidates_list.append(new_record)
+
+            # 方案 A 双写回显 (轨道 B 2026-07-20): 新候选生成时同步在正文
+            # 追加 🔴 待复盘卡片 (锚点 %%cand:<id>%%, accept/dispute 时原地
+            # 变态)。生产写侧当前断裂 (P14, 轨道③接通), 此处先就绪。
+            from app.services.candidate_callout import (
+                render_candidate_callout,
+                upsert_candidate_callout,
+            )
+
+            body, _ = upsert_candidate_callout(
+                body,
+                candidate_id,
+                render_candidate_callout(new_record, "pending"),
+                append_if_missing=True,
+            )
 
         fm_dict["error_candidates"] = candidates_list
 
