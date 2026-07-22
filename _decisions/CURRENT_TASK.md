@@ -1,23 +1,25 @@
 ---
-active_plan: "EPIC1-BMAD-DEV-ASSESS-2026-04-17"
-active_plan_file: ".gdr/dev-pack-next-session-convergence.xml (包尾任务书)"
-current_sprint: "基本功能收敛 T1-T6 (2026-07-10 交接)"
-sprint_progress: "UAT A-D 四线全过 → 轨道 B 快修+方案A 全部完成(2026-07-20) — 下一个: 轨道 A 灵魂闭环"
-next_story_id: "track-A-soul-loop"
-next_story_title: "轨道A: 收敛机制+P12弃答+P11增量归纳+题目去重; 之后轨道③蒸馏写侧接通(P14); backlog: C0分叉合并/key轮换/exam_quick摘除"
+active_plan: "MEM-FLYWHEEL-2026-07-22"
+active_plan_file: "_bmad-output/研究/2026-07-22-下一步开发计划-稳定记忆与越老越准.md"
+current_sprint: "MEM-FLYWHEEL 批次 0-3 (2026-07-22 用户拍板: 直接执行)"
+sprint_progress: "批次0 稳定记忆底座 5/5 完工(2026-07-22, 验收单 Story-MEM-0 awaiting UAT) — 下一个: 批次1 越老越准地基(track-A 四件套 quick-spec 先行 + search_memories 触发 + RAG 三死因)"
+next_story_id: "MEM-1-track-A"
+next_story_title: "批次1: A1收敛机制(顺修P3)→A2弃答→A3增量归纳→A4题目去重 (vault SKILL层,零后端) ∥ search_memories确定性触发 ∥ RAG三死因(先验证agentic_rag缺OPENAI_API_KEY主导假说); 之后批次2: P14+candidate_only+dispute负反馈+calibration消费者+learning_events.jsonl; 批次3: 拆分记录补强"
 next_story_files:
-  - "_bmad-output/研究/2026-07-10-T4-Graphiti读侧接通检验白板-设计小节.md"
-  - "backend/app/services/graphiti_memory_reader.py"
-last_commit_hash: "见 git log"  # a6b283b4(M3) 942f8e47(punycode) 7a3d53bc(M1+M2) + M5 reranker
-last_commit_hash_alt: "56ee681"  # 交接任务书 commit
-sprint_status_file: "_bmad-output/implementation-artifacts/sprint-status.yaml"
+  - "canvas-vault/.claude/skills/start-exam-board/SKILL.md"
+  - "canvas-vault/.claude/skills/quiz-answer/SKILL.md"
+  - "backend/lib/agentic_rag/clients/graphiti_client.py"
+last_commit_hash: "见 git log"  # 批次0 commit 本轮产生
+last_commit_hash_alt: "a5fd7766"  # 07-20 轨道B收尾
+sprint_status_file: "_bmad-output/implementation-artifacts/sprint-status.yaml"  # ⚠️ stale(停在5-31), 以本文件+git log 为准
 sprint_status_key: "development_status.sprint_v3_obsidian_hybrid"
 prd_anchor: "/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md"
 session_handover_sop: "新 session 5 min 启动 — 见正文 §1"
 plan_kind: "bmad-implementation"
-active_phase: "p0-complete-awaiting-uat"
-round: 15
-last_updated: "2026-07-13T05:00:00Z"
+active_phase: "mem-flywheel-batch0-done-batch1-next"
+round: 16
+last_updated: "2026-07-22T04:00:00Z"
+round16_key_finding: "用户定调最高优先级=稳定记忆记录拆分+考察过程越老越准; 批次0当天完工: 12341/18012宿主进程静默死亡2天被抓现行(launchd自启+Docker登录项+启动自检根治), Neo4j每日4:30备份(Community唯一官方姿势stop→dump→start,首份3.8MB), episode_worker三处QueueShutDown 3.11兼容(停机日志抓到AttributeError现行)+确定性校验错误免重试, SessionEnd hook本地待发队列(幂等/30次转dead), 每日9:00健康摘要落盘backups/memory-health.log; 4个关联测试失败为存量债(stash验证)"
 round15_key_finding: "M1 canary: 关思考是 Qwen3.5 结构化抽取的生死开关(思维链烧穿 token 预算→空 content, LM Studio #1773 同病理); 中文白板名段被 graphiti validator 拒→IDNA punycode 段编码(可逆/幂等), 存量迁 1 节点; E2E: 本地 Qwen add_episode 6.9s, 影子分组隔离机制验证; llama-server 启动脚本 scripts/local-llm/start-qwen-graphiti.sh 参数即契约"
 round14_key_finding: "T1 洗号点=group_id_compat 边界 sanitize 铺设不彻底(非 bug 而是执行不完整); 物理层统一 __ 格式+to_physical_group_id 唯一入口(幂等防御 vault__ 前缀); 对抗审查修 3 缺陷(migration 反向写坏/JSON fallback 不成对/desanitize 有损告警); T3 根因=metadata rebuild 新建实例 drop 表而 chat singleton 持旧句柄, 9 处改按需 open_table; 额外发现 /enrich-context 500(search_error_memories 从未实现,无调用方,未修)"
 round10_key_finding: "推荐选项 1 用户手动 docker-compose up + Obsidian Plugin 健康检查（0 代码，符合 Smart Connections/Khoj/Copilot 社区主流）+ 可选选项 2 Claudian MCP tool check_backend_health 自动协调（~50 行 Python）。关键证据：tauri.conf.json 无 sidecar 配置（Tauri 原本也未自动启动），Electron 沙箱禁止 Plugin spawn subprocess，Claudian 是唯一合法自动启动通道"
