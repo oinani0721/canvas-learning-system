@@ -36,6 +36,37 @@ from graphiti_core import Graphiti
 logger = structlog.get_logger(__name__)
 
 
+# ── Py<3.13 兼容层 (2026-07-22 批次0) ──────────────────────────────────────
+# asyncio.QueueShutDown / Queue.shutdown() 是 Python 3.13+ API, 生产容器为
+# python:3.11-slim — except 子句在异常匹配时才求值, 属性缺失会以
+# AttributeError 掩盖原始异常并中断关停排空。导入期解析一次。
+class _QueueShutDownFallback(Exception):
+    """Py<3.13 占位 — 永不被抛出, 仅使 except 子句可安全求值。"""
+
+
+_QUEUE_SHUTDOWN: type[BaseException] = getattr(
+    asyncio, "QueueShutDown", _QueueShutDownFallback
+)
+
+#: Py<3.13 无 Queue.shutdown() 时用于优雅停机的队列哨兵。
+_STOP_SENTINEL: Any = object()
+
+try:
+    from graphiti_core.errors import (
+        EntityTypeValidationError,
+        GroupIdValidationError,
+    )
+
+    #: 确定性校验错误 — 重试必然同样失败 (如 group_id 含非法字符),
+    #: 直接死信留证, 不空转重试队列。
+    _PERMANENT_EPISODE_ERRORS: tuple[type[Exception], ...] = (
+        GroupIdValidationError,
+        EntityTypeValidationError,
+    )
+except ImportError:  # pragma: no cover — graphiti_core 版本无此错误类
+    _PERMANENT_EPISODE_ERRORS = ()
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Data Models
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -442,7 +473,15 @@ class GraphitiEpisodeWorker:
         logger.info(f"Stopping GraphitiEpisodeWorker, {pending} events pending...")
 
         # Step 1: Signal queue shutdown (no more puts, gets continue until empty)
-        self._queue.shutdown(immediate=False)
+        queue_shutdown = getattr(self._queue, "shutdown", None)
+        if queue_shutdown is not None:
+            queue_shutdown(immediate=False)
+        else:
+            # Py<3.13 无 Queue.shutdown(): 哨兵入队, worker 排空存量后自然退出
+            try:
+                self._queue.put_nowait(_STOP_SENTINEL)
+            except asyncio.QueueFull:
+                pass  # 队列满: 依赖下方 drain 超时 + cancel 兜底
 
         # Step 2: Wait for worker to drain and exit naturally
         if self._worker_task is not None:
@@ -487,7 +526,7 @@ class GraphitiEpisodeWorker:
                 f"dropping: {task.name[:50]}"
             )
             return False
-        except asyncio.QueueShutDown:
+        except _QUEUE_SHUTDOWN:
             logger.warning(f"Episode queue shut down, cannot enqueue: {task.name[:50]}")
             return False
 
@@ -511,8 +550,11 @@ class GraphitiEpisodeWorker:
         while True:
             try:
                 task = await self._queue.get()
-            except asyncio.QueueShutDown:
+            except _QUEUE_SHUTDOWN:
                 logger.info("Queue shut down signal received, worker exiting")
+                break
+            if task is _STOP_SENTINEL:
+                logger.info("Stop sentinel received, worker exiting")
                 break
 
             start = time.perf_counter()
@@ -612,6 +654,15 @@ class GraphitiEpisodeWorker:
 
     async def _handle_failure(self, task: EpisodeTask, error: Exception) -> None:
         """Handle a failed episode: retry with backoff or dead-letter."""
+        if isinstance(error, _PERMANENT_EPISODE_ERRORS):
+            # 确定性校验错误重试必然复现 — 直接死信留证 (2026-07-22 批次0)
+            logger.error(
+                f"Episode permanently failed (deterministic validation, "
+                f"skip retry): {error}"
+            )
+            self._metrics.episodes_dead_lettered += 1
+            self._dead_letter.store(task, error)
+            return
         if task.can_retry:
             task.retry_count += 1
             backoff = task.backoff_seconds
@@ -622,7 +673,7 @@ class GraphitiEpisodeWorker:
             await asyncio.sleep(backoff)
             try:
                 self._queue.put_nowait(task)
-            except (asyncio.QueueFull, asyncio.QueueShutDown):
+            except (asyncio.QueueFull, _QUEUE_SHUTDOWN):
                 # Cannot re-queue: dead-letter it
                 self._metrics.episodes_dead_lettered += 1
                 self._dead_letter.store(task, error)

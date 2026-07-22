@@ -261,6 +261,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             f"[Story 5.6] Signal adapter registration failed (non-fatal): {e}"
         )
 
+    # 批次0 0-1 (2026-07-22): local provider 宿主进程健康自检 — 显式告警替代静默失败
+    try:
+        from app.graphiti.llm_factory import check_local_providers_health
+
+        for problem in await check_local_providers_health():
+            logger.error(f"[记忆系统健康自检] ⚠️ {problem}")
+    except Exception as e:
+        logger.warning(f"[记忆系统健康自检] 自检本身失败 (non-fatal): {e}")
+
     # Phase 2: GraphitiEpisodeWorker — real Graphiti integration
     from app.services.episode_worker import get_episode_worker
 

@@ -54,6 +54,46 @@ def get_graphiti_max_coroutines() -> int:
     return 1 if get_llm_provider() == "local" else 3
 
 
+async def check_local_providers_health() -> list[str]:
+    """local provider 宿主进程可达性自检 (MEM-FLYWHEEL-2026-07-22 批次0 0-1)。
+
+    返回不可达项的人话描述列表 (空 = 全部健康或未启用 local)。
+    宿主 llama-server 进程死亡时 add_episode/rerank 会静默失败且无
+    fallback (provider 为 env 静态选择) — 此处在启动时点名告警,
+    替代「用户几天后才发现语义记忆没入图」。
+    """
+    import httpx
+
+    probes: list[tuple[str, str, str]] = []
+    if get_llm_provider() == "local":
+        base = os.getenv("GRAPHITI_LLM_BASE_URL") or _LOCAL_LLM_DEFAULT_BASE_URL
+        probes.append(
+            (
+                "语义抽取 LLM (Qwen@12341)",
+                f"{base.rstrip('/')}/models",
+                "scripts/local-llm/start-qwen-graphiti.sh",
+            )
+        )
+    if get_reranker_provider() == "local":
+        base = os.getenv("GRAPHITI_RERANKER_BASE_URL") or _LOCAL_RERANK_DEFAULT_BASE_URL
+        probes.append(
+            (
+                "检索精排 reranker (@18012)",
+                f"{base.rstrip('/')}/models",
+                "scripts/local-llm/start-reranker-graphiti.sh",
+            )
+        )
+
+    unreachable: list[str] = []
+    async with httpx.AsyncClient(timeout=3.0) as client:
+        for name, url, fix in probes:
+            try:
+                await client.get(url)
+            except Exception:
+                unreachable.append(f"{name} 不可达 ({url}) — 修复: 宿主机运行 {fix}")
+    return unreachable
+
+
 def build_llm_client(google_api_key: str = "", llm_model: str = "") -> Any:
     """按 GRAPHITI_LLM_PROVIDER 构造 graphiti LLMClient。
 
