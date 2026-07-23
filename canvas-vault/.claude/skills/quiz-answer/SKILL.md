@@ -102,7 +102,7 @@ PYEOF
 ## Step 3 · 写分 + 置 scored_pending_node_update（两阶段第一步）
 
 `Edit` **检验白板 md** frontmatter：
-- `questions[0].score` = grade（2 位）；`questions[0].score_dims` = 4 维 + `rubric_version: "v1.1"`
+- `questions[0].score` = grade（2 位）；`questions[0].score_dims` = 4 维 + `rubric_version: "v1.1"`；**必写 `score_scale: "1-4 (1=最低)"`**（2026-07-24：1.00 是最低档而非满分，量纲必须随数据走，防人与下游工具误读）
 - `questions[0].self_confidence` = 理解自评 raw
 - 若触发基准门禁 → `needs_content_review: true`
 - **`status: scored_pending_node_update`**（⛔ 此步**不写 done**——节点更新成功前，检验白板停在可续跑态）
@@ -110,7 +110,7 @@ PYEOF
 ## Step 4 · 节点原子写（JSON payload + 静态 python，injection-proof）
 
 **4a · 先由你（Claude）备料**：
-1. `Grep` 检验白板答题区疑问批注（`^>\s*\[!question\]\+` / `^>\s*\[!error\]\+` / `\*\*User[：:][^*]+\*\*`）。有则拼 callout 归纳块（含 AI 判断原因，一句话忠实不编造）；无则空串。⛔ P7（2026-07-16）：**跳过内容只剩占位符「✍️ 我的疑问：」的空疑问 callout**（「插入新疑问」命令插入后弃置未填）——空占位不是疑问，归纳它是纯噪音。
+1. `Grep` 检验白板答题区疑问批注（`^>\s*\[!question\]\+` / `^>\s*\[!error\]\+` / `\*\*User[：:][^*]+\*\*`）。有则拼 callout 归纳块（含 AI 判断原因，一句话忠实不编造）；无则空串。**低分兜底（2026-07-24，UAT 实操缺口）**：若 `grade_norm = 0` 且上述 Grep 无任何新疑问（用户答了内容但全空泛，如「我就是不够理解」——超过弃答词长度、又没写成疑问 callout）→ 必须构造一条疑问 callout（引用用户作答原话 + 题目 hook，AI 判断原因写「0 分作答暴露的概念缺口」）——本轮暴露的薄弱信号不得空手而归。⛔ P7（2026-07-16）：**跳过内容只剩占位符「✍️ 我的疑问：」的空疑问 callout**（「插入新疑问」命令插入后弃置未填）——空占位不是疑问，归纳它是纯噪音。
 2. `Bash: date -u +"%Y-%m-%dT%H:%M:%SZ"` → ts。
 
 **4b · 用 `Write` 工具写 payload 到 `/tmp/quiz-answer-payload.json`**（⛔ 用 Write 工具写 JSON，不经 shell——引号/换行/反斜杠天然安全）：
