@@ -1,0 +1,199 @@
+# G0 评测门禁 gold set — 记忆检索 (MEM-FLYWHEEL-2026-07-22)
+# 被测对象: memory_service.search_memories() 三层融合生产链 (与 MCP search_memories 工具同路径)
+# 来源: 12 条基底重构自 _bmad-output/研究/2026-07-22-记忆检索效果对抗审查.md §四 (逐字 query 未存档,
+#       按对抗角度重构等价 query; 基线以脚本首跑为准, 与人工打分 55.8% 口径不同属预期)
+#       + 13 条新增 (计划 v2 G0 要求: 25 条中英对半, 含不存在主题/同义改写/短词歧义三类难例)
+# 判分: 结果文本命中 expect_any 任一子串(casefold) = relevant (fuzzy substring, 同 tests/golden_test_set.yaml 方法)
+# 指标: recall@5 / MRR / 重复率 / 假阳性率 / 泄漏率 — 见 backend/scripts/run_memory_retrieval_regression.py
+
+config:
+  group_id: null            # null = 运行时 default_vault_group_id() 推导 (与 MCP 工具缺省一致)
+  max_results: 10
+  # 泄漏标记: 命中任一 = 测试污染泄漏 (对抗审查 C1: TestConceptA/B/C, UAT-2.5.X-test 种子, m3-e2e 会话链)
+  leak_markers:
+    - "TestConcept"
+    - "UAT-2.5"
+    - "m3-e2e"
+    - "混淆了 admissibility 和 consistency"   # UAT 测试种子原文 (线代节点泄漏实锤样本)
+  # 近重复判定阈值 (normalized 文本 difflib ratio)
+  duplicate_ratio: 0.92
+  # 门禁容差: 提升类指标不得比基线低超此值, 污染类指标不得比基线高超此值
+  tolerance: 0.02
+
+queries:
+  # ── 基底 12 条 (对抗审查 §四 q1-q12 重构) ──
+  - id: mem-01
+    query: "特征值在 PCA 中的作用是什么"
+    language: zh
+    category: knowledge
+    origin: "审查 q1 (实测 80%, 同三元组 5 变体占半屏)"
+    expect_any: ["特征值", "eigenvalue", "PCA", "主成分"]
+
+  - id: mem-02
+    query: "零空间和特征值有什么关系"
+    language: zh
+    category: knowledge
+    origin: "审查 q2 (实测 65%, 两条逐字节相同并排)"
+    expect_any: ["零空间", "null space", "特征值", "eigenvalue"]
+
+  - id: mem-03
+    query: "forward checking vs AC-3 difference"
+    language: en
+    category: knowledge
+    origin: "审查 q3 (实测 90%, 最佳)"
+    expect_any: ["forward checking", "AC-3", "arc consistency", "弧一致"]
+
+  - id: mem-04
+    query: "how does backtracking search relate to DFS"
+    language: en
+    category: knowledge
+    origin: "审查 q4 (实测 95%, 但同 fact 重复 7 次)"
+    expect_any: ["backtracking", "DFS", "depth-first", "回溯", "深度优先"]
+
+  - id: mem-05
+    query: "什么是理性代理"
+    language: zh
+    category: annotation
+    origin: "审查 q5 (实测 30%, rank1 是弧一致性)"
+    expect_any: ["理性", "rational", "agent", "代理"]
+
+  - id: mem-06
+    query: "我对哪些概念有误解"
+    language: zh
+    category: meta
+    origin: "审查 q6 (实测 45%, 孤立批注不带所属节点)"
+    expect_any: ["误解", "混淆", "错误", "misconception", "confus"]
+
+  - id: mem-07
+    query: "协方差矩阵怎么计算"
+    language: zh
+    category: knowledge
+    origin: "审查 q7 (实测 85%, 纯中文可用)"
+    expect_any: ["协方差", "covariance"]
+
+  - id: mem-08
+    query: "一个矩阵把向量拉伸但不改变它的方向，这个方向说明什么"
+    language: zh
+    category: paraphrase
+    origin: "审查 q8 (同义改写零关键词, 实测 60%, 正解 rank7)"
+    expect_any: ["特征向量", "特征值", "eigenvector", "eigenvalue"]
+
+  - id: mem-09
+    query: "傅里叶变换的性质"
+    language: zh
+    category: nonexistent
+    origin: "审查 q9 (库内不存在, 实测满编 10 条无关)"
+    expect_empty: true
+
+  - id: mem-10
+    query: "我上次学习会话学了什么"
+    language: zh
+    category: session
+    origin: "审查 q10 (实测 35%, 专写的会话总结 fact 未召回)"
+    expect_any: ["会话", "总结", "session", "summary"]
+
+  - id: mem-11
+    query: "代理"
+    language: zh
+    category: ambiguous
+    origin: "审查 q11 (歧义短词, 实测 30%, 7/10 无关含裸词垃圾)"
+    expect_any: ["agent", "理性", "rational"]
+
+  - id: mem-12
+    query: "CSP 求解时先给哪个变量赋值"
+    language: zh
+    category: knowledge
+    origin: "审查 q12 (实测 55%, 正解 fact 在别的 query 出现过这里没召回)"
+    expect_any: ["变量", "MRV", "variable", "ordering", "CSP", "约束"]
+
+  # ── 新增 13 条 (G0: 补中英对半 + 三类难例) ──
+  - id: mem-13
+    query: "admissibility vs consistency of heuristics"
+    language: en
+    category: knowledge
+    origin: "g0-new (库内最强主题, A* 启发函数)"
+    expect_any: ["admissib", "consisten", "heuristic", "启发"]
+
+  - id: mem-14
+    query: "when is a heuristic guaranteed to never overestimate the true cost"
+    language: en
+    category: paraphrase
+    origin: "g0-new (同义改写零关键词 → admissible)"
+    expect_any: ["admissib", "heuristic", "启发", "overestimate"]
+
+  - id: mem-15
+    query: "value"
+    language: en
+    category: ambiguous
+    origin: "g0-new (歧义短词: value iteration vs eigenvalue vs 裸词垃圾 — 审查 q11 发现裸词垃圾 value)"
+    expect_any: ["value iteration", "值迭代", "utility", "效用", "eigenvalue", "特征值"]
+
+  - id: mem-16
+    query: "value iteration convergence in MDPs"
+    language: en
+    category: knowledge
+    origin: "g0-new (CS188 值迭代)"
+    expect_any: ["value iteration", "值迭代", "MDP", "Bellman", "收敛"]
+
+  - id: mem-17
+    query: "minimax with alpha-beta pruning"
+    language: en
+    category: knowledge
+    origin: "g0-new (CS188 零和博弈)"
+    expect_any: ["minimax", "alpha-beta", "剪枝", "零和", "zero-sum"]
+
+  - id: mem-18
+    query: "red-black tree deletion rebalancing"
+    language: en
+    category: nonexistent
+    origin: "g0-new (数据结构不在库, 英文版假阳性测试)"
+    expect_empty: true
+
+  - id: mem-19
+    query: "what mistakes did I make about A* search"
+    language: en
+    category: meta
+    origin: "g0-new (元查询英文版, 错误记忆召回)"
+    expect_any: ["A*", "admissib", "consisten", "错误", "mistake"]
+
+  - id: mem-20
+    query: "covariance matrix and its eigenvectors"
+    language: en
+    category: crosslingual
+    origin: "g0-new (跨语: 库内协方差为中文三元组, 英文 query 测 dense 层拉平)"
+    expect_any: ["covariance", "协方差", "eigenvector", "特征向量"]
+
+  - id: mem-21
+    query: "arc consistency propagation steps"
+    language: en
+    category: knowledge
+    origin: "g0-new (AC-3 约束传播)"
+    expect_any: ["AC-3", "arc consistency", "弧一致", "constraint"]
+
+  - id: mem-22
+    query: "quantum entanglement basics"
+    language: en
+    category: nonexistent
+    origin: "g0-new (物理主题不在库, 假阳性测试)"
+    expect_empty: true
+
+  - id: mem-23
+    query: "怎么判断一个估价函数是不是乐观的"
+    language: zh
+    category: paraphrase
+    origin: "g0-new (同义改写中文 → admissible 不会高估)"
+    expect_any: ["admissib", "乐观", "启发", "heuristic", "高估"]
+
+  - id: mem-24
+    query: "极小极大搜索的剪枝方法"
+    language: zh
+    category: crosslingual
+    origin: "g0-new (跨语: 库内 minimax 为英文内容, 中文 query)"
+    expect_any: ["minimax", "alpha-beta", "剪枝", "极小极大"]
+
+  - id: mem-25
+    query: "consistency"
+    language: en
+    category: ambiguous
+    origin: "g0-new (歧义短词: heuristic consistency vs arc consistency, 均在库)"
+    expect_any: ["consisten", "单调", "triangle", "弧一致"]

@@ -1,0 +1,291 @@
+{
+  "run_at": "2026-07-23T04:23:01.658054+00:00",
+  "endpoint": "http://localhost:8011/mcp/tools/search_memories",
+  "group_id": "(server default: vault:canvas_vault)",
+  "query_count": 25,
+  "metrics": {
+    "recall_at_5": 0.6364,
+    "mrr": 0.6212,
+    "duplicate_rate": 0.132,
+    "false_positive_rate": 1.0,
+    "leak_rate": 0.0
+  },
+  "latency": {
+    "median_s": 0.309,
+    "max_s": 0.395
+  },
+  "per_query": [
+    {
+      "id": "mem-01",
+      "query": "特征值在 PCA 中的作用是什么",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.309,
+      "leaked": 0,
+      "duplicates": 1,
+      "relevant_in_top5": 5,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-02",
+      "query": "零空间和特征值有什么关系",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.297,
+      "leaked": 0,
+      "duplicates": 1,
+      "relevant_in_top5": 5,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-03",
+      "query": "forward checking vs AC-3 difference",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.346,
+      "leaked": 0,
+      "duplicates": 1,
+      "relevant_in_top5": 5,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-04",
+      "query": "how does backtracking search relate to DFS",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.368,
+      "leaked": 0,
+      "duplicates": 1,
+      "relevant_in_top5": 5,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-05",
+      "query": "什么是理性代理",
+      "category": "annotation",
+      "returned": 10,
+      "latency_s": 0.28,
+      "leaked": 0,
+      "duplicates": 1,
+      "relevant_in_top5": 1,
+      "first_relevant_rank": 2
+    },
+    {
+      "id": "mem-06",
+      "query": "我对哪些概念有误解",
+      "category": "meta",
+      "returned": 10,
+      "latency_s": 0.263,
+      "leaked": 0,
+      "duplicates": 1,
+      "relevant_in_top5": 0,
+      "first_relevant_rank": null
+    },
+    {
+      "id": "mem-07",
+      "query": "协方差矩阵怎么计算",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.331,
+      "leaked": 0,
+      "duplicates": 0,
+      "relevant_in_top5": 5,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-08",
+      "query": "一个矩阵把向量拉伸但不改变它的方向，这个方向说明什么",
+      "category": "paraphrase",
+      "returned": 10,
+      "latency_s": 0.319,
+      "leaked": 0,
+      "duplicates": 0,
+      "relevant_in_top5": 3,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-09",
+      "query": "傅里叶变换的性质",
+      "category": "nonexistent",
+      "returned": 10,
+      "latency_s": 0.318,
+      "leaked": 0,
+      "duplicates": 1,
+      "false_positives": 10
+    },
+    {
+      "id": "mem-10",
+      "query": "我上次学习会话学了什么",
+      "category": "session",
+      "returned": 10,
+      "latency_s": 0.265,
+      "leaked": 0,
+      "duplicates": 1,
+      "relevant_in_top5": 0,
+      "first_relevant_rank": null
+    },
+    {
+      "id": "mem-11",
+      "query": "代理",
+      "category": "ambiguous",
+      "returned": 10,
+      "latency_s": 0.252,
+      "leaked": 0,
+      "duplicates": 1,
+      "relevant_in_top5": 1,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-12",
+      "query": "CSP 求解时先给哪个变量赋值",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.315,
+      "leaked": 0,
+      "duplicates": 0,
+      "relevant_in_top5": 4,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-13",
+      "query": "admissibility vs consistency of heuristics",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.325,
+      "leaked": 0,
+      "duplicates": 3,
+      "relevant_in_top5": 5,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-14",
+      "query": "when is a heuristic guaranteed to never overestimate the true cost",
+      "category": "paraphrase",
+      "returned": 10,
+      "latency_s": 0.323,
+      "leaked": 0,
+      "duplicates": 0,
+      "relevant_in_top5": 0,
+      "first_relevant_rank": null
+    },
+    {
+      "id": "mem-15",
+      "query": "value",
+      "category": "ambiguous",
+      "returned": 10,
+      "latency_s": 0.258,
+      "leaked": 0,
+      "duplicates": 3,
+      "relevant_in_top5": 0,
+      "first_relevant_rank": 6
+    },
+    {
+      "id": "mem-16",
+      "query": "value iteration convergence in MDPs",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.395,
+      "leaked": 0,
+      "duplicates": 4,
+      "relevant_in_top5": 0,
+      "first_relevant_rank": null
+    },
+    {
+      "id": "mem-17",
+      "query": "minimax with alpha-beta pruning",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.257,
+      "leaked": 0,
+      "duplicates": 1,
+      "relevant_in_top5": 0,
+      "first_relevant_rank": null
+    },
+    {
+      "id": "mem-18",
+      "query": "red-black tree deletion rebalancing",
+      "category": "nonexistent",
+      "returned": 10,
+      "latency_s": 0.235,
+      "leaked": 0,
+      "duplicates": 2,
+      "false_positives": 10
+    },
+    {
+      "id": "mem-19",
+      "query": "what mistakes did I make about A* search",
+      "category": "meta",
+      "returned": 10,
+      "latency_s": 0.329,
+      "leaked": 0,
+      "duplicates": 0,
+      "relevant_in_top5": 0,
+      "first_relevant_rank": null
+    },
+    {
+      "id": "mem-20",
+      "query": "covariance matrix and its eigenvectors",
+      "category": "crosslingual",
+      "returned": 10,
+      "latency_s": 0.367,
+      "leaked": 0,
+      "duplicates": 0,
+      "relevant_in_top5": 5,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-21",
+      "query": "arc consistency propagation steps",
+      "category": "knowledge",
+      "returned": 10,
+      "latency_s": 0.283,
+      "leaked": 0,
+      "duplicates": 3,
+      "relevant_in_top5": 5,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-22",
+      "query": "quantum entanglement basics",
+      "category": "nonexistent",
+      "returned": 10,
+      "latency_s": 0.257,
+      "leaked": 0,
+      "duplicates": 3,
+      "false_positives": 10
+    },
+    {
+      "id": "mem-23",
+      "query": "怎么判断一个估价函数是不是乐观的",
+      "category": "paraphrase",
+      "returned": 10,
+      "latency_s": 0.314,
+      "leaked": 0,
+      "duplicates": 2,
+      "relevant_in_top5": 0,
+      "first_relevant_rank": null
+    },
+    {
+      "id": "mem-24",
+      "query": "极小极大搜索的剪枝方法",
+      "category": "crosslingual",
+      "returned": 10,
+      "latency_s": 0.297,
+      "leaked": 0,
+      "duplicates": 0,
+      "relevant_in_top5": 1,
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "mem-25",
+      "query": "consistency",
+      "category": "ambiguous",
+      "returned": 10,
+      "latency_s": 0.271,
+      "leaked": 0,
+      "duplicates": 3,
+      "relevant_in_top5": 5,
+      "first_relevant_rank": 1
+    }
+  ]
+}
