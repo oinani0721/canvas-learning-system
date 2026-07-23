@@ -4,7 +4,8 @@ active_plan_file: "_bmad-output/研究/2026-07-22-下一步开发计划-稳定�
 current_sprint: "MEM-FLYWHEEL 批次 0-3 (2026-07-22 用户拍板: 直接执行)"
 sprint_progress: "批次0 完工(MEM-0 awaiting UAT) + 检索对抗审查(55.8%/两CRITICAL/三浪费) + ChatGPT第二意见对账完毕(2026-07-23) — 计划已修订v2, 拍板项归拢于 研究/2026-07-23-ChatGPT审查对账-计划v2修订.md §4"
 next_story_id: "MEM-G0-gate"
-next_story_title: "v2排期(待用户确认): G0 gold set 25条+回归脚本门禁 → 批次1' 隔离守门(group_id强校验+targeting泄漏堵+清污方式待拍板+相关度地板+文本去重+punycode组+cross_encoder接线) → 批次2' 收敛地基(A1改衰减Beta后验γ=0.9+A2弃答+A3增量归纳+A4题目去重 ∥ search_memories触发 ∥ RAG三死因) → 批次3' 反馈闭环(P14+dispute三件套+calibration消费+events.jsonl) → 批次4' 拆分补强+CJK+检索束"
+next_story_title: "用户已批注『直接进入新session开工』(2026-07-23, 对账文档批注区) → 新session从 G0 开工: gold set 25条+回归脚本门禁 → 批次1' 隔离守门(group_id强校验+targeting泄漏堵+清污+相关度地板+文本去重+punycode组+cross_encoder接线) → 批次2' 收敛地基(A1衰减Beta后验γ=0.9+A2弃答+A3增量归纳+A4题目去重 ∥ search_memories触发 ∥ RAG三死因) → 批次3' 反馈闭环 → 批次4' 拆分补强"
+new_session_pending_decisions: "①清污方式 A删/B迁(Claude建议B, 批次1'第③项动手前必须确认) ②衰减Beta算法确认(默认按对账§2实施) ③MEM-0验收单待用户勾(Finder已打开)"
 next_story_files:
   - "canvas-vault/.claude/skills/start-exam-board/SKILL.md"
   - "canvas-vault/.claude/skills/quiz-answer/SKILL.md"
