@@ -86,9 +86,17 @@ class CanvasProjectionSync:
         edges_synced = 0
         failed = 0
         alive_edge_ids: list[str] = []
+        # 终验审查修正 (2026-07-24, ChatGPT 第三轮 §幽灵边): 「未扫描到 ≠ 不存在」
+        # — 解析失败的文件其旧边必须豁免失效 (保护前缀), 写入失败的边同样
+        # 计入 alive (写失败 ≠ 边该死)。只有「文件确认无此关系」才允许失效。
+        protected_prefixes: list[str] = []
 
         for md in base.rglob("*.md"):
             rels = self._read_relationships(md)
+            if rels is None:
+                # frontmatter 解析失败 — 无法确认该文件的关系现状, 旧边全部豁免
+                protected_prefixes.append(f"rel-{physical_gid}-{md.stem}-")
+                continue
             if not rels:
                 continue
             source_id = md.stem  # node_id = 文件 basename (扁平节点池约定)
@@ -101,8 +109,10 @@ class CanvasProjectionSync:
                 label = description or rel_type
                 if not target_id or target_id == source_id:
                     continue
+                edge_id = f"rel-{physical_gid}-{source_id}-{rel_type}-{target_id}"
+                alive_edge_ids.append(edge_id)  # 先记 alive — 写失败也不判死
                 try:
-                    edge_id = await self._merge_edge(
+                    await self._merge_edge(
                         client,
                         source_id,
                         target_id,
@@ -111,13 +121,10 @@ class CanvasProjectionSync:
                         physical_gid,
                         rel=rel,
                     )
-                    alive_edge_ids.append(edge_id)
                     edges_synced += 1
                 except Exception as e:  # noqa: BLE001 — 单边失败不阻断批量
                     failed += 1
-                    logger.debug(
-                        "[Fix-E1] edge sync failed %s->%s: %s", source_id, target_id, e
-                    )
+                    logger.debug("[Fix-E1] edge sync failed %s->%s: %s", source_id, target_id, e)
 
         # 批次4' 3-3 幽灵边对账 (MEM-FLYWHEEL): frontmatter 里已删/改名的
         # relationship, 旧 CANVAS_EDGE 此前永远留在图里 (MERGE 只增不删,
@@ -129,11 +136,13 @@ class CanvasProjectionSync:
                 MATCH ()-[e:CANVAS_EDGE]-()
                 WHERE e.group_id = $group_id AND e.synced_from = 'frontmatter'
                   AND NOT e.id IN $alive_ids AND e.invalidated_at IS NULL
+                  AND NOT any(p IN $protected WHERE e.id STARTS WITH p)
                 SET e.invalidated_at = datetime(), e.active = false
                 RETURN count(DISTINCT e) AS c
                 """,
                 group_id=physical_gid,
                 alive_ids=alive_edge_ids,
+                protected=protected_prefixes,
             )
             if records:
                 data = records[0] if isinstance(records[0], dict) else records[0].data()
@@ -157,7 +166,13 @@ class CanvasProjectionSync:
 
     @staticmethod
     def _read_relationships(md_path: Path) -> Optional[list[dict[str, Any]]]:
-        """读单个 md 的 frontmatter relationships[] (非 list 或解析失败 → None)。"""
+        """读单个 md 的 frontmatter relationships[]。
+
+        终验审查修正 (2026-07-24) — 返回值语义承载幽灵边对账的保护判定:
+        - None = **解析失败** (损坏 frontmatter) → 无法确认现状, 该文件旧边豁免失效
+        - []   = 文件正常但无 relationships (缺失/非 list/空) → 旧边允许失效
+                 (用户删光关系正是失效该发生的场景)
+        """
         try:
             post = frontmatter.load(str(md_path))
         except Exception as e:  # noqa: BLE001 — 损坏 frontmatter 不阻断扫描
@@ -165,7 +180,7 @@ class CanvasProjectionSync:
             return None
         rels = post.metadata.get("relationships")
         if not isinstance(rels, list):
-            return None
+            return []
         return [r for r in rels if isinstance(r, dict)]
 
     async def _merge_edge(
@@ -225,9 +240,7 @@ class CanvasProjectionSync:
                 if rel.get("source_mastery_at_derivation") is not None
                 else None
             ),
-            confusion=(
-                str(rel.get("confusion"))[:300] if rel.get("confusion") else None
-            ),
+            confusion=(str(rel.get("confusion"))[:300] if rel.get("confusion") else None),
         )
         return edge_id
 
