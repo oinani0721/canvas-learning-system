@@ -158,6 +158,11 @@ export interface NodeFrontmatter {
     type: string;
     target: string;
     description?: string;
+    // 批次4' 3-1/3-2 (MEM-FLYWHEEL): 派生时刻理解快照 — 投影 sync 透传入
+    // CANVAS_EDGE 永久留档,「当时为什么困惑」事后可重建
+    derived_at?: string;
+    source_mastery_at_derivation?: number;
+    confusion?: string;
   }>;
 }
 
@@ -167,14 +172,22 @@ export function buildNodeFrontmatter(args: {
   relationKey: string;
   description: string;
   createdAt: string;
+  sourceMastery?: number | null;
+  confusion?: string | null;
 }): NodeFrontmatter {
   const sourceWikilink = `[[${args.sourceNoteStem}]]`;
   const rel: NodeFrontmatter["relationships"][0] = {
     type: args.relationKey,
     target: sourceWikilink,
+    derived_at: args.createdAt,
   };
   const trimmedDesc = args.description.trim();
   if (trimmedDesc) rel.description = trimmedDesc;
+  if (typeof args.sourceMastery === "number") {
+    rel.source_mastery_at_derivation = args.sourceMastery;
+  }
+  const trimmedConfusion = (args.confusion ?? "").trim();
+  if (trimmedConfusion) rel.confusion = trimmedConfusion.slice(0, 300);
   return {
     type: "concept",
     mastery_score: 0.3,
@@ -186,6 +199,70 @@ export function buildNodeFrontmatter(args: {
     "derived-from": sourceWikilink,
     relationships: [rel],
   };
+}
+
+/**
+ * 批次4' 3-1 (MEM-FLYWHEEL): 选中文本附近（前后 10 行）最近一条
+ * [!question]/[!error] 批注 → 派生时刻困惑快照。找不到返回 null。
+ */
+export function extractNearbyConfusion(
+  sourceContent: string,
+  selected: string,
+): string | null {
+  const firstSelLine = selected.trim().split("\n")[0] ?? "";
+  if (!firstSelLine) return null;
+  const idx = sourceContent.indexOf(firstSelLine);
+  if (idx < 0) return null;
+  const lines = sourceContent.split("\n");
+  let cum = 0;
+  let selLine = 0;
+  for (let i = 0; i < lines.length; i++) {
+    cum += lines[i].length + 1;
+    if (cum > idx) {
+      selLine = i;
+      break;
+    }
+  }
+  const lo = Math.max(0, selLine - 10);
+  const hi = Math.min(lines.length - 1, selLine + 10);
+  let best: string | null = null;
+  let bestDist = Infinity;
+  for (let i = lo; i <= hi; i++) {
+    const m = lines[i].match(/^>\s*\[!(question|error)\]\+?\s*(.*)$/i);
+    if (!m) continue;
+    const dist = Math.abs(i - selLine);
+    if (dist >= bestDist) continue;
+    const inline = (m[2] ?? "").trim();
+    const nextLine = (lines[i + 1] ?? "").replace(/^>\s*/, "").trim();
+    const text = inline || nextLine;
+    if (text) {
+      bestDist = dist;
+      best = text;
+    }
+  }
+  return best;
+}
+
+/**
+ * 批次3'/4' (MEM-FLYWHEEL): node_derived 学习事件行 (learning_events.jsonl
+ * append-only, 幂等键 = derive:<节点名>, schema 与 backend
+ * learning_event_log.py 对齐)。
+ */
+export function buildNodeDerivedEventLine(
+  conceptName: string,
+  createdAt: string,
+): { eventId: string; line: string } {
+  const eventId = `derive:${conceptName}`;
+  const record = {
+    event_id: eventId,
+    event_version: 1,
+    event_type: "node_derived",
+    node_id: conceptName,
+    recorded_at: createdAt,
+    effective_at: createdAt,
+    payload: {},
+  };
+  return { eventId, line: JSON.stringify(record) + "\n" };
 }
 
 /**

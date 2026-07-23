@@ -37,9 +37,11 @@ import {
   buildBoardActivityLine,
   buildBoardConceptsLine,
   buildNodeBody,
+  buildNodeDerivedEventLine,
   buildNodeFrontmatter,
   buildSourceReplacement,
   deriveConceptStub,
+  extractNearbyConfusion,
   resolveUniqueNodeName,
 } from "./node-derivation";
 import {
@@ -1326,6 +1328,35 @@ export default class CanvasLearningPlugin extends Plugin {
     }
 
     const createdAt = new Date().toISOString();
+
+    // 批次4' 3-1 (MEM-FLYWHEEL): 派生时刻理解快照 — 源节点当时的掌握档 +
+    // 选区附近最近一条疑问/错误批注 (「当时为什么困惑」永久留档)。
+    // 快照取材失败不阻断派生 (留空即可, 投影 sync 对缺省字段做 coalesce)。
+    let sourceMastery: number | null = null;
+    let confusion: string | null = null;
+    try {
+      const snapshotFile =
+        sourceNoteStem === args.activeFile.basename
+          ? args.activeFile
+          : (this.app.vault.getAbstractFileByPath(
+              `节点/${sourceNoteStem}.md`,
+            ) as TFile | null);
+      if (snapshotFile) {
+        const fmCache =
+          this.app.metadataCache.getFileCache(snapshotFile)?.frontmatter;
+        const rawMastery =
+          fmCache?.mastery_score ?? fmCache?.mastery ?? fmCache?.mastery_level;
+        if (rawMastery !== undefined && rawMastery !== null) {
+          const parsed = Number(rawMastery);
+          if (Number.isFinite(parsed)) sourceMastery = parsed;
+        }
+      }
+      const sourceContent = await this.app.vault.read(args.activeFile);
+      confusion = extractNearbyConfusion(sourceContent, args.selected);
+    } catch {
+      // 快照是增强信息, 静默降级
+    }
+
     let nodeFile: TFile;
     try {
       const nodeBody = buildNodeBody(
@@ -1341,6 +1372,8 @@ export default class CanvasLearningPlugin extends Plugin {
           relationKey: args.relationKey,
           description: args.description,
           createdAt,
+          sourceMastery,
+          confusion,
         });
         Object.assign(fm, data);
       });
@@ -1404,6 +1437,27 @@ export default class CanvasLearningPlugin extends Plugin {
       args.relationKey,
       args.description,
     );
+
+    // 批次3'/4' (MEM-FLYWHEEL): node_derived 学习事件 → vault 根
+    // learning_events.jsonl (append-only + event_id 幂等)。失败不阻断派生。
+    try {
+      const { eventId, line } = buildNodeDerivedEventLine(
+        conceptName,
+        createdAt,
+      );
+      const evPath = "learning_events.jsonl";
+      const adapter = this.app.vault.adapter;
+      let seen = false;
+      if (await adapter.exists(evPath)) {
+        const existing = await adapter.read(evPath);
+        seen = existing.includes(JSON.stringify(eventId));
+      }
+      if (!seen) {
+        await adapter.append(evPath, line);
+      }
+    } catch {
+      // 事件日志是兜底记录, 静默降级
+    }
 
     const elapsedMs = Date.now() - t0;
     new Notice(
