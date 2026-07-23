@@ -1,0 +1,10 @@
+# 终验审查红旗修复 (2026-07-24): backend 下 ruff 此前吃不到任何项目配置,
+# F821 未生效 → 3 处 NameError 静默存活 (memory_tools calibration/
+# learning_memory MCP 写入断 3 天 + memory_service Tier2 异常处理器自炸)。
+# 此文件定死「必错级」规则 (语法/未定义名/错误比较), 保证同类雷被 pre-commit
+# 拦截; 全量风格规则 (F401/I/C4, 存量 202 处) 待专项清理再开。
+line-length = 120
+target-version = "py39"
+
+[lint]
+select = ["E9", "F63", "F7", "F82"]

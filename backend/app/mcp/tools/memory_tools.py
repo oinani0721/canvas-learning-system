@@ -26,15 +26,9 @@ class SearchMemoriesInput(BaseModel):
     """Input schema for search_memories tool."""
 
     query: str = Field(..., description="Natural language search query.")
-    node_id: Optional[str] = Field(
-        None, description="Filter by canvas node ID (optional)."
-    )
-    group_id: Optional[str] = Field(
-        None, description="Graphiti group_id for memory isolation (optional)."
-    )
-    max_results: int = Field(
-        10, ge=1, le=50, description="Maximum number of results to return."
-    )
+    node_id: Optional[str] = Field(None, description="Filter by canvas node ID (optional).")
+    group_id: Optional[str] = Field(None, description="Graphiti group_id for memory isolation (optional).")
+    max_results: int = Field(10, ge=1, le=50, description="Maximum number of results to return.")
 
 
 class MemoryItem(BaseModel):
@@ -73,12 +67,8 @@ class RecordCalibrationInput(BaseModel):
         le=1.0,
         description="The actual score after answering.",
     )
-    question_type: Optional[str] = Field(
-        None, description="Type of question that was asked."
-    )
-    difficulty: Optional[str] = Field(
-        None, description="Difficulty level of the question."
-    )
+    question_type: Optional[str] = Field(None, description="Type of question that was asked.")
+    difficulty: Optional[str] = Field(None, description="Difficulty level of the question.")
 
 
 class RecordCalibrationOutput(BaseModel):
@@ -86,9 +76,7 @@ class RecordCalibrationOutput(BaseModel):
 
     node_id: str
     recorded: bool
-    calibration_gap: float = Field(
-        ..., description="Absolute gap between predicted and actual score"
-    )
+    calibration_gap: float = Field(..., description="Absolute gap between predicted and actual score")
     status: str = "ok"
     message: str = ""
 
@@ -99,9 +87,7 @@ class RecordLearningMemoryInput(BaseModel):
     Agent calls this when it detects a student learning event during dialogue.
     """
 
-    node_id: str = Field(
-        ..., description="Canvas node ID where the learning event occurred."
-    )
+    node_id: str = Field(..., description="Canvas node ID where the learning event occurred.")
     entity_type: str = Field(
         ...,
         description=(
@@ -124,19 +110,13 @@ class RecordLearningMemoryInput(BaseModel):
         max_length=100,
         description="Broader topic (e.g. 'Search', 'MDPs').",
     )
-    details: str = Field(
-        ..., description="What the student got wrong and what is correct. Be specific."
-    )
+    details: str = Field(..., description="What the student got wrong and what is correct. Be specific.")
     severity: Optional[str] = Field(
         None,
         description="'critical' | 'moderate' | 'minor'. Judge by depth of misunderstanding.",
     )
-    source_session_id: Optional[str] = Field(
-        None, description="Session ID where this learning event was detected."
-    )
-    source_canvas_id: Optional[str] = Field(
-        None, description="Canvas/board ID where the event occurred."
-    )
+    source_session_id: Optional[str] = Field(None, description="Session ID where this learning event was detected.")
+    source_canvas_id: Optional[str] = Field(None, description="Canvas/board ID where the event occurred.")
     group_id: Optional[str] = Field(
         None,
         description=(
@@ -287,13 +267,15 @@ async def record_calibration(
         Dict with recording status and calibration gap.
     """
     guardian = get_audit_guardian()
-    asyncio.create_task(
-        guardian.record_tool_call("record_calibration", session_id, node_id)
-    )
+    asyncio.create_task(guardian.record_tool_call("record_calibration", session_id, node_id))
 
     calibration_gap = abs(predicted_score - actual_score)
 
     try:
+        # 终验审查红旗修复 (2026-07-24): P15 起此函数用 default_vault_group_id
+        # 但从未 import — 每次调用 NameError 被 except 吞成静默失败, calibration
+        # MCP 写入断 3 天 (ChatGPT 第三轮审查抓到的真 bug)
+        from app.core.subject_config import default_vault_group_id
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -389,9 +371,7 @@ async def record_learning_memory(
         Dict with recording status.
     """
     guardian = get_audit_guardian()
-    asyncio.create_task(
-        guardian.record_tool_call("record_learning_memory", "", node_id)
-    )
+    asyncio.create_task(guardian.record_tool_call("record_learning_memory", "", node_id))
 
     valid_types = {"Misconception", "ProblemTrap", "LogicalFallacy", "GuidedThinking"}
     if entity_type not in valid_types:
@@ -405,12 +385,14 @@ async def record_learning_memory(
 
     try:
         from app.core.memory_format import build_entity_name, build_episode_body
+        from app.core.subject_config import default_vault_group_id
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
 
         # M3 (2026-07-13) + P15 (2026-07-20): 调用方可传 D16 group_id,
         # 缺省推导当前 vault 组 (不再落 vault:default 空桶)。
+        # 终验审查红旗修复 (2026-07-24): 补缺失 import (P15 起 NameError 静默失败)
         resolved_group_id = group_id or default_vault_group_id()
 
         name = build_entity_name(entity_type, concept)
@@ -437,9 +419,7 @@ async def record_learning_memory(
             group_id=resolved_group_id,
         )
 
-        logger.info(
-            f"[LearningMemory] Recorded {entity_type}: {concept} node={node_id}"
-        )
+        logger.info(f"[LearningMemory] Recorded {entity_type}: {concept} node={node_id}")
 
         return RecordLearningMemoryOutput(
             node_id=node_id,

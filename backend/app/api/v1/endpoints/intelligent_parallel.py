@@ -68,7 +68,7 @@ single_agent_router = APIRouter(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Lazy-init singleton with async dep injection (Story 33.9 P0 Fix)
-_service: Optional["IntelligentParallelService"] = None  # type: ignore
+_service: Optional["IntelligentParallelService"] = None  # type: ignore  # noqa: F821 — 字符串注解, 运行时不求值
 _validator_set: bool = False
 _deps_initialized: bool = False
 _deps_lock: asyncio.Lock = asyncio.Lock()  # EPIC-33 P0 Fix #3: prevent race condition
@@ -161,9 +161,7 @@ async def _ensure_async_deps() -> None:
         service._canvas_service = canvas_service
 
         _deps_initialized = True
-        logger.info(
-            "[Story 33.11] DI consolidated: batch deps built via dependencies.py"
-        )
+        logger.info("[Story 33.11] DI consolidated: batch deps built via dependencies.py")
 
 
 def reset_service():
