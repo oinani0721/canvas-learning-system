@@ -1,0 +1,20 @@
+# P1 exploration shadow (2026-07-24, 终验对账裁决 2) — 新评测样本的候选区。
+# 规则:
+#   - 新发现的失败案例/新场景 query 先加到这里 (不影响回归门禁)
+#   - 回归脚本以 --shadow 跑此集合, 只报告不门禁
+#   - 每次升版评审 (人工): shadow 中稳定有价值的样本并入 memory_gold_set.yaml
+#     并 version+1, 同时在 baseline_history 留痕
+# schema 与 memory_gold_set.yaml 完全一致。
+
+config:
+  version: 0            # shadow 无版本约束
+  group_id: null
+  max_results: 10
+  leak_markers:
+    - "TestConcept"
+    - "UAT-2.5"
+    - "m3-e2e"
+  duplicate_ratio: 0.92
+  tolerance: 0.02
+
+queries: []             # 空 — 等失败案例回灌

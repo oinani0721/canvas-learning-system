@@ -16,13 +16,37 @@ T2 起带 group_id) 找 1-hop 邻居, 读每个邻居的**当前态错误**作�
 
 from __future__ import annotations
 
+import difflib
 import logging
+import re
+import unicodedata
 from typing import Any
 
 import frontmatter
 
 from app.graphiti.group_id_compat import to_physical_group_id
 from app.services.frontmatter_signals import _node_md_path
+
+_PUNCT_RE = re.compile(r"[\s\W_]+", re.UNICODE)
+
+
+def _norm_for_dispute(text: str) -> str:
+    """dispute 匹配归一化: NFKC + casefold + 去空白/标点 (P1, 终验对账裁决 6)。"""
+    return _PUNCT_RE.sub("", unicodedata.normalize("NFKC", text).casefold())
+
+
+def _matches_disputed(text: str, disputed_norms: list[str], ratio: float = 0.75) -> bool:
+    """归一化后精确或 difflib 模糊 (≥ratio) 命中任一 disputed 文本 → 排除。"""
+    tn = _norm_for_dispute(text)
+    if not tn:
+        return False
+    for dn in disputed_norms:
+        if tn == dn:
+            return True
+        if dn and difflib.SequenceMatcher(None, tn, dn).ratio() >= ratio:
+            return True
+    return False
+
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +80,10 @@ def _read_neighbor_errors(node_id: str, group_id: str = "") -> list[str]:
     out: list[str] = []
     # 批次3' dispute 三件套第二件「出题排除」(MEM-FLYWHEEL): 用户 dispute 过的
     # 候选文本不得再进出题素材 — 不再拿你否认过的点考你。disputed 候选留在
-    # error_candidates[] (终态, 状态机保证不入 errors[]), 此处按文本匹配拦截
-    # errors[]/tips[] 中与 disputed 内容相同的素材 (早年直写/重复提名场景)。
+    # error_candidates[] (终态, 状态机保证不入 errors[])。
+    # P1 升级 (2026-07-24, 终验对账裁决 6): 精确匹配一字改写即绕过 →
+    # 归一化 (NFKC/casefold/去空白标点) + difflib 模糊相似 (≥0.75) 拦截
+    # 改字/标点/词序变体; embedding 语义版记中期。
     disputed_texts: set[str] = set()
     for cand in fm.get("error_candidates") or []:
         if isinstance(cand, dict) and cand.get("status") == "disputed":
@@ -65,6 +91,7 @@ def _read_neighbor_errors(node_id: str, group_id: str = "") -> list[str]:
                 t = str(cand.get(key) or "").strip()
                 if t:
                     disputed_texts.add(t)
+    disputed_norms = [_norm_for_dispute(t) for t in disputed_texts]
     # 正式 errors[] — 2.5.X accept/edited 移入, 用户主权确认过的错误
     for err in fm.get("errors") or []:
         if isinstance(err, dict):
@@ -82,7 +109,7 @@ def _read_neighbor_errors(node_id: str, group_id: str = "") -> list[str]:
                 )
                 continue
             desc = str(err.get("misconception") or err.get("description") or "").strip()
-            if desc and desc in disputed_texts:
+            if desc and _matches_disputed(desc, disputed_norms):
                 logger.info("[T4-dispute] 排除已 dispute 素材: node=%s", node_id)
                 continue
             if desc:
@@ -91,7 +118,7 @@ def _read_neighbor_errors(node_id: str, group_id: str = "") -> list[str]:
     for tip in fm.get("tips") or []:
         if isinstance(tip, dict) and tip.get("tag") == "error":
             text = str(tip.get("text") or "").strip()
-            if text and text in disputed_texts:
+            if text and _matches_disputed(text, disputed_norms):
                 logger.info("[T4-dispute] 排除已 dispute tips 素材: node=%s", node_id)
                 continue
             if text:
@@ -159,9 +186,7 @@ async def collect_targeting_material(
         result["degraded_reason"] = "node_not_found"
         return result
     neighbor_rows = [
-        data
-        for rec in records
-        if (data := rec if isinstance(rec, dict) else rec.data()).get("neighbor_id")
+        data for rec in records if (data := rec if isinstance(rec, dict) else rec.data()).get("neighbor_id")
     ]
     if not neighbor_rows:
         result["degraded"] = True

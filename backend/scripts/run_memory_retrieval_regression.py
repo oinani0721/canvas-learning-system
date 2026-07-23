@@ -45,14 +45,13 @@ SEARCH_ENDPOINT = f"{BACKEND_URL}/mcp/tools/search_memories"
 HEALTH_ENDPOINT = f"{BACKEND_URL}/api/v1/health"
 
 GOLD_SET = BACKEND_DIR / "tests" / "regression" / "memory_gold_set.yaml"
-BASELINE_FILE = (
-    BACKEND_DIR
-    / "tests"
-    / "fixtures"
-    / "regression_baselines"
-    / "memory_retrieval_baseline.json"
-)
+SHADOW_SET = BACKEND_DIR / "tests" / "regression" / "memory_gold_set_shadow.yaml"
+BASELINE_FILE = BACKEND_DIR / "tests" / "fixtures" / "regression_baselines" / "memory_retrieval_baseline.json"
 LAST_RUN_FILE = BASELINE_FILE.with_name("memory_retrieval_last_run.json")
+# P1 (终验对账裁决 2): 基线版本化 — 每次重固化归档旧基线 + 原因, churn 可审计
+BASELINE_HISTORY = BASELINE_FILE.with_name("memory_retrieval_baseline_history.jsonl")
+JUDGE_REVIEW = BASELINE_FILE.with_name("memory_retrieval_judge_review.jsonl")
+QWEN_URL = "http://127.0.0.1:12341/v1/chat/completions"
 
 GREEN, RED, YELLOW, RESET = "\033[92m", "\033[91m", "\033[93m", "\033[0m"
 
@@ -110,9 +109,7 @@ def check_backend_alive() -> bool:
 
 def run_queries(gold: dict) -> dict:
     cfg = gold["config"]
-    group_id = cfg.get(
-        "group_id"
-    )  # null = 服务端 default_vault_group_id() 推导 (与生产一致)
+    group_id = cfg.get("group_id")  # null = 服务端 default_vault_group_id() 推导 (与生产一致)
     max_results = int(cfg.get("max_results", 10))
     leak_markers = cfg.get("leak_markers", [])
     dup_ratio = float(cfg.get("duplicate_ratio", 0.92))
@@ -147,22 +144,14 @@ def run_queries(gold: dict) -> dict:
             total_items += len(results)
 
             # 泄漏 (全部 query 参与)
-            q_leaks = sum(
-                1
-                for r, tn in zip(results, texts_norm)
-                if is_leaked(r, tn, leak_markers, group_id or "")
-            )
+            q_leaks = sum(1 for r, tn in zip(results, texts_norm) if is_leaked(r, tn, leak_markers, group_id or ""))
             leaked_items += q_leaks
 
             # 近重复 (与更早条目 ratio ≥ 阈值)
             q_dups = 0
             for i, tn in enumerate(texts_norm):
                 for prev in texts_norm[:i]:
-                    if (
-                        tn
-                        and prev
-                        and difflib.SequenceMatcher(None, tn, prev).ratio() >= dup_ratio
-                    ):
+                    if tn and prev and difflib.SequenceMatcher(None, tn, prev).ratio() >= dup_ratio:
                         q_dups += 1
                         break
             dup_items += q_dups
@@ -185,12 +174,13 @@ def run_queries(gold: dict) -> dict:
                 entry["false_positives"] = len(results)
             else:
                 relevant_flags = [is_relevant(tn, q["expect_any"]) for tn in texts_norm]
-                first_rank = next(
-                    (i + 1 for i, f in enumerate(relevant_flags) if f), None
-                )
+                first_rank = next((i + 1 for i, f in enumerate(relevant_flags) if f), None)
                 recall_total += 1
                 if any(relevant_flags[:5]):
                     recall_hits += 1
+                else:
+                    # P1 LLM-judge 备料: 词面 miss 的 top5 原文带出, 供二段判分
+                    entry["top5_texts"] = [result_text(r)[:300] for r in results[:5]]
                 rr_values.append(1.0 / first_rank if first_rank else 0.0)
                 entry["relevant_in_top5"] = sum(relevant_flags[:5])
                 entry["first_relevant_rank"] = first_rank
@@ -201,9 +191,7 @@ def run_queries(gold: dict) -> dict:
         "recall_at_5": round(recall_hits / recall_total, 4) if recall_total else 0.0,
         "mrr": round(statistics.mean(rr_values), 4) if rr_values else 0.0,
         "duplicate_rate": round(dup_items / total_items, 4) if total_items else 0.0,
-        "false_positive_rate": round(fp_returned / fp_capacity, 4)
-        if fp_capacity
-        else 0.0,
+        "false_positive_rate": round(fp_returned / fp_capacity, 4) if fp_capacity else 0.0,
         "leak_rate": round(leaked_items / total_items, 4) if total_items else 0.0,
     }
     return {
@@ -220,6 +208,69 @@ def run_queries(gold: dict) -> dict:
     }
 
 
+def _llm_judge_relevant(query: str, texts: list) -> bool:
+    """P1 三段式判分第二段: 本地 Qwen 二值相关性判定 (ARES 思路: judge 辅助,
+    翻案落 review 文件供人工抽检, 不直接替代词面口径的门禁真值)。"""
+    prompt = (
+        f"问题：{query}\n候选材料：\n"
+        + "\n".join(f"- {t}" for t in texts)
+        + "\n\n以上材料中是否至少有一条与问题直接相关？只答 yes 或 no。"
+    )
+    resp = httpx.post(
+        QWEN_URL,
+        json={
+            "model": "qwen",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 8,
+            "temperature": 0,
+        },
+        timeout=30,
+        trust_env=False,
+    )
+    resp.raise_for_status()
+    answer = resp.json()["choices"][0]["message"]["content"].strip().lower()
+    return answer.startswith("y")
+
+
+def judge_misses(report: dict) -> None:
+    """对词面 miss 的 query 跑 LLM-judge, 产出 recall_at_5_judged 参考指标。
+
+    参考指标不进门禁 (METRIC_DIRECTIONS 不含) — judge 提供「词面口径低估了
+    多少」的透明度; 翻案明细追加 judge_review.jsonl 供人工抽检校准。
+    12341 不可达 → 整段跳过, recall_at_5_judged = None。
+    """
+    misses = [e for e in report["per_query"] if e.get("first_relevant_rank") is None and e.get("top5_texts")]
+    lexical_hits = sum(
+        1 for e in report["per_query"] if "first_relevant_rank" in e and e.get("relevant_in_top5", 0) > 0
+    )
+    total = sum(1 for e in report["per_query"] if "first_relevant_rank" in e)
+    flips = []
+    try:
+        for e in misses:
+            if _llm_judge_relevant(e["query"], e["top5_texts"]):
+                flips.append({"id": e["id"], "query": e["query"], "top5": e["top5_texts"]})
+    except httpx.HTTPError:
+        report["metrics"]["recall_at_5_judged"] = None
+        print(f"{YELLOW}⚠ LLM-judge 跳过 (12341 不可达){RESET}")
+        return
+    report["metrics"]["recall_at_5_judged"] = round((lexical_hits + len(flips)) / total, 4) if total else 0.0
+    report["judge_flips"] = [f["id"] for f in flips]
+    if flips:
+        with open(JUDGE_REVIEW, "a", encoding="utf-8") as f:
+            for flip in flips:
+                f.write(
+                    json.dumps(
+                        {"reviewed": False, "run_at": report["run_at"], **flip},
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+        print(
+            f"{YELLOW}ℹ judge 翻案 {len(flips)} 条 (词面 miss 但 judge 判相关) — "
+            f"已落 {JUDGE_REVIEW.name} 供人工抽检{RESET}"
+        )
+
+
 def compare_with_baseline(report: dict, baseline: dict, tolerance: float) -> list:
     regressions = []
     base_metrics = baseline.get("metrics", {})
@@ -230,13 +281,9 @@ def compare_with_baseline(report: dict, baseline: dict, tolerance: float) -> lis
             continue
         delta = cur - base
         if higher_is_better and delta < -tolerance:
-            regressions.append(
-                f"{name}: {base} → {cur} (回退 {delta:+.4f}, 容差 -{tolerance})"
-            )
+            regressions.append(f"{name}: {base} → {cur} (回退 {delta:+.4f}, 容差 -{tolerance})")
         elif not higher_is_better and delta > tolerance:
-            regressions.append(
-                f"{name}: {base} → {cur} (恶化 {delta:+.4f}, 容差 +{tolerance})"
-            )
+            regressions.append(f"{name}: {base} → {cur} (恶化 {delta:+.4f}, 容差 +{tolerance})")
     return regressions
 
 
@@ -249,14 +296,10 @@ def print_report(report: dict) -> None:
     print(f"  重复率        = {m['duplicate_rate']:.2%}")
     print(f"  假阳性率      = {m['false_positive_rate']:.2%}")
     print(f"  泄漏率        = {m['leak_rate']:.2%}")
-    print(
-        f"  延迟          = 中位 {report['latency']['median_s']}s / 最大 {report['latency']['max_s']}s"
-    )
-    misses = [
-        e
-        for e in report["per_query"]
-        if "first_relevant_rank" in e and e["first_relevant_rank"] is None
-    ]
+    if m.get("recall_at_5_judged") is not None:
+        print(f"  recall@5(judge参考) = {m['recall_at_5_judged']:.2%}  ← 词面+judge翻案, 不进门禁")
+    print(f"  延迟          = 中位 {report['latency']['median_s']}s / 最大 {report['latency']['max_s']}s")
+    misses = [e for e in report["per_query"] if "first_relevant_rank" in e and e["first_relevant_rank"] is None]
     if misses:
         print(f"  top10 无相关的 query ({len(misses)}):")
         for e in misses:
@@ -265,11 +308,24 @@ def print_report(report: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="记忆检索 gold set 回归门禁")
+    parser.add_argument("--update-baseline", action="store_true", help="固化当前指标为基线")
     parser.add_argument(
-        "--update-baseline", action="store_true", help="固化当前指标为基线"
+        "--reason",
+        default="",
+        help="P1: 重固化基线的原因 (与 --update-baseline 连用时必填, 落 history 留痕)",
     )
+    parser.add_argument(
+        "--shadow",
+        action="store_true",
+        help="P1: 跑 exploration shadow 集合 (只报告不门禁不动基线)",
+    )
+    parser.add_argument("--no-judge", action="store_true", help="跳过 LLM-judge 二段判分")
     parser.add_argument("--json", action="store_true", help="stdout 追加机器可读 JSON")
     args = parser.parse_args()
+
+    if args.update_baseline and not args.reason:
+        print(f"{RED}⛔ --update-baseline 必须带 --reason (基线 churn 可审计){RESET}")
+        return 2
 
     if not check_backend_alive():
         print(
@@ -278,16 +334,25 @@ def main() -> int:
         )
         return 2
 
-    gold = yaml.safe_load(GOLD_SET.read_text(encoding="utf-8"))
+    gold_path = SHADOW_SET if args.shadow else GOLD_SET
+    gold = yaml.safe_load(gold_path.read_text(encoding="utf-8"))
     tolerance = float(gold["config"].get("tolerance", 0.02))
+    if args.shadow and not gold.get("queries"):
+        print("shadow 集合为空 — 无失败案例待探索, 直接通过")
+        return 0
 
     report = run_queries(gold)
+    report["gold_set_version"] = gold["config"].get("version", 0)
+    if not args.no_judge:
+        judge_misses(report)
     print_report(report)
 
+    if args.shadow:
+        print("(shadow 模式 — 只报告, 不门禁不动基线)")
+        return 0
+
     LAST_RUN_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LAST_RUN_FILE.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    LAST_RUN_FILE.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if args.json:
         print(
@@ -299,11 +364,27 @@ def main() -> int:
 
     if args.update_baseline or not BASELINE_FILE.exists():
         BASELINE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        BASELINE_FILE.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        # P1 (终验对账裁决 2): 重固化归档旧基线 — churn 可审计, 不许静默挪门柱
+        if BASELINE_FILE.exists():
+            old = json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
+            with open(BASELINE_HISTORY, "a", encoding="utf-8") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "archived_at": report["run_at"],
+                            "reason": args.reason or "(initial)",
+                            "gold_set_version": report.get("gold_set_version"),
+                            "old_metrics": old.get("metrics"),
+                            "new_metrics": report["metrics"],
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+        BASELINE_FILE.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(
-            f"{YELLOW}📌 基线已固化 → {BASELINE_FILE.relative_to(BACKEND_DIR)}{RESET}"
+            f"{YELLOW}📌 基线已固化 → {BASELINE_FILE.relative_to(BACKEND_DIR)}"
+            f" (原因: {args.reason or 'initial'}, 旧基线已归档 history){RESET}"
         )
         return 0
 
@@ -314,9 +395,7 @@ def main() -> int:
         for r in regressions:
             print(f"  {RED}{r}{RESET}")
         return 1
-    print(
-        f"{GREEN}✅ 门禁通过 — 5 指标均未回退 (基线 {baseline.get('run_at', '?')}){RESET}"
-    )
+    print(f"{GREEN}✅ 门禁通过 — 5 指标均未回退 (基线 {baseline.get('run_at', '?')}){RESET}")
     return 0
 
 

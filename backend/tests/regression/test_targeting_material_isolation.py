@@ -18,9 +18,7 @@ GROUP = "vault:cs_61b"
 
 
 def _write_node_md(tmp_path, node_id: str, front: str) -> None:
-    (tmp_path / f"{node_id}.md").write_text(
-        f"---\n{front}---\n\n正文\n", encoding="utf-8"
-    )
+    (tmp_path / f"{node_id}.md").write_text(f"---\n{front}---\n\n正文\n", encoding="utf-8")
 
 
 def _patch_md_dir(monkeypatch, tmp_path):
@@ -52,9 +50,7 @@ def test_errors_with_matching_group_id_accepted(monkeypatch, tmp_path):
         f"errors:\n  - description: 误认为 heap 是有序的\n    group_id: '{GROUP}'\n",
     )
     _patch_md_dir(monkeypatch, tmp_path)
-    assert tms._read_neighbor_errors("neighbor-b", group_id=GROUP) == [
-        "误认为 heap 是有序的"
-    ]
+    assert tms._read_neighbor_errors("neighbor-b", group_id=GROUP) == ["误认为 heap 是有序的"]
 
 
 def test_errors_with_foreign_group_id_rejected(monkeypatch, tmp_path):
@@ -75,9 +71,7 @@ def test_tips_error_channel_still_works(monkeypatch, tmp_path):
         "tips:\n  - tag: error\n    text: 把 base case 写成了 n==1\n",
     )
     _patch_md_dir(monkeypatch, tmp_path)
-    assert tms._read_neighbor_errors("neighbor-d", group_id=GROUP) == [
-        "把 base case 写成了 n==1"
-    ]
+    assert tms._read_neighbor_errors("neighbor-d", group_id=GROUP) == ["把 base case 写成了 n==1"]
 
 
 def test_misconception_preferred_over_description(monkeypatch, tmp_path):
@@ -89,9 +83,7 @@ def test_misconception_preferred_over_description(monkeypatch, tmp_path):
         f"    description: 更正后的完整解释\n    group_id: '{GROUP}'\n",
     )
     _patch_md_dir(monkeypatch, tmp_path)
-    assert tms._read_neighbor_errors("neighbor-e", group_id=GROUP) == [
-        "以为 DFS 一定找到最短路"
-    ]
+    assert tms._read_neighbor_errors("neighbor-e", group_id=GROUP) == ["以为 DFS 一定找到最短路"]
 
 
 # ── collect_targeting_material: Cypher 契约 + 四态 degraded ──
@@ -157,9 +149,7 @@ async def test_happy_path_not_degraded(monkeypatch, tmp_path):
         f"errors:\n  - description: 混淆入栈出栈顺序\n    group_id: '{GROUP}'\n",
     )
     _patch_md_dir(monkeypatch, tmp_path)
-    result, _ = await _collect_with(
-        [{"neighbor_id": "real-neighbor", "reason": "因为都用栈"}]
-    )
+    result, _ = await _collect_with([{"neighbor_id": "real-neighbor", "reason": "因为都用栈"}])
     assert result["degraded"] is False
     assert result["degraded_reason"] is None
     assert result["materials"] == [
@@ -197,6 +187,31 @@ def test_non_disputed_candidate_does_not_block(monkeypatch, tmp_path):
         f"error_candidates:\n  - description: 别的候选\n    status: pending\n",
     )
     _patch_md_dir(monkeypatch, tmp_path)
-    assert tms._read_neighbor_errors("neighbor-g", group_id=GROUP) == [
-        "混淆了 BFS 和 DFS"
-    ]
+    assert tms._read_neighbor_errors("neighbor-g", group_id=GROUP) == ["混淆了 BFS 和 DFS"]
+
+
+# ── P1 (终验对账裁决 6): dispute 模糊排除 — 一字改写不再绕过 ──
+
+
+def test_disputed_fuzzy_variant_excluded(monkeypatch, tmp_path):
+    """改一个字/加标点/变空白的 disputed 变体仍被排除。"""
+    _write_node_md(
+        tmp_path,
+        "neighbor-h",
+        f"errors:\n  - description: 以为栈是先进先出的结构！\n    group_id: '{GROUP}'\n"
+        f"error_candidates:\n  - description: 以为栈是先进先出结构\n    status: disputed\n",
+    )
+    _patch_md_dir(monkeypatch, tmp_path)
+    assert tms._read_neighbor_errors("neighbor-h", group_id=GROUP) == []
+
+
+def test_unrelated_text_not_fuzzy_excluded(monkeypatch, tmp_path):
+    """完全不同的素材不被模糊匹配误杀。"""
+    _write_node_md(
+        tmp_path,
+        "neighbor-i",
+        f"errors:\n  - description: 混淆了 BFS 和 DFS 的适用场景\n    group_id: '{GROUP}'\n"
+        f"error_candidates:\n  - description: 以为栈是先进先出\n    status: disputed\n",
+    )
+    _patch_md_dir(monkeypatch, tmp_path)
+    assert tms._read_neighbor_errors("neighbor-i", group_id=GROUP) == ["混淆了 BFS 和 DFS 的适用场景"]
