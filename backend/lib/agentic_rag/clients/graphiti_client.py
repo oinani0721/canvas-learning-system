@@ -219,8 +219,10 @@ class GraphitiClient:
     """
 
     def __init__(
-        self, timeout_ms: int = 200, batch_size: int = 10, enable_fallback: bool = True
+        self, timeout_ms: int = 2000, batch_size: int = 10, enable_fallback: bool = True
     ):
+        # 批次2' 线3 (MEM-FLYWHEEL): 200ms → 2000ms — Graphiti 语义搜索实测
+        # 中位 0.3s / 最大 1.24s (G0 门禁数据), 200ms 几乎必超时 → 恒空 fallback
         self.timeout_ms = timeout_ms
         self.batch_size = batch_size
         self.enable_fallback = enable_fallback
@@ -239,6 +241,27 @@ class GraphitiClient:
         """
         import os
 
+        # 批次2' 线3 (MEM-FLYWHEEL) 主导死因修复: 旧裸构造 Graphiti(uri,user,pw)
+        # 不带 llm/embedder/cross_encoder — graphiti_core 默认找 OpenAI key,
+        # 环境没有 → init/搜索必失败 → 恒空 fallback (RAG Graphiti 通道死因#1)。
+        # 修法: 优先复用 episode_worker 已配好的本地栈实例 (Qwen 12341 +
+        # reranker 18012 + Ollama embedding), 与 memory_service Tier1 同款姿势。
+        try:
+            from app.services.episode_worker import get_episode_worker
+
+            worker = get_episode_worker()
+            if worker.is_ready and worker._graphiti is not None:
+                self._graphiti_instance = worker._graphiti
+                self._graphiti_available = True
+                self._initialized = True
+                if LOGURU_ENABLED:
+                    logger.info(
+                        "GraphitiClient initialized: reusing episode_worker Graphiti instance (local LLM stack)"
+                    )
+                return True
+        except ImportError:
+            pass  # 独立进程无 app 模块 — 走下方裸构造兜底
+
         try:
             from graphiti_core import Graphiti
 
@@ -256,8 +279,9 @@ class GraphitiClient:
             self._initialized = True
 
             if LOGURU_ENABLED:
-                logger.info(
-                    f"GraphitiClient initialized: graphiti_core SDK available, Neo4j={neo4j_uri}"
+                logger.warning(
+                    f"GraphitiClient initialized WITHOUT worker instance (bare Graphiti, "
+                    f"default OpenAI clients — search will fail without OPENAI_API_KEY), Neo4j={neo4j_uri}"
                 )
             return True
 
@@ -352,11 +376,32 @@ class GraphitiClient:
                 return _empty_result_list()
             raise
 
+    @staticmethod
+    def _resolve_group_ids(canvas_file: Optional[str]) -> Optional[List[str]]:
+        """批次2' 线3 (MEM-FLYWHEEL) 死因#2 修复: 旧代码直接拿 canvas_file
+        (文件路径) 当 group_id — 图内物理组是 vault__x 双下划线格式, 路径
+        永远匹配不上 → 检索恒空。走正规推导链 + 物理化。"""
+        try:
+            from app.config import get_current_vault_id
+            from app.core.subject_config import build_vault_group_id
+            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
+
+            logical = build_vault_group_id(
+                get_current_vault_id(), canvas_path=canvas_file
+            )
+            return [sanitize_group_id_for_graphiti(logical)]
+        except ImportError:
+            if LOGURU_ENABLED:
+                logger.warning(
+                    "GraphitiClient: app modules unavailable, falling back to raw canvas_file group"
+                )
+            return [canvas_file] if canvas_file else None
+
     async def _search_via_graphiti_core(
         self,
         query: str,
         canvas_file: Optional[str] = None,
-        timeout: float = 0.2,
+        timeout: float = 2.0,
         num_results: int = 10,
     ) -> List[Dict[str, Any]]:
         """
@@ -367,10 +412,7 @@ class GraphitiClient:
         all_results: List[Dict[str, Any]] = list()
 
         try:
-            # Use group_ids based on canvas_file for scoped search
-            group_ids = None
-            if canvas_file:
-                group_ids = [canvas_file]
+            group_ids = self._resolve_group_ids(canvas_file)
 
             # Search via graphiti_core SDK with timeout
             search_coro = self._graphiti_instance.search(
@@ -575,15 +617,16 @@ class GraphitiClient:
             await self.initialize()
 
         try:
-            # ✅ AC 1.3: 设置超时
-            timeout_seconds = self.timeout_ms / 1000.0
+            # 批次2' 线3: 写侧超时与读侧解耦 — add_episode 走 LLM 结构化抽取
+            # (本地 Qwen 实测 ~7s), 沿用读侧 timeout_ms 必截断
+            write_timeout_seconds = 30.0
 
             if self._graphiti_available and self._graphiti_instance is not None:
                 episode_id = await self._add_episode_via_graphiti_core(
                     content=content,
                     canvas_file=canvas_file,
                     metadata=metadata,
-                    timeout=timeout_seconds,
+                    timeout=write_timeout_seconds,
                 )
                 return episode_id
             else:
@@ -610,7 +653,7 @@ class GraphitiClient:
         content: str,
         canvas_file: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        timeout: float = 0.2,
+        timeout: float = 30.0,
     ) -> Optional[str]:
         """
         通过graphiti_core SDK添加episode
@@ -621,7 +664,7 @@ class GraphitiClient:
             content: 学习内容
             canvas_file: Canvas文件路径
             metadata: 额外元数据
-            timeout: 超时时间(秒)
+            timeout: 超时时间(秒) — add_episode 走 LLM 抽取, 本地 Qwen 实测 ~7s
 
         Returns:
             episode_id or None
@@ -629,8 +672,9 @@ class GraphitiClient:
         try:
             import uuid
 
-            # Build group_id from canvas_file for scoped storage
-            group_id = canvas_file if canvas_file else "default"
+            # 批次2' 线3: 写侧同修 — 不再裸 "default" 桶, 走正规推导 (物理格式)
+            resolved = self._resolve_group_ids(canvas_file)
+            group_id = resolved[0] if resolved else "default"
 
             # Build episode name from content prefix
             episode_name = content[:80] if content else "learning_episode"

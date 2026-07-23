@@ -2098,6 +2098,56 @@ class MemoryService:
 
         return merged[:effective_limit]
 
+    async def search_error_memories(
+        self,
+        node_id: str,
+        group_id: Optional[str] = None,
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """检索节点的历史误解/错误记录 (Story 2.3 消费方契约, 批次2' 线3 补齐)。
+
+        chat.py /enrich-context 与 chat_context_assembler 自 2026-05-13 起调用
+        此方法, 但方法本体从未实现 — 现网 500 (BUG-32DB6194, G-PIPE 实例)。
+        实现: search_memories 三层融合定向查询 + 错误信号过滤, 映射为
+        assembler._format_historical_errors 消费的 error_record schema
+        (error_type / description / corrected_at / tags / source_session)。
+        """
+        hits = await self.search_memories(
+            query=f"{node_id} 错误 误解 mistake misconception",
+            group_id=group_id,
+            max_results=max(limit * 4, 20),
+        )
+        markers = (
+            "error",
+            "mistake",
+            "misconception",
+            "错误",
+            "误解",
+            "混淆",
+            "纠正",
+        )
+        records: List[Dict[str, Any]] = []
+        for h in hits:
+            text = " ".join(
+                str(h.get(k, "")) for k in ("content", "name", "episode_type")
+            ).lower()
+            if not any(m in text for m in markers):
+                continue
+            records.append(
+                {
+                    "error_type": h.get("episode_type") or "learning_error",
+                    "description": str(h.get("content") or "")[:500],
+                    "corrected_at": str(h.get("timestamp") or ""),
+                    "tags": [],
+                    "source_session": str(h.get("group_id") or ""),
+                    "_episode_id": str(h.get("episode_id") or ""),
+                    "_node_id": node_id,
+                }
+            )
+            if len(records) >= limit:
+                break
+        return records
+
     async def record_temporal_event(
         self,
         event_type: str,

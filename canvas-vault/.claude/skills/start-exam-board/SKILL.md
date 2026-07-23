@@ -174,7 +174,19 @@ Bash: curl -sS --fail -m 5 -X POST http://localhost:8011/api/v1/exam/targeting-m
 - **⛔ 不得因拿到邻居素材而去 Read 邻居正文**——素材已含全部可用信息（HARD-ISO-4 延伸）。
 - `degraded=true` / HTTP 非 200 / 空 `materials` → 当本步骤不存在，直接进 Step 5。
 
+## Step 4.8 · 回读考察历史 + 题目去重（A4，批次2'，MEM-FLYWHEEL）
+
+> 检验白板 md 是天然的考察历史档案，此前出题侧从不回读 → 同题重复只测「答案记忆」。
+> 交错变体整群随机试验 d=0.83（Rohrer 2020）——排除已考素材，逼出变体。
+
+- `Grep -l "concept: \"?<target>" 检验白板/` 找同节点历史白板（0 命中 → 本步跳过，首考无需去重）。
+- 对每张命中的历史白板 `Grep "question:" ` 取历史题面（frontmatter questions[0].question 行；最多取最近 5 张，太老的角度允许自然回归）。
+- 汇总为「已考清单」：每条含题面摘要 + 考察角度（hook token 若可辨）。
+- 顺带从 target 节点 Grep `^(attempt_count|last_examined):`（quiz-answer 评分时写入）——回执里如实报告「第 N 次考察」。
+
 ## Step 5 · 【Claude Code 订阅出题】（1 道针对题）
+
+**HARD-DEDUP（A4）**：若 Step 4.8 有「已考清单」，本次题目 ⛔ 不得与清单中任一题面重复考察角度或复用同一段批注原话——同一信号源允许，但必须换角度出**变体**（换情境/换反例方向/换衔接对象）；所有角度都考过 → 选清单中最老的角度出变体并在回执标注「变体复考」。
 
 按 `target` 拿到的信号出 **1 道题**，策略路由（借鉴 exam-quick §5）：
 

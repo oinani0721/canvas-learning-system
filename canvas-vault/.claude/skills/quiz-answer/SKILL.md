@@ -44,7 +44,38 @@ model: sonnet
 ## Step 0 · 幂等 / 续跑守卫（必须最先做）
 
 `Read` 检验白板 md frontmatter，按 `status` 分流：
-- **`done`** → 停止：`⛔ 本检验白板已评分。要再考请用 /start-exam-board 新建一张。`
+- **`done`** → **A3 增量归纳分支（批次2'，P11）**，不再一律拒绝：
+  1. `Grep` 白板答题区疑问批注（同 Step 4a 的三种 pattern，同样跳过空占位）；
+  2. 对每条疑问，检查其原文是否已在 `节点/<concept>.md` 正文中（`Grep` 疑问原文首行）——**已归纳过的跳过**；
+  3. 有新疑问 → 按 Step 4a 格式拼 callout 列表，用 `Write` 写 `/tmp/quiz-answer-incr.json`：`{"node": "节点/<concept>.md", "callouts": ["<callout 1>", ...]}`，然后 **`Bash` 运行下面这段静态 python**（⛔ 逐字照抄）——只归纳疑问，**不重评分、不动 mastery/attempt_count**（堵孤儿信号，不双计分）：
+
+     ```bash
+     python3 - <<'PYEOF'
+     import json, re, os
+     P = "/tmp/quiz-answer-incr.json"
+     p = json.load(open(P, encoding="utf-8"))
+     NODE = p["node"]
+     s = open(NODE, encoding="utf-8").read()
+     m = re.match(r'^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', s, re.S)
+     if not m:
+         raise SystemExit("frontmatter 解析失败：" + NODE)
+     fm, body = m.group(1), m.group(2)
+     added = 0
+     for cal in p.get("callouts", []):
+         cal = cal.strip()
+         if cal and cal not in body:
+             body = body.rstrip() + "\n\n" + cal + "\n"
+             added += 1
+     tmp = NODE + ".incr-tmp"
+     open(tmp, "w", encoding="utf-8").write(f"---\n{fm}\n---\n{body}")
+     os.replace(tmp, NODE)
+     os.remove(P)
+     print(f"[quiz-answer/A3] {NODE}: 增量归纳 {added} 条疑问 (分数未动)")
+     PYEOF
+     ```
+
+     回执：`✓ 已评分白板的 N 条新疑问已归纳回节点（分数未变）。要再考请用 /start-exam-board 新建一张。`
+  4. 无新疑问 → 停止：`⛔ 本检验白板已评分，也没有新疑问可归纳。要再考请用 /start-exam-board 新建一张。`
 - **`scored_pending_node_update`**（上次 Step 4 节点写入失败的续跑态）→ **跳过 Step 1-3**（分数已在 frontmatter），直接从已存的 `questions[0].score`/`self_confidence` 重建 payload，续跑 Step 4 → Step 4c。python 内置 event_id 幂等，重复续跑不会双写。
 - **`in_progress`** 但 `questions[0].score != null`（异常半态）→ 按续跑处理（同上）。
 - **`in_progress`** 且 score 为 null → 正常走 Step 1。
@@ -55,7 +86,9 @@ model: sonnet
 - **提取答案**：取 `<!-- answer:start -->` 与 `<!-- answer:end -->` 之间的文本。
 - **净化答案文本**（考中派生残留）：若答案区含 `> [!relation/...]` callout 块（用户考中 Cmd+Shift+D 派生插入的元数据），**剥离这些块后**再做空判定和评分——它们不是作答内容。P7 补充（2026-07-16）：答案区的 `> [!question]+` / `> [!error]+` 疑问批注块（含「插入新疑问」命令直插的）**同样剥离后再评分**——它们是 Step 4a 的归纳素材，不是作答内容，混入会污染 4 维评分。
 - **提取理解自评**：Grep `理解自评` 行 → 取 `→` 之后文本 trim。**归一化** `self_confidence_norm`：懂=1.0 / 半懂=0.5 / 不懂=0.0；数字 0-5 → 除以 5；解析不了 → null（raw 照存）。
-- **未作答判定**：净化后的答案去掉占位符原句（含"在此手写"字样）若为空 → 停止：`⚠ 你还没作答。先在 <!-- answer:start/end --> 之间手写回答再 /quiz-answer。`
+- **未作答判定（A2 弃答通道，批次2'，P12）**：净化后的答案去掉占位符原句（含"在此手写"字样）后——
+  - **弃答**：文本 ≤ 10 字符且匹配弃答词（`不会|不知道|不懂|想不起|跳过|放弃|弃答|skip|pass|idk`，忽略大小写标点）→ **不停止**，走弃答通道：跳过 Step 2 的 4 维评分，直接记 `grade = 1.0`（4 维全 1 最低档）、`grade_norm = 0.0`、`abandoned: true`。弃答是一等弱点信号（与难度强相关），必须进掌握度演化 + calibration 事件，Step 4a 并归纳一条疑问 callout 回节点（原文用你的弃答表述 + 题目 hook）。
+  - **真未作答**：为空且无弃答词 → 停止：`⚠ 你还没作答。先在 <!-- answer:start/end --> 之间手写回答再 /quiz-answer；答不上来就写「不会」，弃答也是有效信号。`
 
 ## Step 2 · 订阅静默评分（净化基准 + rubric 锚定）
 
@@ -93,9 +126,12 @@ model: sonnet
   "source_board": "[[原白板/<board_stem>]]",
   "self_confidence_raw": "半懂",
   "self_confidence_norm": 0.5,
+  "abandoned": false,
   "callout": "> [!question]+ 待剖析 · 源自 [[检验白板/<文件名>]]（<日期>）\n> <疑问原文（逐字）>\n>\n> AI 判断来源：你在回答『<concept>』的考题时提出。原因：<一句话>"
 }
 ```
+
+（A2 弃答时：`grade_norm: 0.0`、`abandoned: true`，callout 必填——用你的弃答原话 + 题目 hook 构造「此题弃答」疑问块。）
 
 **4c · `Bash` 运行下面这段静态 python**（⛔ 逐字照抄，零占位符零拼接）：
 
@@ -152,8 +188,12 @@ else:
     A, B = PRIOR_A, PRIOR_B
 A, B = update(A, B, GN)
 new = round(mu(A, B), 2)
-fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b):.*\r?\n?', '', fm, flags=re.M)
-fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}", fm, count=1, flags=re.M)
+# A4 (批次2'): 考察历史随节点走 — attempt_count 累加 + last_examined 时间戳,
+# 出题侧 (start-exam-board) 回读它们做题目去重与历史感知
+mo_att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
+n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
+fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
+fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(p["ts"], ensure_ascii=False), fm, count=1, flags=re.M)
 
 # calibration_log 结构化事件（开头的事件级幂等已保证本事件未记录过）
 q = lambda v: json.dumps(v, ensure_ascii=False)
@@ -164,7 +204,8 @@ entry = (f'  - event_id: {q(eid)}\n'
          f'    question_id: {q(p.get("question_id","q1"))}\n'
          f'    self_confidence_raw: {q(p.get("self_confidence_raw") or "null")}\n'
          f'    self_confidence_norm: {scn if scn is not None else "null"}\n'
-         f'    grade_norm: {round(GN, 2)}')
+         f'    grade_norm: {round(GN, 2)}\n'
+         f'    abandoned: {"true" if p.get("abandoned") else "false"}')
 # F3 修复 (2026-07-12): 定位 calibration_log 块末尾插入 — 旧逻辑无条件追加
 # 到 frontmatter 末尾, 当 calibration_log 非最后一个 key 时 (Obsidian
 # Properties 面板默认在末尾新增属性, 极常见), 事件条目会被 YAML 静默
@@ -227,7 +268,8 @@ python 成功（exit 0）后，`Edit` 检验白板 frontmatter：
 ## 执行自检清单（Step 5 回执前必 tick）
 
 ```
-[ ] Step 0 按 status 三分流：done 拒 / pending 续跑（跳过重评分）/ in_progress 正常
+[ ] Step 0 按 status 三分流：done 走 A3 增量归纳（有新疑问仅归纳不重评分，无则拒）/ pending 续跑（跳过重评分）/ in_progress 正常
+[ ] Step 1 弃答（≤10 字符弃答词）走 A2 通道：grade_norm=0.0 + abandoned:true + 弃答疑问归纳；真空答案才停止
 [ ] Step 1 答案取自 sentinel 之间；剥离了 [!relation/*] 派生残留；理解自评 raw+norm 双存
 [ ] Step 2 评分前才 Read 正文；基准剥离了用户批注 callout；4 维按 rubric 锚定；事实冲突 → needs_content_review
 [ ] Step 3 先置 scored_pending_node_update（不是 done）

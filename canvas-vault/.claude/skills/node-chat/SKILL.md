@@ -6,6 +6,7 @@ allowed-tools:
   - Read
   - Glob
   - Grep
+  - mcp__canvas-learning-mcp__search_memories
 model: sonnet
 ---
 
@@ -30,6 +31,7 @@ model: sonnet
 4. **使用 Read / Glob / Grep 辅助回答** — 当用户问及邻居节点细节或要扩展上下文时，可以用 Read 直接读 `节点/<X>.md` 或 `原白板/<X>.md` 获取更多信息
 5. **严禁捏造概念关系** — 如果用户问的关系不在注入的 frontmatter relationships[] 或 1-hop 邻居中，明确说"目前 vault 内没有记录该关系"
 6. **保持中文回复**（除非用户主动用英文）— 与 vault 内笔记语言保持一致
+7. **⛔ 回忆式提问必查图谱记忆（批次2' 线2，MEM-FLYWHEEL）** — 用户问「我之前 / 上次 / 学过 / 错过 / 考过 / 记得 / 哪里薄弱」类指向**自己学习历史**的问题 → **必须先调 `mcp__canvas-learning-mcp__search_memories(query=<用户问题>, node_id=<当前节点>)`** 再作答；0 命中或 MCP 不可达 → 明说「图谱记忆没查到相关记录」，禁止编造学习历史。概念定义类提问不触发本条。
 
 ## 对话开场（解析 prompt 后的第一句）
 

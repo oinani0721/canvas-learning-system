@@ -9,6 +9,7 @@ allowed-tools:
   - mcp__canvas-learning-mcp__search_notes
   - mcp__canvas-learning-mcp__get_neighbors
   - mcp__canvas-learning-mcp__read_note
+  - mcp__canvas-learning-mcp__search_memories
 model: sonnet
 ---
 
@@ -114,6 +115,8 @@ model: sonnet
     - 路径 A: **先 Glob+Grep **/*.md 找含用户提问术语的 file**（session 项目根即 vault 根）(5s 预算内,限 top-8 命中)。**命中后直接 Read top-2 走 4 段输出**,**不再走 MCP**。命中 0 才 fallback 到 `mcp__search_notes(max_results=15)`。
     - 路径 C 不变 (hook + MCP 合并)。
     - 理由: Dashboard / 非节点页触发是常态,native Grep 比 MCP 快且透明,5s 预算足够。
+
+20. **⛔ HARD-20 回忆式提问必查图谱记忆（批次2' 线2，MEM-FLYWHEEL）** — 用户提问含回忆意图（「我之前 / 上次 / 学过 / 错过 / 考过 / 记得 / 有哪些误解 / 哪里薄弱」类表述，指向**用户自己的学习历史**而非概念定义）→ **必须先调 `mcp__canvas-learning-mcp__search_memories(query=<用户问题>)`** 再作答，命中的记忆条目按时间标注融入回答；0 命中或 MCP 不可达 → 明说「图谱记忆没查到相关记录」，禁止凭对话上下文编造学习历史。普通概念性提问不触发本条。
 
 ## 对话开场（解析 prompt 后的第一条回复）
 

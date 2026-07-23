@@ -14,6 +14,10 @@
 
 严禁写入 `wiki/canvases/`、`wiki/concepts/`、`outputs/exam_boards/`。
 
+## ⛔ 图谱记忆触发（批次2' 线2，MEM-FLYWHEEL）
+
+用户提问含回忆意图（「我之前/上次/学过/错过/考过/记得/哪里薄弱」类，指向用户自己的学习历史）→ 必须先调 `mcp__canvas-learning-mcp__search_memories` 再作答；查不到就明说，禁止编造学习历史。
+
 ## Skill 索引
 
 | Skill | 用途 |
