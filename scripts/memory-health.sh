@@ -29,4 +29,27 @@ latest_backup="无"
 lb=$(ls -t "$REPO/backups/neo4j"/neo4j-*.dump 2>/dev/null | head -1)
 [ -n "$lb" ] && latest_backup=$(basename "$lb")
 
-echo "[$(date '+%F %T')] Neo4j:$neo4j 后端:$backend Qwen:$qwen Rerank:$rerank Embed:$ollama | 死信累计:${dead} 待补归档:${queued} | 最新备份:${latest_backup}" >> "$OUT"
+# 批次1'⑥ (MEM-FLYWHEEL): 每日污染审计 — 生产 vault__ 组内测试标记计数
+# (TestConcept / UAT-2.5 / m3-e2e, 对抗审查 C1 清单)。数据治理三层防线
+# 第三层: 写入强校验挡新增, 本审计抓存量与漏网。cypher-shell 经容器执行,
+# 凭据取 backend/.env; 任一环节失败记 "审计:跳过" 不炸摘要。
+pollution="审计:跳过"
+NEO4J_PASSWORD=$(grep -m1 '^NEO4J_PASSWORD=' "$WT/backend/.env" 2>/dev/null | cut -d= -f2-)
+if [ -n "${NEO4J_PASSWORD:-}" ]; then
+    polluted=$(docker exec canvas-learning-system-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" --format plain \
+        "MATCH (n) WHERE n.group_id STARTS WITH 'vault__' AND (
+           coalesce(n.name,'') CONTAINS 'TestConcept' OR coalesce(n.content,'') CONTAINS 'TestConcept'
+           OR coalesce(n.name,'') CONTAINS 'UAT-2.5' OR coalesce(n.content,'') CONTAINS 'UAT-2.5'
+           OR coalesce(n.name,'') CONTAINS 'm3-e2e' OR coalesce(n.content,'') CONTAINS 'm3-e2e')
+         RETURN count(n);" 2>/dev/null | tail -1)
+    polluted_edges=$(docker exec canvas-learning-system-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" --format plain \
+        "MATCH ()-[r]-() WHERE coalesce(r.group_id,'') STARTS WITH 'vault__' AND (
+           coalesce(r.fact,'') CONTAINS 'TestConcept' OR coalesce(r.fact,'') CONTAINS 'UAT-2.5'
+           OR coalesce(r.fact,'') CONTAINS 'm3-e2e')
+         RETURN count(DISTINCT r);" 2>/dev/null | tail -1)
+    if [ -n "$polluted" ] && [ -n "$polluted_edges" ]; then
+        pollution="污染:节点${polluted}/边${polluted_edges}"
+    fi
+fi
+
+echo "[$(date '+%F %T')] Neo4j:$neo4j 后端:$backend Qwen:$qwen Rerank:$rerank Embed:$ollama | 死信累计:${dead} 待补归档:${queued} | ${pollution} | 最新备份:${latest_backup}" >> "$OUT"

@@ -10,6 +10,8 @@ config:
   group_id: null            # null = 运行时 default_vault_group_id() 推导 (与 MCP 工具缺省一致)
   max_results: 10
   # 泄漏标记: 命中任一 = 测试污染泄漏 (对抗审查 C1: TestConceptA/B/C, UAT-2.5.X-test 种子, m3-e2e 会话链)
+  # ⚠️ 批次1'后基线泄漏率 2.94% = 已知污染本体被 cross_encoder/子组扩展暴露 (非代码回退,
+  #    每日审计实测生产组 6 个污染节点) — 清污③ (等用户拍板 A删/B迁) 完成后必须归零并重固化基线
   leak_markers:
     - "TestConcept"
     - "UAT-2.5"

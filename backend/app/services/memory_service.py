@@ -38,6 +38,7 @@ import hashlib
 import json
 import logging
 import time
+import unicodedata
 import uuid
 
 import structlog
@@ -1568,12 +1569,23 @@ class MemoryService:
                     NODE_HYBRID_SEARCH_RRF,
                 )
 
+                # 批次1'④ (MEM-FLYWHEEL): MMR 配方注册 — Graphiti 白送的
+                # 去重配方此前闲置 (审查「三个已付钱零收益」之三)
+                from graphiti_core.search.search_config_recipes import (
+                    COMBINED_HYBRID_SEARCH_MMR,
+                    EDGE_HYBRID_SEARCH_MMR,
+                    NODE_HYBRID_SEARCH_MMR,
+                )
+
                 cls._SEARCH_RECIPES = {
                     "combined_rrf": COMBINED_HYBRID_SEARCH_RRF,
                     "combined_cross_encoder": COMBINED_HYBRID_SEARCH_CROSS_ENCODER,
+                    "combined_mmr": COMBINED_HYBRID_SEARCH_MMR,
                     "edge_cross_encoder": EDGE_HYBRID_SEARCH_CROSS_ENCODER,
                     "edge_rrf": EDGE_HYBRID_SEARCH_RRF,
+                    "edge_mmr": EDGE_HYBRID_SEARCH_MMR,
                     "node_rrf": NODE_HYBRID_SEARCH_RRF,
+                    "node_mmr": NODE_HYBRID_SEARCH_MMR,
                 }
             except ImportError:
                 logger.warning("graphiti_core search recipes not available")
@@ -1634,12 +1646,17 @@ class MemoryService:
             )
 
             _gid_phys = sanitize_group_id_for_graphiti(group_id) if group_id else None
+            # 批次1'④ (MEM-FLYWHEEL): punycode 白板级子组并入检索 — 中文白板名
+            # 转码组 (vault__x__xn--*) 曾不在搜索范围, 组内 fact 逐字查不到
+            # (审查实锤: q1 完美中文答案搁浅在 punycode 组)
+            _search_groups = None
+            if _gid_phys:
+                _search_groups = [_gid_phys, semantic_group_id(_gid_phys)]
+                _search_groups += await self._expand_vault_subgroups(_gid_phys)
             search_kwargs: Dict[str, Any] = {
                 "query": query,
                 "config": config_with_limit,
-                "group_ids": (
-                    [_gid_phys, semantic_group_id(_gid_phys)] if _gid_phys else None
-                ),
+                "group_ids": _search_groups,
             }
             if search_filter is not None:
                 search_kwargs["search_filter"] = search_filter
@@ -1751,6 +1768,72 @@ class MemoryService:
         except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
             logger.warning(f"Graphiti legacy search failed or timed out: {e}")
             return list()
+
+    #: 批次1'④: 白板级子组枚举缓存 {前缀: (过期时间戳, 组列表)}
+    _subgroup_cache: Dict[str, Any] = {}
+
+    async def _expand_vault_subgroups(self, gid_phys: str) -> List[str]:
+        """枚举 vault 物理组前缀下的白板级子组 (批次1'④, MEM-FLYWHEEL)。
+
+        中文白板名经 punycode 转码后落在 vault__x__xn--* 子组; 此前搜索只查
+        [vault 组, semantic 影子组], punycode 组内 fact 逐字查不到 (2026-07-22
+        对抗审查实锤)。5 分钟 TTL 缓存; Neo4j 不可用时静默返回空 — 只影响
+        扩展面, 不炸主检索。
+        """
+        import time as _time
+
+        prefix = gid_phys + "__"
+        cached = self._subgroup_cache.get(prefix)
+        if cached and cached[0] > _time.time():
+            return cached[1]
+        groups: List[str] = []
+        try:
+            records = await self.neo4j.run_query(
+                "MATCH (n) WHERE n.group_id STARTS WITH $prefix "
+                "RETURN DISTINCT n.group_id AS gid LIMIT 50",
+                prefix=prefix,
+            )
+            for rec in records or []:
+                data = rec if isinstance(rec, dict) else rec.data()
+                gid = str(data.get("gid") or "")
+                if gid:
+                    groups.append(gid)
+        except Exception as e:  # noqa: BLE001 — 读侧扩展, 降级不炸
+            logger.debug("[批次1'④] 子组枚举失败 (跳过扩展): %s", e)
+        self._subgroup_cache[prefix] = (_time.time() + 300, groups)
+        return groups
+
+    @staticmethod
+    def _dedupe_by_text(
+        results: List[Dict[str, Any]], ratio: float = 0.92
+    ) -> List[Dict[str, Any]]:
+        """文本级近重去重 (批次1'④, MEM-FLYWHEEL): 保留分数最高条。
+
+        dedup 只按 episode_id 收不掉不同 uuid 的近重边 (审查实测近重复率
+        27%、5 对逐字节相同同屏)。入参须已按 relevance_score 降序 — 顺序
+        遍历时后到的近重条即低分条, 直接丢弃。
+        """
+        import difflib
+
+        kept: List[Dict[str, Any]] = []
+        seen_norm: List[str] = []
+        for r in results:
+            text = "".join(
+                unicodedata.normalize(
+                    "NFKC", str(r.get("content") or r.get("name") or "")
+                )
+                .casefold()
+                .split()
+            )
+            if text and any(
+                difflib.SequenceMatcher(None, text, s).ratio() >= ratio
+                for s in seen_norm
+            ):
+                continue
+            if text:
+                seen_norm.append(text)
+            kept.append(r)
+        return kept
 
     @staticmethod
     def _compute_unified_score(episode: Dict[str, Any], tier: int) -> float:
@@ -1903,6 +1986,10 @@ class MemoryService:
         limit: Optional[int] = None,
         search_config: str = "combined_rrf",
         search_filter: Optional[Any] = None,
+        # 批次1'④ 地板取 0.05: bge-reranker 跨语弱相关落在 0.05-0.2 区间
+        # (0.2 实测误杀 mem-05/15/24, recall@5 -9pt); 假阳性防护主要靠
+        # cross_encoder 区分度, 地板只砍趋零噪音
+        min_relevance: float = 0.05,
     ) -> List[Dict[str, Any]]:
         """
         Search learning memories using 3-tier layered search with unified scoring.
@@ -1989,12 +2076,24 @@ class MemoryService:
         # Sort by relevance_score descending (unified across all tiers)
         merged.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
 
+        # 批次1'④ (MEM-FLYWHEEL): 文本级近重去重 (跨 Tier, 收不同 uuid 近重边)
+        pre_dedupe = len(merged)
+        merged = self._dedupe_by_text(merged)
+
+        # 批次1'④ (MEM-FLYWHEEL): 相关度地板 — 低于阈值宁可空 (假阳性满编
+        # 止血一阶手段)。Tier1/2 全空的降级场景跳过地板, 保留 Tier3 内存兜底。
+        if min_relevance > 0 and (graphiti_hits or neo4j_hits):
+            merged = [
+                r for r in merged if r.get("relevance_score", 0.0) >= min_relevance
+            ]
+
         # Epic 4 Feature 4.2: Log which tier(s) produced results
         logger.info(
             f"[search_memories] Tier 1: {len(graphiti_hits)} results, "
             f"Tier 2: {len(neo4j_hits)} results, "
             f"Tier 3: {tier3_count} results "
-            f"(total merged: {len(merged[:effective_limit])}, sorted by relevance)"
+            f"(deduped {pre_dedupe - len(merged) if pre_dedupe > len(merged) else 0}, "
+            f"floor={min_relevance}, returned {len(merged[:effective_limit])})"
         )
 
         return merged[:effective_limit]

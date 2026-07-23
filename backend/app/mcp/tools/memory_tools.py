@@ -200,10 +200,15 @@ async def search_memories(
             group_id = default_vault_group_id()
 
         # Search memories via the memory service
+        # 批次1'⑤ (MEM-FLYWHEEL): cross_encoder 接线 — 18012 bge-reranker
+        # 此前在主记忆检索被调用 0 次 (恒走默认 RRF, 审查「已付钱零收益」
+        # 之一)。worker 的 Graphiti 实例已配本地 CrossEncoderClient, 指定
+        # recipe 即上岗 (社区标尺: hybrid 之上接精排可再消 1/3 残余失败)。
         search_result = await memory_svc.search_memories(
             query=query,
             group_id=group_id,
             max_results=max_results,
+            search_config="combined_cross_encoder",
         )
 
         # Convert results to MemoryItem format
@@ -289,7 +294,6 @@ async def record_calibration(
     calibration_gap = abs(predicted_score - actual_score)
 
     try:
-        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -400,7 +404,6 @@ async def record_learning_memory(
         ).model_dump()
 
     try:
-        from app.config import DEFAULT_GROUP_ID
         from app.core.memory_format import build_entity_name, build_episode_body
         from app.services.memory_service import get_memory_service
 

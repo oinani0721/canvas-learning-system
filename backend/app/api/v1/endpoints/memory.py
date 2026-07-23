@@ -66,7 +66,7 @@ def _resolve_vault_group_id(
     legacy_group_id: Optional[str] = None,
 ) -> str:
     """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
-    from app.config import DEFAULT_GROUP_ID, sanitize_vault_id
+    from app.config import sanitize_vault_id
     from app.core.subject_config import (
         build_vault_group_id,
         canonical_group_id,
@@ -88,11 +88,16 @@ def _resolve_vault_group_id(
         )
         derived = canonical_group_id(legacy_group_id)
     else:
+        # 批次1'① (MEM-FLYWHEEL): 双缺失不再落 DEFAULT_GROUP_ID (vault:default
+        # 污染桶) — 推导当前 vault 组, 与 P15 MCP 工具模式一致。缺失回落
+        # default 桶只准存在于离线迁移工具, 不在线上主路径。
+        from app.core.subject_config import default_vault_group_id
+
         logger.warning(
             "Wave-5 Stage B: memory endpoint both vault_id and group_id missing, "
-            "falling back to DEFAULT_GROUP_ID"
+            "deriving current vault group (fail-closed, no DEFAULT_GROUP_ID)"
         )
-        derived = DEFAULT_GROUP_ID
+        derived = default_vault_group_id()
 
     set_current_subject_id(derived)
     return derived
@@ -623,18 +628,19 @@ async def extract_conversation_learning(
 ) -> ExtractConversationResponse:
     try:
         from app.services.conversation_distiller import ConversationDistiller
-        from app.config import DEFAULT_GROUP_ID
         from app.core.subject_config import (
             build_group_id,
+            default_vault_group_id,
             extract_canvas_name,
             extract_subject_from_canvas_path,
         )
 
-        # audit-2026-04-07/p0-2: resolve target group_id with graceful fallback.
+        # audit-2026-04-07/p0-2 → 批次1'① (MEM-FLYWHEEL): resolve target group_id.
         # Priority:
         #   1. explicit request.group_id (caller knows best)
         #   2. derived from canvas_path (subject + canvas filename)
-        #   3. DEFAULT_GROUP_ID (legacy / unknown caller)
+        #   3. 当前 vault 组推导 (不再落 DEFAULT_GROUP_ID 污染桶 — 蒸馏产物
+        #      是写侧, 落错桶即永久污染)
         if request.group_id:
             resolved_group_id = request.group_id
         elif request.canvas_path:
@@ -642,7 +648,7 @@ async def extract_conversation_learning(
             canvas_name = extract_canvas_name(request.canvas_path)
             resolved_group_id = build_group_id(subject, canvas_name)
         else:
-            resolved_group_id = DEFAULT_GROUP_ID
+            resolved_group_id = default_vault_group_id()
 
         distiller = ConversationDistiller()
         result = await distiller.distill(

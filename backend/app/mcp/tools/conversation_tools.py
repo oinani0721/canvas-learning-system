@@ -135,7 +135,6 @@ async def archive_conversation(
     archive_id = str(uuid.uuid4())
 
     try:
-        from app.config import DEFAULT_GROUP_ID
         from app.services.memory_service import get_memory_service
 
         memory_svc = await get_memory_service()
@@ -279,7 +278,6 @@ async def create_exam_node(
 
         # Record exam node creation in learning memory (non-blocking)
         try:
-            from app.config import DEFAULT_GROUP_ID
             from app.services.memory_service import get_memory_service
 
             memory_svc = await get_memory_service()

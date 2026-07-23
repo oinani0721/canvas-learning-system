@@ -57,12 +57,14 @@ def _read_neighbor_errors(node_id: str, group_id: str = "") -> list[str]:
     # 正式 errors[] — 2.5.X accept/edited 移入, 用户主权确认过的错误
     for err in fm.get("errors") or []:
         if isinstance(err, dict):
-            # P2 vault 归属校验: 记录带 group_id 且与请求组不一致 → 拒收。
-            # (老记录无 group_id 时放行, 兼容存量; 测试种子会带异组标记)
+            # 批次1'② (MEM-FLYWHEEL): fail-closed — 缺 group_id 一律拒收。
+            # 「缺失放行」曾是 C1 泄漏通道 (UAT-2.5.X 测试种子 errors[] 无
+            # group_id 混入线代出题链, 2026-07-22 对抗审查实锤); 缺失兼容
+            # 只准存在于离线迁移工具, 不在线上主路径 (ChatGPT R1 三层防线)。
             err_group = str(err.get("group_id") or "").strip()
-            if group_id and err_group and err_group != group_id:
+            if group_id and err_group != group_id:
                 logger.info(
-                    "[T4-P2] 拒收跨 vault 邻居素材: node=%s err_group=%s req_group=%s",
+                    "[T4-P2] 拒收邻居素材 (fail-closed): node=%s err_group=%r req_group=%s",
                     node_id,
                     err_group,
                     group_id,
@@ -106,14 +108,20 @@ async def collect_targeting_material(
 
         client = get_neo4j_client()
         # T1/T2: 投影图物理 __ 格式; 双向 1-hop, 边 label = 用户增殖原因
-        # 轨道 B P2 (2026-07-20): m 侧补 group 谓词 — 旧查询只滤边不滤
-        # 邻居节点, 跨 vault 节点经同组边混入 (UAT-2.5.X-test 污染根因之一)
+        # 批次1'② (MEM-FLYWHEEL): 三处收紧 —
+        # ① n/e/m 三侧 group 谓词严格相等 (IS NULL 放行是 C1 同源洞, 移除);
+        # ② OPTIONAL MATCH 区分 node_not_found / no_neighbors 两态;
+        # ③ ORDER BY neighbor_id 确定性排序 (原纯存储顺序=随机;
+        #    批次4' 投影边补 created_at 后改按时间)。
         records = await client.run_query(
             """
-            MATCH (n:CanvasNode {id: $node_id})-[e:CANVAS_EDGE]-(m:CanvasNode)
+            MATCH (n:CanvasNode {id: $node_id})
+            WHERE n.group_id = $group_id
+            OPTIONAL MATCH (n)-[e:CANVAS_EDGE]-(m:CanvasNode)
             WHERE e.group_id = $group_id AND m.id <> $node_id
-              AND (m.group_id IS NULL OR m.group_id = $group_id)
+              AND m.group_id = $group_id
             RETURN DISTINCT m.id AS neighbor_id, e.label AS reason
+            ORDER BY neighbor_id
             LIMIT 10
             """,
             node_id=node_id,
@@ -125,13 +133,24 @@ async def collect_targeting_material(
         result["degraded_reason"] = f"neo4j_unavailable: {type(e).__name__}"
         return result
 
+    if not records:
+        result["degraded"] = True
+        result["degraded_reason"] = "node_not_found"
+        return result
+    neighbor_rows = [
+        data
+        for rec in records
+        if (data := rec if isinstance(rec, dict) else rec.data()).get("neighbor_id")
+    ]
+    if not neighbor_rows:
+        result["degraded"] = True
+        result["degraded_reason"] = "no_neighbors"
+        return result
+
     used = 0
-    for rec in records or []:
-        data = rec if isinstance(rec, dict) else rec.data()
+    for data in neighbor_rows:
         neighbor_id = str(data.get("neighbor_id") or "")
         reason = str(data.get("reason") or "").strip()
-        if not neighbor_id:
-            continue
         for err_text in _read_neighbor_errors(neighbor_id, group_id=group_id):
             if used + len(err_text) > budget_chars:
                 logger.debug("[T4] 素材达字符预算 %d, 截断", budget_chars)
@@ -145,4 +164,8 @@ async def collect_targeting_material(
                 }
             )
             used += len(err_text)
+    if not result["materials"]:
+        # 有邻居但全部无可用错误素材 — 与「无邻居」区分, 调用方可选不同兜底话术
+        result["degraded"] = True
+        result["degraded_reason"] = "no_neighbor_errors"
     return result
