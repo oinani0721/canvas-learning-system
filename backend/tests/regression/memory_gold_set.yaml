@@ -10,8 +10,10 @@ config:
   group_id: null            # null = 运行时 default_vault_group_id() 推导 (与 MCP 工具缺省一致)
   max_results: 10
   # 泄漏标记: 命中任一 = 测试污染泄漏 (对抗审查 C1: TestConceptA/B/C, UAT-2.5.X-test 种子, m3-e2e 会话链)
-  # ⚠️ 批次1'后基线泄漏率 2.94% = 已知污染本体被 cross_encoder/子组扩展暴露 (非代码回退,
-  #    每日审计实测生产组 6 个污染节点) — 清污③ (等用户拍板 A删/B迁) 完成后必须归零并重固化基线
+  # ✅ 清污③ 2026-07-23 完成 (B迁出→quarantine__mem_cleanup, 6节点+30边, 可逆): 泄漏率 2.94%→0。
+  #    清污同时挤掉基线虚高: mem-05/11 此前的命中是 m3-e2e 蒸馏产物撑的, mem-13 命中的是测试种子
+  #    本身 (审查 q5/q11「E2E 会话被当成你的记忆」的量化实锤) — 三条现为真实缺口, 修复靶子是
+  #    批注→Graphiti 管道 (G-PIPE, 批次3'), 不是检索配方
   leak_markers:
     - "TestConcept"
     - "UAT-2.5"
