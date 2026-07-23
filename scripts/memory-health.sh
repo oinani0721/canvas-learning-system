@@ -52,4 +52,16 @@ if [ -n "${NEO4J_PASSWORD:-}" ]; then
     fi
 fi
 
-echo "[$(date '+%F %T')] Neo4j:$neo4j 后端:$backend Qwen:$qwen Rerank:$rerank Embed:$ollama | 死信累计:${dead} 待补归档:${queued} | ${pollution} | 最新备份:${latest_backup}" >> "$OUT"
+# 批次5'⑥ (MEM-FLYWHEEL): 当日学习事件计数 — 批注直连/评分/派生等 8+1 类
+# 动作的日活观测 (callout_ingested 为 0 且当天打过批注 = 直连管道断线信号)
+events_today="无"
+EV="$REPO/canvas-vault/learning_events.jsonl"
+if [ -f "$EV" ]; then
+    today=$(date '+%F')
+    counts=$(grep "\"recorded_at\": \"$today\|\"recorded_at\":\"$today" "$EV" 2>/dev/null \
+        | grep -o '"event_type": *"[a-z_]*"' | sed 's/.*"\([a-z_]*\)"$/\1/' | sort | uniq -c \
+        | awk '{printf "%s:%s ", $2, $1}')
+    [ -n "$counts" ] && events_today="$counts"
+fi
+
+echo "[$(date '+%F %T')] Neo4j:$neo4j 后端:$backend Qwen:$qwen Rerank:$rerank Embed:$ollama | 死信累计:${dead} 待补归档:${queued} | ${pollution} | 今日事件:${events_today}| 最新备份:${latest_backup}" >> "$OUT"

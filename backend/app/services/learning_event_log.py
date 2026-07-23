@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 
 EVENT_VERSION = 1
 
-#: 8 类核心动作 — 新增类型必须走对账评审, 不得随手扩
+#: 核心动作白名单 — 新增类型必须走对账评审, 不得随手扩
+#: (callout_ingested 经 2026-07-23 燃料策略对账批次5' 方案评审加入)
 EVENT_TYPES = frozenset(
     {
         "node_derived",
@@ -41,6 +42,7 @@ EVENT_TYPES = frozenset(
         "candidate_accepted",
         "candidate_disputed",
         "session_archived",
+        "callout_ingested",
     }
 )
 
@@ -68,9 +70,7 @@ def append_event(
     """
     try:
         if event_type not in EVENT_TYPES:
-            logger.warning(
-                "[learning-events] 拒绝未知 event_type=%r (8 类白名单)", event_type
-            )
+            logger.warning("[learning-events] 拒绝未知 event_type=%r (8 类白名单)", event_type)
             return False
         if not event_id:
             logger.warning("[learning-events] 拒绝空 event_id (幂等键必填)")

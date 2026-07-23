@@ -1812,10 +1812,13 @@ class MemoryService:
             return list()  # Neo4j not connected
 
         try:
+            # 批次5' e2e 修正 (2026-07-24): group 过滤扩 semantic 影子组 —
+            # worker 入图的 episode (批注直连/对话归档) 物理落 __semantic 组,
+            # 旧单组过滤让 fulltext 兜底对这些内容恒空。
             cypher = """
             CALL db.index.fulltext.queryNodes('episode_content', $search_term)
             YIELD node, score
-            WHERE ($group_id IS NULL OR node.group_id = $group_id)
+            WHERE ($group_ids IS NULL OR node.group_id IN $group_ids)
             RETURN node, score
             ORDER BY score DESC
             LIMIT $limit
@@ -1829,12 +1832,20 @@ class MemoryService:
 
             # T1 统一 (2026-07-10): episode 节点物理存 `__` 格式 — 冒号格式
             # 直查恒空 (Tier 2 断了两个月, Tier 1 降级时整条 search 静默空)。
-            from app.graphiti.group_id_compat import to_physical_group_id
+            from app.graphiti.group_id_compat import (
+                semantic_group_id,
+                to_physical_group_id,
+            )
+
+            group_ids = None
+            if group_id:
+                phys = to_physical_group_id(group_id)
+                group_ids = [phys, semantic_group_id(phys)]
 
             records = await self.neo4j.run_query(
                 cypher,
                 search_term=safe_query,
-                group_id=to_physical_group_id(group_id) if group_id else None,
+                group_ids=group_ids,
                 limit=limit,
             )
             from app.graphiti.group_id_compat import (

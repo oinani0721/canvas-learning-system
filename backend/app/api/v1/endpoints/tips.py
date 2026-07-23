@@ -69,9 +69,7 @@ class SaveTipRequest(BaseModel):
             "后端 write_callout 用它做 identity, 空则回退首行。"
         ),
     )
-    source_timestamp: str = Field(
-        ..., description="ISO timestamp of the source dialogue message"
-    )
+    source_timestamp: str = Field(..., description="ISO timestamp of the source dialogue message")
     event_type: str = Field(
         default="learning_tip",
         description=(
@@ -106,13 +104,9 @@ class SaveRelationRequest(BaseModel):
         ),
     )
 
-    source_node_id: str = Field(
-        ..., description="持有 relationship 的派生节点 basename"
-    )
+    source_node_id: str = Field(..., description="持有 relationship 的派生节点 basename")
     target_node_id: str = Field(..., description="源节点 basename")
-    relation_type: str = Field(
-        default="related_to", description="prerequisite/refines/extends/..."
-    )
+    relation_type: str = Field(default="related_to", description="prerequisite/refines/extends/...")
     reason: str = Field(default="", description="用户写的'为什么拉出/连接'")
     source_timestamp: str = Field(default="", description="ISO 用户操作时刻")
 
@@ -138,9 +132,7 @@ class CalloutBatchItem(BaseModel):
         description="understood | fuzzy | not-understood | '' (无 checkbox)",
     )
     content: str = Field(..., min_length=1, description="Callout body content")
-    content_hash: str = Field(
-        ..., min_length=64, max_length=64, description="SHA256 hex"
-    )
+    content_hash: str = Field(..., min_length=64, max_length=64, description="SHA256 hex")
     annotation_id: str = Field(
         default="",
         description="P0 (A+-prime): 稳定批注身份 cb-xxx, 空=历史批注(回退首行)",
@@ -159,9 +151,7 @@ class BatchSyncRequest(BaseModel):
     )
 
     node_id: str = Field(..., description="Source canvas node basename (no ext)")
-    callouts: List[CalloutBatchItem] = Field(
-        ..., description="All callouts parsed from the file"
-    )
+    callouts: List[CalloutBatchItem] = Field(..., description="All callouts parsed from the file")
     source_timestamp: str = Field(..., description="ISO timestamp")
 
 
@@ -299,17 +289,11 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
         # 侧栏 tip 走 learning_tip。两者都通过 memory_format.py canonical schema 映射。
         # Whitelist 防止任意 event_type 注入（只允许已知的 2 种）。
         allowed_event_types = {"learning_tip", "callout_annotation"}
-        effective_event_type = (
-            request.event_type
-            if request.event_type in allowed_event_types
-            else "learning_tip"
-        )
+        effective_event_type = request.event_type if request.event_type in allowed_event_types else "learning_tip"
 
         result = await memory_svc.record_knowledge_entity(
             event_type=effective_event_type,
-            content=(
-                f"Tip: {request.title} | Content: {request.content} | Tags: {tags_str}"
-            ),
+            content=(f"Tip: {request.title} | Content: {request.content} | Tags: {tags_str}"),
             metadata={
                 "tip_id": tip_id,
                 "title": request.title,
@@ -324,9 +308,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
         )
 
         # A7 (P2): 诚实反映持久化结果 — 不再无条件 saved=True。
-        write_status = (
-            result.get("status", "written") if isinstance(result, dict) else "written"
-        )
+        write_status = result.get("status", "written") if isinstance(result, dict) else "written"
         degraded = write_status == "degraded"
         logger.info(
             f"[Story 3.6] Tip saved: id={tip_id} node={request.node_id} "
@@ -337,11 +319,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
             tip_id=tip_id,
             saved=not degraded,
             status=write_status,
-            message=(
-                "记忆服务未就绪，批注已暂存，将在服务就绪后自动入图"
-                if degraded
-                else "Tips saved successfully"
-            ),
+            message=("记忆服务未就绪，批注已暂存，将在服务就绪后自动入图" if degraded else "Tips saved successfully"),
         ).model_dump()
 
     except Exception as e:
@@ -367,10 +345,7 @@ async def save_relation(request: SaveRelationRequest) -> Dict[str, Any]:
         memory_svc = await get_memory_service()
         result = await memory_svc.record_knowledge_entity(
             event_type="node_derived",
-            content=(
-                request.reason
-                or f"{request.source_node_id} -> {request.target_node_id}"
-            ),
+            content=(request.reason or f"{request.source_node_id} -> {request.target_node_id}"),
             metadata={
                 "node_id": request.source_node_id,
                 "target_node_id": request.target_node_id,
@@ -380,9 +355,7 @@ async def save_relation(request: SaveRelationRequest) -> Dict[str, Any]:
             },
             group_id=_resolve_tips_group_id(request.vault_id),
         )
-        write_status = (
-            result.get("status", "written") if isinstance(result, dict) else "written"
-        )
+        write_status = result.get("status", "written") if isinstance(result, dict) else "written"
         degraded = write_status == "degraded"
         logger.info(
             f"[P4] Relation saved: {request.source_node_id} -> "
@@ -391,17 +364,11 @@ async def save_relation(request: SaveRelationRequest) -> Dict[str, Any]:
         return SaveRelationResponse(
             saved=not degraded,
             status=write_status,
-            message=(
-                "记忆服务未就绪，关系已暂存，将在服务就绪后自动入图"
-                if degraded
-                else "Relation saved"
-            ),
+            message=("记忆服务未就绪，关系已暂存，将在服务就绪后自动入图" if degraded else "Relation saved"),
         ).model_dump()
     except Exception as e:
         logger.error(f"[P4] Failed to save relation: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to save relation: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Failed to save relation: {str(e)}") from e
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -478,16 +445,11 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
                 # 查询 — Graphiti 不存 metadata 到 EpisodicNode。`[hash:xxx]` 后缀
                 # 让 find_episode_by_content_hash 能用 CONTAINS 匹配。
                 tip_id = str(uuid.uuid4())
-                tags_repr = (
-                    f"tag:{callout.tag},understanding:{callout.understanding or 'none'}"
-                )
+                tags_repr = f"tag:{callout.tag},understanding:{callout.understanding or 'none'}"
                 hash_marker = f"[hash:{callout.content_hash[:16]}]"
                 batch_result = await memory_svc.record_knowledge_entity(
                     event_type="callout_annotation",
-                    content=(
-                        f"Callout [{callout.tag_label}]: {callout.content} | "
-                        f"Tags: {tags_repr} | {hash_marker}"
-                    ),
+                    content=(f"Callout [{callout.tag_label}]: {callout.content} | Tags: {tags_repr} | {hash_marker}"),
                     metadata={
                         "tip_id": tip_id,
                         "title": f"{callout.tag_label} · {request.node_id}",
@@ -504,17 +466,12 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
                     group_id=_resolve_tips_group_id(request.vault_id),
                 )
                 # A7 (P2): degraded 未入图, 不计入 synced
-                if (
-                    isinstance(batch_result, dict)
-                    and batch_result.get("status") == "degraded"
-                ):
+                if isinstance(batch_result, dict) and batch_result.get("status") == "degraded":
                     failed += 1
                 else:
                     new_synced += 1
             except Exception as inner_e:
-                logger.warning(
-                    f"[Story 2.4 batch] Failed one callout (hash={callout.content_hash[:8]}): {inner_e}"
-                )
+                logger.warning(f"[Story 2.4 batch] Failed one callout (hash={callout.content_hash[:8]}): {inner_e}")
                 failed += 1
 
         logger.info(
@@ -537,3 +494,146 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
             status_code=500,
             detail=f"Batch sync failed: {str(e)}",
         ) from e
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 批次5' (MEM-FLYWHEEL-2026-07-22, 燃料策略对账 §三): 批注过滤直连管道
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class CalloutDirectRequest(BaseModel):
+    """高价值批注 (question/error) 过滤直连入图的受控请求。
+
+    过滤判据 (ChatGPT 燃料对账 R1): 只有「会改变下次出题/讲解行为」的批注
+    直连入图; tip/hint/note/warning/info 留 frontmatter raw lane (蒸馏兜底)。
+    """
+
+    callout_id: str = Field(..., min_length=1, description="稳定批注身份 cb-xxx (幂等键)")
+    callout_type: str = Field(..., description="仅收 question | error (端点侧再校验)")
+    node_id: str = Field(..., min_length=1, description="所属节点 (文件 basename)")
+    text: str = Field(..., min_length=1, description="批注原文")
+    added_at: datetime = Field(
+        ...,
+        description=(
+            "批注原始时间 (FrontmatterTipsSync 的 added_at)。时间戳守卫: 必填, "
+            "禁止后端补『现在』— reference_time 错误会污染 Graphiti 事实失效顺序"
+        ),
+    )
+    vault_id: str = Field(default="", description="vault 身份, 空=当前激活 vault")
+    understanding: str = Field(default="", description="批注理解档 (可选)")
+
+
+class CalloutDirectResponse(BaseModel):
+    callout_id: str
+    accepted: bool
+    lane: str = Field(description="question_episode | error_candidate | rejected_type")
+    message: str = ""
+
+
+@tips_router.post(
+    "/callout-direct",
+    response_model=CalloutDirectResponse,
+    summary="高价值批注过滤直连入图 (批次5')",
+    description=(
+        "question → json episode 经 worker 队列入语义影子图 (分钟级可检索); "
+        "error → 错误候选区 (candidate_only 用户主权, 不直接入图)。"
+        "低价值类型直接拒绝 — raw lane (frontmatter) 已有数据, 蒸馏兜底。"
+    ),
+)
+async def callout_direct(request: CalloutDirectRequest) -> Dict[str, Any]:
+    from app.services.learning_event_log import append_event
+
+    if request.callout_type not in ("question", "error"):
+        return CalloutDirectResponse(
+            callout_id=request.callout_id,
+            accepted=False,
+            lane="rejected_type",
+            message="仅 question/error 直连; 其余类型走 frontmatter raw lane",
+        ).model_dump()
+
+    # 幂等: callout_ingested 事件以 callout_id 为键, 已记录过 = 已入过管道
+    event_recorded = append_event(
+        "callout_ingested",
+        event_id=f"callout:{request.callout_id}",
+        node_id=request.node_id,
+        payload={"callout_type": request.callout_type, "text": request.text[:200]},
+        effective_at=request.added_at.isoformat(),
+    )
+    if not event_recorded:
+        return CalloutDirectResponse(
+            callout_id=request.callout_id,
+            accepted=False,
+            lane="question_episode" if request.callout_type == "question" else "error_candidate",
+            message="duplicate callout_id, 幂等跳过",
+        ).model_dump()
+
+    group_id = _resolve_tips_group_id(request.vault_id)
+
+    if request.callout_type == "question":
+        # 陈述句化 episode → worker 队列 (背压/死信/免重试全复用),
+        # reference_time = 批注原始时间 (时间戳守卫)。
+        # e2e 实测修正 (2026-07-24): 纯 json episode 对疑问批注只抽出实体、
+        # 0 关系边 (疑问句没有 fact 可抽), 而检索链以边为主 → 改为陈述句
+        # 模板 (「用户提出疑问」本身是可抽取的事实), 结构化字段留 metadata。
+        from app.services.episode_worker import EpisodeTask, get_episode_worker
+
+        understanding_part = f"(理解自评: {request.understanding})" if request.understanding else ""
+        body = f"用户在学习概念「{request.node_id}」时提出了疑问{understanding_part}: {request.text}"
+        task = EpisodeTask(
+            name=f"callout:{request.node_id}:{request.callout_id}",
+            episode_body=body,
+            group_id=group_id,
+            source_description="obsidian.callout.direct",
+            reference_time=request.added_at,
+            metadata={
+                "event_type": "callout_annotation",
+                "node_id": request.node_id,
+                "callout_id": request.callout_id,
+            },
+        )
+        enqueued = get_episode_worker().enqueue(task)
+        return CalloutDirectResponse(
+            callout_id=request.callout_id,
+            accepted=enqueued,
+            lane="question_episode",
+            message="enqueued" if enqueued else "worker queue unavailable (蒸馏兜底)",
+        ).model_dump()
+
+    # error → 候选区 (candidate_only 铁律: AI 只提名, 用户 accept 才入图)。
+    # 分类走本地 LLM (~秒级), 后台执行不阻塞 plugin 静默 POST。
+    import asyncio as _asyncio
+
+    async def _nominate_error_candidate() -> None:
+        try:
+            from app.services.error_classifier import get_error_classifier
+            from app.services.error_writer import write_error_dual
+            from app.services.frontmatter_signals import _node_md_path
+
+            node_path = _node_md_path(request.node_id)
+            if node_path is None:
+                logger.warning(f"[批次5'] error callout 无处落候选: node={request.node_id}")
+                return
+            classified = await get_error_classifier().classify_with_pedagogy(
+                error_description=request.text,
+                node_id=request.node_id,
+                context="(user error callout, direct pipeline)",
+            )
+            await write_error_dual(
+                file_path=node_path,
+                error=classified,
+                node_id=request.node_id,
+                session_id="callout-direct",
+                mode="candidate_only",
+                group_id=group_id,
+                ai_reason="用户手标错误批注 (Cmd+Shift+A), 过滤直连提名",
+            )
+        except Exception as e:  # noqa: BLE001 — 后台提名失败不影响批注本体
+            logger.warning(f"[批次5'] error 候选提名失败 (frontmatter 仍有原文): {e}")
+
+    _asyncio.get_event_loop().create_task(_nominate_error_candidate())
+    return CalloutDirectResponse(
+        callout_id=request.callout_id,
+        accepted=True,
+        lane="error_candidate",
+        message="candidate nomination scheduled",
+    ).model_dump()

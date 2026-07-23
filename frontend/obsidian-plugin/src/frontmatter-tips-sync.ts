@@ -50,6 +50,11 @@ export class FrontmatterTipsSync {
         file.basename,
       );
 
+      // 批次5' (MEM-FLYWHEEL, 燃料对账 §三): 过滤直连 — 本轮新增的高价值
+      // 批注 (question/error, 有稳定 id) 在覆盖 tips[] 前采集, 回调外静默
+      // POST 直连管道。低价值类型与历史无 id 批注不直连 (raw lane + 蒸馏兜底)。
+      let freshDirect: FrontmatterTip[] = [];
+
       await this.plugin.app.fileManager.processFrontMatter(
         file,
         (fm: Record<string, unknown>) => {
@@ -58,6 +63,17 @@ export class FrontmatterTipsSync {
 
           // 防无限循环 + 不必要写入：相同内容跳过
           if (this.tipsEqual(oldTips, newTips)) return;
+
+          freshDirect = newTips.filter(
+            (t) =>
+              (t.tag === "question" || t.tag === "error") &&
+              t.id &&
+              !oldTips.some(
+                (o) =>
+                  (t.id && o.id === t.id) ||
+                  (o.text === t.text && o.tag === t.tag),
+              ),
+          );
 
           // spec AC#5: 完全覆盖 — 旧 tip 被删的 callout 自然消失
           if (newTips.length === 0) {
@@ -68,6 +84,24 @@ export class FrontmatterTipsSync {
           }
         },
       );
+
+      for (const t of freshDirect) {
+        void this.plugin.callBackend(
+          "/api/v1/tips/callout-direct",
+          "批注直连",
+          {
+            callout_id: t.id,
+            callout_type: t.tag,
+            node_id: file.basename,
+            text: t.text,
+            added_at: t.added_at,
+            vault_id: this.plugin.app.vault.getName(),
+            understanding: t.understanding || "",
+          },
+          "POST",
+          true, // 静默: 失败仅 console.warn — raw lane 已落, SessionEnd 蒸馏兜底
+        );
+      }
     } catch {
       // 静默 — frontmatter 写入失败不应打扰用户（文件本身仍有 callout）
     }

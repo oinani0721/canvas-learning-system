@@ -1743,7 +1743,9 @@ export default class CanvasLearningPlugin extends Plugin {
    *   - 解析返回体（JSON 或 text）让 Notice 显示有用信息
    *   - 用 settings.backendUrl（不再写死 localhost）
    */
-  private async callBackend(
+  // 批次5' (MEM-FLYWHEEL): FrontmatterTipsSync 的批注直连需要复用统一请求
+  // helper (key/silent/错误处理) — private → public
+  public async callBackend(
     endpoint: string,
     label: string,
     body?: any,

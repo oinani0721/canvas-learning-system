@@ -44,9 +44,7 @@ class _QueueShutDownFallback(Exception):
     """Py<3.13 占位 — 永不被抛出, 仅使 except 子句可安全求值。"""
 
 
-_QUEUE_SHUTDOWN: type[BaseException] = getattr(
-    asyncio, "QueueShutDown", _QueueShutDownFallback
-)
+_QUEUE_SHUTDOWN: type[BaseException] = getattr(asyncio, "QueueShutDown", _QueueShutDownFallback)
 
 #: Py<3.13 无 Queue.shutdown() 时用于优雅停机的队列哨兵。
 _STOP_SENTINEL: Any = object()
@@ -88,6 +86,10 @@ class EpisodeTask:
     entity_types: dict[str, Any] | None = field(default=None)
     edge_types: dict[str, Any] | None = field(default=None)
     request_id: str | None = field(default=None)
+    #: 批次5' (MEM-FLYWHEEL): episode 源类型 — "json" 时 worker 以
+    #: EpisodeType.json 入图 (受控 schema, 减少本地模型从脏文本猜结构的空间);
+    #: None 保持既有行为 (graphiti 默认)。
+    source: str | None = field(default=None)
 
     @property
     def can_retry(self) -> bool:
@@ -229,9 +231,7 @@ class DeadLetterStore:
         flag = (os.environ.get("DEAD_LETTER_STORE_FULL_BODY") or "").strip().lower()
         return flag in ("1", "true", "yes", "on")
 
-    def store(
-        self, task: EpisodeTask, error: Exception, *, request_id: str | None = None
-    ) -> None:
+    def store(self, task: EpisodeTask, error: Exception, *, request_id: str | None = None) -> None:
         """Append failed task to JSONL file synchronously (tiny payload, acceptable).
 
         Privacy: episode_body_full is omitted unless DEAD_LETTER_STORE_FULL_BODY=true.
@@ -365,10 +365,7 @@ class GraphitiEpisodeWorker:
                 auth=(neo4j_user or "", neo4j_password or ""),
             )
             await asyncio.wait_for(temp_driver.verify_connectivity(), timeout=5.0)
-            logger.info(
-                "GraphitiEpisodeWorker: Neo4j pre-flight ok "
-                f"(uri={neo4j_uri}, db=neo4j)"
-            )
+            logger.info(f"GraphitiEpisodeWorker: Neo4j pre-flight ok (uri={neo4j_uri}, db=neo4j)")
         except (ServiceUnavailable, AuthError, asyncio.TimeoutError, OSError) as e:
             logger.error(
                 "GraphitiEpisodeWorker: Neo4j pre-flight failed "
@@ -427,10 +424,7 @@ class GraphitiEpisodeWorker:
             )
 
             await self._graphiti.build_indices_and_constraints()
-            logger.info(
-                f"GraphitiEpisodeWorker: Graphiti initialized "
-                f"(neo4j={neo4j_uri}, model={llm_model})"
-            )
+            logger.info(f"GraphitiEpisodeWorker: Graphiti initialized (neo4j={neo4j_uri}, model={llm_model})")
             return True
 
         except Exception as e:
@@ -453,9 +447,7 @@ class GraphitiEpisodeWorker:
             logger.warning("GraphitiEpisodeWorker already started")
             return
 
-        self._worker_task = asyncio.create_task(
-            self._run(), name="graphiti-episode-worker"
-        )
+        self._worker_task = asyncio.create_task(self._run(), name="graphiti-episode-worker")
         self._started = True
         self._metrics.worker_running = True
         logger.info(f"GraphitiEpisodeWorker started (maxsize={self._queue.maxsize})")
@@ -491,8 +483,7 @@ class GraphitiEpisodeWorker:
             except asyncio.TimeoutError:
                 remaining = self._queue.qsize()
                 logger.warning(
-                    f"Worker drain timed out ({timeout}s), "
-                    f"{remaining} events will be lost. Force cancelling..."
+                    f"Worker drain timed out ({timeout}s), {remaining} events will be lost. Force cancelling..."
                 )
                 self._worker_task.cancel()
                 try:
@@ -514,17 +505,11 @@ class GraphitiEpisodeWorker:
             self._queue.put_nowait(task)
             self._metrics.episodes_enqueued += 1
             self._metrics.queue_depth = self._queue.qsize()
-            logger.debug(
-                f"Enqueued episode: name={task.name[:50]}, "
-                f"queue_depth={self._queue.qsize()}"
-            )
+            logger.debug(f"Enqueued episode: name={task.name[:50]}, queue_depth={self._queue.qsize()}")
             return True
         except asyncio.QueueFull:
             self._metrics.episodes_dropped_queue_full += 1
-            logger.warning(
-                f"Episode queue full (maxsize={self._queue.maxsize}), "
-                f"dropping: {task.name[:50]}"
-            )
+            logger.warning(f"Episode queue full (maxsize={self._queue.maxsize}), dropping: {task.name[:50]}")
             return False
         except _QUEUE_SHUTDOWN:
             logger.warning(f"Episode queue shut down, cannot enqueue: {task.name[:50]}")
@@ -563,10 +548,7 @@ class GraphitiEpisodeWorker:
                 elapsed = time.perf_counter() - start
                 self._metrics.episodes_processed += 1
                 self._metrics.record_processing_time(elapsed)
-                logger.info(
-                    f"Episode processed: name={task.name[:50]}, "
-                    f"took={elapsed * 1000:.0f}ms"
-                )
+                logger.info(f"Episode processed: name={task.name[:50]}, took={elapsed * 1000:.0f}ms")
             except Exception as e:
                 elapsed = time.perf_counter() - start
                 self._metrics.episodes_failed += 1
@@ -596,10 +578,7 @@ class GraphitiEpisodeWorker:
             "guided-thinking-record",
         }
         if task.source_description in _STRUCTURED_SOURCE_DESCS:
-            logger.info(
-                f"[Graphiti-native D6] structured event in semantic queue "
-                f"(fallback path): {task.name}"
-            )
+            logger.info(f"[Graphiti-native D6] structured event in semantic queue (fallback path): {task.name}")
 
         # P0-5 (2026-05-14): Canvas D16 group_id 用冒号分隔 (vault:cs_61b:subj),
         # 但 Graphiti 上游 validator 拒绝冒号。在 Graphiti 边界 sanitize 为
@@ -619,9 +598,7 @@ class GraphitiEpisodeWorker:
         kwargs: dict[str, Any] = {
             "name": task.name,
             "episode_body": task.episode_body,
-            "group_id": semantic_group_id(
-                sanitize_group_id_for_graphiti(task.group_id)
-            ),
+            "group_id": semantic_group_id(sanitize_group_id_for_graphiti(task.group_id)),
             "source_description": task.source_description,
             "reference_time": task.reference_time,
         }
@@ -629,6 +606,10 @@ class GraphitiEpisodeWorker:
             kwargs["entity_types"] = task.entity_types
         if task.edge_types is not None:
             kwargs["edge_types"] = task.edge_types
+        if task.source == "json":
+            from graphiti_core.nodes import EpisodeType
+
+            kwargs["source"] = EpisodeType.json
 
         await self._graphiti.add_episode(**kwargs)
 
@@ -656,10 +637,7 @@ class GraphitiEpisodeWorker:
         """Handle a failed episode: retry with backoff or dead-letter."""
         if isinstance(error, _PERMANENT_EPISODE_ERRORS):
             # 确定性校验错误重试必然复现 — 直接死信留证 (2026-07-22 批次0)
-            logger.error(
-                f"Episode permanently failed (deterministic validation, "
-                f"skip retry): {error}"
-            )
+            logger.error(f"Episode permanently failed (deterministic validation, skip retry): {error}")
             self._metrics.episodes_dead_lettered += 1
             self._dead_letter.store(task, error)
             return
@@ -667,8 +645,7 @@ class GraphitiEpisodeWorker:
             task.retry_count += 1
             backoff = task.backoff_seconds
             logger.warning(
-                f"Episode failed (attempt {task.retry_count}/{task.max_retries}), "
-                f"retrying in {backoff:.1f}s: {error}"
+                f"Episode failed (attempt {task.retry_count}/{task.max_retries}), retrying in {backoff:.1f}s: {error}"
             )
             await asyncio.sleep(backoff)
             try:
