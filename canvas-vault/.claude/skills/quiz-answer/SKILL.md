@@ -47,35 +47,35 @@ model: sonnet
 - **`done`** → **A3 增量归纳分支（批次2'，P11）**，不再一律拒绝：
   1. `Grep` 白板答题区疑问批注（同 Step 4a 的三种 pattern，同样跳过空占位）；
   2. 对每条疑问，检查其原文是否已在 `节点/<concept>.md` 正文中（`Grep` 疑问原文首行）——**已归纳过的跳过**；
-  3. 有新疑问 → 按 Step 4a 格式拼 callout 列表，用 `Write` 写 `/tmp/quiz-answer-incr.json`：`{"node": "节点/<concept>.md", "callouts": ["<callout 1>", ...]}`，然后 **`Bash` 运行下面这段静态 python**（⛔ 逐字照抄）——只归纳疑问，**不重评分、不动 mastery/attempt_count**（堵孤儿信号，不双计分）：
-
-     ```bash
-     python3 - <<'PYEOF'
-     import json, re, os
-     P = "/tmp/quiz-answer-incr.json"
-     p = json.load(open(P, encoding="utf-8"))
-     NODE = p["node"]
-     s = open(NODE, encoding="utf-8").read()
-     m = re.match(r'^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', s, re.S)
-     if not m:
-         raise SystemExit("frontmatter 解析失败：" + NODE)
-     fm, body = m.group(1), m.group(2)
-     added = 0
-     for cal in p.get("callouts", []):
-         cal = cal.strip()
-         if cal and cal not in body:
-             body = body.rstrip() + "\n\n" + cal + "\n"
-             added += 1
-     tmp = NODE + ".incr-tmp"
-     open(tmp, "w", encoding="utf-8").write(f"---\n{fm}\n---\n{body}")
-     os.replace(tmp, NODE)
-     os.remove(P)
-     print(f"[quiz-answer/A3] {NODE}: 增量归纳 {added} 条疑问 (分数未动)")
-     PYEOF
-     ```
-
-     回执：`✓ 已评分白板的 N 条新疑问已归纳回节点（分数未变）。要再考请用 /start-exam-board 新建一张。`
+  3. 有新疑问 → 按 Step 4a 格式拼 callout 列表，用 `Write` 写 `/tmp/quiz-answer-incr.json`：`{"node": "节点/<concept>.md", "callouts": ["<callout 1>", ...]}`，然后 **`Bash` 运行下方「A3 增量归纳 python」**（⛔ 逐字照抄，⛔ heredoc 内容必须顶格）——只归纳疑问，**不重评分、不动 mastery/attempt_count**（堵孤儿信号，不双计分）。回执：`✓ 已评分白板的 N 条新疑问已归纳回节点（分数未变）。要再考请用 /start-exam-board 新建一张。`
   4. 无新疑问 → 停止：`⛔ 本检验白板已评分，也没有新疑问可归纳。要再考请用 /start-exam-board 新建一张。`
+
+**A3 增量归纳 python**：
+
+```bash
+python3 - <<'PYEOF'
+import json, re, os
+P = "/tmp/quiz-answer-incr.json"
+p = json.load(open(P, encoding="utf-8"))
+NODE = p["node"]
+s = open(NODE, encoding="utf-8").read()
+m = re.match(r'^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', s, re.S)
+if not m:
+    raise SystemExit("frontmatter 解析失败：" + NODE)
+fm, body = m.group(1), m.group(2)
+added = 0
+for cal in p.get("callouts", []):
+    cal = cal.strip()
+    if cal and cal not in body:
+        body = body.rstrip() + "\n\n" + cal + "\n"
+        added += 1
+tmp = NODE + ".incr-tmp"
+open(tmp, "w", encoding="utf-8").write(f"---\n{fm}\n---\n{body}")
+os.replace(tmp, NODE)
+os.remove(P)
+print(f"[quiz-answer/A3] {NODE}: 增量归纳 {added} 条疑问 (分数未动)")
+PYEOF
+```
 - **`scored_pending_node_update`**（上次 Step 4 节点写入失败的续跑态）→ **跳过 Step 1-3**（分数已在 frontmatter），直接从已存的 `questions[0].score`/`self_confidence` 重建 payload，续跑 Step 4 → Step 4c。python 内置 event_id 幂等，重复续跑不会双写。
 - **`in_progress`** 但 `questions[0].score != null`（异常半态）→ 按续跑处理（同上）。
 - **`in_progress`** 且 score 为 null → 正常走 Step 1。
@@ -233,6 +233,28 @@ open(tmp, "w", encoding="utf-8").write(f"---\n{fm}\n---\n{body}")
 os.replace(tmp, NODE)
 os.remove(P)
 print(f"[quiz-answer] {NODE}: mastery {old}->{new}; event={eid}; callout={'yes' if cal else 'no'}")
+# 批次3' 2-4 (MEM-FLYWHEEL): 统一学习事件日志 — append-only + 幂等键,
+# frontmatter 仍是真相源, 日志供过程回放/图重建兜底。写失败不影响评分。
+EV = os.path.join(VAULT, "learning_events.jsonl")
+etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
+evid = "quiz:" + eid
+try:
+    seen = False
+    if os.path.exists(EV):
+        with open(EV, encoding="utf-8") as _f:
+            seen = any(json.dumps(evid, ensure_ascii=False) in ln for ln in _f)
+    if not seen:
+        rec = {"event_id": evid, "event_version": 1, "event_type": etype,
+               "node_id": os.path.splitext(os.path.basename(NODE))[0],
+               "recorded_at": p["ts"], "effective_at": p["ts"],
+               "payload": {"grade_norm": round(GN, 2),
+                           "exam_board": p.get("exam_board", ""),
+                           "attempt_count": n_att}}
+        with open(EV, "a", encoding="utf-8") as _f:
+            _f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        print(f"[quiz-answer] 事件已落日志: {etype}")
+except Exception as _e:
+    print(f"[quiz-answer] 事件日志写入失败(不影响评分): {_e}")
 PYEOF
 ```
 

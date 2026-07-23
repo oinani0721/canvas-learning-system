@@ -809,6 +809,19 @@ async def archive_session(
             len(result.errors),
             enqueued,
         )
+        # 批次3' 2-4 (MEM-FLYWHEEL): 会话归档落事件日志 — 图可重建的兜底
+        from app.services.learning_event_log import append_event
+
+        append_event(
+            "session_archived",
+            event_id=f"archive:{request.session_id}",
+            node_id=node_id,
+            payload={
+                "tips": len(result.tips),
+                "errors": len(result.errors),
+                "group_id": resolved_group_id,
+            },
+        )
         return SessionArchiveResponse(
             archived=True,
             distilled_tips=len(result.tips),

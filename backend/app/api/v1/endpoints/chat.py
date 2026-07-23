@@ -713,19 +713,20 @@ async def post_turn_extract(
     out_errors: list[PostTurnExtractedError] = []
     for err in classified:
         if file_path:
-            # Story 2.5.X (D15=C+) 兼容: 显式 mode="write_confirmed" 保留 v1.0 行为
-            # (write_error_dual 默认改为 candidate_only, post-turn-extract 在 Task 5 切到 candidate_only)
+            # 批次3' P14b (MEM-FLYWHEEL): 切到 candidate_only — Story 2.5.X Task 5
+            # 当年注释说要切但没切, AI 抽取的错误一直绕过候选区直写 errors[]+图,
+            # 违背 D15=C+ 用户主权设计。现在统一走候选区, 用户复盘 accept 才入图。
             dual = await write_error_dual(
                 file_path=file_path,
                 error=err,
                 node_id=req.node_id,
                 session_id=req.session_id,
                 fire_and_forget_graphiti=req.fire_and_forget_graphiti,
-                mode="write_confirmed",
+                mode="candidate_only",
             )
             fm_ok = dual["frontmatter"]
             graphiti_status = dual["graphiti"]
-            err_id = dual.get("error_id")
+            err_id = dual.get("candidate_id") or dual.get("error_id")
         else:
             # MEDIUM#3 + round-4 fix (ChatGPT): file_path 不可解析时仍尝试
             # Graphiti-only, 但**遵守** fire_and_forget_graphiti flag

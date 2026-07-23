@@ -185,13 +185,23 @@ async def accept_candidate_endpoint(
             detail=f"Cannot resolve vault file path for node_id: {req.node_id}",
         )
 
-    return await accept_candidate(
+    result = await accept_candidate(
         file_path=file_path,
         candidate_id=req.candidate_id,
         user_edits=req.user_edits,
         session_id=req.session_id,
         fire_and_forget_graphiti=req.fire_and_forget_graphiti,
     )
+    # 批次3' 2-4 (MEM-FLYWHEEL): accept 入图是「越考越准」闭环的关键动作, 落事件日志
+    from app.services.learning_event_log import append_event
+
+    append_event(
+        "candidate_accepted",
+        event_id=f"accept:{req.candidate_id}",
+        node_id=req.node_id,
+        payload={"edited": bool(req.user_edits)},
+    )
+    return result
 
 
 @errors_router.post("/dismiss-candidate", response_model=DismissCandidateResult)
@@ -237,11 +247,22 @@ async def dispute_candidate_endpoint(
             detail=f"Cannot resolve vault file path for node_id: {req.node_id}",
         )
 
-    return await dispute_candidate(
+    result = await dispute_candidate(
         file_path=file_path,
         candidate_id=req.candidate_id,
         dispute_reason=req.dispute_reason,
     )
+    # 批次3' dispute 三件套第三件「可追溯」(MEM-FLYWHEEL): suppression log —
+    # 记录「什么被否了、何时、为何不入图」, 与「不入图」「出题排除」共同闭环
+    from app.services.learning_event_log import append_event
+
+    append_event(
+        "candidate_disputed",
+        event_id=f"dispute:{req.candidate_id}",
+        node_id=req.node_id,
+        payload={"dispute_reason": req.dispute_reason[:300]},
+    )
+    return result
 
 
 @errors_router.post("/rebuild-graphiti", response_model=RebuildStats)

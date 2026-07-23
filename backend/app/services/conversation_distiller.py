@@ -407,17 +407,50 @@ class ConversationDistiller:
                 )
 
             # Persist errors via error classifier
+            # 批次3' P14a (MEM-FLYWHEEL): 旧代码 classify() 返回值直接丢弃 —
+            # 蒸馏错误从未落 error_candidates[], SessionEnd 自动生产错误候选
+            # 的管道在此断裂 (测试种子耗尽即枯死的根因)。改为 classify_with_pedagogy
+            # → write_error_dual(candidate_only) 落节点候选区, 等用户复盘 accept。
             if result.errors:
                 from app.services.error_classifier import get_error_classifier
+                from app.services.error_writer import write_error_dual
+                from app.services.frontmatter_signals import _node_md_path
+                from app.services.learning_event_log import append_event
 
                 classifier = get_error_classifier()
+                node_path = _node_md_path(node_id) if node_id else None
                 for error in result.errors:
                     try:
-                        await classifier.classify(
+                        classified = await classifier.classify_with_pedagogy(
                             error_description=error.description,
                             node_id=node_id,
                             context="(extracted from conversation distillation)",
                         )
+                        if node_path is None:
+                            logger.warning(
+                                f"[P14a] 节点 md 不存在, 蒸馏候选无处落: node={node_id}"
+                            )
+                            continue
+                        dual = await write_error_dual(
+                            file_path=node_path,
+                            error=classified,
+                            node_id=node_id,
+                            session_id="distillation",
+                            mode="candidate_only",
+                            group_id=group_id or "",
+                            ai_reason="conversation distillation (SessionEnd)",
+                        )
+                        cand_id = dual.get("candidate_id")
+                        if cand_id:
+                            append_event(
+                                "candidate_created",
+                                event_id=f"cand:{cand_id}",
+                                node_id=node_id,
+                                payload={
+                                    "source": "distillation",
+                                    "description": error.description[:200],
+                                },
+                            )
                     except Exception as e:
                         logger.warning(
                             f"[Story 3.8] Error classification failed during distillation: {e}"

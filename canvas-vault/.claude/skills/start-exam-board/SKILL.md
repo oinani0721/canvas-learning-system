@@ -89,32 +89,32 @@ model: sonnet
   ```
   Grep -n "^(mastery_a|mastery_b|mastery_score|mastery|mastery_level):" 节点/<X>.md
   ```
-- **衰减 Beta 选点**（批次2' A1，取代旧「选 μ 最低」——旧逻辑把最低分节点锁死循环考）：把候选写到 `/tmp/exam-candidates.json`，格式 `{"vault_root": "<vault 绝对路径>", "candidates": [{"node": "<X>", "a": <mastery_a 或 null>, "b": <mastery_b 或 null>, "legacy": <mastery_score/mastery/mastery_level 或 null>}, ...]}`（Grep 没抓到的字段填 null），然后 **`Bash` 运行下面这段静态 python**（⛔ 逐字照抄）：
+- **衰减 Beta 选点**（批次2' A1，取代旧「选 μ 最低」——旧逻辑把最低分节点锁死循环考）：把候选写到 `/tmp/exam-candidates.json`，格式 `{"vault_root": "<vault 绝对路径>", "candidates": [{"node": "<X>", "a": <mastery_a 或 null>, "b": <mastery_b 或 null>, "legacy": <mastery_score/mastery/mastery_level 或 null>}, ...]}`（Grep 没抓到的字段填 null），然后 **`Bash` 运行下方「衰减 Beta 选点 python」**（⛔ 逐字照抄，⛔ heredoc 内容必须顶格）。输出按 pick 升序 —— **取第一行的节点为 `target`**（pick = μ−σ，σ 探索项保证未考/久不考节点不被已锁死的低分节点挤掉；并列时选 Concepts 段靠前的）。
 
-  ```bash
-  python3 - <<'PYEOF'
-  import json, os, sys
-  P = "/tmp/exam-candidates.json"
-  p = json.load(open(P, encoding="utf-8"))
-  sys.path.insert(0, os.path.join(p["vault_root"], ".claude", "scripts"))
-  from decay_beta import PRIOR_A, PRIOR_B, from_legacy, mu, pick_score, sigma
-  rows = []
-  for c in p["candidates"]:
-      if c.get("a") is not None and c.get("b") is not None:
-          a, b = float(c["a"]), float(c["b"])
-      elif c.get("legacy") is not None:
-          a, b = from_legacy(float(c["legacy"]))
-      else:
-          a, b = PRIOR_A, PRIOR_B  # 未考: 先验 σ 最大 → 自动优先轮询
-      rows.append((pick_score(a, b), c["node"], round(mu(a, b), 3), round(sigma(a, b), 3)))
-  rows.sort(key=lambda r: r[0])
-  for pk, node, m, s in rows:
-      print(f"pick={pk:.3f}  μ={m}  σ={s}  {node}")
-  os.remove(P)
-  PYEOF
-  ```
+**衰减 Beta 选点 python**：
 
-  输出按 pick 升序 —— **取第一行的节点为 `target`**（pick = μ−σ，σ 探索项保证未考/久不考节点不被已锁死的低分节点挤掉；并列时选 Concepts 段靠前的）。
+```bash
+python3 - <<'PYEOF'
+import json, os, sys
+P = "/tmp/exam-candidates.json"
+p = json.load(open(P, encoding="utf-8"))
+sys.path.insert(0, os.path.join(p["vault_root"], ".claude", "scripts"))
+from decay_beta import PRIOR_A, PRIOR_B, from_legacy, mu, pick_score, sigma
+rows = []
+for c in p["candidates"]:
+    if c.get("a") is not None and c.get("b") is not None:
+        a, b = float(c["a"]), float(c["b"])
+    elif c.get("legacy") is not None:
+        a, b = from_legacy(float(c["legacy"]))
+    else:
+        a, b = PRIOR_A, PRIOR_B  # 未考: 先验 σ 最大 → 自动优先轮询
+    rows.append((pick_score(a, b), c["node"], round(mu(a, b), 3), round(sigma(a, b), 3)))
+rows.sort(key=lambda r: r[0])
+for pk, node, m, s in rows:
+    print(f"pick={pk:.3f}  μ={m}  σ={s}  {node}")
+os.remove(P)
+PYEOF
+```
 - **⛔ 未剖析节点跳过**（防疑问节点噪音自激）：对候选 `target` 先 `Grep "你的 1-2 句精准定义" 节点/<X>.md`——命中 = 该节点正文还是派生占位模板（用户尚未剖析，无可回忆内容、也无评分基准）→ **跳过**，取下一个最低者。全部候选都是占位 → 停止：`⚠ 该白板的节点都还没剖析（正文是空模板）。先去节点里写下你的理解/打批注，再来考。`
 - 边界：
   - `## Concepts` 为空 / 无节点 → 停止：`⚠ 原白板 <board_stem> 暂无节点，先用 Cmd+Shift+D 派生节点再考`。
@@ -199,6 +199,11 @@ Bash: curl -sS --fail -m 5 -X POST http://localhost:8011/api/v1/exam/targeting-m
 | 仅有 relationships 派生原因 | 关系考察 — 就"为什么这个概念从源笔记派生出来"出辨析题 | `relationship` |
 | 全无批注/原因（新节点） | 档位 fallback — **单概念 cued recall**：题干给一个锚点线索（具体实例/使用情境，不含答案定义），让你用自己的话说清该概念本身 | `none` |
 
+**calibration 最小消费者（批次3' 2-3，MEM-FLYWHEEL）— 幻觉性掌握优先检查**：
+- `Grep -n "self_confidence_norm|grade_norm" 节点/<target>.md` 抽 calibration_log 里最近 ≤5 对（self_confidence_norm, grade_norm）——两者都非 null 的才算一对。
+- 平均校准差 = mean(self_confidence_norm − grade_norm)。**≥ 0.3（自评远高于实评）→ 无视下方档位路由，题型强制切「辨析/反例」**：拿该节点最易被浅层理解糊弄的边界出题（"举一个看似符合『<concept>』但其实不是的反例，并说明为什么"式），回执标注「校准考察」。这是幻觉性掌握识别的轻量前置——你觉得懂但考不出来的节点，问「像不像」比问「是什么」更能戳破。
+- 不足 2 对配对数据或差值 < 0.3 → 走下方正常档位路由。
+
 **难度按掌握度简易适配**（v1 不接决策表；⛔ DD-13 名实一致——题目认知层级不得越出所在档）：
 - `< 0.4`（薄弱档，含"无字段走 0.30 占位"）→ **单概念 cued recall**：只考 target 一个概念，给一个锚点线索降检索负荷（如"给定 A=[[2,0],[0,3]]，求特征值并说明 λ 代表什么"）。⛔ **不附加"与邻居区分"**——那是 0.4–0.7 档的辨析层级；对薄弱者同时回忆两个概念 = 高元素交互过载（生成效应衰减），且开放对比题难被 4 维客观评分。
   ⛔ **锚点防幻觉**：具体实例/情境**只有两种合法来源**——(a) Step 4 抽到的批注/派生原因文本;(b) 概念名本身语义明确（如 Eigenvalues、递归）时的领域常识实例。若概念名语义弱（如 Fundamentals、cs-61b-csm 这类标题）且无批注素材 → **退回通用 cued recall 模板**（"用你自己的话说清『<节点名>』在 <board_name> 主题下讲的是什么、为什么值得单独成节点"），**不得编造具体细节**当锚点。
@@ -252,6 +257,35 @@ questions:
 - ⛔ `hook` / `selected_node` / `concept` 一律**加引号**（值可能以 `[` / `*` 开头，不加引号是非法 YAML，会让整块 frontmatter 解析失败）。**首选写 hook token**（`question_callout` 等）而非原始 `[!question]+` 字符串，最稳。
 - 理解自评行用 `→` 作分隔符（不用冒号，避免与题目里的冒号混淆），值填在 `→` 之后。
 - **硬验证**：写前检查目标路径 `startsWith("检验白板/")`，不符 → 停止 `✗ 路径硬约束违反`。
+
+## Step 6.5 · 学习事件落日志（批次3' 2-4，MEM-FLYWHEEL）
+
+白板写入成功后，用 `Write` 写 `/tmp/exam-created-event.json`：`{"vault_root": "<vault 绝对路径>", "exam_board": "检验白板/<文件名>.md", "node": "<target>", "ts": "<Step 6 用的 ISO 时间戳>"}`，然后 **`Bash` 运行下面这段静态 python**（⛔ 逐字照抄；写失败不阻断出题，回执照发）：
+
+```bash
+python3 - <<'PYEOF'
+import json, os
+P = "/tmp/exam-created-event.json"
+p = json.load(open(P, encoding="utf-8"))
+EV = os.path.join(p["vault_root"], "learning_events.jsonl")
+evid = "exam:" + os.path.splitext(os.path.basename(p["exam_board"]))[0]
+try:
+    seen = False
+    if os.path.exists(EV):
+        with open(EV, encoding="utf-8") as f:
+            seen = any(json.dumps(evid, ensure_ascii=False) in ln for ln in f)
+    if not seen:
+        rec = {"event_id": evid, "event_version": 1, "event_type": "exam_created",
+               "node_id": p["node"], "recorded_at": p["ts"], "effective_at": p["ts"],
+               "payload": {"exam_board": p["exam_board"]}}
+        with open(EV, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        print("[start-exam-board] 事件已落日志: exam_created")
+except Exception as e:
+    print(f"[start-exam-board] 事件日志写入失败(不阻断出题): {e}")
+os.remove(P)
+PYEOF
+```
 
 ## Step 7 · 回执（不泄漏 + 诚实声明）
 

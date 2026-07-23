@@ -168,3 +168,33 @@ async def test_happy_path_not_degraded(monkeypatch, tmp_path):
             "text": "混淆入栈出栈顺序",
         }
     ]
+
+
+# ── 批次3' dispute 三件套第二件: 出题排除 ──
+
+
+def test_disputed_candidate_text_excluded(monkeypatch, tmp_path):
+    """用户 dispute 过的内容不得再进出题素材 (即使同文本存在于 errors[])。"""
+    _write_node_md(
+        tmp_path,
+        "neighbor-f",
+        f"errors:\n  - description: 以为栈是先进先出\n    group_id: '{GROUP}'\n"
+        f"error_candidates:\n  - description: 以为栈是先进先出\n    status: disputed\n"
+        f"    dispute_reason: 我从来没这么想过\n",
+    )
+    _patch_md_dir(monkeypatch, tmp_path)
+    assert tms._read_neighbor_errors("neighbor-f", group_id=GROUP) == []
+
+
+def test_non_disputed_candidate_does_not_block(monkeypatch, tmp_path):
+    """pending 候选不拦截 errors[] 正式素材。"""
+    _write_node_md(
+        tmp_path,
+        "neighbor-g",
+        f"errors:\n  - description: 混淆了 BFS 和 DFS\n    group_id: '{GROUP}'\n"
+        f"error_candidates:\n  - description: 别的候选\n    status: pending\n",
+    )
+    _patch_md_dir(monkeypatch, tmp_path)
+    assert tms._read_neighbor_errors("neighbor-g", group_id=GROUP) == [
+        "混淆了 BFS 和 DFS"
+    ]

@@ -54,6 +54,17 @@ def _read_neighbor_errors(node_id: str, group_id: str = "") -> list[str]:
         return []
     fm = post.metadata or {}
     out: list[str] = []
+    # 批次3' dispute 三件套第二件「出题排除」(MEM-FLYWHEEL): 用户 dispute 过的
+    # 候选文本不得再进出题素材 — 不再拿你否认过的点考你。disputed 候选留在
+    # error_candidates[] (终态, 状态机保证不入 errors[]), 此处按文本匹配拦截
+    # errors[]/tips[] 中与 disputed 内容相同的素材 (早年直写/重复提名场景)。
+    disputed_texts: set[str] = set()
+    for cand in fm.get("error_candidates") or []:
+        if isinstance(cand, dict) and cand.get("status") == "disputed":
+            for key in ("misconception", "description"):
+                t = str(cand.get(key) or "").strip()
+                if t:
+                    disputed_texts.add(t)
     # 正式 errors[] — 2.5.X accept/edited 移入, 用户主权确认过的错误
     for err in fm.get("errors") or []:
         if isinstance(err, dict):
@@ -71,12 +82,18 @@ def _read_neighbor_errors(node_id: str, group_id: str = "") -> list[str]:
                 )
                 continue
             desc = str(err.get("misconception") or err.get("description") or "").strip()
+            if desc and desc in disputed_texts:
+                logger.info("[T4-dispute] 排除已 dispute 素材: node=%s", node_id)
+                continue
             if desc:
                 out.append(desc)
     # tips[] 中用户手标的 error
     for tip in fm.get("tips") or []:
         if isinstance(tip, dict) and tip.get("tag") == "error":
             text = str(tip.get("text") or "").strip()
+            if text and text in disputed_texts:
+                logger.info("[T4-dispute] 排除已 dispute tips 素材: node=%s", node_id)
+                continue
             if text:
                 out.append(text)
     return out[:_MAX_ERRORS_PER_NEIGHBOR]
