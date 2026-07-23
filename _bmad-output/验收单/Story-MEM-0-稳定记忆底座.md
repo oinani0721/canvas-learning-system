@@ -3,7 +3,8 @@ story_id: MEM-0
 title: "稳定记忆底座（批次 0：先别丢数据）"
 plan: MEM-FLYWHEEL-2026-07-22
 date: 2026-07-22
-status: ready-for-uat
+status: done
+uat_passed: "2026-07-23 用户 4-B 三框全勾（含可选重启验证）"
 ---
 
 # Story MEM-0 · 稳定记忆底座 — 验收单
@@ -45,9 +46,9 @@ status: ready-for-uat
 
 ## 4-B. 👤 你来验（约 2 分钟，全部在 Finder / Obsidian 里）
 
-- [ ] 我打开 Finder，进入 `canvas-learning-system` 里的 `backups` 文件夹 → 我看到一个 `neo4j` 文件夹，里面有今天日期的备份文件 → 我感觉我的学习图谱终于有了备胎，安心了
-- [ ] 我在同一个 `backups` 文件夹里打开 `memory-health.log`（双击用文本编辑打开）→ 我看到今天的一行里五个项目全是 ✅ → 我感觉系统状态从黑盒变成一眼可查
-- [ ] （可选，想做就做）我重启电脑，等两三分钟，再打开这个 `memory-health.log` 看新的一行 → 如果还是全 ✅ → 我感觉「重启后什么都不用手动开」是真的
+- [x] 我打开 Finder，进入 `canvas-learning-system` 里的 `backups` 文件夹 → 我看到一个 `neo4j` 文件夹，里面有今天日期的备份文件 → 我感觉我的学习图谱终于有了备胎，安心了
+- [x] 我在同一个 `backups` 文件夹里打开 `memory-health.log`（双击用文本编辑打开）→ 我看到今天的一行里五个项目全是 ✅ → 我感觉系统状态从黑盒变成一眼可查
+- [x] （可选，想做就做）我重启电脑，等两三分钟，再打开这个 `memory-health.log` 看新的一行 → 如果还是全 ✅ → 我感觉「重启后什么都不用手动开」是真的
 
 ## 5. 🚦 验收结果
 
