@@ -1,6 +1,6 @@
 ---
 name: quiz-answer
-description: "当用户消息以 /quiz-answer 开头（在 Claudian 侧栏或 claude code CLI 直输，通常在答完某张检验白板后），必须调用此 Skill 提取答案 + 订阅静默评分 + 本地演化 mastery_score + 归纳新疑问回原节点。v1.1 流程：幂等/续跑守卫 → 提取答案（sentinel + 剥离派生 callout）→ 订阅 4 维评分（净化基准 + rubric 锚定）→ 写分置 scored_pending_node_update → JSON payload + 静态 python 原子写节点（EMA + type/source_board 回填 + 结构化 calibration 事件 + 疑问归纳）→ 置 done → 静默回执。⛔ HARD-SILENT：不当场显分。v1 诚实版：不碰后端熟练度链，mastery_score 是本地简易估计。"
+description: "当用户消息以 /quiz-answer 开头（在 Claudian 侧栏或 claude code CLI 直输，通常在答完某张检验白板后），必须调用此 Skill 提取答案 + 订阅静默评分 + 本地演化 mastery_score + 归纳新疑问回原节点。v1.1 流程：幂等/续跑守卫 → 提取答案（sentinel + 剥离派生 callout）→ 订阅 4 维评分（净化基准 + rubric 锚定）→ 写分置 scored_pending_node_update → JSON payload + 静态 python 原子写节点（衰减 Beta + type/source_board 回填 + 结构化 calibration 事件 + 疑问归纳）→ 置 done → 静默回执。⛔ HARD-SILENT：不当场显分。v1 诚实版：不碰后端熟练度链，mastery_score 是本地简易估计。"
 argument-hint: "[无参（用当前打开的检验白板）或 <检验白板文件名>]"
 allowed-tools:
   - Read
@@ -27,7 +27,7 @@ model: sonnet
 
 ## ⛔⛔⛔ HARD CONSTRAINTS（v1 诚实边界）
 
-1. **不碰后端熟练度链**：allowed-tools **无** `mcp__canvas-learning-mcp__update_bkt` / `update_fsrs` / `query_mastery`。理由（对齐断裂裁决 B1-B4）：`update_bkt`/`update_fsrs` 被 pipeline_token 死锁；`query_mastery` 返回体缺字段且不传 group_id 落 cs188。**v1 一律不调**，掌握度用**本地 EMA** 写节点 frontmatter `mastery_score`。
+1. **不碰后端熟练度链**：allowed-tools **无** `mcp__canvas-learning-mcp__update_bkt` / `update_fsrs` / `query_mastery`。理由（对齐断裂裁决 B1-B4）：`update_bkt`/`update_fsrs` 被 pipeline_token 死锁；`query_mastery` 返回体缺字段且不传 group_id 落 cs188。**v1 一律不调**，掌握度用**本地衰减 Beta 后验**（批次2' A1，`.claude/scripts/decay_beta.py`）写节点 frontmatter `mastery_score`（=μ）+ 状态量 `mastery_a`/`mastery_b`。
 2. **字段名 = `mastery_score`**。读取兼容旧变体 `mastery` / `mastery_level`；写回归一化成 `mastery_score`，并**回填 `type: concept` + `source_board`**（缺失时）——否则 Dashboard 的 `type=="concept"` 过滤永远看不到该节点。
 3. **两阶段提交**：先 `status: scored_pending_node_update`（分数落盘），节点写入成功后才 `status: done`。任一步失败，重跑 `/quiz-answer` 可**续跑**而不重复评分。
 4. **信息隔离时序**：只有你**已答完**（Step 1 确认非空）后，Step 2 才允许 Read 节点正文当评分标准。
@@ -101,7 +101,7 @@ model: sonnet
 
 ```bash
 python3 - <<'PYEOF'
-import json, re, os
+import json, re, os, sys
 P = "/tmp/quiz-answer-payload.json"
 p = json.load(open(P, encoding="utf-8"))
 NODE = p["node"]; GN = float(p["grade_norm"])
@@ -129,15 +129,31 @@ if not re.search(r'^type:', fm, re.M):
 if p.get("source_board") and not re.search(r'^source_board:', fm, re.M):
     fm = fm.rstrip() + '\nsource_board: ' + json.dumps(p["source_board"], ensure_ascii=False)
 
-# EMA（变体兼容读 old + 归一化成唯一 mastery_score）
+# 衰减 Beta 后验（批次2' A1, MEM-FLYWHEEL-2026-07-22, 对账§2）:
+# 旧 EMA 恒权 α=0.5 不收敛（考100次和考3次精度一样）→ Beta(a,b) + γ=0.9
+# 打折, 越考越准且能跟随掌握状态跳变。状态量存 mastery_a/mastery_b,
+# mastery_score = μ 保持 Dashboard 兼容。算法单一真相源: .claude/scripts/decay_beta.py
+VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
+sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
+from decay_beta import PRIOR_A, PRIOR_B, from_legacy, mu, update
+
 old = None
 for key in ("mastery_score", "mastery", "mastery_level"):
     mo = re.search(rf'^{key}:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm, re.M)
     if mo:
         old = float(mo.group(1)); break
-new = round(GN if old is None else max(0.0, min(1.0, old + 0.5*(GN - old))), 2)
-fm = re.sub(r'^(mastery_score|mastery|mastery_level):.*\r?\n?', '', fm, flags=re.M)
-fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}", fm, count=1, flags=re.M)
+ma = re.search(r'^mastery_a:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm, re.M)
+mb = re.search(r'^mastery_b:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm, re.M)
+if ma and mb:
+    A, B = float(ma.group(1)), float(mb.group(1))
+elif old is not None:
+    A, B = from_legacy(old)  # 旧 EMA 分迁移: 均值继承, 只给等效样本量3的低置信
+else:
+    A, B = PRIOR_A, PRIOR_B
+A, B = update(A, B, GN)
+new = round(mu(A, B), 2)
+fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b):.*\r?\n?', '', fm, flags=re.M)
+fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}", fm, count=1, flags=re.M)
 
 # calibration_log 结构化事件（开头的事件级幂等已保证本事件未记录过）
 q = lambda v: json.dumps(v, ensure_ascii=False)
@@ -179,7 +195,7 @@ print(f"[quiz-answer] {NODE}: mastery {old}->{new}; event={eid}; callout={'yes' 
 PYEOF
 ```
 
-（EMA：`new = old + 0.5×(grade_norm − old)`，α=0.5 平滑演化，v1 临时规则，v2 换真 BKT/FSRS。python stdout 只给你看，不进回执。）
+（衰减 Beta：`a←γa+grade, b←γb+(1−grade)`，γ=0.9，`mastery_score=μ=a/(a+b)`；越考越准（σ 收窄）且 ~10 次内跟上状态跳变，取代不收敛的恒权 EMA（批次2' A1）。算法与常数见 `.claude/scripts/decay_beta.py`，v2 上层再接 FSRS 调度。python stdout 只给你看，不进回执。）
 
 ## Step 4d · 落定 done（两阶段第二步）
 

@@ -1,6 +1,6 @@
 ---
 name: start-exam-board
-description: "当用户消息以 /start-exam-board 开头（用户在 Claudian 侧栏直输，或在 claude code CLI 直输），必须调用此 Skill 生成一张检验白板并出第一道针对性题。检验白板 = Karpicke 检索练习（d=1.50）的信息隔离主动回忆板：从选定的原白板挑最薄弱节点（读 frontmatter mastery_score），用你 frontmatter 里的批注/派生原因出一道『引用你原话』的针对题，写到 检验白板/<原白板名>-<时间戳>.md，你在 md 编辑器手写答。出题用 Claude Code 订阅（不调后端、不碰熟练度链）。⛔ 信息隔离铁律：严禁读/回显节点正文定义（## 核心概念 等），否则破坏 d=1.50。v1 诚实版：mastery_score 是本地简易估计，不宣称熟练度驱动有效。"
+description: "当用户消息以 /start-exam-board 开头（用户在 Claudian 侧栏直输，或在 claude code CLI 直输），必须调用此 Skill 生成一张检验白板并出第一道针对性题。检验白板 = Karpicke 检索练习（d=1.50）的信息隔离主动回忆板：从选定的原白板按衰减 Beta 选点挑最该考的节点（读 frontmatter mastery_a/b，pick=μ−σ，未考/久不考自动优先），用你 frontmatter 里的批注/派生原因出一道『引用你原话』的针对题，写到 检验白板/<原白板名>-<时间戳>.md，你在 md 编辑器手写答。出题用 Claude Code 订阅（不调后端、不碰熟练度链）。⛔ 信息隔离铁律：严禁读/回显节点正文定义（## 核心概念 等），否则破坏 d=1.50。v1 诚实版：mastery_score 是本地简易估计，不宣称熟练度驱动有效。"
 argument-hint: "[from <原白板名>] [node <节点名>] 或无参（用当前打开的原白板 / AskUserQuestion 选）。node = 指定考察节点（M4 吸收 QuickExam 单节点定向场景），跳过薄弱选择"
 allowed-tools:
   - Read
@@ -87,10 +87,34 @@ model: sonnet
 - `Read 原白板/<board_stem>.md` 的 `## Concepts` 段（白板 md 不含节点定义，安全），抽出所有 `- [[节点/<X>]] — ...` 的 `<X>`。
 - 对每个节点 `<X>` **只 Grep 掌握度字段**（⛔ HARD-ISO-4：绝不裸 Read 节点）：
   ```
-  Grep -n "^(mastery_score|mastery|mastery_level):" 节点/<X>.md
+  Grep -n "^(mastery_a|mastery_b|mastery_score|mastery|mastery_level):" 节点/<X>.md
   ```
-  取值优先级 `mastery_score > mastery > mastery_level`；三者全缺 → 记 `0.30`。
-- **选掌握度最低**的节点为 `target`（并列时选 Concepts 段靠前的）。
+- **衰减 Beta 选点**（批次2' A1，取代旧「选 μ 最低」——旧逻辑把最低分节点锁死循环考）：把候选写到 `/tmp/exam-candidates.json`，格式 `{"vault_root": "<vault 绝对路径>", "candidates": [{"node": "<X>", "a": <mastery_a 或 null>, "b": <mastery_b 或 null>, "legacy": <mastery_score/mastery/mastery_level 或 null>}, ...]}`（Grep 没抓到的字段填 null），然后 **`Bash` 运行下面这段静态 python**（⛔ 逐字照抄）：
+
+  ```bash
+  python3 - <<'PYEOF'
+  import json, os, sys
+  P = "/tmp/exam-candidates.json"
+  p = json.load(open(P, encoding="utf-8"))
+  sys.path.insert(0, os.path.join(p["vault_root"], ".claude", "scripts"))
+  from decay_beta import PRIOR_A, PRIOR_B, from_legacy, mu, pick_score, sigma
+  rows = []
+  for c in p["candidates"]:
+      if c.get("a") is not None and c.get("b") is not None:
+          a, b = float(c["a"]), float(c["b"])
+      elif c.get("legacy") is not None:
+          a, b = from_legacy(float(c["legacy"]))
+      else:
+          a, b = PRIOR_A, PRIOR_B  # 未考: 先验 σ 最大 → 自动优先轮询
+      rows.append((pick_score(a, b), c["node"], round(mu(a, b), 3), round(sigma(a, b), 3)))
+  rows.sort(key=lambda r: r[0])
+  for pk, node, m, s in rows:
+      print(f"pick={pk:.3f}  μ={m}  σ={s}  {node}")
+  os.remove(P)
+  PYEOF
+  ```
+
+  输出按 pick 升序 —— **取第一行的节点为 `target`**（pick = μ−σ，σ 探索项保证未考/久不考节点不被已锁死的低分节点挤掉；并列时选 Concepts 段靠前的）。
 - **⛔ 未剖析节点跳过**（防疑问节点噪音自激）：对候选 `target` 先 `Grep "你的 1-2 句精准定义" 节点/<X>.md`——命中 = 该节点正文还是派生占位模板（用户尚未剖析，无可回忆内容、也无评分基准）→ **跳过**，取下一个最低者。全部候选都是占位 → 停止：`⚠ 该白板的节点都还没剖析（正文是空模板）。先去节点里写下你的理解/打批注，再来考。`
 - 边界：
   - `## Concepts` 为空 / 无节点 → 停止：`⚠ 原白板 <board_stem> 暂无节点，先用 Cmd+Shift+D 派生节点再考`。
@@ -239,7 +263,7 @@ questions:
 ```
 [ ] Step 1 防嵌套：源不是 exam_board / 不在 检验白板/ 下
 [ ] Step 2 源原白板已确定；board_stem=文件名、board_name=显示名，两者已分开
-[ ] Step 3 选了掌握度最低节点（兼容 mastery_score/mastery/mastery_level，全缺 0.30）；全程 Grep 未裸 Read 节点
+[ ] Step 3 用衰减 Beta 选点（pick=μ−σ 最低者；兼容 legacy mastery_score/mastery/mastery_level，全缺走先验）；全程 Grep 未裸 Read 节点
 [ ] Step 4 只 Grep 了批注 + relationships description，未整段读 ## 核心概念
 [ ] Step 5 题目引用批注原话（若有）；不含定义/答案；难度按掌握度适配；记了 hook token
 [ ] Step 5 薄弱档（<0.4/占位）= 单概念 cued recall + 锚点，无"与邻居区分"；辨析题未选 up/derived-from 父子节点作对比
