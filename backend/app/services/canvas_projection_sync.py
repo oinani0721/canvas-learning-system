@@ -85,6 +85,7 @@ class CanvasProjectionSync:
         nodes_with_rel = 0
         edges_synced = 0
         failed = 0
+        alive_edge_ids: list[str] = []
 
         for md in base.rglob("*.md"):
             rels = self._read_relationships(md)
@@ -101,9 +102,16 @@ class CanvasProjectionSync:
                 if not target_id or target_id == source_id:
                     continue
                 try:
-                    await self._merge_edge(
-                        client, source_id, target_id, rel_type, label, physical_gid
+                    edge_id = await self._merge_edge(
+                        client,
+                        source_id,
+                        target_id,
+                        rel_type,
+                        label,
+                        physical_gid,
+                        rel=rel,
                     )
+                    alive_edge_ids.append(edge_id)
                     edges_synced += 1
                 except Exception as e:  # noqa: BLE001 — 单边失败不阻断批量
                     failed += 1
@@ -111,16 +119,40 @@ class CanvasProjectionSync:
                         "[Fix-E1] edge sync failed %s->%s: %s", source_id, target_id, e
                     )
 
+        # 批次4' 3-3 幽灵边对账 (MEM-FLYWHEEL): frontmatter 里已删/改名的
+        # relationship, 旧 CANVAS_EDGE 此前永远留在图里 (MERGE 只增不删,
+        # 拆分时间线越老越脏)。软失效不物理删 — 时间线可追溯, 查询侧过滤。
+        invalidated = 0
+        try:
+            records = await client.run_query(
+                """
+                MATCH ()-[e:CANVAS_EDGE]-()
+                WHERE e.group_id = $group_id AND e.synced_from = 'frontmatter'
+                  AND NOT e.id IN $alive_ids AND e.invalidated_at IS NULL
+                SET e.invalidated_at = datetime(), e.active = false
+                RETURN count(DISTINCT e) AS c
+                """,
+                group_id=physical_gid,
+                alive_ids=alive_edge_ids,
+            )
+            if records:
+                data = records[0] if isinstance(records[0], dict) else records[0].data()
+                invalidated = int(data.get("c") or 0)
+        except Exception as e:  # noqa: BLE001 — 对账失败不阻断同步
+            logger.warning("[3-3] 幽灵边对账失败 (本轮跳过): %s", e)
+
         logger.info(
-            "[Fix-E1] 原因边同步: %d 节点有 relationships, %d 边写入, %d 失败",
+            "[Fix-E1] 原因边同步: %d 节点有 relationships, %d 边写入, %d 失败, %d 幽灵边失效",
             nodes_with_rel,
             edges_synced,
             failed,
+            invalidated,
         )
         return {
             "nodes_with_relationships": nodes_with_rel,
             "edges_synced": edges_synced,
             "failed": failed,
+            "edges_invalidated": invalidated,
         }
 
     @staticmethod
@@ -144,14 +176,22 @@ class CanvasProjectionSync:
         rel_type: str,
         label: str,
         physical_gid: str,
-    ) -> None:
+        rel: Optional[dict[str, Any]] = None,
+    ) -> str:
         """MERGE (source)-[CANVAS_EDGE{label=原因}]->(target) (确定性 edge id 幂等)。
 
         T2 (2026-07-10): 节点/边均 SET group_id (物理 __ 格式); edge_id 纳入
         group 前缀 — 跨 vault 同名节点对的边不再共享 id 互相覆盖 label。
         MERGE 键保持 {id} 不加 group, 对齐 SyncService / exam_service_ext 的
         CanvasNode 写契约 (键结构分叉会造重复节点)。
+
+        批次4' (MEM-FLYWHEEL): 3-2 ON CREATE 打 created_at (首建时序, 幂等重跑
+        不覆盖) + relationships[] 的 derived_at 透传; 3-1 派生时刻理解快照
+        (source_mastery_at_derivation / confusion) 随边留档; 3-3 复活清除失效
+        标记 (md 里边回来了 → 幽灵标记撤销)。边身份 = source→type→target
+        (reason 变更走 SET label 属性更新, 不并排新增)。
         """
+        rel = rel or {}
         edge_id = f"rel-{physical_gid}-{source_id}-{rel_type}-{target_id}"
         await client.run_query(
             """
@@ -160,10 +200,18 @@ class CanvasProjectionSync:
             MERGE (t:CanvasNode {id: $target_id})
             SET t.group_id = coalesce(t.group_id, $group_id)
             MERGE (s)-[e:CANVAS_EDGE {id: $edge_id}]->(t)
+            ON CREATE SET e.created_at = datetime()
             SET e.label = $label,
                 e.relation_type = $rel_type,
                 e.group_id = $group_id,
-                e.synced_from = 'frontmatter'
+                e.synced_from = 'frontmatter',
+                e.active = true,
+                e.derived_at = coalesce($derived_at, e.derived_at),
+                e.source_mastery_at_derivation =
+                    coalesce($source_mastery, e.source_mastery_at_derivation),
+                e.confusion_at_derivation =
+                    coalesce($confusion, e.confusion_at_derivation)
+            REMOVE e.invalidated_at
             """,
             source_id=source_id,
             target_id=target_id,
@@ -171,7 +219,17 @@ class CanvasProjectionSync:
             label=label,
             rel_type=rel_type,
             group_id=physical_gid,
+            derived_at=str(rel.get("derived_at")) if rel.get("derived_at") else None,
+            source_mastery=(
+                float(rel["source_mastery_at_derivation"])
+                if rel.get("source_mastery_at_derivation") is not None
+                else None
+            ),
+            confusion=(
+                str(rel.get("confusion"))[:300] if rel.get("confusion") else None
+            ),
         )
+        return edge_id
 
 
 _canvas_projection_sync: Optional[CanvasProjectionSync] = None

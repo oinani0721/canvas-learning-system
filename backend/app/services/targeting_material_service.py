@@ -130,15 +130,19 @@ async def collect_targeting_material(
         # ② OPTIONAL MATCH 区分 node_not_found / no_neighbors 两态;
         # ③ ORDER BY neighbor_id 确定性排序 (原纯存储顺序=随机;
         #    批次4' 投影边补 created_at 后改按时间)。
+        # 批次4' 3-3: e.invalidated_at IS NULL 过滤幽灵边 (已删/改名的旧关系
+        # 不再进出题素材); 3-2: ORDER BY 升级为派生时间倒序 (created_at 已补,
+        # 最近拆分的关系优先), neighbor_id 兜底保确定性
         records = await client.run_query(
             """
             MATCH (n:CanvasNode {id: $node_id})
             WHERE n.group_id = $group_id
             OPTIONAL MATCH (n)-[e:CANVAS_EDGE]-(m:CanvasNode)
             WHERE e.group_id = $group_id AND m.id <> $node_id
-              AND m.group_id = $group_id
-            RETURN DISTINCT m.id AS neighbor_id, e.label AS reason
-            ORDER BY neighbor_id
+              AND m.group_id = $group_id AND e.invalidated_at IS NULL
+            RETURN DISTINCT m.id AS neighbor_id, e.label AS reason,
+                   e.created_at AS edge_created_at
+            ORDER BY edge_created_at DESC, neighbor_id
             LIMIT 10
             """,
             node_id=node_id,

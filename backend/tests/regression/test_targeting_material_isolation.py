@@ -111,10 +111,12 @@ async def _collect_with(records):
 
 
 async def test_cypher_is_fail_closed_and_ordered():
-    """谓词严格相等 (无 IS NULL 放行) + 确定性 ORDER BY + n 侧也滤 group。"""
+    """group 谓词严格相等 (无缺失放行) + 确定性 ORDER BY + n 侧也滤 group
+    + 批次4' 3-3 幽灵边过滤 (invalidated_at IS NULL 是失效过滤, 不是放行)。"""
     _, call = await _collect_with([])
     cypher = call.args[0]
-    assert "IS NULL" not in cypher
+    assert "group_id IS NULL" not in cypher  # 拦「缺失放行」洞
+    assert "invalidated_at IS NULL" in cypher  # 幽灵边不进出题素材
     assert "ORDER BY" in cypher
     assert cypher.count("group_id = $group_id") >= 3  # n 侧 + 边 + m 侧
 

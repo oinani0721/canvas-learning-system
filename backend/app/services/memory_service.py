@@ -246,9 +246,13 @@ class MemoryService:
             )
             return
 
+        # 批次4' R4 (MEM-FLYWHEEL): CJK analyzer — 中文 BM25 分词 (standard 单字
+        # 切分致中文精度 -26pt)。IF NOT EXISTS 语义: 已有 cjk 版索引时跳过;
+        # 全新库启动时直接建成 cjk 版 (与 scripts/rebuild_fulltext_cjk.cypher 一致)
         cypher = (
             "CREATE FULLTEXT INDEX episode_content IF NOT EXISTS "
-            "FOR (n:EpisodicNode) ON EACH [n.content]"
+            "FOR (n:EpisodicNode) ON EACH [n.content] "
+            "OPTIONS {indexConfig: {`fulltext.analyzer`: 'cjk'}}"
         )
         try:
             await self.neo4j.run_query(cypher)
@@ -2016,6 +2020,12 @@ class MemoryService:
         """
         if not self._initialized:
             await self.initialize()
+
+        # 批次4' 检索束 (MEM-FLYWHEEL): query 命中双语术语表 → 拼接对侧语言
+        # 术语束再检索 — 跨语/短词多义场景 (「极小极大」→ minimax) 召回稳态化
+        from app.core.term_aliases import expand_query
+
+        query = expand_query(query)
 
         effective_limit = limit if limit is not None else max_results
         seen_ids: set = set()

@@ -111,6 +111,9 @@ derived-from: "[[{源笔记 stem}]]"
 relationships:
   - type: {关系类型 key}
     target: "[[{源笔记 stem}]]"
+    derived_at: <ISO 8601, 与顶部 created_at 同值>
+    {source_mastery: 源笔记 frontmatter 有 mastery_score 时加 → source_mastery_at_derivation: <该值>}
+    {confusion: 源笔记选中文本附近有 [!question]/[!error] 批注时加 → confusion: "<最近一条批注原文, ≤100 字>"}
     {description 非空时加: description: "{description}"}
 ---
 
@@ -143,6 +146,8 @@ relationships:
 - ✅ frontmatter `relationships:` 数组必含 1 项 `{type: <关系类型 key>, target: [[<源笔记 stem>]]}`（v2.4 D1-3 双写之"机器可读"半边）
 - ⛔ 关系类型 key 必须是 7 类合法值之一（解析失败时由 Skill 回落 `related_to`，**不**由生成器自行选择）
 - ✅ 若 description 非空：frontmatter `relationships[0].description` 必填用户描述原文（不裁剪，不复读到正文）
+- ✅ **理解快照随边（批次4' 3-1/3-2，MEM-FLYWHEEL）**：`relationships[0]` 必含 `derived_at`（拆分时序）；源笔记有 `mastery_score` 时加 `source_mastery_at_derivation`（派生瞬间你对源概念的掌握档——「当时为什么困惑」的一半）；选中文本前后 10 行内有 `[!question]`/`[!error]` 批注时加 `confusion`（最近一条原文 ≤100 字——另一半）。投影 sync 会把这三个字段透传入 CANVAS_EDGE 永久留档
+- ✅ **学习事件落日志（批次4'，MEM-FLYWHEEL）**：新节点写入成功后，`Bash` 追加一条事件（⛔ 逐字模板，仅替换两处 `<>`）：`python3 -c "import json,os,sys; ev='<vault绝对路径>/learning_events.jsonl'; evid='derive:<新节点名>'; seen=os.path.exists(ev) and any(json.dumps(evid,ensure_ascii=False) in l for l in open(ev,encoding='utf-8')); from datetime import datetime,timezone; ts=datetime.now(timezone.utc).isoformat(); seen or open(ev,'a',encoding='utf-8').write(json.dumps({'event_id':evid,'event_version':1,'event_type':'node_derived','node_id':'<新节点名>','recorded_at':ts,'effective_at':ts,'payload':{}},ensure_ascii=False)+'\n')"`（写失败不阻断派生）
 - ⛔ 若 description 为空：frontmatter `relationships[0]` 不写 `description` 字段（不要 description: ""）
 ```
 
