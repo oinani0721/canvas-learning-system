@@ -291,7 +291,9 @@ PYEOF
 
 ```
 ✓ 检验白板已建：检验白板/<board_stem>-<ts>.md
-✓ 本次考察节点：<target 节点名>（mastery_score <值>，v1 本地估计）
+✓ 选点排序（pick=μ−σ，越低越该考；整板考察时必贴，定向考察省略本段）：
+  <逐行照抄 Step 3 静态 python 输出的排序表，含全部候选行>
+✓ 本次考察节点：<target 节点名>（mastery_score <值>，第 <attempt_count+1> 次考察；首考写"首次考察"；v1 本地估计）
 → 在 <!-- answer:start --> / <!-- answer:end --> 之间手写你的回答，并在"理解自评 →"后填一个
 → 答完输 /quiz-answer 评分（静默，不当场显分）
 ⚠ 答题时别切 Tab 看原文 —— 那会把主动回忆效果（d=1.50）打回 0.40
