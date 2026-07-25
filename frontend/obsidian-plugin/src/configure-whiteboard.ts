@@ -162,7 +162,6 @@ type: whiteboard
 board_name: "{{board_name}}"
 created_at: "{{created_at}}"
 doc_count: 0
-doc_mastery_avg: 0.00
 ---
 
 # {{board_name}}
