@@ -16,6 +16,7 @@ import {
   type UnderstandingValue,
   USER_INPUT_PROMPT,
   NEW_QUESTION_PROMPT,
+  padBlockInsert,
   wrapSelection,
   buildNewQuestionCallout,
   computeInsertionSpacing,
@@ -2840,15 +2841,24 @@ class UnderstandingModal extends FuzzySuggestModal<UnderstandingOption> {
     const annotationId = generateAnnotationId();
     // 1) 本地写入 callout
     const from = this.editor.getCursor("from");
+    const to = this.editor.getCursor("to");
     const wrapped = wrapSelection(this.selected, this.tag, und.value, annotationId);
-    this.editor.replaceSelection(wrapped);
+    // 2026-07-25 (UAT ⑧): 行内选区时补换行包裹 — callout 是块级语法, 粘进
+    // 句子中间会渲染碎裂且同步器解析不到 (详见 callout.ts padBlockInsert)
+    const padded = padBlockInsert(
+      wrapped,
+      from.ch,
+      this.editor.getLine(to.line).slice(to.ch),
+    );
+    this.editor.replaceSelection(padded.text);
 
     // 2) P0-6 (2026-05-14): 光标自动定位到 callout 末尾用户输入区
     // wrapped 最后一行是 "> "（USER_INPUT_PROMPT），光标停在 ch=2 让用户直接输入。
     // 这样用户做完 tag + understanding 选择后，自然继续打字写下自己的理解 / 疑问 /
     // 批注，无需额外 modal，符合 Obsidian native UX。
     const wrappedLines = wrapped.split("\n");
-    const targetLine = from.line + wrappedLines.length - 1;
+    const targetLine =
+      from.line + padded.leadingNewlines + wrappedLines.length - 1;
     const targetCh = USER_INPUT_PROMPT.length; // "> " 后面
     this.editor.setCursor({ line: targetLine, ch: targetCh });
     this.editor.focus();

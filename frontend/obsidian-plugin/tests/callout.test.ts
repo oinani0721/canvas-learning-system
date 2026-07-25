@@ -281,3 +281,24 @@ test("spacing: 纯空格行按空行处理（配合 handler 整行替换防 code
     tail: "",
   });
 });
+
+// ── 2026-07-25 UAT ⑧ 实操边界: 行内选区插入必须换行包裹 ──
+const calloutMod = require("../src/callout");
+
+test("padBlockInsert: 行内起点+行尾有余文 → 前后都补空行", () => {
+  const r = calloutMod.padBlockInsert("> [!question]+ x", 42, " (a scalar)");
+  assert.ok(r.text.startsWith("\n\n> [!question]"));
+  assert.ok(r.text.endsWith("\n\n"));
+  assert.equal(r.leadingNewlines, 2);
+});
+
+test("padBlockInsert: 行首整行选区 → 原样不动", () => {
+  const r = calloutMod.padBlockInsert("> [!question]+ x", 0, "");
+  assert.equal(r.text, "> [!question]+ x");
+  assert.equal(r.leadingNewlines, 0);
+});
+
+test("padBlockInsert: 行尾只剩空白 → 不补尾换行", () => {
+  const r = calloutMod.padBlockInsert("> [!q]+ x", 0, "   ");
+  assert.ok(!r.text.endsWith("\n\n"));
+});

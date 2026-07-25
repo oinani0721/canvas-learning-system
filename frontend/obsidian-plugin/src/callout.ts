@@ -245,3 +245,27 @@ export function wrapSelection(
   // 末尾结构：[原文] → 空 ">" 分隔行 → "> " 用户输入区（带尾随空格，光标停这里）
   return `${header}\n${checkboxes}\n>\n${body}\n>\n${USER_INPUT_PROMPT}`;
 }
+
+
+/**
+ * 块级插入包裹 (2026-07-25, UAT ⑧ 实操抓到的边界 bug):
+ * callout 的 `>` 必须在行首才渲染为块 — 选区在行内时原地替换会把 callout
+ * 粘进句子中间 → 渲染碎裂 + FrontmatterTipsSync 行首正则解析不到 (不入
+ * tips[] 也不直连)。按选区前后文决定补换行。
+ *
+ * @param wrapped   wrapSelection 的输出
+ * @param fromCh    选区起点列号 (>0 = 行内起点, 前面还有文字)
+ * @param tailAfter 选区终点到行尾的剩余文本
+ */
+export function padBlockInsert(
+  wrapped: string,
+  fromCh: number,
+  tailAfter: string,
+): { text: string; leadingNewlines: number } {
+  const needsLeading = fromCh > 0;
+  const needsTrailing = tailAfter.trim().length > 0;
+  return {
+    text: (needsLeading ? "\n\n" : "") + wrapped + (needsTrailing ? "\n\n" : ""),
+    leadingNewlines: needsLeading ? 2 : 0,
+  };
+}
