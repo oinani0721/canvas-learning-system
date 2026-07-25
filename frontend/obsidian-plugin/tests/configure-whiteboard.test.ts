@@ -251,7 +251,7 @@ test("renderWhiteboardTemplate: 含 frontmatter 5 字段", () => {
   assert.ok(out.includes('board_name: "X"'));
   assert.ok(out.includes('created_at: "Y"'));
   assert.ok(out.includes("doc_count: 0"));
-  assert.ok(out.includes("doc_mastery_avg: 0.00"));
+  assert.ok(!out.includes("doc_mastery_avg")); // 2026-07-25 死字段已删 (双真相源反模式, 板均值由节点实时派生)
 });
 
 test("renderWhiteboardTemplate: 含 ## Concepts + ## Recent Activity sections", () => {
