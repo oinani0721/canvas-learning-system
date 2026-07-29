@@ -203,12 +203,39 @@ if mle:
 A, B = max(A, 1e-4), max(B, 1e-4)  # 手工编辑容错: a/b 被改成 0 时 effective 会拒 (Code-Review L7)
 A, B = update_after_idle(A, B, GN, days_idle)
 new = round(mu(A, B), 2)
+
+# FSRS WHEN 桥 (FSRS-V2-2026-07-30, [Decision-FSRS-1/2]): 评分即一次 FSRS
+# 复习, 产出 fsrs_due 等 6 字段供推送链读侧判「今天谁到期」。桥内部自动
+# re-exec backend venv python; 任何失败诚实降级 — 衰减 Beta 照常写, 只丢
+# WHEN 字段并在 stdout 明说 (不静默)。
+import subprocess
+fsrs_block = ""
+try:
+    _r = subprocess.run(
+        ["python3", os.path.join(VAULT, ".claude", "scripts", "fsrs_bridge.py")],
+        input=json.dumps({"fm": fm, "grade_norm": GN,
+                          "abandoned": bool(p.get("abandoned")), "ts": p["ts"]}),
+        capture_output=True, text=True, timeout=30)
+    try:
+        _out = json.loads(_r.stdout) if _r.stdout.strip() else {}
+    except ValueError:
+        _out = {}
+    fsrs_block = ("\n" + _out["fm_block"]) if _out.get("fm_block") else ""
+    if not fsrs_block:
+        # Code-Review M1: 无论退出码都先看 stdout 的诚实报错, 再退 stderr
+        print(f"[quiz-answer] FSRS 桥降级跳过(不影响评分): {_out.get('error') or _r.stdout[:120] or _r.stderr[:120]}")
+except Exception as _e:
+    print(f"[quiz-answer] FSRS 桥降级跳过(不影响评分): {_e}")
 # A4 (批次2'): 考察历史随节点走 — attempt_count 累加 + last_examined 时间戳,
 # 出题侧 (start-exam-board) 回读它们做题目去重与历史感知
 mo_att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
 n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
 fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
-fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(p["ts"], ensure_ascii=False), fm, count=1, flags=re.M)
+# Code-Review H2: 只有桥成功产出新 fsrs 字段才删旧行 — 桥失败时保留节点
+# 已积累的调度状态 (否则一次临时故障 = 卡片退回 New, 间隔历史全灭)
+if fsrs_block:
+    fm = re.sub(r'^(fsrs_due|fsrs_state|fsrs_step|fsrs_stability|fsrs_difficulty|fsrs_last_review):.*\r?\n?', '', fm, flags=re.M)
+fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(p["ts"], ensure_ascii=False) + fsrs_block, fm, count=1, flags=re.M)
 
 # calibration_log 结构化事件（开头的事件级幂等已保证本事件未记录过）
 q = lambda v: json.dumps(v, ensure_ascii=False)

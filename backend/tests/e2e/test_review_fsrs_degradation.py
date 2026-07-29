@@ -119,27 +119,19 @@ class TestEbbinghausFallbackE2E:
                 "score": 50,
             },
         )
-        assert resp.status_code == 200, (
-            f"Expected 200, got {resp.status_code}: {resp.text}"
-        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
         data = resp.json()
-        assert data["algorithm"] == "ebbinghaus-fallback", (
-            f"Expected ebbinghaus-fallback, got {data.get('algorithm')}"
-        )
+        assert data["algorithm"] == "ebbinghaus-fallback", f"Expected ebbinghaus-fallback, got {data.get('algorithm')}"
         # AC-32.11.1: Verify interval_days is reasonable (score 40-59 → 3 days)
-        assert data["new_interval"] == 3, (
-            f"Expected new_interval=3 for score=50, got {data.get('new_interval')}"
-        )
+        assert data["new_interval"] == 3, f"Expected new_interval=3 for score=50, got {data.get('new_interval')}"
         # AC-32.11.1: Verify next_review_date is a future date
         from datetime import date as date_cls
 
         next_date = date_cls.fromisoformat(data["next_review_date"])
-        assert next_date > date_cls.today(), (
-            f"next_review_date {next_date} should be in the future"
-        )
+        assert next_date > date_cls.today(), f"next_review_date {next_date} should be in the future"
 
     def test_schedule_review_ebbinghaus_fallback(self, client):
-        """T1.3: GET /schedule with USE_FSRS=False returns 200.
+        """T1.3 改判 (FSRS-V2-2026-07-30 Tier A): /review/schedule 已退役 → 404。
 
         AC-32.11.1: schedule endpoint returns valid response (not 500).
         Note: Cannot verify Ebbinghaus intervals in schedule items because
@@ -148,15 +140,7 @@ class TestEbbinghausFallbackE2E:
         that the endpoint doesn't crash (500) when FSRS is unavailable.
         """
         resp = client.get("/api/v1/review/schedule")
-        assert resp.status_code == 200, (
-            f"Expected 200, got {resp.status_code}: {resp.text}"
-        )
-        data = resp.json()
-        assert "items" in data
-        assert "total_count" in data
-        assert isinstance(data["items"], list)
-        assert isinstance(data["total_count"], int)
-        assert data["total_count"] >= 0
+        assert resp.status_code == 404, f"退役端点必须保持 404, got {resp.status_code}: {resp.text[:200]}"
 
     def test_fsrs_state_not_initialized(self, client, isolate_card_states):
         """T1.4: GET /fsrs-state returns found=false when FSRS not initialized.
@@ -164,9 +148,7 @@ class TestEbbinghausFallbackE2E:
         AC-32.11.1: fsrs-state returns found=false, reason=fsrs_not_initialized.
         """
         resp = client.get("/api/v1/review/fsrs-state/e2e-concept-degraded")
-        assert resp.status_code == 200, (
-            f"Expected 200, got {resp.status_code}: {resp.text}"
-        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
         data = resp.json()
         assert data["found"] is False
         assert data["reason"] == "fsrs_not_initialized"
@@ -224,9 +206,7 @@ class TestEbbinghausNextReviewTiming:
                 "score": 50,
             },
         )
-        assert resp.status_code == 200, (
-            f"Expected 200, got {resp.status_code}: {resp.text}"
-        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
         data = resp.json()
 
         # Verify algorithm is fallback
@@ -238,6 +218,4 @@ class TestEbbinghausNextReviewTiming:
         expected_date = date_cls.today() + timedelta(days=3)
         actual_date = date_cls.fromisoformat(data["next_review_date"])
         # ±1 day tolerance for UTC midnight edge cases
-        assert abs((actual_date - expected_date).days) <= 1, (
-            f"Expected ~{expected_date}, got {actual_date}"
-        )
+        assert abs((actual_date - expected_date).days) <= 1, f"Expected ~{expected_date}, got {actual_date}"

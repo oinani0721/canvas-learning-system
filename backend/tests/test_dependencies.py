@@ -211,24 +211,18 @@ class TestGetAgentService:
     """Tests for get_agent_service() dependency."""
 
     @pytest.mark.asyncio
-    async def test_get_agent_service_returns_correct_type(
-        self, mock_settings, mock_canvas_service, mock_neo4j_client
-    ):
+    async def test_get_agent_service_returns_correct_type(self, mock_settings, mock_canvas_service, mock_neo4j_client):
         """
         Test that get_agent_service() yields an AgentService instance.
 
         [Source: docs/stories/15.3.story.md#Testing - AC: 4]
         """
-        async for service in get_agent_service(
-            mock_settings, mock_canvas_service, mock_neo4j_client
-        ):
+        async for service in get_agent_service(mock_settings, mock_canvas_service, mock_neo4j_client):
             assert isinstance(service, AgentService)
             break
 
     @pytest.mark.asyncio
-    async def test_get_agent_service_cleanup_called(
-        self, mock_settings, mock_canvas_service, mock_neo4j_client
-    ):
+    async def test_get_agent_service_cleanup_called(self, mock_settings, mock_canvas_service, mock_neo4j_client):
         """
         Test that cleanup is called when context exits.
 
@@ -243,9 +237,7 @@ class TestGetAgentService:
             await original_cleanup(self)
 
         with patch.object(AgentService, "cleanup", mock_cleanup):
-            async for service in get_agent_service(
-                mock_settings, mock_canvas_service, mock_neo4j_client
-            ):
+            async for service in get_agent_service(mock_settings, mock_canvas_service, mock_neo4j_client):
                 pass
 
         assert cleanup_called
@@ -271,9 +263,7 @@ class TestGetReviewService:
         # First get canvas_service
         async for canvas_service in get_canvas_service(mock_settings):
             # Then get review_service with canvas_service and task_manager
-            async for review_service in get_review_service(
-                canvas_service, task_manager
-            ):
+            async for review_service in get_review_service(canvas_service, task_manager):
                 assert isinstance(review_service, ReviewService)
                 break
             break
@@ -287,9 +277,7 @@ class TestGetReviewService:
         """
         task_manager = get_task_manager()
         async for canvas_service in get_canvas_service(mock_settings):
-            async for review_service in get_review_service(
-                canvas_service, task_manager
-            ):
+            async for review_service in get_review_service(canvas_service, task_manager):
                 assert review_service.canvas_service is canvas_service
                 assert review_service.task_manager is task_manager
                 break
@@ -313,9 +301,7 @@ class TestGetReviewService:
         task_manager = get_task_manager()
         with patch.object(ReviewService, "cleanup", mock_cleanup):
             async for canvas_service in get_canvas_service(mock_settings):
-                async for review_service in get_review_service(
-                    canvas_service, task_manager
-                ):
+                async for review_service in get_review_service(canvas_service, task_manager):
                     pass
                 break
 
@@ -346,9 +332,7 @@ class TestDependencyOverrides:
         config_get_settings.cache_clear()
 
         # Create mock settings with uppercase attribute names
-        mock_settings = Settings(
-            PROJECT_NAME="Overridden App", VERSION="9.9.9", DEBUG=True
-        )
+        mock_settings = Settings(PROJECT_NAME="Overridden App", VERSION="9.9.9", DEBUG=True)
 
         def override_get_settings():
             return mock_settings
@@ -377,9 +361,7 @@ class TestDependencyOverrides:
         """
         # Create mock service
         mock_service = MagicMock(spec=CanvasService)
-        mock_service.read_canvas = AsyncMock(
-            return_value={"name": "test-canvas", "nodes": [], "edges": []}
-        )
+        mock_service.read_canvas = AsyncMock(return_value={"name": "test-canvas", "nodes": [], "edges": []})
 
         async def override_canvas_service():
             yield mock_service
@@ -401,9 +383,7 @@ class TestDependencyOverrides:
         [Source: docs/stories/15.3.story.md#Testing - AC: 8]
         """
         mock_service = MagicMock(spec=AgentService)
-        mock_service.decompose_basic = AsyncMock(
-            return_value={"questions": ["Q1", "Q2"], "created_nodes": []}
-        )
+        mock_service.decompose_basic = AsyncMock(return_value={"questions": ["Q1", "Q2"], "created_nodes": []})
 
         async def override_agent_service():
             yield mock_service
@@ -434,10 +414,9 @@ class TestDependencyOverrides:
 
         app.dependency_overrides[get_review_service] = override_review_service
 
-        # Test endpoint returns data (using existing schedule endpoint)
-        response = client.get("/api/v1/review/schedule")
+        # /review/schedule 已退役 (FSRS-V2 Tier A) — 改用 health 端点验证依赖装配
+        response = client.get("/api/v1/health")
         assert response.status_code == 200
-        assert "items" in response.json()
 
 
 # =============================================================================
@@ -475,9 +454,7 @@ class TestAPIEndpointIntegration:
         """
         # Create mock to verify dependency override mechanism works
         mock_service = MagicMock(spec=CanvasService)
-        mock_service.read_canvas = AsyncMock(
-            return_value={"name": "test", "nodes": [], "edges": []}
-        )
+        mock_service.read_canvas = AsyncMock(return_value={"name": "test", "nodes": [], "edges": []})
 
         async def override():
             yield mock_service
@@ -548,10 +525,9 @@ class TestAPIEndpointIntegration:
         # Verify override can be registered (mechanism works)
         app.dependency_overrides[get_review_service] = override
 
-        # Test existing schedule endpoint (placeholder implementation)
-        response = client.get("/api/v1/review/schedule")
+        # /review/schedule 已退役 (FSRS-V2 Tier A) — 改用 health 端点验证路由装配
+        response = client.get("/api/v1/health")
         assert response.status_code == 200
-        assert "items" in response.json()
 
 
 # =============================================================================

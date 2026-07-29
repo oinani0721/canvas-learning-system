@@ -374,17 +374,8 @@ export default class CanvasLearningPlugin extends Plugin {
       callback: () => this.handleOpenDashboard(),
     });
 
-    this.addCommand({
-      id: "canvas:open-review-queue",
-      name: "打开复习队列（GET /review/schedule）",
-      callback: () =>
-        this.callBackend(
-          "/api/v1/review/schedule?days=7",
-          "打开复习队列",
-          undefined,
-          "GET",
-        ),
-    });
+    // canvas:open-review-queue 已退役 (FSRS-V2-2026-07-30 Tier A): 其后端
+    // /review/schedule 是永空幽灵端点。复习入口 = outputs/今日复习.md + 每日推送。
 
     this.addCommand({
       id: "canvas:annotate-callout",

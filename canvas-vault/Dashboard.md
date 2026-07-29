@@ -48,8 +48,11 @@ const groupedStr = Object.entries(nodesByBoard)
   .map(([k, v]) => `${k}: ${v}`)
   .join(" / ");
 
-// 3. FSRS 到期数（v1 placeholder，等 Story 5/6）
-const fsrsPlaceholder = "0（Story 5/6 BKT+FSRS 实施后自动统计）";
+// 3. FSRS 到期数（FSRS-V2 2026-07-30 接活: WHEN=fsrs_due, 无字段=新卡视同到期
+//    — 与 Decision-FSRS-2 同口径, 新卡计入到期）
+const schedCnt = nodes.filter(n => n.fsrs_due && dv.date(String(n.fsrs_due)) <= dv.date("now")).length;
+const newCnt = nodes.filter(n => !n.fsrs_due).length;
+const fsrsPlaceholder = `${schedCnt + newCnt}（含 ${newCnt} 张新卡视同到期 · 完整口径见 outputs/今日复习.md）`;
 
 dv.paragraph(
   `📊 **平均精通度**: \`${avgMastery.toFixed(2)}\` ${masteryColor} ${masteryLabel}\n\n` +
@@ -331,10 +334,11 @@ if (handled.length > 0) {
 
 ## ⏰ 待复习（FSRS 到期）
 
-> [!warning]+ v1 MVP placeholder
-> 当前 v1 暂未实现 FSRS 调度算法（待 Story 5/6 实施）。所有节点默认 `mastery_score: 0.30` 起步，没有 `last_reviewed` 时间戳。
+> [!info]+ FSRS 调度已上线（FSRS-V2 2026-07-30）
+> 每次 `/quiz-answer` 评分即一次 FSRS 复习，到期日写入节点 `fsrs_due`。
+> 每日到期清单与一键开考命令见 **`outputs/今日复习.md`**（早 9:05 自动生成+推送）。
 >
-> **v1 兜底视图**：列出所有 `mastery_score < 0.5` 的节点（最值得优先复习）：
+> **弱点视图**：列出所有 `mastery_score < 0.5` 的节点（掌握度维度，与到期互补）：
 
 ```dataviewjs
 const weakNodes = dv.pages('"节点"')
@@ -516,4 +520,4 @@ if (nodes.length === 0) {
 ---
 
 > [!success]+ Dashboard v1.0 已 ship（2026-05-01）
-> 4 MVP 闭环最后一环。所有数据自 vault frontmatter 实时聚合，零 LLM 调用，零外部依赖（无需 Buttons plugin）。Story 5/6 实施后 FSRS 到期统计自动激活。
+> 4 MVP 闭环最后一环。所有数据自 vault frontmatter 实时聚合，零 LLM 调用，零外部依赖（无需 Buttons plugin）。FSRS 到期统计已于 2026-07-30 接活（FSRS-V2）。

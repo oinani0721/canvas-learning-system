@@ -12,7 +12,6 @@ Provides 3 endpoints for Ebbinghaus review system operations.
 import asyncio
 import json
 import logging
-import sys
 import uuid
 from datetime import date, timedelta
 from pathlib import Path
@@ -48,15 +47,13 @@ def _resolve_vault_group_id(
         )
     elif legacy_group_id and legacy_group_id.strip():
         logger.warning(
-            "Wave-5 Stage B: review endpoint vault_id missing, "
-            "falling back to deprecated group_id=%s",
+            "Wave-5 Stage B: review endpoint vault_id missing, falling back to deprecated group_id=%s",
             legacy_group_id,
         )
         derived = canonical_group_id(legacy_group_id)
     else:
         logger.warning(
-            "Wave-5 Stage B: review endpoint both vault_id and group_id missing, "
-            "falling back to DEFAULT_GROUP_ID"
+            "Wave-5 Stage B: review endpoint both vault_id and group_id missing, falling back to DEFAULT_GROUP_ID"
         )
         derived = DEFAULT_GROUP_ID
 
@@ -82,8 +79,6 @@ from app.models import (
     QuestionType,
     RecordReviewRequest,
     RecordReviewResponse,
-    ReviewItem,
-    ReviewScheduleResponse,
     # Story 31.6: Session Progress Models
     SessionPauseResumeResponse,
     SessionProgressResponse,
@@ -97,13 +92,6 @@ from app.models import (
     VerificationStatusEnum,
 )
 
-# ✅ Add src directory to Python path for EbbinghausReviewScheduler import
-# [Source: Plan - P0 Task #1: Connect review API to EbbinghausScheduler]
-_project_root = Path(__file__).parent.parent.parent.parent
-_src_path = _project_root / "lib"
-if str(_src_path) not in sys.path:
-    sys.path.insert(0, str(_src_path))
-
 # Story 1.8: read vault path from settings instead of hardcoding
 from app.config import get_settings as _get_settings
 
@@ -112,16 +100,10 @@ def _get_canvas_base_path() -> Path:
     return Path(_get_settings().CANVAS_BASE_PATH)
 
 
-# ✅ Import real EbbinghausReviewScheduler
-try:
-    from ebbinghaus_review import EbbinghausReviewScheduler
-
-    _scheduler = EbbinghausReviewScheduler()
-    _scheduler_available = True
-except ImportError as e:
-    _scheduler = None
-    _scheduler_available = False
-    logger.warning(f"EbbinghausReviewScheduler not available: {e}")
+# FSRS-V2-2026-07-30 收口清算 Tier A: EbbinghausReviewScheduler 幽灵导入
+# 已退役 (实体只存在于 _archive, ImportError 恒触发, /review/schedule 因此
+# 永远返回空 — 2026-07-29 审查报告暗雷 #1)。复习调度真相源现为 vault
+# frontmatter fsrs_due (写侧 quiz-answer × fsrs_bridge, 读侧 daily_review_pick)。
 
 
 # Story 38.9 AC3: ReviewService singleton now lives in services layer.
@@ -203,9 +185,7 @@ async def _get_or_create_verification_service():
                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
             )
         neo4j_client = get_neo4j_client_dep()
-        agent_service = AgentService(
-            gemini_client=gemini_client, neo4j_client=neo4j_client
-        )
+        agent_service = AgentService(gemini_client=gemini_client, neo4j_client=neo4j_client)
     except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"AgentService not available for AI scoring: {e}")
 
@@ -224,9 +204,7 @@ async def _get_or_create_verification_service():
         memory_service=memory_service,
         agent_service=agent_service,
         canvas_service=canvas_service,
-        canvas_base_path=str(settings.canvas_base_path)
-        if settings.canvas_base_path
-        else None,
+        canvas_base_path=str(settings.canvas_base_path) if settings.canvas_base_path else None,
     )
 
     logger.info(
@@ -304,9 +282,7 @@ async def _get_difficulty_data(
 
         # H1 fix: Guard against Neo4j not configured (memory_service.neo4j is None)
         if not hasattr(memory_service, "neo4j") or memory_service.neo4j is None:
-            logger.info(
-                "Difficulty data skipped: Neo4j not configured (graceful degradation)"
-            )
+            logger.info("Difficulty data skipped: Neo4j not configured (graceful degradation)")
             return None
 
         async def _query_one(node: Dict) -> tuple:
@@ -319,9 +295,7 @@ async def _get_difficulty_data(
                     concept_id=node_id, canvas_name=source_canvas, limit=5
                 )
                 if history and history.scores:
-                    recent = history.scores[
-                        -1
-                    ]  # M3 fix: scores guaranteed non-empty here
+                    recent = history.scores[-1]  # M3 fix: scores guaranteed non-empty here
                     result = calculate_full_difficulty_result(history.scores, recent)
                     return (node_id, result)
                 return (node_id, None)
@@ -331,9 +305,7 @@ async def _get_difficulty_data(
 
         # Parallel query all nodes with 5s total timeout
         tasks = [_query_one(n) for n in nodes_to_review]
-        results = await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True), timeout=5.0
-        )
+        results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5.0)
 
         difficulty_map: Dict[str, "DifficultyResult"] = {}
         for r in results:
@@ -346,9 +318,7 @@ async def _get_difficulty_data(
                     difficulty_map[nid] = diff
 
         if difficulty_map:
-            logger.info(
-                f"Difficulty data retrieved for {len(difficulty_map)}/{len(nodes_to_review)} nodes"
-            )
+            logger.info(f"Difficulty data retrieved for {len(difficulty_map)}/{len(nodes_to_review)} nodes")
             return difficulty_map
 
         return None
@@ -400,9 +370,7 @@ def _get_difficulty_enhanced_question_text(
         elif diff.level == DifficultyLevel.HARD:
             return f"{forgetting_prefix}🔵 应用型：请分析 {original_text} 在实际场景中的应用"
         else:  # MEDIUM
-            return (
-                f"{forgetting_prefix}🟣 验证型：请详细描述 {original_text} 并举例说明"
-            )
+            return f"{forgetting_prefix}🟣 验证型：请详细描述 {original_text} 并举例说明"
 
     # No difficulty data: original color-based fallback
     if node_color == "4":  # Red (不理解) - breakthrough
@@ -504,9 +472,7 @@ async def _generate_ai_questions(
                     question_map[src_id] = full_text
 
             if question_map:
-                logger.info(
-                    f"AI generated {len(question_map)}/{len(nodes_data)} questions for canvas"
-                )
+                logger.info(f"AI generated {len(question_map)}/{len(nodes_data)} questions for canvas")
                 return question_map
 
         return None
@@ -566,9 +532,7 @@ def _generate_node_id() -> str:
     return uuid.uuid4().hex[:16]
 
 
-def _extract_review_nodes(
-    source_nodes: List[Dict], node_ids: Optional[List[str]], mode: str = "fresh"
-) -> List[Dict]:
+def _extract_review_nodes(source_nodes: List[Dict], node_ids: Optional[List[str]], mode: str = "fresh") -> List[Dict]:
     """
     Extract nodes for verification canvas based on PRD F8 + Story 4.1.
 
@@ -594,11 +558,7 @@ def _extract_review_nodes(
     target_colors = {"4", "3"}  # Red=不理解, Purple=似懂非懂
 
     # Filter text nodes with target colors
-    all_target_nodes = [
-        n
-        for n in source_nodes
-        if n.get("type") == "text" and n.get("color") in target_colors
-    ]
+    all_target_nodes = [n for n in source_nodes if n.get("type") == "text" and n.get("color") in target_colors]
 
     if mode == "fresh":
         # Fresh mode: Return all red + purple nodes
@@ -634,52 +594,9 @@ review_router = APIRouter(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@review_router.get(
-    "/schedule",
-    response_model=ReviewScheduleResponse,
-    summary="Get review schedule",
-    operation_id="get_review_schedule",
-)
-async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
-    """
-    Get review schedule based on Ebbinghaus forgetting curve.
-
-    - **days**: Number of days to look ahead (default: 7)
-
-    [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1schedule]
-    """
-    logger.info("GET /review/schedule days=%d", days)
-    # ✅ Connected to real EbbinghausReviewScheduler (P0 Task #1)
-    if not _scheduler_available or _scheduler is None:
-        logger.warning(
-            "EbbinghausReviewScheduler not available, returning empty schedule"
-        )
-        return ReviewScheduleResponse(items=[], total_count=0)
-
-    try:
-        # Get today's reviews from the scheduler
-        raw_reviews = _scheduler.get_today_reviews()
-
-        # Convert to ReviewItem format
-        items = []
-        for review in raw_reviews:
-            items.append(
-                ReviewItem(
-                    canvas_name=review.get("canvas_name", "unknown"),
-                    node_id=review.get("node_id", ""),
-                    concept=review.get("concept", review.get("content", "")),
-                    due_date=date.today(),
-                    interval_days=review.get("interval", 1),
-                )
-            )
-
-        return ReviewScheduleResponse(
-            items=items,
-            total_count=len(items),
-        )
-    except Exception as e:
-        logger.error(f"Error getting review schedule: {e}")
-        return ReviewScheduleResponse(items=[], total_count=0)
+# GET /review/schedule 已退役 (FSRS-V2-2026-07-30 Tier A): 该端点自诞生起
+# 永远返回空 (幽灵调度器), 唯一调用方 plugin canvas:open-review-queue 已同批删除。
+# 到期查询走 vault outputs/今日复习.md (daily_review_pick 生成)。
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -697,26 +614,18 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
     responses={404: {"model": ErrorResponse, "description": "No history found"}},
 )
 async def get_review_history(
-    days: int = Query(
-        7, ge=1, le=365, description="Number of days to look back (1-365)"
-    ),
+    days: int = Query(7, ge=1, le=365, description="Number of days to look back (1-365)"),
     canvas_path: Optional[str] = None,
     concept_name: Optional[str] = None,
-    limit: int = Query(
-        5, ge=1, le=100, description="Maximum records to return (1-100)"
-    ),
-    show_all: bool = Query(
-        False, description="If true, return all records up to hard cap"
-    ),
+    limit: int = Query(5, ge=1, le=100, description="Maximum records to return (1-100)"),
+    show_all: bool = Query(False, description="If true, return all records up to hard cap"),
     vault_id: Optional[str] = Query(
         default=None,
         min_length=1,
         description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 检验历史串库.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> HistoryResponse:
     """
     Get review history with pagination support.
@@ -798,9 +707,7 @@ async def get_review_history(
                 canvas = review.get("canvas_path", "")
                 canvas_counts[canvas] = canvas_counts.get(canvas, 0) + 1
 
-            records.append(
-                HistoryDayRecord(date=day_data.get("date", ""), reviews=day_reviews)
-            )
+            records.append(HistoryDayRecord(date=day_data.get("date", ""), reviews=day_reviews))
             total_reviews += len(day_reviews)
 
         # Calculate statistics
@@ -823,9 +730,7 @@ async def get_review_history(
         real_total = result.get("total_count", total_reviews)
 
         return HistoryResponse(
-            period=HistoryPeriod(
-                start=start_date.isoformat(), end=end_date.isoformat()
-            ),
+            period=HistoryPeriod(start=start_date.isoformat(), end=end_date.isoformat()),
             total_reviews=real_total,
             records=records,
             statistics=statistics,
@@ -836,9 +741,7 @@ async def get_review_history(
         logger.error(f"Error getting review history: {e}")
         # Return empty response on error
         return HistoryResponse(
-            period=HistoryPeriod(
-                start=start_date.isoformat(), end=end_date.isoformat()
-            ),
+            period=HistoryPeriod(start=start_date.isoformat(), end=end_date.isoformat()),
             total_reviews=0,
             records=[],
             statistics=None,
@@ -921,14 +824,10 @@ async def generate_verification_canvas(
     source_nodes = canvas_data.get("nodes", [])
     review_mode = request.mode  # Now comes from GenerateReviewRequest schema
 
-    nodes_to_review = _extract_review_nodes(
-        source_nodes, request.node_ids, mode=review_mode
-    )
+    nodes_to_review = _extract_review_nodes(source_nodes, request.node_ids, mode=review_mode)
 
     if not nodes_to_review:
-        logger.warning(
-            f"No red/purple nodes found in {request.source_canvas} (mode={review_mode})"
-        )
+        logger.warning(f"No red/purple nodes found in {request.source_canvas} (mode={review_mode})")
         return GenerateReviewResponse(
             verification_canvas_name=verification_canvas_name,
             node_count=0,
@@ -939,9 +838,7 @@ async def generate_verification_canvas(
     difficulty_map = None
     skipped_mastered_count = 0
     if _difficulty_available:
-        difficulty_map = await _get_difficulty_data(
-            nodes_to_review, request.source_canvas
-        )
+        difficulty_map = await _get_difficulty_data(nodes_to_review, request.source_canvas)
 
     # Step 3.6: Filter mastered concepts if requested (Story 31.5)
     if request.skip_mastered and difficulty_map:
@@ -949,19 +846,14 @@ async def generate_verification_canvas(
         nodes_to_review = [
             n
             for n in nodes_to_review
-            if not (
-                n.get("id") in difficulty_map
-                and difficulty_map[n.get("id")].is_mastered
-            )
+            if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)
         ]
         skipped_mastered_count = pre_filter_count - len(nodes_to_review)
         if skipped_mastered_count > 0:
             logger.info(f"Skipped {skipped_mastered_count} mastered concepts")
 
         if not nodes_to_review:
-            logger.info(
-                f"All concepts mastered in {request.source_canvas}, nothing to review"
-            )
+            logger.info(f"All concepts mastered in {request.source_canvas}, nothing to review")
             return GenerateReviewResponse(
                 verification_canvas_name=verification_canvas_name,
                 node_count=0,
@@ -1012,9 +904,7 @@ async def generate_verification_canvas(
         pair_height = question_height + answer_height + 30  # Q + A + gap
 
         group_width = num_cols * (node_width + node_padding) + node_padding
-        group_height = (
-            num_rows * (pair_height + node_padding) + node_padding + 60
-        )  # +60 for label
+        group_height = num_rows * (pair_height + node_padding) + node_padding + 60  # +60 for label
 
         # Create Group node (PRD Story 4.3)
         group_id = _generate_node_id()
@@ -1049,9 +939,7 @@ async def generate_verification_canvas(
             elif question_gen:
                 # Template-based question generation
                 questions = question_gen.generate_questions(source_node)
-                question_text = (
-                    questions[0] if questions else f"请解释：{original_text}"
-                )
+                question_text = questions[0] if questions else f"请解释：{original_text}"
             else:
                 # Fallback: difficulty-enhanced or simple question format
                 # Story 31.2+31.5: Use difficulty data if available
@@ -1107,9 +995,7 @@ async def generate_verification_canvas(
     }
 
     # Step 7: Save verification canvas
-    verification_canvas_path = (
-        _get_canvas_base_path() / f"{verification_canvas_name}.canvas"
-    )
+    verification_canvas_path = _get_canvas_base_path() / f"{verification_canvas_name}.canvas"
     success = _write_canvas(verification_canvas_path, verification_canvas_data)
 
     if not success:
@@ -1294,9 +1180,7 @@ async def get_multi_review_progress(
     except CanvasNotFoundException as e:
         from fastapi import HTTPException
 
-        raise HTTPException(
-            status_code=404, detail=f"无检验历史: {original_canvas_path}"
-        ) from e
+        raise HTTPException(status_code=404, detail=f"无检验历史: {original_canvas_path}") from e
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1494,9 +1378,7 @@ async def get_fsrs_state(
         description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault FSRS 状态串库.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> FSRSStateQueryResponse:
     """
     Get FSRS card state for a concept.
@@ -1942,13 +1824,9 @@ async def submit_verification_answer(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except asyncio.TimeoutError:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="AI scoring timed out"
-        )
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="AI scoring timed out")
     except Exception as e:
-        logger.error(
-            f"Error processing answer for session '{session_id}': {e}", exc_info=True
-        )
+        logger.error(f"Error processing answer for session '{session_id}': {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process answer: {str(e)}",

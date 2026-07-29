@@ -44,9 +44,7 @@ class TestHealthEndpoint:
         data = response.json()
 
         assert data["status"] == "healthy"
-        assert (
-            data["app_name"] == "Canvas Learning System API"
-        )  # Updated to match config
+        assert data["app_name"] == "Canvas Learning System API"  # Updated to match config
         assert data["version"] == "1.0.0"
 
 
@@ -224,9 +222,7 @@ class TestAgentsRouter:
             "canvas_name": "test-canvas",
             "node_id": "node123",
         }
-        response = client.post(
-            "/api/v1/agents/explain/clarification", json=request_data
-        )
+        response = client.post("/api/v1/agents/explain/clarification", json=request_data)
         assert response.status_code == 200
 
     def test_explain_comparison(self):
@@ -274,19 +270,12 @@ class TestAgentsRouter:
 class TestReviewRouter:
     """Tests for Review router endpoints."""
 
-    def test_get_review_schedule(self):
-        """Test getting review schedule returns 200."""
+    def test_get_review_schedule_retired(self):
+        """FSRS-V2-2026-07-30 Tier A 退役回归: /review/schedule 是幽灵调度器
+        永空端点, 已删除 — 必须保持 404, 防止复活。到期真相源 = vault
+        frontmatter fsrs_due (daily_review_pick 读侧)。"""
         response = client.get("/api/v1/review/schedule")
-        assert response.status_code == 200
-
-        data = response.json()
-        assert "items" in data
-        assert "total_count" in data
-
-    def test_get_review_schedule_with_days(self):
-        """Test getting review schedule with custom days parameter."""
-        response = client.get("/api/v1/review/schedule?days=14")
-        assert response.status_code == 200
+        assert response.status_code == 404
 
     def test_generate_verification_canvas(self):
         """Test generating verification canvas returns 201."""

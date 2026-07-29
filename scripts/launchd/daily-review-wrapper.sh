@@ -27,10 +27,12 @@ ls "$VAULT/节点" >/dev/null 2>&1 \
 mkdir -p "$REPO/backups" 2>/dev/null || fail "backups_not_writable_tcc"
 head -c 1 "$WT/scripts/daily-review-push.sh" >/dev/null 2>&1 \
     || fail "repo_script_unreadable_tcc_or_missing — TCC 未授权或 worktree 被清理"
-# 双副本一致性 (Code-Review M4): runner import 的是主仓 vault 里的
-# decay_beta.py, worktree 改了忘 cp 会造成静默行为漂移
-cmp -s "$WT/canvas-vault/.claude/scripts/decay_beta.py" \
-       "$REPO/canvas-vault/.claude/scripts/decay_beta.py" \
-    || fail "decay_beta_version_skew — worktree 与主仓 vault 的 decay_beta.py 不一致, 需 cp 部署"
+# 双副本一致性 (Code-Review M4 + FSRS-V2 H1): runner/quiz-answer 用的是
+# 主仓 vault 里的副本, worktree 改了忘 cp 会造成静默行为漂移
+for f in decay_beta.py fsrs_bridge.py; do
+    cmp -s "$WT/canvas-vault/.claude/scripts/$f" \
+           "$REPO/canvas-vault/.claude/scripts/$f" \
+        || fail "${f}_version_skew — worktree 与主仓 vault 副本不一致, 需 cp 部署"
+done
 
 exec "$WT/scripts/daily-review-push.sh" "$@"

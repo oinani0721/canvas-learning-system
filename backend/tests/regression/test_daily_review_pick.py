@@ -94,6 +94,42 @@ def test_bom_frontmatter_tolerated(tmp_path):
     assert payload["stats"]["new"] == 1
 
 
+# ── FSRS WHEN 语义 ([Decision-FSRS-2], FSRS-V2-2026-07-30) ──
+
+
+def test_future_due_board_gets_rest_notification(tmp_path):
+    """F1: 唯一板全员未到期 → 不进推荐榜, 推送改为诚实的放假消息。"""
+    payload, ranked = _build(
+        tmp_path,
+        {
+            "已排期": _node(extra="mastery_a: 2.0\nmastery_b: 2.0\nfsrs_due: 2026-08-15T01:00:00Z\n"),
+        },
+    )
+    assert ranked == [] and payload["stats"]["future_nodes"] == 1
+    noti = payload["notification"]
+    assert "无到期" in noti["title"] and "2026-08-15" in noti["body"]
+    assert payload["upcoming"][0]["board"] == "普通板"
+
+
+def test_due_filter_beats_pick_within_board(tmp_path):
+    """WHEN 先于 WHAT: 板内未到期节点即使 pick 更低也不能当 top_node。"""
+    payload, ranked = _build(
+        tmp_path,
+        {
+            "低分未到期": _node(extra="mastery_a: 0.1\nmastery_b: 5.0\nfsrs_due: 2026-08-15T01:00:00Z\n"),
+            "到期节点": _node(extra="mastery_a: 3.0\nmastery_b: 1.0\nfsrs_due: 2026-07-29T01:00:00Z\n"),
+        },
+    )
+    assert ranked[0]["top_node"] == "到期节点" and ranked[0]["pending"] == 1
+    assert ranked[0]["next_due"] == "2026-08-15T01:00:00Z"
+
+
+def test_no_fsrs_field_means_new_card_due_now(tmp_path):
+    """零迁移: 无 fsrs_due 字段的存量节点 = New 卡即刻到期, 行为与 MVP 一致。"""
+    payload, ranked = _build(tmp_path, {"存量": _node()})
+    assert ranked[0]["pending"] == 1 and payload["stats"]["due_nodes"] == 1
+
+
 def test_unassigned_nodes_named_in_md(tmp_path):
     """Code-Review M3: 无 source_board 节点点名可见, 不再只是个数字。"""
     payload, ranked = _build(

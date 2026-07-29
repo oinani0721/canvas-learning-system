@@ -39,8 +39,10 @@ PLACEHOLDER = "你的 1-2 句精准定义"
 #: Fundamentals 的 error_candidates 含 m3-e2e-sessionend-test, 按全文匹配会误杀)
 TEST_MARKERS = ("TestConcept", "UAT-2.5", "m3-e2e")
 
-#: 待巩固阈值 (方案拍板: due = pick < 0.15 的节点数)
-DUE_THRESHOLD = 0.15
+#: [Decision-FSRS-2] WHEN/WHAT 分工 (FSRS-V2-2026-07-30):
+#: FSRS 管 WHEN — fsrs_due 决定今天谁到期, 无字段 = New 卡即刻到期;
+#: 衰减 Beta 管 WHAT — 到期集合内按 pick=μ−σ 排序。
+#: 本文件保持纯 stdlib: 只做 UTC 定长字符串日期比较, 不 import fsrs。
 
 #: Bark 通知标题上限 (方案规范: ≤20 全角字符)
 TITLE_LIMIT = 20
@@ -77,6 +79,7 @@ def _board_name(raw: str | None):
 def scan_nodes(vault: Path, now: datetime, decay):
     """扫描 节点/ 池 → (nodes, stats)。逐节点容错: 单个脏节点不崩全轮。"""
     stats = {"new": 0, "legacy": 0, "none": 0, "ineligible": 0, "test_excluded": 0, "corrupt": 0}
+    now_z = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     nodes = []
     for path in sorted((vault / "节点").glob("*.md")):
         stem = path.stem
@@ -127,6 +130,13 @@ def scan_nodes(vault: Path, now: datetime, decay):
             print(f"[pick] Beta 参数损坏跳过 {stem}: {e}", file=sys.stderr)
             continue
 
+        fsrs_due = _fm_str(fm, "fsrs_due") or ""
+        # Code-Review M2: Obsidian Properties 面板可能把 datetime 重新序列化成
+        # 带偏移格式, 词法比较会反向误判「永不到期」。非规范格式 fail-open
+        # 视同到期 (与 New 语义一致), 不静默消失。
+        if fsrs_due and not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fsrs_due):
+            print(f"[pick] fsrs_due 非规范格式, 视同到期: {stem} ({fsrs_due})", file=sys.stderr)
+            fsrs_due = ""
         nodes.append({
             "node": stem,
             "board": _board_name(_fm_str(fm, "source_board")),
@@ -134,6 +144,9 @@ def scan_nodes(vault: Path, now: datetime, decay):
             "pick": pick,
             "idle_days": idle_days,          # None = 从未考
             "last_examined": last_exam or "",
+            "fsrs_due": fsrs_due,
+            "due_now": (not fsrs_due) or fsrs_due <= now_z,  # 无字段 = New 即刻到期
+            "difficulty": _fm_str(fm, "fsrs_difficulty") or "",
         })
     return nodes, stats
 
@@ -148,26 +161,35 @@ def rank_boards(nodes, board_last_recommended: dict):
             continue
         boards.setdefault(n["board"], []).append(n)
 
-    ranked = []
+    ranked, upcoming = [], []
     for board, members in boards.items():
-        top = min(members, key=lambda n: n["pick"])
+        due = [n for n in members if n["due_now"]]
+        if not due:
+            # WHEN: 全员未到期 → 不进推荐榜, 记最近的未来到期 (F1 放假语义)
+            nxt = min(members, key=lambda n: n["fsrs_due"])
+            upcoming.append({"board": board, "next_due": nxt["fsrs_due"], "node": nxt["node"]})
+            continue
+        top = min(due, key=lambda n: n["pick"])   # WHAT: 到期集合内衰减 Beta 排序
         ranked.append({
             "board": board,
             "top_node": top["node"],
             "priority": round(top["pick"], 4),
-            "pending": sum(1 for n in members if n["pick"] < DUE_THRESHOLD),
+            "pending": len(due),                   # 到期即待复习 (Decision-FSRS-2)
             "idle_days": (None if top["idle_days"] is None else int(top["idle_days"])),
+            "difficulty": top["difficulty"],
+            "next_due": min((n["fsrs_due"] for n in members if not n["due_now"]), default=""),
             "_tie": (
                 round(top["pick"], 8),
                 board_last_recommended.get(board, ""),   # 空串 = 从未被推荐, 排最前
-                min(n["last_examined"] for n in members),  # 空串 = 有从未考节点, 排最前
+                min(n["last_examined"] for n in due),    # 空串 = 有从未考节点, 排最前
                 board,
             ),
         })
     ranked.sort(key=lambda r: r["_tie"])
     for r in ranked:
         del r["_tie"]
-    return ranked, unassigned
+    upcoming.sort(key=lambda u: u["next_due"])
+    return ranked, upcoming, unassigned
 
 
 def _title(board: str) -> str:
@@ -185,23 +207,36 @@ def _body(top: dict) -> str:
 
 def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay):
     nodes, stats = scan_nodes(vault, now, decay)
-    ranked, unassigned = rank_boards(nodes, board_last_recommended)
+    ranked, upcoming, unassigned = rank_boards(nodes, board_last_recommended)
     stats["unassigned"] = len(unassigned)
+    stats["due_nodes"] = sum(1 for n in nodes if n["board"] and n["due_now"])
+    stats["future_nodes"] = sum(1 for n in nodes if n["board"] and not n["due_now"])
     payload = {
         "unassigned_nodes": unassigned,  # Code-Review M3: 点名而非只给数字
-        "schema_version": 1,
+        "schema_version": 2,             # v2: FSRS WHEN 化 (upcoming/due 语义)
         "date": now.astimezone().date().isoformat(),
         "generated_at": now.astimezone().isoformat(timespec="seconds"),
         "top_boards": ranked[:3],
+        "upcoming": upcoming[:3],
         "stats": stats,
         "notification": None,
     }
+    day_id = f"canvas-review-{payload['date']}"
     if ranked:
         payload["notification"] = {
             "title": _title(ranked[0]["board"]),
             "body": _body(ranked[0]),
             "group": "canvas复习",
-            "id": f"canvas-review-{payload['date']}",
+            "id": day_id,
+        }
+    elif upcoming:
+        # F1 放假语义: 有调度中的板但今天零到期 → 诚实说不用复习
+        nxt = upcoming[0]
+        payload["notification"] = {
+            "title": "📚 今日无到期节点",
+            "body": f"按计划推进，休息一天 · 最近到期 {nxt['board']} · {nxt['next_due'][:10]}",
+            "group": "canvas复习",
+            "id": day_id,
         }
     return payload, ranked
 
@@ -211,28 +246,37 @@ def render_md(payload, ranked) -> str:
     lines = [
         f"# 今日复习 · {payload['date']}",
         "",
-        f"> 生成 {payload['generated_at']} · 节点状态: new={s['new']} / legacy={s['legacy']}"
+        f"> 生成 {payload['generated_at']} · 到期={s['due_nodes']} / 未到期={s['future_nodes']}（不含未归板）"
+        f" · 节点状态: new={s['new']} / legacy={s['legacy']}"
         f" / 无字段={s['none']} / 未剖析跳过={s['ineligible']} / 测试排除={s['test_excluded']}"
         f" / 未归板={s['unassigned']} / 损坏={s['corrupt']}",
         "",
-        "| 板 | 优先分 | 待巩固 | 最该考 | 闲置 |",
-        "|---|---|---|---|---|",
+        "| 板 | 优先分 | 到期待复习 | 最该考 | 难度 | 闲置 | 板内下次到期 |",
+        "|---|---|---|---|---|---|---|",
     ]
     for r in ranked:
         idle = "从未考" if r["idle_days"] is None else f"{r['idle_days']} 天"
+        nxt = r["next_due"][:10] if r["next_due"] else "-"
+        diff = r["difficulty"] or "-"
         lines.append(
-            f"| {r['board']} | {r['priority']} | {r['pending']} | {r['top_node']} | {idle} |"
+            f"| {r['board']} | {r['priority']} | {r['pending']} | {r['top_node']} | {diff} | {idle} | {nxt} |"
         )
-    lines += ["", "## 一键开考（整行复制到 Claudian）", ""]
-    for r in ranked:
-        lines.append(f"- `/start-exam-board from {r['board']} node {r['top_node']}`")
+    if payload.get("upcoming"):
+        for u in payload["upcoming"]:
+            lines.append(f"| {u['board']} | - | 0（未到期） | - | - | - | {u['next_due'][:10]} |")
+    if ranked:
+        lines += ["", "## 一键开考（整行复制到 Claudian）", ""]
+        for r in ranked:
+            lines.append(f"- `/start-exam-board from {r['board']} node {r['top_node']}`")
+    else:
+        lines += ["", "> ✅ 今日无到期节点，休息一天。"]
     if payload.get("unassigned_nodes"):
         lines += ["", "> ⚠ 未归板节点（无 source_board，不参与推荐）: "
                   + "、".join(payload["unassigned_nodes"])]
     lines += [
         "",
-        "> 优先级 = 每板最薄弱节点的 μ−σ（含闲置回升，证据质量半衰期 69 天）。",
-        "> 未剖析占位节点已跳过；命令已绑定最该考节点（与推送一致）。",
+        "> WHEN=FSRS 到期（无 fsrs_due 字段 = 新卡即刻到期）；WHAT=到期集合内按 μ−σ 排序",
+        "> （含闲置回升，证据质量半衰期 69 天）。未剖析占位节点已跳过；命令已绑定最该考节点。",
     ]
     return "\n".join(lines) + "\n"
 
