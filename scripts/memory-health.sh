@@ -64,4 +64,28 @@ if [ -f "$EV" ]; then
     [ -n "$counts" ] && events_today="$counts"
 fi
 
-echo "[$(date '+%F %T')] Neo4j:$neo4j 后端:$backend Qwen:$qwen Rerank:$rerank Embed:$ollama | 死信累计:${dead} 待补归档:${queued} | ${pollution} | 今日事件:${events_today}| 最新备份:${latest_backup}" >> "$OUT"
+# DAILY-REVIEW-PUSH-2026-07-29 死人开关: 解析结构化 state — grep 日志只能
+# 证明「跑过」, 证明不了生成/推送成功 (终审 A7 假绿修正)
+review_push="无state"
+RSTATE="$REPO/backups/daily-review.state.json"
+if [ -f "$RSTATE" ]; then
+    review_push=$(/usr/bin/python3 - "$RSTATE" <<'PYEOF' 2>/dev/null || echo "state损坏"
+import datetime, json, sys
+st = json.load(open(sys.argv[1]))
+today = datetime.date.today()
+# 用昨日界 (Code-Review M1): 本体检 9:00 跑, 推送 9:05 生成 — 用 ==today
+# 会天天误报 ❌ 狼来了。>= 昨天 = 管道最近 48h 内活着。
+yesterday = (today - datetime.timedelta(days=1)).isoformat()
+gen = "✅" if st.get("last_generate_date", "") >= yesterday else "❌"
+if st.get("last_push_accepted_date", "") >= yesterday:
+    push = "✅"
+elif st.get("last_local_notify_date", "") >= yesterday:
+    push = "兜底"
+else:
+    push = "-"
+print(f"生成:{gen} 推送:{push}")
+PYEOF
+)
+fi
+
+echo "[$(date '+%F %T')] Neo4j:$neo4j 后端:$backend Qwen:$qwen Rerank:$rerank Embed:$ollama | 死信累计:${dead} 待补归档:${queued} | ${pollution} | 今日事件:${events_today} | 复习推送:${review_push} | 最新备份:${latest_backup}" >> "$OUT"

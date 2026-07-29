@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""每日复习推送编排 runner (DAILY-REVIEW-PUSH-2026-07-29, 终审 A4/A7 硬化版)。
+
+顺序铁律: md/json 先落盘(保底) → 窗口内 Bark → 失败 osascript 兜底。
+壳层 daily-review-push.sh 只负责 mkdir 锁 + 固定解释器; 业务全在此处
+(可 --now 注入时间跑 12 场景验收矩阵)。
+
+终审修正落点:
+  A4: 时间门 9:05 ≤ 本地时间 < 21:00 (RunAtLoad 早触发只生成不推;
+      唤醒补跑窗口内补推; 过窗只落盘) · state JSON 原子写 (os.replace)
+      · last_push_accepted_date 命名 (HTTP 成功仅证明服务端接受)
+  A7: payload 持久化 今日复习.json (生成成功推送失败 → 补跑只补推送)
+      · osascript 走 argv (板名注入免疫) · 损坏 state 隔离重建不炸
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime, time as dtime, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import send_bark  # noqa: E402
+
+REPO = Path(os.environ.get("CANVAS_REPO", "/Users/Heishing/Desktop/canvas/canvas-learning-system"))
+VAULT = REPO / "canvas-vault"
+STATE = REPO / "backups" / "daily-review.state.json"
+LOG = REPO / "backups" / "daily-review.log"
+
+PUSH_WINDOW = (dtime(9, 5), dtime(21, 0))
+
+APPLESCRIPT = (
+    "on run argv\n"
+    "    display notification (item 2 of argv) with title (item 1 of argv)\n"
+    "end run\n"
+)
+
+
+def _now(arg: str | None) -> datetime:
+    if arg:
+        dt = datetime.fromisoformat(arg.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.astimezone()
+    return datetime.now(timezone.utc)
+
+
+def load_state() -> dict:
+    if not STATE.exists():
+        return {"schema_version": 1, "board_last_recommended": {}}
+    try:
+        st = json.loads(STATE.read_text(encoding="utf-8"))
+        st.setdefault("board_last_recommended", {})
+        return st
+    except (json.JSONDecodeError, OSError):
+        quarantine = STATE.with_name(
+            STATE.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
+        try:
+            os.replace(STATE, quarantine)
+        except OSError:
+            pass
+        print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
+        return {"schema_version": 1, "board_last_recommended": {}}
+
+
+def save_state(st: dict):
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, STATE)
+
+
+def log_line(msg: str):
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().astimezone().strftime("%F %T")
+    with open(LOG, "a", encoding="utf-8") as f:
+        f.write(f"[{stamp}] {msg}\n")
+
+
+def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, str]:
+    """当日 payload: 没有才生成 (生成过则复用 — 补跑只补推送)。"""
+    payload_path = VAULT / "outputs" / "今日复习.json"
+    if st.get("last_generate_date") == today and payload_path.exists():
+        try:
+            raw = payload_path.read_text(encoding="utf-8")
+            # sha 校验 (Code-Review L3): 外部改动/半写的 payload 不复用, 重新生成
+            if hashlib.sha256(raw.encode("utf-8")).hexdigest() == st.get("payload_sha256"):
+                return json.loads(raw), "cached"
+        except (json.JSONDecodeError, OSError):
+            pass  # 落盘 payload 损坏 → 重新生成
+
+    import daily_review_pick as picker
+
+    payload, ranked = picker.build_payload(
+        VAULT, now, st["board_last_recommended"], picker.load_decay(VAULT))
+    out = VAULT / "outputs"
+    out.mkdir(parents=True, exist_ok=True)
+    picker.atomic_write(out / "今日复习.md", picker.render_md(payload, ranked))
+    raw = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    picker.atomic_write(payload_path, raw)
+
+    st["last_generate_date"] = today
+    st["payload_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    if ranked:
+        st["board_last_recommended"][ranked[0]["board"]] = today
+    save_state(st)
+    return payload, "new"
+
+
+def osascript_fallback(noti: dict) -> bool:
+    try:
+        r = subprocess.run(
+            ["/usr/bin/osascript", "-", noti["title"], noti["body"]],
+            input=APPLESCRIPT, text=True, capture_output=True, timeout=15,
+        )
+        return r.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="每日复习推送编排")
+    ap.add_argument("--now", help="ISO 时间覆盖 (12 场景验收矩阵用)")
+    args = ap.parse_args()
+
+    now = _now(args.now)
+    local = now.astimezone()
+    today = local.date().isoformat()
+    st = load_state()
+
+    try:
+        payload, gen = ensure_payload(st, now, today)
+    except Exception as e:  # 生成失败 = 无保底, 唯一的非 0 退出
+        log_line(f"generate:FAILED err={type(e).__name__}:{str(e)[:120]}")
+        print(f"[runner] 生成失败: {e}", file=sys.stderr)
+        return 1
+
+    noti = (payload or {}).get("notification")
+    push, fallback = "-", "-"
+    if not noti:
+        push = "skip-empty"  # 无板可推 (全占位/空 vault): md 已如实落盘
+    elif st.get("last_push_accepted_date") == today:
+        push = "skip-done"
+    elif not (PUSH_WINDOW[0] <= local.time() < PUSH_WINDOW[1]):
+        push = "skip-window"  # RunAtLoad 早触发 / 21:00 后唤醒: 只落盘
+    else:
+        rc = send_bark.send(noti)
+        if rc == 0:
+            st["last_push_accepted_date"] = today
+            st["last_result"], st["last_error"] = "pushed", ""
+            save_state(st)
+            push = "accepted"
+        else:
+            push = "skip-nokey" if rc == 2 else "failed"
+            if rc != 2:
+                st["last_result"] = "generated_push_failed"
+                st["last_error"] = "bark-send"
+            # 本地兜底每日一次 (Code-Review L1 去重门); 无 key 也提醒一条
+            # (Code-Review H1: key 配好前不能一切静默)
+            if st.get("last_local_notify_date") != today:
+                local_noti = noti if rc != 2 else {
+                    "title": "📚 今日复习已生成",
+                    "body": noti["body"] + "（Bark 未配置，仅本地提醒）",
+                }
+                fallback = "ok" if osascript_fallback(local_noti) else "fail"
+                if fallback == "ok":
+                    st["last_local_notify_date"] = today
+            save_state(st)
+
+    log_line(f"generate:{gen} push:{push} fallback:{fallback}")
+    print(f"[runner] generate:{gen} push:{push} fallback:{fallback}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

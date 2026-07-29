@@ -171,7 +171,7 @@ if p.get("source_board") and not re.search(r'^source_board:', fm, re.M):
 # mastery_score = μ 保持 Dashboard 兼容。算法单一真相源: .claude/scripts/decay_beta.py
 VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
 sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
-from decay_beta import PRIOR_A, PRIOR_B, from_legacy, mu, update
+from decay_beta import PRIOR_A, PRIOR_B, from_legacy, mu, update_after_idle
 
 old = None
 for key in ("mastery_score", "mastery", "mastery_level"):
@@ -186,7 +186,22 @@ elif old is not None:
     A, B = from_legacy(old)  # 旧 EMA 分迁移: 均值继承, 只给等效样本量3的低置信
 else:
     A, B = PRIOR_A, PRIOR_B
-A, B = update(A, B, GN)
+# 闲置感知评分 (终审 A2, DAILY-REVIEW-PUSH-2026-07-29): 先按闲置天数折旧旧证据
+# 再吸收本次成绩 — 否则闲置期抬高的 σ 会被旧 n 一次评分瞬间抹平
+# (置信度复活病理: 闲置一年答错, pick 反而 0.632→0.692 更不紧急)。
+from datetime import datetime, timezone
+def _aware(s):
+    dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+days_idle = 0.0
+mle = re.search(r'^last_examined:\s*"?([^"\n]+)"?\s*$', fm, re.M)
+if mle:
+    try:
+        days_idle = max(0.0, (_aware(p["ts"]) - _aware(mle.group(1))).total_seconds() / 86400.0)
+    except ValueError:
+        days_idle = 0.0  # 时间戳损坏: 不折旧, 保守按连续考察处理
+A, B = max(A, 1e-4), max(B, 1e-4)  # 手工编辑容错: a/b 被改成 0 时 effective 会拒 (Code-Review L7)
+A, B = update_after_idle(A, B, GN, days_idle)
 new = round(mu(A, B), 2)
 # A4 (批次2'): 考察历史随节点走 — attempt_count 累加 + last_examined 时间戳,
 # 出题侧 (start-exam-board) 回读它们做题目去重与历史感知
@@ -258,7 +273,7 @@ except Exception as _e:
 PYEOF
 ```
 
-（衰减 Beta：`a←γa+grade, b←γb+(1−grade)`，γ=0.9，`mastery_score=μ=a/(a+b)`；越考越准（σ 收窄）且 ~10 次内跟上状态跳变，取代不收敛的恒权 EMA（批次2' A1）。算法与常数见 `.claude/scripts/decay_beta.py`，v2 上层再接 FSRS 调度。python stdout 只给你看，不进回执。）
+（衰减 Beta：评分前先按闲置天数折旧 `a,b ← a,b·0.99^days_idle`（防置信度复活，终审 A2），再 `a←γa+grade, b←γb+(1−grade)`，γ=0.9，`mastery_score=μ=a/(a+b)`；越考越准（σ 收窄）且 ~10 次内跟上状态跳变，取代不收敛的恒权 EMA（批次2' A1）。算法与常数见 `.claude/scripts/decay_beta.py`，v2 上层再接 FSRS 调度。python stdout 只给你看，不进回执。）
 
 ## Step 4d · 落定 done（两阶段第二步）
 
