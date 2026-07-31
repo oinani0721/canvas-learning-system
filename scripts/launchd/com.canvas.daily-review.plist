@@ -2,29 +2,30 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>Label</key>
-    <string>com.canvas.daily-review</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/Users/Heishing/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh</string>
-    </array>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
-    </dict>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>9</integer>
-        <key>Minute</key>
-        <integer>5</integer>
-    </dict>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/Users/Heishing/Library/Logs/canvas-daily-review.log</string>
-    <key>StandardErrorPath</key>
-    <string>/Users/Heishing/Library/Logs/canvas-daily-review.err.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>Label</key>
+	<string>com.canvas.daily-review</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Users/Heishing/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/Heishing/Library/Logs/canvas-daily-review.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/Heishing/Library/Logs/canvas-daily-review.log</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>9</integer>
+		<key>Minute</key>
+		<integer>5</integer>
+	</dict>
 </dict>
 </plist>
