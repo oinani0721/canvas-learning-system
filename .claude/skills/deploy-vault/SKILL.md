@@ -36,31 +36,29 @@ Deploy a new Obsidian vault for a course.
    mkdir -p "${VAULTS_ROOT}/<vault-name>/outputs/exam_boards"
    ```
 
-3. **Call setup-wizard API** (if backend is running)
+3. ~~Call setup-wizard API~~ — REMOVED (P0-3 2026-07-31 审查):
+   `/api/v1/system/vault/init` 从未在 backend 存在（且旧写法端口 8001 也错，
+   宿主侧应为 8011）。目录结构已由第 2 步 mkdir 完成，无需后端参与。
+
+4. **Point backend at the new vault**
+
+   > P0-3 (2026-07-31): runtime `/api/v1/vault/switch` 已隔离退役（返回 410）。
+   > vault 由部署期 `.env` 的 `ACTIVE_VAULT` 固定。
+
+   Update `ACTIVE_VAULT=<vault-name>` in the repo root `.env` (and
+   `backend/.env` if present), then recreate the backend container:
 
    ```bash
-   curl -sf -X POST http://localhost:8001/api/v1/system/vault/init \
-     -H "Content-Type: application/json" \
-     -d '{"vault_path": "${VAULTS_ROOT}/<vault-name>"}'
+   docker compose up -d backend
    ```
 
-   If the backend is not running, skip this step and note it for the user.
-
-4. **Switch backend to new vault**
-
-   ```bash
-   curl -sf -X POST http://localhost:8001/api/v1/vault/switch \
-     -H "Content-Type: application/json" \
-     -d '{"vault_path": "${VAULTS_ROOT}/<vault-name>"}'
-   ```
-
-   If the backend is not running, update `.env` and `backend/.env` with the new `ACTIVE_VAULT` value instead.
+   If Docker is not running, just update the `.env` files and note it for the user.
 
 5. **Output result**
 
    Report to the user:
    - Vault created at: `${VAULTS_ROOT}/<vault-name>`
-   - Backend switched to: `<vault-name>`
+   - `.env` ACTIVE_VAULT updated to: `<vault-name>` (+ whether backend was restarted)
    - Obsidian URI: `obsidian://open?vault=<vault-name>`
    - Suggest: "Open the vault in Obsidian with the URI above, or open it manually from Obsidian's vault picker."
 

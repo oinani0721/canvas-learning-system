@@ -1,7 +1,8 @@
-"""Vault switch runtime API — Story 1.8.
+"""Vault runtime API — Story 1.8 / P0-3 write-side quarantine.
 
-POST /api/v1/vault/switch  — switch to a different Obsidian vault
+POST /api/v1/vault/switch  — QUARANTINED (410): global switch retired 2026-07-31
 GET  /api/v1/vault/current — return info about the active vault
+GET  /api/v1/vault/list    — list candidate vaults (read-only)
 """
 
 from __future__ import annotations
@@ -11,10 +12,10 @@ from typing import Optional
 
 import structlog
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app.config import get_settings, reload_settings, sanitize_vault_id
-from app.services.vault_switch_coordinator import vault_switch_coordinator
+from app.config import get_settings, sanitize_vault_id
 
 logger = structlog.get_logger(__name__)
 
@@ -27,9 +28,7 @@ vault_router = APIRouter()
 
 
 class VaultSwitchRequest(BaseModel):
-    vault_path: str = Field(
-        ..., description="Absolute path to the target vault directory"
-    )
+    vault_path: str = Field(..., description="Absolute path to the target vault directory")
 
 
 class VaultSwitchResponse(BaseModel):
@@ -66,88 +65,46 @@ class VaultListResponse(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+# P0-3 (2026-07-31 二轮对抗审查): global vault switch 隔离退役。
+# 该端点用 reload_settings 改可变全局 Settings —— vault A 的长请求
+# mid-flight 会读到 vault B 路径 (端点自身 description 早已承认此竞态),
+# 且文件写侧 (errors/targeting-material) 的路径解析靠同一全局, 切换中途会
+# 产生「group_id 归 A、文件落 B」的 split-brain。调用方 (插件状态卡 CTA /
+# 高级下拉 / MCP switch_vault) 已全部下架。vault 由部署期 .env 的
+# ACTIVE_VAULT 固定 (compose 内 CANVAS_BASE_PATH=/vaults/${ACTIVE_VAULT},
+# 宿主 .env 的 CANVAS_BASE_PATH 不进容器); 换 vault = 改 ACTIVE_VAULT 为
+# VAULTS_ROOT 下的 vault 目录名 + docker compose up -d backend。
+# 实现机器 (vault_switch_coordinator / reload_settings) 保留未删 —— 观察期
+# 零命中后随 Tier B 批次物理删除。
 @vault_router.post(
     "/switch",
-    response_model=VaultSwitchResponse,
     deprecated=True,
-    summary="DEPRECATED — use per-request vault_id instead",
+    summary="QUARANTINED (410) — vault fixed at deploy time via .env",
     description=(
-        "DEPRECATED (Wave-5 Stage C P0-6, ChatGPT v4): mutates global Settings "
-        "via reload_settings(overrides=...) — multi-vault concurrent requests "
-        "(e.g. Story 2.3 deep mode 30-45s) on vault A can read vault B's path "
-        "mid-flight, causing race conditions. Use per-request vault_id field "
-        "(POST /api/v1/chat/enrich-context with vault_id) for isolation."
+        "P0-3 quarantine (2026-07-31): runtime global vault switch retired — "
+        "it mutated global Settings, racing concurrent requests and splitting "
+        "Graphiti group_id vs. file writes across vaults. To change vault: "
+        "edit ACTIVE_VAULT in .env (a vault dir name under VAULTS_ROOT), "
+        "then `docker compose up -d backend`."
     ),
 )
-async def switch_vault(request: VaultSwitchRequest):
-    """Switch the active vault at runtime (Story 1.8 AC #1, #2, #4, #6).
-
-    DEPRECATED — emits log.warning on every call. Endpoint remains functional
-    for backwards compatibility but new code MUST use per-request vault_id
-    pattern (see backend/app/api/v1/endpoints/chat.py enrich-context route).
-    """
+async def switch_vault(request: VaultSwitchRequest) -> JSONResponse:
     logger.warning(
-        "[vault_switch] DEPRECATED endpoint called — multi-vault deployments should "
-        "use per-request vault_id (POST /api/v1/chat/enrich-context with vault_id field). "
-        "This endpoint mutates global Settings causing race conditions with concurrent requests.",
+        "[VAULT-SWITCH-QUARANTINE] blocked runtime vault switch "
+        "(P0-3 write-side isolation; see 2026-07-31 审查吸收文档)",
         vault_path=request.vault_path,
     )
-    vault_path = Path(request.vault_path).resolve()
-
-    # AC #2: validate path exists and is an Obsidian vault
-    if not vault_path.is_dir():
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "vault_not_found",
-                "message": f"Directory does not exist: {vault_path}",
-            },
-        )
-
-    obsidian_dir = vault_path / ".obsidian"
-    if not obsidian_dir.is_dir():
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "vault_not_found",
-                "message": f"Not an Obsidian vault (missing .obsidian/): {vault_path}",
-            },
-        )
-
-    # AC #6: reject if another switch is in progress
-    if vault_switch_coordinator.is_switching:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "switch_in_progress",
-                "message": "Another vault switch is in progress",
-            },
-        )
-
-    vault_name = vault_path.name
-
-    async def perform_switch() -> None:
-        # AC #4: clear lru_cache and inject new path
-        reload_settings(
-            overrides={
-                "CANVAS_BASE_PATH": str(vault_path),
-                "ACTIVE_VAULT": vault_name,
-            }
-        )
-
-    result = await vault_switch_coordinator.switch(
-        new_vault_path=str(vault_path),
-        new_vault_name=vault_name,
-        perform_switch=perform_switch,
-    )
-
-    return VaultSwitchResponse(
-        vault_path=result["vault_path"],
-        vault_name=result["vault_name"],
-        vault_id=sanitize_vault_id(vault_name),
-        switched_at=result["switched_at"],
-        previous_vault=result["previous_vault"],
-        duration_ms=result["duration_ms"],
+    return JSONResponse(
+        status_code=410,
+        content={
+            "error": "gone",
+            "detail": (
+                "Runtime vault switch is quarantined (P0-3, 2026-07-31). "
+                "The active vault is fixed at deploy time: edit "
+                "ACTIVE_VAULT in .env (a vault dir name under VAULTS_ROOT) "
+                "and run `docker compose up -d backend` to change vault."
+            ),
+        },
     )
 
 
@@ -170,7 +127,7 @@ async def list_vaults():
     扫描 VAULTS_ROOT 下所有含 .obsidian/ 子目录的目录作为 vault 候选。
     返回列表供前端 (plugin Settings) 渲染 vault selector dropdown。
 
-    支持用户主动切换 active vault（配合 POST /api/v1/vault/switch）。
+    只读端点 — runtime switch 已隔离 (P0-3)，列表仅供状态展示。
     """
     s = get_settings()
     vaults_root = Path(s.VAULTS_ROOT).resolve()

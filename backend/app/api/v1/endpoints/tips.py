@@ -48,10 +48,12 @@ class SaveTipRequest(BaseModel):
     """Request body for saving a tip annotation."""
 
     vault_id: str = Field(
-        default="",
+        ...,
+        min_length=1,
         description=(
-            "B2 (2026-07-12): vault 身份。插件端 inferVaultId(app.vault.getName()) 传; "
-            "空 = 回退后端当前激活 vault。tips 写读统一落 vault 桶, 不再用 vault:default。"
+            "B2 (2026-07-12) + P0-3 (2026-07-31) 改必填: vault 身份。"
+            "插件端 inferVaultId(app.vault.getName()) 传。"
+            "写侧禁止回退全局 vault — tips 统一落显式 vault 桶。"
         ),
     )
 
@@ -97,10 +99,12 @@ class SaveRelationRequest(BaseModel):
     """
 
     vault_id: str = Field(
-        default="",
+        ...,
+        min_length=1,
         description=(
-            "B2 (2026-07-12): vault 身份。插件端 inferVaultId(app.vault.getName()) 传; "
-            "空 = 回退后端当前激活 vault。tips 写读统一落 vault 桶, 不再用 vault:default。"
+            "B2 (2026-07-12) + P0-3 (2026-07-31) 改必填: vault 身份。"
+            "插件端 inferVaultId(app.vault.getName()) 传。"
+            "写侧禁止回退全局 vault — tips 统一落显式 vault 桶。"
         ),
     )
 
@@ -143,10 +147,12 @@ class BatchSyncRequest(BaseModel):
     """Plugin debounce 触发的整文件 callout batch 同步。"""
 
     vault_id: str = Field(
-        default="",
+        ...,
+        min_length=1,
         description=(
-            "B2 (2026-07-12): vault 身份。插件端 inferVaultId(app.vault.getName()) 传; "
-            "空 = 回退后端当前激活 vault。tips 写读统一落 vault 桶, 不再用 vault:default。"
+            "B2 (2026-07-12) + P0-3 (2026-07-31) 改必填: vault 身份。"
+            "插件端 inferVaultId(app.vault.getName()) 传。"
+            "写侧禁止回退全局 vault — tips 统一落显式 vault 桶。"
         ),
     )
 
@@ -519,7 +525,11 @@ class CalloutDirectRequest(BaseModel):
             "禁止后端补『现在』— reference_time 错误会污染 Graphiti 事实失效顺序"
         ),
     )
-    vault_id: str = Field(default="", description="vault 身份, 空=当前激活 vault")
+    vault_id: str = Field(
+        ...,
+        min_length=1,
+        description="vault 身份 (P0-3 改必填, 写侧禁止回退全局 vault)",
+    )
     understanding: str = Field(default="", description="批注理解档 (可选)")
 
 

@@ -149,9 +149,7 @@ class TestVaultIdYamlFirst:
         vault_dir.mkdir()
         config_file = vault_dir / ".canvas-config.yaml"
         config_file.write_text(
-            'vault_id: "explicit_yaml_id"\n'
-            "subject: math\n"
-            'schema_version: "2.0-multi-vault-2026-05-10"\n',
+            'vault_id: "explicit_yaml_id"\nsubject: math\nschema_version: "2.0-multi-vault-2026-05-10"\n',
             encoding="utf-8",
         )
 
@@ -204,9 +202,7 @@ class TestVaultIdYamlFirst:
         vault_dir.mkdir()
         config_file = vault_dir / ".canvas-config.yaml"
         config_file.write_text(
-            'vault_id: "数学101"\n'
-            "subject: math\n"
-            'schema_version: "2.0-multi-vault-2026-05-10"\n',
+            'vault_id: "数学101"\nsubject: math\nschema_version: "2.0-multi-vault-2026-05-10"\n',
             encoding="utf-8",
         )
 
@@ -259,22 +255,14 @@ class TestReloadSettings:
         reload_settings(overrides={"ACTIVE_VAULT": original})
 
 
-class TestVaultSwitchEndpoint:
-    """Test POST /api/v1/vault/switch and GET /api/v1/vault/current."""
+# ═══════════════════════════════════════════════════════════════════════════════
+# P0-3 (2026-07-31 二轮对抗审查): runtime vault switch 隔离退役
+# 原 Story 1.8 AC #1/#2/#4 与 Wave-5 P0-6 deprecation 行为测试被本契约取代。
+# ═══════════════════════════════════════════════════════════════════════════════
 
-    @pytest.fixture(autouse=True)
-    def _restore_settings(self):
-        from app.config import get_settings, reload_settings
 
-        original_path = get_settings().CANVAS_BASE_PATH
-        original_vault = get_settings().ACTIVE_VAULT
-        yield
-        reload_settings(
-            overrides={
-                "CANVAS_BASE_PATH": original_path,
-                "ACTIVE_VAULT": original_vault,
-            }
-        )
+class TestVaultSwitchQuarantine:
+    """POST /api/v1/vault/switch 已隔离 — 410 + 全局 Settings 不可被请求改写。"""
 
     @pytest.fixture
     def client(self):
@@ -282,103 +270,48 @@ class TestVaultSwitchEndpoint:
 
         return TestClient(app, raise_server_exceptions=False)
 
-    def test_switch_valid_vault(self, client, _obsidian_vault):
-        resp = client.post(
-            "/api/v1/vault/switch", json={"vault_path": str(_obsidian_vault)}
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["vault_name"] == "test-vault"
-        assert data["vault_id"] == "test_vault"
-        assert data["vault_path"] == str(_obsidian_vault)
+    def test_switch_returns_410(self, client, _obsidian_vault):
+        resp = client.post("/api/v1/vault/switch", json={"vault_path": str(_obsidian_vault)})
+        assert resp.status_code == 410
+        body = resp.json()
+        assert body["error"] == "gone"
+        # 逃生指引必须指向真实旋钮: compose 内 CANVAS_BASE_PATH 是
+        # /vaults/${ACTIVE_VAULT} 硬编码, 宿主 .env 只有 ACTIVE_VAULT 有效
+        assert "ACTIVE_VAULT" in body["detail"]
 
-    def test_switch_nonexistent_path(self, client, tmp_path):
-        resp = client.post(
-            "/api/v1/vault/switch", json={"vault_path": str(tmp_path / "nope")}
-        )
-        assert resp.status_code == 400
-        assert resp.json()["detail"]["error"] == "vault_not_found"
+    def test_switch_does_not_mutate_settings(self, client, _obsidian_vault):
+        """P0-3 核心不变量: 任何请求都改不了全局 vault。"""
+        from app.config import get_settings
 
-    def test_switch_non_vault_dir(self, client, _non_vault):
-        resp = client.post("/api/v1/vault/switch", json={"vault_path": str(_non_vault)})
-        assert resp.status_code == 400
-        assert "missing .obsidian" in resp.json()["detail"]["message"]
+        before_path = get_settings().CANVAS_BASE_PATH
+        before_vault = get_settings().ACTIVE_VAULT
+        client.post("/api/v1/vault/switch", json={"vault_path": str(_obsidian_vault)})
+        assert get_settings().CANVAS_BASE_PATH == before_path
+        assert get_settings().ACTIVE_VAULT == before_vault
 
-    def test_get_current(self, client):
+    def test_switch_quarantine_emits_warning(self, client, _obsidian_vault, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            client.post("/api/v1/vault/switch", json={"vault_path": str(_obsidian_vault)})
+        combined = " ".join(r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING)
+        assert "VAULT-SWITCH-QUARANTINE" in combined
+
+    def test_get_current_still_works(self, client):
         resp = client.get("/api/v1/vault/current")
         assert resp.status_code == 200
         data = resp.json()
         assert "vault_path" in data
         assert "vault_id" in data
 
-    def test_switch_then_current_reflects_new(self, client, _obsidian_vault):
-        client.post("/api/v1/vault/switch", json={"vault_path": str(_obsidian_vault)})
-        resp = client.get("/api/v1/vault/current")
-        assert resp.json()["vault_name"] == "test-vault"
+    def test_list_still_works(self, client):
+        resp = client.get("/api/v1/vault/list")
+        assert resp.status_code == 200
+        assert "vaults" in resp.json()
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Wave-5 Stage C P0-6 (ChatGPT v4): vault_switch deprecate
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-class TestVaultSwitchDeprecation:
-    """P0-6: POST /api/v1/vault/switch is deprecated — emits log.warning + OpenAPI mark."""
-
-    @pytest.fixture(autouse=True)
-    def _restore_settings(self):
-        from app.config import get_settings, reload_settings
-
-        original_path = get_settings().CANVAS_BASE_PATH
-        original_vault = get_settings().ACTIVE_VAULT
-        yield
-        reload_settings(
-            overrides={
-                "CANVAS_BASE_PATH": original_path,
-                "ACTIVE_VAULT": original_vault,
-            }
-        )
-
-    @pytest.fixture
-    def client(self):
-        from app.main import app
-
-        return TestClient(app, raise_server_exceptions=False)
-
-    def test_vault_switch_emits_deprecation_warning(
-        self, client, _obsidian_vault, caplog
-    ):
-        """P0-6: /vault/switch must emit a WARNING containing 'DEPRECATED' when called."""
-        import logging
-
-        with caplog.at_level(logging.WARNING):
-            resp = client.post(
-                "/api/v1/vault/switch", json={"vault_path": str(_obsidian_vault)}
-            )
-        assert resp.status_code == 200, (
-            f"deprecated endpoint must still work, got {resp.status_code}"
-        )
-
-        warning_messages = [
-            r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING
-        ]
-        combined = " ".join(warning_messages)
-        assert "DEPRECATED" in combined, (
-            f"expected 'DEPRECATED' in WARNING logs, got: {combined[:400]}"
-        )
-        assert "vault_switch" in combined, (
-            f"expected '[vault_switch]' prefix in WARNING logs, got: {combined[:400]}"
-        )
-
-    def test_vault_switch_openapi_marked_deprecated(self):
-        """P0-6: OpenAPI schema must mark /vault/switch as deprecated=true."""
+    def test_switch_openapi_marked_deprecated(self):
         from app.main import app
 
         spec = app.openapi()
-        paths = spec.get("paths", {})
-        switch_path = paths.get("/api/v1/vault/switch", {})
-        post_op = switch_path.get("post", {})
-        assert post_op.get("deprecated") is True, (
-            "POST /api/v1/vault/switch must be marked deprecated=true in OpenAPI; "
-            f"got {post_op.get('deprecated')!r}"
-        )
+        post_op = spec.get("paths", {}).get("/api/v1/vault/switch", {}).get("post", {})
+        assert post_op.get("deprecated") is True

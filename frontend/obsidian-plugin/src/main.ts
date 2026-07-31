@@ -93,7 +93,9 @@ interface CanvasPluginSettings {
   backendUrl: string;
   /** Story 2.1 P1.6 — 节点池前缀（默认 ["节点/"]）。可在 data.json 配置多前缀。 */
   nodePathPrefixes: string[];
-  /** 用户视角的 active vault 名（vault selector 选中态镜像）。Backend 是 source of truth */
+  /** DEAD (P0-3 2026-07-31): 唯一写方 vault selector dropdown 已随 runtime
+   *  switch 退役下架, 现无任何读方。保留字段避免 data.json 反序列化 churn,
+   *  随 Tier B 物理删除批次一并移除。 */
   activeVaultName: string;
   /** Wave-2 P0-1 (2026-05-12) — Internal API key for backend auth (X-CLS-Internal-Key)。
    *  空字符串 = dev mode (DEBUG=True 时 backend 跳过 auth middleware)。 */
@@ -1941,10 +1943,24 @@ class CanvasSettingTab extends PluginSettingTab {
       attr: { style: "font-size: 0.9em; color: var(--text-muted);" },
     });
 
+    // P0-3 (2026-07-31): 一键切换 CTA 下架 — /api/v1/vault/switch 改可变全局
+    // Settings, 并发请求会 mid-flight 串 vault (端点已隔离返回 410)。
+    // vault 改为部署期固定, 切换走 .env + docker compose。
     ctaEl.empty();
-    const fixBtn = ctaEl.createEl("button", { text: `让 Canvas 切换到「${localName}」` });
-    fixBtn.style.cssText = "padding: 6px 14px; cursor: pointer;";
-    fixBtn.onclick = () => void this.handleSwitchToCurrent(bodyEl, ctaEl, localName, fixBtn);
+    const hint = ctaEl.createDiv();
+    hint.style.cssText = "font-size: 0.9em; color: var(--text-muted); max-width: 480px;";
+    hint.setText(
+      "运行时切换已退役（防并发串库）。如需让 Canvas 挂载本 vault：编辑项目 .env 的 "
+      + "ACTIVE_VAULT=<本 vault 目录名>（须在 VAULTS_ROOT 下），"
+      + "然后在终端运行 docker compose up -d backend。",
+    );
+    const retryBtn = ctaEl.createEl("button", { text: "重新检查" });
+    retryBtn.style.cssText = "margin-top: 6px; padding: 6px 14px; cursor: pointer;";
+    retryBtn.onclick = () => {
+      bodyEl.setText("正在重新检查...");
+      ctaEl.empty();
+      void this.detectAndRender(bodyEl, ctaEl);
+    };
   }
 
   private renderBackendDownState(
@@ -1980,54 +1996,9 @@ class CanvasSettingTab extends PluginSettingTab {
     };
   }
 
-  private async handleSwitchToCurrent(
-    bodyEl: HTMLElement,
-    ctaEl: HTMLElement,
-    localName: string,
-    btn: HTMLButtonElement,
-  ): Promise<void> {
-    btn.disabled = true;
-    btn.setText("切换中...");
-    const adapter = this.app.vault.adapter as unknown as { getBasePath?: () => string };
-    const basePath = typeof adapter.getBasePath === "function" ? adapter.getBasePath() : "";
-    if (!basePath) {
-      new Notice("❌ 无法获取当前 vault 路径", 4000);
-      btn.disabled = false;
-      btn.setText(`让 Canvas 切换到「${localName}」`);
-      return;
-    }
-
-    try {
-      const backendUrl = this.plugin.settings.backendUrl.replace(/\/$/, "");
-      const switchResp = await requestUrl({
-        url: `${backendUrl}/api/v1/vault/switch`,
-        method: "POST",
-        contentType: "application/json",
-        body: JSON.stringify({ vault_path: basePath }),
-        throw: false,
-      });
-      if (switchResp.status === 200) {
-        new Notice(`✓ Canvas 已切换到「${localName}」`, 5000);
-        bodyEl.setText("切换成功，正在刷新状态...");
-        ctaEl.empty();
-        await this.detectAndRender(bodyEl, ctaEl);
-      } else {
-        const errBody = switchResp.json as { detail?: { message?: string } };
-        const msg = (errBody?.detail?.message) || `HTTP ${switchResp.status}`;
-        new Notice(`❌ 切换失败：${msg}`, 6000);
-        btn.disabled = false;
-        btn.setText(`让 Canvas 切换到「${localName}」`);
-      }
-    } catch (e) {
-      new Notice(`❌ 切换异常：${(e as Error).message}`, 6000);
-      btn.disabled = false;
-      btn.setText(`让 Canvas 切换到「${localName}」`);
-    }
-  }
-
   /**
-   * 高级配置折叠段（默认收起）— 含 BackendURL / 节点前缀 / 显式 vault 选择 dropdown
-   * 非技术用户无需展开；进阶用户可手动调整 BackendURL、切换到任意 vault、改节点池前缀
+   * 高级配置折叠段（默认收起）— 含 BackendURL / 节点前缀 / vault 只读状态
+   * 非技术用户无需展开；进阶用户可手动调整 BackendURL、改节点池前缀
    */
   private renderAdvancedSection(container: HTMLElement): void {
     const details = container.createEl("details");
@@ -2092,28 +2063,30 @@ class CanvasSettingTab extends PluginSettingTab {
           }),
       );
 
-    // 老 vault selector dropdown 留在折叠段，进阶用户切换到任意 backend 已知 vault
-    this.renderVaultSelector(inner);
+    // P0-3: 老 vault switch dropdown 下架 (后端 /vault/switch 已隔离 410),
+    // 折叠段保留只读的 vault 挂载状态展示
+    this.renderVaultMountStatus(inner);
   }
 
   /**
-   * Story 2.2 follow-up · vault selector (legacy dropdown, 移到高级折叠段)
+   * P0-3 (2026-07-31) · vault 挂载只读状态（原 vault selector dropdown 下架）
    *
    * 异步从 backend /api/v1/vault/list 拿候选列表（VAULTS_ROOT 下含 .obsidian/ 的目录），
-   * 渲染 dropdown 让用户切换 active vault；选中变化时 POST /api/v1/vault/switch 触发
-   * backend reload_settings + vault_id 表名前缀切换。
+   * 只读展示当前挂载 vault 与候选清单。运行时切换已退役（防并发串库），
+   * 切换 = 编辑 .env CANVAS_BASE_PATH + docker compose up -d backend。
    */
-  private renderVaultSelector(container: HTMLElement): void {
-    const setting = new Setting(container)
-      .setName("当前挂载 Vault")
+  private renderVaultMountStatus(container: HTMLElement): void {
+    new Setting(container)
+      .setName("当前挂载 Vault（只读）")
       .setDesc(
-        "选择 backend 当前挂载的 vault。切换后 backend 自动 reload + LanceDB 表名前缀切到对应 vault_id。"
-        + "下拉项来自 backend VAULTS_ROOT 扫描（仅含 .obsidian/ 子目录的目录）。",
+        "backend 当前挂载的 vault 由部署期 .env 的 ACTIVE_VAULT 固定。"
+        + "如需切换：改 .env 的 ACTIVE_VAULT=<vault 目录名> 后运行 docker compose up -d backend。",
       );
     const statusEl = container.createEl("p", {
-      text: "正在加载 vault 列表...",
+      text: "正在加载 vault 状态...",
       cls: "setting-item-description",
     });
+    statusEl.style.whiteSpace = "pre-line";
 
     void (async () => {
       try {
@@ -2125,7 +2098,7 @@ class CanvasSettingTab extends PluginSettingTab {
         });
         if (resp.status !== 200) {
           statusEl.setText(
-            `❌ 无法加载 vault 列表 (HTTP ${resp.status}). 请确认 backend 正在运行 + Backend URL 正确。`,
+            `❌ 无法加载 vault 状态 (HTTP ${resp.status}). 请确认 backend 正在运行 + Backend URL 正确。`,
           );
           return;
         }
@@ -2140,59 +2113,14 @@ class CanvasSettingTab extends PluginSettingTab {
           );
           return;
         }
-        statusEl.setText(
-          `VAULTS_ROOT: ${data.vaults_root} · 候选 ${data.vaults.length} 个 · 当前: ${data.active_vault}`,
+        const lines = data.vaults.map(
+          (v) => `${v.is_active ? "● " : "○ "}${v.name} (${v.vault_id})`,
         );
-
-        setting.addDropdown((dropdown) => {
-          for (const v of data.vaults) {
-            dropdown.addOption(v.path, `${v.name} (${v.vault_id})`);
-          }
-          // 选中当前 active vault（按 path 匹配，is_active 由 backend 标注）
-          const active = data.vaults.find((v) => v.is_active);
-          if (active) {
-            dropdown.setValue(active.path);
-          }
-          dropdown.onChange(async (newPath) => {
-            const target = data.vaults.find((v) => v.path === newPath);
-            if (!target) {
-              new Notice(`❌ 未识别的 vault path: ${newPath}`, 4000);
-              return;
-            }
-            new Notice(`正在切换到 ${target.name}...`, 2000);
-            try {
-              const switchUrl = `${this.plugin.settings.backendUrl.replace(/\/$/, "")}/api/v1/vault/switch`;
-              const switchResp = await requestUrl({
-                url: switchUrl,
-                method: "POST",
-                contentType: "application/json",
-                body: JSON.stringify({ vault_path: newPath }),
-                throw: false,
-              });
-              if (switchResp.status === 200) {
-                this.plugin.settings.activeVaultName = target.name;
-                await this.plugin.saveSettings();
-                new Notice(
-                  `✓ Vault 已切换到 ${target.name}\n后续对话/搜索使用新 vault 的隔离索引`,
-                  6000,
-                );
-              } else {
-                const errBody = switchResp.json as { detail?: { message?: string } };
-                const msg =
-                  (errBody && errBody.detail && errBody.detail.message)
-                  || `HTTP ${switchResp.status}`;
-                new Notice(`❌ 切换失败：${msg}`, 6000);
-                // dropdown 回滚到当前 active
-                if (active) dropdown.setValue(active.path);
-              }
-            } catch (e) {
-              new Notice(`❌ 切换异常：${(e as Error).message}`, 6000);
-              if (active) dropdown.setValue(active.path);
-            }
-          });
-        });
+        statusEl.setText(
+          `当前挂载: ${data.active_vault} · VAULTS_ROOT: ${data.vaults_root}\n${lines.join("\n")}`,
+        );
       } catch (e) {
-        statusEl.setText(`❌ 加载 vault 列表异常：${(e as Error).message}`);
+        statusEl.setText(`❌ 加载 vault 状态异常：${(e as Error).message}`);
       }
     })();
   }

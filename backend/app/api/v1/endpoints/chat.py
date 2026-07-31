@@ -88,9 +88,7 @@ async def _get_supp_lancedb_client(init_timeout: float = 30.0) -> Any:
     global _supp_init_task
     if _supp_lancedb_singleton is not None:
         return _supp_lancedb_singleton
-    if _supp_init_task is None or (
-        _supp_init_task.done() and _supp_lancedb_singleton is None
-    ):
+    if _supp_init_task is None or (_supp_init_task.done() and _supp_lancedb_singleton is None):
         _supp_init_task = asyncio.create_task(_init_supp_lancedb_singleton())
     try:
         await asyncio.wait_for(asyncio.shield(_supp_init_task), timeout=init_timeout)
@@ -101,9 +99,7 @@ async def _get_supp_lancedb_client(init_timeout: float = 30.0) -> Any:
         )
         return None
     except Exception as e:  # noqa: BLE001 — init 失败降级, 下次调用自动重启任务
-        logger.warning(
-            "[Story-2.2-PhaseA] LanceDBClient init 失败 (下次调用重试): %s", e
-        )
+        logger.warning("[Story-2.2-PhaseA] LanceDBClient init 失败 (下次调用重试): %s", e)
         return None
     return _supp_lancedb_singleton
 
@@ -140,10 +136,7 @@ class EnrichContextRequest(BaseModel):
     )
     user_question: str | None = Field(
         default=None,
-        description=(
-            "（可选）用户实际问题。提供则启用 query-aware rerank（Phase 2 实施）。"
-            "Hotkey 预加载场景留 None。"
-        ),
+        description=("（可选）用户实际问题。提供则启用 query-aware rerank（Phase 2 实施）。Hotkey 预加载场景留 None。"),
     )
     mode: Literal["preload", "answer", "deep"] = Field(
         default="preload",
@@ -174,8 +167,7 @@ class EnrichContextRequest(BaseModel):
     subject_id: str | None = Field(
         default=None,
         description=(
-            "（可选）vault 内学科二级 namespace。一 vault 一学科时留 None，"
-            "build_vault_group_id 自动 fallback 到默认。"
+            "（可选）vault 内学科二级 namespace。一 vault 一学科时留 None，build_vault_group_id 自动 fallback 到默认。"
         ),
     )
 
@@ -240,8 +232,7 @@ class EnrichContextResponse(BaseModel):
     supplementary_count: int = Field(
         default=0,
         description=(
-            "Story 2.2 Phase A — 注入到 enriched_context 的补充材料数量。"
-            "0 = 降级 / 空索引 / preload 模式未触发搜索。"
+            "Story 2.2 Phase A — 注入到 enriched_context 的补充材料数量。0 = 降级 / 空索引 / preload 模式未触发搜索。"
         ),
     )
     supplementary_degraded: bool = Field(
@@ -318,9 +309,7 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
             ),
             timeout=3.0,
         )
-        _hist_elapsed_ms = int(
-            (asyncio.get_event_loop().time() - _hist_start_ms) * 1000
-        )
+        _hist_elapsed_ms = int((asyncio.get_event_loop().time() - _hist_start_ms) * 1000)
         logger.info(
             "story_2_3_error_memories_loaded",
             node_id=_hist_node_slug,
@@ -330,9 +319,7 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
         )
     except asyncio.TimeoutError:
         # AC #3 超时降级: 3s 内 search_memories 未返回 → 空 list, 对话继续
-        _hist_elapsed_ms = int(
-            (asyncio.get_event_loop().time() - _hist_start_ms) * 1000
-        )
+        _hist_elapsed_ms = int((asyncio.get_event_loop().time() - _hist_start_ms) * 1000)
         logger.warning(
             "story_2_3_error_memories_timeout",
             node_id=_hist_node_slug,
@@ -345,9 +332,7 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
     except (ConnectionError, RuntimeError, OSError) as exc:
         # AC #4 服务不可用降级: Graphiti/Neo4j 连接失败 → 空 list, 对话继续
         # 包含 neo4j.exceptions.ServiceUnavailable (RuntimeError 子类).
-        _hist_elapsed_ms = int(
-            (asyncio.get_event_loop().time() - _hist_start_ms) * 1000
-        )
+        _hist_elapsed_ms = int((asyncio.get_event_loop().time() - _hist_start_ms) * 1000)
         logger.warning(
             "story_2_3_error_memories_degraded",
             node_id=_hist_node_slug,
@@ -378,10 +363,7 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
 
     final_text = assembled.text
     if enrichment.degraded:
-        final_text += (
-            f"\n\n---\n邻居上下文暂时不可用（{enrichment.degraded_reason}），"
-            "仅基于当前笔记回答。"
-        )
+        final_text += f"\n\n---\n邻居上下文暂时不可用（{enrichment.degraded_reason}），仅基于当前笔记回答。"
 
     # Story 2.2 Phase A + Story 2.3 v1.0 — PRD §4.1.1 9-step workflow Step 5: 补充材料搜索
     # mode=preload (hotkey 触发，未提问) 跳过；
@@ -390,11 +372,7 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
     supp_count = 0
     supp_degraded = False
     supp_reason: str | None = None
-    if (
-        req.mode in ("answer", "deep")
-        and req.user_question
-        and req.user_question.strip()
-    ):
+    if req.mode in ("answer", "deep") and req.user_question and req.user_question.strip():
         # Story 2.3 v1.0 — deep mode 加大召回。设计 §4.3 关键参数对比：
         # answer (5s)  → top_k_max=20 / hard_cap=15
         # deep   (30s) → top_k_max=30 / hard_cap=20
@@ -554,10 +532,7 @@ class PostTurnMessage(BaseModel):
 
     role: str = Field(
         ...,
-        description=(
-            "对话角色. user/assistant 进入 LLM 提取链路; "
-            "其他 (system/tool) 自动过滤跳过."
-        ),
+        description=("对话角色. user/assistant 进入 LLM 提取链路; 其他 (system/tool) 自动过滤跳过."),
     )
     content: str = Field(..., min_length=1, max_length=8000)
     turn_index: int = Field(default=0)
@@ -583,10 +558,7 @@ class PostTurnExtractRequest(BaseModel):
         ...,
         min_length=1,
         max_length=40,
-        description=(
-            "对话消息 (≤40 轮 + 每轮 ≤8000 字符 + 总字符 ≤48000, "
-            "防 LLM 成本/上下文爆炸)."
-        ),
+        description=("对话消息 (≤40 轮 + 每轮 ≤8000 字符 + 总字符 ≤48000, 防 LLM 成本/上下文爆炸)."),
     )
     fire_and_forget_graphiti: bool = Field(
         default=True,
@@ -596,10 +568,7 @@ class PostTurnExtractRequest(BaseModel):
     vault_id: str = Field(
         ...,
         min_length=1,
-        description=(
-            "Vault stable identifier (Story 2.5.Y multi-vault 隔离强制). "
-            "如 'cs_61b' / '数学'. 缺失 → 422."
-        ),
+        description=("Vault stable identifier (Story 2.5.Y multi-vault 隔离强制). 如 'cs_61b' / '数学'. 缺失 → 422."),
     )
     subject_id: Optional[str] = Field(
         default=None,
@@ -619,9 +588,7 @@ class PostTurnExtractRequest(BaseModel):
         """
         total = sum(len(m.content) for m in self.messages)
         if total > MAX_TOTAL_DIALOG_CHARS:
-            raise ValueError(
-                f"dialog total chars {total} exceeds budget {MAX_TOTAL_DIALOG_CHARS}"
-            )
+            raise ValueError(f"dialog total chars {total} exceeds budget {MAX_TOTAL_DIALOG_CHARS}")
         return self
 
 
@@ -674,9 +641,7 @@ async def post_turn_extract(
     # Story 2.5.Y Task 2 — 注入 ContextVar (vault_id 是必填, Pydantic 已校验)
     from app.core.subject_config import build_vault_group_id, set_current_subject_id
 
-    derived_group_id = build_vault_group_id(
-        req.vault_id, subject_id=req.subject_id, canvas_path=req.canvas_path
-    )
+    derived_group_id = build_vault_group_id(req.vault_id, subject_id=req.subject_id, canvas_path=req.canvas_path)
     set_current_subject_id(derived_group_id)
 
     from app.mcp.tools.error_tools import _resolve_node_file_path
@@ -705,9 +670,7 @@ async def post_turn_extract(
             elapsed_ms=round((time.monotonic() - start) * 1000.0, 2),
         )
 
-    classified = await extractor.extract_and_classify(
-        dialog, node_id=req.node_id, session_id=req.session_id
-    )
+    classified = await extractor.extract_and_classify(dialog, node_id=req.node_id, session_id=req.session_id)
 
     file_path = _resolve_node_file_path(req.node_id)
     out_errors: list[PostTurnExtractedError] = []
@@ -739,16 +702,10 @@ async def post_turn_extract(
             err_id = str(_uuid.uuid4())
             fm_ok = False
             if req.fire_and_forget_graphiti:
-                _asyncio.create_task(
-                    write_error_to_graphiti(
-                        err, req.node_id, req.session_id, error_id=err_id
-                    )
-                )
+                _asyncio.create_task(write_error_to_graphiti(err, req.node_id, req.session_id, error_id=err_id))
                 graphiti_status = "queued"
             else:
-                graphiti_ok = await write_error_to_graphiti(
-                    err, req.node_id, req.session_id, error_id=err_id
-                )
+                graphiti_ok = await write_error_to_graphiti(err, req.node_id, req.session_id, error_id=err_id)
                 graphiti_status = "ok" if graphiti_ok else "failed"
 
         out_errors.append(
@@ -784,6 +741,44 @@ async def post_turn_extract(
 # - 返回 {hookSpecificOutput.additionalContext} → SDK 自动 prepend 到 system context
 # - Claude 拿到 supplementary XML 后用 Read tool 真核实再回答（commit 98dbc2d 约束）
 # ════════════════════════════════════════════════════════════════════════════
+
+
+def _vault_id_from_hook_cwd(cwd: str | None) -> str | None:
+    """P0-3: 从 hook 的 cwd 推导 vault_id（路径段名匹配，非文件系统探测）。
+
+    cwd 是宿主机路径，容器内不可见，不能对它做 .obsidian 探测；
+    改为把 cwd 的路径段与 VAULTS_ROOT（容器内可见）下的 vault 目录名匹配
+    （NFC 归一防 macOS NFD 文件名差异）。命中 0 个或 >1 个不同 vault 都
+    返回 None（多命中不猜 —— 串库代价高于回退），调用方回退启动期全局 vault。
+    """
+    if not cwd:
+        return None
+    import unicodedata
+
+    from app.config import get_settings, sanitize_vault_id
+
+    def _nfc(s: str) -> str:
+        return unicodedata.normalize("NFC", s)
+
+    try:
+        vaults_root = Path(get_settings().VAULTS_ROOT)
+        known = {
+            _nfc(d.name): sanitize_vault_id(d.name)
+            for d in vaults_root.iterdir()
+            if d.is_dir() and (d / ".obsidian").is_dir()
+        }
+    except OSError:
+        return None
+    hits = {known[_nfc(seg)] for seg in Path(cwd).parts if _nfc(seg) in known}
+    if len(hits) == 1:
+        return next(iter(hits))
+    if len(hits) > 1:
+        logger.warning(
+            "[enrich-hook] cwd 命中多个注册 vault 段名, 放弃推导回退全局",
+            cwd=cwd,
+            hits=sorted(hits),
+        )
+    return None
 
 
 class HookEnrichRequest(BaseModel):
@@ -836,8 +831,7 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
     _EXAM_SKILL_PREFIXES = ("/start-exam-board", "/quiz-answer", "/exam-quick")
     if user_prompt.startswith(_EXAM_SKILL_PREFIXES):
         logger.info(
-            "[T1.7-AutoRAG] exam-skill prompt detected, injection skipped "
-            "(HARD-ISO isolation)",
+            "[T1.7-AutoRAG] exam-skill prompt detected, injection skipped (HARD-ISO isolation)",
             prompt=user_prompt[:60],
         )
         return HookEnrichOutput(
@@ -863,9 +857,7 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
         "MCP",
         "Obsidian 设置",
     )
-    if user_prompt.startswith("/") or any(
-        kw in user_prompt for kw in _SYSTEM_OP_KEYWORDS
-    ):
+    if user_prompt.startswith("/") or any(kw in user_prompt for kw in _SYSTEM_OP_KEYWORDS):
         logger.info(
             "[T1.7-AutoRAG] system-op prompt detected, injection skipped (P6)",
             prompt=user_prompt[:60],
@@ -879,10 +871,21 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
 
     # P6 补 (2026-07-20): full-RAG 路径会注入 vault ContextVar 而 hook 路径
     # 没有 — 跨 vault 候选可能混入。对齐 enrich_context 的隔离姿势。
+    # P0-3 (2026-07-31): hook payload 自带 cwd (Claude Code 的 vault 工作目录),
+    # 优先从 cwd 推导 vault, 全局 settings 只作 fallback —— 全局切换端点已隔离
+    # 退役后, 这是 hook 路径唯一的 per-request vault 信号。
     from app.config import get_current_vault_id
     from app.core.subject_config import build_vault_group_id, set_current_subject_id
 
-    set_current_subject_id(build_vault_group_id(get_current_vault_id()))
+    derived_vault_id = _vault_id_from_hook_cwd(req.cwd)
+    global_vault_id = get_current_vault_id()
+    if derived_vault_id and derived_vault_id != global_vault_id:
+        logger.info(
+            "[enrich-hook] cwd-derived vault differs from global — using cwd vault",
+            cwd_vault=derived_vault_id,
+            global_vault=global_vault_id,
+        )
+    set_current_subject_id(build_vault_group_id(derived_vault_id or global_vault_id))
 
     # Wave-2 P0-2 漏修-1 (2026-05-12): 改用 lazy init 替代裸读 singleton.
     # 原因: 直读 _supp_lancedb_singleton 在 cold-start 期间立即 None 跳过,
