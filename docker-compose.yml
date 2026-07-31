@@ -30,8 +30,10 @@ services:
 
     # NOTE: Using 7478/7691 to avoid conflict with existing Neo4j instances (7474/7476/7687/7689)
     ports:
-      - "${NEO4J_HTTP_PORT:-7478}:7474"  # HTTP Browser
-      - "${NEO4J_BOLT_PORT:-7691}:7687"  # Bolt Protocol
+      # P0-0 (2026-07-31 二轮审查): 绑定 127.0.0.1 — MCP 工具无鉴权,
+      # 0.0.0.0 会把全部读写工具暴露给局域网任意主机
+      - "127.0.0.1:${NEO4J_HTTP_PORT:-7478}:7474"  # HTTP Browser
+      - "127.0.0.1:${NEO4J_BOLT_PORT:-7691}:7687"  # Bolt Protocol
 
     volumes:
       # P0-C 迁移 (2026-07-12): 绝对路径指向主仓稳定目录 — 学习记忆图谱 (519MB,
@@ -72,8 +74,8 @@ services:
       - NEO4J_dbms_memory_heap_max__size=1G
 
     ports:
-      - "7479:7474"  # HTTP Browser - test instance
-      - "7692:7687"  # Bolt Protocol - test connection
+      - "127.0.0.1:7479:7474"  # HTTP Browser - test instance
+      - "127.0.0.1:7692:7687"  # Bolt Protocol - test connection
 
     volumes:
       - neo4j-test-data:/data
@@ -107,7 +109,7 @@ services:
       - OLLAMA_MAX_QUEUE=8       # V7: prevent unbounded queue buildup under burst traffic
 
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
 
     volumes:
       - ./docker/ollama/models:/root/.ollama/models
@@ -144,7 +146,8 @@ services:
     container_name: canvas-learning-system-backend
 
     ports:
-      - "${API_PORT:-8001}:8001"
+      # P0-0 (2026-07-31): 实测无 key POST /mcp/tools/* 返回 200 — 收口到本机回环
+      - "127.0.0.1:${API_PORT:-8001}:8001"
 
     environment:
       - NEO4J_URI=bolt://neo4j:7687

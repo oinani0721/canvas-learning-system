@@ -364,6 +364,18 @@
 > 路由前缀: `/mcp/tools/*`
 > 文件: `backend/app/mcp/server.py` + `backend/app/mcp/tools/`
 
+> ### ⛔ P0-2 写侧隔离（2026-07-31，本节下方工具表为历史存档）
+>
+> 现行暴露面只有 **5 个只读工具**：`search_notes` / `get_neighbors` / `read_note` /
+> `search_memories` / `check_backend_health`。
+> 其余 14 个（query_mastery、update_fsrs、update_bkt、generate_question、score_answer、
+> assemble_acp、record_calibration、record_learning_memory、archive_conversation、
+> create_exam_node、record_error、request_hint、skip_question、switch_vault）已隔离：
+> 不在 MCP tools/list，直接 HTTP POST 返回 **410** 并记 `[MCP-QUARANTINE]` 遥测日志。
+> 观察期零命中后随 Tier B 批次物理删除。依据：`_bmad-output/审查/2026-07-31-ChatGPT第二轮对抗审查吸收与代码验证.md`。
+> 回归契约：`backend/tests/regression/test_mcp_quarantine.py`。
+> 下方 pipeline_token 流程与 15 工具表描述的是隔离前状态，仅作历史参考。
+
 ### pipeline_token 流程
 
 MCP 工具间通过 pipeline_token 强制步骤顺序：

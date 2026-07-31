@@ -10,7 +10,7 @@
       "canvas-learning-mcp": {
         "enabled": true,
         "contextSaving": false,
-        "description": "Canvas Learning System backend MCP — 19 tools (search_notes / get_neighbors / read_note / query_mastery / search_memories / record_error / generate_question / score_answer / ...). FastApiMCP SSE 协议，worktree backend port 8011 → container 8001。contextSaving=false 让所有 skill 直接看到 MCP tools 无需 @mention。"
+        "description": "Canvas Learning System backend MCP — 5 个只读工具 (search_notes / get_neighbors / read_note / search_memories / check_backend_health)。P0-2 (2026-07-31) 写侧隔离: query_mastery/record_error/generate_question/score_answer 等 14 个写侧/僵尸工具已隔离下架 (410)，禁止尝试调用。FastApiMCP SSE 协议，worktree backend port 8011 → container 8001。contextSaving=false 让所有 skill 直接看到 MCP tools 无需 @mention。"
       }
     }
   },
