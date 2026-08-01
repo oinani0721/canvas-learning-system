@@ -28,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import send_bark  # noqa: E402
 
 REPO = Path(os.environ.get("CANVAS_REPO", "/Users/Heishing/Desktop/canvas/canvas-learning-system"))
+# VAULT-SYNC (2026-08-02): 默认值仅作兜底 — 生产链由 wrapper 从 .env
+# ACTIVE_VAULT 解析后经 --vault 传入, 与后端同源 (换 vault 只改 .env 一处)
 VAULT = REPO / "canvas-vault"
 STATE = REPO / "backups" / "daily-review.state.json"
 LOG = REPO / "backups" / "daily-review.log"
@@ -122,9 +124,14 @@ def osascript_fallback(noti: dict) -> bool:
 
 
 def main() -> int:
+    global VAULT
     ap = argparse.ArgumentParser(description="每日复习推送编排")
     ap.add_argument("--now", help="ISO 时间覆盖 (12 场景验收矩阵用)")
+    ap.add_argument("--vault", help="活 vault 路径 (wrapper 从 .env ACTIVE_VAULT 解析传入; 缺省回退 canvas-vault)")
     args = ap.parse_args()
+
+    if args.vault:
+        VAULT = Path(args.vault)
 
     now = _now(args.now)
     local = now.astimezone()
