@@ -4,65 +4,52 @@ description: Deploy a new Obsidian vault for a course. Use when the user says "/
 license: MIT
 metadata:
   author: canvas-learning-system
-  version: "1.0"
-  story: "Story 1.8 + 1.9"
+  version: "2.0"
+  story: "Story 1.8 + 1.9 → DEPLOY-VAULT-2026-08-02 翻新 (方案 1 用户拍板)"
 ---
 
-Deploy a new Obsidian vault for a course.
+Deploy a new, fully-working Canvas Learning System vault in one command.
 
-**Input**: Course name (e.g., `/deploy-vault 操作系统`)
+**Input**: Course name (e.g., `/deploy-vault 操作系统`), optionally a subject
+different from the vault name.
+
+**实现**: 全部逻辑在 `scripts/install-vault.sh`（活 vault 即模板 — 从当前
+ACTIVE_VAULT 复制系统件：8 个 skills、decay_beta/fsrs_bridge、hooks、
+mcp.json、5 个 Obsidian 插件、快捷键、鉴权 key、Dashboard/CLAUDE.md，
+并建现行骨架 原白板/检验白板/节点/outputs/raw + 按 vault 生成
+.canvas-config.yaml）。本 skill 只是薄壳。
 
 **Steps**
 
-1. **Read VAULTS_ROOT from .env**
+1. **Ask (only if unclear)**: vault 名是否即学科名？用户没说就用 vault 名当
+   subject。是否立即激活（让后端/推送切到新 vault）？用户没提激活意图就
+   **不加 --activate**（可先建多个 vault 再选择激活）。
+
+2. **Run the installer**:
 
    ```bash
-   grep VAULTS_ROOT .env
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/install-vault.sh "<vault-name>" --subject "<学科>" [--activate]
    ```
 
-   If `VAULTS_ROOT` is not set or empty, ask the user to configure it first:
-   > VAULTS_ROOT is not configured. Please set it in `.env` to the parent directory where you want vaults stored (e.g., `/Users/you/Documents/vaults`).
+   脚本自带 10 项自检（--activate 时 +1 项）并打印 ✅/❌ 报告 + 后续步骤。
+   任何 ❌ 都会非零退出，且自检失败时激活会被自动跳过（.env 不动）。
 
-2. **Create vault directory structure**
-
-   Use the vault name from the user's input. Create the directory under `VAULTS_ROOT`:
-
-   ```bash
-   mkdir -p "${VAULTS_ROOT}/<vault-name>"
-   mkdir -p "${VAULTS_ROOT}/<vault-name>/.obsidian"
-   mkdir -p "${VAULTS_ROOT}/<vault-name>/raw"
-   mkdir -p "${VAULTS_ROOT}/<vault-name>/wiki/concepts"
-   mkdir -p "${VAULTS_ROOT}/<vault-name>/wiki/canvases"
-   mkdir -p "${VAULTS_ROOT}/<vault-name>/outputs/exam_boards"
-   ```
-
-3. ~~Call setup-wizard API~~ — REMOVED (P0-3 2026-07-31 审查):
-   `/api/v1/system/vault/init` 从未在 backend 存在（且旧写法端口 8001 也错，
-   宿主侧应为 8011）。目录结构已由第 2 步 mkdir 完成，无需后端参与。
-
-4. **Point backend at the new vault**
-
-   > P0-3 (2026-07-31): runtime `/api/v1/vault/switch` 已隔离退役（返回 410）。
-   > vault 由部署期 `.env` 的 `ACTIVE_VAULT` 固定。
-
-   Update `ACTIVE_VAULT=<vault-name>` in the repo root `.env` (and
-   `backend/.env` if present), then recreate the backend container:
+3. **If --activate was used and the script exited 0**: apply it —
 
    ```bash
    docker compose up -d backend
    ```
 
-   If Docker is not running, just update the `.env` files and note it for the user.
+   然后 `curl -s http://127.0.0.1:8011/api/v1/vault/current` 确认
+   `vault_name` 已是新 vault。
 
-5. **Output result**
-
-   Report to the user:
-   - Vault created at: `${VAULTS_ROOT}/<vault-name>`
-   - `.env` ACTIVE_VAULT updated to: `<vault-name>` (+ whether backend was restarted)
-   - Obsidian URI: `obsidian://open?vault=<vault-name>`
-   - Suggest: "Open the vault in Obsidian with the URI above, or open it manually from Obsidian's vault picker."
+4. **Report to the user** (原样转述脚本的自检报告), plus:
+   - 在 Obsidian 里「打开另一个 vault」→ 选新目录（插件与快捷键已随 vault 就位，无需再配置）
+   - 首验路径：Cmd+P 建原白板 → 写内容 → `/start-exam-board` 出题
+   - 未激活时提醒：检索/推送仍指向旧 vault，激活方法见脚本输出第 2 条
 
 **Error Handling**
 
-- If the vault directory already exists, ask the user if they want to switch to it instead of creating a new one.
-- If the backend API calls fail, fall back to manual `.env` updates and inform the user to restart Docker.
+- 目标目录已存在 → 脚本会拒绝（防误伤学习数据）。想切换到已有 vault：
+  手改 `.env` `ACTIVE_VAULT=<name>` + `docker compose up -d backend`。
+- 自检出现 ❌ → 把失败项原样报给用户，不要宣称部署成功。
