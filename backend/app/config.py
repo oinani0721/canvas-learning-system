@@ -66,9 +66,7 @@ class Settings(BaseSettings):
         description="Application description for API documentation",
     )
 
-    VERSION: str = Field(
-        default="1.0.0", description="Application version (semver format)"
-    )
+    VERSION: str = Field(default="1.0.0", description="Application version (semver format)")
 
     DEBUG: bool = Field(
         default=False,
@@ -215,9 +213,7 @@ class Settings(BaseSettings):
         # for model routing (e.g., [K1] routes to a specific model channel)
         if self.AI_PROVIDER == "custom":
             if v.startswith("[") and "]" in v:
-                logger.info(
-                    f"AI_MODEL_NAME '{v}' contains prefix, preserved for custom provider"
-                )
+                logger.info(f"AI_MODEL_NAME '{v}' contains prefix, preserved for custom provider")
             return self
 
         # 检测方括号前缀模式
@@ -225,10 +221,7 @@ class Settings(BaseSettings):
             bracket_end = v.index("]") + 1
             prefix = v[:bracket_end]
             clean_name = v[bracket_end:]
-            logger.warning(
-                f"AI_MODEL_NAME contains abnormal prefix '{prefix}', "
-                f"auto-cleaned to '{clean_name}'"
-            )
+            logger.warning(f"AI_MODEL_NAME contains abnormal prefix '{prefix}', auto-cleaned to '{clean_name}'")
             self.AI_MODEL_NAME = clean_name
         return self
 
@@ -249,22 +242,18 @@ class Settings(BaseSettings):
         本地 dev（DEBUG=True + CORS 含 localhost）允许 warning + 放行。
         防止容器开放端口意外暴露弱密码或无鉴权状态。
         """
-        is_local = self.DEBUG and (
-            "localhost" in self.CORS_ORIGINS or "127.0.0.1" in self.CORS_ORIGINS
-        )
+        is_local = self.DEBUG and ("localhost" in self.CORS_ORIGINS or "127.0.0.1" in self.CORS_ORIGINS)
 
         if self.NEO4J_ENABLED and not self.NEO4J_PASSWORD:
             if not is_local:
                 raise ValueError(
-                    "NEO4J_PASSWORD must be set explicitly outside local dev. "
-                    "Set env var or disable NEO4J_ENABLED."
+                    "NEO4J_PASSWORD must be set explicitly outside local dev. Set env var or disable NEO4J_ENABLED."
                 )
             logger.warning("NEO4J_PASSWORD empty in DEBUG mode. Set before deploying.")
 
         if not is_local and not self.INTERNAL_API_KEY:
             raise ValueError(
-                "INTERNAL_API_KEY required outside local dev. "
-                "Set env var or enable DEBUG with localhost CORS."
+                "INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS."
             )
 
         if "*" in self.CORS_ORIGINS:
@@ -272,31 +261,23 @@ class Settings(BaseSettings):
 
         return self
 
-    MAX_CONCURRENT_REQUESTS: int = Field(
-        default=100, description="Maximum concurrent requests limit"
-    )
+    MAX_CONCURRENT_REQUESTS: int = Field(default=100, description="Maximum concurrent requests limit")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Rollback Settings (Story 18.5)
     # [Source: docs/architecture/rollback-recovery-architecture.md:100-150]
     # ═══════════════════════════════════════════════════════════════════════════
 
-    ROLLBACK_HISTORY_LIMIT: int = Field(
-        default=100, description="Maximum operation history records per Canvas"
-    )
+    ROLLBACK_HISTORY_LIMIT: int = Field(default=100, description="Maximum operation history records per Canvas")
 
     ROLLBACK_SNAPSHOT_INTERVAL: int = Field(
         default=300,
         description="Auto snapshot interval in seconds (default: 5 minutes)",
     )
 
-    ROLLBACK_MAX_SNAPSHOTS: int = Field(
-        default=50, description="Maximum snapshots per Canvas before auto-cleanup"
-    )
+    ROLLBACK_MAX_SNAPSHOTS: int = Field(default=50, description="Maximum snapshots per Canvas before auto-cleanup")
 
-    ROLLBACK_GRAPH_SYNC_TIMEOUT_MS: int = Field(
-        default=200, description="Graph sync timeout in milliseconds"
-    )
+    ROLLBACK_GRAPH_SYNC_TIMEOUT_MS: int = Field(default=200, description="Graph sync timeout in milliseconds")
 
     ROLLBACK_ENABLE_GRAPH_SYNC: bool = Field(
         default=True, description="Enable Graphiti knowledge graph synchronization"
@@ -332,13 +313,9 @@ class Settings(BaseSettings):
         description="AI API base URL (leave empty to use provider's default)",
     )
 
-    AI_API_KEY: str = Field(
-        default="", description="AI API key for the selected provider"
-    )
+    AI_API_KEY: str = Field(default="", description="AI API key for the selected provider")
 
-    AGENT_MAX_TOKENS: int = Field(
-        default=4000, description="Maximum tokens per Agent response"
-    )
+    AGENT_MAX_TOKENS: int = Field(default=4000, description="Maximum tokens per Agent response")
 
     AGENT_PROMPT_PATH: str = Field(
         default=os.path.join(_PROJECT_ROOT, ".claude", "agents"),
@@ -361,18 +338,14 @@ class Settings(BaseSettings):
         description="[DEPRECATED] Use AI_MODEL_NAME instead",
     )
 
-    GOOGLE_API_KEY: str = Field(
-        default="", description="[DEPRECATED] Use AI_API_KEY instead"
-    )
+    GOOGLE_API_KEY: str = Field(default="", description="[DEPRECATED] Use AI_API_KEY instead")
 
     AGENT_MODEL: str = Field(
         default="claude-sonnet-4-5-20250929",
         description="[DEPRECATED] Use AI_MODEL_NAME instead",
     )
 
-    ANTHROPIC_API_KEY: str = Field(
-        default="", description="[DEPRECATED] Use AI_API_KEY instead"
-    )
+    ANTHROPIC_API_KEY: str = Field(default="", description="[DEPRECATED] Use AI_API_KEY instead")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Neo4j Configuration (Story 30.1)
@@ -384,15 +357,11 @@ class Settings(BaseSettings):
         description="Enable Neo4j connection (set to False for JSON fallback)",
     )
 
-    NEO4J_URI: str = Field(
-        default="bolt://localhost:7687", description="Neo4j Bolt connection URI"
-    )
+    NEO4J_URI: str = Field(default="bolt://localhost:7687", description="Neo4j Bolt connection URI")
 
     NEO4J_USER: str = Field(default="neo4j", description="Neo4j username")
 
-    NEO4J_PASSWORD: str = Field(
-        default="", description="Neo4j password (REQUIRED in production)"
-    )
+    NEO4J_PASSWORD: str = Field(default="", description="Neo4j password (REQUIRED in production)")
 
     NEO4J_DATABASE: str = Field(default="neo4j", description="Neo4j database name")
 
@@ -430,9 +399,7 @@ class Settings(BaseSettings):
         description="Base delay for exponential backoff in seconds (1s, 2s, 4s) (Story 30.2)",
     )
 
-    NEO4J_RETRY_MAX_DELAY: float = Field(
-        default=10.0, description="Maximum retry delay in seconds (Story 30.2)"
-    )
+    NEO4J_RETRY_MAX_DELAY: float = Field(default=10.0, description="Maximum retry delay in seconds (Story 30.2)")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Verification Service Settings (Story 31.1)
@@ -472,9 +439,7 @@ class Settings(BaseSettings):
     )
 
     # Graphiti Episode Worker (Phase 2)
-    GOOGLE_API_KEY: str = Field(
-        default="", description="Google API key for graphiti-core Gemini LLM/Embedder"
-    )
+    GOOGLE_API_KEY: str = Field(default="", description="Google API key for graphiti-core Gemini LLM/Embedder")
 
     GRAPHITI_QUEUE_MAXSIZE: int = Field(
         default=100, description="Max episodes in graphiti worker queue before dropping"
@@ -530,9 +495,7 @@ class Settings(BaseSettings):
     # Vault-wide Note Indexing Settings
     # ═══════════════════════════════════════════════════════════════════════════
 
-    VAULT_INDEX_ENABLED: bool = Field(
-        default=True, description="Enable vault-wide .md note indexing to LanceDB."
-    )
+    VAULT_INDEX_ENABLED: bool = Field(default=True, description="Enable vault-wide .md note indexing to LanceDB.")
 
     VAULT_INDEX_SKIP_DIRS: str = Field(
         default=(
@@ -544,14 +507,36 @@ class Settings(BaseSettings):
             # - *-explanations: AI 生成解释（fnmatch glob，配合 lancedb_client.py:1251 fix）
             # - Excalidraw/_misc: 手绘图/杂项 junk
             # - 检验白板/验收单: 信息隔离铁律——考题绝不能经 RAG 回流进学习对话
-            #   (检验白板 v1 审计 A5-7, 2026-07-10; 注意 metadata.py 的 getattr 默认值
-            #    永远被本字段覆盖, 黑名单只在这里改才生效)
+            #   (检验白板 v1 审计 A5-7, 2026-07-10; 本字段是黑名单唯一权威源,
+            #    与 lancedb_client.DEFAULT_VAULT_SKIP_DIRS 兜底常量保持一致)
+            # - chunks: video-to-canvas 的 merged.md 与源笔记同内容双份入库 (RAG-S1)
+            # - .quarantine: MCP 隔离区非学习内容 (RAG-S1)
             ".obsidian,.git,.trash,node_modules,"
             ".claude,.claudian,_bmad-output,archive,templates,"
             "outputs,*-explanations,Excalidraw,_misc,"
-            "检验白板,验收单"
+            "检验白板,验收单,chunks,.quarantine"
         ),
         description="Comma-separated list of directories to skip during vault indexing.",
+    )
+
+    # RAG-S1-2026-08-02 阶段 1: vault 索引 orchestrator (统一原语 + durable
+    # pending + 双机制触发)。关掉 = 回阶段 0 现状 (仅手动全量端点)。
+    ENABLE_VAULT_INDEX_ORCHESTRATOR: bool = Field(
+        default=True,
+        description="Enable the vault index orchestrator (watcher + periodic "
+        "anti-entropy reconcile + durable per-path pending). Rollback switch.",
+    )
+
+    VAULT_INDEX_SCAN_INTERVAL_S: int = Field(
+        default=60,
+        description="Anti-entropy fingerprint scan interval in seconds. The "
+        "save-to-searchable SLO is guaranteed by this pass even with all "
+        "file events lost.",
+    )
+
+    VAULT_INDEX_STALE_AFTER_S: int = Field(
+        default=300,
+        description="Oldest-pending lag threshold in seconds after which the index status endpoint reports stale=true.",
     )
 
     VAULT_INDEX_CHUNK_SIZE: int = Field(
@@ -881,9 +866,7 @@ class Settings(BaseSettings):
 
     # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings .env file)
     # Pattern: model_config = SettingsConfigDict(env_file=".env")
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore")
 
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: lru_cache Depends settings)

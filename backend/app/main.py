@@ -404,6 +404,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # so an unreferenced warmup task can be garbage-collected mid-flight.
     app.state.rag_s0_warmup_task = asyncio.create_task(_warm_fast_search_client())
 
+    # RAG-S1-2026-08-02 阶段 1: vault 索引 orchestrator — 统一写侧原语 +
+    # durable per-path pending + watchfiles 事件加速 + 60s anti-entropy 扫描
+    # (首轮立即执行 = 启动 reconciliation, 补齐停机期间的 vault 变更)。
+    # 启动失败不挡应用 (检索读侧独立可用), 但必须 loud。
+    try:
+        from app.services.vault_index_orchestrator import (
+            get_vault_index_orchestrator,
+        )
+
+        vault_index_orch = get_vault_index_orchestrator()
+        if vault_index_orch is not None:
+            vault_index_orch.start()
+            app.state.vault_index_orchestrator = vault_index_orch
+        else:
+            logger.warning(
+                "[RAG-S1] vault index orchestrator DISABLED via "
+                "ENABLE_VAULT_INDEX_ORCHESTRATOR — index freshness SLO not in "
+                "effect (stage-0 behavior: manual full-scan endpoint only)"
+            )
+    except Exception as e:
+        logger.error(f"[RAG-S1] orchestrator startup failed: {e}", exc_info=True)
+
     yield  # Application runs here
 
     # Shutdown
@@ -427,6 +449,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("LanceDB index service cleaned up")
     except Exception as e:
         logger.warning(f"LanceDB index service cleanup failed: {e}")
+
+    # RAG-S1: orchestrator graceful shutdown — cancel worker/watcher/scan
+    # tasks and flush the durable pending file (intents survive restart).
+    try:
+        vault_index_orch = getattr(app.state, "vault_index_orchestrator", None)
+        if vault_index_orch is not None:
+            await vault_index_orch.shutdown()
+    except Exception as e:
+        logger.warning(f"[RAG-S1] orchestrator shutdown failed: {e}")
 
     # ✅ Story 7.2: Cleanup LLM logging infrastructure
     try:

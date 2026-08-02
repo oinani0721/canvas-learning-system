@@ -53,17 +53,11 @@ class LanceDBIndexService:
 
     def __init__(self) -> None:
         self._lancedb_client = None
-        self._client_unavailable = (
-            False  # [Review H1/M2] skip retries when module missing
-        )
+        self._client_unavailable = False  # [Review H1/M2] skip retries when module missing
         self._pending_tasks: Dict[str, asyncio.Task] = {}
         self._indexing_canvases: set[str] = set()  # [Review M1] track active indexing
-        self._file_lock = (
-            threading.Lock()
-        )  # [Review H2] protect JSONL concurrent writes
-        self._pending_file: Path = (
-            Path(__file__).parent.parent / "data" / "lancedb_pending_index.jsonl"
-        )
+        self._file_lock = threading.Lock()  # [Review H2] protect JSONL concurrent writes
+        self._pending_file: Path = Path(__file__).parent.parent / "data" / "lancedb_pending_index.jsonl"
         self._debounce_seconds: float = settings.LANCEDB_INDEX_DEBOUNCE_MS / 1000.0
         self._index_timeout: float = settings.LANCEDB_INDEX_TIMEOUT
 
@@ -111,11 +105,7 @@ class LanceDBIndexService:
         # [Review M2] Auto-clean completed tasks to prevent memory leak
         # Only remove if the dict still holds THIS task (not a newer replacement)
         task.add_done_callback(
-            lambda _t, cn=canvas_name: (
-                self._pending_tasks.pop(cn, None)
-                if self._pending_tasks.get(cn) is _t
-                else None
-            )
+            lambda _t, cn=canvas_name: self._pending_tasks.pop(cn, None) if self._pending_tasks.get(cn) is _t else None
         )
 
     def schedule_note_index(
@@ -124,10 +114,15 @@ class LanceDBIndexService:
         vault_root: str,
         coalesce_key: Optional[str] = None,
     ) -> None:
-        """Round-23 Story 8.1 — Schedule debounced .md note re-index + wikilink graph refresh.
+        """⛔ DEPRECATED (RAG-S1 2026-08-03, quarantine-first — 勿新增调用方).
 
-        Tauri Obsidian plugin 在 file-save 调 POST /index/refresh-changed?paths=...
-        endpoint 把 paths 转发到本方法. 多 path 同时到达 → debounce 合并到 1 次重建.
+        由 VaultIndexOrchestrator 替代: 本方法的下游 _debounced_note_index 只刷
+        wikilink 图、零 LanceDB 写入 (「后续 Story」从未实现), 且整 vault 单
+        coalesce key 让异 path 互相 cancel (ChatGPT 反证 #1)。唯一调用方
+        POST /index/refresh-changed 已改走 orchestrator。Canvas 侧的
+        schedule_index() 不受影响。观察期后随 Tier B 物理删除。
+
+        Round-23 Story 8.1 原设计 — Schedule debounced .md note re-index.
 
         Args:
             note_path: vault 相对路径 (如 '节点/admissibility.md').
@@ -142,29 +137,19 @@ class LanceDBIndexService:
         existing = self._pending_tasks.get(key)
         if existing and not existing.done():
             existing.cancel()
-            logger.debug(
-                f"[Story 8.1] Cancelled previous note index debounce for {key}"
-            )
+            logger.debug(f"[Story 8.1] Cancelled previous note index debounce for {key}")
 
         # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar so debounced
         # note re-index inherits vault context — prevents cross-vault leak.
         ctx = contextvars.copy_context()
-        task = asyncio.create_task(
-            self._debounced_note_index(key, note_path, vault_root), context=ctx
-        )
+        task = asyncio.create_task(self._debounced_note_index(key, note_path, vault_root), context=ctx)
         self._pending_tasks[key] = task
 
         task.add_done_callback(
-            lambda _t, k=key: (
-                self._pending_tasks.pop(k, None)
-                if self._pending_tasks.get(k) is _t
-                else None
-            )
+            lambda _t, k=key: self._pending_tasks.pop(k, None) if self._pending_tasks.get(k) is _t else None
         )
 
-    async def _debounced_note_index(
-        self, key: str, note_path: str, vault_root: str
-    ) -> None:
+    async def _debounced_note_index(self, key: str, note_path: str, vault_root: str) -> None:
         """Round-23 Story 8.1 — Wait debounce, then refresh wikilink graph + LanceDB note index."""
         try:
             await asyncio.sleep(self._debounce_seconds)
@@ -190,9 +175,7 @@ class LanceDBIndexService:
                 f"(vault={vault_root}, build_ts={wgs.build_timestamp})"
             )
         except Exception as e:
-            logger.warning(
-                f"[Story 8.1] Note index refresh failed for {note_path}: {e}"
-            )
+            logger.warning(f"[Story 8.1] Note index refresh failed for {note_path}: {e}")
         finally:
             self._indexing_canvases.discard(key)
 
@@ -229,9 +212,7 @@ class LanceDBIndexService:
             except (json.JSONDecodeError, KeyError):
                 continue
 
-        logger.info(
-            f"[Story 38.1] LanceDB: {len(unique)} pending index updates recovered"
-        )
+        logger.info(f"[Story 38.1] LanceDB: {len(unique)} pending index updates recovered")
 
         recovered = 0
         still_pending: list[Dict[str, Any]] = []
@@ -251,8 +232,7 @@ class LanceDBIndexService:
             # Rewrite file with only still-pending entries
             if still_pending:
                 self._pending_file.write_text(
-                    "\n".join(json.dumps(e, ensure_ascii=False) for e in still_pending)
-                    + "\n",
+                    "\n".join(json.dumps(e, ensure_ascii=False) for e in still_pending) + "\n",
                     encoding="utf-8",
                 )
             else:
@@ -303,14 +283,11 @@ class LanceDBIndexService:
         self._indexing_canvases.add(canvas_name)
         try:
             await self._do_index_with_retry(canvas_name, canvas_base_path)
-            logger.info(
-                f"[Story 38.1] LanceDB auto-index completed for {canvas_name}{node_ctx}"
-            )
+            logger.info(f"[Story 38.1] LanceDB auto-index completed for {canvas_name}{node_ctx}")
         except Exception as e:
             # [Review H3] AC-2: include trigger node ID in warning
             logger.warning(
-                f"[Story 38.1] LanceDB index update failed for canvas {canvas_name}"
-                f"{node_ctx}, queued for retry: {e}"
+                f"[Story 38.1] LanceDB index update failed for canvas {canvas_name}{node_ctx}, queued for retry: {e}"
             )
             self._persist_pending(canvas_name, str(e), trigger_node_id)
         finally:
@@ -322,9 +299,7 @@ class LanceDBIndexService:
         retry=retry_if_exception_type(Exception),
         reraise=True,
     )
-    async def _do_index_with_retry(
-        self, canvas_name: str, canvas_base_path: str
-    ) -> int:
+    async def _do_index_with_retry(self, canvas_name: str, canvas_base_path: str) -> int:
         """Index a canvas with retry. Decorated by tenacity."""
         return await self._do_index(canvas_name, canvas_base_path)
 
@@ -337,9 +312,7 @@ class LanceDBIndexService:
         """
         # [Review M2] Fast-fail when agentic_rag module is unavailable
         if self._client_unavailable:
-            raise RuntimeError(
-                "LanceDB client permanently unavailable (module not installed)"
-            )
+            raise RuntimeError("LanceDB client permanently unavailable (module not installed)")
 
         client = self._get_or_init_client()
         if client is None:

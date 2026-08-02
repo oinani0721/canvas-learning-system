@@ -240,3 +240,8 @@ backend/config/rag_config.yaml
 _backups/
 canvas-docs/
 canvas-vault/.obsidian/cls-internal-key.txt
+
+# RAG-S1 (2026-08-03): orchestrator 运行时状态 — durable pending 意图日志
+backend/app/data/vault_index_pending.jsonl
+backend/app/data/vault_index_pending.jsonl.tmp
+backend/app/data/lancedb_pending_index.jsonl

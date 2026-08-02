@@ -2,10 +2,12 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**（2026-08-02 · RAG 九阶段路线已批准，阶段 0 止血代码全落地 · 待用户 mini-UAT · PLAN `RAG-S0-2026-08-02`）:
-- ⛔ **用户已批准九阶段 RAG 修复路线**（0→1→1.5→2→2.5→2.6→3→4→4.5），阶段 0 已 ship→用户验收→阶段 1
-- ✅ **阶段 0 全落地**: search_notes fast path 转正（**31s→0.12s 稳态, 重启首查 0.18s 预热兜底**; LangGraph 退默认链, `RAG_EXTENDED_MODE` 门控留阶段 4 shadow）+ 废 quality 假信号（execution_mode + source_status）+ langgraph==1.1.10 + LANCEDB_DATA_PATH 收口 fail-fast（上岗当天抓到 backend/.env 陈年 LANCEDB_PATH 冲突已清）+ 9 项契约测试; regression 220 passed; [Code-Review] 独立审查 0C/1H/3M/7L→HIGH+MEDIUM 全修+LOW 修 5 挂 2（LOW-6 传递依赖连坐锁、INFO import 权重→阶段 4）
-- 📋 **用户 mini-UAT（1 分钟）**: `_bmad-output/验收单/Story-RAG-S0-阶段0止血-mini-UAT.md` — Claudian 问笔记问题，几秒内出引用不再卡半分钟
+**当前状态**（2026-08-03 · 阶段 0 ✅（`449ae952`）· **阶段 1 索引重写已 ship 待用户 mini-UAT** · PLAN `RAG-S1-2026-08-02`）:
+- ⛔ **九阶段路线**（0→1→1.5→2→2.5→2.6→3→4→4.5）; 阶段 1 全落地: `vault_index_orchestrator.py` 统一五原语 + durable per-path pending（JSONL 意图日志+退避重试）+ watchfiles 事件加速 + 60s anti-entropy 扫描 + orphan sweep 收敛 + freshness 遥测
+- ✅ **live 实测**: 保存→可检索 **5-6s** / 删除→不可检索 **5s**（SLO 60s）; 索引冻结解除（3604→2174 行 100% 新写, Fundamentals 1→5 chunks, chunks/ 双份冗余清除）; 重启恢复 66 pending 实测; 抓获并根治 6 文件空产出永动循环 + status 端点 9.5s→0.009s
+- 🔒 [Code-Review] 0C/4H/6M/7L→**H1-H4+M1-M5 全修**（H1 embed 挂=假成功/H2 短写丢行/H3 DELETE default 抹全 vault 指纹/H4 事件循环阻塞+O(N²) persist/M1 毒文件退避/M3 路径穿越）; M6 增量端点收编+L6 NFC 挂账阶段 2; 契约测试 32 条（四组+5 审查锁）; regression 252 passed
+- 📋 **用户 mini-UAT（1 分钟）**: `_bmad-output/验收单/Story-RAG-S1-索引重写-mini-UAT.md` — 改笔记→1 分钟内 Claudian 引用新内容
+- ⏭ 阶段 1 后: 1.5 稳定身份 或 2 强化 fast path（rerank/golden set/配比治理）; backlog: M6/L6/传递依赖连坐锁/metadata 每请求新建 client
 - 📄 决策链（勿重新推导）: `_bmad-output/审查/2026-08-02-RAG检索设计对抗性审查-三问三答.md` → `…ChatGPT-RAG三P0审查吸收与验证.md` → `…ChatGPT-规模化结构检索终审-吸收与验证.md` → `_bmad-output/研究/2026-08-02-RAG修复计划-用户审阅版.md`
 - 🔒 已定裁决: 6 源管道退役出默认链（阶段 4 shadow 定生死）; quality=low 假信号废除; ~~path_map~~/~~configurable~~ 已证伪（正解 async router + `context=`, 属阶段 4）; 三平面架构=frontmatter 唯一可写真相源 / Neo4j 确定性投影 / Graphiti 时间记忆
 - ⏭ 阶段 0 后: 阶段 1 索引重写（开工前重读 ChatGPT 第一轮 §四）; 明早 9:05 Bark 推送有机验证勾 `Story-DAILY-REVIEW-PUSH` mini-UAT

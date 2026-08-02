@@ -40,12 +40,25 @@ class RefreshChangedRequest(BaseModel):
     )
 
 
-class RefreshChangedResponse(BaseModel):
-    """Round-23 Story 8.1 — 返回已 schedule 的 paths."""
+class PathRefreshStatus(BaseModel):
+    """RAG-S1: per-path structured outcome — no aggregate fabrication."""
 
-    scheduled: int
-    debounce_ms: int
-    paths: List[str]
+    path: str
+    status: str  # accepted | coalesced | excluded | disabled
+
+
+class RefreshChangedResponse(BaseModel):
+    """RAG-S1 (2026-08-03): structured per-path status.
+
+    旧契约 `scheduled=len(req.paths)` 是无条件假成功 (服务关闭 / 路径被黑名单
+    排除 / debounce 互相取消, 三种情况全报 scheduled=N)——已废除。
+    """
+
+    accepted: int
+    coalesced: int
+    excluded: int
+    results: List[PathRefreshStatus]
+    orchestrator_enabled: bool
 
 
 def _get_lancedb_client():
@@ -102,53 +115,56 @@ async def delete_vault_index(vault_id: str):
 
 @index_router.post("/refresh-changed", response_model=RefreshChangedResponse)
 async def refresh_changed_paths(req: RefreshChangedRequest) -> RefreshChangedResponse:
-    """Round-23 Story 8.1 — Incremental refresh after Tauri plugin file-save.
+    """RAG-S1 (2026-08-03) — manual/plugin trigger into the index orchestrator.
 
-    Tauri Obsidian plugin 在 vault 文件保存时调本 endpoint, 推送已变更路径列表.
-    Backend 使用 LanceDBIndexService.schedule_note_index() debounce 合并多条改动,
-    最终触发 wikilink graph rebuild + (后续 Story) lancedb chunk re-index.
+    此前实现: schedule_note_index → _debounced_note_index 只刷 wikilink 图,
+    一行 LanceDB 写入都没有, 且整 vault 单 coalesce key 让 N 个 path 互相
+    cancel — 配合 scheduled=N 假成功构成彻底空转链 (ChatGPT 反证 #1/#2)。
+
+    现实现: 每个 path 独立进 orchestrator durable pending (per-path, 绝不互相
+    取消), worker 真正写 LanceDB。返回体逐 path 申报真实状态。
 
     Args:
-        req: paths 必填 (1-500 路径), vault_root 可选 (默认 settings.canvas_base_path).
-
-    Returns:
-        RefreshChangedResponse — scheduled 数量 + debounce_ms + 接收到的 paths.
-
-    Errors:
-        404: vault_root 不可解析.
-        503: LanceDB index service unavailable.
+        req: paths 必填 (1-500 vault 相对路径)。vault_root 参数保留兼容但
+             orchestrator 恒用 settings.canvas_base_path (P0-3: vault 部署期固定)。
     """
-    from app.config import settings
-    from app.services.lancedb_index_service import get_lancedb_index_service
+    from app.services.vault_index_orchestrator import get_vault_index_orchestrator
 
-    vault_root = req.vault_root or getattr(settings, "canvas_base_path", None)
-    if not vault_root:
-        raise HTTPException(
-            status_code=404,
-            detail="vault_root not provided and canvas_base_path not configured",
+    orch = get_vault_index_orchestrator()
+    if orch is None:
+        results = [PathRefreshStatus(path=p, status="disabled") for p in req.paths]
+        logger.warning(
+            "index.refresh_changed_disabled",
+            path_count=len(req.paths),
+        )
+        return RefreshChangedResponse(
+            accepted=0,
+            coalesced=0,
+            excluded=0,
+            results=results,
+            orchestrator_enabled=False,
         )
 
-    svc = get_lancedb_index_service()
-    if svc is None:
-        raise HTTPException(
-            status_code=503,
-            detail="LanceDB index service disabled (ENABLE_LANCEDB_AUTO_INDEX=False)",
-        )
-
-    coalesce_key = f"vault:{vault_root}"
+    results = []
+    counts = {"accepted": 0, "coalesced": 0, "excluded": 0}
     for p in req.paths:
-        svc.schedule_note_index(
-            note_path=p, vault_root=vault_root, coalesce_key=coalesce_key
-        )
+        # reset_backoff: an explicit API push is a real user event — clear
+        # any M1 failure backoff so the file retries immediately.
+        status_slug = orch.enqueue("upsert", p, reset_backoff=True)
+        counts[status_slug] = counts.get(status_slug, 0) + 1
+        results.append(PathRefreshStatus(path=p, status=status_slug))
 
-    debounce_ms = int(svc._debounce_seconds * 1000)
     logger.info(
-        "index.refresh_changed_scheduled",
-        vault_root=vault_root,
-        path_count=len(req.paths),
-        debounce_ms=debounce_ms,
+        "index.refresh_changed_enqueued",
+        accepted=counts["accepted"],
+        coalesced=counts["coalesced"],
+        excluded=counts["excluded"],
     )
 
     return RefreshChangedResponse(
-        scheduled=len(req.paths), debounce_ms=debounce_ms, paths=req.paths
+        accepted=counts["accepted"],
+        coalesced=counts["coalesced"],
+        excluded=counts["excluded"],
+        results=results,
+        orchestrator_enabled=True,
     )

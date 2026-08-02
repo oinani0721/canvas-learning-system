@@ -105,9 +105,7 @@ def _jieba_tokenize(text: str) -> str:
     return " ".join(tokens)
 
 
-def _chunk_text(
-    text: str, max_tokens: int = 512, overlap_tokens: int = 50
-) -> List[str]:
+def _chunk_text(text: str, max_tokens: int = 512, overlap_tokens: int = 50) -> List[str]:
     """
     Story 2.3: 智能分块 — tiktoken token 计数 + 句子边界 + 原子保护
 
@@ -300,6 +298,29 @@ DEFAULT_VAULT_SKIP_DIRS = [
     "_misc",  # 杂项 / junk
     "检验白板",  # 信息隔离铁律 — 考题绝不能经 RAG 回流
     "验收单",
+    # RAG-S1 (2026-08-03): video-to-canvas 在每个视频目录下产出 chunks/merged.md
+    # 与源笔记同内容 — 双份入库互相挤占 top-k (raw/ 冗余行约一半来自此)。
+    "chunks",
+    # RAG-S1 (2026-08-03): MCP 隔离区 (P0-2 quarantine) 不是学习内容。
+    ".quarantine",
+]
+
+# RAG-S1 (2026-08-03): 文件名黑名单提升为模块级常量 — 此前只在
+# index_vault_notes 函数体内 (工具/工程文档 + 测试残留), index_single_file
+# 完全没有这一层, 增量路径可把 CLAUDE.md / UAT-*.md 送入库。两路共用一份。
+DEFAULT_VAULT_SKIP_FILES = [
+    # 工具/工程文档（非用户学习内容）
+    "CLAUDE.md",
+    "管道设计.md",
+    "Dashboard.md",
+    "未命名*.md",
+    "Untitled*.md",
+    "2111.md",  # 测试残留
+    "*.excalidraw.md",  # 手绘图 md 包装
+    # Phase A T1.1 followup (2026-05-09): 补测试 + UAT 残留
+    "TestConcept*.md",
+    "UAT-*.md",
+    "*-test.md",
 ]
 
 
@@ -353,9 +374,7 @@ class LanceDBClient:
 
     def __init__(
         self,
-        db_path: Optional[
-            str
-        ] = None,  # Story 2.2 Phase A: env-aware (LANCEDB_DATA_PATH); fallback "data/lancedb"
+        db_path: Optional[str] = None,  # Story 2.2 Phase A: env-aware (LANCEDB_DATA_PATH); fallback "data/lancedb"
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
         embedding_model: str = "BAAI/bge-m3",
         timeout_ms: int = 30000,  # Ollama GPU cold start ~15s, warm ~300ms. Must cover cold start.
@@ -451,8 +470,7 @@ class LanceDBClient:
                 first_seg = derived.split(":", 1)[0].strip()
                 if first_seg:
                     logger.debug(
-                        "[LanceDB vault wiring] active_vault_id resolved from "
-                        "subject_config ContextVar: %s → %s",
+                        "[LanceDB vault wiring] active_vault_id resolved from subject_config ContextVar: %s → %s",
                         ctx_value,
                         first_seg,
                     )
@@ -463,8 +481,7 @@ class LanceDBClient:
             # so Ops can spot wiring regressions without flooding warnings on
             # the legitimate standalone-lib path.
             logger.debug(
-                "[LanceDB vault wiring] subject_config ContextVar unavailable "
-                "(%s: %s) — falling back to app.config",
+                "[LanceDB vault wiring] subject_config ContextVar unavailable (%s: %s) — falling back to app.config",
                 type(e).__name__,
                 e,
             )
@@ -526,9 +543,10 @@ class LanceDBClient:
         prefix = f"{vault_id}_" if vault_id and vault_id != "default" else ""
         all_tables = self._db.table_names()
         if not prefix:
-            return [
-                t for t in all_tables if "_" not in t or t == self.FINGERPRINT_TABLE
-            ]
+            # RAG-S1 Code-Review H3 (2026-08-03): 精确匹配裸指纹表 —
+            # endswith 会把每个 vault 的 {vid}_file_fingerprints 都归入
+            # default, DELETE /index/default 一次抹掉全部 vault 的变更检测。
+            return [t for t in all_tables if "_" not in t or t == self.FINGERPRINT_TABLE]
         return [t for t in all_tables if t.startswith(prefix)]
 
     def get_all_vault_stats(self) -> dict[str, dict]:
@@ -562,6 +580,38 @@ class LanceDBClient:
                 pass
         return len(tables)
 
+    def connect_lightweight(self) -> bool:
+        """
+        RAG-S1 (2026-08-03): connect the DB WITHOUT loading the CPU embedding
+        model or running startup dimension checks.
+
+        For write-side callers (index orchestrator) that embed via the Ollama
+        batch path: full initialize() preloads bge-m3 CPU weights (~7.4s
+        measured) purely as a fallback, and _cache_tables() runs
+        _check_and_fix_dimension_mismatch which can DROP an in-construction
+        table from a read path. index_single_file / fingerprint methods only
+        need a live _db handle — they open tables per call.
+
+        Returns:
+            True if connection successful.
+        """
+        if not LANCEDB_AVAILABLE:
+            if LOGURU_ENABLED:
+                logger.warning("LanceDB not installed. Run: pip install lancedb")
+            self._initialized = True
+            return False
+        try:
+            self._db = lancedb.connect(self.db_path)
+            self._initialized = True
+            if LOGURU_ENABLED:
+                logger.info(f"LanceDBClient connect_lightweight: path={self.db_path}")
+            return True
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"LanceDBClient connect_lightweight failed: {e}")
+            self._initialized = True
+            return False
+
     async def initialize(self) -> bool:
         """
         初始化客户端，连接LanceDB
@@ -589,9 +639,7 @@ class LanceDBClient:
             await self._init_vectorizer()
 
             if LOGURU_ENABLED:
-                logger.info(
-                    f"LanceDBClient initialized: path={self.db_path}, tables={list(self._tables_cache.keys())}"
-                )
+                logger.info(f"LanceDBClient initialized: path={self.db_path}, tables={list(self._tables_cache.keys())}")
 
             return True
 
@@ -617,9 +665,9 @@ class LanceDBClient:
 
             # Story 2.3 Task 6: Auto-detect dimension mismatch on startup
             # Check vector tables against expected embedding_dim
-            vector_tables = [
-                t for t in self._tables_cache if t != self.FINGERPRINT_TABLE
-            ]
+            # RAG-S1 F1 (2026-08-03): endswith — 前缀化后 {vid}_file_fingerprints
+            # 也必须跳过, 否则维度检查会把无 vector 列的指纹表 drop 掉
+            vector_tables = [t for t in self._tables_cache if not t.endswith(self.FINGERPRINT_TABLE)]
             for tname in vector_tables:
                 self._check_and_fix_dimension_mismatch(tname, self.embedding_dim)
 
@@ -632,6 +680,25 @@ class LanceDBClient:
     # =========================================================================
 
     FINGERPRINT_TABLE = "file_fingerprints"
+
+    @property
+    def _fingerprint_table_name(self) -> str:
+        """RAG-S1 F1 (2026-08-03): vault-prefixed fingerprint table name.
+
+        The fingerprint table was the ONLY table not going through vault
+        prefixing — two vaults sharing one global table meant same-relative-path
+        files cross-judged each other as "unchanged" (permanent content loss)
+        and rebuild_index() of one vault wiped every vault's change detection.
+
+        Deliberately NO B0.7 legacy fallback here: falling back to the old
+        global table would make every file look unchanged and the prefixed
+        table would never get populated (bootstrap deadlock). First reconcile
+        after this change re-indexes all files once — accepted one-time cost.
+        """
+        vid = self.active_vault_id
+        if not vid or vid == "default":
+            return self.FINGERPRINT_TABLE
+        return f"{vid}_{self.FINGERPRINT_TABLE}"
 
     @staticmethod
     def _compute_file_hash(file_path: str) -> str:
@@ -651,27 +718,22 @@ class LanceDBClient:
             sha.update(f.read().encode("utf-8"))
         return sha.hexdigest()
 
-    def _ensure_fingerprint_table(self):
+    def _fingerprint_table_exists(self) -> bool:
         """
-        Story 2.7 Task 1.1: Create or open the file_fingerprints table.
+        Story 2.7 Task 1.1 / RAG-S1 F1: check the vault-scoped fingerprint
+        table exists. Always queries db.table_names() — never trusts
+        _tables_cache handles (2026-07-10 T3 stale-handle discipline).
 
         Schema: file_path (str), content_hash (str), last_indexed (str), chunk_count (int)
         """
         if self._db is None:
-            return
-
-        if self.FINGERPRINT_TABLE in self._tables_cache:
-            return
-
+            return False
         try:
-            existing_tables = self._db.table_names()
-            if self.FINGERPRINT_TABLE in existing_tables:
-                self._tables_cache[self.FINGERPRINT_TABLE] = self._db.open_table(
-                    self.FINGERPRINT_TABLE
-                )
+            return self._fingerprint_table_name in self._db.table_names()
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.debug(f"[fingerprint] Error checking fingerprint table: {e}")
+            return False
 
     def _get_all_fingerprints(self) -> Dict[str, str]:
         """
@@ -680,15 +742,13 @@ class LanceDBClient:
         Returns:
             Dict mapping file_path to content_hash.
         """
-        self._ensure_fingerprint_table()
-
-        if self.FINGERPRINT_TABLE not in self._tables_cache:
+        if not self._fingerprint_table_exists():
             # No fingerprint table yet — first run, all files are new
             empty_map: Dict[str, str] = {}
             return empty_map
 
         try:
-            tbl = self._tables_cache[self.FINGERPRINT_TABLE]
+            tbl = self._db.open_table(self._fingerprint_table_name)
             rows = tbl.to_pandas()
             if rows.empty:
                 empty_map2: Dict[str, str] = {}
@@ -763,8 +823,9 @@ class LanceDBClient:
         }
 
         try:
-            if self.FINGERPRINT_TABLE in self._tables_cache:
-                tbl = self._tables_cache[self.FINGERPRINT_TABLE]
+            fp_table = self._fingerprint_table_name
+            if self._fingerprint_table_exists():
+                tbl = self._db.open_table(fp_table)
                 # Delete existing record for this file
                 escaped = file_path.replace("'", "''")
                 try:
@@ -774,13 +835,11 @@ class LanceDBClient:
                 tbl.add([record])
             else:
                 # Create table with first record
-                tbl = self._db.create_table(self.FINGERPRINT_TABLE, data=[record])
-                self._tables_cache[self.FINGERPRINT_TABLE] = tbl
+                tbl = self._db.create_table(fp_table, data=[record])
+            self._tables_cache[fp_table] = tbl
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.error(
-                    f"[fingerprint] Failed to update fingerprint for {file_path}: {e}"
-                )
+                logger.error(f"[fingerprint] Failed to update fingerprint for {file_path}: {e}")
 
     def _remove_fingerprint(self, file_path: str):
         """
@@ -789,18 +848,16 @@ class LanceDBClient:
         Args:
             file_path: Relative file path.
         """
-        if self.FINGERPRINT_TABLE not in self._tables_cache:
+        if not self._fingerprint_table_exists():
             return
 
         try:
-            tbl = self._tables_cache[self.FINGERPRINT_TABLE]
+            tbl = self._db.open_table(self._fingerprint_table_name)
             escaped = file_path.replace("'", "''")
             tbl.delete(f"file_path = '{escaped}'")
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.debug(
-                    f"[fingerprint] Failed to remove fingerprint for {file_path}: {e}"
-                )
+                logger.debug(f"[fingerprint] Failed to remove fingerprint for {file_path}: {e}")
 
     def _delete_file_chunks(self, table_name: str, file_path: str) -> int:
         """
@@ -831,15 +888,11 @@ class LanceDBClient:
             escaped = file_path.replace("'", "''")
             tbl.delete(f"canvas_file = '{escaped}'")
             if LOGURU_ENABLED:
-                logger.debug(
-                    f"[index] Deleted old chunks for '{file_path}' from '{table_name}'"
-                )
+                logger.debug(f"[index] Deleted old chunks for '{file_path}' from '{table_name}'")
             return 1
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.warning(
-                    f"[index] Failed to delete chunks for '{file_path}': {e}"
-                )
+                logger.warning(f"[index] Failed to delete chunks for '{file_path}': {e}")
             return 0
 
     async def rebuild_index(
@@ -873,10 +926,12 @@ class LanceDBClient:
         if not self._initialized:
             await self.initialize()
 
-        # Drop fingerprint table
+        # Drop fingerprint table (RAG-S1 F1: vault-scoped name — dropping the
+        # global table here used to wipe every OTHER vault's change detection)
+        fp_table = self._fingerprint_table_name
         try:
-            self._db.drop_table(self.FINGERPRINT_TABLE, ignore_missing=True)
-            self._tables_cache.pop(self.FINGERPRINT_TABLE, None)
+            self._db.drop_table(fp_table, ignore_missing=True)
+            self._tables_cache.pop(fp_table, None)
         except Exception:
             pass
 
@@ -888,9 +943,7 @@ class LanceDBClient:
             pass
 
         if LOGURU_ENABLED:
-            logger.info(
-                f"[REBUILD] Dropped tables '{table_name}' and '{self.FINGERPRINT_TABLE}', starting full rebuild"
-            )
+            logger.info(f"[REBUILD] Dropped tables '{table_name}' and '{fp_table}', starting full rebuild")
 
         # Re-index all files via index_vault_notes with force_rebuild
         total_chunks = await self.index_vault_notes(
@@ -913,9 +966,7 @@ class LanceDBClient:
             total_files += sum(1 for f in files if f.endswith(".md"))
 
         if LOGURU_ENABLED:
-            logger.info(
-                f"[REBUILD] Complete: {total_files} files, {total_chunks} chunks in {duration_ms:.0f}ms"
-            )
+            logger.info(f"[REBUILD] Complete: {total_files} files, {total_chunks} chunks in {duration_ms:.0f}ms")
 
         return {
             "total_files": total_files,
@@ -962,9 +1013,7 @@ class LanceDBClient:
         await self._init_vectorizer()
         if self._vectorizer is None:
             if LOGURU_ENABLED:
-                logger.warning(
-                    "Vectorizer not available, skipping image content indexing"
-                )
+                logger.warning("Vectorizer not available, skipping image content indexing")
             return 0
 
         # Build indexable text from OCR result
@@ -982,9 +1031,7 @@ class LanceDBClient:
         combined_text = "\n".join(text_parts)
         if not combined_text.strip():
             if LOGURU_ENABLED:
-                logger.debug(
-                    f"[IMAGE-INDEX] No text content from OCR for node {node_id}"
-                )
+                logger.debug(f"[IMAGE-INDEX] No text content from OCR for node {node_id}")
             return 0
 
         # Vectorize
@@ -992,16 +1039,12 @@ class LanceDBClient:
             vec_result = await self._vectorizer.vectorize_text(combined_text)
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.error(
-                    f"[IMAGE-INDEX] Vectorization failed for node {node_id}: {e}"
-                )
+                logger.error(f"[IMAGE-INDEX] Vectorization failed for node {node_id}: {e}")
             return 0
 
         # Build document
         content_type = ocr_result.get("content_type", "text")
-        chunk_id = hashlib.md5(
-            f"image_ocr:{node_id}:{combined_text[:100]}".encode()
-        ).hexdigest()
+        chunk_id = hashlib.md5(f"image_ocr:{node_id}:{combined_text[:100]}".encode()).hexdigest()
         metadata = {
             "file_path": image_path,
             "source": "image_ocr",
@@ -1138,9 +1181,7 @@ class LanceDBClient:
                 logger.debug(f"Ollama embed unavailable: {e}")
         return None
 
-    async def _ollama_embed_batch(
-        self, texts: List[str]
-    ) -> Optional[List[List[float]]]:
+    async def _ollama_embed_batch(self, texts: List[str]) -> Optional[List[List[float]]]:
         """
         Batch embed texts via Ollama API (GPU-accelerated).
 
@@ -1163,9 +1204,7 @@ class LanceDBClient:
                         if embeddings and len(embeddings) == len(texts):
                             return embeddings
                     if LOGURU_ENABLED:
-                        logger.debug(
-                            f"Ollama batch embed returned status {resp.status}"
-                        )
+                        logger.debug(f"Ollama batch embed returned status {resp.status}")
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.debug(f"Ollama batch embed unavailable: {e}")
@@ -1196,9 +1235,7 @@ class LanceDBClient:
         await self._init_vectorizer()
 
         if self._vectorizer is None:
-            raise RuntimeError(
-                "Vectorizer not available. Neither Ollama nor sentence-transformers is working."
-            )
+            raise RuntimeError("Vectorizer not available. Neither Ollama nor sentence-transformers is working.")
 
         vec_result = await self._vectorizer.vectorize_text(text)
         return vec_result.vector
@@ -1254,11 +1291,7 @@ class LanceDBClient:
             nodes = self._read_canvas_nodes(canvas_path)
 
         # 过滤出有文本内容的text类型节点
-        text_nodes = [
-            node
-            for node in nodes
-            if node.get("type") == "text" and node.get("text", "").strip()
-        ]
+        text_nodes = [node for node in nodes if node.get("type") == "text" and node.get("text", "").strip()]
 
         if not text_nodes:
             if LOGURU_ENABLED:
@@ -1368,20 +1401,9 @@ class LanceDBClient:
 
         # Phase A T1.1 (2026-05-09): glob bug 修复 — 用 fnmatch 处理 *-explanations
         # 之前 `d not in skip_dirs` 精确匹配，glob 永不命中 → 41 个 explanations 全进库
-        skip_files = [
-            # 工具/工程文档（非用户学习内容）
-            "CLAUDE.md",
-            "管道设计.md",
-            "Dashboard.md",
-            "未命名*.md",
-            "Untitled*.md",
-            "2111.md",  # 测试残留
-            "*.excalidraw.md",  # 手绘图 md 包装
-            # Phase A T1.1 followup (2026-05-09): 补测试 + UAT 残留
-            "TestConcept*.md",
-            "UAT-*.md",
-            "*-test.md",
-        ]
+        # RAG-S1 (2026-08-03): 收敛到模块级 DEFAULT_VAULT_SKIP_FILES, 与
+        # index_single_file 共用 (此前单文件路径无文件名黑名单)。
+        skip_files = list(DEFAULT_VAULT_SKIP_FILES)
 
         def _is_skipped_dir(name: str) -> bool:
             return any(fnmatch.fnmatch(name, pat) for pat in skip_dirs)
@@ -1407,23 +1429,19 @@ class LanceDBClient:
         # Story 2.7 AC-1: Fingerprint-based change detection
         if force_rebuild:
             # Force: treat all files as new
-            new_files_rel = [
-                os.path.relpath(fp, vault_path).replace("\\", "/") for fp in md_files
-            ]
+            new_files_rel = [os.path.relpath(fp, vault_path).replace("\\", "/") for fp in md_files]
             changed_files_rel: List[str] = []
-            deleted_files_rel: List[str] = []
+            # RAG-S1 F3 (2026-08-03): force_rebuild 也必须检测 deleted —
+            # 旧逻辑写死 [] 使已删文件的指纹与 chunks 在强制重建后永久残留
+            # (指纹表单调增长)。
+            _, _, deleted_files_rel = self._get_changed_files(vault_path, md_files)
             files_to_index = md_files
         else:
-            new_files_rel, changed_files_rel, deleted_files_rel = (
-                self._get_changed_files(vault_path, md_files)
-            )
+            new_files_rel, changed_files_rel, deleted_files_rel = self._get_changed_files(vault_path, md_files)
             # Build abs paths for files that need indexing
             files_to_index_rel = set(new_files_rel) | set(changed_files_rel)
             files_to_index = [
-                fp
-                for fp in md_files
-                if os.path.relpath(fp, vault_path).replace("\\", "/")
-                in files_to_index_rel
+                fp for fp in md_files if os.path.relpath(fp, vault_path).replace("\\", "/") in files_to_index_rel
             ]
 
         skipped = total_scanned - len(files_to_index) - len(deleted_files_rel)
@@ -1472,11 +1490,14 @@ class LanceDBClient:
                 continue
 
             rel_path = os.path.relpath(md_file, vault_path).replace("\\", "/")
-            chunks = self._split_md_by_heading(
-                content, rel_path, max_tokens, overlap_tokens
-            )
+            chunks = self._split_md_by_heading(content, rel_path, max_tokens, overlap_tokens)
 
             if not chunks:
+                # RAG-S1 (2026-08-03): 空产出也登记指纹 (与单文件路径同修) —
+                # 否则每轮增量扫描都把这些文件重判 new。
+                self._delete_file_chunks(table_name, rel_path)
+                empty_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+                self._update_fingerprint(rel_path, empty_hash, 0)
                 continue
 
             # Batch vectorize chunks for this file (Ollama GPU → CPU fallback)
@@ -1490,9 +1511,7 @@ class LanceDBClient:
             else:
                 if self._vectorizer is None:
                     if LOGURU_ENABLED:
-                        logger.error(
-                            f"Both Ollama and CPU vectorizer unavailable, skipping {rel_path}"
-                        )
+                        logger.error(f"Both Ollama and CPU vectorizer unavailable, skipping {rel_path}")
                     continue
                 try:
                     vectorized = await self._vectorizer.batch_vectorize(texts)
@@ -1511,9 +1530,7 @@ class LanceDBClient:
                 # RAG-P0 A1: doc_type — frontmatter.type wins; video_transcript
                 # path overrides only when frontmatter has no explicit type.
                 fm_doc_type = chunk.get("doc_type", "note") or "note"
-                if fm_doc_type == "note" and LanceDBClient._is_video_transcript(
-                    chunk["file_path"]
-                ):
+                if fm_doc_type == "note" and LanceDBClient._is_video_transcript(chunk["file_path"]):
                     final_doc_type = "video_transcript"
                 else:
                     final_doc_type = fm_doc_type
@@ -1527,9 +1544,7 @@ class LanceDBClient:
                     "source": "vault_note",
                     "subject": subject,
                     "source_type": (
-                        "video_transcript"
-                        if LanceDBClient._is_video_transcript(chunk["file_path"])
-                        else "note"
+                        "video_transcript" if LanceDBClient._is_video_transcript(chunk["file_path"]) else "note"
                     ),
                     # Story 2.8: Frontmatter metadata
                     "course": chunk.get("course", ""),
@@ -1540,9 +1555,7 @@ class LanceDBClient:
                 }
 
                 if LanceDBClient._is_video_transcript(chunk["file_path"]):
-                    ts_info = LanceDBClient._extract_timestamps_from_section(
-                        chunk.get("heading", ""), chunk["content"]
-                    )
+                    ts_info = LanceDBClient._extract_timestamps_from_section(chunk.get("heading", ""), chunk["content"])
                     metadata.update(ts_info)
 
                 doc = {
@@ -1573,6 +1586,18 @@ class LanceDBClient:
             # Insert new chunks
             chunk_count = await self.add_documents(table_name, documents)
             total_chunks_indexed += chunk_count
+
+            # RAG-S1 Code-Review H2: short write -> skip fingerprint so the
+            # next incremental pass retries this file (log, don't abort the
+            # whole scan).
+            if chunk_count != len(documents):
+                if LOGURU_ENABLED:
+                    logger.error(
+                        f"[INDEX] add_documents wrote {chunk_count}/"
+                        f"{len(documents)} for {rel_path}; fingerprint NOT "
+                        "updated — will retry next pass"
+                    )
+                continue
 
             # Update fingerprint — use in-memory content to avoid TOCTOU race
             # (file may have changed on disk between read and hash)
@@ -1615,6 +1640,11 @@ class LanceDBClient:
         table_name: str = "vault_notes",
         subject: str = "",
         vault_path: Optional[str] = None,
+        max_tokens: int = 512,
+        overlap_tokens: int = 50,
+        rebuild_fts: bool = True,
+        known_fingerprints: Optional[Dict[str, str]] = None,
+        skip_dirs: Optional[List[str]] = None,
     ) -> int:
         """
         Story 2.7: Index a single .md file with delete-before-insert dedup + fingerprint.
@@ -1622,12 +1652,27 @@ class LanceDBClient:
         Story 2.7 AC-7: Uses os.path.relpath(file_path, vault_path) to preserve
         full directory structure (fixes CRITICAL C8 path loss).
 
+        RAG-S1 (2026-08-03) drift fixes vs index_vault_notes:
+        - max_tokens/overlap_tokens now caller-controlled (was fixed at 512
+          while the full-scan path used 500 — same file chunked differently)
+        - Ollama GPU batch embedding first, CPU vectorizer as fallback
+          (was CPU-only: containers without the CPU model indexed nothing)
+        - filename blacklist DEFAULT_VAULT_SKIP_FILES applied (was dir-only)
+        - rebuild_fts=False lets batch callers rebuild FTS once per batch
+          instead of once per file (full-table rebuild each time)
+        - known_fingerprints lets batch callers prefetch the fingerprint map
+          once instead of a full table scan per file (F4)
+
         Args:
             file_path: Absolute path to the .md file.
             table_name: Target table name.
             subject: Optional subject tag.
             vault_path: Vault root directory for computing relative path.
                         If None, falls back to parent directory of file_path.
+            max_tokens: Chunk size in tokens (keep in sync with full-scan caller).
+            overlap_tokens: Token overlap between chunks.
+            rebuild_fts: Rebuild the FTS index after this file (batch callers: False).
+            known_fingerprints: Prefetched fingerprint map to avoid per-file scans.
 
         Returns:
             Number of chunks indexed.
@@ -1648,8 +1693,9 @@ class LanceDBClient:
                 logger.error(f"Failed to read file for indexing: {e}")
             return 0
 
-        if not content.strip():
-            return 0
+        # RAG-S1 (2026-08-03): 空内容不再提前 return — 必须走到下方的
+        # 空产出登记分支写指纹, 否则 reconcile 每轮重判 new (live 实测
+        # 6 文件永动循环)。
 
         # Story 2.7 AC-7: Use relpath to preserve directory structure
         if vault_path:
@@ -1668,50 +1714,83 @@ class LanceDBClient:
 
         # R3 修复 (2026-07-12 对抗审查): 单文件路径落黑名单 — 旧状态零检查,
         # /index/vault/incremental 可把 检验白板/ 考题直接送入库 (真机验证过
-        # 被接受), 信息隔离黑名单被单文件端点旁路。与全量路径同源
-        # DEFAULT_VAULT_SKIP_DIRS, 按路径段 fnmatch。
+        # 被接受), 信息隔离黑名单被单文件端点旁路。与全量路径同源。
+        # RAG-S1 Code-Review M4 (2026-08-03): skip_dirs 由调用方传 settings
+        # 权威值 (orchestrator/端点), 模块常量仅作无参兜底 — 否则 env 放宽
+        # 黑名单时 orchestrator 放行、本函数拒绝且不写指纹, 形成 60s 永动。
         import fnmatch as _fnmatch
 
+        effective_skip_dirs = skip_dirs if skip_dirs is not None else list(DEFAULT_VAULT_SKIP_DIRS)
         for part in rel_path.split("/")[:-1]:
-            if any(_fnmatch.fnmatch(part, pat) for pat in DEFAULT_VAULT_SKIP_DIRS):
+            if any(_fnmatch.fnmatch(part, pat) for pat in effective_skip_dirs):
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        f"[INDEX] blacklisted dir in path, refuse single-file index: {rel_path}"
-                    )
+                    logger.warning(f"[INDEX] blacklisted dir in path, refuse single-file index: {rel_path}")
                 return 0
+
+        # RAG-S1 (2026-08-03): filename blacklist — 与全量路径同源
+        # DEFAULT_VAULT_SKIP_FILES (此前单文件路径只有目录黑名单,
+        # CLAUDE.md / UAT-*.md 可经增量端点入库)。
+        base_name = os.path.basename(rel_path)
+        if any(_fnmatch.fnmatch(base_name, pat) for pat in DEFAULT_VAULT_SKIP_FILES):
+            if LOGURU_ENABLED:
+                logger.warning(f"[INDEX] blacklisted filename, refuse single-file index: {rel_path}")
+            return 0
 
         # Check fingerprint — skip if unchanged
         # H1 fix: Compute hash from in-memory content (already read above)
         # to avoid TOCTOU race where file changes between read and hash.
+        # RAG-S1 F4: batch callers pass known_fingerprints to avoid one full
+        # fingerprint-table scan per file.
         content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        stored_fps = self._get_all_fingerprints()
+        stored_fps = known_fingerprints if known_fingerprints is not None else self._get_all_fingerprints()
         if rel_path in stored_fps and stored_fps[rel_path] == content_hash:
             if LOGURU_ENABLED:
                 logger.debug(f"[INDEX] Skipping unchanged file: {rel_path}")
             return 0
 
-        chunks = self._split_md_by_heading(content, rel_path)
+        chunks = self._split_md_by_heading(content, rel_path, max_tokens, overlap_tokens) if content.strip() else []
 
         if not chunks:
-            return 0
-
-        # Initialize vectorizer
-        await self._init_vectorizer()
-        if not self._vectorizer:
+            # RAG-S1 (2026-08-03): 空产出也必须登记指纹 — 否则这些文件
+            # (空内容 / whiteboard 剥样板后无正文 / 纯媒体引用) 每轮
+            # reconcile 都被重判 new, 永动循环 (live 实测 6 文件 * 60s)。
+            # 同时清旧行: 内容变空的文件必须停止可检索。
+            self._delete_file_chunks(table_name, rel_path)
+            self._update_fingerprint(rel_path, content_hash, 0)
             if LOGURU_ENABLED:
-                logger.error("Vectorizer not available, cannot index single file")
+                logger.debug(f"[INDEX] No indexable chunks for {rel_path}; fingerprint recorded (0 chunks)")
             return 0
 
-        # Batch vectorize
+        # RAG-S1 (2026-08-03): Ollama GPU batch first, CPU vectorizer fallback —
+        # 与全量路径 (index_vault_notes) 对齐。此前单文件只走 CPU vectorizer,
+        # 容器内 CPU 模型缺席时增量索引恒 0。
         texts = [c["content"] for c in chunks]
-        vectorized = await self._vectorizer.batch_vectorize(texts)
+        ollama_vectors = await self._ollama_embed_batch(texts)
+        if ollama_vectors is not None:
+            from types import SimpleNamespace
+
+            vectorized = [SimpleNamespace(vector=v) for v in ollama_vectors]
+        else:
+            await self._init_vectorizer()
+            if not self._vectorizer:
+                # RAG-S1 Code-Review H1 (2026-08-03): RAISE, never return 0 —
+                # a silent 0 here is counted as success by the orchestrator
+                # (fingerprint unwritten -> re-enqueued as NEW next pass ->
+                # freshness stays green while ZERO rows are written; the
+                # "22-day frozen index" failure mode reborn). Raising routes
+                # the failure into attempts/backoff + failed_entries telemetry.
+                raise RuntimeError(
+                    f"embedding unavailable for {rel_path}: Ollama batch and "
+                    "CPU vectorizer both down — refusing silent zero-write"
+                )
+            vectorized = await self._vectorizer.batch_vectorize(texts)
 
         if len(vectorized) != len(chunks):
-            if LOGURU_ENABLED:
-                logger.error(
-                    f"Vectorization mismatch: {len(chunks)} chunks vs {len(vectorized)} vectors"
-                )
-            return 0
+            # RAG-S1 Code-Review H1: same reasoning — mismatch is an infra
+            # failure, not an empty file.
+            raise RuntimeError(
+                f"vectorization mismatch for {rel_path}: {len(chunks)} chunks vs {len(vectorized)} vectors"
+            )
 
         # Build documents
         documents = []
@@ -1725,9 +1804,7 @@ class LanceDBClient:
 
             # RAG-P0 A1: doc_type — frontmatter.type wins over path heuristic
             fm_doc_type_2 = chunk.get("doc_type", "note") or "note"
-            if fm_doc_type_2 == "note" and LanceDBClient._is_video_transcript(
-                file_path
-            ):
+            if fm_doc_type_2 == "note" and LanceDBClient._is_video_transcript(file_path):
                 final_doc_type_2 = "video_transcript"
             else:
                 final_doc_type_2 = fm_doc_type_2
@@ -1740,11 +1817,7 @@ class LanceDBClient:
                 "line_end": chunk.get("line_end", 0),
                 "source": "vault_note",
                 "subject": subject,
-                "source_type": (
-                    "video_transcript"
-                    if LanceDBClient._is_video_transcript(file_path)
-                    else "note"
-                ),
+                "source_type": ("video_transcript" if LanceDBClient._is_video_transcript(file_path) else "note"),
                 # Story 2.8: Frontmatter metadata
                 "course": chunk.get("course", ""),
                 "tags_str": chunk.get("tags_str", ""),
@@ -1754,9 +1827,7 @@ class LanceDBClient:
             }
 
             if LanceDBClient._is_video_transcript(file_path):
-                ts_info = LanceDBClient._extract_timestamps_from_section(
-                    chunk.get("heading", ""), chunk["content"]
-                )
+                ts_info = LanceDBClient._extract_timestamps_from_section(chunk.get("heading", ""), chunk["content"])
                 metadata.update(ts_info)
 
             doc = {
@@ -1786,16 +1857,28 @@ class LanceDBClient:
 
         count = await self.add_documents(table_name, documents)
 
+        # RAG-S1 Code-Review H2 (2026-08-03): fingerprint is the SOLE basis of
+        # reconcile convergence — writing it after a failed/short add would
+        # mark the file "indexed" while its rows are gone (old rows already
+        # deleted above), losing the content silently until the next edit.
+        # add_documents swallows exceptions into 0 — the count guard is the
+        # only place this failure is visible.
+        if count != len(documents):
+            raise RuntimeError(
+                f"add_documents wrote {count}/{len(documents)} chunks for "
+                f"{rel_path}; fingerprint NOT updated — entry will be retried"
+            )
+
         # Update fingerprint
         self._update_fingerprint(rel_path, content_hash, count)
 
-        # Rebuild FTS index
-        self._rebuild_fts_index(table_name)
+        # Rebuild FTS index — batch callers pass rebuild_fts=False and rebuild
+        # once per batch (per-file rebuild is a full-table operation).
+        if rebuild_fts:
+            self._rebuild_fts_index(table_name)
 
         if LOGURU_ENABLED:
-            logger.info(
-                f"[INDEX] Indexed {count} chunks from {rel_path} (delete-before-insert)"
-            )
+            logger.info(f"[INDEX] Indexed {count} chunks from {rel_path} (delete-before-insert)")
 
         return count
 
@@ -1918,9 +2001,7 @@ class LanceDBClient:
                             continue
                         existing_doc_ids.add(doc_id)
                         orig_score = neighbor_doc.get("_distance", 0.5)
-                        decayed_distance = (
-                            orig_score / score_decay if score_decay > 0 else orig_score
-                        )
+                        decayed_distance = orig_score / score_decay if score_decay > 0 else orig_score
                         neighbor_doc["_distance"] = decayed_distance
                         neighbor_doc["_source_type"] = "neighbor_expansion"
                         neighbor_results.append(neighbor_doc)
@@ -1980,9 +2061,7 @@ class LanceDBClient:
                 if course not in course_tags:
                     course_tags[course] = set()
                 if tags_str:
-                    course_tags[course].update(
-                        t.strip() for t in tags_str.split(",") if t.strip()
-                    )
+                    course_tags[course].update(t.strip() for t in tags_str.split(",") if t.strip())
 
             current_tags = course_tags.get(current_course, set())
             if not current_tags:
@@ -2076,9 +2155,7 @@ class LanceDBClient:
 
         if len(all_results) >= min_results_threshold:
             if LOGURU_ENABLED:
-                logger.debug(
-                    f"[progressive] Stage 1 sufficient: {len(all_results)} results for course={course_id}"
-                )
+                logger.debug(f"[progressive] Stage 1 sufficient: {len(all_results)} results for course={course_id}")
             return all_results[:num_results]
 
         # Stage 2: Related courses via Tag Jaccard
@@ -2125,9 +2202,7 @@ class LanceDBClient:
             _tag_and_collect(stage3, scope=3)
 
             if LOGURU_ENABLED:
-                logger.debug(
-                    f"[progressive] Stage 3 done: {len(all_results)} results (category={category})"
-                )
+                logger.debug(f"[progressive] Stage 3 done: {len(all_results)} results (category={category})")
 
             if len(all_results) >= min_results_threshold:
                 return all_results[:num_results]
@@ -2145,9 +2220,7 @@ class LanceDBClient:
         _tag_and_collect(stage4, scope=4)
 
         if LOGURU_ENABLED:
-            logger.debug(
-                f"[progressive] Stage 4 done: {len(all_results)} total results"
-            )
+            logger.debug(f"[progressive] Stage 4 done: {len(all_results)} total results")
 
         return all_results[:num_results]
 
@@ -2210,18 +2283,14 @@ class LanceDBClient:
 
             try:
                 tokenized_query = _jieba_tokenize(query)
-                fq = table.search(tokenized_query, query_type="fts").limit(
-                    num_results * 2
-                )
+                fq = table.search(tokenized_query, query_type="fts").limit(num_results * 2)
                 fq = self._apply_where_clauses(fq, clauses)
                 fts_results = fq.to_list()
             except Exception:
                 pass
 
             if vector_results or fts_results:
-                all_raw = self._rrf_fuse(
-                    vector_results, fts_results, num_results, k=rrf_k
-                )
+                all_raw = self._rrf_fuse(vector_results, fts_results, num_results, k=rrf_k)
                 return self._convert_to_search_results(all_raw)
 
         # Fallback to vector search
@@ -2448,9 +2517,7 @@ class LanceDBClient:
         return "/videos/" in file_path.replace("\\", "/")
 
     @staticmethod
-    def _extract_timestamps_from_section(
-        heading: str, content: str
-    ) -> Dict[str, Optional[str]]:
+    def _extract_timestamps_from_section(heading: str, content: str) -> Dict[str, Optional[str]]:
         """
         Extract video timestamps from a section heading and content.
 
@@ -2471,9 +2538,7 @@ class LanceDBClient:
         }
 
         # Pattern 1: Range in heading [MM:SS]()-[MM:SS]()
-        range_match = re.search(
-            r"\[(\d{1,2}:\d{2})\]\(\)[—–-]\[(\d{1,2}:\d{2})\]\(\)", heading
-        )
+        range_match = re.search(r"\[(\d{1,2}:\d{2})\]\(\)[—–-]\[(\d{1,2}:\d{2})\]\(\)", heading)
         if range_match:
             result["timestamp_start"] = range_match.group(1)
             result["timestamp_end"] = range_match.group(2)
@@ -2684,9 +2749,7 @@ class LanceDBClient:
             clauses.append(f"course = '{self._escape_sql(course_id)}'")
         if tags:
             # Story 2-8 H4: Use _escape_like for LIKE patterns to escape % and _
-            tag_conditions = " OR ".join(
-                f"tags_str LIKE '%{self._escape_like(tag)}%'" for tag in tags
-            )
+            tag_conditions = " OR ".join(f"tags_str LIKE '%{self._escape_like(tag)}%'" for tag in tags)
             clauses.append(f"({tag_conditions})")
         # RAG-P0 A2: doc_type include/exclude. Pre-A1 rows lack the column;
         # we use IS NULL fallback so legacy data degrades to "treat as note"
@@ -2762,11 +2825,7 @@ class LanceDBClient:
                 if col not in schema_columns:
                     missing_in_schema.append(col)
             if missing_in_schema:
-                filtered = [
-                    c
-                    for c in where_clauses
-                    if not any(col in c for col in missing_in_schema)
-                ]
+                filtered = [c for c in where_clauses if not any(col in c for col in missing_in_schema)]
                 if len(filtered) < len(where_clauses) and LOGURU_ENABLED:
                     logger.debug(
                         f"[schema-guard] table '{table_name}' missing columns "
@@ -2807,36 +2866,26 @@ class LanceDBClient:
             try:
                 tokenized_query = _jieba_tokenize(query)
                 if LOGURU_ENABLED:
-                    logger.debug(
-                        f"[search] FTS jieba tokenized: '{query[:40]}' -> '{tokenized_query[:60]}'"
-                    )
-                fq = table.search(tokenized_query, query_type="fts").limit(
-                    num_results * 2
-                )
+                    logger.debug(f"[search] FTS jieba tokenized: '{query[:40]}' -> '{tokenized_query[:60]}'")
+                fq = table.search(tokenized_query, query_type="fts").limit(num_results * 2)
                 fq = self._apply_where_clauses(fq, where_clauses)
                 fts_results = fq.to_list()
             except Exception as e:
                 # FTS unavailable (no index yet, no content_tokenized column, etc.)
                 # Hybrid degrades to Dense-only — still returns results via vector branch
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        f"[search] FTS branch unavailable, degrading to Dense-only: {e}"
-                    )
+                    logger.warning(f"[search] FTS branch unavailable, degrading to Dense-only: {e}")
 
             # Story 2.4 AC-4: RRF fusion with single-path degradation
             # When only one branch has results, RRF still works correctly
             # (single-source ranking = original rank order)
             if vector_results or fts_results:
-                all_raw = self._rrf_fuse(
-                    vector_results, fts_results, num_results, k=rrf_k
-                )
+                all_raw = self._rrf_fuse(vector_results, fts_results, num_results, k=rrf_k)
                 return self._convert_to_search_results(all_raw, canvas_file=canvas_file)
 
             # Both hybrid branches returned nothing — degrade to pure vector
             if LOGURU_ENABLED:
-                logger.warning(
-                    "[search] Both hybrid branches empty, degrading to vector"
-                )
+                logger.warning("[search] Both hybrid branches empty, degrading to vector")
 
         # Pure vector search (fallback or explicit query_type="vector")
         query_vector = await self._get_query_vector(query)
@@ -2890,9 +2939,7 @@ class LanceDBClient:
         except RuntimeError:
             # Vectorizer not available - return None instead of random vector
             if LOGURU_ENABLED:
-                logger.warning(
-                    "Vectorizer not available. Install sentence-transformers."
-                )
+                logger.warning("Vectorizer not available. Install sentence-transformers.")
             return None
         except Exception as e:
             if LOGURU_ENABLED:
@@ -2974,9 +3021,7 @@ class LanceDBClient:
 
         for i, item in enumerate(raw_results):
             # 提取内容
-            content = (
-                item.get("content") or item.get("text") or item.get("document") or ""
-            )
+            content = item.get("content") or item.get("text") or item.get("document") or ""
 
             # 生成文档ID
             doc_id = item.get("doc_id") or item.get("id") or f"lancedb_{i}"
@@ -3046,9 +3091,7 @@ class LanceDBClient:
         """
         self._embedder = embedder
 
-    def _check_and_fix_dimension_mismatch(
-        self, table_name: str, new_vector_dim: int
-    ) -> bool:
+    def _check_and_fix_dimension_mismatch(self, table_name: str, new_vector_dim: int) -> bool:
         """
         Story 2.3 Task 6 + RAG-P0 A5 (2026-05-10): Detect schema drift and
         auto drop+recreate. Triggers on:
@@ -3104,8 +3147,7 @@ class LanceDBClient:
                 if doc_type_missing:
                     reasons.append("missing 'doc_type' column (pre-RAG-P0)")
                 logger.warning(
-                    f"[SCHEMA] Drift in '{table_name}': {', '.join(reasons)}. "
-                    f"Dropping table for recreation."
+                    f"[SCHEMA] Drift in '{table_name}': {', '.join(reasons)}. Dropping table for recreation."
                 )
 
             self._db.drop_table(table_name, ignore_missing=True)
@@ -3117,9 +3159,7 @@ class LanceDBClient:
                 logger.debug(f"[SCHEMA] Schema check failed for '{table_name}': {e}")
             return False
 
-    async def add_documents(
-        self, table_name: str, documents: List[Dict[str, Any]]
-    ) -> int:
+    async def add_documents(self, table_name: str, documents: List[Dict[str, Any]]) -> int:
         """
         添加文档到表
 
@@ -3140,11 +3180,7 @@ class LanceDBClient:
             for doc in documents:
                 # canvas_file: check top-level first (index_vault_notes),
                 # then metadata dict (legacy callers)
-                canvas_file = (
-                    doc.get("canvas_file")
-                    or doc.get("metadata", {}).get("canvas_file", "")
-                    or ""
-                )
+                canvas_file = doc.get("canvas_file") or doc.get("metadata", {}).get("canvas_file", "") or ""
 
                 content = doc.get("content", "")
                 lance_doc = {
@@ -3187,9 +3223,7 @@ class LanceDBClient:
                 elif "metadata" in doc:
                     import json
 
-                    lance_doc["metadata_json"] = json.dumps(
-                        doc["metadata"], ensure_ascii=False
-                    )
+                    lance_doc["metadata_json"] = json.dumps(doc["metadata"], ensure_ascii=False)
 
                 data.append(lance_doc)
 
@@ -3198,9 +3232,7 @@ class LanceDBClient:
             if data and table_name in self._db.table_names():
                 sample_vector = data[0].get("vector")
                 if sample_vector is not None:
-                    self._check_and_fix_dimension_mismatch(
-                        table_name, len(sample_vector)
-                    )
+                    self._check_and_fix_dimension_mismatch(table_name, len(sample_vector))
 
             # 检查表是否存在
             # T3 根治 (2026-07-10): 存在性用 table_names() 权威判断, 不再以
@@ -3284,9 +3316,7 @@ class LanceDBClient:
 
         return all_results
 
-    async def count_documents_by_canvas(
-        self, canvas_path: str, table_name: str = "canvas_nodes"
-    ) -> Dict[str, Any]:
+    async def count_documents_by_canvas(self, canvas_path: str, table_name: str = "canvas_nodes") -> Dict[str, Any]:
         """
         统计指定 Canvas 的已索引文档数量
 
@@ -3334,12 +3364,8 @@ class LanceDBClient:
             # 过滤匹配的文档
             if "canvas_file" in df.columns:
                 # 标准化 DataFrame 中的路径
-                df["canvas_file_normalized"] = df["canvas_file"].str.replace(
-                    "\\\\", "/", regex=False
-                )
-                df["canvas_file_normalized"] = df["canvas_file_normalized"].str.replace(
-                    "\\", "/", regex=False
-                )
+                df["canvas_file_normalized"] = df["canvas_file"].str.replace("\\\\", "/", regex=False)
+                df["canvas_file_normalized"] = df["canvas_file_normalized"].str.replace("\\", "/", regex=False)
 
                 # 使用 endswith 匹配
                 mask = df["canvas_file_normalized"].str.endswith(normalized_path)

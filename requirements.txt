@@ -75,6 +75,9 @@ fsrs>=6.0.0,<7.0.0          # FSRS-6算法 — Scheduler类(6.0重命名自FSRS�
 langgraph==1.1.10           # LangGraph - Stateful, multi-actor LLM applications (Trust Score: 9.0/10)
                             # ⛔ RAG-S0-2026-08-02: 锁死容器实测版本 1.1.10 防漂移
                             # (docker 直接 pip install -r 不消费 uv.lock; context= API 依赖此版本)
+watchfiles==1.1.1           # RAG-S1-2026-08-02: vault 文件事件加速 (orchestrator watcher)
+                            # 容器实测版本 (uvicorn[standard] 传递依赖转显式锁定);
+                            # 缺席时 orchestrator 优雅降级为纯周期扫描, SLO 不破
                             # ✅ Verified from @langgraph skill
                             # 用于StateGraph构建、并行检索、质量控制循环
 langgraph-runtime>=0.1.0    # LangGraph Runtime - Runtime configuration and execution (Trust Score: 9.0/10)

@@ -60,8 +60,7 @@ def _resolve_vault_group_id(
         )
     elif legacy_group_id and legacy_group_id.strip():
         logger.warning(
-            "Wave-5 Stage B: metadata endpoint vault_id missing, "
-            "falling back to deprecated group_id=%s",
+            "Wave-5 Stage B: metadata endpoint vault_id missing, falling back to deprecated group_id=%s",
             legacy_group_id,
         )
         derived = canonical_group_id(legacy_group_id)
@@ -77,9 +76,7 @@ def _resolve_vault_group_id(
             "falling back to ACTIVE vault '%s' (G-DEFAULT fix 2026-07-10)",
             fallback_vid,
         )
-        derived = build_vault_group_id(
-            fallback_vid, subject_id=subject_id, canvas_path=canvas_path
-        )
+        derived = build_vault_group_id(fallback_vid, subject_id=subject_id, canvas_path=canvas_path)
 
     set_current_subject_id(derived)
     return derived
@@ -157,9 +154,7 @@ async def get_canvas_metadata(
         description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 元数据混淆.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
     resolver: SubjectResolver = Depends(get_resolver),
 ) -> CanvasMetadataResponse:
     """
@@ -219,9 +214,7 @@ async def get_canvas_metadata(
     operation_id="get_canvas_index_status",
 )
 async def get_canvas_index_status(
-    canvas_path: str = Query(
-        ..., description="Canvas file path", example="Math 54/离散数学.canvas"
-    ),
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
     table_name: str = Query(default="canvas_nodes", description="LanceDB table name"),
     vault_id: Optional[str] = Query(
         default=None,
@@ -229,9 +222,7 @@ async def get_canvas_index_status(
         description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防 LanceDB 索引串库.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
     resolver: SubjectResolver = Depends(get_resolver),
 ) -> CanvasIndexStatusResponse:
     """
@@ -290,9 +281,7 @@ async def get_canvas_index_status(
         # 问题：之前使用 search(query="") 导致向量化失败，始终返回空结果
         # 解决：使用 pandas WHERE 子句直接查询，不依赖向量搜索
         try:
-            doc_info = await lancedb_client.count_documents_by_canvas(
-                canvas_path=canvas_path, table_name=table_name
-            )
+            doc_info = await lancedb_client.count_documents_by_canvas(canvas_path=canvas_path, table_name=table_name)
 
             if doc_info["count"] > 0:
                 return CanvasIndexStatusResponse(
@@ -439,10 +428,7 @@ async def index_canvas(
 
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        logger.info(
-            f"Indexed Canvas {request.canvas_path}: "
-            f"{node_count} nodes, {duration_ms:.2f}ms"
-        )
+        logger.info(f"Indexed Canvas {request.canvas_path}: {node_count} nodes, {duration_ms:.2f}ms")
 
         return CanvasIndexResponse(
             canvas_path=request.canvas_path,
@@ -513,9 +499,7 @@ async def batch_index_canvas(
             )
 
             # Index
-            result = await index_canvas(
-                request=individual_request, settings=settings, resolver=resolver
-            )
+            result = await index_canvas(request=individual_request, settings=settings, resolver=resolver)
 
             results.append(result)
 
@@ -568,9 +552,7 @@ async def index_vault_notes(
         description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 让 vault notes 索引 vault scoped.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """
     Scan all .md files in the vault and index them to LanceDB vault_notes table.
@@ -591,9 +573,7 @@ async def index_vault_notes(
     start_time = time.perf_counter()
 
     # Wave-5 Stage B — vault_id ContextVar 注入(缺省回退当前激活 vault,见 _resolve_vault_group_id)
-    effective_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    effective_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
 
     try:
         lancedb_client = get_lancedb_client()
@@ -625,28 +605,13 @@ async def index_vault_notes(
                     stale_table,
                 )
             except Exception as drop_err:
-                logger.warning(
-                    "force_rebuild: drop stale table failed (continuing): %s", drop_err
-                )
+                logger.warning("force_rebuild: drop stale table failed (continuing): %s", drop_err)
 
         vault_path = settings.canvas_base_path
-        skip_dirs_str = getattr(
-            settings,
-            "VAULT_INDEX_SKIP_DIRS",
-            # Phase A T1.1 (2026-05-09): GPT DR 推荐 + 用户实测污染清单的完整黑名单
-            # - .claude/.claudian: Skill / Claudian 工具文档（用户实测 3 SKILL.md 进库噪音）
-            # - _bmad-output/archive/templates: 开发文档/归档/模板（非学习内容）
-            # - outputs: 验收/导出物
-            # - *-explanations: AI 生成解释（fnmatch glob，需配合 lancedb_client.py:1251 fix）
-            # - Excalidraw/_misc: 手绘图/杂项 junk
-            # - 检验白板/验收单: 信息隔离铁律——考题绝不能经 RAG 回流进学习对话
-            #   (检验白板 v1 审计 A5-7, 2026-07-10)
-            ".obsidian,.git,.trash,node_modules,"
-            ".claude,.claudian,_bmad-output,archive,templates,"
-            "outputs,*-explanations,Excalidraw,_misc,"
-            "检验白板,验收单",
-        )
-        skip_dirs = [d.strip() for d in skip_dirs_str.split(",")]
+        # RAG-S1 (2026-08-03): settings.VAULT_INDEX_SKIP_DIRS 是黑名单唯一权威源
+        # (config.py)。此前 getattr 的第三参数是一份永远不会被使用的死拷贝
+        # (pydantic 字段总存在)——三份拷贝漂移风险, 已删。
+        skip_dirs = [d.strip() for d in settings.VAULT_INDEX_SKIP_DIRS.split(",")]
         chunk_size = getattr(settings, "VAULT_INDEX_CHUNK_SIZE", 500)
         chunk_overlap = getattr(settings, "VAULT_INDEX_OVERLAP", 50)
 
@@ -664,9 +629,7 @@ async def index_vault_notes(
 
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        logger.info(
-            f"Vault indexing complete: {chunk_count} chunks, {duration_ms:.2f}ms"
-        )
+        logger.info(f"Vault indexing complete: {chunk_count} chunks, {duration_ms:.2f}ms")
 
         return {
             "success": True,
@@ -698,13 +661,17 @@ async def vault_index_status(
         description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 让 status 查询 vault scoped.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """Check the status of vault note indexing in LanceDB.
 
     Wave-5 Stage B (2026-05-12) — vault_id 推荐必填.
+    RAG-S1 (2026-08-03):
+    - 修复裸表名 bug: 此前查 _tables_cache["vault_notes"] (裸 key + 缓存句柄),
+      对前缀表 vault (canvas_vault_vault_notes, 3604 行) 永远报 indexed:false。
+      改走 resolve_table_name + 每次 open_table (T3 stale-handle 纪律)。
+    - 新增 freshness 遥测: last_index_at / pending_depth / lag_seconds / stale
+      (orchestrator 关闭时如实报 freshness=None, 不伪造)。
     """
     # Wave-5 Stage B — vault_id ContextVar 注入
     _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
@@ -716,23 +683,38 @@ async def vault_index_status(
             return {"indexed": False, "message": "LanceDB client not available"}
 
         if not lancedb_client._initialized:
-            await lancedb_client.initialize()
+            # RAG-S1: read-only status query — connect only. Full initialize()
+            # loads CPU embedding weights (~9.5s measured PER REQUEST since
+            # get_lancedb_client() builds a fresh instance every call).
+            lancedb_client.connect_lightweight()
 
-        # Check if vault_notes table exists and get count
-        if "vault_notes" in lancedb_client._tables_cache:
-            table = lancedb_client._tables_cache["vault_notes"]
-            count = len(table.to_pandas()) if hasattr(table, "to_pandas") else 0
+        from app.services.vault_index_orchestrator import (
+            get_vault_index_orchestrator,
+        )
+
+        orch = get_vault_index_orchestrator()
+        freshness = orch.freshness() if orch is not None else None
+
+        resolved_table = lancedb_client.resolve_table_name("vault_notes")
+        existing_tables = lancedb_client._db.table_names() if lancedb_client._db is not None else []
+        if resolved_table in existing_tables:
+            table = lancedb_client._db.open_table(resolved_table)
+            count = table.count_rows()
             return {
                 "indexed": True,
                 "chunk_count": count,
-                "table_name": "vault_notes",
+                "table_name": resolved_table,
+                "freshness": freshness,
+                "orchestrator_enabled": orch is not None,
             }
-        else:
-            return {
-                "indexed": False,
-                "chunk_count": 0,
-                "message": "vault_notes table not found. Call POST /index/vault first.",
-            }
+        return {
+            "indexed": False,
+            "chunk_count": 0,
+            "table_name": resolved_table,
+            "freshness": freshness,
+            "orchestrator_enabled": orch is not None,
+            "message": f"table '{resolved_table}' not found. Call POST /index/vault first.",
+        }
 
     except Exception as e:
         return {"indexed": False, "message": str(e)}
@@ -753,6 +735,11 @@ async def index_vault_incremental(
     Much faster than full rebuild — only processes the specified files.
     Designed to be called by the Obsidian plugin when files are modified.
 
+    ⚠️ RAG-S1 Code-Review M6 (2026-08-03): 本端点与 orchestrator worker 是
+    两个并发写者 (delete-before-insert 交错可产生双份 chunk)。首选入口是
+    POST /api/v1/index/refresh-changed (enqueue 进 orchestrator 串行 worker)。
+    本端点保留作同步兜底, 阶段 2 收编或退役。
+
     Request body: { "file_paths": ["path/to/note.md", ...], "vault_id": "<vault>", "subject_id": "..." }
     file_paths are relative to the vault root.
 
@@ -763,7 +750,10 @@ async def index_vault_incremental(
     file_paths = request.get("file_paths", [])
 
     # Wave-5 Stage B — vault_id ContextVar 注入 (dict body 内)
-    _resolve_vault_group_id(
+    # RAG-S1 (2026-08-03): 捕获返回值传给 index_single_file 的 subject —
+    # 此前增量写入的行 subject=""、全量行 subject="vault:<vid>", 两批数据
+    # 不一致, 任何按 subject 过滤的检索都会漏掉增量 chunk。
+    effective_group_id = _resolve_vault_group_id(
         request.get("vault_id"),
         subject_id=request.get("subject_id"),
         legacy_group_id=request.get("group_id"),
@@ -796,9 +786,15 @@ async def index_vault_incremental(
         total_chunks = 0
         files_ok = 0
 
-        for rel_path in file_paths:
-            import os
+        # RAG-S1 (2026-08-03): 与全量路径同源的 chunk 参数 + 指纹预取 (F4) +
+        # FTS 批尾重建一次 (此前每文件全表重建一次)。
+        chunk_size = getattr(settings, "VAULT_INDEX_CHUNK_SIZE", 500)
+        chunk_overlap = getattr(settings, "VAULT_INDEX_OVERLAP", 50)
+        prefetched_fps = lancedb_client._get_all_fingerprints()
 
+        import os
+
+        for rel_path in file_paths:
             abs_path = os.path.join(vault_path, rel_path)
             if not os.path.isfile(abs_path):
                 logger.warning(f"Incremental index: file not found: {abs_path}")
@@ -806,15 +802,22 @@ async def index_vault_incremental(
             count = await lancedb_client.index_single_file(
                 file_path=abs_path,
                 table_name="vault_notes",
+                subject=effective_group_id,
                 vault_path=vault_path,
+                max_tokens=chunk_size,
+                overlap_tokens=chunk_overlap,
+                rebuild_fts=False,
+                known_fingerprints=prefetched_fps,
             )
             total_chunks += count
             files_ok += 1
 
+        if total_chunks > 0:
+            lancedb_client._rebuild_fts_index(lancedb_client.resolve_table_name("vault_notes"))
+
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
-            f"Incremental vault index: {files_ok}/{len(file_paths)} files, "
-            f"{total_chunks} chunks, {duration_ms:.2f}ms"
+            f"Incremental vault index: {files_ok}/{len(file_paths)} files, {total_chunks} chunks, {duration_ms:.2f}ms"
         )
 
         return {
