@@ -41,9 +41,33 @@ EMBEDDING_MODELS: Dict[str, int] = {
     "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": 384,  # [deprecated] multilingual
 }
 
+
+def _resolve_lancedb_db_path() -> str:
+    """
+    RAG-S0-2026-08-02 (阶段 0 止血): resolve the LanceDB data directory.
+
+    Canonical env var is LANCEDB_DATA_PATH (what docker-compose sets).
+    LANCEDB_PATH is kept as a legacy fallback only — the old code read ONLY
+    LANCEDB_PATH, which compose never set, so the pipeline silently connected
+    to an empty directory for 3 months (P0-B root cause).
+
+    Fail fast when both are set to different values: a silent winner would
+    reintroduce the empty-directory failure mode.
+    """
+    canonical = os.environ.get("LANCEDB_DATA_PATH")
+    legacy = os.environ.get("LANCEDB_PATH")
+    if canonical and legacy and canonical != legacy:
+        raise RuntimeError(
+            f"Conflicting LanceDB paths: LANCEDB_DATA_PATH={canonical!r} vs "
+            f"LANCEDB_PATH={legacy!r}. LANCEDB_DATA_PATH is canonical — unset "
+            "the deprecated LANCEDB_PATH or make both values identical."
+        )
+    return canonical or legacy or "data/lancedb"
+
+
 # ✅ Story 23.2 AC 4: 向量维度和模型可配置
 LANCEDB_CONFIG: Dict[str, Any] = {
-    "db_path": os.environ.get("LANCEDB_PATH", "data/lancedb"),
+    "db_path": _resolve_lancedb_db_path(),
     "table_name": os.environ.get("LANCEDB_TABLE", "canvas_nodes"),
     "embedding_model": os.environ.get("LANCEDB_EMBEDDING_MODEL", "BAAI/bge-m3"),
     "embedding_dim": int(os.environ.get("LANCEDB_EMBEDDING_DIM", "1024")),
@@ -304,9 +328,7 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
 
         if not valid:
             default_val = DEFAULT_CONFIG.get(param)
-            _cfg_logger.warning(
-                f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}"
-            )
+            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
             validated[param] = default_val
 
     # --- Enum rules ---
@@ -323,9 +345,7 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         value = validated[param]
         if not isinstance(value, str) or value not in allowed:
             default_val = DEFAULT_CONFIG.get(param)
-            _cfg_logger.warning(
-                f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}"
-            )
+            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
             validated[param] = default_val
 
     # --- Boolean rules ---
@@ -345,9 +365,7 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         value = validated[param]
         if not isinstance(value, bool):
             default_val = DEFAULT_CONFIG.get(param)
-            _cfg_logger.warning(
-                f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}"
-            )
+            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
             validated[param] = default_val
 
     # --- String rules (model names must be non-empty strings) ---
@@ -367,9 +385,7 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         value = validated[param]
         if not isinstance(value, str) or not value.strip():
             default_val = DEFAULT_CONFIG.get(param)
-            _cfg_logger.warning(
-                f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}"
-            )
+            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
             validated[param] = default_val
 
     # --- Dict rules: fusion_groups and source_weights ---
@@ -387,9 +403,7 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
                     valid_fg = False
                     break
         if not valid_fg:
-            _cfg_logger.warning(
-                f"[CONFIG-WARN] Invalid fusion_groups: {fg}, using default"
-            )
+            _cfg_logger.warning(f"[CONFIG-WARN] Invalid fusion_groups: {fg}, using default")
             validated["fusion_groups"] = DEFAULT_CONFIG.get("fusion_groups")
 
     if "source_weights" in validated:
@@ -406,9 +420,7 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
                     valid_sw = False
                     break
         if not valid_sw:
-            _cfg_logger.warning(
-                f"[CONFIG-WARN] Invalid source_weights: {sw}, using default"
-            )
+            _cfg_logger.warning(f"[CONFIG-WARN] Invalid source_weights: {sw}, using default")
             validated["source_weights"] = DEFAULT_CONFIG.get("source_weights")
 
     # Cross-field: adaptive_k_max >= adaptive_k_min
@@ -466,9 +478,7 @@ def load_config_from_file(file_path: Optional[str] = None) -> Optional[Dict[str,
         _cfg_logger.info(f"[CONFIG] Loaded config from {file_path} ({len(data)} keys)")
         return data
     except ImportError:
-        _cfg_logger.warning(
-            "[CONFIG] pyyaml not installed, cannot load YAML config file"
-        )
+        _cfg_logger.warning("[CONFIG] pyyaml not installed, cannot load YAML config file")
         return None
     except Exception as e:
         _cfg_logger.warning(f"[CONFIG] Failed to load config file {file_path}: {e}")

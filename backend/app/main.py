@@ -96,6 +96,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         None: Control returns to the application during runtime.
     """
     # Startup
+    # RAG-S0-2026-08-02: LanceDB env split-brain guard — deliberately UNGUARDED.
+    # agentic_rag/__init__.py and rag_service.py swallow the resolver's
+    # RuntimeError into AGENTIC_RAG_AVAILABLE=False (silent degradation, the
+    # exact failure mode stage 0 is killing). Calling it here makes a
+    # LANCEDB_DATA_PATH vs LANCEDB_PATH conflict abort startup for real.
+    from agentic_rag.config import _resolve_lancedb_db_path
+
+    _resolve_lancedb_db_path()
+
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}")
     logger.info(f"Debug mode: {settings.DEBUG}")
     logger.info(f"Log level: {settings.LOG_LEVEL}")
@@ -171,16 +180,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         lancedb_idx_svc = get_lancedb_index_service()
         if lancedb_idx_svc:
-            idx_result = await lancedb_idx_svc.recover_pending(
-                settings.canvas_base_path
-            )
+            idx_result = await lancedb_idx_svc.recover_pending(settings.canvas_base_path)
             recovered = idx_result.get("recovered", 0)
             pending = idx_result.get("pending", 0)
             if recovered > 0 or pending > 0:
-                logger.info(
-                    f"[Story 38.1] LanceDB index recovery: "
-                    f"{recovered} recovered, {pending} still pending"
-                )
+                logger.info(f"[Story 38.1] LanceDB index recovery: {recovered} recovered, {pending} still pending")
             else:
                 logger.info("[Story 38.1] No pending LanceDB index operations")
     except Exception as e:
@@ -214,9 +218,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info(f"[Story 5.7] EventBus recovered {recovered} outbox events")
         logger.info("[Story 5.7] EventBus handlers registered")
     except Exception as e:
-        logger.warning(
-            f"[Story 5.7] EventBus handler registration failed (non-fatal): {e}"
-        )
+        logger.warning(f"[Story 5.7] EventBus handler registration failed (non-fatal): {e}")
 
     # ✅ Story 5.6: Register signal adapters for mastery fusion engine
     try:
@@ -246,9 +248,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         mastery_engine.set_fusion_engine(fusion_engine)
 
         # Store in app state AND set as global singleton for DI
-        set_mastery_engine(
-            mastery_engine
-        )  # All get_mastery_engine() calls now return this instance
+        set_mastery_engine(mastery_engine)  # All get_mastery_engine() calls now return this instance
         app.state.mastery_engine = mastery_engine
         app.state.signal_registry = signal_registry
         app.state.fusion_engine = fusion_engine
@@ -257,9 +257,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             f"{signal_registry.signal_count} adapters, fusion engine attached"
         )
     except Exception as e:
-        logger.warning(
-            f"[Story 5.6] Signal adapter registration failed (non-fatal): {e}"
-        )
+        logger.warning(f"[Story 5.6] Signal adapter registration failed (non-fatal): {e}")
 
     # 批次0 0-1 (2026-07-22): local provider 宿主进程健康自检 — 显式告警替代静默失败
     try:
@@ -287,9 +285,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("[Phase 2] GraphitiEpisodeWorker started")
         else:
             app.state.episode_worker = episode_worker
-            logger.warning(
-                "[Phase 2] GraphitiEpisodeWorker in degraded mode (no graphiti client)"
-            )
+            logger.warning("[Phase 2] GraphitiEpisodeWorker in degraded mode (no graphiti client)")
     except Exception as e:
         app.state.episode_worker = None
         logger.warning(f"[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): {e}")
@@ -327,17 +323,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
             client = await _get_supp_lancedb_client(init_timeout=600.0)
             if client is not None:
-                logger.info(
-                    "[Story 2.2 Phase A] LanceDB singleton eager-init complete — supplementary search warm"
-                )
+                logger.info("[Story 2.2 Phase A] LanceDB singleton eager-init complete — supplementary search warm")
             else:
                 logger.warning(
                     "[Story 2.2 Phase A] LanceDB singleton eager-init returned None — supplementary will degrade per-request"
                 )
         except Exception as e:  # noqa: BLE001  background task 失败不影响主 service
-            logger.warning(
-                f"[Story 2.2 Phase A] LanceDB singleton eager-init exception (non-fatal): {e}"
-            )
+            logger.warning(f"[Story 2.2 Phase A] LanceDB singleton eager-init exception (non-fatal): {e}")
 
     asyncio.create_task(_eager_init_lancedb_singleton())
     logger.info("[Story 2.2 Phase A] LanceDB singleton background init dispatched")
@@ -356,9 +348,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         rel_svc = get_canvas_projection_sync()
         # T2 (2026-07-10): 显式传当前 vault group — CanvasNode/CANVAS_EDGE
         # 落 vault:<vault_id> (与下方 vault_backfill 同源), 多 vault 不串
-        rel_result = await rel_svc.sync(
-            settings.canvas_base_path, group_id=_build_gid(_get_vid())
-        )
+        rel_result = await rel_svc.sync(settings.canvas_base_path, group_id=_build_gid(_get_vid()))
         logger.info(
             f"[Fix-E1] 节点原因边同步: "
             f"{rel_result['nodes_with_relationships']} nodes, "
@@ -398,6 +388,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("[Graphiti-native] 启动回填跳过 (graphiti 未就绪)")
     except Exception as e:
         logger.warning(f"[Graphiti-native] 启动回填 failed (non-fatal): {e}")
+
+    # RAG-S0-2026-08-02: 预热 search_notes fast-path 单例（bge-m3 权重加载 ~7.4s）。
+    # fire-and-forget——预热失败不挡启动，首个真实查询会自行重试初始化。
+    async def _warm_fast_search_client() -> None:
+        try:
+            from app.mcp.tools.note_search_tools import _get_fast_client
+
+            await _get_fast_client()
+            logger.info("[RAG-S0] search_notes fast-path client warmed")
+        except Exception as warm_exc:
+            logger.warning(f"[RAG-S0] fast-path warmup failed (non-fatal): {warm_exc}")
+
+    # Keep a strong reference — the event loop only holds weak refs to tasks,
+    # so an unreferenced warmup task can be garbage-collected mid-flight.
+    app.state.rag_s0_warmup_task = asyncio.create_task(_warm_fast_search_client())
 
     yield  # Application runs here
 
@@ -550,8 +555,7 @@ class EncodingValidationMiddleware(BaseHTTPMiddleware):
                 except UnicodeDecodeError as e:
                     # [Source: ADR-010] - 日志不使用 emoji，避免 Windows GBK 编码错误
                     logger.warning(
-                        f"[Story 12.J.3] Invalid UTF-8 encoding: "
-                        f"path={request.url.path}, position={e.start}"
+                        f"[Story 12.J.3] Invalid UTF-8 encoding: path={request.url.path}, position={e.start}"
                     )
                     # AC1: 返回 400 而非 500
                     # AC3: 包含 ENCODING_ERROR 类型
@@ -603,9 +607,7 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
             safe_params = {}
             for key, value in query_params.items():
                 if isinstance(value, str):
-                    safe_params[key] = value.encode("utf-8", errors="replace").decode(
-                        "utf-8"
-                    )
+                    safe_params[key] = value.encode("utf-8", errors="replace").decode("utf-8")
                 else:
                     safe_params[key] = value
             return {
@@ -655,9 +657,7 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
                 error_message = repr(e)
 
             # 确保消息可以安全编码为 JSON
-            safe_message = error_message.encode("utf-8", errors="replace").decode(
-                "utf-8"
-            )
+            safe_message = error_message.encode("utf-8", errors="replace").decode("utf-8")
 
             # ✅ Story 21.5.3 AC-1, AC-2: 生成 bug_id 并记录到 bug_log.jsonl
             # [Source: docs/stories/21.5.3.story.md]
@@ -681,9 +681,7 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={
                     "code": 500,  # Required by JSON Schema
-                    "message": safe_message[
-                        :500
-                    ],  # ✅ Story 12.J.5: 限制长度为 500 字符
+                    "message": safe_message[:500],  # ✅ Story 12.J.5: 限制长度为 500 字符
                     "error_type": type(e).__name__,  # Extension field
                     "bug_id": bug_id,  # ✅ Story 21.5.5 AC-1: 返回 bug_id
                 },

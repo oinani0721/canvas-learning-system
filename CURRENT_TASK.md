@@ -2,7 +2,15 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**（2026-07-31 · 二轮对抗审查 P0 安全收口一二批落地 `7f63f6a3`+P0-3）:
+**当前状态**（2026-08-02 · RAG 九阶段路线已批准，阶段 0 止血代码全落地 · 待用户 mini-UAT · PLAN `RAG-S0-2026-08-02`）:
+- ⛔ **用户已批准九阶段 RAG 修复路线**（0→1→1.5→2→2.5→2.6→3→4→4.5），阶段 0 已 ship→用户验收→阶段 1
+- ✅ **阶段 0 全落地**: search_notes fast path 转正（**31s→0.12s 稳态, 重启首查 0.18s 预热兜底**; LangGraph 退默认链, `RAG_EXTENDED_MODE` 门控留阶段 4 shadow）+ 废 quality 假信号（execution_mode + source_status）+ langgraph==1.1.10 + LANCEDB_DATA_PATH 收口 fail-fast（上岗当天抓到 backend/.env 陈年 LANCEDB_PATH 冲突已清）+ 9 项契约测试; regression 220 passed; [Code-Review] 独立审查 0C/1H/3M/7L→HIGH+MEDIUM 全修+LOW 修 5 挂 2（LOW-6 传递依赖连坐锁、INFO import 权重→阶段 4）
+- 📋 **用户 mini-UAT（1 分钟）**: `_bmad-output/验收单/Story-RAG-S0-阶段0止血-mini-UAT.md` — Claudian 问笔记问题，几秒内出引用不再卡半分钟
+- 📄 决策链（勿重新推导）: `_bmad-output/审查/2026-08-02-RAG检索设计对抗性审查-三问三答.md` → `…ChatGPT-RAG三P0审查吸收与验证.md` → `…ChatGPT-规模化结构检索终审-吸收与验证.md` → `_bmad-output/研究/2026-08-02-RAG修复计划-用户审阅版.md`
+- 🔒 已定裁决: 6 源管道退役出默认链（阶段 4 shadow 定生死）; quality=low 假信号废除; ~~path_map~~/~~configurable~~ 已证伪（正解 async router + `context=`, 属阶段 4）; 三平面架构=frontmatter 唯一可写真相源 / Neo4j 确定性投影 / Graphiti 时间记忆
+- ⏭ 阶段 0 后: 阶段 1 索引重写（开工前重读 ChatGPT 第一轮 §四）; 明早 9:05 Bark 推送有机验证勾 `Story-DAILY-REVIEW-PUSH` mini-UAT
+
+**上一状态**（2026-07-31 · 二轮对抗审查 P0 安全收口一二批落地 `7f63f6a3`+P0-3）:
 - ✅ **P0-0 端口收口**（四端口绑 127.0.0.1, LAN 拒绝）; **P0-2 MCP 写侧隔离**（19→5 只读, 14 隔离 410+遥测, 31 契约）; **P0-3 去 global vault switch**: /vault/switch 410 隔离（逃生=改 .env ACTIVE_VAULT+compose up, 审查抓出 CANVAS_BASE_PATH 文案错误已修）+ 插件 CTA/下拉下架改只读 + enrich-hook cwd→vault 推导（段名 NFC 匹配, 多命中回退）+ tips 写侧 vault_id 必填 + deploy-vault skill 死端点清理。两轮独立审查 APPROVE-WITH-FIXES 全修
 - 📄 审查链: `_bmad-output/审查/2026-07-30-全系统功能状态对抗性审查-三分类报告.md` → `2026-07-31-ChatGPT第二轮对抗审查吸收与代码验证.md`
 - ✅ **08-01 launchd 五腿全活**（`6de130d4`）: TCC 根因=plist 须显式 /bin/bash + python3.14 单独 FDA（用户已加 3 条 FDA; brew upgrade python 后 python 条目要重加）; memory-health/neo4j-backup（断 9 天后新 dump）/qwen/reranker/daily-review 全 exit 0; P0-6 恢复演练 ✅（118 节点/214 关系完整）
