@@ -526,3 +526,52 @@ def test_e5_path_traversal_excluded(orch):
     # normpath 后合法的仍放行
     assert orch.enqueue("upsert", "节点/./a.md") == "accepted"
     assert "节点/a.md" in orch._pending
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 组 G — 观测层加固锁 (2026-08-09 假停摆误诊事后修正)
+# 背景: UTC 时间戳被按本地时间解读, 制造了一次不存在的「7 小时停摆」误诊。
+# 教训固化: 相对时间量 + 逐 task 状态 + scan 死亡独立维度 + 黑名单可观测。
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _utcnow_for_test():
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc)
+
+
+def test_g1_freshness_reports_relative_ages_and_task_states(orch):
+    """OBS-1/2: 逐 task 状态 + 时区免疫的相对秒数必须存在。"""
+    f = orch.freshness()
+    for key in (
+        "tasks",
+        "seconds_since_last_reconcile",
+        "seconds_since_last_index",
+        "scan_overdue",
+        "excluded_count",
+    ):
+        assert key in f
+    assert isinstance(f["tasks"], dict)
+
+
+def test_g2_dead_scan_loop_flags_stale_despite_empty_pending(orch):
+    """OBS-3: scan loop 死亡时 pending 恒空 → lag 恒 0 —— 旧 stale 判定
+    永远不亮。scan_overdue 维度必须独立把 stale 拉红。"""
+    from datetime import timedelta
+
+    orch._last_reconcile_at = _utcnow_for_test() - timedelta(seconds=orch._scan_interval * 10)
+    f = orch.freshness()
+    assert f["pending_depth"] == 0
+    assert f["lag_seconds"] == 0.0
+    assert f["scan_overdue"] is True
+    assert f["stale"] is True, "loop 死亡必须可被 stale 表达"
+
+
+def test_g3_blacklist_exclusion_observability_hooks_exist(orch):
+    """OBS-4: 黑名单排除不再绝对静默 — 遥测字段 + watcher 计数属性锁定。
+    (Obsidian 默认文件名 未命名.md/Untitled.md 命中 DEFAULT_VAULT_SKIP_FILES,
+    用户最自然的测试动作曾零痕迹消失。)"""
+    assert orch.enqueue("upsert", "节点/未命名.md") == "excluded"
+    assert hasattr(orch, "_excluded_count") and hasattr(orch, "_excluded_logged")
+    assert "excluded_count" in orch.freshness()

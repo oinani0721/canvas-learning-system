@@ -107,6 +107,8 @@ class VaultIndexOrchestrator:
         self._last_index_at: Optional[datetime] = None
         self._last_reconcile_at: Optional[datetime] = None
         self._force_fts_once = False  # M5: set by recover(), cleared on rebuild
+        self._excluded_count = 0  # OBS-4: blacklist exclusions since start
+        self._excluded_logged: set = set()  # rate-limit: one log per path
 
         from app.config import settings
 
@@ -536,6 +538,23 @@ class VaultIndexOrchestrator:
     # freshness telemetry
     # ------------------------------------------------------------------
 
+    def _task_states(self) -> Dict[str, str]:
+        """OBS-1 (2026-08-09): per-task liveness — `any(not done)` could not
+        tell WHICH loop died (two dead tasks still reported running=True)."""
+        states: Dict[str, str] = {}
+        for t in self._tasks:
+            name = t.get_name()
+            if not t.done():
+                states[name] = "alive"
+                continue
+            try:
+                exc = t.exception()
+            except asyncio.CancelledError:
+                states[name] = "cancelled"
+                continue
+            states[name] = f"error:{type(exc).__name__}" if exc else "done"
+        return states
+
     def freshness(self) -> Dict[str, Any]:
         now = _utcnow()
         oldest: Optional[datetime] = None
@@ -550,16 +569,36 @@ class VaultIndexOrchestrator:
                 oldest = ts
         lag_seconds = (now - oldest).total_seconds() if oldest else 0.0
         failed = sum(1 for e in self._pending.values() if e.state == "failed")
+
+        # OBS-2 (2026-08-09): RELATIVE ages alongside absolute timestamps.
+        # Absolute UTC timestamps caused a real misdiagnosis: an operator
+        # (me) read them as local time and "computed" a 7-hour stall that
+        # never happened. Relative seconds are timezone-proof.
+        since_reconcile = (now - self._last_reconcile_at).total_seconds() if self._last_reconcile_at else None
+        since_index = (now - self._last_index_at).total_seconds() if self._last_index_at else None
+        # OBS-3: a dead scan loop keeps pending empty forever (nobody
+        # enqueues) so pending-lag alone can NEVER flag it — "loop death"
+        # needs its own staleness dimension.
+        scan_overdue = since_reconcile is not None and since_reconcile > 3 * self._scan_interval
+        task_states = self._task_states()
         return {
             # Code-Review M2: "enabled" (config flag) is not "running" —
             # a startup failure must not present green freshness telemetry.
             "worker_running": bool(self._tasks) and any(not t.done() for t in self._tasks),
+            "tasks": task_states,
             "last_index_at": (self._last_index_at.isoformat() if self._last_index_at else None),
             "last_reconcile_at": (self._last_reconcile_at.isoformat() if self._last_reconcile_at else None),
+            "seconds_since_last_reconcile": (round(since_reconcile, 1) if since_reconcile is not None else None),
+            "seconds_since_last_index": (round(since_index, 1) if since_index is not None else None),
+            "scan_overdue": scan_overdue,
             "pending_depth": len(self._pending),
             "failed_entries": failed,
+            # OBS-4: blacklist exclusions were absolutely silent — a user's
+            # most natural test (new note with Obsidian's default "未命名"
+            # name) vanished without a trace.
+            "excluded_count": self._excluded_count,
             "lag_seconds": round(lag_seconds, 1),
-            "stale": lag_seconds > self._stale_after,
+            "stale": lag_seconds > self._stale_after or scan_overdue,
         }
 
     # ------------------------------------------------------------------
@@ -592,7 +631,17 @@ class VaultIndexOrchestrator:
                     if change == Change.deleted:
                         self.enqueue("delete", rel, reset_backoff=True)
                     else:  # added | modified
-                        self.enqueue("upsert", rel, reset_backoff=True)
+                        status = self.enqueue("upsert", rel, reset_backoff=True)
+                        # OBS-4 (2026-08-09): blacklist exclusion must leave a
+                        # trace — a brand-new note named 未命名.md/Untitled.md
+                        # hits DEFAULT_VAULT_SKIP_FILES and used to vanish in
+                        # absolute silence (live-confirmed user confusion).
+                        # Rate-limited: one log per path per process.
+                        if status == "excluded":
+                            self._excluded_count += 1
+                            if rel not in self._excluded_logged:
+                                self._excluded_logged.add(rel)
+                                logger.warning(f"[RAG-S1] file save EXCLUDED from index (blacklist): {rel}")
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -617,6 +666,23 @@ class VaultIndexOrchestrator:
     # lifecycle
     # ------------------------------------------------------------------
 
+    def _on_task_done(self, task: "asyncio.Task") -> None:
+        """OBS-5 (2026-08-09): loud death. Because self._tasks holds strong
+        refs, Python's "Task exception was never retrieved" would only fire
+        at GC — i.e. NEVER while the process lives. Without this callback a
+        loop can die in absolute silence."""
+        if self._stopping:
+            return
+        try:
+            exc: Any = task.exception()
+        except asyncio.CancelledError:
+            exc = "cancelled"
+        logger.critical(
+            f"[RAG-S1] task {task.get_name()} exited unexpectedly "
+            f"(exception={exc!r}) — index freshness degraded; check "
+            "freshness.tasks via the vault index status endpoint"
+        )
+
     def start(self) -> None:
         """Spawn worker + watcher + scan loop. Caller (lifespan) must keep a
         strong reference to this orchestrator (tasks are referenced here)."""
@@ -628,6 +694,8 @@ class VaultIndexOrchestrator:
             asyncio.create_task(self._watch_loop(), name="rag-s1-watcher"),
             asyncio.create_task(self._scan_loop(), name="rag-s1-scan"),
         ]
+        for task in self._tasks:
+            task.add_done_callback(self._on_task_done)
         logger.info(
             f"[RAG-S1] orchestrator started: vault={self.vault_path} "
             f"scan_interval={self._scan_interval}s stale_after={self._stale_after}s"
