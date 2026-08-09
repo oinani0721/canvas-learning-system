@@ -60,15 +60,13 @@ def _load_prompt_template(prompt_name: str, default_text: str) -> str:
         if content and content.strip():
             return content
         logger.warning(
-            "[Story 2.13] PromptRegistry returned empty content for '%s', "
-            "using inline fallback",
+            "[Story 2.13] PromptRegistry returned empty content for '%s', using inline fallback",
             prompt_name,
         )
         return default_text
     except Exception as e:
         logger.warning(
-            "[Story 2.13] Failed to load prompt '%s' via PromptRegistry: %s. "
-            "Using inline fallback.",
+            "[Story 2.13] Failed to load prompt '%s' via PromptRegistry: %s. Using inline fallback.",
             prompt_name,
             e,
         )
@@ -127,9 +125,7 @@ async def analyze_intent(state: AgentRAGState) -> dict:
     intent_template = _load_prompt_template("search_intent", _INTENT_FALLBACK)
 
     # Replace placeholders with actual values
-    pre_context_display = (
-        pre_context[:500] + "..." if pre_context else "（无预加载上下文）"
-    )
+    pre_context_display = pre_context[:500] + "..." if pre_context else "（无预加载上下文）"
     analysis_prompt = intent_template.replace("{{user_prompt}}", user_prompt).replace(
         "{{pre_context}}", pre_context_display
     )
@@ -158,8 +154,7 @@ async def analyze_intent(state: AgentRAGState) -> dict:
         queries = analysis.get("search_queries", [])
 
         logger.info(
-            f"[Phase3] Intent: {intent}, needs_search={needs_search}, "
-            f"has_request={has_request}, queries={queries}"
+            f"[Phase3] Intent: {intent}, needs_search={needs_search}, has_request={has_request}, queries={queries}"
         )
 
         return {
@@ -208,15 +203,14 @@ async def retrieve(state: AgentRAGState) -> dict:
                     query=query,
                     table_name="vault_notes",
                     num_results=5,
+                    # RAG-S2 T6 (HARD-ISO 纵深): flag-gated 链
+                    # (ENABLE_AGENT_GRAPH) 拨真后不得成为题面泄漏通道
+                    exclude_doc_types=["whiteboard", "exam_board"],
                 )
                 all_results.extend(results)
-                logger.debug(
-                    f"[Phase3] LanceDB search '{query[:50]}' → {len(results)} results"
-                )
+                logger.debug(f"[Phase3] LanceDB search '{query[:50]}' → {len(results)} results")
             except Exception as e:
-                logger.warning(
-                    f"[Phase3] LanceDB search failed for '{query[:50]}': {e}"
-                )
+                logger.warning(f"[Phase3] LanceDB search failed for '{query[:50]}': {e}")
                 # Try fallback table
                 try:
                     results = await lancedb.search(
@@ -246,9 +240,7 @@ async def retrieve(state: AgentRAGState) -> dict:
                     num_results=3,
                 )
                 all_results.extend(results)
-                logger.debug(
-                    f"[Phase3] Graphiti search '{query[:50]}' → {len(results)} results"
-                )
+                logger.debug(f"[Phase3] Graphiti search '{query[:50]}' → {len(results)} results")
             except Exception as e:
                 logger.warning(f"[Phase3] Graphiti search failed: {e}")
 
@@ -301,10 +293,7 @@ async def grade_documents(state: AgentRAGState) -> dict:
         # Fallback: use score threshold
         relevant = [d for d in documents if d.get("score", 0) >= 0.5]
         return {
-            "document_grades": [
-                "relevant" if d.get("score", 0) >= 0.5 else "irrelevant"
-                for d in documents
-            ],
+            "document_grades": ["relevant" if d.get("score", 0) >= 0.5 else "irrelevant" for d in documents],
             "relevant_documents": relevant,
         }
 
@@ -359,13 +348,9 @@ async def grade_documents(state: AgentRAGState) -> dict:
             grades.append("irrelevant")
         grades = grades[: len(documents)]
 
-        relevant_docs = [
-            doc for doc, grade in zip(documents, grades) if grade == "relevant"
-        ]
+        relevant_docs = [doc for doc, grade in zip(documents, grades) if grade == "relevant"]
 
-        logger.info(
-            f"[Phase3] grade_documents: {len(relevant_docs)}/{len(documents)} relevant"
-        )
+        logger.info(f"[Phase3] grade_documents: {len(relevant_docs)}/{len(documents)} relevant")
 
         return {
             "document_grades": grades,
@@ -398,9 +383,7 @@ async def rewrite_query(state: AgentRAGState) -> dict:
     user_prompt = state.get("user_prompt", "")
     user_intent = state.get("user_intent", "")
 
-    logger.info(
-        f"[Phase3] rewrite_query: retry={retry_count}, original_queries={original_queries}"
-    )
+    logger.info(f"[Phase3] rewrite_query: retry={retry_count}, original_queries={original_queries}")
 
     from app.clients.gemini_client import get_gemini_client
 
@@ -408,10 +391,7 @@ async def rewrite_query(state: AgentRAGState) -> dict:
 
     if not client or not client.client:
         # Simple fallback rewrite
-        logger.warning(
-            "[Phase3] Gemini client unavailable for query rewrite, "
-            "using simple prefix fallback"
-        )
+        logger.warning("[Phase3] Gemini client unavailable for query rewrite, using simple prefix fallback")
         new_queries = [f"详细解释 {q}" for q in original_queries[:2]]
         return {
             "search_queries": new_queries,
@@ -493,8 +473,7 @@ async def generate_answer(state: AgentRAGState) -> dict:
     relevant_docs = state.get("relevant_documents", [])
 
     logger.info(
-        f"[Phase3] generate_answer: agent={agent_type}, "
-        f"docs={len(relevant_docs)}, pre_context_len={len(pre_context)}"
+        f"[Phase3] generate_answer: agent={agent_type}, docs={len(relevant_docs)}, pre_context_len={len(pre_context)}"
     )
 
     # Build enhanced context combining pre-fetched and LLM-retrieved
@@ -542,13 +521,9 @@ async def generate_answer(state: AgentRAGState) -> dict:
 
         citation_pattern = r"\[([^\]]+\.md[^\]]*)\]"
         found_citations = re.findall(citation_pattern, answer)
-        citations = [
-            {"source": c, "type": "inline_reference"} for c in found_citations[:10]
-        ]
+        citations = [{"source": c, "type": "inline_reference"} for c in found_citations[:10]]
 
-        logger.info(
-            f"[Phase3] Answer generated: len={len(answer)}, citations={len(citations)}"
-        )
+        logger.info(f"[Phase3] Answer generated: len={len(answer)}, citations={len(citations)}")
 
         return {
             "final_answer": answer,
@@ -599,8 +574,7 @@ def route_after_grading(
                 f"no relevant docs. Generating with available context."
             )
         logger.debug(
-            f"[Phase3] route_after_grading → generate_answer "
-            f"(relevant={len(relevant_docs)}, retry={retry_count})"
+            f"[Phase3] route_after_grading → generate_answer (relevant={len(relevant_docs)}, retry={retry_count})"
         )
         return "generate_answer"
 

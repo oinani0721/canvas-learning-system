@@ -304,12 +304,18 @@ async def search_supplementary(
     # 放宽池的 2× 超额在门/回落过滤后收口回 top_k_max (加权序截尾)
     materials = materials[:top_k_max]
 
-    # Elbow cut: 按 score gap 动态截断（不硬编码 top_k）— 加权序量纲不变
-    materials = _elbow_cut(
-        materials,
-        drop_threshold=elbow_drop_threshold,
-        hard_cap=hard_cap,
-    )
+    # ── Elbow cut: 悬崖在**交付面序列** (dedup+CE 门/回落抽稀之后) 上定 ──
+    # ⛔ T6 三轮金集 A/B 裁决 (2026-08-10, 勿无据翻案): 审查曾 CONFIRMED
+    # 「门抽稀后幸存者 gap 是被移除条目两侧 gap 的叠加 (telescoping), 非
+    # 语义悬崖, 会误砍 CE 已放行的材料」— 数学成立, 但两种"修复"都被金集
+    # 打回: 悬崖域移到全量序列 → 同文件重复 chunk 填平真悬崖, 转录尾巴全
+    # 放行 (交付污染 39.83→57.38% / FPR 6→8%); 移到 dedup 后门前 → 仍
+    # 48.25% / 8%。门后序列的 telescoping 截断在真实分布上是净正收益的
+    # 保守护栏 (+1.8pp 命中换不回 +8~17pp 污染), 交付面相邻落差本身就是
+    # 用户可见的列表质量信号。保留 T4 行为; 数据见 T6 契约锁
+    # test_gate_thinning_elbow_is_deliberate_t4_behavior。
+    elbow_floor = _elbow_score_floor(materials, drop_threshold=elbow_drop_threshold)
+    materials = [m for m in materials if m["score"] > elbow_floor][:hard_cap]
 
     # 内部字段收尾 (不进 XML/API 面)
     for m in materials:
@@ -711,27 +717,27 @@ def _is_link_list_chunk(content: str, threshold: float = 0.6) -> bool:
     return ratio > threshold
 
 
-def _elbow_cut(
+def _elbow_score_floor(
     materials: list[dict[str, Any]],
     drop_threshold: float = 0.05,
-    hard_cap: int = 15,
-) -> list[dict[str, Any]]:
-    """按相邻 score gap 动态截断（业界推荐做法 vs 硬编码 top_k）.
+) -> float:
+    """全量加权序列上的 elbow 悬崖分数线（业界推荐做法 vs 硬编码 top_k）.
 
     用户原话: "我没硬编码要多少材料，要把有用的材料都提供给我"
-    → 当相邻 score 差 > drop_threshold 视为"相关性悬崖"截断
-    → 即使 elbow 不触发，最多 hard_cap 条（保护 prompt 长度）
+    → 当相邻 score 差 > drop_threshold 视为"相关性悬崖"
+    → 返回悬崖下沿分数 s_cut: score <= s_cut 的条目应被截断; 无悬崖返回
+      -inf (全保留)。
+
+    RAG-S2 T6 (2026-08-10): 由旧 _elbow_cut(列表截断) 重写为分数线模式,
+    行为等价 (悬崖下沿之下截断 + 调用方 [:hard_cap] 收口)。作用域是
+    **交付面序列** (dedup+门抽稀之后) — 三轮金集 A/B 裁决保留 T4 行为,
+    理由与数据见 search_supplementary 调用点注释。
     """
-    if not materials:
-        return materials
-    # materials 已按 score 降序（apply_source_priority 之后）
-    cut_idx = len(materials)
     for i in range(1, len(materials)):
         gap = materials[i - 1]["score"] - materials[i]["score"]
         if gap > drop_threshold:
-            cut_idx = i
-            break
-    return materials[: min(cut_idx, hard_cap)]
+            return float(materials[i]["score"])
+    return float("-inf")
 
 
 # T4: taint 严重度序 — dedup 合并时幸存者继承组内最严 taint (fail-closed)
@@ -967,7 +973,12 @@ def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
     # rrf/fts 融合信号(区分双通道确认 vs dense-only, 此前 convert 层丢弃)。
     raw_score = raw.get("_raw_score")
     doc_type = metadata.get("doc_type", "") or raw.get("doc_type", "") or ""
-    fts_confirmed = bool(metadata.get("_rrf_score")) and not metadata.get("_fts_only")
+    # RAG-S2 T6 审查修复 (2026-08-10): 双通道确认改用 _fts_hit — 旧公式
+    # bool(_rrf_score) 名实颠倒: _rrf_score 写给所有融合行 (含 dense-only
+    # 甚至 FTS 分支整个挂掉的批次), dense-only 恒 True、真词法命中
+    # (FTS-only) 反而 False。现语义 = 出现在 FTS 通道 且 非 FTS-only
+    # (vector 亦命中) = 真·双通道确认。仍只做 confidence 遥测, 不进交付门。
+    fts_confirmed = bool(metadata.get("_fts_hit")) and not metadata.get("_fts_only")
 
     # 优先 metadata.canvas_file（新 schema），fallback 到顶层 canvas_file（老 schema / tier-2）
     canvas_file = metadata.get("canvas_file", "") or raw.get("canvas_file", "") or ""

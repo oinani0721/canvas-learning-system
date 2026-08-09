@@ -275,43 +275,47 @@ class TestFormatSupplementaryXmlRerankFields:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class TestElbowCutRelativeDrop:
-    """Phase A0-D: 用相对 drop ratio 替代绝对 0.05 阈值."""
+class TestElbowScoreFloor:
+    """Phase A0-D → RAG-S2 T6 改版: elbow 由列表截断改分数线模式 —
+    悬崖在 dedup/CE 门抽稀前的全量序列上定, 抽稀后按分数线过滤
+    (旧 _elbow_cut 对抽稀后列表算 gap 会 telescoping 误砍, T6 审查 HIGH)。"""
 
-    def test_empty_materials_returns_empty(self):
-        from app.services.supplementary_search_service import _elbow_cut
+    def test_empty_materials_no_floor(self):
+        from app.services.supplementary_search_service import _elbow_score_floor
 
-        assert _elbow_cut([]) == []
+        assert _elbow_score_floor([]) == float("-inf")
 
-    def test_uniform_scores_no_cut(self):
-        """所有 score 相同 → 不切断（hard_cap 兜底）."""
-        from app.services.supplementary_search_service import _elbow_cut
+    def test_uniform_scores_no_floor(self):
+        """所有 score 相同 → 无悬崖, 分数线 -inf (全保留, hard_cap 兜底)."""
+        from app.services.supplementary_search_service import _elbow_score_floor
 
         materials = [{"score": 0.5} for _ in range(5)]
-        result = _elbow_cut(materials, drop_threshold=0.30)
-        assert len(result) == 5  # 无 gap, hard_cap 兜底
+        assert _elbow_score_floor(materials, drop_threshold=0.30) == float("-inf")
 
-    def test_significant_drop_triggers_cut(self):
-        """rank N→N+1 score drop >= 30% → 切到 N."""
-        from app.services.supplementary_search_service import _elbow_cut
+    def test_significant_drop_sets_floor_at_cliff_bottom(self):
+        """gap > threshold → 分数线 = 悬崖下沿分数, score>floor 恰保留前 3 条."""
+        from app.services.supplementary_search_service import _elbow_score_floor
 
         materials = [
             {"score": 1.0},
             {"score": 0.9},
             {"score": 0.85},
-            {"score": 0.5},  # 相对 drop = (0.85-0.5)/0.85 = 41% > 30% → 切
+            {"score": 0.5},  # gap 0.35 > 0.30 → 悬崖, floor = 0.5
             {"score": 0.4},
         ]
-        result = _elbow_cut(materials, drop_threshold=0.30)
-        assert len(result) == 3  # 切到前 3 条 (rank 0/1/2)
+        floor = _elbow_score_floor(materials, drop_threshold=0.30)
+        assert floor == 0.5
+        assert [m for m in materials if m["score"] > floor] == materials[:3]
 
-    def test_hard_cap_enforced(self):
-        """hard_cap 限制最大返回数."""
-        from app.services.supplementary_search_service import _elbow_cut
+    def test_hard_cap_enforced_in_pipeline(self):
+        """hard_cap 收口已并入 search_supplementary 管道尾 ([:hard_cap]) —
+        无悬崖时 floor 不截, hard_cap 是唯一上限."""
+        from app.services.supplementary_search_service import _elbow_score_floor
 
         materials = [{"score": 0.5 - i * 0.001} for i in range(20)]  # 全 uniform
-        result = _elbow_cut(materials, drop_threshold=0.30, hard_cap=5)
-        assert len(result) == 5
+        floor = _elbow_score_floor(materials, drop_threshold=0.30)
+        kept = [m for m in materials if m["score"] > floor][:5]
+        assert len(kept) == 5
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

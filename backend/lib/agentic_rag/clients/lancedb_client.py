@@ -3022,7 +3022,11 @@ class LanceDBClient:
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.debug(f"Table {table_name} not found: {e}")
-            return []
+            # RAG-S2 T6 审查修复 (2026-08-10): 表打不开是基础设施故障不是
+            # 合法空 — raise 让 search() 外层 enable_fallback 门决定吞或抛
+            # (enable_fallback=True 调用方在外层照旧吞成 [], 行为不变;
+            # False 的调用方 [MCP fast/hook singleton] 得到诚实 error)。
+            raise RuntimeError(f"open_table('{table_name}') failed: {e}") from e
 
         # Story 2.4 AC-5 + RAG-P0 A2: Build pre-filter clauses
         where_clauses = self._build_where_filters(
@@ -3063,6 +3067,15 @@ class LanceDBClient:
         # Accumulator for raw results across branches
         all_raw: List[Dict[str, Any]] = list()
 
+        # RAG-S2 T6 审查修复 (2026-08-10): 分支异常收集 — 此前所有查询分支
+        # 异常都被就地吞成 [], 「全分支故障」与「查了但真没有」在返回值上
+        # 不可区分, enable_fallback=False 的诚实 error 契约被架空 (T5 HIGH-1
+        # 只锁住了 search() 外层)。规则: 最终结果为空 且 有分支异常 且 无
+        # 任何分支成功执行 (成功含合法空) → raise; 单分支失败但另一分支
+        # 成功的设计性降级保持不变。
+        branch_errors: List[str] = []
+        branch_ok = False
+
         # Hybrid search: manual vector + FTS with RRF fusion
         # We can't use table.search(query, query_type="hybrid") because the table
         # has no registered embedding function (vectors are pre-computed externally).
@@ -3079,9 +3092,13 @@ class LanceDBClient:
                     vq = table.search(query_vector).limit(num_results * 2)
                     vq = self._apply_where_clauses(vq, where_clauses)
                     vector_results = vq.to_list()
+                    branch_ok = True
                 except Exception as e:
+                    branch_errors.append(f"hybrid-vector: {str(e)[:80]}")
                     if LOGURU_ENABLED:
                         logger.debug(f"Hybrid vector branch failed: {e}")
+            else:
+                branch_errors.append("hybrid-vector: query embedding unavailable")
 
             # Story 2.4 AC-2: FTS with jieba-tokenized query on content_tokenized
             # Serves as sparse search substitute (LanceDB has no native sparse vector
@@ -3093,9 +3110,11 @@ class LanceDBClient:
                 fq = table.search(tokenized_query, query_type="fts").limit(num_results * 2)
                 fq = self._apply_where_clauses(fq, where_clauses)
                 fts_results = fq.to_list()
+                branch_ok = True
             except Exception as e:
                 # FTS unavailable (no index yet, no content_tokenized column, etc.)
                 # Hybrid degrades to Dense-only — still returns results via vector branch
+                branch_errors.append(f"hybrid-fts: {str(e)[:80]}")
                 if LOGURU_ENABLED:
                     logger.warning(f"[search] FTS branch unavailable, degrading to Dense-only: {e}")
 
@@ -3117,12 +3136,20 @@ class LanceDBClient:
                 search_query = table.search(query_vector).limit(num_results)
                 search_query = self._apply_where_clauses(search_query, where_clauses)
                 all_raw = search_query.to_list()
+                branch_ok = True
             except Exception as e:
+                branch_errors.append(f"vector: {str(e)[:80]}")
                 if LOGURU_ENABLED:
                     logger.error(f"LanceDB vector search failed: {e}")
         else:
+            branch_errors.append("vector: query embedding unavailable")
             if LOGURU_ENABLED:
                 logger.warning("[search] No query vector available")
+
+        # T6 审查修复: 全分支故障 → raise (由 search() 外层 enable_fallback
+        # 门决定吞或抛); 有任一分支成功执行过的空结果仍是合法空。
+        if not all_raw and branch_errors and not branch_ok:
+            raise RuntimeError("all search branches failed: " + " | ".join(branch_errors[:3]))
 
         return self._convert_to_search_results(all_raw, canvas_file=canvas_file)
 
@@ -3208,6 +3235,12 @@ class LanceDBClient:
                     fts_doc["_distance"] = 1.1
                 fts_doc["_fts_only"] = True
                 doc_map[doc_id] = fts_doc
+            # RAG-S2 T6 审查修复 (2026-08-10): 显式记录 FTS 通道成员资格 —
+            # 此前下游用 bool(_rrf_score) 当「双通道确认」, 但 _rrf_score 写给
+            # **所有**融合行 (含 dense-only), 名实颠倒: dense-only 恒 True、
+            # 真词法命中 (FTS-only) 反而 False。_fts_hit = 出现在 FTS 结果中;
+            # 双通道确认 = _fts_hit and not _fts_only (消费端组合)。
+            doc_map[doc_id]["_fts_hit"] = True
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:limit]
         results = []
         for doc_id, rrf_score in ranked:
@@ -3289,6 +3322,9 @@ class LanceDBClient:
                 # 「dense-only 命中」(confidence 最强的一维, 零成本透传)。
                 "_rrf_score",
                 "_fts_only",
+                # RAG-S2 T6: FTS 通道成员资格 (fts_confirmed 名实修复) —
+                # _rrf_score 不承载通道信息, 双通道判定改用 _fts_hit
+                "_fts_hit",
             ]:
                 if key in item:
                     metadata[key] = item[key]

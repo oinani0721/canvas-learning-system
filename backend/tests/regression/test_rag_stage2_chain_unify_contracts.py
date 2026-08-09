@@ -41,10 +41,11 @@ class _DummyClient:
 
 
 def _raw_row(path, raw_score, content="真实学习内容。" * 10, fts=False, doc_type="concept"):
-    metadata = {"canvas_file": path, "doc_type": doc_type}
+    metadata = {"canvas_file": path, "doc_type": doc_type, "_rrf_score": 0.032}
     if fts:
-        # fts_confirmed = bool(metadata._rrf_score) and not _fts_only
-        metadata["_rrf_score"] = 0.032
+        # T6 名实修复后: fts_confirmed = bool(_fts_hit) and not _fts_only
+        # (_rrf_score 恒在但不再承载通道信息 — 所有行都带它, 见 T6 契约锁)
+        metadata["_fts_hit"] = True
     return {
         "score": raw_score,
         "_raw_score": raw_score,

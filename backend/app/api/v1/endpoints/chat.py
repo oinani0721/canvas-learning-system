@@ -69,10 +69,22 @@ async def _init_supp_lancedb_singleton() -> Any:
     client = get_lancedb_client()
     if client is None:
         return None
+    # RAG-S2 T6 审查修复 (2026-08-10): hook/enrich 专属实例 (get_lancedb_client
+    # 每次调用新建, 本 singleton 不与索引端点共享) — 关掉 search() 异常吞噬,
+    # 让基础设施故障沿 _two_tier_search → search_supplementary(search_failed,
+    # degraded=True) 进降级标注, 而不是被吞成 [] → 假 empty_index (「检索
+    # 正常但无材料」反向误导, MCP 面 T5 已修 hook 面同姿势对齐)。
+    if hasattr(client, "enable_fallback"):
+        client.enable_fallback = False
     if hasattr(client, "_initialized") and not client._initialized:
-        await client.initialize()
+        ok = await client.initialize()
+        # T6: init 失败不缓存坏 client (与 MCP _get_fast_client 同契约) —
+        # 返回 None 让 hook 走 lancedb_unavailable 降级标注, 下次调用重试。
+        if not ok or getattr(client, "_db", None) is None:
+            logger.warning("[Story-2.2-PhaseA] LanceDBClient init 失败, 不缓存 (下次重试)")
+            return None
     _supp_lancedb_singleton = client
-    logger.info("[Story-2.2-PhaseA] LanceDBClient singleton 缓存就绪")
+    logger.info("[Story-2.2-PhaseA] LanceDBClient singleton 缓存就绪 (enable_fallback=False)")
     return client
 
 
@@ -818,11 +830,14 @@ def _empty_supp_context(result: dict[str, Any]) -> str:
     (那些是"本轮不该检索", 不是降级)。
     """
     supp_xml = format_supplementary_xml(result)
+    # T6 审查修复: 措辞不做「检索正常」的主动断言 — 检索层仍可能有未观测
+    # 的故障形态 (分支级降级等), 空结果只代表「未检测到降级信号」。
     note = (
         "Canvas Auto-RAG: 本轮 vault 检索无交付材料, 见下方标注。"
         'degraded="true" 表示检索链降级 (reason 给出原因); 无 degraded '
-        "表示检索正常但确无相关/过门材料。禁止凭空编造 vault 笔记引用; "
-        "需要材料时用 search_notes 工具或 Read 指定文件。\n"
+        "表示未检测到降级信号且无相关/过门材料 (不排除未观测的检索层故障)。"
+        "禁止凭空编造 vault 笔记引用; 下「vault 没有相关内容」的断言前, "
+        "先用 search_notes 工具或 Read 指定文件验证。\n"
     )
     return note + supp_xml
 
@@ -835,12 +850,15 @@ def _empty_supp_context(result: dict[str, Any]) -> str:
 async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
     """每次 Claudian 内用户提问时被 SDK 自动调，注入 supplementary 到 system context.
 
-    设计要点:
-    - 短 prompt (< 5 char) 跳过（避免 "hi" 之类无意义触发）
-    - LanceDB singleton 未 ready → 静默跳过 (不阻塞用户对话)
-    - 5s timeout 内 supplementary 拿不到 → 静默跳过
-    - 0 命中 → 不注入（保持对话简洁，避免 spam）
+    设计要点 (RAG-S2 T5/T6 降级可见改版):
+    - 短 prompt (< 5 char) / exam-skill 前缀 / 系统操作词 → 零注入
+      (「本轮不该检索」, 非降级)
+    - LanceDB singleton 未 ready / 5s timeout / 搜索异常 → 注入单行
+      degraded 标注 XML (reason=lancedb_unavailable/hook_timeout_5s/
+      search_failed), 不再静默空白
+    - 0 命中 → 注入单行标注 XML (reason 区分 CE 全杀 vs 真无材料)
     - 命中 N 条 → 注入 anchor instruction + supplementary XML
+      (根元素带 confidence 离散档)
     """
     user_prompt = (req.prompt or "").strip()
     if len(user_prompt) < 5:

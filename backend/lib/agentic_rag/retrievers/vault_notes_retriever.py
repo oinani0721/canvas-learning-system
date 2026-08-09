@@ -74,7 +74,12 @@ class VaultNotesRetrieverConfig:
     timeout_ms: int = 500
     vault_notes_table: str = "vault_notes"
     enable_cache: bool = True
-    default_exclude_doc_types: List[str] = field(default_factory=lambda: ["whiteboard"])
+    # RAG-S2 T6 审查修复 (2026-08-10, HARD-ISO): 此前只排 whiteboard 漏
+    # exam_board — 本 retriever 是 LangGraph 管道 retrieve_vault_notes 节点
+    # 的默认口径, 经无鉴权的 /api/v1/rag/query 与 agents.py 六处可达, 是
+    # live 泄漏通道 (T6 对抗审查实锤)。与 supplementary_search_service
+    # 查询侧排除表对齐; 未来出题链定向取材传显式 doc_type 即可 opt-in。
+    default_exclude_doc_types: List[str] = field(default_factory=lambda: ["whiteboard", "exam_board"])
 
 
 # ============================================================
@@ -175,9 +180,7 @@ class VaultNotesService:
             # config default (whiteboard) when caller didn't pass anything.
             # Pass exclude_doc_types=[] explicitly to opt OUT of filtering.
             effective_exclude = (
-                exclude_doc_types
-                if exclude_doc_types is not None
-                else list(self.config.default_exclude_doc_types)
+                exclude_doc_types if exclude_doc_types is not None else list(self.config.default_exclude_doc_types)
             )
 
             results = await asyncio.wait_for(
@@ -241,16 +244,12 @@ class VaultNotesService:
 
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
-                logger.warning(
-                    f"VaultNotesService.search timeout ({self.config.timeout_ms}ms)"
-                )
+                logger.warning(f"VaultNotesService.search timeout ({self.config.timeout_ms}ms)")
             return []
 
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.debug(
-                    f"Vault notes search failed (table may not exist yet): {e}"
-                )
+                logger.debug(f"Vault notes search failed (table may not exist yet): {e}")
             return []
 
 
@@ -269,9 +268,7 @@ async def _get_vault_notes_service() -> VaultNotesService:
             from agentic_rag.clients import LanceDBClient
             from agentic_rag.config import LANCEDB_CONFIG
 
-            lancedb_client = LanceDBClient(
-                db_path=LANCEDB_CONFIG["db_path"], timeout_ms=400, enable_fallback=True
-            )
+            lancedb_client = LanceDBClient(db_path=LANCEDB_CONFIG["db_path"], timeout_ms=400, enable_fallback=True)
             await lancedb_client.initialize()
 
             _vault_notes_service = VaultNotesService(lancedb_client)
@@ -284,9 +281,7 @@ async def _get_vault_notes_service() -> VaultNotesService:
     return _vault_notes_service
 
 
-async def vault_notes_retrieval_node(
-    state: Dict[str, Any], runtime: Optional[Any] = None
-) -> Dict[str, Any]:
+async def vault_notes_retrieval_node(state: Dict[str, Any], runtime: Optional[Any] = None) -> Dict[str, Any]:
     """
     LangGraph vault notes 检索节点
 
@@ -306,11 +301,7 @@ async def vault_notes_retrieval_node(
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        query = (
-            last_msg.get("content", "")
-            if isinstance(last_msg, dict)
-            else getattr(last_msg, "content", "")
-        )
+        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
     else:
         query = ""
 

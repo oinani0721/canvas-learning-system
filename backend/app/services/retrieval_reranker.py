@@ -144,8 +144,9 @@ def _split_windows(text: str) -> list[str]:
 async def score_documents(query: str, documents: list[str]) -> list[float] | None:
     """整批 MaxP 精排 — 返回与 documents 同序对齐的 sigmoid(logit) 分数列表。
 
-    每个文档切 ≤3 个 400 字窗口, 全部窗口一个请求送评,
-    文档分 = 其窗口最大分 (MaxP)。空文档得 0.0 (不占请求)。
+    每个文档截 _DOC_CHAR_LIMIT (2000) 字后切 ≤_MAX_WINDOWS (5) 个 400 字
+    窗口, 全部窗口一个请求送评, 文档分 = 其窗口最大分 (MaxP)。空文档得
+    0.0 (不占请求)。(T6 审查修复: 旧文 ≤3 窗口是 1200 字上限时代的残留)
 
     任何失败 (超时/连接/HTTP 状态/响应缺洞/熔断开路) → None,
     调用方据此整批回落原排序。绝不抛异常、绝不返回残缺列表。

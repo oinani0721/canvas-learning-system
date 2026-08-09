@@ -51,8 +51,7 @@ def _resolve_effective_group_id() -> str:
         "react_agent.group_id_fallback_to_default",
         fallback=DEFAULT_GROUP_ID,
         hint=(
-            "Wave-5 Stage B: ReAct agent caller should inject ContextVar "
-            "(set_current_subject_id) for vault isolation"
+            "Wave-5 Stage B: ReAct agent caller should inject ContextVar (set_current_subject_id) for vault isolation"
         ),
     )
     return DEFAULT_GROUP_ID
@@ -111,6 +110,9 @@ async def search_vault_notes(query: str, num_results: int = 8) -> str:
             table_name="vault_notes",
             num_results=num_results,
             query_type="hybrid",
+            # RAG-S2 T6 (HARD-ISO 纵深): 此前零排除 — flag-gated 链
+            # (ENABLE_REACT_AGENT) 拨真后不得成为题面泄漏通道
+            exclude_doc_types=["whiteboard", "exam_board"],
         )
     except (RuntimeError, ConnectionError, ValueError):
         # Fallback to vector-only if hybrid not available
@@ -119,6 +121,7 @@ async def search_vault_notes(query: str, num_results: int = 8) -> str:
                 query=query,
                 table_name="vault_notes",
                 num_results=num_results,
+                exclude_doc_types=["whiteboard", "exam_board"],
             )
         except (RuntimeError, ConnectionError, ValueError) as e2:
             return f"[Error] Search failed: {str(e2)[:200]}"
@@ -126,13 +129,11 @@ async def search_vault_notes(query: str, num_results: int = 8) -> str:
     if not results:
         # Fix B4: Check if table exists — empty results may mean table not indexed
         try:
-            table_exists = hasattr(
-                _lancedb_client, "table_exists"
-            ) and await _lancedb_client.table_exists("vault_notes")
+            table_exists = hasattr(_lancedb_client, "table_exists") and await _lancedb_client.table_exists(
+                "vault_notes"
+            )
             if not table_exists:
-                logger.warning(
-                    "[ReactAgent] vault_notes table not indexed. Run POST /api/v1/metadata/index/vault"
-                )
+                logger.warning("[ReactAgent] vault_notes table not indexed. Run POST /api/v1/metadata/index/vault")
                 return "[Warning] vault_notes table not indexed yet. Use search_obsidian_cli instead, or run POST /api/v1/metadata/index/vault to populate."
         except Exception:
             pass
@@ -213,9 +214,7 @@ async def search_knowledge_graph(
         """
         # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
         effective_group_id = to_physical_group_id(_resolve_effective_group_id())
-        records = await _neo4j_client.run_query(
-            cypher, query=query, limit=num_results, group_id=effective_group_id
-        )
+        records = await _neo4j_client.run_query(cypher, query=query, limit=num_results, group_id=effective_group_id)
 
         if not records:
             return f"[No results] No knowledge graph entities found for: '{query}'"
@@ -283,9 +282,7 @@ def get_note_content(
             end = line_end or len(lines)
             selected = lines[start:end]
             numbered = [f"{start + i + 1}: {line}" for i, line in enumerate(selected)]
-            return f"[File: {file_path}, lines {start + 1}-{end}]\n" + "\n".join(
-                numbered
-            )
+            return f"[File: {file_path}, lines {start + 1}-{end}]\n" + "\n".join(numbered)
 
         if len(lines) > 200:
             truncated = lines[:200]
@@ -345,9 +342,7 @@ async def record_learning_memory(
 
     valid_types = {"Misconception", "ProblemTrap", "LogicalFallacy", "GuidedThinking"}
     if entity_type not in valid_types:
-        return (
-            f"[Error] Invalid entity_type: {entity_type}. Must be one of {valid_types}"
-        )
+        return f"[Error] Invalid entity_type: {entity_type}. Must be one of {valid_types}"
 
     if not _neo4j_client:
         return "[Error] Neo4j client not available for memory recording."
@@ -411,9 +406,7 @@ async def search_obsidian_cli(query: str, limit: int = 10) -> str:
     import os
     import subprocess
 
-    obs_path = os.path.join(
-        os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com"
-    )
+    obs_path = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com")
     if not os.path.exists(obs_path):
         return "[Error] Obsidian CLI not available. Use search_vault_notes instead."
 
@@ -451,9 +444,7 @@ async def get_note_outline(file_name: str) -> str:
     import os
     import subprocess
 
-    obs_path = os.path.join(
-        os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com"
-    )
+    obs_path = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com")
     if not os.path.exists(obs_path):
         return "[Error] Obsidian CLI not available."
 
@@ -488,9 +479,7 @@ async def find_backlinks(file_name: str) -> str:
     import os
     import subprocess
 
-    obs_path = os.path.join(
-        os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com"
-    )
+    obs_path = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Obsidian", "Obsidian.com")
     if not os.path.exists(obs_path):
         return "[Error] Obsidian CLI not available."
 
@@ -582,9 +571,7 @@ def _format_cli_results(raw_output: str, query: str) -> str:
 
     if not parts:
         return f"[No results] Obsidian CLI found nothing for: '{query}'"
-    return f"[Obsidian CLI: {len(parts)} files matched '{query}']\n\n" + "\n\n".join(
-        parts
-    )
+    return f"[Obsidian CLI: {len(parts)} files matched '{query}']\n\n" + "\n\n".join(parts)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -659,9 +646,7 @@ def _format_results(results: List[Dict[str, Any]], source_label: str) -> str:
         if len(content) > 500:
             content = content[:500] + "..."
 
-        parts.append(
-            f"### Result {i} (score: {score:.3f}) {type_tag}{citation}\n{content}"
-        )
+        parts.append(f"### Result {i} (score: {score:.3f}) {type_tag}{citation}\n{content}")
 
     return "\n\n".join(parts)
 
@@ -768,32 +753,20 @@ async def run_react_agent(
                         "args": tc.get("args", {}),
                     }
                 )
-                logger.info(
-                    f"[ReactAgent] Tool call: {tc.get('name', '')} args={tc.get('args', {})}"
-                )
+                logger.info(f"[ReactAgent] Tool call: {tc.get('name', '')} args={tc.get('args', {})}")
         # R2a: Collect ToolMessage results (search outputs with real wikilinks)
-        if (
-            type(msg).__name__ == "ToolMessage"
-            and hasattr(msg, "content")
-            and msg.content
-        ):
+        if type(msg).__name__ == "ToolMessage" and hasattr(msg, "content") and msg.content:
             tool_results.append(
                 {
                     "name": getattr(msg, "name", ""),
                     "content": msg.content,
                 }
             )
-        if (
-            hasattr(msg, "content")
-            and msg.content
-            and type(msg).__name__ != "ToolMessage"
-        ):
+        if hasattr(msg, "content") and msg.content and type(msg).__name__ != "ToolMessage":
             response_text = msg.content  # Last non-tool content message is the answer
 
     logger.info(
-        f"[ReactAgent] {agent_type} completed: "
-        f"{len(tool_calls_made)} tool calls, "
-        f"response_len={len(response_text)}"
+        f"[ReactAgent] {agent_type} completed: {len(tool_calls_made)} tool calls, response_len={len(response_text)}"
     )
 
     return {
