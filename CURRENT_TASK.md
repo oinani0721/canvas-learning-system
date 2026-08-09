@@ -2,10 +2,11 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**（2026-08-09 · 阶段 0 ✅ 阶段 1 ✅ · **阶段 2 强化 fast path 侦察中** · PLAN `RAG-S2`）:
-- 🔧 **阶段 2 范围**（ChatGPT P0-B 已批准）: 目标管线 metadata scope → dense+FTS → RRF → **dedup → 18012 reranker → elbow** → 诚实遥测; retrieval_confidence（对实际交付结果）; **60 条 golden query 评测门禁**（Recall/MRR/nDCG/污染率）; chunk 策略修稀释
-- 📍 带实测数据的靶子: ①chunk 稀释 -0.17 vs 0.648（追加内容独立成块）②93% 转录淹没 6% 手写（doc_type 权重: concept>video_transcript）③中英同形歧义 10/10 跑偏 ④0.50 门槛灰区（rerank 后重定阈值体系）; 挂账并入: M6 双写者收编/L6 NFC/metadata 每请求新建 client
-- 🔎 4 路侦察进行中: 读侧两链现状与统一 / 18012 reranker 契约 / chunk 分块改造点 / golden query 素材+评测基建（memory_gold_set.yaml 可参考）
+**当前状态**（2026-08-09 · 阶段 2 **T1+T2+T3 已 ship**（`25dc54a2`+`fcd34953`+T3 本批）· **T4 dedup+rerank 待开工** · PLAN `RAG-S2-2026-08-09`）:
+- ✅ **T3 chunk 改造已落地**（lancedb_client.py 单文件）: 段落级三级切分(段落→句子→子句)+overlap 段落化 / callout 三级分级(EXTRACT question/error/error-candidate 独立成块; STRIP info/video/note+"💬 围绕这个概念讨论"模板标记; KEEP 其余) / 模板样板 section 零 chunk / **考察文件 exam_question_id→exam_board 推断堵题面泄漏**(用户截图 rank3 考察文件已从检索消失, 索引唯一考察文件已转 exam_board) / 短块(<150tok)面包屑只留文件名 / line_start 补 frontmatter 偏移。金集: recall **90.91%**(+1.8pp) 假阳性 **58→42%** 污染@10 24.17% nDCG 0.6415(容差内) 交付 81.82% 持平; vq-a02 咖啡 rank 7→4, vq-a03 rank1 交付 9 条; 基线已锁(history 归档)。契约测试 21 条(组A-F), regression 全绿
+- 🔒 [Code-Review] T3 独立对抗审查 0C/1H/2M/5L → **HIGH-1(YAML 解析失败绕过 exam_board 推断=泄漏复活, 已修嗅探兜底)+MEDIUM-1(紧贴 callout 吞批注, 已修断块)+MEDIUM-2(占位误杀, 已收紧)+LOW-4(tiktoken 冷启动, 已降级兜底) 全修**+4 红线测试; 未修 backlog: LOW-1 超长 EXTRACT 降级切分丢 [!question] 标记 / LOW-3 [!note] STRIP 误伤面待 census 复核 / LOW-5 建议 exam-quick.ts frontmatter 标量加引号(前端, 勿混本批)
+- ⏭ **T4 dedup+rerank**（下一步）: 源文件级 dedup + 新 retrieval_reranker.py(复用 graphiti/rerank_client 连接池; ⛔512token 超限整请求 500 必须截断 400 字; 1.5-2s 超时回落原分; elbow 迁 sigmoid(logit) 重校准; 假阳性 42% 与 vq-f04/f06/h07/z04 四残留 query 是靶), 接入 supplementary_search_service 归一化后/elbow 前, env RETRIEVAL_RERANKER_BASE_URL 回落 GRAPHITI. T5 链统一+confidence。T6 审查+UAT(问句/探针分两条消息坑进卡模板)
+- ⚠️ 金集必须容器内跑 docker exec; force_rebuild 入口 canvas-meta/index/vault + X-CLS-Internal-Key; T1/T2 详情见 git log 与计划文档 `_bmad-output/研究/2026-08-09-RAG阶段2-强化fastpath实施计划.md`
 
 **上一状态**（2026-08-09 · 阶段 1 ✅ 用户完整 UAT 通过）:
 - ✅ **阶段 1 索引层验收通过**（测试卡 v2 全项: 新建 0.585/改写 0.648/删除三层清/大文件追加 3min 重索引）; MCP -32602 根治（mount_http+.mcp.json http, `d93631ac`）; 观测加固（相对秒数/逐task/excluded 计数, `a87f04ea`）

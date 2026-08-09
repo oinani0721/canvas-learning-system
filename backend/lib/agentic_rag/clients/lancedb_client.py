@@ -105,14 +105,49 @@ def _jieba_tokenize(text: str) -> str:
     return " ".join(tokens)
 
 
+# RAG-S2 T3 (2026-08-09): tiktoken 编码器懒加载 + 模块级共享 —
+# _chunk_text 与 _split_md_by_heading 的面包屑条件化都要计 token。
+_TIKTOKEN_ENC = None
+
+# RAG-S2 T3 Step4: chunk 正文低于此 token 数时面包屑只留文件名 —
+# 侦察 A/B 实测短块完整路径占比过高反客为主, 条件化后短块 +0.091。
+_BREADCRUMB_FULL_MIN_TOKENS = 150
+
+
+def _count_tokens(t: str) -> int:
+    """tiktoken cl100k_base token 计数, 异常回退字符估算。"""
+    global _TIKTOKEN_ENC
+    if _TIKTOKEN_ENC is None:
+        try:
+            import tiktoken
+
+            _TIKTOKEN_ENC = tiktoken.get_encoding("cl100k_base")
+        except Exception:
+            # Code-Review LOW-4 (2026-08-09): 离线冷缓存首跑 get_encoding 会
+            # 下载 BPE 文件, 失败不能炸穿整个索引 — 降级为字符估算。
+            _TIKTOKEN_ENC = False
+    if _TIKTOKEN_ENC is False:
+        return len(t) // 2
+    try:
+        return len(_TIKTOKEN_ENC.encode(t))
+    except ValueError:
+        # tiktoken regex backtracking overflow on exotic content —
+        # fall back to char-based estimate (1 token ≈ 4 chars for English,
+        # ≈ 1.5 chars for Chinese; use conservative 2 chars/token)
+        return len(t) // 2
+
+
 def _chunk_text(text: str, max_tokens: int = 512, overlap_tokens: int = 50) -> List[str]:
     """
-    Story 2.3: 智能分块 — tiktoken token 计数 + 句子边界 + 原子保护
+    Story 2.3 → RAG-S2 T3 (2026-08-09): 三级层次分块 — 段落优先 + 句子降级 + 原子保护
 
     1. 检测并保护原子单元（代码块、数学公式、表格）不被切断
-    2. 非原子文本按句子边界切分，累积到 max_tokens 上限后 flush
-    3. 超过 max_tokens 的原子单元作为独立 chunk 保留
-    4. overlap 按 token 计数（约 overlap_tokens 个 token）
+    2. 非原子文本先按段落块切（空行 / 水平线 / callout 块边界），整段累积到
+       max_tokens 后在段落边界 flush — 语义无关句子不再跨段拼进同一大桶
+       （T2 侦察实测稀释根因: 追加内容混桶 0.4227 vs 独立成块 0.668）
+    3. 单段超 max_tokens → 降级句子级贪心累积；单句超限 → 子句级切分
+    4. overlap 段落化: 只取上一 chunk 最后一个完整段落（≤ overlap_tokens 才取），
+       装不下则不取 — 杜绝半截上下文拼进新 chunk 制造噪音
 
     Args:
         text: 输入文本（已经过 heading 一级切分）
@@ -123,19 +158,6 @@ def _chunk_text(text: str, max_tokens: int = 512, overlap_tokens: int = 50) -> L
         List[str]: 分块后的文本列表
     """
     import re
-
-    import tiktoken
-
-    enc = tiktoken.get_encoding("cl100k_base")
-
-    def _count_tokens(t: str) -> int:
-        try:
-            return len(enc.encode(t))
-        except ValueError:
-            # tiktoken regex backtracking overflow on exotic content —
-            # fall back to char-based estimate (1 token ≈ 4 chars for English,
-            # ≈ 1.5 chars for Chinese; use conservative 2 chars/token)
-            return len(t) // 2
 
     # Empty text guard
     if not text or not text.strip():
@@ -210,72 +232,143 @@ def _chunk_text(text: str, max_tokens: int = 512, overlap_tokens: int = 50) -> L
             result.append(current.strip())
         return result if result else [sentence]
 
-    # --- Step 3: Build chunks from segments ---
+    # --- Step 3: Build chunks — 段落优先累积, 超长单段降级句子级 ---
+    hr_pattern = re.compile(r"^(-{3,}|\*{3,}|_{3,})\s*$")
+
+    def _split_paragraphs(t: str) -> List[str]:
+        """段落块切分: 空行为界; 水平线自成边界(纯记号无语义, 丢弃);
+        callout 块(连续 > 开头行)整体成段, 不再被切进正文桶。"""
+        paras: List[str] = []
+        buf: List[str] = []
+        buf_is_callout = False
+
+        def _flush_buf():
+            nonlocal buf, buf_is_callout
+            block = "\n".join(buf).strip()
+            if block:
+                paras.append(block)
+            buf = []
+            buf_is_callout = False
+
+        for line in t.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                _flush_buf()
+                continue
+            if hr_pattern.match(stripped):
+                _flush_buf()
+                continue
+            line_is_callout = stripped.startswith(">")
+            if buf and line_is_callout != buf_is_callout:
+                # callout 块与普通文本互为段落边界
+                _flush_buf()
+            buf_is_callout = line_is_callout
+            buf.append(line)
+        _flush_buf()
+        return paras
+
+    def _chunk_sentences(t: str) -> List[str]:
+        """句子级贪心累积 — T3 后仅作超长单段的降级路径。
+        overlap 只取完整句子且限于段内, 不跨段拼接。"""
+        out: List[str] = []
+        parts: List[str] = []
+        part_tokens = 0
+
+        def _flush_parts():
+            nonlocal parts, part_tokens
+            joined = "\n".join(parts).strip()
+            if joined:
+                out.append(joined)
+            parts = []
+            part_tokens = 0
+
+        for sentence in _split_sentences(t):
+            s_tokens = _count_tokens(sentence)
+
+            # Handle sentences that exceed max_tokens on their own
+            if s_tokens > max_tokens:
+                _flush_parts()
+                out.extend(_split_long_sentence(sentence))
+                continue
+
+            if part_tokens + s_tokens > max_tokens:
+                _flush_parts()
+                if overlap_tokens > 0 and out:
+                    overlap: List[str] = []
+                    overlap_count = 0
+                    for prev in reversed(_split_sentences(out[-1])):
+                        prev_tokens = _count_tokens(prev)
+                        if overlap_count + prev_tokens > overlap_tokens:
+                            break
+                        overlap.insert(0, prev)
+                        overlap_count += prev_tokens
+                    parts = overlap
+                    part_tokens = overlap_count
+
+            parts.append(sentence)
+            part_tokens += s_tokens
+        _flush_parts()
+        return out
+
     chunks: List[str] = []
-    current_parts: List[str] = []
+    current_parts: List[str] = []  # 段落粒度累积
     current_tokens = 0
+    prev_chunk_paras: List[str] = []  # 上一次 flush 的段落列表 (overlap 来源)
 
     def _flush_current():
-        nonlocal current_parts, current_tokens
+        nonlocal current_parts, current_tokens, prev_chunk_paras
         if current_parts:
-            chunk_text_joined = "\n".join(current_parts).strip()
-            if chunk_text_joined:
-                chunks.append(chunk_text_joined)
+            joined = "\n\n".join(current_parts).strip()
+            if joined:
+                chunks.append(joined)
+                prev_chunk_paras = list(current_parts)
         current_parts = []
         current_tokens = 0
 
-    def _get_overlap_parts() -> List[str]:
-        """Get the last few sentences from the most recent chunk for overlap."""
-        if not chunks or overlap_tokens <= 0:
-            return chunks[0:0]  # empty list without literal
-        last_chunk = chunks[-1]
-        sentences = _split_sentences(last_chunk)
-        overlap_parts = chunks[0:0]  # empty list without literal
-        overlap_count = 0
-        for s in reversed(sentences):
-            s_tokens = _count_tokens(s)
-            if overlap_count + s_tokens > overlap_tokens:
-                break
-            overlap_parts.insert(0, s)
-            overlap_count += s_tokens
-        return overlap_parts
+    def _paragraph_overlap(next_tokens: int) -> List[str]:
+        """overlap 段落化: 只取上一 chunk 最后一个完整段落 —
+        超 overlap 预算或加上新段后溢出 max_tokens 则不取。"""
+        if overlap_tokens <= 0 or not prev_chunk_paras:
+            return []
+        tail = prev_chunk_paras[-1]
+        tail_tokens = _count_tokens(tail)
+        if tail_tokens <= overlap_tokens and tail_tokens + next_tokens <= max_tokens:
+            return [tail]
+        return []
 
     for is_atomic, segment in segments:
         if is_atomic:
             seg_tokens = _count_tokens(segment)
             # If atomic fits in current chunk, add it
             if current_tokens + seg_tokens <= max_tokens:
-                current_parts.append(segment)
+                current_parts.append(segment.strip())
                 current_tokens += seg_tokens
             else:
                 # Flush current chunk, then emit atomic as standalone
                 _flush_current()
                 chunks.append(segment.strip())
-        else:
-            # Split into sentences and accumulate
-            sentences = _split_sentences(segment)
-            for sentence in sentences:
-                s_tokens = _count_tokens(sentence)
+                prev_chunk_paras = [segment.strip()]
+            continue
 
-                # Handle sentences that exceed max_tokens on their own
-                if s_tokens > max_tokens:
-                    _flush_current()
-                    for sub in _split_long_sentence(sentence):
-                        chunks.append(sub)
-                    continue
+        for para in _split_paragraphs(segment):
+            para_tokens = _count_tokens(para)
 
-                if current_tokens + s_tokens > max_tokens:
-                    _flush_current()
-                    # Add overlap from previous chunk
-                    overlap_parts = _get_overlap_parts()
-                    if overlap_parts:
-                        current_parts = list(overlap_parts)
-                        current_tokens = sum(_count_tokens(p) for p in overlap_parts)
-                    else:
-                        current_tokens = 0
+            if para_tokens > max_tokens:
+                # 单段超限 → 降级句子级 (overlap 不跨段落边界)
+                _flush_current()
+                chunks.extend(_chunk_sentences(para))
+                prev_chunk_paras = []
+                continue
 
-                current_parts.append(sentence)
-                current_tokens += s_tokens
+            if current_tokens + para_tokens > max_tokens:
+                _flush_current()
+                overlap_paras = _paragraph_overlap(para_tokens)
+                if overlap_paras:
+                    current_parts = list(overlap_paras)
+                    current_tokens = sum(_count_tokens(p) for p in overlap_paras)
+
+            current_parts.append(para)
+            current_tokens += para_tokens
 
     # Flush remaining
     _flush_current()
@@ -2317,6 +2410,95 @@ class LanceDBClient:
 
         return self._convert_to_search_results(all_raw)
 
+    # RAG-S2 T3 Step3 (2026-08-09): callout 三级分级表 — 全库 census + 实例抽查定案。
+    # 原则: 用户手写/学习痕迹 = 独立成块; 模板生成 = 剥离; 语义正文 = 保留。
+    #   EXTRACT — question(用户提问)/error/error-candidate(错题记录): 抽出独立成
+    #             chunk, 不混入正文稀释也不被正文淹没
+    #   STRIP   — info(白板/模板说明)/video(播放器嵌入模板)/note(模板): 零检索价值
+    #   KEEP    — quote(派生起点=节点语义锚)/tip/tips(含用户勾选学习痕迹)/warning/
+    #             success/relation; 未知类型默认 KEEP (宁多勿漏)
+    _CALLOUT_EXTRACT_TYPES = frozenset({"question", "error", "error-candidate"})
+    _CALLOUT_STRIP_TYPES = frozenset({"info", "video", "note"})
+    # 插件脚手架模板 callout 标题标记 (node-derivation.ts buildNodeBody 生成;
+    # 与 app/services/vault_backfill.py::_TEMPLATE_MARKERS 同构) — 命中即 STRIP,
+    # 覆盖类型分级 (该模板用的是 [!tip], 类型级 KEEP 会放走它)。
+    _CALLOUT_TEMPLATE_MARKERS = ("💬 围绕这个概念讨论",)
+
+    @staticmethod
+    def _process_callouts(text: str) -> tuple:
+        """
+        RAG-S2 T3 Step3: Obsidian callout 三级分级器 — 对所有 doc_type 生效。
+
+        Returns:
+            Tuple of (处理后正文, EXTRACT 抽出的 callout 块列表)。
+            KEEP 类型原位保留; STRIP 类型与模板标记 callout 整块移除。
+        """
+        import re
+
+        head_pattern = re.compile(r"^\s{0,3}>\s*\[!([^\]]+)\][\+\-]?\s*(.*)$")
+        lines = text.split("\n")
+        kept: List[str] = []
+        extracted: List[str] = []
+        i = 0
+        n = len(lines)
+        while i < n:
+            m = head_pattern.match(lines[i])
+            if not m:
+                kept.append(lines[i])
+                i += 1
+                continue
+            # 收集整个 callout 块 (连续 > 开头行; 空行结束 — Obsidian 语义)。
+            # Code-Review MEDIUM-1 (2026-08-09): 后续行再命中 callout 头即断块 —
+            # 无空行紧贴的 `[!info]`+`[!question]` 若整体按头行分级, STRIP 会
+            # 静默吞掉用户批注 (宁多判一个 callout, 不吞用户批注)。
+            block_lines = [lines[i]]
+            j = i + 1
+            while j < n and lines[j].lstrip().startswith(">") and not head_pattern.match(lines[j]):
+                block_lines.append(lines[j])
+                j += 1
+            i = j
+            head_line = block_lines[0]
+            ctype = m.group(1).strip().lower()
+            if any(marker in head_line for marker in LanceDBClient._CALLOUT_TEMPLATE_MARKERS):
+                continue  # 模板 callout → STRIP (任何类型)
+            if ctype in LanceDBClient._CALLOUT_EXTRACT_TYPES:
+                extracted.append("\n".join(block_lines).strip())
+                continue
+            if ctype in LanceDBClient._CALLOUT_STRIP_TYPES:
+                continue
+            kept.extend(block_lines)  # KEEP: 原位保留进正文
+        return "\n".join(kept), extracted
+
+    @staticmethod
+    def _is_boilerplate_section(text: str) -> bool:
+        """
+        RAG-S2 T3 Step3: section 是否只含模板样板 (是 → 不产 chunk)。
+
+        派生节点脚手架 (node-derivation.ts buildNodeBody) 留下大量零信息骨架 —
+        侦察实测 40%+ chunks 是 `## 核心概念` 占位符等模板样板。占位判据:
+        全行（你的…）指导语 / [在此填写] / 空 bullet / 水平线。
+        """
+        import re
+
+        # Code-Review MEDIUM-2 (2026-08-09): 收紧占位判据防误杀 —
+        # （你的…）须含模板指导语签名词 (排除用户真实疑问如「（你的意思是…吗？）」);
+        # [在此填写] 须整行独占 (排除正文里的字面引用)。
+        placeholder_pattern = re.compile(r"^（你的.*(?:精准定义|是什么|为什么重要).*）$|^\[在此填写\]$")
+        bare_bullet_pattern = re.compile(r"^[-*+]\s*$")
+        hr_pattern = re.compile(r"^(-{3,}|\*{3,}|_{3,})\s*$")
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if bare_bullet_pattern.match(stripped):
+                continue
+            if hr_pattern.match(stripped):
+                continue
+            if placeholder_pattern.search(stripped):
+                continue
+            return False
+        return True
+
     @staticmethod
     def _strip_whiteboard_boilerplate(body: str) -> str:
         """
@@ -2325,7 +2507,6 @@ class LanceDBClient:
         Whiteboards used as MOC/index typically contain ~95% templated content:
           - ```dataviewjs / ```dataview code blocks (auto-generate mermaid graphs)
           - HTML comments (instructions for skills that maintain the file)
-          - `> [!info]+` / `> [!note]+` admonition callouts (template guidance)
           - `## Recent Activity` section (timestamps, no semantic value)
         Only the H1 title + `## Concepts` section + free-form user prose carry
         learning value. This stripper preserves those and removes the rest, so
@@ -2347,23 +2528,9 @@ class LanceDBClient:
         # 2. Strip HTML comments
         body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
 
-        # 3. Strip Obsidian admonition callouts. A callout begins with
-        # `> [!type]+` and continues on every subsequent line starting with `>`,
-        # with optional blank lines treated as continuation if followed by `>`.
-        lines = body.split("\n")
-        out_lines: List[str] = []
-        in_callout = False
-        for line in lines:
-            if re.match(r"^>\s*\[![^\]]+\][\+\-]?", line):
-                in_callout = True
-                continue
-            if in_callout:
-                if line.startswith(">"):
-                    continue
-                # End of callout — fall through to normal processing
-                in_callout = False
-            out_lines.append(line)
-        body = "\n".join(out_lines)
+        # 3. Callouts: RAG-S2 T3 (2026-08-09) 起由 _process_callouts 分级器在
+        # _flush_section 内统一处理 (whiteboard 的 question 批注同样 EXTRACT,
+        # 携带 doc_type=whiteboard 仍被检索默认排除) — 此处不再无差别剥离。
 
         # 4. Strip `## Recent Activity` section (heading + content through
         # next H2 or EOF). Common in Canvas whiteboards as a timestamp log.
@@ -2383,10 +2550,12 @@ class LanceDBClient:
         """
         Story 2.3+2.8: 按 Markdown heading 分段文本 + Frontmatter 解析
 
-        一级切分按 H1-H4 heading，二级切分由 _chunk_text() 按句子边界+原子保护。
-        每个 chunk 的 content 前缀注入面包屑路径（文档名 > h1 > h2 > h3），
-        heading_path 数组保存在 chunk dict 中供 metadata 使用。
+        一级切分按 H1-H4 heading，二级切分由 _chunk_text() 段落优先+句子降级+原子保护。
+        每个 chunk 的 content 前缀注入面包屑路径（文档名 > h1 > h2 > h3；
+        RAG-S2 T3: 短块只留文档名），heading_path 数组保存在 chunk dict 中供 metadata 使用。
         Story 2.8: 解析 Frontmatter 提取 course/tags/category。
+        RAG-S2 T3 (2026-08-09): callout 三级分级 (EXTRACT/STRIP/KEEP) + 模板样板
+        section 不产 chunk + 考察文件 doc_type 推断 exam_board + 行号补 frontmatter 偏移。
 
         Args:
             content: Markdown 文件内容
@@ -2402,6 +2571,10 @@ class LanceDBClient:
 
         # Story 2.8: Parse frontmatter before chunking
         frontmatter, body = LanceDBClient._parse_frontmatter(content)
+        # RAG-S2 T3 Step5 (bug②, 2026-08-09): line_start/line_end 旧值基于
+        # frontmatter 剥离后的 body 计数, 引用行锚定整体偏移 (实测偏一个
+        # frontmatter 的行数)。body 是 content 的后缀, 换行数差 = 被剥离的行数。
+        fm_line_offset = content.count("\n") - body.count("\n")
         fm_course = str(frontmatter.get("course", ""))
         fm_tags_raw = frontmatter.get("tags", [])
         if isinstance(fm_tags_raw, list):
@@ -2411,7 +2584,25 @@ class LanceDBClient:
         fm_category = str(frontmatter.get("category", ""))
         # RAG-P0 A1 (2026-05-10): doc_type from frontmatter.type, default 'note'.
         # Drives source-aware filter/rerank — see _build_where_filters.
-        fm_doc_type = str(frontmatter.get("type", "") or "note").lower().strip()
+        fm_doc_type = str(frontmatter.get("type", "") or "").lower().strip()
+        if not fm_doc_type:
+            has_exam_key = "exam_question_id" in frontmatter
+            if not frontmatter and content.startswith("---"):
+                # Code-Review HIGH-1 (2026-08-09): YAML 解析失败时 fm={} —
+                # 生产者 exam-quick.ts 写裸标量, 概念名含 YAML 指示符即炸
+                # safe_load, 题面泄漏在该路径复活。对原文头部嗅探键名兜底
+                # (误判方向保守: 最坏是普通笔记被检索链排除, 信息隔离不破)。
+                has_exam_key = bool(re.search(r"(?m)^exam_question_id\s*:", content[:2000]))
+            if has_exam_key:
+                # RAG-S2 T3 Step1 (2026-08-09): 检验白板考察文件 (节点/考察-*.md)
+                # 的 frontmatter 只有 exam_question_id/source_concept/exam_status,
+                # 没有 type: 字段 → 旧 fallback "note" 让完整题面以最高权重入索引
+                # = 信息隔离旁路 (Karpicke d=1.50)。推断 exam_board 后, hook 链与
+                # MCP 链现有的 doc_type NOT IN (...) 排除自动生效; 文件仍在索引,
+                # 未来出题链可定向取。显式 type: 仍最优先。
+                fm_doc_type = "exam_board"
+            else:
+                fm_doc_type = "note"
 
         # RAG-P0 A4 (2026-05-10): whiteboard differential chunking.
         # Strip dataviewjs/HTML comments/callouts/Recent Activity before
@@ -2463,18 +2654,27 @@ class LanceDBClient:
             text = "\n".join(section_lines).strip()
             if not text:
                 return
+            # RAG-S2 T3 Step3: callout \u4e09\u7ea7\u5206\u7ea7 \u2014 EXTRACT \u7684\u7528\u6237\u6279\u6ce8\u72ec\u7acb\u6210\u5757,
+            # STRIP \u7684\u6a21\u677f callout \u5c31\u5730\u79fb\u9664, KEEP \u7684\u7559\u5728\u6b63\u6587
+            text, extracted_callouts = LanceDBClient._process_callouts(text)
             breadcrumb = _build_breadcrumb(heading_path)
-            for sub_chunk in _chunk_text(text, max_tokens, overlap_tokens):
-                # Prepend breadcrumb to chunk content for embedding context
-                prefixed_content = f"\u6587\u6863\uff1a{breadcrumb}\n\n{sub_chunk}"
+
+            def _append_chunk(sub_chunk: str):
+                # RAG-S2 T3 Step4: \u9762\u5305\u5c51\u6761\u4ef6\u5316 \u2014 \u77ed\u5757\u5b8c\u6574\u8def\u5f84\u53cd\u5ba2\u4e3a\u4e3b,
+                # \u53ea\u7559\u6587\u4ef6\u540d; \u957f\u5757\u4fdd\u6301\u5b8c\u6574\u8def\u5f84 (\u9762\u5305\u5c51\u540c\u65f6\u6807\u6ce8 EXTRACT \u5757\u6765\u6e90)
+                if _count_tokens(sub_chunk) < _BREADCRUMB_FULL_MIN_TOKENS:
+                    crumb = filename
+                else:
+                    crumb = breadcrumb
                 chunks.append(
                     {
                         "file_path": file_path,
                         "heading": heading,
                         "heading_path": list(heading_path),
-                        "content": prefixed_content,
-                        "line_start": line_start,
-                        "line_end": line_end,
+                        "content": f"\u6587\u6863\uff1a{crumb}\n\n{sub_chunk}",
+                        # RAG-S2 T3 Step5: \u884c\u53f7\u8865 frontmatter \u5360\u884c\u504f\u79fb
+                        "line_start": line_start + fm_line_offset,
+                        "line_end": line_end + fm_line_offset,
                         # Story 2.8: Frontmatter metadata per chunk
                         "course": fm_course,
                         "tags_str": fm_tags_str,
@@ -2483,6 +2683,17 @@ class LanceDBClient:
                         "doc_type": fm_doc_type,
                     }
                 )
+
+            # RAG-S2 T3 Step3: \u6a21\u677f\u6837\u677f section (\u5360\u4f4d\u6587\u672c/\u7a7a bullet \u9aa8\u67b6) \u4e0d\u4ea7 chunk
+            if text.strip() and not LanceDBClient._is_boilerplate_section(text):
+                for sub_chunk in _chunk_text(text, max_tokens, overlap_tokens):
+                    _append_chunk(sub_chunk)
+            for callout_block in extracted_callouts:
+                if _count_tokens(callout_block) > max_tokens:
+                    for sub_chunk in _chunk_text(callout_block, max_tokens, overlap_tokens):
+                        _append_chunk(sub_chunk)
+                else:
+                    _append_chunk(callout_block)
 
         for line_idx, line in enumerate(lines):
             line_num = line_idx + 1

@@ -1,26 +1,26 @@
 {
-  "run_at": "2026-08-09T14:00:29.844943+00:00",
+  "run_at": "2026-08-09T15:21:12.016091+00:00",
   "mode": "in-process search_supplementary (Tier R + D)",
   "query_count": 60,
   "metrics": {
-    "recall_at_10": 0.8909,
-    "mrr": 0.7243,
-    "ndcg_at_10": 0.6579,
+    "recall_at_10": 0.9091,
+    "mrr": 0.7082,
+    "ndcg_at_10": 0.6415,
     "contamination_at_10": 0.2417,
     "polluted_query_rate": 0.1,
-    "handwritten_share_at_10": 0.6167,
-    "duplicate_rate": 0.0033,
+    "handwritten_share_at_10": 0.595,
+    "duplicate_rate": 0.0025,
     "delivery_rate": 0.8182,
-    "delivered_contamination_rate": 0.4654,
-    "false_positive_rate": 0.58
+    "delivered_contamination_rate": 0.4758,
+    "false_positive_rate": 0.42
   },
   "top1_score_distribution": {
-    "median": 0.846,
-    "min": 0.512
+    "median": 0.85,
+    "min": 0.513
   },
   "latency": {
-    "median_s": 0.206,
-    "max_s": 0.26
+    "median_s": 0.167,
+    "max_s": 0.243
   },
   "hard_violations": [],
   "per_query": [
@@ -28,8 +28,8 @@
       "id": "vq-d01",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": 3,
-      "ndcg": 0.5,
+      "first_relevant_rank": 4,
+      "ndcg": 0.431,
       "delivered": 10
     },
     {
@@ -46,7 +46,7 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 0.731,
-      "contam_note": 7,
+      "contam_note": 4,
       "delivered": 10
     },
     {
@@ -54,9 +54,9 @@
       "query_type": "definition_recall",
       "returned": 20,
       "first_relevant_rank": 1,
-      "ndcg": 0.956,
-      "contam_note": 2,
-      "delivered": 3
+      "ndcg": 1.0,
+      "contam_note": 3,
+      "delivered": 5
     },
     {
       "id": "vq-d05",
@@ -64,7 +64,7 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 1.0,
-      "contam_note": 8,
+      "contam_note": 6,
       "delivered": 10
     },
     {
@@ -89,9 +89,9 @@
       "id": "vq-d08",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": 6,
-      "ndcg": 0.356,
-      "contam_note": 5,
+      "first_relevant_rank": 7,
+      "ndcg": 0.333,
+      "contam_note": 4,
       "delivered": 10
     },
     {
@@ -117,7 +117,7 @@
       "first_relevant_rank": 1,
       "ndcg": 0.429,
       "pollution": [
-        "raw/*: 7/2"
+        "raw/*: 8/2"
       ],
       "delivered": 10
     },
@@ -144,7 +144,7 @@
       "query_type": "example_recall",
       "returned": 20,
       "first_relevant_rank": 1,
-      "ndcg": 1.0,
+      "ndcg": 0.131,
       "contam_note": 2,
       "delivered": 10
     },
@@ -163,7 +163,7 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 1.0,
-      "contam_note": 3,
+      "contam_note": 2,
       "delivered": 10
     },
     {
@@ -173,7 +173,7 @@
       "first_relevant_rank": 1,
       "ndcg": 0.787,
       "pollution": [
-        "raw/*: 6/2"
+        "raw/*: 5/2"
       ],
       "delivered": 10
     },
@@ -183,7 +183,7 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 1.0,
-      "contam_note": 1,
+      "contam_note": 2,
       "delivered": 10
     },
     {
@@ -192,7 +192,7 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 1.0,
-      "contam_note": 5,
+      "contam_note": 4,
       "delivered": 10
     },
     {
@@ -202,12 +202,13 @@
       "first_relevant_rank": null,
       "ndcg": 0.0,
       "top5_paths": [
+        "节点/Characteristic-Equation-for-Eigenvalues.md",
         "节点/规划的分类-1549().md",
-        "节点/代理类型：反射与规划.md",
-        "节点/代理决策分析-0303().md",
-        "节点/代理函数-(Agent-Function).md",
-        "节点/反射代理的局限性引出了规划代理-(Planning-Agents)-的需求.md"
+        "节点/lecture 2.md",
+        "节点/lecture 2.md",
+        "节点/lecture 2.md"
       ],
+      "contam_note": 2,
       "delivered": 0
     },
     {
@@ -225,31 +226,31 @@
       "first_relevant_rank": null,
       "ndcg": 0.0,
       "top5_paths": [
-        "节点/代理决策分析-0303().md",
-        "节点/规划代理的特点.md",
-        "节点/规划的分类-1549().md",
-        "节点/Eigenvalues-are-special-vectors-that-sat.md",
-        "节点/代理函数-(Agent-Function).md"
+        "节点/Fundamentals.md",
+        "节点/Fundamentals.md",
+        "节点/Fundamentals.md",
+        "raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search Algorithms in Action/Disc01_Search_[CS188 Discussion] Search Algorithms in Action.md",
+        "raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Searching with Heuristics/EP01_Search_[CS188 Discussion] Searching with Heuristics.md"
       ],
-      "contam_note": 3,
+      "contam_note": 7,
       "delivered": 0
     },
     {
       "id": "vq-a01",
       "query_type": "appended_content",
       "returned": 20,
-      "first_relevant_rank": 1,
-      "ndcg": 0.429,
-      "contam_note": 4,
+      "first_relevant_rank": 2,
+      "ndcg": 0.27,
+      "contam_note": 5,
       "delivered": 0
     },
     {
       "id": "vq-a02",
       "query_type": "appended_content",
       "returned": 20,
-      "first_relevant_rank": 7,
-      "ndcg": 0.143,
-      "contam_note": 3,
+      "first_relevant_rank": 4,
+      "ndcg": 0.185,
+      "contam_note": 1,
       "delivered": 0
     },
     {
@@ -259,7 +260,7 @@
       "first_relevant_rank": 1,
       "ndcg": 0.429,
       "contam_note": 3,
-      "delivered": 7
+      "delivered": 9
     },
     {
       "id": "vq-a04",
@@ -274,17 +275,17 @@
       "id": "vq-a05",
       "query_type": "appended_content",
       "returned": 20,
-      "first_relevant_rank": 1,
-      "ndcg": 0.429,
-      "contam_note": 7,
+      "first_relevant_rank": 2,
+      "ndcg": 0.27,
+      "contam_note": 8,
       "delivered": 0
     },
     {
       "id": "vq-h01",
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
-      "first_relevant_rank": 5,
-      "ndcg": 0.379,
+      "first_relevant_rank": 4,
+      "ndcg": 0.45,
       "delivered": 10
     },
     {
@@ -301,15 +302,15 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 1.0,
-      "contam_note": 1,
+      "contam_note": 9,
       "delivered": 1
     },
     {
       "id": "vq-h04",
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
-      "first_relevant_rank": 7,
-      "ndcg": 0.333,
+      "first_relevant_rank": 8,
+      "ndcg": 0.315,
       "delivered": 10
     },
     {
@@ -327,7 +328,7 @@
       "first_relevant_rank": 1,
       "ndcg": 1.0,
       "pollution": [
-        "raw/*: 6/3"
+        "raw/*: 5/3"
       ],
       "delivered": 10
     },
@@ -345,16 +346,15 @@
         "raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees/RS1_Search_CSPs_GameTrees.md"
       ],
       "contam_note": 8,
-      "delivered": 9
+      "delivered": 10
     },
     {
       "id": "vq-h08",
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
-      "first_relevant_rank": 1,
-      "ndcg": 1.0,
-      "contam_note": 5,
-      "delivered": 1
+      "first_relevant_rank": 7,
+      "ndcg": 0.333,
+      "delivered": 10
     },
     {
       "id": "vq-g01",
@@ -363,7 +363,7 @@
       "first_relevant_rank": 1,
       "ndcg": 0.674,
       "pollution": [
-        "raw/*: 7/0"
+        "raw/*: 6/0"
       ],
       "delivered": 10
     },
@@ -374,7 +374,7 @@
       "first_relevant_rank": 1,
       "ndcg": 1.0,
       "pollution": [
-        "raw/*: 3/0"
+        "raw/*: 7/0"
       ],
       "delivered": 10
     },
@@ -382,9 +382,9 @@
       "id": "vq-g03",
       "query_type": "homograph_ambiguous",
       "returned": 20,
-      "first_relevant_rank": 5,
-      "ndcg": 0.387,
-      "contam_note": 6,
+      "first_relevant_rank": 4,
+      "ndcg": 0.431,
+      "contam_note": 7,
       "delivered": 10
     },
     {
@@ -394,7 +394,7 @@
       "first_relevant_rank": 1,
       "ndcg": 0.337,
       "pollution": [
-        "raw/*: 8/1"
+        "raw/*: 6/1"
       ],
       "delivered": 10
     },
@@ -410,10 +410,10 @@
       "id": "vq-g06",
       "query_type": "homograph_ambiguous",
       "returned": 20,
-      "first_relevant_rank": 9,
-      "ndcg": 0.301,
-      "contam_note": 2,
-      "delivered": 9
+      "first_relevant_rank": 3,
+      "ndcg": 0.5,
+      "contam_note": 8,
+      "delivered": 8
     },
     {
       "id": "vq-z01",
@@ -421,23 +421,16 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 0.787,
-      "contam_note": 4,
-      "delivered": 3
+      "contam_note": 3,
+      "delivered": 9
     },
     {
       "id": "vq-z02",
       "query_type": "zero_lexical_overlap",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "节点/lecture 2.md",
-        "节点/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 4/lecture 4.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md"
-      ],
-      "contam_note": 8,
+      "first_relevant_rank": 3,
+      "ndcg": 0.394,
+      "contam_note": 7,
       "delivered": 10
     },
     {
@@ -446,8 +439,8 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 0.337,
-      "contam_note": 9,
-      "delivered": 6
+      "contam_note": 6,
+      "delivered": 1
     },
     {
       "id": "vq-z04",
@@ -478,9 +471,9 @@
       "id": "vq-c01",
       "query_type": "crosslingual",
       "returned": 20,
-      "first_relevant_rank": 2,
-      "ndcg": 0.497,
-      "delivered": 7
+      "first_relevant_rank": 3,
+      "ndcg": 0.394,
+      "delivered": 6
     },
     {
       "id": "vq-c02",
@@ -504,7 +497,7 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 1.0,
-      "contam_note": 2,
+      "contam_note": 3,
       "delivered": 6
     },
     {
@@ -521,7 +514,7 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 1.0,
-      "contam_note": 2,
+      "contam_note": 3,
       "delivered": 10
     },
     {
@@ -530,7 +523,7 @@
       "returned": 20,
       "first_relevant_rank": 1,
       "ndcg": 1.0,
-      "delivered": 9
+      "delivered": 10
     },
     {
       "id": "vq-m03",
@@ -544,16 +537,16 @@
       "id": "vq-m04",
       "query_type": "meta_annotation",
       "returned": 20,
-      "first_relevant_rank": 2,
-      "ndcg": 0.631,
-      "contam_note": 3,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 6,
       "delivered": 10
     },
     {
       "id": "vq-m05",
       "query_type": "meta_annotation",
       "returned": 20,
-      "delivered_false_positives": 9
+      "delivered_false_positives": 1
     },
     {
       "id": "vq-n01",
