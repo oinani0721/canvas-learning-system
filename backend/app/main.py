@@ -484,6 +484,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"[Phase 2] Episode worker cleanup failed: {e}")
 
+    # RAG-S2 T4: 关闭检索精排长活 httpx client
+    try:
+        from app.services.retrieval_reranker import close_retrieval_reranker
+
+        await close_retrieval_reranker()
+    except Exception as e:
+        logger.warning(f"[RAG-S2 T4] retrieval reranker cleanup failed: {e}")
+
     # ✅ Story 30.3: Cleanup MemoryService singleton (Neo4j driver, etc.)
     await cleanup_memory_service()
     logger.info("MemoryService cleaned up")

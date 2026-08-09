@@ -26,7 +26,34 @@ from typing import Any
 
 import structlog
 
+from app.services import retrieval_reranker
+
 logger = structlog.get_logger(__name__)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RAG-S2 T4 (2026-08-10): cross-encoder 精排常数
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# 分数契约 (三量纲共存, 勿混):
+#   _raw_score / raw_score — 未加权语义分 (min_relevance 过滤量纲)
+#   score                  — source_priority 加权分 (排序/elbow 唯一量纲)
+#   ce_score               — bge-reranker sigmoid(logit), 强双峰
+#                            (实测正确 +6.5→0.999 / 垃圾 -11→1.6e-5 /
+#                             跨语弱相关 0.05-0.2) — 纯语义, 只做交付门
+# ⛔ CE 不参与排序 (两轮金集校准实证 2026-08-10): 纯 CE 排序与 CE×权重
+# 融合排序都让 raw/ 转录反扑 (转录 400 字窗口关键词密集, CE 语义分差
+# 2-3 倍, 手写 ×1.5 权重差压不住; 手写占比@10 59.5%→29%/31%)。排序保持
+# T2/T3 已验证的加权序 (用户初衷: 手写优先), CE 只当交付判官。
+# 命名刻意避开 rerank_score (已被 supplementary_reranker 启发式公式占用)。
+
+# CE 门激活时预过滤放宽到此召回地板 — 正解 raw 分 0.4x 被生产 0.50 杀光
+# (金集 vq-a01/a02/a05 实证), CE 才是交付判官; CE 失败回落按原 min_relevance
+# 重过滤, 行为与旧版一致。0.30 = 本服务历史默认 (适配 RRF 实测分布)。
+_RERANK_RECALL_FLOOR = 0.30
+
+# CE sigmoid 交付门: 垃圾 ≤1e-3, 跨语弱相关落 0.05-0.2 区间 — 取 0.02
+# 杀垃圾不误杀跨语 (金集校准锚点, 调整须重跑金集)。
+_CE_DELIVERY_FLOOR = 0.02
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -158,12 +185,17 @@ async def search_supplementary(
     skipped_empty = 0
     quarantined_count = 0
     review_count = 0
+    # RAG-S2 T4: rerank 启用时预过滤放宽到召回地板 (CE 是交付判官);
+    # rerank 失败的回落分支会按原 min_relevance 重过滤 (行为与旧版一致)。
+    rerank_enabled = retrieval_reranker.is_enabled()
+    effective_floor = min(min_relevance, _RERANK_RECALL_FLOOR) if rerank_enabled else min_relevance
+    n_above_min = 0  # raw >= min_relevance 的条数 (放宽地板行不占配额)
     for raw in results:
         # R1 根因二 (2026-07-12): 过滤用原始语义分 (_raw_score), 不用
         # source_priority 加权后的 score — 否则 ×1.5 权重击穿门槛 /
         # ×0.3 权重误杀正确命中 (真机: 烤面包查询 10 条全过)。
         score = float(raw.get("_raw_score", raw.get("score", 0.0)))
-        if score < min_relevance:
+        if score < effective_floor:
             continue
 
         normalized = _normalize_material(raw)
@@ -196,6 +228,14 @@ async def search_supplementary(
         if _is_link_list_chunk(raw_content_for_check):
             normalized["is_link_list_chunk"] = True
 
+        # RAG-S2 T4: CE 输入透传 — material 只留 300 字 snippet, 完整 content
+        # 仅此循环可得; 截 2000 字 (retrieval_reranker MaxP 切 5×400 字窗口,
+        # 单 400 字头截断会漏掉 chunk 尾部正解 — 咖啡句实测 ce=0.0000;
+        # 2000 字覆盖英文 500-token chunk)。
+        # _filter_score = 本轮预过滤用的语义分, 回落分支重过滤同量纲。
+        normalized["_ce_text"] = raw_content_for_check[:2000]
+        normalized["_filter_score"] = score
+
         # P0-D (2026-05-12 hotfix): tier-2 legacy fallback flag 必须从 raw
         # 透传到 normalized, 否则下面 any(...is_legacy_fallback) 永不命中.
         # raw['is_legacy_fallback'] 由 _two_tier_search tier-2 路径设置 (top-level
@@ -204,7 +244,13 @@ async def search_supplementary(
             normalized["is_legacy_fallback"] = True
 
         materials.append(normalized)
-        if len(materials) >= top_k_max:
+        # 审查 HIGH (2026-08-10): 放宽地板 (0.30) 的行不得占 top_k_max 配额 —
+        # 否则低分行挤占名额把 raw>=min_relevance 的正解挤出池, 回落重过滤后
+        # 找不回、门控路径 CE 也见不到。2× 总量护栏防池爆; 超额部分在
+        # 门/回落过滤后统一收口回 top_k_max。
+        if score >= min_relevance:
+            n_above_min += 1
+        if n_above_min >= top_k_max or len(materials) >= top_k_max * 2:
             break
 
     if skipped_empty > 0:
@@ -221,12 +267,59 @@ async def search_supplementary(
             query=query[:60],
         )
 
-    # Elbow cut: 按 score gap 动态截断（不硬编码 top_k）
+    # ── RAG-S2 T4 (2026-08-10): 源文件级 dedup + cross-encoder 交付门 ──
+    # dedup 无条件生效 (用户实证 rank1/2 同文件重复的治法), 且在 CE 打分前
+    # 执行以省 CE 调用量。排序不动 (见顶部分数契约: CE 不参与排序)。
+    materials = _dedup_by_source(materials)
+
+    # CE 门只在 min_relevance>0 (生产交付) 时激活 — 金集 Tier R
+    # (min_relevance=0) 要全量排序, 不设门也不花 CE 预算。
+    # tier-2 legacy 材料带人造 rank-decay 分 (0.31-0.50), CE 打分会
+    # 掩盖 degraded 信号 — 同样跳过。
+    gated = False
+    if rerank_enabled and min_relevance > 0 and materials and not any(m.get("is_legacy_fallback") for m in materials):
+        try:
+            gated = await _apply_ce_gate(query, materials)
+        except Exception as e:
+            # 防御纵深 (审查): score_documents 契约是"绝不抛异常", 但本函数
+            # T4 前的实际契约是"内部全降级不外抛" — 任何逃逸异常都不能
+            # 毁掉已召回的材料, 走与 CE 失败同路的回落。
+            logger.warning("[SupplementarySearch] CE 门异常逃逸, 回落", error=str(e)[:120])
+            gated = False
+
+    gate_killed_all = False
+    if gated:
+        # CE 是交付判官: 垃圾 (语义无关但 embedding 分虚高) 被门杀,
+        # 低 raw 正解 (放宽预过滤放进来的) 被门放行。
+        pre_gate_count = len(materials)
+        materials = [m for m in materials if m.get("ce_score", 0.0) >= _CE_DELIVERY_FLOOR]
+        gate_killed_all = pre_gate_count > 0 and not materials
+        if gate_killed_all:
+            # 观测区分 (审查 LOW): CE 整批枪毙 ≠ raw 分全低 — T5 confidence
+            # 与 Ops 排障需要这个信号 (CE 盲区类 query 丢失走此路径)
+            logger.warning(
+                "[SupplementarySearch] CE 交付门杀光全部材料",
+                pre_gate=pre_gate_count,
+                query=query[:60],
+            )
+    elif rerank_enabled:
+        # CE 失败/未激活: 收回放宽的预过滤 — 与旧版行为一致
+        materials = [m for m in materials if m.get("_filter_score", m["score"]) >= min_relevance]
+
+    # 放宽池的 2× 超额在门/回落过滤后收口回 top_k_max (加权序截尾)
+    materials = materials[:top_k_max]
+
+    # Elbow cut: 按 score gap 动态截断（不硬编码 top_k）— 加权序量纲不变
     materials = _elbow_cut(
         materials,
         drop_threshold=elbow_drop_threshold,
         hard_cap=hard_cap,
     )
+
+    # 内部字段收尾 (不进 XML/API 面)
+    for m in materials:
+        m.pop("_ce_text", None)
+        m.pop("_filter_score", None)
 
     # P0-D (2026-05-12 hotfix): tier-2 legacy fallback 命中时, 行级
     # is_legacy_fallback=True 但顶层 dict 仍 degraded=False, 下游观测拿不到旗帜.
@@ -253,10 +346,17 @@ async def search_supplementary(
             "reason": merged_reason,
         }
 
+    if materials:
+        empty_reason = None
+    elif gate_killed_all:
+        # 审查 LOW: CE 判官整批枪毙 ≠ raw 分全低 — 观测面必须可区分
+        empty_reason = "ce_gate_all_filtered"
+    else:
+        empty_reason = "all_filtered_below_threshold"
     return {
         "materials": materials,
         "degraded": False,
-        "reason": None if materials else "all_filtered_below_threshold",
+        "reason": empty_reason,
     }
 
 
@@ -556,6 +656,66 @@ def _elbow_cut(
             cut_idx = i
             break
     return materials[: min(cut_idx, hard_cap)]
+
+
+# T4: taint 严重度序 — dedup 合并时幸存者继承组内最严 taint (fail-closed)
+_TAINT_SEVERITY = {"clean": 0, "review": 1, "quarantine": 2}
+
+
+def _dedup_by_source(materials: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """RAG-S2 T4: 源文件级收敛 — 同 source_path 多 chunk 只留最高分一条。
+
+    用户实证: top 结果 rank1/2 同文件相邻 chunk 重复 (chunk 粒度索引 +
+    分数相邻 + 交付层无去重)。materials 已按 score 降序 → 首见即最高分。
+    fail-closed 合并: 幸存者继承组内最严 taint / 最高 injection_risk /
+    legacy 旗帜 (防 dedup 洗掉安全标记)。注意: CE 回落路径下放宽池
+    (raw 0.30-0.50) 同源 chunk 的 taint 也会被继承 — 方向保守, 接受。
+    CE 证据合并 (审查 MEDIUM): 被合并 chunk 的 _ce_text 在 MaxP 预算内
+    拼给幸存者 — 否则同文件正解落在低分 chunk 时 CE 只见高分 chunk 的
+    无关文本, 整个文件被交付门误杀 (头截断瞎评的文件粒度重现)。
+    """
+    kept: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for idx, m in enumerate(materials):
+        key = m.get("source_path") or f"__no_path_{idx}"
+        keeper = kept.get(key)
+        if keeper is None:
+            kept[key] = m
+            order.append(key)
+            continue
+        if _TAINT_SEVERITY.get(m.get("taint", "clean"), 0) > _TAINT_SEVERITY.get(keeper.get("taint", "clean"), 0):
+            keeper["taint"] = m["taint"]
+        keeper["injection_risk"] = max(
+            float(keeper.get("injection_risk", 0.0) or 0.0),
+            float(m.get("injection_risk", 0.0) or 0.0),
+        )
+        if m.get("is_legacy_fallback"):
+            keeper["is_legacy_fallback"] = True
+        merged_ce_text = m.get("_ce_text")
+        if merged_ce_text:
+            base_ce_text = keeper.get("_ce_text") or ""
+            if merged_ce_text not in base_ce_text:
+                combined = f"{base_ce_text}\n{merged_ce_text}" if base_ce_text else merged_ce_text
+                keeper["_ce_text"] = combined[:2000]
+    return [kept[k] for k in order]
+
+
+async def _apply_ce_gate(query: str, materials: list[dict[str, Any]]) -> bool:
+    """RAG-S2 T4: 整批 cross-encoder 打分 — 只写 ce_score, ⛔ 不重排。
+
+    ce_score 供调用方做交付门 (_CE_DELIVERY_FLOOR) 与 T5 confidence 观测。
+    不排序的原因见模块顶部分数契约 (两轮金集校准实证 CE 排序让转录反扑)。
+
+    整批失败 (超时/500/熔断/响应缺洞) → 返回 False 且不写任何分,
+    调用方走回落分支 (行为与无 CE 一致)。
+    """
+    docs = [m.get("_ce_text") or m.get("snippet", "") or "" for m in materials]
+    scores = await retrieval_reranker.score_documents(query, docs)
+    if scores is None:
+        return False
+    for m, ce in zip(materials, scores):
+        m["ce_score"] = ce
+    return True
 
 
 async def _two_tier_search(

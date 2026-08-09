@@ -17,6 +17,18 @@ from __future__ import annotations
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _disable_retrieval_reranker(monkeypatch):
+    """RAG-S2 T4 审查 MEDIUM: search_supplementary 现在会真调 18012 CE —
+    单测必须确定性走旧行为路径, 不许隐藏网络依赖 (结果随机器拓扑漂移 +
+    每跑烧 1.5s 真实超时)。"""
+    from app.services import retrieval_reranker as rr
+
+    monkeypatch.setenv("RETRIEVAL_RERANKER_ENABLED", "false")
+    rr._fail_streak = 0
+    rr._breaker_open_until = 0.0
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Phase A0.5-P: Snippet taint 分类 (防 indirect prompt injection)
 # ═══════════════════════════════════════════════════════════════════════════════
