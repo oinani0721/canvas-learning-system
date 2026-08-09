@@ -134,9 +134,16 @@ def setup_mcp_server(app: FastAPI) -> None:
         )
 
         # Mount MCP server — this exposes /mcp endpoint
-        mcp.mount()
+        # RAG-S1 MCP-32602 修复 (2026-08-09): mount() 的 legacy SSE transport
+        # 与 Claude Code 2.1.2xx 的 MCP client 不兼容 — 所有 tools/call (含
+        # 无参数的 check_backend_health) 全线 -32602 invalid params, 而标准
+        # mcp SDK client 连同一 SSE 端点全部正常 (实锤问题在 SSE 兼容层的
+        # 参数封装差异, 非 server schema)。迁移到库官方推荐的 streamable
+        # HTTP transport (mount() 的 DeprecationWarning 一直在提示此方向)。
+        # 客户端同步: canvas-vault/.mcp.json "type": "sse" → "http"。
+        mcp.mount_http()
 
-        logger.info("[Story 3.2] MCP server mounted at /mcp with canvas-learning tools")
+        logger.info("[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools")
 
     except ImportError:
         logger.warning(

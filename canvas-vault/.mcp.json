@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "canvas-learning-mcp": {
-      "type": "sse",
+      "type": "http",
       "url": "http://127.0.0.1:8011/mcp"
     }
   }
