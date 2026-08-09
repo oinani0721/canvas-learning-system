@@ -1,0 +1,507 @@
+# vault_gold_set.yaml — RAG 阶段 2 检索质量门禁金集 (PLAN RAG-S2-2026-08-09)
+#
+# 评测对象: vault 笔记检索链 (search_supplementary → LanceDB hybrid)。
+# 判分: expect_hit 按 file 子串 + 可选 contains 子串匹配 (NFKC+casefold 归一);
+#       grade 分级供 nDCG (3=正解 chunk / 2=正确文件他段 / 1=相关旁证)。
+# 污染三档: config.forbidden = 硬禁 (出现即整跑 FAIL);
+#           expect_not_hit.max_in_top_k = 配额 (超额计 contamination);
+#           max_in_top_k: 0 = 零容忍 (同形歧义硬样本)。
+# 纪律 (沿用 memory_gold_set): version 封版, 改 query 必升版;
+#       新失败案例先进 vault_gold_set_shadow.yaml; origin 必填可追溯。
+#
+# ⚠️ ground truth 锚点只用「概念正文/用户手写疑问」— T3 chunk 改造会剥离
+#    检验白板题面复述/弃答记录/模板样板, 金集真值不依赖将被剥离的内容。
+
+config:
+  version: 1
+  vault_id: canvas_vault
+  top_k: 20
+  tolerance: 0.02
+  duplicate_ratio: 0.92
+  contamination:
+    path_globs: ["raw/*", "raw/CS188/*"]
+    doc_types: ["video_transcript"]
+  forbidden:
+    path_globs: ["检验白板/*", "outputs/*", "验收单/*"]
+    doc_types: ["exam_board"]
+    markers: ["TestConcept", "UAT-", "m3-e2e"]
+  delivery:
+    min_relevance: 0.50
+    elbow_drop_threshold: 0.25
+    hard_cap: 10
+
+queries:
+  # ═══ definition_recall (10) — 定义回忆, 用户最高频 ═══
+  - id: vq-d01
+    query: "理性代理的定义是什么？我笔记里怎么写的"
+    language: zh
+    query_type: definition_recall
+    origin: "节点/理性代理-(Rational-Agent).md 派生节点"
+    expect_hit:
+      - {file: "理性代理", grade: 3}
+  - id: vq-d02
+    query: "为什么反射代理的局限性会引出规划代理的需求？"
+    language: zh
+    query_type: definition_recall
+    origin: "节点/反射代理的局限性引出了规划代理-(Planning-Agents)-的需求.md"
+    expect_hit:
+      - {file: "反射代理的局限性", grade: 3}
+      - {file: "规划代理的特点", grade: 1}
+  - id: vq-d03
+    query: "特征方程是怎么定义特征值的？"
+    language: zh
+    query_type: definition_recall
+    origin: "节点/Characteristic-Equation-for-Eigenvalues.md"
+    expect_hit:
+      - {file: "Characteristic-Equation", grade: 3}
+      - {file: "Fundamentals", grade: 2}
+  - id: vq-d04
+    query: "Av=λv 这个式子里每个符号代表什么？"
+    language: zh
+    query_type: definition_recall
+    origin: "节点/Fundamentals.md 核心定义 (transcript 真实提问改写)"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+      - {file: "Eigenvalues-are-special", grade: 2}
+  - id: vq-d05
+    query: "特征值作为缩放因子是什么意思？"
+    language: zh
+    query_type: definition_recall
+    origin: "节点/Fundamentals.md scaling factor 定义"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+  - id: vq-d06
+    query: "递归和分治的核心思想我是怎么记的？"
+    language: zh
+    query_type: definition_recall
+    origin: "原白板/递归与分治 + my-recursion-notes"
+    expect_hit:
+      - {file: "recursion", grade: 3}
+      - {file: "递归与分治", grade: 2}
+  - id: vq-d07
+    query: "CSM 辅导的学分规则是怎样的？"
+    language: zh
+    query_type: definition_recall
+    origin: "节点/csm-tutoring-unit-credit.md"
+    expect_hit:
+      - {file: "csm", grade: 3}
+  - id: vq-d08
+    query: "回溯搜索和普通 DFS 到底区别在哪？为什么说它是解 CSP 的基本方法？"
+    language: zh
+    query_type: definition_recall
+    origin: "transcript 真实提问 2026-08-09 (raw 正当命中类)"
+    expect_hit:
+      - {file: "raw/CS188", grade: 3}
+  - id: vq-d09
+    query: "代理函数 agent function 是什么？"
+    language: zh
+    query_type: definition_recall
+    origin: "节点/代理函数-(Agent-Function).md"
+    expect_hit:
+      - {file: "代理函数", grade: 3}
+  - id: vq-d10
+    query: "规划可以分成哪几类？"
+    language: zh
+    query_type: definition_recall
+    origin: "节点/规划的分类-1549().md"
+    expect_hit:
+      - {file: "规划的分类", grade: 3}
+
+  # ═══ example_recall (6) — 例子/比喻检索 ═══
+  - id: vq-e01
+    query: "我笔记里关于特征向量的几何直觉是怎么描述的？我有没有用什么比喻？"
+    language: zh
+    query_type: example_recall
+    origin: "transcript e8eff22c 真实提问 (UAT 冒烟 A, 旋转门)"
+    expect_hit:
+      - {file: "Fundamentals", contains: "旋转门", grade: 3}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 2}
+  - id: vq-e02
+    query: "价值迭代有没有手算的例子？"
+    language: zh
+    query_type: example_recall
+    origin: "raw/CS188 Disc04 Micro-Blackjack (正当命中)"
+    expect_hit:
+      - {file: "raw/CS188", grade: 3}
+  - id: vq-e03
+    query: "赛车游戏那个例子讲的是什么算法？"
+    language: zh
+    query_type: example_recall
+    origin: "raw/CS188 lecture 10 赛车 MDP 例子 (正当命中)"
+    expect_hit:
+      - {file: "raw/CS188", grade: 3}
+  - id: vq-e04
+    query: "旋转变换存不存在实特征向量？我笔记里讨论过吗"
+    language: zh
+    query_type: example_recall
+    origin: "节点/考察-Fundamentals-2026-07-16.md 旋转反例"
+    expect_hit:
+      - {file: "考察-Fundamentals", grade: 3}
+      - {file: "Fundamentals", grade: 1}
+  - id: vq-e05
+    query: "Gridworld 网格世界的演示说明了什么？"
+    language: zh
+    query_type: example_recall
+    origin: "raw/CS188 lecture 10 Gridworld (正当命中)"
+    expect_hit:
+      - {file: "raw/CS188", grade: 3}
+  - id: vq-e06
+    query: "λ 等于 0 的时候特征向量还成立吗？我好像问过这个"
+    language: zh
+    query_type: example_recall
+    origin: "节点/Fundamentals.md 用户手写疑问 callout (✍️ λ 可以是 0 吗)"
+    expect_hit:
+      - {file: "Fundamentals", contains: "0", grade: 3}
+
+  # ═══ file_locate (6) — 「记在哪篇笔记里」 ═══
+  - id: vq-f01
+    query: "特征向量和特征值的定义我记在哪篇笔记里？"
+    language: zh
+    query_type: file_locate
+    origin: "transcript 真实提问 (UAT 对照组)"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+      - {file: "特征值与特征向量", grade: 2}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 2}
+  - id: vq-f02
+    query: "我的递归笔记是哪一篇？"
+    language: zh
+    query_type: file_locate
+    origin: "节点/my-recursion-notes.md"
+    expect_hit:
+      - {file: "recursion", grade: 3}
+  - id: vq-f03
+    query: "CSM 单位学分那件事我记在哪了？"
+    language: zh
+    query_type: file_locate
+    origin: "节点/csm-tutoring-unit-credit.md"
+    expect_hit:
+      - {file: "csm", grade: 3}
+  - id: vq-f04
+    query: "咖啡烘焙那句话我写在哪篇笔记里？"
+    language: zh
+    query_type: file_locate
+    origin: "UAT v2 测试3 追加内容 (Fundamentals 尾部)"
+    expect_hit:
+      - {file: "Fundamentals", contains: "烘", grade: 3}
+  - id: vq-f05
+    query: "代理决策分析的笔记在哪？"
+    language: zh
+    query_type: file_locate
+    origin: "节点/代理决策分析-0303().md"
+    expect_hit:
+      - {file: "代理决策", grade: 3}
+  - id: vq-f06
+    query: "线性代数的白板叫什么名字？"
+    language: zh
+    query_type: file_locate
+    origin: "原白板/线性代数.md / 特征值与特征向量.md"
+    expect_hit:
+      - {file: "线性代数", grade: 3}
+      - {file: "特征值与特征向量", grade: 2}
+
+  # ═══ appended_content (5) — 靶子① 大文件尾部追加 (chunk 稀释) ═══
+  - id: vq-a01
+    query: "我笔记里有没有写过咖啡烘焙深浅和味道的关系？在哪篇？"
+    language: zh
+    query_type: appended_content
+    origin: "UAT v2 测试3 实测 (hook 零注入, chunk 内相关度 -0.11~-0.17)"
+    expect_hit:
+      - {file: "Fundamentals", contains: "烘", grade: 3}
+    baseline_note: "开工基线=排序层低分; T3 后必须进 top10 且交付层 hit"
+  - id: vq-a02
+    query: "烘豆子烘得深浅对喝起来的口感有什么影响？"
+    language: zh
+    query_type: appended_content
+    origin: "同 vq-a01 换问法 (苦/酸方向)"
+    expect_hit:
+      - {file: "Fundamentals", contains: "苦", grade: 3}
+  - id: vq-a03
+    query: "特征向量像旋转门转轴的说法是我自己写的吗？写在哪？"
+    language: zh
+    query_type: appended_content
+    origin: "Fundamentals 08-08 用户追加行 (watcher 2s 入索引实测)"
+    expect_hit:
+      - {file: "Fundamentals", contains: "旋转门", grade: 3}
+  - id: vq-a04
+    query: "我对最大化那部分有什么不理解的地方吗？"
+    language: zh
+    query_type: appended_content
+    origin: "节点/lecture 2.md ✍️ 我的理解 批注 (大文件内嵌用户笔记)"
+    expect_hit:
+      - {file: "lecture 2", grade: 3}
+  - id: vq-a05
+    query: "火候曲线决定什么？"
+    language: zh
+    query_type: appended_content
+    origin: "Fundamentals 咖啡段短语义探针"
+    expect_hit:
+      - {file: "Fundamentals", contains: "火候", grade: 3}
+
+  # ═══ handwritten_vs_transcript (8) — 靶子② 手写优先权 ═══
+  - id: vq-h01
+    query: "代理 agent 的类型有哪些？反射型和规划型有什么不同？"
+    language: zh
+    query_type: handwritten_vs_transcript
+    origin: "节点/代理类型：反射与规划.md vs raw/CS188 lecture 转录同主题竞争"
+    expect_hit:
+      - {file: "代理类型", grade: 3}
+      - {file: "反射代理", grade: 2}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 4}
+  - id: vq-h02
+    query: "规划代理有什么特点？"
+    language: zh
+    query_type: handwritten_vs_transcript
+    origin: "节点/规划代理的特点.md vs 转录竞争"
+    expect_hit:
+      - {file: "规划代理的特点", grade: 3}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 4}
+  - id: vq-h03
+    query: "递归的 base case 为什么重要？"
+    language: zh
+    query_type: handwritten_vs_transcript
+    origin: "节点/my-recursion-notes.md (注意 raw/ 有同名副本)"
+    expect_hit:
+      - {file: "recursion", grade: 3}
+  - id: vq-h04
+    query: "理性代理和环境的关系是什么？"
+    language: zh
+    query_type: handwritten_vs_transcript
+    origin: "节点/理性代理 vs raw lecture 竞争"
+    expect_hit:
+      - {file: "理性代理", grade: 3}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 4}
+  - id: vq-h05
+    query: "我自己的笔记里对 agent 下过什么定义？"
+    language: zh
+    query_type: handwritten_vs_transcript
+    origin: "「我自己的笔记」显式偏好信号"
+    expect_hit:
+      - {file: "代理", grade: 3}
+      - {file: "lecture 2", grade: 2}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 3}
+  - id: vq-h06
+    query: "特征值全为正意味着什么？"
+    language: zh
+    query_type: handwritten_vs_transcript
+    origin: "Fundamentals 正定性讨论 (det>0 批注上下文的概念正文)"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 3}
+  - id: vq-h07
+    query: "CS 61B 这门课的白板里都挂了什么主题？"
+    language: zh
+    query_type: handwritten_vs_transcript
+    origin: "原白板/CS 61B.md"
+    expect_hit:
+      - {file: "CS 61B", grade: 3}
+  - id: vq-h08
+    query: "lecture 2 我做过哪些自己的笔记和理解？"
+    language: zh
+    query_type: handwritten_vs_transcript
+    origin: "节点/lecture 2.md (concept, 非 raw 转录)"
+    expect_hit:
+      - {file: "节点/lecture 2", grade: 3}
+
+  # ═══ homograph_ambiguous (6) — 靶子③ 中英同形歧义 ═══
+  - id: vq-g01
+    query: "我笔记里关于特征值与特征向量讲了什么？"
+    language: zh
+    query_type: homograph_ambiguous
+    origin: "审查实测 10/10 全 CS188 feature vector (2026-08-02) + transcript 真实提问"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+      - {file: "特征值与特征向量", grade: 2}
+      - {file: "Characteristic-Equation", grade: 2}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 0, reason: "eigenvector≠feature vector, 一条都不许"}
+  - id: vq-g02
+    query: "特征向量的几何意义是什么？"
+    language: zh
+    query_type: homograph_ambiguous
+    origin: "同形歧义变体 (几何=线代语境锚)"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 0}
+  - id: vq-g03
+    query: "用特征向量描述状态是什么意思？"
+    language: zh
+    query_type: homograph_ambiguous
+    origin: "反向歧义: 这次问的真是 ML feature vector (raw 正当命中)"
+    expect_hit:
+      - {file: "raw/CS188", grade: 3}
+  - id: vq-g04
+    query: "特征值怎么求？"
+    language: zh
+    query_type: homograph_ambiguous
+    origin: "短查询歧义 (eigen 语境)"
+    expect_hit:
+      - {file: "Characteristic-Equation", grade: 3}
+      - {file: "Fundamentals", grade: 2}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 1}
+  - id: vq-g05
+    query: "代理是什么？"
+    language: zh
+    query_type: homograph_ambiguous
+    origin: "极短查询: 节点/代理类 5 文件 vs raw lecture 竞争"
+    expect_hit:
+      - {file: "代理", grade: 3}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 4}
+  - id: vq-g06
+    query: "线性模型的定义是什么？"
+    language: zh
+    query_type: homograph_ambiguous
+    origin: "raw/CS188 lecture 12 线性值函数 (正当命中, 手写无此主题)"
+    expect_hit:
+      - {file: "raw/CS188", grade: 3}
+
+  # ═══ zero_lexical_overlap (5) — 纯语义检索 (dense 层能力) ═══
+  - id: vq-z01
+    query: "矩阵作用之后方向不变、只被拉长的那种向量叫什么？我记过吗"
+    language: zh
+    query_type: zero_lexical_overlap
+    origin: "eigenvector 零字面重合问法 (校准方法论同 UAT D″)"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+      - {file: "Eigenvalues-are-special", grade: 2}
+  - id: vq-z02
+    query: "把大问题拆成同样形状的小问题来解决的思路我记在哪？"
+    language: zh
+    query_type: zero_lexical_overlap
+    origin: "递归分治零字面问法"
+    expect_hit:
+      - {file: "recursion", grade: 3}
+      - {file: "递归与分治", grade: 2}
+  - id: vq-z03
+    query: "让行列式变成零的那个数怎么找？"
+    language: zh
+    query_type: zero_lexical_overlap
+    origin: "特征方程 det(A-λI)=0 零字面问法"
+    expect_hit:
+      - {file: "Characteristic-Equation", grade: 3}
+      - {file: "Fundamentals", grade: 2}
+  - id: vq-z04
+    query: "只根据当下感知就行动、不考虑后果的那种智能体叫什么？"
+    language: zh
+    query_type: zero_lexical_overlap
+    origin: "反射代理零字面问法"
+    expect_hit:
+      - {file: "反射", grade: 3}
+      - {file: "代理类型", grade: 2}
+  - id: vq-z05
+    query: "豆子火大了会变苦这件事我记过吗？"
+    language: zh
+    query_type: zero_lexical_overlap
+    origin: "咖啡段零字面问法 (叠加 appended 难度)"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+
+  # ═══ crosslingual (5) — 中英跨语检索 ═══
+  - id: vq-c01
+    query: "What did I write about eigenvalues and eigenvectors in my notes?"
+    language: en
+    query_type: crosslingual
+    origin: "英文问中文库"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+      - {file: "特征值与特征向量", grade: 2}
+    expect_not_hit:
+      - {path_glob: "raw/*", max_in_top_k: 2}
+  - id: vq-c02
+    query: "my notes about rational agents"
+    language: en
+    query_type: crosslingual
+    origin: "英文问中文派生节点"
+    expect_hit:
+      - {file: "理性代理", grade: 3}
+  - id: vq-c03
+    query: "where are my recursion notes"
+    language: en
+    query_type: crosslingual
+    origin: "英文定位"
+    expect_hit:
+      - {file: "recursion", grade: 3}
+  - id: vq-c04
+    query: "how to compute eigenvalues using the characteristic equation"
+    language: en
+    query_type: crosslingual
+    origin: "英文概念问 (Characteristic-Equation 正文本身是英文)"
+    expect_hit:
+      - {file: "Characteristic-Equation", grade: 3}
+  - id: vq-c05
+    query: "planning agents vs reflex agents 的区别"
+    language: mixed
+    query_type: crosslingual
+    origin: "中英混排 (transcript 高频形态)"
+    expect_hit:
+      - {file: "代理类型", grade: 3}
+      - {file: "规划代理", grade: 2}
+
+  # ═══ meta_annotation (5) — 「我之前的疑问/理解」 ═══
+  - id: vq-m01
+    query: "我之前对特征向量有哪些疑问？"
+    language: zh
+    query_type: meta_annotation
+    origin: "transcript 真实提问; Fundamentals 用户疑问 callout"
+    expect_hit:
+      - {file: "Fundamentals", grade: 3}
+  - id: vq-m02
+    query: "λ 可以是 0 吗这个问题我问过吗？"
+    language: zh
+    query_type: meta_annotation
+    origin: "Fundamentals ✍️ 我的理解 callout (T3 后独立成块)"
+    expect_hit:
+      - {file: "Fundamentals", contains: "0", grade: 3}
+  - id: vq-m03
+    query: "我对代理的定义有过什么不理解的地方？"
+    language: zh
+    query_type: meta_annotation
+    origin: "节点/lecture 2.md ✍️ 我对代理的定义还是不太理解"
+    expect_hit:
+      - {file: "lecture 2", grade: 3}
+  - id: vq-m04
+    query: "我在预期这个概念上卡过吗？"
+    language: zh
+    query_type: meta_annotation
+    origin: "节点/lecture 2.md ✍️ 预期理解批注"
+    expect_hit:
+      - {file: "lecture 2", grade: 3}
+  - id: vq-m05
+    query: "我上一次考试弃答的题目是哪道？"
+    language: zh
+    query_type: meta_annotation
+    origin: "弃答记录属考察元数据 (T3 剥离出索引; 该问题归记忆图谱管)"
+    expect_empty: true
+    notes: "vault 检索链交付 0 条为正确 — 考察记录不经 RAG 回流"
+
+  # ═══ nonexistent (4) — 库内无此主题 ═══
+  - id: vq-n01
+    query: "红黑树删除节点后怎么重新平衡？"
+    language: zh
+    query_type: nonexistent
+    expect_empty: true
+  - id: vq-n02
+    query: "傅里叶变换的物理意义是什么？"
+    language: zh
+    query_type: nonexistent
+    expect_empty: true
+  - id: vq-n03
+    query: "操作系统的进程调度算法有哪些？"
+    language: zh
+    query_type: nonexistent
+    expect_empty: true
+  - id: vq-n04
+    query: "光合作用的暗反应发生在哪里？"
+    language: zh
+    query_type: nonexistent
+    expect_empty: true

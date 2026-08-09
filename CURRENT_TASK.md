@@ -2,7 +2,12 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**（2026-08-09 · 阶段 0 ✅ · **阶段 1 ✅ 用户完整 UAT 通过** · 下一站: 阶段 1.5 或 2）:
+**当前状态**（2026-08-09 · 阶段 0 ✅ 阶段 1 ✅ · **阶段 2 强化 fast path 侦察中** · PLAN `RAG-S2`）:
+- 🔧 **阶段 2 范围**（ChatGPT P0-B 已批准）: 目标管线 metadata scope → dense+FTS → RRF → **dedup → 18012 reranker → elbow** → 诚实遥测; retrieval_confidence（对实际交付结果）; **60 条 golden query 评测门禁**（Recall/MRR/nDCG/污染率）; chunk 策略修稀释
+- 📍 带实测数据的靶子: ①chunk 稀释 -0.17 vs 0.648（追加内容独立成块）②93% 转录淹没 6% 手写（doc_type 权重: concept>video_transcript）③中英同形歧义 10/10 跑偏 ④0.50 门槛灰区（rerank 后重定阈值体系）; 挂账并入: M6 双写者收编/L6 NFC/metadata 每请求新建 client
+- 🔎 4 路侦察进行中: 读侧两链现状与统一 / 18012 reranker 契约 / chunk 分块改造点 / golden query 素材+评测基建（memory_gold_set.yaml 可参考）
+
+**上一状态**（2026-08-09 · 阶段 1 ✅ 用户完整 UAT 通过）:
 - ✅ **阶段 1 索引层验收通过**（测试卡 v2 全项: 新建 0.585/改写 0.648/删除三层清/大文件追加 3min 重索引）; MCP -32602 根治（mount_http+.mcp.json http, `d93631ac`）; 观测加固（相对秒数/逐task/excluded 计数, `a87f04ea`）
 - ⛔ **阶段 2 头号靶子实证: chunk 稀释** — 大文件尾部追加异质内容并入 598 字符主导 chunk → 相关度 -0.11~-0.17（独立小文件 0.648, 差 30+ 倍）→ hook 不可见。阶段 2 = chunk 策略 + rerank(18012) + doc_type 权重 + golden set
 - 📋 教训入卡: 问句/探针分两条消息（hook 词黑名单）; 语义零重合问法必须先实机校准（0.498 灰区实锤）

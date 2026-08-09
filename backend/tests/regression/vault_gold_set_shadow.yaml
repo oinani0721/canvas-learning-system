@@ -1,0 +1,9 @@
+# vault_gold_set_shadow.yaml — 阶段 2 检索金集 exploration 分区
+# 规则 (沿用 memory_gold_set_shadow): 新发现的失败案例先进本文件 (--shadow
+# 只报告不门禁), 定期人工评审后升 vault_gold_set.yaml 的 version 并入正集。
+config:
+  version: 1
+  vault_id: canvas_vault
+  top_k: 20
+  tolerance: 0.02
+queries: []
