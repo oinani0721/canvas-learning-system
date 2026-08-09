@@ -1,26 +1,26 @@
 {
-  "run_at": "2026-08-09T13:40:29.104701+00:00",
+  "run_at": "2026-08-09T14:00:29.844943+00:00",
   "mode": "in-process search_supplementary (Tier R + D)",
   "query_count": 60,
   "metrics": {
-    "recall_at_10": 0.1455,
-    "mrr": 0.1605,
-    "ndcg_at_10": 0.5821,
-    "contamination_at_10": 0.7583,
-    "polluted_query_rate": 0.2,
-    "handwritten_share_at_10": 0.0017,
-    "duplicate_rate": 0.0,
-    "delivery_rate": 0.4182,
-    "delivered_contamination_rate": 0.879,
+    "recall_at_10": 0.8909,
+    "mrr": 0.7243,
+    "ndcg_at_10": 0.6579,
+    "contamination_at_10": 0.2417,
+    "polluted_query_rate": 0.1,
+    "handwritten_share_at_10": 0.6167,
+    "duplicate_rate": 0.0033,
+    "delivery_rate": 0.8182,
+    "delivered_contamination_rate": 0.4654,
     "false_positive_rate": 0.58
   },
   "top1_score_distribution": {
-    "median": 0.822,
-    "min": 0.499
+    "median": 0.846,
+    "min": 0.512
   },
   "latency": {
-    "median_s": 0.178,
-    "max_s": 0.228
+    "median_s": 0.206,
+    "max_s": 0.26
   },
   "hard_violations": [],
   "per_query": [
@@ -28,135 +28,96 @@
       "id": "vq-d01",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": 13,
-      "ndcg": 0.0,
-      "contam_note": 10,
+      "first_relevant_rank": 3,
+      "ndcg": 0.5,
       "delivered": 10
     },
     {
       "id": "vq-d02",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": 11,
-      "ndcg": 0.0,
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 0.917,
       "delivered": 10
     },
     {
       "id": "vq-d03",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 0.731,
+      "contam_note": 7,
       "delivered": 10
     },
     {
       "id": "vq-d04",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md"
-      ],
-      "contam_note": 10,
-      "delivered": 1
+      "first_relevant_rank": 1,
+      "ndcg": 0.956,
+      "contam_note": 2,
+      "delivered": 3
     },
     {
       "id": "vq-d05",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 8,
       "delivered": 10
     },
     {
       "id": "vq-d06",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md"
-      ],
-      "contam_note": 10,
-      "delivered": 6
+      "first_relevant_rank": 1,
+      "ndcg": 0.787,
+      "contam_note": 7,
+      "delivered": 1
     },
     {
       "id": "vq-d07",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": 20,
-      "ndcg": 0.0,
-      "contam_note": 10,
-      "delivered": 10
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 3,
+      "delivered": 5
     },
     {
       "id": "vq-d08",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": 1,
-      "ndcg": 4.544,
-      "contam_note": 10,
+      "first_relevant_rank": 6,
+      "ndcg": 0.356,
+      "contam_note": 5,
       "delivered": 10
     },
     {
       "id": "vq-d09",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": 12,
-      "ndcg": 0.0,
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
       "delivered": 10
     },
     {
       "id": "vq-d10",
       "query_type": "definition_recall",
       "returned": 20,
-      "first_relevant_rank": 13,
-      "ndcg": 0.0,
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
       "delivered": 10
     },
     {
       "id": "vq-e01",
       "query_type": "example_recall",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md"
-      ],
+      "first_relevant_rank": 1,
+      "ndcg": 0.429,
       "pollution": [
-        "raw/*: 10/2"
+        "raw/*: 7/2"
       ],
       "delivered": 10
     },
@@ -165,7 +126,7 @@
       "query_type": "example_recall",
       "returned": 20,
       "first_relevant_rank": 1,
-      "ndcg": 4.544,
+      "ndcg": 1.0,
       "contam_note": 10,
       "delivered": 10
     },
@@ -173,25 +134,18 @@
       "id": "vq-e03",
       "query_type": "example_recall",
       "returned": 20,
-      "first_relevant_rank": 1,
-      "ndcg": 4.544,
-      "contam_note": 10,
+      "first_relevant_rank": 2,
+      "ndcg": 0.631,
+      "contam_note": 9,
       "delivered": 10
     },
     {
       "id": "vq-e04",
       "query_type": "example_recall",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md",
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 2,
       "delivered": 10
     },
     {
@@ -199,7 +153,7 @@
       "query_type": "example_recall",
       "returned": 20,
       "first_relevant_rank": 1,
-      "ndcg": 4.544,
+      "ndcg": 1.0,
       "contam_note": 10,
       "delivered": 10
     },
@@ -207,33 +161,19 @@
       "id": "vq-e06",
       "query_type": "example_recall",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 4/lecture 4.md",
-        "raw/CS188/videos/lectures/lecture 3/lecture 3.md",
-        "raw/CS188/videos/lectures/lecture 5/lecture 5.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 3,
       "delivered": 10
     },
     {
       "id": "vq-f01",
       "query_type": "file_locate",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md"
-      ],
+      "first_relevant_rank": 1,
+      "ndcg": 0.787,
       "pollution": [
-        "raw/*: 10/2"
+        "raw/*: 6/2"
       ],
       "delivered": 10
     },
@@ -241,25 +181,18 @@
       "id": "vq-f02",
       "query_type": "file_locate",
       "returned": 20,
-      "first_relevant_rank": 19,
-      "ndcg": 0.0,
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 1,
       "delivered": 10
     },
     {
       "id": "vq-f03",
       "query_type": "file_locate",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 5,
       "delivered": 10
     },
     {
@@ -269,23 +202,21 @@
       "first_relevant_rank": null,
       "ndcg": 0.0,
       "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 1/lecture 1.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md"
+        "节点/规划的分类-1549().md",
+        "节点/代理类型：反射与规划.md",
+        "节点/代理决策分析-0303().md",
+        "节点/代理函数-(Agent-Function).md",
+        "节点/反射代理的局限性引出了规划代理-(Planning-Agents)-的需求.md"
       ],
-      "contam_note": 10,
       "delivered": 0
     },
     {
       "id": "vq-f05",
       "query_type": "file_locate",
       "returned": 20,
-      "first_relevant_rank": 16,
-      "ndcg": 0.0,
-      "contam_note": 10,
-      "delivered": 6
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "delivered": 10
     },
     {
       "id": "vq-f06",
@@ -294,149 +225,91 @@
       "first_relevant_rank": null,
       "ndcg": 0.0,
       "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 5/lecture 5.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md"
+        "节点/代理决策分析-0303().md",
+        "节点/规划代理的特点.md",
+        "节点/规划的分类-1549().md",
+        "节点/Eigenvalues-are-special-vectors-that-sat.md",
+        "节点/代理函数-(Agent-Function).md"
       ],
-      "contam_note": 10,
+      "contam_note": 3,
       "delivered": 0
     },
     {
       "id": "vq-a01",
       "query_type": "appended_content",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md",
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 0.429,
+      "contam_note": 4,
       "delivered": 0
     },
     {
       "id": "vq-a02",
       "query_type": "appended_content",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md",
-        "raw/CS188/videos/lectures/lecture 1/lecture 1.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 7,
+      "ndcg": 0.143,
+      "contam_note": 3,
       "delivered": 0
     },
     {
       "id": "vq-a03",
       "query_type": "appended_content",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 0.429,
+      "contam_note": 3,
       "delivered": 7
     },
     {
       "id": "vq-a04",
       "query_type": "appended_content",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md"
-      ],
-      "contam_note": 10,
-      "delivered": 10
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 4,
+      "delivered": 1
     },
     {
       "id": "vq-a05",
       "query_type": "appended_content",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 4/lecture 4.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 3/lecture 3.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 0.429,
+      "contam_note": 7,
       "delivered": 0
     },
     {
       "id": "vq-h01",
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
-      "first_relevant_rank": 15,
-      "ndcg": 0.0,
-      "pollution": [
-        "raw/*: 10/4"
-      ],
+      "first_relevant_rank": 5,
+      "ndcg": 0.379,
       "delivered": 10
     },
     {
       "id": "vq-h02",
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
-      "first_relevant_rank": 11,
-      "ndcg": 0.0,
-      "pollution": [
-        "raw/*: 10/4"
-      ],
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
       "delivered": 10
     },
     {
       "id": "vq-h03",
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md"
-      ],
-      "contam_note": 10,
-      "delivered": 9
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 1,
+      "delivered": 1
     },
     {
       "id": "vq-h04",
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md"
-      ],
-      "pollution": [
-        "raw/*: 10/4"
-      ],
+      "first_relevant_rank": 7,
+      "ndcg": 0.333,
       "delivered": 10
     },
     {
@@ -444,27 +317,17 @@
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
       "first_relevant_rank": 1,
-      "ndcg": 0.826,
-      "pollution": [
-        "raw/*: 10/3"
-      ],
-      "delivered": 4
+      "ndcg": 0.834,
+      "delivered": 10
     },
     {
       "id": "vq-h06",
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md"
-      ],
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
       "pollution": [
-        "raw/*: 10/3"
+        "raw/*: 6/3"
       ],
       "delivered": 10
     },
@@ -475,46 +338,32 @@
       "first_relevant_rank": null,
       "ndcg": 0.0,
       "top5_paths": [
+        "节点/cs-61b-csm.md",
+        "节点/lecture 2.md",
         "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
         "raw/CS188/videos/lectures/lecture 1/lecture 1.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 5/lecture 5.md",
-        "raw/CS188/videos/lectures/lecture 1/lecture 1.md"
+        "raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees/RS1_Search_CSPs_GameTrees.md"
       ],
-      "contam_note": 10,
+      "contam_note": 8,
       "delivered": 9
     },
     {
       "id": "vq-h08",
       "query_type": "handwritten_vs_transcript",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 1/lecture 1.md",
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md",
-        "raw/CS188/videos/lectures/lecture 3/lecture 3.md",
-        "raw/CS188/videos/lectures/lecture 5/lecture 5.md"
-      ],
-      "contam_note": 10,
-      "delivered": 10
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 5,
+      "delivered": 1
     },
     {
       "id": "vq-g01",
       "query_type": "homograph_ambiguous",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md"
-      ],
+      "first_relevant_rank": 1,
+      "ndcg": 0.674,
       "pollution": [
-        "raw/*: 10/0"
+        "raw/*: 7/0"
       ],
       "delivered": 10
     },
@@ -522,17 +371,10 @@
       "id": "vq-g02",
       "query_type": "homograph_ambiguous",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md"
-      ],
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
       "pollution": [
-        "raw/*: 10/0"
+        "raw/*: 3/0"
       ],
       "delivered": 10
     },
@@ -540,26 +382,19 @@
       "id": "vq-g03",
       "query_type": "homograph_ambiguous",
       "returned": 20,
-      "first_relevant_rank": 1,
-      "ndcg": 4.544,
-      "contam_note": 10,
+      "first_relevant_rank": 5,
+      "ndcg": 0.387,
+      "contam_note": 6,
       "delivered": 10
     },
     {
       "id": "vq-g04",
       "query_type": "homograph_ambiguous",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/discussions/Disc05_RL_[CS188 Discussion] RL III/Disc05_RL_[CS188 Discussion] RL III.md"
-      ],
+      "first_relevant_rank": 1,
+      "ndcg": 0.337,
       "pollution": [
-        "raw/*: 10/1"
+        "raw/*: 8/1"
       ],
       "delivered": 10
     },
@@ -567,44 +402,27 @@
       "id": "vq-g05",
       "query_type": "homograph_ambiguous",
       "returned": 20,
-      "first_relevant_rank": null,
+      "first_relevant_rank": 11,
       "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md"
-      ],
-      "pollution": [
-        "raw/*: 10/4"
-      ],
       "delivered": 10
     },
     {
       "id": "vq-g06",
       "query_type": "homograph_ambiguous",
       "returned": 20,
-      "first_relevant_rank": 1,
-      "ndcg": 4.544,
-      "contam_note": 10,
+      "first_relevant_rank": 9,
+      "ndcg": 0.301,
+      "contam_note": 2,
       "delivered": 9
     },
     {
       "id": "vq-z01",
       "query_type": "zero_lexical_overlap",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 5/lecture 5.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
-        "raw/CS188/videos/lectures/lecture 4/lecture 4.md",
-        "raw/CS188/videos/lectures/lecture 4/lecture 4.md"
-      ],
-      "contam_note": 10,
-      "delivered": 9
+      "first_relevant_rank": 1,
+      "ndcg": 0.787,
+      "contam_note": 4,
+      "delivered": 3
     },
     {
       "id": "vq-z02",
@@ -613,29 +431,22 @@
       "first_relevant_rank": null,
       "ndcg": 0.0,
       "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 4/lecture 4.md",
+        "节点/lecture 2.md",
+        "节点/lecture 2.md",
         "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
         "raw/CS188/videos/lectures/lecture 4/lecture 4.md",
         "raw/CS188/videos/lectures/lecture 6/lecture 6.md"
       ],
-      "contam_note": 10,
+      "contam_note": 8,
       "delivered": 10
     },
     {
       "id": "vq-z03",
       "query_type": "zero_lexical_overlap",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 3/lecture 3.md",
-        "raw/CS188/videos/lectures/lecture 4/lecture 4.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 3/lecture 3.md",
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 0.337,
+      "contam_note": 9,
       "delivered": 6
     },
     {
@@ -645,122 +456,80 @@
       "first_relevant_rank": null,
       "ndcg": 0.0,
       "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 1/lecture 1.md",
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md"
+        "节点/lecture 2.md",
+        "节点/lecture 2.md",
+        "节点/lecture 2.md",
+        "节点/lecture 2.md",
+        "节点/lecture 2.md"
       ],
-      "contam_note": 10,
+      "contam_note": 5,
       "delivered": 10
     },
     {
       "id": "vq-z05",
       "query_type": "zero_lexical_overlap",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md",
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md",
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 5,
+      "ndcg": 0.387,
+      "contam_note": 1,
       "delivered": 1
     },
     {
       "id": "vq-c01",
       "query_type": "crosslingual",
       "returned": 20,
-      "first_relevant_rank": 16,
-      "ndcg": 0.0,
-      "pollution": [
-        "raw/*: 10/2"
-      ],
+      "first_relevant_rank": 2,
+      "ndcg": 0.497,
       "delivered": 7
     },
     {
       "id": "vq-c02",
       "query_type": "crosslingual",
       "returned": 20,
-      "first_relevant_rank": 17,
-      "ndcg": 0.0,
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
       "delivered": 10
     },
     {
       "id": "vq-c03",
       "query_type": "crosslingual",
       "returned": 20,
-      "first_relevant_rank": 18,
-      "ndcg": 0.0,
-      "contam_note": 9,
+      "first_relevant_rank": 2,
+      "ndcg": 0.631,
       "delivered": 10
     },
     {
       "id": "vq-c04",
       "query_type": "crosslingual",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 7/lecture 7.md",
-        "raw/CS188/videos/lectures/lecture 6/lecture 6.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md"
-      ],
-      "contam_note": 10,
-      "delivered": 1
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 2,
+      "delivered": 6
     },
     {
       "id": "vq-c05",
       "query_type": "crosslingual",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md",
-        "raw/CS188/videos/lectures/lecture 9/lecture 9.md",
-        "raw/CS188/videos/lectures/lecture 2/lecture 2.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 4,
+      "ndcg": 0.145,
       "delivered": 10
     },
     {
       "id": "vq-m01",
       "query_type": "meta_annotation",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 12/lecture 12.md",
-        "raw/CS188/videos/lectures/lecture 5/lecture 5.md",
-        "raw/CS188/videos/lectures/lecture 5/lecture 5.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
+      "contam_note": 2,
       "delivered": 10
     },
     {
       "id": "vq-m02",
       "query_type": "meta_annotation",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 4/lecture 4.md",
-        "raw/CS188/videos/lectures/lecture 3/lecture 3.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 1,
+      "ndcg": 1.0,
       "delivered": 9
     },
     {
@@ -768,24 +537,16 @@
       "query_type": "meta_annotation",
       "returned": 20,
       "first_relevant_rank": 1,
-      "ndcg": 3.927,
-      "contam_note": 9,
-      "delivered": 4
+      "ndcg": 1.0,
+      "delivered": 10
     },
     {
       "id": "vq-m04",
       "query_type": "meta_annotation",
       "returned": 20,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md",
-        "raw/CS188/videos/lectures/lecture 8/lecture 8.md"
-      ],
-      "contam_note": 10,
+      "first_relevant_rank": 2,
+      "ndcg": 0.631,
+      "contam_note": 3,
       "delivered": 10
     },
     {

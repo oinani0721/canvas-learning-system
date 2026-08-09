@@ -210,8 +210,10 @@ async def _raw_lancedb_search(query: str, max_results: int) -> List[Dict[str, An
             list(db.table_names())[:5],
         )
     tbl = db.open_table(table_name)
-    # Filter out whiteboard, fallback to IS NULL for pre-A1 rows
-    where_clause = "(doc_type NOT IN ('whiteboard') OR doc_type IS NULL)"
+    # Filter out whiteboard AND exam_board, fallback to IS NULL for pre-A1 rows.
+    # RAG-S2 T2 (2026-08-09): exam_board 此前只在 hook 链排除 — MCP 主动检索
+    # 可捞到考题白板, 信息隔离铁律 (HARD-ISO) 的旁路, 与 hook 链口径对齐。
+    where_clause = "(doc_type NOT IN ('whiteboard', 'exam_board') OR doc_type IS NULL)"
     raw_df = tbl.search(query_vector).where(where_clause).limit(max_results).to_pandas()
     results = [
         {

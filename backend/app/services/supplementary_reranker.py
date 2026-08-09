@@ -50,8 +50,12 @@ TYPE_WEIGHTS: dict[str, float] = {
     "chat_session": 0.7,
     "raw_notes": 0.6,
     # P0-A 过渡 (indexer 升级到 PRD 6 档前的实际命中映射, 2026-05-12 hotfix):
-    "video_transcript": 0.9,  # 视频 transcript → 近 discussion 价值
-    "note": 0.7,  # 普通 vault 笔记 → 近 chat_session 中档
+    # RAG-S2 T2 (2026-08-09) 权重方向翻转: 旧值 video_transcript 0.9 > note 0.7
+    # 把转录排在手写笔记之上, 与用户初衷相反 (开工基线 handwritten_share
+    # @10 = 0.17%)。翻转: 手写/概念笔记最高, 转录居中。
+    "concept": 1.0,  # 派生概念节点 (doc_type=concept) → 用户手写, 最高
+    "note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高
+    "video_transcript": 0.75,  # 视频 transcript → 素材层, 低于手写
     "image_ocr": 0.6,  # OCR 出来的图片文字 → 同 raw_notes 低档 (准确度有限)
 }
 
@@ -174,9 +178,7 @@ def rerank(
         m["type_weight"] = type_weight
         m["query_overlap"] = query_overlap
         m["hub_penalty"] = hub_pen
-        m["rerank_score"] = (
-            relevance * type_weight + query_overlap * query_overlap_weight - hub_pen
-        )
+        m["rerank_score"] = relevance * type_weight + query_overlap * query_overlap_weight - hub_pen
 
     materials.sort(
         key=lambda m: (-m["rerank_score"], str(m.get("title", ""))),
@@ -212,9 +214,7 @@ def rerank(
                 min_keep=min_keep,
             )
             # P0-3b: floor 仍 fail-closed 过滤 review/quarantine 材料
-            materials = [
-                m for m in materials if m.get("taint") not in {"review", "quarantine"}
-            ]
+            materials = [m for m in materials if m.get("taint") not in {"review", "quarantine"}]
             # 标记兜底, 仍走 top_k
             if materials:
                 materials[0]["filter_floor_triggered"] = True

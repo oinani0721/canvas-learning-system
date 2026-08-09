@@ -148,9 +148,7 @@ async def search_supplementary(
 
         results = apply_source_priority(results)
     except ImportError:
-        logger.debug(
-            "[SupplementarySearch] reference_config 不可用，跳过 source priority"
-        )
+        logger.debug("[SupplementarySearch] reference_config 不可用，跳过 source priority")
 
     # Filter + normalize + 空文档检测（防 ghost reference / 路径漂移 / 空 frontmatter）
     # Phase A0.5-P (Round-4 ChatGPT V3 + cross-check confirmed P0 安全):
@@ -194,9 +192,7 @@ async def search_supplementary(
         # Bonus (2026-05-12 hotfix): chunk-type-aware link-list 标记.
         # 用 raw content (完整 chunk 文本) 比 snippet (截 300 字) 更准.
         # 不过滤 — 标记给 rerank 看见, 让下游可降权 link-list chunk 优先 atomic 笔记.
-        raw_content_for_check = str(raw.get("content", "") or "") or normalized.get(
-            "snippet", ""
-        )
+        raw_content_for_check = str(raw.get("content", "") or "") or normalized.get("snippet", "")
         if _is_link_list_chunk(raw_content_for_check):
             normalized["is_link_list_chunk"] = True
 
@@ -204,9 +200,7 @@ async def search_supplementary(
         # 透传到 normalized, 否则下面 any(...is_legacy_fallback) 永不命中.
         # raw['is_legacy_fallback'] 由 _two_tier_search tier-2 路径设置 (top-level
         # 也保留以备 metadata 嵌套不一致).
-        if raw.get("is_legacy_fallback") or (raw.get("metadata") or {}).get(
-            "is_legacy_fallback"
-        ):
+        if raw.get("is_legacy_fallback") or (raw.get("metadata") or {}).get("is_legacy_fallback"):
             normalized["is_legacy_fallback"] = True
 
         materials.append(normalized)
@@ -345,8 +339,7 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
             # "IGNORE ALL PREVIOUS INSTRUCTIONS...") 仍进 prompt. 升级为固定
             # placeholder + risk_score 提示, 用户可手动 Read source_path verify.
             snippet_content = (
-                f"[REDACTED: suspicious content (risk={injection_risk:.2f}); "
-                f"open source_path manually to verify]"
+                f"[REDACTED: suspicious content (risk={injection_risk:.2f}); open source_path manually to verify]"
             )
             title_content = f"[REDACTED: tainted title (risk={injection_risk:.2f})]"
             wikilink_content = "[REDACTED]"
@@ -642,9 +635,7 @@ async def _two_tier_search(
         if not (hasattr(client, "_db") and client._db is not None):
             return []
         list_tables_fn = (
-            client._db.list_tables
-            if hasattr(client._db, "list_tables")
-            else getattr(client._db, "table_names", None)
+            client._db.list_tables if hasattr(client._db, "list_tables") else getattr(client._db, "table_names", None)
         )
         if list_tables_fn is None:
             return []
@@ -689,9 +680,7 @@ async def _two_tier_search(
         for idx, (_, row) in enumerate(df.iterrows()):
             raw_canvas_file = str(row.get("canvas_file", "") or "")
             # rank 0 → 0.50, rank N-1 → 0.31（保留 FTS BM25 排序信号但不绕过 min_relevance）
-            rank_score = (
-                0.50 - 0.19 * (idx / max(df_size - 1, 1)) if df_size > 1 else 0.50
-            )
+            rank_score = 0.50 - 0.19 * (idx / max(df_size - 1, 1)) if df_size > 1 else 0.50
             normalized.append(
                 {
                     "score": rank_score,
@@ -723,6 +712,12 @@ def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
     metadata = raw.get("metadata") or {}
     score = float(raw.get("score", 0.0))
     content = raw.get("content", "") or ""
+    # RAG-S2 T2 (2026-08-09): confidence 地基三字段透传 —
+    # raw_score(未加权语义分, 权重污染后可回算真实相关度) +
+    # rrf/fts 融合信号(区分双通道确认 vs dense-only, 此前 convert 层丢弃)。
+    raw_score = raw.get("_raw_score")
+    doc_type = metadata.get("doc_type", "") or raw.get("doc_type", "") or ""
+    fts_confirmed = bool(metadata.get("_rrf_score")) and not metadata.get("_fts_only")
 
     # 优先 metadata.canvas_file（新 schema），fallback 到顶层 canvas_file（老 schema / tier-2）
     canvas_file = metadata.get("canvas_file", "") or raw.get("canvas_file", "") or ""
@@ -754,9 +749,7 @@ def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
         # display text (用户视觉) 仅做清洗：去 [time]() / [[wikilink]] / 末尾空白
         display_heading = re.sub(r"\[\[.*?\]\]", "", display_heading).strip()
         display_heading = re.sub(r"\[.*?\]\(.*?\)", "", display_heading).strip()
-        display_heading = re.sub(
-            r"\s+-\s*$", "", display_heading
-        ).strip()  # 末尾 ` -` 残留
+        display_heading = re.sub(r"\s+-\s*$", "", display_heading).strip()  # 末尾 ` -` 残留
         display_heading = re.sub(r"^\s+|\s+$", "", display_heading)
     heading = raw_heading  # ⭐ wikilink anchor 用字面 raw heading（保跳转）
 
@@ -787,6 +780,11 @@ def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
         "score": score,
         "source_path": canvas_file,
         "source_type": source_type,
+        # RAG-S2 T2: confidence 地基 (raw_score=未加权语义分 /
+        # doc_type=按类型加权与断言用 / fts_confirmed=双通道确认)
+        "raw_score": raw_score,
+        "doc_type": doc_type,
+        "fts_confirmed": fts_confirmed,
     }
 
 
@@ -795,9 +793,5 @@ def _xml_escape(text: str) -> str:
     if not isinstance(text, str):
         text = str(text)
     return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-        .replace("\n", " ")
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("\n", " ")
     )

@@ -174,9 +174,15 @@ def _chunk_text(text: str, max_tokens: int = 512, overlap_tokens: int = 50) -> L
 
     # --- Step 2: Split non-atomic text into sentences ---
     # Sentence boundaries: Chinese period, English period, newline,
-    # question marks, exclamation marks
+    # question marks, exclamation marks.
+    # RAG-S2 T2 bug① (2026-08-09): ASCII [.!?] 只在后随空白/行尾才断句 —
+    # 旧 pattern 在任意 `!` 后断, 把每个 callout 标记 `> [!question]+` 切成
+    # `> [!` + `question]+`(实测全库无一幸免), 小数 `0.88` 切成 `0.`/`88`,
+    # 域名 `a.b.org` 切成三段 — 给含批注的 chunk 注入大量语义垃圾, 并毁掉
+    # 一切按 callout 边界处理的下游正则。中文全角标点无此歧义, 保持原行为。
     sentence_pattern = re.compile(
-        r"(?<=[。！？\.\!\?])\s*"  # after sentence-ending punctuation
+        r"(?<=[。！？])\s*"  # after full-width sentence punctuation
+        r"|(?<=[.!?])(?=\s|$)\s*"  # ASCII punctuation only before whitespace/EOL
         r"|\n+"  # or newline(s)
     )
 
@@ -1904,14 +1910,20 @@ class LanceDBClient:
             return fm, body
 
         try:
-            end_idx = content.find("---", 3)
-            if end_idx == -1:
+            import re as _re
+
+            # RAG-S2 T2 bug③ (2026-08-09): 结束标记必须是独立的 `---` 行 —
+            # 旧 find("---", 3) 命中 frontmatter 值内的任意 "---" 子串
+            # (dispute_reason 等自由文本), 半截 YAML 会被当正文送去 embedding。
+            end_match = _re.search(r"^---\s*$", content[3:], _re.MULTILINE)
+            if end_match is None:
                 return fm, body
+            end_idx = 3 + end_match.start()
             yaml_str = content[3:end_idx].strip()
             parsed = yaml.safe_load(yaml_str)
             if isinstance(parsed, dict):
                 fm = parsed
-            body = content[end_idx + 3 :].lstrip("\n")
+            body = content[3 + end_match.end() :].lstrip("\n")
         except Exception:
             import logging
 
@@ -3061,6 +3073,11 @@ class LanceDBClient:
                 "_source_type",
                 # RAG-P0 A1: doc_type for source-aware filter/rerank
                 "doc_type",
+                # RAG-S2 T2 (2026-08-09): retrieval_confidence 地基 — RRF 融合
+                # 信号此前被本白名单丢弃, 下游无法区分「双通道确认」与
+                # 「dense-only 命中」(confidence 最强的一维, 零成本透传)。
+                "_rrf_score",
+                "_fts_only",
             ]:
                 if key in item:
                     metadata[key] = item[key]

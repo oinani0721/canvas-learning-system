@@ -238,7 +238,27 @@ async def run_tiers(gold: dict) -> dict:
         ranked_total += len(top10)
 
         if not empty_expected and expects:
-            grades = [grade_of(m, expects) for m in mats]
+            # nDCG 修正 (T2 实测抓获 >1.0): 声明是文件级、结果是 chunk 级 —
+            # 同文件多 chunk 重复计 gain 会使 DCG > IDCG。per-expect 去重:
+            # 每条 expect 只有首个匹配的结果计 gain, 后续同源命中记 0
+            # (recall/MRR 用原始逐结果 flags, 不受影响)。
+            grades = []
+            used_expects: set = set()
+            for m in mats:
+                path_n = norm_text(m.get("source_path", ""))
+                snip_n = norm_text(material_text(m))
+                best_g, best_i = 0, None
+                for i, e in enumerate(expects):
+                    if i in used_expects or norm_text(e["file"]) not in path_n:
+                        continue
+                    g = int(e.get("grade", 2))
+                    if e.get("contains") and norm_text(e["contains"]) not in snip_n:
+                        g = min(g, 2)
+                    if g > best_g:
+                        best_g, best_i = g, i
+                if best_i is not None:
+                    used_expects.add(best_i)
+                grades.append(best_g)
             relevant = [g > 0 for g in grades]
             first = next((i + 1 for i, f in enumerate(relevant) if f), None)
             recall_total += 1
