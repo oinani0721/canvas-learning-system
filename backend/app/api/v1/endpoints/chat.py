@@ -451,6 +451,13 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
                 query=req.user_question[:60] if req.user_question else None,
             )
 
+            # T5 审查 MEDIUM-4: confidence 是按 rerank 前的 top1 算的 —
+            # supplementary_reranker 重排/过滤/截断后可能已把被背书的材料
+            # 删掉 (hub_penalty), 陈旧 level 会为没交付的材料背书。摘掉让
+            # XML 不渲染 confidence attr (向后兼容分支), 诚实优先; 本端点
+            # 按 rerank 后重算留待后续。hook 面无 rerank, 不受影响。
+            supp_result.pop("confidence", None)
+
             supp_xml = format_supplementary_xml(supp_result)
             final_text += "\n\n" + supp_xml
             supp_count = len(supp_result.get("materials", []))
@@ -800,6 +807,26 @@ class HookEnrichOutput(BaseModel):
     hookSpecificOutput: dict[str, Any]
 
 
+def _empty_supp_context(result: dict[str, Any]) -> str:
+    """RAG-S2 T5 (2026-08-10): 空/降级检索也注入标注 — 治「降级结构性失明」。
+
+    此前 materials 空 (或 hook 超时/异常/client 未就绪) 直接返回空
+    additionalContext — Claude 分不清「检索链降级」和「vault 真没有相关
+    材料」, 只能凭训练数据编 → 幻觉引用。现注入单行自闭合 XML
+    (degraded / reason / confidence="none") + 一句禁编造指令; 成本一行,
+    换诚实性。exam-skill / system-op / 短 prompt 跳过仍保持零注入
+    (那些是"本轮不该检索", 不是降级)。
+    """
+    supp_xml = format_supplementary_xml(result)
+    note = (
+        "Canvas Auto-RAG: 本轮 vault 检索无交付材料, 见下方标注。"
+        'degraded="true" 表示检索链降级 (reason 给出原因); 无 degraded '
+        "表示检索正常但确无相关/过门材料。禁止凭空编造 vault 笔记引用; "
+        "需要材料时用 search_notes 工具或 Read 指定文件。\n"
+    )
+    return note + supp_xml
+
+
 @chat_router.post(
     "/rag/enrich-hook",
     response_model=HookEnrichOutput,
@@ -895,15 +922,18 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
     # 已 ready 立即返回 client; 未 ready 短窗口内尝试不抢锁, 超时则降级跳过.
     lancedb_client = await _get_supp_lancedb_client(init_timeout=0.5)
     if lancedb_client is None:
-        # singleton 仍在 background eager-init (timeout 0.5s 未拿到), 本次静默跳过
+        # singleton 仍在 background eager-init (timeout 0.5s 未拿到)。
+        # T5: 不再无声跳过 — 注入降级标注 (Claude 需区分降级 vs 真无材料)。
         logger.debug(
-            "[T1.7-AutoRAG] lancedb singleton not ready, skip injection",
+            "[T1.7-AutoRAG] lancedb singleton not ready, inject degraded marker",
             prompt=user_prompt[:60],
         )
         return HookEnrichOutput(
             hookSpecificOutput={
                 "hookEventName": "UserPromptSubmit",
-                "additionalContext": "",
+                "additionalContext": _empty_supp_context(
+                    {"materials": [], "degraded": True, "reason": "lancedb_unavailable"}
+                ),
             }
         )
 
@@ -927,11 +957,14 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
             timeout=5.0,  # hook 严格延迟预算
         )
     except asyncio.TimeoutError:
-        logger.debug("[T1.7-AutoRAG] timeout 5s, skip", prompt=user_prompt[:60])
+        # T5: 5s 预算超时 = 检索链降级 — 注入标注而非无声空白
+        logger.debug("[T1.7-AutoRAG] timeout 5s, inject degraded marker", prompt=user_prompt[:60])
         return HookEnrichOutput(
             hookSpecificOutput={
                 "hookEventName": "UserPromptSubmit",
-                "additionalContext": "",
+                "additionalContext": _empty_supp_context(
+                    {"materials": [], "degraded": True, "reason": "hook_timeout_5s"}
+                ),
             }
         )
     except Exception as e:  # noqa: BLE001
@@ -939,17 +972,22 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
         return HookEnrichOutput(
             hookSpecificOutput={
                 "hookEventName": "UserPromptSubmit",
-                "additionalContext": "",
+                "additionalContext": _empty_supp_context(
+                    {"materials": [], "degraded": True, "reason": f"search_failed: {str(e)[:80]}"}
+                ),
             }
         )
 
     materials = supp_result.get("materials", [])
     if not materials:
-        # 0 命中（vault 无相关材料）→ 不注入（避免对话 spam）
+        # T5 降级失明修复: 此前 0 命中裸 return 空 context ("避免 spam") —
+        # 代价是 Claude 分不清「检索降级 (lancedb_unavailable/timeout)」「CE
+        # 门全杀 (ce_gate_all_filtered)」「真无相关材料」。现注入单行标注
+        # XML (supp_result 自带 degraded/reason/confidence), 非材料 spam。
         return HookEnrichOutput(
             hookSpecificOutput={
                 "hookEventName": "UserPromptSubmit",
-                "additionalContext": "",
+                "additionalContext": _empty_supp_context(supp_result),
             }
         )
 

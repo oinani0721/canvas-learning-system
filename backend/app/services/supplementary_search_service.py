@@ -92,6 +92,7 @@ async def search_supplementary(
     min_relevance: float = 0.30,
     elbow_drop_threshold: float = 0.05,
     hard_cap: int = 15,
+    include_content: bool = False,
 ) -> dict[str, Any]:
     """RAG-as-tool 范式（2026-05-09 重构）: 大召回 + Claude Read 真验证.
 
@@ -106,27 +107,24 @@ async def search_supplementary(
         min_relevance: 阈值（0.30 适配 RRF 实测分布，待 Phase B sigmoid 归一化恢复 0.70）
         elbow_drop_threshold: 相邻 score gap > 此值视为"相关性悬崖"动态截断
         hard_cap: 即使 elbow 不触发，最多返回此数量（保护 prompt 长度）
+        include_content: RAG-S2 T5 MCP profile — True 时 material 额外带完整
+            chunk 正文 ``content`` 字段（MCP search_notes 需要正文而非 300 字
+            snippet）。hook 链不传 → prompt 面不变。⛔ 这是共享链的 profile
+            参数, 不是平行搜索函数 (DD-13/防蔓延)。
 
     Returns:
         {
             "materials": list[dict],   # 动态长度（不固定 5），含 title/snippet/wikilink/score/source_path
             "degraded": bool,
             "reason": str | None,
+            "confidence": dict,        # RAG-S2 T5: {level, signals} 查询级检索置信度
         }
     """
     if lancedb_client is None:
-        return {
-            "materials": [],
-            "degraded": True,
-            "reason": "lancedb_unavailable",
-        }
+        return _empty_result("lancedb_unavailable", degraded=True)
 
     if not query or not query.strip():
-        return {
-            "materials": [],
-            "degraded": False,
-            "reason": "empty_query",
-        }
+        return _empty_result("empty_query", degraded=False)
 
     try:
         if hasattr(lancedb_client, "_initialized") and not lancedb_client._initialized:
@@ -146,29 +144,17 @@ async def search_supplementary(
             "[SupplementarySearch] 超时降级（首次 model cold-start 可能 60s+）",
             query=query[:80],
         )
-        return {
-            "materials": [],
-            "degraded": True,
-            "reason": "timeout",
-        }
+        return _empty_result("timeout", degraded=True)
     except (RuntimeError, ConnectionError, ValueError) as e:
         logger.warning(
             "[SupplementarySearch] 搜索失败",
             error=str(e)[:120],
             query=query[:80],
         )
-        return {
-            "materials": [],
-            "degraded": True,
-            "reason": f"search_failed: {str(e)[:80]}",
-        }
+        return _empty_result(f"search_failed: {str(e)[:80]}", degraded=True)
 
     if not results:
-        return {
-            "materials": [],
-            "degraded": False,
-            "reason": "empty_index",
-        }
+        return _empty_result("empty_index", degraded=False)
 
     try:
         from app.core.reference_config import apply_source_priority
@@ -208,11 +194,21 @@ async def search_supplementary(
             skipped_empty += 1
             continue
 
+        raw_content_for_check = str(raw.get("content", "") or "") or normalized.get("snippet", "")
+
+        # RAG-S2 T5: MCP profile — 完整 chunk 正文挂 material。hook 链不传
+        # include_content, content 键不存在 → XML/prompt 面不变。
+        # ⛔ 必须在 taint 扫描之前挂载 (审查 HIGH-2): 交付面 = 扫描面 —
+        # 否则 payload 藏在 301 字之后 (snippet 只截前 300 字) 即绕过扫描,
+        # MCP 全文交付成 prompt injection 绕行通道。
+        if include_content:
+            normalized["content"] = raw_content_for_check
+
         # Phase A0.5-P + P0-3c: prompt injection taint 扫描 (multi-field).
         # 旧逻辑只扫 snippet → 攻击者把 payload 埋 frontmatter title / wikilink /
         # source_path 即可绕过 (snippet 看着干净 → clean → 整条进 prompt).
-        # 新逻辑扫描 snippet + title + wikilink + source_path 各跑一遍 taint scan,
-        # 取 max risk_score + worst taint level (quarantine > review > clean).
+        # 新逻辑扫描 snippet + title + wikilink + source_path (+ MCP profile 的
+        # content 全文) 各跑一遍 taint scan, 取 max risk_score + worst taint level.
         taint_info = _classify_material_taint(normalized)
         normalized["taint"] = taint_info["taint"]
         normalized["injection_risk"] = taint_info["risk_score"]
@@ -224,7 +220,6 @@ async def search_supplementary(
         # Bonus (2026-05-12 hotfix): chunk-type-aware link-list 标记.
         # 用 raw content (完整 chunk 文本) 比 snippet (截 300 字) 更准.
         # 不过滤 — 标记给 rerank 看见, 让下游可降权 link-list chunk 优先 atomic 笔记.
-        raw_content_for_check = str(raw.get("content", "") or "") or normalized.get("snippet", "")
         if _is_link_list_chunk(raw_content_for_check):
             normalized["is_link_list_chunk"] = True
 
@@ -344,6 +339,8 @@ async def search_supplementary(
             "materials": materials,
             "degraded": True,
             "reason": merged_reason,
+            # T5: legacy 人造 rank-decay 分无真实背书 → level=none (degraded)
+            "confidence": _build_retrieval_confidence(materials, gated=gated, degraded=True, reason=merged_reason),
         }
 
     if materials:
@@ -357,6 +354,74 @@ async def search_supplementary(
         "materials": materials,
         "degraded": False,
         "reason": empty_reason,
+        "confidence": _build_retrieval_confidence(
+            materials,
+            gated=gated,
+            gate_killed_all=gate_killed_all,
+            reason=empty_reason,
+        ),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RAG-S2 T5 (2026-08-10): retrieval_confidence — 诚实遥测
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _build_retrieval_confidence(
+    materials: list[dict[str, Any]],
+    *,
+    gated: bool,
+    gate_killed_all: bool = False,
+    degraded: bool = False,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """查询级检索置信度 {level, signals} — 双面注入 (hook XML attr / MCP 顶层字段)。
+
+    起始档位规则 (T5 计划 + 2026-08-10 金集探针校准):
+      high   — CE 门放行 且 top1 双通道确认 (fts_confirmed) 且 ce_score>=0.5
+      medium — 过了 CE 门 (每条幸存者都有 CE 背书), 或 top1 fts_confirmed
+      low    — CE 回落/熔断/未启用: 只有加权分背书
+      none   — 空交付或 degraded (含 tier2 legacy 人造 rank-decay 分)
+
+    ⛔ fts_confirmed 只作遥测信号, 不进交付门 (T5 探针实锤不可分):
+    zh 常用词 (节点/删除/平衡) 让垃圾 query 也大面积 FTS 命中 (n01 5 条 /
+    n03 7 条 raw>=0.50 全 fts=True), 而真命中 a01/z05 的 Fundamentals
+    (appended 咖啡段) 反而 fts=False — 词法双通道在本 vault 分布下救不了
+    该救的、放进不该放的, 按计划回退遥测-only。
+
+    signals 是内部观测量纲 — XML 面只渲染 level 离散档
+    (ce_score not in xml 契约保持), MCP 面整个 dict 透出。
+    """
+    top = materials[0] if materials else None
+    if degraded or top is None:
+        level = "none"
+    elif gated and top.get("fts_confirmed") and float(top.get("ce_score") or 0.0) >= 0.5:
+        level = "high"
+    elif gated or top.get("fts_confirmed"):
+        level = "medium"
+    else:
+        level = "low"
+    return {
+        "level": level,
+        "signals": {
+            "fts_confirmed_count": sum(1 for m in materials if m.get("fts_confirmed")),
+            "delivered": len(materials),
+            "ce_gated": gated,
+            "ce_gate_all_filtered": gate_killed_all,
+            "degraded_reason": reason if (degraded or not materials) else None,
+            "top_score": round(float(top.get("score") or 0.0), 4) if top else 0.0,
+        },
+    }
+
+
+def _empty_result(reason: str | None, *, degraded: bool) -> dict[str, Any]:
+    """空交付/降级的统一返回体 (T5: 每条早退路径都必须带 confidence)。"""
+    return {
+        "materials": [],
+        "degraded": degraded,
+        "reason": reason,
+        "confidence": _build_retrieval_confidence([], gated=False, degraded=degraded, reason=reason),
     }
 
 
@@ -392,9 +457,17 @@ def format_supplementary_xml(result: dict[str, Any]) -> str:
             attrs += ' degraded="true"'
         if reason:
             attrs += f' reason="{_xml_escape(reason)}"'
+        # RAG-S2 T5: 降级/空交付定义即 none — 让 Claude 能区分
+        # 「检索降级/CE 全杀/真无材料」而不是无声空白
+        attrs += ' confidence="none"'
         return f"<supplementary_materials {attrs}/>"
 
-    parts = [f'<supplementary_materials count="{len(materials)}">']
+    # RAG-S2 T5: 查询级置信度只渲染离散档位 (high/medium/low/none), 裸分数
+    # (ce_score/top_score 等 signals) 是内部量纲不进 prompt 面。confidence
+    # 键缺失时不渲染 attr — 老调用方/手工构造 dict 向后兼容。
+    conf_level = (result.get("confidence") or {}).get("level")
+    conf_attr = f' confidence="{_xml_escape(str(conf_level))}"' if conf_level else ""
+    parts = [f'<supplementary_materials count="{len(materials)}"{conf_attr}>']
     for i, m in enumerate(materials, start=1):
         taint = m.get("taint", "clean")
         injection_risk = m.get("injection_risk", 0.0)
@@ -527,6 +600,9 @@ def _classify_material_taint(material: dict[str, Any]) -> dict[str, Any]:
         material.get("title", "") or "",
         material.get("wikilink", "") or "",
         material.get("source_path", "") or "",
+        # RAG-S2 T5 (审查 HIGH-2): MCP profile 的完整正文也要扫 — 交付面 =
+        # 扫描面。hook 链无 content 键 → 空串跳过, 成本不变。
+        material.get("content", "") or "",
     )
     worst_taint = "clean"
     max_risk = 0.0
@@ -691,6 +767,11 @@ def _dedup_by_source(materials: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
         if m.get("is_legacy_fallback"):
             keeper["is_legacy_fallback"] = True
+        # T5: 词法确认按文件粒度继承 (a01 实证: 咖啡段藏在低分 chunk, 其
+        # FTS 命中不继承则文件级 fts_confirmed 失真)。只作 confidence
+        # 遥测信号, 不进交付门 (探针实锤不可分, 见 _build_retrieval_confidence)。
+        if m.get("fts_confirmed"):
+            keeper["fts_confirmed"] = True
         merged_ce_text = m.get("_ce_text")
         if merged_ce_text:
             base_ce_text = keeper.get("_ce_text") or ""
@@ -746,7 +827,7 @@ async def _two_tier_search(
             # 也在查询层拦住, 信息隔离 (d=1.50) 不再靠单点
             exclude_doc_types=["whiteboard", "exam_board"],
         )
-    except (RuntimeError, ConnectionError, ValueError, asyncio.TimeoutError) as e:
+    except Exception as e:  # noqa: BLE001  T5 审查 HIGH-1: 任何异常都走 vector 回退
         logger.warning(
             "[SupplementarySearch] tier-1 hybrid 失败，回退到 vector-only",
             error=str(e)[:120],
@@ -756,10 +837,19 @@ async def _two_tier_search(
                 query=query,
                 table_name="vault_notes",
                 num_results=num_results,
-                exclude_doc_types=["whiteboard"],
+                # RAG-S2 T5 (2026-08-10): 回退分支此前漏排 exam_board — hybrid
+                # 异常时 vector-only 路径成了考题隔离 (HARD-ISO) 的旁路, 与
+                # Tier-1 口径对齐。
+                exclude_doc_types=["whiteboard", "exam_board"],
             )
-        except (RuntimeError, ConnectionError, ValueError, asyncio.TimeoutError):
-            results = []
+        except Exception as e2:  # noqa: BLE001
+            # T5 审查 HIGH-1: 两级都异常 = 基础设施故障, 不得吞成 [] —
+            # 旧行为会让上层判成 empty_index (degraded=False), MCP 面报
+            # ok_empty、hook 面标「检索正常但无材料」, 阶段 0 契约 3
+            # (健康空 ≠ 故障) 被打穿。包成 RuntimeError 走 search_failed
+            # 降级通道 (search_supplementary 只捕 RuntimeError/Connection/
+            # ValueError, 裸 re-raise 会逃逸破坏"内部全降级不外抛"契约)。
+            raise RuntimeError(f"tier-1 search failed (hybrid+vector): {str(e2)[:80]}") from e2
 
     if results:
         return results

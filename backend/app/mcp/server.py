@@ -208,14 +208,18 @@ def _register_tool_routes(app: FastAPI) -> None:
         response_model=NoteSearchOutput,
         tags=[MCP_TAG],
         operation_id="search_notes",
-        summary="Search Vault notes (fast LanceDB semantic search)",
-        description="Search the user's Vault markdown notes via direct LanceDB + "
-        "BGE-M3 semantic search (fast path, RAG-S0-2026-08-02). The response "
-        "declares execution_mode (fast/extended/fallback) and source_status "
-        "(ok_nonempty/ok_empty/error). The legacy LangGraph multi-source "
-        "pipeline only runs when RAG_EXTENDED_MODE is set (stage-4 shadow). "
-        "Claude should use this tool when it needs to find relevant notes, "
-        "examples, or study materials from the user's knowledge base.",
+        summary="Search Vault notes (shared hybrid retrieval chain)",
+        description="Search the user's Vault markdown notes via the shared "
+        "retrieval chain (RAG-S2 T5): LanceDB hybrid FTS+RRF + BGE-M3, "
+        "source-priority weighted ordering, taint scan, source-file dedup and "
+        "cross-encoder delivery gate — the same chain that feeds the hook "
+        "injection. The response declares execution_mode "
+        "(fast/extended/fallback), source_status (ok_nonempty/ok_empty/error) "
+        "and retrieval_confidence (high/medium/low/none). The legacy LangGraph "
+        "multi-source pipeline only runs when RAG_EXTENDED_MODE is set "
+        "(stage-4 shadow). Claude should use this tool when it needs to find "
+        "relevant notes, examples, or study materials from the user's "
+        "knowledge base.",
     )
     async def _search_notes(input: NoteSearchInput) -> Dict[str, Any]:
         return await search_notes(

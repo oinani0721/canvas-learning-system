@@ -338,9 +338,7 @@ def test_enrich_context_answer_mode_uses_lazy_init_path(client):
     assert response.status_code == 200
     assert captured_lazy.called
     call_obj = captured_lazy.call_args
-    init_timeout = call_obj.kwargs.get("init_timeout") or (
-        call_obj.args[0] if call_obj.args else None
-    )
+    init_timeout = call_obj.kwargs.get("init_timeout") or (call_obj.args[0] if call_obj.args else None)
     assert init_timeout == 5.0
 
 
@@ -399,17 +397,12 @@ def test_rag_enrich_hook_uses_lazy_init(client):
 
     assert response.status_code == 200
     assert captured_lazy.called, (
-        "rag_enrich_hook 未调 _get_supp_lancedb_client → "
-        "Leak-1 回归 (裸读 _supp_lancedb_singleton 绕开 lazy init)"
+        "rag_enrich_hook 未调 _get_supp_lancedb_client → Leak-1 回归 (裸读 _supp_lancedb_singleton 绕开 lazy init)"
     )
     # 验证 init_timeout 是 hook 专用的短预算 (0.5s) — 不阻塞用户对话
     call_obj = captured_lazy.call_args
-    init_timeout = call_obj.kwargs.get("init_timeout") or (
-        call_obj.args[0] if call_obj.args else None
-    )
-    assert init_timeout == 0.5, (
-        f"hook 应用 init_timeout=0.5 (非阻塞), 实际 {init_timeout}"
-    )
+    init_timeout = call_obj.kwargs.get("init_timeout") or (call_obj.args[0] if call_obj.args else None)
+    assert init_timeout == 0.5, f"hook 应用 init_timeout=0.5 (非阻塞), 实际 {init_timeout}"
 
 
 def test_rag_enrich_hook_short_prompt_skips_lazy_init(client):
@@ -432,8 +425,10 @@ def test_rag_enrich_hook_short_prompt_skips_lazy_init(client):
     assert not captured_lazy.called, "短 prompt 应在 lazy init 前 early-return"
 
 
-def test_rag_enrich_hook_lazy_init_returns_none_skips_injection(client):
-    """Lazy init 拿到 None (cold-start 未 ready) → 静默 additionalContext=''."""
+def test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker(client):
+    """Lazy init 拿到 None (cold-start 未 ready) → RAG-S2 T5 降级失明修复:
+    不再静默空 context, 注入 degraded 标注 (lancedb_unavailable) 让 Claude
+    区分「检索降级」与「vault 真无相关材料」。"""
     from unittest.mock import AsyncMock
 
     captured_lazy = AsyncMock()
@@ -452,5 +447,7 @@ def test_rag_enrich_hook_lazy_init_returns_none_skips_injection(client):
         )
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["hookSpecificOutput"]["additionalContext"] == ""
+    ctx = response.json()["hookSpecificOutput"]["additionalContext"]
+    assert 'degraded="true"' in ctx
+    assert "lancedb_unavailable" in ctx
+    assert 'confidence="none"' in ctx

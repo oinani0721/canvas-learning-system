@@ -24,17 +24,28 @@ _COMPOSE_PATH = _REPO_ROOT / "docker-compose.yml"
 _REQUIREMENTS_PATH = _REPO_ROOT / "requirements.txt"
 
 
-def _sample_rows(n: int = 2):
-    """Rows shaped like _raw_lancedb_search output, for test doubles."""
-    return [
-        {
-            "content": f"chunk-{i}",
-            "file_path": f"note-{i}.md",
-            "score": 0.9 - i * 0.1,
-            "retrieval_source": "lancedb_fast",
-        }
-        for i in range(n)
-    ]
+def _sample_supp_result(n: int = 2):
+    """Shaped like search_supplementary output (RAG-S2 T5: fast path 走共享链,
+    _fast_path_search 返回整个 supp dict 而非裸行列表)。"""
+    return {
+        "materials": [
+            {
+                "title": f"note-{i}",
+                "wikilink": f"[[note-{i}]]",
+                "snippet": f"chunk-{i}",
+                "content": f"chunk-{i} full content",
+                "score": 0.9 - i * 0.1,
+                "source_path": f"note-{i}.md",
+                "taint": "clean",
+                "fts_confirmed": True,
+                "doc_type": "concept",
+            }
+            for i in range(n)
+        ],
+        "degraded": False,
+        "reason": None if n else "all_filtered_below_threshold",
+        "confidence": {"level": "medium", "signals": {"delivered": n}},
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -48,9 +59,9 @@ async def test_search_notes_defaults_to_fast_path(monkeypatch):
 
     async def fast_path_double(query, max_results):
         calls["fast"] += 1
-        return _sample_rows()
+        return _sample_supp_result()
 
-    monkeypatch.setattr(note_search_tools, "_raw_lancedb_search", fast_path_double)
+    monkeypatch.setattr(note_search_tools, "_fast_path_search", fast_path_double)
 
     import app.services.rag_service as rag_service_module
 
@@ -79,9 +90,9 @@ async def test_response_declares_execution_mode(monkeypatch):
     monkeypatch.delenv("RAG_EXTENDED_MODE", raising=False)
 
     async def fast_path_double(query, max_results):
-        return _sample_rows()
+        return _sample_supp_result()
 
-    monkeypatch.setattr(note_search_tools, "_raw_lancedb_search", fast_path_double)
+    monkeypatch.setattr(note_search_tools, "_fast_path_search", fast_path_double)
 
     out = await note_search_tools.search_notes(query="q")
 
@@ -100,9 +111,9 @@ async def test_healthy_empty_is_distinct_from_error(monkeypatch):
     monkeypatch.delenv("RAG_EXTENDED_MODE", raising=False)
 
     async def empty_fast_path(query, max_results):
-        return []
+        return _sample_supp_result(0)
 
-    monkeypatch.setattr(note_search_tools, "_raw_lancedb_search", empty_fast_path)
+    monkeypatch.setattr(note_search_tools, "_fast_path_search", empty_fast_path)
     ok_empty = await note_search_tools.search_notes(query="q")
 
     assert ok_empty["status"] == "ok"
@@ -112,7 +123,7 @@ async def test_healthy_empty_is_distinct_from_error(monkeypatch):
     async def broken_fast_path(query, max_results):
         raise RuntimeError("bge-m3 embedding returned None")
 
-    monkeypatch.setattr(note_search_tools, "_raw_lancedb_search", broken_fast_path)
+    monkeypatch.setattr(note_search_tools, "_fast_path_search", broken_fast_path)
     err = await note_search_tools.search_notes(query="q")
 
     assert err["status"] == "error"
@@ -216,7 +227,7 @@ async def test_failed_init_is_not_cached_and_retries(monkeypatch):
     attempts = {"n": 0}
 
     class _InitFlakyClient:
-        def __init__(self, db_path):
+        def __init__(self, db_path, **kwargs):
             self.db_path = db_path
             self._db = None
 
@@ -259,9 +270,9 @@ async def test_extended_pipeline_failure_reports_fallback(monkeypatch):
     monkeypatch.setattr(rag_service_module, "get_rag_service", lambda: _DeadPipelineService())
 
     async def fast_path_double(query, max_results):
-        return _sample_rows()
+        return _sample_supp_result()
 
-    monkeypatch.setattr(note_search_tools, "_raw_lancedb_search", fast_path_double)
+    monkeypatch.setattr(note_search_tools, "_fast_path_search", fast_path_double)
 
     out = await note_search_tools.search_notes(query="q")
 
@@ -280,7 +291,7 @@ async def test_fallback_failure_attributed_to_fallback_not_pipeline(monkeypatch)
     async def broken_fast_path(query, max_results):
         raise RuntimeError("fast path infrastructure down")
 
-    monkeypatch.setattr(note_search_tools, "_raw_lancedb_search", broken_fast_path)
+    monkeypatch.setattr(note_search_tools, "_fast_path_search", broken_fast_path)
 
     out = await note_search_tools.search_notes(query="q")
 

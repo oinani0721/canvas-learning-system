@@ -11,6 +11,11 @@
 # retired from the default chain and kept behind the RAG_EXTENDED_MODE env var
 # strictly for stage-4 shadow evaluation. Do NOT delete the extended branch.
 #
+# RAG-S2 T5 (2026-08-10 链统一): the fast path now goes through the SHARED
+# post-processing chain (search_supplementary) — hybrid FTS+RRF, weighted
+# ordering, taint scan, empty-doc detection, source-file dedup, CE delivery
+# gate, retrieval_confidence. MCP search and hook injection are the same chain.
+#
 # [Source: S18-8 F2 decision — MCP note_search tool, fastapi_mcp expose RAG API]
 # [Source: MVP #10 — 笔记精准检索返回]
 # [Source: RAG-S0-2026-08-02 — 阶段 0 止血: fast path 转正 + 废 quality 假信号]
@@ -23,6 +28,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
+
+from app.services.supplementary_search_service import search_supplementary
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +130,16 @@ class NoteSearchOutput(BaseModel):
     )
     status: str = Field(default="ok", description="ok or error.")
     message: str = Field(default="", description="Error message if status=error.")
+    # RAG-S2 T5 (2026-08-10): ⛔ server.py 以 response_model=NoteSearchOutput
+    # 注册 — 顶层新字段必须在此声明, 否则被 FastAPI 序列化裁掉。
+    retrieval_confidence: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Query-level retrieval confidence from the shared "
+        "post-processing chain (RAG-S2 T5): {level: high|medium|low|none, "
+        "signals: {...}}. 'none' = empty/degraded delivery. None (absent) = "
+        "results came from the extended LangGraph pipeline (no confidence "
+        "computed).",
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -166,7 +183,12 @@ async def _get_fast_client() -> Any:
             # conflict -> RuntimeError). Single source of truth — do not
             # re-derive from os.environ here.
             resolved_db_path = LANCEDB_CONFIG["db_path"]
-            client = LanceDBClient(db_path=resolved_db_path)
+            # T5 审查 HIGH-1: enable_fallback=False — LanceDBClient.search()
+            # 默认把超时/任何异常吞成 [] (基础设施故障 → 假 ok_empty)。本
+            # client 是 MCP 专属 (不与索引端点共享), 关掉吞噬让异常沿
+            # _two_tier_search → search_supplementary(search_failed, degraded)
+            # → _fast_path_search raise → source_status="error" 诚实上报。
+            client = LanceDBClient(db_path=resolved_db_path, enable_fallback=False)
             ok = await client.initialize()  # loads embedding weights — once
             if not ok or client._db is None:
                 raise RuntimeError(
@@ -179,58 +201,113 @@ async def _get_fast_client() -> Any:
     return _fast_client
 
 
-async def _raw_lancedb_search(query: str, max_results: int) -> List[Dict[str, Any]]:
+async def _fast_path_search(query: str, max_results: int) -> Dict[str, Any]:
     """
-    Direct LanceDB vector search over vault_notes — the fast path.
+    Fast path via the shared post-processing chain (RAG-S2 T5 链统一).
 
-    Proven path since RAG-P0 v2 (2026-05-11): tbl.search(vector).where(filter)
-    .limit(N). Bypasses both RAGService and LanceDBClient.search() wrappers.
+    History: RAG-P0 v2 (2026-05-11) 起这里是纯 vector 直查 (tbl.search().where()
+    .limit()), 绕过 LanceDBClient.search() — 意味着 MCP 检索享受不到 hook 链
+    T2-T4 的全部改进 (hybrid FTS+RRF / source_priority 加权序 / taint 扫描 /
+    空文档检测 / 源文件级 dedup / CE 交付门), score 量纲都不同 (1-distance vs
+    加权分)。T5 起两条链同源: 统一走 search_supplementary (生产交付参数
+    min_relevance=0.50, 与 hook 链一致), score 量纲 = 加权分。
 
-    Raises on infrastructure failure (embedding service down, table missing)
-    so the caller reports source_status="error" instead of a fake empty ok.
+    Raises on infrastructure failure (embedding service down / LanceDB 不可用 /
+    超时) so the caller reports source_status="error" instead of a fake empty ok
+    — search_supplementary 把基础设施故障吞成 degraded+空, 这里还原为异常。
     """
     helper_client = await _get_fast_client()
+    # T5 审查 HIGH-1: embedding 预检 — LanceDBClient.search() 内部把
+    # embedding=None 吞成空结果 (连 enable_fallback=False 都拦不住, 它不是
+    # 异常路径), 共享链会把它判成 empty_index。恢复旧 fast path 的显式
+    # 预检: embedding 服务挂 = 基础设施故障, 必须报 error 而非 ok_empty
+    # (阶段 0 契约 3)。代价是每次 MCP 查询多一次 query 向量化 (~几十 ms)。
     query_vector = await helper_client._get_query_vector(query)
     if not query_vector:
         raise RuntimeError("bge-m3 embedding returned None (embedding service unavailable)")
+    supp_result = await search_supplementary(
+        query=query,
+        lancedb_client=helper_client,
+        top_k_max=max_results,
+        min_relevance=0.50,
+        elbow_drop_threshold=0.25,
+        hard_cap=max_results,
+        include_content=True,
+    )
+    if supp_result.get("degraded") and not supp_result.get("materials"):
+        raise RuntimeError(f"supplementary search degraded: {supp_result.get('reason')}")
+    logger.info(
+        "[search_notes] fast path (shared chain) returned %s materials",
+        len(supp_result.get("materials", [])),
+    )
+    return supp_result
 
-    # Use helper_client._db (already-connected) instead of a fresh
-    # lancedb.connect() to avoid path resolution mismatch.
-    db = helper_client._db
-    if db is None:
-        raise RuntimeError("helper_client._db is None after initialize()")
 
-    # vault_id-prefixed table name
-    table_name = helper_client.resolve_table_name("vault_notes")
-    if logger.isEnabledFor(logging.DEBUG):
-        # table_names() scans the DB dir — keep it off the hot path
-        logger.debug(
-            "[search_notes] fast path opening table '%s' (available: %s)",
-            table_name,
-            list(db.table_names())[:5],
+def _material_to_item(m: Dict[str, Any]) -> NoteResultItem:
+    """search_supplementary material → NoteResultItem (RAG-S2 T5).
+
+    taint 防护与 hook 链 XML 面同口径 (format_supplementary_xml): review /
+    quarantine 时正文与 title/wikilink/source_path 一律 placeholder — 否则
+    MCP 面成为 prompt injection 的绕行通道。ce_score/raw_score 等内部量纲
+    走 per-result metadata 搭车 (MCP 是工具面不是 prompt 面, 无 XML 契约)。
+    """
+    taint = m.get("taint", "clean")
+    injection_risk = float(m.get("injection_risk", 0.0) or 0.0)
+    if taint == "quarantine":
+        content = (
+            "[QUARANTINED — content blocked due to suspected prompt injection. "
+            "Use Read tool on source_path to verify if needed.]"
         )
-    tbl = db.open_table(table_name)
-    # Filter out whiteboard AND exam_board, fallback to IS NULL for pre-A1 rows.
-    # RAG-S2 T2 (2026-08-09): exam_board 此前只在 hook 链排除 — MCP 主动检索
-    # 可捞到考题白板, 信息隔离铁律 (HARD-ISO) 的旁路, 与 hook 链口径对齐。
-    where_clause = "(doc_type NOT IN ('whiteboard', 'exam_board') OR doc_type IS NULL)"
-    raw_df = tbl.search(query_vector).where(where_clause).limit(max_results).to_pandas()
-    results = [
-        {
-            "content": row.get("content", ""),
-            "file_path": row.get("canvas_file", ""),
-            "score": 1.0 - float(row.get("_distance", 0.0)) if "_distance" in row else 0.0,
-            "retrieval_source": "lancedb_fast",
-            "metadata": {
-                "doc_type": row.get("doc_type", ""),
-                "subject": row.get("subject", ""),
-                "category": row.get("category", ""),
-            },
-        }
-        for _, row in raw_df.iterrows()
-    ]
-    logger.info(f"[search_notes] fast path returned {len(results)} results from {table_name}")
-    return results
+        title = f"[QUARANTINED: tainted title (risk={injection_risk:.2f})]"
+        wikilink = "[QUARANTINED]"
+        file_path = "[QUARANTINED]"
+    elif taint == "review":
+        content = f"[REDACTED: suspicious content (risk={injection_risk:.2f}); open source_path manually to verify]"
+        title = f"[REDACTED: tainted title (risk={injection_risk:.2f})]"
+        wikilink = "[REDACTED]"
+        file_path = "[REDACTED]"
+    else:
+        content = str(m.get("content") or m.get("snippet") or "")
+        title = str(m.get("title", ""))
+        wikilink = str(m.get("wikilink", ""))
+        file_path = str(m.get("source_path", ""))
+
+    # T5 审查 MEDIUM-3: 非 clean 材料的 metadata 只保留数值/布尔信号 —
+    # doc_type/source_type 来自 frontmatter 自由文本 (仅 lower/strip 无枚举
+    # 校验), 攻击者可把 payload 埋 `type:` 字段, 遮蔽只盖 content/title/
+    # wikilink/file_path 时 metadata 成漏网面。
+    if taint != "clean":
+        signal_keys = (
+            "raw_score",
+            "fts_confirmed",
+            "ce_score",
+            "injection_risk",
+            "is_link_list_chunk",
+            "is_legacy_fallback",
+        )
+    else:
+        signal_keys = (
+            "raw_score",
+            "doc_type",
+            "fts_confirmed",
+            "ce_score",
+            "injection_risk",
+            "source_type",
+            "is_link_list_chunk",
+            "is_legacy_fallback",
+        )
+    metadata: Dict[str, Any] = {k: m[k] for k in signal_keys if m.get(k) is not None}
+    metadata["taint"] = taint
+    metadata["title"] = title
+    metadata["wikilink"] = wikilink
+
+    return NoteResultItem(
+        content=content,
+        file_path=file_path,
+        relevance_score=float(m.get("score") or 0.0),
+        source="lancedb_fast",
+        metadata=metadata,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -270,7 +347,8 @@ async def search_notes(
     extended_mode = _extended_mode_enabled()
     execution_mode = "extended" if extended_mode else "fast"
     try:
-        raw_results: List[Dict[str, Any]] = []
+        items: List[NoteResultItem] = []
+        confidence: Optional[Dict[str, Any]] = None
 
         if extended_mode:
             # Stage-4 shadow evaluation only — retired from the default chain
@@ -278,6 +356,7 @@ async def search_notes(
             from app.services.rag_service import get_rag_service
 
             rag_service = get_rag_service()
+            raw_results: List[Dict[str, Any]] = []
             try:
                 rag_result = await rag_service.query(
                     query=query,
@@ -294,59 +373,28 @@ async def search_notes(
                 )
                 raw_results = []
 
-            if not raw_results:
-                logger.warning("[search_notes] extended pipeline returned 0; falling back to raw LanceDB fast path")
+            if raw_results:
+                items = [_legacy_row_to_item(r) for r in raw_results[:max_results]]
+            else:
+                logger.warning("[search_notes] extended pipeline returned 0; falling back to shared fast path")
                 # Declare BEFORE the await: if the fast path itself fails
                 # here, the error must be attributed to "fallback", not to
                 # the pipeline — stage-4 shadow evaluation depends on this.
                 execution_mode = "fallback"
-                raw_results = await _raw_lancedb_search(query, max_results)
+                supp_result = await _fast_path_search(query, max_results)
+                items = [_material_to_item(m) for m in supp_result.get("materials", [])]
+                confidence = supp_result.get("confidence")
         else:
-            raw_results = await _raw_lancedb_search(query, max_results)
-
-        items: List[NoteResultItem] = []
-        for r in raw_results[:max_results]:
-            content = r.get("content", r.get("text", ""))
-            file_path = r.get("file_path", r.get("path", r.get("source", "")))
-            score = r.get("score", r.get("relevance_score", 0.0))
-            source = r.get("source_type", r.get("retrieval_source", "unknown"))
-
-            items.append(
-                NoteResultItem(
-                    content=content,
-                    file_path=str(file_path),
-                    relevance_score=float(score) if score else 0.0,
-                    source=str(source),
-                    # Merge a row's own "metadata" dict with remaining extra
-                    # keys — without this the fast-path rows nest as
-                    # metadata={"metadata": {...}}.
-                    metadata={
-                        **(r["metadata"] if isinstance(r.get("metadata"), dict) else {}),
-                        **{
-                            k: v
-                            for k, v in r.items()
-                            if k
-                            not in (
-                                "content",
-                                "text",
-                                "file_path",
-                                "path",
-                                "score",
-                                "relevance_score",
-                                "source_type",
-                                "retrieval_source",
-                                "metadata",
-                            )
-                        },
-                    },
-                )
-            )
+            supp_result = await _fast_path_search(query, max_results)
+            items = [_material_to_item(m) for m in supp_result.get("materials", [])]
+            confidence = supp_result.get("confidence")
 
         source_status = "ok_nonempty" if items else "ok_empty"
 
         logger.info(
             f"[F2] search_notes: query='{query[:50]}' results={len(items)} "
-            f"mode={execution_mode} source_status={source_status}"
+            f"mode={execution_mode} source_status={source_status} "
+            f"confidence={(confidence or {}).get('level')}"
         )
 
         return NoteSearchOutput(
@@ -356,6 +404,7 @@ async def search_notes(
             execution_mode=execution_mode,
             source_status=source_status,
             status="ok",
+            retrieval_confidence=confidence,
         ).model_dump()
 
     except Exception as e:
@@ -366,4 +415,47 @@ async def search_notes(
             source_status="error",
             status="error",
             message=str(e),
+            # T5: 基础设施故障也给诚实档位 — Claude 不必解析 message 才知道
+            # 这不是"真没有相关材料"。
+            retrieval_confidence={
+                "level": "none",
+                "signals": {"degraded_reason": str(e)[:160]},
+            },
         ).model_dump()
+
+
+def _legacy_row_to_item(r: Dict[str, Any]) -> NoteResultItem:
+    """Extended (LangGraph) pipeline row → NoteResultItem — 原 search_notes
+    归一化循环原样抽出 (行为不变), 仅供 extended 分支消费。"""
+    content = r.get("content", r.get("text", ""))
+    file_path = r.get("file_path", r.get("path", r.get("source", "")))
+    score = r.get("score", r.get("relevance_score", 0.0))
+    source = r.get("source_type", r.get("retrieval_source", "unknown"))
+
+    return NoteResultItem(
+        content=content,
+        file_path=str(file_path),
+        relevance_score=float(score) if score else 0.0,
+        source=str(source),
+        # Merge a row's own "metadata" dict with remaining extra
+        # keys — without this rows nest as metadata={"metadata": {...}}.
+        metadata={
+            **(r["metadata"] if isinstance(r.get("metadata"), dict) else {}),
+            **{
+                k: v
+                for k, v in r.items()
+                if k
+                not in (
+                    "content",
+                    "text",
+                    "file_path",
+                    "path",
+                    "score",
+                    "relevance_score",
+                    "source_type",
+                    "retrieval_source",
+                    "metadata",
+                )
+            },
+        },
+    )

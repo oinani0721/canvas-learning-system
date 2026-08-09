@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-08-09T18:27:57.782956+00:00",
+  "run_at": "2026-08-09T19:13:55.723856+00:00",
   "mode": "in-process search_supplementary (Tier R + D)",
   "query_count": 60,
   "metrics": {
@@ -19,8 +19,8 @@
     "min": 0.506
   },
   "latency": {
-    "median_s": 0.232,
-    "max_s": 0.265
+    "median_s": 0.226,
+    "max_s": 0.293
   },
   "hard_violations": [],
   "per_query": [
