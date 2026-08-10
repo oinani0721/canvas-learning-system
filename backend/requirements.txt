@@ -83,6 +83,11 @@ sentence-transformers>=3.0.0
 # ✅ obsidiantools: Vault parsing, wikilink graph, backlink extraction
 obsidiantools>=0.10
 
+# Node Frontmatter Parsing (RAG-S2.5: Board Manifest / frontmatter_signals /
+# canvas_projection_sync / targeting_material 均 import frontmatter)
+# ⚠️ 此前仅作为 obsidiantools 传递依赖存在，Docker 重建裸装即炸 — 显式声明
+python-frontmatter>=1.1,<2
+
 # Knowledge Graph (Story 12.1, 22.x)
 # ✅ Verified from ADR-003: Neo4j for Graphiti knowledge graph
 neo4j>=5.0.0
