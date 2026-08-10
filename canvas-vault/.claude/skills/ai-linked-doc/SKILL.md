@@ -211,23 +211,33 @@ relationships:
 - 选中文本未找到 → 摘要 `✗ 源笔记替换失败: 选中文本未找到`
 - 多次出现 → 仅替换首个 + 摘要 `⚠`
 
-### Step 7 · 更新白板 md 的 ## Concepts section
+### Step 7 · 更新白板 md（RAG-S2.6：`## Concepts` 改由同步脚本重算）
+
+⛔ **`## Concepts` 已降级为只读派生物**（RAG-S2.6 T2，用户 2026-08-11 裁定）：
+真相源是新节点 frontmatter 的 `source_board`（Step 5 已写入）。本 Skill
+**不再** append `- [[节点/...]]` 行、**不再**手动 `doc_count += 1` ——
+手写进 sentinel 之间的行会在下次同步时被覆盖，手改的 `doc_count` 会被重算掉。
 
 - `board_md_path = 原白板/{active_board}.md`
-- 用 `Read` 读白板 md 全文
-- 在 `## Concepts` section 末尾 append（含关系类型）：
-  ```
-  - [[节点/{concept_name}]] — {关系类型 key}, weak (0.30)
-  ```
-- 在 `## Recent Activity` section append：
+- **若 board_md 不存在**（罕见，用户先派生后建白板）→ 不 auto-create，返回
+  `⚠ 原白板/{active_board}.md 不存在，请先 /configure-whiteboard 建白板`
+- 用 `Edit` 在 `## Recent Activity` section append（这段仍由本 Skill 维护，脚本不碰）：
   ```
   - {ISO}: Extracted [[节点/{concept_name}]] via /ai-linked-doc from [[{源笔记 stem}]]（关系: {关系类型 key}）
   ```
-- 更新 frontmatter `doc_count` += 1（若字段不存在则初始化为 1）
-- 用 `Write` 覆盖白板 md
+- 然后 **`Bash` 跑一次目录同步**（`## Concepts` 行 + `doc_count` 都由脚本从
+  `source_board` 重算，掌握度/已考次数取当前真值，不再写死 `weak (0.30)`）：
+  ```bash
+  python3 .claude/scripts/sync_board_concepts.py --board "{active_board}"
+  ```
+  - 输出 `~ {active_board}  (N 成员, 需更新)` → 新节点已进目录、`doc_count → N`
 
-**若 board_md 不存在**（罕见，用户先派生后建白板）：
-- 不 auto-create，返回 `⚠ 原白板/{active_board}.md 不存在，请先 /configure-whiteboard 建白板`
+<!-- FALLBACK:BEGIN Step 7 目录同步降级 -->
+**⛔ 同步失败一律不阻断派生**（节点 md + 源笔记 wikilink 已落盘，才是真正的产物）：
+脚本不存在 / 非零退出 / 报 `无 ## Concepts 段` → 只在回执标注
+`⚠ 白板目录同步失败，节点已建（下次任一次同步会自动补齐）`，
+**不要**退回手写 `- [[节点/...]]` 行 —— 手写行与脚本重算冲突，且下次同步即被覆盖。
+<!-- FALLBACK:END -->
 
 ### Step 8 · 返回回执（4 行 ✓ 或 ✓/✗/⚠ 组合 + 关系类型）
 
@@ -237,7 +247,7 @@ relationships:
 ```
 ✓ 节点/{concept_name}.md 已创建（扁平池，frontmatter relationships: [{type: {关系类型 key}{描述非空时: , description: ...}}]）
 ✓ 源笔记 [[{源笔记 stem}]] 已替换为 [[节点/{concept_name}]] + [!relation/{关系类型 key}]+ callout{描述非空时: + 你的派生意图行}
-✓ 原白板/{active_board}.md 的 ## Concepts 已添加新节点（doc_count → N，关系: {关系类型 key}）
+✓ 原白板/{active_board}.md 目录已重算（## Concepts 收录新节点，doc_count → N，关系: {关系类型 key}）
 关系类型: {关系类型 key} ({关系类型中文标签})
 派生意图: {description 或 (留空)}
 
@@ -278,7 +288,8 @@ relationships:
 [ ] Step 6 new_string 含 wikilink + 紧跟 [!relation/<key>]+ callout（v2.4 双写视觉半边）
 [ ] description 非空 → Step 6 callout body 多 1 行 `> 你的派生意图: <description>`（v2.5 D1-5 落地点 1）
 [ ] Step 7 白板 md 路径 = 原白板/{active_board}.md
-[ ] Step 7 白板 md ## Concepts append 的 wikilink 用完整路径 "节点/{name}"（不只是 "{name}"）+ 关系类型 key
+[ ] Step 7 ⛔ 未手写 `- [[节点/...]]` 行、未手改 doc_count —— 只跑了 sync_board_concepts.py --board
+[ ] Step 7 同步脚本输出里新节点已出现在成员数里（N 已含它）；失败则回执已标 ⚠ 且节点仍已落盘
 [ ] 回执 5 行（关系类型行 + 派生意图行）或 ✓/✗/⚠ 组合
 ```
 

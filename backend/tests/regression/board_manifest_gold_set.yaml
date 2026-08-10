@@ -78,9 +78,13 @@ official:
     - board_id: "特征值与特征向量"          # Concepts 3/3 对称 (三方矛盾实测定案)
       concepts_only: []
       frontmatter_only: []
-    - board_id: "CS 61B"                    # T0.4a 收养样本: 目录漏记告警必须亮
+    # RAG-S2.6 T2 期望值变更: 2.5 时这里封的是 frontmatter_only:
+    # ["csm-tutoring-unit-credit"] (「目录漏记告警必须亮」)。2.6 把 ## Concepts
+    # 改成从 source_board 自动重算的只读派生物后, 漏记在写侧被根除 → 告警归零。
+    # ⛔ 这是修复带来的期望值变更, 不是回归; 双锁之一 (另一把是脚本 --check)。
+    - board_id: "CS 61B"
       concepts_only: []
-      frontmatter_only: ["csm-tutoring-unit-credit"]
+      frontmatter_only: []
     - board_id: "CS188 lecture 2"           # 8/8 对称
       concepts_only: []
       frontmatter_only: []

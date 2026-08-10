@@ -182,12 +182,26 @@ mkdir -p "原白板" "节点" "检验白板"
 5. 更新种子笔记 frontmatter（**不加 subject 字段**，vault 级透明）：
    - 若原 frontmatter 无 `type: concept` → 加
    - 若原 md 无 frontmatter → 加最小 frontmatter `--- type: concept ---`
-6. 在白板 md 的 `## Concepts` section append：
+   - ⛔ **必须写 `source_board: "[[原白板/{board_name}]]"`**（RAG-S2.6 T2）：
+     它是白板成员归属的**唯一真相源**，`## Concepts` 与 `doc_count` 都从它重算。
+     漏写 = 该种子永远不进目录、也永远不会被 `/start-exam-board` 选中考察。
+     （plugin 命令 `canvas:configure-whiteboard` 已在 main.ts 写入此字段，本 Skill 之前漏写。）
+6. **`Bash` 跑一次目录同步**（`## Concepts` 行 + `doc_count` 由脚本从 `source_board` 重算）：
+   ```bash
+   python3 .claude/scripts/sync_board_concepts.py --board "{board_name}"
    ```
-   - [[节点/{seed_stem}]] — seed note (mastery: 0.30)
-   ```
-   注意用**完整相对路径** `节点/{seed_stem}` 让 wikilink 明确指向节点池（避免 Obsidian 自动推导出错）。
-7. 在白板 md 的 `## Recent Activity` section append：
+   ⛔ **不要**手写 `- [[节点/{seed_stem}]] — seed note (mastery: 0.30)` 行、
+   **不要**手改 `doc_count`：`## Concepts` 自 RAG-S2.6 起是**只读派生物**，
+   写进 sentinel 之间的手写行会在下次同步时被覆盖，写死的 `(mastery: 0.30)`
+   也与真值脱节（脚本按当前掌握度/已考次数如实渲染）。
+
+   <!-- FALLBACK:BEGIN Step 6 目录同步降级 -->
+   同步失败（脚本缺失 / 非零退出 / 报「无 `## Concepts` 段」）→ **不阻断建板**：
+   白板 md 与种子笔记已落盘，回执标注
+   `⚠ 白板目录同步失败，种子已归入 节点/（下次任一次同步会自动补齐）`。
+   **不要**退回手写目录行。
+   <!-- FALLBACK:END -->
+7. 在白板 md 的 `## Recent Activity` section append（这段仍由本 Skill 维护，脚本不碰）：
    ```
    - {ISO}: Seed note {seed_basename} imported
    ```
@@ -206,7 +220,7 @@ mkdir -p "原白板" "节点" "检验白板"
 ```
 ✓ 原白板 "{board_name}" 已建立（原白板/{board_name}.md）
 ✓ 种子笔记 {seed_basename} 已归入 节点/
-✓ 白板 ## Concepts 已添加 [[节点/{seed_stem}]]
+✓ 白板目录已重算（## Concepts 收录 [[节点/{seed_stem}]]，doc_count → N）
 ```
 
 **部分失败示例**：
@@ -226,7 +240,9 @@ mkdir -p "原白板" "节点" "检验白板"
 [ ] 白板 md frontmatter 含 type: whiteboard + board_name + created_at + doc_count + doc_mastery_avg
 [ ] 白板 md frontmatter **无 subject 字段**（vault 级透明）
 [ ] 种子笔记 frontmatter 无 subject（vault 级透明）
-[ ] 白板 ## Concepts 段的 wikilink 含路径 "节点/"
+[ ] ⛔ 种子笔记 frontmatter 已写 source_board: "[[原白板/{board_name}]]"（成员归属唯一真相源）
+[ ] ⛔ 未手写 ## Concepts 行、未手改 doc_count —— 只跑了 sync_board_concepts.py --board
+[ ] 同步脚本输出里种子已计入成员数；失败则回执已标 ⚠ 且白板/种子仍已落盘
 [ ] 未写入弃用路径 wiki/canvases/ 或 wiki/concepts/
 [ ] 回执格式 3 行 ✓ 或 ✓/✗/⚠ 组合
 ```

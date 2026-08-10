@@ -302,6 +302,27 @@ PYEOF
 
 （衰减 Beta：评分前先按闲置天数折旧 `a,b ← a,b·0.99^days_idle`（防置信度复活，终审 A2），再 `a←γa+grade, b←γb+(1−grade)`，γ=0.9，`mastery_score=μ=a/(a+b)`；越考越准（σ 收窄）且 ~10 次内跟上状态跳变，取代不收敛的恒权 EMA（批次2' A1）。算法与常数见 `.claude/scripts/decay_beta.py`，v2 上层再接 FSRS 调度。python stdout 只给你看，不进回执。）
 
+## Step 4c-bis · 刷新原白板目录（RAG-S2.6 T2 · 掌握度行内值的唯一保鲜点）
+
+python 写分成功后，**`Bash` 跑一次目录同步**——把新掌握度 / `attempt_count`
+刷进原白板 `## Concepts` 的行内显示：
+
+```bash
+python3 .claude/scripts/sync_board_concepts.py --board "<被考节点的 source_board stem>"
+```
+
+- `<board stem>` 从被考节点 frontmatter `source_board: "[[原白板/<stem>]]"` 取（Step 4 python 已回填过该字段）。
+- **为什么放在这里**：`## Concepts` 行内的「掌握度 X.XX · 已考 N 次」是派生值，
+  而**全系统唯一会系统性改动掌握度的就是本 Skill 的写分**。在唯一会变的时刻同步，
+  行内值就不会过期（闲置折旧不改 μ，只改 σ，所以不闲置不需要同步）。
+- ⛔ 本步**不阻断落定**：同步失败照常进 Step 4d 置 `done`，只在 stdout 留一行提示。
+
+<!-- FALLBACK:BEGIN Step 4c-bis 目录同步降级 -->
+脚本缺失 / 非零退出 / 取不到 `source_board` → **跳过本步**，一切照旧：
+分数与 `mastery_score` 已写进节点 frontmatter（那才是真相源），
+`## Concepts` 只是派生显示，下次任一次同步会自动追平。回执**不因此加 ⚠**。
+<!-- FALLBACK:END -->
+
 ## Step 4d · 落定 done（两阶段第二步）
 
 python 成功（exit 0）后，`Edit` 检验白板 frontmatter：
@@ -338,6 +359,7 @@ python 成功（exit 0）后，`Edit` 检验白板 frontmatter：
 [ ] Step 2 评分前才 Read 正文；基准剥离了用户批注 callout；4 维按 rubric 锚定；事实冲突 → needs_content_review
 [ ] Step 3 先置 scored_pending_node_update（不是 done）
 [ ] Step 4 payload 用 Write 工具写 JSON（零 shell 拼接）；python 逐字照抄零占位符
+[ ] Step 4c-bis 写分后跑了 sync_board_concepts.py --board（刷新目录行内掌握度）；失败不阻断落定、不加 ⚠
 [ ] Step 4d python 成功才置 done；失败保持 pending 并告知续跑
 [ ] Step 5 回执不显任何分数/数值/方向；含诚实声明；全程无 MCP 熟练度工具
 ```
