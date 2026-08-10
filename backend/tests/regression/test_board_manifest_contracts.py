@@ -667,6 +667,39 @@ def test_board_not_found_raises_in_snapshot_mode_too(vault):
         _serve(vault, board_id="没这板", now=NOW)
 
 
+def test_passthrough_datetime_fields_json_safe(vault):
+    """live 实测 BUG-361BD6FC: YAML 把 tips[].added_at 等解析成 datetime 对象,
+    快照 json.dumps 直接 TypeError → 500。透传字段必须深度 JSON-safe。"""
+    import json as _json
+
+    from app.services.board_manifest_service import snapshot_file
+
+    _write(vault, "原白板/板.md", _board_md())
+    _write(
+        vault,
+        "节点/带日期.md",
+        _node_md(
+            [
+                'source_board: "[[原白板/板]]"',
+                "next_review: 2026-04-21",
+                "tips:",
+                "  - text: 提示",
+                "    added_at: 2026-07-25T08:25:03.871Z",  # YAML → datetime 对象
+                "error_candidates:",
+                "  - id: c1",
+                "    created_at: 2026-07-13 05:09:32+00:00",  # YAML → datetime 对象
+            ]
+        ),
+    )
+    m = _serve(vault, board_id="板", now=NOW)
+    assert m["source"] == "live"
+    _json.dumps(m)  # 整棵树必须 JSON 原生
+    assert snapshot_file(vault).exists()  # 快照写入未被 TypeError 打断
+    (node,) = m["nodes"]
+    assert isinstance(node["tips"][0]["added_at"], str)
+    assert isinstance(node["error_candidates"][0]["created_at"], str)
+
+
 def test_include_exam_history_false_strips_digests_from_snapshot(vault):
     _basic_vault(vault)
     _write(

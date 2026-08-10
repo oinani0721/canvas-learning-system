@@ -4,8 +4,9 @@
 1. 14 个隔离工具的路径返回 410（不是 404 —— 隐藏调用方能得到明确信号 + 服务端日志现形）。
 2. 隔离路径不出现在 OpenAPI schema（include_in_schema=False → FastApiMCP
    include_tags 过滤后也不会进 MCP 工具列表）。
-3. 打 "MCP Tools" tag 的存活路由恰为 5 个只读工具，多一个少一个都算回归
+3. 打 "MCP Tools" tag 的存活路由恰为 6 个只读工具，多一个少一个都算回归
    —— 新增 MCP 写工具必须先过 approval token 设计，不允许静默重新暴露。
+   (RAG-S2.5-2026-08-10: +get_board_manifest 只读结构读模型, 5→6)
 """
 
 import pytest
@@ -20,6 +21,7 @@ ALLOWED_READONLY_TOOLS = {
     "get_neighbors",
     "read_note",
     "check_backend_health",
+    "get_board_manifest",  # RAG-S2.5: 白板结构读模型 (只读)
 }
 
 

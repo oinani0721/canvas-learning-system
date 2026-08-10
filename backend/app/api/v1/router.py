@@ -23,6 +23,7 @@ from app.api.v1.endpoints.config import config_router
 from app.api.v1.endpoints.context import context_router  # Story 3.4
 from app.api.v1.endpoints.edges import edges_router  # Story 4.1-4.4
 from app.api.v1.endpoints.exam import exam_router
+from app.api.v1.endpoints.boards import boards_router  # RAG-S2.5 白板目录卡
 from app.api.v1.endpoints.exam_grade import exam_grade_router  # MVP-α-4
 from app.api.v1.endpoints.exam_quick import exam_quick_router  # MVP-α-2
 from app.api.v1.endpoints.exam_sessions import exam_sessions_router
@@ -75,9 +76,7 @@ router.include_router(ping.router, tags=["System"])
 # System Infrastructure Health (Story 1.1)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-router.include_router(
-    system_router, responses={500: {"description": "System health check error"}}
-)
+router.include_router(system_router, responses={500: {"description": "System health check error"}})
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Config Routes (AI Configuration Runtime Override)
@@ -323,6 +322,18 @@ router.include_router(
     exam_sessions_router,
     tags=["Exam Sessions"],
     responses={500: {"description": "Exam sessions query error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Board Manifest (RAG-S2.5-2026-08-10: 白板结构读模型)
+# ⛔ 独立 prefix=/boards — 不挂 /canvas/... (wildcard 吞路由)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    boards_router,
+    prefix="/boards",
+    tags=["Boards"],
+    responses={500: {"description": "Board manifest error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

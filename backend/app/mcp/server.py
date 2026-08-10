@@ -295,10 +295,43 @@ def _register_tool_routes(app: FastAPI) -> None:
         # 导致调用必 422 — body 改可选, 空 body 构造空模型。
         return await check_backend_health(input or CheckHealthInput())
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Board Manifest Tool (RAG-S2.5-2026-08-10: 白板结构读模型, 第 6 个只读工具)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    from app.mcp.tools.board_manifest_tools import (
+        GetBoardManifestInput,
+        GetBoardManifestOutput,
+        get_board_manifest,
+    )
+
+    @app.post(
+        "/mcp/tools/get_board_manifest",
+        response_model=GetBoardManifestOutput,
+        tags=[MCP_TAG],
+        operation_id="get_board_manifest",
+        summary="Board manifest — how a whiteboard decomposes (structure read-model)",
+        description="Return the complete structure of a whiteboard in one call: "
+        "member nodes (source_board frontmatter as source of truth), derivation "
+        "reasons, mastery (four-state normalized), pick hints (μ−σ with idle "
+        "decay), past exam digests, dual-source gap warnings and orphans. "
+        "view=study returns learning-side fields (tips/error candidates); "
+        "view=exam returns the leak-safe whitelist for question generation. "
+        "Omit board_id to list all boards. Falls back to the local JSON "
+        "snapshot with honest source/stale markers when the live scan fails. "
+        "Use this instead of N grep/read calls when you need to understand "
+        "how a board is decomposed.",
+    )
+    async def _get_board_manifest(
+        input: GetBoardManifestInput | None = None,
+    ) -> Dict[str, Any]:
+        # P16: 空 body 防 422 (同 check_backend_health)
+        return await get_board_manifest(input or GetBoardManifestInput())
+
     _register_quarantined_routes(app)
 
     logger.info(
-        "[P0-2] Registered 5 read-only MCP tool routes + %d quarantined (410) stubs",
+        "[P0-2] Registered 6 read-only MCP tool routes + %d quarantined (410) stubs",
         len(QUARANTINED_MCP_TOOLS),
     )
 

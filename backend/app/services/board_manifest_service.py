@@ -148,6 +148,23 @@ def _num(value: Any) -> float | None:
         return None
 
 
+def _json_safe(value: Any) -> Any:
+    """透传字段深度清洗: YAML 解析出的 datetime/date 等对象 → JSON 原生类型。
+
+    tips/errors/error_candidates 是任意深度用户数据 (live 实测 added_at/
+    created_at 是 datetime 对象), 不清洗则快照 json.dumps 直接 TypeError。
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, datetime):
+        return _iso(value)
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return str(value)
+
+
 # ── 数据源抽象 (计划: manifest 内部抽象数据源接口, 便于未来切 Neo4j 投影) ──
 
 
@@ -466,9 +483,9 @@ def scan_vault(
             "created_at": _iso(fm.get("created_at")),
             "created_from": fm.get("created_from"),
             "source_note": (resolve_node_id(fm.get("source_note")) if fm.get("source_note") else None),
-            "tips": [t for t in fm.get("tips") or [] if isinstance(t, dict)],
-            "errors": [e for e in fm.get("errors") or [] if isinstance(e, dict)],
-            "error_candidates": [c for c in fm.get("error_candidates") or [] if isinstance(c, dict)],
+            "tips": [_json_safe(t) for t in fm.get("tips") or [] if isinstance(t, dict)],
+            "errors": [_json_safe(e) for e in fm.get("errors") or [] if isinstance(e, dict)],
+            "error_candidates": [_json_safe(c) for c in fm.get("error_candidates") or [] if isinstance(c, dict)],
             "next_review": _iso(fm.get("next_review")),
             "calibration_count": (len(calibration_log) if isinstance(calibration_log, list) else 0),
         }
@@ -658,7 +675,9 @@ def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bo
         tmp.write_text(json.dumps(full, ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, path)
         return True
-    except OSError as e:
+    except (OSError, TypeError, ValueError) as e:
+        # TypeError/ValueError: 序列化炸 (理应被 _json_safe 挡住, 双保险) —
+        # 快照失败绝不拖垮 live 服务
         logger.warning("[manifest] 快照写入失败 (不影响 live 服务): %s", e)
         return False
 
