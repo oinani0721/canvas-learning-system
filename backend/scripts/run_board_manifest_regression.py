@@ -250,16 +250,40 @@ def check_g5(c: Checker, gold: dict, data: dict) -> None:
         actual = sorted(e["exam_board_id"] for e in data["boards"][bid]["study"]["exam_history"])
         expected = sorted(case["exam_board_ids"])
         c.add(f"G5[{bid}]", actual == expected, f"actual={actual}")
+    # 正向对照 (Code-Review M8): qid 匹配若静默失效 (digest 全 None), 集合相等
+    # 检查照样全绿 — 必须有一条非空断言兜底
+    total_digests = sum(
+        1
+        for v in data["boards"].values()
+        for n in _iter_nodes(v["exam"])
+        for d in n["past_question_digests"]
+        if d["digest"]
+    )
+    c.add("G5[digest 非空对照]", total_digests > 0, "全 vault 零 digest — qid 匹配可能静默失效")
 
 
 # ── G6 泄漏禁项 ──
 
 
-def check_g6(c: Checker, gold: dict, data: dict) -> None:
+def check_g6(c: Checker, gold: dict, data: dict, vault: Path) -> None:
     cfg = gold["config"]
+    # 正向对照 (Code-Review M8): 禁串必须仍存在于 vault 源文件, 否则用户改写
+    # 文案后检查会静默腐烂成恒真 (扫描一个不存在的串永绿但零信息)
+    vault_corpus = ""
+    for sub in ("节点", "原白板", "检验白板"):
+        d = vault / sub
+        if d.is_dir():
+            for p in d.glob("*.md"):
+                try:
+                    vault_corpus += p.read_text(encoding="utf-8")
+                except OSError:
+                    pass
     exam_json_all = json.dumps({bid: views["exam"] for bid, views in data["boards"].items()}, ensure_ascii=False)
     for s in cfg["forbidden_strings"]:
-        c.add(f"G6[禁串:{s[:18]}…]", s not in exam_json_all, "exam 视图 JSON 命中禁串")
+        present = s in vault_corpus
+        clean = s not in exam_json_all
+        detail = "禁串已不在 vault 源文件 (对照失效, 需换串)" if not present else "exam 视图 JSON 命中禁串"
+        c.add(f"G6[禁串:{s[:18]}…]", present and clean, detail)
     leaked = _all_keys({bid: v["exam"] for bid, v in data["boards"].items()}) & set(cfg["forbidden_keys"])
     c.add("G6[禁键任意深度]", not leaked, f"泄漏键: {sorted(leaked)}")
 
@@ -307,21 +331,18 @@ def check_g6_synthetic(c: Checker, gold: dict) -> None:
 
         node_a = next(n for n in exam["nodes"] if n["node_id"] == "毒A")
         reason = node_a["relation"]["derived_reason"]
-        in_whitelist_only = (
-            len(reason) == 500
-            and exam_json.count(definition[:30]) == exam_json.count(definition[:30])
-            and definition[:30] in reason
-        )
-        # 定义串只允许出现在 derived_reason 槽位: 从 JSON 中挖掉该槽位后 0 命中
-        node_a_without_reason = exam_json.replace(reason, "")
+        # Code-Review M7 修复原恒真条件: 断言改为「定义串在 exam JSON 中只允许
+        # 出现在 reason 槽位内」— 挖掉该槽位后全 JSON 0 命中 (槽位内重复不限,
+        # 因为毒文本本身就是 definition*20 拼接)
+        json_without_reason = exam_json.replace(reason, "")
         c.add(
             "G6[合成A:定义只在白名单槽位且截断500]",
-            in_whitelist_only and definition[:30] not in node_a_without_reason,
+            len(reason) == 500 and definition[:30] in reason and definition[:30] not in json_without_reason,
             f"reason_len={len(reason)}",
         )
         c.add(
             "G6[合成B:tips/misconception 0 命中]",
-            tips_text not in exam_json and definition not in exam_json.replace(reason, ""),
+            tips_text not in exam_json and definition not in json_without_reason,
             "毒 tips 或完整定义串出现在 exam JSON",
         )
     finally:
@@ -384,7 +405,7 @@ def main() -> int:
     check_g3(c, gold, data)
     check_g4(c, gold, data, vault)
     check_g5(c, gold, data)
-    check_g6(c, gold, data)
+    check_g6(c, gold, data, vault)
     check_g6_synthetic(c, gold)
 
     total, failed = len(c.results), len(c.failed)

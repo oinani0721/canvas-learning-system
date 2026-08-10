@@ -58,16 +58,14 @@ async def get_board_manifest_http(
     live 失败自动退 .claude/cache 快照 (source/degraded/stale 诚实标注);
     快照也无 → 200 + source_status=error + nodes=[] (不假空成功)。
     """
+    import pydantic
+
     from app.config import get_current_vault_id, get_settings, sanitize_vault_id
     from app.core.subject_config import build_vault_group_id, set_current_subject_id
 
-    # vault_id 四步 (exam_sessions.py targeting-material 同模板)
-    resolved_vault = sanitize_vault_id(req.vault_id)
-    resolved_group_id = build_vault_group_id(resolved_vault, subject_id=req.subject_id)
-    set_current_subject_id(resolved_group_id)
-
     # manifest 是文件读模型, 只能读当前挂载 vault — vault_id 不匹配即拒
-    # (fail-closed, 防 vault split-brain 把 A vault 的结构当 B vault 返回)
+    # (fail-closed 先行, 防 vault split-brain 把 A vault 的结构当 B vault 返回)
+    resolved_vault = sanitize_vault_id(req.vault_id)
     current = get_current_vault_id()
     if resolved_vault != current:
         raise HTTPException(
@@ -75,6 +73,8 @@ async def get_board_manifest_http(
             detail=f"vault 未激活: {resolved_vault} (当前挂载: {current}) — "
             "manifest 只读当前 vault, 不做跨 vault 文件访问",
         )
+    # group 上下文仅为与 exam_sessions 模板姿势一致 (manifest 本身不读 Neo4j)
+    set_current_subject_id(build_vault_group_id(resolved_vault, subject_id=req.subject_id))
 
     settings = get_settings()
     try:
@@ -84,8 +84,13 @@ async def get_board_manifest_http(
             include_exam_history=req.include_exam_history,
             stale_after_s=settings.MANIFEST_SNAPSHOT_STALE_AFTER_S,
         )
+        return project_manifest(raw, req.view)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e.args[0]) if e.args else str(e)) from e
-    return project_manifest(raw, req.view)
+    except pydantic.ValidationError as e:
+        # 纵深兜底: service 已做类型归一, 走到这说明 schema 契约被破 — 诚实
+        # 500 + 日志, 绝不把未投影数据吐出去 (Code-Review H3)
+        logger.error("[manifest] 投影 schema 异常: %s", e)
+        raise HTTPException(status_code=500, detail="manifest 投影 schema 异常, 已记录日志") from e

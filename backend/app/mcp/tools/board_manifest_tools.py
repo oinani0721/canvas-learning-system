@@ -46,6 +46,8 @@ class GetBoardManifestOutput(BaseModel):
 
 async def get_board_manifest(input: GetBoardManifestInput) -> dict:
     """白板目录卡: 成员 + 派生原因 + 掌握度 + 历史考察, 一次调用替代 N 次 Grep。"""
+    import pydantic
+
     from app.config import get_settings
 
     settings = get_settings()
@@ -62,4 +64,8 @@ async def get_board_manifest(input: GetBoardManifestInput) -> dict:
     except KeyError as e:
         detail = str(e.args[0]) if e.args else str(e)
         return GetBoardManifestOutput(ok=False, error=detail).model_dump()
+    except pydantic.ValidationError as e:
+        # 纵深兜底 (Code-Review H3): schema 契约被破 → 结构化错误, 不裸抛
+        logger.error("[manifest] MCP 投影 schema 异常: %s", e)
+        return GetBoardManifestOutput(ok=False, error="manifest 投影 schema 异常, 已记录日志").model_dump()
     return GetBoardManifestOutput(ok=True, manifest=manifest).model_dump()

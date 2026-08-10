@@ -105,8 +105,50 @@ def test_orphans_reported_with_reasons(vault):
     m = build_manifest(vault, board_id="甲板", now=NOW)
     by_id = {o["node_id"]: o for o in m["orphans"]}
     assert set(by_id) == {"无归属", "指错板"}
+    # Code-Review H1: reason 只许定长枚举文案 (不插值 untrusted 值)
     assert by_id["无归属"]["reason"] == "无 source_board"
-    assert "不存在板" in by_id["指错板"]["reason"]
+    assert by_id["指错板"]["reason"] == "source_board 指向不存在的白板"
+    assert "不存在板" in by_id["指错板"]["source_board_raw"]
+
+
+def test_orphan_channel_no_unbounded_content_echo(vault):
+    """Code-Review H1 复现锁: source_board 塞 300 字定义 → 只回显截断 120 字,
+    reason 不插值 — orphans 不得成为 exam 视图第三条自由文本泄漏通道。"""
+    _write(vault, "原白板/甲板.md", _board_md())
+    poison = "特征向量的完整定义是满足Av=λv的非零向量这是答案内容" * 12  # ~300 字
+    _write(vault, "节点/毒孤儿.md", _node_md([f"source_board: {poison}"]))
+    m = build_manifest(vault, board_id="甲板", now=NOW)
+    (o,) = m["orphans"]
+    assert o["reason"] == "source_board 指向不存在的白板"
+    assert len(o["source_board_raw"]) <= 120
+    from app.models.board_manifest import project_manifest
+
+    exam_json = str(project_manifest(m, "exam").model_dump())
+    assert poison not in exam_json  # 全文绝不出现 (只允许 ≤120 前缀)
+
+
+def test_parse_error_messages_bounded_and_content_free(vault):
+    """Code-Review H2/M5 复现锁: parse_errors 去内容化 — 坏 YAML 只报异常类型+
+    行号 (纯 Python loader 的 str(e) 会引用原文行), 坏 last_examined 截断 80。"""
+    _write(vault, "原白板/板.md", _board_md())
+    _write(vault, "节点/坏yaml.md", "---\ncorrection: 反例 diag(-1,-1) 行列式为 1 但负定\n: [炸\n---\n正文\n")
+    _write(
+        vault,
+        "节点/坏日期.md",
+        _node_md(
+            [
+                'source_board: "[[原白板/板]]"',
+                "mastery_a: 2.0",
+                "mastery_b: 3.0",
+                f"last_examined: {'这不是日期' * 60}",
+            ]
+        ),
+    )
+    m = build_manifest(vault, board_id="板", now=NOW)
+    assert m["parse_errors"], "两个坏文件必须有上报"
+    for e in m["parse_errors"]:
+        assert len(e["error"]) <= 200
+        assert "diag(-1,-1)" not in e["error"]  # YAML 出错行原文绝不回显
 
 
 def test_resolve_node_id_variants():
@@ -698,6 +740,77 @@ def test_passthrough_datetime_fields_json_safe(vault):
     (node,) = m["nodes"]
     assert isinstance(node["tips"][0]["added_at"], str)
     assert isinstance(node["error_candidates"][0]["created_at"], str)
+
+
+def test_digest_stops_at_adjacent_callout_boundary(vault):
+    """Code-Review M4 复现锁: 题面后紧跟的 [!feedback]/[!hint] callout (可含
+    正确答案) 是摘句边界, 绝不吸入 digest 白名单槽位。"""
+    _write(vault, "原白板/板.md", _board_md())
+    _write(vault, "节点/n1.md", _node_md(['source_board: "[[原白板/板]]"']))
+    _write(
+        vault,
+        "检验白板/板-2026-08-01-0100.md",
+        "\n".join(
+            [
+                "---",
+                "type: exam_board",
+                'source_board: "[[原白板/板]]"',
+                'created_at: "2026-08-01T01:00:00Z"',
+                "questions:",
+                "  - id: q1",
+                "    concept: n1",
+                "---",
+                "> [!exam_question]+ Q1 · n1",
+                "> 题面正常内容。",
+                "> [!feedback] 评分反馈",
+                "> 正确答案是 det(A-λI)=0 这里是答案内容",
+            ]
+        )
+        + "\n",
+    )
+    m = build_manifest(vault, board_id="板", now=NOW)
+    (node,) = m["nodes"]
+    (dg,) = node["past_question_digests"]
+    assert "题面正常内容" in dg["digest"]
+    assert "正确答案" not in dg["digest"] and "答案内容" not in dg["digest"]
+
+
+def test_untrusted_scalars_do_not_crash_projection(vault):
+    """Code-Review H3 复现锁: `doc_count: 大约五个` / `title: 2026` 等类型脏值
+    必须被归一, 不得 ValidationError 500 整个端点 (含列板模式)。"""
+    from app.models.board_manifest import project_manifest
+
+    _write(vault, "原白板/板.md", "---\ntype: whiteboard\ndoc_count: 大约五个\nboard_name: 2026\n---\n# 板\n")
+    _write(
+        vault,
+        "节点/n1.md",
+        _node_md(
+            [
+                'source_board: "[[原白板/板]]"',
+                "title: 2026",
+                "created_from: 12345",
+            ]
+        ),
+    )
+    listing = build_manifest(vault, now=NOW)
+    project_manifest(listing, "study")  # 列板模式不炸
+    (b,) = listing["boards"]
+    assert b["doc_count_declared"] is None and b["board_name"] == "2026"
+    single = build_manifest(vault, board_id="板", now=NOW)
+    study = project_manifest(single, "study")  # 单板双视图不炸
+    project_manifest(single, "exam")
+    assert study.nodes[0].title == "2026"
+
+
+def test_wikilink_anchor_and_case_insensitive_board_match(vault):
+    """Code-Review M6 复现锁: #heading 锚点与大小写差异不得判成假孤儿
+    (假孤儿会把 untrusted 值送进 orphans 回显通道)。"""
+    _write(vault, "原白板/Board.md", _board_md())
+    _write(vault, "节点/带锚点.md", _node_md(['source_board: "[[原白板/Board#小节]]"']))
+    _write(vault, "节点/大小写.md", _node_md(['source_board: "[[原白板/BOARD]]"']))
+    m = build_manifest(vault, board_id="Board", now=NOW)
+    assert {n["node_id"] for n in m["nodes"]} == {"带锚点", "大小写"}
+    assert m["orphans"] == []
 
 
 def test_include_exam_history_false_strips_digests_from_snapshot(vault):

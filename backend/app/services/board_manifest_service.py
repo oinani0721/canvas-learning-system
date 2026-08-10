@@ -29,6 +29,7 @@ import logging
 import math
 import os
 import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
@@ -101,11 +102,16 @@ _EXAM_QUESTION_RE = re.compile(r"^>\s*\[!exam_question\][+-]?\s*(\S+)", re.M)
 
 
 def resolve_node_id(raw: Any) -> str:
-    """'[[节点/x]]' / '[[y|别名]]' / 'x.md' → basename (canvas_projection_sync 同义)。"""
+    """'[[节点/x]]' / '[[y|别名]]' / '[[x#小节]]' / 'x.md' → basename。
+
+    对齐 canvas_projection_sync._resolve_node_id, 另剥 Obsidian #heading/#^block
+    锚点 (Code-Review M6: 带锚点的 source_board 不得判成假孤儿)。
+    """
     text = str(raw or "")
     m = _WIKILINK_RE.search(text)
     inner = m.group(1) if m else text
     inner = inner.split("|", 1)[0]
+    inner = inner.split("#", 1)[0]
     return inner.split("/")[-1].strip().removesuffix(".md")
 
 
@@ -163,6 +169,26 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_json_safe(v) for v in value]
     return str(value)
+
+
+def _safe_err(e: Exception) -> str:
+    """解析异常 → 去内容化错误串 (Code-Review H2/M5)。
+
+    ⛔ 禁用 str(e): 纯 Python yaml loader 的 MarkedYAMLError 会引用出错行
+    **原文** (含 correction 等禁项文本), parse_errors 在 exam 视图必带 —
+    只存异常类型名 + 行列号, 内容一律不回显。
+    """
+    mark = getattr(e, "problem_mark", None)
+    loc = f" @ line {mark.line + 1}" if mark is not None else ""
+    return f"{type(e).__name__}{loc}"
+
+
+def _bounded_str(value: Any, limit: int) -> str | None:
+    """untrusted frontmatter 标量 → 截断字符串 (Code-Review H3/L9: 类型归一
+    防单字段 ValidationError 炸整个端点 + 信封字段统一硬截断)。"""
+    if value is None:
+        return None
+    return str(value)[:limit]
 
 
 # ── 数据源抽象 (计划: manifest 内部抽象数据源接口, 便于未来切 Neo4j 投影) ──
@@ -258,7 +284,12 @@ def _extract_question_digests(body: str, limit: int = 160) -> dict[str, str]:
             current_qid = m.group(1).lower()
             continue
         if current_qid is not None:
-            if line.startswith(">"):
+            if re.match(r"^>\s*\[!", line):
+                # Code-Review M4: 相邻/嵌套 callout ([!feedback] 评分反馈可含
+                # 正确答案, [!hint]- 未必已曝光) 是摘句边界 — 立即终止收集,
+                # 绝不吸入题面之外的 callout 内容
+                _flush()
+            elif line.startswith(">"):
                 buf.append(line.lstrip(">").strip())
             else:
                 _flush()
@@ -421,17 +452,22 @@ def scan_vault(
         try:
             fm, body = ds.load_frontmatter(path)
         except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as e:
-            parse_errors.append({"path": f"{BOARD_DIR}/{path.name}", "error": str(e)})
+            parse_errors.append({"path": f"{BOARD_DIR}/{path.name}", "error": _safe_err(e)})
             continue
-        board_name = str(fm.get("board_name") or stem)
+        # Code-Review H3: untrusted 标量必须类型归一 — `doc_count: 大约五个`
+        # 不得让投影 ValidationError 500 整个端点 (含列板模式)
+        board_name = _bounded_str(fm.get("board_name"), 120) or stem
+        doc_count = _num(fm.get("doc_count"))
         boards[stem] = {
             "board_id": stem,
             "board_name": board_name,
             "board_name_mismatch": board_name != stem,
-            "doc_count_declared": fm.get("doc_count"),
+            "doc_count_declared": int(doc_count) if doc_count is not None else None,
             "concepts_listed": _parse_concepts_section(body),
             "members": [],
         }
+    # Code-Review M6: wikilink 归属匹配大小写不敏感 (macOS 文件系统同语义)
+    boards_ci = {k.casefold(): k for k in boards}
 
     # 2. 节点池扫描 (节点/*.md) → 按 source_board 分组; 无归属/未知板 → orphans
     orphans: list[dict[str, Any]] = []
@@ -442,7 +478,7 @@ def scan_vault(
         try:
             fm, body = ds.load_frontmatter(path)
         except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as e:
-            parse_errors.append({"path": f"{NODE_DIR}/{path.name}", "error": str(e)})
+            parse_errors.append({"path": f"{NODE_DIR}/{path.name}", "error": _safe_err(e)})
             continue
 
         mastery, mastery_err = _normalize_mastery(fm)
@@ -452,10 +488,12 @@ def scan_vault(
         last_exam_raw = fm.get("last_examined")
         last_exam_dt = _aware_dt(last_exam_raw)
         if last_exam_raw is not None and last_exam_dt is None:
+            # Code-Review H2: 原值只回显 repr 前 80 字 — parse_errors 在 exam
+            # 视图必带, 无界回显 = 第三条自由文本泄漏通道
             parse_errors.append(
                 {
                     "path": f"{NODE_DIR}/{path.name}",
-                    "error": f"last_examined 无法解析, 按从未考: {last_exam_raw!r}",
+                    "error": f"last_examined 无法解析, 按从未考: {repr(last_exam_raw)[:80]}",
                 }
             )
 
@@ -477,11 +515,12 @@ def scan_vault(
             "last_examined": _iso(last_exam_raw),
             "pick_hint": hint,
             "past_question_digests": [],
-            # study-only 字段 (exam 视图投影时结构性丢弃)
-            "title": fm.get("title"),
-            "aliases": [str(x) for x in fm.get("aliases") or [] if x is not None],
+            # study-only 字段 (exam 视图投影时结构性丢弃); 标量全部 _bounded_str
+            # 类型归一 (Code-Review H3: `title: 2026` 不得炸投影)
+            "title": _bounded_str(fm.get("title"), 200),
+            "aliases": [str(x)[:120] for x in fm.get("aliases") or [] if x is not None],
             "created_at": _iso(fm.get("created_at")),
-            "created_from": fm.get("created_from"),
+            "created_from": _bounded_str(fm.get("created_from"), 80),
             "source_note": (resolve_node_id(fm.get("source_note")) if fm.get("source_note") else None),
             "tips": [_json_safe(t) for t in fm.get("tips") or [] if isinstance(t, dict)],
             "errors": [_json_safe(e) for e in fm.get("errors") or [] if isinstance(e, dict)],
@@ -494,13 +533,16 @@ def scan_vault(
         if not raw_board:
             orphans.append({"node_id": stem, "reason": "无 source_board", "source_board_raw": None})
             continue
-        target_board = resolve_node_id(raw_board)
-        if target_board not in boards:
+        target_board = boards_ci.get(resolve_node_id(raw_board).casefold())
+        if target_board is None:
+            # Code-Review H1: reason 只用定长枚举文案, 不插值 untrusted 值;
+            # source_board_raw 硬截断 120 — orphans 在 exam 视图必带,
+            # 不得成为第三条自由文本泄漏通道
             orphans.append(
                 {
                     "node_id": stem,
-                    "reason": f"source_board 指向不存在的白板: {target_board}",
-                    "source_board_raw": str(raw_board),
+                    "reason": "source_board 指向不存在的白板",
+                    "source_board_raw": _bounded_str(raw_board, 120),
                 }
             )
             continue
@@ -513,9 +555,9 @@ def scan_vault(
             try:
                 fm, body = ds.load_frontmatter(path)
             except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as e:
-                parse_errors.append({"path": f"{EXAM_DIR}/{path.name}", "error": str(e)})
+                parse_errors.append({"path": f"{EXAM_DIR}/{path.name}", "error": _safe_err(e)})
                 continue
-            linked_board = resolve_node_id(fm.get("source_board")) or None
+            linked_board = boards_ci.get(resolve_node_id(fm.get("source_board")).casefold())
             questions = [q for q in fm.get("questions") or [] if isinstance(q, dict)]
             digests = _extract_question_digests(body)
             exam_history.append(
@@ -523,22 +565,20 @@ def scan_vault(
                     "exam_board_id": path.stem,
                     "board_id": linked_board,
                     "created_at": _iso(fm.get("created_at")),
-                    "status": fm.get("status"),
-                    "selected_node": fm.get("selected_node"),
+                    "status": _bounded_str(fm.get("status"), 40),
+                    "selected_node": _bounded_str(fm.get("selected_node"), 200),
                     "question_count": len(questions),
                 }
             )
             for q in questions:
                 concept = resolve_node_id(q.get("concept") or q.get("concept_path"))
-                qid = str(q.get("id") or "").lower()
+                qid = str(q.get("id") or "").lower()[:40]
                 digest_entry = {
                     "exam_board_id": path.stem,
                     "qid": qid or None,
                     "asked_at": _iso(fm.get("created_at")),
                     "score": _num(q.get("score")),
-                    "self_confidence": (
-                        str(q.get("self_confidence")) if q.get("self_confidence") is not None else None
-                    ),
+                    "self_confidence": _bounded_str(q.get("self_confidence"), 40),
                     "digest": digests.get(qid) or None,
                 }
                 if linked_board in boards:
@@ -597,7 +637,9 @@ def _carve(full: dict[str, Any], board_id: str | None, include_exam_history: boo
                 "board_name_mismatch": b["board_name_mismatch"],
                 "doc_count_declared": b["doc_count_declared"],
                 "member_count_actual": len(b["members"]),
-                "exam_board_count": sum(1 for e in exam_history if e["board_id"] == b["board_id"]),
+                # Code-Review L12: 计数恒用 full 历史 — include_exam_history=False
+                # 裁掉的是列表, 不得把板的检验白板计数静默归零
+                "exam_board_count": sum(1 for e in full["exam_history"] if e["board_id"] == b["board_id"]),
             }
             for b in boards.values()
         ]
@@ -671,15 +713,27 @@ def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bo
             except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 pass  # 损坏快照 → 直接重写覆盖
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(json.dumps(full, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, path)
+        # Code-Review L10: 唯一名 tmp 防跨进程写竞态 (宿主脚本与容器并跑时
+        # 固定名 tmp 可把半成品发布为正式快照)
+        fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+        tmp = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(json.dumps(full, ensure_ascii=False))
+            os.replace(tmp, path)
+        finally:
+            tmp.unlink(missing_ok=True)
         return True
     except (OSError, TypeError, ValueError) as e:
         # TypeError/ValueError: 序列化炸 (理应被 _json_safe 挡住, 双保险) —
         # 快照失败绝不拖垮 live 服务
         logger.warning("[manifest] 快照写入失败 (不影响 live 服务): %s", e)
         return False
+
+
+#: 快照 schema 必备键 (Code-Review L11: 缺键快照会让 _carve KeyError 被误映射
+#: 成 404「白板不存在」— 结构不全一律按快照不可用处理)
+_SNAPSHOT_REQUIRED_KEYS = frozenset({"freshness", "boards", "node_stems", "orphans", "exam_history", "parse_errors"})
 
 
 def load_snapshot(base_path: Path | str) -> dict[str, Any] | None:
@@ -691,7 +745,10 @@ def load_snapshot(base_path: Path | str) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
         logger.warning("[manifest] 快照不可用: %s", e)
         return None
-    return data if isinstance(data, dict) and "boards" in data else None
+    if not isinstance(data, dict) or not _SNAPSHOT_REQUIRED_KEYS <= set(data):
+        logger.warning("[manifest] 快照 schema 不全, 按不可用处理: %s", path)
+        return None
+    return data
 
 
 def serve_manifest(

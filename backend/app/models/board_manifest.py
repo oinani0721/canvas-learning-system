@@ -63,10 +63,10 @@ class QuestionDigestOut(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     exam_board_id: str
-    qid: str | None = None
+    qid: str | None = Field(default=None, max_length=40)
     asked_at: str | None = None
     score: float | None = None
-    self_confidence: str | None = None
+    self_confidence: str | None = Field(default=None, max_length=40)
     digest: str | None = Field(default=None, max_length=160)
 
 
@@ -96,10 +96,10 @@ class StudyNodeEntry(ExamNodeEntry):
     study 视图也不返回节点正文 (内容是 read_note 的职责, manifest 只答结构)。
     """
 
-    title: str | None = None
+    title: str | None = Field(default=None, max_length=200)
     aliases: list[str] = Field(default_factory=list)
     created_at: str | None = None
-    created_from: str | None = None
+    created_from: str | None = Field(default=None, max_length=80)
     source_note: str | None = None
     tips: list[dict[str, Any]] = Field(default_factory=list)
     errors: list[dict[str, Any]] = Field(default_factory=list)
@@ -121,7 +121,7 @@ class BoardInfoOut(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     board_id: str
-    board_name: str
+    board_name: str = Field(max_length=120)
     board_name_mismatch: bool = False
     doc_count_declared: int | None = None
     member_count_actual: int
@@ -146,11 +146,14 @@ class DualSourceGapOut(BaseModel):
 
 
 class OrphanOut(BaseModel):
+    """孤儿告警 (Code-Review H1: exam 视图必带 — reason 只许定长枚举文案,
+    source_board_raw 硬截断, 不得成为第三条自由文本泄漏通道)。"""
+
     model_config = ConfigDict(extra="ignore")
 
     node_id: str
-    reason: str
-    source_board_raw: str | None = None
+    reason: str = Field(max_length=80)
+    source_board_raw: str | None = Field(default=None, max_length=120)
 
 
 class ExamHistoryOut(BaseModel):
@@ -159,16 +162,19 @@ class ExamHistoryOut(BaseModel):
     exam_board_id: str
     board_id: str | None = None
     created_at: str | None = None
-    status: str | None = None
-    selected_node: str | None = None
+    status: str | None = Field(default=None, max_length=40)
+    selected_node: str | None = Field(default=None, max_length=200)
     question_count: int = 0
 
 
 class ParseErrorOut(BaseModel):
+    """解析错误上报 (Code-Review H2/M5: error 去内容化 — 异常类型+行列号或
+    截断 repr, 绝不回显 frontmatter 原文; 200 字模型级硬门)。"""
+
     model_config = ConfigDict(extra="ignore")
 
-    path: str
-    error: str
+    path: str = Field(max_length=200)
+    error: str = Field(max_length=200)
 
 
 class _ManifestEnvelope(BaseModel):
