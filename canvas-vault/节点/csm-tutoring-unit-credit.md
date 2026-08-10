@@ -1,6 +1,6 @@
 ---
 title: CSM 辅导学分
-aliases: 
+aliases:
   - CSM unit credit
   - 辅导学分制度
   - CS mentors 学分
@@ -14,6 +14,7 @@ tags:
   - berkeley-cs
 source: CS 61B 学生资源介绍（03:48）
 status: 新建
+source_board: "[[原白板/CS 61B]]"
 ---
 
 ## 核心概念

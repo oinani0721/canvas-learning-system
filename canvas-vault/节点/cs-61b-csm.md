@@ -1,7 +1,21 @@
 ---
-subject: "cs-61b"
-mastery: 0.30
-last_reviewed: "2026-04-20"
+subject: cs-61b
+mastery: 0.3
+last_reviewed: 2026-04-20
+source_board: "[[原白板/CS 61B]]"
+tips:
+  - id: ""
+    text: 提供有针对性的 (affinity) 辅导小组，例如面向女性、LGBTQ+、EOP、SEED 或 CS Scholar 的学生 [03:21]()。
+    tag: error
+    understanding: fuzzy
+    added_at: 2026-08-10T14:50:07.564Z
+    source: callout_parse
+  - id: ""
+    text: 每学期末开放申请，下学期初截止 [03:57]()。
+    tag: tips
+    understanding: understood
+    added_at: 2026-08-10T14:50:07.564Z
+    source: callout_parse
 ---
 
 -   **组织性质**：CSM 是一个学生运营的组织 [02:48]()。
