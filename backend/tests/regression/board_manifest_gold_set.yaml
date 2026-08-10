@@ -1,0 +1,178 @@
+# Board Manifest 金集 (RAG-S2.5-2026-08-10) — 结构完整性契约
+#
+# ⛔ official 区全部走硬禁通道: 集合/字段相等, 差一个即 exit 1, 无 tolerance。
+#    (与检索金集的本质差异: 语义检索允许近似, 结构检索是完整性契约 P=R=1.00)
+#
+# 封版纪律: 期望值在 T0 迁移审计 + 用户签字后实测封版 (2026-08-10):
+#   - T0.2 回填 my-recursion-notes/cs-61b-csm source_board
+#   - T0.3 删 TestConceptA/B/C (用户签字)
+#   - T0.4 csm-tutoring-unit-credit 归 CS 61B + 考察产物移检验白板 (用户签字)
+#   - T0.5 特征值板 ## Concepts 实测 3 条 (三方矛盾以实测定案)
+# 改动金集必须 --update-baseline --reason 留痕 (churn 纪律与检索金集同源)。
+
+version: 1
+origin: "RAG-S2.5-2026-08-10 T0 迁移审计封版, 2026-08-10 实测 (14 节点/6 原白板/7 检验白板)"
+
+config:
+  # G6 硬禁通道: exam 视图全量 JSON 禁串 (已知纠错文本/正文摘句/占位模板)。
+  # ⚠️ 选串纪律: 必须选**从未进过检验白板题面**的纠错/正文串 — 题面已曝光内容
+  # 属 digest 白名单 (如 cand-fund-002 的 misconception 曾被出题者写进题面, 不可作禁串)。
+  forbidden_strings:
+    - "反例 diag(-1,-1) 行列式为 1 但负定"          # cand-fund-001 correction
+    - "对称矩阵需特征值全正才等价于正定"              # cand-fund-001 correction 后半
+    - "咖啡豆烘得浅"                                # Fundamentals 正文段 (正文绝不出界)
+    - "你的 1-2 句精准定义"                          # 占位模板
+    - "defines eigenvalues as the scalar values"    # Characteristic-Eq ## 核心概念 摘句
+  # G6 任意深度禁键扫描 (exam 视图 JSON 树上这些键名不得存在)
+  forbidden_keys:
+    - tips
+    - errors
+    - error_candidates
+    - misconception
+    - correction
+    - raw_dialog_excerpt
+    - evidence_turns
+    - ai_reason
+    - title
+    - aliases
+    - source_note
+    - body
+    - calibration_log
+    - calibration_count
+
+official:
+  # ── G1 板成员 ×6 (集合相等, 含 2 空板期望 []) ──
+  g1_membership:
+    - board_id: "CS188 lecture 2"
+      members:
+        - "lecture 2"
+        - "代理决策分析-0303()"
+        - "代理函数-(Agent-Function)"
+        - "代理类型：反射与规划"
+        - "反射代理的局限性引出了规划代理-(Planning-Agents)-的需求"
+        - "理性代理-(Rational-Agent)"
+        - "规划代理的特点"
+        - "规划的分类-1549()"
+    - board_id: "特征值与特征向量"
+      members:
+        - "Characteristic-Equation-for-Eigenvalues"
+        - "Eigenvalues-are-special-vectors-that-sat"
+        - "Fundamentals"
+    - board_id: "CS 61B"
+      members:
+        - "cs-61b-csm"
+        - "csm-tutoring-unit-credit"
+    - board_id: "递归与分治 (Recursion & Divide-Conquer)"
+      members:
+        - "my-recursion-notes"
+    - board_id: "CS"
+      members: []
+    - board_id: "线性代数"
+      members: []
+
+  # ── G2 孤儿集合 ×1 (T0 迁移后清零) ──
+  g2_orphans: []
+
+  # ── G3 dual_source_gap ×3 (T0.5 实测定值) ──
+  g3_gap:
+    - board_id: "特征值与特征向量"          # Concepts 3/3 对称 (三方矛盾实测定案)
+      concepts_only: []
+      frontmatter_only: []
+    - board_id: "CS 61B"                    # T0.4a 收养样本: 目录漏记告警必须亮
+      concepts_only: []
+      frontmatter_only: ["csm-tutoring-unit-credit"]
+    - board_id: "CS188 lecture 2"           # 8/8 对称
+      concepts_only: []
+      frontmatter_only: []
+
+  # ── G4 字段投影 ×10 (四 schema 实值 + pick 1e-9 + 白名单键集 + 截断) ──
+  g4_fields:
+    - check: mastery_beta                   # 富节点 (mastery_a/b + 显式 score)
+      board_id: "特征值与特征向量"
+      node_id: "Fundamentals"
+      mastery: {source: beta, a: 0.05, b: 4.33, score: 0.01}
+    - check: rich_node_meta
+      board_id: "特征值与特征向量"
+      node_id: "Fundamentals"
+      attempt_count: 2
+      last_examined_prefix: "2026-07-25"
+      role: seed
+    - check: pick_hint_equivalence          # runner 内 import vault decay_beta 复算 1e-9
+      board_id: "特征值与特征向量"
+      node_id: "Fundamentals"
+    - check: relation_derived_from          # 标准 ai_linked_doc (无 relationships, 走 derived-from)
+      board_id: "特征值与特征向量"
+      node_id: "Characteristic-Equation-for-Eigenvalues"
+      mastery: {source: score_only, score: 0.3}
+      role: derived
+      relation: {type: derived_from, target_node_id: "Fundamentals"}
+    - check: relation_with_reason           # relationships[] 带派生原因 (exam 白名单槽位)
+      board_id: "CS188 lecture 2"
+      node_id: "反射代理的局限性引出了规划代理-(Planning-Agents)-的需求"
+      relation:
+        type: extends
+        target_node_id: "lecture 2"
+        derived_reason: "因为我对这个节点不太理解我想要单独的讨论"
+      derived_at_prefix: "2026-07-23"
+    - check: mastery_legacy_v2              # v2 遗留 (`mastery:`)
+      board_id: "CS 61B"
+      node_id: "cs-61b-csm"
+      mastery: {source: legacy_v2, score: 0.3}
+      role: seed
+    - check: mastery_absent_seed            # 种子无掌握度 (absent 不编数, pick 用先验)
+      board_id: "CS188 lecture 2"
+      node_id: "lecture 2"
+      mastery: {source: absent, score: null}
+      role: seed
+    - check: board_name_mismatch            # CS 61B 板名≠文件名 (board_id 是唯一匹配键)
+      cases:
+        - {board_id: "CS 61B", board_name: "CS 61B 数据结构", mismatch: true}
+        - {board_id: "特征值与特征向量", board_name: "特征值与特征向量", mismatch: false}
+    - check: exam_entry_keyset              # exam 白名单键集精确相等 (多一键即泄漏面)
+      board_id: "特征值与特征向量"
+      node_id: "Fundamentals"
+      keys:
+        - node_id
+        - exists
+        - role
+        - is_stub
+        - relation
+        - mastery
+        - attempt_count
+        - last_examined
+        - pick_hint
+        - past_question_digests
+    - check: stub_and_limits                # 占位判定实值 + 全量硬截断
+      is_stub_cases:
+        - {board_id: "特征值与特征向量", node_id: "Fundamentals", is_stub: false}
+        - {board_id: "CS188 lecture 2", node_id: "lecture 2", is_stub: false}
+        - {board_id: "CS188 lecture 2", node_id: "代理决策分析-0303()", is_stub: true}   # 未剖析占位实锤
+      digest_max: 160
+      derived_reason_max: 500
+
+  # ── G5 exam 历史 ×3 (板级检验白板集合相等) ──
+  g5_exam_history:
+    - board_id: "特征值与特征向量"
+      exam_board_ids:
+        - "特征值与特征向量-2026-07-05-1815"
+        - "特征值与特征向量-2026-07-16-0112"
+        - "特征值与特征向量-2026-07-18-1741"
+        - "特征值与特征向量-2026-07-23-1939"
+        - "特征值与特征向量-2026-07-24-0405"
+        - "特征值与特征向量-2026-07-25-0233"
+    - board_id: "递归与分治 (Recursion & Divide-Conquer)"
+      exam_board_ids:
+        - "递归与分治 (Recursion & Divide-Conquer)-2026-07-24-0714"
+    - board_id: "CS188 lecture 2"
+      exam_board_ids: []
+
+  # ── G6 泄漏禁项 ×8 (禁串 ×5 见 config.forbidden_strings, 禁键 ×1, 合成 ×2) ──
+  g6_leakage:
+    synthetic_poison:                        # 合成极端节点 (临时 vault, 不碰真数据)
+      definition_text: "特征向量的完整定义是满足 Av=λv 的非零向量 v 其中 λ 为对应特征值这段定义被批注者恶意塞进派生原因槽位用于验证白名单截断"
+      tips_text: "这段 tips 正文绝不能出现在 exam 视图里哪怕批注者写了定义"
+
+shadow:
+  # 只报告不判分: 观察面
+  - check: doc_count_drift                   # doc_count 声明 vs 实际成员数漂移观察
+  - check: stub_census                       # 全 vault 占位节点计数 (未剖析积压观察)
