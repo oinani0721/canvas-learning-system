@@ -129,7 +129,8 @@ def setup_mcp_server(app: FastAPI) -> None:
             name="canvas-learning-mcp",
             description="Canvas Learning System read-only retrieval tools: "
             "note search, wikilink graph traversal, note reading, "
-            "learning memory search, and backend health check.",
+            "learning memory search, board manifest (whiteboard structure "
+            "read-model), and backend health check.",
             include_tags=["MCP Tools"],
         )
 
