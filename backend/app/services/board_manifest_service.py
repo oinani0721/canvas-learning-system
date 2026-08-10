@@ -13,6 +13,8 @@
     Pydantic 视图投影 (exam 禁项 = 模型结构性缺字段, 白名单唯一控制点)。
   - 正文只参与两个判定后即丢弃: _compute_is_stub (占位) 与 ## Concepts 窄解析
     (差集告警)。正文内容绝不进入返回值 (内容是 read_note 的职责)。
+  - JSON 快照 = scan_vault 全量 state 原样序列化, 落 .claude/cache/ (RAG 黑名单
+    双覆盖 + 非 .md 双保险)。live 失败 → 快照 (degraded) → 空壳 error 诚实三态。
 
 掌握度/选点数学: 与 canvas-vault/.claude/scripts/decay_beta.py 单一真相源
 数值等价 (契约测试 sys.path import 真相源做 1e-9 锁, 禁止漂移)。三态兼容
@@ -22,8 +24,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import math
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,6 +41,10 @@ logger = logging.getLogger(__name__)
 NODE_DIR = "节点"
 BOARD_DIR = "原白板"
 EXAM_DIR = "检验白板"
+
+#: 快照相对路径 (计划 T2): .claude 在 VAULT_INDEX_SKIP_DIRS + config RAG 黑名单
+#: 双覆盖, .json 非 .md 双保险 — 不新增 SKIP_DIRS 条目
+SNAPSHOT_REL = Path(".claude") / "cache" / "board-manifest" / "manifest-v1.json"
 
 #: 顶层诚实信号常量 (计划 T2 契约字段)
 ANNOTATION_TRUST = "untrusted_user_data"
@@ -366,26 +374,26 @@ def compute_generation(base_path: Path) -> str:
     return hashlib.sha256(payload).hexdigest()[:12]
 
 
-# ── 主构建 ──
+# ── 全量扫描 (快照序列化单位) ──
 
 
-def build_manifest(
+def scan_vault(
     base_path: Path | str,
-    board_id: str | None = None,
-    include_exam_history: bool = True,
     now: datetime | None = None,
+    include_exam_history: bool = True,
     data_source: ManifestDataSource | None = None,
 ) -> dict[str, Any]:
-    """构建全量 manifest superset dict (study 级, 未过视图投影)。
+    """全量扫描 → full state: 板/成员/孤儿/检验历史/解析错误/freshness。
 
-    board_id=None → 列板模式 (boards[] 摘要); 指定 board_id → 单板成员全量。
-    单节点解析失败进 parse_errors 不熄火 (OBS-4 不静默); board_id 不存在抛
-    KeyError (API 层转 404); 非法 board_id 抛 ValueError (API 层转 422)。
+    - vault 结构缺失 (节点/ 或 原白板/ 目录不在) → FileNotFoundError,
+      由 serve_manifest 触发快照兜底。
+    - 单文件解析失败只进 parse_errors, 不熄火不兜底 (OBS-4 不静默)。
+    - 返回值 JSON-safe (日期已 _iso 字符串化), 可原样序列化为快照。
     """
     base = Path(base_path)
     now = now or datetime.now(timezone.utc)
-    if board_id is not None:
-        board_id = validate_path_component(board_id)
+    if not (base / NODE_DIR).is_dir() or not (base / BOARD_DIR).is_dir():
+        raise FileNotFoundError(f"vault 结构缺失 (需 {NODE_DIR}/ 与 {BOARD_DIR}/): {base}")
     ds = data_source or FrontmatterDataSource(base)
     parse_errors: list[dict[str, str]] = []
 
@@ -410,10 +418,10 @@ def build_manifest(
 
     # 2. 节点池扫描 (节点/*.md) → 按 source_board 分组; 无归属/未知板 → orphans
     orphans: list[dict[str, Any]] = []
-    node_stems: set[str] = set()
+    node_stems: list[str] = []
     for path in ds.list_node_files():
         stem = path.stem
-        node_stems.add(stem)
+        node_stems.append(stem)
         try:
             fm, body = ds.load_frontmatter(path)
         except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as e:
@@ -525,16 +533,32 @@ def build_manifest(
                 member["past_question_digests"].sort(key=lambda d: d["asked_at"] or "")
         exam_history.sort(key=lambda e: e["created_at"] or "")
 
-    # 4. 组装顶层 (freshness lag=0: live 现算现返回)
-    result: dict[str, Any] = {
-        "source": "live",
-        "source_status": "ok",
+    return {
         "freshness": {
             "generated_at": now.isoformat(),
             "generation": compute_generation(base),
             "lag_seconds": 0.0,
             "stale": False,
         },
+        "boards": boards,
+        "node_stems": node_stems,
+        "orphans": orphans,
+        "exam_history": exam_history,
+        "parse_errors": parse_errors,
+    }
+
+
+# ── 请求裁切 (live 与快照共用同一条路径 → 泄漏控制点唯一) ──
+
+
+def _carve(full: dict[str, Any], board_id: str | None, include_exam_history: bool) -> dict[str, Any]:
+    """full state → 请求形状 dict。board_id 不存在抛 KeyError (API 层转 404)。"""
+    boards: dict[str, dict[str, Any]] = full["boards"]
+    exam_history = full["exam_history"] if include_exam_history else []
+    result: dict[str, Any] = {
+        "source": "live",
+        "source_status": "ok",
+        "freshness": dict(full["freshness"]),
         "degraded": False,
         "degraded_reason": None,
         "annotation_trust": ANNOTATION_TRUST,
@@ -542,10 +566,10 @@ def build_manifest(
         "board": None,
         "boards": None,
         "nodes": [],
-        "orphans": orphans,
+        "orphans": full["orphans"],
         "dual_source_gap": None,
         "exam_history": [],
-        "parse_errors": parse_errors,
+        "parse_errors": full["parse_errors"],
     }
 
     if board_id is None:
@@ -568,8 +592,12 @@ def build_manifest(
 
     b = boards[board_id]
     members = b["members"]
+    if not include_exam_history:
+        # 快照 full 恒含历史; 请求关掉时在裁切层剥离 (浅拷贝防止污染 full)
+        members = [{**m, "past_question_digests": []} for m in members]
     member_ids = {m["node_id"] for m in members}
     concepts = b["concepts_listed"]
+    node_stems = set(full["node_stems"])
     result["board"] = {
         "board_id": b["board_id"],
         "board_name": b["board_name"],
@@ -587,3 +615,121 @@ def build_manifest(
     }
     result["exam_history"] = [e for e in exam_history if e["board_id"] == board_id]
     return result
+
+
+def build_manifest(
+    base_path: Path | str,
+    board_id: str | None = None,
+    include_exam_history: bool = True,
+    now: datetime | None = None,
+    data_source: ManifestDataSource | None = None,
+) -> dict[str, Any]:
+    """live 单发构建 (无快照参与): scan + carve。
+
+    board_id=None → 列板模式 (boards[] 摘要); 指定 board_id → 单板成员全量。
+    非法 board_id 抛 ValueError (API 层转 422); 不存在抛 KeyError (转 404)。
+    """
+    if board_id is not None:
+        board_id = validate_path_component(board_id)
+    full = scan_vault(base_path, now=now, include_exam_history=include_exam_history, data_source=data_source)
+    return _carve(full, board_id, include_exam_history)
+
+
+# ── JSON 快照 (last known good, 不做 TTL 删除) ──
+
+
+def snapshot_file(base_path: Path | str) -> Path:
+    return Path(base_path) / SNAPSHOT_REL
+
+
+def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bool:
+    """generation 变更才重写; tmp + os.replace 原子; 失败仅 warning 不影响 live。"""
+    path = snapshot_file(base_path)
+    try:
+        if path.exists():
+            try:
+                prev = json.loads(path.read_text(encoding="utf-8"))
+                if prev.get("freshness", {}).get("generation") == full["freshness"]["generation"]:
+                    return False
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                pass  # 损坏快照 → 直接重写覆盖
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(full, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
+        return True
+    except OSError as e:
+        logger.warning("[manifest] 快照写入失败 (不影响 live 服务): %s", e)
+        return False
+
+
+def load_snapshot(base_path: Path | str) -> dict[str, Any] | None:
+    path = snapshot_file(base_path)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        logger.warning("[manifest] 快照不可用: %s", e)
+        return None
+    return data if isinstance(data, dict) and "boards" in data else None
+
+
+def serve_manifest(
+    base_path: Path | str,
+    board_id: str | None = None,
+    include_exam_history: bool = True,
+    stale_after_s: int = 86400,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """降级三态 (计划 T2, 诚实不假空成功):
+
+      live ok       → source=live / source_status=ok (顺手 generation 变更才重写快照)
+      live 失败+快照 → source=local_json / snapshot / degraded=true / lag+stale 标注
+      快照也无      → source=local_json / error / nodes=[] (200 空壳, 显式报因)
+
+    单节点解析失败**不**触发兜底 (进 parse_errors); 只有 vault 结构级不可达才降级。
+    板不存在在 live 与快照两态同语义抛 KeyError (API 层转 404)。
+    """
+    if board_id is not None:
+        board_id = validate_path_component(board_id)
+    now = now or datetime.now(timezone.utc)
+
+    try:
+        # 快照必须全量 (含检验历史), include_exam_history 只影响本次裁切
+        full = scan_vault(base_path, now=now, include_exam_history=True)
+    except OSError as e:
+        live_error = str(e)
+    else:
+        write_snapshot_if_changed(base_path, full)
+        return _carve(full, board_id, include_exam_history)
+
+    snap = load_snapshot(base_path)
+    if snap is not None:
+        result = _carve(snap, board_id, include_exam_history)
+        gen_at = _aware_dt(snap.get("freshness", {}).get("generated_at"))
+        lag = max(0.0, (now - gen_at).total_seconds()) if gen_at else None
+        result["source"] = "local_json"
+        result["source_status"] = "snapshot"
+        result["degraded"] = True
+        result["degraded_reason"] = f"live 扫描失败, 退快照: {live_error}"
+        result["freshness"]["lag_seconds"] = round(lag, 1) if lag is not None else None
+        result["freshness"]["stale"] = lag is None or lag > stale_after_s
+        return result
+
+    return {
+        "source": "local_json",
+        "source_status": "error",
+        "freshness": None,
+        "degraded": True,
+        "degraded_reason": f"live 扫描失败且无可用快照: {live_error}",
+        "annotation_trust": ANNOTATION_TRUST,
+        "id_stability": ID_STABILITY,
+        "board": None,
+        "boards": None,
+        "nodes": [],
+        "orphans": [],
+        "dual_source_gap": None,
+        "exam_history": [],
+        "parse_errors": [],
+    }

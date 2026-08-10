@@ -395,3 +395,304 @@ def test_pick_hint_numerically_locked_to_decay_beta(vault):
             assert svc._beta_pick_score(*ours) == pytest.approx(dbeta.pick_score(*theirs), abs=1e-9)
     for score in [0.0, 0.01, 0.3, 0.5, 1.0]:
         assert svc._beta_from_legacy(score) == pytest.approx(dbeta.from_legacy(score), abs=1e-9)
+
+
+# ══ 组 D: exam 视图禁项 = 模型结构性缺字段 (T2) ══
+
+#: 计划 T2 逐键断言清单: 这些键名在 ExamNodeEntry 及其嵌套模型上不得存在
+FORBIDDEN_EXAM_KEYS = [
+    "tips",
+    "errors",
+    "error_candidates",
+    "misconception",
+    "correction",
+    "raw_dialog_excerpt",
+    "evidence_turns",
+    "ai_reason",
+    "title",
+    "aliases",
+    "source_note",
+    "body",
+    "calibration_log",
+    "calibration_count",
+    "next_review",
+    "created_at",
+    "created_from",
+]
+
+
+def _all_keys(obj) -> set[str]:
+    keys: set[str] = set()
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            keys.add(k)
+            keys |= _all_keys(v)
+    elif isinstance(obj, list):
+        for item in obj:
+            keys |= _all_keys(item)
+    return keys
+
+
+def _poisoned_raw_node() -> dict:
+    """合成极端节点: 批注者把定义/纠错塞进一切能塞的槽位。"""
+    return {
+        "node_id": "毒",
+        "exists": True,
+        "role": "derived",
+        "is_stub": False,
+        "relation": {
+            "type": "extends",
+            "target_node_id": "种子",
+            "derived_reason": "我不理解",
+            "derived_at": None,
+            "misconception": "泄漏的误解",
+            "correction": "泄漏的更正",
+        },
+        "mastery": {"score": 0.3, "a": None, "b": None, "source": "score_only"},
+        "attempt_count": 1,
+        "last_examined": None,
+        "pick_hint": None,
+        "past_question_digests": [],
+        "title": "泄漏标题",
+        "aliases": ["泄漏别名"],
+        "created_at": "2026-01-01",
+        "created_from": "ai_linked_doc",
+        "source_note": "种子",
+        "tips": [{"text": "泄漏的 tips 正文", "tag": "question"}],
+        "errors": [{"description": "泄漏的错误"}],
+        "error_candidates": [
+            {
+                "misconception": "认为 det>0 即正定",
+                "correction": "反例 diag(-1,-1)",
+                "raw_dialog_excerpt": "原话摘录",
+                "ai_reason": "AI 推断",
+                "evidence_turns": [],
+            }
+        ],
+        "next_review": "2026-09-01",
+        "calibration_count": 4,
+    }
+
+
+def test_exam_entry_forbidden_keys_structurally_absent():
+    from app.models.board_manifest import (
+        ExamNodeEntry,
+        MasteryOut,
+        PickHintOut,
+        QuestionDigestOut,
+        RelationOut,
+    )
+
+    for key in FORBIDDEN_EXAM_KEYS:
+        assert key not in ExamNodeEntry.model_fields, f"exam 禁项泄漏: {key}"
+    # 嵌套模型白名单集合相等 (比逐键更强: 新增字段也会被抓)
+    assert set(RelationOut.model_fields) == {"type", "target_node_id", "derived_reason", "derived_at"}
+    assert set(MasteryOut.model_fields) == {"score", "a", "b", "source"}
+    assert set(PickHintOut.model_fields) == {"mu", "sigma", "pick_score", "days_idle"}
+    assert set(QuestionDigestOut.model_fields) == {
+        "exam_board_id",
+        "qid",
+        "asked_at",
+        "score",
+        "self_confidence",
+        "digest",
+    }
+    assert set(ExamNodeEntry.model_fields) == {
+        "node_id",
+        "exists",
+        "role",
+        "is_stub",
+        "relation",
+        "mastery",
+        "attempt_count",
+        "last_examined",
+        "pick_hint",
+        "past_question_digests",
+    }
+
+
+def test_exam_projection_drops_poisoned_fields_at_any_depth():
+    from app.models.board_manifest import ExamNodeEntry
+
+    dumped = ExamNodeEntry.model_validate(_poisoned_raw_node()).model_dump()
+    leaked = _all_keys(dumped) & set(FORBIDDEN_EXAM_KEYS)
+    assert leaked == set(), f"exam 投影泄漏键: {leaked}"
+    text = str(dumped)
+    for s in ("泄漏", "det>0", "diag(-1,-1)", "原话摘录", "AI 推断"):
+        assert s not in text, f"exam 投影泄漏内容: {s}"
+    # 白名单槽位保留 (派生原因是 exam 合法上下文)
+    assert dumped["relation"]["derived_reason"] == "我不理解"
+
+
+def test_study_projection_keeps_learning_fields():
+    from app.models.board_manifest import StudyNodeEntry
+
+    node = StudyNodeEntry.model_validate(_poisoned_raw_node())
+    assert node.title == "泄漏标题" and node.tips[0]["text"] == "泄漏的 tips 正文"
+    assert node.error_candidates[0]["misconception"] == "认为 det>0 即正定"
+    assert node.calibration_count == 4
+
+
+def test_digest_and_reason_hard_limits_enforced_by_model():
+    import pydantic
+
+    from app.models.board_manifest import QuestionDigestOut, RelationOut
+
+    with pytest.raises(pydantic.ValidationError):
+        QuestionDigestOut(exam_board_id="x", digest="超" * 161)
+    with pytest.raises(pydantic.ValidationError):
+        RelationOut(type="extends", derived_reason="超" * 501)
+
+
+def test_project_manifest_both_views_from_live(vault):
+    from app.models.board_manifest import project_manifest
+
+    _four_schema_vault(vault)
+    raw = build_manifest(vault, board_id="板", now=NOW)
+    exam = project_manifest(raw, "exam")
+    study = project_manifest(raw, "study")
+    assert exam.view == "exam" and study.view == "study"
+    assert exam.source == "live" and exam.annotation_trust == "untrusted_user_data"
+    assert {n.node_id for n in exam.nodes} == {"富", "标准", "遗留", "种子"}
+    leaked = _all_keys(exam.model_dump()) & set(FORBIDDEN_EXAM_KEYS)
+    assert leaked == set()
+    with pytest.raises(ValueError):
+        project_manifest(raw, "别的")
+
+
+# ══ 组 E: JSON 快照兜底 + freshness + 降级三态 (T2) ══
+
+
+def _serve(vault, **kw):
+    from app.services.board_manifest_service import serve_manifest
+
+    return serve_manifest(vault, **kw)
+
+
+def _basic_vault(vault):
+    _write(vault, "原白板/板.md", _board_md(concepts=["n1"]))
+    _write(vault, "节点/n1.md", _node_md(['source_board: "[[原白板/板]]"']))
+
+
+def test_serve_live_writes_snapshot_once_per_generation(vault):
+    from app.services.board_manifest_service import snapshot_file
+
+    _basic_vault(vault)
+    m = _serve(vault, board_id="板", now=NOW)
+    assert m["source"] == "live" and m["source_status"] == "ok" and m["degraded"] is False
+    snap = snapshot_file(vault)
+    assert snap.exists() and not snap.with_name(snap.name + ".tmp").exists()
+    mtime1 = snap.stat().st_mtime_ns
+    _serve(vault, board_id="板", now=NOW)  # 同 generation → 不重写
+    assert snap.stat().st_mtime_ns == mtime1
+    _write(vault, "节点/n2.md", _node_md(['source_board: "[[原白板/板]]"']))
+    _serve(vault, board_id="板", now=NOW)  # generation 变更 → 重写
+    assert snap.stat().st_mtime_ns != mtime1
+
+
+def test_fallback_to_snapshot_when_vault_structure_gone(vault):
+    _basic_vault(vault)
+    _serve(vault, now=NOW)  # 先写出快照
+    (vault / "节点").rename(vault / "节点-改名")  # 模拟 vault 结构不可达
+    m = _serve(vault, board_id="板", now=NOW)
+    assert m["source"] == "local_json" and m["source_status"] == "snapshot"
+    assert m["degraded"] is True and "live 扫描失败" in m["degraded_reason"]
+    assert {n["node_id"] for n in m["nodes"]} == {"n1"}  # last known good
+    assert m["freshness"]["stale"] is False  # 刚生成, 未过阈值
+    # 改回 → 恢复 live (mini-UAT ③ 语义)
+    (vault / "节点-改名").rename(vault / "节点")
+    assert _serve(vault, board_id="板", now=NOW)["source"] == "live"
+
+
+def test_snapshot_stale_marked_after_threshold(vault):
+    from datetime import timedelta
+
+    _basic_vault(vault)
+    _serve(vault, now=NOW)
+    (vault / "节点").rename(vault / "节点-改名")
+    later = NOW + timedelta(days=2)
+    m = _serve(vault, board_id="板", stale_after_s=86400, now=later)
+    assert m["freshness"]["stale"] is True
+    assert m["freshness"]["lag_seconds"] == pytest.approx(2 * 86400, abs=1)
+
+
+def test_error_state_when_no_snapshot_honest_empty(vault):
+    m = _serve(vault / "根本不存在", board_id=None, now=NOW)
+    assert m["source_status"] == "error" and m["degraded"] is True
+    assert m["nodes"] == [] and m["boards"] is None and m["freshness"] is None
+    assert "无可用快照" in m["degraded_reason"]
+
+
+def test_corrupt_snapshot_falls_to_error_state(vault):
+    from app.services.board_manifest_service import snapshot_file
+
+    _basic_vault(vault)
+    _serve(vault, now=NOW)
+    snapshot_file(vault).write_text("{损坏的 json", encoding="utf-8")
+    (vault / "节点").rename(vault / "节点-改名")
+    m = _serve(vault, board_id="板", now=NOW)
+    assert m["source_status"] == "error" and m["nodes"] == []
+
+
+def test_single_node_parse_failure_stays_live_not_fallback(vault):
+    _basic_vault(vault)
+    _write(vault, "节点/坏.md", "---\n: [无法解析: {\n---\n正文\n")
+    m = _serve(vault, board_id="板", now=NOW)
+    assert m["source"] == "live"  # 单文件炸不触发兜底 (进 parse_errors)
+    assert any("坏.md" in e["path"] for e in m["parse_errors"])
+
+
+def test_snapshot_roundtrip_projection_identical_shape(vault):
+    """live 与快照 serve 过同一套投影 — 泄漏控制点唯一 (计划 T2)。"""
+    from app.models.board_manifest import project_manifest
+
+    _four_schema_vault(vault)
+    live = _serve(vault, board_id="板", now=NOW)
+    (vault / "节点").rename(vault / "节点-改名")
+    snap = _serve(vault, board_id="板", now=NOW)
+    exam_live = project_manifest(live, "exam").model_dump()
+    exam_snap = project_manifest(snap, "exam").model_dump()
+    for m in (exam_live, exam_snap):
+        assert _all_keys(m) & set(FORBIDDEN_EXAM_KEYS) == set()
+    # 除 source/degraded/freshness 三组诚实信号外, 结构与内容一致
+    for k in ("board", "nodes", "dual_source_gap", "orphans"):
+        assert exam_live[k] == exam_snap[k]
+
+
+def test_board_not_found_raises_in_snapshot_mode_too(vault):
+    _basic_vault(vault)
+    _serve(vault, now=NOW)
+    (vault / "节点").rename(vault / "节点-改名")
+    with pytest.raises(KeyError):
+        _serve(vault, board_id="没这板", now=NOW)
+
+
+def test_include_exam_history_false_strips_digests_from_snapshot(vault):
+    _basic_vault(vault)
+    _write(
+        vault,
+        "检验白板/板-2026-08-01-0100.md",
+        "\n".join(
+            [
+                "---",
+                "type: exam_board",
+                'source_board: "[[原白板/板]]"',
+                'created_at: "2026-08-01T01:00:00Z"',
+                "status: done",
+                "questions:",
+                "  - id: q1",
+                "    concept: n1",
+                "---",
+                "> [!exam_question]+ Q1 · n1",
+                "> 题面。",
+            ]
+        )
+        + "\n",
+    )
+    _serve(vault, now=NOW)
+    (vault / "节点").rename(vault / "节点-改名")
+    m = _serve(vault, board_id="板", include_exam_history=False, now=NOW)
+    assert m["exam_history"] == []
+    assert all(n["past_question_digests"] == [] for n in m["nodes"])
+    m2 = _serve(vault, board_id="板", include_exam_history=True, now=NOW)
+    assert m2["nodes"][0]["past_question_digests"] != []
