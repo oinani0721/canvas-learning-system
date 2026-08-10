@@ -12,8 +12,12 @@
 # ⚠️ ground truth 锚点只用「概念正文/用户手写疑问」— T3 chunk 改造会剥离
 #    检验白板题面复述/弃答记录/模板样板, 金集真值不依赖将被剥离的内容。
 
+# version 2 (2026-08-10, 用户决策 T6): vq-f06/vq-h07 移入 shadow —
+# 结构性死档实锤 (期望文件全 doc_type=whiteboard 被查询侧排除策略硬排除,
+# 反事实去排除后 rank1 立即回归 = 纯策略排除非能力问题); 「定位白板文件」
+# 元查询与 supplementary 补充材料定位错位, 待 file_locate 意图路由 backlog。
 config:
-  version: 1
+  version: 2
   vault_id: canvas_vault
   top_k: 20
   tolerance: 0.02
@@ -193,15 +197,6 @@ queries:
     origin: "节点/代理决策分析-0303().md"
     expect_hit:
       - {file: "代理决策", grade: 3}
-  - id: vq-f06
-    query: "线性代数的白板叫什么名字？"
-    language: zh
-    query_type: file_locate
-    origin: "原白板/线性代数.md / 特征值与特征向量.md"
-    expect_hit:
-      - {file: "线性代数", grade: 3}
-      - {file: "特征值与特征向量", grade: 2}
-
   # ═══ appended_content (5) — 靶子① 大文件尾部追加 (chunk 稀释) ═══
   - id: vq-a01
     query: "我笔记里有没有写过咖啡烘焙深浅和味道的关系？在哪篇？"
@@ -295,13 +290,6 @@ queries:
       - {file: "Fundamentals", grade: 3}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 3}
-  - id: vq-h07
-    query: "CS 61B 这门课的白板里都挂了什么主题？"
-    language: zh
-    query_type: handwritten_vs_transcript
-    origin: "原白板/CS 61B.md"
-    expect_hit:
-      - {file: "CS 61B", grade: 3}
   - id: vq-h08
     query: "lecture 2 我做过哪些自己的笔记和理解？"
     language: zh

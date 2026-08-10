@@ -81,11 +81,11 @@
 | T6 live 实测 | 9 项全 PASS：hook 四态 / MCP confidence + 考题隔离 / M6 410 / refresh-changed 存活 / 18012 reranker 双向可达 |
 | 回归测试 | regression 全绿（阶段 2 新增契约 100+ 条，含 T6 回归锁 16 条） |
 
-## 待你决策的三件事（我会单独用选择题问你，这里留档）
+## 三个决策（已裁定 2026-08-10，留档）
 
-1. **vq-f06/h07 金集期望冲突**：这两条金集 query 期望命中的文件与 whiteboard 排除策略冲突——放行 file_locate 意图、还是修订金集期望？
-2. **vq-f04 扩池**：该 query 需要召回池扩到 ≥50 才能命中，有延迟代价——扩不扩？
-3. **`[!note]` STRIP 误伤面**：T3 把 `[!note]` callout 剥出索引，census 数据出来后决定是否收窄口径。
+1. **vq-f06/h07 金集期望冲突** → ✅ **已裁定 B：移入 shadow 集**（金集 v2，基线已重锁；file_locate 意图路由留 backlog，exam_board 任何方案绝不放行）
+2. **vq-f04 扩池** → ✅ **已裁定不扩**（实测收益仅 file 级 + 31% 延迟，根因在段落级召回——记 backlog 等 chunk 侧补强）
+3. **`[!note]` STRIP 误伤面** → ✅ **已裁定维持现状**（census 零误伤实锤；若未来在 `[!note]` 里手写笔记需回来改口径）
 
 ## 已知边界（阶段 2 不修，属后续阶段/backlog）
 

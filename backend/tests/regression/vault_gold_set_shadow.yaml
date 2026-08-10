@@ -2,8 +2,27 @@
 # 规则 (沿用 memory_gold_set_shadow): 新发现的失败案例先进本文件 (--shadow
 # 只报告不门禁), 定期人工评审后升 vault_gold_set.yaml 的 version 并入正集。
 config:
-  version: 1
+  version: 2
   vault_id: canvas_vault
   top_k: 20
   tolerance: 0.02
-queries: []
+# version 2 (2026-08-10, 用户决策 T6): 收编主金集降档的 vq-f06/vq-h07 —
+# 结构性死档 (期望文件全 doc_type=whiteboard 被查询侧排除, 反事实实测
+# 去排除 rank1 立即回归)。能力缺口保留在此: 若未来落地 file_locate 意图
+# 路由 (whiteboard 放行, exam_board 任何情况绝不放行) 可升回主集。
+queries:
+  - id: vq-f06
+    query: "线性代数的白板叫什么名字？"
+    language: zh
+    query_type: file_locate
+    origin: "原白板/线性代数.md / 特征值与特征向量.md; 2026-08-10 自主集 v1 降档 (whiteboard 排除死档)"
+    expect_hit:
+      - {file: "线性代数", grade: 3}
+      - {file: "特征值与特征向量", grade: 2}
+  - id: vq-h07
+    query: "CS 61B 这门课的白板里都挂了什么主题？"
+    language: zh
+    query_type: handwritten_vs_transcript
+    origin: "原白板/CS 61B.md; 2026-08-10 自主集 v1 降档 (whiteboard 排除死档)"
+    expect_hit:
+      - {file: "CS 61B", grade: 3}

@@ -1,26 +1,26 @@
 {
-  "run_at": "2026-08-09T19:13:55.723856+00:00",
+  "run_at": "2026-08-10T09:33:34.709934+00:00",
   "mode": "in-process search_supplementary (Tier R + D)",
-  "query_count": 60,
+  "query_count": 58,
   "metrics": {
-    "recall_at_10": 0.9273,
-    "mrr": 0.7602,
-    "ndcg_at_10": 0.6862,
+    "recall_at_10": 0.9623,
+    "mrr": 0.7889,
+    "ndcg_at_10": 0.7121,
     "contamination_at_10": 0.3708,
-    "polluted_query_rate": 0.1167,
-    "handwritten_share_at_10": 0.33,
-    "duplicate_rate": 0.0054,
-    "delivery_rate": 0.8182,
-    "delivered_contamination_rate": 0.3983,
+    "polluted_query_rate": 0.1207,
+    "handwritten_share_at_10": 0.3375,
+    "duplicate_rate": 0.0056,
+    "delivery_rate": 0.8491,
+    "delivered_contamination_rate": 0.386,
     "false_positive_rate": 0.06
   },
   "top1_score_distribution": {
-    "median": 0.846,
-    "min": 0.506
+    "median": 0.852,
+    "min": 0.544
   },
   "latency": {
-    "median_s": 0.226,
-    "max_s": 0.293
+    "median_s": 0.236,
+    "max_s": 0.361
   },
   "hard_violations": [],
   "per_query": [
@@ -225,22 +225,6 @@
       "delivered": 2
     },
     {
-      "id": "vq-f06",
-      "query_type": "file_locate",
-      "returned": 12,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "节点/Fundamentals.md",
-        "raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search Algorithms in Action/Disc01_Search_[CS188 Discussion] Search Algorithms in Action.md",
-        "raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Searching with Heuristics/EP01_Search_[CS188 Discussion] Searching with Heuristics.md",
-        "raw/CS188/videos/lectures/lecture 10/lecture 10.md",
-        "raw/CS188/videos/lectures/lecture 5/lecture 5.md"
-      ],
-      "contam_note": 9,
-      "delivered": 3
-    },
-    {
       "id": "vq-a01",
       "query_type": "appended_content",
       "returned": 12,
@@ -338,22 +322,6 @@
       "pollution": [
         "raw/*: 7/3"
       ],
-      "delivered": 1
-    },
-    {
-      "id": "vq-h07",
-      "query_type": "handwritten_vs_transcript",
-      "returned": 12,
-      "first_relevant_rank": null,
-      "ndcg": 0.0,
-      "top5_paths": [
-        "节点/cs-61b-csm.md",
-        "节点/lecture 2.md",
-        "raw/CS188/videos/lectures/lecture 11/lecture 11.md",
-        "raw/CS188/videos/lectures/lecture 1/lecture 1.md",
-        "raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees/RS1_Search_CSPs_GameTrees.md"
-      ],
-      "contam_note": 8,
       "delivered": 1
     },
     {
@@ -586,7 +554,7 @@
       "delivered_false_positives": 0
     }
   ],
-  "gold_set_version": 1,
+  "gold_set_version": 2,
   "hook_smoke": {
     "normal": {
       "status": 200,
