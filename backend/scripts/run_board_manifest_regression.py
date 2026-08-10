@@ -349,6 +349,62 @@ def check_g6_synthetic(c: Checker, gold: dict) -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_g7(c: Checker, gold: dict, data: dict) -> None:
+    """pick_rank 板内候选秩 (RAG-S2.6): rank==1 逐板定值 + 占位不入秩 + 秩稠密唯一。"""
+    case = gold["official"]["g7_pick_rank"]
+    ok, details = True, []
+
+    for sub in case["rank_one"]:
+        bid = sub["board_id"]
+        winners = [
+            n["node_id"]
+            for n in _iter_nodes(data["boards"][bid]["exam"])
+            if (n["pick_hint"] or {}).get("pick_rank") == 1
+        ]
+        if winners != [sub["node_id"]]:
+            ok = False
+            details.append(f"{bid}: rank1 expected=[{sub['node_id']}] actual={winners}")
+
+    for bid, views in data["boards"].items():
+        ranks = []
+        for n in _iter_nodes(views["exam"]):
+            rank = (n["pick_hint"] or {}).get("pick_rank")
+            if case.get("stubs_never_ranked") and n["is_stub"] and rank is not None:
+                ok = False
+                details.append(f"{bid}/{n['node_id']}: 占位节点拿到 rank={rank}")
+            if rank is not None:
+                ranks.append(rank)
+        if case.get("ranks_dense_and_unique") and sorted(ranks) != list(range(1, len(ranks) + 1)):
+            ok = False
+            details.append(f"{bid}: 秩非稠密唯一 {sorted(ranks)}")
+
+    c.add("G7[pick_rank]", ok, "; ".join(details))
+
+
+def check_g8(c: Checker, gold: dict, data: dict) -> None:
+    """score_scale 量纲申报 (RAG-S2.6): 恒非空 + 推定必标 + 至少 1 条来自写侧真值。"""
+    case = gold["official"]["g8_score_scale"]
+    ok, details = True, []
+    declared = 0
+    for bid, views in data["boards"].items():
+        for n in _iter_nodes(views["exam"]):
+            for d in n["past_question_digests"]:
+                scale = d.get("score_scale")
+                if case.get("never_null") and not scale:
+                    ok = False
+                    details.append(f"{bid}/{n['node_id']}/{d['qid']}: 量纲缺失")
+                    continue
+                if scale == case["declared_value"]:
+                    declared += 1
+                elif case["inferred_suffix"] not in scale:
+                    ok = False
+                    details.append(f"{bid}/{n['node_id']}/{d['qid']}: 非真值却未标推定 {scale!r}")
+    if declared < case["min_declared_count"]:
+        ok = False
+        details.append(f"写侧真值量纲仅 {declared} 条 (< {case['min_declared_count']}), 正向对照失效")
+    c.add("G8[score_scale]", ok, "; ".join(details) or f"declared={declared}")
+
+
 def run_shadow(gold: dict, data: dict) -> list[dict]:
     """shadow 分区: 只报告不判分 (观察面)。"""
     reports = []
@@ -407,6 +463,8 @@ def main() -> int:
     check_g5(c, gold, data)
     check_g6(c, gold, data, vault)
     check_g6_synthetic(c, gold)
+    check_g7(c, gold, data)
+    check_g8(c, gold, data)
 
     total, failed = len(c.results), len(c.failed)
     print(f"\n合计: {total - failed}/{total} 硬禁通过")

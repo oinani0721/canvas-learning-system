@@ -1,2 +1,3 @@
 {"ts": "2026-08-10T15:58:43.698632+00:00", "gold_version": 1, "checks_total": 31, "checks_failed": 0, "generation": "dd5dfe41ce9b", "reason": "RAG-S2.5 T0 用户签字后金集封版 (31 硬禁)"}
 {"ts": "2026-08-10T16:22:40.578388+00:00", "gold_version": 1, "checks_total": 32, "checks_failed": 0, "generation": "b1a8c8226f87", "reason": "Code-Review 处置: G6 恒真修复+禁串正向对照并入+G5 digest 对照 (31→32)"}
+{"ts": "2026-08-10T23:31:50.650572+00:00", "gold_version": 1, "checks_total": 34, "checks_failed": 0, "generation": "b1a8c8226f87", "reason": "RAG-S2.6-2026-08-11 T1: 新增 G7 pick_rank 板内候选秩 + G8 score_scale 量纲申报 (32→34)"}

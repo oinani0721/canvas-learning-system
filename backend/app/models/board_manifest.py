@@ -13,6 +13,11 @@ live 与快照两条 serve 路径都必须经 project_manifest() — 控制点�
 exam 白名单自由文本槽位只有两个, 都带硬截断:
   relation.derived_reason ≤500 字 (用户派生原因, untrusted)
   past_question_digests[].digest ≤160 字 (已曝光题面摘句)
+
+RAG-S2.6 新增两字段, 都**不**扩张自由文本面:
+  past_question_digests[].score_scale — service 侧「数字–数字」形状白名单,
+    不合形状降级成定长文案 (≤40); 槽位数仍是两个
+  pick_hint.pick_rank — 纯整数
 """
 
 from __future__ import annotations
@@ -47,7 +52,13 @@ class MasteryOut(BaseModel):
 
 
 class PickHintOut(BaseModel):
-    """选点提示 μ−σ (含闲置回升); 数值与 decay_beta.py 真相源 1e-9 等价。"""
+    """选点提示 μ−σ (含闲置回升); 数值与 decay_beta.py 真相源 1e-9 等价。
+
+    RAG-S2.6: pick_rank = **板内可考察候选秩** (1 = 最该考)。
+    消费侧直接取 `pick_rank == 1` 即为选点结果 — 不需要再对一组浮点数
+    排序求最小值 (那是 LLM 的静默错误源, 也正是本字段存在的理由)。
+    占位节点 (is_stub) 与算不出 hint 的节点恒 rank=null, 排在秩之外。
+    """
 
     model_config = ConfigDict(extra="ignore")
 
@@ -55,10 +66,16 @@ class PickHintOut(BaseModel):
     sigma: float
     pick_score: float
     days_idle: float | None = None
+    pick_rank: int | None = None
 
 
 class QuestionDigestOut(BaseModel):
-    """历史考题摘句 (题面已在考察时曝光, exam 视图可携带; ≤160 字硬截断)。"""
+    """历史考题摘句 (题面已在考察时曝光, exam 视图可携带; ≤160 字硬截断)。
+
+    RAG-S2.6: score_scale = score 的量纲申报 (2.5 收尾 backlog ① — 裸 score
+    被消费侧误读成满分制)。⛔ 不是自由文本槽位: service 侧强制「数字–数字」
+    形状白名单 + 40 字硬截断, 不合形状一律降级成定长文案。
+    """
 
     model_config = ConfigDict(extra="ignore")
 
@@ -66,6 +83,7 @@ class QuestionDigestOut(BaseModel):
     qid: str | None = Field(default=None, max_length=40)
     asked_at: str | None = None
     score: float | None = None
+    score_scale: str | None = Field(default=None, max_length=40)
     self_confidence: str | None = Field(default=None, max_length=40)
     digest: str | None = Field(default=None, max_length=160)
 

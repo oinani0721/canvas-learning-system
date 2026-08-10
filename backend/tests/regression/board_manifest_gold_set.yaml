@@ -166,6 +166,29 @@ official:
     - board_id: "CS188 lecture 2"
       exam_board_ids: []
 
+  # ── G7 pick_rank 板内候选秩 ×1 (RAG-S2.6) ──
+  # 秩是消费侧唯一被授权的选点结果: skill 回执逐行照抄 rank 表, 可与本金集
+  # 机械比对 → 「LLM 有没有真按协议选点」成为可外部核验的事实。
+  g7_pick_rank:
+    rank_one:                                 # 每板 rank==1 (= 该考谁)
+      - {board_id: "特征值与特征向量", node_id: "Fundamentals"}
+      - {board_id: "CS188 lecture 2", node_id: "lecture 2"}
+      # ⚠️ 2.6 顺带修的真 bug: 该节点有 source_board 但不在 ## Concepts,
+      #    2.6 前的 skill 读 Concepts 选点 → 永远考不到它。A/B 三连的期望差异。
+      - {board_id: "CS 61B", node_id: "csm-tutoring-unit-credit"}
+      - {board_id: "递归与分治 (Recursion & Divide-Conquer)", node_id: "my-recursion-notes"}
+    stubs_never_ranked: true                  # 占位恒 rank=null (「过滤 stub 取 rank==1」的成立前提)
+    ranks_dense_and_unique: true              # 非占位候选的秩恒 = {1..N} 无重无缺
+
+  # ── G8 score_scale 量纲申报 ×1 (RAG-S2.6, 2.5 收尾 backlog ①) ──
+  g8_score_scale:
+    never_null: true                          # 每条 digest 必带量纲 (裸 score 曾被读成满分制)
+    declared_value: "1-4 (1=最低)"             # vault 写侧现址真值 (2.6 写侧一行不改)
+    inferred_suffix: "[推定]"                  # 缺字段时必须显式标推定 (DD-13 名实一致)
+    # 正向对照 (Code-Review M8 教训: 没有正向对照的断言会静默腐烂成恒真) —
+    # 至少 1 条量纲必须来自写侧真值, 否则「全部推定」也能骗过 never_null。
+    min_declared_count: 1
+
   # ── G6 泄漏禁项 ×8 (禁串 ×5 见 config.forbidden_strings, 禁键 ×1, 合成 ×2) ──
   g6_leakage:
     synthetic_poison:                        # 合成极端节点 (临时 vault, 不碰真数据)

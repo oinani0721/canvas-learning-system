@@ -54,6 +54,20 @@ ID_STABILITY = "basename_v1_will_upgrade_in_1_5"
 #: 与 start-exam-board SKILL / daily_review_pick.py 同一条占位符规则
 PLACEHOLDER = "你的 1-2 句精准定义"
 
+#: score 量纲申报 (RAG-S2.6, 2.5 收尾 backlog ①: 裸 score 被消费侧误读成满分制)。
+#: 唯一写侧真相源 = 检验白板 frontmatter `questions[].score_dims.score_scale`
+#: (vault 现址已有, 2.6 写侧一行不改)。缺字段时按现行评分口径推定并**显式**
+#: 标 `[推定]` — DD-13 名实一致, 不把推断说成声明。
+SCORE_SCALE_DEFAULT = "1-4 (1=最低) [推定]"
+SCORE_SCALE_UNKNOWN = "未知量纲 [推定]"
+SCORE_SCALE_MAX = 40
+
+#: ⛔ 量纲必须长成「数字 区间符 数字」(如 `1-4 (1=最低)`) 才原样透出。
+#: 2.5 独立审查的 3 个 HIGH 全部是自由文本回显通道 (orphans.reason /
+#: parse_errors / source_board_raw), 新字段不得开第四条 — 形状不合一律
+#: 降级成上面的定长文案, 绝不回显任意 frontmatter 串。
+_SCORE_SCALE_SHAPE = re.compile(r"^\s*\d+(\.\d+)?\s*[-–—~〜至到]\s*\d+(\.\d+)?")
+
 # ── 衰减 Beta 常量与函数 (真相源: canvas-vault/.claude/scripts/decay_beta.py) ──
 # ⛔ 禁止改动数值语义: tests/regression/test_board_manifest_contracts.py 以
 # sys.path import 真相源逐点断言 1e-9 等价。backend 不直接 import vault 脚本
@@ -295,6 +309,21 @@ def _extract_question_digests(body: str, limit: int = 160) -> dict[str, str]:
                 _flush()
     _flush()
     return digests
+
+
+def _score_scale(question: dict[str, Any]) -> str:
+    """questions[].score_dims.score_scale → 量纲申报串 (形状白名单 + 40 字硬截断)。
+
+    三态 (全部定长, 无自由文本通道):
+      写侧有且形状合法 → 原样 (≤40)
+      写侧无            → SCORE_SCALE_DEFAULT (带 `[推定]` 后缀)
+      写侧有但形状不合法 → SCORE_SCALE_UNKNOWN (可见地降级, 不静默透传)
+    """
+    dims = question.get("score_dims")
+    text = _bounded_str(dims.get("score_scale"), SCORE_SCALE_MAX) if isinstance(dims, dict) else None
+    if not text or not text.strip():
+        return SCORE_SCALE_DEFAULT
+    return text if _SCORE_SCALE_SHAPE.match(text) else SCORE_SCALE_UNKNOWN
 
 
 def _normalize_mastery(fm: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
@@ -578,6 +607,7 @@ def scan_vault(
                     "qid": qid or None,
                     "asked_at": _iso(fm.get("created_at")),
                     "score": _num(q.get("score")),
+                    "score_scale": _score_scale(q),
                     "self_confidence": _bounded_str(q.get("self_confidence"), 40),
                     "digest": digests.get(qid) or None,
                 }
@@ -606,6 +636,38 @@ def scan_vault(
 
 
 # ── 请求裁切 (live 与快照共用同一条路径 → 泄漏控制点唯一) ──
+
+
+def _assign_pick_ranks(members: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """板内**可考察候选**秩 → 写进 pick_hint.pick_rank (RAG-S2.6)。
+
+    排序键 (pick_score, node_id): pick_score 是 μ−σ 含闲置折旧的选点分, 越低
+    越该考; node_id 是并列时的确定性 tie-break — 2.5 前 skill 靠「## Concepts
+    段靠前」破并列, manifest 是文件名序, 必须显式给规则。
+
+    ⛔ 只给 **is_stub=false 且 pick_hint 可算** 的成员赋秩。占位节点本就不可考
+    (start-exam-board 历来跳过), 若让它占掉 rank=1, 消费侧「过滤占位后取
+    rank==1」就会扑空。恒等式: 过滤 is_stub 后 rank==1 必然存在或全板皆占位。
+
+    ⛔ 不改列表顺序 (nodes[] 契约恒为文件名序), 也不改写入参 dict —
+    live 与快照两条路径都过这里, 就地改会污染 full/snapshot state。
+
+    在 _carve 而非 scan 阶段赋秩: 2.6 之前写下的历史快照没有本字段, 放在
+    serve 侧计算才能让降级态也拿到秩 (否则 degraded 时 rank 全 null)。
+    """
+    ranked = sorted(
+        (m for m in members if not m.get("is_stub") and isinstance(m.get("pick_hint"), dict)),
+        key=lambda m: (m["pick_hint"]["pick_score"], m["node_id"]),
+    )
+    rank_by_id = {m["node_id"]: i for i, m in enumerate(ranked, start=1)}
+    out: list[dict[str, Any]] = []
+    for m in members:
+        hint = m.get("pick_hint")
+        if not isinstance(hint, dict):
+            out.append(m)
+            continue
+        out.append({**m, "pick_hint": {**hint, "pick_rank": rank_by_id.get(m["node_id"])}})
+    return out
 
 
 def _carve(full: dict[str, Any], board_id: str | None, include_exam_history: bool) -> dict[str, Any]:
@@ -654,6 +716,7 @@ def _carve(full: dict[str, Any], board_id: str | None, include_exam_history: boo
     if not include_exam_history:
         # 快照 full 恒含历史; 请求关掉时在裁切层剥离 (浅拷贝防止污染 full)
         members = [{**m, "past_question_digests": []} for m in members]
+    members = _assign_pick_ranks(members)
     member_ids = {m["node_id"] for m in members}
     concepts = b["concepts_listed"]
     node_stems = set(full["node_stems"])

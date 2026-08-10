@@ -1,6 +1,6 @@
 ---
 name: exam-quick
-description: "当用户消息以 /exam-quick 开头（用户在 Claude Code直输，或由 Canvas plugin 通过 Cmd+Shift+Q 触发 + 剪贴板注入），必须调用此 Skill 进入快速单题考察模式。MVP-α-3 后备路径：plugin 端 /api/v1/exam/quick 失败时用户改走 Claudian 拿到 1 道针对批注的练习题。本 Skill 是出题模式 — 围绕 vault 内任意节点 + 用户批注 + 1-hop wikilink 邻居出 1 道题，不修改任何文件。延迟预算 5-10s。区别于 plugin 端 backend 出题（IRT / 多模式 / 批量），本 Skill 是 LLM 直接生成单题 fallback。"
+description: "当用户消息以 /exam-quick 开头（用户在 Claude Code直输，或由 Canvas plugin 通过 Cmd+Shift+Q 触发 + 剪贴板注入），必须调用此 Skill 进入快速单题考察模式。M4 定位（2026-07-13）：零留档口头抽查——5-10 秒拿 1 道题即问即答，不写文件不评分。要计分/留档 → 用 /start-exam-board from <板> node <节点>（单节点定向考察，走完整检验白板链）。本 Skill 是出题模式 — 围绕 vault 内任意节点 + 用户批注 + 1-hop wikilink 邻居出 1 道题，不修改任何文件。延迟预算 5-10s。区别于 plugin 端 backend 出题（IRT / 多模式 / 批量），本 Skill 是 LLM 直接生成单题 fallback。"
 argument-hint: "[路径 B：plugin Cmd+Shift+Q 触发后从剪贴板注入完整节点+批注上下文；路径 A：Claudian 裸触发 /exam-quick 或 /exam-quick <节点名>]"
 allowed-tools:
   - Read

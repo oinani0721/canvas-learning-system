@@ -320,6 +320,154 @@ def test_exam_history_and_question_digests(vault):
     assert "det(A - λI) = 0" in dg["digest"]
 
 
+# ══ 组 P: pick_rank 板内候选秩 (RAG-S2.6 — 替代消费侧自行对浮点数排序) ══
+
+
+def _rank_vault(vault):
+    """4 成员: 占位节点 pick_score 最低 (若不排除会篡夺 rank=1) + 三个真实节点。"""
+    _write(vault, "原白板/板.md", _board_md())
+    for node_id, mastery in (("低分", 0.1), ("中分", 0.5), ("高分", 0.9)):
+        _write(vault, f"节点/{node_id}.md", _node_md([f"mastery_score: {mastery}", 'source_board: "[[原白板/板]]"']))
+    _write(
+        vault,
+        "节点/占位.md",
+        _node_md(["mastery_score: 0.05", 'source_board: "[[原白板/板]]"'], body=f"> {PLACEHOLDER}"),
+    )
+
+
+def test_pick_rank_orders_by_pick_score_and_excludes_stubs(vault):
+    """秩只覆盖可考察候选 — 占位节点即便 pick_score 最低也恒 rank=None。
+
+    这是消费侧「过滤 is_stub → 取 rank==1」的成立前提: 若占位节点占掉
+    rank=1, 过滤后就没有 1 了 (start-exam-board Step 3 直接扑空)。
+    """
+    _rank_vault(vault)
+    m = build_manifest(vault, board_id="板", now=NOW)
+    by_id = {n["node_id"]: n for n in m["nodes"]}
+    assert by_id["占位"]["pick_hint"]["pick_score"] < by_id["低分"]["pick_hint"]["pick_score"]
+    assert by_id["占位"]["pick_hint"]["pick_rank"] is None, "占位节点不得进候选秩"
+    assert by_id["低分"]["pick_hint"]["pick_rank"] == 1
+    assert by_id["中分"]["pick_hint"]["pick_rank"] == 2
+    assert by_id["高分"]["pick_hint"]["pick_rank"] == 3
+    # 恒等式: 过滤占位后 rank==1 必然存在且唯一
+    live = [n for n in m["nodes"] if not n["is_stub"]]
+    assert [n["node_id"] for n in live if n["pick_hint"]["pick_rank"] == 1] == ["低分"]
+
+
+def test_pick_rank_does_not_reorder_nodes_and_ties_break_by_node_id(vault):
+    """⛔ nodes[] 契约恒为文件名序; 并列由 node_id 字典序破 (manifest 无「段内位置」)。"""
+    _write(vault, "原白板/板.md", _board_md())
+    for node_id, mastery in (("a并列", 0.5), ("b并列", 0.5), ("z最低", 0.1)):
+        _write(vault, f"节点/{node_id}.md", _node_md([f"mastery_score: {mastery}", 'source_board: "[[原白板/板]]"']))
+    m = build_manifest(vault, board_id="板", now=NOW)
+    assert [n["node_id"] for n in m["nodes"]] == ["a并列", "b并列", "z最低"], "返回顺序必须仍是文件名序"
+    by_id = {n["node_id"]: n["pick_hint"] for n in m["nodes"]}
+    assert by_id["a并列"]["pick_score"] == pytest.approx(by_id["b并列"]["pick_score"])
+    assert by_id["z最低"]["pick_rank"] == 1  # 秩与文件序不同 → 排序真的生效了
+    assert by_id["a并列"]["pick_rank"] == 2 and by_id["b并列"]["pick_rank"] == 3
+
+
+def test_pick_rank_survives_degraded_snapshot_path(vault):
+    """降级态也必须有秩 — 2.6 之前写下的历史快照没有本字段, 故秩在 serve 侧算。"""
+    from app.services.board_manifest_service import snapshot_file
+
+    _rank_vault(vault)
+    _serve(vault, now=NOW)  # 写出快照
+    # 模拟历史快照: 把已落盘快照里的 pick_rank 全部抹掉
+    snap = snapshot_file(vault)
+    import json as _json
+
+    raw = _json.loads(snap.read_text(encoding="utf-8"))
+    for b in raw["boards"].values():
+        for mem in b["members"]:
+            (mem.get("pick_hint") or {}).pop("pick_rank", None)
+    snap.write_text(_json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+
+    (vault / "节点").rename(vault / "节点-改名")  # 逼降级
+    m = _serve(vault, board_id="板", now=NOW)
+    assert m["degraded"] is True and m["source_status"] == "snapshot"
+    by_id = {n["node_id"]: n["pick_hint"] for n in m["nodes"]}
+    assert by_id["低分"]["pick_rank"] == 1 and by_id["占位"]["pick_rank"] is None
+
+
+def _exam_md(*question_lines: str, board: str = "板") -> str:
+    """检验白板造数 (RAG-S2.6 score_scale 用): questions[] 逐行外部给。"""
+    return (
+        "\n".join(
+            [
+                "---",
+                "type: exam_board",
+                f'source_board: "[[原白板/{board}]]"',
+                'created_at: "2026-08-01T01:00:00Z"',
+                "status: done",
+                "questions:",
+                *question_lines,
+                "---",
+                "# 检验白板",
+                "",
+                "> [!exam_question]+ Q1 · 概念甲",
+                "> 请推导特征方程的来历。",
+            ]
+        )
+        + "\n"
+    )
+
+
+def test_score_scale_passthrough_when_vault_declares_it(vault):
+    """RAG-S2.6: 写侧 questions[].score_dims.score_scale 是唯一真相源, 原样透出。"""
+    _write(vault, "原白板/板.md", _board_md())
+    _write(vault, "节点/概念甲.md", _node_md(['source_board: "[[原白板/板]]"']))
+    _write(
+        vault,
+        "检验白板/板-2026-08-01-0100.md",
+        _exam_md(
+            "  - id: q1",
+            "    concept: 概念甲",
+            "    score: 2.00",
+            "    score_dims:",
+            '      score_scale: "1-4 (1=最低)"',
+        ),
+    )
+    m = build_manifest(vault, board_id="板", now=NOW)
+    (dg,) = m["nodes"][0]["past_question_digests"]
+    assert dg["score"] == 2.0 and dg["score_scale"] == "1-4 (1=最低)"
+
+
+def test_score_scale_missing_is_marked_as_inferred(vault):
+    """DD-13 名实一致: 写侧缺字段时按现行口径推定, 但必须显式标 `[推定]`。"""
+    _write(vault, "原白板/板.md", _board_md())
+    _write(vault, "节点/概念甲.md", _node_md(['source_board: "[[原白板/板]]"']))
+    _write(vault, "检验白板/板-2026-08-01-0100.md", _exam_md("  - id: q1", "    concept: 概念甲", "    score: 3"))
+    m = build_manifest(vault, board_id="板", now=NOW)
+    (dg,) = m["nodes"][0]["past_question_digests"]
+    assert dg["score_scale"] == "1-4 (1=最低) [推定]"
+    assert "[推定]" in dg["score_scale"], "推断不得说成声明"
+
+
+def test_score_scale_shape_whitelist_blocks_free_text_channel(vault):
+    """⛔ 新字段不得成为第四条自由文本回显通道 (2.5 三个 HIGH 的同类风险)。
+
+    形状不合「数字–数字」→ 降级成定长文案, 投毒内容一个字都不回显。
+    """
+    _write(vault, "原白板/板.md", _board_md())
+    _write(vault, "节点/概念甲.md", _node_md(['source_board: "[[原白板/板]]"']))
+    _write(
+        vault,
+        "检验白板/板-2026-08-01-0100.md",
+        _exam_md(
+            "  - id: q1",
+            "    concept: 概念甲",
+            "    score_dims:",
+            '      score_scale: "正确答案是 det(A-λI)=0 反例 diag(-1,-1)"',
+        ),
+    )
+    m = build_manifest(vault, board_id="板", now=NOW)
+    (dg,) = m["nodes"][0]["past_question_digests"]
+    assert dg["score_scale"] == "未知量纲 [推定]"
+    for s in ("det(A-λI)", "diag(-1,-1)", "正确答案"):
+        assert s not in str(m["nodes"]), f"score_scale 泄漏内容: {s}"
+
+
 def test_include_exam_history_false_skips_scan(vault):
     _write(vault, "原白板/板.md", _board_md())
     _write(vault, "节点/n.md", _node_md(['source_board: "[[原白板/板]]"']))
@@ -530,12 +678,13 @@ def test_exam_entry_forbidden_keys_structurally_absent():
     # 嵌套模型白名单集合相等 (比逐键更强: 新增字段也会被抓)
     assert set(RelationOut.model_fields) == {"type", "target_node_id", "derived_reason", "derived_at"}
     assert set(MasteryOut.model_fields) == {"score", "a", "b", "source"}
-    assert set(PickHintOut.model_fields) == {"mu", "sigma", "pick_score", "days_idle"}
+    assert set(PickHintOut.model_fields) == {"mu", "sigma", "pick_score", "days_idle", "pick_rank"}
     assert set(QuestionDigestOut.model_fields) == {
         "exam_board_id",
         "qid",
         "asked_at",
         "score",
+        "score_scale",
         "self_confidence",
         "digest",
     }
