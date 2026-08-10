@@ -11,7 +11,7 @@
 import logging
 from typing import Any, Dict, List, Tuple
 
-from fastapi import FastAPI
+from fastapi import Body, FastAPI
 
 logger = logging.getLogger(__name__)
 
@@ -324,10 +324,14 @@ def _register_tool_routes(app: FastAPI) -> None:
         "how a board is decomposed.",
     )
     async def _get_board_manifest(
-        input: GetBoardManifestInput | None = None,
+        input: GetBoardManifestInput = Body(default_factory=GetBoardManifestInput),
     ) -> Dict[str, Any]:
-        # P16: 空 body 防 422 (同 check_backend_health)
-        return await get_board_manifest(input or GetBoardManifestInput())
+        # P16 空 body 防 422 用 Body(default_factory) 而非 `| None = None`:
+        # Optional 签名会让 requestBody 变 anyOf[Model, null], fastapi-mcp
+        # 展不开 properties → MCP inputSchema 参数全丢 (UAT 实锤: Claudian
+        # 只能无参列板, board_id/view 调不出)。check_backend_health 的
+        # `| None` 模板只适用于空输入模型。
+        return await get_board_manifest(input)
 
     _register_quarantined_routes(app)
 

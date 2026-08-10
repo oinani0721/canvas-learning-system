@@ -80,3 +80,15 @@ def test_fastapi_mcp_tools_list_exposes_exactly_five(client: TestClient):
         f"FastApiMCP 真实暴露面漂移: 期望 {sorted(ALLOWED_READONLY_TOOLS)}, 实际 {sorted(exposed)}"
     )
     assert set(mcp.operation_map) == ALLOWED_READONLY_TOOLS, "tools/call 可达面 (operation_map) 与只读白名单不一致"
+
+
+def test_get_board_manifest_input_schema_exposes_params(client: TestClient):
+    """RAG-S2.5 UAT 实锤回归锁: handler 用 `X | None = None` 签名时 requestBody
+    变 anyOf, fastapi-mcp 展不开 properties → MCP inputSchema 参数全丢,
+    Claudian 只能无参列板 (board_id/view 调不出)。参数面必须完整暴露。"""
+    FastApiMCP = pytest.importorskip("fastapi_mcp").FastApiMCP
+
+    mcp = FastApiMCP(client.app, name="schema-test", include_tags=["MCP Tools"])
+    (tool,) = [t for t in mcp.tools if t.name == "get_board_manifest"]
+    props = set((tool.inputSchema or {}).get("properties", {}))
+    assert {"board_id", "view", "include_exam_history"} <= props, f"get_board_manifest MCP 参数面缺失: {sorted(props)}"
