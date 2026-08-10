@@ -7,45 +7,38 @@
 > Grep/Read 拼图；现在一次 API 调用完整返回成员+派生原因+掌握度+历史考察，
 > 且出题用的 exam 视图从结构上就带不出答案。
 
-## 你要做的事（3 条，每条 1 分钟内）
+## 你要做的事（1 条产品体验 + 3 个确认框，共 2 分钟）
 
-**① 问「特征值白板怎么拆的」——一次调用看全结构**
+**产品体验（唯一要动手的）**：打开 Claudian，问一句：
 
-整行复制到终端：
+> 用 get_board_manifest 看看「特征值与特征向量」这块白板怎么拆的
 
-```bash
-curl -s -X POST http://127.0.0.1:8011/api/v1/boards/manifest -H "Content-Type: application/json" -H "X-CLS-Internal-Key: $(grep '^INTERNAL_API_KEY=' /Users/Heishing/Desktop/canvas/canvas-learning-system/.env | cut -d= -f2)" -d '{"vault_id":"canvas-vault","board_id":"特征值与特征向量","view":"study"}' | python3 -m json.tool | head -60
+**预期看到**：AI 不再一顿翻文件，直接给你一张结构清单——3 个节点（Fundamentals 种子 + 2 个派生）、各自掌握度、为什么派生（你当时写的原因）、考过几次。
+
+- [ ] Claudian 一句话拿到白板拆解结构（不再看它满屏 Grep）
+
+**三条技术场景我已全部代跑（2026-08-11 实测输出在下方留档），你核对结果打勾即可**：
+
+- [ ] ① 结构一次调用：特征值板 3 节点+派生原因+掌握度 ✓；CS 61B 板目录漏记告警亮（`frontmatter_only: [csm-tutoring-unit-credit]`——你签字收养的孤儿，板目录还没列它，系统主动告警）
+- [ ] ② exam 视图信息隔离：「反例 diag(-1,-1)…」纠错文本全文搜索 **0 命中**（出题 AI 拿不到答案）
+- [ ] ③ 快照兜底：挪走 节点/ 后返回 `source=local_json + degraded=true` 且 3 节点数据还在（最后一次好数据），明说原因「live 扫描失败, 退快照」；还原后恢复 `live`（vault 已还原干净，无残留）
+
+<details><summary>③ 条代跑实测原始输出（点开看）</summary>
+
+```
+① source: live | 板: 特征值与特征向量 | 成员: 3
+  · Characteristic-Equation-for-Eigenvalues  掌握度=0.3 (score_only) ← derived_from Fundamentals
+  · Eigenvalues-are-special-vectors-that-sat 掌握度=0.3 (score_only) ← extends Fundamentals 「测试」
+  · Fundamentals                             掌握度=0.01 (beta) [种子]
+①b CS 61B 告警: {'concepts_only': [], 'frontmatter_only': ['csm-tutoring-unit-credit']}
+② 「反例 diag(-1,-1)…」在 exam 视图命中次数: 0 (预期 0)
+③ 降级态: source= local_json | status= snapshot | degraded= True
+   数据还在: [Characteristic-Equation, Eigenvalues-special, Fundamentals]
+   诚实标注: lag= 12840.2s | stale= False | 原因: live 扫描失败, 退快照: vault 结构缺失
+   还原后: source= live | status= ok | nodes= 3 | 临时目录已清干净 ✓
 ```
 
-**预期看到**：3 个节点（Fundamentals / Characteristic-Equation / Eigenvalues-are-special）各自带掌握度和派生关系；`"source": "live"`。再把 board_id 换成 `"CS 61B"` 跑一次，**预期看到** `"frontmatter_only": ["csm-tutoring-unit-credit"]` ——这就是「白板目录漏记了一个成员」的告警（你签字收养的那个孤儿，板目录还没列它，系统主动告诉你）。
-
-- [ ] 特征值板一次调用见 3 节点 + 派生原因 + 掌握度
-- [ ] CS 61B 板的目录漏记告警亮了
-
-**② 换 exam 视图——确认答案性内容带不出来**
-
-把上面命令里 `"view":"study"` 改成 `"view":"exam"`，输出末尾加 ` | grep -c "反例 diag"`。
-
-**预期看到**：输出 `0`（你节点里那条「反例 diag(-1,-1)…」纠错文本，在出题视图里全文搜索零命中——出题的 AI 拿不到答案，考察才是真考察）。
-
-- [ ] exam 视图纠错文本 0 命中
-
-**③ 后端读不到 vault 时——快照兜底 + 诚实标注**
-
-```bash
-mv /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点 /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点-暂挪 && sleep 10
-```
-
-再跑一遍 ① 的命令。**预期看到**：`"source": "local_json"`、`"degraded": true`、节点列表**还在**（最后一次好数据兜底），并明说原因「live 扫描失败, 退快照」。然后改回：
-
-```bash
-mv /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点-暂挪 /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点
-```
-
-再跑一遍，**预期看到** `"source": "live"` 恢复。
-
-- [ ] 挪走节点目录后返回 local_json + degraded=true 且数据还在
-- [ ] 改回后恢复 live
+</details>
 
 ## Claude 已代跑的技术验证（你不用管，供留档）
 
