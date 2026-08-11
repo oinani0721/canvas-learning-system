@@ -13,9 +13,20 @@ skill 是 prompt 不是代码, 没法单测。本校验器守住**可静态断�
      没被 allow 的工具)
   C5 uses_structure: yes ⇒ 至少 1 对 FALLBACK sentinel (降级路径必须写下来,
      否则后端一挂 skill 就地趴窝); FALLBACK sentinel 必须成对且不嵌套
+  C6 **HARD-NAV-3 真校验**: 含 manifest **调用形状**的小节必须含 FALLBACK 块
+     (按小节而非按次数 — 同一步骤里连调几次由一个降级块统一兜底是正确设计)
+  C7 **降级块不是空壳**: 块内有实质内容, 且块内 python 片段能 ast.parse +
+     `from decay_beta import ...` 的符号在真脚本里确实存在
+  C8 **降级 ≠ 中止**: 块内出现「停止执行 / 中止 / 报错退出 / 让用户去启动服务」
+     即 FAIL —— 降级的语义是**静默退回原路径**, 不是把故障甩给用户
+
+C6-C8 的由来 (RAG-S2.6 独立审查 MEDIUM-5): C1-C5 只数信封不看信 —— 实测把
+Step3 降级块**掏空**、把 import 改成不存在的模块、把 `--board` 写成 `--boards`、
+新增第 2 处 manifest 调用却不配降级块、把降级正文反转成「停止并叫用户去起服务」,
+六种腐烂全部判绿 (35/35)。
 
 用法:
-    python3 backend/scripts/check_skill_routing_block.py            # 默认本仓 canvas-vault
+    python3 backend/scripts/check_skill_routing_block.py            # 默认 = 运行时 vault
     python3 backend/scripts/check_skill_routing_block.py --vault <path>
 退出码: 0 全绿 / 1 有违规 / 2 环境不可用
 """
@@ -23,6 +34,8 @@ skill 是 prompt 不是代码, 没法单测。本校验器守住**可静态断�
 from __future__ import annotations
 
 import argparse
+import ast
+import importlib.util
 import re
 import sys
 from pathlib import Path
@@ -57,7 +70,7 @@ VALID_VIEWS = frozenset({"study", "exam", "none"})
 _ROUTING_RE = re.compile(r"<!-- ROUTING:BEGIN v1 -->.*?<!-- ROUTING:END v1 -->", re.S)
 _BINDING_RE = re.compile(r"<!-- PLANE-BINDING v1\n(.*?)\n-->", re.S)
 _ALLOWED_TOOLS_RE = re.compile(r"^allowed-tools:\n((?:  - .*\n)+)", re.M)
-_REQUIRED_HARD_NAV = ("HARD-NAV-1", "HARD-NAV-2", "HARD-NAV-3", "HARD-NAV-4")
+_REQUIRED_HARD_NAV = ("HARD-NAV-1", "HARD-NAV-2", "HARD-NAV-3", "HARD-NAV-4", "HARD-NAV-5")
 
 
 class Checker:
@@ -91,6 +104,83 @@ def allowed_tools(text: str) -> list[str]:
     return [ln.strip().removeprefix("- ").strip() for ln in m.group(1).splitlines()] if m else []
 
 
+#: 降级块里出现这些词 = 把故障甩给用户, 违反 HARD-NAV-3「静默退回原路径」
+_ABORT_WORDS = ("停止执行", "中止", "报错退出", "终止流程", "docker compose", "让用户启动", "请先启动服务")
+
+#: 从 markdown 代码块里抓 python 片段 (```bash 里的 heredoc 也算)
+_CODE_FENCE_RE = re.compile(r"```(?:bash|sh|python)?\n(.*?)```", re.S)
+_HEREDOC_RE = re.compile(r"python3\s+-[^\n]*<<'PYEOF'\n(.*?)\nPYEOF", re.S)
+_IMPORT_RE = re.compile(r"^from\s+(\w+)\s+import\s+(.+)$", re.M)
+
+
+def fallback_blocks(text: str) -> list[str]:
+    """段内每个 FALLBACK 块的正文 (已剥 ROUTING/BINDING)。"""
+    body = _BINDING_RE.sub("", _ROUTING_RE.sub("", text))
+    return re.findall(r"<!-- FALLBACK:BEGIN[^>]*-->(.*?)<!-- FALLBACK:END\s*-->", body, re.S)
+
+
+#: **调用形状**, 不是散文提及 —— 反引号包起来的 `get_board_manifest` 不算调用
+_CALL_SHAPE = re.compile(r"get_board_manifest\s*\{|^\s*mcp__canvas-learning-mcp__get_board_manifest\s*$", re.M)
+
+
+def uncovered_call_sections(text: str) -> list[str]:
+    """C6 (HARD-NAV-3 真校验): 含 manifest **调用**却没有 FALLBACK 块的小节。
+
+    按小节判定而非按调用次数: 同一步骤里连着调几次 (如 configure-whiteboard
+    Step 4.2 先列板再逐板取成员) 由**一个**降级块统一兜底是正确设计, 按次数
+    比对会误报。真正要守的是「没有哪个调用点是裸奔的」。
+    """
+    body = _BINDING_RE.sub("", _ROUTING_RE.sub("", text))
+    parts = re.split(r"(?m)^(#{2,4} .*)$", body)
+    uncovered: list[str] = []
+    # parts = [前言, 标题1, 正文1, 标题2, 正文2, ...]
+    for i in range(1, len(parts), 2):
+        title, section = parts[i].strip(), parts[i + 1] if i + 1 < len(parts) else ""
+        if _CALL_SHAPE.search(section) and "FALLBACK:BEGIN" not in section:
+            uncovered.append(title[:48])
+    if _CALL_SHAPE.search(parts[0]) and "FALLBACK:BEGIN" not in parts[0]:
+        uncovered.append("(标题之前的前言段)")
+    return uncovered
+
+
+def check_fallback_code(blocks: list[str], vault: Path) -> list[str]:
+    """C7: 降级块里的 python 片段必须能 ast.parse, 且 import 的符号真实存在。"""
+    problems: list[str] = []
+    for block in blocks:
+        snippets = [m for m in _HEREDOC_RE.findall(block)]
+        if not snippets:
+            snippets = [c for c in _CODE_FENCE_RE.findall(block) if "import " in c and "python3" not in c]
+        for code in snippets:
+            try:
+                ast.parse(code)
+            except SyntaxError as e:
+                problems.append(f"降级块 python 语法错误 (line {e.lineno})")
+                continue
+            for module, names in _IMPORT_RE.findall(code):
+                src = vault / ".claude" / "scripts" / f"{module}.py"
+                if not src.exists():
+                    # stdlib (datetime / json / os …) 不归本校验器管, 只校 vault 脚本
+                    if importlib.util.find_spec(module) is None:
+                        problems.append(f"降级块 import 了既不在 vault 脚本也不在 stdlib 的模块: {module}")
+                    continue
+                have = {
+                    n.name
+                    for n in ast.walk(ast.parse(src.read_text(encoding="utf-8")))
+                    if isinstance(n, ast.FunctionDef)
+                }
+                have |= {
+                    t.id
+                    for n in ast.walk(ast.parse(src.read_text(encoding="utf-8")))
+                    if isinstance(n, ast.Assign)
+                    for t in n.targets
+                    if isinstance(t, ast.Name)
+                }
+                missing = [x.strip() for x in names.split(",") if x.strip() and x.strip() not in have]
+                if missing:
+                    problems.append(f"降级块从 {module} import 了不存在的符号: {missing}")
+    return problems
+
+
 def fallback_pairs(text: str) -> tuple[int, str | None]:
     """→ (成对数, 错误说明)。BEGIN/END 必须严格交替且不嵌套。
 
@@ -120,7 +210,18 @@ def main() -> int:
     ap.add_argument("--vault", help="vault 根目录 (缺省 = 本仓 canvas-vault)")
     args = ap.parse_args()
 
-    vault = Path(args.vault) if args.vault else Path(__file__).resolve().parents[2] / "canvas-vault"
+    # ⛔ 默认校**运行时 vault** 而非 worktree 副本 (审查 MEDIUM-6): 两者是不同
+    # 物理文件, 校错了会得到「绿但没校到真在跑的那份」的假绿。
+    if args.vault:
+        vault = Path(args.vault)
+    else:
+        try:
+            from app.config import get_settings
+
+            vault = Path(get_settings().CANVAS_BASE_PATH)
+        except Exception:  # noqa: BLE001 — 无后端环境时退回本仓副本, 并明示
+            vault = Path(__file__).resolve().parents[2] / "canvas-vault"
+            print(f"{YELLOW}ℹ️ 读不到 CANVAS_BASE_PATH, 退回本仓副本: {vault}{RESET}")
     skills_dir = vault / ".claude" / "skills"
     if not skills_dir.is_dir():
         print(f"{RED}环境不可用: 找不到 {skills_dir}{RESET}")
@@ -204,6 +305,25 @@ def main() -> int:
             c.add(f"C5[{name}]", False, "声明用 STRUCTURE 但没有任何 FALLBACK 降级块 (后端一挂即趴窝)")
         else:
             c.add(f"C5[{name}]", True, f"{pairs} 对")
+
+        blocks = fallback_blocks(text)
+
+        # C6 HARD-NAV-3 真校验: 有调用的小节必须有降级块
+        uncovered = uncovered_call_sections(text)
+        c.add(f"C6[{name}]", not uncovered, f"这些小节里的 manifest 调用没有降级块: {uncovered}")
+
+        # C7 降级块不是空壳 + 代码可解析 + import 符号存在
+        empty = [i for i, b in enumerate(blocks) if len(b.strip()) < 40]
+        code_problems = check_fallback_code(blocks, vault)
+        c.add(
+            f"C7[{name}]",
+            not empty and not code_problems,
+            "; ".join([f"第 {i + 1} 个降级块被掏空" for i in empty] + code_problems),
+        )
+
+        # C8 降级 ≠ 中止
+        aborts = sorted({w for b in blocks for w in _ABORT_WORDS if w in b})
+        c.add(f"C8[{name}]", not aborts, f"降级块出现中止语义 {aborts} — 降级必须静默退回原路径, 不是把故障甩给用户")
 
     total, failed = len(c.results), len(c.failed)
     print(f"\n合计: {total - failed}/{total} 通过")

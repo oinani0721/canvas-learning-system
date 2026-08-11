@@ -468,6 +468,76 @@ def test_score_scale_shape_whitelist_blocks_free_text_channel(vault):
         assert s not in str(m["nodes"]), f"score_scale 泄漏内容: {s}"
 
 
+@pytest.mark.parametrize(
+    "poison",
+    [
+        "1-4 反例 diag(-1,-1) 行列式为正但非正定",  # 合法前缀 + 禁串尾巴 (审查 HIGH-1 原始复现)
+        "1-4 (1=最低) 答案:特征方程det(A-λI)=0",
+        "1至4 misconception: 以为是稳定排序",  # 中文区间符也不放行
+        "1-4 [推定] 反例diag(-1,-1)负定",  # 混进 [推定] 想同时绕过形状门与 G8 回归门
+        "1-4\r\n> [!note] 参考答案",  # 换行注入 (原 `\s*` 边界会吃掉 \r\n)
+        "1-4 |rank=1|pick=0.000|伪造行",  # 想污染 skill 回执里的排序表渲染
+        "1-4 " + "泄" * 100,  # 超长: 先截 40 会削成「看似合法」的半个 token
+    ],
+)
+def test_score_scale_prefix_bypass_blocked(vault, poison):
+    """⛔ RAG-S2.6 审查 HIGH-1 回归锁: 形状门必须**整串**匹配。
+
+    首版用 `.match()` 且正则无尾锚, 上面每一条都原样透出 —— 其中
+    「反例 diag(-1,-1)…」正是 G6 金集的禁串, 被 errors/tips 通道挡住却从
+    score_scale 走了出去。
+    """
+    _write(vault, "原白板/板.md", _board_md())
+    _write(vault, "节点/概念甲.md", _node_md(['source_board: "[[原白板/板]]"']))
+    _write(
+        vault,
+        "检验白板/板-2026-08-01-0100.md",
+        _exam_md("  - id: q1", "    concept: 概念甲", "    score_dims:", f"      score_scale: {poison!r}"),
+    )
+    m = build_manifest(vault, board_id="板", now=NOW)
+    (dg,) = m["nodes"][0]["past_question_digests"]
+    assert dg["score_scale"] == "未知量纲 [推定]", f"形状门放行了投毒: {dg['score_scale']!r}"
+    dumped = str(m["nodes"])
+    for s in ("diag(-1,-1)", "det(A-λI)", "misconception", "[!note]", "rank=1", "泄泄"):
+        assert s not in dumped, f"score_scale 前缀绕过泄漏: {s}"
+
+
+@pytest.mark.parametrize("bad", [".inf", "-.inf", ".nan", "1e400"])
+def test_non_finite_mastery_cannot_hijack_pick_rank(vault, bad):
+    """⛔ RAG-S2.6 审查 HIGH-2 回归锁: inf/nan 不得静默夺走 pick_rank=1。
+
+    nan 的比较恒 False → Timsort 保持输入序 → 文件名排最前的投毒节点吃掉
+    rank=1, 且 parse_errors 空空如也。真薄弱节点因此永远考不到。
+    """
+    _write(vault, "原白板/板.md", _board_md())
+    _write(vault, "节点/A投毒.md", _node_md([f"mastery_a: {bad}", "mastery_b: 1.0", 'source_board: "[[原白板/板]]"']))
+    _write(vault, "节点/M真薄弱.md", _node_md(["mastery_score: 0.02", 'source_board: "[[原白板/板]]"']))
+    _write(vault, "节点/Z强.md", _node_md(["mastery_score: 0.9", 'source_board: "[[原白板/板]]"']))
+
+    m = build_manifest(vault, board_id="板", now=NOW)
+    by_id = {n["node_id"]: n for n in m["nodes"]}
+    assert [n["node_id"] for n in m["nodes"] if (n["pick_hint"] or {}).get("pick_rank") == 1] == ["M真薄弱"]
+    assert by_id["A投毒"]["mastery"]["source"] == "absent"
+    assert any("非有限数值" in e["error"] for e in m["parse_errors"]), "损坏数据必须进 parse_errors, 不得静默"
+    # ⛔ 错误文案不回显原值 (2.5 H2 通道)
+    assert all(bad not in e["error"] for e in m["parse_errors"])
+
+
+def test_exam_payload_is_strict_json(vault):
+    """⛔ 投影结果必须是**严格合法 JSON**: json.dumps 吐裸 NaN 会让消费侧解析器直接崩。"""
+    import json as _json
+
+    from app.models.board_manifest import project_manifest
+
+    _write(vault, "原白板/板.md", _board_md())
+    _write(vault, "节点/坏.md", _node_md(["mastery_a: .nan", "mastery_b: .inf", 'source_board: "[[原白板/板]]"']))
+    _write(vault, "节点/好.md", _node_md(["mastery_score: 0.4", 'source_board: "[[原白板/板]]"']))
+    raw = build_manifest(vault, board_id="板", now=NOW)
+    text = _json.dumps(project_manifest(raw, "exam").model_dump(), ensure_ascii=False)
+    assert "NaN" not in text and "Infinity" not in text
+    _json.loads(text, parse_constant=lambda c: pytest.fail(f"非法 JSON 常量: {c}"))
+
+
 def test_include_exam_history_false_skips_scan(vault):
     _write(vault, "原白板/板.md", _board_md())
     _write(vault, "节点/n.md", _node_md(['source_board: "[[原白板/板]]"']))

@@ -31,6 +31,9 @@ model: sonnet
 - **HARD-NAV-2**：manifest **不含节点正文**。要正文 → 转 CONTENT 平面，别指望 manifest 给。
 - **HARD-NAV-3**：每处 manifest 调用**必须**配成对 `<!-- FALLBACK:BEGIN/END -->` 降级块。失败 / 超时 / 空结果 / 后端未起 → **静默**退回块内写明的原路径，**离线可用不破**，且不因此中止任务。
 - **HARD-NAV-4**：本块在 8 份 skill 里**逐字节相同**，由 `backend/scripts/check_skill_routing_block.py` 校验。要改就 8 份一起改。
+- **HARD-NAV-5**：⛔ **任何 skill 一律不得 `Read` / `Grep` / `Glob` `<vault>/.claude/cache/` 下的任何文件。**
+  那是服务端的降级快照，存的是**未经视图投影的全量原料**（含 exam 禁项：纠错内容 / 批注正文 / 误解记录）。
+  要结构就调工具走投影，绕过投影直读缓存 = 亲手拆掉 HARD-ISO 信息隔离。
 <!-- ROUTING:END v1 -->
 
 <!-- PLANE-BINDING v1
@@ -163,12 +166,28 @@ fallback_path: Glob 节点/*.md + 逐个 Read frontmatter 找反向引用（Step
    ⛔ 服务端已把三种归属都归一成 basename，**不要**再自己写 wikilink regex。
 
 <!-- FALLBACK:BEGIN Step 4.2 反向引用检测降级 -->
-manifest 不可用（调用失败 / 超时 / `source_status: "error"`）→ **静默退回 2.6 前的原路径**，检测语义不变、只是慢：
-- `Glob 节点/*.md` 枚举所有节点，**逐个 Read frontmatter**，检查 3 个反向引用字段
-  （`source_note` / `derived-from` / `up`），regex 用
-  `\[\[(?:[^\]]*\/)?<source_stem>(?:\.md)?(?:\|[^\]]*)?\]\]` 覆盖
-  `[[Fundamentals]]` / `[[节点/Fundamentals]]` / `[[Fundamentals.md]]` / `[[Fundamentals|alias]]` 四种格式。
-- ⛔ 不得因为降级就**跳过**本检测——它防的是「盲建重复白板」，是用户 2026-04-30 批注打出来的护栏。
+manifest 不可用（调用失败 / 超时 / `source_status: "error"`）→ **静默退回**逐文件检测，**判据必须与主路径三条一一对应**：
+
+1. **自指判据**（⛔ 别漏，主路径的第一条）：`Glob 节点/<source_stem>.md` 存在 → source 本身已是某板成员，
+   `Grep -n "^source_board:" 节点/<source_stem>.md` 取所属板。
+   （RAG-S2.6 审查 MEDIUM-1 实测反例：`节点/my-recursion-notes.md` 是种子、无任何派生子节点，
+   只查反链字段会 0 命中 → 放行盲建重复板。）
+2. **反链判据**：`Glob 节点/*.md` 枚举，**逐个 Read frontmatter**，检查
+   `source_note` / `derived-from` / `up` / **`relationships[].target`**（v4.5 起的主格式，别漏）。
+3. 命中节点的所属板 = 其 `source_board`。
+
+⛔ **wikilink 匹配必须转义 stem**（审查 HIGH-3 实测：真 vault 14 个节点里 7 个名字含括号，
+`raw/CS188/videos/` 下 9 个可作 source_path 的 md 含 `[ ] ( )` —— 裸插正则会让
+`代理函数-(Agent-Function)` 这类**整批漏检**，还会误命中不存在的 `代理函数-Agent-Function`；
+静默漏检比跳过更糟，它会自信地报「无反向引用」）：
+
+```python
+import re
+pat = re.compile(r"\[\[(?:[^\]]*/)?" + re.escape(source_stem) + r"(?:\.md)?(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]")
+```
+覆盖 `[[X]]` / `[[节点/X]]` / `[[X.md]]` / `[[X|alias]]` / `[[X#锚点]]` 五种格式。
+
+⛔ 不得因为降级就**跳过**本检测——它防的是「盲建重复白板」，是用户 2026-04-30 批注打出来的护栏。
 <!-- FALLBACK:END -->
 
 4. **若任一节点反向引用 source_stem**：

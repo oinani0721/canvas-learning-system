@@ -64,11 +64,20 @@ def split_frontmatter(text: str) -> tuple[str, str]:
 
 
 def fm_scalar(fm: str, key: str) -> str | None:
-    """顶层标量取值。`^key:` 不容前导空白 → 天然排除嵌套同名键。"""
-    m = re.search(rf"^{re.escape(key)}:[ \t]*(.*)$", fm, re.M)
-    if not m:
+    """顶层标量取值。`^key:` 不容前导空白 → 天然排除嵌套同名键。
+
+    ⛔ 取**最后一个**同名 key (与 YAML / 后端一致): 重复 key 时 YAML 后者胜,
+    取第一个会让脚本与后端读到不同值 (RAG-S2.6 审查 M10 同族)。
+    ⛔ 剥行内注释: `mastery_score: 0.75  # 手动校准` 在真 YAML 里是 0.75,
+    不剥就 float() 失败 → 掌握度显示成「—」而后端显示 0.75 (审查 H4)。
+    """
+    matches = re.findall(rf"^{re.escape(key)}:[ \t]*(.*)$", fm, re.M)
+    if not matches:
         return None
-    v = m.group(1).strip().strip('"').strip("'")
+    v = matches[-1].strip()
+    if not (v.startswith(('"', "'")) and v.endswith(('"', "'"))):
+        v = re.sub(r"\s+#.*$", "", v)  # 行内注释 (引号包裹的值里 # 不算注释)
+    v = v.strip().strip('"').strip("'")
     return v or None
 
 
@@ -96,7 +105,10 @@ def first_relationship_target(fm: str) -> str | None:
             if seen_item:
                 break  # 第二项开始 → 只认首项
             seen_item = True
-        m = re.search(r"(?:^|\s)target:\s*(.+)$", ln)
+        # ⛔ 必须锚在 key 位置 (行首缩进后 / `- ` 之后), 不能裸 `(?:^|\s)target:`:
+        # 审查 H3 实测 —— 批注文本 `description: 我不懂 target: 到底指什么…`
+        # 会被当成 key, 把用户私密批注切片当成 target 抠出来写进白板。
+        m = re.match(r"^\s*(?:-\s+)?target:\s*(.+)$", ln)
         if m:
             return m.group(1).strip()
     return None
@@ -110,6 +122,20 @@ def basename(raw: str | None) -> str:
     return inner.split("|", 1)[0].split("#", 1)[0].split("/")[-1].strip().removesuffix(".md")
 
 
+def wikilink_basename(raw: str | None) -> str | None:
+    """**只认真正的 wikilink**, 否则返回 None (审查 H3 泄漏面封堵)。
+
+    `basename()` 对非 wikilink 输入会退化成「整串 strip」—— 于是
+    `derived-from: 老师说我这块基础差，要重学第三章` 会被整句写进白板 md,
+    而白板正是 start-exam-board 读的那张面 (信息隔离铁律的直接对手)。
+    派生来源只有形如 `[[...]]` 才可信, 拿不到就显示成中性的「派生」。
+    """
+    m = _WIKILINK.search(str(raw or ""))
+    if not m:
+        return None
+    return m.group(1).split("|", 1)[0].split("#", 1)[0].split("/")[-1].strip().removesuffix(".md") or None
+
+
 # ── 成员建模 ──
 
 
@@ -120,12 +146,18 @@ class Member:
         self.node_id = node_id
         rel_target = first_relationship_target(fm)
         derived_raw = rel_target or fm_scalar(fm, "derived-from") or fm_scalar(fm, "derived_from")
+        # ⛔ `relationships:` 判**真值**不判存在 (审查 H4): `relationships: []` 与
+        # `relationships:`(null) 在后端 _node_role 里是 falsy → seed, 脚本靠
+        # `re.search(r"^relationships:")` 判存在会说成 derived, 两把锁口径分叉。
+        has_rel = bool(rel_target) or bool(re.search(r"^relationships:\s*\n\s+\S", fm, re.M))
         self.role = (
             "derived"
-            if (derived_raw or re.search(r"^relationships:", fm, re.M) or fm_scalar(fm, "created_from") == "ai_linked_doc")
+            if (derived_raw or has_rel or fm_scalar(fm, "created_from") == "ai_linked_doc")
             else "seed"
         )
-        self.derived_from = basename(derived_raw) if derived_raw else None
+        # ⛔ 只认真正的 wikilink (审查 H3): 非 wikilink 一律显示中性的「派生」,
+        # 绝不把 frontmatter 自由文本原样写进白板 md。
+        self.derived_from = wikilink_basename(derived_raw)
         self.mastery = self._mastery(fm)
         attempts = fm_num(fm, "attempt_count")
         self.attempts = int(attempts) if attempts is not None else 0
@@ -144,7 +176,12 @@ class Member:
         """
         a, b = fm_num(fm, "mastery_a"), fm_num(fm, "mastery_b")
         explicit = fm_num(fm, "mastery_score")
-        if a is not None and b is not None and a > 0 and b > 0:
+        if a is not None and b is not None:
+            # ⛔ a/b 齐即 beta 档, 非正**不再回落 legacy** (审查 H4): 后端把
+            # `mastery_a: 0` 判成「数据损坏」→ score=None + parse_errors, 脚本
+            # 若悄悄改用 mastery_level 就会显示一个后端根本不认的数字。
+            if a <= 0 or b <= 0:
+                return None
             return explicit if explicit is not None else _beta_mu(a, b)
         for key in ("mastery_score", "mastery", "mastery_level"):
             v = fm_num(fm, key)
@@ -162,22 +199,48 @@ class Member:
         return f"- [[{NODE_DIR}/{self.node_id}]] — {role_part} · {status}"
 
 
-def scan_members(vault: Path) -> dict[str, list[Member]]:
-    """节点池 → {board_id: [Member]}，board_id 大小写不敏感归一到白板文件名。"""
-    boards_ci = {p.stem.casefold(): p.stem for p in sorted((vault / BOARD_DIR).glob("*.md"))}
+#: wikilink 里没有转义语法, 这些字符会让 `[[节点/x]]` 断链或被当成别名/锚点
+_WIKILINK_HOSTILE = "[]|#^"
+
+
+def scan_members(vault: Path) -> tuple[dict[str, list[Member]], list[str]]:
+    """节点池 → ({board_id: [Member]}, 告警行)。board_id 大小写不敏感归一。
+
+    ⛔ 返回告警而不是静默 (审查 M11/M12): 孤儿节点 (source_board 拼错 / 指向
+    不存在的板 / NFC-NFD 不一致) 原来零输出就被剔出白板、doc_count 同步下调;
+    节点名含 `[]|#^` 则会生成断链 wikilink —— 那正好打脸选方案 B 的头号理由
+    「保 Graph View 正向边」。两者都必须让 --check 红。
+    """
+    boards_ci: dict[str, str] = {}
+    warnings: list[str] = []
+    for p in sorted((vault / BOARD_DIR).glob("*.md")):
+        key = p.stem.casefold()
+        if key in boards_ci:  # 审查 L15: casefold 碰撞会让后写者吞掉前一块板
+            warnings.append(f"白板名 casefold 碰撞: {boards_ci[key]!r} vs {p.stem!r} — 后者的节点会被误归")
+        boards_ci[key] = p.stem
     grouped: dict[str, list[Member]] = {stem: [] for stem in boards_ci.values()}
+
     for path in sorted((vault / NODE_DIR).glob("*.md")):
         try:
             fm, body = split_frontmatter(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError) as e:
-            print(f"  ⚠ 跳过无法读取的节点 {path.name}: {type(e).__name__}", file=sys.stderr)
+            warnings.append(f"节点读取失败, 已跳过: {path.name} ({type(e).__name__})")
             continue
-        board = boards_ci.get(basename(fm_scalar(fm, "source_board")).casefold())
-        if board:
-            grouped[board].append(Member(path.stem, fm, body))
+        raw_board = fm_scalar(fm, "source_board")
+        board = boards_ci.get(basename(raw_board).casefold()) if raw_board else None
+        if board is None:
+            warnings.append(
+                f"孤儿节点 {path.stem!r}: "
+                + ("无 source_board" if not raw_board else "source_board 指向不存在的白板")
+            )
+            continue
+        if any(c in path.stem for c in _WIKILINK_HOSTILE):
+            warnings.append(f"节点名含 wikilink 敏感字符 {_WIKILINK_HOSTILE!r}, 生成的双链会断: {path.stem!r}")
+        grouped[board].append(Member(path.stem, fm, body))
+
     for members in grouped.values():
         members.sort(key=lambda m: m.node_id)  # 与 manifest nodes[] 同序 (文件名序)
-    return grouped
+    return grouped, warnings
 
 
 # ── Concepts 段定位与重写 ──
@@ -192,49 +255,65 @@ def locate_section(lines: list[str]) -> tuple[int, int] | None:
     return start + 1, end
 
 
-def managed_region(lines: list[str], lo: int, hi: int) -> tuple[int, int]:
-    """段内**被托管**的行区间 (start, end_exclusive)；空区间 = 纯插入点。
+#: 迁移时要删掉的**遗留**注释块特征串 (2.6 之前那份「本 section 由三处维护」)。
+#: ⛔ 只删这一种注释, 用户自己写的 HTML 注释一律保留。
+_LEGACY_COMMENT_MARK = "本 section 由三处维护"
 
-    两种情形:
-      已有 sentinel → {sentinel 块} ∪ {段内全部概念行} 的包络
-      首次迁移      → {HTML 注释块} ∪ {概念行} 的包络
 
-    ⛔ 必须取包络而不是「删注释后重建」: 实测 6 块白板有两种历史形态 ——
-    4 板是「注释在前列表在后」, CS 61B / 递归与分治 是「列表在前注释在后」。
-    包络外的空行 / `---` 分隔线 / 散文一律不动。
+def managed_lines(lines: list[str], lo: int, hi: int) -> tuple[set[int], int]:
+    """段内**逐行**标记受管行 → (待删行号集合, 新块插入位置)。
 
-    ⛔ sentinel 存在时也必须并进段内游离概念行: plugin 的 appendBoardLines
-    (main.ts) 插在**整段边界**前 (下一个 `## ` / `---` / ```dataviewjs 三者
-    最靠前者), 也就是落在 `<!-- /AUTO-GENERATED -->` **之外** —— 只取
-    BEGIN..END 会让 plugin 写的行永远留在块外形成重复。
+    ⛔⛔ 逐行删, **绝不取包络** (RAG-S2.6 独立审查 H1 —— 真实数据损坏):
+    包络取 min..max 会把区间内一切非概念行连坐删除。已复现的丢失链路:
+    用户在 Concepts 段手写 `> [!note]+ 我的分组备忘` → 下次 `Cmd+Shift+D`
+    时 plugin 在**段尾**追加一行裸 wikilink (落在备忘之后) → 同步时备忘正好
+    夹在 sentinel 与游离行之间 → **被静默删除, 无告警无备份**。
+    同族受害者: 段内 fenced code block (只剩孤儿闭合栅栏)、`---` 水平线、
+    用户手写 callout。
+
+    受管行 = ① sentinel 块 BEGIN..END 之间(含) ② 段内任意 `- [[...]]` 概念行
+             ③ 迁移时的遗留「三处维护」注释块。
+    其余一律原样保留。
     """
+    doomed: set[int] = set()
+    insert_at: int | None = None
+
     begin = next((i for i in range(lo, hi) if _BEGIN_RE.match(lines[i].strip())), None)
     if begin is not None:
         end = next((i for i in range(begin, hi) if _END_RE.match(lines[i].strip())), None)
         if end is not None:
-            strays = [i for i in range(lo, hi) if _CONCEPT_LINE.match(lines[i])]
-            return min([begin, *strays]), max([end + 1, *[i + 1 for i in strays]])
+            doomed.update(range(begin, end + 1))
+            insert_at = begin
 
-    marks: list[tuple[int, int]] = []
     i = lo
     while i < hi:
-        if lines[i].strip().startswith("<!--"):
+        if i in doomed:
+            i += 1
+            continue
+        stripped = lines[i].strip()
+        if stripped.startswith("<!--"):
             j = i
             while j < hi and "-->" not in lines[j]:
                 j += 1
-            marks.append((i, min(j, hi - 1) + 1))
+            j = min(j, hi - 1)
+            if any(_LEGACY_COMMENT_MARK in lines[k] for k in range(i, j + 1)):
+                doomed.update(range(i, j + 1))
+                if insert_at is None:
+                    insert_at = i
             i = j + 1
             continue
         if _CONCEPT_LINE.match(lines[i]):
-            marks.append((i, i + 1))
+            doomed.add(i)
+            if insert_at is None:
+                insert_at = i
         i += 1
-    if marks:
-        return marks[0][0], marks[-1][1]
 
-    k = lo  # 段内无任何托管内容 → 插在首个非空行处
-    while k < hi and not lines[k].strip():
-        k += 1
-    return k, k
+    if insert_at is None:  # 段内无任何托管内容 → 插在首个非空行处
+        k = lo
+        while k < hi and not lines[k].strip():
+            k += 1
+        insert_at = k
+    return doomed, insert_at
 
 
 #: 空板占位行 — 非 `- [[...]]` 形状, 不会被 manifest 的 Concepts 窄解析当成成员
@@ -251,41 +330,74 @@ def render_block(members: list[Member], synced: str) -> list[str]:
     ]
 
 
-def _content_of(block: list[str]) -> list[str]:
-    """比对用内容 = 除尾行 sentinel 外的全部行。
+def _strip_stamp(lines: list[str]) -> list[str]:
+    """比对用视图: 把 `<!-- /AUTO-GENERATED ... -->` 尾行归一掉时间戳。
 
     ⛔ 尾行含 synced 时间戳, 参与比对会让 --check 永远报漂移 (幂等锁失效)。
     内容没变就整个不写盘 → 时间戳自然保持不动, 「有变更才刷戳」。
     """
-    return block[:-1]
+    return [re.sub(r"·\s*synced\s+\S+\s*-->$", "· synced -->", ln) if _END_RE.match(ln.strip()) else ln for ln in lines]
+
+
+class NoConceptsSection(Exception):
+    """白板缺 `## Concepts` 段 —— 无处安放目录, 必须显式失败。
+
+    ⛔ 绝不能静默返回「无变更」(RAG-S2.6 审查 MEDIUM-4): 三处 skill 的降级判据都是
+    「脚本缺失 / 非零退出 / 报无 Concepts 段」, 若这里 exit 0 且 stdout 打印
+    「= 已同步 / ✓ 完成」, 调用方会把**根本没同步**判成成功, 新节点从此隐形。
+    """
 
 
 def sync_board(path: Path, members: list[Member], synced: str) -> tuple[str, str]:
-    """→ (原文, 新文)。无变更时两者相等。"""
-    original = path.read_text(encoding="utf-8")
+    """→ (原文, 新文)。无变更时两者相等；缺 `## Concepts` 段抛 NoConceptsSection。
+
+    ⛔ 行尾用 `split("\\n")` 不用 `splitlines()` (审查 M9): splitlines 会在
+    U+000B/U+000C/U+0085/U+2028/U+2029 上额外切分, join 回来时全被归一成 \\n,
+    于是「段外原样保留」的承诺在含这些字符的文件上不成立 (CRLF 同理: 下面
+    显式记录并还原原行尾)。
+    """
+    original = path.read_text(encoding="utf-8", newline="")
     fm, _ = split_frontmatter(original)
-    lines = original.splitlines()
+    crlf = "\r\n" in original
+    lines = original.replace("\r\n", "\n").split("\n")
+    trailing_nl = lines and lines[-1] == ""
+    if trailing_nl:
+        lines = lines[:-1]
 
     span = locate_section(lines)
     if span is None:
-        print(f"  ⚠ {path.name}: 无 `## Concepts` 段, 跳过", file=sys.stderr)
-        return original, original
+        raise NoConceptsSection(path.name)
     lo, hi = span
-    start, end = managed_region(lines, lo, hi)
+    doomed, insert_at = managed_lines(lines, lo, hi)
     new_block = render_block(members, synced)
-    if _content_of(lines[start:end]) == _content_of(new_block):
-        new_lines = lines  # 内容等价 → 保留旧时间戳
-    else:
-        new_lines = lines[:start] + new_block + lines[end:]
 
-    updated = "\n".join(new_lines) + ("\n" if original.endswith("\n") else "")
+    rebuilt: list[str] = []
+    for i, ln in enumerate(lines):
+        if i == insert_at:
+            rebuilt.extend(new_block)
+        if i not in doomed:
+            rebuilt.append(ln)
+    if insert_at >= len(lines):  # 插入点在段尾之外 (段内全空)
+        rebuilt.extend(new_block)
 
-    # doc_count 归一到实际成员数 (根除声明/实际漂移); 缺字段不擅自新增
+    # doc_count 归一到实际成员数 (根除声明/实际漂移); 缺字段不擅自新增。
+    # ⛔ 在**行列表**上改, 不在 join 后的串上改 (审查 M9 的连带): 串上做
+    # `partition("\n---")` 会切在 CRLF 的中间, `.*$` 再把 `\r` 吃掉, 于是
+    # 文件里混出一个裸 LF。
+    # ⛔ 全量替换而非只改首处 (审查 M10): 重复 key 时 YAML/后端取最后一个。
     if re.search(r"^doc_count:[ \t]*", fm, re.M):
-        head, sep, tail = updated.partition("\n---")
-        head = re.sub(r"^doc_count:[ \t]*.*$", f"doc_count: {len(members)}", head, count=1, flags=re.M)
-        updated = head + sep + tail
-    return original, updated
+        fm_end = next((i for i in range(1, len(rebuilt)) if rebuilt[i].strip() == "---"), None)
+        if fm_end is not None:
+            for i in range(1, fm_end):
+                if re.match(r"^doc_count:[ \t]*", rebuilt[i]):
+                    rebuilt[i] = f"doc_count: {len(members)}"
+
+    # 内容等价 (忽略 synced 时间戳) → 整个不写盘, 保留旧时间戳
+    if _strip_stamp(rebuilt) == _strip_stamp(lines):
+        rebuilt = lines
+
+    eol = "\r\n" if crlf else "\n"
+    return original, eol.join(rebuilt) + (eol if trailing_nl else "")
 
 
 # ── CLI ──
@@ -298,12 +410,33 @@ def _diff(name: str, old: str, new: str) -> str:
 
 
 def atomic_write(path: Path, text: str) -> None:
+    """tmp + fsync + os.replace 原子写，并**保留原文件权限**。
+
+    三条都是 RAG-S2.6 独立审查抓出来的 (前两条已在真 vault 生效过):
+      M6 `mkstemp` 恒建 0600, `os.replace` 让目标继承 tmp 的 mode ——
+         真 vault 6 块白板已被从 0644 静默改成 0600 (未申报的元数据改写)
+      M7 无 fsync: rename 元数据可先于数据落盘, 掉电留 0 长度白板 ——
+         docstring 却声称「半成品永不可见」(那只对并发 reader 成立)
+      M8 symlink 白板会被替换成实体文件, 链接目标静默分叉
+    """
+    if path.is_symlink():
+        raise OSError(f"{path.name} 是符号链接, 拒绝就地替换 (会把链接换成实体文件)")
+    mode = path.stat().st_mode if path.exists() else None
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
     tmp = Path(tmp_name)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
             f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        if mode is not None:
+            os.chmod(tmp, mode)
         os.replace(tmp, path)
+        dir_fd = os.open(path.parent, os.O_RDONLY)  # 目录项也要落盘
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -325,23 +458,48 @@ def main() -> int:
         print(f"✗ vault 结构缺失 (需 {NODE_DIR}/ 与 {BOARD_DIR}/): {vault}", file=sys.stderr)
         return 2
 
-    grouped = scan_members(vault)
+    grouped, warnings = scan_members(vault)
     targets = [args.board] if args.board else sorted(grouped)
     missing = [b for b in targets if b not in grouped]
     if missing:
         print(f"✗ 白板不存在: {missing} (可选: {sorted(grouped)})", file=sys.stderr)
         return 2
 
+    # 结构性告警必须可见且让 --check 红 (审查 M11/M12/L15)
+    for w in warnings:
+        print(f"  ⚠ {w}")
+
+    # 多 sentinel / END 早于 BEGIN 会留孤儿注释且之后恒绿 (审查 M13)
+    for board_id in targets:
+        try:
+            text = (vault / BOARD_DIR / f"{board_id}.md").read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        # ⛔ _BEGIN_RE/_END_RE 编译时没带 re.M, findall 的 `^` 只匹配串首 —— 必须逐行数
+        board_lines = text.replace("\r\n", "\n").split("\n")
+        nb = sum(1 for ln in board_lines if _BEGIN_RE.match(ln.strip()))
+        ne = sum(1 for ln in board_lines if _END_RE.match(ln.strip()))
+        nh = sum(1 for ln in board_lines if _CONCEPTS_HEADING.match(ln))
+        if nb > 1 or ne > 1 or nb != ne or nh > 1:
+            warnings.append(f"{board_id}: sentinel BEGIN×{nb}/END×{ne}、`## Concepts` 标题×{nh} — 结构异常, 会留孤儿注释")
+            print(f"  ⚠ {warnings[-1]}")
+
     synced = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    changed = 0
+    changed, broken, failed = 0, 0, 0
     for board_id in targets:
         path = vault / BOARD_DIR / f"{board_id}.md"
         members = grouped[board_id]
         try:
             old, new = sync_board(path, members, synced)
+        except NoConceptsSection:
+            # ⛔ 非零退出 + stdout 明说没同步 (审查 MEDIUM-4): 调用方按退出码判降级
+            broken += 1
+            print(f"  ✗ {board_id}  ({len(members)} 成员, **无 `## Concepts` 段, 未同步**)")
+            continue
         except (OSError, UnicodeDecodeError) as e:
-            print(f"✗ {board_id}: 读写失败 {type(e).__name__}", file=sys.stderr)
-            return 2
+            failed += 1
+            print(f"  ✗ {board_id}: 读取失败 {type(e).__name__}", file=sys.stderr)
+            continue
         if old == new:
             print(f"  = {board_id}  ({len(members)} 成员, 已同步)")
             continue
@@ -350,15 +508,40 @@ def main() -> int:
         if args.check:
             print(_diff(f"{BOARD_DIR}/{board_id}.md", old, new))
             continue
-        if args.backup:
-            path.with_suffix(".md.bak").write_text(old, encoding="utf-8")
-        atomic_write(path, new)
+        try:
+            if args.backup:
+                # ⛔ 不覆盖已有 .bak (审查 M14): 第二次跑 --backup 会把「备份」
+                # 覆盖成上一次同步后的内容, 真正的原件永久丢失
+                bak = path.with_suffix(".md.bak")
+                if bak.exists():
+                    print(f"    ℹ {bak.name} 已存在, 保留最早那份原件不覆盖")
+                else:
+                    bak.write_text(old, encoding="utf-8")
+            atomic_write(path, new)
+        except OSError as e:
+            # ⛔ 写盘纳入 per-board 隔离 (审查 H5): 原来它在 try 之外, 一块失败
+            # 直接冒泡未捕获异常, 已写的不回滚、未处理的不再处理, 且 rc=1 与
+            # 「--check 有漂移」同码, 调用方分不清「崩了」和「有漂移」
+            failed += 1
+            print(f"  ✗ {board_id}: 写入失败 {type(e).__name__}: {e}", file=sys.stderr)
+            continue
 
+    # ⛔ 退出码分层 (审查 H5): 2 = 环境/IO 出错, 1 = 有待同步漂移, 0 = 全绿。
+    # 调用方 (三处 skill 的降级判据) 才分得清「崩了」和「有漂移」。
+    if failed or broken:
+        if broken:
+            print(f"\n✗ {broken} 块白板缺 `## Concepts` 段, 目录**未写入** (加回该段或用模板重建白板)")
+        if failed:
+            print(f"\n✗ {failed} 块白板读写失败, 目录**未写入**")
+        return 2
     if args.check:
-        if changed:
-            print(f"\n✗ {changed} 块白板的 ## Concepts 与真相源不一致 (跑 --all 同步)")
+        if changed or warnings:
+            if changed:
+                print(f"\n✗ {changed} 块白板的 ## Concepts 与真相源不一致 (跑 --all 同步)")
+            if warnings:
+                print(f"✗ {len(warnings)} 条结构性告警 (孤儿节点 / 断链节点名 / sentinel 异常), 见上方 ⚠")
             return 1
-        print(f"\n✓ 全部 {len(targets)} 块白板已同步 (幂等)")
+        print(f"\n✓ 全部 {len(targets)} 块白板已同步 (幂等), 无结构性告警")
         return 0
     print(f"\n✓ 完成: {changed} 块已更新 / {len(targets) - changed} 块无变更")
     return 0

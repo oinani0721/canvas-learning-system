@@ -187,8 +187,12 @@ official:
   # ── G8 score_scale 量纲申报 ×1 (RAG-S2.6, 2.5 收尾 backlog ①) ──
   g8_score_scale:
     never_null: true                          # 每条 digest 必带量纲 (裸 score 曾被读成满分制)
+    # ⛔ 闭集: 量纲只许是这三种取值之一 (RAG-S2.6 审查 MEDIUM-1 —— 原来用
+    # `"[推定]" in scale` 子串判定, 被 `1-4 [推定] 反例diag(-1,-1)负定` 整体绕过)
     declared_value: "1-4 (1=最低)"             # vault 写侧现址真值 (2.6 写侧一行不改)
-    inferred_suffix: "[推定]"                  # 缺字段时必须显式标推定 (DD-13 名实一致)
+    default_value: "1-4 (1=最低) [推定]"        # 写侧缺字段时的推定值
+    unknown_value: "未知量纲 [推定]"             # 写侧值形状不合法时的降级值
+    inferred_suffix: "[推定]"                  # 推定必须显式标注 (DD-13 名实一致)
     # 正向对照 (Code-Review M8 教训: 没有正向对照的断言会静默腐烂成恒真) —
     # 至少 1 条量纲必须来自写侧真值, 否则「全部推定」也能骗过 never_null。
     min_declared_count: 1

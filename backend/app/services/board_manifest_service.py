@@ -62,11 +62,20 @@ SCORE_SCALE_DEFAULT = "1-4 (1=最低) [推定]"
 SCORE_SCALE_UNKNOWN = "未知量纲 [推定]"
 SCORE_SCALE_MAX = 40
 
-#: ⛔ 量纲必须长成「数字 区间符 数字」(如 `1-4 (1=最低)`) 才原样透出。
+#: ⛔ 量纲必须**整串**长成「数字 区间符 数字 [(≤16 字说明)]」(如 `1-4 (1=最低)`)。
 #: 2.5 独立审查的 3 个 HIGH 全部是自由文本回显通道 (orphans.reason /
-#: parse_errors / source_board_raw), 新字段不得开第四条 — 形状不合一律
-#: 降级成上面的定长文案, 绝不回显任意 frontmatter 串。
-_SCORE_SCALE_SHAPE = re.compile(r"^\s*\d+(\.\d+)?\s*[-–—~〜至到]\s*\d+(\.\d+)?")
+#: parse_errors / source_board_raw), 新字段不得开第四条。
+#:
+#: ⛔⛔ 必须配 fullmatch 用, 且 ⛔ 禁止在两端留 `\s*`:
+#: RAG-S2.6 独立审查 HIGH-1 实测 —— 首版写的是 `.match()` 且正则无尾锚,
+#: 于是 `1-4 反例 diag(-1,-1) 行列式为正但非正定` 整串原样透出 (那正是
+#: G6 金集的禁串之一, 被 errors/tips 通道挡住却从这里走了出去);
+#: `\s` 还会吃掉 \r\n, 让 `1-4\r\n> [!note] 答案` 这类换行注入蒙混过关。
+#: 内部间隔一律用 `[ ]` 不用 `\s`。
+_SCORE_SCALE_SHAPE = re.compile(
+    r"\d{1,3}(?:\.\d{1,3})?[ ]*[-–—~〜至到][ ]*\d{1,3}(?:\.\d{1,3})?"
+    r"(?:[ ]*[(（][^()（）\n\r\t]{0,16}[)）])?"
+)
 
 # ── 衰减 Beta 常量与函数 (真相源: canvas-vault/.claude/scripts/decay_beta.py) ──
 # ⛔ 禁止改动数值语义: tests/regression/test_board_manifest_contracts.py 以
@@ -160,12 +169,20 @@ def _iso(value: Any) -> str | None:
 
 
 def _num(value: Any) -> float | None:
+    """untrusted 标量 → 有限浮点数, 否则 None。
+
+    ⛔ inf/nan 必须挡在这里 (RAG-S2.6 审查 HIGH-2): YAML 的 `.inf` / `.nan` /
+    `1e400` 会一路穿到 pick_score=nan, 而 nan 的比较恒 False 让 Timsort 保持
+    输入序 —— 文件名排最前的节点静默吃掉 pick_rank=1, 且 json.dumps 吐出裸
+    `NaN` (非法 JSON, 严格解析器直接崩)。
+    """
     if value is None or isinstance(value, bool):
         return None
     try:
-        return float(value)
+        num = float(value)
     except (TypeError, ValueError):
         return None
+    return num if math.isfinite(num) else None
 
 
 def _json_safe(value: Any) -> Any:
@@ -315,15 +332,26 @@ def _score_scale(question: dict[str, Any]) -> str:
     """questions[].score_dims.score_scale → 量纲申报串 (形状白名单 + 40 字硬截断)。
 
     三态 (全部定长, 无自由文本通道):
-      写侧有且形状合法 → 原样 (≤40)
-      写侧无            → SCORE_SCALE_DEFAULT (带 `[推定]` 后缀)
-      写侧有但形状不合法 → SCORE_SCALE_UNKNOWN (可见地降级, 不静默透传)
+      写侧有且**整串**形状合法 → 原样 (≤40)
+      写侧无                   → SCORE_SCALE_DEFAULT (带 `[推定]` 后缀)
+      写侧有但形状不合法        → SCORE_SCALE_UNKNOWN (可见地降级, 不静默透传)
+
+    ⛔ 先验形状**再**截断 (不是先截后验): 先截 40 会把超长投毒串削成
+    「看起来合法」的半个 token 放行 (RAG-S2.6 审查 HIGH-1 同批修)。
+    合法量纲本就远短于 40, 超长即判非法。
     """
     dims = question.get("score_dims")
-    text = _bounded_str(dims.get("score_scale"), SCORE_SCALE_MAX) if isinstance(dims, dict) else None
-    if not text or not text.strip():
+    if not isinstance(dims, dict):
         return SCORE_SCALE_DEFAULT
-    return text if _SCORE_SCALE_SHAPE.match(text) else SCORE_SCALE_UNKNOWN
+    raw = dims.get("score_scale")
+    if raw is None:
+        return SCORE_SCALE_DEFAULT
+    text = str(raw).strip()
+    if not text:
+        return SCORE_SCALE_DEFAULT
+    if len(text) > SCORE_SCALE_MAX or not _SCORE_SCALE_SHAPE.fullmatch(text):
+        return SCORE_SCALE_UNKNOWN
+    return text
 
 
 def _normalize_mastery(fm: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
@@ -342,6 +370,13 @@ def _normalize_mastery(fm: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
         (v for k in ("mastery", "mastery_level") if (v := _num(fm.get(k))) is not None),
         None,
     )
+    # ⛔ 字段在但不可用 (非数字 / inf / nan / 1e400) 必须显式上报, 不静默降档:
+    # 静默降档会让投毒节点悄悄换一条计分路径, 而 parse_errors 空空如也
+    # (RAG-S2.6 审查 HIGH-2)。⛔ 错误文案不回显原值 — 那是 2.5 H2 的通道。
+    if (fm.get("mastery_a") is not None and a is None) or (fm.get("mastery_b") is not None and b is None):
+        return {"score": None, "a": None, "b": None, "source": "absent"}, (
+            "mastery_a/b 存在但非有限数值 (非数字 / inf / nan), 按未评估处理"
+        )
     if a is not None and b is not None:
         err = None
         if a <= 0.0 or b <= 0.0:
@@ -655,8 +690,25 @@ def _assign_pick_ranks(members: list[dict[str, Any]]) -> list[dict[str, Any]]:
     在 _carve 而非 scan 阶段赋秩: 2.6 之前写下的历史快照没有本字段, 放在
     serve 侧计算才能让降级态也拿到秩 (否则 degraded 时 rank 全 null)。
     """
+
+    def _rankable(m: dict[str, Any]) -> bool:
+        """⛔ 排序键必须是**有限数值**才准入 (RAG-S2.6 审查 HIGH-2 + LOW-1)。
+
+        两条独立理由:
+          ① nan 的比较恒 False → Timsort 保持输入序 → 投毒节点静默拿走 rank=1
+          ② 历史/损坏快照里 pick_hint 可能缺 pick_score 或是字符串, 裸取会
+             KeyError (被 API 层误映射成 404「白板不存在」) 或 TypeError (裸 500)
+        """
+        if m.get("is_stub"):
+            return False
+        hint = m.get("pick_hint")
+        if not isinstance(hint, dict):
+            return False
+        score = hint.get("pick_score")
+        return isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(score)
+
     ranked = sorted(
-        (m for m in members if not m.get("is_stub") and isinstance(m.get("pick_hint"), dict)),
+        (m for m in members if _rankable(m)),
         key=lambda m: (m["pick_hint"]["pick_score"], m["node_id"]),
     )
     rank_by_id = {m["node_id"]: i for i, m in enumerate(ranked, start=1)}

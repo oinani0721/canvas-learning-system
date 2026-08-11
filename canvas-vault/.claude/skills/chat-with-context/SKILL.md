@@ -32,6 +32,9 @@ model: sonnet
 - **HARD-NAV-2**：manifest **不含节点正文**。要正文 → 转 CONTENT 平面，别指望 manifest 给。
 - **HARD-NAV-3**：每处 manifest 调用**必须**配成对 `<!-- FALLBACK:BEGIN/END -->` 降级块。失败 / 超时 / 空结果 / 后端未起 → **静默**退回块内写明的原路径，**离线可用不破**，且不因此中止任务。
 - **HARD-NAV-4**：本块在 8 份 skill 里**逐字节相同**，由 `backend/scripts/check_skill_routing_block.py` 校验。要改就 8 份一起改。
+- **HARD-NAV-5**：⛔ **任何 skill 一律不得 `Read` / `Grep` / `Glob` `<vault>/.claude/cache/` 下的任何文件。**
+  那是服务端的降级快照，存的是**未经视图投影的全量原料**（含 exam 禁项：纠错内容 / 批注正文 / 误解记录）。
+  要结构就调工具走投影，绕过投影直读缓存 = 亲手拆掉 HARD-ISO 信息隔离。
 <!-- ROUTING:END v1 -->
 
 <!-- PLANE-BINDING v1

@@ -382,8 +382,15 @@ def check_g7(c: Checker, gold: dict, data: dict) -> None:
 
 
 def check_g8(c: Checker, gold: dict, data: dict) -> None:
-    """score_scale 量纲申报 (RAG-S2.6): 恒非空 + 推定必标 + 至少 1 条来自写侧真值。"""
+    """score_scale 量纲申报 (RAG-S2.6): 取值必属**闭集** + 至少 1 条来自写侧真值。
+
+    ⛔ 闭集断言, 不用 `"[推定]" in scale` 子串判定 (RAG-S2.6 审查 MEDIUM-1):
+    子串判定让 `1-4 [推定] 反例diag(-1,-1)负定` 这类前缀投毒整体放行 —— 防御
+    (形状白名单) 与检测 (本门) 同时失效, 单修任一条都留半个洞。量纲本就是
+    有限枚举, 就该按闭集查。
+    """
     case = gold["official"]["g8_score_scale"]
+    allowed = {case["declared_value"], case["default_value"], case["unknown_value"]}
     ok, details = True, []
     declared = 0
     for bid, views in data["boards"].items():
@@ -393,6 +400,10 @@ def check_g8(c: Checker, gold: dict, data: dict) -> None:
                 if case.get("never_null") and not scale:
                     ok = False
                     details.append(f"{bid}/{n['node_id']}/{d['qid']}: 量纲缺失")
+                    continue
+                if scale not in allowed:
+                    ok = False
+                    details.append(f"{bid}/{n['node_id']}/{d['qid']}: 量纲不在闭集内 {scale!r}")
                     continue
                 if scale == case["declared_value"]:
                     declared += 1
