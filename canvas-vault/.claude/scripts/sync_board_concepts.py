@@ -260,7 +260,45 @@ def locate_section(lines: list[str]) -> tuple[int, int] | None:
 _LEGACY_COMMENT_MARK = "本 section 由三处维护"
 
 
-def managed_lines(lines: list[str], lo: int, hi: int) -> tuple[set[int], int]:
+def split_sentinel_tails(lines: list[str]) -> tuple[list[str], set[int]]:
+    """把**追加在 sentinel 行尾**的用户文字拆成独立行 —— 保命前置。
+
+    ⛔ 2026-08-11 UAT 首次真实使用即踩中 (审查 C-H1 的同族漏网):
+    用户在 Obsidian Live Preview 里 sentinel 渲染成一段可见文本, 想「在它下面写」
+    很容易落到**行尾**, 于是那行变成
+        `<!-- /AUTO-GENERATED n=2 · synced ... -->我的备注：先补 asymptotics`
+    而 `_END_RE` 是**前缀匹配** ⇒ 整行(连同用户文字)进 doomed ⇒ 下次同步直接删掉。
+
+    修法不是「拒绝这种写法」而是**拆行保留**: sentinel 部分照常受管, 尾巴变成
+    紧跟其后的独立行, 用户怎么写都不丢。
+
+    → (拆完的行列表, **受保护**行号集合)。受保护行必须排除在 doomed 之外 ——
+    BEGIN 注释块收尾行的尾巴拆出来后正好落在 BEGIN..END 区间内, 不保护就会被
+    当成「块内容」二次删除 (本条实现首版的自测即抓到)。
+    """
+    out: list[str] = []
+    protected: set[int] = set()
+    in_begin_comment = False
+    for ln in lines:
+        stripped = ln.strip()
+        is_sentinel = _BEGIN_RE.match(stripped) or _END_RE.match(stripped) or in_begin_comment
+        if _BEGIN_RE.match(stripped):
+            in_begin_comment = True
+        if is_sentinel:
+            idx = ln.find("-->")
+            if idx != -1:
+                in_begin_comment = False
+                head, tail = ln[: idx + 3], ln[idx + 3 :]
+                if tail.strip():
+                    out.append(head)
+                    protected.add(len(out))
+                    out.append(tail.lstrip())
+                    continue
+        out.append(ln)
+    return out, protected
+
+
+def managed_lines(lines: list[str], lo: int, hi: int, protected: set[int] | None = None) -> tuple[set[int], int]:
     """段内**逐行**标记受管行 → (待删行号集合, 新块插入位置)。
 
     ⛔⛔ 逐行删, **绝不取包络** (RAG-S2.6 独立审查 H1 —— 真实数据损坏):
@@ -313,7 +351,9 @@ def managed_lines(lines: list[str], lo: int, hi: int) -> tuple[set[int], int]:
         while k < hi and not lines[k].strip():
             k += 1
         insert_at = k
-    return doomed, insert_at
+    # ⛔ 从 sentinel 行尾拆出来的用户文字恒不受管 (它落在 BEGIN..END 区间内,
+    # 不豁免就会被当「块内容」二次删除)
+    return doomed - (protected or set()), insert_at
 
 
 #: 空板占位行 — 非 `- [[...]]` 形状, 不会被 manifest 的 Concepts 窄解析当成成员
@@ -363,12 +403,13 @@ def sync_board(path: Path, members: list[Member], synced: str) -> tuple[str, str
     trailing_nl = lines and lines[-1] == ""
     if trailing_nl:
         lines = lines[:-1]
+    lines, protected = split_sentinel_tails(lines)  # ⛔ 保命前置, 必须在定位/标记之前
 
     span = locate_section(lines)
     if span is None:
         raise NoConceptsSection(path.name)
     lo, hi = span
-    doomed, insert_at = managed_lines(lines, lo, hi)
+    doomed, insert_at = managed_lines(lines, lo, hi, protected)
     new_block = render_block(members, synced)
 
     rebuilt: list[str] = []

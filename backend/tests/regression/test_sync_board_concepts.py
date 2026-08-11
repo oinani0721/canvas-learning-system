@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -24,6 +25,9 @@ from pathlib import Path
 import pytest
 
 VAULT_SCRIPTS = Path(__file__).resolve().parents[3] / "canvas-vault" / ".claude" / "scripts"
+
+#: BEGIN 注释块的收尾行末尾 (它也是 `-->` 结尾, 同样能被追加尾巴)
+_SENTINEL_NOTE_TAIL = "Cmd+Shift+D 派生） -->"
 
 
 def _load_module():
@@ -115,6 +119,33 @@ def test_h1_user_handwritten_content_survives_sync(vault, capsys):
     assert "我贴的一段例子" in after, "⛔ 用户 fenced code block 被吞"
     assert after.count("```") % 2 == 0, "⛔ 只剩孤儿栅栏, 全文渲染会错乱"
     assert after.count("- [[节点/甲]]") == 1, "游离概念行应被逐行收编, 不重复"
+
+
+@pytest.mark.parametrize("where", ["end_sentinel", "begin_note_line"])
+def test_h1b_text_appended_to_sentinel_line_survives(vault, where):
+    """⛔ 2026-08-11 UAT 首次真实使用即踩中的同族漏网 (真实数据丢失)。
+
+    Obsidian Live Preview 里 sentinel 渲染成可见文本, 用户想「在它下面写」
+    很容易落到**行尾** ⇒ `_END_RE` 前缀匹配把整行(连同用户文字)判成 sentinel
+    ⇒ 下次同步静默删除。修法是拆行保留, 不是拒绝这种写法。
+    """
+    _node(vault, "甲", 'source_board: "[[原白板/板]]"')
+    p = _board(vault)
+    _sync(vault, "--board", "板")
+
+    text = p.read_text(encoding="utf-8")
+    note = "我的备注：先补 asymptotics"
+    if where == "end_sentinel":
+        text = re.sub(r"(<!-- /AUTO-GENERATED[^\n]*-->)", r"\1" + note, text, count=1)
+    else:  # BEGIN 注释块的收尾行 (`… 派生） -->`) 同样是 `-->` 结尾
+        text = text.replace(_SENTINEL_NOTE_TAIL, _SENTINEL_NOTE_TAIL + note, 1)
+    p.write_text(text, encoding="utf-8")
+
+    _sync(vault, "--board", "板")
+    after = p.read_text(encoding="utf-8")
+    assert note in after, f"⛔ 追加在 {where} 行尾的用户文字被删除"
+    assert _sync(vault, "--check") == 0, "拆行后必须收敛 (第二遍幂等)"
+    assert note in p.read_text(encoding="utf-8"), "⛔ 第二遍同步又把它吃了"
 
 
 def test_h1_horizontal_rule_and_prose_outside_block_survive(vault):
