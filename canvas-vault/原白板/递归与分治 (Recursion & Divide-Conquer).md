@@ -39,7 +39,7 @@ wikilink 目标都指向 vault 根的 节点/ 文件夹下 md。
 ```dataviewjs
 const here = dv.current().file.link;
 const nodes = dv.pages('"节点"')
-  .where(p => p.source_board?.path === here.path);
+  .where(p => p.source_board?.path?.replace(/\.md$/, "") === here.path.replace(/\.md$/, ""));
 
 if (nodes.length === 0) {
   dv.paragraph("> 🌱 当前白板暂无派生节点，用 Cmd+Shift+D 派生第一个");
