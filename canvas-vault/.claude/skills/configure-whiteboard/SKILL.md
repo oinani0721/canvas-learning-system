@@ -9,8 +9,37 @@ allowed-tools:
   - Edit
   - Glob
   - AskUserQuestion
+  - mcp__canvas-learning-mcp__get_board_manifest
 model: sonnet
 ---
+
+<!-- ROUTING:BEGIN v1 -->
+## ⛔ 检索平面协议 v1（RAG-S2.6 导航改造 · 先看目录再精读）
+
+⛔ **动手前先判定平面**，判错 = 白烧上下文（vault 越大越明显）。四个平面，每个只有一个正确的第一动作：
+
+| 平面 | 什么问题属于它 | 第一动作（唯一正确） |
+|---|---|---|
+| **STRUCTURE** | 这块板拆了哪些节点 / 谁派生自谁 / 哪个最该考 / 掌握度与考察历史 | **1 次** `get_board_manifest` —— 不先 Grep、不 Read 白板全文 |
+| **SEMANTIC** | 「关于 X 的内容在哪」「X 和 Y 什么关系」 | 先用 manifest 成员清单**限域**，再在域内检索；⛔ 不得退化成全库 `**/*.md` 裸扫 |
+| **CONTENT** | 已知是哪个文件，要它的正文 | 直接 `Read` / `Grep` 该文件 —— **不过 manifest**（manifest 按设计不含正文） |
+| **EXAM** | 出题 / 评分 / 检验白板 | 受 HARD-ISO 信息隔离约束：结构走 manifest `view:"exam"`，正文一律不进上下文 |
+
+**硬约束**
+
+- **HARD-NAV-1**：`get_board_manifest` **一次调用即返回该板全部结构**（成员 + 派生原因 + 掌握度四态 + 占位标记 + 选点秩 + 考察历史 + 题面摘句）。同一板同一轮**不得调第 2 次**。
+- **HARD-NAV-2**：manifest **不含节点正文**。要正文 → 转 CONTENT 平面，别指望 manifest 给。
+- **HARD-NAV-3**：每处 manifest 调用**必须**配成对 `<!-- FALLBACK:BEGIN/END -->` 降级块。失败 / 超时 / 空结果 / 后端未起 → **静默**退回块内写明的原路径，**离线可用不破**，且不因此中止任务。
+- **HARD-NAV-4**：本块在 8 份 skill 里**逐字节相同**，由 `backend/scripts/check_skill_routing_block.py` 校验。要改就 8 份一起改。
+<!-- ROUTING:END v1 -->
+
+<!-- PLANE-BINDING v1
+primary_plane: STRUCTURE
+uses_structure: yes
+structure_tool: mcp__canvas-learning-mcp__get_board_manifest
+manifest_view: study
+fallback_path: Glob 节点/*.md + 逐个 Read frontmatter 找反向引用（Step 4.2 的 FALLBACK 块）
+-->
 
 # 原白板配置 Skill v3（Canvas Learning System · 扁平架构）
 
@@ -114,20 +143,36 @@ model: sonnet
 
 **仅场景 B 跑此步**（场景 A 从零建无 source_path，跳过）：
 
-1. **提取 source_path 文件名**：从 `source_path` 取 stem（去掉路径 + `.md` 后缀），例 `wiki/canvases/math140/Fundamentals.md` → `Fundamentals`
+> **RAG-S2.6（STRUCTURE 平面）**：本步原来是 `Glob 节点/*.md` + **逐个 Read frontmatter**
+> ——全库唯一的 O(节点数) 全节点 Read 循环，节点池一大就是纯烧上下文，而且靠 regex
+> 猜 wikilink 格式。现在改成读 manifest 的结构化关系：**O(非空板数)**（真 vault
+> 15 次 → 5 次），且拿到的是服务端归一好的 `relation.target_node_id`，不用自己处理
+> `[[x]]` / `[[节点/x]]` / `[[x.md]]` / `[[x|alias]]` 四种写法。
 
-2. **Glob `节点/*.md`**：枚举所有节点
+1. **提取 source_path 文件名**：从 `source_path` 取 stem，例 `wiki/canvases/math140/Fundamentals.md` → `Fundamentals`
 
-3. **逐个 Read frontmatter**：检查 3 个反向引用字段：
-   - `source_note: "[[<source_stem>]]"`
-   - `derived-from: "[[<source_stem>]]"`
-   - `up: "[[<source_stem>]]"`
+2. **1 次列板** `get_board_manifest{ view: "study" }`（不传 `board_id`）→ 得 `boards[]`（含 `board_id` / `board_name` / `member_count_actual`）与 `orphans[]`。
+
+3. **逐块非空板取成员**（`member_count_actual > 0` 的才取，空板不可能引用；每块 **1 次**，HARD-NAV-1）：
+   `get_board_manifest{ board_id: "<board_id>", view: "study", include_exam_history: false }`
+   在 `nodes[]` 里命中任一条即算反向引用：
+   - `node_id == <source_stem>` → source 本身就是该板成员
+   - `relation.target_node_id == <source_stem>` → 有节点派生自它（原 bug 的 `derived-from` 情形）
+   - `source_note == <source_stem>` → 有节点以它为源笔记
    
-   匹配方式（robust）：用 regex `\[\[(?:[^\]]*\/)?<source_stem>(?:\.md)?(?:\|[^\]]*)?\]\]` 处理 `[[Fundamentals]]` / `[[节点/Fundamentals]]` / `[[Fundamentals.md]]` / `[[Fundamentals|alias]]` 4 种格式
+   ⛔ 服务端已把三种归属都归一成 basename，**不要**再自己写 wikilink regex。
+
+<!-- FALLBACK:BEGIN Step 4.2 反向引用检测降级 -->
+manifest 不可用（调用失败 / 超时 / `source_status: "error"`）→ **静默退回 2.6 前的原路径**，检测语义不变、只是慢：
+- `Glob 节点/*.md` 枚举所有节点，**逐个 Read frontmatter**，检查 3 个反向引用字段
+  （`source_note` / `derived-from` / `up`），regex 用
+  `\[\[(?:[^\]]*\/)?<source_stem>(?:\.md)?(?:\|[^\]]*)?\]\]` 覆盖
+  `[[Fundamentals]]` / `[[节点/Fundamentals]]` / `[[Fundamentals.md]]` / `[[Fundamentals|alias]]` 四种格式。
+- ⛔ 不得因为降级就**跳过**本检测——它防的是「盲建重复白板」，是用户 2026-04-30 批注打出来的护栏。
+<!-- FALLBACK:END -->
 
 4. **若任一节点反向引用 source_stem**：
-   - 收集这些节点的 `source_board` frontmatter（提取 board name）
-   - 去重得 `existing_boards` 集合
+   - `existing_boards` = 这些命中所在的 `board_id` 集合（**manifest 路径下就是发起该次调用的板**，不用再回读 frontmatter；降级路径才需从节点 `source_board` 提取）
    - **AskUserQuestion**（强制阻止盲建新白板）：
      > ⚠️ **检测到反向引用**：
      > 

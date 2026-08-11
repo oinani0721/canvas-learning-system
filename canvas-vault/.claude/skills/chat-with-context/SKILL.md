@@ -10,8 +10,37 @@ allowed-tools:
   - mcp__canvas-learning-mcp__get_neighbors
   - mcp__canvas-learning-mcp__read_note
   - mcp__canvas-learning-mcp__search_memories
+  - mcp__canvas-learning-mcp__get_board_manifest
 model: sonnet
 ---
+
+<!-- ROUTING:BEGIN v1 -->
+## ⛔ 检索平面协议 v1（RAG-S2.6 导航改造 · 先看目录再精读）
+
+⛔ **动手前先判定平面**，判错 = 白烧上下文（vault 越大越明显）。四个平面，每个只有一个正确的第一动作：
+
+| 平面 | 什么问题属于它 | 第一动作（唯一正确） |
+|---|---|---|
+| **STRUCTURE** | 这块板拆了哪些节点 / 谁派生自谁 / 哪个最该考 / 掌握度与考察历史 | **1 次** `get_board_manifest` —— 不先 Grep、不 Read 白板全文 |
+| **SEMANTIC** | 「关于 X 的内容在哪」「X 和 Y 什么关系」 | 先用 manifest 成员清单**限域**，再在域内检索；⛔ 不得退化成全库 `**/*.md` 裸扫 |
+| **CONTENT** | 已知是哪个文件，要它的正文 | 直接 `Read` / `Grep` 该文件 —— **不过 manifest**（manifest 按设计不含正文） |
+| **EXAM** | 出题 / 评分 / 检验白板 | 受 HARD-ISO 信息隔离约束：结构走 manifest `view:"exam"`，正文一律不进上下文 |
+
+**硬约束**
+
+- **HARD-NAV-1**：`get_board_manifest` **一次调用即返回该板全部结构**（成员 + 派生原因 + 掌握度四态 + 占位标记 + 选点秩 + 考察历史 + 题面摘句）。同一板同一轮**不得调第 2 次**。
+- **HARD-NAV-2**：manifest **不含节点正文**。要正文 → 转 CONTENT 平面，别指望 manifest 给。
+- **HARD-NAV-3**：每处 manifest 调用**必须**配成对 `<!-- FALLBACK:BEGIN/END -->` 降级块。失败 / 超时 / 空结果 / 后端未起 → **静默**退回块内写明的原路径，**离线可用不破**，且不因此中止任务。
+- **HARD-NAV-4**：本块在 8 份 skill 里**逐字节相同**，由 `backend/scripts/check_skill_routing_block.py` 校验。要改就 8 份一起改。
+<!-- ROUTING:END v1 -->
+
+<!-- PLANE-BINDING v1
+primary_plane: SEMANTIC
+uses_structure: yes
+structure_tool: mcp__canvas-learning-mcp__get_board_manifest
+manifest_view: study
+fallback_path: 不限域也不着色，直接走原有开场流程（§开场着色的 FALLBACK 块）
+-->
 
 # Backend RAG 上下文增强对话 Skill v2.1（Canvas Learning System · Story 2.1）
 
@@ -117,6 +146,34 @@ model: sonnet
     - 理由: Dashboard / 非节点页触发是常态,native Grep 比 MCP 快且透明,5s 预算足够。
 
 20. **⛔ HARD-20 回忆式提问必查图谱记忆（批次2' 线2，MEM-FLYWHEEL）** — 用户提问含回忆意图（「我之前 / 上次 / 学过 / 错过 / 考过 / 记得 / 有哪些误解 / 哪里薄弱」类表述，指向**用户自己的学习历史**而非概念定义）→ **必须先调 `mcp__canvas-learning-mcp__search_memories(query=<用户问题>)`** 再作答，命中的记忆条目按时间标注融入回答；0 命中或 MCP 不可达 → 明说「图谱记忆没查到相关记录」，禁止凭对话上下文编造学习历史。普通概念性提问不触发本条。
+
+## 开场前 · 结构限域与掌握度着色（RAG-S2.6 · **条件触发，不是必经**）
+
+> **要解决的病灶**：路径 A 的第一动作是 native Grep 全库裸扫，且开场着色的 mastery
+> 靠拼 frontmatter 猜（缺字段就当 0.30，把「没考过」说成「0.30 薄弱」）。
+> ⛔ **HARD-18 的颜色阈值一个字不动**，本节只是把喂给它的数字换成有出处的。
+
+**⛔ 只在下面任一条命中时才做**（其余情况直接进「对话开场」，不多花这次调用）：
+
+- (a) 用户问题里出现了某块**原白板名**
+- (b) `<current_note>` 是白板（`type: whiteboard`）或节点（有 `source_board`）→ 用它的板
+- (c) 开场要按掌握度给邻居着色（= 走 HARD-18 那一行时）
+
+**动作**（1 次，STRUCTURE 平面）：
+`get_board_manifest{ board_id: "<板 stem>", view: "study", include_exam_history: false }`
+
+用途，仅此三条：
+1. **成员清单** = `nodes[].node_id` → 路径 A 的 Grep **先在这些节点里搜**，不够再放开全库（只改顺序，不改召回门槛）。
+2. **掌握度着色的数据源** = `nodes[].mastery`，⛔ 按 `source` 四态如实呈现：
+   - `beta` / `score_only` / `legacy_v2` → 用 `score` 走 HARD-18 阈值上色
+   - **`absent` → ⚪ 未评估**，⛔ **不得**当成 0.30 涂成 🔴 薄弱（「从没考过」≠「考过但很差」）
+3. **占位标记** = `nodes[].is_stub` → 该节点正文还是空模板，别把它当「已有笔记」推荐给用户读。
+
+<!-- FALLBACK:BEGIN 开场结构限域降级 -->
+manifest 不可用 / 解析不出板名 / `nodes[]` 为空 → **静默跳过本节**：不限域、不改着色来源，
+直接走下面的原开场流程（mastery 取注入上下文里的 `mastery_score`，缺失按 HARD-18 标 ⚪ 未评估）。
+⛔ 不因降级少答、也不在开场白里向用户抱怨降级（这不是 HARD-7 说的那种 backend 邻居降级）。
+<!-- FALLBACK:END -->
 
 ## 对话开场（解析 prompt 后的第一条回复）
 

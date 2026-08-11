@@ -9,8 +9,37 @@ allowed-tools:
   - Glob
   - Bash
   - AskUserQuestion
+  - mcp__canvas-learning-mcp__get_board_manifest
 model: sonnet
 ---
+
+<!-- ROUTING:BEGIN v1 -->
+## ⛔ 检索平面协议 v1（RAG-S2.6 导航改造 · 先看目录再精读）
+
+⛔ **动手前先判定平面**，判错 = 白烧上下文（vault 越大越明显）。四个平面，每个只有一个正确的第一动作：
+
+| 平面 | 什么问题属于它 | 第一动作（唯一正确） |
+|---|---|---|
+| **STRUCTURE** | 这块板拆了哪些节点 / 谁派生自谁 / 哪个最该考 / 掌握度与考察历史 | **1 次** `get_board_manifest` —— 不先 Grep、不 Read 白板全文 |
+| **SEMANTIC** | 「关于 X 的内容在哪」「X 和 Y 什么关系」 | 先用 manifest 成员清单**限域**，再在域内检索；⛔ 不得退化成全库 `**/*.md` 裸扫 |
+| **CONTENT** | 已知是哪个文件，要它的正文 | 直接 `Read` / `Grep` 该文件 —— **不过 manifest**（manifest 按设计不含正文） |
+| **EXAM** | 出题 / 评分 / 检验白板 | 受 HARD-ISO 信息隔离约束：结构走 manifest `view:"exam"`，正文一律不进上下文 |
+
+**硬约束**
+
+- **HARD-NAV-1**：`get_board_manifest` **一次调用即返回该板全部结构**（成员 + 派生原因 + 掌握度四态 + 占位标记 + 选点秩 + 考察历史 + 题面摘句）。同一板同一轮**不得调第 2 次**。
+- **HARD-NAV-2**：manifest **不含节点正文**。要正文 → 转 CONTENT 平面，别指望 manifest 给。
+- **HARD-NAV-3**：每处 manifest 调用**必须**配成对 `<!-- FALLBACK:BEGIN/END -->` 降级块。失败 / 超时 / 空结果 / 后端未起 → **静默**退回块内写明的原路径，**离线可用不破**，且不因此中止任务。
+- **HARD-NAV-4**：本块在 8 份 skill 里**逐字节相同**，由 `backend/scripts/check_skill_routing_block.py` 校验。要改就 8 份一起改。
+<!-- ROUTING:END v1 -->
+
+<!-- PLANE-BINDING v1
+primary_plane: STRUCTURE
+uses_structure: yes
+structure_tool: mcp__canvas-learning-mcp__get_board_manifest
+manifest_view: study
+fallback_path: Glob 原白板/*.md 枚举候选板（Step 1 归属级联第 4 级的 FALLBACK 块）
+-->
 
 # AI 双链文档 Skill v4.5（Canvas Learning System · 扁平架构 + 关系双写 + 派生描述三处落地）
 
@@ -71,14 +100,21 @@ model: sonnet
      - 命中 → `active_board = <提取的 board name>`，**不弹 AskUserQuestion**
      - 未命中（源节点 frontmatter 无 source_board / 格式异常）→ 走规则 3
 3. **`.canvas-config.yaml` 的 `active_board:` 字段** → 读取
-4. **AskUserQuestion**：
+4. **AskUserQuestion**（RAG-S2.6：候选板改用 **1 次列板 manifest** 枚举，STRUCTURE 平面）：
+   - 调 `get_board_manifest{ view: "study" }`（不传 `board_id`）→ `boards[]`
+   - 选项文案带上规模，让用户看得出该往哪归：
    > 新派生的节点要归属哪个原白板？
-   > 
-   > 已有白板（从 `Glob 原白板/*.md` 枚举）：
-   > - `CS 61B 数据结构.md`
-   > - `线性代数.md`
+   >
+   > 已有白板：
+   > - `CS 61B 数据结构`（2 个节点，1 张检验白板）
+   > - `线性代数`（0 个节点）
    > - ...
    > - 或"新建" → 建议你先用 `/configure-whiteboard` 建白板
+   - ⛔ 选项用 `board_id`（文件名 stem）作实际值，`board_name` 只用于显示——两者可以不等（真实反例：文件 `CS 61B.md` 的 `board_name: CS 61B 数据结构`）。
+
+<!-- FALLBACK:BEGIN Step 2 规则 4 候选板枚举降级 -->
+manifest 不可用 → **静默退回** `Glob 原白板/*.md` 枚举文件名（拿不到成员数/检验白板数，选项就只列板名）。归属判定语义不变。
+<!-- FALLBACK:END -->
 
 若仍无值 → 返回错误 `✗ 无法确定活动白板，请先 /configure-whiteboard 建一个`，停止执行。
 

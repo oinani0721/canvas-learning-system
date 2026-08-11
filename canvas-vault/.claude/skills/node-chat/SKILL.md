@@ -10,6 +10,45 @@ allowed-tools:
 model: sonnet
 ---
 
+<!-- ROUTING:BEGIN v1 -->
+## ⛔ 检索平面协议 v1（RAG-S2.6 导航改造 · 先看目录再精读）
+
+⛔ **动手前先判定平面**，判错 = 白烧上下文（vault 越大越明显）。四个平面，每个只有一个正确的第一动作：
+
+| 平面 | 什么问题属于它 | 第一动作（唯一正确） |
+|---|---|---|
+| **STRUCTURE** | 这块板拆了哪些节点 / 谁派生自谁 / 哪个最该考 / 掌握度与考察历史 | **1 次** `get_board_manifest` —— 不先 Grep、不 Read 白板全文 |
+| **SEMANTIC** | 「关于 X 的内容在哪」「X 和 Y 什么关系」 | 先用 manifest 成员清单**限域**，再在域内检索；⛔ 不得退化成全库 `**/*.md` 裸扫 |
+| **CONTENT** | 已知是哪个文件，要它的正文 | 直接 `Read` / `Grep` 该文件 —— **不过 manifest**（manifest 按设计不含正文） |
+| **EXAM** | 出题 / 评分 / 检验白板 | 受 HARD-ISO 信息隔离约束：结构走 manifest `view:"exam"`，正文一律不进上下文 |
+
+**硬约束**
+
+- **HARD-NAV-1**：`get_board_manifest` **一次调用即返回该板全部结构**（成员 + 派生原因 + 掌握度四态 + 占位标记 + 选点秩 + 考察历史 + 题面摘句）。同一板同一轮**不得调第 2 次**。
+- **HARD-NAV-2**：manifest **不含节点正文**。要正文 → 转 CONTENT 平面，别指望 manifest 给。
+- **HARD-NAV-3**：每处 manifest 调用**必须**配成对 `<!-- FALLBACK:BEGIN/END -->` 降级块。失败 / 超时 / 空结果 / 后端未起 → **静默**退回块内写明的原路径，**离线可用不破**，且不因此中止任务。
+- **HARD-NAV-4**：本块在 8 份 skill 里**逐字节相同**，由 `backend/scripts/check_skill_routing_block.py` 校验。要改就 8 份一起改。
+<!-- ROUTING:END v1 -->
+
+<!-- PLANE-BINDING v1
+primary_plane: CONTENT
+uses_structure: no
+structure_tool: none
+manifest_view: none
+fallback_path: n/a — plugin 已注入全部上下文（见 §检索平面裁定）
+-->
+
+## §检索平面裁定（RAG-S2.6）：⛔ 本 Skill **禁用** STRUCTURE 平面
+
+allowed-tools **不含** `get_board_manifest`，理由：
+
+1. **上下文已由 plugin 全量注入**（节点正文 + frontmatter + 邻居）。本 Skill 一开场就**已经知道**
+   自己在哪个节点上，**没有「该看哪儿」这个问题** —— 而导航协议解决的正是这个问题。
+2. 再调一次 manifest 只会把已知信息重取一遍，纯浪费一次往返（「先看目录再精读」的本意是
+   **为了少读**，不是为了多调一次）。
+
+⇒ 本 Skill 恒走 **CONTENT** 平面：注入什么就用什么，不足处按原有规则 `Read` / `Grep` 补。
+
 # 节点 AI 对话 Skill v1.0（Canvas Learning System · 路线 A 节点级对话）
 
 ## ⛔ CRITICAL TRIGGER & HARD CONSTRAINTS

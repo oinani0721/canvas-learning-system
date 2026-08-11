@@ -9,8 +9,37 @@ allowed-tools:
   - mcp__canvas-learning-mcp__search_notes
   - mcp__canvas-learning-mcp__get_neighbors
   - mcp__canvas-learning-mcp__read_note
+  - mcp__canvas-learning-mcp__get_board_manifest
 model: sonnet
 ---
+
+<!-- ROUTING:BEGIN v1 -->
+## ⛔ 检索平面协议 v1（RAG-S2.6 导航改造 · 先看目录再精读）
+
+⛔ **动手前先判定平面**，判错 = 白烧上下文（vault 越大越明显）。四个平面，每个只有一个正确的第一动作：
+
+| 平面 | 什么问题属于它 | 第一动作（唯一正确） |
+|---|---|---|
+| **STRUCTURE** | 这块板拆了哪些节点 / 谁派生自谁 / 哪个最该考 / 掌握度与考察历史 | **1 次** `get_board_manifest` —— 不先 Grep、不 Read 白板全文 |
+| **SEMANTIC** | 「关于 X 的内容在哪」「X 和 Y 什么关系」 | 先用 manifest 成员清单**限域**，再在域内检索；⛔ 不得退化成全库 `**/*.md` 裸扫 |
+| **CONTENT** | 已知是哪个文件，要它的正文 | 直接 `Read` / `Grep` 该文件 —— **不过 manifest**（manifest 按设计不含正文） |
+| **EXAM** | 出题 / 评分 / 检验白板 | 受 HARD-ISO 信息隔离约束：结构走 manifest `view:"exam"`，正文一律不进上下文 |
+
+**硬约束**
+
+- **HARD-NAV-1**：`get_board_manifest` **一次调用即返回该板全部结构**（成员 + 派生原因 + 掌握度四态 + 占位标记 + 选点秩 + 考察历史 + 题面摘句）。同一板同一轮**不得调第 2 次**。
+- **HARD-NAV-2**：manifest **不含节点正文**。要正文 → 转 CONTENT 平面，别指望 manifest 给。
+- **HARD-NAV-3**：每处 manifest 调用**必须**配成对 `<!-- FALLBACK:BEGIN/END -->` 降级块。失败 / 超时 / 空结果 / 后端未起 → **静默**退回块内写明的原路径，**离线可用不破**，且不因此中止任务。
+- **HARD-NAV-4**：本块在 8 份 skill 里**逐字节相同**，由 `backend/scripts/check_skill_routing_block.py` 校验。要改就 8 份一起改。
+<!-- ROUTING:END v1 -->
+
+<!-- PLANE-BINDING v1
+primary_plane: SEMANTIC
+uses_structure: yes
+structure_tool: mcp__canvas-learning-mcp__get_board_manifest
+manifest_view: study
+fallback_path: 不限域，直接走原有 native Grep 全库检索（§3.0 的 FALLBACK 块）
+-->
 
 # Study-Question Skill v1.6 — 解题深度模式（Canvas Learning System · Story 2.3）
 
@@ -105,6 +134,39 @@ model: sonnet
 | Citation back-verify | ❌ | ✅ + RAGAS-lite 量化（HARD-19） |
 
 **互补不冲突** — chat-with-context 解决"快问快答"；study-question 解决"我真的不懂，请给我一份诊断 + 完整 N=15+ 候选池"。
+
+---
+
+## §3.0 结构限域前置（RAG-S2.6 · **条件触发，不是必经**）
+
+> **要解决的病灶**：路径 A 的第一动作是 native Grep 扫全库 `**/*.md`（无黑名单无分层）。
+> vault 一大，前几十条命中就把注意力吃光了。**但深度模式的 HARD-11/17/21 是用户
+> 三轮批注打出来的核心，一个字不动** —— 本节只在能限域时，把「扫哪儿」变准，
+> **不减少** Read 的独立 file 数。
+
+**⛔ 只在下面任一条命中时才做**（其余情况直接进 [1/5]，不多花这次调用）：
+
+- (a) 用户问题里出现了某块**原白板名**（如「CS188 lecture 2 里的规划分类」）
+- (b) Claudian 注入的 `<current_note>` 是白板（`type: whiteboard`）或节点（有 `source_board`）
+- (c) 需要按掌握度给召回结果着色（回答里要标「你这个概念还很弱」）
+
+**动作**（1 次，STRUCTURE 平面）：
+`get_board_manifest{ board_id: "<板 stem>", view: "study", include_exam_history: false }`
+
+拿到后：
+1. **成员清单** = `nodes[].node_id` → 作为 **Grep 的限域集**：先在 `节点/<成员>.md` 里搜，
+   命中不足再放开到全库。⛔ **限域只改搜索顺序，不改 HARD-11 的 ≥5 独立 file 门槛**
+   ——域内不够就照常放开全库补齐，**绝不用「限域了所以少读几个」当借口**。
+2. **四态归一掌握度** = `nodes[].mastery`（`source` ∈ beta/score_only/legacy_v2/absent）
+   → `absent` 一律显示「未记录」，**不编成 0.30**。
+3. **占位标记** = `nodes[].is_stub` → 该节点正文还是空模板，**不要**把它当资料源引用。
+
+<!-- FALLBACK:BEGIN §3.0 结构限域降级 -->
+manifest 不可用 / 板名解析不出 / `nodes[]` 为空 → **静默跳过本节**，直接进 [1/5] 走
+HARD-21 的原始全库 native Grep 路径。深度模式的一切门槛（HARD-11 ≥5 独立 file、
+HARD-17 跨 lecture 平行结构、HARD-19 RAGAS-lite 自检）**照常全额执行**，
+回答质量不因降级打折。
+<!-- FALLBACK:END -->
 
 ---
 
