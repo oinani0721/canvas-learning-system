@@ -259,6 +259,49 @@ def locate_section(lines: list[str]) -> tuple[int, int] | None:
 #: ⛔ 只删这一种注释, 用户自己写的 HTML 注释一律保留。
 _LEGACY_COMMENT_MARK = "本 section 由三处维护"
 
+#: 本脚本 render() 的输出形状 —— 「我能从真相源逐字重建它, 所以我敢删」
+_SCRIPT_LINE = re.compile(
+    r"^- \[\[节点/([^\]|#^]+)\]\] — (?:种子|派生(?:自 .+?)?) · "
+    r"(?:待剖析占位|掌握度 (?:\d\.\d{2}|—) · (?:未考|已考 \d+ 次))$"
+)
+#: plugin 两个构造器的输出形状 (node-derivation.ts buildBoardConceptsLine /
+#: configure-whiteboard.ts buildSeedConceptsLine) —— 同样是可重建的机器产物
+_PLUGIN_LINE = re.compile(r"^- \[\[节点/([^\]|#^]+)\]\] — (?:.+?, weak \(0\.30\)|seed note \(mastery: 0\.30\))$")
+
+_FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+_LIST_ITEM_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")
+
+
+def code_spans(lines: list[str], lo: int, hi: int) -> set[int]:
+    """段内属于代码块 (``` / ~~~ 围栏、4 空格或 tab 缩进块) 的行号。
+
+    ⛔ 第 3 轮审查根因 B: 全程只看单行正则 ⇒ 围栏里的 `- [[x]]` 被当概念行删掉,
+    只剩空壳栅栏; 更糟的是迁移态 `insert_at` 会落进围栏, **整个 AUTO-GENERATED
+    块被永久种进代码块里** —— Obsidian 不解析围栏内 wikilink, 该板 Graph View
+    正向边归零, 而文本层看起来一切正常、`--check` 全绿。
+    「保 Graph View 正向边」恰恰是选方案 B 而非 Dataview 视图化的头号理由。
+    """
+    spans: set[int] = set()
+    fence: str | None = None
+    for i in range(lo, hi):
+        line = lines[i]
+        m = _FENCE_RE.match(line)
+        if fence is None and m:
+            fence = m.group(1)[0]
+            spans.add(i)
+            continue
+        if fence is not None:
+            spans.add(i)
+            if m and m.group(1)[0] == fence:
+                fence = None
+            continue
+        # ⛔ 缩进代码块判定必须排除**嵌套列表项**: 在 `## Concepts` 这种整段都是
+        # 清单的地方, `\t- [[x]]` 几乎一定是嵌套列表而不是代码块。误判成代码块
+        # 会让它整行豁免出保护逻辑, 连告警都不发 (本条自测抓到)。
+        if line.startswith(("    ", "\t")) and line.strip() and not _LIST_ITEM_RE.match(line):
+            spans.add(i)
+    return spans
+
 
 def split_sentinel_tails(lines: list[str]) -> tuple[list[str], set[int]]:
     """把**追加在 sentinel 行尾**的用户文字拆成独立行 —— 保命前置。
@@ -298,7 +341,9 @@ def split_sentinel_tails(lines: list[str]) -> tuple[list[str], set[int]]:
     return out, protected
 
 
-def managed_lines(lines: list[str], lo: int, hi: int, protected: set[int] | None = None) -> tuple[set[int], int]:
+def managed_lines(
+    lines: list[str], lo: int, hi: int, members: list[Member], protected: set[int] | None = None
+) -> tuple[set[int], int, list[str], list[str]]:
     """段内**逐行**标记受管行 → (待删行号集合, 新块插入位置)。
 
     ⛔⛔ 逐行删, **绝不取包络** (RAG-S2.6 独立审查 H1 —— 真实数据损坏):
@@ -309,51 +354,99 @@ def managed_lines(lines: list[str], lo: int, hi: int, protected: set[int] | None
     同族受害者: 段内 fenced code block (只剩孤儿闭合栅栏)、`---` 水平线、
     用户手写 callout。
 
-    受管行 = ① sentinel 块 BEGIN..END 之间(含) ② 段内任意 `- [[...]]` 概念行
-             ③ 迁移时的遗留「三处维护」注释块。
-    其余一律原样保留。
+    受管行 = ① sentinel 块 BEGIN..END 之间(含) ② **可重建的**机器产物概念行
+             ③ 迁移时的遗留「三处维护」注释块。其余一律原样保留。
+
+    ⛔⛔ 第 3 轮审查根因 A —— 判据必须是**白名单**不是黑名单:
+    「它长得像清单所以我删」会杀掉模仿得最好的用户。实测永久丢失(不会重生):
+      `- [[教材第三章]] 这本书要重看`  → 整行消失, 双链一起没
+      `- [[原白板/线性代数]]`          → 同上
+      `- [[节点/成员甲]] 我卡在第 3 步` → 链接在块内重生, **批注文字蒸发**
+    新判据 = 「我能从真相源逐字重建这一行, 所以我敢删」:
+      节点非本板成员            → **永远保留** + 告警 (让 --check 红)
+      稳态(有 sentinel)         → 只收编匹配 _SCRIPT_LINE / _PLUGIN_LINE 的行
+      迁移态(无 sentinel)       → 收编成员行(那是一次性转换), 但逐行 echo 原文
+
+    → (待删行号, 插入位置, 告警列表, 被删行原文列表)
     """
     doomed: set[int] = set()
     insert_at: int | None = None
+    warns: list[str] = []
+    deleted: list[str] = []
+    fenced = code_spans(lines, lo, hi)  # ⛔ 围栏内一行不碰 (根因 B)
+    member_ids = {m.node_id for m in members}
 
-    begin = next((i for i in range(lo, hi) if _BEGIN_RE.match(lines[i].strip())), None)
-    if begin is not None:
-        end = next((i for i in range(begin, hi) if _END_RE.match(lines[i].strip())), None)
-        if end is not None:
-            doomed.update(range(begin, end + 1))
-            insert_at = begin
+    # ⛔ 段内**所有** sentinel 标记与其区间一并收编 (审查 FIX-5 第 5 点):
+    # 原来只找第一对 ⇒ 重复块 / 孤儿 END 永久残留, `--check` 恒红且修不好。
+    # 全收编后重建成唯一一块 = **自愈**, 比「拒绝写盘让用户手工清」友好得多。
+    marks = [
+        (i, "B" if _BEGIN_RE.match(lines[i].strip()) else "E")
+        for i in range(lo, hi)
+        if i not in fenced and (_BEGIN_RE.match(lines[i].strip()) or _END_RE.match(lines[i].strip()))
+    ]
+    steady = False
+    open_at: int | None = None
+    for idx, kind in marks:
+        doomed.add(idx)
+        if insert_at is None:
+            insert_at = idx
+        if kind == "B":
+            open_at = idx
+        elif open_at is not None:
+            doomed.update(range(open_at, idx + 1))
+            open_at, steady = None, True
+    if len(marks) > 2:
+        warns.append(f"段内有 {len(marks)} 个 sentinel 标记(正常应为 2), 已全部收编重建成唯一一块")
 
     i = lo
     while i < hi:
-        if i in doomed:
+        if i in doomed or i in fenced:
             i += 1
             continue
         stripped = lines[i].strip()
         if stripped.startswith("<!--"):
+            # ⛔ sentinel 行上的 `-->` **不算**用户注释的收尾: 同步一次后自动块
+            # 就紧跟在未闭合注释之后, 扫描会被它「假性闭合」→ 告警消失, 而
+            # Obsidian 的真解析器会把块首行吞进用户注释, 渲染直接坏掉。
             j = i
-            while j < hi and "-->" not in lines[j]:
+            while j < hi and ("-->" not in lines[j] or j in doomed):
                 j += 1
-            j = min(j, hi - 1)
+            if j >= hi:
+                # ⛔ 未闭合注释不得吞掉半个段 (根因 B/审查 M3): 原来 i=j+1=hi
+                # 直接跳出循环, 段内其余行全部脱管 → 旧行不清、新块又生成一份
+                warns.append("段内有未闭合 HTML 注释, 其后内容未纳入托管")
+                i += 1
+                continue
             if any(_LEGACY_COMMENT_MARK in lines[k] for k in range(i, j + 1)):
                 doomed.update(range(i, j + 1))
                 if insert_at is None:
                     insert_at = i
             i = j + 1
             continue
-        if _CONCEPT_LINE.match(lines[i]):
-            doomed.add(i)
-            if insert_at is None:
-                insert_at = i
+
+        m = _CONCEPT_LINE.match(lines[i])
+        if m:
+            node_id = basename(m.group(1))
+            machine = bool(_SCRIPT_LINE.match(lines[i]) or _PLUGIN_LINE.match(lines[i]))
+            if node_id not in member_ids:
+                warns.append(f"段内非成员 wikilink 已保留: [[{m.group(1)}]] — 要入目录请改该节点的 source_board")
+            elif steady and not machine:
+                warns.append(f"段内 [[{m.group(1)}]] 那行带了自定义文字, 已保留未收编 — 目录另有一份自动行")
+            else:
+                doomed.add(i)
+                deleted.append(lines[i])
+                if insert_at is None:
+                    insert_at = i
         i += 1
 
-    if insert_at is None:  # 段内无任何托管内容 → 插在首个非空行处
+    if insert_at is None:  # 段内无任何托管内容 → 插在首个非空、非围栏行处
         k = lo
-        while k < hi and not lines[k].strip():
+        while k < hi and (not lines[k].strip() or k in fenced):
             k += 1
         insert_at = k
     # ⛔ 从 sentinel 行尾拆出来的用户文字恒不受管 (它落在 BEGIN..END 区间内,
     # 不豁免就会被当「块内容」二次删除)
-    return doomed - (protected or set()), insert_at
+    return doomed - (protected or set()), insert_at, warns, deleted
 
 
 #: 空板占位行 — 非 `- [[...]]` 形状, 不会被 manifest 的 Concepts 窄解析当成成员
@@ -388,8 +481,16 @@ class NoConceptsSection(Exception):
     """
 
 
-def sync_board(path: Path, members: list[Member], synced: str) -> tuple[str, str]:
-    """→ (原文, 新文)。无变更时两者相等；缺 `## Concepts` 段抛 NoConceptsSection。
+class MalformedResult(Exception):
+    """重建结果结构不合法 —— **写盘前**拒绝, 不是事后告警。
+
+    ⛔ 审查根因 D: 结构配平原来在同步循环之前读原文判定, 首跑必然看不到自己
+    即将造出的双 sentinel 块; 而三处 skill 只跑一次, 首跑的静默就是全部。
+    """
+
+
+def sync_board(path: Path, members: list[Member], synced: str) -> tuple[str, str, list[str], list[str]]:
+    """→ (原文, 新文, 告警, 被删行原文)。无变更时前两者相等；缺段抛 NoConceptsSection。
 
     ⛔ 行尾用 `split("\\n")` 不用 `splitlines()` (审查 M9): splitlines 会在
     U+000B/U+000C/U+0085/U+2028/U+2029 上额外切分, join 回来时全被归一成 \\n,
@@ -403,21 +504,34 @@ def sync_board(path: Path, members: list[Member], synced: str) -> tuple[str, str
     trailing_nl = lines and lines[-1] == ""
     if trailing_nl:
         lines = lines[:-1]
-    lines, protected = split_sentinel_tails(lines)  # ⛔ 保命前置, 必须在定位/标记之前
-
+    # ⛔ 先定位再拆行, 且**只在段内切片上**拆 (第 3 轮审查根因 C):
+    # split_sentinel_tails 原来遍历整个文件, `in_begin_comment` 会泄漏出
+    # `## Concepts` 段, 一路开到下一个含 `-->` 的行 —— 真板 CS 61B.md 的
+    # dataviewjs 里 `chart += \`  ${src} -->|派生| ${dst}\\n\`;` 正是受害行,
+    # 被劈成两行, 正面违反 docstring「段外原样保留」的承诺。
     span = locate_section(lines)
     if span is None:
         raise NoConceptsSection(path.name)
     lo, hi = span
-    doomed, insert_at = managed_lines(lines, lo, hi, protected)
+    seg, prot_rel = split_sentinel_tails(lines[lo:hi])
+    lines = lines[:lo] + seg + lines[hi:]
+    hi = lo + len(seg)
+    protected = {lo + i for i in prot_rel}
+
+    doomed, insert_at, warns, deleted = managed_lines(lines, lo, hi, members, protected)
     new_block = render_block(members, synced)
 
+    # ⛔ 落在块内的 protected 行要保持「抬头」语义 (审查 FORM-06): 否则用户写在
+    # BEGIN 收尾行行尾的文字会从「清单上方」跳到「END 下方」
+    head_idx = {i for i in protected if insert_at <= i < hi}
     rebuilt: list[str] = []
     for i, ln in enumerate(lines):
         if i == insert_at:
+            rebuilt.extend(lines[j] for j in sorted(head_idx))
             rebuilt.extend(new_block)
-        if i not in doomed:
-            rebuilt.append(ln)
+        if i in doomed or i in head_idx:
+            continue
+        rebuilt.append(ln)
     if insert_at >= len(lines):  # 插入点在段尾之外 (段内全空)
         rebuilt.extend(new_block)
 
@@ -437,8 +551,16 @@ def sync_board(path: Path, members: list[Member], synced: str) -> tuple[str, str
     if _strip_stamp(rebuilt) == _strip_stamp(lines):
         rebuilt = lines
 
+    # ⛔ 结构配平对**即将写入的 rebuilt** 判定, 不对读到的原文 (审查根因 D):
+    # 原来检查跑在同步循环之前, 首跑必然看不到自己即将造出的双块 —— 而三处
+    # skill 只跑一次, 首跑的静默就是全部。写坏之前拒绝, 不是事后告警。
+    nb = sum(1 for ln in rebuilt if _BEGIN_RE.match(ln.strip()))
+    ne = sum(1 for ln in rebuilt if _END_RE.match(ln.strip()))
+    if nb != 1 or ne != 1:
+        raise MalformedResult(f"{path.name}: 将写出 BEGIN×{nb}/END×{ne}, 拒绝写盘")
+
     eol = "\r\n" if crlf else "\n"
-    return original, eol.join(rebuilt) + (eol if trailing_nl else "")
+    return original, eol.join(rebuilt) + (eol if trailing_nl else ""), warns, deleted
 
 
 # ── CLI ──
@@ -521,7 +643,7 @@ def main() -> int:
         nb = sum(1 for ln in board_lines if _BEGIN_RE.match(ln.strip()))
         ne = sum(1 for ln in board_lines if _END_RE.match(ln.strip()))
         nh = sum(1 for ln in board_lines if _CONCEPTS_HEADING.match(ln))
-        if nb > 1 or ne > 1 or nb != ne or nh > 1:
+        if nb > 1 or ne > 1 or (nb != ne and nb + ne > 0) or nh > 1:
             warnings.append(f"{board_id}: sentinel BEGIN×{nb}/END×{ne}、`## Concepts` 标题×{nh} — 结构异常, 会留孤儿注释")
             print(f"  ⚠ {warnings[-1]}")
 
@@ -531,16 +653,30 @@ def main() -> int:
         path = vault / BOARD_DIR / f"{board_id}.md"
         members = grouped[board_id]
         try:
-            old, new = sync_board(path, members, synced)
+            old, new, board_warns, deleted = sync_board(path, members, synced)
         except NoConceptsSection:
             # ⛔ 非零退出 + stdout 明说没同步 (审查 MEDIUM-4): 调用方按退出码判降级
             broken += 1
             print(f"  ✗ {board_id}  ({len(members)} 成员, **无 `## Concepts` 段, 未同步**)")
             continue
+        except MalformedResult as e:
+            failed += 1
+            print(f"  ✗ {board_id}: {e} (文件零改动)", file=sys.stderr)
+            continue
         except (OSError, UnicodeDecodeError) as e:
             failed += 1
-            print(f"  ✗ {board_id}: 读取失败 {type(e).__name__}", file=sys.stderr)
+            print(f"  ✗ {board_id}: 读取失败 {type(e).__name__}: {e}", file=sys.stderr)
             continue
+
+        for w in board_warns:
+            warnings.append(f"{board_id}: {w}")
+            print(f"  ⚠ {board_id}: {w}")
+        # ⛔ 删除动作必须留痕 (审查 FIX-3): 三处生产调用方都不带 --backup、
+        # 不跑 --check, 6 块真板只有 1 块被 git 跟踪 —— 静默删除 = 不可发现
+        # 且不可恢复。凡删必逐行 echo 原文。
+        for line in deleted:
+            print(f"    − 收编(删除)段内行: {line!r}")
+
         if old == new:
             print(f"  = {board_id}  ({len(members)} 成员, 已同步)")
             continue
