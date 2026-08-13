@@ -34,29 +34,57 @@ doc_mastery_avg: 0.00
 wikilink 目标都指向 vault 根的 节点/ 文件夹下 md。
 -->
 
-## 🔗 节点关系图（v2.7 · 白板核心 · 自动从真实双链生成）
+## 🔗 节点关系图（v2.8 · 白板核心 · 自动从真实双链生成）
 
 ```dataviewjs
 const here = dv.current().file.link;
+const strip = (s) => s ? s.replace(/\.md$/, "") : s;
 const nodes = dv.pages('"节点"')
-  .where(p => p.source_board?.path?.replace(/\.md$/, "") === here.path.replace(/\.md$/, ""));
+  .where(p => strip(p.source_board?.path) === strip(here.path));
+
+// ⛔ v2.8 掌握度四态回退 — 权威口径 = .claude/scripts/sync_board_concepts.py 与
+//    backend _normalize_mastery（beta 状态量 → 显式分 → 旧版字段 → 缺失）。
+//    禁改回单字段 mastery_score：v2.7 的老毛病 —— legacy 节点显「—」、
+//    占位节点照标 0.3，与上方 Concepts 目录同屏打架。
+const num = (x) => { const v = Number(x); return Number.isFinite(v) ? v : null; };
+const masteryOf = (p) => {
+  const a = num(p.mastery_a), b = num(p.mastery_b), s = num(p.mastery_score);
+  if (a !== null && b !== null) return (a > 0 && b > 0) ? (s !== null ? s : a / (a + b)) : null;
+  if (s !== null) return s;
+  const legacy = num(p.mastery);
+  return legacy !== null ? legacy : num(p.mastery_level);
+};
+const STUB = "你的 1-2 句精准定义";
+const bodies = {};
+for (const p of nodes.array()) bodies[p.file.path] = await dv.io.load(p.file.path);
+const statusOf = (p) => {
+  if ((bodies[p.file.path] || "").includes(STUB)) return "待剖析占位";
+  const m = masteryOf(p);
+  const g = m === null ? "掌握度 —" : "掌握度 " + m.toFixed(2);
+  const n = num(p.attempt_count);
+  return g + " · " + (n !== null && n > 0 ? "已考 " + n + " 次" : "未考");
+};
+const srcNameOf = (l) => l.fileName ? l.fileName() : String(l.path || l).split('/').pop().replace('.md','');
 
 if (nodes.length === 0) {
   dv.paragraph("> 🌱 当前白板暂无派生节点，用 Cmd+Shift+D 派生第一个");
 } else {
+  // ⛔ v2.8 稳定序号 id — v2.7 的 replace(/[^a-zA-Z0-9_]/g,"_") 把中文名打成
+  //    下划线串，同形中文名会 id 碰撞、两个节点被画成一个。
+  const ids = new Map();
+  const idOf = (name) => { if (!ids.has(name)) ids.set(name, "n" + ids.size); return ids.get(name); };
   let chart = "graph TD\n";
   const declared = new Set();
   nodes.forEach(n => {
-    const id = n.file.name.replace(/[^a-zA-Z0-9_]/g, "_");
+    const id = idOf(n.file.name);
     if (!declared.has(id)) {
-      const mastery = n.mastery_score ?? '—';
-      chart += `  ${id}["${n.file.name}<br/>精通度 ${mastery}"]\n`;
+      chart += `  ${id}["${n.file.name}<br/>${statusOf(n)}"]\n`;
       chart += `  style ${id} fill:#fff3e0,stroke:#f57c00\n`;
       declared.add(id);
     }
     if (n["derived-from"]) {
-      const srcName = n["derived-from"].fileName ? n["derived-from"].fileName() : n["derived-from"].path.split('/').pop().replace('.md','');
-      const srcId = srcName.replace(/[^a-zA-Z0-9_]/g, "_");
+      const srcName = srcNameOf(n["derived-from"]);
+      const srcId = idOf(srcName);
       if (!declared.has(srcId)) {
         chart += `  ${srcId}["${srcName}<br/>(源笔记)"]\n`;
         chart += `  style ${srcId} fill:#e1f5ff,stroke:#0288d1\n`;
@@ -66,17 +94,14 @@ if (nodes.length === 0) {
   });
   nodes.forEach(n => {
     if (n["derived-from"]) {
-      const srcName = n["derived-from"].fileName ? n["derived-from"].fileName() : n["derived-from"].path.split('/').pop().replace('.md','');
-      const src = srcName.replace(/[^a-zA-Z0-9_]/g, "_");
-      const dst = n.file.name.replace(/[^a-zA-Z0-9_]/g, "_");
-      chart += `  ${src} -->|派生| ${dst}\n`;
+      chart += `  ${idOf(srcNameOf(n["derived-from"]))} -->|派生| ${idOf(n.file.name)}\n`;
     }
+  });
+  nodes.forEach(n => {
     (n.file.outlinks || []).forEach(link => {
       const target = nodes.find(p => p.file.path === link.path);
       if (target && target.file.name !== n.file.name) {
-        const src = n.file.name.replace(/[^a-zA-Z0-9_]/g, "_");
-        const dst = target.file.name.replace(/[^a-zA-Z0-9_]/g, "_");
-        chart += `  ${src} -.->|wikilink| ${dst}\n`;
+        chart += `  ${idOf(n.file.name)} -.->|wikilink| ${idOf(target.file.name)}\n`;
       }
     });
   });

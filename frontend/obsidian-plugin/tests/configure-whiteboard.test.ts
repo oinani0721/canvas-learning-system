@@ -269,11 +269,11 @@ test("renderWhiteboardTemplate: dataviewjs 块完整保留 (mermaid 自动生成
   assert.ok(out.includes("source_board"));
 });
 
-test("WHITEBOARD_TEMPLATE: 模板与 vault 侧 .template 同源标识（v2.7 关系图段）", () => {
+test("WHITEBOARD_TEMPLATE: 模板与 vault 侧 .template 同源标识（v2.8 关系图段）", () => {
   // 原断言是 `includes("v4 plugin")`，那句字面量只存在于旧的「本 section 由三处
   // 维护」注释里 —— RAG-S2.6 把 ## Concepts 降级成只读派生物后，「三处维护」
   // 这个前提本身作废，注释已被 sentinel 块取代。⇒ 改锁一个仍然成立的同源标识。
-  assert.ok(WHITEBOARD_TEMPLATE.includes("v2.7 · 白板核心"));
+  assert.ok(WHITEBOARD_TEMPLATE.includes("v2.8 · 白板核心"));
 });
 
 // ════════════════════════════════════════════════════════════════════

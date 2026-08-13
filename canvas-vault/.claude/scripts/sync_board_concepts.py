@@ -236,6 +236,13 @@ def scan_members(vault: Path) -> tuple[dict[str, list[Member]], list[str]]:
             continue
         if any(c in path.stem for c in _WIKILINK_HOSTILE):
             warnings.append(f"节点名含 wikilink 敏感字符 {_WIKILINK_HOSTILE!r}, 生成的双链会断: {path.stem!r}")
+        # ⛔ 状态量必须伴随显式分 (节点关系图审查后加的防线): 唯一写分路径
+        # quiz-answer 的原子替换保证 mastery_a/b 与 mastery_score 同时写入,
+        # 只有手工编辑才会造出「有状态量没显式分」的节点 — 那会让部分只读
+        # mastery_score 的旧消费者显示「—」而权威口径显示 μ, 同屏打架。
+        a, b = fm_num(fm, "mastery_a"), fm_num(fm, "mastery_b")
+        if a is not None and b is not None and a > 0 and b > 0 and fm_num(fm, "mastery_score") is None:
+            warnings.append(f"{path.stem!r}: 有 mastery_a/b 状态量但缺 mastery_score 显式分 (疑似手工编辑)")
         grouped[board].append(Member(path.stem, fm, body))
 
     for members in grouped.values():
