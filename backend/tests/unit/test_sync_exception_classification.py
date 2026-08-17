@@ -28,6 +28,8 @@ from app.main import app
 
 SAMPLE_PAYLOAD = {
     "canvas_id": "test-canvas",
+    # P0-SYNC-ISO-2026-08-17: vault_id 必填
+    "vault_id": "test_vault",
     "subject_id": "test-subject",
     "operations": [
         {

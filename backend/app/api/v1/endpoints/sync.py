@@ -66,8 +66,7 @@ class VaultRelationshipSyncResponse(BaseModel):
         500: {"description": "Unexpected logic error in sync pipeline"},
         503: {
             "description": (
-                "Neo4j connection unavailable, OR internal API key not "
-                "configured in production mode (fail-closed)"
+                "Neo4j connection unavailable, OR internal API key not configured in production mode (fail-closed)"
             )
         },
     },
@@ -94,19 +93,23 @@ async def sync_batch(request: SyncBatchRequest) -> SyncBatchResponse:
     [Source: Story 1.5 AC-7 — POST /api/v1/sync/batch]
     [Source: Story 1.5 AC-4 — idempotent Neo4j writes]
     """
+    from app.graphiti.group_id_compat import to_physical_group_id
     from app.services.sync_service import get_sync_service
 
-    # Wave-5 Stage B 续 — P0 写入路径! 多 vault 串库就在这条 sync 路径出
-    # bug. 注入 ContextVar 在调 sync_service 之前.
-    resolve_vault_group_id(
+    # P0-SYNC-ISO-2026-08-17 — 显式接住 resolver 返回值并下传 service, 与
+    # 同文件 /sync/relationships/* 范式一致。此前只靠 ContextVar 副作用,
+    # service 层零消费 → 六条 Cypher 裸 id 跨 vault 互相覆盖 (Codex P0)。
+    logical_gid = resolve_vault_group_id(
         request.vault_id,
         subject_id=request.subject_id,
         legacy_group_id=request.group_id,
     )
+    # 物理边界一次转换: 绑定 Neo4j group_id 属性的 Cypher 参数必过此函数
+    physical_gid = to_physical_group_id(logical_gid)
 
     try:
         service = get_sync_service()
-        return await service.process_sync_batch(request)
+        return await service.process_sync_batch(request, group_id=physical_gid)
     except (ServiceUnavailable, AuthError, ConnectionError) as e:
         # Infrastructure-level failures → 503
         logger.error(
@@ -153,9 +156,7 @@ async def sync_relationships_by_node(
             "inferVaultId(app.vault.getName()). 空时 fallback 到 deprecated group_id."
         ),
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
     group_id: Optional[str] = Query(
         default=None,
         deprecated=True,
@@ -180,13 +181,9 @@ async def sync_relationships_by_node(
             detail="vault root (canvas_base_path) not configured",
         )
 
-    resolved_group_id = resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
 
-    result = await sync_relationships_for_note(
-        note_path=note_path, vault_root=vault_root, group_id=resolved_group_id
-    )
+    result = await sync_relationships_for_note(note_path=note_path, vault_root=vault_root, group_id=resolved_group_id)
 
     return RelationshipSyncResponse(
         note_path=note_path,
@@ -208,13 +205,10 @@ async def sync_relationships_vault(
         default=None,
         min_length=1,
         description=(
-            "Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin inferVaultId. "
-            "空时 fallback 到 deprecated group_id."
+            "Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin inferVaultId. 空时 fallback 到 deprecated group_id."
         ),
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
     group_id: Optional[str] = Query(
         default=None,
         deprecated=True,
@@ -242,13 +236,9 @@ async def sync_relationships_vault(
             detail="vault root (canvas_base_path) not configured",
         )
 
-    resolved_group_id = resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
 
-    result = await sync_relationships_in_vault(
-        vault_root=vault_root, group_id=resolved_group_id, dry_run=dry_run
-    )
+    result = await sync_relationships_in_vault(vault_root=vault_root, group_id=resolved_group_id, dry_run=dry_run)
 
     return VaultRelationshipSyncResponse(
         files_scanned=result["files_scanned"],

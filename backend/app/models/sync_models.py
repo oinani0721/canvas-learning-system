@@ -64,15 +64,9 @@ class SyncOperation(BaseModel):
     """
 
     operation_id: str = Field(..., description="Idempotent UUID for this operation")
-    entity_type: Literal["node", "edge", "board"] = Field(
-        ..., description="Type of entity being synced"
-    )
-    entity_id: str = Field(
-        ..., description="Entity UUID (matches IndexedDB primary key)"
-    )
-    operation: Literal["create", "update", "delete"] = Field(
-        ..., description="CRUD operation type"
-    )
+    entity_type: Literal["node", "edge", "board"] = Field(..., description="Type of entity being synced")
+    entity_id: str = Field(..., description="Entity UUID (matches IndexedDB primary key)")
+    operation: Literal["create", "update", "delete"] = Field(..., description="CRUD operation type")
     payload: dict[str, Any] = Field(
         default_factory=dict,
         description="Entity properties (create/update) or minimal id (delete)",
@@ -98,32 +92,24 @@ class SyncOperation(BaseModel):
             target = payload.get("target_node_id") or payload.get("targetNodeId")
             if not source:
                 raise ValueError(
-                    "edge create/update payload missing source_node_id "
-                    "(also accepts camelCase sourceNodeId)"
+                    "edge create/update payload missing source_node_id (also accepts camelCase sourceNodeId)"
                 )
             if not target:
                 raise ValueError(
-                    "edge create/update payload missing target_node_id "
-                    "(also accepts camelCase targetNodeId)"
+                    "edge create/update payload missing target_node_id (also accepts camelCase targetNodeId)"
                 )
 
         # Node content length cap (Task 13.3)
         if self.entity_type == "node":
             content = payload.get("content") or ""
             if isinstance(content, str) and len(content) > MAX_NODE_CONTENT_CHARS:
-                raise ValueError(
-                    f"node content exceeds {MAX_NODE_CONTENT_CHARS} character limit "
-                    f"(got {len(content)})"
-                )
+                raise ValueError(f"node content exceeds {MAX_NODE_CONTENT_CHARS} character limit (got {len(content)})")
 
         # Edge label length cap (Task 13.4)
         if self.entity_type == "edge":
             label = payload.get("label") or ""
             if isinstance(label, str) and len(label) > MAX_EDGE_LABEL_CHARS:
-                raise ValueError(
-                    f"edge label exceeds {MAX_EDGE_LABEL_CHARS} character limit "
-                    f"(got {len(label)})"
-                )
+                raise ValueError(f"edge label exceeds {MAX_EDGE_LABEL_CHARS} character limit (got {len(label)})")
 
         return self
 
@@ -135,27 +121,23 @@ class SyncBatchRequest(BaseModel):
     """
 
     canvas_id: str = Field(..., description="Canvas board UUID")
-    # Wave-5 Stage B 续 (2026-05-12) — vault_id 推荐必填 (P0 写入路径, 防 5 vault 共存
-    # 时 sync_batch 跨 vault 写 Neo4j. plugin Phase B0 已升级带 vault_id).
-    # 暂用 Optional 保兼容 (旧 plugin 调用), 但生产场景缺 vault_id 会触发 warning.
-    vault_id: str | None = Field(
-        default=None,
+    # P0-SYNC-ISO-2026-08-17 — vault_id 升为必填. 唯一调用方 (DEPRECATED Tauri
+    # 前端) 已废弃; 保留 Optional 会走 ContextVar fallback 把无 vault_id 请求
+    # 全写进 vault__default 假隔离桶 — 没有 vault 标签的写入正是跨 vault
+    # 互相覆盖缺陷的源头 (Codex 对抗审查确认).
+    vault_id: str = Field(
+        ...,
         min_length=1,
         description=(
-            "Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin "
-            "inferVaultId(app.vault.getName()) 取的 raw vault name. "
-            "空时 fallback 到 deprecated group_id."
+            "必填 (P0-SYNC-ISO). Plugin inferVaultId(app.vault.getName()) "
+            "取的 raw vault name, 服务端派生 group_id 做 Neo4j 写隔离."
         ),
     )
-    subject_id: str | None = Field(
-        default=None, description="Subject UUID for multi-subject isolation (Story 1.9)"
-    )
+    subject_id: str | None = Field(default=None, description="Subject UUID for multi-subject isolation (Story 1.9)")
     group_id: str | None = Field(
         default=None,
         deprecated=True,
-        description=(
-            "Deprecated — 改用 vault_id. Wave-5 Stage B 续保留作 plugin 旧调用兼容."
-        ),
+        description=("Deprecated — 改用 vault_id. Wave-5 Stage B 续保留作 plugin 旧调用兼容."),
     )
     operations: list[SyncOperation] = Field(
         ...,

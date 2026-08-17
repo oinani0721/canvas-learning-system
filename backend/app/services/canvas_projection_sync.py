@@ -197,8 +197,10 @@ class CanvasProjectionSync:
 
         T2 (2026-07-10): 节点/边均 SET group_id (物理 __ 格式); edge_id 纳入
         group 前缀 — 跨 vault 同名节点对的边不再共享 id 互相覆盖 label。
-        MERGE 键保持 {id} 不加 group, 对齐 SyncService / exam_service_ext 的
-        CanvasNode 写契约 (键结构分叉会造重复节点)。
+        P0-SYNC-ISO-2026-08-17: MERGE 键升级为 {id, group_id} 复合键, 与
+        SyncService / exam_service_ext 三方同批切换 (键结构必须三方一致,
+        分叉会造同一节点两份)。复合唯一约束 canvasnode_group_id_unique
+        (migrations/003) 兜底并发竞态。
 
         批次4' (MEM-FLYWHEEL): 3-2 ON CREATE 打 created_at (首建时序, 幂等重跑
         不覆盖) + relationships[] 的 derived_at 透传; 3-1 派生时刻理解快照
@@ -210,11 +212,9 @@ class CanvasProjectionSync:
         edge_id = f"rel-{physical_gid}-{source_id}-{rel_type}-{target_id}"
         await client.run_query(
             """
-            MERGE (s:CanvasNode {id: $source_id})
-            SET s.group_id = coalesce(s.group_id, $group_id)
-            MERGE (t:CanvasNode {id: $target_id})
-            SET t.group_id = coalesce(t.group_id, $group_id)
-            MERGE (s)-[e:CANVAS_EDGE {id: $edge_id}]->(t)
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasNode {id: $target_id, group_id: $group_id})
+            MERGE (s)-[e:CANVAS_EDGE {id: $edge_id, group_id: $group_id}]->(t)
             ON CREATE SET e.created_at = datetime()
             SET e.label = $label,
                 e.relation_type = $rel_type,

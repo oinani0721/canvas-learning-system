@@ -36,6 +36,8 @@ from app.models.sync_models import SyncBatchResponse
 
 SAMPLE_PAYLOAD = {
     "canvas_id": "test_canvas",
+    # P0-SYNC-ISO-2026-08-17: vault_id 必填 (缺失 → 422, 在 auth 之外)
+    "vault_id": "test_vault",
     "subject_id": "test_subject",
     "operations": [
         {
@@ -95,23 +97,18 @@ class TestProductionFailClosed:
         app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
         response = auth_client.post("/api/v1/sync/batch", json=SAMPLE_PAYLOAD)
         assert response.status_code == 503, (
-            "DEBUG=False with empty INTERNAL_API_KEY must fail closed (503), "
-            "not silently allow"
+            "DEBUG=False with empty INTERNAL_API_KEY must fail closed (503), not silently allow"
         )
         assert "not configured" in response.json()["detail"].lower()
 
     def test_missing_header_returns_403(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="real-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
         response = auth_client.post("/api/v1/sync/batch", json=SAMPLE_PAYLOAD)
         assert response.status_code == 403
         assert "invalid" in response.json()["detail"].lower()
 
     def test_wrong_key_returns_403(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="real-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
         response = auth_client.post(
             "/api/v1/sync/batch",
             json=SAMPLE_PAYLOAD,
@@ -120,9 +117,7 @@ class TestProductionFailClosed:
         assert response.status_code == 403
 
     def test_correct_key_grants_access(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="real-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
         response = auth_client.post(
             "/api/v1/sync/batch",
             json=SAMPLE_PAYLOAD,
@@ -142,9 +137,7 @@ class TestProductionFailClosed:
 class TestDevelopmentConvenience:
     """When DEBUG=True, missing INTERNAL_API_KEY is allowed (with warning)."""
 
-    def test_dev_mode_no_key_now_fails_closed_503_p0_2(
-        self, auth_client: TestClient
-    ) -> None:
+    def test_dev_mode_no_key_now_fails_closed_503_p0_2(self, auth_client: TestClient) -> None:
         """ChatGPT-DR-2026-05-13 P0-2: DEBUG=True + empty key now fails closed (503).
 
         Previous contract (pre-P0-2): DEBUG+empty=200 (silent fail-open dev bypass).
@@ -164,9 +157,7 @@ class TestDevelopmentConvenience:
 
     def test_dev_mode_with_key_still_enforces(self, auth_client: TestClient) -> None:
         """Even in DEBUG mode, if a key IS configured, it must match."""
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=True, key="dev-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=True, key="dev-key")
         # Missing key → 403 (key was configured, so it must match)
         response = auth_client.post("/api/v1/sync/batch", json=SAMPLE_PAYLOAD)
         assert response.status_code == 403
@@ -181,9 +172,7 @@ class TestHeaderParsing:
     """The header name MUST be exactly X-CLS-Internal-Key (case-insensitive)."""
 
     def test_canonical_header_name(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="abc"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="abc")
         response = auth_client.post(
             "/api/v1/sync/batch",
             json=SAMPLE_PAYLOAD,

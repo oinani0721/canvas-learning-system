@@ -36,6 +36,9 @@ from app.models.sync_models import (
 )
 from app.services.sync_service import SyncService
 
+# P0-SYNC-ISO-2026-08-17: process_sync_batch 现在必传物理格式 group_id
+TEST_GROUP_ID = "vault__test_vault"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,10 +189,7 @@ class TestDeduplication:
         assert "duplicate_operation_id_skipped" in (duplicates[0].error or "")
 
     def test_all_unique_keeps_all(self) -> None:
-        ops = [
-            _make_op(entity_type="node", entity_id=f"n{i}", operation_id=f"op-{i}")
-            for i in range(3)
-        ]
+        ops = [_make_op(entity_type="node", entity_id=f"n{i}", operation_id=f"op-{i}") for i in range(3)]
         unique, duplicates = SyncService._deduplicate_by_operation_id(ops)
         assert len(unique) == 3
         assert len(duplicates) == 0
@@ -247,9 +247,7 @@ class TestUpsertEdgeFailFast:
     """_upsert_edge raises SyncDependencyError on missing endpoints."""
 
     @pytest.mark.asyncio
-    async def test_missing_source_in_payload_raises_before_cypher(
-        self, sync_service: SyncService
-    ) -> None:
+    async def test_missing_source_in_payload_raises_before_cypher(self, sync_service: SyncService) -> None:
         op = _make_op(entity_type="edge", entity_id="e1")
         # Force payload to drop source_node_id after construction — bypasses
         # the model_validator so we can test the SyncService-level guard
@@ -258,31 +256,24 @@ class TestUpsertEdgeFailFast:
 
         tx = _StubTransaction()
         with pytest.raises(SyncDependencyError) as excinfo:
-            await sync_service._upsert_edge(tx, op, canvas_id="c1")
+            await sync_service._upsert_edge(tx, op, canvas_id="c1", group_id=TEST_GROUP_ID)
 
-        assert (
-            "source_node_id" in str(excinfo.value).lower()
-            or "source" in str(excinfo.value).lower()
-        )
+        assert "source_node_id" in str(excinfo.value).lower() or "source" in str(excinfo.value).lower()
         # Critical: Neo4j was never touched
         assert len(tx.run_calls) == 0
 
     @pytest.mark.asyncio
-    async def test_missing_target_in_payload_raises_before_cypher(
-        self, sync_service: SyncService
-    ) -> None:
+    async def test_missing_target_in_payload_raises_before_cypher(self, sync_service: SyncService) -> None:
         op = _make_op(entity_type="edge", entity_id="e1")
         op.payload = {"source_node_id": "na", "label": "r"}
 
         tx = _StubTransaction()
         with pytest.raises(SyncDependencyError):
-            await sync_service._upsert_edge(tx, op, canvas_id="c1")
+            await sync_service._upsert_edge(tx, op, canvas_id="c1", group_id=TEST_GROUP_ID)
         assert len(tx.run_calls) == 0
 
     @pytest.mark.asyncio
-    async def test_optional_match_missing_status_raises(
-        self, sync_service: SyncService
-    ) -> None:
+    async def test_optional_match_missing_status_raises(self, sync_service: SyncService) -> None:
         """When Cypher returns status='missing' (endpoint not in Neo4j)."""
         op = _make_op(entity_type="edge", entity_id="e1")
 
@@ -290,21 +281,17 @@ class TestUpsertEdgeFailFast:
 
         async def missing_handler(query: str, **kwargs: Any):
             result = MagicMock()
-            result.single = AsyncMock(
-                return_value={"status": "missing", "edge_id": None}
-            )
+            result.single = AsyncMock(return_value={"status": "missing", "edge_id": None})
             return result
 
         tx.set_run_handler(missing_handler)
 
         with pytest.raises(SyncDependencyError) as excinfo:
-            await sync_service._upsert_edge(tx, op, canvas_id="c1")
+            await sync_service._upsert_edge(tx, op, canvas_id="c1", group_id=TEST_GROUP_ID)
         assert "missing" in str(excinfo.value).lower()
 
     @pytest.mark.asyncio
-    async def test_optional_match_ok_status_succeeds(
-        self, sync_service: SyncService
-    ) -> None:
+    async def test_optional_match_ok_status_succeeds(self, sync_service: SyncService) -> None:
         """Happy path: status='ok' returns without raising."""
         op = _make_op(entity_type="edge", entity_id="e1")
         tx = _StubTransaction()
@@ -317,7 +304,7 @@ class TestUpsertEdgeFailFast:
         tx.set_run_handler(ok_handler)
 
         # Should not raise
-        await sync_service._upsert_edge(tx, op, canvas_id="c1")
+        await sync_service._upsert_edge(tx, op, canvas_id="c1", group_id=TEST_GROUP_ID)
         assert len(tx.run_calls) == 1
 
 
@@ -353,22 +340,19 @@ class TestSegmentCommitAtomicity:
 
         request = SyncBatchRequest(
             canvas_id="c1",
+            vault_id="test_vault",
             operations=[
                 _make_op(entity_type="node", entity_id="n1"),
                 _make_op(entity_type="edge", entity_id="e1"),
             ],
         )
-        response = await sync_service.process_sync_batch(request)
+        response = await sync_service.process_sync_batch(request, group_id=TEST_GROUP_ID)
 
-        node_result = next(
-            r for r in response.results if r.operation_id == "op-node-n1"
-        )
+        node_result = next(r for r in response.results if r.operation_id == "op-node-n1")
         assert node_result.success is False
         assert node_result.error_class == SyncErrorClass.VALIDATION_ERROR
 
-        edge_result = next(
-            r for r in response.results if r.operation_id == "op-edge-e1"
-        )
+        edge_result = next(r for r in response.results if r.operation_id == "op-edge-e1")
         assert edge_result.success is False
         assert edge_result.error_class == SyncErrorClass.DEPENDENCY_MISSING
 
@@ -392,17 +376,13 @@ class TestSegmentCommitAtomicity:
             async def handler(query: str, **kwargs: Any):
                 if "MERGE (n:CanvasNode" in query:
                     result = MagicMock()
-                    result.single = AsyncMock(
-                        return_value={"status": "ok", "edge_id": None}
-                    )
+                    result.single = AsyncMock(return_value={"status": "ok", "edge_id": None})
                     return result
                 edge_count["n"] += 1
                 if edge_count["n"] == 3:
                     # Third edge: simulate OPTIONAL MATCH missing status
                     result = MagicMock()
-                    result.single = AsyncMock(
-                        return_value={"status": "missing", "edge_id": None}
-                    )
+                    result.single = AsyncMock(return_value={"status": "missing", "edge_id": None})
                     return result
                 result = MagicMock()
                 result.single = AsyncMock(return_value={"status": "ok", "edge_id": "e"})
@@ -415,6 +395,7 @@ class TestSegmentCommitAtomicity:
 
         request = SyncBatchRequest(
             canvas_id="c1",
+            vault_id="test_vault",
             operations=[
                 _make_op(entity_type="node", entity_id="n1"),
                 _make_op(entity_type="node", entity_id="n2"),
@@ -423,7 +404,7 @@ class TestSegmentCommitAtomicity:
                 _make_op(entity_type="edge", entity_id="e3"),
             ],
         )
-        response = await sync_service.process_sync_batch(request)
+        response = await sync_service.process_sync_batch(request, group_id=TEST_GROUP_ID)
 
         assert response.synced_count == 4
         assert response.failed_count == 1
@@ -464,12 +445,13 @@ class TestSegmentCommitAtomicity:
 
         request = SyncBatchRequest(
             canvas_id="c1",
+            vault_id="test_vault",
             operations=[
                 _make_op(entity_type="edge", entity_id="e1"),
                 _make_op(entity_type="node", entity_id="n1"),
             ],
         )
-        response = await sync_service.process_sync_batch(request)
+        response = await sync_service.process_sync_batch(request, group_id=TEST_GROUP_ID)
 
         assert "node" in query_order
         assert "edge" in query_order
@@ -500,8 +482,7 @@ class TestConstraintErrorClassification:
             async def handler(query: str, **kwargs: Any):
                 if "MERGE (b:CanvasBoard" in query:
                     raise ConstraintError(
-                        "Node already exists with label `CanvasBoard` "
-                        "and property `(subjectId, name)`"
+                        "Node already exists with label `CanvasBoard` and property `(subjectId, name)`"
                     )
                 result = MagicMock()
                 result.single = AsyncMock(return_value={"status": "ok", "edge_id": "e"})
@@ -514,11 +495,12 @@ class TestConstraintErrorClassification:
 
         request = SyncBatchRequest(
             canvas_id="c1",
+            vault_id="test_vault",
             operations=[
                 _make_op(entity_type="board", entity_id="b1"),
             ],
         )
-        response = await sync_service.process_sync_batch(request)
+        response = await sync_service.process_sync_batch(request, group_id=TEST_GROUP_ID)
 
         assert response.synced_count == 0
         assert response.failed_count == 1
@@ -538,12 +520,13 @@ class TestFullFlowWithDuplicates:
 
         request = SyncBatchRequest(
             canvas_id="c1",
+            vault_id="test_vault",
             operations=[
                 _make_op(entity_type="node", entity_id="n1", operation_id="dup-op"),
                 _make_op(entity_type="node", entity_id="n2", operation_id="dup-op"),
             ],
         )
-        response = await sync_service.process_sync_batch(request)
+        response = await sync_service.process_sync_batch(request, group_id=TEST_GROUP_ID)
 
         assert len(response.results) == 2
         assert response.synced_count == 1

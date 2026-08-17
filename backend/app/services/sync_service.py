@@ -165,8 +165,12 @@ class SyncService:
             return "Neo4j transient error"
         return str(exc)[:200]
 
-    async def process_sync_batch(self, request: SyncBatchRequest) -> SyncBatchResponse:
+    async def process_sync_batch(self, request: SyncBatchRequest, *, group_id: str) -> SyncBatchResponse:
         """Process a batch of sync operations using Segment Commit.
+
+        P0-SYNC-ISO-2026-08-17: ``group_id`` 是**必传物理格式** (vault__x) 的
+        vault 隔离键, 由 endpoint 层 resolve_vault_group_id →
+        to_physical_group_id 派生后显式下传 (不依赖 ContextVar 副作用)。
 
         FR-KG-04 Phase 11 (Task 11.4) rewrites the original single-transaction
         ``for op in request.operations:`` into three independent transactional
@@ -207,9 +211,7 @@ class SyncService:
         start_time = datetime.now(timezone.utc)
 
         # Step 1: deduplicate by operation_id — skipped ops get a result now.
-        unique_ops, duplicate_results = self._deduplicate_by_operation_id(
-            list(request.operations)
-        )
+        unique_ops, duplicate_results = self._deduplicate_by_operation_id(list(request.operations))
         results: list[SyncOperationResult] = list(duplicate_results)
 
         # Step 2: partition into dependency-ordered segments.
@@ -225,9 +227,7 @@ class SyncService:
                 async with await session.begin_transaction() as tx:
                     for op in segment:
                         try:
-                            await self._execute_operation(
-                                tx, op, request.canvas_id, request.subject_id
-                            )
+                            await self._execute_operation(tx, op, request.canvas_id, request.subject_id, group_id)
                             # fix-rag-transform-and-episode-isolation Phase 6:
                             # echo entity_type/entity_id so the sync.py POST
                             # handler can dispatch matching memory events
@@ -309,9 +309,7 @@ class SyncService:
             elapsed_ms=round(elapsed_ms, 1),
         )
 
-        return SyncBatchResponse(
-            results=results, synced_count=synced, failed_count=failed
-        )
+        return SyncBatchResponse(results=results, synced_count=synced, failed_count=failed)
 
     async def _execute_operation(
         self,
@@ -319,36 +317,45 @@ class SyncService:
         op: SyncOperation,
         canvas_id: str,
         subject_id: str | None,
+        group_id: str,
     ) -> None:
         """Dispatch a single sync operation to the appropriate Cypher query.
+
+        P0-SYNC-ISO-2026-08-17: group_id (物理 vault__ 格式) 贯穿六条
+        Cypher 的 MERGE/MATCH 键, 保证跨 vault 同 id 实体互不可见。
 
         [Source: Story 1.5 AC-4 — MERGE for create/update, DETACH DELETE for delete]
         [Source: Story 1.5 AC-8 — subjectId and canvasId properties]
         """
         if op.entity_type == "node":
             if op.operation in ("create", "update"):
-                await self._upsert_node(tx, op, canvas_id, subject_id)
+                await self._upsert_node(tx, op, canvas_id, subject_id, group_id)
             elif op.operation == "delete":
-                await self._delete_node(tx, op)
+                await self._delete_node(tx, op, group_id)
         elif op.entity_type == "edge":
             if op.operation in ("create", "update"):
-                await self._upsert_edge(tx, op, canvas_id)
+                await self._upsert_edge(tx, op, canvas_id, group_id)
             elif op.operation == "delete":
-                await self._delete_edge(tx, op)
+                await self._delete_edge(tx, op, group_id)
         elif op.entity_type == "board":
             if op.operation in ("create", "update"):
-                await self._upsert_board(tx, op, subject_id)
+                await self._upsert_board(tx, op, subject_id, group_id)
             elif op.operation == "delete":
-                await self._delete_board(tx, op)
+                await self._delete_board(tx, op, group_id)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Node operations
     # ═══════════════════════════════════════════════════════════════════════════
 
     async def _upsert_node(
-        self, tx, op: SyncOperation, canvas_id: str, subject_id: str | None
+        self,
+        tx,
+        op: SyncOperation,
+        canvas_id: str,
+        subject_id: str | None,
+        group_id: str,
     ) -> None:
-        """Idempotent node create/update via MERGE.
+        """Idempotent node create/update via MERGE — group-scoped.
 
         [Source: Story 1.5 Task 6.3 — Node sync Cypher]
         """
@@ -357,7 +364,7 @@ class SyncService:
 
         await tx.run(
             """
-            MERGE (n:CanvasNode {id: $entity_id})
+            MERGE (n:CanvasNode {id: $entity_id, group_id: $group_id})
             SET n.title = $title,
                 n.content = $content,
                 n.x = $x,
@@ -371,6 +378,7 @@ class SyncService:
             ON CREATE SET n.createdAt = $timestamp
             """,
             entity_id=op.entity_id,
+            group_id=group_id,
             title=payload.get("title", ""),
             content=payload.get("content", ""),
             x=payload.get("x", 0),
@@ -383,27 +391,28 @@ class SyncService:
             timestamp=timestamp,
         )
 
-    async def _delete_node(self, tx, op: SyncOperation) -> None:
-        """Delete a node and all connected edges (DETACH DELETE).
+    async def _delete_node(self, tx, op: SyncOperation, group_id: str) -> None:
+        """Delete a node and all connected edges (DETACH DELETE) — group-scoped.
 
         [Source: Story 1.5 Task 6.3 — Node delete Cypher]
         [Source: Story 1.5 AC-4 — cascade delete associated edges]
         """
         await tx.run(
             """
-            MATCH (n:CanvasNode {id: $entity_id})
+            MATCH (n:CanvasNode {id: $entity_id, group_id: $group_id})
             DETACH DELETE n
             """,
             entity_id=op.entity_id,
+            group_id=group_id,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Edge operations
     # ═══════════════════════════════════════════════════════════════════════════
 
-    async def _upsert_edge(self, tx, op: SyncOperation, canvas_id: str) -> None:
+    async def _upsert_edge(self, tx, op: SyncOperation, canvas_id: str, group_id: str) -> None:
         """Idempotent edge create/update via MERGE with fail-fast dependency
-        check.
+        check — group-scoped.
 
         FR-KG-04 Phase 11 (Tasks 11.7, 11.8) + Phase 3 (original Tasks 3.3,
         3.4, 3.5): the original implementation used MATCH-MATCH-MERGE, which
@@ -436,21 +445,20 @@ class SyncService:
 
         # Layer 1: pre-Cypher payload validation (Task 11.8)
         if not source_node_id:
-            raise SyncDependencyError(
-                f"edge {op.entity_id} missing source_node_id/sourceNodeId in payload"
-            )
+            raise SyncDependencyError(f"edge {op.entity_id} missing source_node_id/sourceNodeId in payload")
         if not target_node_id:
-            raise SyncDependencyError(
-                f"edge {op.entity_id} missing target_node_id/targetNodeId in payload"
-            )
+            raise SyncDependencyError(f"edge {op.entity_id} missing target_node_id/targetNodeId in payload")
 
         # Layer 2: OPTIONAL MATCH + status return (Task 11.7)
         # The query returns status="missing" when either endpoint doesn't
         # exist in Neo4j; status="ok" when both exist and the MERGE succeeded.
+        # P0-SYNC-ISO-2026-08-17: 端点 MATCH 带 group — 跨 vault 端点从
+        # 「找到」变 status='missing' → DEPENDENCY_MISSING, 这是期望的隔离
+        # 行为 (禁止借另一 vault 的同 id 节点当边端点)。
         result = await tx.run(
             """
-            OPTIONAL MATCH (source:CanvasNode {id: $source_node_id})
-            OPTIONAL MATCH (target:CanvasNode {id: $target_node_id})
+            OPTIONAL MATCH (source:CanvasNode {id: $source_node_id, group_id: $group_id})
+            OPTIONAL MATCH (target:CanvasNode {id: $target_node_id, group_id: $group_id})
             WITH source, target
             CALL (source, target) {
                 WITH source, target
@@ -459,7 +467,7 @@ class SyncService:
                 UNION
                 WITH source, target
                 WHERE source IS NOT NULL AND target IS NOT NULL
-                MERGE (source)-[e:CANVAS_EDGE {id: $entity_id}]->(target)
+                MERGE (source)-[e:CANVAS_EDGE {id: $entity_id, group_id: $group_id}]->(target)
                 SET e.label = $label,
                     e.canvasId = $canvas_id,
                     e.updatedAt = $timestamp
@@ -469,6 +477,7 @@ class SyncService:
             RETURN status, edge_id
             """,
             entity_id=op.entity_id,
+            group_id=group_id,
             source_node_id=source_node_id,
             target_node_id=target_node_id,
             label=payload.get("label", ""),
@@ -478,31 +487,29 @@ class SyncService:
         record = await result.single()
         if record is None or record.get("status") == "missing":
             raise SyncDependencyError(
-                f"edge {op.entity_id} upsert no-op: missing endpoint "
-                f"source={source_node_id} target={target_node_id}"
+                f"edge {op.entity_id} upsert no-op: missing endpoint source={source_node_id} target={target_node_id}"
             )
 
-    async def _delete_edge(self, tx, op: SyncOperation) -> None:
-        """Delete a single edge relationship.
+    async def _delete_edge(self, tx, op: SyncOperation, group_id: str) -> None:
+        """Delete a single edge relationship — group-scoped.
 
         [Source: Story 1.5 Task 6.4 — Edge delete Cypher]
         """
         await tx.run(
             """
-            MATCH ()-[e:CANVAS_EDGE {id: $entity_id}]->()
+            MATCH ()-[e:CANVAS_EDGE {id: $entity_id, group_id: $group_id}]->()
             DELETE e
             """,
             entity_id=op.entity_id,
+            group_id=group_id,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Board operations
     # ═══════════════════════════════════════════════════════════════════════════
 
-    async def _upsert_board(
-        self, tx, op: SyncOperation, subject_id: str | None
-    ) -> None:
-        """Idempotent board create/update via MERGE.
+    async def _upsert_board(self, tx, op: SyncOperation, subject_id: str | None, group_id: str) -> None:
+        """Idempotent board create/update via MERGE — group-scoped.
 
         [Source: Story 1.5 Task 6.5 — Board sync Cypher]
         """
@@ -511,30 +518,36 @@ class SyncService:
 
         await tx.run(
             """
-            MERGE (b:CanvasBoard {id: $entity_id})
+            MERGE (b:CanvasBoard {id: $entity_id, group_id: $group_id})
             SET b.name = $name,
                 b.subjectId = $subject_id,
                 b.updatedAt = $timestamp
             ON CREATE SET b.createdAt = $timestamp
             """,
             entity_id=op.entity_id,
+            group_id=group_id,
             name=payload.get("name", ""),
             subject_id=subject_id,
             timestamp=timestamp,
         )
 
-    async def _delete_board(self, tx, op: SyncOperation) -> None:
-        """Delete a board and all its nodes (cascade).
+    async def _delete_board(self, tx, op: SyncOperation, group_id: str) -> None:
+        """Delete a board and all its nodes (cascade) — group-scoped.
+
+        P0-SYNC-ISO-2026-08-17 最高危路径: 级联 DETACH DELETE 的 board 侧和
+        node 侧都必须限定 group_id, 否则跨 vault 同 id 碰撞一次即抹掉另一
+        vault 整块画布 (board + 全部 node)。
 
         [Source: Story 1.5 Task 6.5 — Board delete Cypher]
         """
         await tx.run(
             """
-            MATCH (b:CanvasBoard {id: $entity_id})
-            OPTIONAL MATCH (n:CanvasNode {canvasId: $entity_id})
+            MATCH (b:CanvasBoard {id: $entity_id, group_id: $group_id})
+            OPTIONAL MATCH (n:CanvasNode {canvasId: $entity_id, group_id: $group_id})
             DETACH DELETE b, n
             """,
             entity_id=op.entity_id,
+            group_id=group_id,
         )
 
 

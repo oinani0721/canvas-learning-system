@@ -102,10 +102,7 @@ class TestEdgeEndpointValidation:
             )
         )
         # Validation passes when either snake_case or camelCase is present
-        assert (
-            op.payload.get("sourceNodeId") == "node_a"
-            or op.payload.get("source_node_id") == "node_a"
-        )
+        assert op.payload.get("sourceNodeId") == "node_a" or op.payload.get("source_node_id") == "node_a"
 
     def test_edge_delete_does_not_require_endpoints(self) -> None:
         """Delete operations only need entity_id, not the endpoint fields."""
@@ -174,24 +171,22 @@ class TestBatchSizeLimit:
     """A single batch MUST be capped at 500 operations."""
 
     def test_batch_with_500_ops_passes(self) -> None:
-        ops = [
-            _make_op(operation_id=f"op-{i:04d}", entity_id=f"n-{i}") for i in range(500)
-        ]
+        ops = [_make_op(operation_id=f"op-{i:04d}", entity_id=f"n-{i}") for i in range(500)]
         req = SyncBatchRequest(
-            canvas_id="c1", operations=[SyncOperation(**op) for op in ops]
+            canvas_id="c1",
+            vault_id="test_vault",
+            operations=[SyncOperation(**op) for op in ops],
         )
         assert len(req.operations) == 500
 
     def test_batch_with_501_ops_raises(self) -> None:
-        ops = [
-            SyncOperation(**_make_op(operation_id=f"op-{i:04d}", entity_id=f"n-{i}"))
-            for i in range(501)
-        ]
+        ops = [SyncOperation(**_make_op(operation_id=f"op-{i:04d}", entity_id=f"n-{i}")) for i in range(501)]
+        # vault_id 传齐 (P0-SYNC-ISO 必填) — 保证唯一报错就是 ops 上限
         with pytest.raises(ValidationError) as excinfo:
-            SyncBatchRequest(canvas_id="c1", operations=ops)
+            SyncBatchRequest(canvas_id="c1", vault_id="test_vault", operations=ops)
         assert "500" in str(excinfo.value) or "max_length" in str(excinfo.value).lower()
 
     def test_empty_batch_still_raises(self) -> None:
         """The existing min_length=1 guard MUST be preserved."""
         with pytest.raises(ValidationError):
-            SyncBatchRequest(canvas_id="c1", operations=[])
+            SyncBatchRequest(canvas_id="c1", vault_id="test_vault", operations=[])

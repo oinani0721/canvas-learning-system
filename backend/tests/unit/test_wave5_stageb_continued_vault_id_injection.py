@@ -76,9 +76,7 @@ class TestVaultIdResolverShared:
         from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
         from app.config import DEFAULT_GROUP_ID
 
-        result = resolve_vault_group_id(
-            vault_id=None, subject_id=None, legacy_group_id=None
-        )
+        result = resolve_vault_group_id(vault_id=None, subject_id=None, legacy_group_id=None)
 
         assert result == DEFAULT_GROUP_ID
 
@@ -108,8 +106,11 @@ class TestVaultIdResolverShared:
 
 
 class TestSyncBatchRequestVaultId:
-    """SyncBatchRequest 加 vault_id: Optional[str] 兼容 plugin 旧调用,
-    但 P0 写入路径推荐必填.
+    """SyncBatchRequest vault_id 契约.
+
+    P0-SYNC-ISO-2026-08-17: vault_id 从 Optional 升为必填 — 缺 vault_id 的
+    写入会落进 vault__default 假隔离桶, 正是跨 vault 互相覆盖缺陷的源头。
+    唯一不传 vault_id 的调用方 (DEPRECATED Tauri 前端) 已废弃, 其 422 属预期。
     """
 
     def test_sync_batch_accepts_vault_id(self):
@@ -132,8 +133,14 @@ class TestSyncBatchRequestVaultId:
         )
         assert req.vault_id == "cs_61b"
 
-    def test_sync_batch_optional_vault_id_for_compat(self):
-        """无 vault_id 时不报 422 (兼容旧 plugin), 仅 warning."""
+    def test_sync_batch_missing_vault_id_rejected(self):
+        """P0-SYNC-ISO: 缺 vault_id → ValidationError (endpoint 层表现为 422).
+
+        反转自旧断言「无 vault_id 不报 422」— 该宽容契约正是 Codex P0
+        (跨 vault 互相覆盖) 的入口, 无 vault 标签写入禁止再进 Neo4j。
+        """
+        import pydantic
+
         from app.models.sync_models import SyncBatchRequest, SyncOperation
 
         from datetime import datetime, timezone
@@ -146,9 +153,8 @@ class TestSyncBatchRequestVaultId:
             payload={"id": "n1"},
             timestamp=datetime.now(timezone.utc),
         )
-        # 不传 vault_id — 应通过验证 (Optional)
-        req = SyncBatchRequest(canvas_id="cv-1", operations=[op])
-        assert req.vault_id is None
+        with pytest.raises(pydantic.ValidationError):
+            SyncBatchRequest(canvas_id="cv-1", operations=[op])
 
     def test_sync_batch_has_deprecated_group_id(self):
         from app.models.sync_models import SyncBatchRequest, SyncOperation
@@ -163,9 +169,11 @@ class TestSyncBatchRequestVaultId:
             payload={"id": "n1"},
             timestamp=datetime.now(timezone.utc),
         )
-        # 旧 plugin 调用 — group_id 兼容字段
+        # 旧 plugin 调用 — group_id 兼容字段保留 (仅读侧日志告警用),
+        # 但 vault_id 仍必填 (P0-SYNC-ISO)
         req = SyncBatchRequest(
             canvas_id="cv-1",
+            vault_id="cs_61b",
             group_id="cs188",
             operations=[op],
         )
@@ -321,17 +329,13 @@ class TestAgentsRequestVaultId:
     def test_verification_question_request_accepts_vault_id(self):
         from app.models import VerificationQuestionRequest
 
-        req = VerificationQuestionRequest(
-            canvas_name="cv1", node_id="n1", vault_id="cs_61b"
-        )
+        req = VerificationQuestionRequest(canvas_name="cv1", node_id="n1", vault_id="cs_61b")
         assert req.vault_id == "cs_61b"
 
     def test_question_decompose_request_accepts_vault_id(self):
         from app.models import QuestionDecomposeRequest
 
-        req = QuestionDecomposeRequest(
-            canvas_name="cv1", node_id="n1", vault_id="cs_61b"
-        )
+        req = QuestionDecomposeRequest(canvas_name="cv1", node_id="n1", vault_id="cs_61b")
         assert req.vault_id == "cs_61b"
 
 
@@ -355,9 +359,7 @@ class TestContextVarInjectionFromResolver:
         assert get_current_subject_id() == "vault:reset_baseline"
 
         # 调 resolver 注入新 vault
-        new_group = resolve_vault_group_id(
-            vault_id="数学", subject_id=None, legacy_group_id=None
-        )
+        new_group = resolve_vault_group_id(vault_id="数学", subject_id=None, legacy_group_id=None)
 
         # ContextVar 应已更新
         assert get_current_subject_id() == new_group
@@ -394,8 +396,7 @@ class TestSharedResolverImportedByEndpoints:
         module = importlib.import_module(module_name)
         # 共享 resolver 应已被 import (变量名 resolve_vault_group_id)
         assert hasattr(module, "resolve_vault_group_id"), (
-            f"{module_name} did not import resolve_vault_group_id from "
-            "_vault_id_resolver"
+            f"{module_name} did not import resolve_vault_group_id from _vault_id_resolver"
         )
 
 
