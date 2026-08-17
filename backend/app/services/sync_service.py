@@ -179,14 +179,15 @@ class SyncService:
         rationale; the short version is:
 
         - Segments 1 and 2 (Board and Node) are **strictly atomic**: any
-          failure rolls the segment back and every subsequent segment is
-          returned to the client as ``error_class=DEPENDENCY_MISSING``
-          (early return).
-        - Segment 3 (Edge) **tolerates partial failures**: each edge runs in
-          its own try/except; the transaction commits as long as at least one
-          edge succeeded. This preserves the Story 1.5 AC-7 "partial success"
-          semantics for the high-frequency edge-drawing path while eliminating
-          the "orphan edge after node failure" bug in the original design.
+          failure rolls the segment back, **整段全部返回失败** (R10 P1-01:
+          success ACK 只在 commit 成功后生成, 回滚段不得 ACK), and every
+          subsequent segment is returned to the client as
+          ``error_class=DEPENDENCY_MISSING`` (early return).
+        - Segment 3 (Edge) **tolerates partial failures via per-edge
+          transactions** (R10 P1-02: 同一事务内 statement 失败后事务
+          poisoned, 段内 catch-and-continue 只对 stub 成立): each edge
+          commits independently, preserving the Story 1.5 AC-7 "partial
+          success" semantics for the high-frequency edge-drawing path.
 
         Additionally:
         - Duplicate operation_ids within the batch are skipped at the top
@@ -221,61 +222,14 @@ class SyncService:
             for idx, segment in enumerate(segments):
                 is_edge_segment = all(op.entity_type == "edge" for op in segment)
 
-                segment_results: list[SyncOperationResult] = []
-                segment_all_ok = True
-
-                async with await session.begin_transaction() as tx:
-                    for op in segment:
-                        try:
-                            await self._execute_operation(tx, op, request.canvas_id, request.subject_id, group_id)
-                            # fix-rag-transform-and-episode-isolation Phase 6:
-                            # echo entity_type/entity_id so the sync.py POST
-                            # handler can dispatch matching memory events
-                            # without re-walking the request.
-                            segment_results.append(
-                                SyncOperationResult(
-                                    operation_id=op.operation_id,
-                                    success=True,
-                                    entity_type=op.entity_type,
-                                    entity_id=op.entity_id,
-                                )
-                            )
-                        except Exception as e:  # noqa: BLE001 — per-op isolation
-                            error_class = self._classify_exception(e)
-                            sanitized = self._sanitize_error_message(e, error_class)
-                            logger.warning(
-                                "sync_op_failed",
-                                op_id=op.operation_id,
-                                entity=f"{op.entity_type}/{op.entity_id}",
-                                error_class=error_class.value,
-                                error=sanitized,
-                            )
-                            segment_results.append(
-                                SyncOperationResult(
-                                    operation_id=op.operation_id,
-                                    success=False,
-                                    error=sanitized,
-                                    error_class=error_class,
-                                    entity_type=op.entity_type,
-                                    entity_id=op.entity_id,
-                                )
-                            )
-                            segment_all_ok = False
-
-                    # Segment atomicity rule
-                    if is_edge_segment:
-                        # Edge segment tolerates partial failures: commit
-                        # whenever at least one edge succeeded.
-                        if any(r.success for r in segment_results):
-                            await tx.commit()
-                        else:
-                            await tx.rollback()
-                    else:
-                        # Board / Node segment is strictly atomic.
-                        if segment_all_ok:
-                            await tx.commit()
-                        else:
-                            await tx.rollback()
+                # R10 复审 P1-01/P1-02 重写: 成功 ACK 只在 commit 之后生成。
+                if is_edge_segment:
+                    segment_results = await self._process_edge_segment(session, segment, request, group_id)
+                    segment_all_ok = all(r.success for r in segment_results)
+                else:
+                    segment_results, segment_all_ok = await self._process_strict_segment(
+                        session, segment, request, group_id
+                    )
 
                 results.extend(segment_results)
 
@@ -310,6 +264,154 @@ class SyncService:
         )
 
         return SyncBatchResponse(results=results, synced_count=synced, failed_count=failed)
+
+    def _failure_result(self, op: SyncOperation, exc: Exception) -> SyncOperationResult:
+        """单 op 失败 → 分类 + 脱敏 + 日志 + 结果对象."""
+        error_class = self._classify_exception(exc)
+        sanitized = self._sanitize_error_message(exc, error_class)
+        logger.warning(
+            "sync_op_failed",
+            op_id=op.operation_id,
+            entity=f"{op.entity_type}/{op.entity_id}",
+            error_class=error_class.value,
+            error=sanitized,
+        )
+        return SyncOperationResult(
+            operation_id=op.operation_id,
+            success=False,
+            error=sanitized,
+            error_class=error_class,
+            entity_type=op.entity_type,
+            entity_id=op.entity_id,
+        )
+
+    @staticmethod
+    def _rolled_back_result(op: SyncOperation, reason: str) -> SyncOperationResult:
+        """段回滚 → 该 op 数据未持久化, 必须报失败 (TRANSIENT 可重试)."""
+        return SyncOperationResult(
+            operation_id=op.operation_id,
+            success=False,
+            error=reason,
+            error_class=SyncErrorClass.TRANSIENT_ERROR,
+            entity_type=op.entity_type,
+            entity_id=op.entity_id,
+        )
+
+    async def _process_strict_segment(
+        self,
+        session,
+        segment: list[SyncOperation],
+        request: SyncBatchRequest,
+        group_id: str,
+    ) -> tuple[list[SyncOperationResult], bool]:
+        """Board/Node 严格段: 单事务, **commit 成功后才生成 success ACK**.
+
+        R10 复审 P1-01: 旧实现在事务提交前就 append success=True, 段回滚
+        后不改回 — 假 ACK 会让前端清 outbox, 已回滚的数据永久丢失。
+        新语义: 任何 op 失败或 commit 失败 → rollback 且**整段全部返回
+        失败** (失败 op 带自身错误, 其余 op 统一 segment-rolled-back,
+        TRANSIENT 可重试)。op 失败即停 (真实 Neo4j 中 statement 失败后
+        事务已 poisoned, 继续跑只会产生二次 TransactionError 噪音)。
+        """
+        executed_ok: list[SyncOperation] = []
+        failure: SyncOperationResult | None = None
+        commit_ok = False
+
+        async with await session.begin_transaction() as tx:
+            for op in segment:
+                try:
+                    await self._execute_operation(tx, op, request.canvas_id, request.subject_id, group_id)
+                    executed_ok.append(op)
+                except Exception as e:  # noqa: BLE001 — 分类后如实上报
+                    failure = self._failure_result(op, e)
+                    break
+
+            if failure is None:
+                try:
+                    await tx.commit()
+                    commit_ok = True
+                except Exception as e:  # noqa: BLE001 — commit 失败=零持久化
+                    logger.warning(
+                        "sync_segment_commit_failed",
+                        segment_size=len(segment),
+                        error=self._sanitize_error_message(e, SyncErrorClass.TRANSIENT_ERROR),
+                    )
+            if not commit_ok:
+                try:
+                    await tx.rollback()
+                except Exception:  # noqa: BLE001 — rollback 尽力而为
+                    pass
+
+        if commit_ok:
+            # fix-rag-transform-and-episode-isolation Phase 6: echo
+            # entity_type/entity_id so the sync.py POST handler can dispatch
+            # matching memory events without re-walking the request.
+            return (
+                [
+                    SyncOperationResult(
+                        operation_id=op.operation_id,
+                        success=True,
+                        entity_type=op.entity_type,
+                        entity_id=op.entity_id,
+                    )
+                    for op in executed_ok
+                ],
+                True,
+            )
+
+        reason = (
+            "segment rolled back — data not persisted"
+            if failure is not None
+            else "segment commit failed — rolled back, data not persisted"
+        )
+        seg_results: list[SyncOperationResult] = []
+        for op in segment:
+            if failure is not None and op.operation_id == failure.operation_id:
+                seg_results.append(failure)
+            else:
+                seg_results.append(self._rolled_back_result(op, reason))
+        return (seg_results, False)
+
+    async def _process_edge_segment(
+        self,
+        session,
+        segment: list[SyncOperation],
+        request: SyncBatchRequest,
+        group_id: str,
+    ) -> list[SyncOperationResult]:
+        """Edge 段: **每条 edge 独立事务** — 真实容错.
+
+        R10 复审 P1-02: 旧实现在同一事务里逐条 catch 后继续跑 — 真实
+        Neo4j 中一条 statement 失败后事务 poisoned, 后续 statement 与
+        commit 全部 TransactionError, 「段内容错」只对 stub 成立。独立
+        事务边界是数据库明确支持的隔离机制, 单边失败不再连坐后续边。
+        success ACK 同样只在该边自己的 commit 成功后生成 (P1-01)。
+        """
+        seg_results: list[SyncOperationResult] = []
+        for op in segment:
+            op_result: SyncOperationResult
+            async with await session.begin_transaction() as tx:
+                try:
+                    await self._execute_operation(tx, op, request.canvas_id, request.subject_id, group_id)
+                except Exception as e:  # noqa: BLE001 — 单边隔离
+                    op_result = self._failure_result(op, e)
+                    try:
+                        await tx.rollback()
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    try:
+                        await tx.commit()
+                        op_result = SyncOperationResult(
+                            operation_id=op.operation_id,
+                            success=True,
+                            entity_type=op.entity_type,
+                            entity_id=op.entity_id,
+                        )
+                    except Exception as e:  # noqa: BLE001 — commit 失败如实报
+                        op_result = self._failure_result(op, e)
+            seg_results.append(op_result)
+        return seg_results
 
     async def _execute_operation(
         self,
@@ -451,6 +553,21 @@ class SyncService:
             raise SyncDependencyError(f"edge {op.entity_id} missing source_node_id/sourceNodeId in payload")
         if not target_node_id:
             raise SyncDependencyError(f"edge {op.entity_id} missing target_node_id/targetNodeId in payload")
+
+        # R10 复审 P2-01: 端点变更时, 完整 pattern MERGE 会新建关系而把
+        # 旧端点间同 {group_id, id} 的关系留在图里 (同键双关系, 且会撞
+        # 004 的边唯一约束)。同事务先清 stale — 只删「同键但端点不同」。
+        await tx.run(
+            """
+            MATCH (os:CanvasNode)-[stale:CANVAS_EDGE {id: $entity_id, group_id: $group_id}]->(ot:CanvasNode)
+            WHERE os.id <> $source_node_id OR ot.id <> $target_node_id
+            DELETE stale
+            """,
+            entity_id=op.entity_id,
+            group_id=group_id,
+            source_node_id=source_node_id,
+            target_node_id=target_node_id,
+        )
 
         # Layer 2: OPTIONAL MATCH + status return (Task 11.7)
         # The query returns status="missing" when either endpoint doesn't

@@ -102,14 +102,22 @@ class TestSyncServiceGroupKeys:
     @pytest.mark.asyncio
     async def test_upsert_edge_endpoints_and_merge_key_carry_group(self) -> None:
         calls = await _run_single_op(entity_type="edge", operation="create", group_id=PHYSICAL_GID_A)
-        assert len(calls) == 1
-        query = _norm(calls[0]["query"])
+        # R10 P2-01: stale 清理 + MERGE 两条查询, 同一事务
+        assert len(calls) == 2
+        stale_query = _norm(calls[0]["query"])
+        # stale 清理只删「同键但端点不同」的旧关系, 且必须限定 group
+        assert "CANVAS_EDGE {id: $entity_id, group_id: $group_id}" in stale_query
+        assert "DELETE stale" in stale_query
+        assert "os.id <> $source_node_id OR ot.id <> $target_node_id" in stale_query
+        assert calls[0]["kwargs"]["group_id"] == PHYSICAL_GID_A
+
+        query = _norm(calls[1]["query"])
         # 两个端点 OPTIONAL MATCH 都必须限定 group — 否则跨 vault 借端点
         assert "OPTIONAL MATCH (source:CanvasNode {id: $source_node_id, group_id: $group_id})" in query
         assert "OPTIONAL MATCH (target:CanvasNode {id: $target_node_id, group_id: $group_id})" in query
         # 边本身的 MERGE 键也必须含 group
         assert "MERGE (source)-[e:CANVAS_EDGE {id: $entity_id, group_id: $group_id}]->(target)" in query
-        assert calls[0]["kwargs"]["group_id"] == PHYSICAL_GID_A
+        assert calls[1]["kwargs"]["group_id"] == PHYSICAL_GID_A
 
     @pytest.mark.asyncio
     async def test_delete_edge_match_key_carries_group(self) -> None:
@@ -163,7 +171,8 @@ class TestUpsertCypherClauseOrder:
     @pytest.mark.asyncio
     async def test_upsert_edge_on_create_precedes_standalone_set(self) -> None:
         calls = await _run_single_op(entity_type="edge", operation="create", group_id=PHYSICAL_GID_A)
-        q = _norm(calls[0]["query"])
+        merge_call = next(c for c in calls if "MERGE (source)" in c["query"])
+        q = _norm(merge_call["query"])
         assert q.index("ON CREATE SET") < q.index("SET e.label")
 
     @pytest.mark.asyncio

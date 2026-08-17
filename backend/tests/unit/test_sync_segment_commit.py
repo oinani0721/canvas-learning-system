@@ -305,7 +305,8 @@ class TestUpsertEdgeFailFast:
 
         # Should not raise
         await sync_service._upsert_edge(tx, op, canvas_id="c1", group_id=TEST_GROUP_ID)
-        assert len(tx.run_calls) == 1
+        # R10 P2-01: stale 清理 + MERGE 两条查询
+        assert len(tx.run_calls) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -369,12 +370,16 @@ class TestSegmentCommitAtomicity:
         """Task 11.6 + 11.11: Edge segment tolerates partial failure and commits."""
         _, session = stub_driver_and_session
 
+        # R10 P1-02: edge 改独立事务后, 计数器必须跨事务共享 (原来建在
+        # 每个 tx 闭包里, 分事务后每 tx 从 0 数起, 第三边失败永远不触发)
+        edge_count = {"n": 0}
+
         def tx_factory() -> _StubTransaction:
             tx = _StubTransaction()
-            edge_count = {"n": 0}
 
             async def handler(query: str, **kwargs: Any):
-                if "MERGE (n:CanvasNode" in query:
+                if "MERGE (n:CanvasNode" in query or "DELETE stale" in query:
+                    # node upsert / R10 P2-01 stale 清理 — 不计入 edge 计数
                     result = MagicMock()
                     result.single = AsyncMock(return_value={"status": "ok", "edge_id": None})
                     return result
@@ -409,9 +414,13 @@ class TestSegmentCommitAtomicity:
         assert response.synced_count == 4
         assert response.failed_count == 1
 
-        # Both transactions committed (Node + Edge)
-        assert session.transactions[0].committed is True
-        assert session.transactions[1].committed is True
+        # R10 P1-02: Node 段单事务 + 每条 edge 独立事务 = 共 4 个事务;
+        # node/edge1/edge2 提交, edge3 (missing) 回滚
+        assert len(session.transactions) == 4
+        assert session.transactions[0].committed is True  # node segment
+        assert session.transactions[1].committed is True  # edge e1
+        assert session.transactions[2].committed is True  # edge e2
+        assert session.transactions[3].rolled_back is True  # edge e3 missing
 
         failed = [r for r in response.results if not r.success]
         assert len(failed) == 1
@@ -535,3 +544,153 @@ class TestFullFlowWithDuplicates:
         assert dup_result.success is False
         assert dup_result.error_class == SyncErrorClass.VALIDATION_ERROR
         assert "duplicate_operation_id_skipped" in (dup_result.error or "")
+
+
+# ---------------------------------------------------------------------------
+# R10 复审 P1-01/P1-02 — commit 后才 ACK / edge 独立事务
+# ---------------------------------------------------------------------------
+
+
+class _CommitFailTransaction(_StubTransaction):
+    """commit 必炸的 tx — 模拟 leader 切换/连接断在 commit 点."""
+
+    async def commit(self) -> None:
+        raise RuntimeError("simulated commit failure")
+
+
+class TestCommitBeforeAckSemantics:
+    """R10 P1-01: 假 ACK 反例锁 — 段回滚后先前 op 不得报 success.
+
+    审查定向反例 (修复前): rolled_back=True 时 results=[success=True,
+    success=False], synced_count=1 — 调用方据此清 outbox, 已回滚数据
+    永久丢失。
+    """
+
+    @pytest.mark.asyncio
+    async def test_strict_segment_rollback_fails_all_ops(
+        self, sync_service: SyncService, stub_driver_and_session
+    ) -> None:
+        """两个 node, 第二个失败 → 整段全失败, synced_count=0."""
+        _, session = stub_driver_and_session
+
+        def tx_factory() -> _StubTransaction:
+            tx = _StubTransaction()
+
+            async def handler(query: str, **kwargs: Any):
+                if kwargs.get("entity_id") == "n2":
+                    raise ValueError("simulated node failure")
+                result = MagicMock()
+                result.single = AsyncMock(return_value={"status": "ok", "edge_id": None})
+                return result
+
+            tx.set_run_handler(handler)
+            return tx
+
+        session.set_tx_factory(tx_factory)
+
+        request = SyncBatchRequest(
+            canvas_id="c1",
+            vault_id="test_vault",
+            operations=[
+                _make_op(entity_type="node", entity_id="n1"),
+                _make_op(entity_type="node", entity_id="n2"),
+            ],
+        )
+        response = await sync_service.process_sync_batch(request, group_id=TEST_GROUP_ID)
+
+        # 审查反例的反转: 回滚段零 ACK
+        assert response.synced_count == 0
+        assert response.failed_count == 2
+        assert session.transactions[0].rolled_back is True
+
+        by_id = {r.operation_id: r for r in response.results}
+        n1 = by_id["op-node-n1"]
+        n2 = by_id["op-node-n2"]
+        # 先跑成功但被回滚的 n1: 必须报失败 + 可重试 + 说明回滚
+        assert n1.success is False
+        assert n1.error_class == SyncErrorClass.TRANSIENT_ERROR
+        assert "rolled back" in (n1.error or "")
+        # 失败源 n2: 保留自身错误分类
+        assert n2.success is False
+        assert n2.error_class == SyncErrorClass.VALIDATION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_strict_segment_commit_failure_fails_all_ops(
+        self, sync_service: SyncService, stub_driver_and_session
+    ) -> None:
+        """ops 全部跑成功但 commit 炸 → 零持久化, 整段必须报失败."""
+        _, session = stub_driver_and_session
+        session.set_tx_factory(_CommitFailTransaction)
+
+        request = SyncBatchRequest(
+            canvas_id="c1",
+            vault_id="test_vault",
+            operations=[
+                _make_op(entity_type="node", entity_id="n1"),
+                _make_op(entity_type="node", entity_id="n2"),
+            ],
+        )
+        response = await sync_service.process_sync_batch(request, group_id=TEST_GROUP_ID)
+
+        assert response.synced_count == 0
+        assert response.failed_count == 2
+        for r in response.results:
+            assert r.success is False
+            assert r.error_class == SyncErrorClass.TRANSIENT_ERROR
+            assert "commit failed" in (r.error or "")
+
+    @pytest.mark.asyncio
+    async def test_edge_ops_run_in_independent_transactions(
+        self, sync_service: SyncService, stub_driver_and_session
+    ) -> None:
+        """R10 P1-02: N 条 edge = N 个独立事务, 各自提交."""
+        _, session = stub_driver_and_session
+
+        request = SyncBatchRequest(
+            canvas_id="c1",
+            vault_id="test_vault",
+            operations=[_make_op(entity_type="edge", entity_id=f"e{i}") for i in range(3)],
+        )
+        response = await sync_service.process_sync_batch(request, group_id=TEST_GROUP_ID)
+
+        assert response.synced_count == 3
+        # 纯 edge batch: 3 条边 = 3 个事务 (无共享事务)
+        assert len(session.transactions) == 3
+        for tx in session.transactions:
+            assert tx.committed is True
+
+    @pytest.mark.asyncio
+    async def test_edge_commit_failure_reported_not_acked(
+        self, sync_service: SyncService, stub_driver_and_session
+    ) -> None:
+        """单条 edge 的 commit 失败 → 该边报失败, 不影响其他边."""
+        _, session = stub_driver_and_session
+        tx_seq = {"n": 0}
+
+        def tx_factory() -> _StubTransaction:
+            tx_seq["n"] += 1
+            # 第二个事务 (edge e1) 的 commit 炸
+            if tx_seq["n"] == 2:
+                return _CommitFailTransaction()
+            return _StubTransaction()
+
+        session.set_tx_factory(tx_factory)
+
+        request = SyncBatchRequest(
+            canvas_id="c1",
+            vault_id="test_vault",
+            operations=[
+                _make_op(entity_type="edge", entity_id="e0"),
+                _make_op(entity_type="edge", entity_id="e1"),
+                _make_op(entity_type="edge", entity_id="e2"),
+            ],
+        )
+        response = await sync_service.process_sync_batch(request, group_id=TEST_GROUP_ID)
+
+        assert response.synced_count == 2
+        assert response.failed_count == 1
+        by_id = {r.operation_id: r for r in response.results}
+        assert by_id["op-edge-e1"].success is False
+        assert by_id["op-edge-e1"].error_class == SyncErrorClass.TRANSIENT_ERROR
+        assert by_id["op-edge-e0"].success is True
+        assert by_id["op-edge-e2"].success is True

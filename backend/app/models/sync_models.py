@@ -175,6 +175,12 @@ class SyncOperationResult(BaseModel):
 
     operation_id: str = Field(..., description="Matches the request operation_id")
     success: bool = Field(..., description="Whether the operation succeeded")
+    # R10 复审 (2026-08-17) 幽灵字段转正: sync_service 一直在传
+    # entity_type/entity_id, 但模型没声明 → pydantic 默认 extra-ignore
+    # 静默丢弃 (fix-rag-transform Phase 6 注释声称的 echo 实际从未存在)。
+    # 声明后调用方可按实体匹配结果, 不必解析 operation_id。
+    entity_type: str | None = Field(default=None, description="Echo of the request op's entity_type")
+    entity_id: str | None = Field(default=None, description="Echo of the request op's entity_id")
     error: str | None = Field(default=None, description="Error message if failed")
     error_class: Optional[SyncErrorClass] = Field(
         default=None,

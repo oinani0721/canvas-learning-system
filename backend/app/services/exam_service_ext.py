@@ -66,6 +66,19 @@ async def sync_node_to_source_canvas(
     client = get_neo4j_client()
     now_iso = datetime.now(timezone.utc).isoformat()
 
+    # R10 复审 P1-03: JSON fallback 对 CanvasNode MERGE 不支持, 会静默
+    # 返回空列表 — 写路径禁止降级, fail closed 如实报错。
+    if getattr(client, "_use_json_fallback", False):
+        logger.error("[Story 6.5] Neo4j in JSON fallback mode — CanvasNode write refused")
+        return ExamNodeSyncResponse(
+            node_id=request.node_id,
+            synced_to_canvas=False,
+            synced_to_neo4j=False,
+            edge_created=False,
+            status="error",
+            message="Neo4j degraded (JSON fallback) — write refused, retry later",
+        )
+
     # FR-KG-04 Phase 1 Task 1.3: Unified to {id} + canvasId schema
     # (matches SyncService write contract; previously used {uuid} + canvas_id
     # which never collided with SyncService writes and broke kg_relevance.)
@@ -83,7 +96,7 @@ async def sync_node_to_source_canvas(
     RETURN n.id AS id
     """
     try:
-        await client.run_query(
+        node_records = await client.run_query(
             node_query,
             node_id=request.node_id,
             node_text=request.node_text,
@@ -102,6 +115,21 @@ async def sync_node_to_source_canvas(
             edge_created=False,
             status="error",
             message=f"Neo4j node write failed: {e}",
+        )
+
+    # R10 复审 P1-03: MERGE + RETURN 正常必有行; 空行 = 静默降级/半路
+    # 失败 — 不校验就返回 status="ok" 是空写假成功。
+    if not node_records:
+        logger.error(
+            f"[Story 6.5] Node write returned no rows (node={request.node_id} group={group_id}) — treating as failure"
+        )
+        return ExamNodeSyncResponse(
+            node_id=request.node_id,
+            synced_to_canvas=False,
+            synced_to_neo4j=False,
+            edge_created=False,
+            status="error",
+            message="Neo4j node write returned no rows (degraded/failed) — not persisted",
         )
 
     # FR-KG-04 Phase 1 Task 1.4: Unified MATCH to {id} schema (was {uuid})
@@ -219,12 +247,14 @@ async def sync_node_to_source_canvas(
         f"[Story 6.5] Node {request.node_id} synced to canvas {request.source_canvas_id} from exam {request.exam_id}"
     )
 
+    # R10 复审 P1-03: 整体状态如实分级 — 边失败不再报无条件 "ok"
     return ExamNodeSyncResponse(
         node_id=request.node_id,
         synced_to_canvas=True,
         synced_to_neo4j=True,
         edge_created=edge_created,
-        status="ok",
+        status="ok" if edge_created else "partial",
+        message=("" if edge_created else "node persisted but EXAM_DISCOVERED edge was not created"),
     )
 
 

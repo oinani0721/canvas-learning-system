@@ -334,6 +334,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     asyncio.create_task(_eager_init_lancedb_singleton())
     logger.info("[Story 2.2 Phase A] LanceDB singleton background init dispatched")
 
+    # ✅ R10 复审 P2-02 (2026-08-17): 启动时精确校验 canvas 复合唯一约束
+    # 在位 (SHOW CONSTRAINTS)。缺失 → CRITICAL 日志 + /sync/batch 写入
+    # fail-closed 503 (schema_gate)。重建 volume 后不能假设约束自动存在。
+    try:
+        from app.services.schema_gate import get_canvas_schema_gate
+
+        await get_canvas_schema_gate().verify()
+    except Exception as e:  # noqa: BLE001 — gate 验证失败不挡启动 (未知态不拦)
+        logger.warning(f"[SchemaGate] startup verification errored (non-fatal): {e}")
+
     # ✅ Fix-E1 (2026-06-10): 搭车扫 vault markdown, 把节点 frontmatter relationships[]
     # 同步成 Neo4j CANVAS_EDGE{label=原因}, 让检验白板 _get_edge_reasons 能拿到"用户为什么
     # 拉出这个节点"的原因 (GAP-E: 降级后 .canvas 边同步失效, 原因边写入路径缺失)。

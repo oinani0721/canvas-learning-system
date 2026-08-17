@@ -94,7 +94,19 @@ async def sync_batch(request: SyncBatchRequest) -> SyncBatchResponse:
     [Source: Story 1.5 AC-4 — idempotent Neo4j writes]
     """
     from app.graphiti.group_id_compat import to_physical_group_id
+    from app.services.schema_gate import get_canvas_schema_gate
     from app.services.sync_service import get_sync_service
+    from app.services.vault_identity_registry import (
+        VaultIdentityCollisionError,
+        VaultIdentityUnresolvableError,
+        get_vault_identity_registry,
+    )
+
+    # R10 复审 P2-02 — schema gate: 复合唯一约束确认缺失时拒写 (缺约束 =
+    # 并发竞态无数据库兜底, 同 (group_id, id) 可能写出两份)。
+    gate_reason = await get_canvas_schema_gate().block_reason()
+    if gate_reason:
+        raise HTTPException(status_code=503, detail=gate_reason)
 
     # P0-SYNC-ISO-2026-08-17 — 显式接住 resolver 返回值并下传 service, 与
     # 同文件 /sync/relationships/* 范式一致。此前只靠 ContextVar 副作用,
@@ -106,6 +118,20 @@ async def sync_batch(request: SyncBatchRequest) -> SyncBatchResponse:
     )
     # 物理边界一次转换: 绑定 Neo4j group_id 属性的 Cypher 参数必过此函数
     physical_gid = to_physical_group_id(logical_gid)
+
+    # R10 复审 P0-01 — 有损规范化非单射: 不同 vault 名可坍缩同一物理
+    # group ('CS 61B'/'CS-61B' → vault__cs_61b), 碰撞时复合键失效, 覆盖/
+    # 误删复活。注册表首claim绑定 + 碰撞 fail-closed。
+    try:
+        await get_vault_identity_registry().assert_identity(raw_vault_id=request.vault_id, physical_gid=physical_gid)
+    except VaultIdentityUnresolvableError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except VaultIdentityCollisionError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except (ServiceUnavailable, AuthError, ConnectionError) as e:
+        # 注册表查不了 = 身份无法确认 → fail closed (拒写而非放行)
+        logger.error("vault_identity_registry_unavailable: %s", str(e)[:200])
+        raise HTTPException(status_code=503, detail="Neo4j unavailable") from e
 
     try:
         service = get_sync_service()
