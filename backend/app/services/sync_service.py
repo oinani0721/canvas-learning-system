@@ -362,9 +362,13 @@ class SyncService:
         payload = op.payload
         timestamp = op.timestamp.isoformat()
 
+        # E2E 实测修正 (P0-SYNC-ISO): ON CREATE SET 必须紧跟 MERGE — 放在
+        # 独立 SET 之后是 CypherSyntaxError (Story 1.5 原始写法即错, 因路由
+        # 无调用方 + 单测 stub tx.run 从未被真实 Neo4j 校验过)。
         await tx.run(
             """
             MERGE (n:CanvasNode {id: $entity_id, group_id: $group_id})
+            ON CREATE SET n.createdAt = $timestamp
             SET n.title = $title,
                 n.content = $content,
                 n.x = $x,
@@ -375,7 +379,6 @@ class SyncService:
                 n.subjectId = $subject_id,
                 n.type = $type,
                 n.updatedAt = $timestamp
-            ON CREATE SET n.createdAt = $timestamp
             """,
             entity_id=op.entity_id,
             group_id=group_id,
@@ -468,10 +471,10 @@ class SyncService:
                 WITH source, target
                 WHERE source IS NOT NULL AND target IS NOT NULL
                 MERGE (source)-[e:CANVAS_EDGE {id: $entity_id, group_id: $group_id}]->(target)
+                ON CREATE SET e.createdAt = $timestamp
                 SET e.label = $label,
                     e.canvasId = $canvas_id,
                     e.updatedAt = $timestamp
-                ON CREATE SET e.createdAt = $timestamp
                 RETURN 'ok' AS status, e.id AS edge_id
             }
             RETURN status, edge_id
@@ -519,10 +522,10 @@ class SyncService:
         await tx.run(
             """
             MERGE (b:CanvasBoard {id: $entity_id, group_id: $group_id})
+            ON CREATE SET b.createdAt = $timestamp
             SET b.name = $name,
                 b.subjectId = $subject_id,
                 b.updatedAt = $timestamp
-            ON CREATE SET b.createdAt = $timestamp
             """,
             entity_id=op.entity_id,
             group_id=group_id,

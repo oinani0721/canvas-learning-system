@@ -144,6 +144,36 @@ class TestSyncServiceGroupKeys:
 
 
 # ---------------------------------------------------------------------------
+# 2.5: Cypher 子句顺序 (E2E 实测教训锁)
+# ---------------------------------------------------------------------------
+
+
+class TestUpsertCypherClauseOrder:
+    """E2E 实测教训锁 (2026-08-17): ON CREATE SET 必须紧跟 MERGE — 放在
+    独立 SET 之后是 CypherSyntaxError。Story 1.5 原始写法即错, 因路由无
+    调用方 + 单测 stub tx.run, 从未被真实 Neo4j 校验; stub 测不了语法,
+    用子句顺序锁住防回退。"""
+
+    @pytest.mark.asyncio
+    async def test_upsert_node_on_create_precedes_standalone_set(self) -> None:
+        calls = await _run_single_op(entity_type="node", operation="create", group_id=PHYSICAL_GID_A)
+        q = _norm(calls[0]["query"])
+        assert q.index("ON CREATE SET") < q.index("SET n.title")
+
+    @pytest.mark.asyncio
+    async def test_upsert_edge_on_create_precedes_standalone_set(self) -> None:
+        calls = await _run_single_op(entity_type="edge", operation="create", group_id=PHYSICAL_GID_A)
+        q = _norm(calls[0]["query"])
+        assert q.index("ON CREATE SET") < q.index("SET e.label")
+
+    @pytest.mark.asyncio
+    async def test_upsert_board_on_create_precedes_standalone_set(self) -> None:
+        calls = await _run_single_op(entity_type="board", operation="create", group_id=PHYSICAL_GID_A)
+        q = _norm(calls[0]["query"])
+        assert q.index("ON CREATE SET") < q.index("SET b.name")
+
+
+# ---------------------------------------------------------------------------
 # 3: 双 vault 场景 — 同 entity_id 不同 group 参数互不相同
 # ---------------------------------------------------------------------------
 
