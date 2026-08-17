@@ -50,6 +50,39 @@
 //        b.subjectId AS subject_id, b.name AS name, count(*) AS cnt
 //   WHERE cnt > 1
 //   RETURN gid, subject_id, name, cnt;
+//
+// 0d. 歧义检测 (R10 复审 P1-05 — 命中即 blocker, 人工处置后才可 --apply):
+//
+//   -- 0d-1. NULL-group node 板继承多候选: canvasId 匹配到 ≥2 个不同 group
+//   --       的 board → STEP 2 的 head(collect(...)) 会任取一个 (归属随机),
+//   --       必须先人工指定归属:
+//   MATCH (n:CanvasNode)
+//   WHERE n.group_id IS NULL
+//   MATCH (b:CanvasBoard {id: n.canvasId})
+//   WHERE b.group_id IS NOT NULL
+//   WITH n, collect(DISTINCT b.group_id) AS candidate_groups
+//   WHERE size(candidate_groups) > 1
+//   RETURN n.id AS id, n.canvasId AS canvas_id, candidate_groups ORDER BY id;
+//
+//   -- 0d-2. NULL-group edge 两端点回填后投影 group 不一致: 边继承 source,
+//   --       与 target 归属矛盾 → 悬挂脏边 (group 限定的 _delete_edge /
+//   --       幽灵边对账永远看不见它):
+//   MATCH (s)-[e:CANVAS_EDGE]->(t)
+//   WHERE e.group_id IS NULL
+//   OPTIONAL MATCH (sb:CanvasBoard {id: s.canvasId})
+//   WITH e, s, t,
+//        coalesce(s.group_id, head([g IN collect(sb.group_id) WHERE g IS NOT NULL]),
+//                 $default_physical_gid) AS source_group
+//   OPTIONAL MATCH (tb:CanvasBoard {id: t.canvasId})
+//   WITH e, s, t, source_group,
+//        coalesce(t.group_id, head([g IN collect(tb.group_id) WHERE g IS NOT NULL]),
+//                 $default_physical_gid) AS target_group
+//   WHERE source_group <> target_group
+//   RETURN e.id AS id, s.id AS source_id, t.id AS target_id,
+//          source_group, target_group ORDER BY id;
+//
+//   -- ⚠️ 已知局限: 「group_id 非 NULL 但归错组」的行无法自动判定 —
+//   -- 脚本无法区分「正确归属」与「历史写错组」, 只能领域侧人工对账。
 
 // === STEP 1: 回填 CanvasBoard (先于 node — node 从 board 继承) ===
 MATCH (b:CanvasBoard)
@@ -107,19 +140,51 @@ DROP CONSTRAINT canvasboard_subject_name_unique IF EXISTS;
 //   ];
 //   -- 三行都在; canvasnode_id_unique / canvasboard_subject_name_unique 不在。
 
-// === ROLLBACK (emergency only) ===
+// === ROLLBACK (emergency only — 顺序: 只读预检 → 先建旧 → 后删新) ===
 //
-// 前提: --apply 后尚未产生跨 vault 同 id 数据 (apply 后立即回滚的窗口内
-// 安全)。若已有两个 vault 写入同 id 实体, 重建全局唯一约束会
-// ConstraintValidationFailed — 此时只能从 Neo4j backup 恢复。
+// ⚠️ P1-04 修正 (R10 复审 2026-08-17): 旧版回滚先 DROP 新复合约束、再
+// CREATE 旧全局约束 — 若数据里已有跨 vault 同 id (新设计明确允许),
+// 旧约束创建会 ConstraintValidationFailed, 数据库停在**零约束真空态**。
+// 正确顺序与 STEP 4 对偶: 先建 (确认能建) 后删, 全程无保护真空窗口。
 //
-//   DROP CONSTRAINT canvasnode_group_id_unique IF EXISTS;
-//   DROP CONSTRAINT canvasboard_group_id_unique IF EXISTS;
-//   DROP CONSTRAINT canvasboard_group_subject_name_unique IF EXISTS;
+// R0. 只读预检 — 跨 group 重复裸 id 检测。任一查询返回 ≥1 行 = 数据里
+//     已存在旧全局约束容不下的重复 → ⛔ 禁止回滚, 只能从 Neo4j backup
+//     恢复 (以下三条全部 0 行才允许执行 R1):
+//
+//   -- R0-a. CanvasNode 按裸 id 分组 (canvasnode_id_unique 的建约束前提):
+//   MATCH (n:CanvasNode)
+//   WITH n.id AS id, count(*) AS cnt, collect(DISTINCT n.group_id) AS groups
+//   WHERE cnt > 1
+//   RETURN id, cnt, groups ORDER BY cnt DESC;
+//
+//   -- R0-b. CanvasBoard 按裸 id 分组 (旧世界无 board-id 约束, 但旧 Cypher
+//   --       按裸 id MERGE/MATCH — 跨 vault 同 id board 在回滚后会互相
+//   --       覆盖, 命中同样禁止回滚):
+//   MATCH (b:CanvasBoard)
+//   WITH b.id AS id, count(*) AS cnt, collect(DISTINCT b.group_id) AS groups
+//   WHERE cnt > 1
+//   RETURN id, cnt, groups ORDER BY cnt DESC;
+//
+//   -- R0-c. CanvasBoard (subjectId, name) 分组 (canvasboard_subject_name_unique
+//   --       的建约束前提):
+//   MATCH (b:CanvasBoard)
+//   WITH b.subjectId AS subject_id, b.name AS name, count(*) AS cnt,
+//        collect(DISTINCT b.group_id) AS groups
+//   WHERE cnt > 1
+//   RETURN subject_id, name, cnt, groups;
+//
+// R1. 预检通过 (三条全 0 行) 才执行 — 先 CREATE 旧全局约束 (确认能建):
+//
 //   CREATE CONSTRAINT canvasnode_id_unique IF NOT EXISTS
 //   FOR (n:CanvasNode) REQUIRE n.id IS UNIQUE;
 //   CREATE CONSTRAINT canvasboard_subject_name_unique IF NOT EXISTS
 //   FOR (b:CanvasBoard) REQUIRE (b.subjectId, b.name) IS UNIQUE;
+//
+// R2. 旧约束就位后才 DROP 新复合约束:
+//
+//   DROP CONSTRAINT canvasnode_group_id_unique IF EXISTS;
+//   DROP CONSTRAINT canvasboard_group_id_unique IF EXISTS;
+//   DROP CONSTRAINT canvasboard_group_subject_name_unique IF EXISTS;
 //
 // 回填的 group_id 属性冗余无害, 无需清除 — 旧 Cypher 按裸 id 匹配,
 // 多余属性透明 (代码 revert 后行为与迁移前一致)。

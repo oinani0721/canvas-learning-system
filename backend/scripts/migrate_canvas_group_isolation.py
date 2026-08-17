@@ -4,6 +4,8 @@
 职责 (与 migrations/003_canvas_group_isolation.cypher 一一对应):
   STEP 0 census   — 三 label NULL 计数 + 全量清单 (百级规模, 供人工核对)
                     + 复合键预重复检测 + board (group,subject,name) 冲突检测
+                    + 歧义检测 (R10 P1-05: node 板继承多候选 / edge 两端点
+                    投影 group 不一致) — 命中即 blocker, --apply 中止
   STEP 1-2 回填    — board 先 (node 继承源) → node (板继承, 兜底 default)
                     → edge (兜底 default); WHERE IS NULL 幂等不覆盖已有值
   STEP 3 verify   — NULL 三 label 归零 gate (复合唯一约束对 NULL 行不强制,
@@ -13,6 +15,11 @@
 ⚠️ 不复用 group_id_migration_service.migrate_legacy_group_ids —
 其扫描器是 WHERE group_id IS NOT NULL (迁旧值), 对本次目标 (NULL 行)
 完全不可见。本脚本的扫描全部 WHERE group_id IS NULL。
+
+⚠️ 已知局限 (R10 P1-05 复审确认): 「group_id 非 NULL 但归错组」的行无法
+自动判定 — 从图结构上无法区分「正确归属」与「历史写错组」(两者都是
+非 NULL 值, 且写错组的行可能连 board 都在同一错组里自洽)。此类脏数据
+只能领域侧人工对账, 不在本脚本 census / blocker 范围内。
 
 Usage:
     # 干跑 (默认, 只出 census 报告, 不改数据)
@@ -91,6 +98,42 @@ WHERE cnt > 1
 RETURN gid, subject_id, name, cnt
 """
 
+# 歧义检测 (R10 P1-05, 只读) — 与 migrations/003 STEP 0d 逐字一致。
+#
+# 0d-1. NULL-group node 板继承多候选: Q_BACKFILL_NODE 的 head(collect(...))
+#       会任取一个候选 (归属随机) — 多候选必须先人工指定归属。
+Q_AMBIG_NODE_MULTI_BOARD_GROUP = """
+MATCH (n:CanvasNode)
+WHERE n.group_id IS NULL
+MATCH (b:CanvasBoard {id: n.canvasId})
+WHERE b.group_id IS NOT NULL
+WITH n, collect(DISTINCT b.group_id) AS candidate_groups
+WHERE size(candidate_groups) > 1
+RETURN n.id AS id, n.canvasId AS canvas_id, candidate_groups
+ORDER BY id
+"""
+# 0d-2. NULL-group edge 两端点回填后投影 group 不一致: Q_BACKFILL_EDGE 只
+#       继承 source, 与 target 归属矛盾 = 悬挂脏边 (group 限定的
+#       _delete_edge / 幽灵边对账永远看不见它)。端点投影口径与
+#       Q_BACKFILL_NODE / Q_DUP_NODE_COMPOSITE 同源: 自身 group →
+#       板继承 → default 兜底。
+Q_AMBIG_EDGE_ENDPOINT_MISMATCH = """
+MATCH (s)-[e:CANVAS_EDGE]->(t)
+WHERE e.group_id IS NULL
+OPTIONAL MATCH (sb:CanvasBoard {id: s.canvasId})
+WITH e, s, t,
+     coalesce(s.group_id, head([g IN collect(sb.group_id) WHERE g IS NOT NULL]),
+              $default_gid) AS source_group
+OPTIONAL MATCH (tb:CanvasBoard {id: t.canvasId})
+WITH e, s, t, source_group,
+     coalesce(t.group_id, head([g IN collect(tb.group_id) WHERE g IS NOT NULL]),
+              $default_gid) AS target_group
+WHERE source_group <> target_group
+RETURN e.id AS id, s.id AS source_id, t.id AS target_id,
+       source_group, target_group
+ORDER BY id
+"""
+
 Q_BACKFILL_BOARD = """
 MATCH (b:CanvasBoard)
 WHERE b.group_id IS NULL
@@ -136,7 +179,7 @@ async def _fetch(session: Any, query: str, **params: Any) -> list[dict[str, Any]
 
 
 async def run_census(session: Any, default_gid: str) -> dict[str, Any]:
-    """STEP 0 — NULL 计数 + 全量清单 + 预重复/冲突检测 (只读)."""
+    """STEP 0 — NULL 计数 + 全量清单 + 预重复/冲突 + 歧义检测 (只读)."""
     node_null = (await _fetch(session, Q_NULL_COUNT_NODE))[0]["c"]
     board_null = (await _fetch(session, Q_NULL_COUNT_BOARD))[0]["c"]
     edge_null = (await _fetch(session, Q_NULL_COUNT_EDGE))[0]["c"]
@@ -157,11 +200,22 @@ async def run_census(session: Any, default_gid: str) -> dict[str, Any]:
             "board_composite": await _fetch(session, Q_DUP_BOARD_COMPOSITE, default_gid=default_gid),
             "board_subject_name": await _fetch(session, Q_DUP_BOARD_SUBJECT_NAME, default_gid=default_gid),
         },
+        "ambiguities": {
+            "node_multi_board_group": await _fetch(session, Q_AMBIG_NODE_MULTI_BOARD_GROUP),
+            "edge_endpoint_group_mismatch": await _fetch(
+                session, Q_AMBIG_EDGE_ENDPOINT_MISMATCH, default_gid=default_gid
+            ),
+        },
     }
 
 
 def census_blockers(census: dict[str, Any]) -> list[str]:
-    """预重复/冲突命中 → 人工处置后才允许 --apply (约束会中断)."""
+    """预重复/冲突/歧义命中 → 人工处置后才允许 --apply.
+
+    duplicates: 复合键重复 — STEP 4 建约束会 ConstraintValidationFailed。
+    ambiguities (R10 P1-05): 回填本身会写错数据 (归属随机 / 悬挂脏边) —
+    比约束中断更隐蔽, 同样必须 block。
+    """
     blockers: list[str] = []
     for key, label in (
         ("node_composite", "CanvasNode (group_id, id)"),
@@ -171,6 +225,19 @@ def census_blockers(census: dict[str, Any]) -> list[str]:
         hits = census["duplicates"][key]
         if hits:
             blockers.append(f"{label} 重复 {len(hits)} 组: {hits}")
+    for key, label in (
+        (
+            "node_multi_board_group",
+            "CanvasNode 板继承多候选 group (回填会任取一个, 需人工指定归属)",
+        ),
+        (
+            "edge_endpoint_group_mismatch",
+            "CANVAS_EDGE 两端点投影 group 不一致 (回填产生悬挂脏边, 需人工处置)",
+        ),
+    ):
+        hits = census["ambiguities"][key]
+        if hits:
+            blockers.append(f"{label} {len(hits)} 条: {hits}")
     return blockers
 
 
@@ -275,11 +342,11 @@ def _print_census(census: dict[str, Any]) -> None:
         print()
     blockers = census_blockers(census)
     if blockers:
-        print("⛔ 预重复/冲突检测命中 (须人工处置后才可 --apply):")
+        print("⛔ 预重复/冲突/歧义检测命中 (须人工处置后才可 --apply):")
         for b in blockers:
             print(f"  {b}")
     else:
-        print("预重复/冲突检测: 全部通过 (0 命中)")
+        print("预重复/冲突/歧义检测: 全部通过 (0 命中)")
 
 
 async def run_migration(args: argparse.Namespace) -> int:
@@ -341,14 +408,15 @@ async def run_migration(args: argparse.Namespace) -> int:
                     _print_census(census)
                 return 0
 
-            # --apply 路径: 预重复命中即中止 (约束建不起来, 不留半成品)
+            # --apply 路径: 预重复/歧义命中即中止 (约束建不起来 / 回填会写
+            # 错数据, 不留半成品), 输出人工处置清单
             if blockers:
-                report["aborted"] = "duplicate_precheck_failed"
+                report["aborted"] = "census_precheck_failed"
                 report["blockers"] = blockers
                 if args.json:
                     print(json.dumps(report, ensure_ascii=False, indent=2))
                 else:
-                    print("⛔ 预重复检测命中, 中止 (未写任何数据):")
+                    print("⛔ 预重复/歧义检测命中, 中止 (未写任何数据):")
                     for b in blockers:
                         print(f"  {b}")
                 return 3
