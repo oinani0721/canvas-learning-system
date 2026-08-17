@@ -67,9 +67,12 @@ OPTIONAL MATCH (b:CanvasBoard {id: n.canvasId})
 WITH n, head([g IN collect(b.group_id) WHERE g IS NOT NULL]) AS board_gid
 SET n.group_id = coalesce(board_gid, $default_physical_gid);
 
-MATCH ()-[e:CANVAS_EDGE]->()
+// 审查 F1 修正 (2026-08-17): 边继承 source 端点 group (node 先回填完),
+// 兜底 default — 边 group ≠ 端点 group 会让 group 限定的 _delete_edge /
+// 幽灵边对账永远看不见它 (悬挂脏边)。
+MATCH (s)-[e:CANVAS_EDGE]->()
 WHERE e.group_id IS NULL
-SET e.group_id = $default_physical_gid;
+SET e.group_id = coalesce(s.group_id, $default_physical_gid);
 
 // === STEP 3: VERIFY — NULL 三 label 必须归零, 否则禁止执行 STEP 4 ===
 //

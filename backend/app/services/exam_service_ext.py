@@ -117,7 +117,7 @@ async def sync_node_to_source_canvas(
     """
     edge_created = True
     try:
-        await client.run_query(
+        edge_records = await client.run_query(
             edge_query,
             source_node_id=request.source_node_id,
             node_id=request.node_id,
@@ -126,6 +126,16 @@ async def sync_node_to_source_canvas(
             group_id=group_id,
             created_at=now_iso,
         )
+        # P0-SYNC-ISO 审查 F1: 端点 MATCH 限定 group 后, 跨 group 端点从
+        # 「静默借用」变空匹配 — run_query 空结果不抛异常, 必须显式检测,
+        # 否则零边写入却谎报 edge_created=True (DD-13 名实一致)。
+        if not edge_records:
+            logger.warning(
+                "[Story 6.5] Edge creation matched no endpoints "
+                f"(source={request.source_node_id} target={request.node_id} "
+                f"group={group_id}) — cross-group endpoints are isolated by design"
+            )
+            edge_created = False
     except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning(f"[Story 6.5] Edge creation failed (non-fatal): {e}")
         edge_created = False

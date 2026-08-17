@@ -175,6 +175,16 @@ class TestBackfill:
             assert "group_id IS NULL" in call["query"].replace("n.", "").replace("b.", "").replace("e.", "")
             assert call["params"]["default_gid"] == "vault__test"
 
+    @pytest.mark.asyncio
+    async def test_backfill_edge_inherits_source_group(self) -> None:
+        """审查 F2 锁: 边回填必须继承 source 端点 group (兜底 default) —
+        边 group ≠ 端点 group 会让 group 限定的 _delete_edge / 幽灵边
+        对账永远看不见它 (悬挂脏边)."""
+        session = _FakeSession(lambda q, p: [{"updated": 0}])
+        await mig.run_backfill(session, "vault__test")
+        edge_call = next(c for c in session.calls if "CANVAS_EDGE" in c["query"])
+        assert "coalesce(s.group_id, $default_gid)" in edge_call["query"]
+
 
 # ---------------------------------------------------------------------------
 # 3: verify + 约束顺序

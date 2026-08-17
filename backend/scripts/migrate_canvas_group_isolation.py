@@ -106,9 +106,9 @@ SET n.group_id = coalesce(board_gid, $default_gid)
 RETURN count(n) AS updated
 """
 Q_BACKFILL_EDGE = """
-MATCH ()-[e:CANVAS_EDGE]->()
+MATCH (s)-[e:CANVAS_EDGE]->()
 WHERE e.group_id IS NULL
-SET e.group_id = $default_gid
+SET e.group_id = coalesce(s.group_id, $default_gid)
 RETURN count(e) AS updated
 """
 

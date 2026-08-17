@@ -20,7 +20,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # FR-KG-04 Phase 11: exception class for missing upstream entities
@@ -149,6 +149,17 @@ class SyncBatchRequest(BaseModel):
             "consumption."
         ),
     )
+
+    @field_validator("vault_id")
+    @classmethod
+    def _vault_id_not_blank(cls, v: str) -> str:
+        """P0-SYNC-ISO 审查 F3: min_length=1 放行 " " — 纯空白会在
+        _vault_id_resolver 里被 strip 判空, 静默落 legacy/default 假隔离桶,
+        绕过必填硬化。这里 strip 后判空, 空白即 422。"""
+        v = v.strip()
+        if not v:
+            raise ValueError("vault_id must be non-blank (P0-SYNC-ISO)")
+        return v
 
 
 class SyncOperationResult(BaseModel):

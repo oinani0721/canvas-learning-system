@@ -156,6 +156,26 @@ class TestSyncBatchRequestVaultId:
         with pytest.raises(pydantic.ValidationError):
             SyncBatchRequest(canvas_id="cv-1", operations=[op])
 
+    def test_sync_batch_blank_vault_id_rejected(self):
+        """P0-SYNC-ISO 审查 F3: 纯空白 vault_id 过得了 min_length=1, 但会
+        在 resolver 被 strip 判空静默落 default/legacy 假隔离桶 — 必须 422."""
+        import pydantic
+
+        from app.models.sync_models import SyncBatchRequest, SyncOperation
+
+        from datetime import datetime, timezone
+
+        op = SyncOperation(
+            operation_id="op-1",
+            operation="create",
+            entity_type="node",
+            entity_id="n1",
+            payload={"id": "n1"},
+            timestamp=datetime.now(timezone.utc),
+        )
+        with pytest.raises(pydantic.ValidationError):
+            SyncBatchRequest(canvas_id="cv-1", vault_id="   ", operations=[op])
+
     def test_sync_batch_has_deprecated_group_id(self):
         from app.models.sync_models import SyncBatchRequest, SyncOperation
 
