@@ -15,8 +15,9 @@ Deleting a subject only removes the ``:Subject`` node; all associated
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.clients.neo4j_client import get_neo4j_client
 from app.models.subject_models import (
@@ -26,6 +27,8 @@ from app.models.subject_models import (
     SubjectUpdate,
 )
 
+from ._vault_id_resolver import resolve_vault_group_id
+
 logger = logging.getLogger(__name__)
 
 subjects_router = APIRouter()
@@ -34,6 +37,66 @@ subjects_router = APIRouter()
 def _generate_subject_id() -> str:
     """Generate a short unique identifier for a subject."""
     return f"subj_{uuid.uuid4().hex[:12]}"
+
+
+# ---------------------------------------------------------------------------
+# P0-SYNC-ISO-2026-08-17 R10 — 读侧 vault 隔离 (外部对抗审查 P1-06)
+#
+# CanvasNode 计数查询此前不带 group 过滤 → 跨 vault 节点计入本 vault 的
+# subject node_count (读取面泄漏)。:Subject 元数据节点本身无 group_id 属性
+# (本文件 create_subject 即不写该属性), 是 vault 无关的全局用户配置, 与
+# cypher_helpers.py Wave-6 backlog 中 subject_config.list_subjects 的
+# CROSS-VAULT BY DESIGN 定位一致 — 因此只对 CanvasNode 侧加过滤。
+#
+# 过滤形态: vault 内允许 subject/canvas 二级 namespace (vault__x__algebra),
+# 故用 "等值 OR 前缀" 双条件; 前缀自带 '__' 定界符, 防 vault__x 误配
+# vault__xy。此 fragment 是固定常量, f-string 只插入它, 无注入面 (同
+# update_subject HIGH-3 note 的既有约定)。
+# ---------------------------------------------------------------------------
+
+_CANVAS_NODE_GROUP_FILTER = "(n.group_id = $group_id OR n.group_id STARTS WITH $group_prefix)"
+
+
+def _resolve_read_group_params(vault_id: Optional[str]) -> dict:
+    """解析读侧 CanvasNode 过滤所需的物理 group 参数.
+
+    优先级 (P0-SYNC-ISO R10):
+    1. 请求显式 vault_id → resolve_vault_group_id (注入 ContextVar, 与
+       sync.py /sync/relationships/* 范式一致)
+    2. ContextVar ``get_current_subject_id()`` — 命名遗留, 实际存的是
+       group_id (由其他 endpoint 的 resolve_vault_group_id 注入)
+    3. ContextVar 仍是默认值 (无人注入) → 激活 vault (G-DEFAULT 修复范式,
+       metadata.py 2026-07-10: DEFAULT_GROUP_ID 归一化后是 vault:default
+       空桶, 会把所有 node_count 清零; 回退到当前激活 vault 保证与写侧
+       同 namespace)
+
+    Returns:
+        ``{"group_id": 物理等值参数, "group_prefix": 物理前缀 + '__'}`` —
+        绑定值已过 to_physical_group_id (双下划线物理格式), 直接可绑
+        Neo4j group_id 属性。
+    """
+    from app.core.subject_config import DEFAULT_SUBJECT_ID, get_current_subject_id
+    from app.graphiti.group_id_compat import to_physical_group_id
+
+    if vault_id and vault_id.strip():
+        logical = resolve_vault_group_id(vault_id)
+    else:
+        logical = get_current_subject_id()
+        if not logical or logical == DEFAULT_SUBJECT_ID:
+            from app.config import get_current_vault_id, sanitize_vault_id
+            from app.core.subject_config import build_vault_group_id
+
+            active_vault = sanitize_vault_id(get_current_vault_id())
+            logger.warning(
+                "P0-SYNC-ISO R10: subjects endpoint called without vault_id and "
+                "no group in ContextVar — falling back to ACTIVE vault '%s' "
+                "(G-DEFAULT pattern, metadata.py 2026-07-10)",
+                active_vault,
+            )
+            logical = build_vault_group_id(active_vault)
+
+    physical = to_physical_group_id(logical)
+    return {"group_id": physical, "group_prefix": f"{physical}__"}
 
 
 # ---------------------------------------------------------------------------
@@ -48,27 +111,42 @@ def _generate_subject_id() -> str:
     description="Returns every user-created subject with a node count.",
     tags=["Subjects"],
 )
-async def list_subjects() -> SubjectListResponse:
+async def list_subjects(
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "P0-SYNC-ISO R10 — 推荐必填. node_count 按此 vault 过滤 "
+            "(group_id 等值或 vault 前缀命中). 空时 fallback "
+            "ContextVar → 激活 vault."
+        ),
+    ),
+) -> SubjectListResponse:
     """
     Fetch every ``:Subject`` node from Neo4j together with the number
     of ``CanvasNode`` entries that reference each subject.
 
     HIGH-1 fix: Uses shared Neo4jClient singleton instead of per-request driver.
+    P0-SYNC-ISO R10: the CanvasNode count join is vault-scoped — the
+    ``:Subject`` list itself stays global (metadata nodes carry no group_id).
 
     [Source: Story 1.9 Task 8 — GET /api/v1/subjects/]
     """
+    group_params = _resolve_read_group_params(vault_id)
     neo4j_client = get_neo4j_client()
     records = await neo4j_client.run_query(
-        """
+        f"""
         MATCH (s:Subject)
-        OPTIONAL MATCH (n:CanvasNode {subjectId: s.id})
+        OPTIONAL MATCH (n:CanvasNode {{subjectId: s.id}})
+        WHERE {_CANVAS_NODE_GROUP_FILTER}
         RETURN s.id        AS id,
                s.name      AS name,
                s.color     AS color,
                s.createdAt AS createdAt,
                count(n)    AS nodeCount
         ORDER BY s.createdAt ASC
-        """
+        """,
+        **group_params,
     )
 
     subjects = [
@@ -162,7 +240,17 @@ async def create_subject(body: SubjectCreate) -> SubjectResponse:
     description="Update the name and/or color of an existing subject.",
     tags=["Subjects"],
 )
-async def update_subject(subject_id: str, body: SubjectUpdate) -> SubjectResponse:
+async def update_subject(
+    subject_id: str,
+    body: SubjectUpdate,
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description=(
+            "P0-SYNC-ISO R10 — 推荐必填. 响应里的 node_count 按此 vault 过滤. 空时 fallback ContextVar → 激活 vault."
+        ),
+    ),
+) -> SubjectResponse:
     """
     Update subject properties.
 
@@ -170,6 +258,8 @@ async def update_subject(subject_id: str, body: SubjectUpdate) -> SubjectRespons
     provided the endpoint returns 400.
 
     HIGH-2 fix: Added duplicate name check (same logic as create_subject).
+    P0-SYNC-ISO R10: the node_count query is vault-scoped (the ``:Subject``
+    update itself stays global — metadata nodes carry no group_id).
 
     [Source: Story 1.9 Task 8 — PUT /api/v1/subjects/{id}]
     """
@@ -179,6 +269,7 @@ async def update_subject(subject_id: str, body: SubjectUpdate) -> SubjectRespons
             detail="At least one of 'name' or 'color' must be provided",
         )
 
+    group_params = _resolve_read_group_params(vault_id)
     neo4j_client = get_neo4j_client()
 
     # HIGH-2 fix: Check for duplicate name (exclude current subject from check)
@@ -229,10 +320,12 @@ async def update_subject(subject_id: str, body: SubjectUpdate) -> SubjectRespons
 
     record = update_records[0]
 
-    # Fetch node count separately to keep the update query simple
+    # Fetch node count separately to keep the update query simple.
+    # P0-SYNC-ISO R10: count is vault-scoped (equality or vault-prefix match).
     cnt_records = await neo4j_client.run_query(
-        "MATCH (n:CanvasNode {subjectId: $sid}) RETURN count(n) AS c",
+        f"MATCH (n:CanvasNode {{subjectId: $sid}}) WHERE {_CANVAS_NODE_GROUP_FILTER} RETURN count(n) AS c",
         sid=subject_id,
+        **group_params,
     )
     node_count = cnt_records[0]["c"] if cnt_records else 0
 
@@ -254,9 +347,7 @@ async def update_subject(subject_id: str, body: SubjectUpdate) -> SubjectRespons
 @subjects_router.delete(
     "/{subject_id}",
     summary="Delete a subject",
-    description=(
-        "Remove the :Subject node. Associated CanvasNode and CanvasBoard data is NOT deleted (soft-delete)."
-    ),
+    description=("Remove the :Subject node. Associated CanvasNode and CanvasBoard data is NOT deleted (soft-delete)."),
     tags=["Subjects"],
 )
 async def delete_subject(subject_id: str) -> dict:

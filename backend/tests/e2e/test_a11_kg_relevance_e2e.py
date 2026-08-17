@@ -131,6 +131,13 @@ async def _seed_canvas(client: Neo4jClient) -> None:
     await _clear_canvas(client)
 
     # Nodes
+    #
+    # P0-SYNC-ISO-2026-08-17 R10: `_get_kg_relevance` now vault-filters both
+    # the primary node and its neighbors (group_id = vault root OR STARTS WITH
+    # root + "__"). This test runs without a request context, so the ContextVar
+    # default "general" canonicalizes to physical group "vault__default" —
+    # seeds must carry that group_id or every row is filtered out and scores
+    # collapse to the degraded 0.5 constant.
     for node_id in PRIMARY_NODES + FILLER_NODES:
         await client.run_query(
             """
@@ -138,6 +145,7 @@ async def _seed_canvas(client: Neo4jClient) -> None:
             SET n.title = $title,
                 n.content = '',
                 n.canvasId = $canvas_id,
+                n.group_id = $group_id,
                 n.type = 'text',
                 n.x = 0,
                 n.y = 0,
@@ -147,6 +155,7 @@ async def _seed_canvas(client: Neo4jClient) -> None:
             node_id=node_id,
             title=f"pytest-{node_id}",
             canvas_id=CANVAS_ID,
+            group_id="vault__default",
         )
 
     # Edges — nodeC×4 + nodeD×6 + nodeE×8 = 18
@@ -260,13 +269,9 @@ class TestA11SchemaIsCanonical:
             """,
             canvas_id=CANVAS_ID,
         )
-        assert int(rows[0]["c"]) == 0, (
-            "schema drift regression — CanvasNode must not write {uuid}"
-        )
+        assert int(rows[0]["c"]) == 0, "schema drift regression — CanvasNode must not write {uuid}"
 
-    async def test_all_nodes_have_canonical_id_and_canvas_id(
-        self, a11_canvas: Neo4jClient
-    ) -> None:
+    async def test_all_nodes_have_canonical_id_and_canvas_id(self, a11_canvas: Neo4jClient) -> None:
         rows = await a11_canvas.run_query(
             """
             MATCH (n:CanvasNode)
@@ -276,9 +281,7 @@ class TestA11SchemaIsCanonical:
             canvas_id=CANVAS_ID,
         )
         expected = len(PRIMARY_NODES) + len(FILLER_NODES)
-        assert int(rows[0]["c"]) == expected, (
-            f"expected {expected} canonical nodes, got {rows[0]['c']}"
-        )
+        assert int(rows[0]["c"]) == expected, f"expected {expected} canonical nodes, got {rows[0]['c']}"
 
 
 class TestA11KgRelevanceDirect:
@@ -293,12 +296,8 @@ class TestA11KgRelevanceDirect:
     ) -> None:
         expected_score, expected_degraded = EXPECTED_KG[node_id]
         score, degraded = await stubbed_qg._get_kg_relevance(node_id, CANVAS_ID)
-        assert score == pytest.approx(expected_score, abs=1e-3), (
-            f"{node_id}: expected {expected_score}, got {score}"
-        )
-        assert degraded == expected_degraded, (
-            f"{node_id}: expected degraded={expected_degraded!r}, got {degraded!r}"
-        )
+        assert score == pytest.approx(expected_score, abs=1e-3), f"{node_id}: expected {expected_score}, got {score}"
+        assert degraded == expected_degraded, f"{node_id}: expected degraded={expected_degraded!r}, got {degraded!r}"
 
     async def test_nodeC_four_edges_NOT_marked_as_degraded(
         self, a11_canvas: Neo4jClient, stubbed_qg: QuestionGenerator
@@ -312,9 +311,7 @@ class TestA11KgRelevanceDirect:
         """
         score, degraded = await stubbed_qg._get_kg_relevance("nodeC", CANVAS_ID)
         assert score == pytest.approx(0.5, abs=1e-3)
-        assert degraded is None, (
-            "nodeC has 4 edges — its 0.5 score is computed, NOT degraded"
-        )
+        assert degraded is None, "nodeC has 4 edges — its 0.5 score is computed, NOT degraded"
 
 
 class TestA11SelectionSequence:
@@ -331,8 +328,7 @@ class TestA11SelectionSequence:
         )
         assert picked is not None
         assert picked.node_id == "nodeE", (
-            "nodeE has 8 edges → must be picked first; "
-            "if this fails, kg_relevance is probably constant again"
+            "nodeE has 8 edges → must be picked first; if this fails, kg_relevance is probably constant again"
         )
         assert picked.kg_relevance == pytest.approx(1.0, abs=1e-3)
         assert picked.kg_relevance_degraded is None
@@ -439,6 +435,7 @@ class TestA11Phase0HardeningCrossCanvasIsolation:
             MERGE (n:CanvasNode {id: 'nodeE', canvasId: $cid})
             ON CREATE SET n.title = 'parallel-nodeE',
                           n.content = '',
+                          n.group_id = 'vault__default',
                           n.type = 'text',
                           n.x = 0, n.y = 0, n.width = 200, n.height = 120
             """,
@@ -450,6 +447,7 @@ class TestA11Phase0HardeningCrossCanvasIsolation:
             MERGE (f:CanvasNode {id: 'parallel-filler-0', canvasId: $cid})
             ON CREATE SET f.title = 'pf0',
                           f.content = '',
+                          f.group_id = 'vault__default',
                           f.type = 'text',
                           f.x = 0, f.y = 0, f.width = 200, f.height = 120
             """,
@@ -466,16 +464,12 @@ class TestA11Phase0HardeningCrossCanvasIsolation:
 
         try:
             # Original canvas: nodeE has 8 edges → kg_relevance = min(1.0, 8/8) = 1.0
-            score_original, degraded_original = await stubbed_qg._get_kg_relevance(
-                "nodeE", CANVAS_ID
-            )
+            score_original, degraded_original = await stubbed_qg._get_kg_relevance("nodeE", CANVAS_ID)
             assert score_original == pytest.approx(1.0, abs=1e-3)
             assert degraded_original is None
 
             # Parallel canvas: nodeE has only 1 edge → kg_relevance = min(1.0, 1/8) = 0.125
-            score_parallel, degraded_parallel = await stubbed_qg._get_kg_relevance(
-                "nodeE", parallel_canvas
-            )
+            score_parallel, degraded_parallel = await stubbed_qg._get_kg_relevance("nodeE", parallel_canvas)
             assert score_parallel == pytest.approx(0.125, abs=1e-3), (
                 f"Parallel canvas should see only its 1 edge, got score={score_parallel}. "
                 f"If this is 1.0, the primary node MATCH is leaking cross-canvas and "
@@ -541,9 +535,7 @@ class TestA11Phase0HardeningBoundedConcurrency:
             # assert that the concurrency bound was respected.
             assert picked is not None or picked is None  # liveness not strictness
 
-            assert max_inflight > 0, (
-                "Test instrumentation failed — no kg_relevance calls were observed"
-            )
+            assert max_inflight > 0, "Test instrumentation failed — no kg_relevance calls were observed"
             assert max_inflight <= 20, (
                 f"A10 Phase 0 Hardening regression: max in-flight kg_relevance "
                 f"calls was {max_inflight}, expected ≤ 20. The asyncio.Semaphore "

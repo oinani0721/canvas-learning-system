@@ -52,8 +52,7 @@ def _patch_neo4j_client(records_or_exception: Any) -> Any:
     """
     fake_client = MagicMock()
     if isinstance(records_or_exception, BaseException) or (
-        isinstance(records_or_exception, type)
-        and issubclass(records_or_exception, BaseException)
+        isinstance(records_or_exception, type) and issubclass(records_or_exception, BaseException)
     ):
         fake_client.run_query = AsyncMock(side_effect=records_or_exception)
     else:
@@ -151,9 +150,7 @@ class TestGetKgRelevanceFormula:
     @pytest.mark.asyncio
     async def test_high_degree_capped_at_one(self) -> None:
         # 10 CANVAS_EDGE → 10.0 → min(1.0, 10.0/8.0) = 1.0
-        with _patch_neo4j_client(
-            _make_records(weighted_degree=10.0, neighbor_count=10)
-        ):
+        with _patch_neo4j_client(_make_records(weighted_degree=10.0, neighbor_count=10)):
             qg = QuestionGenerator()
             score, degraded = await qg._get_kg_relevance("n1", "c1")
         assert score == 1.0
@@ -293,18 +290,14 @@ class TestKgRelevanceCypherShape:
             "kg_relevance must query by {id: $node_id, canvasId: $canvas_id} "
             "to match SyncService writes AND prevent cross-canvas leakage"
         )
-        assert "neighbor.canvasId" in cypher, (
-            "kg_relevance must filter on canvasId (camelCase) not canvas_id"
-        )
+        assert "neighbor.canvasId" in cypher, "kg_relevance must filter on canvasId (camelCase) not canvas_id"
         # Weighted formula must reference both edge types
         assert "CANVAS_EDGE" in cypher and "RELATES_TO" in cypher, (
             "Weighted formula must consider CANVAS_EDGE and RELATES_TO together"
         )
         # SUM(CASE ...) shape — case-insensitive to allow stylistic variants
         normalized = cypher.lower()
-        assert "sum" in normalized and "case" in normalized, (
-            "Weighted formula must aggregate via SUM(CASE type(r) ...)"
-        )
+        assert "sum" in normalized and "case" in normalized, "Weighted formula must aggregate via SUM(CASE type(r) ...)"
 
 
 # ---------------------------------------------------------------------------
@@ -347,15 +340,9 @@ class TestKgRelevanceMultiEdgeInflation:
             await qg._get_kg_relevance("n1", "c1")
 
         cypher = " ".join(captured["query"].split()).lower()
-        assert "with neighbor" in cypher, (
-            "kg_relevance Cypher must pre-aggregate via WITH neighbor (H-1)"
-        )
-        assert "max(" in cypher, (
-            "kg_relevance Cypher must use MAX(...) per neighbor (H-1)"
-        )
-        assert "count(distinct neighbor)" in cypher, (
-            "neighbor_count must use COUNT(DISTINCT neighbor) (H-1)"
-        )
+        assert "with neighbor" in cypher, "kg_relevance Cypher must pre-aggregate via WITH neighbor (H-1)"
+        assert "max(" in cypher, "kg_relevance Cypher must use MAX(...) per neighbor (H-1)"
+        assert "count(distinct neighbor)" in cypher, "neighbor_count must use COUNT(DISTINCT neighbor) (H-1)"
 
     @pytest.mark.asyncio
     async def test_two_parallel_canvas_edges_count_as_one_neighbor(self) -> None:
@@ -373,6 +360,115 @@ class TestKgRelevanceMultiEdgeInflation:
         # 1.0 / 8.0 = 0.125
         assert score == pytest.approx(0.125, rel=1e-3)
         assert degraded is None
+
+
+# ---------------------------------------------------------------------------
+# Vault isolation (P0-SYNC-ISO-2026-08-17 R10 — 外部审查 P1-06)
+# ---------------------------------------------------------------------------
+
+
+class TestKgRelevanceVaultIsolation:
+    """读侧 vault 隔离行为断言 — 发出的 Cypher 必须双侧限定 vault 前缀,
+    绑定参数必须是物理 vault__ 格式 (禁 hasattr 式静态断言)."""
+
+    @staticmethod
+    def _capture_query(records: List[Dict[str, Any]]):
+        captured: Dict[str, Any] = {}
+        fake_client = MagicMock()
+
+        async def fake_run_query(query: str, **kwargs: Any) -> List[Dict[str, Any]]:
+            captured["query"] = query
+            captured["kwargs"] = kwargs
+            return records
+
+        fake_client.run_query = AsyncMock(side_effect=fake_run_query)
+        return fake_client, captured
+
+    @staticmethod
+    def _client_patches(fake_client: Any) -> ExitStack:
+        stack = ExitStack()
+        stack.enter_context(
+            patch(
+                "app.clients.neo4j_client.get_neo4j_client",
+                return_value=fake_client,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.services.question_generator.get_neo4j_client",
+                return_value=fake_client,
+                create=True,
+            )
+        )
+        return stack
+
+    async def _run_with_context(self, logical_group_id: str) -> Dict[str, Any]:
+        from app.core.subject_config import (
+            get_current_subject_id,
+            set_current_subject_id,
+        )
+
+        fake_client, captured = self._capture_query(_make_records(weighted_degree=1.0, neighbor_count=1))
+        previous = get_current_subject_id()
+        set_current_subject_id(logical_group_id)
+        try:
+            with self._client_patches(fake_client):
+                qg = QuestionGenerator()
+                await qg._get_kg_relevance("n1", "c1")
+        finally:
+            set_current_subject_id(previous)
+        return captured
+
+    @pytest.mark.asyncio
+    async def test_cypher_filters_primary_and_neighbor_by_vault(self) -> None:
+        captured = await self._run_with_context("vault:vault_a")
+        cypher = " ".join(captured["query"].split())
+        assert "(n.group_id = $vault_group OR n.group_id STARTS WITH $vault_prefix)" in cypher, (
+            "主节点必须限定 vault group 前缀"
+        )
+        assert "(neighbor.group_id = $vault_group OR neighbor.group_id STARTS WITH $vault_prefix)" in cypher, (
+            "neighbor 侧必须限定 vault group 前缀 — 否则跨 vault 借邻居"
+        )
+        # canvasId 双侧原有约束不得回退
+        assert "CanvasNode {id: $node_id, canvasId: $canvas_id}" in cypher
+        assert "neighbor.canvasId = $canvas_id" in cypher
+
+    @pytest.mark.asyncio
+    async def test_binds_physical_vault_format(self) -> None:
+        """逻辑 vault:x 直接绑定 = 假过滤 — 绑定值必须是 vault__ 物理格式."""
+        captured = await self._run_with_context("vault:vault_a")
+        kwargs = captured["kwargs"]
+        assert kwargs["vault_group"] == "vault__vault_a"
+        assert kwargs["vault_prefix"] == "vault__vault_a__"
+        assert ":" not in kwargs["vault_group"]
+        assert ":" not in kwargs["vault_prefix"]
+
+    @pytest.mark.asyncio
+    async def test_subject_level_group_collapses_to_vault_root(self) -> None:
+        """ContextVar 存 vault:x:subject 二级粒度时, 过滤按 vault 根 —
+        防写侧 (vault 级) 与读侧 (subject 级) 粒度错位导致假空集."""
+        captured = await self._run_with_context("vault:vault_a:algebra")
+        kwargs = captured["kwargs"]
+        assert kwargs["vault_group"] == "vault__vault_a"
+        assert kwargs["vault_prefix"] == "vault__vault_a__"
+
+    @pytest.mark.asyncio
+    async def test_dual_vault_contexts_bind_distinct_groups(self) -> None:
+        captured_a = await self._run_with_context("vault:vault_a")
+        captured_b = await self._run_with_context("vault:vault_b")
+        assert captured_a["kwargs"]["vault_group"] != captured_b["kwargs"]["vault_group"], (
+            "不同 vault 上下文必须绑定不同 vault_group"
+        )
+        assert captured_b["kwargs"]["vault_group"] == "vault__vault_b"
+
+    @pytest.mark.asyncio
+    async def test_contextvar_default_falls_back_to_vault_default(self) -> None:
+        """无请求上下文 (ContextVar 默认 'general') → canonical 归一到
+        vault__default 物理组, 不裸绑逻辑值."""
+        captured = await self._run_with_context("general")
+        kwargs = captured["kwargs"]
+        assert kwargs["vault_group"] == "vault__default"
+        assert kwargs["vault_prefix"] == "vault__default__"
 
 
 # ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@ Returns top-5 recommendations per canvas, filtered by dismissed pairs.
 
 import asyncio
 import logging
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 import structlog
 from uuid import uuid4
@@ -54,6 +54,7 @@ class RecommendationService:
         self,
         canvas_id: str,
         dismissed_pairs: List[DismissedPair],
+        group_id: Optional[str] = None,
     ) -> RecommendationResponse:
         """
         Generate concept-relation recommendations with 5s timeout.
@@ -61,13 +62,17 @@ class RecommendationService:
         Args:
             canvas_id: The canvas board ID.
             dismissed_pairs: Node pairs to exclude from results.
+            group_id: Vault group_id (logical ``vault:x`` or physical
+                ``vault__x``). Falls back to the request-context group
+                injected by ``resolve_vault_group_id`` when omitted.
 
         Returns:
             RecommendationResponse with up to 5 recommendations.
         """
         try:
+            physical_group_id = self._resolve_physical_group_id(group_id)
             return await asyncio.wait_for(
-                self._generate_internal(canvas_id, dismissed_pairs),
+                self._generate_internal(canvas_id, dismissed_pairs, physical_group_id),
                 timeout=5.0,
             )
         except asyncio.TimeoutError:
@@ -83,15 +88,40 @@ class RecommendationService:
                 canvas_id=canvas_id,
             )
 
+    @staticmethod
+    def _resolve_physical_group_id(group_id: Optional[str]) -> str:
+        """Resolve the physical (``vault__x``) group_id for Cypher binding.
+
+        P0-SYNC-ISO-2026-08-17 R10: every Canvas-graph read must be scoped to
+        one vault. Priority: explicit ``group_id`` arg > request ContextVar
+        (``get_current_subject_id()`` — misnamed, it returns the group_id
+        injected by the endpoint layer's ``resolve_vault_group_id``).
+        Whatever the source, the value is passed through
+        ``to_physical_group_id()`` because Neo4j stores the double-underscore
+        physical form — binding the logical ``vault:x`` form would silently
+        filter out everything.
+        """
+        from app.core.subject_config import get_current_subject_id
+        from app.graphiti.group_id_compat import to_physical_group_id
+
+        logical = group_id if group_id and group_id.strip() else get_current_subject_id()
+        return to_physical_group_id(logical)
+
     async def _generate_internal(
         self,
         canvas_id: str,
         dismissed_pairs: List[DismissedPair],
+        group_id: str,
     ) -> RecommendationResponse:
-        """Internal implementation with full analysis pipeline."""
+        """Internal implementation with full analysis pipeline.
+
+        Args:
+            group_id: PHYSICAL group_id (``vault__x``), already resolved by
+                ``_resolve_physical_group_id`` — bound as-is in all Cypher.
+        """
 
         # Quick exit: count nodes
-        node_count = await self._count_nodes(canvas_id)
+        node_count = await self._count_nodes(canvas_id, group_id)
         if node_count < 5:
             return RecommendationResponse(
                 recommendations=list(),
@@ -99,7 +129,7 @@ class RecommendationService:
             )
 
         # Get unconnected nodes
-        unconnected = await self._get_unconnected_nodes(canvas_id)
+        unconnected = await self._get_unconnected_nodes(canvas_id, group_id)
         if len(unconnected) < 2:
             return RecommendationResponse(
                 recommendations=list(),
@@ -117,28 +147,23 @@ class RecommendationService:
 
         # L2: Graph pattern analysis
         unconnected_ids = [n["id"] for n in unconnected]
-        l2_candidates = await self._detect_graph_patterns(canvas_id, unconnected_ids)
+        l2_candidates = await self._detect_graph_patterns(canvas_id, unconnected_ids, group_id)
 
         # Merge and deduplicate
         merged = self._merge_candidates(l1_candidates, l2_candidates)
 
         # Filter dismissed pairs
-        filtered = [
-            c
-            for c in merged
-            if self._make_pair_key(c.source_node_id, c.target_node_id)
-            not in dismissed_set
-        ]
+        filtered = [c for c in merged if self._make_pair_key(c.source_node_id, c.target_node_id) not in dismissed_set]
 
         # Sort by confidence descending, take top-5
         filtered.sort(key=lambda c: c.confidence, reverse=True)
         top = filtered[:MAX_RECOMMENDATIONS]
 
         # Resolve node titles
-        all_titles = await self._get_node_titles(canvas_id)
+        all_titles = await self._get_node_titles(canvas_id, group_id)
 
         # Determine suggested labels
-        existing_labels = await self._get_existing_edge_labels(canvas_id)
+        existing_labels = await self._get_existing_edge_labels(canvas_id, group_id)
         default_label = self._pick_label(existing_labels)
 
         recommendations = [
@@ -162,36 +187,41 @@ class RecommendationService:
 
     # ─── Neo4j queries ──────────────────────────────────────────────────────
 
-    async def _count_nodes(self, canvas_id: str) -> int:
-        """Count total CanvasNode entries for a canvas."""
-        query = "MATCH (n:CanvasNode {canvasId: $canvas_id}) RETURN count(n) AS cnt"
-        records = await self.neo4j_client.run_query(query, canvas_id=canvas_id)
+    async def _count_nodes(self, canvas_id: str, group_id: str) -> int:
+        """Count total CanvasNode entries for a canvas (vault-scoped)."""
+        query = "MATCH (n:CanvasNode {canvasId: $canvas_id, group_id: $group_id}) RETURN count(n) AS cnt"
+        records = await self.neo4j_client.run_query(query, canvas_id=canvas_id, group_id=group_id)
         if records:
             return records[0].get("cnt", 0)
         return 0
 
-    async def _get_unconnected_nodes(self, canvas_id: str) -> List[Dict]:
-        """Get nodes with no CANVAS_EDGE connections."""
+    async def _get_unconnected_nodes(self, canvas_id: str, group_id: str) -> List[Dict]:
+        """Get nodes with no CANVAS_EDGE connections (vault-scoped)."""
         query = """
-        MATCH (n:CanvasNode {canvasId: $canvas_id})
+        MATCH (n:CanvasNode {canvasId: $canvas_id, group_id: $group_id})
         WHERE NOT (n)-[:CANVAS_EDGE]-() AND NOT (n)<-[:CANVAS_EDGE]-()
         RETURN n.id AS id, n.title AS title, n.content AS content
         """
-        return await self.neo4j_client.run_query(query, canvas_id=canvas_id)
+        return await self.neo4j_client.run_query(query, canvas_id=canvas_id, group_id=group_id)
 
     async def _detect_graph_patterns(
         self,
         canvas_id: str,
         unconnected_ids: List[str],
+        group_id: str,
     ) -> List[RecommendationCandidate]:
-        """Detect 2-hop neighbor co-occurrence patterns."""
+        """Detect 2-hop neighbor co-occurrence patterns (vault-scoped)."""
         if len(unconnected_ids) < 2:
             return list()
 
+        # shared.group_id filter: the intermediate node must live in the same
+        # vault too — otherwise a cross-vault edge (data corruption) would let
+        # another vault's node act as evidence for a recommendation.
         query = """
-        MATCH (a:CanvasNode {canvasId: $canvas_id})-[:CANVAS_EDGE*1..2]-(shared)-[:CANVAS_EDGE*1..2]-(b:CanvasNode {canvasId: $canvas_id})
+        MATCH (a:CanvasNode {canvasId: $canvas_id, group_id: $group_id})-[:CANVAS_EDGE*1..2]-(shared)-[:CANVAS_EDGE*1..2]-(b:CanvasNode {canvasId: $canvas_id, group_id: $group_id})
         WHERE a.id IN $ids AND b.id IN $ids
           AND a.id < b.id
+          AND shared.group_id = $group_id
           AND NOT (a)-[:CANVAS_EDGE]-(b)
         RETURN a.id AS source_id, b.id AS target_id, count(shared) AS shared_neighbors
         ORDER BY shared_neighbors DESC
@@ -202,6 +232,7 @@ class RecommendationService:
                 query,
                 canvas_id=canvas_id,
                 ids=unconnected_ids,
+                group_id=group_id,
             )
             if records:
                 for rec in records:
@@ -221,25 +252,27 @@ class RecommendationService:
 
         return candidates
 
-    async def _get_node_titles(self, canvas_id: str) -> Dict[str, str]:
-        """Get all node titles for a canvas."""
+    async def _get_node_titles(self, canvas_id: str, group_id: str) -> Dict[str, str]:
+        """Get all node titles for a canvas (vault-scoped)."""
         query = """
-        MATCH (n:CanvasNode {canvasId: $canvas_id})
+        MATCH (n:CanvasNode {canvasId: $canvas_id, group_id: $group_id})
         RETURN n.id AS id, n.title AS title
         """
         titles: Dict[str, str] = {}
         try:
-            records = await self.neo4j_client.run_query(query, canvas_id=canvas_id)
+            records = await self.neo4j_client.run_query(query, canvas_id=canvas_id, group_id=group_id)
             for rec in records:
                 titles[rec["id"]] = rec.get("title") or "未命名"
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to fetch node titles: {e}")
         return titles
 
-    async def _get_existing_edge_labels(self, canvas_id: str) -> List[str]:
-        """Get all existing edge labels for label suggestion."""
+    async def _get_existing_edge_labels(self, canvas_id: str, group_id: str) -> List[str]:
+        """Get all existing edge labels for label suggestion (vault-scoped)."""
+        # Both endpoints carry group_id — an edge reaching into another vault
+        # must never contribute label suggestions.
         query = """
-        MATCH (:CanvasNode {canvasId: $canvas_id})-[e:CANVAS_EDGE]-(:CanvasNode)
+        MATCH (:CanvasNode {canvasId: $canvas_id, group_id: $group_id})-[e:CANVAS_EDGE]-(:CanvasNode {group_id: $group_id})
         WHERE e.label IS NOT NULL AND e.label <> ''
         RETURN e.label AS label, count(*) AS cnt
         ORDER BY cnt DESC
@@ -247,7 +280,7 @@ class RecommendationService:
         """
         labels: List[str] = list()
         try:
-            records = await self.neo4j_client.run_query(query, canvas_id=canvas_id)
+            records = await self.neo4j_client.run_query(query, canvas_id=canvas_id, group_id=group_id)
             for rec in records:
                 labels.append(rec["label"])
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
@@ -363,9 +396,7 @@ class RecommendationService:
         best: Dict[str, RecommendationCandidate] = {}
 
         for c in l1 + l2:
-            key = RecommendationService._make_pair_key(
-                c.source_node_id, c.target_node_id
-            )
+            key = RecommendationService._make_pair_key(c.source_node_id, c.target_node_id)
             existing = best.get(key)
             if existing is None or c.confidence > existing.confidence:
                 best[key] = c

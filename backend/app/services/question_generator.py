@@ -60,6 +60,37 @@ def _load_prompt_file(filename: str) -> str:
     return ""
 
 
+def _physical_vault_scope() -> tuple[str, str]:
+    """P0-SYNC-ISO-2026-08-17 R10: 读侧 vault 隔离范围 (物理格式).
+
+    Returns:
+        (vault_group, vault_prefix) 二元组:
+          vault_group  — 物理 vault 根组 (如 ``vault__cs_61b``), ``=`` 精确匹配
+                         vault 级写入的节点
+          vault_prefix — ``vault_group + "__"``, ``STARTS WITH`` 匹配
+                         subject/canvas 二级子组 (``vault__cs_61b__algorithms``)
+
+    Group 来源: ``get_current_subject_id()`` ContextVar — 命名是历史误导,
+    实际存的是 endpoint 层 ``resolve_vault_group_id`` 注入的逻辑 D16
+    group_id (``vault:x[:sub]``)。绑定 Neo4j 前必过 ``to_physical_group_id``
+    (T1 契约 2026-07-10: 物理存储是 ``vault__`` 双下划线, 逻辑冒号格式直接
+    绑定 = 假过滤)。
+
+    取 vault 根 (前两段) 而非全量 group 做过滤: 写侧 (sync) 与读侧 (exam)
+    的 subject/canvas 二级参数可能不同粒度, 全量精确匹配会因粒度错位静默
+    空集; vault 级前缀既挡住跨 vault 泄漏 (P1-06), 又对 vault 内粒度差异
+    鲁棒。``=`` 与 ``STARTS WITH prefix+"__"`` 并用防前缀撞名
+    (``vault__a`` 不得命中 ``vault__a2``)。
+    """
+    from app.core.subject_config import get_current_subject_id
+    from app.graphiti.group_id_compat import to_physical_group_id
+
+    physical = to_physical_group_id(get_current_subject_id())
+    segments = physical.split("__")
+    vault_group = "__".join(segments[:2]) if len(segments) >= 2 else physical
+    return vault_group, vault_group + "__"
+
+
 class QuestionGenerator:
     """
     Dual-mode question generator:
@@ -220,8 +251,7 @@ class QuestionGenerator:
             kg_result = kg_results[idx]
             if isinstance(kg_result, BaseException):
                 logger.warning(
-                    f"[Story 6.3] kg_relevance crashed for node {node_id}: "
-                    f"{type(kg_result).__name__}: {kg_result}"
+                    f"[Story 6.3] kg_relevance crashed for node {node_id}: {type(kg_result).__name__}: {kg_result}"
                 )
                 kg_relevance, kg_degraded = 0.5, "neo4j_unavailable"
             else:
@@ -434,9 +464,7 @@ class QuestionGenerator:
             Complete prompt string for LLM.
         """
         # Layer 1: Role
-        layer1 = (
-            self._layer1 or "你是一位经验丰富的学习考官，通过精准提问检验学生理解深度。"
-        )
+        layer1 = self._layer1 or "你是一位经验丰富的学习考官，通过精准提问检验学生理解深度。"
 
         # Layer 2: Mode (substitute variable)
         layer2 = (
@@ -617,10 +645,7 @@ class QuestionGenerator:
             question_text = (response.choices[0].message.content or "").strip()
         except Exception as e:
             # MVP-α 降级: LLM 不可用时, 直接拼用户原话出回退题
-            logger.warning(
-                f"[MVP-α-1] LLM call failed for node {node_id}, "
-                f"falling back to template: {e}"
-            )
+            logger.warning(f"[MVP-α-1] LLM call failed for node {node_id}, falling back to template: {e}")
 
         if not question_text:
             if tip_texts:
@@ -633,10 +658,7 @@ class QuestionGenerator:
             else:
                 question_text = f"请用自己的话解释: {concept[:60]}"
 
-        logger.info(
-            f"[MVP-α-1] generate_question node={node_id} "
-            f"tips_used={len(tip_texts)} q_len={len(question_text)}"
-        )
+        logger.info(f"[MVP-α-1] generate_question node={node_id} tips_used={len(tip_texts)} q_len={len(question_text)}")
         return {
             "question_text": question_text,
             "tip_count": len(tip_texts),
@@ -761,9 +783,7 @@ class QuestionGenerator:
             logger.error(f"[Story 6.3] LLM question generation failed: {e}")
             # Fallback to template-based question
             concept = acp.node_content[:50] if acp.node_content else "this concept"
-            fallback_q = self._generate_fallback_question(
-                concept, acp.effective_proficiency
-            )
+            fallback_q = self._generate_fallback_question(concept, acp.effective_proficiency)
             return QuestionGenerationResult(
                 question_text=fallback_q,
                 question_type="explanation",
@@ -807,9 +827,7 @@ class QuestionGenerator:
             from app.services.canvas_service import CanvasService
 
             canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
-            _canvas_name, node_data = await canvas_svc.find_node_across_canvases(
-                node_id
-            )
+            _canvas_name, node_data = await canvas_svc.find_node_across_canvases(node_id)
             return node_data if node_data else dict()
         except (ImportError, OSError, json.JSONDecodeError, ValueError) as e:
             logger.debug(f"[Story 6.3] Failed to get node content: {e}")
@@ -863,9 +881,7 @@ class QuestionGenerator:
                 # min(p_mastery, R) strategy instead of the multi-signal fusion.
                 # Downstream consumers (prompts, dashboards) can now distinguish
                 # "fusion produced a confident value" from "fusion fell through".
-                eff, fusion_fallback = engine.effective_proficiency_with_fallback_info(
-                    concept
-                )
+                eff, fusion_fallback = engine.effective_proficiency_with_fallback_info(concept)
                 level = engine.mastery_level_from_proficiency(eff, concept)
                 label = engine.mastery_label_from_level(level)
                 return {
@@ -879,9 +895,7 @@ class QuestionGenerator:
             # concept_not_found: CanvasNode.id has no matching EntityNode.mastery_concept_id
             # (typical cause: score event has not been processed yet, or ID mapping gap).
             # This is observably distinct from "happy-path truly not assessed".
-            logger.debug(
-                f"[Story 6.3] mastery_store.get_concept returned None for node_id={node_id}"
-            )
+            logger.debug(f"[Story 6.3] mastery_store.get_concept returned None for node_id={node_id}")
             return {
                 "p_mastery": 0.1,
                 "retrievability": 1.0,
@@ -901,9 +915,7 @@ class QuestionGenerator:
             "mastery_degraded": "exception",
         }
 
-    async def _get_kg_relevance(
-        self, node_id: str, canvas_id: str
-    ) -> tuple[float, Optional[str]]:
+    async def _get_kg_relevance(self, node_id: str, canvas_id: str) -> tuple[float, Optional[str]]:
         """Compute KG-based relevance score for a node.
 
         Returns a 2-tuple ``(score, degraded_reason)`` where ``score`` is in
@@ -947,9 +959,16 @@ class QuestionGenerator:
             # cross-canvas contamination risk if per-canvas node_id namespaces are
             # ever introduced (e.g., duplicated canvases). The neighbor WHERE
             # filter is kept as belt-and-suspenders defense.
+            # P0-SYNC-ISO-2026-08-17 R10 (外部审查 P1-06): 读侧 vault 隔离 —
+            # 主节点与 neighbor 双侧都限定 group_id 落在当前 vault 前缀内,
+            # 否则跨 vault 同 canvasId/node_id 的图结构会泄入 kg_relevance
+            # 打分面。绑定值是物理 vault__ 格式 (见 _physical_vault_scope)。
+            vault_group, vault_prefix = _physical_vault_scope()
             query = """
             MATCH (n:CanvasNode {id: $node_id, canvasId: $canvas_id})-[r:CANVAS_EDGE|RELATES_TO]-(neighbor:CanvasNode)
-            WHERE neighbor.canvasId = $canvas_id
+            WHERE (n.group_id = $vault_group OR n.group_id STARTS WITH $vault_prefix)
+              AND neighbor.canvasId = $canvas_id
+              AND (neighbor.group_id = $vault_group OR neighbor.group_id STARTS WITH $vault_prefix)
             WITH neighbor, MAX(
                 CASE type(r)
                     WHEN 'CANVAS_EDGE' THEN 1.0
@@ -961,7 +980,11 @@ class QuestionGenerator:
                 COUNT(DISTINCT neighbor) AS neighbor_count
             """
             records = await client.run_query(
-                query, node_id=node_id, canvas_id=canvas_id
+                query,
+                node_id=node_id,
+                canvas_id=canvas_id,
+                vault_group=vault_group,
+                vault_prefix=vault_prefix,
             )
             if records:
                 data = records[0] if isinstance(records[0], dict) else records[0].data()
@@ -993,10 +1016,7 @@ class QuestionGenerator:
             # mode degrades to the moderate default while programming errors
             # (TypeError / AttributeError / KeyError) still bubble up as real
             # bugs instead of being silently labeled "neo4j_unavailable".
-            logger.debug(
-                "[Story 6.3] KG relevance query failed: "
-                f"type={type(e).__name__} detail={str(e)[:200]}"
-            )
+            logger.debug(f"[Story 6.3] KG relevance query failed: type={type(e).__name__} detail={str(e)[:200]}")
             return 0.5, "neo4j_unavailable"
 
     # ═══ GRAPHITI-NATIVE Phase 3 (2026-06-10) ═══════════════════════════════
