@@ -1,0 +1,39 @@
+# D-1 CI 末次运行 — 首次全绿（R11-BATCH2-2026-08-17）
+
+## 运行概览
+
+✓ worktree-feature-obsidian-hybrid-dev Test Suite · 32120203573
+Triggered via push about 4 minutes ago
+
+JOBS
+✓ Tests (Python 3.12) in 3m30s (ID 95658676495)
+✓ Tests (Python 3.11) in 2m54s (ID 95658676556)
+✓ Dependency Audit in 1m3s (ID 95658676583)
+✓ Test Summary in 3s (ID 95659680869)
+
+
+## 测试统计
+131 passed, 13 skipped, 410 warnings in 2.52s 
+131 passed, 13 skipped, 411 warnings in 2.15s 
+
+## 历史对照（本批修复前）
+2026-08-18  success  worktree-feature-obsidian-hybrid-dev  ci(test): 收敛到已实测绿的 5 文件子集 — 小而确定的门 (R11-BATCH2-2026-08-17)
+2026-08-18  failure  worktree-feature-obsidian-hybrid-dev  ci(test): 提高超时并启用 xdist 并行 — 修第四环 (R11-BATCH2-2026-08-17)
+2026-08-18  cancelled  worktree-feature-obsidian-hybrid-dev  ci(test): 补 CI 测试态配置 — 修 Settings 校验 exit 4 (R11-BATCH2-2026
+2026-08-18  failure  worktree-feature-obsidian-hybrid-dev  ci(test): D-1 修复 CI 全红根因 + 生产分支纳入监听 (R11-BATCH2-2026-08-17)
+2026-08-18  failure  main  fix(config): 权重配置对齐生产分支 + 移除 data 挂载地雷 (R11-BATCH2-2026-08-1
+2026-06-09  failure  main  feat(kg): Fix-E1 节点 frontmatter relationships 同步成 CANVAS_EDG
+2026-06-09  failure  main  fix(memory): Fix-D 同步直写 node_id-keyed EpisodicNode 打通针对性考察主链
+2026-06-09  failure  main  test(exam-chain): 端到端验证 harness — 批注/节点+原因→针对性考察主链 (PLAN-EPI
+2026-06-03  failure  main  feat(graphiti): S2-2 belief 时序版本链 + 统一 episode schema (PLAN-
+2026-06-01  failure  main  fix(backend): 恢复未提交 backend 批次 P0-1~P0-7 + Story 2.5/2.1 (PL
+2026-06-01  failure  main  fix(backend): 恢复未提交 backend 批次 P0-1~P0-7 + Story 2.5/2.1 (PL
+2026-06-01  failure  main  fix(epic-6): V-10 评分对象漂移修复 — score_answer 回读真实题面
+2026-04-18  failure  main  fix(epic-1): uat bug fixes — mastery_score value + mcp healt
+2026-04-18  failure  main  feat(epic-1): stories 1.2, 1.3, 1.4, 1.5, 1.6, 1.10, 1.11, 1
+2026-04-18  failure  main  feat(epic-1): stories 1.2, 1.3, 1.4, 1.5, 1.6, 1.10, 1.11, 1
+2026-04-18  failure  main  feat(epic-1): story 1.8 vault switch API + story 1.9 LanceDB
+2026-04-18  failure  main  feat(epic-1): story 1.8 vault switch API + story 1.9 LanceDB
+2026-04-17  failure  main  fix(epic-1): story 1.1 review fixes — 7 issues resolved EPIC
+2026-04-17  failure  main  fix(epic-1): story 1.1 review fixes — 7 issues resolved EPIC
+2026-04-17  failure  main  feat(epic-1): story 1.1 vault init + templates + startup che

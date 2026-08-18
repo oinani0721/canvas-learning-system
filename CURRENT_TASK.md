@@ -2,7 +2,18 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**（2026-08-17 · **R10 复审 11 项 (P0×1+P1×6+P2×4) 全部处置完毕 · 收官门解除 · 8 commits + 真实 Neo4j 验收门 6/6 + 证据包落盘** · PLAN `P0-SYNC-ISO-2026-08-17`）:
+**当前状态**（2026-08-18 · **第 2 批「数据边界 + 可信基线」T1-T7 全部完成 · 10 commits · 证据包 4 份** · PLAN `R11-BATCH2-2026-08-17`）:
+- ✅ **T1 compose 地雷 + 权重 split-brain**: `./data:/app/data` 是被 `./backend:/app` 遮蔽的嵌套 bind（docker inspect 有、容器 mountinfo 无，git blame 显示自 2026-03 就是遮蔽态），一次 recreate 顺序翻转就会用稀薄的 worktree/data 覆盖 backend/data。实测 **6 份** compose 含此行（计划记 4 份）全部处置。权重翻转版同步回主仓，三方 md5 一致 `132d15b4…`，容器 readback 确认节点/1.5 · videos 全 1.0。⚠️ TYPE_WEIGHTS 无法同步（主仓无 supplementary_reranker.py，两树分叉 7/326 commits）
+- ✅ **T2 A-9 索引黑名单**: `_待处理`/`_archive` 双处同步（config 权威源 + lancedb 兜底常量，17→19 项）。NFC/NFD 实测排除风险（汉字不参与规范分解）。现网无此目录属预防性加固，LanceDB 2211 chunk 零命中
+- ✅ **T3 E-2 快照瘦身**: 快照落盘的是**投影前**全量 superset，直接读文件即绕过整个泄漏控制点。改前实测命中金集 8 个禁键全部 + 2 条禁串。投影层放进 `write_snapshot_if_changed` 内部成为函数级不变量。真实快照重写 24659→18179 B，禁键/禁串双清零，金集 **34/34**、契约 64 passed、降级态双视图投影无 ValidationError
+- ✅ **T4 A-2 + 三处静默失效硬化**: mastery `.search()`→`.search_memories()` 入库 + 8 个 autospec 契约测试；tiktoken 兜底扩容（原只捕 ImportError，冷缓存走网络时异常会穿透）；`nodes.py:98` 的 `timeout_ms=200` 删除改用类默认 2000（MEM-FLYWHEEL 早已修好默认值，但这个调用点把修复覆盖了）；LanceDB timeout 配置旁路修复。格式债单独成 commit（AST 比对证零行为变更）
+- ✅ **T5 D-2 死信盘点（只读）**: 92 条根因 89/97% 是 `n_ctx=16384` 被 16998 tokens 撑爆。**最重要发现：92 条永久搁浅** —— 全仓无任何 replay consumer，只有入队没有出口。正文缺失是 CWE-532 隐私设计非缺陷。建议拆 D-2a/b/c 三子项，其中 group_id 契约旁路（`vault:default` 未过 `to_physical_group_id`）建议提前独立立项
+- ✅ **T6 D-1 CI 门 — 4 个月来首次全绿**: 计划前提被推翻 —— CI 不是"没覆盖生产分支"，是**连续 12 次全红、从未绿过**。根因链 5 环全部实测定位：①`hypothesis` 缺失（声明在根 pyproject dev extras，CI 只装 requirements）→ pytest exit 4，**四个月一个测试都没跑过** ②collection error 致整体 Interrupted ③`Settings` 校验在 import 阶段炸（本地靠不入库的 .env 满足）④5 分钟超时（测试终于跑起来但被强杀）⑤xdist 收集不一致（本批自己引入后回退）。**run 32120203573 全绿：131 passed / 13 skipped，py3.11+3.12 双版本**。⚠️ 门是保守起点（5 文件而非全量 360——全量本地串行 1h03m 未跑完，是独立待查问题）。✅ **required checks 前提已满足，操作单见 `r11-evidence-2026-08-17/d1-ci-gate.md` §3**（您点一次）
+- ✅ **T7 A-1 + A-4**: A-1 是**语义死链**非文件死链（目标文件存在但仅 36 行、不含九阶段路线，反把 2.5/2.6/4.5 列入"明确不做"）→ 改指 08-02 文档 §施工顺序与工期。A-4 样稿经用户确认移入 `.trash/`（guard-hook 阻断 rm，且 .trash 本在黑名单内），实测 orchestrator 自动清理其 chunk（2211→2206）；excalibrain.md 加文件级排除（单源常量，改 1 处即四路一致）
+- 📋 **本批遗留**: 重写 `test_memory_service_contextvar_leak.py`（守护 P0 跨 vault 泄漏，现被 CI `--ignore` 隔离）· 查全量 tests/ 跑不完的根因 + xdist 收集不确定性 · CI 逐步扩面 · D-2 三子项（尤其 group_id 契约旁路）· 主仓 commit `2c5a4683` 混入 `session-end-archive.py`（用户已裁定不修正历史）
+- ⚠️ **开工前必读**: 若要扩 CI 覆盖面，先解决「全量测试跑不完」而非直接加文件；若要动 board manifest 快照，注意 `write_snapshot_if_changed` 内已有投影层（`_project_for_snapshot`），不要在 `full` dict 上就地改（会污染 live）
+
+**上一状态**（2026-08-17 · **R10 复审 11 项 (P0×1+P1×6+P2×4) 全部处置完毕 · 收官门解除 · 8 commits + 真实 Neo4j 验收门 6/6 + 证据包落盘** · PLAN `P0-SYNC-ISO-2026-08-17`）:
 - ✅ **R10 复审处置全清**（回应文档 `_bmad-output/审查/2026-08-17-R10复审11项发现-处置回应.md`，证据包 `r10-evidence-2026-08-17/`）: P0-01 vault 身份注册表（垃圾输入 422 / 首claim绑定 / 碰撞 409，端点实测四面全过，生产桶已用真名 `canvas-vault` 预注册）· P1-01 commit 后才 ACK（回滚段整段失败）· P1-02 edge 独立事务 · P1-03 exam 空写如实（RETURN 校验+fallback 拒写+ok/partial/error 分级）· P1-04 回滚先建旧后删新+预检 · P1-05 歧义 census blocker · P1-06 读侧五文件 12+ 站点收口（等值 OR `__` 终止前缀，:Subject 元数据 by-design 全局有测试锁）· P2-01 边关系唯一约束（现网约束 3→**5 条**）+ stale 边清理 · P2-02 schema gate（启动验证+确认缺失拦写 503）· P2-03 真实 Neo4j 验收门 `tests/integration/test_sync_real_neo4j_gate.py` **6/6**（双 vault 写删/poisoned-tx/边不连坐真回查/stale/注册表碰撞）· P2-04 JUnit 112 passed + live-state.json + SHA 清单
 - Commits: `05cd1512`(核心写侧)/`c9ab31ca`(读侧)/`d8c4ea9c`+`8006d3ed`(迁移加固+集成门，前者 subject 被 commitlint 长度限占位、注解补正)/`7ba4a4b2`(conftest 注册表 stub)。容器已重启，gate 启动日志 `canvas_schema_gate_ok required=3`
 - ⚠️ **本轮自曝并修掉**: 单测经真实注册表污染生产注册行（认领成 `canvas_vault`，真插件发 `canvas-vault` 将必 409）→ conftest autouse stub + 现网修正 + 复跑零污染
