@@ -43,8 +43,16 @@ def _count_tokens_approx(text: str) -> int:
 
         enc = tiktoken.get_encoding("cl100k_base")
         return len(enc.encode(text))
-    except ImportError:
-        # Heuristic fallback
+    except Exception as exc:  # noqa: BLE001 \u2014 \u4f30\u7b97\u8def\u5f84\u5fc5\u987b fail-soft, \u7406\u7531\u89c1\u4e0b
+        # R11-BATCH2 (2026-08-17) \u786c\u5316: \u539f\u5148\u53ea\u6355 ImportError, \u5373\u53ea\u6321\u4f4f\u300c\u6ca1\u88c5
+        # tiktoken\u300d\u8fd9\u4e00\u79cd\u5931\u8d25\u3002\u4f46 get_encoding() \u5728 BPE \u8bcd\u8868\u672a\u843d\u672c\u5730\u7f13\u5b58\u65f6\u4f1a
+        # **\u8d70\u7f51\u7edc\u4e0b\u8f7d** \u2014\u2014 \u65ad\u7f51/\u4ee3\u7406\u6545\u969c/HF \u9650\u6d41\u65f6\u629b\u7684\u662f urllib \u6216 requests
+        # \u7684\u5f02\u5e38, \u4f1a\u76f4\u63a5\u7a7f\u900f\u672c\u51fd\u6570, \u628a\u6574\u6761\u538b\u7f29\u94fe\u62d6\u57ae\u3002
+        #
+        # \u672c\u51fd\u6570\u8fd4\u56de\u503c\u4ec5\u7528\u4e8e\u957f\u5ea6\u4f30\u7b97 (\u8c03\u7528\u65b9\u62ff\u5b83\u505a\u622a\u65ad\u51b3\u7b56), \u7cbe\u5ea6\u635f\u5931\u8fdc\u8f7b\u4e8e
+        # \u4e2d\u65ad, \u56e0\u6b64\u4efb\u4f55\u5931\u8d25\u90fd\u964d\u7ea7\u5230\u542f\u53d1\u5f0f\u800c\u975e\u4e0a\u629b\u3002\u7528 debug \u7ea7\u522b: \u51b7\u7f13\u5b58\u73af\u5883
+        # \u6bcf\u6b21\u8c03\u7528\u90fd\u4f1a\u547d\u4e2d, warning \u4f1a\u5237\u5c4f\u3002
+        logger.debug("tiktoken \u4e0d\u53ef\u7528, \u56de\u9000\u542f\u53d1\u5f0f token \u4f30\u7b97: %s", exc)
         cn_chars = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
         en_chars = len(text) - cn_chars
         return int(cn_chars / 1.5 + en_chars / 4)

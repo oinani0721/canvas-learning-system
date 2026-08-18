@@ -91,7 +91,16 @@ async def _get_graphiti_client() -> GraphitiClient:
     global _graphiti_client
     if _graphiti_client is None:
         _graphiti_client = GraphitiClient(
-            timeout_ms=200,  # Story 12.1 AC 1.3: 200ms超时
+            # R11-BATCH2 (2026-08-17): 原为 timeout_ms=200 (Story 12.1 AC 1.3)。
+            # 该 AC 已被 MEM-FLYWHEEL 批次2' 线3 的实测推翻 —— 见
+            # graphiti_client.py:229-231: Graphiti 语义搜索实测中位 0.3s /
+            # 最大 1.24s (G0 门禁数据), 200ms 几乎必超时, 配合
+            # enable_fallback=True 会静默退成恒空结果, 与「真的没有记忆」无法
+            # 区分 (同 A-2 修的那类静默失效)。
+            #
+            # 该修复当时把类默认值改成了 2000ms, 但本调用点仍显式传 200 ——
+            # 修复效力被这行覆盖。此处删去该实参改用类默认值, 让调用点随默认
+            # 值演进, 不再形成第二处需要同步的硬编码。
             batch_size=10,
             enable_fallback=True,
         )
@@ -107,7 +116,12 @@ async def _get_lancedb_client() -> LanceDBClient:
 
         _lancedb_client = LanceDBClient(
             db_path=LANCEDB_CONFIG["db_path"],
-            timeout_ms=400,  # Story 12.2 AC 2.3: P95 < 400ms
+            # R11-BATCH2 (2026-08-17): 原为硬编码 400 —— 与 LANCEDB_CONFIG
+            # 同源却只有 db_path 读配置, timeout 写死, 形成配置旁路:
+            # env 设 LANCEDB_TIMEOUT_MS 时本处不跟着变。当前值仍是 400
+            # (config 默认值相同), 行为零变化, 但 env 覆盖恢复生效。
+            # Story 12.2 AC 2.3: P95 < 400ms。
+            timeout_ms=LANCEDB_CONFIG["timeout_ms"],
             batch_size=10,
             enable_fallback=True,
         )

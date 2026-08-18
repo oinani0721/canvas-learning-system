@@ -101,9 +101,16 @@ async def retrieve_learning_memories(
 
     try:
         # Search for memories related to this node
+        #
+        # ⛔ 方法名契约 (2026-08-15 修复): 必须是 search_memories，不是 search。
+        # GraphitiClient (lib/agentic_rag/clients/graphiti_client.py) 只暴露
+        # search_nodes / search_memories；调用 .search() 会抛 AttributeError，
+        # 被本函数末尾的 except Exception 吞掉 → 静默返回 ""，与「真的没有记忆」
+        # 无法区分。该缺陷自 Story 2.10 起一直存在，日志里已实际发生。
+        # 唯一调用方 nodes.py::_get_graphiti_client() 返回的就是 GraphitiClient。
         search_query = f"learning node:{node_id}"
         memories = await asyncio.wait_for(
-            graphiti_client.search(search_query, num_results=10),
+            graphiti_client.search_memories(search_query, num_results=10),
             timeout=3.0,
         )
 

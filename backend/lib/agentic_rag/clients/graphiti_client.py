@@ -38,6 +38,14 @@ def _empty_result_list() -> List[Dict[str, Any]]:
     return list()
 
 
+#: 写侧超时 (秒) — 与读侧 self.timeout_ms 解耦 (批次2' 线3)。
+#: add_episode 走 LLM 结构化抽取, 本地 Qwen 实测 ~7s, 沿用读侧毫秒级预算必截断。
+#: R11-BATCH2 (2026-08-17): 由 add_episode 内的局部变量提为模块常量 —— 原先
+#: 超时日志打印的是 self.timeout_ms (读侧值, 如 200ms), 而实际生效的是本值,
+#: 名实不符会把排障引向错误方向 (DD-13)。
+WRITE_TIMEOUT_SECONDS = 30.0
+
+
 # ============================================================
 # Story 12.1 AC 4: Canvas实体类型定义
 # ✅ Verified from specs/data/graphiti-entity.schema.json
@@ -592,8 +600,10 @@ class GraphitiClient:
 
         try:
             # 批次2' 线3: 写侧超时与读侧解耦 — add_episode 走 LLM 结构化抽取
-            # (本地 Qwen 实测 ~7s), 沿用读侧 timeout_ms 必截断
-            write_timeout_seconds = 30.0
+            # (本地 Qwen 实测 ~7s), 沿用读侧 timeout_ms 必截断。
+            # R11-BATCH2: 提为模块常量 WRITE_TIMEOUT_SECONDS, 让下方 except 的
+            # 日志能报出真正生效的值。
+            write_timeout_seconds = WRITE_TIMEOUT_SECONDS
 
             if self._graphiti_available and self._graphiti_instance is not None:
                 episode_id = await self._add_episode_via_graphiti_core(
@@ -610,7 +620,9 @@ class GraphitiClient:
 
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
-                logger.warning(f"GraphitiClient.add_episode timeout ({self.timeout_ms}ms)")
+                # R11-BATCH2: 原先打印 self.timeout_ms (读侧值) —— 写侧实际走
+                # WRITE_TIMEOUT_SECONDS, 报错值与生效值不符会误导排障 (DD-13)
+                logger.warning(f"GraphitiClient.add_episode timeout ({WRITE_TIMEOUT_SECONDS}s)")
             return None
 
         except Exception as e:
