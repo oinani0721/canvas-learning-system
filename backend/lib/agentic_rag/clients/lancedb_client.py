@@ -402,6 +402,12 @@ DEFAULT_VAULT_SKIP_DIRS = [
     "chunks",
     # RAG-S1 (2026-08-03): MCP 隔离区 (P0-2 quarantine) 不是学习内容。
     ".quarantine",
+    # A-9 (R11-BATCH2-2026-08-17): 收件箱暂存区 — 未分诊碎片不参与检索,
+    # 是第 3 批清仓流程 (B-1) 的前置边界。与 config.VAULT_INDEX_SKIP_DIRS
+    # 权威源同批追加 (该字段注释写明二者必须保持一致)。
+    "_待处理",
+    # A-9 同批: 下划线前缀归档区, 与上方无前缀的 archive 并存。
+    "_archive",
 ]
 
 # RAG-S1 (2026-08-03): 文件名黑名单提升为模块级常量 — 此前只在

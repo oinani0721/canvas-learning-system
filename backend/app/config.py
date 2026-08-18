@@ -511,10 +511,15 @@ class Settings(BaseSettings):
             #    与 lancedb_client.DEFAULT_VAULT_SKIP_DIRS 兜底常量保持一致)
             # - chunks: video-to-canvas 的 merged.md 与源笔记同内容双份入库 (RAG-S1)
             # - .quarantine: MCP 隔离区非学习内容 (RAG-S1)
+            # - _待处理: A-9 (R11-BATCH2-2026-08-17) 收件箱暂存区 — 未分诊的碎片
+            #   笔记不应参与检索; 是第 3 批清仓流程 (B-1) 的前置边界。加入时现网
+            #   vault 尚无此目录 (容器内任意深度 find 零命中), 属预防性加固
+            # - _archive: 同批 — 下划线前缀归档区, 与上方无前缀的 archive 并存
             ".obsidian,.git,.trash,node_modules,"
             ".claude,.claudian,_bmad-output,archive,templates,"
             "outputs,*-explanations,Excalidraw,_misc,"
-            "检验白板,验收单,chunks,.quarantine"
+            "检验白板,验收单,chunks,.quarantine,"
+            "_待处理,_archive"
         ),
         description="Comma-separated list of directories to skip during vault indexing.",
     )
