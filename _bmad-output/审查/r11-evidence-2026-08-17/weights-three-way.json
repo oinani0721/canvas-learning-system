@@ -1,0 +1,132 @@
+{
+  "_meta": {
+    "batch": "R11-BATCH2-2026-08-17",
+    "task": "T1 · 拆 compose 地雷 + A-8 权重合并回主仓",
+    "collected_at": "2026-08-18",
+    "purpose": "证明 reference_priority.json 的 split-brain 已消除，并记录 compose 地雷的真实机制"
+  },
+
+  "part_a_compose_mine_defusal": {
+    "planned_count": 4,
+    "actual_count": 6,
+    "note": "计划记载 4 份，实测 6 份含 `- ./data:/app/data`；另 .worktrees/fix-concept-id-identity-unification 与 feature-deeptutor-canvas-mvp 未在计划清单内",
+    "files_modified": [
+      {"path": "docker-compose.yml", "tree": "主仓 main", "line_before": 162, "committed": true},
+      {"path": ".claude/worktrees/feature-obsidian-hybrid-dev/docker-compose.yml", "tree": "生产分支 worktree-feature-obsidian-hybrid-dev", "line_before": 206, "committed": true},
+      {"path": ".claude/worktrees/feature-deeptutor-canvas-mvp/docker-compose.yml", "tree": "休眠 worktree", "line_before": 165, "committed": false, "reason": "他分支工作区，仅改文件不提交"},
+      {"path": ".claude/worktrees/legacy-tauri-maintenance/docker-compose.yml", "tree": "休眠 worktree", "line_before": 162, "committed": false, "reason": "他分支工作区，仅改文件不提交"},
+      {"path": ".claude/worktrees/resilient-mapping-forest/docker-compose.yml", "tree": "休眠 worktree", "line_before": 160, "committed": false, "reason": "他分支工作区，仅改文件不提交"},
+      {"path": ".worktrees/fix-concept-id-identity-unification/docker-compose.yml", "tree": "休眠 worktree", "line_before": 160, "committed": false, "reason": "他分支工作区，仅改文件不提交"}
+    ],
+
+    "real_mechanism_discovered": {
+      "summary": "该行不是『已生效的错误挂载』，也不是『新加未重启』，而是【被父挂载遮蔽的嵌套 bind】",
+      "evidence": {
+        "docker_inspect_records_it": "bind .../feature-obsidian-hybrid-dev/data -> /app/data （Docker 元数据里存在）",
+        "proc_mountinfo_lacks_it": "容器 /proc/self/mountinfo 中只有 /app、/vaults、/lancedb、/root/.cache/huggingface —— 无 /app/data，也无 /app/src",
+        "content_proves_backend_data_wins": "容器 /app/data 呈现 backend/data/ 内容：dead_letter 92 行/99915B、reference_priority.json 1727B、presets/、qa_metrics.db；而 worktree data/ 独有的 review_data.db、gdr_wave2_agent_d_survey_findings.json 在容器内不可见",
+        "git_blame": "76d10cea 2026-03-16 —— 该行自 2026-03 就存在，从来处于被遮蔽状态，非近期引入",
+        "container_lifecycle": "created 2026-07-31T12:46:03Z / started 2026-08-17T08:44:15Z"
+      },
+      "why_dangerous": "遮蔽与否取决于挂载顺序。一次 Docker 升级或 recreate 顺序变化即可翻转 → /app/data 被内容稀薄的 worktree/data/ 覆盖：reference_priority.json 消失(退 fallback 旧权重 videos 1.5/1.4)、92 行死信不可见、llm_call_logs.db / presets/ / outbox/ 全部换成另一套",
+      "why_deletion_is_zero_risk": "删除后 /app/data 恒等于 backend/data/（经由 ./backend:/app），正是删除前的实际状态"
+    },
+
+    "plan_assumption_corrected": {
+      "plan_said": "canvas-lancedb 具名卷挂在 /app/data/lancedb，删父行不影响",
+      "actual_in_production_worktree": "canvas-lancedb 挂的是顶级 /lancedb（Story 2.2 Phase A 已脱离 /app 嵌套），与 /app/data 完全无关 —— 删除比计划预想的更安全",
+      "actual_in_main_and_dormant_worktrees": "仍是 canvas-lancedb:/app/data/lancedb（旧结构）。按最小改动原则未动该行；删父行后语义自洽：/app/data = backend/data/，具名卷继续挂 /app/data/lancedb"
+    },
+
+    "post_change_verification": {
+      "compose_config_syntax": "PASS（docker compose config --quiet 无错误）",
+      "rendered_backend_volumes_after": [
+        "bind  .../feature-obsidian-hybrid-dev/backend  ->  /app",
+        "bind  .../feature-obsidian-hybrid-dev/src      ->  /app/src",
+        "volume canvas-lancedb                          ->  /lancedb",
+        "bind  /Users/Heishing/Desktop/canvas/canvas-learning-system -> /vaults",
+        "volume canvas-hf-cache                         ->  /root/.cache/huggingface"
+      ],
+      "app_data_mount_removed": true,
+      "force_recreate_performed": false,
+      "note": "按计划不做 force-recreate，改动在下次正常重启时自然生效；因删除项当前即被遮蔽，重启前后行为一致"
+    },
+
+    "known_debt_not_addressed": {
+      "shared_container_name": "6 份 compose 共用 container_name: canvas-learning-system-backend（计划记载 5 份，实测 6 份）。在任一休眠 worktree 目录跑 docker compose up 会顶掉生产容器并挂载该 worktree 的陈旧代码。本批只在各文件加注释标注，未统一改名（改名会断现有运维习惯）",
+      "app_src_also_shadowed": "./src:/app/src 与 /app/data 同样在 mountinfo 中缺席，说明容器 /app/src 实际来自 backend/src 而非 worktree/src。同类问题，未在本批处置"
+    }
+  },
+
+  "part_b_weight_split_brain": {
+    "before": {
+      "main_repo": {
+        "source_priorities": [
+          {"pattern": "videos/lectures/**",        "weight": 1.5},
+          {"pattern": "videos/discussions/**",     "weight": 1.4},
+          {"pattern": "videos/exam_prep/**",       "weight": 1.3},
+          {"pattern": "videos/review_sessions/**", "weight": 1.2},
+          {"pattern": "past_exams/**",             "weight": 1.1},
+          {"pattern": "lectures/**",               "weight": 1.1},
+          {"pattern": "discussions/**",            "weight": 1.1},
+          {"pattern": "*-explanations/**",         "weight": 0.5}
+        ],
+        "max_references": 5,
+        "verdict": "旧权重 —— 视频转录系统性高于用户手写笔记，与用户初衷相反"
+      },
+      "worktree_and_container": "已是 RAG-S2 T2 (2026-08-09) 翻转版",
+      "split_brain_parties": 2,
+      "note": "Codex P1-1 断言的『容器侧跑 fallback 旧权重』经三路探针证伪 —— 容器读的是 backend/data 的翻转版。真实 split-brain 只在 主仓 vs worktree 两方"
+    },
+
+    "after": {
+      "md5_all_three": "132d15b4c04867604286ccde2ac62952",
+      "main_repo": "132d15b4c04867604286ccde2ac62952",
+      "worktree": "132d15b4c04867604286ccde2ac62952",
+      "container": "132d15b4c04867604286ccde2ac62952",
+      "byte_identical": true
+    },
+
+    "container_runtime_readback": {
+      "method": "docker exec ... python -c 'from app.core.reference_config import get_source_priorities'",
+      "returned": [
+        {"weight": 0.5, "pattern": "**/*-explanations/**"},
+        {"weight": 0.3, "pattern": "原白板/**"},
+        {"weight": 1.5, "pattern": "节点/**"},
+        {"weight": 1.0, "pattern": "**/videos/lectures/**"},
+        {"weight": 1.0, "pattern": "**/videos/discussions/**"},
+        {"weight": 1.0, "pattern": "**/videos/exam_prep/**"},
+        {"weight": 1.0, "pattern": "**/videos/review_sessions/**"},
+        {"weight": 1.0, "pattern": "**/past_exams/**"},
+        {"weight": 1.0, "pattern": "**/lectures/**"},
+        {"weight": 1.0, "pattern": "**/discussions/**"}
+      ],
+      "max_references": 10,
+      "verdict": "翻转后新权重，未走 fallback"
+    },
+
+    "matcher_semantics_check": {
+      "matcher": "fnmatch(path, pattern) + break-on-first-match（reference_config.py:89-98）",
+      "both_trees_identical_logic": true,
+      "why_glob_prefix_is_safe": "fnmatch 的 * 匹配包含 / 在内的任意字符，故 `**/videos/lectures/**` 等价于 `*videos/lectures/*`，比主仓旧的 `videos/lectures/**`（要求路径以此开头）更宽松。主仓加载器可正确处理新格式，无需改码",
+      "demote_first_ordering_preserved": "explanations(0.5)/原白板(0.3) 排在列表前部，break-on-first-match 保证 demote 优先命中"
+    },
+
+    "items_planned_but_not_synced": [
+      {
+        "item": "TYPE_WEIGHTS",
+        "planned": "计划要求与权重文件同批同步到主仓",
+        "actual": "NOT SYNCED",
+        "reason": "TYPE_WEIGHTS 所在的 backend/app/services/supplementary_reranker.py 在主仓不存在（主仓 services 66 个 .py，worktree 93 个）。同步它需搬整个模块及其依赖链与测试，即计划明令禁止的『分支 merge』",
+        "divergence_context": "git rev-list --left-right --count main...worktree-feature-obsidian-hybrid-dev = 7 / 326"
+      },
+      {
+        "item": "reference_config.py 的 _raw_score 保留（R1 根因二修复，6 行）",
+        "planned": "未在计划中点名，属现场发现",
+        "actual": "NOT SYNCED",
+        "reason": "主仓对 _raw_score 零消费点 —— 实际读取方 supplementary_search_service.py:183/974 亦为 worktree 独有。搬这 6 行只会加一个无人读取的字段，不能使『过滤用 _raw_score / 排序用 score』契约成立，徒增 diff 面",
+        "residual_risk": "主仓仍缺乘性权重击穿 min_relevance 门槛的修复。新权重把 videos 中性化到 1.0 后击穿面已显著小于旧配置（旧 1.5/1.4/1.3/1.2），但主仓若真被用于起容器，该缺陷仍在"
+      }
+    ]
+  }
+}

@@ -203,7 +203,13 @@ services:
       - ./backend:/app
       - ./src:/app/src
       - canvas-lancedb:/lancedb  # Story 2.2 Phase A: 顶级 /lancedb，完全脱离 /app 嵌套 — 避免任何 backend/* bind mount 屏蔽
-      - ./data:/app/data
+      # ⛔ 已移除 `- ./data:/app/data` (R11-BATCH2-2026-08-17)。理由: 该行是嵌套 bind
+      # (/app/data 在 /app 之下)，被 `./backend:/app` 父挂载遮蔽 —— docker inspect 记录了它，
+      # 但容器 /proc/self/mountinfo 里从不出现，实际生效的一直是 backend/data/。
+      # 遮蔽与否取决于挂载顺序，一次 recreate 就可能翻转 → 届时 /app/data 会被内容稀薄的
+      # worktree/data/ 覆盖: reference_priority.json 消失(退 fallback 旧权重)、92 行死信不可见、
+      # llm_call_logs.db / presets/ / outbox/ 全部换成另一套。删除后 /app/data 恒等于
+      # backend/data/ (经由 ./backend:/app)，与删除前的实际状态逐字节一致。
       - "${VAULTS_ROOT:-.}:/vaults:${VAULT_MOUNT_MODE:-rw}"  # Story 2.2 follow-up: 顶级 /vaults 与 /app 平行，无嵌套屏蔽
       # HF 模型缓存持久化 (2026-07-12): BGEM3 2GB 权重曾缓存在容器层 —
       # 每次容器重建都重新从 HF Hub 下载, 期间全部 embedding 请求挂起
