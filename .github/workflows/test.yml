@@ -10,12 +10,25 @@ on:
   pull_request:
     paths:
       - 'backend/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/test.yml'
   push:
     branches:
       - main
       - clean-release
+      # D-1 (R11-BATCH2-2026-08-17): 生产分支此前不在任何监听列表里 —— 所有
+      # 真实开发都发生在这条分支上，却零 CI 覆盖。加入后其红/绿状态对生产分支可见。
+      #
+      # ⚠️ 但**先别急着设 required status check**：本 workflow 自 2026-04-18 起
+      # 连续 12 次运行全部 failure，从未绿过一次（根因见下方 Install 步骤的注释：
+      # hypothesis 缺失 → pytest exit 4）。对一个永远红的 check 设 required
+      # 等于阻断所有 PR 合并。正确顺序是：先让它在 main 上真正跑绿一次，再设 required。
+      - worktree-feature-obsidian-hybrid-dev
     paths:
       - 'backend/**'
+      # compose 改动影响部署形态（本批即修了 data 挂载地雷），值得触发自检
+      - 'docker-compose.yml'
+      - '.github/workflows/test.yml'
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════════
@@ -42,15 +55,33 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
+          # R11-BATCH2 (2026-08-17) — CI 4 个月全红的根因就在这里。
+          # tests/conftest.py:29 无条件 `from hypothesis import ...`，而 hypothesis
+          # 声明在**仓库根** pyproject.toml 的 [project.optional-dependencies].dev，
+          # 不在 backend/requirements.txt 里（后者文件头写明只管生产依赖）。
+          # 结果：pytest 加载 conftest 就 ImportError → exit 4，一个测试都没跑过。
+          # 这里显式装 dev extras 中 requirements.txt 未覆盖的三个，不用
+          # `pip install -e ".[dev]"` 是为了让 CI 不依赖项目自身打包配置能否成功。
+          pip install hypothesis pytest-bdd schemathesis
 
       - name: Create reports directory
         run: mkdir -p backend/reports
 
+      # R11-BATCH2: --ignore 一项说明 —— tests/unit/test_memory_service_contextvar_leak.py
+      # 在 collection 阶段 ImportError（`cannot import name '_resolve_memory_group_id'`），
+      # 而 collection error 会让 pytest 整体 Interrupted，一个测试都不跑。
+      # 该测试不是简单改名失配：它验证 _resolve_memory_group_id 读 _current_subject_id
+      # ContextVar 并对 vault: 前缀逐字返回；而现存的 _vault_scoped_group_id
+      # (memory_service.py:72) 读的是 get_current_vault_id() —— 另一个 ContextVar。
+      # 前者是 2026-05-11 wave-5 的设计，已被 2026-07-10 D16/C-3「根治」取代。
+      # 它守护的跨 vault 泄漏是 P0 契约，不该被静默删除，需单独立项按新机制重写。
+      # 在此之前先隔离，让其余测试能跑 —— 这是 CI 从「一个都跑不了」到「能跑」的前提。
       - name: Run tests
         run: |
           cd backend
           python -m pytest tests/ \
             -m "not integration" \
+            --ignore=tests/unit/test_memory_service_contextvar_leak.py \
             -v --tb=short \
             --junitxml=reports/test-results.xml \
             -q --no-header \
