@@ -2,7 +2,10 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**当前状态**（2026-08-18 · **第 2 批「数据边界 + 可信基线」T1-T7 全部完成 · 10 commits · 证据包 4 份** · PLAN `R11-BATCH2-2026-08-17`）:
+**当前状态**（2026-08-19 · **第 2 批施工 + Codex 对抗审查首批返工完成 · 13 commits(worktree) + 2(主仓) · 证据包 5 份** · PLAN `R11-BATCH2-2026-08-17`）:
+- ⛔ **不是「T1-T7 全部完成」**（2026-08-19 更正，原表述已撤）。Codex 对抗审查 `_bmad-output/审查/2026-08-19-Codex对抗审查-R11第二批实际成果.md` 判 P1×7 + P2×3。逐条独立核验后：**接受 4 条已修**（P1-01 快照版本迁移+load fail closed / P1-02 索引硬底 / P1-05 配置 fallback 分裂 / P2-02 文件黑名单作用域，commit `7f117484`，新增 4 个契约锁 45 条全无 mock）· **推回 2 条**（P1-01 的 digest/derived_reason —— 在 ExamNodeEntry 白名单内、金集 forbidden_keys 无此项、测试正向断言保留；P2-01(b) 「后 10 条」—— 审查误读排序口径）· **3 条待你决策**（见末行）
+- ⚠️ **T4 实为 PARTIAL**：E-3 `gen_excalidraw_v3.py` **未入库**（文件已丢失，全盘 find 零命中）。原「T1-T7 全完成」与本事实自相矛盾，已更正
+- ⚠️ **T1 含未授权范围**：A-8（权重合并回主仓）在 R11 清单 `:6/:59/:73` 三处明写「⛔请批 / 未点名 → 不入本批，排第 3 批」，但已随 T1 落地到 MAIN `2c5a4683`。授权仅存在于 plan mode 对话（plan prompt Context 段逐字写「本轮追问后用户选『拆地雷 + 顺手做 A-8』」），**从未落盘**。技术上是窄配置 backport（与 Codex 早前建议的做法一致），但批准记录缺失属实
 - ✅ **T1 compose 地雷 + 权重 split-brain**: `./data:/app/data` 是被 `./backend:/app` 遮蔽的嵌套 bind（docker inspect 有、容器 mountinfo 无，git blame 显示自 2026-03 就是遮蔽态），一次 recreate 顺序翻转就会用稀薄的 worktree/data 覆盖 backend/data。实测 **6 份** compose 含此行（计划记 4 份）全部处置。权重翻转版同步回主仓，三方 md5 一致 `132d15b4…`，容器 readback 确认节点/1.5 · videos 全 1.0。⚠️ TYPE_WEIGHTS 无法同步（主仓无 supplementary_reranker.py，两树分叉 7/326 commits）
 - ✅ **T2 A-9 索引黑名单**: `_待处理`/`_archive` 双处同步（config 权威源 + lancedb 兜底常量，17→19 项）。NFC/NFD 实测排除风险（汉字不参与规范分解）。现网无此目录属预防性加固，LanceDB 2211 chunk 零命中
 - ✅ **T3 E-2 快照瘦身**: 快照落盘的是**投影前**全量 superset，直接读文件即绕过整个泄漏控制点。改前实测命中金集 8 个禁键全部 + 2 条禁串。投影层放进 `write_snapshot_if_changed` 内部成为函数级不变量。真实快照重写 24659→18179 B，禁键/禁串双清零，金集 **34/34**、契约 64 passed、降级态双视图投影无 ValidationError
@@ -10,7 +13,8 @@
 - ✅ **T5 D-2 死信盘点（只读）**: 92 条根因 89/97% 是 `n_ctx=16384` 被 16998 tokens 撑爆。**最重要发现：92 条永久搁浅** —— 全仓无任何 replay consumer，只有入队没有出口。正文缺失是 CWE-532 隐私设计非缺陷。建议拆 D-2a/b/c 三子项，其中 group_id 契约旁路（`vault:default` 未过 `to_physical_group_id`）建议提前独立立项
 - ✅ **T6 D-1 CI 门 — 4 个月来首次全绿**: 计划前提被推翻 —— CI 不是"没覆盖生产分支"，是**连续 12 次全红、从未绿过**。根因链 5 环全部实测定位：①`hypothesis` 缺失（声明在根 pyproject dev extras，CI 只装 requirements）→ pytest exit 4，**四个月一个测试都没跑过** ②collection error 致整体 Interrupted ③`Settings` 校验在 import 阶段炸（本地靠不入库的 .env 满足）④5 分钟超时（测试终于跑起来但被强杀）⑤xdist 收集不一致（本批自己引入后回退）。**run 32120203573 全绿：131 passed / 13 skipped，py3.11+3.12 双版本**。⚠️ 门是保守起点（5 文件而非全量 360——全量本地串行 1h03m 未跑完，是独立待查问题）。✅ **required checks 前提已满足，操作单见 `r11-evidence-2026-08-17/d1-ci-gate.md` §3**（您点一次）
 - ✅ **T7 A-1 + A-4**: A-1 是**语义死链**非文件死链（目标文件存在但仅 36 行、不含九阶段路线，反把 2.5/2.6/4.5 列入"明确不做"）→ 改指 08-02 文档 §施工顺序与工期。A-4 样稿经用户确认移入 `.trash/`（guard-hook 阻断 rm，且 .trash 本在黑名单内），实测 orchestrator 自动清理其 chunk（2211→2206）；excalibrain.md 加文件级排除（单源常量，改 1 处即四路一致）
-- 📋 **本批遗留**: 重写 `test_memory_service_contextvar_leak.py`（守护 P0 跨 vault 泄漏，现被 CI `--ignore` 隔离）· 查全量 tests/ 跑不完的根因 + xdist 收集不确定性 · CI 逐步扩面 · D-2 三子项（尤其 group_id 契约旁路）· 主仓 commit `2c5a4683` 混入 `session-end-archive.py`（用户已裁定不修正历史）
+- 🔴 **待你决策 3 条（审查返工卡在这里）**: ① **P1-03 mastery** —— 核验发现比审查说的更坏：不是「传错参数」，改对 node_id 也修不好。结构化主图上 node 身份只存在于 `uuid5(node_id:group_id)`，fact 文本只有批注正文；唯一把 `Node: {id}` 写成可检索文本的 add_episode 路径被强制落到 `vault__x__semantic` 影子组，而读侧只查 `vault__x` 单组。**没有任何字符串形态能命中**，需选架构方向（走 IdentityRegistry uuid5 精确读 / 仿 `search_error_memories` 语义范式 / 复用 `MemoryService._search_graphiti` 三组同查）② **P1-04 CI** —— `pip-audit` 实测 `Found 25 known vulnerabilities`（pillow 11.3.0，含越界写 PYSEC-2026-2249 与 zlib 炸弹 PYSEC-2026-3495），被 `continue-on-error: true` 吞成绿色；修漏洞还是接受红？③ **P1-06 E-3** —— 补交还是从 R11 验收范围移除？
+- 📋 **本批遗留**: 重写 `test_memory_service_contextvar_leak.py`（守护 P0 跨 vault 泄漏，现被 CI `--ignore` 隔离）· 查全量 tests/ 跑不完的根因 + xdist 收集不确定性 · CI 逐步扩面 + required checks（前提已满足，操作单在 d1-ci-gate.md §3）· D-2 三子项（**根因已更正**：不是正文过长，是 schema/prompt 固定开销 ~16861 tokens 已超窗口，分片对 71/89 无效）· 四个休眠 worktree 的 compose 未提交改动待收回 · 主仓 `2c5a4683` 混入 `session-end-archive.py`（已裁定不修正历史）
 - ⚠️ **开工前必读**: 若要扩 CI 覆盖面，先解决「全量测试跑不完」而非直接加文件；若要动 board manifest 快照，注意 `write_snapshot_if_changed` 内已有投影层（`_project_for_snapshot`），不要在 `full` dict 上就地改（会污染 live）
 
 **上一状态**（2026-08-17 · **R10 复审 11 项 (P0×1+P1×6+P2×4) 全部处置完毕 · 收官门解除 · 8 commits + 真实 Neo4j 验收门 6/6 + 证据包落盘** · PLAN `P0-SYNC-ISO-2026-08-17`）:
