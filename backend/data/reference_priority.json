@@ -1,14 +1,56 @@
 {
-  "_comment": "引用优先级配置 — 权重越高越优先显示。修改后重启后端生效。",
+  "_comment": "引用优先级配置 — 权重越高越优先显示。修改后重启后端生效。RAG-S2 T2 (2026-08-09) 权重方向翻转: 旧配置 videos 1.2-1.5 > 节点/ 0.9 把视频转录系统性加权高于用户手写笔记, 与用户初衷相反 (开工基线 handwritten_share@10=0.17%)。翻转为: 节点/(手写) 1.5 最高, videos 全部中性化 1.0 (不 demote — 转录正当命中查询如 value iteration 不能被误杀, 相对优势靠手写提权实现)。Demote 优先匹配 (break-on-first-match): explanations/原白板 排前。",
   "source_priorities": [
-    {"pattern": "videos/lectures/**",        "weight": 1.5, "label": "讲义笔记"},
-    {"pattern": "videos/discussions/**",     "weight": 1.4, "label": "讨论笔记"},
-    {"pattern": "videos/exam_prep/**",       "weight": 1.3, "label": "EP笔记"},
-    {"pattern": "videos/review_sessions/**", "weight": 1.2, "label": "RS笔记"},
-    {"pattern": "past_exams/**",             "weight": 1.1, "label": "真题"},
-    {"pattern": "lectures/**",               "weight": 1.1, "label": "讲义PDF"},
-    {"pattern": "discussions/**",            "weight": 1.1, "label": "讨论PDF"},
-    {"pattern": "*-explanations/**",         "weight": 0.5, "label": "AI生成解释"}
+    {
+      "pattern": "**/*-explanations/**",
+      "weight": 0.5,
+      "label": "AI生成解释（先 demote 优先匹配）"
+    },
+    {
+      "pattern": "原白板/**",
+      "weight": 0.3,
+      "label": "白板（导航层 demote）"
+    },
+    {
+      "pattern": "节点/**",
+      "weight": 1.5,
+      "label": "用户手写派生节点（最高优先 — RAG-S2 翻转）"
+    },
+    {
+      "pattern": "**/videos/lectures/**",
+      "weight": 1.0,
+      "label": "讲义笔记"
+    },
+    {
+      "pattern": "**/videos/discussions/**",
+      "weight": 1.0,
+      "label": "讨论笔记"
+    },
+    {
+      "pattern": "**/videos/exam_prep/**",
+      "weight": 1.0,
+      "label": "EP笔记"
+    },
+    {
+      "pattern": "**/videos/review_sessions/**",
+      "weight": 1.0,
+      "label": "RS笔记"
+    },
+    {
+      "pattern": "**/past_exams/**",
+      "weight": 1.0,
+      "label": "真题"
+    },
+    {
+      "pattern": "**/lectures/**",
+      "weight": 1.0,
+      "label": "讲义PDF"
+    },
+    {
+      "pattern": "**/discussions/**",
+      "weight": 1.0,
+      "label": "讨论PDF"
+    }
   ],
-  "max_references": 5
+  "max_references": 10
 }

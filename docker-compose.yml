@@ -159,7 +159,10 @@ services:
       - ./backend:/app
       - ./src:/app/src
       - canvas-lancedb:/app/data/lancedb
-      - ./data:/app/data
+      # ⛔ 已移除 `- ./data:/app/data` (R11-BATCH2-2026-08-17)。理由同生产分支 worktree:
+      # 该行是被 `./backend:/app` 遮蔽的嵌套 bind，一旦挂载顺序翻转就会用内容稀薄的
+      # <project>/data/ 覆盖 backend/data/ (配置文件消失、死信队列不可见)。
+      # 删除后 /app/data 恒等于 backend/data/；具名卷 canvas-lancedb 继续挂 /app/data/lancedb。
       - "${VAULTS_ROOT:-.}:/app/vaults:${VAULT_MOUNT_MODE:-rw}"
 
     depends_on:
