@@ -232,3 +232,13 @@ backend/mutants/
 backend/config/rag_config.yaml
 _backups/
 canvas-docs/
+
+# RAG-S2.6 审查 MEDIUM-2: manifest 降级快照是**未经视图投影的全量原料**
+# (含 exam 禁项: 纠错内容/批注正文/误解记录)，绝不能进版本库
+canvas-vault/.claude/cache/
+**/.claude/cache/board-manifest/
+
+# D1 决策 (2026-08-16, raw材料管理报告书): raw/ 显式不入库
+# 理由: track 会经 lefthook post-commit 自动 push Berkeley 课程转录到
+# 两个 GitHub 远程 (版权/隐私后果不可逆)。备份走 vault 级备份链, 不走 git。
+canvas-vault/raw/
