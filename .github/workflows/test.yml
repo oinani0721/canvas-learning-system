@@ -77,6 +77,19 @@ jobs:
       # 它守护的跨 vault 泄漏是 P0 契约，不该被静默删除，需单独立项按新机制重写。
       # 在此之前先隔离，让其余测试能跑 —— 这是 CI 从「一个都跑不了」到「能跑」的前提。
       - name: Run tests
+        env:
+          # R11-BATCH2 第三环 —— 修掉 hypothesis 与 collection error 后暴露出来的:
+          #   pydantic ValidationError: NEO4J_PASSWORD must be set explicitly outside local dev
+          # conftest.py:23 的 `from app.main import app` 在 **import 阶段**就实例化 Settings,
+          # 而 config.py:244-257 的 model_validator 规定 is_local = DEBUG and (CORS 含
+          # localhost/127.0.0.1); 非 local 时 NEO4J_PASSWORD 与 INTERNAL_API_KEY 双强制。
+          # 本地靠 backend/.env 满足 (该文件不入库), CI 拿不到 → exit 4。
+          # 这里提供等价的测试态配置, 与 conftest.py:323-329 的测试 Settings 口径一致。
+          # 刻意不设 NEO4J_ENABLED=false: is_local 为真时空密码只 warning 不 raise,
+          # 保持该开关默认值可避免改变任何测试的代码路径。
+          DEBUG: "true"
+          CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+          INTERNAL_API_KEY: "ci-test-key-not-a-real-secret"
         run: |
           cd backend
           python -m pytest tests/ \
