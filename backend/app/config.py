@@ -33,6 +33,37 @@ _BACKEND_DIR = os.path.dirname(_CONFIG_DIR)  # backend/
 _PROJECT_ROOT = os.path.dirname(_BACKEND_DIR)  # Canvas/
 
 
+#: ⛔⛔ 索引黑名单的**不可撤销硬底** (P1-02, Codex 对抗审查 2026-08-19)
+#:
+#: 问题: VAULT_INDEX_SKIP_DIRS 是 env 可**整体替换**的单一字符串 —— 设
+#: `VAULT_INDEX_SKIP_DIRS=.git` 就能一次性撤掉全部黑名单。实测该 env 下
+#: `检验白板/exam.md` 与 `验收单/uat.md` 双双变为 allowed。
+#:
+#: 这不是 A-9 引入的新缺陷: 检验白板/验收单 自 2026-07-10 检验白板 v1 审计起
+#: 就与其它项同在一条逗号串里, 共享完全相同的可撤销性 —— 即**信息隔离铁律
+#: (Karpicke d=1.50, 考题绝不能经 RAG 回流) 一直可被一行 env 撤销**。
+#: 因此硬底的范围必须大于审查建议的「只锁 _待处理/_archive」。
+#:
+#: 防御层数实测 (决定了本集合的必要性排序):
+#:   - 检验白板: 双层 —— 目录黑名单 + 读侧 exclude_doc_types=["whiteboard","exam_board"]
+#:     (靠 `type: exam_board` frontmatter 或 exam_question_id 推断)
+#:   - 验收单 / _待处理 / _archive: **单层** —— frontmatter 无 doc_type,
+#:     读侧不挡, 目录黑名单是唯一防线, 撤掉即全裸
+#:
+#: 契约: env 只能**追加**黑名单, 不能移除本集合中的项。
+#: 所有消费点必须走 Settings.effective_vault_skip_dirs(), 不要直接 split。
+IMMUTABLE_VAULT_SKIP_DIRS: frozenset[str] = frozenset(
+    {
+        "检验白板",  # 信息隔离铁律 — 双层防御的第一层
+        "验收单",  # 信息隔离铁律 — 单层防御, 撤掉即全裸
+        "_待处理",  # A-9 收件箱暂存区 — 单层
+        "_archive",  # A-9 下划线前缀归档 — 单层
+        ".git",  # 仓库内部, 任何情况都不该进检索
+        ".obsidian",  # Obsidian 配置与插件数据
+    }
+)
+
+
 class Settings(BaseSettings):
     """
     Application settings loaded from environment variables.
@@ -523,6 +554,23 @@ class Settings(BaseSettings):
         ),
         description="Comma-separated list of directories to skip during vault indexing.",
     )
+
+    def effective_vault_skip_dirs(self) -> List[str]:
+        """索引目录黑名单 = 配置值 ∪ IMMUTABLE_VAULT_SKIP_DIRS。
+
+        ⛔ P1-02 (Codex 对抗审查 2026-08-19): **所有消费点必须走这里**, 不要
+        直接 `settings.VAULT_INDEX_SKIP_DIRS.split(",")` —— 直接 split 会让一行
+        env 覆盖撤掉信息隔离铁律 (检验白板/验收单), 实测可复现。
+
+        保序策略: 先配置串的原顺序 (保留用户可见的排列, 且 demote-first 之类的
+        顺序语义不被打乱), 再追加硬底中缺失的项。
+        """
+        configured = [d.strip() for d in self.VAULT_INDEX_SKIP_DIRS.split(",") if d.strip()]
+        merged = list(configured)
+        for hard in sorted(IMMUTABLE_VAULT_SKIP_DIRS):  # sorted 保证追加顺序确定
+            if hard not in merged:
+                merged.append(hard)
+        return merged
 
     # RAG-S1-2026-08-02 阶段 1: vault 索引 orchestrator (统一原语 + durable
     # pending + 双机制触发)。关掉 = 回阶段 0 现状 (仅手动全量端点)。

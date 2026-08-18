@@ -410,6 +410,41 @@ DEFAULT_VAULT_SKIP_DIRS = [
     "_archive",
 ]
 
+#: ⛔⛔ 不可撤销硬底 (P1-02, Codex 对抗审查 2026-08-19)。
+#: 必须与 app/config.py::IMMUTABLE_VAULT_SKIP_DIRS 逐字一致 —— lib 不能 import
+#: app, 物理上无法单源, 一致性由 tests/regression 的防漂移锁保证。
+#:
+#: ⚠️ 与上方 DEFAULT_VAULT_SKIP_DIRS 语义**不同**:
+#:   - DEFAULT_VAULT_SKIP_DIRS = 调用方传 None 时的**替换式**兜底
+#:     (RAG-S1 M4 刻意选替换而非 union, 避免 env 放宽黑名单时 orchestrator
+#:      放行、本函数拒绝且不写指纹, 形成 60s 永动)
+#:   - IMMUTABLE_VAULT_SKIP_DIRS = **无条件 union**, 调用方传什么都撤不掉
+#:
+#: 两者不冲突: 前者管「可配置项的默认值从哪来」, 后者管「哪些边界根本不可配置」。
+#: 永动风险只存在于可配置区间; 硬底在 orchestrator 与本模块两侧同时生效, 判定
+#: 一致故不产生分歧。
+IMMUTABLE_VAULT_SKIP_DIRS = (
+    "检验白板",  # 信息隔离铁律 (Karpicke d=1.50) — 考题绝不能经 RAG 回流
+    "验收单",  # 同为信息隔离面, 且实测只有单层防御 (读侧 doc_type 不挡)
+    "_待处理",  # A-9 收件箱暂存区
+    "_archive",  # A-9 下划线前缀归档
+    ".git",
+    ".obsidian",
+)
+
+
+def _with_immutable_skip_dirs(skip_dirs: list[str]) -> list[str]:
+    """把不可撤销硬底 union 进调用方给的黑名单 (P1-02)。
+
+    保序: 调用方原顺序在前 (不打乱 demote-first 之类的语义), 硬底缺项追加在后。
+    """
+    merged = list(skip_dirs)
+    for hard in IMMUTABLE_VAULT_SKIP_DIRS:
+        if hard not in merged:
+            merged.append(hard)
+    return merged
+
+
 # RAG-S1 (2026-08-03): 文件名黑名单提升为模块级常量 — 此前只在
 # index_vault_notes 函数体内 (工具/工程文档 + 测试残留), index_single_file
 # 完全没有这一层, 增量路径可把 CLAUDE.md / UAT-*.md 送入库。两路共用一份。
@@ -422,16 +457,53 @@ DEFAULT_VAULT_SKIP_FILES = [
     "Untitled*.md",
     "2111.md",  # 测试残留
     "*.excalidraw.md",  # 手绘图 md 包装
-    # A-4 (R11-BATCH2-2026-08-17): ExcaliBrain 插件的运行时文件, 非学习内容。
-    # 插件仍在用, 不能删文件, 只能挡在索引外 (改前实测占 3 chunk + 1 指纹)。
-    # ⛔ 刻意写全名而非 glob `excalibrain*` —— 后者会误伤用户手写的
-    # `excalibrain-笔记.md` 这类真实学习内容。
-    "excalibrain.md",
     # Phase A T1.1 followup (2026-05-09): 补测试 + UAT 残留
     "TestConcept*.md",
     "UAT-*.md",
     "*-test.md",
 ]
+
+#: 只在 vault **根目录**生效的文件黑名单 (P2-02, Codex 对抗审查 2026-08-19)。
+#:
+#: 与上方 DEFAULT_VAULT_SKIP_FILES 的区别是**作用域**:
+#:   - DEFAULT_VAULT_SKIP_FILES: 任意层级 basename 匹配 (fnmatch, 支持通配)
+#:   - 本表: 仅当文件位于 vault 根 (rel_path 不含分隔符) 时才匹配
+#:
+#: 为什么需要分开: A-4 最初把 `excalibrain.md` 放进上表, 于是任意深度的同名
+#: 文件都被排除 —— 包括用户完全可能手写的 `节点/excalibrain.md`。根级那一份是
+#: ExcaliBrain 插件的运行时产物, 深层同名文件则没有任何理由被判定为工具产物。
+#:
+#: 匹配规则: **casefold 精确比较**, 不做 fnmatch 通配。
+#:   - casefold 是为了挡住 `ExcaliBrain.md` / `EXCALIBRAIN.md` 这类大小写变体
+#:     (插件在不同版本/平台上写出的文件名大小写并不稳定);
+#:   - 不用通配是为了避免重蹈 `excalibrain*` 会吃掉 `excalibrain-笔记.md` 的覆辙。
+DEFAULT_VAULT_SKIP_ROOT_FILES = ("excalibrain.md",)
+
+#: 预计算的 casefold 集合 — 判定热路径上避免每次重算
+_SKIP_ROOT_FILES_CASEFOLD = frozenset(n.casefold() for n in DEFAULT_VAULT_SKIP_ROOT_FILES)
+
+
+def _is_skipped_vault_file(rel_path: str, skip_files) -> bool:
+    """文件名黑名单判定 (P2-02: 任意层级 + 仅根级两套规则)。
+
+    Args:
+        rel_path: vault 相对路径; 允许 os.sep 或 '/' 分隔。
+        skip_files: 任意层级 basename 黑名单 (fnmatch 通配)。
+
+    两条索引路径 (全量 index_vault_notes / 单文件 index_single_file) 共用本函数,
+    避免再次出现「一条路径有黑名单另一条没有」的旁路 (RAG-S1 R3 的教训)。
+    """
+    normalized = rel_path.replace(os.sep, "/").strip("/")
+    base_name = normalized.rsplit("/", 1)[-1]
+
+    if any(fnmatch.fnmatch(base_name, pat) for pat in skip_files):
+        return True
+
+    # 仅根级: 归一化后不含分隔符 = 直接位于 vault 根
+    if "/" not in normalized and base_name.casefold() in _SKIP_ROOT_FILES_CASEFOLD:
+        return True
+
+    return False
 
 
 class LanceDBClient:
@@ -1508,6 +1580,10 @@ class LanceDBClient:
             # R3 (2026-07-12): 收敛到模块级常量 DEFAULT_VAULT_SKIP_DIRS —
             # index_single_file 与本函数共用, 消除单文件路径的黑名单旁路
             skip_dirs = list(DEFAULT_VAULT_SKIP_DIRS)
+        # P1-02 (Codex 审查 2026-08-19): 硬底无条件 union —— 调用方 (metadata
+        # 端点 / orchestrator) 传什么都撤不掉信息隔离边界。放在 None 兜底之后,
+        # 两条路径都覆盖。
+        skip_dirs = _with_immutable_skip_dirs(skip_dirs)
 
         # Phase A T1.1 (2026-05-09): glob bug 修复 — 用 fnmatch 处理 *-explanations
         # 之前 `d not in skip_dirs` 精确匹配，glob 永不命中 → 41 个 explanations 全进库
@@ -1526,8 +1602,16 @@ class LanceDBClient:
         for root, dirs, files in os.walk(vault_path):
             dirs[:] = [d for d in dirs if not _is_skipped_dir(d)]
             for f in files:
-                if f.endswith(".md") and not _is_skipped_file(f):
-                    md_files.append(os.path.join(root, f))
+                if not f.endswith(".md"):
+                    continue
+                full_path = os.path.join(root, f)
+                # P2-02: 传 vault 相对路径而非裸文件名 —— 仅根级黑名单
+                # (DEFAULT_VAULT_SKIP_ROOT_FILES) 需要知道文件在不在根,
+                # 否则 节点/excalibrain.md 这类深层同名笔记会被误排。
+                rel_path = os.path.relpath(full_path, vault_path)
+                if _is_skipped_vault_file(rel_path, skip_files):
+                    continue
+                md_files.append(full_path)
 
         if not md_files:
             if LOGURU_ENABLED:
@@ -1830,7 +1914,10 @@ class LanceDBClient:
         # 黑名单时 orchestrator 放行、本函数拒绝且不写指纹, 形成 60s 永动。
         import fnmatch as _fnmatch
 
-        effective_skip_dirs = skip_dirs if skip_dirs is not None else list(DEFAULT_VAULT_SKIP_DIRS)
+        # P1-02: 同全量路径 —— 先取调用方值或替换式兜底, 再 union 不可撤销硬底
+        effective_skip_dirs = _with_immutable_skip_dirs(
+            skip_dirs if skip_dirs is not None else list(DEFAULT_VAULT_SKIP_DIRS)
+        )
         for part in rel_path.split("/")[:-1]:
             if any(_fnmatch.fnmatch(part, pat) for pat in effective_skip_dirs):
                 if LOGURU_ENABLED:
@@ -1840,8 +1927,9 @@ class LanceDBClient:
         # RAG-S1 (2026-08-03): filename blacklist — 与全量路径同源
         # DEFAULT_VAULT_SKIP_FILES (此前单文件路径只有目录黑名单,
         # CLAUDE.md / UAT-*.md 可经增量端点入库)。
-        base_name = os.path.basename(rel_path)
-        if any(_fnmatch.fnmatch(base_name, pat) for pat in DEFAULT_VAULT_SKIP_FILES):
+        # P2-02: 收敛到 _is_skipped_vault_file —— 与全量路径共用同一判定,
+        # 同时获得「仅根级」规则 (rel_path 本就是 vault 相对路径, 直接可用)。
+        if _is_skipped_vault_file(rel_path, DEFAULT_VAULT_SKIP_FILES):
             if LOGURU_ENABLED:
                 logger.warning(f"[INDEX] blacklisted filename, refuse single-file index: {rel_path}")
             return 0

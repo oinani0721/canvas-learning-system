@@ -857,6 +857,17 @@ def snapshot_file(base_path: Path | str) -> Path:
 #: study 视图才不至于连标题都没有。
 SNAPSHOT_STRIPPED_MEMBER_KEYS = ("tips", "errors", "error_candidates")
 
+#: 快照 schema 版本 (P1-01, Codex 对抗审查 2026-08-19)。
+#:   v1 = E-2 之前落盘的**未脱敏全量 superset** (可能含 tips/errors/
+#:        error_candidates 原文)。磁盘上没有本字段的一律视为 v1。
+#:   v2 = 已过 _project_for_snapshot 脱敏投影。
+#:
+#: 为什么必须有版本号而不能只靠 generation: generation 只反映 vault **内容**是否
+#: 变化, 与快照**格式**无关。E-2 上线后, 内容未变的旧 vault 其 generation 不变,
+#: write_snapshot_if_changed 直接 return False → v1 未脱敏快照原地长存。
+#: 版本号让「格式演进」成为独立于内容的重写触发条件。
+SNAPSHOT_SCHEMA_VERSION = 2
+
 
 def _project_for_snapshot(full: dict[str, Any]) -> dict[str, Any]:
     """快照投影 (E-2 方案 A): 剔除 members 的泄题原文, 其余原样序列化。
@@ -876,6 +887,8 @@ def _project_for_snapshot(full: dict[str, Any]) -> dict[str, Any]:
     不含该字段; 只要 pick_hint.pick_score 与 is_stub 还在, 降级态自会重算。
     """
     projected = copy.deepcopy(full)
+    # P1-01: 打上版本戳 —— load 侧据此对 v1 fail closed, write 侧据此强制迁移
+    projected["snapshot_schema_version"] = SNAPSHOT_SCHEMA_VERSION
     for board in (projected.get("boards") or {}).values():
         if not isinstance(board, dict):
             continue
@@ -887,18 +900,33 @@ def _project_for_snapshot(full: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bool:
-    """generation 变更才重写; tmp + os.replace 原子; 失败仅 warning 不影响 live。
+    """generation 变更**或 schema 版本落后**才重写; tmp + os.replace 原子。
 
     E-2: 落盘前过 _project_for_snapshot —— 投影放在本函数内部而非调用侧, 让
     「快照永不含泄题原文」成为函数级不变量, 未来新增调用方无需重复记得。
+
+    ⛔ P1-01 (Codex 对抗审查 2026-08-19): 原实现只比 generation, 于是 E-2 上线前
+    写下的 v1 未脱敏快照, 只要 vault 内容没变 (generation 相同) 就**永远不会被
+    重写** —— 脱敏投影对存量快照完全失效。反例已复现: changed=False 而
+    secret_on_disk=True。现在版本落后一律强制重写, 与 generation 无关。
     """
     path = snapshot_file(base_path)
     try:
         if path.exists():
             try:
                 prev = json.loads(path.read_text(encoding="utf-8"))
-                if prev.get("freshness", {}).get("generation") == full["freshness"]["generation"]:
+                prev_version = prev.get("snapshot_schema_version", 1)
+                same_generation = prev.get("freshness", {}).get("generation") == full["freshness"]["generation"]
+                # 两个条件都满足才跳过: 内容未变 **且** 已是当前脱敏版本
+                if same_generation and prev_version >= SNAPSHOT_SCHEMA_VERSION:
                     return False
+                if same_generation and prev_version < SNAPSHOT_SCHEMA_VERSION:
+                    logger.info(
+                        "[manifest] 快照 schema v%s < v%s 且 generation 未变 — 仍强制重写以完成脱敏迁移: %s",
+                        prev_version,
+                        SNAPSHOT_SCHEMA_VERSION,
+                        path,
+                    )
             except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 pass  # 损坏快照 → 直接重写覆盖
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -928,6 +956,7 @@ _SNAPSHOT_REQUIRED_KEYS = frozenset({"freshness", "boards", "node_stems", "orpha
 
 
 def load_snapshot(base_path: Path | str) -> dict[str, Any] | None:
+    """读快照; 结构不全或 schema 版本落后一律按不可用处理 (fail closed)。"""
     path = snapshot_file(base_path)
     if not path.exists():
         return None
@@ -938,6 +967,21 @@ def load_snapshot(base_path: Path | str) -> dict[str, Any] | None:
         return None
     if not isinstance(data, dict) or not _SNAPSHOT_REQUIRED_KEYS <= set(data):
         logger.warning("[manifest] 快照 schema 不全, 按不可用处理: %s", path)
+        return None
+    # ⛔ P1-01 fail closed: v1 快照是 E-2 之前落盘的**未脱敏全量 superset**,
+    # 里面可能含 tips/errors/error_candidates 原文。降级态从它恢复会让 study 视图
+    # 直接把禁项吐回学习对话 (exam 视图靠模型缺字段仍安全, 但 study 面会漏)。
+    # 宁可退到三态里的「空壳 error」如实报因, 也不从可疑快照恢复。
+    version = data.get("snapshot_schema_version", 1)
+    if version < SNAPSHOT_SCHEMA_VERSION:
+        logger.warning(
+            "[manifest] 快照 schema v%s < v%s (E-2 前的未脱敏版本) — 拒绝加载, "
+            "按快照不可用处理。下次 live 扫描成功时会自动重写为 v%s: %s",
+            version,
+            SNAPSHOT_SCHEMA_VERSION,
+            SNAPSHOT_SCHEMA_VERSION,
+            path,
+        )
         return None
     return data
 

@@ -612,7 +612,9 @@ async def index_vault_notes(
         # RAG-S1 (2026-08-03): settings.VAULT_INDEX_SKIP_DIRS 是黑名单唯一权威源
         # (config.py)。此前 getattr 的第三参数是一份永远不会被使用的死拷贝
         # (pydantic 字段总存在)——三份拷贝漂移风险, 已删。
-        skip_dirs = [d.strip() for d in settings.VAULT_INDEX_SKIP_DIRS.split(",")]
+        # P1-02 (Codex 审查 2026-08-19): 改走 effective_vault_skip_dirs() ——
+        # 直接 split 会让 env 覆盖撤掉信息隔离铁律 (检验白板/验收单)。
+        skip_dirs = settings.effective_vault_skip_dirs()
         chunk_size = getattr(settings, "VAULT_INDEX_CHUNK_SIZE", 500)
         chunk_overlap = getattr(settings, "VAULT_INDEX_OVERLAP", 50)
 

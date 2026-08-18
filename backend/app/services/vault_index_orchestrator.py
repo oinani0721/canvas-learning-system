@@ -116,7 +116,10 @@ class VaultIndexOrchestrator:
         self._chunk_overlap = getattr(settings, "VAULT_INDEX_OVERLAP", 50)
         self._scan_interval = getattr(settings, "VAULT_INDEX_SCAN_INTERVAL_S", 60)
         self._stale_after = getattr(settings, "VAULT_INDEX_STALE_AFTER_S", 300)
-        self._skip_dirs = [d.strip() for d in settings.VAULT_INDEX_SKIP_DIRS.split(",") if d.strip()]
+        # P1-02 (Codex 审查 2026-08-19): 原为直接 split VAULT_INDEX_SKIP_DIRS,
+        # 于是一行 env 覆盖就能撤掉信息隔离铁律 (检验白板/验收单)。改走
+        # effective_vault_skip_dirs() 与不可撤销硬底做 union。
+        self._skip_dirs = settings.effective_vault_skip_dirs()
 
     # ------------------------------------------------------------------
     # client / subject helpers
@@ -161,13 +164,17 @@ class VaultIndexOrchestrator:
         if not rel_path.endswith(".md"):
             return False, "not_markdown"
 
-        from agentic_rag.clients.lancedb_client import DEFAULT_VAULT_SKIP_FILES
+        from agentic_rag.clients.lancedb_client import (
+            DEFAULT_VAULT_SKIP_FILES,
+            _is_skipped_vault_file,
+        )
 
         for part in rel_path.split("/")[:-1]:
             if any(fnmatch.fnmatch(part, pat) for pat in self._skip_dirs):
                 return False, "blacklisted_dir"
-        base_name = os.path.basename(rel_path)
-        if any(fnmatch.fnmatch(base_name, pat) for pat in DEFAULT_VAULT_SKIP_FILES):
+        # P2-02 (Codex 审查 2026-08-19): 收敛到 _is_skipped_vault_file —— 与两条
+        # 索引路径同一判定, 并获得「仅根级」规则 (避免 节点/excalibrain.md 误排)。
+        if _is_skipped_vault_file(rel_path, DEFAULT_VAULT_SKIP_FILES):
             return False, "blacklisted_file"
         return True, "ok"
 
@@ -413,21 +420,28 @@ class VaultIndexOrchestrator:
 
     def _scan_vault_md_files(self) -> List[str]:
         """Walk the vault applying the SAME blacklist as should_index."""
-        from agentic_rag.clients.lancedb_client import DEFAULT_VAULT_SKIP_FILES
+        from agentic_rag.clients.lancedb_client import (
+            DEFAULT_VAULT_SKIP_FILES,
+            _is_skipped_vault_file,
+        )
 
         md_files: List[str] = []
 
         def _skipped_dir(name: str) -> bool:
             return any(fnmatch.fnmatch(name, pat) for pat in self._skip_dirs)
 
-        def _skipped_file(name: str) -> bool:
-            return any(fnmatch.fnmatch(name, pat) for pat in DEFAULT_VAULT_SKIP_FILES)
-
         for root, dirs, files in os.walk(self.vault_path):
             dirs[:] = [d for d in dirs if not _skipped_dir(d)]
             for f in files:
-                if f.endswith(".md") and not _skipped_file(f):
-                    md_files.append(os.path.join(root, f))
+                if not f.endswith(".md"):
+                    continue
+                full_path = os.path.join(root, f)
+                # P2-02: 用 vault 相对路径判定, 与 should_index 完全同源
+                # (docstring 承诺的 "SAME blacklist" 现在是同一个函数)
+                rel_path = os.path.relpath(full_path, self.vault_path)
+                if _is_skipped_vault_file(rel_path, DEFAULT_VAULT_SKIP_FILES):
+                    continue
+                md_files.append(full_path)
         return md_files
 
     async def reconcile(self, force: bool = False) -> Dict[str, int]:

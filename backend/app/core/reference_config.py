@@ -19,32 +19,54 @@ _CONFIG_PATH = Path(__file__).parent.parent.parent / "data" / "reference_priorit
 _config: Dict[str, Any] | None = None
 
 
+#: P1-05 (Codex 对抗审查 2026-08-19 · R11-BATCH2 返工): 中性降级的 max_references。
+#: 与正式 JSON 保持一致, 避免降级态顺带改变返回条数。
+_NEUTRAL_MAX_REFERENCES = 10
+
+
 def _load_config() -> Dict[str, Any]:
+    """加载引用优先级配置; 失败时**中性降级**而非退回旧权重。
+
+    ⛔ P1-05 修复 (Codex 审查 2026-08-19): 此处原本硬编码一份 fallback ——
+    videos/lectures 1.5 · videos/discussions 1.4 · max_references 5 —— 那是
+    RAG-S2 T2 (2026-08-09) 权重翻转**之前**的旧值, 方向与正式配置**相反**:
+    它把视频转录系统性加权到用户手写笔记之上, 正是那次翻转要纠正的问题。
+    于是配置文件一旦缺失或损坏, 系统会静默回到用户初衷的反面。
+    更隐蔽的是 `_CONFIG_PATH.exists()` 为 False 时根本不进 except 分支,
+    连一条 warning 都没有 —— 纯静默。
+
+    改为中性降级: 空规则列表 = 不做任何 boost/demote
+    (apply_source_priority 的 `if not priorities: return results` 已支持该路径),
+    引用排序退化为纯语义分序。
+
+    为何不 fail-closed 抛错: 本模块只影响引用**排序**, 让整条检索链挂掉的代价
+    高于不加权。为何不复制一份新权重: 那会造出第三份真相源, 下次调权重又要
+    同步两处 —— 正是本次要消除的问题。
+    """
     global _config
     if _config is not None:
         return _config
-
-    default = {
-        "source_priorities": [
-            {"pattern": "videos/lectures/**", "weight": 1.5, "label": "讲义"},
-            {"pattern": "videos/discussions/**", "weight": 1.4, "label": "讨论"},
-            {"pattern": "*-explanations/**", "weight": 0.5, "label": "AI解释"},
-        ],
-        "max_references": 5,
-    }
 
     try:
         if _CONFIG_PATH.exists():
             with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
                 _config = json.load(f)
-                logger.info(
-                    f"Loaded reference priority config: {len(_config.get('source_priorities', []))} rules"
-                )
+                logger.info(f"Loaded reference priority config: {len(_config.get('source_priorities', []))} rules")
                 return _config
+        logger.error(
+            "reference_priority.json 不存在 (%s) — 中性降级: 引用排序退化为纯语义分序, "
+            "用户手写笔记不再获得提权。请检查部署是否漏挂 data 目录。",
+            _CONFIG_PATH,
+        )
     except (json.JSONDecodeError, ValueError, KeyError, OSError) as e:
-        logger.warning(f"Failed to load reference_priority.json: {e}, using defaults")
+        logger.error(
+            "reference_priority.json 加载失败 (%s) — 中性降级: 引用排序退化为纯语义分序: %s",
+            _CONFIG_PATH,
+            e,
+        )
 
-    _config = default
+    # 每次新建 dict/list, 不共享可变对象 (调用方若就地改动不会污染后续调用)
+    _config = {"source_priorities": [], "max_references": _NEUTRAL_MAX_REFERENCES}
     return _config
 
 
