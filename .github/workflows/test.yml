@@ -37,7 +37,11 @@ jobs:
   tests:
     name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # R11-BATCH2 第四环: 5 分钟不够。修掉前三环后测试真的跑起来了, job 时长从
+    # 2m39s(收集就崩) 涨到 5m17s 并被 timeout 强杀 (日志可见
+    # `Terminate orphan process: pid (python)`, junitxml 未生成)。
+    # 测试面共 360 个文件 / 6400+ 用例, 本地全量 40 分钟未跑完。
+    timeout-minutes: 20
     strategy:
       matrix:
         python-version: ['3.11', '3.12']
@@ -95,6 +99,7 @@ jobs:
           python -m pytest tests/ \
             -m "not integration" \
             --ignore=tests/unit/test_memory_service_contextvar_leak.py \
+            -n auto --dist loadfile \
             -v --tb=short \
             --junitxml=reports/test-results.xml \
             -q --no-header \
