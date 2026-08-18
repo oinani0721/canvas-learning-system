@@ -4,20 +4,40 @@
 """
 Unit tests for Graphiti JSON dual-write functionality in MemoryService.
 
+⚠️ DEPRECATED — fix-test-infra-paralysis Phase 2 (2026-04-07)
+=================================================================
+Both `_write_to_graphiti_json` and `_write_to_graphiti_json_with_retry`
+were deleted by fix-rag-transform-and-episode-isolation. The dual-write
+fire-and-forget pattern is now `MemoryService._enqueue_episode →
+GraphitiEpisodeWorker.enqueue → background loop → graphiti.add_episode`.
+
+Equivalent test coverage (orchestration + dead-letter + metrics) is in
+`backend/tests/unit/test_episode_worker_retry.py`.
+
+This file is preserved for blame/audit history; module-level skip avoids
+the AttributeError noise from referencing two deleted private methods.
+
 Test Coverage (Story 36.9 Task 4):
-- 4.1: Test _write_to_graphiti_json() is called after Neo4j write succeeds
-- 4.2: Test fire-and-forget doesn't block record_learning_event() return
-- 4.3: Test JSON write failure doesn't affect main flow
-- 4.4: Test timeout protection (500ms)
-- 4.5: Test config flag disables dual-write when false
+- 4.1-4.5: All test methods reference deleted private methods.
 
 [Source: docs/stories/36.9.story.md#Testing]
+[Migration: openspec/changes/fix-test-infra-paralysis/specs/test-infrastructure-resilience/spec.md]
 """
 
 import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+# fix-test-infra-paralysis Phase 2: skip whole module — see docstring above.
+pytestmark = pytest.mark.skip(
+    reason=(
+        "MemoryService._write_to_graphiti_json[_with_retry] deleted by "
+        "fix-rag-transform-and-episode-isolation; dual-write fire-and-forget "
+        "now via _enqueue_episode → GraphitiEpisodeWorker. Coverage in "
+        "backend/tests/unit/test_episode_worker_retry.py."
+    )
+)
 from app.clients.graphiti_client import LearningMemory
 from app.services.memory_service import MemoryService
 

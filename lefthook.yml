@@ -141,12 +141,17 @@ pre-push:
   parallel: true
   commands:
     # --- Frontend test: Run vitest before push ---
+    # fix-test-infra-paralysis Phase 0.2: invocation goes through
+    # scripts/run_cmd_capture.sh so non-zero vitest exit codes are NOT swallowed
+    # by `| tail`. POSIX pipe semantics return only the rightmost command's
+    # exit status, which is why the previous version silently let failing
+    # tests through pre-push.
     frontend-test:
       glob: "frontend/src/**/*.{ts,tsx}"
       run: |
         if [ -d "frontend/node_modules" ]; then
           echo "[Pre-push] Running frontend tests..."
-          cd frontend && npx vitest run --run 2>&1 | tail -20
+          ./scripts/run_cmd_capture.sh --cwd frontend --tail 120 -- npx vitest run --run
           echo "[Pre-push] Frontend tests done."
         fi
 
@@ -166,7 +171,8 @@ pre-push:
     # gate requires first paying down the 136-failure pre-existing debt.
     #
     # Exit code is preserved via explicit $? capture (previous `| tail -5`
-    # pipe silently swallowed pytest exit code).
+    # pipe silently swallowed pytest exit code). The fix-test-infra-paralysis
+    # wrapper is not needed here because this block has no pipe.
     backend-smoke:
       run: |
         if [ -f "backend/.venv/bin/python" ]; then

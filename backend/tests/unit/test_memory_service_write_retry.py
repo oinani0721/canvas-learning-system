@@ -5,23 +5,43 @@
 """
 Unit tests for Graphiti JSON write retry functionality.
 
+⚠️ DEPRECATED — fix-test-infra-paralysis Phase 2 (2026-04-07)
+=================================================================
+The method `MemoryService._write_to_graphiti_json_with_retry` was deleted
+during the fix-rag-transform-and-episode-isolation refactor. The retry,
+exponential backoff, and dead-letter semantics it implemented now live in
+`backend/app/services/episode_worker.py:GraphitiEpisodeWorker._handle_failure`.
+
+Equivalent test coverage moved to:
+  backend/tests/unit/test_episode_worker_retry.py
+which exercises the production retry path through GraphitiEpisodeWorker.
+
+This file is preserved for blame/audit history rather than deleted, but every
+test in it would call a non-existent method. Module-level skip avoids the
+~18 noisy AttributeError failures while preserving the historical context.
+
 Story 31.A.3: 写入可靠性增强
 - AC-31.A.3.1: 添加重试机制
 - AC-31.A.3.4: 单元测试覆盖
 
-Test scenarios:
-- First attempt success
-- Success after retry
-- All retries failed (timeout)
-- Exception triggers retry
-- Retry success logging (info level)
-- All retries failed logging (warning level)
-
 [Source: docs/stories/31.A.3.story.md#Testing]
+[Migration: openspec/changes/fix-test-infra-paralysis/specs/test-infrastructure-resilience/spec.md]
 """
 
 import asyncio
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
+# fix-test-infra-paralysis Phase 2: skip whole module — see file docstring above.
+pytestmark = pytest.mark.skip(
+    reason=(
+        "MemoryService._write_to_graphiti_json_with_retry deleted by "
+        "fix-rag-transform-and-episode-isolation; retry semantics moved to "
+        "GraphitiEpisodeWorker._handle_failure. Equivalent coverage in "
+        "backend/tests/unit/test_episode_worker_retry.py."
+    )
+)
 
 import pytest
 from app.services.memory_service import MemoryService
