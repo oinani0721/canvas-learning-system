@@ -1,0 +1,108 @@
+{
+  "_meta": {
+    "batch": "R11-BATCH2-2026-08-17",
+    "task": "T3 · E-2 快照瘦身（方案 A）",
+    "collected_at": "2026-08-18",
+    "⛔_脱敏声明": "本文件只记录禁键名与命中计数，绝不含任何题面原文。含泄题原文的改前快照备份留在 session scratchpad，刻意不入版本库 —— 否则 E-2 刚堵的洞会从 git 历史这侧重新裂开"
+  },
+
+  "problem": {
+    "summary": "快照落盘的是 Pydantic 视图投影【之前】的全量 superset state，直接读快照文件即可绕过整个泄漏控制点",
+    "architecture_context": "board_manifest_service.py 文件头 :11-13 —— 本模块返回全量 superset dict（含 study 级字段与 exam 禁项原料），泄漏控制不在这里，serve 时统一过 app/models/board_manifest.py 的视图投影（exam 禁项 = 模型结构性缺字段）",
+    "leak_path": "<vault>/.claude/cache/board-manifest/manifest-v1.json（SNAPSHOT_REL，board_manifest_service.py:48）"
+  },
+
+  "before": {
+    "file_bytes": 24659,
+    "json_chars": 20360,
+    "boards": 6,
+    "members": 14,
+    "generation": "443a811230ba",
+    "generated_at": "2026-08-15T01:55:53.603279+00:00",
+    "forbidden_keys_hit": [
+      "ai_reason", "correction", "error_candidates", "errors",
+      "evidence_turns", "misconception", "raw_dialog_excerpt", "tips"
+    ],
+    "forbidden_keys_hit_count": 8,
+    "forbidden_keys_total_in_goldset": 8,
+    "forbidden_strings_hit_count": 2,
+    "forbidden_strings_hit_ids": [
+      "goldset.forbidden_strings[0] (反例…负定)",
+      "goldset.forbidden_strings[1] (对称矩阵…正定)"
+    ],
+    "verdict": "泄漏真实存在 —— 金集定义的 8 个禁键全部命中"
+  },
+
+  "fix": {
+    "approach": "方案 A —— 在 write_snapshot_if_changed 内部落盘前插一层快照投影",
+    "new_symbols": [
+      "SNAPSHOT_STRIPPED_MEMBER_KEYS = (\"tips\", \"errors\", \"error_candidates\")",
+      "_project_for_snapshot(full) -> dict"
+    ],
+    "why_three_keys_suffice": "金集 forbidden_keys 中的 misconception / correction / raw_dialog_excerpt / evidence_turns / ai_reason 全部嵌在这三个容器内部（见 :457 注释），剔顶层即连根拔除 —— 实测改后 8 个禁键全部消失",
+    "why_not_strip_more": "title / aliases / source_note / calibration_count 同在 forbidden_keys 但性质不同：是「exam 视图不需要」而非「泄题」。exam 侧靠模型结构性缺字段隔离已足够；留在快照里，降级态的 study 视图才不至于连标题都没有",
+    "why_inside_the_writer": "投影放在 write_snapshot_if_changed 内部而非调用侧，让「快照永不含泄题原文」成为函数级不变量，未来新增调用方无需重复记得（当前调用方仅 serve_manifest:923 一处）",
+    "deepcopy_rationale": ":716 契约明示 live 与快照共用同一份 full state，就地 pop 会让同一次请求的 live 响应也跟着丢字段。实测投影后 full 仍含三项，未被污染",
+    "cost_placement": "投影在 generation 比对之后执行 —— 未变更的常态路径已提前 return False，不付 deepcopy 成本"
+  },
+
+  "plan_risk_resolved": {
+    "planned_risk": "计划标记为本项最大技术风险：Pydantic 投影模型若对 tips/errors/error_candidates 非 optional，降级态会 ValidationError",
+    "finding": "RESOLVED — models/board_manifest.py:122-124 三字段均为 Field(default_factory=list)，缺字段时得到空列表",
+    "empirically_confirmed": "降级态实测 exam 与 study 两视图投影均 OK，无 ValidationError"
+  },
+
+  "plan_detail_corrected": {
+    "planned": "计划要求快照保留「秩数值（pick_rank）」",
+    "actual": "pick_rank 本就不在快照里 —— :716-719 明示秩在 _carve（serve 侧）计算，正是为了让 2.6 之前的历史快照在降级态也能拿到秩。只需保住 pick_hint.pick_score 与 is_stub 作为 _rankable 输入",
+    "empirically_confirmed": "降级态实测 pick_rank=2 已正确重算"
+  },
+
+  "after": {
+    "file_bytes": 18179,
+    "shrink_bytes": 6480,
+    "shrink_pct": 26.3,
+    "forbidden_keys_hit": [],
+    "forbidden_strings_hit_count": 0,
+    "snapshot_required_keys_intact": true,
+    "load_snapshot_ok": true,
+    "note": "改前快照含泄漏物，已按新逻辑原子重写；旧文件备份在 scratchpad 不入库"
+  },
+
+  "degraded_mode_drill": {
+    "method": "隔离临时目录 + monkeypatch scan_vault 抛 OSError，强制走 serve_manifest 的 snapshot 分支",
+    "three_state": {"source": "local_json", "source_status": "snapshot", "degraded": true},
+    "exam_projection": "OK — boards=6",
+    "study_projection": "OK — boards=6，无 ValidationError",
+    "study_node_sample": {
+      "node_id": "cs-61b-csm",
+      "tips": [], "errors": [], "error_candidates": [],
+      "pick_rank": 2,
+      "is_stub": false,
+      "mastery": {"score": 0.3, "a": null, "b": null, "source": "legacy_v2"},
+      "comment": "三项为空 = 方案 A 的已知代价（用户裁定时已知情）；秩与掌握度完好"
+    },
+    "exam_node_keyset": [
+      "attempt_count", "exists", "is_stub", "last_examined", "mastery",
+      "node_id", "past_question_digests", "pick_hint", "relation", "role"
+    ],
+    "exam_keyset_matches_model": "与 ExamNodeEntry 白名单一致"
+  },
+
+  "verification": {
+    "gold_set_regression": {
+      "command": "scripts/run_board_manifest_regression.py --vault <live vault>",
+      "result": "34/34 硬禁通过，PASS (P=R=1.00)，exit=0",
+      "g6_items_all_green": true
+    },
+    "contract_tests": "tests/regression/test_board_manifest_contracts.py — 64 passed",
+    "ruff": "format 无改动 + check All checks passed",
+    "live_projection_unpolluted": "投影后 full 仍含 ['error_candidates','errors','tips']，证明未就地修改"
+  },
+
+  "preexisting_debt_observed": {
+    "item": "tests/unit/test_memory_service_contextvar_leak.py 收集期 ImportError",
+    "detail": "cannot import name '_resolve_memory_group_id' from 'app.services.memory_service'",
+    "attribution": "存量债，非本批造成 —— 本批未触碰 memory_service.py（改动仅限 compose ×6、reference_priority.json、config.py、lancedb_client.py、board_manifest_service.py）"
+  }
+}

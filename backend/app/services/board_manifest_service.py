@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import logging
@@ -844,8 +845,53 @@ def snapshot_file(base_path: Path | str) -> Path:
     return Path(base_path) / SNAPSHOT_REL
 
 
+#: E-2 (R11-BATCH2-2026-08-17): 快照禁写字段 — study 面自由文本原文。
+#:
+#: 为何只列三项就够: 金集 forbidden_keys 里的 misconception / correction /
+#: raw_dialog_excerpt / evidence_turns / ai_reason 全部**嵌在**这三个容器内部
+#: (见 :457 注释), 剔顶层即连根拔除。
+#:
+#: 为何不剔 title / aliases / source_note / calibration_count: 它们同在
+#: forbidden_keys 但性质不同 —— 是「exam 视图不需要」而非「泄题」, exam 侧靠
+#: models/board_manifest.py 的结构性缺字段隔离已足够。留在快照里, 降级态的
+#: study 视图才不至于连标题都没有。
+SNAPSHOT_STRIPPED_MEMBER_KEYS = ("tips", "errors", "error_candidates")
+
+
+def _project_for_snapshot(full: dict[str, Any]) -> dict[str, Any]:
+    """快照投影 (E-2 方案 A): 剔除 members 的泄题原文, 其余原样序列化。
+
+    堵的洞: scan_vault 返回的是全量 superset (文件头 :11-13), 泄漏控制原本
+    只在 serve 时的 Pydantic 视图投影上。快照落盘的是**投影前**的 state ——
+    谁直接读 .claude/cache/board-manifest/manifest-v1.json 就绕过了整个控制点。
+
+    ⛔ 必须深拷贝: :716 契约明示 live 与快照共用同一份 full state, 就地 pop
+    会让同一次请求的 live 响应也跟着丢字段。
+
+    降级态代价 (方案 A, 用户 2026-08-17 裁定时已知情): study 视图从快照恢复时
+    这三项为空列表 —— models/board_manifest.py:122-124 三字段均
+    default_factory=list, 缺字段不触发 ValidationError。exam 视图零影响。
+
+    pick_rank 无需特意保留: :716-719 明示秩在 _carve (serve 侧) 计算, 快照本就
+    不含该字段; 只要 pick_hint.pick_score 与 is_stub 还在, 降级态自会重算。
+    """
+    projected = copy.deepcopy(full)
+    for board in (projected.get("boards") or {}).values():
+        if not isinstance(board, dict):
+            continue
+        for member in board.get("members") or []:
+            if isinstance(member, dict):
+                for key in SNAPSHOT_STRIPPED_MEMBER_KEYS:
+                    member.pop(key, None)
+    return projected
+
+
 def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bool:
-    """generation 变更才重写; tmp + os.replace 原子; 失败仅 warning 不影响 live。"""
+    """generation 变更才重写; tmp + os.replace 原子; 失败仅 warning 不影响 live。
+
+    E-2: 落盘前过 _project_for_snapshot —— 投影放在本函数内部而非调用侧, 让
+    「快照永不含泄题原文」成为函数级不变量, 未来新增调用方无需重复记得。
+    """
     path = snapshot_file(base_path)
     try:
         if path.exists():
@@ -862,7 +908,9 @@ def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bo
         tmp = Path(tmp_name)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(json.dumps(full, ensure_ascii=False))
+                # E-2: 投影放在 generation 比对之后 — 只有真要落盘时才付
+                # deepcopy 成本, 未变更的常态路径已在上方 return False
+                f.write(json.dumps(_project_for_snapshot(full), ensure_ascii=False))
             os.replace(tmp, path)
         finally:
             tmp.unlink(missing_ok=True)
