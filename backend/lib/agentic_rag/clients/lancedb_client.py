@@ -422,6 +422,11 @@ DEFAULT_VAULT_SKIP_FILES = [
     "Untitled*.md",
     "2111.md",  # 测试残留
     "*.excalidraw.md",  # 手绘图 md 包装
+    # A-4 (R11-BATCH2-2026-08-17): ExcaliBrain 插件的运行时文件, 非学习内容。
+    # 插件仍在用, 不能删文件, 只能挡在索引外 (改前实测占 3 chunk + 1 指纹)。
+    # ⛔ 刻意写全名而非 glob `excalibrain*` —— 后者会误伤用户手写的
+    # `excalibrain-笔记.md` 这类真实学习内容。
+    "excalibrain.md",
     # Phase A T1.1 followup (2026-05-09): 补测试 + UAT 残留
     "TestConcept*.md",
     "UAT-*.md",
