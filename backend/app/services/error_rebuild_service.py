@@ -47,9 +47,7 @@ class RebuildStats(BaseModel):
     """AC #6 — rebuild_graphiti 服务返回值."""
 
     group_id: str
-    dry_run: bool = Field(
-        default=False, description="True 仅扫描计数, 不调 Graphiti"
-    )
+    dry_run: bool = Field(default=False, description="True 仅扫描计数, 不调 Graphiti")
     total_files_scanned: int = 0
     total_errors_scanned: int = 0
     newly_written: int = Field(default=0, description="dry_run=True 时为 0")
@@ -110,14 +108,23 @@ def _scan_vault_md_files(vault_root: Path) -> list[Path]:
 
     fallback 1: 节点/ 不存在 → 扫描 vault_root/*.md (兼容根目录节点)
     fallback 2: 都没有 → 返回空列表
+
+    P1-05b (2026-08-19): 两个分支的产出统一过 check_vault_path。注意这使
+    fallback 1 在当前策略下实际产出为空 (根级 md 一律 root_level 拒绝 —
+    Dashboard/CLAUDE 等根级文件的 errors[] 进 Graphiti 就是噪音/泄漏);
+    保留该分支是让"根级是否放行"只由唯一策略源裁决, 而不是本函数各自为政。
     """
+    from app.core.vault_admission import check_vault_path
+
     nodes_dir = vault_root / "节点"
     if nodes_dir.exists() and nodes_dir.is_dir():
-        return sorted(nodes_dir.glob("*.md"))
-    # fallback: 根目录 .md 文件
-    if vault_root.exists() and vault_root.is_dir():
-        return sorted(p for p in vault_root.glob("*.md") if p.is_file())
-    return []
+        candidates = sorted(nodes_dir.glob("*.md"))
+    elif vault_root.exists() and vault_root.is_dir():
+        # fallback: 根目录 .md 文件
+        candidates = sorted(p for p in vault_root.glob("*.md") if p.is_file())
+    else:
+        return []
+    return [p for p in candidates if check_vault_path(p, vault_root)[0]]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

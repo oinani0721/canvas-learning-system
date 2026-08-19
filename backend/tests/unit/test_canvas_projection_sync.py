@@ -52,7 +52,15 @@ def test_resolve_node_id(raw, expected):
 
 
 def _write_node_md(vault: Path, stem: str, body: str) -> None:
-    (vault / f"{stem}.md").write_text(body, encoding="utf-8")
+    # P1-05b: 学习节点放 节点/ 子目录 — sync() 已接统一准入, 根级 md 一律
+    # root_level 拒绝 (与真实 vault 布局一致)
+    (vault / "节点").mkdir(exist_ok=True)
+    (vault / "节点" / f"{stem}.md").write_text(body, encoding="utf-8")
+
+
+def _merge_calls(cap: CaptureNeo4j) -> list[tuple[str, dict]]:
+    """execute=True 时最后一条 run_query 是幽灵边对账 — 只取 MERGE 边写入调用。"""
+    return [c for c in cap.calls if "MERGE (s)-[e:CANVAS_EDGE" in c[0]]
 
 
 async def test_sync_writes_edge_with_reason_as_label(tmp_path, monkeypatch):
@@ -72,14 +80,17 @@ async def test_sync_writes_edge_with_reason_as_label(tmp_path, monkeypatch):
         "---\n\n正文。\n",
     )
 
-    result = await svc.sync(str(tmp_path))
+    result = await svc.sync(str(tmp_path), execute=True)
     assert result == {
         "nodes_with_relationships": 1,
         "edges_synced": 1,
         "failed": 0,
+        "edges_invalidated": 0,
+        "files_skipped_admission": 0,
     }
-    assert len(cap.calls) == 1
-    query, params = cap.calls[0]
+    merges = _merge_calls(cap)
+    assert len(merges) == 1
+    query, params = merges[0]
     assert "MERGE (s)-[e:CANVAS_EDGE" in query
     # 边方向: 持有 frontmatter 的节点 → target; label = 原因 (description)
     assert params["source_id"] == "recursion-base-case"
@@ -97,9 +108,9 @@ async def test_sync_falls_back_to_type_when_no_description(tmp_path, monkeypatch
         "n1",
         '---\nrelationships:\n  - type: depends_on\n    target: "[[n2]]"\n---\n',
     )
-    await svc.sync(str(tmp_path))
+    await svc.sync(str(tmp_path), execute=True)
     # 无 description → label 退到 rel_type (保证非空, 否则 _get_edge_reasons 过滤掉)
-    assert cap.calls[0][1]["label"] == "depends_on"
+    assert _merge_calls(cap)[0][1]["label"] == "depends_on"
 
 
 async def test_sync_skips_md_without_relationships(tmp_path, monkeypatch):
@@ -108,9 +119,9 @@ async def test_sync_skips_md_without_relationships(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "_client", lambda: cap)
     _write_node_md(tmp_path, "plain", "---\ntype: concept\n---\n\n无 relationships。\n")
     _write_node_md(tmp_path, "noyaml", "# 纯 markdown 无 frontmatter\n")
-    result = await svc.sync(str(tmp_path))
+    result = await svc.sync(str(tmp_path), execute=True)
     assert result["nodes_with_relationships"] == 0
-    assert len(cap.calls) == 0
+    assert len(_merge_calls(cap)) == 0
 
 
 async def test_sync_skips_self_loop_and_empty_target(tmp_path, monkeypatch):
@@ -130,9 +141,9 @@ async def test_sync_skips_self_loop_and_empty_target(tmp_path, monkeypatch):
         "    description: 细化 y\n"
         "---\n",
     )
-    result = await svc.sync(str(tmp_path))
+    result = await svc.sync(str(tmp_path), execute=True)
     assert result["edges_synced"] == 1
-    assert cap.calls[0][1]["target_id"] == "y"
+    assert _merge_calls(cap)[0][1]["target_id"] == "y"
 
 
 async def test_sync_multiple_relationships_one_node(tmp_path, monkeypatch):
@@ -148,9 +159,9 @@ async def test_sync_multiple_relationships_one_node(tmp_path, monkeypatch):
         '  - type: example_of\n    target: "[[b]]"\n    description: 因为 b\n'
         "---\n",
     )
-    result = await svc.sync(str(tmp_path))
+    result = await svc.sync(str(tmp_path), execute=True)
     assert result["edges_synced"] == 2
-    targets = {c[1]["target_id"] for c in cap.calls}
+    targets = {c[1]["target_id"] for c in _merge_calls(cap)}
     assert targets == {"a", "b"}
 
 
@@ -158,16 +169,16 @@ async def test_sync_nonexistent_vault_returns_zero(monkeypatch):
     svc = CanvasProjectionSync()
     cap = CaptureNeo4j()
     monkeypatch.setattr(svc, "_client", lambda: cap)
-    result = await svc.sync("/nonexistent/vault/path/xyz")
+    result = await svc.sync("/nonexistent/vault/path/xyz", execute=True)
     assert result["edges_synced"] == 0
     assert len(cap.calls) == 0
 
 
 async def test_merge_edge_deterministic_id(tmp_path, monkeypatch):
-    """同一 (source, type, target) → 同 edge_id → MERGE 幂等。"""
+    """同一 (source, type, target) → 同 edge_id → MERGE 幂等 (T2 起含物理 group 前缀)。"""
     svc = CanvasProjectionSync()
     cap = CaptureNeo4j()
-    await svc._merge_edge(cap, "s", "t", "prerequisite", "原因")
-    await svc._merge_edge(cap, "s", "t", "prerequisite", "原因改了")
+    await svc._merge_edge(cap, "s", "t", "prerequisite", "原因", "vault__test")
+    await svc._merge_edge(cap, "s", "t", "prerequisite", "原因改了", "vault__test")
     assert cap.calls[0][1]["edge_id"] == cap.calls[1][1]["edge_id"]
-    assert cap.calls[0][1]["edge_id"] == "rel-s-prerequisite-t"
+    assert cap.calls[0][1]["edge_id"] == "rel-vault__test-s-prerequisite-t"

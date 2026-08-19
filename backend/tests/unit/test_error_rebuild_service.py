@@ -110,12 +110,17 @@ def test_scan_vault_md_files_uses_节点_dir(tmp_path):
 
 
 def test_scan_vault_md_files_fallback_to_root(tmp_path):
-    """节点/ 不存在 → fallback 到 vault_root/*.md."""
+    """节点/ 不存在 → fallback 分支仍存在, 但产出被统一准入过滤.
+
+    P1-05b (2026-08-19): 根级 md 一律 root_level 拒绝 — Dashboard/CLAUDE 等根级
+    文件的 errors[] 进 Graphiti 就是噪音/泄漏 (fallback 扫根级是 Codex 复核点名的
+    旁路)。root 布局的历史 vault 由此 rebuild 为空, 是策略裁决而非缺陷.
+    """
     (tmp_path / "x.md").write_text("x", encoding="utf-8")
     (tmp_path / "y.md").write_text("y", encoding="utf-8")
 
     files = _scan_vault_md_files(tmp_path)
-    assert len(files) == 2
+    assert files == []
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -132,17 +137,13 @@ async def test_rebuild_dry_run_counts_only_no_graphiti_call(tmp_path):
         nodes / "a.md",
         errors=[_make_error_record(error_id="e1"), _make_error_record(error_id="e2")],
     )
-    _md_with_errors(
-        nodes / "b.md", errors=[_make_error_record(error_id="e3")]
-    )
+    _md_with_errors(nodes / "b.md", errors=[_make_error_record(error_id="e3")])
 
     with patch(
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
     ) as mock_g:
-        stats = await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=True
-        )
+        stats = await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=True)
 
     assert stats.dry_run is True
     assert stats.total_files_scanned == 2
@@ -166,9 +167,7 @@ async def test_rebuild_actual_writes_each_error_to_graphiti(tmp_path):
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
     ) as mock_g:
-        stats = await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=False
-        )
+        stats = await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=False)
 
     assert stats.dry_run is False
     assert stats.total_errors_scanned == 2
@@ -197,9 +196,7 @@ async def test_rebuild_graphiti_failure_records_in_failures_list(tmp_path):
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(side_effect=[True, False]),
     ):
-        stats = await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=False
-        )
+        stats = await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=False)
 
     assert stats.newly_written == 1
     assert stats.failed == 1
@@ -219,9 +216,7 @@ async def test_rebuild_graphiti_exception_recorded_not_raised(tmp_path):
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(side_effect=ValueError("boom")),
     ):
-        stats = await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=False
-        )
+        stats = await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=False)
 
     assert stats.newly_written == 0
     assert stats.failed == 1
@@ -242,9 +237,7 @@ async def test_rebuild_corrupted_frontmatter_skipped(tmp_path):
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
     ):
-        stats = await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=False
-        )
+        stats = await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=False)
 
     # broken.md 被记入 failures (parse_failed)
     assert stats.failed == 1
@@ -264,9 +257,7 @@ async def test_rebuild_no_errors_in_frontmatter_just_scanned(tmp_path):
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
     ) as mock_g:
-        stats = await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=False
-        )
+        stats = await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=False)
 
     assert stats.total_files_scanned == 1
     assert stats.total_errors_scanned == 0
@@ -278,9 +269,7 @@ async def test_rebuild_no_errors_in_frontmatter_just_scanned(tmp_path):
 async def test_rebuild_vault_root_not_exist_returns_empty(tmp_path):
     """vault_root 不存在 → 返回空 stats."""
     fake_vault = tmp_path / "missing"
-    stats = await rebuild_graphiti_from_frontmatter(
-        fake_vault, group_id="vault:cs_61b"
-    )
+    stats = await rebuild_graphiti_from_frontmatter(fake_vault, group_id="vault:cs_61b")
     assert stats.total_files_scanned == 0
     assert stats.total_errors_scanned == 0
 
@@ -296,9 +285,7 @@ async def test_rebuild_node_id_uses_vault_relative_path(tmp_path):
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
     ) as mock_g:
-        await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=False
-        )
+        await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=False)
 
     # 验证 node_id 是 vault-relative
     call_kwargs = mock_g.call_args.kwargs
@@ -316,8 +303,6 @@ async def test_rebuild_returns_elapsed_ms(tmp_path):
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
     ):
-        stats = await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=False
-        )
+        stats = await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=False)
 
     assert stats.elapsed_ms >= 0.0

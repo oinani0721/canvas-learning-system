@@ -25,7 +25,7 @@ async def _run_sync(vault: Path):
     client = MagicMock()
     client.run_query = AsyncMock(return_value=[{"c": 0}])
     with patch.object(sync, "_client", return_value=client):
-        result = await sync.sync(str(vault), group_id="vault:test")
+        result = await sync.sync(str(vault), group_id="vault:test", execute=True)
     return result, client
 
 
@@ -73,7 +73,7 @@ async def test_merge_failure_edge_still_alive(tmp_path):
 
     client.run_query = AsyncMock(side_effect=run_query)
     with patch.object(sync, "_client", return_value=client):
-        result = await sync.sync(str(vault), group_id="vault:test")
+        result = await sync.sync(str(vault), group_id="vault:test", execute=True)
     assert result["failed"] == 1
     alive = client.run_query.call_args_list[-1].kwargs["alive_ids"]
     assert any("src" in e and "dst" in e for e in alive)

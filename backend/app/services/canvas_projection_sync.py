@@ -54,7 +54,7 @@ class CanvasProjectionSync:
             self._neo4j = get_neo4j_client()
         return self._neo4j
 
-    async def sync(self, vault_path: str, group_id: str = "") -> dict[str, int]:
+    async def sync(self, vault_path: str, group_id: str = "", execute: bool = False) -> dict[str, int]:
         """扫描 vault, 把节点 frontmatter relationships 同步成 CANVAS_EDGE。
 
         Args:
@@ -63,13 +63,23 @@ class CanvasProjectionSync:
                 (main.py 启动流程) 经 build_vault_group_id 构造。T2 (2026-07-10):
                 MERGE 的 CanvasNode / CANVAS_EDGE 均落此 group (物理 __ 格式),
                 多 vault 不串。空值时回退当前 vault 推导。
+            execute: P1-05b (2026-08-19) 与 vault_backfill 对齐 — False (默认)
+                dry-run 只统计, 不 MERGE 也不跑幽灵边对账; True 实际写。
+                main.py 启动链显式传 execute=True。
 
-        Returns: {nodes_with_relationships, edges_synced, failed}。
+        Returns: {nodes_with_relationships, edges_synced, failed,
+                  edges_invalidated, files_skipped_admission}。
         """
         base = Path(vault_path)
         if not base.exists():
             logger.warning("[Fix-E1] vault path 不存在, 跳过原因边同步: %s", vault_path)
-            return {"nodes_with_relationships": 0, "edges_synced": 0, "failed": 0}
+            return {
+                "nodes_with_relationships": 0,
+                "edges_synced": 0,
+                "failed": 0,
+                "edges_invalidated": 0,
+                "files_skipped_admission": 0,
+            }
 
         # T2 (2026-07-10): group 缺省回退当前 vault (与 vault_backfill 同源)
         if not group_id:
@@ -81,17 +91,28 @@ class CanvasProjectionSync:
 
         physical_gid = to_physical_group_id(group_id)
 
-        client = self._client()
+        client = self._client() if execute else None
         nodes_with_rel = 0
         edges_synced = 0
         failed = 0
+        skipped_admission = 0
         alive_edge_ids: list[str] = []
         # 终验审查修正 (2026-07-24, ChatGPT 第三轮 §幽灵边): 「未扫描到 ≠ 不存在」
         # — 解析失败的文件其旧边必须豁免失效 (保护前缀), 写入失败的边同样
         # 计入 alive (写失败 ≠ 边该死)。只有「文件确认无此关系」才允许失效。
         protected_prefixes: list[str] = []
 
+        from app.core.vault_admission import check_vault_path
+
         for md in base.rglob("*.md"):
+            ok, _reason = check_vault_path(md, base)
+            if not ok:
+                # ⛔ 被准入拒绝的文件**不加** protected 前缀 — 其旧边应当被下方
+                # 幽灵边对账失效 (「跳过选中」≠「跳过清理」, vault_backfill P1-05
+                # 那个双重 continue 的教训反面)。检验白板等禁区此前写入的
+                # CANVAS_EDGE 污染由此在下一次 execute 同步时自动软失效。
+                skipped_admission += 1
+                continue
             rels = self._read_relationships(md)
             if rels is None:
                 # frontmatter 解析失败 — 无法确认该文件的关系现状, 旧边全部豁免
@@ -111,6 +132,9 @@ class CanvasProjectionSync:
                     continue
                 edge_id = f"rel-{physical_gid}-{source_id}-{rel_type}-{target_id}"
                 alive_edge_ids.append(edge_id)  # 先记 alive — 写失败也不判死
+                if not execute:
+                    edges_synced += 1  # dry-run: 计数将写入的边, 不动图
+                    continue
                 try:
                     await self._merge_edge(
                         client,
@@ -130,38 +154,42 @@ class CanvasProjectionSync:
         # relationship, 旧 CANVAS_EDGE 此前永远留在图里 (MERGE 只增不删,
         # 拆分时间线越老越脏)。软失效不物理删 — 时间线可追溯, 查询侧过滤。
         invalidated = 0
-        try:
-            records = await client.run_query(
-                """
-                MATCH ()-[e:CANVAS_EDGE]-()
-                WHERE e.group_id = $group_id AND e.synced_from = 'frontmatter'
-                  AND NOT e.id IN $alive_ids AND e.invalidated_at IS NULL
-                  AND NOT any(p IN $protected WHERE e.id STARTS WITH p)
-                SET e.invalidated_at = datetime(), e.active = false
-                RETURN count(DISTINCT e) AS c
-                """,
-                group_id=physical_gid,
-                alive_ids=alive_edge_ids,
-                protected=protected_prefixes,
-            )
-            if records:
-                data = records[0] if isinstance(records[0], dict) else records[0].data()
-                invalidated = int(data.get("c") or 0)
-        except Exception as e:  # noqa: BLE001 — 对账失败不阻断同步
-            logger.warning("[3-3] 幽灵边对账失败 (本轮跳过): %s", e)
+        if execute:
+            try:
+                records = await client.run_query(
+                    """
+                    MATCH ()-[e:CANVAS_EDGE]-()
+                    WHERE e.group_id = $group_id AND e.synced_from = 'frontmatter'
+                      AND NOT e.id IN $alive_ids AND e.invalidated_at IS NULL
+                      AND NOT any(p IN $protected WHERE e.id STARTS WITH p)
+                    SET e.invalidated_at = datetime(), e.active = false
+                    RETURN count(DISTINCT e) AS c
+                    """,
+                    group_id=physical_gid,
+                    alive_ids=alive_edge_ids,
+                    protected=protected_prefixes,
+                )
+                if records:
+                    data = records[0] if isinstance(records[0], dict) else records[0].data()
+                    invalidated = int(data.get("c") or 0)
+            except Exception as e:  # noqa: BLE001 — 对账失败不阻断同步
+                logger.warning("[3-3] 幽灵边对账失败 (本轮跳过): %s", e)
 
         logger.info(
-            "[Fix-E1] 原因边同步: %d 节点有 relationships, %d 边写入, %d 失败, %d 幽灵边失效",
+            "[Fix-E1] 原因边同步(%s): %d 节点有 relationships, %d 边写入, %d 失败, %d 幽灵边失效, %d 文件被准入拒绝",
+            "execute" if execute else "dry-run",
             nodes_with_rel,
             edges_synced,
             failed,
             invalidated,
+            skipped_admission,
         )
         return {
             "nodes_with_relationships": nodes_with_rel,
             "edges_synced": edges_synced,
             "failed": failed,
             "edges_invalidated": invalidated,
+            "files_skipped_admission": skipped_admission,
         }
 
     @staticmethod

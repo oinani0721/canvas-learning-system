@@ -358,7 +358,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         rel_svc = get_canvas_projection_sync()
         # T2 (2026-07-10): 显式传当前 vault group — CanvasNode/CANVAS_EDGE
         # 落 vault:<vault_id> (与下方 vault_backfill 同源), 多 vault 不串
-        rel_result = await rel_svc.sync(settings.canvas_base_path, group_id=_build_gid(_get_vid()))
+        # P1-05b (2026-08-19): sync() 与 backfill 对齐 execute 参数 (默认 dry-run),
+        # 启动链是唯一写入方, 显式声明写意图
+        rel_result = await rel_svc.sync(
+            settings.canvas_base_path,
+            group_id=_build_gid(_get_vid()),
+            execute=True,
+        )
         logger.info(
             f"[Fix-E1] 节点原因边同步: "
             f"{rel_result['nodes_with_relationships']} nodes, "

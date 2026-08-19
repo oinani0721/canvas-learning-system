@@ -27,13 +27,15 @@ from typing import Any, Optional
 import structlog
 import yaml
 
+from app.core.vault_admission import check_vault_path
 from app.services.error_writer import _split_frontmatter
 
 logger = structlog.get_logger(__name__)
 
-
-# Skip Obsidian/git internal dirs (与 error_reader 一致)
-SKIP_DIRS = {".obsidian", ".git", ".trash", "node_modules", ".canvas-learning"}
+# P1-05b (2026-08-19): 模块私有 SKIP_DIRS 已删除 — 它缺四个铁律目录
+# (检验白板/验收单/_待处理/_archive), 且对绝对路径 parts 判定 (worktree 在
+# .claude/worktrees/ 下时整 vault 静默零扫描)。黑名单与 containment 统一走
+# app.core.vault_admission.check_vault_path (唯一策略源)。
 
 
 def _extract_target_from_wikilink(target_str: str) -> str:
@@ -115,6 +117,18 @@ async def sync_relationships_for_note(
     if not p_note.is_absolute():
         p_note = Path(vault_root) / p_note
 
+    # P1-05b (2026-08-19): by-node 是唯一接受**任意字符串路径**的写入口 —
+    # 此前绝对路径逃逸 / `../` 上跳 / symlink 全放行 (下方 relative_to 只是
+    # 路径显示用的伪检查, 不拒绝)。统一准入必须在读文件之前。
+    admitted, reason = check_vault_path(p_note, vault_root)
+    if not admitted:
+        logger.warning(
+            "relationship_sync.admission_rejected",
+            note_path=str(note_path),
+            reason=reason,
+        )
+        return {"synced": 0, "skipped": 0, "errors": [f"path_rejected:{reason}"]}
+
     relationships = _parse_frontmatter_relationships(p_note)
     if not relationships:
         return {"synced": 0, "skipped": 0, "errors": []}
@@ -138,11 +152,9 @@ async def sync_relationships_for_note(
     from app.clients.neo4j_edge_client import EdgeRelationship
 
     from_node_id = p_note.stem  # basename 无 .md
-    canvas_path = (
-        str(p_note.relative_to(vault_root))
-        if p_note.is_relative_to(vault_root)
-        else str(p_note)
-    )
+    # 准入已保证 resolve 后在 vault 内 — 这里可以无条件相对化 (旧代码的
+    # is_relative_to fallback 是伪检查: 不拒绝, 只是换个显示格式)
+    canvas_path = str(p_note.resolve().relative_to(Path(vault_root).resolve()))
 
     synced = 0
     skipped = 0
@@ -220,7 +232,10 @@ async def sync_relationships_in_vault(
     all_errors: list[str] = []
 
     for md_file in vault.rglob("*.md"):
-        if any(part in SKIP_DIRS or part.startswith(".") for part in md_file.parts):
+        # P1-05b: 统一准入 (旧的私有 SKIP_DIRS 判绝对 parts — worktree 位于
+        # .claude/worktrees/ 下时 startswith(".") 命中祖先目录, 整 vault 零扫描)
+        admitted, _reason = check_vault_path(md_file, vault)
+        if not admitted:
             continue
 
         files_scanned += 1
@@ -232,9 +247,7 @@ async def sync_relationships_in_vault(
             valid = sum(
                 1
                 for r in relationships
-                if isinstance(r, dict)
-                and r.get("type")
-                and _extract_target_from_wikilink(r.get("target", ""))
+                if isinstance(r, dict) and r.get("type") and _extract_target_from_wikilink(r.get("target", ""))
             )
             total_synced += valid
             total_skipped += len(relationships) - valid

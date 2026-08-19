@@ -96,15 +96,16 @@ async def query_errors_by_type(
 
     matched: list[dict[str, Any]] = []
     for md_file in vault.rglob("*.md"):
-        if any(part in SKIP_DIRS or part.startswith(".") for part in md_file.parts):
+        # P1-05b (2026-08-19): 判定必须作用于 vault **相对** parts — 绝对 parts
+        # 会把祖先目录 (本仓 worktree 就在 .claude/worktrees/ 下) 误判成黑名单
+        # 命中, 导致整个 vault 静默零扫描
+        if any(part in SKIP_DIRS or part.startswith(".") for part in md_file.relative_to(vault).parts):
             continue
 
         errors = await read_errors_from_node(md_file)
         for err in errors:
             type_match = err.get("type") == misconception_type
-            legacy_match = (
-                match_legacy_type and err.get("legacy_type") == misconception_type
-            )
+            legacy_match = match_legacy_type and err.get("legacy_type") == misconception_type
             if not (type_match or legacy_match):
                 continue
             if only_uncorrected and err.get("corrected_at") is not None:
@@ -148,7 +149,10 @@ async def query_errors_by_canvas(
 
     matched: list[dict[str, Any]] = []
     for md_file in vault.rglob("*.md"):
-        if any(part in SKIP_DIRS or part.startswith(".") for part in md_file.parts):
+        # P1-05b (2026-08-19): 判定必须作用于 vault **相对** parts — 绝对 parts
+        # 会把祖先目录 (本仓 worktree 就在 .claude/worktrees/ 下) 误判成黑名单
+        # 命中, 导致整个 vault 静默零扫描
+        if any(part in SKIP_DIRS or part.startswith(".") for part in md_file.relative_to(vault).parts):
             continue
 
         if canvas_path:
