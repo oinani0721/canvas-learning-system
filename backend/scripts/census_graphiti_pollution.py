@@ -179,10 +179,33 @@ async def run(args: argparse.Namespace) -> int:
             rec = q2[0] if q2 else None
             edges = rec["edges"] if rec else 0
             orphan_ids = rec["orphan_ids"] if rec else 0
+            # P1-05d (Codex 四轮 V9/F-07): 中性事实表述 — 补集只说明"当前磁盘
+            # stem 无法解释", 不推断成因 ("文件已删/改名"是无据因果断言;
+            # payload 通道可产无对应文件的 ID)。来源判定需 provenance 字段 (B4)。
             print(
-                f"  Q2 补集残渣: active 边 {edges} 条, 涉及 {orphan_ids} 个磁盘上"
-                f"不存在的 node_id (文件已删/改名 — 只能人工裁定或整组处置)"
+                f"  Q2 补集: active 边 {edges} 条 / {orphan_ids} 个 node_id 无法用"
+                f"当前磁盘 stem 解释 (中性事实, 不推断成因; 来源核证归 B4 provenance)"
             )
+            if edges:
+                q2b, _, _ = await driver.execute_query(
+                    """
+                    MATCH ()-[r:RELATES_TO]->()
+                    WHERE r.group_id = $gid AND r.source IN $sources
+                      AND r.invalid_at IS NULL
+                      AND NOT r.node_id IN $all_stems
+                    RETURN CASE WHEN r.node_id STARTS WITH 'session:'
+                                THEN 'session:* (SessionEnd 归档形状)'
+                                ELSE '非 session: 形状' END AS kind,
+                           count(r) AS c
+                    ORDER BY kind
+                    """,
+                    gid=gid,
+                    sources=SOURCES,
+                    all_stems=all_stems,
+                    routing_="r",
+                )
+                for b in q2b:
+                    print(f"      {b['kind']}: {b['c']} 条")
 
             # ── Q3 被污染的 Entity 节点 ─────────────────────────────────────
             q3, _, _ = await driver.execute_query(
