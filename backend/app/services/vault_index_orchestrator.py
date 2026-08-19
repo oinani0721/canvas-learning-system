@@ -161,16 +161,25 @@ class VaultIndexOrchestrator:
         structured API status (accepted/excluded/...).
         """
         rel_path = rel_path.replace("\\", "/").lstrip("/")
+        # P1-05c (Codex 三轮 F-01b): containment 纵深 — watch/API 层理论上只喂
+        # vault 相对路径, 但 by-node 教训表明"理论上"不可依赖; `..` 上跳一律拒。
+        # (root_level 不在此拒: 笔记检索面与图写入面语义不同 — 根级用户笔记
+        # 可检索是 by-design, 由根级文件名黑名单管; 与 check_vault_path 的
+        # 已知分歧记录在 hostile env 一致性测试。)
+        if ".." in rel_path.split("/"):
+            return False, "outside_vault"
         if not rel_path.endswith(".md"):
             return False, "not_markdown"
 
         from agentic_rag.clients.lancedb_client import (
             DEFAULT_VAULT_SKIP_FILES,
+            _fnmatch_canon,
             _is_skipped_vault_file,
         )
 
+        # P1-05c (F-01a): 归一匹配 — 大小写变体目录在 APFS 上是同一物理目录
         for part in rel_path.split("/")[:-1]:
-            if any(fnmatch.fnmatch(part, pat) for pat in self._skip_dirs):
+            if any(_fnmatch_canon(part, pat) for pat in self._skip_dirs):
                 return False, "blacklisted_dir"
         # P2-02 (Codex 审查 2026-08-19): 收敛到 _is_skipped_vault_file —— 与两条
         # 索引路径同一判定, 并获得「仅根级」规则 (避免 节点/excalibrain.md 误排)。

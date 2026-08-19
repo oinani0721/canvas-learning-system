@@ -70,13 +70,14 @@ async def run(args: argparse.Namespace) -> int:
     print(f"Neo4j           : {settings.NEO4J_URI}")
 
     # ── 磁盘侧全量枚举: 禁区 / 合法 两桶 (与 backfill 同一判定函数) ──────────
-    skip_dirs = set(settings.effective_vault_skip_dirs())
-    skip_dirs.add("templates")
+    # P1-05c: is_blacklisted_for_backfill 已委托 check_vault_path (含文件名
+    # 黑名单 + NFC/casefold 归一 + containment), 本脚本口径随之升级 — Codex
+    # 三轮 F-07 判"弱分类器口径"的修复点
     forbidden_stems: set[str] = set()
     legal_stems: set[str] = set()
     for md in vault.rglob("*.md"):
         try:
-            blacklisted = is_blacklisted_for_backfill(md, vault, skip_dirs)
+            blacklisted = is_blacklisted_for_backfill(md, vault)
         except ValueError:
             continue  # 非 vault 内路径 (不应出现, 防御)
         (forbidden_stems if blacklisted else legal_stems).add(md.stem)

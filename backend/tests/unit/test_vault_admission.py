@@ -93,6 +93,21 @@ def test_ancestor_dotdir_immunity(tmp_path):
     assert check_vault_path(root / "节点" / "a.md", root) == (True, "ok")
 
 
+def test_case_variant_dirs_blocked(vault):
+    """P1-05c (Codex 三轮 F-01a 实锤): APFS 大小写不敏感 — .CLAUDE/ 与 .claude/
+    是**同一物理目录**, 大小写变体路径此前返回 (True,'ok') 即真实旁路。"""
+    for bad in [".CLAUDE/secret.md", "_ARCHIVE/old.md", ".Trash/x.md", "_Bmad-Output/r.md"]:
+        ok, reason = check_vault_path(bad, vault)
+        assert (ok, reason) == (False, "blacklisted_dir"), f"{bad} → {reason}"
+
+
+def test_case_variant_filenames_blocked(vault):
+    """节点/claude.md 在 APFS 上就是 节点/CLAUDE.md — 文件名黑名单必须归一匹配。"""
+    for bad in ["节点/claude.md", "节点/dashboard.md", "节点/uat-测试.md"]:
+        ok, reason = check_vault_path(bad, vault)
+        assert (ok, reason) == (False, "blacklisted_file"), f"{bad} → {reason}"
+
+
 def test_all_reasons_are_declared():
     """本测试文件覆盖到的 reason 必须都在 ADMISSION_REASONS 枚举里 (拼写锁)。"""
     covered = {

@@ -43,6 +43,7 @@ import fnmatch
 import json
 import os
 import time
+import unicodedata
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -483,8 +484,24 @@ DEFAULT_VAULT_SKIP_FILES = [
 #:   - 不用通配是为了避免重蹈 `excalibrain*` 会吃掉 `excalibrain-笔记.md` 的覆辙。
 DEFAULT_VAULT_SKIP_ROOT_FILES = ("excalibrain.md",)
 
-#: 预计算的 casefold 集合 — 判定热路径上避免每次重算
-_SKIP_ROOT_FILES_CASEFOLD = frozenset(n.casefold() for n in DEFAULT_VAULT_SKIP_ROOT_FILES)
+#: 预计算的归一集合 — 判定热路径上避免每次重算 (P1-05c: 补 NFC)
+_SKIP_ROOT_FILES_CASEFOLD = frozenset(unicodedata.normalize("NFC", n).casefold() for n in DEFAULT_VAULT_SKIP_ROOT_FILES)
+
+
+def _canon_for_match(s: str) -> str:
+    """黑名单比较前的归一: NFC + casefold (P1-05c, Codex 三轮 F-01a)。
+
+    macOS APFS 大小写不敏感且 Unicode 归一形不定 —— `.CLAUDE/` 与 `.claude/`
+    是**同一个物理目录**, `节点/claude.md` 就是 `节点/CLAUDE.md`; fnmatch 却
+    大小写敏感 (macOS 的 os.path.normcase 是 no-op), 实测四类大小写变体全部
+    绕过黑名单。所有 fnmatch 判定点必须双侧过本函数, 不许再出现裸 fnmatch。
+    """
+    return unicodedata.normalize("NFC", s).casefold()
+
+
+def _fnmatch_canon(name: str, pat: str) -> bool:
+    """归一后的 fnmatch — 黑名单判定的唯一匹配原语。"""
+    return fnmatch.fnmatch(_canon_for_match(name), _canon_for_match(pat))
 
 
 def _is_skipped_vault_file(rel_path: str, skip_files) -> bool:
@@ -496,15 +513,17 @@ def _is_skipped_vault_file(rel_path: str, skip_files) -> bool:
 
     两条索引路径 (全量 index_vault_notes / 单文件 index_single_file) 共用本函数,
     避免再次出现「一条路径有黑名单另一条没有」的旁路 (RAG-S1 R3 的教训)。
+    P1-05c: 匹配走 _fnmatch_canon (NFC+casefold) — `节点/claude.md` 在 APFS 上
+    就是 `节点/CLAUDE.md`, 裸 fnmatch 放行即真实旁路。
     """
     normalized = rel_path.replace(os.sep, "/").strip("/")
     base_name = normalized.rsplit("/", 1)[-1]
 
-    if any(fnmatch.fnmatch(base_name, pat) for pat in skip_files):
+    if any(_fnmatch_canon(base_name, pat) for pat in skip_files):
         return True
 
     # 仅根级: 归一化后不含分隔符 = 直接位于 vault 根
-    if "/" not in normalized and base_name.casefold() in _SKIP_ROOT_FILES_CASEFOLD:
+    if "/" not in normalized and _canon_for_match(base_name) in _SKIP_ROOT_FILES_CASEFOLD:
         return True
 
     return False
@@ -1596,10 +1615,11 @@ class LanceDBClient:
         skip_files = list(DEFAULT_VAULT_SKIP_FILES)
 
         def _is_skipped_dir(name: str) -> bool:
-            return any(fnmatch.fnmatch(name, pat) for pat in skip_dirs)
+            # P1-05c: 归一匹配 — .CLAUDE/_ARCHIVE 等大小写变体在 APFS 上是同一目录
+            return any(_fnmatch_canon(name, pat) for pat in skip_dirs)
 
         def _is_skipped_file(name: str) -> bool:
-            return any(fnmatch.fnmatch(name, pat) for pat in skip_files)
+            return any(_fnmatch_canon(name, pat) for pat in skip_files)
 
         # Scan all .md files
         md_files: List[str] = []
@@ -1883,18 +1903,6 @@ class LanceDBClient:
                 logger.warning(f"File not found for indexing: {file_path}")
             return 0
 
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
-        except Exception as e:
-            if LOGURU_ENABLED:
-                logger.error(f"Failed to read file for indexing: {e}")
-            return 0
-
-        # RAG-S1 (2026-08-03): 空内容不再提前 return — 必须走到下方的
-        # 空产出登记分支写指纹, 否则 reconcile 每轮重判 new (live 实测
-        # 6 文件永动循环)。
-
         # Story 2.7 AC-7: Use relpath to preserve directory structure
         if vault_path:
             rel_path = os.path.relpath(file_path, vault_path).replace("\\", "/")
@@ -1916,14 +1924,15 @@ class LanceDBClient:
         # RAG-S1 Code-Review M4 (2026-08-03): skip_dirs 由调用方传 settings
         # 权威值 (orchestrator/端点), 模块常量仅作无参兜底 — 否则 env 放宽
         # 黑名单时 orchestrator 放行、本函数拒绝且不写指纹, 形成 60s 永动。
-        import fnmatch as _fnmatch
+        # P1-05c (Codex 三轮 F-01b): 黑名单判定整体提到读正文**之前** —— 旧序
+        # 先 open/read 再判, 禁区文件正文虽不落库但已被读进进程; 判定用归一匹配。
 
         # P1-02: 同全量路径 —— 先取调用方值或替换式兜底, 再 union 不可撤销硬底
         effective_skip_dirs = _with_immutable_skip_dirs(
             skip_dirs if skip_dirs is not None else list(DEFAULT_VAULT_SKIP_DIRS)
         )
         for part in rel_path.split("/")[:-1]:
-            if any(_fnmatch.fnmatch(part, pat) for pat in effective_skip_dirs):
+            if any(_fnmatch_canon(part, pat) for pat in effective_skip_dirs):
                 if LOGURU_ENABLED:
                     logger.warning(f"[INDEX] blacklisted dir in path, refuse single-file index: {rel_path}")
                 return 0
@@ -1937,6 +1946,18 @@ class LanceDBClient:
             if LOGURU_ENABLED:
                 logger.warning(f"[INDEX] blacklisted filename, refuse single-file index: {rel_path}")
             return 0
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"Failed to read file for indexing: {e}")
+            return 0
+
+        # RAG-S1 (2026-08-03): 空内容不再提前 return — 必须走到下方的
+        # 空产出登记分支写指纹, 否则 reconcile 每轮重判 new (live 实测
+        # 6 文件永动循环)。
 
         # Check fingerprint — skip if unchanged
         # H1 fix: Compute hash from in-memory content (already read above)

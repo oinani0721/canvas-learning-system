@@ -189,10 +189,56 @@ async def test_backfill_uses_the_single_policy_source(hostile_vault, monkeypatch
     from app.services import vault_backfill
 
     src = inspect.getsource(vault_backfill.backfill_vault)
+    fn_src = inspect.getsource(vault_backfill.is_blacklisted_for_backfill)
 
-    assert "effective_vault_skip_dirs" in src, "vault_backfill 未使用唯一策略源 —— 硬底对 Graphiti 写入口失效"
+    # P1-05c: 唯一策略源升级为 check_vault_path (其内部消费
+    # effective_vault_skip_dirs + 文件名黑名单 + 归一 + containment)
+    assert "is_blacklisted_for_backfill" in src, "backfill 未走统一判定函数"
+    assert "check_vault_path" in fn_src, (
+        "is_blacklisted_for_backfill 未委托 check_vault_path —— 私有规则复活 (Codex 三轮 F-01b)"
+    )
     assert "VAULT_INDEX_SKIP_DIRS" not in src or "split" not in src, (
         "vault_backfill 仍在自行 split 原始 env 串，绕过硬底"
+    )
+
+
+@pytest.mark.asyncio
+async def test_backfill_blocks_blacklisted_filenames_in_subdirs(hostile_vault):
+    """P1-05c (Codex 三轮 F-01b 实锤): backfill 旧判定缺文件名黑名单 —
+    raw/CLAUDE.md 的 callout 曾被计入待写 (dry-run callouts 含它)。"""
+    from app.services.vault_backfill import backfill_vault
+
+    (hostile_vault / "raw").mkdir(exist_ok=True)
+    (hostile_vault / "raw" / "CLAUDE.md").write_text(f"{_FRONTMATTER}{_CALLOUT}", encoding="utf-8")
+
+    stats = await backfill_vault(str(hostile_vault), driver=None, embedder=None, group_id="vault__test", execute=False)
+
+    assert stats["callouts"] == len(LEARNING_CONTENT), f"backfill 仍放行子目录黑名单文件名的 callout: stats={stats}"
+
+
+def test_orchestrator_rejects_dotdot_traversal(hostile_vault):
+    """P1-05c (F-01b): orchestrator 此前对 '../outside.md' 返回 (True,'ok')。"""
+    from app.services.vault_index_orchestrator import VaultIndexOrchestrator
+
+    orch = VaultIndexOrchestrator.__new__(VaultIndexOrchestrator)
+    orch._skip_dirs = _skip_dirs_under_hostile_env()
+
+    assert orch.should_index("../outside.md") == (False, "outside_vault")
+    assert orch.should_index("节点/../../escape.md") == (False, "outside_vault")
+    # root_level 是检索面与图写入面的 by-design 分歧: orchestrator 放行根级
+    # 用户笔记 (由根级文件名黑名单管), check_vault_path 拒 — 显式锁住该分歧
+    assert orch.should_index("根级笔记.md")[0] is True
+
+
+def test_lancedb_single_file_judges_before_read():
+    """P1-05c (F-01b): index_single_file 黑名单判定必须在读正文之前 (源码序锁)。"""
+    import inspect
+
+    from agentic_rag.clients.lancedb_client import LanceDBClient
+
+    src = inspect.getsource(LanceDBClient.index_single_file)
+    assert src.index("_is_skipped_vault_file(rel_path") < src.index('open(file_path, "r"'), (
+        "单文件路径仍先读正文后判黑名单 — 禁区文件正文不该被读进进程"
     )
 
 

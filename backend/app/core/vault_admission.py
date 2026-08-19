@@ -23,7 +23,6 @@ containment 蓝本: verification_service._resolve_canvas_path
 
 from __future__ import annotations
 
-import fnmatch
 import os
 from pathlib import Path
 
@@ -95,11 +94,15 @@ def check_vault_path(path: str | Path, vault_root: str | Path) -> tuple[bool, st
         return False, "root_level"
 
     # 黑名单源 = 唯一策略源 (可配置串 ∪ 不可撤销硬底)。禁止模块私有集合。
+    # P1-05c (Codex 三轮 F-01a): 匹配走 _fnmatch_canon (NFC+casefold) — APFS
+    # 大小写不敏感, .CLAUDE/ 与 .claude/ 是同一物理目录, 裸 fnmatch 放行即旁路。
+    from agentic_rag.clients.lancedb_client import _fnmatch_canon
+
     from app.config import settings
 
     skip_dirs = settings.effective_vault_skip_dirs()
     for part in rel_parts[:-1]:
-        if any(fnmatch.fnmatch(part, pat) for pat in skip_dirs):
+        if any(_fnmatch_canon(part, pat) for pat in skip_dirs):
             return False, "blacklisted_dir"
 
     # 文件名黑名单复用 LanceDB 两条索引路径的同一判定 (任意层级 + 仅根级两套规则)
