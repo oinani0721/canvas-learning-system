@@ -1693,10 +1693,15 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
                 from app.config import get_current_vault_id
                 from app.core.subject_config import build_vault_group_id
 
-                memory_group_id = build_vault_group_id(
-                    get_current_vault_id(),
-                    canvas_path=canvas_file or None,
-                )
+                # ⛔ P1-02 复核修正 (Codex 2026-08-19): **必须用基组, 不能传
+                # canvas_path**。tips 的写侧 _resolve_tips_group_id
+                # (tips.py:34-39) 落的是 build_vault_group_id(vault_id) 基组;
+                # 若这里传 canvas_path 就变成 vault:<id>:<canvas> 子组, 而
+                # MemoryService._search_graphiti 只向**后代**扩展、不向父组扩展
+                # → 写基组读子组, 实算 overlap = ∅, 召回恒空。
+                # live 佐证: SelfAnnotation 112 edges / 21 nodes 全在
+                # vault__canvas_vault 基组。
+                memory_group_id = build_vault_group_id(get_current_vault_id())
             except Exception as gid_exc:  # noqa: BLE001
                 logger.warning(
                     "[compress_context] group_id 解析失败, 跳过学习记忆注入以免跨 vault 检索: %s",

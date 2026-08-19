@@ -147,6 +147,84 @@ def test_no_legacy_weight_literals_remain_in_module(monkeypatch, tmp_path):
     assert '"max_references": 5' not in src, "模块内仍硬编码 max_references=5（旧 fallback 值）"
 
 
+# ── P1-06 schema 校验（Codex 复核 2026-08-19 追加）─────────────────────────
+
+
+@pytest.mark.parametrize(
+    "label,content",
+    [
+        ("根为数组", "[]"),
+        ("根为 null", "null"),
+        ("根为字符串", '"hello"'),
+        ("空对象", "{}"),
+        ("source_priorities 非数组", '{"source_priorities": {}}'),
+        ("规则非对象", '{"source_priorities": ["x"]}'),
+        ("规则缺 pattern", '{"source_priorities": [{"weight": 1.0}]}'),
+        ("规则缺 weight", '{"source_priorities": [{"pattern": "a/**"}]}'),
+        ("pattern 非字符串", '{"source_priorities": [{"pattern": 1, "weight": 1.0}]}'),
+        ("weight 非数值", '{"source_priorities": [{"pattern": "a/**", "weight": "x"}]}'),
+        ("weight 为 inf", '{"source_priorities": [{"pattern": "a/**", "weight": 1e999}]}'),
+        ("weight 为 bool", '{"source_priorities": [{"pattern": "a/**", "weight": true}]}'),
+        ("max_references 为 0", '{"source_priorities": [], "max_references": 0}'),
+        ("max_references 非整数", '{"source_priorities": [], "max_references": "many"}'),
+    ],
+)
+def test_malformed_schema_degrades_neutrally_without_crashing(monkeypatch, tmp_path, label, content):
+    """⛔ 合法 JSON ≠ 合法结构。上一轮只挡语法错误，这些会在请求期崩溃或泄漏旧值。
+
+    Codex 复核实测的两个反例：
+      input=[]  → AttributeError: 'list' object has no attribute 'get'
+      input={}  → max_references 落回旧值 5（get_max_references 的默认参数）
+    """
+    cfg = tmp_path / "reference_priority.json"
+    cfg.write_text(content, encoding="utf-8")
+    _point_config_at(monkeypatch, cfg)
+
+    # 不得抛异常
+    prios = reference_config.get_source_priorities()
+    max_refs = reference_config.get_max_references()
+
+    assert prios == [], f"[{label}] schema 不合法时应中性降级，实得 {prios}"
+    assert max_refs == 10, f"[{label}] max_references 泄漏了非中性值 {max_refs}（旧 fallback 是 5）"
+
+
+def test_get_max_references_never_falls_back_to_legacy_five(monkeypatch, tmp_path):
+    """源码级锁：get_max_references 的默认参数不得是旧值 5。
+
+    这正是 Codex 复核抓到的第二处真相源 —— 上一轮改了 _load_config 却漏了这里。
+    """
+    src = __import__("pathlib").Path(reference_config.__file__).read_text(encoding="utf-8")
+
+    assert '.get("max_references", 5)' not in src, (
+        "get_max_references 仍以 5 为默认值 —— config 为 {} 时会从这里泄漏回旧行为"
+    )
+
+
+def test_valid_config_still_accepted_after_validator(monkeypatch, tmp_path):
+    """校验器不得误杀正常配置（含可选 label 缺失、int 权重）。"""
+    cfg = tmp_path / "reference_priority.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "source_priorities": [
+                    {"pattern": "节点/**", "weight": 1.5, "label": "手写"},
+                    {"pattern": "raw/**", "weight": 1},  # int 权重 + 无 label
+                ],
+                "max_references": 10,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    _point_config_at(monkeypatch, cfg)
+
+    prios = reference_config.get_source_priorities()
+
+    assert len(prios) == 2
+    assert prios[0]["weight"] == 1.5
+    assert prios[1]["weight"] == 1.0, "int 权重应被归一为 float"
+
+
 def test_apply_source_priority_is_identity_under_neutral_fallback(monkeypatch, tmp_path):
     """零加权时 apply_source_priority 必须原样返回（含顺序），不误改 score。"""
     _point_config_at(monkeypatch, tmp_path / "absent.json")

@@ -119,6 +119,10 @@ jobs:
             tests/unit/test_mastery_injection_memory_contract.py \
             tests/regression/test_board_manifest_contracts.py \
             tests/regression/test_rag_stage1_index_contracts.py \
+            tests/regression/test_reference_config_fallback_contract.py \
+            tests/regression/test_snapshot_schema_migration_contract.py \
+            tests/regression/test_immutable_skip_dirs_contract.py \
+            tests/regression/test_vault_skip_files_scope_contract.py \
             -m "not integration" \
             -v --tb=short \
             --junitxml=reports/test-results.xml \

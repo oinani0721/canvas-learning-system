@@ -85,7 +85,7 @@ MEMORY_DEGRADED_ERROR = "error"
 
 
 async def _search_via_memory_service(
-    node_id: str,
+    node_hint: str,
     group_id: Optional[str],
     limit: int = 10,
 ) -> Optional[List[dict]]:
@@ -123,10 +123,23 @@ async def _search_via_memory_service(
         return None
 
     # 与 search_error_memories (memory_service.py:2017-2021) 同构:
-    # node_id 当**语义提示词**拼进自然语言 query, 而非当作可精确匹配的 key ——
-    # 图上不存在任何能被字符串命中的 node 身份字段。超采后按关键词过滤。
+    # node_hint 当**语义提示词**拼进自然语言 query, 而非可精确匹配的 key ——
+    # 图上不存在任何能被字符串命中的 node 身份字段。
+    #
+    # ⚠️ DD-13 名实一致声明 (P1-02 复核, Codex 2026-08-19): 本函数是
+    # **vault 级语义补充召回**, 不是 node 精确读。它不做、也无法做 node 过滤 ——
+    # MemoryService Tier1 的条目映射 (memory_service.py:1585-1624) 丢弃了
+    # attributes/node_id, 到这一层已无从按节点筛。因此返回的可能是同 vault 内
+    # 其它节点的记忆。
+    #
+    # 真正的 node 精确读已存在: app/services/graphiti_memory_reader.py 的
+    # read_node_tips / read_node_errors / read_node_edge_reasons —— 走
+    # entity_uuid_for_node(node_id, gid) → EntityEdge.get_by_node_uuid,
+    # 带 active-only 过滤。它需要**真实 node_id**, 而 CanvasRAGState 只有
+    # canvas_file (state.py 全文无 node_id 字段)。接通它需要改调用链把节点身份
+    # 传进 state —— 已列为待办, 不在本轮范围。
     hits = await service.search_memories(
-        query=f"{node_id} 提示 tip 要点 错误 误解 mistake misconception 学习笔记",
+        query=f"{node_hint} 提示 tip 要点 错误 误解 mistake misconception 学习笔记",
         group_id=group_id,
         max_results=max(limit * 4, 20),
     )

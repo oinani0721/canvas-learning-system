@@ -7,9 +7,10 @@ Rules define which vault sources are boosted/penalized in search results.
 
 import json
 import logging
+import math
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,14 @@ def _load_config() -> Dict[str, Any]:
     try:
         if _CONFIG_PATH.exists():
             with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
-                _config = json.load(f)
-                logger.info(f"Loaded reference priority config: {len(_config.get('source_priorities', []))} rules")
-                return _config
+                raw = json.load(f)
+            # P1-06: 语法合法 ≠ 结构合法 —— 必须过 schema 才采纳
+            validated = _validate_config(raw)
+            if validated is None:
+                return _neutral()
+            _config = validated
+            logger.info(f"Loaded reference priority config: {len(_config['source_priorities'])} rules")
+            return _config
         logger.error(
             "reference_priority.json 不存在 (%s) — 中性降级: 引用排序退化为纯语义分序, "
             "用户手写笔记不再获得提权。请检查部署是否漏挂 data 目录。",
@@ -65,9 +71,60 @@ def _load_config() -> Dict[str, Any]:
             e,
         )
 
-    # 每次新建 dict/list, 不共享可变对象 (调用方若就地改动不会污染后续调用)
+    return _neutral()
+
+
+def _neutral() -> Dict[str, Any]:
+    """中性配置。每次新建 dict/list，不共享可变对象。"""
+    global _config
     _config = {"source_priorities": [], "max_references": _NEUTRAL_MAX_REFERENCES}
     return _config
+
+
+def _validate_config(raw: Any) -> Optional[Dict[str, Any]]:
+    """schema 校验 (P1-06, Codex 复核 2026-08-19)。
+
+    上一轮只处理「文件缺失」与「JSON 语法损坏」，**合法 JSON 的错误结构没管**：
+      - `[]`  → `'list' object has no attribute 'get'`，请求期崩溃
+      - `{}`  → 走到 get_max_references 的旧默认值 5（第二处真相源泄漏）
+      - 规则缺 pattern/weight 或类型错误 → 消费时才炸
+
+    本函数把这些统一收敛为「结构不合法 → 中性降级」。
+
+    Returns:
+        合法配置 dict；None 表示 schema 不合法，调用方应中性降级。
+    """
+    if not isinstance(raw, dict):
+        logger.error("reference_priority.json 根节点应为 object, 实为 %s — 中性降级", type(raw).__name__)
+        return None
+
+    rules_raw = raw.get("source_priorities", [])
+    if not isinstance(rules_raw, list):
+        logger.error("source_priorities 应为数组, 实为 %s — 中性降级", type(rules_raw).__name__)
+        return None
+
+    rules: List[Dict[str, Any]] = []
+    for idx, rule in enumerate(rules_raw):
+        if not isinstance(rule, dict):
+            logger.error("source_priorities[%d] 应为 object, 实为 %s — 中性降级", idx, type(rule).__name__)
+            return None
+        pattern = rule.get("pattern")
+        weight = rule.get("weight")
+        if not isinstance(pattern, str) or not pattern:
+            logger.error("source_priorities[%d].pattern 缺失或非字符串 — 中性降级", idx)
+            return None
+        # bool 是 int 子类, 显式排除; 权重必须是有限数值 (nan/inf 会污染排序)
+        if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not math.isfinite(weight):
+            logger.error("source_priorities[%d].weight 非有限数值 (%r) — 中性降级", idx, weight)
+            return None
+        rules.append({"pattern": pattern, "weight": float(weight), "label": rule.get("label")})
+
+    max_refs = raw.get("max_references", _NEUTRAL_MAX_REFERENCES)
+    if isinstance(max_refs, bool) or not isinstance(max_refs, int) or max_refs < 1:
+        logger.error("max_references 应为正整数, 实为 %r — 中性降级", max_refs)
+        return None
+
+    return {"source_priorities": rules, "max_references": max_refs}
 
 
 def reload_config() -> None:
@@ -82,7 +139,9 @@ def get_source_priorities() -> List[Dict[str, Any]]:
 
 
 def get_max_references() -> int:
-    return _load_config().get("max_references", 5)
+    # P1-06 (Codex 复核 2026-08-19): 默认值原为 **5** —— 那是旧 fallback 的值,
+    # 是第二处未被清除的真相源。config 为 {} 时会从这里泄漏回旧行为。
+    return _load_config().get("max_references", _NEUTRAL_MAX_REFERENCES)
 
 
 def apply_source_priority(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
