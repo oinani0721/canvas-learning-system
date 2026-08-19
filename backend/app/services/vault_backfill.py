@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Optional
 
@@ -114,6 +115,26 @@ def extract_callouts(md_text: str) -> list[tuple[str, str, str, str]]:
     return results
 
 
+def is_blacklisted_for_backfill(md_path: Path, base: Path, skip_dirs: set[str]) -> bool:
+    """backfill 的目录黑名单判定 — b5706b04 的函数内闭包提升为模块级 (P1-05b)。
+
+    提升原因: ① 污染 census 脚本 (scripts/census_graphiti_pollution.py) 必须
+    复用**同一判定**来划分磁盘上的 禁区/合法 两桶, 拷贝一份就是下一个旁路;
+    ② 闭包无法被单测直接覆盖。
+
+    skip_dirs 由调用方传入 (backfill_vault 内 effective_vault_skip_dirs() ∪
+    {"templates"}) — 唯一策略源的调用点保留在 backfill_vault 里, 不破坏
+    test_backfill_uses_the_single_policy_source 的源码级锁。
+    """
+    rel_parts = md_path.relative_to(base).parts
+    # vault 根级直下的 md (Dashboard/CLAUDE/杂项) 不是学习节点 — 学习内容
+    # 都在 节点/原白板/raw 等子目录; 根级 callout (如 Dashboard 的 info 块)
+    # 进图就是噪音/泄漏
+    if len(rel_parts) == 1:
+        return True
+    return any(any(fnmatch(part, pat) for pat in skip_dirs) for part in rel_parts)
+
+
 async def backfill_vault(
     vault_path: str,
     driver: Any,
@@ -166,25 +187,14 @@ async def backfill_vault(
     #
     # 现改为与索引路径**共用唯一策略源**: settings.effective_vault_skip_dirs()
     # = 可配置串 ∪ IMMUTABLE_VAULT_SKIP_DIRS。env 只能追加, 不能删除安全边界。
-    from fnmatch import fnmatch
-
     from app.config import settings as _settings
 
     _skip_dirs = set(_settings.effective_vault_skip_dirs())
     # templates 不在硬底里 (它是"非学习内容"而非"安全边界"), 保留原有硬补
     _skip_dirs.add("templates")
 
-    def _is_blacklisted(md_path: Path) -> bool:
-        rel_parts = md_path.relative_to(base).parts
-        # vault 根级直下的 md (Dashboard/CLAUDE/杂项) 不是学习节点 — 学习内容
-        # 都在 节点/原白板/raw 等子目录; 根级 callout (如 Dashboard 的 info 块)
-        # 进图就是噪音/泄漏
-        if len(rel_parts) == 1:
-            return True
-        return any(any(fnmatch(part, pat) for pat in _skip_dirs) for part in rel_parts)
-
     for md in sorted(base.rglob("*.md")):
-        if _is_blacklisted(md):
+        if is_blacklisted_for_backfill(md, base, _skip_dirs):
             continue
         node_id = md.stem
         try:
