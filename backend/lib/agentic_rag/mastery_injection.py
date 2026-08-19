@@ -77,45 +77,138 @@ def build_mastery_prefix(
 # =========================================================================
 
 
+#: P1-03 (Codex 对抗审查 2026-08-19): 检索降级原因常量。
+#: 返回给调用方以区分「检索失败」与「真的没有记忆」—— 这两者此前都表现为 ""。
+MEMORY_DEGRADED_NO_CLIENT = "no_client"
+MEMORY_DEGRADED_TIMEOUT = "timeout"
+MEMORY_DEGRADED_ERROR = "error"
+
+
+async def _search_via_memory_service(
+    node_id: str,
+    group_id: Optional[str],
+    limit: int = 10,
+) -> Optional[List[dict]]:
+    """经 MemoryService 三层融合检索取学习记忆 (P1-03 首选路径)。
+
+    为什么不再直接用 GraphitiClient.search_memories:
+      GraphitiClient.search_memories 转调 search_nodes 且**不传 canvas_file**,
+      于是 _resolve_group_ids(None) 只返回 ["vault__x"] 单组 —— 既不含
+      `__semantic` 影子组, 也不含白板级 punycode 子组。而 learning tip/error 的
+      可检索文本恰好落在影子组 (episode_worker 强制给 group_id 加 __semantic
+      后缀), 主图上的结构化边只把 node_id 存进 attributes 与 uuid5 身份、
+      fact 文本里没有它。两边错开 → 恒空。
+
+    MemoryService._search_graphiti 查的是 [主图, __semantic 影子组,
+    + _expand_vault_subgroups(...)] 三组, 且上层 search_memories 还叠了
+    Neo4j 全文与内存两层兜底 + 术语束扩展 + FSRS 加权。
+
+    ⛔ group_id 必须传: _search_graphiti 在 group_id=None 时会**全组检索**
+    (跨 vault), 与 GraphitiClient 只查单组的行为正相反。
+
+    Returns:
+        条目列表 (每项含 content 键); None 表示 MemoryService 不可用, 由调用方降级。
+    """
+    try:
+        # lib→app 惰性 import 是本仓既定惯例 (本模块 :223 亦然), 无循环依赖:
+        # app/services/memory_service.py 全文零 agentic_rag 引用。
+        from app.services.memory_service import get_memory_service
+    except ImportError:
+        return None
+
+    try:
+        service = await get_memory_service()
+    except Exception as exc:  # noqa: BLE001 — 服务不可用即降级, 不能拖垮检索链
+        logger.warning("[MEMORY] MemoryService 不可用, 降级到直连 Graphiti: %s", exc)
+        return None
+
+    # 与 search_error_memories (memory_service.py:2017-2021) 同构:
+    # node_id 当**语义提示词**拼进自然语言 query, 而非当作可精确匹配的 key ——
+    # 图上不存在任何能被字符串命中的 node 身份字段。超采后按关键词过滤。
+    hits = await service.search_memories(
+        query=f"{node_id} 提示 tip 要点 错误 误解 mistake misconception 学习笔记",
+        group_id=group_id,
+        max_results=max(limit * 4, 20),
+    )
+    return hits or []
+
+
 async def retrieve_learning_memories(
     node_id: str,
     max_tokens: int = 1000,
     graphiti_client: Optional[Any] = None,
-) -> str:
+    group_id: Optional[str] = None,
+) -> tuple[str, Optional[str]]:
     """
-    Story 2.10 AC-3: Retrieve learning memories from Graphiti.
+    Story 2.10 AC-3: Retrieve learning memories.
 
     Queries for Tips, error records, and key Q&A related to the node.
     Total output limited to max_tokens.
 
+    ⛔ P1-03 (Codex 对抗审查 2026-08-19) 两处改动:
+
+    1. **返回值加降级信号**。此前无论「检索失败」还是「真的没有记忆」都返回 ""，
+       调用方无法区分 —— 正是那个 .search() AttributeError 潜伏三个月的机制。
+       现在返回 (text, degraded_reason)，成功时 reason 为 None。
+
+    2. **检索路径改走 MemoryService**。原实现拼伪 key 串 `learning node:{id}`
+       调 GraphitiClient.search_memories，而图上 node 身份只存在于
+       uuid5(node_id:group_id) 与边的 attributes 里、fact 文本中没有它；
+       且读侧只查主组而写侧落在 `__semantic` 影子组 —— 没有任何字符串形态
+       能命中。详见 _search_via_memory_service 的 docstring。
+
     Args:
-        node_id: Canvas node ID.
+        node_id: 节点身份提示词。注意按新范式它只作为**语义线索**参与检索，
+                 不是可精确匹配的 key，因此传 canvas_file 也能工作（只是线索
+                 内容不同）。
         max_tokens: Max token budget for memories.
-        graphiti_client: Graphiti client instance (optional).
+        graphiti_client: 降级路径用的 Graphiti 客户端（MemoryService 不可用时）。
+        group_id: ⛔ 强烈建议传入。缺省时 MemoryService 会**跨 vault 全组检索**。
 
     Returns:
-        Formatted learning memory string, or empty string if unavailable.
+        (formatted_text, degraded_reason)。degraded_reason 为 None 表示检索
+        正常完成（此时空串 = 确实没有记忆）；非 None 表示检索未能正常完成。
     """
-    if not graphiti_client:
-        return ""
+    memories: Optional[List[dict]] = None
 
     try:
-        # Search for memories related to this node
-        #
-        # ⛔ 方法名契约 (2026-08-15 修复): 必须是 search_memories，不是 search。
-        # GraphitiClient (lib/agentic_rag/clients/graphiti_client.py) 只暴露
-        # search_nodes / search_memories；调用 .search() 会抛 AttributeError，
-        # 被本函数末尾的 except Exception 吞掉 → 静默返回 ""，与「真的没有记忆」
-        # 无法区分。该缺陷自 Story 2.10 起一直存在，日志里已实际发生。
-        # 唯一调用方 nodes.py::_get_graphiti_client() 返回的就是 GraphitiClient。
-        search_query = f"learning node:{node_id}"
         memories = await asyncio.wait_for(
-            graphiti_client.search_memories(search_query, num_results=10),
-            timeout=3.0,
+            _search_via_memory_service(node_id, group_id),
+            timeout=5.0,
         )
+    except asyncio.TimeoutError:
+        logger.warning("[MEMORY] MemoryService 检索超时 (5s), 尝试降级路径")
+        memories = None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[MEMORY] MemoryService 检索异常, 尝试降级路径: %s", exc)
+        memories = None
 
+    if memories is None:
+        # 降级路径: 直连 Graphiti。召回面窄（单组），但聊胜于无。
+        if not graphiti_client:
+            logger.error(
+                "[MEMORY] MemoryService 与 Graphiti 客户端均不可用 —— 学习记忆注入为空，这**不等于**该节点没有记忆"
+            )
+            return "", MEMORY_DEGRADED_NO_CLIENT
+        try:
+            # ⛔ 方法名契约 (2026-08-15 修复): 必须是 search_memories，不是 search。
+            # GraphitiClient 只暴露 search_nodes / search_memories；调用 .search()
+            # 会抛 AttributeError 并被吞成静默空串。
+            memories = await asyncio.wait_for(
+                graphiti_client.search_memories(f"{node_id} 学习 提示 错误", num_results=10),
+                timeout=3.0,
+            )
+        except asyncio.TimeoutError:
+            logger.error("[MEMORY] 降级路径也超时 (3s) — 返回 degraded 而非静默空串")
+            return "", MEMORY_DEGRADED_TIMEOUT
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[MEMORY] 降级路径失败: %s — 返回 degraded 而非静默空串", exc)
+            return "", MEMORY_DEGRADED_ERROR
+
+    try:
         if not memories:
-            return ""
+            # 检索本身成功, 只是没有命中 —— 这是「真的没有记忆」, reason=None
+            return "", None
 
         tips_parts: List[str] = []
         error_parts: List[str] = []
@@ -154,7 +247,8 @@ async def retrieve_learning_memories(
             sections.append(f"[相关问答]\n{qa_text}")
 
         if not sections:
-            return ""
+            # 有条目但全被内容过滤掉 —— 仍属「检索成功、无可用记忆」
+            return "", None
 
         result = "\n".join(sections)
 
@@ -165,14 +259,15 @@ async def retrieve_learning_memories(
             sections.pop()
             result = "\n".join(sections)
 
-        return result
+        return result, None
 
     except asyncio.TimeoutError:
-        logger.warning("[MEMORY] Graphiti learning memory retrieval timed out (3s)")
-        return ""
+        # P1-03: 升 warning → error, 且返回 degraded 而非静默空串
+        logger.error("[MEMORY] 学习记忆格式化阶段超时 — 返回 degraded")
+        return "", MEMORY_DEGRADED_TIMEOUT
     except Exception as e:
-        logger.warning(f"[MEMORY] Graphiti learning memory retrieval failed: {e}")
-        return ""
+        logger.error("[MEMORY] 学习记忆格式化失败: %s — 返回 degraded 而非静默空串", e)
+        return "", MEMORY_DEGRADED_ERROR
 
 
 # =========================================================================

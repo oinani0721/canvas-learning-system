@@ -1681,13 +1681,42 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
         # Try to get graphiti client
         try:
             graphiti_client = await _get_graphiti_client()
-            if graphiti_client:
-                node_id = state.get("canvas_file", "") or query[:30]
-                learning_memories = await retrieve_learning_memories(
-                    node_id=node_id,
+            canvas_file = state.get("canvas_file", "") or ""
+            node_hint = canvas_file or query[:30]
+
+            # ⛔ P1-03 (Codex 审查 2026-08-19): 必须传 group_id。
+            # MemoryService._search_graphiti 在 group_id=None 时会**全组检索**
+            # (跨 vault), 与 GraphitiClient 只查单组的行为正相反 —— 不传就是
+            # 跨 vault 泄漏。范式同 chat.py:290-297。
+            memory_group_id = None
+            try:
+                from app.config import get_current_vault_id
+                from app.core.subject_config import build_vault_group_id
+
+                memory_group_id = build_vault_group_id(
+                    get_current_vault_id(),
+                    canvas_path=canvas_file or None,
+                )
+            except Exception as gid_exc:  # noqa: BLE001
+                logger.warning(
+                    "[compress_context] group_id 解析失败, 跳过学习记忆注入以免跨 vault 检索: %s",
+                    gid_exc,
+                )
+
+            if memory_group_id:
+                learning_memories, memory_degraded = await retrieve_learning_memories(
+                    node_id=node_hint,
                     max_tokens=memory_max_tokens,
                     graphiti_client=graphiti_client,
+                    group_id=memory_group_id,
                 )
+                # P1-03: 降级不再静默 —— 空串 + degraded 才是「检索没成功」,
+                # 空串 + None 才是「真的没有记忆」。
+                if memory_degraded:
+                    logger.error(
+                        "[compress_context] 学习记忆检索降级 (reason=%s) — 本次注入为空**不代表**该节点没有记忆",
+                        memory_degraded,
+                    )
         except Exception as e:
             logger.warning(f"[compress_context] Learning memory fetch failed: {e}")
     except Exception as e:
