@@ -370,3 +370,98 @@ def test_empty_pick_hint_dict_not_treated_as_eligible():
         "pick_hint": {},
     }
     assert _member_from_full(m)["pick_eligible"] is False
+
+
+# ══ P1-05d C2 (Codex 四轮 V3/V4/V5) ══
+
+
+def test_nested_bad_freshness_snapshot_self_heals(vault):
+    """V3: {"snapshot_schema_version":3,"freshness":[]} 曾在 :956 抛 AttributeError
+    被外层兜底吞成"写失败" → 坏快照永不自愈。修复后 live 正常时重写覆盖。"""
+    _poison_vault(vault)
+    _put_snapshot(vault, {"snapshot_schema_version": 3, "freshness": []})
+
+    result = svc.serve_manifest(vault, board_id="板", now=NOW)
+
+    assert result["source_status"] == "ok"
+    on_disk = json.loads(svc.snapshot_file(vault).read_text(encoding="utf-8"))
+    assert isinstance(on_disk.get("freshness"), dict), "嵌套错型快照未被自愈重写 (V3 回归)"
+    assert svc.load_snapshot(vault) is not None
+
+
+def test_dirty_last_examined_does_not_kill_snapshot(vault):
+    """V4 (B3 引入的新回归止血): 单个脏 last_examined 曾让整个降级快照写不出。
+    修复后: 脏值投影为 None (与"按从未考"语义一致), 快照照常落盘, 错误码保留。"""
+    _poison_vault(vault)
+    _write(
+        vault,
+        "节点/脏日期.md",
+        _node_md(["mastery_score: 0.5", "last_examined: 这不是日期", 'source_board: "[[原白板/板]]"']),
+    )
+
+    result = svc.serve_manifest(vault, board_id="板", now=NOW)
+
+    assert result["source_status"] == "ok"
+    assert any(e.get("error_code") == "last_examined_invalid" for e in result["parse_errors"])
+    assert svc.snapshot_file(vault).exists(), "单个脏 frontmatter 杀掉了整个降级快照 (V4 回归)"
+    snap = json.loads(svc.snapshot_file(vault).read_text(encoding="utf-8"))
+    dirty = next(m for m in snap["boards"]["板"]["members"] if m["node_id"] == "脏日期")
+    assert dirty["last_examined"] is None, "脏时间原串不得落盘"
+    # 降级态仍可用
+    _degrade(vault)
+    degraded = svc.serve_manifest(vault, board_id="板", now=NOW)
+    assert degraded["source_status"] == "snapshot"
+
+
+def test_overlong_ascii_stem_drops_member_not_snapshot(vault):
+    """V5: 201 字 ASCII stem 在 APFS 合法 (<255 bytes) — 曾整包写失败。
+    修复后: 丢该 member, 其余照常落盘。"""
+    _poison_vault(vault)
+    long_stem = "x" * 201
+    _write(vault, f"节点/{long_stem}.md", _node_md(["mastery_score: 0.5", 'source_board: "[[原白板/板]]"']))
+
+    result = svc.serve_manifest(vault, board_id="板", now=NOW)
+
+    assert result["source_status"] == "ok"
+    assert svc.snapshot_file(vault).exists(), "超长 stem 杀掉了整个快照"
+    snap = json.loads(svc.snapshot_file(vault).read_text(encoding="utf-8"))
+    ids = {m["node_id"] for m in snap["boards"]["板"]["members"]}
+    assert long_stem not in ids and "M真薄弱" in ids
+
+
+def test_no_id_slicing_and_no_nan_lag(vault):
+    """V5: ID 语义字段写侧不得切片 (切片值=另一个 ID); lag_seconds 拒 NaN;
+    _require_id_like 拒 tab 等控制字符。"""
+    import math as _math
+
+    from pydantic import ValidationError as _VE
+
+    from app.models.snapshot_v3 import SnapshotV3Freshness, _require_id_like, project_full_state
+
+    # tab 控制字符被拒
+    with pytest.raises(ValueError):
+        _require_id_like("bad\tid")
+    # NaN lag_seconds 被拒
+    with pytest.raises(_VE):
+        SnapshotV3Freshness(
+            generated_at="2026-08-20T00:00:00+00:00",
+            generation="ab12cd34ef56",
+            lag_seconds=_math.nan,
+            stale=False,
+        )
+    # 超长 qid/selected_node 丢弃为 None 而非切片
+    _poison_vault(vault)
+    full = svc.scan_vault(vault, now=NOW)
+    full["exam_history"] = [
+        {
+            "exam_board_id": "考察板",
+            "board_id": "b" * 500,
+            "created_at": None,
+            "status": None,
+            "selected_node": "s" * 500,
+            "question_count": 1,
+        }
+    ]
+    snap = project_full_state(full).model_dump()
+    (eh,) = snap["exam_history"]
+    assert eh["board_id"] is None and eh["selected_node"] is None, "超长 ID 被切片而非丢弃"

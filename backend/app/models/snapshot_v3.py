@@ -89,9 +89,21 @@ def _require_id_like(v: Optional[str]) -> Optional[str]:
         return None
     if not v or len(v) > _ID_MAX:
         raise ValueError("ID 为空或超长")
-    if any(ch in v for ch in ("/", "\\", "\n", "\r", "\x00")) or v in (".", ".."):
+    # P1-05d (Codex 四轮 V5): 控制字符全拒 (<0x20 含 tab 与 0x7f), 不再逐个点名
+    if any(ch in ("/", "\\") or ord(ch) < 0x20 or ord(ch) == 0x7F for ch in v) or v in (".", ".."):
         raise ValueError("ID 含路径分隔/控制字符")
     return v
+
+
+def _id_ok(v: object) -> bool:
+    """写侧过滤判定 — 与读侧 _require_id_like **同源** (P1-05d V5):
+    非法 ID (超长/控制字符/路径分隔) 的条目在投影时丢弃, 而不是让整包
+    ValidationError 写失败 (201 字 ASCII stem 在 APFS 合法, 曾杀整个降级缓存)。"""
+    try:
+        _require_id_like(str(v))
+        return True
+    except ValueError:
+        return False
 
 
 def _require_iso_or_none(v: Optional[str]) -> Optional[str]:
@@ -216,6 +228,9 @@ class SnapshotV3Freshness(_Forbid):
     generation: str = Field(pattern=r"^[0-9a-f]{12}$")
     lag_seconds: Optional[float] = None
     stale: bool = False
+
+    # P1-05d (V5): NaN/±inf 会让 json.dumps 吐非标字面量 — finite 或 None
+    _fin = field_validator("lag_seconds")(classmethod(lambda cls, v: _require_finite(v)))
 
     _t = field_validator("generated_at")(classmethod(lambda cls, v: _require_iso_or_none(v)))
 
@@ -362,7 +377,8 @@ def _member_from_full(m: dict[str, Any]) -> dict[str, Any]:
         digests.append(
             {
                 "exam_board_id": str(d["exam_board_id"]),
-                "qid": (str(d["qid"])[:40] if d.get("qid") else None),
+                # P1-05d (V5): ID 语义一律"超长丢弃不切片" — 切片值是另一个 ID
+                "qid": (str(d["qid"]) if d.get("qid") and len(str(d["qid"])) <= 40 else None),
                 "asked_at": (str(d["asked_at"])[:64] if d.get("asked_at") else None),
                 "score": d.get("score"),
                 "score_scale": (str(d["score_scale"])[:40] if d.get("score_scale") else None),
@@ -392,7 +408,9 @@ def _member_from_full(m: dict[str, Any]) -> dict[str, Any]:
         },
         "attempt_count": (int(attempt) if isinstance(attempt, (int, float)) and attempt >= 0 else None),
         "last_examined": (str(m["last_examined"])[:64] if m.get("last_examined") else None),
-        "source_note": (str(m["source_note"])[:200] if m.get("source_note") else None),
+        "source_note": (
+            str(m["source_note"]) if m.get("source_note") and len(str(m["source_note"])) <= _ID_MAX else None
+        ),
         "past_question_digests": digests,
     }
 
@@ -405,8 +423,8 @@ def project_full_state(full: dict[str, Any]) -> SnapshotV3:
     """
     boards_out: dict[str, Any] = {}
     for bid, board in (full.get("boards") or {}).items():
-        if not isinstance(board, dict):
-            continue
+        if not isinstance(board, dict) or not _id_ok(bid):
+            continue  # P1-05d (V5): 非法 board key 丢 board, 不让整包写失败
         boards_out[str(bid)] = {
             # board_id 恒用 dict key — 模型 _board_keys_match 强制 key 一致 (F-06)
             "board_id": str(bid),
@@ -415,14 +433,16 @@ def project_full_state(full: dict[str, Any]) -> SnapshotV3:
             "doc_count_declared": board.get("doc_count_declared"),
             # ID 语义超长项**过滤**而非截断 (截断值会在 dual_source_gap 比对时
             # 把真实存在的 node 误判 exists=false, F-06 实锤)
-            "concepts_listed": [str(c) for c in board.get("concepts_listed") or [] if len(str(c)) <= _ID_MAX],
+            "concepts_listed": [str(c) for c in board.get("concepts_listed") or [] if _id_ok(c)],
             "members": [
-                _member_from_full(m) for m in board.get("members") or [] if isinstance(m, dict) and m.get("node_id")
+                _member_from_full(m)
+                for m in board.get("members") or []
+                if isinstance(m, dict) and _id_ok(m.get("node_id"))
             ],
         }
     orphans_out = []
     for o in full.get("orphans") or []:
-        if not isinstance(o, dict) or not o.get("node_id"):
+        if not isinstance(o, dict) or not _id_ok(o.get("node_id")):
             continue
         slug = o.get("reason_code") or _ORPHAN_TEXT_TO_SLUG.get(str(o.get("reason") or ""))
         if slug not in ("no_source_board", "unknown_board"):
@@ -440,13 +460,19 @@ def project_full_state(full: dict[str, Any]) -> SnapshotV3:
     for e in full.get("exam_history") or []:
         if not isinstance(e, dict) or not e.get("exam_board_id"):
             continue
+        if len(str(e["exam_board_id"])) > _ID_MAX:
+            continue  # P1-05d (V5): ID 超长丢条目, 不切片
         exam_out.append(
             {
-                "exam_board_id": str(e["exam_board_id"])[:200],
-                "board_id": (str(e["board_id"])[:200] if e.get("board_id") else None),
+                "exam_board_id": str(e["exam_board_id"]),
+                "board_id": (str(e["board_id"]) if e.get("board_id") and len(str(e["board_id"])) <= _ID_MAX else None),
                 "created_at": (str(e["created_at"])[:64] if e.get("created_at") else None),
                 "status": (str(e["status"])[:40] if e.get("status") else None),
-                "selected_node": (str(e["selected_node"])[:200] if e.get("selected_node") else None),
+                "selected_node": (
+                    str(e["selected_node"])
+                    if e.get("selected_node") and len(str(e["selected_node"])) <= _ID_MAX
+                    else None
+                ),
                 "question_count": max(0, int(e.get("question_count") or 0)),
             }
         )
@@ -461,7 +487,7 @@ def project_full_state(full: dict[str, Any]) -> SnapshotV3:
                 "stale": bool((full.get("freshness") or {}).get("stale", False)),
             },
             "boards": boards_out,
-            "node_stems": [str(s) for s in full.get("node_stems") or [] if 0 < len(str(s)) <= _ID_MAX],
+            "node_stems": [str(s) for s in full.get("node_stems") or [] if _id_ok(s)],
             "orphans": orphans_out,
             "exam_history": exam_out,
             "parse_errors": parse_errors_out,

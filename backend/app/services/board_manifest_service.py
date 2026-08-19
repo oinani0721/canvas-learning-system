@@ -625,7 +625,11 @@ def scan_vault(
             "relation": _node_relation(fm),
             "mastery": mastery,
             "attempt_count": (int(v) if (v := _num(fm.get("attempt_count"))) is not None else None),
-            "last_examined": _iso(last_exam_raw),
+            # P1-05d (Codex 四轮 V4, B3 新回归止血): 解析失败的 last_examined
+            # 此前保留原串 → SnapshotV3 的 ISO validator 拒绝 → 单个脏
+            # frontmatter 让整个降级快照写不出。置 None 与上方"按从未考"
+            # 语义一致 (错误已在 parse_errors 带 error_code 上报)。
+            "last_examined": (_iso(last_exam_raw) if last_exam_dt is not None else None),
             "pick_hint": hint,
             "past_question_digests": [],
             # study-only 字段 (exam 视图投影时结构性丢弃); 标量全部 _bounded_str
@@ -953,7 +957,14 @@ def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bo
                 # 请求打成 500。非 dict 一律按损坏快照走重写。
                 if isinstance(prev, dict):
                     prev_version = prev.get("snapshot_schema_version")
-                    same_generation = prev.get("freshness", {}).get("generation") == full["freshness"]["generation"]
+                    # P1-05d (Codex 四轮 V3): freshness 非 dict (如 []) 时旧写法
+                    # `.get("freshness", {}).get()` 抛 AttributeError 被外层兜底
+                    # 吞成"写失败" → 坏快照永不自愈。非 dict 一律判 generation
+                    # 不同 → 走强制重写路径。
+                    prev_fresh = prev.get("freshness")
+                    same_generation = (
+                        isinstance(prev_fresh, dict) and prev_fresh.get("generation") == full["freshness"]["generation"]
+                    )
                     # P1-05c (F-04): 写侧"够新就跳过"与读侧"不合规就拒载"的判据
                     # 必须对称 — 同 generation 的伪造 v3(垃圾键)/v999 曾落入死区:
                     # 写侧永不重写、读侧永远 None、伪造内容永留磁盘。跳过条件
