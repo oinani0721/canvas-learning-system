@@ -66,10 +66,10 @@ IMMUTABLE_VAULT_SKIP_DIRS: frozenset[str] = frozenset(
         ".trash",  # 已删除内容。用户删掉的东西重新进检索面是明确的违反预期;
         #            且 A-4 的样稿正是被移进这里的 (rm 被 guard-hook 阻断)
         ".quarantine",  # MCP 隔离区 (P0-2), 定义上就是"不该被消费"的内容
-        ".claude",  # ⛔ 含 hooks (可执行) / settings (可能含 key) /
-        #             **cache/board-manifest/ 快照本身** —— 若被撤销, E-2 脱敏过的
-        #             快照文件会作为普通 md 之外的内容被扫到, 且 hooks 脚本进检索
-        #             面毫无意义。这一项与 E-2 的防护是同一条链的两端。
+        ".claude",  # ⛔ 含 hooks (可执行) / settings (可能含 key) / Skill 正文
+        #             (SKILL.md 是 .md, 会被 Markdown 扫描器实际扫到)。
+        #             勘误 (P1-05b 2026-08-19): 首版理由写"快照 JSON 会被索引"是错的 ——
+        #             扫描器只收 .md, JSON 本就不在扫描面; 真实风险是上述三类内容。
     }
 )
 
