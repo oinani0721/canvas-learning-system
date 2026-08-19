@@ -254,3 +254,119 @@ def test_degraded_both_views_project_without_validation_error(vault):
     assert s["calibration_count"] == 0
     # parse_errors 在降级态由 error_code 合成定长文案 (必填字段不缺)
     assert all(e["error"] for e in exam["parse_errors"])
+
+
+# ══ P1-05c B3 (Codex 三轮 F-04/F-05/F-06) ══
+
+
+def test_same_generation_forged_snapshot_self_heals(vault):
+    """F-04: 同 generation 的伪造 v3(垃圾键)/v999 曾落入死区 — 写侧"够新就跳过"
+    与读侧"不合规就拒载"判据不对称: 写侧永不重写、读侧永远 None、伪造留盘。
+    修复后: 跳过判据 = 版本严格==3 且整份过 SnapshotV3 校验 → live 正常时自愈。"""
+    _poison_vault(vault)
+    svc.serve_manifest(vault, board_id="板", now=NOW)
+    good = json.loads(svc.snapshot_file(vault).read_text(encoding="utf-8"))
+
+    for tamper_name, tampered in [
+        ("v3+junk", {**good, "CANARY_GARBAGE_KEY": "forged"}),
+        ("v999", {**good, "snapshot_schema_version": 999}),
+    ]:
+        _put_snapshot(vault, tampered)
+        result = svc.serve_manifest(vault, board_id="板", now=NOW)  # live ok, 同 generation
+        assert result["source_status"] == "ok"
+        on_disk = json.loads(svc.snapshot_file(vault).read_text(encoding="utf-8"))
+        assert "CANARY_GARBAGE_KEY" not in on_disk, f"{tamper_name}: 伪造键未被自愈重写"
+        assert on_disk["snapshot_schema_version"] == 3, f"{tamper_name}: 版本未被自愈"
+        assert svc.load_snapshot(vault) is not None, f"{tamper_name}: 自愈后快照应可加载"
+
+
+@pytest.mark.parametrize("root", [[], None, "v3"], ids=["list", "null", "str"])
+def test_non_dict_root_snapshot_never_breaks_live_write_path(vault, root):
+    """F-05: 根为 []/null 的旧快照曾让 **live 成功路径** 上的
+    write_snapshot_if_changed 抛 AttributeError (prev.get on list) 穿透成 500。
+    既有用例只测了先降级的 load 路径, 没盖住这条 — 本测试 live 目录完好。"""
+    _poison_vault(vault)
+    _put_snapshot(vault, root)
+
+    result = svc.serve_manifest(vault, board_id="板", now=NOW)  # 不得抛
+
+    assert result["source"] == "live" and result["source_status"] == "ok"
+    on_disk = json.loads(svc.snapshot_file(vault).read_text(encoding="utf-8"))
+    assert on_disk["snapshot_schema_version"] == 3, "坏根快照应被合法 v3 覆盖"
+
+
+def test_strict_contract_rejects_lax_and_malformed(vault):
+    """F-06: extra=forbid ≠ 严格契约 — 五类实锤反例全部必须 cache miss。"""
+    data = _valid_v3_on_disk(vault)
+    board = data["boards"]["板"]
+    member = board["members"][0]
+
+    def _clone():
+        return json.loads(json.dumps(data, ensure_ascii=False))
+
+    cases = {}
+    c = _clone()
+    c["boards"] = {"outer": {**c["boards"]["板"], "board_id": "inner"}}
+    cases["board-key-mismatch"] = c
+
+    c = _clone()
+    c["boards"]["板"]["members"][0]["pick_eligible"] = "yes"  # lax 强转
+    cases["lax-bool"] = c
+
+    c = _clone()
+    c["boards"]["板"]["members"][0]["attempt_count"] = "2"  # lax int
+    cases["lax-int"] = c
+
+    c = _clone()
+    c["node_stems"] = ["x" * 10_000]
+    cases["unbounded-stem"] = c
+
+    c = _clone()
+    c["freshness"]["generated_at"] = "not-a-time"
+    cases["bad-time"] = c
+
+    c = _clone()
+    c["boards"]["板"]["members"][0]["node_id"] = "../CANARY\n"
+    cases["traversal-node-id"] = c
+
+    c = _clone()
+    c["boards"]["板"]["concepts_listed"] = ["y" * 201]
+    cases["overlong-concept"] = c
+
+    for name, payload in cases.items():
+        _put_snapshot(vault, payload)
+        assert svc.load_snapshot(vault) is None, f"{name}: 错型快照未被拒 (F-06 回归)"
+    # 引用消除 linter 噪音
+    assert member["node_id"]
+
+
+def test_write_side_filters_overlong_ids_instead_of_truncating(vault):
+    """F-06: 201 字 concept 曾被静默截断成 200 字 — dual_source_gap 拿截断值
+    比对把真实存在的 node 误判 exists=false。修复后写侧**过滤**超长项。"""
+    from app.models.snapshot_v3 import project_full_state
+
+    _poison_vault(vault)
+    full = svc.scan_vault(vault, now=NOW)
+    long_concept = "长" * 201
+    full["boards"]["板"]["concepts_listed"] = ["M真薄弱", long_concept]
+    full["node_stems"] = [*full["node_stems"], "s" * 500]
+
+    snap = project_full_state(full).model_dump()
+
+    assert long_concept not in snap["boards"]["板"]["concepts_listed"]
+    assert long_concept[:200] not in snap["boards"]["板"]["concepts_listed"], "不得截断落盘"
+    assert "M真薄弱" in snap["boards"]["板"]["concepts_listed"]
+    assert all(len(s) <= 200 for s in snap["node_stems"])
+
+
+def test_empty_pick_hint_dict_not_treated_as_eligible():
+    """F-06(5): 旧态 full state 的 pick_hint={} 曾被 `is not None` 推导为
+    eligible=True — 空 dict 不是有效 hint (生产不可达, 防御收紧)。"""
+    from app.models.snapshot_v3 import _member_from_full
+
+    m = {
+        "node_id": "n1",
+        "mastery": {"source": "absent", "score": None, "a": None, "b": None},
+        "pick_hint": {},
+    }
+    assert _member_from_full(m)["pick_eligible"] is False

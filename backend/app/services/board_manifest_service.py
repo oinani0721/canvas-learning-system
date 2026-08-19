@@ -948,19 +948,30 @@ def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bo
         if path.exists():
             try:
                 prev = json.loads(path.read_text(encoding="utf-8"))
-                prev_version = prev.get("snapshot_schema_version", 1)
-                same_generation = prev.get("freshness", {}).get("generation") == full["freshness"]["generation"]
-                # 两个条件都满足才跳过: 内容未变 **且** 已是当前版本。
-                # P1-05b: 版本必须是**严格 int** — "3"/3.0 等错型一律视为旧版重写
-                if same_generation and type(prev_version) is int and prev_version >= SNAPSHOT_SCHEMA_VERSION:
-                    return False
-                if same_generation:
-                    logger.info(
-                        "[manifest] 快照 schema %r < v%s 且 generation 未变 — 仍强制重写以完成格式迁移: %s",
-                        prev_version,
-                        SNAPSHOT_SCHEMA_VERSION,
-                        path,
-                    )
+                # P1-05c (Codex 三轮 F-05): 根不是 dict (list/null/str) 时
+                # prev.get 会 AttributeError — 不在任何 except 集合, 曾把 live
+                # 请求打成 500。非 dict 一律按损坏快照走重写。
+                if isinstance(prev, dict):
+                    prev_version = prev.get("snapshot_schema_version")
+                    same_generation = prev.get("freshness", {}).get("generation") == full["freshness"]["generation"]
+                    # P1-05c (F-04): 写侧"够新就跳过"与读侧"不合规就拒载"的判据
+                    # 必须对称 — 同 generation 的伪造 v3(垃圾键)/v999 曾落入死区:
+                    # 写侧永不重写、读侧永远 None、伪造内容永留磁盘。跳过条件
+                    # 收紧为: 版本严格 == 当前 **且** 整份通过 SnapshotV3 校验
+                    # (与 load_snapshot 同一 validator)。
+                    if (
+                        same_generation
+                        and type(prev_version) is int
+                        and prev_version == SNAPSHOT_SCHEMA_VERSION
+                        and _snapshot_passes_v3_validation(prev)
+                    ):
+                        return False
+                    if same_generation:
+                        logger.info(
+                            "[manifest] 快照版本 %r 或内容未过 v3 校验 (generation 未变) — 强制重写自愈: %s",
+                            prev_version,
+                            path,
+                        )
             except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 pass  # 损坏快照 → 直接重写覆盖
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -987,10 +998,24 @@ def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bo
             except OSError:
                 pass  # 清除失败不影响主流程 (旧文件已无读方)
         return True
-    except (OSError, TypeError, ValueError) as e:
+    except (OSError, TypeError, ValueError, AttributeError) as e:
         # TypeError/ValueError: 序列化炸 + pydantic ValidationError (其 ValueError
-        # 子类) — 快照失败绝不拖垮 live 服务
+        # 子类); AttributeError: F-05 纵深兜底 (isinstance 防御之外的任何错型
+        # 旧快照) — 快照失败绝不拖垮 live 服务
         logger.warning("[manifest] 快照写入失败 (不影响 live 服务): %s", e)
+        return False
+
+
+def _snapshot_passes_v3_validation(data: dict[str, Any]) -> bool:
+    """写侧跳过判据与读侧共用同一 validator (F-04 对称性要求)。"""
+    from pydantic import ValidationError
+
+    from app.models.snapshot_v3 import SnapshotV3
+
+    try:
+        SnapshotV3.model_validate(data)
+        return True
+    except ValidationError:
         return False
 
 
