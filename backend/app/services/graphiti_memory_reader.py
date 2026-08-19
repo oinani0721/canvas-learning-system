@@ -47,21 +47,20 @@ async def _node_uuid_and_active_edges(
     except Exception as e:  # noqa: BLE001 — 读失败降级为空, 不炸 ACP 组装
         logger.debug(f"[Graphiti-reader] get_by_node_uuid failed for {node_id}: {e}")
         edges = []
-    active = [e for e in edges if e.invalid_at is None]
+    # P1-05c (Codex 三轮 F-03): get_by_node_uuid (graphiti_core) 按端点 UUID
+    # 取边**不查边的 group_id** — 隔离组 (quarantine__*) 的边会被原主组的精确
+    # 读取回 (实测 read_node_tips 读回隔离边)。显式校验边组与请求组一致。
+    active = [e for e in edges if e.invalid_at is None and e.group_id == gid]
     return uuid, active
 
 
-async def read_node_tips(
-    driver: Any, node_id: str, group_id: Optional[str] = None
-) -> list[str]:
+async def read_node_tips(driver: Any, node_id: str, group_id: Optional[str] = None) -> list[str]:
     """累积批注 (source=callout) 的 fact 列表。"""
     _uuid, edges = await _node_uuid_and_active_edges(driver, node_id, group_id)
     return [e.fact for e in edges if (e.attributes or {}).get("source") == "callout"]
 
 
-async def read_node_errors(
-    driver: Any, node_id: str, group_id: Optional[str] = None
-) -> list[dict[str, str]]:
+async def read_node_errors(driver: Any, node_id: str, group_id: Optional[str] = None) -> list[dict[str, str]]:
     """错误史 (source=error), 形状对齐旧 _get_error_history。"""
     _uuid, edges = await _node_uuid_and_active_edges(driver, node_id, group_id)
     return [
@@ -74,9 +73,7 @@ async def read_node_errors(
     ]
 
 
-async def read_node_edge_reasons(
-    driver: Any, node_id: str, group_id: Optional[str] = None
-) -> list[str]:
+async def read_node_edge_reasons(driver: Any, node_id: str, group_id: Optional[str] = None) -> list[str]:
     """节点增殖原因 (source=relation), D9 方向过滤: 只取本节点的出边。
 
     ⚠️ 实测修正 (真实 Neo4j): get_by_node_uuid 的 undirected 查询
@@ -87,14 +84,11 @@ async def read_node_edge_reasons(
     return [
         e.fact
         for e in edges
-        if (e.attributes or {}).get("source") == "relation"
-        and (e.attributes or {}).get("node_id") == node_id
+        if (e.attributes or {}).get("source") == "relation" and (e.attributes or {}).get("node_id") == node_id
     ]
 
 
-async def read_node_conversation_summary(
-    driver: Any, node_id: str, group_id: Optional[str] = None
-) -> str:
+async def read_node_conversation_summary(driver: Any, node_id: str, group_id: Optional[str] = None) -> str:
     """最新对话摘要 (source=conversation), 对齐旧 ORDER BY created_at DESC LIMIT 1。"""
     _uuid, edges = await _node_uuid_and_active_edges(driver, node_id, group_id)
     convs = [e for e in edges if (e.attributes or {}).get("source") == "conversation"]

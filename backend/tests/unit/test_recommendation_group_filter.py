@@ -129,7 +129,10 @@ class TestRecommendationCypherGroupFilter:
         client = await _run_full_pipeline(explicit_group=LOGICAL_GID_A)
         query = _norm(client.calls[1]["query"])
         assert "MATCH (n:CanvasNode {canvasId: $canvas_id, group_id: $group_id})" in query
-        assert "NOT (n)-[:CANVAS_EDGE]-()" in query
+        # P1-05c (F-02): 模式谓词升级为 EXISTS 子查询 — "已连接"只认 live 边
+        # (墓碑边不算连接, 否则孤立节点被幽灵边挡出推荐面)
+        assert "NOT EXISTS" in query
+        assert "e.invalidated_at IS NULL" in query
 
     async def test_graph_pattern_both_anchors_and_shared_carry_group(self) -> None:
         """2-hop 查询: 两个锚点 a/b + 中间节点 shared 三处都必须限定 group."""

@@ -964,11 +964,14 @@ class QuestionGenerator:
             # 否则跨 vault 同 canvasId/node_id 的图结构会泄入 kg_relevance
             # 打分面。绑定值是物理 vault__ 格式 (见 _physical_vault_scope)。
             vault_group, vault_prefix = _physical_vault_scope()
+            # P1-05c (Codex 三轮 F-02): 墓碑边 (invalidated_at, 幽灵边对账写)
+            # 不得再进 kg_relevance 打分 — 否则已失效的连接持续抬分
             query = """
             MATCH (n:CanvasNode {id: $node_id, canvasId: $canvas_id})-[r:CANVAS_EDGE|RELATES_TO]-(neighbor:CanvasNode)
             WHERE (n.group_id = $vault_group OR n.group_id STARTS WITH $vault_prefix)
               AND neighbor.canvasId = $canvas_id
               AND (neighbor.group_id = $vault_group OR neighbor.group_id STARTS WITH $vault_prefix)
+              AND (type(r) <> 'CANVAS_EDGE' OR r.invalidated_at IS NULL)
             WITH neighbor, MAX(
                 CASE type(r)
                     WHEN 'CANVAS_EDGE' THEN 1.0

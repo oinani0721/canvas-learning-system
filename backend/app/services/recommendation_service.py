@@ -196,10 +196,18 @@ class RecommendationService:
         return 0
 
     async def _get_unconnected_nodes(self, canvas_id: str, group_id: str) -> List[Dict]:
-        """Get nodes with no CANVAS_EDGE connections (vault-scoped)."""
+        """Get nodes with no *live* CANVAS_EDGE connections (vault-scoped).
+
+        P1-05c (Codex 三轮 F-02): 墓碑边 (invalidated_at) 不算连接 — 否则孤立
+        节点因幽灵边被误判"已连接"而漏出推荐面。模式谓词无法带属性过滤,
+        改 EXISTS 子查询。
+        """
         query = """
         MATCH (n:CanvasNode {canvasId: $canvas_id, group_id: $group_id})
-        WHERE NOT (n)-[:CANVAS_EDGE]-() AND NOT (n)<-[:CANVAS_EDGE]-()
+        WHERE NOT EXISTS {
+            MATCH (n)-[e:CANVAS_EDGE]-()
+            WHERE e.invalidated_at IS NULL
+        }
         RETURN n.id AS id, n.title AS title, n.content AS content
         """
         return await self.neo4j_client.run_query(query, canvas_id=canvas_id, group_id=group_id)
@@ -217,12 +225,19 @@ class RecommendationService:
         # shared.group_id filter: the intermediate node must live in the same
         # vault too — otherwise a cross-vault edge (data corruption) would let
         # another vault's node act as evidence for a recommendation.
+        # P1-05c (Codex 三轮 F-02): 变长路径的每一段都必须是 live 边 — 墓碑边
+        # 不得充当共邻证据; "已有连接"的排除同样只认 live 边。
         query = """
-        MATCH (a:CanvasNode {canvasId: $canvas_id, group_id: $group_id})-[:CANVAS_EDGE*1..2]-(shared)-[:CANVAS_EDGE*1..2]-(b:CanvasNode {canvasId: $canvas_id, group_id: $group_id})
+        MATCH (a:CanvasNode {canvasId: $canvas_id, group_id: $group_id})-[es1:CANVAS_EDGE*1..2]-(shared)-[es2:CANVAS_EDGE*1..2]-(b:CanvasNode {canvasId: $canvas_id, group_id: $group_id})
         WHERE a.id IN $ids AND b.id IN $ids
           AND a.id < b.id
           AND shared.group_id = $group_id
-          AND NOT (a)-[:CANVAS_EDGE]-(b)
+          AND all(e IN es1 WHERE e.invalidated_at IS NULL)
+          AND all(e IN es2 WHERE e.invalidated_at IS NULL)
+          AND NOT EXISTS {
+              MATCH (a)-[live:CANVAS_EDGE]-(b)
+              WHERE live.invalidated_at IS NULL
+          }
         RETURN a.id AS source_id, b.id AS target_id, count(shared) AS shared_neighbors
         ORDER BY shared_neighbors DESC
         """
@@ -271,9 +286,11 @@ class RecommendationService:
         """Get all existing edge labels for label suggestion (vault-scoped)."""
         # Both endpoints carry group_id — an edge reaching into another vault
         # must never contribute label suggestions.
+        # P1-05c (F-02): 墓碑边的 label 不再进建议池。
         query = """
         MATCH (:CanvasNode {canvasId: $canvas_id, group_id: $group_id})-[e:CANVAS_EDGE]-(:CanvasNode {group_id: $group_id})
         WHERE e.label IS NOT NULL AND e.label <> ''
+          AND e.invalidated_at IS NULL
         RETURN e.label AS label, count(*) AS cnt
         ORDER BY cnt DESC
         LIMIT 5

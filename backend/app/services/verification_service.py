@@ -2141,6 +2141,7 @@ class VerificationService:
                 WITH n LIMIT 1
                 MATCH (n)-[r:CANVAS_EDGE]-(m:CanvasNode)
                 WHERE (m.group_id = $groupVault OR m.group_id STARTS WITH $groupVaultPrefix)
+                      AND r.invalidated_at IS NULL
                       AND m.title IS NOT NULL AND m.title <> ''
                 RETURN m.title AS related_concept,
                        r.label AS relationship,

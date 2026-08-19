@@ -52,14 +52,12 @@ async def run(args: argparse.Namespace) -> int:
         return 2
     target_gid = sanitize_group_id_for_graphiti(build_vault_group_id(get_current_vault_id()))
 
-    # 磁盘划分 (与 census / backfill 同一判定函数)
-    skip_dirs = set(settings.effective_vault_skip_dirs())
-    skip_dirs.add("templates")
+    # 磁盘划分 (与 census / backfill 同一判定函数; P1-05c 已委托 check_vault_path)
     forbidden: set[str] = set()
     legal: set[str] = set()
     for md in vault.rglob("*.md"):
         try:
-            (forbidden if is_blacklisted_for_backfill(md, vault, skip_dirs) else legal).add(md.stem)
+            (forbidden if is_blacklisted_for_backfill(md, vault) else legal).add(md.stem)
         except ValueError:
             continue
     collisions = sorted(forbidden & legal)
@@ -94,12 +92,14 @@ async def run(args: argparse.Namespace) -> int:
         for rec in preview:
             print(f"  待隔离: source={rec['source']}  total={rec['c']}  active={rec['active']}")
         print(f"  合计 {total} 条")
-        if total == 0:
-            print("  (无待隔离边 — 幂等重跑或已清)")
-            return 0
         if not args.apply:
+            if total == 0:
+                print("  (无待隔离边)")
             print("\nDRY-RUN 结束 — 加 --apply 执行。")
             return 0
+        if total == 0:
+            # P1-05c: 幂等重跑不提前退出 — 边已隔离时仍要跑节点隔离与四门验收
+            print("  (无待隔离边 — 幂等重跑, 继续节点隔离与验收门)")
 
         moved, _, _ = await driver.execute_query(
             """
@@ -117,6 +117,42 @@ async def run(args: argparse.Namespace) -> int:
             why=QUARANTINE_REASON,
         )
         print(f"\n✅ 已隔离 {moved[0]['c']} 条边 → {QUARANTINE_GROUP}")
+
+        # ── 节点隔离 (P1-05c, Codex 三轮 F-03 证据二): 禁区 stem 命名的主组
+        # Entity 节点仍进 combined node lane (name/summary/name_embedding 非空)。
+        # 只迁**无主组活边**的节点 — 有活边的迁走会造边端点跨组悬挂, 点名报告
+        # 留人工裁定。
+        n_moved, _, _ = await driver.execute_query(
+            """
+            MATCH (n:Entity)
+            WHERE n.group_id = $gid AND n.node_id IN $stems
+              AND NOT EXISTS {
+                  MATCH (n)-[r:RELATES_TO]-()
+                  WHERE r.group_id = $gid AND r.invalid_at IS NULL
+              }
+            SET n.group_id = $q_gid,
+                n.quarantined_reason = $why,
+                n.quarantined_at = datetime()
+            RETURN count(n) AS c
+            """,
+            gid=target_gid,
+            stems=safe_forbidden,
+            q_gid=QUARANTINE_GROUP,
+            why=QUARANTINE_REASON,
+        )
+        n_stuck, _, _ = await driver.execute_query(
+            """
+            MATCH (n:Entity)
+            WHERE n.group_id = $gid AND n.node_id IN $stems
+            RETURN count(n) AS c
+            """,
+            gid=target_gid,
+            stems=safe_forbidden,
+            routing_="r",
+        )
+        print(
+            f"✅ 已隔离 {n_moved[0]['c']} 个禁区 Entity 节点; 仍滞留主组 {n_stuck[0]['c']} 个 (有主组活边, 需人工裁定)"
+        )
 
         # ── 验收三门 ─────────────────────────────────────────────────────
         # 门 1: 源组内禁区 stem 命中归零
@@ -149,8 +185,48 @@ async def run(args: argparse.Namespace) -> int:
         search_groups = {target_gid, target_gid + "__semantic", *subgroups}
         print(f"门3 检索组集合含隔离组: {QUARANTINE_GROUP in search_groups} (必须 False)")
 
-        ok = g1[0]["c"] == 0 and not leak and QUARANTINE_GROUP not in search_groups
-        print("\n" + ("✅ 三门全过" if ok else "⛔ 验收未过 — 检查上方输出"))
+        # 门 4 (P1-05c, 真实读路径冒烟 — 替代此前被 Codex 三轮判"伪门"的纯
+        # set 检查): 用**生产精确 reader** 以主组身份实测隔离内容不可读回。
+        # 修复前实锤: get_by_node_uuid 不查边 group, read_node_tips 读回隔离边。
+        q_nodes, _, _ = await driver.execute_query(
+            "MATCH ()-[r:RELATES_TO]->() WHERE r.group_id = $q RETURN DISTINCT r.node_id AS nid",
+            q=QUARANTINE_GROUP,
+            routing_="r",
+        )
+        recalled = -1
+        try:
+            from graphiti_core.driver.neo4j_driver import Neo4jDriver
+
+            from app.config import get_current_vault_id as _gvid
+            from app.core.subject_config import build_vault_group_id as _bgid
+            from app.services.graphiti_memory_reader import (
+                read_node_edge_reasons,
+                read_node_errors,
+                read_node_tips,
+            )
+
+            logical_gid = _bgid(_gvid())
+            gdriver = Neo4jDriver(uri=settings.NEO4J_URI, user=settings.NEO4J_USER, password=settings.NEO4J_PASSWORD)
+            try:
+                recalled = 0
+                for rec in q_nodes:
+                    nid = str(rec["nid"] or "")
+                    if not nid:
+                        continue
+                    recalled += len(await read_node_tips(gdriver, nid, group_id=logical_gid))
+                    recalled += len(await read_node_errors(gdriver, nid, group_id=logical_gid))
+                    recalled += len(await read_node_edge_reasons(gdriver, nid, group_id=logical_gid))
+            finally:
+                await gdriver.close()
+            print(
+                f"门4 精确读冒烟: 隔离 node_id ×{len(q_nodes)} 经 "
+                f"read_node_tips/errors/edge_reasons(主组身份) 召回 {recalled} 条 (必须 0)"
+            )
+        except Exception as e:  # noqa: BLE001 — 冒烟失败按未过处理, 不静默
+            print(f"门4 冒烟执行失败 (按未过处理): {e}")
+
+        ok = g1[0]["c"] == 0 and not leak and QUARANTINE_GROUP not in search_groups and recalled == 0
+        print("\n" + ("✅ 四门全过" if ok else "⛔ 验收未过 — 检查上方输出"))
         return 0 if ok else 1
     finally:
         await driver.close()
