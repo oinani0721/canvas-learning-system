@@ -127,3 +127,71 @@ async def test_reader_still_filters_invalid_at(monkeypatch):
     tips = await reader.read_node_tips(None, "n1", group_id="vault:canvas_vault")
 
     assert tips == ["活边"]
+
+
+# ── P1-05d C3 (Codex 四轮 V6/V7): 组闭环 ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_conversation_summary_caller_passes_vault_group(monkeypatch):
+    """V6: 全仓唯一生产 caller 曾不传组 → 回落 vault:default 与写侧
+    (active-vault 组) uuid5 错位, 真实链路恒空。锁: caller 必须显式传当前 vault 组。"""
+    from app.services.question_generator import QuestionGenerator
+
+    captured: dict = {}
+
+    async def fake_reader(driver, node_id, group_id=None):
+        captured["group_id"] = group_id
+        return "摘要"
+
+    import app.services.graphiti_memory_reader as reader_mod
+
+    monkeypatch.setattr(reader_mod, "read_node_conversation_summary", fake_reader)
+    monkeypatch.setattr("app.config.get_current_vault_id", lambda: "canvas_vault")
+
+    qg = QuestionGenerator.__new__(QuestionGenerator)
+    monkeypatch.setattr(qg, "_graphiti_driver", lambda: object(), raising=False)
+
+    result = await qg._get_conversation_summary("n1")
+
+    assert result == "摘要"
+    assert captured["group_id"] is not None, "caller 仍不传组 (V6 回归) — 会回落 vault:default"
+    assert "canvas_vault" in str(captured["group_id"])
+
+
+@pytest.mark.asyncio
+async def test_ensure_entity_node_rejects_quarantined_identity(monkeypatch):
+    """V7: 隔离只改节点 group_id 不重键 uuid, ensure_entity_node 命中后曾不核对
+    当前组 → 原组写入复用已隔离节点重建跨组拓扑。锁: quarantine__* 组拒绝复用。"""
+    from types import SimpleNamespace
+
+    from app.graphiti.identity_registry import IdentityRegistry
+
+    async def fake_get_by_uuid(driver, uuid):
+        return SimpleNamespace(uuid=uuid, group_id="quarantine__p105b")
+
+    from graphiti_core.nodes import EntityNode
+
+    monkeypatch.setattr(EntityNode, "get_by_uuid", staticmethod(fake_get_by_uuid))
+
+    with pytest.raises(ValueError, match="隔离"):
+        await IdentityRegistry.ensure_entity_node(None, "污染节点", "vault__canvas_vault")
+
+
+@pytest.mark.asyncio
+async def test_ensure_entity_node_same_group_still_reuses(monkeypatch):
+    """正向对照: 同组命中照常复用 uuid (防御不能焊死正门)。"""
+    from types import SimpleNamespace
+
+    from app.graphiti.identity_registry import IdentityRegistry, entity_uuid_for_node
+
+    async def fake_get_by_uuid(driver, uuid):
+        return SimpleNamespace(uuid=uuid, group_id="vault__canvas_vault")
+
+    from graphiti_core.nodes import EntityNode
+
+    monkeypatch.setattr(EntityNode, "get_by_uuid", staticmethod(fake_get_by_uuid))
+
+    uuid = await IdentityRegistry.ensure_entity_node(None, "正常节点", "vault__canvas_vault")
+
+    assert uuid == entity_uuid_for_node("正常节点", "vault__canvas_vault")

@@ -20,11 +20,14 @@ add_episode LLM 抽取的实体名。不统一身份, 任何"按 node_id 精确�
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 from uuid import NAMESPACE_DNS, uuid5
 
 from graphiti_core.errors import NodeNotFoundError
 from graphiti_core.nodes import EntityNode
+
+logger = logging.getLogger(__name__)
 
 
 def entity_uuid_for_node(node_id: str, sanitized_group_id: str) -> str:
@@ -54,7 +57,23 @@ class IdentityRegistry:
         """
         uuid = entity_uuid_for_node(node_id, sanitized_group_id)
         try:
-            await EntityNode.get_by_uuid(driver, uuid)
+            node = await EntityNode.get_by_uuid(driver, uuid)
+            # P1-05d (Codex 四轮 V7): 隔离迁移只改节点 group_id 不重键 uuid —
+            # get_by_uuid 无 group 过滤, 命中后必须核对当前组。已隔离
+            # (quarantine__*) 节点拒绝复用身份, 否则原组后续写入会把隔离节点
+            # 重新挂回主组拓扑 (跨组回流)。非隔离的组漂移只告警 (历史格式杂音)。
+            current_gid = getattr(node, "group_id", None)
+            if current_gid and current_gid != sanitized_group_id:
+                if str(current_gid).startswith("quarantine__"):
+                    raise ValueError(
+                        f"节点 {node_id!r} 身份已隔离 (组 {current_gid}), 拒绝复用 — 写侧单条失败不阻断批量"
+                    )
+                logger.warning(
+                    "[IdentityRegistry] 节点 %r 现组 %r 与请求组 %r 不一致 (复用但告警)",
+                    node_id,
+                    current_gid,
+                    sanitized_group_id,
+                )
             return uuid
         except NodeNotFoundError:
             node = EntityNode(

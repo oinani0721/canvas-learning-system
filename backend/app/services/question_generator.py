@@ -1069,9 +1069,16 @@ class QuestionGenerator:
         driver = self._graphiti_driver()
         if driver is None:
             return ""
+        from app.config import get_current_vault_id
+        from app.core.subject_config import build_vault_group_id
         from app.services.graphiti_memory_reader import read_node_conversation_summary
 
-        return await read_node_conversation_summary(driver, node_id)
+        # P1-05d (Codex 四轮 V6): 必须显式传当前 vault 组 — 缺省回落
+        # DEFAULT_GROUP_ID(vault:default), 与写侧 (conversation_tools 用
+        # active-vault 组) uuid5 错位 → 全仓唯一生产 caller 恒读空。
+        return await read_node_conversation_summary(
+            driver, node_id, group_id=build_vault_group_id(get_current_vault_id())
+        )
 
     def _enforce_token_budget(self, acp: ACPData) -> None:
         """Enforce 3K token budget on ACP data.
