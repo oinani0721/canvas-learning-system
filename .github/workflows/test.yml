@@ -123,6 +123,10 @@ jobs:
             tests/regression/test_snapshot_schema_migration_contract.py \
             tests/regression/test_immutable_skip_dirs_contract.py \
             tests/regression/test_vault_skip_files_scope_contract.py \
+            tests/regression/test_snapshot_v3_contract.py \
+            tests/regression/test_all_index_entrypoints_hostile_env.py \
+            tests/regression/test_tombstone_read_side_contract.py \
+            tests/unit/test_vault_admission.py \
             -m "not integration" \
             -v --tb=short \
             --junitxml=reports/test-results.xml \

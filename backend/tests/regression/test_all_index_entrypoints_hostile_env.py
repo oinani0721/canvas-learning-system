@@ -31,8 +31,17 @@ Codex 实测的 hostile env 结果（修复前）：
 P1-05b（2026-08-19）：5-8 是 Codex 二轮复核点名的四条漏网活链，全部收口到
 app.core.vault_admission.check_vault_path（唯一准入函数）。
 
-⛔ 不使用 mock：真实临时 vault 目录树 + 真实 monkeypatch.setenv + 真实
-   pydantic Settings 解析 + 真实 backfill dry-run（execute=False）。
+测试手段申报（P1-05c 诚实化 — Codex 三轮 T-01 判旧文案"不使用 mock"失实）：
+  - 真实面：临时 vault 目录树 / pydantic Settings 解析 / backfill · projection ·
+    relationship · error_rebuild 四链的**生产函数**真实 dry-run / settings 单例
+    monkeypatch（setenv + setattr 双姿势）。
+  - 替身面（如实声明）：LanceDB 两项调用生产**判定函数**组合（`_fnmatch_canon`
+    + `_with_immutable_skip_dirs`），非端到端 `index_vault_notes`（需真实
+    LanceDB 实例，归 CI 集成层）；orchestrator 用 `__new__` 注入 `_skip_dirs`
+    绕过 LanceDB 连接；by-node 用 `_CaptureEdgeClient` 捕获替身验证零写入。
+  - stash 回退对照的已知局限：canvas_projection_sync 整文件回退时红灯来自旧
+    签名 TypeError（弱检测）；"保留 execute 但删准入"类部分回归由行为断言
+    （edges_synced/files_skipped_admission 计数）把守。
 """
 
 from __future__ import annotations
@@ -114,7 +123,14 @@ def _skip_dirs_under_hostile_env() -> list[str]:
 
 
 def _blocked_by_dir_rule(rel_path: str, skip_dirs: list[str]) -> bool:
-    return any(fnmatch.fnmatch(part, pat) for part in rel_path.split("/")[:-1] for pat in skip_dirs)
+    """LanceDB 目录规则判定 — P1-05c: 改调**生产匹配原语** _fnmatch_canon。
+
+    旧版是测试内复制的裸 fnmatch 循环 (Codex 三轮 T-01: "复制生产规则" —
+    B1 归一化后复制版与生产版已语义分叉, 复制即失锁)。
+    """
+    from agentic_rag.clients.lancedb_client import _fnmatch_canon
+
+    return any(_fnmatch_canon(part, pat) for part in rel_path.split("/")[:-1] for pat in skip_dirs)
 
 
 # ── 入口 1 + 2：LanceDB 全量 / 单文件（共用 skip_dirs） ────────────────────
