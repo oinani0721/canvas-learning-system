@@ -430,6 +430,10 @@ IMMUTABLE_VAULT_SKIP_DIRS = (
     "_archive",  # A-9 下划线前缀归档
     ".git",
     ".obsidian",
+    # ── P1-05 复核补入 (Codex 2026-08-19) ──
+    ".trash",  # 已删除内容不得重回检索面
+    ".quarantine",  # MCP 隔离区, 定义上就是"不该被消费"的内容
+    ".claude",  # 含 hooks/settings/**cache/board-manifest 快照本身**
 )
 
 

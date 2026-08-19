@@ -52,6 +52,8 @@ _PROJECT_ROOT = os.path.dirname(_BACKEND_DIR)  # Canvas/
 #:
 #: 契约: env 只能**追加**黑名单, 不能移除本集合中的项。
 #: 所有消费点必须走 Settings.effective_vault_skip_dirs(), 不要直接 split。
+#: ⚠️ P1-05 复核补全 (Codex 2026-08-19): 首版只有 6 项, 漏掉的三项都有实质风险,
+#: hostile env 实测 `.trash/deleted.md` 与 `.quarantine/held.md` 均为 allowed。
 IMMUTABLE_VAULT_SKIP_DIRS: frozenset[str] = frozenset(
     {
         "检验白板",  # 信息隔离铁律 — 双层防御的第一层
@@ -60,6 +62,14 @@ IMMUTABLE_VAULT_SKIP_DIRS: frozenset[str] = frozenset(
         "_archive",  # A-9 下划线前缀归档 — 单层
         ".git",  # 仓库内部, 任何情况都不该进检索
         ".obsidian",  # Obsidian 配置与插件数据
+        # ── 以下三项为 P1-05 复核补入 ──
+        ".trash",  # 已删除内容。用户删掉的东西重新进检索面是明确的违反预期;
+        #            且 A-4 的样稿正是被移进这里的 (rm 被 guard-hook 阻断)
+        ".quarantine",  # MCP 隔离区 (P0-2), 定义上就是"不该被消费"的内容
+        ".claude",  # ⛔ 含 hooks (可执行) / settings (可能含 key) /
+        #             **cache/board-manifest/ 快照本身** —— 若被撤销, E-2 脱敏过的
+        #             快照文件会作为普通 md 之外的内容被扫到, 且 hooks 脚本进检索
+        #             面毫无意义。这一项与 E-2 的防护是同一条链的两端。
     }
 )
 

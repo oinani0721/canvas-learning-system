@@ -156,14 +156,23 @@ async def backfill_vault(
     # .obsidian/templates, 检验白板/Dashboard/skill 文档的 callout 全被当用户
     # 批注回填进图 (Neo4j 已实测出现 'SKILL'/'Dashboard'/检验白板会话实体),
     # 信息隔离 (d=1.50) 在 Graphiti 层破口: 考题内容可经 memory 读侧回流。
-    # 注意 VAULT_INDEX_SKIP_DIRS 是逗号分隔字符串 (config.py:537), 必须 split。
+    #
+    # ⛔ P1-05 (Codex 复核 2026-08-19): 上一行的"复用同款黑名单"此前是**直接 split
+    # 原始 env 串**再硬补 .obsidian/templates —— 完全绕过 effective_vault_skip_dirs()
+    # 的不可撤销硬底。而本函数由 main.py:387-392 在**启动时**以 execute=True 调用,
+    # 会把漏过的 callout/error 直接写进 Graphiti。即: LanceDB 两条路径加了 union,
+    # 并不等于"所有记忆索引入口"已上锁 —— 图层这条才是最难清理的那条
+    # (写进去的边要靠 invalid_at 失效, 不像 LanceDB 能 orphan sweep 自动收敛)。
+    #
+    # 现改为与索引路径**共用唯一策略源**: settings.effective_vault_skip_dirs()
+    # = 可配置串 ∪ IMMUTABLE_VAULT_SKIP_DIRS。env 只能追加, 不能删除安全边界。
     from fnmatch import fnmatch
 
     from app.config import settings as _settings
 
-    _raw_skip = getattr(_settings, "VAULT_INDEX_SKIP_DIRS", "") or ""
-    _skip_dirs = {d.strip() for d in _raw_skip.split(",") if d.strip()}
-    _skip_dirs.update({".obsidian", "templates"})
+    _skip_dirs = set(_settings.effective_vault_skip_dirs())
+    # templates 不在硬底里 (它是"非学习内容"而非"安全边界"), 保留原有硬补
+    _skip_dirs.add("templates")
 
     def _is_blacklisted(md_path: Path) -> bool:
         rel_parts = md_path.relative_to(base).parts
