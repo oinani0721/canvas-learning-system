@@ -904,7 +904,15 @@ def test_single_node_parse_failure_stays_live_not_fallback(vault):
 
 
 def test_snapshot_roundtrip_projection_identical_shape(vault):
-    """live 与快照 serve 过同一套投影 — 泄漏控制点唯一 (计划 T2)。"""
+    """live 与快照 serve 过同一套投影 — 泄漏控制点唯一 (计划 T2)。
+
+    P1-05b SnapshotV3: 快照结构性不保留三个自由文本槽位 —
+    relation.derived_reason / past_question_digests[].digest /
+    orphans[].source_board_raw (capabilities.history_text=false 显式申报)。
+    降级态它们恒为 None; 其余结构与内容必须与 live 一致。
+    """
+    import copy as _copy
+
     from app.models.board_manifest import project_manifest
 
     _four_schema_vault(vault)
@@ -915,9 +923,29 @@ def test_snapshot_roundtrip_projection_identical_shape(vault):
     exam_snap = project_manifest(snap, "exam").model_dump()
     for m in (exam_live, exam_snap):
         assert _all_keys(m) & set(FORBIDDEN_EXAM_KEYS) == set()
-    # 除 source/degraded/freshness 三组诚实信号外, 结构与内容一致
+
+    # 正向前置: live 侧确实带 derived_reason (否则下方掩码比对是空断言)
+    assert any((n.get("relation") or {}).get("derived_reason") for n in exam_live["nodes"])
+    # 快照侧三个槽位必须为 None (结构性不保留, 不是碰巧相等)
+    assert all((n.get("relation") or {}).get("derived_reason") is None for n in exam_snap["nodes"])
+    assert all(d.get("digest") is None for n in exam_snap["nodes"] for d in n.get("past_question_digests") or [])
+    assert all(o.get("source_board_raw") is None for o in exam_snap["orphans"])
+
+    def _mask_v3_dropped(payload: dict) -> dict:
+        p = _copy.deepcopy(payload)
+        for n in p["nodes"]:
+            if n.get("relation"):
+                n["relation"]["derived_reason"] = None
+            for d in n.get("past_question_digests") or []:
+                d["digest"] = None
+        for o in p["orphans"]:
+            o["source_board_raw"] = None
+        return p
+
+    masked_live = _mask_v3_dropped(exam_live)
+    # 除 source/degraded/freshness 三组诚实信号与 V3 声明的槽位外, 结构与内容一致
     for k in ("board", "nodes", "dual_source_gap", "orphans"):
-        assert exam_live[k] == exam_snap[k]
+        assert masked_live[k] == exam_snap[k]
 
 
 def test_board_not_found_raises_in_snapshot_mode_too(vault):

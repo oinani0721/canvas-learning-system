@@ -146,13 +146,13 @@ def test_same_generation_v1_snapshot_is_force_rewritten(vault):
     )
 
 
-def test_same_generation_v2_snapshot_is_not_rewritten(vault):
+def test_same_generation_current_snapshot_is_not_rewritten(vault):
     """已是当前版本且内容未变 → 保持原有的「不重写」优化，不做无谓 IO。"""
     gen = "cafe99887766"
     full = _current_full(gen)
     assert svc.write_snapshot_if_changed(vault, full) is True  # 首次写入
 
-    assert svc.write_snapshot_if_changed(vault, full) is False, "v2 且 generation 未变时应跳过重写"
+    assert svc.write_snapshot_if_changed(vault, full) is False, "当前版本且 generation 未变时应跳过重写"
 
 
 # ── load 侧 fail closed ───────────────────────────────────────────────────
@@ -169,8 +169,19 @@ def test_load_snapshot_rejects_v1(vault):
     )
 
 
-def test_load_snapshot_accepts_v2(vault):
-    """v2 快照正常加载，且带版本字段。"""
+def test_load_snapshot_rejects_v2_denylist_era(vault):
+    """P1-05b: v2 (denylist pop 三键时代) 同样拒绝 — 只认严格 int 3。"""
+    v2 = _legacy_v1_snapshot("abab12123434")
+    v2["snapshot_schema_version"] = 2
+    snap = svc.snapshot_file(vault)
+    snap.parent.mkdir(parents=True, exist_ok=True)
+    snap.write_text(json.dumps(v2, ensure_ascii=False), encoding="utf-8")
+
+    assert svc.load_snapshot(vault) is None, "v2 denylist 时代快照必须按 cache miss"
+
+
+def test_load_snapshot_accepts_current_v3(vault):
+    """当前版本快照正常加载，且还原后带版本字段。"""
     svc.write_snapshot_if_changed(vault, _current_full("bbbb33334444"))
 
     loaded = svc.load_snapshot(vault)

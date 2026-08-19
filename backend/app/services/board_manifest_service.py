@@ -23,7 +23,6 @@
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import logging
@@ -46,7 +45,12 @@ EXAM_DIR = "检验白板"
 
 #: 快照相对路径 (计划 T2): .claude 在 VAULT_INDEX_SKIP_DIRS + config RAG 黑名单
 #: 双覆盖, .json 非 .md 双保险 — 不新增 SKIP_DIRS 条目
-SNAPSHOT_REL = Path(".claude") / "cache" / "board-manifest" / "manifest-v1.json"
+# P1-05b SnapshotV3 (2026-08-19): 文件名随 schema 走 — 改名即天然切断全部
+# 旧快照 (v1 未脱敏 / v2 denylist), 不依赖读侧版本判定兜底
+SNAPSHOT_REL = Path(".claude") / "cache" / "board-manifest" / "manifest-v3.json"
+
+#: 历史快照文件 (写新快照成功后 best-effort 清除, 缩小磁盘泄漏面)
+LEGACY_SNAPSHOT_RELS = (Path(".claude") / "cache" / "board-manifest" / "manifest-v1.json",)
 
 #: 顶层诚实信号常量 (计划 T2 契约字段)
 ANNOTATION_TRUST = "untrusted_user_data"
@@ -545,7 +549,11 @@ def scan_vault(
         try:
             fm, body = ds.load_frontmatter(path)
         except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as e:
-            parse_errors.append({"path": f"{BOARD_DIR}/{path.name}", "error": _safe_err(e)})
+            # P1-05b: error_code 供 SnapshotV3 落盘 (快照不保留自由文本 error);
+            # serve 模型 extra="ignore" 会丢弃本键, API 面不变
+            parse_errors.append(
+                {"path": f"{BOARD_DIR}/{path.name}", "error": _safe_err(e), "error_code": "file_parse_failed"}
+            )
             continue
         # Code-Review H3: untrusted 标量必须类型归一 — `doc_count: 大约五个`
         # 不得让投影 ValidationError 500 整个端点 (含列板模式)
@@ -571,12 +579,16 @@ def scan_vault(
         try:
             fm, body = ds.load_frontmatter(path)
         except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as e:
-            parse_errors.append({"path": f"{NODE_DIR}/{path.name}", "error": _safe_err(e)})
+            parse_errors.append(
+                {"path": f"{NODE_DIR}/{path.name}", "error": _safe_err(e), "error_code": "file_parse_failed"}
+            )
             continue
 
         mastery, mastery_err = _normalize_mastery(fm)
         if mastery_err:
-            parse_errors.append({"path": f"{NODE_DIR}/{path.name}", "error": mastery_err})
+            parse_errors.append(
+                {"path": f"{NODE_DIR}/{path.name}", "error": mastery_err, "error_code": "mastery_invalid"}
+            )
 
         last_exam_raw = fm.get("last_examined")
         last_exam_dt = _aware_dt(last_exam_raw)
@@ -587,6 +599,7 @@ def scan_vault(
                 {
                     "path": f"{NODE_DIR}/{path.name}",
                     "error": f"last_examined 无法解析, 按从未考: {repr(last_exam_raw)[:80]}",
+                    "error_code": "last_examined_invalid",
                 }
             )
 
@@ -594,7 +607,9 @@ def scan_vault(
         if mastery_err is None:
             hint, hint_err = _pick_hint(mastery, last_exam_dt, now)
         if hint_err:
-            parse_errors.append({"path": f"{NODE_DIR}/{path.name}", "error": hint_err})
+            parse_errors.append(
+                {"path": f"{NODE_DIR}/{path.name}", "error": hint_err, "error_code": "pick_hint_failed"}
+            )
 
         calibration_log = fm.get("calibration_log")
         entry: dict[str, Any] = {
@@ -602,6 +617,11 @@ def scan_vault(
             "exists": True,
             "role": _node_role(fm),
             "is_stub": _compute_is_stub(body),
+            # P1-05b: 显式竞秩资格位 — 投毒 (inf/nan mastery) 与"真的从未评估"
+            # 在快照里同为 source=="absent", 唯一运行态区别是 pick_hint is None;
+            # SnapshotV3 不保留 pick_hint (读时重算), 必须显式携带资格位,
+            # 否则天真重算会让投毒节点复活竞秩 (RAG-S2.6 HIGH-2)
+            "pick_eligible": mastery_err is None and hint_err is None,
             "relation": _node_relation(fm),
             "mastery": mastery,
             "attempt_count": (int(v) if (v := _num(fm.get("attempt_count"))) is not None else None),
@@ -624,7 +644,16 @@ def scan_vault(
 
         raw_board = fm.get("source_board")
         if not raw_board:
-            orphans.append({"node_id": stem, "reason": "无 source_board", "source_board_raw": None})
+            # P1-05b: reason_code 供 SnapshotV3 落盘 (Literal 枚举);
+            # serve 模型 extra="ignore" 丢弃本键, API 面不变
+            orphans.append(
+                {
+                    "node_id": stem,
+                    "reason": "无 source_board",
+                    "reason_code": "no_source_board",
+                    "source_board_raw": None,
+                }
+            )
             continue
         target_board = boards_ci.get(resolve_node_id(raw_board).casefold())
         if target_board is None:
@@ -635,6 +664,7 @@ def scan_vault(
                 {
                     "node_id": stem,
                     "reason": "source_board 指向不存在的白板",
+                    "reason_code": "unknown_board",
                     "source_board_raw": _bounded_str(raw_board, 120),
                 }
             )
@@ -648,7 +678,9 @@ def scan_vault(
             try:
                 fm, body = ds.load_frontmatter(path)
             except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as e:
-                parse_errors.append({"path": f"{EXAM_DIR}/{path.name}", "error": _safe_err(e)})
+                parse_errors.append(
+                    {"path": f"{EXAM_DIR}/{path.name}", "error": _safe_err(e), "error_code": "file_parse_failed"}
+                )
                 continue
             linked_board = boards_ci.get(resolve_node_id(fm.get("source_board")).casefold())
             questions = [q for q in fm.get("questions") or [] if isinstance(q, dict)]
@@ -751,7 +783,31 @@ def _assign_pick_ranks(members: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _carve(full: dict[str, Any], board_id: str | None, include_exam_history: bool) -> dict[str, Any]:
+def _fresh_pick_hint(member: dict[str, Any], now: datetime) -> dict[str, Any] | None:
+    """P1-05b: pick_hint 恒为请求时点重算 — 6 字段 (mastery{source,a,b,score} +
+    last_examined) + pick_eligible 门 + 请求级 now。
+
+    修掉降级期折旧冻结的既有缺陷: 旧行为快照命中时直接用落盘那刻的
+    days_idle/pick_score, 降级返回的秩是历史口径。
+
+    ⛔ pick_eligible=False (投毒/损坏 mastery) 恒 None — 不参与竞秩 (HIGH-2)。
+    旧形态 full state (无 pick_eligible 字段, 如历史测试合成态) 的等价信号
+    是 scan 侧算出过 pick_hint。
+    """
+    eligible = member["pick_eligible"] if "pick_eligible" in member else (member.get("pick_hint") is not None)
+    if not eligible:
+        return None
+    mastery = member.get("mastery")
+    if not isinstance(mastery, dict) or mastery.get("source") not in ("beta", "score_only", "legacy_v2", "absent"):
+        return None
+    try:
+        hint, err = _pick_hint(mastery, _aware_dt(member.get("last_examined")), now)
+    except (TypeError, KeyError):  # 防御: 快照/合成态 mastery 键缺失或错型
+        return None
+    return None if err else hint
+
+
+def _carve(full: dict[str, Any], board_id: str | None, include_exam_history: bool, now: datetime) -> dict[str, Any]:
     """full state → 请求形状 dict。board_id 不存在抛 KeyError (API 层转 404)。"""
     boards: dict[str, dict[str, Any]] = full["boards"]
     exam_history = full["exam_history"] if include_exam_history else []
@@ -797,6 +853,9 @@ def _carve(full: dict[str, Any], board_id: str | None, include_exam_history: boo
     if not include_exam_history:
         # 快照 full 恒含历史; 请求关掉时在裁切层剥离 (浅拷贝防止污染 full)
         members = [{**m, "past_question_digests": []} for m in members]
+    # P1-05b: pick_hint 恒重算 (live 与快照同一条路径; 快照 v3 本就不含
+    # pick_hint)。浅拷贝不污染 full state。
+    members = [{**m, "pick_hint": _fresh_pick_hint(m, now)} for m in members]
     members = _assign_pick_ranks(members)
     member_ids = {m["node_id"] for m in members}
     concepts = b["concepts_listed"]
@@ -834,8 +893,9 @@ def build_manifest(
     """
     if board_id is not None:
         board_id = validate_path_component(board_id)
+    now = now or datetime.now(timezone.utc)
     full = scan_vault(base_path, now=now, include_exam_history=include_exam_history, data_source=data_source)
-    return _carve(full, board_id, include_exam_history)
+    return _carve(full, board_id, include_exam_history, now)
 
 
 # ── JSON 快照 (last known good, 不做 TTL 删除) ──
@@ -845,58 +905,31 @@ def snapshot_file(base_path: Path | str) -> Path:
     return Path(base_path) / SNAPSHOT_REL
 
 
-#: E-2 (R11-BATCH2-2026-08-17): 快照禁写字段 — study 面自由文本原文。
-#:
-#: 为何只列三项就够: 金集 forbidden_keys 里的 misconception / correction /
-#: raw_dialog_excerpt / evidence_turns / ai_reason 全部**嵌在**这三个容器内部
-#: (见 :457 注释), 剔顶层即连根拔除。
-#:
-#: 为何不剔 title / aliases / source_note / calibration_count: 它们同在
-#: forbidden_keys 但性质不同 —— 是「exam 视图不需要」而非「泄题」, exam 侧靠
-#: models/board_manifest.py 的结构性缺字段隔离已足够。留在快照里, 降级态的
-#: study 视图才不至于连标题都没有。
-SNAPSHOT_STRIPPED_MEMBER_KEYS = ("tips", "errors", "error_candidates")
-
-#: 快照 schema 版本 (P1-01, Codex 对抗审查 2026-08-19)。
+#: 快照 schema 版本 (P1-01 → P1-05b SnapshotV3, 2026-08-19)。
 #:   v1 = E-2 之前落盘的**未脱敏全量 superset** (可能含 tips/errors/
 #:        error_candidates 原文)。磁盘上没有本字段的一律视为 v1。
-#:   v2 = 已过 _project_for_snapshot 脱敏投影。
+#:   v2 = denylist 脱敏 (pop 三键) — 新增字段仍会静默落盘, 已废弃。
+#:   v3 = allowlist 严格模型 (models/snapshot_v3.py, extra="forbid") —
+#:        字段必须显式声明才进磁盘; 文件名同步改 manifest-v3.json。
 #:
 #: 为什么必须有版本号而不能只靠 generation: generation 只反映 vault **内容**是否
-#: 变化, 与快照**格式**无关。E-2 上线后, 内容未变的旧 vault 其 generation 不变,
-#: write_snapshot_if_changed 直接 return False → v1 未脱敏快照原地长存。
-#: 版本号让「格式演进」成为独立于内容的重写触发条件。
-SNAPSHOT_SCHEMA_VERSION = 2
+#: 变化, 与快照**格式**无关。格式演进必须是独立于内容的重写触发条件。
+SNAPSHOT_SCHEMA_VERSION = 3
 
 
 def _project_for_snapshot(full: dict[str, Any]) -> dict[str, Any]:
-    """快照投影 (E-2 方案 A): 剔除 members 的泄题原文, 其余原样序列化。
+    """快照投影 (P1-05b SnapshotV3): allowlist 显式逐字段提取, 非 denylist pop。
 
-    堵的洞: scan_vault 返回的是全量 superset (文件头 :11-13), 泄漏控制原本
-    只在 serve 时的 Pydantic 视图投影上。快照落盘的是**投影前**的 state ——
-    谁直接读 .claude/cache/board-manifest/manifest-v1.json 就绕过了整个控制点。
+    v2 denylist 的结构性缺陷: 只 pop 三键 → scan_vault 未来任何新增字段都会
+    静默落盘 (谁直接读快照文件就拿到未经审的 superset)。v3 改为
+    models/snapshot_v3.project_full_state — 未声明字段结构上进不了磁盘。
 
-    ⛔ 必须深拷贝: :716 契约明示 live 与快照共用同一份 full state, 就地 pop
-    会让同一次请求的 live 响应也跟着丢字段。
-
-    降级态代价 (方案 A, 用户 2026-08-17 裁定时已知情): study 视图从快照恢复时
-    这三项为空列表 —— models/board_manifest.py:122-124 三字段均
-    default_factory=list, 缺字段不触发 ValidationError。exam 视图零影响。
-
-    pick_rank 无需特意保留: :716-719 明示秩在 _carve (serve 侧) 计算, 快照本就
-    不含该字段; 只要 pick_hint.pick_score 与 is_stub 还在, 降级态自会重算。
+    不修改入参 (:716 契约: live 与快照共用同一份 full state)。
+    抛 pydantic.ValidationError = 拒写 (调用方捕获为 warning, 不影响 live)。
     """
-    projected = copy.deepcopy(full)
-    # P1-01: 打上版本戳 —— load 侧据此对 v1 fail closed, write 侧据此强制迁移
-    projected["snapshot_schema_version"] = SNAPSHOT_SCHEMA_VERSION
-    for board in (projected.get("boards") or {}).values():
-        if not isinstance(board, dict):
-            continue
-        for member in board.get("members") or []:
-            if isinstance(member, dict):
-                for key in SNAPSHOT_STRIPPED_MEMBER_KEYS:
-                    member.pop(key, None)
-    return projected
+    from app.models.snapshot_v3 import project_full_state
+
+    return project_full_state(full).model_dump()
 
 
 def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bool:
@@ -917,12 +950,13 @@ def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bo
                 prev = json.loads(path.read_text(encoding="utf-8"))
                 prev_version = prev.get("snapshot_schema_version", 1)
                 same_generation = prev.get("freshness", {}).get("generation") == full["freshness"]["generation"]
-                # 两个条件都满足才跳过: 内容未变 **且** 已是当前脱敏版本
-                if same_generation and prev_version >= SNAPSHOT_SCHEMA_VERSION:
+                # 两个条件都满足才跳过: 内容未变 **且** 已是当前版本。
+                # P1-05b: 版本必须是**严格 int** — "3"/3.0 等错型一律视为旧版重写
+                if same_generation and type(prev_version) is int and prev_version >= SNAPSHOT_SCHEMA_VERSION:
                     return False
-                if same_generation and prev_version < SNAPSHOT_SCHEMA_VERSION:
+                if same_generation:
                     logger.info(
-                        "[manifest] 快照 schema v%s < v%s 且 generation 未变 — 仍强制重写以完成脱敏迁移: %s",
+                        "[manifest] 快照 schema %r < v%s 且 generation 未变 — 仍强制重写以完成格式迁移: %s",
                         prev_version,
                         SNAPSHOT_SCHEMA_VERSION,
                         path,
@@ -936,27 +970,40 @@ def write_snapshot_if_changed(base_path: Path | str, full: dict[str, Any]) -> bo
         tmp = Path(tmp_name)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                # E-2: 投影放在 generation 比对之后 — 只有真要落盘时才付
-                # deepcopy 成本, 未变更的常态路径已在上方 return False
+                # 投影放在 generation 比对之后 — 只有真要落盘时才付投影成本,
+                # 未变更的常态路径已在上方 return False
                 f.write(json.dumps(_project_for_snapshot(full), ensure_ascii=False))
             os.replace(tmp, path)
         finally:
             tmp.unlink(missing_ok=True)
+        # P1-05b: 新快照就位后 best-effort 清除旧文件名快照 (v1/v2 时代的
+        # manifest-v1.json) — 文件改名已切断读路径, 清除进一步缩小磁盘泄漏面
+        for legacy_rel in LEGACY_SNAPSHOT_RELS:
+            try:
+                legacy = Path(base_path) / legacy_rel
+                if legacy.exists():
+                    legacy.unlink()
+                    logger.info("[manifest] 已清除旧格式快照: %s", legacy)
+            except OSError:
+                pass  # 清除失败不影响主流程 (旧文件已无读方)
         return True
     except (OSError, TypeError, ValueError) as e:
-        # TypeError/ValueError: 序列化炸 (理应被 _json_safe 挡住, 双保险) —
-        # 快照失败绝不拖垮 live 服务
+        # TypeError/ValueError: 序列化炸 + pydantic ValidationError (其 ValueError
+        # 子类) — 快照失败绝不拖垮 live 服务
         logger.warning("[manifest] 快照写入失败 (不影响 live 服务): %s", e)
         return False
 
 
-#: 快照 schema 必备键 (Code-Review L11: 缺键快照会让 _carve KeyError 被误映射
-#: 成 404「白板不存在」— 结构不全一律按快照不可用处理)
-_SNAPSHOT_REQUIRED_KEYS = frozenset({"freshness", "boards", "node_stems", "orphans", "exam_history", "parse_errors"})
-
-
 def load_snapshot(base_path: Path | str) -> dict[str, Any] | None:
-    """读快照; 结构不全或 schema 版本落后一律按不可用处理 (fail closed)。"""
+    """读快照 (P1-05b SnapshotV3): 读写共用 models/snapshot_v3 同一 validator。
+
+    fail closed 全景:
+      - 文件缺失 / JSON 损坏 / 根不是 dict          → None
+      - 版本非**严格 int 3** ("3" / 3.0 / None / 999 未来版) → None
+      - 模型校验失败 (多余字段 / 错型 freshness / forged 内容) → None
+    任何"合法 JSON 但不合规格"的快照一律按 cache miss — 宁可退三态空壳 error,
+    也不从可疑快照恢复 (P1-01 语义延续)。
+    """
     path = snapshot_file(base_path)
     if not path.exists():
         return None
@@ -965,25 +1012,28 @@ def load_snapshot(base_path: Path | str) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
         logger.warning("[manifest] 快照不可用: %s", e)
         return None
-    if not isinstance(data, dict) or not _SNAPSHOT_REQUIRED_KEYS <= set(data):
-        logger.warning("[manifest] 快照 schema 不全, 按不可用处理: %s", path)
+    if not isinstance(data, dict):
+        logger.warning("[manifest] 快照根不是对象 (%s), 按不可用处理: %s", type(data).__name__, path)
         return None
-    # ⛔ P1-01 fail closed: v1 快照是 E-2 之前落盘的**未脱敏全量 superset**,
-    # 里面可能含 tips/errors/error_candidates 原文。降级态从它恢复会让 study 视图
-    # 直接把禁项吐回学习对话 (exam 视图靠模型缺字段仍安全, 但 study 面会漏)。
-    # 宁可退到三态里的「空壳 error」如实报因, 也不从可疑快照恢复。
-    version = data.get("snapshot_schema_version", 1)
-    if version < SNAPSHOT_SCHEMA_VERSION:
+    version = data.get("snapshot_schema_version")
+    if type(version) is not int or version != SNAPSHOT_SCHEMA_VERSION:
         logger.warning(
-            "[manifest] 快照 schema v%s < v%s (E-2 前的未脱敏版本) — 拒绝加载, "
-            "按快照不可用处理。下次 live 扫描成功时会自动重写为 v%s: %s",
+            "[manifest] 快照版本 %r 非严格 int %s — 拒绝加载 (未来版/错型均按 cache miss): %s",
             version,
-            SNAPSHOT_SCHEMA_VERSION,
             SNAPSHOT_SCHEMA_VERSION,
             path,
         )
         return None
-    return data
+    from pydantic import ValidationError
+
+    from app.models.snapshot_v3 import SnapshotV3
+
+    try:
+        model = SnapshotV3.model_validate(data)
+    except ValidationError as e:
+        logger.warning("[manifest] 快照未通过 v3 严格校验 (%d 处), 按不可用处理: %s", e.error_count(), path)
+        return None
+    return model.to_full_state()
 
 
 def serve_manifest(
@@ -1013,11 +1063,13 @@ def serve_manifest(
         live_error = str(e)
     else:
         write_snapshot_if_changed(base_path, full)
-        return _carve(full, board_id, include_exam_history)
+        return _carve(full, board_id, include_exam_history, now)
 
     snap = load_snapshot(base_path)
     if snap is not None:
-        result = _carve(snap, board_id, include_exam_history)
+        # P1-05b: 快照态的 pick_hint/秩同样以**请求级 now** 重算 (_carve 内) —
+        # 折旧不再冻结在快照落盘那刻
+        result = _carve(snap, board_id, include_exam_history, now)
         gen_at = _aware_dt(snap.get("freshness", {}).get("generated_at"))
         lag = max(0.0, (now - gen_at).total_seconds()) if gen_at else None
         result["source"] = "local_json"

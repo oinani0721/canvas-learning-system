@@ -1,0 +1,256 @@
+"""P1-05b SnapshotV3 契约锁 — allowlist 快照 + pick_eligible + 读时重算。
+
+覆盖计划验收门:
+  1. 五类反例: forged v3 / version=999 / version="3" / 根 []/null / 错型
+     freshness — 全部按 cache miss, 且 live 路径不受影响
+  2. 投毒专项: inf/nan mastery 节点经 V3 快照往返后仍不得参与竞秩
+     (对应 test_non_finite_mastery_cannot_hijack_pick_rank 的快照面)
+  3. 降级态 exam + study 双视图投影无 ValidationError
+  4. 折旧解冻: 降级态 days_idle 按请求级 now 重算, 不冻结在落盘那刻
+  5. 磁盘面 allowlist: 无 digest/title/derived_reason/pick_hint 等被删键
+
+⛔ 不使用 mock: 真实临时 vault + 真实快照 JSON 落盘 + 真实 serve 三态。
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
+
+from app.models.board_manifest import project_manifest
+from app.services import board_manifest_service as svc
+
+NOW = datetime(2026, 8, 19, 12, 0, tzinfo=timezone.utc)
+
+
+def _write(vault: Path, rel: str, content: str) -> None:
+    p = vault / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+
+
+def _board_md() -> str:
+    return "---\ntype: whiteboard\n---\n# 板\n\n## Concepts\n\n## Recent Activity\n\n- created\n"
+
+
+def _node_md(fm_lines: list[str], body: str = "真实内容。") -> str:
+    return "---\n" + "\n".join(fm_lines) + "\n---\n" + body + "\n"
+
+
+@pytest.fixture()
+def vault(tmp_path: Path) -> Path:
+    v = tmp_path / "vault"
+    for d in ("节点", "原白板", "检验白板"):
+        (v / d).mkdir(parents=True)
+    return v
+
+
+def _poison_vault(vault: Path) -> None:
+    """投毒 + 真薄弱 + 强 三节点 (HIGH-2 场景) + 一条带 last_examined 的节点。"""
+    _write(vault, "原白板/板.md", _board_md())
+    _write(vault, "节点/A投毒.md", _node_md(["mastery_a: .inf", "mastery_b: 1.0", 'source_board: "[[原白板/板]]"']))
+    _write(vault, "节点/M真薄弱.md", _node_md(["mastery_score: 0.02", 'source_board: "[[原白板/板]]"']))
+    _write(
+        vault,
+        "节点/Z强.md",
+        _node_md(
+            [
+                "mastery_score: 0.9",
+                f"last_examined: {(NOW - timedelta(days=10)).isoformat()}",
+                'source_board: "[[原白板/板]]"',
+            ]
+        ),
+    )
+
+
+def _degrade(vault: Path) -> None:
+    (vault / "节点").rename(vault / "节点-改名")
+
+
+# ══ 磁盘面 allowlist ══
+
+
+def test_snapshot_on_disk_is_v3_allowlist(vault):
+    _poison_vault(vault)
+    svc.serve_manifest(vault, board_id="板", now=NOW)
+
+    snap_path = svc.snapshot_file(vault)
+    assert snap_path.name == "manifest-v3.json"
+    data = json.loads(snap_path.read_text(encoding="utf-8"))
+    assert data["snapshot_schema_version"] == 3
+    assert data["capabilities"] == {"history_text": False}
+
+    def _all_keys(obj, acc=None):
+        acc = acc if acc is not None else set()
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                acc.add(k)
+                _all_keys(v, acc)
+        elif isinstance(obj, list):
+            for x in obj:
+                _all_keys(x, acc)
+        return acc
+
+    dropped = {
+        "digest",
+        "title",
+        "aliases",
+        "derived_reason",
+        "source_board_raw",
+        "pick_hint",
+        "created_from",
+        "next_review",
+        "calibration_count",
+        "tips",
+        "errors",
+        "error_candidates",
+        "error",  # parse_errors 只存 error_code
+    }
+    on_disk = _all_keys(data)
+    assert on_disk & dropped == set(), f"被删字段泄漏落盘: {sorted(on_disk & dropped)}"
+    # 投毒节点的资格位显式落盘为 false
+    members = {m["node_id"]: m for m in data["boards"]["板"]["members"]}
+    assert members["A投毒"]["pick_eligible"] is False
+    assert members["M真薄弱"]["pick_eligible"] is True
+
+
+# ══ 五类反例 (全部 cache miss + 不炸 live) ══
+
+
+def _valid_v3_on_disk(vault: Path) -> dict:
+    """先用真实 serve 写出一份合法 v3, 返回其 JSON (供篡改)。"""
+    _poison_vault(vault)
+    svc.serve_manifest(vault, board_id="板", now=NOW)
+    return json.loads(svc.snapshot_file(vault).read_text(encoding="utf-8"))
+
+
+def _put_snapshot(vault: Path, payload) -> None:
+    p = svc.snapshot_file(vault)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _tamper_forged_extra_field(data: dict) -> dict:
+    data["boards"]["板"]["members"][0]["smuggled_freetext"] = "反例 diag(-1,-1) 行列式为 1 但负定"
+    return data
+
+
+def _tamper_version_999(data: dict) -> dict:
+    data["snapshot_schema_version"] = 999
+    return data
+
+
+def _tamper_version_str3(data: dict) -> dict:
+    data["snapshot_schema_version"] = "3"
+    return data
+
+
+def _tamper_bad_freshness(data: dict) -> dict:
+    data["freshness"] = {"generated_at": "2026-08-19T00:00:00+00:00", "generation": 12345}
+    return data
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    [_tamper_forged_extra_field, _tamper_version_999, _tamper_version_str3, _tamper_bad_freshness],
+    ids=["forged-extra-field", "version-999", "version-str-3", "freshness-wrong-type"],
+)
+def test_tampered_snapshot_is_cache_miss(vault, tamper):
+    data = _valid_v3_on_disk(vault)
+    _put_snapshot(vault, tamper(data))
+
+    assert svc.load_snapshot(vault) is None
+
+    _degrade(vault)
+    result = svc.serve_manifest(vault, board_id=None, now=NOW)
+    assert result["source_status"] == "error", "坏快照必须落到空壳 error 三态, 不得恢复也不得 500"
+
+
+@pytest.mark.parametrize("root", [[], None, "v3", 3], ids=["list", "null", "str", "int"])
+def test_non_dict_root_snapshot_is_cache_miss(vault, root):
+    _poison_vault(vault)
+    _put_snapshot(vault, root)
+
+    assert svc.load_snapshot(vault) is None
+
+    _degrade(vault)
+    result = svc.serve_manifest(vault, board_id=None, now=NOW)
+    assert result["source_status"] == "error"
+
+
+def test_corrupt_snapshot_never_affects_live(vault):
+    """live 可用时, 坏快照只是被覆盖重写 — serve 结果仍是 live ok。"""
+    _poison_vault(vault)
+    _put_snapshot(vault, {"snapshot_schema_version": "3", "junk": True})
+
+    result = svc.serve_manifest(vault, board_id="板", now=NOW)
+
+    assert result["source"] == "live" and result["source_status"] == "ok"
+    # 且坏快照已被合法 v3 覆盖
+    data = json.loads(svc.snapshot_file(vault).read_text(encoding="utf-8"))
+    assert data["snapshot_schema_version"] == 3
+
+
+# ══ 投毒往返 (HIGH-2 快照面) ══
+
+
+def test_non_finite_mastery_stays_dead_after_v3_roundtrip(vault):
+    """投毒节点在快照里与"从未评估"同为 source=absent — pick_eligible 显式
+    资格位保证它经往返后仍不参与竞秩, 真薄弱节点保住 rank=1。"""
+    _poison_vault(vault)
+    svc.serve_manifest(vault, board_id="板", now=NOW)  # 落 v3 快照
+    _degrade(vault)
+
+    result = svc.serve_manifest(vault, board_id="板", now=NOW)
+
+    assert result["source_status"] == "snapshot" and result["degraded"] is True
+    by_id = {n["node_id"]: n for n in result["nodes"]}
+    assert by_id["A投毒"]["pick_hint"] is None, "投毒节点经 V3 往返后复活竞秩 (HIGH-2 回归)"
+    rank1 = [n["node_id"] for n in result["nodes"] if (n["pick_hint"] or {}).get("pick_rank") == 1]
+    assert rank1 == ["M真薄弱"]
+    # 投毒与"从未评估"在 mastery 面确实同构 — 资格位是唯一区分 (前置自检)
+    assert by_id["A投毒"]["mastery"]["source"] == "absent"
+
+
+# ══ 折旧解冻 ══
+
+
+def test_degraded_days_idle_tracks_request_now_not_snapshot_time(vault):
+    """旧缺陷: 降级返回的秩/折旧是快照落盘那刻的口径。V3 读时重算后,
+    days_idle 必须跟着请求级 now 走。"""
+    _poison_vault(vault)
+    svc.serve_manifest(vault, board_id="板", now=NOW)  # last_examined = NOW-10d
+    _degrade(vault)
+
+    later = NOW + timedelta(days=30)
+    result = svc.serve_manifest(vault, board_id="板", now=later)
+
+    z = next(n for n in result["nodes"] if n["node_id"] == "Z强")
+    assert z["pick_hint"] is not None
+    assert z["pick_hint"]["days_idle"] == pytest.approx(40.0, abs=0.1), (
+        f"降级态 days_idle 冻结在落盘口径 (期望 ~40, 实得 {z['pick_hint']['days_idle']})"
+    )
+
+
+# ══ 降级态双视图投影 ══
+
+
+def test_degraded_both_views_project_without_validation_error(vault):
+    _poison_vault(vault)
+    svc.serve_manifest(vault, board_id="板", now=NOW)
+    _degrade(vault)
+
+    raw = svc.serve_manifest(vault, board_id="板", now=NOW)
+
+    exam = project_manifest(raw, "exam").model_dump()
+    study = project_manifest(raw, "study").model_dump()
+    assert exam["degraded"] is True and study["degraded"] is True
+    # study 面被删字段以安全默认回放 (无 ValidationError 即本断言主体)
+    s = next(n for n in study["nodes"] if n["node_id"] == "M真薄弱")
+    assert s["title"] is None and s["aliases"] == [] and s["tips"] == []
+    assert s["calibration_count"] == 0
+    # parse_errors 在降级态由 error_code 合成定长文案 (必填字段不缺)
+    assert all(e["error"] for e in exam["parse_errors"])
