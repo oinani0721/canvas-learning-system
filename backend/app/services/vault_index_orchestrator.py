@@ -185,6 +185,16 @@ class VaultIndexOrchestrator:
         # 索引路径同一判定, 并获得「仅根级」规则 (避免 节点/excalibrain.md 误排)。
         if _is_skipped_vault_file(rel_path, DEFAULT_VAULT_SKIP_FILES):
             return False, "blacklisted_file"
+        # P1-05d (V1): realpath containment — should_index 此前纯字符串判定,
+        # 拦不住 vault 内 symlink 指向 vault 外 (escape.md 曾被判 ok 并被
+        # 指纹 diff 读取目标正文)。vault_path 缺失时跳过 (兼容 __new__ 注入的
+        # 纯词法测试面, 生产实例恒有)。
+        vault_root = getattr(self, "vault_path", None)
+        if vault_root:
+            from agentic_rag.clients.lancedb_client import _resolves_outside_vault
+
+            if _resolves_outside_vault(os.path.join(vault_root, rel_path), vault_root):
+                return False, "outside_vault"
         return True, "ok"
 
     # ------------------------------------------------------------------
@@ -437,7 +447,12 @@ class VaultIndexOrchestrator:
         md_files: List[str] = []
 
         def _skipped_dir(name: str) -> bool:
-            return any(fnmatch.fnmatch(name, pat) for pat in self._skip_dirs)
+            # P1-05d (Codex 四轮 V1): 换归一原语 — 此处曾是 B1 漏改的裸
+            # fnmatch, .CLAUDE/ 大小写变体经它放行后在 should_index 拒绝之前
+            # 就被 reconcile 的指纹 diff open+SHA-256 (hash-before-admission)
+            from agentic_rag.clients.lancedb_client import _fnmatch_canon
+
+            return any(_fnmatch_canon(name, pat) for pat in self._skip_dirs)
 
         for root, dirs, files in os.walk(self.vault_path):
             dirs[:] = [d for d in dirs if not _skipped_dir(d)]
@@ -449,6 +464,10 @@ class VaultIndexOrchestrator:
                 # (docstring 承诺的 "SAME blacklist" 现在是同一个函数)
                 rel_path = os.path.relpath(full_path, self.vault_path)
                 if _is_skipped_vault_file(rel_path, DEFAULT_VAULT_SKIP_FILES):
+                    continue
+                # P1-05d (V1): 扫描产出即过完整准入 — 被拒文件不进 md_files,
+                # 也就永远不会进 _get_changed_files 的 open+hash 集合
+                if not self.should_index(rel_path)[0]:
                     continue
                 md_files.append(full_path)
         return md_files

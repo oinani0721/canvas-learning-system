@@ -129,6 +129,11 @@ async def sync_relationships_for_note(
         )
         return {"synced": 0, "skipped": 0, "errors": [f"path_rejected:{reason}"]}
 
+    # P1-05d (Codex 四轮裁量): API 文档承诺 missing → 404, 旧行为返回成功样
+    # 空结果 (DD-13 契约错误)。显式信号供端点层映射。
+    if not p_note.is_file():
+        return {"synced": 0, "skipped": 0, "errors": ["note_not_found"]}
+
     relationships = _parse_frontmatter_relationships(p_note)
     if not relationships:
         return {"synced": 0, "skipped": 0, "errors": []}

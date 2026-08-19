@@ -211,6 +211,14 @@ async def sync_relationships_by_node(
 
     result = await sync_relationships_for_note(note_path=note_path, vault_root=vault_root, group_id=resolved_group_id)
 
+    # P1-05d (Codex 四轮裁量, DD-13): 文档承诺 missing → 404, 旧行为 200 空结果;
+    # 准入拒绝 (越界/黑名单) → 422, 不伪装成功
+    _errors = result.get("errors") or []
+    if "note_not_found" in _errors:
+        raise HTTPException(status_code=404, detail=f"note 不存在: {note_path}")
+    if any(str(e).startswith("path_rejected:") for e in _errors):
+        raise HTTPException(status_code=422, detail="note_path 未通过路径准入 (越界/黑名单)")
+
     return RelationshipSyncResponse(
         note_path=note_path,
         synced=result["synced"],

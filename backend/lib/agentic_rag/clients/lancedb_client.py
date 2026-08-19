@@ -504,6 +504,23 @@ def _fnmatch_canon(name: str, pat: str) -> bool:
     return fnmatch.fnmatch(_canon_for_match(name), _canon_for_match(pat))
 
 
+def _resolves_outside_vault(file_path: str, vault_path: str) -> bool:
+    """P1-05d (Codex 四轮 V2): open 前的 containment 门 — symlink/.. 越界判定。
+
+    实测反例: `节点/escape.md -> vault 外文件` 曾被全量/单文件两条真实入口
+    open→嵌入→落库 (词法黑名单只看 rel_path 字符串, 对 symlink 目标不可见)。
+    lib 不能 import app (架构约束), 判定自包含; 语义与
+    app.core.vault_admission.check_vault_path 的 containment 一致
+    (realpath 必须落在 vault 内)。
+    """
+    try:
+        resolved = os.path.realpath(file_path)
+        vault_real = os.path.realpath(vault_path)
+    except OSError:
+        return True  # 解析失败 fail-closed
+    return not (resolved == vault_real or resolved.startswith(vault_real + os.sep))
+
+
 def _is_skipped_vault_file(rel_path: str, skip_files) -> bool:
     """文件名黑名单判定 (P2-02: 任意层级 + 仅根级两套规则)。
 
@@ -1635,6 +1652,12 @@ class LanceDBClient:
                 rel_path = os.path.relpath(full_path, vault_path)
                 if _is_skipped_vault_file(rel_path, skip_files):
                     continue
+                # P1-05d (V2): symlink 越界在收集期即拒 — 不进 md_files 就
+                # 不会被 open/嵌入/落库
+                if _resolves_outside_vault(full_path, vault_path):
+                    if LOGURU_ENABLED:
+                        logger.warning(f"[INDEX] path resolves outside vault, skip: {rel_path}")
+                    continue
                 md_files.append(full_path)
 
         if not md_files:
@@ -1945,6 +1968,12 @@ class LanceDBClient:
         if _is_skipped_vault_file(rel_path, DEFAULT_VAULT_SKIP_FILES):
             if LOGURU_ENABLED:
                 logger.warning(f"[INDEX] blacklisted filename, refuse single-file index: {rel_path}")
+            return 0
+
+        # P1-05d (V2): containment 门 — symlink/.. 越界一律拒, 目标正文不得被读
+        if _resolves_outside_vault(file_path, vault_path):
+            if LOGURU_ENABLED:
+                logger.warning(f"[INDEX] path resolves outside vault, refuse single-file index: {rel_path}")
             return 0
 
         try:
