@@ -180,18 +180,8 @@ commit-msg:
         fi
         echo "[Spec Ref] OK."
 
-# ============================================================
-# Post-commit: Dual-remote push
-# ─ backup → archive semantics, --no-verify (never lose work)
-# ─ origin → canonical semantics, triggers pre-push tests
-#           (ChatGPT Deep Research reads from origin)
-# ============================================================
-post-commit:
-  commands:
-    backup-push:
-      run: git push backup HEAD --quiet --no-verify 2>&1; echo '[Backup] push done'
-    origin-push:
-      run: git push origin HEAD --quiet 2>&1; echo '[Origin] push done (pre-push tests ran)'
+# GOV-01 Bootstrap-0: post-commit network writes are intentionally absent.
+# Local commits remain local until the user explicitly authorizes a push.
 
 # ============================================================
 # Pre-push: Blocking checks before push
