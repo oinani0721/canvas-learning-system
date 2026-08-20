@@ -1,8 +1,9 @@
 # Canvas Learning System 生产力化长期 Goal 计划书
 
 > **Plan ID**: `PLAN-CLS-PRODUCTIVITY-2026-08-20`
-> **状态**: USER-REVIEW — 总方向已获用户确认；§12 实现合同 v2、Phase 0A 的 S1–S4 与 GOV-01 方案 A 尚待用户第一级授权。授权后也只先执行 Phase 0G 的冻结 Bootstrap-0 补丁与 governance OpenSpec/manifest；在 `GOV-01-VERIFIED` 前禁止 Phase 0A scanner、A01/A02 实例化、私有 root 扫描、ChatGPT 外发和产品代码实施
-> **基线时间**: 2026-08-20（HEAD `01944346`）
+> **状态**: EXECUTION-IN-PROGRESS — 用户已用 first receipt `c89e7195…5740` 锁定 §12 实现合同 v2、Phase 0A 的 S1–S4 与 GOV-01 方案 A；Bootstrap-0 safe mode 与 control-prep 已执行并通过独立复核。当前正在收口 static acquisition 合同，`GOV-01-VERIFIED` 尚未成立；此前对 Phase 0A scanner、A01/A02 实例化、私有 root 扫描、ChatGPT 外发和产品代码实施的禁令继续有效
+> **审计基线**: 2026-08-20（HEAD `01944346`）
+> **当前实施锚点**: 2026-08-21；safe-mode commit `0e0f0150`，冻结合同 commit `d7f6785e`，CONTROL-PREPARED 执行后双路全树复核 PASS
 > **工作范围**: 当前 Obsidian Hybrid 分支；活动前端仅为 `frontend/obsidian-plugin/`，不复活已弃用 Tauri/React 产品面
 > **From PRD**: §0.4 [用户核心诉求] (line 80-90)
 > **From PRD**: §1.5 [BKT + FSRS + 5 信号融合] (line 599-678)
