@@ -1,0 +1,1943 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:canvas-learning-system:annotation-ledger:public:v2-draft",
+  "title": "Canvas Learning System Public Annotation Ledger v2 Draft",
+  "description": "Strict public projection. JSON Schema validates shape and single-record state combinations; the declared invariant checker validates referential integrity, replay, DAG, digest equality, and coverage. Private paths, raw annotation text, private prompts/replies, reversible private hashes, approval text, secrets, and private locator mappings are forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "hash_profile_id",
+    "ledger_revision_id",
+    "parent_ledger_payload_sha256",
+    "manifest_revision_id",
+    "manifest_payload_sha256",
+    "project_id",
+    "created_at_utc",
+    "state",
+    "coverage_claim_allowed",
+    "source_occurrences",
+    "atomic_annotations",
+    "external_review_batches",
+    "external_review_waivers",
+    "events",
+    "projection_payload_sha256",
+    "invariant_check"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2.0-draft"
+    },
+    "hash_profile_id": {
+      "$ref": "#/$defs/hashProfileId"
+    },
+    "ledger_revision_id": {
+      "$ref": "#/$defs/revisionId"
+    },
+    "parent_ledger_payload_sha256": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "manifest_revision_id": {
+      "$ref": "#/$defs/revisionId"
+    },
+    "manifest_payload_sha256": {
+      "$ref": "#/$defs/sha256",
+      "description": "SHA-256(CLS/A01-MANIFEST/v2\\0 || canonical public A01 manifest payload bytes) under hash_profile_id; the written \\0 denotes one NUL byte."
+    },
+    "project_id": {
+      "const": "canvas-learning-system"
+    },
+    "created_at_utc": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "state": {
+      "enum": ["draft", "incomplete", "complete", "superseded"]
+    },
+    "coverage_claim_allowed": {
+      "type": "boolean"
+    },
+    "source_occurrences": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Canonical set array, stably sorted by occurrence_id ascending. The checker rejects duplicate occurrence_id values even when the remaining object differs.",
+      "items": { "$ref": "#/$defs/sourceOccurrence" }
+    },
+    "atomic_annotations": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Canonical set array, stably sorted by annotation_id ascending. The checker rejects duplicate annotation_id values and in-place historical rewrites.",
+      "items": { "$ref": "#/$defs/atomicAnnotation" }
+    },
+    "external_review_batches": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Canonical set array, stably sorted by batch_id ascending. The checker rejects duplicate batch_id values.",
+      "items": { "$ref": "#/$defs/externalReviewBatch" }
+    },
+    "external_review_waivers": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Canonical set array, stably sorted by waiver_id ascending. The checker rejects duplicate waiver_id values.",
+      "items": { "$ref": "#/$defs/externalReviewWaiver" }
+    },
+    "events": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Canonical sequence array; order is ledger_sequence and must be exactly contiguous 1..N. It must not be re-sorted by any other key.",
+      "items": { "$ref": "#/$defs/ledgerEvent" }
+    },
+    "projection_payload_sha256": {
+      "$ref": "#/$defs/sha256",
+      "description": "SHA-256(CLS/A02-PROJECTION/v2\\0 || JCS(UTF-8 ledger projection)) after omitting projection_payload_sha256 and the complete invariant_check object. The written \\0 denotes one NUL byte. The checker must recompute it; a lexical hash match is insufficient."
+    },
+    "invariant_check": {
+      "$ref": "#/$defs/invariantCheck"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "state": { "const": "complete" } },
+        "required": ["state"]
+      },
+      "then": {
+        "properties": {
+          "coverage_claim_allowed": { "const": true },
+          "invariant_check": {
+            "properties": {
+              "state": { "const": "pass" },
+              "checker_executable_sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "required": ["state", "checker_executable_sha256"]
+          }
+        }
+      },
+      "else": {
+        "properties": { "coverage_claim_allowed": { "const": false } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "coverage_claim_allowed": { "const": true } },
+        "required": ["coverage_claim_allowed"]
+      },
+      "then": {
+        "properties": {
+          "state": { "const": "complete" },
+          "invariant_check": {
+            "properties": {
+              "state": { "const": "pass" },
+              "checker_executable_sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "required": ["state", "checker_executable_sha256"]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hashProfileId": {
+      "const": "CLS-CANONICAL-JCS-NFC-SHA256-HMAC-V2",
+      "description": "Frozen CLS v2 canonical hash profile. Normalize JSON string values and keys to Unicode NFC, serialize with RFC 8785/JCS to UTF-8, and prepend the artifact domain bytes frozen by contract section 5.4. A payload hash omits only its own hash field; projection_payload_sha256 also omits invariant_check. Private artifacts use HMAC-SHA256(K_audit_local, domain_bytes || canonical_or_raw_private_bytes), never a public raw digest. Commitment serialization uses hmac-sha256:<TAG>:<lowercase hex>, with exact mappings CLS_PRIVATE_CONTENT_v2 -> CLS/PRIVATE-CONTENT/v2\\0, CLS_EXTERNAL_PACK_v2 -> CLS/EXTERNAL-PACK/v2\\0, and CLS_APPROVAL_RECEIPT_v2 -> CLS/APPROVAL-RECEIPT/v2\\0. The written \\0 denotes one NUL byte. Field-specific or v1 domains are invalid. K_audit_local, key identifiers, private bytes, and locator mappings never enter this public projection."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nullableSha256": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "sourceContentCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_PRIVATE_CONTENT_v2:[a-f0-9]{64}$",
+      "description": "Serialized tag maps exactly to HMAC domain bytes CLS/PRIVATE-CONTENT/v2 followed by one NUL byte."
+    },
+    "sourceAnchorCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_PRIVATE_CONTENT_v2:[a-f0-9]{64}$",
+      "description": "Serialized tag maps exactly to HMAC domain bytes CLS/PRIVATE-CONTENT/v2 followed by one NUL byte."
+    },
+    "privateEvidenceCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_PRIVATE_CONTENT_v2:[a-f0-9]{64}$",
+      "description": "Serialized tag maps exactly to HMAC domain bytes CLS/PRIVATE-CONTENT/v2 followed by one NUL byte."
+    },
+    "redactionApprovalCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_APPROVAL_RECEIPT_v2:[a-f0-9]{64}$",
+      "description": "Trusted receipt commitment; serialized tag maps exactly to HMAC domain bytes CLS/APPROVAL-RECEIPT/v2 followed by one NUL byte."
+    },
+    "deferredApprovalCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_APPROVAL_RECEIPT_v2:[a-f0-9]{64}$",
+      "description": "Trusted receipt commitment; serialized tag maps exactly to HMAC domain bytes CLS/APPROVAL-RECEIPT/v2 followed by one NUL byte."
+    },
+    "externalPackCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_EXTERNAL_PACK_v2:[a-f0-9]{64}$",
+      "description": "Serialized tag maps exactly to HMAC domain bytes CLS/EXTERNAL-PACK/v2 followed by one NUL byte."
+    },
+    "externalApprovalReceiptCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_APPROVAL_RECEIPT_v2:[a-f0-9]{64}$",
+      "description": "Trusted receipt commitment; serialized tag maps exactly to HMAC domain bytes CLS/APPROVAL-RECEIPT/v2 followed by one NUL byte."
+    },
+    "externalSentReceiptCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_APPROVAL_RECEIPT_v2:[a-f0-9]{64}$",
+      "description": "Trusted sent receipt commitment; serialized tag maps exactly to HMAC domain bytes CLS/APPROVAL-RECEIPT/v2 followed by one NUL byte."
+    },
+    "externalReplyCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_PRIVATE_CONTENT_v2:[a-f0-9]{64}$",
+      "description": "Serialized tag maps exactly to HMAC domain bytes CLS/PRIVATE-CONTENT/v2 followed by one NUL byte."
+    },
+    "externalReconciliationCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_PRIVATE_CONTENT_v2:[a-f0-9]{64}$",
+      "description": "Serialized tag maps exactly to HMAC domain bytes CLS/PRIVATE-CONTENT/v2 followed by one NUL byte."
+    },
+    "externalWaiverApprovalCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_APPROVAL_RECEIPT_v2:[a-f0-9]{64}$",
+      "description": "Trusted user receipt commitment; serialized tag maps exactly to HMAC domain bytes CLS/APPROVAL-RECEIPT/v2 followed by one NUL byte."
+    },
+    "batchSizeExceptionCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_APPROVAL_RECEIPT_v2:[a-f0-9]{64}$",
+      "description": "Trusted user receipt commitment; serialized tag maps exactly to HMAC domain bytes CLS/APPROVAL-RECEIPT/v2 followed by one NUL byte."
+    },
+    "eventActorReceiptCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_APPROVAL_RECEIPT_v2:[a-f0-9]{64}$",
+      "description": "Trusted actor receipt commitment; serialized tag maps exactly to HMAC domain bytes CLS/APPROVAL-RECEIPT/v2 followed by one NUL byte."
+    },
+    "nullableSourceAnchorCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/sourceAnchorCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableSourceContentCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/sourceContentCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableRedactionApprovalCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/redactionApprovalCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableDeferredApprovalCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/deferredApprovalCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableExternalPackCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/externalPackCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableExternalApprovalReceiptCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/externalApprovalReceiptCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableExternalSentReceiptCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/externalSentReceiptCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableExternalReplyCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/externalReplyCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableExternalReconciliationCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/externalReconciliationCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableExternalWaiverApprovalCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/externalWaiverApprovalCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableBatchSizeExceptionCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/batchSizeExceptionCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "nullableEventActorReceiptCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/eventActorReceiptCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?Z$",
+      "description": "Strict UTC Z timestamp. The invariant checker must also perform semantic calendar validation; format alone is not treated as an assertion."
+    },
+    "nullableTimestamp": {
+      "oneOf": [
+        { "$ref": "#/$defs/timestamp" },
+        { "type": "null" }
+      ]
+    },
+    "nullableInteger": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "null" }
+      ]
+    },
+    "revisionId": {
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._:-]{7,127}$"
+    },
+    "opaqueId": {
+      "type": "string",
+      "pattern": "^[A-Z]{2,16}-[A-Z0-9][A-Z0-9_-]{7,127}$"
+    },
+    "nullableOpaqueId": {
+      "oneOf": [
+        { "$ref": "#/$defs/opaqueId" },
+        { "type": "null" }
+      ]
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,95}$"
+    },
+    "nullableReasonCode": {
+      "oneOf": [
+        { "$ref": "#/$defs/reasonCode" },
+        { "type": "null" }
+      ]
+    },
+    "safeSlug": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 120,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "publicRepoLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "root_id", "plane_id", "relative_path", "line"],
+      "properties": {
+        "kind": { "const": "repo-relative" },
+        "root_id": {
+          "const": "ROOT-REPO-CURRENT",
+          "description": "Only the current repository root may participate in a public locator, and only together with PLANE-REPO-HEAD."
+        },
+        "plane_id": {
+          "const": "PLANE-REPO-HEAD",
+          "description": "Only committed HEAD evidence may expose a repo-relative locator. Git refs/history, index, dirty/worktree surfaces, external roots, anchored PRD, archives, Vaults, transcripts, memory, and backups remain opaque."
+        },
+        "relative_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!/)(?!.*\\\\)(?!.*:)(?!.*//)(?!.*%[0-9A-Fa-f]{2})(?!\\.\\.?$)(?!\\.\\.?/)(?!.*\\/\\.\\.?(?:\\/|$))(?!.*[\\u00AD\\u0600-\\u0605\\u061C\\u06DD\\u070F\\u0890-\\u0891\\u08E2\\u180E\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u2066-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uFDD0-\\uFDEF\\uFFFE\\uFFFF])[\\u0020-\\u002E\\u0030-\\u007E\\u00A0-\\uD7FF\\uE000-\\uFFFD]+(?:/[\\u0020-\\u002E\\u0030-\\u007E\\u00A0-\\uD7FF\\uE000-\\uFFFD]+)*$",
+          "description": "POSIX repo-relative BMP path only. The schema rejects C0/C1 controls, surrogate/astral code points, Unicode format controls including bidi controls, and Unicode noncharacters. The invariant checker must additionally require NFC, re-evaluate every scalar value with the pinned Unicode general-category allowlist, reject General_Category=Cf and all bidi/noncharacter code points, resolve the path beneath the declared public root, and verify canonical public evidence."
+        },
+        "line": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "opaqueEvidenceLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "locator_token"],
+      "properties": {
+        "kind": { "const": "opaque-token" },
+        "locator_token": { "$ref": "#/$defs/opaqueId" }
+      }
+    },
+    "evidenceKind": {
+      "enum": [
+        "public-source",
+        "decision-receipt",
+        "code",
+        "test",
+        "integration",
+        "uat",
+        "e2e",
+        "benchmark",
+        "external-review",
+        "reconciliation",
+        "waiver"
+      ]
+    },
+    "publicEvidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_id", "evidence_kind", "visibility", "locator", "payload_sha256"],
+      "properties": {
+        "evidence_id": { "$ref": "#/$defs/opaqueId" },
+        "evidence_kind": { "$ref": "#/$defs/evidenceKind" },
+        "visibility": { "const": "public-canonical" },
+        "locator": { "$ref": "#/$defs/publicRepoLocator" },
+        "payload_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "privateEvidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_id", "evidence_kind", "visibility", "locator", "payload_commitment"],
+      "properties": {
+        "evidence_id": { "$ref": "#/$defs/opaqueId" },
+        "evidence_kind": { "$ref": "#/$defs/evidenceKind" },
+        "visibility": { "const": "private-opaque" },
+        "locator": { "$ref": "#/$defs/opaqueEvidenceLocator" },
+        "payload_commitment": { "$ref": "#/$defs/privateEvidenceCommitment" }
+      }
+    },
+    "evidenceRef": {
+      "oneOf": [
+        { "$ref": "#/$defs/publicEvidenceRef" },
+        { "$ref": "#/$defs/privateEvidenceRef" }
+      ]
+    },
+    "sourceOccurrence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurrence_id",
+        "record_revision",
+        "manifest_revision_id",
+        "source_object_id",
+        "source_binding_id",
+        "parser_rule_id",
+        "marker_kind",
+        "source_kind",
+        "discovery_state",
+        "exclusion_reason_code",
+        "locator_token",
+        "utf8_byte_start",
+        "utf8_byte_end",
+        "line_hint",
+        "anchor_before_commitment",
+        "anchor_after_commitment",
+        "public_content_commitment"
+      ],
+      "properties": {
+        "occurrence_id": { "$ref": "#/$defs/opaqueId" },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Append-only SourceOccurrence record revision. LedgerEvent.subject_revision must equal this value."
+        },
+        "manifest_revision_id": { "$ref": "#/$defs/revisionId" },
+        "source_object_id": { "$ref": "#/$defs/opaqueId" },
+        "source_binding_id": {
+          "$ref": "#/$defs/opaqueId",
+          "description": "Opaque A01 SourceBinding identifier. The invariant checker must resolve exactly one binding and verify that its source_object_id and locator_token match this occurrence."
+        },
+        "parser_rule_id": { "$ref": "#/$defs/revisionId" },
+        "marker_kind": {
+          "enum": [
+            "user-plain",
+            "user-numbered",
+            "user-correction",
+            "user-comment",
+            "chinese-user-label",
+            "bmad-anno-callout",
+            "learning-callout",
+            "unlabelled-user-quote",
+            "broad-discovery"
+          ]
+        },
+        "source_kind": {
+          "enum": [
+            "unclassified",
+            "primary",
+            "derived",
+            "requote",
+            "mirror",
+            "template-example",
+            "placeholder",
+            "false-positive",
+            "external-private"
+          ]
+        },
+        "discovery_state": {
+          "enum": ["pending", "included", "excluded", "source-unavailable"]
+        },
+        "exclusion_reason_code": { "$ref": "#/$defs/nullableReasonCode" },
+        "locator_token": { "$ref": "#/$defs/opaqueId" },
+        "utf8_byte_start": { "$ref": "#/$defs/nullableInteger" },
+        "utf8_byte_end": { "$ref": "#/$defs/nullableInteger" },
+        "line_hint": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "null" }
+          ]
+        },
+        "anchor_before_commitment": { "$ref": "#/$defs/nullableSourceAnchorCommitment" },
+        "anchor_after_commitment": { "$ref": "#/$defs/nullableSourceAnchorCommitment" },
+        "public_content_commitment": { "$ref": "#/$defs/nullableSourceContentCommitment" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "discovery_state": { "const": "pending" } },
+            "required": ["discovery_state"]
+          },
+          "then": {
+            "properties": {
+              "exclusion_reason_code": { "type": "null" },
+              "utf8_byte_start": { "type": "null" },
+              "utf8_byte_end": { "type": "null" },
+              "line_hint": { "type": "null" },
+              "anchor_before_commitment": { "type": "null" },
+              "anchor_after_commitment": { "type": "null" },
+              "public_content_commitment": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "discovery_state": { "const": "included" } },
+            "required": ["discovery_state"]
+          },
+          "then": {
+            "properties": {
+              "source_kind": { "not": { "const": "unclassified" } },
+              "exclusion_reason_code": { "type": "null" },
+              "utf8_byte_start": { "type": "integer", "minimum": 0 },
+              "utf8_byte_end": { "type": "integer", "minimum": 0 },
+              "public_content_commitment": { "$ref": "#/$defs/sourceContentCommitment" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "discovery_state": { "const": "excluded" } },
+            "required": ["discovery_state"]
+          },
+          "then": {
+            "properties": {
+              "source_kind": { "not": { "const": "unclassified" } },
+              "exclusion_reason_code": { "$ref": "#/$defs/reasonCode" },
+              "utf8_byte_start": { "type": "integer", "minimum": 0 },
+              "utf8_byte_end": { "type": "integer", "minimum": 0 },
+              "public_content_commitment": { "$ref": "#/$defs/sourceContentCommitment" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "discovery_state": { "const": "source-unavailable" } },
+            "required": ["discovery_state"]
+          },
+          "then": {
+            "properties": {
+              "exclusion_reason_code": { "$ref": "#/$defs/reasonCode" },
+              "utf8_byte_start": { "type": "null" },
+              "utf8_byte_end": { "type": "null" },
+              "line_hint": { "type": "null" },
+              "anchor_before_commitment": { "type": "null" },
+              "anchor_after_commitment": { "type": "null" },
+              "public_content_commitment": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+    "atomicAnnotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "annotation_id",
+        "annotation_revision",
+        "occurrence_ids",
+        "requirement_kind",
+        "parent_goal",
+        "public_summary_ref",
+        "validity_state",
+        "disposition",
+        "local_review_state",
+        "implementation_state",
+        "evidence_level",
+        "evidence_refs",
+        "duplicate_of",
+        "supersedes",
+        "superseded_by",
+        "aliases",
+        "privacy_class",
+        "sensitive_category_codes",
+        "export_eligibility",
+        "redaction_approval_commitment",
+        "external_review_outcome",
+        "external_review_batch_id",
+        "external_review_waiver_id",
+        "deferred_until_utc",
+        "deferred_approval_commitment",
+        "owner_role",
+        "next_action_code",
+        "first_seen_manifest",
+        "last_seen_manifest",
+        "record_payload_sha256"
+      ],
+      "properties": {
+        "annotation_id": { "$ref": "#/$defs/opaqueId" },
+        "annotation_revision": { "type": "integer", "minimum": 1 },
+        "occurrence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by opaque occurrence ID ascending.",
+          "items": { "$ref": "#/$defs/opaqueId" }
+        },
+        "requirement_kind": {
+          "enum": ["question", "correction", "decision", "constraint", "acceptance", "rejection", "context"]
+        },
+        "parent_goal": {
+          "enum": ["OBJ-01", "OBJ-02", "OBJ-03", "OBJ-04", "OBJ-05", "OBJ-06", "OBJ-07", "OBJ-08", "EXPLICIT-NON-GOAL", "UNMAPPED"]
+        },
+        "public_summary_ref": { "$ref": "#/$defs/nullableOpaqueId" },
+        "validity_state": { "enum": ["pending", "valid", "excluded"] },
+        "disposition": {
+          "enum": [
+            "unanswered",
+            "decision-needed",
+            "deferred",
+            "design-only",
+            "implemented-unverified",
+            "verified",
+            "rejected",
+            "superseded",
+            "duplicate",
+            "unverifiable"
+          ]
+        },
+        "local_review_state": {
+          "enum": ["pending", "codex-initial", "fact-checked", "disputed", "user-resolved"]
+        },
+        "implementation_state": {
+          "enum": ["not-applicable", "not-started", "design-only", "implemented-unverified", "verified", "evidence-invalidated"]
+        },
+        "evidence_level": { "enum": ["E0", "E1", "E2", "E3", "E4", "E5"] },
+        "evidence_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by evidence_id ascending; duplicate evidence_id values are rejected by the invariant checker.",
+          "items": { "$ref": "#/$defs/evidenceRef" }
+        },
+        "duplicate_of": { "$ref": "#/$defs/nullableOpaqueId" },
+        "supersedes": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by annotation ID ascending.",
+          "items": { "$ref": "#/$defs/opaqueId" }
+        },
+        "superseded_by": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by annotation ID ascending.",
+          "items": { "$ref": "#/$defs/opaqueId" }
+        },
+        "aliases": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by opaque alias ID ascending.",
+          "items": { "$ref": "#/$defs/opaqueId" }
+        },
+        "privacy_class": {
+          "enum": ["P0-public", "P1-project-internal", "P2-personal", "P3-high-sensitive", "P4-secret"]
+        },
+        "sensitive_category_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by enum token ascending.",
+          "items": {
+            "enum": ["identity", "education", "immigration", "finance", "housing", "health", "email", "calendar", "resume", "credential", "private-learning", "other"]
+          }
+        },
+        "export_eligibility": {
+          "enum": ["pending", "eligible", "blocked-private", "prohibited-secret", "not-required-invalid-candidate", "not-required-noncanonical"]
+        },
+        "redaction_approval_commitment": { "$ref": "#/$defs/nullableRedactionApprovalCommitment" },
+        "external_review_outcome": {
+          "enum": ["pending", "externally-reviewed", "external-review-waived", "not-required-invalid-candidate", "not-required-noncanonical"]
+        },
+        "external_review_batch_id": { "$ref": "#/$defs/nullableOpaqueId" },
+        "external_review_waiver_id": { "$ref": "#/$defs/nullableOpaqueId" },
+        "deferred_until_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "deferred_approval_commitment": { "$ref": "#/$defs/nullableDeferredApprovalCommitment" },
+        "owner_role": { "enum": ["user", "codex", "frontend", "backend", "platform", "evidence", "unassigned"] },
+        "next_action_code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9._-]{2,95}$"
+        },
+        "first_seen_manifest": { "$ref": "#/$defs/revisionId" },
+        "last_seen_manifest": { "$ref": "#/$defs/revisionId" },
+        "record_payload_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "SHA-256(CLS/A02-RECORD/v2\\0 || JCS(UTF-8 atomic annotation)) after omitting record_payload_sha256 itself. The written \\0 denotes one NUL byte. The invariant checker recomputes it."
+        }
+      },
+      "allOf": [
+        {
+          "not": {
+            "properties": {
+              "external_review_batch_id": { "$ref": "#/$defs/opaqueId" },
+              "external_review_waiver_id": { "$ref": "#/$defs/opaqueId" }
+            },
+            "required": ["external_review_batch_id", "external_review_waiver_id"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "validity_state": { "const": "pending" } },
+            "required": ["validity_state"]
+          },
+          "then": {
+            "properties": {
+              "parent_goal": { "const": "UNMAPPED" },
+              "disposition": { "const": "unanswered" },
+              "local_review_state": { "const": "pending" },
+              "implementation_state": { "const": "not-started" },
+              "evidence_level": { "const": "E0" },
+              "export_eligibility": { "const": "pending" },
+              "external_review_outcome": { "const": "pending" },
+              "external_review_batch_id": { "type": "null" },
+              "external_review_waiver_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "validity_state": { "const": "valid" } },
+            "required": ["validity_state"]
+          },
+          "then": {
+            "properties": {
+              "parent_goal": { "not": { "const": "UNMAPPED" } },
+              "owner_role": { "not": { "const": "unassigned" } },
+              "external_review_outcome": {
+                "not": { "const": "not-required-invalid-candidate" }
+              },
+              "export_eligibility": {
+                "not": { "const": "not-required-invalid-candidate" }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "validity_state": { "const": "excluded" } },
+            "required": ["validity_state"]
+          },
+          "then": {
+            "properties": {
+              "disposition": { "const": "rejected" },
+              "implementation_state": { "const": "not-applicable" },
+              "export_eligibility": { "const": "not-required-invalid-candidate" },
+              "redaction_approval_commitment": { "type": "null" },
+              "external_review_outcome": { "const": "not-required-invalid-candidate" },
+              "external_review_batch_id": { "type": "null" },
+              "external_review_waiver_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "external_review_outcome": { "const": "externally-reviewed" } },
+            "required": ["external_review_outcome"]
+          },
+          "then": {
+            "properties": {
+              "validity_state": { "const": "valid" },
+              "export_eligibility": { "const": "eligible" },
+              "redaction_approval_commitment": { "$ref": "#/$defs/redactionApprovalCommitment" },
+              "external_review_batch_id": { "$ref": "#/$defs/opaqueId" },
+              "external_review_waiver_id": { "type": "null" },
+              "local_review_state": { "enum": ["fact-checked", "user-resolved"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "external_review_outcome": { "const": "external-review-waived" } },
+            "required": ["external_review_outcome"]
+          },
+          "then": {
+            "properties": {
+              "validity_state": { "const": "valid" },
+              "export_eligibility": { "enum": ["blocked-private", "prohibited-secret"] },
+              "external_review_batch_id": { "type": "null" },
+              "external_review_waiver_id": { "$ref": "#/$defs/opaqueId" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "external_review_outcome": { "const": "not-required-invalid-candidate" } },
+            "required": ["external_review_outcome"]
+          },
+          "then": {
+            "properties": {
+              "validity_state": { "const": "excluded" },
+              "export_eligibility": { "const": "not-required-invalid-candidate" },
+              "external_review_batch_id": { "type": "null" },
+              "external_review_waiver_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "external_review_outcome": { "const": "not-required-noncanonical" } },
+            "required": ["external_review_outcome"]
+          },
+          "then": {
+            "properties": {
+              "disposition": { "enum": ["duplicate", "superseded"] },
+              "export_eligibility": { "const": "not-required-noncanonical" },
+              "external_review_batch_id": { "type": "null" },
+              "external_review_waiver_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "export_eligibility": { "const": "eligible" } },
+            "required": ["export_eligibility"]
+          },
+          "then": {
+            "properties": {
+              "validity_state": { "const": "valid" },
+              "privacy_class": { "not": { "const": "P4-secret" } },
+              "redaction_approval_commitment": { "$ref": "#/$defs/redactionApprovalCommitment" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "privacy_class": { "const": "P4-secret" } },
+            "required": ["privacy_class"]
+          },
+          "then": {
+            "properties": {
+              "export_eligibility": { "const": "prohibited-secret" },
+              "external_review_batch_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "export_eligibility": { "const": "prohibited-secret" } },
+            "required": ["export_eligibility"]
+          },
+          "then": {
+            "properties": { "external_review_batch_id": { "type": "null" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "disposition": { "const": "verified" } },
+            "required": ["disposition"]
+          },
+          "then": {
+            "properties": {
+              "validity_state": { "const": "valid" },
+              "implementation_state": { "const": "verified" },
+              "evidence_level": { "enum": ["E4", "E5"] },
+              "evidence_refs": {
+                "allOf": [
+                  {
+                    "contains": {
+                      "properties": { "evidence_kind": { "const": "code" } },
+                      "required": ["evidence_kind"]
+                    },
+                    "minContains": 1
+                  },
+                  {
+                    "contains": {
+                      "properties": { "evidence_kind": { "enum": ["uat", "e2e"] } },
+                      "required": ["evidence_kind"]
+                    },
+                    "minContains": 1
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "implementation_state": { "const": "verified" } },
+            "required": ["implementation_state"]
+          },
+          "then": {
+            "properties": { "disposition": { "const": "verified" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "disposition": { "const": "design-only" } },
+            "required": ["disposition"]
+          },
+          "then": {
+            "properties": { "implementation_state": { "const": "design-only" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "disposition": { "const": "implemented-unverified" } },
+            "required": ["disposition"]
+          },
+          "then": {
+            "properties": { "implementation_state": { "enum": ["implemented-unverified", "evidence-invalidated"] } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "disposition": { "const": "duplicate" } },
+            "required": ["disposition"]
+          },
+          "then": {
+            "properties": {
+              "duplicate_of": { "$ref": "#/$defs/opaqueId" },
+              "external_review_outcome": { "const": "not-required-noncanonical" },
+              "export_eligibility": { "const": "not-required-noncanonical" }
+            }
+          },
+          "else": {
+            "properties": { "duplicate_of": { "type": "null" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "disposition": { "const": "superseded" } },
+            "required": ["disposition"]
+          },
+          "then": {
+            "properties": {
+              "superseded_by": { "type": "array", "minItems": 1 },
+              "external_review_outcome": { "const": "not-required-noncanonical" },
+              "export_eligibility": { "const": "not-required-noncanonical" }
+            }
+          },
+          "else": {
+            "properties": { "superseded_by": { "type": "array", "maxItems": 0 } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "disposition": { "const": "deferred" } },
+            "required": ["disposition"]
+          },
+          "then": {
+            "properties": {
+              "deferred_until_utc": { "$ref": "#/$defs/timestamp" },
+              "deferred_approval_commitment": { "$ref": "#/$defs/deferredApprovalCommitment" }
+            }
+          },
+          "else": {
+            "properties": {
+              "deferred_until_utc": { "type": "null" },
+              "deferred_approval_commitment": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+    "annotationRevisionRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["annotation_id", "annotation_revision", "record_payload_sha256"],
+      "properties": {
+        "annotation_id": { "$ref": "#/$defs/opaqueId" },
+        "annotation_revision": { "type": "integer", "minimum": 1 },
+        "record_payload_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "externalReviewBatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batch_id",
+        "record_revision",
+        "annotation_revision_refs",
+        "theme_code",
+        "size_policy",
+        "size_exception_reason_code",
+        "size_exception_user_receipt_commitment",
+        "pack_payload_commitment",
+        "redaction_ruleset_sha256",
+        "privacy_scan_state",
+        "destination_provider",
+        "destination_product",
+        "destination_model",
+        "destination_session_token",
+        "state",
+        "approval_receipt_commitment",
+        "approved_pack_commitment",
+        "sent_receipt_commitment",
+        "sent_pack_commitment",
+        "reply_commitment",
+        "codex_reconciliation_commitment",
+        "created_at_utc",
+        "state_changed_at_utc",
+        "prepared_at_utc",
+        "approval_requested_at_utc",
+        "approved_at_utc",
+        "sent_at_utc",
+        "received_at_utc",
+        "reconciled_at_utc",
+        "terminal_from_state",
+        "terminal_reason_code",
+        "terminal_at_utc"
+      ],
+      "properties": {
+        "batch_id": { "$ref": "#/$defs/opaqueId" },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Append-only ExternalReviewBatch record revision. LedgerEvent.subject_revision must equal this value."
+        },
+        "annotation_revision_refs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by annotation_id then annotation_revision ascending. The checker rejects duplicate annotation_id/revision keys and missing or ineligible refs.",
+          "items": { "$ref": "#/$defs/annotationRevisionRef" }
+        },
+        "theme_code": { "$ref": "#/$defs/revisionId" },
+        "size_policy": { "enum": ["standard", "final-tail"] },
+        "size_exception_reason_code": { "$ref": "#/$defs/nullableReasonCode" },
+        "size_exception_user_receipt_commitment": { "$ref": "#/$defs/nullableBatchSizeExceptionCommitment" },
+        "pack_payload_commitment": { "$ref": "#/$defs/nullableExternalPackCommitment" },
+        "redaction_ruleset_sha256": { "$ref": "#/$defs/sha256" },
+        "privacy_scan_state": { "enum": ["pending", "pass", "fail"] },
+        "destination_provider": { "const": "openai-chatgpt" },
+        "destination_product": { "const": "chatgpt" },
+        "destination_model": { "$ref": "#/$defs/safeSlug" },
+        "destination_session_token": {
+          "$ref": "#/$defs/nullableOpaqueId",
+          "description": "Opaque public token for the exact ChatGPT conversation/session receipt. It is null before transmission and required from sent onward; no URL, title, prompt, reply, account identifier, or reversible locator is permitted."
+        },
+        "state": {
+          "enum": [
+            "redaction-pending",
+            "prepared",
+            "approval-pending",
+            "approved-to-send",
+            "sent",
+            "reply-received",
+            "codex-reconciled",
+            "superseded",
+            "invalidated"
+          ]
+        },
+        "approval_receipt_commitment": { "$ref": "#/$defs/nullableExternalApprovalReceiptCommitment" },
+        "approved_pack_commitment": { "$ref": "#/$defs/nullableExternalPackCommitment" },
+        "sent_receipt_commitment": { "$ref": "#/$defs/nullableExternalSentReceiptCommitment" },
+        "sent_pack_commitment": { "$ref": "#/$defs/nullableExternalPackCommitment" },
+        "reply_commitment": { "$ref": "#/$defs/nullableExternalReplyCommitment" },
+        "codex_reconciliation_commitment": { "$ref": "#/$defs/nullableExternalReconciliationCommitment" },
+        "created_at_utc": { "$ref": "#/$defs/timestamp" },
+        "state_changed_at_utc": { "$ref": "#/$defs/timestamp" },
+        "prepared_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "approval_requested_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "approved_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "sent_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "received_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "reconciled_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "terminal_from_state": {
+          "oneOf": [
+            {
+              "enum": [
+                "redaction-pending",
+                "prepared",
+                "approval-pending",
+                "approved-to-send",
+                "sent",
+                "reply-received",
+                "codex-reconciled"
+              ]
+            },
+            { "type": "null" }
+          ],
+          "description": "For superseded/invalidated only, records the exact last nonterminal state whose receipts, commitments, and timestamps must remain intact."
+        },
+        "terminal_reason_code": { "$ref": "#/$defs/nullableReasonCode" },
+        "terminal_at_utc": { "$ref": "#/$defs/nullableTimestamp" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "redaction-pending",
+                  "prepared",
+                  "approval-pending",
+                  "approved-to-send",
+                  "sent",
+                  "reply-received",
+                  "codex-reconciled"
+                ]
+              }
+            },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": { "terminal_from_state": { "type": "null" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": ["redaction-pending", "prepared", "approval-pending", "approved-to-send"]
+              }
+            },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": { "destination_session_token": { "type": "null" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "enum": ["sent", "reply-received", "codex-reconciled"] } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": { "destination_session_token": { "$ref": "#/$defs/opaqueId" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "terminal_from_state": {
+                "enum": ["redaction-pending", "prepared", "approval-pending", "approved-to-send"]
+              }
+            },
+            "required": ["terminal_from_state"]
+          },
+          "then": {
+            "properties": { "destination_session_token": { "type": "null" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "terminal_from_state": { "enum": ["sent", "reply-received", "codex-reconciled"] }
+            },
+            "required": ["terminal_from_state"]
+          },
+          "then": {
+            "properties": { "destination_session_token": { "$ref": "#/$defs/opaqueId" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "size_policy": { "const": "standard" } },
+            "required": ["size_policy"]
+          },
+          "then": {
+            "properties": {
+              "annotation_revision_refs": { "type": "array", "minItems": 6, "maxItems": 8 },
+              "size_exception_reason_code": { "type": "null" },
+              "size_exception_user_receipt_commitment": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "size_policy": { "const": "final-tail" } },
+            "required": ["size_policy"]
+          },
+          "then": {
+            "properties": {
+              "annotation_revision_refs": { "type": "array", "minItems": 1, "maxItems": 5 },
+              "size_exception_reason_code": { "const": "final-theme-tail" },
+              "size_exception_user_receipt_commitment": { "$ref": "#/$defs/batchSizeExceptionCommitment" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "redaction-pending" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "pack_payload_commitment": { "type": "null" },
+              "approval_receipt_commitment": { "type": "null" },
+              "approved_pack_commitment": { "type": "null" },
+              "sent_receipt_commitment": { "type": "null" },
+              "sent_pack_commitment": { "type": "null" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "prepared_at_utc": { "type": "null" },
+              "approval_requested_at_utc": { "type": "null" },
+              "approved_at_utc": { "type": "null" },
+              "sent_at_utc": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" },
+              "terminal_reason_code": { "type": "null" },
+              "terminal_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "prepared" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_receipt_commitment": { "type": "null" },
+              "approved_pack_commitment": { "type": "null" },
+              "sent_receipt_commitment": { "type": "null" },
+              "sent_pack_commitment": { "type": "null" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "approval_requested_at_utc": { "type": "null" },
+              "approved_at_utc": { "type": "null" },
+              "sent_at_utc": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" },
+              "terminal_reason_code": { "type": "null" },
+              "terminal_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "approval-pending" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_receipt_commitment": { "type": "null" },
+              "approved_pack_commitment": { "type": "null" },
+              "sent_receipt_commitment": { "type": "null" },
+              "sent_pack_commitment": { "type": "null" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "approved_at_utc": { "type": "null" },
+              "sent_at_utc": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" },
+              "terminal_reason_code": { "type": "null" },
+              "terminal_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "approved-to-send" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "approval_receipt_commitment": { "$ref": "#/$defs/externalApprovalReceiptCommitment" },
+              "approved_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approved_at_utc": { "$ref": "#/$defs/timestamp" },
+              "sent_receipt_commitment": { "type": "null" },
+              "sent_pack_commitment": { "type": "null" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "sent_at_utc": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" },
+              "terminal_reason_code": { "type": "null" },
+              "terminal_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "sent" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "approval_receipt_commitment": { "$ref": "#/$defs/externalApprovalReceiptCommitment" },
+              "approved_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "sent_receipt_commitment": { "$ref": "#/$defs/externalSentReceiptCommitment" },
+              "sent_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approved_at_utc": { "$ref": "#/$defs/timestamp" },
+              "sent_at_utc": { "$ref": "#/$defs/timestamp" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" },
+              "terminal_reason_code": { "type": "null" },
+              "terminal_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "reply-received" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "approval_receipt_commitment": { "$ref": "#/$defs/externalApprovalReceiptCommitment" },
+              "approved_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "sent_receipt_commitment": { "$ref": "#/$defs/externalSentReceiptCommitment" },
+              "sent_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "reply_commitment": { "$ref": "#/$defs/externalReplyCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approved_at_utc": { "$ref": "#/$defs/timestamp" },
+              "sent_at_utc": { "$ref": "#/$defs/timestamp" },
+              "received_at_utc": { "$ref": "#/$defs/timestamp" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" },
+              "terminal_reason_code": { "type": "null" },
+              "terminal_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "codex-reconciled" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "approval_receipt_commitment": { "$ref": "#/$defs/externalApprovalReceiptCommitment" },
+              "approved_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "sent_receipt_commitment": { "$ref": "#/$defs/externalSentReceiptCommitment" },
+              "sent_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "reply_commitment": { "$ref": "#/$defs/externalReplyCommitment" },
+              "codex_reconciliation_commitment": { "$ref": "#/$defs/externalReconciliationCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approved_at_utc": { "$ref": "#/$defs/timestamp" },
+              "sent_at_utc": { "$ref": "#/$defs/timestamp" },
+              "received_at_utc": { "$ref": "#/$defs/timestamp" },
+              "reconciled_at_utc": { "$ref": "#/$defs/timestamp" },
+              "terminal_reason_code": { "type": "null" },
+              "terminal_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "enum": ["superseded", "invalidated"] } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "terminal_from_state": {
+                "enum": [
+                  "redaction-pending",
+                  "prepared",
+                  "approval-pending",
+                  "approved-to-send",
+                  "sent",
+                  "reply-received",
+                  "codex-reconciled"
+                ]
+              },
+              "terminal_reason_code": { "$ref": "#/$defs/reasonCode" },
+              "terminal_at_utc": { "$ref": "#/$defs/timestamp" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "terminal_from_state": { "const": "redaction-pending" } },
+            "required": ["terminal_from_state"]
+          },
+          "then": {
+            "properties": {
+              "pack_payload_commitment": { "type": "null" },
+              "approval_receipt_commitment": { "type": "null" },
+              "approved_pack_commitment": { "type": "null" },
+              "sent_receipt_commitment": { "type": "null" },
+              "sent_pack_commitment": { "type": "null" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "prepared_at_utc": { "type": "null" },
+              "approval_requested_at_utc": { "type": "null" },
+              "approved_at_utc": { "type": "null" },
+              "sent_at_utc": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "terminal_from_state": { "const": "prepared" } },
+            "required": ["terminal_from_state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_receipt_commitment": { "type": "null" },
+              "approved_pack_commitment": { "type": "null" },
+              "sent_receipt_commitment": { "type": "null" },
+              "sent_pack_commitment": { "type": "null" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "approval_requested_at_utc": { "type": "null" },
+              "approved_at_utc": { "type": "null" },
+              "sent_at_utc": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "terminal_from_state": { "const": "approval-pending" } },
+            "required": ["terminal_from_state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_receipt_commitment": { "type": "null" },
+              "approved_pack_commitment": { "type": "null" },
+              "sent_receipt_commitment": { "type": "null" },
+              "sent_pack_commitment": { "type": "null" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "approved_at_utc": { "type": "null" },
+              "sent_at_utc": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "terminal_from_state": { "const": "approved-to-send" } },
+            "required": ["terminal_from_state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "approval_receipt_commitment": { "$ref": "#/$defs/externalApprovalReceiptCommitment" },
+              "approved_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approved_at_utc": { "$ref": "#/$defs/timestamp" },
+              "sent_receipt_commitment": { "type": "null" },
+              "sent_pack_commitment": { "type": "null" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "sent_at_utc": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "terminal_from_state": { "const": "sent" } },
+            "required": ["terminal_from_state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "approval_receipt_commitment": { "$ref": "#/$defs/externalApprovalReceiptCommitment" },
+              "approved_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "sent_receipt_commitment": { "$ref": "#/$defs/externalSentReceiptCommitment" },
+              "sent_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approved_at_utc": { "$ref": "#/$defs/timestamp" },
+              "sent_at_utc": { "$ref": "#/$defs/timestamp" },
+              "reply_commitment": { "type": "null" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "received_at_utc": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "terminal_from_state": { "const": "reply-received" } },
+            "required": ["terminal_from_state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "approval_receipt_commitment": { "$ref": "#/$defs/externalApprovalReceiptCommitment" },
+              "approved_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "sent_receipt_commitment": { "$ref": "#/$defs/externalSentReceiptCommitment" },
+              "sent_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "reply_commitment": { "$ref": "#/$defs/externalReplyCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approved_at_utc": { "$ref": "#/$defs/timestamp" },
+              "sent_at_utc": { "$ref": "#/$defs/timestamp" },
+              "received_at_utc": { "$ref": "#/$defs/timestamp" },
+              "codex_reconciliation_commitment": { "type": "null" },
+              "reconciled_at_utc": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "terminal_from_state": { "const": "codex-reconciled" } },
+            "required": ["terminal_from_state"]
+          },
+          "then": {
+            "properties": {
+              "privacy_scan_state": { "const": "pass" },
+              "pack_payload_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "approval_receipt_commitment": { "$ref": "#/$defs/externalApprovalReceiptCommitment" },
+              "approved_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "sent_receipt_commitment": { "$ref": "#/$defs/externalSentReceiptCommitment" },
+              "sent_pack_commitment": { "$ref": "#/$defs/externalPackCommitment" },
+              "reply_commitment": { "$ref": "#/$defs/externalReplyCommitment" },
+              "codex_reconciliation_commitment": { "$ref": "#/$defs/externalReconciliationCommitment" },
+              "prepared_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approval_requested_at_utc": { "$ref": "#/$defs/timestamp" },
+              "approved_at_utc": { "$ref": "#/$defs/timestamp" },
+              "sent_at_utc": { "$ref": "#/$defs/timestamp" },
+              "received_at_utc": { "$ref": "#/$defs/timestamp" },
+              "reconciled_at_utc": { "$ref": "#/$defs/timestamp" }
+            }
+          }
+        }
+      ]
+    },
+    "externalReviewWaiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "waiver_id",
+        "record_revision",
+        "annotation_ref",
+        "scope",
+        "reason_code",
+        "state",
+        "requested_at_utc",
+        "state_changed_at_utc",
+        "granted_at_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "expired_at_utc",
+        "superseded_at_utc",
+        "user_approval_receipt_commitment"
+      ],
+      "properties": {
+        "waiver_id": { "$ref": "#/$defs/opaqueId" },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Append-only ExternalReviewWaiver record revision. LedgerEvent.subject_revision must equal this value."
+        },
+        "annotation_ref": { "$ref": "#/$defs/annotationRevisionRef" },
+        "scope": { "const": "external-review" },
+        "reason_code": { "enum": ["privacy", "secret", "legal", "source-unavailable", "unsafe-to-redact", "user-declined"] },
+        "state": { "enum": ["requested", "granted", "revoked", "expired", "superseded"] },
+        "requested_at_utc": { "$ref": "#/$defs/timestamp" },
+        "state_changed_at_utc": { "$ref": "#/$defs/timestamp" },
+        "granted_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "expires_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "revoked_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "expired_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "superseded_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "user_approval_receipt_commitment": { "$ref": "#/$defs/nullableExternalWaiverApprovalCommitment" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "state": { "const": "requested" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "granted_at_utc": { "type": "null" },
+              "revoked_at_utc": { "type": "null" },
+              "expired_at_utc": { "type": "null" },
+              "superseded_at_utc": { "type": "null" },
+              "user_approval_receipt_commitment": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "granted" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "granted_at_utc": { "$ref": "#/$defs/timestamp" },
+              "revoked_at_utc": { "type": "null" },
+              "expired_at_utc": { "type": "null" },
+              "superseded_at_utc": { "type": "null" },
+              "user_approval_receipt_commitment": { "$ref": "#/$defs/externalWaiverApprovalCommitment" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "revoked" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "granted_at_utc": { "$ref": "#/$defs/timestamp" },
+              "revoked_at_utc": { "$ref": "#/$defs/timestamp" },
+              "expired_at_utc": { "type": "null" },
+              "superseded_at_utc": { "type": "null" },
+              "user_approval_receipt_commitment": { "$ref": "#/$defs/externalWaiverApprovalCommitment" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "expired" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "granted_at_utc": { "$ref": "#/$defs/timestamp" },
+              "expires_at_utc": { "$ref": "#/$defs/timestamp" },
+              "revoked_at_utc": { "type": "null" },
+              "expired_at_utc": { "$ref": "#/$defs/timestamp" },
+              "superseded_at_utc": { "type": "null" },
+              "user_approval_receipt_commitment": { "$ref": "#/$defs/externalWaiverApprovalCommitment" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "superseded" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": { "superseded_at_utc": { "$ref": "#/$defs/timestamp" } }
+          }
+        }
+      ]
+    },
+    "ledgerEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "ledger_sequence",
+        "event_type",
+        "subject_kind",
+        "subject_id",
+        "subject_revision",
+        "actor",
+        "actor_receipt_commitment",
+        "occurred_at_utc",
+        "previous_event_sha256",
+        "payload_before_sha256",
+        "payload_after",
+        "payload_after_sha256",
+        "event_payload_sha256"
+      ],
+      "properties": {
+        "event_id": { "$ref": "#/$defs/opaqueId" },
+        "ledger_sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Global append-only order. The invariant checker requires exact contiguous values 1..N in array order and binds genesis/previous_event_sha256 accordingly."
+        },
+        "event_type": {
+          "enum": [
+            "occurrence-discovered",
+            "occurrence-classified",
+            "annotation-created",
+            "annotation-revised",
+            "annotation-duplicated",
+            "annotation-superseded",
+            "local-review-transitioned",
+            "implementation-transitioned",
+            "evidence-attached",
+            "external-batch-created",
+            "external-batch-transitioned",
+            "waiver-requested",
+            "waiver-granted",
+            "waiver-revoked",
+            "waiver-expired",
+            "waiver-superseded",
+            "evidence-invalidated",
+            "source-unavailable"
+          ]
+        },
+        "subject_kind": {
+          "enum": ["source-occurrence", "atomic-annotation", "external-review-batch", "external-review-waiver"]
+        },
+        "subject_id": { "$ref": "#/$defs/opaqueId" },
+        "subject_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Must equal payload_after.annotation_revision for atomic-annotation and payload_after.record_revision for every other subject kind; the invariant checker enforces equality and monotonic append-only revision history."
+        },
+        "actor": { "enum": ["scanner", "importer", "codex", "user", "system"] },
+        "actor_receipt_commitment": { "$ref": "#/$defs/nullableEventActorReceiptCommitment" },
+        "occurred_at_utc": { "$ref": "#/$defs/timestamp" },
+        "previous_event_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "payload_before_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "payload_after": {
+          "oneOf": [
+            { "$ref": "#/$defs/sourceOccurrence" },
+            { "$ref": "#/$defs/atomicAnnotation" },
+            { "$ref": "#/$defs/externalReviewBatch" },
+            { "$ref": "#/$defs/externalReviewWaiver" }
+          ]
+        },
+        "payload_after_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "SHA-256(CLS/A02-RECORD/v2\\0 || JCS(UTF-8 payload_after)) under hash_profile_id. The written \\0 denotes one NUL byte; payload_after is retained, so this digest alone is never treated as replay evidence."
+        },
+        "event_payload_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "SHA-256(CLS/A02-EVENT/v2\\0 || JCS(UTF-8 event)) after omitting event_payload_sha256 itself. The written \\0 denotes one NUL byte."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "ledger_sequence": { "const": 1 } },
+            "required": ["ledger_sequence"]
+          },
+          "then": {
+            "properties": { "previous_event_sha256": { "type": "null" } }
+          },
+          "else": {
+            "properties": { "previous_event_sha256": { "$ref": "#/$defs/sha256" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "actor": { "const": "user" } },
+            "required": ["actor"]
+          },
+          "then": {
+            "properties": { "actor_receipt_commitment": { "$ref": "#/$defs/eventActorReceiptCommitment" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "event_type": { "enum": ["waiver-granted", "waiver-revoked"] } },
+            "required": ["event_type"]
+          },
+          "then": {
+            "properties": {
+              "actor": { "const": "user" },
+              "actor_receipt_commitment": { "$ref": "#/$defs/eventActorReceiptCommitment" },
+              "subject_kind": { "const": "external-review-waiver" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "event_type": { "enum": ["occurrence-discovered", "annotation-created", "external-batch-created", "waiver-requested"] } },
+            "required": ["event_type"]
+          },
+          "then": {
+            "properties": {
+              "subject_revision": { "const": 1 },
+              "payload_before_sha256": { "type": "null" }
+            }
+          },
+          "else": {
+            "properties": { "payload_before_sha256": { "$ref": "#/$defs/sha256" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "event_type": { "enum": ["occurrence-discovered", "occurrence-classified", "source-unavailable"] } },
+            "required": ["event_type"]
+          },
+          "then": {
+            "properties": {
+              "subject_kind": { "const": "source-occurrence" },
+              "payload_after": { "$ref": "#/$defs/sourceOccurrence" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "event_type": { "enum": ["annotation-created", "annotation-revised", "annotation-duplicated", "annotation-superseded", "local-review-transitioned", "implementation-transitioned", "evidence-attached", "evidence-invalidated"] } },
+            "required": ["event_type"]
+          },
+          "then": {
+            "properties": {
+              "subject_kind": { "const": "atomic-annotation" },
+              "payload_after": { "$ref": "#/$defs/atomicAnnotation" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "event_type": { "enum": ["external-batch-created", "external-batch-transitioned"] } },
+            "required": ["event_type"]
+          },
+          "then": {
+            "properties": {
+              "subject_kind": { "const": "external-review-batch" },
+              "payload_after": { "$ref": "#/$defs/externalReviewBatch" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "event_type": { "enum": ["waiver-requested", "waiver-granted", "waiver-revoked", "waiver-expired", "waiver-superseded"] } },
+            "required": ["event_type"]
+          },
+          "then": {
+            "properties": {
+              "subject_kind": { "const": "external-review-waiver" },
+              "payload_after": { "$ref": "#/$defs/externalReviewWaiver" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "event_type": { "const": "waiver-superseded" } },
+            "required": ["event_type"]
+          },
+          "then": {
+            "properties": {
+              "subject_kind": { "const": "external-review-waiver" },
+              "payload_after": {
+                "allOf": [
+                  { "$ref": "#/$defs/externalReviewWaiver" },
+                  {
+                    "properties": { "state": { "const": "superseded" } },
+                    "required": ["state"]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "invariantCheck": {
+      "type": "object",
+      "description": "Declaration of the mandatory second gate after JSON Schema. The content-addressed checker executable must recompute every frozen SHA/HMAC, validate canonical array order and unique business keys, prove A01 occurrence coverage and every cross-reference, resolve each source_occurrence.source_binding_id to exactly one A01 SourceBinding whose source_object_id and locator_token match and reject missing or ambiguous joins, enforce duplicate/supersedes acyclicity, require ledger_sequence 1..N plus previous-event chain continuity, match subject_id/subject_revision/payload_after, replay genesis plus ordered events byte-for-byte to the materialized arrays, validate trusted receipts and monotonic state timestamps, prove reviewed XOR current-revision waiver for every terminal eligible atom, require openai-chatgpt/chatgpt, bind every sent-or-later destination_session_token to the exact trusted sent receipt and preserve that session receipt through terminal transitions, require equal prepared/approved/sent pack commitments, and reject P4/prohibited-secret batch membership or any public/private canary. A self-asserted state=pass without a successful invocation of the executable identified by checker_executable_sha256 is not an acceptance gate.",
+      "additionalProperties": false,
+      "required": [
+        "checker_id",
+        "checker_version",
+        "checker_executable_sha256",
+        "state",
+        "checked_at_utc",
+        "checked_projection_payload_sha256",
+        "report_payload_sha256",
+        "violation_count"
+      ],
+      "properties": {
+        "checker_id": { "$ref": "#/$defs/revisionId" },
+        "checker_version": { "$ref": "#/$defs/safeSlug" },
+        "checker_executable_sha256": {
+          "$ref": "#/$defs/nullableSha256",
+          "description": "SHA-256 of the exact invariant-checker executable artifact. This is null only when state=not-run and is mandatory for pass/fail so checker_id plus checker_version cannot silently drift."
+        },
+        "state": { "enum": ["not-run", "pass", "fail"] },
+        "checked_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "checked_projection_payload_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "report_payload_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "violation_count": { "type": "integer", "minimum": 0 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "state": { "const": "not-run" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "checker_executable_sha256": { "type": "null" },
+              "checked_at_utc": { "type": "null" },
+              "checked_projection_payload_sha256": { "type": "null" },
+              "report_payload_sha256": { "type": "null" },
+              "violation_count": { "const": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "pass" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "checker_executable_sha256": { "$ref": "#/$defs/sha256" },
+              "checked_at_utc": { "$ref": "#/$defs/timestamp" },
+              "checked_projection_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "report_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "violation_count": { "const": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "fail" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "checker_executable_sha256": { "$ref": "#/$defs/sha256" },
+              "checked_at_utc": { "$ref": "#/$defs/timestamp" },
+              "checked_projection_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "report_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "violation_count": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

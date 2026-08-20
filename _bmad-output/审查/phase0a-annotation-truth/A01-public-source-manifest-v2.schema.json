@@ -1,0 +1,1472 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:canvas-learning-system:annotation-source-manifest:public:v2-draft",
+  "title": "Canvas Learning System Public Annotation Source Manifest v2 Draft",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "manifest_revision_id",
+    "parent_manifest_payload_sha256",
+    "manifest_payload_sha256",
+    "hash_profile_id",
+    "plan_id",
+    "is_canonical",
+    "state",
+    "created_at_utc",
+    "scan_cutoff_at_utc",
+    "project_id",
+    "privacy_notice",
+    "generator",
+    "vcs_snapshot",
+    "source_roots",
+    "source_planes",
+    "exclusion_policy",
+    "source_object_inventory",
+    "source_binding_inventory",
+    "scan_attempt_inventory",
+    "scan_attempt_count",
+    "inventory_state_counts",
+    "inventory_summary",
+    "scan_completeness",
+    "invariant_check",
+    "private_projection_commitment",
+    "boundary_approval"
+  ],
+  "properties": {
+    "schema_version": { "const": "2.0-draft" },
+    "artifact_id": { "$ref": "#/$defs/revisionId" },
+    "manifest_revision_id": { "$ref": "#/$defs/revisionId" },
+    "parent_manifest_payload_sha256": { "$ref": "#/$defs/nullableSha256" },
+    "manifest_payload_sha256": {
+      "description": "SHA-256(CLS/A01-MANIFEST/v2\\0 || JCS(NFC-normalized public manifest projection UTF-8 bytes)). The written \\0 denotes one NUL byte. The frozen excluded-field list is exactly: root manifest_payload_sha256 and the entire root invariant_check object. parent_manifest_payload_sha256 and every other field remain in scope. The independent checker recomputes this payload; a self-asserted digest is never an acceptance gate.",
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "hash_profile_id": {
+      "const": "CLS-CANONICAL-JCS-NFC-SHA256-HMAC-V2",
+      "description": "Frozen contract profile. Private commitments serialize as hmac-sha256:CLS_PRIVATE_CONTENT_v2:<hex> or hmac-sha256:CLS_APPROVAL_RECEIPT_v2:<hex>, mapping exactly to domain bytes CLS/PRIVATE-CONTENT/v2\\0 and CLS/APPROVAL-RECEIPT/v2\\0 respectively. Field-specific HMAC domains are forbidden."
+    },
+    "plan_id": { "const": "PLAN-CLS-PRODUCTIVITY-2026-08-20" },
+    "is_canonical": { "type": "boolean" },
+    "state": { "enum": ["boundary-review", "scanning", "incomplete", "complete", "superseded"] },
+    "created_at_utc": { "$ref": "#/$defs/timestamp" },
+    "scan_cutoff_at_utc": { "$ref": "#/$defs/timestamp" },
+    "project_id": { "const": "canvas-learning-system" },
+    "privacy_notice": { "type": "string", "minLength": 20, "maxLength": 512 },
+    "generator": { "$ref": "#/$defs/generator" },
+    "vcs_snapshot": { "$ref": "#/$defs/vcsSnapshot" },
+    "source_roots": { "$ref": "#/$defs/sourceRootSet" },
+    "source_planes": { "$ref": "#/$defs/sourcePlaneSet" },
+    "exclusion_policy": { "$ref": "#/$defs/exclusionPolicy" },
+    "source_object_inventory": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Canonical set array, stably sorted by source_object_id then object_revision ascending. The checker rejects duplicate business IDs and duplicate content identities even when whole objects differ.",
+      "items": { "$ref": "#/$defs/sourceObjectInventoryItem" }
+    },
+    "source_binding_inventory": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Canonical set array, stably sorted by binding_id ascending. Multiple distinct bindings may reference one SourceObject as provenance aliases; duplicate binding IDs or semantic locator aliases are rejected by the checker.",
+      "items": { "$ref": "#/$defs/sourceBindingInventoryItem" }
+    },
+    "scan_attempt_inventory": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Canonical set array, stably sorted by scan_attempt_id ascending. Attempts are append-only evidence; current SourceObject state points to an exact attempt and object revision.",
+      "items": { "$ref": "#/$defs/scanAttemptInventoryItem" }
+    },
+    "scan_attempt_count": { "$ref": "#/$defs/count" },
+    "inventory_state_counts": { "$ref": "#/$defs/inventoryStateCounts" },
+    "inventory_summary": { "$ref": "#/$defs/inventorySummary" },
+    "scan_completeness": { "$ref": "#/$defs/scanCompleteness" },
+    "invariant_check": { "$ref": "#/$defs/invariantCheck" },
+    "private_projection_commitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/privateProjectionCommitment" },
+        { "type": "null" }
+      ]
+    },
+    "boundary_approval": { "$ref": "#/$defs/boundaryApproval" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "complete" } }, "required": ["state"] },
+      "then": {
+        "properties": {
+          "is_canonical": { "const": true },
+          "manifest_payload_sha256": { "$ref": "#/$defs/sha256" },
+          "generator": {
+            "properties": {
+              "implementation_state": { "const": "validated" },
+              "code_commit_sha": { "$ref": "#/$defs/gitOidSha1" },
+              "executable_sha256": { "$ref": "#/$defs/sha256" },
+              "parser_ruleset_sha256": { "$ref": "#/$defs/sha256" },
+              "normalizer_version": { "not": { "const": "not-frozen" } }
+            }
+          },
+          "vcs_snapshot": {
+            "properties": {
+              "refs_inventory_commitment": { "$ref": "#/$defs/privateContentCommitment" },
+              "index_inventory_commitment": { "$ref": "#/$defs/indexInventoryCommitment" },
+              "dirty_delta_commitment": { "$ref": "#/$defs/dirtyDeltaCommitment" },
+              "pre_artifact_untracked_inventory_commitment": { "$ref": "#/$defs/untrackedInventoryCommitment" }
+            }
+          },
+          "source_roots": {
+            "items": {
+              "properties": {
+                "authorization_state": {
+                  "enum": ["authorized-by-active-goal", "authorized-read-only", "approved", "declined", "revoked"]
+                },
+                "authorization_receipt_commitment": { "$ref": "#/$defs/authorizationReceiptCommitment" }
+              }
+            }
+          },
+          "source_object_inventory": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/sourceObjectInventoryItem" },
+                {
+                  "properties": {
+                    "scan_state": { "enum": ["scanned", "excluded"] },
+                    "content_identity": {
+                      "oneOf": [
+                        { "$ref": "#/$defs/publicContentIdentity" },
+                        { "$ref": "#/$defs/privateContentCommitment" }
+                      ]
+                    },
+                    "current_scan_attempt_id": { "$ref": "#/$defs/opaqueId" }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": { "scan_state": { "const": "excluded" } },
+                    "required": ["scan_state"]
+                  },
+                  "then": {
+                    "properties": {
+                      "exclusion_approval_receipt_commitment": { "$ref": "#/$defs/approvalReceiptCommitment" }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "source_binding_inventory": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/sourceBindingInventoryItem" },
+                {
+                  "properties": {
+                    "authorization_state": {
+                      "enum": ["authorized-by-active-goal", "authorized-read-only", "approved"]
+                    },
+                    "authorization_receipt_commitment": { "$ref": "#/$defs/authorizationReceiptCommitment" }
+                  }
+                }
+              ]
+            }
+          },
+          "scan_attempt_inventory": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/scanAttemptInventoryItem" },
+                {
+                  "properties": {
+                    "outcome": {
+                      "enum": [
+                        "scanned-with-candidates",
+                        "scanned-no-candidate",
+                        "excluded",
+                        "unreadable",
+                        "parse-error",
+                        "source-unavailable"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "scan_attempt_count": { "type": "integer", "minimum": 1 },
+          "inventory_state_counts": {
+            "properties": {
+              "total": { "type": "integer", "minimum": 1 },
+              "approved_object_total": { "type": "integer", "minimum": 1 },
+              "binding_total": { "type": "integer", "minimum": 1 },
+              "pending": { "const": 0 },
+              "unreadable": { "const": 0 },
+              "parse_error": { "const": 0 },
+              "source_unavailable": { "const": 0 }
+            }
+          },
+          "boundary_approval": {
+            "properties": {
+              "state": { "const": "approved" },
+              "scope_commitment": { "$ref": "#/$defs/boundaryScopeCommitment" },
+              "user_approval_receipt_commitment": { "$ref": "#/$defs/boundaryApprovalReceiptCommitment" },
+              "decided_at_utc": { "$ref": "#/$defs/timestamp" }
+            }
+          },
+          "invariant_check": {
+            "properties": {
+              "state": { "const": "pass" },
+              "validator_executable_sha256": { "$ref": "#/$defs/sha256" },
+              "checked_manifest_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "report_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "checked_at_utc": { "$ref": "#/$defs/timestamp" },
+              "failure_codes": { "type": "array", "maxItems": 0 },
+              "check_results": { "$ref": "#/$defs/allInvariantResultsPass" }
+            }
+          },
+          "private_projection_commitment": { "$ref": "#/$defs/privateProjectionCommitment" },
+          "scan_completeness": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state", "coverage_claim_allowed", "blockers"],
+            "properties": {
+              "state": { "const": "complete" },
+              "coverage_claim_allowed": { "const": true },
+              "blockers": { "type": "array", "maxItems": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "state": { "not": { "const": "complete" } } },
+        "required": ["state"]
+      },
+      "then": {
+        "properties": {
+          "is_canonical": { "const": false },
+          "scan_completeness": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state", "coverage_claim_allowed", "blockers"],
+            "properties": {
+              "state": { "enum": ["not-started", "incomplete"] },
+              "coverage_claim_allowed": { "const": false },
+              "blockers": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "$ref": "#/$defs/reasonCode" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "is_canonical": { "const": true } }, "required": ["is_canonical"] },
+      "then": { "properties": { "state": { "const": "complete" } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "boundary_approval": {
+            "properties": { "state": { "not": { "const": "approved" } } },
+            "required": ["state"]
+          }
+        },
+        "required": ["boundary_approval"]
+      },
+      "then": {
+        "properties": {
+          "state": { "not": { "const": "complete" } },
+          "is_canonical": { "const": false },
+          "scan_completeness": { "properties": { "coverage_claim_allowed": { "const": false } } }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "invariant_check": {
+            "properties": { "state": { "not": { "const": "pass" } } },
+            "required": ["state"]
+          }
+        },
+        "required": ["invariant_check"]
+      },
+      "then": {
+        "properties": {
+          "state": { "not": { "const": "complete" } },
+          "is_canonical": { "const": false },
+          "scan_completeness": { "properties": { "coverage_claim_allowed": { "const": false } } }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitOidSha1": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "gitOid": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "publicContentIdentity": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "Public-only identity serialized as sha256:<hex>, computed as SHA-256(CLS/A01-SOURCE-OBJECT/v2\\0 || original source bytes). The checker forbids it whenever any current binding places the object above P1 or outside the adjudicated public HEAD boundary."
+    },
+    "privateContentCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_PRIVATE_CONTENT_v2:[a-f0-9]{64}$",
+      "description": "Serialized tag maps exactly to HMAC-SHA256 domain bytes CLS/PRIVATE-CONTENT/v2 followed by one NUL byte."
+    },
+    "approvalReceiptCommitment": {
+      "type": "string",
+      "pattern": "^hmac-sha256:CLS_APPROVAL_RECEIPT_v2:[a-f0-9]{64}$",
+      "description": "Trusted receipt commitment; serialized tag maps exactly to HMAC-SHA256 domain bytes CLS/APPROVAL-RECEIPT/v2 followed by one NUL byte."
+    },
+    "candidateSetCommitment": { "$ref": "#/$defs/privateContentCommitment" },
+    "authorizationReceiptCommitment": { "$ref": "#/$defs/approvalReceiptCommitment" },
+    "boundaryScopeCommitment": { "$ref": "#/$defs/privateContentCommitment" },
+    "boundaryApprovalReceiptCommitment": { "$ref": "#/$defs/approvalReceiptCommitment" },
+    "privateProjectionCommitment": { "$ref": "#/$defs/privateContentCommitment" },
+    "indexInventoryCommitment": { "$ref": "#/$defs/privateContentCommitment" },
+    "dirtyDeltaCommitment": { "$ref": "#/$defs/privateContentCommitment" },
+    "untrackedInventoryCommitment": { "$ref": "#/$defs/privateContentCommitment" },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?Z$",
+      "description": "Strict UTC Z lexical form. The invariant checker must additionally reject impossible calendar dates and prove cutoff/attempt/approval/check timestamps are monotonic."
+    },
+    "revisionId": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._:-]{7,127}$" },
+    "opaqueId": { "type": "string", "pattern": "^[A-Z]{2,12}-[A-Z0-9][A-Z0-9_-]{7,127}$" },
+    "rootId": {
+      "enum": [
+        "ROOT-REPO-CURRENT",
+        "ROOT-GIT-REFS",
+        "ROOT-ANCHORED-PRD",
+        "ROOT-ACTIVE-VAULT",
+        "ROOT-EXTERNAL-PRIVATE-01",
+        "ROOT-TRANSCRIPTS",
+        "ROOT-GRAPHITI-MEMORY",
+        "ROOT-OTHER-BACKUPS"
+      ],
+      "description": "Physical authorization roots only. Archive-derived is a SourceBinding classification overlay, not a root and never an authorization grant. Repository archives inherit ROOT-REPO-CURRENT or ROOT-GIT-REFS; an external archive requires its own separately approved physical root."
+    },
+    "bindingRootId": {
+      "enum": [
+        "ROOT-REPO-CURRENT",
+        "ROOT-GIT-REFS",
+        "ROOT-ANCHORED-PRD",
+        "ROOT-ACTIVE-VAULT",
+        "ROOT-EXTERNAL-PRIVATE-01",
+        "ROOT-TRANSCRIPTS",
+        "ROOT-GRAPHITI-MEMORY",
+        "ROOT-OTHER-BACKUPS"
+      ],
+      "description": "Physical authorization roots allowed on SourceBinding. The archive-derived token belongs only in classification_overlays, never in root_id and never grants authorization."
+    },
+    "planeId": {
+      "enum": [
+        "PLANE-REPO-HEAD",
+        "PLANE-REPO-INDEX",
+        "PLANE-REPO-WORKTREE-MODIFIED",
+        "PLANE-REPO-WORKTREE-DELETED",
+        "PLANE-REPO-WORKTREE-UNTRACKED",
+        "PLANE-GIT-REFS",
+        "PLANE-EXTERNAL-READONLY"
+      ]
+    },
+    "planeScopeCode": {
+      "enum": [
+        "committed-head-tree",
+        "staged-index-delta-against-head",
+        "unstaged-worktree-modified-against-index",
+        "worktree-deleted-tombstones-against-index",
+        "untracked-worktree-files",
+        "reachable-ref-history-with-binding-aliases",
+        "external-readonly-authorized-roots"
+      ]
+    },
+    "reasonCode": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,95}$" },
+    "nullableSha256": {
+      "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
+    "nullableGitOid": {
+      "oneOf": [{ "$ref": "#/$defs/gitOid" }, { "type": "null" }]
+    },
+    "nullablePrivateContentCommitment": {
+      "oneOf": [{ "$ref": "#/$defs/privateContentCommitment" }, { "type": "null" }]
+    },
+    "nullableCandidateSetCommitment": {
+      "oneOf": [{ "$ref": "#/$defs/candidateSetCommitment" }, { "type": "null" }]
+    },
+    "nullableAuthorizationReceiptCommitment": {
+      "oneOf": [{ "$ref": "#/$defs/authorizationReceiptCommitment" }, { "type": "null" }]
+    },
+    "nullableApprovalReceiptCommitment": {
+      "oneOf": [{ "$ref": "#/$defs/approvalReceiptCommitment" }, { "type": "null" }]
+    },
+    "nullableBoundaryScopeCommitment": {
+      "oneOf": [{ "$ref": "#/$defs/boundaryScopeCommitment" }, { "type": "null" }]
+    },
+    "nullableBoundaryApprovalReceiptCommitment": {
+      "oneOf": [{ "$ref": "#/$defs/boundaryApprovalReceiptCommitment" }, { "type": "null" }]
+    },
+    "nullableIndexInventoryCommitment": {
+      "oneOf": [{ "$ref": "#/$defs/indexInventoryCommitment" }, { "type": "null" }]
+    },
+    "nullableDirtyDeltaCommitment": {
+      "oneOf": [{ "$ref": "#/$defs/dirtyDeltaCommitment" }, { "type": "null" }]
+    },
+    "nullableUntrackedInventoryCommitment": {
+      "oneOf": [{ "$ref": "#/$defs/untrackedInventoryCommitment" }, { "type": "null" }]
+    },
+    "nullableTimestamp": {
+      "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }]
+    },
+    "nullableReasonCode": {
+      "oneOf": [{ "$ref": "#/$defs/reasonCode" }, { "type": "null" }]
+    },
+    "nullableOpaqueId": {
+      "oneOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }]
+    },
+    "publicScanAttemptReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["visibility", "report_payload_sha256"],
+      "properties": {
+        "visibility": { "const": "public-canonical" },
+        "report_payload_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "Bare SHA-256 is allowed only for a reviewed public canonical scan report containing no private locator, source bytes, error text, or secret material."
+        }
+      }
+    },
+    "privateScanAttemptReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["visibility", "report_payload_commitment"],
+      "properties": {
+        "visibility": { "const": "private-opaque" },
+        "report_payload_commitment": { "$ref": "#/$defs/privateContentCommitment" }
+      }
+    },
+    "completedScanAttemptReceipt": {
+      "oneOf": [
+        { "$ref": "#/$defs/publicScanAttemptReceipt" },
+        { "$ref": "#/$defs/privateScanAttemptReceipt" }
+      ]
+    },
+    "nullableScanAttemptReceipt": {
+      "oneOf": [
+        { "$ref": "#/$defs/completedScanAttemptReceipt" },
+        { "type": "null" }
+      ]
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "implementation_state",
+        "code_commit_sha",
+        "executable_sha256",
+        "parser_ruleset_id",
+        "parser_ruleset_sha256",
+        "normalizer_version"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "implementation_state": { "enum": ["not-implemented", "experimental", "validated"] },
+        "code_commit_sha": {
+          "oneOf": [{ "$ref": "#/$defs/gitOidSha1" }, { "type": "null" }]
+        },
+        "executable_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "parser_ruleset_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "parser_ruleset_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "normalizer_version": { "type": "string", "minLength": 1, "maxLength": 80 }
+      }
+    },
+    "worktreeCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tracked_modified", "tracked_deleted", "untracked"],
+      "properties": {
+        "tracked_modified": { "type": "integer", "minimum": 0 },
+        "tracked_deleted": { "type": "integer", "minimum": 0 },
+        "untracked": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "vcsSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_format",
+        "head_commit_oid",
+        "head_tree_oid",
+        "refs_count",
+        "refs_inventory_commitment",
+        "reachable_commit_count",
+        "index_inventory_commitment",
+        "dirty_delta_commitment",
+        "pre_artifact_untracked_inventory_commitment",
+        "pre_artifact_worktree_counts",
+        "dirty"
+      ],
+      "properties": {
+        "object_format": { "const": "sha1" },
+        "head_commit_oid": {
+          "$ref": "#/$defs/gitOidSha1",
+          "description": "High-entropy identity of the adjudicated public committed HEAD plane only; it conveys no authorization to expose refs, index, dirty worktree, or private roots."
+        },
+        "head_tree_oid": {
+          "$ref": "#/$defs/gitOidSha1",
+          "description": "High-entropy identity of the adjudicated public committed HEAD tree only."
+        },
+        "refs_count": { "type": "integer", "minimum": 1 },
+        "refs_inventory_commitment": {
+          "$ref": "#/$defs/nullablePrivateContentCommitment",
+          "description": "Git refs/history is P2. Its inventory may enter the public projection only as a CLS_PRIVATE_CONTENT_v2 keyed commitment; no bare digest is allowed."
+        },
+        "reachable_commit_count": { "type": "integer", "minimum": 1 },
+        "index_inventory_commitment": { "$ref": "#/$defs/nullableIndexInventoryCommitment" },
+        "dirty_delta_commitment": { "$ref": "#/$defs/nullableDirtyDeltaCommitment" },
+        "pre_artifact_untracked_inventory_commitment": { "$ref": "#/$defs/nullableUntrackedInventoryCommitment" },
+        "pre_artifact_worktree_counts": { "$ref": "#/$defs/worktreeCounts" },
+        "dirty": { "type": "boolean" }
+      }
+    },
+    "sourceRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_id",
+        "root_class",
+        "authorization_state",
+        "authorization_receipt_commitment",
+        "privacy_ceiling",
+        "proposed_action"
+      ],
+      "properties": {
+        "root_id": { "$ref": "#/$defs/rootId" },
+        "root_class": {
+          "enum": [
+            "repo-current",
+            "repo-history",
+            "anchored-prd",
+            "active-vault",
+            "authorized-external-candidate",
+            "conversation-export",
+            "derived-memory",
+            "other-backup"
+          ]
+        },
+        "authorization_state": {
+          "enum": [
+            "authorized-by-active-goal",
+            "authorized-read-only",
+            "boundary-approval-pending",
+            "export-unauthorized",
+            "unauthorized",
+            "not-scanned",
+            "approved",
+            "declined",
+            "revoked"
+          ]
+        },
+        "authorization_receipt_commitment": { "$ref": "#/$defs/nullableAuthorizationReceiptCommitment" },
+        "privacy_ceiling": { "enum": ["P0-public", "P1-project-internal", "P2-personal", "P3-high-sensitive", "P4-secret"] },
+        "proposed_action": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,127}$" }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-REPO-CURRENT" },
+                "root_class": { "const": "repo-current" },
+                "privacy_ceiling": { "const": "P2-personal" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-GIT-REFS" },
+                "root_class": { "const": "repo-history" },
+                "privacy_ceiling": { "const": "P2-personal" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-ANCHORED-PRD" },
+                "root_class": { "const": "anchored-prd" },
+                "privacy_ceiling": { "const": "P1-project-internal" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-ACTIVE-VAULT" },
+                "root_class": { "const": "active-vault" },
+                "privacy_ceiling": { "const": "P3-high-sensitive" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-EXTERNAL-PRIVATE-01" },
+                "root_class": { "const": "authorized-external-candidate" },
+                "privacy_ceiling": { "const": "P4-secret" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-TRANSCRIPTS" },
+                "root_class": { "const": "conversation-export" },
+                "privacy_ceiling": { "const": "P3-high-sensitive" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-GRAPHITI-MEMORY" },
+                "root_class": { "const": "derived-memory" },
+                "privacy_ceiling": { "const": "P3-high-sensitive" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-OTHER-BACKUPS" },
+                "root_class": { "const": "other-backup" },
+                "privacy_ceiling": { "const": "P4-secret" }
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": { "authorization_state": { "enum": ["approved", "declined", "revoked"] } },
+            "required": ["authorization_state"]
+          },
+          "then": {
+            "properties": { "authorization_receipt_commitment": { "$ref": "#/$defs/authorizationReceiptCommitment" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "authorization_state": {
+                "enum": ["boundary-approval-pending", "export-unauthorized", "unauthorized", "not-scanned"]
+              }
+            },
+            "required": ["authorization_state"]
+          },
+          "then": {
+            "properties": { "authorization_receipt_commitment": { "type": "null" } }
+          }
+        }
+      ]
+    },
+    "sourceRootSet": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "description": "Exactly eight physical authorization roots, stably sorted by the rootId enum ordinal declared in this schema version. Archive-derived is intentionally absent because it is only a SourceBinding classification overlay. Repository archives inherit ROOT-REPO-CURRENT or ROOT-GIT-REFS; external archives require a separately approved physical root.",
+      "items": { "$ref": "#/$defs/sourceRoot" },
+      "allOf": [
+        { "contains": { "properties": { "root_id": { "const": "ROOT-REPO-CURRENT" } }, "required": ["root_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "root_id": { "const": "ROOT-GIT-REFS" } }, "required": ["root_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "root_id": { "const": "ROOT-ANCHORED-PRD" } }, "required": ["root_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "root_id": { "const": "ROOT-ACTIVE-VAULT" } }, "required": ["root_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "root_id": { "const": "ROOT-EXTERNAL-PRIVATE-01" } }, "required": ["root_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "root_id": { "const": "ROOT-TRANSCRIPTS" } }, "required": ["root_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "root_id": { "const": "ROOT-GRAPHITI-MEMORY" } }, "required": ["root_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "root_id": { "const": "ROOT-OTHER-BACKUPS" } }, "required": ["root_id"] }, "minContains": 1, "maxContains": 1 }
+      ]
+    },
+    "sourcePlane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plane_id", "plane_class", "scope_code"],
+      "properties": {
+        "plane_id": { "$ref": "#/$defs/planeId" },
+        "plane_class": { "enum": ["git-head", "git-index", "git-worktree", "git-ref-history", "external-readonly"] },
+        "scope_code": { "$ref": "#/$defs/planeScopeCode" }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "plane_id": { "const": "PLANE-REPO-HEAD" },
+                "plane_class": { "const": "git-head" },
+                "scope_code": { "const": "committed-head-tree" }
+              }
+            },
+            {
+              "properties": {
+                "plane_id": { "const": "PLANE-REPO-INDEX" },
+                "plane_class": { "const": "git-index" },
+                "scope_code": { "const": "staged-index-delta-against-head" }
+              }
+            },
+            {
+              "properties": {
+                "plane_id": { "const": "PLANE-REPO-WORKTREE-MODIFIED" },
+                "plane_class": { "const": "git-worktree" },
+                "scope_code": { "const": "unstaged-worktree-modified-against-index" }
+              }
+            },
+            {
+              "properties": {
+                "plane_id": { "const": "PLANE-REPO-WORKTREE-DELETED" },
+                "plane_class": { "const": "git-worktree" },
+                "scope_code": { "const": "worktree-deleted-tombstones-against-index" }
+              }
+            },
+            {
+              "properties": {
+                "plane_id": { "const": "PLANE-REPO-WORKTREE-UNTRACKED" },
+                "plane_class": { "const": "git-worktree" },
+                "scope_code": { "const": "untracked-worktree-files" }
+              }
+            },
+            {
+              "properties": {
+                "plane_id": { "const": "PLANE-GIT-REFS" },
+                "plane_class": { "const": "git-ref-history" },
+                "scope_code": { "const": "reachable-ref-history-with-binding-aliases" }
+              }
+            },
+            {
+              "properties": {
+                "plane_id": { "const": "PLANE-EXTERNAL-READONLY" },
+                "plane_class": { "const": "external-readonly" },
+                "scope_code": { "const": "external-readonly-authorized-roots" }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "sourcePlaneSet": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "description": "Canonical set array, stably sorted by the planeId enum ordinal declared in this schema version.",
+      "items": { "$ref": "#/$defs/sourcePlane" },
+      "allOf": [
+        { "contains": { "properties": { "plane_id": { "const": "PLANE-REPO-HEAD" } }, "required": ["plane_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "plane_id": { "const": "PLANE-REPO-INDEX" } }, "required": ["plane_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "plane_id": { "const": "PLANE-REPO-WORKTREE-MODIFIED" } }, "required": ["plane_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "plane_id": { "const": "PLANE-REPO-WORKTREE-DELETED" } }, "required": ["plane_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "plane_id": { "const": "PLANE-REPO-WORKTREE-UNTRACKED" } }, "required": ["plane_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "plane_id": { "const": "PLANE-GIT-REFS" } }, "required": ["plane_id"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "plane_id": { "const": "PLANE-EXTERNAL-READONLY" } }, "required": ["plane_id"] }, "minContains": 1, "maxContains": 1 }
+      ]
+    },
+    "exclusionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exclude_by_default", "scan_then_classify"],
+      "properties": {
+        "exclude_by_default": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by reason code in Unicode code-point order.",
+          "items": { "$ref": "#/$defs/reasonCode" }
+        },
+        "scan_then_classify": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by reason code in Unicode code-point order.",
+          "items": { "$ref": "#/$defs/reasonCode" }
+        }
+      }
+    },
+    "sourceObjectInventoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_object_id",
+        "object_revision",
+        "content_identity",
+        "scan_state",
+        "reason_code",
+        "candidate_count",
+        "candidate_commitment",
+        "current_scan_attempt_id",
+        "exclusion_approval_receipt_commitment"
+      ],
+      "properties": {
+        "source_object_id": { "$ref": "#/$defs/opaqueId" },
+        "object_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Append-only SourceObject revision. ScanAttempt.object_revision and trusted exclusion receipts bind this exact value."
+        },
+        "content_identity": {
+          "oneOf": [
+            { "$ref": "#/$defs/publicContentIdentity" },
+            { "$ref": "#/$defs/privateContentCommitment" },
+            { "type": "null" }
+          ]
+        },
+        "scan_state": {
+          "enum": ["pending", "scanned", "excluded", "unreadable", "parse-error", "source-unavailable"]
+        },
+        "reason_code": { "$ref": "#/$defs/nullableReasonCode" },
+        "candidate_count": { "$ref": "#/$defs/count" },
+        "candidate_commitment": { "$ref": "#/$defs/nullableCandidateSetCommitment" },
+        "current_scan_attempt_id": { "$ref": "#/$defs/nullableOpaqueId" },
+        "exclusion_approval_receipt_commitment": { "$ref": "#/$defs/nullableApprovalReceiptCommitment" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "scan_state": { "const": "scanned" } },
+            "required": ["scan_state"]
+          },
+          "then": {
+            "properties": {
+              "content_identity": {
+                "oneOf": [
+                  { "$ref": "#/$defs/publicContentIdentity" },
+                  { "$ref": "#/$defs/privateContentCommitment" }
+                ]
+              },
+              "reason_code": { "type": "null" },
+              "current_scan_attempt_id": { "$ref": "#/$defs/opaqueId" },
+              "exclusion_approval_receipt_commitment": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scan_state": { "const": "scanned" },
+              "candidate_count": { "const": 0 }
+            },
+            "required": ["scan_state", "candidate_count"]
+          },
+          "then": {
+            "properties": { "candidate_commitment": { "type": "null" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scan_state": { "const": "scanned" },
+              "candidate_count": { "minimum": 1 }
+            },
+            "required": ["scan_state", "candidate_count"]
+          },
+          "then": {
+            "properties": { "candidate_commitment": { "$ref": "#/$defs/candidateSetCommitment" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "scan_state": { "const": "excluded" } },
+            "required": ["scan_state"]
+          },
+          "then": {
+            "properties": {
+              "content_identity": {
+                "oneOf": [
+                  { "$ref": "#/$defs/publicContentIdentity" },
+                  { "$ref": "#/$defs/privateContentCommitment" }
+                ]
+              },
+              "reason_code": { "$ref": "#/$defs/reasonCode" },
+              "candidate_count": { "const": 0 },
+              "candidate_commitment": { "type": "null" },
+              "current_scan_attempt_id": { "$ref": "#/$defs/opaqueId" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "scan_state": { "enum": ["unreadable", "parse-error"] } },
+            "required": ["scan_state"]
+          },
+          "then": {
+            "properties": {
+              "content_identity": {
+                "oneOf": [
+                  { "$ref": "#/$defs/publicContentIdentity" },
+                  { "$ref": "#/$defs/privateContentCommitment" }
+                ]
+              },
+              "reason_code": { "$ref": "#/$defs/reasonCode" },
+              "candidate_count": { "const": 0 },
+              "candidate_commitment": { "type": "null" },
+              "current_scan_attempt_id": { "$ref": "#/$defs/opaqueId" },
+              "exclusion_approval_receipt_commitment": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "scan_state": { "const": "source-unavailable" } },
+            "required": ["scan_state"]
+          },
+          "then": {
+            "properties": {
+              "content_identity": { "type": "null" },
+              "reason_code": { "$ref": "#/$defs/reasonCode" },
+              "candidate_count": { "const": 0 },
+              "candidate_commitment": { "type": "null" },
+              "current_scan_attempt_id": { "$ref": "#/$defs/opaqueId" },
+              "exclusion_approval_receipt_commitment": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "scan_state": { "const": "pending" } },
+            "required": ["scan_state"]
+          },
+          "then": {
+            "properties": {
+              "reason_code": { "$ref": "#/$defs/reasonCode" },
+              "candidate_count": { "const": 0 },
+              "candidate_commitment": { "type": "null" },
+              "exclusion_approval_receipt_commitment": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+    "sourceBindingInventoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_id",
+        "root_id",
+        "plane_id",
+        "classification_overlays",
+        "source_object_id",
+        "locator_token",
+        "vcs_oid",
+        "authorization_state",
+        "authorization_receipt_commitment"
+      ],
+      "properties": {
+        "binding_id": { "$ref": "#/$defs/opaqueId" },
+        "root_id": { "$ref": "#/$defs/bindingRootId" },
+        "plane_id": { "$ref": "#/$defs/planeId" },
+        "classification_overlays": {
+          "type": "array",
+          "maxItems": 1,
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by enum token. Archive-derived is an overlay on the physical root/plane binding and never creates a duplicate occurrence.",
+          "items": { "const": "archive-derived" }
+        },
+        "source_object_id": { "$ref": "#/$defs/opaqueId" },
+        "locator_token": { "$ref": "#/$defs/opaqueId" },
+        "vcs_oid": { "$ref": "#/$defs/nullableGitOid" },
+        "authorization_state": {
+          "enum": [
+            "authorized-by-active-goal",
+            "authorized-read-only",
+            "boundary-approval-pending",
+            "export-unauthorized",
+            "unauthorized",
+            "not-scanned",
+            "approved",
+            "declined",
+            "revoked"
+          ]
+        },
+        "authorization_receipt_commitment": { "$ref": "#/$defs/nullableAuthorizationReceiptCommitment" }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-REPO-CURRENT" },
+                "plane_id": {
+                  "enum": [
+                    "PLANE-REPO-HEAD",
+                    "PLANE-REPO-INDEX",
+                    "PLANE-REPO-WORKTREE-MODIFIED",
+                    "PLANE-REPO-WORKTREE-DELETED"
+                  ]
+                },
+                "vcs_oid": { "$ref": "#/$defs/gitOidSha1" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-REPO-CURRENT" },
+                "plane_id": { "const": "PLANE-REPO-WORKTREE-UNTRACKED" },
+                "vcs_oid": { "type": "null" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": { "const": "ROOT-GIT-REFS" },
+                "plane_id": { "const": "PLANE-GIT-REFS" },
+                "vcs_oid": { "$ref": "#/$defs/gitOidSha1" }
+              }
+            },
+            {
+              "properties": {
+                "root_id": {
+                  "enum": [
+                    "ROOT-ANCHORED-PRD",
+                    "ROOT-ACTIVE-VAULT",
+                    "ROOT-EXTERNAL-PRIVATE-01",
+                    "ROOT-TRANSCRIPTS",
+                    "ROOT-GRAPHITI-MEMORY",
+                    "ROOT-OTHER-BACKUPS"
+                  ]
+                },
+                "plane_id": { "const": "PLANE-EXTERNAL-READONLY" },
+                "vcs_oid": { "type": "null" }
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": { "authorization_state": { "enum": ["approved", "declined", "revoked"] } },
+            "required": ["authorization_state"]
+          },
+          "then": {
+            "properties": { "authorization_receipt_commitment": { "$ref": "#/$defs/authorizationReceiptCommitment" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "authorization_state": {
+                "enum": ["boundary-approval-pending", "export-unauthorized", "unauthorized", "not-scanned"]
+              }
+            },
+            "required": ["authorization_state"]
+          },
+          "then": {
+            "properties": { "authorization_receipt_commitment": { "type": "null" } }
+          }
+        }
+      ]
+    },
+    "scanAttemptInventoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scan_attempt_id",
+        "source_object_id",
+        "object_revision",
+        "parser_ruleset_id",
+        "parser_ruleset_sha256",
+        "parser_version",
+        "started_at_utc",
+        "finished_at_utc",
+        "outcome",
+        "error_code",
+        "receipt"
+      ],
+      "properties": {
+        "scan_attempt_id": { "$ref": "#/$defs/opaqueId" },
+        "source_object_id": { "$ref": "#/$defs/opaqueId" },
+        "object_revision": { "type": "integer", "minimum": 1 },
+        "parser_ruleset_id": { "$ref": "#/$defs/revisionId" },
+        "parser_ruleset_sha256": { "$ref": "#/$defs/sha256" },
+        "parser_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "started_at_utc": { "$ref": "#/$defs/timestamp" },
+        "finished_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "outcome": {
+          "enum": [
+            "running",
+            "scanned-with-candidates",
+            "scanned-no-candidate",
+            "excluded",
+            "unreadable",
+            "parse-error",
+            "source-unavailable"
+          ]
+        },
+        "error_code": { "$ref": "#/$defs/nullableReasonCode" },
+        "receipt": { "$ref": "#/$defs/nullableScanAttemptReceipt" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "outcome": { "const": "running" } },
+            "required": ["outcome"]
+          },
+          "then": {
+            "properties": {
+              "finished_at_utc": { "type": "null" },
+              "error_code": { "type": "null" },
+              "receipt": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": { "enum": ["scanned-with-candidates", "scanned-no-candidate"] }
+            },
+            "required": ["outcome"]
+          },
+          "then": {
+            "properties": {
+              "finished_at_utc": { "$ref": "#/$defs/timestamp" },
+              "error_code": { "type": "null" },
+              "receipt": { "$ref": "#/$defs/completedScanAttemptReceipt" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": { "enum": ["excluded", "unreadable", "parse-error", "source-unavailable"] }
+            },
+            "required": ["outcome"]
+          },
+          "then": {
+            "properties": {
+              "finished_at_utc": { "$ref": "#/$defs/timestamp" },
+              "error_code": { "$ref": "#/$defs/reasonCode" },
+              "receipt": { "$ref": "#/$defs/completedScanAttemptReceipt" }
+            }
+          }
+        }
+      ]
+    },
+    "inventoryStateCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "approved_object_total", "binding_total", "pending", "scanned", "excluded", "unreadable", "parse_error", "source_unavailable"],
+      "properties": {
+        "total": { "$ref": "#/$defs/count" },
+        "approved_object_total": {
+          "$ref": "#/$defs/count",
+          "description": "Checker-proven denominator: scanned + excluded + unreadable + parse_error + source_unavailable + pending over exactly the authorized object ID set."
+        },
+        "binding_total": { "$ref": "#/$defs/count" },
+        "pending": { "$ref": "#/$defs/count" },
+        "scanned": { "$ref": "#/$defs/count" },
+        "excluded": { "$ref": "#/$defs/count" },
+        "unreadable": { "$ref": "#/$defs/count" },
+        "parse_error": { "$ref": "#/$defs/count" },
+        "source_unavailable": { "$ref": "#/$defs/count" }
+      }
+    },
+    "boundaryApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "scope_commitment", "user_approval_receipt_commitment", "decided_at_utc"],
+      "properties": {
+        "state": { "enum": ["pending-user-approval", "approved", "declined", "revoked", "superseded"] },
+        "scope_commitment": { "$ref": "#/$defs/nullableBoundaryScopeCommitment" },
+        "user_approval_receipt_commitment": { "$ref": "#/$defs/nullableBoundaryApprovalReceiptCommitment" },
+        "decided_at_utc": { "$ref": "#/$defs/nullableTimestamp" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "state": { "const": "pending-user-approval" } }, "required": ["state"] },
+          "then": {
+            "properties": {
+              "scope_commitment": { "type": "null" },
+              "user_approval_receipt_commitment": { "type": "null" },
+              "decided_at_utc": { "type": "null" }
+            }
+          },
+          "else": {
+            "properties": {
+              "scope_commitment": { "$ref": "#/$defs/boundaryScopeCommitment" },
+              "user_approval_receipt_commitment": { "$ref": "#/$defs/boundaryApprovalReceiptCommitment" },
+              "decided_at_utc": { "$ref": "#/$defs/timestamp" }
+            }
+          }
+        }
+      ]
+    },
+    "invariantCheckResults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_object_ids_unique",
+        "binding_ids_unique",
+        "binding_object_refs_resolve",
+        "binding_root_refs_resolve",
+        "binding_plane_refs_resolve",
+        "binding_root_plane_compatible",
+        "approved_objects_have_binding",
+        "declined_or_revoked_roots_have_no_bindings",
+        "source_object_content_identities_unique",
+        "git_oid_content_identity_consistent",
+        "archive_overlay_does_not_duplicate_bindings",
+        "inventory_state_counts_match",
+        "approved_object_denominator_formula_matches",
+        "scan_attempt_count_match",
+        "scan_attempt_ids_unique",
+        "scan_attempt_object_revision_refs_resolve",
+        "source_object_state_matches_current_attempt",
+        "scanned_objects_have_success_attempt",
+        "excluded_objects_have_current_user_receipt",
+        "scan_attempt_receipts_valid",
+        "candidate_counts_match_occurrences",
+        "a02_occurrence_ids_match_candidates",
+        "canonical_arrays_sorted",
+        "canonical_hashes_recomputed",
+        "hmac_domains_and_commitments_valid",
+        "public_private_identity_boundary_valid",
+        "trusted_authorization_receipts_valid",
+        "authorization_states_consistent",
+        "boundary_scope_matches_roots",
+        "timestamps_semantically_valid_and_monotonic",
+        "public_private_canary_zero"
+      ],
+      "properties": {
+        "source_object_ids_unique": { "enum": ["not-run", "pass", "fail"] },
+        "binding_ids_unique": { "enum": ["not-run", "pass", "fail"] },
+        "binding_object_refs_resolve": { "enum": ["not-run", "pass", "fail"] },
+        "binding_root_refs_resolve": { "enum": ["not-run", "pass", "fail"] },
+        "binding_plane_refs_resolve": { "enum": ["not-run", "pass", "fail"] },
+        "binding_root_plane_compatible": { "enum": ["not-run", "pass", "fail"] },
+        "approved_objects_have_binding": { "enum": ["not-run", "pass", "fail"] },
+        "declined_or_revoked_roots_have_no_bindings": { "enum": ["not-run", "pass", "fail"] },
+        "source_object_content_identities_unique": { "enum": ["not-run", "pass", "fail"] },
+        "git_oid_content_identity_consistent": { "enum": ["not-run", "pass", "fail"] },
+        "archive_overlay_does_not_duplicate_bindings": { "enum": ["not-run", "pass", "fail"] },
+        "inventory_state_counts_match": { "enum": ["not-run", "pass", "fail"] },
+        "approved_object_denominator_formula_matches": { "enum": ["not-run", "pass", "fail"] },
+        "scan_attempt_count_match": { "enum": ["not-run", "pass", "fail"] },
+        "scan_attempt_ids_unique": { "enum": ["not-run", "pass", "fail"] },
+        "scan_attempt_object_revision_refs_resolve": { "enum": ["not-run", "pass", "fail"] },
+        "source_object_state_matches_current_attempt": { "enum": ["not-run", "pass", "fail"] },
+        "scanned_objects_have_success_attempt": { "enum": ["not-run", "pass", "fail"] },
+        "excluded_objects_have_current_user_receipt": { "enum": ["not-run", "pass", "fail"] },
+        "scan_attempt_receipts_valid": { "enum": ["not-run", "pass", "fail"] },
+        "candidate_counts_match_occurrences": { "enum": ["not-run", "pass", "fail"] },
+        "a02_occurrence_ids_match_candidates": { "enum": ["not-run", "pass", "fail"] },
+        "canonical_arrays_sorted": { "enum": ["not-run", "pass", "fail"] },
+        "canonical_hashes_recomputed": { "enum": ["not-run", "pass", "fail"] },
+        "hmac_domains_and_commitments_valid": { "enum": ["not-run", "pass", "fail"] },
+        "public_private_identity_boundary_valid": { "enum": ["not-run", "pass", "fail"] },
+        "trusted_authorization_receipts_valid": { "enum": ["not-run", "pass", "fail"] },
+        "authorization_states_consistent": { "enum": ["not-run", "pass", "fail"] },
+        "boundary_scope_matches_roots": { "enum": ["not-run", "pass", "fail"] },
+        "timestamps_semantically_valid_and_monotonic": { "enum": ["not-run", "pass", "fail"] },
+        "public_private_canary_zero": { "enum": ["not-run", "pass", "fail"] }
+      }
+    },
+    "allInvariantResultsNotRun": {
+      "type": "object",
+      "properties": {
+        "source_object_ids_unique": { "const": "not-run" },
+        "binding_ids_unique": { "const": "not-run" },
+        "binding_object_refs_resolve": { "const": "not-run" },
+        "binding_root_refs_resolve": { "const": "not-run" },
+        "binding_plane_refs_resolve": { "const": "not-run" },
+        "binding_root_plane_compatible": { "const": "not-run" },
+        "approved_objects_have_binding": { "const": "not-run" },
+        "declined_or_revoked_roots_have_no_bindings": { "const": "not-run" },
+        "source_object_content_identities_unique": { "const": "not-run" },
+        "git_oid_content_identity_consistent": { "const": "not-run" },
+        "archive_overlay_does_not_duplicate_bindings": { "const": "not-run" },
+        "inventory_state_counts_match": { "const": "not-run" },
+        "approved_object_denominator_formula_matches": { "const": "not-run" },
+        "scan_attempt_count_match": { "const": "not-run" },
+        "scan_attempt_ids_unique": { "const": "not-run" },
+        "scan_attempt_object_revision_refs_resolve": { "const": "not-run" },
+        "source_object_state_matches_current_attempt": { "const": "not-run" },
+        "scanned_objects_have_success_attempt": { "const": "not-run" },
+        "excluded_objects_have_current_user_receipt": { "const": "not-run" },
+        "scan_attempt_receipts_valid": { "const": "not-run" },
+        "candidate_counts_match_occurrences": { "const": "not-run" },
+        "a02_occurrence_ids_match_candidates": { "const": "not-run" },
+        "canonical_arrays_sorted": { "const": "not-run" },
+        "canonical_hashes_recomputed": { "const": "not-run" },
+        "hmac_domains_and_commitments_valid": { "const": "not-run" },
+        "public_private_identity_boundary_valid": { "const": "not-run" },
+        "trusted_authorization_receipts_valid": { "const": "not-run" },
+        "authorization_states_consistent": { "const": "not-run" },
+        "boundary_scope_matches_roots": { "const": "not-run" },
+        "timestamps_semantically_valid_and_monotonic": { "const": "not-run" },
+        "public_private_canary_zero": { "const": "not-run" }
+      }
+    },
+    "allInvariantResultsPass": {
+      "type": "object",
+      "properties": {
+        "source_object_ids_unique": { "const": "pass" },
+        "binding_ids_unique": { "const": "pass" },
+        "binding_object_refs_resolve": { "const": "pass" },
+        "binding_root_refs_resolve": { "const": "pass" },
+        "binding_plane_refs_resolve": { "const": "pass" },
+        "binding_root_plane_compatible": { "const": "pass" },
+        "approved_objects_have_binding": { "const": "pass" },
+        "declined_or_revoked_roots_have_no_bindings": { "const": "pass" },
+        "source_object_content_identities_unique": { "const": "pass" },
+        "git_oid_content_identity_consistent": { "const": "pass" },
+        "archive_overlay_does_not_duplicate_bindings": { "const": "pass" },
+        "inventory_state_counts_match": { "const": "pass" },
+        "approved_object_denominator_formula_matches": { "const": "pass" },
+        "scan_attempt_count_match": { "const": "pass" },
+        "scan_attempt_ids_unique": { "const": "pass" },
+        "scan_attempt_object_revision_refs_resolve": { "const": "pass" },
+        "source_object_state_matches_current_attempt": { "const": "pass" },
+        "scanned_objects_have_success_attempt": { "const": "pass" },
+        "excluded_objects_have_current_user_receipt": { "const": "pass" },
+        "scan_attempt_receipts_valid": { "const": "pass" },
+        "candidate_counts_match_occurrences": { "const": "pass" },
+        "a02_occurrence_ids_match_candidates": { "const": "pass" },
+        "canonical_arrays_sorted": { "const": "pass" },
+        "canonical_hashes_recomputed": { "const": "pass" },
+        "hmac_domains_and_commitments_valid": { "const": "pass" },
+        "public_private_identity_boundary_valid": { "const": "pass" },
+        "trusted_authorization_receipts_valid": { "const": "pass" },
+        "authorization_states_consistent": { "const": "pass" },
+        "boundary_scope_matches_roots": { "const": "pass" },
+        "timestamps_semantically_valid_and_monotonic": { "const": "pass" },
+        "public_private_canary_zero": { "const": "pass" }
+      }
+    },
+    "invariantCheck": {
+      "type": "object",
+      "description": "Mandatory second gate after JSON Schema. The complete command must invoke the frozen checker and independently recompute this report; document-authored state=pass strings are not evidence. The entire invariant_check object is excluded from manifest_payload_sha256, while report_payload_sha256 excludes only itself from the canonical public checker report.",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "validator_id",
+        "validator_version",
+        "validator_executable_sha256",
+        "checked_manifest_payload_sha256",
+        "report_payload_sha256",
+        "checked_at_utc",
+        "failure_codes",
+        "check_results"
+      ],
+      "properties": {
+        "state": { "enum": ["not-run", "pass", "fail"] },
+        "validator_id": { "const": "cls-a01-invariant-checker-v2" },
+        "validator_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "validator_executable_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "checked_manifest_payload_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "report_payload_sha256": {
+          "$ref": "#/$defs/nullableSha256",
+          "description": "SHA-256 of the public canonical checker report after excluding report_payload_sha256 itself. This report is outside manifest hash scope."
+        },
+        "checked_at_utc": { "$ref": "#/$defs/nullableTimestamp" },
+        "failure_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by reason code in Unicode code-point order.",
+          "items": { "$ref": "#/$defs/reasonCode" }
+        },
+        "check_results": { "$ref": "#/$defs/invariantCheckResults" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "state": { "const": "not-run" } }, "required": ["state"] },
+          "then": {
+            "properties": {
+              "validator_executable_sha256": { "type": "null" },
+              "checked_manifest_payload_sha256": { "type": "null" },
+              "report_payload_sha256": { "type": "null" },
+              "checked_at_utc": { "type": "null" },
+              "failure_codes": { "type": "array", "minItems": 1 },
+              "check_results": { "$ref": "#/$defs/allInvariantResultsNotRun" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "state": { "const": "pass" } }, "required": ["state"] },
+          "then": {
+            "properties": {
+              "validator_executable_sha256": { "$ref": "#/$defs/sha256" },
+              "checked_manifest_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "report_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "checked_at_utc": { "$ref": "#/$defs/timestamp" },
+              "failure_codes": { "type": "array", "maxItems": 0 },
+              "check_results": { "$ref": "#/$defs/allInvariantResultsPass" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "state": { "const": "fail" } }, "required": ["state"] },
+          "then": {
+            "properties": {
+              "validator_executable_sha256": { "$ref": "#/$defs/sha256" },
+              "checked_manifest_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "report_payload_sha256": { "$ref": "#/$defs/sha256" },
+              "checked_at_utc": { "$ref": "#/$defs/timestamp" },
+              "failure_codes": { "type": "array", "minItems": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "inventorySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "head_markdown_unique_blobs",
+        "head_markdown_paths",
+        "current_untracked_markdown_paths",
+        "history_unique_blobs_all_types",
+        "history_unique_paths_all_types",
+        "history_unique_blob_path_pairs_all_types",
+        "history_markdown_unique_blobs",
+        "history_markdown_unique_paths",
+        "history_markdown_blob_path_pairs",
+        "history_marker_markdown_blobs_provisional",
+        "history_marker_occurrences_provisional",
+        "history_marker_unique_exact_lines_provisional",
+        "history_only_marker_blobs_provisional",
+        "marker_paths_missing_from_head_provisional",
+        "current_repo_broad_marker_occurrences_provisional"
+      ],
+      "properties": {
+        "head_markdown_unique_blobs": { "$ref": "#/$defs/count" },
+        "head_markdown_paths": { "$ref": "#/$defs/count" },
+        "current_untracked_markdown_paths": { "$ref": "#/$defs/count" },
+        "history_unique_blobs_all_types": { "$ref": "#/$defs/count" },
+        "history_unique_paths_all_types": { "$ref": "#/$defs/count" },
+        "history_unique_blob_path_pairs_all_types": { "$ref": "#/$defs/count" },
+        "history_markdown_unique_blobs": { "$ref": "#/$defs/count" },
+        "history_markdown_unique_paths": { "$ref": "#/$defs/count" },
+        "history_markdown_blob_path_pairs": { "$ref": "#/$defs/count" },
+        "history_marker_markdown_blobs_provisional": { "$ref": "#/$defs/count" },
+        "history_marker_occurrences_provisional": { "$ref": "#/$defs/count" },
+        "history_marker_unique_exact_lines_provisional": { "$ref": "#/$defs/count" },
+        "history_only_marker_blobs_provisional": { "$ref": "#/$defs/count" },
+        "marker_paths_missing_from_head_provisional": { "$ref": "#/$defs/count" },
+        "current_repo_broad_marker_occurrences_provisional": { "$ref": "#/$defs/count" }
+      }
+    },
+    "count": { "type": "integer", "minimum": 0 },
+    "scanCompleteness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "coverage_claim_allowed", "blockers"],
+      "properties": {
+        "state": { "enum": ["not-started", "incomplete", "complete"] },
+        "coverage_claim_allowed": { "type": "boolean" },
+        "blockers": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Canonical set array, stably sorted by reason code in Unicode code-point order.",
+          "items": { "$ref": "#/$defs/reasonCode" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,273 @@
+{
+  "schema_version": "2.0-draft",
+  "artifact_id": "A01-SOURCE-BOUNDARY-DRAFT-2026-08-20-01",
+  "manifest_revision_id": "A01-MANIFEST-REV-2026-08-20-01",
+  "parent_manifest_payload_sha256": null,
+  "manifest_payload_sha256": null,
+  "hash_profile_id": "CLS-CANONICAL-JCS-NFC-SHA256-HMAC-V2",
+  "plan_id": "PLAN-CLS-PRODUCTIVITY-2026-08-20",
+  "is_canonical": false,
+  "state": "boundary-review",
+  "created_at_utc": "2026-08-19T20:07:01Z",
+  "scan_cutoff_at_utc": "2026-08-19T20:07:01Z",
+  "project_id": "canvas-learning-system",
+  "privacy_notice": "Public projection only. No private paths, raw annotations, prompts, replies, secrets, or reversible raw-text hashes.",
+  "generator": {
+    "name": "phase0a-read-only-baseline",
+    "version": "0.1",
+    "implementation_state": "not-implemented",
+    "code_commit_sha": null,
+    "executable_sha256": null,
+    "parser_ruleset_id": "annotation-discovery-rules-v2-draft",
+    "parser_ruleset_sha256": null,
+    "normalizer_version": "not-frozen"
+  },
+  "vcs_snapshot": {
+    "object_format": "sha1",
+    "head_commit_oid": "019443469f198286b9b40b2eb54c15c366f3e123",
+    "head_tree_oid": "a5c124e1520d07c6cc0871494b46c49693b149b8",
+    "refs_count": 44,
+    "refs_inventory_commitment": null,
+    "reachable_commit_count": 1045,
+    "index_inventory_commitment": null,
+    "dirty_delta_commitment": null,
+    "pre_artifact_untracked_inventory_commitment": null,
+    "pre_artifact_worktree_counts": {
+      "tracked_modified": 5,
+      "tracked_deleted": 5,
+      "untracked": 75
+    },
+    "dirty": true
+  },
+  "source_roots": [
+    {
+      "root_id": "ROOT-REPO-CURRENT",
+      "root_class": "repo-current",
+      "authorization_state": "boundary-approval-pending",
+      "authorization_receipt_commitment": null,
+      "privacy_ceiling": "P2-personal",
+      "proposed_action": "include-current-repo-after-ownership-classification"
+    },
+    {
+      "root_id": "ROOT-GIT-REFS",
+      "root_class": "repo-history",
+      "authorization_state": "boundary-approval-pending",
+      "authorization_receipt_commitment": null,
+      "privacy_ceiling": "P2-personal",
+      "proposed_action": "include-history-deduplicated-against-live-planes"
+    },
+    {
+      "root_id": "ROOT-ANCHORED-PRD",
+      "root_class": "anchored-prd",
+      "authorization_state": "boundary-approval-pending",
+      "authorization_receipt_commitment": null,
+      "privacy_ceiling": "P1-project-internal",
+      "proposed_action": "include-private-locator-public-commitment"
+    },
+    {
+      "root_id": "ROOT-ACTIVE-VAULT",
+      "root_class": "active-vault",
+      "authorization_state": "boundary-approval-pending",
+      "authorization_receipt_commitment": null,
+      "privacy_ceiling": "P3-high-sensitive",
+      "proposed_action": "private-layer-only-after-authorization"
+    },
+    {
+      "root_id": "ROOT-EXTERNAL-PRIVATE-01",
+      "root_class": "authorized-external-candidate",
+      "authorization_state": "export-unauthorized",
+      "authorization_receipt_commitment": null,
+      "privacy_ceiling": "P4-secret",
+      "proposed_action": "private-layer-only-per-item-redaction-or-waiver"
+    },
+    {
+      "root_id": "ROOT-TRANSCRIPTS",
+      "root_class": "conversation-export",
+      "authorization_state": "unauthorized",
+      "authorization_receipt_commitment": null,
+      "privacy_ceiling": "P3-high-sensitive",
+      "proposed_action": "pending-user-export-and-authorization"
+    },
+    {
+      "root_id": "ROOT-GRAPHITI-MEMORY",
+      "root_class": "derived-memory",
+      "authorization_state": "not-scanned",
+      "authorization_receipt_commitment": null,
+      "privacy_ceiling": "P3-high-sensitive",
+      "proposed_action": "discovery-hint-only"
+    },
+    {
+      "root_id": "ROOT-OTHER-BACKUPS",
+      "root_class": "other-backup",
+      "authorization_state": "not-scanned",
+      "authorization_receipt_commitment": null,
+      "privacy_ceiling": "P4-secret",
+      "proposed_action": "pending-root-enumeration-and-authorization"
+    }
+  ],
+  "source_planes": [
+    {
+      "plane_id": "PLANE-REPO-HEAD",
+      "plane_class": "git-head",
+      "scope_code": "committed-head-tree"
+    },
+    {
+      "plane_id": "PLANE-REPO-INDEX",
+      "plane_class": "git-index",
+      "scope_code": "staged-index-delta-against-head"
+    },
+    {
+      "plane_id": "PLANE-REPO-WORKTREE-MODIFIED",
+      "plane_class": "git-worktree",
+      "scope_code": "unstaged-worktree-modified-against-index"
+    },
+    {
+      "plane_id": "PLANE-REPO-WORKTREE-DELETED",
+      "plane_class": "git-worktree",
+      "scope_code": "worktree-deleted-tombstones-against-index"
+    },
+    {
+      "plane_id": "PLANE-REPO-WORKTREE-UNTRACKED",
+      "plane_class": "git-worktree",
+      "scope_code": "untracked-worktree-files"
+    },
+    {
+      "plane_id": "PLANE-GIT-REFS",
+      "plane_class": "git-ref-history",
+      "scope_code": "reachable-ref-history-with-binding-aliases"
+    },
+    {
+      "plane_id": "PLANE-EXTERNAL-READONLY",
+      "plane_class": "external-readonly",
+      "scope_code": "external-readonly-authorized-roots"
+    }
+  ],
+  "exclusion_policy": {
+    "exclude_by_default": [
+      "binary",
+      "build-output",
+      "cache",
+      "database-index",
+      "dependencies",
+      "model-weight",
+      "secret-body",
+      "vendor"
+    ],
+    "scan_then_classify": [
+      "archive",
+      "backup",
+      "generated-doc",
+      "invalid-utf8-text",
+      "large-text",
+      "nul-containing-text",
+      "review-pack",
+      "template"
+    ]
+  },
+  "source_object_inventory": [],
+  "source_binding_inventory": [],
+  "scan_attempt_inventory": [],
+  "scan_attempt_count": 0,
+  "inventory_state_counts": {
+    "total": 0,
+    "approved_object_total": 0,
+    "binding_total": 0,
+    "pending": 0,
+    "scanned": 0,
+    "excluded": 0,
+    "unreadable": 0,
+    "parse_error": 0,
+    "source_unavailable": 0
+  },
+  "inventory_summary": {
+    "head_markdown_unique_blobs": 2183,
+    "head_markdown_paths": 2298,
+    "current_untracked_markdown_paths": 62,
+    "history_unique_blobs_all_types": 11884,
+    "history_unique_paths_all_types": 8325,
+    "history_unique_blob_path_pairs_all_types": 13328,
+    "history_markdown_unique_blobs": 4446,
+    "history_markdown_unique_paths": 3958,
+    "history_markdown_blob_path_pairs": 5106,
+    "history_marker_markdown_blobs_provisional": 408,
+    "history_marker_occurrences_provisional": 1680,
+    "history_marker_unique_exact_lines_provisional": 852,
+    "history_only_marker_blobs_provisional": 180,
+    "marker_paths_missing_from_head_provisional": 73,
+    "current_repo_broad_marker_occurrences_provisional": 1092
+  },
+  "scan_completeness": {
+    "state": "incomplete",
+    "coverage_claim_allowed": false,
+    "blockers": [
+      "audit-local-hmac-key-not-provisioned",
+      "dirty-untracked-ownership-not-classified",
+      "duplicate-and-supersedes-not-resolved",
+      "graphiti-memory-tool-unavailable",
+      "history-scan-had-size-nul-and-decoding-skips",
+      "invariant-check-not-run",
+      "manifest-payload-hash-not-computed",
+      "parser-ruleset-not-frozen",
+      "private-root-authorizations-pending",
+      "scan-attempt-inventory-not-generated",
+      "semantic-atomization-not-run",
+      "source-binding-inventory-not-generated",
+      "source-boundary-not-user-approved",
+      "source-object-inventory-not-generated",
+      "strict-schema-validator-not-implemented",
+      "transcript-source-not-provided"
+    ]
+  },
+  "invariant_check": {
+    "state": "not-run",
+    "validator_id": "cls-a01-invariant-checker-v2",
+    "validator_version": "not-implemented",
+    "validator_executable_sha256": null,
+    "checked_manifest_payload_sha256": null,
+    "report_payload_sha256": null,
+    "checked_at_utc": null,
+    "failure_codes": [
+      "strict-schema-validator-not-implemented"
+    ],
+    "check_results": {
+      "source_object_ids_unique": "not-run",
+      "binding_ids_unique": "not-run",
+      "binding_object_refs_resolve": "not-run",
+      "binding_root_refs_resolve": "not-run",
+      "binding_plane_refs_resolve": "not-run",
+      "binding_root_plane_compatible": "not-run",
+      "approved_objects_have_binding": "not-run",
+      "declined_or_revoked_roots_have_no_bindings": "not-run",
+      "source_object_content_identities_unique": "not-run",
+      "git_oid_content_identity_consistent": "not-run",
+      "archive_overlay_does_not_duplicate_bindings": "not-run",
+      "inventory_state_counts_match": "not-run",
+      "approved_object_denominator_formula_matches": "not-run",
+      "scan_attempt_count_match": "not-run",
+      "scan_attempt_ids_unique": "not-run",
+      "scan_attempt_object_revision_refs_resolve": "not-run",
+      "source_object_state_matches_current_attempt": "not-run",
+      "scanned_objects_have_success_attempt": "not-run",
+      "excluded_objects_have_current_user_receipt": "not-run",
+      "scan_attempt_receipts_valid": "not-run",
+      "candidate_counts_match_occurrences": "not-run",
+      "a02_occurrence_ids_match_candidates": "not-run",
+      "canonical_arrays_sorted": "not-run",
+      "canonical_hashes_recomputed": "not-run",
+      "hmac_domains_and_commitments_valid": "not-run",
+      "public_private_identity_boundary_valid": "not-run",
+      "trusted_authorization_receipts_valid": "not-run",
+      "authorization_states_consistent": "not-run",
+      "boundary_scope_matches_roots": "not-run",
+      "timestamps_semantically_valid_and_monotonic": "not-run",
+      "public_private_canary_zero": "not-run"
+    }
+  },
+  "private_projection_commitment": null,
+  "boundary_approval": {
+    "state": "pending-user-approval",
+    "scope_commitment": null,
+    "user_approval_receipt_commitment": null,
+    "decided_at_utc": null
+  }
+}

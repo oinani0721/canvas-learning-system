@@ -1,0 +1,452 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:canvas-learning-system:gov-01:first-receipt-envelope:v1",
+  "title": "GOV-01 first receipt envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "plan_id",
+    "state",
+    "path_base",
+    "encoding_profile",
+    "receipt_digest_profile",
+    "census_at_utc",
+    "baseline",
+    "artifacts",
+    "toolchain",
+    "openspec_package_evidence",
+    "effective_config_public_state",
+    "runtime_readiness",
+    "authorization_scope",
+    "privacy"
+  ],
+  "properties": {
+    "schema_version": { "const": "gov-01-first-receipt-envelope-v1" },
+    "artifact_id": { "const": "GOV-01-FIRST-RECEIPT-ENVELOPE-2026-08-20-01" },
+    "plan_id": { "const": "PLAN-CLS-PRODUCTIVITY-2026-08-20" },
+    "state": { "const": "pending-user-confirmation" },
+    "path_base": { "const": "git-repo-root" },
+    "encoding_profile": { "const": "UTF-8-NFC-LF-no-duplicate-json-keys" },
+    "receipt_digest_profile": {
+      "const": "SHA-256(ASCII(CLS/GOV01-FIRST-RECEIPT/v1) || one NUL byte || raw-envelope-bytes); digest stored externally"
+    },
+    "census_at_utc": { "$ref": "#/$defs/utcTimestamp" },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["head_commit_oid", "head_tree_oid", "git_object_format", "worktree_state"],
+      "properties": {
+        "head_commit_oid": { "$ref": "#/$defs/gitSha1" },
+        "head_tree_oid": { "$ref": "#/$defs/gitSha1" },
+        "git_object_format": { "const": "sha1" },
+        "worktree_state": { "const": "dirty-user-owned-do-not-normalize" }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/artifact" },
+      "allOf": [
+        { "$ref": "#/$defs/containsGoal" },
+        { "$ref": "#/$defs/containsGovDecision" },
+        { "$ref": "#/$defs/containsPhase0AContract" },
+        { "$ref": "#/$defs/containsA01Schema" },
+        { "$ref": "#/$defs/containsA01Draft" },
+        { "$ref": "#/$defs/containsA02Schema" },
+        { "$ref": "#/$defs/containsBootstrapPatch" },
+        { "$ref": "#/$defs/containsEnvelopeSchema" },
+        { "$ref": "#/$defs/containsNvmrc" },
+        { "$ref": "#/$defs/containsPackageJson" },
+        { "$ref": "#/$defs/containsPackageLock" },
+        { "$ref": "#/$defs/containsProjectSettings" },
+        { "$ref": "#/$defs/containsLocalSettings" },
+        { "$ref": "#/$defs/containsClaudeMd" },
+        { "$ref": "#/$defs/containsLefthook" },
+        { "$ref": "#/$defs/containsPrd" }
+      ]
+    },
+    "toolchain": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        { "$ref": "#/$defs/nodeTool" },
+        { "$ref": "#/$defs/npmTool" },
+        { "$ref": "#/$defs/npxTool" },
+        { "$ref": "#/$defs/openspecTool" }
+      ],
+      "items": false
+    },
+    "openspec_package_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package_name",
+        "declared_range",
+        "locked_version",
+        "lock_integrity",
+        "worktree_node_modules_state",
+        "worktree_binary_state"
+      ],
+      "properties": {
+        "package_name": { "const": "@fission-ai/openspec" },
+        "declared_range": { "const": "^1.2.0" },
+        "locked_version": { "const": "1.2.0" },
+        "lock_integrity": {
+          "const": "sha512-2XDmPZcVY0Bs014lP9aoxe3VoEU8hFvqaBFxQaiJO2nhC8vTKCyo6sT/5YpQcOTfR/a64Hht2anTyqLR4eNhlg=="
+        },
+        "worktree_node_modules_state": { "const": "absent" },
+        "worktree_binary_state": { "const": "absent" }
+      }
+    },
+    "effective_config_public_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project_settings_bound_by_artifact",
+        "project_local_settings_bound_by_artifact",
+        "user_settings_state",
+        "managed_settings_state",
+        "core_hooks_path_state",
+        "core_hooks_path_public_commitment_state",
+        "phase0g_claude_session_allowed"
+      ],
+      "properties": {
+        "project_settings_bound_by_artifact": { "const": true },
+        "project_local_settings_bound_by_artifact": { "const": true },
+        "user_settings_state": { "const": "not-inspected-private" },
+        "managed_settings_state": { "const": "not-inspected-private" },
+        "core_hooks_path_state": { "const": "external-private-present" },
+        "core_hooks_path_public_commitment_state": { "const": "not-generated-bootstrap-only" },
+        "phase0g_claude_session_allowed": { "const": false }
+      }
+    },
+    "runtime_readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "openspec_scaffold_allowed",
+        "execution_ceiling",
+        "toolchain_change_requires_new_envelope"
+      ],
+      "properties": {
+        "state": { "const": "openspec-absent" },
+        "openspec_scaffold_allowed": { "const": false },
+        "execution_ceiling": { "const": "bootstrap-0-apply-and-containment-only" },
+        "toolchain_change_requires_new_envelope": { "const": true }
+      }
+    },
+    "authorization_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_repo_mutations",
+        "allowed_read_only_actions",
+        "prohibited_actions"
+      ],
+      "properties": {
+        "allowed_repo_mutations": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "action", "base_sha256", "target_sha256"],
+              "properties": {
+                "path": { "const": ".claude/settings.json" },
+                "action": { "const": "apply-frozen-bootstrap-patch" },
+                "base_sha256": { "const": "42e5765f4cbfeb06966442db4c9eedb0747aabd0486a14f9ae6af98362ddb9bf" },
+                "target_sha256": { "const": "c9caccf4457dfada4957c27413ab9f77d7535e05fb8250024d7548994c21c593" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "action", "base_sha256", "target_sha256"],
+              "properties": {
+                "path": { "const": "lefthook.yml" },
+                "action": { "const": "apply-frozen-bootstrap-patch" },
+                "base_sha256": { "const": "580b830e211daa5c3ae043d5c2f3b3ab00b70849111fb4f56ecdb0a59291a2d7" },
+                "target_sha256": { "const": "73d0654fbf6b2673d4c3ef4ba1a09424b7b959706a959e003a64487b6c64efe2" }
+              }
+            }
+          ],
+          "items": false
+        },
+        "allowed_read_only_actions": {
+          "const": [
+            "recompute-envelope-and-artifact-digests",
+            "session-process-census-without-private-content",
+            "git-head-index-ref-and-worktree-containment-check",
+            "parse-project-settings-and-bootstrap-target",
+            "git-apply-check"
+          ]
+        },
+        "prohibited_actions": {
+          "const": [
+            "install-or-download-toolchain",
+            "run-openspec-or-create-governance-change",
+            "start-or-resume-claude-session",
+            "read-private-vault-or-private-config-content",
+            "commit-or-move-user-index-or-ref",
+            "push-or-any-network-write",
+            "graphiti-read-or-write",
+            "annotation-census-ledger-or-chatgpt-export",
+            "product-code-change"
+          ]
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["public_projection", "private_locator_policy", "raw_private_digest_policy"],
+      "properties": {
+        "public_projection": { "const": "no-private-absolute-paths-no-private-content-no-secrets" },
+        "private_locator_policy": { "const": "0600-local-only-not-in-repo" },
+        "raw_private_digest_policy": { "const": "prohibited-public-keyed-commitment-required-for-later-stages" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha1": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "utcTimestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "file_kind", "byte_length", "raw_file_sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.git(?:/|$))[^\\u0000-\\u001f]+$"
+        },
+        "role": {
+          "enum": [
+            "goal",
+            "governance-decision",
+            "phase0a-contract",
+            "annotation-schema",
+            "annotation-draft",
+            "bootstrap-patch",
+            "receipt-schema",
+            "runtime-config",
+            "package-manifest",
+            "package-lock",
+            "agent-config",
+            "governance-config",
+            "prd-anchor"
+          ]
+        },
+        "file_kind": { "const": "regular" },
+        "byte_length": { "type": "integer", "minimum": 1 },
+        "raw_file_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "resolution_state",
+        "resolved_path_public",
+        "binary_sha256",
+        "launch_state",
+        "version",
+        "probe_exit_code",
+        "source_scope"
+      ],
+      "properties": {
+        "name": { "enum": ["node", "npm", "npx", "openspec"] },
+        "resolution_state": { "enum": ["resolved", "absent"] },
+        "resolved_path_public": {
+          "oneOf": [
+            { "type": "string", "pattern": "^/opt/homebrew/bin/(node|npm|npx)$" },
+            { "type": "null" }
+          ]
+        },
+        "binary_sha256": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "launch_state": { "enum": ["launch-failed", "not-run-absent"] },
+        "version": { "type": "null" },
+        "probe_exit_code": { "type": "integer", "minimum": 1, "maximum": 255 },
+        "source_scope": { "enum": ["path-public-system", "absent"] }
+      }
+    },
+    "nodeTool": {
+      "allOf": [
+        { "$ref": "#/$defs/tool" },
+        {
+          "properties": {
+            "name": { "const": "node" },
+            "resolution_state": { "const": "resolved" },
+            "resolved_path_public": { "const": "/opt/homebrew/bin/node" },
+            "binary_sha256": { "const": "fdfd102dbe86b0af5dfc540a9c8dcb2fa0c5a3166d4a6c067eaf78d49568af40" },
+            "launch_state": { "const": "launch-failed" },
+            "probe_exit_code": { "const": 134 },
+            "source_scope": { "const": "path-public-system" }
+          }
+        }
+      ]
+    },
+    "npmTool": {
+      "allOf": [
+        { "$ref": "#/$defs/tool" },
+        {
+          "properties": {
+            "name": { "const": "npm" },
+            "resolution_state": { "const": "resolved" },
+            "resolved_path_public": { "const": "/opt/homebrew/bin/npm" },
+            "binary_sha256": { "const": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7" },
+            "launch_state": { "const": "launch-failed" },
+            "probe_exit_code": { "const": 134 },
+            "source_scope": { "const": "path-public-system" }
+          }
+        }
+      ]
+    },
+    "npxTool": {
+      "allOf": [
+        { "$ref": "#/$defs/tool" },
+        {
+          "properties": {
+            "name": { "const": "npx" },
+            "resolution_state": { "const": "resolved" },
+            "resolved_path_public": { "const": "/opt/homebrew/bin/npx" },
+            "binary_sha256": { "const": "237adf8f3747cad8b9b62fcfd0d9c8d509a64e550337707f55100afcb79e8900" },
+            "launch_state": { "const": "launch-failed" },
+            "probe_exit_code": { "const": 134 },
+            "source_scope": { "const": "path-public-system" }
+          }
+        }
+      ]
+    },
+    "openspecTool": {
+      "allOf": [
+        { "$ref": "#/$defs/tool" },
+        {
+          "properties": {
+            "name": { "const": "openspec" },
+            "resolution_state": { "const": "absent" },
+            "resolved_path_public": { "type": "null" },
+            "binary_sha256": { "type": "null" },
+            "launch_state": { "const": "not-run-absent" },
+            "probe_exit_code": { "const": 1 },
+            "source_scope": { "const": "absent" }
+          }
+        }
+      ]
+    },
+    "containsGoal": { "$ref": "#/$defs/containsPathGoal" },
+    "containsGovDecision": { "$ref": "#/$defs/containsPathGovDecision" },
+    "containsPhase0AContract": { "$ref": "#/$defs/containsPathPhase0AContract" },
+    "containsA01Schema": { "$ref": "#/$defs/containsPathA01Schema" },
+    "containsA01Draft": { "$ref": "#/$defs/containsPathA01Draft" },
+    "containsA02Schema": { "$ref": "#/$defs/containsPathA02Schema" },
+    "containsBootstrapPatch": { "$ref": "#/$defs/containsPathBootstrapPatch" },
+    "containsEnvelopeSchema": { "$ref": "#/$defs/containsPathEnvelopeSchema" },
+    "containsNvmrc": { "$ref": "#/$defs/containsPathNvmrc" },
+    "containsPackageJson": { "$ref": "#/$defs/containsPathPackageJson" },
+    "containsPackageLock": { "$ref": "#/$defs/containsPathPackageLock" },
+    "containsProjectSettings": { "$ref": "#/$defs/containsPathProjectSettings" },
+    "containsLocalSettings": { "$ref": "#/$defs/containsPathLocalSettings" },
+    "containsClaudeMd": { "$ref": "#/$defs/containsPathClaudeMd" },
+    "containsLefthook": { "$ref": "#/$defs/containsPathLefthook" },
+    "containsPrd": { "$ref": "#/$defs/containsPathPrd" },
+    "containsPathGoal": {
+      "contains": { "properties": { "path": { "const": "_bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathGovDecision": {
+      "contains": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-追踪真相源修复决策稿.md" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathPhase0AContract": {
+      "contains": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-Phase0A-A01-A02-批注真相层实施契约.md" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathA01Schema": {
+      "contains": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/A01-public-source-manifest-v2.schema.json" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathA01Draft": {
+      "contains": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/A01-source-boundary-draft.json" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathA02Schema": {
+      "contains": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/A02-public-ledger-v2.schema.json" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathBootstrapPatch": {
+      "contains": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-Bootstrap-0-safe-mode.patch" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathEnvelopeSchema": {
+      "contains": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-first-receipt-envelope-v1.schema.json" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathNvmrc": {
+      "contains": { "properties": { "path": { "const": ".nvmrc" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathPackageJson": {
+      "contains": { "properties": { "path": { "const": "package.json" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathPackageLock": {
+      "contains": { "properties": { "path": { "const": "package-lock.json" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathProjectSettings": {
+      "contains": { "properties": { "path": { "const": ".claude/settings.json" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathLocalSettings": {
+      "contains": { "properties": { "path": { "const": ".claude/settings.local.json" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathClaudeMd": {
+      "contains": { "properties": { "path": { "const": "CLAUDE.md" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathLefthook": {
+      "contains": { "properties": { "path": { "const": "lefthook.yml" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPathPrd": {
+      "contains": { "properties": { "path": { "const": "docs/scheme-a-planning/14-scheme-a-implementation-prd.md" } }, "required": ["path"] },
+      "minContains": 1,
+      "maxContains": 1
+    }
+  }
+}

@@ -1,0 +1,215 @@
+{
+  "schema_version": "gov-01-toolchain-control-prep-envelope-v1",
+  "artifact_type": "gov-01-toolchain-control-prep-envelope",
+  "artifact_id": "GOV-01-TOOLCHAIN-CONTROL-PREP-2026-08-20-08",
+  "plan_id": "PLAN-CLS-PRODUCTIVITY-2026-08-20",
+  "state": "pending-user-confirmation",
+  "approval_challenge_id": "GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e",
+  "single_use": true,
+  "census_at_utc": "2026-08-20T18:56:19Z",
+  "not_after_utc": "2026-08-21T18:56:19Z",
+  "encoding_profile": "UTF-8-NFC-LF-no-BOM-no-duplicate-json-keys",
+  "receipt_digest_profile": "SHA-256(ASCII(CLS/GOV01-TOOLCHAIN-CONTROL-PREP-RECEIPT/v1) || one NUL byte || raw-envelope-bytes); digest supplied by user and stored externally",
+  "predecessor": {
+    "first_envelope_raw_sha256": "0b73b83e1dbd92dd0a4684a83438dafc7afae6a6fde42b4130d776d7ee246410",
+    "first_receipt_domain_sha256": "c89e7195e67b60a26117469e2b212fb508c0a5a64cac5d25a59a257f73b55740",
+    "bootstrap_patch_raw_sha256": "d2f9a1ff45006cf19bd5295b751e2b620dc6043d6ec1ff26494c1d2d722aa8aa",
+    "bootstrap_containment_state": "independently-verified-pass",
+    "prior_execution_ceiling": "control-prep-attempt-consumed-stop-before-target-create",
+    "failed_control_prep_attempt": {
+      "prior_envelope_raw_sha256": "9eab068fa58a282c6ed980bf1830ccb6daec88d92cfe343d69fb33e13f7b83fb",
+      "prior_receipt_domain_sha256": "4b2be6681fc055d3e5e53573ee3955fe125e844466ff822a89036c36c785a7b0",
+      "approval_challenge_id": "GOV01-CP-20260820-58610ca0bebc0c442f606e0fe6d96541",
+      "terminal_state": "ATTEMPT-CONSUMED-STOP",
+      "observed_stop_reason": "durable-claim-owner",
+      "durable_claim": {
+        "absolute_path": "/Users/Shared/cls-gov01-toolchain-control-consumed-GOV01-CP-20260820-58610ca0bebc0c442f606e0fe6d96541.claim",
+        "object_kind": "regular",
+        "device": 16777234,
+        "inode": 19459895,
+        "uid": 501,
+        "gid": 0,
+        "mode": "0600",
+        "byte_length": 0,
+        "link_count": 1,
+        "flags": 0,
+        "raw_file_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "target": {
+        "absolute_path": "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-58610ca0bebc0c442f606e0fe6d96541",
+        "state": "ABSENT"
+      },
+      "retention_contract": "the prior empty durable claim is terminal failure evidence; it must remain path-to-inode and metadata exact; deletion mutation cleanup or challenge reuse is evidence tampering and never authorized"
+    }
+  },
+  "artifacts": [
+    {
+      "role": "goal",
+      "path": "_bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md",
+      "file_kind": "regular",
+      "byte_length": 76625,
+      "raw_file_sha256": "68ed0e20594fd262955a9d93d7a891a2cac5d2f575bf3cda275adb7205207ffc"
+    },
+    {
+      "role": "governance-decision",
+      "path": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-追踪真相源修复决策稿.md",
+      "file_kind": "regular",
+      "byte_length": 40505,
+      "raw_file_sha256": "f20f48d2ee29a0aa804c7573802df3039aa701d82645dd68e8c44839c2ccd5d5"
+    },
+    {
+      "role": "first-receipt-predecessor",
+      "path": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-first-receipt-envelope-v1.json",
+      "file_kind": "regular",
+      "byte_length": 8954,
+      "raw_file_sha256": "0b73b83e1dbd92dd0a4684a83438dafc7afae6a6fde42b4130d776d7ee246410"
+    },
+    {
+      "role": "control-prep-executor",
+      "path": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-control-prep-v1.py",
+      "file_kind": "regular",
+      "byte_length": 58628,
+      "raw_file_sha256": "a4ed0826db4391fdd63ae9a261ae774425bb72c09af36c6afb68867c2bb9d827"
+    },
+    {
+      "role": "control-prep-envelope-schema",
+      "path": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-control-prep-envelope-v1.schema.json",
+      "file_kind": "regular",
+      "byte_length": 23437,
+      "raw_file_sha256": "5c6c07ffe71a8c39a6993b2c717b751988b94338800972bbcfe93363a152f984"
+    }
+  ],
+  "schema_binding": {
+    "schema_id": "urn:canvas-learning-system:gov-01:toolchain-control-prep-envelope:v1",
+    "path": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-control-prep-envelope-v1.schema.json",
+    "raw_file_sha256": "5c6c07ffe71a8c39a6993b2c717b751988b94338800972bbcfe93363a152f984",
+    "external_validation_required": true
+  },
+  "runtime_contract": {
+    "implementation": "cpython",
+    "version": "3.9.6",
+    "binary_sha256": "4b42b1a117605cafc8607b67b0892a609c2cd125012dd56288abeed8c89cdfb1",
+    "effective_executable_path": "/Library/Developer/CommandLineTools/usr/bin/python3",
+    "effective_executable_link_text": "../../Library/Frameworks/Python3.framework/Versions/3.9/bin/python3",
+    "effective_executable_realpath": "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+    "effective_executable_realpath_mode": "0755",
+    "effective_executable_owner": {
+      "uid": 0,
+      "gid": 0
+    },
+    "required_flags": [
+      "-I",
+      "-S",
+      "-B"
+    ],
+    "stdlib_only": true,
+    "effective_uid": 501,
+    "effective_gid": 20,
+    "executing_source_binding": "__file__ and argv[0] resolve to the exact approved repo artifact; raw bytes and inode are rechecked immediately before first write",
+    "target_worktree_claude_session_census": "stdlib ctypes libSystem proc_listpids(PROC_UID_ONLY=current euid) proc_pidinfo(PROC_PIDTBSDINFO and PROC_PIDVNODEPATHINFO) and sysctl(KERN_PROCARGS2); every UID-filtered process is inspected before native Node or Bun Claude classification; PID start-time UID and BSD command/name generation is re-read after vnode/argv and must match; disappeared PID is skipped only after kill(0) confirms ESRCH; no subprocess; immediately before first write; uninspectable live same-UID process associated Claude process or generation drift stops",
+    "required_active_target_worktree_claude_session_count": 0,
+    "key_generator": "exactly one os.urandom(32) call after exclusive hmac.key creation; no fallback or caller-supplied entropy",
+    "shell_allowed": false,
+    "subprocess_allowed": false,
+    "network_allowed": false
+  },
+  "target": {
+    "parent": "/Users/Shared",
+    "parent_identity": {
+      "object_kind": "directory",
+      "realpath": "/Users/Shared",
+      "device": 16777234,
+      "inode": 18434,
+      "uid": 0,
+      "gid": 0,
+      "mode": "1777"
+    },
+    "direct_child_name": "cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e",
+    "absolute_path": "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e",
+    "preimage": "ABSENT",
+    "durable_claim_direct_child_name": "cls-gov01-toolchain-control-consumed-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e.claim",
+    "durable_claim_absolute_path": "/Users/Shared/cls-gov01-toolchain-control-consumed-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e.claim",
+    "durable_claim_preimage": "ABSENT",
+    "durable_claim_mode": "0600",
+    "root_mode": "0700",
+    "claims_mode": "0700",
+    "key_mode": "0600",
+    "receipt_mode": "0600",
+    "expected_created_owner": {
+      "uid": 501,
+      "gid": 0,
+      "scope": "new durable claim target root and every descendant"
+    },
+    "durability_contract": "a separate durable sibling claim is the single-use record; target deletion cannot enable replay; executor never deletes either object; claim deletion is evidence tampering and never authorizes challenge reuse"
+  },
+  "action_sequence": [
+    "read-only revalidate exact envelope artifact closure executing source identity pinned /Users/Shared parent retained prior failed-claim evidence and zero target-worktree Claude sessions",
+    "recheck UTC expiry immediately before the first authorized write",
+    "create exact durable consumption claim sibling mode 0600 owner uid501 gid0 with O_CREAT|O_EXCL|O_NOFOLLOW and fsync it and /Users/Shared; EEXIST is terminal",
+    "mkdir exact target direct child under /Users/Shared mode 0700 owner uid501 gid0 with dir_fd and fail on EEXIST after consumption",
+    "mkdir exact claims direct child mode 0700 owner uid501 gid0 with dir_fd and fail on EEXIST",
+    "create exact hmac.key mode 0600 owner uid501 gid0 with O_CREAT|O_EXCL|O_NOFOLLOW then call os.urandom(32) exactly once and write exactly 32 bytes",
+    "create exact locator-free non-authoritative control-prep evidence candidate mode 0600 owner uid501 gid0 with O_CREAT|O_EXCL|O_NOFOLLOW",
+    "fsync each created file and directory and the /Users/Shared parent after its direct child creation",
+    "recheck pinned parent and exact root claims key receipt FD-to-path inode owner group mode bytes lengths and child sets before CONTROL-PREPARED stdout"
+  ],
+  "authorization_scope": {
+    "first_authorized_write": "exclusive openat of the exact durable 0600 consumption claim sibling under identity-pinned /Users/Shared; O_CREAT O_EXCL O_NOFOLLOW; EEXIST is terminal consumed-replay-or-tampering",
+    "allowed_created_objects": [
+      "/Users/Shared/cls-gov01-toolchain-control-consumed-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e.claim",
+      "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e",
+      "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e/claims",
+      "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e/hmac.key",
+      "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e/control-prep-receipt.json"
+    ],
+    "maximum_state": "CONTROL-PREPARED",
+    "single_use_semantics": "read-only preflight may rerun before expiry while both claim and target are absent; successful exclusive claim creation consumes the challenge permanently; target deletion cannot enable replay; claim EEXIST or observed deletion is terminal and the challenge is never reused",
+    "expiry_semantics": "UTC expiry must pass on envelope load and again immediately before the first authorized write; after durable consumption the same attempt may finish but never restart",
+    "host_sandbox_write_gate": "separate user-approved host sandbox escalation is required for the exact /Users/Shared claim and target siblings; envelope approval does not bypass the host sandbox",
+    "same_uid_threat_boundary": "the current macOS user is inside the trusted computing base; active malicious same-UID filesystem or process tampering is not an OS-isolation guarantee; every detected drift stops",
+    "repository_write_count": 0,
+    "prohibited_actions": [
+      "private preimage sidecar creation",
+      "acquisition challenge claim creation",
+      "stage or node_modules creation",
+      "repository or Git mutation",
+      "subprocess execution",
+      "network access",
+      "Node npm npx or OpenSpec execution",
+      "Vault read or enumeration",
+      "Graphiti access",
+      "cleanup deletion overwrite retry or repair"
+    ]
+  },
+  "failure_contract": {
+    "pre_claim_failure": "STOP with zero write; the same exact read-only preflight may rerun only before expiry while both claim and target remain absent",
+    "claim_eexist": "STOP as terminal consumed-replay-or-tampering; perform no target write or mutation",
+    "post_claim_failure": "STOP and retain the durable claim plus any exact partial target and children; any receipt candidate is non-authoritative and never independently claims CONTROL-PREPARED",
+    "target_eexist_after_claim": "STOP with durable claim retained and no target child write or mutation",
+    "prior_failed_attempt_retention": "the prior challenge is permanently consumed; its exact empty durable claim must remain as predecessor failure evidence and its absent target must remain absent; deletion mutation cleanup retry or challenge reuse is never authorized",
+    "cleanup_authorized": false,
+    "retry_policy": "after claim creation the challenge is permanently consumed; target deletion cannot permit reuse; claim deletion is evidence tampering; any new write attempt requires a new envelope challenge and user approval"
+  },
+  "success_contract": {
+    "maximum_state": "CONTROL-PREPARED",
+    "created_object_count": 5,
+    "stdout_projection": {
+      "state": "CONTROL-PREPARED"
+    },
+    "secret_or_locator_stdout_count": 0,
+    "success_evidence_rule": "CONTROL-PREPARED is emitted only after retained predecessor failure evidence and final FD-to-path inode metadata content child-set and fsync checks; on-disk receipt remains a non-authoritative candidate requiring full-tree verification",
+    "threat_model_ceiling": "personal local tool only; parent sticky root-owned identity and all observable path inode metadata content and session drift are fail-closed, but no claim of isolation from an actively malicious process running as the same macOS user",
+    "next_required_authorization": "new toolchain-acquisition envelope binding this control-preparation predecessor and a fresh acquisition challenge"
+  },
+  "privacy": {
+    "key_publication_allowed": false,
+    "locator_stdout_allowed": false,
+    "prep_receipt_locator_free": true,
+    "private_preimage_capture_allowed": false,
+    "public_generic_target_locator_allowed": true,
+    "repository_write_count": 0,
+    "vault_read_count": 0,
+    "graphiti_call_count": 0,
+    "network_call_count": 0
+  }
+}

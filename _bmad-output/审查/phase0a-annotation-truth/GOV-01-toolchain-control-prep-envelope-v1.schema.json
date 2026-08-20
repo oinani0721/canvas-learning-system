@@ -1,0 +1,513 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:canvas-learning-system:gov-01:toolchain-control-prep-envelope:v1",
+  "title": "GOV-01 toolchain control-preparation approval envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "artifact_id",
+    "plan_id",
+    "state",
+    "approval_challenge_id",
+    "single_use",
+    "census_at_utc",
+    "not_after_utc",
+    "encoding_profile",
+    "receipt_digest_profile",
+    "predecessor",
+    "artifacts",
+    "schema_binding",
+    "runtime_contract",
+    "target",
+    "action_sequence",
+    "authorization_scope",
+    "failure_contract",
+    "success_contract",
+    "privacy"
+  ],
+  "properties": {
+    "schema_version": { "const": "gov-01-toolchain-control-prep-envelope-v1" },
+    "artifact_type": { "const": "gov-01-toolchain-control-prep-envelope" },
+    "artifact_id": { "const": "GOV-01-TOOLCHAIN-CONTROL-PREP-2026-08-20-08" },
+    "plan_id": { "const": "PLAN-CLS-PRODUCTIVITY-2026-08-20" },
+    "state": { "const": "pending-user-confirmation" },
+    "approval_challenge_id": {
+      "const": "GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e"
+    },
+    "single_use": { "const": true },
+    "census_at_utc": { "const": "2026-08-20T18:56:19Z" },
+    "not_after_utc": { "const": "2026-08-21T18:56:19Z" },
+    "encoding_profile": { "const": "UTF-8-NFC-LF-no-BOM-no-duplicate-json-keys" },
+    "receipt_digest_profile": {
+      "const": "SHA-256(ASCII(CLS/GOV01-TOOLCHAIN-CONTROL-PREP-RECEIPT/v1) || one NUL byte || raw-envelope-bytes); digest supplied by user and stored externally"
+    },
+    "predecessor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "first_envelope_raw_sha256",
+        "first_receipt_domain_sha256",
+        "bootstrap_patch_raw_sha256",
+        "bootstrap_containment_state",
+        "prior_execution_ceiling",
+        "failed_control_prep_attempt"
+      ],
+      "properties": {
+        "first_envelope_raw_sha256": {
+          "const": "0b73b83e1dbd92dd0a4684a83438dafc7afae6a6fde42b4130d776d7ee246410"
+        },
+        "first_receipt_domain_sha256": {
+          "const": "c89e7195e67b60a26117469e2b212fb508c0a5a64cac5d25a59a257f73b55740"
+        },
+        "bootstrap_patch_raw_sha256": {
+          "const": "d2f9a1ff45006cf19bd5295b751e2b620dc6043d6ec1ff26494c1d2d722aa8aa"
+        },
+        "bootstrap_containment_state": { "const": "independently-verified-pass" },
+        "prior_execution_ceiling": { "const": "control-prep-attempt-consumed-stop-before-target-create" },
+        "failed_control_prep_attempt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "prior_envelope_raw_sha256",
+            "prior_receipt_domain_sha256",
+            "approval_challenge_id",
+            "terminal_state",
+            "observed_stop_reason",
+            "durable_claim",
+            "target",
+            "retention_contract"
+          ],
+          "properties": {
+            "prior_envelope_raw_sha256": {
+              "const": "9eab068fa58a282c6ed980bf1830ccb6daec88d92cfe343d69fb33e13f7b83fb"
+            },
+            "prior_receipt_domain_sha256": {
+              "const": "4b2be6681fc055d3e5e53573ee3955fe125e844466ff822a89036c36c785a7b0"
+            },
+            "approval_challenge_id": {
+              "const": "GOV01-CP-20260820-58610ca0bebc0c442f606e0fe6d96541"
+            },
+            "terminal_state": { "const": "ATTEMPT-CONSUMED-STOP" },
+            "observed_stop_reason": { "const": "durable-claim-owner" },
+            "durable_claim": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "absolute_path",
+                "object_kind",
+                "device",
+                "inode",
+                "uid",
+                "gid",
+                "mode",
+                "byte_length",
+                "link_count",
+                "flags",
+                "raw_file_sha256"
+              ],
+              "properties": {
+                "absolute_path": {
+                  "const": "/Users/Shared/cls-gov01-toolchain-control-consumed-GOV01-CP-20260820-58610ca0bebc0c442f606e0fe6d96541.claim"
+                },
+                "object_kind": { "const": "regular" },
+                "device": { "const": 16777234 },
+                "inode": { "const": 19459895 },
+                "uid": { "const": 501 },
+                "gid": { "const": 0 },
+                "mode": { "const": "0600" },
+                "byte_length": { "const": 0 },
+                "link_count": { "const": 1 },
+                "flags": { "const": 0 },
+                "raw_file_sha256": {
+                  "const": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                }
+              }
+            },
+            "target": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["absolute_path", "state"],
+              "properties": {
+                "absolute_path": {
+                  "const": "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-58610ca0bebc0c442f606e0fe6d96541"
+                },
+                "state": { "const": "ABSENT" }
+              }
+            },
+            "retention_contract": {
+              "const": "the prior empty durable claim is terminal failure evidence; it must remain path-to-inode and metadata exact; deletion mutation cleanup or challenge reuse is evidence tampering and never authorized"
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/artifact",
+          "properties": {
+            "role": { "const": "goal" },
+            "path": { "const": "_bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md" }
+          }
+        },
+        {
+          "$ref": "#/$defs/artifact",
+          "properties": {
+            "role": { "const": "governance-decision" },
+            "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-追踪真相源修复决策稿.md" }
+          }
+        },
+        {
+          "$ref": "#/$defs/artifact",
+          "properties": {
+            "role": { "const": "first-receipt-predecessor" },
+            "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-first-receipt-envelope-v1.json" }
+          }
+        },
+        {
+          "$ref": "#/$defs/artifact",
+          "properties": {
+            "role": { "const": "control-prep-executor" },
+            "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-control-prep-v1.py" }
+          }
+        },
+        {
+          "$ref": "#/$defs/artifact",
+          "properties": {
+            "role": { "const": "control-prep-envelope-schema" },
+            "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-control-prep-envelope-v1.schema.json" }
+          }
+        }
+      ],
+      "items": false
+    },
+    "schema_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_id", "path", "raw_file_sha256", "external_validation_required"],
+      "properties": {
+        "schema_id": { "const": "urn:canvas-learning-system:gov-01:toolchain-control-prep-envelope:v1" },
+        "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-control-prep-envelope-v1.schema.json" },
+        "raw_file_sha256": { "$ref": "#/$defs/sha256" },
+        "external_validation_required": { "const": true }
+      }
+    },
+    "runtime_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "version",
+        "binary_sha256",
+        "effective_executable_path",
+        "effective_executable_link_text",
+        "effective_executable_realpath",
+        "effective_executable_realpath_mode",
+        "effective_executable_owner",
+        "required_flags",
+        "stdlib_only",
+        "effective_uid",
+        "effective_gid",
+        "executing_source_binding",
+        "target_worktree_claude_session_census",
+        "required_active_target_worktree_claude_session_count",
+        "key_generator",
+        "shell_allowed",
+        "subprocess_allowed",
+        "network_allowed"
+      ],
+      "properties": {
+        "implementation": { "const": "cpython" },
+        "version": { "const": "3.9.6" },
+        "binary_sha256": {
+          "const": "4b42b1a117605cafc8607b67b0892a609c2cd125012dd56288abeed8c89cdfb1"
+        },
+        "effective_executable_path": {
+          "const": "/Library/Developer/CommandLineTools/usr/bin/python3"
+        },
+        "effective_executable_link_text": {
+          "const": "../../Library/Frameworks/Python3.framework/Versions/3.9/bin/python3"
+        },
+        "effective_executable_realpath": {
+          "const": "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9"
+        },
+        "effective_executable_realpath_mode": { "const": "0755" },
+        "effective_executable_owner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["uid", "gid"],
+          "properties": {
+            "uid": { "const": 0 },
+            "gid": { "const": 0 }
+          }
+        },
+        "required_flags": {
+          "const": ["-I", "-S", "-B"]
+        },
+        "stdlib_only": { "const": true },
+        "effective_uid": { "const": 501 },
+        "effective_gid": { "const": 20 },
+        "executing_source_binding": {
+          "const": "__file__ and argv[0] resolve to the exact approved repo artifact; raw bytes and inode are rechecked immediately before first write"
+        },
+        "target_worktree_claude_session_census": {
+          "const": "stdlib ctypes libSystem proc_listpids(PROC_UID_ONLY=current euid) proc_pidinfo(PROC_PIDTBSDINFO and PROC_PIDVNODEPATHINFO) and sysctl(KERN_PROCARGS2); every UID-filtered process is inspected before native Node or Bun Claude classification; PID start-time UID and BSD command/name generation is re-read after vnode/argv and must match; disappeared PID is skipped only after kill(0) confirms ESRCH; no subprocess; immediately before first write; uninspectable live same-UID process associated Claude process or generation drift stops"
+        },
+        "required_active_target_worktree_claude_session_count": { "const": 0 },
+        "key_generator": {
+          "const": "exactly one os.urandom(32) call after exclusive hmac.key creation; no fallback or caller-supplied entropy"
+        },
+        "shell_allowed": { "const": false },
+        "subprocess_allowed": { "const": false },
+        "network_allowed": { "const": false }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parent",
+        "parent_identity",
+        "direct_child_name",
+        "absolute_path",
+        "preimage",
+        "durable_claim_direct_child_name",
+        "durable_claim_absolute_path",
+        "durable_claim_preimage",
+        "durable_claim_mode",
+        "root_mode",
+        "claims_mode",
+        "key_mode",
+        "receipt_mode",
+        "expected_created_owner",
+        "durability_contract"
+      ],
+      "properties": {
+        "parent": { "const": "/Users/Shared" },
+        "parent_identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["object_kind", "realpath", "device", "inode", "uid", "gid", "mode"],
+          "properties": {
+            "object_kind": { "const": "directory" },
+            "realpath": { "const": "/Users/Shared" },
+            "device": { "const": 16777234 },
+            "inode": { "const": 18434 },
+            "uid": { "const": 0 },
+            "gid": { "const": 0 },
+            "mode": { "const": "1777" }
+          }
+        },
+        "direct_child_name": {
+          "const": "cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e"
+        },
+        "absolute_path": {
+          "const": "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e"
+        },
+        "preimage": { "const": "ABSENT" },
+        "durable_claim_direct_child_name": {
+          "const": "cls-gov01-toolchain-control-consumed-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e.claim"
+        },
+        "durable_claim_absolute_path": {
+          "const": "/Users/Shared/cls-gov01-toolchain-control-consumed-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e.claim"
+        },
+        "durable_claim_preimage": { "const": "ABSENT" },
+        "durable_claim_mode": { "const": "0600" },
+        "root_mode": { "const": "0700" },
+        "claims_mode": { "const": "0700" },
+        "key_mode": { "const": "0600" },
+        "receipt_mode": { "const": "0600" },
+        "expected_created_owner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["uid", "gid", "scope"],
+          "properties": {
+            "uid": { "const": 501 },
+            "gid": { "const": 0 },
+            "scope": { "const": "new durable claim target root and every descendant" }
+          }
+        },
+        "durability_contract": {
+          "const": "a separate durable sibling claim is the single-use record; target deletion cannot enable replay; executor never deletes either object; claim deletion is evidence tampering and never authorizes challenge reuse"
+        }
+      }
+    },
+    "action_sequence": {
+      "const": [
+        "read-only revalidate exact envelope artifact closure executing source identity pinned /Users/Shared parent retained prior failed-claim evidence and zero target-worktree Claude sessions",
+        "recheck UTC expiry immediately before the first authorized write",
+        "create exact durable consumption claim sibling mode 0600 owner uid501 gid0 with O_CREAT|O_EXCL|O_NOFOLLOW and fsync it and /Users/Shared; EEXIST is terminal",
+        "mkdir exact target direct child under /Users/Shared mode 0700 owner uid501 gid0 with dir_fd and fail on EEXIST after consumption",
+        "mkdir exact claims direct child mode 0700 owner uid501 gid0 with dir_fd and fail on EEXIST",
+        "create exact hmac.key mode 0600 owner uid501 gid0 with O_CREAT|O_EXCL|O_NOFOLLOW then call os.urandom(32) exactly once and write exactly 32 bytes",
+        "create exact locator-free non-authoritative control-prep evidence candidate mode 0600 owner uid501 gid0 with O_CREAT|O_EXCL|O_NOFOLLOW",
+        "fsync each created file and directory and the /Users/Shared parent after its direct child creation",
+        "recheck pinned parent and exact root claims key receipt FD-to-path inode owner group mode bytes lengths and child sets before CONTROL-PREPARED stdout"
+      ]
+    },
+    "authorization_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "first_authorized_write",
+        "allowed_created_objects",
+        "maximum_state",
+        "single_use_semantics",
+        "expiry_semantics",
+        "host_sandbox_write_gate",
+        "same_uid_threat_boundary",
+        "repository_write_count",
+        "prohibited_actions"
+      ],
+      "properties": {
+        "first_authorized_write": {
+          "const": "exclusive openat of the exact durable 0600 consumption claim sibling under identity-pinned /Users/Shared; O_CREAT O_EXCL O_NOFOLLOW; EEXIST is terminal consumed-replay-or-tampering"
+        },
+        "allowed_created_objects": {
+          "const": [
+            "/Users/Shared/cls-gov01-toolchain-control-consumed-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e.claim",
+            "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e",
+            "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e/claims",
+            "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e/hmac.key",
+            "/Users/Shared/cls-gov01-toolchain-control-GOV01-CP-20260820-8d42fbc80d46c7c334e89ef5383cfe8e/control-prep-receipt.json"
+          ]
+        },
+        "maximum_state": { "const": "CONTROL-PREPARED" },
+        "single_use_semantics": {
+          "const": "read-only preflight may rerun before expiry while both claim and target are absent; successful exclusive claim creation consumes the challenge permanently; target deletion cannot enable replay; claim EEXIST or observed deletion is terminal and the challenge is never reused"
+        },
+        "expiry_semantics": {
+          "const": "UTC expiry must pass on envelope load and again immediately before the first authorized write; after durable consumption the same attempt may finish but never restart"
+        },
+        "host_sandbox_write_gate": {
+          "const": "separate user-approved host sandbox escalation is required for the exact /Users/Shared claim and target siblings; envelope approval does not bypass the host sandbox"
+        },
+        "same_uid_threat_boundary": {
+          "const": "the current macOS user is inside the trusted computing base; active malicious same-UID filesystem or process tampering is not an OS-isolation guarantee; every detected drift stops"
+        },
+        "repository_write_count": { "const": 0 },
+        "prohibited_actions": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "allOf": [
+            { "contains": { "const": "private preimage sidecar creation" }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "const": "acquisition challenge claim creation" }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "const": "stage or node_modules creation" }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "const": "repository or Git mutation" }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "const": "subprocess execution" }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "const": "network access" }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "const": "Node npm npx or OpenSpec execution" }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "const": "Vault read or enumeration" }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "const": "Graphiti access" }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "const": "cleanup deletion overwrite retry or repair" }, "minContains": 1, "maxContains": 1 }
+          ]
+        }
+      }
+    },
+    "failure_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pre_claim_failure",
+        "claim_eexist",
+        "post_claim_failure",
+        "target_eexist_after_claim",
+        "prior_failed_attempt_retention",
+        "cleanup_authorized",
+        "retry_policy"
+      ],
+      "properties": {
+        "pre_claim_failure": { "const": "STOP with zero write; the same exact read-only preflight may rerun only before expiry while both claim and target remain absent" },
+        "claim_eexist": { "const": "STOP as terminal consumed-replay-or-tampering; perform no target write or mutation" },
+        "post_claim_failure": { "const": "STOP and retain the durable claim plus any exact partial target and children; any receipt candidate is non-authoritative and never independently claims CONTROL-PREPARED" },
+        "target_eexist_after_claim": { "const": "STOP with durable claim retained and no target child write or mutation" },
+        "prior_failed_attempt_retention": { "const": "the prior challenge is permanently consumed; its exact empty durable claim must remain as predecessor failure evidence and its absent target must remain absent; deletion mutation cleanup retry or challenge reuse is never authorized" },
+        "cleanup_authorized": { "const": false },
+        "retry_policy": { "const": "after claim creation the challenge is permanently consumed; target deletion cannot permit reuse; claim deletion is evidence tampering; any new write attempt requires a new envelope challenge and user approval" }
+      }
+    },
+    "success_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximum_state",
+        "created_object_count",
+        "stdout_projection",
+        "secret_or_locator_stdout_count",
+        "success_evidence_rule",
+        "threat_model_ceiling",
+        "next_required_authorization"
+      ],
+      "properties": {
+        "maximum_state": { "const": "CONTROL-PREPARED" },
+        "created_object_count": { "const": 5 },
+        "stdout_projection": { "const": { "state": "CONTROL-PREPARED" } },
+        "secret_or_locator_stdout_count": { "const": 0 },
+        "success_evidence_rule": {
+          "const": "CONTROL-PREPARED is emitted only after retained predecessor failure evidence and final FD-to-path inode metadata content child-set and fsync checks; on-disk receipt remains a non-authoritative candidate requiring full-tree verification"
+        },
+        "threat_model_ceiling": {
+          "const": "personal local tool only; parent sticky root-owned identity and all observable path inode metadata content and session drift are fail-closed, but no claim of isolation from an actively malicious process running as the same macOS user"
+        },
+        "next_required_authorization": {
+          "const": "new toolchain-acquisition envelope binding this control-preparation predecessor and a fresh acquisition challenge"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key_publication_allowed",
+        "locator_stdout_allowed",
+        "prep_receipt_locator_free",
+        "private_preimage_capture_allowed",
+        "public_generic_target_locator_allowed",
+        "repository_write_count",
+        "vault_read_count",
+        "graphiti_call_count",
+        "network_call_count"
+      ],
+      "properties": {
+        "key_publication_allowed": { "const": false },
+        "locator_stdout_allowed": { "const": false },
+        "prep_receipt_locator_free": { "const": true },
+        "private_preimage_capture_allowed": { "const": false },
+        "public_generic_target_locator_allowed": { "const": true },
+        "repository_write_count": { "const": 0 },
+        "vault_read_count": { "const": 0 },
+        "graphiti_call_count": { "const": 0 },
+        "network_call_count": { "const": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "path", "file_kind", "byte_length", "raw_file_sha256"],
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?($|/))(?!.*(?:^|/)\\.git($|/))[^\\u0000-\\u001f\\u007f\\\\]+$"
+        },
+        "file_kind": { "const": "regular" },
+        "byte_length": { "type": "integer", "minimum": 1 },
+        "raw_file_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

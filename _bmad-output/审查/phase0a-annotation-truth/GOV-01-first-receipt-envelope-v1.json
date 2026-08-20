@@ -1,0 +1,234 @@
+{
+  "schema_version": "gov-01-first-receipt-envelope-v1",
+  "artifact_id": "GOV-01-FIRST-RECEIPT-ENVELOPE-2026-08-20-01",
+  "plan_id": "PLAN-CLS-PRODUCTIVITY-2026-08-20",
+  "state": "pending-user-confirmation",
+  "path_base": "git-repo-root",
+  "encoding_profile": "UTF-8-NFC-LF-no-duplicate-json-keys",
+  "receipt_digest_profile": "SHA-256(ASCII(CLS/GOV01-FIRST-RECEIPT/v1) || one NUL byte || raw-envelope-bytes); digest stored externally",
+  "census_at_utc": "2026-08-19T22:43:43Z",
+  "baseline": {
+    "head_commit_oid": "019443469f198286b9b40b2eb54c15c366f3e123",
+    "head_tree_oid": "a5c124e1520d07c6cc0871494b46c49693b149b8",
+    "git_object_format": "sha1",
+    "worktree_state": "dirty-user-owned-do-not-normalize"
+  },
+  "artifacts": [
+    {
+      "path": "_bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md",
+      "role": "goal",
+      "file_kind": "regular",
+      "byte_length": 76625,
+      "raw_file_sha256": "68ed0e20594fd262955a9d93d7a891a2cac5d2f575bf3cda275adb7205207ffc"
+    },
+    {
+      "path": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-追踪真相源修复决策稿.md",
+      "role": "governance-decision",
+      "file_kind": "regular",
+      "byte_length": 40505,
+      "raw_file_sha256": "f20f48d2ee29a0aa804c7573802df3039aa701d82645dd68e8c44839c2ccd5d5"
+    },
+    {
+      "path": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-Phase0A-A01-A02-批注真相层实施契约.md",
+      "role": "phase0a-contract",
+      "file_kind": "regular",
+      "byte_length": 39848,
+      "raw_file_sha256": "da0acd5558ef9669c3f2b948464e5ceda72288895d0bb3a3b4571b5bbd94b540"
+    },
+    {
+      "path": "_bmad-output/审查/phase0a-annotation-truth/A01-public-source-manifest-v2.schema.json",
+      "role": "annotation-schema",
+      "file_kind": "regular",
+      "byte_length": 62897,
+      "raw_file_sha256": "3dd69cbd27ad0e0345c207bd5735456210a127dc00298f160008ea527ce511f8"
+    },
+    {
+      "path": "_bmad-output/审查/phase0a-annotation-truth/A01-source-boundary-draft.json",
+      "role": "annotation-draft",
+      "file_kind": "regular",
+      "byte_length": 9703,
+      "raw_file_sha256": "e5ba2fb90b2b0935ffc2ca752d487f8d6d8476075c4bd2f906e49fc638aebdad"
+    },
+    {
+      "path": "_bmad-output/审查/phase0a-annotation-truth/A02-public-ledger-v2.schema.json",
+      "role": "annotation-schema",
+      "file_kind": "regular",
+      "byte_length": 79794,
+      "raw_file_sha256": "288820391cdedbb8c2bcf356905916e643e91840e3fbb6a75f75d8e7f13afb5b"
+    },
+    {
+      "path": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-Bootstrap-0-safe-mode.patch",
+      "role": "bootstrap-patch",
+      "file_kind": "regular",
+      "byte_length": 5110,
+      "raw_file_sha256": "d2f9a1ff45006cf19bd5295b751e2b620dc6043d6ec1ff26494c1d2d722aa8aa"
+    },
+    {
+      "path": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-first-receipt-envelope-v1.schema.json",
+      "role": "receipt-schema",
+      "file_kind": "regular",
+      "byte_length": 17623,
+      "raw_file_sha256": "bb680b866b89fad649953e23da1a8ba9e3529523485516ebd969849bff468298"
+    },
+    {
+      "path": ".nvmrc",
+      "role": "runtime-config",
+      "file_kind": "regular",
+      "byte_length": 29,
+      "raw_file_sha256": "2c2a1ae2327a7e7558be3284075afe743409e2c7f92890b849acbb31281e6f2b"
+    },
+    {
+      "path": "package.json",
+      "role": "package-manifest",
+      "file_kind": "regular",
+      "byte_length": 817,
+      "raw_file_sha256": "bd5c4e933e2dcbf7f2019bec9fec555b5b1adff1c4a6e5c36ea4415ff9a711fe"
+    },
+    {
+      "path": "package-lock.json",
+      "role": "package-lock",
+      "file_kind": "regular",
+      "byte_length": 83153,
+      "raw_file_sha256": "c6e190741427b99ff132d6504b2a782d75c418d6ae93066769ac422bff6b7cea"
+    },
+    {
+      "path": ".claude/settings.json",
+      "role": "agent-config",
+      "file_kind": "regular",
+      "byte_length": 3871,
+      "raw_file_sha256": "42e5765f4cbfeb06966442db4c9eedb0747aabd0486a14f9ae6af98362ddb9bf"
+    },
+    {
+      "path": ".claude/settings.local.json",
+      "role": "agent-config",
+      "file_kind": "regular",
+      "byte_length": 1191,
+      "raw_file_sha256": "2ce7e9f66295963de61a8ae5deecee16342c636fb8e4d8f8507cfc37e9cde0b4"
+    },
+    {
+      "path": "CLAUDE.md",
+      "role": "governance-config",
+      "file_kind": "regular",
+      "byte_length": 7058,
+      "raw_file_sha256": "ce65e11273b516279cecf709ff3715a11ed59c96703cc03cbbc4478319eee930"
+    },
+    {
+      "path": "lefthook.yml",
+      "role": "governance-config",
+      "file_kind": "regular",
+      "byte_length": 11816,
+      "raw_file_sha256": "580b830e211daa5c3ae043d5c2f3b3ab00b70849111fb4f56ecdb0a59291a2d7"
+    },
+    {
+      "path": "docs/scheme-a-planning/14-scheme-a-implementation-prd.md",
+      "role": "prd-anchor",
+      "file_kind": "regular",
+      "byte_length": 379870,
+      "raw_file_sha256": "1ef5f0bebe069fb87a59d4e6be9e08674b6fbc2b224a8cca3bb82448ffe6215c"
+    }
+  ],
+  "toolchain": [
+    {
+      "name": "node",
+      "resolution_state": "resolved",
+      "resolved_path_public": "/opt/homebrew/bin/node",
+      "binary_sha256": "fdfd102dbe86b0af5dfc540a9c8dcb2fa0c5a3166d4a6c067eaf78d49568af40",
+      "launch_state": "launch-failed",
+      "version": null,
+      "probe_exit_code": 134,
+      "source_scope": "path-public-system"
+    },
+    {
+      "name": "npm",
+      "resolution_state": "resolved",
+      "resolved_path_public": "/opt/homebrew/bin/npm",
+      "binary_sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+      "launch_state": "launch-failed",
+      "version": null,
+      "probe_exit_code": 134,
+      "source_scope": "path-public-system"
+    },
+    {
+      "name": "npx",
+      "resolution_state": "resolved",
+      "resolved_path_public": "/opt/homebrew/bin/npx",
+      "binary_sha256": "237adf8f3747cad8b9b62fcfd0d9c8d509a64e550337707f55100afcb79e8900",
+      "launch_state": "launch-failed",
+      "version": null,
+      "probe_exit_code": 134,
+      "source_scope": "path-public-system"
+    },
+    {
+      "name": "openspec",
+      "resolution_state": "absent",
+      "resolved_path_public": null,
+      "binary_sha256": null,
+      "launch_state": "not-run-absent",
+      "version": null,
+      "probe_exit_code": 1,
+      "source_scope": "absent"
+    }
+  ],
+  "openspec_package_evidence": {
+    "package_name": "@fission-ai/openspec",
+    "declared_range": "^1.2.0",
+    "locked_version": "1.2.0",
+    "lock_integrity": "sha512-2XDmPZcVY0Bs014lP9aoxe3VoEU8hFvqaBFxQaiJO2nhC8vTKCyo6sT/5YpQcOTfR/a64Hht2anTyqLR4eNhlg==",
+    "worktree_node_modules_state": "absent",
+    "worktree_binary_state": "absent"
+  },
+  "effective_config_public_state": {
+    "project_settings_bound_by_artifact": true,
+    "project_local_settings_bound_by_artifact": true,
+    "user_settings_state": "not-inspected-private",
+    "managed_settings_state": "not-inspected-private",
+    "core_hooks_path_state": "external-private-present",
+    "core_hooks_path_public_commitment_state": "not-generated-bootstrap-only",
+    "phase0g_claude_session_allowed": false
+  },
+  "runtime_readiness": {
+    "state": "openspec-absent",
+    "openspec_scaffold_allowed": false,
+    "execution_ceiling": "bootstrap-0-apply-and-containment-only",
+    "toolchain_change_requires_new_envelope": true
+  },
+  "authorization_scope": {
+    "allowed_repo_mutations": [
+      {
+        "path": ".claude/settings.json",
+        "action": "apply-frozen-bootstrap-patch",
+        "base_sha256": "42e5765f4cbfeb06966442db4c9eedb0747aabd0486a14f9ae6af98362ddb9bf",
+        "target_sha256": "c9caccf4457dfada4957c27413ab9f77d7535e05fb8250024d7548994c21c593"
+      },
+      {
+        "path": "lefthook.yml",
+        "action": "apply-frozen-bootstrap-patch",
+        "base_sha256": "580b830e211daa5c3ae043d5c2f3b3ab00b70849111fb4f56ecdb0a59291a2d7",
+        "target_sha256": "73d0654fbf6b2673d4c3ef4ba1a09424b7b959706a959e003a64487b6c64efe2"
+      }
+    ],
+    "allowed_read_only_actions": [
+      "recompute-envelope-and-artifact-digests",
+      "session-process-census-without-private-content",
+      "git-head-index-ref-and-worktree-containment-check",
+      "parse-project-settings-and-bootstrap-target",
+      "git-apply-check"
+    ],
+    "prohibited_actions": [
+      "install-or-download-toolchain",
+      "run-openspec-or-create-governance-change",
+      "start-or-resume-claude-session",
+      "read-private-vault-or-private-config-content",
+      "commit-or-move-user-index-or-ref",
+      "push-or-any-network-write",
+      "graphiti-read-or-write",
+      "annotation-census-ledger-or-chatgpt-export",
+      "product-code-change"
+    ]
+  },
+  "privacy": {
+    "public_projection": "no-private-absolute-paths-no-private-content-no-secrets",
+    "private_locator_policy": "0600-local-only-not-in-repo",
+    "raw_private_digest_policy": "prohibited-public-keyed-commitment-required-for-later-stages"
+  }
+}
