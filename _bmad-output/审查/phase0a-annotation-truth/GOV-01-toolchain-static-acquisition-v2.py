@@ -13,6 +13,7 @@ import copy
 import ctypes
 import datetime as _datetime
 import errno
+import fcntl
 import hashlib
 import hmac
 import json
@@ -26,6 +27,8 @@ import stat
 import subprocess
 import sys
 import sysconfig
+import tempfile
+import threading
 import types
 import unicodedata
 from enum import IntEnum
@@ -93,6 +96,68 @@ class GenerationRuntimeArgsV2(NamedTuple):
     envelope: str
 
 
+class GitMetadataAdapter:
+    """Private, content-frozen Git metadata boundary for one read sequence."""
+
+    __slots__ = (
+        "developer_root",
+        "repo_root",
+        "live_git_dir",
+        "live_common_dir",
+        "adapter_root",
+        "git_dir",
+        "adapter_fd",
+        "git_fd",
+        "source_fingerprint",
+        "object_dependency_oids",
+        "object_dependency_fingerprint",
+        "adapter_fingerprint",
+        "adapter_identity",
+        "git_identity",
+        "owner_pid",
+        "owner_uid",
+        "trace",
+        "closed",
+    )
+
+    def __init__(
+        self,
+        developer_root: str,
+        repo_root: str,
+        live_git_dir: str,
+        live_common_dir: str,
+        adapter_root: str,
+        git_dir: str,
+        adapter_fd: int,
+        git_fd: int,
+        source_fingerprint: str,
+        object_dependency_oids: Sequence[str],
+        object_dependency_fingerprint: str,
+        adapter_fingerprint: str,
+        adapter_identity: Tuple[int, int],
+        git_identity: Tuple[int, int],
+        trace: Sequence[Mapping[str, str]],
+    ) -> None:
+        self.developer_root = developer_root
+        self.repo_root = repo_root
+        self.live_git_dir = live_git_dir
+        self.live_common_dir = live_common_dir
+        self.adapter_root = adapter_root
+        self.git_dir = git_dir
+        self.adapter_fd = adapter_fd
+        self.git_fd = git_fd
+        self.source_fingerprint = source_fingerprint
+        self.object_dependency_oids = tuple(object_dependency_oids)
+        self.object_dependency_fingerprint = object_dependency_fingerprint
+        self.adapter_fingerprint = adapter_fingerprint
+        self.adapter_identity = adapter_identity
+        self.git_identity = git_identity
+        self.owner_pid = os.getpid()
+        self.owner_uid = os.getuid()
+        self.trace = [dict(entry) for entry in trace]
+        self.closed = False
+
+
 SCRIPT_VERSION = "gov01-static-acquisition-executor-draft-v2"
 VAULT_PREFIX = "canvas-vault"
 EXPECTED_PLATFORM = "darwin"
@@ -103,6 +168,47 @@ EXPECTED_TREE_SHA256 = "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae47
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_GIT_OUTPUT = 32 * 1024 * 1024
 MAX_CACHE_OBJECT_BYTES = 512 * 1024 * 1024
+MAX_GIT_CONTROL_BYTES = 2 * 1024 * 1024
+MAX_GIT_INDEX_BYTES = 128 * 1024 * 1024
+MAX_GIT_ADAPTER_FILE_BYTES = 1024 * 1024 * 1024
+MAX_GIT_ADAPTER_TOTAL_BYTES = 4 * 1024 * 1024 * 1024
+MAX_GIT_ADAPTER_ENTRIES = 250_000
+GIT_METADATA_ADAPTER_PROFILE_V3 = (
+    "checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3"
+)
+GIT_METADATA_OBJECT_CLOSURE_PROFILE_V2 = (
+    "captured-head-all-current-tree-oids-exact-20-approved-artifact-blobs-pack-v2"
+)
+GIT_METADATA_PACK_IMPORT_PROFILE_V1 = (
+    "sandboxed-exact-oid-pack-objects-stdout-independent-checksum-index-pack-stdin-v1"
+)
+GIT_OBJECT_DEPENDENCY_PROFILE_V3 = (
+    "exact-oid-loose-selected-frozen-v2-index-pack-container-v3"
+)
+GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1 = (
+    "the kernel and each owning same-UID production process are trusted; POSIX 0600 and 0700 modes isolate other "
+    "UIDs but do not isolate an unsandboxed process with the same effective UID, so each adapter root has exactly "
+    "one owning process and compliant same-UID product processes never mutate another invocation's root; "
+    "non-cooperating same-UID filesystem mutation, out-of-process ptrace or code injection, and out-of-process "
+    "access to the 0600 private HMAC key are outside the supported threat model"
+)
+GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1 = (
+    "every spawned Git child is sandboxed and has no authority to create, rename, unlink or write the "
+    "private-temporary parent namespace or any sibling adapter root; the product owns only the fresh exact adapter "
+    "entry, root and descendants for that invocation, while /private/tmp and sibling entries remain ambient host "
+    "namespace; every product invocation creates one fresh unique adapter root; the process-wide non-reentrant "
+    "scope and registry forbid interleaved adapter ownership within one process and do not claim cross-process "
+    "exclusion"
+)
+GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1 = (
+    "under the declared Git metadata adapter trust boundary and host assurance, cleanup success or retryable "
+    "pre-claim failure requires pre-removal root and Git identity agreement, authorized-path removal, post-removal "
+    "absence, and zero pathname and registry residue; any observed root or Git identity drift, missing authorized "
+    "pathname, cleanup error, or residue is terminal and quiescence must fail; preservation against a "
+    "non-cooperating same-UID replacement at the final pathname-deletion linearization point is outside the "
+    "supported guarantee"
+)
+GIT_ADAPTER_TEMP_PREFIX = "gov01-git-adapter-"
 CHALLENGE_RE = re.compile(r"\AGOV01-SA-[0-9]{8}-[0-9a-f]{64}\Z")
 GENERATION_CHALLENGE_RE = re.compile(r"\AGOV01-GEN-[0-9]{8}-[0-9a-f]{64}\Z")
 CONTROL_PREPARATION_CHALLENGE_RE = re.compile(r"\AGOV01-CP-[0-9]{8}-[0-9a-f]{32}\Z")
@@ -120,6 +226,7 @@ PRIVATE_CONTROL_IDENTITY_DOMAIN = b"CLS/GOV01/PRIVATE-CONTROL-IDENTITY/v2"
 PRIVATE_LOCATOR_DOMAIN = b"CLS/GOV01/PRIVATE-LOCATOR/v2"
 HMAC_KEY_ID_DOMAIN = b"CLS/GOV01/HMAC-KEY-ID/v2"
 GIT_SNAPSHOT_DOMAIN = b"CLS/GOV01/GIT-SNAPSHOT/v2"
+GIT_METADATA_SOURCE_DOMAIN = b"CLS/GOV01/GIT-METADATA-SOURCE/v1"
 GIT_DIRTY_MANIFEST_DOMAIN = b"CLS/GOV01/GIT-DIRTY-CONTENT/v2"
 PUBLIC_ARTIFACT_SET_DOMAIN = b"CLS/GOV01/PUBLIC-ARTIFACT-SET/v2"
 EXECUTOR_ARGV_TEMPLATE_DOMAIN = b"CLS/GOV01/EXECUTOR-ARGV-TEMPLATE/v2"
@@ -149,6 +256,9 @@ FAIL_CLOSED_REVIEW_AUTHORITY = "new explicit user approval after fail-closed evi
 RETAINED_STATE_AUTHORITY = (
     "new explicit user approval after retained-state inspection; never retry automatically"
 )
+GIT_ADAPTER_CLEANUP_AUTHORITY = (
+    "new explicit user approval after private-state inspection; never retry automatically"
+)
 ATTEMPT_POLICY_V2 = (
     "single-use begins only at successful exclusive persistent claim; read-only and preclaim failures leave no "
     "consumption record and permit same-envelope retry only while unexpired and every receipt-bound input remains "
@@ -159,12 +269,85 @@ ENVIRONMENT_MODE_V2 = (
     "receives a newly constructed exact environment and never inherits caller environment; assurance ceiling is "
     "runtime-self-attested-not-pre-exec"
 )
-GIT_CHILD_SANDBOX_PROFILE_V1 = (
-    "every Git child calls /usr/lib/libsandbox.1.dylib sandbox_init exactly once before exec with a generated "
-    "default-deny profile; permits only the content-bound CommandLineTools tree, validated Git control metadata, "
-    "exact object and ref stores, required path ancestors, and the exact repository worktree only for commands that "
-    "must enumerate it; denies network, writes, Vault/.obsidian paths, config includes, alternates, grafts and all "
-    "other reads; sandbox initialization failure is terminal; /usr/bin/sandbox-exec is never executed"
+GIT_CHILD_SANDBOX_PROFILE_V3 = (
+    "every Git child receives a dedicated duplicate of the identity-bound adapter Git-directory FD, fchdir's "
+    "to that inode, closes the child-only FD, then calls /usr/lib/libsandbox.1.dylib sandbox_init exactly once "
+    "before exec with a generated "
+    "default-deny profile; permits only the content-bound CommandLineTools tree, one initially-0700 then sealed-0500 "
+    "/private/tmp metadata adapter, required path ancestors, and the exact repository worktree only for commands "
+    "that must enumerate it; every child uses literal --git-dir=. plus an explicit absolute --work-tree "
+    "and never -C or repository discovery; "
+    "live config, refs, index, HEAD and object stores are denied; an explicit file-write* deny prevents creation, "
+    "rename, unlink or mutation of /private/tmp, the adapter root entry and every sibling adapter entry; network, "
+    "writes, Vault/.obsidian paths, config "
+    "includes, alternates, grafts and all other reads are denied; sandbox initialization failure is terminal; "
+    "/usr/bin/sandbox-exec is never executed"
+)
+GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE_V3 = (
+    "each git-metadata-adapter-bootstrap child receives a dedicated duplicate of the identity-bound adapter Git "
+    "directory FD, fchdir's to that inode, closes the child-only FD, then calls /usr/lib/libsandbox.1.dylib "
+    "sandbox_init exactly once before exec with a generated default-deny profile; argv always has literal "
+    "--git-dir=. and an explicit absolute repo --work-tree with no -C or discovery; only cat-file --batch for "
+    "captured HEAD and recursively discovered tree "
+    "OIDs plus exact-OID pack-objects --stdout receive GIT_OBJECT_DIRECTORY with only exact loose-object paths or "
+    "per-request pack/index pairs selected by independently verified frozen v2 pack-index search receipts under "
+    "the live common-dir/objects root; the parent verifies the streamed pack checksum, then index-pack --stdin "
+    "materializes only that bounded stream into the adapter with the live bridge unset, and verify-pack also runs "
+    "with that bridge unset; live "
+    "HEAD,index,configs,refs,hooks,logs,grafts,unselected loose objects and objects/info including alternates and "
+    "http-alternates are denied; pack-objects has no child filesystem write authority and only index-pack may write, "
+    "only beneath the exact identity-bound private adapter objects/pack subtree; explicit write denies protect the "
+    "/private/tmp parent, adapter root/Git/object directory entries, every sibling adapter and every path outside "
+    "that exact objects/pack subtree; worktree payload, Vault/.obsidian, other reads/writes, "
+    "network and subprocess executables other than "
+    "the content-bound Git binary are denied; direct full-source CAS brackets bootstrap and the bridge is absent "
+    "from every sealed-adapter evidence child"
+)
+GIT_SNAPSHOT_COMMITMENT_PROFILE_V2 = (
+    "HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/GIT-SNAPSHOT/v2) || NUL || "
+    "uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private "
+    "Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,"
+    "status_bytes,dirty_manifest_commitment,worktree_tree_exclusions,worktree_exact_file_exclusions,refs_sha256,"
+    "refs_bytes,index,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,"
+    "hooks_config_state,git_binary_sha256,git_metadata_source_commitment,git_metadata_adapter_profile,"
+    "git_metadata_adapter_cleanup_state,git_metadata_adapter_residue_count,live_git_control_child_read_count; "
+    "git_metadata_source_commitment is a framed HMAC under ASCII(CLS/GOV01/GIT-METADATA-SOURCE/v1) over a "
+    "path-free canonical body containing the live metadata capture fingerprint for HEAD,index,configs,refs,hooks,"
+    "control absences, the object-root anchor and the captured exact pack/index search dependency receipt, plus "
+    "the exact private adapter object-manifest receipt for captured HEAD,"
+    "all current tree OIDs and exactly 20 approved artifact blob paths, including sealed batch-all exact-set and "
+    "parent-side per-object OID recomputation receipts; adapter profile is "
+    "checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3, "
+    "cleanup_state is removed, residue "
+    "count and live Git-control child reads are zero; worktree tree exclusions are exactly the challenge stage and "
+    "node_modules while the exact-file exclusion contains exactly the challenge-suffixed pending envelope; dirty "
+    "manifest is keyed content-and-metadata evidence for every nonexcluded porcelain-v2 path"
+)
+GIT_ADAPTER_EPHEMERAL_MUTATION_V3 = (
+    "before each Git child sequence create one unpredictable exact 0700 /private/tmp/gov01-git-adapter-* scratch "
+    "root, freeze sanitized config plus captured HEAD,index,refs,info-exclude and shallow, then use a sandboxed "
+    "object-only live bridge to stream a pack containing exactly captured HEAD, every current-tree tree OID and "
+    "only approved artifact blob OIDs; independently verify the stream checksum, import it through bridge-free "
+    "index-pack, verify the exact pack object set, seal the self-contained adapter 0500/0400, then remove that exact "
+    "dev/inode-bound root before returning; "
+    "this nonpersistent scratch neither consumes the challenge nor authorizes any repo/state/cache mutation"
+)
+GIT_ADAPTER_FAILURE_ACTION_V3 = (
+    "pre-claim failures may create only the authorized Git adapter scratch; under the declared trust boundary and "
+    "host assurance, return and conditional retry require pre-removal root/Git identity agreement, removal of only "
+    "the authorized adapter paths, post-removal absence and zero pathname/registry residue; any observed identity "
+    "drift, missing pathname, cleanup error or residue is terminal fail-closed, forbids success and automatic retry, "
+    "and requires new explicit approval after private-state inspection; no claim, ledger, stage, target or other "
+    "persistent write occurs before the challenge claim"
+)
+FAILURE_EVIDENCE_ACTION_V2 = GIT_ADAPTER_FAILURE_ACTION_V3 + (
+    "; after a persistent claim exists, append/fsync and semantically verify a terminal failure event only while "
+    "the retained ledger writer is healthy and nonterminal; never repair or delete retained persistent state"
+)
+FIRST_AUTHORITY_CONSUMING_PERSISTENT_WRITE_V2 = (
+    "mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700 is the first authority-consuming "
+    "persistent write; EEXIST is terminal replay; earlier writes are limited to the exact nonpersistent "
+    "/private/tmp Git adapter scratch, which must be identity-bound and fully removed before any return"
 )
 FAILURE_CHALLENGE_POLICY_V2 = (
     "before exclusive persistent claim no consumption record exists and same-envelope retry is conditional on "
@@ -283,12 +466,14 @@ PRIVATE_PREIMAGE_CHECKS = (
     "the HMAC key is the exact state-root/hmac.key direct child; the envelope is contained by the "
     "control prefix; no symlink ancestor and no Vault or .obsidian component",
     "cache-root locator and direct-SRI content blob bytes/digests; npm cache index read is prohibited",
-    "Git control marker, commondir, local configs and absent alternate controls before any Git command; "
-    "then index, refs and keyed dirty/untracked content-and-metadata inventory",
+    "directly capture Git control marker, commondir, local configs, HEAD, index, refs, hooks and object store with "
+    "absent alternate controls before constructing a sealed private adapter; every Git child uses only the adapter "
+    "through explicit --git-dir/--work-tree and live metadata is revalidated after capture and before cleanup",
     "pgrep Claude candidates and per-candidate lsof cwd stdout commitments without public command output",
     "state-root, claims-container and HMAC-key owner/group/mode are bound by the private control identity "
     "commitment; exact challenge child absence, HMAC-key bytes, raw envelope bytes and approved receipt "
-    "digest are rechecked before first write",
+    "digest are rechecked before the first authority-consuming persistent write; only exact identity-bound Git "
+    "adapter scratch creation and mandatory cleanup may occur earlier",
 )
 PROTECTED_CONTROL_PATHS = ("package.json", "package-lock.json", ".gitignore")
 ABSENT_CONTROL_PATHS = (".npmrc", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb")
@@ -299,6 +484,14 @@ TOOLCHAIN_ROLES = (
     "python-stdlib-tree",
     "xcode-select-resolver",
     "xcrun-resolver",
+    "git-read-only-evidence",
+    "pgrep-read-only-evidence",
+    "lsof-read-only-evidence",
+)
+AUTHORIZED_SUBPROCESS_ROLES = (
+    "xcode-select-resolver",
+    "xcrun-resolver",
+    "git-metadata-adapter-bootstrap",
     "git-read-only-evidence",
     "pgrep-read-only-evidence",
     "lsof-read-only-evidence",
@@ -344,7 +537,11 @@ TOOLCHAIN_ROLE_PROFILE = {
     ),
     "xcode-select-resolver": ("regular-file", "raw-file-sha256", "read-only-evidence-command-only"),
     "xcrun-resolver": ("regular-file", "raw-file-sha256", "read-only-evidence-command-only"),
-    "git-read-only-evidence": ("regular-file", "raw-file-sha256", "read-only-evidence-command-only"),
+    "git-read-only-evidence": (
+        "regular-file",
+        "raw-file-sha256",
+        "content-bound-git-for-private-adapter-bootstrap-and-read-only-evidence-only",
+    ),
     "pgrep-read-only-evidence": ("regular-file", "raw-file-sha256", "read-only-evidence-command-only"),
     "lsof-read-only-evidence": ("regular-file", "raw-file-sha256", "read-only-evidence-command-only"),
 }
@@ -366,14 +563,15 @@ FIXED_TOOL_PATHS = {
 }
 _AUTHORIZED_EXECUTABLE_HASHES: Dict[str, str] = {}
 _GIT_DEVELOPER_ROOTS: Dict[str, str] = {}
-_GIT_READ_BOUNDARIES: Dict[str, Tuple[str, str]] = {}
 _ACL_FUNCTIONS: Optional[Tuple[Any, Any, Any]] = None
+_GIT_METADATA_ADAPTER_SCOPE_LOCK = threading.Lock()
+_GIT_METADATA_ADAPTER_SCOPE: Optional[Dict[str, Any]] = None
 ALLOWED_CHILD_ENV_NAMES = frozenset(
     {
         "PATH", "HOME", "LC_ALL", "LANG", "GIT_OPTIONAL_LOCKS", "GIT_CONFIG_GLOBAL",
         "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM", "GIT_TERMINAL_PROMPT", "GIT_NO_REPLACE_OBJECTS",
         "GIT_PROTOCOL_FROM_USER", "GIT_ALLOW_PROTOCOL",
-        "GIT_ATTR_NOSYSTEM", "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+        "GIT_ATTR_NOSYSTEM", "GIT_DISCOVERY_ACROSS_FILESYSTEM", "GIT_OBJECT_DIRECTORY",
     }
 )
 TOP_LEVEL_FIELDS = frozenset(
@@ -477,7 +675,9 @@ EXECUTION_PLAN_FIELDS = frozenset(
     "attempt_policy phase_order runner executor_interface_state executor_interface_version executor_argv_template "
     "executor_argv_template_sha256 verifier_profile_version verifier_census_argv_template "
     "verifier_installed_argv_template evidence_command_templates evidence_command_templates_sha256 expiry_checkpoints "
-    "environment_mode environment_name_allowlist git_child_sandbox_profile ustar_parser compression_policy "
+    "environment_mode environment_name_allowlist git_child_sandbox_profile "
+    "git_metadata_adapter_bootstrap_sandbox_profile git_metadata_adapter_trust_boundary "
+    "git_metadata_adapter_host_assurance ustar_parser compression_policy "
     "ustar_safety_policy member_type_policy "
     "duplicate_collision_policy launcher_executable_role allowed_subprocess_executable_roles forbidden_executable_names "
     "shell_allowed subprocess_from_executor_allowed archive_or_payload_execution_allowed network_allowed "
@@ -508,7 +708,15 @@ PRIVATE_PREAPPROVAL_FIELDS = (
 )
 
 
-_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON = r'''{"approval_receipt_contract":{"authority_expansion_allowed":false,"authority_is_exact":true,"challenge_must_match":true,"first_authorized_write":"mkdirat exact 0700 persistent challenge claim directory under an already-existing authorized claims container; EEXIST is terminal replay","receipt_before_any_authorized_write":true,"receipt_must_match_raw_envelope_bytes":true,"required_user_reference":"exact domain-separated envelope SHA-256 plus exact approval_challenge_id"},"artifact_path_uniqueness_policy":"content-addressed checker MUST reject duplicate path even when role, byte_length or raw_file_sha256 differs; JSON Schema uniqueItems is not sufficient","authorization_preimage":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_state":"all exact repo-root direct children ABSENT before and required ABSENT after","acquisition_control_root_state":"existing-real-directory-no-symlink-ancestor","envelope_git_status_exclusion_profile":"git-status-exact-top-literal-envelope-file-exclusion-v1; no parent, subtree, wildcard or glob exclusion","envelope_repo_relative_path":null,"forbidden_process_match_count":null,"git_object_format":null,"git_snapshot_commitment":null,"git_snapshot_commitment_profile":"HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/GIT-SNAPSHOT/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,status_bytes,dirty_manifest_commitment,worktree_tree_exclusions,worktree_exact_file_exclusions,refs_sha256,refs_bytes,index,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,hooks_config_state,git_binary_sha256; worktree_tree_exclusions are exactly the challenge stage and node_modules while worktree_exact_file_exclusions contains exactly the challenge-suffixed pending envelope file and never its parent, subtree or a glob; git_control binds marker/commondir/config states, private git/common-dir locator commitments and ABSENT alternate controls; dirty_manifest_commitment is a keyed content-and-metadata manifest of every nonexcluded porcelain-v2 dirty or untracked path","head_commit_oid":null,"head_tree_oid":null,"node_modules_parent_or_sibling_reuse_allowed":false,"node_modules_state":"ABSENT","preexisting_dirty_policy":"private exact pre/post inventory required; no public paths or raw dirty/index/local-settings digest; zero mutation outside the exact new target","private_preapproval_commitment":null,"private_preapproval_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-PREAPPROVAL/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON of exactly {schema_version,approval_challenge_id,census_at_utc,hmac_key_id,authorized_locator_commitments,private_control_identity_commitment,public_repo_artifact_set_receipt_sha256,git_snapshot_commitment,toolchain_set_receipt_sha256,package_lock_raw_sha256,host_platform,host_architecture,target_worktree_claude_sessions,forbidden_process_match_count,host_selected_package_count,host_selected_cache_bytes,host_bin_link_count,content_receipt_sha256,ustar_closure_sha256,resolution_receipt_sha256,expected_tree_sha256}; no envelope digest, receipt digest, generated timestamp, raw private locator, inode/device or command bytes are in this deterministic body","private_preimage_capture":"read-only census computes the full Git-snapshot and locator commitments without persisting a claim; after user receipt, executor recomputes and compares every commitment; the persistent O_EXCL challenge claim is the first write, then exact private preimage evidence is appended before any stage/target write","private_vault_census_allowed":false,"protected_existing_control_paths":["package.json","package-lock.json",".gitignore"],"protected_existing_control_state":"PRESENT regular files; raw SHA-256 bound in artifacts; byte-identical before and after","public_repo_artifact_set_receipt_sha256":null,"target_preimage":"ABSENT","target_worktree_claude_sessions":null,"worktree_state":null},"execution_plan":{"allowed_subprocess_executable_roles":["xcode-select-resolver","xcrun-resolver","git-read-only-evidence","pgrep-read-only-evidence","lsof-read-only-evidence"],"archive_or_payload_execution_allowed":false,"attempt_policy":"single-use; any failure consumes challenge; retry requires a new envelope and challenge","compression_policy":"exactly one RFC1952 gzip stream through frozen Python stdlib zlib; MAX_TAR_STREAM prebound; eof required; unused_data and unconsumed_tail empty; concatenated/trailing stream rejected","duplicate_collision_policy":"reject duplicate normalized path, file-directory conflict, Unicode NFC collision and case-fold collision before first target write","environment_mode":"executor requires Python -I -S -B and self-attests those runtime flags; every authorized evidence subprocess receives a newly constructed exact environment and never inherits caller environment; assurance ceiling is runtime-self-attested-not-pre-exec","environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"evidence_command_templates":[{"argv_allowlist":[["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD^{tree}"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--show-object-format"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","status","--porcelain=v2","-z","--untracked-files=all","--",".",":(exclude)canvas-vault",":(exclude)canvas-vault/**",":(exclude){STAGE_REPO_RELATIVE}",":(exclude){STAGE_REPO_RELATIVE}/**",":(exclude)node_modules",":(exclude)node_modules/**",":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","show-ref"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--git-path","index"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","config","--local","--get","core.hooksPath"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--path-format=absolute","--git-common-dir"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--git-path","hooks"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--git-path","config"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"{RESOLVED_CLT_GIT_PRIVATE}","read_only":true,"role":"git-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/bin/xcode-select","-p"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcode-select","read_only":true,"role":"xcode-select-resolver","shell":false},{"argv_allowlist":[["/usr/bin/xcrun","--find","git"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcrun","read_only":true,"role":"xcrun-resolver","shell":false},{"argv_allowlist":[["/usr/bin/pgrep","-if","(^|[/ ])claude([ ]|$)|@anthropic-ai/claude-code"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/bin/pgrep","read_only":true,"role":"pgrep-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/sbin/lsof","-nP","-a","-p","{CLAUDE_CANDIDATE_PID_DECIMAL}","-d","cwd","-Fpn"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/sbin/lsof","read_only":true,"role":"lsof-read-only-evidence","shell":false}],"evidence_command_templates_sha256":null,"executor_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{REPO_ROOT_PRIVATE}/_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","acquire","--repo-root","{REPO_ROOT_PRIVATE}","--cache-root","{CACHE_ROOT_PRIVATE}","--state-root","{STATE_ROOT_PRIVATE}","--key-file","{HMAC_KEY_FILE_PRIVATE}","--envelope","{ENVELOPE_PRIVATE}","--receipt-digest","{APPROVED_RECEIPT_DIGEST_PUBLIC}","--approval-challenge","{APPROVAL_CHALLENGE_ID_PUBLIC}"],"executor_argv_template_sha256":null,"executor_interface_state":"frozen-content-addressed-before-user-receipt","executor_interface_version":"gov01-static-acquisition-executor-draft-v2","expiry_checkpoints":["on-envelope-load","immediately-before-persistent-ledger-claim","immediately-before-renameatx_np-RENAME_EXCL"],"forbidden_executable_names":["npm","npx","node","nodejs","openspec","sandbox-exec","tar","bsdtar","gtar"],"launcher_executable_role":"python-interpreter","member_type_policy":"archive accepts regular files and directories only; rejects archive symlink, hardlink, fifo, socket, block/character device and unknown types","network_allowed":false,"phase_order":["read-only-verify-user-receipt-envelope-digest-challenge-and-expiry","read-only-hash-bound-schema-compare-schema-binding-and-run-manual-critical-envelope-checks-before-verifier-compilation","read-only-compare-repo-cache-state-key-envelope-locator-commitments","read-only-hash-every-public-artifact-and-load-only-the-bound-verifier-source","read-only-recompute-and-compare-full-Git-snapshot-and-private-preapproval-commitments","verify-no-active-Claude-session-whose-cwd-is-the-target-worktree; no broader ambient-process absence claim","read-only-direct-SRI-cache-census-build-expected-tree-and-freeze-all-compressed-and-payload-bytes-in-memory","recheck-approval-expiry-immediately-before-persistent-claim","create-persistent-0700-challenge-claim-directory-with-exclusive-mkdirat-and-consume-challenge-as-first-authorized-write","append-frozen-preflight-event-to-persistent-ledger","create-0700-same-parent-same-filesystem-exclusive-stage-with-incomplete-marker","stream-decompress-and-custom-parse-only-approved-USTAR-members","materialize-only-expected-resolution-destinations-without-running-payload","fsync-stage-and-verify-closure-resolution-and-stage-tree-receipts","run-full-pre-promotion-CAS-for-private-inputs-public-artifacts-toolchain-Git-dirty-content-process-census-lock-cache-control-files-stage-identity-and-target-absence","remove-only-the-incomplete-marker-seal-root-0755-and-run-two-stable-fingerprints; failure-after-this-point-retains-a-hidden-unmarked-stage","recheck-approval-expiry-and-target-absence-immediately-before-publication","publish-exact-stage-to-absent-target-with-renameatx_np-RENAME_EXCL","fsync-target-parent-and-recompute-final-tree-and-private-postimage","append-terminal-private-ledger-event-and-emit-locator-free-stdout-projection-only-if-every-success-condition-holds","stop-with-payload-unexecuted"],"runner":"caller invokes exact executor with a CPython 3.9-compatible interpreter and -I -S -B; executor self-attests isolation flags, interpreter, stdlib, executor, verifier, schema and five evidence binaries only after Python startup; no pre-exec launcher or pre-exec hash assurance exists; no shell","shell_allowed":false,"stop_after_static_attestation":true,"subprocess_from_executor_allowed":true,"ustar_parser":"custom Python stdlib fixed-512-byte POSIX.1-1988 USTAR parser; tarfile.extract/extractall forbidden","ustar_safety_policy":"strict magic/version/checksum/octal/padding/two-zero-block terminator; reject PAX, GNU, sparse, base-256 numeric, trailing payload, absolute/dot/dotdot/backslash/NUL/control path, symlink ancestor and path escape","verifier_census_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","census","--cache-root","{CACHE_ROOT_PRIVATE}"],"verifier_installed_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","verify-installed","--cache-root","{CACHE_ROOT_PRIVATE}","--expected-tree-sha256","{EXPECTED_TREE_SHA256_PUBLIC}"],"verifier_profile_version":"gov-01-toolchain-static-verifier-v2"},"failure_contract":{"challenge_state":"before first write no persistent consumption record exists but this envelope/challenge must be treated as rejected and replaced; after exclusive claim mkdir the persistent state is consumed-rejected","evidence_action":"pre-claim failures perform no write; after a persistent claim exists, append/fsync and semantically verify a terminal failure event only while the retained ledger writer is healthy and nonterminal; if ledger creation, a prior append, terminal append, fsync or verification fails, retain the claim and any raw absent/partial/invalid ledger bytes without repair, truncation, deletion or a false terminal claim","existing_target_action":"never modify or delete; if a target was newly published before a later failure, retain as unauthorized and require user decision","failed_stage_action":"retain in place with no automatic cleanup, deletion, quarantine move or glob: before marker removal it remains a hidden 0700 stage carrying the 0600 incomplete marker; after marker removal/seal but before rename it remains a hidden 0755 stage without the marker; after successful rename followed by later failure the published target is retained as unauthorized pending user decision","failure_action":"STOP immediately at first failed gate","new_authority_required":"new complete envelope, new raw envelope digest and new challenge","public_success_attestation_allowed":false,"retry_allowed":false},"lock_closure":{"archive_member_types":["regular-file","directory"],"content_receipt_profile":"SHA-256(ASCII(CLS/GOV01-OFFLINE-CACHE/v1) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 6 TAB-separated columns: lock_key, version, resolved, integrity, compressed_bytes, actual_integrity","content_receipt_sha256":null,"direct_sri_policy":"no npm cache index read; sha512 SRI bytes map directly to _cacache/content-v2/sha512/<first-2>/<next-2>/<remainder>; missing or mismatched blob is terminal failure","expected_archive_member_count":null,"expected_resolved_tree_entry_count":null,"expected_tree_receipt_profile":"SHA-256(ASCII(CLS/GOV01/DETERMINISTIC-NODE-MODULES/v2) || NUL || UTF-8 body); body is LF-terminated rows sorted by UTF-8 path bytes with exactly 5 TAB-separated columns: kind,path,mode,size,file_sha256_or_link_text","expected_tree_sha256":null,"generated_symlink_policy":"only exact relative symlink text bound by the resolution receipt; resolved target remains beneath final tree","host_bin_link_count":null,"host_selected_cache_bytes":null,"host_selected_package_count":null,"network_fetch_allowed":false,"resolution_receipt_profile":"SHA-256(ASCII(CLS/GOV01/NODE-RESOLUTION-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 7 TAB-separated columns: source,edge_type,dependency_name,spec,target,target_version,state; this is deterministic package-lock path-closure evidence only and is not a general semver solver or semantic-version satisfiability proof","resolution_receipt_sha256":null,"resource_limits":{"compressed_closure_bytes_max":14000000,"final_path_utf8_bytes_max":128,"member_count_per_archive_max":5000,"payload_closure_bytes_max":64000000,"required_bin_link_count":12,"required_raw_regular_count":4099,"selected_archive_count":167,"single_file_bytes_max":15000000,"tar_stream_bytes_per_archive_max":24000000},"source_kind":"preapproved-local-content-addressed-ustar-set","source_locator_policy":"private absolute locators omitted; after challenge claim, derive each content-v2 locator directly from the package-lock sha512 SRI and require actual_integrity equality","ustar_closure_receipt_profile":"SHA-256(ASCII(CLS/GOV01/USTAR-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 13 TAB-separated columns: lock_key,version,integrity,compressed_bytes,tar_bytes,member_count,raw_regular_count,raw_directory_count,payload_bytes,strip_root,package_name,package_version,member_manifest_sha256; each member_manifest_sha256 uses CLS/GOV01/USTAR-PACKAGE-MEMBERS/v2 NUL plus sorted 8-column member rows","ustar_closure_sha256":null},"mutation_scope":{"allowed_ephemeral_mutations":["create one exact 0700 same-parent same-filesystem stage with an exact 0600 incomplete marker; this stage is publication-working-state but is retained rather than ephemeral on any failure","write only the frozen expected directories, regular-file payload bytes and generated relative bin symlinks beneath that stage","remove only the exact incomplete marker and chmod the stage root 0755 immediately before two stable fingerprints and exclusive publication; failure in this sealed pre-publication window retains a hidden 0755 stage without the marker"],"allowed_persistent_mutations":["create one exact persistent 0700 challenge claim directory with exclusive mkdirat semantics and create/append one 0600 hash-chained ledger beneath it; the claim and ledger are never automatically deleted","create exactly one previously-absent approved target by a single successful renameatx_np(RENAME_EXCL)"],"forbidden_mutations":["overwrite, merge, unlink, replace or repair any existing target","modify existing repo-root package.json, package-lock.json or .gitignore; create any absent alternate lock file or .npmrc","write outside exact persistent challenge claim/ledger, exact stage and exact exclusive target publication","modify Git objects, refs, index, hooks, config or any existing worktree file","modify parent or sibling worktree, user home, private Vault, Graphiti or external service","commit, push, branch/ref creation, OpenSpec execution or governance apply"],"overwrite_allowed":false,"publish_attempt_ceiling":1,"publish_flag":"RENAME_EXCL","publish_syscall":"renameatx_np","target_preimage":"ABSENT"},"privacy":{"graphiti_call_count":0,"network_call_count":0,"private_locator_public_count":0,"private_raw_sha256_only_for":["cache-root and direct-SRI content blob private locator evidence","dirty/untracked inventory","Git index/private config/hooks locator receipts","local settings","command output/open-file/process traces","persistent ledger and challenge claim"],"private_vault_read_count":0,"public_raw_sha256_allowed_for":["public repo artifacts including executor/verifier/schemas","locator-free toolchain content identities","content, USTAR, closure Merkle, resolution, expected-tree and public receipt digests"]},"private_state_authorization":{"all_cli_locators_compared_before_any_write":true,"authorized_locator_commitments":null,"challenge_claim_preimage":"exact state-root/claims/<approval_challenge_id> direct child ABSENT","claims_container_preimage":"state-root/claims already exists as a receipt-bound-owner-and-group real 0700 directory and is not created by this attempt","destruction_authorized":false,"first_authorized_write":"mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700; EEXIST is terminal replay; no earlier mkdir, claim, ledger, stage, target or other write","hmac_key_id":null,"hmac_key_id_profile":"HMAC-SHA-256 with the same private key over ASCII(CLS/GOV01/HMAC-KEY-ID/v2) || NUL || eight zero bytes; locator and raw key bytes are never serialized","locator_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-LOCATOR/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON {label,locator}; labels and absolute normalized no-symlink locators are exact and comparison uses hmac.compare_digest","persistent_single_use_ledger_required":true,"private_control_identity_commitment":null,"private_control_identity_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-CONTROL-IDENTITY/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON binding the receipt-approved owner UID, inherited control GID, exact state-root/claims/key modes and expected claim/ledger modes without serializing private locators","private_evidence_schema_required":"gov-01-toolchain-static-acquisition-private-evidence-v2","private_file_modes":{"directory":"0700","file":"0600","umask":"0077"},"private_preimage_checks":["five exact HMAC-bound locators; repo, cache and state roots are pairwise separated; the HMAC key is the exact state-root/hmac.key direct child; the envelope is contained by the control prefix; no symlink ancestor and no Vault or .obsidian component","cache-root locator and direct-SRI content blob bytes/digests; npm cache index read is prohibited","Git control marker, commondir, local configs and absent alternate controls before any Git command; then index, refs and keyed dirty/untracked content-and-metadata inventory","pgrep Claude candidates and per-candidate lsof cwd stdout commitments without public command output","state-root, claims-container and HMAC-key owner/group/mode are bound by the private control identity commitment; exact challenge child absence, HMAC-key bytes, raw envelope bytes and approved receipt digest are rechecked before first write"],"private_read_authority":["resolve and hash exact toolchain realpaths bound by public content digests","derive and read exact local content-v2 archive blobs directly from package-lock sha512 SRI without reading any npm cache index","read Git control marker/commondir/config/alternate-control state, index/refs/config/hooks metadata and exact dirty content-and-metadata inventory solely for pre/post equality evidence","run pgrep only for Claude candidates and lsof only for each returned PID cwd; no machine-wide lsof or broader process absence claim","read the pre-existing state-root/claims directory identities and require the exact challenge child absent; no pre-existing ledger is read"],"private_vault_authorized":false,"private_write_authority":["create exact 0700 persistent challenge claim directory and create/append its exact 0600 ledger.jsonl","create exact same-filesystem stage and publish exact absent target with RENAME_EXCL"],"public_serialization_forbidden":["private absolute or home-relative locator","cache-root locator or direct-SRI content blob private locator","dirty/untracked inventory or its raw digest","environment values, command output or open-file locator list","ledger locator/raw bytes, raw HMAC key or user receipt body","private Vault locator, name, content or digest"],"retention":"persistent challenge claim and ledger retained outside repo and never automatically deleted; failed stage and any published target are never automatically deleted"},"schema_binding":{"external_validator_profile":"JSON-Schema-draft-2020-12-strict-additionalProperties-false-format-annotation-plus-content-addressed-strict-UTC-calendar-and-duplicate-key-checker","preapproval_external_validation_required":true,"runtime_checkpoint":"after raw receipt/challenge/expiry verification and schema artifact hash verification, before any other envelope-controlled read, verifier-source compilation, subprocess or write","runtime_json_schema_execution_allowed":false,"runtime_manual_critical_field_checks_required":true,"runtime_schema_hash_binding_required":true,"schema_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-envelope-v2.schema.json","schema_artifact_role":"pending-envelope-schema","schema_digest_must_equal_artifact_entry":true,"schema_id":"urn:canvas-learning-system:gov-01:toolchain-static-acquisition-pending-envelope:v2:draft","schema_raw_file_sha256":null,"validation_failure_action":"fail closed before any authorized write or verifier-source compilation"},"static_acquisition_contract":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_pre_post_lstat_check_required":true,"compressed_blobs_memory_resident_before_write":true,"executor_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","executor_sha256":null,"expected":null,"hidden_package_lock_generation_allowed":false,"lifecycle_execution_allowed":false,"network_allowed":false,"node_execution_allowed":false,"npm_execution_allowed":false,"openspec_execution_allowed":false,"openspec_scaffold_allowed":false,"payload_bytes_memory_resident_before_write":true,"protected_control_paths":["package.json","package-lock.json",".gitignore"],"protected_control_pre_post_hash_check_required":true,"stage_repo_relative":null,"target_repo_relative":"node_modules","verifier_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py","verifier_profile_version":"gov-01-toolchain-static-verifier-v2","verifier_sha256":null},"success_contract":{"archive_member_execution_count":0,"commit_allowed":false,"content_mismatches":0,"forbidden_control_paths_present":0,"governance_apply_allowed":false,"host_package_count":167,"javascript_execution_count":0,"lifecycle_execution_count":0,"maximum_state":"static-attested-unexecuted","missing_expected_entries":0,"network_attempt_count":0,"next_required_authorization":"new runtime-use envelope binding the final-tree receipt and a fresh single-use challenge","npm_node_npx_execution_count":0,"outside_scope_mutation_count":0,"payload_execution_allowed_after_success":false,"protected_control_paths_changed":0,"push_allowed":false,"sandbox_exec_execution_count":0,"target_created_count":1,"target_tree_must_equal_expected_merkle":true,"unexpected_entries":0}}'''
+_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON = r'''{"approval_receipt_contract":{"authority_expansion_allowed":false,"authority_is_exact":true,"challenge_must_match":true,"first_authority_consuming_persistent_write":"mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700 is the first authority-consuming persistent write; EEXIST is terminal replay; earlier writes are limited to the exact nonpersistent /private/tmp Git adapter scratch, which must be identity-bound and fully removed before any return","receipt_before_first_authority_consuming_persistent_write":true,"receipt_must_match_raw_envelope_bytes":true,"required_user_reference":"exact domain-separated envelope SHA-256 plus exact approval_challenge_id"},"artifact_path_uniqueness_policy":"content-addressed checker MUST reject duplicate path even when role, byte_length or raw_file_sha256 differs; JSON Schema uniqueItems is not sufficient","authorization_preimage":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_state":"all exact repo-root direct children ABSENT before and required ABSENT after","acquisition_control_root_state":"existing-real-directory-no-symlink-ancestor","envelope_git_status_exclusion_profile":"git-status-exact-top-literal-envelope-file-exclusion-v1; no parent, subtree, wildcard or glob exclusion","envelope_repo_relative_path":null,"forbidden_process_match_count":null,"git_object_format":null,"git_snapshot_commitment":null,"git_snapshot_commitment_profile":"HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/GIT-SNAPSHOT/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,status_bytes,dirty_manifest_commitment,worktree_tree_exclusions,worktree_exact_file_exclusions,refs_sha256,refs_bytes,index,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,hooks_config_state,git_binary_sha256,git_metadata_source_commitment,git_metadata_adapter_profile,git_metadata_adapter_cleanup_state,git_metadata_adapter_residue_count,live_git_control_child_read_count; git_metadata_source_commitment is a framed HMAC under ASCII(CLS/GOV01/GIT-METADATA-SOURCE/v1) over a path-free canonical body containing the live metadata capture fingerprint for HEAD,index,configs,refs,hooks,control absences, the object-root anchor and the captured exact pack/index search dependency receipt, plus the exact private adapter object-manifest receipt for captured HEAD,all current tree OIDs and exactly 20 approved artifact blob paths, including sealed batch-all exact-set and parent-side per-object OID recomputation receipts; adapter profile is checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3, cleanup_state is removed, residue count and live Git-control child reads are zero; worktree tree exclusions are exactly the challenge stage and node_modules while the exact-file exclusion contains exactly the challenge-suffixed pending envelope; dirty manifest is keyed content-and-metadata evidence for every nonexcluded porcelain-v2 path","head_commit_oid":null,"head_tree_oid":null,"node_modules_parent_or_sibling_reuse_allowed":false,"node_modules_state":"ABSENT","preexisting_dirty_policy":"private exact pre/post inventory required; no public paths or raw dirty/index/local-settings digest; zero mutation outside the exact new target","private_preapproval_commitment":null,"private_preapproval_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-PREAPPROVAL/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON of exactly {schema_version,approval_challenge_id,census_at_utc,hmac_key_id,authorized_locator_commitments,private_control_identity_commitment,public_repo_artifact_set_receipt_sha256,git_snapshot_commitment,toolchain_set_receipt_sha256,package_lock_raw_sha256,host_platform,host_architecture,target_worktree_claude_sessions,forbidden_process_match_count,host_selected_package_count,host_selected_cache_bytes,host_bin_link_count,content_receipt_sha256,ustar_closure_sha256,resolution_receipt_sha256,expected_tree_sha256}; no envelope digest, receipt digest, generated timestamp, raw private locator, inode/device or command bytes are in this deterministic body","private_preimage_capture":"census and post-approval checks may materialize only an identity-bound nonpersistent Git metadata adapter under /private/tmp; every child fchdir's through a dedicated duplicate of the held adapter Git-directory FD, closes that child-only FD, and reads the sealed frozen adapter with literal --git-dir=., explicit --work-tree and zero live Git-control reads; source and adapter CAS run before/after children, exact cleanup and zero residue are required before returning; the persistent O_EXCL challenge claim remains the first authority-consuming persistent write","private_vault_census_allowed":false,"protected_existing_control_paths":["package.json","package-lock.json",".gitignore"],"protected_existing_control_state":"PRESENT regular files; raw SHA-256 bound in artifacts; byte-identical before and after","public_repo_artifact_set_receipt_sha256":null,"target_preimage":"ABSENT","target_worktree_claude_sessions":null,"worktree_state":null},"execution_plan":{"allowed_subprocess_executable_roles":["xcode-select-resolver","xcrun-resolver","git-metadata-adapter-bootstrap","git-read-only-evidence","pgrep-read-only-evidence","lsof-read-only-evidence"],"archive_or_payload_execution_allowed":false,"attempt_policy":"single-use; any failure consumes challenge; retry requires a new envelope and challenge","compression_policy":"exactly one RFC1952 gzip stream through frozen Python stdlib zlib; MAX_TAR_STREAM prebound; eof required; unused_data and unconsumed_tail empty; concatenated/trailing stream rejected","duplicate_collision_policy":"reject duplicate normalized path, file-directory conflict, Unicode NFC collision and case-fold collision before first target write","environment_mode":"executor requires Python -I -S -B and self-attests those runtime flags; every authorized evidence subprocess receives a newly constructed exact environment and never inherits caller environment; assurance ceiling is runtime-self-attested-not-pre-exec","environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM","GIT_OBJECT_DIRECTORY"],"evidence_command_templates":[{"argv_allowlist":[["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","cat-file","--batch"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","pack-objects","--stdout","--no-reuse-delta","--no-reuse-object"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","index-pack","--stdin","--index-version=2"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","verify-pack","-v","{GIT_METADATA_ADAPTER_PACK_INDEX_RELATIVE_PRIVATE}"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM","GIT_OBJECT_DIRECTORY"],"executable":"{RESOLVED_CLT_GIT_PRIVATE}","read_only":false,"role":"git-metadata-adapter-bootstrap","shell":false,"write_scope":"checkpoint-scoped-private-temp-adapter-only"},{"argv_allowlist":[["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD^{tree}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--show-object-format"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","cat-file","--batch"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","cat-file","--batch-all-objects","--batch-check=%(objectname) %(objecttype) %(objectsize)"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","ls-tree","-r","-t","-z","--full-tree","HEAD^{tree}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","status","--porcelain=v2","-z","--untracked-files=all","--",".",":(exclude).git",":(exclude).git/**",":(exclude)canvas-vault",":(exclude)canvas-vault/**",":(exclude){STAGE_REPO_RELATIVE}",":(exclude){STAGE_REPO_RELATIVE}/**",":(exclude)node_modules",":(exclude)node_modules/**",":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","show-ref"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","ls-tree","-z","--full-tree","{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}","--","{PUBLIC_ARTIFACT_REPO_RELATIVE}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","show","{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}:{PUBLIC_ARTIFACT_REPO_RELATIVE}"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"{RESOLVED_CLT_GIT_PRIVATE}","read_only":true,"role":"git-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/bin/xcode-select","-p"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcode-select","read_only":true,"role":"xcode-select-resolver","shell":false},{"argv_allowlist":[["/usr/bin/xcrun","--find","git"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcrun","read_only":true,"role":"xcrun-resolver","shell":false},{"argv_allowlist":[["/usr/bin/pgrep","-if","(^|[/ ])claude([ ]|$)|@anthropic-ai/claude-code"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/bin/pgrep","read_only":true,"role":"pgrep-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/sbin/lsof","-nP","-a","-p","{CLAUDE_CANDIDATE_PID_DECIMAL}","-d","cwd","-Fpn"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/sbin/lsof","read_only":true,"role":"lsof-read-only-evidence","shell":false}],"evidence_command_templates_sha256":null,"executor_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{REPO_ROOT_PRIVATE}/_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","acquire","--repo-root","{REPO_ROOT_PRIVATE}","--cache-root","{CACHE_ROOT_PRIVATE}","--state-root","{STATE_ROOT_PRIVATE}","--key-file","{HMAC_KEY_FILE_PRIVATE}","--envelope","{ENVELOPE_PRIVATE}","--receipt-digest","{APPROVED_RECEIPT_DIGEST_PUBLIC}","--approval-challenge","{APPROVAL_CHALLENGE_ID_PUBLIC}"],"executor_argv_template_sha256":null,"executor_interface_state":"frozen-content-addressed-before-user-receipt","executor_interface_version":"gov01-static-acquisition-executor-draft-v2","expiry_checkpoints":["on-envelope-load","immediately-before-persistent-ledger-claim","immediately-before-renameatx_np-RENAME_EXCL"],"forbidden_executable_names":["npm","npx","node","nodejs","openspec","sandbox-exec","tar","bsdtar","gtar"],"git_metadata_adapter_bootstrap_sandbox_profile":"each git-metadata-adapter-bootstrap child receives a dedicated duplicate of the identity-bound adapter Git directory FD, fchdir's to that inode, closes the child-only FD, then calls /usr/lib/libsandbox.1.dylib sandbox_init exactly once before exec with a generated default-deny profile; argv always has literal --git-dir=. and an explicit absolute repo --work-tree with no -C or discovery; only cat-file --batch for captured HEAD and recursively discovered tree OIDs plus exact-OID pack-objects --stdout receive GIT_OBJECT_DIRECTORY with only exact loose-object paths or per-request pack/index pairs selected by independently verified frozen v2 pack-index search receipts under the live common-dir/objects root; the parent verifies the streamed pack checksum, then index-pack --stdin materializes only that bounded stream into the adapter with the live bridge unset, and verify-pack also runs with that bridge unset; live HEAD,index,configs,refs,hooks,logs,grafts,unselected loose objects and objects/info including alternates and http-alternates are denied; pack-objects has no child filesystem write authority and only index-pack may write, only beneath the exact identity-bound private adapter; worktree payload, Vault/.obsidian, other reads/writes, network and subprocess executables other than the content-bound Git binary are denied; direct full-source CAS brackets bootstrap and the bridge is absent from every sealed-adapter evidence child","launcher_executable_role":"python-interpreter","member_type_policy":"archive accepts regular files and directories only; rejects archive symlink, hardlink, fifo, socket, block/character device and unknown types","network_allowed":false,"phase_order":["read-only-verify-user-receipt-envelope-digest-challenge-and-expiry","read-only-hash-bound-schema-compare-schema-binding-and-run-manual-critical-envelope-checks-before-verifier-compilation","read-only-compare-repo-cache-state-key-envelope-locator-commitments","read-only-hash-every-public-artifact-and-load-only-the-bound-verifier-source","directly capture live Git metadata, freeze and seal an exact private-temp adapter, run explicit-adapter Git evidence children with zero live-control reads, revalidate the live source and remove the exact adapter with zero residue before comparing Git-snapshot and private-preapproval commitments","verify-no-active-Claude-session-whose-cwd-is-the-target-worktree; no broader ambient-process absence claim","read-only-direct-SRI-cache-census-build-expected-tree-and-freeze-all-compressed-and-payload-bytes-in-memory","recheck-approval-expiry-immediately-before-persistent-claim","create-persistent-0700-challenge-claim-directory-with-exclusive-mkdirat-and-record-first-authority-consuming-persistent-write","append-frozen-preflight-event-to-persistent-ledger","create-0700-same-parent-same-filesystem-exclusive-stage-with-incomplete-marker","stream-decompress-and-custom-parse-only-approved-USTAR-members","materialize-only-expected-resolution-destinations-without-running-payload","fsync-stage-and-verify-closure-resolution-and-stage-tree-receipts","run-full-pre-promotion-CAS-for-private-inputs-public-artifacts-toolchain-Git-dirty-content-process-census-lock-cache-control-files-stage-identity-and-target-absence","remove-only-the-incomplete-marker-seal-root-0755-and-run-two-stable-fingerprints; failure-after-this-point-retains-a-hidden-unmarked-stage","recheck-approval-expiry-and-target-absence-immediately-before-publication","publish-exact-stage-to-absent-target-with-renameatx_np-RENAME_EXCL","fsync-target-parent-and-recompute-final-tree-and-private-postimage","append-terminal-private-ledger-event-and-emit-locator-free-stdout-projection-only-if-every-success-condition-holds","stop-with-payload-unexecuted"],"runner":"caller invokes exact executor with a CPython 3.9-compatible interpreter and -I -S -B; executor self-attests isolation flags, interpreter, stdlib, executor, verifier, schema and five evidence binaries only after Python startup; no pre-exec launcher or pre-exec hash assurance exists; no shell","shell_allowed":false,"stop_after_static_attestation":true,"subprocess_from_executor_allowed":true,"ustar_parser":"custom Python stdlib fixed-512-byte POSIX.1-1988 USTAR parser; tarfile.extract/extractall forbidden","ustar_safety_policy":"strict magic/version/checksum/octal/padding/two-zero-block terminator; reject PAX, GNU, sparse, base-256 numeric, trailing payload, absolute/dot/dotdot/backslash/NUL/control path, symlink ancestor and path escape","verifier_census_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","census","--cache-root","{CACHE_ROOT_PRIVATE}"],"verifier_installed_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","verify-installed","--cache-root","{CACHE_ROOT_PRIVATE}","--expected-tree-sha256","{EXPECTED_TREE_SHA256_PUBLIC}"],"verifier_profile_version":"gov-01-toolchain-static-verifier-v2"},"failure_contract":{"challenge_state":"before the first authority-consuming persistent write no persistent consumption record exists but this envelope/challenge must be treated as rejected and replaced; after exclusive claim mkdir the persistent state is consumed-rejected","evidence_action":"pre-claim failures may create only the authorized Git adapter scratch and must remove its exact identity; adapter cleanup failure, root identity uncertainty or any residue is terminal fail-closed, forbids a success or automatic retry, and requires new explicit approval after private-state inspection; no claim, ledger, stage, target or other persistent write occurs before the challenge claim; after a persistent claim exists, append/fsync and semantically verify a terminal failure event only while the retained ledger writer is healthy and nonterminal; never repair or delete retained persistent state","existing_target_action":"never modify or delete; if a target was newly published before a later failure, retain as unauthorized and require user decision","failed_stage_action":"retain in place with no automatic cleanup, deletion, quarantine move or glob: before marker removal it remains a hidden 0700 stage carrying the 0600 incomplete marker; after marker removal/seal but before rename it remains a hidden 0755 stage without the marker; after successful rename followed by later failure the published target is retained as unauthorized pending user decision","failure_action":"STOP immediately at first failed gate","new_authority_required":"new complete envelope, new raw envelope digest and new challenge","public_success_attestation_allowed":false,"retry_allowed":false},"lock_closure":{"archive_member_types":["regular-file","directory"],"content_receipt_profile":"SHA-256(ASCII(CLS/GOV01-OFFLINE-CACHE/v1) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 6 TAB-separated columns: lock_key, version, resolved, integrity, compressed_bytes, actual_integrity","content_receipt_sha256":null,"direct_sri_policy":"no npm cache index read; sha512 SRI bytes map directly to _cacache/content-v2/sha512/<first-2>/<next-2>/<remainder>; missing or mismatched blob is terminal failure","expected_archive_member_count":null,"expected_resolved_tree_entry_count":null,"expected_tree_receipt_profile":"SHA-256(ASCII(CLS/GOV01/DETERMINISTIC-NODE-MODULES/v2) || NUL || UTF-8 body); body is LF-terminated rows sorted by UTF-8 path bytes with exactly 5 TAB-separated columns: kind,path,mode,size,file_sha256_or_link_text","expected_tree_sha256":null,"generated_symlink_policy":"only exact relative symlink text bound by the resolution receipt; resolved target remains beneath final tree","host_bin_link_count":null,"host_selected_cache_bytes":null,"host_selected_package_count":null,"network_fetch_allowed":false,"resolution_receipt_profile":"SHA-256(ASCII(CLS/GOV01/NODE-RESOLUTION-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 7 TAB-separated columns: source,edge_type,dependency_name,spec,target,target_version,state; this is deterministic package-lock path-closure evidence only and is not a general semver solver or semantic-version satisfiability proof","resolution_receipt_sha256":null,"resource_limits":{"compressed_closure_bytes_max":14000000,"final_path_utf8_bytes_max":128,"member_count_per_archive_max":5000,"payload_closure_bytes_max":64000000,"required_bin_link_count":12,"required_raw_regular_count":4099,"selected_archive_count":167,"single_file_bytes_max":15000000,"tar_stream_bytes_per_archive_max":24000000},"source_kind":"preapproved-local-content-addressed-ustar-set","source_locator_policy":"private absolute locators omitted; after challenge claim, derive each content-v2 locator directly from the package-lock sha512 SRI and require actual_integrity equality","ustar_closure_receipt_profile":"SHA-256(ASCII(CLS/GOV01/USTAR-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 13 TAB-separated columns: lock_key,version,integrity,compressed_bytes,tar_bytes,member_count,raw_regular_count,raw_directory_count,payload_bytes,strip_root,package_name,package_version,member_manifest_sha256; each member_manifest_sha256 uses CLS/GOV01/USTAR-PACKAGE-MEMBERS/v2 NUL plus sorted 8-column member rows","ustar_closure_sha256":null},"mutation_scope":{"allowed_ephemeral_mutations":["before each Git child sequence create one unpredictable exact 0700 /private/tmp/gov01-git-adapter-* scratch root, freeze sanitized config plus captured HEAD,index,refs,info-exclude and shallow, then use a sandboxed object-only live bridge to stream a pack containing exactly captured HEAD, every current-tree tree OID and only approved artifact blob OIDs; independently verify the stream checksum, import it through bridge-free index-pack, verify the exact pack object set, seal the self-contained adapter 0500/0400, then remove that exact dev/inode-bound root before returning; this nonpersistent scratch neither consumes the challenge nor authorizes any repo/state/cache mutation","before each Git child sequence create one unpredictable exact 0700 /private/tmp/gov01-git-adapter-* scratch root, freeze sanitized config plus captured HEAD,index,refs,info-exclude and shallow, then use a sandboxed object-only live bridge to pack exactly captured HEAD, every current-tree tree OID and only approved artifact blob OIDs; verify the pack object set, remove the bridge, seal the self-contained adapter 0500/0400, then remove that exact dev/inode-bound root before returning; this nonpersistent scratch neither consumes the challenge nor authorizes any repo/state/cache mutation","create one exact 0700 same-parent same-filesystem stage with an exact 0600 incomplete marker; this stage is publication-working-state but is retained rather than ephemeral on any failure","write only the frozen expected directories, regular-file payload bytes and generated relative bin symlinks beneath that stage","remove only the exact incomplete marker and chmod the stage root 0755 immediately before two stable fingerprints and exclusive publication; failure in this sealed pre-publication window retains a hidden 0755 stage without the marker"],"allowed_persistent_mutations":["create one exact persistent 0700 challenge claim directory with exclusive mkdirat semantics and create/append one 0600 hash-chained ledger beneath it; the claim and ledger are never automatically deleted","create exactly one previously-absent approved target by a single successful renameatx_np(RENAME_EXCL)"],"forbidden_mutations":["overwrite, merge, unlink, replace or repair any existing target","modify existing repo-root package.json, package-lock.json or .gitignore; create any absent alternate lock file or .npmrc","write outside the exact identity-bound /private/tmp Git adapter scratch, exact persistent challenge claim/ledger, exact stage and exact exclusive target publication","modify Git objects, refs, index, hooks, config or any existing worktree file","modify parent or sibling worktree, user home, private Vault, Graphiti or external service","commit, push, branch/ref creation, OpenSpec execution or governance apply"],"overwrite_allowed":false,"publish_attempt_ceiling":1,"publish_flag":"RENAME_EXCL","publish_syscall":"renameatx_np","target_preimage":"ABSENT"},"privacy":{"graphiti_call_count":0,"network_call_count":0,"private_locator_public_count":0,"private_raw_sha256_only_for":["cache-root and direct-SRI content blob private locator evidence","dirty/untracked inventory","Git index/private config/hooks locator receipts","local settings","command output/open-file/process traces","persistent ledger and challenge claim"],"private_vault_read_count":0,"public_raw_sha256_allowed_for":["public repo artifacts including executor/verifier/schemas","locator-free toolchain content identities","content, USTAR, closure Merkle, resolution, expected-tree and public receipt digests"]},"private_state_authorization":{"all_cli_locators_compared_before_any_write":true,"authorized_locator_commitments":null,"challenge_claim_preimage":"exact state-root/claims/<approval_challenge_id> direct child ABSENT","claims_container_preimage":"state-root/claims already exists as a receipt-bound-owner-and-group real 0700 directory and is not created by this attempt","destruction_authorized":false,"first_authority_consuming_persistent_write":"mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700 is the first authority-consuming persistent write; EEXIST is terminal replay; earlier writes are limited to the exact nonpersistent /private/tmp Git adapter scratch, which must be identity-bound and fully removed before any return","hmac_key_id":null,"hmac_key_id_profile":"HMAC-SHA-256 with the same private key over ASCII(CLS/GOV01/HMAC-KEY-ID/v2) || NUL || eight zero bytes; locator and raw key bytes are never serialized","locator_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-LOCATOR/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON {label,locator}; labels and absolute normalized no-symlink locators are exact and comparison uses hmac.compare_digest","persistent_single_use_ledger_required":true,"private_control_identity_commitment":null,"private_control_identity_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-CONTROL-IDENTITY/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON binding the receipt-approved owner UID, inherited control GID, exact state-root/claims/key modes and expected claim/ledger modes without serializing private locators","private_evidence_schema_required":"gov-01-toolchain-static-acquisition-private-evidence-v2","private_file_modes":{"directory":"0700","file":"0600","umask":"0077"},"private_preimage_checks":["five exact HMAC-bound locators; repo, cache and state roots are pairwise separated; the HMAC key is the exact state-root/hmac.key direct child; the envelope is contained by the control prefix; no symlink ancestor and no Vault or .obsidian component","cache-root locator and direct-SRI content blob bytes/digests; npm cache index read is prohibited","directly capture Git control marker, commondir, local configs, HEAD, index, refs, hooks and object store with absent alternate controls before constructing a sealed private adapter; every Git child uses only the adapter through explicit --git-dir/--work-tree and live metadata is revalidated after capture and before cleanup","pgrep Claude candidates and per-candidate lsof cwd stdout commitments without public command output","state-root, claims-container and HMAC-key owner/group/mode are bound by the private control identity commitment; exact challenge child absence, HMAC-key bytes, raw envelope bytes and approved receipt digest are rechecked before the first authority-consuming persistent write; only exact identity-bound Git adapter scratch creation and mandatory cleanup may occur earlier"],"private_read_authority":["resolve and hash exact toolchain realpaths bound by public content digests","derive and read exact local content-v2 archive blobs directly from package-lock sha512 SRI without reading any npm cache index","directly capture live Git control, HEAD, index, refs, config, hooks and object-store evidence into a path-free keyed source receipt; Git children read only the sealed adapter and source CAS is repeated before cleanup","run pgrep only for Claude candidates and lsof only for each returned PID cwd; no machine-wide lsof or broader process absence claim","read the pre-existing state-root/claims directory identities and require the exact challenge child absent; no pre-existing ledger is read"],"private_vault_authorized":false,"private_write_authority":["create, seal and mandatorily remove only the exact dev/inode-bound /private/tmp Git metadata adapter scratch; cleanup uncertainty or residue is terminal and this scratch never consumes the challenge","create exact 0700 persistent challenge claim directory and create/append its exact 0600 ledger.jsonl","create exact same-filesystem stage and publish exact absent target with RENAME_EXCL"],"public_serialization_forbidden":["private absolute or home-relative locator","cache-root locator or direct-SRI content blob private locator","dirty/untracked inventory or its raw digest","environment values, command output or open-file locator list","ledger locator/raw bytes, raw HMAC key or user receipt body","private Vault locator, name, content or digest"],"retention":"persistent challenge claim and ledger are retained outside repo and never automatically deleted; failed stage and any published target are never automatically deleted; the private-temp Git adapter is never retained intentionally and success requires exact cleanup with residue_count zero"},"schema_binding":{"external_validator_profile":"JSON-Schema-draft-2020-12-strict-additionalProperties-false-format-annotation-plus-content-addressed-strict-UTC-calendar-and-duplicate-key-checker","preapproval_external_validation_required":true,"runtime_checkpoint":"after raw receipt/challenge/expiry verification and schema artifact hash verification, before any other envelope-controlled read, verifier-source compilation, subprocess or write","runtime_json_schema_execution_allowed":false,"runtime_manual_critical_field_checks_required":true,"runtime_schema_hash_binding_required":true,"schema_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-envelope-v2.schema.json","schema_artifact_role":"pending-envelope-schema","schema_digest_must_equal_artifact_entry":true,"schema_id":"urn:canvas-learning-system:gov-01:toolchain-static-acquisition-pending-envelope:v2:draft","schema_raw_file_sha256":null,"validation_failure_action":"fail closed before any authorized write or verifier-source compilation"},"static_acquisition_contract":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_pre_post_lstat_check_required":true,"compressed_blobs_memory_resident_before_write":true,"executor_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","executor_sha256":null,"expected":null,"hidden_package_lock_generation_allowed":false,"lifecycle_execution_allowed":false,"network_allowed":false,"node_execution_allowed":false,"npm_execution_allowed":false,"openspec_execution_allowed":false,"openspec_scaffold_allowed":false,"payload_bytes_memory_resident_before_write":true,"protected_control_paths":["package.json","package-lock.json",".gitignore"],"protected_control_pre_post_hash_check_required":true,"stage_repo_relative":null,"target_repo_relative":"node_modules","verifier_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py","verifier_profile_version":"gov-01-toolchain-static-verifier-v2","verifier_sha256":null},"success_contract":{"archive_member_execution_count":0,"commit_allowed":false,"content_mismatches":0,"forbidden_control_paths_present":0,"governance_apply_allowed":false,"host_package_count":167,"javascript_execution_count":0,"lifecycle_execution_count":0,"maximum_state":"static-attested-unexecuted","missing_expected_entries":0,"network_attempt_count":0,"next_required_authorization":"new runtime-use envelope binding the final-tree receipt and a fresh single-use challenge","npm_node_npx_execution_count":0,"outside_scope_mutation_count":0,"payload_execution_allowed_after_success":false,"protected_control_paths_changed":0,"push_allowed":false,"sandbox_exec_execution_count":0,"target_created_count":1,"target_tree_must_equal_expected_merkle":true,"unexpected_entries":0}}'''
+
+
+# Preserve the original literal only as the seed for the fully synchronized
+# effective embedded template constructed after the exact adapter contract
+# synchronizer is defined.
+_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_BASE_JSON = (
+    _PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON
+)
 
 
 def fail(code: Exit, public_code: str) -> None:
@@ -696,6 +904,8 @@ def privacy_rejection_result() -> Dict[str, Any]:
             "toolchain_assurance": "runtime-self-attested-not-pre-exec",
             "pre_exec_launcher_attested": False,
             "python_isolation_flags_required": ["-I", "-S", "-B"],
+            "git_metadata_adapter_trust_boundary": GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1,
+            "git_metadata_adapter_host_assurance": GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1,
         },
         "gate_results": {
             "profile": "gov01-static-acquisition-gate-set-v2",
@@ -708,7 +918,8 @@ def privacy_rejection_result() -> Dict[str, Any]:
         "authority": {
             "retry_authorized": False,
             "public_success_attestation_allowed": False,
-            "automatic_cleanup_authorized": False,
+            "product_state_automatic_cleanup_authorized": False,
+            "temporary_adapter_cleanup_required": True,
             "openspec_execution_allowed": False,
             "openspec_scaffold_allowed": False,
             "commit_allowed": False,
@@ -2082,7 +2293,13 @@ def validate_public_result_projection(
         )
     runtime_fields = frozenset(runtime)
     runtime_base_fields = frozenset(
-        ("toolchain_assurance", "pre_exec_launcher_attested", "python_isolation_flags_required")
+        (
+            "toolchain_assurance",
+            "pre_exec_launcher_attested",
+            "python_isolation_flags_required",
+            "git_metadata_adapter_trust_boundary",
+            "git_metadata_adapter_host_assurance",
+        )
     )
     cross(
         runtime_fields
@@ -2095,7 +2312,8 @@ def validate_public_result_projection(
     require_exact_object(
         authority,
         (
-            "retry_authorized", "public_success_attestation_allowed", "automatic_cleanup_authorized",
+            "retry_authorized", "public_success_attestation_allowed",
+            "product_state_automatic_cleanup_authorized", "temporary_adapter_cleanup_required",
             "openspec_execution_allowed", "openspec_scaffold_allowed", "commit_allowed", "push_allowed",
             "next_required_authority",
         ),
@@ -2110,8 +2328,19 @@ def validate_public_result_projection(
     cross(runtime.get("toolchain_assurance") == "runtime-self-attested-not-pre-exec", "RUNTIME_ASSURANCE")
     cross(runtime.get("pre_exec_launcher_attested") is False, "PRE_EXEC_ASSURANCE")
     cross(runtime.get("python_isolation_flags_required") == ["-I", "-S", "-B"], "PYTHON_FLAGS")
+    cross(
+        runtime.get("git_metadata_adapter_trust_boundary")
+        == GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1,
+        "GIT_METADATA_ADAPTER_TRUST_BOUNDARY",
+    )
+    cross(
+        runtime.get("git_metadata_adapter_host_assurance")
+        == GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1,
+        "GIT_METADATA_ADAPTER_HOST_ASSURANCE",
+    )
+    cross(authority.get("temporary_adapter_cleanup_required") is True, "TEMPORARY_ADAPTER_CLEANUP_REQUIRED")
     for denied in (
-        "automatic_cleanup_authorized", "openspec_execution_allowed", "openspec_scaffold_allowed",
+        "product_state_automatic_cleanup_authorized", "openspec_execution_allowed", "openspec_scaffold_allowed",
         "commit_allowed", "push_allowed",
     ):
         cross(authority.get(denied) is False, "AUTHORITY_DENY")
@@ -2533,6 +2762,7 @@ def validate_public_result_projection(
             isinstance(error_detail, str) and re.fullmatch(r"[A-Z][A-Z0-9_]{2,127}", error_detail) is not None,
             "FAILURE_ERROR_DETAIL",
         )
+        cleanup_uncertain = error_detail.startswith("GIT_ADAPTER_CLEANUP_")
         retention = mapping(result, "retention")
         require_exact_object(
             retention,
@@ -2664,12 +2894,16 @@ def validate_public_result_projection(
             )
             cross(result.get("phase") in ("entry-fail-closed", "read-only-fail-closed"), "READ_ONLY_FAILURE_PHASE")
             cross(terminal == read_only_terminal_state(), "READ_ONLY_FAILURE_TERMINAL")
-            cross(retention.get("private_state_inspection_required") is False, "READ_ONLY_FAILURE_RETENTION")
+            cross(
+                retention.get("private_state_inspection_required") is cleanup_uncertain,
+                "READ_ONLY_FAILURE_RETENTION",
+            )
             if result.get("phase") == "entry-fail-closed":
                 cross(not gates, "READ_ONLY_ENTRY_GATES")
                 cross(
                     authority.get("retry_authorized") is False
-                    and authority.get("next_required_authority") == FAIL_CLOSED_REVIEW_AUTHORITY,
+                    and authority.get("next_required_authority")
+                    == (GIT_ADAPTER_CLEANUP_AUTHORITY if cleanup_uncertain else FAIL_CLOSED_REVIEW_AUTHORITY),
                     "READ_ONLY_ENTRY_AUTHORITY",
                 )
             else:
@@ -2682,7 +2916,11 @@ def validate_public_result_projection(
                 cross(
                     authority.get("retry_authorized") is retry_bound
                     and authority.get("next_required_authority")
-                    == (PRECLAIM_RETRY_AUTHORITY if retry_bound else FAIL_CLOSED_REVIEW_AUTHORITY),
+                    == (
+                        PRECLAIM_RETRY_AUTHORITY
+                        if retry_bound
+                        else GIT_ADAPTER_CLEANUP_AUTHORITY if cleanup_uncertain else FAIL_CLOSED_REVIEW_AUTHORITY
+                    ),
                     "READ_ONLY_FAILURE_NEXT_AUTHORITY",
                 )
         elif mode == "unknown" and result.get("phase") == "public-projection":
@@ -2726,11 +2964,14 @@ def validate_public_result_projection(
             )
             cross(result.get("phase") == "entry-fail-closed" and not gates, "UNKNOWN_FAILURE_ENTRY")
             cross(terminal == read_only_terminal_state(), "UNKNOWN_FAILURE_TERMINAL")
-            cross(retention.get("private_state_inspection_required") is False, "UNKNOWN_FAILURE_RETENTION")
+            cross(
+                retention.get("private_state_inspection_required") is cleanup_uncertain,
+                "UNKNOWN_FAILURE_RETENTION",
+            )
             cross(authority.get("retry_authorized") is False, "UNKNOWN_FAILURE_RETRY")
             cross(
                 authority.get("next_required_authority")
-                == "new explicit user approval after fail-closed evidence review",
+                == (GIT_ADAPTER_CLEANUP_AUTHORITY if cleanup_uncertain else FAIL_CLOSED_REVIEW_AUTHORITY),
                 "UNKNOWN_FAILURE_NEXT_AUTHORITY",
             )
         elif mode == "acquire" and result.get("phase") == "entry-fail-closed":
@@ -2746,7 +2987,7 @@ def validate_public_result_projection(
             cross(authority.get("retry_authorized") is False, "ACQUIRE_ENTRY_RETRY")
             cross(
                 authority.get("next_required_authority")
-                == "new explicit user approval after fail-closed evidence review",
+                == (GIT_ADAPTER_CLEANUP_AUTHORITY if cleanup_uncertain else FAIL_CLOSED_REVIEW_AUTHORITY),
                 "ACQUIRE_ENTRY_NEXT_AUTHORITY",
             )
         elif mode == "acquire" and validated_gates.get("complete") is False:
@@ -2913,10 +3154,18 @@ def validate_public_result_projection(
             if claim_state == "not-created":
                 cross(challenge_state == "preclaim-pending", "ACQUIRE_PRECLAIM_CHALLENGE")
                 cross(ledger_state == "not-created", "ACQUIRE_PRECLAIM_LEDGER")
-                cross(retention.get("private_state_inspection_required") is False, "ACQUIRE_PRECLAIM_RETENTION")
                 cross(
-                    authority.get("retry_authorized") is True
-                    and authority.get("next_required_authority") == PRECLAIM_RETRY_AUTHORITY,
+                    retention.get("private_state_inspection_required") is cleanup_uncertain,
+                    "ACQUIRE_PRECLAIM_RETENTION",
+                )
+                cross(
+                    authority.get("retry_authorized") is (not cleanup_uncertain)
+                    and authority.get("next_required_authority")
+                    == (
+                        GIT_ADAPTER_CLEANUP_AUTHORITY
+                        if cleanup_uncertain
+                        else PRECLAIM_RETRY_AUTHORITY
+                    ),
                     "ACQUIRE_PRECLAIM_AUTHORITY",
                 )
             elif claim_state == "created-0700":
@@ -2933,7 +3182,8 @@ def validate_public_result_projection(
                 )
                 cross(
                     authority.get("retry_authorized") is False
-                    and authority.get("next_required_authority") == RETAINED_STATE_AUTHORITY,
+                    and authority.get("next_required_authority")
+                    == (GIT_ADAPTER_CLEANUP_AUTHORITY if cleanup_uncertain else RETAINED_STATE_AUTHORITY),
                     "ACQUIRE_CLAIM_AUTHORITY",
                 )
             if ledger_state == "terminal-success-recorded":
@@ -2966,7 +3216,8 @@ def validate_public_result_projection(
             if phase == "static-attestation-complete":
                 cross(ledger_state == "terminal-success-recorded", "ACQUIRE_STATIC_PHASE_LEDGER")
             cross(
-                retention.get("private_state_inspection_required") is (claim_state != "not-created"),
+                retention.get("private_state_inspection_required")
+                is (claim_state != "not-created" or cleanup_uncertain),
                 "ACQUIRE_FAILURE_RETENTION",
             )
             if "ledger_evidence" in result:
@@ -3115,6 +3366,8 @@ class AttemptState:
         self.publication_state = "not-attempted"
         self.ledger_terminal_state = "not-created"
         self.target_disposition = "target-absent"
+        self.adapter_cleanup_state = "not-created"
+        self.adapter_residue_count = 0
 
     def set_phase(self, phase: str) -> None:
         if not isinstance(phase, str) or not re.fullmatch(r"[a-z0-9-]{3,96}", phase):
@@ -3160,6 +3413,10 @@ class AttemptState:
     def ledger_invalid(self) -> None:
         self.ledger_terminal_state = "absent-partial-or-semantic-invalid"
 
+    def adapter_cleanup_uncertain(self) -> None:
+        self.adapter_cleanup_state = "residue-or-uncertain"
+        self.adapter_residue_count = 1
+
     def terminal_success_publication_failed(self) -> None:
         self.challenge_state = "completed-consumed"
         self.ledger_terminal_state = "terminal-success-recorded"
@@ -3199,6 +3456,8 @@ def runtime_assurance_projection(toolchain: Optional[Mapping[str, Any]] = None) 
         "toolchain_assurance": "runtime-self-attested-not-pre-exec",
         "pre_exec_launcher_attested": False,
         "python_isolation_flags_required": ["-I", "-S", "-B"],
+        "git_metadata_adapter_trust_boundary": GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1,
+        "git_metadata_adapter_host_assurance": GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1,
     }
     if toolchain is not None:
         result["toolchain_set_receipt_sha256"] = toolchain.get("toolchain_set_receipt_sha256")
@@ -3480,7 +3739,7 @@ def build_private_ledger_projection(
         "records": report["records"],
         "ledger_head_hmac_sha256": report["head_hmac_sha256"],
         "failure_retention_contract": {
-            "automatic_cleanup_allowed": False,
+            "retained_product_state_automatic_cleanup_allowed": False,
             "pre_marker_stage": (
                 "retain hidden 0700 stage without marker when failure occurs before incomplete marker creation"
             ),
@@ -3578,7 +3837,11 @@ GATE_PASS_EVIDENCE_FIELDS: Dict[str, Tuple[str, ...]] = {
         "schema_sha256", "schema_bytes", "schema_count", "schema_bundle_receipt_sha256",
         "manual_critical_contract_passed",
     ),
-    "G01": ("challenge_claim_created", "ledger_receipt_consumed_recorded", "first_authorized_write_contract"),
+    "G01": (
+        "challenge_claim_created",
+        "ledger_receipt_consumed_recorded",
+        "first_authority_consuming_persistent_write_contract",
+    ),
     "G02": (
         "authorized_locator_commitment_count", "private_control_identity_commitment",
         "private_locator_public_count", "private_vault_read_count",
@@ -3680,7 +3943,7 @@ def validate_gate_evidence(gate_id: str, status: str, evidence: Mapping[str, Any
         exact({
             "challenge_claim_created": True,
             "ledger_receipt_consumed_recorded": True,
-            "first_authorized_write_contract": "exclusive-0700-challenge-mkdir",
+            "first_authority_consuming_persistent_write_contract": "exclusive-0700-challenge-mkdir",
         })
     elif gate_id == "G02":
         digest("private_control_identity_commitment")
@@ -3699,7 +3962,7 @@ def validate_gate_evidence(gate_id: str, status: str, evidence: Mapping[str, Any
         })
     elif gate_id == "G04":
         exact({
-            "authorized_subprocess_role_count": len(TOOLCHAIN_ROLES[4:]),
+            "authorized_subprocess_role_count": len(AUTHORIZED_SUBPROCESS_ROLES),
             "shell_allowed": False,
             "network_capable_child_authorized": False,
             "authorized_network_call_site_invocation_count": 0,
@@ -3864,6 +4127,28 @@ def validate_static_expected_shape(value: Any) -> Dict[str, Any]:
     return expected
 
 
+def pending_lock_observation_expected_structure(
+    expected: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Project the validated frozen expected structure onto lock observations."""
+    resolution = expected["resolution"]
+    tree = expected["tree"]
+    projection = {
+        "host_selected_package_count": expected["selected_package_count"],
+        "host_selected_cache_bytes": expected["compressed_bytes"],
+        "host_bin_link_count": expected["bin_link_count"],
+        "expected_archive_member_count": expected["raw_member_count"],
+        "expected_resolved_tree_entry_count": tree["entry_count"],
+        "content_receipt_sha256": expected["content_receipt_sha256"],
+        "ustar_closure_sha256": expected["ustar_closure_sha256"],
+        "resolution_receipt_sha256": resolution["sha256"],
+        "expected_tree_sha256": tree["sha256"],
+    }
+    if frozenset(projection) != LOCK_OBSERVATION_FIELDS:
+        fail(Exit.INTERNAL, "LOCK_OBSERVATION_PROJECTION")
+    return projection
+
+
 def verify_bound_schema_artifact(repo_fd: int, envelope: Mapping[str, Any]) -> Dict[str, Any]:
     binding = require_exact_object(envelope.get("schema_binding"), SCHEMA_BINDING_FIELDS, "SCHEMA_BINDING")
     if binding.get("schema_id") != SCHEMA_ID or binding.get("schema_artifact_role") != "pending-envelope-schema":
@@ -3997,12 +4282,46 @@ def verify_projection_schema_bundle(
     }
 
 
+def validate_pending_template_scalar_types(template: Any, value: Any) -> None:
+    """Enforce exact JSON scalar types frozen by the synchronized template.
+
+    JSON booleans are subclasses of ``int`` in Python, so equality and broad
+    ``isinstance(..., int)`` checks cannot preserve the schema intersection.
+    ``None`` entries are deliberate dynamic placeholders and therefore do not
+    impose a type here; their production consumers validate the filled value.
+    """
+    expected_type = type(template)
+    if expected_type in (str, bool, int, float):
+        if type(value) is not expected_type:
+            fail(Exit.CONTRACT, "MANUAL_TEMPLATE_SCALAR_TYPE")
+        return
+    if template is None:
+        return
+    if isinstance(template, dict):
+        if not isinstance(value, Mapping):
+            return
+        for key, child in template.items():
+            if key in value:
+                validate_pending_template_scalar_types(child, value[key])
+        return
+    if isinstance(template, list):
+        if not isinstance(value, list):
+            return
+        for index, child in enumerate(template):
+            if index < len(value):
+                validate_pending_template_scalar_types(child, value[index])
+
+
 def validate_manual_envelope_contract(
     envelope: Mapping[str, Any],
     now: Optional[_datetime.datetime] = None,
 ) -> None:
     if has_forbidden_pending_envelope_value(envelope):
         fail(Exit.PRIVACY, "ENVELOPE_PUBLIC_PRIVACY")
+    synchronized_template = json.loads(_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON)
+    if not isinstance(synchronized_template, dict):
+        fail(Exit.INTERNAL, "PENDING_TEMPLATE")
+    validate_pending_template_scalar_types(synchronized_template, envelope)
     require_exact_object(envelope, TOP_LEVEL_FIELDS, "ENVELOPE")
     if envelope.get("schema_version") != "gov-01-toolchain-static-acquisition-envelope-v2":
         fail(Exit.CONTRACT, "MANUAL_SCHEMA_VERSION")
@@ -4023,19 +4342,25 @@ def validate_manual_envelope_contract(
     approval = require_exact_object(
         envelope.get("approval_receipt_contract"),
         "required_user_reference receipt_must_match_raw_envelope_bytes challenge_must_match "
-        "receipt_before_any_authorized_write first_authorized_write authority_is_exact authority_expansion_allowed".split(),
+        "receipt_before_first_authority_consuming_persistent_write "
+        "first_authority_consuming_persistent_write authority_is_exact authority_expansion_allowed".split(),
         "APPROVAL_RECEIPT_CONTRACT",
     )
     for key in (
         "receipt_must_match_raw_envelope_bytes",
         "challenge_must_match",
-        "receipt_before_any_authorized_write",
+        "receipt_before_first_authority_consuming_persistent_write",
         "authority_is_exact",
     ):
         if approval.get(key) is not True:
             fail(Exit.CONTRACT, "APPROVAL_RECEIPT_AUTHORITY")
     if approval.get("authority_expansion_allowed") is not False:
         fail(Exit.CONTRACT, "APPROVAL_EXPANSION")
+    if (
+        approval.get("first_authority_consuming_persistent_write")
+        != FIRST_AUTHORITY_CONSUMING_PERSISTENT_WRITE_V2
+    ):
+        fail(Exit.CONTRACT, "APPROVAL_FIRST_PERSISTENT_WRITE")
     predecessor = require_exact_object(
         envelope.get("predecessor"),
         PREDECESSOR_FIELDS,
@@ -4288,7 +4613,7 @@ def validate_manual_envelope_contract(
     static_contract = require_exact_object(
         envelope.get("static_acquisition_contract"), STATIC_CONTRACT_FIELDS, "STATIC_CONTRACT"
     )
-    validate_static_expected_shape(static_contract.get("expected"))
+    expected_public = validate_static_expected_shape(static_contract.get("expected"))
     require_exact_sequence(static_contract.get("protected_control_paths"), PROTECTED_CONTROL_PATHS, "STATIC_PROTECTED")
     require_exact_sequence(static_contract.get("absent_control_paths"), ABSENT_CONTROL_PATHS, "STATIC_ABSENT")
     for key in (
@@ -4306,6 +4631,10 @@ def validate_manual_envelope_contract(
         if static_contract.get(key) is not False:
             fail(Exit.CONTRACT, "STATIC_FORBIDDEN_AUTHORITY")
     lock_closure = require_exact_object(envelope.get("lock_closure"), LOCK_CLOSURE_FIELDS, "LOCK_CLOSURE")
+    validate_pending_template_scalar_types(
+        pending_lock_observation_expected_structure(expected_public),
+        lock_closure,
+    )
     if lock_closure.get("host_selected_package_count") != EXPECTED_SELECTED_PACKAGES:
         fail(Exit.CONTRACT, "LOCK_PACKAGE_COUNT")
     if lock_closure.get("host_bin_link_count") != EXPECTED_BIN_LINKS or lock_closure.get("network_fetch_allowed") is not False:
@@ -4341,11 +4670,23 @@ def validate_manual_envelope_contract(
         fail(Exit.CONTRACT, "EXECUTOR_INTERFACE_VERSION")
     if execution.get("environment_mode") != ENVIRONMENT_MODE_V2:
         fail(Exit.CONTRACT, "ENVIRONMENT_MODE")
-    if execution.get("git_child_sandbox_profile") != GIT_CHILD_SANDBOX_PROFILE_V1:
+    if execution.get("git_child_sandbox_profile") != GIT_CHILD_SANDBOX_PROFILE_V3:
         fail(Exit.CONTRACT, "GIT_CHILD_SANDBOX_PROFILE")
+    if (
+        execution.get("git_metadata_adapter_bootstrap_sandbox_profile")
+        != GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE_V3
+    ):
+        fail(Exit.CONTRACT, "GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE")
+    if (
+        execution.get("git_metadata_adapter_trust_boundary")
+        != GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1
+        or execution.get("git_metadata_adapter_host_assurance")
+        != GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1
+    ):
+        fail(Exit.CONTRACT, "GIT_METADATA_ADAPTER_HOST_BOUNDARY")
     if execution.get("launcher_executable_role") != "python-interpreter":
         fail(Exit.CONTRACT, "LAUNCHER_ROLE")
-    if execution.get("allowed_subprocess_executable_roles") != list(TOOLCHAIN_ROLES[4:]):
+    if execution.get("allowed_subprocess_executable_roles") != list(AUTHORIZED_SUBPROCESS_ROLES):
         fail(Exit.CONTRACT, "SUBPROCESS_ROLES")
     executor_template = execution.get("executor_argv_template")
     verifier_census_template = execution.get("verifier_census_argv_template")
@@ -4361,6 +4702,58 @@ def validate_manual_envelope_contract(
     ):
         fail(Exit.CONTRACT, "EXECUTOR_ARGV_TEMPLATE_RECEIPT")
     evidence_templates = execution.get("evidence_command_templates")
+    if not isinstance(evidence_templates, list):
+        fail(Exit.CONTRACT, "EVIDENCE_COMMAND_TEMPLATES")
+    git_templates = [
+        entry
+        for entry in evidence_templates
+        if isinstance(entry, Mapping) and entry.get("role") == "git-read-only-evidence"
+    ]
+    bootstrap_templates = [
+        entry
+        for entry in evidence_templates
+        if isinstance(entry, Mapping) and entry.get("role") == "git-metadata-adapter-bootstrap"
+    ]
+    git_template = (
+        require_exact_object(
+            git_templates[0],
+            ("argv_allowlist", "environment_name_allowlist", "executable", "read_only", "role", "shell"),
+            "GIT_READ_ONLY_EVIDENCE_TEMPLATE",
+        )
+        if len(git_templates) == 1
+        else {}
+    )
+    bootstrap_template = (
+        require_exact_object(
+            bootstrap_templates[0],
+            (
+                "argv_allowlist", "environment_name_allowlist", "executable", "read_only", "role", "shell",
+                "write_scope",
+            ),
+            "GIT_METADATA_ADAPTER_BOOTSTRAP_TEMPLATE",
+        )
+        if len(bootstrap_templates) == 1
+        else {}
+    )
+    git_environment_names = list(git_env())
+    if (
+        len(git_templates) != 1
+        or git_template.get("argv_allowlist") != git_read_only_argv_templates_v2()
+        or git_template.get("environment_name_allowlist") != git_environment_names
+        or git_template.get("executable") != "{RESOLVED_CLT_GIT_PRIVATE}"
+        or git_template.get("read_only") is not True
+        or git_template.get("shell") is not False
+        or len(bootstrap_templates) != 1
+        or bootstrap_template.get("argv_allowlist") != git_adapter_bootstrap_argv_templates_v2()
+        or bootstrap_template.get("environment_name_allowlist")
+        != git_environment_names + ["GIT_OBJECT_DIRECTORY"]
+        or bootstrap_template.get("executable") != "{RESOLVED_CLT_GIT_PRIVATE}"
+        or bootstrap_template.get("read_only") is not False
+        or bootstrap_template.get("shell") is not False
+        or bootstrap_template.get("write_scope")
+        != "checkpoint-scoped-private-temp-adapter-only"
+    ):
+        fail(Exit.CONTRACT, "GIT_EVIDENCE_COMMAND_TEMPLATES")
     if execution.get("evidence_command_templates_sha256") != public_contract_receipt(
         EVIDENCE_COMMAND_TEMPLATES_DOMAIN,
         evidence_templates,
@@ -4377,7 +4770,8 @@ def validate_manual_envelope_contract(
     mutation = require_exact_object(
         envelope.get("mutation_scope"),
         "allowed_persistent_mutations allowed_ephemeral_mutations target_preimage publish_syscall publish_flag "
-        "publish_attempt_ceiling overwrite_allowed forbidden_mutations".split(),
+        "publish_attempt_ceiling overwrite_allowed forbidden_mutations git_metadata_adapter_trust_boundary "
+        "git_metadata_adapter_host_assurance git_metadata_adapter_cleanup_guarantee".split(),
         "MUTATION_SCOPE",
     )
     if (
@@ -4388,11 +4782,27 @@ def validate_manual_envelope_contract(
         or mutation.get("overwrite_allowed") is not False
     ):
         fail(Exit.CONTRACT, "MUTATION_CEILING")
+    ephemeral_mutations = mutation.get("allowed_ephemeral_mutations")
+    if (
+        not isinstance(ephemeral_mutations, list)
+        or not ephemeral_mutations
+        or ephemeral_mutations[0] != GIT_ADAPTER_EPHEMERAL_MUTATION_V3
+    ):
+        fail(Exit.CONTRACT, "GIT_ADAPTER_MUTATION_AUTHORITY")
+    if (
+        mutation.get("git_metadata_adapter_trust_boundary")
+        != GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1
+        or mutation.get("git_metadata_adapter_host_assurance")
+        != GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1
+        or mutation.get("git_metadata_adapter_cleanup_guarantee")
+        != GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1
+    ):
+        fail(Exit.CONTRACT, "GIT_ADAPTER_MUTATION_BOUNDARY")
     failure = require_exact_object(
         envelope.get("failure_contract"),
         "failure_action challenge_state preclaim_retry_allowed postclaim_retry_allowed "
         "public_success_attestation_allowed existing_target_action failed_stage_action evidence_action "
-        "new_authority_required".split(),
+        "new_authority_required git_metadata_adapter_cleanup_guarantee".split(),
         "FAILURE_CONTRACT",
     )
     if (
@@ -4401,6 +4811,9 @@ def validate_manual_envelope_contract(
         or failure.get("postclaim_retry_allowed") is not False
         or failure.get("public_success_attestation_allowed") is not False
         or failure.get("new_authority_required") != FAILURE_NEW_AUTHORITY_POLICY_V2
+        or failure.get("evidence_action") != FAILURE_EVIDENCE_ACTION_V2
+        or failure.get("git_metadata_adapter_cleanup_guarantee")
+        != GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1
     ):
         fail(Exit.CONTRACT, "FAILURE_AUTHORITY")
     success = require_exact_object(
@@ -4432,7 +4845,7 @@ def validate_manual_envelope_contract(
         "private_read_authority private_write_authority locator_commitment_profile hmac_key_id_profile hmac_key_id "
         "authorized_locator_commitments private_control_identity_commitment_profile "
         "private_control_identity_commitment all_cli_locators_compared_before_any_write claims_container_preimage "
-        "challenge_claim_preimage first_authorized_write persistent_single_use_ledger_required "
+        "challenge_claim_preimage first_authority_consuming_persistent_write persistent_single_use_ledger_required "
         "private_evidence_schema_required private_file_modes private_preimage_checks public_serialization_forbidden "
         "private_vault_authorized retention destruction_authorized".split(),
         "PRIVATE_STATE_AUTHORIZATION",
@@ -4468,6 +4881,13 @@ def validate_manual_envelope_contract(
         or private.get("private_file_modes") != {"directory": "0700", "file": "0600", "umask": "0077"}
     ):
         fail(Exit.CONTRACT, "PRIVATE_AUTHORITY")
+    private_writes = private.get("private_write_authority")
+    if (
+        not isinstance(private_writes, list)
+        or not private_writes
+        or not private_writes[0].startswith("create, seal and mandatorily remove only the exact dev/inode-bound")
+    ):
+        fail(Exit.CONTRACT, "GIT_ADAPTER_PRIVATE_WRITE_AUTHORITY")
     require_exact_sequence(
         private.get("private_preimage_checks"),
         PRIVATE_PREIMAGE_CHECKS,
@@ -4478,16 +4898,19 @@ def validate_manual_envelope_contract(
         != "state-root/claims already exists as a receipt-bound-owner-and-group real 0700 directory and is not created by this attempt"
         or private.get("challenge_claim_preimage")
         != "exact state-root/claims/<approval_challenge_id> direct child ABSENT"
-        or private.get("first_authorized_write")
-        != "mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700; EEXIST is terminal replay; no earlier mkdir, claim, ledger, stage, target or other write"
+        or private.get("first_authority_consuming_persistent_write")
+        != FIRST_AUTHORITY_CONSUMING_PERSISTENT_WRITE_V2
     ):
         fail(Exit.CONTRACT, "PRIVATE_FIRST_WRITE_CONTRACT")
     privacy = require_exact_object(
         envelope.get("privacy"),
         "public_raw_sha256_allowed_for private_raw_sha256_only_for private_locator_public_count "
-        "private_vault_read_count graphiti_call_count network_call_count".split(),
+        "private_vault_read_count graphiti_call_count network_call_count "
+        "git_metadata_adapter_trust_boundary".split(),
         "PRIVACY",
     )
+    if privacy.get("git_metadata_adapter_trust_boundary") != GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1:
+        fail(Exit.CONTRACT, "PRIVACY_GIT_METADATA_ADAPTER_TRUST_BOUNDARY")
     for key in ("private_locator_public_count", "private_vault_read_count", "graphiti_call_count", "network_call_count"):
         require_zero(privacy.get(key), "PRIVACY_" + key.upper())
 
@@ -4644,6 +5067,7 @@ def verify_generation_authorization_artifact(
 
 def verify_generation_artifacts_against_micro_and_head_v2(
     repo_root: str,
+    key: bytes,
     git_binary: str,
     artifacts: Sequence[Mapping[str, Any]],
     generation_envelope: Mapping[str, Any],
@@ -4667,34 +5091,46 @@ def verify_generation_artifacts_against_micro_and_head_v2(
     commit_oid = generation_authorization.get("authorization_commit_oid")
     if not isinstance(commit_oid, str) or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", commit_oid) is None:
         fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_COMMIT")
-    for observation in artifacts:
-        path = observation.get("path")
-        if not isinstance(path, str):
-            fail(Exit.CONTRACT, "GENERATION_ARTIFACT_PATH")
-        tree_entry = run_git(
-            git_binary,
-            repo_root,
-            ["ls-tree", "-z", "--full-tree", commit_oid, "--", path],
-            "GENERATION_ARTIFACT_TREE",
-        )
-        expected_suffix = b"\t" + path.encode("utf-8") + b"\x00"
-        if (
-            tree_entry.count(b"\x00") != 1
-            or not tree_entry.startswith(b"100644 blob ")
-            or not tree_entry.endswith(expected_suffix)
-        ):
-            fail(Exit.PREFLIGHT_DRIFT, "GENERATION_ARTIFACT_HEAD_KIND")
-        committed = run_git(
-            git_binary,
-            repo_root,
-            ["show", commit_oid + ":" + path],
-            "GENERATION_ARTIFACT_HEAD_BYTES",
-        )
-        if (
-            len(committed) != observation.get("bytes")
-            or not hmac.compare_digest(sha256(committed), str(observation.get("sha256")))
-        ):
-            fail(Exit.PREFLIGHT_DRIFT, "GENERATION_ARTIFACT_HEAD_DRIFT")
+    _capture, boundary = create_git_metadata_adapter(repo_root, key, git_binary)
+    pending: Optional[BaseException] = None
+    try:
+        for observation in artifacts:
+            path = observation.get("path")
+            if not isinstance(path, str):
+                fail(Exit.CONTRACT, "GENERATION_ARTIFACT_PATH")
+            tree_entry = run_git(
+                git_binary,
+                repo_root,
+                boundary,
+                ["ls-tree", "-z", "--full-tree", commit_oid, "--", path],
+                "GENERATION_ARTIFACT_TREE",
+            )
+            expected_suffix = b"\t" + path.encode("utf-8") + b"\x00"
+            if (
+                tree_entry.count(b"\x00") != 1
+                or not tree_entry.startswith(b"100644 blob ")
+                or not tree_entry.endswith(expected_suffix)
+            ):
+                fail(Exit.PREFLIGHT_DRIFT, "GENERATION_ARTIFACT_HEAD_KIND")
+            committed = run_git(
+                git_binary,
+                repo_root,
+                boundary,
+                ["show", commit_oid + ":" + path],
+                "GENERATION_ARTIFACT_HEAD_BYTES",
+            )
+            if (
+                len(committed) != observation.get("bytes")
+                or not hmac.compare_digest(sha256(committed), str(observation.get("sha256")))
+            ):
+                fail(Exit.PREFLIGHT_DRIFT, "GENERATION_ARTIFACT_HEAD_DRIFT")
+    except BaseException as error:
+        pending = error
+    if pending is None:
+        finalize_git_metadata_adapter(boundary, key)
+    else:
+        cleanup_git_metadata_adapter(boundary)
+        raise pending
 
 
 def verify_public_predecessor_sources_v2(repo_fd: int) -> Dict[str, Any]:
@@ -4855,6 +5291,8 @@ def run_process(
     label: str,
     allowed_returncodes: Sequence[int] = (0,),
     sandbox_profile: Optional[bytes] = None,
+    stdin_bytes: Optional[bytes] = None,
+    working_directory_fd: Optional[int] = None,
 ) -> bytes:
     if not argv or not isinstance(argv[0], str) or not os.path.isabs(argv[0]):
         fail(Exit.TRACE, "PROCESS_EXECUTABLE")
@@ -4867,7 +5305,20 @@ def run_process(
         fail(Exit.TRACE, "PROCESS_EXECUTABLE_DRIFT")
     if not set(env).issubset(ALLOWED_CHILD_ENV_NAMES):
         fail(Exit.TRACE, "PROCESS_ENVIRONMENT")
-    preexec_fn: Optional[Callable[[], None]] = None
+    child_directory_fd: Optional[int] = None
+    if working_directory_fd is not None:
+        if type(working_directory_fd) is not int or working_directory_fd < 3:
+            fail(Exit.TRACE, "PROCESS_WORKING_DIRECTORY_FD")
+        try:
+            directory_metadata = os.fstat(working_directory_fd)
+            if not stat.S_ISDIR(directory_metadata.st_mode):
+                fail(Exit.TRACE, "PROCESS_WORKING_DIRECTORY_FD")
+            child_directory_fd = os.dup(working_directory_fd)
+        except ContractError:
+            raise
+        except OSError:
+            fail(Exit.PREFLIGHT_DRIFT, label + "_WORKING_DIRECTORY_DUP")
+    sandbox_library: Optional[Any] = None
     if sandbox_profile is not None:
         if not isinstance(sandbox_profile, bytes) or not sandbox_profile:
             fail(Exit.TRACE, "PROCESS_SANDBOX_PROFILE")
@@ -4882,26 +5333,46 @@ def run_process(
         except (OSError, AttributeError):
             fail(Exit.PREFLIGHT_DRIFT, label + "_SANDBOX_LOAD")
 
-        def initialize_child_sandbox() -> None:
+    def initialize_child_boundary() -> None:
+        if child_directory_fd is not None:
+            try:
+                os.fchdir(child_directory_fd)
+                os.close(child_directory_fd)
+            except OSError:
+                os._exit(125)
+        if sandbox_library is not None:
             error_pointer = ctypes.c_char_p()
             if sandbox_library.sandbox_init(sandbox_profile, 0, ctypes.byref(error_pointer)) != 0:
                 os._exit(126)
-
-        preexec_fn = initialize_child_sandbox
+    preexec_fn: Optional[Callable[[], None]] = (
+        initialize_child_boundary
+        if child_directory_fd is not None or sandbox_library is not None
+        else None
+    )
+    passed_fds = () if child_directory_fd is None else (child_directory_fd,)
     try:
-        completed = subprocess.run(
-            list(argv),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            env=dict(env),
-            close_fds=True,
-            check=False,
-            timeout=30,
-            preexec_fn=preexec_fn,
-        )
+        try:
+            completed = subprocess.run(
+                list(argv),
+                input=stdin_bytes,
+                stdin=subprocess.DEVNULL if stdin_bytes is None else None,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                env=dict(env),
+                cwd="/",
+                close_fds=True,
+                pass_fds=passed_fds,
+                check=False,
+                timeout=30,
+                preexec_fn=preexec_fn,
+            )
+        finally:
+            if child_directory_fd is not None:
+                os.close(child_directory_fd)
     except (OSError, subprocess.SubprocessError):
         fail(Exit.PREFLIGHT_DRIFT, label + "_EXEC")
+    if completed.returncode == 125 and working_directory_fd is not None:
+        fail(Exit.PREFLIGHT_DRIFT, label + "_WORKING_DIRECTORY")
     if sandbox_profile is not None and completed.returncode == 126:
         fail(Exit.PREFLIGHT_DRIFT, label + "_SANDBOX_INIT")
     if completed.returncode not in allowed_returncodes or len(completed.stdout) > max_output:
@@ -4909,8 +5380,8 @@ def run_process(
     return completed.stdout
 
 
-def git_env() -> Dict[str, str]:
-    return {
+def git_env(object_directory: Optional[str] = None) -> Dict[str, str]:
+    environment = {
         "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
         "HOME": "/var/empty",
         "LC_ALL": "C",
@@ -4926,6 +5397,82 @@ def git_env() -> Dict[str, str]:
         "GIT_ATTR_NOSYSTEM": "1",
         "GIT_DISCOVERY_ACROSS_FILESYSTEM": "0",
     }
+    if object_directory is not None:
+        assert_absolute(object_directory, "GIT_OBJECT_DIRECTORY")
+        environment["GIT_OBJECT_DIRECTORY"] = object_directory
+    return environment
+
+
+def git_child_argv_template_prefix_v2() -> List[str]:
+    return [
+        "{RESOLVED_CLT_GIT_PRIVATE}",
+        "--no-optional-locks",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.bare=false",
+        "-c", "core.excludesFile=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "submodule.recurse=false",
+        "-c", "protocol.allow=never",
+        "-c", "core.commitGraph=false",
+        "-c", "core.multiPackIndex=false",
+        "-c", "pack.useBitmap=false",
+        "-c", "pack.writeReverseIndex=false",
+        "--git-dir=.",
+        "--work-tree={REPO_ROOT_PRIVATE}",
+        "--no-pager",
+    ]
+
+
+def git_read_only_argv_templates_v2() -> List[List[str]]:
+    prefix = git_child_argv_template_prefix_v2()
+    return [
+        prefix + ["rev-parse", "--verify", "HEAD"],
+        prefix + ["rev-parse", "--verify", "HEAD^{tree}"],
+        prefix + ["rev-parse", "--show-object-format"],
+        prefix + ["cat-file", "--batch"],
+        prefix
+        + [
+            "cat-file",
+            "--batch-all-objects",
+            "--batch-check=%(objectname) %(objecttype) %(objectsize)",
+        ],
+        prefix + ["ls-tree", "-r", "-t", "-z", "--full-tree", "HEAD^{tree}"],
+        prefix
+        + [
+            "status", "--porcelain=v2", "-z", "--untracked-files=all", "--", ".",
+            ":(exclude).git", ":(exclude).git/**",
+            ":(exclude)canvas-vault", ":(exclude)canvas-vault/**",
+            ":(exclude){STAGE_REPO_RELATIVE}", ":(exclude){STAGE_REPO_RELATIVE}/**",
+            ":(exclude)node_modules", ":(exclude)node_modules/**",
+            ":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}",
+        ],
+        prefix + ["show-ref"],
+        prefix
+        + [
+            "ls-tree", "-z", "--full-tree", "{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}", "--",
+            "{PUBLIC_ARTIFACT_REPO_RELATIVE}",
+        ],
+        prefix
+        + [
+            "show",
+            "{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}:{PUBLIC_ARTIFACT_REPO_RELATIVE}",
+        ],
+    ]
+
+
+def git_adapter_bootstrap_argv_templates_v2() -> List[List[str]]:
+    prefix = git_child_argv_template_prefix_v2()
+    return [
+        prefix + ["cat-file", "--batch"],
+        prefix
+        + [
+            "pack-objects", "--stdout", "--no-reuse-delta", "--no-reuse-object",
+        ],
+        prefix + ["index-pack", "--stdin", "--index-version=2"],
+        prefix + ["verify-pack", "-v", "{GIT_METADATA_ADAPTER_PACK_INDEX_RELATIVE_PRIVATE}"],
+    ]
 
 
 def resolve_clt_git(expected_git_hash: Optional[str]) -> Tuple[str, str]:
@@ -4972,49 +5519,61 @@ def sbpl_subpath(path: str, label: str) -> str:
     return '(subpath "' + path + '")'
 
 
-def git_read_sandbox_profile(git_binary: str, repo_root: str, enumerates_worktree: bool) -> bytes:
-    developer_root = _GIT_DEVELOPER_ROOTS.get(git_binary)
-    boundary = _GIT_READ_BOUNDARIES.get(os.path.normpath(repo_root))
-    if not isinstance(developer_root, str) or boundary is None:
+def git_read_sandbox_profile(
+    git_binary: str,
+    repo_root: str,
+    boundary: GitMetadataAdapter,
+    enumerates_worktree: bool,
+) -> bytes:
+    if (
+        repo_root != boundary.repo_root
+        or git_binary not in _GIT_DEVELOPER_ROOTS
+        or _GIT_DEVELOPER_ROOTS[git_binary] != boundary.developer_root
+    ):
         fail(Exit.PREFLIGHT_DRIFT, "GIT_SANDBOX_BOUNDARY")
-    git_dir, common_dir = boundary
     literals = [
         git_binary,
         repo_root,
-        os.path.join(repo_root, ".git"),
-        git_dir,
-        common_dir,
-        os.path.join(git_dir, "HEAD"),
-        os.path.join(git_dir, "index"),
-        os.path.join(git_dir, "commondir"),
-        os.path.join(git_dir, "config.worktree"),
-        os.path.join(common_dir, "HEAD"),
-        os.path.join(common_dir, "config"),
-        os.path.join(common_dir, "packed-refs"),
-        os.path.join(common_dir, "shallow"),
-        os.path.join(common_dir, "info", "exclude"),
+        "/dev/null",
+        boundary.adapter_root,
+        boundary.git_dir,
+        os.path.join(boundary.git_dir, "HEAD"),
+        os.path.join(boundary.git_dir, "index"),
+        os.path.join(boundary.git_dir, "config"),
+        os.path.join(boundary.git_dir, "packed-refs"),
+        os.path.join(boundary.git_dir, "shallow"),
     ]
     subpaths = [
-        developer_root,
-        os.path.join(common_dir, "objects"),
-        os.path.join(common_dir, "refs"),
+        boundary.developer_root,
+        boundary.adapter_root,
     ]
     if enumerates_worktree:
         subpaths.append(repo_root)
-    prohibited = [
-        os.path.join(common_dir, "objects", "info", "alternates"),
-        os.path.join(common_dir, "objects", "info", "http-alternates"),
-        os.path.join(git_dir, "objects", "info", "alternates"),
-        os.path.join(git_dir, "objects", "info", "http-alternates"),
-        os.path.join(common_dir, "info", "grafts"),
+    prohibited_literals = [
+        os.path.join(repo_root, ".git"),
+        os.path.join(boundary.live_git_dir, "HEAD"),
+        os.path.join(boundary.live_git_dir, "index"),
+        os.path.join(boundary.live_git_dir, "commondir"),
+        os.path.join(boundary.live_git_dir, "config.worktree"),
+        os.path.join(boundary.live_git_dir, "gitdir"),
+        os.path.join(boundary.live_common_dir, "HEAD"),
+        os.path.join(boundary.live_common_dir, "config"),
+        os.path.join(boundary.live_common_dir, "packed-refs"),
+        os.path.join(boundary.live_common_dir, "info", "grafts"),
+        os.path.join(boundary.live_common_dir, "objects", "info", "alternates"),
+        os.path.join(boundary.live_common_dir, "objects", "info", "http-alternates"),
     ]
+    prohibited_subpaths = sorted({boundary.live_git_dir, boundary.live_common_dir})
     allow_rules = "\n ".join(sbpl_literal(path, "GIT_SANDBOX") for path in literals)
     allow_rules += "\n " + "\n ".join(sbpl_subpath(path, "GIT_SANDBOX") for path in subpaths)
     ancestors: List[str] = []
     for path in literals + subpaths:
         sbpl_literal(path, "GIT_SANDBOX")
         ancestors.append('(path-ancestors "' + path + '")')
-    deny_rules = "\n ".join(sbpl_literal(path, "GIT_SANDBOX") for path in prohibited)
+    deny_rules = "\n ".join(sbpl_literal(path, "GIT_SANDBOX") for path in prohibited_literals)
+    deny_rules += "\n " + "\n ".join(
+        sbpl_subpath(path, "GIT_SANDBOX") for path in prohibited_subpaths
+    )
     vault_filter = (
         '(regex #"/([.][Oo][Bb][Ss][Ii][Dd][Ii][Aa][Nn]|'
         '[^/]*[Cc][Aa][Nn][Vv][Aa][Ss]-[Vv][Aa][Uu][Ll][Tt][^/]*)(/|$)")'
@@ -5029,8 +5588,329 @@ def git_read_sandbox_profile(git_binary: str, repo_root: str, enumerates_worktre
         '(allow signal (target self))\n'
         '(allow file-read* file-test-existence\n ' + allow_rules + '\n)\n'
         '(allow file-read-metadata file-test-existence\n ' + "\n ".join(ancestors) + '\n)\n'
-        '(allow file-read-metadata file-test-existence\n ' + deny_rules + '\n)\n'
-        '(deny file-read-data\n ' + deny_rules + '\n)\n'
+        '(deny file-read* file-test-existence\n ' + deny_rules + '\n)\n'
+        '(deny file-read* file-test-existence ' + vault_filter + ')\n'
+        '(deny file-write*)\n'
+    )
+    return profile.encode("ascii", "strict")
+
+
+def git_hardened_child_argv(
+    git_binary: str,
+    repo_root: str,
+    adapter_git_dir: str,
+    arguments: Sequence[str],
+) -> List[str]:
+    if adapter_git_dir != ".":
+        fail(Exit.INTERNAL, "GIT_CHILD_RELATIVE_GIT_DIR")
+    return [
+        git_binary,
+        "--no-optional-locks",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.bare=false",
+        "-c", "core.excludesFile=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "submodule.recurse=false",
+        "-c", "protocol.allow=never",
+        "-c", "core.commitGraph=false",
+        "-c", "core.multiPackIndex=false",
+        "-c", "pack.useBitmap=false",
+        "-c", "pack.writeReverseIndex=false",
+        "--git-dir=" + adapter_git_dir,
+        "--work-tree=" + repo_root,
+        "--no-pager",
+    ] + list(arguments)
+
+
+def require_git_child_template_match(
+    *,
+    role: str,
+    argv: Sequence[str],
+    environment: Mapping[str, str],
+    git_binary: str,
+    repo_root: str,
+    adapter_git_dir: str,
+    live_objects: Optional[str],
+    stdin_bytes: Optional[bytes],
+) -> Tuple[str, Tuple[str, ...]]:
+    actual = list(argv)
+    actual_prefix = git_hardened_child_argv(git_binary, repo_root, adapter_git_dir, ())
+    if (
+        actual[:len(actual_prefix)] != actual_prefix
+        or adapter_git_dir != "."
+        or actual.count("--git-dir=.") != 1
+        or actual.count("--work-tree=" + repo_root) != 1
+        or "-C" in actual
+        or any(argument.startswith("core.worktree=") for argument in actual)
+    ):
+        fail(Exit.TRACE, "GIT_CHILD_ARGV_PREFIX")
+    tail = actual[len(actual_prefix):]
+    normalized_tail: Optional[List[str]] = None
+    templates: List[List[str]]
+    expected_environment: Mapping[str, str]
+    if role == "git-metadata-adapter-bootstrap":
+        templates = git_adapter_bootstrap_argv_templates_v2()
+        pack_base = "objects/pack/pack"
+        if tail == ["cat-file", "--batch"]:
+            normalized_tail = tail
+            if not isinstance(stdin_bytes, bytes) or not stdin_bytes:
+                fail(Exit.TRACE, "GIT_BOOTSTRAP_STDIN")
+        elif tail == ["pack-objects", "--stdout", "--no-reuse-delta", "--no-reuse-object"]:
+            normalized_tail = tail
+            if not isinstance(stdin_bytes, bytes) or not stdin_bytes:
+                fail(Exit.TRACE, "GIT_BOOTSTRAP_STDIN")
+        elif tail == ["index-pack", "--stdin", "--index-version=2"]:
+            normalized_tail = tail
+            if not isinstance(stdin_bytes, bytes) or not stdin_bytes:
+                fail(Exit.TRACE, "GIT_BOOTSTRAP_STDIN")
+        elif (
+            len(tail) == 3
+            and tail[:2] == ["verify-pack", "-v"]
+            and os.path.dirname(tail[2]) == os.path.dirname(pack_base)
+            and re.fullmatch(r"pack-[0-9a-f]{40,64}\.idx", os.path.basename(tail[2])) is not None
+        ):
+            normalized_tail = tail[:2] + ["{GIT_METADATA_ADAPTER_PACK_INDEX_RELATIVE_PRIVATE}"]
+            if stdin_bytes is not None:
+                fail(Exit.TRACE, "GIT_BOOTSTRAP_STDIN")
+        if normalized_tail is None:
+            fail(Exit.TRACE, "GIT_BOOTSTRAP_ARGV")
+        needs_bridge = normalized_tail[:1] in (["cat-file"], ["pack-objects"])
+        if needs_bridge != (live_objects is not None):
+            fail(Exit.TRACE, "GIT_BOOTSTRAP_OBJECT_BRIDGE")
+        expected_environment = git_env(live_objects if needs_bridge else None)
+    elif role == "git-read-only-evidence":
+        templates = git_read_only_argv_templates_v2()
+        expected_environment = git_env()
+        if live_objects is not None or "GIT_OBJECT_DIRECTORY" in environment:
+            fail(Exit.TRACE, "GIT_FINAL_LIVE_OBJECT_BRIDGE")
+        if tail in (
+            ["rev-parse", "--verify", "HEAD"],
+            ["rev-parse", "--verify", "HEAD^{tree}"],
+            ["rev-parse", "--show-object-format"],
+            ["show-ref"],
+            ["ls-tree", "-r", "-t", "-z", "--full-tree", "HEAD^{tree}"],
+            [
+                "cat-file",
+                "--batch-all-objects",
+                "--batch-check=%(objectname) %(objecttype) %(objectsize)",
+            ],
+        ):
+            normalized_tail = tail
+            if stdin_bytes is not None:
+                fail(Exit.TRACE, "GIT_FINAL_STDIN")
+        elif tail == ["cat-file", "--batch"]:
+            normalized_tail = tail
+            if not isinstance(stdin_bytes, bytes) or not stdin_bytes:
+                fail(Exit.TRACE, "GIT_FINAL_STDIN")
+        elif len(tail) == 15 and tail[:10] == [
+            "status", "--porcelain=v2", "-z", "--untracked-files=all", "--", ".",
+            ":(exclude).git", ":(exclude).git/**",
+            ":(exclude)canvas-vault", ":(exclude)canvas-vault/**",
+        ]:
+            stage_prefix = ":(exclude).gov01-toolchain-stage-"
+            if not tail[10].startswith(stage_prefix):
+                fail(Exit.TRACE, "GIT_STATUS_STAGE")
+            challenge = tail[10][len(":(exclude).gov01-toolchain-stage-"):]
+            stage = ".gov01-toolchain-stage-" + challenge
+            envelope_prefix = ":(top,literal,exclude)" + CONTROL_PREFIX + PENDING_ENVELOPE_BASENAME_PREFIX
+            envelope_value = tail[14]
+            generation_challenge = (
+                envelope_value[len(envelope_prefix):-len(".json")]
+                if envelope_value.startswith(envelope_prefix) and envelope_value.endswith(".json")
+                else ""
+            )
+            if (
+                CHALLENGE_RE.fullmatch(challenge) is None
+                or GENERATION_CHALLENGE_RE.fullmatch(generation_challenge) is None
+                or tail[11] != ":(exclude)" + stage + "/**"
+                or tail[12:14] != [":(exclude)node_modules", ":(exclude)node_modules/**"]
+                or stdin_bytes is not None
+            ):
+                fail(Exit.TRACE, "GIT_STATUS_AUTHORITY")
+            normalized_tail = tail[:10] + [
+                ":(exclude){STAGE_REPO_RELATIVE}",
+                ":(exclude){STAGE_REPO_RELATIVE}/**",
+                ":(exclude)node_modules",
+                ":(exclude)node_modules/**",
+                ":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}",
+            ]
+        elif (
+            len(tail) == 6
+            and tail[:3] == ["ls-tree", "-z", "--full-tree"]
+            and tail[4] == "--"
+            and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", tail[3]) is not None
+            and tail[5] in {path for _role, path in PENDING_STATIC_ARTIFACT_SPECS}
+            and stdin_bytes is None
+        ):
+            normalized_tail = [
+                "ls-tree", "-z", "--full-tree", "{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}", "--",
+                "{PUBLIC_ARTIFACT_REPO_RELATIVE}",
+            ]
+        elif len(tail) == 2 and tail[0] == "show" and stdin_bytes is None:
+            for approved_path in (path for _role, path in PENDING_STATIC_ARTIFACT_SPECS):
+                suffix = ":" + approved_path
+                if tail[1].endswith(suffix) and re.fullmatch(
+                    r"[0-9a-f]{40}|[0-9a-f]{64}",
+                    tail[1][:-len(suffix)],
+                ) is not None:
+                    normalized_tail = [
+                        "show",
+                        "{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}:{PUBLIC_ARTIFACT_REPO_RELATIVE}",
+                    ]
+                    break
+        if normalized_tail is None:
+            fail(Exit.TRACE, "GIT_FINAL_ARGV")
+    else:
+        fail(Exit.TRACE, "GIT_CHILD_ROLE")
+    if dict(environment) != dict(expected_environment):
+        fail(Exit.TRACE, "GIT_CHILD_ENVIRONMENT")
+    normalized = git_child_argv_template_prefix_v2() + normalized_tail
+    matches = sum(1 for template in templates if template == normalized)
+    if matches != 1:
+        fail(Exit.TRACE, "GIT_CHILD_TEMPLATE_CLOSURE")
+    return role, tuple(normalized)
+
+
+def git_object_bootstrap_sandbox_profile(
+    git_binary: str,
+    repo_root: str,
+    developer_root: str,
+    adapter_root: str,
+    adapter_git_dir: str,
+    live_git_dir: str,
+    live_common_dir: str,
+    live_objects: str,
+    allow_live_objects: bool,
+    allow_adapter_writes: bool,
+    allowed_live_oids: Sequence[str],
+    allowed_pack_paths: Sequence[str],
+) -> bytes:
+    if (
+        _GIT_DEVELOPER_ROOTS.get(git_binary) != developer_root
+        or adapter_git_dir != "."
+        or live_objects != os.path.join(live_common_dir, "objects")
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_BOOTSTRAP_BOUNDARY")
+    read_literals = [
+        git_binary, repo_root, "/dev/null", adapter_root, os.path.join(adapter_root, "git"),
+    ]
+    read_subpaths = [developer_root, adapter_root]
+    if allow_live_objects:
+        if not allowed_live_oids or any(
+            re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid) is None
+            for oid in allowed_live_oids
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_BOOTSTRAP_OID_SCOPE")
+        pack_container = os.path.join(live_objects, "pack")
+        expected_pack_paths = tuple(sorted(set(allowed_pack_paths)))
+        if any(
+            os.path.dirname(path) != pack_container
+            or re.fullmatch(
+                r"pack-(?:[0-9a-f]{40}|[0-9a-f]{64})\.(?:pack|idx)",
+                os.path.basename(path),
+            ) is None
+            for path in expected_pack_paths
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_BOOTSTRAP_PACK_SCOPE")
+        selected_pack_names = {os.path.basename(path) for path in expected_pack_paths}
+        if any(
+            stem + ".idx" not in selected_pack_names or stem + ".pack" not in selected_pack_names
+            for stem in {name.rsplit(".", 1)[0] for name in selected_pack_names}
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_BOOTSTRAP_PACK_PAIR")
+        read_literals.extend((pack_container, *expected_pack_paths))
+        read_literals.extend(
+            os.path.join(live_objects, oid[:2], oid[2:]) for oid in sorted(set(allowed_live_oids))
+        )
+    elif allowed_live_oids or allowed_pack_paths:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_BOOTSTRAP_OID_SCOPE")
+    ancestors = [
+        '(path-ancestors "' + path + '")'
+        for path in read_literals + read_subpaths
+        if sbpl_literal(path, "GIT_OBJECT_BOOTSTRAP")
+    ]
+    prohibited_literals = {
+        os.path.join(repo_root, ".git"),
+        os.path.join(live_git_dir, "HEAD"),
+        os.path.join(live_git_dir, "index"),
+        os.path.join(live_git_dir, "commondir"),
+        os.path.join(live_git_dir, "config.worktree"),
+        os.path.join(live_git_dir, "gitdir"),
+        os.path.join(live_common_dir, "HEAD"),
+        os.path.join(live_common_dir, "config"),
+        os.path.join(live_common_dir, "packed-refs"),
+        os.path.join(live_common_dir, "shallow"),
+        os.path.join(live_common_dir, "info", "grafts"),
+        os.path.join(live_objects, "info", "alternates"),
+        os.path.join(live_objects, "info", "http-alternates"),
+    }
+    prohibited_subpaths = {
+        os.path.join(live_git_dir, "refs"),
+        os.path.join(live_common_dir, "refs"),
+        os.path.join(live_common_dir, "hooks"),
+        os.path.join(live_common_dir, "logs"),
+        os.path.join(live_objects, "info"),
+    }
+    allow_read_rules = "\n ".join(
+        [sbpl_literal(path, "GIT_OBJECT_BOOTSTRAP") for path in read_literals]
+        + [sbpl_subpath(path, "GIT_OBJECT_BOOTSTRAP") for path in read_subpaths]
+    )
+    deny_read_rules = "\n ".join(
+        [sbpl_literal(path, "GIT_OBJECT_BOOTSTRAP") for path in sorted(prohibited_literals)]
+        + [sbpl_subpath(path, "GIT_OBJECT_BOOTSTRAP") for path in sorted(prohibited_subpaths)]
+    )
+    vault_filter = (
+        '(regex #"/([.][Oo][Bb][Ss][Ii][Dd][Ii][Aa][Nn]|'
+        '[^/]*[Cc][Aa][Nn][Vv][Aa][Ss]-[Vv][Aa][Uu][Ll][Tt][^/]*)(/|$)")'
+    )
+    adapter_pack_path = os.path.join(adapter_root, "git", "objects", "pack")
+    if allow_adapter_writes:
+        write_rule = (
+            '(allow file-write* '
+            + sbpl_subpath(adapter_pack_path, "GIT_OBJECT_BOOTSTRAP")
+            + ')\n'
+        )
+        # system.sb is imported for the dynamic loader and platform runtime.
+        # Do not inherit any of its ambient write grants: the only writable
+        # names are strict descendants of this adapter's objects/pack inode.
+        # The literal denies also prevent rename/unlink of every directory
+        # entry forming that capability path, including the /private/tmp
+        # parent and the adapter root itself.
+        protected_write_entries = (
+            "/private/tmp",
+            adapter_root,
+            os.path.join(adapter_root, "git"),
+            os.path.join(adapter_root, "git", "objects"),
+            adapter_pack_path,
+        )
+        write_deny_rule = (
+            '(deny file-write*\n '
+            + "\n ".join(
+                sbpl_literal(path, "GIT_OBJECT_BOOTSTRAP")
+                for path in protected_write_entries
+            )
+            + '\n (require-not '
+            + sbpl_subpath(adapter_pack_path, "GIT_OBJECT_BOOTSTRAP")
+            + '))\n'
+        )
+    else:
+        write_rule = ""
+        write_deny_rule = '(deny file-write*)\n'
+    profile = (
+        '(version 1)\n'
+        '(deny default)\n'
+        '(import "system.sb")\n'
+        '(deny network*)\n'
+        '(allow process-exec ' + sbpl_literal(git_binary, "GIT_OBJECT_BOOTSTRAP") + ')\n'
+        '(allow process-fork)\n'
+        '(allow signal (target self))\n'
+        '(allow file-read* file-test-existence\n ' + allow_read_rules + '\n)\n'
+        '(allow file-read-metadata file-test-existence\n ' + "\n ".join(ancestors) + '\n)\n'
+        + write_rule +
+        write_deny_rule +
+        '(deny file-read* file-test-existence\n ' + deny_read_rules + '\n)\n'
         '(deny file-read* file-test-existence ' + vault_filter + ')\n'
     )
     return profile.encode("ascii", "strict")
@@ -5039,46 +5919,73 @@ def git_read_sandbox_profile(git_binary: str, repo_root: str, enumerates_worktre
 def run_git(
     git_binary: str,
     repo_root: str,
+    boundary: GitMetadataAdapter,
     arguments: Sequence[str],
     label: str,
     enumerates_worktree: bool = False,
     authorized_tree_excludes: Sequence[str] = (),
     authorized_exact_file_excludes: Sequence[str] = (),
     allowed_returncodes: Sequence[int] = (0,),
+    stdin_bytes: Optional[bytes] = None,
+    max_output: int = MAX_GIT_OUTPUT,
 ) -> bytes:
+    verify_git_metadata_adapter(boundary)
+    git_adapter_trace_event(boundary, "CHILD_PRECHECK_COMPLETE", "git-child")
     args = list(arguments)
     if enumerates_worktree:
-        args.extend(["--", ".", ":(exclude)canvas-vault", ":(exclude)canvas-vault/**"])
+        args.extend(
+            [
+                "--",
+                ".",
+                ":(exclude).git",
+                ":(exclude).git/**",
+                ":(exclude)canvas-vault",
+                ":(exclude)canvas-vault/**",
+            ]
+        )
         for excluded in authorized_tree_excludes:
             validate_relative(excluded, "GIT_AUTHORIZED_EXCLUDE")
             args.extend([":(exclude)" + excluded, ":(exclude)" + excluded + "/**"])
         for excluded in authorized_exact_file_excludes:
             validate_relative(excluded, "GIT_AUTHORIZED_EXACT_FILE_EXCLUDE")
             args.append(":(top,literal,exclude)" + excluded)
-    hardened = [
-        "-c", "core.fsmonitor=false",
-        "-c", "core.untrackedCache=false",
-        "-c", "core.hooksPath=/dev/null",
-        "-c", "core.worktree=" + repo_root,
-        "-c", "core.bare=false",
-        "-c", "core.excludesFile=/dev/null",
-        "-c", "core.attributesFile=/dev/null",
-        "-c", "submodule.recurse=false",
-        "-c", "protocol.allow=never",
-    ]
-    argv = [git_binary] + hardened + ["-C", repo_root, "--no-pager"] + args
-    return run_process(
-        argv,
-        git_env(),
-        MAX_GIT_OUTPUT,
-        label,
-        allowed_returncodes=allowed_returncodes,
-        sandbox_profile=git_read_sandbox_profile(git_binary, repo_root, enumerates_worktree),
+    argv = git_hardened_child_argv(git_binary, repo_root, ".", args)
+    environment = git_env()
+    require_git_child_template_match(
+        role="git-read-only-evidence",
+        argv=argv,
+        environment=environment,
+        git_binary=git_binary,
+        repo_root=repo_root,
+        adapter_git_dir=".",
+        live_objects=None,
+        stdin_bytes=stdin_bytes,
     )
+    git_adapter_trace_event(boundary, "CHILD_EXEC_BEGIN", "git-child")
+    try:
+        return run_process(
+            argv,
+            environment,
+            max_output,
+            label,
+            allowed_returncodes=allowed_returncodes,
+            sandbox_profile=git_read_sandbox_profile(git_binary, repo_root, boundary, enumerates_worktree),
+            stdin_bytes=stdin_bytes,
+            working_directory_fd=boundary.git_fd,
+        )
+    finally:
+        verify_git_metadata_adapter(boundary)
+        git_adapter_trace_event(boundary, "CHILD_POSTCHECK_COMPLETE", "git-child")
 
 
-def safe_git_scalar(git_binary: str, repo_root: str, arguments: Sequence[str], label: str) -> str:
-    raw = run_git(git_binary, repo_root, arguments, label)
+def safe_git_scalar(
+    git_binary: str,
+    repo_root: str,
+    boundary: GitMetadataAdapter,
+    arguments: Sequence[str],
+    label: str,
+) -> str:
+    raw = run_git(git_binary, repo_root, boundary, arguments, label)
     if b"\x00" in raw or b"\r" in raw or raw.count(b"\n") != 1:
         fail(Exit.PREFLIGHT_DRIFT, label + "_FORMAT")
     try:
@@ -5820,7 +6727,10 @@ def resolve_git_control_directory(repo_root: str, key: bytes) -> Tuple[str, str,
     return git_dir, common_dir, observation
 
 
-def git_control_preflight(repo_root: str, key: bytes) -> Dict[str, Any]:
+def inspect_git_control_preflight(
+    repo_root: str,
+    key: bytes,
+) -> Tuple[Dict[str, Any], Tuple[str, str]]:
     git_dir, common_dir, observation = resolve_git_control_directory(repo_root, key)
 
     def config_observation(path: str, label: str, required: bool) -> Dict[str, Any]:
@@ -5877,8 +6787,2383 @@ def git_control_preflight(repo_root: str, key: bytes) -> Dict[str, Any]:
             fail(Exit.PREFLIGHT_DRIFT, "GIT_ALTERNATE_CONTROL_LSTAT")
         fail(Exit.PRIVACY, "GIT_ALTERNATE_CONTROL_PROHIBITED")
     observation["alternate_controls"] = "ABSENT"
-    _GIT_READ_BOUNDARIES[os.path.normpath(repo_root)] = (git_dir, common_dir)
+    return observation, (git_dir, common_dir)
+
+
+def git_control_preflight(repo_root: str, key: bytes) -> Dict[str, Any]:
+    observation, _private_paths = inspect_git_control_preflight(repo_root, key)
     return observation
+
+
+GIT_ADAPTER_TRACE_PHASES = {
+    "SOURCE_CAPTURE_BEGIN": "source-capture",
+    "SOURCE_CAPTURE_COMPLETE": "source-capture",
+    "ADAPTER_ROOT_CREATED": "adapter-materialization",
+    "ADAPTER_METADATA_FROZEN": "adapter-materialization",
+    "SOURCE_BOOTSTRAP_PREVALIDATED": "source-cas",
+    "OBJECT_ENUMERATION_COMPLETE": "adapter-materialization",
+    "OBJECT_PACK_COMPLETE": "adapter-materialization",
+    "OBJECT_PACK_VERIFIED": "adapter-materialization",
+    "ADAPTER_OBJECTS_FROZEN": "adapter-materialization",
+    "OBJECT_CONTENT_VERIFIED": "adapter-seal",
+    "SOURCE_BOOTSTRAP_POSTVALIDATED": "source-cas",
+    "ADAPTER_SEALED": "adapter-seal",
+    "CHILD_PRECHECK_COMPLETE": "git-child",
+    "CHILD_EXEC_BEGIN": "git-child",
+    "CHILD_POSTCHECK_COMPLETE": "git-child",
+    "SOURCE_FINAL_REVALIDATED": "source-cas",
+    "CLEANUP_BEGIN": "adapter-cleanup",
+    "CLEANUP_FAILED": "adapter-cleanup",
+    "CLEANUP_COMPLETE": "adapter-cleanup",
+}
+
+
+def git_adapter_trace_event(
+    target: Any,
+    event: str,
+    phase: str,
+) -> None:
+    if GIT_ADAPTER_TRACE_PHASES.get(event) != phase:
+        fail(Exit.INTERNAL, "GIT_ADAPTER_TRACE_EVENT")
+    trace = target.trace if isinstance(target, GitMetadataAdapter) else target
+    if not isinstance(trace, list):
+        fail(Exit.INTERNAL, "GIT_ADAPTER_TRACE_TARGET")
+    trace.append({"event": event, "phase": phase})
+
+
+def git_source_metadata(metadata: os.stat_result) -> Dict[str, Any]:
+    return {
+        "device": metadata.st_dev,
+        "inode": metadata.st_ino,
+        "mode": metadata.st_mode,
+        "owner_uid": metadata.st_uid,
+        "group_gid": metadata.st_gid,
+        "link_count": metadata.st_nlink,
+        "bytes": metadata.st_size,
+        "mtime_ns": metadata.st_mtime_ns,
+        "ctime_ns": metadata.st_ctime_ns,
+        "flags": getattr(metadata, "st_flags", 0),
+    }
+
+
+def capture_git_source_regular(
+    path: str,
+    label: str,
+    max_bytes: int,
+    required: bool,
+) -> Tuple[Optional[bytes], Dict[str, Any]]:
+    try:
+        metadata = os.lstat(path)
+    except FileNotFoundError:
+        if required:
+            fail(Exit.PREFLIGHT_DRIFT, label + "_MISSING")
+        return None, {"state": "ABSENT"}
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, label + "_LSTAT")
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        fail(Exit.PREFLIGHT_DRIFT, label + "_TYPE")
+    raw, opened = read_absolute_regular(path, label, max_bytes)
+    if opened.st_uid != os.getuid() or stat.S_IMODE(opened.st_mode) & 0o022:
+        fail(Exit.PREFLIGHT_DRIFT, label + "_POLICY")
+    path_metadata = os.stat(path, follow_symlinks=False)
+    if git_source_metadata(path_metadata) != git_source_metadata(opened):
+        fail(Exit.PREFLIGHT_DRIFT, label + "_PATH_RACE")
+    return raw, {
+        "state": "PRESENT",
+        "metadata": git_source_metadata(opened),
+        "raw_sha256": sha256(raw),
+        "bytes": len(raw),
+    }
+
+
+def capture_git_source_regular_metadata(
+    path: str,
+    label: str,
+    max_bytes: int,
+) -> Dict[str, Any]:
+    """Capture stable regular-file identity without reading payload bytes."""
+    try:
+        before = os.lstat(path)
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, label + "_LSTAT")
+    if (
+        stat.S_ISLNK(before.st_mode)
+        or not stat.S_ISREG(before.st_mode)
+        or before.st_uid != os.getuid()
+        or stat.S_IMODE(before.st_mode) & 0o022
+        or before.st_nlink != 1
+        or before.st_size > max_bytes
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, label + "_POLICY")
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, label + "_OPEN")
+    try:
+        assert_no_extended_acl_fd(descriptor, label)
+        opened = os.fstat(descriptor)
+        after = os.stat(path, follow_symlinks=False)
+    finally:
+        os.close(descriptor)
+    if (
+        git_source_metadata(before) != git_source_metadata(opened)
+        or git_source_metadata(opened) != git_source_metadata(after)
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, label + "_RACE")
+    return {"state": "PRESENT", "metadata": git_source_metadata(opened)}
+
+
+def capture_git_source_tree(
+    path: str,
+    label: str,
+    required: bool = False,
+) -> Tuple[Dict[str, bytes], Dict[str, Any]]:
+    try:
+        root_metadata = assert_no_symlink_components(path, label)
+    except ContractError as error:
+        if not required and error.public_code == label + "_MISSING":
+            return {}, {"state": "ABSENT", "directories": [], "files": []}
+        raise
+    if (
+        not stat.S_ISDIR(root_metadata.st_mode)
+        or root_metadata.st_uid != os.getuid()
+        or stat.S_IMODE(root_metadata.st_mode) & 0o022
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, label + "_POLICY")
+    raw_files: Dict[str, bytes] = {}
+    directories: List[Dict[str, Any]] = []
+    files: List[Dict[str, Any]] = []
+    total_bytes = 0
+
+    def walk(current_path: str, relative: str) -> None:
+        nonlocal total_bytes
+        before = assert_no_symlink_components(current_path, label + "_DIRECTORY")
+        if (
+            not stat.S_ISDIR(before.st_mode)
+            or before.st_uid != os.getuid()
+            or stat.S_IMODE(before.st_mode) & 0o022
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, label + "_DIRECTORY_POLICY")
+        try:
+            entries = list(os.scandir(current_path))
+        except OSError:
+            fail(Exit.PREFLIGHT_DRIFT, label + "_SCAN")
+        for entry in sorted(entries, key=lambda item: os.fsencode(item.name)):
+            name = entry.name
+            if (
+                not isinstance(name, str)
+                or not is_nfc(name)
+                or any(unicodedata.category(character) in ("Cc", "Cf", "Zl", "Zp") for character in name)
+            ):
+                fail(Exit.PREFLIGHT_DRIFT, label + "_NAME")
+            child_relative = name if not relative else relative + "/" + name
+            child_path = os.path.join(current_path, name)
+            child_metadata = os.lstat(child_path)
+            if stat.S_ISLNK(child_metadata.st_mode):
+                fail(Exit.PREFLIGHT_DRIFT, label + "_SYMLINK")
+            if stat.S_ISDIR(child_metadata.st_mode):
+                walk(child_path, child_relative)
+            elif stat.S_ISREG(child_metadata.st_mode):
+                raw, observation = capture_git_source_regular(
+                    child_path,
+                    label + "_FILE",
+                    MAX_GIT_CONTROL_BYTES,
+                    required=True,
+                )
+                if raw is None:
+                    fail(Exit.INTERNAL, "GIT_SOURCE_TREE_REQUIRED_FILE")
+                total_bytes += len(raw)
+                if total_bytes > MAX_GIT_OUTPUT:
+                    fail(Exit.PREFLIGHT_DRIFT, label + "_SIZE")
+                raw_files[child_relative] = raw
+                files.append({"relative": child_relative, "observation": observation})
+            else:
+                fail(Exit.PREFLIGHT_DRIFT, label + "_SPECIAL")
+        after = os.stat(current_path, follow_symlinks=False)
+        if git_source_metadata(before) != git_source_metadata(after):
+            fail(Exit.PREFLIGHT_DRIFT, label + "_DIRECTORY_RACE")
+        directories.append({"relative": relative, "metadata": git_source_metadata(before)})
+
+    walk(path, "")
+    return raw_files, {
+        "state": "PRESENT",
+        "directories": sorted(directories, key=lambda item: item["relative"]),
+        "files": sorted(files, key=lambda item: item["relative"]),
+    }
+
+
+def capture_git_object_store_anchor(path: str) -> Dict[str, Any]:
+    root = assert_no_symlink_components(path, "GIT_OBJECT_SOURCE_DIRECTORY")
+    if (
+        not stat.S_ISDIR(root.st_mode)
+        or root.st_uid != os.getuid()
+        or stat.S_IMODE(root.st_mode) & 0o022
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_SOURCE_DIRECTORY_POLICY")
+    body = {
+        "profile": "live-object-root-anchor-no-container-enumeration-v1",
+        "root_anchor": {
+            "device": root.st_dev,
+            "inode": root.st_ino,
+            "mode": root.st_mode,
+            "owner_uid": root.st_uid,
+            "group_gid": root.st_gid,
+            "flags": getattr(root, "st_flags", 0),
+        },
+        "alternate_controls": "ABSENT",
+    }
+    return {"fingerprint": sha256(canonical_json(body)), **body}
+
+
+def capture_git_pack_index_search(path: str) -> Dict[str, Any]:
+    def directory_anchor(metadata: os.stat_result) -> Dict[str, Any]:
+        return {
+            "device": metadata.st_dev,
+            "inode": metadata.st_ino,
+            "mode": metadata.st_mode,
+            "owner_uid": metadata.st_uid,
+            "group_gid": metadata.st_gid,
+            "flags": getattr(metadata, "st_flags", 0),
+        }
+
+    root = assert_no_symlink_components(path, "GIT_OBJECT_SOURCE_DIRECTORY")
+    if (
+        not stat.S_ISDIR(root.st_mode)
+        or root.st_uid != os.getuid()
+        or stat.S_IMODE(root.st_mode) & 0o022
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_SOURCE_DIRECTORY_POLICY")
+    pack_path = os.path.join(path, "pack")
+    pack_index_records: List[Dict[str, Any]] = []
+    pack_index_bytes: Dict[str, bytes] = {}
+    pack_index_observations: Dict[str, Dict[str, Any]] = {}
+    pack_file_names: List[str] = []
+    total_index_bytes = 0
+    try:
+        pack_before = os.lstat(pack_path)
+    except FileNotFoundError:
+        pack_state: Dict[str, Any] = {"state": "ABSENT"}
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_CONTAINER_LSTAT")
+    else:
+        if (
+            stat.S_ISLNK(pack_before.st_mode)
+            or not stat.S_ISDIR(pack_before.st_mode)
+            or pack_before.st_uid != os.getuid()
+            or stat.S_IMODE(pack_before.st_mode) & 0o022
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_CONTAINER_POLICY")
+        try:
+            entries = list(os.scandir(pack_path))
+        except OSError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_CONTAINER_SCAN")
+        if len(entries) > MAX_GIT_ADAPTER_ENTRIES:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_CONTAINER_LIMIT")
+        allowed_pack_name = re.compile(
+            r"pack-(?:[0-9a-f]{40}|[0-9a-f]{64})\.(?:pack|idx)"
+        )
+        for entry in sorted(entries, key=lambda item: os.fsencode(item.name)):
+            name = entry.name
+            if not isinstance(name, str):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_CONTAINER_NAME")
+            if allowed_pack_name.fullmatch(name) is None:
+                # Reverse indexes, bitmaps and unrelated cruft are outside the
+                # exact OID bridge.  They are neither opened nor committed.
+                continue
+            pack_file_names.append(name)
+            candidate = os.path.join(pack_path, name)
+            if name.endswith(".idx"):
+                raw, observation = capture_git_source_regular(
+                    candidate,
+                    "GIT_OBJECT_PACK_INDEX",
+                    MAX_GIT_INDEX_BYTES,
+                    required=True,
+                )
+                if raw is None:
+                    fail(Exit.INTERNAL, "GIT_OBJECT_PACK_INDEX_REQUIRED")
+                pack_index_bytes[name] = raw
+                metadata = observation["metadata"]
+                total_index_bytes += len(raw)
+                if total_index_bytes > MAX_GIT_INDEX_BYTES:
+                    fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_CONTAINER_BYTES")
+                pack_index_observations[name] = observation
+                pack_index_records.append({"name": name, "observation": observation})
+        pack_names = set(pack_file_names)
+        for name in pack_names:
+            stem, suffix = name.rsplit(".", 1)
+            peer = stem + (".idx" if suffix == "pack" else ".pack")
+            if peer not in pack_names:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_CONTAINER_PAIR")
+        pack_after = os.stat(pack_path, follow_symlinks=False)
+        if git_source_metadata(pack_before) != git_source_metadata(pack_after):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_CONTAINER_RACE")
+        pack_state = {
+            "state": "PRESENT",
+            "directory_anchor": directory_anchor(pack_before),
+            "matching_name_count": len(pack_file_names),
+            "index_count": len(pack_index_records),
+            "index_bytes": total_index_bytes,
+            "index_receipt_sha256": sha256(canonical_json(pack_index_records)),
+        }
+    control = {
+        "profile": "pack-index-search-catalog-private-transient-v1",
+        "root_anchor": directory_anchor(root),
+        "pack_container": pack_state,
+        "alternate_controls": "ABSENT",
+    }
+    return {
+        "fingerprint": sha256(canonical_json(control)),
+        "pack_entry_count": len(pack_file_names),
+        "pack_index_bytes_total": total_index_bytes,
+        "pack_file_names": tuple(pack_file_names),
+        "pack_index_bytes": pack_index_bytes,
+        "pack_index_observations": pack_index_observations,
+        "profile": control["profile"],
+    }
+
+
+def parse_git_pack_index_v2(
+    raw: bytes,
+    oid_length: int,
+    index_name: str,
+    requested_oids: Sequence[str],
+) -> Tuple[str, ...]:
+    """Return requested OIDs present in one independently validated pack index."""
+
+    oid_bytes = oid_length // 2
+    if (
+        oid_length not in (40, 64)
+        or re.fullmatch(r"pack-[0-9a-f]{%d}\.idx" % oid_length, index_name) is None
+        or any(re.fullmatch(r"[0-9a-f]{%d}" % oid_length, oid) is None for oid in requested_oids)
+        or len(raw) < 8 + 256 * 4 + 2 * oid_bytes
+        or raw[:4] != b"\xfftOc"
+        or int.from_bytes(raw[4:8], "big") != 2
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_FORMAT")
+    fanout = tuple(
+        int.from_bytes(raw[8 + index * 4:12 + index * 4], "big")
+        for index in range(256)
+    )
+    if any(fanout[index] < fanout[index - 1] for index in range(1, 256)):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_FANOUT")
+    object_count = fanout[-1]
+    if object_count > MAX_GIT_ADAPTER_ENTRIES:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_COUNT")
+    names_start = 8 + 256 * 4
+    names_end = names_start + object_count * oid_bytes
+    crc_end = names_end + object_count * 4
+    offsets_end = crc_end + object_count * 4
+    if offsets_end + 2 * oid_bytes > len(raw):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_LENGTH")
+    large_offset_indexes: List[int] = []
+    for index in range(object_count):
+        value = int.from_bytes(raw[crc_end + index * 4:crc_end + (index + 1) * 4], "big")
+        if value & 0x80000000:
+            large_offset_indexes.append(value & 0x7FFFFFFF)
+    if sorted(large_offset_indexes) != list(range(len(large_offset_indexes))):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_LARGE_OFFSET")
+    trailer_start = offsets_end + len(large_offset_indexes) * 8
+    if trailer_start + 2 * oid_bytes != len(raw):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_LENGTH")
+    digest = hashlib.sha1() if oid_length == 40 else hashlib.sha256()
+    digest.update(raw[:-oid_bytes])
+    if not hmac.compare_digest(digest.digest(), raw[-oid_bytes:]):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_CHECKSUM")
+    expected_pack_checksum = index_name[len("pack-"):-len(".idx")]
+    if raw[trailer_start:trailer_start + oid_bytes].hex() != expected_pack_checksum:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_PACK_BINDING")
+
+    counts = [0] * 256
+    previous = b""
+    for index in range(object_count):
+        start = names_start + index * oid_bytes
+        current = raw[start:start + oid_bytes]
+        if index and current <= previous:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_ORDER")
+        counts[current[0]] += 1
+        previous = current
+    cumulative = 0
+    for index, count in enumerate(counts):
+        cumulative += count
+        if fanout[index] != cumulative:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_INDEX_FANOUT")
+
+    matches: List[str] = []
+    for oid in sorted(set(requested_oids)):
+        raw_oid = bytes.fromhex(oid)
+        first = raw_oid[0]
+        low = fanout[first - 1] if first else 0
+        high = fanout[first]
+        while low < high:
+            middle = (low + high) // 2
+            start = names_start + middle * oid_bytes
+            candidate = raw[start:start + oid_bytes]
+            if candidate < raw_oid:
+                low = middle + 1
+            else:
+                high = middle
+        start = names_start + low * oid_bytes
+        if low < fanout[first] and raw[start:start + oid_bytes] == raw_oid:
+            matches.append(oid)
+    return tuple(matches)
+
+
+def capture_git_object_dependencies(path: str, object_oids: Sequence[str]) -> Dict[str, Any]:
+    if not object_oids or len(set(object_oids)) != len(object_oids):
+        fail(Exit.INTERNAL, "GIT_OBJECT_DEPENDENCY_OIDS")
+    oid_length = len(object_oids[0])
+    if oid_length not in (40, 64) or any(
+        re.fullmatch(r"[0-9a-f]{%d}" % oid_length, oid) is None
+        for oid in object_oids
+    ):
+        fail(Exit.INTERNAL, "GIT_OBJECT_DEPENDENCY_OIDS")
+    object_root = capture_git_object_store_anchor(path)
+    loose_records: List[Dict[str, Any]] = []
+    missing_oids = set(object_oids)
+    for oid in sorted(object_oids):
+        loose_path = os.path.join(path, oid[:2], oid[2:])
+        _raw, observation = capture_git_source_regular(
+            loose_path,
+            "GIT_OBJECT_DEPENDENCY_LOOSE",
+            MAX_GIT_ADAPTER_FILE_BYTES,
+            required=False,
+        )
+        if observation["state"] == "PRESENT":
+            missing_oids.remove(oid)
+        loose_records.append({"oid": oid, "observation": observation})
+    bridge = capture_git_pack_index_search(path) if missing_oids else {
+        "pack_index_bytes": {},
+        "pack_index_observations": {},
+    }
+    pack_index_observations = bridge.get("pack_index_observations")
+    pack_index_bytes = bridge.get("pack_index_bytes")
+    if not isinstance(pack_index_observations, dict) or not isinstance(pack_index_bytes, dict):
+        fail(Exit.INTERNAL, "GIT_OBJECT_DEPENDENCY_PACK_CAPTURE")
+    candidates: Dict[str, List[str]] = {oid: [] for oid in missing_oids}
+    for index_name in sorted(pack_index_bytes, key=os.fsencode):
+        raw = pack_index_bytes[index_name]
+        observation = pack_index_observations.get(index_name)
+        if not isinstance(raw, bytes) or not isinstance(observation, dict):
+            fail(Exit.INTERNAL, "GIT_OBJECT_DEPENDENCY_PACK_CAPTURE")
+        for oid in parse_git_pack_index_v2(raw, oid_length, index_name, tuple(missing_oids)):
+            candidates[oid].append(index_name[:-4])
+    selected_stems = set()
+    for oid in sorted(missing_oids):
+        stems = sorted(candidates[oid])
+        if not stems:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_DEPENDENCY_MISSING")
+        selected_stems.add(stems[0])
+    selected_records: List[Dict[str, Any]] = []
+    allowed_pack_paths: List[str] = []
+    for stem in sorted(selected_stems):
+        for suffix in (".idx", ".pack"):
+            name = stem + suffix
+            if suffix == ".idx":
+                observation = pack_index_observations.get(name)
+            else:
+                observation = capture_git_source_regular_metadata(
+                    os.path.join(path, "pack", name),
+                    "GIT_OBJECT_DEPENDENCY_PACK",
+                    MAX_GIT_ADAPTER_FILE_BYTES,
+                )
+            if not isinstance(observation, dict):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_DEPENDENCY_PACK_PAIR")
+            selected_records.append({"name": name, "observation": observation})
+            allowed_pack_paths.append(os.path.join(path, "pack", name))
+    body = {
+        "profile": GIT_OBJECT_DEPENDENCY_PROFILE_V3,
+        "object_root_anchor_fingerprint": object_root["fingerprint"],
+        "object_count": len(object_oids),
+        "oid_set_sha256": sha256(canonical_json(sorted(object_oids))),
+        "loose_dependency_receipt_sha256": sha256(canonical_json(loose_records)),
+        "selected_pack_container_count": len(selected_stems),
+        "selected_pack_container_receipt_sha256": sha256(canonical_json(selected_records)),
+    }
+    return {
+        "fingerprint": sha256(canonical_json(body)),
+        "allowed_pack_paths": tuple(allowed_pack_paths),
+        **body,
+    }
+
+
+def parse_git_hooks_path(configs: Sequence[Optional[bytes]]) -> Optional[str]:
+    hooks_path: Optional[str] = None
+    for raw in configs:
+        if raw is None:
+            continue
+        try:
+            text = raw.decode("utf-8", "strict")
+        except UnicodeDecodeError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_CONFIG_ENCODING")
+        section = ""
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith(("#", ";")):
+                continue
+            if stripped.startswith("["):
+                match = re.fullmatch(
+                    r'\[\s*([A-Za-z0-9.-]+)(?:\s+"(?:[^"\\]|\\.)*")?\s*\](?:\s*[#;].*)?',
+                    stripped,
+                )
+                if match is None:
+                    fail(Exit.PREFLIGHT_DRIFT, "GIT_CONFIG_SECTION_FORMAT")
+                section = match.group(1).casefold()
+                continue
+            if section != "core":
+                continue
+            match = re.fullmatch(r"(?i:hookspath)\s*=\s*(.*?)\s*", stripped)
+            if match is None:
+                continue
+            value = match.group(1)
+            if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
+                value = value[1:-1]
+            if (
+                not value
+                or "\\" in value
+                or "\x00" in value
+                or not is_nfc(value)
+                or any(unicodedata.category(character) in ("Cc", "Cf", "Zl", "Zp") for character in value)
+            ):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_HOOKS_OVERRIDE_FORMAT")
+            if hooks_path is not None:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_HOOKS_OVERRIDE_DUPLICATE")
+            hooks_path = value
+    return hooks_path
+
+
+def captured_ref_map(capture: Mapping[str, Any]) -> Dict[str, bytes]:
+    refs: Dict[str, bytes] = {}
+    for prefix, key_name in (("refs", "common_ref_bytes"), ("refs", "worktree_ref_bytes")):
+        source = capture.get(key_name)
+        if not isinstance(source, dict):
+            fail(Exit.INTERNAL, "GIT_CAPTURE_REFS")
+        for relative, raw in source.items():
+            if not isinstance(relative, str) or not isinstance(raw, bytes):
+                fail(Exit.INTERNAL, "GIT_CAPTURE_REF_ENTRY")
+            reference = prefix + "/" + relative
+            previous = refs.get(reference)
+            if previous is not None and previous != raw:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_CAPTURE_REF_COLLISION")
+            refs[reference] = raw
+    packed = capture.get("raw_files", {}).get("packed_refs")
+    if packed is not None:
+        if not isinstance(packed, bytes):
+            fail(Exit.INTERNAL, "GIT_CAPTURE_PACKED_REFS")
+        for line in packed.splitlines():
+            if not line or line.startswith((b"#", b"^")):
+                continue
+            fields = line.split(b" ")
+            if len(fields) != 2:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_PACKED_REFS_FORMAT")
+            try:
+                oid = fields[0].decode("ascii", "strict")
+                reference = fields[1].decode("ascii", "strict")
+            except UnicodeDecodeError:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_PACKED_REFS_ENCODING")
+            if re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid) is None or not reference.startswith("refs/"):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_PACKED_REFS_VALUE")
+            refs.setdefault(reference, (oid + "\n").encode("ascii"))
+    return refs
+
+
+def captured_head_oid(capture: Mapping[str, Any]) -> str:
+    raw_files = capture.get("raw_files")
+    if not isinstance(raw_files, dict) or not isinstance(raw_files.get("head"), bytes):
+        fail(Exit.INTERNAL, "GIT_CAPTURE_HEAD")
+    current = raw_files["head"]
+    refs = captured_ref_map(capture)
+    seen = set()
+    for _depth in range(8):
+        if current.count(b"\n") != 1 or not current.endswith(b"\n"):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_CAPTURE_HEAD_FORMAT")
+        if current.startswith(b"ref: "):
+            try:
+                reference = current[5:-1].decode("ascii", "strict")
+            except UnicodeDecodeError:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_CAPTURE_HEAD_ENCODING")
+            if reference in seen or reference not in refs or not reference.startswith("refs/"):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_CAPTURE_HEAD_REF")
+            seen.add(reference)
+            current = refs[reference]
+            continue
+        try:
+            oid = current[:-1].decode("ascii", "strict")
+        except UnicodeDecodeError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_CAPTURE_HEAD_OID")
+        if re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid) is None:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_CAPTURE_HEAD_OID")
+        return oid
+    fail(Exit.PREFLIGHT_DRIFT, "GIT_CAPTURE_HEAD_DEPTH")
+    raise AssertionError("unreachable")
+
+
+def capture_git_metadata_source(repo_root: str, key: bytes) -> Dict[str, Any]:
+    git_control, (git_dir, common_dir) = inspect_git_control_preflight(repo_root, key)
+    specs = (
+        ("head", os.path.join(git_dir, "HEAD"), MAX_GIT_CONTROL_BYTES, True),
+        ("index", os.path.join(git_dir, "index"), MAX_GIT_INDEX_BYTES, True),
+        ("common_config", os.path.join(common_dir, "config"), MAX_GIT_CONTROL_BYTES, True),
+        ("worktree_config", os.path.join(git_dir, "config.worktree"), MAX_GIT_CONTROL_BYTES, False),
+        ("packed_refs", os.path.join(common_dir, "packed-refs"), MAX_GIT_INDEX_BYTES, False),
+        ("shallow", os.path.join(common_dir, "shallow"), MAX_GIT_INDEX_BYTES, False),
+        ("info_exclude", os.path.join(common_dir, "info", "exclude"), MAX_GIT_CONTROL_BYTES, False),
+    )
+    raw_files: Dict[str, Optional[bytes]] = {}
+    file_observations: Dict[str, Any] = {}
+    for role, path, limit, required in specs:
+        raw, observation = capture_git_source_regular(
+            path,
+            "GIT_SOURCE_" + role.upper(),
+            limit,
+            required,
+        )
+        raw_files[role] = raw
+        file_observations[role] = observation
+    common_ref_bytes, common_refs = capture_git_source_tree(
+        os.path.join(common_dir, "refs"),
+        "GIT_SOURCE_COMMON_REFS",
+        required=False,
+    )
+    if git_dir == common_dir:
+        worktree_ref_bytes: Dict[str, bytes] = {}
+        worktree_refs = {"state": "ABSENT", "directories": [], "files": []}
+    else:
+        worktree_ref_bytes, worktree_refs = capture_git_source_tree(
+            os.path.join(git_dir, "refs"),
+            "GIT_SOURCE_WORKTREE_REFS",
+            required=False,
+        )
+    objects_path = os.path.join(common_dir, "objects")
+    objects = capture_git_object_store_anchor(objects_path)
+    hooks_override = parse_git_hooks_path(
+        (raw_files["common_config"], raw_files["worktree_config"])
+    )
+    if hooks_override is None:
+        hooks_path = os.path.join(common_dir, "hooks")
+        hooks_info = hash_directory_tree_absolute(hooks_path, "GIT_HOOKS")
+        hooks_state = "default-git-path"
+    else:
+        hooks_path = os.path.normpath(
+            hooks_override if os.path.isabs(hooks_override) else os.path.join(repo_root, hooks_override)
+        )
+        if hooks_path == "/dev/null":
+            hooks_info = hash_regular_absolute(hooks_path, "GIT_HOOKS_DISABLED", 4096)
+            hooks_state = "configured-dev-null"
+        elif is_same_or_within(hooks_path, common_dir) or is_same_or_within(hooks_path, repo_root):
+            hooks_info = hash_directory_tree_absolute(hooks_path, "GIT_HOOKS")
+            hooks_state = "configured-git-contained"
+        else:
+            fail(Exit.PREFLIGHT_DRIFT, "EXTERNAL_HOOKS_PATH")
+    hooks_source = {
+        "path_commitment": locator_commitment(key, "git-hooks", hooks_path),
+        "state": hooks_state,
+        "evidence": hooks_info,
+    }
+    identity = {
+        "git_control": git_control,
+        "git_dir": git_source_metadata(assert_no_symlink_components(git_dir, "GIT_SOURCE_GIT_DIR")),
+        "common_dir": git_source_metadata(assert_no_symlink_components(common_dir, "GIT_SOURCE_COMMON_DIR")),
+        "files": file_observations,
+        "common_refs": common_refs,
+        "worktree_refs": worktree_refs,
+        "objects": objects,
+        "hooks": hooks_source,
+    }
+    capture = {
+        "git_dir": git_dir,
+        "common_dir": common_dir,
+        "git_control": git_control,
+        "raw_files": raw_files,
+        "common_ref_bytes": common_ref_bytes,
+        "worktree_ref_bytes": worktree_ref_bytes,
+        "objects_path": objects_path,
+        "hooks_path": hooks_path,
+        "hooks_state": hooks_state,
+        "hooks_info": hooks_info,
+        "identity": identity,
+        "fingerprint": sha256(canonical_json(identity)),
+    }
+    capture["head_oid"] = captured_head_oid(capture)
+    return capture
+
+
+def open_git_adapter_directory_at(
+    adapter_fd: int,
+    components: Sequence[str],
+    label: str,
+    create: bool,
+) -> int:
+    current = os.dup(adapter_fd)
+    try:
+        for component in components:
+            if (
+                not isinstance(component, str)
+                or not component
+                or component in (".", "..")
+                or "/" in component
+                or "\\" in component
+                or "\x00" in component
+                or not is_nfc(component)
+            ):
+                fail(Exit.PREFLIGHT_DRIFT, label + "_DIRECTORY_NAME")
+            try:
+                next_fd = os.open(
+                    component,
+                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=current,
+                )
+            except FileNotFoundError:
+                if not create:
+                    raise
+                os.mkdir(component, 0o700, dir_fd=current)
+                next_fd = os.open(
+                    component,
+                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=current,
+                )
+            metadata = os.fstat(next_fd)
+            if (
+                not stat.S_ISDIR(metadata.st_mode)
+                or metadata.st_uid != os.getuid()
+                or stat.S_IMODE(metadata.st_mode) & 0o022
+            ):
+                os.close(next_fd)
+                fail(Exit.PREFLIGHT_DRIFT, label + "_DIRECTORY_POLICY")
+            os.close(current)
+            current = next_fd
+        return current
+    except BaseException:
+        os.close(current)
+        raise
+
+
+def mkdir_git_adapter_directory_at(adapter_fd: int, relative: str, label: str) -> None:
+    components = validate_relative(relative, label)
+    directory_fd = open_git_adapter_directory_at(adapter_fd, components, label, create=True)
+    os.close(directory_fd)
+
+
+def write_git_adapter_file_at(adapter_fd: int, relative: str, raw: bytes, label: str) -> None:
+    components = validate_relative(relative, label)
+    parent_fd = open_git_adapter_directory_at(adapter_fd, components[:-1], label, create=True)
+    try:
+        fd = os.open(
+            components[-1],
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=parent_fd,
+        )
+    except OSError:
+        os.close(parent_fd)
+        fail(Exit.PREFLIGHT_DRIFT, label + "_CREATE")
+    try:
+        offset = 0
+        while offset < len(raw):
+            try:
+                written = os.write(fd, raw[offset:])
+            except OSError:
+                fail(Exit.PREFLIGHT_DRIFT, label + "_WRITE")
+            if written <= 0:
+                fail(Exit.PREFLIGHT_DRIFT, label + "_WRITE")
+            offset += written
+        os.fsync(fd)
+        final = os.fstat(fd)
+        if final.st_size != len(raw) or final.st_nlink != 1:
+            fail(Exit.PREFLIGHT_DRIFT, label + "_FINAL")
+    finally:
+        os.close(fd)
+        os.close(parent_fd)
+
+
+def hash_git_adapter_file_at(
+    adapter_fd: int,
+    relative: str,
+    label: str,
+    max_bytes: int,
+) -> Dict[str, Any]:
+    components = validate_relative(relative, label)
+    parent_fd = open_git_adapter_directory_at(adapter_fd, components[:-1], label, create=False)
+    try:
+        metadata = os.stat(components[-1], dir_fd=parent_fd, follow_symlinks=False)
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode) or metadata.st_size > max_bytes:
+            fail(Exit.PREFLIGHT_DRIFT, label + "_TYPE")
+        file_fd = os.open(
+            components[-1],
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=parent_fd,
+        )
+        try:
+            opened = os.fstat(file_fd)
+            if (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino):
+                fail(Exit.PREFLIGHT_DRIFT, label + "_RACE")
+            digest, length = hash_fd(file_fd, "sha256", max_bytes, label)
+        finally:
+            os.close(file_fd)
+    finally:
+        os.close(parent_fd)
+    return {
+        "sha256": digest,
+        "bytes": length,
+        "device": metadata.st_dev,
+        "inode": metadata.st_ino,
+    }
+
+
+def git_adapter_fd_path(fd: int, label: str) -> str:
+    command = getattr(fcntl, "F_GETPATH", None)
+    if command is None:
+        fail(Exit.PREFLIGHT_DRIFT, label + "_IDENTITY_UNAVAILABLE")
+    try:
+        raw = fcntl.fcntl(fd, command, b"\x00" * 1024)
+        return os.fsdecode(raw.split(b"\x00", 1)[0])
+    except (OSError, UnicodeError, ValueError):
+        fail(Exit.PREFLIGHT_DRIFT, label + "_IDENTITY")
+    raise AssertionError("unreachable")
+
+
+def verify_unsealed_git_adapter_root(
+    adapter_root: str,
+    adapter_identity: Tuple[int, int],
+    adapter_fd: int,
+) -> None:
+    validate_git_adapter_locator(adapter_root)
+    try:
+        metadata = os.lstat(adapter_root)
+        opened = os.fstat(adapter_fd)
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_BUILD_ROOT")
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+        or (metadata.st_dev, metadata.st_ino) != adapter_identity
+        or (opened.st_dev, opened.st_ino) != adapter_identity
+        or git_adapter_fd_path(adapter_fd, "GIT_ADAPTER_BUILD_ROOT") != adapter_root
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_BUILD_ROOT")
+
+
+def verify_unsealed_git_adapter_git_directory(
+    adapter_root: str,
+    adapter_fd: int,
+    git_fd: int,
+    git_identity: Tuple[int, int],
+) -> None:
+    try:
+        named = os.stat("git", dir_fd=adapter_fd, follow_symlinks=False)
+        opened = os.fstat(git_fd)
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_BUILD_GIT_DIRECTORY")
+    if (
+        stat.S_ISLNK(named.st_mode)
+        or not stat.S_ISDIR(named.st_mode)
+        or named.st_uid != os.getuid()
+        or stat.S_IMODE(named.st_mode) != 0o700
+        or (named.st_dev, named.st_ino) != git_identity
+        or (opened.st_dev, opened.st_ino) != git_identity
+        or git_adapter_fd_path(git_fd, "GIT_ADAPTER_BUILD_GIT_DIRECTORY")
+        != os.path.join(adapter_root, "git")
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_BUILD_GIT_DIRECTORY")
+
+
+def assert_git_source_capture_unchanged(
+    capture: Mapping[str, Any],
+    repo_root: str,
+    key: bytes,
+    public_code: str,
+) -> None:
+    recaptured = capture_git_metadata_source(repo_root, key)
+    if (
+        recaptured["git_dir"] != capture.get("git_dir")
+        or recaptured["common_dir"] != capture.get("common_dir")
+        or recaptured["fingerprint"] != capture.get("fingerprint")
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, public_code)
+
+
+def run_git_object_bootstrap_child(
+    *,
+    git_binary: str,
+    developer_root: str,
+    repo_root: str,
+    capture: Mapping[str, Any],
+    adapter_root: str,
+    adapter_git_dir: str,
+    adapter_fd: int,
+    git_fd: int,
+    adapter_identity: Tuple[int, int],
+    git_identity: Tuple[int, int],
+    arguments: Sequence[str],
+    label: str,
+    max_output: int,
+    allow_live_objects: bool,
+    allow_adapter_writes: bool,
+    allowed_live_oids: Sequence[str] = (),
+    allowed_pack_paths: Sequence[str] = (),
+    stdin_bytes: Optional[bytes] = None,
+) -> bytes:
+    verify_unsealed_git_adapter_root(adapter_root, adapter_identity, adapter_fd)
+    verify_unsealed_git_adapter_git_directory(adapter_root, adapter_fd, git_fd, git_identity)
+    live_objects = str(capture["objects_path"])
+    environment = git_env(live_objects if allow_live_objects else None)
+    argv = git_hardened_child_argv(git_binary, repo_root, adapter_git_dir, arguments)
+    require_git_child_template_match(
+        role="git-metadata-adapter-bootstrap",
+        argv=argv,
+        environment=environment,
+        git_binary=git_binary,
+        repo_root=repo_root,
+        adapter_git_dir=adapter_git_dir,
+        live_objects=live_objects if allow_live_objects else None,
+        stdin_bytes=stdin_bytes,
+    )
+    git_adapter_trace_event(capture["adapter_trace"], "CHILD_PRECHECK_COMPLETE", "git-child")
+    git_adapter_trace_event(capture["adapter_trace"], "CHILD_EXEC_BEGIN", "git-child")
+    try:
+        return run_process(
+            argv,
+            environment,
+            max_output,
+            label,
+            sandbox_profile=git_object_bootstrap_sandbox_profile(
+                git_binary,
+                repo_root,
+                developer_root,
+                adapter_root,
+                adapter_git_dir,
+                str(capture["git_dir"]),
+                str(capture["common_dir"]),
+                live_objects,
+                allow_live_objects,
+                allow_adapter_writes,
+                allowed_live_oids,
+                allowed_pack_paths,
+            ),
+            stdin_bytes=stdin_bytes,
+            working_directory_fd=git_fd,
+        )
+    finally:
+        verify_unsealed_git_adapter_root(adapter_root, adapter_identity, adapter_fd)
+        verify_unsealed_git_adapter_git_directory(adapter_root, adapter_fd, git_fd, git_identity)
+        git_adapter_trace_event(capture["adapter_trace"], "CHILD_POSTCHECK_COMPLETE", "git-child")
+
+
+def parse_git_cat_file_batch_exact(
+    raw: bytes,
+    expected_types: Mapping[str, str],
+    maximum_bytes: int,
+    label: str,
+) -> Tuple[Dict[str, Tuple[str, bytes]], str]:
+    expected_oids = sorted(expected_types)
+    if not expected_oids:
+        fail(Exit.INTERNAL, label + "_EXPECTATION")
+    oid_length = len(expected_oids[0])
+    result: Dict[str, Tuple[str, bytes]] = {}
+    receipt_rows: List[Dict[str, Any]] = []
+    cursor = 0
+    content_bytes = 0
+    for expected_oid in expected_oids:
+        newline = raw.find(b"\n", cursor)
+        if newline < 0 or newline - cursor > 256:
+            fail(Exit.PREFLIGHT_DRIFT, label + "_HEADER")
+        fields = raw[cursor:newline].split(b" ")
+        cursor = newline + 1
+        if len(fields) != 3:
+            fail(Exit.PREFLIGHT_DRIFT, label + "_HEADER")
+        try:
+            observed_oid = fields[0].decode("ascii", "strict")
+            object_type = fields[1].decode("ascii", "strict")
+            size_text = fields[2].decode("ascii", "strict")
+        except UnicodeDecodeError:
+            fail(Exit.PREFLIGHT_DRIFT, label + "_HEADER")
+        if (
+            observed_oid != expected_oid
+            or object_type != expected_types[expected_oid]
+            or re.fullmatch(r"0|[1-9][0-9]*", size_text) is None
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, label + "_HEADER")
+        size = int(size_text, 10)
+        content_bytes += size
+        end = cursor + size
+        if (
+            size > MAX_GIT_ADAPTER_FILE_BYTES
+            or content_bytes > maximum_bytes
+            or end >= len(raw)
+            or raw[end:end + 1] != b"\n"
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, label + "_BODY")
+        content = raw[cursor:end]
+        cursor = end + 1
+        digest = hashlib.sha1() if oid_length == 40 else hashlib.sha256()
+        digest.update((object_type + " " + str(size) + "\x00").encode("ascii"))
+        digest.update(content)
+        if not hmac.compare_digest(digest.hexdigest(), expected_oid):
+            fail(Exit.PREFLIGHT_DRIFT, label + "_OID")
+        result[expected_oid] = (object_type, content)
+        receipt_rows.append({"oid": expected_oid, "type": object_type, "bytes": size})
+    if cursor != len(raw) or set(result) != set(expected_types):
+        fail(Exit.PREFLIGHT_DRIFT, label + "_SET")
+    return result, sha256(canonical_json(receipt_rows))
+
+
+def parse_git_tree_object_entries(raw: bytes, oid_length: int) -> List[Tuple[str, str, str]]:
+    raw_oid_length = oid_length // 2
+    cursor = 0
+    entries: List[Tuple[str, str, str]] = []
+    names = set()
+    while cursor < len(raw):
+        space = raw.find(b" ", cursor)
+        nul = raw.find(b"\x00", space + 1 if space >= 0 else cursor)
+        if space < 0 or nul < 0 or nul == space + 1:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_FORMAT")
+        try:
+            mode = raw[cursor:space].decode("ascii", "strict")
+            name = raw[space + 1:nul].decode("utf-8", "strict")
+        except UnicodeDecodeError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_ENCODING")
+        oid_end = nul + 1 + raw_oid_length
+        if oid_end > len(raw):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_OID")
+        oid = raw[nul + 1:oid_end].hex()
+        if (
+            name in names
+            or not name
+            or "/" in name
+            or "\\" in name
+            or "\x00" in name
+            or not is_nfc(name)
+            or any(unicodedata.category(character) in ("Cc", "Cf", "Zl", "Zp") for character in name)
+            or re.fullmatch(r"[0-9a-f]{%d}" % oid_length, oid) is None
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_ENTRY")
+        names.add(name)
+        if mode == "40000":
+            object_type = "tree"
+        elif mode in ("100644", "100755", "120000"):
+            object_type = "blob"
+        else:
+            # Includes mode 160000 gitlinks/submodules.
+            fail(Exit.PRIVACY, "GIT_TREE_OBJECT_TYPE")
+        entries.append((name, object_type, oid if object_type == "tree" else mode + ":" + oid))
+        cursor = oid_end
+    return entries
+
+
+def discover_git_object_closure(
+    *,
+    capture: Mapping[str, Any],
+    git_binary: str,
+    developer_root: str,
+    repo_root: str,
+    adapter_root: str,
+    adapter_git_dir: str,
+    adapter_fd: int,
+    git_fd: int,
+    adapter_identity: Tuple[int, int],
+    git_identity: Tuple[int, int],
+) -> Tuple[List[str], Dict[str, str], str, Dict[str, Any]]:
+    head_oid = str(capture["head_oid"])
+    oid_length = len(head_oid)
+
+    def read_exact(expected_types: Mapping[str, str], label: str) -> Dict[str, Tuple[str, bytes]]:
+        dependencies_before = capture_git_object_dependencies(
+            str(capture["objects_path"]),
+            tuple(sorted(expected_types)),
+        )
+        request = b"".join(oid.encode("ascii") + b"\n" for oid in sorted(expected_types))
+        response = run_git_object_bootstrap_child(
+            git_binary=git_binary,
+            developer_root=developer_root,
+            repo_root=repo_root,
+            capture=capture,
+            adapter_root=adapter_root,
+            adapter_git_dir=adapter_git_dir,
+            adapter_fd=adapter_fd,
+            git_fd=git_fd,
+            adapter_identity=adapter_identity,
+            git_identity=git_identity,
+            arguments=["cat-file", "--batch"],
+            label=label,
+            max_output=MAX_GIT_INDEX_BYTES,
+            allow_live_objects=True,
+            allow_adapter_writes=False,
+            allowed_live_oids=tuple(sorted(expected_types)),
+            allowed_pack_paths=dependencies_before["allowed_pack_paths"],
+            stdin_bytes=request,
+        )
+        parsed, _receipt = parse_git_cat_file_batch_exact(
+            response,
+            expected_types,
+            MAX_GIT_INDEX_BYTES,
+            label,
+        )
+        dependencies_after = capture_git_object_dependencies(
+            str(capture["objects_path"]),
+            tuple(sorted(expected_types)),
+        )
+        if dependencies_after["fingerprint"] != dependencies_before["fingerprint"]:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_OBJECT_DEPENDENCY_DRIFT")
+        return parsed
+
+    commit_content = read_exact({head_oid: "commit"}, "GIT_OBJECT_HEAD_COMMIT")[head_oid][1]
+    first_line = commit_content.split(b"\n", 1)[0]
+    try:
+        root_tree_oid = first_line[5:].decode("ascii", "strict") if first_line.startswith(b"tree ") else ""
+    except UnicodeDecodeError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ROOT_TREE_FORMAT")
+    if re.fullmatch(r"[0-9a-f]{%d}" % oid_length, root_tree_oid) is None:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ROOT_TREE_FORMAT")
+    tree_content: Dict[str, bytes] = {}
+    pending_contexts: List[Tuple[str, str]] = [(root_tree_oid, "")]
+    processed_contexts = set()
+    tree_oids = {root_tree_oid}
+    approved_paths = {path for _role, path in PENDING_STATIC_ARTIFACT_SPECS}
+    if len(PENDING_STATIC_ARTIFACT_SPECS) != 20 or len(approved_paths) != 20:
+        fail(Exit.INTERNAL, "GIT_OBJECT_APPROVED_PATH_PROFILE")
+    approved_blobs: Dict[str, str] = {}
+    observed_paths = set()
+    observed_casefold: Dict[str, str] = {}
+    while pending_contexts:
+        missing = sorted({oid for oid, _prefix in pending_contexts if oid not in tree_content})
+        if missing:
+            batch = read_exact({oid: "tree" for oid in missing}, "GIT_OBJECT_TREE_BATCH")
+            tree_content.update({oid: value[1] for oid, value in batch.items()})
+        next_contexts: List[Tuple[str, str]] = []
+        for tree_oid, prefix in pending_contexts:
+            context = (tree_oid, prefix)
+            if context in processed_contexts:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_CONTEXT_DUPLICATE")
+            processed_contexts.add(context)
+            for name, object_type, encoded_target in parse_git_tree_object_entries(
+                tree_content[tree_oid],
+                oid_length,
+            ):
+                path = name if not prefix else prefix + "/" + name
+                validate_relative(path, "GIT_OBJECT_ENUMERATION_PATH")
+                folded = unicodedata.normalize("NFC", path).casefold()
+                if path in observed_paths or (folded in observed_casefold and observed_casefold[folded] != path):
+                    fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_PATH_COLLISION")
+                observed_paths.add(path)
+                observed_casefold[folded] = path
+                if object_type == "tree":
+                    tree_oids.add(encoded_target)
+                    next_contexts.append((encoded_target, path))
+                else:
+                    mode, blob_oid = encoded_target.split(":", 1)
+                    if path in approved_paths:
+                        if mode != "100644":
+                            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_APPROVED_BLOB_MODE")
+                        approved_blobs[path] = blob_oid
+                if len(observed_paths) > MAX_GIT_ADAPTER_ENTRIES:
+                    fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_LIMIT")
+        pending_contexts = next_contexts
+    if set(approved_blobs) != approved_paths:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_APPROVED_BLOB_MISSING")
+    object_types: Dict[str, str] = {head_oid: "commit"}
+    for oid in tree_oids:
+        if object_types.setdefault(oid, "tree") != "tree":
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_TYPE_COLLISION")
+    for oid in approved_blobs.values():
+        if object_types.setdefault(oid, "blob") != "blob":
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_TYPE_COLLISION")
+    object_oids = sorted(object_types)
+    manifest = {
+        "profile": GIT_METADATA_OBJECT_CLOSURE_PROFILE_V2,
+        "object_format": "sha1" if oid_length == 40 else "sha256",
+        "object_count": len(object_oids),
+        "tree_object_count": len(tree_oids),
+        "approved_artifact_blob_count": len(approved_blobs),
+        "oid_set_sha256": sha256(canonical_json(object_oids)),
+    }
+    return object_oids, object_types, root_tree_oid, manifest
+
+
+def parse_git_ls_tree_object_closure(
+    raw: bytes,
+    head_oid: str,
+    root_tree_oid: str,
+) -> Tuple[List[str], Dict[str, str], Dict[str, Any]]:
+    oid_length = len(head_oid)
+    oid_pattern = re.compile(r"[0-9a-f]{%d}" % oid_length)
+    if oid_length not in (40, 64) or oid_pattern.fullmatch(root_tree_oid) is None:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_OID")
+    if not raw.endswith(b"\x00") or len(raw) > MAX_GIT_OUTPUT:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_FORMAT")
+    approved_paths = {path for _role, path in PENDING_STATIC_ARTIFACT_SPECS}
+    if len(PENDING_STATIC_ARTIFACT_SPECS) != 20 or len(approved_paths) != 20:
+        fail(Exit.INTERNAL, "GIT_OBJECT_APPROVED_PATH_PROFILE")
+    observed_paths = set()
+    approved_blobs: Dict[str, str] = {}
+    tree_oids = set()
+    for raw_record in raw[:-1].split(b"\x00") if raw else ():
+        if not raw_record or b"\t" not in raw_record:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_RECORD")
+        raw_header, raw_path = raw_record.split(b"\t", 1)
+        header_fields = raw_header.split(b" ")
+        if len(header_fields) != 3:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_RECORD")
+        try:
+            mode = header_fields[0].decode("ascii", "strict")
+            object_type = header_fields[1].decode("ascii", "strict")
+            oid = header_fields[2].decode("ascii", "strict")
+            path = raw_path.decode("utf-8", "strict")
+        except UnicodeDecodeError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_ENCODING")
+        if oid_pattern.fullmatch(oid) is None or len(os.fsencode(path)) > 4096:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_OID")
+        validate_relative(path, "GIT_OBJECT_ENUMERATION_PATH")
+        if path in observed_paths:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_PATH_DUPLICATE")
+        observed_paths.add(path)
+        if object_type == "tree":
+            if mode != "040000":
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_MODE")
+            tree_oids.add(oid)
+        elif object_type == "blob":
+            if mode not in ("100644", "100755", "120000"):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_MODE")
+            if path in approved_paths:
+                if mode != "100644":
+                    fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_APPROVED_BLOB_MODE")
+                approved_blobs[path] = oid
+        else:
+            # In particular, never fetch a gitlink/submodule commit object.
+            fail(Exit.PRIVACY, "GIT_OBJECT_ENUMERATION_TYPE")
+        if len(observed_paths) > MAX_GIT_ADAPTER_ENTRIES:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_LIMIT")
+    if set(approved_blobs) != approved_paths:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_APPROVED_BLOB_MISSING")
+    object_oids = sorted({head_oid, root_tree_oid, *tree_oids, *approved_blobs.values()})
+    object_types: Dict[str, str] = {head_oid: "commit", root_tree_oid: "tree"}
+    for oid in tree_oids:
+        previous = object_types.setdefault(oid, "tree")
+        if previous != "tree":
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_TYPE_COLLISION")
+    for oid in approved_blobs.values():
+        previous = object_types.setdefault(oid, "blob")
+        if previous != "blob":
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_TYPE_COLLISION")
+    manifest_core = {
+        "profile": GIT_METADATA_OBJECT_CLOSURE_PROFILE_V2,
+        "object_format": "sha1" if oid_length == 40 else "sha256",
+        "object_count": len(object_oids),
+        "tree_object_count": len(tree_oids) + (0 if root_tree_oid in tree_oids else 1),
+        "approved_artifact_blob_count": len(approved_blobs),
+        "oid_set_sha256": sha256(canonical_json(object_oids)),
+    }
+    return object_oids, object_types, manifest_core
+
+
+def verify_pack_object_set(raw: bytes, expected_oids: Sequence[str], pack_path: str) -> None:
+    oid_length = len(expected_oids[0]) if expected_oids else 0
+    oid_pattern = re.compile(r"[0-9a-f]{%d}" % oid_length)
+    observed = set()
+    saw_ok = False
+    try:
+        lines = raw.decode("utf-8", "strict").splitlines()
+    except UnicodeDecodeError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_ENCODING")
+    for line in lines:
+        fields = line.split(" ")
+        if fields and oid_pattern.fullmatch(fields[0]) is not None:
+            if fields[0] in observed or len(fields) not in (5, 7):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_RECORD")
+            if fields[1] not in ("commit", "tree", "blob"):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_TYPE")
+            observed.add(fields[0])
+            continue
+        if line == pack_path + ": ok":
+            saw_ok = True
+            continue
+        if re.fullmatch(r"non delta: [0-9]+ objects", line):
+            continue
+        if re.fullmatch(r"chain length = [0-9]+: [0-9]+ objects?", line):
+            continue
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_SUMMARY")
+    if not saw_ok or observed != set(expected_oids):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_SET")
+
+
+def verify_exact_oid_git_pack_stream(
+    raw: bytes,
+    object_format: str,
+    expected_object_count: int,
+) -> Dict[str, Any]:
+    if object_format == "sha1":
+        digest_bytes = 20
+        algorithm = hashlib.sha1
+    elif object_format == "sha256":
+        digest_bytes = 32
+        algorithm = hashlib.sha256
+    else:
+        fail(Exit.INTERNAL, "GIT_OBJECT_PACK_STREAM_FORMAT")
+    if (
+        not isinstance(raw, bytes)
+        or len(raw) < 12 + digest_bytes
+        or len(raw) > MAX_GIT_INDEX_BYTES
+        or raw[:4] != b"PACK"
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_STREAM_HEADER")
+    version = int.from_bytes(raw[4:8], "big")
+    object_count = int.from_bytes(raw[8:12], "big")
+    if version not in (2, 3) or object_count != expected_object_count or object_count < 1:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_STREAM_HEADER")
+    trailer = raw[-digest_bytes:]
+    computed = algorithm(raw[:-digest_bytes]).digest()
+    if not hmac.compare_digest(computed, trailer):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_STREAM_CHECKSUM")
+    receipt = {
+        "profile": GIT_METADATA_PACK_IMPORT_PROFILE_V1,
+        "object_format": object_format,
+        "pack_version": version,
+        "object_count": object_count,
+        "pack_checksum": trailer.hex(),
+        "pack_bytes": len(raw),
+        "pack_stream_sha256": sha256(raw),
+    }
+    receipt["receipt_sha256"] = sha256(canonical_json(receipt))
+    return receipt
+
+
+def materialize_git_object_closure(
+    capture: Dict[str, Any],
+    repo_root: str,
+    key: bytes,
+    git_binary: str,
+    developer_root: str,
+    adapter_root: str,
+    adapter_git_dir: str,
+    adapter_fd: int,
+    git_fd: int,
+    adapter_identity: Tuple[int, int],
+    git_identity: Tuple[int, int],
+) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    capture["adapter_trace"] = capture.get("adapter_trace", [])
+    assert_git_source_capture_unchanged(capture, repo_root, key, "GIT_ADAPTER_SOURCE_DRIFT")
+    git_adapter_trace_event(capture["adapter_trace"], "SOURCE_BOOTSTRAP_PREVALIDATED", "source-cas")
+    head_oid = str(capture["head_oid"])
+    oid_length = len(head_oid)
+    object_oids, object_types, root_tree_oid, manifest = discover_git_object_closure(
+        capture=capture,
+        git_binary=git_binary,
+        developer_root=developer_root,
+        repo_root=repo_root,
+        adapter_root=adapter_root,
+        adapter_git_dir=adapter_git_dir,
+        adapter_fd=adapter_fd,
+        git_fd=git_fd,
+        adapter_identity=adapter_identity,
+        git_identity=git_identity,
+    )
+    dependencies_before = capture_git_object_dependencies(str(capture["objects_path"]), object_oids)
+    capture["adapter_root_tree_oid"] = root_tree_oid
+    capture["object_dependency_oids"] = tuple(object_oids)
+    capture["object_dependency_fingerprint"] = dependencies_before["fingerprint"]
+    manifest["source_object_dependency_profile"] = dependencies_before["profile"]
+    manifest["source_object_dependency_fingerprint"] = dependencies_before["fingerprint"]
+    git_adapter_trace_event(capture["adapter_trace"], "OBJECT_ENUMERATION_COMPLETE", "adapter-materialization")
+    if adapter_git_dir != ".":
+        fail(Exit.INTERNAL, "GIT_OBJECT_RELATIVE_GIT_DIR")
+    try:
+        mkdir_git_adapter_directory_at(git_fd, "objects/pack", "GIT_OBJECT_PACK_DIRECTORY")
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_DIRECTORY")
+    pack_input = b"".join(oid.encode("ascii") + b"\n" for oid in object_oids)
+    pack_stream = run_git_object_bootstrap_child(
+        git_binary=git_binary,
+        developer_root=developer_root,
+        repo_root=repo_root,
+        capture=capture,
+        adapter_root=adapter_root,
+        adapter_git_dir=adapter_git_dir,
+        adapter_fd=adapter_fd,
+        git_fd=git_fd,
+        adapter_identity=adapter_identity,
+        git_identity=git_identity,
+        arguments=["pack-objects", "--stdout", "--no-reuse-delta", "--no-reuse-object"],
+        label="GIT_OBJECT_PACK",
+        max_output=MAX_GIT_INDEX_BYTES,
+        allow_live_objects=True,
+        allow_adapter_writes=False,
+        allowed_live_oids=tuple(object_oids),
+        allowed_pack_paths=dependencies_before["allowed_pack_paths"],
+        stdin_bytes=pack_input,
+    )
+    object_format = "sha1" if oid_length == 40 else "sha256"
+    pack_receipt = verify_exact_oid_git_pack_stream(
+        pack_stream,
+        object_format,
+        len(object_oids),
+    )
+    pack_name_oid = str(pack_receipt["pack_checksum"])
+    dependencies_after_pack = capture_git_object_dependencies(
+        str(capture["objects_path"]),
+        object_oids,
+    )
+    if dependencies_after_pack["fingerprint"] != dependencies_before["fingerprint"]:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_OBJECT_DEPENDENCY_DRIFT")
+    assert_git_source_capture_unchanged(capture, repo_root, key, "GIT_ADAPTER_SOURCE_DRIFT")
+    pack_base = "objects/pack/pack"
+    pack_path = pack_base + "-" + pack_name_oid + ".pack"
+    index_path = pack_base + "-" + pack_name_oid + ".idx"
+    index_result = run_git_object_bootstrap_child(
+        git_binary=git_binary,
+        developer_root=developer_root,
+        repo_root=repo_root,
+        capture=capture,
+        adapter_root=adapter_root,
+        adapter_git_dir=adapter_git_dir,
+        adapter_fd=adapter_fd,
+        git_fd=git_fd,
+        adapter_identity=adapter_identity,
+        git_identity=git_identity,
+        arguments=["index-pack", "--stdin", "--index-version=2"],
+        label="GIT_OBJECT_INDEX_PACK",
+        max_output=256,
+        allow_live_objects=False,
+        allow_adapter_writes=True,
+        stdin_bytes=pack_stream,
+    )
+    expected_index_result = ("pack\t" + pack_name_oid + "\n").encode("ascii")
+    if index_result != expected_index_result:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_INDEX_PACK_RESULT")
+    pack_fd: Optional[int] = None
+    try:
+        pack_fd = open_git_adapter_directory_at(
+            git_fd,
+            ("objects", "pack"),
+            "GIT_OBJECT_PACK_SCAN",
+            create=False,
+        )
+        names = sorted(entry.name for entry in os.scandir(pack_fd))
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_SCAN")
+    finally:
+        if pack_fd is not None:
+            os.close(pack_fd)
+    if names != [os.path.basename(index_path), os.path.basename(pack_path)]:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_OUTPUT_SET")
+    git_adapter_trace_event(capture["adapter_trace"], "OBJECT_PACK_COMPLETE", "adapter-materialization")
+    verify_raw = run_git_object_bootstrap_child(
+        git_binary=git_binary,
+        developer_root=developer_root,
+        repo_root=repo_root,
+        capture=capture,
+        adapter_root=adapter_root,
+        adapter_git_dir=adapter_git_dir,
+        adapter_fd=adapter_fd,
+        git_fd=git_fd,
+        adapter_identity=adapter_identity,
+        git_identity=git_identity,
+        arguments=["verify-pack", "-v", index_path],
+        label="GIT_OBJECT_PACK_VERIFY",
+        max_output=MAX_GIT_OUTPUT,
+        allow_live_objects=False,
+        allow_adapter_writes=False,
+    )
+    verify_pack_object_set(verify_raw, object_oids, pack_path)
+    pack_relative = "objects/pack/" + os.path.basename(pack_path)
+    index_relative = "objects/pack/" + os.path.basename(index_path)
+    pack_evidence = hash_git_adapter_file_at(
+        git_fd,
+        pack_relative,
+        "GIT_OBJECT_PACK_FILE",
+        MAX_GIT_ADAPTER_FILE_BYTES,
+    )
+    index_evidence = hash_git_adapter_file_at(
+        git_fd,
+        index_relative,
+        "GIT_OBJECT_PACK_INDEX",
+        MAX_GIT_ADAPTER_FILE_BYTES,
+    )
+    manifest.update(
+        {
+            "pack_import_profile": GIT_METADATA_PACK_IMPORT_PROFILE_V1,
+            "pack_import_receipt_sha256": pack_receipt["receipt_sha256"],
+            "pack_sha256": pack_evidence["sha256"],
+            "pack_bytes": pack_evidence["bytes"],
+            "index_sha256": index_evidence["sha256"],
+            "index_bytes": index_evidence["bytes"],
+        }
+    )
+    git_adapter_trace_event(capture["adapter_trace"], "OBJECT_PACK_VERIFIED", "adapter-materialization")
+    dependencies_after = capture_git_object_dependencies(str(capture["objects_path"]), object_oids)
+    if dependencies_after["fingerprint"] != dependencies_before["fingerprint"]:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_OBJECT_DEPENDENCY_DRIFT")
+    assert_git_source_capture_unchanged(capture, repo_root, key, "GIT_ADAPTER_SOURCE_DRIFT")
+    git_adapter_trace_event(capture["adapter_trace"], "SOURCE_BOOTSTRAP_POSTVALIDATED", "source-cas")
+    return manifest, object_types
+
+
+def verify_sealed_git_adapter_object_inventory(
+    git_binary: str,
+    repo_root: str,
+    boundary: GitMetadataAdapter,
+    expected_types: Mapping[str, str],
+) -> str:
+    raw = run_git(
+        git_binary,
+        repo_root,
+        boundary,
+        [
+            "cat-file",
+            "--batch-all-objects",
+            "--batch-check=%(objectname) %(objecttype) %(objectsize)",
+        ],
+        "GIT_OBJECT_INVENTORY",
+    )
+    if not raw or not raw.endswith(b"\n") or b"\x00" in raw or b"\r" in raw:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_INVENTORY_FORMAT")
+    expected_oids = set(expected_types)
+    oid_length = len(next(iter(expected_oids))) if expected_oids else 0
+    observed = set()
+    receipt_rows: List[Dict[str, Any]] = []
+    total_bytes = 0
+    for line in raw.splitlines():
+        fields = line.split(b" ")
+        if len(fields) != 3:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_INVENTORY_RECORD")
+        try:
+            oid = fields[0].decode("ascii", "strict")
+            object_type = fields[1].decode("ascii", "strict")
+            size_text = fields[2].decode("ascii", "strict")
+        except UnicodeDecodeError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_INVENTORY_RECORD")
+        if (
+            re.fullmatch(r"[0-9a-f]{%d}" % oid_length, oid) is None
+            or oid in observed
+            or expected_types.get(oid) != object_type
+            or re.fullmatch(r"0|[1-9][0-9]*", size_text) is None
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_INVENTORY_RECORD")
+        size = int(size_text, 10)
+        total_bytes += size
+        if size > MAX_GIT_ADAPTER_FILE_BYTES or total_bytes > MAX_GIT_INDEX_BYTES:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_INVENTORY_LIMIT")
+        observed.add(oid)
+        receipt_rows.append({"oid": oid, "type": object_type, "bytes": size})
+    if observed != expected_oids:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_INVENTORY_SET")
+    return sha256(canonical_json(sorted(receipt_rows, key=lambda row: row["oid"])))
+
+
+def verify_sealed_git_adapter_object_content(
+    git_binary: str,
+    repo_root: str,
+    boundary: GitMetadataAdapter,
+    expected_types: Mapping[str, str],
+) -> str:
+    expected_oids = sorted(expected_types)
+    if not expected_oids:
+        fail(Exit.INTERNAL, "GIT_OBJECT_CONTENT_EXPECTATION")
+    oid_length = len(expected_oids[0])
+    if oid_length not in (40, 64) or any(
+        re.fullmatch(r"[0-9a-f]{%d}" % oid_length, oid) is None
+        or expected_types.get(oid) not in ("commit", "tree", "blob")
+        for oid in expected_oids
+    ):
+        fail(Exit.INTERNAL, "GIT_OBJECT_CONTENT_EXPECTATION")
+    request = b"".join(oid.encode("ascii") + b"\n" for oid in expected_oids)
+    response = run_git(
+        git_binary,
+        repo_root,
+        boundary,
+        ["cat-file", "--batch"],
+        "GIT_OBJECT_CONTENT_RECOMPUTE",
+        stdin_bytes=request,
+        max_output=MAX_GIT_INDEX_BYTES,
+    )
+    cursor = 0
+    total_content_bytes = 0
+    receipt_rows: List[Dict[str, Any]] = []
+    for expected_oid in expected_oids:
+        newline = response.find(b"\n", cursor)
+        if newline < 0 or newline - cursor > 256:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_CONTENT_HEADER")
+        header = response[cursor:newline]
+        cursor = newline + 1
+        fields = header.split(b" ")
+        if len(fields) != 3:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_CONTENT_HEADER")
+        try:
+            observed_oid = fields[0].decode("ascii", "strict")
+            object_type = fields[1].decode("ascii", "strict")
+            size_text = fields[2].decode("ascii", "strict")
+        except UnicodeDecodeError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_CONTENT_HEADER")
+        if (
+            observed_oid != expected_oid
+            or object_type != expected_types[expected_oid]
+            or re.fullmatch(r"0|[1-9][0-9]*", size_text) is None
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_CONTENT_HEADER")
+        size = int(size_text, 10)
+        total_content_bytes += size
+        if size > MAX_GIT_ADAPTER_FILE_BYTES or total_content_bytes > MAX_GIT_INDEX_BYTES:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_CONTENT_LIMIT")
+        end = cursor + size
+        if end >= len(response) or response[end:end + 1] != b"\n":
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_CONTENT_BODY")
+        content = response[cursor:end]
+        cursor = end + 1
+        digest = hashlib.sha1() if oid_length == 40 else hashlib.sha256()
+        digest.update((object_type + " " + str(size) + "\x00").encode("ascii"))
+        digest.update(content)
+        if not hmac.compare_digest(digest.hexdigest(), expected_oid):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_CONTENT_OID")
+        receipt_rows.append({"oid": expected_oid, "type": object_type, "bytes": size})
+    if cursor != len(response):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_CONTENT_TRAILING")
+    git_adapter_trace_event(boundary, "OBJECT_CONTENT_VERIFIED", "adapter-seal")
+    return sha256(canonical_json(receipt_rows))
+
+
+def verify_sealed_git_adapter_tree_selection(
+    git_binary: str,
+    repo_root: str,
+    boundary: GitMetadataAdapter,
+    head_oid: str,
+    root_tree_oid: str,
+    expected_types: Mapping[str, str],
+) -> None:
+    raw = run_git(
+        git_binary,
+        repo_root,
+        boundary,
+        ["ls-tree", "-r", "-t", "-z", "--full-tree", "HEAD^{tree}"],
+        "GIT_OBJECT_SEALED_TREE_ENUMERATION",
+    )
+    observed_oids, observed_types, _manifest = parse_git_ls_tree_object_closure(
+        raw,
+        head_oid,
+        root_tree_oid,
+    )
+    if observed_oids != sorted(expected_types) or observed_types != dict(expected_types):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_SEALED_TREE_SET")
+
+
+def copy_captured_refs(capture: Mapping[str, Any], git_fd: int) -> None:
+    for reference, raw in sorted(captured_ref_map(capture).items()):
+        components = reference.split("/")
+        if (
+            len(components) < 2
+            or components[0] != "refs"
+            or any(not component or component in (".", "..") for component in components)
+            or any("\\" in component or "\x00" in component or not is_nfc(component) for component in components)
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_REF")
+        try:
+            parent_fd = open_git_adapter_directory_at(
+                git_fd,
+                tuple(components[:-1]),
+                "GIT_ADAPTER_REF_DIRECTORY",
+                create=True,
+            )
+        except OSError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_REF_DIRECTORY")
+        try:
+            try:
+                os.stat(components[-1], dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                continue
+        finally:
+            os.close(parent_fd)
+        write_git_adapter_file_at(git_fd, reference, raw, "GIT_ADAPTER_REF")
+
+
+def adapter_tree_fingerprint(adapter_fd: int, git_fd: int) -> str:
+    records: List[Dict[str, Any]] = []
+    total_bytes = 0
+
+    def walk(directory_fd: int, relative: str) -> None:
+        nonlocal total_bytes
+        directory_metadata = os.fstat(directory_fd)
+        if not stat.S_ISDIR(directory_metadata.st_mode) or directory_metadata.st_uid != os.getuid():
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_DIRECTORY")
+        records.append({
+            "relative": relative,
+            "kind": "D",
+            "metadata": git_source_metadata(directory_metadata),
+        })
+        if len(records) > MAX_GIT_ADAPTER_ENTRIES:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_ENTRY_LIMIT")
+        try:
+            entries = list(os.scandir(directory_fd))
+        except OSError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_SCAN")
+        for entry in sorted(entries, key=lambda item: os.fsencode(item.name)):
+            child_relative = entry.name if not relative else relative + "/" + entry.name
+            metadata = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
+            if stat.S_ISDIR(metadata.st_mode):
+                child_fd = os.open(
+                    entry.name,
+                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=directory_fd,
+                )
+                try:
+                    opened = os.fstat(child_fd)
+                    if (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino):
+                        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_DIRECTORY_RACE")
+                    walk(child_fd, child_relative)
+                finally:
+                    os.close(child_fd)
+                continue
+            if not stat.S_ISREG(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_SPECIAL")
+            record: Dict[str, Any] = {
+                "relative": child_relative,
+                "kind": "F",
+                "metadata": git_source_metadata(metadata),
+            }
+            file_fd = os.open(
+                entry.name,
+                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=directory_fd,
+            )
+            try:
+                opened = os.fstat(file_fd)
+                if (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino):
+                    fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_FILE_RACE")
+                total_bytes += opened.st_size
+                if total_bytes > MAX_GIT_ADAPTER_TOTAL_BYTES:
+                    fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_BYTE_LIMIT")
+                record["raw_sha256"] = hash_fd(
+                    file_fd,
+                    "sha256",
+                    MAX_GIT_ADAPTER_FILE_BYTES,
+                    "GIT_ADAPTER_CONTENT",
+                )[0]
+            finally:
+                os.close(file_fd)
+            records.append(record)
+            if len(records) > MAX_GIT_ADAPTER_ENTRIES:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_ENTRY_LIMIT")
+
+    try:
+        root_metadata = os.fstat(adapter_fd)
+        git_metadata = os.fstat(git_fd)
+        root_entries = list(os.scandir(adapter_fd))
+        named_git = os.stat("git", dir_fd=adapter_fd, follow_symlinks=False)
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_ROOT_SCAN")
+    if (
+        [entry.name for entry in root_entries] != ["git"]
+        or not stat.S_ISDIR(root_metadata.st_mode)
+        or root_metadata.st_uid != os.getuid()
+        or stat.S_ISLNK(named_git.st_mode)
+        or not stat.S_ISDIR(named_git.st_mode)
+        or (named_git.st_dev, named_git.st_ino) != (git_metadata.st_dev, git_metadata.st_ino)
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_ROOT_TREE")
+    records.append({
+        "relative": "",
+        "kind": "D",
+        "metadata": git_source_metadata(root_metadata),
+    })
+    git_copy = os.dup(git_fd)
+    try:
+        walk(git_copy, "git")
+    finally:
+        os.close(git_copy)
+    try:
+        named_after = os.stat("git", dir_fd=adapter_fd, follow_symlinks=False)
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_ROOT_TREE")
+    if (named_after.st_dev, named_after.st_ino) != (git_metadata.st_dev, git_metadata.st_ino):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_ROOT_TREE")
+    return sha256(canonical_json(records))
+
+
+def seal_git_adapter_tree(adapter_fd: int, git_fd: int) -> None:
+    def seal_directory(directory_fd: int) -> None:
+        entries = list(os.scandir(directory_fd))
+        for entry in sorted(entries, key=lambda item: os.fsencode(item.name)):
+            metadata = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
+            if stat.S_ISDIR(metadata.st_mode):
+                child_fd = os.open(
+                    entry.name,
+                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=directory_fd,
+                )
+                try:
+                    opened = os.fstat(child_fd)
+                    if (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino):
+                        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_SEAL_RACE")
+                    seal_directory(child_fd)
+                finally:
+                    os.close(child_fd)
+            elif stat.S_ISREG(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
+                os.chmod(entry.name, 0o400, dir_fd=directory_fd, follow_symlinks=False)
+            else:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_SEAL_FILE")
+        os.fchmod(directory_fd, 0o500)
+
+    try:
+        git_metadata = os.fstat(git_fd)
+        root_entries = list(os.scandir(adapter_fd))
+        named_git = os.stat("git", dir_fd=adapter_fd, follow_symlinks=False)
+        if (
+            [entry.name for entry in root_entries] != ["git"]
+            or stat.S_ISLNK(named_git.st_mode)
+            or not stat.S_ISDIR(named_git.st_mode)
+            or (named_git.st_dev, named_git.st_ino) != (git_metadata.st_dev, git_metadata.st_ino)
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_SEAL_GIT_IDENTITY")
+        seal_directory(git_fd)
+        named_after = os.stat("git", dir_fd=adapter_fd, follow_symlinks=False)
+        if (named_after.st_dev, named_after.st_ino) != (git_metadata.st_dev, git_metadata.st_ino):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_SEAL_GIT_IDENTITY")
+        os.fchmod(adapter_fd, 0o500)
+    except ContractError:
+        raise
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_SEAL")
+
+
+def validate_git_adapter_locator(adapter_root: str) -> None:
+    if (
+        not isinstance(adapter_root, str)
+        or os.path.normpath(adapter_root) != adapter_root
+        or os.path.dirname(adapter_root) != "/private/tmp"
+        or not os.path.basename(adapter_root).startswith(GIT_ADAPTER_TEMP_PREFIX)
+        or len(os.path.basename(adapter_root)) <= len(GIT_ADAPTER_TEMP_PREFIX)
+    ):
+        fail(Exit.INTERNAL, "GIT_ADAPTER_LOCATOR")
+
+
+def claim_git_metadata_adapter_process_scope() -> None:
+    """Claim the one cooperative adapter lifecycle owned by this process."""
+
+    global _GIT_METADATA_ADAPTER_SCOPE
+    with _GIT_METADATA_ADAPTER_SCOPE_LOCK:
+        if _GIT_METADATA_ADAPTER_SCOPE is not None:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_SCOPE_NON_REENTRANT")
+        _GIT_METADATA_ADAPTER_SCOPE = {
+            "owner_pid": os.getpid(),
+            "owner_uid": os.getuid(),
+            "adapter_root": None,
+            "adapter_identity": None,
+        }
+
+
+def bind_git_metadata_adapter_process_scope(
+    adapter_root: str,
+    adapter_identity: Optional[Tuple[int, int]],
+) -> None:
+    global _GIT_METADATA_ADAPTER_SCOPE
+    with _GIT_METADATA_ADAPTER_SCOPE_LOCK:
+        scope = _GIT_METADATA_ADAPTER_SCOPE
+        if (
+            not isinstance(scope, dict)
+            or scope.get("owner_pid") != os.getpid()
+            or scope.get("owner_uid") != os.getuid()
+            or scope.get("adapter_root") not in (None, adapter_root)
+            or (
+                scope.get("adapter_identity") is not None
+                and scope.get("adapter_identity") != adapter_identity
+            )
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_SCOPE_OWNERSHIP")
+        scope["adapter_root"] = adapter_root
+        if adapter_identity is not None:
+            scope["adapter_identity"] = tuple(adapter_identity)
+
+
+def require_git_metadata_adapter_process_scope(
+    boundary: GitMetadataAdapter,
+) -> None:
+    with _GIT_METADATA_ADAPTER_SCOPE_LOCK:
+        scope = _GIT_METADATA_ADAPTER_SCOPE
+        if (
+            boundary.owner_pid != os.getpid()
+            or boundary.owner_uid != os.getuid()
+            or not isinstance(scope, dict)
+            or scope.get("owner_pid") != boundary.owner_pid
+            or scope.get("owner_uid") != boundary.owner_uid
+            or scope.get("adapter_root") != boundary.adapter_root
+            or scope.get("adapter_identity") != boundary.adapter_identity
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_SCOPE_OWNERSHIP")
+
+
+def release_git_metadata_adapter_process_scope(
+    adapter_root: Optional[str],
+    adapter_identity: Optional[Tuple[int, int]],
+) -> None:
+    global _GIT_METADATA_ADAPTER_SCOPE
+    with _GIT_METADATA_ADAPTER_SCOPE_LOCK:
+        scope = _GIT_METADATA_ADAPTER_SCOPE
+        if (
+            not isinstance(scope, dict)
+            or scope.get("owner_pid") != os.getpid()
+            or scope.get("owner_uid") != os.getuid()
+            or scope.get("adapter_root") != adapter_root
+            or scope.get("adapter_identity") != adapter_identity
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_SCOPE_RELEASE")
+        _GIT_METADATA_ADAPTER_SCOPE = None
+
+
+def git_metadata_adapter_process_scope_residue_count() -> int:
+    with _GIT_METADATA_ADAPTER_SCOPE_LOCK:
+        return 0 if _GIT_METADATA_ADAPTER_SCOPE is None else 1
+
+
+def verify_named_git_adapter_cleanup_root(
+    parent_fd: int,
+    basename: str,
+    adapter_identity: Tuple[int, int],
+) -> os.stat_result:
+    try:
+        metadata = os.stat(basename, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_MISSING")
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_IO")
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or (metadata.st_dev, metadata.st_ino) != adapter_identity
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_IDENTITY")
+    return metadata
+
+
+def remove_git_adapter_root(
+    adapter_root: str,
+    adapter_identity: Tuple[int, int],
+    trace: List[Dict[str, str]],
+    adapter_fd: Optional[int] = None,
+) -> None:
+    git_adapter_trace_event(trace, "CLEANUP_BEGIN", "adapter-cleanup")
+    parent_fd: Optional[int] = None
+    root_fd: Optional[int] = None
+
+    def cleanup_fail(public_code: str) -> None:
+        fail(Exit.PREFLIGHT_DRIFT, public_code)
+
+    def clear_directory_fd(directory_fd: int, expected_path: str) -> None:
+        metadata = os.fstat(directory_fd)
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or git_adapter_fd_path(directory_fd, "GIT_ADAPTER_CLEANUP") != expected_path
+        ):
+            cleanup_fail("GIT_ADAPTER_CLEANUP_ENTRY")
+        os.fchmod(directory_fd, 0o700)
+        entries = list(os.scandir(directory_fd))
+        if len(entries) > MAX_GIT_ADAPTER_ENTRIES:
+            cleanup_fail("GIT_ADAPTER_CLEANUP_ENTRY_LIMIT")
+        for entry in sorted(entries, key=lambda item: os.fsencode(item.name)):
+            name = entry.name
+            if (
+                not isinstance(name, str)
+                or not name
+                or name in (".", "..")
+                or "/" in name
+                or "\x00" in name
+            ):
+                cleanup_fail("GIT_ADAPTER_CLEANUP_ENTRY")
+            child = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            if stat.S_ISREG(child.st_mode):
+                if child.st_uid != os.getuid() or child.st_nlink != 1:
+                    cleanup_fail("GIT_ADAPTER_CLEANUP_ENTRY")
+                os.unlink(name, dir_fd=directory_fd)
+                continue
+            if not stat.S_ISDIR(child.st_mode) or stat.S_ISLNK(child.st_mode) or child.st_uid != os.getuid():
+                cleanup_fail("GIT_ADAPTER_CLEANUP_ENTRY")
+            child_fd = os.open(
+                name,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=directory_fd,
+            )
+            try:
+                opened = os.fstat(child_fd)
+                if (opened.st_dev, opened.st_ino) != (child.st_dev, child.st_ino):
+                    cleanup_fail("GIT_ADAPTER_CLEANUP_IDENTITY")
+                child_path = os.path.join(expected_path, name)
+                clear_directory_fd(child_fd, child_path)
+                named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                if (named.st_dev, named.st_ino) != (opened.st_dev, opened.st_ino):
+                    cleanup_fail("GIT_ADAPTER_CLEANUP_IDENTITY")
+                os.rmdir(name, dir_fd=directory_fd)
+                # F_GETPATH remains the original now-absent path after normal
+                # APFS removal, but follows a renamed live directory.  Keeping
+                # the fd open across rmdir therefore detects final-delete swap.
+                if git_adapter_fd_path(child_fd, "GIT_ADAPTER_CLEANUP") != child_path:
+                    cleanup_fail("GIT_ADAPTER_CLEANUP_IDENTITY")
+            finally:
+                os.close(child_fd)
+        if list(os.scandir(directory_fd)):
+            cleanup_fail("GIT_ADAPTER_CLEANUP_RESIDUE")
+
+    try:
+        try:
+            validate_git_adapter_locator(adapter_root)
+        except ContractError:
+            cleanup_fail("GIT_ADAPTER_CLEANUP_LOCATOR")
+        basename = os.path.basename(adapter_root)
+        parent_fd = os.open(
+            "/private/tmp",
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+        verify_named_git_adapter_cleanup_root(parent_fd, basename, adapter_identity)
+        root_fd = (
+            os.dup(adapter_fd)
+            if adapter_fd is not None
+            else os.open(
+                basename,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=parent_fd,
+            )
+        )
+        opened_root = os.fstat(root_fd)
+        if (
+            (opened_root.st_dev, opened_root.st_ino) != adapter_identity
+            or git_adapter_fd_path(root_fd, "GIT_ADAPTER_CLEANUP") != adapter_root
+        ):
+            cleanup_fail("GIT_ADAPTER_CLEANUP_IDENTITY")
+        clear_directory_fd(root_fd, adapter_root)
+        verify_named_git_adapter_cleanup_root(parent_fd, basename, adapter_identity)
+        os.rmdir(basename, dir_fd=parent_fd)
+        if git_adapter_fd_path(root_fd, "GIT_ADAPTER_CLEANUP") != adapter_root:
+            cleanup_fail("GIT_ADAPTER_CLEANUP_IDENTITY")
+        try:
+            os.stat(basename, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            cleanup_fail("GIT_ADAPTER_CLEANUP_RESIDUE")
+    except ContractError:
+        git_adapter_trace_event(trace, "CLEANUP_FAILED", "adapter-cleanup")
+        raise
+    except OSError:
+        git_adapter_trace_event(trace, "CLEANUP_FAILED", "adapter-cleanup")
+        cleanup_fail("GIT_ADAPTER_CLEANUP_IO")
+    finally:
+        if root_fd is not None:
+            os.close(root_fd)
+        if parent_fd is not None:
+            os.close(parent_fd)
+    git_adapter_trace_event(trace, "CLEANUP_COMPLETE", "adapter-cleanup")
+
+
+def create_git_metadata_adapter(
+    repo_root: str,
+    key: bytes,
+    git_binary: str,
+) -> Tuple[Dict[str, Any], GitMetadataAdapter]:
+    developer_root = _GIT_DEVELOPER_ROOTS.get(git_binary)
+    if not isinstance(developer_root, str):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_DEVELOPER_ROOT")
+    claim_git_metadata_adapter_process_scope()
+    trace: List[Dict[str, str]] = []
+    git_adapter_trace_event(trace, "SOURCE_CAPTURE_BEGIN", "source-capture")
+    try:
+        capture = capture_git_metadata_source(repo_root, key)
+    except BaseException:
+        release_git_metadata_adapter_process_scope(None, None)
+        raise
+    git_adapter_trace_event(trace, "SOURCE_CAPTURE_COMPLETE", "source-capture")
+    try:
+        adapter_root = tempfile.mkdtemp(prefix=GIT_ADAPTER_TEMP_PREFIX, dir="/private/tmp")
+    except OSError:
+        release_git_metadata_adapter_process_scope(None, None)
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_ROOT_CREATE")
+    bind_git_metadata_adapter_process_scope(adapter_root, None)
+    try:
+        validate_git_adapter_locator(adapter_root)
+        root_metadata = os.lstat(adapter_root)
+    except BaseException:
+        # The pathname now exists but an exact inode was not established.
+        # Never guess at cleanup or clear the registry: this is terminal
+        # cleanup uncertainty and process quiescence remains false.
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_IDENTITY_UNAVAILABLE")
+    adapter_identity = (root_metadata.st_dev, root_metadata.st_ino)
+    bind_git_metadata_adapter_process_scope(adapter_root, adapter_identity)
+    if (
+        not stat.S_ISDIR(root_metadata.st_mode)
+        or stat.S_ISLNK(root_metadata.st_mode)
+        or root_metadata.st_uid != os.getuid()
+        or stat.S_IMODE(root_metadata.st_mode) != 0o700
+    ):
+        remove_git_adapter_root(adapter_root, adapter_identity, trace)
+        release_git_metadata_adapter_process_scope(adapter_root, adapter_identity)
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_ROOT_POLICY")
+    try:
+        adapter_fd = os.open(
+            adapter_root,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+    except OSError:
+        remove_git_adapter_root(adapter_root, adapter_identity, trace)
+        release_git_metadata_adapter_process_scope(adapter_root, adapter_identity)
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_ROOT_OPEN")
+    git_fd: Optional[int] = None
+    try:
+        verify_unsealed_git_adapter_root(adapter_root, adapter_identity, adapter_fd)
+        git_adapter_trace_event(trace, "ADAPTER_ROOT_CREATED", "adapter-materialization")
+        adapter_git_dir = os.path.join(adapter_root, "git")
+        mkdir_git_adapter_directory_at(adapter_fd, "git", "GIT_ADAPTER_GIT_DIRECTORY")
+        git_fd = open_git_adapter_directory_at(
+            adapter_fd,
+            ("git",),
+            "GIT_ADAPTER_GIT_DIRECTORY",
+            create=False,
+        )
+        git_metadata = os.fstat(git_fd)
+        git_identity = (git_metadata.st_dev, git_metadata.st_ino)
+        verify_unsealed_git_adapter_git_directory(
+            adapter_root,
+            adapter_fd,
+            git_fd,
+            git_identity,
+        )
+        head_oid = str(capture["head_oid"])
+        object_format = "sha1" if len(head_oid) == 40 else "sha256"
+        config_lines = [
+            "[core]",
+            "\trepositoryformatversion = " + ("0" if object_format == "sha1" else "1"),
+            "\tbare = false",
+            "\tfilemode = true",
+            "\tlogallrefupdates = false",
+            "\tfsmonitor = false",
+            "\tuntrackedCache = false",
+            "\tcommitGraph = false",
+            "\tmultiPackIndex = false",
+            "\thooksPath = /dev/null",
+            "\texcludesFile = /dev/null",
+            "\tattributesFile = /dev/null",
+            "[protocol]",
+            "\tallow = never",
+            "[submodule]",
+            "\trecurse = false",
+            "[diff]",
+            "\trenames = false",
+            "[pack]",
+            "\tuseBitmap = false",
+            "\twriteReverseIndex = false",
+        ]
+        if object_format == "sha256":
+            config_lines.extend(("[extensions]", "\tobjectFormat = sha256"))
+        safe_config = ("\n".join(config_lines) + "\n").encode("ascii")
+        write_git_adapter_file_at(git_fd, "config", safe_config, "GIT_ADAPTER_CONFIG")
+        raw_files = capture["raw_files"]
+        write_git_adapter_file_at(git_fd, "HEAD", raw_files["head"], "GIT_ADAPTER_HEAD")
+        write_git_adapter_file_at(git_fd, "index", raw_files["index"], "GIT_ADAPTER_INDEX")
+        for role, name in (("packed_refs", "packed-refs"), ("shallow", "shallow")):
+            raw = raw_files.get(role)
+            if raw is not None:
+                write_git_adapter_file_at(
+                    git_fd,
+                    name,
+                    raw,
+                    "GIT_ADAPTER_" + role.upper(),
+                )
+        mkdir_git_adapter_directory_at(git_fd, "info", "GIT_ADAPTER_INFO_DIRECTORY")
+        info_exclude = raw_files.get("info_exclude") or b""
+        write_git_adapter_file_at(
+            git_fd,
+            "info/exclude",
+            info_exclude,
+            "GIT_ADAPTER_INFO_EXCLUDE",
+        )
+        copy_captured_refs(capture, git_fd)
+        verify_unsealed_git_adapter_root(adapter_root, adapter_identity, adapter_fd)
+        verify_unsealed_git_adapter_git_directory(adapter_root, adapter_fd, git_fd, git_identity)
+        git_adapter_trace_event(trace, "ADAPTER_METADATA_FROZEN", "adapter-materialization")
+        capture["adapter_trace"] = trace
+        adapter_object_manifest, adapter_object_types = materialize_git_object_closure(
+            capture,
+            repo_root,
+            key,
+            git_binary,
+            developer_root,
+            adapter_root,
+            ".",
+            adapter_fd,
+            git_fd,
+            adapter_identity,
+            git_identity,
+        )
+        capture["adapter_object_manifest"] = adapter_object_manifest
+        git_adapter_trace_event(trace, "ADAPTER_OBJECTS_FROZEN", "adapter-materialization")
+        verify_unsealed_git_adapter_root(adapter_root, adapter_identity, adapter_fd)
+        verify_unsealed_git_adapter_git_directory(adapter_root, adapter_fd, git_fd, git_identity)
+        seal_git_adapter_tree(adapter_fd, git_fd)
+        adapter_fingerprint = adapter_tree_fingerprint(adapter_fd, git_fd)
+        git_adapter_trace_event(trace, "ADAPTER_SEALED", "adapter-seal")
+        boundary = GitMetadataAdapter(
+            developer_root,
+            repo_root,
+            str(capture["git_dir"]),
+            str(capture["common_dir"]),
+            adapter_root,
+            adapter_git_dir,
+            adapter_fd,
+            git_fd,
+            str(capture["fingerprint"]),
+            tuple(capture["object_dependency_oids"]),
+            str(capture["object_dependency_fingerprint"]),
+            adapter_fingerprint,
+            adapter_identity,
+            git_identity,
+            trace,
+        )
+        verify_git_metadata_adapter(boundary)
+        adapter_object_manifest["object_inventory_verification_profile"] = (
+            "sealed-adapter-cat-file-batch-all-exact-set-v1"
+        )
+        adapter_object_manifest["object_inventory_verification_receipt_sha256"] = (
+            verify_sealed_git_adapter_object_inventory(
+                git_binary,
+                repo_root,
+                boundary,
+                adapter_object_types,
+            )
+        )
+        adapter_object_manifest["object_content_verification_profile"] = (
+            "sealed-adapter-cat-file-batch-parent-oid-recompute-v1"
+        )
+        adapter_object_manifest["object_content_verification_receipt_sha256"] = (
+            verify_sealed_git_adapter_object_content(
+                git_binary,
+                repo_root,
+                boundary,
+                adapter_object_types,
+            )
+        )
+        verify_sealed_git_adapter_tree_selection(
+            git_binary,
+            repo_root,
+            boundary,
+            str(capture["head_oid"]),
+            str(capture["adapter_root_tree_oid"]),
+            adapter_object_types,
+        )
+        return capture, boundary
+    except BaseException:
+        close_failed = False
+        try:
+            remove_git_adapter_root(adapter_root, adapter_identity, trace, adapter_fd)
+        finally:
+            for descriptor in (git_fd, adapter_fd):
+                if descriptor is None:
+                    continue
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    close_failed = True
+            if close_failed:
+                git_adapter_trace_event(trace, "CLEANUP_FAILED", "adapter-cleanup")
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_FD_CLOSE")
+        release_git_metadata_adapter_process_scope(adapter_root, adapter_identity)
+        raise
+
+
+def verify_git_metadata_adapter(boundary: GitMetadataAdapter) -> None:
+    if boundary.closed:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLOSED")
+    require_git_metadata_adapter_process_scope(boundary)
+    validate_git_adapter_locator(boundary.adapter_root)
+    if (
+        boundary.git_dir != os.path.join(boundary.adapter_root, "git")
+    ):
+        fail(Exit.INTERNAL, "GIT_ADAPTER_LOCATOR")
+    try:
+        metadata = os.lstat(boundary.adapter_root)
+        opened = os.fstat(boundary.adapter_fd)
+        named_git = os.stat("git", dir_fd=boundary.adapter_fd, follow_symlinks=False)
+        opened_git = os.fstat(boundary.git_fd)
+    except OSError:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_DRIFT")
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o500
+        or (metadata.st_dev, metadata.st_ino) != boundary.adapter_identity
+        or (opened.st_dev, opened.st_ino) != boundary.adapter_identity
+        or stat.S_ISLNK(named_git.st_mode)
+        or not stat.S_ISDIR(named_git.st_mode)
+        or stat.S_IMODE(named_git.st_mode) != 0o500
+        or (named_git.st_dev, named_git.st_ino) != boundary.git_identity
+        or (opened_git.st_dev, opened_git.st_ino) != boundary.git_identity
+        or git_adapter_fd_path(boundary.adapter_fd, "GIT_ADAPTER") != boundary.adapter_root
+        or git_adapter_fd_path(boundary.git_fd, "GIT_ADAPTER_GIT_DIRECTORY") != boundary.git_dir
+        or adapter_tree_fingerprint(boundary.adapter_fd, boundary.git_fd) != boundary.adapter_fingerprint
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_DRIFT")
+
+
+def revalidate_git_metadata_source(boundary: GitMetadataAdapter, key: bytes) -> None:
+    require_git_metadata_adapter_process_scope(boundary)
+    try:
+        current = capture_git_metadata_source(boundary.repo_root, key)
+        dependencies = capture_git_object_dependencies(
+            os.path.join(boundary.live_common_dir, "objects"),
+            boundary.object_dependency_oids,
+        )
+    except ContractError:
+        fail(Exit.GIT_CONTAINMENT, "GIT_ADAPTER_SOURCE_DRIFT")
+    if (
+        current["git_dir"] != boundary.live_git_dir
+        or current["common_dir"] != boundary.live_common_dir
+        or current["fingerprint"] != boundary.source_fingerprint
+        or dependencies["fingerprint"] != boundary.object_dependency_fingerprint
+    ):
+        fail(Exit.GIT_CONTAINMENT, "GIT_ADAPTER_SOURCE_DRIFT")
+    git_adapter_trace_event(boundary, "SOURCE_FINAL_REVALIDATED", "source-cas")
+
+
+def cleanup_git_metadata_adapter(boundary: GitMetadataAdapter) -> None:
+    if boundary.closed:
+        return
+    require_git_metadata_adapter_process_scope(boundary)
+    remove_git_adapter_root(
+        boundary.adapter_root,
+        boundary.adapter_identity,
+        boundary.trace,
+        boundary.adapter_fd,
+    )
+    close_failed = False
+    for field in ("git_fd", "adapter_fd"):
+        descriptor = getattr(boundary, field)
+        try:
+            os.close(descriptor)
+        except OSError:
+            close_failed = True
+        else:
+            setattr(boundary, field, -1)
+    if close_failed:
+        git_adapter_trace_event(boundary, "CLEANUP_FAILED", "adapter-cleanup")
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_FD_CLOSE")
+    release_git_metadata_adapter_process_scope(
+        boundary.adapter_root,
+        boundary.adapter_identity,
+    )
+    boundary.closed = True
+
+
+def finalize_git_metadata_adapter(boundary: GitMetadataAdapter, key: bytes) -> Tuple[Dict[str, str], ...]:
+    pending: Optional[BaseException] = None
+    try:
+        verify_git_metadata_adapter(boundary)
+        revalidate_git_metadata_source(boundary, key)
+    except BaseException as error:
+        pending = error
+    try:
+        cleanup_git_metadata_adapter(boundary)
+    except BaseException:
+        raise
+    if pending is not None:
+        raise pending
+    return tuple(dict(entry) for entry in boundary.trace)
 
 
 def git_snapshot(
@@ -5902,119 +9187,124 @@ def git_snapshot(
                 # carve-out into a subtree carve-out (or vice versa).  Refuse
                 # the ambiguous authority instead of relying on pathspec order.
                 fail(Exit.CONTRACT, "GIT_EXCLUSION_CLASS_OVERLAP")
-    # Resolve and inspect local Git controls directly before Git has an
-    # opportunity to follow an include or object-alternate private locator.
-    git_control = git_control_preflight(repo_root, key)
-    head = safe_git_scalar(git_binary, repo_root, ["rev-parse", "--verify", "HEAD"], "GIT_HEAD")
-    tree = safe_git_scalar(git_binary, repo_root, ["rev-parse", "--verify", "HEAD^{tree}"], "GIT_TREE")
-    object_format = safe_git_scalar(git_binary, repo_root, ["rev-parse", "--show-object-format"], "GIT_OBJECT_FORMAT")
-    if object_format not in ("sha1", "sha256"):
-        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_FORMAT")
-    expected_oid_length = 40 if object_format == "sha1" else 64
-    if not re.fullmatch(r"[0-9a-f]{%d}" % expected_oid_length, head):
-        fail(Exit.PREFLIGHT_DRIFT, "GIT_HEAD_FORMAT")
-    if not re.fullmatch(r"[0-9a-f]{%d}" % expected_oid_length, tree):
-        fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_FORMAT")
-    # This is the only command that enumerates worktree paths; exclusions are mandatory.
-    status = run_git(
-        git_binary,
-        repo_root,
-        ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
-        "GIT_STATUS",
-        enumerates_worktree=True,
-        authorized_tree_excludes=tree_exclusions,
-        authorized_exact_file_excludes=exact_file_exclusions,
-    )
-    if VAULT_PREFIX.encode("ascii") in status.lower():
-        fail(Exit.PRIVACY, "GIT_STATUS_VAULT_LEAK")
-    dirty_manifest = dirty_path_manifest_commitment(repo_root, status, key)
-    # The v1 envelope freezes the exact byte stream produced by `git show-ref`.
-    refs = run_git(git_binary, repo_root, ["show-ref"], "GIT_REFS")
-    index_locator_raw = run_git(git_binary, repo_root, ["rev-parse", "--git-path", "index"], "GIT_INDEX_LOCATOR")
+    capture, boundary = create_git_metadata_adapter(repo_root, key, git_binary)
+    pending: Optional[BaseException] = None
+    fields: Optional[Dict[str, Any]] = None
     try:
-        index_locator_text = index_locator_raw.rstrip(b"\n").decode("utf-8", "strict")
-    except UnicodeDecodeError:
-        fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_LOCATOR_FORMAT")
-    index_path = index_locator_text if os.path.isabs(index_locator_text) else os.path.join(repo_root, index_locator_text)
-    index_path = os.path.normpath(index_path)
-    index_info = hash_regular_absolute(index_path, "GIT_INDEX")
-    hooks_override = run_git(
-        git_binary,
-        repo_root,
-        ["config", "--local", "--get", "core.hooksPath"],
-        "GIT_HOOKS_OVERRIDE",
-        allowed_returncodes=(0, 1),
-    )
-    if hooks_override:
-        if hooks_override.count(b"\n") != 1:
-            fail(Exit.PREFLIGHT_DRIFT, "GIT_HOOKS_OVERRIDE_FORMAT")
-        try:
-            hooks_locator_text = hooks_override[:-1].decode("utf-8", "strict")
-        except UnicodeDecodeError:
-            fail(Exit.PREFLIGHT_DRIFT, "GIT_HOOKS_OVERRIDE_FORMAT")
-        hooks_path = os.path.normpath(
-            hooks_locator_text if os.path.isabs(hooks_locator_text) else os.path.join(repo_root, hooks_locator_text)
-        )
-        common_raw = run_git(
+        head = safe_git_scalar(
             git_binary,
             repo_root,
-            ["rev-parse", "--path-format=absolute", "--git-common-dir"],
-            "GIT_COMMON_DIR",
+            boundary,
+            ["rev-parse", "--verify", "HEAD"],
+            "GIT_HEAD",
         )
-        try:
-            common_path = os.path.normpath(common_raw.rstrip(b"\n").decode("utf-8", "strict"))
-        except UnicodeDecodeError:
-            fail(Exit.PREFLIGHT_DRIFT, "GIT_COMMON_DIR_FORMAT")
-        if hooks_path == "/dev/null":
-            hooks_info = hash_regular_absolute(hooks_path, "GIT_HOOKS_DISABLED", 4096)
-            hooks_state = "configured-dev-null"
-        elif is_same_or_within(hooks_path, common_path) or is_same_or_within(hooks_path, repo_root):
-            hooks_info = hash_directory_tree_absolute(hooks_path, "GIT_HOOKS")
-            hooks_state = "configured-git-contained"
-        else:
-            # Never dereference an external/private configured hooks locator.
-            fail(Exit.PREFLIGHT_DRIFT, "EXTERNAL_HOOKS_PATH")
+        tree = safe_git_scalar(
+            git_binary,
+            repo_root,
+            boundary,
+            ["rev-parse", "--verify", "HEAD^{tree}"],
+            "GIT_TREE",
+        )
+        object_format = safe_git_scalar(
+            git_binary,
+            repo_root,
+            boundary,
+            ["rev-parse", "--show-object-format"],
+            "GIT_OBJECT_FORMAT",
+        )
+        if object_format not in ("sha1", "sha256"):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_FORMAT")
+        expected_oid_length = 40 if object_format == "sha1" else 64
+        if not re.fullmatch(r"[0-9a-f]{%d}" % expected_oid_length, head):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_HEAD_FORMAT")
+        if not re.fullmatch(r"[0-9a-f]{%d}" % expected_oid_length, tree):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_FORMAT")
+        status = run_git(
+            git_binary,
+            repo_root,
+            boundary,
+            ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
+            "GIT_STATUS",
+            enumerates_worktree=True,
+            authorized_tree_excludes=tree_exclusions,
+            authorized_exact_file_excludes=exact_file_exclusions,
+        )
+        if VAULT_PREFIX.encode("ascii") in status.lower():
+            fail(Exit.PRIVACY, "GIT_STATUS_VAULT_LEAK")
+        dirty_manifest = dirty_path_manifest_commitment(repo_root, status, key)
+        refs = run_git(git_binary, repo_root, boundary, ["show-ref"], "GIT_REFS")
+        file_observations = capture["identity"]["files"]
+
+        def evidence_file(role: str) -> Dict[str, Any]:
+            observation = file_observations[role]
+            metadata = observation.get("metadata")
+            if observation.get("state") != "PRESENT" or not isinstance(metadata, dict):
+                fail(Exit.INTERNAL, "GIT_CAPTURE_EVIDENCE_FILE")
+            return {
+                "sha256": observation["raw_sha256"],
+                "bytes": observation["bytes"],
+                "device": metadata["device"],
+                "inode": metadata["inode"],
+            }
+
+        index_path = os.path.join(str(capture["git_dir"]), "index")
+        config_path = os.path.join(str(capture["common_dir"]), "config")
+        fields = {
+            "git_control": capture["git_control"],
+            "head": head,
+            "tree": tree,
+            "object_format": object_format,
+            "status_sha256": sha256(status),
+            "status_bytes": len(status),
+            "dirty_manifest_commitment": dirty_manifest,
+            "worktree_tree_exclusions": list(tree_exclusions),
+            "worktree_exact_file_exclusions": list(exact_file_exclusions),
+            "refs_sha256": sha256(refs),
+            "refs_bytes": len(refs),
+            "index": evidence_file("index"),
+            "config": evidence_file("common_config"),
+            "hooks": capture["hooks_info"],
+            "index_locator_commitment": locator_commitment(key, "git-index", index_path),
+            "config_locator_commitment": locator_commitment(key, "git-config", config_path),
+            "hooks_locator_commitment": locator_commitment(key, "git-hooks", str(capture["hooks_path"])),
+            "hooks_config_state": capture["hooks_state"],
+            "git_binary_sha256": hash_regular_absolute(git_binary, "CLT_GIT")["sha256"],
+            "git_metadata_source_commitment": hmac_frame(
+                key,
+                GIT_METADATA_SOURCE_DOMAIN,
+                canonical_json(
+                    {
+                        "source_fingerprint": capture["fingerprint"],
+                        "adapter_object_manifest": capture["adapter_object_manifest"],
+                    }
+                ),
+            ),
+        }
+    except BaseException as error:
+        pending = error
+    if pending is None:
+        finalize_git_metadata_adapter(boundary, key)
     else:
-        hooks_path_raw = run_git(git_binary, repo_root, ["rev-parse", "--git-path", "hooks"], "GIT_HOOKS_LOCATOR")
         try:
-            hooks_locator_text = hooks_path_raw.rstrip(b"\n").decode("utf-8", "strict")
-        except UnicodeDecodeError:
-            fail(Exit.PREFLIGHT_DRIFT, "GIT_HOOKS_LOCATOR_FORMAT")
-        hooks_path = hooks_locator_text if os.path.isabs(hooks_locator_text) else os.path.join(repo_root, hooks_locator_text)
-        hooks_path = os.path.normpath(hooks_path)
-        hooks_info = hash_directory_tree_absolute(hooks_path, "GIT_HOOKS")
-        hooks_state = "default-git-path"
-    config_path_raw = run_git(git_binary, repo_root, ["rev-parse", "--git-path", "config"], "GIT_CONFIG_LOCATOR")
-    try:
-        config_locator_text = config_path_raw.rstrip(b"\n").decode("utf-8", "strict")
-    except UnicodeDecodeError:
-        fail(Exit.PREFLIGHT_DRIFT, "GIT_CONFIG_LOCATOR_FORMAT")
-    config_path = config_locator_text if os.path.isabs(config_locator_text) else os.path.join(repo_root, config_locator_text)
-    config_info = hash_regular_absolute(os.path.normpath(config_path), "GIT_CONFIG")
-    private_body = {
-        "git_control": git_control,
-        "head": head,
-        "tree": tree,
-        "object_format": object_format,
-        "status_sha256": sha256(status),
-        "status_bytes": len(status),
-        "dirty_manifest_commitment": dirty_manifest,
-        "worktree_tree_exclusions": list(tree_exclusions),
-        "worktree_exact_file_exclusions": list(exact_file_exclusions),
-        "refs_sha256": sha256(refs),
-        "refs_bytes": len(refs),
-        "index": index_info,
-        "config": config_info,
-        "hooks": hooks_info,
-        "index_locator_commitment": locator_commitment(key, "git-index", index_path),
-        "config_locator_commitment": locator_commitment(key, "git-config", config_path),
-        "hooks_locator_commitment": locator_commitment(key, "git-hooks", hooks_path),
-        "hooks_config_state": hooks_state,
-        "git_binary_sha256": hash_regular_absolute(git_binary, "CLT_GIT")["sha256"],
-    }
-    body = canonical_json(private_body)
-    private_body["commitment"] = hmac_frame(key, GIT_SNAPSHOT_DOMAIN, body)
-    return private_body
+            cleanup_git_metadata_adapter(boundary)
+        except BaseException:
+            raise
+        raise pending
+    if fields is None:
+        fail(Exit.INTERNAL, "GIT_SNAPSHOT_FIELDS")
+    if git_metadata_adapter_process_scope_residue_count() != 0:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_CLEANUP_SCOPE_RESIDUE")
+    fields.update(
+        {
+            "git_metadata_adapter_profile": GIT_METADATA_ADAPTER_PROFILE_V3,
+            "git_metadata_adapter_cleanup_state": "removed",
+            "git_metadata_adapter_residue_count": 0,
+            "live_git_control_child_read_count": 0,
+        }
+    )
+    body = canonical_json(fields)
+    fields["commitment"] = hmac_frame(key, GIT_SNAPSHOT_DOMAIN, body)
+    return fields
 
 
 def require_node_modules_absent(repo_root: str) -> None:
@@ -7218,52 +10508,95 @@ def validate_generation_claim_record_v2(
     return dict(record)
 
 
-def probe_generation_claim_v2(
+def verify_generation_claim_container_fds_v2(
     *,
-    runtime_args: GenerationRuntimeArgsV2,
-    generation_authorization: Mapping[str, Any],
-) -> Optional[Dict[str, Any]]:
-    """Return one trusted complete GEN claim, or None when it is absent.
-
-    An existing empty, partial, malformed or unauthenticated claim is retained
-    and rejected.  It is never repaired, removed or treated as unused.
-    """
-    revalidate_generation_runtime_args_v2(runtime_args, generation_authorization)
-    verify_control_preparation_projection_v2(runtime_args)
-    state_meta = require_owned_directory(runtime_args.state_root, "GENERATION_STATE_ROOT", exact_mode=0o700)
-    key = load_hmac_key(runtime_args.key_file, state_meta.st_uid, state_meta.st_gid)
-    state_fd = open_directory(runtime_args.state_root, "GENERATION_STATE_ROOT")
-    claims_fd: Optional[int] = None
-    claim_fd: Optional[int] = None
+    state_fd: int,
+    claims_fd: int,
+    expected_uid: int,
+    expected_gid: int,
+) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """Revalidate already-open state/claims directories without closing them."""
+    if (
+        type(state_fd) is not int
+        or type(claims_fd) is not int
+        or type(expected_uid) is not int
+        or type(expected_gid) is not int
+        or state_fd < 0
+        or claims_fd < 0
+        or expected_uid != os.getuid()
+    ):
+        fail(Exit.PRIVATE_STATE, "GENERATION_CLAIM_FD_INPUT")
     try:
-        claims_fd = open_existing_private_container(
-            state_fd,
-            "claims",
-            expected_uid=state_meta.st_uid,
-            expected_gid=state_meta.st_gid,
-        )
-        claim_name = generation_claim_name_v2(generation_authorization)
-        try:
-            claim_meta = os.stat(claim_name, dir_fd=claims_fd, follow_symlinks=False)
-        except FileNotFoundError:
-            return None
-        except OSError:
-            fail(Exit.REPLAY, "GENERATION_CLAIM_LSTAT")
+        state_meta = os.fstat(state_fd)
+        claims_meta = os.fstat(claims_fd)
+        named_claims = os.stat("claims", dir_fd=state_fd, follow_symlinks=False)
+    except OSError:
+        fail(Exit.PRIVATE_STATE, "GENERATION_CLAIM_CONTAINER_FSTAT")
+    for metadata in (state_meta, claims_meta, named_claims):
         if (
-            not stat.S_ISDIR(claim_meta.st_mode)
-            or stat.S_IMODE(claim_meta.st_mode) != 0o700
-            or claim_meta.st_uid != state_meta.st_uid
-            or claim_meta.st_gid != state_meta.st_gid
+            not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or stat.S_IMODE(metadata.st_mode) != 0o700
+            or metadata.st_uid != expected_uid
+            or metadata.st_gid != expected_gid
         ):
-            fail(Exit.REPLAY, "GENERATION_CLAIM_DIRECTORY_POLICY")
+            fail(Exit.PRIVATE_STATE, "GENERATION_CLAIM_CONTAINER_POLICY")
+    state_identity = (state_meta.st_dev, state_meta.st_ino)
+    claims_identity = (claims_meta.st_dev, claims_meta.st_ino)
+    if (
+        state_identity == claims_identity
+        or claims_meta.st_dev != state_meta.st_dev
+        or (named_claims.st_dev, named_claims.st_ino) != claims_identity
+    ):
+        fail(Exit.PRIVATE_STATE, "GENERATION_CLAIM_CONTAINER_IDENTITY")
+    assert_no_extended_acl_fd(state_fd, "GENERATION_CLAIM_STATE")
+    assert_no_extended_acl_fd(claims_fd, "GENERATION_CLAIM_CLAIMS")
+    return state_identity, claims_identity
+
+
+def _read_generation_claim_from_claims_fd_v2(
+    *,
+    claims_fd: int,
+    expected_uid: int,
+    expected_gid: int,
+    key: bytes,
+    generation_authorization: Mapping[str, Any],
+    expected_claim_identity: Optional[Tuple[int, int]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Read one complete immutable claim relative to a fixed claims FD."""
+    claim_name = generation_claim_name_v2(generation_authorization)
+    try:
+        claim_meta = os.stat(claim_name, dir_fd=claims_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        if expected_claim_identity is not None:
+            fail(Exit.REPLAY, "GENERATION_CLAIM_CREATED_MISSING")
+        return None
+    except OSError:
+        fail(Exit.REPLAY, "GENERATION_CLAIM_LSTAT")
+    claim_identity = (claim_meta.st_dev, claim_meta.st_ino)
+    if (
+        not stat.S_ISDIR(claim_meta.st_mode)
+        or stat.S_ISLNK(claim_meta.st_mode)
+        or stat.S_IMODE(claim_meta.st_mode) != 0o700
+        or claim_meta.st_uid != expected_uid
+        or claim_meta.st_gid != expected_gid
+        or (expected_claim_identity is not None and claim_identity != expected_claim_identity)
+    ):
+        fail(Exit.REPLAY, "GENERATION_CLAIM_DIRECTORY_POLICY")
+    claim_fd: Optional[int] = None
+    record_fd: Optional[int] = None
+    try:
         claim_fd = open_existing_private_container(
             claims_fd,
             claim_name,
-            expected_uid=state_meta.st_uid,
-            expected_gid=state_meta.st_gid,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
         )
+        opened_claim = os.fstat(claim_fd)
+        if (opened_claim.st_dev, opened_claim.st_ino) != claim_identity:
+            fail(Exit.REPLAY, "GENERATION_CLAIM_DIRECTORY_IDENTITY")
         try:
-            children = sorted(os.listdir(claim_fd))
+            children = sorted(os.listdir(claim_fd), key=os.fsencode)
         except OSError:
             fail(Exit.REPLAY, "GENERATION_CLAIM_LIST")
         if children != ["generation-record.json"]:
@@ -7274,63 +10607,186 @@ def probe_generation_claim_v2(
             "GENERATION_CLAIM_RECORD",
             MAX_JSON_BYTES,
         )
+        record_before = (
+            record_meta.st_dev,
+            record_meta.st_ino,
+            record_meta.st_mode,
+            record_meta.st_uid,
+            record_meta.st_gid,
+            record_meta.st_nlink,
+            record_meta.st_size,
+            record_meta.st_mtime_ns,
+            record_meta.st_ctime_ns,
+            getattr(record_meta, "st_flags", 0),
+        )
+        if (
+            stat.S_IMODE(record_meta.st_mode) != 0o600
+            or record_meta.st_uid != expected_uid
+            or record_meta.st_gid != expected_gid
+            or record_meta.st_nlink != 1
+            or record_meta.st_size <= 0
+        ):
+            fail(Exit.REPLAY, "GENERATION_CLAIM_RECORD_POLICY")
+        record_raw = read_fd(record_fd, MAX_JSON_BYTES, "GENERATION_CLAIM_RECORD")
+        record_after_meta = os.fstat(record_fd)
+        record_after = (
+            record_after_meta.st_dev,
+            record_after_meta.st_ino,
+            record_after_meta.st_mode,
+            record_after_meta.st_uid,
+            record_after_meta.st_gid,
+            record_after_meta.st_nlink,
+            record_after_meta.st_size,
+            record_after_meta.st_mtime_ns,
+            record_after_meta.st_ctime_ns,
+            getattr(record_after_meta, "st_flags", 0),
+        )
+        if record_after != record_before or len(record_raw) != record_meta.st_size:
+            fail(Exit.REPLAY, "GENERATION_CLAIM_RECORD_READ_RACE")
         try:
-            if (
-                stat.S_IMODE(record_meta.st_mode) != 0o600
-                or record_meta.st_uid != state_meta.st_uid
-                or record_meta.st_gid != state_meta.st_gid
-                or record_meta.st_nlink != 1
-            ):
-                fail(Exit.REPLAY, "GENERATION_CLAIM_RECORD_POLICY")
-            record_raw = read_fd(record_fd, MAX_JSON_BYTES, "GENERATION_CLAIM_RECORD")
-        finally:
-            os.close(record_fd)
-        record = parse_json_bytes(record_raw, "GENERATION_CLAIM_RECORD")
-        if not isinstance(record, dict) or canonical_json(record) != record_raw:
-            fail(Exit.REPLAY, "GENERATION_CLAIM_RECORD_CANONICAL")
-        return validate_generation_claim_record_v2(record, key, generation_authorization)
+            final_children = sorted(os.listdir(claim_fd), key=os.fsencode)
+            named_after = os.stat(claim_name, dir_fd=claims_fd, follow_symlinks=False)
+        except OSError:
+            fail(Exit.REPLAY, "GENERATION_CLAIM_DIRECTORY_REVALIDATE")
+        if (
+            final_children != ["generation-record.json"]
+            or (named_after.st_dev, named_after.st_ino) != claim_identity
+            or stat.S_IMODE(named_after.st_mode) != 0o700
+            or named_after.st_uid != expected_uid
+            or named_after.st_gid != expected_gid
+        ):
+            fail(Exit.REPLAY, "GENERATION_CLAIM_DIRECTORY_DRIFT")
     finally:
+        if record_fd is not None:
+            os.close(record_fd)
         if claim_fd is not None:
             os.close(claim_fd)
-        if claims_fd is not None:
-            os.close(claims_fd)
-        os.close(state_fd)
+    record = parse_json_bytes(record_raw, "GENERATION_CLAIM_RECORD")
+    if not isinstance(record, dict) or canonical_json(record) != record_raw:
+        fail(Exit.REPLAY, "GENERATION_CLAIM_RECORD_CANONICAL")
+    return validate_generation_claim_record_v2(record, key, generation_authorization)
 
 
-def create_generation_claim_v2(
+def probe_generation_claim_from_verified_fds_v2(
+    *,
+    state_fd: int,
+    claims_fd: int,
+    expected_uid: int,
+    expected_gid: int,
+    key: bytes,
+    generation_authorization: Mapping[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """Return a trusted complete GEN claim, or None, from fixed caller-owned FDs."""
+    if not isinstance(key, bytes) or len(key) != 32:
+        fail(Exit.PRIVATE_STATE, "GENERATION_CLAIM_KEY")
+    verify_generation_claim_container_fds_v2(
+        state_fd=state_fd,
+        claims_fd=claims_fd,
+        expected_uid=expected_uid,
+        expected_gid=expected_gid,
+    )
+    result = _read_generation_claim_from_claims_fd_v2(
+        claims_fd=claims_fd,
+        expected_uid=expected_uid,
+        expected_gid=expected_gid,
+        key=key,
+        generation_authorization=generation_authorization,
+    )
+    verify_generation_claim_container_fds_v2(
+        state_fd=state_fd,
+        claims_fd=claims_fd,
+        expected_uid=expected_uid,
+        expected_gid=expected_gid,
+    )
+    return result
+
+
+def probe_generation_claim_v2(
     *,
     runtime_args: GenerationRuntimeArgsV2,
     generation_authorization: Mapping[str, Any],
-    final_envelope_raw: bytes,
-    clock: Callable[[], _datetime.datetime] = utc_now,
-) -> Dict[str, Any]:
-    """Consume one GEN authority with an exclusive durable private claim."""
+) -> Optional[Dict[str, Any]]:
+    """Open the receipt-bound private controls, then probe through the FD core."""
     revalidate_generation_runtime_args_v2(runtime_args, generation_authorization)
     verify_control_preparation_projection_v2(runtime_args)
     state_meta = require_owned_directory(runtime_args.state_root, "GENERATION_STATE_ROOT", exact_mode=0o700)
     key = load_hmac_key(runtime_args.key_file, state_meta.st_uid, state_meta.st_gid)
-    record = build_generation_claim_record_v2(
-        generation_authorization=generation_authorization,
-        final_envelope_raw=final_envelope_raw,
-        key=key,
-    )
     state_fd = open_directory(runtime_args.state_root, "GENERATION_STATE_ROOT")
     claims_fd: Optional[int] = None
-    claim_fd: Optional[int] = None
     try:
+        opened_state = os.fstat(state_fd)
+        if (
+            (opened_state.st_dev, opened_state.st_ino, opened_state.st_uid, opened_state.st_gid)
+            != (state_meta.st_dev, state_meta.st_ino, state_meta.st_uid, state_meta.st_gid)
+            or stat.S_IMODE(opened_state.st_mode) != 0o700
+        ):
+            fail(Exit.PRE_WORKTREE_CAS, "GENERATION_STATE_ROOT_IDENTITY_DRIFT")
         claims_fd = open_existing_private_container(
             state_fd,
             "claims",
             expected_uid=state_meta.st_uid,
             expected_gid=state_meta.st_gid,
         )
+        result = probe_generation_claim_from_verified_fds_v2(
+            state_fd=state_fd,
+            claims_fd=claims_fd,
+            expected_uid=state_meta.st_uid,
+            expected_gid=state_meta.st_gid,
+            key=key,
+            generation_authorization=generation_authorization,
+        )
+        verify_open_directory_identity(
+            runtime_args.state_root,
+            state_fd,
+            "GENERATION_STATE_ROOT",
+        )
+        return result
+    finally:
+        if claims_fd is not None:
+            os.close(claims_fd)
+        os.close(state_fd)
+
+
+def create_generation_claim_from_verified_fds_v2(
+    *,
+    state_fd: int,
+    claims_fd: int,
+    expected_uid: int,
+    expected_gid: int,
+    key: bytes,
+    generation_authorization: Mapping[str, Any],
+    final_envelope_raw: bytes,
+    clock: Callable[[], _datetime.datetime] = utc_now,
+) -> Dict[str, Any]:
+    """Create, durably sync and semantically reread one claim via fixed FDs.
+
+    Caller-owned FDs remain open.  Any partial claim left by an error is
+    retained and is neither repaired nor deleted by this core.
+    """
+    if not isinstance(key, bytes) or len(key) != 32 or not callable(clock):
+        fail(Exit.PRIVATE_STATE, "GENERATION_CLAIM_CORE_INPUT")
+    verify_generation_claim_container_fds_v2(
+        state_fd=state_fd,
+        claims_fd=claims_fd,
+        expected_uid=expected_uid,
+        expected_gid=expected_gid,
+    )
+    record = build_generation_claim_record_v2(
+        generation_authorization=generation_authorization,
+        final_envelope_raw=final_envelope_raw,
+        key=key,
+    )
+    claim_fd: Optional[int] = None
+    try:
         claim_fd = mkdir_private_child(
             claims_fd,
             generation_claim_name_v2(generation_authorization),
-            state_meta.st_uid,
-            state_meta.st_gid,
+            expected_uid,
+            expected_gid,
             before_create=lambda: assert_deadline_not_expired(record["not_after_utc"], clock),
         )
+        claim_meta = os.fstat(claim_fd)
+        claim_identity = (claim_meta.st_dev, claim_meta.st_ino)
         try:
             os.fsync(claims_fd)
         except OSError:
@@ -7342,26 +10798,105 @@ def create_generation_claim_v2(
             mode=0o600,
         )
         try:
+            os.fsync(claim_fd)
             os.fsync(claims_fd)
         except OSError:
             fail(Exit.EVIDENCE, "GENERATION_CLAIM_CONTAINER_FSYNC")
-        return record
+        verify_generation_claim_container_fds_v2(
+            state_fd=state_fd,
+            claims_fd=claims_fd,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+        )
+        observed = _read_generation_claim_from_claims_fd_v2(
+            claims_fd=claims_fd,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+            key=key,
+            generation_authorization=generation_authorization,
+            expected_claim_identity=claim_identity,
+        )
+        if observed is None or not hmac.compare_digest(canonical_json(observed), canonical_json(record)):
+            fail(Exit.REPLAY, "GENERATION_CLAIM_SEMANTIC_REREAD")
+        verify_generation_claim_container_fds_v2(
+            state_fd=state_fd,
+            claims_fd=claims_fd,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+        )
+        return observed
     finally:
         if claim_fd is not None:
             os.close(claim_fd)
+
+
+def create_generation_claim_v2(
+    *,
+    runtime_args: GenerationRuntimeArgsV2,
+    generation_authorization: Mapping[str, Any],
+    final_envelope_raw: bytes,
+    clock: Callable[[], _datetime.datetime] = utc_now,
+) -> Dict[str, Any]:
+    """Bind private controls, then consume GEN authority through the FD core."""
+    revalidate_generation_runtime_args_v2(runtime_args, generation_authorization)
+    verify_control_preparation_projection_v2(runtime_args)
+    state_meta = require_owned_directory(runtime_args.state_root, "GENERATION_STATE_ROOT", exact_mode=0o700)
+    key = load_hmac_key(runtime_args.key_file, state_meta.st_uid, state_meta.st_gid)
+    state_fd = open_directory(runtime_args.state_root, "GENERATION_STATE_ROOT")
+    claims_fd: Optional[int] = None
+    try:
+        opened_state = os.fstat(state_fd)
+        if (
+            (opened_state.st_dev, opened_state.st_ino, opened_state.st_uid, opened_state.st_gid)
+            != (state_meta.st_dev, state_meta.st_ino, state_meta.st_uid, state_meta.st_gid)
+            or stat.S_IMODE(opened_state.st_mode) != 0o700
+        ):
+            fail(Exit.PRE_WORKTREE_CAS, "GENERATION_STATE_ROOT_IDENTITY_DRIFT")
+        claims_fd = open_existing_private_container(
+            state_fd,
+            "claims",
+            expected_uid=state_meta.st_uid,
+            expected_gid=state_meta.st_gid,
+        )
+        result = create_generation_claim_from_verified_fds_v2(
+            state_fd=state_fd,
+            claims_fd=claims_fd,
+            expected_uid=state_meta.st_uid,
+            expected_gid=state_meta.st_gid,
+            key=key,
+            generation_authorization=generation_authorization,
+            final_envelope_raw=final_envelope_raw,
+            clock=clock,
+        )
+        verify_open_directory_identity(
+            runtime_args.state_root,
+            state_fd,
+            "GENERATION_STATE_ROOT",
+        )
+        return result
+    finally:
         if claims_fd is not None:
             os.close(claims_fd)
         os.close(state_fd)
 
 
-def verify_generation_claim_recovery_v2(
+def verify_generation_claim_recovery_from_verified_fds_v2(
     *,
-    runtime_args: GenerationRuntimeArgsV2,
+    state_fd: int,
+    claims_fd: int,
+    expected_uid: int,
+    expected_gid: int,
+    key: bytes,
     generation_authorization: Mapping[str, Any],
     final_envelope_raw: bytes,
 ) -> Dict[str, Any]:
-    record = probe_generation_claim_v2(
-        runtime_args=runtime_args,
+    """Verify crash recovery against exact raw output via caller-owned FDs."""
+    record = probe_generation_claim_from_verified_fds_v2(
+        state_fd=state_fd,
+        claims_fd=claims_fd,
+        expected_uid=expected_uid,
+        expected_gid=expected_gid,
+        key=key,
         generation_authorization=generation_authorization,
     )
     if record is None:
@@ -7385,6 +10920,54 @@ def verify_generation_claim_recovery_v2(
     if any(record.get(field) != value for field, value in expected.items()):
         fail(Exit.REPLAY, "GENERATION_CLAIM_RECOVERY_DRIFT")
     return record
+
+
+def verify_generation_claim_recovery_v2(
+    *,
+    runtime_args: GenerationRuntimeArgsV2,
+    generation_authorization: Mapping[str, Any],
+    final_envelope_raw: bytes,
+) -> Dict[str, Any]:
+    """Bind private controls, then verify recovery through the FD core."""
+    revalidate_generation_runtime_args_v2(runtime_args, generation_authorization)
+    verify_control_preparation_projection_v2(runtime_args)
+    state_meta = require_owned_directory(runtime_args.state_root, "GENERATION_STATE_ROOT", exact_mode=0o700)
+    key = load_hmac_key(runtime_args.key_file, state_meta.st_uid, state_meta.st_gid)
+    state_fd = open_directory(runtime_args.state_root, "GENERATION_STATE_ROOT")
+    claims_fd: Optional[int] = None
+    try:
+        opened_state = os.fstat(state_fd)
+        if (
+            (opened_state.st_dev, opened_state.st_ino, opened_state.st_uid, opened_state.st_gid)
+            != (state_meta.st_dev, state_meta.st_ino, state_meta.st_uid, state_meta.st_gid)
+            or stat.S_IMODE(opened_state.st_mode) != 0o700
+        ):
+            fail(Exit.PRE_WORKTREE_CAS, "GENERATION_STATE_ROOT_IDENTITY_DRIFT")
+        claims_fd = open_existing_private_container(
+            state_fd,
+            "claims",
+            expected_uid=state_meta.st_uid,
+            expected_gid=state_meta.st_gid,
+        )
+        result = verify_generation_claim_recovery_from_verified_fds_v2(
+            state_fd=state_fd,
+            claims_fd=claims_fd,
+            expected_uid=state_meta.st_uid,
+            expected_gid=state_meta.st_gid,
+            key=key,
+            generation_authorization=generation_authorization,
+            final_envelope_raw=final_envelope_raw,
+        )
+        verify_open_directory_identity(
+            runtime_args.state_root,
+            state_fd,
+            "GENERATION_STATE_ROOT",
+        )
+        return result
+    finally:
+        if claims_fd is not None:
+            os.close(claims_fd)
+        os.close(state_fd)
 
 
 def require_host() -> None:
@@ -7519,6 +11102,11 @@ def compare_git_containment(baseline: Mapping[str, Any], current: Mapping[str, A
         "hooks",
         "hooks_config_state",
         "git_binary_sha256",
+        "git_metadata_source_commitment",
+        "git_metadata_adapter_profile",
+        "git_metadata_adapter_cleanup_state",
+        "git_metadata_adapter_residue_count",
+        "live_git_control_child_read_count",
         "commitment",
     )
     for key in keys:
@@ -7828,7 +11416,8 @@ def authority_projection(
     return {
         "retry_authorized": retry_authorized,
         "public_success_attestation_allowed": public_success_attestation_allowed,
-        "automatic_cleanup_authorized": False,
+        "product_state_automatic_cleanup_authorized": False,
+        "temporary_adapter_cleanup_required": True,
         "openspec_execution_allowed": False,
         "openspec_scaffold_allowed": False,
         "commit_allowed": False,
@@ -7872,6 +11461,7 @@ def public_error_projection(code: Exit, detail_code: str) -> Dict[str, Any]:
 
 def generic_public_failure(error: BaseException, mode: str = "unknown") -> Dict[str, Any]:
     code, public_code = public_error_identity(error)
+    cleanup_uncertain = public_code.startswith("GIT_ADAPTER_CLEANUP_")
     selected_mode = mode if mode in ("census", "verify", "acquire") else "unknown"
     terminal = read_only_terminal_state()
     if selected_mode == "acquire":
@@ -7894,13 +11484,13 @@ def generic_public_failure(error: BaseException, mode: str = "unknown") -> Dict[
     result["authority"] = authority_projection(
         False,
         False,
-        "new explicit user approval after fail-closed evidence review",
+        GIT_ADAPTER_CLEANUP_AUTHORITY if cleanup_uncertain else FAIL_CLOSED_REVIEW_AUTHORITY,
     )
     result["error"] = public_error_projection(code, public_code)
     result["retention"] = {
         "stage_deleted_or_moved_on_failure": False,
         "automatic_rollback_performed": False,
-        "private_state_inspection_required": selected_mode == "acquire",
+        "private_state_inspection_required": selected_mode == "acquire" or cleanup_uncertain,
     }
     validate_gate_projection(result["gate_results"])
     validate_public_result_projection(result)
@@ -7913,6 +11503,7 @@ def read_only_failure_result(
     recorder: GateRecorder,
 ) -> Dict[str, Any]:
     code, public_code = public_error_identity(error)
+    cleanup_uncertain = public_code.startswith("GIT_ADAPTER_CLEANUP_")
     recorder.failed(public_code, int(code))
     gate_results = recorder.partial_projection()
     g03_records = [
@@ -7922,7 +11513,7 @@ def read_only_failure_result(
     ]
     toolchain_context: Optional[Dict[str, Any]] = None
     trusted_authority_binding = recorder.authority_binding()
-    retry_bound = bool(
+    retry_bound = not cleanup_uncertain and bool(
         isinstance(trusted_authority_binding, Mapping)
         and isinstance(trusted_authority_binding.get("approval_challenge_id"), str)
         and CHALLENGE_RE.fullmatch(trusted_authority_binding["approval_challenge_id"]) is not None
@@ -7965,13 +11556,17 @@ def read_only_failure_result(
     result["authority"] = authority_projection(
         retry_bound,
         False,
-        PRECLAIM_RETRY_AUTHORITY if retry_bound else FAIL_CLOSED_REVIEW_AUTHORITY,
+        (
+            PRECLAIM_RETRY_AUTHORITY
+            if retry_bound
+            else GIT_ADAPTER_CLEANUP_AUTHORITY if cleanup_uncertain else FAIL_CLOSED_REVIEW_AUTHORITY
+        ),
     )
     result["error"] = public_error_projection(code, public_code)
     result["retention"] = {
         "stage_deleted_or_moved_on_failure": False,
         "automatic_rollback_performed": False,
-        "private_state_inspection_required": False,
+        "private_state_inspection_required": cleanup_uncertain,
     }
     validate_gate_projection(result["gate_results"])
     bound_result = AuthorityBoundPublicResult(result, trusted_authority_binding)
@@ -8163,17 +11758,22 @@ def acquire_failure_result(
     ):
         result["approval_challenge_id"] = challenge
         result["receipt_digest"] = receipt_digest
-    preclaim_retry = attempt.claim_state == "not-created"
+    cleanup_uncertain = attempt.adapter_cleanup_state == "residue-or-uncertain"
+    preclaim_retry = attempt.claim_state == "not-created" and not cleanup_uncertain
     result["authority"] = authority_projection(
         preclaim_retry,
         False,
-        PRECLAIM_RETRY_AUTHORITY if preclaim_retry else RETAINED_STATE_AUTHORITY,
+        (
+            PRECLAIM_RETRY_AUTHORITY
+            if preclaim_retry
+            else GIT_ADAPTER_CLEANUP_AUTHORITY if cleanup_uncertain else RETAINED_STATE_AUTHORITY
+        ),
     )
     result["error"] = public_error_projection(code, public_code)
     result["retention"] = {
         "stage_deleted_or_moved_on_failure": False,
         "automatic_rollback_performed": False,
-        "private_state_inspection_required": attempt.claim_state != "not-created",
+        "private_state_inspection_required": attempt.claim_state != "not-created" or cleanup_uncertain,
     }
     if ledger_report is not None:
         result["ledger_evidence"] = ledger_public_evidence(ledger_report)
@@ -8409,6 +12009,7 @@ def collect_generation_observations_v2(
             fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_PARENT_BINDING")
         verify_generation_artifacts_against_micro_and_head_v2(
             runtime_args.repo_root,
+            key,
             toolchain["git_binary"],
             artifacts,
             generation_envelope,
@@ -8502,6 +12103,157 @@ def collect_generation_observations_v2(
         "predecessor_projection": copy.deepcopy(observed_predecessor),
         "envelope_repo_relative_path": envelope_relative,
     }
+
+
+def synchronize_pending_template_git_adapter_v2(template: Dict[str, Any]) -> Dict[str, Any]:
+    approval = template["approval_receipt_contract"]
+    approval["first_authority_consuming_persistent_write"] = (
+        FIRST_AUTHORITY_CONSUMING_PERSISTENT_WRITE_V2
+    )
+    approval["receipt_before_first_authority_consuming_persistent_write"] = True
+    authorization = template["authorization_preimage"]
+    authorization["git_snapshot_commitment_profile"] = GIT_SNAPSHOT_COMMITMENT_PROFILE_V2
+    authorization["private_preimage_capture"] = (
+        "census and post-approval checks may materialize only an identity-bound nonpersistent Git metadata adapter "
+        "under /private/tmp; every child fchdir's through a dedicated duplicate of the held adapter Git-directory "
+        "FD, closes that child-only FD, and reads the sealed frozen adapter with literal --git-dir=., explicit "
+        "--work-tree and zero "
+        "live Git-control reads; source and adapter CAS run before/after children, exact cleanup and zero residue are "
+        "required before returning; the persistent O_EXCL challenge claim remains the first authority-consuming "
+        "persistent write"
+    )
+    execution = template["execution_plan"]
+    execution["allowed_subprocess_executable_roles"] = list(AUTHORIZED_SUBPROCESS_ROLES)
+    execution["git_metadata_adapter_bootstrap_sandbox_profile"] = (
+        GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE_V3
+    )
+    execution["git_metadata_adapter_trust_boundary"] = (
+        GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1
+    )
+    execution["git_metadata_adapter_host_assurance"] = (
+        GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1
+    )
+    if "GIT_OBJECT_DIRECTORY" not in execution["environment_name_allowlist"]:
+        execution["environment_name_allowlist"].append("GIT_OBJECT_DIRECTORY")
+    execution["evidence_command_templates"] = [
+        entry
+        for entry in execution["evidence_command_templates"]
+        if not (isinstance(entry, dict) and entry.get("role") == "git-metadata-adapter-bootstrap")
+    ]
+    git_templates = [
+        entry
+        for entry in execution["evidence_command_templates"]
+        if isinstance(entry, dict) and entry.get("role") == "git-read-only-evidence"
+    ]
+    if len(git_templates) != 1:
+        fail(Exit.INTERNAL, "PENDING_TEMPLATE_GIT_ROLE")
+    git_templates[0]["argv_allowlist"] = git_read_only_argv_templates_v2()
+    git_templates[0]["read_only"] = True
+    bootstrap_environment = list(git_templates[0]["environment_name_allowlist"])
+    if "GIT_OBJECT_DIRECTORY" not in bootstrap_environment:
+        bootstrap_environment.append("GIT_OBJECT_DIRECTORY")
+    bootstrap_template = {
+        "argv_allowlist": git_adapter_bootstrap_argv_templates_v2(),
+        "environment_name_allowlist": bootstrap_environment,
+        "executable": "{RESOLVED_CLT_GIT_PRIVATE}",
+        "read_only": False,
+        "role": "git-metadata-adapter-bootstrap",
+        "shell": False,
+        "write_scope": "checkpoint-scoped-private-temp-adapter-only",
+    }
+    execution["evidence_command_templates"].insert(
+        execution["evidence_command_templates"].index(git_templates[0]),
+        bootstrap_template,
+    )
+    execution["phase_order"] = [
+        (
+            "directly capture live Git metadata, freeze and seal an exact private-temp adapter, run explicit-adapter "
+            "Git evidence children with zero live-control reads, revalidate the live source and remove the exact "
+            "adapter with zero residue before comparing Git-snapshot and private-preapproval commitments"
+            if phase == "read-only-recompute-and-compare-full-Git-snapshot-and-private-preapproval-commitments"
+            else phase
+        )
+        for phase in execution["phase_order"]
+    ]
+    mutation = template["mutation_scope"]
+    mutation["git_metadata_adapter_trust_boundary"] = (
+        GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1
+    )
+    mutation["git_metadata_adapter_host_assurance"] = (
+        GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1
+    )
+    mutation["git_metadata_adapter_cleanup_guarantee"] = (
+        GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1
+    )
+    mutation["allowed_ephemeral_mutations"] = [GIT_ADAPTER_EPHEMERAL_MUTATION_V3] + [
+        value
+        for value in mutation["allowed_ephemeral_mutations"]
+        if value != GIT_ADAPTER_EPHEMERAL_MUTATION_V3
+    ]
+    mutation["forbidden_mutations"] = [
+        (
+            "write outside the exact identity-bound /private/tmp Git adapter scratch, exact persistent challenge "
+            "claim/ledger, exact stage and exact exclusive target publication"
+            if value == "write outside exact persistent challenge claim/ledger, exact stage and exact exclusive target publication"
+            else value
+        )
+        for value in mutation["forbidden_mutations"]
+    ]
+    failure = template["failure_contract"]
+    failure.pop("retry_allowed", None)
+    failure["preclaim_retry_allowed"] = True
+    failure["postclaim_retry_allowed"] = False
+    failure["evidence_action"] = FAILURE_EVIDENCE_ACTION_V2
+    failure["git_metadata_adapter_cleanup_guarantee"] = (
+        GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1
+    )
+    failure["challenge_state"] = (
+        "before the first authority-consuming persistent write no persistent consumption record exists but this "
+        "envelope/challenge must be treated as rejected and replaced; after exclusive claim mkdir the persistent "
+        "state is consumed-rejected"
+    )
+    private = template["private_state_authorization"]
+    private["first_authority_consuming_persistent_write"] = (
+        FIRST_AUTHORITY_CONSUMING_PERSISTENT_WRITE_V2
+    )
+    private["private_preimage_checks"] = list(PRIVATE_PREIMAGE_CHECKS)
+    private["private_write_authority"] = [
+        "create, seal and mandatorily remove only the exact dev/inode-bound /private/tmp Git metadata adapter "
+        "scratch; cleanup uncertainty or residue is terminal and this scratch never consumes the challenge",
+    ] + [
+        value
+        for value in private["private_write_authority"]
+        if not value.startswith("create, seal and mandatorily remove only the exact dev/inode-bound /private/tmp")
+    ]
+    private["private_read_authority"] = [
+        (
+            "directly capture live Git control, HEAD, index, refs, config, hooks and object-store evidence into a "
+            "path-free keyed source receipt; Git children read only the sealed adapter and source CAS is repeated "
+            "before cleanup"
+            if value.startswith("read Git control marker/commondir/config/alternate-control state")
+            else value
+        )
+        for value in private["private_read_authority"]
+    ]
+    private["retention"] = (
+        "persistent challenge claim and ledger are retained outside repo and never automatically deleted; failed "
+        "stage and any published target are never automatically deleted; the private-temp Git adapter is never "
+        "retained intentionally and success requires exact cleanup with residue_count zero"
+    )
+    template["privacy"]["git_metadata_adapter_trust_boundary"] = (
+        GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1
+    )
+    return template
+
+
+_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON = json.dumps(
+    synchronize_pending_template_git_adapter_v2(
+        json.loads(_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_BASE_JSON)
+    ),
+    ensure_ascii=True,
+    sort_keys=True,
+    separators=(",", ":"),
+)
 
 
 def build_pending_envelope_v2(
@@ -8629,8 +12381,15 @@ def build_pending_envelope_v2(
         or tuple(git_state.get("worktree_exact_file_exclusions") or ()) != (expected_output,)
     ):
         fail(Exit.CONTRACT, "GENERATION_GIT_BINDING")
-    for key in ("commitment", "dirty_manifest_commitment"):
+    for key in ("commitment", "dirty_manifest_commitment", "git_metadata_source_commitment"):
         require_sha256(git_state.get(key), "GENERATION_GIT_" + key.upper())
+    if (
+        git_state.get("git_metadata_adapter_profile") != GIT_METADATA_ADAPTER_PROFILE_V3
+        or git_state.get("git_metadata_adapter_cleanup_state") != "removed"
+        or git_state.get("git_metadata_adapter_residue_count") != 0
+        or git_state.get("live_git_control_child_read_count") != 0
+    ):
+        fail(Exit.CONTRACT, "GENERATION_GIT_ADAPTER")
     processes = observed.get("process_census")
     if not isinstance(processes, Mapping) or processes.get("claude_session_count") != 0:
         fail(Exit.CONTRACT, "GENERATION_PROCESS_CENSUS")
@@ -8704,7 +12463,9 @@ def build_pending_envelope_v2(
     locators = validate_locator_commitment_projection_v2(
         observed.get("authorized_locator_commitments")
     )
-    template = json.loads(_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON)
+    template = synchronize_pending_template_git_adapter_v2(
+        json.loads(_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON)
+    )
     if not isinstance(template, dict):
         fail(Exit.INTERNAL, "PENDING_TEMPLATE")
     predecessor = {
@@ -8783,7 +12544,7 @@ def build_pending_envelope_v2(
     execution = template["execution_plan"]
     execution["attempt_policy"] = ATTEMPT_POLICY_V2
     execution["environment_mode"] = ENVIRONMENT_MODE_V2
-    execution["git_child_sandbox_profile"] = GIT_CHILD_SANDBOX_PROFILE_V1
+    execution["git_child_sandbox_profile"] = GIT_CHILD_SANDBOX_PROFILE_V3
     execution["executor_argv_template"] = list(EXECUTOR_ARGV_TEMPLATE_V2)
     execution["executor_argv_template_sha256"] = sha256(
         EXECUTOR_ARGV_TEMPLATE_DOMAIN + b"\x00" + canonical_json(execution["executor_argv_template"])
@@ -9016,7 +12777,7 @@ def build_census(
         recorder.passed(
             "G04",
             {
-                "authorized_subprocess_role_count": len(TOOLCHAIN_ROLES[4:]),
+                "authorized_subprocess_role_count": len(AUTHORIZED_SUBPROCESS_ROLES),
                 "shell_allowed": False,
                 "network_capable_child_authorized": False,
                 "authorized_network_call_site_invocation_count": 0,
@@ -9355,7 +13116,7 @@ def command_acquire(args: argparse.Namespace) -> Dict[str, Any]:
         recorder.passed(
             "G04",
             {
-                "authorized_subprocess_role_count": len(TOOLCHAIN_ROLES[4:]),
+                "authorized_subprocess_role_count": len(AUTHORIZED_SUBPROCESS_ROLES),
                 "shell_allowed": False,
                 "network_capable_child_authorized": False,
                 "authorized_network_call_site_invocation_count": 0,
@@ -9457,7 +13218,7 @@ def command_acquire(args: argparse.Namespace) -> Dict[str, Any]:
             {
                 "challenge_claim_created": True,
                 "ledger_receipt_consumed_recorded": True,
-                "first_authorized_write_contract": "exclusive-0700-challenge-mkdir",
+                "first_authority_consuming_persistent_write_contract": "exclusive-0700-challenge-mkdir",
             },
         )
         ledger.append(
@@ -9951,6 +13712,8 @@ def command_acquire(args: argparse.Namespace) -> Dict[str, Any]:
             returning_linearized_success = True
             return recovered_success
         error_code, public_code = public_error_identity(error)
+        if public_code.startswith("GIT_ADAPTER_CLEANUP_"):
+            attempt.adapter_cleanup_uncertain()
         recorder.failed(public_code, int(error_code))
         try:
             observe_retained_publication_state(

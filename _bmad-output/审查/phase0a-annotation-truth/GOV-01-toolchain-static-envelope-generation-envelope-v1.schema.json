@@ -376,6 +376,7 @@
           "const": [
             "xcode-select-resolver",
             "xcrun-resolver",
+            "git-metadata-adapter-bootstrap",
             "git-read-only-evidence",
             "pgrep-read-only-evidence",
             "lsof-read-only-evidence"
@@ -385,10 +386,10 @@
         "network_allowed": { "const": false },
         "node_npm_npx_openspec_allowed": { "const": false },
         "environment_profile": {
-          "const": "new exact sanitized environment; HOME=/var/empty and TMPDIR=DARWIN_USER_TEMP_DIR=/tmp for public resolver and Git evidence; GIT_OPTIONAL_LOCKS=0; global and system config disabled; protocol.allow=never; fsmonitor hooks attributes and external alternates rejected before Git status"
+          "const": "new exact sanitized environment; HOME=/var/empty and TMPDIR=DARWIN_USER_TEMP_DIR=/tmp; every Git child starts only after fchdir to the exact identity-bound adapter Git directory and uses relative --git-dir=.; bootstrap Git receives only exact captured GIT_OBJECT_DIRECTORY while global/system config, inherited alternates and protocols are disabled; final Git evidence unsets live object access and uses only the sealed adapter; fsmonitor, hooks, attributes, includes, alternates, grafts, network, and worktree reads are rejected or sandbox-denied"
         },
         "git_child_sandbox_profile": {
-          "const": "every Git child calls /usr/lib/libsandbox.1.dylib sandbox_init exactly once before exec with a generated default-deny profile; permits only the content-bound CommandLineTools tree, validated Git control metadata, exact object and ref stores and required path ancestors; denies network, writes, worktree payload reads, config includes, alternates, grafts and all other reads; sandbox initialization failure is terminal; /usr/bin/sandbox-exec is never executed"
+          "const": "every Git child calls /usr/lib/libsandbox.1.dylib sandbox_init exactly once before exec with a generated default-deny profile; before every Git exec the parent passes only one per-child duplicate of the pinned adapter-Git directory FD, and preexec performs fchdir of that exact identity, closes the duplicate, then calls sandbox_init exactly once; no usable directory FD reaches Git, fixed argv uses relative --git-dir=., and no path discovery is permitted; the git-metadata-adapter-bootstrap role permits only the content-bound CommandLineTools tree, one unsealed checkpoint-scoped private-temporary adapter, captured live pack or loose object containers needed to extract the exact approved OID set, and adapter-only writes needed by index-pack; it denies network, worktree payload, every live Git control path, alternates and graft bytes, and all other reads or writes; after source CAS and sealing, git-read-only-evidence permits only the CommandLineTools tree and sealed adapter and denies writes and all live Git or worktree reads; the parent revalidates captured live source before adapter removal; every child profile explicitly denies create rename unlink or write authority over the private-temporary parent namespace and sibling adapter roots, while index-pack writes are restricted to the pinned current adapter objects/pack directory; sandbox initialization failure is terminal; /usr/bin/sandbox-exec is never executed"
         }
       }
     },
@@ -396,19 +397,47 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "first_authorized_write",
+        "first_authority_consuming_persistent_write",
+        "allowed_ephemeral_mutations",
+        "temporary_git_metadata_adapter_profile",
+        "git_metadata_adapter_trust_boundary",
+        "git_metadata_adapter_host_assurance",
+        "git_metadata_adapter_cleanup_guarantee",
+        "temporary_adapter_cleanup_required",
+        "temporary_adapter_residue_allowed",
         "allowed_persistent_mutations",
         "output_mode",
         "overwrite_allowed",
-        "cleanup_allowed",
+        "product_state_cleanup_allowed",
         "sidecar_allowed",
         "commit_allowed",
         "push_allowed"
       ],
       "properties": {
-        "first_authorized_write": {
+        "first_authority_consuming_persistent_write": {
           "const": "exclusive mkdirat of exact claims/generation-claim-<approved-GOV01-GEN-challenge> mode 0700 after every private read schema manual privacy and drift check has passed; EEXIST permanently forbids minting another acquisition challenge"
         },
+        "allowed_ephemeral_mutations": {
+          "const": [
+            "create one fresh unique checkpoint-scoped private-temporary 0700 Git metadata adapter for each production Git evidence checkpoint after the applicable public issue invocation or exact GEN receipt has authorized Git inspection; permit at most one active adapter owner within a process",
+            "write only its 0600 sanitized Git control metadata through pinned root and Git directory FDs; resolve bootstrap and import argv only from the identity-bound adapter Git cwd with relative --git-dir=., keep index-pack pack/index output beneath objects/pack, verify every exact-OID partial-pack object hash, then seal files 0400 beneath 0500 directories through pinned FDs; no adapter locator or raw metadata may enter public output",
+            "within the declared trust boundary and host assurance, remove the unique registered adapter at its authorized pathname only after captured root and Git identity checks, then require authorized-path absence and zero registry residue before success or retryable pre-claim failure"
+          ]
+        },
+        "temporary_git_metadata_adapter_profile": {
+          "const": "checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3"
+        },
+        "git_metadata_adapter_trust_boundary": {
+          "const": "the kernel and each owning same-UID production process are trusted; POSIX 0600 and 0700 modes isolate other UIDs but do not isolate an unsandboxed process with the same effective UID, so each adapter root has exactly one owning process and compliant same-UID product processes never mutate another invocation's root; non-cooperating same-UID filesystem mutation, out-of-process ptrace or code injection, and out-of-process access to the 0600 private HMAC key are outside the supported threat model"
+        },
+        "git_metadata_adapter_host_assurance": {
+          "const": "every spawned Git child is sandboxed and has no authority to create, rename, unlink or write the private-temporary parent namespace or any sibling adapter root; the product owns only the fresh exact adapter entry, root and descendants for that invocation, while /private/tmp and sibling entries remain ambient host namespace; every product invocation creates one fresh unique adapter root; the process-wide non-reentrant scope and registry forbid interleaved adapter ownership within one process and do not claim cross-process exclusion"
+        },
+        "git_metadata_adapter_cleanup_guarantee": {
+          "const": "under the declared Git metadata adapter trust boundary and host assurance, cleanup success or retryable pre-claim failure requires pre-removal root and Git identity agreement, authorized-path removal, post-removal absence, and zero pathname and registry residue; any observed root or Git identity drift, missing authorized pathname, cleanup error, or residue is terminal and quiescence must fail; preservation against a non-cooperating same-UID replacement at the final pathname-deletion linearization point is outside the supported guarantee"
+        },
+        "temporary_adapter_cleanup_required": { "const": true },
+        "temporary_adapter_residue_allowed": { "const": false },
         "allowed_persistent_mutations": {
           "const": [
             "create and fsync exactly one previously-absent 0700 generation claim directory beneath the existing receipt-bound claims container",
@@ -419,7 +448,7 @@
         },
         "output_mode": { "const": "0644" },
         "overwrite_allowed": { "const": false },
-        "cleanup_allowed": { "const": false },
+        "product_state_cleanup_allowed": { "const": false },
         "sidecar_allowed": { "const": false },
         "commit_allowed": { "const": false },
         "push_allowed": { "const": false }
@@ -467,6 +496,7 @@
       "additionalProperties": false,
       "required": [
         "pre_output_failure",
+        "temporary_adapter_failure",
         "post_create_failure",
         "existing_complete_output",
         "existing_partial_or_invalid_output",
@@ -474,7 +504,10 @@
       ],
       "properties": {
         "pre_output_failure": {
-          "const": "before the generation claim mkdir, zero write; the exact approved read-only generation preflight may rerun before expiry only while every bound public and private input is unchanged and both claim and output remain absent"
+          "const": "before the generation claim mkdir, no persistent repository control product claim or output write; the exact approved preflight may use only checkpoint-scoped private-temporary Git metadata adapters and may rerun before expiry only after exact cleanup with zero residue while every bound input is unchanged and both claim and output remain absent"
+        },
+        "temporary_adapter_failure": {
+          "const": "adapter cleanup failure root-identity uncertainty or any residue is terminal fail-closed for this attempt: do not publish, do not report retryable, retain evidence for private inspection, and require new authority before another attempt"
         },
         "post_create_failure": {
           "const": "after the generation claim mkdir, retain claim record and any output bytes and stop; never truncate delete overwrite repair or mint another acquisition challenge from this generation authority"
@@ -486,7 +519,7 @@
           "const": "a partial or invalid generation claim is terminal consumed; a valid claim with absent output may recreate only its exact fixed raw output; any partial invalid or drifted existing output is retained and requires a new generation micro-envelope"
         },
         "retry_policy": {
-          "const": "single-use begins at successful exclusive generation claim mkdir; pre-claim read-only failures may rerun within the exact receipt TTL; every post-claim path is pinned to the claim-authenticated acquisition challenge timestamps and final raw digest"
+          "const": "single-use begins at successful exclusive generation claim mkdir; only a pre-claim failure with confirmed temporary-adapter cleanup and zero residue may rerun within the exact receipt TTL; every post-claim path is pinned to the claim-authenticated acquisition challenge timestamps and final raw digest"
         }
       }
     },
@@ -524,6 +557,7 @@
       "additionalProperties": false,
       "required": [
         "whole_envelope_checker",
+        "git_metadata_adapter_trust_boundary",
         "raw_private_locator_public_count",
         "private_key_publication_allowed",
         "raw_command_output_publication_allowed",
@@ -534,6 +568,9 @@
       "properties": {
         "whole_envelope_checker": {
           "const": "field-aware recursive checker before write and before stdout; repo paths use strict relative grammar; tool logical IDs and versions use role-specific ASCII grammar; only schema-enumerated fixed public system command locators and placeholders are allowed; all other absolute home file-URI Vault .obsidian control bidi and secret-bearing values are rejected"
+        },
+        "git_metadata_adapter_trust_boundary": {
+          "const": "the kernel and each owning same-UID production process are trusted; POSIX 0600 and 0700 modes isolate other UIDs but do not isolate an unsandboxed process with the same effective UID, so each adapter root has exactly one owning process and compliant same-UID product processes never mutate another invocation's root; non-cooperating same-UID filesystem mutation, out-of-process ptrace or code injection, and out-of-process access to the 0600 private HMAC key are outside the supported threat model"
         },
         "raw_private_locator_public_count": { "const": 0 },
         "private_key_publication_allowed": { "const": false },

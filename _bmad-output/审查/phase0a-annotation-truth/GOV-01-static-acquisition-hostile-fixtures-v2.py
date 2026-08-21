@@ -507,10 +507,14 @@ def synthetic_gate_evidence(gate_id):
     zero = "0" * 64
     values = {
         "G00": {"schema_sha256": zero, "schema_bytes": 1, "schema_count": 3, "schema_bundle_receipt_sha256": zero, "manual_critical_contract_passed": True},
-        "G01": {"challenge_claim_created": True, "ledger_receipt_consumed_recorded": True, "first_authorized_write_contract": "exclusive-0700-challenge-mkdir"},
+        "G01": {
+            "challenge_claim_created": True,
+            "ledger_receipt_consumed_recorded": True,
+            "first_authority_consuming_persistent_write_contract": "exclusive-0700-challenge-mkdir",
+        },
         "G02": {"authorized_locator_commitment_count": 5, "private_control_identity_commitment": zero, "private_locator_public_count": 0, "private_vault_read_count": 0},
         "G03": {"toolchain_role_count": 9, "toolchain_set_receipt_sha256": zero, "dynamic_closure_receipt_sha256": zero, "assurance": "runtime-self-attested-not-pre-exec", "pre_exec_launcher_attested": False},
-        "G04": {"authorized_subprocess_role_count": 5, "shell_allowed": False, "network_capable_child_authorized": False, "authorized_network_call_site_invocation_count": 0, "runtime_network_syscall_observation_available": False, "assurance": "static-structural-self-attestation-not-syscall-observation"},
+        "G04": {"authorized_subprocess_role_count": 6, "shell_allowed": False, "network_capable_child_authorized": False, "authorized_network_call_site_invocation_count": 0, "runtime_network_syscall_observation_available": False, "assurance": "static-structural-self-attestation-not-syscall-observation"},
         "G05": {"selected_package_count": 167, "compressed_bytes": 13916529, "content_receipt_sha256": "ade2bf32961a18ba9365b1aef1df3456471622759cbf56890ecfbdd40e92a60b"},
         "G06": {"raw_member_count": 4117, "ustar_closure_sha256": "bd9a30d26415f06e20dc61c551e34fface39c376b5f761518bb69cca72efe9bb"},
         "G07": {"parser": "custom-fixed-512-byte-ustar", "gzip_stream_count": 1, "required_zero_eoa_blocks": 2},
@@ -1152,6 +1156,281 @@ def synthesize_schema_instance(schema):
     return instance
 
 
+def build_real_pending_envelope_from_synthetic_observations(acquisition, schema_witness):
+    """Reproject a schema witness through the production pending-envelope builder."""
+    artifacts = copy.deepcopy(schema_witness["artifacts"])
+    artifact_by_role = {entry["role"]: entry for entry in artifacts}
+    artifact_observations = [
+        {
+            "role": entry["role"],
+            "path": entry["path"],
+            "bytes": entry["byte_length"],
+            "sha256": entry["raw_file_sha256"],
+        }
+        for entry in artifacts
+    ]
+    tool_entries = copy.deepcopy(schema_witness["frozen_toolchain"]["entries"])
+    generation = schema_witness["generation_authorization"]
+    preimage = schema_witness["authorization_preimage"]
+    challenge = schema_witness["approval_challenge_id"]
+    output_path = generation["generated_acquisition_envelope_repo_relative_path"]
+    lock_closure = schema_witness["lock_closure"]
+    observations = {
+        "artifacts": artifacts,
+        "schema_binding_observation": {
+            "path": artifact_by_role["pending-envelope-schema"]["path"],
+            "sha256": artifact_by_role["pending-envelope-schema"]["raw_file_sha256"],
+            "bytes": artifact_by_role["pending-envelope-schema"]["byte_length"],
+            "schema_count": 3,
+            "schema_bundle_receipt_sha256": "0" * 64,
+        },
+        "toolchain": {
+            "entries": tool_entries,
+            "toolchain_set_receipt_sha256": acquisition["toolchain_set_receipt"](tool_entries),
+            "dynamic_closure_receipt_sha256": acquisition["dynamic_toolchain_receipt"](tool_entries),
+        },
+        "git_snapshot": {
+            "head": generation["authorization_commit_oid"],
+            "tree": generation["authorization_tree_oid"],
+            "object_format": preimage["git_object_format"],
+            "commitment": preimage["git_snapshot_commitment"],
+            "dirty_manifest_commitment": "0" * 64,
+            "git_metadata_source_commitment": "0" * 64,
+            "git_metadata_adapter_profile": acquisition["GIT_METADATA_ADAPTER_PROFILE_V3"],
+            "git_metadata_adapter_cleanup_state": "removed",
+            "git_metadata_adapter_residue_count": 0,
+            "live_git_control_child_read_count": 0,
+            "worktree_tree_exclusions": (
+                ".gov01-toolchain-stage-" + challenge,
+                acquisition["TARGET_NAME"],
+            ),
+            "worktree_exact_file_exclusions": (output_path,),
+            "status_bytes": 0,
+        },
+        "process_census": {
+            "claude_session_count": preimage["target_worktree_claude_sessions"],
+        },
+        "package_lock_raw_sha256": artifact_by_role["package-lock"]["raw_file_sha256"],
+        "lock_observation": {
+            key: lock_closure[key] for key in acquisition["LOCK_OBSERVATION_FIELDS"]
+        },
+        "static_expected": schema_witness["static_acquisition_contract"]["expected"],
+        "hmac_key_id": schema_witness["private_state_authorization"]["hmac_key_id"],
+        "authorized_locator_commitments": schema_witness["private_state_authorization"][
+            "authorized_locator_commitments"
+        ],
+        "private_control_identity_commitment": schema_witness["private_state_authorization"][
+            "private_control_identity_commitment"
+        ],
+        "public_repo_artifact_set_receipt_sha256": acquisition["public_artifact_set_receipt"](
+            artifact_observations
+        ),
+        "private_preapproval_commitment": preimage["private_preapproval_commitment"],
+        "predecessor_projection": {
+            key: schema_witness["predecessor"][key]
+            for key in (
+                "control_preparation_result_raw_sha256",
+                "control_preparation_evidence_receipt_sha256",
+                "control_preparation_approval_challenge_id",
+                "control_preparation_state",
+            )
+        },
+        "envelope_repo_relative_path": output_path,
+    }
+    candidate = acquisition["build_pending_envelope_v2"](
+        approval_challenge_id=challenge,
+        census_at_utc=schema_witness["census_at_utc"],
+        not_after_utc=schema_witness["not_after_utc"],
+        generation_authorization=generation,
+        observations=observations,
+    )
+    if candidate == schema_witness:
+        raise AssertionError("production builder was bypassed by the synthetic witness")
+    return candidate
+
+
+def json_pointer(path):
+    return "#" if not path else "#/" + "/".join(
+        str(component).replace("~", "~0").replace("/", "~1") for component in path
+    )
+
+
+def iter_bool_int_scalar_paths(value, path=()):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield from iter_bool_int_scalar_paths(child, path + (key,))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from iter_bool_int_scalar_paths(child, path + (index,))
+    elif type(value) in (bool, int):
+        yield path, value
+
+
+def iter_leaf_paths(value, path=()):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield from iter_leaf_paths(child, path + (key,))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from iter_leaf_paths(child, path + (index,))
+    else:
+        yield path, value
+
+
+def value_at_path(value, path):
+    current = value
+    for component in path:
+        current = current[component]
+    return current
+
+
+def replace_at_path(value, path, replacement):
+    current = value
+    for component in path[:-1]:
+        current = current[component]
+    current[path[-1]] = replacement
+
+
+def pending_dynamic_none_overlay_coverage(acquisition, candidate):
+    template = json.loads(acquisition["_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON"])
+    none_paths = sorted(
+        path for path, value in iter_leaf_paths(template) if value is None
+    )
+    overlay_rows = []
+    dynamic_scalar_rows = []
+    unclassified = []
+    expected_lock_structure = acquisition["pending_lock_observation_expected_structure"](
+        candidate["static_acquisition_contract"]["expected"]
+    )
+    if frozenset(expected_lock_structure) != acquisition["LOCK_OBSERVATION_FIELDS"]:
+        raise AssertionError("lock observation expected projection is incomplete")
+    for path in none_paths:
+        actual = value_at_path(candidate, path)
+        overlay_rows.append(
+            {"path": json_pointer(path), "actual_container_or_scalar_type": type(actual).__name__}
+        )
+        for suffix, scalar in iter_bool_int_scalar_paths(actual):
+            full_path = path + suffix
+            if path == ("static_acquisition_contract", "expected"):
+                coverage = "validated-static-expected-structure"
+            elif (
+                len(path) == 2
+                and path[0] == "lock_closure"
+                and path[1] in expected_lock_structure
+            ):
+                coverage = "lock-observation-expected-structure-projection"
+            elif path in (
+                ("authorization_preimage", "forbidden_process_match_count"),
+                ("authorization_preimage", "target_worktree_claude_sessions"),
+            ):
+                coverage = "authorization-preimage-exact-zero-consumer"
+            else:
+                coverage = "unclassified"
+                unclassified.append(json_pointer(full_path))
+            dynamic_scalar_rows.append(
+                {
+                    "path": json_pointer(full_path),
+                    "type": "boolean" if type(scalar) is bool else "integer",
+                    "coverage": coverage,
+                }
+            )
+    if unclassified:
+        raise AssertionError("unclassified dynamic bool/int overlay: " + ",".join(unclassified))
+    overlay_paths = [row["path"] for row in overlay_rows]
+    dynamic_paths = [row["path"] for row in dynamic_scalar_rows]
+    return {
+        "template_none_overlay_count": len(overlay_rows),
+        "template_none_overlay_paths": overlay_paths,
+        "template_none_overlay_path_set_sha256": acquisition["sha256"](
+            b"CLS/GOV01/PENDING-TEMPLATE-NONE-OVERLAY-PATH-SET/v1\x00"
+            + acquisition["canonical_json"](overlay_paths)
+        ),
+        "bool_int_leaf_count": len(dynamic_scalar_rows),
+        "bool_int_leaf_paths": dynamic_scalar_rows,
+        "bool_int_leaf_path_set_sha256": acquisition["sha256"](
+            b"CLS/GOV01/PENDING-DYNAMIC-BOOL-INT-PATH-SET/v1\x00"
+            + acquisition["canonical_json"](dynamic_paths)
+        ),
+        "classified_bool_int_leaf_count": len(dynamic_scalar_rows),
+        "unclassified_bool_int_leaf_paths": unclassified,
+    }
+
+
+def pending_builder_bool_int_scalar_type_parity(acquisition, validator, candidate, witness_now):
+    validator.validate(candidate)
+    acquisition["validate_manual_envelope_contract"](candidate, now=witness_now)
+    scalar_rows = sorted(iter_bool_int_scalar_paths(candidate), key=lambda item: json_pointer(item[0]))
+    typed_paths = [
+        {
+            "path": json_pointer(path),
+            "type": "boolean" if type(value) is bool else "integer",
+        }
+        for path, value in scalar_rows
+    ]
+    schema_rejection_count = 0
+    manual_rejection_count = 0
+    for path, value in scalar_rows:
+        hostile = copy.deepcopy(candidate)
+        replacement = int(value) if type(value) is bool else bool(value)
+        replace_at_path(hostile, path, replacement)
+        schema_rejected = not validator.is_valid(hostile)
+        try:
+            acquisition["validate_manual_envelope_contract"](hostile, now=witness_now)
+        except acquisition["ContractError"]:
+            manual_rejected = True
+        else:
+            manual_rejected = False
+        schema_rejection_count += int(schema_rejected)
+        manual_rejection_count += int(manual_rejected)
+        if schema_rejected != manual_rejected:
+            raise AssertionError("schema/manual scalar-type difference at " + json_pointer(path))
+        if not schema_rejected:
+            raise AssertionError("bool/int scalar mutation unexpectedly accepted at " + json_pointer(path))
+    template = json.loads(acquisition["_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON"])
+    template_typed_paths = {
+        json_pointer(path): type(value)
+        for path, value in iter_bool_int_scalar_paths(template)
+    }
+    candidate_types = {json_pointer(path): type(value) for path, value in scalar_rows}
+    if any(candidate_types.get(path) is not kind for path, kind in template_typed_paths.items()):
+        raise AssertionError("synchronized template bool/int coverage drift")
+    dynamic_coverage = pending_dynamic_none_overlay_coverage(acquisition, candidate)
+    builder_only_count = len(typed_paths) - len(template_typed_paths) - dynamic_coverage["bool_int_leaf_count"]
+    if (
+        len(typed_paths) != 145
+        or sum(row["type"] == "boolean" for row in typed_paths) != 66
+        or sum(row["type"] == "integer" for row in typed_paths) != 79
+        or len(template_typed_paths) != 82
+        or dynamic_coverage["template_none_overlay_count"] != 29
+        or dynamic_coverage["bool_int_leaf_count"] != 30
+        or builder_only_count != 33
+    ):
+        raise AssertionError("pending builder bool/int frozen coverage count drift")
+    return {
+        "builder": "build_pending_envelope_v2",
+        "production_builder_baseline_differs_from_schema_witness": True,
+        "mutation_count": len(typed_paths),
+        "bool_path_count": sum(row["type"] == "boolean" for row in typed_paths),
+        "int_path_count": sum(row["type"] == "integer" for row in typed_paths),
+        "integer_zero_or_one_baseline_count": sum(
+            type(value) is int and value in (0, 1) for _, value in scalar_rows
+        ),
+        "schema_rejection_count": schema_rejection_count,
+        "manual_rejection_count": manual_rejection_count,
+        "typed_paths": typed_paths,
+        "typed_path_set_sha256": acquisition["sha256"](
+            b"CLS/GOV01/PENDING-BOOL-INT-SCALAR-PATH-SET/v1\x00"
+            + acquisition["canonical_json"](typed_paths)
+        ),
+        "coverage_partition": {
+            "synchronized_template_bool_int_leaf_count": len(template_typed_paths),
+            "dynamic_none_overlay_bool_int_leaf_count": dynamic_coverage["bool_int_leaf_count"],
+            "builder_structure_bool_int_leaf_count": builder_only_count,
+        },
+        "dynamic_none_overlay_coverage": dynamic_coverage,
+    }
+
+
 def validate_public_result_branch_schema_equivalence(
     acquisition,
     public_schema,
@@ -1748,6 +2027,1155 @@ def validate_public_failure_state_schema_equivalence(
     assert accepted_total == 484
 
 
+def run_git_metadata_adapter_hostile_fixtures(acquisition, report):
+    """Run only synthetic Git-adapter tests; never call census/verify/acquire."""
+
+    prefix = acquisition["GIT_ADAPTER_TEMP_PREFIX"]
+
+    def adapter_roots():
+        return {str(path) for path in pathlib.Path("/private/tmp").glob(prefix + "*")}
+
+    # This probe is deliberately first.  Nested Codex sandbox refusal is a
+    # structured non-PASS mode; an elevated run executes the matrix below with
+    # the production inner sandbox enabled.
+    true_binary = "/usr/bin/true"
+    old_true = acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].get(true_binary)
+    acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][true_binary] = acquisition[
+        "hash_regular_absolute"
+    ](true_binary, "ADAPTER_SANDBOX_PROBE")["sha256"]
+    try:
+        try:
+            acquisition["run_process"](
+                [true_binary], acquisition["git_env"](), 4096, "ADAPTER_SANDBOX_PROBE",
+                sandbox_profile=(
+                    b"(version 1)\n"
+                    b"(deny default)\n"
+                    b"(import \"system.sb\")\n"
+                    b"(deny network*)\n"
+                    b"(allow process-exec (literal \"/usr/bin/true\"))\n"
+                    b"(allow process-fork)\n"
+                    b"(allow signal (target self))\n"
+                    b"(allow file-read* file-test-existence (literal \"/usr/bin/true\"))\n"
+                ),
+            )
+        except acquisition["ContractError"] as error:
+            if error.public_code != "ADAPTER_SANDBOX_PROBE_SANDBOX_INIT":
+                raise
+            sandbox_mode = "nested-host-sandbox-refused-second-sandbox-fail-closed"
+        else:
+            sandbox_mode = "host-sandbox-enforced-positive"
+    finally:
+        if old_true is None:
+            acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].pop(true_binary, None)
+        else:
+            acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][true_binary] = old_true
+    report["git_metadata_adapter_inner_sandbox_matrix"] = sandbox_mode
+
+    if sandbox_mode != "host-sandbox-enforced-positive":
+        report["git_metadata_adapter_private_tmp_write_sandbox_capability"] = sandbox_mode
+    else:
+        # A real native child executes each syscall.  This is not a profile
+        # string inspection: success means the kernel sandbox returned
+        # EPERM/EACCES and the parent independently observed no mutation.
+        with tempfile.TemporaryDirectory(
+            prefix="gov01-adapter-sandbox-probe-", dir="/private/tmp"
+        ) as probe_temporary:
+            probe_root = pathlib.Path(probe_temporary)
+            probe_source = probe_root / "probe.c"
+            probe_binary = probe_root / "probe"
+            write_bytes(
+                probe_source,
+                b"""#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+static int denied(int result) {
+  if (result == -1 && (errno == EPERM || errno == EACCES)) return 0;
+  return result == 0 ? 40 : 41;
+}
+int main(int argc, char **argv) {
+  if (argc < 3) return 50;
+  if (strcmp(argv[1], "touch-ok") == 0) {
+    int fd = open(argv[2], O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (fd < 0 || close(fd) != 0) return 51;
+    return 0;
+  }
+  errno = 0;
+  if (strcmp(argv[1], "mkdir-denied") == 0)
+    return denied(mkdir(argv[2], 0700));
+  if (strcmp(argv[1], "rmdir-denied") == 0)
+    return denied(rmdir(argv[2]));
+  if (strcmp(argv[1], "rename-denied") == 0 && argc == 4)
+    return denied(rename(argv[2], argv[3]));
+  return 52;
+}
+""",
+                0o600,
+            )
+            compiled = subprocess.run(
+                [
+                    "/usr/bin/clang", "-std=c11", "-Wall", "-Wextra", "-Werror",
+                    "-Os", str(probe_source), "-o", str(probe_binary),
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C", "LANG": "C"},
+            )
+            if compiled.returncode != 0:
+                raise AssertionError("native sandbox write probe compilation failed")
+            os.chmod(probe_binary, 0o500)
+            adapter_root = pathlib.Path(
+                tempfile.mkdtemp(prefix=prefix, dir="/private/tmp")
+            )
+            empty_adapter_root = pathlib.Path(
+                tempfile.mkdtemp(prefix=prefix, dir="/private/tmp")
+            )
+            sibling = pathlib.Path(str(adapter_root) + ".sibling")
+            moved = pathlib.Path(str(adapter_root) + ".moved")
+            adapter_git = adapter_root / "git"
+            adapter_pack = adapter_git / "objects/pack"
+            adapter_pack.mkdir(parents=True, mode=0o700)
+            probe_repo = probe_root / "repo"
+            live_git = probe_root / "live-git"
+            live_common = probe_root / "live-common"
+            live_objects = live_common / "objects"
+            for directory in (probe_repo, live_git, live_objects):
+                directory.mkdir(parents=True, mode=0o700)
+            probe_path = str(probe_binary)
+            old_probe_hash = acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].get(probe_path)
+            old_probe_developer = acquisition["_GIT_DEVELOPER_ROOTS"].get(probe_path)
+            acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][probe_path] = acquisition[
+                "hash_regular_absolute"
+            ](probe_path, "ADAPTER_SANDBOX_WRITE_PROBE")["sha256"]
+            acquisition["_GIT_DEVELOPER_ROOTS"][probe_path] = str(probe_root)
+            git_fd = os.open(adapter_git, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                write_profile = acquisition["git_object_bootstrap_sandbox_profile"](
+                    probe_path,
+                    str(probe_repo),
+                    str(probe_root),
+                    str(adapter_root),
+                    ".",
+                    str(live_git),
+                    str(live_common),
+                    str(live_objects),
+                    False,
+                    True,
+                    (),
+                    (),
+                )
+                allowed_file = adapter_pack / "allowed"
+                acquisition["run_process"](
+                    [probe_path, "touch-ok", str(allowed_file)],
+                    acquisition["git_env"](),
+                    4096,
+                    "ADAPTER_SANDBOX_WRITE_ALLOWED",
+                    sandbox_profile=write_profile,
+                    working_directory_fd=git_fd,
+                )
+                assert allowed_file.is_file()
+                acquisition["run_process"](
+                    [probe_path, "mkdir-denied", str(sibling)],
+                    acquisition["git_env"](),
+                    4096,
+                    "ADAPTER_SANDBOX_PARENT_CREATE",
+                    sandbox_profile=write_profile,
+                    working_directory_fd=git_fd,
+                )
+                acquisition["run_process"](
+                    [probe_path, "rename-denied", str(adapter_root), str(moved)],
+                    acquisition["git_env"](),
+                    4096,
+                    "ADAPTER_SANDBOX_ROOT_RENAME",
+                    sandbox_profile=write_profile,
+                    working_directory_fd=git_fd,
+                )
+                empty_profile = acquisition["git_object_bootstrap_sandbox_profile"](
+                    probe_path,
+                    str(probe_repo),
+                    str(probe_root),
+                    str(empty_adapter_root),
+                    ".",
+                    str(live_git),
+                    str(live_common),
+                    str(live_objects),
+                    False,
+                    True,
+                    (),
+                    (),
+                )
+                acquisition["run_process"](
+                    [probe_path, "rmdir-denied", str(empty_adapter_root)],
+                    acquisition["git_env"](),
+                    4096,
+                    "ADAPTER_SANDBOX_ROOT_UNLINK",
+                    sandbox_profile=empty_profile,
+                    working_directory_fd=git_fd,
+                )
+                assert (
+                    not sibling.exists()
+                    and not moved.exists()
+                    and adapter_root.is_dir()
+                    and empty_adapter_root.is_dir()
+                )
+            finally:
+                os.close(git_fd)
+                if old_probe_hash is None:
+                    acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].pop(probe_path, None)
+                else:
+                    acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][probe_path] = old_probe_hash
+                if old_probe_developer is None:
+                    acquisition["_GIT_DEVELOPER_ROOTS"].pop(probe_path, None)
+                else:
+                    acquisition["_GIT_DEVELOPER_ROOTS"][probe_path] = old_probe_developer
+                if moved.exists() and not adapter_root.exists():
+                    os.rename(moved, adapter_root)
+                if sibling.exists():
+                    os.rmdir(sibling)
+                if empty_adapter_root.exists():
+                    os.rmdir(empty_adapter_root)
+                allowed_file = adapter_pack / "allowed"
+                if allowed_file.exists():
+                    allowed_file.unlink()
+                for directory in (adapter_pack, adapter_git / "objects", adapter_git, adapter_root):
+                    if directory.exists():
+                        os.rmdir(directory)
+            report["git_metadata_adapter_private_tmp_write_sandbox_capability"] = "PASS"
+
+    executor_source = ACQ_PATH.read_text(encoding="utf-8")
+    executor_tree = ast.parse(executor_source)
+    for retired_field in (
+        '"automatic_cleanup_authorized"',
+        '"automatic_cleanup_allowed"',
+        '"first_authorized_write"',
+        '"receipt_before_any_authorized_write"',
+        '"first_authorized_write_contract"',
+    ):
+        assert retired_field not in executor_source
+    for current_field in (
+        '"product_state_automatic_cleanup_authorized"',
+        '"temporary_adapter_cleanup_required"',
+        '"retained_product_state_automatic_cleanup_allowed"',
+        '"first_authority_consuming_persistent_write"',
+        '"receipt_before_first_authority_consuming_persistent_write"',
+        '"first_authority_consuming_persistent_write_contract"',
+    ):
+        assert current_field in executor_source
+    public_authority = acquisition["authority_projection"](False, False, "fixture-authority")
+    assert public_authority == {
+        "retry_authorized": False,
+        "public_success_attestation_allowed": False,
+        "product_state_automatic_cleanup_authorized": False,
+        "temporary_adapter_cleanup_required": True,
+        "openspec_execution_allowed": False,
+        "openspec_scaffold_allowed": False,
+        "commit_allowed": False,
+        "push_allowed": False,
+        "next_required_authority": "fixture-authority",
+    }
+    embedded = json.loads(acquisition["_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON"])
+    assert embedded == acquisition["synchronize_pending_template_git_adapter_v2"](
+        copy.deepcopy(embedded)
+    )
+    trust_boundary = acquisition["GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1"]
+    host_assurance = acquisition["GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1"]
+    cleanup_guarantee = acquisition["GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1"]
+    assert trust_boundary == (
+        "the kernel and each owning same-UID production process are trusted; POSIX 0600 and 0700 modes isolate "
+        "other UIDs but do not isolate an unsandboxed process with the same effective UID, so each adapter root has "
+        "exactly one owning process and compliant same-UID product processes never mutate another invocation's "
+        "root; non-cooperating same-UID filesystem mutation, out-of-process ptrace or code injection, and "
+        "out-of-process access to the 0600 private HMAC key are outside the supported threat model"
+    )
+    assert host_assurance == (
+        "every spawned Git child is sandboxed and has no authority to create, rename, unlink or write the "
+        "private-temporary parent namespace or any sibling adapter root; the product owns only the fresh exact "
+        "adapter entry, root and descendants for that invocation, while /private/tmp and sibling entries remain "
+        "ambient host namespace; every product invocation creates one fresh unique adapter root; the process-wide "
+        "non-reentrant scope and registry forbid interleaved adapter ownership within one process and do not claim "
+        "cross-process exclusion"
+    )
+    assert cleanup_guarantee == (
+        "under the declared Git metadata adapter trust boundary and host assurance, cleanup success or retryable "
+        "pre-claim failure requires pre-removal root and Git identity agreement, authorized-path removal, "
+        "post-removal absence, and zero pathname and registry residue; any observed root or Git identity drift, "
+        "missing authorized pathname, cleanup error, or residue is terminal and quiescence must fail; preservation "
+        "against a non-cooperating same-UID replacement at the final pathname-deletion linearization point is "
+        "outside the supported guarantee"
+    )
+    assert embedded["execution_plan"]["git_metadata_adapter_trust_boundary"] == trust_boundary
+    assert embedded["execution_plan"]["git_metadata_adapter_host_assurance"] == host_assurance
+    assert embedded["mutation_scope"]["git_metadata_adapter_trust_boundary"] == trust_boundary
+    assert embedded["mutation_scope"]["git_metadata_adapter_host_assurance"] == host_assurance
+    assert embedded["mutation_scope"]["git_metadata_adapter_cleanup_guarantee"] == cleanup_guarantee
+    assert embedded["failure_contract"]["git_metadata_adapter_cleanup_guarantee"] == cleanup_guarantee
+    assert embedded["privacy"]["git_metadata_adapter_trust_boundary"] == trust_boundary
+    runtime_assurance = acquisition["runtime_assurance_projection"]()
+    assert runtime_assurance["git_metadata_adapter_trust_boundary"] == trust_boundary
+    assert runtime_assurance["git_metadata_adapter_host_assurance"] == host_assurance
+    assert set(embedded["approval_receipt_contract"]) == {
+        "required_user_reference",
+        "receipt_must_match_raw_envelope_bytes",
+        "challenge_must_match",
+        "receipt_before_first_authority_consuming_persistent_write",
+        "first_authority_consuming_persistent_write",
+        "authority_is_exact",
+        "authority_expansion_allowed",
+    }
+    assert "first_authority_consuming_persistent_write" in embedded["private_state_authorization"]
+    assert "_GIT_READ_BOUNDARIES" not in {
+        node.id for node in ast.walk(executor_tree) if isinstance(node, ast.Name)
+    }
+    assert not any(
+        "/dev/fd" in node.value
+        for node in ast.walk(executor_tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    )
+    process_node = next(
+        node for node in executor_tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "run_process"
+    )
+    process_text = ast.unparse(process_node)
+    assert "os.dup(working_directory_fd)" in process_text
+    child_boundary_node = next(
+        node for node in process_node.body
+        if isinstance(node, ast.FunctionDef) and node.name == "initialize_child_boundary"
+    )
+    child_calls = [
+        ast.unparse(node.func)
+        for node in ast.walk(child_boundary_node)
+        if isinstance(node, ast.Call)
+    ]
+    assert child_calls.index("os.fchdir") < child_calls.index("sandbox_library.sandbox_init")
+    assert child_calls.index("os.close") < child_calls.index("sandbox_library.sandbox_init")
+    for node in ast.walk(executor_tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in ("run_git", "safe_git_scalar")
+        ):
+            assert len(node.args) >= 3
+            assert isinstance(node.args[2], ast.Name) and node.args[2].id == "boundary"
+    templates = (
+        acquisition["git_read_only_argv_templates_v2"]()
+        + acquisition["git_adapter_bootstrap_argv_templates_v2"]()
+    )
+    assert all(template.count("--git-dir=.") == 1 and "-C" not in template for template in templates)
+    report["git_metadata_adapter_ast_fd_and_template_boundary"] = "PASS"
+
+    roots_before = adapter_roots()
+    with tempfile.TemporaryDirectory(prefix="gov01-git-adapter-fixture-", dir="/private/tmp") as temporary:
+        temporary_path = pathlib.Path(temporary)
+        repo = temporary_path / "repo"
+        repo.mkdir(mode=0o700)
+        git_binary = "/Library/Developer/CommandLineTools/usr/bin/git"
+
+        def git_output(*arguments):
+            completed = subprocess.run(
+                [git_binary] + list(arguments), cwd=str(repo), stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False,
+                env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C", "LANG": "C"},
+            )
+            if completed.returncode != 0:
+                raise AssertionError("adapter fixture Git setup failed")
+            return completed.stdout
+
+        run_checked([git_binary, "init", "-q"], repo)
+        run_checked([git_binary, "config", "user.name", "fixture"], repo)
+        run_checked([git_binary, "config", "user.email", "fixture@example.invalid"], repo)
+        for index, (_role, relative) in enumerate(acquisition["PENDING_STATIC_ARTIFACT_SPECS"]):
+            target = repo / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            write_bytes(target, ("approved-%02d\n" % index).encode("ascii"), 0o600)
+        unrelated = repo / "unrelated/tracked-body.txt"
+        unrelated.parent.mkdir(parents=True)
+        write_bytes(unrelated, b"unrelated tracked body\n", 0o600)
+        run_checked([git_binary, "add", "--all"], repo)
+        run_checked([git_binary, "commit", "-q", "-m", "adapter fixture"], repo)
+        head_oid = git_output("rev-parse", "HEAD").strip().decode("ascii")
+        unrelated_oid = git_output("rev-parse", "HEAD:unrelated/tracked-body.txt").strip().decode("ascii")
+        key = b"g" * 32
+        challenge = "GOV01-SA-20260821-" + ("a" * 64)
+        generation = "GOV01-GEN-20260821-" + ("b" * 64)
+        stage = ".gov01-toolchain-stage-" + challenge
+        envelope_relative = (
+            acquisition["CONTROL_PREFIX"] + acquisition["PENDING_ENVELOPE_BASENAME_PREFIX"]
+            + generation + ".json"
+        )
+        old_hash = acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].get(git_binary)
+        old_developer = acquisition["_GIT_DEVELOPER_ROOTS"].get(git_binary)
+        acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][git_binary] = acquisition[
+            "hash_regular_absolute"
+        ](git_binary, "ADAPTER_FIXTURE_GIT")["sha256"]
+        acquisition["_GIT_DEVELOPER_ROOTS"][git_binary] = str(pathlib.Path(git_binary).parents[2])
+        original_read_profile = acquisition["git_read_sandbox_profile"]
+        original_bootstrap_profile = acquisition["git_object_bootstrap_sandbox_profile"]
+        if sandbox_mode != "host-sandbox-enforced-positive":
+            acquisition["git_read_sandbox_profile"] = lambda *_args, **_kwargs: None
+            acquisition["git_object_bootstrap_sandbox_profile"] = lambda *_args, **_kwargs: None
+
+        def create_adapter():
+            return acquisition["create_git_metadata_adapter"](str(repo), key, git_binary)
+
+        def cleanup(boundary):
+            if boundary is not None and not boundary.closed:
+                acquisition["cleanup_git_metadata_adapter"](boundary)
+
+        try:
+            invocations = []
+            template_hits = []
+            original_run_process = acquisition["run_process"]
+            original_template_match = acquisition["require_git_child_template_match"]
+
+            def recording_run_process(argv, *args, **kwargs):
+                invocations.append((list(argv), dict(kwargs)))
+                return original_run_process(argv, *args, **kwargs)
+
+            def recording_template_match(**kwargs):
+                receipt = original_template_match(**kwargs)
+                template_hits.append(receipt)
+                return receipt
+
+            acquisition["run_process"] = recording_run_process
+            acquisition["require_git_child_template_match"] = recording_template_match
+            boundary = None
+            try:
+                capture, boundary = create_adapter()
+                assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 1
+                roots_during_scope = adapter_roots()
+                expect_error(
+                    "adapter process scope non-reentrant",
+                    create_adapter,
+                    "GIT_ADAPTER_CLEANUP_SCOPE_NON_REENTRANT",
+                )
+                assert adapter_roots() == roots_during_scope
+                final_profile = original_read_profile(
+                    git_binary, str(repo), boundary, False
+                ).decode("ascii")
+                bootstrap_read_profile = original_bootstrap_profile(
+                    git_binary,
+                    str(repo),
+                    boundary.developer_root,
+                    boundary.adapter_root,
+                    ".",
+                    boundary.live_git_dir,
+                    boundary.live_common_dir,
+                    os.path.join(boundary.live_common_dir, "objects"),
+                    False,
+                    False,
+                    (),
+                    (),
+                ).decode("ascii")
+                bootstrap_write_profile = original_bootstrap_profile(
+                    git_binary,
+                    str(repo),
+                    boundary.developer_root,
+                    boundary.adapter_root,
+                    ".",
+                    boundary.live_git_dir,
+                    boundary.live_common_dir,
+                    os.path.join(boundary.live_common_dir, "objects"),
+                    False,
+                    True,
+                    (),
+                    (),
+                ).decode("ascii")
+                adapter_pack_path = os.path.join(
+                    boundary.adapter_root, "git", "objects", "pack"
+                )
+                assert "(deny file-write*)" in final_profile
+                assert "(deny file-write*)" in bootstrap_read_profile
+                assert '(literal "/private/tmp")' in bootstrap_write_profile
+                assert '(literal "' + boundary.adapter_root + '")' in bootstrap_write_profile
+                assert '(subpath "' + adapter_pack_path + '")' in bootstrap_write_profile
+                assert (
+                    '(require-not (subpath "' + adapter_pack_path + '"))'
+                    in bootstrap_write_profile
+                )
+                manifest = capture["adapter_object_manifest"]
+                assert manifest["approved_artifact_blob_count"] == len(
+                    acquisition["PENDING_STATIC_ARTIFACT_SPECS"]
+                )
+                assert manifest["object_count"] < 100
+                missing = acquisition["run_git"](
+                    git_binary, str(repo), boundary, ["cat-file", "--batch"],
+                    "ADAPTER_UNRELATED", stdin_bytes=(unrelated_oid + "\n").encode("ascii"),
+                )
+                assert missing == (unrelated_oid + " missing\n").encode("ascii")
+                for arguments, label in (
+                    (["rev-parse", "--verify", "HEAD"], "ADAPTER_HEAD"),
+                    (["rev-parse", "--verify", "HEAD^{tree}"], "ADAPTER_TREE"),
+                    (["rev-parse", "--show-object-format"], "ADAPTER_FORMAT"),
+                ):
+                    acquisition["safe_git_scalar"](git_binary, str(repo), boundary, arguments, label)
+                acquisition["run_git"](
+                    git_binary, str(repo), boundary,
+                    ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
+                    "ADAPTER_STATUS", enumerates_worktree=True,
+                    authorized_tree_excludes=(stage, "node_modules"),
+                    authorized_exact_file_excludes=(envelope_relative,),
+                )
+                acquisition["run_git"](git_binary, str(repo), boundary, ["show-ref"], "ADAPTER_REFS")
+                artifact_path = acquisition["PENDING_STATIC_ARTIFACT_SPECS"][0][1]
+                acquisition["run_git"](
+                    git_binary, str(repo), boundary,
+                    ["ls-tree", "-z", "--full-tree", head_oid, "--", artifact_path],
+                    "ADAPTER_ARTIFACT_TREE",
+                )
+                acquisition["run_git"](
+                    git_binary, str(repo), boundary, ["show", head_oid + ":" + artifact_path],
+                    "ADAPTER_ARTIFACT_SHOW",
+                )
+                adapter_root = boundary.adapter_root
+                acquisition["finalize_git_metadata_adapter"](boundary, key)
+                assert boundary.closed and not os.path.lexists(adapter_root)
+                assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 0
+            finally:
+                acquisition["run_process"] = original_run_process
+                acquisition["require_git_child_template_match"] = original_template_match
+                cleanup(boundary)
+            prefix_length = len(acquisition["git_hardened_child_argv"](git_binary, str(repo), ".", ()))
+            tails = [tuple(argv[prefix_length:]) for argv, _kwargs in invocations if argv[0] == git_binary]
+            assert {tail[0] for tail in tails} >= {
+                "rev-parse", "cat-file", "ls-tree", "status", "show-ref", "show",
+                "pack-objects", "index-pack", "verify-pack",
+            }
+            assert all(
+                kwargs.get("working_directory_fd") is not None
+                for argv, kwargs in invocations if argv[0] == git_binary
+            )
+            expected_template_hits = {
+                ("git-read-only-evidence", tuple(template))
+                for template in acquisition["git_read_only_argv_templates_v2"]()
+            } | {
+                ("git-metadata-adapter-bootstrap", tuple(template))
+                for template in acquisition["git_adapter_bootstrap_argv_templates_v2"]()
+            }
+            assert set(template_hits) == expected_template_hits
+            report["git_metadata_adapter_private_tmp_write_profile_closure"] = "PASS"
+            snapshot = acquisition["git_snapshot"](
+                str(repo), key, git_binary,
+                authorized_tree_excludes=(stage, "node_modules"),
+                authorized_exact_file_excludes=(envelope_relative,),
+            )
+            assert snapshot["git_metadata_adapter_profile"] == acquisition["GIT_METADATA_ADAPTER_PROFILE_V3"]
+            assert snapshot["git_metadata_adapter_cleanup_state"] == "removed"
+            assert snapshot["git_metadata_adapter_residue_count"] == 0
+            assert snapshot["live_git_control_child_read_count"] == 0
+            assert len(snapshot["git_metadata_source_commitment"]) == 64
+            report["git_metadata_adapter_exact_oid_runtime_and_snapshot"] = "PASS"
+
+            # Both adapter-root and Git-subdirectory construction remain on
+            # their held inodes across rename/replacement barriers.
+            original_mkdir = acquisition["mkdir_git_adapter_directory_at"]
+            root_barrier = []
+
+            def root_swap_mkdir(directory_fd, relative, label):
+                if not root_barrier:
+                    original_path = acquisition["git_adapter_fd_path"](directory_fd, "ROOT_SWAP")
+                    moved = original_path + ".moved"
+                    os.rename(original_path, moved)
+                    os.mkdir(original_path, 0o700)
+                    original_mkdir(directory_fd, relative, label)
+                    root_barrier.append((os.listdir(original_path), os.path.isdir(os.path.join(moved, relative))))
+                    os.rmdir(original_path)
+                    os.rename(moved, original_path)
+                    return
+                return original_mkdir(directory_fd, relative, label)
+
+            acquisition["mkdir_git_adapter_directory_at"] = root_swap_mkdir
+            boundary = None
+            try:
+                _capture, boundary = create_adapter()
+                assert root_barrier == [([], True)]
+            finally:
+                acquisition["mkdir_git_adapter_directory_at"] = original_mkdir
+                cleanup(boundary)
+
+            original_write = acquisition["write_git_adapter_file_at"]
+            git_barrier = []
+
+            def git_swap_write(directory_fd, relative, raw, label):
+                if not git_barrier:
+                    git_path = acquisition["git_adapter_fd_path"](directory_fd, "GIT_SWAP")
+                    retained = os.path.join(os.path.dirname(git_path), "git-retained")
+                    os.rename(git_path, retained)
+                    os.mkdir(git_path, 0o700)
+                    original_write(directory_fd, relative, raw, label)
+                    git_barrier.append((os.listdir(git_path), os.path.exists(os.path.join(retained, relative))))
+                    os.rmdir(git_path)
+                    os.rename(retained, git_path)
+                    return
+                return original_write(directory_fd, relative, raw, label)
+
+            acquisition["write_git_adapter_file_at"] = git_swap_write
+            boundary = None
+            try:
+                _capture, boundary = create_adapter()
+                assert git_barrier == [([], True)]
+            finally:
+                acquisition["write_git_adapter_file_at"] = original_write
+                cleanup(boundary)
+            report["git_metadata_adapter_root_and_git_build_swap"] = "PASS"
+
+            # Child fchdir(git_fd) never follows a replacement Git directory;
+            # postcheck still rejects the rename seam.
+            _capture, boundary = create_adapter()
+            original_run_process = acquisition["run_process"]
+            child_observation = []
+
+            def child_git_swap(argv, *args, **kwargs):
+                os.chmod(boundary.adapter_root, 0o700)
+                retained = os.path.join(boundary.adapter_root, "git-retained")
+                os.rename(boundary.git_dir, retained)
+                os.mkdir(boundary.git_dir, 0o500)
+                try:
+                    output = original_run_process(argv, *args, **kwargs)
+                    child_observation.append((output, os.listdir(boundary.git_dir)))
+                    return output
+                finally:
+                    os.rmdir(boundary.git_dir)
+                    os.rename(retained, boundary.git_dir)
+                    os.chmod(boundary.adapter_root, 0o500)
+
+            acquisition["run_process"] = child_git_swap
+            try:
+                child_swap_reason = expect_error(
+                    "adapter child Git-directory swap",
+                    lambda: acquisition["safe_git_scalar"](
+                        git_binary, str(repo), boundary,
+                        ["rev-parse", "--verify", "HEAD"], "ADAPTER_CHILD_SWAP",
+                    ),
+                )
+                assert child_swap_reason in ("GIT_ADAPTER_DRIFT", "ADAPTER_CHILD_SWAP_RESULT")
+                if child_swap_reason == "GIT_ADAPTER_DRIFT":
+                    assert child_observation == [((head_oid + "\n").encode("ascii"), [])]
+                else:
+                    assert child_observation == []
+            finally:
+                acquisition["run_process"] = original_run_process
+                cleanup(boundary)
+            report["git_metadata_adapter_child_git_swap_fail_closed"] = "PASS"
+
+            # Config/index/ref/object drift is caught before any child starts.
+            for kind in ("config", "index", "ref", "object"):
+                capture, boundary = create_adapter()
+                if kind in ("config", "index"):
+                    target = pathlib.Path(boundary.git_dir) / kind
+                elif kind == "ref":
+                    ref_name = capture["raw_files"]["head"][5:-1].decode("ascii")
+                    target = pathlib.Path(boundary.git_dir) / ref_name
+                else:
+                    packs = sorted((pathlib.Path(boundary.git_dir) / "objects/pack").glob("*.pack"))
+                    assert len(packs) == 1
+                    target = packs[0]
+                os.chmod(target, 0o600)
+                with target.open("ab") as stream:
+                    stream.write(b"tamper")
+                starts = []
+                original_run_process = acquisition["run_process"]
+                acquisition["run_process"] = lambda *_args, **_kwargs: starts.append(True) or b""
+                try:
+                    expect_error(
+                        "adapter pre-child " + kind + " tamper",
+                        lambda: acquisition["safe_git_scalar"](
+                            git_binary, str(repo), boundary,
+                            ["rev-parse", "--verify", "HEAD"], "ADAPTER_TAMPER",
+                        ),
+                        "GIT_ADAPTER_DRIFT",
+                    )
+                    assert starts == []
+                finally:
+                    acquisition["run_process"] = original_run_process
+                    cleanup(boundary)
+            report["git_metadata_adapter_tamper_pre_child_stop"] = "PASS"
+
+            # Deleting a live exact object cannot affect the sealed child, but
+            # exact dependency CAS detects it.
+            capture, boundary = create_adapter()
+            loose = pathlib.Path(capture["objects_path"]) / head_oid[:2] / head_oid[2:]
+            held = loose.with_name(loose.name + ".fixture-held")
+            assert loose.is_file()
+            os.rename(loose, held)
+            try:
+                assert acquisition["safe_git_scalar"](
+                    git_binary, str(repo), boundary,
+                    ["rev-parse", "--verify", "HEAD"], "ADAPTER_LIVE_OBJECT_DELETE",
+                ) == head_oid
+                expect_error(
+                    "adapter live object deletion CAS",
+                    lambda: acquisition["revalidate_git_metadata_source"](boundary, key),
+                    "GIT_ADAPTER_SOURCE_DRIFT",
+                )
+            finally:
+                os.rename(held, loose)
+                cleanup(boundary)
+            report["git_metadata_adapter_live_object_delete_frozen"] = "PASS"
+
+            # Root swap and injected final-rmdir failure both retain explicit
+            # uncertainty; neither marks the boundary closed or touches a
+            # replacement.  Restoring authority permits exact cleanup.
+            _capture, boundary = create_adapter()
+            moved = boundary.adapter_root + ".moved"
+            os.rename(boundary.adapter_root, moved)
+            os.mkdir(boundary.adapter_root, 0o700)
+            marker = pathlib.Path(boundary.adapter_root) / "replacement-marker"
+            write_bytes(marker, b"untouched", 0o600)
+            expect_error(
+                "adapter cleanup root swap",
+                lambda: acquisition["cleanup_git_metadata_adapter"](boundary),
+                "GIT_ADAPTER_CLEANUP_IDENTITY",
+            )
+            assert not boundary.closed and marker.read_bytes() == b"untouched"
+            assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 1
+            expect_error(
+                "adapter cleanup root drift rejects quiescent reuse",
+                create_adapter,
+                "GIT_ADAPTER_CLEANUP_SCOPE_NON_REENTRANT",
+            )
+            marker.unlink()
+            os.rmdir(boundary.adapter_root)
+            os.rename(moved, boundary.adapter_root)
+            acquisition["cleanup_git_metadata_adapter"](boundary)
+            assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 0
+
+            _capture, boundary = create_adapter()
+            original_named_root_check = acquisition["verify_named_git_adapter_cleanup_root"]
+            final_delete_swap = []
+
+            def swap_before_final_root_delete(parent_fd, basename, expected_identity):
+                if not final_delete_swap:
+                    final_delete_swap.append("initial-check")
+                    return original_named_root_check(parent_fd, basename, expected_identity)
+                if len(final_delete_swap) == 1:
+                    retained = boundary.adapter_root + ".pre-rmdir-retained"
+                    os.rename(boundary.adapter_root, retained)
+                    os.mkdir(boundary.adapter_root, 0o700)
+                    replacement_marker = pathlib.Path(boundary.adapter_root) / "replacement-marker"
+                    write_bytes(replacement_marker, b"must remain untouched", 0o600)
+                    final_delete_swap.append((retained, replacement_marker))
+                return original_named_root_check(parent_fd, basename, expected_identity)
+
+            acquisition["verify_named_git_adapter_cleanup_root"] = swap_before_final_root_delete
+            try:
+                expect_error(
+                    "adapter cleanup pre-final-rmdir root swap",
+                    lambda: acquisition["cleanup_git_metadata_adapter"](boundary),
+                    "GIT_ADAPTER_CLEANUP_IDENTITY",
+                )
+                retained, replacement_marker = final_delete_swap[1]
+                assert not boundary.closed and replacement_marker.read_bytes() == b"must remain untouched"
+                assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 1
+            finally:
+                acquisition["verify_named_git_adapter_cleanup_root"] = original_named_root_check
+            replacement_marker.unlink()
+            os.rmdir(boundary.adapter_root)
+            os.rename(retained, boundary.adapter_root)
+            acquisition["cleanup_git_metadata_adapter"](boundary)
+            assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 0
+
+            # Deterministic witness for the final pathname-rmdir gap.  The
+            # replacement must be empty so a weak stat(name)->rmdir(name)
+            # implementation can actually delete it.  Its dev/ino pair is the
+            # identity sentinel: a strict implementation must leave that exact
+            # directory present and report cleanup uncertainty.  Darwin has no
+            # public identity-conditioned directory unlink primitive.  Under
+            # the selected A contract, a non-cooperating same-UID replacement
+            # is out of model; this remains a supporting capability
+            # characterization and can never be counted as a safety PASS.
+            _capture, boundary = create_adapter()
+            original_rmdir = acquisition["os"].rmdir
+            final_rmdir_gap = {}
+
+            def swap_at_final_root_rmdir(path, *args, **kwargs):
+                if (
+                    path == os.path.basename(boundary.adapter_root)
+                    and kwargs.get("dir_fd") is not None
+                    and not final_rmdir_gap
+                ):
+                    retained_root = boundary.adapter_root + ".final-rmdir-retained"
+                    os.rename(boundary.adapter_root, retained_root)
+                    os.mkdir(boundary.adapter_root, 0o700)
+                    replacement = os.stat(boundary.adapter_root, follow_symlinks=False)
+                    final_rmdir_gap.update(
+                        retained_root=retained_root,
+                        replacement_identity=(replacement.st_dev, replacement.st_ino),
+                    )
+                return original_rmdir(path, *args, **kwargs)
+
+            acquisition["os"].rmdir = swap_at_final_root_rmdir
+            try:
+                expect_error(
+                    "adapter cleanup final-rmdir replacement witness",
+                    lambda: acquisition["cleanup_git_metadata_adapter"](boundary),
+                    "GIT_ADAPTER_CLEANUP_IDENTITY",
+                )
+                assert not boundary.closed and final_rmdir_gap
+                retained_metadata = os.stat(
+                    final_rmdir_gap["retained_root"], follow_symlinks=False
+                )
+                assert (retained_metadata.st_dev, retained_metadata.st_ino) == boundary.adapter_identity
+                try:
+                    replacement_after = os.stat(boundary.adapter_root, follow_symlinks=False)
+                except FileNotFoundError:
+                    replacement_untouched = False
+                else:
+                    replacement_untouched = (
+                        replacement_after.st_dev,
+                        replacement_after.st_ino,
+                    ) == final_rmdir_gap["replacement_identity"]
+            finally:
+                acquisition["os"].rmdir = original_rmdir
+            if replacement_untouched:
+                report["git_metadata_adapter_final_rmdir_identity_safety"] = (
+                    "OUT-OF-MODEL-capability-characterization-replacement-preserved"
+                )
+                os.rmdir(boundary.adapter_root)
+            else:
+                report["git_metadata_adapter_final_rmdir_identity_safety"] = (
+                    "OUT-OF-MODEL-observed-pathname-rmdir-deleted-same-UID-replacement"
+                )
+            os.rename(final_rmdir_gap["retained_root"], boundary.adapter_root)
+            acquisition["cleanup_git_metadata_adapter"](boundary)
+
+            missing_reason = expect_error(
+                "adapter cleanup initially missing",
+                lambda: acquisition["remove_git_adapter_root"](
+                    "/private/tmp/" + prefix + "definitely-missing-fixture", (1, 1), []
+                ),
+            )
+            assert missing_reason.startswith("GIT_ADAPTER_CLEANUP_")
+
+            _capture, boundary = create_adapter()
+            original_rmdir = acquisition["os"].rmdir
+            cleanup_fault = []
+
+            def fail_root_rmdir(path, *args, **kwargs):
+                if path == os.path.basename(boundary.adapter_root) and not cleanup_fault:
+                    cleanup_fault.append(path)
+                    raise OSError("fixture cleanup fault")
+                return original_rmdir(path, *args, **kwargs)
+
+            acquisition["os"].rmdir = fail_root_rmdir
+            try:
+                expect_error(
+                    "adapter cleanup final rmdir fault",
+                    lambda: acquisition["cleanup_git_metadata_adapter"](boundary),
+                    "GIT_ADAPTER_CLEANUP_IO",
+                )
+                assert not boundary.closed and cleanup_fault
+                assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 1
+                expect_error(
+                    "adapter cleanup residue rejects reentrant scope",
+                    create_adapter,
+                    "GIT_ADAPTER_CLEANUP_SCOPE_NON_REENTRANT",
+                )
+            finally:
+                acquisition["os"].rmdir = original_rmdir
+            acquisition["cleanup_git_metadata_adapter"](boundary)
+            assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 0
+            cleanup_error = acquisition["ContractError"](
+                acquisition["Exit"].PREFLIGHT_DRIFT,
+                "GIT_ADAPTER_CLEANUP_IO",
+            )
+            for public_mode in ("unknown", "census", "verify", "acquire"):
+                public_failure = acquisition["generic_public_failure"](
+                    cleanup_error,
+                    public_mode,
+                )
+                assert public_failure["authority"] == acquisition["authority_projection"](
+                    False,
+                    False,
+                    acquisition["GIT_ADAPTER_CLEANUP_AUTHORITY"],
+                )
+                assert public_failure["retention"]["private_state_inspection_required"] is True
+            cleanup_attempt = acquisition["AttemptState"]()
+            cleanup_attempt.set_phase("schema-contract")
+            cleanup_attempt.adapter_cleanup_uncertain()
+            cleanup_recorder = acquisition["GateRecorder"]()
+            cleanup_recorder.bind_run_authority(challenge, "c" * 64)
+            cleanup_recorder.begin("G00", "schema-contract")
+            cleanup_recorder.failed("GIT_ADAPTER_CLEANUP_IO", int(acquisition["Exit"].PREFLIGHT_DRIFT))
+            acquire_cleanup_failure = acquisition["acquire_failure_result"](
+                cleanup_error,
+                cleanup_attempt,
+                cleanup_recorder,
+                challenge,
+                "c" * 64,
+                None,
+                None,
+            )
+            assert acquire_cleanup_failure["authority"] == acquisition["authority_projection"](
+                False,
+                False,
+                acquisition["GIT_ADAPTER_CLEANUP_AUTHORITY"],
+            )
+            assert acquire_cleanup_failure["retention"]["private_state_inspection_required"] is True
+            report["git_metadata_adapter_cleanup_swap_missing_fault"] = "PASS"
+
+            # Drift injected after pack-objects and pack-index metadata drift
+            # both abort create and leave the adapter-root set unchanged.
+            config_path = repo / ".git/config"
+            original_config = config_path.read_bytes()
+            original_bootstrap = acquisition["run_git_object_bootstrap_child"]
+            source_drift = []
+
+            def inject_source_drift(**kwargs):
+                output = original_bootstrap(**kwargs)
+                if kwargs.get("arguments", [None])[0] == "pack-objects" and not source_drift:
+                    rewrite_bytes(config_path, original_config + b"# source drift\n")
+                    source_drift.append(True)
+                return output
+
+            roots_at_drift = adapter_roots()
+            acquisition["run_git_object_bootstrap_child"] = inject_source_drift
+            try:
+                expect_error("adapter source drift during copy", create_adapter, "GIT_ADAPTER_SOURCE_DRIFT")
+            finally:
+                acquisition["run_git_object_bootstrap_child"] = original_bootstrap
+                rewrite_bytes(config_path, original_config)
+            assert source_drift and adapter_roots() == roots_at_drift
+
+            run_checked([git_binary, "-c", "repack.writeBitmaps=false", "repack", "-ad"], repo)
+            dangling_source = temporary_path / "unreachable-object-source"
+            write_bytes(dangling_source, b"unreachable object body must never enter adapter\n", 0o600)
+            dangling_oid = git_output("hash-object", "-w", str(dangling_source)).strip().decode("ascii")
+            dangling_pack = subprocess.run(
+                [git_binary, "pack-objects", str(repo / ".git/objects/pack/pack")],
+                cwd=str(repo),
+                input=(dangling_oid + "\n").encode("ascii"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C", "LANG": "C"},
+            )
+            assert dangling_pack.returncode == 0
+            dangling_pack_oid = dangling_pack.stdout.strip().decode("ascii")
+            dangling_pack_names = {
+                "pack-" + dangling_pack_oid + ".idx",
+                "pack-" + dangling_pack_oid + ".pack",
+            }
+            dangling_loose = repo / ".git/objects" / dangling_oid[:2] / dangling_oid[2:]
+            dangling_loose.unlink()
+            pack_indexes = sorted((repo / ".git/objects/pack").glob("*.idx"))
+            assert len(pack_indexes) >= 2
+            selected_head_dependency = acquisition["capture_git_object_dependencies"](
+                str(repo / ".git/objects"),
+                (head_oid,),
+            )
+            selected_pack_index = next(
+                pathlib.Path(path)
+                for path in selected_head_dependency["allowed_pack_paths"]
+                if path.endswith(".idx")
+            )
+            corrupted_index = bytearray(selected_pack_index.read_bytes())
+            corrupted_index[-1] ^= 1
+            expect_error(
+                "adapter pack index independent checksum",
+                lambda: acquisition["parse_git_pack_index_v2"](
+                    bytes(corrupted_index),
+                    len(head_oid),
+                    selected_pack_index.name,
+                    (head_oid,),
+                ),
+                "GIT_OBJECT_PACK_INDEX_CHECKSUM",
+            )
+            original_bootstrap = acquisition["run_git_object_bootstrap_child"]
+            corrupted_pack_stream = []
+
+            def inject_corrupted_pack_stream(**kwargs):
+                output = original_bootstrap(**kwargs)
+                if kwargs.get("arguments", [None])[0] == "pack-objects" and not corrupted_pack_stream:
+                    corrupted = bytearray(output)
+                    corrupted[-1] ^= 1
+                    corrupted_pack_stream.append(True)
+                    return bytes(corrupted)
+                return output
+
+            roots_at_pack_corruption = adapter_roots()
+            acquisition["run_git_object_bootstrap_child"] = inject_corrupted_pack_stream
+            try:
+                expect_error(
+                    "adapter streamed pack independent checksum",
+                    create_adapter,
+                    "GIT_OBJECT_PACK_STREAM_CHECKSUM",
+                )
+            finally:
+                acquisition["run_git_object_bootstrap_child"] = original_bootstrap
+            assert corrupted_pack_stream and adapter_roots() == roots_at_pack_corruption
+
+            pack_drift = []
+
+            def inject_pack_drift(**kwargs):
+                output = original_bootstrap(**kwargs)
+                if kwargs.get("arguments", [None])[0] == "pack-objects" and not pack_drift:
+                    selected_metadata = selected_pack_index.stat()
+                    os.utime(
+                        selected_pack_index,
+                        ns=(selected_metadata.st_atime_ns, selected_metadata.st_mtime_ns + 1_000_000_000),
+                    )
+                    pack_drift.append(True)
+                return output
+
+            roots_at_pack_drift = adapter_roots()
+            acquisition["run_git_object_bootstrap_child"] = inject_pack_drift
+            try:
+                expect_error(
+                    "adapter pack index drift during copy",
+                    create_adapter,
+                    "GIT_ADAPTER_OBJECT_DEPENDENCY_DRIFT",
+                )
+            finally:
+                acquisition["run_git_object_bootstrap_child"] = original_bootstrap
+            assert pack_drift and adapter_roots() == roots_at_pack_drift
+            selected_pack_file = selected_pack_index.with_suffix(".pack")
+            assert selected_pack_file.is_file()
+            pack_body_drift = []
+
+            def inject_pack_body_drift(**kwargs):
+                output = original_bootstrap(**kwargs)
+                if kwargs.get("arguments", [None])[0] == "pack-objects" and not pack_body_drift:
+                    selected_metadata = selected_pack_file.stat()
+                    os.utime(
+                        selected_pack_file,
+                        ns=(selected_metadata.st_atime_ns, selected_metadata.st_mtime_ns + 1_000_000_000),
+                    )
+                    pack_body_drift.append(True)
+                return output
+
+            roots_at_pack_body_drift = adapter_roots()
+            acquisition["run_git_object_bootstrap_child"] = inject_pack_body_drift
+            try:
+                expect_error(
+                    "adapter selected pack drift during copy",
+                    create_adapter,
+                    "GIT_ADAPTER_OBJECT_DEPENDENCY_DRIFT",
+                )
+            finally:
+                acquisition["run_git_object_bootstrap_child"] = original_bootstrap
+            assert pack_body_drift and adapter_roots() == roots_at_pack_body_drift
+            _capture, boundary = create_adapter()
+            try:
+                dependency = acquisition["capture_git_object_dependencies"](
+                    str(repo / ".git/objects"),
+                    boundary.object_dependency_oids,
+                )
+                allowed_names = {pathlib.Path(path).name for path in dependency["allowed_pack_paths"]}
+                assert allowed_names and allowed_names.isdisjoint(dangling_pack_names)
+                assert dangling_oid not in boundary.object_dependency_oids
+            finally:
+                cleanup(boundary)
+            report["git_metadata_adapter_source_and_pack_copy_drift"] = "PASS"
+
+            # Linked-worktree anchor/reverse binding is captured directly;
+            # no discovery child participates.
+            linked = repo / ".claude/worktrees/adapter-linked"
+            linked.parent.mkdir(parents=True, mode=0o700)
+            run_checked([git_binary, "worktree", "add", "-q", "-b", "adapter-linked", str(linked)], repo)
+            linked_capture, linked_boundary = acquisition["create_git_metadata_adapter"](
+                str(linked), key, git_binary
+            )
+            assert linked_capture["git_control"]["marker"]["kind"] == "gitfile"
+            acquisition["cleanup_git_metadata_adapter"](linked_boundary)
+            marker_raw = (linked / ".git").read_text(encoding="utf-8")
+            linked_git_dir = pathlib.Path(marker_raw[len("gitdir: "):].strip())
+            reverse = linked_git_dir / "gitdir"
+            reverse_raw = reverse.read_bytes()
+            rewrite_bytes(reverse, b"/private/tmp/unrelated/.git\n")
+            try:
+                expect_error(
+                    "adapter linked reverse pointer",
+                    lambda: acquisition["capture_git_metadata_source"](str(linked), key),
+                    "GIT_WORKTREE_GITDIR_BINDING",
+                )
+            finally:
+                rewrite_bytes(reverse, reverse_raw)
+            report["git_metadata_adapter_linked_anchor_reverse"] = "PASS"
+
+            # Hostile live controls and HEAD/index/ref drift occur only after
+            # capture.  The final child returns the frozen HEAD; recapture/CAS
+            # stops before a success result.
+            capture, boundary = create_adapter()
+            live_git = pathlib.Path(capture["git_dir"])
+            common_git = pathlib.Path(capture["common_dir"])
+            head_path = live_git / "HEAD"
+            index_path = live_git / "index"
+            common_config = common_git / "config"
+            head_raw = head_path.read_bytes()
+            index_raw = index_path.read_bytes()
+            config_raw = common_config.read_bytes()
+            ref_name = head_raw[5:-1].decode("ascii")
+            ref_path = common_git / ref_name
+            ref_raw = ref_path.read_bytes()
+            worktree_config = live_git / "config.worktree"
+            alternates = common_git / "objects/info/alternates"
+            alternates.parent.mkdir(parents=True, exist_ok=True)
+            include_file = temporary_path / "hostile-include.cfg"
+            write_bytes(include_file, b"[core]\n\tbare = true\n", 0o600)
+            rewrite_bytes(
+                common_config,
+                config_raw + ("[include]\n\tpath = %s\n" % include_file).encode("utf-8"),
+            )
+            rewrite_bytes(head_path, (head_oid + "\n").encode("ascii"))
+            rewrite_bytes(index_path, index_raw + b"index-drift")
+            rewrite_bytes(ref_path, (("0" * len(head_oid)) + "\n").encode("ascii"))
+            write_bytes(worktree_config, b"[core]\n\tbare = true\n", 0o600)
+            write_bytes(alternates, b"/private/tmp/hostile-object-store\n", 0o600)
+            try:
+                assert acquisition["safe_git_scalar"](
+                    git_binary, str(repo), boundary,
+                    ["rev-parse", "--verify", "HEAD"], "ADAPTER_FROZEN_AFTER_DRIFT",
+                ) == head_oid
+                reason = expect_error(
+                    "adapter hostile live controls final CAS",
+                    lambda: acquisition["revalidate_git_metadata_source"](boundary, key),
+                )
+                assert reason.startswith("GIT_")
+            finally:
+                rewrite_bytes(common_config, config_raw)
+                rewrite_bytes(head_path, head_raw)
+                rewrite_bytes(index_path, index_raw)
+                rewrite_bytes(ref_path, ref_raw)
+                worktree_config.unlink()
+                alternates.unlink()
+                cleanup(boundary)
+            report["git_metadata_adapter_hostile_live_control_drift"] = "PASS"
+
+            expect_error(
+                "adapter tree gitlink",
+                lambda: acquisition["parse_git_tree_object_entries"](
+                    b"160000 submodule\x00" + (b"\x01" * 20), 40
+                ),
+                "GIT_TREE_OBJECT_TYPE",
+            )
+            for private_path in (".obsidian/sentinel", "prefix-canvas-vault-secret/sentinel"):
+                expect_error(
+                    "adapter private path " + private_path,
+                    lambda value=private_path: acquisition["validate_relative"](
+                        value, "GIT_OBJECT_ENUMERATION_PATH"
+                    ),
+                    "GIT_OBJECT_ENUMERATION_PATH_VAULT",
+                )
+            report["git_metadata_adapter_gitlink_and_private_path_rejection"] = "PASS"
+        finally:
+            acquisition["git_read_sandbox_profile"] = original_read_profile
+            acquisition["git_object_bootstrap_sandbox_profile"] = original_bootstrap_profile
+            if old_hash is None:
+                acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].pop(git_binary, None)
+            else:
+                acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][git_binary] = old_hash
+            if old_developer is None:
+                acquisition["_GIT_DEVELOPER_ROOTS"].pop(git_binary, None)
+            else:
+                acquisition["_GIT_DEVELOPER_ROOTS"][git_binary] = old_developer
+    assert adapter_roots() == roots_before
+    report["git_metadata_adapter_private_tmp_residue_set_unchanged"] = "PASS"
+
+
 def main(argv=None):
     parser = fixture_argument_parser()
     fixture_args = parser.parse_args(argv)
@@ -2250,18 +3678,38 @@ def main(argv=None):
         )
     report["vault_overlap_and_state_key_exact_child"] = "PASS"
 
-    captured_git_argv = []
+    captured_git_invocations = []
     original_run_process = acquisition["run_process"]
+    original_verify_adapter = acquisition["verify_git_metadata_adapter"]
+    original_sandbox_profile = acquisition["git_read_sandbox_profile"]
     acquisition["_GIT_DEVELOPER_ROOTS"]["/fixture/git"] = "/fixture/developer"
-    acquisition["_GIT_READ_BOUNDARIES"]["/fixture/repo"] = (
+    fixture_boundary = acquisition["GitMetadataAdapter"](
+        "/fixture/developer",
+        "/fixture/repo",
         "/fixture/repo/.git/worktrees/fixture",
         "/fixture/repo/.git",
+        "/private/tmp/gov01-git-adapter-fixture",
+        "/private/tmp/gov01-git-adapter-fixture/git",
+        97,
+        98,
+        "1" * 64,
+        ("a" * 40,),
+        "2" * 64,
+        "3" * 64,
+        (1, 2),
+        (1, 3),
+        [],
     )
-    acquisition["run_process"] = lambda argv, *_args, **_kwargs: captured_git_argv.append(list(argv)) or b""
+    acquisition["run_process"] = lambda argv, *_args, **kwargs: (
+        captured_git_invocations.append((list(argv), dict(kwargs))) or b""
+    )
+    acquisition["verify_git_metadata_adapter"] = lambda _boundary: None
+    acquisition["git_read_sandbox_profile"] = lambda *_args, **_kwargs: b"(version 1)\n(deny default)\n"
     try:
         acquisition["run_git"](
             "/fixture/git",
             "/fixture/repo",
+            fixture_boundary,
             ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
             "FIXTURE_GIT_STATUS",
             enumerates_worktree=True,
@@ -2270,13 +3718,19 @@ def main(argv=None):
         )
     finally:
         acquisition["run_process"] = original_run_process
+        acquisition["verify_git_metadata_adapter"] = original_verify_adapter
+        acquisition["git_read_sandbox_profile"] = original_sandbox_profile
         acquisition["_GIT_DEVELOPER_ROOTS"].pop("/fixture/git", None)
-        acquisition["_GIT_READ_BOUNDARIES"].pop("/fixture/repo", None)
-    assert len(captured_git_argv) == 1
-    git_argv = captured_git_argv[0]
+    assert len(captured_git_invocations) == 1
+    git_argv, git_invocation_kwargs = captured_git_invocations[0]
     exact_pathspec = ":(top,literal,exclude)" + expected_relative
     assert git_argv.count(exact_pathspec) == 1
     assert exact_pathspec + "/**" not in git_argv
+    assert "-C" not in git_argv and not any(value.startswith("core.worktree=") for value in git_argv)
+    assert git_argv.count("--git-dir=.") == 1
+    assert git_argv.count("--work-tree=/fixture/repo") == 1
+    assert git_invocation_kwargs.get("working_directory_fd") == 98
+    assert ":(exclude).git" in git_argv and ":(exclude).git/**" in git_argv
     assert ":(exclude)node_modules" in git_argv and ":(exclude)node_modules/**" in git_argv
     assert ":(exclude).gov01-toolchain-stage-" + locator_challenge in git_argv
     assert ":(exclude).gov01-toolchain-stage-" + locator_challenge + "/**" in git_argv
@@ -2531,202 +3985,7 @@ def main(argv=None):
     assert first != acquisition["private_preapproval_commitment"](key, changed)
     report["deterministic_private_preapproval"] = "PASS"
 
-    with tempfile.TemporaryDirectory(prefix="gov01-fsmonitor-", dir="/private/tmp") as temporary:
-        repo = pathlib.Path(temporary) / "repo"
-        repo.mkdir()
-        git_binary = "/Library/Developer/CommandLineTools/usr/bin/git"
-        run_checked([git_binary, "init", "-q"], repo)
-        run_checked([git_binary, "config", "user.name", "fixture"], repo)
-        run_checked([git_binary, "config", "user.email", "fixture@example.invalid"], repo)
-        tracked = repo / "tracked.txt"
-        write_bytes(tracked, b"tracked\n", 0o600)
-        run_checked([git_binary, "add", "tracked.txt"], repo)
-        run_checked([git_binary, "commit", "-q", "-m", "fixture"], repo)
-        marker = repo / "FSMONITOR_EXECUTED"
-        monitor = repo / "fsmonitor.sh"
-        write_bytes(monitor, ("#!/bin/sh\n/usr/bin/touch '%s'\nexit 0\n" % marker).encode(), 0o700)
-        run_checked([git_binary, "config", "core.fsmonitor", str(monitor)], repo)
-        git_hash = acquisition["hash_regular_absolute"](git_binary, "FIXTURE_GIT")["sha256"]
-        acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][git_binary] = git_hash
-        acquisition["_GIT_DEVELOPER_ROOTS"][git_binary] = str(pathlib.Path(git_binary).parents[2])
-        acquisition["git_control_preflight"](str(repo), b"z" * 32)
-        contract_error_type = acquisition["ContractError"]
-        try:
-            acquisition["run_git"](
-                git_binary,
-                str(repo),
-                ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
-                "FIXTURE_STATUS",
-                enumerates_worktree=True,
-            )
-        except contract_error_type as error:
-            public_code = getattr(error, "reason", getattr(error, "public_code", ""))
-            if public_code != "FIXTURE_STATUS_SANDBOX_INIT":
-                raise
-            true_binary = "/usr/bin/true"
-            acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][true_binary] = acquisition[
-                "hash_regular_absolute"
-            ](true_binary, "FIXTURE_TRUE")["sha256"]
-            try:
-                acquisition["run_process"](
-                    [true_binary],
-                    acquisition["git_env"](),
-                    4096,
-                    "FIXTURE_MINIMAL_SANDBOX",
-                    sandbox_profile=b"(version 1)\n(allow default)\n",
-                )
-            except contract_error_type as minimal_error:
-                minimal_code = getattr(
-                    minimal_error,
-                    "reason",
-                    getattr(minimal_error, "public_code", ""),
-                )
-                if minimal_code != "FIXTURE_MINIMAL_SANDBOX_SANDBOX_INIT":
-                    raise
-                git_sandbox_mode = "nested-host-sandbox-refused-second-sandbox-fail-closed"
-            else:
-                raise error
-            finally:
-                acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].pop(true_binary, None)
-        else:
-            git_sandbox_mode = "host-sandbox-enforced-positive"
-            assert not marker.exists()
-
-            # Inject an include only after the direct control preflight.  The
-            # child sandbox, not a second source scan, must prevent Git from
-            # following this external locator.
-            post_preflight_include = pathlib.Path(temporary) / "post-preflight-include.cfg"
-            write_bytes(post_preflight_include, b"[core]\n\tbare = false\n", 0o600)
-            run_checked([git_binary, "config", "include.path", str(post_preflight_include)], repo)
-            expect_error(
-                "post-preflight git include sandbox",
-                lambda: acquisition["safe_git_scalar"](
-                    git_binary,
-                    str(repo),
-                    ["rev-parse", "--verify", "HEAD"],
-                    "FIXTURE_POST_PREFLIGHT_INCLUDE",
-                ),
-                "FIXTURE_POST_PREFLIGHT_INCLUDE_RESULT",
-            )
-            run_checked([git_binary, "config", "--unset-all", "include.path"], repo)
-
-            # Likewise, make an object available only through a newly inserted
-            # alternates file.  A command that would succeed without sandboxing
-            # must fail after the preflight-to-exec race.
-            external_git = pathlib.Path(temporary) / "external-objects.git"
-            run_checked([git_binary, "init", "--bare", "-q", str(external_git)], repo)
-            hashed = subprocess.run(
-                [git_binary, "--git-dir", str(external_git), "hash-object", "-w", "--stdin"],
-                input=b"synthetic external object\n",
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                check=False,
-                env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C", "LANG": "C"},
-            )
-            assert hashed.returncode == 0 and len(hashed.stdout.strip()) in (40, 64)
-            post_info = repo / ".git/objects/info"
-            post_info.mkdir(mode=0o700, exist_ok=True)
-            post_alternates = post_info / "alternates"
-            write_bytes(post_alternates, (str(external_git / "objects") + "\n").encode("utf-8"), 0o600)
-            expect_error(
-                "post-preflight git alternates sandbox",
-                lambda: acquisition["run_git"](
-                    git_binary,
-                    str(repo),
-                    ["cat-file", "-t", hashed.stdout.strip().decode("ascii")],
-                    "FIXTURE_POST_PREFLIGHT_ALTERNATES",
-                ),
-                "FIXTURE_POST_PREFLIGHT_ALTERNATES_RESULT",
-            )
-            post_alternates.unlink()
-
-            # With a worktree-reading profile, explicit Vault-family denies
-            # must override the broad repository subtree allowance.
-            for private_component in ("canvas-vault-fixture", ".obsidian"):
-                private_file = repo / private_component / "sentinel.txt"
-                private_file.parent.mkdir(mode=0o700)
-                write_bytes(private_file, b"synthetic private sentinel\n", 0o600)
-                expect_error(
-                    "git worktree privacy sandbox " + private_component,
-                    lambda path=str(private_file): acquisition["run_process"](
-                        [git_binary, "-C", str(repo), "hash-object", path],
-                        acquisition["git_env"](),
-                        4096,
-                        "FIXTURE_WORKTREE_PRIVACY",
-                        sandbox_profile=acquisition["git_read_sandbox_profile"](
-                            git_binary,
-                            str(repo),
-                            True,
-                        ),
-                    ),
-                    "FIXTURE_WORKTREE_PRIVACY_RESULT",
-                )
-
-        included = repo / "external-include.cfg"
-        write_bytes(included, b"[core]\n\tbare = false\n", 0o600)
-        run_checked([git_binary, "config", "include.path", str(included)], repo)
-        expect_error(
-            "git config include",
-            lambda: acquisition["git_control_preflight"](str(repo), b"z" * 32),
-            "GIT_CONFIG_INCLUDE_PROHIBITED",
-        )
-        run_checked([git_binary, "config", "--unset-all", "include.path"], repo)
-        alternates = repo / ".git/objects/info/alternates"
-        write_bytes(alternates, b"/private/tmp/prohibited-object-store\n", 0o600)
-        expect_error(
-            "git object alternate",
-            lambda: acquisition["git_control_preflight"](str(repo), b"z" * 32),
-            "GIT_ALTERNATE_CONTROL_PROHIBITED",
-        )
-        alternates.unlink()
-
-        linked_root = repo / ".claude/worktrees/fixture-linked"
-        linked_root.parent.mkdir(parents=True, mode=0o700)
-        run_checked(
-            [git_binary, "worktree", "add", "-q", "-b", "fixture-linked", str(linked_root)],
-            repo,
-        )
-        linked_observation = acquisition["git_control_preflight"](str(linked_root), b"z" * 32)
-        assert linked_observation["marker"]["kind"] == "gitfile"
-        linked_marker = (linked_root / ".git").read_text(encoding="utf-8")
-        linked_git_dir = pathlib.Path(linked_marker[len("gitdir: ") :].strip())
-
-        unrelated = repo / "unrelated-linked"
-        unrelated.mkdir(mode=0o700)
-        write_bytes(
-            unrelated / ".git",
-            ("gitdir: " + str(linked_git_dir) + "\n").encode("utf-8"),
-            0o600,
-        )
-        expect_error(
-            "unrelated ancestor git worktree",
-            lambda: acquisition["git_control_preflight"](str(unrelated), b"z" * 32),
-            "GIT_CONTROL_ADMIN_ANCHOR",
-        )
-
-        linked_info = linked_git_dir / "objects/info"
-        linked_info.mkdir(parents=True, mode=0o700)
-        linked_alternates = linked_info / "alternates"
-        write_bytes(linked_alternates, b"synthetic external objects\n", 0o600)
-        expect_error(
-            "worktree-local object alternate",
-            lambda: acquisition["git_control_preflight"](str(linked_root), b"z" * 32),
-            "GIT_ALTERNATE_CONTROL_PROHIBITED",
-        )
-        linked_alternates.unlink()
-
-        reverse_pointer = linked_git_dir / "gitdir"
-        original_reverse = reverse_pointer.read_bytes()
-        rewrite_bytes(reverse_pointer, (str(unrelated / ".git") + "\n").encode("utf-8"))
-        expect_error(
-            "linked worktree reverse pointer",
-            lambda: acquisition["git_control_preflight"](str(linked_root), b"z" * 32),
-            "GIT_WORKTREE_GITDIR_BINDING",
-        )
-        rewrite_bytes(reverse_pointer, original_reverse)
-    report["git_fsmonitor_override_zero_marker"] = "PASS"
-    report["git_include_and_alternate_rejected_pre_command"] = "PASS"
-    report["git_read_sandbox_validation_mode"] = git_sandbox_mode
+    run_git_metadata_adapter_hostile_fixtures(acquisition, report)
 
     schemas = {
         "envelope": load_json_no_duplicates(ENVELOPE_SCHEMA_PATH),
@@ -2747,6 +4006,32 @@ def main(argv=None):
         return acquisition["validate_manual_envelope_contract"](value, now=witness_now)
 
     validate_synthetic_manual(synthetic_envelope)
+    builder_envelope = build_real_pending_envelope_from_synthetic_observations(
+        acquisition,
+        synthetic_envelope,
+    )
+    builder_source_raw = ACQ_PATH.read_bytes()
+    builder_source_sha256 = hashlib.sha256(builder_source_raw).hexdigest()
+    builder_artifact = next(
+        entry for entry in builder_envelope["artifacts"] if entry["role"] == "static-executor"
+    )
+    if (
+        builder_artifact["raw_file_sha256"] != builder_source_sha256
+        or builder_artifact["byte_length"] != len(builder_source_raw)
+    ):
+        raise AssertionError("production pending builder content address drift")
+    builder_scalar_parity = pending_builder_bool_int_scalar_type_parity(
+        acquisition,
+        envelope_validator,
+        builder_envelope,
+        witness_now,
+    )
+    builder_scalar_parity.update(
+        {
+            "builder_source_sha256": builder_source_sha256,
+            "builder_source_bytes": len(builder_source_raw),
+        }
+    )
     assert synthetic_envelope["state"] == "pending-user-confirmation"
     assert synthetic_envelope["private_state_authorization"]["hmac_key_id"] == "0" * 64
     bad_architecture = copy.deepcopy(synthetic_envelope)
@@ -2940,14 +4225,17 @@ def main(argv=None):
             lambda value=invalid_time: validate_synthetic_manual(value),
             "CENSUS_AT_FORMAT",
         )
-    report["envelope_joint_schema_manual_positive_and_hostile_negatives"] = "PASS"
+    report["envelope_joint_schema_manual_positive_and_hostile_negatives"] = {
+        "status": "PASS",
+        "pending_real_builder_bool_int_scalar_type_parity": builder_scalar_parity,
+    }
 
     # A GEN approval is consumed by a durable private claim, not merely by the
-    # continued presence of the public final file.  Exercise the production
-    # claim ABI against a synthetic private control container while replacing
-    # only the already-tested control-preparation projection/locator derivation
-    # boundary; record construction, O_EXCL writes, HMAC validation, modes and
-    # recovery comparison remain production code.
+    # continued presence of the public final file.  Exercise the exact
+    # production FD core against a synthetic private control container.  The
+    # path wrapper remains responsible for real locator/control-preparation/key
+    # binding; this narrow core performs the same O_EXCL write, durability,
+    # semantic reread and crash-recovery checks without any monkeypatch.
     with tempfile.TemporaryDirectory(prefix="gov01-generation-claim-", dir="/private/tmp") as temporary:
         generation_root = pathlib.Path(temporary)
         state_root = generation_root / "state"
@@ -2956,20 +4244,15 @@ def main(argv=None):
         claims_root.mkdir(mode=0o700)
         os.chmod(state_root, 0o700)
         os.chmod(claims_root, 0o700)
-        key_path = state_root / "hmac.key"
-        write_bytes(key_path, b"g" * 32, 0o600)
-        runtime_args = acquisition["GenerationRuntimeArgsV2"](
-            str(generation_root / "repo"),
-            str(generation_root / "cache"),
-            str(state_root),
-            str(key_path),
-            str(generation_root / "repo" / synthetic_envelope["authorization_preimage"]["envelope_repo_relative_path"]),
-        )
+        state_fd = os.open(state_root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        claims_fd = os.open(claims_root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        expected_uid = state_root.stat().st_uid
+        expected_gid = state_root.stat().st_gid
+        assert claims_root.stat().st_uid == expected_uid
+        assert claims_root.stat().st_gid == expected_gid
+        fixture_key = b"g" * 32
         generation_authorization = synthetic_envelope["generation_authorization"]
         final_raw = acquisition["canonical_json"](synthetic_envelope)
-        original_revalidate = acquisition["revalidate_generation_runtime_args_v2"]
-        original_control_projection = acquisition["verify_control_preparation_projection_v2"]
-        original_load_key = acquisition["load_hmac_key"]
         original_fsync = acquisition["os"].fsync
         fsync_calls = []
 
@@ -2977,22 +4260,22 @@ def main(argv=None):
             fsync_calls.append(fd)
             return original_fsync(fd)
 
-        acquisition["revalidate_generation_runtime_args_v2"] = (
-            lambda _runtime, _generation: synthetic_envelope["authorization_preimage"][
-                "envelope_repo_relative_path"
-            ]
-        )
-        acquisition["verify_control_preparation_projection_v2"] = lambda _runtime: {}
-        acquisition["load_hmac_key"] = lambda *_args, **_kwargs: b"g" * 32
         acquisition["os"].fsync = counted_fsync
         previous_umask = os.umask(0o077)
         try:
-            assert acquisition["probe_generation_claim_v2"](
-                runtime_args=runtime_args,
+            fd_arguments = {
+                "state_fd": state_fd,
+                "claims_fd": claims_fd,
+                "expected_uid": expected_uid,
+                "expected_gid": expected_gid,
+                "key": fixture_key,
+            }
+            assert acquisition["probe_generation_claim_from_verified_fds_v2"](
+                **fd_arguments,
                 generation_authorization=generation_authorization,
             ) is None
-            record = acquisition["create_generation_claim_v2"](
-                runtime_args=runtime_args,
+            record = acquisition["create_generation_claim_from_verified_fds_v2"](
+                **fd_arguments,
                 generation_authorization=generation_authorization,
                 final_envelope_raw=final_raw,
                 clock=lambda: witness_now,
@@ -3005,23 +4288,25 @@ def main(argv=None):
             assert stat.S_IMODE(record_path.stat().st_mode) == 0o600
             assert record_path.stat().st_nlink == 1
             assert len(fsync_calls) >= 4
-            recovered = acquisition["probe_generation_claim_v2"](
-                runtime_args=runtime_args,
+            os.fstat(state_fd)
+            os.fstat(claims_fd)
+            recovered = acquisition["probe_generation_claim_from_verified_fds_v2"](
+                **fd_arguments,
                 generation_authorization=generation_authorization,
             )
             assert recovered == record
             assert recovered["acquisition_approval_challenge_id"] == synthetic_envelope[
                 "approval_challenge_id"
             ]
-            assert acquisition["verify_generation_claim_recovery_v2"](
-                runtime_args=runtime_args,
+            assert acquisition["verify_generation_claim_recovery_from_verified_fds_v2"](
+                **fd_arguments,
                 generation_authorization=generation_authorization,
                 final_envelope_raw=final_raw,
             ) == record
             expect_error(
                 "generation claim replay create",
-                lambda: acquisition["create_generation_claim_v2"](
-                    runtime_args=runtime_args,
+                lambda: acquisition["create_generation_claim_from_verified_fds_v2"](
+                    **fd_arguments,
                     generation_authorization=generation_authorization,
                     final_envelope_raw=final_raw,
                     clock=lambda: witness_now,
@@ -3030,8 +4315,8 @@ def main(argv=None):
             )
             # A racing loser may only recover the already-authenticated
             # winner; it may not mint another SA/time/raw identity.
-            assert acquisition["probe_generation_claim_v2"](
-                runtime_args=runtime_args,
+            assert acquisition["probe_generation_claim_from_verified_fds_v2"](
+                **fd_arguments,
                 generation_authorization=generation_authorization,
             ) == record
             changed_envelope = copy.deepcopy(synthetic_envelope)
@@ -3043,8 +4328,8 @@ def main(argv=None):
             changed_raw = acquisition["canonical_json"](changed_envelope)
             expect_error(
                 "generation claim same authority changed final",
-                lambda: acquisition["verify_generation_claim_recovery_v2"](
-                    runtime_args=runtime_args,
+                lambda: acquisition["verify_generation_claim_recovery_from_verified_fds_v2"](
+                    **fd_arguments,
                     generation_authorization=generation_authorization,
                     final_envelope_raw=changed_raw,
                 ),
@@ -3052,9 +4337,8 @@ def main(argv=None):
             )
             # The public final may be absent or externally deleted; the
             # retained claim still fixes the same SA/time/raw identity.
-            assert not pathlib.Path(runtime_args.envelope).exists()
-            assert acquisition["probe_generation_claim_v2"](
-                runtime_args=runtime_args,
+            assert acquisition["probe_generation_claim_from_verified_fds_v2"](
+                **fd_arguments,
                 generation_authorization=generation_authorization,
             )["final_envelope_raw_sha256"] == hashlib.sha256(final_raw).hexdigest()
 
@@ -3075,8 +4359,8 @@ def main(argv=None):
             os.chmod(partial_path, 0o700)
             expect_error(
                 "generation partial claim retained",
-                lambda: acquisition["probe_generation_claim_v2"](
-                    runtime_args=runtime_args,
+                lambda: acquisition["probe_generation_claim_from_verified_fds_v2"](
+                    **fd_arguments,
                     generation_authorization=partial_generation,
                 ),
                 "GENERATION_CLAIM_PARTIAL_OR_UNEXPECTED",
@@ -3088,8 +4372,8 @@ def main(argv=None):
             rewrite_canonical_json(record_path, tampered_record)
             expect_error(
                 "generation claim HMAC tamper",
-                lambda: acquisition["probe_generation_claim_v2"](
-                    runtime_args=runtime_args,
+                lambda: acquisition["probe_generation_claim_from_verified_fds_v2"](
+                    **fd_arguments,
                     generation_authorization=generation_authorization,
                 ),
                 "GENERATION_CLAIM_HMAC",
@@ -3098,19 +4382,20 @@ def main(argv=None):
             write_bytes(claim_path / "unexpected-child", b"fixture", 0o600)
             expect_error(
                 "generation claim extra child retained",
-                lambda: acquisition["probe_generation_claim_v2"](
-                    runtime_args=runtime_args,
+                lambda: acquisition["probe_generation_claim_from_verified_fds_v2"](
+                    **fd_arguments,
                     generation_authorization=generation_authorization,
                 ),
                 "GENERATION_CLAIM_PARTIAL_OR_UNEXPECTED",
             )
+            os.fstat(state_fd)
+            os.fstat(claims_fd)
         finally:
             os.umask(previous_umask)
             acquisition["os"].fsync = original_fsync
-            acquisition["load_hmac_key"] = original_load_key
-            acquisition["verify_control_preparation_projection_v2"] = original_control_projection
-            acquisition["revalidate_generation_runtime_args_v2"] = original_revalidate
-    report["durable_generation_claim_single_use_and_recovery"] = "PASS"
+            os.close(claims_fd)
+            os.close(state_fd)
+    report["durable_generation_claim_fd_core_single_use_and_recovery"] = "PASS"
 
     # Receipt, external challenge, expiry, privacy and the complete public G00
     # contract must fail before state/cache/key metadata, bytes or processes
