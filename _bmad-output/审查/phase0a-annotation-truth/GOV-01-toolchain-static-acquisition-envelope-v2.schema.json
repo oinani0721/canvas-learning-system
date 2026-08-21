@@ -1,0 +1,1016 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:canvas-learning-system:gov-01:toolchain-static-acquisition-pending-envelope:v2:draft",
+  "title": "GOV-01 static toolchain acquisition pending approval envelope v2 (draft)",
+  "description": "Strict pre-execution public envelope. External preapproval validation occurs before the user approves the exact raw envelope digest and challenge. Runtime performs bound-schema hash checks plus manual critical-field enforcement before any write or verifier-source compilation. The envelope freezes public artifacts, executor/verifier bytes, keyed private-state commitments, locator-free content-addressed toolchain identities, source/USTAR/resolution/final-tree receipts, exact execution and mutation ceilings, and private-state authority. It contains no post-success PASS claim and no raw private locator or private-state digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "artifact_id",
+    "plan_id",
+    "state",
+    "approval_challenge_id",
+    "single_use",
+    "census_at_utc",
+    "not_after_utc",
+    "path_base",
+    "encoding_profile",
+    "receipt_digest_profile",
+    "approval_receipt_contract",
+    "predecessor",
+    "artifacts",
+    "artifact_path_uniqueness_policy",
+    "authorization_preimage",
+    "frozen_toolchain",
+    "schema_binding",
+    "static_acquisition_contract",
+    "lock_closure",
+    "execution_plan",
+    "mutation_scope",
+    "failure_contract",
+    "success_contract",
+    "private_state_authorization",
+    "privacy"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "gov-01-toolchain-static-acquisition-envelope-v2"
+    },
+    "artifact_type": {
+      "const": "gov-01-toolchain-acquisition-envelope"
+    },
+    "artifact_id": {
+      "$ref": "#/$defs/opaqueId"
+    },
+    "plan_id": {
+      "const": "PLAN-CLS-PRODUCTIVITY-2026-08-20"
+    },
+    "state": {
+      "const": "pending-user-confirmation"
+    },
+    "approval_challenge_id": {
+      "$ref": "#/$defs/challengeId"
+    },
+    "single_use": {
+      "const": true
+    },
+    "census_at_utc": {
+      "$ref": "#/$defs/utcTimestamp"
+    },
+    "not_after_utc": {
+      "$ref": "#/$defs/utcTimestamp"
+    },
+    "path_base": {
+      "const": "git-repository-root-for-public-paths; private-paths-resolved-only-after-approval"
+    },
+    "encoding_profile": {
+      "const": "UTF-8-NFC-LF-no-BOM-no-duplicate-json-keys"
+    },
+    "receipt_digest_profile": {
+      "const": "SHA-256(ASCII(CLS/GOV01-TOOLCHAIN-STATIC-ACQUISITION-RECEIPT/v2) || one NUL byte || raw-envelope-bytes); digest supplied by the user receipt and stored externally"
+    },
+    "approval_receipt_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_user_reference",
+        "receipt_must_match_raw_envelope_bytes",
+        "challenge_must_match",
+        "receipt_before_any_authorized_write",
+        "first_authorized_write",
+        "authority_is_exact",
+        "authority_expansion_allowed"
+      ],
+      "properties": {
+        "required_user_reference": {
+          "const": "exact domain-separated envelope SHA-256 plus exact approval_challenge_id"
+        },
+        "receipt_must_match_raw_envelope_bytes": { "const": true },
+        "challenge_must_match": { "const": true },
+        "receipt_before_any_authorized_write": { "const": true },
+        "first_authorized_write": {
+          "const": "mkdirat exact 0700 persistent challenge claim directory under an already-existing authorized claims container; EEXIST is terminal replay"
+        },
+        "authority_is_exact": { "const": true },
+        "authority_expansion_allowed": { "const": false }
+      }
+    },
+    "predecessor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "first_approval_envelope_raw_sha256",
+        "first_receipt_domain_sha256",
+        "bootstrap_patch_raw_sha256",
+        "bootstrap_target_receipt_sha256",
+        "bootstrap_containment_state",
+        "predecessor_chain_receipt_sha256"
+      ],
+      "properties": {
+        "first_approval_envelope_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "first_receipt_domain_sha256": { "$ref": "#/$defs/sha256" },
+        "bootstrap_patch_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "bootstrap_target_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "bootstrap_containment_state": { "const": "independently-verified-pass" },
+        "predecessor_chain_receipt_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/publicArtifact" },
+      "allOf": [
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "goal" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "governance-decision" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role", "path", "raw_file_sha256", "byte_length"], "properties": { "role": { "const": "static-executor" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" }, "raw_file_sha256": { "const": "b0117713c364fd8de77b9872585bff6590e3b5cc4aee21216cdd101ae83722da" }, "byte_length": { "const": 349389 } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role", "path", "raw_file_sha256", "byte_length"], "properties": { "role": { "const": "static-verifier" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py" }, "raw_file_sha256": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" }, "byte_length": { "const": 50895 } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "pending-envelope-schema" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "private-evidence-schema" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "public-attestation-schema" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "package-manifest" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "package-lock" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "gitignore" } } }, "minContains": 1, "maxContains": 1 }
+      ]
+    },
+    "artifact_path_uniqueness_policy": {
+      "const": "content-addressed checker MUST reject duplicate path even when role, byte_length or raw_file_sha256 differs; JSON Schema uniqueItems is not sufficient"
+    },
+    "schema_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_id",
+        "schema_artifact_path",
+        "schema_raw_file_sha256",
+        "schema_artifact_role",
+        "external_validator_profile",
+        "preapproval_external_validation_required",
+        "runtime_json_schema_execution_allowed",
+        "runtime_schema_hash_binding_required",
+        "runtime_manual_critical_field_checks_required",
+        "runtime_checkpoint",
+        "schema_digest_must_equal_artifact_entry",
+        "validation_failure_action"
+      ],
+      "properties": {
+        "schema_id": { "const": "urn:canvas-learning-system:gov-01:toolchain-static-acquisition-pending-envelope:v2:draft" },
+        "schema_artifact_path": { "$ref": "#/$defs/repoRelativePath" },
+        "schema_raw_file_sha256": { "$ref": "#/$defs/sha256" },
+        "schema_artifact_role": { "const": "pending-envelope-schema" },
+        "external_validator_profile": { "const": "JSON-Schema-draft-2020-12-strict-additionalProperties-false-format-annotation-plus-content-addressed-strict-UTC-calendar-and-duplicate-key-checker" },
+        "preapproval_external_validation_required": { "const": true },
+        "runtime_json_schema_execution_allowed": { "const": false },
+        "runtime_schema_hash_binding_required": { "const": true },
+        "runtime_manual_critical_field_checks_required": { "const": true },
+        "runtime_checkpoint": { "const": "after raw receipt/challenge/expiry verification and schema artifact hash verification, before any other envelope-controlled read, verifier-source compilation, subprocess or write" },
+        "schema_digest_must_equal_artifact_entry": { "const": true },
+        "validation_failure_action": { "const": "fail closed before any authorized write or verifier-source compilation" }
+      }
+    },
+    "authorization_preimage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "head_commit_oid",
+        "head_tree_oid",
+        "git_object_format",
+        "git_snapshot_commitment",
+        "git_snapshot_commitment_profile",
+        "private_preapproval_commitment",
+        "private_preapproval_commitment_profile",
+        "public_repo_artifact_set_receipt_sha256",
+        "private_preimage_capture",
+        "worktree_state",
+        "preexisting_dirty_policy",
+        "target_preimage",
+        "acquisition_control_root_state",
+        "protected_existing_control_paths",
+        "protected_existing_control_state",
+        "absent_control_paths",
+        "absent_control_state",
+        "node_modules_state",
+        "target_worktree_claude_sessions",
+        "forbidden_process_match_count",
+        "node_modules_parent_or_sibling_reuse_allowed",
+        "private_vault_census_allowed"
+      ],
+      "properties": {
+        "head_commit_oid": { "$ref": "#/$defs/gitOid" },
+        "head_tree_oid": { "$ref": "#/$defs/gitOid" },
+        "git_object_format": { "enum": ["sha1", "sha256"] },
+        "git_snapshot_commitment": { "$ref": "#/$defs/privateCommitment" },
+        "git_snapshot_commitment_profile": { "const": "HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/GIT-SNAPSHOT/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,status_bytes,dirty_manifest_commitment,refs_sha256,refs_bytes,index,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,hooks_config_state,git_binary_sha256; git_control binds marker/commondir/config states, private git/common-dir locator commitments and ABSENT alternate controls; dirty_manifest_commitment is a keyed content-and-metadata manifest of every porcelain-v2 dirty or untracked path" },
+        "private_preapproval_commitment": { "$ref": "#/$defs/privateCommitment" },
+        "private_preapproval_commitment_profile": { "const": "HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-PREAPPROVAL/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON of exactly {schema_version,approval_challenge_id,census_at_utc,hmac_key_id,authorized_locator_commitments,private_control_identity_commitment,public_repo_artifact_set_receipt_sha256,git_snapshot_commitment,toolchain_set_receipt_sha256,package_lock_raw_sha256,host_platform,host_architecture,target_worktree_claude_sessions,forbidden_process_match_count,host_selected_package_count,host_selected_cache_bytes,host_bin_link_count,content_receipt_sha256,ustar_closure_sha256,resolution_receipt_sha256,expected_tree_sha256}; no envelope digest, receipt digest, generated timestamp, raw private locator, inode/device or command bytes are in this deterministic body" },
+        "public_repo_artifact_set_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "private_preimage_capture": {
+          "const": "read-only census computes the full Git-snapshot and locator commitments without persisting a claim; after user receipt, executor recomputes and compares every commitment; the persistent O_EXCL challenge claim is the first write, then exact private preimage evidence is appended before any stage/target write"
+        },
+        "worktree_state": { "enum": ["clean", "dirty-user-owned-do-not-normalize"] },
+        "preexisting_dirty_policy": {
+          "const": "private exact pre/post inventory required; no public paths or raw dirty/index/local-settings digest; zero mutation outside the exact new target"
+        },
+        "target_preimage": { "const": "ABSENT" },
+        "node_modules_state": { "const": "ABSENT" },
+        "acquisition_control_root_state": { "const": "existing-real-directory-no-symlink-ancestor" },
+        "protected_existing_control_paths": { "const": ["package.json", "package-lock.json", ".gitignore"] },
+        "protected_existing_control_state": { "const": "PRESENT regular files; raw SHA-256 bound in artifacts; byte-identical before and after" },
+        "absent_control_paths": {
+          "const": [".npmrc", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"]
+        },
+        "absent_control_state": { "const": "all exact repo-root direct children ABSENT before and required ABSENT after" },
+        "target_worktree_claude_sessions": { "const": 0 },
+        "forbidden_process_match_count": { "const": 0 },
+        "node_modules_parent_or_sibling_reuse_allowed": { "const": false },
+        "private_vault_census_allowed": { "const": false }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "git_object_format": { "const": "sha1" } }, "required": ["git_object_format"] },
+          "then": { "properties": { "head_commit_oid": { "pattern": "^[0-9a-f]{40}$" }, "head_tree_oid": { "pattern": "^[0-9a-f]{40}$" } } }
+        },
+        {
+          "if": { "properties": { "git_object_format": { "const": "sha256" } }, "required": ["git_object_format"] },
+          "then": { "properties": { "head_commit_oid": { "pattern": "^[0-9a-f]{64}$" }, "head_tree_oid": { "pattern": "^[0-9a-f]{64}$" } } }
+        }
+      ]
+    },
+    "frozen_toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "architecture",
+        "entries",
+        "dynamic_closure_receipt_sha256",
+        "toolchain_set_receipt_profile",
+        "toolchain_set_receipt_sha256",
+        "private_locator_policy",
+        "recompute_before_first_non_ledger_acquisition_write",
+        "drift_action"
+      ],
+      "properties": {
+        "platform": { "const": "darwin" },
+        "architecture": { "const": "arm64" },
+        "entries": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "prefixItems": [
+            { "$ref": "#/$defs/executorTool" },
+            { "$ref": "#/$defs/verifierTool" },
+            { "$ref": "#/$defs/pythonTool" },
+            { "$ref": "#/$defs/stdlibTool" },
+            { "$ref": "#/$defs/xcodeSelectTool" },
+            { "$ref": "#/$defs/xcrunTool" },
+            { "$ref": "#/$defs/gitTool" },
+            { "$ref": "#/$defs/pgrepTool" },
+            { "$ref": "#/$defs/lsofTool" }
+          ],
+          "items": false
+        },
+        "dynamic_closure_receipt_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "SHA-256 over ASCII(CLS/GOV01/STATIC-ACQUISITION-DYNAMIC-CLOSURE/v2), one NUL byte, and UTF-8-NFC-LF sorted-key compact canonical JSON containing schema_version, exact flags [-I,-S,-B], observed Python version/implementation and the ordered nine observed toolchain entries. It is runtime self-attestation, not pre-exec assurance."
+        },
+        "toolchain_set_receipt_profile": {
+          "const": "SHA-256(ASCII(CLS/GOV01/STATIC-ACQUISITION-TOOLCHAIN-SET/v2) || NUL || UTF-8-NFC body); body is role-byte-sorted LF-terminated rows of exactly 6 TAB-separated columns: role,logical_id,artifact_kind,version,digest_profile,raw_digest_sha256"
+        },
+        "toolchain_set_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "private_locator_policy": {
+          "const": "resolve realpaths only in private preflight; require exact public digest before execution; never serialize locator in public artifacts"
+        },
+        "recompute_before_first_non_ledger_acquisition_write": { "const": true },
+        "drift_action": { "const": "append terminal rejection to the already-consumed persistent ledger; perform no stage or target write; require a fresh envelope and challenge" }
+      }
+    },
+    "static_acquisition_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verifier_profile_version",
+        "verifier_artifact_path",
+        "verifier_sha256",
+        "executor_artifact_path",
+        "executor_sha256",
+        "stage_repo_relative",
+        "target_repo_relative",
+        "compressed_blobs_memory_resident_before_write",
+        "payload_bytes_memory_resident_before_write",
+        "hidden_package_lock_generation_allowed",
+        "expected",
+        "node_execution_allowed",
+        "npm_execution_allowed",
+        "openspec_execution_allowed",
+        "openspec_scaffold_allowed",
+        "lifecycle_execution_allowed",
+        "network_allowed",
+        "protected_control_paths",
+        "protected_control_pre_post_hash_check_required",
+        "absent_control_paths",
+        "absent_control_pre_post_lstat_check_required"
+      ],
+      "properties": {
+        "verifier_profile_version": { "const": "gov-01-toolchain-static-verifier-v2" },
+        "verifier_artifact_path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py" },
+        "verifier_sha256": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" },
+        "executor_artifact_path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" },
+        "executor_sha256": { "const": "b0117713c364fd8de77b9872585bff6590e3b5cc4aee21216cdd101ae83722da" },
+        "stage_repo_relative": { "type": "string", "pattern": "^\\.gov01-toolchain-stage-GOV01-SA-[0-9]{8}-[0-9a-f]{32,64}$" },
+        "target_repo_relative": { "const": "node_modules" },
+        "compressed_blobs_memory_resident_before_write": { "const": true },
+        "payload_bytes_memory_resident_before_write": { "const": true },
+        "hidden_package_lock_generation_allowed": { "const": false },
+        "expected": { "$ref": "#/$defs/staticExpected" },
+        "node_execution_allowed": { "const": false },
+        "npm_execution_allowed": { "const": false },
+        "openspec_execution_allowed": { "const": false },
+        "openspec_scaffold_allowed": { "const": false },
+        "lifecycle_execution_allowed": { "const": false },
+        "network_allowed": { "const": false },
+        "protected_control_paths": { "const": ["package.json", "package-lock.json", ".gitignore"] },
+        "protected_control_pre_post_hash_check_required": { "const": true },
+        "absent_control_paths": { "const": [".npmrc", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"] },
+        "absent_control_pre_post_lstat_check_required": { "const": true }
+      }
+    },
+    "lock_closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_kind",
+        "host_selected_package_count",
+        "host_selected_cache_bytes",
+        "host_bin_link_count",
+        "expected_archive_member_count",
+        "expected_resolved_tree_entry_count",
+        "content_receipt_profile",
+        "content_receipt_sha256",
+        "ustar_closure_receipt_profile",
+        "ustar_closure_sha256",
+        "resolution_receipt_profile",
+        "resolution_receipt_sha256",
+        "expected_tree_receipt_profile",
+        "expected_tree_sha256",
+        "resource_limits",
+        "archive_member_types",
+        "generated_symlink_policy",
+        "source_locator_policy",
+        "direct_sri_policy",
+        "network_fetch_allowed"
+      ],
+      "properties": {
+        "source_kind": { "const": "preapproved-local-content-addressed-ustar-set" },
+        "host_selected_package_count": { "const": 167 },
+        "host_selected_cache_bytes": { "const": 13916529 },
+        "host_bin_link_count": { "const": 12 },
+        "expected_archive_member_count": { "const": 4117 },
+        "expected_resolved_tree_entry_count": { "const": 4665 },
+        "content_receipt_profile": { "const": "SHA-256(ASCII(CLS/GOV01-OFFLINE-CACHE/v1) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 6 TAB-separated columns: lock_key, version, resolved, integrity, compressed_bytes, actual_integrity" },
+        "content_receipt_sha256": { "const": "ade2bf32961a18ba9365b1aef1df3456471622759cbf56890ecfbdd40e92a60b" },
+        "ustar_closure_receipt_profile": { "const": "SHA-256(ASCII(CLS/GOV01/USTAR-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 13 TAB-separated columns: lock_key,version,integrity,compressed_bytes,tar_bytes,member_count,raw_regular_count,raw_directory_count,payload_bytes,strip_root,package_name,package_version,member_manifest_sha256; each member_manifest_sha256 uses CLS/GOV01/USTAR-PACKAGE-MEMBERS/v2 NUL plus sorted 8-column member rows" },
+        "ustar_closure_sha256": { "const": "bd9a30d26415f06e20dc61c551e34fface39c376b5f761518bb69cca72efe9bb" },
+        "resolution_receipt_profile": { "const": "SHA-256(ASCII(CLS/GOV01/NODE-RESOLUTION-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 7 TAB-separated columns: source,edge_type,dependency_name,spec,target,target_version,state; this is deterministic package-lock path-closure evidence only and is not a general semver solver or semantic-version satisfiability proof" },
+        "resolution_receipt_sha256": { "const": "2cecc0432d6f13be979b884b570e81c1ba443c9956e2149ba08b64d1a40433b0" },
+        "expected_tree_receipt_profile": { "const": "SHA-256(ASCII(CLS/GOV01/DETERMINISTIC-NODE-MODULES/v2) || NUL || UTF-8 body); body is LF-terminated rows sorted by UTF-8 path bytes with exactly 5 TAB-separated columns: kind,path,mode,size,file_sha256_or_link_text" },
+        "expected_tree_sha256": { "const": "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2" },
+        "resource_limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "selected_archive_count",
+            "compressed_closure_bytes_max",
+            "tar_stream_bytes_per_archive_max",
+            "member_count_per_archive_max",
+            "final_path_utf8_bytes_max",
+            "single_file_bytes_max",
+            "payload_closure_bytes_max",
+            "required_raw_regular_count",
+            "required_bin_link_count"
+          ],
+          "properties": {
+            "selected_archive_count": { "const": 167 },
+            "compressed_closure_bytes_max": { "const": 14000000 },
+            "tar_stream_bytes_per_archive_max": { "const": 24000000 },
+            "member_count_per_archive_max": { "const": 5000 },
+            "final_path_utf8_bytes_max": { "const": 128 },
+            "single_file_bytes_max": { "const": 15000000 },
+            "payload_closure_bytes_max": { "const": 64000000 },
+            "required_raw_regular_count": { "const": 4099 },
+            "required_bin_link_count": { "const": 12 }
+          }
+        },
+        "archive_member_types": { "const": ["regular-file", "directory"] },
+        "generated_symlink_policy": { "const": "only exact relative symlink text bound by the resolution receipt; resolved target remains beneath final tree" },
+        "source_locator_policy": { "const": "private absolute locators omitted; after challenge claim, derive each content-v2 locator directly from the package-lock sha512 SRI and require actual_integrity equality" },
+        "direct_sri_policy": { "const": "no npm cache index read; sha512 SRI bytes map directly to _cacache/content-v2/sha512/<first-2>/<next-2>/<remainder>; missing or mismatched blob is terminal failure" },
+        "network_fetch_allowed": { "const": false }
+      }
+    },
+    "execution_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt_policy",
+        "phase_order",
+        "runner",
+        "executor_interface_state",
+        "executor_interface_version",
+        "executor_argv_template",
+        "executor_argv_template_sha256",
+        "verifier_profile_version",
+        "verifier_census_argv_template",
+        "verifier_installed_argv_template",
+        "evidence_command_templates",
+        "evidence_command_templates_sha256",
+        "expiry_checkpoints",
+        "environment_mode",
+        "environment_name_allowlist",
+        "ustar_parser",
+        "compression_policy",
+        "ustar_safety_policy",
+        "member_type_policy",
+        "duplicate_collision_policy",
+        "launcher_executable_role",
+        "allowed_subprocess_executable_roles",
+        "forbidden_executable_names",
+        "shell_allowed",
+        "subprocess_from_executor_allowed",
+        "archive_or_payload_execution_allowed",
+        "network_allowed",
+        "stop_after_static_attestation"
+      ],
+      "properties": {
+        "attempt_policy": { "const": "single-use; any failure consumes challenge; retry requires a new envelope and challenge" },
+        "phase_order": {
+          "const": [
+            "read-only-verify-user-receipt-envelope-digest-challenge-and-expiry",
+            "read-only-hash-bound-schema-compare-schema-binding-and-run-manual-critical-envelope-checks-before-verifier-compilation",
+            "read-only-compare-repo-cache-state-key-envelope-locator-commitments",
+            "read-only-hash-every-public-artifact-and-load-only-the-bound-verifier-source",
+            "read-only-recompute-and-compare-full-Git-snapshot-and-private-preapproval-commitments",
+            "verify-no-active-Claude-session-whose-cwd-is-the-target-worktree; no broader ambient-process absence claim",
+            "read-only-direct-SRI-cache-census-build-expected-tree-and-freeze-all-compressed-and-payload-bytes-in-memory",
+            "recheck-approval-expiry-immediately-before-persistent-claim",
+            "create-persistent-0700-challenge-claim-directory-with-exclusive-mkdirat-and-consume-challenge-as-first-authorized-write",
+            "append-frozen-preflight-event-to-persistent-ledger",
+            "create-0700-same-parent-same-filesystem-exclusive-stage-with-incomplete-marker",
+            "stream-decompress-and-custom-parse-only-approved-USTAR-members",
+            "materialize-only-expected-resolution-destinations-without-running-payload",
+            "fsync-stage-and-verify-closure-resolution-and-stage-tree-receipts",
+            "run-full-pre-promotion-CAS-for-private-inputs-public-artifacts-toolchain-Git-dirty-content-process-census-lock-cache-control-files-stage-identity-and-target-absence",
+            "remove-only-the-incomplete-marker-seal-root-0755-and-run-two-stable-fingerprints; failure-after-this-point-retains-a-hidden-unmarked-stage",
+            "recheck-approval-expiry-and-target-absence-immediately-before-publication",
+            "publish-exact-stage-to-absent-target-with-renameatx_np-RENAME_EXCL",
+            "fsync-target-parent-and-recompute-final-tree-and-private-postimage",
+            "append-terminal-private-ledger-event-and-emit-locator-free-stdout-projection-only-if-every-success-condition-holds",
+            "stop-with-payload-unexecuted"
+          ]
+        },
+        "runner": { "const": "caller invokes exact executor with a CPython 3.9-compatible interpreter and -I -S -B; executor self-attests isolation flags, interpreter, stdlib, executor, verifier, schema and five evidence binaries only after Python startup; no pre-exec launcher or pre-exec hash assurance exists; no shell" },
+        "executor_interface_state": { "const": "frozen-content-addressed-before-user-receipt" },
+        "executor_interface_version": { "const": "gov01-static-acquisition-executor-draft-v2" },
+        "executor_argv_template": {
+          "const": [
+            "{BOUND_PYTHON_PRIVATE}", "-I", "-S", "-B", "{REPO_ROOT_PRIVATE}/_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py",
+            "acquire", "--repo-root", "{REPO_ROOT_PRIVATE}", "--cache-root", "{CACHE_ROOT_PRIVATE}", "--state-root", "{STATE_ROOT_PRIVATE}",
+            "--key-file", "{HMAC_KEY_FILE_PRIVATE}", "--envelope", "{ENVELOPE_PRIVATE}", "--receipt-digest", "{APPROVED_RECEIPT_DIGEST_PUBLIC}",
+            "--approval-challenge", "{APPROVAL_CHALLENGE_ID_PUBLIC}"
+          ]
+        },
+        "executor_argv_template_sha256": { "$ref": "#/$defs/sha256" },
+        "verifier_profile_version": { "const": "gov-01-toolchain-static-verifier-v2" },
+        "verifier_census_argv_template": { "const": ["{BOUND_PYTHON_PRIVATE}", "-I", "-S", "-B", "{BOUND_VERIFIER_PRIVATE}", "census", "--cache-root", "{CACHE_ROOT_PRIVATE}"] },
+        "verifier_installed_argv_template": { "const": ["{BOUND_PYTHON_PRIVATE}", "-I", "-S", "-B", "{BOUND_VERIFIER_PRIVATE}", "verify-installed", "--cache-root", "{CACHE_ROOT_PRIVATE}", "--expected-tree-sha256", "{EXPECTED_TREE_SHA256_PUBLIC}"] },
+        "evidence_command_templates": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/evidenceCommandTemplate" },
+          "allOf": [
+            { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "git-read-only-evidence" } } }, "minContains": 1 },
+            { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "xcode-select-resolver" } } }, "minContains": 1 },
+            { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "xcrun-resolver" } } }, "minContains": 1 },
+            { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "pgrep-read-only-evidence" } } }, "minContains": 1 },
+            { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "lsof-read-only-evidence" } } }, "minContains": 1 }
+          ]
+        },
+        "evidence_command_templates_sha256": { "$ref": "#/$defs/sha256" },
+        "expiry_checkpoints": { "const": ["on-envelope-load", "immediately-before-persistent-ledger-claim", "immediately-before-renameatx_np-RENAME_EXCL"] },
+        "environment_mode": { "const": "executor requires Python -I -S -B and self-attests those runtime flags; every authorized evidence subprocess receives a newly constructed exact environment and never inherits caller environment; assurance ceiling is runtime-self-attested-not-pre-exec" },
+        "environment_name_allowlist": { "const": ["PATH", "HOME", "LC_ALL", "LANG", "GIT_OPTIONAL_LOCKS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM", "GIT_TERMINAL_PROMPT", "GIT_NO_REPLACE_OBJECTS", "GIT_PROTOCOL_FROM_USER", "GIT_ALLOW_PROTOCOL", "GIT_ATTR_NOSYSTEM", "GIT_DISCOVERY_ACROSS_FILESYSTEM"] },
+        "ustar_parser": { "const": "custom Python stdlib fixed-512-byte POSIX.1-1988 USTAR parser; tarfile.extract/extractall forbidden" },
+        "compression_policy": { "const": "exactly one RFC1952 gzip stream through frozen Python stdlib zlib; MAX_TAR_STREAM prebound; eof required; unused_data and unconsumed_tail empty; concatenated/trailing stream rejected" },
+        "ustar_safety_policy": { "const": "strict magic/version/checksum/octal/padding/two-zero-block terminator; reject PAX, GNU, sparse, base-256 numeric, trailing payload, absolute/dot/dotdot/backslash/NUL/control path, symlink ancestor and path escape" },
+        "member_type_policy": { "const": "archive accepts regular files and directories only; rejects archive symlink, hardlink, fifo, socket, block/character device and unknown types" },
+        "duplicate_collision_policy": { "const": "reject duplicate normalized path, file-directory conflict, Unicode NFC collision and case-fold collision before first target write" },
+        "launcher_executable_role": { "const": "python-interpreter" },
+        "allowed_subprocess_executable_roles": { "const": ["xcode-select-resolver", "xcrun-resolver", "git-read-only-evidence", "pgrep-read-only-evidence", "lsof-read-only-evidence"] },
+        "forbidden_executable_names": { "const": ["npm", "npx", "node", "nodejs", "openspec", "sandbox-exec", "tar", "bsdtar", "gtar"] },
+        "shell_allowed": { "const": false },
+        "subprocess_from_executor_allowed": { "const": true },
+        "archive_or_payload_execution_allowed": { "const": false },
+        "network_allowed": { "const": false },
+        "stop_after_static_attestation": { "const": true }
+      }
+    },
+    "mutation_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_persistent_mutations",
+        "allowed_ephemeral_mutations",
+        "target_preimage",
+        "publish_syscall",
+        "publish_flag",
+        "publish_attempt_ceiling",
+        "overwrite_allowed",
+        "forbidden_mutations"
+      ],
+      "properties": {
+        "allowed_persistent_mutations": {
+          "const": [
+            "create one exact persistent 0700 challenge claim directory with exclusive mkdirat semantics and create/append one 0600 hash-chained ledger beneath it; the claim and ledger are never automatically deleted",
+            "create exactly one previously-absent approved target by a single successful renameatx_np(RENAME_EXCL)"
+          ]
+        },
+        "allowed_ephemeral_mutations": {
+          "const": [
+            "create one exact 0700 same-parent same-filesystem stage with an exact 0600 incomplete marker; this stage is publication-working-state but is retained rather than ephemeral on any failure",
+            "write only the frozen expected directories, regular-file payload bytes and generated relative bin symlinks beneath that stage",
+            "remove only the exact incomplete marker and chmod the stage root 0755 immediately before two stable fingerprints and exclusive publication; failure in this sealed pre-publication window retains a hidden 0755 stage without the marker"
+          ]
+        },
+        "target_preimage": { "const": "ABSENT" },
+        "publish_syscall": { "const": "renameatx_np" },
+        "publish_flag": { "const": "RENAME_EXCL" },
+        "publish_attempt_ceiling": { "const": 1 },
+        "overwrite_allowed": { "const": false },
+        "forbidden_mutations": {
+          "const": [
+            "overwrite, merge, unlink, replace or repair any existing target",
+            "modify existing repo-root package.json, package-lock.json or .gitignore; create any absent alternate lock file or .npmrc",
+            "write outside exact persistent challenge claim/ledger, exact stage and exact exclusive target publication",
+            "modify Git objects, refs, index, hooks, config or any existing worktree file",
+            "modify parent or sibling worktree, user home, private Vault, Graphiti or external service",
+            "commit, push, branch/ref creation, OpenSpec execution or governance apply"
+          ]
+        }
+      }
+    },
+    "failure_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "failure_action",
+        "challenge_state",
+        "retry_allowed",
+        "public_success_attestation_allowed",
+        "existing_target_action",
+        "failed_stage_action",
+        "evidence_action",
+        "new_authority_required"
+      ],
+      "properties": {
+        "failure_action": { "const": "STOP immediately at first failed gate" },
+        "challenge_state": { "const": "before first write no persistent consumption record exists but this envelope/challenge must be treated as rejected and replaced; after exclusive claim mkdir the persistent state is consumed-rejected" },
+        "retry_allowed": { "const": false },
+        "public_success_attestation_allowed": { "const": false },
+        "existing_target_action": { "const": "never modify or delete; if a target was newly published before a later failure, retain as unauthorized and require user decision" },
+        "failed_stage_action": { "const": "retain in place with no automatic cleanup, deletion, quarantine move or glob: before marker removal it remains a hidden 0700 stage carrying the 0600 incomplete marker; after marker removal/seal but before rename it remains a hidden 0755 stage without the marker; after successful rename followed by later failure the published target is retained as unauthorized pending user decision" },
+        "evidence_action": { "const": "pre-claim failures perform no write; after a persistent claim exists, append/fsync and semantically verify a terminal failure event only while the retained ledger writer is healthy and nonterminal; if ledger creation, a prior append, terminal append, fsync or verification fails, retain the claim and any raw absent/partial/invalid ledger bytes without repair, truncation, deletion or a false terminal claim" },
+        "new_authority_required": { "const": "new complete envelope, new raw envelope digest and new challenge" }
+      }
+    },
+    "success_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host_package_count",
+        "maximum_state",
+        "target_created_count",
+        "target_tree_must_equal_expected_merkle",
+        "missing_expected_entries",
+        "unexpected_entries",
+        "content_mismatches",
+        "forbidden_control_paths_present",
+        "protected_control_paths_changed",
+        "outside_scope_mutation_count",
+        "network_attempt_count",
+        "npm_node_npx_execution_count",
+        "javascript_execution_count",
+        "lifecycle_execution_count",
+        "archive_member_execution_count",
+        "sandbox_exec_execution_count",
+        "payload_execution_allowed_after_success",
+        "governance_apply_allowed",
+        "commit_allowed",
+        "push_allowed",
+        "next_required_authorization"
+      ],
+      "properties": {
+        "host_package_count": { "const": 167 },
+        "maximum_state": { "const": "static-attested-unexecuted" },
+        "target_created_count": { "const": 1 },
+        "target_tree_must_equal_expected_merkle": { "const": true },
+        "missing_expected_entries": { "const": 0 },
+        "unexpected_entries": { "const": 0 },
+        "content_mismatches": { "const": 0 },
+        "forbidden_control_paths_present": { "const": 0 },
+        "protected_control_paths_changed": { "const": 0 },
+        "outside_scope_mutation_count": { "const": 0 },
+        "network_attempt_count": { "const": 0 },
+        "npm_node_npx_execution_count": { "const": 0 },
+        "javascript_execution_count": { "const": 0 },
+        "lifecycle_execution_count": { "const": 0 },
+        "archive_member_execution_count": { "const": 0 },
+        "sandbox_exec_execution_count": { "const": 0 },
+        "payload_execution_allowed_after_success": { "const": false },
+        "governance_apply_allowed": { "const": false },
+        "commit_allowed": { "const": false },
+        "push_allowed": { "const": false },
+        "next_required_authorization": { "const": "new runtime-use envelope binding the final-tree receipt and a fresh single-use challenge" }
+      }
+    },
+    "private_state_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "private_read_authority",
+        "private_write_authority",
+        "locator_commitment_profile",
+        "hmac_key_id_profile",
+        "hmac_key_id",
+        "authorized_locator_commitments",
+        "private_control_identity_commitment_profile",
+        "private_control_identity_commitment",
+        "all_cli_locators_compared_before_any_write",
+        "claims_container_preimage",
+        "challenge_claim_preimage",
+        "first_authorized_write",
+        "persistent_single_use_ledger_required",
+        "private_evidence_schema_required",
+        "private_file_modes",
+        "private_preimage_checks",
+        "public_serialization_forbidden",
+        "private_vault_authorized",
+        "retention",
+        "destruction_authorized"
+      ],
+      "properties": {
+        "private_read_authority": {
+          "const": [
+            "resolve and hash exact toolchain realpaths bound by public content digests",
+            "derive and read exact local content-v2 archive blobs directly from package-lock sha512 SRI without reading any npm cache index",
+            "read Git control marker/commondir/config/alternate-control state, index/refs/config/hooks metadata and exact dirty content-and-metadata inventory solely for pre/post equality evidence",
+            "run pgrep only for Claude candidates and lsof only for each returned PID cwd; no machine-wide lsof or broader process absence claim",
+            "read the pre-existing state-root/claims directory identities and require the exact challenge child absent; no pre-existing ledger is read"
+          ]
+        },
+        "private_write_authority": {
+          "const": [
+            "create exact 0700 persistent challenge claim directory and create/append its exact 0600 ledger.jsonl",
+            "create exact same-filesystem stage and publish exact absent target with RENAME_EXCL"
+          ]
+        },
+        "locator_commitment_profile": {
+          "const": "HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-LOCATOR/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON {label,locator}; labels and absolute normalized no-symlink locators are exact and comparison uses hmac.compare_digest"
+        },
+        "hmac_key_id_profile": {
+          "const": "HMAC-SHA-256 with the same private key over ASCII(CLS/GOV01/HMAC-KEY-ID/v2) || NUL || eight zero bytes; locator and raw key bytes are never serialized"
+        },
+        "hmac_key_id": { "$ref": "#/$defs/privateCommitment" },
+        "authorized_locator_commitments": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repo_root",
+            "cache_root",
+            "state_root",
+            "key_file",
+            "envelope"
+          ],
+          "properties": {
+            "repo_root": { "type": "object", "additionalProperties": false, "required": ["label", "commitment"], "properties": { "label": { "const": "repo-root" }, "commitment": { "$ref": "#/$defs/privateCommitment" } } },
+            "cache_root": { "type": "object", "additionalProperties": false, "required": ["label", "commitment"], "properties": { "label": { "const": "npm-cache" }, "commitment": { "$ref": "#/$defs/privateCommitment" } } },
+            "state_root": { "type": "object", "additionalProperties": false, "required": ["label", "commitment"], "properties": { "label": { "const": "state-root" }, "commitment": { "$ref": "#/$defs/privateCommitment" } } },
+            "key_file": { "type": "object", "additionalProperties": false, "required": ["label", "commitment"], "properties": { "label": { "const": "hmac-key" }, "commitment": { "$ref": "#/$defs/privateCommitment" } } },
+            "envelope": { "type": "object", "additionalProperties": false, "required": ["label", "commitment"], "properties": { "label": { "const": "envelope" }, "commitment": { "$ref": "#/$defs/privateCommitment" } } }
+          }
+        },
+        "private_control_identity_commitment_profile": {
+          "const": "HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-CONTROL-IDENTITY/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON binding the receipt-approved owner UID, inherited control GID, exact state-root/claims/key modes and expected claim/ledger modes without serializing private locators"
+        },
+        "private_control_identity_commitment": { "$ref": "#/$defs/privateCommitment" },
+        "all_cli_locators_compared_before_any_write": { "const": true },
+        "claims_container_preimage": { "const": "state-root/claims already exists as a receipt-bound-owner-and-group real 0700 directory and is not created by this attempt" },
+        "challenge_claim_preimage": { "const": "exact state-root/claims/<approval_challenge_id> direct child ABSENT" },
+        "first_authorized_write": { "const": "mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700; EEXIST is terminal replay; no earlier mkdir, claim, ledger, stage, target or other write" },
+        "persistent_single_use_ledger_required": { "const": true },
+        "private_evidence_schema_required": { "const": "gov-01-toolchain-static-acquisition-private-evidence-v2" },
+        "private_file_modes": { "const": { "directory": "0700", "file": "0600", "umask": "0077" } },
+        "private_preimage_checks": {
+          "const": [
+            "five exact HMAC-bound CLI locators, pairwise repo/cache/state/key separation, control-prefix envelope containment, no symlink ancestor and no Vault or .obsidian component",
+            "cache-root locator and direct-SRI content blob bytes/digests; npm cache index read is prohibited",
+            "Git control marker, commondir, local configs and absent alternate controls before any Git command; then index, refs and keyed dirty/untracked content-and-metadata inventory",
+            "pgrep Claude candidates and per-candidate lsof cwd stdout commitments without public command output",
+            "state-root, claims-container and HMAC-key owner/group/mode are bound by the private control identity commitment; exact challenge child absence, HMAC-key bytes, raw envelope bytes and approved receipt digest are rechecked before first write"
+          ]
+        },
+        "public_serialization_forbidden": {
+          "const": [
+            "private absolute or home-relative locator",
+            "cache-root locator or direct-SRI content blob private locator",
+            "dirty/untracked inventory or its raw digest",
+            "environment values, command output or open-file locator list",
+            "ledger locator/raw bytes, raw HMAC key or user receipt body",
+            "private Vault locator, name, content or digest"
+          ]
+        },
+        "private_vault_authorized": { "const": false },
+        "retention": { "const": "persistent challenge claim and ledger retained outside repo and never automatically deleted; failed stage and any published target are never automatically deleted" },
+        "destruction_authorized": { "const": false }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_raw_sha256_allowed_for",
+        "private_raw_sha256_only_for",
+        "private_locator_public_count",
+        "private_vault_read_count",
+        "graphiti_call_count",
+        "network_call_count"
+      ],
+      "properties": {
+        "public_raw_sha256_allowed_for": {
+          "const": [
+            "public repo artifacts including executor/verifier/schemas",
+            "locator-free toolchain content identities",
+            "content, USTAR, closure Merkle, resolution, expected-tree and public receipt digests"
+          ]
+        },
+        "private_raw_sha256_only_for": {
+          "const": [
+            "cache-root and direct-SRI content blob private locator evidence",
+            "dirty/untracked inventory",
+            "Git index/private config/hooks locator receipts",
+            "local settings",
+            "command output/open-file/process traces",
+            "persistent ledger and challenge claim"
+          ]
+        },
+        "private_locator_public_count": { "const": 0 },
+        "private_vault_read_count": { "const": 0 },
+        "graphiti_call_count": { "const": 0 },
+        "network_call_count": { "const": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "privateCommitment": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "resolutionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["row_count", "body_bytes", "sha256", "required_missing", "allowed_missing"],
+      "properties": {
+        "row_count": { "const": 256 },
+        "body_bytes": { "const": 26629 },
+        "sha256": { "const": "2cecc0432d6f13be979b884b570e81c1ba443c9956e2149ba08b64d1a40433b0" },
+        "required_missing": { "const": 0 },
+        "allowed_missing": { "const": 10 }
+      }
+    },
+    "treeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry_count", "file_count", "directory_count", "symlink_count", "body_bytes", "sha256"],
+      "properties": {
+        "entry_count": { "const": 4665 },
+        "file_count": { "const": 4099 },
+        "directory_count": { "const": 554 },
+        "symlink_count": { "const": 12 },
+        "body_bytes": { "const": 539842 },
+        "sha256": { "const": "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2" }
+      }
+    },
+    "staticExpected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_version", "package_json_sha256", "package_lock_sha256", "lockfile_version",
+        "lock_package_count", "selected_package_count", "excluded_platform_package_count",
+        "compressed_bytes", "tar_stream_bytes", "payload_bytes", "raw_member_count",
+        "raw_regular_count", "raw_directory_count", "bin_link_count", "lifecycle_field_count",
+        "content_receipt_body_bytes", "content_receipt_sha256", "ustar_closure_body_bytes",
+        "ustar_closure_sha256", "resolution", "tree"
+      ],
+      "properties": {
+        "profile_version": { "const": "gov-01-toolchain-static-verifier-v2" },
+        "package_json_sha256": { "const": "bd5c4e933e2dcbf7f2019bec9fec555b5b1adff1c4a6e5c36ea4415ff9a711fe" },
+        "package_lock_sha256": { "const": "c6e190741427b99ff132d6504b2a782d75c418d6ae93066769ac422bff6b7cea" },
+        "lockfile_version": { "const": 3 },
+        "lock_package_count": { "const": 176 },
+        "selected_package_count": { "const": 167 },
+        "excluded_platform_package_count": { "const": 9 },
+        "compressed_bytes": { "const": 13916529 },
+        "tar_stream_bytes": { "const": 59361280 },
+        "payload_bytes": { "const": 55954126 },
+        "raw_member_count": { "const": 4117 },
+        "raw_regular_count": { "const": 4099 },
+        "raw_directory_count": { "const": 18 },
+        "bin_link_count": { "const": 12 },
+        "lifecycle_field_count": { "const": 11 },
+        "content_receipt_body_bytes": { "const": 49665 },
+        "content_receipt_sha256": { "const": "ade2bf32961a18ba9365b1aef1df3456471622759cbf56890ecfbdd40e92a60b" },
+        "ustar_closure_body_bytes": { "const": 41470 },
+        "ustar_closure_sha256": { "const": "bd9a30d26415f06e20dc61c551e34fface39c376b5f761518bb69cca72efe9bb" },
+        "resolution": { "$ref": "#/$defs/resolutionSummary" },
+        "tree": { "$ref": "#/$defs/treeSummary" }
+      }
+    },
+    "opaqueId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "challengeId": {
+      "type": "string",
+      "minLength": 24,
+      "maxLength": 128,
+      "pattern": "^GOV01-SA-[0-9]{8}-[0-9a-f]{32,64}$"
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "gitOid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+    "argvTemplateString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "evidenceCommandTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "executable", "argv_allowlist", "environment_name_allowlist", "read_only", "shell"],
+      "properties": {
+        "role": { "enum": ["xcode-select-resolver", "xcrun-resolver", "git-read-only-evidence", "pgrep-read-only-evidence", "lsof-read-only-evidence"] },
+        "executable": { "$ref": "#/$defs/argvTemplateString" },
+        "argv_allowlist": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 64,
+            "items": { "$ref": "#/$defs/argvTemplateString" }
+          }
+        },
+        "environment_name_allowlist": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/argvTemplateString" } },
+        "read_only": { "const": true },
+        "shell": { "const": false }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "const": "xcode-select-resolver" } }, "required": ["role"] },
+          "then": { "properties": { "executable": { "const": "/usr/bin/xcode-select" }, "argv_allowlist": { "const": [["/usr/bin/xcode-select", "-p"]] }, "environment_name_allowlist": { "const": ["PATH", "HOME", "LC_ALL", "LANG", "GIT_OPTIONAL_LOCKS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM", "GIT_TERMINAL_PROMPT", "GIT_NO_REPLACE_OBJECTS", "GIT_PROTOCOL_FROM_USER", "GIT_ALLOW_PROTOCOL", "GIT_ATTR_NOSYSTEM", "GIT_DISCOVERY_ACROSS_FILESYSTEM"] } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "xcrun-resolver" } }, "required": ["role"] },
+          "then": { "properties": { "executable": { "const": "/usr/bin/xcrun" }, "argv_allowlist": { "const": [["/usr/bin/xcrun", "--find", "git"]] }, "environment_name_allowlist": { "const": ["PATH", "HOME", "LC_ALL", "LANG", "GIT_OPTIONAL_LOCKS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM", "GIT_TERMINAL_PROMPT", "GIT_NO_REPLACE_OBJECTS", "GIT_PROTOCOL_FROM_USER", "GIT_ALLOW_PROTOCOL", "GIT_ATTR_NOSYSTEM", "GIT_DISCOVERY_ACROSS_FILESYSTEM"] } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "git-read-only-evidence" } }, "required": ["role"] },
+          "then": { "properties": { "executable": { "const": "{RESOLVED_CLT_GIT_PRIVATE}" }, "argv_allowlist": { "const": [
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--verify", "HEAD"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--verify", "HEAD^{tree}"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--show-object-format"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "status", "--porcelain=v2", "-z", "--untracked-files=all", "--", ".", ":(exclude)canvas-vault", ":(exclude)canvas-vault/**", ":(exclude){STAGE_REPO_RELATIVE}", ":(exclude){STAGE_REPO_RELATIVE}/**", ":(exclude)node_modules", ":(exclude)node_modules/**"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "show-ref"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--git-path", "index"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "config", "--local", "--get", "core.hooksPath"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--git-path", "hooks"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--git-path", "config"]
+          ] }, "environment_name_allowlist": { "const": ["PATH", "HOME", "LC_ALL", "LANG", "GIT_OPTIONAL_LOCKS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM", "GIT_TERMINAL_PROMPT", "GIT_NO_REPLACE_OBJECTS", "GIT_PROTOCOL_FROM_USER", "GIT_ALLOW_PROTOCOL", "GIT_ATTR_NOSYSTEM", "GIT_DISCOVERY_ACROSS_FILESYSTEM"] } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "pgrep-read-only-evidence" } }, "required": ["role"] },
+          "then": { "properties": { "executable": { "const": "/usr/bin/pgrep" }, "argv_allowlist": { "const": [["/usr/bin/pgrep", "-if", "(^|[/ ])claude([ ]|$)|@anthropic-ai/claude-code"]] }, "environment_name_allowlist": { "const": ["PATH", "LC_ALL", "LANG"] } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "lsof-read-only-evidence" } }, "required": ["role"] },
+          "then": { "properties": { "executable": { "const": "/usr/sbin/lsof" }, "argv_allowlist": { "const": [["/usr/sbin/lsof", "-nP", "-a", "-p", "{CLAUDE_CANDIDATE_PID_DECIMAL}", "-d", "cwd", "-Fpn"]] }, "environment_name_allowlist": { "const": ["PATH", "LC_ALL", "LANG"] } } }
+        }
+      ]
+    },
+    "repoRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.git(?:/|$))(?!.*[\\u0000-\\u001f\\u007f-\\u009f])[^\\\\]+$"
+    },
+    "publicArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "file_kind", "byte_length", "raw_file_sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoRelativePath" },
+        "role": {
+          "enum": [
+            "goal",
+            "governance-decision",
+            "approval-predecessor",
+            "bootstrap-patch",
+            "static-executor",
+            "static-verifier",
+            "pending-envelope-schema",
+            "private-evidence-schema",
+            "public-attestation-schema",
+            "package-manifest",
+            "package-lock",
+            "gitignore",
+            "receipt-profile",
+            "other-public-governance-artifact"
+          ]
+        },
+        "file_kind": { "const": "regular" },
+        "byte_length": { "type": "integer", "minimum": 1 },
+        "raw_file_sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "allOf": [
+        { "if": { "properties": { "role": { "const": "static-executor" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" } } } },
+        { "if": { "properties": { "role": { "const": "static-verifier" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py" } } } },
+        { "if": { "properties": { "role": { "const": "package-manifest" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": "package.json" } } } },
+        { "if": { "properties": { "role": { "const": "package-lock" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": "package-lock.json" } } } },
+        { "if": { "properties": { "role": { "const": "gitignore" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": ".gitignore" } } } },
+        { "if": { "properties": { "role": { "enum": ["pending-envelope-schema", "private-evidence-schema", "public-attestation-schema"] } }, "required": ["role"] }, "then": { "properties": { "path": { "pattern": "^_bmad-output/审查/phase0a-annotation-truth/[^/]+\\.schema\\.json$" } } } }
+      ]
+    },
+    "contentAddressedTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "logical_id",
+        "artifact_kind",
+        "version",
+        "digest_profile",
+        "raw_digest_sha256",
+        "private_locator_omitted",
+        "execution_authority"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "static-executor",
+            "static-verifier",
+            "python-interpreter",
+            "python-stdlib-tree",
+            "xcode-select-resolver",
+            "xcrun-resolver",
+            "git-read-only-evidence",
+            "pgrep-read-only-evidence",
+            "lsof-read-only-evidence"
+          ]
+        },
+        "logical_id": { "$ref": "#/$defs/opaqueId" },
+        "artifact_kind": { "enum": ["regular-file", "directory-tree"] },
+        "version": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$" },
+        "digest_profile": { "enum": ["raw-file-sha256", "CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2"] },
+        "raw_digest_sha256": { "$ref": "#/$defs/sha256" },
+        "private_locator_omitted": { "const": true },
+        "execution_authority": {
+          "enum": [
+            "read-as-python-source-by-bound-interpreter",
+            "execute-as-bound-interpreter",
+            "read-only-evidence-command-only",
+            "read-only-tree-never-directly-executed"
+          ]
+        }
+      }
+    },
+    "executorTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "static-executor" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "raw_digest_sha256": { "const": "b0117713c364fd8de77b9872585bff6590e3b5cc4aee21216cdd101ae83722da" }, "execution_authority": { "const": "read-as-python-source-by-bound-interpreter" } } } ] },
+    "verifierTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "static-verifier" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "raw_digest_sha256": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" }, "execution_authority": { "const": "read-as-python-source-by-bound-interpreter" } } } ] },
+    "pythonTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "python-interpreter" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "execute-as-bound-interpreter" } } } ] },
+    "stdlibTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "python-stdlib-tree" }, "artifact_kind": { "const": "directory-tree" }, "digest_profile": { "const": "CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2" }, "execution_authority": { "const": "read-only-tree-never-directly-executed" } } } ] },
+    "xcodeSelectTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "xcode-select-resolver" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
+    "xcrunTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "xcrun-resolver" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
+    "gitTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "git-read-only-evidence" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
+    "pgrepTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "pgrep-read-only-evidence" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
+    "lsofTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "lsof-read-only-evidence" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] }
+  }
+}

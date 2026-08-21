@@ -1,0 +1,1858 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:canvas-learning-system:gov-01:toolchain-static-acquisition-public-attestation:v2:draft",
+  "title": "GOV-01 static acquisition locator-free public result v2 (draft)",
+  "description": "Exact stdout contract for read-only census/verify, acquire success, and fail-closed results. Gate and gate-set receipts require the frozen executor semantic checker; this schema never grants execution, cleanup, retry, OpenSpec, commit, or push authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "ok", "mode", "phase", "state",
+    "terminal_state", "runtime_assurance", "gate_results", "authority"
+  ],
+  "propertyNames": {
+    "enum": [
+      "schema_version", "artifact_type", "ok", "mode", "phase", "state",
+      "terminal_state", "runtime_assurance", "gate_results", "approval_challenge_id",
+      "receipt_digest", "authority", "observation", "attestation", "error", "retention",
+      "ledger_evidence"
+    ]
+  },
+  "properties": {
+    "schema_version": { "const": "gov-01-toolchain-static-acquisition-public-result-v2" },
+    "artifact_type": { "const": "gov-01-toolchain-static-acquisition-public-result" },
+    "artifact_id": {
+      "$ref": "#/$defs/opaqueId"
+    },
+    "plan_id": {
+      "const": "PLAN-CLS-PRODUCTIVITY-2026-08-20"
+    },
+    "state": { "enum": ["read-only-preapproval-census", "preconditions-reverified-read-only", "static-attested-unexecuted", "failed"] },
+    "generated_at_utc": {
+      "$ref": "#/$defs/utcTimestamp"
+    },
+    "public_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_envelope_raw_sha256",
+        "approval_receipt_digest",
+        "public_schema_raw_sha256",
+        "private_ledger_head_hmac_sha256",
+        "artifact_set_matches_approval_envelope",
+        "schema_digest_matches_artifact_entry",
+        "public_projection_profile"
+      ],
+      "properties": {
+        "approval_envelope_raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "approval_receipt_digest": { "$ref": "#/$defs/sha256" },
+        "public_schema_raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "private_ledger_head_hmac_sha256": {
+          "$ref": "#/$defs/keyedCommitment"
+        },
+        "artifact_set_matches_approval_envelope": { "const": true },
+        "schema_digest_matches_artifact_entry": { "const": true },
+        "public_projection_profile": {
+          "const": "CLS/GOV01/STATIC-ACQUISITION-PUBLIC-PROJECTION/v2"
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_challenge_id",
+        "single_use",
+        "challenge_claim_preimage",
+        "claims_container_preexisting_0700",
+        "challenge_final_state",
+        "challenge_claim_was_first_authorized_write",
+        "receipt_consumed_before_stage_write",
+        "expiry_check_before_claim",
+        "expiry_check_before_publication",
+        "retry_authorized"
+      ],
+      "properties": {
+        "approval_challenge_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "single_use": {
+          "const": true
+        },
+        "challenge_claim_preimage": {
+          "const": "ABSENT"
+        },
+        "claims_container_preexisting_0700": { "const": true },
+        "challenge_final_state": {
+          "const": "consumed-success"
+        },
+        "challenge_claim_was_first_authorized_write": {
+          "const": true
+        },
+        "receipt_consumed_before_stage_write": { "const": true },
+        "expiry_check_before_claim": { "const": "PASS" },
+        "expiry_check_before_publication": { "const": "PASS" },
+        "retry_authorized": {
+          "const": false
+        }
+      }
+    },
+    "public_artifacts": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/publicArtifact"
+      },
+      "allOf": [
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "approval-envelope" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "pending-envelope-schema" } } }, "minContains": 1, "maxContains": 1 },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["role"],
+            "properties": {
+              "role": {
+                "const": "static-executor"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["role"],
+            "properties": {
+              "role": {
+                "const": "static-verifier"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["role"],
+            "properties": {
+              "role": {
+                "const": "public-attestation-schema"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["role"],
+            "properties": {
+              "role": {
+                "const": "private-evidence-schema"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["role"],
+            "properties": { "role": { "const": "package-manifest" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["role"],
+            "properties": { "role": { "const": "package-lock" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["role"],
+            "properties": { "role": { "const": "gitignore" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "artifact_path_uniqueness_policy": {
+      "const": "content-addressed checker rejected every duplicate path independent of role, byte_length or raw_file_sha256; JSON Schema uniqueItems alone is insufficient"
+    },
+    "frozen_toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "architecture",
+        "entries",
+        "toolchain_set_receipt_profile",
+        "toolchain_set_receipt_sha256",
+        "all_entries_content_addressed"
+      ],
+      "properties": {
+        "platform": {
+          "const": "darwin"
+        },
+        "architecture": {
+          "enum": ["arm64", "x86_64"]
+        },
+        "entries": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/executorTool"
+            },
+            {
+              "$ref": "#/$defs/verifierTool"
+            },
+            {
+              "$ref": "#/$defs/pythonTool"
+            },
+            {
+              "$ref": "#/$defs/stdlibTool"
+            },
+            { "$ref": "#/$defs/xcodeSelectTool" },
+            { "$ref": "#/$defs/xcrunTool" },
+            {
+              "$ref": "#/$defs/gitTool"
+            },
+            {
+              "$ref": "#/$defs/pgrepTool"
+            },
+            {
+              "$ref": "#/$defs/lsofTool"
+            }
+          ],
+          "items": false
+        },
+        "toolchain_set_receipt_profile": {
+          "const": "CLS/GOV01/STATIC-ACQUISITION-TOOLCHAIN-SET/v2; UTF-8 NFC; LF; role-byte-sort; logical-id,kind,version,digest-profile,raw-digest"
+        },
+        "toolchain_set_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "all_entries_content_addressed": {
+          "const": true
+        }
+      }
+    },
+    "execution_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor_kind",
+        "launcher_executable_role",
+        "allowed_subprocess_executable_roles",
+        "all_other_subprocess_executables_rejected",
+        "forbidden_executable_names",
+        "shell_allowed",
+        "archive_member_execution_allowed",
+        "installed_javascript_execution_allowed",
+        "network_allowed",
+        "private_vault_access_allowed",
+        "graphiti_access_allowed"
+      ],
+      "properties": {
+        "executor_kind": {
+          "const": "content-addressed-custom-cpython-stdlib-ustar-executor"
+        },
+        "launcher_executable_role": { "const": "python-interpreter" },
+        "allowed_subprocess_executable_roles": { "const": ["xcode-select-resolver", "xcrun-resolver", "git-read-only-evidence", "pgrep-read-only-evidence", "lsof-read-only-evidence"] },
+        "all_other_subprocess_executables_rejected": { "const": true },
+        "forbidden_executable_names": {
+          "const": [
+            "npm",
+            "npx",
+            "node",
+            "nodejs",
+            "openspec",
+            "sandbox-exec",
+            "tar",
+            "bsdtar",
+            "gtar"
+          ]
+        },
+        "shell_allowed": {
+          "const": false
+        },
+        "archive_member_execution_allowed": {
+          "const": false
+        },
+        "installed_javascript_execution_allowed": {
+          "const": false
+        },
+        "network_allowed": {
+          "const": false
+        },
+        "private_vault_access_allowed": {
+          "const": false
+        },
+        "graphiti_access_allowed": {
+          "const": false
+        }
+      }
+    },
+    "source_and_receipts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_kind",
+        "archive_count",
+        "archive_total_bytes",
+        "expected_archive_member_count",
+        "expected_resolved_tree_entry_count",
+        "content_receipt_profile",
+        "content_receipt_sha256",
+        "ustar_closure_receipt_profile",
+        "ustar_closure_sha256",
+        "resolution_receipt_profile",
+        "resolution_receipt_sha256",
+        "expected_tree_receipt_profile",
+        "expected_tree_sha256",
+        "source_locator_public",
+        "direct_sri_policy"
+      ],
+      "properties": {
+        "source_kind": {
+          "const": "preapproved-local-content-addressed-ustar-set"
+        },
+        "archive_count": { "const": 167 },
+        "archive_total_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 14000000
+        },
+        "expected_archive_member_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_resolved_tree_entry_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_receipt_profile": {
+          "const": "SHA-256(ASCII(CLS/GOV01-OFFLINE-CACHE/v1) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 6 TAB-separated columns: lock_key, version, resolved, integrity, compressed_bytes, actual_integrity"
+        },
+        "content_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ustar_closure_receipt_profile": {
+          "const": "SHA-256(ASCII(CLS/GOV01/USTAR-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 13 TAB-separated columns: lock_key,version,integrity,compressed_bytes,tar_bytes,member_count,raw_regular_count,raw_directory_count,payload_bytes,strip_root,package_name,package_version,member_manifest_sha256; each member_manifest_sha256 is SHA-256(ASCII(CLS/GOV01/USTAR-PACKAGE-MEMBERS/v2) || NUL || sorted LF-terminated 8-column rows: lock_path,member_index,kind,raw_path,stripped_or_dash,mode04o,size,digest)"
+        },
+        "ustar_closure_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "resolution_receipt_profile": {
+          "const": "SHA-256(ASCII(CLS/GOV01/NODE-RESOLUTION-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 7 TAB-separated columns: source_or_<root>,edge_type,dep_name,spec,target_or_dash,target_version_or_dash,state"
+        },
+        "resolution_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "expected_tree_receipt_profile": {
+          "const": "SHA-256(ASCII(CLS/GOV01/DETERMINISTIC-NODE-MODULES/v2) || NUL || UTF-8 body); body is LF-terminated rows sorted by UTF-8 path bytes with exactly 5 TAB-separated columns: kind,path,mode04o,size,identity where identity is file SHA-256, relative symlink text, or dash for directory"
+        },
+        "expected_tree_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_locator_public": {
+          "const": false
+        },
+        "direct_sri_policy": {
+          "const": "each source content-v2 locator derived directly from package-lock sha512 SRI; actual sha512 integrity matched; no cache index lookup"
+        }
+      }
+    },
+    "ustar_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "compression",
+        "parser",
+        "verifier_direct_imports",
+        "executor_direct_imports",
+        "executor_direct_import_receipt_sha256",
+        "tarfile_extract_api_allowed",
+        "accepted_member_types",
+        "rejected_extensions",
+        "rejected_member_types",
+        "path_policy",
+        "header_policy",
+        "resource_limit_profile"
+      ],
+      "properties": {
+        "format": {
+          "const": "POSIX.1-1988-USTAR"
+        },
+        "compression": {
+          "const": "single-gzip-rfc1952"
+        },
+        "parser": {
+          "const": "custom-fixed-512-byte-block-parser"
+        },
+        "verifier_direct_imports": {
+          "const": [
+            "argparse",
+            "base64",
+            "ctypes",
+            "hashlib",
+            "json",
+            "os",
+            "posixpath",
+            "pwd",
+            "stat",
+            "sys",
+            "unicodedata",
+            "zlib"
+          ]
+        },
+        "executor_direct_imports": {
+          "const": ["argparse", "base64", "binascii", "ctypes", "datetime", "errno", "hashlib", "hmac", "json", "os", "platform", "posixpath", "pwd", "re", "stat", "subprocess", "sys", "types", "unicodedata", "enum", "typing", "urllib.parse"]
+        },
+        "executor_direct_import_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "tarfile_extract_api_allowed": {
+          "const": false
+        },
+        "accepted_member_types": {
+          "const": ["regular-file", "directory"]
+        },
+        "rejected_extensions": {
+          "const": ["pax", "gnu", "sparse", "base-256-numeric"]
+        },
+        "rejected_member_types": {
+          "const": [
+            "symlink",
+            "hardlink",
+            "fifo",
+            "block-device",
+            "character-device",
+            "socket",
+            "unknown"
+          ]
+        },
+        "path_policy": {
+          "const": "UTF-8 strict; NFC; relative; slash-separated; no empty/dot/dotdot component; no absolute path; no backslash; no NUL/control; no duplicate or normalization/case-fold collision; openat-style no-follow beneath stage"
+        },
+        "header_policy": {
+          "const": "verify magic/version/checksum; strict octal; zero padding; two terminal zero blocks; EOF immediately after 1024-byte terminator padding; reject trailing payload"
+        },
+        "resource_limit_profile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selected_archive_count", "compressed_closure_bytes_max", "tar_stream_bytes_per_archive_max", "member_count_per_archive_max", "final_path_utf8_bytes_max", "single_file_bytes_max", "payload_closure_bytes_max", "required_raw_regular_count", "required_bin_link_count"],
+          "properties": {
+            "selected_archive_count": { "const": 167 },
+            "compressed_closure_bytes_max": { "const": 14000000 },
+            "tar_stream_bytes_per_archive_max": { "const": 24000000 },
+            "member_count_per_archive_max": { "const": 5000 },
+            "final_path_utf8_bytes_max": { "const": 128 },
+            "single_file_bytes_max": { "const": 15000000 },
+            "payload_closure_bytes_max": { "const": 64000000 },
+            "required_raw_regular_count": { "const": 4099 },
+            "required_bin_link_count": { "const": 12 }
+          }
+        }
+      }
+    },
+    "resolution_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "receipt_summary_required",
+        "separate_manifest_artifact_required",
+        "unexpected_destination_allowed",
+        "duplicate_destination_allowed",
+        "generated_symlink_policy",
+        "generated_file_allowed",
+        "payload_execution_allowed"
+      ],
+      "properties": {
+        "mode": {
+          "const": "expected-resolution-receipt-only"
+        },
+        "receipt_summary_required": {
+          "const": true
+        },
+        "separate_manifest_artifact_required": { "const": false },
+        "unexpected_destination_allowed": {
+          "const": false
+        },
+        "duplicate_destination_allowed": {
+          "const": false
+        },
+        "generated_symlink_policy": {
+          "const": "only exact relative link text bound by resolution receipt; resolved target must remain inside final tree"
+        },
+        "generated_file_allowed": {
+          "const": false
+        },
+        "payload_execution_allowed": {
+          "const": false
+        }
+      }
+    },
+    "absence_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "top_level_direct_children_only",
+        "protected_existing_paths",
+        "protected_existing_state",
+        "absent_paths",
+        "absent_paths_before",
+        "absent_paths_after",
+        "nested_archive_package_metadata_governed_by_expected_closure"
+      ],
+      "properties": {
+        "scope": {
+          "const": "acquisition-control-root-exact-direct-children"
+        },
+        "top_level_direct_children_only": {
+          "const": true
+        },
+        "protected_existing_paths": { "const": ["package.json", "package-lock.json", ".gitignore"] },
+        "protected_existing_state": { "const": "PRESENT-BYTE-IDENTICAL-BEFORE-AFTER-AND-BOUND-BY-PUBLIC-RAW-SHA256" },
+        "absent_paths": { "const": [".npmrc", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"] },
+        "absent_paths_before": { "const": "ABSENT" },
+        "absent_paths_after": { "const": "ABSENT" },
+        "nested_archive_package_metadata_governed_by_expected_closure": {
+          "const": true
+        }
+      }
+    },
+    "mutation_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_logical_id",
+        "target_preimage",
+        "allowed_persistent_mutations",
+        "allowed_ephemeral_mutations",
+        "forbidden_mutations"
+      ],
+      "properties": {
+        "target_logical_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "target_preimage": {
+          "const": "ABSENT"
+        },
+        "allowed_persistent_mutations": {
+          "const": [
+            "create one exact 0700 challenge claim directory as the first authorized write and create/append/fsync its exact 0600 ledger.jsonl; never automatically delete either",
+            "create exact previously-absent acquisition target by one successful renameatx_np(RENAME_EXCL)"
+          ]
+        },
+        "allowed_ephemeral_mutations": {
+          "const": [
+            "create and fsync one exact same-parent same-filesystem 0700 stage tree with a 0600 incomplete marker",
+            "write only the frozen expected directories, regular-file payload bytes and generated relative bin symlinks under that stage",
+            "remove only the exact incomplete marker immediately before publication"
+          ]
+        },
+        "forbidden_mutations": {
+          "const": [
+            "overwrite, merge into, unlink or rename an existing target",
+            "modify existing package.json, package-lock.json or .gitignore; create any absent alternate lock file or .npmrc",
+            "modify Git objects, refs, index, hooks, config or worktree content outside the exact new target",
+            "modify parent or sibling worktrees",
+            "write outside exact challenge claim/ledger, exact stage and exact exclusive target; stdout is not a filesystem mutation",
+            "write user home, private Vault, Graphiti or network state",
+            "commit, push or create a branch/ref"
+          ]
+        }
+      }
+    },
+    "publication_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage_mode_before_seal",
+        "target_root_mode_after_seal",
+        "stage_and_target_same_filesystem",
+        "files_fsynced_before_publish",
+        "stage_directory_fsynced_before_publish",
+        "target_preimage",
+        "syscall",
+        "flag",
+        "overwrite_allowed",
+        "publish_attempt_count",
+        "successful_publish_count",
+        "parent_directory_fsynced_after_publish"
+      ],
+      "properties": {
+        "stage_mode_before_seal": {
+          "const": "0700"
+        },
+        "target_root_mode_after_seal": { "const": "0755" },
+        "stage_and_target_same_filesystem": {
+          "const": true
+        },
+        "files_fsynced_before_publish": {
+          "const": true
+        },
+        "stage_directory_fsynced_before_publish": {
+          "const": true
+        },
+        "target_preimage": {
+          "const": "ABSENT"
+        },
+        "syscall": {
+          "const": "renameatx_np"
+        },
+        "flag": {
+          "const": "RENAME_EXCL"
+        },
+        "overwrite_allowed": {
+          "const": false
+        },
+        "publish_attempt_count": {
+          "const": 1
+        },
+        "successful_publish_count": {
+          "const": 1
+        },
+        "parent_directory_fsynced_after_publish": {
+          "const": true
+        }
+      }
+    },
+    "gate_results": { "oneOf": [{ "$ref": "#/$defs/partialGateSet" }, { "$ref": "#/$defs/completeGateSet" }] },
+    "final_attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "public_gate_receipt_profile",
+        "public_gate_receipt_sha256",
+        "final_tree_receipt_sha256",
+        "final_tree_matches_expected_receipt",
+        "selected_package_count",
+        "raw_regular_count",
+        "bin_link_count",
+        "missing_expected_entries",
+        "unexpected_entries",
+        "content_mismatches",
+        "forbidden_control_paths_present",
+        "protected_control_paths_changed",
+        "network_attempt_count",
+        "npm_node_npx_execution_count",
+        "javascript_execution_count",
+        "lifecycle_execution_count",
+        "archive_member_execution_count",
+        "sandbox_exec_execution_count",
+        "target_overwrite_count",
+        "outside_scope_mutation_count",
+        "publication_count",
+        "attested_not_executed"
+      ],
+      "properties": {
+        "state": {
+          "const": "static-attested-unexecuted"
+        },
+        "public_gate_receipt_profile": {
+          "const": "CLS/GOV01/STATIC-ACQUISITION-GATES/v2; G00..G24 byte-sort; PASS only; public evidence digests only"
+        },
+        "public_gate_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "final_tree_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "final_tree_matches_expected_receipt": { "const": true },
+        "selected_package_count": { "const": 167 },
+        "raw_regular_count": { "const": 4099 },
+        "bin_link_count": { "const": 12 },
+        "missing_expected_entries": { "const": 0 },
+        "unexpected_entries": { "const": 0 },
+        "content_mismatches": { "const": 0 },
+        "forbidden_control_paths_present": { "const": 0 },
+        "protected_control_paths_changed": { "const": 0 },
+        "network_attempt_count": { "const": 0 },
+        "npm_node_npx_execution_count": { "const": 0 },
+        "javascript_execution_count": { "const": 0 },
+        "lifecycle_execution_count": { "const": 0 },
+        "archive_member_execution_count": { "const": 0 },
+        "sandbox_exec_execution_count": { "const": 0 },
+        "target_overwrite_count": { "const": 0 },
+        "outside_scope_mutation_count": { "const": 0 },
+        "publication_count": { "const": 1 },
+        "attested_not_executed": { "const": true }
+      }
+    },
+    "privacy_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_raw_sha256_scope",
+        "public_forbidden_fields",
+        "private_claim_and_ledger_outside_repository",
+        "separate_private_evidence_root_or_file_created",
+        "private_vault_read_count",
+        "public_redaction_scan_passed"
+      ],
+      "properties": {
+        "public_raw_sha256_scope": {
+          "const": [
+            "public repo artifacts",
+            "executor source",
+            "verifier source",
+            "public and private schema files",
+            "content receipt",
+            "USTAR receipt",
+            "expected closure Merkle receipt",
+            "resolution receipt",
+            "expected and final tree Merkle receipts",
+            "public gate receipt",
+            "content-addressed toolchain entries without locators"
+          ]
+        },
+        "public_forbidden_fields": {
+          "const": [
+            "absolute or home-relative private locator",
+            "cache-root or direct-SRI content blob private locator; npm cache index is never read",
+            "private dirty or untracked inventory and its raw digest",
+            "local settings content and its raw digest",
+            "environment values, command stdout/stderr or open-file locator list",
+            "challenge secret, ledger locator or ledger raw bytes/digest",
+            "private Vault locator, name, content or digest"
+          ]
+        },
+        "private_claim_and_ledger_outside_repository": {
+          "const": true
+        },
+        "separate_private_evidence_root_or_file_created": { "const": false },
+        "private_vault_read_count": {
+          "const": 0
+        },
+        "public_redaction_scan_passed": {
+          "const": true
+        }
+      }
+    },
+    "post_success_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_state",
+        "openspec_or_payload_present",
+        "openspec_or_payload_execution_allowed",
+        "governance_apply_allowed",
+        "commit_allowed",
+        "push_allowed",
+        "next_required_authorization"
+      ],
+      "properties": {
+        "runtime_state": {
+          "const": "static-attested-unexecuted"
+        },
+        "openspec_or_payload_present": {
+          "const": true
+        },
+        "openspec_or_payload_execution_allowed": {
+          "const": false
+        },
+        "governance_apply_allowed": {
+          "const": false
+        },
+        "commit_allowed": {
+          "const": false
+        },
+        "push_allowed": {
+          "const": false
+        },
+        "next_required_authorization": {
+          "const": "new runtime-use envelope binding this final-tree receipt and a fresh single-use challenge"
+        }
+      }
+    },
+    "ok": { "type": "boolean" },
+    "mode": { "enum": ["census", "verify", "acquire", "unknown"] },
+    "phase": { "type": "string", "pattern": "^[a-z0-9-]{3,96}$" },
+    "terminal_state": { "$ref": "#/$defs/actualTerminalState" },
+    "runtime_assurance": { "$ref": "#/$defs/actualRuntimeAssurance" },
+    "approval_challenge_id": { "$ref": "#/$defs/actualChallenge" },
+    "receipt_digest": { "$ref": "#/$defs/sha256" },
+    "authority": { "$ref": "#/$defs/actualAuthority" },
+    "observation": { "$ref": "#/$defs/actualReadOnlyObservation" },
+    "attestation": { "$ref": "#/$defs/actualSuccessAttestation" },
+    "error": { "$ref": "#/$defs/actualPublicError" },
+    "retention": { "$ref": "#/$defs/actualRetention" },
+    "ledger_evidence": { "$ref": "#/$defs/actualLedgerEvidence" }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/actualReadOnlySuccess" },
+    { "$ref": "#/$defs/actualAcquireSuccess" },
+    { "$ref": "#/$defs/actualFailureResult" }
+  ],
+  "$defs": {
+    "actualChallenge": { "type": "string", "pattern": "^GOV01-SA-[0-9]{8}-[0-9a-f]{32,64}$" },
+    "actualSafeString": { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?![/~\\\\])(?!.*\\\\)(?![A-Za-z]:[/\\\\])(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.[Oo][Bb][Ss][Ii][Dd][Ii][Aa][Nn](?:/|$))(?!.*[\\u0000-\\u001f\\u007f-\\u009f])(?!.*[Ff][Ii][Ll][Ee]://)(?!.*[Uu][Ss][Ee][Rr][Ss]/)(?!.*[Cc][Aa][Nn][Vv][Aa][Ss]-[Vv][Aa][Uu][Ll][Tt])(?!.*[Tt][Rr][Aa][Cc][Ee][Bb][Aa][Cc][Kk]).+$" },
+    "actualPublicEvidenceValue": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "integer" },
+        { "$ref": "#/$defs/actualSafeString" },
+        { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/actualPublicEvidenceValue" } },
+        {
+          "type": "object", "maxProperties": 128,
+          "propertyNames": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,128}$" },
+          "additionalProperties": { "$ref": "#/$defs/actualPublicEvidenceValue" }
+        }
+      ]
+    },
+    "actualTerminalState": {
+      "type": "object", "additionalProperties": false,
+      "required": ["challenge_state", "claim_state", "stage_state", "publication_state", "ledger_terminal_state", "target_disposition"],
+      "properties": {
+        "challenge_state": { "enum": ["not-consumed-read-only", "preclaim-pending", "preclaim-rejected-new-envelope-required", "claimed-consumed", "completed-consumed", "unknown-fail-closed"] },
+        "claim_state": { "enum": ["not-created", "created-0700", "unknown-fail-closed"] },
+        "stage_state": { "enum": ["not-created", "retained-marker-not-yet-created", "retained-marker-present", "retained-marker-removed", "renamed-to-target", "retained-marker-state-unknown", "retained-marker-unexpected-type", "unexpected-stage-type-fail-closed", "unknown-fail-closed"] },
+        "publication_state": { "enum": ["not-attempted", "rename-succeeded-attestation-incomplete", "static-attested", "static-ledger-success-public-result-failed", "target-observed-unattributed-fail-closed", "promoted-target-missing-fail-closed", "attributed-target-and-stage-both-observed-fail-closed", "unexpected-target-type-fail-closed", "unknown-fail-closed"] },
+        "ledger_terminal_state": { "enum": ["not-created", "receipt-consumed-recorded", "terminal-failure-recorded", "absent-partial-or-semantic-invalid", "terminal-success-recorded", "unknown-fail-closed"] },
+        "target_disposition": { "enum": ["target-absent", "target-absent-stage-retained-user-decision-required", "retain-unattributed-target-user-decision-required", "retain-unauthorized-target-user-decision-required", "static-attested-target-retained", "retain-target-user-decision-required", "unknown-user-decision-required"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "publication_state": { "const": "attributed-target-and-stage-both-observed-fail-closed" } }, "required": ["publication_state"] },
+          "then": { "properties": {
+            "stage_state": { "enum": ["retained-marker-not-yet-created", "retained-marker-present", "retained-marker-removed", "retained-marker-state-unknown", "retained-marker-unexpected-type"] },
+            "target_disposition": { "const": "retain-unauthorized-target-user-decision-required" }
+          } }
+        },
+        {
+          "if": { "properties": { "publication_state": { "const": "target-observed-unattributed-fail-closed" } }, "required": ["publication_state"] },
+          "then": {
+            "oneOf": [
+              {
+                "properties": {
+                  "stage_state": { "enum": ["unexpected-stage-type-fail-closed", "unknown-fail-closed"] },
+                  "target_disposition": { "const": "unknown-user-decision-required" }
+                }
+              },
+              {
+                "properties": {
+                  "stage_state": { "not": { "enum": ["unexpected-stage-type-fail-closed", "unknown-fail-closed"] } },
+                  "target_disposition": { "const": "retain-unattributed-target-user-decision-required" }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "publication_state": { "const": "not-attempted" } }, "required": ["publication_state"] },
+          "then": {
+            "oneOf": [
+              { "properties": { "stage_state": { "const": "not-created" }, "target_disposition": { "const": "target-absent" } } },
+              {
+                "properties": {
+                  "stage_state": { "enum": ["retained-marker-not-yet-created", "retained-marker-present", "retained-marker-removed", "retained-marker-state-unknown", "retained-marker-unexpected-type"] },
+                  "target_disposition": { "const": "target-absent-stage-retained-user-decision-required" }
+                }
+              },
+              {
+                "properties": {
+                  "stage_state": { "enum": ["unexpected-stage-type-fail-closed", "unknown-fail-closed"] },
+                  "target_disposition": { "const": "unknown-user-decision-required" }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "publication_state": { "const": "unexpected-target-type-fail-closed" } }, "required": ["publication_state"] },
+          "then": {
+            "oneOf": [
+              {
+                "properties": {
+                  "stage_state": { "enum": ["unexpected-stage-type-fail-closed", "unknown-fail-closed"] },
+                  "target_disposition": { "const": "unknown-user-decision-required" }
+                }
+              },
+              {
+                "properties": {
+                  "stage_state": { "not": { "enum": ["unexpected-stage-type-fail-closed", "unknown-fail-closed"] } },
+                  "target_disposition": { "const": "retain-unauthorized-target-user-decision-required" }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "publication_state": { "const": "rename-succeeded-attestation-incomplete" } }, "required": ["publication_state"] },
+          "then": {
+            "oneOf": [
+              {
+                "properties": {
+                  "stage_state": { "enum": ["unexpected-stage-type-fail-closed", "unknown-fail-closed"] },
+                  "target_disposition": { "const": "unknown-user-decision-required" }
+                }
+              },
+              {
+                "properties": {
+                  "stage_state": { "const": "renamed-to-target" },
+                  "target_disposition": { "const": "retain-unauthorized-target-user-decision-required" }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "publication_state": { "enum": ["promoted-target-missing-fail-closed", "unknown-fail-closed"] } }, "required": ["publication_state"] },
+          "then": {
+            "properties": {
+              "target_disposition": { "const": "unknown-user-decision-required" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "publication_state": { "const": "promoted-target-missing-fail-closed" } }, "required": ["publication_state"] },
+          "then": { "properties": { "stage_state": { "not": { "const": "not-created" } } } }
+        },
+        {
+          "if": { "properties": { "publication_state": { "const": "static-ledger-success-public-result-failed" } }, "required": ["publication_state"] },
+          "then": { "properties": { "stage_state": { "const": "renamed-to-target" }, "target_disposition": { "const": "retain-target-user-decision-required" } } }
+        },
+        {
+          "if": { "properties": { "publication_state": { "const": "static-attested" } }, "required": ["publication_state"] },
+          "then": { "properties": { "stage_state": { "const": "renamed-to-target" }, "target_disposition": { "const": "static-attested-target-retained" } } }
+        }
+      ]
+    },
+    "actualRuntimeAssurance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["toolchain_assurance", "pre_exec_launcher_attested", "python_isolation_flags_required"],
+      "properties": {
+        "toolchain_assurance": { "const": "runtime-self-attested-not-pre-exec" },
+        "pre_exec_launcher_attested": { "const": false },
+        "python_isolation_flags_required": { "const": ["-I", "-S", "-B"] },
+        "toolchain_set_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "dynamic_closure_receipt_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "actualAuthority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["retry_authorized", "public_success_attestation_allowed", "automatic_cleanup_authorized", "openspec_execution_allowed", "openspec_scaffold_allowed", "commit_allowed", "push_allowed", "next_required_authority"],
+      "properties": {
+        "retry_authorized": { "type": "boolean" }, "public_success_attestation_allowed": { "type": "boolean" },
+        "automatic_cleanup_authorized": { "const": false }, "openspec_execution_allowed": { "const": false },
+        "openspec_scaffold_allowed": { "const": false }, "commit_allowed": { "const": false }, "push_allowed": { "const": false },
+        "next_required_authority": {
+          "allOf": [
+            { "$ref": "#/$defs/actualSafeString" },
+            { "enum": [
+              "exact user-approved acquisition receipt and challenge required before any mutation",
+              "new runtime-use envelope binding this final tree and a fresh single-use challenge",
+              "new explicit user approval after fail-closed evidence review",
+              "new explicit user approval after retained-state inspection; never retry automatically",
+              "new explicit user approval after private-state inspection"
+            ] }
+          ]
+        }
+      }
+    },
+    "actualGateReceipt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "gate_id", "scope", "phase", "status", "checker_role", "assurance", "evidence", "receipt_sha256"],
+      "properties": {
+        "schema_version": { "const": "gov01-static-acquisition-gate-evidence-v2" },
+        "gate_id": { "pattern": "^G(?:0[0-9]|1[0-9]|2[0-4])$" },
+        "scope": { "type": "string", "pattern": "^[a-z0-9-]{3,96}$" },
+        "phase": { "type": "string", "pattern": "^[a-z0-9-]{3,96}$" },
+        "status": { "enum": ["PASS", "FAIL"] }, "checker_role": { "const": "frozen-static-executor" },
+        "assurance": { "const": "runtime-self-attested-not-pre-exec" },
+        "evidence": { "type": "object", "additionalProperties": { "$ref": "#/$defs/actualPublicEvidenceValue" } },
+        "receipt_sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "FAIL" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "evidence": {
+                "type": "object", "additionalProperties": false,
+                "required": ["public_code", "detail_code", "public_exit"],
+                "allOf": [{ "$ref": "#/$defs/actualGateFailureIdentity" }],
+                "properties": {
+                  "public_code": { "$ref": "#/$defs/actualPublicErrorCategory" },
+                  "detail_code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,127}$" },
+                  "public_exit": { "$ref": "#/$defs/actualPublicErrorExit" }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "oneOf": [
+        { "$ref": "#/$defs/actualG00" }, { "$ref": "#/$defs/actualG01" }, { "$ref": "#/$defs/actualG02" }, { "$ref": "#/$defs/actualG03" }, { "$ref": "#/$defs/actualG04" },
+        { "$ref": "#/$defs/actualG05" }, { "$ref": "#/$defs/actualG06" }, { "$ref": "#/$defs/actualG07" }, { "$ref": "#/$defs/actualG08" }, { "$ref": "#/$defs/actualG09" },
+        { "$ref": "#/$defs/actualG10" }, { "$ref": "#/$defs/actualG11" }, { "$ref": "#/$defs/actualG12" }, { "$ref": "#/$defs/actualG13" }, { "$ref": "#/$defs/actualG14" },
+        { "$ref": "#/$defs/actualG15" }, { "$ref": "#/$defs/actualG16" }, { "$ref": "#/$defs/actualG17" }, { "$ref": "#/$defs/actualG18" }, { "$ref": "#/$defs/actualG19" },
+        { "$ref": "#/$defs/actualG20" }, { "$ref": "#/$defs/actualG21" }, { "$ref": "#/$defs/actualG22" }, { "$ref": "#/$defs/actualG23" }, { "$ref": "#/$defs/actualG24" }
+      ]
+    },
+    "actualG00": {"properties":{"gate_id":{"const":"G00"},"scope":{"const":"schema-and-public-projection"},"phase":{"const":"schema-contract"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["manual_critical_contract_passed","schema_bundle_receipt_sha256","schema_bytes","schema_count","schema_sha256"],"properties":{"manual_critical_contract_passed":{"const":true},"schema_bundle_receipt_sha256":{"$ref":"#/$defs/sha256"},"schema_bytes":{"type":"integer","minimum":1,"maximum":2097152},"schema_count":{"const":3},"schema_sha256":{"$ref":"#/$defs/sha256"}}}}}}]},
+    "actualG01": {"properties":{"gate_id":{"const":"G01"},"scope":{"const":"single-use-authorization-ledger"},"phase":{"const":"single-use-authorization-ledger"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["challenge_claim_created","first_authorized_write_contract","ledger_receipt_consumed_recorded"],"properties":{"challenge_claim_created":{"const":true},"first_authorized_write_contract":{"const":"exclusive-0700-challenge-mkdir"},"ledger_receipt_consumed_recorded":{"const":true}}}}}}]},
+    "actualG02": {"properties":{"gate_id":{"const":"G02"},"scope":{"const":"private-public-boundary"},"phase":{"const":"private-public-boundary"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["authorized_locator_commitment_count","private_control_identity_commitment","private_locator_public_count","private_vault_read_count"],"properties":{"authorized_locator_commitment_count":{"const":5},"private_control_identity_commitment":{"$ref":"#/$defs/sha256"},"private_locator_public_count":{"const":0},"private_vault_read_count":{"const":0}}}}}}]},
+    "actualG03": {"properties":{"gate_id":{"const":"G03"},"scope":{"const":"content-addressed-toolchain"},"phase":{"const":"content-addressed-toolchain"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["assurance","dynamic_closure_receipt_sha256","pre_exec_launcher_attested","toolchain_role_count","toolchain_set_receipt_sha256"],"properties":{"assurance":{"const":"runtime-self-attested-not-pre-exec"},"dynamic_closure_receipt_sha256":{"$ref":"#/$defs/sha256"},"pre_exec_launcher_attested":{"const":false},"toolchain_role_count":{"const":9},"toolchain_set_receipt_sha256":{"$ref":"#/$defs/sha256"}}}}}}]},
+    "actualG04": {"properties":{"gate_id":{"const":"G04"},"scope":{"const":"authorized-child-process-static-structural-ceiling"},"phase":{"const":"authorized-child-process-static-structural-ceiling"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["assurance","authorized_network_call_site_invocation_count","authorized_subprocess_role_count","network_capable_child_authorized","runtime_network_syscall_observation_available","shell_allowed"],"properties":{"assurance":{"const":"static-structural-self-attestation-not-syscall-observation"},"authorized_network_call_site_invocation_count":{"const":0},"authorized_subprocess_role_count":{"const":5},"network_capable_child_authorized":{"const":false},"runtime_network_syscall_observation_available":{"const":false},"shell_allowed":{"const":false}}}}}}]},
+    "actualG05": {"properties":{"gate_id":{"const":"G05"},"scope":{"const":"source-content-receipt"},"phase":{"const":"source-content-receipt"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["compressed_bytes","content_receipt_sha256","selected_package_count"],"properties":{"compressed_bytes":{"const":13916529},"content_receipt_sha256":{"const":"ade2bf32961a18ba9365b1aef1df3456471622759cbf56890ecfbdd40e92a60b"},"selected_package_count":{"const":167}}}}}}]},
+    "actualG06": {"properties":{"gate_id":{"const":"G06"},"scope":{"const":"ustar-member-receipt"},"phase":{"const":"ustar-member-receipt"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["raw_member_count","ustar_closure_sha256"],"properties":{"raw_member_count":{"const":4117},"ustar_closure_sha256":{"const":"bd9a30d26415f06e20dc61c551e34fface39c376b5f761518bb69cca72efe9bb"}}}}}}]},
+    "actualG07": {"properties":{"gate_id":{"const":"G07"},"scope":{"const":"ustar-format-header"},"phase":{"const":"ustar-format-header"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["gzip_stream_count","parser","required_zero_eoa_blocks"],"properties":{"gzip_stream_count":{"const":1},"parser":{"const":"custom-fixed-512-byte-ustar"},"required_zero_eoa_blocks":{"const":2}}}}}}]},
+    "actualG08": {"properties":{"gate_id":{"const":"G08"},"scope":{"const":"member-path-type"},"phase":{"const":"member-path-type"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["accepted_member_types","bundled_node_modules_allowed","generated_symlink_count","raw_directory_count","raw_regular_count"],"properties":{"accepted_member_types":{"const":["regular-file","directory"]},"bundled_node_modules_allowed":{"const":false},"generated_symlink_count":{"const":12},"raw_directory_count":{"const":18},"raw_regular_count":{"const":4099}}}}}}]},
+    "actualG09": {"properties":{"gate_id":{"const":"G09"},"scope":{"const":"resource-limits"},"phase":{"const":"resource-limits"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["compressed_bytes","limits_enforced_by_frozen_verifier","payload_bytes","tar_stream_bytes"],"properties":{"compressed_bytes":{"const":13916529},"limits_enforced_by_frozen_verifier":{"const":true},"payload_bytes":{"const":55954126},"tar_stream_bytes":{"const":59361280}}}}}}]},
+    "actualG10": {"properties":{"gate_id":{"const":"G10"},"scope":{"const":"control-root-before"},"phase":{"const":"control-root-before"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["absent_alternate_control_count","protected_control_count"],"properties":{"absent_alternate_control_count":{"const":6},"protected_control_count":{"const":3}}}}}}]},
+    "actualG11": {"properties":{"gate_id":{"const":"G11"},"scope":{"const":"target-preimage"},"phase":{"const":"target-preimage"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["stage_absent","target_absent"],"properties":{"stage_absent":{"const":true},"target_absent":{"const":true}}}}}}]},
+    "actualG12": {"properties":{"gate_id":{"const":"G12"},"scope":{"const":"process-census-before"},"phase":{"const":"process-census-before"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["candidate_count","candidate_lsof_sha256","pgrep_sha256","target_worktree_claude_sessions"],"properties":{"candidate_count":{"type":"integer","minimum":0,"maximum":1024},"candidate_lsof_sha256":{"$ref":"#/$defs/sha256"},"pgrep_sha256":{"$ref":"#/$defs/sha256"},"target_worktree_claude_sessions":{"const":0}}}}}}]},
+    "actualG13": {"properties":{"gate_id":{"const":"G13"},"scope":{"const":"stage-scope-device"},"phase":{"const":"stage-scope-device"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["incomplete_marker_present","same_filesystem","stage_entry_write_scope_exact","stage_root_mode"],"properties":{"incomplete_marker_present":{"const":true},"same_filesystem":{"const":true},"stage_entry_write_scope_exact":{"const":true},"stage_root_mode":{"const":"0700"}}}}}}]},
+    "actualG14": {"properties":{"gate_id":{"const":"G14"},"scope":{"const":"expected-closure"},"phase":{"const":"expected-closure"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["directory_count","entry_count","expected_tree_sha256","file_count","symlink_count"],"properties":{"directory_count":{"const":554},"entry_count":{"const":4665},"expected_tree_sha256":{"const":"777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2"},"file_count":{"const":4099},"symlink_count":{"const":12}}}}}}]},
+    "actualG15": {"properties":{"gate_id":{"const":"G15"},"scope":{"const":"resolution-receipt"},"phase":{"const":"resolution-receipt"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["allowed_missing","profile","required_missing","resolution_receipt_sha256","row_count"],"properties":{"allowed_missing":{"const":10},"profile":{"const":"package-lock-path-closure-not-semver-proof"},"required_missing":{"const":0},"resolution_receipt_sha256":{"const":"2cecc0432d6f13be979b884b570e81c1ba443c9956e2149ba08b64d1a40433b0"},"row_count":{"const":256}}}}}}]},
+    "actualG16": {"properties":{"gate_id":{"const":"G16"},"scope":{"const":"stage-tree-merkle"},"phase":{"const":"stage-tree-merkle"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["double_stable_fingerprint_required_before_publication","entry_count","incomplete_marker_excluded_from_tree","tree_sha256"],"properties":{"double_stable_fingerprint_required_before_publication":{"const":true},"entry_count":{"const":4665},"incomplete_marker_excluded_from_tree":{"const":true},"tree_sha256":{"const":"777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2"}}}}}}]},
+    "actualG17": {"properties":{"gate_id":{"const":"G17"},"scope":{"const":"payload-and-lifecycle-static-structural-ceiling"},"phase":{"const":"payload-and-lifecycle-static-structural-ceiling"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["assurance","authorized_installed_code_call_site_invocation_count","authorized_lifecycle_execution_call_site_invocation_count","authorized_node_npm_npx_call_site_invocation_count","authorized_payload_execution_call_site_invocation_count","runtime_exec_syscall_observation_available"],"properties":{"assurance":{"const":"static-structural-self-attestation-not-syscall-observation"},"authorized_installed_code_call_site_invocation_count":{"const":0},"authorized_lifecycle_execution_call_site_invocation_count":{"const":0},"authorized_node_npm_npx_call_site_invocation_count":{"const":0},"authorized_payload_execution_call_site_invocation_count":{"const":0},"runtime_exec_syscall_observation_available":{"const":false}}}}}}]},
+    "actualG18": {"properties":{"gate_id":{"const":"G18"},"scope":{"const":"rename-excl-publication"},"phase":{"const":"rename-excl-publication"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["overwrite_allowed","publish_attempt_count","publish_flag","publish_syscall","target_parent_fsynced"],"properties":{"overwrite_allowed":{"const":false},"publish_attempt_count":{"const":1},"publish_flag":{"const":"RENAME_EXCL"},"publish_syscall":{"const":"renameatx_np"},"target_parent_fsynced":{"const":true}}}}}}]},
+    "actualG19": {"properties":{"gate_id":{"const":"G19"},"scope":{"const":"control-root-after"},"phase":{"const":"control-root-after"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["absent_alternate_control_count","protected_control_count","protected_controls_unchanged"],"properties":{"absent_alternate_control_count":{"const":6},"protected_control_count":{"const":3},"protected_controls_unchanged":{"const":true}}}}}}]},
+    "actualG20": {"properties":{"gate_id":{"const":"G20"},"scope":{"const":"outside-scope-postimage"},"phase":{"const":"outside-scope-postimage"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["assurance","cache_closure_unchanged","git_snapshot_unchanged","outside_scope_mutation_count","protected_controls_unchanged","public_artifacts_unchanged","stage_path_absent_after_publication","toolchain_unchanged"],"properties":{"assurance":{"const":"targeted-content-and-metadata-CAS-not-machine-wide-audit"},"cache_closure_unchanged":{"const":true},"git_snapshot_unchanged":{"const":true},"outside_scope_mutation_count":{"const":0},"protected_controls_unchanged":{"const":true},"public_artifacts_unchanged":{"const":true},"stage_path_absent_after_publication":{"const":true},"toolchain_unchanged":{"const":true}}}}}}]},
+    "actualG21": {"properties":{"gate_id":{"const":"G21"},"scope":{"const":"final-tree-merkle"},"phase":{"const":"final-tree-merkle"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["directory_count","double_stable_fingerprint_passed","entry_count","file_count","symlink_count","tree_sha256"],"properties":{"directory_count":{"const":554},"double_stable_fingerprint_passed":{"const":true},"entry_count":{"const":4665},"file_count":{"const":4099},"symlink_count":{"const":12},"tree_sha256":{"const":"777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2"}}}}}}]},
+    "actualG22": {"properties":{"gate_id":{"const":"G22"},"scope":{"const":"process-census-after"},"phase":{"const":"process-census-after"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["candidate_count","candidate_lsof_sha256","pgrep_sha256","target_worktree_claude_sessions"],"properties":{"candidate_count":{"type":"integer","minimum":0,"maximum":1024},"candidate_lsof_sha256":{"$ref":"#/$defs/sha256"},"pgrep_sha256":{"$ref":"#/$defs/sha256"},"target_worktree_claude_sessions":{"const":0}}}}}}]},
+    "actualG23": {"properties":{"gate_id":{"const":"G23"},"scope":{"const":"ledger-terminal"},"phase":{"const":"ledger-terminal"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["canonical_jsonl_and_hmac_chain_valid","checker_interface","ledger_head_hmac_sha256","private_projection_schema_version","record_count","terminal_kind"],"properties":{"canonical_jsonl_and_hmac_chain_valid":{"const":true},"checker_interface":{"const":"gov01-ledger-semantic-checker-v2"},"ledger_head_hmac_sha256":{"$ref":"#/$defs/sha256"},"private_projection_schema_version":{"const":"gov-01-toolchain-static-acquisition-private-evidence-v2"},"record_count":{"const":6},"terminal_kind":{"const":"success"}}}}}}]},
+    "actualG24": {"properties":{"gate_id":{"const":"G24"},"scope":{"const":"privacy-redaction"},"phase":{"const":"privacy-redaction"}},"allOf":[{"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"evidence":{"type":"object","additionalProperties":false,"required":["private_locator_public_count","private_vault_read_count","projection_preflight_passed","raw_command_output_public_count"],"properties":{"private_locator_public_count":{"const":0},"private_vault_read_count":{"const":0},"projection_preflight_passed":{"const":true},"raw_command_output_public_count":{"const":0}}}}}}]},
+    "partialGateSet": {"type":"object","additionalProperties":false,"required":["profile","complete","reached_gate_count","reached_gates","unreached_gate_ids","gate_set_receipt_sha256"],"properties":{"profile":{"const":"gov01-static-acquisition-gate-set-v2"},"complete":{"const":false},"reached_gate_count":{"type":"integer","minimum":0,"maximum":25},"reached_gates":{"type":"array","maxItems":25},"unreached_gate_ids":{"type":"array","maxItems":25,"uniqueItems":true,"items":{"type":"string","pattern":"^G(?:0[0-9]|1[0-9]|2[0-4])$"}},"gate_set_receipt_sha256":{"type":"null"}},"allOf":[{"if":{"properties":{"reached_gate_count":{"const":0}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":0,"maxItems":0,"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}}]},"unreached_gate_ids":{"const":["G00","G01","G02","G03","G04","G05","G06","G07","G08","G09","G10","G11","G12","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":1}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":1,"maxItems":1,"prefixItems":[{"$ref":"#/$defs/actualG00"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G00"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G02","G03","G04","G05","G06","G07","G08","G09","G10","G11","G12","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":2}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":2,"maxItems":2,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G02"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G03","G04","G05","G06","G07","G08","G09","G10","G11","G12","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":3}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":3,"maxItems":3,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG10"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G10"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G03","G04","G05","G06","G07","G08","G09","G11","G12","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":4}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":4,"maxItems":4,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG10"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G03"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G04","G05","G06","G07","G08","G09","G11","G12","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":5}},"required":["reached_gate_count"]},"then":{"anyOf":[{"properties":{"reached_gates":{"type":"array","minItems":5,"maxItems":5,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G12"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G04","G05","G06","G07","G08","G09","G11","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}},{"properties":{"reached_gates":{"type":"array","minItems":5,"maxItems":5,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G11"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G04","G05","G06","G07","G08","G09","G12","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}]}},{"if":{"properties":{"reached_gate_count":{"const":6}},"required":["reached_gate_count"]},"then":{"anyOf":[{"properties":{"reached_gates":{"type":"array","minItems":6,"maxItems":6,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G04"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G05","G06","G07","G08","G09","G11","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}},{"properties":{"reached_gates":{"type":"array","minItems":6,"maxItems":6,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G12"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G04","G05","G06","G07","G08","G09","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}]}},{"if":{"properties":{"reached_gate_count":{"const":7}},"required":["reached_gate_count"]},"then":{"anyOf":[{"properties":{"reached_gates":{"type":"array","minItems":7,"maxItems":7,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G11"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G05","G06","G07","G08","G09","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}},{"properties":{"reached_gates":{"type":"array","minItems":7,"maxItems":7,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G04"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G05","G06","G07","G08","G09","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}]}},{"if":{"properties":{"reached_gate_count":{"const":8}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":8,"maxItems":8,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G05"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G06","G07","G08","G09","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":9}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":9,"maxItems":9,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G06"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G07","G08","G09","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":10}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":10,"maxItems":10,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G07"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G08","G09","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":11}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":11,"maxItems":11,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G08"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G09","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":12}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":12,"maxItems":12,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G09"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":13}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":13,"maxItems":13,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG14"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G14"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G13","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":14}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":14,"maxItems":14,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G15"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G01","G13","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":15}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":15,"maxItems":15,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G01"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G13","G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":16}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":16,"maxItems":16,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G13"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G16","G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":17}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":17,"maxItems":17,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G16"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G17","G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":18}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":18,"maxItems":18,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"},{"$ref":"#/$defs/actualG17"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G17"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G18","G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":19}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":19,"maxItems":19,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"},{"$ref":"#/$defs/actualG17"},{"$ref":"#/$defs/actualG18"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G18"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G19","G20","G21","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":20}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":20,"maxItems":20,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"},{"$ref":"#/$defs/actualG17"},{"$ref":"#/$defs/actualG18"},{"$ref":"#/$defs/actualG21"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G21"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G19","G20","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":21}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":21,"maxItems":21,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"},{"$ref":"#/$defs/actualG17"},{"$ref":"#/$defs/actualG18"},{"$ref":"#/$defs/actualG19"},{"$ref":"#/$defs/actualG21"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G19"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G20","G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":22}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":22,"maxItems":22,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"},{"$ref":"#/$defs/actualG17"},{"$ref":"#/$defs/actualG18"},{"$ref":"#/$defs/actualG19"},{"$ref":"#/$defs/actualG20"},{"$ref":"#/$defs/actualG21"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G20"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G22","G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":23}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":23,"maxItems":23,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"},{"$ref":"#/$defs/actualG17"},{"$ref":"#/$defs/actualG18"},{"$ref":"#/$defs/actualG19"},{"$ref":"#/$defs/actualG20"},{"$ref":"#/$defs/actualG21"},{"$ref":"#/$defs/actualG22"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G22"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G23","G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":24}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":24,"maxItems":24,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"},{"$ref":"#/$defs/actualG17"},{"$ref":"#/$defs/actualG18"},{"$ref":"#/$defs/actualG19"},{"$ref":"#/$defs/actualG20"},{"$ref":"#/$defs/actualG21"},{"$ref":"#/$defs/actualG22"},{"$ref":"#/$defs/actualG23"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G23"}},"status":{"const":"FAIL"}}}}}]},"unreached_gate_ids":{"const":["G24"]}}}},{"if":{"properties":{"reached_gate_count":{"const":25}},"required":["reached_gate_count"]},"then":{"properties":{"reached_gates":{"type":"array","minItems":25,"maxItems":25,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"},{"$ref":"#/$defs/actualG17"},{"$ref":"#/$defs/actualG18"},{"$ref":"#/$defs/actualG19"},{"$ref":"#/$defs/actualG20"},{"$ref":"#/$defs/actualG21"},{"$ref":"#/$defs/actualG22"},{"$ref":"#/$defs/actualG23"},{"$ref":"#/$defs/actualG24"}],"items":false,"allOf":[{"items":{"$ref":"#/$defs/actualGateReceipt"}},{"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G24"}},"status":{"const":"FAIL"}}}}},{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G24"},"status":{"const":"FAIL"}}},"minContains":1,"maxContains":1}]},"unreached_gate_ids":{"const":[]}}}}]},
+    "completeGateSet": {"type":"object","additionalProperties":false,"required":["profile","complete","reached_gate_count","reached_gates","unreached_gate_ids","gate_set_receipt_sha256"],"properties":{"profile":{"const":"gov01-static-acquisition-gate-set-v2"},"complete":{"const":true},"reached_gate_count":{"const":25},"reached_gates":{"type":"array","minItems":25,"maxItems":25,"prefixItems":[{"$ref":"#/$defs/actualG00"},{"$ref":"#/$defs/actualG01"},{"$ref":"#/$defs/actualG02"},{"$ref":"#/$defs/actualG03"},{"$ref":"#/$defs/actualG04"},{"$ref":"#/$defs/actualG05"},{"$ref":"#/$defs/actualG06"},{"$ref":"#/$defs/actualG07"},{"$ref":"#/$defs/actualG08"},{"$ref":"#/$defs/actualG09"},{"$ref":"#/$defs/actualG10"},{"$ref":"#/$defs/actualG11"},{"$ref":"#/$defs/actualG12"},{"$ref":"#/$defs/actualG13"},{"$ref":"#/$defs/actualG14"},{"$ref":"#/$defs/actualG15"},{"$ref":"#/$defs/actualG16"},{"$ref":"#/$defs/actualG17"},{"$ref":"#/$defs/actualG18"},{"$ref":"#/$defs/actualG19"},{"$ref":"#/$defs/actualG20"},{"$ref":"#/$defs/actualG21"},{"$ref":"#/$defs/actualG22"},{"$ref":"#/$defs/actualG23"},{"$ref":"#/$defs/actualG24"}],"items":false,"allOf":[{"items":{"allOf":[{"$ref":"#/$defs/actualGateReceipt"},{"type":"object","required":["status"],"properties":{"status":{"const":"PASS"}}}]}}]},"unreached_gate_ids":{"const":[]},"gate_set_receipt_sha256":{"$ref":"#/$defs/sha256"}}},
+    "actualLocatorCommitment": {
+      "type": "object", "additionalProperties": false, "required": ["label", "commitment"],
+      "properties": { "label": { "enum": ["repo-root", "npm-cache", "state-root", "hmac-key", "envelope"] }, "commitment": { "$ref": "#/$defs/sha256" } }
+    },
+    "actualAuthorizedLocatorCommitments": {
+      "type": "object", "additionalProperties": false, "required": ["repo_root", "cache_root", "state_root", "key_file", "envelope"],
+      "properties": {
+        "repo_root": { "allOf": [{ "$ref": "#/$defs/actualLocatorCommitment" }, { "properties": { "label": { "const": "repo-root" } } }] },
+        "cache_root": { "allOf": [{ "$ref": "#/$defs/actualLocatorCommitment" }, { "properties": { "label": { "const": "npm-cache" } } }] },
+        "state_root": { "allOf": [{ "$ref": "#/$defs/actualLocatorCommitment" }, { "properties": { "label": { "const": "state-root" } } }] },
+        "key_file": { "allOf": [{ "$ref": "#/$defs/actualLocatorCommitment" }, { "properties": { "label": { "const": "hmac-key" } } }] },
+        "envelope": { "allOf": [{ "$ref": "#/$defs/actualLocatorCommitment" }, { "properties": { "label": { "const": "envelope" } } }] }
+      }
+    },
+    "actualSchemaObservation": {
+      "type": "object", "additionalProperties": false, "required": ["path", "sha256", "bytes", "schema_count", "schema_bundle_receipt_sha256"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^_bmad-output/审查/phase0a-annotation-truth/[^/]+\\.schema\\.json$" },
+        "sha256": { "$ref": "#/$defs/sha256" }, "bytes": { "type": "integer", "minimum": 1, "maximum": 2097152 },
+        "schema_count": { "const": 3 }, "schema_bundle_receipt_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "actualLockObservation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["host_selected_package_count", "host_selected_cache_bytes", "host_bin_link_count", "expected_archive_member_count", "expected_resolved_tree_entry_count", "content_receipt_sha256", "ustar_closure_sha256", "resolution_receipt_sha256", "expected_tree_sha256"],
+      "properties": {
+        "host_selected_package_count": { "const": 167 }, "host_selected_cache_bytes": { "const": 13916529 }, "host_bin_link_count": { "const": 12 },
+        "expected_archive_member_count": { "const": 4117 }, "expected_resolved_tree_entry_count": { "const": 4665 },
+        "content_receipt_sha256": { "const": "ade2bf32961a18ba9365b1aef1df3456471622759cbf56890ecfbdd40e92a60b" },
+        "ustar_closure_sha256": { "const": "bd9a30d26415f06e20dc61c551e34fface39c376b5f761518bb69cca72efe9bb" },
+        "resolution_receipt_sha256": { "const": "2cecc0432d6f13be979b884b570e81c1ba443c9956e2149ba08b64d1a40433b0" },
+        "expected_tree_sha256": { "const": "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2" }
+      }
+    },
+    "actualResolution": {
+      "type": "object", "additionalProperties": false, "required": ["row_count", "body_bytes", "sha256", "required_missing", "allowed_missing"],
+      "properties": {
+        "row_count": { "const": 256 }, "body_bytes": { "const": 26629 },
+        "sha256": { "const": "2cecc0432d6f13be979b884b570e81c1ba443c9956e2149ba08b64d1a40433b0" },
+        "required_missing": { "const": 0 }, "allowed_missing": { "const": 10 }
+      }
+    },
+    "actualTree": {
+      "type": "object", "additionalProperties": false, "required": ["entry_count", "file_count", "directory_count", "symlink_count", "body_bytes", "sha256"],
+      "properties": {
+        "entry_count": { "const": 4665 }, "file_count": { "const": 4099 }, "directory_count": { "const": 554 },
+        "symlink_count": { "const": 12 }, "body_bytes": { "const": 539842 },
+        "sha256": { "const": "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2" }
+      }
+    },
+    "actualStaticExpected": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profile_version", "package_json_sha256", "package_lock_sha256", "lockfile_version", "lock_package_count", "selected_package_count", "excluded_platform_package_count", "compressed_bytes", "tar_stream_bytes", "payload_bytes", "raw_member_count", "raw_regular_count", "raw_directory_count", "bin_link_count", "lifecycle_field_count", "content_receipt_body_bytes", "content_receipt_sha256", "ustar_closure_body_bytes", "ustar_closure_sha256", "resolution", "tree"],
+      "properties": {
+        "profile_version": { "const": "gov-01-toolchain-static-verifier-v2" },
+        "package_json_sha256": { "const": "bd5c4e933e2dcbf7f2019bec9fec555b5b1adff1c4a6e5c36ea4415ff9a711fe" }, "package_lock_sha256": { "const": "c6e190741427b99ff132d6504b2a782d75c418d6ae93066769ac422bff6b7cea" },
+        "lockfile_version": { "const": 3 }, "lock_package_count": { "const": 176 },
+        "selected_package_count": { "const": 167 }, "excluded_platform_package_count": { "const": 9 },
+        "compressed_bytes": { "const": 13916529 }, "tar_stream_bytes": { "const": 59361280 }, "payload_bytes": { "const": 55954126 },
+        "raw_member_count": { "const": 4117 }, "raw_regular_count": { "const": 4099 }, "raw_directory_count": { "const": 18 },
+        "bin_link_count": { "const": 12 }, "lifecycle_field_count": { "const": 11 }, "content_receipt_body_bytes": { "const": 49665 },
+        "content_receipt_sha256": { "const": "ade2bf32961a18ba9365b1aef1df3456471622759cbf56890ecfbdd40e92a60b" },
+        "ustar_closure_body_bytes": { "const": 41470 },
+        "ustar_closure_sha256": { "const": "bd9a30d26415f06e20dc61c551e34fface39c376b5f761518bb69cca72efe9bb" },
+        "resolution": { "$ref": "#/$defs/actualResolution" }, "tree": { "$ref": "#/$defs/actualTree" }
+      }
+    },
+    "actualToolHashes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["static-executor", "static-verifier", "python-interpreter", "python-stdlib-tree", "xcode-select-resolver", "xcrun-resolver", "git-read-only-evidence", "pgrep-read-only-evidence", "lsof-read-only-evidence"],
+      "properties": {
+        "static-executor": { "const": "b0117713c364fd8de77b9872585bff6590e3b5cc4aee21216cdd101ae83722da" }, "static-verifier": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" },
+        "python-interpreter": { "$ref": "#/$defs/sha256" }, "python-stdlib-tree": { "$ref": "#/$defs/sha256" },
+        "xcode-select-resolver": { "$ref": "#/$defs/sha256" }, "xcrun-resolver": { "$ref": "#/$defs/sha256" },
+        "git-read-only-evidence": { "$ref": "#/$defs/sha256" }, "pgrep-read-only-evidence": { "$ref": "#/$defs/sha256" },
+        "lsof-read-only-evidence": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "actualReadOnlyObservation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["selected_packages", "selected_cache_bytes", "bin_links", "claude_sessions", "hmac_key_id", "authorized_locator_commitments", "private_control_identity_commitment", "schema_binding_observation", "public_repo_artifact_set_receipt_sha256", "git_snapshot_commitment", "toolchain_set_receipt_sha256", "dynamic_closure_receipt_sha256", "toolchain_hashes", "package_lock_raw_sha256", "lock_closure_observed", "static_expected", "private_preapproval_commitment"],
+      "properties": {
+        "selected_packages": { "const": 167 }, "selected_cache_bytes": { "const": 13916529 }, "bin_links": { "const": 12 }, "claude_sessions": { "const": 0 },
+        "hmac_key_id": { "$ref": "#/$defs/sha256" }, "authorized_locator_commitments": { "$ref": "#/$defs/actualAuthorizedLocatorCommitments" },
+        "private_control_identity_commitment": { "$ref": "#/$defs/sha256" },
+        "schema_binding_observation": { "$ref": "#/$defs/actualSchemaObservation" },
+        "public_repo_artifact_set_receipt_sha256": { "$ref": "#/$defs/sha256" }, "git_snapshot_commitment": { "$ref": "#/$defs/sha256" },
+        "toolchain_set_receipt_sha256": { "$ref": "#/$defs/sha256" }, "dynamic_closure_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "toolchain_hashes": { "$ref": "#/$defs/actualToolHashes" }, "package_lock_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "lock_closure_observed": { "$ref": "#/$defs/actualLockObservation" }, "static_expected": { "$ref": "#/$defs/actualStaticExpected" },
+        "private_preapproval_commitment": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "actualSuccessAttestation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "approval_challenge_id", "receipt_digest", "schema_binding_observation", "public_repo_artifact_set_receipt_sha256", "git_snapshot_commitment", "private_preapproval_commitment", "private_control_identity_commitment", "toolchain", "source_and_receipts", "publication", "containment", "execution_counters", "next_required_authorization"],
+      "properties": {
+        "schema_version": { "const": "gov01-static-acquisition-success-attestation-v2" },
+        "approval_challenge_id": { "$ref": "#/$defs/actualChallenge" }, "receipt_digest": { "$ref": "#/$defs/sha256" },
+        "schema_binding_observation": { "$ref": "#/$defs/actualSchemaObservation" },
+        "public_repo_artifact_set_receipt_sha256": { "$ref": "#/$defs/sha256" }, "git_snapshot_commitment": { "$ref": "#/$defs/sha256" },
+        "private_preapproval_commitment": { "$ref": "#/$defs/sha256" },
+        "private_control_identity_commitment": { "$ref": "#/$defs/sha256" },
+        "toolchain": {
+          "type": "object", "additionalProperties": false,
+          "required": ["assurance", "pre_exec_launcher_attested", "toolchain_set_receipt_sha256", "dynamic_closure_receipt_sha256", "hashes"],
+          "properties": {
+            "assurance": { "const": "runtime-self-attested-not-pre-exec" }, "pre_exec_launcher_attested": { "const": false },
+            "toolchain_set_receipt_sha256": { "$ref": "#/$defs/sha256" }, "dynamic_closure_receipt_sha256": { "$ref": "#/$defs/sha256" },
+            "hashes": { "$ref": "#/$defs/actualToolHashes" }
+          }
+        },
+        "source_and_receipts": {
+          "type": "object", "additionalProperties": false, "required": ["lock_closure_observed", "static_expected"],
+          "properties": { "lock_closure_observed": { "$ref": "#/$defs/actualLockObservation" }, "static_expected": { "$ref": "#/$defs/actualStaticExpected" } }
+        },
+        "publication": {
+          "type": "object", "additionalProperties": false,
+          "required": ["publish_syscall", "publish_flag", "tree_sha256", "private_ledger_head_hmac_sha256", "target_state"],
+          "properties": {
+            "publish_syscall": { "const": "renameatx_np" }, "publish_flag": { "const": "RENAME_EXCL" },
+            "tree_sha256": { "const": "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2" },
+            "private_ledger_head_hmac_sha256": { "$ref": "#/$defs/sha256" }, "target_state": { "const": "static-attested-unexecuted" }
+          }
+        },
+        "containment": {
+          "type": "object", "additionalProperties": false,
+          "required": ["protected_controls_unchanged", "absent_alternate_controls", "public_artifacts_unchanged", "toolchain_unchanged", "git_snapshot_unchanged", "cache_closure_unchanged", "outside_scope_mutation_count", "target_worktree_claude_sessions"],
+          "properties": {
+            "protected_controls_unchanged": { "const": true }, "absent_alternate_controls": { "const": true },
+            "public_artifacts_unchanged": { "const": true }, "toolchain_unchanged": { "const": true },
+            "git_snapshot_unchanged": { "const": true }, "cache_closure_unchanged": { "const": true },
+            "outside_scope_mutation_count": { "const": 0 }, "target_worktree_claude_sessions": { "const": 0 }
+          }
+        },
+        "execution_counters": {
+          "type": "object", "additionalProperties": false,
+          "required": ["network_attempt_count", "lifecycle_execution_count", "installed_code_execution_count", "node_npm_npx_execution_count", "counter_scope", "runtime_syscall_observation_available"],
+          "properties": {
+            "network_attempt_count": { "const": 0 }, "lifecycle_execution_count": { "const": 0 },
+            "installed_code_execution_count": { "const": 0 }, "node_npm_npx_execution_count": { "const": 0 },
+            "counter_scope": { "const": "executor-authorized-call-sites-only" },
+            "runtime_syscall_observation_available": { "const": false }
+          }
+        },
+        "next_required_authorization": { "const": "new runtime-use envelope binding this final tree and a fresh single-use challenge" }
+      }
+    },
+    "actualPublicErrorCategory": {
+      "enum": [
+        "USAGE_FAIL_CLOSED", "CONTRACT_FAIL_CLOSED", "RECEIPT_FAIL_CLOSED", "EXPIRED_FAIL_CLOSED",
+        "REPLAY_FAIL_CLOSED", "PRIVATE_STATE_FAIL_CLOSED", "CHECKER_DRIFT_FAIL_CLOSED",
+        "PREFLIGHT_DRIFT_FAIL_CLOSED", "UNSAFE_PATH_FAIL_CLOSED", "RUNTIME_FAIL_CLOSED",
+        "CACHE_LOCK_FAIL_CLOSED", "ARCHIVE_FAIL_CLOSED", "TRACE_FAIL_CLOSED", "EXTRACT_FAIL_CLOSED",
+        "BIN_LINK_FAIL_CLOSED", "SEAL_FAIL_CLOSED", "PRE_WORKTREE_CAS_FAIL_CLOSED",
+        "PROMOTE_FAIL_CLOSED", "POST_INSTALL_FAIL_CLOSED", "GIT_CONTAINMENT_FAIL_CLOSED",
+        "PRIVACY_FAIL_CLOSED", "ROLLBACK_FAIL_CLOSED", "EVIDENCE_FAIL_CLOSED", "INTERNAL_FAIL_CLOSED"
+      ]
+    },
+    "actualPublicErrorExit": {
+      "enum": [10, 11, 12, 13, 14, 15, 16, 20, 21, 22, 23, 24, 25, 30, 31, 32, 40, 41, 50, 51, 55, 60, 61, 70]
+    },
+    "actualPublicErrorIdentity": {
+      "oneOf": [
+        { "properties": { "code": { "const": "USAGE_FAIL_CLOSED" }, "exit": { "const": 10 } } },
+        { "properties": { "code": { "const": "CONTRACT_FAIL_CLOSED" }, "exit": { "const": 11 } } },
+        { "properties": { "code": { "const": "RECEIPT_FAIL_CLOSED" }, "exit": { "const": 12 } } },
+        { "properties": { "code": { "const": "EXPIRED_FAIL_CLOSED" }, "exit": { "const": 13 } } },
+        { "properties": { "code": { "const": "REPLAY_FAIL_CLOSED" }, "exit": { "const": 14 } } },
+        { "properties": { "code": { "const": "PRIVATE_STATE_FAIL_CLOSED" }, "exit": { "const": 15 } } },
+        { "properties": { "code": { "const": "CHECKER_DRIFT_FAIL_CLOSED" }, "exit": { "const": 16 } } },
+        { "properties": { "code": { "const": "PREFLIGHT_DRIFT_FAIL_CLOSED" }, "exit": { "const": 20 } } },
+        { "properties": { "code": { "const": "UNSAFE_PATH_FAIL_CLOSED" }, "exit": { "const": 21 } } },
+        { "properties": { "code": { "const": "RUNTIME_FAIL_CLOSED" }, "exit": { "const": 22 } } },
+        { "properties": { "code": { "const": "CACHE_LOCK_FAIL_CLOSED" }, "exit": { "const": 23 } } },
+        { "properties": { "code": { "const": "ARCHIVE_FAIL_CLOSED" }, "exit": { "const": 24 } } },
+        { "properties": { "code": { "const": "TRACE_FAIL_CLOSED" }, "exit": { "const": 25 } } },
+        { "properties": { "code": { "const": "EXTRACT_FAIL_CLOSED" }, "exit": { "const": 30 } } },
+        { "properties": { "code": { "const": "BIN_LINK_FAIL_CLOSED" }, "exit": { "const": 31 } } },
+        { "properties": { "code": { "const": "SEAL_FAIL_CLOSED" }, "exit": { "const": 32 } } },
+        { "properties": { "code": { "const": "PRE_WORKTREE_CAS_FAIL_CLOSED" }, "exit": { "const": 40 } } },
+        { "properties": { "code": { "const": "PROMOTE_FAIL_CLOSED" }, "exit": { "const": 41 } } },
+        { "properties": { "code": { "const": "POST_INSTALL_FAIL_CLOSED" }, "exit": { "const": 50 } } },
+        { "properties": { "code": { "const": "GIT_CONTAINMENT_FAIL_CLOSED" }, "exit": { "const": 51 } } },
+        { "properties": { "code": { "const": "PRIVACY_FAIL_CLOSED" }, "exit": { "const": 55 } } },
+        { "properties": { "code": { "const": "ROLLBACK_FAIL_CLOSED" }, "exit": { "const": 60 } } },
+        { "properties": { "code": { "const": "EVIDENCE_FAIL_CLOSED" }, "exit": { "const": 61 } } },
+        { "properties": { "code": { "const": "INTERNAL_FAIL_CLOSED" }, "exit": { "const": 70 } } }
+      ]
+    },
+    "actualGateFailureIdentity": {
+      "oneOf": [
+        { "properties": { "public_code": { "const": "USAGE_FAIL_CLOSED" }, "public_exit": { "const": 10 } } },
+        { "properties": { "public_code": { "const": "CONTRACT_FAIL_CLOSED" }, "public_exit": { "const": 11 } } },
+        { "properties": { "public_code": { "const": "RECEIPT_FAIL_CLOSED" }, "public_exit": { "const": 12 } } },
+        { "properties": { "public_code": { "const": "EXPIRED_FAIL_CLOSED" }, "public_exit": { "const": 13 } } },
+        { "properties": { "public_code": { "const": "REPLAY_FAIL_CLOSED" }, "public_exit": { "const": 14 } } },
+        { "properties": { "public_code": { "const": "PRIVATE_STATE_FAIL_CLOSED" }, "public_exit": { "const": 15 } } },
+        { "properties": { "public_code": { "const": "CHECKER_DRIFT_FAIL_CLOSED" }, "public_exit": { "const": 16 } } },
+        { "properties": { "public_code": { "const": "PREFLIGHT_DRIFT_FAIL_CLOSED" }, "public_exit": { "const": 20 } } },
+        { "properties": { "public_code": { "const": "UNSAFE_PATH_FAIL_CLOSED" }, "public_exit": { "const": 21 } } },
+        { "properties": { "public_code": { "const": "RUNTIME_FAIL_CLOSED" }, "public_exit": { "const": 22 } } },
+        { "properties": { "public_code": { "const": "CACHE_LOCK_FAIL_CLOSED" }, "public_exit": { "const": 23 } } },
+        { "properties": { "public_code": { "const": "ARCHIVE_FAIL_CLOSED" }, "public_exit": { "const": 24 } } },
+        { "properties": { "public_code": { "const": "TRACE_FAIL_CLOSED" }, "public_exit": { "const": 25 } } },
+        { "properties": { "public_code": { "const": "EXTRACT_FAIL_CLOSED" }, "public_exit": { "const": 30 } } },
+        { "properties": { "public_code": { "const": "BIN_LINK_FAIL_CLOSED" }, "public_exit": { "const": 31 } } },
+        { "properties": { "public_code": { "const": "SEAL_FAIL_CLOSED" }, "public_exit": { "const": 32 } } },
+        { "properties": { "public_code": { "const": "PRE_WORKTREE_CAS_FAIL_CLOSED" }, "public_exit": { "const": 40 } } },
+        { "properties": { "public_code": { "const": "PROMOTE_FAIL_CLOSED" }, "public_exit": { "const": 41 } } },
+        { "properties": { "public_code": { "const": "POST_INSTALL_FAIL_CLOSED" }, "public_exit": { "const": 50 } } },
+        { "properties": { "public_code": { "const": "GIT_CONTAINMENT_FAIL_CLOSED" }, "public_exit": { "const": 51 } } },
+        { "properties": { "public_code": { "const": "PRIVACY_FAIL_CLOSED" }, "public_exit": { "const": 55 } } },
+        { "properties": { "public_code": { "const": "ROLLBACK_FAIL_CLOSED" }, "public_exit": { "const": 60 } } },
+        { "properties": { "public_code": { "const": "EVIDENCE_FAIL_CLOSED" }, "public_exit": { "const": 61 } } },
+        { "properties": { "public_code": { "const": "INTERNAL_FAIL_CLOSED" }, "public_exit": { "const": 70 } } }
+      ]
+    },
+    "actualPublicError": {
+      "type": "object", "additionalProperties": false, "required": ["code", "detail_code", "exit"],
+      "allOf": [{ "$ref": "#/$defs/actualPublicErrorIdentity" }],
+      "properties": {
+        "code": { "$ref": "#/$defs/actualPublicErrorCategory" },
+        "detail_code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,127}$" },
+        "exit": { "$ref": "#/$defs/actualPublicErrorExit" }
+      }
+    },
+    "actualRetention": {
+      "type": "object", "additionalProperties": false,
+      "required": ["stage_deleted_or_moved_on_failure", "automatic_rollback_performed", "private_state_inspection_required"],
+      "properties": { "stage_deleted_or_moved_on_failure": { "const": false }, "automatic_rollback_performed": { "const": false }, "private_state_inspection_required": { "type": "boolean" } }
+    },
+    "actualLedgerEvidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checker_interface", "record_count", "terminal_kind", "head_hmac_sha256", "raw_sha256", "raw_bytes"],
+      "properties": {
+        "checker_interface": { "const": "gov01-ledger-semantic-checker-v2" }, "record_count": { "type": "integer", "minimum": 2, "maximum": 6 },
+        "terminal_kind": { "enum": ["success", "failure"] }, "head_hmac_sha256": { "$ref": "#/$defs/sha256" },
+        "raw_sha256": { "$ref": "#/$defs/sha256" }, "raw_bytes": { "type": "integer", "minimum": 1, "maximum": 2097152 }
+      }
+    },
+    "actualReadOnlyCompleteGateSet": {
+      "allOf": [
+        { "$ref": "#/$defs/partialGateSet" },
+        {
+          "type": "object", "required": ["complete", "reached_gate_count", "reached_gates", "unreached_gate_ids", "gate_set_receipt_sha256"],
+          "properties": {
+            "complete": { "const": false }, "reached_gate_count": { "const": 14 },
+            "reached_gates": { "type": "array", "minItems": 14, "maxItems": 14, "not": { "contains": { "type": "object", "required": ["status"], "properties": { "status": { "const": "FAIL" } } } } },
+            "unreached_gate_ids": { "const": ["G01", "G13", "G16", "G17", "G18", "G19", "G20", "G21", "G22", "G23", "G24"] },
+            "gate_set_receipt_sha256": { "type": "null" }
+          }
+        }
+      ]
+    },
+    "actualRuntimeAssuranceWithReceipts": {
+      "allOf": [
+        { "$ref": "#/$defs/actualRuntimeAssurance" },
+        { "type": "object", "required": ["toolchain_set_receipt_sha256", "dynamic_closure_receipt_sha256"] }
+      ]
+    },
+    "actualReadOnlySuccess": {
+      "type": "object", "required": ["observation", "approval_challenge_id", "receipt_digest", "mode", "phase", "state", "terminal_state", "runtime_assurance", "gate_results", "authority"],
+      "properties": {
+        "ok": { "const": true },
+        "terminal_state": { "$ref": "#/$defs/actualReadOnlyFailureTerminalR1" },
+        "runtime_assurance": { "$ref": "#/$defs/actualRuntimeAssuranceWithReceipts" },
+        "gate_results": { "$ref": "#/$defs/actualReadOnlyCompleteGateSet" },
+        "authority": {
+          "type": "object", "required": ["retry_authorized", "public_success_attestation_allowed", "next_required_authority"],
+          "properties": {
+            "retry_authorized": { "const": true }, "public_success_attestation_allowed": { "const": false },
+            "next_required_authority": { "const": "exact user-approved acquisition receipt and challenge required before any mutation" }
+          }
+        }
+      },
+      "oneOf": [
+        { "properties": { "mode": { "const": "census" }, "phase": { "const": "read-only-preapproval-census-complete" }, "state": { "const": "read-only-preapproval-census" } }, "required": ["mode", "phase", "state"] },
+        { "properties": { "mode": { "const": "verify" }, "phase": { "const": "preconditions-reverified-read-only-complete" }, "state": { "const": "preconditions-reverified-read-only" } }, "required": ["mode", "phase", "state"] }
+      ],
+      "not": { "anyOf": [{ "required": ["attestation"] }, { "required": ["error"] }, { "required": ["retention"] }, { "required": ["ledger_evidence"] }] }
+    },
+    "actualAcquireSuccess": {
+      "type": "object", "required": ["approval_challenge_id", "receipt_digest", "attestation", "phase", "runtime_assurance", "authority"],
+      "properties": {
+        "ok": { "const": true }, "mode": { "const": "acquire" }, "phase": { "const": "static-attestation-complete" }, "state": { "const": "static-attested-unexecuted" },
+        "runtime_assurance": { "$ref": "#/$defs/actualRuntimeAssuranceWithReceipts" },
+        "gate_results": { "$ref": "#/$defs/completeGateSet" },
+        "terminal_state": { "properties": { "challenge_state": { "const": "completed-consumed" }, "claim_state": { "const": "created-0700" }, "stage_state": { "const": "renamed-to-target" }, "publication_state": { "const": "static-attested" }, "ledger_terminal_state": { "const": "terminal-success-recorded" }, "target_disposition": { "const": "static-attested-target-retained" } } },
+        "authority": { "properties": { "retry_authorized": { "const": false }, "public_success_attestation_allowed": { "const": true }, "next_required_authority": { "const": "new runtime-use envelope binding this final tree and a fresh single-use challenge" } } }
+      },
+      "not": { "anyOf": [{ "required": ["observation"] }, { "required": ["error"] }, { "required": ["retention"] }, { "required": ["ledger_evidence"] }] }
+    },
+    "actualFailureStateContractVersion": {"const":"gov01-acquire-failure-reachable-state-v2"},
+    "actualTerminalRecoveryU32": {"type":"object","required":["stage_state","publication_state","target_disposition"],"properties":{"stage_state":{"enum":["not-created","retained-marker-not-yet-created","retained-marker-present","retained-marker-removed","retained-marker-state-unknown","retained-marker-unexpected-type","unexpected-stage-type-fail-closed","unknown-fail-closed"]},"publication_state":{"enum":["not-attempted","target-observed-unattributed-fail-closed","unexpected-target-type-fail-closed","unknown-fail-closed"]}}},
+    "actualTerminalRecoveryU28": {"type":"object","required":["stage_state","publication_state","target_disposition"],"properties":{"stage_state":{"enum":["retained-marker-not-yet-created","retained-marker-present","retained-marker-removed","retained-marker-state-unknown","retained-marker-unexpected-type","unexpected-stage-type-fail-closed","unknown-fail-closed"]},"publication_state":{"enum":["not-attempted","target-observed-unattributed-fail-closed","unexpected-target-type-fail-closed","unknown-fail-closed"]}}},
+    "actualTerminalRecoveryP40": {"type":"object","required":["stage_state","publication_state","target_disposition"],"properties":{"stage_state":{"enum":["retained-marker-not-yet-created","retained-marker-present","retained-marker-removed","retained-marker-state-unknown","retained-marker-unexpected-type","renamed-to-target","unexpected-stage-type-fail-closed","unknown-fail-closed"]},"publication_state":{"enum":["rename-succeeded-attestation-incomplete","target-observed-unattributed-fail-closed","unexpected-target-type-fail-closed","promoted-target-missing-fail-closed","attributed-target-and-stage-both-observed-fail-closed","unknown-fail-closed"]}}},
+    "actualTerminalRecoveryS47": {"anyOf":[{"$ref":"#/$defs/actualTerminalRecoveryU28"},{"$ref":"#/$defs/actualTerminalRecoveryP40"}]},
+    "actualTerminalRecoveryL40": {"type":"object","required":["stage_state","publication_state","target_disposition"],"properties":{"stage_state":{"enum":["retained-marker-not-yet-created","retained-marker-present","retained-marker-removed","retained-marker-state-unknown","retained-marker-unexpected-type","renamed-to-target","unexpected-stage-type-fail-closed","unknown-fail-closed"]},"publication_state":{"enum":["static-ledger-success-public-result-failed","rename-succeeded-attestation-incomplete","target-observed-unattributed-fail-closed","unexpected-target-type-fail-closed","promoted-target-missing-fail-closed","attributed-target-and-stage-both-observed-fail-closed","unknown-fail-closed"]}},"allOf":[{"if":{"properties":{"publication_state":{"const":"rename-succeeded-attestation-incomplete"}},"required":["publication_state"]},"then":{"properties":{"stage_state":{"enum":["unexpected-stage-type-fail-closed","unknown-fail-closed"]},"target_disposition":{"const":"unknown-user-decision-required"}}}}]},
+    "actualTerminalRecoveryR1": {"type":"object","additionalProperties":false,"required":["challenge_state","claim_state","stage_state","publication_state","ledger_terminal_state","target_disposition"],"properties":{"challenge_state":{"const":"completed-consumed"},"claim_state":{"const":"created-0700"},"stage_state":{"const":"renamed-to-target"},"publication_state":{"const":"static-ledger-success-public-result-failed"},"ledger_terminal_state":{"const":"terminal-success-recorded"},"target_disposition":{"const":"retain-target-user-decision-required"}}},
+    "actualFailurePreclaimAuthority": {"type":"object","required":["terminal_state","retention"],"properties":{"terminal_state":{"type":"object","required":["challenge_state","claim_state","ledger_terminal_state"],"properties":{"challenge_state":{"const":"preclaim-rejected-new-envelope-required"},"claim_state":{"const":"not-created"},"ledger_terminal_state":{"const":"not-created"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":false}}}},"not":{"required":["ledger_evidence"]}},
+    "actualFailureClaimedInvalidAuthority": {"type":"object","required":["terminal_state","retention"],"properties":{"terminal_state":{"type":"object","required":["challenge_state","claim_state","ledger_terminal_state"],"properties":{"challenge_state":{"const":"claimed-consumed"},"claim_state":{"const":"created-0700"},"ledger_terminal_state":{"const":"absent-partial-or-semantic-invalid"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":true}}}},"not":{"required":["ledger_evidence"]}},
+    "actualFailureLedgerAuthority": {"type":"object","required":["terminal_state","retention","ledger_evidence"],"properties":{"terminal_state":{"type":"object","required":["challenge_state","claim_state","ledger_terminal_state"],"properties":{"challenge_state":{"const":"claimed-consumed"},"claim_state":{"const":"created-0700"},"ledger_terminal_state":{"const":"terminal-failure-recorded"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":true}}},"ledger_evidence":{"type":"object","required":["terminal_kind"],"properties":{"terminal_kind":{"const":"failure"}}}}},
+    "actualSuccessLedgerAuthority": {"type":"object","required":["terminal_state","retention","ledger_evidence"],"properties":{"terminal_state":{"type":"object","required":["challenge_state","claim_state","ledger_terminal_state"],"properties":{"challenge_state":{"const":"completed-consumed"},"claim_state":{"const":"created-0700"},"ledger_terminal_state":{"const":"terminal-success-recorded"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":true}}},"ledger_evidence":{"type":"object","required":["terminal_kind","record_count"],"properties":{"terminal_kind":{"const":"success"},"record_count":{"const":6}}}}},
+    "actualAcquireFailureTrace": {"oneOf":[{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"schema-contract"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count"],"properties":{"reached_gate_count":{"const":0}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":1},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G00"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"private-public-boundary"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":1},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G00"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":2},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G02"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"control-root-before"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":2},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G02"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":3},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G10"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"content-addressed-toolchain"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":3},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G10"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":4},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G03"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"git-preimage"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":4},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G03"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"process-census-before"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":4},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G03"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":5},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G12"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":6},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G04"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"target-preimage"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":6},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G04"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":7},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G11"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"cache-and-expected-closure"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":7},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G11"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":8},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G05"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":9},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G06"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":10},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G07"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":11},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G08"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":12},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G09"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":13},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G14"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":14},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G15"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"persistent-claim"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":14},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G15"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":15},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G01"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"stage-materialization"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":15},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G01"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":16},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G13"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"stage-tree-attestation"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":16},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G13"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":17},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G16"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":18},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G17"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"pre-promotion-cas"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":18},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G17"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"sealed-marker-removed"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":18},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G17"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":19},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G18"},"status":{"const":"FAIL"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"rename-succeeded-attestation-incomplete"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":19},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G18"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":20},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G21"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"post-promotion-containment"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":20},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G21"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":21},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G19"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":22},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G20"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":23},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G22"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"ledger-terminal-success"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":23},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G22"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":24},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G23"},"status":{"const":"FAIL"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]},{"type":"object","required":["phase","gate_results"],"properties":{"phase":{"const":"static-attestation-complete"}},"allOf":[{"anyOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":24},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G23"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":25},"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G24"},"status":{"const":"FAIL"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]}]}]}]},
+    "actualAcquireFailureReachability": {"allOf":[{"oneOf":[{"allOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"not":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G01"}}}}}}}},"required":["gate_results"]},{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryU32"}}},{"anyOf":[{"$ref":"#/$defs/actualFailurePreclaimAuthority"}]}]},{"allOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G01"},"status":{"const":"FAIL"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryU32"}}},{"anyOf":[{"$ref":"#/$defs/actualFailurePreclaimAuthority"},{"$ref":"#/$defs/actualFailureClaimedInvalidAuthority"},{"$ref":"#/$defs/actualFailureLedgerAuthority"}]}]},{"allOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G01"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"not":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G13"}}}}}}}},"required":["gate_results"]},{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryU32"}}},{"anyOf":[{"$ref":"#/$defs/actualFailureClaimedInvalidAuthority"},{"$ref":"#/$defs/actualFailureLedgerAuthority"}]}]},{"allOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G13"},"status":{"const":"FAIL"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryU32"}}},{"anyOf":[{"$ref":"#/$defs/actualFailureClaimedInvalidAuthority"},{"$ref":"#/$defs/actualFailureLedgerAuthority"}]}]},{"allOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G13"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"not":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G18"}}}}}}}},"required":["gate_results"]},{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryU28"}}},{"anyOf":[{"$ref":"#/$defs/actualFailureClaimedInvalidAuthority"},{"$ref":"#/$defs/actualFailureLedgerAuthority"}]}]},{"allOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G18"},"status":{"const":"FAIL"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryS47"}}},{"anyOf":[{"$ref":"#/$defs/actualFailureClaimedInvalidAuthority"},{"$ref":"#/$defs/actualFailureLedgerAuthority"}]}]},{"allOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G18"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"not":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G23"}}}}}}}},"required":["gate_results"]},{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryP40"}}},{"anyOf":[{"$ref":"#/$defs/actualFailureClaimedInvalidAuthority"},{"$ref":"#/$defs/actualFailureLedgerAuthority"}]}]},{"allOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G23"},"status":{"const":"FAIL"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"anyOf":[{"allOf":[{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryP40"}}},{"anyOf":[{"$ref":"#/$defs/actualFailureClaimedInvalidAuthority"},{"$ref":"#/$defs/actualFailureLedgerAuthority"}]}]},{"allOf":[{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryL40"}}},{"anyOf":[{"$ref":"#/$defs/actualSuccessLedgerAuthority"}]}]}]}]},{"allOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G23"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryL40"}}},{"anyOf":[{"$ref":"#/$defs/actualSuccessLedgerAuthority"}]}]}]},{"if":{"properties":{"phase":{"const":"static-attestation-complete"}},"required":["phase"]},"then":{"allOf":[{"properties":{"terminal_state":{"$ref":"#/$defs/actualTerminalRecoveryL40"}}},{"anyOf":[{"$ref":"#/$defs/actualSuccessLedgerAuthority"}]}]}}]},
+    "actualReadOnlyFailureTerminalR1": {"type":"object","additionalProperties":false,"required":["challenge_state","claim_state","stage_state","publication_state","ledger_terminal_state","target_disposition"],"properties":{"challenge_state":{"const":"not-consumed-read-only"},"claim_state":{"const":"not-created"},"stage_state":{"const":"not-created"},"publication_state":{"const":"not-attempted"},"ledger_terminal_state":{"const":"not-created"},"target_disposition":{"const":"target-absent"}}},
+    "actualAcquireEntryFailureTerminalR1": {"type":"object","additionalProperties":false,"required":["challenge_state","claim_state","stage_state","publication_state","ledger_terminal_state","target_disposition"],"properties":{"challenge_state":{"const":"preclaim-rejected-new-envelope-required"},"claim_state":{"const":"not-created"},"stage_state":{"const":"not-created"},"publication_state":{"const":"not-attempted"},"ledger_terminal_state":{"const":"not-created"},"target_disposition":{"const":"target-absent"}}},
+    "actualPrivacyFailureTerminalR1": {"type":"object","additionalProperties":false,"required":["challenge_state","claim_state","stage_state","publication_state","ledger_terminal_state","target_disposition"],"properties":{"challenge_state":{"const":"unknown-fail-closed"},"claim_state":{"const":"unknown-fail-closed"},"stage_state":{"const":"unknown-fail-closed"},"publication_state":{"const":"unknown-fail-closed"},"ledger_terminal_state":{"const":"unknown-fail-closed"},"target_disposition":{"const":"unknown-user-decision-required"}}},
+    "actualFailureRuntimeBaseOnly": {"type":"object","not":{"anyOf":[{"required":["toolchain_set_receipt_sha256"]},{"required":["dynamic_closure_receipt_sha256"]}]}},
+    "actualFailureNoPrivateAuthorityOrLedger": {"not":{"anyOf":[{"required":["approval_challenge_id"]},{"required":["receipt_digest"]},{"required":["ledger_evidence"]}]}},
+    "actualZeroGateFailureSet": {"allOf":[{"$ref":"#/$defs/partialGateSet"},{"type":"object","required":["complete","reached_gate_count","reached_gates","unreached_gate_ids","gate_set_receipt_sha256"],"properties":{"complete":{"const":false},"reached_gate_count":{"const":0},"reached_gates":{"const":[]},"unreached_gate_ids":{"const":["G00","G01","G02","G03","G04","G05","G06","G07","G08","G09","G10","G11","G12","G13","G14","G15","G16","G17","G18","G19","G20","G21","G22","G23","G24"]},"gate_set_receipt_sha256":{"type":"null"}}}]},
+    "actualReadOnlyFailureTraceLegacy": {"oneOf":[{"properties":{"gate_results":{"type":"object","required":["reached_gate_count"],"properties":{"reached_gate_count":{"const":0}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":1},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G00"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G00"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":2},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G02"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G02"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":3},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G10"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G10"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":4},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G03"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G03"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":5},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G11"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G11"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":6},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G12"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G12"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":7},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G04"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G04"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":8},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G05"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G05"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":9},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G06"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G06"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":10},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G07"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G07"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":11},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G08"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G08"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":12},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G09"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G09"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":13},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G14"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G14"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]},{"properties":{"gate_results":{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":14},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G15"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G15"}},"status":{"const":"FAIL"}}}}}}}},"required":["gate_results"]}]},
+    "actualReadOnlyFailureTrace": {"oneOf":[{"type":"object","required":["reached_gate_count"],"properties":{"reached_gate_count":{"const":0}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":1},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G00"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G00"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":2},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G02"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G02"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":3},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G10"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G10"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":4},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G03"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G03"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":5},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G11"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G11"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":6},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G12"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G12"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":7},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G04"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G04"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":8},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G05"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G05"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":9},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G06"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G06"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":10},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G07"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G07"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":11},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G08"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G08"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":12},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G09"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G09"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":13},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G14"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G14"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":14},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G15"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G15"}},"status":{"const":"FAIL"}}}}}}}]},
+    "actualAcquireFailureGateTrace": {"oneOf":[{"type":"object","required":["reached_gate_count"],"properties":{"reached_gate_count":{"const":0}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":1},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G00"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G00"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":2},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G02"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G02"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":3},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G10"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G10"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":4},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G03"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G03"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":5},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G12"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G12"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":6},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G04"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G04"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":7},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G11"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G11"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":8},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G05"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G05"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":9},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G06"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G06"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":10},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G07"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G07"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":11},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G08"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G08"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":12},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G09"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G09"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":13},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G14"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G14"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":14},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G15"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G15"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":15},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G01"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G01"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":16},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G13"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G13"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":17},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G16"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G16"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":18},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G17"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G17"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":19},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G18"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G18"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":20},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G21"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G21"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":21},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G19"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G19"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":22},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G20"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G20"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":23},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G22"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G22"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":24},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G23"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G23"}},"status":{"const":"FAIL"}}}}}}},{"type":"object","required":["reached_gate_count","reached_gates"],"properties":{"reached_gate_count":{"const":25},"reached_gates":{"contains":{"type":"object","required":["gate_id"],"properties":{"gate_id":{"const":"G24"}}},"minContains":1,"maxContains":1,"not":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"not":{"const":"G24"}},"status":{"const":"FAIL"}}}}}}}]},
+    "actualEntryAndReadOnlyFailureContract": {"oneOf":[{"type":"object","required":["mode","phase","terminal_state","runtime_assurance","gate_results","authority","retention","error"],"properties":{"mode":{"const":"unknown"},"phase":{"const":"entry-fail-closed"},"terminal_state":{"$ref":"#/$defs/actualReadOnlyFailureTerminalR1"},"runtime_assurance":{"$ref":"#/$defs/actualFailureRuntimeBaseOnly"},"gate_results":{"$ref":"#/$defs/actualZeroGateFailureSet"},"authority":{"type":"object","required":["next_required_authority"],"properties":{"next_required_authority":{"const":"new explicit user approval after fail-closed evidence review"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":false}}}},"allOf":[{"$ref":"#/$defs/actualFailureNoPrivateAuthorityOrLedger"}]},{"type":"object","required":["mode","phase","terminal_state","runtime_assurance","gate_results","authority","retention","error"],"properties":{"mode":{"const":"unknown"},"phase":{"const":"public-projection"},"terminal_state":{"$ref":"#/$defs/actualPrivacyFailureTerminalR1"},"runtime_assurance":{"$ref":"#/$defs/actualFailureRuntimeBaseOnly"},"gate_results":{"$ref":"#/$defs/actualZeroGateFailureSet"},"authority":{"type":"object","required":["next_required_authority"],"properties":{"next_required_authority":{"const":"new explicit user approval after private-state inspection"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":true}}},"error":{"type":"object","required":["code","detail_code","exit"],"properties":{"code":{"const":"PRIVACY_FAIL_CLOSED"},"detail_code":{"const":"PUBLIC_PROJECTION_REJECTED"},"exit":{"const":55}}}},"allOf":[{"$ref":"#/$defs/actualFailureNoPrivateAuthorityOrLedger"}]},{"type":"object","required":["mode","phase","terminal_state","runtime_assurance","gate_results","authority","retention","error"],"properties":{"mode":{"const":"census"},"phase":{"const":"entry-fail-closed"},"terminal_state":{"$ref":"#/$defs/actualReadOnlyFailureTerminalR1"},"runtime_assurance":{"$ref":"#/$defs/actualFailureRuntimeBaseOnly"},"gate_results":{"$ref":"#/$defs/actualZeroGateFailureSet"},"authority":{"type":"object","required":["next_required_authority"],"properties":{"next_required_authority":{"const":"new explicit user approval after fail-closed evidence review"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":false}}}},"allOf":[{"$ref":"#/$defs/actualFailureNoPrivateAuthorityOrLedger"}]},{"type":"object","required":["mode","phase","terminal_state","runtime_assurance","gate_results","authority","retention","error"],"properties":{"mode":{"const":"census"},"phase":{"const":"read-only-fail-closed"},"terminal_state":{"$ref":"#/$defs/actualReadOnlyFailureTerminalR1"},"runtime_assurance":{"$ref":"#/$defs/actualRuntimeAssurance"},"gate_results":{"$ref":"#/$defs/actualReadOnlyFailureTrace"},"authority":{"type":"object","required":["next_required_authority"],"properties":{"next_required_authority":{"const":"new explicit user approval after fail-closed evidence review"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":false}}}},"allOf":[{"$ref":"#/$defs/actualFailureNoPrivateAuthorityOrLedger"},{"if":{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G03"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},"then":{"properties":{"runtime_assurance":{"type":"object","required":["toolchain_set_receipt_sha256","dynamic_closure_receipt_sha256"]}}},"else":{"properties":{"runtime_assurance":{"$ref":"#/$defs/actualFailureRuntimeBaseOnly"}}}}]},{"type":"object","required":["mode","phase","terminal_state","runtime_assurance","gate_results","authority","retention","error"],"properties":{"mode":{"const":"verify"},"phase":{"const":"entry-fail-closed"},"terminal_state":{"$ref":"#/$defs/actualReadOnlyFailureTerminalR1"},"runtime_assurance":{"$ref":"#/$defs/actualFailureRuntimeBaseOnly"},"gate_results":{"$ref":"#/$defs/actualZeroGateFailureSet"},"authority":{"type":"object","required":["next_required_authority"],"properties":{"next_required_authority":{"const":"new explicit user approval after fail-closed evidence review"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":false}}}},"allOf":[{"$ref":"#/$defs/actualFailureNoPrivateAuthorityOrLedger"}]},{"type":"object","required":["mode","phase","terminal_state","runtime_assurance","gate_results","authority","retention","error"],"properties":{"mode":{"const":"verify"},"phase":{"const":"read-only-fail-closed"},"terminal_state":{"$ref":"#/$defs/actualReadOnlyFailureTerminalR1"},"runtime_assurance":{"$ref":"#/$defs/actualRuntimeAssurance"},"gate_results":{"$ref":"#/$defs/actualReadOnlyFailureTrace"},"authority":{"type":"object","required":["next_required_authority"],"properties":{"next_required_authority":{"const":"new explicit user approval after fail-closed evidence review"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":false}}}},"allOf":[{"$ref":"#/$defs/actualFailureNoPrivateAuthorityOrLedger"},{"if":{"properties":{"gate_results":{"type":"object","required":["reached_gates"],"properties":{"reached_gates":{"contains":{"type":"object","required":["gate_id","status"],"properties":{"gate_id":{"const":"G03"},"status":{"const":"PASS"}}},"minContains":1,"maxContains":1}}}},"required":["gate_results"]},"then":{"properties":{"runtime_assurance":{"type":"object","required":["toolchain_set_receipt_sha256","dynamic_closure_receipt_sha256"]}}},"else":{"properties":{"runtime_assurance":{"$ref":"#/$defs/actualFailureRuntimeBaseOnly"}}}}]},{"type":"object","required":["mode","phase","terminal_state","runtime_assurance","gate_results","authority","retention","error"],"properties":{"mode":{"const":"acquire"},"phase":{"const":"entry-fail-closed"},"terminal_state":{"$ref":"#/$defs/actualAcquireEntryFailureTerminalR1"},"runtime_assurance":{"$ref":"#/$defs/actualFailureRuntimeBaseOnly"},"gate_results":{"$ref":"#/$defs/actualZeroGateFailureSet"},"authority":{"type":"object","required":["next_required_authority"],"properties":{"next_required_authority":{"const":"new explicit user approval after fail-closed evidence review"}}},"retention":{"type":"object","required":["private_state_inspection_required"],"properties":{"private_state_inspection_required":{"const":true}}}},"allOf":[{"$ref":"#/$defs/actualFailureNoPrivateAuthorityOrLedger"}]}]},
+    "actualFailureResult": {
+      "type": "object", "required": ["error", "retention"],
+      "properties": {
+        "ok": { "const": false }, "state": { "const": "failed" },
+        "authority": { "properties": { "retry_authorized": { "const": false }, "public_success_attestation_allowed": { "const": false } } }
+      },
+      "oneOf": [
+        { "properties": { "gate_results": { "$ref": "#/$defs/partialGateSet" } } },
+        {
+          "required": ["ledger_evidence"],
+          "properties": {
+            "mode": { "const": "acquire" },
+            "phase": { "const": "resource-finalization" },
+            "gate_results": { "$ref": "#/$defs/completeGateSet" },
+            "error": { "properties": { "code": { "const": "EVIDENCE_FAIL_CLOSED" }, "detail_code": { "const": "RESOURCE_FINALIZATION_CLOSE" }, "exit": { "const": 61 } } },
+            "authority": { "properties": { "next_required_authority": { "const": "new explicit user approval after retained-state inspection; never retry automatically" } } },
+            "retention": { "properties": { "private_state_inspection_required": { "const": true } } },
+            "terminal_state": { "$ref": "#/$defs/actualTerminalRecoveryR1" },
+            "ledger_evidence": { "properties": { "terminal_kind": { "const": "success" }, "record_count": { "const": 6 } } }
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "gate_results": {
+                "type": "object", "required": ["reached_gates"],
+                "properties": {
+                  "reached_gates": {
+                    "contains": { "type": "object", "required": ["gate_id", "status"], "properties": { "gate_id": { "const": "G03" }, "status": { "const": "PASS" } } },
+                    "minContains": 1, "maxContains": 1
+                  }
+                }
+              }
+            },
+            "required": ["gate_results"]
+          },
+          "then": { "properties": { "runtime_assurance": { "$ref": "#/$defs/actualRuntimeAssuranceWithReceipts" } } },
+          "else": { "properties": { "runtime_assurance": { "$ref": "#/$defs/actualFailureRuntimeBaseOnly" } } }
+        },
+        {
+          "if": {
+            "properties": { "mode": { "const": "acquire" }, "phase": { "not": { "const": "entry-fail-closed" } } },
+            "required": ["mode", "phase"]
+          },
+          "then": { "required": ["approval_challenge_id", "receipt_digest"] }
+        },
+        {
+          "if": {
+            "anyOf": [
+              { "properties": { "mode": { "enum": ["census", "verify", "unknown"] } }, "required": ["mode"] },
+              { "properties": { "mode": { "const": "acquire" }, "phase": { "const": "entry-fail-closed" } }, "required": ["mode", "phase"] }
+            ]
+          },
+          "then": { "not": { "anyOf": [{ "required": ["approval_challenge_id"] }, { "required": ["receipt_digest"] }] } }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "sealed-marker-removed" } }, "required": ["phase"] },
+          "then": { "properties": { "terminal_state": { "properties": { "stage_state": { "not": { "const": "not-created" } } } } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "enum": [
+                  "stage-tree-attestation", "pre-promotion-cas", "sealed-marker-removed",
+                  "rename-succeeded-attestation-incomplete", "post-promotion-containment",
+                  "ledger-terminal-success", "static-attestation-complete", "resource-finalization"
+                ]
+              }
+            },
+            "required": ["phase"]
+          },
+          "then": { "properties": { "terminal_state": { "properties": { "stage_state": { "not": { "const": "not-created" } } } } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "gate_results": {
+                "properties": {
+                  "reached_gates": {
+                    "contains": {
+                      "type": "object",
+                      "properties": { "gate_id": { "const": "G18" }, "status": { "const": "PASS" } },
+                      "required": ["gate_id", "status"]
+                    }
+                  }
+                }
+              }
+            },
+            "required": ["gate_results"]
+          },
+          "then": {
+            "properties": {
+              "phase": { "enum": ["rename-succeeded-attestation-incomplete", "post-promotion-containment", "ledger-terminal-success", "static-attestation-complete", "resource-finalization"] },
+              "terminal_state": { "properties": { "publication_state": { "not": { "const": "not-attempted" } } } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "gate_results": {
+                "properties": {
+                  "reached_gates": {
+                    "contains": {
+                      "type": "object",
+                      "properties": { "gate_id": { "const": "G13" }, "status": { "const": "PASS" } },
+                      "required": ["gate_id", "status"]
+                    }
+                  }
+                }
+              }
+            },
+            "required": ["gate_results"]
+          },
+          "then": { "properties": { "terminal_state": { "properties": { "stage_state": { "not": { "const": "not-created" } } } } } }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "rename-succeeded-attestation-incomplete" } }, "required": ["phase"] },
+          "then": { "properties": { "terminal_state": { "properties": { "publication_state": { "not": { "const": "not-attempted" } } } } } }
+        },
+        {
+          "if": { "properties": { "gate_results": { "properties": { "reached_gates": { "contains": { "type": "object", "properties": { "gate_id": { "const": "G01" }, "status": { "const": "FAIL" } }, "required": ["gate_id", "status"] } } } } }, "required": ["gate_results"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "const": 2 } } } } }
+        },
+        {
+          "if": { "properties": { "gate_results": { "properties": { "reached_gates": { "contains": { "type": "object", "properties": { "gate_id": { "const": "G13" }, "status": { "const": "FAIL" } }, "required": ["gate_id", "status"] } } } } }, "required": ["gate_results"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "const": 3 } } } } }
+        },
+        {
+          "if": { "properties": { "gate_results": { "properties": { "reached_gates": { "contains": { "type": "object", "properties": { "gate_id": { "const": "G18" }, "status": { "const": "FAIL" } }, "required": ["gate_id", "status"] } } } } }, "required": ["gate_results"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "const": 5 } } } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "gate_results": {
+                "properties": {
+                  "reached_gates": {
+                    "contains": {
+                      "type": "object",
+                      "properties": { "gate_id": { "const": "G23" }, "status": { "const": "PASS" } },
+                      "required": ["gate_id", "status"]
+                    }
+                  }
+                }
+              }
+            },
+            "required": ["gate_results"]
+          },
+          "then": {
+            "required": ["ledger_evidence"],
+            "properties": {
+              "phase": { "enum": ["static-attestation-complete", "resource-finalization"] },
+              "terminal_state": {
+                "properties": {
+                  "challenge_state": { "const": "completed-consumed" },
+                  "claim_state": { "const": "created-0700" },
+                  "stage_state": { "not": { "const": "not-created" } },
+                  "publication_state": { "enum": ["static-ledger-success-public-result-failed", "rename-succeeded-attestation-incomplete", "target-observed-unattributed-fail-closed", "promoted-target-missing-fail-closed", "attributed-target-and-stage-both-observed-fail-closed", "unexpected-target-type-fail-closed", "unknown-fail-closed"] },
+                  "ledger_terminal_state": { "const": "terminal-success-recorded" }
+                }
+              },
+              "ledger_evidence": { "properties": { "terminal_kind": { "const": "success" }, "record_count": { "const": 6 } } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "terminal_state": { "properties": { "ledger_terminal_state": { "const": "terminal-success-recorded" } }, "required": ["ledger_terminal_state"] }
+            },
+            "required": ["terminal_state"]
+          },
+          "then": {
+            "required": ["ledger_evidence"],
+            "properties": {
+              "terminal_state": {
+                "properties": {
+                  "challenge_state": { "const": "completed-consumed" },
+                  "claim_state": { "const": "created-0700" },
+                  "stage_state": { "not": { "const": "not-created" } },
+                  "publication_state": { "enum": ["static-ledger-success-public-result-failed", "rename-succeeded-attestation-incomplete", "target-observed-unattributed-fail-closed", "promoted-target-missing-fail-closed", "attributed-target-and-stage-both-observed-fail-closed", "unexpected-target-type-fail-closed", "unknown-fail-closed"] }
+                }
+              },
+              "ledger_evidence": { "properties": { "terminal_kind": { "const": "success" }, "record_count": { "const": 6 } } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "sealed-marker-removed" } }, "required": ["phase"] },
+          "then": {
+            "properties": {
+              "gate_results": { "properties": { "reached_gates": { "not": { "contains": { "type": "object", "properties": { "gate_id": { "const": "G18" }, "status": { "const": "PASS" } }, "required": ["gate_id", "status"] } } } } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "ledger-terminal-success" } }, "required": ["phase"] },
+          "then": {
+            "properties": {
+              "gate_results": { "properties": { "reached_gates": { "not": { "contains": { "type": "object", "properties": { "gate_id": { "const": "G23" }, "status": { "const": "PASS" } }, "required": ["gate_id", "status"] } } } } },
+              "ledger_evidence": { "properties": { "record_count": { "const": 6 } } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "persistent-claim" } }, "required": ["phase"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "enum": [2, 3] } } } } }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "stage-materialization" } }, "required": ["phase"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "enum": [3, 4] } } } } }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "stage-tree-attestation" } }, "required": ["phase"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "const": 4 } } } } }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "pre-promotion-cas" } }, "required": ["phase"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "enum": [4, 5] } } } } }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "sealed-marker-removed" } }, "required": ["phase"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "const": 5 } } } } }
+        },
+        {
+          "if": { "properties": { "phase": { "const": "rename-succeeded-attestation-incomplete" } }, "required": ["phase"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "enum": [5, 6] } } } } }
+        },
+        {
+          "if": { "properties": { "phase": { "enum": ["post-promotion-containment", "static-attestation-complete", "resource-finalization"] } }, "required": ["phase"] },
+          "then": { "properties": { "ledger_evidence": { "properties": { "record_count": { "const": 6 } } } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "terminal_state": { "properties": { "ledger_terminal_state": { "const": "terminal-success-recorded" }, "publication_state": { "const": "rename-succeeded-attestation-incomplete" } }, "required": ["ledger_terminal_state", "publication_state"] }
+            },
+            "required": ["terminal_state"]
+          },
+          "then": { "properties": { "terminal_state": { "properties": { "stage_state": { "enum": ["unexpected-stage-type-fail-closed", "unknown-fail-closed"] }, "target_disposition": { "const": "unknown-user-decision-required" } } } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": { "const": "acquire" },
+              "phase": { "not": { "const": "entry-fail-closed" } },
+              "gate_results": { "type": "object", "required": ["complete"], "properties": { "complete": { "const": false } } }
+            },
+            "required": ["mode", "phase", "gate_results"]
+          },
+          "then": {
+            "allOf": [
+              { "$ref": "#/$defs/actualAcquireFailureTrace" },
+              { "$ref": "#/$defs/actualAcquireFailureReachability" },
+              { "properties": { "gate_results": { "$ref": "#/$defs/actualAcquireFailureGateTrace" } } }
+            ],
+            "properties": {
+              "authority": { "properties": { "next_required_authority": { "const": "new explicit user approval after retained-state inspection; never retry automatically" } } }
+            }
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              { "properties": { "mode": { "enum": ["unknown", "census", "verify"] } }, "required": ["mode"] },
+              { "properties": { "mode": { "const": "acquire" }, "phase": { "const": "entry-fail-closed" } }, "required": ["mode", "phase"] }
+            ]
+          },
+          "then": { "$ref": "#/$defs/actualEntryAndReadOnlyFailureContract" }
+        }
+      ],
+      "not": { "anyOf": [{ "required": ["observation"] }, { "required": ["attestation"] }] }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyedCommitment": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "opaqueId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "repoRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.git(?:/|$))(?!.*[\\u0000-\\u001f\\u007f-\\u009f])[^\\\\]+$"
+    },
+    "publicArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "file_kind", "byte_length", "raw_file_sha256"],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/repoRelativePath"
+        },
+        "role": {
+          "enum": [
+            "goal",
+            "governance-decision",
+            "approval-envelope",
+            "pending-envelope-schema",
+            "static-executor",
+            "static-verifier",
+            "public-attestation-schema",
+            "private-evidence-schema",
+            "package-manifest",
+            "package-lock",
+            "gitignore",
+            "public-receipt-profile"
+          ]
+        },
+        "file_kind": {
+          "const": "regular"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_file_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "role": { "const": "static-executor" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" } } } },
+        { "if": { "properties": { "role": { "const": "static-verifier" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py" } } } }
+      ]
+    },
+    "contentAddressedTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "logical_id",
+        "artifact_kind",
+        "version",
+        "digest_profile",
+        "raw_digest_sha256",
+        "private_locator_omitted"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "static-executor",
+            "static-verifier",
+            "python-interpreter",
+            "python-stdlib-tree",
+            "xcode-select-resolver",
+            "xcrun-resolver",
+            "git-read-only-evidence",
+            "pgrep-read-only-evidence",
+            "lsof-read-only-evidence"
+          ]
+        },
+        "logical_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "artifact_kind": {
+          "enum": ["regular-file", "directory-tree"]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        },
+        "digest_profile": {
+          "enum": [
+            "raw-file-sha256",
+            "CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2"
+          ]
+        },
+        "raw_digest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "private_locator_omitted": {
+          "const": true
+        }
+      }
+    },
+    "executorTool": {
+      "allOf": [
+        { "$ref": "#/$defs/contentAddressedTool" },
+        {
+          "properties": {
+            "role": { "const": "static-executor" },
+            "artifact_kind": { "const": "regular-file" },
+            "digest_profile": { "const": "raw-file-sha256" }
+          }
+        }
+      ]
+    },
+    "verifierTool": {
+      "allOf": [
+        { "$ref": "#/$defs/contentAddressedTool" },
+        {
+          "properties": {
+            "role": { "const": "static-verifier" },
+            "artifact_kind": { "const": "regular-file" },
+            "digest_profile": { "const": "raw-file-sha256" }
+          }
+        }
+      ]
+    },
+    "pythonTool": {
+      "allOf": [
+        { "$ref": "#/$defs/contentAddressedTool" },
+        {
+          "properties": {
+            "role": { "const": "python-interpreter" },
+            "artifact_kind": { "const": "regular-file" },
+            "digest_profile": { "const": "raw-file-sha256" }
+          }
+        }
+      ]
+    },
+    "stdlibTool": {
+      "allOf": [
+        { "$ref": "#/$defs/contentAddressedTool" },
+        {
+          "properties": {
+            "role": { "const": "python-stdlib-tree" },
+            "artifact_kind": { "const": "directory-tree" },
+            "digest_profile": { "const": "CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2" }
+          }
+        }
+      ]
+    },
+    "xcodeSelectTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "xcode-select-resolver" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" } } } ] },
+    "xcrunTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "xcrun-resolver" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" } } } ] },
+    "gitTool": {
+      "allOf": [
+        { "$ref": "#/$defs/contentAddressedTool" },
+        {
+          "properties": {
+            "role": { "const": "git-read-only-evidence" },
+            "artifact_kind": { "const": "regular-file" },
+            "digest_profile": { "const": "raw-file-sha256" }
+          }
+        }
+      ]
+    },
+    "pgrepTool": {
+      "allOf": [
+        { "$ref": "#/$defs/contentAddressedTool" },
+        {
+          "properties": {
+            "role": { "const": "pgrep-read-only-evidence" },
+            "artifact_kind": { "const": "regular-file" },
+            "digest_profile": { "const": "raw-file-sha256" }
+          }
+        }
+      ]
+    },
+    "lsofTool": {
+      "allOf": [
+        { "$ref": "#/$defs/contentAddressedTool" },
+        {
+          "properties": {
+            "role": { "const": "lsof-read-only-evidence" },
+            "artifact_kind": { "const": "regular-file" },
+            "digest_profile": { "const": "raw-file-sha256" }
+          }
+        }
+      ]
+    },
+    "passGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "failure_count", "fail_closed", "public_evidence_receipt_sha256"],
+      "properties": {
+        "status": {
+          "const": "PASS"
+        },
+        "failure_count": {
+          "const": 0
+        },
+        "fail_closed": {
+          "const": true
+        },
+        "public_evidence_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

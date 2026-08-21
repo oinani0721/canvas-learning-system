@@ -1,0 +1,1765 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:canvas-learning-system:gov-01:toolchain-static-acquisition-private-evidence:v2:draft",
+  "title": "GOV-01 static acquisition private canonical-ledger verification v2 (draft)",
+  "description": "Strict in-memory read-only projection of one complete persistent ledger.jsonl produced by the frozen executor. The content-addressed frozen executor semantic checker verifies exact raw UTF-8-NFC-LF bytes, no BOM/CR/duplicate key/float, canonical lines, shared challenge and receipt, contiguous sequence, nondecreasing time, every domain-separated HMAC, previous-HMAC chain, head, event state machine, and frozen closure constants. No separate evidence file is authorized. Absent, partial, noncanonical, or terminal-write-failed ledgers cannot instantiate the healthy projection and remain retained failures requiring new recovery authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "allOf": [
+    { "$ref": "#/$defs/actualLedgerProjection" }
+  ],
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "classification",
+    "projection_kind",
+    "ledger_parse_state",
+    "canonical_record_profile",
+    "semantic_checker_profile",
+    "semantic_checker_binding",
+    "semantic_validation",
+    "record_count",
+    "terminal_kind",
+    "raw_sha256",
+    "raw_bytes",
+    "records",
+    "ledger_head_hmac_sha256",
+    "failure_retention_contract"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "gov-01-toolchain-static-acquisition-private-evidence-v2"
+    },
+    "artifact_type": {
+      "const": "gov-01-toolchain-static-acquisition-private-evidence"
+    },
+    "classification": {
+      "const": "PRIVATE-LOCAL-DO-NOT-COMMIT"
+    },
+    "projection_kind": {
+      "const": "read-only-complete-ledger-jsonl-projection; not a separately authorized persisted artifact"
+    },
+    "ledger_parse_state": {
+      "const": "complete-canonical-jsonl"
+    },
+    "canonical_record_profile": {
+      "const": "each raw line is exactly UTF-8 NFC sorted-key compact JSON plus one LF; no BOM, CR, duplicate key, float, NaN, Infinity, blank line or trailing bytes"
+    },
+    "semantic_checker_profile": {
+      "const": "require all records share challenge and receipt_digest; sequence is zero-based contiguous; at_utc is nondecreasing; first previous_hmac_sha256 is 64 zeroes; every later previous_hmac_sha256 equals prior hmac_sha256; recompute each HMAC-SHA-256 over ASCII(CLS/GOV01/STATIC-ACQUISITION-LEDGER/v2) || NUL || uint64be(canonical-base-byte-length) || canonical base JSON excluding hmac_sha256; ledger_head_hmac_sha256 equals final record hmac_sha256; every repeated tree_sha256 is identical"
+    },
+    "semantic_checker_binding": { "$ref": "#/$defs/actualSemanticCheckerBinding" },
+    "semantic_validation": { "$ref": "#/$defs/actualSemanticValidation" },
+    "record_count": { "type": "integer", "minimum": 2, "maximum": 6 },
+    "terminal_kind": { "enum": ["success", "failure"] },
+    "raw_sha256": { "$ref": "#/$defs/sha256" },
+    "raw_bytes": { "type": "integer", "minimum": 1, "maximum": 2097152 },
+    "records": {
+      "$ref": "#/$defs/healthyLedgerSequence"
+    },
+    "ledger_head_hmac_sha256": {
+      "$ref": "#/$defs/keyedCommitment"
+    },
+    "failure_retention_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["automatic_cleanup_allowed", "pre_marker_stage", "marker_present_stage", "marker_removed_stage", "published_target", "unrepresentable_ledger_states"],
+      "properties": {
+        "automatic_cleanup_allowed": { "const": false },
+        "pre_marker_stage": { "const": "retain hidden 0700 stage without marker when failure occurs before incomplete marker creation" },
+        "marker_present_stage": { "const": "retain hidden 0700 stage and exact 0600 incomplete marker" },
+        "marker_removed_stage": { "const": "retain hidden 0755 sealed stage without marker when failure occurs after finalize_stage_marker and before rename" },
+        "published_target": { "const": "retain unauthorized published target and require user decision when rename succeeded but final attestation failed" },
+        "unrepresentable_ledger_states": { "const": ["claim-created-ledger-absent", "ledger-partial-or-noncanonical-line", "terminal-failure-append-failed"] }
+      }
+    },
+    "evidence_id": {
+      "$ref": "#/$defs/opaqueId"
+    },
+    "attempt_id": {
+      "$ref": "#/$defs/opaqueId"
+    },
+    "generated_at_utc": {
+      "$ref": "#/$defs/utcTimestamp"
+    },
+    "schema_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "private_schema_locator",
+        "private_schema_raw_sha256",
+        "public_schema_repo_relative_path",
+        "public_schema_raw_sha256",
+        "draft_2020_12_meta_validation",
+        "duplicate_json_key_count"
+      ],
+      "properties": {
+        "private_schema_locator": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "private_schema_raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "public_schema_repo_relative_path": {
+          "$ref": "#/$defs/repoRelativePath"
+        },
+        "public_schema_raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "draft_2020_12_meta_validation": {
+          "const": "PASS"
+        },
+        "duplicate_json_key_count": {
+          "const": 0
+        }
+      }
+    },
+    "public_projection_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_artifact_id",
+        "approval_envelope_raw_sha256",
+        "projection_profile",
+        "keyed_commitment_profile",
+        "key_locator",
+        "key_file_raw_sha256",
+        "expected_private_evidence_keyed_commitment"
+      ],
+      "properties": {
+        "public_artifact_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "approval_envelope_raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "projection_profile": {
+          "const": "CLS/GOV01/STATIC-ACQUISITION-PUBLIC-PROJECTION/v2"
+        },
+        "keyed_commitment_profile": {
+          "const": "HMAC-SHA-256(key, ASCII(CLS/GOV01/STATIC-ACQUISITION-PRIVATE/v2) || NUL || canonical-private-evidence-bytes)"
+        },
+        "key_locator": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "key_file_raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "expected_private_evidence_keyed_commitment": {
+          "$ref": "#/$defs/keyedCommitment"
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projection_materialization_state",
+        "projection_persistence_authorized",
+        "claim_locator",
+        "claim_mode",
+        "ledger_locator",
+        "ledger_mode",
+        "owner_uid",
+        "outside_repository",
+        "outside_private_vaults",
+        "ledger_fsynced",
+        "committed_to_git"
+      ],
+      "properties": {
+        "projection_materialization_state": { "const": "IN-MEMORY-READ-ONLY-NOT-PERSISTED" },
+        "projection_persistence_authorized": { "const": false },
+        "claim_locator": { "$ref": "#/$defs/absolutePath" },
+        "claim_mode": { "const": "0700" },
+        "ledger_locator": { "$ref": "#/$defs/absolutePath" },
+        "ledger_mode": { "const": "0600" },
+        "owner_uid": { "type": "integer", "minimum": 0 },
+        "outside_repository": { "const": true },
+        "outside_private_vaults": { "const": true },
+        "ledger_fsynced": { "const": true },
+        "committed_to_git": { "const": false }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "os_version",
+        "os_build",
+        "architecture",
+        "uid",
+        "gid",
+        "umask",
+        "case_sensitive_filesystem",
+        "unicode_normalization_profile",
+        "host_evidence_raw_sha256"
+      ],
+      "properties": {
+        "platform": { "const": "darwin" },
+        "os_version": { "$ref": "#/$defs/nonSecretText" },
+        "os_build": { "$ref": "#/$defs/nonSecretText" },
+        "architecture": { "enum": ["arm64", "x86_64"] },
+        "uid": { "type": "integer", "minimum": 0 },
+        "gid": { "type": "integer", "minimum": 0 },
+        "umask": { "const": "0077" },
+        "case_sensitive_filesystem": { "type": "boolean" },
+        "unicode_normalization_profile": { "const": "UTF-8-NFC" },
+        "host_evidence_raw_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_challenge_id",
+        "challenge_secret_sha256",
+        "user_receipt_raw_sha256",
+        "approved_scope_raw_sha256",
+        "hmac_key_id",
+        "hmac_key_id_profile",
+        "authorized_locator_commitments",
+        "git_snapshot_commitment",
+        "dirty_worktree_content_commitment",
+        "local_settings_commitment",
+        "private_preapproval_commitment",
+        "all_commitments_match",
+        "authorized_at_utc",
+        "not_after_utc",
+        "expiry_check_before_claim",
+        "expiry_check_before_publication",
+        "single_use",
+        "retry_authorized"
+      ],
+      "properties": {
+        "approval_challenge_id": { "$ref": "#/$defs/opaqueId" },
+        "challenge_secret_sha256": { "$ref": "#/$defs/sha256" },
+        "user_receipt_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "approved_scope_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "hmac_key_id": { "$ref": "#/$defs/keyedCommitment" },
+        "hmac_key_id_profile": { "const": "HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/HMAC-KEY-ID/v2) || NUL || eight zero bytes" },
+        "authorized_locator_commitments": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            { "$ref": "#/$defs/repoLocatorComparison" },
+            { "$ref": "#/$defs/cacheLocatorComparison" },
+            { "$ref": "#/$defs/stateLocatorComparison" },
+            { "$ref": "#/$defs/keyLocatorComparison" },
+            { "$ref": "#/$defs/envelopeLocatorComparison" }
+          ],
+          "items": false
+        },
+        "git_snapshot_commitment": { "$ref": "#/$defs/commitmentComparison" },
+        "dirty_worktree_content_commitment": { "$ref": "#/$defs/commitmentComparison" },
+        "local_settings_commitment": { "$ref": "#/$defs/commitmentComparison" },
+        "private_preapproval_commitment": { "$ref": "#/$defs/commitmentComparison" },
+        "all_commitments_match": { "const": true },
+        "authorized_at_utc": { "$ref": "#/$defs/utcTimestamp" },
+        "not_after_utc": { "$ref": "#/$defs/utcTimestamp" },
+        "expiry_check_before_claim": { "const": "PASS" },
+        "expiry_check_before_publication": { "enum": ["PASS", "NOT-REACHED-DUE-TO-PRIOR-FAILURE"] },
+        "single_use": { "const": true },
+        "retry_authorized": { "const": false }
+      }
+    },
+    "single_use_ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledger_locator",
+        "claims_container_locator",
+        "claim_locator",
+        "storage_class",
+        "claims_container_preexisting",
+        "claims_container_mode",
+        "ledger_mode",
+        "claim_mode",
+        "owner_uid",
+        "owner_gid",
+        "claim_preimage",
+        "claim_creation_operation",
+        "first_authorized_write",
+        "claim_created_after_receipt_validation",
+        "claim_created_after_expiry_recheck",
+        "claim_created_exclusively",
+        "claim_directory",
+        "ledger_creation_flags",
+        "ledger_regular_file",
+        "ledger_link_count",
+        "append_lock",
+        "hash_chain_profile",
+        "events",
+        "receipt_consumed_is_first_event",
+        "terminal_event_is_last_event",
+        "attempt_count",
+        "replay_count",
+        "fsync_after_each_event",
+        "survives_attempt_cleanup",
+        "automatic_delete_allowed",
+        "claim_automatic_delete_allowed",
+        "ledger_raw_sha256_after_terminal",
+        "ledger_head_hmac_sha256"
+      ],
+      "properties": {
+        "ledger_locator": { "$ref": "#/$defs/absolutePath" },
+        "claims_container_locator": { "$ref": "#/$defs/absolutePath" },
+        "claim_locator": { "$ref": "#/$defs/absolutePath" },
+        "storage_class": { "const": "persistent-private-outside-repository" },
+        "claims_container_preexisting": { "const": true },
+        "claims_container_mode": { "const": "0700" },
+        "ledger_mode": { "const": "0600" },
+        "claim_mode": { "const": "0700" },
+        "owner_uid": { "type": "integer", "minimum": 0 },
+        "owner_gid": { "type": "integer", "minimum": 0 },
+        "claim_preimage": { "const": "ABSENT" },
+        "claim_creation_operation": { "const": "mkdirat(claims-container-fd,approval_challenge_id,0700); EEXIST is terminal replay" },
+        "first_authorized_write": { "const": true },
+        "claim_created_after_receipt_validation": { "const": true },
+        "claim_created_after_expiry_recheck": { "const": true },
+        "claim_created_exclusively": { "const": true },
+        "claim_directory": { "const": true },
+        "ledger_creation_flags": { "const": "O_WRONLY|O_CREAT|O_EXCL|O_APPEND|O_NOFOLLOW" },
+        "ledger_regular_file": { "const": true },
+        "ledger_link_count": { "const": 1 },
+        "append_lock": { "const": "exclusive challenge-directory ownership prevents a second same-challenge writer; one append fd is retained for the attempt; no fcntl claim" },
+        "hash_chain_profile": { "const": "HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/STATIC-ACQUISITION-LEDGER/v2) || NUL || uint64be(canonical-event-base-byte-length) || UTF-8-NFC-LF canonical event-base JSON; each record stores previous_hmac_sha256 and hmac_sha256" },
+        "events": {
+          "oneOf": [
+            { "type": "array", "minItems": 6, "maxItems": 6, "prefixItems": [ { "$ref": "#/$defs/receiptConsumedLedgerEvent" }, { "$ref": "#/$defs/preflightFrozenLedgerEvent" }, { "$ref": "#/$defs/stageMaterializedLedgerEvent" }, { "$ref": "#/$defs/prePromotionLedgerEvent" }, { "$ref": "#/$defs/stagePromotedLedgerEvent" }, { "$ref": "#/$defs/staticCompleteLedgerEvent" } ], "items": false },
+            { "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [ { "$ref": "#/$defs/receiptConsumedLedgerEvent" }, { "$ref": "#/$defs/attemptFailedAt1" } ], "items": false },
+            { "type": "array", "minItems": 3, "maxItems": 3, "prefixItems": [ { "$ref": "#/$defs/receiptConsumedLedgerEvent" }, { "$ref": "#/$defs/preflightFrozenLedgerEvent" }, { "$ref": "#/$defs/attemptFailedAt2" } ], "items": false },
+            { "type": "array", "minItems": 4, "maxItems": 4, "prefixItems": [ { "$ref": "#/$defs/receiptConsumedLedgerEvent" }, { "$ref": "#/$defs/preflightFrozenLedgerEvent" }, { "$ref": "#/$defs/stageMaterializedLedgerEvent" }, { "$ref": "#/$defs/attemptFailedAt3" } ], "items": false },
+            { "type": "array", "minItems": 5, "maxItems": 5, "prefixItems": [ { "$ref": "#/$defs/receiptConsumedLedgerEvent" }, { "$ref": "#/$defs/preflightFrozenLedgerEvent" }, { "$ref": "#/$defs/stageMaterializedLedgerEvent" }, { "$ref": "#/$defs/prePromotionLedgerEvent" }, { "$ref": "#/$defs/attemptFailedAt4" } ], "items": false },
+            { "type": "array", "minItems": 6, "maxItems": 6, "prefixItems": [ { "$ref": "#/$defs/receiptConsumedLedgerEvent" }, { "$ref": "#/$defs/preflightFrozenLedgerEvent" }, { "$ref": "#/$defs/stageMaterializedLedgerEvent" }, { "$ref": "#/$defs/prePromotionLedgerEvent" }, { "$ref": "#/$defs/stagePromotedLedgerEvent" }, { "$ref": "#/$defs/attemptFailedAt5" } ], "items": false }
+          ]
+        },
+        "receipt_consumed_is_first_event": { "const": true },
+        "terminal_event_is_last_event": { "const": true },
+        "attempt_count": { "const": 1 },
+        "replay_count": { "const": 0 },
+        "fsync_after_each_event": { "const": true },
+        "survives_attempt_cleanup": { "const": true },
+        "automatic_delete_allowed": { "const": false },
+        "claim_automatic_delete_allowed": { "const": false },
+        "ledger_raw_sha256_after_terminal": { "$ref": "#/$defs/sha256" },
+        "ledger_head_hmac_sha256": { "$ref": "#/$defs/keyedCommitment" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_root_locator",
+        "git_common_dir_locator",
+        "acquisition_control_root_locator",
+        "claims_container_locator",
+        "claim_locator",
+        "ledger_locator",
+        "stage_locator",
+        "target_locator",
+        "target_parent_locator",
+        "stage_and_target_same_parent",
+        "stage_and_target_device_id",
+        "ancestor_symlink_count",
+        "allowed_write_scopes",
+        "public_output_channel",
+        "stdout_is_filesystem_mutation",
+        "private_vault_read_count",
+        "graphiti_call_count"
+      ],
+      "properties": {
+        "repository_root_locator": { "$ref": "#/$defs/absolutePath" },
+        "git_common_dir_locator": { "$ref": "#/$defs/absolutePath" },
+        "acquisition_control_root_locator": { "$ref": "#/$defs/absolutePath" },
+        "claims_container_locator": { "$ref": "#/$defs/absolutePath" },
+        "claim_locator": { "$ref": "#/$defs/absolutePath" },
+        "ledger_locator": { "$ref": "#/$defs/absolutePath" },
+        "stage_locator": { "$ref": "#/$defs/absolutePath" },
+        "target_locator": { "$ref": "#/$defs/absolutePath" },
+        "target_parent_locator": { "$ref": "#/$defs/absolutePath" },
+        "stage_and_target_same_parent": { "const": true },
+        "stage_and_target_device_id": { "type": "integer", "minimum": 0 },
+        "ancestor_symlink_count": { "const": 0 },
+        "allowed_write_scopes": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            { "$ref": "#/$defs/ledgerWriteScope" },
+            { "$ref": "#/$defs/stageWriteScope" },
+            { "$ref": "#/$defs/targetPublishScope" }
+          ],
+          "items": false
+        },
+        "public_output_channel": { "const": "one locator-free canonical JSON object on stdout; stderr contains no private text" },
+        "stdout_is_filesystem_mutation": { "const": false },
+        "private_vault_read_count": { "const": 0 },
+        "graphiti_call_count": { "const": 0 }
+      }
+    },
+    "frozen_toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entries",
+        "dynamic_closure_entry_count",
+        "dynamic_closure_merkle_profile",
+        "expected_dynamic_closure_merkle_sha256",
+        "actual_dynamic_closure_merkle_sha256",
+        "dynamic_closure_match",
+        "toolchain_set_receipt_sha256",
+        "pre_post_toolchain_match"
+      ],
+      "properties": {
+        "entries": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "prefixItems": [
+            { "$ref": "#/$defs/executorToolEvidence" },
+            { "$ref": "#/$defs/verifierToolEvidence" },
+            { "$ref": "#/$defs/pythonToolEvidence" },
+            { "$ref": "#/$defs/stdlibToolEvidence" },
+            { "$ref": "#/$defs/xcodeSelectToolEvidence" },
+            { "$ref": "#/$defs/xcrunToolEvidence" },
+            { "$ref": "#/$defs/gitToolEvidence" },
+            { "$ref": "#/$defs/pgrepToolEvidence" },
+            { "$ref": "#/$defs/lsofToolEvidence" }
+          ],
+          "items": false
+        },
+        "dynamic_closure_entry_count": { "type": "integer", "minimum": 1 },
+        "dynamic_closure_merkle_profile": { "const": "CLS/GOV01/STATIC-ACQUISITION-DYLD-CLOSURE-MERKLE/v2" },
+        "expected_dynamic_closure_merkle_sha256": { "$ref": "#/$defs/sha256" },
+        "actual_dynamic_closure_merkle_sha256": { "$ref": "#/$defs/sha256" },
+        "dynamic_closure_match": { "type": "boolean" },
+        "toolchain_set_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "pre_post_toolchain_match": { "type": "boolean" }
+      }
+    },
+    "source_archives": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_root_locator",
+        "source_root_mode",
+        "source_root_writable_by_executor",
+        "direct_sri_locator_profile",
+        "entries",
+        "archive_count",
+        "archive_total_bytes",
+        "missing_count",
+        "content_mismatch_count",
+        "symlink_count",
+        "non_regular_count",
+        "content_receipt_sha256"
+      ],
+      "properties": {
+        "source_root_locator": { "$ref": "#/$defs/absolutePath" },
+        "source_root_mode": { "$ref": "#/$defs/octalMode" },
+        "source_root_writable_by_executor": { "const": false },
+        "direct_sri_locator_profile": { "const": "sha512 SRI bytes -> _cacache/content-v2/sha512/<first-2>/<next-2>/<remainder>; no index lookup" },
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 167,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/sourceArchive" }
+        },
+        "archive_count": { "type": "integer", "minimum": 1, "maximum": 167 },
+        "archive_total_bytes": { "type": "integer", "minimum": 1, "maximum": 14000000 },
+        "missing_count": { "type": "integer", "minimum": 0 },
+        "content_mismatch_count": { "type": "integer", "minimum": 0 },
+        "symlink_count": { "type": "integer", "minimum": 0 },
+        "non_regular_count": { "type": "integer", "minimum": 0 },
+        "content_receipt_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "expected_receipts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_archive_member_count",
+        "content_receipt_profile",
+        "content_receipt_sha256",
+        "ustar_closure_receipt_profile",
+        "ustar_closure_sha256",
+        "expected_resolved_tree_entry_count",
+        "resolution_receipt_profile",
+        "resolution_receipt_sha256",
+        "expected_tree_receipt_profile",
+        "expected_tree_sha256",
+        "all_receipts_frozen_before_challenge_consumption"
+      ],
+      "properties": {
+        "expected_archive_member_count": { "type": "integer", "minimum": 1 },
+        "content_receipt_profile": { "const": "SHA-256(ASCII(CLS/GOV01-OFFLINE-CACHE/v1) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 6 TAB-separated columns: lock_key, version, resolved, integrity, compressed_bytes, actual_integrity" },
+        "content_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "ustar_closure_receipt_profile": { "const": "SHA-256(ASCII(CLS/GOV01/USTAR-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 13 TAB-separated columns: lock_key,version,integrity,compressed_bytes,tar_bytes,member_count,raw_regular_count,raw_directory_count,payload_bytes,strip_root,package_name,package_version,member_manifest_sha256; each member_manifest_sha256 is SHA-256(ASCII(CLS/GOV01/USTAR-PACKAGE-MEMBERS/v2) || NUL || sorted LF-terminated 8-column rows: lock_path,member_index,kind,raw_path,stripped_or_dash,mode04o,size,digest)" },
+        "ustar_closure_sha256": { "$ref": "#/$defs/sha256" },
+        "expected_resolved_tree_entry_count": { "type": "integer", "minimum": 1 },
+        "resolution_receipt_profile": { "const": "SHA-256(ASCII(CLS/GOV01/NODE-RESOLUTION-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 7 TAB-separated columns: source_or_<root>,edge_type,dep_name,spec,target_or_dash,target_version_or_dash,state" },
+        "resolution_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "expected_tree_receipt_profile": { "const": "SHA-256(ASCII(CLS/GOV01/DETERMINISTIC-NODE-MODULES/v2) || NUL || UTF-8 body); body is LF-terminated rows sorted by UTF-8 path bytes with exactly 5 TAB-separated columns: kind,path,mode04o,size,identity where identity is file SHA-256, relative symlink text, or dash for directory" },
+        "expected_tree_sha256": { "$ref": "#/$defs/sha256" },
+        "all_receipts_frozen_before_challenge_consumption": { "const": true }
+      }
+    },
+    "executor_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "interpreter_argv",
+        "interpreter_flags",
+        "cwd_locator",
+        "environment_mode",
+        "environment_allowlist",
+        "inherited_secret_name_count",
+        "python_path_entries",
+        "user_site_enabled",
+        "bytecode_write_enabled",
+        "module_import_policy",
+        "unexpected_module_count",
+        "external_archive_library_used",
+        "tarfile_extract_api_used",
+        "shell_used",
+        "authorized_bound_verifier_compile_exec_count",
+        "unauthorized_dynamic_code_api_count",
+        "ctypes_policy",
+        "python_audit_hook_installed"
+      ],
+      "properties": {
+        "interpreter_argv": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/argvString" }
+        },
+        "interpreter_flags": { "const": ["-I", "-S", "-B"] },
+        "cwd_locator": { "$ref": "#/$defs/absolutePath" },
+        "environment_mode": { "const": "empty-then-exact-allowlist" },
+        "environment_allowlist": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["HOME", "TMPDIR", "PATH", "LC_ALL", "TZ", "PYTHONDONTWRITEBYTECODE", "PYTHONNOUSERSITE"],
+          "properties": {
+            "HOME": { "$ref": "#/$defs/absolutePath" },
+            "TMPDIR": { "$ref": "#/$defs/absolutePath" },
+            "PATH": { "type": "string", "minLength": 1, "maxLength": 2048 },
+            "LC_ALL": { "const": "C" },
+            "TZ": { "const": "UTC" },
+            "PYTHONDONTWRITEBYTECODE": { "const": "1" },
+            "PYTHONNOUSERSITE": { "const": "1" }
+          }
+        },
+        "inherited_secret_name_count": { "const": 0 },
+        "python_path_entries": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/absolutePath" }
+        },
+        "user_site_enabled": { "const": false },
+        "bytecode_write_enabled": { "const": false },
+        "module_import_policy": { "const": "isolated -I -S -B interpreter, frozen stdlib tree and content-addressed executor/verifier source only; no persisted module trace under this authority" },
+        "unexpected_module_count": { "type": "integer", "minimum": 0 },
+        "external_archive_library_used": { "type": "boolean" },
+        "tarfile_extract_api_used": { "type": "boolean" },
+        "shell_used": { "type": "boolean" },
+        "authorized_bound_verifier_compile_exec_count": { "const": 2 },
+        "unauthorized_dynamic_code_api_count": { "type": "integer", "minimum": 0 },
+        "ctypes_policy": { "const": "verifier may bind Darwin flistxattr; executor may bind only Darwin renameatx_np with RENAME_EXCL; no arbitrary dlopen or foreign symbol" },
+        "python_audit_hook_installed": { "type": "boolean" }
+      }
+    },
+    "process_and_network_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pre_pgrep_receipt_raw_sha256",
+        "post_pgrep_receipt_raw_sha256",
+        "pre_lsof_receipt_raw_sha256",
+        "post_lsof_receipt_raw_sha256",
+        "executor_child_process_count",
+        "forbidden_process_match_count_before",
+        "forbidden_process_match_count_after",
+        "python_audit_subprocess_event_count",
+        "python_audit_os_system_event_count",
+        "python_audit_socket_event_count",
+        "network_endpoint_delta_count",
+        "network_attempt_count",
+        "npm_node_npx_execution_count",
+        "javascript_execution_count",
+        "sandbox_exec_execution_count"
+      ],
+      "properties": {
+        "pre_pgrep_receipt_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "post_pgrep_receipt_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "pre_lsof_receipt_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "post_lsof_receipt_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "executor_child_process_count": { "type": "integer", "minimum": 0 },
+        "forbidden_process_match_count_before": { "type": "integer", "minimum": 0 },
+        "forbidden_process_match_count_after": { "type": "integer", "minimum": 0 },
+        "python_audit_subprocess_event_count": { "type": "integer", "minimum": 0 },
+        "python_audit_os_system_event_count": { "type": "integer", "minimum": 0 },
+        "python_audit_socket_event_count": { "type": "integer", "minimum": 0 },
+        "network_endpoint_delta_count": { "type": "integer", "minimum": 0 },
+        "network_attempt_count": { "type": "integer", "minimum": 0 },
+        "npm_node_npx_execution_count": { "type": "integer", "minimum": 0 },
+        "javascript_execution_count": { "type": "integer", "minimum": 0 },
+        "sandbox_exec_execution_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "filesystem_preconditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checked_at_utc",
+        "control_path_states",
+        "target_lstat",
+        "stage_lstat",
+        "git_snapshot",
+        "dirty_inventory_raw_sha256",
+        "local_settings_raw_sha256",
+        "outside_scope_snapshot_raw_sha256"
+      ],
+      "properties": {
+        "checked_at_utc": { "$ref": "#/$defs/utcTimestamp" },
+        "control_path_states": { "$ref": "#/$defs/controlPathStateSet" },
+        "target_lstat": { "$ref": "#/$defs/lstatObservation" },
+        "stage_lstat": { "$ref": "#/$defs/lstatObservation" },
+        "git_snapshot": { "$ref": "#/$defs/gitSnapshot" },
+        "dirty_inventory_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "local_settings_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "outside_scope_snapshot_raw_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "extraction_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage_created_exclusively",
+        "stage_mode",
+        "stage_owner_uid",
+        "stage_device_id",
+        "archive_count",
+        "gzip_stream_count",
+        "ustar_member_count",
+        "regular_file_count",
+        "directory_count",
+        "generated_relative_symlink_count",
+        "extracted_payload_bytes",
+        "header_failure_count",
+        "checksum_failure_count",
+        "path_rejection_count",
+        "member_type_rejection_count",
+        "duplicate_or_collision_count",
+        "resource_limit_failure_count",
+        "unexpected_destination_count",
+        "missing_destination_count",
+        "content_mismatch_count",
+        "actual_ustar_closure_sha256",
+        "actual_resolution_receipt_sha256",
+        "actual_stage_tree_sha256",
+        "expected_receipts_match",
+        "payload_execution_count",
+        "lifecycle_execution_count",
+        "files_fsynced_count",
+        "directories_fsynced_count",
+        "stage_directory_fsynced"
+      ],
+      "properties": {
+        "stage_created_exclusively": { "type": "boolean" },
+        "stage_mode": { "enum": ["0700", "NOT-CREATED"] },
+        "stage_owner_uid": { "oneOf": [ { "type": "integer", "minimum": 0 }, { "type": "null" } ] },
+        "stage_device_id": { "oneOf": [ { "type": "integer", "minimum": 0 }, { "type": "null" } ] },
+        "archive_count": { "type": "integer", "minimum": 0 },
+        "gzip_stream_count": { "type": "integer", "minimum": 0 },
+        "ustar_member_count": { "type": "integer", "minimum": 0 },
+        "regular_file_count": { "type": "integer", "minimum": 0 },
+        "directory_count": { "type": "integer", "minimum": 0 },
+        "generated_relative_symlink_count": { "type": "integer", "minimum": 0 },
+        "extracted_payload_bytes": { "type": "integer", "minimum": 0 },
+        "header_failure_count": { "type": "integer", "minimum": 0 },
+        "checksum_failure_count": { "type": "integer", "minimum": 0 },
+        "path_rejection_count": { "type": "integer", "minimum": 0 },
+        "member_type_rejection_count": { "type": "integer", "minimum": 0 },
+        "duplicate_or_collision_count": { "type": "integer", "minimum": 0 },
+        "resource_limit_failure_count": { "type": "integer", "minimum": 0 },
+        "unexpected_destination_count": { "type": "integer", "minimum": 0 },
+        "missing_destination_count": { "type": "integer", "minimum": 0 },
+        "content_mismatch_count": { "type": "integer", "minimum": 0 },
+        "actual_ustar_closure_sha256": { "oneOf": [ { "$ref": "#/$defs/sha256" }, { "type": "null" } ] },
+        "actual_resolution_receipt_sha256": { "oneOf": [ { "$ref": "#/$defs/sha256" }, { "type": "null" } ] },
+        "actual_stage_tree_sha256": { "oneOf": [ { "$ref": "#/$defs/sha256" }, { "type": "null" } ] },
+        "expected_receipts_match": { "type": "boolean" },
+        "payload_execution_count": { "type": "integer", "minimum": 0 },
+        "lifecycle_execution_count": { "type": "integer", "minimum": 0 },
+        "files_fsynced_count": { "type": "integer", "minimum": 0 },
+        "directories_fsynced_count": { "type": "integer", "minimum": 0 },
+        "stage_directory_fsynced": { "type": "boolean" }
+      }
+    },
+    "publication_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage_locator",
+        "target_locator",
+        "target_preimage",
+        "same_device",
+        "syscall",
+        "flag",
+        "attempted",
+        "attempt_count",
+        "succeeded",
+        "return_code",
+        "errno",
+        "target_overwrite_count",
+        "target_state_after",
+        "stage_state_after",
+        "target_parent_fsynced_after_success"
+      ],
+      "properties": {
+        "stage_locator": { "$ref": "#/$defs/absolutePath" },
+        "target_locator": { "$ref": "#/$defs/absolutePath" },
+        "target_preimage": { "enum": ["ABSENT", "PRESENT"] },
+        "same_device": { "type": "boolean" },
+        "syscall": { "const": "renameatx_np" },
+        "flag": { "const": "RENAME_EXCL" },
+        "attempted": { "type": "boolean" },
+        "attempt_count": { "type": "integer", "minimum": 0, "maximum": 1 },
+        "succeeded": { "type": "boolean" },
+        "return_code": {
+          "oneOf": [
+            { "type": "integer" },
+            { "type": "null" }
+          ]
+        },
+        "errno": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "null" }
+          ]
+        },
+        "target_overwrite_count": { "const": 0 },
+        "target_state_after": { "enum": ["ABSENT", "PRESENT-UNAUTHORIZED", "PRESENT-STATIC-ATTESTED"] },
+        "stage_state_after": { "enum": ["ABSENT", "RETAINED-PRIVATE", "QUARANTINED-PRIVATE"] },
+        "target_parent_fsynced_after_success": { "type": "boolean" }
+      }
+    },
+    "filesystem_postconditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checked_at_utc",
+        "control_path_states",
+        "git_snapshot",
+        "dirty_inventory_raw_sha256",
+        "local_settings_raw_sha256",
+        "outside_scope_snapshot_raw_sha256",
+        "outside_scope_mutation_count",
+        "git_snapshot_match",
+        "dirty_inventory_match",
+        "local_settings_match",
+        "target_tree_merkle_sha256",
+        "target_tree_matches_expected"
+      ],
+      "properties": {
+        "checked_at_utc": { "$ref": "#/$defs/utcTimestamp" },
+        "control_path_states": { "$ref": "#/$defs/controlPathStateSet" },
+        "git_snapshot": { "$ref": "#/$defs/gitSnapshot" },
+        "dirty_inventory_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "local_settings_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "outside_scope_snapshot_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "outside_scope_mutation_count": { "type": "integer", "minimum": 0 },
+        "git_snapshot_match": { "type": "boolean" },
+        "dirty_inventory_match": { "type": "boolean" },
+        "local_settings_match": { "type": "boolean" },
+        "target_tree_merkle_sha256": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "target_tree_matches_expected": { "type": "boolean" }
+      }
+    },
+    "command_trace": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/commandEvidence" }
+    },
+    "gate_evidence": {
+      "type": "array",
+      "minItems": 25,
+      "maxItems": 25,
+      "prefixItems": [
+        { "$ref": "#/$defs/gateG00" },
+        { "$ref": "#/$defs/gateG01" },
+        { "$ref": "#/$defs/gateG02" },
+        { "$ref": "#/$defs/gateG03" },
+        { "$ref": "#/$defs/gateG04" },
+        { "$ref": "#/$defs/gateG05" },
+        { "$ref": "#/$defs/gateG06" },
+        { "$ref": "#/$defs/gateG07" },
+        { "$ref": "#/$defs/gateG08" },
+        { "$ref": "#/$defs/gateG09" },
+        { "$ref": "#/$defs/gateG10" },
+        { "$ref": "#/$defs/gateG11" },
+        { "$ref": "#/$defs/gateG12" },
+        { "$ref": "#/$defs/gateG13" },
+        { "$ref": "#/$defs/gateG14" },
+        { "$ref": "#/$defs/gateG15" },
+        { "$ref": "#/$defs/gateG16" },
+        { "$ref": "#/$defs/gateG17" },
+        { "$ref": "#/$defs/gateG18" },
+        { "$ref": "#/$defs/gateG19" },
+        { "$ref": "#/$defs/gateG20" },
+        { "$ref": "#/$defs/gateG21" },
+        { "$ref": "#/$defs/gateG22" },
+        { "$ref": "#/$defs/gateG23" },
+        { "$ref": "#/$defs/gateG24" }
+      ],
+      "items": false
+    },
+    "privacy_projection_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "performed",
+        "public_projection_locator",
+        "public_projection_raw_sha256",
+        "redaction_verifier_raw_sha256",
+        "absolute_locator_hit_count",
+        "home_relative_locator_hit_count",
+        "cache_root_or_index_hit_count",
+        "dirty_inventory_hit_count",
+        "local_settings_hit_count",
+        "environment_or_command_output_hit_count",
+        "ledger_locator_or_raw_digest_hit_count",
+        "challenge_secret_hit_count",
+        "private_vault_hit_count",
+        "private_raw_digest_leak_count",
+        "public_required_raw_digest_missing_count",
+        "passed"
+      ],
+      "properties": {
+        "performed": { "type": "boolean" },
+        "public_projection_locator": { "type": "null" },
+        "public_projection_raw_sha256": { "oneOf": [ { "$ref": "#/$defs/sha256" }, { "type": "null" } ] },
+        "redaction_verifier_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "absolute_locator_hit_count": { "type": "integer", "minimum": 0 },
+        "home_relative_locator_hit_count": { "type": "integer", "minimum": 0 },
+        "cache_root_or_index_hit_count": { "type": "integer", "minimum": 0 },
+        "dirty_inventory_hit_count": { "type": "integer", "minimum": 0 },
+        "local_settings_hit_count": { "type": "integer", "minimum": 0 },
+        "environment_or_command_output_hit_count": { "type": "integer", "minimum": 0 },
+        "ledger_locator_or_raw_digest_hit_count": { "type": "integer", "minimum": 0 },
+        "challenge_secret_hit_count": { "type": "integer", "minimum": 0 },
+        "private_vault_hit_count": { "type": "integer", "minimum": 0 },
+        "private_raw_digest_leak_count": { "type": "integer", "minimum": 0 },
+        "public_required_raw_digest_missing_count": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "boolean" }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "final_state",
+        "public_projection_emitted",
+        "containment_state",
+        "failure_codes",
+        "challenge_consumed",
+        "retry_requires_new_challenge",
+        "payload_execution_authorized"
+      ],
+      "properties": {
+        "decision": { "enum": ["PUBLISHED", "REJECTED"] },
+        "final_state": { "enum": ["static-attested-unexecuted", "rejected-consumed"] },
+        "public_projection_emitted": { "type": "boolean" },
+        "containment_state": {
+          "enum": [
+            "target-static-attested-unexecuted",
+            "no-target-created",
+            "stage-retained-private",
+            "target-created-but-unauthorized-retained"
+          ]
+        },
+        "failure_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/failureCode" }
+        },
+        "challenge_consumed": { "const": true },
+        "retry_requires_new_challenge": { "const": true },
+        "payload_execution_authorized": { "const": false }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "private_evidence_retention",
+        "ledger_retention",
+        "claim_retention",
+        "failed_stage_cleanup_mode",
+        "target_automatic_delete_allowed",
+        "repository_commit_allowed",
+        "public_export_allowed_fields"
+      ],
+      "properties": {
+        "private_evidence_retention": { "const": "full projection remains in memory only and is not materialized under this authority" },
+        "ledger_retention": { "const": "persistent-never-automatic-delete" },
+        "claim_retention": { "const": "persistent-never-reuse" },
+        "failed_stage_cleanup_mode": { "const": "retain-in-place; no automatic deletion, cleanup, quarantine move or glob under this authority" },
+        "target_automatic_delete_allowed": { "const": false },
+        "repository_commit_allowed": { "const": false },
+        "public_export_allowed_fields": {
+          "const": "only the locator-free stdout fields admitted by the bound public-attestation schema; no repository file write"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "keyedCommitment": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "opaqueId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "absolutePath": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 4096,
+      "pattern": "^/(?!.*[\\u0000-\\u001f\\u007f-\\u009f])[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "repoRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.git(?:/|$))(?!.*[\\u0000-\\u001f\\u007f-\\u009f])[^\\\\]+$"
+    },
+    "nonSecretText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "argvString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "octalMode": { "type": "string", "pattern": "^[0-7]{4}$" },
+    "privateLocatorComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "locator", "expected_commitment", "actual_commitment", "match"],
+      "properties": {
+        "label": { "enum": ["repo-root", "npm-cache", "state-root", "hmac-key", "envelope"] },
+        "locator": { "$ref": "#/$defs/absolutePath" },
+        "expected_commitment": { "$ref": "#/$defs/keyedCommitment" },
+        "actual_commitment": { "$ref": "#/$defs/keyedCommitment" },
+        "match": { "const": true }
+      }
+    },
+    "commitmentComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected", "actual", "match"],
+      "properties": {
+        "expected": { "$ref": "#/$defs/keyedCommitment" },
+        "actual": { "$ref": "#/$defs/keyedCommitment" },
+        "match": { "const": true }
+      }
+    },
+    "repoLocatorComparison": { "allOf": [ { "$ref": "#/$defs/privateLocatorComparison" }, { "properties": { "label": { "const": "repo-root" } } } ] },
+    "cacheLocatorComparison": { "allOf": [ { "$ref": "#/$defs/privateLocatorComparison" }, { "properties": { "label": { "const": "npm-cache" } } } ] },
+    "stateLocatorComparison": { "allOf": [ { "$ref": "#/$defs/privateLocatorComparison" }, { "properties": { "label": { "const": "state-root" } } } ] },
+    "keyLocatorComparison": { "allOf": [ { "$ref": "#/$defs/privateLocatorComparison" }, { "properties": { "label": { "const": "hmac-key" } } } ] },
+    "envelopeLocatorComparison": { "allOf": [ { "$ref": "#/$defs/privateLocatorComparison" }, { "properties": { "label": { "const": "envelope" } } } ] },
+    "ledgerEventBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "sequence",
+        "at_utc",
+        "challenge",
+        "receipt_digest",
+        "event",
+        "previous_hmac_sha256",
+        "data",
+        "hmac_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": "gov01-static-acquisition-ledger-event-v2" },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "at_utc": { "$ref": "#/$defs/utcTimestamp" },
+        "challenge": { "$ref": "#/$defs/opaqueId" },
+        "receipt_digest": { "$ref": "#/$defs/sha256" },
+        "event": { "enum": ["receipt-consumed", "preflight-frozen", "stage-materialized", "pre-promotion-cas-pass", "stage-promoted", "static-attestation-complete", "attempt-failed"] },
+        "previous_hmac_sha256": { "$ref": "#/$defs/keyedCommitment" },
+        "data": { "type": "object" },
+        "hmac_sha256": { "$ref": "#/$defs/keyedCommitment" }
+      }
+    },
+    "receiptConsumedLedgerEvent": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerEventBase" },
+        { "properties": { "sequence": { "const": 0 }, "event": { "const": "receipt-consumed" }, "previous_hmac_sha256": { "const": "0000000000000000000000000000000000000000000000000000000000000000" }, "data": { "type": "object", "additionalProperties": false, "required": ["authority"], "properties": { "authority": { "const": "single-use-consumed-before-stage-write" } } } } }
+      ]
+    },
+    "preflightFrozenLedgerEvent": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerEventBase" },
+        { "properties": { "sequence": { "const": 1 }, "event": { "const": "preflight-frozen" }, "data": { "$ref": "#/$defs/preflightFrozenData" } } }
+      ]
+    },
+    "stageMaterializedLedgerEvent": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerEventBase" },
+        { "properties": { "sequence": { "const": 2 }, "event": { "const": "stage-materialized" }, "data": { "$ref": "#/$defs/stageMaterializedData" } } }
+      ]
+    },
+    "prePromotionLedgerEvent": { "allOf": [ { "$ref": "#/$defs/ledgerEventBase" }, { "properties": { "sequence": { "const": 3 }, "event": { "const": "pre-promotion-cas-pass" }, "data": { "$ref": "#/$defs/prePromotionData" } } } ] },
+    "stagePromotedLedgerEvent": { "allOf": [ { "$ref": "#/$defs/ledgerEventBase" }, { "properties": { "sequence": { "const": 4 }, "event": { "const": "stage-promoted" }, "data": { "$ref": "#/$defs/stagePromotedData" } } } ] },
+    "staticCompleteLedgerEvent": { "allOf": [ { "$ref": "#/$defs/ledgerEventBase" }, { "properties": { "sequence": { "const": 5 }, "event": { "const": "static-attestation-complete" }, "data": { "$ref": "#/$defs/staticCompleteData" } } } ] },
+    "attemptFailedLedgerEvent": { "allOf": [ { "$ref": "#/$defs/ledgerEventBase" }, { "properties": { "sequence": { "type": "integer", "minimum": 1, "maximum": 5 }, "event": { "const": "attempt-failed" }, "data": { "$ref": "#/$defs/attemptFailedData" } } } ] },
+    "attemptFailedAt1": { "allOf": [ { "$ref": "#/$defs/attemptFailedLedgerEvent" }, { "properties": { "sequence": { "const": 1 } } } ] },
+    "attemptFailedAt2": { "allOf": [ { "$ref": "#/$defs/attemptFailedLedgerEvent" }, { "properties": { "sequence": { "const": 2 } } } ] },
+    "attemptFailedAt3": { "allOf": [ { "$ref": "#/$defs/attemptFailedLedgerEvent" }, { "properties": { "sequence": { "const": 3 } } } ] },
+    "attemptFailedAt4": { "allOf": [ { "$ref": "#/$defs/attemptFailedLedgerEvent" }, { "properties": { "sequence": { "const": 4 } } } ] },
+    "attemptFailedAt5": { "allOf": [ { "$ref": "#/$defs/attemptFailedLedgerEvent" }, { "properties": { "sequence": { "const": 5 } } } ] },
+    "actualLedgerEvent": { "oneOf": [ { "$ref": "#/$defs/receiptConsumedLedgerEvent" }, { "$ref": "#/$defs/preflightFrozenLedgerEvent" }, { "$ref": "#/$defs/stageMaterializedLedgerEvent" }, { "$ref": "#/$defs/prePromotionLedgerEvent" }, { "$ref": "#/$defs/stagePromotedLedgerEvent" }, { "$ref": "#/$defs/staticCompleteLedgerEvent" }, { "$ref": "#/$defs/attemptFailedLedgerEvent" } ] },
+    "terminalLedgerEvent": { "oneOf": [ { "$ref": "#/$defs/staticCompleteLedgerEvent" }, { "$ref": "#/$defs/attemptFailedLedgerEvent" } ] },
+    "preflightFrozenData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["envelope_raw_sha256", "artifact_manifest_commitment", "git_commitment", "cache_manifest_commitment", "selected_package_count", "compressed_bytes", "payload_bytes", "tree_sha256", "network_attempt_count", "lifecycle_execution_count", "installed_code_execution_count"],
+      "properties": {
+        "envelope_raw_sha256": { "$ref": "#/$defs/sha256" }, "artifact_manifest_commitment": { "$ref": "#/$defs/keyedCommitment" }, "git_commitment": { "$ref": "#/$defs/keyedCommitment" }, "cache_manifest_commitment": { "$ref": "#/$defs/keyedCommitment" },
+        "selected_package_count": { "const": 167 }, "compressed_bytes": { "type": "integer", "minimum": 1, "maximum": 14000000 }, "payload_bytes": { "type": "integer", "minimum": 1, "maximum": 64000000 }, "tree_sha256": { "$ref": "#/$defs/sha256" },
+        "network_attempt_count": { "const": 0 }, "lifecycle_execution_count": { "const": 0 }, "installed_code_execution_count": { "const": 0 }
+      }
+    },
+    "stageMaterializedData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["file_count", "directory_count", "symlink_count", "tree_sha256", "incomplete_marker_present"],
+      "properties": { "file_count": { "type": "integer", "minimum": 1 }, "directory_count": { "type": "integer", "minimum": 1 }, "symlink_count": { "const": 12 }, "tree_sha256": { "$ref": "#/$defs/sha256" }, "incomplete_marker_present": { "const": true } }
+    },
+    "prePromotionData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["artifact_manifest_unchanged", "git_unchanged", "cache_unchanged", "claude_sessions", "target_absent", "incomplete_marker_present"],
+      "properties": { "artifact_manifest_unchanged": { "const": true }, "git_unchanged": { "const": true }, "cache_unchanged": { "const": true }, "claude_sessions": { "const": 0 }, "target_absent": { "const": true }, "incomplete_marker_present": { "const": true } }
+    },
+    "stagePromotedData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tree_sha256", "incomplete_marker_present", "root_mode", "rename_profile"],
+      "properties": { "tree_sha256": { "$ref": "#/$defs/sha256" }, "incomplete_marker_present": { "const": false }, "root_mode": { "const": "0755" }, "rename_profile": { "const": "renameatx_np-RENAME_EXCL" } }
+    },
+    "staticCompleteData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["state", "tree_sha256", "selected_package_count", "network_attempt_count", "lifecycle_execution_count", "installed_code_execution_count", "openspec_execution_allowed", "openspec_scaffold_allowed"],
+      "properties": { "state": { "const": "static-attested-unexecuted" }, "tree_sha256": { "$ref": "#/$defs/sha256" }, "selected_package_count": { "const": 167 }, "network_attempt_count": { "const": 0 }, "lifecycle_execution_count": { "const": 0 }, "installed_code_execution_count": { "const": 0 }, "openspec_execution_allowed": { "const": false }, "openspec_scaffold_allowed": { "const": false } }
+    },
+    "attemptFailedData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["public_code", "promoted", "stage_deleted_or_moved_on_failure", "automatic_rollback_performed"],
+      "properties": { "public_code": { "type": "string", "pattern": "^[A-Z0-9_]{3,96}$" }, "promoted": { "type": "boolean" }, "stage_deleted_or_moved_on_failure": { "const": false }, "automatic_rollback_performed": { "const": false } }
+    },
+    "writeScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "locator", "mode", "recursive", "write_kind"],
+      "properties": {
+        "role": { "enum": ["persistent-ledger", "ephemeral-stage", "exclusive-target-publication"] },
+        "locator": { "$ref": "#/$defs/absolutePath" },
+        "mode": { "enum": ["0600", "0700", "inherited-from-verified-tree"] },
+        "recursive": { "type": "boolean" },
+        "write_kind": { "enum": ["append-and-fsync", "create-tree-and-fsync", "single-renameatx-np-rename-excl"] }
+      }
+    },
+    "ledgerWriteScope": { "allOf": [ { "$ref": "#/$defs/writeScope" }, { "properties": { "role": { "const": "persistent-ledger" }, "mode": { "const": "0600" }, "recursive": { "const": false }, "write_kind": { "const": "append-and-fsync" } } } ] },
+    "stageWriteScope": { "allOf": [ { "$ref": "#/$defs/writeScope" }, { "properties": { "role": { "const": "ephemeral-stage" }, "mode": { "const": "0700" }, "recursive": { "const": true }, "write_kind": { "const": "create-tree-and-fsync" } } } ] },
+    "targetPublishScope": { "allOf": [ { "$ref": "#/$defs/writeScope" }, { "properties": { "role": { "const": "exclusive-target-publication" }, "mode": { "const": "inherited-from-verified-tree" }, "recursive": { "const": false }, "write_kind": { "const": "single-renameatx-np-rename-excl" } } } ] },
+    "toolEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "logical_id",
+        "private_locator",
+        "artifact_kind",
+        "version",
+        "owner_uid",
+        "mode",
+        "regular_or_tree",
+        "symlink",
+        "digest_profile",
+        "expected_raw_digest_sha256",
+        "actual_raw_digest_sha256_before",
+        "actual_raw_digest_sha256_after",
+        "pre_post_match",
+        "execution_mode",
+        "execution_count"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "static-executor",
+            "static-verifier",
+            "python-interpreter",
+            "python-stdlib-tree",
+            "xcode-select-resolver",
+            "xcrun-resolver",
+            "git-read-only-evidence",
+            "pgrep-read-only-evidence",
+            "lsof-read-only-evidence"
+          ]
+        },
+        "logical_id": { "$ref": "#/$defs/opaqueId" },
+        "private_locator": { "$ref": "#/$defs/absolutePath" },
+        "artifact_kind": { "enum": ["regular-file", "directory-tree"] },
+        "version": { "$ref": "#/$defs/nonSecretText" },
+        "owner_uid": { "type": "integer", "minimum": 0 },
+        "mode": { "$ref": "#/$defs/octalMode" },
+        "regular_or_tree": { "const": true },
+        "symlink": { "const": false },
+        "digest_profile": { "enum": ["raw-file-sha256", "CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2"] },
+        "expected_raw_digest_sha256": { "$ref": "#/$defs/sha256" },
+        "actual_raw_digest_sha256_before": { "$ref": "#/$defs/sha256" },
+        "actual_raw_digest_sha256_after": { "$ref": "#/$defs/sha256" },
+        "pre_post_match": { "type": "boolean" },
+        "execution_mode": {
+          "enum": [
+            "python-source-read-by-frozen-interpreter",
+            "frozen-native-executable",
+            "read-only-tree-never-executed-directly"
+          ]
+        },
+        "execution_count": { "type": "integer", "minimum": 0, "maximum": 64 }
+      }
+    },
+    "executorToolEvidence": { "allOf": [ { "$ref": "#/$defs/toolEvidence" }, { "properties": { "role": { "const": "static-executor" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_mode": { "const": "python-source-read-by-frozen-interpreter" }, "execution_count": { "const": 1 } } } ] },
+    "verifierToolEvidence": { "allOf": [ { "$ref": "#/$defs/toolEvidence" }, { "properties": { "role": { "const": "static-verifier" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_mode": { "const": "python-source-read-by-frozen-interpreter" } } } ] },
+    "pythonToolEvidence": { "allOf": [ { "$ref": "#/$defs/toolEvidence" }, { "properties": { "role": { "const": "python-interpreter" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_mode": { "const": "frozen-native-executable" } } } ] },
+    "stdlibToolEvidence": { "allOf": [ { "$ref": "#/$defs/toolEvidence" }, { "properties": { "role": { "const": "python-stdlib-tree" }, "artifact_kind": { "const": "directory-tree" }, "digest_profile": { "const": "CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2" }, "execution_mode": { "const": "read-only-tree-never-executed-directly" }, "execution_count": { "const": 0 } } } ] },
+    "xcodeSelectToolEvidence": { "allOf": [ { "$ref": "#/$defs/toolEvidence" }, { "properties": { "role": { "const": "xcode-select-resolver" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_mode": { "const": "frozen-native-executable" } } } ] },
+    "xcrunToolEvidence": { "allOf": [ { "$ref": "#/$defs/toolEvidence" }, { "properties": { "role": { "const": "xcrun-resolver" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_mode": { "const": "frozen-native-executable" } } } ] },
+    "gitToolEvidence": { "allOf": [ { "$ref": "#/$defs/toolEvidence" }, { "properties": { "role": { "const": "git-read-only-evidence" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_mode": { "const": "frozen-native-executable" } } } ] },
+    "pgrepToolEvidence": { "allOf": [ { "$ref": "#/$defs/toolEvidence" }, { "properties": { "role": { "const": "pgrep-read-only-evidence" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_mode": { "const": "frozen-native-executable" } } } ] },
+    "lsofToolEvidence": { "allOf": [ { "$ref": "#/$defs/toolEvidence" }, { "properties": { "role": { "const": "lsof-read-only-evidence" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_mode": { "const": "frozen-native-executable" } } } ] },
+    "sourceArchive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "archive_id",
+        "private_locator",
+        "file_kind",
+        "mode",
+        "owner_uid",
+        "byte_length",
+        "compression",
+        "expected_raw_sha256",
+        "actual_raw_sha256",
+        "content_match",
+        "writable_by_executor"
+      ],
+      "properties": {
+        "archive_id": { "$ref": "#/$defs/opaqueId" },
+        "private_locator": { "$ref": "#/$defs/absolutePath" },
+        "file_kind": { "const": "regular" },
+        "mode": { "$ref": "#/$defs/octalMode" },
+        "owner_uid": { "type": "integer", "minimum": 0 },
+        "byte_length": { "type": "integer", "minimum": 1 },
+        "compression": { "enum": ["none", "gzip-rfc1952"] },
+        "expected_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "actual_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "content_match": { "type": "boolean" },
+        "writable_by_executor": { "const": false }
+      }
+    },
+    "lstatObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "operation", "errno", "state", "file_kind", "ancestor_symlink_count"],
+      "properties": {
+        "locator": { "$ref": "#/$defs/absolutePath" },
+        "operation": { "const": "lstat" },
+        "errno": { "enum": ["ENOENT", "NONE", "OTHER"] },
+        "state": { "enum": ["ABSENT", "PRESENT"] },
+        "file_kind": { "enum": ["ABSENT", "regular", "directory", "symlink", "special"] },
+        "ancestor_symlink_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "controlPathStateSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope_locator",
+        "top_level_direct_children_only",
+        "protected_existing_paths",
+        "protected_existing_raw_sha256",
+        "protected_existing_states",
+        "absent_paths",
+        "absent_states"
+      ],
+      "properties": {
+        "scope_locator": { "$ref": "#/$defs/absolutePath" },
+        "top_level_direct_children_only": { "const": true },
+        "protected_existing_paths": { "const": ["package.json", "package-lock.json", ".gitignore"] },
+        "protected_existing_raw_sha256": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/sha256" }
+        },
+        "protected_existing_states": { "const": ["PRESENT-REGULAR", "PRESENT-REGULAR", "PRESENT-REGULAR"] },
+        "absent_paths": { "const": [".npmrc", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"] },
+        "absent_states": { "const": ["ABSENT", "ABSENT", "ABSENT", "ABSENT", "ABSENT", "ABSENT"] }
+      }
+    },
+    "gitSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "head", "tree", "object_format", "status_sha256", "status_bytes",
+        "refs_sha256", "refs_bytes", "index", "config", "hooks",
+        "index_locator_commitment", "config_locator_commitment", "hooks_locator_commitment",
+        "hooks_config_state", "git_binary_sha256", "commitment"
+      ],
+      "properties": {
+        "head": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "tree": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "object_format": { "enum": ["sha1", "sha256"] },
+        "status_sha256": { "$ref": "#/$defs/sha256" },
+        "status_bytes": { "type": "integer", "minimum": 0 },
+        "refs_sha256": { "$ref": "#/$defs/sha256" },
+        "refs_bytes": { "type": "integer", "minimum": 0 },
+        "index": { "$ref": "#/$defs/privateFileFingerprint" },
+        "config": { "$ref": "#/$defs/privateFileFingerprint" },
+        "hooks": { "oneOf": [ { "$ref": "#/$defs/privateFileFingerprint" }, { "$ref": "#/$defs/privateTreeFingerprint" } ] },
+        "index_locator_commitment": { "$ref": "#/$defs/keyedCommitment" },
+        "config_locator_commitment": { "$ref": "#/$defs/keyedCommitment" },
+        "hooks_locator_commitment": { "$ref": "#/$defs/keyedCommitment" },
+        "hooks_config_state": { "enum": ["configured-dev-null", "configured-git-contained", "default-git-path"] },
+        "git_binary_sha256": { "$ref": "#/$defs/sha256" },
+        "commitment": { "$ref": "#/$defs/keyedCommitment" }
+      }
+    },
+    "privateFileFingerprint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sha256", "bytes", "device", "inode"],
+      "properties": { "sha256": { "$ref": "#/$defs/sha256" }, "bytes": { "type": "integer", "minimum": 0 }, "device": { "type": "integer", "minimum": 0 }, "inode": { "type": "integer", "minimum": 0 } }
+    },
+    "privateTreeFingerprint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sha256", "entries", "bytes"],
+      "properties": { "sha256": { "$ref": "#/$defs/sha256" }, "entries": { "type": "integer", "minimum": 0 }, "bytes": { "type": "integer", "minimum": 0 } }
+    },
+    "commandEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "role",
+        "executable_locator",
+        "executable_raw_sha256",
+        "argv",
+        "cwd_locator",
+        "environment_name_allowlist",
+        "stdin",
+        "stdout_raw_sha256",
+        "stdout_bytes",
+        "stderr_disposition",
+        "started_at_utc",
+        "ended_at_utc",
+        "exit_code",
+        "shell",
+        "network_allowed"
+      ],
+      "properties": {
+        "sequence": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "role": {
+          "enum": [
+            "python-executor",
+            "python-verifier",
+            "xcode-select-resolver",
+            "xcrun-resolver",
+            "git-read-only-evidence",
+            "pgrep-read-only-evidence",
+            "lsof-read-only-evidence"
+          ]
+        },
+        "executable_locator": { "$ref": "#/$defs/absolutePath" },
+        "executable_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "argv": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/argvString" } },
+        "cwd_locator": { "$ref": "#/$defs/absolutePath" },
+        "environment_name_allowlist": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["HOME", "TMPDIR", "PATH", "LC_ALL", "LANG", "TZ", "PYTHONDONTWRITEBYTECODE", "PYTHONNOUSERSITE", "GIT_OPTIONAL_LOCKS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT"] }
+        },
+        "stdin": { "const": "/dev/null" },
+        "stdout_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "stdout_bytes": { "type": "integer", "minimum": 0 },
+        "stderr_disposition": { "const": "/dev/null-not-captured" },
+        "started_at_utc": { "$ref": "#/$defs/utcTimestamp" },
+        "ended_at_utc": { "$ref": "#/$defs/utcTimestamp" },
+        "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "shell": { "const": false },
+        "network_allowed": { "const": false }
+      }
+    },
+    "failureCode": {
+      "type": "string",
+      "enum": [
+        "SCHEMA_INVALID",
+        "AUTHORIZATION_EXPIRED_OR_MISMATCHED",
+        "LEDGER_REPLAY_OR_NONPERSISTENT",
+        "PRIVATE_PUBLIC_BOUNDARY_VIOLATION",
+        "TOOLCHAIN_CONTENT_DRIFT",
+        "FORBIDDEN_RUNTIME_OR_NETWORK_OBSERVED",
+        "SOURCE_CONTENT_MISMATCH",
+        "USTAR_RECEIPT_MISMATCH",
+        "USTAR_FORMAT_OR_HEADER_INVALID",
+        "MEMBER_PATH_OR_TYPE_UNSAFE",
+        "RESOURCE_LIMIT_EXCEEDED",
+        "CONTROL_PATH_PRESENT_BEFORE",
+        "TARGET_PREEXISTS",
+        "PROCESS_CENSUS_UNSAFE_BEFORE",
+        "STAGE_SCOPE_OR_DEVICE_INVALID",
+        "EXPECTED_CLOSURE_MISMATCH",
+        "RESOLUTION_RECEIPT_MISMATCH",
+        "STAGE_TREE_MISMATCH",
+        "PAYLOAD_OR_LIFECYCLE_EXECUTION_OBSERVED",
+        "RENAME_EXCL_FAILED",
+        "CONTROL_PATH_PRESENT_AFTER",
+        "OUTSIDE_SCOPE_MUTATION",
+        "FINAL_TREE_MISMATCH",
+        "PROCESS_CENSUS_UNSAFE_AFTER",
+        "LEDGER_TERMINAL_STATE_INVALID",
+        "PRIVACY_REDACTION_FAILED",
+        "UNEXPECTED_FAIL_CLOSED_ERROR"
+      ]
+    },
+    "gateEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_id",
+        "scope",
+        "status",
+        "checked_at_utc",
+        "checker_role",
+        "evidence_raw_sha256",
+        "failure_codes",
+        "failure_action"
+      ],
+      "properties": {
+        "gate_id": { "type": "string", "pattern": "^GOV01-SA-G(?:0[0-9]|1[0-9]|2[0-4])$" },
+        "scope": {
+          "enum": [
+            "schema-and-public-projection",
+            "single-use-authorization-ledger",
+            "private-public-boundary",
+            "content-addressed-toolchain",
+            "forbidden-runtime-process-network",
+            "source-content-receipt",
+            "ustar-member-receipt",
+            "ustar-format-header",
+            "member-path-type",
+            "resource-limits",
+            "control-root-before",
+            "target-preimage",
+            "process-census-before",
+            "stage-scope-device",
+            "expected-closure",
+            "resolution-receipt",
+            "stage-tree-merkle",
+            "payload-execution",
+            "rename-excl-publication",
+            "control-root-after",
+            "outside-scope-postimage",
+            "final-tree-merkle",
+            "process-census-after",
+            "ledger-terminal",
+            "privacy-redaction"
+          ]
+        },
+        "status": { "enum": ["PASS", "FAIL"] },
+        "checked_at_utc": { "$ref": "#/$defs/utcTimestamp" },
+        "checker_role": { "enum": ["frozen-executor", "frozen-verifier", "frozen-external-supervisor"] },
+        "evidence_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "failure_codes": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/failureCode" } },
+        "failure_action": { "const": "FAIL_CLOSED_CONSUME_CHALLENGE_NO_RETRY_NO_PUBLIC_SUCCESS" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "PASS" } }, "required": ["status"] },
+          "then": { "properties": { "failure_codes": { "maxItems": 0 } } },
+          "else": { "properties": { "failure_codes": { "minItems": 1 } } }
+        }
+      ]
+    },
+    "gateG00": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G00" }, "scope": { "const": "schema-and-public-projection" } } } ] },
+    "gateG01": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G01" }, "scope": { "const": "single-use-authorization-ledger" } } } ] },
+    "gateG02": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G02" }, "scope": { "const": "private-public-boundary" } } } ] },
+    "gateG03": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G03" }, "scope": { "const": "content-addressed-toolchain" } } } ] },
+    "gateG04": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G04" }, "scope": { "const": "forbidden-runtime-process-network" } } } ] },
+    "gateG05": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G05" }, "scope": { "const": "source-content-receipt" } } } ] },
+    "gateG06": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G06" }, "scope": { "const": "ustar-member-receipt" } } } ] },
+    "gateG07": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G07" }, "scope": { "const": "ustar-format-header" } } } ] },
+    "gateG08": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G08" }, "scope": { "const": "member-path-type" } } } ] },
+    "gateG09": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G09" }, "scope": { "const": "resource-limits" } } } ] },
+    "gateG10": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G10" }, "scope": { "const": "control-root-before" } } } ] },
+    "gateG11": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G11" }, "scope": { "const": "target-preimage" } } } ] },
+    "gateG12": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G12" }, "scope": { "const": "process-census-before" } } } ] },
+    "gateG13": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G13" }, "scope": { "const": "stage-scope-device" } } } ] },
+    "gateG14": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G14" }, "scope": { "const": "expected-closure" } } } ] },
+    "gateG15": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G15" }, "scope": { "const": "resolution-receipt" } } } ] },
+    "gateG16": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G16" }, "scope": { "const": "stage-tree-merkle" } } } ] },
+    "gateG17": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G17" }, "scope": { "const": "payload-execution" } } } ] },
+    "gateG18": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G18" }, "scope": { "const": "rename-excl-publication" } } } ] },
+    "gateG19": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G19" }, "scope": { "const": "control-root-after" } } } ] },
+    "gateG20": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G20" }, "scope": { "const": "outside-scope-postimage" } } } ] },
+    "gateG21": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G21" }, "scope": { "const": "final-tree-merkle" } } } ] },
+    "gateG22": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G22" }, "scope": { "const": "process-census-after" } } } ] },
+    "gateG23": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G23" }, "scope": { "const": "ledger-terminal" } } } ] },
+    "gateG24": { "allOf": [ { "$ref": "#/$defs/gateEvidence" }, { "properties": { "gate_id": { "const": "GOV01-SA-G24" }, "scope": { "const": "privacy-redaction" } } } ] },
+    "actualSemanticCheckerBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checker_interface", "artifact_role", "repo_relative_path", "raw_file_sha256", "byte_length", "hmac_domain", "assurance"],
+      "properties": {
+        "checker_interface": { "const": "gov01-ledger-semantic-checker-v2" },
+        "artifact_role": { "const": "static-executor" },
+        "repo_relative_path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" },
+        "raw_file_sha256": { "const": "b0117713c364fd8de77b9872585bff6590e3b5cc4aee21216cdd101ae83722da" },
+        "byte_length": { "const": 349389 },
+        "hmac_domain": { "const": "CLS/GOV01/STATIC-ACQUISITION-LEDGER/v2" },
+        "assurance": { "const": "content-addressed-runtime-self-attested-not-pre-exec" }
+      }
+    },
+    "actualSemanticValidation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "canonical_raw_bytes", "same_challenge_and_receipt", "contiguous_sequence", "nondecreasing_timestamps", "previous_hmac_chain", "every_record_hmac", "terminal_head_match", "event_state_machine", "closure_constants"],
+      "properties": {
+        "status": { "const": "PASS" }, "canonical_raw_bytes": { "const": true },
+        "same_challenge_and_receipt": { "const": true }, "contiguous_sequence": { "const": true },
+        "nondecreasing_timestamps": { "const": true }, "previous_hmac_chain": { "const": true },
+        "every_record_hmac": { "const": true }, "terminal_head_match": { "const": true },
+        "event_state_machine": { "const": "S-or-F1-through-F5" }, "closure_constants": { "const": true }
+      }
+    },
+    "actualLedgerProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "artifact_type",
+        "classification",
+        "projection_kind",
+        "ledger_parse_state",
+        "canonical_record_profile",
+        "semantic_checker_profile",
+        "semantic_checker_binding",
+        "semantic_validation",
+        "record_count",
+        "terminal_kind",
+        "raw_sha256",
+        "raw_bytes",
+        "records",
+        "ledger_head_hmac_sha256",
+        "failure_retention_contract"
+      ],
+      "properties": {
+        "schema_version": { "const": "gov-01-toolchain-static-acquisition-private-evidence-v2" },
+        "artifact_type": { "const": "gov-01-toolchain-static-acquisition-private-evidence" },
+        "classification": { "const": "PRIVATE-LOCAL-DO-NOT-COMMIT" },
+        "projection_kind": { "const": "read-only-complete-ledger-jsonl-projection; not a separately authorized persisted artifact" },
+        "ledger_parse_state": { "const": "complete-canonical-jsonl" },
+        "canonical_record_profile": { "const": "each raw line is exactly UTF-8 NFC sorted-key compact JSON plus one LF; no BOM, CR, duplicate key, float, NaN, Infinity, blank line or trailing bytes" },
+        "semantic_checker_profile": { "const": "require all records share challenge and receipt_digest; sequence is zero-based contiguous; at_utc is nondecreasing; first previous_hmac_sha256 is 64 zeroes; every later previous_hmac_sha256 equals prior hmac_sha256; recompute each HMAC-SHA-256 over ASCII(CLS/GOV01/STATIC-ACQUISITION-LEDGER/v2) || NUL || uint64be(canonical-base-byte-length) || canonical base JSON excluding hmac_sha256; ledger_head_hmac_sha256 equals final record hmac_sha256; every repeated tree_sha256 is identical" },
+        "semantic_checker_binding": { "$ref": "#/$defs/actualSemanticCheckerBinding" },
+        "semantic_validation": { "$ref": "#/$defs/actualSemanticValidation" },
+        "record_count": { "type": "integer", "minimum": 2, "maximum": 6 },
+        "terminal_kind": { "enum": ["success", "failure"] },
+        "raw_sha256": { "$ref": "#/$defs/sha256" },
+        "raw_bytes": { "type": "integer", "minimum": 1, "maximum": 2097152 },
+        "records": { "$ref": "#/$defs/healthyLedgerSequence" },
+        "ledger_head_hmac_sha256": { "$ref": "#/$defs/keyedCommitment" },
+        "failure_retention_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["automatic_cleanup_allowed", "pre_marker_stage", "marker_present_stage", "marker_removed_stage", "published_target", "unrepresentable_ledger_states"],
+          "properties": {
+            "automatic_cleanup_allowed": { "const": false },
+            "pre_marker_stage": { "const": "retain hidden 0700 stage without marker when failure occurs before incomplete marker creation" },
+            "marker_present_stage": { "const": "retain hidden 0700 stage and exact 0600 incomplete marker" },
+            "marker_removed_stage": { "const": "retain hidden 0755 sealed stage without marker when failure occurs after finalize_stage_marker and before rename" },
+            "published_target": { "const": "retain unauthorized published target and require user decision when rename succeeded but final attestation failed" },
+            "unrepresentable_ledger_states": { "const": ["claim-created-ledger-absent", "ledger-partial-or-noncanonical-line", "terminal-failure-append-failed"] }
+          }
+        }
+      },
+      "oneOf": [
+        { "properties": { "terminal_kind": { "const": "success" }, "record_count": { "const": 6 }, "records": { "$ref": "#/$defs/successLedgerSequence" } } },
+        { "properties": { "terminal_kind": { "const": "failure" }, "record_count": { "const": 2 }, "records": { "$ref": "#/$defs/failureLedgerSequence1" } } },
+        { "properties": { "terminal_kind": { "const": "failure" }, "record_count": { "const": 3 }, "records": { "$ref": "#/$defs/failureLedgerSequence2" } } },
+        { "properties": { "terminal_kind": { "const": "failure" }, "record_count": { "const": 4 }, "records": { "$ref": "#/$defs/failureLedgerSequence3" } } },
+        { "properties": { "terminal_kind": { "const": "failure" }, "record_count": { "const": 5 }, "records": { "$ref": "#/$defs/failureLedgerSequence4" } } },
+        { "properties": { "terminal_kind": { "const": "failure" }, "record_count": { "const": 6 }, "records": { "$ref": "#/$defs/failureLedgerSequence5" } } }
+      ]
+    },
+    "ledgerRecordBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "sequence", "at_utc", "challenge", "receipt_digest", "event", "previous_hmac_sha256", "data", "hmac_sha256"],
+      "properties": {
+        "schema_version": { "const": "gov01-static-acquisition-ledger-event-v2" },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "at_utc": { "$ref": "#/$defs/utcTimestamp" },
+        "challenge": { "type": "string", "pattern": "^GOV01-SA-[0-9]{8}-[0-9a-f]{32,64}$" },
+        "receipt_digest": { "$ref": "#/$defs/sha256" },
+        "event": { "enum": ["receipt-consumed", "preflight-frozen", "stage-materialized", "pre-promotion-cas-pass", "stage-promoted", "static-attestation-complete", "attempt-failed"] },
+        "previous_hmac_sha256": { "$ref": "#/$defs/keyedCommitment" },
+        "data": { "type": "object" },
+        "hmac_sha256": { "$ref": "#/$defs/keyedCommitment" }
+      }
+    },
+    "receiptConsumedActual": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerRecordBase" },
+        {
+          "properties": {
+            "sequence": { "const": 0 },
+            "event": { "const": "receipt-consumed" },
+            "previous_hmac_sha256": { "const": "0000000000000000000000000000000000000000000000000000000000000000" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["authority"],
+              "properties": { "authority": { "const": "single-use-consumed-before-stage-write" } }
+            }
+          }
+        }
+      ]
+    },
+    "preflightFrozenActual": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerRecordBase" },
+        {
+          "properties": {
+            "sequence": { "const": 1 },
+            "event": { "const": "preflight-frozen" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["envelope_raw_sha256", "artifact_manifest_commitment", "git_commitment", "cache_manifest_commitment", "selected_package_count", "compressed_bytes", "payload_bytes", "tree_sha256", "network_attempt_count", "lifecycle_execution_count", "installed_code_execution_count"],
+              "properties": {
+                "envelope_raw_sha256": { "$ref": "#/$defs/sha256" },
+                "artifact_manifest_commitment": { "$ref": "#/$defs/keyedCommitment" },
+                "git_commitment": { "$ref": "#/$defs/keyedCommitment" },
+                "cache_manifest_commitment": { "$ref": "#/$defs/keyedCommitment" },
+                "selected_package_count": { "const": 167 },
+                "compressed_bytes": { "const": 13916529 },
+                "payload_bytes": { "const": 55954126 },
+                "tree_sha256": { "const": "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2" },
+                "network_attempt_count": { "const": 0 },
+                "lifecycle_execution_count": { "const": 0 },
+                "installed_code_execution_count": { "const": 0 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "stageMaterializedActual": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerRecordBase" },
+        {
+          "properties": {
+            "sequence": { "const": 2 },
+            "event": { "const": "stage-materialized" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["file_count", "directory_count", "symlink_count", "tree_sha256", "incomplete_marker_present"],
+              "properties": {
+                "file_count": { "const": 4099 },
+                "directory_count": { "const": 554 },
+                "symlink_count": { "const": 12 },
+                "tree_sha256": { "const": "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2" },
+                "incomplete_marker_present": { "const": true }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "prePromotionActual": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerRecordBase" },
+        {
+          "properties": {
+            "sequence": { "const": 3 },
+            "event": { "const": "pre-promotion-cas-pass" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["artifact_manifest_unchanged", "git_unchanged", "cache_unchanged", "claude_sessions", "target_absent", "incomplete_marker_present"],
+              "properties": {
+                "artifact_manifest_unchanged": { "const": true },
+                "git_unchanged": { "const": true },
+                "cache_unchanged": { "const": true },
+                "claude_sessions": { "const": 0 },
+                "target_absent": { "const": true },
+                "incomplete_marker_present": { "const": true }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "stagePromotedActual": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerRecordBase" },
+        {
+          "properties": {
+            "sequence": { "const": 4 },
+            "event": { "const": "stage-promoted" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["tree_sha256", "incomplete_marker_present", "root_mode", "rename_profile"],
+              "properties": {
+                "tree_sha256": { "const": "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2" },
+                "incomplete_marker_present": { "const": false },
+                "root_mode": { "const": "0755" },
+                "rename_profile": { "const": "renameatx_np-RENAME_EXCL" }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "staticCompleteActual": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerRecordBase" },
+        {
+          "properties": {
+            "sequence": { "const": 5 },
+            "event": { "const": "static-attestation-complete" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["state", "tree_sha256", "selected_package_count", "network_attempt_count", "lifecycle_execution_count", "installed_code_execution_count", "openspec_execution_allowed", "openspec_scaffold_allowed"],
+              "properties": {
+                "state": { "const": "static-attested-unexecuted" },
+                "tree_sha256": { "const": "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae4789d391a2" },
+                "selected_package_count": { "const": 167 },
+                "network_attempt_count": { "const": 0 },
+                "lifecycle_execution_count": { "const": 0 },
+                "installed_code_execution_count": { "const": 0 },
+                "openspec_execution_allowed": { "const": false },
+                "openspec_scaffold_allowed": { "const": false }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "attemptFailedActual": {
+      "allOf": [
+        { "$ref": "#/$defs/ledgerRecordBase" },
+        {
+          "properties": {
+            "event": { "const": "attempt-failed" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["public_code", "promoted", "stage_deleted_or_moved_on_failure", "automatic_rollback_performed"],
+              "properties": {
+                "public_code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,127}$" },
+                "promoted": { "type": "boolean" },
+                "stage_deleted_or_moved_on_failure": { "const": false },
+                "automatic_rollback_performed": { "const": false }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "attemptFailed1False": { "allOf": [ { "$ref": "#/$defs/attemptFailedActual" }, { "properties": { "sequence": { "const": 1 }, "data": { "properties": { "promoted": { "const": false } } } } } ] },
+    "attemptFailed2False": { "allOf": [ { "$ref": "#/$defs/attemptFailedActual" }, { "properties": { "sequence": { "const": 2 }, "data": { "properties": { "promoted": { "const": false } } } } } ] },
+    "attemptFailed3False": { "allOf": [ { "$ref": "#/$defs/attemptFailedActual" }, { "properties": { "sequence": { "const": 3 }, "data": { "properties": { "promoted": { "const": false } } } } } ] },
+    "attemptFailed4Either": { "allOf": [ { "$ref": "#/$defs/attemptFailedActual" }, { "properties": { "sequence": { "const": 4 } } } ] },
+    "attemptFailed5True": { "allOf": [ { "$ref": "#/$defs/attemptFailedActual" }, { "properties": { "sequence": { "const": 5 }, "data": { "properties": { "promoted": { "const": true } } } } } ] },
+    "healthyLedgerSequence": {
+      "oneOf": [
+        { "$ref": "#/$defs/successLedgerSequence" },
+        { "$ref": "#/$defs/failureLedgerSequence1" },
+        { "$ref": "#/$defs/failureLedgerSequence2" },
+        { "$ref": "#/$defs/failureLedgerSequence3" },
+        { "$ref": "#/$defs/failureLedgerSequence4" },
+        { "$ref": "#/$defs/failureLedgerSequence5" }
+      ]
+    },
+    "successLedgerSequence": {
+      "type": "array",
+      "prefixItems": [ { "$ref": "#/$defs/receiptConsumedActual" }, { "$ref": "#/$defs/preflightFrozenActual" }, { "$ref": "#/$defs/stageMaterializedActual" }, { "$ref": "#/$defs/prePromotionActual" }, { "$ref": "#/$defs/stagePromotedActual" }, { "$ref": "#/$defs/staticCompleteActual" } ],
+      "minItems": 6,
+      "maxItems": 6,
+      "items": false
+    },
+    "failureLedgerSequence1": {
+      "type": "array",
+      "prefixItems": [ { "$ref": "#/$defs/receiptConsumedActual" }, { "$ref": "#/$defs/attemptFailed1False" } ],
+      "minItems": 2,
+      "maxItems": 2,
+      "items": false
+    },
+    "failureLedgerSequence2": {
+      "type": "array",
+      "prefixItems": [ { "$ref": "#/$defs/receiptConsumedActual" }, { "$ref": "#/$defs/preflightFrozenActual" }, { "$ref": "#/$defs/attemptFailed2False" } ],
+      "minItems": 3,
+      "maxItems": 3,
+      "items": false
+    },
+    "failureLedgerSequence3": {
+      "type": "array",
+      "prefixItems": [ { "$ref": "#/$defs/receiptConsumedActual" }, { "$ref": "#/$defs/preflightFrozenActual" }, { "$ref": "#/$defs/stageMaterializedActual" }, { "$ref": "#/$defs/attemptFailed3False" } ],
+      "minItems": 4,
+      "maxItems": 4,
+      "items": false
+    },
+    "failureLedgerSequence4": {
+      "type": "array",
+      "prefixItems": [ { "$ref": "#/$defs/receiptConsumedActual" }, { "$ref": "#/$defs/preflightFrozenActual" }, { "$ref": "#/$defs/stageMaterializedActual" }, { "$ref": "#/$defs/prePromotionActual" }, { "$ref": "#/$defs/attemptFailed4Either" } ],
+      "minItems": 5,
+      "maxItems": 5,
+      "items": false
+    },
+    "failureLedgerSequence5": {
+      "type": "array",
+      "prefixItems": [ { "$ref": "#/$defs/receiptConsumedActual" }, { "$ref": "#/$defs/preflightFrozenActual" }, { "$ref": "#/$defs/stageMaterializedActual" }, { "$ref": "#/$defs/prePromotionActual" }, { "$ref": "#/$defs/stagePromotedActual" }, { "$ref": "#/$defs/attemptFailed5True" } ],
+      "minItems": 6,
+      "maxItems": 6,
+      "items": false
+    }
+  }
+}
