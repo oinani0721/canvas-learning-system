@@ -2,8 +2,10 @@
 """Hostile, public-only contract checks for the GOV-01 generation issuer.
 
 The fixture imports the issuer as source, uses deterministic synthetic contract
-values, and writes only inside a temporary directory.  It never invokes
-``issue`` or ``generate`` and never resolves any private locator.
+values, and writes only inside a temporary directory.  It never invokes the
+``issue`` or ``generate`` CLI modes.  One production-boundary regression derives
+private locators from the frozen public contract, then stops before private
+access and never serializes those locators.
 """
 
 import argparse
@@ -691,6 +693,409 @@ def bound_executor_pure_contract_matrix(
         "bool_int_scalar_type_parity": bool_int_scalar_type_parity,
         "claim_core": claim_core,
     }
+
+
+def content_addressed_control_prep_locator_matrix(
+    synthetic_root: pathlib.Path,
+    generator: Any,
+    receipt: str,
+    challenge: str,
+    expected_head: str,
+    expected_tree: str,
+) -> bool:
+    """Run the real committed public chain, then stop before private I/O.
+
+    The frozen control-preparation envelope intentionally uses pretty JSON.
+    Its raw digest and domain receipt, rather than compact serialization, are
+    the byte authority.  This matrix exercises those exact committed bytes
+    through the real receipt/Git-transition loader, production state machine,
+    and content-addressed executor.  A test-only exception is raised only after
+    the real derivation returns, so no private locator is returned to the
+    fixture report or serialized.
+    """
+
+    control_relative = (
+        generator.CONTROL_PREFIX + "GOV-01-toolchain-control-prep-envelope-v1.json"
+    )
+    control_raw = (synthetic_root / control_relative).read_bytes()
+    require(
+        generator.sha256(control_raw) == generator.CONTROL_PREP_ENVELOPE_SHA256,
+        "control-prep-locator-frozen-raw",
+    )
+    require(
+        control_raw.startswith(b"{\n  \"")
+        and control_raw.endswith(b"\n")
+        and generator.canonical_json(generator.parse_json(control_raw, "FIXTURE_CONTROL_PREP"))
+        != control_raw,
+        "control-prep-locator-pretty-encoding",
+    )
+
+    output_path = synthetic_root / generator.final_relative(challenge)
+
+    def repository_snapshot() -> Tuple[str, str, str, bytes]:
+        status_raw = run_synthetic_git_output(
+            synthetic_root,
+            ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        )
+        head = run_synthetic_git_output(
+            synthetic_root,
+            ["rev-parse", "--verify", "HEAD"],
+        ).decode("ascii").strip()
+        tree = run_synthetic_git_output(
+            synthetic_root,
+            ["rev-parse", "--verify", "HEAD^{tree}"],
+        ).decode("ascii").strip()
+        index_raw = (synthetic_root / ".git" / "index").read_bytes()
+        return head, tree, generator.sha256(index_raw), status_raw
+
+    before_snapshot = repository_snapshot()
+    require(
+        before_snapshot[0] == expected_head
+        and before_snapshot[1] == expected_tree
+        and before_snapshot[3] == b""
+        and not os.path.lexists(output_path),
+        "control-prep-locator-production-preimage",
+    )
+    counts: Dict[str, int] = {
+        "executor_load": 0,
+        "derive_enter": 0,
+        "derive_complete": 0,
+        "control_read": 0,
+        "pwd_lookup": 0,
+        "private_read": 0,
+        "key": 0,
+        "cache": 0,
+        "state": 0,
+        "claim": 0,
+        "output": 0,
+        "process": 0,
+        "entropy": 0,
+        "clock": 0,
+        "collect": 0,
+    }
+
+    class LocatorDerivationCheckpoint(Exception):
+        pass
+
+    class ContentAddressedLocatorBoundary(generator.ProductionGenerationBoundaryV1):
+        def __init__(self) -> None:
+            self.executor: Optional[Any] = None
+            self.context: Optional[Dict[str, Any]] = None
+            self.authorization: Optional[Dict[str, Any]] = None
+
+        def load_content_addressed_executor(self, value_context: Mapping[str, Any]) -> Any:
+            counts["executor_load"] += 1
+            self.context = copy.deepcopy(dict(value_context))
+            executor = super().load_content_addressed_executor(value_context)
+            self.executor = executor
+            exact_control_path = os.path.join(
+                str(synthetic_root),
+                *control_relative.split("/"),
+            )
+            original_read_absolute_regular = executor.read_absolute_regular
+            original_assert_no_symlink_components = executor.assert_no_symlink_components
+
+            def guarded_absolute_read(
+                path: str,
+                label: str,
+                max_bytes: int,
+            ) -> Tuple[bytes, os.stat_result]:
+                if path != exact_control_path or label != "CONTROL_PREPARATION_ENVELOPE":
+                    counts["private_read"] += 1
+                    raise FixtureFailure("control-prep-locator-private-read")
+                counts["control_read"] += 1
+                return original_read_absolute_regular(path, label, max_bytes)
+
+            def guarded_no_symlink_components(path: str, label: str) -> os.stat_result:
+                if path != exact_control_path or label != "CONTROL_PREPARATION_ENVELOPE":
+                    counts["state"] += 1
+                    raise FixtureFailure("control-prep-locator-private-path-check")
+                return original_assert_no_symlink_components(path, label)
+
+            executor.read_absolute_regular = guarded_absolute_read
+            executor.assert_no_symlink_components = guarded_no_symlink_components
+            original_pwd = executor.pwd
+
+            class ObservedPwd:
+                @staticmethod
+                def getpwuid(uid: int) -> Any:
+                    counts["pwd_lookup"] += 1
+                    return original_pwd.getpwuid(uid)
+
+            executor.pwd = ObservedPwd
+
+            def denied(category: str) -> Any:
+                def deny_call(*_args: Any, **_kwargs: Any) -> Any:
+                    counts[category] += 1
+                    raise FixtureFailure("control-prep-locator-" + category)
+
+                return deny_call
+
+            for name, category in (
+                ("load_hmac_key", "key"),
+                ("read_json_relative", "cache"),
+                ("open_directory", "state"),
+                ("verify_control_preparation_projection_v2", "state"),
+                ("probe_generation_claim_v2", "claim"),
+                ("create_generation_claim_v2", "claim"),
+                ("verify_generation_claim_recovery_v2", "claim"),
+                ("collect_generation_observations_v2", "collect"),
+                ("run_process", "process"),
+            ):
+                require(callable(getattr(executor, name, None)), "control-prep-locator-tripwire-" + name)
+                setattr(executor, name, denied(category))
+            return executor
+
+        def derive_generation_runtime_args(
+            self,
+            executor: Any,
+            value_context: Mapping[str, Any],
+            authorization: Mapping[str, Any],
+        ) -> Any:
+            counts["derive_enter"] += 1
+            self.authorization = copy.deepcopy(dict(authorization))
+            derived = super().derive_generation_runtime_args(
+                executor,
+                value_context,
+                authorization,
+            )
+            require(
+                isinstance(derived, executor.GenerationRuntimeArgsV2),
+                "control-prep-locator-runtime-type",
+            )
+            require(
+                derived.repo_root == str(synthetic_root)
+                and derived.envelope
+                == os.path.join(
+                    str(synthetic_root),
+                    *generator.final_relative(challenge).split("/"),
+                )
+                and os.path.dirname(derived.key_file) == derived.state_root,
+                "control-prep-locator-runtime-binding",
+            )
+            counts["derive_complete"] += 1
+            raise LocatorDerivationCheckpoint
+
+        def now_second(self) -> dt.datetime:
+            counts["clock"] += 1
+            raise FixtureFailure("control-prep-locator-clock")
+
+        def random_bytes(self, _length: int) -> bytes:
+            counts["entropy"] += 1
+            raise FixtureFailure("control-prep-locator-entropy")
+
+    trace: List[Dict[str, str]] = []
+    boundary = ContentAddressedLocatorBoundary()
+    original_write_exclusive_public_file = generator.write_exclusive_public_file
+
+    def deny_output(*_args: Any, **_kwargs: Any) -> Any:
+        counts["output"] += 1
+        raise FixtureFailure("control-prep-locator-output")
+
+    generator.write_exclusive_public_file = deny_output
+    try:
+        try:
+            generator.generate_with_boundary_v1(
+                receipt,
+                challenge,
+                boundary=boundary,
+                trace=trace,
+            )
+        except LocatorDerivationCheckpoint:
+            pass
+        else:
+            raise FixtureFailure("control-prep-locator-checkpoint-not-reached")
+    finally:
+        generator.write_exclusive_public_file = original_write_exclusive_public_file
+
+    generator.require_git_adapter_quiescent("FIXTURE_CONTROL_PREP_LOCATOR")
+    after_snapshot = repository_snapshot()
+    require(
+        after_snapshot == before_snapshot
+        and not os.path.lexists(output_path)
+        and len(generator._OPEN_GIT_ADAPTERS) == 0
+        and generator._ACTIVE_GIT_ADAPTER_SCOPE is None,
+        "control-prep-locator-production-postcondition",
+    )
+
+    require(
+        trace
+        == [
+            {"event": "PUBLIC_APPROVAL_LOAD", "phase": "public-authorization"},
+            {"event": "PUBLIC_APPROVAL_VALIDATED", "phase": "public-authorization"},
+            {"event": "EXECUTOR_LOAD", "phase": "public-code-binding"},
+            {"event": "EXECUTOR_BOUND", "phase": "public-code-binding"},
+            {"event": "GENERATION_AUTHORITY_BOUND", "phase": "public-authorization"},
+            {"event": "PRIVATE_LOCATOR_DERIVE", "phase": "private-observation"},
+        ],
+        "control-prep-locator-production-trace",
+    )
+    require(
+        counts
+        == {
+            "executor_load": 1,
+            "derive_enter": 1,
+            "derive_complete": 1,
+            "control_read": 1,
+            "pwd_lookup": 1,
+            "private_read": 0,
+            "key": 0,
+            "cache": 0,
+            "state": 0,
+            "claim": 0,
+            "output": 0,
+            "process": 0,
+            "entropy": 0,
+            "clock": 0,
+            "collect": 0,
+        },
+        "control-prep-locator-preclaim-zero-private-io",
+    )
+    if (
+        boundary.executor is None
+        or boundary.context is None
+        or boundary.authorization is None
+    ):
+        raise FixtureFailure("control-prep-locator-boundary-capture-absent")
+    bound_executor = boundary.executor
+    bound_context = boundary.context
+    bound_authorization = boundary.authorization
+    require(
+        bound_context["micro_receipt"] == receipt
+        and bound_context["micro_envelope"]["approval_challenge_id"] == challenge
+        and bound_context["current_head"] == expected_head
+        and bound_context["current_tree"] == expected_tree,
+        "control-prep-locator-real-public-context",
+    )
+    require(
+        bound_executor.CONTROL_PREPARATION_ENVELOPE_RAW_SHA256
+        == generator.CONTROL_PREP_ENVELOPE_SHA256
+        and generator.sha256(
+            bound_executor.CONTROL_PREPARATION_ENVELOPE_RECEIPT_DOMAIN
+            + b"\x00"
+            + control_raw
+        )
+        == bound_executor.CONTROL_PREPARATION_RECEIPT_DIGEST,
+        "control-prep-locator-raw-authority",
+    )
+
+    parser_cases = {
+        "bom": (b"\xef\xbb\xbf{}\n", "FIXTURE_STRICT_ENCODING"),
+        "crlf": (b"{}\r\n", "FIXTURE_STRICT_ENCODING"),
+        "utf8": (b'{"value":"\xff"}\n', "FIXTURE_STRICT_UTF8"),
+        "nfc": ('{"value":"e\u0301"}\n'.encode("utf-8"), "FIXTURE_STRICT_NFC"),
+        "duplicate": (b'{"value":1,"value":2}\n', "JSON_DUPLICATE_KEY"),
+        "float": (b'{"value":1.0}\n', "JSON_NUMBER_PROFILE"),
+    }
+    for name, (candidate, expected_code) in parser_cases.items():
+        try:
+            bound_executor.parse_json_bytes(candidate, "FIXTURE_STRICT")
+        except bound_executor.ContractError as error:
+            require(
+                error.public_code == expected_code,
+                "control-prep-locator-parser-code-" + name,
+            )
+        else:
+            raise FixtureFailure("control-prep-locator-parser-accepted-" + name)
+
+    parsed_control = bound_executor.parse_json_bytes(
+        control_raw,
+        "FIXTURE_CONTROL_PREPARATION_ENVELOPE",
+    )
+    require(
+        isinstance(parsed_control, dict)
+        and parsed_control.get("encoding_profile")
+        == "UTF-8-NFC-LF-no-BOM-no-duplicate-json-keys",
+        "control-prep-locator-exact-parser-positive",
+    )
+
+    mutations = (
+        control_raw + b" ",
+        b"\xef\xbb\xbf" + control_raw,
+        control_raw.replace(b"\n", b"\r\n", 1),
+        bound_executor.canonical_json(parsed_control),
+        control_raw.replace(b'"root_mode": "0700"', b'"root_mode": "0755"', 1),
+    )
+    require(
+        len({generator.sha256(value) for value in mutations}) == len(mutations),
+        "control-prep-locator-mutation-distinct",
+    )
+    for index, mutated_raw in enumerate(mutations):
+        with tempfile.TemporaryDirectory(
+            prefix="gov01-control-prep-locator-mutation-",
+            dir=os.path.realpath(tempfile.gettempdir()),
+        ) as temporary:
+            mutation_root = pathlib.Path(temporary)
+            control_path = mutation_root / control_relative
+            control_path.parent.mkdir(parents=True, exist_ok=True)
+            control_path.write_bytes(mutated_raw)
+            os.chmod(control_path, 0o644)
+            mutation_executor = generator.load_content_addressed_executor(bound_context)
+            mutation_counts = {
+                "public_read": 0,
+                "parse": 0,
+                "pwd": 0,
+                "private": 0,
+            }
+            original_mutation_read = mutation_executor.read_absolute_regular
+
+            def observed_mutation_read(
+                path: str,
+                label: str,
+                max_bytes: int,
+            ) -> Tuple[bytes, os.stat_result]:
+                if path != str(control_path) or label != "CONTROL_PREPARATION_ENVELOPE":
+                    mutation_counts["private"] += 1
+                    raise FixtureFailure("control-prep-locator-mutation-private-read")
+                mutation_counts["public_read"] += 1
+                return original_mutation_read(path, label, max_bytes)
+
+            def deny_mutation_parse(*_args: Any, **_kwargs: Any) -> Any:
+                mutation_counts["parse"] += 1
+                raise FixtureFailure("control-prep-locator-mutation-parse")
+
+            def deny_mutation_private(*_args: Any, **_kwargs: Any) -> Any:
+                mutation_counts["private"] += 1
+                raise FixtureFailure("control-prep-locator-mutation-private")
+
+            mutation_executor.read_absolute_regular = observed_mutation_read
+            mutation_executor.parse_json_bytes = deny_mutation_parse
+
+            class DeniedMutationPwd:
+                @staticmethod
+                def getpwuid(_uid: int) -> Any:
+                    mutation_counts["pwd"] += 1
+                    raise FixtureFailure("control-prep-locator-mutation-pwd")
+
+            mutation_executor.pwd = DeniedMutationPwd
+            for name in (
+                "load_hmac_key",
+                "read_json_relative",
+                "open_directory",
+                "verify_control_preparation_projection_v2",
+                "probe_generation_claim_v2",
+                "collect_generation_observations_v2",
+                "run_process",
+            ):
+                setattr(mutation_executor, name, deny_mutation_private)
+            try:
+                mutation_executor.derive_generation_runtime_args_v2(
+                    str(mutation_root.resolve(strict=True)),
+                    bound_authorization,
+                )
+            except mutation_executor.ContractError as error:
+                require(
+                    error.public_code == "CONTROL_PREPARATION_ENVELOPE_DRIFT",
+                    "control-prep-locator-mutation-code-" + str(index),
+                )
+            else:
+                raise FixtureFailure("control-prep-locator-mutation-accepted-" + str(index))
+            require(
+                mutation_counts
+                == {"public_read": 1, "parse": 0, "pwd": 0, "private": 0},
+                "control-prep-locator-mutation-order-" + str(index),
+            )
+    return True
 
 
 def schema_accepts(validator: Draft202012Validator, value: Any) -> bool:
@@ -4623,7 +5028,7 @@ def committed_transition_matrix(
     root: pathlib.Path,
     generator: Any,
     validator: Draft202012Validator,
-) -> Tuple[str, Dict[str, Any]]:
+) -> Tuple[str, Dict[str, Any], bool]:
     temp_parent = os.path.realpath(tempfile.gettempdir())
     with tempfile.TemporaryDirectory(prefix="gov01-generation-transition-", dir=temp_parent) as temporary:
         synthetic_root = pathlib.Path(temporary)
@@ -4748,6 +5153,14 @@ def committed_transition_matrix(
             context,
             authorization,
         )
+        locator_preclaim_bound = content_addressed_control_prep_locator_matrix(
+            synthetic_root,
+            synthetic_generator,
+            synthetic_generator.receipt_digest(raw),
+            challenge,
+            context["current_head"],
+            context["current_tree"],
+        )
         positive = (
             context["micro_raw"] == raw
             and context["micro_envelope"] == envelope
@@ -4793,6 +5206,7 @@ def committed_transition_matrix(
             and bound_pure["claim_core"]["ok"] is True
             and bound_pure["bool_int_scalar_type_parity"]["ok"] is True
             and bound_pure["bool_int_scalar_type_parity"]["mutation_count"] == 145
+            and locator_preclaim_bound is True
             and git_post_preflight_sandbox_matrix(
                 synthetic_generator,
                 synthetic_root,
@@ -4803,6 +5217,7 @@ def committed_transition_matrix(
         return (
             HOST_SANDBOX_POSITIVE if positive else "transition-check-failed",
             bound_pure,
+            locator_preclaim_bound,
         )
 
 
@@ -4955,7 +5370,11 @@ def _run_fixture_checks(root: pathlib.Path) -> Dict[str, Any]:
     git_argv_closure_bound = generation_git_argv_closure_matrix(root, generator)
     non_head_missing_tip_bound = non_head_missing_tip_adapter_matrix(root, generator)
     linked_worktree_refs_bound = linked_worktree_ref_namespace_matrix(root, generator)
-    transition_mode, bound_pure = committed_transition_matrix(root, generator, validator)
+    transition_mode, bound_pure, locator_preclaim_bound = committed_transition_matrix(
+        root,
+        generator,
+        validator,
+    )
     final_delete_capability = git_adapter_final_delete_capability_characterization(generator)
     require(
         final_delete_capability
@@ -4992,6 +5411,7 @@ def _run_fixture_checks(root: pathlib.Path) -> Dict[str, Any]:
             and bound_pure["bool_int_scalar_type_parity"]["ok"]
             and bound_pure["bool_int_scalar_type_parity"]["mutation_count"] == 145
         ),
+        "content_addressed_control_prep_locator_preclaim": locator_preclaim_bound,
         "content_addressed_durable_claim_fd_core": bound_pure["claim_core"]["ok"],
         "path_and_ref_privacy": path_grammar_matrix(schema, generator),
         "final_gen_single_publish_name_binding": final_name_matrix(generator),

@@ -253,6 +253,43 @@ def run_checked(argv, cwd):
         raise AssertionError("fixture setup command failed")
 
 
+def sbpl_top_level_forms(profile):
+    """Return balanced top-level SBPL forms without interpreting the policy."""
+
+    forms = []
+    start = None
+    depth = 0
+    quoted = False
+    escaped = False
+    for index, character in enumerate(profile):
+        if quoted:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                quoted = False
+            continue
+        if character == '"':
+            quoted = True
+        elif character == "(":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth < 0:
+                raise AssertionError("unbalanced sandbox profile")
+            if depth == 0:
+                if start is None:
+                    raise AssertionError("sandbox profile form start missing")
+                forms.append(profile[start : index + 1])
+                start = None
+    if quoted or depth != 0 or start is not None:
+        raise AssertionError("unterminated sandbox profile")
+    return forms
+
+
 def exercise_claim_fault(acquisition, fault_name):
     with tempfile.TemporaryDirectory(prefix="gov01-claim-fault-", dir="/private/tmp") as temporary:
         state_root = pathlib.Path(temporary) / "state"
@@ -2503,8 +2540,10 @@ def run_git_metadata_adapter_hostile_fixtures(acquisition, report):
             prefix="gov01-adapter-sandbox-probe-", dir="/private/tmp"
         ) as probe_temporary:
             probe_root = pathlib.Path(probe_temporary)
-            probe_source = probe_root / "probe.c"
-            probe_binary = probe_root / "probe"
+            probe_developer_root = probe_root / "developer"
+            probe_developer_root.mkdir(mode=0o700)
+            probe_source = probe_developer_root / "probe.c"
+            probe_binary = probe_developer_root / "probe"
             write_bytes(
                 probe_source,
                 b"""#include <errno.h>
@@ -2531,6 +2570,38 @@ int main(int argc, char **argv) {
     return denied(rmdir(argv[2]));
   if (strcmp(argv[1], "rename-denied") == 0 && argc == 4)
     return denied(rename(argv[2], argv[3]));
+  errno = 0;
+  if (strcmp(argv[1], "existence-absent") == 0) {
+    int result = access(argv[2], F_OK);
+    return result == -1 && errno == ENOENT ? 0 : 53;
+  }
+  if (strcmp(argv[1], "existence-present") == 0)
+    return access(argv[2], F_OK) == 0 ? 0 : 54;
+  if (strcmp(argv[1], "existence-denied") == 0)
+    return denied(access(argv[2], F_OK));
+  if (strcmp(argv[1], "metadata-denied") == 0) {
+    struct stat metadata;
+    return denied(lstat(argv[2], &metadata));
+  }
+  if (strcmp(argv[1], "read-zero-bytes") == 0) {
+    unsigned char byte = 0;
+    int fd = open(argv[2], O_RDONLY);
+    if (fd == -1) return denied(fd);
+    errno = 0;
+    ssize_t count = read(fd, &byte, 1);
+    int read_errno = errno;
+    if (close(fd) != 0) return 55;
+    if (count == -1 && (read_errno == EPERM || read_errno == EACCES)) return 0;
+    return 56;
+  }
+  if (strcmp(argv[1], "read-one-byte") == 0) {
+    unsigned char byte = 0;
+    int fd = open(argv[2], O_RDONLY);
+    if (fd == -1) return 57;
+    ssize_t count = read(fd, &byte, 1);
+    if (close(fd) != 0) return 58;
+    return count == 1 ? 0 : 59;
+  }
   return 52;
 }
 """,
@@ -2573,13 +2644,13 @@ int main(int argc, char **argv) {
             acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][probe_path] = acquisition[
                 "hash_regular_absolute"
             ](probe_path, "ADAPTER_SANDBOX_WRITE_PROBE")["sha256"]
-            acquisition["_GIT_DEVELOPER_ROOTS"][probe_path] = str(probe_root)
+            acquisition["_GIT_DEVELOPER_ROOTS"][probe_path] = str(probe_developer_root)
             git_fd = os.open(adapter_git, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
             try:
                 write_profile = acquisition["git_object_bootstrap_sandbox_profile"](
                     probe_path,
                     str(probe_repo),
-                    str(probe_root),
+                    str(probe_developer_root),
                     str(adapter_root),
                     ".",
                     str(live_git),
@@ -2619,7 +2690,7 @@ int main(int argc, char **argv) {
                 empty_profile = acquisition["git_object_bootstrap_sandbox_profile"](
                     probe_path,
                     str(probe_repo),
-                    str(probe_root),
+                    str(probe_developer_root),
                     str(empty_adapter_root),
                     ".",
                     str(live_git),
@@ -2644,6 +2715,214 @@ int main(int argc, char **argv) {
                     and adapter_root.is_dir()
                     and empty_adapter_root.is_dir()
                 )
+
+                # A2 grants one post-deny existence probe for exactly the
+                # prevalidated-absent common object-store alternates path.  It
+                # never grants metadata or data reads, including when a race
+                # replaces that pathname with a regular file, hard link or
+                # symlink to an otherwise readable object.
+                object_info = live_objects / "info"
+                object_info.mkdir(mode=0o700)
+                selected_oid = "a" * 40
+                selected_loose = live_objects / selected_oid[:2] / selected_oid[2:]
+                selected_loose.parent.mkdir(mode=0o700)
+                selected_loose_raw = b"separately allowed object bytes\n"
+                write_bytes(selected_loose, selected_loose_raw, 0o600)
+                selected_loose_link_count = selected_loose.stat().st_nlink
+                alternates = object_info / "alternates"
+                http_alternates = object_info / "http-alternates"
+                object_sentinel = object_info / "sentinel"
+                grafts = live_common / "info/grafts"
+                grafts.parent.mkdir(mode=0o700)
+                write_bytes(http_alternates, b"https://invalid.example/objects\n", 0o600)
+                write_bytes(object_sentinel, b"must remain unread\n", 0o600)
+                write_bytes(grafts, b"0 0\n", 0o600)
+                bridge_profile = acquisition["git_object_bootstrap_sandbox_profile"](
+                    probe_path,
+                    str(probe_repo),
+                    str(probe_developer_root),
+                    str(adapter_root),
+                    ".",
+                    str(live_git),
+                    str(live_common),
+                    str(live_objects),
+                    True,
+                    False,
+                    (selected_oid,),
+                    (),
+                )
+                bridge_profile_text = bridge_profile.decode("ascii")
+                bridge_forms = sbpl_top_level_forms(bridge_profile_text)
+                alternates_literal = '(literal "' + str(alternates) + '")'
+                alternates_allow_forms = [
+                    form
+                    for form in bridge_forms
+                    if form.lstrip().startswith("(allow ") and alternates_literal in form
+                ]
+                assert len(alternates_allow_forms) == 1
+                assert " ".join(alternates_allow_forms[0].split()) == (
+                    "(allow file-test-existence " + alternates_literal + ")"
+                )
+                alternate_form_index = bridge_forms.index(alternates_allow_forms[0])
+                alternates_denies = [
+                    index
+                    for index, form in enumerate(bridge_forms)
+                    if form.lstrip().startswith("(deny ") and alternates_literal in form
+                ]
+                object_info_subpath = '(subpath "' + str(object_info) + '")'
+                object_info_denies = [
+                    index
+                    for index, form in enumerate(bridge_forms)
+                    if form.lstrip().startswith("(deny ") and object_info_subpath in form
+                ]
+                assert alternates_denies and max(alternates_denies) < alternate_form_index
+                assert object_info_denies and max(object_info_denies) < alternate_form_index
+                for denied_path in (http_alternates, grafts, object_sentinel):
+                    quoted_path = '"' + str(denied_path) + '"'
+                    assert not any(
+                        form.lstrip().startswith("(allow ") and quoted_path in form
+                        for form in bridge_forms
+                    )
+
+                def native_probe(command, path, profile, label):
+                    acquisition["run_process"](
+                        [probe_path, command, str(path)],
+                        acquisition["git_env"](),
+                        4096,
+                        label,
+                        sandbox_profile=profile,
+                        working_directory_fd=git_fd,
+                    )
+
+                native_probe(
+                    "existence-absent",
+                    alternates,
+                    bridge_profile,
+                    "ADAPTER_SANDBOX_ALTERNATES_ABSENT",
+                )
+                native_probe(
+                    "read-one-byte",
+                    selected_loose,
+                    bridge_profile,
+                    "ADAPTER_SANDBOX_SELECTED_OBJECT_POSITIVE_CONTROL",
+                )
+                for denied_path, label in (
+                    (http_alternates, "HTTP_ALTERNATES"),
+                    (grafts, "GRAFTS"),
+                    (object_sentinel, "OBJECT_INFO_SENTINEL"),
+                ):
+                    native_probe(
+                        "existence-denied",
+                        denied_path,
+                        bridge_profile,
+                        "ADAPTER_SANDBOX_" + label + "_EXISTENCE",
+                    )
+                    native_probe(
+                        "metadata-denied",
+                        denied_path,
+                        bridge_profile,
+                        "ADAPTER_SANDBOX_" + label + "_METADATA",
+                    )
+                    native_probe(
+                        "read-zero-bytes",
+                        denied_path,
+                        bridge_profile,
+                        "ADAPTER_SANDBOX_" + label + "_READ",
+                    )
+
+                for kind in ("regular", "hardlink", "symlink"):
+                    if kind == "regular":
+                        write_bytes(alternates, b"hostile regular bytes\n", 0o600)
+                    elif kind == "hardlink":
+                        os.link(selected_loose, alternates)
+                    else:
+                        os.symlink(str(selected_loose), str(alternates))
+                    try:
+                        native_probe(
+                            "existence-denied" if kind == "symlink" else "existence-present",
+                            alternates,
+                            bridge_profile,
+                            "ADAPTER_SANDBOX_ALTERNATES_" + kind.upper() + "_EXISTENCE",
+                        )
+                        native_probe(
+                            "metadata-denied",
+                            alternates,
+                            bridge_profile,
+                            "ADAPTER_SANDBOX_ALTERNATES_" + kind.upper() + "_METADATA",
+                        )
+                        native_probe(
+                            "read-zero-bytes",
+                            alternates,
+                            bridge_profile,
+                            "ADAPTER_SANDBOX_ALTERNATES_" + kind.upper() + "_READ",
+                        )
+                    finally:
+                        alternates.unlink()
+                assert selected_loose.read_bytes() == selected_loose_raw
+                assert selected_loose.stat().st_nlink == selected_loose_link_count
+
+                # Bridge-free children receive no alternates exception at all.
+                bridge_free_profile = acquisition["git_object_bootstrap_sandbox_profile"](
+                    probe_path,
+                    str(probe_repo),
+                    str(probe_developer_root),
+                    str(adapter_root),
+                    ".",
+                    str(live_git),
+                    str(live_common),
+                    str(live_objects),
+                    False,
+                    False,
+                    (),
+                    (),
+                )
+                bridge_free_forms = sbpl_top_level_forms(bridge_free_profile.decode("ascii"))
+                assert not any(
+                    form.lstrip().startswith("(allow ") and alternates_literal in form
+                    for form in bridge_free_forms
+                )
+                assert any(
+                    form.lstrip().startswith("(deny ") and alternates_literal in form
+                    for form in bridge_free_forms
+                )
+                native_probe(
+                    "existence-denied",
+                    alternates,
+                    bridge_free_profile,
+                    "ADAPTER_SANDBOX_BRIDGE_FREE_ALTERNATES",
+                )
+
+                # The permission follows the linked-worktree common object
+                # store, never a per-worktree object path or an environment
+                # override.
+                linked_wrong_alternates = live_git / "objects/info/alternates"
+                linked_wrong_alternates.parent.mkdir(parents=True, mode=0o700)
+                write_bytes(linked_wrong_alternates, b"wrong object root\n", 0o600)
+                linked_wrong_literal = '(literal "' + str(linked_wrong_alternates) + '")'
+                assert not any(
+                    form.lstrip().startswith("(allow ") and linked_wrong_literal in form
+                    for form in bridge_forms
+                )
+                assert any(
+                    form.lstrip().startswith("(deny ") and linked_wrong_literal in form
+                    for form in bridge_forms
+                )
+                native_probe(
+                    "existence-denied",
+                    linked_wrong_alternates,
+                    bridge_profile,
+                    "ADAPTER_SANDBOX_LINKED_WRONG_ALTERNATES_EXISTENCE",
+                )
+                native_probe(
+                    "read-zero-bytes",
+                    linked_wrong_alternates,
+                    bridge_profile,
+                    "ADAPTER_SANDBOX_LINKED_WRONG_ALTERNATES_READ",
+                )
+                assert "GIT_ALTERNATE_OBJECT_DIRECTORIES" not in acquisition["git_env"]()
+                assert "GIT_ALTERNATE_OBJECT_DIRECTORIES" not in acquisition["git_env"](
+                    str(live_objects)
+                )
             finally:
                 os.close(git_fd)
                 if old_probe_hash is None:
@@ -2667,6 +2946,9 @@ int main(int argc, char **argv) {
                     if directory.exists():
                         os.rmdir(directory)
             report["git_metadata_adapter_private_tmp_write_sandbox_capability"] = "PASS"
+            report["git_metadata_adapter_alternates_existence_only_profile_order"] = "PASS"
+            report["git_metadata_adapter_alternates_native_zero_byte_matrix"] = "PASS"
+            report["git_metadata_adapter_bridge_free_and_linked_object_scope"] = "PASS"
 
     executor_source = ACQ_PATH.read_text(encoding="utf-8")
     executor_tree = ast.parse(executor_source)
@@ -2700,9 +2982,74 @@ int main(int argc, char **argv) {
         "next_required_authority": "fixture-authority",
     }
     embedded = json.loads(acquisition["_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON"])
-    assert embedded == acquisition["synchronize_pending_template_git_adapter_v2"](
+    synchronized_once = acquisition["synchronize_pending_template_git_adapter_v2"](
         copy.deepcopy(embedded)
     )
+    synchronized_twice = acquisition["synchronize_pending_template_git_adapter_v2"](
+        copy.deepcopy(synchronized_once)
+    )
+    assert embedded == synchronized_once == synchronized_twice
+    bootstrap_profile_contract = acquisition[
+        "GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE_V4"
+    ]
+    assert embedded["execution_plan"][
+        "git_metadata_adapter_bootstrap_sandbox_profile"
+    ] == bootstrap_profile_contract
+    assert "GIT_ALTERNATE_OBJECT_DIRECTORIES" not in embedded["execution_plan"][
+        "environment_name_allowlist"
+    ]
+    assert all(
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES" not in entry["environment_name_allowlist"]
+        for entry in embedded["execution_plan"]["evidence_command_templates"]
+    )
+    assert synchronized_twice["mutation_scope"]["allowed_ephemeral_mutations"][0] == acquisition[
+        "GIT_ADAPTER_EPHEMERAL_MUTATION_V3"
+    ]
+    assert sum(
+        value.startswith(
+            "before each Git child sequence create one unpredictable exact 0700 /private/tmp/"
+        )
+        for value in synchronized_twice["mutation_scope"]["allowed_ephemeral_mutations"]
+    ) == 1
+    stale_template = copy.deepcopy(embedded)
+    stale_template["execution_plan"][
+        "git_metadata_adapter_bootstrap_sandbox_profile"
+    ] = "retired-bootstrap-sandbox-profile-v3"
+    stale_template["mutation_scope"]["allowed_ephemeral_mutations"].insert(
+        0,
+        "before each Git child sequence create one unpredictable exact 0700 /private/tmp/"
+        "retired-dead-branch",
+    )
+    stale_synchronized = acquisition["synchronize_pending_template_git_adapter_v2"](
+        stale_template
+    )
+    assert stale_synchronized["execution_plan"][
+        "git_metadata_adapter_bootstrap_sandbox_profile"
+    ] == bootstrap_profile_contract
+    assert stale_synchronized == acquisition[
+        "synchronize_pending_template_git_adapter_v2"
+    ](copy.deepcopy(stale_synchronized))
+    assert sum(
+        value.startswith(
+            "before each Git child sequence create one unpredictable exact 0700 /private/tmp/"
+        )
+        for value in stale_synchronized["mutation_scope"]["allowed_ephemeral_mutations"]
+    ) == 1
+    bootstrap_profile_assignments = [
+        node
+        for node in executor_tree.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name)
+            and target.id == "GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE_V4"
+            for target in node.targets
+        )
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    ]
+    assert len(bootstrap_profile_assignments) == 1
+    assert bootstrap_profile_assignments[0].value.value == bootstrap_profile_contract
+    assert "GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE_V3" not in executor_source
     trust_boundary = acquisition["GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1"]
     host_assurance = acquisition["GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1"]
     cleanup_guarantee = acquisition["GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1"]
@@ -2796,6 +3143,7 @@ int main(int argc, char **argv) {
     )
     assert all(template.count("--git-dir=.") == 1 and "-C" not in template for template in templates)
     report["git_metadata_adapter_ast_fd_and_template_boundary"] = "PASS"
+    report["git_metadata_adapter_bootstrap_v4_raw_template_idempotence"] = "PASS"
 
     roots_before = adapter_roots()
     with tempfile.TemporaryDirectory(prefix="gov01-git-adapter-fixture-", dir="/private/tmp") as temporary:
@@ -2899,6 +3247,94 @@ int main(int argc, char **argv) {
                 acquisition["cleanup_git_metadata_adapter"](boundary)
 
         try:
+            # Every already-present alternates shape is rejected by the
+            # parent lstat preflight before a child or adapter root exists.
+            # This also proves the existence-only child permission is not a
+            # substitute for the parent absence gate.
+            live_alternates = repo / ".git/objects/info/alternates"
+            live_alternates.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            hostile_alternates_source = temporary_path / "hostile-alternates-source"
+            write_bytes(hostile_alternates_source, b"hostile alternate store\n", 0o600)
+            source_link_count = hostile_alternates_source.stat().st_nlink
+            for kind in ("regular", "hardlink", "symlink"):
+                if kind == "regular":
+                    write_bytes(live_alternates, b"hostile regular store\n", 0o600)
+                elif kind == "hardlink":
+                    os.link(hostile_alternates_source, live_alternates)
+                else:
+                    os.symlink(str(hostile_alternates_source), str(live_alternates))
+                roots_before_present_control = adapter_roots()
+                child_starts = []
+                original_run_process_for_control = acquisition["run_process"]
+
+                def record_present_control_child(*args, **kwargs):
+                    child_starts.append((args, kwargs))
+                    return original_run_process_for_control(*args, **kwargs)
+
+                acquisition["run_process"] = record_present_control_child
+                try:
+                    expect_error(
+                        "adapter present alternates preflight " + kind,
+                        create_adapter,
+                        "GIT_ALTERNATE_CONTROL_PROHIBITED",
+                    )
+                finally:
+                    acquisition["run_process"] = original_run_process_for_control
+                    live_alternates.unlink()
+                assert child_starts == []
+                assert adapter_roots() == roots_before_present_control
+                assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 0
+                assert hostile_alternates_source.stat().st_nlink == source_link_count
+            hostile_alternates_source.unlink()
+            report["git_metadata_adapter_present_alternates_preflight_zero_child_root"] = "PASS"
+
+            if sandbox_mode == "host-sandbox-enforced-positive":
+                # Inject the same control only after capture and scratch
+                # creation, immediately before the first production
+                # live-object bootstrap child.  The A2 profile exposes
+                # existence only: Apple Git's byte read is denied, strict
+                # stderr/result handling aborts, and create removes the exact
+                # scratch root without registry residue.
+                original_bootstrap_for_race = acquisition[
+                    "run_git_object_bootstrap_child"
+                ]
+                race_calls = []
+
+                def inject_post_preflight_alternates(**kwargs):
+                    if kwargs.get("allow_live_objects") is True and not race_calls:
+                        write_bytes(live_alternates, b"post-preflight hostile store\n", 0o600)
+                        race_calls.append(tuple(kwargs.get("arguments", ())))
+                    return original_bootstrap_for_race(**kwargs)
+
+                roots_before_race = adapter_roots()
+                acquisition[
+                    "run_git_object_bootstrap_child"
+                ] = inject_post_preflight_alternates
+                try:
+                    race_reason = expect_error(
+                        "adapter post-preflight alternates race",
+                        create_adapter,
+                    )
+                    assert race_calls and race_reason in (
+                        "GIT_OBJECT_HEAD_COMMIT_STDERR",
+                        "GIT_OBJECT_HEAD_COMMIT_RESULT",
+                        "GIT_ADAPTER_SOURCE_DRIFT",
+                    )
+                finally:
+                    acquisition[
+                        "run_git_object_bootstrap_child"
+                    ] = original_bootstrap_for_race
+                    if os.path.lexists(live_alternates):
+                        live_alternates.unlink()
+                assert adapter_roots() == roots_before_race
+                assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 0
+                assert not os.path.lexists(live_alternates)
+                report["git_metadata_adapter_post_preflight_alternates_race_fail_closed"] = "PASS"
+            else:
+                report[
+                    "git_metadata_adapter_post_preflight_alternates_race_fail_closed"
+                ] = sandbox_mode
+
             roots_before_ref_capture_overflow = adapter_roots()
             original_entry_limit = acquisition["MAX_GIT_ADAPTER_ENTRIES"]
             try:
@@ -2977,6 +3413,21 @@ int main(int argc, char **argv) {
                 )
                 assert "(deny file-write*)" in final_profile
                 assert "(deny file-write*)" in bootstrap_read_profile
+                live_alternates_literal = '(literal "' + os.path.join(
+                    boundary.live_common_dir,
+                    "objects",
+                    "info",
+                    "alternates",
+                ) + '")'
+                final_profile_forms = sbpl_top_level_forms(final_profile)
+                assert not any(
+                    form.lstrip().startswith("(allow ") and live_alternates_literal in form
+                    for form in final_profile_forms
+                )
+                assert any(
+                    form.lstrip().startswith("(deny ") and live_alternates_literal in form
+                    for form in final_profile_forms
+                )
                 assert '(literal "/private/tmp")' in bootstrap_write_profile
                 assert '(literal "' + boundary.adapter_root + '")' in bootstrap_write_profile
                 assert '(subpath "' + adapter_pack_path + '")' in bootstrap_write_profile
@@ -3711,9 +4162,45 @@ int main(int argc, char **argv) {
                 target = linked_git_dir / "refs" / relative
                 target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
                 write_bytes(target, (oid + "\n").encode("ascii"), 0o600)
-            linked_capture, linked_boundary = acquisition["create_git_metadata_adapter"](
-                str(linked), key, git_binary
-            )
+            linked_live_bootstrap_profiles = []
+            original_run_process_for_linked = acquisition["run_process"]
+
+            def record_linked_bootstrap_profile(argv, *args, **kwargs):
+                environment = args[0] if args else kwargs.get("environment", {})
+                if "GIT_OBJECT_DIRECTORY" in environment:
+                    linked_live_bootstrap_profiles.append(kwargs.get("sandbox_profile"))
+                return original_run_process_for_linked(argv, *args, **kwargs)
+
+            acquisition["run_process"] = record_linked_bootstrap_profile
+            try:
+                linked_capture, linked_boundary = acquisition["create_git_metadata_adapter"](
+                    str(linked), key, git_binary
+                )
+            finally:
+                acquisition["run_process"] = original_run_process_for_linked
+            assert linked_live_bootstrap_profiles
+            linked_common_alternates_literal = '(literal "' + str(
+                common_git_dir / "objects/info/alternates"
+            ) + '")'
+            linked_wrong_alternates_literal = '(literal "' + str(
+                linked_git_dir / "objects/info/alternates"
+            ) + '")'
+            if sandbox_mode == "host-sandbox-enforced-positive":
+                for raw_profile in linked_live_bootstrap_profiles:
+                    assert isinstance(raw_profile, bytes)
+                    linked_profile_forms = sbpl_top_level_forms(raw_profile.decode("ascii"))
+                    assert sum(
+                        form.lstrip().startswith("(allow ")
+                        and linked_common_alternates_literal in form
+                        for form in linked_profile_forms
+                    ) == 1
+                    assert not any(
+                        form.lstrip().startswith("(allow ")
+                        and linked_wrong_alternates_literal in form
+                        for form in linked_profile_forms
+                    )
+            else:
+                assert all(raw_profile is None for raw_profile in linked_live_bootstrap_profiles)
             assert linked_capture["git_control"]["marker"]["kind"] == "gitfile"
             assert linked_capture["linked_worktree"] is True
             linked_canonical = {
@@ -5324,6 +5811,24 @@ def main(argv=None):
         return acquisition["validate_manual_envelope_contract"](value, now=witness_now)
 
     validate_synthetic_manual(synthetic_envelope)
+    assert synthetic_envelope["execution_plan"][
+        "git_metadata_adapter_bootstrap_sandbox_profile"
+    ] == acquisition["GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE_V4"]
+    retired_bootstrap_profile = copy.deepcopy(synthetic_envelope)
+    retired_bootstrap_profile["execution_plan"][
+        "git_metadata_adapter_bootstrap_sandbox_profile"
+    ] = "retired-bootstrap-sandbox-profile-v3"
+    expect_schema_error(
+        "retired bootstrap sandbox profile schema",
+        envelope_validator,
+        retired_bootstrap_profile,
+    )
+    expect_error(
+        "retired bootstrap sandbox profile runtime",
+        lambda: validate_synthetic_manual(retired_bootstrap_profile),
+        "GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE",
+    )
+    report["git_metadata_adapter_bootstrap_v4_schema_runtime_contract"] = "PASS"
     builder_envelope = build_real_pending_envelope_from_synthetic_observations(
         acquisition,
         synthetic_envelope,

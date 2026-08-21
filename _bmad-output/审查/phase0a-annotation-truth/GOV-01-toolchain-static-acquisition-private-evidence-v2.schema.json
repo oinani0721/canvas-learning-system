@@ -1347,7 +1347,10 @@
         "git_metadata_adapter_profile": { "const": "checkpoint-scoped-private-temp-sanitized-required-path-ancestor-exact-oid-index-root-proven-one-exact-public-opaque-gitlink-identity-bound-git-fd-metadata-adapter-v5" },
         "git_metadata_adapter_cleanup_state": { "const": "removed" },
         "git_metadata_adapter_residue_count": { "const": 0 },
-        "live_git_control_child_read_count": { "const": 0 },
+        "live_git_control_child_read_count": {
+          "const": 0,
+          "description": "Zero means zero successful child file-data or byte reads of live Git-control files; it excludes only an exact file-test-existence probe of the parent-prevalidated-absent live common-dir/objects/info/alternates path by live-object bootstrap children, which have no metadata or data-read authority for that path."
+        },
         "commitment": { "$ref": "#/$defs/keyedCommitment" }
       },
       "allOf": [
@@ -1549,8 +1552,8 @@
         "checker_interface": { "const": "gov01-ledger-semantic-checker-v2" },
         "artifact_role": { "const": "static-executor" },
         "repo_relative_path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" },
-        "raw_file_sha256": { "const": "ece03c04319a94006cb031c887b8aa54ef8f03d0f6b60999c29d720caf0ac4ee" },
-        "byte_length": { "const": 703588 },
+        "raw_file_sha256": { "const": "e74e9cbe9c2403212dca3e40b0e9f8e2b732bce77dde04a05035099c5eb31ac5" },
+        "byte_length": { "const": 709622 },
         "hmac_domain": { "const": "CLS/GOV01/STATIC-ACQUISITION-LEDGER/v2" },
         "assurance": { "const": "content-addressed-runtime-self-attested-not-pre-exec" }
       }
