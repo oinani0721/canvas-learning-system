@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import ast
 import base64
 import copy
 import contextlib
@@ -12,6 +13,7 @@ import json
 import io
 import os
 import pathlib
+import platform
 import pwd
 import runpy
 import stat
@@ -209,6 +211,33 @@ def rewrite_json(path, value):
         os.close(output_fd)
 
 
+def rewrite_bytes(path, data):
+    output_fd = os.open(str(path), os.O_WRONLY | os.O_TRUNC)
+    try:
+        offset = 0
+        while offset < len(data):
+            offset += os.write(output_fd, data[offset:])
+    finally:
+        os.close(output_fd)
+
+
+def rewrite_canonical_json(path, value):
+    raw = json.dumps(
+        value,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8") + b"\n"
+    output_fd = os.open(str(path), os.O_WRONLY | os.O_TRUNC)
+    try:
+        offset = 0
+        while offset < len(raw):
+            offset += os.write(output_fd, raw[offset:])
+    finally:
+        os.close(output_fd)
+
+
 def run_checked(argv, cwd):
     completed = subprocess.run(
         argv,
@@ -233,7 +262,7 @@ def exercise_claim_fault(acquisition, fault_name):
         group_gid = os.stat(state_root, follow_symlinks=False).st_gid
         if os.stat(claims, follow_symlinks=False).st_gid != group_gid:
             raise AssertionError("claim fixture group inheritance drift")
-        challenge = "GOV01-SA-20260820-" + hashlib.sha256(fault_name.encode()).hexdigest()[:32]
+        challenge = "GOV01-SA-20260820-" + hashlib.sha256(fault_name.encode()).hexdigest()
         receipt = "b" * 64
         preimage = acquisition["verify_claim_preimage"](
             str(state_root), challenge, expected_uid=owner_uid, expected_gid=group_gid
@@ -575,9 +604,11 @@ def record_synthetic_pass(acquisition, recorder, gate_id, evidence):
 
 def recorder_with_prefix(acquisition, order, length, failure_code=None, evidence_overrides=None, failure_exit=11):
     recorder = acquisition["GateRecorder"]()
-    if tuple(order) == ACQUIRE_EXECUTION_ORDER:
+    if tuple(order) == ACQUIRE_EXECUTION_ORDER or (
+        tuple(order) == READ_ONLY_EXECUTION_ORDER and length > 0
+    ):
         recorder.bind_run_authority(
-            "GOV01-SA-20260820-" + ("f" * 32),
+            "GOV01-SA-20260820-" + ("f" * 64),
             "e" * 64,
         )
     overrides = evidence_overrides or {}
@@ -716,7 +747,13 @@ def run_main_handler(acquisition, mode, handler):
     class FixtureParser:
         def parse_args(self, argv):
             del argv
-            return argparse.Namespace(mode=mode, handler=handler)
+            return argparse.Namespace(
+                mode=mode,
+                handler=handler,
+                generation_challenge="GOV01-GEN-20260820-" + ("c" * 64),
+                receipt_digest="e" * 64,
+                approval_challenge="GOV01-SA-20260820-" + ("f" * 64),
+            )
 
     executor_globals = acquisition["main"].__globals__
     original_parser = executor_globals["parser"]
@@ -740,7 +777,7 @@ def synthetic_success(acquisition, ledger_head=None):
     zero = "0" * 64
     if ledger_head is None:
         ledger_head = zero
-    challenge = "GOV01-SA-20260820-" + ("a" * 32)
+    challenge = "GOV01-SA-20260820-" + ("a" * 64)
     tool_hashes = synthetic_tool_hashes(acquisition)
     recorder = acquisition["GateRecorder"]()
     recorder.bind_run_authority(challenge, zero)
@@ -832,7 +869,7 @@ def synthetic_success(acquisition, ledger_head=None):
 
 def synthetic_read_only(acquisition, mode="census"):
     zero = "0" * 64
-    challenge = "GOV01-SA-20260820-" + ("b" * 32)
+    challenge = "GOV01-SA-20260820-" + ("b" * 64)
     state = "read-only-preapproval-census" if mode == "census" else "preconditions-reverified-read-only"
     recorder = recorder_with_prefix(acquisition, READ_ONLY_EXECUTION_ORDER, len(READ_ONLY_EXECUTION_ORDER))
     tool_hashes = synthetic_tool_hashes(acquisition)
@@ -931,8 +968,12 @@ def synthesize_schema_instance(schema):
         pattern = value.get("pattern", "")
         if value.get("format") == "date-time" or ("T" in pattern and "Z" in pattern):
             return "2026-08-20T00:00:00Z"
+        if "GOV01-GEN" in pattern:
+            return "GOV01-GEN-20260820-" + ("b" * 64)
+        if "GOV01-CP" in pattern:
+            return "GOV01-CP-20260820-" + ("c" * 32)
         if "GOV01-SA" in pattern:
-            return "GOV01-SA-20260820-" + ("a" * 32)
+            return "GOV01-SA-20260820-" + ("a" * 64)
         if "[0-9a-f]{64}" in pattern:
             return "0" * 64
         if "[0-9a-f]{40}" in pattern:
@@ -1002,28 +1043,112 @@ def synthesize_schema_instance(schema):
 
     instance = synthesize(schema)
     challenge = instance["approval_challenge_id"]
+    instance["census_at_utc"] = "2026-08-20T00:00:00Z"
+    instance["not_after_utc"] = "2026-08-20T01:00:00Z"
     instance["static_acquisition_contract"]["stage_repo_relative"] = ".gov01-toolchain-stage-" + challenge
+    generation_challenge = "GOV01-GEN-20260820-" + ("b" * 64)
+    generation_micro_path = (
+        "_bmad-output/审查/phase0a-annotation-truth/"
+        "GOV-01-toolchain-static-envelope-generation-envelope-v1." + generation_challenge + ".json"
+    )
+    generated_pending_path = (
+        "_bmad-output/审查/phase0a-annotation-truth/"
+        "GOV-01-toolchain-static-acquisition-pending-" + generation_challenge + ".json"
+    )
+    instance["generation_authorization"].update(
+        {
+            "approval_challenge_id": generation_challenge,
+            "approval_envelope_repo_relative_path": generation_micro_path,
+            "generated_acquisition_envelope_repo_relative_path": generated_pending_path,
+            "authorization_commit_oid": "0" * 64,
+            "authorization_tree_oid": "0" * 64,
+        }
+    )
+    instance["authorization_preimage"]["envelope_repo_relative_path"] = (
+        generated_pending_path
+    )
     instance["authorization_preimage"]["git_object_format"] = "sha256"
     instance["authorization_preimage"]["head_commit_oid"] = "0" * 64
     instance["authorization_preimage"]["head_tree_oid"] = "0" * 64
     role_paths = {
-        "goal": "_bmad-output/审查/phase0a-annotation-truth/fixture-goal.md",
-        "governance-decision": "_bmad-output/审查/phase0a-annotation-truth/fixture-governance.md",
+        "goal": "_bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md",
+        "governance-decision": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-追踪真相源修复决策稿.md",
         "pending-envelope-schema": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-envelope-v2.schema.json",
         "private-evidence-schema": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-private-evidence-v2.schema.json",
         "public-attestation-schema": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-public-attestation-v2.schema.json",
         "package-manifest": "package.json",
         "package-lock": "package-lock.json",
         "gitignore": ".gitignore",
+        "generation-approval-envelope": generation_micro_path,
     }
     for artifact in instance["artifacts"]:
         if artifact["role"] in role_paths:
             artifact["path"] = role_paths[artifact["role"]]
+        if artifact["role"] == "generation-approval-envelope":
+            artifact["raw_file_sha256"] = instance["generation_authorization"]["raw_envelope_sha256"]
+    predecessor_artifact_hashes = {
+        "first-receipt-envelope": "0b73b83e1dbd92dd0a4684a83438dafc7afae6a6fde42b4130d776d7ee246410",
+        "bootstrap-patch": "d2f9a1ff45006cf19bd5295b751e2b620dc6043d6ec1ff26494c1d2d722aa8aa",
+        "control-prep-envelope": "ef424f80672568076d750ae0f6d662ebfdae242fdea8fcda2b37f39e6406945b",
+    }
+    for artifact in instance["artifacts"]:
+        if artifact["role"] in predecessor_artifact_hashes:
+            artifact["raw_file_sha256"] = predecessor_artifact_hashes[artifact["role"]]
+    generation = instance["generation_authorization"]
+    instance["predecessor"].update(
+        {
+            "generation_authorization_envelope_raw_sha256": generation["raw_envelope_sha256"],
+            "generation_authorization_receipt_digest": generation["receipt_digest"],
+            "generation_authorization_challenge_id": generation["approval_challenge_id"],
+            "generation_authorization_parent_commit_oid": generation["authorization_parent_commit_oid"],
+            "generation_authorization_parent_tree_oid": generation["authorization_parent_tree_oid"],
+            "generation_authorization_commit_oid": generation["authorization_commit_oid"],
+            "generation_authorization_tree_oid": generation["authorization_tree_oid"],
+        }
+    )
+    predecessor_body = {
+        key: value
+        for key, value in instance["predecessor"].items()
+        if key != "predecessor_chain_receipt_sha256"
+    }
+    predecessor_raw = json.dumps(
+        predecessor_body,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8") + b"\n"
+    instance["predecessor"]["predecessor_chain_receipt_sha256"] = hashlib.sha256(
+        b"CLS/GOV01/STATIC-ACQUISITION-PREDECESSOR-CHAIN/v2\x00" + predecessor_raw
+    ).hexdigest()
+    for entry in instance["frozen_toolchain"]["entries"]:
+        if entry["role"] in ("python-interpreter", "python-stdlib-tree"):
+            entry["version"] = platform.python_version()
     pending_artifact = next(
         artifact for artifact in instance["artifacts"] if artifact["role"] == "pending-envelope-schema"
     )
     instance["schema_binding"]["schema_artifact_path"] = pending_artifact["path"]
     instance["schema_binding"]["schema_raw_file_sha256"] = pending_artifact["raw_file_sha256"]
+    execution = instance["execution_plan"]
+
+    def contract_receipt(domain, value):
+        canonical = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8") + b"\n"
+        return hashlib.sha256(domain + b"\x00" + canonical).hexdigest()
+
+    execution["executor_argv_template_sha256"] = contract_receipt(
+        b"CLS/GOV01/EXECUTOR-ARGV-TEMPLATE/v2",
+        execution["executor_argv_template"],
+    )
+    execution["evidence_command_templates_sha256"] = contract_receipt(
+        b"CLS/GOV01/EVIDENCE-COMMAND-TEMPLATES/v2",
+        execution["evidence_command_templates"],
+    )
     return instance
 
 
@@ -1060,7 +1185,7 @@ def validate_public_result_branch_schema_equivalence(
     authority_values = tuple(
         public_schema["$defs"]["actualAuthority"]["properties"]["next_required_authority"]["allOf"][1]["enum"]
     )
-    assert len(authority_values) == 5
+    assert len(authority_values) == 6
 
     def checker_accepts(candidate, authority_binding=None):
         try:
@@ -1108,18 +1233,18 @@ def validate_public_result_branch_schema_equivalence(
         )
 
     branch_cases = (
-        ("unknown-entry", 0, generic["unknown"]),
-        ("census-entry", 2, generic["census"]),
-        ("census-read-only", 3, read_only_failures["census"]),
-        ("verify-entry", 4, generic["verify"]),
-        ("verify-read-only", 5, read_only_failures["verify"]),
-        ("acquire-entry", 6, generic["acquire"]),
+        ("unknown-entry", 0, generic["unknown"], None),
+        ("census-entry", 2, generic["census"], None),
+        ("census-read-only", 3, read_only_failures["census"], read_only_failures["census"].authority_binding),
+        ("verify-entry", 4, generic["verify"], None),
+        ("verify-read-only", 5, read_only_failures["verify"], read_only_failures["verify"].authority_binding),
+        ("acquire-entry", 6, generic["acquire"], None),
     )
     quotient_count = len(terminal_tuples) * 2 * len(authority_values)
-    assert quotient_count == 57240
-    for label, index, baseline in branch_cases:
+    assert quotient_count == 68688
+    for label, index, baseline, authority_binding in branch_cases:
         public_validator.validate(baseline)
-        acquisition["validate_public_result_projection"](baseline)
+        acquisition["validate_public_result_projection"](baseline, authority_binding)
         expected_key = (
             tuple(baseline["terminal_state"][name] for name in fields),
             baseline["retention"]["private_state_inspection_required"],
@@ -1131,7 +1256,7 @@ def validate_public_result_branch_schema_equivalence(
         for values in terminal_tuples:
             for inspection in (False, True):
                 for next_authority in authority_values:
-                    candidate = copy.copy(baseline)
+                    candidate = dict(baseline)
                     candidate["terminal_state"] = dict(zip(fields, values))
                     candidate["retention"] = dict(baseline["retention"])
                     candidate["retention"]["private_state_inspection_required"] = inspection
@@ -1140,7 +1265,7 @@ def validate_public_result_branch_schema_equivalence(
                     key = (values, inspection, next_authority)
                     if selected_validator.is_valid(candidate):
                         schema_keys.add(key)
-                    if checker_accepts(candidate):
+                    if checker_accepts(candidate, authority_binding):
                         checker_keys.add(key)
         assert schema_keys == checker_keys == {expected_key}, (
             label,
@@ -1150,8 +1275,8 @@ def validate_public_result_branch_schema_equivalence(
 
     # Privacy is a distinct fail-closed branch.  Exhaust its five independent
     # structural axes rather than sampling the old schema-only gap:
-    # 5,724 terminals x 2 inspection values x 5 authorities x 2 runtime
-    # shapes x 3 ledger shapes = 343,440.  Exactly the production privacy
+    # 5,724 terminals x 2 inspection values x 6 authorities x 2 runtime
+    # shapes x 3 ledger shapes = 412,128.  Exactly the production privacy
     # projection is accepted by both authorities.
     failure_ledger = acquisition["ledger_public_evidence"](failure_reports_by_count[2])
     success_ledger = acquisition["ledger_public_evidence"](success_report)
@@ -1197,7 +1322,7 @@ def validate_public_result_branch_schema_equivalence(
                         if schema_ok:
                             assert key == expected_privacy_key
                             privacy_accept_count += 1
-    assert privacy_domain_count == 343440
+    assert privacy_domain_count == 412128
     assert privacy_accept_count == 1
 
     # Every reachable read-only failure prefix can end in FAIL or in a PASS
@@ -1218,6 +1343,25 @@ def validate_public_result_branch_schema_equivalence(
                     recorder,
                 )
                 validate_public_contract(acquisition, public_validator, result)
+
+        # Receipt binding precedes G00.  An asynchronous failure in that
+        # zero-gate window is retryable, while a pre-receipt zero-gate failure
+        # above remains non-retryable.
+        bound_zero = acquisition["GateRecorder"]()
+        bound_zero.bind_run_authority(
+            "GOV01-SA-20260820-" + ("f" * 64),
+            "e" * 64,
+        )
+        bound_zero_result = acquisition["read_only_failure_result"](
+            fixture_error,
+            mode,
+            bound_zero,
+        )
+        validate_public_contract(acquisition, public_validator, bound_zero_result)
+        assert bound_zero_result["authority"]["retry_authorized"] is True
+        stripped_bound_zero = dict(bound_zero_result)
+        if checker_accepts(stripped_bound_zero):
+            raise AssertionError("read-only retry passed without trusted receipt sidecar")
 
     wrong_read_only_trace = copy.deepcopy(read_only_failures["census"])
     wrong_read_only_trace["gate_results"] = recorder_with_prefix(
@@ -1612,8 +1756,14 @@ def main(argv=None):
     except ValueError:
         parser.exit(2, parser.prog + ": error: fixture-repo-root-contract\n")
 
-    verifier = runpy.run_path(str(VERIFIER_PATH))
-    acquisition = runpy.run_path(str(ACQ_PATH))
+    # Python 3.14 returns a shallow copy from runpy.run_path(); mutating that
+    # copy does not patch the globals actually used by loaded functions.  Use
+    # one sentinel function's true globals so fault injection exercises the
+    # production call graph on every supported interpreter.
+    verifier_loaded = runpy.run_path(str(VERIFIER_PATH))
+    verifier = verifier_loaded["parse_package_archive"].__globals__
+    acquisition_loaded = runpy.run_path(str(ACQ_PATH))
+    acquisition = acquisition_loaded["main"].__globals__
     report = {}
 
     good = package_archive()
@@ -1924,7 +2074,7 @@ def main(argv=None):
             "node_modules/fixture/index.js": ("F", 0o644, len(payload), hashlib.sha256(payload).hexdigest()),
         }
         stage_expected = {"layout": stage_layout, "tree": verifier["layout_manifest"](stage_layout)}
-        challenge = "GOV01-SA-20260820-" + ("d" * 32)
+        challenge = "GOV01-SA-20260820-" + ("d" * 64)
         marker = acquisition["marker_bytes"](b"m" * 32, challenge, "e" * 64)
         repo_fd = os.open(str(stage_repo), os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0))
         stage_fd = None
@@ -1960,7 +2110,7 @@ def main(argv=None):
     with tempfile.TemporaryDirectory(prefix="gov01-attempt-state-", dir="/private/tmp") as temporary:
         repo = pathlib.Path(temporary) / "repo"
         repo.mkdir(mode=0o700)
-        challenge = "GOV01-SA-20260820-" + ("b" * 32)
+        challenge = "GOV01-SA-20260820-" + ("b" * 64)
         stage_name = ".gov01-toolchain-stage-" + challenge
         stage = repo / stage_name
         stage.mkdir(mode=0o700)
@@ -2064,20 +2214,146 @@ def main(argv=None):
     ContractError = acquisition["ContractError"]
     Exit = acquisition["Exit"]
     base = pathlib.Path("/private/tmp/gov01-fixture")
+    locator_challenge = "GOV01-SA-20260820-" + ("e" * 64)
+    locator_generation_challenge = "GOV01-GEN-20260820-" + ("e" * 64)
+    pending_name = "GOV-01-toolchain-static-acquisition-pending-" + locator_generation_challenge + ".json"
     vault_args = argparse.Namespace(
         repo_root=str(base / "repo"),
         cache_root=str(base / "private-canvas-vault-cache"),
         state_root=str(base / "state"),
-        key_file=str(base / "key"),
-        envelope=str(base / "repo/_bmad-output/审查/phase0a-annotation-truth/envelope.json"),
+        key_file=str(base / "state/hmac.key"),
+        envelope=str(base / "repo/_bmad-output/审查/phase0a-annotation-truth" / pending_name),
     )
     reason = expect_error("vault locator", lambda: acquisition["validate_locator_boundaries"](vault_args))
     assert isinstance(reason, str) and reason.endswith("_VAULT_LOCATOR")
     overlap_args = argparse.Namespace(**vars(vault_args))
     overlap_args.cache_root = str(base / "cache")
     overlap_args.state_root = str(base / "cache/state")
+    overlap_args.key_file = str(base / "cache/state/hmac.key")
     expect_error("overlap", lambda: acquisition["validate_locator_boundaries"](overlap_args), "CACHE_STATE_OVERLAP")
-    report["vault_and_overlap_locators_rejected"] = "PASS"
+    exact_child_args = argparse.Namespace(**vars(vault_args))
+    exact_child_args.cache_root = str(base / "cache")
+    expected_relative = acquisition["validate_locator_boundaries"](exact_child_args)
+    assert expected_relative.endswith(pending_name)
+    for label, key_file in (
+        ("misnamed", exact_child_args.state_root + "/other.key"),
+        ("sibling", str(base / "hmac.key")),
+        ("ancestor", exact_child_args.state_root),
+        ("outside", str(base / "outside/hmac.key")),
+    ):
+        invalid_key_args = argparse.Namespace(**vars(exact_child_args))
+        invalid_key_args.key_file = key_file
+        expect_error(
+            "state key " + label,
+            lambda value=invalid_key_args: acquisition["validate_locator_boundaries"](value),
+            "STATE_KEY_EXACT_CHILD",
+        )
+    report["vault_overlap_and_state_key_exact_child"] = "PASS"
+
+    captured_git_argv = []
+    original_run_process = acquisition["run_process"]
+    acquisition["_GIT_DEVELOPER_ROOTS"]["/fixture/git"] = "/fixture/developer"
+    acquisition["_GIT_READ_BOUNDARIES"]["/fixture/repo"] = (
+        "/fixture/repo/.git/worktrees/fixture",
+        "/fixture/repo/.git",
+    )
+    acquisition["run_process"] = lambda argv, *_args, **_kwargs: captured_git_argv.append(list(argv)) or b""
+    try:
+        acquisition["run_git"](
+            "/fixture/git",
+            "/fixture/repo",
+            ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
+            "FIXTURE_GIT_STATUS",
+            enumerates_worktree=True,
+            authorized_tree_excludes=(".gov01-toolchain-stage-" + locator_challenge, "node_modules"),
+            authorized_exact_file_excludes=(expected_relative,),
+        )
+    finally:
+        acquisition["run_process"] = original_run_process
+        acquisition["_GIT_DEVELOPER_ROOTS"].pop("/fixture/git", None)
+        acquisition["_GIT_READ_BOUNDARIES"].pop("/fixture/repo", None)
+    assert len(captured_git_argv) == 1
+    git_argv = captured_git_argv[0]
+    exact_pathspec = ":(top,literal,exclude)" + expected_relative
+    assert git_argv.count(exact_pathspec) == 1
+    assert exact_pathspec + "/**" not in git_argv
+    assert ":(exclude)node_modules" in git_argv and ":(exclude)node_modules/**" in git_argv
+    assert ":(exclude).gov01-toolchain-stage-" + locator_challenge in git_argv
+    assert ":(exclude).gov01-toolchain-stage-" + locator_challenge + "/**" in git_argv
+    expect_error(
+        "tree exact exclusion ancestor overlap",
+        lambda: acquisition["git_snapshot"](
+            "/fixture/repo",
+            b"k" * 32,
+            "/fixture/git",
+            authorized_tree_excludes=("node_modules",),
+            authorized_exact_file_excludes=("node_modules/child.json",),
+        ),
+        "GIT_EXCLUSION_CLASS_OVERLAP",
+    )
+    expect_error(
+        "exact tree exclusion ancestor overlap",
+        lambda: acquisition["git_snapshot"](
+            "/fixture/repo",
+            b"k" * 32,
+            "/fixture/git",
+            authorized_tree_excludes=("private/output",),
+            authorized_exact_file_excludes=("private",),
+        ),
+        "GIT_EXCLUSION_CLASS_OVERLAP",
+    )
+
+    with tempfile.TemporaryDirectory(prefix="gov01-envelope-fixed-point-", dir="/private/tmp") as temporary:
+        repo = pathlib.Path(temporary) / "repo"
+        envelope_path = repo / expected_relative
+        envelope_path.parent.mkdir(parents=True)
+        write_bytes(envelope_path, b'{"generation":1}\n', 0o600)
+        manifest_key = b"m" * 32
+        excluded_first = acquisition["dirty_path_manifest_commitment"](str(repo), b"", manifest_key)
+        rewrite_bytes(envelope_path, b'{"generation":2}\n')
+        excluded_second = acquisition["dirty_path_manifest_commitment"](str(repo), b"", manifest_key)
+        assert excluded_first == excluded_second
+        included_status = b"? " + expected_relative.encode("utf-8") + b"\x00"
+        included_second = acquisition["dirty_path_manifest_commitment"](
+            str(repo), included_status, manifest_key
+        )
+        rewrite_bytes(envelope_path, b'{"generation":3}\n')
+        included_third = acquisition["dirty_path_manifest_commitment"](
+            str(repo), included_status, manifest_key
+        )
+        assert included_second != included_third
+        sibling_path = envelope_path.with_name("user-owned-sibling.json")
+        write_bytes(sibling_path, b'{"sibling":1}\n', 0o600)
+        sibling_relative = sibling_path.relative_to(repo).as_posix()
+        sibling_status = b"? " + sibling_relative.encode("utf-8") + b"\x00"
+        sibling_first = acquisition["dirty_path_manifest_commitment"](
+            str(repo), sibling_status, manifest_key
+        )
+        rewrite_bytes(sibling_path, b'{"sibling":2}\n')
+        sibling_second = acquisition["dirty_path_manifest_commitment"](
+            str(repo), sibling_status, manifest_key
+        )
+        assert sibling_first != sibling_second
+
+    executor_tree = ast.parse(ACQ_PATH.read_text(encoding="utf-8"))
+    snapshot_calls = {"build_census": [], "command_acquire": []}
+    for node in executor_tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) or node.name not in snapshot_calls:
+            continue
+        for child in ast.walk(node):
+            if not isinstance(child, ast.Call) or not isinstance(child.func, ast.Name):
+                continue
+            if child.func.id != "git_snapshot":
+                continue
+            keywords = {keyword.arg: keyword.value for keyword in child.keywords if keyword.arg is not None}
+            assert isinstance(keywords.get("authorized_tree_excludes"), ast.Name)
+            assert keywords["authorized_tree_excludes"].id == "tree_exclusions"
+            assert isinstance(keywords.get("authorized_exact_file_excludes"), ast.Name)
+            assert keywords["authorized_exact_file_excludes"].id == "exact_file_exclusions"
+            snapshot_calls[node.name].append(child)
+    assert len(snapshot_calls["build_census"]) == 1
+    assert len(snapshot_calls["command_acquire"]) == 3
+    report["exact_envelope_file_exclusion_breaks_fixed_point"] = "PASS"
 
     with tempfile.TemporaryDirectory(prefix="gov01-claim-", dir="/private/tmp") as temporary:
         state_root = pathlib.Path(temporary) / "state"
@@ -2085,7 +2361,7 @@ def main(argv=None):
         os.chmod(state_root, 0o700)
         expected_owner_uid = os.getuid()
         expected_group_gid = os.stat(state_root, follow_symlinks=False).st_gid
-        challenge = "GOV01-SA-20260820-" + ("a" * 32)
+        challenge = "GOV01-SA-20260820-" + ("a" * 64)
         expect_error(
             "missing claims",
             lambda: acquisition["verify_claim_preimage"](str(state_root), challenge),
@@ -2162,7 +2438,7 @@ def main(argv=None):
         claims.mkdir(mode=0o700)
         owner_uid = os.stat(state_root, follow_symlinks=False).st_uid
         group_gid = os.stat(state_root, follow_symlinks=False).st_gid
-        challenge = "GOV01-SA-20260820-" + ("9" * 32)
+        challenge = "GOV01-SA-20260820-" + ("9" * 64)
         preimage = acquisition["verify_claim_preimage"](
             str(state_root), challenge, expected_uid=owner_uid, expected_gid=group_gid
         )
@@ -2183,16 +2459,45 @@ def main(argv=None):
         )
         assert not (claims / challenge).exists()
         assert attempt.claim_state == "not-created"
-        assert attempt.failure_projection()["challenge_state"] == "preclaim-rejected-new-envelope-required"
+        assert attempt.failure_projection()["challenge_state"] == "preclaim-pending"
     report["expiry_rechecked_at_first_write_boundary"] = "PASS"
+
+    with tempfile.TemporaryDirectory(prefix="gov01-historical-claims-", dir="/private/tmp") as temporary:
+        state_root = pathlib.Path(temporary) / "state"
+        claims = state_root / "claims"
+        state_root.mkdir(mode=0o700)
+        claims.mkdir(mode=0o700)
+        old_challenge = "GOV01-SA-20260819-" + ("1" * 64)
+        fresh_challenge = "GOV01-SA-20260820-" + ("2" * 64)
+        (claims / old_challenge).mkdir(mode=0o700)
+        # A retained failed historical claim consumes only its own challenge;
+        # it does not globally brick a separately approved fresh SA.
+        fresh_preimage = acquisition["verify_claim_preimage"](
+            str(state_root),
+            fresh_challenge,
+        )
+        assert set(fresh_preimage) == {"state_root", "claims"}
+        (claims / fresh_challenge).mkdir(mode=0o700)
+        expect_error(
+            "fresh acquisition challenge already claimed",
+            lambda: acquisition["verify_claim_preimage"](
+                str(state_root),
+                fresh_challenge,
+            ),
+            "CHALLENGE_ALREADY_CLAIMED",
+        )
+    report["historical_claim_retained_fresh_challenge_boundary"] = "PASS"
 
     key = b"p" * 32
     locator_args = argparse.Namespace(
         repo_root="/private/tmp/gov01/repo",
         cache_root="/private/tmp/gov01/cache",
         state_root="/private/tmp/gov01/state",
-        key_file="/private/tmp/gov01/key",
-        envelope="/private/tmp/gov01/repo/_bmad-output/审查/phase0a-annotation-truth/envelope.json",
+        key_file="/private/tmp/gov01/state/hmac.key",
+        envelope=(
+            "/private/tmp/gov01/repo/_bmad-output/审查/phase0a-annotation-truth/"
+            "GOV-01-toolchain-static-acquisition-pending-GOV01-GEN-20260820-" + ("c" * 64) + ".json"
+        ),
     )
     locators = acquisition["locator_commitments"](locator_args, key)
     zero = "0" * 64
@@ -2203,7 +2508,7 @@ def main(argv=None):
         "tree": {"sha256": zero},
     }
     body = acquisition["build_private_preapproval_body"](
-        {"approval_challenge_id": "GOV01-SA-20260820-" + ("c" * 32), "census_at_utc": "2026-08-20T00:00:00Z"},
+        {"approval_challenge_id": "GOV01-SA-20260820-" + ("c" * 64), "census_at_utc": "2026-08-20T00:00:00Z"},
         key,
         locators,
         zero,
@@ -2243,14 +2548,120 @@ def main(argv=None):
         run_checked([git_binary, "config", "core.fsmonitor", str(monitor)], repo)
         git_hash = acquisition["hash_regular_absolute"](git_binary, "FIXTURE_GIT")["sha256"]
         acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][git_binary] = git_hash
-        acquisition["run_git"](
-            git_binary,
-            str(repo),
-            ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
-            "FIXTURE_STATUS",
-            enumerates_worktree=True,
-        )
-        assert not marker.exists()
+        acquisition["_GIT_DEVELOPER_ROOTS"][git_binary] = str(pathlib.Path(git_binary).parents[2])
+        acquisition["git_control_preflight"](str(repo), b"z" * 32)
+        contract_error_type = acquisition["ContractError"]
+        try:
+            acquisition["run_git"](
+                git_binary,
+                str(repo),
+                ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
+                "FIXTURE_STATUS",
+                enumerates_worktree=True,
+            )
+        except contract_error_type as error:
+            public_code = getattr(error, "reason", getattr(error, "public_code", ""))
+            if public_code != "FIXTURE_STATUS_SANDBOX_INIT":
+                raise
+            true_binary = "/usr/bin/true"
+            acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][true_binary] = acquisition[
+                "hash_regular_absolute"
+            ](true_binary, "FIXTURE_TRUE")["sha256"]
+            try:
+                acquisition["run_process"](
+                    [true_binary],
+                    acquisition["git_env"](),
+                    4096,
+                    "FIXTURE_MINIMAL_SANDBOX",
+                    sandbox_profile=b"(version 1)\n(allow default)\n",
+                )
+            except contract_error_type as minimal_error:
+                minimal_code = getattr(
+                    minimal_error,
+                    "reason",
+                    getattr(minimal_error, "public_code", ""),
+                )
+                if minimal_code != "FIXTURE_MINIMAL_SANDBOX_SANDBOX_INIT":
+                    raise
+                git_sandbox_mode = "nested-host-sandbox-refused-second-sandbox-fail-closed"
+            else:
+                raise error
+            finally:
+                acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].pop(true_binary, None)
+        else:
+            git_sandbox_mode = "host-sandbox-enforced-positive"
+            assert not marker.exists()
+
+            # Inject an include only after the direct control preflight.  The
+            # child sandbox, not a second source scan, must prevent Git from
+            # following this external locator.
+            post_preflight_include = pathlib.Path(temporary) / "post-preflight-include.cfg"
+            write_bytes(post_preflight_include, b"[core]\n\tbare = false\n", 0o600)
+            run_checked([git_binary, "config", "include.path", str(post_preflight_include)], repo)
+            expect_error(
+                "post-preflight git include sandbox",
+                lambda: acquisition["safe_git_scalar"](
+                    git_binary,
+                    str(repo),
+                    ["rev-parse", "--verify", "HEAD"],
+                    "FIXTURE_POST_PREFLIGHT_INCLUDE",
+                ),
+                "FIXTURE_POST_PREFLIGHT_INCLUDE_RESULT",
+            )
+            run_checked([git_binary, "config", "--unset-all", "include.path"], repo)
+
+            # Likewise, make an object available only through a newly inserted
+            # alternates file.  A command that would succeed without sandboxing
+            # must fail after the preflight-to-exec race.
+            external_git = pathlib.Path(temporary) / "external-objects.git"
+            run_checked([git_binary, "init", "--bare", "-q", str(external_git)], repo)
+            hashed = subprocess.run(
+                [git_binary, "--git-dir", str(external_git), "hash-object", "-w", "--stdin"],
+                input=b"synthetic external object\n",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C", "LANG": "C"},
+            )
+            assert hashed.returncode == 0 and len(hashed.stdout.strip()) in (40, 64)
+            post_info = repo / ".git/objects/info"
+            post_info.mkdir(mode=0o700, exist_ok=True)
+            post_alternates = post_info / "alternates"
+            write_bytes(post_alternates, (str(external_git / "objects") + "\n").encode("utf-8"), 0o600)
+            expect_error(
+                "post-preflight git alternates sandbox",
+                lambda: acquisition["run_git"](
+                    git_binary,
+                    str(repo),
+                    ["cat-file", "-t", hashed.stdout.strip().decode("ascii")],
+                    "FIXTURE_POST_PREFLIGHT_ALTERNATES",
+                ),
+                "FIXTURE_POST_PREFLIGHT_ALTERNATES_RESULT",
+            )
+            post_alternates.unlink()
+
+            # With a worktree-reading profile, explicit Vault-family denies
+            # must override the broad repository subtree allowance.
+            for private_component in ("canvas-vault-fixture", ".obsidian"):
+                private_file = repo / private_component / "sentinel.txt"
+                private_file.parent.mkdir(mode=0o700)
+                write_bytes(private_file, b"synthetic private sentinel\n", 0o600)
+                expect_error(
+                    "git worktree privacy sandbox " + private_component,
+                    lambda path=str(private_file): acquisition["run_process"](
+                        [git_binary, "-C", str(repo), "hash-object", path],
+                        acquisition["git_env"](),
+                        4096,
+                        "FIXTURE_WORKTREE_PRIVACY",
+                        sandbox_profile=acquisition["git_read_sandbox_profile"](
+                            git_binary,
+                            str(repo),
+                            True,
+                        ),
+                    ),
+                    "FIXTURE_WORKTREE_PRIVACY_RESULT",
+                )
+
         included = repo / "external-include.cfg"
         write_bytes(included, b"[core]\n\tbare = false\n", 0o600)
         run_checked([git_binary, "config", "include.path", str(included)], repo)
@@ -2267,8 +2678,55 @@ def main(argv=None):
             lambda: acquisition["git_control_preflight"](str(repo), b"z" * 32),
             "GIT_ALTERNATE_CONTROL_PROHIBITED",
         )
+        alternates.unlink()
+
+        linked_root = repo / ".claude/worktrees/fixture-linked"
+        linked_root.parent.mkdir(parents=True, mode=0o700)
+        run_checked(
+            [git_binary, "worktree", "add", "-q", "-b", "fixture-linked", str(linked_root)],
+            repo,
+        )
+        linked_observation = acquisition["git_control_preflight"](str(linked_root), b"z" * 32)
+        assert linked_observation["marker"]["kind"] == "gitfile"
+        linked_marker = (linked_root / ".git").read_text(encoding="utf-8")
+        linked_git_dir = pathlib.Path(linked_marker[len("gitdir: ") :].strip())
+
+        unrelated = repo / "unrelated-linked"
+        unrelated.mkdir(mode=0o700)
+        write_bytes(
+            unrelated / ".git",
+            ("gitdir: " + str(linked_git_dir) + "\n").encode("utf-8"),
+            0o600,
+        )
+        expect_error(
+            "unrelated ancestor git worktree",
+            lambda: acquisition["git_control_preflight"](str(unrelated), b"z" * 32),
+            "GIT_CONTROL_ADMIN_ANCHOR",
+        )
+
+        linked_info = linked_git_dir / "objects/info"
+        linked_info.mkdir(parents=True, mode=0o700)
+        linked_alternates = linked_info / "alternates"
+        write_bytes(linked_alternates, b"synthetic external objects\n", 0o600)
+        expect_error(
+            "worktree-local object alternate",
+            lambda: acquisition["git_control_preflight"](str(linked_root), b"z" * 32),
+            "GIT_ALTERNATE_CONTROL_PROHIBITED",
+        )
+        linked_alternates.unlink()
+
+        reverse_pointer = linked_git_dir / "gitdir"
+        original_reverse = reverse_pointer.read_bytes()
+        rewrite_bytes(reverse_pointer, (str(unrelated / ".git") + "\n").encode("utf-8"))
+        expect_error(
+            "linked worktree reverse pointer",
+            lambda: acquisition["git_control_preflight"](str(linked_root), b"z" * 32),
+            "GIT_WORKTREE_GITDIR_BINDING",
+        )
+        rewrite_bytes(reverse_pointer, original_reverse)
     report["git_fsmonitor_override_zero_marker"] = "PASS"
     report["git_include_and_alternate_rejected_pre_command"] = "PASS"
+    report["git_read_sandbox_validation_mode"] = git_sandbox_mode
 
     schemas = {
         "envelope": load_json_no_duplicates(ENVELOPE_SCHEMA_PATH),
@@ -2283,7 +2741,12 @@ def main(argv=None):
     synthetic_envelope = synthesize_schema_instance(schemas["envelope"])
     envelope_validator = Draft202012Validator(schemas["envelope"])
     envelope_validator.validate(synthetic_envelope)
-    acquisition["validate_manual_envelope_contract"](synthetic_envelope)
+    witness_now = datetime.datetime(2026, 8, 20, 0, 0, 0, tzinfo=datetime.timezone.utc)
+
+    def validate_synthetic_manual(value):
+        return acquisition["validate_manual_envelope_contract"](value, now=witness_now)
+
+    validate_synthetic_manual(synthetic_envelope)
     assert synthetic_envelope["state"] == "pending-user-confirmation"
     assert synthetic_envelope["private_state_authorization"]["hmac_key_id"] == "0" * 64
     bad_architecture = copy.deepcopy(synthetic_envelope)
@@ -2291,10 +2754,10 @@ def main(argv=None):
     expect_schema_error("x86 envelope", envelope_validator, bad_architecture)
     duplicate_path = copy.deepcopy(synthetic_envelope)
     duplicate_path["artifacts"][1]["path"] = duplicate_path["artifacts"][0]["path"]
-    envelope_validator.validate(duplicate_path)
+    expect_schema_error("duplicate artifact path schema", envelope_validator, duplicate_path)
     expect_error(
         "duplicate artifact path manual contract",
-        lambda: acquisition["validate_manual_envelope_contract"](duplicate_path),
+        lambda: validate_synthetic_manual(duplicate_path),
         "ARTIFACT_DUPLICATE_PATH",
     )
     sha1_with_sha256_oids = copy.deepcopy(synthetic_envelope)
@@ -2302,7 +2765,7 @@ def main(argv=None):
     expect_schema_error("sha1 with 64-byte OIDs", envelope_validator, sha1_with_sha256_oids)
     expect_error(
         "sha1 with 64-byte OIDs manual contract",
-        lambda: acquisition["validate_manual_envelope_contract"](sha1_with_sha256_oids),
+        lambda: validate_synthetic_manual(sha1_with_sha256_oids),
         "PREIMAGE_OID",
     )
     wrong_package_path = copy.deepcopy(synthetic_envelope)
@@ -2311,7 +2774,7 @@ def main(argv=None):
     expect_schema_error("package role path", envelope_validator, wrong_package_path)
     expect_error(
         "package role path manual contract",
-        lambda: acquisition["validate_manual_envelope_contract"](wrong_package_path),
+        lambda: validate_synthetic_manual(wrong_package_path),
         "ARTIFACT_ROLE_PATH_BINDING",
     )
     for label, control in (("DEL", "\u007f"), ("C1", "\u0085")):
@@ -2320,8 +2783,151 @@ def main(argv=None):
         expect_schema_error(label + " artifact path", envelope_validator, controlled)
         expect_error(
             label + " artifact path manual contract",
-            lambda value=controlled: acquisition["validate_manual_envelope_contract"](value),
+            lambda value=controlled: validate_synthetic_manual(value),
         )
+    for label, hostile_path in (
+        ("casefold git alias", ".GIT/config"),
+        ("nested casefold git alias", "public/.gIt/config"),
+        ("obsidian component", "public/.ObSiDiAn/plugin.json"),
+        ("vault component", "public/Private-Canvas-Vault/file.json"),
+        ("empty segment", "public//file.json"),
+        ("dot segment", "public/./file.json"),
+        ("bidi override", "public/fi\u202ele.json"),
+        ("bidi isolate", "public/fi\u2066le.json"),
+        ("zero width", "public/fi\u200ble.json"),
+    ):
+        hostile = copy.deepcopy(synthetic_envelope)
+        hostile["artifacts"][0]["path"] = hostile_path
+        expect_schema_error(label + " artifact path schema", envelope_validator, hostile)
+        expect_error(
+            label + " artifact path manual",
+            lambda value=hostile: validate_synthetic_manual(value),
+        )
+    for field in ("logical_id", "version"):
+        hostile_tool = copy.deepcopy(synthetic_envelope)
+        hostile_tool["frozen_toolchain"]["entries"][0][field] = synthetic_private_locator(
+            "FixtureSecret", "private-tool"
+        )
+        expect_schema_error("private tool " + field + " schema", envelope_validator, hostile_tool)
+        expect_error(
+            "private tool " + field + " manual",
+            lambda value=hostile_tool: validate_synthetic_manual(value),
+            "ENVELOPE_PUBLIC_PRIVACY",
+        )
+        assert acquisition["has_forbidden_pending_envelope_value"](hostile_tool)
+    misplaced_public_system_path = copy.deepcopy(synthetic_envelope)
+    misplaced_public_system_path["frozen_toolchain"]["entries"][0]["version"] = "/usr/bin/xcode-select"
+    expect_schema_error(
+        "public system path relocated into tool version schema",
+        envelope_validator,
+        misplaced_public_system_path,
+    )
+    expect_error(
+        "public system path relocated into tool version manual",
+        lambda: validate_synthetic_manual(misplaced_public_system_path),
+        "ENVELOPE_PUBLIC_PRIVACY",
+    )
+    assert acquisition["has_forbidden_pending_envelope_value"](misplaced_public_system_path)
+    self_artifact = copy.deepcopy(synthetic_envelope)
+    self_artifact["artifacts"][0]["path"] = self_artifact["authorization_preimage"][
+        "envelope_repo_relative_path"
+    ]
+    expect_schema_error("pending envelope self artifact schema", envelope_validator, self_artifact)
+    expect_error(
+        "pending envelope self artifact manual",
+        lambda: validate_synthetic_manual(self_artifact),
+        "ARTIFACT_ROLE_PATH_BINDING",
+    )
+    wrong_generated_path = copy.deepcopy(synthetic_envelope)
+    wrong_generated_path["generation_authorization"][
+        "generated_acquisition_envelope_repo_relative_path"
+    ] = wrong_generated_path["generation_authorization"][
+        "generated_acquisition_envelope_repo_relative_path"
+    ].replace(".json", "-sibling.json")
+    expect_error(
+        "generation output path cross binding",
+        lambda: validate_synthetic_manual(wrong_generated_path),
+        "GENERATION_AUTHORIZATION_PATH",
+    )
+    wrong_preimage_path = copy.deepcopy(synthetic_envelope)
+    wrong_preimage_path["authorization_preimage"]["envelope_repo_relative_path"] = (
+        wrong_preimage_path["authorization_preimage"]["envelope_repo_relative_path"].replace(
+            ".json", "-sibling.json"
+        )
+    )
+    expect_error(
+        "authorization preimage output path cross binding",
+        lambda: validate_synthetic_manual(wrong_preimage_path),
+        "ENVELOPE_PATH_BINDING",
+    )
+    wrong_exclusion_profile = copy.deepcopy(synthetic_envelope)
+    wrong_exclusion_profile["authorization_preimage"][
+        "envelope_git_status_exclusion_profile"
+    ] = "git-status-parent-subtree-exclusion"
+    expect_schema_error(
+        "generation exclusion profile schema",
+        envelope_validator,
+        wrong_exclusion_profile,
+    )
+    expect_error(
+        "generation exclusion profile manual",
+        lambda: validate_synthetic_manual(wrong_exclusion_profile),
+        "ENVELOPE_PATH_BINDING",
+    )
+    for field, detail in (
+        ("executor_argv_template_sha256", "EXECUTOR_ARGV_TEMPLATE_RECEIPT"),
+        ("evidence_command_templates_sha256", "EVIDENCE_COMMAND_TEMPLATES_RECEIPT"),
+    ):
+        drifted_template = copy.deepcopy(synthetic_envelope)
+        drifted_template["execution_plan"][field] = "f" * 64
+        expect_error(
+            field + " manual receipt drift",
+            lambda value=drifted_template: validate_synthetic_manual(value),
+            detail,
+        )
+    short_challenge = copy.deepcopy(synthetic_envelope)
+    short_challenge["approval_challenge_id"] = "GOV01-SA-20260820-" + ("a" * 32)
+    expect_schema_error("short challenge schema", envelope_validator, short_challenge)
+    expect_error("short challenge manual", lambda: validate_synthetic_manual(short_challenge), "MANUAL_CHALLENGE")
+    wrong_challenge_date = copy.deepcopy(synthetic_envelope)
+    wrong_challenge_date["approval_challenge_id"] = "GOV01-SA-20260819-" + ("a" * 64)
+    expect_error(
+        "challenge census date manual",
+        lambda: validate_synthetic_manual(wrong_challenge_date),
+        "CHALLENGE_CENSUS_DATE",
+    )
+    exact_ttl = copy.deepcopy(synthetic_envelope)
+    exact_ttl["not_after_utc"] = "2026-08-21T00:00:00Z"
+    validate_synthetic_manual(exact_ttl)
+    excessive_ttl = copy.deepcopy(synthetic_envelope)
+    excessive_ttl["not_after_utc"] = "2026-08-21T00:00:01Z"
+    expect_error("excessive ttl manual", lambda: validate_synthetic_manual(excessive_ttl), "ENVELOPE_TTL")
+    exact_future_skew = copy.deepcopy(synthetic_envelope)
+    exact_future_skew["census_at_utc"] = "2026-08-20T00:05:00Z"
+    validate_synthetic_manual(exact_future_skew)
+    excessive_future_skew = copy.deepcopy(synthetic_envelope)
+    excessive_future_skew["census_at_utc"] = "2026-08-20T00:05:01Z"
+    expect_error(
+        "census future skew manual",
+        lambda: validate_synthetic_manual(excessive_future_skew),
+        "CENSUS_FUTURE_SKEW",
+    )
+    historical_census = copy.deepcopy(synthetic_envelope)
+    historical_census["census_at_utc"] = "2026-08-19T23:00:00Z"
+    historical_census["approval_challenge_id"] = "GOV01-SA-20260819-" + ("a" * 64)
+    historical_census["artifact_id"] = "GOV-01-STATIC-ACQUISITION-20260819-" + ("a" * 16)
+    historical_census["not_after_utc"] = "2026-08-20T01:00:00Z"
+    historical_census["static_acquisition_contract"]["stage_repo_relative"] = (
+        ".gov01-toolchain-stage-" + historical_census["approval_challenge_id"]
+    )
+    validate_synthetic_manual(historical_census)
+    expiry_equal_now = copy.deepcopy(synthetic_envelope)
+    expiry_equal_now["not_after_utc"] = "2026-08-20T00:00:00Z"
+    expect_error(
+        "expiry equality manual",
+        lambda: validate_synthetic_manual(expiry_equal_now),
+        "ENVELOPE_EXPIRED",
+    )
     for label, timestamp in (
         ("invalid month", "2026-99-20T00:00:00Z"),
         ("invalid hour", "2026-08-20T25:00:00Z"),
@@ -2331,14 +2937,366 @@ def main(argv=None):
         invalid_time["census_at_utc"] = timestamp
         expect_error(
             label + " strict UTC manual contract",
-            lambda value=invalid_time: acquisition["validate_manual_envelope_contract"](value),
+            lambda value=invalid_time: validate_synthetic_manual(value),
             "CENSUS_AT_FORMAT",
         )
     report["envelope_joint_schema_manual_positive_and_hostile_negatives"] = "PASS"
 
+    # A GEN approval is consumed by a durable private claim, not merely by the
+    # continued presence of the public final file.  Exercise the production
+    # claim ABI against a synthetic private control container while replacing
+    # only the already-tested control-preparation projection/locator derivation
+    # boundary; record construction, O_EXCL writes, HMAC validation, modes and
+    # recovery comparison remain production code.
+    with tempfile.TemporaryDirectory(prefix="gov01-generation-claim-", dir="/private/tmp") as temporary:
+        generation_root = pathlib.Path(temporary)
+        state_root = generation_root / "state"
+        claims_root = state_root / "claims"
+        state_root.mkdir(mode=0o700)
+        claims_root.mkdir(mode=0o700)
+        os.chmod(state_root, 0o700)
+        os.chmod(claims_root, 0o700)
+        key_path = state_root / "hmac.key"
+        write_bytes(key_path, b"g" * 32, 0o600)
+        runtime_args = acquisition["GenerationRuntimeArgsV2"](
+            str(generation_root / "repo"),
+            str(generation_root / "cache"),
+            str(state_root),
+            str(key_path),
+            str(generation_root / "repo" / synthetic_envelope["authorization_preimage"]["envelope_repo_relative_path"]),
+        )
+        generation_authorization = synthetic_envelope["generation_authorization"]
+        final_raw = acquisition["canonical_json"](synthetic_envelope)
+        original_revalidate = acquisition["revalidate_generation_runtime_args_v2"]
+        original_control_projection = acquisition["verify_control_preparation_projection_v2"]
+        original_load_key = acquisition["load_hmac_key"]
+        original_fsync = acquisition["os"].fsync
+        fsync_calls = []
+
+        def counted_fsync(fd):
+            fsync_calls.append(fd)
+            return original_fsync(fd)
+
+        acquisition["revalidate_generation_runtime_args_v2"] = (
+            lambda _runtime, _generation: synthetic_envelope["authorization_preimage"][
+                "envelope_repo_relative_path"
+            ]
+        )
+        acquisition["verify_control_preparation_projection_v2"] = lambda _runtime: {}
+        acquisition["load_hmac_key"] = lambda *_args, **_kwargs: b"g" * 32
+        acquisition["os"].fsync = counted_fsync
+        previous_umask = os.umask(0o077)
+        try:
+            assert acquisition["probe_generation_claim_v2"](
+                runtime_args=runtime_args,
+                generation_authorization=generation_authorization,
+            ) is None
+            record = acquisition["create_generation_claim_v2"](
+                runtime_args=runtime_args,
+                generation_authorization=generation_authorization,
+                final_envelope_raw=final_raw,
+                clock=lambda: witness_now,
+            )
+            assert set(record) == set(acquisition["GENERATION_CLAIM_FIELDS"])
+            claim_name = acquisition["generation_claim_name_v2"](generation_authorization)
+            claim_path = claims_root / claim_name
+            record_path = claim_path / "generation-record.json"
+            assert stat.S_IMODE(claim_path.stat().st_mode) == 0o700
+            assert stat.S_IMODE(record_path.stat().st_mode) == 0o600
+            assert record_path.stat().st_nlink == 1
+            assert len(fsync_calls) >= 4
+            recovered = acquisition["probe_generation_claim_v2"](
+                runtime_args=runtime_args,
+                generation_authorization=generation_authorization,
+            )
+            assert recovered == record
+            assert recovered["acquisition_approval_challenge_id"] == synthetic_envelope[
+                "approval_challenge_id"
+            ]
+            assert acquisition["verify_generation_claim_recovery_v2"](
+                runtime_args=runtime_args,
+                generation_authorization=generation_authorization,
+                final_envelope_raw=final_raw,
+            ) == record
+            expect_error(
+                "generation claim replay create",
+                lambda: acquisition["create_generation_claim_v2"](
+                    runtime_args=runtime_args,
+                    generation_authorization=generation_authorization,
+                    final_envelope_raw=final_raw,
+                    clock=lambda: witness_now,
+                ),
+                "PRIVATE_CHILD_EXISTS",
+            )
+            # A racing loser may only recover the already-authenticated
+            # winner; it may not mint another SA/time/raw identity.
+            assert acquisition["probe_generation_claim_v2"](
+                runtime_args=runtime_args,
+                generation_authorization=generation_authorization,
+            ) == record
+            changed_envelope = copy.deepcopy(synthetic_envelope)
+            changed_envelope["authorization_preimage"]["worktree_state"] = (
+                "dirty-user-owned-do-not-normalize"
+                if changed_envelope["authorization_preimage"]["worktree_state"] == "clean"
+                else "clean"
+            )
+            changed_raw = acquisition["canonical_json"](changed_envelope)
+            expect_error(
+                "generation claim same authority changed final",
+                lambda: acquisition["verify_generation_claim_recovery_v2"](
+                    runtime_args=runtime_args,
+                    generation_authorization=generation_authorization,
+                    final_envelope_raw=changed_raw,
+                ),
+                "GENERATION_CLAIM_RECOVERY_DRIFT",
+            )
+            # The public final may be absent or externally deleted; the
+            # retained claim still fixes the same SA/time/raw identity.
+            assert not pathlib.Path(runtime_args.envelope).exists()
+            assert acquisition["probe_generation_claim_v2"](
+                runtime_args=runtime_args,
+                generation_authorization=generation_authorization,
+            )["final_envelope_raw_sha256"] == hashlib.sha256(final_raw).hexdigest()
+
+            partial_generation = copy.deepcopy(generation_authorization)
+            partial_challenge = "GOV01-GEN-20260820-" + ("c" * 64)
+            partial_generation["approval_challenge_id"] = partial_challenge
+            partial_generation["approval_envelope_repo_relative_path"] = (
+                "_bmad-output/审查/phase0a-annotation-truth/"
+                "GOV-01-toolchain-static-envelope-generation-envelope-v1."
+                + partial_challenge
+                + ".json"
+            )
+            partial_generation["generated_acquisition_envelope_repo_relative_path"] = (
+                acquisition["expected_pending_envelope_relative"](partial_challenge)
+            )
+            partial_path = claims_root / acquisition["generation_claim_name_v2"](partial_generation)
+            partial_path.mkdir(mode=0o700)
+            os.chmod(partial_path, 0o700)
+            expect_error(
+                "generation partial claim retained",
+                lambda: acquisition["probe_generation_claim_v2"](
+                    runtime_args=runtime_args,
+                    generation_authorization=partial_generation,
+                ),
+                "GENERATION_CLAIM_PARTIAL_OR_UNEXPECTED",
+            )
+
+            tampered_record = json.loads(record_path.read_text(encoding="utf-8"))
+            original_record_raw = record_path.read_bytes()
+            tampered_record["record_hmac_sha256"] = "f" * 64
+            rewrite_canonical_json(record_path, tampered_record)
+            expect_error(
+                "generation claim HMAC tamper",
+                lambda: acquisition["probe_generation_claim_v2"](
+                    runtime_args=runtime_args,
+                    generation_authorization=generation_authorization,
+                ),
+                "GENERATION_CLAIM_HMAC",
+            )
+            rewrite_bytes(record_path, original_record_raw)
+            write_bytes(claim_path / "unexpected-child", b"fixture", 0o600)
+            expect_error(
+                "generation claim extra child retained",
+                lambda: acquisition["probe_generation_claim_v2"](
+                    runtime_args=runtime_args,
+                    generation_authorization=generation_authorization,
+                ),
+                "GENERATION_CLAIM_PARTIAL_OR_UNEXPECTED",
+            )
+        finally:
+            os.umask(previous_umask)
+            acquisition["os"].fsync = original_fsync
+            acquisition["load_hmac_key"] = original_load_key
+            acquisition["verify_control_preparation_projection_v2"] = original_control_projection
+            acquisition["revalidate_generation_runtime_args_v2"] = original_revalidate
+    report["durable_generation_claim_single_use_and_recovery"] = "PASS"
+
+    # Receipt, external challenge, expiry, privacy and the complete public G00
+    # contract must fail before state/cache/key metadata, bytes or processes
+    # are touched.  Exercise the production build_census entry rather than a
+    # substitute ordering helper.
+    with tempfile.TemporaryDirectory(prefix="gov01-public-before-private-", dir="/private/tmp") as temporary:
+        public_repo = pathlib.Path(temporary) / "repo"
+        public_repo.mkdir(mode=0o700)
+        current = acquisition["utc_now"]()
+        current_text = current.strftime("%Y-%m-%dT%H:%M:%SZ")
+        expiry_text = (current + datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        current_challenge = "GOV01-SA-" + current.strftime("%Y%m%d") + "-" + ("d" * 64)
+        current_generation_challenge = "GOV01-GEN-" + current.strftime("%Y%m%d") + "-" + ("d" * 64)
+        relative = acquisition["expected_pending_envelope_relative"](current_generation_challenge)
+        public_envelope_path = public_repo / relative
+        public_envelope_path.parent.mkdir(parents=True)
+        minimal_public_envelope = {
+            "schema_version": "gov-01-toolchain-static-acquisition-envelope-v2",
+            "artifact_type": "gov-01-toolchain-acquisition-envelope",
+            "approval_challenge_id": current_challenge,
+            "single_use": True,
+            "census_at_utc": current_text,
+            "not_after_utc": expiry_text,
+        }
+
+        def write_public_envelope(value):
+            raw = acquisition["canonical_json"](value)
+            if public_envelope_path.exists():
+                output_fd = os.open(str(public_envelope_path), os.O_WRONLY | os.O_TRUNC)
+                try:
+                    offset = 0
+                    while offset < len(raw):
+                        offset += os.write(output_fd, raw[offset:])
+                finally:
+                    os.close(output_fd)
+            else:
+                write_bytes(public_envelope_path, raw, 0o600)
+            domain = acquisition["RECEIPT_DOMAINS"][value["schema_version"]]
+            return hashlib.sha256(domain + b"\x00" + raw).hexdigest()
+
+        good_receipt = write_public_envelope(minimal_public_envelope)
+        state_root = pathlib.Path(temporary) / "private-state-must-not-be-touched"
+        cache_root = pathlib.Path(temporary) / "private-cache-must-not-be-touched"
+
+        def entry_args(receipt, challenge, generation_challenge=current_generation_challenge):
+            return argparse.Namespace(
+                repo_root=str(public_repo),
+                cache_root=str(cache_root),
+                state_root=str(state_root),
+                key_file=str(state_root / "hmac.key"),
+                envelope=str(public_envelope_path),
+                receipt_digest=receipt,
+                approval_challenge=challenge,
+                generation_challenge=generation_challenge,
+            )
+
+        original_entry_functions = {
+            name: acquisition[name]
+            for name in (
+                "require_python_isolation", "require_host", "require_owned_directory",
+                "open_directory", "load_hmac_key", "run_process", "verify_bound_schema_artifact",
+            )
+        }
+        private_accesses = []
+
+        def guarded_owned_directory(path, label, exact_mode=None):
+            if label != "REPO_ROOT":
+                private_accesses.append(("require_owned_directory", label))
+                raise AssertionError("private locator touched before public authorization")
+            return original_entry_functions["require_owned_directory"](path, label, exact_mode)
+
+        def guarded_open_directory(path, label):
+            if label != "REPO_ROOT":
+                private_accesses.append(("open_directory", label))
+                raise AssertionError("private locator opened before public authorization")
+            return original_entry_functions["open_directory"](path, label)
+
+        def forbidden_private_or_process(*_args, **_kwargs):
+            private_accesses.append(("private-or-process", "reached"))
+            raise AssertionError("private bytes or subprocess reached before public authorization")
+
+        acquisition["require_python_isolation"] = lambda: None
+        acquisition["require_host"] = lambda: None
+        acquisition["require_owned_directory"] = guarded_owned_directory
+        acquisition["open_directory"] = guarded_open_directory
+        acquisition["load_hmac_key"] = forbidden_private_or_process
+        acquisition["run_process"] = forbidden_private_or_process
+        try:
+            cases = (
+                ("missing receipt", entry_args(None, current_challenge), "APPROVED_RECEIPT_REQUIRED"),
+                ("bad receipt", entry_args("f" * 64, current_challenge), "RECEIPT_MISMATCH"),
+                (
+                    "challenge mismatch",
+                    entry_args(good_receipt, "GOV01-SA-" + current.strftime("%Y%m%d") + "-" + ("e" * 64)),
+                    "APPROVAL_CHALLENGE_MISMATCH",
+                ),
+            )
+            for label, candidate_args, reason in cases:
+                private_accesses[:] = []
+                expect_error(
+                    label + " before private I/O",
+                    lambda value=candidate_args: acquisition["build_census"](value, strict=True),
+                    reason,
+                )
+                assert private_accesses == []
+
+            expired = dict(minimal_public_envelope)
+            expired["census_at_utc"] = (current - datetime.timedelta(hours=1)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            expired["not_after_utc"] = (current - datetime.timedelta(seconds=1)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            expired["approval_challenge_id"] = (
+                "GOV01-SA-" + (current - datetime.timedelta(hours=1)).strftime("%Y%m%d") + "-" + ("d" * 64)
+            )
+            expired_generation_challenge = (
+                "GOV01-GEN-" + (current - datetime.timedelta(hours=1)).strftime("%Y%m%d") + "-" + ("d" * 64)
+            )
+            expired_relative = acquisition["expected_pending_envelope_relative"](expired_generation_challenge)
+            expired_path = public_repo / expired_relative
+            expired_path.parent.mkdir(parents=True, exist_ok=True)
+            public_envelope_path = expired_path
+            expired_receipt = write_public_envelope(expired)
+            private_accesses[:] = []
+            expect_error(
+                "expired envelope before private I/O",
+                lambda: acquisition["build_census"](
+                    entry_args(
+                        expired_receipt,
+                        expired["approval_challenge_id"],
+                        expired_generation_challenge,
+                    ),
+                    strict=True,
+                ),
+                "ENVELOPE_EXPIRED",
+            )
+            assert private_accesses == []
+
+            # A receipt-valid envelope that fails the manual public contract at
+            # G00 likewise must not advance to any private locator.  Patch only
+            # the already-public schema observation so the production ordering
+            # reaches the manual checker without requiring a synthetic repo
+            # artifact tree.
+            public_envelope_path = public_repo / relative
+            invalid_public_contract = copy.deepcopy(synthetic_envelope)
+            invalid_public_contract["approval_challenge_id"] = current_challenge
+            invalid_public_contract["census_at_utc"] = current_text
+            invalid_public_contract["not_after_utc"] = expiry_text
+            invalid_public_contract["artifact_id"] = "x"
+            invalid_public_contract["generation_authorization"].update(
+                {
+                    "approval_challenge_id": current_generation_challenge,
+                    "approval_envelope_repo_relative_path": (
+                        "_bmad-output/审查/phase0a-annotation-truth/"
+                        "GOV-01-toolchain-static-envelope-generation-envelope-v1."
+                        + current_generation_challenge
+                        + ".json"
+                    ),
+                    "generated_acquisition_envelope_repo_relative_path": relative,
+                }
+            )
+            invalid_public_contract["authorization_preimage"]["envelope_repo_relative_path"] = relative
+            invalid_receipt = write_public_envelope(invalid_public_contract)
+            acquisition["verify_bound_schema_artifact"] = lambda *_args, **_kwargs: {
+                "path": invalid_public_contract["schema_binding"]["schema_artifact_path"],
+                "sha256": "0" * 64,
+                "bytes": 1,
+            }
+            private_accesses[:] = []
+            expect_error(
+                "manual G00 rejection before private I/O",
+                lambda: acquisition["build_census"](
+                    entry_args(invalid_receipt, current_challenge), strict=True
+                ),
+                "MANUAL_ARTIFACT_ID",
+            )
+            assert private_accesses == []
+        finally:
+            for name, function in original_entry_functions.items():
+                acquisition[name] = function
+    report["receipt_challenge_expiry_and_g00_before_private_io"] = "PASS"
+
     private_validator = Draft202012Validator(schemas["private"])
     public_validator = Draft202012Validator(schemas["public"])
-    challenge = "GOV01-SA-20260820-" + ("f" * 32)
+    challenge = "GOV01-SA-20260820-" + ("f" * 64)
     receipt = "e" * 64
     ledger_key = b"h" * 32
     success_events = [
@@ -2452,7 +3410,7 @@ def main(argv=None):
         "JSON_NUMBER_PROFILE",
     )
     drifted = copy.deepcopy(records)
-    drifted[1]["challenge"] = "GOV01-SA-20260820-" + ("d" * 32)
+    drifted[1]["challenge"] = "GOV01-SA-20260820-" + ("d" * 64)
     expect_error(
         "ledger challenge drift",
         lambda: acquisition["validate_ledger_jsonl"](
@@ -2800,6 +3758,21 @@ def main(argv=None):
         None,
     )
     validate_public_contract(acquisition, public_validator, preclaim_failure)
+    assert preclaim_failure["terminal_state"]["challenge_state"] == "preclaim-pending"
+    assert preclaim_failure["authority"]["retry_authorized"] is True
+    assert preclaim_failure["retention"]["private_state_inspection_required"] is False
+    false_consumption = copy.deepcopy(preclaim_failure)
+    false_consumption["terminal_state"]["challenge_state"] = "preclaim-rejected-new-envelope-required"
+    false_consumption["authority"]["retry_authorized"] = False
+    false_consumption["authority"]["next_required_authority"] = (
+        "new explicit user approval after retained-state inspection; never retry automatically"
+    )
+    expect_schema_error("preclaim false consumption schema", public_validator, false_consumption)
+    expect_error(
+        "preclaim false consumption checker",
+        lambda: acquisition["validate_public_result_projection"](false_consumption),
+        "PUBLIC_RESULT_ACQUIRE_PRECLAIM_CHALLENGE",
+    )
 
     process_attempt = acquisition["AttemptState"]()
     process_attempt.set_phase("process-census-before")
@@ -2833,6 +3806,8 @@ def main(argv=None):
         None,
     )
     validate_public_contract(acquisition, public_validator, claim_failure)
+    assert claim_failure["terminal_state"]["challenge_state"] == "claimed-consumed"
+    assert claim_failure["authority"]["retry_authorized"] is False
 
     complete_recorder = recorder_with_prefix(
         acquisition,
@@ -3190,7 +4165,7 @@ def main(argv=None):
         "PUBLIC_RESULT_READ_ONLY_GATE_SET",
     )
     mixed_challenge = copy.deepcopy(success_result)
-    mixed_challenge["approval_challenge_id"] = "GOV01-SA-20260820-" + ("c" * 32)
+    mixed_challenge["approval_challenge_id"] = "GOV01-SA-20260820-" + ("c" * 64)
     expect_error(
         "mixed public authority challenge",
         lambda: acquisition["validate_public_result_projection"](mixed_challenge, success_binding),
@@ -3275,7 +4250,7 @@ def main(argv=None):
         "PUBLIC_RESULT_READ_ONLY_AUTHORITY_AUTHORIZED_LOCATOR_COMMITMENTS",
     )
     coordinated_run_drift = copy.deepcopy(read_only_result)
-    coordinated_run_drift["approval_challenge_id"] = "GOV01-SA-20260820-" + ("c" * 32)
+    coordinated_run_drift["approval_challenge_id"] = "GOV01-SA-20260820-" + ("c" * 64)
     coordinated_run_drift["receipt_digest"] = "f" * 64
     expect_error(
         "recorder authority rejects coordinated run drift",
@@ -3502,7 +4477,7 @@ def main(argv=None):
     )
     coordinated_failure_run_drift = copy.deepcopy(marker_failure)
     coordinated_failure_run_drift["approval_challenge_id"] = (
-        "GOV01-SA-20260820-" + ("d" * 32)
+        "GOV01-SA-20260820-" + ("d" * 64)
     )
     coordinated_failure_run_drift["receipt_digest"] = "d" * 64
     expect_error(
@@ -3867,6 +4842,47 @@ def main(argv=None):
             assert token not in combined_output
         assert not acquisition["has_forbidden_public_value"](combined_output.strip())
     report["fixture_cli_failure_privacy"] = "PASS"
+
+    # The production executor accepts only public receipt/challenge values.
+    # Raw repo/cache/state/key/envelope locators must not exist in its CLI ABI,
+    # and hostile argparse inputs must never be echoed.
+    forbidden_locator_options = {
+        "--repo-root", "--cache-root", "--state-root", "--key-file", "--envelope",
+    }
+    production_parser = acquisition["parser"]()
+    all_option_strings = set()
+    parsers_to_visit = [production_parser]
+    while parsers_to_visit:
+        current_parser = parsers_to_visit.pop()
+        for action in current_parser._actions:
+            all_option_strings.update(action.option_strings)
+            choices = getattr(action, "choices", None)
+            if isinstance(choices, dict):
+                parsers_to_visit.extend(choices.values())
+    assert forbidden_locator_options.isdisjoint(all_option_strings)
+    public_cli = (
+        "--generation-challenge", "GOV01-GEN-20260820-" + ("c" * 64),
+        "--receipt-digest", "d" * 64,
+        "--approval-challenge", "GOV01-SA-20260820-" + ("e" * 64),
+    )
+    for mode in ("census", "verify", "acquire"):
+        parsed = production_parser.parse_args((mode,) + public_cli)
+        assert parsed.mode == mode
+        assert all(not hasattr(parsed, name) for name in ("repo_root", "cache_root", "state_root", "key_file", "envelope"))
+    for option in sorted(forbidden_locator_options):
+        vector = ("acquire", option, private_argument) + public_cli
+        parser_stdout = io.StringIO()
+        parser_stderr = io.StringIO()
+        with contextlib.redirect_stdout(parser_stdout), contextlib.redirect_stderr(parser_stderr):
+            expect_error(
+                "production private-locator CLI " + option,
+                lambda value=vector: acquisition["parser"]().parse_args(value),
+                "USAGE",
+            )
+        combined_output = parser_stdout.getvalue() + parser_stderr.getvalue()
+        assert private_argument not in combined_output and option not in combined_output
+        assert not acquisition["has_forbidden_public_value"](combined_output.strip())
+    report["production_cli_public_receipt_only_and_private_locator_free"] = "PASS"
 
     print(json.dumps(report, sort_keys=True, separators=(",", ":")))
 

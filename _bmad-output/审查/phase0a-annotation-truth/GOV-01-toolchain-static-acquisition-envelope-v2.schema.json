@@ -20,6 +20,7 @@
     "receipt_digest_profile",
     "approval_receipt_contract",
     "predecessor",
+    "generation_authorization",
     "artifacts",
     "artifact_path_uniqueness_policy",
     "authorization_preimage",
@@ -57,10 +58,12 @@
       "const": true
     },
     "census_at_utc": {
-      "$ref": "#/$defs/utcTimestamp"
+      "$ref": "#/$defs/utcTimestamp",
+      "description": "Canonical UTC seconds; its date is bound to approval_challenge_id. At validation it may be historical but must not be more than five minutes in the future."
     },
     "not_after_utc": {
-      "$ref": "#/$defs/utcTimestamp"
+      "$ref": "#/$defs/utcTimestamp",
+      "description": "Must be later than validation time and census_at_utc, with a maximum TTL of 24 hours from census_at_utc."
     },
     "path_base": {
       "const": "git-repository-root-for-public-paths; private-paths-resolved-only-after-approval"
@@ -101,40 +104,135 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "profile",
         "first_approval_envelope_raw_sha256",
-        "first_receipt_domain_sha256",
+        "first_approval_receipt_digest",
         "bootstrap_patch_raw_sha256",
-        "bootstrap_target_receipt_sha256",
-        "bootstrap_containment_state",
+        "bootstrap_commit_oid",
+        "control_preparation_envelope_raw_sha256",
+        "control_preparation_envelope_receipt_digest",
+        "control_preparation_approval_challenge_id",
+        "control_preparation_result_raw_sha256",
+        "control_preparation_evidence_receipt_sha256",
+        "control_preparation_state",
+        "generation_authorization_envelope_raw_sha256",
+        "generation_authorization_receipt_digest",
+        "generation_authorization_challenge_id",
+        "generation_authorization_parent_commit_oid",
+        "generation_authorization_parent_tree_oid",
+        "generation_authorization_commit_oid",
+        "generation_authorization_tree_oid",
         "predecessor_chain_receipt_sha256"
       ],
       "properties": {
-        "first_approval_envelope_raw_sha256": { "$ref": "#/$defs/sha256" },
-        "first_receipt_domain_sha256": { "$ref": "#/$defs/sha256" },
-        "bootstrap_patch_raw_sha256": { "$ref": "#/$defs/sha256" },
-        "bootstrap_target_receipt_sha256": { "$ref": "#/$defs/sha256" },
-        "bootstrap_containment_state": { "const": "independently-verified-pass" },
+        "profile": { "const": "gov01-static-acquisition-predecessor-chain-v2" },
+        "first_approval_envelope_raw_sha256": { "const": "0b73b83e1dbd92dd0a4684a83438dafc7afae6a6fde42b4130d776d7ee246410" },
+        "first_approval_receipt_digest": { "const": "c89e7195e67b60a26117469e2b212fb508c0a5a64cac5d25a59a257f73b55740" },
+        "bootstrap_patch_raw_sha256": { "const": "d2f9a1ff45006cf19bd5295b751e2b620dc6043d6ec1ff26494c1d2d722aa8aa" },
+        "bootstrap_commit_oid": { "const": "0e0f0150be184f4dad83a859b0fdd232ec53e8b5" },
+        "control_preparation_envelope_raw_sha256": { "const": "ef424f80672568076d750ae0f6d662ebfdae242fdea8fcda2b37f39e6406945b" },
+        "control_preparation_envelope_receipt_digest": { "const": "dbb28c7627b63989e98b70ff608c20976d687541364af95804537dda7867541c" },
+        "control_preparation_approval_challenge_id": { "type": "string", "pattern": "^GOV01-CP-[0-9]{8}-[0-9a-f]{32}$" },
+        "control_preparation_result_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "control_preparation_evidence_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "control_preparation_state": { "const": "CONTROL-PREPARED-FULL-TREE-REVALIDATED-PASS" },
+        "generation_authorization_envelope_raw_sha256": { "$ref": "#/$defs/sha256" },
+        "generation_authorization_receipt_digest": { "$ref": "#/$defs/sha256" },
+        "generation_authorization_challenge_id": { "$ref": "#/$defs/generationChallengeId" },
+        "generation_authorization_parent_commit_oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "generation_authorization_parent_tree_oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "generation_authorization_commit_oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "generation_authorization_tree_oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
         "predecessor_chain_receipt_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "generation_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "approval_challenge_id",
+        "approval_envelope_repo_relative_path",
+        "generated_acquisition_envelope_repo_relative_path",
+        "raw_envelope_sha256",
+        "receipt_digest",
+        "receipt_domain_profile",
+        "authorization_parent_commit_oid",
+        "authorization_parent_tree_oid",
+        "authorization_commit_oid",
+        "authorization_tree_oid",
+        "commit_transition_profile",
+        "state",
+        "generation_claim_required",
+        "generation_claim_profile",
+        "generation_claim_record_profile",
+        "generation_claim_retention"
+      ],
+      "properties": {
+        "profile": { "const": "gov01-static-envelope-generation-authority-v1" },
+        "approval_challenge_id": { "$ref": "#/$defs/generationChallengeId" },
+        "approval_envelope_repo_relative_path": {
+          "type": "string",
+          "pattern": "^_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-envelope-generation-envelope-v1\\.GOV01-GEN-[0-9]{8}-[0-9a-f]{64}\\.json$"
+        },
+        "generated_acquisition_envelope_repo_relative_path": {
+          "type": "string",
+          "pattern": "^_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-pending-GOV01-GEN-[0-9]{8}-[0-9a-f]{64}\\.json$"
+        },
+        "raw_envelope_sha256": { "$ref": "#/$defs/sha256" },
+        "receipt_digest": { "$ref": "#/$defs/sha256" },
+        "receipt_domain_profile": {
+          "const": "SHA-256(ASCII(CLS/GOV01-STATIC-ENVELOPE-GENERATION-RECEIPT/v1) || NUL || raw-generation-envelope-bytes)"
+        },
+        "authorization_parent_commit_oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "authorization_parent_tree_oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "authorization_commit_oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "authorization_tree_oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "commit_transition_profile": {
+          "const": "single parent commit changing exactly the generation approval envelope path from ABSENT to the approved canonical raw bytes"
+        },
+        "state": { "const": "approved-single-path-commit" },
+        "generation_claim_required": { "const": true },
+        "generation_claim_profile": {
+          "const": "exclusive-0700-generation-claim-directory-with-exclusive-0600-canonical-HMAC-record-v1"
+        },
+        "generation_claim_record_profile": {
+          "const": "HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/STATIC-ENVELOPE-GENERATION-CLAIM/v1) || NUL || uint64be(canonical-body-byte-length) || canonical JSON binding GEN receipt/raw, C1/C2 identities, one SA/time tuple and final raw SHA-256/bytes/domain receipt"
+        },
+        "generation_claim_retention": {
+          "const": "retain permanently; never delete, overwrite or repair; a complete valid claim permits only byte-exact recovery with its recorded SA and times"
+        }
       }
     },
     "artifacts": {
       "type": "array",
-      "minItems": 10,
-      "maxItems": 64,
+      "minItems": 21,
+      "maxItems": 21,
       "uniqueItems": true,
-      "items": { "$ref": "#/$defs/publicArtifact" },
-      "allOf": [
-        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "goal" } } }, "minContains": 1, "maxContains": 1 },
-        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "governance-decision" } } }, "minContains": 1, "maxContains": 1 },
-        { "contains": { "type": "object", "required": ["role", "path", "raw_file_sha256", "byte_length"], "properties": { "role": { "const": "static-executor" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" }, "raw_file_sha256": { "const": "b0117713c364fd8de77b9872585bff6590e3b5cc4aee21216cdd101ae83722da" }, "byte_length": { "const": 349389 } } }, "minContains": 1, "maxContains": 1 },
-        { "contains": { "type": "object", "required": ["role", "path", "raw_file_sha256", "byte_length"], "properties": { "role": { "const": "static-verifier" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py" }, "raw_file_sha256": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" }, "byte_length": { "const": 50895 } } }, "minContains": 1, "maxContains": 1 },
-        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "pending-envelope-schema" } } }, "minContains": 1, "maxContains": 1 },
-        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "private-evidence-schema" } } }, "minContains": 1, "maxContains": 1 },
-        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "public-attestation-schema" } } }, "minContains": 1, "maxContains": 1 },
-        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "package-manifest" } } }, "minContains": 1, "maxContains": 1 },
-        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "package-lock" } } }, "minContains": 1, "maxContains": 1 },
-        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "gitignore" } } }, "minContains": 1, "maxContains": 1 }
-      ]
+      "prefixItems": [
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "goal" }, "path": { "const": "_bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "governance-decision" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-追踪真相源修复决策稿.md" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "phase0a-contract" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-Phase0A-A01-A02-批注真相层实施契约.md" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "first-receipt-envelope" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-first-receipt-envelope-v1.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "first-receipt-schema" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-first-receipt-envelope-v1.schema.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "bootstrap-patch" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-Bootstrap-0-safe-mode.patch" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "control-prep-envelope" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-control-prep-envelope-v1.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "control-prep-schema" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-control-prep-envelope-v1.schema.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "static-envelope-generator" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-envelope-generation-v1.py" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "generation-envelope-schema" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-envelope-generation-envelope-v1.schema.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "generation-hostile-fixture" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-envelope-generation-hostile-fixtures-v1.py" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "static-executor" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" }, "raw_file_sha256": { "const": "ab3b0b2fc5dffff8371fed3b90f7c1cb5593730303cb010dff7a0268ce87c525" }, "byte_length": { "const": 488561 } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "static-verifier" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py" }, "raw_file_sha256": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" }, "byte_length": { "const": 50895 } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "static-hostile-fixture" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-static-acquisition-hostile-fixtures-v2.py" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "pending-envelope-schema" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-envelope-v2.schema.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "private-evidence-schema" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-private-evidence-v2.schema.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "public-attestation-schema" }, "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-public-attestation-v2.schema.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "package-manifest" }, "path": { "const": "package.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "package-lock" }, "path": { "const": "package-lock.json" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "gitignore" }, "path": { "const": ".gitignore" } } } ] },
+        { "allOf": [ { "$ref": "#/$defs/publicArtifact" }, { "properties": { "role": { "const": "generation-approval-envelope" }, "path": { "pattern": "^_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-envelope-generation-envelope-v1\\.GOV01-GEN-[0-9]{8}-[0-9a-f]{64}\\.json$" } } } ] }
+      ],
+      "items": false
     },
     "artifact_path_uniqueness_policy": {
       "const": "content-addressed checker MUST reject duplicate path even when role, byte_length or raw_file_sha256 differs; JSON Schema uniqueItems is not sufficient"
@@ -158,7 +256,7 @@
       ],
       "properties": {
         "schema_id": { "const": "urn:canvas-learning-system:gov-01:toolchain-static-acquisition-pending-envelope:v2:draft" },
-        "schema_artifact_path": { "$ref": "#/$defs/repoRelativePath" },
+        "schema_artifact_path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-envelope-v2.schema.json" },
         "schema_raw_file_sha256": { "$ref": "#/$defs/sha256" },
         "schema_artifact_role": { "const": "pending-envelope-schema" },
         "external_validator_profile": { "const": "JSON-Schema-draft-2020-12-strict-additionalProperties-false-format-annotation-plus-content-addressed-strict-UTC-calendar-and-duplicate-key-checker" },
@@ -196,14 +294,16 @@
         "target_worktree_claude_sessions",
         "forbidden_process_match_count",
         "node_modules_parent_or_sibling_reuse_allowed",
-        "private_vault_census_allowed"
+        "private_vault_census_allowed",
+        "envelope_repo_relative_path",
+        "envelope_git_status_exclusion_profile"
       ],
       "properties": {
         "head_commit_oid": { "$ref": "#/$defs/gitOid" },
         "head_tree_oid": { "$ref": "#/$defs/gitOid" },
         "git_object_format": { "enum": ["sha1", "sha256"] },
         "git_snapshot_commitment": { "$ref": "#/$defs/privateCommitment" },
-        "git_snapshot_commitment_profile": { "const": "HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/GIT-SNAPSHOT/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,status_bytes,dirty_manifest_commitment,refs_sha256,refs_bytes,index,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,hooks_config_state,git_binary_sha256; git_control binds marker/commondir/config states, private git/common-dir locator commitments and ABSENT alternate controls; dirty_manifest_commitment is a keyed content-and-metadata manifest of every porcelain-v2 dirty or untracked path" },
+        "git_snapshot_commitment_profile": { "const": "HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/GIT-SNAPSHOT/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,status_bytes,dirty_manifest_commitment,worktree_tree_exclusions,worktree_exact_file_exclusions,refs_sha256,refs_bytes,index,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,hooks_config_state,git_binary_sha256; worktree_tree_exclusions are exactly the challenge stage and node_modules while worktree_exact_file_exclusions contains exactly the challenge-suffixed pending envelope file and never its parent, subtree or a glob; git_control binds marker/commondir/config states, private git/common-dir locator commitments and ABSENT alternate controls; dirty_manifest_commitment is a keyed content-and-metadata manifest of every nonexcluded porcelain-v2 dirty or untracked path" },
         "private_preapproval_commitment": { "$ref": "#/$defs/privateCommitment" },
         "private_preapproval_commitment_profile": { "const": "HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-PREAPPROVAL/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON of exactly {schema_version,approval_challenge_id,census_at_utc,hmac_key_id,authorized_locator_commitments,private_control_identity_commitment,public_repo_artifact_set_receipt_sha256,git_snapshot_commitment,toolchain_set_receipt_sha256,package_lock_raw_sha256,host_platform,host_architecture,target_worktree_claude_sessions,forbidden_process_match_count,host_selected_package_count,host_selected_cache_bytes,host_bin_link_count,content_receipt_sha256,ustar_closure_sha256,resolution_receipt_sha256,expected_tree_sha256}; no envelope digest, receipt digest, generated timestamp, raw private locator, inode/device or command bytes are in this deterministic body" },
         "public_repo_artifact_set_receipt_sha256": { "$ref": "#/$defs/sha256" },
@@ -226,7 +326,9 @@
         "target_worktree_claude_sessions": { "const": 0 },
         "forbidden_process_match_count": { "const": 0 },
         "node_modules_parent_or_sibling_reuse_allowed": { "const": false },
-        "private_vault_census_allowed": { "const": false }
+        "private_vault_census_allowed": { "const": false },
+        "envelope_repo_relative_path": { "type": "string", "pattern": "^_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-pending-GOV01-GEN-[0-9]{8}-[0-9a-f]{64}\\.json$" },
+        "envelope_git_status_exclusion_profile": { "const": "git-status-exact-top-literal-envelope-file-exclusion-v1; no parent, subtree, wildcard or glob exclusion" }
       },
       "allOf": [
         {
@@ -285,7 +387,7 @@
           "const": "resolve realpaths only in private preflight; require exact public digest before execution; never serialize locator in public artifacts"
         },
         "recompute_before_first_non_ledger_acquisition_write": { "const": true },
-        "drift_action": { "const": "append terminal rejection to the already-consumed persistent ledger; perform no stage or target write; require a fresh envelope and challenge" }
+        "drift_action": { "const": "before exclusive persistent claim, stop without consumption and permit only conditional same-envelope retry while unexpired and receipt-bound inputs remain unchanged; after claim, append terminal rejection when the ledger remains writable, perform no stage or target write and require new authority" }
       }
     },
     "static_acquisition_contract": {
@@ -319,8 +421,8 @@
         "verifier_artifact_path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py" },
         "verifier_sha256": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" },
         "executor_artifact_path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" },
-        "executor_sha256": { "const": "b0117713c364fd8de77b9872585bff6590e3b5cc4aee21216cdd101ae83722da" },
-        "stage_repo_relative": { "type": "string", "pattern": "^\\.gov01-toolchain-stage-GOV01-SA-[0-9]{8}-[0-9a-f]{32,64}$" },
+        "executor_sha256": { "const": "ab3b0b2fc5dffff8371fed3b90f7c1cb5593730303cb010dff7a0268ce87c525" },
+        "stage_repo_relative": { "type": "string", "pattern": "^\\.gov01-toolchain-stage-GOV01-SA-[0-9]{8}-[0-9a-f]{64}$" },
         "target_repo_relative": { "const": "node_modules" },
         "compressed_blobs_memory_resident_before_write": { "const": true },
         "payload_bytes_memory_resident_before_write": { "const": true },
@@ -430,6 +532,7 @@
         "expiry_checkpoints",
         "environment_mode",
         "environment_name_allowlist",
+        "git_child_sandbox_profile",
         "ustar_parser",
         "compression_policy",
         "ustar_safety_policy",
@@ -445,7 +548,7 @@
         "stop_after_static_attestation"
       ],
       "properties": {
-        "attempt_policy": { "const": "single-use; any failure consumes challenge; retry requires a new envelope and challenge" },
+        "attempt_policy": { "const": "single-use begins only at successful exclusive persistent claim; read-only and preclaim failures leave no consumption record and permit same-envelope retry only while unexpired and every receipt-bound input remains unchanged; post-claim failure consumes the challenge and requires new authority" },
         "phase_order": {
           "const": [
             "read-only-verify-user-receipt-envelope-digest-challenge-and-expiry",
@@ -476,9 +579,8 @@
         "executor_interface_version": { "const": "gov01-static-acquisition-executor-draft-v2" },
         "executor_argv_template": {
           "const": [
-            "{BOUND_PYTHON_PRIVATE}", "-I", "-S", "-B", "{REPO_ROOT_PRIVATE}/_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py",
-            "acquire", "--repo-root", "{REPO_ROOT_PRIVATE}", "--cache-root", "{CACHE_ROOT_PRIVATE}", "--state-root", "{STATE_ROOT_PRIVATE}",
-            "--key-file", "{HMAC_KEY_FILE_PRIVATE}", "--envelope", "{ENVELOPE_PRIVATE}", "--receipt-digest", "{APPROVED_RECEIPT_DIGEST_PUBLIC}",
+            "{BOUND_PYTHON_PRIVATE}", "-I", "-S", "-B", "{BOUND_EXECUTOR_PRIVATE}",
+            "acquire", "--generation-challenge", "{APPROVED_GENERATION_CHALLENGE_ID_PUBLIC}", "--receipt-digest", "{APPROVED_RECEIPT_DIGEST_PUBLIC}",
             "--approval-challenge", "{APPROVAL_CHALLENGE_ID_PUBLIC}"
           ]
         },
@@ -504,6 +606,7 @@
         "expiry_checkpoints": { "const": ["on-envelope-load", "immediately-before-persistent-ledger-claim", "immediately-before-renameatx_np-RENAME_EXCL"] },
         "environment_mode": { "const": "executor requires Python -I -S -B and self-attests those runtime flags; every authorized evidence subprocess receives a newly constructed exact environment and never inherits caller environment; assurance ceiling is runtime-self-attested-not-pre-exec" },
         "environment_name_allowlist": { "const": ["PATH", "HOME", "LC_ALL", "LANG", "GIT_OPTIONAL_LOCKS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM", "GIT_TERMINAL_PROMPT", "GIT_NO_REPLACE_OBJECTS", "GIT_PROTOCOL_FROM_USER", "GIT_ALLOW_PROTOCOL", "GIT_ATTR_NOSYSTEM", "GIT_DISCOVERY_ACROSS_FILESYSTEM"] },
+        "git_child_sandbox_profile": { "const": "every Git child calls /usr/lib/libsandbox.1.dylib sandbox_init exactly once before exec with a generated default-deny profile; permits only the content-bound CommandLineTools tree, validated Git control metadata, exact object and ref stores, required path ancestors, and the exact repository worktree only for commands that must enumerate it; denies network, writes, Vault/.obsidian paths, config includes, alternates, grafts and all other reads; sandbox initialization failure is terminal; /usr/bin/sandbox-exec is never executed" },
         "ustar_parser": { "const": "custom Python stdlib fixed-512-byte POSIX.1-1988 USTAR parser; tarfile.extract/extractall forbidden" },
         "compression_policy": { "const": "exactly one RFC1952 gzip stream through frozen Python stdlib zlib; MAX_TAR_STREAM prebound; eof required; unused_data and unconsumed_tail empty; concatenated/trailing stream rejected" },
         "ustar_safety_policy": { "const": "strict magic/version/checksum/octal/padding/two-zero-block terminator; reject PAX, GNU, sparse, base-256 numeric, trailing payload, absolute/dot/dotdot/backslash/NUL/control path, symlink ancestor and path escape" },
@@ -569,7 +672,8 @@
       "required": [
         "failure_action",
         "challenge_state",
-        "retry_allowed",
+        "preclaim_retry_allowed",
+        "postclaim_retry_allowed",
         "public_success_attestation_allowed",
         "existing_target_action",
         "failed_stage_action",
@@ -578,13 +682,14 @@
       ],
       "properties": {
         "failure_action": { "const": "STOP immediately at first failed gate" },
-        "challenge_state": { "const": "before first write no persistent consumption record exists but this envelope/challenge must be treated as rejected and replaced; after exclusive claim mkdir the persistent state is consumed-rejected" },
-        "retry_allowed": { "const": false },
+        "challenge_state": { "const": "before exclusive persistent claim no consumption record exists and same-envelope retry is conditional on unexpired authority plus byte-exact receipt-bound inputs; after exclusive claim mkdir the challenge is consumed" },
+        "preclaim_retry_allowed": { "const": true },
+        "postclaim_retry_allowed": { "const": false },
         "public_success_attestation_allowed": { "const": false },
         "existing_target_action": { "const": "never modify or delete; if a target was newly published before a later failure, retain as unauthorized and require user decision" },
         "failed_stage_action": { "const": "retain in place with no automatic cleanup, deletion, quarantine move or glob: before marker removal it remains a hidden 0700 stage carrying the 0600 incomplete marker; after marker removal/seal but before rename it remains a hidden 0755 stage without the marker; after successful rename followed by later failure the published target is retained as unauthorized pending user decision" },
         "evidence_action": { "const": "pre-claim failures perform no write; after a persistent claim exists, append/fsync and semantically verify a terminal failure event only while the retained ledger writer is healthy and nonterminal; if ledger creation, a prior append, terminal append, fsync or verification fails, retain the claim and any raw absent/partial/invalid ledger bytes without repair, truncation, deletion or a false terminal claim" },
-        "new_authority_required": { "const": "new complete envelope, new raw envelope digest and new challenge" }
+        "new_authority_required": { "const": "preclaim: new approval is required after expiry or any receipt-bound input drift; postclaim: a new complete envelope, raw envelope digest and challenge are required" }
       }
     },
     "success_contract": {
@@ -716,7 +821,7 @@
         "private_file_modes": { "const": { "directory": "0700", "file": "0600", "umask": "0077" } },
         "private_preimage_checks": {
           "const": [
-            "five exact HMAC-bound CLI locators, pairwise repo/cache/state/key separation, control-prefix envelope containment, no symlink ancestor and no Vault or .obsidian component",
+            "five exact HMAC-bound locators; repo, cache and state roots are pairwise separated; the HMAC key is the exact state-root/hmac.key direct child; the envelope is contained by the control prefix; no symlink ancestor and no Vault or .obsidian component",
             "cache-root locator and direct-SRI content blob bytes/digests; npm cache index read is prohibited",
             "Git control marker, commondir, local configs and absent alternate controls before any Git command; then index, refs and keyed dirty/untracked content-and-metadata inventory",
             "pgrep Claude candidates and per-candidate lsof cwd stdout commitments without public command output",
@@ -847,7 +952,13 @@
       "type": "string",
       "minLength": 24,
       "maxLength": 128,
-      "pattern": "^GOV01-SA-[0-9]{8}-[0-9a-f]{32,64}$"
+      "pattern": "^GOV01-SA-[0-9]{8}-[0-9a-f]{64}$"
+    },
+    "generationChallengeId": {
+      "type": "string",
+      "minLength": 25,
+      "maxLength": 128,
+      "pattern": "^GOV01-GEN-[0-9]{8}-[0-9a-f]{64}$"
     },
     "utcTimestamp": {
       "type": "string",
@@ -859,7 +970,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 4096,
-      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff]+$"
     },
     "evidenceCommandTemplate": {
       "type": "object",
@@ -898,7 +1009,7 @@
             ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--verify", "HEAD"],
             ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--verify", "HEAD^{tree}"],
             ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--show-object-format"],
-            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "status", "--porcelain=v2", "-z", "--untracked-files=all", "--", ".", ":(exclude)canvas-vault", ":(exclude)canvas-vault/**", ":(exclude){STAGE_REPO_RELATIVE}", ":(exclude){STAGE_REPO_RELATIVE}/**", ":(exclude)node_modules", ":(exclude)node_modules/**"],
+            ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "status", "--porcelain=v2", "-z", "--untracked-files=all", "--", ".", ":(exclude)canvas-vault", ":(exclude)canvas-vault/**", ":(exclude){STAGE_REPO_RELATIVE}", ":(exclude){STAGE_REPO_RELATIVE}/**", ":(exclude)node_modules", ":(exclude)node_modules/**", ":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}"],
             ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "show-ref"],
             ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "rev-parse", "--git-path", "index"],
             ["{RESOLVED_CLT_GIT_PRIVATE}", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null", "-c", "core.worktree={REPO_ROOT_PRIVATE}", "-c", "core.bare=false", "-c", "core.excludesFile=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false", "-c", "protocol.allow=never", "-C", "{REPO_ROOT_PRIVATE}", "--no-pager", "config", "--local", "--get", "core.hooksPath"],
@@ -921,7 +1032,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 512,
-      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.git(?:/|$))(?!.*[\\u0000-\\u001f\\u007f-\\u009f])[^\\\\]+$"
+      "pattern": "^(?!/)(?!.*//)(?!.*(?:^|/)(?:\\.|\\.\\.)(?:/|$))(?!.*(?:^|/)\\.[Gg][Ii][Tt](?:/|$))(?!.*(?:^|/)\\.[Oo][Bb][Ss][Ii][Dd][Ii][Aa][Nn](?:/|$))(?!.*(?:^|/)[^/]*[Cc][Aa][Nn][Vv][Aa][Ss]-[Vv][Aa][Uu][Ll][Tt][^/]*(?:/|$))(?!.*[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff])[^/\\\\]+(?:/[^/\\\\]+)*$"
     },
     "publicArtifact": {
       "type": "object",
@@ -933,18 +1044,25 @@
           "enum": [
             "goal",
             "governance-decision",
-            "approval-predecessor",
+            "phase0a-contract",
+            "first-receipt-envelope",
+            "first-receipt-schema",
             "bootstrap-patch",
+            "control-prep-envelope",
+            "control-prep-schema",
+            "static-envelope-generator",
+            "generation-envelope-schema",
+            "generation-hostile-fixture",
+            "generation-approval-envelope",
             "static-executor",
             "static-verifier",
+            "static-hostile-fixture",
             "pending-envelope-schema",
             "private-evidence-schema",
             "public-attestation-schema",
             "package-manifest",
             "package-lock",
-            "gitignore",
-            "receipt-profile",
-            "other-public-governance-artifact"
+            "gitignore"
           ]
         },
         "file_kind": { "const": "regular" },
@@ -952,6 +1070,7 @@
         "raw_file_sha256": { "$ref": "#/$defs/sha256" }
       },
       "allOf": [
+        { "not": { "type": "object", "required": ["path"], "properties": { "path": { "pattern": "^_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-pending-GOV01-GEN-[0-9]{8}-[0-9a-f]{64}\\.json$" } } } },
         { "if": { "properties": { "role": { "const": "static-executor" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" } } } },
         { "if": { "properties": { "role": { "const": "static-verifier" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py" } } } },
         { "if": { "properties": { "role": { "const": "package-manifest" } }, "required": ["role"] }, "then": { "properties": { "path": { "const": "package.json" } } } },
@@ -989,7 +1108,7 @@
         },
         "logical_id": { "$ref": "#/$defs/opaqueId" },
         "artifact_kind": { "enum": ["regular-file", "directory-tree"] },
-        "version": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[ -~]+$" },
         "digest_profile": { "enum": ["raw-file-sha256", "CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2"] },
         "raw_digest_sha256": { "$ref": "#/$defs/sha256" },
         "private_locator_omitted": { "const": true },
@@ -1003,14 +1122,14 @@
         }
       }
     },
-    "executorTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "static-executor" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "raw_digest_sha256": { "const": "b0117713c364fd8de77b9872585bff6590e3b5cc4aee21216cdd101ae83722da" }, "execution_authority": { "const": "read-as-python-source-by-bound-interpreter" } } } ] },
-    "verifierTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "static-verifier" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "raw_digest_sha256": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" }, "execution_authority": { "const": "read-as-python-source-by-bound-interpreter" } } } ] },
-    "pythonTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "python-interpreter" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "execute-as-bound-interpreter" } } } ] },
-    "stdlibTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "python-stdlib-tree" }, "artifact_kind": { "const": "directory-tree" }, "digest_profile": { "const": "CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2" }, "execution_authority": { "const": "read-only-tree-never-directly-executed" } } } ] },
-    "xcodeSelectTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "xcode-select-resolver" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
-    "xcrunTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "xcrun-resolver" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
-    "gitTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "git-read-only-evidence" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
-    "pgrepTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "pgrep-read-only-evidence" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
-    "lsofTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "lsof-read-only-evidence" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] }
+    "executorTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "static-executor" }, "logical_id": { "const": "static-executor" }, "version": { "const": "gov01-static-acquisition-executor-draft-v2" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "raw_digest_sha256": { "const": "ab3b0b2fc5dffff8371fed3b90f7c1cb5593730303cb010dff7a0268ce87c525" }, "execution_authority": { "const": "read-as-python-source-by-bound-interpreter" } } } ] },
+    "verifierTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "static-verifier" }, "logical_id": { "const": "static-verifier" }, "version": { "const": "gov-01-toolchain-static-verifier-v2" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "raw_digest_sha256": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" }, "execution_authority": { "const": "read-as-python-source-by-bound-interpreter" } } } ] },
+    "pythonTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "python-interpreter" }, "logical_id": { "const": "python-interpreter" }, "version": { "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "execute-as-bound-interpreter" } } } ] },
+    "stdlibTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "python-stdlib-tree" }, "logical_id": { "const": "python-stdlib-tree" }, "version": { "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$" }, "artifact_kind": { "const": "directory-tree" }, "digest_profile": { "const": "CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2" }, "execution_authority": { "const": "read-only-tree-never-directly-executed" } } } ] },
+    "xcodeSelectTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "xcode-select-resolver" }, "logical_id": { "const": "xcode-select-resolver" }, "version": { "const": "not-observed-content-addressed-only" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
+    "xcrunTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "xcrun-resolver" }, "logical_id": { "const": "xcrun-resolver" }, "version": { "const": "not-observed-content-addressed-only" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
+    "gitTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "git-read-only-evidence" }, "logical_id": { "const": "git-read-only-evidence" }, "version": { "const": "not-observed-content-addressed-only" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
+    "pgrepTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "pgrep-read-only-evidence" }, "logical_id": { "const": "pgrep-read-only-evidence" }, "version": { "const": "not-observed-content-addressed-only" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] },
+    "lsofTool": { "allOf": [ { "$ref": "#/$defs/contentAddressedTool" }, { "properties": { "role": { "const": "lsof-read-only-evidence" }, "logical_id": { "const": "lsof-read-only-evidence" }, "version": { "const": "not-observed-content-addressed-only" }, "artifact_kind": { "const": "regular-file" }, "digest_profile": { "const": "raw-file-sha256" }, "execution_authority": { "const": "read-only-evidence-command-only" } } } ] }
   }
 }

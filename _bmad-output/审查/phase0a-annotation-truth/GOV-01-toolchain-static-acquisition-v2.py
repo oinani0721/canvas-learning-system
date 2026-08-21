@@ -17,8 +17,10 @@ import hashlib
 import hmac
 import json
 import os
+import pathlib
 import platform
 import posixpath
+import pwd
 import re
 import stat
 import subprocess
@@ -27,7 +29,7 @@ import sysconfig
 import types
 import unicodedata
 from enum import IntEnum
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
 
 
@@ -81,6 +83,16 @@ class SafeArgumentParser(argparse.ArgumentParser):
         fail(Exit.USAGE, "USAGE")
 
 
+class GenerationRuntimeArgsV2(NamedTuple):
+    """Private locators derived after GEN approval; never accepted from CLI."""
+
+    repo_root: str
+    cache_root: str
+    state_root: str
+    key_file: str
+    envelope: str
+
+
 SCRIPT_VERSION = "gov01-static-acquisition-executor-draft-v2"
 VAULT_PREFIX = "canvas-vault"
 EXPECTED_PLATFORM = "darwin"
@@ -91,7 +103,12 @@ EXPECTED_TREE_SHA256 = "777dc62b5a2094903c2047cb30bc63eccf34543c3d4466be30b6ae47
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_GIT_OUTPUT = 32 * 1024 * 1024
 MAX_CACHE_OBJECT_BYTES = 512 * 1024 * 1024
-CHALLENGE_RE = re.compile(r"\AGOV01-SA-[0-9]{8}-[0-9a-f]{32,64}\Z")
+CHALLENGE_RE = re.compile(r"\AGOV01-SA-[0-9]{8}-[0-9a-f]{64}\Z")
+GENERATION_CHALLENGE_RE = re.compile(r"\AGOV01-GEN-[0-9]{8}-[0-9a-f]{64}\Z")
+CONTROL_PREPARATION_CHALLENGE_RE = re.compile(r"\AGOV01-CP-[0-9]{8}-[0-9a-f]{32}\Z")
+GENERATION_CLAIM_NAME_RE = re.compile(
+    r"\Ageneration-claim-(GOV01-GEN-[0-9]{8}-[0-9a-f]{64})\Z"
+)
 SHA256_RE = re.compile(r"\A[0-9a-f]{64}\Z")
 PACKAGE_COMPONENT_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._~-]*\Z")
 RECEIPT_DOMAINS = {
@@ -105,6 +122,70 @@ HMAC_KEY_ID_DOMAIN = b"CLS/GOV01/HMAC-KEY-ID/v2"
 GIT_SNAPSHOT_DOMAIN = b"CLS/GOV01/GIT-SNAPSHOT/v2"
 GIT_DIRTY_MANIFEST_DOMAIN = b"CLS/GOV01/GIT-DIRTY-CONTENT/v2"
 PUBLIC_ARTIFACT_SET_DOMAIN = b"CLS/GOV01/PUBLIC-ARTIFACT-SET/v2"
+EXECUTOR_ARGV_TEMPLATE_DOMAIN = b"CLS/GOV01/EXECUTOR-ARGV-TEMPLATE/v2"
+EVIDENCE_COMMAND_TEMPLATES_DOMAIN = b"CLS/GOV01/EVIDENCE-COMMAND-TEMPLATES/v2"
+GENERATION_RECEIPT_DOMAIN = b"CLS/GOV01-STATIC-ENVELOPE-GENERATION-RECEIPT/v1"
+FIRST_APPROVAL_RECEIPT_DOMAIN = b"CLS/GOV01-FIRST-RECEIPT/v1"
+CONTROL_PREPARATION_ENVELOPE_RECEIPT_DOMAIN = b"CLS/GOV01-TOOLCHAIN-CONTROL-PREP-RECEIPT/v1"
+PREDECESSOR_CHAIN_DOMAIN = b"CLS/GOV01/STATIC-ACQUISITION-PREDECESSOR-CHAIN/v2"
+GENERATION_CLAIM_DOMAIN = b"CLS/GOV01/STATIC-ENVELOPE-GENERATION-CLAIM/v1"
+GENERATION_CLAIM_PROFILE = (
+    "exclusive-0700-generation-claim-directory-with-exclusive-0600-canonical-HMAC-record-v1"
+)
+GENERATION_CLAIM_RECORD_PROFILE = (
+    "HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/STATIC-ENVELOPE-"
+    "GENERATION-CLAIM/v1) || NUL || uint64be(canonical-body-byte-length) || canonical JSON binding "
+    "GEN receipt/raw, C1/C2 identities, one SA/time tuple and final raw SHA-256/bytes/domain receipt"
+)
+GENERATION_CLAIM_RETENTION = (
+    "retain permanently; never delete, overwrite or repair; a complete valid claim permits only byte-exact "
+    "recovery with its recorded SA and times"
+)
+PRECLAIM_RETRY_AUTHORITY = (
+    "retry the same approved envelope only while unexpired and all receipt-bound inputs remain unchanged; "
+    "otherwise obtain new explicit user approval"
+)
+FAIL_CLOSED_REVIEW_AUTHORITY = "new explicit user approval after fail-closed evidence review"
+RETAINED_STATE_AUTHORITY = (
+    "new explicit user approval after retained-state inspection; never retry automatically"
+)
+ATTEMPT_POLICY_V2 = (
+    "single-use begins only at successful exclusive persistent claim; read-only and preclaim failures leave no "
+    "consumption record and permit same-envelope retry only while unexpired and every receipt-bound input remains "
+    "unchanged; post-claim failure consumes the challenge and requires new authority"
+)
+ENVIRONMENT_MODE_V2 = (
+    "executor requires Python -I -S -B and self-attests those runtime flags; every authorized evidence subprocess "
+    "receives a newly constructed exact environment and never inherits caller environment; assurance ceiling is "
+    "runtime-self-attested-not-pre-exec"
+)
+GIT_CHILD_SANDBOX_PROFILE_V1 = (
+    "every Git child calls /usr/lib/libsandbox.1.dylib sandbox_init exactly once before exec with a generated "
+    "default-deny profile; permits only the content-bound CommandLineTools tree, validated Git control metadata, "
+    "exact object and ref stores, required path ancestors, and the exact repository worktree only for commands that "
+    "must enumerate it; denies network, writes, Vault/.obsidian paths, config includes, alternates, grafts and all "
+    "other reads; sandbox initialization failure is terminal; /usr/bin/sandbox-exec is never executed"
+)
+FAILURE_CHALLENGE_POLICY_V2 = (
+    "before exclusive persistent claim no consumption record exists and same-envelope retry is conditional on "
+    "unexpired authority plus byte-exact receipt-bound inputs; after exclusive claim mkdir the challenge is consumed"
+)
+FAILURE_NEW_AUTHORITY_POLICY_V2 = (
+    "preclaim: new approval is required after expiry or any receipt-bound input drift; postclaim: a new complete "
+    "envelope, raw envelope digest and challenge are required"
+)
+TOOLCHAIN_DRIFT_ACTION_V2 = (
+    "before exclusive persistent claim, stop without consumption and permit only conditional same-envelope retry "
+    "while unexpired and receipt-bound inputs remain unchanged; after claim, append terminal rejection when the "
+    "ledger remains writable, perform no stage or target write and require new authority"
+)
+FIRST_APPROVAL_ENVELOPE_RAW_SHA256 = "0b73b83e1dbd92dd0a4684a83438dafc7afae6a6fde42b4130d776d7ee246410"
+FIRST_RECEIPT_DOMAIN_SHA256 = "c89e7195e67b60a26117469e2b212fb508c0a5a64cac5d25a59a257f73b55740"
+BOOTSTRAP_PATCH_RAW_SHA256 = "d2f9a1ff45006cf19bd5295b751e2b620dc6043d6ec1ff26494c1d2d722aa8aa"
+BOOTSTRAP_COMMIT_OID = "0e0f0150be184f4dad83a859b0fdd232ec53e8b5"
+CONTROL_PREPARATION_ENVELOPE_RAW_SHA256 = "ef424f80672568076d750ae0f6d662ebfdae242fdea8fcda2b37f39e6406945b"
+CONTROL_PREPARATION_RECEIPT_DIGEST = "dbb28c7627b63989e98b70ff608c20976d687541364af95804537dda7867541c"
+CONTROL_PREPARATION_EVIDENCE_DOMAIN = b"CLS/GOV01-TOOLCHAIN-CONTROL-PREP-EVIDENCE/v1\x00"
 TOOLCHAIN_SET_DOMAIN = b"CLS/GOV01/STATIC-ACQUISITION-TOOLCHAIN-SET/v2"
 TOOL_TREE_DOMAIN = b"CLS/GOV01/STATIC-ACQUISITION-TOOL-TREE-MERKLE/v2\x00"
 DYNAMIC_TOOLCHAIN_DOMAIN = b"CLS/GOV01/STATIC-ACQUISITION-DYNAMIC-CLOSURE/v2"
@@ -117,6 +198,20 @@ PUBLIC_RESULT_ARTIFACT_TYPE = "gov-01-toolchain-static-acquisition-public-result
 MARKER_DOMAIN = b"CLS/GOV01/STATIC-ACQUISITION-INCOMPLETE/v2"
 VERIFIER_RELATIVE = "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py"
 EXECUTOR_RELATIVE = "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py"
+EXECUTOR_ARGV_TEMPLATE_V2 = (
+    "{BOUND_PYTHON_PRIVATE}",
+    "-I",
+    "-S",
+    "-B",
+    "{BOUND_EXECUTOR_PRIVATE}",
+    "acquire",
+    "--generation-challenge",
+    "{APPROVED_GENERATION_CHALLENGE_ID_PUBLIC}",
+    "--receipt-digest",
+    "{APPROVED_RECEIPT_DIGEST_PUBLIC}",
+    "--approval-challenge",
+    "{APPROVAL_CHALLENGE_ID_PUBLIC}",
+)
 INCOMPLETE_MARKER = ".gov01-incomplete"
 TARGET_NAME = "node_modules"
 MAX_COMPRESSED_CLOSURE = 14_000_000
@@ -126,6 +221,75 @@ SCHEMA_ID = "urn:canvas-learning-system:gov-01:toolchain-static-acquisition-pend
 PRIVATE_SCHEMA_ID = "urn:canvas-learning-system:gov-01:toolchain-static-acquisition-private-evidence:v2:draft"
 PUBLIC_SCHEMA_ID = "urn:canvas-learning-system:gov-01:toolchain-static-acquisition-public-attestation:v2:draft"
 CONTROL_PREFIX = "_bmad-output/审查/phase0a-annotation-truth/"
+PENDING_ENVELOPE_BASENAME_PREFIX = "GOV-01-toolchain-static-acquisition-pending-"
+PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE = (
+    "git-status-exact-top-literal-envelope-file-exclusion-v1; no parent, subtree, wildcard or glob exclusion"
+)
+PENDING_ENVELOPE_PUBLIC_STRING_ALLOWLIST = frozenset(
+    {
+        "/usr/bin/xcode-select",
+        "/usr/bin/xcrun",
+        "/usr/bin/pgrep",
+        "/usr/sbin/lsof",
+        ":(exclude)canvas-vault",
+        ":(exclude)canvas-vault/**",
+    }
+)
+PENDING_STATIC_ARTIFACT_SPECS = (
+    ("goal", "_bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md"),
+    ("governance-decision", CONTROL_PREFIX + "2026-08-20-GOV-01-追踪真相源修复决策稿.md"),
+    ("phase0a-contract", CONTROL_PREFIX + "2026-08-20-Phase0A-A01-A02-批注真相层实施契约.md"),
+    ("first-receipt-envelope", CONTROL_PREFIX + "GOV-01-first-receipt-envelope-v1.json"),
+    ("first-receipt-schema", CONTROL_PREFIX + "GOV-01-first-receipt-envelope-v1.schema.json"),
+    ("bootstrap-patch", CONTROL_PREFIX + "2026-08-20-GOV-01-Bootstrap-0-safe-mode.patch"),
+    ("control-prep-envelope", CONTROL_PREFIX + "GOV-01-toolchain-control-prep-envelope-v1.json"),
+    ("control-prep-schema", CONTROL_PREFIX + "GOV-01-toolchain-control-prep-envelope-v1.schema.json"),
+    ("static-envelope-generator", CONTROL_PREFIX + "GOV-01-toolchain-static-envelope-generation-v1.py"),
+    (
+        "generation-envelope-schema",
+        CONTROL_PREFIX + "GOV-01-toolchain-static-envelope-generation-envelope-v1.schema.json",
+    ),
+    (
+        "generation-hostile-fixture",
+        CONTROL_PREFIX + "GOV-01-toolchain-static-envelope-generation-hostile-fixtures-v1.py",
+    ),
+    ("static-executor", EXECUTOR_RELATIVE),
+    ("static-verifier", VERIFIER_RELATIVE),
+    ("static-hostile-fixture", CONTROL_PREFIX + "GOV-01-static-acquisition-hostile-fixtures-v2.py"),
+    (
+        "pending-envelope-schema",
+        CONTROL_PREFIX + "GOV-01-toolchain-static-acquisition-envelope-v2.schema.json",
+    ),
+    (
+        "private-evidence-schema",
+        CONTROL_PREFIX + "GOV-01-toolchain-static-acquisition-private-evidence-v2.schema.json",
+    ),
+    (
+        "public-attestation-schema",
+        CONTROL_PREFIX + "GOV-01-toolchain-static-acquisition-public-attestation-v2.schema.json",
+    ),
+    ("package-manifest", "package.json"),
+    ("package-lock", "package-lock.json"),
+    ("gitignore", ".gitignore"),
+)
+GENERATION_APPROVAL_ROLE = "generation-approval-envelope"
+GENERATION_APPROVAL_PATH_RE = re.compile(
+    r"\A_bmad-output/审查/phase0a-annotation-truth/"
+    r"GOV-01-toolchain-static-envelope-generation-envelope-v1\."
+    r"GOV01-GEN-[0-9]{8}-[0-9a-f]{64}\.json\Z"
+)
+PRIVATE_PREIMAGE_CHECKS = (
+    "five exact HMAC-bound locators; repo, cache and state roots are pairwise separated; "
+    "the HMAC key is the exact state-root/hmac.key direct child; the envelope is contained by the "
+    "control prefix; no symlink ancestor and no Vault or .obsidian component",
+    "cache-root locator and direct-SRI content blob bytes/digests; npm cache index read is prohibited",
+    "Git control marker, commondir, local configs and absent alternate controls before any Git command; "
+    "then index, refs and keyed dirty/untracked content-and-metadata inventory",
+    "pgrep Claude candidates and per-candidate lsof cwd stdout commitments without public command output",
+    "state-root, claims-container and HMAC-key owner/group/mode are bound by the private control identity "
+    "commitment; exact challenge child absence, HMAC-key bytes, raw envelope bytes and approved receipt "
+    "digest are rechecked before first write",
+)
 PROTECTED_CONTROL_PATHS = ("package.json", "package-lock.json", ".gitignore")
 ABSENT_CONTROL_PATHS = (".npmrc", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb")
 TOOLCHAIN_ROLES = (
@@ -184,6 +348,16 @@ TOOLCHAIN_ROLE_PROFILE = {
     "pgrep-read-only-evidence": ("regular-file", "raw-file-sha256", "read-only-evidence-command-only"),
     "lsof-read-only-evidence": ("regular-file", "raw-file-sha256", "read-only-evidence-command-only"),
 }
+TOOLCHAIN_LOGICAL_ID_BY_ROLE = {role: role for role in TOOLCHAIN_ROLES}
+TOOLCHAIN_FIXED_VERSION_BY_ROLE = {
+    "static-executor": SCRIPT_VERSION,
+    "static-verifier": "gov-01-toolchain-static-verifier-v2",
+    "xcode-select-resolver": "not-observed-content-addressed-only",
+    "xcrun-resolver": "not-observed-content-addressed-only",
+    "git-read-only-evidence": "not-observed-content-addressed-only",
+    "pgrep-read-only-evidence": "not-observed-content-addressed-only",
+    "lsof-read-only-evidence": "not-observed-content-addressed-only",
+}
 FIXED_TOOL_PATHS = {
     "xcode-select-resolver": "/usr/bin/xcode-select",
     "xcrun-resolver": "/usr/bin/xcrun",
@@ -191,6 +365,8 @@ FIXED_TOOL_PATHS = {
     "lsof-read-only-evidence": "/usr/sbin/lsof",
 }
 _AUTHORIZED_EXECUTABLE_HASHES: Dict[str, str] = {}
+_GIT_DEVELOPER_ROOTS: Dict[str, str] = {}
+_GIT_READ_BOUNDARIES: Dict[str, Tuple[str, str]] = {}
 _ACL_FUNCTIONS: Optional[Tuple[Any, Any, Any]] = None
 ALLOWED_CHILD_ENV_NAMES = frozenset(
     {
@@ -203,17 +379,67 @@ ALLOWED_CHILD_ENV_NAMES = frozenset(
 TOP_LEVEL_FIELDS = frozenset(
     "schema_version artifact_type artifact_id plan_id state approval_challenge_id single_use census_at_utc "
     "not_after_utc path_base encoding_profile receipt_digest_profile approval_receipt_contract predecessor "
+    "generation_authorization "
     "artifacts artifact_path_uniqueness_policy authorization_preimage frozen_toolchain schema_binding "
     "static_acquisition_contract lock_closure execution_plan mutation_scope failure_contract success_contract "
     "private_state_authorization privacy".split()
 )
+GENERATION_AUTHORIZATION_FIELDS = frozenset(
+    "profile approval_challenge_id approval_envelope_repo_relative_path "
+    "generated_acquisition_envelope_repo_relative_path raw_envelope_sha256 receipt_digest "
+    "receipt_domain_profile authorization_parent_commit_oid authorization_parent_tree_oid "
+    "authorization_commit_oid authorization_tree_oid commit_transition_profile state "
+    "generation_claim_required generation_claim_profile generation_claim_record_profile "
+    "generation_claim_retention".split()
+)
+PREDECESSOR_FIELDS = (
+    "profile",
+    "first_approval_envelope_raw_sha256",
+    "first_approval_receipt_digest",
+    "bootstrap_patch_raw_sha256",
+    "bootstrap_commit_oid",
+    "control_preparation_envelope_raw_sha256",
+    "control_preparation_envelope_receipt_digest",
+    "control_preparation_approval_challenge_id",
+    "control_preparation_result_raw_sha256",
+    "control_preparation_evidence_receipt_sha256",
+    "control_preparation_state",
+    "generation_authorization_envelope_raw_sha256",
+    "generation_authorization_receipt_digest",
+    "generation_authorization_challenge_id",
+    "generation_authorization_parent_commit_oid",
+    "generation_authorization_parent_tree_oid",
+    "generation_authorization_commit_oid",
+    "generation_authorization_tree_oid",
+    "predecessor_chain_receipt_sha256",
+)
+GENERATION_CLAIM_BODY_FIELDS = (
+    "profile",
+    "generation_authorization_challenge_id",
+    "generation_authorization_envelope_raw_sha256",
+    "generation_authorization_receipt_digest",
+    "generation_authorization_parent_commit_oid",
+    "generation_authorization_parent_tree_oid",
+    "generation_authorization_commit_oid",
+    "generation_authorization_tree_oid",
+    "acquisition_approval_challenge_id",
+    "census_at_utc",
+    "not_after_utc",
+    "final_envelope_repo_relative_path",
+    "final_envelope_raw_sha256",
+    "final_envelope_bytes",
+    "final_envelope_receipt_digest",
+    "state",
+)
+GENERATION_CLAIM_FIELDS = GENERATION_CLAIM_BODY_FIELDS + ("record_hmac_sha256",)
 AUTHORIZATION_PREIMAGE_FIELDS = frozenset(
     "head_commit_oid head_tree_oid git_object_format git_snapshot_commitment git_snapshot_commitment_profile "
     "private_preapproval_commitment private_preapproval_commitment_profile public_repo_artifact_set_receipt_sha256 "
     "private_preimage_capture worktree_state preexisting_dirty_policy target_preimage acquisition_control_root_state "
     "protected_existing_control_paths protected_existing_control_state absent_control_paths absent_control_state "
     "node_modules_state target_worktree_claude_sessions forbidden_process_match_count "
-    "node_modules_parent_or_sibling_reuse_allowed private_vault_census_allowed".split()
+    "node_modules_parent_or_sibling_reuse_allowed private_vault_census_allowed envelope_repo_relative_path "
+    "envelope_git_status_exclusion_profile".split()
 )
 SCHEMA_BINDING_FIELDS = frozenset(
     "schema_id schema_artifact_path schema_raw_file_sha256 schema_artifact_role external_validator_profile "
@@ -251,7 +477,8 @@ EXECUTION_PLAN_FIELDS = frozenset(
     "attempt_policy phase_order runner executor_interface_state executor_interface_version executor_argv_template "
     "executor_argv_template_sha256 verifier_profile_version verifier_census_argv_template "
     "verifier_installed_argv_template evidence_command_templates evidence_command_templates_sha256 expiry_checkpoints "
-    "environment_mode environment_name_allowlist ustar_parser compression_policy ustar_safety_policy member_type_policy "
+    "environment_mode environment_name_allowlist git_child_sandbox_profile ustar_parser compression_policy "
+    "ustar_safety_policy member_type_policy "
     "duplicate_collision_policy launcher_executable_role allowed_subprocess_executable_roles forbidden_executable_names "
     "shell_allowed subprocess_from_executor_allowed archive_or_payload_execution_allowed network_allowed "
     "stop_after_static_attestation".split()
@@ -279,6 +506,9 @@ PRIVATE_PREAPPROVAL_FIELDS = (
     "resolution_receipt_sha256",
     "expected_tree_sha256",
 )
+
+
+_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON = r'''{"approval_receipt_contract":{"authority_expansion_allowed":false,"authority_is_exact":true,"challenge_must_match":true,"first_authorized_write":"mkdirat exact 0700 persistent challenge claim directory under an already-existing authorized claims container; EEXIST is terminal replay","receipt_before_any_authorized_write":true,"receipt_must_match_raw_envelope_bytes":true,"required_user_reference":"exact domain-separated envelope SHA-256 plus exact approval_challenge_id"},"artifact_path_uniqueness_policy":"content-addressed checker MUST reject duplicate path even when role, byte_length or raw_file_sha256 differs; JSON Schema uniqueItems is not sufficient","authorization_preimage":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_state":"all exact repo-root direct children ABSENT before and required ABSENT after","acquisition_control_root_state":"existing-real-directory-no-symlink-ancestor","envelope_git_status_exclusion_profile":"git-status-exact-top-literal-envelope-file-exclusion-v1; no parent, subtree, wildcard or glob exclusion","envelope_repo_relative_path":null,"forbidden_process_match_count":null,"git_object_format":null,"git_snapshot_commitment":null,"git_snapshot_commitment_profile":"HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/GIT-SNAPSHOT/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,status_bytes,dirty_manifest_commitment,worktree_tree_exclusions,worktree_exact_file_exclusions,refs_sha256,refs_bytes,index,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,hooks_config_state,git_binary_sha256; worktree_tree_exclusions are exactly the challenge stage and node_modules while worktree_exact_file_exclusions contains exactly the challenge-suffixed pending envelope file and never its parent, subtree or a glob; git_control binds marker/commondir/config states, private git/common-dir locator commitments and ABSENT alternate controls; dirty_manifest_commitment is a keyed content-and-metadata manifest of every nonexcluded porcelain-v2 dirty or untracked path","head_commit_oid":null,"head_tree_oid":null,"node_modules_parent_or_sibling_reuse_allowed":false,"node_modules_state":"ABSENT","preexisting_dirty_policy":"private exact pre/post inventory required; no public paths or raw dirty/index/local-settings digest; zero mutation outside the exact new target","private_preapproval_commitment":null,"private_preapproval_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-PREAPPROVAL/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON of exactly {schema_version,approval_challenge_id,census_at_utc,hmac_key_id,authorized_locator_commitments,private_control_identity_commitment,public_repo_artifact_set_receipt_sha256,git_snapshot_commitment,toolchain_set_receipt_sha256,package_lock_raw_sha256,host_platform,host_architecture,target_worktree_claude_sessions,forbidden_process_match_count,host_selected_package_count,host_selected_cache_bytes,host_bin_link_count,content_receipt_sha256,ustar_closure_sha256,resolution_receipt_sha256,expected_tree_sha256}; no envelope digest, receipt digest, generated timestamp, raw private locator, inode/device or command bytes are in this deterministic body","private_preimage_capture":"read-only census computes the full Git-snapshot and locator commitments without persisting a claim; after user receipt, executor recomputes and compares every commitment; the persistent O_EXCL challenge claim is the first write, then exact private preimage evidence is appended before any stage/target write","private_vault_census_allowed":false,"protected_existing_control_paths":["package.json","package-lock.json",".gitignore"],"protected_existing_control_state":"PRESENT regular files; raw SHA-256 bound in artifacts; byte-identical before and after","public_repo_artifact_set_receipt_sha256":null,"target_preimage":"ABSENT","target_worktree_claude_sessions":null,"worktree_state":null},"execution_plan":{"allowed_subprocess_executable_roles":["xcode-select-resolver","xcrun-resolver","git-read-only-evidence","pgrep-read-only-evidence","lsof-read-only-evidence"],"archive_or_payload_execution_allowed":false,"attempt_policy":"single-use; any failure consumes challenge; retry requires a new envelope and challenge","compression_policy":"exactly one RFC1952 gzip stream through frozen Python stdlib zlib; MAX_TAR_STREAM prebound; eof required; unused_data and unconsumed_tail empty; concatenated/trailing stream rejected","duplicate_collision_policy":"reject duplicate normalized path, file-directory conflict, Unicode NFC collision and case-fold collision before first target write","environment_mode":"executor requires Python -I -S -B and self-attests those runtime flags; every authorized evidence subprocess receives a newly constructed exact environment and never inherits caller environment; assurance ceiling is runtime-self-attested-not-pre-exec","environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"evidence_command_templates":[{"argv_allowlist":[["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD^{tree}"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--show-object-format"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","status","--porcelain=v2","-z","--untracked-files=all","--",".",":(exclude)canvas-vault",":(exclude)canvas-vault/**",":(exclude){STAGE_REPO_RELATIVE}",":(exclude){STAGE_REPO_RELATIVE}/**",":(exclude)node_modules",":(exclude)node_modules/**",":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","show-ref"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--git-path","index"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","config","--local","--get","core.hooksPath"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--path-format=absolute","--git-common-dir"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--git-path","hooks"],["{RESOLVED_CLT_GIT_PRIVATE}","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.worktree={REPO_ROOT_PRIVATE}","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-C","{REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--git-path","config"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"{RESOLVED_CLT_GIT_PRIVATE}","read_only":true,"role":"git-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/bin/xcode-select","-p"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcode-select","read_only":true,"role":"xcode-select-resolver","shell":false},{"argv_allowlist":[["/usr/bin/xcrun","--find","git"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcrun","read_only":true,"role":"xcrun-resolver","shell":false},{"argv_allowlist":[["/usr/bin/pgrep","-if","(^|[/ ])claude([ ]|$)|@anthropic-ai/claude-code"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/bin/pgrep","read_only":true,"role":"pgrep-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/sbin/lsof","-nP","-a","-p","{CLAUDE_CANDIDATE_PID_DECIMAL}","-d","cwd","-Fpn"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/sbin/lsof","read_only":true,"role":"lsof-read-only-evidence","shell":false}],"evidence_command_templates_sha256":null,"executor_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{REPO_ROOT_PRIVATE}/_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","acquire","--repo-root","{REPO_ROOT_PRIVATE}","--cache-root","{CACHE_ROOT_PRIVATE}","--state-root","{STATE_ROOT_PRIVATE}","--key-file","{HMAC_KEY_FILE_PRIVATE}","--envelope","{ENVELOPE_PRIVATE}","--receipt-digest","{APPROVED_RECEIPT_DIGEST_PUBLIC}","--approval-challenge","{APPROVAL_CHALLENGE_ID_PUBLIC}"],"executor_argv_template_sha256":null,"executor_interface_state":"frozen-content-addressed-before-user-receipt","executor_interface_version":"gov01-static-acquisition-executor-draft-v2","expiry_checkpoints":["on-envelope-load","immediately-before-persistent-ledger-claim","immediately-before-renameatx_np-RENAME_EXCL"],"forbidden_executable_names":["npm","npx","node","nodejs","openspec","sandbox-exec","tar","bsdtar","gtar"],"launcher_executable_role":"python-interpreter","member_type_policy":"archive accepts regular files and directories only; rejects archive symlink, hardlink, fifo, socket, block/character device and unknown types","network_allowed":false,"phase_order":["read-only-verify-user-receipt-envelope-digest-challenge-and-expiry","read-only-hash-bound-schema-compare-schema-binding-and-run-manual-critical-envelope-checks-before-verifier-compilation","read-only-compare-repo-cache-state-key-envelope-locator-commitments","read-only-hash-every-public-artifact-and-load-only-the-bound-verifier-source","read-only-recompute-and-compare-full-Git-snapshot-and-private-preapproval-commitments","verify-no-active-Claude-session-whose-cwd-is-the-target-worktree; no broader ambient-process absence claim","read-only-direct-SRI-cache-census-build-expected-tree-and-freeze-all-compressed-and-payload-bytes-in-memory","recheck-approval-expiry-immediately-before-persistent-claim","create-persistent-0700-challenge-claim-directory-with-exclusive-mkdirat-and-consume-challenge-as-first-authorized-write","append-frozen-preflight-event-to-persistent-ledger","create-0700-same-parent-same-filesystem-exclusive-stage-with-incomplete-marker","stream-decompress-and-custom-parse-only-approved-USTAR-members","materialize-only-expected-resolution-destinations-without-running-payload","fsync-stage-and-verify-closure-resolution-and-stage-tree-receipts","run-full-pre-promotion-CAS-for-private-inputs-public-artifacts-toolchain-Git-dirty-content-process-census-lock-cache-control-files-stage-identity-and-target-absence","remove-only-the-incomplete-marker-seal-root-0755-and-run-two-stable-fingerprints; failure-after-this-point-retains-a-hidden-unmarked-stage","recheck-approval-expiry-and-target-absence-immediately-before-publication","publish-exact-stage-to-absent-target-with-renameatx_np-RENAME_EXCL","fsync-target-parent-and-recompute-final-tree-and-private-postimage","append-terminal-private-ledger-event-and-emit-locator-free-stdout-projection-only-if-every-success-condition-holds","stop-with-payload-unexecuted"],"runner":"caller invokes exact executor with a CPython 3.9-compatible interpreter and -I -S -B; executor self-attests isolation flags, interpreter, stdlib, executor, verifier, schema and five evidence binaries only after Python startup; no pre-exec launcher or pre-exec hash assurance exists; no shell","shell_allowed":false,"stop_after_static_attestation":true,"subprocess_from_executor_allowed":true,"ustar_parser":"custom Python stdlib fixed-512-byte POSIX.1-1988 USTAR parser; tarfile.extract/extractall forbidden","ustar_safety_policy":"strict magic/version/checksum/octal/padding/two-zero-block terminator; reject PAX, GNU, sparse, base-256 numeric, trailing payload, absolute/dot/dotdot/backslash/NUL/control path, symlink ancestor and path escape","verifier_census_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","census","--cache-root","{CACHE_ROOT_PRIVATE}"],"verifier_installed_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","verify-installed","--cache-root","{CACHE_ROOT_PRIVATE}","--expected-tree-sha256","{EXPECTED_TREE_SHA256_PUBLIC}"],"verifier_profile_version":"gov-01-toolchain-static-verifier-v2"},"failure_contract":{"challenge_state":"before first write no persistent consumption record exists but this envelope/challenge must be treated as rejected and replaced; after exclusive claim mkdir the persistent state is consumed-rejected","evidence_action":"pre-claim failures perform no write; after a persistent claim exists, append/fsync and semantically verify a terminal failure event only while the retained ledger writer is healthy and nonterminal; if ledger creation, a prior append, terminal append, fsync or verification fails, retain the claim and any raw absent/partial/invalid ledger bytes without repair, truncation, deletion or a false terminal claim","existing_target_action":"never modify or delete; if a target was newly published before a later failure, retain as unauthorized and require user decision","failed_stage_action":"retain in place with no automatic cleanup, deletion, quarantine move or glob: before marker removal it remains a hidden 0700 stage carrying the 0600 incomplete marker; after marker removal/seal but before rename it remains a hidden 0755 stage without the marker; after successful rename followed by later failure the published target is retained as unauthorized pending user decision","failure_action":"STOP immediately at first failed gate","new_authority_required":"new complete envelope, new raw envelope digest and new challenge","public_success_attestation_allowed":false,"retry_allowed":false},"lock_closure":{"archive_member_types":["regular-file","directory"],"content_receipt_profile":"SHA-256(ASCII(CLS/GOV01-OFFLINE-CACHE/v1) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 6 TAB-separated columns: lock_key, version, resolved, integrity, compressed_bytes, actual_integrity","content_receipt_sha256":null,"direct_sri_policy":"no npm cache index read; sha512 SRI bytes map directly to _cacache/content-v2/sha512/<first-2>/<next-2>/<remainder>; missing or mismatched blob is terminal failure","expected_archive_member_count":null,"expected_resolved_tree_entry_count":null,"expected_tree_receipt_profile":"SHA-256(ASCII(CLS/GOV01/DETERMINISTIC-NODE-MODULES/v2) || NUL || UTF-8 body); body is LF-terminated rows sorted by UTF-8 path bytes with exactly 5 TAB-separated columns: kind,path,mode,size,file_sha256_or_link_text","expected_tree_sha256":null,"generated_symlink_policy":"only exact relative symlink text bound by the resolution receipt; resolved target remains beneath final tree","host_bin_link_count":null,"host_selected_cache_bytes":null,"host_selected_package_count":null,"network_fetch_allowed":false,"resolution_receipt_profile":"SHA-256(ASCII(CLS/GOV01/NODE-RESOLUTION-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 7 TAB-separated columns: source,edge_type,dependency_name,spec,target,target_version,state; this is deterministic package-lock path-closure evidence only and is not a general semver solver or semantic-version satisfiability proof","resolution_receipt_sha256":null,"resource_limits":{"compressed_closure_bytes_max":14000000,"final_path_utf8_bytes_max":128,"member_count_per_archive_max":5000,"payload_closure_bytes_max":64000000,"required_bin_link_count":12,"required_raw_regular_count":4099,"selected_archive_count":167,"single_file_bytes_max":15000000,"tar_stream_bytes_per_archive_max":24000000},"source_kind":"preapproved-local-content-addressed-ustar-set","source_locator_policy":"private absolute locators omitted; after challenge claim, derive each content-v2 locator directly from the package-lock sha512 SRI and require actual_integrity equality","ustar_closure_receipt_profile":"SHA-256(ASCII(CLS/GOV01/USTAR-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 13 TAB-separated columns: lock_key,version,integrity,compressed_bytes,tar_bytes,member_count,raw_regular_count,raw_directory_count,payload_bytes,strip_root,package_name,package_version,member_manifest_sha256; each member_manifest_sha256 uses CLS/GOV01/USTAR-PACKAGE-MEMBERS/v2 NUL plus sorted 8-column member rows","ustar_closure_sha256":null},"mutation_scope":{"allowed_ephemeral_mutations":["create one exact 0700 same-parent same-filesystem stage with an exact 0600 incomplete marker; this stage is publication-working-state but is retained rather than ephemeral on any failure","write only the frozen expected directories, regular-file payload bytes and generated relative bin symlinks beneath that stage","remove only the exact incomplete marker and chmod the stage root 0755 immediately before two stable fingerprints and exclusive publication; failure in this sealed pre-publication window retains a hidden 0755 stage without the marker"],"allowed_persistent_mutations":["create one exact persistent 0700 challenge claim directory with exclusive mkdirat semantics and create/append one 0600 hash-chained ledger beneath it; the claim and ledger are never automatically deleted","create exactly one previously-absent approved target by a single successful renameatx_np(RENAME_EXCL)"],"forbidden_mutations":["overwrite, merge, unlink, replace or repair any existing target","modify existing repo-root package.json, package-lock.json or .gitignore; create any absent alternate lock file or .npmrc","write outside exact persistent challenge claim/ledger, exact stage and exact exclusive target publication","modify Git objects, refs, index, hooks, config or any existing worktree file","modify parent or sibling worktree, user home, private Vault, Graphiti or external service","commit, push, branch/ref creation, OpenSpec execution or governance apply"],"overwrite_allowed":false,"publish_attempt_ceiling":1,"publish_flag":"RENAME_EXCL","publish_syscall":"renameatx_np","target_preimage":"ABSENT"},"privacy":{"graphiti_call_count":0,"network_call_count":0,"private_locator_public_count":0,"private_raw_sha256_only_for":["cache-root and direct-SRI content blob private locator evidence","dirty/untracked inventory","Git index/private config/hooks locator receipts","local settings","command output/open-file/process traces","persistent ledger and challenge claim"],"private_vault_read_count":0,"public_raw_sha256_allowed_for":["public repo artifacts including executor/verifier/schemas","locator-free toolchain content identities","content, USTAR, closure Merkle, resolution, expected-tree and public receipt digests"]},"private_state_authorization":{"all_cli_locators_compared_before_any_write":true,"authorized_locator_commitments":null,"challenge_claim_preimage":"exact state-root/claims/<approval_challenge_id> direct child ABSENT","claims_container_preimage":"state-root/claims already exists as a receipt-bound-owner-and-group real 0700 directory and is not created by this attempt","destruction_authorized":false,"first_authorized_write":"mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700; EEXIST is terminal replay; no earlier mkdir, claim, ledger, stage, target or other write","hmac_key_id":null,"hmac_key_id_profile":"HMAC-SHA-256 with the same private key over ASCII(CLS/GOV01/HMAC-KEY-ID/v2) || NUL || eight zero bytes; locator and raw key bytes are never serialized","locator_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-LOCATOR/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON {label,locator}; labels and absolute normalized no-symlink locators are exact and comparison uses hmac.compare_digest","persistent_single_use_ledger_required":true,"private_control_identity_commitment":null,"private_control_identity_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-CONTROL-IDENTITY/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON binding the receipt-approved owner UID, inherited control GID, exact state-root/claims/key modes and expected claim/ledger modes without serializing private locators","private_evidence_schema_required":"gov-01-toolchain-static-acquisition-private-evidence-v2","private_file_modes":{"directory":"0700","file":"0600","umask":"0077"},"private_preimage_checks":["five exact HMAC-bound locators; repo, cache and state roots are pairwise separated; the HMAC key is the exact state-root/hmac.key direct child; the envelope is contained by the control prefix; no symlink ancestor and no Vault or .obsidian component","cache-root locator and direct-SRI content blob bytes/digests; npm cache index read is prohibited","Git control marker, commondir, local configs and absent alternate controls before any Git command; then index, refs and keyed dirty/untracked content-and-metadata inventory","pgrep Claude candidates and per-candidate lsof cwd stdout commitments without public command output","state-root, claims-container and HMAC-key owner/group/mode are bound by the private control identity commitment; exact challenge child absence, HMAC-key bytes, raw envelope bytes and approved receipt digest are rechecked before first write"],"private_read_authority":["resolve and hash exact toolchain realpaths bound by public content digests","derive and read exact local content-v2 archive blobs directly from package-lock sha512 SRI without reading any npm cache index","read Git control marker/commondir/config/alternate-control state, index/refs/config/hooks metadata and exact dirty content-and-metadata inventory solely for pre/post equality evidence","run pgrep only for Claude candidates and lsof only for each returned PID cwd; no machine-wide lsof or broader process absence claim","read the pre-existing state-root/claims directory identities and require the exact challenge child absent; no pre-existing ledger is read"],"private_vault_authorized":false,"private_write_authority":["create exact 0700 persistent challenge claim directory and create/append its exact 0600 ledger.jsonl","create exact same-filesystem stage and publish exact absent target with RENAME_EXCL"],"public_serialization_forbidden":["private absolute or home-relative locator","cache-root locator or direct-SRI content blob private locator","dirty/untracked inventory or its raw digest","environment values, command output or open-file locator list","ledger locator/raw bytes, raw HMAC key or user receipt body","private Vault locator, name, content or digest"],"retention":"persistent challenge claim and ledger retained outside repo and never automatically deleted; failed stage and any published target are never automatically deleted"},"schema_binding":{"external_validator_profile":"JSON-Schema-draft-2020-12-strict-additionalProperties-false-format-annotation-plus-content-addressed-strict-UTC-calendar-and-duplicate-key-checker","preapproval_external_validation_required":true,"runtime_checkpoint":"after raw receipt/challenge/expiry verification and schema artifact hash verification, before any other envelope-controlled read, verifier-source compilation, subprocess or write","runtime_json_schema_execution_allowed":false,"runtime_manual_critical_field_checks_required":true,"runtime_schema_hash_binding_required":true,"schema_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-envelope-v2.schema.json","schema_artifact_role":"pending-envelope-schema","schema_digest_must_equal_artifact_entry":true,"schema_id":"urn:canvas-learning-system:gov-01:toolchain-static-acquisition-pending-envelope:v2:draft","schema_raw_file_sha256":null,"validation_failure_action":"fail closed before any authorized write or verifier-source compilation"},"static_acquisition_contract":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_pre_post_lstat_check_required":true,"compressed_blobs_memory_resident_before_write":true,"executor_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","executor_sha256":null,"expected":null,"hidden_package_lock_generation_allowed":false,"lifecycle_execution_allowed":false,"network_allowed":false,"node_execution_allowed":false,"npm_execution_allowed":false,"openspec_execution_allowed":false,"openspec_scaffold_allowed":false,"payload_bytes_memory_resident_before_write":true,"protected_control_paths":["package.json","package-lock.json",".gitignore"],"protected_control_pre_post_hash_check_required":true,"stage_repo_relative":null,"target_repo_relative":"node_modules","verifier_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py","verifier_profile_version":"gov-01-toolchain-static-verifier-v2","verifier_sha256":null},"success_contract":{"archive_member_execution_count":0,"commit_allowed":false,"content_mismatches":0,"forbidden_control_paths_present":0,"governance_apply_allowed":false,"host_package_count":167,"javascript_execution_count":0,"lifecycle_execution_count":0,"maximum_state":"static-attested-unexecuted","missing_expected_entries":0,"network_attempt_count":0,"next_required_authorization":"new runtime-use envelope binding the final-tree receipt and a fresh single-use challenge","npm_node_npx_execution_count":0,"outside_scope_mutation_count":0,"payload_execution_allowed_after_success":false,"protected_control_paths_changed":0,"push_allowed":false,"sandbox_exec_execution_count":0,"target_created_count":1,"target_tree_must_equal_expected_merkle":true,"unexpected_entries":0}}'''
 
 
 def fail(code: Exit, public_code: str) -> None:
@@ -372,6 +602,10 @@ def hmac_frame(key: bytes, domain: bytes, body: bytes) -> str:
     return hmac.new(key, framed, hashlib.sha256).hexdigest()
 
 
+def public_contract_receipt(domain: bytes, value: Any) -> str:
+    return sha256(domain + b"\x00" + canonical_json(value))
+
+
 def public_json(payload: Mapping[str, Any]) -> None:
     safe = dict(payload)
     encoded = canonical_json(safe).decode("utf-8", "strict")
@@ -388,7 +622,7 @@ def has_forbidden_public_value(value: Any) -> bool:
             if component
         )
         return (
-            any(unicodedata.category(character) == "Cc" for character in value)
+            any(unicodedata.category(character) in ("Cc", "Cf", "Zl", "Zp") for character in value)
             or value.startswith("/")
             or value.startswith("~")
             or "\\" in value
@@ -406,6 +640,39 @@ def has_forbidden_public_value(value: Any) -> bool:
         return any(has_forbidden_public_value(child) for child in value)
     if isinstance(value, dict):
         return any(has_forbidden_public_value(k) or has_forbidden_public_value(v) for k, v in value.items())
+    return False
+
+
+def pending_public_system_path_allowed(pointer: Tuple[Any, ...], value: str) -> bool:
+    if value not in PENDING_ENVELOPE_PUBLIC_STRING_ALLOWLIST:
+        return False
+    if len(pointer) < 3 or pointer[0:2] != ("execution_plan", "evidence_command_templates"):
+        return False
+    # Public system paths are authorized only as an exact evidence-command
+    # executable or argv element.  The same string in a tool version,
+    # logical_id, artifact field or prose remains a privacy violation.
+    return pointer[-1] == "executable" or "argv_allowlist" in pointer
+
+
+def has_forbidden_pending_envelope_value(
+    value: Any,
+    pointer: Tuple[Any, ...] = (),
+) -> bool:
+    """Field-aware public-envelope privacy gate."""
+
+    if isinstance(value, str):
+        return has_forbidden_public_value(value) and not pending_public_system_path_allowed(pointer, value)
+    if isinstance(value, list):
+        return any(
+            has_forbidden_pending_envelope_value(child, pointer + (index,))
+            for index, child in enumerate(value)
+        )
+    if isinstance(value, dict):
+        return any(
+            has_forbidden_pending_envelope_value(key, pointer + ("<key>",))
+            or has_forbidden_pending_envelope_value(child, pointer + (key,))
+            for key, child in value.items()
+        )
     return False
 
 
@@ -505,7 +772,7 @@ def assert_absolute(path: str, label: str) -> str:
         or not path
         or not is_nfc(path)
         or "\x00" in path
-        or any(unicodedata.category(character) == "Cc" for character in path)
+        or any(unicodedata.category(character) in ("Cc", "Cf", "Zl", "Zp") for character in path)
         or not os.path.isabs(path)
     ):
         fail(Exit.UNSAFE_PATH, label + "_ABSOLUTE")
@@ -534,7 +801,98 @@ def paths_overlap(left: str, right: str) -> bool:
     return is_same_or_within(left, right) or is_same_or_within(right, left)
 
 
-def validate_locator_boundaries(args: argparse.Namespace) -> None:
+def envelope_repo_relative(args: argparse.Namespace) -> str:
+    if not is_same_or_within(args.envelope, args.repo_root):
+        fail(Exit.CONTRACT, "ENVELOPE_OUTSIDE_REPO")
+    relative = os.path.relpath(args.envelope, args.repo_root).replace(os.sep, "/")
+    validate_relative(relative, "ENVELOPE_CONTROL_PATH")
+    if not relative.startswith(CONTROL_PREFIX):
+        fail(Exit.CONTRACT, "ENVELOPE_OUTSIDE_CONTROL_PREFIX")
+    return relative
+
+
+def derive_repo_root_from_executor_v2() -> str:
+    executor = os.path.realpath(__file__)
+    suffix = os.sep + EXECUTOR_RELATIVE.replace("/", os.sep)
+    if not executor.endswith(suffix):
+        fail(Exit.CHECKER_DRIFT, "EXECUTOR_REPO_DERIVATION")
+    repo_root = executor[: -len(suffix)]
+    assert_absolute(repo_root, "DERIVED_REPO_ROOT")
+    if has_forbidden_vault_component(repo_root):
+        fail(Exit.PRIVACY, "DERIVED_REPO_ROOT_VAULT_LOCATOR")
+    return repo_root
+
+
+def bind_public_cli_runtime_args_v2(args: argparse.Namespace) -> str:
+    generation_challenge = getattr(args, "generation_challenge", None)
+    relative = expected_pending_envelope_relative(generation_challenge)
+    repo_root = derive_repo_root_from_executor_v2()
+    args.repo_root = repo_root
+    args.envelope = os.path.join(repo_root, *relative.split("/"))
+    args.cache_root = None
+    args.state_root = None
+    args.key_file = None
+    return relative
+
+
+def validate_public_runtime_boundaries_v2(args: argparse.Namespace) -> str:
+    for value, label in ((args.repo_root, "REPO_ROOT"), (args.envelope, "ENVELOPE")):
+        assert_absolute(value, label)
+        if has_forbidden_vault_component(value):
+            fail(Exit.PRIVACY, label + "_VAULT_LOCATOR")
+    relative = envelope_repo_relative(args)
+    if relative != expected_pending_envelope_relative(getattr(args, "generation_challenge", None)):
+        fail(Exit.CONTRACT, "CLI_GENERATION_OUTPUT_PATH")
+    return relative
+
+
+def bind_private_runtime_args_v2(
+    args: argparse.Namespace,
+    generation_authorization: Mapping[str, Any],
+) -> GenerationRuntimeArgsV2:
+    derived = derive_generation_runtime_args_v2(args.repo_root, generation_authorization)
+    if derived.envelope != args.envelope:
+        fail(Exit.CONTRACT, "DERIVED_ENVELOPE_PATH")
+    args.cache_root = derived.cache_root
+    args.state_root = derived.state_root
+    args.key_file = derived.key_file
+    validate_locator_boundaries(args)
+    return derived
+
+
+def expected_pending_envelope_relative(generation_challenge: str) -> str:
+    if (
+        not isinstance(generation_challenge, str)
+        or GENERATION_CHALLENGE_RE.fullmatch(generation_challenge) is None
+    ):
+        fail(Exit.CONTRACT, "GENERATION_CHALLENGE_FORMAT")
+    return CONTROL_PREFIX + PENDING_ENVELOPE_BASENAME_PREFIX + generation_challenge + ".json"
+
+
+def validate_envelope_path_binding(
+    args: argparse.Namespace,
+    envelope: Mapping[str, Any],
+    relative: Optional[str] = None,
+) -> str:
+    actual = envelope_repo_relative(args) if relative is None else relative
+    generation = envelope.get("generation_authorization")
+    if not isinstance(generation, Mapping):
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_SCHEMA")
+    generation_challenge = generation.get("approval_challenge_id")
+    expected = expected_pending_envelope_relative(generation_challenge)
+    preimage = envelope.get("authorization_preimage")
+    if (
+        actual != expected
+        or generation.get("generated_acquisition_envelope_repo_relative_path") != expected
+        or not isinstance(preimage, Mapping)
+        or preimage.get("envelope_repo_relative_path") != expected
+        or preimage.get("envelope_git_status_exclusion_profile") != PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE
+    ):
+        fail(Exit.CONTRACT, "ENVELOPE_PATH_BINDING")
+    return actual
+
+
+def validate_locator_boundaries(args: argparse.Namespace) -> str:
     locators = (
         (args.repo_root, "REPO_ROOT"),
         (args.cache_root, "CACHE_ROOT"),
@@ -552,7 +910,6 @@ def validate_locator_boundaries(args: argparse.Namespace) -> None:
         (args.repo_root, args.key_file, "REPO_KEY_OVERLAP"),
         (args.cache_root, args.state_root, "CACHE_STATE_OVERLAP"),
         (args.cache_root, args.key_file, "CACHE_KEY_OVERLAP"),
-        (args.state_root, args.key_file, "STATE_KEY_OVERLAP"),
         (args.cache_root, args.envelope, "CACHE_ENVELOPE_OVERLAP"),
         (args.state_root, args.envelope, "STATE_ENVELOPE_OVERLAP"),
         (args.key_file, args.envelope, "KEY_ENVELOPE_OVERLAP"),
@@ -560,12 +917,266 @@ def validate_locator_boundaries(args: argparse.Namespace) -> None:
     for left, right, label in separated:
         if paths_overlap(left, right):
             fail(Exit.PRIVATE_STATE, label)
-    if not is_same_or_within(args.envelope, args.repo_root):
-        fail(Exit.CONTRACT, "ENVELOPE_OUTSIDE_REPO")
-    envelope_relative = os.path.relpath(args.envelope, args.repo_root).replace(os.sep, "/")
-    validate_relative(envelope_relative, "ENVELOPE_CONTROL_PATH")
-    if not envelope_relative.startswith(CONTROL_PREFIX):
-        fail(Exit.CONTRACT, "ENVELOPE_OUTSIDE_CONTROL_PREFIX")
+    expected_key = os.path.join(args.state_root, "hmac.key")
+    if args.key_file != expected_key:
+        fail(Exit.PRIVATE_STATE, "STATE_KEY_EXACT_CHILD")
+    return envelope_repo_relative(args)
+
+
+def derive_generation_runtime_args_v2(
+    repo_root: str,
+    generation_authorization: Mapping[str, Any],
+) -> GenerationRuntimeArgsV2:
+    """Derive every private generation locator after public GEN approval.
+
+    The generator CLI supplies only a public GEN challenge and receipt.  This
+    helper derives the repository-relative control-preparation contract from
+    the content-addressed executor, then derives state/key/cache/output paths;
+    no caller-provided private locator participates in the authority.
+    """
+    repo = assert_absolute(repo_root, "GENERATION_REPO_ROOT")
+    if has_forbidden_vault_component(repo):
+        fail(Exit.PRIVACY, "GENERATION_REPO_ROOT_VAULT_LOCATOR")
+    generation = require_exact_object(
+        generation_authorization,
+        GENERATION_AUTHORIZATION_FIELDS,
+        "GENERATION_AUTHORIZATION",
+    )
+    challenge = generation.get("approval_challenge_id")
+    expected_output = expected_pending_envelope_relative(challenge)
+    if generation.get("generated_acquisition_envelope_repo_relative_path") != expected_output:
+        fail(Exit.CONTRACT, "GENERATION_OUTPUT_PATH")
+    control_path = os.path.join(
+        repo,
+        CONTROL_PREFIX + "GOV-01-toolchain-control-prep-envelope-v1.json",
+    )
+    control_raw, _control_meta = read_absolute_regular(
+        control_path,
+        "CONTROL_PREPARATION_ENVELOPE",
+        MAX_JSON_BYTES,
+    )
+    if not hmac.compare_digest(sha256(control_raw), CONTROL_PREPARATION_ENVELOPE_RAW_SHA256):
+        fail(Exit.CHECKER_DRIFT, "CONTROL_PREPARATION_ENVELOPE_DRIFT")
+    control = parse_json_bytes(control_raw, "CONTROL_PREPARATION_ENVELOPE")
+    if not isinstance(control, dict) or canonical_json(control) != control_raw:
+        fail(Exit.CONTRACT, "CONTROL_PREPARATION_ENVELOPE_CANONICAL")
+    target = control.get("target")
+    if not isinstance(target, dict):
+        fail(Exit.CONTRACT, "CONTROL_PREPARATION_TARGET")
+    state_root = target.get("absolute_path")
+    owner = target.get("expected_created_owner")
+    if (
+        not isinstance(state_root, str)
+        or not isinstance(owner, dict)
+        or type(owner.get("uid")) is not int
+        or type(owner.get("gid")) is not int
+        or target.get("root_mode") != "0700"
+        or target.get("claims_mode") != "0700"
+        or target.get("key_mode") != "0600"
+        or target.get("receipt_mode") != "0600"
+    ):
+        fail(Exit.CONTRACT, "CONTROL_PREPARATION_TARGET_PROFILE")
+    assert_absolute(state_root, "GENERATION_STATE_ROOT")
+    if has_forbidden_vault_component(state_root):
+        fail(Exit.PRIVACY, "GENERATION_STATE_ROOT_VAULT_LOCATOR")
+    try:
+        account = pwd.getpwuid(owner["uid"])
+    except (KeyError, OSError):
+        fail(Exit.PRIVATE_STATE, "GENERATION_ACCOUNT_LOOKUP")
+    home = assert_absolute(account.pw_dir, "GENERATION_ACCOUNT_HOME")
+    cache_root = os.path.normpath(os.path.join(home, ".npm"))
+    assert_absolute(cache_root, "GENERATION_CACHE_ROOT")
+    if has_forbidden_vault_component(cache_root):
+        fail(Exit.PRIVACY, "GENERATION_CACHE_ROOT_VAULT_LOCATOR")
+    key_file = os.path.join(state_root, "hmac.key")
+    output_path = os.path.join(repo, *expected_output.split("/"))
+    result = GenerationRuntimeArgsV2(repo, cache_root, state_root, key_file, output_path)
+    validate_locator_boundaries(argparse.Namespace(**result._asdict()))
+    return result
+
+
+def revalidate_generation_runtime_args_v2(
+    runtime_args: GenerationRuntimeArgsV2,
+    generation_authorization: Mapping[str, Any],
+) -> str:
+    if not isinstance(runtime_args, GenerationRuntimeArgsV2):
+        fail(Exit.CONTRACT, "GENERATION_RUNTIME_ARGS_TYPE")
+    derived = derive_generation_runtime_args_v2(runtime_args.repo_root, generation_authorization)
+    if derived != runtime_args:
+        fail(Exit.CONTRACT, "GENERATION_RUNTIME_ARGS_DRIFT")
+    return envelope_repo_relative(argparse.Namespace(**runtime_args._asdict()))
+
+
+def verify_control_preparation_projection_v2(
+    runtime_args: GenerationRuntimeArgsV2,
+) -> Dict[str, Any]:
+    """Revalidate the retained control tree; the on-disk receipt is not authority."""
+    state_meta = assert_no_symlink_components(runtime_args.state_root, "CONTROL_PREPARATION_STATE")
+    if (
+        not stat.S_ISDIR(state_meta.st_mode)
+        or stat.S_IMODE(state_meta.st_mode) != 0o700
+        or state_meta.st_uid != os.getuid()
+    ):
+        fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_STATE_POLICY")
+    state_fd = open_directory(runtime_args.state_root, "CONTROL_PREPARATION_STATE")
+    try:
+        try:
+            names = sorted(os.listdir(state_fd), key=lambda item: item.encode("utf-8"))
+        except OSError:
+            fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_STATE_LIST")
+        if names != ["claims", "control-prep-receipt.json", "hmac.key"]:
+            fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_STATE_CHILDREN")
+        claims_meta = os.stat("claims", dir_fd=state_fd, follow_symlinks=False)
+        key_meta = os.stat("hmac.key", dir_fd=state_fd, follow_symlinks=False)
+        receipt_meta = os.stat("control-prep-receipt.json", dir_fd=state_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(claims_meta.st_mode)
+            or stat.S_IMODE(claims_meta.st_mode) != 0o700
+            or claims_meta.st_uid != state_meta.st_uid
+            or claims_meta.st_gid != state_meta.st_gid
+            or not stat.S_ISREG(key_meta.st_mode)
+            or stat.S_IMODE(key_meta.st_mode) != 0o600
+            or key_meta.st_uid != state_meta.st_uid
+            or key_meta.st_gid != state_meta.st_gid
+            or key_meta.st_nlink != 1
+            or key_meta.st_size != 32
+            or not stat.S_ISREG(receipt_meta.st_mode)
+            or stat.S_IMODE(receipt_meta.st_mode) != 0o600
+            or receipt_meta.st_uid != state_meta.st_uid
+            or receipt_meta.st_gid != state_meta.st_gid
+            or receipt_meta.st_nlink != 1
+        ):
+            fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_CHILD_POLICY")
+        claims_fd = os.open(
+            "claims",
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=state_fd,
+        )
+        try:
+            for claim_name in os.listdir(claims_fd):
+                is_acquisition_claim = (
+                    isinstance(claim_name, str) and CHALLENGE_RE.fullmatch(claim_name) is not None
+                )
+                is_generation_claim = (
+                    isinstance(claim_name, str)
+                    and GENERATION_CLAIM_NAME_RE.fullmatch(claim_name) is not None
+                )
+                if not is_acquisition_claim and not is_generation_claim:
+                    fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_HISTORICAL_CLAIM_NAME")
+                claim_meta = os.stat(claim_name, dir_fd=claims_fd, follow_symlinks=False)
+                if (
+                    not stat.S_ISDIR(claim_meta.st_mode)
+                    or stat.S_IMODE(claim_meta.st_mode) != 0o700
+                    or claim_meta.st_uid != state_meta.st_uid
+                    or claim_meta.st_gid != state_meta.st_gid
+                ):
+                    fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_HISTORICAL_CLAIM_POLICY")
+                claim_fd = os.open(
+                    claim_name,
+                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=claims_fd,
+                )
+                try:
+                    claim_children = sorted(os.listdir(claim_fd))
+                    permitted_children = (
+                        ([], ["ledger.jsonl"])
+                        if is_acquisition_claim
+                        else ([], ["generation-record.json"])
+                    )
+                    if claim_children not in permitted_children:
+                        fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_HISTORICAL_CLAIM_CHILDREN")
+                    if claim_children:
+                        record_name = "ledger.jsonl" if is_acquisition_claim else "generation-record.json"
+                        record_meta = os.stat(record_name, dir_fd=claim_fd, follow_symlinks=False)
+                        if (
+                            not stat.S_ISREG(record_meta.st_mode)
+                            or stat.S_IMODE(record_meta.st_mode) != 0o600
+                            or record_meta.st_uid != state_meta.st_uid
+                            or record_meta.st_gid != state_meta.st_gid
+                            or record_meta.st_nlink != 1
+                        ):
+                            fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_HISTORICAL_RECORD_POLICY")
+                finally:
+                    os.close(claim_fd)
+        finally:
+            os.close(claims_fd)
+        receipt_fd = os.open(
+            "control-prep-receipt.json",
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=state_fd,
+        )
+        try:
+            receipt_raw = read_fd(receipt_fd, MAX_JSON_BYTES, "CONTROL_PREPARATION_RECEIPT")
+        finally:
+            os.close(receipt_fd)
+    except ContractError:
+        raise
+    except OSError:
+        fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_TREE")
+    finally:
+        os.close(state_fd)
+    receipt = parse_json_bytes(receipt_raw, "CONTROL_PREPARATION_RECEIPT")
+    if not isinstance(receipt, dict) or canonical_json(receipt) != receipt_raw:
+        fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_RECEIPT_CANONICAL")
+    evidence = receipt.get("evidence_sha256")
+    body = {key: value for key, value in receipt.items() if key != "evidence_sha256"}
+    if (
+        not isinstance(evidence, str)
+        or SHA256_RE.fullmatch(evidence) is None
+        or not hmac.compare_digest(
+            evidence,
+            sha256(CONTROL_PREPARATION_EVIDENCE_DOMAIN + canonical_json(body)),
+        )
+        or body.get("schema_version") != "gov-01-toolchain-control-prep-evidence-v1"
+        or body.get("evidence_state") != "CONTROL-PREPARED-CANDIDATE"
+        or body.get("derived_state_if_full_tree_verifies") != "CONTROL-PREPARED"
+        or body.get("candidate_is_independently_authoritative") is not False
+        or body.get("approved_receipt_digest") != CONTROL_PREPARATION_RECEIPT_DIGEST
+        or body.get("envelope_raw_sha256") != CONTROL_PREPARATION_ENVELOPE_RAW_SHA256
+        or body.get("single_use_state") != "CONSUMED-BY-DURABLE-SIBLING-CLAIM"
+        or body.get("acquisition_challenge_claim_state") != "ABSENT"
+        or body.get("private_preimage_sidecar_state") != "ABSENT"
+        or body.get("maximum_state") != "CONTROL-PREPARED"
+    ):
+        fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_RECEIPT_SEMANTICS")
+    control_raw, _ = read_absolute_regular(
+        os.path.join(
+            runtime_args.repo_root,
+            CONTROL_PREFIX + "GOV-01-toolchain-control-prep-envelope-v1.json",
+        ),
+        "CONTROL_PREPARATION_ENVELOPE",
+        MAX_JSON_BYTES,
+    )
+    control = parse_json_bytes(control_raw, "CONTROL_PREPARATION_ENVELOPE")
+    target = control.get("target") if isinstance(control, dict) else None
+    control_challenge = control.get("approval_challenge_id") if isinstance(control, dict) else None
+    durable_path = target.get("durable_claim_absolute_path") if isinstance(target, dict) else None
+    if (
+        not isinstance(durable_path, str)
+        or not isinstance(control_challenge, str)
+        or CONTROL_PREPARATION_CHALLENGE_RE.fullmatch(control_challenge) is None
+        or body.get("approval_challenge_id") != control_challenge
+    ):
+        fail(Exit.CONTRACT, "CONTROL_PREPARATION_DURABLE_CLAIM_PATH")
+    durable_raw, durable_meta = read_absolute_regular(
+        durable_path,
+        "CONTROL_PREPARATION_DURABLE_CLAIM",
+        MAX_JSON_BYTES,
+    )
+    if (
+        stat.S_IMODE(durable_meta.st_mode) != 0o600
+        or durable_meta.st_uid != state_meta.st_uid
+        or durable_meta.st_gid != state_meta.st_gid
+        or durable_meta.st_nlink != 1
+        or body.get("durable_claim_raw_sha256") != sha256(durable_raw)
+    ):
+        fail(Exit.PRIVATE_STATE, "CONTROL_PREPARATION_DURABLE_CLAIM")
+    return {
+        "control_preparation_result_raw_sha256": sha256(receipt_raw),
+        "control_preparation_evidence_receipt_sha256": evidence,
+        "control_preparation_approval_challenge_id": control_challenge,
+        "control_preparation_state": "CONTROL-PREPARED-FULL-TREE-REVALIDATED-PASS",
+    }
 
 
 def assert_no_symlink_components(path: str, label: str) -> os.stat_result:
@@ -661,13 +1272,13 @@ def validate_relative(path: str, label: str, forbid_vault: bool = True) -> List[
     components = path.split("/")
     if any(not part or part in (".", "..") for part in components):
         fail(Exit.UNSAFE_PATH, label + "_TRAVERSAL")
-    if any(any(unicodedata.category(ch) == "Cc" for ch in part) for part in components):
+    if any(any(unicodedata.category(ch) in ("Cc", "Cf", "Zl", "Zp") for ch in part) for part in components):
         fail(Exit.UNSAFE_PATH, label + "_CONTROL")
-    if components[0] == ".git":
-        fail(Exit.UNSAFE_PATH, label + "_GIT")
-    if forbid_vault:
-        for component in components:
-            folded = unicodedata.normalize("NFC", component).casefold()
+    for component in components:
+        folded = unicodedata.normalize("NFC", component).casefold()
+        if folded == ".git":
+            fail(Exit.UNSAFE_PATH, label + "_GIT")
+        if forbid_vault:
             if VAULT_PREFIX in folded or folded == ".obsidian":
                 fail(Exit.UNSAFE_PATH, label + "_VAULT")
     return components
@@ -840,6 +1451,30 @@ def locator_commitments(args: argparse.Namespace, key: bytes) -> Dict[str, Dict[
     }
 
 
+def validate_locator_commitment_projection_v2(value: Any) -> Dict[str, Dict[str, str]]:
+    expected_labels = {
+        "repo_root": "repo-root",
+        "cache_root": "npm-cache",
+        "state_root": "state-root",
+        "key_file": "hmac-key",
+        "envelope": "envelope",
+    }
+    if not isinstance(value, Mapping) or set(value) != set(expected_labels):
+        fail(Exit.CONTRACT, "LOCATOR_COMMITMENTS")
+    result: Dict[str, Dict[str, str]] = {}
+    for name, expected_label in expected_labels.items():
+        entry = value.get(name)
+        if (
+            not isinstance(entry, Mapping)
+            or set(entry) != {"label", "commitment"}
+            or entry.get("label") != expected_label
+        ):
+            fail(Exit.CONTRACT, "LOCATOR_COMMITMENT_ENTRY")
+        commitment = require_sha256(entry.get("commitment"), "LOCATOR_COMMITMENT")
+        result[name] = {"label": expected_label, "commitment": commitment}
+    return result
+
+
 def compare_private_authorization(
     envelope: Mapping[str, Any],
     key: bytes,
@@ -880,11 +1515,36 @@ def parse_utc(value: Any, label: str) -> _datetime.datetime:
         parsed = _datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
     except ValueError:
         fail(Exit.CONTRACT, label + "_FORMAT")
+    if parsed.strftime("%Y-%m-%dT%H:%M:%SZ") != value:
+        fail(Exit.CONTRACT, label + "_FORMAT")
     return parsed.replace(tzinfo=_datetime.timezone.utc)
 
 
 def utc_now() -> _datetime.datetime:
     return _datetime.datetime.now(_datetime.timezone.utc).replace(microsecond=0)
+
+
+def validate_envelope_temporal_contract(
+    envelope: Mapping[str, Any],
+    now: Optional[_datetime.datetime] = None,
+) -> Tuple[_datetime.datetime, _datetime.datetime]:
+    current = utc_now() if now is None else now
+    if current.tzinfo is None or current.utcoffset() != _datetime.timedelta(0) or current.microsecond != 0:
+        fail(Exit.CONTRACT, "CURRENT_TIME_FORMAT")
+    challenge = envelope.get("approval_challenge_id")
+    if not isinstance(challenge, str) or CHALLENGE_RE.fullmatch(challenge) is None:
+        fail(Exit.CONTRACT, "CHALLENGE_FORMAT")
+    census_at = parse_utc(envelope.get("census_at_utc"), "CENSUS_AT")
+    expiry = parse_utc(envelope.get("not_after_utc"), "EXPIRY")
+    if challenge.split("-")[2] != census_at.strftime("%Y%m%d"):
+        fail(Exit.CONTRACT, "CHALLENGE_CENSUS_DATE")
+    if census_at > current + _datetime.timedelta(minutes=5):
+        fail(Exit.CONTRACT, "CENSUS_FUTURE_SKEW")
+    if expiry <= current:
+        fail(Exit.EXPIRED, "ENVELOPE_EXPIRED")
+    if expiry <= census_at or expiry - census_at > _datetime.timedelta(hours=24):
+        fail(Exit.CONTRACT, "ENVELOPE_TTL")
+    return census_at, expiry
 
 
 def sha256(data: bytes) -> str:
@@ -1857,7 +2517,11 @@ def validate_public_result_projection(
         if "receipt_digest" in result:
             require_sha256(result.get("receipt_digest"), "PUBLIC_RESULT_FAILURE_RECEIPT")
         cross(result.get("state") == "failed", "FAILURE_STATE")
-        cross(authority.get("retry_authorized") is False and authority.get("public_success_attestation_allowed") is False, "FAILURE_AUTHORITY")
+        cross(
+            type(authority.get("retry_authorized")) is bool
+            and authority.get("public_success_attestation_allowed") is False,
+            "FAILURE_AUTHORITY",
+        )
         error = mapping(result, "error")
         require_exact_object(error, ("code", "detail_code", "exit"), "PUBLIC_RESULT_ERROR")
         error_exit = error.get("exit")
@@ -1898,6 +2562,11 @@ def validate_public_result_projection(
         failure_authority_fields: List[str] = []
         if "approval_challenge_id" in result:
             failure_authority_fields.extend(("approval_challenge_id", "receipt_digest"))
+        elif mode in ("census", "verify") and authority.get("retry_authorized") is True:
+            # Read-only stdout intentionally omits the approval pair, but a
+            # retry claim is valid only when the in-process trusted sidecar
+            # proves that the receipt and challenge were already bound.
+            failure_authority_fields.extend(("approval_challenge_id", "receipt_digest"))
         if "G00" in passed_gate_ids:
             failure_authority_fields.append("schema_binding_observation")
         if "G02" in passed_gate_ids:
@@ -1929,6 +2598,17 @@ def validate_public_result_projection(
                 and failure_authority.get("approval_challenge_id") == result.get("approval_challenge_id")
                 and failure_authority.get("receipt_digest") == result.get("receipt_digest"),
                 "FAILURE_RUN_AUTHORITY",
+            )
+        elif mode in ("census", "verify") and authority.get("retry_authorized") is True:
+            cross(
+                failure_authority is not None
+                and isinstance(failure_authority.get("approval_challenge_id"), str)
+                and CHALLENGE_RE.fullmatch(failure_authority["approval_challenge_id"]) is not None,
+                "READ_ONLY_FAILURE_RUN_CHALLENGE",
+            )
+            require_sha256(
+                failure_authority.get("receipt_digest"),
+                "PUBLIC_RESULT_READ_ONLY_FAILURE_RUN_RECEIPT",
             )
         if "G00" in passed_gate_ids:
             g00 = gate_evidence("G00")
@@ -1982,18 +2662,29 @@ def validate_public_result_projection(
                 "approval_challenge_id" not in result and "receipt_digest" not in result,
                 "READ_ONLY_FAILURE_AUTHORITY_ABSENT",
             )
-            cross(
-                authority.get("next_required_authority")
-                == "new explicit user approval after fail-closed evidence review",
-                "READ_ONLY_FAILURE_NEXT_AUTHORITY",
-            )
             cross(result.get("phase") in ("entry-fail-closed", "read-only-fail-closed"), "READ_ONLY_FAILURE_PHASE")
             cross(terminal == read_only_terminal_state(), "READ_ONLY_FAILURE_TERMINAL")
             cross(retention.get("private_state_inspection_required") is False, "READ_ONLY_FAILURE_RETENTION")
             if result.get("phase") == "entry-fail-closed":
                 cross(not gates, "READ_ONLY_ENTRY_GATES")
+                cross(
+                    authority.get("retry_authorized") is False
+                    and authority.get("next_required_authority") == FAIL_CLOSED_REVIEW_AUTHORITY,
+                    "READ_ONLY_ENTRY_AUTHORITY",
+                )
             else:
                 execution_prefix_length(read_only_execution_order, "READ_ONLY_FAILURE_GATE")
+                retry_bound = (
+                    failure_authority is not None
+                    and "approval_challenge_id" in failure_authority
+                    and "receipt_digest" in failure_authority
+                )
+                cross(
+                    authority.get("retry_authorized") is retry_bound
+                    and authority.get("next_required_authority")
+                    == (PRECLAIM_RETRY_AUTHORITY if retry_bound else FAIL_CLOSED_REVIEW_AUTHORITY),
+                    "READ_ONLY_FAILURE_NEXT_AUTHORITY",
+                )
         elif mode == "unknown" and result.get("phase") == "public-projection":
             cross(
                 "approval_challenge_id" not in result and "receipt_digest" not in result,
@@ -2022,6 +2713,7 @@ def validate_public_result_projection(
                 "PRIVACY_FAILURE_ERROR",
             )
             cross(retention.get("private_state_inspection_required") is True, "PRIVACY_FAILURE_RETENTION")
+            cross(authority.get("retry_authorized") is False, "PRIVACY_FAILURE_RETRY")
             cross(
                 authority.get("next_required_authority")
                 == "new explicit user approval after private-state inspection",
@@ -2035,6 +2727,7 @@ def validate_public_result_projection(
             cross(result.get("phase") == "entry-fail-closed" and not gates, "UNKNOWN_FAILURE_ENTRY")
             cross(terminal == read_only_terminal_state(), "UNKNOWN_FAILURE_TERMINAL")
             cross(retention.get("private_state_inspection_required") is False, "UNKNOWN_FAILURE_RETENTION")
+            cross(authority.get("retry_authorized") is False, "UNKNOWN_FAILURE_RETRY")
             cross(
                 authority.get("next_required_authority")
                 == "new explicit user approval after fail-closed evidence review",
@@ -2050,6 +2743,7 @@ def validate_public_result_projection(
             expected_entry_terminal["challenge_state"] = "preclaim-rejected-new-envelope-required"
             cross(terminal == expected_entry_terminal, "ACQUIRE_ENTRY_TERMINAL")
             cross(retention.get("private_state_inspection_required") is True, "ACQUIRE_ENTRY_RETENTION")
+            cross(authority.get("retry_authorized") is False, "ACQUIRE_ENTRY_RETRY")
             cross(
                 authority.get("next_required_authority")
                 == "new explicit user approval after fail-closed evidence review",
@@ -2112,11 +2806,6 @@ def validate_public_result_projection(
             challenge_state = terminal.get("challenge_state")
             publication_state = terminal.get("publication_state")
             cross(claim_state in ("not-created", "created-0700"), "ACQUIRE_FAILURE_CLAIM")
-            cross(
-                authority.get("next_required_authority")
-                == "new explicit user approval after retained-state inspection; never retry automatically",
-                "ACQUIRE_FAILURE_NEXT_AUTHORITY",
-            )
             if prefix_length < 15:
                 cross(claim_state == "not-created", "ACQUIRE_PRE_G01_CLAIM")
             elif prefix_length > 15:
@@ -2222,8 +2911,14 @@ def validate_public_result_projection(
             ):
                 cross(publication_state != "not-attempted", "ACQUIRE_POST_RENAME_PHASE_PUBLICATION")
             if claim_state == "not-created":
-                cross(challenge_state == "preclaim-rejected-new-envelope-required", "ACQUIRE_PRECLAIM_CHALLENGE")
+                cross(challenge_state == "preclaim-pending", "ACQUIRE_PRECLAIM_CHALLENGE")
                 cross(ledger_state == "not-created", "ACQUIRE_PRECLAIM_LEDGER")
+                cross(retention.get("private_state_inspection_required") is False, "ACQUIRE_PRECLAIM_RETENTION")
+                cross(
+                    authority.get("retry_authorized") is True
+                    and authority.get("next_required_authority") == PRECLAIM_RETRY_AUTHORITY,
+                    "ACQUIRE_PRECLAIM_AUTHORITY",
+                )
             elif claim_state == "created-0700":
                 cross(challenge_state in ("claimed-consumed", "completed-consumed"), "ACQUIRE_CLAIM_CHALLENGE")
                 cross(retention.get("private_state_inspection_required") is True, "ACQUIRE_CLAIM_RETENTION")
@@ -2235,6 +2930,11 @@ def validate_public_result_projection(
                         "terminal-success-recorded",
                     ),
                     "ACQUIRE_CREATED_CLAIM_LEDGER",
+                )
+                cross(
+                    authority.get("retry_authorized") is False
+                    and authority.get("next_required_authority") == RETAINED_STATE_AUTHORITY,
+                    "ACQUIRE_CLAIM_AUTHORITY",
                 )
             if ledger_state == "terminal-success-recorded":
                 cross(prefix_length >= 24, "ACQUIRE_SUCCESS_LEDGER_GATE_PREFIX")
@@ -2362,8 +3062,8 @@ def validate_public_result_projection(
                 "FINALIZATION_RETENTION",
             )
             cross(
-                authority.get("next_required_authority")
-                == "new explicit user approval after retained-state inspection; never retry automatically",
+                authority.get("retry_authorized") is False
+                and authority.get("next_required_authority") == RETAINED_STATE_AUTHORITY,
                 "FINALIZATION_NEXT_AUTHORITY",
             )
             cross(
@@ -2487,10 +3187,11 @@ class AttemptState:
         }
 
     def failure_projection(self) -> Dict[str, Any]:
-        result = self.projection()
-        if self.claim_state == "not-created":
-            result["challenge_state"] = "preclaim-rejected-new-envelope-required"
-        return result
+        # The challenge is consumed only by the exclusive persistent claim.
+        # A preclaim failure therefore retains the initial pending state; its
+        # public authority object separately constrains retry to an unexpired,
+        # byte-exact receipt-bound input set.
+        return self.projection()
 
 
 def runtime_assurance_projection(toolchain: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
@@ -2808,6 +3509,12 @@ def load_envelope(path: str, expected_receipt: Optional[str]) -> Tuple[Dict[str,
     value = parse_json_bytes(raw, "ENVELOPE")
     if not isinstance(value, dict):
         fail(Exit.CONTRACT, "ENVELOPE_ROOT")
+    # This must precede verifier compilation, subprocess resolution and every
+    # private-state read.  Only the six frozen public argv literals are exempt
+    # from the generic locator detector; role-specific schema/manual checks
+    # prevent those literals from being moved into free-text fields.
+    if has_forbidden_pending_envelope_value(value):
+        fail(Exit.PRIVACY, "ENVELOPE_PUBLIC_PRIVACY")
     version = value.get("schema_version")
     domain = RECEIPT_DOMAINS.get(version)
     if domain is None:
@@ -2819,9 +3526,7 @@ def load_envelope(path: str, expected_receipt: Optional[str]) -> Tuple[Dict[str,
         fail(Exit.CONTRACT, "CHALLENGE_FORMAT")
     if value.get("single_use") is not True:
         fail(Exit.CONTRACT, "SINGLE_USE_REQUIRED")
-    expiry = parse_utc(value.get("not_after_utc"), "EXPIRY")
-    if utc_now() >= expiry:
-        fail(Exit.EXPIRED, "ENVELOPE_EXPIRED")
+    validate_envelope_temporal_contract(value)
     digest = hashlib.sha256(domain + b"\x00" + raw).hexdigest()
     if expected_receipt is not None:
         if not isinstance(expected_receipt, str) or not SHA256_RE.fullmatch(expected_receipt):
@@ -2842,6 +3547,25 @@ def require_sha256(value: Any, label: str) -> str:
     if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
         fail(Exit.CONTRACT, label + "_SHA256")
     return value
+
+
+def expected_tool_version(role: str) -> str:
+    if role in ("python-interpreter", "python-stdlib-tree"):
+        version = platform.python_version()
+        if re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version) is None:
+            fail(Exit.RUNTIME, "PYTHON_VERSION_PROFILE")
+        return version
+    version = TOOLCHAIN_FIXED_VERSION_BY_ROLE.get(role)
+    if version is None:
+        fail(Exit.CONTRACT, "TOOLCHAIN_VERSION_ROLE")
+    return version
+
+
+def validate_tool_identity(entry: Mapping[str, Any], role: str) -> None:
+    if entry.get("logical_id") != TOOLCHAIN_LOGICAL_ID_BY_ROLE.get(role):
+        fail(Exit.CONTRACT, "FROZEN_TOOL_LOGICAL_ID")
+    if entry.get("version") != expected_tool_version(role):
+        fail(Exit.CONTRACT, "FROZEN_TOOL_VERSION")
 
 
 def require_zero(value: Any, label: str) -> None:
@@ -3273,7 +3997,12 @@ def verify_projection_schema_bundle(
     }
 
 
-def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
+def validate_manual_envelope_contract(
+    envelope: Mapping[str, Any],
+    now: Optional[_datetime.datetime] = None,
+) -> None:
+    if has_forbidden_pending_envelope_value(envelope):
+        fail(Exit.PRIVACY, "ENVELOPE_PUBLIC_PRIVACY")
     require_exact_object(envelope, TOP_LEVEL_FIELDS, "ENVELOPE")
     if envelope.get("schema_version") != "gov-01-toolchain-static-acquisition-envelope-v2":
         fail(Exit.CONTRACT, "MANUAL_SCHEMA_VERSION")
@@ -3290,10 +4019,7 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
     challenge = envelope.get("approval_challenge_id")
     if not isinstance(challenge, str) or not CHALLENGE_RE.fullmatch(challenge):
         fail(Exit.CONTRACT, "MANUAL_CHALLENGE")
-    census_at = parse_utc(envelope.get("census_at_utc"), "CENSUS_AT")
-    expiry = parse_utc(envelope.get("not_after_utc"), "EXPIRY")
-    if census_at > expiry:
-        fail(Exit.CONTRACT, "CENSUS_AFTER_EXPIRY")
+    validate_envelope_temporal_contract(envelope, now=now)
     approval = require_exact_object(
         envelope.get("approval_receipt_contract"),
         "required_user_reference receipt_must_match_raw_envelope_bytes challenge_must_match "
@@ -3312,25 +4038,124 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
         fail(Exit.CONTRACT, "APPROVAL_EXPANSION")
     predecessor = require_exact_object(
         envelope.get("predecessor"),
-        "first_approval_envelope_raw_sha256 first_receipt_domain_sha256 bootstrap_patch_raw_sha256 "
-        "bootstrap_target_receipt_sha256 bootstrap_containment_state predecessor_chain_receipt_sha256".split(),
+        PREDECESSOR_FIELDS,
         "PREDECESSOR",
     )
     for key, value in predecessor.items():
         if key.endswith("sha256"):
             require_sha256(value, "PREDECESSOR_" + key.upper())
-    if predecessor.get("bootstrap_containment_state") != "independently-verified-pass":
-        fail(Exit.CONTRACT, "PREDECESSOR_STATE")
+    predecessor_constants = {
+        "profile": "gov01-static-acquisition-predecessor-chain-v2",
+        "first_approval_envelope_raw_sha256": FIRST_APPROVAL_ENVELOPE_RAW_SHA256,
+        "first_approval_receipt_digest": FIRST_RECEIPT_DOMAIN_SHA256,
+        "bootstrap_patch_raw_sha256": BOOTSTRAP_PATCH_RAW_SHA256,
+        "bootstrap_commit_oid": BOOTSTRAP_COMMIT_OID,
+        "control_preparation_envelope_raw_sha256": CONTROL_PREPARATION_ENVELOPE_RAW_SHA256,
+        "control_preparation_envelope_receipt_digest": CONTROL_PREPARATION_RECEIPT_DIGEST,
+        "control_preparation_state": "CONTROL-PREPARED-FULL-TREE-REVALIDATED-PASS",
+    }
+    for key, expected in predecessor_constants.items():
+        if predecessor.get(key) != expected:
+            fail(Exit.CONTRACT, "PREDECESSOR_" + key.upper())
+    for key in (
+        "control_preparation_result_raw_sha256",
+        "control_preparation_evidence_receipt_sha256",
+        "generation_authorization_receipt_digest",
+        "generation_authorization_envelope_raw_sha256",
+    ):
+        require_sha256(predecessor.get(key), "PREDECESSOR_" + key.upper())
+    control_preparation_challenge = predecessor.get("control_preparation_approval_challenge_id")
+    if (
+        not isinstance(control_preparation_challenge, str)
+        or CONTROL_PREPARATION_CHALLENGE_RE.fullmatch(control_preparation_challenge) is None
+    ):
+        fail(Exit.CONTRACT, "PREDECESSOR_CONTROL_PREPARATION_CHALLENGE")
+    for key in (
+        "bootstrap_commit_oid",
+        "generation_authorization_parent_commit_oid",
+        "generation_authorization_parent_tree_oid",
+        "generation_authorization_commit_oid",
+        "generation_authorization_tree_oid",
+    ):
+        value = predecessor.get(key)
+        if not isinstance(value, str) or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", value) is None:
+            fail(Exit.CONTRACT, "PREDECESSOR_OID")
+    generation_predecessor_challenge = predecessor.get("generation_authorization_challenge_id")
+    if (
+        not isinstance(generation_predecessor_challenge, str)
+        or GENERATION_CHALLENGE_RE.fullmatch(generation_predecessor_challenge) is None
+    ):
+        fail(Exit.CONTRACT, "PREDECESSOR_GENERATION_CHALLENGE")
+    generation = require_exact_object(
+        envelope.get("generation_authorization"),
+        GENERATION_AUTHORIZATION_FIELDS,
+        "GENERATION_AUTHORIZATION",
+    )
+    generation_challenge = generation.get("approval_challenge_id")
+    if (
+        generation.get("profile") != "gov01-static-envelope-generation-authority-v1"
+        or not isinstance(generation_challenge, str)
+        or GENERATION_CHALLENGE_RE.fullmatch(generation_challenge) is None
+        or generation.get("receipt_domain_profile")
+        != "SHA-256(ASCII(CLS/GOV01-STATIC-ENVELOPE-GENERATION-RECEIPT/v1) || NUL || raw-generation-envelope-bytes)"
+        or generation.get("commit_transition_profile")
+        != "single parent commit changing exactly the generation approval envelope path from ABSENT to the approved canonical raw bytes"
+        or generation.get("state") != "approved-single-path-commit"
+        or generation.get("generation_claim_required") is not True
+        or generation.get("generation_claim_profile") != GENERATION_CLAIM_PROFILE
+        or generation.get("generation_claim_record_profile") != GENERATION_CLAIM_RECORD_PROFILE
+        or generation.get("generation_claim_retention") != GENERATION_CLAIM_RETENTION
+    ):
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_PROFILE")
+    expected_generation_path = (
+        CONTROL_PREFIX
+        + "GOV-01-toolchain-static-envelope-generation-envelope-v1."
+        + generation_challenge
+        + ".json"
+    )
+    expected_output_path = expected_pending_envelope_relative(generation_challenge)
+    if (
+        generation.get("approval_envelope_repo_relative_path") != expected_generation_path
+        or generation.get("generated_acquisition_envelope_repo_relative_path") != expected_output_path
+    ):
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_PATH")
+    for key in ("raw_envelope_sha256", "receipt_digest"):
+        require_sha256(generation.get(key), "GENERATION_AUTHORIZATION_" + key.upper())
+    for key in (
+        "authorization_parent_commit_oid",
+        "authorization_parent_tree_oid",
+        "authorization_commit_oid",
+        "authorization_tree_oid",
+    ):
+        value = generation.get(key)
+        if not isinstance(value, str) or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", value) is None:
+            fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_OID")
+    generation_predecessor_bindings = {
+        "generation_authorization_envelope_raw_sha256": generation.get("raw_envelope_sha256"),
+        "generation_authorization_receipt_digest": generation.get("receipt_digest"),
+        "generation_authorization_challenge_id": generation.get("approval_challenge_id"),
+        "generation_authorization_parent_commit_oid": generation.get("authorization_parent_commit_oid"),
+        "generation_authorization_parent_tree_oid": generation.get("authorization_parent_tree_oid"),
+        "generation_authorization_commit_oid": generation.get("authorization_commit_oid"),
+        "generation_authorization_tree_oid": generation.get("authorization_tree_oid"),
+    }
+    if any(predecessor.get(key) != value for key, value in generation_predecessor_bindings.items()):
+        fail(Exit.CONTRACT, "PREDECESSOR_GENERATION_RECEIPT_BINDING")
+    predecessor_body = {key: predecessor[key] for key in PREDECESSOR_FIELDS if key != "predecessor_chain_receipt_sha256"}
+    expected_predecessor_chain = sha256(
+        PREDECESSOR_CHAIN_DOMAIN + b"\x00" + canonical_json(predecessor_body)
+    )
+    if not hmac.compare_digest(
+        str(predecessor.get("predecessor_chain_receipt_sha256")),
+        expected_predecessor_chain,
+    ):
+        fail(Exit.CONTRACT, "PREDECESSOR_CHAIN_RECEIPT")
     artifacts = envelope.get("artifacts")
-    if not isinstance(artifacts, list) or len(artifacts) < 10 or len(artifacts) > 64:
+    if not isinstance(artifacts, list) or len(artifacts) != len(PENDING_STATIC_ARTIFACT_SPECS) + 1:
         fail(Exit.CONTRACT, "MANUAL_ARTIFACT_COUNT")
     seen_paths = set()
     role_counts: Dict[str, int] = {}
-    allowed_roles = {
-        "goal", "governance-decision", "approval-predecessor", "bootstrap-patch", "static-executor",
-        "static-verifier", "pending-envelope-schema", "private-evidence-schema", "public-attestation-schema",
-        "package-manifest", "package-lock", "gitignore", "receipt-profile", "other-public-governance-artifact",
-    }
+    allowed_roles = {role for role, _path in PENDING_STATIC_ARTIFACT_SPECS} | {GENERATION_APPROVAL_ROLE}
     for entry in artifacts:
         artifact = require_exact_object(entry, "path role file_kind byte_length raw_file_sha256".split(), "ARTIFACT")
         path = artifact.get("path")
@@ -3348,26 +4173,43 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
             fail(Exit.CONTRACT, "ARTIFACT_SIZE")
         require_sha256(artifact.get("raw_file_sha256"), "ARTIFACT")
         role_counts[role] = role_counts.get(role, 0) + 1
-    for role in (
-        "goal", "governance-decision", "static-executor", "static-verifier", "pending-envelope-schema",
-        "private-evidence-schema", "public-attestation-schema", "package-manifest", "package-lock", "gitignore",
+    actual_static_specs = tuple((entry.get("role"), entry.get("path")) for entry in artifacts[:-1])
+    if actual_static_specs != PENDING_STATIC_ARTIFACT_SPECS:
+        fail(Exit.CONTRACT, "ARTIFACT_ROLE_PATH_BINDING")
+    generation_approval = artifacts[-1]
+    if (
+        generation_approval.get("role") != GENERATION_APPROVAL_ROLE
+        or not isinstance(generation_approval.get("path"), str)
+        or GENERATION_APPROVAL_PATH_RE.fullmatch(generation_approval["path"]) is None
     ):
-        if role_counts.get(role) != 1:
-            fail(Exit.CONTRACT, "ARTIFACT_REQUIRED_ROLE")
-    exact_role_paths = {
-        "static-executor": EXECUTOR_RELATIVE,
-        "static-verifier": VERIFIER_RELATIVE,
-        "package-manifest": "package.json",
-        "package-lock": "package-lock.json",
-        "gitignore": ".gitignore",
+        fail(Exit.CONTRACT, "ARTIFACT_GENERATION_APPROVAL_BINDING")
+    if (
+        generation_approval.get("path") != generation.get("approval_envelope_repo_relative_path")
+        or generation_approval.get("raw_file_sha256") != generation.get("raw_envelope_sha256")
+    ):
+        fail(Exit.CONTRACT, "ARTIFACT_GENERATION_APPROVAL_CROSS_BINDING")
+    artifact_by_role = {entry.get("role"): entry for entry in artifacts}
+    predecessor_artifact_bindings = {
+        "first-receipt-envelope": predecessor.get("first_approval_envelope_raw_sha256"),
+        "bootstrap-patch": predecessor.get("bootstrap_patch_raw_sha256"),
+        "control-prep-envelope": predecessor.get("control_preparation_envelope_raw_sha256"),
     }
-    for role, expected_path in exact_role_paths.items():
-        matching_paths = [entry.get("path") for entry in artifacts if entry.get("role") == role]
-        if matching_paths != [expected_path]:
-            fail(Exit.CONTRACT, "ARTIFACT_ROLE_PATH_BINDING")
+    for role, expected_digest in predecessor_artifact_bindings.items():
+        if artifact_by_role.get(role, {}).get("raw_file_sha256") != expected_digest:
+            fail(Exit.CONTRACT, "PREDECESSOR_ARTIFACT_" + role.upper().replace("-", "_"))
+    if any(role_counts.get(role) != 1 for role in allowed_roles):
+        fail(Exit.CONTRACT, "ARTIFACT_REQUIRED_ROLE")
     preimage = require_exact_object(
         envelope.get("authorization_preimage"), AUTHORIZATION_PREIMAGE_FIELDS, "AUTHORIZATION_PREIMAGE"
     )
+    expected_envelope_path = expected_pending_envelope_relative(generation_challenge)
+    if (
+        preimage.get("envelope_repo_relative_path") != expected_envelope_path
+        or preimage.get("envelope_git_status_exclusion_profile") != PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE
+    ):
+        fail(Exit.CONTRACT, "ENVELOPE_PATH_BINDING")
+    if any(entry.get("path") == expected_envelope_path for entry in artifacts):
+        fail(Exit.CONTRACT, "ARTIFACT_ENVELOPE_SELF_REFERENCE")
     object_format = preimage.get("git_object_format")
     if object_format not in ("sha1", "sha256"):
         fail(Exit.CONTRACT, "PREIMAGE_OBJECT_FORMAT")
@@ -3376,6 +4218,19 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
         value = preimage.get(key)
         if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{%d}" % oid_length, value):
             fail(Exit.CONTRACT, "PREIMAGE_OID")
+    for key in (
+        "authorization_parent_commit_oid",
+        "authorization_parent_tree_oid",
+        "authorization_commit_oid",
+        "authorization_tree_oid",
+    ):
+        if not re.fullmatch(r"[0-9a-f]{%d}" % oid_length, str(generation.get(key))):
+            fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_OBJECT_FORMAT")
+    if (
+        preimage.get("head_commit_oid") != generation.get("authorization_commit_oid")
+        or preimage.get("head_tree_oid") != generation.get("authorization_tree_oid")
+    ):
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_GIT_BINDING")
     for key in (
         "git_snapshot_commitment",
         "private_preapproval_commitment",
@@ -3412,6 +4267,7 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
         )
         if entry.get("role") != role or entry.get("private_locator_omitted") is not True:
             fail(Exit.CONTRACT, "FROZEN_TOOL_ROLE")
+        validate_tool_identity(entry, role)
         expected_kind, expected_digest_profile, expected_authority = TOOLCHAIN_ROLE_PROFILE[role]
         if (
             entry.get("artifact_kind") != expected_kind
@@ -3419,20 +4275,13 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
             or entry.get("execution_authority") != expected_authority
         ):
             fail(Exit.CONTRACT, "FROZEN_TOOL_PROFILE")
-        for key in ("logical_id", "version"):
-            value = entry.get(key)
-            if (
-                not isinstance(value, str)
-                or not value
-                or len(value) > 128
-                or any(unicodedata.category(character) == "Cc" for character in value)
-            ):
-                fail(Exit.CONTRACT, "FROZEN_TOOL_IDENTITY")
         require_sha256(entry.get("raw_digest_sha256"), "FROZEN_TOOL")
     require_sha256(frozen.get("dynamic_closure_receipt_sha256"), "DYNAMIC_CLOSURE")
     require_sha256(frozen.get("toolchain_set_receipt_sha256"), "TOOLCHAIN_SET")
     if frozen.get("recompute_before_first_non_ledger_acquisition_write") is not True:
         fail(Exit.CONTRACT, "TOOLCHAIN_RECOMPUTE")
+    if frozen.get("drift_action") != TOOLCHAIN_DRIFT_ACTION_V2:
+        fail(Exit.CONTRACT, "TOOLCHAIN_DRIFT_ACTION")
     binding = require_exact_object(envelope.get("schema_binding"), SCHEMA_BINDING_FIELDS, "SCHEMA_BINDING")
     if binding.get("schema_id") != SCHEMA_ID:
         fail(Exit.CONTRACT, "SCHEMA_BINDING_ID")
@@ -3486,8 +4335,14 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
     if resource_limits != required_limits:
         fail(Exit.CONTRACT, "LOCK_RESOURCE_LIMIT_VALUES")
     execution = require_exact_object(envelope.get("execution_plan"), EXECUTION_PLAN_FIELDS, "EXECUTION_PLAN")
+    if execution.get("attempt_policy") != ATTEMPT_POLICY_V2:
+        fail(Exit.CONTRACT, "ATTEMPT_POLICY")
     if execution.get("executor_interface_version") != SCRIPT_VERSION:
         fail(Exit.CONTRACT, "EXECUTOR_INTERFACE_VERSION")
+    if execution.get("environment_mode") != ENVIRONMENT_MODE_V2:
+        fail(Exit.CONTRACT, "ENVIRONMENT_MODE")
+    if execution.get("git_child_sandbox_profile") != GIT_CHILD_SANDBOX_PROFILE_V1:
+        fail(Exit.CONTRACT, "GIT_CHILD_SANDBOX_PROFILE")
     if execution.get("launcher_executable_role") != "python-interpreter":
         fail(Exit.CONTRACT, "LAUNCHER_ROLE")
     if execution.get("allowed_subprocess_executable_roles") != list(TOOLCHAIN_ROLES[4:]):
@@ -3498,12 +4353,19 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
     for template in (executor_template, verifier_census_template, verifier_installed_template):
         if not isinstance(template, list) or template[:4] != ["{BOUND_PYTHON_PRIVATE}", "-I", "-S", "-B"]:
             fail(Exit.CONTRACT, "PYTHON_LAUNCH_FLAGS")
-    if (
-        len(executor_template) < 6
-        or executor_template[4] != "{REPO_ROOT_PRIVATE}/" + EXECUTOR_RELATIVE
-        or executor_template[5] != "acquire"
-    ):
+    if executor_template != list(EXECUTOR_ARGV_TEMPLATE_V2):
         fail(Exit.CONTRACT, "EXECUTOR_ARGV_TEMPLATE")
+    if execution.get("executor_argv_template_sha256") != public_contract_receipt(
+        EXECUTOR_ARGV_TEMPLATE_DOMAIN,
+        executor_template,
+    ):
+        fail(Exit.CONTRACT, "EXECUTOR_ARGV_TEMPLATE_RECEIPT")
+    evidence_templates = execution.get("evidence_command_templates")
+    if execution.get("evidence_command_templates_sha256") != public_contract_receipt(
+        EVIDENCE_COMMAND_TEMPLATES_DOMAIN,
+        evidence_templates,
+    ):
+        fail(Exit.CONTRACT, "EVIDENCE_COMMAND_TEMPLATES_RECEIPT")
     if (
         execution.get("shell_allowed") is not False
         or execution.get("subprocess_from_executor_allowed") is not True
@@ -3528,11 +4390,18 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
         fail(Exit.CONTRACT, "MUTATION_CEILING")
     failure = require_exact_object(
         envelope.get("failure_contract"),
-        "failure_action challenge_state retry_allowed public_success_attestation_allowed existing_target_action "
-        "failed_stage_action evidence_action new_authority_required".split(),
+        "failure_action challenge_state preclaim_retry_allowed postclaim_retry_allowed "
+        "public_success_attestation_allowed existing_target_action failed_stage_action evidence_action "
+        "new_authority_required".split(),
         "FAILURE_CONTRACT",
     )
-    if failure.get("retry_allowed") is not False or failure.get("public_success_attestation_allowed") is not False:
+    if (
+        failure.get("challenge_state") != FAILURE_CHALLENGE_POLICY_V2
+        or failure.get("preclaim_retry_allowed") is not True
+        or failure.get("postclaim_retry_allowed") is not False
+        or failure.get("public_success_attestation_allowed") is not False
+        or failure.get("new_authority_required") != FAILURE_NEW_AUTHORITY_POLICY_V2
+    ):
         fail(Exit.CONTRACT, "FAILURE_AUTHORITY")
     success = require_exact_object(
         envelope.get("success_contract"),
@@ -3599,6 +4468,11 @@ def validate_manual_envelope_contract(envelope: Mapping[str, Any]) -> None:
         or private.get("private_file_modes") != {"directory": "0700", "file": "0600", "umask": "0077"}
     ):
         fail(Exit.CONTRACT, "PRIVATE_AUTHORITY")
+    require_exact_sequence(
+        private.get("private_preimage_checks"),
+        PRIVATE_PREIMAGE_CHECKS,
+        "PRIVATE_PREIMAGE_CHECKS",
+    )
     if (
         private.get("claims_container_preimage")
         != "state-root/claims already exists as a receipt-bound-owner-and-group real 0700 directory and is not created by this attempt"
@@ -3655,6 +4529,217 @@ def verify_artifacts(repo_fd: int, envelope: Mapping[str, Any]) -> List[Dict[str
             }
         )
     return result
+
+
+def observe_pending_artifacts_v2(
+    repo_fd: int,
+    generation_authorization: Mapping[str, Any],
+) -> List[Dict[str, Any]]:
+    """Hash the closed pending-envelope artifact set without a caller skeleton.
+
+    The generation approval envelope is the sole dynamic path.  Every other
+    role/path pair comes from the executor's frozen allowlist; the final pending
+    envelope is deliberately absent to avoid a raw-byte fixed point.
+    """
+    generation = require_exact_object(
+        generation_authorization,
+        GENERATION_AUTHORIZATION_FIELDS,
+        "GENERATION_AUTHORIZATION",
+    )
+    generation_path = generation.get("approval_envelope_repo_relative_path")
+    if not isinstance(generation_path, str) or GENERATION_APPROVAL_PATH_RE.fullmatch(generation_path) is None:
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_PATH")
+    generation_challenge = generation.get("approval_challenge_id")
+    if (
+        not isinstance(generation_challenge, str)
+        or GENERATION_CHALLENGE_RE.fullmatch(generation_challenge) is None
+        or generation_path
+        != CONTROL_PREFIX
+        + "GOV-01-toolchain-static-envelope-generation-envelope-v1."
+        + generation_challenge
+        + ".json"
+    ):
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_PATH")
+    specs = PENDING_STATIC_ARTIFACT_SPECS + ((GENERATION_APPROVAL_ROLE, generation_path),)
+    observations: List[Dict[str, Any]] = []
+    seen_paths = set()
+    for role, path in specs:
+        if path in seen_paths:
+            fail(Exit.CONTRACT, "GENERATION_ARTIFACT_DUPLICATE_PATH")
+        seen_paths.add(path)
+        fd, metadata = open_relative_regular(repo_fd, path, "GENERATION_ARTIFACT", MAX_JSON_BYTES)
+        try:
+            digest, length = hash_fd(fd, "sha256", MAX_JSON_BYTES, "GENERATION_ARTIFACT")
+        finally:
+            os.close(fd)
+        observations.append(
+            {
+                "path": path,
+                "role": role,
+                "sha256": digest,
+                "bytes": length,
+                "device": metadata.st_dev,
+                "inode": metadata.st_ino,
+            }
+        )
+    if observations[-1]["sha256"] != generation.get("raw_envelope_sha256"):
+        fail(Exit.PREFLIGHT_DRIFT, "GENERATION_AUTHORIZATION_ARTIFACT_DRIFT")
+    return observations
+
+
+def verify_generation_authorization_artifact(
+    repo_fd: int,
+    envelope: Mapping[str, Any],
+    artifacts: Sequence[Mapping[str, Any]],
+) -> Dict[str, Any]:
+    generation = require_exact_object(
+        envelope.get("generation_authorization"),
+        GENERATION_AUTHORIZATION_FIELDS,
+        "GENERATION_AUTHORIZATION",
+    )
+    matches = [entry for entry in artifacts if entry.get("role") == GENERATION_APPROVAL_ROLE]
+    if len(matches) != 1:
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_ARTIFACT_COUNT")
+    artifact = matches[0]
+    path = artifact.get("path")
+    length = artifact.get("bytes")
+    digest = artifact.get("sha256")
+    if not isinstance(path, str) or type(length) is not int or not isinstance(digest, str):
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_ARTIFACT_SCHEMA")
+    if (
+        path != generation.get("approval_envelope_repo_relative_path")
+        or digest != generation.get("raw_envelope_sha256")
+    ):
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_ARTIFACT_BINDING")
+    fd, _metadata = open_relative_regular(
+        repo_fd,
+        path,
+        "GENERATION_AUTHORIZATION_ENVELOPE",
+        length,
+    )
+    try:
+        raw = read_fd(fd, length, "GENERATION_AUTHORIZATION_ENVELOPE")
+    finally:
+        os.close(fd)
+    if len(raw) != length or not hmac.compare_digest(sha256(raw), digest):
+        fail(Exit.CHECKER_DRIFT, "GENERATION_AUTHORIZATION_REOPEN_DRIFT")
+    if not hmac.compare_digest(
+        sha256(GENERATION_RECEIPT_DOMAIN + b"\x00" + raw),
+        str(generation.get("receipt_digest")),
+    ):
+        fail(Exit.RECEIPT, "GENERATION_AUTHORIZATION_RECEIPT")
+    value = parse_json_bytes(raw, "GENERATION_AUTHORIZATION_ENVELOPE")
+    if (
+        not isinstance(value, dict)
+        or value.get("schema_version") != "gov-01-toolchain-static-envelope-generation-envelope-v1"
+        or value.get("artifact_type") != "gov-01-toolchain-static-envelope-generation-envelope"
+        or value.get("approval_challenge_id") != generation.get("approval_challenge_id")
+        or value.get("state") != "pending-user-confirmation"
+        or canonical_json(value) != raw
+        or has_forbidden_public_value(value)
+    ):
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_ENVELOPE_CONTRACT")
+    return value
+
+
+def verify_generation_artifacts_against_micro_and_head_v2(
+    repo_root: str,
+    git_binary: str,
+    artifacts: Sequence[Mapping[str, Any]],
+    generation_envelope: Mapping[str, Any],
+    generation_authorization: Mapping[str, Any],
+) -> None:
+    approved_artifacts = generation_envelope.get("artifacts")
+    if not isinstance(approved_artifacts, list) or len(approved_artifacts) != len(PENDING_STATIC_ARTIFACT_SPECS):
+        fail(Exit.CONTRACT, "GENERATION_APPROVED_ARTIFACTS")
+    for index, (role, path) in enumerate(PENDING_STATIC_ARTIFACT_SPECS):
+        approved = approved_artifacts[index]
+        observed = artifacts[index]
+        if (
+            not isinstance(approved, dict)
+            or approved.get("role") != role
+            or approved.get("path") != path
+            or approved.get("file_kind") != "regular"
+            or approved.get("raw_file_sha256") != observed.get("sha256")
+            or approved.get("byte_length") != observed.get("bytes")
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GENERATION_APPROVED_ARTIFACT_DRIFT")
+    commit_oid = generation_authorization.get("authorization_commit_oid")
+    if not isinstance(commit_oid, str) or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", commit_oid) is None:
+        fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_COMMIT")
+    for observation in artifacts:
+        path = observation.get("path")
+        if not isinstance(path, str):
+            fail(Exit.CONTRACT, "GENERATION_ARTIFACT_PATH")
+        tree_entry = run_git(
+            git_binary,
+            repo_root,
+            ["ls-tree", "-z", "--full-tree", commit_oid, "--", path],
+            "GENERATION_ARTIFACT_TREE",
+        )
+        expected_suffix = b"\t" + path.encode("utf-8") + b"\x00"
+        if (
+            tree_entry.count(b"\x00") != 1
+            or not tree_entry.startswith(b"100644 blob ")
+            or not tree_entry.endswith(expected_suffix)
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GENERATION_ARTIFACT_HEAD_KIND")
+        committed = run_git(
+            git_binary,
+            repo_root,
+            ["show", commit_oid + ":" + path],
+            "GENERATION_ARTIFACT_HEAD_BYTES",
+        )
+        if (
+            len(committed) != observation.get("bytes")
+            or not hmac.compare_digest(sha256(committed), str(observation.get("sha256")))
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GENERATION_ARTIFACT_HEAD_DRIFT")
+
+
+def verify_public_predecessor_sources_v2(repo_fd: int) -> Dict[str, Any]:
+    first, first_raw, _ = read_json_relative(
+        repo_fd,
+        CONTROL_PREFIX + "GOV-01-first-receipt-envelope-v1.json",
+        "FIRST_APPROVAL_ENVELOPE",
+    )
+    control, control_raw, _ = read_json_relative(
+        repo_fd,
+        CONTROL_PREFIX + "GOV-01-toolchain-control-prep-envelope-v1.json",
+        "CONTROL_PREPARATION_ENVELOPE",
+    )
+    bootstrap_fd, _ = open_relative_regular(
+        repo_fd,
+        CONTROL_PREFIX + "2026-08-20-GOV-01-Bootstrap-0-safe-mode.patch",
+        "BOOTSTRAP_PATCH",
+        MAX_JSON_BYTES,
+    )
+    try:
+        bootstrap_raw = read_fd(bootstrap_fd, MAX_JSON_BYTES, "BOOTSTRAP_PATCH")
+    finally:
+        os.close(bootstrap_fd)
+    if (
+        not isinstance(first, dict)
+        or not hmac.compare_digest(sha256(first_raw), FIRST_APPROVAL_ENVELOPE_RAW_SHA256)
+        or not hmac.compare_digest(
+            sha256(FIRST_APPROVAL_RECEIPT_DOMAIN + b"\x00" + first_raw),
+            FIRST_RECEIPT_DOMAIN_SHA256,
+        )
+        or not isinstance(control, dict)
+        or not hmac.compare_digest(sha256(control_raw), CONTROL_PREPARATION_ENVELOPE_RAW_SHA256)
+        or not hmac.compare_digest(
+            sha256(CONTROL_PREPARATION_ENVELOPE_RECEIPT_DOMAIN + b"\x00" + control_raw),
+            CONTROL_PREPARATION_RECEIPT_DIGEST,
+        )
+        or not hmac.compare_digest(sha256(bootstrap_raw), BOOTSTRAP_PATCH_RAW_SHA256)
+    ):
+        fail(Exit.CONTRACT, "PUBLIC_PREDECESSOR_SOURCE")
+    challenge = control.get("approval_challenge_id")
+    if not isinstance(challenge, str) or CONTROL_PREPARATION_CHALLENGE_RE.fullmatch(challenge) is None:
+        fail(Exit.CONTRACT, "CONTROL_PREPARATION_CHALLENGE")
+    return {
+        "control_preparation_approval_challenge_id": challenge,
+    }
 
 
 def load_bound_verifier(repo_fd: int, artifacts: Sequence[Mapping[str, Any]]) -> types.ModuleType:
@@ -3769,6 +4854,7 @@ def run_process(
     max_output: int,
     label: str,
     allowed_returncodes: Sequence[int] = (0,),
+    sandbox_profile: Optional[bytes] = None,
 ) -> bytes:
     if not argv or not isinstance(argv[0], str) or not os.path.isabs(argv[0]):
         fail(Exit.TRACE, "PROCESS_EXECUTABLE")
@@ -3781,6 +4867,27 @@ def run_process(
         fail(Exit.TRACE, "PROCESS_EXECUTABLE_DRIFT")
     if not set(env).issubset(ALLOWED_CHILD_ENV_NAMES):
         fail(Exit.TRACE, "PROCESS_ENVIRONMENT")
+    preexec_fn: Optional[Callable[[], None]] = None
+    if sandbox_profile is not None:
+        if not isinstance(sandbox_profile, bytes) or not sandbox_profile:
+            fail(Exit.TRACE, "PROCESS_SANDBOX_PROFILE")
+        try:
+            sandbox_library = ctypes.CDLL("/usr/lib/libsandbox.1.dylib")
+            sandbox_library.sandbox_init.argtypes = [
+                ctypes.c_char_p,
+                ctypes.c_uint64,
+                ctypes.POINTER(ctypes.c_char_p),
+            ]
+            sandbox_library.sandbox_init.restype = ctypes.c_int
+        except (OSError, AttributeError):
+            fail(Exit.PREFLIGHT_DRIFT, label + "_SANDBOX_LOAD")
+
+        def initialize_child_sandbox() -> None:
+            error_pointer = ctypes.c_char_p()
+            if sandbox_library.sandbox_init(sandbox_profile, 0, ctypes.byref(error_pointer)) != 0:
+                os._exit(126)
+
+        preexec_fn = initialize_child_sandbox
     try:
         completed = subprocess.run(
             list(argv),
@@ -3791,9 +4898,12 @@ def run_process(
             close_fds=True,
             check=False,
             timeout=30,
+            preexec_fn=preexec_fn,
         )
     except (OSError, subprocess.SubprocessError):
         fail(Exit.PREFLIGHT_DRIFT, label + "_EXEC")
+    if sandbox_profile is not None and completed.returncode == 126:
+        fail(Exit.PREFLIGHT_DRIFT, label + "_SANDBOX_INIT")
     if completed.returncode not in allowed_returncodes or len(completed.stdout) > max_output:
         fail(Exit.PREFLIGHT_DRIFT, label + "_RESULT")
     return completed.stdout
@@ -3843,7 +4953,87 @@ def resolve_clt_git(expected_git_hash: Optional[str]) -> Tuple[str, str]:
     if expected_git_hash is not None and not hmac.compare_digest(actual_hash, expected_git_hash):
         fail(Exit.PREFLIGHT_DRIFT, "CLT_GIT_HASH")
     _AUTHORIZED_EXECUTABLE_HASHES[binary] = actual_hash
+    _GIT_DEVELOPER_ROOTS[binary] = developer
     return binary, actual_hash
+
+
+def sbpl_literal(path: str, label: str) -> str:
+    if (
+        not os.path.isabs(path)
+        or os.path.normpath(path) != path
+        or any(ord(character) < 0x20 or ord(character) > 0x7E or character in ('"', "\\") for character in path)
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, label + "_SBPL_LITERAL")
+    return '(literal "' + path + '")'
+
+
+def sbpl_subpath(path: str, label: str) -> str:
+    sbpl_literal(path, label)
+    return '(subpath "' + path + '")'
+
+
+def git_read_sandbox_profile(git_binary: str, repo_root: str, enumerates_worktree: bool) -> bytes:
+    developer_root = _GIT_DEVELOPER_ROOTS.get(git_binary)
+    boundary = _GIT_READ_BOUNDARIES.get(os.path.normpath(repo_root))
+    if not isinstance(developer_root, str) or boundary is None:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_SANDBOX_BOUNDARY")
+    git_dir, common_dir = boundary
+    literals = [
+        git_binary,
+        repo_root,
+        os.path.join(repo_root, ".git"),
+        git_dir,
+        common_dir,
+        os.path.join(git_dir, "HEAD"),
+        os.path.join(git_dir, "index"),
+        os.path.join(git_dir, "commondir"),
+        os.path.join(git_dir, "config.worktree"),
+        os.path.join(common_dir, "HEAD"),
+        os.path.join(common_dir, "config"),
+        os.path.join(common_dir, "packed-refs"),
+        os.path.join(common_dir, "shallow"),
+        os.path.join(common_dir, "info", "exclude"),
+    ]
+    subpaths = [
+        developer_root,
+        os.path.join(common_dir, "objects"),
+        os.path.join(common_dir, "refs"),
+    ]
+    if enumerates_worktree:
+        subpaths.append(repo_root)
+    prohibited = [
+        os.path.join(common_dir, "objects", "info", "alternates"),
+        os.path.join(common_dir, "objects", "info", "http-alternates"),
+        os.path.join(git_dir, "objects", "info", "alternates"),
+        os.path.join(git_dir, "objects", "info", "http-alternates"),
+        os.path.join(common_dir, "info", "grafts"),
+    ]
+    allow_rules = "\n ".join(sbpl_literal(path, "GIT_SANDBOX") for path in literals)
+    allow_rules += "\n " + "\n ".join(sbpl_subpath(path, "GIT_SANDBOX") for path in subpaths)
+    ancestors: List[str] = []
+    for path in literals + subpaths:
+        sbpl_literal(path, "GIT_SANDBOX")
+        ancestors.append('(path-ancestors "' + path + '")')
+    deny_rules = "\n ".join(sbpl_literal(path, "GIT_SANDBOX") for path in prohibited)
+    vault_filter = (
+        '(regex #"/([.][Oo][Bb][Ss][Ii][Dd][Ii][Aa][Nn]|'
+        '[^/]*[Cc][Aa][Nn][Vv][Aa][Ss]-[Vv][Aa][Uu][Ll][Tt][^/]*)(/|$)")'
+    )
+    profile = (
+        '(version 1)\n'
+        '(deny default)\n'
+        '(import "system.sb")\n'
+        '(deny network*)\n'
+        '(allow process-exec ' + sbpl_literal(git_binary, "GIT_SANDBOX") + ')\n'
+        '(allow process-fork)\n'
+        '(allow signal (target self))\n'
+        '(allow file-read* file-test-existence\n ' + allow_rules + '\n)\n'
+        '(allow file-read-metadata file-test-existence\n ' + "\n ".join(ancestors) + '\n)\n'
+        '(allow file-read-metadata file-test-existence\n ' + deny_rules + '\n)\n'
+        '(deny file-read-data\n ' + deny_rules + '\n)\n'
+        '(deny file-read* file-test-existence ' + vault_filter + ')\n'
+    )
+    return profile.encode("ascii", "strict")
 
 
 def run_git(
@@ -3852,15 +5042,19 @@ def run_git(
     arguments: Sequence[str],
     label: str,
     enumerates_worktree: bool = False,
-    authorized_excludes: Sequence[str] = (),
+    authorized_tree_excludes: Sequence[str] = (),
+    authorized_exact_file_excludes: Sequence[str] = (),
     allowed_returncodes: Sequence[int] = (0,),
 ) -> bytes:
     args = list(arguments)
     if enumerates_worktree:
         args.extend(["--", ".", ":(exclude)canvas-vault", ":(exclude)canvas-vault/**"])
-        for excluded in authorized_excludes:
+        for excluded in authorized_tree_excludes:
             validate_relative(excluded, "GIT_AUTHORIZED_EXCLUDE")
             args.extend([":(exclude)" + excluded, ":(exclude)" + excluded + "/**"])
+        for excluded in authorized_exact_file_excludes:
+            validate_relative(excluded, "GIT_AUTHORIZED_EXACT_FILE_EXCLUDE")
+            args.append(":(top,literal,exclude)" + excluded)
     hardened = [
         "-c", "core.fsmonitor=false",
         "-c", "core.untrackedCache=false",
@@ -3873,7 +5067,14 @@ def run_git(
         "-c", "protocol.allow=never",
     ]
     argv = [git_binary] + hardened + ["-C", repo_root, "--no-pager"] + args
-    return run_process(argv, git_env(), MAX_GIT_OUTPUT, label, allowed_returncodes=allowed_returncodes)
+    return run_process(
+        argv,
+        git_env(),
+        MAX_GIT_OUTPUT,
+        label,
+        allowed_returncodes=allowed_returncodes,
+        sandbox_profile=git_read_sandbox_profile(git_binary, repo_root, enumerates_worktree),
+    )
 
 
 def safe_git_scalar(git_binary: str, repo_root: str, arguments: Sequence[str], label: str) -> str:
@@ -4210,20 +5411,11 @@ def require_python_isolation() -> None:
         fail(Exit.RUNTIME, "PYTHON_ISOLATION_FLAGS")
 
 
-def verify_runtime_toolchain(
+def observe_runtime_toolchain_v2(
     repo_root: str,
-    envelope: Mapping[str, Any],
     artifacts: Sequence[Mapping[str, Any]],
-    strict: bool,
 ) -> Dict[str, Any]:
     require_python_isolation()
-    frozen = envelope.get("frozen_toolchain")
-    if not isinstance(frozen, dict) or not isinstance(frozen.get("entries"), list):
-        fail(Exit.CONTRACT, "TOOLCHAIN_SCHEMA")
-    frozen_entries = frozen["entries"]
-    by_role = {entry.get("role"): entry for entry in frozen_entries if isinstance(entry, dict)}
-    if set(by_role) != set(TOOLCHAIN_ROLES):
-        fail(Exit.CONTRACT, "TOOLCHAIN_ROLES")
     artifact_by_role = {entry.get("role"): entry for entry in artifacts}
     executor_path = os.path.realpath(__file__)
     expected_executor_path = os.path.realpath(os.path.join(repo_root, EXECUTOR_RELATIVE))
@@ -4239,24 +5431,27 @@ def verify_runtime_toolchain(
     }
     for role, path in FIXED_TOOL_PATHS.items():
         actual_hashes[role] = hash_regular_absolute(path, role.upper(), MAX_CACHE_OBJECT_BYTES)["sha256"]
-    observed_entries = []
+    observed_entries: List[Dict[str, Any]] = []
     for role in TOOLCHAIN_ROLES:
-        entry = dict(by_role[role])
-        if role == "git-read-only-evidence":
-            observed_entries.append(entry)
-            continue
         actual = actual_hashes.get(role)
-        if not isinstance(actual, str):
+        if role != "git-read-only-evidence" and not isinstance(actual, str):
             fail(Exit.PREFLIGHT_DRIFT, "TOOLCHAIN_HASH")
-        if strict and not hmac.compare_digest(str(entry.get("raw_digest_sha256")), actual):
-            fail(Exit.PREFLIGHT_DRIFT, "TOOLCHAIN_DRIFT")
-        entry["raw_digest_sha256"] = actual
+        artifact_kind, digest_profile, execution_authority = TOOLCHAIN_ROLE_PROFILE[role]
+        entry = {
+            "role": role,
+            "logical_id": TOOLCHAIN_LOGICAL_ID_BY_ROLE[role],
+            "artifact_kind": artifact_kind,
+            "version": expected_tool_version(role),
+            "digest_profile": digest_profile,
+            "raw_digest_sha256": actual if isinstance(actual, str) else "0" * 64,
+            "private_locator_omitted": True,
+            "execution_authority": execution_authority,
+        }
         observed_entries.append(entry)
     for role in ("xcode-select-resolver", "xcrun-resolver"):
         path = FIXED_TOOL_PATHS[role]
         _AUTHORIZED_EXECUTABLE_HASHES[path] = actual_hashes[role]
-    expected_git_hash = by_role["git-read-only-evidence"].get("raw_digest_sha256") if strict else None
-    git_binary, git_hash = resolve_clt_git(expected_git_hash if isinstance(expected_git_hash, str) else None)
+    git_binary, git_hash = resolve_clt_git(None)
     actual_hashes["git-read-only-evidence"] = git_hash
     for index, entry in enumerate(observed_entries):
         if entry.get("role") == "git-read-only-evidence":
@@ -4268,11 +5463,7 @@ def verify_runtime_toolchain(
         path = FIXED_TOOL_PATHS[role]
         _AUTHORIZED_EXECUTABLE_HASHES[path] = actual_hashes[role]
     receipt = toolchain_set_receipt(observed_entries)
-    if strict and not hmac.compare_digest(str(frozen.get("toolchain_set_receipt_sha256")), receipt):
-        fail(Exit.PREFLIGHT_DRIFT, "TOOLCHAIN_SET_RECEIPT")
     dynamic_receipt = dynamic_toolchain_receipt(observed_entries)
-    if strict and not hmac.compare_digest(str(frozen.get("dynamic_closure_receipt_sha256")), dynamic_receipt):
-        fail(Exit.PREFLIGHT_DRIFT, "DYNAMIC_TOOLCHAIN_RECEIPT")
     return {
         "git_binary": git_binary,
         "pgrep_binary": FIXED_TOOL_PATHS["pgrep-read-only-evidence"],
@@ -4282,6 +5473,38 @@ def verify_runtime_toolchain(
         "dynamic_closure_receipt_sha256": dynamic_receipt,
         "assurance": "runtime-self-attested-not-pre-exec",
     }
+
+
+def verify_runtime_toolchain(
+    repo_root: str,
+    envelope: Mapping[str, Any],
+    artifacts: Sequence[Mapping[str, Any]],
+    strict: bool,
+) -> Dict[str, Any]:
+    observed = observe_runtime_toolchain_v2(repo_root, artifacts)
+    frozen = envelope.get("frozen_toolchain")
+    if not isinstance(frozen, dict) or not isinstance(frozen.get("entries"), list):
+        fail(Exit.CONTRACT, "TOOLCHAIN_SCHEMA")
+    frozen_entries = frozen["entries"]
+    if len(frozen_entries) != len(observed["entries"]):
+        fail(Exit.CONTRACT, "TOOLCHAIN_ROLES")
+    for expected, actual in zip(frozen_entries, observed["entries"]):
+        if not isinstance(expected, Mapping) or expected.get("role") != actual.get("role"):
+            fail(Exit.CONTRACT, "TOOLCHAIN_ROLES")
+        validate_tool_identity(expected, str(actual.get("role")))
+        if strict and expected != actual:
+            fail(Exit.PREFLIGHT_DRIFT, "TOOLCHAIN_DRIFT")
+    if strict and not hmac.compare_digest(
+        str(frozen.get("toolchain_set_receipt_sha256")),
+        observed["toolchain_set_receipt_sha256"],
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "TOOLCHAIN_SET_RECEIPT")
+    if strict and not hmac.compare_digest(
+        str(frozen.get("dynamic_closure_receipt_sha256")),
+        observed["dynamic_closure_receipt_sha256"],
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "DYNAMIC_TOOLCHAIN_RECEIPT")
+    return observed
 
 
 def porcelain_v2_paths(status: bytes) -> List[bytes]:
@@ -4471,12 +5694,49 @@ def dirty_path_manifest_commitment(repo_root: str, status: bytes, key: bytes) ->
     return hmac_frame(key, GIT_DIRTY_MANIFEST_DOMAIN, canonical_json(rows))
 
 
+def linked_git_common_anchor(repo_root: str, git_dir: str) -> str:
+    """Return this project's exact linked-worktree common-dir anchor."""
+
+    if not os.path.isabs(git_dir) or os.path.normpath(git_dir) != git_dir:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_CONTROL_DIRECTORY_LOCATOR")
+    for component in pathlib.PurePath(git_dir).parts:
+        folded = component.casefold()
+        if (
+            not is_nfc(component)
+            or any(unicodedata.category(character) in ("Cc", "Cf", "Zl", "Zp") for character in component)
+            or folded == ".obsidian"
+            or "canvas-vault" in folded
+        ):
+            fail(Exit.PRIVACY, "GIT_CONTROL_PRIVATE_COMPONENT")
+    worktree_name = os.path.basename(git_dir)
+    worktrees_dir = os.path.dirname(git_dir)
+    candidate_common = os.path.dirname(worktrees_dir)
+    main_root = os.path.dirname(candidate_common)
+    if (
+        os.path.basename(worktrees_dir) != "worktrees"
+        or os.path.basename(candidate_common).casefold() != ".git"
+        or validate_relative(worktree_name, "GIT_WORKTREE_ID") != [worktree_name]
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_CONTROL_ADMIN_ANCHOR")
+    try:
+        repo_relative = os.path.relpath(repo_root, main_root).replace(os.sep, "/")
+        repo_components = validate_relative(repo_relative, "GIT_WORKTREE_REPO")
+    except (ContractError, ValueError):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_CONTROL_ADMIN_ANCHOR")
+    if repo_components != [".claude", "worktrees", worktree_name]:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_CONTROL_ADMIN_ANCHOR")
+    if git_dir != os.path.join(candidate_common, "worktrees", worktree_name):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_CONTROL_ADMIN_ANCHOR")
+    return candidate_common
+
+
 def resolve_git_control_directory(repo_root: str, key: bytes) -> Tuple[str, str, Dict[str, Any]]:
     marker_path = os.path.join(repo_root, ".git")
     marker_meta = assert_no_symlink_components(marker_path, "GIT_CONTROL_MARKER")
     marker_observation: Dict[str, Any]
     if stat.S_ISDIR(marker_meta.st_mode):
         git_dir = marker_path
+        expected_common_dir = marker_path
         marker_observation = {"kind": "directory"}
     elif stat.S_ISREG(marker_meta.st_mode):
         raw, metadata = read_absolute_regular(marker_path, "GIT_CONTROL_MARKER", 4096)
@@ -4489,6 +5749,7 @@ def resolve_git_control_directory(repo_root: str, key: bytes) -> Tuple[str, str,
         if not is_nfc(locator) or "\x00" in locator or "\\" in locator:
             fail(Exit.PREFLIGHT_DRIFT, "GIT_CONTROL_MARKER_LOCATOR")
         git_dir = os.path.normpath(locator if os.path.isabs(locator) else os.path.join(repo_root, locator))
+        expected_common_dir = linked_git_common_anchor(repo_root, git_dir)
         marker_observation = {
             "kind": "gitfile",
             "raw_sha256": sha256(raw),
@@ -4505,15 +5766,19 @@ def resolve_git_control_directory(repo_root: str, key: bytes) -> Tuple[str, str,
     try:
         commondir_meta = os.lstat(commondir_path)
     except FileNotFoundError:
+        if marker_observation["kind"] == "gitfile":
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_COMMONDIR_REQUIRED")
         common_dir = git_dir
         commondir_observation: Dict[str, Any] = {"state": "ABSENT"}
     except OSError:
         fail(Exit.PREFLIGHT_DRIFT, "GIT_COMMONDIR_LSTAT")
     else:
+        if marker_observation["kind"] != "gitfile":
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_COMMONDIR_UNEXPECTED")
         if not stat.S_ISREG(commondir_meta.st_mode) or stat.S_ISLNK(commondir_meta.st_mode):
             fail(Exit.PREFLIGHT_DRIFT, "GIT_COMMONDIR_TYPE")
         raw, _ = read_absolute_regular(commondir_path, "GIT_COMMONDIR_FILE", 4096)
-        if raw.count(b"\n") != 1:
+        if raw != b"../..\n":
             fail(Exit.PREFLIGHT_DRIFT, "GIT_COMMONDIR_FORMAT")
         try:
             locator = raw[:-1].decode("utf-8", "strict")
@@ -4523,6 +5788,25 @@ def resolve_git_control_directory(repo_root: str, key: bytes) -> Tuple[str, str,
             fail(Exit.PREFLIGHT_DRIFT, "GIT_COMMONDIR_LOCATOR")
         common_dir = os.path.normpath(locator if os.path.isabs(locator) else os.path.join(git_dir, locator))
         commondir_observation = {"state": "PRESENT", "raw_sha256": sha256(raw), "bytes": len(raw)}
+    if common_dir != expected_common_dir:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_COMMONDIR_ADMIN_ANCHOR")
+    if marker_observation["kind"] == "gitfile":
+        reverse_raw, _ = read_absolute_regular(
+            os.path.join(git_dir, "gitdir"),
+            "GIT_WORKTREE_GITDIR",
+            4096,
+        )
+        if reverse_raw.count(b"\n") != 1 or not reverse_raw.endswith(b"\n"):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_WORKTREE_GITDIR_FORMAT")
+        try:
+            reverse_path = reverse_raw[:-1].decode("utf-8", "strict")
+        except UnicodeDecodeError:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_WORKTREE_GITDIR_ENCODING")
+        if (
+            not is_nfc(reverse_path)
+            or os.path.normpath(reverse_path) != os.path.join(repo_root, ".git")
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_WORKTREE_GITDIR_BINDING")
     assert_absolute(common_dir, "GIT_COMMON_CONTROL_DIRECTORY")
     if has_forbidden_vault_component(common_dir):
         fail(Exit.PRIVACY, "GIT_COMMON_CONTROL_VAULT_LOCATOR")
@@ -4577,12 +5861,14 @@ def git_control_preflight(repo_root: str, key: bytes) -> Dict[str, Any]:
         "GIT_WORKTREE_CONFIG",
         required=False,
     )
-    for relative in (
-        "objects/info/alternates",
-        "objects/info/http-alternates",
-        "info/grafts",
-    ):
-        candidate = os.path.join(common_dir, *relative.split("/"))
+    prohibited_controls = {
+        os.path.join(common_dir, "objects", "info", "alternates"),
+        os.path.join(common_dir, "objects", "info", "http-alternates"),
+        os.path.join(common_dir, "info", "grafts"),
+        os.path.join(git_dir, "objects", "info", "alternates"),
+        os.path.join(git_dir, "objects", "info", "http-alternates"),
+    }
+    for candidate in sorted(prohibited_controls):
         try:
             os.lstat(candidate)
         except FileNotFoundError:
@@ -4591,6 +5877,7 @@ def git_control_preflight(repo_root: str, key: bytes) -> Dict[str, Any]:
             fail(Exit.PREFLIGHT_DRIFT, "GIT_ALTERNATE_CONTROL_LSTAT")
         fail(Exit.PRIVACY, "GIT_ALTERNATE_CONTROL_PROHIBITED")
     observation["alternate_controls"] = "ABSENT"
+    _GIT_READ_BOUNDARIES[os.path.normpath(repo_root)] = (git_dir, common_dir)
     return observation
 
 
@@ -4598,8 +5885,23 @@ def git_snapshot(
     repo_root: str,
     key: bytes,
     git_binary: str,
-    authorized_excludes: Sequence[str] = (),
+    authorized_tree_excludes: Sequence[str] = (),
+    authorized_exact_file_excludes: Sequence[str] = (),
 ) -> Dict[str, Any]:
+    tree_exclusions = tuple(authorized_tree_excludes)
+    exact_file_exclusions = tuple(authorized_exact_file_excludes)
+    if len(set(tree_exclusions)) != len(tree_exclusions) or len(set(exact_file_exclusions)) != len(exact_file_exclusions):
+        fail(Exit.CONTRACT, "GIT_EXCLUSION_DUPLICATE")
+    for tree_path in tree_exclusions:
+        tree_parts = validate_relative(tree_path, "GIT_TREE_EXCLUSION", forbid_vault=False)
+        for exact_path in exact_file_exclusions:
+            exact_parts = validate_relative(exact_path, "GIT_EXACT_EXCLUSION", forbid_vault=False)
+            shared = min(len(tree_parts), len(exact_parts))
+            if tree_parts[:shared] == exact_parts[:shared]:
+                # A parent/child overlap silently turns the exact output-file
+                # carve-out into a subtree carve-out (or vice versa).  Refuse
+                # the ambiguous authority instead of relying on pathspec order.
+                fail(Exit.CONTRACT, "GIT_EXCLUSION_CLASS_OVERLAP")
     # Resolve and inspect local Git controls directly before Git has an
     # opportunity to follow an include or object-alternate private locator.
     git_control = git_control_preflight(repo_root, key)
@@ -4620,7 +5922,8 @@ def git_snapshot(
         ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
         "GIT_STATUS",
         enumerates_worktree=True,
-        authorized_excludes=authorized_excludes,
+        authorized_tree_excludes=tree_exclusions,
+        authorized_exact_file_excludes=exact_file_exclusions,
     )
     if VAULT_PREFIX.encode("ascii") in status.lower():
         fail(Exit.PRIVACY, "GIT_STATUS_VAULT_LEAK")
@@ -4696,6 +5999,8 @@ def git_snapshot(
         "status_sha256": sha256(status),
         "status_bytes": len(status),
         "dirty_manifest_commitment": dirty_manifest,
+        "worktree_tree_exclusions": list(tree_exclusions),
+        "worktree_exact_file_exclusions": list(exact_file_exclusions),
         "refs_sha256": sha256(refs),
         "refs_bytes": len(refs),
         "index": index_info,
@@ -5728,6 +7033,360 @@ def verify_claim_preimage(
         os.close(state_fd)
 
 
+def checked_generation_authorization_v2(
+    value: Mapping[str, Any],
+) -> Dict[str, Any]:
+    generation = require_exact_object(
+        value,
+        GENERATION_AUTHORIZATION_FIELDS,
+        "GENERATION_CLAIM_AUTHORIZATION",
+    )
+    challenge = generation.get("approval_challenge_id")
+    if not isinstance(challenge, str) or GENERATION_CHALLENGE_RE.fullmatch(challenge) is None:
+        fail(Exit.CONTRACT, "GENERATION_CLAIM_CHALLENGE")
+    expected_approval_path = (
+        CONTROL_PREFIX
+        + "GOV-01-toolchain-static-envelope-generation-envelope-v1."
+        + challenge
+        + ".json"
+    )
+    if (
+        generation.get("profile") != "gov01-static-envelope-generation-authority-v1"
+        or generation.get("approval_envelope_repo_relative_path") != expected_approval_path
+        or generation.get("generated_acquisition_envelope_repo_relative_path")
+        != expected_pending_envelope_relative(challenge)
+        or generation.get("receipt_domain_profile")
+        != "SHA-256(ASCII(CLS/GOV01-STATIC-ENVELOPE-GENERATION-RECEIPT/v1) || NUL || raw-generation-envelope-bytes)"
+        or generation.get("commit_transition_profile")
+        != "single parent commit changing exactly the generation approval envelope path from ABSENT to the approved canonical raw bytes"
+        or generation.get("state") != "approved-single-path-commit"
+        or generation.get("generation_claim_required") is not True
+        or generation.get("generation_claim_profile") != GENERATION_CLAIM_PROFILE
+        or generation.get("generation_claim_record_profile") != GENERATION_CLAIM_RECORD_PROFILE
+        or generation.get("generation_claim_retention") != GENERATION_CLAIM_RETENTION
+    ):
+        fail(Exit.CONTRACT, "GENERATION_CLAIM_AUTHORIZATION_PROFILE")
+    for field in ("raw_envelope_sha256", "receipt_digest"):
+        require_sha256(generation.get(field), "GENERATION_CLAIM_" + field.upper())
+    for field in (
+        "authorization_parent_commit_oid",
+        "authorization_parent_tree_oid",
+        "authorization_commit_oid",
+        "authorization_tree_oid",
+    ):
+        oid = generation.get(field)
+        if not isinstance(oid, str) or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid) is None:
+            fail(Exit.CONTRACT, "GENERATION_CLAIM_AUTHORIZATION_OID")
+    return dict(generation)
+
+
+def generation_claim_name_v2(generation_authorization: Mapping[str, Any]) -> str:
+    generation = checked_generation_authorization_v2(generation_authorization)
+    return "generation-claim-" + str(generation["approval_challenge_id"])
+
+
+def validate_generation_claim_temporal_shape_v2(record: Mapping[str, Any]) -> None:
+    challenge = record.get("acquisition_approval_challenge_id")
+    if not isinstance(challenge, str) or CHALLENGE_RE.fullmatch(challenge) is None:
+        fail(Exit.CONTRACT, "GENERATION_CLAIM_ACQUISITION_CHALLENGE")
+    census_at = parse_utc(record.get("census_at_utc"), "GENERATION_CLAIM_CENSUS")
+    not_after = parse_utc(record.get("not_after_utc"), "GENERATION_CLAIM_EXPIRY")
+    if challenge.split("-")[2] != census_at.strftime("%Y%m%d"):
+        fail(Exit.CONTRACT, "GENERATION_CLAIM_CHALLENGE_DATE")
+    if not_after <= census_at or not_after - census_at > _datetime.timedelta(hours=24):
+        fail(Exit.CONTRACT, "GENERATION_CLAIM_TTL")
+
+
+def validate_pending_raw_for_generation_claim_v2(
+    raw: bytes,
+    generation_authorization: Mapping[str, Any],
+) -> Dict[str, Any]:
+    if not isinstance(raw, bytes) or not raw or len(raw) > MAX_JSON_BYTES:
+        fail(Exit.CONTRACT, "GENERATION_CLAIM_PENDING_RAW")
+    envelope = parse_json_bytes(raw, "GENERATION_CLAIM_PENDING_ENVELOPE")
+    if not isinstance(envelope, dict) or canonical_json(envelope) != raw:
+        fail(Exit.CONTRACT, "GENERATION_CLAIM_PENDING_CANONICAL")
+    generation = checked_generation_authorization_v2(generation_authorization)
+    if envelope.get("generation_authorization") != generation:
+        fail(Exit.CONTRACT, "GENERATION_CLAIM_PENDING_AUTHORIZATION")
+    census_at = parse_utc(envelope.get("census_at_utc"), "GENERATION_CLAIM_CENSUS")
+    validate_manual_envelope_contract(envelope, now=census_at)
+    if has_forbidden_pending_envelope_value(envelope):
+        fail(Exit.PRIVACY, "GENERATION_CLAIM_PENDING_PRIVACY")
+    expected_path = expected_pending_envelope_relative(generation["approval_challenge_id"])
+    preimage = envelope.get("authorization_preimage")
+    if (
+        not isinstance(preimage, Mapping)
+        or preimage.get("envelope_repo_relative_path") != expected_path
+    ):
+        fail(Exit.CONTRACT, "GENERATION_CLAIM_PENDING_PATH")
+    return envelope
+
+
+def build_generation_claim_record_v2(
+    *,
+    generation_authorization: Mapping[str, Any],
+    final_envelope_raw: bytes,
+    key: bytes,
+) -> Dict[str, Any]:
+    generation = checked_generation_authorization_v2(generation_authorization)
+    envelope = validate_pending_raw_for_generation_claim_v2(final_envelope_raw, generation)
+    body = {
+        "profile": "gov01-static-envelope-generation-claim-v1",
+        "generation_authorization_challenge_id": generation["approval_challenge_id"],
+        "generation_authorization_envelope_raw_sha256": generation["raw_envelope_sha256"],
+        "generation_authorization_receipt_digest": generation["receipt_digest"],
+        "generation_authorization_parent_commit_oid": generation["authorization_parent_commit_oid"],
+        "generation_authorization_parent_tree_oid": generation["authorization_parent_tree_oid"],
+        "generation_authorization_commit_oid": generation["authorization_commit_oid"],
+        "generation_authorization_tree_oid": generation["authorization_tree_oid"],
+        "acquisition_approval_challenge_id": envelope["approval_challenge_id"],
+        "census_at_utc": envelope["census_at_utc"],
+        "not_after_utc": envelope["not_after_utc"],
+        "final_envelope_repo_relative_path": generation[
+            "generated_acquisition_envelope_repo_relative_path"
+        ],
+        "final_envelope_raw_sha256": sha256(final_envelope_raw),
+        "final_envelope_bytes": len(final_envelope_raw),
+        "final_envelope_receipt_digest": sha256(
+            RECEIPT_DOMAINS["gov-01-toolchain-static-acquisition-envelope-v2"]
+            + b"\x00"
+            + final_envelope_raw
+        ),
+        "state": "OUTPUT-IDENTITY-FIXED",
+    }
+    validate_generation_claim_temporal_shape_v2(body)
+    record = dict(body)
+    record["record_hmac_sha256"] = hmac_frame(
+        key,
+        GENERATION_CLAIM_DOMAIN,
+        canonical_json(body),
+    )
+    return record
+
+
+def validate_generation_claim_record_v2(
+    record_value: Mapping[str, Any],
+    key: bytes,
+    generation_authorization: Mapping[str, Any],
+) -> Dict[str, Any]:
+    record = require_exact_object(
+        record_value,
+        GENERATION_CLAIM_FIELDS,
+        "GENERATION_CLAIM_RECORD",
+    )
+    generation = checked_generation_authorization_v2(generation_authorization)
+    expected_generation = {
+        "generation_authorization_challenge_id": generation["approval_challenge_id"],
+        "generation_authorization_envelope_raw_sha256": generation["raw_envelope_sha256"],
+        "generation_authorization_receipt_digest": generation["receipt_digest"],
+        "generation_authorization_parent_commit_oid": generation["authorization_parent_commit_oid"],
+        "generation_authorization_parent_tree_oid": generation["authorization_parent_tree_oid"],
+        "generation_authorization_commit_oid": generation["authorization_commit_oid"],
+        "generation_authorization_tree_oid": generation["authorization_tree_oid"],
+        "final_envelope_repo_relative_path": generation[
+            "generated_acquisition_envelope_repo_relative_path"
+        ],
+    }
+    if any(record.get(field) != expected for field, expected in expected_generation.items()):
+        fail(Exit.REPLAY, "GENERATION_CLAIM_AUTHORITY_DRIFT")
+    if (
+        record.get("profile") != "gov01-static-envelope-generation-claim-v1"
+        or record.get("state") != "OUTPUT-IDENTITY-FIXED"
+        or type(record.get("final_envelope_bytes")) is not int
+        or record.get("final_envelope_bytes") <= 0
+        or record.get("final_envelope_bytes") > MAX_JSON_BYTES
+    ):
+        fail(Exit.REPLAY, "GENERATION_CLAIM_RECORD_SHAPE")
+    for field in (
+        "generation_authorization_envelope_raw_sha256",
+        "generation_authorization_receipt_digest",
+        "final_envelope_raw_sha256",
+        "final_envelope_receipt_digest",
+        "record_hmac_sha256",
+    ):
+        require_sha256(record.get(field), "GENERATION_CLAIM_" + field.upper())
+    validate_relative(
+        str(record.get("final_envelope_repo_relative_path")),
+        "GENERATION_CLAIM_FINAL_PATH",
+    )
+    validate_generation_claim_temporal_shape_v2(record)
+    body = {field: record[field] for field in GENERATION_CLAIM_BODY_FIELDS}
+    expected_hmac = hmac_frame(key, GENERATION_CLAIM_DOMAIN, canonical_json(body))
+    if not hmac.compare_digest(str(record.get("record_hmac_sha256")), expected_hmac):
+        fail(Exit.REPLAY, "GENERATION_CLAIM_HMAC")
+    return dict(record)
+
+
+def probe_generation_claim_v2(
+    *,
+    runtime_args: GenerationRuntimeArgsV2,
+    generation_authorization: Mapping[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """Return one trusted complete GEN claim, or None when it is absent.
+
+    An existing empty, partial, malformed or unauthenticated claim is retained
+    and rejected.  It is never repaired, removed or treated as unused.
+    """
+    revalidate_generation_runtime_args_v2(runtime_args, generation_authorization)
+    verify_control_preparation_projection_v2(runtime_args)
+    state_meta = require_owned_directory(runtime_args.state_root, "GENERATION_STATE_ROOT", exact_mode=0o700)
+    key = load_hmac_key(runtime_args.key_file, state_meta.st_uid, state_meta.st_gid)
+    state_fd = open_directory(runtime_args.state_root, "GENERATION_STATE_ROOT")
+    claims_fd: Optional[int] = None
+    claim_fd: Optional[int] = None
+    try:
+        claims_fd = open_existing_private_container(
+            state_fd,
+            "claims",
+            expected_uid=state_meta.st_uid,
+            expected_gid=state_meta.st_gid,
+        )
+        claim_name = generation_claim_name_v2(generation_authorization)
+        try:
+            claim_meta = os.stat(claim_name, dir_fd=claims_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return None
+        except OSError:
+            fail(Exit.REPLAY, "GENERATION_CLAIM_LSTAT")
+        if (
+            not stat.S_ISDIR(claim_meta.st_mode)
+            or stat.S_IMODE(claim_meta.st_mode) != 0o700
+            or claim_meta.st_uid != state_meta.st_uid
+            or claim_meta.st_gid != state_meta.st_gid
+        ):
+            fail(Exit.REPLAY, "GENERATION_CLAIM_DIRECTORY_POLICY")
+        claim_fd = open_existing_private_container(
+            claims_fd,
+            claim_name,
+            expected_uid=state_meta.st_uid,
+            expected_gid=state_meta.st_gid,
+        )
+        try:
+            children = sorted(os.listdir(claim_fd))
+        except OSError:
+            fail(Exit.REPLAY, "GENERATION_CLAIM_LIST")
+        if children != ["generation-record.json"]:
+            fail(Exit.REPLAY, "GENERATION_CLAIM_PARTIAL_OR_UNEXPECTED")
+        record_fd, record_meta = open_relative_regular(
+            claim_fd,
+            "generation-record.json",
+            "GENERATION_CLAIM_RECORD",
+            MAX_JSON_BYTES,
+        )
+        try:
+            if (
+                stat.S_IMODE(record_meta.st_mode) != 0o600
+                or record_meta.st_uid != state_meta.st_uid
+                or record_meta.st_gid != state_meta.st_gid
+                or record_meta.st_nlink != 1
+            ):
+                fail(Exit.REPLAY, "GENERATION_CLAIM_RECORD_POLICY")
+            record_raw = read_fd(record_fd, MAX_JSON_BYTES, "GENERATION_CLAIM_RECORD")
+        finally:
+            os.close(record_fd)
+        record = parse_json_bytes(record_raw, "GENERATION_CLAIM_RECORD")
+        if not isinstance(record, dict) or canonical_json(record) != record_raw:
+            fail(Exit.REPLAY, "GENERATION_CLAIM_RECORD_CANONICAL")
+        return validate_generation_claim_record_v2(record, key, generation_authorization)
+    finally:
+        if claim_fd is not None:
+            os.close(claim_fd)
+        if claims_fd is not None:
+            os.close(claims_fd)
+        os.close(state_fd)
+
+
+def create_generation_claim_v2(
+    *,
+    runtime_args: GenerationRuntimeArgsV2,
+    generation_authorization: Mapping[str, Any],
+    final_envelope_raw: bytes,
+    clock: Callable[[], _datetime.datetime] = utc_now,
+) -> Dict[str, Any]:
+    """Consume one GEN authority with an exclusive durable private claim."""
+    revalidate_generation_runtime_args_v2(runtime_args, generation_authorization)
+    verify_control_preparation_projection_v2(runtime_args)
+    state_meta = require_owned_directory(runtime_args.state_root, "GENERATION_STATE_ROOT", exact_mode=0o700)
+    key = load_hmac_key(runtime_args.key_file, state_meta.st_uid, state_meta.st_gid)
+    record = build_generation_claim_record_v2(
+        generation_authorization=generation_authorization,
+        final_envelope_raw=final_envelope_raw,
+        key=key,
+    )
+    state_fd = open_directory(runtime_args.state_root, "GENERATION_STATE_ROOT")
+    claims_fd: Optional[int] = None
+    claim_fd: Optional[int] = None
+    try:
+        claims_fd = open_existing_private_container(
+            state_fd,
+            "claims",
+            expected_uid=state_meta.st_uid,
+            expected_gid=state_meta.st_gid,
+        )
+        claim_fd = mkdir_private_child(
+            claims_fd,
+            generation_claim_name_v2(generation_authorization),
+            state_meta.st_uid,
+            state_meta.st_gid,
+            before_create=lambda: assert_deadline_not_expired(record["not_after_utc"], clock),
+        )
+        try:
+            os.fsync(claims_fd)
+        except OSError:
+            fail(Exit.EVIDENCE, "GENERATION_CLAIM_DIRECTORY_FSYNC")
+        write_exclusive(
+            claim_fd,
+            "generation-record.json",
+            canonical_json(record),
+            mode=0o600,
+        )
+        try:
+            os.fsync(claims_fd)
+        except OSError:
+            fail(Exit.EVIDENCE, "GENERATION_CLAIM_CONTAINER_FSYNC")
+        return record
+    finally:
+        if claim_fd is not None:
+            os.close(claim_fd)
+        if claims_fd is not None:
+            os.close(claims_fd)
+        os.close(state_fd)
+
+
+def verify_generation_claim_recovery_v2(
+    *,
+    runtime_args: GenerationRuntimeArgsV2,
+    generation_authorization: Mapping[str, Any],
+    final_envelope_raw: bytes,
+) -> Dict[str, Any]:
+    record = probe_generation_claim_v2(
+        runtime_args=runtime_args,
+        generation_authorization=generation_authorization,
+    )
+    if record is None:
+        fail(Exit.REPLAY, "GENERATION_CLAIM_ABSENT")
+    envelope = validate_pending_raw_for_generation_claim_v2(
+        final_envelope_raw,
+        generation_authorization,
+    )
+    expected = {
+        "acquisition_approval_challenge_id": envelope["approval_challenge_id"],
+        "census_at_utc": envelope["census_at_utc"],
+        "not_after_utc": envelope["not_after_utc"],
+        "final_envelope_raw_sha256": sha256(final_envelope_raw),
+        "final_envelope_bytes": len(final_envelope_raw),
+        "final_envelope_receipt_digest": sha256(
+            RECEIPT_DOMAINS["gov-01-toolchain-static-acquisition-envelope-v2"]
+            + b"\x00"
+            + final_envelope_raw
+        ),
+    }
+    if any(record.get(field) != value for field, value in expected.items()):
+        fail(Exit.REPLAY, "GENERATION_CLAIM_RECOVERY_DRIFT")
+    return record
+
+
 def require_host() -> None:
     if sys.version_info < (3, 9) or sys.version_info >= (4, 0):
         fail(Exit.RUNTIME, "PYTHON_VERSION")
@@ -5763,7 +7422,7 @@ def verify_private_input_cas(
     expected_owner_uid: int,
     expected_group_gid: int,
 ) -> None:
-    validate_locator_boundaries(args)
+    envelope_relative = validate_locator_boundaries(args)
     current_key = load_hmac_key(args.key_file, expected_owner_uid, expected_group_gid)
     if not hmac.compare_digest(current_key, key):
         fail(Exit.PRE_WORKTREE_CAS, "HMAC_KEY_DRIFT")
@@ -5772,6 +7431,7 @@ def verify_private_input_cas(
         fail(Exit.PRE_WORKTREE_CAS, "ENVELOPE_DRIFT")
     if current_envelope.get("approval_challenge_id") != envelope.get("approval_challenge_id"):
         fail(Exit.PRE_WORKTREE_CAS, "ENVELOPE_CHALLENGE_DRIFT")
+    validate_envelope_path_binding(args, current_envelope, envelope_relative)
     compare_private_authorization(envelope, key, locator_commitments(args, key))
 
 
@@ -5850,6 +7510,8 @@ def compare_git_containment(baseline: Mapping[str, Any], current: Mapping[str, A
         "status_sha256",
         "status_bytes",
         "dirty_manifest_commitment",
+        "worktree_tree_exclusions",
+        "worktree_exact_file_exclusions",
         "refs_sha256",
         "refs_bytes",
         "index",
@@ -6260,12 +7922,20 @@ def read_only_failure_result(
     ]
     toolchain_context: Optional[Dict[str, Any]] = None
     trusted_authority_binding = recorder.authority_binding()
+    retry_bound = bool(
+        isinstance(trusted_authority_binding, Mapping)
+        and isinstance(trusted_authority_binding.get("approval_challenge_id"), str)
+        and CHALLENGE_RE.fullmatch(trusted_authority_binding["approval_challenge_id"]) is not None
+        and isinstance(trusted_authority_binding.get("receipt_digest"), str)
+        and SHA256_RE.fullmatch(trusted_authority_binding["receipt_digest"]) is not None
+    )
     if trusted_authority_binding is not None:
-        # Read-only failure stdout intentionally carries no approval pair.  The
-        # run binding is still frozen before G00 for a later success, but it is
-        # not part of this failure projection's hidden checker ABI.
-        trusted_authority_binding.pop("approval_challenge_id", None)
-        trusted_authority_binding.pop("receipt_digest", None)
+        # Read-only stdout intentionally carries no approval pair.  A trusted
+        # in-process pair is retained only as a non-serialized proof for the
+        # conditional same-envelope retry claim.
+        if not retry_bound:
+            trusted_authority_binding.pop("approval_challenge_id", None)
+            trusted_authority_binding.pop("receipt_digest", None)
         if not trusted_authority_binding:
             trusted_authority_binding = None
     trusted_toolchain_binding = recorder.toolchain_authority_binding()
@@ -6293,9 +7963,9 @@ def read_only_failure_result(
         toolchain_context,
     )
     result["authority"] = authority_projection(
+        retry_bound,
         False,
-        False,
-        "new explicit user approval after fail-closed evidence review",
+        PRECLAIM_RETRY_AUTHORITY if retry_bound else FAIL_CLOSED_REVIEW_AUTHORITY,
     )
     result["error"] = public_error_projection(code, public_code)
     result["retention"] = {
@@ -6493,10 +8163,11 @@ def acquire_failure_result(
     ):
         result["approval_challenge_id"] = challenge
         result["receipt_digest"] = receipt_digest
+    preclaim_retry = attempt.claim_state == "not-created"
     result["authority"] = authority_projection(
+        preclaim_retry,
         False,
-        False,
-        "new explicit user approval after retained-state inspection; never retry automatically",
+        PRECLAIM_RETRY_AUTHORITY if preclaim_retry else RETAINED_STATE_AUTHORITY,
     )
     result["error"] = public_error_projection(code, public_code)
     result["retention"] = {
@@ -6523,8 +8194,8 @@ def close_acquire_resources(
     stage_fd: Optional[int],
     ledger: Optional[PrivateLedger],
     claim_fd: Optional[int],
-    cache_fd: int,
-    repo_fd: int,
+    cache_fd: Optional[int],
+    repo_fd: Optional[int],
 ) -> int:
     """Best-effort descriptor finalization that never exposes exception text."""
     close_error_count = 0
@@ -6544,6 +8215,8 @@ def close_acquire_resources(
         except BaseException:
             close_error_count += 1
     for opened_fd in (cache_fd, repo_fd):
+        if opened_fd is None:
+            continue
         try:
             os.close(opened_fd)
         except BaseException:
@@ -6593,6 +8266,588 @@ def recover_linearized_success(
     return committed_candidate
 
 
+def public_artifact_entries_v2(
+    observations: Sequence[Mapping[str, Any]],
+) -> List[Dict[str, Any]]:
+    expected_specs = PENDING_STATIC_ARTIFACT_SPECS
+    if len(observations) != len(expected_specs) + 1:
+        fail(Exit.CONTRACT, "GENERATION_ARTIFACT_COUNT")
+    result: List[Dict[str, Any]] = []
+    for index, observation in enumerate(observations):
+        expected_role, expected_path = (
+            expected_specs[index]
+            if index < len(expected_specs)
+            else (GENERATION_APPROVAL_ROLE, observation.get("path"))
+        )
+        if observation.get("role") != expected_role or observation.get("path") != expected_path:
+            fail(Exit.CONTRACT, "GENERATION_ARTIFACT_ORDER")
+        digest = require_sha256(observation.get("sha256"), "GENERATION_ARTIFACT")
+        length = observation.get("bytes")
+        if type(length) is not int or length <= 0:
+            fail(Exit.CONTRACT, "GENERATION_ARTIFACT_BYTES")
+        result.append(
+            {
+                "path": expected_path,
+                "role": expected_role,
+                "file_kind": "regular",
+                "byte_length": length,
+                "raw_file_sha256": digest,
+            }
+        )
+    generation_path = result[-1]["path"]
+    if not isinstance(generation_path, str) or GENERATION_APPROVAL_PATH_RE.fullmatch(generation_path) is None:
+        fail(Exit.CONTRACT, "GENERATION_ARTIFACT_PATH")
+    return result
+
+
+def pending_schema_binding_v2(schema_digest: str) -> Dict[str, Any]:
+    require_sha256(schema_digest, "PENDING_SCHEMA")
+    return {
+        "schema_id": SCHEMA_ID,
+        "schema_artifact_path": CONTROL_PREFIX
+        + "GOV-01-toolchain-static-acquisition-envelope-v2.schema.json",
+        "schema_raw_file_sha256": schema_digest,
+        "schema_artifact_role": "pending-envelope-schema",
+        "external_validator_profile": "JSON-Schema-draft-2020-12-strict-additionalProperties-false-format-annotation-plus-content-addressed-strict-UTC-calendar-and-duplicate-key-checker",
+        "preapproval_external_validation_required": True,
+        "runtime_json_schema_execution_allowed": False,
+        "runtime_schema_hash_binding_required": True,
+        "runtime_manual_critical_field_checks_required": True,
+        "runtime_checkpoint": "after raw receipt/challenge/expiry verification and schema artifact hash verification, before any other envelope-controlled read, verifier-source compilation, subprocess or write",
+        "schema_digest_must_equal_artifact_entry": True,
+        "validation_failure_action": "fail closed before any authorized write or verifier-source compilation",
+    }
+
+
+def collect_generation_observations_v2(
+    *,
+    runtime_args: GenerationRuntimeArgsV2,
+    approval_challenge_id: str,
+    census_at_utc: str,
+    not_after_utc: str,
+    generation_authorization: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Collect the one authoritative pending-envelope observation set.
+
+    This function is read-only.  It accepts no pending-envelope skeleton and
+    no caller-supplied hash, version, tool identity or private locator.  The
+    caller must validate the public GEN receipt and one-file commit before
+    invoking it; this function re-derives every locator and revalidates the
+    content-addressed GEN artifact before any verifier compilation.
+    """
+    require_python_isolation()
+    require_host()
+    envelope_relative = revalidate_generation_runtime_args_v2(
+        runtime_args,
+        generation_authorization,
+    )
+    temporal_shell = {
+        "approval_challenge_id": approval_challenge_id,
+        "census_at_utc": census_at_utc,
+        "not_after_utc": not_after_utc,
+    }
+    validate_envelope_temporal_contract(temporal_shell)
+    repo_meta = require_owned_directory(runtime_args.repo_root, "GENERATION_REPO_ROOT")
+    state_meta = require_owned_directory(runtime_args.state_root, "GENERATION_STATE_ROOT", exact_mode=0o700)
+    require_same_filesystem(repo_meta, state_meta)
+    require_owned_directory(runtime_args.cache_root, "GENERATION_CACHE_ROOT")
+    observed_predecessor = verify_control_preparation_projection_v2(runtime_args)
+    key = load_hmac_key(runtime_args.key_file, state_meta.st_uid, state_meta.st_gid)
+    locator_args = argparse.Namespace(**runtime_args._asdict())
+    locators = locator_commitments(locator_args, key)
+    claim_preimage = verify_claim_preimage(runtime_args.state_root, approval_challenge_id)
+    control_identity_body = build_private_control_identity_body(claim_preimage, runtime_args.key_file)
+    control_identity = private_control_identity_commitment(key, control_identity_body)
+    tree_exclusions = (".gov01-toolchain-stage-" + approval_challenge_id, TARGET_NAME)
+    exact_file_exclusions = (envelope_relative,)
+    repo_fd = open_directory(runtime_args.repo_root, "GENERATION_REPO_ROOT")
+    cache_fd: Optional[int] = None
+    try:
+        artifacts = observe_pending_artifacts_v2(repo_fd, generation_authorization)
+        artifact_entries = public_artifact_entries_v2(artifacts)
+        public_predecessor = verify_public_predecessor_sources_v2(repo_fd)
+        generation_shell = {"generation_authorization": dict(generation_authorization)}
+        generation_envelope = verify_generation_authorization_artifact(repo_fd, generation_shell, artifacts)
+        schema_artifact = next(
+            entry for entry in artifact_entries if entry["role"] == "pending-envelope-schema"
+        )
+        schema_shell = {
+            "schema_binding": pending_schema_binding_v2(schema_artifact["raw_file_sha256"]),
+            "artifacts": artifact_entries,
+        }
+        schema_observation = verify_bound_schema_artifact(repo_fd, schema_shell)
+        schema_bundle = verify_projection_schema_bundle(repo_fd, artifacts, schema_observation)
+        control_state = capture_control_state(repo_fd)
+        assert_absent_control_paths(repo_fd)
+        require_node_modules_absent(runtime_args.repo_root)
+        assert_entry_absent(
+            repo_fd,
+            ".gov01-toolchain-stage-" + approval_challenge_id,
+            "GENERATION_STAGE",
+        )
+        toolchain = observe_runtime_toolchain_v2(runtime_args.repo_root, artifacts)
+        git_state = git_snapshot(
+            runtime_args.repo_root,
+            key,
+            toolchain["git_binary"],
+            authorized_tree_excludes=tree_exclusions,
+            authorized_exact_file_excludes=exact_file_exclusions,
+        )
+        if (
+            git_state.get("head") != generation_authorization.get("authorization_commit_oid")
+            or git_state.get("tree") != generation_authorization.get("authorization_tree_oid")
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GENERATION_AUTHORIZATION_HEAD_DRIFT")
+        generation_predecessor = generation_envelope.get("predecessor")
+        if (
+            not isinstance(generation_predecessor, dict)
+            or generation_predecessor.get("static_contract_commit_oid")
+            != generation_authorization.get("authorization_parent_commit_oid")
+            or generation_predecessor.get("static_contract_tree_oid")
+            != generation_authorization.get("authorization_parent_tree_oid")
+        ):
+            fail(Exit.CONTRACT, "GENERATION_AUTHORIZATION_PARENT_BINDING")
+        verify_generation_artifacts_against_micro_and_head_v2(
+            runtime_args.repo_root,
+            toolchain["git_binary"],
+            artifacts,
+            generation_envelope,
+            generation_authorization,
+        )
+        # Only source proven equal to the approved micro and the C2 HEAD blob
+        # may be compiled.  Live self-observation alone is not execution authority.
+        verifier = load_bound_verifier(repo_fd, artifacts)
+        processes = process_census(
+            runtime_args.repo_root,
+            key,
+            toolchain["pgrep_binary"],
+            toolchain["lsof_binary"],
+        )
+        if processes["claude_session_count"] != 0:
+            fail(Exit.PREFLIGHT_DRIFT, "ACTIVE_CLAUDE_SESSION")
+        lock, lock_raw, _ = read_json_relative(repo_fd, "package-lock.json", "PACKAGE_LOCK")
+        if not isinstance(lock, dict):
+            fail(Exit.CACHE_LOCK, "LOCK_ROOT")
+        selected = selected_lock_entries(lock)
+        cache_fd = open_directory(runtime_args.cache_root, "GENERATION_CACHE_ROOT")
+        cache_manifest, bins, total_bytes = cache_census(cache_fd, selected)
+        try:
+            expected = verifier.build_expected(
+                runtime_args.repo_root,
+                runtime_args.cache_root,
+                retain_bytes=False,
+            )
+        except Exception:
+            fail(Exit.ARCHIVE, "STATIC_VERIFIER_BUILD")
+        if not isinstance(expected, dict):
+            fail(Exit.CHECKER_DRIFT, "STATIC_VERIFIER_RESULT")
+        expected_public = verifier.public_summary(expected)
+        validate_static_expected_shape(expected_public)
+        lock_observation = verify_lock_contract(
+            {"lock_closure": {}, "success_contract": {}},
+            expected,
+            len(selected),
+            total_bytes,
+            len(bins),
+            strict=False,
+        )
+        artifact_receipt = public_artifact_set_receipt(artifacts)
+        preapproval_body = build_private_preapproval_body(
+            temporal_shell,
+            key,
+            locators,
+            control_identity,
+            artifact_receipt,
+            git_state,
+            toolchain,
+            lock_raw,
+            processes,
+            len(selected),
+            total_bytes,
+            len(bins),
+            expected,
+        )
+        preapproval = private_preapproval_commitment(key, preapproval_body)
+        verify_control_containment(repo_fd, control_state, Exit.PREFLIGHT_DRIFT)
+        if (
+            observed_predecessor.get("control_preparation_approval_challenge_id")
+            != public_predecessor.get("control_preparation_approval_challenge_id")
+        ):
+            fail(Exit.CONTRACT, "CONTROL_PREPARATION_CHALLENGE_BINDING")
+        del cache_manifest
+    finally:
+        if cache_fd is not None:
+            os.close(cache_fd)
+        os.close(repo_fd)
+    schema_public = dict(schema_observation)
+    schema_public.update(schema_bundle)
+    return {
+        "artifacts": artifact_entries,
+        "schema_binding_observation": schema_public,
+        "toolchain": {
+            "entries": copy.deepcopy(toolchain["entries"]),
+            "toolchain_set_receipt_sha256": toolchain["toolchain_set_receipt_sha256"],
+            "dynamic_closure_receipt_sha256": toolchain["dynamic_closure_receipt_sha256"],
+        },
+        "git_snapshot": copy.deepcopy(git_state),
+        "process_census": copy.deepcopy(processes),
+        "package_lock_raw_sha256": sha256(lock_raw),
+        "lock_observation": copy.deepcopy(lock_observation),
+        "static_expected": copy.deepcopy(expected_public),
+        "hmac_key_id": hmac_key_id(key),
+        "authorized_locator_commitments": copy.deepcopy(locators),
+        "private_control_identity_commitment": control_identity,
+        "public_repo_artifact_set_receipt_sha256": artifact_receipt,
+        "private_preapproval_commitment": preapproval,
+        "predecessor_projection": copy.deepcopy(observed_predecessor),
+        "envelope_repo_relative_path": envelope_relative,
+    }
+
+
+def build_pending_envelope_v2(
+    *,
+    approval_challenge_id: str,
+    census_at_utc: str,
+    not_after_utc: str,
+    generation_authorization: Mapping[str, Any],
+    observations: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Pure, deterministic constructor for the v2 pending envelope.
+
+    Entropy and timestamps are explicit so an already-created GEN-keyed output
+    can be rebuilt byte-for-byte during crash recovery.  No filesystem,
+    subprocess, clock or random source is consulted here.
+    """
+    validate_envelope_temporal_contract(
+        {
+            "approval_challenge_id": approval_challenge_id,
+            "census_at_utc": census_at_utc,
+            "not_after_utc": not_after_utc,
+        },
+        now=parse_utc(census_at_utc, "CENSUS_AT"),
+    )
+    generation = require_exact_object(
+        generation_authorization,
+        GENERATION_AUTHORIZATION_FIELDS,
+        "GENERATION_AUTHORIZATION",
+    )
+    observed = require_exact_object(
+        observations,
+        (
+            "artifacts",
+            "schema_binding_observation",
+            "toolchain",
+            "git_snapshot",
+            "process_census",
+            "package_lock_raw_sha256",
+            "lock_observation",
+            "static_expected",
+            "hmac_key_id",
+            "authorized_locator_commitments",
+            "private_control_identity_commitment",
+            "public_repo_artifact_set_receipt_sha256",
+            "private_preapproval_commitment",
+            "predecessor_projection",
+            "envelope_repo_relative_path",
+        ),
+        "GENERATION_OBSERVATIONS",
+    )
+    artifacts = observed.get("artifacts")
+    if not isinstance(artifacts, list):
+        fail(Exit.CONTRACT, "GENERATION_ARTIFACTS")
+    artifact_observations = [
+        {
+            "role": entry.get("role"),
+            "path": entry.get("path"),
+            "bytes": entry.get("byte_length"),
+            "sha256": entry.get("raw_file_sha256"),
+        }
+        for entry in artifacts
+        if isinstance(entry, Mapping)
+    ]
+    if len(artifact_observations) != len(PENDING_STATIC_ARTIFACT_SPECS) + 1:
+        fail(Exit.CONTRACT, "GENERATION_ARTIFACTS")
+    if public_artifact_entries_v2(artifact_observations) != artifacts:
+        fail(Exit.CONTRACT, "GENERATION_ARTIFACT_PROJECTION")
+    artifact_by_role = {entry["role"]: entry for entry in artifacts}
+    schema_observation = require_exact_object(
+        observed.get("schema_binding_observation"),
+        ("path", "sha256", "bytes", "schema_count", "schema_bundle_receipt_sha256"),
+        "GENERATION_SCHEMA_OBSERVATION",
+    )
+    pending_schema = artifact_by_role.get("pending-envelope-schema")
+    if (
+        not isinstance(pending_schema, Mapping)
+        or schema_observation.get("path") != pending_schema.get("path")
+        or schema_observation.get("sha256") != pending_schema.get("raw_file_sha256")
+        or schema_observation.get("bytes") != pending_schema.get("byte_length")
+        or schema_observation.get("schema_count") != 3
+    ):
+        fail(Exit.CONTRACT, "GENERATION_SCHEMA_OBSERVATION")
+    require_sha256(schema_observation.get("schema_bundle_receipt_sha256"), "GENERATION_SCHEMA_BUNDLE")
+    toolchain = require_exact_object(
+        observed.get("toolchain"),
+        ("entries", "toolchain_set_receipt_sha256", "dynamic_closure_receipt_sha256"),
+        "GENERATION_TOOLCHAIN",
+    )
+    entries = toolchain.get("entries")
+    if not isinstance(entries, list) or len(entries) != len(TOOLCHAIN_ROLES):
+        fail(Exit.CONTRACT, "GENERATION_TOOLCHAIN_ENTRIES")
+    for index, role in enumerate(TOOLCHAIN_ROLES):
+        entry = require_exact_object(
+            entries[index],
+            (
+                "role",
+                "logical_id",
+                "artifact_kind",
+                "version",
+                "digest_profile",
+                "raw_digest_sha256",
+                "private_locator_omitted",
+                "execution_authority",
+            ),
+            "GENERATION_TOOLCHAIN_ENTRY",
+        )
+        validate_tool_identity(entry, role)
+        require_sha256(entry.get("raw_digest_sha256"), "GENERATION_TOOLCHAIN_DIGEST")
+    if (
+        toolchain.get("toolchain_set_receipt_sha256") != toolchain_set_receipt(entries)
+        or toolchain.get("dynamic_closure_receipt_sha256") != dynamic_toolchain_receipt(entries)
+    ):
+        fail(Exit.CONTRACT, "GENERATION_TOOLCHAIN_RECEIPT")
+    git_state = observed.get("git_snapshot")
+    if not isinstance(git_state, Mapping):
+        fail(Exit.CONTRACT, "GENERATION_GIT_SNAPSHOT")
+    expected_output = expected_pending_envelope_relative(generation.get("approval_challenge_id"))
+    if (
+        observed.get("envelope_repo_relative_path") != expected_output
+        or generation.get("generated_acquisition_envelope_repo_relative_path") != expected_output
+        or git_state.get("head") != generation.get("authorization_commit_oid")
+        or git_state.get("tree") != generation.get("authorization_tree_oid")
+        or tuple(git_state.get("worktree_tree_exclusions") or ())
+        != (".gov01-toolchain-stage-" + approval_challenge_id, TARGET_NAME)
+        or tuple(git_state.get("worktree_exact_file_exclusions") or ()) != (expected_output,)
+    ):
+        fail(Exit.CONTRACT, "GENERATION_GIT_BINDING")
+    for key in ("commitment", "dirty_manifest_commitment"):
+        require_sha256(git_state.get(key), "GENERATION_GIT_" + key.upper())
+    processes = observed.get("process_census")
+    if not isinstance(processes, Mapping) or processes.get("claude_session_count") != 0:
+        fail(Exit.CONTRACT, "GENERATION_PROCESS_CENSUS")
+    lock_observation = require_exact_object(
+        observed.get("lock_observation"),
+        LOCK_OBSERVATION_FIELDS,
+        "GENERATION_LOCK_OBSERVATION",
+    )
+    expected_public = validate_static_expected_shape(observed.get("static_expected"))
+    if (
+        lock_observation.get("host_selected_package_count") != expected_public.get("selected_package_count")
+        or lock_observation.get("host_selected_cache_bytes") != expected_public.get("compressed_bytes")
+        or lock_observation.get("host_bin_link_count") != expected_public.get("bin_link_count")
+        or lock_observation.get("expected_archive_member_count") != expected_public.get("raw_member_count")
+        or lock_observation.get("expected_resolved_tree_entry_count")
+        != expected_public.get("tree", {}).get("entry_count")
+        or lock_observation.get("content_receipt_sha256") != expected_public.get("content_receipt_sha256")
+        or lock_observation.get("ustar_closure_sha256") != expected_public.get("ustar_closure_sha256")
+        or lock_observation.get("resolution_receipt_sha256")
+        != expected_public.get("resolution", {}).get("sha256")
+        or lock_observation.get("expected_tree_sha256") != expected_public.get("tree", {}).get("sha256")
+    ):
+        fail(Exit.CONTRACT, "GENERATION_LOCK_EXPECTED_BINDING")
+    predecessor_projection = require_exact_object(
+        observed.get("predecessor_projection"),
+        (
+            "control_preparation_result_raw_sha256",
+            "control_preparation_evidence_receipt_sha256",
+            "control_preparation_approval_challenge_id",
+            "control_preparation_state",
+        ),
+        "GENERATION_PREDECESSOR_PROJECTION",
+    )
+    for key in (
+        "control_preparation_result_raw_sha256",
+        "control_preparation_evidence_receipt_sha256",
+    ):
+        require_sha256(predecessor_projection.get(key), "GENERATION_PREDECESSOR")
+    if (
+        not isinstance(predecessor_projection.get("control_preparation_approval_challenge_id"), str)
+        or CONTROL_PREPARATION_CHALLENGE_RE.fullmatch(
+            predecessor_projection["control_preparation_approval_challenge_id"]
+        )
+        is None
+        or predecessor_projection.get("control_preparation_state")
+        != "CONTROL-PREPARED-FULL-TREE-REVALIDATED-PASS"
+    ):
+        fail(Exit.CONTRACT, "GENERATION_PREDECESSOR_PROFILE")
+    artifact_receipt = require_sha256(
+        observed.get("public_repo_artifact_set_receipt_sha256"),
+        "GENERATION_ARTIFACT_RECEIPT",
+    )
+    if artifact_receipt != public_artifact_set_receipt(artifact_observations):
+        fail(Exit.CONTRACT, "GENERATION_ARTIFACT_RECEIPT")
+    package_lock_digest = require_sha256(
+        observed.get("package_lock_raw_sha256"),
+        "GENERATION_PACKAGE_LOCK",
+    )
+    package_artifact = artifact_by_role.get("package-lock")
+    if not isinstance(package_artifact, Mapping) or package_artifact.get("raw_file_sha256") != package_lock_digest:
+        fail(Exit.CONTRACT, "GENERATION_PACKAGE_LOCK_BINDING")
+    hmac_id = require_sha256(observed.get("hmac_key_id"), "GENERATION_HMAC_KEY_ID")
+    control_identity = require_sha256(
+        observed.get("private_control_identity_commitment"),
+        "GENERATION_CONTROL_IDENTITY",
+    )
+    private_preapproval = require_sha256(
+        observed.get("private_preapproval_commitment"),
+        "GENERATION_PRIVATE_PREAPPROVAL",
+    )
+    locators = validate_locator_commitment_projection_v2(
+        observed.get("authorized_locator_commitments")
+    )
+    template = json.loads(_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON)
+    if not isinstance(template, dict):
+        fail(Exit.INTERNAL, "PENDING_TEMPLATE")
+    predecessor = {
+        "profile": "gov01-static-acquisition-predecessor-chain-v2",
+        "first_approval_envelope_raw_sha256": FIRST_APPROVAL_ENVELOPE_RAW_SHA256,
+        "first_approval_receipt_digest": FIRST_RECEIPT_DOMAIN_SHA256,
+        "bootstrap_patch_raw_sha256": BOOTSTRAP_PATCH_RAW_SHA256,
+        "bootstrap_commit_oid": BOOTSTRAP_COMMIT_OID,
+        "control_preparation_envelope_raw_sha256": CONTROL_PREPARATION_ENVELOPE_RAW_SHA256,
+        "control_preparation_envelope_receipt_digest": CONTROL_PREPARATION_RECEIPT_DIGEST,
+        "control_preparation_approval_challenge_id": predecessor_projection[
+            "control_preparation_approval_challenge_id"
+        ],
+        "control_preparation_result_raw_sha256": predecessor_projection[
+            "control_preparation_result_raw_sha256"
+        ],
+        "control_preparation_evidence_receipt_sha256": predecessor_projection[
+            "control_preparation_evidence_receipt_sha256"
+        ],
+        "control_preparation_state": predecessor_projection["control_preparation_state"],
+        "generation_authorization_envelope_raw_sha256": generation["raw_envelope_sha256"],
+        "generation_authorization_receipt_digest": generation["receipt_digest"],
+        "generation_authorization_challenge_id": generation["approval_challenge_id"],
+        "generation_authorization_parent_commit_oid": generation["authorization_parent_commit_oid"],
+        "generation_authorization_parent_tree_oid": generation["authorization_parent_tree_oid"],
+        "generation_authorization_commit_oid": generation["authorization_commit_oid"],
+        "generation_authorization_tree_oid": generation["authorization_tree_oid"],
+    }
+    predecessor["predecessor_chain_receipt_sha256"] = sha256(
+        PREDECESSOR_CHAIN_DOMAIN + b"\x00" + canonical_json(predecessor)
+    )
+    authorization = template["authorization_preimage"]
+    authorization.update(
+        {
+            "head_commit_oid": git_state.get("head"),
+            "head_tree_oid": git_state.get("tree"),
+            "git_object_format": git_state.get("object_format"),
+            "git_snapshot_commitment": git_state.get("commitment"),
+            "private_preapproval_commitment": private_preapproval,
+            "public_repo_artifact_set_receipt_sha256": artifact_receipt,
+            "worktree_state": "clean"
+            if git_state.get("status_bytes") == 0
+            else "dirty-user-owned-do-not-normalize",
+            "target_worktree_claude_sessions": 0,
+            "forbidden_process_match_count": 0,
+            "envelope_repo_relative_path": expected_output,
+        }
+    )
+    frozen_toolchain = {
+        "platform": EXPECTED_PLATFORM,
+        "architecture": EXPECTED_ARCH,
+        "entries": copy.deepcopy(entries),
+        "dynamic_closure_receipt_sha256": toolchain["dynamic_closure_receipt_sha256"],
+        "toolchain_set_receipt_profile": "SHA-256(ASCII(CLS/GOV01/STATIC-ACQUISITION-TOOLCHAIN-SET/v2) || NUL || UTF-8-NFC body); body is role-byte-sorted LF-terminated rows of exactly 6 TAB-separated columns: role,logical_id,artifact_kind,version,digest_profile,raw_digest_sha256",
+        "toolchain_set_receipt_sha256": toolchain["toolchain_set_receipt_sha256"],
+        "private_locator_policy": "resolve realpaths only in private preflight; require exact public digest before execution; never serialize locator in public artifacts",
+        "recompute_before_first_non_ledger_acquisition_write": True,
+        "drift_action": TOOLCHAIN_DRIFT_ACTION_V2,
+    }
+    schema_binding = pending_schema_binding_v2(schema_observation["sha256"])
+    static_contract = template["static_acquisition_contract"]
+    executor_artifact = artifact_by_role.get("static-executor")
+    verifier_artifact = artifact_by_role.get("static-verifier")
+    if not isinstance(executor_artifact, Mapping) or not isinstance(verifier_artifact, Mapping):
+        fail(Exit.CONTRACT, "GENERATION_EXECUTOR_VERIFIER_ARTIFACT")
+    static_contract.update(
+        {
+            "verifier_sha256": verifier_artifact["raw_file_sha256"],
+            "executor_sha256": executor_artifact["raw_file_sha256"],
+            "stage_repo_relative": ".gov01-toolchain-stage-" + approval_challenge_id,
+            "expected": copy.deepcopy(expected_public),
+        }
+    )
+    lock_closure = template["lock_closure"]
+    lock_closure.update(copy.deepcopy(dict(lock_observation)))
+    execution = template["execution_plan"]
+    execution["attempt_policy"] = ATTEMPT_POLICY_V2
+    execution["environment_mode"] = ENVIRONMENT_MODE_V2
+    execution["git_child_sandbox_profile"] = GIT_CHILD_SANDBOX_PROFILE_V1
+    execution["executor_argv_template"] = list(EXECUTOR_ARGV_TEMPLATE_V2)
+    execution["executor_argv_template_sha256"] = sha256(
+        EXECUTOR_ARGV_TEMPLATE_DOMAIN + b"\x00" + canonical_json(execution["executor_argv_template"])
+    )
+    execution["evidence_command_templates_sha256"] = sha256(
+        EVIDENCE_COMMAND_TEMPLATES_DOMAIN + b"\x00" + canonical_json(execution["evidence_command_templates"])
+    )
+    private_authorization = template["private_state_authorization"]
+    private_authorization.update(
+        {
+            "hmac_key_id": hmac_id,
+            "authorized_locator_commitments": copy.deepcopy(locators),
+            "private_control_identity_commitment": control_identity,
+        }
+    )
+    failure_contract = template["failure_contract"]
+    failure_contract.pop("retry_allowed", None)
+    failure_contract.update(
+        {
+            "challenge_state": FAILURE_CHALLENGE_POLICY_V2,
+            "preclaim_retry_allowed": True,
+            "postclaim_retry_allowed": False,
+            "new_authority_required": FAILURE_NEW_AUTHORITY_POLICY_V2,
+        }
+    )
+    envelope = {
+        "schema_version": "gov-01-toolchain-static-acquisition-envelope-v2",
+        "artifact_type": "gov-01-toolchain-acquisition-envelope",
+        "artifact_id": "GOV-01-STATIC-ACQUISITION-"
+        + census_at_utc[:10].replace("-", "")
+        + "-"
+        + approval_challenge_id[-16:],
+        "plan_id": "PLAN-CLS-PRODUCTIVITY-2026-08-20",
+        "state": "pending-user-confirmation",
+        "approval_challenge_id": approval_challenge_id,
+        "single_use": True,
+        "census_at_utc": census_at_utc,
+        "not_after_utc": not_after_utc,
+        "path_base": "git-repository-root-for-public-paths; private-paths-resolved-only-after-approval",
+        "encoding_profile": "UTF-8-NFC-LF-no-BOM-no-duplicate-json-keys",
+        "receipt_digest_profile": "SHA-256(ASCII(CLS/GOV01-TOOLCHAIN-STATIC-ACQUISITION-RECEIPT/v2) || one NUL byte || raw-envelope-bytes); digest supplied by the user receipt and stored externally",
+        "approval_receipt_contract": template["approval_receipt_contract"],
+        "predecessor": predecessor,
+        "generation_authorization": copy.deepcopy(dict(generation)),
+        "artifacts": copy.deepcopy(artifacts),
+        "artifact_path_uniqueness_policy": template["artifact_path_uniqueness_policy"],
+        "authorization_preimage": authorization,
+        "frozen_toolchain": frozen_toolchain,
+        "schema_binding": schema_binding,
+        "static_acquisition_contract": static_contract,
+        "lock_closure": lock_closure,
+        "execution_plan": execution,
+        "mutation_scope": template["mutation_scope"],
+        "failure_contract": failure_contract,
+        "success_contract": template["success_contract"],
+        "private_state_authorization": private_authorization,
+        "privacy": template["privacy"],
+    }
+    validate_manual_envelope_contract(envelope, now=parse_utc(census_at_utc, "CENSUS_AT"))
+    if has_forbidden_pending_envelope_value(envelope):
+        fail(Exit.PRIVACY, "PENDING_BUILDER_PRIVACY")
+    return copy.deepcopy(envelope)
+
+
 def build_census(
     args: argparse.Namespace,
     strict: bool,
@@ -6602,31 +8857,39 @@ def build_census(
         recorder = GateRecorder()
     require_python_isolation()
     require_host()
-    validate_locator_boundaries(args)
-    if strict and args.receipt_digest is None:
+    envelope_relative = validate_public_runtime_boundaries_v2(args)
+    if args.receipt_digest is None:
         fail(Exit.RECEIPT, "APPROVED_RECEIPT_REQUIRED")
-    repo_meta = require_owned_directory(args.repo_root, "REPO_ROOT")
-    state_meta = require_owned_directory(args.state_root, "STATE_ROOT", exact_mode=0o700)
-    require_same_filesystem(repo_meta, state_meta)
-    require_owned_directory(args.cache_root, "CACHE_ROOT")
-    key = load_hmac_key(args.key_file)
-    envelope, _envelope_raw, receipt_digest = load_envelope(
-        args.envelope,
-        args.receipt_digest if strict else None,
-    )
+    envelope, envelope_raw, receipt_digest = load_envelope(args.envelope, args.receipt_digest)
     challenge = envelope.get("approval_challenge_id")
+    if args.approval_challenge != challenge:
+        fail(Exit.RECEIPT, "APPROVAL_CHALLENGE_MISMATCH")
+    validate_envelope_path_binding(args, envelope, envelope_relative)
+    generation = envelope.get("generation_authorization")
+    if (
+        not isinstance(generation, Mapping)
+        or generation.get("approval_challenge_id") != getattr(args, "generation_challenge", None)
+    ):
+        fail(Exit.RECEIPT, "GENERATION_CHALLENGE_MISMATCH")
+    # The repository is the only locator inspected before G00.  It contains
+    # the already receipt-bound public envelope and content-addressed public
+    # contract artifacts.  State, cache and key locators remain untouched.
+    repo_meta = require_owned_directory(args.repo_root, "REPO_ROOT")
     recorder.bind_run_authority(challenge, receipt_digest)
     stage_name = ".gov01-toolchain-stage-" + str(challenge)
-    exclusions = (stage_name, TARGET_NAME)
+    tree_exclusions = (stage_name, TARGET_NAME)
+    exact_file_exclusions = (envelope_relative,)
     repo_fd = open_directory(args.repo_root, "REPO_ROOT")
-    cache_fd = open_directory(args.cache_root, "CACHE_ROOT")
+    cache_fd: Optional[int] = None
     try:
-        # The bound schema and manual critical field set are checked before any
-        # verifier source is compiled or any external evidence command runs.
+        # Finish every public contract/source check before any state/cache/key
+        # metadata or bytes are touched, verifier source is compiled, or child
+        # process is started.
         recorder.begin("G00", "schema-contract")
         schema_observation = verify_bound_schema_artifact(repo_fd, envelope)
         validate_manual_envelope_contract(envelope)
         artifacts = verify_artifacts(repo_fd, envelope)
+        verify_generation_authorization_artifact(repo_fd, envelope, artifacts)
         schema_bundle = verify_projection_schema_bundle(repo_fd, artifacts, schema_observation)
         public_schema_observation = dict(schema_observation)
         public_schema_observation.update(
@@ -6647,6 +8910,28 @@ def build_census(
             "schema",
             public_schema_observation,
         )
+        bind_private_runtime_args_v2(args, generation)
+        state_meta = require_owned_directory(args.state_root, "STATE_ROOT", exact_mode=0o700)
+        require_same_filesystem(repo_meta, state_meta)
+        require_owned_directory(args.cache_root, "CACHE_ROOT")
+        key = load_hmac_key(args.key_file)
+        generation_claim = verify_generation_claim_recovery_v2(
+            runtime_args=GenerationRuntimeArgsV2(
+                args.repo_root,
+                args.cache_root,
+                args.state_root,
+                args.key_file,
+                args.envelope,
+            ),
+            generation_authorization=generation,
+            final_envelope_raw=envelope_raw,
+        )
+        if not hmac.compare_digest(
+            str(generation_claim["final_envelope_receipt_digest"]),
+            receipt_digest,
+        ):
+            fail(Exit.RECEIPT, "GENERATION_CLAIM_RECEIPT_DRIFT")
+        cache_fd = open_directory(args.cache_root, "CACHE_ROOT")
         recorder.begin("G02", "private-public-boundary")
         locators = locator_commitments(args, key)
         if strict:
@@ -6704,7 +8989,8 @@ def build_census(
             args.repo_root,
             key,
             toolchain["git_binary"],
-            authorized_excludes=exclusions,
+            authorized_tree_excludes=tree_exclusions,
+            authorized_exact_file_excludes=exact_file_exclusions,
         )
         if strict:
             verify_envelope_preimage(envelope, git_state)
@@ -6797,7 +9083,8 @@ def build_census(
             compare_private_preapproval(envelope, preapproval_commitment)
         verify_control_containment(repo_fd, control_state, Exit.PREFLIGHT_DRIFT)
     finally:
-        os.close(cache_fd)
+        if cache_fd is not None:
+            os.close(cache_fd)
         os.close(repo_fd)
     del cache_manifest
     mode = "verify" if strict else "census"
@@ -6895,24 +9182,31 @@ def command_acquire(args: argparse.Namespace) -> Dict[str, Any]:
     attempt.set_phase("host-and-private-arguments")
     require_python_isolation()
     require_host()
-    validate_locator_boundaries(args)
+    envelope_relative = validate_public_runtime_boundaries_v2(args)
     if args.receipt_digest is None:
         fail(Exit.RECEIPT, "APPROVED_RECEIPT_REQUIRED")
-    repo_meta = require_owned_directory(args.repo_root, "REPO_ROOT")
-    state_meta = require_owned_directory(args.state_root, "STATE_ROOT", exact_mode=0o700)
-    require_same_filesystem(repo_meta, state_meta)
-    require_owned_directory(args.cache_root, "CACHE_ROOT")
-    key = load_hmac_key(args.key_file)
     envelope, envelope_raw, receipt_digest = load_envelope(args.envelope, args.receipt_digest)
     challenge = envelope.get("approval_challenge_id")
     if args.approval_challenge != challenge:
         fail(Exit.RECEIPT, "APPROVAL_CHALLENGE_MISMATCH")
+    validate_envelope_path_binding(args, envelope, envelope_relative)
+    generation = envelope.get("generation_authorization")
+    if (
+        not isinstance(generation, Mapping)
+        or generation.get("approval_challenge_id") != getattr(args, "generation_challenge", None)
+    ):
+        fail(Exit.RECEIPT, "GENERATION_CHALLENGE_MISMATCH")
+    # The repository is the only locator inspected before G00.  It contains
+    # the already receipt-bound public envelope and content-addressed public
+    # contract artifacts.  State, cache and key locators remain untouched.
+    repo_meta = require_owned_directory(args.repo_root, "REPO_ROOT")
     preliminary_stage = ".gov01-toolchain-stage-" + str(challenge)
     validate_relative(preliminary_stage, "STATIC_STAGE")
-    exclusions = (preliminary_stage, TARGET_NAME)
+    tree_exclusions = (preliminary_stage, TARGET_NAME)
+    exact_file_exclusions = (envelope_relative,)
 
     repo_fd = open_directory(args.repo_root, "REPO_ROOT")
-    cache_fd = open_directory(args.cache_root, "CACHE_ROOT")
+    cache_fd: Optional[int] = None
     claim_fd: Optional[int] = None
     stage_fd: Optional[int] = None
     ledger: Optional[PrivateLedger] = None
@@ -6924,12 +9218,14 @@ def command_acquire(args: argparse.Namespace) -> Dict[str, Any]:
     attempt.set_phase("schema-contract")
     recorder.bind_run_authority(challenge, receipt_digest)
     try:
-        # No verifier source is compiled and no child is started until the
-        # receipt-bound schema and manual critical contract have passed.
+        # Finish every public contract/source check before any state/cache/key
+        # metadata or bytes are touched, verifier source is compiled, or child
+        # process is started.
         recorder.begin("G00", "schema-contract")
         schema_observation = verify_bound_schema_artifact(repo_fd, envelope)
         validate_manual_envelope_contract(envelope)
         baseline_artifacts = verify_artifacts(repo_fd, envelope)
+        verify_generation_authorization_artifact(repo_fd, envelope, baseline_artifacts)
         schema_bundle = verify_projection_schema_bundle(repo_fd, baseline_artifacts, schema_observation)
         public_schema_observation = dict(schema_observation)
         public_schema_observation.update(
@@ -6950,7 +9246,29 @@ def command_acquire(args: argparse.Namespace) -> Dict[str, Any]:
             "schema",
             public_schema_observation,
         )
+        bind_private_runtime_args_v2(args, generation)
         attempt.set_phase("private-public-boundary")
+        state_meta = require_owned_directory(args.state_root, "STATE_ROOT", exact_mode=0o700)
+        require_same_filesystem(repo_meta, state_meta)
+        require_owned_directory(args.cache_root, "CACHE_ROOT")
+        key = load_hmac_key(args.key_file)
+        generation_claim = verify_generation_claim_recovery_v2(
+            runtime_args=GenerationRuntimeArgsV2(
+                args.repo_root,
+                args.cache_root,
+                args.state_root,
+                args.key_file,
+                args.envelope,
+            ),
+            generation_authorization=generation,
+            final_envelope_raw=envelope_raw,
+        )
+        if not hmac.compare_digest(
+            str(generation_claim["final_envelope_receipt_digest"]),
+            receipt_digest,
+        ):
+            fail(Exit.RECEIPT, "GENERATION_CLAIM_RECEIPT_DRIFT")
+        cache_fd = open_directory(args.cache_root, "CACHE_ROOT")
         recorder.begin("G02", "private-public-boundary")
         locators = locator_commitments(args, key)
         compare_private_authorization(envelope, key, locators)
@@ -7010,7 +9328,8 @@ def command_acquire(args: argparse.Namespace) -> Dict[str, Any]:
             args.repo_root,
             key,
             baseline_toolchain["git_binary"],
-            authorized_excludes=exclusions,
+            authorized_tree_excludes=tree_exclusions,
+            authorized_exact_file_excludes=exact_file_exclusions,
         )
         verify_envelope_preimage(envelope, baseline_git)
         attempt.set_phase("process-census-before")
@@ -7268,7 +9587,8 @@ def command_acquire(args: argparse.Namespace) -> Dict[str, Any]:
             args.repo_root,
             key,
             pre_promote_toolchain["git_binary"],
-            authorized_excludes=exclusions,
+            authorized_tree_excludes=tree_exclusions,
+            authorized_exact_file_excludes=exact_file_exclusions,
         )
         compare_git_containment(baseline_git, pre_promote_git)
         pre_promote_processes = process_census(
@@ -7429,7 +9749,8 @@ def command_acquire(args: argparse.Namespace) -> Dict[str, Any]:
             args.repo_root,
             key,
             post_toolchain["git_binary"],
-            authorized_excludes=exclusions,
+            authorized_tree_excludes=tree_exclusions,
+            authorized_exact_file_excludes=exact_file_exclusions,
         )
         compare_git_containment(baseline_git, post_git)
         post_lock, post_lock_raw, _ = read_json_relative(repo_fd, "package-lock.json", "PACKAGE_LOCK")
@@ -7711,14 +10032,10 @@ def parser() -> argparse.ArgumentParser:
     subparsers = result.add_subparsers(dest="mode", required=True, parser_class=SafeArgumentParser)
     for name in ("census", "verify", "acquire"):
         child = subparsers.add_parser(name)
-        child.add_argument("--repo-root", required=True)
-        child.add_argument("--cache-root", required=True)
-        child.add_argument("--state-root", required=True)
-        child.add_argument("--key-file", required=True)
-        child.add_argument("--envelope", required=True)
-        child.add_argument("--receipt-digest")
+        child.add_argument("--generation-challenge", required=True)
+        child.add_argument("--receipt-digest", required=True)
+        child.add_argument("--approval-challenge", required=True)
         if name == "acquire":
-            child.add_argument("--approval-challenge", required=True)
             child.set_defaults(handler=command_acquire)
         elif name == "census":
             child.set_defaults(handler=command_census)
@@ -7732,6 +10049,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         args = parser().parse_args(argv)
         mode = args.mode
+        bind_public_cli_runtime_args_v2(args)
         payload = args.handler(args)
         return emit(payload)
     except ContractError as error:
