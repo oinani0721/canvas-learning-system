@@ -189,6 +189,7 @@
         "generation_output_preimage",
         "issue_publication_checkpoint_profile",
         "approved_commit_shape",
+        "captured_index_root_profile",
         "index_must_equal_head",
         "refs_except_head_must_be_unchanged"
       ],
@@ -262,6 +263,9 @@
         },
         "approved_commit_shape": {
           "const": "current HEAD has exactly one parent equal to authorization_baseline_head; a path-local Merkle comparison of authenticated current and parent ancestor tree objects proves exactly the micro envelope regular file was added with bytes equal to the approved raw envelope and every non-target entry is byte-identical; no other path is added modified deleted renamed or type-changed"
+        },
+        "captured_index_root_profile": {
+          "const": "strict captured DIRC v2 or v3 canonical bottom-up root-tree recomputation equal to authenticated HEAD; require the mode 160000 opaque-leaf path set to equal the exact public singleton _reference/obsidian-sample-plugin without opening requesting or dereferencing its object OID; reject a missing or mode-replaced singleton and every extra or substituted gitlink; in a parsed required-path ancestor tree permit that same singleton only as an unselected opaque sibling, and reject it if selected as a required terminal or ancestor"
         },
         "index_must_equal_head": {
           "const": true
@@ -429,7 +433,7 @@
           ]
         },
         "temporary_git_metadata_adapter_profile": {
-          "const": "checkpoint-scoped-private-temp-sanitized-required-path-ancestor-exact-oid-index-root-proven-identity-bound-git-fd-metadata-adapter-v4"
+          "const": "checkpoint-scoped-private-temp-sanitized-required-path-ancestor-exact-oid-index-root-proven-one-exact-public-opaque-gitlink-identity-bound-git-fd-metadata-adapter-v5"
         },
         "git_metadata_adapter_trust_boundary": {
           "const": "the kernel and each owning same-UID production process are trusted; POSIX 0600 and 0700 modes isolate other UIDs but do not isolate an unsandboxed process with the same effective UID, so each adapter root has exactly one owning process and compliant same-UID product processes never mutate another invocation's root; non-cooperating same-UID filesystem mutation, out-of-process ptrace or code injection, and out-of-process access to the 0600 private HMAC key are outside the supported threat model"

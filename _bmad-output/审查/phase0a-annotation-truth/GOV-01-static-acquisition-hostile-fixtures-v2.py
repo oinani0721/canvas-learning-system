@@ -1196,11 +1196,14 @@ def build_real_pending_envelope_from_synthetic_observations(acquisition, schema_
             "commitment": preimage["git_snapshot_commitment"],
             "dirty_manifest_commitment": "0" * 64,
             "git_metadata_source_commitment": "0" * 64,
-            "git_metadata_adapter_profile": acquisition["GIT_METADATA_ADAPTER_PROFILE_V3"],
+            "git_metadata_adapter_profile": acquisition["GIT_METADATA_ADAPTER_PROFILE_V5"],
             "git_metadata_adapter_cleanup_state": "removed",
             "git_metadata_adapter_residue_count": 0,
             "live_git_control_child_read_count": 0,
+            "index_gitlink_profile": acquisition["GIT_INDEX_GITLINK_PROFILE_V1"],
+            "index_gitlink_count": 1,
             "worktree_tree_exclusions": (
+                acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"],
                 ".gov01-toolchain-stage-" + challenge,
                 acquisition["TARGET_NAME"],
             ),
@@ -2395,6 +2398,16 @@ int main(int argc, char **argv) {
         unrelated.parent.mkdir(parents=True)
         write_bytes(unrelated, b"unrelated tracked body\n", 0o600)
         run_checked([git_binary, "add", "--all"], repo)
+        run_checked(
+            [
+                git_binary,
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                "160000," + ("1" * 40) + "," + acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"],
+            ],
+            repo,
+        )
         run_checked([git_binary, "commit", "-q", "-m", "adapter fixture"], repo)
         head_oid = git_output("rev-parse", "HEAD").strip().decode("ascii")
         unrelated_oid = git_output("rev-parse", "HEAD:unrelated/tracked-body.txt").strip().decode("ascii")
@@ -2522,7 +2535,7 @@ int main(int argc, char **argv) {
                 ):
                     acquisition["safe_git_scalar"](git_binary, str(repo), boundary, arguments, label)
                 for dirty_arguments, dirty_label in (
-                    (["diff-files", "--name-only", "-z"], "ADAPTER_DIFF_FILES"),
+                    (["diff-files", "--ignore-submodules=all", "--name-only", "-z"], "ADAPTER_DIFF_FILES"),
                     (["ls-files", "--others", "--exclude-standard", "-z"], "ADAPTER_LS_FILES_OTHERS"),
                 ):
                     acquisition["run_git"](
@@ -2574,10 +2587,17 @@ int main(int argc, char **argv) {
                 authorized_tree_excludes=(stage, "node_modules"),
                 authorized_exact_file_excludes=(envelope_relative,),
             )
-            assert snapshot["git_metadata_adapter_profile"] == acquisition["GIT_METADATA_ADAPTER_PROFILE_V3"]
+            assert snapshot["git_metadata_adapter_profile"] == acquisition["GIT_METADATA_ADAPTER_PROFILE_V5"]
             assert snapshot["git_metadata_adapter_cleanup_state"] == "removed"
             assert snapshot["git_metadata_adapter_residue_count"] == 0
             assert snapshot["live_git_control_child_read_count"] == 0
+            assert snapshot["index_gitlink_profile"] == acquisition["GIT_INDEX_GITLINK_PROFILE_V1"]
+            assert snapshot["index_gitlink_count"] == 1
+            assert snapshot["worktree_tree_exclusions"] == [
+                acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"],
+                stage,
+                "node_modules",
+            ]
             assert len(snapshot["git_metadata_source_commitment"]) == 64
             report["git_metadata_adapter_exact_oid_runtime_and_snapshot"] = "PASS"
 
@@ -3194,9 +3214,19 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     oid_bytes = 20
     oid_length = oid_bytes * 2
 
-    def index_bytes(entries, *, version=2, extension=None):
-        body = bytearray(b"DIRC" + version.to_bytes(4, "big") + len(entries).to_bytes(4, "big"))
-        for path, mode, oid in sorted(entries, key=lambda entry: entry[0]):
+    def index_bytes(entries, *, version=2, extension=None, include_gitlink=True):
+        materialized_entries = list(entries)
+        if (
+            include_gitlink
+            and not any(path == acquisition["OPAQUE_INDEX_GITLINK_RAW"] for path, _mode, _oid in materialized_entries)
+        ):
+            materialized_entries.append(
+                (acquisition["OPAQUE_INDEX_GITLINK_RAW"], 0o160000, b"g" * oid_bytes)
+            )
+        body = bytearray(
+            b"DIRC" + version.to_bytes(4, "big") + len(materialized_entries).to_bytes(4, "big")
+        )
+        for path, mode, oid in sorted(materialized_entries, key=lambda entry: entry[0]):
             fixed = bytearray(40 + oid_bytes + 2)
             fixed[24:28] = mode.to_bytes(4, "big")
             fixed[40:40 + oid_bytes] = oid
@@ -3216,7 +3246,9 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     raw_index = index_bytes(entries, extension=(b"TEST", b"opaque-extension"))
     observation = acquisition["parse_captured_git_index"](raw_index, oid_length)
     assert observation["index_version"] == 2
-    assert observation["index_entry_count"] == 20
+    assert observation["index_entry_count"] == 21
+    assert observation["index_gitlink_count"] == 1
+    assert observation["index_gitlink_profile"] == acquisition["GIT_INDEX_GITLINK_PROFILE_V1"]
     assert observation["index_extension_count"] == 1
     assert len(observation["index_root_tree_oid"]) == oid_length
     sanitized = observation["sanitized_index_bytes"]
@@ -3232,12 +3264,21 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     assert acquisition["parse_captured_git_index"](
         eoie_observation["sanitized_index_bytes"], oid_length
     )["index_extension_count"] == 0
+    gitlink_oid = b"g" * oid_bytes
+    gitlink_child_content = b"160000 obsidian-sample-plugin\x00" + gitlink_oid
+    gitlink_child_oid = hashlib.sha1(
+        b"tree " + str(len(gitlink_child_content)).encode("ascii") + b"\x00" + gitlink_child_content
+    ).digest()
     one_blob = b"\x01" * oid_bytes
     child_content = b"100644 b\x00" + one_blob
     child_oid = hashlib.sha1(
         b"tree " + str(len(child_content)).encode("ascii") + b"\x00" + child_content
     ).digest()
-    root_content = b"40000 a\x00" + child_oid
+    root_records = [
+        (b"_reference/", b"40000 _reference\x00" + gitlink_child_oid),
+        (b"a/", b"40000 a\x00" + child_oid),
+    ]
+    root_content = b"".join(record for _key, record in sorted(root_records))
     expected_root = hashlib.sha1(
         b"tree " + str(len(root_content)).encode("ascii") + b"\x00" + root_content
     ).hexdigest()
@@ -3246,6 +3287,20 @@ def run_partial_git_boundary_fixtures(acquisition, report):
         oid_length,
     )
     assert one_observation["index_root_tree_oid"] == expected_root
+    gitlink_root_content = b"40000 _reference\x00" + gitlink_child_oid
+    gitlink_expected_root = hashlib.sha1(
+        b"tree " + str(len(gitlink_root_content)).encode("ascii") + b"\x00" + gitlink_root_content
+    ).hexdigest()
+    gitlink_observation = acquisition["parse_captured_git_index"](
+        index_bytes(
+            [(acquisition["OPAQUE_INDEX_GITLINK_RAW"], 0o160000, gitlink_oid)]
+        ),
+        oid_length,
+    )
+    assert gitlink_observation["index_root_tree_oid"] == gitlink_expected_root
+    assert acquisition["parse_captured_git_index"](
+        gitlink_observation["sanitized_index_bytes"], oid_length
+    )["index_root_tree_oid"] == gitlink_expected_root
     corrupted = bytearray(raw_index)
     corrupted[-1] ^= 1
     expect_error(
@@ -3266,11 +3321,36 @@ def run_partial_git_boundary_fixtures(acquisition, report):
         "GIT_INDEX_EXTENSION",
     )
     expect_error(
-        "captured index gitlink",
+        "captured index extra unrelated gitlink",
         lambda: acquisition["parse_captured_git_index"](
             index_bytes([(b"submodule", 0o160000, b"g" * oid_bytes)]), oid_length
         ),
-        "GIT_INDEX_MODE",
+        "GIT_INDEX_GITLINK_SET",
+    )
+    expect_error(
+        "captured index approved path gitlink",
+        lambda: acquisition["parse_captured_git_index"](
+            index_bytes([(specs[0][1].encode("utf-8"), 0o160000, b"r" * oid_bytes)]),
+            oid_length,
+        ),
+        "GIT_INDEX_GITLINK_SET",
+    )
+    expect_error(
+        "captured index zero gitlink",
+        lambda: acquisition["parse_captured_git_index"](
+            index_bytes(entries, include_gitlink=False), oid_length
+        ),
+        "GIT_INDEX_GITLINK_SET",
+    )
+    expect_error(
+        "captured index exact gitlink mode replacement",
+        lambda: acquisition["parse_captured_git_index"](
+            index_bytes(
+                [(acquisition["OPAQUE_INDEX_GITLINK_RAW"], 0o100644, b"m" * oid_bytes)]
+            ),
+            oid_length,
+        ),
+        "GIT_INDEX_GITLINK_SET",
     )
     expect_error(
         "captured index dot-git component",
@@ -3281,7 +3361,10 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     )
     assumed_path = b"assumed.txt"
     assumed_index = bytearray(
-        index_bytes([(assumed_path, 0o100644, b"a" * oid_bytes)])
+        index_bytes(
+            [(assumed_path, 0o100644, b"a" * oid_bytes)],
+            include_gitlink=False,
+        )
     )
     flags_offset = 12 + 40 + oid_bytes
     assumed_index[flags_offset:flags_offset + 2] = (
@@ -3321,6 +3404,134 @@ def run_partial_git_boundary_fixtures(acquisition, report):
         "GIT_TREE_OBJECT_NAME_DUPLICATE",
     )
 
+    closure_root = {}
+    closure_entries = entries + [
+        (acquisition["OPAQUE_INDEX_GITLINK_RAW"], 0o160000, gitlink_oid)
+    ]
+    for path_raw, mode, oid_raw in closure_entries:
+        node = closure_root
+        components = path_raw.split(b"/")
+        for component in components[:-1]:
+            node = node.setdefault(component, {})
+        node[components[-1]] = (format(mode, "o").encode("ascii"), oid_raw)
+    synthetic_objects = {}
+    synthetic_tree_paths = {}
+
+    def seal_tree(node, prefix=()):
+        records = []
+        for name, value in node.items():
+            if isinstance(value, dict):
+                mode_raw = b"40000"
+                child_oid_hex = seal_tree(value, prefix + (name,))
+                child_oid_raw = bytes.fromhex(child_oid_hex)
+            else:
+                mode_raw, child_oid_raw = value
+            order_key = name + (b"/" if mode_raw == b"40000" else b"\x00")
+            records.append((order_key, mode_raw + b" " + name + b"\x00" + child_oid_raw))
+        content = b"".join(record for _key, record in sorted(records, key=lambda item: item[0]))
+        oid_hex = acquisition["git_object_oid"]("tree", content, oid_length)
+        synthetic_objects[oid_hex] = ("tree", content)
+        synthetic_tree_paths[prefix] = oid_hex
+        return oid_hex
+
+    closure_root_oid = seal_tree(closure_root)
+    closure_index_observation = acquisition["parse_captured_git_index"](
+        index_bytes(closure_entries), oid_length
+    )
+    assert closure_index_observation["index_root_tree_oid"] == closure_root_oid
+    commit_content = ("tree " + closure_root_oid + "\n\nfixture\n").encode("ascii")
+    closure_head_oid = acquisition["git_object_oid"]("commit", commit_content, oid_length)
+    synthetic_objects[closure_head_oid] = ("commit", commit_content)
+    requested_oids = []
+    original_dependencies = acquisition["capture_git_object_dependencies"]
+    original_bootstrap_child = acquisition["run_git_object_bootstrap_child"]
+
+    def synthetic_dependencies(_objects_path, expected_oids):
+        return {
+            "fingerprint": hashlib.sha256(b"\x00".join(oid.encode("ascii") for oid in expected_oids)).hexdigest(),
+            "allowed_pack_paths": (),
+        }
+
+    def synthetic_bootstrap_child(**kwargs):
+        requested = tuple(
+            line.decode("ascii") for line in kwargs["stdin_bytes"].splitlines()
+        )
+        assert requested == tuple(sorted(kwargs["allowed_live_oids"]))
+        requested_oids.extend(requested)
+        response = bytearray()
+        for oid_hex in requested:
+            object_type, content = synthetic_objects[oid_hex]
+            response.extend(
+                (oid_hex + " " + object_type + " " + str(len(content)) + "\n").encode("ascii")
+            )
+            response.extend(content + b"\n")
+        return bytes(response)
+
+    acquisition["capture_git_object_dependencies"] = synthetic_dependencies
+    acquisition["run_git_object_bootstrap_child"] = synthetic_bootstrap_child
+    try:
+        closure_oids, closure_types, observed_root_oid, closure_manifest = acquisition[
+            "discover_git_object_closure"
+        ](
+            capture={
+                "head_oid": closure_head_oid,
+                "objects_path": "/fixture/objects",
+                "index_tree_observation": closure_index_observation,
+            },
+            git_binary="/fixture/git",
+            developer_root="/fixture/developer",
+            repo_root="/fixture/repo",
+            adapter_root="/private/tmp/fixture-adapter",
+            adapter_git_dir=".",
+            adapter_fd=91,
+            git_fd=92,
+            adapter_identity=(1, 2),
+            git_identity=(1, 3),
+        )
+    finally:
+        acquisition["capture_git_object_dependencies"] = original_dependencies
+        acquisition["run_git_object_bootstrap_child"] = original_bootstrap_child
+    opaque_reference_tree_oid = synthetic_tree_paths[(b"_reference",)]
+    opaque_gitlink_oid = gitlink_oid.hex()
+    assert observed_root_oid == closure_root_oid
+    assert opaque_reference_tree_oid not in requested_oids
+    assert opaque_gitlink_oid not in requested_oids
+    assert opaque_reference_tree_oid not in closure_oids
+    assert opaque_gitlink_oid not in closure_oids
+    assert opaque_reference_tree_oid not in closure_types
+    assert opaque_gitlink_oid not in closure_types
+    assert "opaque-gitlink-omitted" in closure_manifest["profile"]
+
+    original_create_adapter = acquisition["create_git_metadata_adapter"]
+    original_open_directory = acquisition["open_directory"]
+    create_adapter_calls = []
+    open_directory_calls = []
+    acquisition["create_git_metadata_adapter"] = lambda *_args, **_kwargs: (
+        create_adapter_calls.append("unexpected-adapter-create")
+    )
+    acquisition["open_directory"] = lambda *_args, **_kwargs: (
+        open_directory_calls.append("unexpected-open")
+    )
+    try:
+        for reserved_overlap in (
+            "_reference",
+            acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"] + "/descendant",
+        ):
+            expect_error(
+                "opaque gitlink exclusion overlap " + reserved_overlap,
+                lambda value=reserved_overlap: acquisition["git_snapshot"](
+                    "/fixture/repo",
+                    b"k" * 32,
+                    "/fixture/git",
+                    authorized_tree_excludes=(value,),
+                ),
+                "GIT_EXCLUSION_RESERVED_GITLINK",
+            )
+    finally:
+        acquisition["create_git_metadata_adapter"] = original_create_adapter
+        acquisition["open_directory"] = original_open_directory
+    assert create_adapter_calls == [] and open_directory_calls == []
+
     challenge = "GOV01-SA-20260820-" + ("a" * 64)
     generation_challenge = "GOV01-GEN-20260820-" + ("b" * 64)
     stage = ".gov01-toolchain-stage-" + challenge
@@ -3333,11 +3544,13 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     dirty_suffix = [
             "--", ".", ":(exclude).git", ":(exclude).git/**",
             ":(exclude)canvas-vault", ":(exclude)canvas-vault/**",
+            ":(exclude)" + acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"],
+            ":(exclude)" + acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"] + "/**",
             ":(exclude)" + stage, ":(exclude)" + stage + "/**",
             ":(exclude)node_modules", ":(exclude)node_modules/**",
             ":(top,literal,exclude)" + pending,
     ]
-    diff_arguments = ["diff-files", "--name-only", "-z"] + dirty_suffix
+    diff_arguments = ["diff-files", "--ignore-submodules=all", "--name-only", "-z"] + dirty_suffix
     ls_arguments = ["ls-files", "--others", "--exclude-standard", "-z"] + dirty_suffix
     for arguments in (diff_arguments, ls_arguments):
         argv = acquisition["git_hardened_child_argv"](
@@ -3358,6 +3571,19 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     for label, malformed_arguments in (
         ("diff-files trailing argument", diff_arguments + ["--unexpected-extra"]),
         ("ls-files truncated argument", ls_arguments[:-1]),
+        ("diff-files missing ignore-submodules", ["diff-files", "--name-only", "-z"] + dirty_suffix),
+        (
+            "ls-files unsupported ignore-submodules insertion",
+            ["ls-files", "--ignore-submodules=all", "--others", "--exclude-standard", "-z"]
+            + dirty_suffix,
+        ),
+        (
+            "diff-files missing opaque gitlink exclusions",
+            [
+                value for value in diff_arguments
+                if acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"] not in value
+            ],
+        ),
     ):
         malformed_argv = acquisition["git_hardened_child_argv"](
             "/fixture/git", "/fixture/repo", ".", malformed_arguments
@@ -3402,6 +3628,10 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     assert '(literal "/fixture/repo/' + pending + '")' in profile
     assert '(subpath "/fixture/repo/' + stage + '")' in profile
     assert '(subpath "/fixture/repo/node_modules")' in profile
+    opaque_gitlink_absolute = "/fixture/repo/" + acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"]
+    deny_block = profile.split('(deny file-read* file-test-existence\n ', 1)[1].split('\n)\n', 1)[0]
+    assert '(literal "' + opaque_gitlink_absolute + '")' in deny_block
+    assert '(subpath "' + opaque_gitlink_absolute + '")' in deny_block
 
     original_dirty_builder = acquisition["dirty_path_manifest_commitment"]
     parent_read_count = []
@@ -3409,7 +3639,20 @@ def run_partial_git_boundary_fixtures(acquisition, report):
         parent_read_count.append("unexpected-open-or-hash") or "0" * 64
     )
     try:
-        for forged in (stage + "/sentinel", "node_modules/sentinel", pending):
+        for forged, expected_reason in (
+            (stage + "/sentinel", "GIT_DIRTY_EXCLUDED_PATH"),
+            ("node_modules/sentinel", "GIT_DIRTY_EXCLUDED_PATH"),
+            (pending, "GIT_DIRTY_EXCLUDED_PATH"),
+            (acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"], "GIT_DIRTY_EXCLUDED_PATH"),
+            (
+                acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"] + "/.git/config",
+                "GIT_DIRTY_PROHIBITED_PATH",
+            ),
+            (
+                acquisition["OPAQUE_INDEX_GITLINK_RELATIVE"] + "/content.md",
+                "GIT_DIRTY_EXCLUDED_PATH",
+            ),
+        ):
             expect_error(
                 "forged excluded dirty path",
                 lambda value=forged: acquisition["dirty_index_worktree_manifest_commitment"](
@@ -3420,7 +3663,7 @@ def run_partial_git_boundary_fixtures(acquisition, report):
                     (stage, "node_modules"),
                     (pending,),
                 ),
-                "GIT_DIRTY_EXCLUDED_PATH",
+                expected_reason,
             )
     finally:
         acquisition["dirty_path_manifest_commitment"] = original_dirty_builder
@@ -3445,12 +3688,76 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     for stale in (
         '"ls-tree","-r","-t","-z","--full-tree"',
         '"status","--porcelain=v2"',
+        '"diff-files","--name-only","-z"',
+        "git-diff-files-plus-ls-files-others-exact-top-literal-envelope-file-exclusion-v2",
+        "worktree tree exclusions are exactly the challenge stage and node_modules",
+        "captured-index-v2-v3-stage0-strict-framing-bottom-up-root-tree-oid-v2",
+        "checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3",
+        "checkpoint-scoped-private-temp-sanitized-required-path-ancestor-exact-oid-index-root-proven-"
+        "identity-bound-git-fd-metadata-adapter-v4",
+        "nonrecursive ls-files",
+        "plus-nonrecursive-ls-files",
         "all current tree OIDs",
         "every current-tree tree OID",
         "nonexcluded porcelain-v2 path",
     ):
         assert stale not in source_text
     tree = ast.parse(source_text)
+    embedded_assignments = [
+        node for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name)
+            and target.id == "_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON"
+            for target in node.targets
+        )
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    ]
+    assert len(embedded_assignments) == 1
+    embedded_raw = embedded_assignments[0].value.value
+    assert embedded_raw == acquisition["_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON"]
+    embedded_template = json.loads(embedded_raw)
+    assert embedded_template["authorization_preimage"][
+        "envelope_git_status_exclusion_profile"
+    ] == acquisition["PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE"]
+    assert embedded_template["authorization_preimage"][
+        "git_snapshot_commitment_profile"
+    ] == acquisition["GIT_SNAPSHOT_COMMITMENT_PROFILE_V2"]
+    assert embedded_template["execution_plan"][
+        "git_child_sandbox_profile"
+    ] == acquisition["GIT_CHILD_SANDBOX_PROFILE_V3"]
+    embedded_read_role = next(
+        entry for entry in embedded_template["execution_plan"]["evidence_command_templates"]
+        if entry["role"] == "git-read-only-evidence"
+    )
+    assert embedded_read_role["argv_allowlist"] == acquisition["git_read_only_argv_templates_v2"]()
+    snapshot_function = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "git_snapshot"
+    )
+    diff_snapshot_calls = [
+        node for node in ast.walk(snapshot_function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "run_git"
+        and any(
+            isinstance(argument, ast.Constant) and argument.value == "GIT_DIFF_FILES"
+            for argument in node.args
+        )
+    ]
+    assert len(diff_snapshot_calls) == 1
+    diff_snapshot_call = diff_snapshot_calls[0]
+    assert len(diff_snapshot_call.args) == 5
+    assert isinstance(diff_snapshot_call.args[3], ast.List)
+    assert [element.value for element in diff_snapshot_call.args[3].elts] == [
+        "diff-files", "--ignore-submodules=all", "--name-only", "-z",
+    ]
+    assert {
+        keyword.arg: keyword.value.value
+        for keyword in diff_snapshot_call.keywords
+        if isinstance(keyword.value, ast.Constant)
+    }.get("enumerates_worktree") is True
     forbidden_commands = {
         ("ls-tree", "-r"),
         ("diff-index",),
@@ -4015,7 +4322,7 @@ def main(argv=None):
     acquisition["git_read_sandbox_profile"] = lambda *_args, **_kwargs: b"(version 1)\n(deny default)\n"
     try:
         for dirty_arguments, dirty_label in (
-            (["diff-files", "--name-only", "-z"], "FIXTURE_GIT_DIFF_FILES"),
+            (["diff-files", "--ignore-submodules=all", "--name-only", "-z"], "FIXTURE_GIT_DIFF_FILES"),
             (["ls-files", "--others", "--exclude-standard", "-z"], "FIXTURE_GIT_LS_FILES_OTHERS"),
         ):
             acquisition["run_git"](

@@ -70,6 +70,7 @@ class CapturedIndexTreeProof(NamedTuple):
     entry_count: int
     raw_sha256: str
     version: int
+    opaque_gitlink_count: int
 
 
 class GitReadBoundary:
@@ -340,10 +341,19 @@ GENERATION_GIT_CHILD_ENVIRONMENT_PROFILE_V2 = (
     "are disabled; final Git evidence unsets live object access and uses only the sealed adapter; fsmonitor, hooks, "
     "attributes, includes, alternates, grafts, network, and worktree reads are rejected or sandbox-denied"
 )
-GENERATION_GIT_ADAPTER_PROFILE_V4 = (
+GENERATION_GIT_ADAPTER_PROFILE_V5 = (
     "checkpoint-scoped-private-temp-sanitized-required-path-ancestor-exact-oid-index-root-proven-"
-    "identity-bound-git-fd-metadata-adapter-v4"
+    "one-exact-public-opaque-gitlink-identity-bound-git-fd-metadata-adapter-v5"
 )
+GENERATION_CAPTURED_INDEX_ROOT_PROFILE_V1 = (
+    "strict captured DIRC v2 or v3 canonical bottom-up root-tree recomputation equal to authenticated HEAD; "
+    "require the mode 160000 opaque-leaf path set to equal the exact public singleton "
+    "_reference/obsidian-sample-plugin without opening requesting or dereferencing its object OID; reject a "
+    "missing or mode-replaced singleton and every extra or substituted gitlink; in a parsed required-path ancestor "
+    "tree permit that same singleton only as an unselected opaque sibling, and reject it if selected as a required "
+    "terminal or ancestor"
+)
+GENERATION_OPAQUE_GITLINK_INDEX_PATH_V1 = b"_reference/obsidian-sample-plugin"
 GENERATION_GIT_ADAPTER_WRITE_PROFILE_V2 = (
     "write only its 0600 sanitized Git control metadata through pinned root and Git directory FDs; resolve bootstrap "
     "and import argv only from the identity-bound adapter Git cwd with relative --git-dir=., keep index-pack "
@@ -1771,6 +1781,7 @@ def prove_captured_index_root_tree(
         fail(Exit.PREFLIGHT, "GIT_INDEX_ENTRY_LIMIT")
 
     entries: List[Tuple[bytes, str, str]] = []
+    opaque_gitlink_paths: List[bytes] = []
     cursor = 12
     previous_path: Optional[bytes] = None
     for _entry_index in range(entry_count):
@@ -1796,11 +1807,9 @@ def prove_captured_index_root_tree(
             fail(Exit.PREFLIGHT, "GIT_INDEX_UNMERGED")
         if flags & 0x8000:
             fail(Exit.PREFLIGHT, "GIT_INDEX_ASSUME_VALID")
-        if mode_value == 0o160000:
-            fail(Exit.PRIVACY, "GIT_INDEX_GITLINK")
         if mode_value == 0o040000:
             fail(Exit.PREFLIGHT, "GIT_INDEX_SPARSE_DIRECTORY")
-        if mode_value not in (0o100644, 0o100755, 0o120000):
+        if mode_value not in (0o100644, 0o100755, 0o120000, 0o160000):
             fail(Exit.PREFLIGHT, "GIT_INDEX_MODE")
         if oid == "0" * oid_bytes or GIT_OID_RE.fullmatch(oid) is None:
             fail(Exit.PREFLIGHT, "GIT_INDEX_OID")
@@ -1821,6 +1830,8 @@ def prove_captured_index_root_tree(
             fail(Exit.PREFLIGHT, "GIT_INDEX_PATH")
         if any(component.lower() == b".git" for component in path.split(b"/")):
             fail(Exit.PRIVACY, "GIT_INDEX_DOT_GIT")
+        if mode_value == 0o160000:
+            opaque_gitlink_paths.append(path)
         if previous_path is not None:
             if path <= previous_path:
                 fail(Exit.PREFLIGHT, "GIT_INDEX_PATH_ORDER")
@@ -1833,6 +1844,9 @@ def prove_captured_index_root_tree(
             fail(Exit.PREFLIGHT, "GIT_INDEX_PADDING")
         cursor = entry_body_end + padding
         entries.append((path, format(mode_value, "o"), oid))
+
+    if tuple(opaque_gitlink_paths) != (GENERATION_OPAQUE_GITLINK_INDEX_PATH_V1,):
+        fail(Exit.PRIVACY, "GIT_INDEX_GITLINK_SET")
 
     seen_extensions = set()
     while cursor < trailer_start:
@@ -1889,7 +1903,13 @@ def prove_captured_index_root_tree(
     computed_root = hash_index_tree(tree)
     if not hmac.compare_digest(computed_root, expected_root_tree):
         fail(Exit.PREFLIGHT, "GIT_INDEX_HEAD_TREE_MISMATCH")
-    return CapturedIndexTreeProof(computed_root, entry_count, sha256(raw), version)
+    return CapturedIndexTreeProof(
+        computed_root,
+        entry_count,
+        sha256(raw),
+        version,
+        len(opaque_gitlink_paths),
+    )
 
 
 def parse_bootstrap_object_batch(
@@ -1953,12 +1973,17 @@ def parse_bootstrap_object_batch(
 def parse_bootstrap_tree_object_entries(
     raw: bytes,
     oid_bytes: int,
+    *,
+    tree_prefix: str = "",
 ) -> Tuple[RawGitTreeEntry, ...]:
     """Strictly parse one raw tree while keeping sibling names opaque bytes."""
 
     raw_oid_bytes = oid_bytes // 2
     if oid_bytes not in (40, 64):
         fail(Exit.INTERNAL, "GIT_BOOTSTRAP_RAW_TREE_OID_WIDTH")
+    if tree_prefix:
+        validate_relative(tree_prefix, "GIT_BOOTSTRAP_RAW_TREE_PREFIX")
+    prefix_bytes = tree_prefix.encode("utf-8", "strict")
     cursor = 0
     entries: List[RawGitTreeEntry] = []
     seen_names = set()
@@ -1991,8 +2016,13 @@ def parse_bootstrap_tree_object_entries(
             kind = "blob"
         elif mode == "120000":
             kind = "symlink"
+        elif mode == "160000":
+            full_path = name if not prefix_bytes else prefix_bytes + b"/" + name
+            if full_path != GENERATION_OPAQUE_GITLINK_INDEX_PATH_V1:
+                fail(Exit.PRIVACY, "GIT_BOOTSTRAP_RAW_TREE_KIND")
+            kind = "gitlink"
         else:
-            # Includes 160000 gitlinks/submodules and every special mode.
+            # Every special mode other than the one exact opaque gitlink.
             fail(Exit.PRIVACY, "GIT_BOOTSTRAP_RAW_TREE_KIND")
         ordering_key = name + (b"/" if kind == "tree" else b"\x00")
         if previous_key is not None and ordering_key <= previous_key:
@@ -2097,7 +2127,11 @@ def resolve_required_path_trie(
             if prior is not None:
                 fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_CONTEXT_DUPLICATE")
             tree_contexts[prefix] = tree_oid
-            entries = parse_bootstrap_tree_object_entries(tree_cache[tree_oid], oid_bytes)
+            entries = parse_bootstrap_tree_object_entries(
+                tree_cache[tree_oid],
+                oid_bytes,
+                tree_prefix=prefix,
+            )
             by_name = {entry.name: entry for entry in entries}
             for component, child in node.items():
                 if component is None:
@@ -2166,11 +2200,19 @@ def verify_path_local_one_file_addition(
             fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_CONTEXT")
         current_entries = {
             entry.name: entry
-            for entry in parse_bootstrap_tree_object_entries(current_raw[prefix], len(current.root_tree_oid))
+            for entry in parse_bootstrap_tree_object_entries(
+                current_raw[prefix],
+                len(current.root_tree_oid),
+                tree_prefix=prefix,
+            )
         }
         parent_entries = {
             entry.name: entry
-            for entry in parse_bootstrap_tree_object_entries(parent_raw[prefix], len(parent.root_tree_oid))
+            for entry in parse_bootstrap_tree_object_entries(
+                parent_raw[prefix],
+                len(parent.root_tree_oid),
+                tree_prefix=prefix,
+            )
         }
         target = components[depth]
         if {
@@ -2199,7 +2241,9 @@ def verify_path_local_one_file_addition(
                 if created_prefix not in current_raw:
                     fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_NEW_CHAIN_CONTEXT")
                 chain_entries = parse_bootstrap_tree_object_entries(
-                    current_raw[created_prefix], len(current.root_tree_oid)
+                    current_raw[created_prefix],
+                    len(current.root_tree_oid),
+                    tree_prefix=created_prefix,
                 )
                 expected_component = components[remaining_depth]
                 if len(chain_entries) != 1 or chain_entries[0].name != expected_component:
@@ -4487,6 +4531,7 @@ def repository_baseline(
         "index_tree_sha256": boundary.index_tree_proof.raw_sha256,
         "index_tree_entry_count": boundary.index_tree_proof.entry_count,
         "index_tree_version": boundary.index_tree_proof.version,
+        "index_opaque_gitlink_count": boundary.index_tree_proof.opaque_gitlink_count,
         "head_ref": head_ref,
         "head_ref_sha256": head_ref_digest(head_ref),
         "head_ref_bytes": len(head_ref.encode("ascii", "strict")),
@@ -4568,6 +4613,7 @@ def _build_issue_envelope_unchecked(
             "generation_output_preimage": "ABSENT",
             "issue_publication_checkpoint_profile": ISSUE_PUBLICATION_CHECKPOINT_PROFILE_V1,
             "approved_commit_shape": "current HEAD has exactly one parent equal to authorization_baseline_head; a path-local Merkle comparison of authenticated current and parent ancestor tree objects proves exactly the micro envelope regular file was added with bytes equal to the approved raw envelope and every non-target entry is byte-identical; no other path is added modified deleted renamed or type-changed",
+            "captured_index_root_profile": GENERATION_CAPTURED_INDEX_ROOT_PROFILE_V1,
             "index_must_equal_head": True,
             "refs_except_head_must_be_unchanged": True,
         },
@@ -4624,7 +4670,7 @@ def _build_issue_envelope_unchecked(
                 GENERATION_GIT_ADAPTER_WRITE_PROFILE_V2,
                 "within the declared trust boundary and host assurance, remove the unique registered adapter at its authorized pathname only after captured root and Git identity checks, then require authorized-path absence and zero registry residue before success or retryable pre-claim failure",
             ],
-            "temporary_git_metadata_adapter_profile": GENERATION_GIT_ADAPTER_PROFILE_V4,
+            "temporary_git_metadata_adapter_profile": GENERATION_GIT_ADAPTER_PROFILE_V5,
             "git_metadata_adapter_trust_boundary": GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1,
             "git_metadata_adapter_host_assurance": GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1,
             "git_metadata_adapter_cleanup_guarantee": GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1,
@@ -4834,7 +4880,7 @@ def validate_generation_envelope(
             "authorization_baseline_other_refs_bytes", "git_control_profile", "micro_envelope_repo_relative",
             "micro_envelope_preimage", "generation_output_repo_relative", "generation_output_preimage",
             "issue_publication_checkpoint_profile",
-            "approved_commit_shape", "index_must_equal_head",
+            "approved_commit_shape", "captured_index_root_profile", "index_must_equal_head",
             "refs_except_head_must_be_unchanged",
         ),
         "REPOSITORY_TRANSITION",
@@ -4847,6 +4893,8 @@ def validate_generation_envelope(
         fail(Exit.CONTRACT, "GENERATION_OUTPUT_PATH")
     if transition.get("issue_publication_checkpoint_profile") != ISSUE_PUBLICATION_CHECKPOINT_PROFILE_V1:
         fail(Exit.CONTRACT, "ISSUE_PUBLICATION_CHECKPOINT_PROFILE")
+    if transition.get("captured_index_root_profile") != GENERATION_CAPTURED_INDEX_ROOT_PROFILE_V1:
+        fail(Exit.CONTRACT, "CAPTURED_INDEX_ROOT_PROFILE")
     if transition.get("authorization_baseline_head_symbolic") is not True:
         fail(Exit.CONTRACT, "HEAD_SYMBOLIC")
     if not isinstance(transition.get("authorization_baseline_head_ref_sha256"), str) or SHA256_RE.fullmatch(str(transition.get("authorization_baseline_head_ref_sha256"))) is None:
@@ -5208,6 +5256,8 @@ def capture_issue_public_checkpoint(repo_root: str) -> Tuple[Dict[str, Any], Lis
         "index_tree_sha256": baseline["index_tree_sha256"],
         "index_tree_entry_count": baseline["index_tree_entry_count"],
         "index_tree_version": baseline["index_tree_version"],
+        "index_opaque_gitlink_count": baseline["index_opaque_gitlink_count"],
+        "captured_index_root_profile": GENERATION_CAPTURED_INDEX_ROOT_PROFILE_V1,
         "expected_object_types": [list(item) for item in boundary.expected_object_types],
         "artifacts": artifacts,
     }

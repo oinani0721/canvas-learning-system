@@ -593,11 +593,12 @@ def bound_executor_pure_contract_matrix(
             "commitment": generator.sha256(b"synthetic-git-snapshot"),
             "dirty_manifest_commitment": generator.sha256(b"synthetic-dirty-manifest"),
             "git_metadata_source_commitment": generator.sha256(b"synthetic-git-source"),
-            "git_metadata_adapter_profile": bound_executor.GIT_METADATA_ADAPTER_PROFILE_V3,
+            "git_metadata_adapter_profile": bound_executor.GIT_METADATA_ADAPTER_PROFILE_V5,
             "git_metadata_adapter_cleanup_state": "removed",
             "git_metadata_adapter_residue_count": 0,
             "live_git_control_child_read_count": 0,
             "worktree_tree_exclusions": (
+                bound_executor.OPAQUE_INDEX_GITLINK_RELATIVE,
                 ".gov01-toolchain-stage-" + acquisition_challenge,
                 bound_executor.TARGET_NAME,
             ),
@@ -762,6 +763,12 @@ def mutation_rejection_matrix(
     adapter_profile = copy.deepcopy(baseline)
     adapter_profile["mutation_scope"]["temporary_git_metadata_adapter_profile"] = "unbounded-temp-tree"
     cases["temporary_adapter_profile"] = adapter_profile
+
+    captured_index_profile = copy.deepcopy(baseline)
+    captured_index_profile["repository_transition"]["captured_index_root_profile"] = (
+        "accept arbitrary gitlinks"
+    )
+    cases["captured_index_root_profile"] = captured_index_profile
 
     adapter_trust = copy.deepcopy(baseline)
     adapter_trust["mutation_scope"]["git_metadata_adapter_trust_boundary"] = "trust every same-UID actor"
@@ -2004,6 +2011,7 @@ def git_control_matrix(generator: Any) -> bool:
         tracked.write_bytes(b"tracked\n")
         run_synthetic_git(main_root, ["init", "-q"])
         run_synthetic_git(main_root, ["add", "tracked.txt"])
+        add_synthetic_opaque_gitlink(main_root)
         run_synthetic_git(main_root, ["commit", "-q", "-m", "fixture-linked-baseline"])
         linked_root = main_root / ".claude/worktrees/fixture-linked"
         linked_root.parent.mkdir(parents=True, mode=0o700)
@@ -2056,6 +2064,7 @@ def git_adapter_capture_cleanup_matrix(generator: Any) -> bool:
         tracked.write_bytes(b"tracked\n")
         run_synthetic_git(root, ["init", "-q"])
         run_synthetic_git(root, ["add", "tracked.txt"])
+        add_synthetic_opaque_gitlink(root)
         run_synthetic_git(root, ["commit", "-q", "-m", "fixture-adapter-baseline"])
 
         # A live ref change after capture must not change the bytes copied from
@@ -2505,6 +2514,7 @@ def git_adapter_final_delete_capability_characterization(generator: Any) -> Dict
         tracked.write_bytes(b"tracked\n")
         run_synthetic_git(root, ["init", "-q"])
         run_synthetic_git(root, ["add", "tracked.txt"])
+        add_synthetic_opaque_gitlink(root)
         run_synthetic_git(root, ["commit", "-q", "-m", "fixture-final-delete-witness"])
 
         _control, boundary = generator.create_git_metadata_adapter(
@@ -2995,6 +3005,29 @@ def run_synthetic_git_output(
     return completed.stdout
 
 
+SYNTHETIC_OPAQUE_GITLINK_RELATIVE = "_reference/obsidian-sample-plugin"
+
+
+def add_synthetic_opaque_gitlink(root: pathlib.Path) -> str:
+    """Add the exact public opaque gitlink without creating its object body."""
+
+    object_format = run_synthetic_git_output(
+        root, ["rev-parse", "--show-object-format"]
+    ).decode("ascii").strip()
+    require(object_format in ("sha1", "sha256"), "synthetic-gitlink-object-format")
+    oid = "1" * (40 if object_format == "sha1" else 64)
+    run_synthetic_git(
+        root,
+        [
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            "160000," + oid + "," + SYNTHETIC_OPAQUE_GITLINK_RELATIVE,
+        ],
+    )
+    return oid
+
+
 def reachable_object_adapter_matrix(generator: Any) -> bool:
     """Prove only authorized blobs enter the final sealed object database."""
 
@@ -3005,21 +3038,37 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
         authorized_relative = "public/authorized.txt"
         unrelated_relative = "ordinary/deep/tracked.txt"
         private_relative = "Canvas-Vault/private/secret.txt"
+        gitlink_relative = SYNTHETIC_OPAQUE_GITLINK_RELATIVE
+        reference_sibling_relative = "_reference/public.txt"
         authorized = root / authorized_relative
         unrelated = root / unrelated_relative
         private_tracked = root / private_relative
+        reference_sibling = root / reference_sibling_relative
         authorized.parent.mkdir(parents=True)
         unrelated.parent.mkdir(parents=True)
         private_tracked.parent.mkdir(parents=True)
+        reference_sibling.parent.mkdir(parents=True)
         authorized_raw = b"authorized fixture payload\n"
         tracked_secret_raw = b"tracked but unauthorized fixture secret\n"
         private_secret_raw = b"tracked private subtree secret that must never be dereferenced\n"
+        reference_sibling_raw = b"public sibling beside opaque gitlink\n"
         dangling_secret_raw = b"dangling unreachable fixture secret\n"
         authorized.write_bytes(authorized_raw)
         unrelated.write_bytes(tracked_secret_raw)
         private_tracked.write_bytes(private_secret_raw)
+        reference_sibling.write_bytes(reference_sibling_raw)
         run_synthetic_git(root, ["init", "-q"])
-        run_synthetic_git(root, ["add", authorized_relative, unrelated_relative, private_relative])
+        run_synthetic_git(
+            root,
+            [
+                "add",
+                authorized_relative,
+                unrelated_relative,
+                private_relative,
+                reference_sibling_relative,
+            ],
+        )
+        gitlink_oid = add_synthetic_opaque_gitlink(root)
         run_synthetic_git(root, ["commit", "-q", "-m", "fixture-reachable-baseline"])
         head_oid = run_synthetic_git_output(root, ["rev-parse", "HEAD"]).decode("ascii").strip()
         head_tree_oid = run_synthetic_git_output(root, ["rev-parse", "HEAD^{tree}"]).decode(
@@ -3030,6 +3079,9 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
         ).decode("ascii").strip()
         private_oid = run_synthetic_git_output(
             root, ["rev-parse", "HEAD:" + private_relative]
+        ).decode("ascii").strip()
+        reference_sibling_oid = run_synthetic_git_output(
+            root, ["rev-parse", "HEAD:" + reference_sibling_relative]
         ).decode("ascii").strip()
         ordinary_tree_oid = run_synthetic_git_output(
             root, ["rev-parse", "HEAD:ordinary"]
@@ -3110,16 +3162,19 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
             raw_index, len(head_oid), head_tree_oid
         )
         require(
-            index_proof.entry_count == 3 and index_proof.version == 2,
+            index_proof.entry_count == 5
+            and index_proof.version == 2
+            and index_proof.opaque_gitlink_count == 1,
             "reachable-index-v2-positive",
         )
         version_three = bytearray(index_body)
         version_three[4:8] = (3).to_bytes(4, "big")
+        version_three_proof = generator.prove_captured_index_root_tree(
+            signed_index(bytes(version_three)), len(head_oid), head_tree_oid
+        )
         require(
-            generator.prove_captured_index_root_tree(
-                signed_index(bytes(version_three)), len(head_oid), head_tree_oid
-            ).version
-            == 3,
+            version_three_proof.version == 3
+            and version_three_proof.opaque_gitlink_count == 1,
             "reachable-index-v3-positive",
         )
         tree_extension_at = index_body.rfind(b"TREE")
@@ -3147,6 +3202,14 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
         first_nul = index_body.index(b"\x00", first_flags + 2)
         first_end = first_nul + 1
         first_padding = (-(first_end - first_entry)) % 8
+        gitlink_path_start = index_body.index(gitlink_relative.encode("ascii"))
+        gitlink_entry = gitlink_path_start - (40 + raw_oid_bytes + 2)
+        require(
+            gitlink_entry >= 12
+            and int.from_bytes(index_body[gitlink_entry + 24 : gitlink_entry + 28], "big")
+            == 0o160000,
+            "reachable-index-gitlink-vector",
+        )
         hostile_captured_indexes: List[Tuple[bytes, str]] = []
         version_four = bytearray(index_body)
         version_four[4:8] = (4).to_bytes(4, "big")
@@ -3170,9 +3233,21 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
         hostile_captured_indexes.append(
             (signed_index(bytes(assume_valid)), "GIT_INDEX_ASSUME_VALID")
         )
-        gitlink = bytearray(index_body)
-        gitlink[first_entry + 24 : first_entry + 28] = (0o160000).to_bytes(4, "big")
-        hostile_captured_indexes.append((signed_index(bytes(gitlink)), "GIT_INDEX_GITLINK"))
+        extra_gitlink = bytearray(index_body)
+        extra_gitlink[first_entry + 24 : first_entry + 28] = (0o160000).to_bytes(4, "big")
+        hostile_captured_indexes.append(
+            (signed_index(bytes(extra_gitlink)), "GIT_INDEX_GITLINK_SET")
+        )
+        missing_gitlink = bytearray(index_body)
+        missing_gitlink[gitlink_entry + 24 : gitlink_entry + 28] = (0o100644).to_bytes(4, "big")
+        hostile_captured_indexes.append(
+            (signed_index(bytes(missing_gitlink)), "GIT_INDEX_GITLINK_SET")
+        )
+        substituted_gitlink = bytearray(missing_gitlink)
+        substituted_gitlink[first_entry + 24 : first_entry + 28] = (0o160000).to_bytes(4, "big")
+        hostile_captured_indexes.append(
+            (signed_index(bytes(substituted_gitlink)), "GIT_INDEX_GITLINK_SET")
+        )
         sparse = bytearray(index_body)
         sparse[first_entry + 24 : first_entry + 28] = (0o040000).to_bytes(4, "big")
         hostile_captured_indexes.append(
@@ -3331,6 +3406,20 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
             else:
                 return False
 
+        allowed_opaque_sibling_entries = generator.parse_bootstrap_tree_object_entries(
+            b"160000 obsidian-sample-plugin\x00"
+            + raw_oid
+            + b"100644 public.txt\x00"
+            + raw_oid,
+            len(head_oid),
+            tree_prefix="_reference",
+        )
+        require(
+            tuple(entry.kind for entry in allowed_opaque_sibling_entries)
+            == ("gitlink", "blob"),
+            "reachable-unselected-same-tree-gitlink-parse",
+        )
+
         opaque_entries = generator.parse_bootstrap_tree_object_entries(
             b"40000 Canvas-Vault\x00" + raw_oid + b"100644 control-\x01\x00" + raw_oid,
             len(head_oid),
@@ -3394,20 +3483,36 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
         finally:
             promisor.unlink()
 
+        original_capture_git_object_dependencies = generator.capture_git_object_dependencies
+        dependency_oid_requests: List[Tuple[str, ...]] = []
+
+        def record_object_dependency_request(
+            source_capture: Mapping[str, Any],
+            object_oids: Sequence[str],
+        ) -> Dict[str, Any]:
+            requested = tuple(object_oids)
+            require(gitlink_oid not in requested, "reachable-gitlink-oid-not-requested")
+            dependency_oid_requests.append(requested)
+            return original_capture_git_object_dependencies(source_capture, object_oids)
+
         generator.os.open = deny_unrelated_pack_open
+        generator.capture_git_object_dependencies = record_object_dependency_request
         try:
             _control, boundary = generator.create_git_metadata_adapter(
                 str(root),
                 git_binary,
                 developer_root,
-                required_current_blob_paths=(authorized_relative,),
+                required_current_blob_paths=(authorized_relative, reference_sibling_relative),
             )
         finally:
             generator.os.open = original_open
+            generator.capture_git_object_dependencies = original_capture_git_object_dependencies
         try:
             expected = set(boundary.expected_object_oids)
             require(
                 head_oid in expected
+                and reference_sibling_oid in expected
+                and gitlink_oid not in expected
                 and unrelated_oid not in expected
                 and private_oid not in expected
                 and ordinary_tree_oid not in expected
@@ -3417,10 +3522,12 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
             )
             require(
                 boundary.index_tree_proof.root_tree_oid == boundary.head_tree
-                and boundary.index_tree_proof.entry_count == 3
+                and boundary.index_tree_proof.entry_count == 5
+                and boundary.index_tree_proof.opaque_gitlink_count == 1
                 and dict(boundary.expected_object_types).get(head_oid) == "commit",
                 "reachable-index-root-proof",
             )
+            require(bool(dependency_oid_requests), "reachable-gitlink-zero-request-witness")
             require(generator.git_scalar(
                 git_binary,
                 str(root),
@@ -3435,7 +3542,19 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
                 ["show", "HEAD:" + authorized_relative],
                 "FIXTURE_REACHABLE_AUTHORIZED_BLOB",
             ) == authorized_raw, "reachable-authorized-blob")
+            require(generator.run_git(
+                git_binary,
+                str(root),
+                boundary,
+                ["show", "HEAD:" + reference_sibling_relative],
+                "FIXTURE_REACHABLE_REFERENCE_SIBLING",
+            ) == reference_sibling_raw, "reachable-reference-sibling")
+            require(
+                "_reference" in dict(boundary.current_path_resolution.tree_contexts),
+                "reachable-unselected-same-tree-gitlink-context",
+            )
             for absent_oid in (
+                gitlink_oid,
                 unrelated_oid,
                 private_oid,
                 ordinary_tree_oid,
@@ -3469,6 +3588,38 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
             require(not hasattr(generator, "copy_git_object_store"), "reachable-no-recursive-copy")
         finally:
             generator.finalize_git_metadata_adapter(boundary)
+
+        required_gitlink_requests: List[Tuple[str, ...]] = []
+
+        def record_required_gitlink_dependency_request(
+            source_capture: Mapping[str, Any],
+            object_oids: Sequence[str],
+        ) -> Dict[str, Any]:
+            requested = tuple(object_oids)
+            require(gitlink_oid not in requested, "reachable-required-gitlink-oid-not-requested")
+            required_gitlink_requests.append(requested)
+            return original_capture_git_object_dependencies(source_capture, object_oids)
+
+        generator.capture_git_object_dependencies = record_required_gitlink_dependency_request
+        try:
+            try:
+                generator.create_git_metadata_adapter(
+                    str(root),
+                    git_binary,
+                    developer_root,
+                    required_current_blob_paths=(gitlink_relative,),
+                )
+            except generator.GenerationError as error:
+                require(
+                    error.public_code == "GIT_BOOTSTRAP_REQUIRED_PATH_MODE",
+                    "reachable-required-gitlink-label",
+                )
+            else:
+                return False
+        finally:
+            generator.capture_git_object_dependencies = original_capture_git_object_dependencies
+        require(bool(required_gitlink_requests), "reachable-required-gitlink-tree-request-witness")
+        generator.require_git_adapter_quiescent("FIXTURE_REACHABLE_REQUIRED_GITLINK")
 
         # Replace each exact selected pack/index pathname between dependency
         # capture and Git execution.  Even byte-identical replacement content
@@ -3537,6 +3688,7 @@ def committed_transition_matrix(
             synthetic_root,
             ["add", "--"] + [relative for _role, relative in generator.ARTIFACT_SPECS],
         )
+        add_synthetic_opaque_gitlink(synthetic_root)
         run_synthetic_git(synthetic_root, ["commit", "-q", "-m", "chore(governance): fixture baseline"])
 
         synthetic_generator = load_generator(synthetic_root)

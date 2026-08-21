@@ -1116,7 +1116,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["static-executor", "static-verifier", "python-interpreter", "python-stdlib-tree", "xcode-select-resolver", "xcrun-resolver", "git-read-only-evidence", "pgrep-read-only-evidence", "lsof-read-only-evidence"],
       "properties": {
-        "static-executor": { "const": "fe802f66cf7f793e67bd89dbc5f3e8bed93064fc40bee7901be6f954ba5fe248" }, "static-verifier": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" },
+        "static-executor": { "const": "6b93a3659b828a8e37ed65e75c8bfed30e19e3f9919c05ab9144977f44cc3268" }, "static-verifier": { "const": "98bcaaa35e2e4e7713e51e016af6c7223713acdb47a1b4b27859e70f75725064" },
         "python-interpreter": { "$ref": "#/$defs/sha256" }, "python-stdlib-tree": { "$ref": "#/$defs/sha256" },
         "xcode-select-resolver": { "$ref": "#/$defs/sha256" }, "xcrun-resolver": { "$ref": "#/$defs/sha256" },
         "git-read-only-evidence": { "$ref": "#/$defs/sha256" }, "pgrep-read-only-evidence": { "$ref": "#/$defs/sha256" },
