@@ -1549,8 +1549,8 @@
         "checker_interface": { "const": "gov01-ledger-semantic-checker-v2" },
         "artifact_role": { "const": "static-executor" },
         "repo_relative_path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" },
-        "raw_file_sha256": { "const": "6b93a3659b828a8e37ed65e75c8bfed30e19e3f9919c05ab9144977f44cc3268" },
-        "byte_length": { "const": 687795 },
+        "raw_file_sha256": { "const": "ece03c04319a94006cb031c887b8aa54ef8f03d0f6b60999c29d720caf0ac4ee" },
+        "byte_length": { "const": 703588 },
         "hmac_domain": { "const": "CLS/GOV01/STATIC-ACQUISITION-LEDGER/v2" },
         "assurance": { "const": "content-addressed-runtime-self-attested-not-pre-exec" }
       }

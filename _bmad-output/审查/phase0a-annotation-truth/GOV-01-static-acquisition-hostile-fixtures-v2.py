@@ -18,6 +18,7 @@ import pwd
 import runpy
 import stat
 import subprocess
+import sys
 import tempfile
 import types
 
@@ -2030,6 +2031,424 @@ def validate_public_failure_state_schema_equivalence(
     assert accepted_total == 484
 
 
+def run_process_stderr_boundary_fixtures(acquisition, report):
+    """Use a real child to prove bounded stderr is rejected without disclosure."""
+
+    python_binary = os.path.realpath(sys.executable)
+    previous_hash = acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].get(python_binary)
+    acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][python_binary] = acquisition[
+        "hash_regular_absolute"
+    ](python_binary, "PROCESS_STDERR_FIXTURE_PYTHON")["sha256"]
+    environment = acquisition["git_env"]()
+    private_diagnostic = synthetic_private_locator(
+        "FixtureSecret",
+        "stderr-must-not-be-public",
+    ).encode("utf-8")
+
+    def child(source):
+        return [python_binary, "-I", "-S", "-B", "-c", source]
+
+    try:
+        captured_stdout = io.StringIO()
+        captured_stderr = io.StringIO()
+        with contextlib.redirect_stdout(captured_stdout), contextlib.redirect_stderr(captured_stderr):
+            diagnostic_reason = expect_error(
+                "rc-zero child diagnostic",
+                lambda: acquisition["run_process"](
+                    child("import os;os.write(2,%r)" % private_diagnostic),
+                    environment,
+                    4096,
+                    "PROCESS_STDERR_FIXTURE",
+                ),
+                "PROCESS_STDERR_FIXTURE_STDERR",
+            )
+            large_reason = expect_error(
+                "bounded large child diagnostic",
+                lambda: acquisition["run_process"](
+                    child(
+                        "import os;os.write(2,b'x'*%d)"
+                        % (acquisition["MAX_PROCESS_STDERR_BYTES"] + 17)
+                    ),
+                    environment,
+                    4096,
+                    "PROCESS_STDERR_BOUND_FIXTURE",
+                ),
+                "PROCESS_STDERR_BOUND_FIXTURE_STDERR",
+            )
+            nonzero_reason = expect_error(
+                "nonzero clean child",
+                lambda: acquisition["run_process"](
+                    child("raise SystemExit(7)"),
+                    environment,
+                    4096,
+                    "PROCESS_NONZERO_FIXTURE",
+                ),
+                "PROCESS_NONZERO_FIXTURE_RESULT",
+            )
+            assert acquisition["run_process"](
+                child("raise SystemExit(7)"),
+                environment,
+                4096,
+                "PROCESS_ALLOWED_NONZERO_FIXTURE",
+                allowed_returncodes=(7,),
+            ) == b""
+        public_capture = captured_stdout.getvalue() + captured_stderr.getvalue()
+        assert public_capture == ""
+        for reason in (diagnostic_reason, large_reason, nonzero_reason):
+            assert private_diagnostic.decode("utf-8") not in reason
+    finally:
+        if previous_hash is None:
+            acquisition["_AUTHORIZED_EXECUTABLE_HASHES"].pop(python_binary, None)
+        else:
+            acquisition["_AUTHORIZED_EXECUTABLE_HASHES"][python_binary] = previous_hash
+    report["process_bounded_stderr_rc0_diagnostic_and_nonzero_clean"] = "PASS"
+    report["process_stderr_private_bytes_not_disclosed"] = "PASS"
+
+
+def run_captured_ref_observation_fixtures(acquisition, report):
+    """Exercise frozen ref parsing and the exact read-only argv without live Git state."""
+
+    oid_head = "1" * 40
+    oid_loose = "2" * 40
+    oid_packed = "3" * 40
+    oid_packed_shadowed = "4" * 40
+    oid_override = "5" * 40
+    oid_worktree = "6" * 40
+    oid_peeled = "7" * 40
+
+    def captured(head=None, loose=None, worktree=None, packed=None, linked=False):
+        return {
+            "linked_worktree": linked,
+            "raw_files": {
+                "head": head if head is not None else b"ref: refs/heads/main\n",
+                "packed_refs": packed,
+            },
+            "common_ref_bytes": loose if loose is not None else {
+                "heads/main": (oid_head + "\n").encode("ascii"),
+            },
+            "worktree_ref_bytes": worktree if worktree is not None else {},
+        }
+
+    oid_worktree_override = "8" * 40
+    oid_common_hidden = "9" * 40
+    oid_packed_hidden = "a" * 40
+    valid = captured(
+        loose={
+            "heads/main": (oid_head + "\n").encode("ascii"),
+            "aliases/main": b"ref: refs/heads/main\n",
+            "foo": (oid_loose + "\n").encode("ascii"),
+            "stash": (oid_head + "\n").encode("ascii"),
+            "bisect/override": (oid_common_hidden + "\n").encode("ascii"),
+            "worktree/common-hidden": (oid_common_hidden + "\n").encode("ascii"),
+            "tags/loose-unmaterialized": (oid_loose + "\n").encode("ascii"),
+            "tags/override": (oid_override + "\n").encode("ascii"),
+        },
+        worktree={
+            "bisect/override": (oid_worktree_override + "\n").encode("ascii"),
+            "worktree/current": (oid_worktree + "\n").encode("ascii"),
+        },
+        packed=(
+            b"# pack-refs with: peeled fully-peeled sorted\n"
+            + (oid_packed_shadowed + " refs/bisect/override\n").encode("ascii")
+            + (oid_packed_hidden + " refs/rewritten/packed-hidden\n").encode("ascii")
+            + (oid_packed_shadowed + " refs/tags/override\n").encode("ascii")
+            + (oid_packed + " refs/tags/packed-unmaterialized\n").encode("ascii")
+            + ("^" + oid_peeled + "\n").encode("ascii")
+            + (oid_packed + " refs/worktree/common-hidden\n").encode("ascii")
+        ),
+        linked=True,
+    )
+    state = acquisition["parse_captured_git_ref_state"](valid)
+    expected_by_ref = {
+        "refs/aliases/main": oid_head,
+        "refs/bisect/override": oid_worktree_override,
+        "refs/foo": oid_loose,
+        "refs/heads/main": oid_head,
+        "refs/rewritten/packed-hidden": oid_packed_hidden,
+        "refs/stash": oid_head,
+        "refs/tags/loose-unmaterialized": oid_loose,
+        "refs/tags/override": oid_override,
+        "refs/tags/packed-unmaterialized": oid_packed,
+        "refs/worktree/common-hidden": oid_packed,
+        "refs/worktree/current": oid_worktree,
+    }
+    assert state["head_oid"] == oid_head
+    assert state["oid_length"] == 40
+    assert state["profile"] == acquisition["GIT_REF_OBSERVATION_PROFILE_V1"]
+    assert state["linked_worktree"] is True
+    assert dict((refname, oid) for oid, refname in state["canonical_refs"]) == expected_by_ref
+    assert state["effective_ref_raw"]["refs/tags/override"] == (
+        oid_override + "\n"
+    ).encode("ascii")
+    canonical_output = b"".join(
+        (oid + " " + refname + "\n").encode("ascii")
+        for oid, refname in state["canonical_refs"]
+    )
+    assert acquisition["parse_git_for_each_ref_output"](
+        canonical_output,
+        40,
+    ) == state["canonical_refs"]
+    oid_sha256 = "a" * 64
+    detached_sha256 = captured(
+        head=(oid_sha256 + "\n").encode("ascii"),
+        loose={"tags/sha256": (oid_sha256 + "\n").encode("ascii")},
+    )
+    detached_sha256_state = acquisition["parse_captured_git_ref_state"](detached_sha256)
+    assert detached_sha256_state["head_oid"] == oid_sha256
+    assert detached_sha256_state["oid_length"] == 64
+    assert detached_sha256_state["canonical_refs"] == (
+        (oid_sha256, "refs/tags/sha256"),
+    )
+
+    broken = captured(
+        loose={
+            "heads/main": (oid_head + "\n").encode("ascii"),
+            "aliases/broken": b"ref: refs/heads/missing\n",
+        }
+    )
+    expect_error(
+        "captured broken symref",
+        lambda: acquisition["parse_captured_git_ref_state"](broken),
+        "GIT_CAPTURE_REF_RESOLUTION_MISSING",
+    )
+    cycle = captured(
+        loose={
+            "heads/main": (oid_head + "\n").encode("ascii"),
+            "aliases/one": b"ref: refs/aliases/two\n",
+            "aliases/two": b"ref: refs/aliases/one\n",
+        }
+    )
+    expect_error(
+        "captured symref cycle",
+        lambda: acquisition["parse_captured_git_ref_state"](cycle),
+        "GIT_CAPTURE_REF_RESOLUTION_CYCLE",
+    )
+    invalid_worktree_namespace = captured(
+        loose={"heads/main": (oid_head + "\n").encode("ascii")},
+        worktree={"heads/forbidden": (oid_head + "\n").encode("ascii")},
+        linked=True,
+    )
+    expect_error(
+        "captured linked worktree ref outside namespace",
+        lambda: acquisition["parse_captured_git_ref_state"](invalid_worktree_namespace),
+        "GIT_CAPTURE_WORKTREE_REF_NAMESPACE",
+    )
+    positive_depth_refs = {"heads/main": (oid_head + "\n").encode("ascii")}
+    for index in range(acquisition["MAX_CAPTURED_REF_SYMREF_DEPTH"] - 1):
+        target = (
+            "refs/aliases/positive-%02d" % (index + 1)
+            if index + 1 < acquisition["MAX_CAPTURED_REF_SYMREF_DEPTH"] - 1
+            else "refs/heads/main"
+        )
+        positive_depth_refs["aliases/positive-%02d" % index] = (
+            "ref: " + target + "\n"
+        ).encode("ascii")
+    positive_depth = captured(
+        head=b"ref: refs/aliases/positive-00\n",
+        loose=positive_depth_refs,
+    )
+    assert acquisition["parse_captured_git_ref_state"](positive_depth)["head_oid"] == oid_head
+    depth_refs = {"heads/main": (oid_head + "\n").encode("ascii")}
+    for index in range(acquisition["MAX_CAPTURED_REF_SYMREF_DEPTH"]):
+        target = (
+            "refs/aliases/depth-%02d" % (index + 1)
+            if index + 1 < acquisition["MAX_CAPTURED_REF_SYMREF_DEPTH"]
+            else "refs/heads/main"
+        )
+        depth_refs["aliases/depth-%02d" % index] = ("ref: " + target + "\n").encode("ascii")
+    depth = captured(
+        head=b"ref: refs/aliases/depth-00\n",
+        loose=depth_refs,
+    )
+    expect_error(
+        "captured symref depth",
+        lambda: acquisition["parse_captured_git_ref_state"](depth),
+        "GIT_CAPTURE_HEAD_REF_DEPTH",
+    )
+
+    malformed_states = (
+        captured(head=(("0" * 40) + "\n").encode("ascii")),
+        captured(loose={"heads/main": (("A" * 40) + "\n").encode("ascii")}),
+        captured(loose={"heads/main": (oid_head + "\nextra\n").encode("ascii")}),
+        captured(loose={"bad..name/value": (oid_head + "\n").encode("ascii")}),
+        captured(
+            loose={
+                "heads/main": (oid_head + "\n").encode("ascii"),
+                "tags/zero": (("0" * 40) + "\n").encode("ascii"),
+            }
+        ),
+        captured(
+            packed=(("8" * 64) + " refs/tags/mixed-width\n").encode("ascii"),
+        ),
+    )
+    for index, hostile in enumerate(malformed_states):
+        expect_error(
+            "captured malformed or mixed ref %d" % index,
+            lambda value=hostile: acquisition["parse_captured_git_ref_state"](value),
+        )
+
+    hostile_packed = (
+        ("^" + oid_peeled + "\n").encode("ascii"),
+        ("# unrelated comment\n" + oid_packed + " refs/tags/one\n").encode("ascii"),
+        (
+            "# pack-refs with: sorted unknown\n"
+            + oid_packed + " refs/tags/one\n"
+        ).encode("ascii"),
+        (
+            "# pack-refs with: sorted\n"
+            + oid_packed + " refs/tags/two\n"
+            + oid_peeled + " refs/tags/one\n"
+        ).encode("ascii"),
+        (
+            oid_packed + " refs/tags/one\n"
+            + oid_peeled + " refs/tags/one\n"
+        ).encode("ascii"),
+        (("0" * 40) + " refs/tags/zero\n").encode("ascii"),
+        (
+            oid_packed + " refs/tags/one\n"
+            "^" + oid_peeled + "\n"
+            "^" + ("8" * 40) + "\n"
+        ).encode("ascii"),
+        (
+            oid_packed + " refs/tags/one\n"
+            "# intervening comment\n"
+            "^" + oid_peeled + "\n"
+        ).encode("ascii"),
+        (oid_packed + " refs/tags/one\n^" + ("0" * 40) + "\n").encode("ascii"),
+        (oid_packed + " refs/tags/one\n^" + ("8" * 64) + "\n").encode("ascii"),
+        (oid_packed + " refs/tags/one").encode("ascii"),
+    )
+    for index, packed in enumerate(hostile_packed):
+        expect_error(
+            "captured hostile packed peeled %d" % index,
+            lambda value=packed: acquisition["parse_captured_git_ref_state"](
+                captured(packed=value)
+            ),
+        )
+
+    hostile_outputs = (
+        canonical_output[:-1],
+        canonical_output + canonical_output.splitlines(keepends=True)[0],
+        canonical_output.replace((oid_head + " ").encode("ascii"), (("0" * 40) + " ").encode("ascii"), 1),
+        (("8" * 64) + " refs/heads/main\n").encode("ascii"),
+        (oid_head + "  refs/heads/main\n").encode("ascii"),
+        b"not-ascii-\xff refs/heads/main\n",
+    )
+    for index, output in enumerate(hostile_outputs):
+        expect_error(
+            "for-each-ref hostile output %d" % index,
+            lambda value=output: acquisition["parse_git_for_each_ref_output"](value, 40),
+        )
+
+    original_entry_limit = acquisition["MAX_GIT_ADAPTER_ENTRIES"]
+    try:
+        acquisition["MAX_GIT_ADAPTER_ENTRIES"] = 3
+        expect_error(
+            "captured effective ref count bound",
+            lambda: acquisition["parse_captured_git_ref_state"](
+                captured(
+                    loose={
+                        "heads/main": (oid_head + "\n").encode("ascii"),
+                        "foo": (oid_head + "\n").encode("ascii"),
+                        "stash": (oid_head + "\n").encode("ascii"),
+                        "tags/fourth": (oid_head + "\n").encode("ascii"),
+                    }
+                )
+            ),
+            "GIT_CAPTURE_REF_LIMIT",
+        )
+    finally:
+        acquisition["MAX_GIT_ADAPTER_ENTRIES"] = original_entry_limit
+
+    with tempfile.TemporaryDirectory(
+        prefix="gov01-ref-tree-count-",
+        dir="/private/tmp",
+    ) as ref_tree_temporary:
+        ref_tree = pathlib.Path(ref_tree_temporary)
+        nested = ref_tree / "nested"
+        nested.mkdir(mode=0o700)
+        write_bytes(ref_tree / "root-ref", (oid_head + "\n").encode("ascii"), 0o600)
+        write_bytes(nested / "child-ref", (oid_head + "\n").encode("ascii"), 0o600)
+        _raw_tree, tree_observation = acquisition["capture_git_source_tree"](
+            str(ref_tree),
+            "GIT_SOURCE_REF_COUNT_FIXTURE",
+            required=True,
+        )
+        assert tree_observation["entry_count"] == 4
+        assert tree_observation["directory_count"] == 2
+        assert tree_observation["file_count"] == 2
+        try:
+            acquisition["MAX_GIT_ADAPTER_ENTRIES"] = 3
+            expect_error(
+                "captured ref tree entry and directory bound",
+                lambda: acquisition["capture_git_source_tree"](
+                    str(ref_tree),
+                    "GIT_SOURCE_REF_COUNT_FIXTURE",
+                    required=True,
+                ),
+                "GIT_SOURCE_REF_COUNT_FIXTURE_ENTRY_LIMIT",
+            )
+        finally:
+            acquisition["MAX_GIT_ADAPTER_ENTRIES"] = original_entry_limit
+
+    git_binary = "/fixture/git"
+    repo_root = "/fixture/repo"
+    exact_tail = [
+        "for-each-ref",
+        "--sort=refname",
+        "--format=%(objectname) %(refname)",
+        "refs",
+    ]
+    exact_argv = acquisition["git_hardened_child_argv"](
+        git_binary,
+        repo_root,
+        ".",
+        exact_tail,
+    )
+    receipt = acquisition["require_git_child_template_match"](
+        role="git-read-only-evidence",
+        argv=exact_argv,
+        environment=acquisition["git_env"](),
+        git_binary=git_binary,
+        repo_root=repo_root,
+        adapter_git_dir=".",
+        live_objects=None,
+        stdin_bytes=None,
+    )
+    assert receipt == (
+        "git-read-only-evidence",
+        tuple(acquisition["git_child_argv_template_prefix_v2"]() + exact_tail),
+    )
+    for hostile_tail in (exact_tail[:-1], exact_tail + ["refs/heads"]):
+        expect_error(
+            "for-each-ref argv insertion or deletion",
+            lambda value=hostile_tail: acquisition["require_git_child_template_match"](
+                role="git-read-only-evidence",
+                argv=acquisition["git_hardened_child_argv"](
+                    git_binary,
+                    repo_root,
+                    ".",
+                    value,
+                ),
+                environment=acquisition["git_env"](),
+                git_binary=git_binary,
+                repo_root=repo_root,
+                adapter_git_dir=".",
+                live_objects=None,
+                stdin_bytes=None,
+            ),
+            "GIT_FINAL_ARGV",
+        )
+    read_templates = acquisition["git_read_only_argv_templates_v2"]()
+    assert sum(
+        template[-4:] == exact_tail for template in read_templates
+    ) == 1
+    assert all("show" + "-ref" not in template for template in read_templates)
+    report["captured_ref_strict_resolution_and_output_equality"] = "PASS"
+    report["captured_ref_entry_directory_and_effective_count_bounds"] = "PASS"
+    report["for_each_ref_exact_argv_insertion_deletion"] = "PASS"
+
+
 def run_git_metadata_adapter_hostile_fixtures(acquisition, report):
     """Run only synthetic Git-adapter tests; never call census/verify/acquire."""
 
@@ -2344,6 +2763,14 @@ int main(int argc, char **argv) {
     )
     process_text = ast.unparse(process_node)
     assert "os.dup(working_directory_fd)" in process_text
+    assert "stderr=subprocess.PIPE" in process_text
+    assert "stderr=subprocess.DEVNULL" not in process_text
+    assert "MAX_PROCESS_STDERR_BYTES" in process_text
+    assert "label + '_STDERR'" in process_text
+    assert any(
+        isinstance(node, ast.FunctionDef) and node.name == "drain_process_pipe"
+        for node in process_node.body
+    )
     child_boundary_node = next(
         node for node in process_node.body
         if isinstance(node, ast.FunctionDef) and node.name == "initialize_child_boundary"
@@ -2410,7 +2837,40 @@ int main(int argc, char **argv) {
         )
         run_checked([git_binary, "commit", "-q", "-m", "adapter fixture"], repo)
         head_oid = git_output("rev-parse", "HEAD").strip().decode("ascii")
+        head_ref = git_output("symbolic-ref", "HEAD").strip().decode("ascii")
         unrelated_oid = git_output("rev-parse", "HEAD:unrelated/tracked-body.txt").strip().decode("ascii")
+        loose_unmaterialized_oid = "2" * len(head_oid)
+        packed_unmaterialized_oid = "3" * len(head_oid)
+        packed_shadowed_oid = "4" * len(head_oid)
+        loose_override_oid = "5" * len(head_oid)
+        packed_peeled_oid = "6" * len(head_oid)
+        hostile_ref_root = repo / ".git/refs/gov01"
+        hostile_ref_root.mkdir(parents=True, mode=0o700)
+        write_bytes(
+            hostile_ref_root / "loose-unmaterialized",
+            (loose_unmaterialized_oid + "\n").encode("ascii"),
+            0o600,
+        )
+        write_bytes(
+            hostile_ref_root / "override",
+            (loose_override_oid + "\n").encode("ascii"),
+            0o600,
+        )
+        write_bytes(
+            hostile_ref_root / "symalias",
+            ("ref: " + head_ref + "\n").encode("ascii"),
+            0o600,
+        )
+        write_bytes(
+            repo / ".git/packed-refs",
+            (
+                "# pack-refs with: peeled fully-peeled sorted\n"
+                + packed_shadowed_oid + " refs/gov01/override\n"
+                + packed_unmaterialized_oid + " refs/gov01/packed-unmaterialized\n"
+                + "^" + packed_peeled_oid + "\n"
+            ).encode("ascii"),
+            0o600,
+        )
         key = b"g" * 32
         challenge = "GOV01-SA-20260821-" + ("a" * 64)
         generation = "GOV01-GEN-20260821-" + ("b" * 64)
@@ -2439,6 +2899,21 @@ int main(int argc, char **argv) {
                 acquisition["cleanup_git_metadata_adapter"](boundary)
 
         try:
+            roots_before_ref_capture_overflow = adapter_roots()
+            original_entry_limit = acquisition["MAX_GIT_ADAPTER_ENTRIES"]
+            try:
+                acquisition["MAX_GIT_ADAPTER_ENTRIES"] = 1
+                expect_error(
+                    "adapter ref capture overflow before scratch",
+                    create_adapter,
+                    "GIT_SOURCE_COMMON_REFS_ENTRY_LIMIT",
+                )
+            finally:
+                acquisition["MAX_GIT_ADAPTER_ENTRIES"] = original_entry_limit
+            assert adapter_roots() == roots_before_ref_capture_overflow
+            assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 0
+            report["git_metadata_adapter_ref_capture_overflow_zero_scratch"] = "PASS"
+
             invocations = []
             template_hits = []
             original_run_process = acquisition["run_process"]
@@ -2523,6 +2998,20 @@ int main(int argc, char **argv) {
                     acquisition["PENDING_STATIC_ARTIFACT_SPECS"]
                 )
                 assert manifest["object_count"] < 100
+                captured_refs = {
+                    refname: oid for oid, refname in capture["canonical_refs"]
+                }
+                assert captured_refs["refs/gov01/loose-unmaterialized"] == loose_unmaterialized_oid
+                assert captured_refs["refs/gov01/packed-unmaterialized"] == packed_unmaterialized_oid
+                assert captured_refs["refs/gov01/override"] == loose_override_oid
+                assert captured_refs["refs/gov01/symalias"] == head_oid
+                assert {
+                    loose_unmaterialized_oid,
+                    packed_unmaterialized_oid,
+                    packed_shadowed_oid,
+                    loose_override_oid,
+                    packed_peeled_oid,
+                }.isdisjoint(boundary.object_dependency_oids)
                 missing = acquisition["run_git"](
                     git_binary, str(repo), boundary, ["cat-file", "--batch"],
                     "ADAPTER_UNRELATED", stdin_bytes=(unrelated_oid + "\n").encode("ascii"),
@@ -2544,7 +3033,22 @@ int main(int argc, char **argv) {
                         authorized_tree_excludes=(stage, "node_modules"),
                         authorized_exact_file_excludes=(envelope_relative,),
                     )
-                acquisition["run_git"](git_binary, str(repo), boundary, ["show-ref"], "ADAPTER_REFS")
+                refs_output = acquisition["run_git"](
+                    git_binary,
+                    str(repo),
+                    boundary,
+                    [
+                        "for-each-ref",
+                        "--sort=refname",
+                        "--format=%(objectname) %(refname)",
+                        "refs",
+                    ],
+                    "ADAPTER_FOR_EACH_REF",
+                )
+                assert acquisition["parse_git_for_each_ref_output"](
+                    refs_output,
+                    len(head_oid),
+                ) == capture["canonical_refs"]
                 artifact_path = acquisition["PENDING_STATIC_ARTIFACT_SPECS"][0][1]
                 acquisition["run_git"](
                     git_binary, str(repo), boundary,
@@ -2567,8 +3071,23 @@ int main(int argc, char **argv) {
             tails = [tuple(argv[prefix_length:]) for argv, _kwargs in invocations if argv[0] == git_binary]
             assert {tail[0] for tail in tails} >= {
                 "rev-parse", "cat-file", "ls-tree", "diff-files", "ls-files",
-                "show-ref", "show", "pack-objects", "index-pack", "verify-pack",
+                "for-each-ref", "show", "pack-objects", "index-pack", "verify-pack",
             }
+            assert sum(tail[0] == "for-each-ref" for tail in tails) == 1
+            assert sum(tail[0] == "show" + "-ref" for tail in tails) == 0
+            all_child_stdin = b"".join(
+                kwargs.get("stdin_bytes") or b""
+                for argv, kwargs in invocations
+                if argv[0] == git_binary
+            )
+            for unmaterialized_oid in (
+                loose_unmaterialized_oid,
+                packed_unmaterialized_oid,
+                packed_shadowed_oid,
+                loose_override_oid,
+                packed_peeled_oid,
+            ):
+                assert unmaterialized_oid.encode("ascii") not in all_child_stdin
             assert all(
                 kwargs.get("working_directory_fd") is not None
                 for argv, kwargs in invocations if argv[0] == git_binary
@@ -2599,7 +3118,48 @@ int main(int argc, char **argv) {
                 "node_modules",
             ]
             assert len(snapshot["git_metadata_source_commitment"]) == 64
+            expected_refs_bytes = b"".join(
+                (captured_refs[refname] + " " + refname + "\n").encode("ascii")
+                for refname in sorted(captured_refs)
+            )
+            assert snapshot["refs_sha256"] == hashlib.sha256(expected_refs_bytes).hexdigest()
+            assert snapshot["refs_bytes"] == len(expected_refs_bytes)
             report["git_metadata_adapter_exact_oid_runtime_and_snapshot"] = "PASS"
+            report["git_metadata_adapter_unmaterialized_ref_tips_no_expansion"] = "PASS"
+
+            original_run_git_for_ref_mismatch = acquisition["run_git"]
+
+            def omit_one_frozen_ref(*args, **kwargs):
+                output = original_run_git_for_ref_mismatch(*args, **kwargs)
+                arguments = args[3] if len(args) > 3 else kwargs.get("arguments")
+                if arguments == [
+                    "for-each-ref",
+                    "--sort=refname",
+                    "--format=%(objectname) %(refname)",
+                    "refs",
+                ]:
+                    lines = output.splitlines(keepends=True)
+                    assert len(lines) > 1
+                    return b"".join(lines[:-1])
+                return output
+
+            roots_before_ref_mismatch = adapter_roots()
+            acquisition["run_git"] = omit_one_frozen_ref
+            try:
+                expect_error(
+                    "adapter for-each-ref value mismatch",
+                    lambda: acquisition["git_snapshot"](
+                        str(repo), key, git_binary,
+                        authorized_tree_excludes=(stage, "node_modules"),
+                        authorized_exact_file_excludes=(envelope_relative,),
+                    ),
+                    "GIT_FOR_EACH_REF_VALUE_MISMATCH",
+                )
+            finally:
+                acquisition["run_git"] = original_run_git_for_ref_mismatch
+            assert adapter_roots() == roots_before_ref_mismatch
+            assert acquisition["git_metadata_adapter_process_scope_residue_count"]() == 0
+            report["git_metadata_adapter_ref_value_mismatch_zero_residue"] = "PASS"
 
             # Both adapter-root and Git-subdirectory construction remain on
             # their held inodes across rename/replacement barriers.
@@ -2972,6 +3532,10 @@ int main(int argc, char **argv) {
                 rewrite_bytes(config_path, original_config)
             assert source_drift and adapter_roots() == roots_at_drift
 
+            for fixture_ref_name in ("loose-unmaterialized", "override", "symalias"):
+                (hostile_ref_root / fixture_ref_name).unlink()
+            hostile_ref_root.rmdir()
+            (repo / ".git/packed-refs").unlink()
             run_checked([git_binary, "-c", "repack.writeBitmaps=false", "repack", "-ad"], repo)
             dangling_source = temporary_path / "unreachable-object-source"
             write_bytes(dangling_source, b"unreachable object body must never enter adapter\n", 0o600)
@@ -3108,13 +3672,98 @@ int main(int argc, char **argv) {
             linked = repo / ".claude/worktrees/adapter-linked"
             linked.parent.mkdir(parents=True, mode=0o700)
             run_checked([git_binary, "worktree", "add", "-q", "-b", "adapter-linked", str(linked)], repo)
+            marker_raw = (linked / ".git").read_text(encoding="utf-8")
+            linked_git_dir = pathlib.Path(marker_raw[len("gitdir: "):].strip())
+            linked_override_oid = "b" * len(head_oid)
+            common_hidden_oid = "c" * len(head_oid)
+            linked_unique_oid = "d" * len(head_oid)
+            packed_overlay_base_oid = "e" * len(head_oid)
+            packed_only_oid = "f" * len(head_oid)
+            common_git_dir = repo / ".git"
+            write_bytes(
+                common_git_dir / "packed-refs",
+                (
+                    "# pack-refs with: peeled fully-peeled sorted\n"
+                    + packed_overlay_base_oid + " refs/bisect/override\n"
+                    + packed_only_oid + " refs/rewritten/packed-only\n"
+                    + packed_overlay_base_oid + " refs/worktree/common-with-packed\n"
+                ).encode("ascii"),
+                0o600,
+            )
+            linked_ref_values = {
+                "bisect/override": linked_override_oid,
+                "worktree/current": linked_unique_oid,
+                "rewritten/current": linked_unique_oid,
+            }
+            common_ref_values = {
+                "foo": head_oid,
+                "stash": head_oid,
+                "bisect/override": common_hidden_oid,
+                "worktree/common-with-packed": common_hidden_oid,
+                "worktree/common-hidden": common_hidden_oid,
+                "rewritten/common-hidden": common_hidden_oid,
+            }
+            for relative, oid in common_ref_values.items():
+                target = common_git_dir / "refs" / relative
+                target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                write_bytes(target, (oid + "\n").encode("ascii"), 0o600)
+            for relative, oid in linked_ref_values.items():
+                target = linked_git_dir / "refs" / relative
+                target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                write_bytes(target, (oid + "\n").encode("ascii"), 0o600)
             linked_capture, linked_boundary = acquisition["create_git_metadata_adapter"](
                 str(linked), key, git_binary
             )
             assert linked_capture["git_control"]["marker"]["kind"] == "gitfile"
+            assert linked_capture["linked_worktree"] is True
+            linked_canonical = {
+                refname: oid for oid, refname in linked_capture["canonical_refs"]
+            }
+            assert linked_canonical["refs/foo"] == head_oid
+            assert linked_canonical["refs/stash"] == head_oid
+            assert linked_canonical["refs/bisect/override"] == linked_override_oid
+            assert linked_canonical["refs/rewritten/packed-only"] == packed_only_oid
+            assert (
+                linked_canonical["refs/worktree/common-with-packed"]
+                == packed_overlay_base_oid
+            )
+            assert linked_canonical["refs/worktree/current"] == linked_unique_oid
+            assert linked_canonical["refs/rewritten/current"] == linked_unique_oid
+            assert "refs/worktree/common-hidden" not in linked_canonical
+            assert "refs/rewritten/common-hidden" not in linked_canonical
+            linked_refs_output = acquisition["run_git"](
+                git_binary,
+                str(linked),
+                linked_boundary,
+                [
+                    "for-each-ref",
+                    "--sort=refname",
+                    "--format=%(objectname) %(refname)",
+                    "refs",
+                ],
+                "ADAPTER_LINKED_FOR_EACH_REF",
+            )
+            assert acquisition["parse_git_for_each_ref_output"](
+                linked_refs_output,
+                len(head_oid),
+            ) == linked_capture["canonical_refs"]
             acquisition["cleanup_git_metadata_adapter"](linked_boundary)
-            marker_raw = (linked / ".git").read_text(encoding="utf-8")
-            linked_git_dir = pathlib.Path(marker_raw[len("gitdir: "):].strip())
+            invalid_linked_ref = linked_git_dir / "refs/heads/outside-namespace"
+            invalid_linked_ref.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            write_bytes(invalid_linked_ref, (head_oid + "\n").encode("ascii"), 0o600)
+            roots_before_invalid_linked_ref = adapter_roots()
+            try:
+                expect_error(
+                    "adapter linked ref outside per-worktree namespaces",
+                    lambda: acquisition["create_git_metadata_adapter"](
+                        str(linked), key, git_binary
+                    ),
+                    "GIT_CAPTURE_WORKTREE_REF_NAMESPACE",
+                )
+            finally:
+                invalid_linked_ref.unlink()
+                invalid_linked_ref.parent.rmdir()
+            assert adapter_roots() == roots_before_invalid_linked_ref
             reverse = linked_git_dir / "gitdir"
             reverse_raw = reverse.read_bytes()
             rewrite_bytes(reverse, b"/private/tmp/unrelated/.git\n")
@@ -3127,6 +3776,7 @@ int main(int argc, char **argv) {
             finally:
                 rewrite_bytes(reverse, reverse_raw)
             report["git_metadata_adapter_linked_anchor_reverse"] = "PASS"
+            report["git_metadata_adapter_linked_ref_namespace_semantics"] = "PASS"
 
             # Hostile live controls and HEAD/index/ref drift occur only after
             # capture.  The final child returns the frozen HEAD; recapture/CAS
@@ -3758,6 +4408,27 @@ def run_partial_git_boundary_fixtures(acquisition, report):
         for keyword in diff_snapshot_call.keywords
         if isinstance(keyword.value, ast.Constant)
     }.get("enumerates_worktree") is True
+    ref_snapshot_calls = [
+        node for node in ast.walk(snapshot_function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "run_git"
+        and any(
+            isinstance(argument, ast.Constant) and argument.value == "GIT_FOR_EACH_REF"
+            for argument in node.args
+        )
+    ]
+    assert len(ref_snapshot_calls) == 1
+    ref_snapshot_call = ref_snapshot_calls[0]
+    assert isinstance(ref_snapshot_call.args[3], ast.List)
+    assert [element.value for element in ref_snapshot_call.args[3].elts] == [
+        "for-each-ref",
+        "--sort=refname",
+        "--format=%(objectname) %(refname)",
+        "refs",
+    ]
+    assert source_text.count("show" + "-ref") == 0
+    assert source_text.count('"for-each-ref"') == 4
     forbidden_commands = {
         ("ls-tree", "-r"),
         ("diff-index",),
@@ -3778,6 +4449,32 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     )
     create = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "create_git_metadata_adapter")
     create_source = ast.get_source_segment(ACQ_PATH.read_text(encoding="utf-8"), create) or ""
+    capture_calls = [
+        node for node in ast.walk(create)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "capture_git_metadata_source"
+    ]
+    mkdtemp_calls = [
+        node for node in ast.walk(create)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "tempfile"
+        and node.func.attr == "mkdtemp"
+    ]
+    assert len(capture_calls) == 1 and len(mkdtemp_calls) == 1
+    assert capture_calls[0].lineno < mkdtemp_calls[0].lineno
+    capture_source_node = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "capture_git_metadata_source"
+    )
+    assert any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "parse_captured_git_ref_state"
+        for node in ast.walk(capture_source_node)
+    )
     for event in (
         "SOURCE_CAPTURE_REVALIDATED",
         "SOURCE_SEALED_PREVALIDATED",
@@ -3807,6 +4504,8 @@ def main(argv=None):
     acquisition_loaded = runpy.run_path(str(ACQ_PATH))
     acquisition = acquisition_loaded["main"].__globals__
     report = {}
+    run_process_stderr_boundary_fixtures(acquisition, report)
+    run_captured_ref_observation_fixtures(acquisition, report)
     run_partial_git_boundary_fixtures(acquisition, report)
 
     good = package_archive()

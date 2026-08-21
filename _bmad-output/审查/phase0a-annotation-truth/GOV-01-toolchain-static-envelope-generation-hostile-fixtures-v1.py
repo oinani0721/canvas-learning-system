@@ -7,6 +7,7 @@ values, and writes only inside a temporary directory.  It never invokes
 """
 
 import argparse
+import ast
 import copy
 import datetime as dt
 import hashlib
@@ -2071,7 +2072,7 @@ def git_adapter_capture_cleanup_matrix(generator: Any) -> bool:
         # that capture.  Revalidation is a separate operation and will reject
         # the live drift; the adapter never performs a second ref read.
         capture = generator.capture_git_source(str(root))
-        _head_oid, head_ref = generator.captured_head_oid(capture)
+        _head_oid, head_ref = generator.captured_head_oid_and_ref(capture)
         relative_ref = head_ref[len("refs/") :]
         live_ref = pathlib.Path(capture["common_dir"]) / "refs" / relative_ref
         original_ref = live_ref.read_bytes()
@@ -2763,7 +2764,7 @@ def git_post_preflight_sandbox_matrix(
                 str(root),
                 isolated_boundary,
                 ["rev-parse", "--verify", "HEAD"],
-                "GIT_POST_PREFLIGHT_INCLUDE",
+                "GIT_HEAD",
             )
             if observed != isolated["head"]:
                 return False
@@ -2801,7 +2802,7 @@ def git_post_preflight_sandbox_matrix(
                 str(root),
                 alternates_boundary,
                 ["rev-parse", "--verify", "HEAD"],
-                "GIT_POST_CAPTURE_ALTERNATES",
+                "GIT_HEAD",
             ) != alternates_drift["head"]:
                 return False
             try:
@@ -2832,7 +2833,7 @@ def git_post_preflight_sandbox_matrix(
                 str(root),
                 config_boundary,
                 ["rev-parse", "--verify", "HEAD"],
-                "GIT_POST_CAPTURE_CONFIG",
+                "GIT_HEAD",
             ) != config_drift["head"]:
                 return False
             try:
@@ -2860,7 +2861,7 @@ def git_post_preflight_sandbox_matrix(
                 str(root),
                 index_boundary,
                 ["rev-parse", "--verify", "HEAD"],
-                "GIT_POST_CAPTURE_INDEX",
+                "GIT_HEAD",
             ) != index_drift["head"]:
                 return False
             try:
@@ -2892,7 +2893,7 @@ def git_post_preflight_sandbox_matrix(
                 str(root),
                 ref_boundary,
                 ["rev-parse", "--verify", "HEAD"],
-                "GIT_POST_CAPTURE_REF",
+                "GIT_HEAD",
             ) != ref_drift["head"]:
                 return False
             try:
@@ -2920,7 +2921,7 @@ def git_post_preflight_sandbox_matrix(
                 str(root),
                 adapter_boundary,
                 ["rev-parse", "--verify", "HEAD"],
-                "GIT_ADAPTER_TAMPER",
+                "GIT_HEAD",
             )
         except generator.GenerationError as error:
             if error.public_code != "GIT_ADAPTER_DRIFT":
@@ -2930,6 +2931,755 @@ def git_post_preflight_sandbox_matrix(
         finally:
             generator.cleanup_git_metadata_adapter(adapter_boundary)
     return True
+
+
+def frozen_ref_capture(
+    head_ref: str,
+    loose: Mapping[str, bytes],
+    packed: Optional[bytes],
+    worktree: Optional[Mapping[str, bytes]] = None,
+) -> Dict[str, Any]:
+    """Build the exact capture subset consumed by ``parse_captured_refs``."""
+
+    common_ref_raw = {
+        reference[len("refs/") :]: raw for reference, raw in loose.items()
+    }
+    worktree_ref_raw = {
+        reference[len("refs/") :]: raw
+        for reference, raw in (worktree or {}).items()
+    }
+    linked = worktree is not None
+    return {
+        "git_dir": "/capture/common/worktrees/linked" if linked else "/capture/common",
+        "common_dir": "/capture/common",
+        "raw_files": {
+            "head": ("ref: " + head_ref + "\n").encode("ascii"),
+            "packed_refs": packed,
+        },
+        "identity": {
+            "common_refs": {
+                "files": [
+                    {"relative": relative}
+                    for relative in sorted(common_ref_raw)
+                ]
+            },
+            "worktree_refs": {
+                "files": [
+                    {"relative": relative}
+                    for relative in sorted(worktree_ref_raw)
+                ]
+            },
+        },
+        "common_ref_raw": common_ref_raw,
+        "worktree_ref_raw": worktree_ref_raw,
+    }
+
+
+def captured_refs_contract_matrix(generator: Any) -> bool:
+    """Exercise strict ref parsing before any adapter or child can exist."""
+
+    oid_a = "1" * 40
+    oid_b = "2" * 40
+    oid_c = "3" * 40
+    peeled = "4" * 40
+    valid = frozen_ref_capture(
+        "refs/heads/main",
+        {
+            "refs/heads/main": (oid_b + "\n").encode("ascii"),
+            "refs/heads/alias": b"ref: refs/tags/release\n",
+        },
+        (
+            "# pack-refs with: peeled fully-peeled sorted \n"
+            + oid_a
+            + " refs/heads/main\n"
+            + oid_c
+            + " refs/tags/release\n^"
+            + peeled
+            + "\n"
+        ).encode("ascii"),
+    )
+    parsed = generator.parse_captured_refs(valid)
+    if (
+        parsed.head_oid != oid_b
+        or parsed.head_ref != "refs/heads/main"
+        or parsed.oid_width != 40
+        or parsed.expected
+        != (
+            (oid_c, "refs/heads/alias"),
+            (oid_b, "refs/heads/main"),
+            (oid_c, "refs/tags/release"),
+        )
+        or peeled in {oid for oid, _reference in parsed.expected}
+        or dict(parsed.effective_raw)["refs/heads/main"]
+        != (oid_b + "\n").encode("ascii")
+    ):
+        return False
+
+    headerless = generator.parse_captured_refs(
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            (oid_c + " refs/tags/headerless\n").encode("ascii"),
+        )
+    )
+    if (oid_c, "refs/tags/headerless") not in headerless.expected:
+        return False
+
+    legal_private_word = generator.parse_captured_refs(
+        frozen_ref_capture(
+            "refs/heads/main",
+            {
+                "refs/heads/main": (oid_a + "\n").encode("ascii"),
+                "refs/heads/canvas-vault-audit": (oid_b + "\n").encode("ascii"),
+            },
+            None,
+        )
+    )
+    if (oid_b, "refs/heads/canvas-vault-audit") not in legal_private_word.expected:
+        return False
+
+    linked = generator.parse_captured_refs(
+        frozen_ref_capture(
+            "refs/heads/main",
+            {
+                "refs/heads/main": (oid_a + "\n").encode("ascii"),
+                "refs/worktree/slot": b"not-an-oid\n",
+                "refs/bisect/common-only": ("9" * 64 + "\n").encode("ascii"),
+            },
+            (
+                oid_c
+                + " refs/bisect/packed-only\n"
+                + oid_a
+                + " refs/worktree/slot\n"
+            ).encode("ascii"),
+            worktree={
+                "refs/worktree/slot": (peeled + "\n").encode("ascii"),
+                "refs/rewritten/topic": (oid_b + "\n").encode("ascii"),
+            },
+        )
+    )
+    if linked.expected != (
+        (oid_c, "refs/bisect/packed-only"),
+        (oid_a, "refs/heads/main"),
+        (oid_b, "refs/rewritten/topic"),
+        (peeled, "refs/worktree/slot"),
+    ):
+        return False
+
+    def symbolic_chain(hops: int) -> Dict[str, bytes]:
+        names = ["refs/heads/depth-" + str(index) for index in range(hops)]
+        result = {
+            "refs/heads/main": (oid_a + "\n").encode("ascii"),
+            "refs/heads/depth-terminal": (oid_b + "\n").encode("ascii"),
+        }
+        for index, name in enumerate(names):
+            target = names[index + 1] if index + 1 < len(names) else "refs/heads/depth-terminal"
+            result[name] = ("ref: " + target + "\n").encode("ascii")
+        return result
+
+    depth_at_limit = generator.parse_captured_refs(
+        frozen_ref_capture(
+            "refs/heads/main",
+            symbolic_chain(generator.MAX_CAPTURED_REF_SYMREF_DEPTH),
+            None,
+        )
+    )
+    if (oid_b, "refs/heads/depth-0") not in depth_at_limit.expected:
+        return False
+
+    depth_over_limit_loose = symbolic_chain(
+        generator.MAX_CAPTURED_REF_SYMREF_DEPTH + 1
+    )
+    hostile = [
+        frozen_ref_capture(
+            "refs/heads/main",
+            {
+                "refs/heads/main": (oid_a + "\n").encode("ascii"),
+                "refs/heads/alias": b"ref: refs/heads/missing\n",
+            },
+            None,
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {
+                "refs/heads/main": b"ref: refs/heads/alias\n",
+                "refs/heads/alias": b"ref: refs/heads/main\n",
+            },
+            None,
+        ),
+        frozen_ref_capture(
+            "refs/heads/main", {"refs/heads/main": oid_a.encode("ascii")}, None
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": ("0" * 40 + "\n").encode("ascii")},
+            None,
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {
+                "refs/heads/main": (oid_a + "\n").encode("ascii"),
+                "refs/tags/mixed": ("2" * 64 + "\n").encode("ascii"),
+            },
+            None,
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            ("^" + peeled + "\n" + oid_c + " refs/tags/release\n").encode("ascii"),
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            (
+                oid_c
+                + " refs/tags/release\n# peeled separated\n^"
+                + peeled
+                + "\n"
+            ).encode("ascii"),
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            (
+                oid_c
+                + " refs/tags/release\n^"
+                + "0" * 40
+                + "\n"
+            ).encode("ascii"),
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            (
+                oid_c
+                + " refs/tags/release\n^"
+                + "4" * 64
+                + "\n"
+            ).encode("ascii"),
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            (("A" * 40) + " refs/tags/uppercase\n").encode("ascii"),
+        ),
+        frozen_ref_capture("refs/heads/main", depth_over_limit_loose, None),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            ("# pack-refs with: peeled unknown\n" + oid_b + " refs/tags/x\n").encode("ascii"),
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            (oid_b + " refs/tags/x\n" + oid_c + " refs/tags/x\n").encode("ascii"),
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            (
+                "# pack-refs with: sorted\n"
+                + oid_b
+                + " refs/tags/z\n"
+                + oid_c
+                + " refs/tags/a\n"
+            ).encode("ascii"),
+        ),
+        frozen_ref_capture(
+            "refs/heads/main",
+            {"refs/heads/main": (oid_a + "\n").encode("ascii")},
+            None,
+            worktree={"refs/heads/outside": (oid_b + "\n").encode("ascii")},
+        ),
+    ]
+    for capture in hostile:
+        try:
+            generator.parse_captured_refs(capture)
+        except generator.GenerationError:
+            continue
+        return False
+
+    original_capture = generator.capture_git_source
+    original_mkdtemp = generator.tempfile.mkdtemp
+    original_run_process = generator.run_process
+    events: List[str] = []
+
+    def forbidden_mkdtemp(*_args: Any, **_kwargs: Any) -> str:
+        events.append("adapter")
+        raise FixtureFailure("captured-refs-adapter-created")
+
+    def forbidden_child(*_args: Any, **_kwargs: Any) -> bytes:
+        events.append("child")
+        raise FixtureFailure("captured-refs-child-created")
+
+    generator.tempfile.mkdtemp = forbidden_mkdtemp
+    generator.run_process = forbidden_child
+    try:
+        for capture in hostile:
+            events.clear()
+            generator.capture_git_source = lambda _repo_root, frozen=capture: frozen
+            try:
+                generator._create_git_metadata_adapter_guarded(
+                    "/private/tmp",
+                    "/usr/bin/git",
+                    "/usr/bin",
+                    0,
+                    (),
+                    (),
+                    None,
+                )
+            except generator.GenerationError:
+                if events:
+                    return False
+            else:
+                return False
+    finally:
+        generator.capture_git_source = original_capture
+        generator.tempfile.mkdtemp = original_mkdtemp
+        generator.run_process = original_run_process
+    return True
+
+
+def captured_ref_limit_pre_adapter_matrix(generator: Any) -> bool:
+    """Prove every captured-ref limit fails before adapter creation or child exec."""
+
+    temp_parent = os.path.realpath(tempfile.gettempdir())
+    with tempfile.TemporaryDirectory(
+        prefix="gov01-generation-ref-limits-", dir=temp_parent
+    ) as temporary:
+        root = pathlib.Path(temporary) / "repo"
+        root.mkdir(mode=0o700)
+        run_synthetic_git(root, ["init", "-q"])
+        run_synthetic_git(
+            root,
+            ["commit", "--allow-empty", "-q", "-m", "fixture ref limits"],
+        )
+        original_limits = (
+            generator.MAX_CAPTURED_REF_BYTES,
+            generator.MAX_CAPTURED_REF_ENTRIES,
+            generator.MAX_CAPTURED_REF_DIRECTORIES,
+        )
+        original_capture = generator.capture_git_source
+        original_mkdtemp = generator.tempfile.mkdtemp
+        original_run_process = generator.run_process
+        events: List[str] = []
+
+        def forbidden_mkdtemp(*_args: Any, **_kwargs: Any) -> str:
+            events.append("adapter")
+            raise FixtureFailure("ref-limit-adapter-created")
+
+        def forbidden_child(*_args: Any, **_kwargs: Any) -> bytes:
+            events.append("child")
+            raise FixtureFailure("ref-limit-child-created")
+
+        generator.tempfile.mkdtemp = forbidden_mkdtemp
+        generator.run_process = forbidden_child
+        try:
+            cases = (
+                ((40, original_limits[1], original_limits[2]), "GIT_SOURCE_REFS_BYTE_LIMIT"),
+                ((original_limits[0], 1, original_limits[2]), "GIT_SOURCE_REFS_ENTRY_LIMIT"),
+                ((original_limits[0], original_limits[1], 1), "GIT_SOURCE_REFS_DIRECTORY_LIMIT"),
+            )
+            for limits, expected_code in cases:
+                events.clear()
+                generator.capture_git_source = original_capture
+                (
+                    generator.MAX_CAPTURED_REF_BYTES,
+                    generator.MAX_CAPTURED_REF_ENTRIES,
+                    generator.MAX_CAPTURED_REF_DIRECTORIES,
+                ) = limits
+                try:
+                    generator._create_git_metadata_adapter_guarded(
+                        str(root),
+                        "/usr/bin/git",
+                        "/usr/bin",
+                        0,
+                        (),
+                        (),
+                        None,
+                    )
+                except generator.GenerationError as error:
+                    if error.public_code != expected_code or events:
+                        return False
+                else:
+                    return False
+
+            oid = "1" * 40
+            effective_overflow = frozen_ref_capture(
+                "refs/heads/main",
+                {
+                    "refs/heads/main": (oid + "\n").encode("ascii"),
+                    "refs/heads/second": ("2" * 40 + "\n").encode("ascii"),
+                },
+                ("3" * 40 + " refs/tags/third\n").encode("ascii"),
+            )
+            events.clear()
+            generator.MAX_CAPTURED_REF_BYTES = original_limits[0]
+            generator.MAX_CAPTURED_REF_ENTRIES = 2
+            generator.MAX_CAPTURED_REF_DIRECTORIES = original_limits[2]
+            generator.capture_git_source = lambda _repo_root: effective_overflow
+            try:
+                generator._create_git_metadata_adapter_guarded(
+                    str(root),
+                    "/usr/bin/git",
+                    "/usr/bin",
+                    0,
+                    (),
+                    (),
+                    None,
+                )
+            except generator.GenerationError as error:
+                if error.public_code != "GIT_CAPTURE_EFFECTIVE_REF_LIMIT" or events:
+                    return False
+            else:
+                return False
+        finally:
+            (
+                generator.MAX_CAPTURED_REF_BYTES,
+                generator.MAX_CAPTURED_REF_ENTRIES,
+                generator.MAX_CAPTURED_REF_DIRECTORIES,
+            ) = original_limits
+            generator.capture_git_source = original_capture
+            generator.tempfile.mkdtemp = original_mkdtemp
+            generator.run_process = original_run_process
+    return True
+
+
+def for_each_ref_observation_matrix(generator: Any) -> bool:
+    """Bind the exact child argv and every returned ref value to the capture."""
+
+    head_oid = "1" * 40
+    other_oid = "2" * 40
+    head_ref = "refs/heads/main"
+    other_ref = "refs/tags/release"
+
+    class Boundary:
+        pass
+
+    boundary = Boundary()
+    boundary.head_oid = head_oid
+    boundary.expected_refs = ((head_oid, head_ref), (other_oid, other_ref))
+    exact_raw = (
+        head_oid + " " + head_ref + "\n" + other_oid + " " + other_ref + "\n"
+    ).encode("ascii")
+    output = [exact_raw]
+    calls: List[Tuple[Tuple[str, ...], str]] = []
+    original_run_git = generator.run_git
+
+    def frozen_run_git(
+        _git_binary: str,
+        _repo_root: str,
+        _boundary: Any,
+        arguments: Sequence[str],
+        label: str,
+        *_args: Any,
+        **_kwargs: Any,
+    ) -> bytes:
+        calls.append((tuple(arguments), label))
+        return output[0]
+
+    generator.run_git = frozen_run_git
+    try:
+        observed = generator.other_refs_observation(
+            "/usr/bin/git", "/private/tmp", boundary, head_ref
+        )
+        other_body = (other_oid + " " + other_ref + "\n").encode("ascii")
+        if (
+            observed != (generator.sha256(other_body), len(other_body))
+            or calls
+            != [
+                (
+                    (
+                        "for-each-ref",
+                        "--sort=refname",
+                        "--format=%(objectname) %(refname)",
+                        "refs",
+                    ),
+                    "GIT_FOR_EACH_REF",
+                )
+            ]
+        ):
+            return False
+        hostile_outputs = (
+            b"",
+            (head_oid + " " + head_ref + "\n").encode("ascii"),
+            exact_raw + ("3" * 40 + " refs/tags/extra\n").encode("ascii"),
+            ("4" * 40 + " " + head_ref + "\n" + other_oid + " " + other_ref + "\n").encode("ascii"),
+            exact_raw + (other_oid + " " + other_ref + "\n").encode("ascii"),
+            (other_oid + " " + other_ref + "\n" + head_oid + " " + head_ref + "\n").encode("ascii"),
+            ("0" * 40 + " " + head_ref + "\n" + other_oid + " " + other_ref + "\n").encode("ascii"),
+            ("5" * 64 + " " + head_ref + "\n" + other_oid + " " + other_ref + "\n").encode("ascii"),
+        )
+        for raw in hostile_outputs:
+            output[0] = raw
+            try:
+                generator.other_refs_observation(
+                    "/usr/bin/git", "/private/tmp", boundary, head_ref
+                )
+            except generator.GenerationError as error:
+                if not error.public_code.startswith("GIT_FOR_EACH_REF_"):
+                    return False
+                continue
+            return False
+    finally:
+        generator.run_git = original_run_git
+    return True
+
+
+def generation_git_argv_closure_matrix(root: pathlib.Path, generator: Any) -> bool:
+    """Cover every production label and prove full argv rejection pre-child."""
+
+    git_binary = "/usr/bin/git"
+    repo_root = "/private/tmp/gov01-generation-argv-repo"
+    object_oids = ("1" * 40, "2" * 40)
+
+    class Boundary:
+        pass
+
+    boundary = Boundary()
+    boundary.expected_object_oids = object_oids
+    boundary.adapter_git_fd = 7
+    artifact_path = generator.ARTIFACT_SPECS[0][1]
+    challenge = "GOV01-GEN-20260821-" + "a" * 64
+    cases = {
+        "GIT_ADAPTER_OBJECT_ENUMERATION": (
+            "cat-file",
+            "--batch-all-objects",
+            "--batch-check=%(objectname)",
+        ),
+        "GIT_ADAPTER_OBJECT_HASHES": ("cat-file", "--batch"),
+        "GIT_ADAPTER_HEAD": ("rev-parse", "--verify", "HEAD"),
+        "GIT_ADAPTER_HEAD_TREE": ("rev-parse", "--verify", "HEAD^{tree}"),
+        "GIT_HEAD": ("rev-parse", "--verify", "HEAD"),
+        "GIT_TREE": ("rev-parse", "--verify", "HEAD^{tree}"),
+        "GIT_HEAD_REF": ("symbolic-ref", "-q", "HEAD"),
+        "GIT_FOR_EACH_REF": (
+            "for-each-ref",
+            "--sort=refname",
+            "--format=%(objectname) %(refname)",
+            "refs",
+        ),
+        "GIT_ARTIFACT_TREE": (
+            "ls-tree",
+            "-z",
+            "--full-tree",
+            "HEAD",
+            "--",
+            artifact_path,
+        ),
+        "GIT_ARTIFACT_BLOB": ("show", "HEAD:" + artifact_path),
+        "GIT_MICRO_CURRENT_BYTES": (
+            "show",
+            "HEAD:" + generator.micro_relative(challenge),
+        ),
+    }
+    if set(cases) != set(generator.GENERATION_GIT_READ_LABELS):
+        return False
+    for label, tail in cases.items():
+        stdin_bytes = (
+            ("\n".join(object_oids) + "\n").encode("ascii")
+            if label == "GIT_ADAPTER_OBJECT_HASHES"
+            else None
+        )
+        argv = generator.generation_git_child_argv(git_binary, repo_root, tail)
+        generator.require_generation_git_child_argv(
+            argv,
+            git_binary,
+            repo_root,
+            tail,
+            label,
+            boundary,
+            (0,),
+            stdin_bytes,
+        )
+        for hostile_tail in (tail[:-1], tail + ("--hostile-insertion",)):
+            try:
+                generator.require_generation_git_child_argv(
+                    generator.generation_git_child_argv(
+                        git_binary, repo_root, hostile_tail
+                    ),
+                    git_binary,
+                    repo_root,
+                    hostile_tail,
+                    label,
+                    boundary,
+                    (0,),
+                    stdin_bytes,
+                )
+            except generator.GenerationError:
+                continue
+            return False
+
+    head_tail = cases["GIT_HEAD"]
+    head_argv = generator.generation_git_child_argv(
+        git_binary, repo_root, head_tail
+    )
+    for hostile_argv in (
+        head_argv[:1] + head_argv[2:],
+        head_argv[:1] + ["--hostile-prefix"] + head_argv[1:],
+        head_argv[:-1],
+        head_argv + ["--hostile-tail"],
+    ):
+        try:
+            generator.require_generation_git_child_argv(
+                hostile_argv,
+                git_binary,
+                repo_root,
+                head_tail,
+                "GIT_HEAD",
+                boundary,
+                (0,),
+                None,
+            )
+        except generator.GenerationError:
+            continue
+        return False
+
+    original_verify = generator.verify_git_metadata_adapter
+    original_identity_path = generator.identity_bound_directory_path
+    original_profile = generator.git_read_sandbox_profile
+    original_builder = generator.generation_git_child_argv
+    original_run_process = generator.run_process
+    child_events: List[Tuple[str, ...]] = []
+    generator.verify_git_metadata_adapter = lambda _boundary: None
+    generator.identity_bound_directory_path = lambda _fd, _label: "/private/tmp/adapter/git"
+    generator.git_read_sandbox_profile = lambda *_args, **_kwargs: b"(version 1)\n(deny default)\n"
+
+    def recording_child(argv: Sequence[str], *_args: Any, **_kwargs: Any) -> bytes:
+        child_events.append(tuple(argv))
+        return b"1\n"
+
+    generator.run_process = recording_child
+    try:
+        if generator.run_git(
+            git_binary,
+            repo_root,
+            boundary,
+            head_tail,
+            "GIT_HEAD",
+        ) != b"1\n" or len(child_events) != 1:
+            return False
+        child_events.clear()
+
+        def inserted_builder(
+            binary: str, repository: str, arguments: Sequence[str]
+        ) -> List[str]:
+            argv = original_builder(binary, repository, arguments)
+            return argv[:1] + ["--hostile-prefix"] + argv[1:]
+
+        generator.generation_git_child_argv = inserted_builder
+        try:
+            generator.run_git(
+                git_binary,
+                repo_root,
+                boundary,
+                head_tail,
+                "GIT_HEAD",
+            )
+        except generator.GenerationError as error:
+            if error.public_code != "GIT_READ_ARGV_PREFIX" or child_events:
+                return False
+        else:
+            return False
+        generator.generation_git_child_argv = original_builder
+        for hostile_tail in (head_tail[:-1], head_tail + ("--hostile-tail",)):
+            try:
+                generator.run_git(
+                    git_binary,
+                    repo_root,
+                    boundary,
+                    hostile_tail,
+                    "GIT_HEAD",
+                )
+            except generator.GenerationError as error:
+                if error.public_code != "GIT_READ_ARGV_TAIL" or child_events:
+                    return False
+                continue
+            return False
+    finally:
+        generator.verify_git_metadata_adapter = original_verify
+        generator.identity_bound_directory_path = original_identity_path
+        generator.git_read_sandbox_profile = original_profile
+        generator.generation_git_child_argv = original_builder
+        generator.run_process = original_run_process
+
+    module = ast.parse((root / GENERATOR_RELATIVE).read_text(encoding="utf-8"))
+    literal_labels = set()
+    for node in ast.walk(module):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        if node.func.id not in ("run_git", "git_scalar") or len(node.args) < 5:
+            continue
+        label_node = node.args[4]
+        if isinstance(label_node, ast.Constant) and isinstance(label_node.value, str):
+            literal_labels.add(label_node.value)
+    return literal_labels == set(generator.GENERATION_GIT_READ_LABELS)
+
+
+def ref_boundary_ast_matrix(root: pathlib.Path) -> bool:
+    """Lock the parse ordering and exact for-each-ref call as source shape."""
+
+    source = (root / GENERATOR_RELATIVE).read_text(encoding="utf-8")
+    module = ast.parse(source)
+    functions = {
+        node.name: node
+        for node in module.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    create = functions.get("_create_git_metadata_adapter_guarded")
+    observe = functions.get("other_refs_observation")
+    if create is None or observe is None:
+        return False
+    parse_lines = [
+        node.lineno
+        for node in ast.walk(create)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "parse_captured_refs"
+    ]
+    adapter_lines = [
+        node.lineno
+        for node in ast.walk(create)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "tempfile"
+        and node.func.attr == "mkdtemp"
+    ]
+    child_boundary_lines = [
+        node.lineno
+        for node in ast.walk(create)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "materialize_reachable_git_objects"
+    ]
+    if (
+        len(parse_lines) != 1
+        or len(adapter_lines) != 1
+        or len(child_boundary_lines) != 1
+        or not parse_lines[0] < adapter_lines[0] < child_boundary_lines[0]
+    ):
+        return False
+    run_git_calls = [
+        node
+        for node in ast.walk(observe)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "run_git"
+    ]
+    if len(run_git_calls) != 1 or len(run_git_calls[0].args) < 5:
+        return False
+    try:
+        arguments = ast.literal_eval(run_git_calls[0].args[3])
+        label = ast.literal_eval(run_git_calls[0].args[4])
+    except (TypeError, ValueError):
+        return False
+    return arguments == [
+        "for-each-ref",
+        "--sort=refname",
+        "--format=%(objectname) %(refname)",
+        "refs",
+    ] and label == "GIT_FOR_EACH_REF"
 
 
 def run_synthetic_git(root: pathlib.Path, arguments: Sequence[str]) -> None:
@@ -3026,6 +3776,214 @@ def add_synthetic_opaque_gitlink(root: pathlib.Path) -> str:
         ],
     )
     return oid
+
+
+def non_head_missing_tip_adapter_matrix(root: pathlib.Path, generator: Any) -> bool:
+    """A missing non-HEAD tip remains observable but never enters the pack."""
+
+    temp_parent = os.path.realpath(tempfile.gettempdir())
+    with tempfile.TemporaryDirectory(
+        prefix="gov01-generation-missing-ref-tip-", dir=temp_parent
+    ) as temporary:
+        synthetic_root = pathlib.Path(temporary)
+        for _role, relative in generator.ARTIFACT_SPECS:
+            source = root / relative
+            target = synthetic_root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+            os.chmod(target, source.stat().st_mode & 0o777)
+        run_synthetic_git(synthetic_root, ["init", "-q"])
+        run_synthetic_git(
+            synthetic_root,
+            ["add", "--"] + [relative for _role, relative in generator.ARTIFACT_SPECS],
+        )
+        add_synthetic_opaque_gitlink(synthetic_root)
+        run_synthetic_git(
+            synthetic_root,
+            ["commit", "-q", "-m", "chore(governance): missing-tip baseline"],
+        )
+        object_format = run_synthetic_git_output(
+            synthetic_root, ["rev-parse", "--show-object-format"]
+        ).decode("ascii").strip()
+        missing_tip_oid = "9" * (40 if object_format == "sha1" else 64)
+        missing_tip_ref = "refs/heads/unsealed-tip"
+        missing_tip_path = synthetic_root / ".git" / missing_tip_ref
+        missing_tip_path.parent.mkdir(parents=True, exist_ok=True)
+        missing_tip_path.write_bytes((missing_tip_oid + "\n").encode("ascii"))
+        symalias_ref = "refs/heads/unsealed-alias"
+        symalias_path = synthetic_root / ".git" / symalias_ref
+        symalias_path.write_bytes(("ref: " + missing_tip_ref + "\n").encode("ascii"))
+        override_ref = "refs/tags/override"
+        packed_override_oid = "8" * len(missing_tip_oid)
+        loose_override_oid = "7" * len(missing_tip_oid)
+        packed_refs_path = synthetic_root / ".git" / "packed-refs"
+        packed_refs_path.write_bytes(
+            (
+                "# pack-refs with: peeled fully-peeled sorted \n"
+                + packed_override_oid
+                + " "
+                + override_ref
+                + "\n"
+            ).encode("ascii")
+        )
+        loose_override_path = synthetic_root / ".git" / override_ref
+        loose_override_path.parent.mkdir(parents=True, exist_ok=True)
+        loose_override_path.write_bytes((loose_override_oid + "\n").encode("ascii"))
+        synthetic_generator = load_generator(synthetic_root)
+        baseline = synthetic_generator.repository_baseline(str(synthetic_root))
+        boundary = baseline["git_boundary"]
+        other_refs_body = (
+            missing_tip_oid
+            + " "
+            + symalias_ref
+            + "\n"
+            + missing_tip_oid
+            + " "
+            + missing_tip_ref
+            + "\n"
+            + loose_override_oid
+            + " "
+            + override_ref
+            + "\n"
+        ).encode("ascii")
+        passed = (
+            (missing_tip_oid, missing_tip_ref) in boundary.expected_refs
+            and (missing_tip_oid, symalias_ref) in boundary.expected_refs
+            and (loose_override_oid, override_ref) in boundary.expected_refs
+            and (packed_override_oid, override_ref) not in boundary.expected_refs
+            and missing_tip_oid not in boundary.expected_object_oids
+            and loose_override_oid not in boundary.expected_object_oids
+            and baseline["other_refs_sha256"]
+            == synthetic_generator.sha256(other_refs_body)
+            and baseline["other_refs_bytes"] == len(other_refs_body)
+        )
+        try:
+            synthetic_generator.finalize_git_metadata_adapter(boundary)
+        except BaseException:
+            synthetic_generator.cleanup_git_metadata_adapter(boundary)
+            raise
+        synthetic_generator.require_git_adapter_quiescent("FIXTURE_MISSING_REF_TIP")
+        return passed
+
+
+def linked_worktree_ref_namespace_matrix(root: pathlib.Path, generator: Any) -> bool:
+    """Exercise real linked-worktree ref overlay, packed visibility and CAS."""
+
+    temp_parent = os.path.realpath(tempfile.gettempdir())
+    with tempfile.TemporaryDirectory(
+        prefix="gov01-generation-linked-refs-", dir=temp_parent
+    ) as temporary:
+        container = pathlib.Path(temporary)
+        primary = container / "primary"
+        worktree_name = "linked-ref-fixture"
+        linked = primary / ".claude" / "worktrees" / worktree_name
+        primary.mkdir(mode=0o700)
+        for _role, relative in generator.ARTIFACT_SPECS:
+            source = root / relative
+            target = primary / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+            os.chmod(target, source.stat().st_mode & 0o777)
+        run_synthetic_git(primary, ["init", "-q"])
+        run_synthetic_git(
+            primary,
+            ["add", "--"] + [relative for _role, relative in generator.ARTIFACT_SPECS],
+        )
+        add_synthetic_opaque_gitlink(primary)
+        run_synthetic_git(
+            primary,
+            ["commit", "-q", "-m", "chore(governance): linked ref baseline"],
+        )
+        run_synthetic_git(
+            primary,
+            ["worktree", "add", "-q", "-b", worktree_name, str(linked)],
+        )
+        object_format = run_synthetic_git_output(
+            linked, ["rev-parse", "--show-object-format"]
+        ).decode("ascii").strip()
+        oid_width = 40 if object_format == "sha1" else 64
+        common_hidden_oid = "6" * oid_width
+        packed_visible_oid = "5" * oid_width
+        packed_shadowed_oid = "4" * oid_width
+        worktree_bisect_oid = "3" * oid_width
+        worktree_override_oid = "7" * oid_width
+        common_git_dir = primary / ".git"
+        linked_git_dir = pathlib.Path(
+            run_synthetic_git_output(linked, ["rev-parse", "--absolute-git-dir"])
+            .decode("utf-8")
+            .strip()
+        )
+        common_hidden = common_git_dir / "refs/bisect/common-only"
+        common_hidden.parent.mkdir(parents=True, exist_ok=True)
+        common_hidden.write_bytes((common_hidden_oid + "\n").encode("ascii"))
+        common_override = common_git_dir / "refs/worktree/slot"
+        common_override.parent.mkdir(parents=True, exist_ok=True)
+        common_override.write_bytes((common_hidden_oid + "\n").encode("ascii"))
+        (common_git_dir / "packed-refs").write_bytes(
+            (
+                "# pack-refs with: sorted\n"
+                + packed_visible_oid
+                + " refs/rewritten/packed-only\n"
+                + packed_shadowed_oid
+                + " refs/worktree/slot\n"
+            ).encode("ascii")
+        )
+        worktree_bisect = linked_git_dir / "refs/bisect/linked"
+        worktree_bisect.parent.mkdir(parents=True, exist_ok=True)
+        worktree_bisect.write_bytes((worktree_bisect_oid + "\n").encode("ascii"))
+        worktree_override = linked_git_dir / "refs/worktree/slot"
+        worktree_override.parent.mkdir(parents=True, exist_ok=True)
+        worktree_override.write_bytes((worktree_override_oid + "\n").encode("ascii"))
+        worktree_alias = linked_git_dir / "refs/rewritten/alias"
+        worktree_alias.parent.mkdir(parents=True, exist_ok=True)
+        worktree_alias.write_bytes(b"ref: refs/worktree/slot\n")
+
+        synthetic_generator = load_generator(linked)
+        baseline = synthetic_generator.repository_baseline(str(linked))
+        boundary = baseline["git_boundary"]
+        expected_map = dict(
+            (reference, oid) for oid, reference in boundary.expected_refs
+        )
+        passed = (
+            expected_map.get("refs/bisect/linked") == worktree_bisect_oid
+            and "refs/bisect/common-only" not in expected_map
+            and expected_map.get("refs/rewritten/packed-only") == packed_visible_oid
+            and expected_map.get("refs/rewritten/alias") == worktree_override_oid
+            and expected_map.get("refs/worktree/slot") == worktree_override_oid
+            and common_hidden_oid not in boundary.expected_object_oids
+            and packed_visible_oid not in boundary.expected_object_oids
+            and packed_shadowed_oid not in boundary.expected_object_oids
+            and worktree_bisect_oid not in boundary.expected_object_oids
+            and worktree_override_oid not in boundary.expected_object_oids
+        )
+        frozen_observation = (
+            baseline["other_refs_sha256"],
+            baseline["other_refs_bytes"],
+        )
+        original_override = worktree_override.read_bytes()
+        worktree_override.write_bytes(("2" * oid_width + "\n").encode("ascii"))
+        try:
+            if synthetic_generator.other_refs_observation(
+                baseline["git_binary"],
+                str(linked),
+                boundary,
+                baseline["head_ref"],
+            ) != frozen_observation:
+                passed = False
+            try:
+                synthetic_generator.revalidate_git_metadata_source(boundary)
+            except synthetic_generator.GenerationError as error:
+                if error.public_code != "GIT_ADAPTER_SOURCE_DRIFT":
+                    passed = False
+            else:
+                passed = False
+        finally:
+            worktree_override.write_bytes(original_override)
+        # Restoring the bytes cannot restore the captured inode timestamps;
+        # after the intentional CAS witness, only fail-closed cleanup is valid.
+        synthetic_generator.cleanup_git_metadata_adapter(boundary)
+        synthetic_generator.require_git_adapter_quiescent("FIXTURE_LINKED_REFS")
+        return passed
 
 
 def reachable_object_adapter_matrix(generator: Any) -> bool:
@@ -3533,42 +4491,34 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
                 str(root),
                 boundary,
                 ["rev-parse", "--verify", "HEAD"],
-                "FIXTURE_REACHABLE_HEAD",
+                "GIT_HEAD",
             ) == head_oid, "reachable-head")
-            require(generator.run_git(
-                git_binary,
-                str(root),
-                boundary,
-                ["show", "HEAD:" + authorized_relative],
-                "FIXTURE_REACHABLE_AUTHORIZED_BLOB",
-            ) == authorized_raw, "reachable-authorized-blob")
-            require(generator.run_git(
-                git_binary,
-                str(root),
-                boundary,
-                ["show", "HEAD:" + reference_sibling_relative],
-                "FIXTURE_REACHABLE_REFERENCE_SIBLING",
-            ) == reference_sibling_raw, "reachable-reference-sibling")
             require(
                 "_reference" in dict(boundary.current_path_resolution.tree_contexts),
                 "reachable-unselected-same-tree-gitlink-context",
             )
-            for absent_oid in (
+            enumerated = set(
+                generator.run_git(
+                    git_binary,
+                    str(root),
+                    boundary,
+                    [
+                        "cat-file",
+                        "--batch-all-objects",
+                        "--batch-check=%(objectname)",
+                    ],
+                    "GIT_ADAPTER_OBJECT_ENUMERATION",
+                ).decode("ascii").splitlines()
+            )
+            require(enumerated == expected, "reachable-adapter-object-enumeration")
+            require(not enumerated.intersection((
                 gitlink_oid,
                 unrelated_oid,
                 private_oid,
                 ordinary_tree_oid,
                 private_tree_oid,
                 dangling_oid,
-            ):
-                require(not generator.run_git(
-                    git_binary,
-                    str(root),
-                    boundary,
-                    ["cat-file", "-e", absent_oid],
-                    "FIXTURE_REACHABLE_ABSENT",
-                    allowed_returncodes=(1,),
-                ), "reachable-absent-blob")
+            )), "reachable-absent-object-set")
             objects_root = pathlib.Path(boundary.git_dir) / "objects"
             relative_files = sorted(
                 str(path.relative_to(objects_root))
@@ -3998,6 +4948,13 @@ def _run_fixture_checks(root: pathlib.Path) -> Dict[str, Any]:
         validator,
         baseline,
     )
+    captured_refs_bound = captured_refs_contract_matrix(generator)
+    captured_ref_limits_bound = captured_ref_limit_pre_adapter_matrix(generator)
+    for_each_ref_bound = for_each_ref_observation_matrix(generator)
+    ref_boundary_ast_bound = ref_boundary_ast_matrix(root)
+    git_argv_closure_bound = generation_git_argv_closure_matrix(root, generator)
+    non_head_missing_tip_bound = non_head_missing_tip_adapter_matrix(root, generator)
+    linked_worktree_refs_bound = linked_worktree_ref_namespace_matrix(root, generator)
     transition_mode, bound_pure = committed_transition_matrix(root, generator, validator)
     final_delete_capability = git_adapter_final_delete_capability_characterization(generator)
     require(
@@ -4044,6 +5001,13 @@ def _run_fixture_checks(root: pathlib.Path) -> Dict[str, Any]:
         "production_existing_output_recovery": production_existing_recovery_matrix(generator),
         "exclusive_create_no_overwrite": exclusive_write_matrix(generator),
         "git_control_fail_closed": git_control_matrix(generator),
+        "captured_refs_strict_pre_adapter": captured_refs_bound,
+        "captured_ref_limits_pre_adapter": captured_ref_limits_bound,
+        "for_each_ref_value_equality": for_each_ref_bound,
+        "ref_boundary_ast_shape": ref_boundary_ast_bound,
+        "generation_git_full_argv_closure": git_argv_closure_bound,
+        "non_head_missing_tip_outside_sealed_pack": non_head_missing_tip_bound,
+        "linked_worktree_ref_namespaces": linked_worktree_refs_bound,
         "git_adapter_capture_cleanup": git_adapter_capture_cleanup_matrix(generator),
         "git_metadata_adapter_declared_host_contract": host_contract_bound,
         "git_child_temp_parent_namespace_denied": git_child_parent_namespace_denial_matrix(generator),

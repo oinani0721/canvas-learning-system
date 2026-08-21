@@ -73,6 +73,16 @@ class CapturedIndexTreeProof(NamedTuple):
     opaque_gitlink_count: int
 
 
+class CapturedRefs(NamedTuple):
+    """One canonical, object-independent view of the frozen ref namespace."""
+
+    effective_raw: Tuple[Tuple[str, bytes], ...]
+    expected: Tuple[Tuple[str, str], ...]
+    head_oid: str
+    head_ref: str
+    oid_width: int
+
+
 class GitReadBoundary:
     """One sealed, self-contained Git metadata adapter.
 
@@ -96,6 +106,7 @@ class GitReadBoundary:
         "adapter_git_fd",
         "source_fingerprint",
         "adapter_fingerprint",
+        "expected_refs",
         "expected_object_oids",
         "expected_object_types",
         "current_required_blob_paths",
@@ -128,6 +139,7 @@ class GitReadBoundary:
         adapter_git_fd: int,
         source_fingerprint: str,
         adapter_fingerprint: str,
+        expected_refs: Sequence[Tuple[str, str]],
         expected_object_types: Mapping[str, str],
         current_required_blob_paths: Sequence[str],
         parent_required_absent_paths: Sequence[str],
@@ -154,6 +166,7 @@ class GitReadBoundary:
         self.adapter_git_fd = adapter_git_fd
         self.source_fingerprint = source_fingerprint
         self.adapter_fingerprint = adapter_fingerprint
+        self.expected_refs = tuple(expected_refs)
         self.expected_object_types = tuple(sorted(expected_object_types.items()))
         self.expected_object_oids = tuple(oid for oid, _kind in self.expected_object_types)
         self.current_required_blob_paths = tuple(current_required_blob_paths)
@@ -398,6 +411,11 @@ MAX_GIT_INDEX_BYTES = 64 * 1024 * 1024
 MAX_GIT_REACHABLE_PACK_BYTES = 1024 * 1024 * 1024
 MAX_GIT_REACHABLE_OBJECTS = 250_000
 MAX_GIT_PACK_CONTAINER_ENTRIES = 4096
+MAX_CAPTURED_REF_BYTES = MAX_GIT_BYTES
+MAX_CAPTURED_REF_ENTRIES = MAX_GIT_REACHABLE_OBJECTS
+MAX_CAPTURED_REF_DIRECTORIES = MAX_GIT_PACK_CONTAINER_ENTRIES
+MAX_CAPTURED_REF_SYMREF_DEPTH = 4
+WORKTREE_REF_NAMESPACES = ("bisect/", "worktree/", "rewritten/")
 GENERATION_CHALLENGE_RE = re.compile(r"\AGOV01-GEN-[0-9]{8}-[0-9a-f]{64}\Z")
 ACQUISITION_CHALLENGE_RE = re.compile(r"\AGOV01-SA-[0-9]{8}-[0-9a-f]{64}\Z")
 SHA256_RE = re.compile(r"\A[0-9a-f]{64}\Z")
@@ -1069,12 +1087,20 @@ def capture_git_source_tree(
     path: str,
     label: str,
     frozen_raw: Optional[Dict[str, bytes]] = None,
+    budget: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
+    if budget is None:
+        budget = {"bytes": 0, "entries": 0, "directories": 0}
+    elif set(budget) != {"bytes", "entries", "directories"} or any(
+        not isinstance(value, int) or isinstance(value, bool) or value < 0
+        for value in budget.values()
+    ):
+        fail(Exit.INTERNAL, "GIT_SOURCE_REF_BUDGET")
     try:
         root_metadata = no_symlink_path(path, label)
     except GenerationError as error:
         if error.public_code == label + "_MISSING":
-            return {"state": "ABSENT", "files": []}
+            return {"state": "ABSENT", "directories": [], "files": []}
         raise
     if (
         not stat.S_ISDIR(root_metadata.st_mode)
@@ -1086,6 +1112,9 @@ def capture_git_source_tree(
     directories: List[Dict[str, Any]] = []
 
     def walk(current_path: str, relative: str) -> None:
+        budget["directories"] += 1
+        if budget["directories"] > MAX_CAPTURED_REF_DIRECTORIES:
+            fail(Exit.PREFLIGHT, "GIT_SOURCE_REFS_DIRECTORY_LIMIT")
         before = no_symlink_path(current_path, label + "_DIRECTORY")
         if (
             not stat.S_ISDIR(before.st_mode)
@@ -1093,11 +1122,21 @@ def capture_git_source_tree(
             or stat.S_IMODE(before.st_mode) & 0o022
         ):
             fail(Exit.PREFLIGHT, label + "_DIRECTORY_POLICY")
+        entries = []
         try:
-            entries = list(os.scandir(current_path))
+            with os.scandir(current_path) as scanner:
+                for entry in scanner:
+                    entries.append(entry)
+                    if budget["entries"] + len(entries) > MAX_CAPTURED_REF_ENTRIES:
+                        fail(Exit.PREFLIGHT, "GIT_SOURCE_REFS_ENTRY_LIMIT")
+        except GenerationError:
+            raise
         except OSError:
             fail(Exit.PREFLIGHT, label + "_SCAN")
         for entry in sorted(entries, key=lambda item: os.fsencode(item.name)):
+            budget["entries"] += 1
+            if budget["entries"] > MAX_CAPTURED_REF_ENTRIES:
+                fail(Exit.PREFLIGHT, "GIT_SOURCE_REFS_ENTRY_LIMIT")
             name = entry.name
             if (
                 not isinstance(name, str)
@@ -1106,6 +1145,12 @@ def capture_git_source_tree(
             ):
                 fail(Exit.PREFLIGHT, label + "_NAME")
             child_relative = name if not relative else relative + "/" + name
+            try:
+                child_relative_bytes = child_relative.encode("utf-8", "strict")
+            except UnicodeEncodeError:
+                fail(Exit.PREFLIGHT, label + "_NAME_ENCODING")
+            if len(child_relative_bytes) > 1024:
+                fail(Exit.PREFLIGHT, label + "_NAME_LENGTH")
             child_path = os.path.join(current_path, name)
             child_metadata = os.lstat(child_path)
             if stat.S_ISLNK(child_metadata.st_mode):
@@ -1120,6 +1165,9 @@ def capture_git_source_tree(
                 )
                 if frozen_raw is not None:
                     frozen_raw[child_relative] = raw
+                budget["bytes"] += len(raw)
+                if budget["bytes"] > MAX_CAPTURED_REF_BYTES:
+                    fail(Exit.PREFLIGHT, "GIT_SOURCE_REFS_BYTE_LIMIT")
                 files.append({"relative": child_relative, "observation": observation})
             else:
                 fail(Exit.PREFLIGHT, label + "_SPECIAL")
@@ -1164,22 +1212,23 @@ def capture_git_source(repo_root: str) -> Dict[str, Any]:
         file_observations[role] = entry
     common_ref_raw: Dict[str, bytes] = {}
     worktree_ref_raw: Dict[str, bytes] = {}
+    ref_budget = {"bytes": 0, "entries": 0, "directories": 0}
     common_refs = capture_git_source_tree(
         os.path.join(common_dir, "refs"),
         "GIT_SOURCE_COMMON_REFS",
         common_ref_raw,
+        ref_budget,
     )
     worktree_refs = (
         capture_git_source_tree(
             os.path.join(git_dir, "refs"),
             "GIT_SOURCE_WORKTREE_REFS",
             worktree_ref_raw,
+            ref_budget,
         )
         if git_dir != common_dir
-        else {"state": "ABSENT", "files": []}
+        else {"state": "ABSENT", "directories": [], "files": []}
     )
-    if worktree_refs.get("files"):
-        fail(Exit.PREFLIGHT, "GIT_WORKTREE_REFS_UNSUPPORTED")
     objects_metadata = no_symlink_path(os.path.join(common_dir, "objects"), "GIT_SOURCE_OBJECTS")
     if (
         not stat.S_ISDIR(objects_metadata.st_mode)
@@ -2291,89 +2340,303 @@ def parse_object_oid_lines(raw: bytes, oid_bytes: int, label: str) -> Tuple[str,
     return tuple(values)
 
 
-def captured_ref_map(capture: Mapping[str, Any]) -> Dict[str, bytes]:
-    raw_files = capture.get("raw_files")
-    identity = capture.get("identity")
-    if not isinstance(raw_files, dict) or not isinstance(identity, dict):
-        fail(Exit.INTERNAL, "GIT_CAPTURE_SCHEMA")
-    refs: Dict[str, bytes] = {}
-    tree = identity.get("common_refs")
-    if not isinstance(tree, dict):
-        fail(Exit.INTERNAL, "GIT_CAPTURE_REFS")
-    frozen_common = capture.get("common_ref_raw")
-    if not isinstance(frozen_common, dict):
-        fail(Exit.INTERNAL, "GIT_CAPTURE_REF_RAW")
-    expected_relatives = set()
-    for entry in tree.get("files", []):
-        relative = entry.get("relative")
-        if not isinstance(relative, str):
-            fail(Exit.INTERNAL, "GIT_CAPTURE_REF_PATH")
-        expected_relatives.add(relative)
-        raw = frozen_common.get(relative)
-        if not isinstance(raw, bytes):
-            fail(Exit.INTERNAL, "GIT_CAPTURE_REF_RAW")
-        refs["refs/" + relative] = raw
-    if set(frozen_common) != expected_relatives:
-        fail(Exit.INTERNAL, "GIT_CAPTURE_REF_RAW_SET")
-    packed = raw_files.get("packed_refs")
-    if packed is not None:
-        if not isinstance(packed, bytes):
-            fail(Exit.INTERNAL, "GIT_CAPTURE_PACKED_REFS")
-        for line in packed.splitlines():
-            if not line or line.startswith((b"#", b"^")):
-                continue
-            fields = line.split(b" ")
-            if len(fields) != 2:
-                fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_FORMAT")
+def validate_captured_refname(value: Any, label: str) -> str:
+    """Validate the strict ASCII refname subset used by the sealed adapter."""
+
+    if not isinstance(value, str) or not value.startswith("refs/") or len(value) > 1024:
+        fail(Exit.PREFLIGHT, label + "_FORMAT")
+    try:
+        raw = value.encode("ascii", "strict")
+    except UnicodeEncodeError:
+        fail(Exit.PREFLIGHT, label + "_ENCODING")
+    if (
+        not raw
+        or value.endswith(("/", "."))
+        or "//" in value
+        or ".." in value
+        or "@{" in value
+        or any(byte <= 0x20 or byte == 0x7F for byte in raw)
+        or any(character in value for character in "~^:?*[\\")
+    ):
+        fail(Exit.PREFLIGHT, label + "_FORMAT")
+    components = value.split("/")
+    if (
+        len(components) < 2
+        or components[0] != "refs"
+        or any(
+            not component
+            or component in (".", "..")
+            or component.startswith(".")
+            or component.endswith(".lock")
+            for component in components
+        )
+    ):
+        fail(Exit.PREFLIGHT, label + "_FORMAT")
+    return value
+
+
+def captured_ref_components(reference: str, label: str) -> List[str]:
+    """Return safe adapter-path components for an already-private Git ref."""
+
+    return validate_captured_refname(reference, label).split("/")
+
+
+def parse_captured_ref_value(raw: Any, label: str) -> Tuple[str, str]:
+    """Return (kind, value) for one exact frozen loose-ref byte string."""
+
+    if not isinstance(raw, bytes):
+        fail(Exit.INTERNAL, label + "_RAW")
+    if (
+        not raw
+        or not raw.endswith(b"\n")
+        or raw.count(b"\n") != 1
+        or b"\r" in raw
+        or b"\x00" in raw
+    ):
+        fail(Exit.PREFLIGHT, label + "_FORMAT")
+    body = raw[:-1]
+    if body.startswith(b"ref: "):
+        try:
+            target = body[5:].decode("ascii", "strict")
+        except UnicodeDecodeError:
+            fail(Exit.PREFLIGHT, label + "_ENCODING")
+        return "symbolic", validate_captured_refname(target, label + "_TARGET")
+    try:
+        oid = body.decode("ascii", "strict")
+    except UnicodeDecodeError:
+        fail(Exit.PREFLIGHT, label + "_ENCODING")
+    if GIT_OID_RE.fullmatch(oid) is None:
+        fail(Exit.PREFLIGHT, label + "_OID")
+    if set(oid) == {"0"}:
+        fail(Exit.PREFLIGHT, label + "_OID_ZERO")
+    return "oid", oid
+
+
+def parse_captured_packed_refs(raw: Optional[bytes]) -> Tuple[Dict[str, str], Tuple[str, ...]]:
+    """Parse the same strict packed-refs grammar as the static executor."""
+
+    if raw is None:
+        return {}, ()
+    if not isinstance(raw, bytes):
+        fail(Exit.INTERNAL, "GIT_CAPTURE_PACKED_REFS")
+    if not raw:
+        return {}, ()
+    if not raw.endswith(b"\n") or b"\r" in raw or b"\x00" in raw:
+        fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_FORMAT")
+    primary: Dict[str, str] = {}
+    peeled_oids: List[str] = []
+    peel_allowed = False
+    sorted_declared = False
+    previous_primary_ref: Optional[str] = None
+    for line_index, raw_line in enumerate(raw[:-1].split(b"\n")):
+        if not raw_line:
+            fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_FORMAT")
+        if raw_line.startswith(b"#"):
+            if line_index != 0 or not raw_line.startswith(b"# pack-refs with: "):
+                fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_HEADER")
             try:
-                oid = fields[0].decode("ascii", "strict")
-                reference = fields[1].decode("ascii", "strict")
+                capabilities_text = raw_line[len(b"# pack-refs with: ") :].decode(
+                    "ascii", "strict"
+                )
             except UnicodeDecodeError:
                 fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_ENCODING")
-            if GIT_OID_RE.fullmatch(oid) is None or not reference.startswith("refs/"):
-                fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_VALUE")
-            refs.setdefault(reference, (oid + "\n").encode("ascii"))
-    return refs
-
-
-def captured_head_oid(capture: Mapping[str, Any]) -> Tuple[str, str]:
-    raw_files = capture.get("raw_files")
-    if not isinstance(raw_files, dict) or not isinstance(raw_files.get("head"), bytes):
-        fail(Exit.INTERNAL, "GIT_CAPTURE_HEAD")
-    current = raw_files["head"]
-    head_ref = ""
-    refs = captured_ref_map(capture)
-    seen = set()
-    for _depth in range(8):
-        if current.count(b"\n") != 1 or not current.endswith(b"\n"):
-            fail(Exit.PREFLIGHT, "GIT_CAPTURE_HEAD_FORMAT")
-        if current.startswith(b"ref: "):
-            try:
-                reference = current[5:-1].decode("ascii", "strict")
-            except UnicodeDecodeError:
-                fail(Exit.PREFLIGHT, "GIT_CAPTURE_HEAD_ENCODING")
-            if not head_ref:
-                head_ref = validate_head_ref(reference)
-            if reference in seen or reference not in refs:
-                fail(Exit.PREFLIGHT, "GIT_CAPTURE_HEAD_REF")
-            seen.add(reference)
-            current = refs[reference]
+            capabilities = capabilities_text.strip().split(" ")
+            if (
+                not capabilities
+                or any(not capability for capability in capabilities)
+                or len(set(capabilities)) != len(capabilities)
+                or not set(capabilities).issubset({"peeled", "fully-peeled", "sorted"})
+            ):
+                fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_HEADER")
+            sorted_declared = "sorted" in capabilities
+            peel_allowed = False
             continue
+        if raw_line.startswith(b"^"):
+            if not peel_allowed:
+                fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_PEELED_POSITION")
+            peeled_kind, peeled_oid = parse_captured_ref_value(
+                raw_line[1:] + b"\n", "GIT_PACKED_REFS_PEELED"
+            )
+            if peeled_kind != "oid":
+                fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_PEELED_VALUE")
+            peeled_oids.append(peeled_oid)
+            peel_allowed = False
+            continue
+        if raw_line.count(b" ") != 1:
+            fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_FORMAT")
+        oid_raw, reference_raw = raw_line.split(b" ", 1)
         try:
-            oid = current[:-1].decode("ascii", "strict")
+            reference = reference_raw.decode("ascii", "strict")
         except UnicodeDecodeError:
-            fail(Exit.PREFLIGHT, "GIT_CAPTURE_HEAD_OID")
-        if GIT_OID_RE.fullmatch(oid) is None or not head_ref:
-            fail(Exit.PREFLIGHT, "GIT_CAPTURE_HEAD_OID")
-        return oid, head_ref
-    fail(Exit.PREFLIGHT, "GIT_CAPTURE_HEAD_DEPTH")
-    raise AssertionError("unreachable")
+            fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_ENCODING")
+        reference = validate_captured_refname(reference, "GIT_PACKED_REFS_PRIMARY")
+        if reference in primary:
+            fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_DUPLICATE")
+        if len(primary) >= MAX_CAPTURED_REF_ENTRIES:
+            fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_LIMIT")
+        oid_kind, oid = parse_captured_ref_value(
+            oid_raw + b"\n", "GIT_PACKED_REFS_PRIMARY"
+        )
+        if oid_kind != "oid":
+            fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_VALUE")
+        if sorted_declared and previous_primary_ref is not None and reference <= previous_primary_ref:
+            fail(Exit.PREFLIGHT, "GIT_PACKED_REFS_ORDER")
+        primary[reference] = oid
+        previous_primary_ref = reference
+        peel_allowed = True
+    return primary, tuple(peeled_oids)
+
+
+def is_per_worktree_ref(reference: str) -> bool:
+    suffix = reference[len("refs/") :] if reference.startswith("refs/") else ""
+    return any(suffix.startswith(namespace) for namespace in WORKTREE_REF_NAMESPACES)
+
+
+def parse_captured_refs(capture: Mapping[str, Any]) -> CapturedRefs:
+    """Parse frozen common, worktree and packed refs without object reads."""
+
+    raw_files = capture.get("raw_files")
+    identity = capture.get("identity")
+    git_dir = capture.get("git_dir")
+    common_dir = capture.get("common_dir")
+    if (
+        not isinstance(raw_files, dict)
+        or not isinstance(identity, dict)
+        or not isinstance(git_dir, str)
+        or not isinstance(common_dir, str)
+    ):
+        fail(Exit.INTERNAL, "GIT_CAPTURE_SCHEMA")
+    linked_worktree = git_dir != common_dir
+
+    all_direct_oids: List[str] = []
+
+    def loose_source(
+        tree_key: str,
+        raw_key: str,
+        label: str,
+        worktree_source: bool,
+    ) -> Tuple[Dict[str, bytes], Dict[str, Tuple[str, str]]]:
+        tree = identity.get(tree_key)
+        frozen = capture.get(raw_key)
+        if not isinstance(tree, dict) or not isinstance(frozen, dict):
+            fail(Exit.INTERNAL, "GIT_CAPTURE_REFS")
+        tree_files = tree.get("files", [])
+        if not isinstance(tree_files, list):
+            fail(Exit.INTERNAL, "GIT_CAPTURE_REF_FILES")
+        expected_relatives = set()
+        raw_values: Dict[str, bytes] = {}
+        parsed_values: Dict[str, Tuple[str, str]] = {}
+        for entry in tree_files:
+            if not isinstance(entry, dict):
+                fail(Exit.INTERNAL, "GIT_CAPTURE_REF_ENTRY")
+            relative = entry.get("relative")
+            if not isinstance(relative, str):
+                fail(Exit.INTERNAL, "GIT_CAPTURE_REF_PATH")
+            if relative in expected_relatives:
+                fail(Exit.INTERNAL, "GIT_CAPTURE_REF_PATH_DUPLICATE")
+            expected_relatives.add(relative)
+            raw = frozen.get(relative)
+            if not isinstance(raw, bytes):
+                fail(Exit.INTERNAL, "GIT_CAPTURE_REF_RAW")
+            reference = validate_captured_refname("refs/" + relative, label)
+            if worktree_source and (not linked_worktree or not is_per_worktree_ref(reference)):
+                fail(Exit.PREFLIGHT, "GIT_WORKTREE_REF_NAMESPACE")
+            if linked_worktree and not worktree_source and is_per_worktree_ref(reference):
+                # Git hides common loose values in these namespaces before it
+                # interprets their contents for a linked worktree.
+                continue
+            value = parse_captured_ref_value(raw, label)
+            raw_values[reference] = raw
+            parsed_values[reference] = value
+            if value[0] == "oid":
+                all_direct_oids.append(value[1])
+        if set(frozen) != expected_relatives:
+            fail(Exit.INTERNAL, "GIT_CAPTURE_REF_RAW_SET")
+        return raw_values, parsed_values
+
+    common_raw, common_values = loose_source(
+        "common_refs", "common_ref_raw", "GIT_CAPTURE_COMMON_REF", False
+    )
+    worktree_raw, worktree_values = loose_source(
+        "worktree_refs", "worktree_ref_raw", "GIT_CAPTURE_WORKTREE_REF", True
+    )
+    packed, peeled_oids = parse_captured_packed_refs(raw_files.get("packed_refs"))
+    all_direct_oids.extend(packed.values())
+    all_direct_oids.extend(peeled_oids)
+
+    effective_raw: Dict[str, bytes] = {}
+    effective_values: Dict[str, Tuple[str, str]] = {}
+    for reference, oid in packed.items():
+        effective_raw[reference] = (oid + "\n").encode("ascii")
+        effective_values[reference] = ("oid", oid)
+    for reference, value in common_values.items():
+        if not linked_worktree or not is_per_worktree_ref(reference):
+            effective_raw[reference] = common_raw[reference]
+            effective_values[reference] = value
+    effective_raw.update(worktree_raw)
+    effective_values.update(worktree_values)
+    if len(effective_values) > MAX_CAPTURED_REF_ENTRIES:
+        fail(Exit.PREFLIGHT, "GIT_CAPTURE_EFFECTIVE_REF_LIMIT")
+
+    def resolve_value(kind: str, value: str, label: str) -> str:
+        seen = set()
+        for _depth in range(MAX_CAPTURED_REF_SYMREF_DEPTH + 1):
+            if kind == "oid":
+                return value
+            if value in seen:
+                fail(Exit.PREFLIGHT, label + "_CYCLE")
+            if len(seen) >= MAX_CAPTURED_REF_SYMREF_DEPTH:
+                fail(Exit.PREFLIGHT, label + "_DEPTH")
+            seen.add(value)
+            target = effective_values.get(value)
+            if target is None:
+                fail(Exit.PREFLIGHT, label + "_BROKEN")
+            kind, value = target
+        fail(Exit.INTERNAL, "GIT_CAPTURE_REF_RESOLUTION")
+        raise AssertionError("unreachable")
+
+    head_raw = raw_files.get("head")
+    if not isinstance(head_raw, bytes):
+        fail(Exit.INTERNAL, "GIT_CAPTURE_HEAD")
+    head_kind, head_target = parse_captured_ref_value(head_raw, "GIT_CAPTURE_HEAD")
+    if head_kind != "symbolic":
+        fail(Exit.PREFLIGHT, "GIT_CAPTURE_HEAD_SYMBOLIC")
+    head_ref = validate_head_ref(head_target)
+    head_oid = resolve_value(head_kind, head_target, "GIT_CAPTURE_HEAD_REF")
+    oid_width = len(head_oid)
+    if oid_width not in (40, 64):
+        fail(Exit.PREFLIGHT, "GIT_CAPTURE_HEAD_OID")
+    if any(len(oid) != oid_width for oid in all_direct_oids):
+        fail(Exit.PREFLIGHT, "GIT_CAPTURE_REF_OID_WIDTH")
+    expected = tuple(
+        (
+            resolve_value(kind, value, "GIT_CAPTURE_REF_RESOLUTION"),
+            reference,
+        )
+        for reference, (kind, value) in sorted(effective_values.items())
+    )
+    return CapturedRefs(
+        tuple(sorted(effective_raw.items())),
+        expected,
+        head_oid,
+        head_ref,
+        oid_width,
+    )
+
+
+def captured_ref_map(capture: Mapping[str, Any]) -> Dict[str, bytes]:
+    return dict(parse_captured_refs(capture).effective_raw)
+
+
+def captured_head_oid_and_ref(capture: Mapping[str, Any]) -> Tuple[str, str]:
+    refs = parse_captured_refs(capture)
+    return refs.head_oid, refs.head_ref
 
 
 def copy_captured_refs(capture: Mapping[str, Any], adapter_git_dir: str) -> None:
     refs = captured_ref_map(capture)
     for reference, raw in sorted(refs.items()):
-        components = validate_relative(reference, "GIT_ADAPTER_REF")
+        components = captured_ref_components(reference, "GIT_ADAPTER_REF")
         target = os.path.join(adapter_git_dir, *components)
         os.makedirs(os.path.dirname(target), mode=0o700, exist_ok=True)
         write_adapter_file(target, raw, "GIT_ADAPTER_REF")
@@ -2384,7 +2647,7 @@ def copy_captured_refs_at(capture: Mapping[str, Any], adapter_git_fd: int) -> No
 
     refs = captured_ref_map(capture)
     for reference, raw in sorted(refs.items()):
-        components = validate_relative(reference, "GIT_ADAPTER_REF")
+        components = captured_ref_components(reference, "GIT_ADAPTER_REF")
         try:
             current_fd = os.dup(adapter_git_fd)
         except OSError:
@@ -2903,7 +3166,8 @@ def _create_git_metadata_adapter_guarded(
     build_required_path_trie(required_current_blob_paths, ())
     build_required_path_trie((), required_parent_absent_paths)
     capture = capture_git_source(repo_root)
-    head_oid, _head_ref = captured_head_oid(capture)
+    captured_refs = parse_captured_refs(capture)
+    head_oid = captured_refs.head_oid
     object_format = "sha1" if len(head_oid) == 40 else "sha256"
     git_binary_before = git_source_metadata(no_symlink_path(git_binary, "GIT_BOOTSTRAP_BINARY"))
     adapter_root = tempfile.mkdtemp(prefix="gov01-git-adapter-", dir="/private/tmp")
@@ -2990,7 +3254,10 @@ def _create_git_metadata_adapter_guarded(
             raw_files["index"],
             "GIT_ADAPTER_INDEX",
         )
-        for role, name in (("packed_refs", "packed-refs"), ("shallow", "shallow")):
+        # Every effective packed ref is materialized as one strict loose ref.
+        # Omitting the raw common packed-refs file is required for linked
+        # worktrees because common per-worktree namespaces are hidden there.
+        for role, name in (("shallow", "shallow"),):
             raw = raw_files.get(role)
             if raw is not None:
                 write_adapter_file_at(
@@ -3050,6 +3317,7 @@ def _create_git_metadata_adapter_guarded(
             int(adapter_git_fd),
             str(capture["fingerprint"]),
             adapter_fingerprint,
+            captured_refs.expected,
             materialized["expected_object_types"],
             tuple(required_current_blob_paths),
             tuple(required_parent_absent_paths),
@@ -3880,7 +4148,7 @@ def bootstrap_git_object_read(
 
     if adapter_git_dir != "." or adapter_git_fd is None:
         fail(Exit.INTERNAL, "GIT_BOOTSTRAP_ADAPTER_BINDING")
-    head_oid, _head_ref = captured_head_oid(capture)
+    head_oid, _head_ref = captured_head_oid_and_ref(capture)
     oid_bytes = len(head_oid)
     if operation == "objects":
         if oid is not None or not object_oids or len(object_oids) > MAX_GIT_REACHABLE_OBJECTS:
@@ -4125,7 +4393,7 @@ def materialize_reachable_git_objects(
         fail(Exit.INTERNAL, "GIT_ADAPTER_PARENT_SCOPE")
     if parent_depth == 1 and len(required_parent_absent_paths) != 1:
         fail(Exit.INTERNAL, "GIT_ADAPTER_PARENT_TRANSITION_SCOPE")
-    head_oid, _head_ref = captured_head_oid(capture)
+    head_oid, _head_ref = captured_head_oid_and_ref(capture)
     oid_bytes = len(head_oid)
     head_raw = parse_bootstrap_object_batch(
         bootstrap_git_object_read(
@@ -4285,6 +4553,131 @@ def materialize_reachable_git_objects(
     }
 
 
+GENERATION_GIT_READ_LABELS = frozenset(
+    (
+        "GIT_ADAPTER_OBJECT_ENUMERATION",
+        "GIT_ADAPTER_OBJECT_HASHES",
+        "GIT_ADAPTER_HEAD",
+        "GIT_ADAPTER_HEAD_TREE",
+        "GIT_HEAD",
+        "GIT_TREE",
+        "GIT_HEAD_REF",
+        "GIT_FOR_EACH_REF",
+        "GIT_ARTIFACT_TREE",
+        "GIT_ARTIFACT_BLOB",
+        "GIT_MICRO_CURRENT_BYTES",
+    )
+)
+
+
+def generation_git_child_prefix(git_binary: str, repo_root: str) -> List[str]:
+    return [
+        git_binary,
+        "--no-optional-locks",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.bare=false",
+        "-c", "core.excludesFile=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "submodule.recurse=false",
+        "-c", "protocol.allow=never",
+        "-c", "core.commitGraph=false",
+        "-c", "core.multiPackIndex=false",
+        "-c", "pack.useBitmap=false",
+        "-c", "pack.writeReverseIndex=false",
+        "--git-dir=.",
+        "--work-tree=" + repo_root,
+        "--no-pager",
+    ]
+
+
+def generation_git_child_argv(
+    git_binary: str,
+    repo_root: str,
+    arguments: Sequence[str],
+) -> List[str]:
+    return generation_git_child_prefix(git_binary, repo_root) + list(arguments)
+
+
+def require_generation_git_tail(label: str, arguments: Sequence[str]) -> Tuple[str, ...]:
+    """Allow exactly one production Git tail for each semantic label."""
+
+    tail = tuple(arguments)
+    if label not in GENERATION_GIT_READ_LABELS:
+        fail(Exit.PREFLIGHT, "GIT_READ_LABEL")
+    fixed: Dict[str, Tuple[str, ...]] = {
+        "GIT_ADAPTER_OBJECT_ENUMERATION": (
+            "cat-file",
+            "--batch-all-objects",
+            "--batch-check=%(objectname)",
+        ),
+        "GIT_ADAPTER_OBJECT_HASHES": ("cat-file", "--batch"),
+        "GIT_ADAPTER_HEAD": ("rev-parse", "--verify", "HEAD"),
+        "GIT_ADAPTER_HEAD_TREE": ("rev-parse", "--verify", "HEAD^{tree}"),
+        "GIT_HEAD": ("rev-parse", "--verify", "HEAD"),
+        "GIT_TREE": ("rev-parse", "--verify", "HEAD^{tree}"),
+        "GIT_HEAD_REF": ("symbolic-ref", "-q", "HEAD"),
+        "GIT_FOR_EACH_REF": (
+            "for-each-ref",
+            "--sort=refname",
+            "--format=%(objectname) %(refname)",
+            "refs",
+        ),
+    }
+    expected = fixed.get(label)
+    artifact_paths = {path for _role, path in ARTIFACT_SPECS}
+    if label == "GIT_ARTIFACT_TREE" and len(tail) == 6:
+        expected = (
+            tail
+            if tail[:5] == ("ls-tree", "-z", "--full-tree", "HEAD", "--")
+            and tail[5] in artifact_paths
+            else None
+        )
+    elif label == "GIT_ARTIFACT_BLOB" and len(tail) == 2:
+        expected = (
+            tail
+            if tail[0] == "show"
+            and tail[1].startswith("HEAD:")
+            and tail[1][5:] in artifact_paths
+            else None
+        )
+    elif label == "GIT_MICRO_CURRENT_BYTES" and len(tail) == 2 and tail[0] == "show":
+        relative = tail[1][5:] if tail[1].startswith("HEAD:") else ""
+        prefix = CONTROL_PREFIX + MICRO_BASENAME_PREFIX
+        challenge = relative[len(prefix) : -5] if relative.startswith(prefix) and relative.endswith(".json") else ""
+        expected = tail if GENERATION_CHALLENGE_RE.fullmatch(challenge) is not None else None
+    if expected is None or tail != expected:
+        fail(Exit.PREFLIGHT, "GIT_READ_ARGV_TAIL")
+    return tail
+
+
+def require_generation_git_child_argv(
+    argv: Sequence[str],
+    git_binary: str,
+    repo_root: str,
+    arguments: Sequence[str],
+    label: str,
+    boundary: GitReadBoundary,
+    allowed_returncodes: Sequence[int],
+    stdin_bytes: Optional[bytes],
+) -> None:
+    tail = require_generation_git_tail(label, arguments)
+    expected = generation_git_child_prefix(git_binary, repo_root) + list(tail)
+    if list(argv) != expected:
+        fail(Exit.PREFLIGHT, "GIT_READ_ARGV_PREFIX")
+    if tuple(allowed_returncodes) != (0,):
+        fail(Exit.PREFLIGHT, "GIT_READ_RETURNCODES")
+    if label == "GIT_ADAPTER_OBJECT_HASHES":
+        expected_stdin = ("\n".join(boundary.expected_object_oids) + "\n").encode(
+            "ascii", "strict"
+        )
+        if stdin_bytes != expected_stdin:
+            fail(Exit.PREFLIGHT, "GIT_READ_STDIN")
+    elif stdin_bytes is not None:
+        fail(Exit.PREFLIGHT, "GIT_READ_STDIN")
+
+
 def run_git(
     git_binary: str,
     repo_root: str,
@@ -4300,21 +4693,19 @@ def run_git(
         boundary.adapter_git_fd,
         "GIT_EVIDENCE_ADAPTER",
     )
-    hardened = [
-        "-c", "core.fsmonitor=false",
-        "-c", "core.untrackedCache=false",
-        "-c", "core.hooksPath=/dev/null",
-        "-c", "core.bare=false",
-        "-c", "core.excludesFile=/dev/null",
-        "-c", "core.attributesFile=/dev/null",
-        "-c", "submodule.recurse=false",
-        "-c", "protocol.allow=never",
-    ]
+    argv = generation_git_child_argv(git_binary, repo_root, arguments)
+    require_generation_git_child_argv(
+        argv,
+        git_binary,
+        repo_root,
+        arguments,
+        label,
+        boundary,
+        allowed_returncodes,
+        stdin_bytes,
+    )
     result = run_process(
-        [git_binary, "--no-optional-locks"]
-        + hardened
-        + ["--git-dir=.", "--work-tree=" + repo_root, "--no-pager"]
-        + list(arguments),
+        argv,
         label,
         max_bytes=max_bytes,
         allowed_returncodes=allowed_returncodes,
@@ -4467,22 +4858,54 @@ def other_refs_observation(
     boundary: GitReadBoundary,
     head_ref: str,
 ) -> Tuple[str, int]:
-    raw = run_git(git_binary, repo_root, boundary, ["show-ref"], "GIT_SHOW_REF")
-    rows: List[bytes] = []
+    raw = run_git(
+        git_binary,
+        repo_root,
+        boundary,
+        [
+            "for-each-ref",
+            "--sort=refname",
+            "--format=%(objectname) %(refname)",
+            "refs",
+        ],
+        "GIT_FOR_EACH_REF",
+    )
+    if raw and not raw.endswith(b"\n"):
+        fail(Exit.PREFLIGHT, "GIT_FOR_EACH_REF_FORMAT")
+    observed: List[Tuple[str, str]] = []
+    canonical_rows: List[bytes] = []
+    seen = set()
     for row in raw.splitlines(keepends=True):
         if not row.endswith(b"\n") or row.count(b" ") != 1:
-            fail(Exit.PREFLIGHT, "GIT_SHOW_REF_FORMAT")
+            fail(Exit.PREFLIGHT, "GIT_FOR_EACH_REF_FORMAT")
         oid, reference = row[:-1].split(b" ", 1)
         try:
             reference_text = reference.decode("ascii", "strict")
             oid_text = oid.decode("ascii", "strict")
         except UnicodeDecodeError:
-            fail(Exit.PREFLIGHT, "GIT_SHOW_REF_ENCODING")
-        if GIT_OID_RE.fullmatch(oid_text) is None or not reference_text.startswith("refs/"):
-            fail(Exit.PREFLIGHT, "GIT_SHOW_REF_VALUE")
+            fail(Exit.PREFLIGHT, "GIT_FOR_EACH_REF_ENCODING")
+        validate_captured_refname(reference_text, "GIT_FOR_EACH_REF_REFNAME")
+        if (
+            len(oid_text) != len(boundary.head_oid)
+            or GIT_OID_RE.fullmatch(oid_text) is None
+            or set(oid_text) == {"0"}
+        ):
+            fail(Exit.PREFLIGHT, "GIT_FOR_EACH_REF_OID")
+        if reference_text in seen:
+            fail(Exit.PREFLIGHT, "GIT_FOR_EACH_REF_DUPLICATE")
+        if observed and reference_text <= observed[-1][1]:
+            fail(Exit.PREFLIGHT, "GIT_FOR_EACH_REF_ORDER")
+        seen.add(reference_text)
+        observed.append((oid_text, reference_text))
+        if len(observed) > MAX_CAPTURED_REF_ENTRIES:
+            fail(Exit.PREFLIGHT, "GIT_FOR_EACH_REF_LIMIT")
         if reference_text != head_ref:
-            rows.append(row)
-    body = b"".join(sorted(rows))
+            canonical_rows.append(
+                (oid_text + " " + reference_text + "\n").encode("ascii", "strict")
+            )
+    if tuple(observed) != boundary.expected_refs:
+        fail(Exit.PREFLIGHT, "GIT_FOR_EACH_REF_IDENTITY")
+    body = b"".join(canonical_rows)
     return sha256(body), len(body)
 
 
